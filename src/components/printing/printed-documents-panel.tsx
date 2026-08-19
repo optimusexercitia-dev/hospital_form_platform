@@ -8,6 +8,9 @@ import {
   MintDocumentButton,
   type MintDocumentAction,
 } from "@/components/printing/mint-document-button";
+import { PreviaLink } from "@/components/printing/previa-link";
+import { PrintedDocumentCurrencyChip } from "@/components/printing/printed-document-currency-chip";
+import { printCurrencyFrom } from "@/components/printing/currency";
 import {
   RevokeDocumentDialog,
   type RevokeDocumentAction,
@@ -15,6 +18,7 @@ import {
 import {
   formatDateTimePtBr,
   noPrintedDocumentsCopy,
+  printedDocumentsIntroCopy,
   printedDocumentsLoadErrorCopy,
   revokeReasonClassLabel,
 } from "@/components/printing/labels";
@@ -24,8 +28,15 @@ import type { PrintedDocumentSourceKind, WatermarkFlag } from "@/lib/pdf/types";
 interface PrintedDocumentsProps {
   sourceKind: PrintedDocumentSourceKind;
   sourceId: string;
-  /** Mark this source would stamp if minted right now (ADR 0104 D7). */
+  /** Mark this source would stamp if printed right now (ADR 0104 D7). */
   watermark: WatermarkFlag;
+  /**
+   * Whether printing this source yields a REGISTERED emission (ADR 0125 D1).
+   * DERIVED by the caller from `printSourceRegisters` — never a user choice, and
+   * never re-derived here: this panel renders whichever affordance the source
+   * state dictates, and the two are mutually exclusive by construction.
+   */
+  registers: boolean;
   /** What a mint would cover, in words — shown in the confirm dialog. */
   scopeLabel: string;
   /**
@@ -64,17 +75,26 @@ export function PrintedDocumentsSection(props: PrintedDocumentsProps) {
             Documentos emitidos
           </h2>
           <p className="text-sm text-muted-foreground">
-            Cada emissão gera um PDF permanente, verificável pelo QR code
-            impresso.
+            {printedDocumentsIntroCopy(props.registers)}
           </p>
         </div>
-        <MintDocumentButton
-          sourceKind={props.sourceKind}
-          sourceId={props.sourceId}
-          watermark={props.watermark}
-          scopeLabel={props.scopeLabel}
-          action={props.mintAction}
-        />
+        {/* ADR 0125 D1 — ONE print action, DERIVED from source state. A locked
+            source yields a registered emission; a still-editable one yields an
+            ephemeral prévia, and the user never chooses which. The rejected
+            alternative was both buttons side by side, which would have made
+            "is this a record?" a user decision — ADR 0104 D7's "no free text,
+            no user-composed stamps" defeated by another route. */}
+        {props.registers ? (
+          <MintDocumentButton
+            sourceKind={props.sourceKind}
+            sourceId={props.sourceId}
+            watermark={props.watermark}
+            scopeLabel={props.scopeLabel}
+            action={props.mintAction}
+          />
+        ) : (
+          <PreviaLink sourceKind={props.sourceKind} sourceId={props.sourceId} />
+        )}
       </header>
 
       <Suspense fallback={<PrintedDocumentsSkeleton />}>
@@ -148,6 +168,16 @@ async function PrintedDocumentsList({
           <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <PrintedDocumentStatusChip status={doc.status} />
+              {/* ADR 0126 D2/D3 — CURRENCY is a SEPARATE fact from registry
+                  status, so it gets its own chip rather than being folded into
+                  the one above. `active` + NOT current is a new legal
+                  combination, and a merged chip would have to hide one of the
+                  two facts in exactly the row that needs attention. Renders
+                  nothing when the print is current (the ordinary case) or
+                  revoked (currency deliberately not evaluated). */}
+              <PrintedDocumentCurrencyChip
+                currency={printCurrencyFrom(doc.status, doc.isCurrent)}
+              />
               <span className="text-sm text-foreground">
                 Emitido em {formatDateTimePtBr(doc.mintedAt)}
               </span>

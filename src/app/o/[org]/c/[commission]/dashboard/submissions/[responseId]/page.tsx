@@ -13,6 +13,11 @@ import { CorrectSubmissionButton } from "@/components/dashboard/correct-submissi
 import { PrintedDocumentsSection } from "@/components/printing/printed-documents-panel";
 import { supersedeResponseAction } from "@/lib/responses/actions";
 import { featureEnabled } from "@/lib/queries/feature-flags";
+import { getResponsePrintContext } from "@/lib/queries/printed-documents";
+import {
+  printSourceRegisters,
+  printSourceWatermark,
+} from "@/lib/pdf/documents/print-source";
 import {
   mintPrintedDocument,
   revokePrintedDocument,
@@ -59,6 +64,24 @@ export default async function SubmissionDetailPage({
   const imageUrls = await resolveTreeImageUrls(detail.tree);
   const member = detail.memberName ?? "Membro removido";
   const isSubmitted = detail.status === "submitted";
+
+  // ADR 0125 D1 + Amendment 2 · ADR 0126 D5/D10 — BOTH print axes derive from
+  // the same source state, read once here and passed to the panel as one object
+  // so the two arguments cannot drift apart.
+  //
+  // ⛔ Fails CLOSED: a null context (RLS withheld, or the row vanished between
+  // reads) yields `correctionOpen: true`, which makes the source non-registering
+  // and offers a PRÉVIA. That is the safe direction on both counts — paper is
+  // still available (D2's protected interest), and nothing enters the registry
+  // on state we could not confirm.
+  const printContext = printingEnabled
+    ? await getResponsePrintContext(responseId)
+    : null;
+  const printState = {
+    status: detail.status,
+    correctionOpen: printContext?.correctionOpen ?? true,
+    phaseVoided: printContext?.phaseVoided ?? true,
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
@@ -132,7 +155,8 @@ export default async function SubmissionDetailPage({
         <PrintedDocumentsSection
           sourceKind="form_response"
           sourceId={detail.responseId}
-          watermark={isSubmitted ? "final" : "draft"}
+          registers={printSourceRegisters("form_response", printState)}
+          watermark={printSourceWatermark("form_response", printState)}
           scopeLabel={`${detail.formTitle} · versão ${detail.versionNumber}`}
           canRevoke={access.role === "staff_admin"}
           mintAction={mintPrintedDocument}

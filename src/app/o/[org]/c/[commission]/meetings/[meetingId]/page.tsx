@@ -39,7 +39,10 @@ import { ReservedSessionsPanel } from "@/components/meetings/reserved-sessions-p
 import { isEditableStatus } from "@/components/meetings/meeting-labels";
 import { formatMeetingNumber } from "@/components/meetings/format";
 import { PrintedDocumentsSection } from "@/components/printing/printed-documents-panel";
-import { meetingWatermarkFor } from "@/lib/pdf/documents/meeting";
+import {
+  printSourceRegisters,
+  printSourceWatermark,
+} from "@/lib/pdf/documents/print-source";
 import {
   mintPrintedDocument,
   revokePrintedDocument,
@@ -188,6 +191,19 @@ export default async function MeetingDetailPage({
     ? members.length
     : (meeting.eligibleMemberCount ?? 0);
 
+  // ADR 0125 D1 — ONE source-state object feeds BOTH print axes.
+  //
+  // ⚠ Written twice, these drift by construction: the two derivations are pure
+  // functions of the same state, so sharing the FUNCTION is not enough — the
+  // ARGUMENT LISTS must be the same object, or one edit updates a single axis and
+  // the dialog starts promising a mark the renderer will not stamp. Must stay
+  // identical to what `src/lib/meetings/pdf-payload.ts` passes (same
+  // `getMeetingDetail` fields).
+  const meetingPrintState = {
+    status: meeting.status,
+    meetingDisposed: meeting.phiDisposed,
+  };
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-7">
       <MeetingHeader
@@ -271,12 +287,19 @@ export default async function MeetingDetailPage({
           unchanged — a new kind is a provider + a template + an RLS arm, and
           wiring this screen needed no edit to any of them.
 
-          Watermark comes from `meetingWatermarkFor` — the SAME pure helper the
+          Watermark comes from `printSourceWatermark` — the SAME kind-dispatch the
           payload provider calls, not a second copy of the rule. The dialog
           promises a mark before the document exists, so if its derivation could
           drift from the renderer's it would eventually lie about what goes on
-          paper; sharing the function makes that drift impossible rather than
-          merely unlikely.
+          paper.
+
+          ⚠ This used to call `meetingWatermarkFor` (status-only) directly, and
+          the claim "sharing the function makes that drift impossible" quietly
+          stopped being true when ADR 0126's disposal amendment gave the
+          derivation STATE beyond status: two callers of one pure function drift
+          the moment they pass different arguments. Sharing the function is
+          necessary, not sufficient — the ARGUMENT LISTS must match too, which is
+          why the flags below are spelled out rather than defaulted.
 
           `canRevoke` reuses this page's existing coordinator signal; no new
           permission check. And note what is deliberately ABSENT: meeting
@@ -288,7 +311,8 @@ export default async function MeetingDetailPage({
         <PrintedDocumentsSection
           sourceKind="meeting"
           sourceId={meeting.id}
-          watermark={meetingWatermarkFor(meeting.status)}
+          registers={printSourceRegisters("meeting", meetingPrintState)}
+          watermark={printSourceWatermark("meeting", meetingPrintState)}
           scopeLabel={`${formatMeetingNumber(meeting.meetingNumber)} · ${meeting.title}`}
           canRevoke={isCoordinator}
           mintAction={mintPrintedDocument}

@@ -1,5 +1,6 @@
-import { meetingWatermarkFor } from '@/lib/pdf/documents/meeting'
+import { printSourceWatermark } from '@/lib/pdf/documents/print-source'
 import { formatDate } from '@/lib/pdf/format'
+import { documentProvenance } from '@/lib/pdf/provenance'
 import type {
   DocumentPayload,
   MeetingAgendaEntry,
@@ -23,7 +24,7 @@ import {
   type MeetingStatus,
 } from '@/lib/queries/meetings'
 import { getMeetingPrintContext } from '@/lib/queries/printed-documents'
-import type { MintRenderContext } from '@/lib/forms/pdf-payload'
+import type { MintRenderContext } from '@/lib/pdf/provenance'
 
 /**
  * The meeting (ata) DATA PROVIDER (PDF·P2; ADR 0104 D15 step 2; plan §3).
@@ -178,12 +179,35 @@ export async function buildMeetingPayload(
       logoDataUri: null,
       commissionName: context.commissionName,
     },
-    // QA MINOR-5: the ONE shared derivation (the dialog previews the same).
-    watermarks: [meetingWatermarkFor(detail.status)],
+    // QA MINOR-5, RESTATED — the ONE shared derivation. ⚠ The former wording
+    // ("the dialog previews the same") was an assertion that went FALSE the
+    // moment this site moved to the kind-dispatch: the meeting detail page still
+    // called `meetingWatermarkFor` directly. Both now route through
+    // `printSourceWatermark`, so the claim is true again — and it is a claim that
+    // must be re-checked whenever either side moves, not a decoration.
+    //
+    // ⚠ `printSourceWatermark`'s meeting arm composes ON TOP of
+    // `meetingWatermarkFor`, which ADR 0125 leaves byte-identical — an
+    // `in_signature` ata registers stamped RASCUNHO on purpose.
+    provenance: documentProvenance(
+      ctx,
+      printSourceWatermark('meeting', {
+        status: detail.status,
+        // ADR 0126 disposal amendment — `dispose_meeting_minutes` empties the
+        // content while leaving `status` and `revision` untouched, so neither the
+        // status term nor D9's revision match can see it. A disposed ata
+        // therefore stamps RASCUNHO and stops registering.
+        meetingDisposed: detail.phiDisposed,
+      }),
+    ),
     signatures,
-    qr: ctx.qr,
-    emission: ctx.emission,
     containsPhi,
+    // ADR 0126 D9 — the revision OBSERVED here, at build time, before the
+    // out-of-band render. `mint_printed_document` compares it against the
+    // source's current value and raises HC0DU if `reopen_meeting` fired
+    // mid-corridor. ⛔ Must never be re-read closer to the mint call: the door
+    // would then compare its own current value against itself.
+    sourceRevision: detail.revision,
     body: {
       kind: 'meeting',
       meetingNumber: detail.meetingNumber,

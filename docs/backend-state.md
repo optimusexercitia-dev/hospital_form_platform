@@ -3567,6 +3567,91 @@ credential HASH only).
   source visibility under the caller's own RLS; step 2 reads two display names). If a member
   arm ever lands on `hospitals`, that helper can collapse to one query.
 
+## PDF·P2 — Prévia (ephemeral) vs Emission (registered), print SERIES, derived CURRENCY (2026-08-19; ADR 0125 + 0126 incl. 0125 Am. 1/2 and 0126 Am. 1; migrations `20260928001000`–`...001500`; flag `document_printing`)
+
+**Registration is DERIVED, never chosen (0125 D1), and it is DB-ENFORCED.** A **locked** source
+yields a registered emission; anything still editable yields an **ephemeral prévia** — streamed,
+**no bytes at rest, no registry row**, its own audit row. There is ONE print action; the UI derives
+the affordance and **the door refuses independently** (Rule 1 — never rely on UI hiding).
+
+**Four per-kind concepts, declared SEPARATELY even where they coincide** (0126 D7 + round 2):
+`app.print_source_registers` (lock) · `app.print_source_watermark` · `app.print_source_series` ·
+`app.print_source_head` (+ `app.print_source_revision`). Each is its own dispatch with a per-kind
+CASE and a **fail-closed ELSE** — deliberately NOT new branches inside `mint_printed_document`,
+whose body forbids a fourth kind-conditional site. `app.resolve_print_source_state` is the shared
+resolver; `public.print_source_state` is the one gated read the UI calls.
+
+- **`form_response` registers ⇔** `status='submitted'` **AND NOT** the draft of an open,
+  still-rejectable correction (`case_correction_requests.status in ('resubmitted','under_review')`)
+  **AND NOT** attached to a `voided` phase. The **watermark moves in TANDEM** (0125 Am. 2), so
+  D5's fourth cell (FINAL + prévia footer) stays unreachable.
+- **`meeting` registers ⇔** `status in ('in_signature','signed','distributed')` **AND**
+  `phi_disposed_at is null`. ⛔ `cancelled` is locked but **excluded by decision**.
+  ⚠ `meetingWatermarkFor` is **UNCHANGED** — an `in_signature` ata registers **stamped RASCUNHO**.
+
+**A print belongs to a SERIES, not a row (0126 D1).** `printed_documents` gains
+`source_series_id` + `source_revision` (both computed at mint, frozen); the one-active partial
+unique index re-keys `(source_kind, source_series_id, template_key) where status='active'`, and
+the mint's `SUPERSEDE_ACTIVE` update moved to the series column. Closes a live defect: after one
+correction, R1 and R2 could **both** hold an `active` print. `responses.supersedes_id` is now
+**IMMUTABLE** (`app.guard_supersedes_id_frozen`, `HC0DT`); `guard_supersession_coherent_trg`
+narrowed to `BEFORE INSERT`. ⚠ `225`'s escalation pin keeps **three INSERT-path homes**
+(`14a`/`14b`/`14d`) — `14c` converted to the immutability pin, NOT a code swap.
+
+**CURRENCY is a third derived axis (0126 D2/D3): `registers AND head`, computed at READ TIME and
+NEVER STAMPED.** `printed_documents.status` keeps its meaning — deliberate acts only — so
+`status='active' AND NOT current` is a new legal combination. ⛔ No trigger writes it; only the
+mint and revoke write the table. `lookup_printed_document` gains `is_current`;
+`public.printed_document_currency(uuid[])` is the batch read. **`null` = NOT EVALUATED**, arising
+only for `revoked`, which keeps the **no-join independence** `312` t76 pins.
+`meetings.revision` is bumped **only** by `reopen_meeting`; meeting head = revision match.
+`form_response` head = **no successor that has TAKEN EFFECT**, per lane — phase-bound: its
+correction request is `approved`; standalone: the successor is `submitted` (0126 Am. 1 §A,
+reusing `app.submitted_form_responses`' own rule).
+
+**New doors + guards (12 new `prosecdef` gates, all with explicit `proacl`, none NULL):**
+`public.log_document_previa` (`HC0DV` refuses a **locked** source; the route logs BEFORE it
+streams, so a refusal means no bytes leave) · `app.guard_meeting_active_print` (BEFORE DELETE on
+`meetings`, the symmetric of `guard_response_active_print`) · the four dispatches + resolver +
+`print_source_state` + `printed_document_currency` + `printed_document_is_current` +
+`guard_supersedes_id_frozen`.
+
+**New SQLSTATEs:** `HC0DP` (source does not register — the mint refuses) · `HC0DU`
+(compare-and-mint: observed revision ≠ current) · `HC0DV` (locked source refused a prévia) ·
+`HC0DT` (`supersedes_id` frozen).
+
+⚠ **Compare-and-mint is a TOCTOU guard and the caller must cooperate.** `mint_printed_document`
+gained `p_source_revision`; the value must be the **render-time observed** revision, carried on
+`DocumentPayload.sourceRevision` across the render window exactly as `containsPhi` is. A fresh
+read at submit hands the door its own current value and makes the check **vacuous while looking
+correct**. `src/lib/pdf-mint/actions.ts` imports **no** source-detail query, so a fresher value is
+structurally unreachable.
+
+**Route:** `src/app/api/previa/[kind]/[id]/route.ts` — `resolve → render → LOG → stream`. No
+`.upload()`, no mint RPC, **no temporary storage object at any point** (0125 D4 rejects that
+variant by name). Shares `mintSemaphore` at 3 permits with a materially shorter acquire, so the
+prévia is the one that yields (D9).
+
+**Shared SQL↔TS contract:** `src/lib/queries/__fixtures__/print-source-registers-vectors.json`
+(20 vectors, 3 kind-scoped flags) compiles via `scripts/gen-print-source-vectors.mjs` to
+`supabase/tests/vectors/print_source_registers_vectors.psql`. ⚠ The **`.psql` extension is
+load-bearing** — `pg_prove` globs `*.sql` and would collect it as a planless test and fail the
+run; `\ir` takes an explicit path. `*.psql text eol=lf` added to `.gitattributes`.
+
+**Keystones:** `344` (both predicates over all 20 vectors + kind-scoping) · `345` (the prévia
+audit door, two-sided) · `346` (currency two-sided **per conjunct**, `guard_meeting_active_print`
+with the t76/t80 differential, the locked-source refusal, and the `form_response` head arm
+two-sided **per lane**) · `312` §9/§10 rebuilt **table-level** (the mint can no longer construct
+that state) with the differentials preserved · `313` t55–t58r over a **real stored**
+`source_revision`.
+
+⚠ **Two doors are UNSUPPORTED by the authz harness, both with drilled keystones** — see
+`supabase/tests/mutation/authz-unswept-backlog.txt`: `printed_document_currency` (its gate is a
+WHERE-clause **conjunct**, which is correct for per-row filtering and outside the mechanism) and
+`open_printed_document` (**two independent gates**; the kernel's `can_read_document` refuses by
+RAISING, which aborts the transaction mid-file so the run shape stops matching baseline — the
+suites notice **emphatically**, 312 fails 64/90).
+
 ## Migrations (forward-only, additive)
 
 > **This table is a HISTORICAL index and stops at E1 (`20260720001070`).** From DOC-REDESIGN /

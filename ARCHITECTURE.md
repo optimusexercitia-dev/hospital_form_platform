@@ -265,7 +265,13 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    `public.supersede_response` DEFINER RPC; flag `response_correction` **ON**. The coupled
    aggregation retrofit **was done with it**: `app.submitted_form_responses` — the single
    choke-point the dashboard RPCs and derived-indicator paths fan out from — excludes any row
-   with a **submitted** successor, so a merely `in_progress` correction never blanks a metric;
+   with a **submitted** successor, so a merely `in_progress` correction never blanks a metric.
+   ⚠ It is a **`SETOF responses` FUNCTION, not a view** — a `pg_class` probe answers *"relation
+   does not exist"*, which reads as a confident negative; probe `pg_proc`. And its own predicate
+   is **standalone-scoped** (`and r.case_phase_id is null`), which is part of the rule, not an
+   implementation detail: a mirror that copies the successor-exclusion without the lane conjunct
+   is right on standalone rows and wrong on phase-bound ones. Live instance:
+   `FUP-SUPERSESSION-BADGE-LANE-BLIND`.
    `commission_overview`'s inline sub-selects carry the same predicate, and `isDashboardCountable`
    is the TS twin. **Any new aggregation path must reuse that choke-point, not re-derive
    `status = 'submitted'`,** or corrected metrics double-count.

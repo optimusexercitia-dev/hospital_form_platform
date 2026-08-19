@@ -21,8 +21,12 @@ class Semaphore {
     this.available = permits
   }
 
-  async run<T>(fn: () => Promise<T>, timeoutMs = ACQUIRE_TIMEOUT_MS): Promise<T> {
-    await this.acquire(timeoutMs)
+  async run<T>(
+    fn: () => Promise<T>,
+    timeoutMs = ACQUIRE_TIMEOUT_MS,
+    busyMessage = MINT_BUSY_MESSAGE,
+  ): Promise<T> {
+    await this.acquire(timeoutMs, busyMessage)
     try {
       return await fn()
     } finally {
@@ -30,7 +34,7 @@ class Semaphore {
     }
   }
 
-  private acquire(timeoutMs: number): Promise<void> {
+  private acquire(timeoutMs: number, busyMessage: string): Promise<void> {
     if (this.available > 0) {
       this.available -= 1
       return Promise.resolve()
@@ -39,7 +43,7 @@ class Semaphore {
       const waiter = (acquired: boolean) => {
         clearTimeout(timer)
         if (acquired) resolve()
-        else reject(new Error(MINT_BUSY_MESSAGE))
+        else reject(new Error(busyMessage))
       }
       const timer = setTimeout(() => {
         const idx = this.waiters.indexOf(waiter)
@@ -62,7 +66,7 @@ export const mintSemaphore = new Semaphore(MINT_CONCURRENCY)
 
 /** Test hook: a fresh, independently sized semaphore. */
 export function __createSemaphoreForTests(permits: number): {
-  run<T>(fn: () => Promise<T>, timeoutMs?: number): Promise<T>
+  run<T>(fn: () => Promise<T>, timeoutMs?: number, busyMessage?: string): Promise<T>
 } {
   return new Semaphore(permits)
 }

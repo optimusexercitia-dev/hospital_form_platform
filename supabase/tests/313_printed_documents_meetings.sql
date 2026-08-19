@@ -18,7 +18,7 @@
 -- =============================================================================
 
 begin;
-select plan(54);
+select plan(59);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -117,6 +117,30 @@ insert into public.case_participant_roles (id, organization_id, key, display_nam
 select mc.role_r, k.org_b, 'respondent_doctor', 'Médico respondente', array['professional'] from mc, k;
 insert into public.case_participants (id, case_id, participant_id, role_id)
 select mc.cp_r, cs.case_a, mc.part_r, mc.role_r from mc, cs;
+
+-- ⭐⭐ ADR 0125 D1 — ADVANCE EVERY MEETING FIXTURE TO `in_signature`.
+-- Every meeting above was created at the `scheduled` column DEFAULT, which is no
+-- longer a lock point: it does not register, so each mint below would raise
+-- HC0DP and ~23 downstream assertions would go with it. `in_signature` is the
+-- state these tests actually mean — D1's SEPARATING case, which REGISTERS while
+-- still stamped RASCUNHO.
+--
+-- ⚠ WALKED, NOT SET: `app.guard_meeting_status` admits no jumps
+-- (`scheduled -> held -> in_signature`), so a fixture that assigned the status
+-- directly would be building a state the product cannot reach.
+--
+-- ⛔ AND IT MUST HAPPEN **HERE**, AFTER EVERY CHILD ROW. `app.guard_meeting_child_lock`
+-- refuses INSERT/UPDATE/DELETE on `meeting_agenda_items`, `meeting_attendees`,
+-- `meeting_cases` and `meeting_closed_sessions` once the parent is
+-- `in_signature`, and — measured — it reads NO rpc flag, so it refuses even
+-- inside `app.in_meeting_rpc`. Advancing earlier makes the attendee/agenda
+-- fixtures above fail with `check_violation`.
+select set_config('app.in_meeting_rpc', 'on', true);
+update public.meetings set status = 'held'
+  where id in ((select meet_def from m), (select meet_res from m), (select meet_case from mc));
+update public.meetings set status = 'in_signature'
+  where id in ((select meet_def from m), (select meet_res from m), (select meet_case from mc));
+select set_config('app.in_meeting_rpc', 'off', true);
 -- FORCED FIXTURE CHANGE (DM5·S3, migrations 20260927000310/000340): the
 -- coordinate moved and `metadata` became load-bearing. ⭐ Note the phi/std split
 -- is now carried by the BUCKET, CHECK-pinned by `file_objects_bucket_from_tier`,
@@ -455,6 +479,80 @@ select ok(
   (select status = 'revoked' and revoked_by = (select oa_b from k)
      from public.printed_documents where id = (select doc_m1 from d)),
   't54 MINOR-2 pin: the revocation is recorded to the admin actor');
+
+-- ── 12. ADR 0126 D9 — HEAD is the REVISION MATCH, over a REAL stored revision ──
+-- ⭐⭐ THIS DISCHARGES THE OBLIGATION `344` CARRIES IN WRITING. There, the meeting
+-- head arm is exercised with a HAND-CONSTRUCTED mismatch (`print_source_head(...,
+-- 0)` vs `(..., 1)`) because at that point NO print stored a revision — the column
+-- did not exist. A keystone written against a synthetic input and never
+-- re-verified against the real one is how a green arm ends up pinning nothing,
+-- and this is the arm closing D9's reopen -> edit -> re-sign corridor, which is
+-- the corridor ADR 0126 exists for.
+--
+-- Here the revision is REAL: stored by the mint, and advanced by the actual
+-- `reopen_meeting` door.
+select is(
+  (select source_revision from public.printed_documents where id = (select doc_m2 from d)),
+  0,
+  't55 the mint STORED the source revision it observed (0 — the meeting has never been reopened)');
+
+select is(
+  app.print_source_head('meeting', (select meet_def from m),
+    (select source_revision from public.printed_documents where id = (select doc_m2 from d))),
+  true,
+  't56r ⭐ BEFORE the reopen: the print IS head — its stored revision matches the meeting''s');
+
+-- ── COMPARE-AND-MINT (ADR 0126 Consequences — the corridor is a TOCTOU) ──────
+-- The render is out-of-band (HTML -> Gotenberg, seconds) and BOTH reversal doors
+-- can fire mid-corridor, so the caller passes the revision it OBSERVED at render
+-- time and the door compares it against the row inside its own transaction.
+-- Without this, a registered `content_hash` could pin bytes of a state that never
+-- coherently registered.
+--
+-- ⚠ This probe is on the MEETING arm deliberately. For `form_response` the
+-- revision is always 0, so the compare is a structural NO-OP there — what closes
+-- that kind's TOCTOU is re-evaluating `print_source_registers` inside the mint
+-- transaction (t43b in `312` pins the gate itself). Asserting the compare on a
+-- form_response would look like coverage and be none.
+create temp table rv on commit drop as
+  select '00000000-0000-0000-0000-00000000e404'::uuid as doc_rv;
+-- ⛔ GRANT + a LITERAL in the probe below. Without the grant, reading `rv` as
+-- `authenticated` raises 42501 — and this probe caught it ONLY because it expects
+-- HC0DU. A probe expecting 42501 would have passed on the fixture's own
+-- permission error with the door never reached (the trap recorded in 345).
+grant select on rv to authenticated;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc_rv),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from rv;
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$select public.mint_printed_document(
+      '00000000-0000-0000-0000-00000000e404'::uuid, 'meeting', (select meet_def from m),
+      'meeting', 1, repeat('ab', 32),
+      'REVMISMATCHTOKENAAAABBBBCCCCDDDDEE', 'TUVWXY2345', false, 1)$$,
+  'HC0DU', null,
+  't56b ⭐ COMPARE-AND-MINT: a render-time revision that no longer matches the source is REFUSED (HC0DU). The meeting is at revision 0; the caller claims it observed 1, so the source moved underneath the render and the hash would pin a state that never coherently registered');
+reset role;
+
+-- The real backwards door. Measured: it revokes signatures, returns the meeting
+-- to `held` (where minutes are editable), and — since ADR 0126 D9 — bumps the epoch.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.reopen_meeting((select meet_def from m));
+reset role;
+
+select is(
+  (select revision from public.meetings where id = (select meet_def from m)),
+  1,
+  't57r ⭐ reopen_meeting BUMPED the epoch — the platform''s one backwards door on meetings.status is its one writer');
+
+select is(
+  app.print_source_head('meeting', (select meet_def from m),
+    (select source_revision from public.printed_documents where id = (select doc_m2 from d))),
+  false,
+  't58r ⭐⭐ ADR 0126 D9 KEYSTONE, REAL CORRIDOR: after reopen -> (edit) -> the print is NOT head. Its content_hash pins minutes that no longer exist, and WITHOUT the epoch the registration predicate would be satisfied again and this stale page would read "atual". The status is identical on both sides of this assertion — only the revision differs, which is exactly why a set-membership test could never have caught it');
 
 select * from finish();
 rollback;

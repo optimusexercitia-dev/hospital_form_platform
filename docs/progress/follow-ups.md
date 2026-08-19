@@ -735,6 +735,72 @@ claim reads as honoured. Whichever is scheduled first, the other must be named i
 completion door is its owner". That assumption was false until the runbook existed, and it is only as
 true as the runbook is actually executed.
 
+### 🔴 FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE — `dispose_meeting_minutes` **cannot complete** on any locked meeting that has agenda items; its own "bypass the freeze guards" comment is FALSE (owner: backend + PO; **blocks Critical FUP C1a/C1b**, Rule 12 / LGPD Art. 18)
+
+Filed 2026-08-18 (lead) — found by `backend` during the ADR 0125/0126 build while sweeping the writers of
+the content the meeting template renders, and **independently re-measured from the live catalog by the lead
+before filing**. Not the prévia build's subject; filed so it is not carried inside a build that does not own it.
+
+**The mechanism, measured — a comment that asserts a bypass it does not perform.**
+`public.dispose_meeting_minutes` opens with:
+
+```
+perform set_config('app.in_meeting_rpc', 'on', true);  -- bypass the meeting freeze guards
+```
+
+That flag is real and other meeting guards honour it. **`app.guard_meeting_child_lock` does not** — its body
+contains **no reference to `app.in_meeting_rpc` at all** (verified against `pg_get_functiondef`, not the
+migration text). It raises unconditionally:
+
+```
+if v_status in ('in_signature', 'signed', 'distributed', 'cancelled') then
+  raise exception 'o conteúdo desta reunião está bloqueado (%)', v_status using errcode = 'check_violation';
+```
+
+It is installed on **four** child tables: `meeting_agenda_items`, `meeting_attendees`, `meeting_cases`,
+`meeting_closed_sessions`.
+
+**⇒ The disposal door raises partway through its own transaction.** It nulls `minutes_md` first (the parent
+table, which *does* honour the flag), then UPDATEs `meeting_agenda_items` to `[PHI removido]` — and **that**
+statement trips the child lock, rolling the whole call back.
+
+**Constructed, not argued — three probes:**
+
+| Probe | Fixture | Result |
+| ----- | ------- | ------ |
+| **A** | `signed` meeting **with 2 agenda items** | ⛔ **RAISES** `o conteúdo desta reunião está bloqueado (signed)` — disposal impossible |
+| **B** | `signed` meeting, **0 agenda items** | ✅ succeeds; `phi_disposed_at` stamped, status stays `signed` |
+| **C** | as B, `minutes_md` populated first | ✅ succeeds; `minutes_md` → null, `phi_disposed = true`, status still `signed` |
+
+**Why it is 🔴 and not a curiosity.** The meetings that carry agenda content are exactly the meetings that
+carry PHI worth disposing. So the erasure obligation **cannot be discharged on precisely the population it
+exists for**, while succeeding on the empty ones — which means a disposal run over a real tenant would report
+partial success and leave the PHI-bearing minutes intact. Rule 12 / ADR 0035's LGPD + ANVISA/RDC regime makes
+this an obligation, not a feature: **LGPD Art. 18** erasure, and the 20-yr retention regime's expiry path.
+
+⛔ **It blocks Critical FUP C1a/C1b directly.** The disposal runbook
+([`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md)) is the next PO-sequenced item, and a
+rehearsal that only ever exercises agenda-less meetings would go **green while proving nothing about the
+blocking case** — the [[a-detector-that-finds-nothing-must-be-proven-able-to-find-something]] shape, in the
+highest-severity item in the register. **The C1a rehearsal must include a locked meeting WITH agenda items as
+a named fixture**, or its green is not evidence.
+
+**Not yet decided — the fix is a real design question, not a one-liner.** Three shapes, none ruled:
+1. Teach `guard_meeting_child_lock` to honour `app.in_meeting_rpc`, like its siblings. ⚠ **A widening** — it
+   opens every child table to every meeting RPC, and the guard's refusal-inside-RPCs may be load-bearing
+   somewhere it was not measured. A widening cannot be wrong-and-safe.
+2. A narrower flag read only by the child lock and set only by the disposal door.
+3. Redact through a DEFINER path that does not transit the trigger.
+
+**⭐ The class, because the instance is the cheap part.** A **comment asserted a bypass that the guard it
+names does not implement**, and nothing could contradict it — the door's own suite passes on agenda-less
+fixtures, and the runbook was written from the comment. Same family as
+[[a-comment-is-an-assertion-that-goes-stale-silently]] and [[guards-that-read-right-but-fail-open]]: the text
+read correctly and the catalog disagreed. ⚠ Note **which** measurement found it — not a read of the disposal
+function (that is where the false comment lives) but a **property-bounded sweep of every writer of the
+rendered content**, run for an unrelated reason. A sweep bounded by "writers of `meetings`" would have found
+the door and believed its comment.
+
 ### 🔵 FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN — ⚠ **HALF RESOLVED 2026-08-17: the guard no longer fails open; the arm is still a no-op awaiting a NAMED successor** (owner: backend)
 
 > ## ✅ SUCCESSOR NAMED 2026-08-18 (DM-FUP TRIAGE #5) — **`app.resolve_document_version_bytes`**, and the arm moves into Critical FUP C2 Tier 1
@@ -1266,165 +1332,6 @@ prints in the local DB are that kind**, so this is the common case, not the exot
 document of record); or cascade the print's disposal when its source is deleted; or surface orphaned prints in
 an admin view. ⚠ Whichever is chosen, the **`securable_resources` dangling row** needs handling either way —
 a securable with no subject is a latent authorization question, since every kernel arm joins through it.
-
-### 🟠 FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION — a print of an `in_progress` draft is visible to its CREATOR ONLY, and the minter can lose the only way out (owner: PO decision, then backend + frontend)
-
-> ## ⚠ ANSWERED IN APPROACH 2026-08-18 — ADR [0125](../decisions/0125-previa-ephemeral-and-emission-registered.md). **NOT CLOSED.**
->
-> The PO ruled the ADR 0123 **D7** product split: registration is **derived from source state at
-> the lock point**, so a still-editable source yields an ephemeral unregistered prévia. Once no
-> `in_progress` response registers, the **`form_response`** arm below always fires for every
-> registered print — the predicate is correct **by construction**.
->
-> ⚠ **Stated precisely, because the arm below is kind-specific.** ADR 0125 D1 registers meetings
-> from `in_signature`, so it is **not** true that every registered print has a *final* source. It
-> does not matter here: **measured**, `can_view_printed_document`'s **`meeting`** arm is
-> `can_reach_meeting AND can_read_full_meeting_content` — **no `status` term at all** — so it never
-> carried this defect, and an `in_signature` ata is visible to every member who can reach the
-> meeting and read its full content.
->
-> ⇒ **Option 1 is NOT built** (no `list_printed_documents_for_governance` door — it would have been
-> a door with no subject), **option 2 is not needed** (no widening), **option 3 is not needed** (the
-> dead end disappears: drafts have no prints, so the discard always succeeds). Option 4 stays
-> refuted — 0125 keeps drafts **printable**, it changes only whether the paper enters the registry.
->
-> ⛔ **Closes only when the prévia ships** (`FUP-PREVIA-SPLIT-BUILD`). Until then the defect below
-> is live exactly as described, and the option list is retained as the record of what was
-> considered — not as work.
-
-Filed 2026-08-18 (lead) while closing `FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT` (ADR
-[0123](../decisions/0123-discarding-a-draft-that-has-emitted-documents.md) **D6**). **Measured from
-the live catalog and from every UI mount, not reasoned.** No deletion is involved — this is live
-today, with the source response perfectly alive.
-
-**The mechanism.** `app.can_view_printed_document`'s `form_response` arm grants its `staff_admin`
-term only when `v_resp.status = 'submitted'`:
-
-```
-return v_resp.created_by = p_uid
-    or (v_resp.status = 'submitted' and app.is_staff_admin_of_for(v_resp.commission_id, p_uid))
-    or app.can_read_correction_response(...) or app.can_access_targeted_response(...)
-```
-
-That same predicate **is** the whole of the `printed_documents_select` policy (verified: it is the
-table's only policy), and `listPrintedDocuments` is a plain table read under it. So for an
-`in_progress` draft, **`created_by = p_uid` is the only arm that can fire** — the print is invisible
-to every other coordinator, to `org_admin`, and to `platform_admin`.
-
-**Why it is not merely cosmetic.** `revoke_printed_document` authorizes on
-`is_staff_admin_of_for(v_row.commission_id, …) or is_tenancy_admin_of_for(…)` — it does **not**
-consult source visibility. So a coordinator **may** revoke a draft print; they simply have no way to
-**discover** its `id`. Authority without discovery is a door with no handle.
-
-**The reachable dead end.** The only UI mount that renders the print panel for an `in_progress`
-response is `…/dashboard/submissions/[responseId]`, gated `access.role === "staff_admin"`
-(`watermark={isSubmitted ? "final" : "draft"}`); the respondent's own `…/respostas/[responseId]`
-**redirects a draft back into the wizard**, and the wizard mounts no panel. So exactly one persona can
-mint a draft print through the product: **a `staff_admin` who is the creator** — who can also revoke,
-so they are fine. ⭐ **But if that person later loses `staff_admin`**, they keep the `created_by` mint
-arm and lose revoke, no other coordinator can see the print, and `HC069` now refuses their discard
-**with no in-product way out**. Same shape for a print minted by direct RPC call by a plain `staff`
-creator, whom the door permits and the UI merely does not offer.
-
-**Options** (PO picks; ⚠ the option list is an assertion too — re-derive before ruling, this item's
-predecessor was withdrawn for exactly that):
-
-1. ⭐ **A read-only governance registry door** — `list_printed_documents_for_governance(commission_id,
-   …)`, `SECURITY DEFINER`, authorized with the **same** coordinator predicate `revoke`/the kernel
-   write arm already use, returning zero-PHI metadata plus a derived `source_exists`. ⛔ **Must NOT**
-   widen `app.can_view_printed_document` (mint/open read it, and it means *current source
-   visibility*), and **must NOT** add a permissive `printed_documents` policy — permissive policies
-   `OR` together, so that would make source panels show documents whose sources the viewer cannot
-   read. ⚠ Needs a UI caller in the same slice or it is a [[correct-door-that-nothing-can-reach]];
-   and per ADR 0079 Am. 3/7 a brand-new gate passes `ARM=policy` **vacuously**, so `ARM=census` is the
-   arm that must see it — plus the explicit ACL (`20260928000700` shipped a DEFINER function with
-   default **PUBLIC EXECUTE**, caught only by the `320` U1 census with `312` fully green).
-2. **Widen the `staff_admin` arm to drafts.** One-line, but it widens *content* sight of unfinished
-   drafts as a side effect — the Phase-7 invariant deliberately hides a foreign member's `in_progress`
-   response, and this predicate is a **parity mirror** of the `responses` read policies, not an
-   improvement on them. A widening cannot be wrong-and-safe.
-3. **"Solicitar anulação"** — a creator-initiated request that notifies coordination with the
-   registry id. Solves the dead end without widening any read, but adds a workflow.
-4. **Never mint from a draft** — ⛔ **refuted**: reverses ADR 0104 **D7**, which is exactly how this
-   item's predecessor got withdrawn. `312` t6/t43 pin draft prints by name.
-
-⚠ Interacts with the product split deferred by ADR 0123 **D7** (`Imprimir prévia`, ephemeral and
-unregistered, vs `Emitir documento`): if previews stop entering the registry, options 1 and 3 shrink
-to the rare case. Rule D7 first, or knowingly build for both.
-
-### 🟠 FUP-PREVIA-SPLIT-BUILD — build ADR 0125: the ephemeral `Imprimir prévia` / registered `Emitir documento` split (owner: backend + frontend)
-
-Filed 2026-08-18 (lead) on the PO ruling of ADR
-[0125](../decisions/0125-previa-ephemeral-and-emission-registered.md), which discharges ADR 0123
-**D7** and amends ADR 0104 **D7** item 4. The nine decisions are in the ADR; this item carries the
-**build**, and specifically the two pieces that are easy to ship green while asserting nothing.
-
-**Scope, in dependency order.**
-
-1. **The render path** (D4) — HTML → Gotenberg → buffer → **response stream**. The `.upload()` and
-   the `mint_printed_document` RPC are simply not called. ⛔ **No temporary object at any point** —
-   a "temp upload, delete after" variant is rejected by name in the ADR.
-2. **The prévia footer primitive** (D5) — sibling to
-   [`qr-footer.ts`](../../src/lib/pdf/primitives/qr-footer.ts), which today renders the QR, the
-   `código` **and** `Emitido em … por …` as one block, so dropping the QR drops provenance with it.
-   ⛔ The verb **`Emitido` must not appear** on an unregistered page.
-3. **The action split** (D1) — ⚠ **TWO predicates, and only one of them already exists.** For
-   `form_response` the discriminator is `status = 'submitted'`, which is also the watermark's. For
-   `meeting` it is a **NEW** predicate, `status in ('in_signature','signed','distributed')`, which
-   is **neither** `meetingWatermarkFor` (that stays `signed|distributed` — **do not change it**;
-   an `in_signature` ata registers stamped RASCUNHO on purpose) **nor** the lock set
-   (`cancelled` is locked but excluded by decision). Write it as its own pure, client-importable
-   function **beside** `meetingWatermarkFor` — overloading the existing one silently couples the
-   two axes back together, which is the thing D1 separates. The dialog already previews the mark,
-   so the button label follows the same shape.
-4. **The audit row** (D3) — the prévia emits its own `app.audit_write`, actor + timestamp + source
-   + template, no payload. ⭐ **The only half that cannot be added retroactively.**
-5. **Contention** (D9) — same `mintSemaphore`, unchanged at 3 permits; the prévia acquires with a
-   materially shorter wait so it is the one that loses under load.
-
-**⛔ The two things that will pass green having asserted nothing.**
-
-- **`312` §9 goes VACUOUS** (t74/t76/t80 + the supersede block from line 764). Its fixture is *"mint
-  from a draft, then discard it"*, and that state becomes **unconstructible**: measured,
-  `guard_submitted_response` raises unconditionally on a submitted DELETE and the RLS policy is
-  `responses_delete_own_draft`, so only drafts are deletable. Rebuild the block to **construct** the
-  state at table level (insert `printed_documents` against a draft response directly, bypassing the
-  mint). ⚠ **The differentials must survive the rewrite** — t76/t80's *"the same delete now
-  SUCCEEDS"* is what stops the block being equally satisfied by a guard that blocks every draft
-  delete. Also rewrite **t6** (line 198) and **t43** (line 447), which pin registered draft mints by
-  name. → [[removing-a-subject-breaks-its-assertions-in-two-directions]]
-- **No authz ARM covers the prévia route** (D6). Its authorization is inherited RLS and it is real —
-  verified in the modules, not the comment: `queries/responses.ts` and `queries/meetings.ts` use
-  `createClient()` throughout, so a caller who cannot read the source cannot build the payload. But
-  an app-layer route with no `prosecdef` gate is in **no arm's domain** (the ADR 0079 Am. 7 shape),
-  so nothing goes red if a future edit swaps one of those queries to the admin client. Ships with a
-  **behavioural** keystone — a principal who cannot read the source is refused a prévia — not an arm.
-
-- **The fourth cell must be proven unreachable** (D5). The two axes give four combinations and
-  three are legal; **FINAL + prévia footer** must not exist — a page the platform disclaims whose
-  source is immutable. It is unreachable *by construction* under D1, which is exactly the shape
-  that rots silently: nothing fails if a later edit makes it reachable. Pin it, don't reason it.
-
-**Also in scope:** `pdf-printing-meetings.spec.ts` T2 (mints from a `held` meeting, asserts
-RASCUNHO) stays a **prévia** — `held` is not locked — but needs a **new sibling** covering the
-`in_signature` → **registered RASCUNHO** case, which is where the two axes visibly separate: QR
-footer present, diagonal mark still RASCUNHO. Add one for the supersession chain too (mint at
-`in_signature`, re-mint at `signed`, first flips `SUBSTITUÍDO`) — that chain is the ADR's stated
-accreditation answer and nothing pins it today. Keep the RASCUNHO variants in
-`fingerprint.test.ts`. **No data migration** — production holds `0` prints (measured, ADR 0123 D4)
-and local resets.
-
-**Open question carried here, NOT covered:** meetings need no `guard_response_active_print`
-analogue **on the normal path** — measured, `guard_meeting_status` refuses a DELETE for
-`in_signature | signed | distributed | cancelled`, so the lock set is a **superset** of the
-registering set. ⚠ But **two residual paths were not measured**: a delete inside a meeting RPC
-(the guard yields to `app.in_meeting_rpc`) and a commission-level cascade (the trigger's own
-comment asserts it bypasses guards — *a comment is an assertion*). Measure both before declaring
-meetings orphan-safe.
-
-**Not in scope:** the **lock and watermark predicates** for `case` / `interview` (ADR 0125 D8
-binds the principle — both declared separately, not-locked ⇒ ephemeral — and defers each
-predicate to that kind's provider activation).
 
 ### ⬛ FUP-DM5-DEAD-CORE-PROJECTION — ✅ **RESOLVED 2026-08-17 by deletion** (owner: frontend + backend)
 
@@ -2757,6 +2664,349 @@ metadata rows — which would quietly undermine **DM5's retirement manifest**, w
 "prove zero DB references + zero product callers + zero policies, then empty and delete the bucket
 **via the Storage API only, never `storage.objects` DML**". *An emptiness proof derived from a
 table that was just truncated is not an emptiness proof.* Verify before DM5 relies on it.
+
+### 🟡 FUP-PREVIA-MINT-FLAG-ASYMMETRY — `HC0DV` refuses a prévia on the premise that the mint is reachable, and the mint's preconditions are a STRICT SUPERSET (owner: backend; found by `qa` in the r2 re-review of the ADR 0125/0126 build)
+
+Filed 2026-08-18 (lead), on `qa`'s **O1** — graded an observation, not a blocker, and the grading is right.
+Measured from the live catalog by `qa` and **re-measured independently by the lead**:
+
+```
+public.log_document_previa    asserts:  document_printing
+public.mint_printed_document  asserts:  document_printing + documents_wave_d
+```
+
+**The state that bites: `document_printing = on`, `documents_wave_d = off`.** A **locked** source then has
+**no paper at all** — the prévia raises `HC0DV` (*"this source registers; emit it instead"*) and the mint
+raises `HC0D7` (wave D disabled). Before `HC0DV` landed, the prévia was available in that state.
+
+⚠ **The message actively misdirects.** Whoever disables wave D during an incident loses the accreditation
+print surface **and is told to use the door they just turned off**. That is worse than a plain refusal,
+because it sends the operator to a dead end with confidence.
+
+⭐ **The class is adjacent to this build's dominant one, not the same, and the distinction is the useful
+part:** the caller/door class is *a keystone proving a door works while the action cannot reach it*. This is
+**a refusal added to door A on the premise that door B is available, without checking that B's preconditions
+are a SUPERSET of A's.** Both are "a claim about a neighbour that nobody measured", one at the call site and
+one at the precondition.
+
+⇒ **A refusal that redirects to another door owes a check that the other door is reachable under every state
+in which the refusal fires.**
+
+**Why it is not a blocker** (and do not re-grade it without re-deriving these):
+- It needs a **non-deployed flag state** — both flags are `true` today.
+- Killing the document substrate arguably *should* stop printing, so the *behaviour* is defensible even
+  though the *message* is not.
+- No PHI or authorization consequence: it fails **closed** in both directions.
+
+**Options, none chosen:** align the prévia door's assertions with the mint's; or make `HC0DV`'s message
+conditional on the mint actually being reachable; or accept it and record the flag interaction where an
+incident responder will find it. ⚠ Aligning the assertions is a **widening of refusal** — it would stop
+prévias for *unlocked* sources too when wave D is off, which is a different and larger behaviour change than
+it first appears.
+
+**Two smaller records from the same review, neither filed separately:**
+- **O2** — the refusal fires **after** the render, so a locked source burns a Gotenberg semaphore permit per
+  request. Correctness is unaffected (no bytes leave); it is a contention cost under ADR 0125 D9's shared pool.
+- **O3** — C5's 404-collapse comment now describes two refusal paths where it names one.
+
+### 🟡 FUP-E2E-SUBMITTED-POOL-UNSCOPED — the shared submitted-response pool has no `case_phase_id is null` filter, and the one-line fix BREAKS a passing test (owner: tester + backend; **needs `seed.sql` or pool-math work, not a filter**)
+
+Filed 2026-08-18 (lead) on `tester`'s finding during the ADR 0125/0126 E2E build. **`tester` correctly
+declined to fix it** and flagged the trap in the obvious repair — that judgement is the reason this is a
+follow-up rather than a broken suite.
+
+**The gap.** `submittedResponseIds` / `creatorMintFixture` in `e2e/helpers/pdf-printing.ts` scope their pool
+to `commission_id` + `status = 'submitted'` and order by `id.asc`. There is **no `case_phase_id is null`
+filter** — it was never needed, because until `pdf-printing-case-currency.spec.ts` existed no spec created
+phase-bound responses in that commission.
+
+⇒ **Any phase-bound submitted response in CCIH can sort into pool index 0**, and the "full lifecycle" test's
+first assertion (*"Nenhum documento emitido…"*) is then false against a genuinely fresh seed.
+
+⚠ **This is INDEPENDENT of the cleanup bug that exposed it.** That bug is fixed. But a working `afterAll`
+only prevents the leak *while it actually runs* — a crashed run, a `--grep` that skips the file, or a timeout
+all leave the debris, and the pool has no scope to defend itself. Fixing the purge does not close this.
+
+**⛔ The one-line filter is NOT the fix, and this is the measured part.** Scoping the pool to
+`case_phase_id is null` would leave exactly **6** rows. Measured from the live seed:
+
+```
+Comissão de Controle de Infecção Hospitalar : submitted_standalone=6  submitted_phase=3
+Comissão de Farmácia e Terapêutica          : submitted_standalone=4  submitted_phase=0
+```
+
+`creatorMintFixture` assumes **at least one submitted response OUTSIDE the 6-wide pool**. At exactly 6 that
+assumption drops to **zero** and an already-passing test breaks. **A one-line fix that breaks a passing test
+is not a one-line fix.**
+
+**⇒ The real repair is one of two things, neither small:**
+1. **Widen the seeded pool** in `supabase/seed.sql` — ⛔ but that file is a contract with ~900 tests, and
+   [[a-shared-fixture-cannot-satisfy-two-specs]] is already a recorded scar here. Any addition must be
+   checked against every consumer of the CCIH response set, not just this one.
+2. **Redesign the pool math** so `creatorMintFixture` does not depend on a spare slot outside a
+   fixed-width pool.
+
+⚠ **Do not "fix" it by having each spec claim a wider index range** — that trades a structural gap for a
+coordination convention between files that cannot see each other, which is the same failure one level up.
+
+**⭐ The class:** a shared fixture's selector was **correct until a new consumer changed the population it
+selects from**. Nothing about `submittedResponseIds` changed; the *world* it queries did. Same family as
+[[enumeration-boundary-is-a-syntax-not-a-property]] — the boundary (`commission + status`) was a proxy for
+the property (*a standalone response nothing else has claimed*), and the proxy held only while one kind of
+row existed.
+
+### ⭐⭐ ADDENDUM 2026-08-18 — the defense ALREADY EXISTED, was correct, and was UNREACHABLE
+
+`tester` found, after being fixed and while looking at nothing in particular:
+**`e2e/helpers/purge-forms.ts`** is a purpose-built, already-audited helper for this exact class, filed as
+**`BUG-E2EISO-002`** after a real incident — a DB-wide sweep on **2026-08-03** found **46 orphaned draft
+`form_versions` plus 2 orphaned PUBLISHED versions still carrying real `responses`/`answers`**, *"accumulated
+silently across past gate runs"*.
+
+⛔ **And it carries a tripwire that names this bug IN ADVANCE.** Verified by the lead at `:102–109`:
+
+> *"`forms` and `form_versions` also have NO ACTION referrers — `case_phases`, `process_template_phases`,
+> `case_interviews` … so this never fires today — **but that is a claim about fixtures, and a comment
+> asserting it would go stale the first time a spec grows a case fixture**"*
+
+…backed by a live `raise exception` at `:116–125` pre-checking **those exact three tables** and refusing
+loudly if any row references the forms being purged.
+
+**`pdf-printing-case-currency.spec.ts` is the first spec that grew a case fixture.** The comment predicted
+its own staleness condition, named the mechanism, and shipped an instrument that would have refused —
+**and none of it fired, because the tripwire lives in a helper the fixture never called.**
+
+⇒ **A correct door nothing reaches**, at a third layer: not a query with no caller, not a keystone no product
+path can satisfy, but a **tripwire no fixture consults**.
+
+⚠ **The transmission mechanism is imitation, and it matters more than the instance.** The purge shape was
+copied from `case-corrections.spec.ts` and `case-void-reopen.spec.ts` — **and neither of those uses
+`purge-forms.ts` either**. Both also carry the identical unchecked `spawnSync` (no captured result, no
+assertion): *unconfirmed broken, deliberately untouched*. **A defense that siblings bypass is a defense the
+next author bypasses by copying them**, without ever deciding to.
+
+**Scope, measured:** `grep -rl "session_replication_role" e2e/` → **21 files** (13 specs, 3 helpers). Not all
+inspected.
+
+**⇒ What this item should actually become.** The same gap has now surfaced **twice**: the form+response half
+(2026-08-03, fixed by `purge-forms.ts`) and the **case-domain half** (2026-08-18, this item).
+`purge-forms.ts` does **not** cover cases / `case_phases` / `process_templates` / `process_template_versions`
+/ `process_template_phases` / `case_correction_requests` — it is form+response only, so it could not have
+solved this fixture as-is. The natural repair is **extending its tripwire pattern to the case domain** rather
+than every case-domain spec hand-rolling a purge. ⭐ And the tripwire is the **better instrument** than an
+exit-code assertion: it refuses **before** attempting the delete, rather than reporting after.
+
+⛔ Deliberately NOT done in the ADR 0125/0126 build: extending a shared audited helper mid-gate, and touching
+two sibling specs whose breakage is unconfirmed. Both are widenings, and a widening cannot be wrong-and-safe.
+
+⚠ **Lead note on a smaller instance of the same thing, recorded because it nearly mis-filed this item:** the
+first verification query filtered `commission.name ilike '%CCIH%'` and returned **0 standalone, 0
+phase-bound** — which reads as "the seed is empty" and would have made this item look like a phantom. The
+commission is named **`Comissão de Controle de Infecção Hospitalar`**; `CCIH` is the *persona-email*
+convention (`chefe.ccih@test.local`), not the commission's name. **A filter built from the naming convention
+of an adjacent artifact returns a confident zero.**
+
+### 🟠 FUP-42501-CONFLATES-GRANT-WITH-RLS — 2 of 12 P0-isolation assertions pass on a **table-grant** error, not on the RLS refusal they claim to prove (owner: backend + tester; **a COVERAGE defect, NOT a vulnerability — the tables are protected**)
+
+Filed 2026-08-18 (lead). Surfaced when `backend` hit the same shape building the ADR 0125 D6 keystone
+(`345_previa_audit_door.sql`) and noted it *"generalises to every `throws_ok(…, '42501')` in the tree"*.
+Lead swept the tree and measured the population; **the generalisation is real but much narrower than
+that**, and it lands somewhere that matters.
+
+**⛔ NEUTRALIZE BEFORE ESCALATING — this is not a vulnerability, and the distinction is the whole item.**
+Measured: `authenticated` holds **no INSERT privilege** on `public.rca_evidence` or
+`public.capa_action_evidence`. So those two tables are **protected — more strongly than the test claims**,
+by a missing grant rather than by RLS. Nothing is exposed. What is wrong is the **assertion**, not the
+posture.
+
+**The mechanism.** `42501` is simultaneously
+
+- the correct SQLSTATE for an **RLS / authority** refusal, and
+- Postgres's **generic** `permission denied for table …` code.
+
+So `throws_ok($$ insert into public.X … $$, '42501')` **cannot distinguish** *"RLS refused this
+cross-tenant write"* from *"the role was never granted INSERT on this table at all"*. The assertion is
+satisfied by either, and it reports the first.
+
+**Measured population — the enumeration, not an estimate.** 15 tree-wide hits for `throws_ok` + `42501`;
+**3 are comments, 12 are live assertions**, all in `supabase/tests/252_authz_p0_isolation.sql`
+(lines 114–157), probing 6 `rca_*` and 6 `capa_*` tables. Grant check on all twelve:
+
+| | `authenticated` INSERT | assertion proves |
+| --- | --- | --- |
+| 10 tables (`rca_factors`, `rca_members`, `rca_root_causes`, `rca_timeline_entries`, `rca_why_chains`, `capa_action`, `capa_action_task`, `capa_measure`, `capa_measure_result`, `capa_effectiveness`) | **true** | ✅ RLS — the only thing that can raise `42501` |
+| **`rca_evidence`**, **`capa_action_evidence`** | **false** | ⛔ **the grant.** RLS is never reached |
+
+⇒ **The P0 suite claims cross-tenant isolation on 12 tables and demonstrates it on 10.** An auditor asking
+*"is `rca_evidence` RLS-isolated?"* finds a green P0 assertion and concludes yes; the test never exercised
+RLS.
+
+⭐ **The class is the inverse of the usual one here.** This project's recurring failure is
+[[absence-of-a-verdict-is-not-absence-of-coverage]] — reading a missing verdict as a hole. This is the
+mirror: **a PRESENT green assertion that is not coverage.** The `42501` conflation is what makes it
+invisible, because the test's own expected value is correct.
+
+⚠ **The tree ALREADY KNEW this trap — twice — and it still recurred.** Both are comments, not gates:
+`301_hospital_affiliation_substrate.sql:21` (*"'grant' cannot be proven with `throws_ok(..., '42501')`: a
+miss…"*) and `277_ff4_power_authoring.sql:328`. A hazard documented in prose in two files did not stop a
+third instance being written, or the two live ones surviving. **That is the argument for a mechanical
+check rather than a fourth comment.**
+
+**Fix — `backend`'s own two-part remedy from `345`, which is the model:**
+1. **Grant the probe role what the test is not testing**, so the only thing left that can raise `42501` is
+   the property under test; and/or
+2. **Remove the incidental read entirely** (`345` passes the source id as a literal so no fixture read
+   happens inside the probe at all).
+3. ⭐ **Two-sided is what actually catches it.** `backend`'s deny-leg passed on the fixture's own error and
+   **only the ALLOW leg failing exposed it.** A deny-only keystone is green while asserting nothing about
+   authorization. Every `42501` assertion needs its allow-side twin.
+
+⚠ **Do not "fix" this by granting INSERT on the two tables** — that would be a widening performed to make a
+test honest, trading real protection for a truer assertion. Fix the **assertion**: either probe a role that
+holds the grant, or assert the RLS refusal by a means that cannot be satisfied by a missing privilege.
+
+⛔ **Not fixed in the ADR 0125/0126 build** — different suite, different subject, and it needs the `252`
+owner's judgement about what each probe is meant to prove. `345`'s own instance **is** fixed, with the
+measurement in that file's header.
+
+### 🟠 FUP-SUPERSESSION-BADGE-LANE-BLIND — `resolveSupersessionBadge` mirrors an aggregation rule but drops that rule's OWN lane restriction, so a phase-bound response gets the grain ADR 0126 D8 rejected (owner: frontend + backend; **ADR 0074/0085 axis — NOT the print-currency axis**)
+
+Filed 2026-08-18 (lead). Found by `frontend` during the ADR 0126 Amendment 1 **§K sweep**, and **outside that
+sweep's bound** — §K bounds on `printed_documents.status`; this is ADR 0074's supersession axis. It surfaced
+because the sweep's vocabulary caught the word *"Atual"*, i.e. **by accident, not by coverage**. Measured from
+the files by `frontend` and **re-measured independently by the lead** before filing.
+
+**The derivation, measured** (`src/lib/queries/submissions.ts`):
+
+```
+resolveSupersessionBadge:  'substituido' ⇔ hasSubmittedSuccessor
+                           'atual'       ⇔ isSuccessor
+fed at :432/:433 by        hasSubmittedSuccessor: supersededIds.has(r.id)
+                           isSuccessor:           r.supersedes_id != null
+```
+
+`grep "correction_request|approved|current_response_id"` in that file: **0 hits**. There is no approval join.
+
+**⭐ The precise defect is NOT "wrong grain" — it is a MIRROR that dropped its source's WHERE clause.**
+The function's own comment says the submitted grain is *"the 'latest-in-chain' signal, **mirroring the
+aggregation exclusion**"* — i.e. mirroring `app.submitted_form_responses`. That mirror is **correct**, and
+measured, the aggregation rule it copies is **standalone-only by its own predicate**:
+
+```
+and r.case_phase_id is null                                   -- app.submitted_form_responses
+and not exists (select 1 from responses succ
+                where succ.supersedes_id = r.id and succ.status = 'submitted')
+```
+
+But `listSubmissions` surfaces **both** lanes (`isCasePhase: r.case_phase_id != null`, `:449`) and applies the
+badge unconditionally. So:
+
+- **standalone lane — CORRECT.** Submitted-grain *is* the effectiveness rule there, and it is exactly what
+  ADR 0126 **Amendment 1 §A** ratified for the standalone head lane.
+- **phase-bound lane — WRONG.** ADR 0126 **D8** requires approval-grain: `case_phases.current_response_id`
+  moves **only** in `approve_correction`, and `sync_case_phase_on_submit` returns early for successors with the
+  comment *"approval owns effect-taking"*.
+
+**Consequences on the phase-bound lane, all from D8's own analysis:**
+1. The original flips to **"Substituído"** the moment a correction draft is *submitted* — **before approval**,
+   while `current_response_id` still points at it, so it is still the effective response.
+2. It flips **back** if `reject_correction` walks the draft to `in_progress` — the badge **flaps**, driven by a
+   low-authority act.
+3. A submitted-but-unapproved successor renders **"Atual"**, asserting it is the current one when the phase
+   pointer does not reference it.
+
+**⭐ The differential that makes this a defect rather than a definition.** The **same pill**, one file over at
+`…/manage/cases/[caseId]/fase/[phaseId]/respostas/page.tsx:65`, is fed by
+`corrections.some(r => r.status === "approved")` — **approval grain**, with a comment citing the pointer
+(ADR 0085). **The platform already knows the right grain and uses the wrong one one file away, rendering the
+identical badge.** That is what stops the submitted-grain version reading as an intentional dashboard semantic.
+
+⚠ **Not established, and it must be before any fix:** whether ADR 0074 *deliberately* chose submitted-grain for
+a list whose job is "show me what is in flight". The mirror-comment suggests the intent was aggregation parity,
+not lifecycle truth — which would make the lane restriction an oversight rather than a decision — but that is
+an inference, and this item must not be closed on it. **Read ADR 0074 (and 0085) first.**
+
+⛔ **Deliberately NOT fixed in the prévia build.** Different axis, different ADR, and a fix is a lane-aware
+rewrite of a shared pure function with its own test surface. ⚠ **D8's *disclosure* argument does NOT transfer**
+— that concerned a public page leaking an in-flight correction; this is an internal coordinator surface where a
+`staff_admin` is entitled to see one. Only the **wrong-grain and flapping** halves transfer. Do not import D8's
+severity wholesale.
+
+**⭐⭐ SHARPENED 2026-08-18 (lead, by measurement): the correct predicate ALREADY EXISTS IN TS, in the same
+directory, and ARCHITECTURE.md names it as THE twin — singular.**
+
+`src/lib/queries/dashboard.ts` exports `isDashboardCountable`, which ARCHITECTURE.md Rule 2 (line ~266) calls
+*"the TS twin"* of the choke-point. Its body:
+
+```ts
+return r.status === 'submitted' && r.casePhaseId == null && !r.hasSubmittedSuccessor
+//                                 ^^^^^^^^^^^^^^^^^^^^ the lane conjunct, present here
+```
+
+`resolveSupersessionBadge` sits one file away in the same directory and omits exactly that conjunct. So this is
+**not** "nobody knew the rule" — it is **two TS derivations of one SQL choke-point, of which only one is
+sanctioned and only one is complete.** ARCHITECTURE.md's binding instruction in the same paragraph is
+*"**Any new aggregation path must reuse that choke-point, not re-derive `status = 'submitted'`,** or corrected
+metrics double-count."*
+
+⇒ **This narrows the fix and raises the confidence.** The repair is to make the badge consume the same lane
+test rather than to invent one — and the "maybe ADR 0074 chose submitted-grain deliberately" caveat is now
+**much weaker**, because the deliberate choice is visible in `isDashboardCountable` and it *includes* the lane
+restriction. ⚠ Still read 0074/0085 before ruling: a *display* badge is arguably not an *aggregation* path, and
+that is the one reading under which the omission could be intentional.
+
+**⇒ The class, which is the reusable part:** *a mirror inherits its source's predicate, not just its shape.*
+`app.submitted_form_responses` carries `case_phase_id is null` in the same `where` as the exclusion the badge
+copied; copying one conjunct and not the other produced a rule that is right on one lane and wrong on the other,
+with **one code path and one badge** so nothing distinguishes them. Same family as
+[[a-predicate-quoted-at-the-wrong-grain]], and the direct sibling of ADR 0126 Amendment 1 **§A** — which is the
+*same lane-blindness* found in the print-currency derivation and fixed there.
+
+### 🟡 FUP-LINT-VECTOR-DIMENSION-DRIFT — propose a lint gate over shared SQL↔TS **vector fixtures**: a declared dimension that no vector varies, or a consumer that silently drops one (owner: lead + PO; **a gate change is not a mid-build edit**)
+
+Filed 2026-08-18 (lead) during the ADR 0125/0126 prévia build, on `backend`'s proposal. **Deliberately not
+built in that build** — CLAUDE.md §8's own record is that each of the seven gates was added *after* its class
+shipped a live defect, one at a time and on its own evidence. This one already has its evidence; what it does
+not have is a PO ruling.
+
+**The proposal, in the proposer's words:**
+
+> A lint gate over the shared-vector fixtures that fails when a predicate's declared *input dimensions* and
+> its *asserted rows* diverge: specifically, when a fixture gains a dimension that no vector varies (the flag
+> exists but nothing pins it), or when a consumer's state-mapping function silently drops a dimension the
+> fixture declares (the row passes because the flag never reaches the predicate).
+
+**Both shapes were LIVE in the build that proposed it — this is not a hypothetical:**
+
+1. **A dimension nothing varied.** `print-source-registers-vectors.json` declared `correction_open` /
+   `phase_voided` as `form_response`-only and `meeting_disposed` as `meeting`-only, and the requirement that
+   each predicate **IGNORE** a flag outside its kind was stated **in a comment and asserted by no vector** —
+   every meeting row carried the form_response flags `false`, so the kind-scoping was never exercised in
+   either direction. Found only because the build's task text asked for the pin by name. Fixed by adding 3
+   cross-kind rows.
+2. **A consumer that dropped one.** `frontend`'s `stateOf(v)` mapped three of the fixture's four keys, so the
+   new `form_response + meeting_disposed → registers=true` row **passed on its first run** — the flag never
+   reached the predicate, so the row asserted nothing. ⚠ The tell was *green-on-first-run*, which reads as
+   "already correct" and was in fact "not yet connected". Its mirror row **was** real and also passed, so half
+   the cross-kind pin worked and half was theatre, **under one indistinguishable green bar**.
+
+**Why a gate rather than a rule.** The vector-fixture pattern is what makes a SQL↔TS mirror safe at all — ADR
+0126 D3 rejects "two computations of one property" precisely because they can disagree with nothing going red,
+and the mirror survives that rejection **solely** because the fixture is the thing that reds. A fixture with a
+dimension nothing varies is therefore not a weak test; it is **the mirror's safety property silently absent**.
+Architecture Rule 3 already mandates this pattern for the condition evaluator, so the gate would generalise
+beyond the print derivation rather than serving one feature.
+
+**Prior art to build on:** [`check-vacuous-assertions.mjs`](../../scripts/check-vacuous-assertions.mjs) is the
+precedent for turning "a test that can go green having asserted nothing" into a mechanical gate, and it
+self-red-proves each checker on every run — a new gate should do the same, or it joins the class it audits.
+⚠ Note the existing gate's own scope limit, recorded in `FUP-PGTAP-VACUOUS`: it scans **TS spec files only**.
+A vector fixture is consumed from **both** sides, so this gate must reason about the fixture and its
+consumers, not about one language's test files.
+
+**Not in scope until ruled:** whether it becomes gate 8 of `npm run lint` or a standalone check, and whether it
+is fixture-shape-generic or keyed to a declared manifest. Both are PO calls, and neither should be settled by
+whoever happens to be mid-build.
 
 ### 🟡 FUP-LINT-STALE-SYMBOL-COMMENT — propose a 6th lint gate: a comment naming an identifier that no longer exists (owner: lead + PO; a gate change is not a mid-phase edit)
 

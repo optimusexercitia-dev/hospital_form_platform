@@ -1,13 +1,17 @@
 import { test, expect } from '@playwright/test'
 
-import { COMMISSION_A_ID, focusByTabbing, signInAs } from './helpers/documents'
+import { COMMISSION_A_ID, focusByTabbing, serviceQuery, signInAs } from './helpers/documents'
 import {
   articleForShortCode,
+  auditRowsFor,
   creatorMintFixture,
+  keyboardActivateAndCapturePopup,
   listedResponseIds,
   mintViaDialog,
   myResponseDetailHref,
   myResponsesHref,
+  ownInProgressResponseFixture,
+  printedDocumentRowsFor,
   responseIdsAuthoredBy,
   submissionDetailHref,
   submittedResponseIds,
@@ -48,6 +52,11 @@ test.describe('PDF·P1 — printing', () => {
     await expect(
       page.getByText('Nenhum documento emitido a partir desta resposta ainda.'),
     ).toBeVisible()
+
+    // ADR 0125 D1 (case 2, two-sided pairing with the prévia test below): a
+    // SUBMITTED response REGISTERS — "Emitir documento" is the only
+    // affordance, never "Imprimir prévia" beside it. The user never chooses.
+    await expect(page.getByRole('link', { name: 'Imprimir prévia', exact: true })).toHaveCount(0)
 
     // Open the dialog and confirm the watermark it states BEFORE minting: this
     // response is submitted, so the mark must read FINAL (ADR 0104 D7).
@@ -91,6 +100,12 @@ test.describe('PDF·P1 — printing', () => {
     await expect(anonPage.getByText('Hospital Central A')).toBeVisible()
     await expect(anonPage.getByText('Formulário preenchido')).toBeVisible()
     await expect(anonPage.getByRole('link', { name: /baixar o documento/i })).toHaveCount(0)
+    // ADR 0126 D2/D4 (case 5) — POSITIVE CONTROL for the revoked-arm check
+    // below: while `active`, this print IS the head of its series, so the
+    // door DOES render a currency verdict. Without this, an absence later
+    // could mean "revoked correctly says nothing" or "nothing ever renders
+    // here, for any reason" — indistinguishable without this half.
+    await expect(anonPage.getByText('Esta é a revisão atual do documento.', { exact: true })).toBeVisible()
     await anonContext.close()
 
     // Revoke as chefe.ccih (staff_admin).
@@ -108,12 +123,24 @@ test.describe('PDF·P1 — printing', () => {
 
     const articleAfterRevoke = articleForShortCode(page, shortCode)
     await expect(articleAfterRevoke.getByText('Anulado', { exact: true })).toBeVisible()
+    // ADR 0126 D3/D4 (case 5) — the NEGATIVE half of the pair above: a
+    // revoked print's currency is NOT EVALUATED (the no-join arm), so the
+    // panel chip must render NOTHING about it — not "current", not "outdated"
+    // reused as a euphemism, nothing. `[data-currency]` absent entirely, not
+    // just a specific string, so an unexpected THIRD wording would still fail
+    // this rather than slip through a narrower text check.
+    await expect(articleAfterRevoke.locator('[data-currency]')).toHaveCount(0)
 
     // Re-verify logged out — status flips to anulado.
     const anonContext2 = await browser.newContext()
     const anonPage2 = await anonContext2.newPage()
     await anonPage2.goto(`/verificar/${shortCode}?via=codigo`)
     await expect(anonPage2.getByRole('heading', { name: 'Documento anulado' })).toBeVisible()
+    // Same negative, on the public page: no currency statement at all — ADR
+    // 0126 D3's no-join independence (`312` t76) is exactly what lets this
+    // page still authenticate a document whose source may be long gone, and
+    // asserting a currency verdict here would require the join D3 forbids.
+    await expect(anonPage2.locator('[data-currency]')).toHaveCount(0)
     await anonContext2.close()
 
     // Overlay download still succeeds — canonical bytes with the ANULADO stamp
@@ -340,6 +367,131 @@ test.describe('PDF·P1 — printing', () => {
     ]
     expect(foreign.length).toBeGreaterThan(0) // the check is not vacuous
     expect(listed.some((id) => foreign.includes(id))).toBe(false)
+  })
+
+  // -------------------------------------------------------------------------
+  // ADR 0125/0126 print-source split — case 1: the EPHEMERAL prévia
+  // -------------------------------------------------------------------------
+
+  test('prévia (case 1): an in_progress response offers ONLY "Imprimir prévia" — streamed PDF, no registry row ever, its own audit event, keyboard-reachable', async ({
+    page,
+  }) => {
+    /**
+     * Fixture: chefe.ccih's OWN in_progress response, created fresh via the
+     * real "Preencher" flow. NOT the seeded in_progress response (staff1.ccih's
+     * draft) — that one belongs to a DIFFERENT member, and
+     * `getSubmissionDetail` returns `null` for a foreign member's in_progress
+     * response even to a `staff_admin` viewer, BY DESIGN, unrelated to this
+     * ADR (see `ownInProgressResponseFixture`'s doc comment). Zero answers are
+     * filled — nothing about the prévia derivation depends on content, only on
+     * `status`, and the fixture is left `in_progress` on purpose.
+     */
+    await signInAs(page, 'chefe.ccih@test.local')
+    const responseId = await ownInProgressResponseFixture(page)
+    const [sanity] = await serviceQuery<{ status: string; commission_id: string }>(
+      page,
+      `responses?id=eq.${responseId}&select=status,commission_id`,
+    )
+    expect(sanity?.status, 'fixture sanity: freshly started, must be in_progress').toBe('in_progress')
+    expect(sanity?.commission_id).toBe(COMMISSION_A_ID)
+
+    await page.goto(submissionDetailHref(responseId))
+
+    // Two-sided: the ephemeral affordance renders; the registered one never does.
+    const previaLink = page.getByRole('link', { name: 'Imprimir prévia', exact: true })
+    await expect(previaLink).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Emitir documento', exact: true })).toHaveCount(0)
+
+    const href = await previaLink.getAttribute('href')
+    expect(href).toBe(`/api/previa/form_response/${responseId}`)
+
+    // DB truth, BEFORE: this source has never registered a print.
+    expect(await printedDocumentRowsFor(page, 'form_response', responseId)).toHaveLength(0)
+    const auditBefore = await auditRowsFor(page, 'document.previa_printed', 'form_response', responseId)
+
+    // Keyboard-only: tab to the link and activate with Enter, no mouse — races
+    // popup/download exactly like the house `clickAndCapturePopup` pattern,
+    // because Chromium's handling of an INLINE pdf is not fixed across envs.
+    await focusByTabbing(page, () => previaLink.evaluate((el) => el === document.activeElement))
+    const openedUrl = await keyboardActivateAndCapturePopup(page)
+    expect(openedUrl).toContain(`/api/previa/form_response/${responseId}`)
+
+    // The keyboard hit is audited async relative to the popup/download race
+    // settling, so poll rather than assert immediately (Gotenberg rendering
+    // takes real seconds — matches the 20s budget used for mint elsewhere).
+    await expect
+      .poll(async () => (await auditRowsFor(page, 'document.previa_printed', 'form_response', responseId)).length, {
+        timeout: 20_000,
+        message: 'the keyboard-triggered prévia hit gets its own audit row (ADR 0125 D3)',
+      })
+      .toBe(auditBefore.length + 1)
+
+    // Second hit via the request API (mouse-independent) — the byte-level
+    // contract. By the time this resolves the server has DEFINITELY finished
+    // (the route logs BEFORE streaming bytes back — "the log is a
+    // PRECONDITION of delivery, not a side effect of it"), so no poll needed.
+    const resp = await page.request.get(href!)
+    expect(resp.status()).toBe(200)
+    expect(resp.headers()['content-type']).toContain('application/pdf')
+    expect(resp.headers()['content-disposition']).toContain('inline')
+    const bytes = await resp.body()
+    expect(bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-')
+    expect(bytes.byteLength).toBeGreaterThan(500)
+
+    // DB truth, AFTER both hits: STILL nothing registered — a prévia is
+    // repeatable and leaves no trace in the registry (ADR 0125 D3/D9).
+    expect(await printedDocumentRowsFor(page, 'form_response', responseId)).toHaveLength(0)
+
+    // But it IS audited — the one half D3 says cannot be added retroactively.
+    // Assert the EXACT delta (two hits -> two rows), not just "some rows
+    // exist", and pin the metadata shape while at it.
+    const auditAfter = await auditRowsFor(page, 'document.previa_printed', 'form_response', responseId)
+    expect(auditAfter.length - auditBefore.length).toBe(2)
+    expect(auditAfter.at(-1)?.metadata).toMatchObject({
+      registered: false,
+      source_kind: 'form_response',
+    })
+
+    // ── Positive control for the two `toHaveLength(0)` checks above ─────────
+    // A "stays empty" assertion passes just as well against a page that never
+    // loaded or a query that silently no-ops — it needs proof the SAME query
+    // shape can see a non-empty result. Mint a REAL document for a DIFFERENT,
+    // currently-unclaimed fixture — index 5 of the pool, this file's own
+    // documented "spare" (§ submittedResponseIds header: POOL_SIZE=6, five
+    // slots claimed by the five tests above) — and confirm
+    // `printedDocumentRowsFor` reports it. This is what makes the emptiness
+    // above a finding rather than an artifact of a broken check.
+    const [, , , , , controlResponseId] = await submittedResponseIds(page, 6)
+    await page.goto(submissionDetailHref(controlResponseId))
+    await mintViaDialog(page)
+    expect(await printedDocumentRowsFor(page, 'form_response', controlResponseId)).toHaveLength(1)
+
+    // ⚠ NOT asserted here, deliberately, and this is the one negative from
+    // the ADR's case-1 wording that is NOT two-sided: the literal in-PDF
+    // footer text ("PRÉVIA — sem valor de registro…"), the absence of the
+    // verb "Emitido" INSIDE THE RENDERED BYTES, and the absence of a QR image
+    // in those bytes. This repo has no PDF text-extraction dependency
+    // (`pdf-lib` cannot read text — it is a creation/manipulation library),
+    // and Chromium-rendered PDFs commonly encode content-stream text against
+    // subset-font glyph indices rather than plain character codes, so a
+    // hand-rolled extractor risks a false negative dressed as a red herring
+    // (text present, "found" by a naive check as absent). That half of ADR
+    // 0125 D5 is pinned at the unit level instead (`previa-footer.test.ts`,
+    // `fingerprint.test.ts`) — a decision, not an oversight, and flagged to
+    // `main` rather than silently claimed as covered. A DOM-level "Emitido"
+    // text search on THIS page would also be UNSOUND on its own terms: this
+    // fixture's registry list is empty, so "Documentos emitidos" (the panel's
+    // own always-present heading) and "Nenhum documento emitido…" (the empty-
+    // state copy) both legitimately contain the substring "emitido" — a naive
+    // absence check would either false-red on those, or (if scoped to avoid
+    // them) pass vacuously without ever having looked at the one place the
+    // verb actually matters. What IS pinned above is the full
+    // E2E-observable contract: the derived affordance (two-sided), the HTTP
+    // shape a registered download does NOT have (`inline`, never
+    // `attachment`), and — the strongest available proxy for "não
+    // verificável" — that NOTHING ever enters the registry a verification
+    // code could point at, now WITH a positive control proving that claim
+    // could have gone the other way.
   })
 })
 

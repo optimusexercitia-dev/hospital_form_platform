@@ -321,3 +321,96 @@ public.start_or_resume_response(p_form_version_id uuid)
 public.submit_response(p_response_id uuid)
 public.update_meeting(p_meeting_id uuid, p_title text, p_scheduled_start timestamp with time zone, p_modality text, p_meeting_type_id uuid, p_scheduled_end timestamp with time zone, p_location_text text, p_meeting_url text, p_minutes_md text)
 public.update_template_narrative(p_narrative_id uuid, p_title text, p_instructions text, p_is_expected boolean, p_clear_title boolean, p_clear_instructions boolean)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# helper:  — NOT AN AUTHZ GATE. Introduced 2026-08-18 (ADR 0125/0126 print build).
+#
+# `ARM=census` enumerates every `prosecdef` boolean function, which necessarily
+# catches DERIVATIONS as well as PERMISSIONS. A derivation has no authorization
+# decision to neutralize: there is no gate to open, so "BLIND" is not a verdict it
+# can receive. Listing them bare would misfile them as unswept authz; omitting them
+# re-flags them on every census forever.
+#
+# A `helper:` line asserts TWO things, and both must be true when it is added:
+#   1. the body references NO authz predicate (no can_*/is_*/has_* authorization
+#      call) — verify from `prosrc` in the LIVE catalog, not from the name;
+#   2. its BEHAVIOUR is pinned by a named suite, and that pin has been DRILLED
+#      (neutralize → observe RED) with the drill recorded.
+# ⚠ If a helper later acquires an authz call it STOPS being a helper and must move
+#   into a findings md. The census cannot detect that transition — the reviewer must.
+# ─────────────────────────────────────────────────────────────────────────────
+app.print_source_registers(p_source_kind text, p_source_id uuid)
+#   Derivation: ADR 0125 D1 / 0126 D5+D10 — does this source LOCK, such that
+#   printing it registers? Business rule, not permission; authority is decided by
+#   app.can_view_printed_document in the doors that call it. Pinned by pgTAP 344
+#   over the 20 SHARED vectors (SQL/TS mirror). Drilled: constant-TRUE → RED,
+#   constant-FALSE → RED, meeting disposal conjunct dropped → RED.
+app.print_source_head(p_source_kind text, p_source_id uuid, p_source_revision integer)
+#   Derivation: ADR 0126 D8/D9 — is this source still the HEAD of its series?
+#   ⚠⚠ CORRECTED 2026-08-18 (qa blocker B2). This entry previously cited only 344
+#   and 313 t55–t58r — EVERY ONE OF THEM A MEETING PIN — while claiming the
+#   function was covered. The `form_response` arm had exactly ONE call in the whole
+#   tree (344:229, expecting true), so a stub returning `true` for that arm passed
+#   6514 pgTAP, 1439 vitest and 20/20 E2E. That is ADR 0126 D2 ROW 3 uncovered, and
+#   it is the very conjunct the `isCurrent: true` defect violated — so that fix had
+#   shipped with no regression test. ⭐ The unearned pass was hiding IN THIS FILE:
+#   a discharge citing real pins that do not cover the arm they are cited for.
+#   MEETING arm  — 344 (fail-closed + synthetic revision differential) and 313
+#     t55–t58r over a REAL stored source_revision through the reopen corridor.
+#     Drilled: revision compare -> constant-true -> RED.
+#   FORM_RESPONSE arm — 346 t21–t24, two-sided PER LANE:
+#     standalone (Amendment 1 §A): in_progress successor -> still HEAD (t21);
+#       submitted successor -> NOT head (t22).
+#     phase-bound (D8 verbatim): successor under_review -> still HEAD (t23);
+#       correction request approved -> NOT head (t24).
+#     Drilled: form_response arm -> constant-true -> RED.
+app.printed_document_is_current(p_id uuid)
+#   Derivation: ADR 0126 D2 — registers AND head. Its `revoked` arm returns NULL
+#   without joining, which is a DISCLOSURE-AVOIDANCE contract (312 t76), not an
+#   authorization decision; the callers gate. Pinned by 346, two-sided and
+#   per-conjunct isolated. Drilled: constant-TRUE → RED, constant-FALSE → RED,
+#   conjunct 1 dropped → RED, conjunct 2 dropped → RED, revoked arm removed → RED.
+#
+# ⛔ NOT listed here, because they ARE authz gates and are now COVERED:
+#   public.print_source_state / public.printed_document_currency — both were
+#   measured BLIND by hand on 2026-08-18 (the diff-scoped audit could not see them:
+#   it enumerates by NAME PREFIX over bool returns, and these match neither). Both
+#   now carry keystones with differentials in 346 t15–t18, each drilled RED.
+
+# ── UNSUPPORTED row doors — the harness mechanism cannot read a verdict ──────
+# Both carry keystones that have been DRILLED RED. Neither owes coverage; each
+# owes only a verdict the sweep is structurally unable to emit. ⚠ That makes them
+# STRONGER than the capa_kpis precedent this section follows, where the listed
+# doors still owe a keystone.
+#
+# public.printed_document_currency(p_ids uuid[])
+#   UNSUPPORTED: the harness neutralizes STATEMENT-LEVEL identity guards. This
+#   door's gate is a WHERE-clause CONJUNCT — which is the correct implementation
+#   for PER-ROW filtering (an unviewable id must be ABSENT, not an error), and
+#   simply outside the mechanism. Covered by 346 t17/t18, whose differential puts
+#   a viewable and an unviewable id in the SAME array so all-or-nothing cannot
+#   pass. Drilled RED twice: by backend and independently by the lead.
+public.printed_document_currency(p_ids uuid[])
+#
+# public.open_printed_document(p_id uuid)
+#   UNSUPPORTED — and for a stronger reason than the above: THIS DOOR HAS TWO
+#   INDEPENDENT GATES, and neutralizing one leaves the other standing.
+#     gate 1 (this door)  app.can_view_printed_document  -> returns empty
+#     gate 2 (the kernel) app.resolve_document_version_bytes -> app.can_read_document,
+#                         which REFUSES BY RAISING (P0002), by design: ADR 0120 D12
+#                         makes a kernel refusal reach the route as an error -> 404.
+#   Measured 2026-08-18: with gate 1 neutralized, gate 2 raises, the RAISE aborts
+#   the psql transaction mid-file, and the run stops at 26/90 (312) and 23/59
+#   (313). The harness reads "run shape != baseline" and emits ERROR.
+#   ⭐ THIS IS NOT A COVERAGE GAP — IT IS THE OPPOSITE. The suites notice the open
+#   gate emphatically (312 failed 64/90, 313 failed 36/59); the verdict is
+#   UNREADABLE, not absent. A single-gate neutralization can NEVER produce a clean
+#   verdict here, so the ERROR will reproduce on every future run until the harness
+#   can neutralize both gates together.
+#   ⛔ Do NOT "fix" this by weakening a 312/313 assertion so the file survives to
+#   the end — converting an ERROR into a pass by making the suite notice less is
+#   strictly worse than the ERROR.
+#   ⚠ The committed baseline's COVERED for this door was HAND-MERGED, never
+#   produced by a clean sweep, so this is measured-ERROR vs asserted-COVERED — not
+#   a regression introduced by the ADR 0125/0126 build.
+public.open_printed_document(p_id uuid)

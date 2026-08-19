@@ -9,7 +9,12 @@ import {
   TEMPLATE_VERSION as MEETING_TEMPLATE_VERSION,
 } from './documents/meeting'
 import { EMBEDDED_FONT_FACES } from './fonts.generated'
-import { renderLetterhead, renderQrFooter, renderWatermarks } from './primitives'
+import {
+  renderLetterhead,
+  renderPreviaFooter,
+  renderQrFooter,
+  renderWatermarks,
+} from './primitives'
 import type { DocumentPayload } from './types'
 
 /**
@@ -115,6 +120,29 @@ function renderBody(payload: DocumentPayload): string {
   }
 }
 
+/**
+ * The provenance footer (ADR 0125 D5): the QR block for a REGISTERED emission,
+ * the prévia block for an EPHEMERAL page.
+ *
+ * ⚠ The prévia footer carries its own scoped `<style>` rather than extending
+ * {@link PRINT_CSS}, which is deliberate: PRINT_CSS is part of every document's
+ * content hash, so styling the ephemeral page through it would move both
+ * committed template fingerprints and force `TEMPLATE_VERSION` bumps on two
+ * templates whose layout did not change. Registered output is therefore
+ * BYTE-IDENTICAL to what this function produced before the prévia existed —
+ * proven by the four fingerprint assertions, not asserted here.
+ */
+function renderProvenanceFooter(payload: DocumentPayload): string {
+  switch (payload.provenance.kind) {
+    case 'registered':
+      return renderQrFooter(payload.provenance.qr, payload.provenance.emission)
+    case 'previa':
+      return renderPreviaFooter(payload.provenance.generation)
+    // No default: EXHAUSTIVE over DocumentProvenance — a third provenance that
+    // forgets its footer is a compile error here, like renderBody's switch.
+  }
+}
+
 /** The one entry point: payload → full HTML document string. */
 export function renderDocumentHtml(payload: DocumentPayload): string {
   return `<!DOCTYPE html>
@@ -127,11 +155,11 @@ ${PRINT_CSS}
 </style>
 </head>
 <body>
-${renderWatermarks(payload.watermarks, payload.containsPhi)}
+${renderWatermarks([payload.provenance.watermark], payload.containsPhi)}
 <div class="doc-content">
 ${renderLetterhead(payload.letterhead)}
 ${renderBody(payload)}
-${renderQrFooter(payload.qr, payload.emission)}
+${renderProvenanceFooter(payload)}
 </div>
 </body>
 </html>`

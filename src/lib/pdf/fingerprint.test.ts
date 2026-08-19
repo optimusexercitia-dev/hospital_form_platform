@@ -4,7 +4,11 @@ import { describe, expect, it } from 'vitest'
 
 import { renderDocumentHtml, TEMPLATES } from './render'
 import { TEMPLATE_FINGERPRINTS } from './template-fingerprints'
-import type { DocumentPayload, FormResponseDocumentBody } from './types'
+import type {
+  DocumentPayload,
+  FormResponseDocumentBody,
+  RegisteredProvenance,
+} from './types'
 
 /**
  * ADR 0104 D4 — the template-staleness guard. A template that changes without
@@ -19,6 +23,25 @@ import type { DocumentPayload, FormResponseDocumentBody } from './types'
 /** Canonical fixture — FROZEN. Changing it changes every fingerprint, which is
  * indistinguishable from a template change; extend templates with NEW fixtures
  * instead of editing this one. */
+/**
+ * ⚠ Extracted and typed as {@link RegisteredProvenance}, NOT inlined — and the
+ * reason is the design working. `{ ...payload.provenance, watermark: 'final' }`
+ * spreads a UNION, so TypeScript produces `previa & watermark:'final'` as one
+ * arm of the result and REFUSES it: ADR 0125 D5's fourth cell is a compile error,
+ * exactly as intended. Spreading a narrowed registered value is legal because it
+ * cannot land in the previa arm.
+ */
+const CANONICAL_PROVENANCE: RegisteredProvenance = {
+  kind: 'registered',
+  watermark: 'draft',
+  qr: {
+    token: 'FIXTURETOKENAAAABBBBCCCCDDDDEEEE',
+    shortCode: 'ABCDEF2345',
+    url: 'https://example.invalid/verificar/FIXTURETOKENAAAABBBBCCCCDDDDEEEE',
+  },
+  emission: { at: '2026-01-02T14:00:00.000Z', byDisplay: 'João Emissor' },
+}
+
 const CANONICAL: DocumentPayload = {
   letterhead: {
     hospitalName: 'Hospital Canônico',
@@ -26,7 +49,7 @@ const CANONICAL: DocumentPayload = {
     logoDataUri: null,
     commissionName: 'Comissão de Controle de Infecção Hospitalar',
   },
-  watermarks: ['draft'],
+  provenance: CANONICAL_PROVENANCE,
   signatures: [
     {
       name: 'Maria Fixa',
@@ -36,13 +59,8 @@ const CANONICAL: DocumentPayload = {
       method: 'platform_signoff',
     },
   ],
-  qr: {
-    token: 'FIXTURETOKENAAAABBBBCCCCDDDDEEEE',
-    shortCode: 'ABCDEF2345',
-    url: 'https://example.invalid/verificar/FIXTURETOKENAAAABBBBCCCCDDDDEEEE',
-  },
-  emission: { at: '2026-01-02T14:00:00.000Z', byDisplay: 'João Emissor' },
   containsPhi: false,
+  sourceRevision: 0,
   body: {
     kind: 'form_response',
     formTitle: 'Checklist Canônico',
@@ -89,7 +107,7 @@ const CANONICAL: DocumentPayload = {
 
 /**
  * QA MAJOR-2 variant — FROZEN like {@link CANONICAL}. Exercises the branches
- * the canonical fixture cannot: the FINAL chip (`watermarks: ['final']` — the
+ * the canonical fixture cannot: the FINAL chip (`provenance.watermark: 'final'` — the
  * branch every submitted response renders), the non-suppressible
  * confidentiality band (`containsPhi: true` — the FIRST thing P3's PHI delta
  * touches, pinned BEFORE it lands), and the letterhead logo `<img>`.
@@ -101,7 +119,7 @@ const FINAL_PHI_LOGO: DocumentPayload = {
     logoDataUri:
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   },
-  watermarks: ['final'],
+  provenance: { ...CANONICAL_PROVENANCE, watermark: 'final' },
   containsPhi: true,
   body: {
     // P2 widened DocumentBody to a union; this fixture is the form_response
@@ -112,9 +130,49 @@ const FINAL_PHI_LOGO: DocumentPayload = {
   },
 }
 
+/**
+ * ADR 0125 D2/D4/D5 — the EPHEMERAL prévia variant. FROZEN like the others.
+ *
+ * D2 requires this pin by name: *"an ephemeral page is still rendered by the same
+ * templates and is still read by a human, so its look stays pinned even though
+ * its bytes are never stored."* It sits in `form_response.variants` because it IS
+ * the form_response template — the prévia footer is a branch of it, not a
+ * template of its own, so it shares the same `TEMPLATE_VERSION`.
+ *
+ * ⚠ Every display name here is deliberately free of the reserved verb (no
+ * "Emissor"), because the whole-document sweep below runs a plain `/emit|emiss/i`
+ * over the rendered output. A fixture whose PAYLOAD contains the verb would make
+ * that sweep fail for a reason that is not a defect — the mistake this suite's
+ * sibling (`primitives/previa-footer.test.ts`) already made once and now
+ * documents.
+ */
+const PREVIA: DocumentPayload = {
+  ...CANONICAL,
+  provenance: {
+    kind: 'previa',
+    watermark: 'draft',
+    generation: { at: '2026-01-02T14:00:00.000Z', byDisplay: 'Maria Fixa' },
+  },
+  body: {
+    ...(CANONICAL.body as FormResponseDocumentBody),
+    respondentDisplay: 'Maria Fixa',
+  },
+}
+
 /** PDF·P2 — the meeting (ata) canonical fixture. FROZEN like {@link CANONICAL}:
  * RASCUNHO, no signatures (the "— não assinado —" footer branch), minutes +
  * agenda (all three field kinds) + attendance + action items populated. */
+const MEETING_PROVENANCE: RegisteredProvenance = {
+  kind: 'registered',
+  watermark: 'draft',
+  qr: {
+    token: 'FIXTURETOKENMEETINGAAAABBBBCCCCD',
+    shortCode: 'BCDEFG2345',
+    url: 'https://example.invalid/verificar/FIXTURETOKENMEETINGAAAABBBBCCCCD',
+  },
+  emission: { at: '2026-01-03T14:00:00.000Z', byDisplay: 'João Emissor' },
+}
+
 const MEETING_CANONICAL: DocumentPayload = {
   letterhead: {
     hospitalName: 'Hospital Canônico',
@@ -122,15 +180,10 @@ const MEETING_CANONICAL: DocumentPayload = {
     logoDataUri: null,
     commissionName: 'Comissão de Controle de Infecção Hospitalar',
   },
-  watermarks: ['draft'],
+  provenance: MEETING_PROVENANCE,
   signatures: [],
-  qr: {
-    token: 'FIXTURETOKENMEETINGAAAABBBBCCCCD',
-    shortCode: 'BCDEFG2345',
-    url: 'https://example.invalid/verificar/FIXTURETOKENMEETINGAAAABBBBCCCCD',
-  },
-  emission: { at: '2026-01-03T14:00:00.000Z', byDisplay: 'João Emissor' },
   containsPhi: false,
+  sourceRevision: 0,
   body: {
     kind: 'meeting',
     meetingNumber: 42,
@@ -183,7 +236,7 @@ const MEETING_CANONICAL: DocumentPayload = {
  * absent "Encaminhamentos" — every branch the populated canonical cannot pin. */
 const MEETING_FINAL_SIGNED: DocumentPayload = {
   ...MEETING_CANONICAL,
-  watermarks: ['final'],
+  provenance: { ...MEETING_PROVENANCE, watermark: 'final' },
   signatures: [
     {
       name: 'Maria Fixa',
@@ -311,5 +364,117 @@ describe('template fingerprints (ADR 0104 D4)', () => {
     const mutated = html.replace('class="section-table"', 'class="section-tbl"')
     expect(mutated).not.toBe(html) // the mutation landed (§7.15 — no vacuous drill)
     expect(sha256(mutated)).not.toBe(sha256(html))
+  })
+})
+
+describe('ADR 0125 D5 — REGISTERED documents are untouched by the prévia split', () => {
+  /**
+   * The prévia footer (`primitives/previa-footer.ts`) emits TEMPLATE-SCOPED CSS
+   * rather than extending this module's shared `PRINT_CSS`, and that is
+   * load-bearing: `PRINT_CSS` is part of every document's hash, so styling the
+   * ephemeral page through it would move BOTH committed fingerprints and force a
+   * `TEMPLATE_VERSION` bump on two templates whose layout did not change —
+   * corrupting registry metadata to style a page that is never stored. Same
+   * reason `documents/meeting.ts` scopes its own styles (its header comment:
+   * adding that template moved NO form_response fingerprint).
+   *
+   * The four fingerprint assertions above already RED if that discipline slips.
+   * These add the readable half: what a reviewer would actually check.
+   *
+   * ⚠ The full-document PRÉVIA variant is NOT pinned here yet — `renderDocumentHtml`
+   * cannot yet produce one (its footer call is unconditional and `DocumentPayload.qr`
+   * is required). That variant lands WITH the render path (F2 / ADR 0125 D4), and
+   * ADR 0125 D2 requires it: an ephemeral page is still rendered by these templates
+   * and still read by a human, so its look stays pinned even though its bytes are
+   * never stored.
+   */
+  const registered = [
+    ['form_response canonical', CANONICAL],
+    ['form_response final/phi/logo', FINAL_PHI_LOGO],
+    ['meeting canonical', MEETING_CANONICAL],
+    ['meeting final/signed', MEETING_FINAL_SIGNED],
+  ] as const
+
+  for (const [name, payload] of registered) {
+    it(`${name}: carries the QR footer and NOT the prévia footer`, () => {
+      const html = renderDocumentHtml(payload)
+      // Positive half first — without it, the absence checks below are satisfied
+      // by a renderer that emits no footer at all.
+      expect(html).toContain('<footer class="qr-footer">')
+      expect(html).toContain('Emitido em ')
+      expect(html).not.toContain('previa-footer')
+      expect(html).not.toContain('PRÉVIA — sem valor de registro')
+    })
+  }
+
+  it('form_response/previa: the EPHEMERAL branch is version-pinned too (D2)', () => {
+    const computed = sha256(renderDocumentHtml(PREVIA))
+    expect(
+      computed,
+      `Prévia variant output changed (computed ${computed}). Same rule as every ` +
+        `other variant: a deliberate template change bumps TEMPLATE_VERSION and ` +
+        `updates template-fingerprints.ts in the same commit.`,
+    ).toBe(TEMPLATE_FINGERPRINTS.form_response.variants.previa)
+  })
+
+  it('the prévia variant genuinely renders the EPHEMERAL branch (no vacuous fixture)', () => {
+    const html = renderDocumentHtml(PREVIA)
+    expect(html).toContain('<footer class="previa-footer">')
+    expect(html).toContain('PRÉVIA — sem valor de registro, não verificável.')
+    expect(html).toContain('Gerada em 02/01/2026 11:00 por Maria Fixa.')
+    // ...and it carries NONE of the registered page's verification apparatus.
+    expect(html).not.toContain('<footer class="qr-footer">')
+    expect(html).not.toContain('Código de verificação:')
+    expect(html).not.toContain('/verificar/')
+    // The disjoint half: the registered canonical is the exact mirror.
+    const registeredHtml = renderDocumentHtml(CANONICAL)
+    expect(registeredHtml).toContain('<footer class="qr-footer">')
+    expect(registeredHtml).not.toContain('previa-footer')
+  })
+
+  /**
+   * ⛔ **Sweep the RENDERED PROSE, not the raw document.**
+   *
+   * The first version of the check below swept `renderDocumentHtml(...)` whole
+   * and went red — not because the verb reached the page, but because
+   * `fonts.generated.ts` inlines ~136 KB of base64 `@font-face` payloads, and a
+   * blob that size contains the letters "emit" by chance. A needle applied to
+   * machine-encoded bytes measures entropy, not vocabulary.
+   *
+   * Stripping `<style>` blocks and `data:` URIs leaves exactly what a human
+   * reads, which is what ADR 0125 D5 actually governs.
+   */
+  const renderedProse = (payload: DocumentPayload) =>
+    renderDocumentHtml(payload)
+      .replace(/<style>[\s\S]*?<\/style>/g, '')
+      .replace(/data:[^"')\s]+/g, '')
+
+  it('⛔ the RESERVED VERB appears NOWHERE in a rendered prévia (ADR 0125 D5)', () => {
+    // The whole document, not just the footer fragment: the verb could re-enter
+    // through the letterhead, a body label, or a future template edit. The
+    // fixture's payload is deliberately verb-free (see PREVIA's note).
+    const prose = renderedProse(PREVIA)
+    expect(prose.length, 'the stripper gutted the document').toBeGreaterThan(200)
+    expect(prose).toContain('PRÉVIA — sem valor de registro') // real content survived
+    expect(/emit|emiss/i.test(prose), 'reserved verb reached an unregistered page').toBe(false)
+  })
+
+  it('⭐ POSITIVE CONTROL: the same sweep over a REGISTERED page HITS the verb', () => {
+    // Without this the check above is satisfied by a stripper that returns prose
+    // no footer could ever contain. CANONICAL's payload also contains "João
+    // Emissor", so the template's own wording is asserted explicitly too.
+    const prose = renderedProse(CANONICAL)
+    expect(/emit|emiss/i.test(prose)).toBe(true)
+    expect(prose).toContain('Emitido em ')
+  })
+
+  it('the RASCUNHO variants stay pinned — an ephemeral page uses these same templates (D2)', () => {
+    // ADR 0125 D2 names these by requirement. Both draft-watermarked fixtures
+    // must keep rendering the RASCUNHO marks; the prévia reuses them verbatim.
+    for (const payload of [CANONICAL, MEETING_CANONICAL]) {
+      const html = renderDocumentHtml(payload)
+      expect(html).toContain('<div class="wm-diagonal" aria-hidden="true">RASCUNHO</div>')
+      expect(html).toContain('<div class="wm-chip wm-chip-draft">RASCUNHO</div>')
+    }
   })
 })

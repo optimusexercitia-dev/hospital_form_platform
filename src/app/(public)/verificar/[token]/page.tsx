@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { printCurrencyFrom } from "@/components/printing/currency";
 import {
   VerificationResult,
   type VerificationOutcome,
@@ -17,10 +18,31 @@ export const metadata: Metadata = {
 };
 
 /**
- * Never cache a verdict. A revoked or superseded document must stop reporting
- * "vigente" the moment its status changes — a cached `active` answer served
- * after a revocation is precisely the failure this module exists to prevent
- * (ADR 0104 D6/D8).
+ * Never cache a verdict — and the reason is BROADER than this comment used to
+ * claim.
+ *
+ * The original rationale read: *a revoked or superseded document must stop
+ * reporting "vigente" the moment its STATUS changes*. Both halves have gone
+ * stale, and the decision they justify is now MORE necessary than they state:
+ *
+ *  - **`active` never meant "vigente"** (ADR 0126 D3). Registry status records
+ *    DELIBERATE acts only — re-mint supersession and revocation — while
+ *    CURRENCY is derived at read time from the source. A print is legally
+ *    `active` AND not current. (The page itself asserted that conflation in its
+ *    `active` copy until ADR 0126 Amendment 1 §K; this comment was the other
+ *    half of the same mistake.)
+ *  - **Currency moves with NO status change at all.** `reject_correction`,
+ *    `reopen_meeting`, `approve_correction` (both the pointer move and a void)
+ *    and a minutes disposal each change what this page must answer while the
+ *    `printed_documents` row is untouched.
+ *
+ * ⛔ So a cached answer can go wrong along an axis that leaves NO trace in the
+ * registry row — worse than the revocation case the old text named, because
+ * nothing about the cached row looks stale. Do not weaken this on the belief
+ * that status is the only mover.
+ *
+ * ADR 0104 D6/D8 · ADR 0126 D2/D3/D4 · ADR 0125 Amendment 1 §D (the two
+ * backwards doors).
  */
 export const dynamic = "force-dynamic";
 
@@ -59,7 +81,22 @@ export default async function VerificacaoResultadoPage({
 
   const outcome = await lookup(key, byShortCode);
 
-  return <VerificationResult outcome={outcome} />;
+  // ADR 0126 D2/D4 — CURRENCY, stated as its own fact beside authenticity and
+  // registry status. Derived at read time (D3), never stamped.
+  //
+  // ⛔ `printCurrencyFrom` is the ONE adapter, and it takes `boolean | null` —
+  // never `undefined`. A `revoked` print reports `null` (the door performs no
+  // source join at all, which is what preserves `312` t76's independence), and
+  // that maps to `notApplicable`: the page says ANULADO and says NOTHING about
+  // currency. A NON-revoked print with a null verdict is a contract violation,
+  // not a deliberate non-evaluation, and maps to `indeterminate` instead — the
+  // two absences must never share a rendering.
+  const currency =
+    outcome.state === "found"
+      ? printCurrencyFrom(outcome.verification.status, outcome.verification.isCurrent)
+      : undefined;
+
+  return <VerificationResult outcome={outcome} currency={currency} />;
 }
 
 /**

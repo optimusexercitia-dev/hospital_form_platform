@@ -89,6 +89,12 @@ describe('lookupPrintedDocumentVerification', () => {
       sourceKind: 'form_response',
       hospitalName: 'Hospital Central',
       documentId: null,
+      // ADR 0126 D4/D12 — currency is a THIRD fact the anemic tuple now carries,
+      // stated separately from authenticity and from `status`. The fixture's row
+      // has no `is_current`, so this pins the `?? null` (absent = NOT EVALUATED)
+      // branch — and `toEqual` keeps the "and nothing else" half honest: an extra
+      // field appearing here reds, which is the assertion's whole purpose.
+      isCurrent: null,
     })
   })
 

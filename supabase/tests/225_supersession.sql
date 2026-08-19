@@ -544,8 +544,22 @@ select is(
 );
 
 -- (14c) The INSERT-then-UPDATE variant: st_x2 inserts a NORMAL draft (no
--- supersedes_id — allowed), then UPDATEs it to set supersedes_id. The BEFORE
--- UPDATE OF supersedes_id trigger fires and the authority check refuses it. 42501.
+-- supersedes_id — allowed), then UPDATEs it to set supersedes_id.
+--
+-- ⚠⚠ CONVERTED, DELIBERATELY, AND THIS IS **NOT** A CODE SWAP (ADR 0126 D1
+-- obligation 1). Under `supersedes_id` immutability the refusal now arrives from
+-- `app.guard_supersedes_id_frozen` with **HC0DT**, because
+-- `guard_supersession_coherent_trg` was narrowed to BEFORE INSERT — so this leg
+-- can no longer pin an AUTHORITY property at all, and pretending otherwise by
+-- editing only the expected SQLSTATE would silently downgrade a
+-- privilege-escalation pin into an immutability pin wearing the same name.
+--
+-- ⭐ THE ESCALATION PROPERTY IS NOT LOST — it has THREE independent INSERT-path
+-- homes, verified by reading this file rather than assuming: **14a** (the core
+-- exploit: a non-admin's DIRECT INSERT setting supersedes_id, 42501), **14b**
+-- (its non-creation control) and **14d** (the flag-off path). The two properties
+-- coincide today and would diverge the moment immutability is relaxed, which is
+-- exactly why they are now pinned SEPARATELY rather than by one assertion.
 select test_helpers.claims_for((select (v->>'st_x2')::uuid from ctx), false);
 set local role authenticated;
 insert into public.responses (id, form_version_id, commission_id, created_by, status)
@@ -556,8 +570,8 @@ values (
 select throws_ok(
   format($$ update public.responses set supersedes_id = %L where id = %L $$,
     (select resp_pred from r14), (select resp_draft from r14)),
-  '42501', null,
-  '14c. a member''s INSERT-then-UPDATE setting supersedes_id is refused (42501)'
+  'HC0DT', null,
+  '14c. ⭐ IMMUTABILITY (ADR 0126 D1): setting supersedes_id by UPDATE is refused after insert — HC0DT, from guard_supersedes_id_frozen. The ESCALATION property this leg used to carry lives on in 14a/14b/14d, all INSERT-path'
 );
 reset role;
 

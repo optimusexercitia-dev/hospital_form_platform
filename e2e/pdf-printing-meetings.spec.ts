@@ -1,19 +1,31 @@
 import { test, expect } from '@playwright/test'
 
 import { focusByTabbing, serviceQuery } from './helpers/documents'
-import { articleForShortCode, mintViaDialog, SHORT_CODE_RE } from './helpers/pdf-printing'
+import {
+  articleForShortCode,
+  mintViaDialog,
+  printedDocumentRowsFor,
+  SHORT_CODE_RE,
+} from './helpers/pdf-printing'
 import {
   addAgendaItemWithDescription,
   addAttendee,
+  concludeMeeting,
+  concludeMeetingToSignature,
   createScheduledMeeting,
+  disposeMeetingMinutes,
   getOwnerToken,
   linkMeetingCase,
   markHeld,
   meetingHref,
+  meetingRevision,
   meetingStatus,
+  reopenMeeting,
   setMeetingVisibilityParticipantsOnly,
+  signAttendee,
   signInAs,
   signMeetingToSigned,
+  updateMeetingMinutes,
   CHEFE_CCIH_ID,
   RESPONDENT_STAFF4_EMAIL,
   SEED_ETHICS_CASE_ID,
@@ -31,8 +43,12 @@ import {
  * dialog components themselves never changed (PROGRESS.md M-F1: "zero
  * printing components changed").
  *
- * `e2e/pdf-printing.spec.ts` (P1) is run once, UNMODIFIED, as the no-
- * regression check — see the run log in PROGRESS.md M-T1, not a test here.
+ * `e2e/pdf-printing.spec.ts` (P1) runs in the same regression gate. ⚠ It is no
+ * longer literally unmodified: both files now ALSO cover the ADR 0125/0126
+ * print-source split (`Imprimir prévia`, ephemeral, vs. `Emitir documento`,
+ * registered) — the case-numbered tests below (and P1's own case-1/case-2
+ * tests) are that coverage, added by `tester`, not a functional regression to
+ * the original P1/P2 mint-lifecycle assertions, which are untouched.
  *
  * Fixtures: every meeting is created fresh via the real `create_meeting` /
  * `conclude_meeting` / `sign_meeting` RPCs (never a seed row, never a raw
@@ -129,34 +145,214 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     expect(Buffer.compare(bytes1, bytes2)).not.toBe(0)
   })
 
-  test('RASCUNHO vs FINAL preview tracks the real meeting lifecycle', async ({ page }) => {
+  /**
+   * REWRITTEN for ADR 0125/0126 (print-source split) — do not delete.
+   *
+   * The original T2 minted from a `held` meeting and asserted RASCUNHO. Under
+   * the split `held` is no longer LOCKED, so it no longer registers at all —
+   * that fixture shape is unconstructible as a registered mint. This walks the
+   * SAME lifecycle through all three states the split actually separates:
+   *
+   *   held         — freely editable    -> EPHEMERAL prévia ONLY
+   *   in_signature — LOCKED, non-final  -> REGISTERS, stamped RASCUNHO (⭐⭐
+   *                  case 3 — the case most likely to be mis-specified from
+   *                  the button alone: "Emitir documento" genuinely mints a
+   *                  permanent, QR-verifiable row here, even though the
+   *                  content is not yet approved)
+   *   signed       — locked AND final   -> REGISTERS, stamped FINAL (the
+   *                  original, unchanged behaviour — kept as this lifecycle's
+   *                  closing leg rather than split into its own fixture)
+   */
+  test('print-source split: held→prévia only, in_signature→REGISTERS as RASCUNHO (case 3), signed→REGISTERS as FINAL', async ({
+    page,
+    browser,
+  }) => {
     const token = await getOwnerToken(page, 'chefe.ccih@test.local')
-    const meetingId = await createScheduledMeeting(page, token, 'PDF·P2 T2 — RASCUNHO/FINAL preview')
+    const meetingId = await createScheduledMeeting(page, token, 'PDF·P2 T2 — prévia/RASCUNHO/FINAL lifecycle')
     await markHeld(page, token, meetingId)
     expect(await meetingStatus(page, meetingId)).toBe('held')
 
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(meetingHref(meetingId))
 
-    // held — NOT signed/distributed — previews RASCUNHO.
-    await page.getByRole('button', { name: 'Emitir documento', exact: true }).click()
+    // ── held: still editable -> EPHEMERAL ONLY, two-sided ──────────────────
+    await expect(page.getByRole('link', { name: 'Imprimir prévia', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Emitir documento', exact: true })).toHaveCount(0)
+    expect(await printedDocumentRowsFor(page, 'meeting', meetingId)).toHaveLength(0)
+
+    // ── in_signature: LOCKED, non-final -> REGISTERS, stamped RASCUNHO ──────
+    // (case 3 — the ⭐⭐ separation this ADR pair exists to prove)
+    const attendeeId = await concludeMeetingToSignature(page, token, meetingId)
+    expect(await meetingStatus(page, meetingId)).toBe('in_signature')
+    await page.reload()
+
+    await expect(page.getByRole('link', { name: 'Imprimir prévia', exact: true })).toHaveCount(0)
+    const mintButton = page.getByRole('button', { name: 'Emitir documento', exact: true })
+    await expect(mintButton).toBeVisible()
+    await mintButton.click()
     let dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     await expect(dialog.getByText('RASCUNHO', { exact: true })).toBeVisible()
     await expect(dialog.getByText('FINAL', { exact: true })).toHaveCount(0)
-    await dialog.getByRole('button', { name: /^cancelar$/i }).click()
+    await dialog.getByRole('button', { name: 'Emitir documento', exact: true }).click()
+    const success = page.getByRole('alert')
+    await expect(success).toBeVisible({ timeout: 20_000 })
+    const rascunhoCode = (await success.getByText(SHORT_CODE_RE).innerText()).trim()
+    await dialog.getByText('Fechar', { exact: true }).click()
     await expect(dialog).toBeHidden()
 
-    // Drive the SAME meeting to `signed` through the real sign_meeting path.
-    await signMeetingToSigned(page, token, meetingId, CHEFE_CCIH_ID)
-    expect(await meetingStatus(page, meetingId)).toBe('signed')
+    // It genuinely REGISTERED — a real row, `status = 'active'` — while
+    // stamped RASCUNHO. Not just the dialog's promise: a real DB row and a
+    // real QR-verifiable code, exactly what the ⭐⭐ separation claims.
+    const rowsAtSignature = await printedDocumentRowsFor(page, 'meeting', meetingId)
+    expect(rowsAtSignature).toHaveLength(1)
+    expect(rowsAtSignature[0].status).toBe('active')
+    await expect(articleForShortCode(page, rascunhoCode).getByText('Ativo', { exact: true })).toBeVisible()
 
+    const anonContext = await browser.newContext()
+    const anonPage = await anonContext.newPage()
+    await anonPage.goto(`/verificar/${rascunhoCode}?via=codigo`)
+    await expect(anonPage.getByRole('heading', { name: 'Documento autêntico' })).toBeVisible()
+    await anonContext.close()
+
+    // ── signed: locked AND final -> REGISTERS, stamped FINAL (unchanged) ────
+    await signAttendee(page, token, attendeeId)
+    expect(await meetingStatus(page, meetingId)).toBe('signed')
     await page.reload()
+
+    await expect(page.getByRole('link', { name: 'Imprimir prévia', exact: true })).toHaveCount(0)
     await page.getByRole('button', { name: 'Emitir documento', exact: true }).click()
     dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     await expect(dialog.getByText('FINAL', { exact: true })).toBeVisible()
     await expect(dialog.getByText('RASCUNHO', { exact: true })).toHaveCount(0)
+    // Not minted again here on purpose — the very next test is exactly this
+    // second mint, plus the supersession assertion a throwaway mint here
+    // would not check.
+    await dialog.getByRole('button', { name: /^cancelar$/i }).click()
+    await expect(dialog).toBeHidden()
+  })
+
+  /**
+   * ADR 0125 Consequences: "A supersession chain now records which version
+   * circulated when" — the ADR's own stated accreditation answer ("show me
+   * the minutes that circulated on the 12th"), and nothing pinned it for
+   * MEETINGS before this build (P1 has a form_response analogue; this is the
+   * first to cross a LOCK-state boundary — in_signature, already registering,
+   * -> signed — rather than re-mint twice from the same terminal state).
+   */
+  test('case 4: supersession chain crosses the lock boundary — mint at in_signature, re-mint at signed, the first flips SUBSTITUÍDO', async ({
+    page,
+    browser,
+  }) => {
+    const token = await getOwnerToken(page, 'chefe.ccih@test.local')
+    const meetingId = await createScheduledMeeting(
+      page,
+      token,
+      'PDF·P2 case 4 — supersession crossing in_signature→signed',
+    )
+    await markHeld(page, token, meetingId)
+    const attendeeId = await concludeMeetingToSignature(page, token, meetingId)
+    expect(await meetingStatus(page, meetingId)).toBe('in_signature')
+
+    await signInAs(page, 'chefe.ccih@test.local')
+    await page.goto(meetingHref(meetingId))
+
+    const first = await mintViaDialog(page)
+
+    await signAttendee(page, token, attendeeId)
+    expect(await meetingStatus(page, meetingId)).toBe('signed')
+    await page.reload()
+
+    const second = await mintViaDialog(page)
+    expect(second.shortCode).not.toBe(first.shortCode)
+
+    await expect(
+      articleForShortCode(page, first.shortCode).getByText('Substituído', { exact: true }),
+    ).toBeVisible()
+    await expect(articleForShortCode(page, second.shortCode).getByText('Ativo', { exact: true })).toBeVisible()
+
+    // Logged-out verify of the FIRST (now superseded) short code: still
+    // authentic, D6 recency wording, never "not found"/"anulado" — "which
+    // version circulated on the 12th" has a real, verifiable answer.
+    const anonContext = await browser.newContext()
+    const anonPage = await anonContext.newPage()
+    await anonPage.goto(`/verificar/${first.shortCode}?via=codigo`)
+    await expect(anonPage.getByRole('heading', { name: 'Documento autêntico' })).toBeVisible()
+    await expect(
+      anonPage.getByText(/existe uma emissão mais recente deste documento/i),
+    ).toBeVisible()
+    await expect(anonPage.getByRole('heading', { name: 'Documento não reconhecido' })).toHaveCount(0)
+    await expect(anonPage.getByRole('heading', { name: 'Documento anulado' })).toHaveCount(0)
+    await anonContext.close()
+
+    // The SECOND (current) short code verifies clean, with NO recency notice —
+    // the two-sided pairing for the assertion above.
+    const anonContext2 = await browser.newContext()
+    const anonPage2 = await anonContext2.newPage()
+    await anonPage2.goto(`/verificar/${second.shortCode}?via=codigo`)
+    await expect(anonPage2.getByRole('heading', { name: 'Documento autêntico' })).toBeVisible()
+    await expect(
+      anonPage2.getByText(/existe uma emissão mais recente deste documento/i),
+    ).toHaveCount(0)
+    await anonContext2.close()
+  })
+
+  /**
+   * ADR 0126 Amendment 1 §F — disposal is a THIRD registration conjunct for
+   * `meeting`, placed in registration (not currency) on D10's symmetry: a
+   * deliberate, terminal annulment of the source record, exactly like a
+   * voided case phase. `dispose_meeting_minutes` touches neither `status` nor
+   * `revision`, so only the registration predicate itself can see it.
+   */
+  test('case 6: disposal flips a signed ata back to the prévia — it no longer registers', async ({ page }) => {
+    /**
+     * Deliberately ZERO agenda items — see `disposeMeetingMinutes`'s doc
+     * comment: `dispose_meeting_minutes` cannot complete on a LOCKED meeting
+     * that has any (FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE, filed
+     * separately, not fixed here). An empty meeting is the one fixture shape
+     * the RPC can actually complete on today, and it is sufficient to
+     * exercise the REGISTRATION axis this case is about.
+     */
+    const token = await getOwnerToken(page, 'chefe.ccih@test.local')
+    const meetingId = await createScheduledMeeting(page, token, 'PDF·P2 case 6 — disposal drops registration')
+    await markHeld(page, token, meetingId)
+    await signMeetingToSigned(page, token, meetingId, CHEFE_CCIH_ID)
+    expect(await meetingStatus(page, meetingId)).toBe('signed')
+
+    await signInAs(page, 'chefe.ccih@test.local')
+    await page.goto(meetingHref(meetingId))
+
+    // Differential control, BEFORE disposal: a signed ata registers, as always.
+    await expect(page.getByRole('button', { name: 'Emitir documento', exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Imprimir prévia', exact: true })).toHaveCount(0)
+
+    await disposeMeetingMinutes(page, token, meetingId, 'retention_expired')
+    const [row] = await serviceQuery<{ phi_disposed_at: string | null; status: string }>(
+      page,
+      `meetings?id=eq.${meetingId}&select=phi_disposed_at,status`,
+    )
+    expect(row?.phi_disposed_at, 'the RPC actually disposed this fixture').not.toBeNull()
+    expect(row?.status, 'disposal does not touch status (ADR 0126 Amendment 1 §F)').toBe('signed')
+
+    // The SAME differential, AFTER: flips to the ephemeral affordance only —
+    // still `signed`/locked, but no longer registers.
+    await page.reload()
+    await expect(page.getByRole('link', { name: 'Imprimir prévia', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Emitir documento', exact: true })).toHaveCount(0)
+
+    // The prévia corridor itself still works on a disposed source (ADR 0125
+    // D2: paper stays available on demand even when nothing may register).
+    const href = await page
+      .getByRole('link', { name: 'Imprimir prévia', exact: true })
+      .getAttribute('href')
+    const resp = await page.request.get(href!)
+    expect(resp.status()).toBe(200)
+    expect(resp.headers()['content-type']).toContain('application/pdf')
+    expect((await resp.body()).subarray(0, 5).toString('latin1')).toBe('%PDF-')
+
+    // And disposal never registered anything of its own either.
+    expect(await printedDocumentRowsFor(page, 'meeting', meetingId)).toHaveLength(0)
   })
 
   test('restricted (participants_only) meeting: a non-attendee commission member cannot reach it', async ({
@@ -168,7 +364,20 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     // Roster must be non-empty BEFORE the flip (trg_meetings_roster) — chefe.ccih
     // is the sole attendee; staff1.ccih (a real CCIH member) is deliberately left off.
     await addAttendee(page, token, meetingId, CHEFE_CCIH_ID, 'presidente')
+    // The visibility flip is a raw SQL UPDATE on `meetings` — it must land
+    // BEFORE the meeting locks: `app.guard_meeting_status` blocks ordinary
+    // UPDATEs from `in_signature` onward, not only DELETE (confirmed
+    // empirically), so setting it here (while still `held`) and concluding
+    // AFTER is the only order that works.
     setMeetingVisibilityParticipantsOnly(meetingId)
+    // ADR 0125/0126: also drives the meeting to `in_signature` so the
+    // "control" mint-surface check below exercises a REGISTERING state —
+    // `held` no longer shows "Emitir documento" at all (a still-editable
+    // source is ephemeral-only), which is unrelated to this test's actual
+    // subject (visibility, not print-source state). The attendee is already
+    // on the roster (above), so this uses the bare conclude step, not
+    // `concludeMeetingToSignature` (which would add a SECOND attendee row).
+    await concludeMeeting(page, token, meetingId)
     const [row] = await serviceQuery<{ visibility_policy: string }>(
       page,
       `meetings?id=eq.${meetingId}&select=visibility_policy`,
@@ -231,6 +440,11 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     const token = await getOwnerToken(page, 'chefe.ccih@test.local')
     const meetingId = await createScheduledMeeting(page, token, 'PDF·P2 T4 — keyboard-only mint')
     await markHeld(page, token, meetingId)
+    // ADR 0125/0126: `held` no longer registers at all (ephemeral prévia only)
+    // — advance to `in_signature` so "Emitir documento" exists to keyboard-mint.
+    // chefe.ccih is the attendee added here; staff1.ccih (below) stays a
+    // non-attendee throughout, unaffected.
+    await concludeMeetingToSignature(page, token, meetingId, CHEFE_CCIH_ID)
 
     // A non-coordinator member (staff1.ccih, commission_default visibility, not
     // an attendee) sees the read-only projection of every panel — no edit/add/
@@ -290,6 +504,19 @@ test.describe('PDF·P2 — printing (meetings)', () => {
       'Substância deliberativa presente.',
     )
     await linkMeetingCase(page, token, meetingId, SEED_ETHICS_CASE_ID, agendaItemId)
+
+    // ADR 0125/0126: registration now requires a LOCKED source — advance to
+    // in_signature so "Emitir documento" — and therefore this whole A7
+    // mint/download-denial corridor — exists to click at all. Unrelated to
+    // A7's actual subject (masked-content authorization).
+    // ⛔ ORDER IS LOAD-BEARING, not incidental: the agenda item + case link
+    // above MUST land before this, never after — `app.guard_meeting_child_lock`
+    // sits on `meeting_agenda_items`/`meeting_cases` (among others) and reads
+    // no rpc flag, so it refuses those exact inserts once locked, even from
+    // inside a meeting RPC (see `concludeMeetingToSignature`'s STANDING RULE,
+    // `e2e/helpers/pdf-printing-meetings.ts`).
+    await markHeld(page, token, meetingId)
+    await concludeMeetingToSignature(page, token, meetingId, CHEFE_CCIH_ID)
 
     // Coordinator: full sight (explicit read_case_deliberation grant on the
     // seed case) -> mints fine.
@@ -451,5 +678,146 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     const resp = await page.request.get(downloadPath)
     expect(resp.status()).toBe(200)
     expect((await resp.body()).subarray(0, 5).toString('latin1')).toBe('%PDF-')
+  })
+
+  /**
+   * ⭐⭐ ADR 0126 D9 — case 5's reopen -> edit -> re-advance -> re-sign round
+   * trip. `reopen_meeting` bumps `meetings.revision`, so a print minted
+   * BEFORE the reopen freezes the PRE-bump revision and stops matching the
+   * instant the reopen returns (`app.print_source_head`'s meeting arm: `print.
+   * source_revision = meetings.revision`).
+   *
+   * 🔴 THE REQUIREMENT THAT MATTERS MOST: assert the RE-MINT SUCCEEDS, not
+   * just that the old print reads not-current. `mint_printed_document` gained
+   * a `p_source_revision` compare-and-mint guard (`HC0DU`) that refuses a
+   * caller sending a stale/defaulted revision — which is exactly what
+   * happened until shortly before this test was written: the server action
+   * never passed it at all (no `DocumentPayload.sourceRevision`, no
+   * `p_source_revision` in the RPC call), so every re-mint of a reopened
+   * meeting failed through the real UI while a pgTAP probe supplying the
+   * argument by hand stayed green throughout.
+   *
+   * ⚠ THE MECHANISM, measured from `src/lib/pdf-mint/actions.ts` (`grep -c
+   * "provider.build("` → 1 — not assumed, not "re-read immediately before
+   * minting"): `provider.build()` is called EXACTLY ONCE, BEFORE the render
+   * (Gotenberg can take seconds, and `reopen_meeting` can fire inside that
+   * window). `sourceRevision` is captured from THAT ONE build and CROSSES
+   * the render window unchanged, reaching the RPC only afterward. The door
+   * then compares it against the value `app.print_source_revision` reads
+   * FRESH, inside its own transaction, at mint time. A build called again
+   * immediately before the RPC — a re-read AFTER the render rather than a
+   * value carried FROM before it — would hand the door its own current
+   * value on every call, making HC0DU vacuous while looking correct. Do not
+   * "simplify" this into a fresh read at mint time; that is the exact
+   * defect the captured-before-render design exists to prevent.
+   *
+   * A keystone proves the DOOR works; this spec is what proves the ACTION
+   * can reach it — a second caller (pgTAP) can satisfy a door the real one
+   * cannot even open.
+   */
+  test('case 5 / D9: reopen -> edit -> re-advance -> re-sign -> RE-MINT succeeds; the new print is current, the old is not', async ({
+    page,
+    browser,
+  }) => {
+    const token = await getOwnerToken(page, 'chefe.ccih@test.local')
+    const meetingId = await createScheduledMeeting(page, token, 'PDF·P2 D9 — reopen round trip')
+    await markHeld(page, token, meetingId)
+    const attendeeId = await signMeetingToSigned(page, token, meetingId, CHEFE_CCIH_ID)
+    expect(await meetingStatus(page, meetingId)).toBe('signed')
+    expect(await meetingRevision(page, meetingId)).toBe(0)
+
+    await signInAs(page, 'chefe.ccih@test.local')
+    await page.goto(meetingHref(meetingId))
+
+    // Mint #1 at signed/revision 0 — registers FINAL, and, the sole print of
+    // its series so far, reads CURRENT. Positive control that the active arm
+    // DOES render a currency verdict (D4) — via /verificar, since the panel's
+    // own chip renders NOTHING for the ordinary "current" case by design
+    // (asserted separately, in the panel checks below, for the OUTDATED case
+    // the chip DOES render text for).
+    const first = await mintViaDialog(page)
+    await expect(articleForShortCode(page, first.shortCode).getByText('Ativo', { exact: true })).toBeVisible()
+
+    const beforeCtx = await browser.newContext()
+    const beforePage = await beforeCtx.newPage()
+    await beforePage.goto(`/verificar/${first.shortCode}?via=codigo`)
+    await expect(beforePage.getByText('Esta é a revisão atual do documento.', { exact: true })).toBeVisible()
+    await beforeCtx.close()
+
+    // Reopen — signed -> held, revision 0 -> 1, the existing signature revoked.
+    await reopenMeeting(page, token, meetingId)
+    expect(await meetingStatus(page, meetingId)).toBe('held')
+    expect(await meetingRevision(page, meetingId)).toBe(1)
+
+    // Edit while reopened — the realistic reason anyone reopens an ata.
+    await updateMeetingMinutes(page, token, meetingId, 'Ata revisada após reabertura (D9 round trip).')
+
+    // Re-advance and re-sign — the SAME attendee, a FRESH signature row (the
+    // prior one was REVOKED by reopen, not deleted, so the active partial-
+    // unique index no longer blocks a new one for the same attendee).
+    await concludeMeeting(page, token, meetingId)
+    await signAttendee(page, token, attendeeId)
+    expect(await meetingStatus(page, meetingId)).toBe('signed')
+
+    await page.reload()
+
+    // 🔴 The re-mint must SUCCEED through the real UI — this is the assertion
+    // a "the old print merely reads not-current" test would never reach.
+    const second = await mintViaDialog(page)
+    expect(second.shortCode).not.toBe(first.shortCode)
+
+    // Registry status: re-minting supersedes, unchanged mechanism (ADR 0104 D6).
+    await expect(
+      articleForShortCode(page, first.shortCode).getByText('Substituído', { exact: true }),
+    ).toBeVisible()
+    await expect(articleForShortCode(page, second.shortCode).getByText('Ativo', { exact: true })).toBeVisible()
+
+    // Currency (ADR 0126 D2/D9) is a DIFFERENT axis from the status above —
+    // pinned because D3 makes `active`/`superseded` legal alongside either
+    // currency value, so the status chip alone under-specifies the claim.
+    // Two-sided per conjunct, IN THE SAME TEST: the panel's currency chip
+    // renders "Revisão anterior" for the old print and nothing for the new one.
+    const panelFirst = articleForShortCode(page, first.shortCode)
+    const panelSecond = articleForShortCode(page, second.shortCode)
+    await expect(panelFirst.getByText('Revisão anterior', { exact: true })).toBeVisible()
+    await expect(panelSecond.getByText('Revisão anterior', { exact: true })).toHaveCount(0)
+
+    // The same pair, on the PUBLIC page, in words (D4's third term) — the
+    // exact wording this ADR pair reserves for "authentic, but not the
+    // current revision", never reusing "Substituído" (which would assert a
+    // newer print exists — it does, but that is not what this sentence means).
+    const oldCtx = await browser.newContext()
+    const oldPage = await oldCtx.newPage()
+    await oldPage.goto(`/verificar/${first.shortCode}?via=codigo`)
+    await expect(oldPage.getByRole('heading', { name: 'Documento autêntico' })).toBeVisible()
+    await expect(
+      oldPage.getByText('Documento autêntico — emitido de uma revisão que não é mais a atual.', { exact: true }),
+    ).toBeVisible()
+    await expect(oldPage.getByText('Esta é a revisão atual do documento.', { exact: true })).toHaveCount(0)
+    await oldCtx.close()
+
+    const newCtx = await browser.newContext()
+    const newPage = await newCtx.newPage()
+    await newPage.goto(`/verificar/${second.shortCode}?via=codigo`)
+    await expect(newPage.getByText('Esta é a revisão atual do documento.', { exact: true })).toBeVisible()
+    await expect(newPage.getByText(/não é mais a atual/i)).toHaveCount(0)
+    await newCtx.close()
+
+    // DB truth: the frozen revision on each row differs by exactly the epoch
+    // bump — the literal value `print_source_head` compares, not inferred
+    // from UI text alone.
+    const printRows = await serviceQuery<{
+      verification_short_code: string
+      source_revision: number
+    }>(
+      page,
+      `printed_documents?source_kind=eq.meeting&source_id=eq.${meetingId}` +
+        `&select=verification_short_code,source_revision&order=minted_at.asc`,
+    )
+    expect(printRows).toHaveLength(2)
+    expect(printRows[0].verification_short_code).toBe(first.shortCode)
+    expect(printRows[0].source_revision).toBe(0)
+    expect(printRows[1].verification_short_code).toBe(second.shortCode)
+    expect(printRows[1].source_revision).toBe(1)
   })
 })

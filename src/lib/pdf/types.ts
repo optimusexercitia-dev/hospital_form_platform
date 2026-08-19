@@ -109,6 +109,64 @@ export interface DocumentEmission {
   byDisplay: string
 }
 
+/**
+ * Prévia provenance: when and by whom an EPHEMERAL page was generated (ADR 0125
+ * D3/D5). Structurally identical to {@link DocumentEmission} and deliberately a
+ * SEPARATE type: `Emitido` is a reserved verb naming the registered act only
+ * (0125 D5 + Consequences), so the ephemeral path must not be typed in the
+ * registry's vocabulary. Nothing here is stored — a prévia has no bytes at rest
+ * and no registry row; only the fact of the generation is audited (D3).
+ */
+export interface DocumentGeneration {
+  /** Generation timestamp (ISO-8601). */
+  at: string
+  /** Actor display name, pre-formatted pt-BR. */
+  byDisplay: string
+}
+
+// ---------------------------------------------------------------------------
+// Provenance — is this page a RECORD? (ADR 0125 D1/D5)
+// ---------------------------------------------------------------------------
+
+/**
+ * A REGISTERED emission: permanent, hash-pinned, QR-verifiable. Its watermark is
+ * free — an `in_signature` ata registers stamped RASCUNHO (0125 D1's separating
+ * case), a submitted response registers stamped FINAL.
+ */
+export interface RegisteredProvenance {
+  kind: 'registered'
+  watermark: WatermarkFlag
+  qr: DocumentQr
+  emission: DocumentEmission
+}
+
+/**
+ * An EPHEMERAL prévia: streamed, no bytes at rest, no registry row.
+ *
+ * ⛔ `watermark` is the LITERAL `'draft'`, and that is ADR 0125 D5's fourth cell
+ * made UNREPRESENTABLE: a page watermarked FINAL that carries the prévia footer
+ * would be a page the platform disclaims while its source is immutable.
+ *
+ * ⚠ The type is a better sentence, NOT a keystone — it constrains this codebase,
+ * not the rule. The behavioural pin stays where it belongs: the 220-probe sweep
+ * in `src/lib/pdf-mint/print-source-vectors.test.ts` and the seam guard in
+ * `../provenance.ts`. ADR 0125 D5: *"Worth a keystone, not just a sentence."*
+ */
+export interface PreviaProvenance {
+  kind: 'previa'
+  watermark: 'draft'
+  generation: DocumentGeneration
+}
+
+/**
+ * Whether this page is a record, and the mark that goes with it — the two axes
+ * ADR 0125 D5 reads independently, correlated here ONLY to forbid the one
+ * illegal pairing. The three legal cells all stay representable: registered+FINAL
+ * (submitted response / signed ata), registered+RASCUNHO (the `in_signature` ata,
+ * D1's separating case), previa+RASCUNHO (the ordinary preview).
+ */
+export type DocumentProvenance = RegisteredProvenance | PreviaProvenance
+
 // ---------------------------------------------------------------------------
 // Per-kind document bodies (discriminated union on `kind`)
 // ---------------------------------------------------------------------------
@@ -233,19 +291,23 @@ export type DocumentBody = FormResponseDocumentBody | MeetingDocumentBody
 // ---------------------------------------------------------------------------
 
 /**
- * Everything a template needs to render one document. Built by the source domain's
+ * Everything a template needs to render one document, PLUS the mint-time facts
+ * observed while building it. Built by the source domain's
  * data provider under the CALLER's session; consumed by `src/lib/pdf/render.ts` and
  * the per-kind template in `src/lib/pdf/documents/`.
  */
 export interface DocumentPayload {
   letterhead: DocumentLetterhead
-  /** Mint-time marks only (`draft` | `final`) — see {@link WatermarkFlag}. */
-  watermarks: WatermarkFlag[]
+  /**
+   * Whether the page is a RECORD, and the mark that goes with it (ADR 0125 D1/D5).
+   * Replaces the former `watermarks` / `qr` / `emission` trio: those three fields
+   * let a caller pair a FINAL mark with an unregistered page, which is the one
+   * combination the platform must never produce.
+   */
+  provenance: DocumentProvenance
   /** Canonical flat list of every attestation on the document (per-section entries
    * for forms, footer blocks for atas). */
   signatures: SignatureAttestation[]
-  qr: DocumentQr
-  emission: DocumentEmission
   /**
    * Whether this mint carries patient PHI (ADR 0104 D9). Always `false` in P1/P2
    * (forms and meetings mint PHI-free only). When true, the shared confidentiality
@@ -253,5 +315,27 @@ export interface DocumentPayload {
    * header/footer and is NOT suppressible (D7).
    */
   containsPhi: boolean
+  /**
+   * The source's revision AS OBSERVED WHEN THIS PAYLOAD WAS BUILT (ADR 0126 D9 +
+   * Consequences' compare-and-mint). `0` for kinds with no revision chain.
+   *
+   * ⛔ **This is the ONE field here that no template renders, and it is carried
+   * on the payload deliberately — the alternative is a defect.** The render is
+   * out-of-band and takes seconds, and both reversal doors can fire mid-corridor.
+   * `mint_printed_document` compares the revision the caller OBSERVED against the
+   * source's current one and raises `HC0DU` on a mismatch, so a registered hash
+   * can never pin bytes of a state that never coherently registered.
+   *
+   * ⚠ **Re-reading the revision at submit defeats the entire mechanism**: the
+   * door would compare its own current value against itself, the comparison would
+   * always succeed, and `HC0DU` would go VACUOUS WHILE LOOKING CORRECT. Sourcing
+   * it here — from the same read that built the payload — makes that re-read
+   * structurally impossible rather than merely discouraged: the mint action never
+   * queries the source at all, so there is no fresher value for it to reach for.
+   *
+   * This is the same path `containsPhi` already takes, for the same reason: a
+   * fact about the source at build time, needed by the door after the render.
+   */
+  sourceRevision: number
   body: DocumentBody
 }
