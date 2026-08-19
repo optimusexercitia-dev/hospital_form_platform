@@ -47,6 +47,17 @@ const ROOT = process.cwd()
 const RULES_DIR = join(ROOT, '.claude', 'rules')
 const ARCHIVE = 'docs/progress/rules-archive.md'
 
+/**
+ * VOLUME BOUNDS. The staleness checks above catch a rule whose SUBJECT disappeared. They
+ * say nothing about how many rules there are, how broad each one is, or how big it has
+ * grown — and every anchor keeps resolving while all three drift. Measured on the first
+ * population: one rule's globs matched **659 files**, so it loaded on essentially every
+ * backend task; it was retired. These are the analogue of PROGRESS.md's cell caps.
+ */
+const MAX_GLOB_FILES = 40 // per rule, unless it declares `broad:` with a reason
+const MAX_RULE_BYTES = 2048
+const MAX_RULES = 12
+
 /** Minimal frontmatter reader for the shape rules use: scalars and `- ` lists. */
 export function parseFrontmatter(text) {
   const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)
@@ -73,7 +84,7 @@ export function parseFrontmatter(text) {
  * @param deps  {exists, globMatch, fileHas} — injected so the self-test can drive the
  *              checker against fixtures without touching the filesystem.
  */
-export function checkRule(name, fm, deps) {
+export function checkRule(name, fm, deps, bytes = 0) {
   const { exists, globMatch, fileHas } = deps
   if (!fm) {
     return [
@@ -100,6 +111,29 @@ export function checkRule(name, fm, deps) {
           `${ARCHIVE} with its provenance.`,
       )
     }
+  }
+
+  // BREADTH. A glob wide enough to fire on most of a subtree is an always-on rule wearing
+  // a path-scoped costume — CLAUDE.md content without CLAUDE.md's review discipline. Wide
+  // is sometimes correct (a rule whose subject genuinely IS a whole directory), so it is
+  // opt-out-able — but only in writing, which turns breadth from an accident into a choice.
+  const matched = paths.reduce((n, g) => n + globMatch(g).length, 0)
+  const broad = typeof fm.broad === 'string' ? fm.broad.trim() : ''
+  if (matched > MAX_GLOB_FILES && !broad) {
+    out.push(
+      `${name} — \`paths:\` matches ${matched} files (soft cap ${MAX_GLOB_FILES}). A rule this ` +
+        `wide loads on most work in the subtree, which is an always-on rule in disguise. ` +
+        `Narrow it, retire it to ${ARCHIVE}, or declare \`broad: <why this subtree IS the ` +
+        `subject>\` and own the choice.`,
+    )
+  }
+
+  if (bytes > MAX_RULE_BYTES) {
+    out.push(
+      `${name} — rule file is ${bytes} bytes (cap ${MAX_RULE_BYTES}). A rule is a pointer plus ` +
+        `a prohibition; rationale belongs in the \`source:\` it names. This is the drift that ` +
+        `put 2,159 characters in one PROGRESS.md cell.`,
+    )
   }
 
   const anchors = list('anchors')
@@ -136,6 +170,23 @@ export function checkRule(name, fm, deps) {
   return out
 }
 
+/**
+ * POPULATION. Nothing else bounds how many rules exist: every anchor keeps resolving as
+ * the directory grows, so the gate stays green all the way to a second CLAUDE.md. Ten
+ * rules scoped to one subtree all load on a single file touch — path-scoping bounds WHEN
+ * they load, never HOW MANY load together.
+ */
+export function checkPopulation(count) {
+  return count <= MAX_RULES
+    ? []
+    : [
+        `.claude/rules/ holds ${count} rules (cap ${MAX_RULES}). Retire the ones whose lesson ` +
+          `is now enforced by a gate or by code — that is the intended exit, and ${ARCHIVE} is ` +
+          `where they go. A rules directory that only grows is the category this one was ` +
+          `created to escape.`,
+      ]
+}
+
 // --------------------------------------------------------------------------
 // SELF-TEST — every checker proven able to fail, on every invocation.
 // --------------------------------------------------------------------------
@@ -156,6 +207,18 @@ function selfTest() {
   red('anchor-literal-gone', checkRule('r', good, { ...ok, fileHas: () => false }))
   red('no-anchors', checkRule('r', { ...good, anchors: [] }, ok))
   red('no-source', checkRule('r', { paths: ['src/**'], anchors: ['src/x.ts'] }, ok))
+
+  const wide = { ...ok, globMatch: () => new Array(MAX_GLOB_FILES + 1).fill('f') }
+  red('too-broad', checkRule('r', good, wide))
+  // Breadth must be waivable IN WRITING, and the waiver must actually waive.
+  green('broad-declared-green', checkRule('r', { ...good, broad: 'this subtree IS the subject' }, wide))
+  red('broad-empty-reason', checkRule('r', { ...good, broad: '   ' }, wide))
+
+  red('too-big', checkRule('r', good, ok, MAX_RULE_BYTES + 1))
+  green('size-green', checkRule('r', good, ok, MAX_RULE_BYTES))
+
+  red('too-many-rules', checkPopulation(MAX_RULES + 1))
+  green('population-green', checkPopulation(MAX_RULES))
 
   // The parser must actually parse — a parser that silently returns {} would make
   // every check above vacuous against real files.
@@ -191,10 +254,12 @@ function main() {
   }
 
   const files = readdirSync(RULES_DIR).filter((f) => f.endsWith('.md'))
-  const findings = []
+  const findings = [...checkPopulation(files.length)]
   for (const f of files) {
     const text = readFileSync(join(RULES_DIR, f), 'utf8')
-    findings.push(...checkRule(`.claude/rules/${f}`, parseFrontmatter(text), deps))
+    findings.push(
+      ...checkRule(`.claude/rules/${f}`, parseFrontmatter(text), deps, Buffer.byteLength(text)),
+    )
   }
 
   if (findings.length) {

@@ -114,6 +114,12 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   probe now measures it: read `.claude/instructions-loaded.log` after a session that opened
   PROGRESS.md or a governed source file. Until a `path_glob_match` line appears, treat the
   rule files as inert and the archives as the live home.
+  ⛔ **`.claude/rules/` has a staleness gate, volume bounds and an exit — but NO documented
+  intake, deliberately.** The one-line CLAUDE.md §8 rule-creation line is **HELD** until that
+  log shows a `path_glob_match`: publishing an intake into a directory that may never load
+  routes every future standing lesson into a black hole, which is worse than leaving those
+  lessons here where they can be grepped. Unhold it the moment firing is proven (ADR 0127
+  Amdt 1).
   **Filed, not built:** the 42501 gate (15 `throws_ok` sites) · staleness **domain (b)**,
   the docs that make claims about repo mechanics · MEMORY.md compaction (19.6 / 24.4 KB) ·
   a CLAUDE.md context program — the file where cutting bytes actually pays.
@@ -180,8 +186,11 @@ this subsection used to hold were rules with no resolution event — which is wh
 only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 - **Path-scoped rule files**, loaded when you open the file they govern:
-  [print-door](.claude/rules/print-door.md) · [answer-maps](.claude/rules/answer-maps.md) ·
-  [radix-dialogs](.claude/rules/radix-dialogs.md). Staleness gated by `npm run lint:rules`.
+  [answer-maps](.claude/rules/answer-maps.md) · [radix-dialogs](.claude/rules/radix-dialogs.md).
+  Staleness **and volume** gated by `npm run lint:rules`.
+- **The `is_active` print-door prohibition was a rule for one day and is now RETIRED** —
+  measured at **659 files** matched, and already enforced by pgTAP `342` S3c3. Full text +
+  reasoning → [rules-archive](docs/progress/rules-archive.md).
 - **Already enforced in code**, so no rule was written: the minutes `MINUTES_SERVICE_URL`
   precondition (fails fast in `e2e/meeting-audio-minutes.spec.ts`), the `set local` watermark
   (`lint:set-local`), the door-ACL census (pgTAP `320`).

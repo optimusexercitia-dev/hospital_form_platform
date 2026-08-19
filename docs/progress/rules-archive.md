@@ -21,4 +21,46 @@ the gap the anchors exist to close, and this file is where the closure lands.
 
 ---
 
-_No rules retired yet._
+
+## ↩ Retired 2026-08-19 — `print-door.md`
+
+**Why it stopped qualifying: it failed both of the admission criteria in ADR 0127, and the
+measurement that showed it came after admission.**
+
+- **Breadth.** Its globs matched **659 files** (`supabase/migrations/**` 423 + `supabase/tests/**`
+  236), so it loaded on essentially every backend task — a de-facto always-on rule wearing a
+  path-scoped costume. The supersession candidate was REJECTED at admission for spanning 8.
+- **A tight glob is impossible in principle here.** Its audience is whoever next edits the print
+  door, which happens in a migration whose filename does not exist yet. Not a fixable glob.
+- **Already enforced.** pgTAP `342` S3c3 reds if anyone adds `is_active` to
+  `app.can_view_printed_document`. ADR 0127 rejects a rule a gate already enforces; at Q12 this
+  was called borderline and admitted anyway.
+
+The prohibition itself is NOT lost: it is pinned by pgTAP `342` S3c3 and recorded in
+`bug-log-archive.md` (BUG-ACT-ACL-1 closure notes). Full text of the retired rule:
+
+```markdown
+---
+paths:
+  - "supabase/migrations/**"
+  - "supabase/tests/**"
+anchors:
+  - supabase/tests/342_dm5_s3_printed_renditions.sql#S3c3
+  - supabase/tests/342_dm5_s3_printed_renditions.sql#can_view_printed_document
+source: BUG-ACT-ACL-1 closure notes
+---
+
+# The print door admits a deactivated account BY DECISION
+
+⛔ **Do NOT add `is_active` to `app.can_view_printed_document`.** The admission of a
+deactivated account is deliberate, and pgTAP `342` **S3c3** pins it — adding the check
+reds that keystone.
+
+The authority is the **conjunction** the door already computes. A second copy of the
+same predicate is the *two-locks-that-are-one-lock* trap: it reads like defence in
+depth and is one lock, tested twice.
+
+⚠ Verify against the **live catalog** (`pg_proc`, `prosecdef`, `pg_policies`), never
+against migration text — migration files here are stale by design, since several rewrite
+function bodies at runtime. Source: **BUG-ACT-ACL-1** closure notes.
+```

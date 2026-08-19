@@ -30,8 +30,13 @@
      whose *subject* vanished; a rule whose *claim* went false while its subject still
      exists has **no gate at all**, and the only witness is a human contradicting it
      mid-session.
-- **Consequences.** The accumulation problem is capped at admission rather than observed
-  after the fact: *"can this be shown stale?"* is now a precondition for writing a rule.
+- **Consequences.** *"Can this be shown stale?"* is now a precondition for writing a rule.
+  ⛔ **Correction (2026-08-19, same day):** an earlier draft of this line claimed the anchor
+  requirement *"caps the population."* **It does not.** Anchors bound what is **admissible**,
+  never **how many** admissible rules accumulate — every anchor keeps resolving as the
+  directory grows, so the gate stays green all the way to a second CLAUDE.md. Path-scoping
+  likewise bounds **when** a rule loads, never **how many** load together: ten rules over one
+  subtree all fire on a single file touch. Volume needed its own bounds, added below.
   ⚠ **Bounded, stated:** DB anchors (`prosecdef`, ACLs, RLS policies) are **not** checkable
   in `lint`, which runs without Docker — those belong in pgTAP, and the gate says so rather
   than reporting a pass that reads wider than its domain.
@@ -44,3 +49,34 @@
   PROGRESS.md either logs a `path_glob_match` load or does not. Until then the source prose
   remains reachable in the archives, and PROGRESS.md's pointer names both homes — so an
   inert rule costs a hop, not a fact.
+
+## Amendment 1 — volume bounds, and the first retirement (2026-08-19)
+
+- **Status:** accepted (PO, 2026-08-19), same day as the ADR.
+- **Why so soon.** The admission filter was applied by *reading* globs, not measuring them.
+  Measuring the first population showed `print-door.md`'s globs matched **659 files**
+  (`supabase/migrations/**` 423 + `supabase/tests/**` 236) — it would have loaded on
+  essentially every backend task. The supersession candidate had been **rejected** at
+  admission for spanning 8. The same criterion, applied by eye, admitted a rule 80× wider.
+  *A breadth criterion enforced by reading is not a criterion.*
+- **Three volume bounds in `lint:rules`**, the analogue of PROGRESS.md's cell caps:
+  **≤ 40 files matched per rule** (soft — waivable by declaring `broad: <why this subtree IS
+  the subject>`, so breadth becomes a choice made in writing rather than an accident),
+  **≤ 2048 bytes per rule file**, **≤ 12 rules total**. Each self-red-proves, and the
+  breadth waiver is proven to both waive and to reject an empty reason.
+- **`print-door.md` RETIRED** to `docs/progress/rules-archive.md` — the first use of the
+  disposition this ADR defined. It failed both admission criteria once measured: too broad,
+  and **already enforced** (pgTAP `342` S3c3 reds if anyone adds `is_active`). Its glob could
+  not be narrowed *in principle* — the audience is whoever next edits the print door, which
+  happens in a migration whose filename does not yet exist. The prohibition survives where it
+  was always enforced: pgTAP `342` S3c3, plus the BUG-ACT-ACL-1 closure notes.
+- **Population: 3** (`progress-contract` — `broad:` declared, the tracker genuinely is its
+  subject · `answer-maps` 4 files · `radix-dialogs` 3 files).
+- **The intake path is deliberately NOT written yet.** `.claude/rules/` has a staleness gate,
+  volume bounds, and an exit — but no documented way in, because a session that learns a
+  standing lesson is in *source code*, where the only file describing the three-way test
+  (`progress-contract.md`, scoped to the tracker) does not load. Adding that line to CLAUDE.md
+  §8 is the fix, and it is **held until `.claude/instructions-loaded.log` shows a
+  `path_glob_match`**: publishing an intake into a directory that may never load would route
+  every future standing lesson into a black hole, which is strictly worse than leaving those
+  lessons in PROGRESS.md where a human can grep them.
