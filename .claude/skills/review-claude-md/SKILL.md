@@ -1,6 +1,6 @@
 ---
 name: review-claude-md
-description: Process the CLAUDE.md review queue (.claude/claude-md-review-queue.md, filled by the Stop hook) and propose CLAUDE.md / lead-playbook updates while the gaps are fresh. Use when the user asks to review CLAUDE.md, process the review queue, or check whether project instructions have gone stale.
+description: Process the CLAUDE.md review queue (.claude/claude-md-review-queue.md, filled by the Stop hook) and propose CLAUDE.md / .claude/rules/ / lead-playbook updates while the gaps are fresh. Use when the user asks to review CLAUDE.md, review or retire a stale rule file, process the review queue, or check whether project instructions have gone stale.
 ---
 
 # Review CLAUDE.md against queued session signals
@@ -27,6 +27,11 @@ queue into reviewed, human-approved documentation fixes.
      every session needs. Candidate for a new line — but CLAUDE.md is loaded by every
      spawn, so the bar for ADDING is high: prefer pointing to an existing doc over
      inlining detail.
+   - **A `.claude/rules/` rule taught it** (signal name `rules`) — a path-scoped rule
+     is invisible until it fires, and `lint:rules` can only catch one whose *subject*
+     vanished. A rule whose subject still exists but whose *claim* went false has no
+     gate at all; this queue is its only witness. Disposition: repoint the rule, or
+     retire it verbatim to `docs/progress/rules-archive.md`. Never delete outright.
    - **Not a doc problem** — a one-off mistake, or something already recorded
      (memory, ADR, archive). No edit; note why.
 

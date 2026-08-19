@@ -74,3 +74,5 @@ graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 
 # CLAUDE.md review-cadence queue (Stop hook output) — per-checkout working state, never record
 /.claude/claude-md-review-queue.md
+# InstructionsLoaded probe output (ADR 0127 open risk) — per-checkout measurement, not record.
+/.claude/instructions-loaded.log

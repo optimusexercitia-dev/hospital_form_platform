@@ -285,3 +285,18 @@ of the phase.**
 | **DM4 — Wave C: referrals** (ADR [0119](../decisions/0119-dm4-referral-document-substrate-decisions.md) D1–D10) — r1 ⛔ → r2 ✅ | ✅ **APPROVED (r2)** — 0 P0 · 0 MAJOR open · 8 MINOR carried · 2 new · 5 INFO. **No binding pre-merge condition.** ⚠ MAJOR-3 was **PO-deferred to Phase 19 as an ACCEPTED OPEN GAP, not resolved** → FUP-DM4-RECUSAL, whose deadline is the flag-on date | 2026-08-14 | [dm4-referrals](../reviews/dm4-referrals-review.md) |
 | **DM3 — Wave B: controlled documents** (ADR 0114 Amdt 1 + **Amdt 2 / D17**) — r1 ⛔ → r2 ✅ | ✅ **APPROVED (r2)** — 0 P0 · 0 MAJOR · 3 MINOR carried · 6 INFO. **No binding pre-merge condition.** ⚠ `can_write_document`'s sweep verdict is **ERROR**-resolved-by-runlog and **must not later be cited as COVERED** | 2026-08-13 | [dm3-controlled-documents](../reviews/dm3-controlled-documents-review.md) |
 | _Phase 0 → FUP batch 2026-08-12_ — **105 concluded rows** (81 rotated 2026-08-06 + 18 rotated 2026-08-10 + 6 rotated 2026-08-13: QO·B · PDF·P2 · PDF·P1 · QO·FUP · QO·A · MIN · AFF · PCI · TV · Phase 16, incl. struck loop rows) | — | — | [collapsed index](qa-verdicts-archive.md) |
+
+## ↩ Rotated from PROGRESS.md 2026-08-19 — the seven DM rows (the DM milestone is closed), VERBATIM
+
+> The section's own retention rule is *current milestone only*. The DM program closed 2026-08-18,
+> so these left when the prévia split became the current milestone. Link repoint only.
+
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- |---| --- |
+| DM5 — PHASE QA | APPROVED (r2) | 2026-08-17 | [dm5-phase-review](../reviews/dm5-phase-review.md) |
+| DM5 · S6 — canon rewrite + program exit sweep | APPROVED (r2) | 2026-08-17 | [dm5-s6-review](../reviews/dm5-s6-review.md) |
+| DM5 · S5 — operational closure | APPROVED (r2) | 2026-08-17 | [r2](../reviews/dm5-s5-review-r2.md) · [r1](../reviews/dm5-s5-review.md) |
+| DM5 · S4 — legacy storage-bucket retirement | APPROVED (r3) | 2026-08-17 | [r3](../reviews/dm5-s4-review-r3.md) · [r2](../reviews/dm5-s4-review-r2.md) · [r1](../reviews/dm5-s4-review.md) |
+| DM5 · S3 — printed renditions onto the core substrate | APPROVED (r2) | 2026-08-14 | [dm5-s3-review](../reviews/dm5-s3-review.md) |
+| DM4 — Wave C: referrals | APPROVED (r2) | 2026-08-14 | [dm4-referrals](../reviews/dm4-referrals-review.md) |
+| DM3 — Wave B: controlled documents | APPROVED (r2) | 2026-08-13 | [dm3-controlled-documents](../reviews/dm3-controlled-documents-review.md) |
