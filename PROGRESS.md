@@ -113,10 +113,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   logged `RULE · progress-contract.md · reason=path_glob_match · globs=PROGRESS.md,docs/progress
   · trigger=…\PROGRESS.md`. The feature flag is on; the earlier non-load was the mid-session
   creation, as hypothesised. The CLAUDE.md §8 intake line is **unblocked** (ADR 0127 Amdt 4).
-  ⚠ **Bounded: NOT every session.** In a *resumed* session the hook was registered yet **no**
-  glob matched — not for PROGRESS.md, not for a file governed by `answer-maps`. Unexplained,
-  and not guessed at. **Read it as: rules fire in a FRESH session, not guaranteed in every
-  session type** — so a rule stays a strong hint, never a substitute for a gate.
+  ✅ **Confirmed twice, incl. a SOURCE glob** (ADR 0127 Amdt 5): a fresh `claude -p` session
+  reading `src/lib/queries/responses.ts` loaded `answer-maps.md` by `path_glob_match`. That is
+  the case the §8 intake rests on — standing lessons are discovered in source, not in the
+  tracker. ⚠ **Bounded: fresh sessions 2/2 fired; the resumed session that built this 0/3.**
+  Unexplained, not guessed at. A rule is a strong hint, **never a substitute for a gate**.
   ⭐ Incidental: every `session_start` entry names exactly **two** files — user CLAUDE.md and
   project CLAUDE.md, **no PROGRESS.md**. The harness independently confirms ADR 0124 Amdt 1.
   ✅ **`.claude/rules/` now has a COMPLETE lifecycle** — intake (CLAUDE.md §8, unheld once

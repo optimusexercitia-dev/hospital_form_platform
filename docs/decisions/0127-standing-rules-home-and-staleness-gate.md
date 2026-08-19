@@ -161,3 +161,24 @@
   same answer.
 - **Consequence.** The CLAUDE.md §8 intake line is **unblocked** (it was held pending exactly
   this line in the log), subject to the caveat above being carried with it.
+
+## Amendment 5 — second measurement: SOURCE globs fire too (2026-08-19)
+
+- **Status:** accepted (PO, 2026-08-19). Sharpens Amdt 4; does not reverse it.
+- **The experiment.** A genuinely fresh session (`claude -p`, not a subagent) whose first
+  action was reading `src/lib/queries/responses.ts`. Result: `RULE ·
+  .claude/rules/answer-maps.md · reason=path_glob_match · globs=<all four declared> ·
+  trigger=…\src\lib\queries\responses.ts`.
+- **Why this one mattered more than the first.** Amdt 4's positive was `progress-contract`
+  firing on `PROGRESS.md` — a **tracker** glob. If only tracker globs worked, rules would be
+  close to useless: standing lessons are discovered in **source code**, which is precisely
+  the bootstrapping argument for putting the intake in CLAUDE.md §8 rather than in a
+  path-scoped file. A source glob firing is what makes that intake worth having.
+- **Tally, stated as a rate rather than an anecdote:** fresh sessions **2/2** fired, across
+  two different rules and two different glob shapes. The long-running/resumed session that
+  performed this refactor: **0/3** governed files touched (`PROGRESS.md`,
+  `src/lib/queries/responses.ts`, `src/components/ui/dialog-focus-restore.tsx`) — the only
+  context where the precondition was verifiably met and nothing loaded.
+- **Bound, unchanged in substance:** rules fire reliably in a **fresh** session; a resumed
+  one may match no globs at all. The mechanism behind that difference is still unexplained
+  and still not guessed at. A rule remains a strong hint, never a substitute for a gate.
