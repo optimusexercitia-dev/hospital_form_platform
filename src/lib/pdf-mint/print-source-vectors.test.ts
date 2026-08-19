@@ -221,8 +221,12 @@ describe('the two axes are SEPARATE declarations (ADR 0125 D8 / 0126 D7)', () =>
  * exactly the §J defect, and this file already carries the record of it.
  *
  * The vectors are a hand-chosen set. "No FINAL-and-ephemeral vector" is a
- * statement about those 14; the fourth cell must be unreachable over the whole
- * input space, which is what makes it a keystone rather than a sample.
+ * statement about those vectors ALONE; the fourth cell must be unreachable over
+ * the whole input space, which is what makes it a keystone rather than a sample.
+ * ⚠ No count here on purpose — this paragraph said "those 14" against 20 vectors
+ * (found by qa, in the same block whose two OTHER stale counts had just been
+ * fixed). The fixture's width is asserted below, where it must be maintained or
+ * the build fails; a count in prose is the §J defect this file records.
  */
 const ALL_KINDS = ['form_response', 'meeting', 'case', 'interview', 'unknown_kind']
 const ALL_STATUSES = [

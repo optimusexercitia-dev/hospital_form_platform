@@ -11,7 +11,18 @@
   subject file before being recorded**; one sweep claim was discarded as false on
   re-measurement and is not carried here.
 
-## Verdict: **CHANGES REQUESTED**
+## Verdict
+
+| Round | Verdict | Scope |
+| ----- | ------- | ----- |
+| **r1** (`f4fdfd5d~1..b91e06a2`) | **CHANGES REQUESTED** | B1, B2 blocking; C1–C5 advisory |
+| **r2** (`b91e06a2..HEAD`) | ⭐ **APPROVED** | both blockers closed and drilled; see *Second review* |
+
+> The r1 findings below are kept **verbatim** as the record of what was wrong. The
+> closing evidence — measured by me, not accepted from the fix report — is in
+> **[Second review](#second-review--r2)** at the foot of this document.
+
+## Round 1 verdict: **CHANGES REQUESTED**
 
 Two blocking items. Both are of the shape the build's own review lens names — *a
 keystone proves the DOOR works and says nothing about whether the ACTION can reach
@@ -344,3 +355,208 @@ B1 and B2 only, plus whichever of C1–C5 the lead elects to take in the same pa
 verified section above does not need re-deriving unless a fix touches it — with one
 exception: a fix for B1 that lands in `log_document_previa` changes a `prosecdef` gate
 and therefore re-arms the diff-scoped door sweep obligation for that door.
+
+---
+---
+
+# Second review — r2
+
+- **Subject:** `b91e06a2..HEAD` — `29cc1ce0` (panel copy) and `dd4c06ee` (B1 + B2).
+- **Method:** same as r1. The door body was re-read from `pg_proc`, not from the
+  migration; the flag values from `app.feature_flags` via `app.feature_enabled`; the
+  test cardinalities and call-site enumerations by my own greps. Nothing in the fix
+  report was accepted on its face. No database mutation performed.
+
+## Verdict: **APPROVED**
+
+Both blockers are closed by construction rather than by assertion, and both fixes are
+two-sided in the direction that matters. Five observations follow; **none blocks**, and
+I recommend taking O1 and O2 as follow-ups rather than in this branch.
+
+### B1 — CLOSED. The refusal is in the door, and it is the right door.
+
+Measured from `pg_proc`, `public.log_document_previa` now carries, **after** the
+`can_view_printed_document` gate and **before** any other work:
+
+```
+if app.print_source_registers(p_source_kind, p_source_id) then
+  raise exception '…já está travado; emita o documento em vez de gerar uma prévia'
+    using errcode = 'HC0DV';
+end if;
+```
+
+This is the correct placement and the correct predicate, on three counts I checked
+rather than assumed:
+
+1. **It reads the LOCK, not the watermark.** That was the whole of B1 — the guard it
+   replaces (`documentProvenance`) keys on `watermark !== 'draft'`, which is structurally
+   unable to see `in_signature`. D5's stated mechanism is now the *enforced* mechanism.
+2. **It is kind-agnostic** — one call to the dispatch, no per-kind site, so
+   `mint_printed_document`'s "trio, site 3 of exactly 3" constraint is respected and a
+   future kind inherits the refusal without a second decision.
+3. **It is genuinely the boundary.** The route logs before it streams; `route.ts:124-131`
+   returns on `auditError` before the `Response` is constructed, so a raise means no
+   bytes leave. Architecture Rule 1 is satisfied at the DB, not in the UI. I verified
+   `renderPreviaPdf` and `log_document_previa` have **exactly one caller each**
+   (`route.ts:100` and `route.ts:119`), so there is no second path around the door.
+
+**The keystone is non-vacuous by construction, which is better than by control.**
+`346` t19 asserts `throws_ok(…, 'HC0DV')` for an `in_signature` ata. Because the door
+checks `can_view` *first*, t19 can only pass if the probe principal genuinely **can**
+view that meeting — a caller who could not would receive `42501` and the assertion would
+fail. The authority premise is therefore pinned by the assertion's own SQLSTATE rather
+than needing a separate control. t20 is the differential the lead correctly identified as
+load-bearing: a `held` ata still receives its prévia, so a door refusing *everything*
+cannot pass — which would have silently deleted D2's protected interest.
+
+**The `345` relocation weakens nothing** — I checked this specifically, since a fixture
+moved to satisfy a new refusal is exactly where coverage quietly leaves. The file's two
+premises both survive and both still discriminate: t3 (allow-leg premise) still asserts
+the creator **can** view, now for an `in_progress` draft; t4 remains the deny leg's
+non-vacuity control (same-commission plain staff **cannot** view). I confirmed from the
+catalog that `can_view_printed_document`'s `form_response` arm admits
+`created_by = p_uid` **unconditionally, at any status** — so the allow leg is real for a
+draft and the relocation did not trade a passing assertion for a vacuous one. The suite's
+subject is the audit + authority of the ephemeral path, and an `in_progress` response is
+now the only source that path legitimately serves; the old `submitted` fixture would have
+tested the ephemeral door against a source it must refuse.
+
+### B2 — CLOSED. Four assertions, and all five stub shapes red.
+
+`346` t21–t24, verified against the catalog body of `app.print_source_head`:
+
+| # | Lane | Successor state | head | Kills the stub |
+| - | ---- | --------------- | ---- | -------------- |
+| t21 | standalone | `in_progress` | `true` | constant-false; chain-tip semantics |
+| t22 | standalone | `submitted` | `false` | constant-true; phase-bound-arm-only |
+| t23 | phase-bound | `submitted`, request `under_review` | `true` | constant-false; chain-tip semantics |
+| t24 | phase-bound | request `approved` | `false` | constant-true; standalone-arm-only |
+
+Each pair is a true differential — same predecessor, same call, **one input changed** —
+which is the t76/t80 shape the ADR asks for. The two lanes are cleanly isolated: the
+standalone successor carries `case_phase_id` null and no correction request, and the
+phase-bound successor carries a non-null `case_phase_id`, so neither arm can satisfy the
+other's assertions. t23 therefore does double duty as a cross-lane leak check — it fails
+if the standalone arm ever starts firing on a phase-bound successor.
+
+Amendment 1 §A's ratified rule is pinned in the direction its rationale rests on: t21 is
+the anti-flapping property (*"a merely in_progress successor does NOT exclude the
+predecessor"*), which is the reason §A reused `app.submitted_form_responses`' existing
+effectiveness rule rather than inventing one. D2 row 3 now has a regression test, and the
+`isCurrent: true` defect can no longer be reintroduced in the predicate without reds.
+
+**The fixture construction is honest** — table-level inserts with the RPC flags set
+explicitly around each guarded write, and the session claims cleared first with the
+reason recorded (the `guard_supersession_coherent` standalone arm reads `auth.uid()` and
+would have refused the fixture on an authority check it never meant to exercise).
+
+**The backlog correction is the part I would keep.** The entry now names both arms, both
+lanes and both directions, and it **leaves the wrong claim visible** with a `⚠⚠ CORRECTED`
+marker instead of quietly rewriting it. That matters more than the coverage: a discharge
+record that has been seen to be wrong once is read differently forever after.
+
+### The three r1 brief corrections — all closed
+
+- **C1 (verb leak):** `printedDocumentsIntroCopy(registers)` splits the sentence; the
+  non-registering branch names no cause and is pinned against five cause-regexes. The
+  heading staying in both branches is **correct** and I endorse the reasoning now written
+  beside it — it labels the list, and the list can legitimately be non-empty for a source
+  that no longer registers. `panel-copy.test.ts` is the right shape: it asserts on the
+  **composed panel** (the surface no primitive sweep reads), strips comments before
+  matching, anchors that the stripper left real code behind, carries a positive control
+  proving the needle matches *somewhere*, and pins that the two branches differ so a
+  constant cannot satisfy the negatives.
+- **C2 (§J inverted):** `expect(ALL_PROBES.length).toBe(440)` as a literal beside the
+  product form. The literal catches a widened space; the product form catches a `flatMap`
+  that silently drops an axis. That is the right pair, and the prose that used to carry
+  the number is gone.
+- **C4 (§K comment):** rewritten, and the rewrite is better than the correction I asked
+  for — it found that the prop's *optionality* was still right while its *justification*
+  had expired, and now names absent-at-the-boundary as a third state distinct from both
+  `notApplicable` and `indeterminate`.
+
+## Is there a FOURTH instance? — the question asked
+
+I looked specifically at the caller relationships the two fixes created:
+`log_document_previa → app.print_source_registers`, `PrintedDocumentsSection →
+printedDocumentsIntroCopy(props.registers)`, and `346`'s new table-level response chains.
+
+**No fourth instance of the caller/door class.** The one structural check that could have
+produced one — a second path into the prévia render that bypasses the new door — is
+closed: both `renderPreviaPdf` and `log_document_previa` have exactly one caller, and the
+catalog shows `app.print_source_registers` is now called by exactly four functions
+(`print_source_watermark`, `mint_printed_document`, `printed_document_is_current`,
+`log_document_previa`), each of which gates before calling it.
+
+But the new edge does create **one cross-door asymmetry worth writing down**, which is
+the nearest thing to a fourth instance and is of an adjacent class:
+
+### O1 — HC0DV assumes the mint is reachable whenever `registers` is true. Its preconditions are a strict subset of the mint's.
+
+Measured: `log_document_previa` asserts **`document_printing`** only.
+`mint_printed_document` asserts **`document_printing` AND `documents_wave_d`** — two
+independent rows in `app.feature_flags` (both `true` today; I read them).
+
+⇒ In the configuration `document_printing = true, documents_wave_d = false`, a **locked**
+source has **no paper at all**: the prévia raises `HC0DV` (*"emita o documento em vez de
+gerar uma prévia"* — advice the platform cannot honour) and the mint raises `HC0D7`.
+Before B1 the prévia was available in that state.
+
+This is not the caller/door class; it is *a refusal added to door A on the premise that
+door B is available, without checking that B's preconditions are a superset of A's.* It
+requires a deliberate flag state that is not the deployed one, and turning off the
+document-substrate kill switch arguably *should* stop all printing — which is why I grade
+it an **observation, not a defect**. It is worth recording because the failure mode is
+silent and the error message actively misdirects: an incident responder who disables
+wave D loses the accreditation surface (*"show me the minutes circulated on the 12th"*)
+with a message telling them to use the door that is off.
+
+### O2 — the refusal fires AFTER the render, so a locked source burns a Gotenberg permit per request
+
+Route order is unchanged and correct for D3 (`resolve → render → LOG → stream`), but
+`HC0DV` is raised at the LOG step. A locked source therefore renders a full PDF through
+the sidecar — one of `MINT_CONCURRENCY = 3` permits, seconds of work — and then 404s, on
+every request, repeatably by URL. That is in tension with the purpose D9 gives the
+semaphore (bounding the sidecar). Splitting the door into a check and a log would fix it
+but creates a second site for one rule, which this module explicitly forbids; I have no
+clean recommendation, so I record it rather than prescribe. Low severity — the caller
+must already be authorized to view the source.
+
+### O3 — C5 is still open, and the new refusal now flows through it
+
+`route.ts:95-99` still claims a fourth-cell divergence *"surfaces as a 500 rather than
+being swallowed into a 404"*. It does not — the throw is inside the `try` and the `catch`
+returns 404 for everything but the busy message. The fix widened what this collapse hides:
+`HC0DV` now also becomes an indistinguishable *"Registro não encontrado"*. Fail-closed and
+no-oracle, so not a defect — but the comment is now wrong about two paths instead of one.
+
+### O4 — a residual stale number in the paragraph that was just de-staled
+
+`print-source-vectors.test.ts:224` still reads *"a statement about those 14"*; the fixture
+has **20** vectors (measured). The sentence immediately above it had its *"220 cases"* and
+*"14 hand-chosen rows"* corrected in `dd4c06ee`; this third occurrence, in the same
+paragraph, survived. Textbook *a partial fix reads as a complete one* — the direction was
+corrected, one magnitude left behind in the adjacent clause. Trivial to fix, worth naming
+because of where it happened.
+
+### O5 — one copy edge in the new non-registering sentence
+
+*"As anteriores continuam válidas e verificáveis"* is true of `active` and `superseded`
+prints and false of a **revoked** one. Mitigated in place — each row states its own
+`ANULADO`, and the currency chip states currency separately per D4 — so the composed
+surface is not misleading. Noted only because the sentence asserts a property of a class
+whose members can individually contradict it, which is the §K shape at low stakes.
+
+## Gate state at r2
+
+Re-measured by the lead and consistent with what I read: pgTAP **197 files / 6520 PASS**
+(the +6 matching t19–t24 exactly), four ARMs holding, twelve `prosecdef` gates
+catalog-confirmed, seven lint gates, `tsc`, vitest **1447**, E2E 20/20. The B1 fix
+changed a `prosecdef` door, and the diff-scoped sweep obligation that created was
+discharged — `log_document_previa` was already in the swept set and the registers-guard
+neutralization drill was run against `346` with a restore verified to the exact digest.
+
+## Recommendation
+
+**APPROVED** — proceed to human approval. O1 and O4 are worth follow-up lines; O2, O3 and
+O5 are records rather than work. None of the five is a reason to hold the branch.
