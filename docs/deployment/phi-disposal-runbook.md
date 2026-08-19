@@ -522,6 +522,62 @@ phi_backup_dir_ok "$BACKUP_DIR" || echo "STOP — do not write PHI here"
 name defeats it. The check is a floor, not a proof — if you are unsure whether a
 directory is synced, **look in the sync client**, not only here.
 
+⛔ **AND IT IS NOT THE ONLY QUESTION. Run the reader-set check too — the sync check
+answers "is this replicated?", never "who can read this?"** Measured 2026-08-19, first
+execution: `phi_backup_dir_ok "D:\phi-backups"` returned **✅ acceptable**, and the
+directory carried `BUILTIN\Users:(RX)` and `NT AUTHORITY\Authenticated Users:(M)` by
+inheritance from the drive root — **every local account could read the PHI archive**, with
+this document's own mandatory check reading as sign-off. A **non-system drive root grants
+`Users:(RX)` by Windows default**, so the better backup practice (a separate volume)
+is exactly what produces it; `C:\Users\<you>\…` would have inherited owner + SYSTEM +
+Administrators only and hidden the defect entirely. The permitted-reader-set decision above
+is **not** enforced by the filesystem unless you enforce it:
+
+```bash
+phi_backup_dir_readers_ok() {          # returns 1 — never exits your shell
+  w=$(cygpath -w "$1" 2>/dev/null) || { echo "⛔ REFUSE: cannot resolve: $1"; return 1; }
+  acl=$(icacls "$w" 2>/dev/null)      || { echo "⛔ REFUSE: icacls could not read the ACL of '$w'"; return 1; }
+  acl=${acl#"$w"}                     # strip the path off line 1 — exact prefix removal, never a regex
+  me=$(printf '%s\\%s' "${USERDOMAIN:-$COMPUTERNAME}" "$USERNAME")
+  # ALLOW-LIST, not a deny-list. See the warning below — this distinction is load-bearing.
+  extra=""
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    case "$p" in
+      "$me"|"NT AUTHORITY\\SYSTEM"|"BUILTIN\\Administrators"|"CREATOR OWNER") ;;
+      *) extra="$extra|$p" ;;
+    esac
+  done <<EOF
+$(printf '%s\n' "$acl" | sed -n 's/^[[:space:]]*\(.*\):(.*/\1/p')
+EOF
+  if [ -n "$extra" ]; then
+    echo "⛔ REFUSE: '$w' grants access to principals outside the permitted reader set:"
+    printf '%s' "${extra#|}" | tr '|' '\n' | sort -u | sed 's/^/       /'
+    echo "   fix:  icacls \"$w\" /inheritance:r /grant:r \"$me:(OI)(CI)F\""
+    return 1
+  fi
+  echo "✅ '$w' — reader set bounded to the owner (+ SYSTEM / Administrators where present)."
+  return 0
+}
+
+phi_backup_dir_readers_ok "$BACKUP_DIR" || echo "STOP — do not write PHI here"
+```
+
+Run it on the **key** directory too, not only the archive directory.
+
+⚠ **It is an ALLOW-LIST on purpose, and the first version of it was not.** A deny-list of
+known-bad principals (`BUILTIN\Users`, `Authenticated Users`, `Everyone`, …) **passed its own
+positive control** — it printed `BUILTIN\Users:(RX)` and returned ✅. The calibration run then
+turned up `MIKE_PC\CodexSandboxUsers:(RX)` on an unrelated directory: a machine-local group no
+hand-written list would ever contain. Enumerate what is **permitted** and report everything else,
+or the check is bounded by a list instead of by the property.
+
+⚠ **What the ✅ does and does not claim.** SYSTEM and local Administrators are allowed through
+because they can take ownership regardless — that is a machine-trust fact, not a fixable ACL. The
+archive's real protection is the **key**, which is why the key lives on a **different volume**
+with its own bounded ACL. `chmod 600` is **cosmetic on NTFS** and proves nothing here; `icacls`
+is the measurement.
+
 ### ⭐ Why retention is SHORT — read this before "fixing" 30 days upward
 
 **The 20-year LGPD / ANVISA-RDC / CFM 1821 obligation belongs to the SYSTEM OF RECORD, not to backup
@@ -536,47 +592,119 @@ clocks.** Do not reconcile them.
 
 ### Taking the backup — encrypted at creation
 
-```bash
-# 1. Census FIRST — this is the number the archive will be verified against.
-node scripts/storage-manifest.mjs walk        # e.g. TOTAL files=245 bytes=2456666
+⛔ **LOCAL ONLY. This mechanism has no Cloud form** — `docker exec` cannot reach a
+Supabase-managed project, Supabase's managed backups and PITR **exclude Storage objects by
+documented design**, "Restore to a new project" does not copy them, and `supabase storage cp -r`
+writes **plaintext files to a destination path** with no streaming form. So on Cloud the
+"encrypted AT CREATION" decision above is **unsatisfiable with available tooling** and there is
+no Storage recovery point at all. Do not read this section as the Cloud procedure; there isn't
+one. Tracked as **`FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM`** (🔴).
 
-# 2. Stream tar straight into the encryptor. No plaintext intermediate ever exists.
-#    (7-Zip: -si reads stdin, -mhe=on encrypts the file NAMES too — paths are PHI-adjacent.
-#     Use the interactive -p prompt: a password on the command line leaks to shell history
-#     and to the process list.)
+⛔ **The mechanism is chosen by CUSTODY MODE, and they are not interchangeable** — the same
+distinction the destruction table makes. Pick the mode first (below), then use its command.
+
+```bash
+# 0. ALWAYS: fail the pipeline if ANY stage fails. Without this the exit status is the
+#    ENCRYPTOR's, and a tar that wrote nothing still reports success — measured, see below.
+set -o pipefail
+
+# 1. Census FIRST — this is the number the archive will be verified against.
+node scripts/storage-manifest.mjs walk        # e.g. TOTAL files=812 bytes=14691282
+```
+
+**Mode A — passphrase typed at the prompt, never persisted.** An operator sitting at the
+terminal; nothing to destroy afterwards.
+
+```bash
+# 7-Zip: -si reads stdin, -mhe=on encrypts the file NAMES too — paths are PHI-adjacent.
+# The interactive -p prompt is MANDATORY: a password in argv leaks to shell history AND
+# to the process list.
 docker exec supabase_storage_<ref> sh -c "cd /mnt && tar -cf - stub" \
   | 7z a -si -p -mhe=on "$BACKUP_DIR/storage-$(date +%Y%m%d).7z"
 
-#    age equivalent, if installed:
-# docker exec supabase_storage_<ref> sh -c "cd /mnt && tar -cf - stub" \
-#   | age -p > "$BACKUP_DIR/storage-$(date +%Y%m%d).tar.age"
+# age equivalent, if installed:
+# docker exec … | age -p > "$BACKUP_DIR/storage-$(date +%Y%m%d).tar.age"
 ```
 
-⛔ **Two traps in that one command, both measured on 2026-08-17, both of which produce a VALID,
-EMPTY archive that reports success:**
+**Mode B — keyfile at a stated path.** The only mode that is **scriptable**, and therefore the
+one any automated backup must use.
+
+```bash
+KEYFILE="$KEY_DIR/storage-$(date +%Y%m%d).key"     # ⛔ a DIFFERENT volume from $BACKUP_DIR
+openssl rand -base64 48 > "$KEYFILE"
+KEYFILE_W=$(cygpath -m "$KEYFILE")                 # ⛔ see the path-translation trap below
+
+docker exec supabase_storage_<ref> sh -c "cd /mnt && tar -cf - stub" \
+  | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -md sha512 -salt -pass "file:$KEYFILE_W" \
+  > "$BACKUP_DIR/storage-$(date +%Y%m%d).tar.enc"
+echo "pipe status: ${PIPESTATUS[*]}"               # BOTH must be 0
+sha256sum "$BACKUP_DIR/storage-$(date +%Y%m%d).tar.enc"   # record this — see the integrity note
+```
+
+⛔ **Why mode B is not "7z with a password in a file": `7z a -si` cannot take one.** stdin is
+the tar stream, so the passphrase can only come from the interactive prompt — no keyfile flag,
+no fd, no env var. Measured 2026-08-19. That makes the mode-A command **unusable by any script
+and any unattended run**, which matters because this item predicts a future automated backup will
+be built on one of these mechanisms.
+
+⚠ **`aes-256-cbc` is NOT authenticated.** A wrong key fails on a padding check, which is not an
+integrity guarantee. The archive's integrity anchors are the recorded ciphertext `sha256` **and**
+the count comparison in step 3 — not the cipher.
+
+⛔ **FOUR traps in that one command — all measured, all of which produce a VALID archive that
+reports success and is EMPTY inside:**
 
 1. **Use the `sh -c "cd /mnt && …"` form.** The apparently equivalent
    `docker exec … tar -cf - -C /mnt stub` **fails on Git Bash for Windows**: MSYS path translation
    rewrites `-C /mnt` to `C:/Program Files/Git/mnt`, and tar exits 1 having written **0 bytes**
    (`tar: can't change directory to 'C:/Program Files/Git/mnt'`). Alternatively set
-   `MSYS_NO_PATHCONV=1`.
+   `MSYS_NO_PATHCONV=1`. *(2026-08-17; still reproduces exactly, re-measured 2026-08-19.)*
 2. **Never suppress tar's stderr in this pipeline.** With `2>/dev/null` the failure above is silent,
    the encryptor happily consumes an empty stream, and 7-Zip prints **"Everything is Ok"**. You would
    hold an encrypted, well-formed, entirely empty backup, created by a command that reported success.
    *That is this program's `FUP-DM5-NO-ANSWER-VS-NOTHING` class — an action performed recorded as the
    state achieved — and it is why step 3 is not optional.*
+3. ⛔ **…and stderr visibility is NECESSARY BUT NOT SUFFICIENT — the EXIT STATUS is the part that
+   lies.** Measured 2026-08-19 with stderr fully visible: tar printed its `can't change directory`
+   error, and the pipeline's `$?` was **`0`**, leaving a 32-byte well-formed archive. A human
+   watching sees the error; **a script sees success** — and this item's whole premise is that an
+   automated backup will eventually be written here. `set -o pipefail`, and check `PIPESTATUS`.
+4. ⛔ **Every path handed to a native binary must be Windows-form** — `cygpath -m`. An MSYS-form
+   `-pass "file:/c/Users/…/key"` cannot be opened by openssl, and the pipeline again writes **0
+   bytes with tar's status 0**. Prefer shell redirection (`> "$ARCHIVE"`) over `-out` so the archive
+   path never crosses that boundary at all. *This is the same trap as #1, third instance* — treat
+   "a path crossed into a native binary" as the hazard, not any one flag.
 
 ```bash
 # 3. VERIFY THE ARCHIVE — mandatory, and the two sides must have the SAME
 #    denominator by construction. Compare the archive against a count taken over
 #    the SAME tree the archive was built from:
 docker exec supabase_storage_<ref> sh -c "find /mnt/stub -type f | wc -l"   # source of truth
+
+# mode A (7z):
 7z l -p "$BACKUP_DIR/storage-<date>.7z" | tail -3                          # must match it
+
+# mode B (openssl) — decrypt to a PIPE, never to disk, and count REGULAR files only
+# (tar lists directories too; on the 2026-08-19 run, 812 files against 1,469 directories):
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha512 -pass "file:$KEYFILE_W" \
+  -in "$(cygpath -m "$ARCHIVE")" | tar -tvf - | grep -c '^-'               # must match it
 ```
+
+⭐ **Prove the comparison can REFUSE before you trust it.** Build the failure it exists to catch —
+`tar -cf - <an empty directory>` through the same encryptor — and confirm the count check rejects
+it. On 2026-08-19 that produced a **valid, well-formed 10,272-byte archive with pipe status `0 0`**,
+and the check refused it (0 ≠ 812). A verification that has never been shown to fail is a
+verification nobody has calibrated.
+
+⭐ **Then verify CONTENT, not just count.** Restore one PHI-tier object **to a pipe** and compare
+hashes — `tar -xOf - "<member>" | sha256sum` against `sha256sum` inside the container. A count
+proves the archive has the right number of names; only a hash proves it holds the bytes. Nothing is
+written to disk, so this creates no second plaintext copy.
 
 ⚠ **Do NOT compare the archive against `walk`'s TOTAL** — QA r1 caught this. `walk`
 counts over `ALL_KNOWN_BUCKETS` (12 names), while the archive contains **everything
-under `/mnt/stub`**. Today the two agree (**245 = 245**, measured) *only because*
+under `/mnt/stub`**. They have agreed on both measurements so far (**245 = 245** on
+2026-08-17; **812 = 812** on 2026-08-19) *only because*
 the volume root happens to hold nothing but the four survivor directories. Add a
 thirteenth bucket, or any stray directory, and the numbers diverge for a perfectly
 benign reason — **and a mandatory verification whose two numbers can disagree
@@ -622,6 +750,18 @@ select (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamesp
        (select count(*) from pg_trigger where not tgisinternal)                        as triggers;
 ```
 
+⛔ **THE DB HALF CREATES TWO MORE PHI COPIES THAT THE FIVE VALUES ABOVE DO NOT GOVERN.** Read the
+scope of this section literally: it decides handling for *"a Storage backup" / "the archive"*. The
+comparison below requires a `supabase db dump` — **a plaintext `.sql` holding every narrative,
+identifier and answer** — and a **restored scratch database**, which this very page describes as a
+database missing two thirds of its RLS. Neither has a location, permitted-reader, retention or
+destruction rule, and nothing here tells you to destroy either one. Until that is decided, apply the
+five values above to both **by analogy and say so in the run log**: same encrypted-at-creation
+handling for the dump, and **drop the scratch database as soon as the comparison is recorded**.
+Tracked as **`FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED`** (🟠) — *a procedure whose correct
+execution produces an undocumented plaintext PHI copy is not a complete procedure*, which is this
+item's own sting arriving one level down inside the section that resolved it.
+
 Restore into a **scratch database**, never over the live one, and note the drill's other finding: the
 dump only restores faithfully onto a target where `auth`, `storage` and `extensions` already exist
 (pre-creating them plus stub `auth.uid()`/`auth.role()` took errors 490 → 10 and both tables and
@@ -660,12 +800,30 @@ That form is deliberately more honest than a `shred` claim, which we could not v
 anyway (and which is meaningless on copy-on-write filesystems, SSDs with wear levelling, and any
 volume that has ever been snapshotted).
 
-Tracked as **FUP-DM5-BACKUP-IS-PHI-EXPORT** (🔴).
+Tracked as **FUP-DM5-BACKUP-IS-PHI-EXPORT**.
+
+> ### ✅ EXECUTED 2026-08-19 — this section is no longer unrehearsed
+>
+> The § 6b backup half has been run end-to-end on the local stack: census **812 files /
+> 14,691,282 bytes / 231 PHI-tier** → encrypted-at-creation archive → catalog-compared verification
+> (**812 = 812**, plus a per-object hash) → **key-first destruction**, with the empty-archive control
+> proven able to refuse. Destination, custody mode, the exact destruction wording and **six
+> findings** are recorded in **[`phi-backup-run-log.md`](./phi-backup-run-log.md)**; the four that
+> changed instructions are folded in above.
+>
+> ⛔ **This does NOT discharge Critical FUP C1a** (the § 3 disposal sequence was not run, and is
+> separately blocked by `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`) **nor C1b** — and finding F5
+> is that this mechanism *has no Cloud form at all*, so C1b cannot inherit it. The § 3 UNREHEARSED
+> banner at the top of this document stands, unchanged and accurate.
 
 ## 7 · Records to keep per run
 
 Nothing here writes an operational log automatically, so the run leaves no trace
-unless the operator makes one. Keep, per run: the date, the executor, the step-A
+unless the operator makes one. **The log is
+[`phi-backup-run-log.md`](./phi-backup-run-log.md)** — one `##` section per run, newest
+first, and its heading must name **which half ran** (§ 3 disposal, § 6b backup, or both),
+because they are independently executable and a run of one discharges nothing about the
+other. Keep, per run: the date, the executor, the step-A
 row count, the per-row outcome (including any `HC0DR` escalation), the step-D
 count, — explicitly — **whether the byte half was verified or only asserted**
 (§4), and **if any Storage backup was taken: where it was written, who could read
@@ -680,11 +838,20 @@ per-row outcome (id → byte_proof value passed in step C):
 step-D pending count (must be 0):
 byte half:  local_volume_verified | unavailable_on_platform | not_attempted
 BACKUP DESTINATION (absolute path):  ______________________________________
-    ⛔ MUST be filled at first execution and MUST have passed phi_backup_dir_ok
-       (§6b). Deliberately blank here: it is per-machine, and a path invented by
-       this document is a path nobody checked. An empty slot is a blocked run,
-       NOT an optional field — the §6b decision "Location: exact path recorded in
-       the run log at first execution" is discharged HERE or nowhere.
+    ⛔ MUST be filled at first execution and MUST have passed BOTH §6b checks —
+       phi_backup_dir_ok AND phi_backup_dir_readers_ok. Deliberately blank here:
+       it is per-machine, and a path invented by this document is a path nobody
+       checked. An empty slot is a blocked run, NOT an optional field — the §6b
+       decision "Location: exact path recorded in the run log at first execution"
+       is discharged HERE or nowhere.
+       ✅ On the PO's machine, first execution 2026-08-19: archive D:\phi-backups,
+          key C:\Users\micha\phi-backup-keys (separate volume). Both hardened to
+          owner-only after the reader-set check found the archive directory
+          world-readable — see phi-backup-run-log.md finding F1. Re-run BOTH checks
+          anyway: an ACL is state, and this line is a record of a past measurement.
+    ⛔ If the run included a DB dump or a scratch restore, record where THOSE went
+       and when they were destroyed too — the five values do not name them yet
+       (FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED).
 backup destroyed (key first, then archive) — date + what each act proves:
 ``` A backup with no destruction record is an
 open PHI export, not a completed step. The database's own audit trail records `document.disposed` and

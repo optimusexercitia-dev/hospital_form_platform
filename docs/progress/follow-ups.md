@@ -573,7 +573,55 @@ whether the dashboard's Storage explorer reads metadata or the store, and whethe
 verified**, and say so in the disposal record — which
 `docs/deployment/phi-disposal-runbook.md` §§4, 6 now does.
 
-### 🔴 FUP-DM5-BACKUP-IS-PHI-EXPORT — a Storage backup is an **unmanaged plaintext PHI export**, and the disposal runbook instructs a human to create one (owner: PO decision, then backend + lead; **Rule 12 / LGPD / ANVISA-RDC**)
+### ⬛ FUP-DM5-BACKUP-IS-PHI-EXPORT — ✅ **RESOLVED 2026-08-19** — a Storage backup is an **unmanaged plaintext PHI export**, and the disposal runbook instructs a human to create one (owner: PO decision, then backend + lead; **Rule 12 / LGPD / ANVISA-RDC**)
+
+> ### ✅ RESOLVED 2026-08-19 — both remaining deliverables discharged, by execution
+>
+> The item's own close condition was **(a)** the literal destination path recorded in the run log at
+> first execution and **(b)** the procedure actually exercised. Both are now done, and the record is
+> **[`docs/deployment/phi-backup-run-log.md`](../deployment/phi-backup-run-log.md)**.
+>
+> **(a) Destination — PO-set 2026-08-19.** Archive `D:\phi-backups`; key
+> `C:\Users\micha\phi-backup-keys` — deliberately a **different volume**, discharging "key stored
+> separately". Both passed `phi_backup_dir_ok`, and both are now **owner-only** (see F1).
+>
+> **(b) Executed — § 6b end-to-end on the local stack.** Census **812 files / 14,691,282 bytes /
+> 231 PHI-tier** → `tar` streamed straight into `openssl enc` (**encrypted at creation, no plaintext
+> intermediate ever on disk**) → **catalog-compared 812 = 812** plus a per-object `sha256` content
+> proof → **key destroyed first, then the archive**, in the exact wording custody mode **B** permits.
+> **No recovery point retained** — the destruction step cannot be rehearsed without performing it.
+> ⭐ The verification was **proven able to refuse** first: an empty-source archive built through the
+> same pipeline is a *valid, well-formed 10,272-byte archive with pipe status `0 0`*, and the count
+> check rejected it.
+>
+> ⛔ **What this does NOT discharge, stated so the close is not read wider than it is.** § 3 (the
+> disposal sequence) was not run: **C1a stands** — and is separately blocked by
+> `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`. **C1b stands**, and cannot inherit this run: the
+> mechanism is local-only *by construction*.
+>
+> **Six findings; four changed instructions in § 6b.** Full text in the run log.
+> - **F1 ⛔ the mandatory sync check green-lit a world-readable destination.** `phi_backup_dir_ok`
+>   returned ✅ for a directory carrying `BUILTIN\Users:(RX)` + `Authenticated Users:(M)` by
+>   inheritance from the drive root. The check asks *is it synced? is it in git?* and is heard as
+>   *is it safe to write PHI here?* Fixed: inheritance broken, owner-only, and a
+>   `phi_backup_dir_readers_ok` allow-list check added beside it. ⭐ Two barbs worth keeping: the
+>   **better** backup practice (separate volume) is what exposed it — `C:\Users\<you>\…` would have
+>   inherited a safe ACL and hidden it — and my **first** version of the new check was a deny-list
+>   that **passed its own positive control**, printing `BUILTIN\Users:(RX)` and returning ✅. A
+>   machine-local group (`MIKE_PC\CodexSandboxUsers`) then appeared on an unrelated directory, which
+>   no hand-written deny-list could ever have held. *Enumerate the permitted set; report the rest.*
+> - **F2** `7z a -si` **cannot take a non-interactive passphrase at all** (stdin is the tar stream;
+>   no keyfile flag, no fd, no env var), so the one printed mechanism is unusable by the automated
+>   backup this item predicts. An `openssl … -pass file:` form is now the **mode-B** mechanism, and
+>   § 6b states the mechanism **per custody mode**.
+> - **F3** every path handed to a native binary must be `cygpath -m`'d — an MSYS-form `-pass file:`
+>   yields a **0-byte archive with tar's status 0**. *Third instance of the same path-translation
+>   trap*; the hazard is "a path crossed into a native binary", not any one flag.
+> - **F4** ⛔ **`set -o pipefail` is required — trap #2 was necessary but not sufficient.** Measured
+>   with stderr fully visible: tar's error printed, `$? = 0`, 32-byte well-formed archive. A human
+>   watching sees the failure; **a script sees success.**
+> - **F5 → `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (🔴)** — the residue this close does *not* absorb.
+> - **F6 → `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (🟠)**.
 
 Filed 2026-08-17 (backend, S5.D) **on lead ruling — filing was ruled not optional.** ⛔ **Not
 hypothetical: the S5 drill created one.** A `docker cp` of the live storage volume produced **245
@@ -626,6 +674,73 @@ other finding — the byte half has **no** first-class tooling, so any future au
 built on one of these two mechanisms, and whichever is chosen inherits this item.
 Related: **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES** (the same volume, the destructive direction) and
 **FUP-DM5-NO-ANSWER-VS-NOTHING** instance 3 (the same bytes, the *disposal-assertion* direction).
+
+### 🔴 FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM — the § 6b procedure is **local-only by construction**, and on Cloud there is **no Storage backup at all** (owner: PO decision, then backend + lead; **Rule 12 / LGPD / ANVISA-RDC**)
+
+Filed 2026-08-19, from the § 6b first execution (finding **F5**;
+[run log](../deployment/phi-backup-run-log.md)). **This is the residue that
+`FUP-DM5-BACKUP-IS-PHI-EXPORT`'s close does not absorb**, named rather than dropped.
+
+The mechanism § 6b prescribes is `docker exec supabase_storage_<ref> … tar`. That cannot reach a
+Supabase-managed project. What is available on Cloud instead, **measured against Supabase's own
+documentation, not inferred**:
+
+| candidate | verdict |
+| --- | --- |
+| managed **daily backups / PITR** | *"Database backups do not include objects you store via the Storage API"* — the DB holds only metadata ([platform/backups](https://supabase.com/docs/guides/platform/backups)) |
+| **"Restore to a new project"** | storage objects and bucket settings are listed under *what needs manual reconfiguration* — **not copied** |
+| `supabase storage cp -r --linked` | takes a destination **path**; there is no stdout/streaming form, so it writes **plaintext PHI files to disk** |
+
+⇒ Three consequences, each of which invalidates a sentence that currently reads as settled:
+
+1. **On the platform the pilot runs on, there is no Storage recovery point** — not governed, not
+   ungoverned, not managed. § 2's *"if the stack must be cycled, take the § 6b backup first"* has no
+   Cloud analogue.
+2. **The § 6b "encrypted AT CREATION, never plaintext on disk at any point" decision is
+   unsatisfiable on Cloud with available tooling** — and the vendor's own advice ("download storage
+   objects… store in a secure location") is *exactly* the ungoverned plaintext export this whole
+   item family exists to prevent. The PO decision stands; the means to obey it does not exist.
+3. ⚠ **`FUP-DM5-BACKUP-IS-PHI-EXPORT`'s production framing was premised on a mechanism that is not
+   available in production.** It graded *"the mechanism as it applies to production, where the same
+   command over `documents-phi` yields real records"* — the same command cannot be issued there. The
+   Cloud risk is **not** an over-wide export; it is an **absent** backup plus whatever the operator
+   improvises. Different risk, different remedy, and it needed its own item to stay visible.
+
+**Decision owed from the PO** (this is a risk acceptance, not an engineering call): either
+(a) accept that Storage has no recovery point pre-pilot and say so where a pilot decision is made, or
+(b) name a Cloud mechanism — S3-protocol client against the Storage endpoint piped into an
+encryptor is the only shape that could satisfy "encrypted at creation" — and then it must be
+rehearsed like any other. ⚠ Note (b) overlaps **`FUP-DM5-CLOUD-ORPHAN-SURFACE`**: the S3 endpoint is
+**UNPROBED**, and a backup taken through it inherits whatever that probe answers about orphans.
+
+### 🟠 FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED — the runbook's own DB-half verification creates **two plaintext PHI copies with no handling rule** (owner: PO decision, then backend)
+
+Filed 2026-08-19, from the § 6b first execution (finding **F6**).
+
+§ 6b is titled *"PHI handling for the backup half"*, but its five values are scoped, literally, to
+**"a Storage backup" / "the archive"**. The same section then requires — for the word *"verified
+good"*, which authorises destroying the only other copy — a `supabase db dump` restored into a
+**scratch database**. Neither artifact is named by any of the five values:
+
+- the **dump file**: a plaintext `.sql` holding every narrative, identifier and answer. No location
+  rule, no reader set, no retention, no destruction step.
+- the **scratch database**: a second live copy of the PHI, which this same page describes as
+  *90 of 274 RLS policies restored* — *"a restored database missing two thirds of its RLS is not a
+  database — it is a data leak wearing one"*. **Nothing tells the operator to drop it.**
+
+⭐ **This is `FUP-DM5-BACKUP-IS-PHI-EXPORT`'s own sting, one level down, inside the section that
+resolved it**: *a procedure whose correct execution produces an undocumented plaintext PHI copy is
+not a complete procedure*. The Storage half was governed and the DB half — added to the same section
+for a different purpose — was not, because the scope sentence was written about Storage and the
+requirement was added later.
+
+⚠ Unlike F5 this one **is** reachable on Cloud today (`supabase db dump --linked` needs only the DB
+password), so it is the more likely of the two to happen by accident.
+
+**Interim mitigation, already in the runbook** (not a substitute for the decision): apply the five
+values to both by analogy, drop the scratch database as soon as the comparison is recorded, and
+record both in the run log. **What is owed:** the PO extending the five values explicitly, or ruling
+that the DB half is covered by the managed backups and the restore test is not to be run at all.
 
 ### ⬛ FUP-DM5-BACKEND-STATE-SLICE-SECTIONS — ✅ **RESOLVED 2026-08-18** — the per-slice `backend-state.md` sections for **S2 / S3 / S5** are written (owner: **backend**)
 

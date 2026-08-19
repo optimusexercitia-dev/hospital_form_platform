@@ -170,9 +170,17 @@ a single item, so two PHI-tier obligations were invisible at exactly the place a
   **inverts for PHI**, and overturning D10 needs its own ADR. ⚠ D2's obvious design does not work: the
   Storage API is unreachable from SQL, so a pure-SQL `pg_cron` job automates only the half that was
   never the gap.
-- 🔴 **FUP-DM5-BACKUP-IS-PHI-EXPORT** — the runbook's backup half produces **68 PHI-tier files**
-  (Rule 12 / LGPD). The PO-decided values are in the runbook; what remains is the per-machine
-  destination path.
+- ⬛ **FUP-DM5-BACKUP-IS-PHI-EXPORT — ✅ RESOLVED 2026-08-19 by execution.** The § 6b backup half was
+  run end-to-end on the local stack (census **812 files / 231 PHI-tier** — the drill's 68 is a 2026-08-17
+  figure and the volume has grown), the per-machine destination path is set and recorded, and the
+  archive was verified catalog-compared then destroyed key-first. Record:
+  [phi-backup-run-log.md](../deployment/phi-backup-run-log.md).
+  ⛔ **Two residues stay on the pilot gate, and one is 🔴:**
+  **🔴 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM`** — the procedure is `docker exec … tar`, local-only, and
+  Supabase's managed backups **exclude Storage objects by documented design**, so **the pilot platform
+  has no Storage recovery point at all**; and **🟠 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED`** —
+  the DB half's dump file and scratch database are plaintext PHI with no handling rule, and that one
+  **is reachable on Cloud today**.
 - 🔒 **The runbook sequence is UNREHEARSED** — a binding DM5 gap, still open. *Naming an owner is not
   a rehearsal, and writing a runbook is not running it.*
 
