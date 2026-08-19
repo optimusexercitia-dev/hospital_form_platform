@@ -24,7 +24,7 @@
 -- =============================================================================
 
 begin;
-select plan(21);
+select plan(27);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 create temp table k on commit drop as
@@ -310,6 +310,120 @@ select is(
   't18 ⭐ THE DIFFERENTIAL, SAME CALL, SAME ARRAY: the viewable id IS present. Filtering is per-row, '
   'not all-or-nothing — and t17 cannot pass by the door simply returning nothing');
 reset role;
+
+-- ── 7. B1 — A LOCKED SOURCE IS NOT PREVIEWABLE (qa blocker) ─────────────────
+-- ADR 0125 D5's fourth cell has TWO directions. `documentProvenance` blocks
+-- FINAL+prévia by type narrowing; nothing blocked REGISTERING+prévia, because
+-- that guard fires only on `watermark !== 'draft'` and an in_signature ata is
+-- `draft`. D5's stated mechanism — "a locked source always registers" — held for
+-- form_response ONLY because Amendment 2 made its two axes re-coincide, i.e. by
+-- EXPLOITING the coincidence both ADRs say to record and not exploit.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$select public.log_document_previa('meeting', (select m_rev from mm), 'meeting')$$,
+  'HC0DV', null,
+  't19 ⭐⭐ B1: an in_signature ata is REFUSED a prévia (HC0DV). It REGISTERS under D1, so it must '
+  'be EMITTED — serving it under a footer that says "sem valor de registro" would disclaim a page '
+  'the platform is about to treat as a record. Enforced in the DOOR, not the route: the route logs '
+  'BEFORE it streams, so a refusal here means NO BYTES LEAVE (Architecture Rule 1)');
+
+select lives_ok(
+  $$select public.log_document_previa('meeting', (select m_del from mm), 'meeting')$$,
+  't20 ⭐ THE DIFFERENTIAL: a `held` ata (reopened, not locked) still GETS its prévia. Without this '
+  'leg t19 is satisfied by a door that refuses every prévia — which would silently delete ADR 0125 '
+  'D2''s protected interest, paper on demand for an incomplete artifact');
+reset role;
+
+-- ── 8. B2 — the form_response HEAD arm, two-sided PER LANE (qa blocker) ─────
+-- ⛔ Measured by qa: `print_source_head('form_response', …)` had EXACTLY ONE call
+-- in the whole tree (344:229, expecting true), and every other head/currency probe
+-- used a meeting. A stub returning `true` for this arm passed 6514 pgTAP, 1439
+-- vitest and 20/20 E2E — so D2 row 3 ("R2 approved, nobody minted revision 2")
+-- had no coverage, and the `isCurrent: true` defect shipped its fix with no
+-- regression test. My own backlog entry claimed this arm was pinned; every pin it
+-- named was a MEETING pin. That is where the unearned pass was hiding.
+create temp table hh on commit drop as
+  select '00000000-0000-0000-0000-0000000c0e01'::uuid as r_std,   -- standalone predecessor
+         '00000000-0000-0000-0000-0000000c0e02'::uuid as r_std_s, -- its successor
+         '00000000-0000-0000-0000-0000000c0e03'::uuid as r_ph,    -- phase-bound predecessor
+         '00000000-0000-0000-0000-0000000c0e04'::uuid as r_ph_s,  -- its successor
+         '00000000-0000-0000-0000-0000000c0f01'::uuid as case_h,
+         '00000000-0000-0000-0000-0000000c0f02'::uuid as phase_h,
+         '00000000-0000-0000-0000-0000000c0f03'::uuid as cr_h;
+
+-- ⚠ CLEAR THE SESSION CLAIMS FIRST. `test_helpers.claims_for` sets
+-- `request.jwt.claims` for the SESSION, and §7 above left `st_x` — a plain staff
+-- member — in effect. `guard_supersession_coherent`'s standalone arm reads
+-- `auth.uid()` and refuses a non-staff_admin with 42501, so these fixture inserts
+-- die on an authority check they never meant to exercise. The DEFINER/migration
+-- path (`auth.uid()` null) is what the guard trusts (ADR 0075). Second time this
+-- exact trap has bitten in this build — it is a property of the session, not of
+-- any one file.
+select set_config('request.jwt.claims', null, true);
+
+-- ---- LANE 1: STANDALONE (Amendment 1 §A — the extension, previously uncovered)
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at, submitted_at)
+select hh.r_std, k.ver_u, k.comm_x, k.st_x, 'submitted', now(), now() from hh, k;
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at, supersedes_id)
+select hh.r_std_s, k.ver_u, k.comm_x, k.sa_x, 'in_progress', now(), hh.r_std from hh, k;
+
+select is(app.print_source_head('form_response', (select r_std from hh), 0), true,
+  't21 ⭐⭐ STANDALONE LANE, differential side: a predecessor whose successor is merely IN_PROGRESS '
+  'is STILL HEAD. That is app.submitted_form_responses'' own rule — "a half-finished correction '
+  'never blanks the metric" — and the reason §A chose it: currency must NOT flap on a low-authority '
+  'act like creating a draft');
+
+select set_config('app.in_submit_rpc', 'on', true);
+update public.responses set status = 'submitted', submitted_at = now() where id = (select r_std_s from hh);
+select set_config('app.in_submit_rpc', 'off', true);
+
+select is(app.print_source_head('form_response', (select r_std from hh), 0), false,
+  't22 ⭐⭐ STANDALONE LANE: once the successor is SUBMITTED the predecessor is NOT HEAD. Amendment 1 '
+  '§A — supersede_response creates a standalone successor with NO correction request, so D8 as '
+  'written left a corrected original head forever and its stale print read "atual"');
+
+-- ---- LANE 2: PHASE-BOUND (D8 verbatim — head turns at the APPROVAL door)
+insert into public.cases (id, commission_id, organization_id, case_number)
+select hh.case_h, k.comm_x, c.organization_id, 990501
+  from hh, k, public.commissions c where c.id = k.comm_x;
+select set_config('app.in_case_rpc', 'on', true);
+insert into public.case_phases (id, case_id, position, form_id, form_version_id, status)
+select hh.phase_h, hh.case_h, 1, fv.form_id, k.ver_u, 'active'
+  from hh, k, public.form_versions fv where fv.id = k.ver_u;
+select set_config('app.in_case_rpc', 'off', true);
+
+insert into public.responses (id, form_version_id, commission_id, created_by, status, case_phase_id, started_at, submitted_at)
+select hh.r_ph, k.ver_u, k.comm_x, k.st_x, 'submitted', hh.phase_h, now(), now() from hh, k;
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases set current_response_id = (select r_ph from hh) where id = (select phase_h from hh);
+select set_config('app.in_case_rpc', 'off', true);
+
+insert into public.responses (id, form_version_id, commission_id, created_by, status, case_phase_id, started_at, submitted_at, supersedes_id)
+select hh.r_ph_s, k.ver_u, k.comm_x, k.st_x, 'submitted', hh.phase_h, now(), now(), hh.r_ph from hh, k;
+select set_config('app.in_correction_rpc', 'on', true);
+insert into public.case_correction_requests
+  (id, case_id, commission_id, case_phase_id, kind, reason, classification, requested_by,
+   permitted_corrector, draft_response_id, status)
+select hh.cr_h, hh.case_h, k.comm_x, hh.phase_h, 'correction', 'vetor', 'clerical',
+       k.sa_x, k.st_x, hh.r_ph_s, 'under_review' from hh, k;
+select set_config('app.in_correction_rpc', 'off', true);
+
+select is(app.print_source_head('form_response', (select r_ph from hh), 0), true,
+  't23 ⭐⭐ PHASE-BOUND LANE, differential side: a submitted successor whose correction request is '
+  'still UNDER_REVIEW leaves the predecessor HEAD. D8 rejected chain-tip semantics precisely for '
+  'this — flipping at draft creation would flap a PUBLIC page on a low-authority act and disclose '
+  'an in-flight correction to any paper-holder');
+
+select set_config('app.in_correction_rpc', 'on', true);
+update public.case_correction_requests set status = 'approved' where id = (select cr_h from hh);
+select set_config('app.in_correction_rpc', 'off', true);
+
+select is(app.print_source_head('form_response', (select r_ph from hh), 0), false,
+  't24 ⭐⭐ PHASE-BOUND LANE: once the correction request is APPROVED the predecessor is NOT HEAD — '
+  'head turns at the APPROVAL door (D8), the same door that moves case_phases.current_response_id. '
+  'This is ADR 0126 D2 ROW 3, the conjunct the isCurrent defect violated and shipped without a '
+  'regression test');
 
 select * from finish();
 rollback;

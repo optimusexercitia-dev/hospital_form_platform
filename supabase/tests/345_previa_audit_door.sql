@@ -57,9 +57,14 @@ grant select on k to authenticated;
 create temp table r on commit drop as
   select '00000000-0000-0000-0000-0000000005a1'::uuid as resp_sub;
 grant select on r to authenticated;
+-- ⚠ IN_PROGRESS, not submitted. A prévia is for a source that does NOT register;
+-- once B1 made log_document_previa refuse a locked source (HC0DV), a submitted
+-- response became the WRONG fixture — it registers, so it must be EMITTED. This
+-- file is about the AUDIT + AUTHORITY of the ephemeral path, so its source has to
+-- be one the ephemeral path legitimately serves.
 insert into public.responses
-  (id, form_version_id, commission_id, created_by, status, started_at, submitted_at)
-select r.resp_sub, k.ver_u, k.comm_x, k.st_x, 'submitted', now(), now() from r, k;
+  (id, form_version_id, commission_id, created_by, status, started_at)
+select r.resp_sub, k.ver_u, k.comm_x, k.st_x, 'in_progress', now() from r, k;
 
 -- ── 0. Preconditions, ASSERTED not assumed (authz-handoff §7.3) ─────────────
 select is(app.feature_enabled('document_printing'), true,
@@ -70,7 +75,7 @@ select is(app.feature_enabled('audit_trail'), true,
 
 -- ── 1. The discriminating property is real, BEFORE relying on it ────────────
 select is(app.can_view_printed_document('form_response', (select resp_sub from r), (select st_x from k)), true,
-  't3 the creator CAN view his own submitted response (the allow leg''s premise)');
+  't3 the creator CAN view his own in_progress draft (the allow leg''s premise)');
 select is(app.can_view_printed_document('form_response', (select resp_sub from r), (select st_x2 from k)), false,
   't4 ⭐ CONTROL: same-commission PLAIN STAFF (non-creator) CANNOT view it. If this '
   'were true the deny leg below would be vacuous — refusing nobody');

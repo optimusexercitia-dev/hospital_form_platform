@@ -347,9 +347,23 @@ app.print_source_registers(p_source_kind text, p_source_id uuid)
 #   constant-FALSE → RED, meeting disposal conjunct dropped → RED.
 app.print_source_head(p_source_kind text, p_source_id uuid, p_source_revision integer)
 #   Derivation: ADR 0126 D8/D9 — is this source still the HEAD of its series?
-#   Pinned by 344 (fail-closed + the synthetic revision differential) and by 313
-#   t55–t58r over a REAL stored source_revision through the reopen corridor.
-#   Drilled: meeting revision compare → constant-true → RED.
+#   ⚠⚠ CORRECTED 2026-08-18 (qa blocker B2). This entry previously cited only 344
+#   and 313 t55–t58r — EVERY ONE OF THEM A MEETING PIN — while claiming the
+#   function was covered. The `form_response` arm had exactly ONE call in the whole
+#   tree (344:229, expecting true), so a stub returning `true` for that arm passed
+#   6514 pgTAP, 1439 vitest and 20/20 E2E. That is ADR 0126 D2 ROW 3 uncovered, and
+#   it is the very conjunct the `isCurrent: true` defect violated — so that fix had
+#   shipped with no regression test. ⭐ The unearned pass was hiding IN THIS FILE:
+#   a discharge citing real pins that do not cover the arm they are cited for.
+#   MEETING arm  — 344 (fail-closed + synthetic revision differential) and 313
+#     t55–t58r over a REAL stored source_revision through the reopen corridor.
+#     Drilled: revision compare -> constant-true -> RED.
+#   FORM_RESPONSE arm — 346 t21–t24, two-sided PER LANE:
+#     standalone (Amendment 1 §A): in_progress successor -> still HEAD (t21);
+#       submitted successor -> NOT head (t22).
+#     phase-bound (D8 verbatim): successor under_review -> still HEAD (t23);
+#       correction request approved -> NOT head (t24).
+#     Drilled: form_response arm -> constant-true -> RED.
 app.printed_document_is_current(p_id uuid)
 #   Derivation: ADR 0126 D2 — registers AND head. Its `revoked` arm returns NULL
 #   without joining, which is a DISCLOSURE-AVOIDANCE contract (312 t76), not an
