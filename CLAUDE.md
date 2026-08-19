@@ -378,6 +378,14 @@ whose **claim** went false has no gate at all, so that queue is its only witness
 - Secrets only in `.env.local` (gitignored). `NEXT_PUBLIC_` vars: Supabase URL + anon
   key only. Service-role key is server-only — in client code, that's a phase-blocking bug.
 - Non-trivial decisions get a 5–10 line ADR in `docs/decisions/`.
+- A standing prohibition with **no resolution event** ("never fix X by granting Y", "read
+  BUG-N before touching Z") is **not** a PROGRESS.md line — it can only accumulate there.
+  It belongs in **`.claude/rules/`**, path-scoped. ⛔ Admission: declare `paths:` (unscoped
+  = loaded on every session and spawn), declare checkable `anchors:`, name a `source:`,
+  stay inside the volume bounds — and **never write one a gate already enforces**. If it
+  cannot be shown stale, it is not admitted. ⚠ Rules fire in a **fresh** session but not
+  every session type (ADR [0127](./docs/decisions/0127-standing-rules-home-and-staleness-gate.md)
+  Amdt 4), so a rule is a strong hint and **never a substitute for a gate**.
 
 ## 9. Commands Reference
 

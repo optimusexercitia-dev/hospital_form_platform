@@ -119,12 +119,12 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   session type** — so a rule stays a strong hint, never a substitute for a gate.
   ⭐ Incidental: every `session_start` entry names exactly **two** files — user CLAUDE.md and
   project CLAUDE.md, **no PROGRESS.md**. The harness independently confirms ADR 0124 Amdt 1.
-  ⛔ **`.claude/rules/` has a staleness gate, volume bounds and an exit — but NO documented
-  intake, deliberately.** The one-line CLAUDE.md §8 rule-creation line is **HELD** until that
-  log shows a `path_glob_match`: publishing an intake into a directory that may never load
-  routes every future standing lesson into a black hole, which is worse than leaving those
-  lessons here where they can be grepped. Unhold it the moment firing is proven (ADR 0127
-  Amdt 1).
+  ✅ **`.claude/rules/` now has a COMPLETE lifecycle** — intake (CLAUDE.md §8, unheld once
+  firing was measured), staleness gate, volume bounds, and a **conditional** exit. ⛔ The exit
+  is conditional for a reason: **nothing reads `rules-archive.md`**, so retiring a rule that is
+  still true and enforced nowhere deletes the lesson, and `lint:rules` goes green either way.
+  "Too broad but still needed" is **not** a retirement — it is a gate waiting to be built, or
+  content that belongs in CLAUDE.md (ADR 0127 Amdt 2).
   **Filed, not built:** the 42501 gate (15 `throws_ok` sites) · staleness **domain (b)**,
   the docs that make claims about repo mechanics · MEMORY.md compaction (19.6 / 24.4 KB) ·
   a CLAUDE.md context program — the file where cutting bytes actually pays.
