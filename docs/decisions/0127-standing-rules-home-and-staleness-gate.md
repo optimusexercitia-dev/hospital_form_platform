@@ -80,3 +80,32 @@
   `path_glob_match`**: publishing an intake into a directory that may never load would route
   every future standing lesson into a black hole, which is strictly worse than leaving those
   lessons in PROGRESS.md where a human can grep them.
+
+## Amendment 2 — retirement has a precondition, and "too broad" has four exits (2026-08-19)
+
+- **Status:** accepted (PO, 2026-08-19).
+- **The omission.** Amendment 1 recorded the `print-door.md` retirement without stating the
+  condition that made it *safe*: pgTAP `342` S3c3 already reds on the thing it prohibited, so
+  the lesson survived the rule. Written without that condition, the breadth finding read as
+  though **retire to `rules-archive.md`** were a general escape hatch for any too-wide rule.
+  It is not. **Nothing reads the archive.** Retiring a rule that is still true and enforced
+  nowhere does not file the lesson, it deletes it — and `lint:rules` goes green either way,
+  so no gate can tell the two apart. *An instruction that reads complete while carrying an
+  unstated precondition is this repo's recurring defect, and this was another one.*
+- **Decision — the breadth finding now offers four dispositions, ordered**, with retirement
+  as a conditional fifth:
+  1. **Narrow the glob**, if the real subject is a few files.
+  2. **Build a gate** — a gate beats a rule; the rule is then retirable under (5).
+  3. **Declare `broad: <why this subtree IS the subject>`**, only when it really is
+     (`progress-contract` over the tracker and its archives).
+  4. **Promote to CLAUDE.md / ARCHITECTURE.md.** A rule matching most of a subtree **is**
+     always-on; the honest home for always-on content is the always-loaded file, where the
+     Stop-hook queue, `/review-claude-md` and the ask-before-editing rule reach it. Declaring
+     `broad:` instead keeps always-on content in a path-scoped costume, with none of that
+     review discipline.
+  5. ⛔ **Retire to `docs/progress/rules-archive.md` ONLY once something else carries the
+     lesson** — a gate, a test, or CLAUDE.md — or once the subject itself is gone.
+- **Consequence.** *"Too broad but still needed"* is **not a retirement**. It is a gate
+  waiting to be built, or content that belongs one level up. The precondition is stated in
+  the gate's own finding text and as step 0 of the archive's retirement procedure, so it is
+  reachable from both directions a session can arrive from.

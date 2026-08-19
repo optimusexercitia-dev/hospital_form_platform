@@ -8,6 +8,16 @@ here**. A rule is never deleted outright — same discipline as every other rota
 
 **Retiring a rule**
 
+0. ⛔ **PRECONDITION — is the lesson still true and still unenforced?** Retire only when
+   the rule's subject is **gone** (renamed, deleted, superseded), or when **something else
+   already carries the lesson**: a gate, a test, or CLAUDE.md. **Nothing reads this file.**
+   Retiring a rule that is still true and enforced nowhere does not file it — it *deletes*
+   it, and `lint:rules` goes green either way, so nothing will tell you which one happened.
+   `print-door.md` was safe to retire **only** because pgTAP `342` S3c3 already reds on the
+   thing it prohibited.
+   *A rule that is too broad but still needed is not a retirement* — it is a gate waiting to
+   be built, or content that belongs in CLAUDE.md / ARCHITECTURE.md where always-on review
+   reaches it.
 1. Append the rule file's full text here **verbatim**, under a dated heading, with the
    reason it stopped being true (the renamed symbol, the deleted file, the superseding ADR).
 2. Delete the file from `.claude/rules/`.

@@ -122,9 +122,16 @@ export function checkRule(name, fm, deps, bytes = 0) {
   if (matched > MAX_GLOB_FILES && !broad) {
     out.push(
       `${name} — \`paths:\` matches ${matched} files (soft cap ${MAX_GLOB_FILES}). A rule this ` +
-        `wide loads on most work in the subtree, which is an always-on rule in disguise. ` +
-        `Narrow it, retire it to ${ARCHIVE}, or declare \`broad: <why this subtree IS the ` +
-        `subject>\` and own the choice.`,
+        `wide loads on most work in the subtree: an always-on rule in disguise. Four ` +
+        `dispositions, in order of preference — (1) NARROW the glob, if the real subject is a ` +
+        `few files; (2) BUILD A GATE, because a gate beats a rule, then retire this under (5); ` +
+        `(3) declare \`broad: <why this subtree IS the subject>\` and own it, only when the ` +
+        `subtree really is the subject; (4) PROMOTE it to CLAUDE.md or ARCHITECTURE.md — ` +
+        `"loads on most of a subtree" IS always-on, and always-on content belongs where ` +
+        `always-on review reaches it. ` +
+        `⛔ (5) Retire to ${ARCHIVE} ONLY once something else carries the lesson — a gate, a ` +
+        `test, or CLAUDE.md. NOTHING READS THE ARCHIVE, so retiring an unenforced rule does ` +
+        `not file it, it deletes it.`,
     )
   }
 
