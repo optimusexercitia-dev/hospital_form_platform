@@ -352,7 +352,11 @@ whose **claim** went false has no gate at all, so that queue is its only witness
     fire**, so a rule describing a renamed symbol loads and is believed forever with nothing able
     to contradict it. Keystone: **a rule whose own `paths:` glob matches zero files is orphaned.**
     Every rule must also declare checkable `anchors:` — which makes "can this be shown stale?" a
-    precondition for admitting a rule, capping the population rather than just observing it.
+    precondition for admitting a rule. ⚠ Anchors cap what is **admissible**, NOT how many rules
+    accumulate, and path-scoping bounds **when** a rule loads, not **how many** load together —
+    so volume has its own bounds: ≤ 40 files matched per rule (waivable only by declaring
+    `broad: <reason>`), ≤ 2 KB per rule, ≤ 12 rules. The first population had one rule matching
+    **659** files; it was retired (ADR 0127 Amdt 1).
     ⚠ Bounded, stated: DB anchors (`prosecdef`, ACLs, policies) are **not** checkable in `lint` —
     those belong in pgTAP. Retirement → `docs/progress/rules-archive.md`, never deletion.
   eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
