@@ -28,9 +28,15 @@ never execute this protocol. See CLAUDE.md §4 (Agent Team), §6 (Phase Gate), �
   relevant `actions.ts`) **before** implementing them, so `frontend` builds against real
   types in parallel instead of inventing a provisional shape that later mismatches (this
   caused rework in Phase 6). Backend then fills in the implementations.
-- Break each phase into **5–6 tasks per teammate** on the shared task list; mark
-  dependencies (e.g., the frontend form-builder task depends on the backend
-  versioning-API task).
+- Break each phase into **5–6 tasks per teammate**; mark dependencies (e.g., the
+  frontend form-builder task depends on the backend versioning-API task).
+  ⛔ **Teammates cannot see a shared task list** — `TaskList`/`TaskGet`/`TaskUpdate`
+  do not resolve in a teammate's tool environment (measured 2026-08-18 by `backend`
+  and `frontend` independently). **Relay each task verbatim in the spawn prompt or
+  by `SendMessage`**, acceptance criteria included; a teammate that has to
+  reconstruct criteria from the ADRs will get them wrong, because criteria that came
+  out of *your* planning are not in the ADR. Teammates reach the lead as **`main`**,
+  not `team-lead`.
 - Enforce file ownership (CLAUDE.md §4): two teammates never edit the same file in a
   phase; shared types change only via `backend`.
 

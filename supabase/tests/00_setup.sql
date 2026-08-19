@@ -12,6 +12,14 @@
 create schema if not exists test_helpers;
 
 -- Build a self-contained dataset and return the key ids as a record.
+--
+-- ⛔ NEVER call this outside an explicit transaction. Its first act is
+-- `truncate public.organizations cascade` (~150 tables — profiles, commissions,
+-- meetings, responses, cases, printed_documents). Inside a pgTAP file that is
+-- harmless: the ROLLBACK undoes it. In an interactive psql, autocommit COMMITS it
+-- and the shared local seed is gone for every session and the E2E gate. Wrap it:
+-- `begin; select test_helpers.bootstrap(); ... rollback;`
+--
 -- admin, two commissions (X, Y), a staff_admin + staff in each, one published
 -- unsectioned form in X, one published sectioned form (with a conditional and
 -- two sign-off sections) in X, ready for response tests.

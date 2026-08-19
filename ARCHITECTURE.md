@@ -365,6 +365,17 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      mirrored TypeScript function in `src/lib/queries/` (used by the wizard for
      live skip/show). A shared test-vector file keeps the two in agreement;
      drift between them is a phase-blocking bug.
+     **This generalizes: ANY predicate that exists twice (SQL + TS) is governed by
+     a single shared vector fixture read by both suites — it is the only thing that
+     reds when they drift.** Second instance: the print-source derivation
+     (`app.print_source_registers`/`_watermark` ↔
+     `src/lib/pdf/documents/print-source.ts`), ADR 0125 D1/D8 · 0126 D5/D10. pgTAP
+     runs inside the database and cannot read JSON, so the SQL side consumes a
+     **generated `.psql`** carrying a sha256 of the JSON's bytes
+     (`scripts/gen-print-source-vectors.mjs`). ⛔ The extension is load-bearing:
+     `pg_prove` globs `*.sql` recursively, so a non-test `.sql` under
+     `supabase/tests/` is collected as a suite, finds no plan, and **fails the whole
+     `npm run test:db` run**.
 4. **Sign-offs:** a sign-off row records who/when per (response, section).
    `signoff_role` governs who may sign: `respondent` (the response's
    `created_by` confirms the section) or `staff_admin` (any staff_admin of the
