@@ -186,6 +186,27 @@ begin
   values (v_file, 'documents-standard',
           coalesce(p_path, app.printed_rendition_storage_path(p_pd_id)),
           'standard', p_uid);
+  -- ⭐⭐ WALK THE UPLOAD STATE MACHINE, exactly as the real mint does.
+  -- Without this the file object rests at its DEFAULT `reserved`, and
+  -- `app.resolve_document_version_bytes` RAISES on it rather than returning
+  -- coordinates. That is invisible while `open_printed_document`'s authority gate
+  -- is closed (the door returns early and never resolves bytes) — and it turned
+  -- the ADR 0079 row-door sweep's verdict for that door into **ERROR**: opening
+  -- the gate made the resolver raise, the RAISE aborted the psql transaction, the
+  -- file stopped mid-run, and "run shape != baseline" meant no verdict could be
+  -- read. The suite was noticing loudly (64/90 failed); the harness simply could
+  -- not tell that apart from a crash.
+  --
+  -- ⛔ This does NOT weaken any assertion — it makes the fixture MORE faithful.
+  -- The mint walks reserved -> uploaded -> verifying -> scan_pending ->
+  -- unscanned_accepted through `app.guard_file_object_transition`; a hand-built
+  -- chain that skips it was never the shape the door serves.
+  update public.file_objects set upload_state = 'uploaded', uploaded_at = now() where id = v_file;
+  update public.file_objects set upload_state = 'verifying', size_bytes = 1024,
+         mime_type = 'application/pdf' where id = v_file;
+  update public.file_objects set upload_state = 'scan_pending', verified_at = now() where id = v_file;
+  update public.file_objects set upload_state = 'unscanned_accepted' where id = v_file;
+
   insert into public.document_version_files
     (document_version_id, file_object_id, rendition_kind)
   values (v_ver, v_file, 'printed_pdf');
