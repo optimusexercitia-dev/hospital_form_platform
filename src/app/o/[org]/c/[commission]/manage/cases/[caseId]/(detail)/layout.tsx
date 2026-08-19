@@ -24,6 +24,8 @@ import type { Department } from "@/lib/hospitals/departments";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 import { CaseTabs } from "@/components/cases/case-tabs";
 import { formatCaseNumberWithTerm, formatDate } from "@/components/cases/format";
+import { listCaseCorrectionRequests } from "@/lib/queries/corrections";
+import { isOpenCorrection } from "@/components/cases/correction-labels";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
@@ -123,6 +125,10 @@ export default async function CaseDetailLayout({
   // narratives left empty. Non-blocking — surfaced in the conclude dialog so the
   // coordinator notices, but `close_case` is untouched. Flag-gated.
   let expectedEmptyNarrativeLabels: string[] = [];
+  // BLOCKING conclude gate (HC0T0): the targets of this case's OPEN correction
+  // requests. `listCaseCorrectionRequests` returns `[]` when the `case_corrections`
+  // flag is off, so no extra flag read is needed here.
+  let pendingCorrectionLabels: string[] = [];
   // Narrative feature state + the commission's type vocabulary seed the ad-hoc
   // "Adicionar narrativa" dialog (button gated on `narrativesOn`; the picker gets
   // the non-archived types, `[]` being valid — inline "Criar novo tipo" covers it).
@@ -133,14 +139,28 @@ export default async function CaseDetailLayout({
   // open-only). A commission with no hospital → `[]` (the "Outros" value still works).
   let departments: Department[] = [];
   if (isOpen) {
-    const [forms, narrativesEnabledResult, deps] = await Promise.all([
+    const [forms, narrativesEnabledResult, deps, corrections] = await Promise.all([
       listForms(access.commission.id),
       narrativesEnabled(),
       access.commission.hospitalId
         ? listDepartmentsForHospital(access.commission.hospitalId)
         : Promise.resolve<Department[]>([]),
+      listCaseCorrectionRequests(caseId),
     ]);
     departments = deps;
+    // Name each open request by its TARGET, not by the request — "Fase 2 — Revisão"
+    // is what the coordinator has to go resolve; a request id tells them nothing.
+    pendingCorrectionLabels = corrections
+      .filter((r) => isOpenCorrection(r.status))
+      .map((r) => {
+        const phase = detail.phases.find((p) => p.id === r.casePhaseId);
+        if (phase) return phase.title || `Fase ${phase.position}`;
+        const narrative = detail.narratives.find(
+          (n) => n.id === r.caseNarrativeId,
+        );
+        if (narrative) return narrative.title || narrative.typeLabel;
+        return "Item do caso";
+      });
     narrativesOn = narrativesEnabledResult;
     assignees = sortedMembers.map((m) => ({
       userId: m.userId,
@@ -276,6 +296,7 @@ export default async function CaseDetailLayout({
                   phases={detail.phases}
                   assignees={assignees}
                   expectedEmptyNarrativeLabels={expectedEmptyNarrativeLabels}
+                  pendingCorrectionLabels={pendingCorrectionLabels}
                   narrativeTypes={narrativeTypes}
                   narrativesEnabled={narrativesOn}
                 />

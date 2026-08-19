@@ -693,16 +693,30 @@ export type MyCaseRole = 'viewer' | 'collaborator' | 'coordinator'
  * card always also offers "Ver caso completo".
  */
 export interface MyCaseItem {
-  /** Which attributed kind this is. */
-  kind: 'phase' | 'narrative'
-  /** The `case_phases.id` / `case_narratives.id`. */
+  /**
+   * Which attributed kind this is. `correction` is the correction-lifecycle arm
+   * (ADR 0085): the viewer holds the `permitted_corrector` slot on an OPEN request.
+   * It is emitted for the corrector ONLY, and only while the `case_corrections`
+   * flag is on.
+   */
+  kind: 'phase' | 'narrative' | 'correction'
+  /**
+   * The `case_phases.id` / `case_narratives.id` — or, for `correction`, the
+   * `case_correction_requests.id` (the REQUEST, not its target; the target is in
+   * {@link casePhaseId} / {@link caseNarrativeId}).
+   */
   id: string
-  /** Display title (phase: title|form|"Fase N"; narrative: `type_label`/title). */
+  /**
+   * Display title (phase: title|form|"Fase N"; narrative: `type_label`/title). A
+   * `correction` carries its TARGET's title — the corrector is being asked to fix
+   * "Fase 2", and the request's own id is not a thing they recognise.
+   */
   title: string
   /**
    * The item's own status slug — a {@link CasePhaseStatus} for a phase, a
-   * narrative status (`'open' | 'completed'`) for a narrative. A stable ASCII
-   * union the card maps to a pt-BR pill; not itself a label.
+   * narrative status (`'open' | 'completed'`) for a narrative, a
+   * {@link CorrectionStatus} for a correction. A stable ASCII union the card maps
+   * to a pt-BR pill; not itself a label.
    */
   status: string
   /** The item's order in the merged case layout (interleave; phases ∪ narratives). */
@@ -712,8 +726,25 @@ export interface MyCaseItem {
    * assigned to the viewer (drives "Preencher"); a narrative that is `aberta` AND
    * assigned to the viewer (drives "Abrir"/"Concluir"). `false` renders the item
    * as context only (e.g. a concluded narrative, a not-yet-active phase).
+   *
+   * For a `correction` this mirrors `canContinueCorrection` exactly: a `void`
+   * request has no draft, and `resubmitted`/`under_review` are waiting on the
+   * APPROVER — those still render (the corrector should see the request is in
+   * flight), just without a button.
    */
   actionable: boolean
+  /**
+   * `correction` only — what the request does to its target (`correction` /
+   * `addendum` / `void`). `null` on a phase/narrative item.
+   */
+  correctionKind: 'correction' | 'addendum' | 'void' | null
+  /**
+   * `correction` only — the target `case_phases.id`, or `null` for a narrative
+   * correction. "Continuar correção" needs it to route into the phase responder.
+   */
+  casePhaseId: string | null
+  /** `correction` only — the target `case_narratives.id`, or `null` for a phase. */
+  caseNarrativeId: string | null
 }
 
 /**
@@ -2013,12 +2044,16 @@ export async function listCaseAccessGrants(
 
 /** One attributed item inside a `list_my_cases` row's `items` jsonb array. */
 interface MyCaseItemJson {
-  kind: 'phase' | 'narrative'
+  kind: 'phase' | 'narrative' | 'correction'
   id: string
   title: string
   status: string
   display_position: number
   actionable: boolean
+  /** Correction arm only — absent on the phase/narrative arms of the RPC's union. */
+  correction_kind?: 'correction' | 'addendum' | 'void'
+  case_phase_id?: string | null
+  case_narrative_id?: string | null
 }
 
 /** One row of the `list_my_cases` jsonb array. */
@@ -2068,6 +2103,9 @@ export async function listMyCases(commissionId: string): Promise<MyCase[]> {
       status: it.status,
       displayPosition: it.display_position,
       actionable: it.actionable,
+      correctionKind: it.correction_kind ?? null,
+      casePhaseId: it.case_phase_id ?? null,
+      caseNarrativeId: it.case_narrative_id ?? null,
     })),
   }))
 }

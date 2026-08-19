@@ -59,6 +59,7 @@ export function CaseLifecycleActions({
   phases,
   assignees,
   expectedEmptyNarrativeLabels = [],
+  pendingCorrectionLabels = [],
   narrativeTypes = [],
   narrativesEnabled = false,
 }: {
@@ -76,6 +77,17 @@ export function CaseLifecycleActions({
    * dialog renders no warning then. Conclusion is never gated on this.
    */
   expectedEmptyNarrativeLabels?: string[];
+  /**
+   * Target labels of the case's OPEN correction requests — a **BLOCKING** gate, and
+   * the counterpart of `expectedEmptyNarrativeLabels` above, which is advisory. The
+   * `close_case` door refuses while any request is open (HC0T0), so the dialog states
+   * the reason and disables the confirm rather than letting the coordinator submit
+   * into a certain error. `[]` = none / feature off, and the dialog is unaffected.
+   *
+   * A hidden button is not a control (Rule 1) — the door is the boundary; this only
+   * spares the round-trip and names the phases to resolve.
+   */
+  pendingCorrectionLabels?: string[];
   /**
    * The commission's non-archived narrative-type vocabulary — seeds the ad-hoc
    * narrative dialog's type picker. `[]` is a valid state: the dialog's inline
@@ -154,6 +166,7 @@ export function CaseLifecycleActions({
         currentOutcomeId={currentOutcomeId}
         hasOpenPhases={hasOpenPhases}
         expectedEmptyNarrativeLabels={expectedEmptyNarrativeLabels}
+        pendingCorrectionLabels={pendingCorrectionLabels}
       />
     </div>
   );
@@ -173,6 +186,7 @@ function ConcludeCaseDialog({
   currentOutcomeId,
   hasOpenPhases,
   expectedEmptyNarrativeLabels,
+  pendingCorrectionLabels,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -182,6 +196,8 @@ function ConcludeCaseDialog({
   hasOpenPhases: boolean;
   /** Expected-but-empty narrative labels — a NON-BLOCKING advisory (decision 7). */
   expectedEmptyNarrativeLabels: string[];
+  /** Open-correction target labels — BLOCKING (HC0T0); `[]` = nothing to resolve. */
+  pendingCorrectionLabels: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -202,8 +218,11 @@ function ConcludeCaseDialog({
 
   const selectedOutcome =
     offeredOutcomes.find((o) => o.id === selected) ?? null;
-  // When outcomes are offered, a choice is required (mirrors the server HC028 gate).
-  const canConfirm = !offersOutcomes || selected !== "";
+  const blockedByCorrections = pendingCorrectionLabels.length > 0;
+  // When outcomes are offered, a choice is required (mirrors the server HC028 gate);
+  // an open correction blocks outright (mirrors HC0T0).
+  const canConfirm =
+    (!offersOutcomes || selected !== "") && !blockedByCorrections;
 
   function handleConfirm() {
     setError(null);
@@ -244,6 +263,33 @@ function ConcludeCaseDialog({
 
         <div className="flex flex-col gap-4">
           {error && <FormBanner tone="error">{error}</FormBanner>}
+
+          {/* BLOCKING, unlike the advisory below it: `close_case` refuses with HC0T0
+              while any correction request is open, so the dialog names what has to be
+              resolved and disables the confirm. The two exits are the two the door
+              accepts — approve the correction, or withdraw the request ("Retirar"). */}
+          {blockedByCorrections && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3.5 py-3 text-sm text-foreground"
+            >
+              <p className="flex items-center gap-2 font-medium text-destructive">
+                <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
+                {pendingCorrectionLabels.length === 1
+                  ? "Há uma correção pendente"
+                  : "Há correções pendentes"}
+              </p>
+              <ul className="ml-6 list-disc text-muted-foreground">
+                {pendingCorrectionLabels.map((label, i) => (
+                  <li key={`${label}-${i}`}>{label}</li>
+                ))}
+              </ul>
+              <p className="text-muted-foreground">
+                Aprove a correção ou retire a solicitação antes de concluir o caso.
+              </p>
+            </div>
+          )}
 
           {expectedEmptyNarrativeLabels.length > 0 && (
             <div

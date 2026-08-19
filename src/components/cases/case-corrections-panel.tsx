@@ -2,7 +2,10 @@
 
 import { useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardList } from "lucide-react";
+import Link from "next/link";
+import { ClipboardList, GitCompareArrows } from "lucide-react";
+
+import { commissionHref } from "@/lib/routing";
 
 import type { CorrectionRequest } from "@/lib/queries/corrections";
 import {
@@ -70,10 +73,25 @@ export function CaseCorrectionsList({
   caps,
   targetLabel,
   memberNames,
+  org,
+  slug,
 }: {
   /** This target's requests, newest-first. Empty → renders nothing. */
   requests: CorrectionRequest[];
   caps: CorrectionCaps;
+  /**
+   * Org + commission slug. Present ONLY from the phase article, and their presence
+   * is what enables the review-screen affordances ("Colocar em revisão" navigating
+   * to the comparison, and the standing "Ver comparação" link).
+   *
+   * The narrative card omits them deliberately, and that is the whole gate: the
+   * comparison screen renders two response TREES, which a narrative — prose, with
+   * its before/after in `case_narrative_revisions` and already on its own card —
+   * does not have. Omitting them keeps today's in-place behaviour there instead of
+   * routing to a screen with nothing to draw.
+   */
+  org?: string;
+  slug?: string;
   /**
    * The host card's heading (e.g. "Fase 2 — Revisão"). The list sits INSIDE that
    * card, so items never repeat it; it names the region and fills the confirm-dialog
@@ -114,6 +132,8 @@ export function CaseCorrectionsList({
               caps={caps}
               targetLabel={targetLabel}
               memberNames={memberNames}
+              org={org}
+              slug={slug}
             />
           </li>
         ))}
@@ -127,11 +147,15 @@ function CorrectionRequestItem({
   caps,
   targetLabel,
   memberNames,
+  org,
+  slug,
 }: {
   request: CorrectionRequest;
   caps: CorrectionCaps;
   targetLabel: string;
   memberNames: Record<string, string>;
+  org?: string;
+  slug?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -156,12 +180,44 @@ function CorrectionRequestItem({
     (request.requestedBy === caps.viewerId ||
       request.permittedCorrector === caps.viewerId);
 
-  function runAction(thunk: () => Promise<{ ok: boolean; error?: string }>) {
+  // The comparison screen for THIS request, or `null` when there is nothing to
+  // compare: a narrative host (no org/slug), a narrative target, a `void` request
+  // (approving it clears the phase — there is no successor), or a request whose
+  // draft has not been created yet (`start_correction_draft` stamps both pointers
+  // together, so `requested` has neither).
+  const compareHref =
+    org && slug && request.casePhaseId && request.kind !== "void" &&
+    request.predecessorResponseId && request.draftResponseId
+      ? commissionHref(
+          org,
+          slug,
+          "manage",
+          "cases",
+          request.caseId,
+          "correcoes",
+          request.id,
+        )
+      : null;
+  // Approver-only, and only once there is something on both sides. Kept visible for
+  // `approved` too — reviewing what was accepted is exactly the read an auditor makes.
+  const showCompare = caps.canApprove && compareHref != null;
+
+  function runAction(
+    thunk: () => Promise<{ ok: boolean; error?: string }>,
+    // On success, navigate here instead of refreshing in place. Used by "Colocar em
+    // revisão": moving a request to `under_review` is the moment the approver starts
+    // reading it, so the transition and the reading surface are one act.
+    redirectTo?: string | null,
+  ) {
     setError(null);
     startTransition(async () => {
       const result = await thunk();
       if (!result.ok) {
         setError(result.error ?? "Não foi possível concluir. Tente novamente.");
+        return;
+      }
+      if (redirectTo) {
+        router.push(redirectTo);
         return;
       }
       router.refresh();
@@ -234,15 +290,31 @@ function CorrectionRequestItem({
 
       {error && <FormBanner tone="error">{error}</FormBanner>}
 
-      {(canDecide || showReview || canWithdraw) && (
+      {(canDecide || showReview || canWithdraw || showCompare) && (
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* A standing way back to the comparison. Without it the review screen is
+              reachable exactly once — "Colocar em revisão" only shows while the
+              request is `resubmitted`, so after that transition (or a refresh) the
+              approver deciding on this request would have no route to the content
+              they are deciding about. */}
+          {showCompare && compareHref && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href={compareHref}>
+                <GitCompareArrows aria-hidden="true" />
+                Ver comparação
+              </Link>
+            </Button>
+          )}
+
           {showReview && (
             <Button
               type="button"
               variant="outline"
               size="sm"
               disabled={isPending}
-              onClick={() => runAction(() => reviewCorrection(request.id))}
+              onClick={() =>
+                runAction(() => reviewCorrection(request.id), compareHref)
+              }
             >
               Colocar em revisão
             </Button>
@@ -279,7 +351,15 @@ function CorrectionRequestItem({
   );
 }
 
-function ApproveButton({
+/**
+ * EXPORTED so the correction review screen's decision card
+ * ({@link import('./correction-decision-card').CorrectionDecisionCard}) renders the
+ * SAME control, not a lookalike. Both surfaces decide the same request, so the
+ * confirm copy, the void wording and the self-approval warning must be one
+ * definition — a second copy is a second thing to keep in sync, and the one that
+ * drifts is the one nobody is looking at.
+ */
+export function ApproveButton({
   disabled,
   kind,
   targetLabel,
@@ -372,7 +452,8 @@ function WithdrawButton({
   );
 }
 
-function RejectButton({
+/** EXPORTED for the review screen's decision card — see {@link ApproveButton}. */
+export function RejectButton({
   disabled,
   onReject,
 }: {

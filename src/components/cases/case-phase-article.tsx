@@ -137,7 +137,14 @@ export function CasePhaseArticle({
             <span className="text-xs font-medium text-muted-foreground">
               Fase {phase.position}
             </span>
-            <PhaseStatusPill status={phase.status} />
+            {/* An open correction SUPPRESSES the status pill rather than sitting
+                beside it. `Concluída` + `Em correção` together read as a settled
+                phase with a side-note, when the truth is the opposite: the recorded
+                content is under active revision and the case cannot close over it.
+                Only "Concluída" is ever hidden here — a correction can only be filed
+                against a `completed` target (HC0M0), so no other status reaches this
+                branch. The pill returns the moment the request resolves. */}
+            {!openCorrection && <PhaseStatusPill status={phase.status} />}
             {phase.recommended && phase.status === "pending" && (
               <RecommendedChip />
             )}
@@ -245,6 +252,8 @@ export function CasePhaseArticle({
           caps={correctionCaps}
           targetLabel={heading}
           memberNames={memberNames}
+          org={org}
+          slug={slug}
         />
       )}
     </article>
