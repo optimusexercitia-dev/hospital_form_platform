@@ -28,10 +28,17 @@
  *                  exists" — the R3 failure). Bounded property, stated: the check
  *                  covers ids matching FUP-[A-Z0-9-]+ only; legacy un-prefixed items
  *                  (e.g. "AUTHZ Gate-2 MINOR-1") are outside its domain.
- *   6. LINKS     — every relative markdown link in PROGRESS.md and CLAUDE.md resolves
- *                  to an existing file; same-file #anchors resolve to a heading
- *                  (compared alphanumeric-only, so punctuation/emoji slugging cannot
- *                  false-red).
+ *   6. LINKS     — every relative markdown link resolves to an existing file; same-file
+ *                  #anchors resolve to a heading (compared alphanumeric-only, so
+ *                  punctuation/emoji slugging cannot false-red). Domain is PROGRESS.md,
+ *                  CLAUDE.md **and the rotation destinations** — rotating verbatim into
+ *                  an unchecked file is how 474 links broke once and 41 more were found
+ *                  broken at the moment the destinations were added here.
+ *   8. CELLS     — in the capped sections only (CAPPED_SECTIONS): cell length, plus
+ *                  unbalanced inline-code / bold spans, which is the class where a
+ *                  compression pass cut a cell mid-token and every gate stayed green.
+ *   9. BULLETS   — bullet length, same capped sections. § Critical FUP and the OPEN
+ *                  follow-up index are EXEMPT BY DECISION (CLAUDE.md §7 protects both).
  *   7. EOL       — the four every-session docs (PROGRESS.md, CLAUDE.md,
  *                  ARCHITECTURE.md, PHASES.md) contain no CR. Belt to the
  *                  .gitattributes suspenders: the attribute normalizes at checkin,
@@ -48,9 +55,49 @@ import { join, dirname, resolve } from 'node:path'
 
 const ROOT = process.cwd()
 const SIZE_CAP = 60 * 1024
+const MAX_CELL = 300
+const MAX_BULLET = 400
 
 const TRACKER_DOCS = ['PROGRESS.md', 'CLAUDE.md', 'ARCHITECTURE.md', 'PHASES.md']
-const LINK_CHECKED_DOCS = ['PROGRESS.md', 'CLAUDE.md']
+
+/**
+ * Link-checked docs. The ROTATION DESTINATIONS are in this list deliberately: a
+ * verbatim rotation carries root-relative `docs/...` links into `docs/progress/`,
+ * where they no longer resolve. That is not hypothetical — 41 links were already
+ * broken this way at the moment these three were added, and an earlier pass broke
+ * 474. Rotating into a file nothing link-checks is how the defect survives.
+ */
+const LINK_CHECKED_DOCS = [
+  'PROGRESS.md',
+  'CLAUDE.md',
+  'docs/progress/deferred-backlog.md',
+  'docs/progress/follow-ups-archive.md',
+  'docs/progress/bug-log-archive.md',
+  'docs/progress/follow-ups.md',
+  'docs/progress/decisions-log.md',
+  'docs/progress/test-run-archive.md',
+  'docs/progress/phase-ledger.md',
+  'docs/progress/qa-verdicts-archive.md',
+]
+
+/**
+ * Sections the shape caps apply to. § Critical FUP and the OPEN follow-up index are
+ * EXEMPT BY DECISION — CLAUDE.md §7 protects both by name ("don't satisfy the size
+ * cap by trimming § Critical FUP or OPEN index lines"), and density is the point in
+ * both. § Now and § State are live working state, likewise exempt.
+ *
+ * BOUNDED PROPERTY, STATED: this is an allowlist of headings, so a NEW section is
+ * uncapped until someone adds it here. That is the known cost of honouring the §7
+ * carve-out; the alternative (cap everything, exempt by regex) inverts which side
+ * of the boundary a mistake lands on.
+ */
+const CAPPED_SECTIONS = [
+  /^## Phase Status\b/,
+  /^## Bug Log\b/,
+  /^## Test Run Summary\b/,
+  /^## QA Verdicts\b/,
+  /^## Decisions\b/,
+]
 
 /** Required sections, matched on the stable noun so decoration drift can't red. */
 const REQUIRED_SECTIONS = [
@@ -151,6 +198,75 @@ export function checkFupBodies(text, bodiesText) {
   return out
 }
 
+/** `[line, lineNo]` for every line inside a CAPPED_SECTIONS section (headings excluded). */
+function cappedLines(text) {
+  const out = []
+  let on = false
+  text.split('\n').forEach((line, i) => {
+    if (/^## /.test(line)) on = CAPPED_SECTIONS.some((re) => re.test(line))
+    else if (on) out.push([line, i + 1])
+  })
+  return out
+}
+
+const isTableRow = (l) => /^\|/.test(l) && !/^\|[\s-]*\|/.test(l)
+
+/**
+ * Cell shape in the capped sections: length, and unbalanced inline-code / bold spans.
+ *
+ * The unbalanced-delimiter checks are the W1 defect class — a compression pass cut a
+ * cell mid-token, leaving `` Migration `20260 `` with an open span (and, four rows
+ * later, an open `**`). Both survived review and every gate.
+ *
+ * ⛔ NOT CHECKED, deliberately: "cell ends mid-token without an `…`". Calibrated
+ * against the live file, every hit was a FALSE POSITIVE — this file's house style
+ * ends prose cells without terminal punctuation, so "ends in a lowercase letter"
+ * flags healthy cells. The truncations it was meant to catch are caught by the
+ * delimiter checks instead, which have no false positives here. A detector that
+ * finds a lot needs proving too.
+ */
+export function checkCellShape(text) {
+  const out = []
+  for (const [line, no] of cappedLines(text)) {
+    if (!isTableRow(line)) continue
+    for (const raw of line.split('|').slice(1, -1)) {
+      const cell = raw.trim()
+      if (cell.length > MAX_CELL) {
+        out.push(
+          `PROGRESS.md:${no} — table cell is ${cell.length} chars (cap ${MAX_CELL}). ` +
+            `Rationale belongs in the ADR or archive this row links to, not in the row.`,
+        )
+      }
+      if ((cell.match(/`/g) ?? []).length % 2) {
+        out.push(
+          `PROGRESS.md:${no} — unclosed inline code span in a cell (…${cell.slice(-40)}). ` +
+            `A compression pass cut this cell mid-token.`,
+        )
+      }
+      if ((cell.match(/\*\*/g) ?? []).length % 2) {
+        out.push(
+          `PROGRESS.md:${no} — unclosed bold span in a cell (…${cell.slice(-40)}). ` +
+            `A compression pass cut this cell mid-span.`,
+        )
+      }
+    }
+  }
+  return out
+}
+
+/** Bullet length in the capped sections (the OPEN follow-up index is exempt — see above). */
+export function checkBulletLength(text) {
+  const out = []
+  for (const [line, no] of cappedLines(text)) {
+    if (!/^\s*- /.test(line) || line.length <= MAX_BULLET) continue
+    out.push(
+      `PROGRESS.md:${no} — bullet is ${line.length} chars (cap ${MAX_BULLET}). ` +
+        `Link the detail instead of restating it.`,
+    )
+  }
+  return out
+}
+
 /** Alphanumeric-only form of a heading, for anchor comparison that emoji can't break. */
 const anchorKey = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')
 
@@ -159,7 +275,12 @@ export function checkLinks(file, text, fileExists) {
   const headings = [...text.matchAll(/^#{1,6} +(.+)$/gm)].map((m) => anchorKey(m[1]))
   const linkRe = /\]\(([^)\s]+)\)/g
   const lines = text.split('\n')
-  lines.forEach((line, i) => {
+  lines.forEach((rawLine, i) => {
+    // Blank out inline code spans, preserving offsets: a `](docs/x.md)` inside backticks
+    // is prose ABOUT a link, not a link. follow-ups.md documents this very defect class
+    // in a code span, and without this it reds on its own explanation of the rule.
+    // BOUNDED: inline spans only — fenced blocks are not tracked here.
+    const line = rawLine.replace(/`[^`]*`/g, (m) => ' '.repeat(m.length))
     for (const m of line.matchAll(linkRe)) {
       const target = m[1]
       if (/^(https?:|mailto:|data:)/.test(target)) continue
@@ -225,9 +346,26 @@ function selfTest() {
     checkFupBodies('## Follow-ups\n- 🔴 **FUP-REAL-1** — has body\n', '## FUP-REAL-1\nbody'),
   )
 
+  const cell = (body) => `## Decisions\n| 2026-01-01 | ${body} | ref |\n`
+  expectRed('cell-long', checkCellShape(cell('x'.repeat(MAX_CELL + 1))))
+  expectRed('cell-open-code', checkCellShape(cell('Migration `20260')))
+  expectRed('cell-open-bold', checkCellShape(cell('**cut mid-span')))
+  expectGreen('cell-green', checkCellShape(cell('Migration `20260928000700` is **done**')))
+  // The §7 carve-out must be provably a carve-out, not an accident of the fixture.
+  expectGreen(
+    'cell-exempt-green',
+    checkCellShape(`## ⭐⭐ Critical FUP\n| a | ${'x'.repeat(MAX_CELL + 1)} |\n`),
+  )
+  expectRed('bullet-long', checkBulletLength(`## Bug Log\n- ${'x'.repeat(MAX_BULLET)}\n`))
+  expectGreen(
+    'bullet-exempt-green',
+    checkBulletLength(`## Follow-ups\n- ${'x'.repeat(MAX_BULLET)}\n`),
+  )
+
   expectRed('link-broken', checkLinks('X.md', '[a](does-not-exist.md)\n', () => false))
   expectRed('link-anchor', checkLinks('X.md', '# Title\n[a](#missing-anchor)\n', () => true))
   expectGreen('link-green', checkLinks('X.md', '# My Title\n[a](#my-title) [b](real.md)\n', () => true))
+  expectGreen('link-codespan-green', checkLinks('X.md', 'prose `](docs/gone.md)` about links\n', () => false))
 
   expectRed('eol', checkEol('X.md', 'a\r\nb'))
 
@@ -253,6 +391,8 @@ function main() {
   findings.push(...checkSections(progress))
   findings.push(...checkPhaseRows(progress))
   findings.push(...checkFupIndex(progress))
+  findings.push(...checkCellShape(progress))
+  findings.push(...checkBulletLength(progress))
 
   const bodies = readFileSync(join(ROOT, 'docs', 'progress', 'follow-ups.md'), 'utf8')
   findings.push(...checkFupBodies(progress, bodies))

@@ -695,3 +695,12 @@ required** — verified, not assumed.
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-17 | **DM5 S6 · LEAD · `npm run e2e:prod`** (`REBUILD=1`) — the DECLARING-GREEN run, after the EVID-KBD-1 fix. ⭕ **Added at the phase QA (R5): this table's rule is "most recent gate only" and BOTH 2026-08-17 gates were missing — including the run the phase QA itself rests on** | **GATE GREEN — 1121 passed · 0 failed · 0 infra · 2 flaky · 6 skipped · 0 did-not-run · 18 batches.** Parts sum to **1129 collected**, reconciled **per batch** (`accounted N/N`), so no unrun tests. Batch 4 = **64/0** (was 63/1). The 2 flaky are exactly the two remaining `FUP-E2E-REPEAT-FLAKY` members |
+
+## ↩ Rotated from PROGRESS.md 2026-08-19 (the W5 cell-cap pass) — 1 row, VERBATIM apart from the link repoint
+
+> The live rows were compressed to the 300-char cell cap in the same change; these are
+> the full-length originals. Cell content only — the table header is in the live file.
+
+| Date | Decision / run | Refs |
+| --- | --- | --- |
+| 2026-08-18 | **DM follow-up triage · LEAD** — the four shipped items (#2 byte proof · #4 DVF 1:1 · #8b draft-print delete guard · attachments deletion). Two fresh `supabase db reset --local` cycles; both new pgTAP arms authored **red-first** | **pgTAP 194 files / 6397 PASS** (6392 baseline **+2** `328` K17a/b **+3** `312` t74/75/76 — the parts sum) · **lint 5/5** · **typecheck 0** · **vitest 1305/1305** (+1) · authz **`census` / `hat` / `floor` / `FROMFINDINGS=1 wrapper` all INVARIANT HOLDS**. ⛔ **`e2e:prod` NOT RUN — this row is not a phase gate.** ⚠ One RED en route was a real defect in this batch's own migration, caught by pgTAP `320` U1 at **237→238** (PUBLIC-executable `SECURITY DEFINER`), **not** by review — `312` was fully green with the door open |

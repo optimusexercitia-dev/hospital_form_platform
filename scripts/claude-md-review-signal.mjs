@@ -2,6 +2,12 @@
 /**
  * Stop-hook signal collector for the CLAUDE.md review cadence (CLAUDE.md §7).
  *
+ * DOMAIN: CLAUDE.md **and `.claude/rules/`**. A rule file has no resolution event and,
+ * being path-scoped, is invisible until it fires — so `lint:rules` can only catch a rule
+ * whose SUBJECT disappeared (renamed symbol, deleted file). A rule whose subject still
+ * exists but whose CLAIM has gone false is invisible to every gate; the only witness is
+ * a human contradicting it mid-session, which is what this queues.
+ *
  * WHY. CLAUDE.md itself says a stale CLAUDE.md is worse than a missing one — but
  * "review it periodically" is exactly the kind of prose rule this repo has watched rot
  * ("standing in prose alone once meant it ran once in three weeks"). This hook makes
@@ -42,6 +48,12 @@ const SIGNALS = [
   ['correction', /\b(no[,.] (that|this|it)\b|not what i (asked|meant|wanted))/i],
   ['staleness', /\b(stale|outdated|out of date|doesn'?t exist anymore|no longer (exists|true|correct))\b/i],
   ['claude-md', /\bCLAUDE\.md\b/],
+  // `.claude/rules/` is in the domain too (ADR 0127 / Q13). A rule has no resolution
+  // event, and path-scoped it is invisible until it fires — so a session that
+  // contradicts one leaves no trace anywhere unless this queues it. `lint:rules`
+  // catches a rule whose SUBJECT vanished; only a human contradiction catches a rule
+  // whose subject still exists and whose CLAIM went false.
+  ['rules', /(\.claude\/rules|\brule file\b)/i],
   ['standing-rule', /\b(from now on|always remember|never again|going forward|in future sessions)\b/i],
   ['methodology', /\b(source of truth|deteriorat|constant source of errors|every session)\b/i],
 ]

@@ -302,30 +302,32 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
 Update it when a task starts/finishes, a bug is filed/fixed, a gate step passes, or a
 decision is made — **never report status verbally without writing it there first**.
 Every teammate updates **only their own** rows/sections; the lead owns § Now and
-§ Phase Status. **An entry leaves the moment its work merges and is recorded** (§6
-step 5): completed phase rows → **`docs/progress/phase-ledger.md`** (append-only, rows
-never leave *there*), resolved follow-ups → `follow-ups-archive.md`, closed bugs →
-`bug-log-archive.md`. The contract — ≤ 60 KB, no completed rows, no resolved index
-lines, links resolve, every OPEN `FUP-*` line has a body, required sections, LF-only —
-is **machine-enforced by `npm run lint:progress`** (gate 7 of `npm run lint`;
-`scripts/check-progress-doc.mjs`, self-red-proving). Don't satisfy the size cap by
-trimming § Critical FUP or OPEN index lines — rotate *concluded* material. The durable
-backend-surface map is **`docs/backend-state.md`** — reference it instead of
+§ Phase Status. ⛔ **This paragraph must survive any trim** — a path-scoped rule cannot
+trigger its own trigger, so if nothing here sends you to PROGRESS.md, the contract below
+never loads.
+
+**The contract is not restated here** (that second copy is what drifted). It loads from
+[progress-contract.md](.claude/rules/progress-contract.md) when you open PROGRESS.md or
+`docs/progress/`, and `npm run lint:progress` (gate 7) is its authority — what leaves,
+where it goes, the one-line form, and the two protected sections all live there. The
+durable backend-surface map is **`docs/backend-state.md`** — reference it instead of
 re-deriving the backend each phase.
 
-**CLAUDE.md review cadence:** a `Stop` hook (`scripts/claude-md-review-signal.mjs`)
-scans each finished session's transcript for correction signals and queues candidates
-in `.claude/claude-md-review-queue.md` (gitignored). Process the queue with the
-**`/review-claude-md`** skill, which proposes diffs — the "always ask before changing
-CLAUDE.md" rule below applies to those proposals too.
+**Review cadence for CLAUDE.md _and_ `.claude/rules/`:** a `Stop` hook
+(`scripts/claude-md-review-signal.mjs`) scans each finished session's transcript for
+correction signals and queues candidates in `.claude/claude-md-review-queue.md`
+(gitignored). Process the queue with the **`/review-claude-md`** skill, which proposes
+diffs — the "always ask before changing CLAUDE.md" rule below applies to those proposals
+too. `npm run lint:rules` (gate 8) catches a rule whose **subject** vanished; a rule
+whose **claim** went false has no gate at all, so that queue is its only witness.
 
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` is **SEVEN gates chained**; ALL must pass (verify against
+- **Lint gate** — `npm run lint` is **EIGHT gates chained**; ALL must pass (verify against
   `package.json`, not this list): `eslint --max-warnings=0` **&&** `lint:css-vars` **&&**
   `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous` **&&**
-  `lint:set-local` **&&** `lint:progress`. Each was added after the class it gates shipped a live defect:
+  `lint:set-local` **&&** `lint:progress` **&&** `lint:rules`. Each was added after the class it gates shipped a live defect:
   - `lint:css-vars` (`check-tailwind-css-vars.mjs`) — the Tailwind-v4 bare `[--var]` form, which
     compiles to dead CSS; added after it shipped nine dead motion utilities.
   - `lint:memberships-door` (`check-memberships-door.mjs`) — direct `memberships` reads that
@@ -345,6 +347,18 @@ CLAUDE.md" rule below applies to those proposals too.
     no completed rows / resolved index lines, link + FUP-body integrity, LF. Every prior version
     of that contract lived in prose and each clause was violated while green; the script
     self-red-proves every checker on each run.
+  - `lint:rules` (`check-rules-staleness.mjs`) — a `.claude/rules/` rule that has gone stale.
+    Standing rules have **no resolution event**, and path-scoped they are **invisible until they
+    fire**, so a rule describing a renamed symbol loads and is believed forever with nothing able
+    to contradict it. Keystone: **a rule whose own `paths:` glob matches zero files is orphaned.**
+    Every rule must also declare checkable `anchors:` — which makes "can this be shown stale?" a
+    precondition for admitting a rule. ⚠ Anchors cap what is **admissible**, NOT how many rules
+    accumulate, and path-scoping bounds **when** a rule loads, not **how many** load together —
+    so volume has its own bounds: ≤ 40 files matched per rule (waivable only by declaring
+    `broad: <reason>`), ≤ 2 KB per rule, ≤ 12 rules. The first population had one rule matching
+    **659** files; it was retired (ADR 0127 Amdt 1).
+    ⚠ Bounded, stated: DB anchors (`prosecdef`, ACLs, policies) are **not** checkable in `lint` —
+    those belong in pgTAP. Retirement → `docs/progress/rules-archive.md`, never deletion.
   eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
   `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
@@ -378,7 +392,7 @@ npm run gen:types:linked       # regenerate types from the linked remote
 npm run dev                    # Next.js dev server (http://localhost:3000)
 npm run lint && npm run typecheck   # lint = eslint(0 warnings) && css-vars && memberships-door
                                #   && client-server-imports && vacuous && set-local && progress
-                               #   — all seven (§8)
+                               #   && rules — all eight (§8)
 npm run format:check           # Prettier (npm run format writes) — manual, NOT a lint gate;
                                #   tracker docs are .prettierignore'd (§8 — breaks lint:progress)
 npm run test                   # Vitest unit tests (full suite)

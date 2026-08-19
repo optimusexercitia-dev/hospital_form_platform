@@ -29,6 +29,18 @@
         ]
       }
     ],
+    "InstructionsLoaded": [
+      {
+        "_comment": "ADR 0127 open risk: `.claude/rules/*.md` path-scoping is behind a runtime feature flag (claudemd_rule_globs), and a rule created mid-session did NOT load when a matching file was touched — equally consistent with session-start enumeration or the flag being off. This probe records what the harness reports into .claude/instructions-loaded.log (gitignored) instead of assuming. Filters to rules only; CLAUDE.md loading is not in doubt. Delete once the question is settled.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["scripts/instructions-loaded-probe.mjs"]
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "_comment": "CLAUDE.md review cadence (CLAUDE.md §7): scans the finished session's transcript for correction/staleness signals and queues candidates in .claude/claude-md-review-queue.md (gitignored). Deterministic + silent by design — it never edits CLAUDE.md and never blocks the Stop; the /review-claude-md skill consumes the queue and proposes diffs, which still require asking first.",

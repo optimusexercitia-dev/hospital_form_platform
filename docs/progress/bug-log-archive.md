@@ -2633,3 +2633,47 @@ count: append to it, and nothing already written goes stale.
 - **BUG-DM5-S3-INACTIVE-PRINT-1** — fixed by DM5·S3, in the slice that filed it, never marked.
 - **BUG-DM5-S3-ENV-FIXTURE-POOL-1** — met its own "re-verify on the next fresh-reset run" criterion
   on 2026-08-17, never marked.
+
+## ↩ Rotated from PROGRESS.md 2026-08-19 — the live § Bug Log "Closed" subsection, VERBATIM
+
+> This subsection had stopped being a bug list and become a rule list: standing warnings with no
+> resolution event, which is why it could only grow. The four that survived the admission filter
+> (checkable anchor, not already enforced elsewhere) now live in `.claude/rules/`; the rest were
+> rejected as already gate-enforced or as having no verifiable anchor. Nothing was deleted.
+
+### Closed → [bug-log-archive.md](../progress/bug-log-archive.md)
+
+**Rotated 2026-08-18 (3)** — **BUG-DM5-S3-ENV-FIXTURE-POOL-1** · **BUG-DM5-S3-INACTIVE-PRINT-1** ·
+**BUG-DM5-S6-EVID-KBD-1** — all three *closed well before their rows said so*; full repro, mechanism
+and closure evidence → [archive § "Rotated 2026-08-18"](../progress/bug-log-archive.md). Verbose
+narratives rotated 2026-08-18 → [archive § "Bug Log closure narratives"](../progress/bug-log-archive.md).
+
+**Rotated 2026-08-14 (5 + earlier)** — BUG-DM5-S2-STUB-1 · -WRITE-ARM-1 · -CITATION-TARGETS-1 ·
+BUG-DM5-CAPA-1 · BUG-DM4-DUP-1, plus BUG-DM2-001/-002/-003 and BUG-CASEKIND-001 → same archive.
+
+⛔ **Three warnings from those closures that must NOT be lost with the narrative:**
+- **Do NOT add `is_active` to `app.can_view_printed_document`.** The print door admits a deactivated
+  account **by decision**, pgTAP `342` S3c3 pins it, and a second copy of the same predicate is the
+  *two-locks-that-are-one-lock* trap. The authority is the **conjunction**.
+- **Date a log before citing it.** The gate's directory holds a `batch-9-unrun.log` ("BATCH 9 DID NOT
+  RUN") naming the very spec used as pass evidence; reading it as the passing run inverts the verdict.
+- ⚠ *A fix commit is not a status edit* — BUG-DM4-DUP-1 and BUG-DM5-S6-EVID-KBD-1 each sat marked
+  OPEN for days after their fix shipped.
+
+**Earlier eras** (rotated 2026-08-06 → 2026-08-12) — each bug's full entry, repro and lessons are in
+the archive. The navigation hooks worth keeping live:
+
+- ⚠ Before touching `buildAnswerMaps`, read **BUG-FF4-001** — the obvious one-line fix breaks Rule 3
+  SQL↔TS evaluator parity.
+- ⚠ Before diagnosing any minutes E2E failure, read **BUG-MIN-E2E-1** — closed as **NOT a product
+  defect** (a stale per-worktree `.env.local` `MINUTES_SERVICE_URL`, `:8000` vs the stub's
+  `127.0.0.1:8891`). The durable fix is the mutation-proven `beforeAll` precondition guard, not the value.
+- ⚠ Before touching Radix dialog focus, read **BUG-RDR-001** + **BUG-ETHE4-FOCUS-1** — `onCloseAutoFocus`'s
+  `preventDefault()` **also cancels `FocusScope`'s own restore**, so both halves must be replaced
+  together; and a bubble-phase `stopPropagation()` cannot beat `DismissableLayer`'s capture-phase
+  Escape. Untested residual: **FUP-ETH-KBD-1**.
+- ⚠ **BUG-ACT-ACL-1 closed one instance, not the population** — that population is now swept by
+  AUDIT-INVOKER-WRAPPER, with `FROMFINDINGS=1 ARM=wrapper` standing as a §6 step-1 gate over it.
+- **FUP-VACUOUS-COVERAGE-1 stays OPEN**: `phi-remediation` REM-8/REM-9 are honest `test.skip()`s,
+  outside the vacuity property, so `lint:vacuous` will never catch them.
+
