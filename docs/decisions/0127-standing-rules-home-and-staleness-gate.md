@@ -109,3 +109,28 @@
   waiting to be built, or content that belongs one level up. The precondition is stated in
   the gate's own finding text and as step 0 of the archive's retirement procedure, so it is
   reachable from both directions a session can arrive from.
+
+## Amendment 3 — the instrument was installed after the thing it measures (2026-08-19)
+
+- **Status:** accepted (PO, 2026-08-19).
+- **The error, made twice in one session.** The "Open risk" section above concluded that a
+  mid-session rule "did not load", correctly flagging that as inconclusive because
+  `.claude/rules/` is enumerated at session start. Then the `InstructionsLoaded` probe was
+  installed **in that same session** and its empty log was offered as something to read.
+  `.claude/settings.json` is read at session start too, so the hook was never registered and
+  the log could not have been written by anything. **A measurement whose instrument was
+  installed after the fact is not a measurement**, and the second instance was harder to see
+  precisely because the first had been named and dismissed.
+- **The probe could not prove it was alive.** It filtered to `.claude/rules/` paths only, on
+  the reasoning that CLAUDE.md loading "is not in doubt and would be noise" — which made an
+  empty log **ambiguous between the two states it exists to separate**: hook-never-ran and
+  hook-ran-but-rules-did-not-load. A detector that reports nothing must be provable able to
+  report something.
+- **Decision.** The probe logs **every** instruction load with a `RULE`/`other` marker, and
+  the log is read three ways: **no lines** ⇒ the hook never ran (report that, conclude
+  nothing about rules) · **lines, none marked `RULE`** ⇒ the hook ran and rules did not load,
+  which is the finding · **`RULE` lines** ⇒ rules fire, and the CLAUDE.md §8 intake unholds.
+  Both preconditions — hook registered at session start, governed file actually touched — are
+  stated in the script header, since the log itself cannot state them.
+- **Status of the question: still open.** Nothing has been measured yet. The first honest
+  reading is any session after 2026-08-19.

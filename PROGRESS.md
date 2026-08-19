@@ -111,9 +111,15 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   CLAUDE.md 32 KB + MEMORY.md 20 KB, so cutting *this* file buys nothing at session start.
   ⚠ **Rule firing is UNPROVEN, not proven** — `.claude/rules/` path-scoping is behind a
   runtime feature flag and a mid-session rule did **not** load. An `InstructionsLoaded`
-  probe now measures it: read `.claude/instructions-loaded.log` after a session that opened
-  PROGRESS.md or a governed source file. Until a `path_glob_match` line appears, treat the
-  rule files as inert and the archives as the live home.
+  probe measures it. ⛔ **The probe was installed 2026-08-19 mid-session, so it could not
+  have been active that session** — `.claude/settings.json` is read at session start, and
+  the session that adds a hook can never be the session that observes it. **The first
+  honest reading is any LATER session.** Read `.claude/instructions-loaded.log` as a
+  **three-way** result, never yes/no: **no lines at all** ⇒ the hook never ran (say so,
+  don't conclude about rules) · **lines but none marked `RULE`** ⇒ the hook ran and rules
+  did **not** load — that is the answer · **`RULE` lines** ⇒ rules fire, and the CLAUDE.md
+  §8 intake line can be unheld. Until then treat the rule files as inert and the archives
+  as the live home.
   ⛔ **`.claude/rules/` has a staleness gate, volume bounds and an exit — but NO documented
   intake, deliberately.** The one-line CLAUDE.md §8 rule-creation line is **HELD** until that
   log shows a `path_glob_match`: publishing an intake into a directory that may never load
