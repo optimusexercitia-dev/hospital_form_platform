@@ -5,7 +5,9 @@ import { ArrowLeft } from "lucide-react";
 import type { CaseTemplateProvenance as TemplateProvenance } from "@/lib/queries/process-templates";
 import { CaseTemplateProvenance } from "@/components/cases/case-template-provenance";
 
-import type { CaseDetail } from "@/lib/queries/cases";
+import type { CaseDetail, CaseViewerCapabilities } from "@/lib/queries/cases";
+import type { SlotForm } from "@/components/process-templates/template-builder-shell";
+import { AddCaseWorkActions } from "@/components/cases/add-case-work-actions";
 import type { CaseActionItem } from "@/lib/queries/case-action-items";
 import type { CaseEvent } from "@/lib/queries/case-documents";
 import type { CaseTag } from "@/lib/queries/case-tags";
@@ -145,6 +147,9 @@ export function CaseDetailView({
   corrections = [],
   narrativeRevisions = {},
   viewerKind = "member",
+  managementElsewhere = false,
+  adHocForms,
+  adHocNarrativeTypes = [],
   backLabel = "Meus Casos",
   caseParticipantsEnabled = false,
   organizationId,
@@ -277,6 +282,27 @@ export function CaseDetailView({
    */
   viewerKind?: "member" | "oversight";
   /**
+   * `true` on a host that is a READING surface — the staff `/casos/[caseId]`
+   * route. It narrows `canManageLifecycle` to `false` for EVERY child of this
+   * component, so a coordinator who opens that route sees the case the way a
+   * committee member does; management stays one click away behind the header's
+   * "Gerenciar caso" link, which is deliberately gated on the UN-narrowed
+   * capability (otherwise the narrowing would strand them here).
+   *
+   * Not a security control (Rule 1) — it is the same viewer with the same DB
+   * rights, choosing a calmer surface. It only changes what is OFFERED, and every
+   * door still decides for itself.
+   */
+  managementElsewhere?: boolean;
+  /**
+   * The commission's PUBLISHED forms, for the work card's "Adicionar fase"
+   * dialog. `undefined` — the staff route's case — renders NO authoring footer
+   * and, more to the point, means that route never loads this list at all.
+   */
+  adHocForms?: SlotForm[];
+  /** The commission's narrative vocabulary, for "Adicionar narrativa". */
+  adHocNarrativeTypes?: { id: string; label: string }[];
+  /**
    * Label for the self-contained header's back link. Defaults to `"Meus Casos"`,
    * which was hardcoded here until ADR 0100 — a reviewer arrives from the quality
    * console and has no "Meus Casos" (that route is member-gated), so `backHref`
@@ -311,14 +337,61 @@ export function CaseDetailView({
   participantRoleVocabularyHref?: string | null;
 }) {
   const c = detail.case;
-  const caps = detail.viewerCapabilities;
+  // The viewer's TRUE capabilities, straight from the envelope. Only two things
+  // read this: the narrowing below, and the "Gerenciar caso" escape hatch — which
+  // must survive the narrowing or a coordinator lands on a reading surface with no
+  // route back to the management one.
+  const rawCaps = detail.viewerCapabilities;
+  // `managementElsewhere` (the staff `/casos/[caseId]` route): a coordinator READS
+  // the case here and manages it from `/manage/...`. Narrowing at the single place
+  // `caps` is derived is what makes that ONE decision instead of one per card —
+  // every child already gates off this object, so phase activate/reassign, narrative
+  // assign/conclude, Encaminhar caso, Nova entrevista, patient + custom-field edit,
+  // event visibility, the offered-outcomes editor, Reabrir caso and ad-hoc delete all
+  // follow from `canManageLifecycle: false`, and Novo item, Adicionar registro,
+  // Anexar documento and the tag editor from `canWriteContent: false`.
+  //
+  // BOTH are dropped, because "somewhere between read-only and full management" is
+  // the state the split exists to abolish: a coordinator who can file an action item
+  // here but not activate a phase has to learn which half of the page is live.
+  //
+  // What survives is what they hold as a PARTICIPANT rather than as the coordinator:
+  // `canEditNarrative` checks the assignee BEFORE `canWriteContent` (ADR 0033 Q14,
+  // CA-002), so a coordinator assigned a narrative still writes that narrative here —
+  // which is exactly the committee-member surface this route is meant to be.
+  //
+  // A COORDINATOR on the reading surface — the one test every narrowing below keys
+  // off. False for a plain member/assignee/grantee here, so none of this touches
+  // them: this page is their only surface and they must keep working on it.
+  const readingAsMember = managementElsewhere && rawCaps.canManageLifecycle;
+  const caps: CaseViewerCapabilities = readingAsMember
+    ? { ...rawCaps, canManageLifecycle: false, canWriteContent: false }
+    : rawCaps;
   // ADR 0100 D7 — the oversight reader. Three affordances on this page are NOT
   // derived from `caps` and would otherwise render for them; see each use site.
   const isOversight = viewerKind === "oversight";
   // Activate/reassign: an `assign_case_phases` Administrativo OR anyone who already
   // manages lifecycle (a coordinator) — the latter keeps coordinators from regressing
   // regardless of what the page passes.
-  const effectiveCanAssignPhases = canAssignPhases || caps.canManageLifecycle;
+  // Three affordances arrive as their OWN props and so survive the `caps` narrowing
+  // above, yet are role-implied for a coordinator: `canInCommission` returns true for
+  // every `staff_admin` whether or not the capability was granted, and
+  // `canManagePhaseResults` is a bare `role === 'staff_admin'` at both hosts. Left
+  // alone, a coordinator on the reading surface would keep "Ativar e atribuir",
+  // "Corrigir resultado" and the meta-edit door while losing everything around them.
+  //
+  // A NON-coordinator's explicit Administrativo grant is untouched — the test is
+  // `rawCaps.canManageLifecycle`, i.e. "this claim comes from the coordinator role".
+  // That distinction matters: `/manage/...` 404s for an Administrativo, so this page
+  // is their ONLY surface, and suppressing them here would delete the capability
+  // rather than relocate it.
+  const effectiveCanAssignPhases = readingAsMember
+    ? false
+    : canAssignPhases || caps.canManageLifecycle;
+  const effectiveCanEditMeta = readingAsMember ? false : canEditMeta;
+  const effectiveCanManagePhaseResults = readingAsMember
+    ? false
+    : canManagePhaseResults;
   const isOpen = !isTerminalCaseStatus(c.status);
   const offersOutcomes = detail.offeredOutcomes.length > 0;
   // A process-less case (templateId === null) has no template snapshot to freeze,
@@ -436,7 +509,8 @@ export function CaseDetailView({
   // (`canManageLifecycle`) OR a `create_cases` Administrativo (`canEditMeta`), and only
   // while the case is OPEN (terminal cases are frozen server-side, HC025).
   const showCustomFieldsPanel = caseCustomFieldsEnabled && customFields.length > 0;
-  const canEditCustomFields = (caps.canManageLifecycle || canEditMeta) && isOpen;
+  const canEditCustomFields =
+    (caps.canManageLifecycle || effectiveCanEditMeta) && isOpen;
 
   const body = (
     <>
@@ -509,9 +583,13 @@ export function CaseDetailView({
                 affordance on this page that `caps` does not close. Notifying an
                 event is a WRITE (it creates a patient-safety event) and its
                 pre-fill bridge carries PHI, both forbidden to the reviewer. */}
+            {/* `rawCaps`, not `caps`: this cluster hosts the "Gerenciar caso"
+                link, whose whole purpose is to carry a coordinator OFF this
+                reading surface. Gating it on the narrowed capability would hide
+                the one exit the narrowing creates the need for. */}
             {((patientSafetyEnabled && !isOversight) ||
-              caps.canManageLifecycle ||
-              (isOpen && canEditMeta)) && (
+              rawCaps.canManageLifecycle ||
+              (isOpen && effectiveCanEditMeta)) && (
               <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
                 {patientSafetyEnabled && !isOversight && (
                   <NotifyEventDialog
@@ -531,7 +609,7 @@ export function CaseDetailView({
                     (ADR 0061). Open-only (terminal cases are frozen, HC025). Shown to a
                     `create_cases` Administrativo on the staff route; coordinators edit
                     from the `(detail)` layout's own button. */}
-                {isOpen && canEditMeta && (
+                {isOpen && effectiveCanEditMeta && (
                   <EditCaseMetaDialog
                     caseId={c.id}
                     currentLabel={c.label}
@@ -540,7 +618,7 @@ export function CaseDetailView({
                     departments={departments}
                   />
                 )}
-                {caps.canManageLifecycle && (
+                {rawCaps.canManageLifecycle && (
                   <Link
                     href={commissionHref(org, slug, "manage", "cases", c.id)}
                     className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
@@ -589,7 +667,7 @@ export function CaseDetailView({
           </div>
         )}
 
-        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8 lg:items-start">
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_384px] lg:gap-8 lg:items-start">
           {/* LEFT — phases + narratives, action items, working notes */}
           <div className="contents lg:flex lg:flex-col lg:gap-6">
             <div data-rise className="order-1 lg:order-none">
@@ -605,12 +683,27 @@ export function CaseDetailView({
                 // Post-conclusion correction (task #10): staff_admin + flag on +
                 // the case is non-terminal (open). The article also requires the
                 // phase to be `concluida`.
-                canCorrectResult={canManagePhaseResults && isOpen}
+                canCorrectResult={effectiveCanManagePhaseResults && isOpen}
                 resultOptions={phaseResultOptions}
                 correctionCaps={correctionCaps}
                 corrections={corrections}
                 memberNames={memberNames}
                 narrativeRevisions={narrativeRevisions}
+                // Two independent conditions, neither load-bearing alone (the
+                // house rule the `viewerKind` contract states): the host must
+                // have supplied the pickers' data AND the viewer must still hold
+                // lifecycle here. The staff route fails both.
+                footerActions={
+                  isOpen && caps.canManageLifecycle && adHocForms ? (
+                    <AddCaseWorkActions
+                      caseId={c.id}
+                      forms={adHocForms}
+                      assignees={assignees}
+                      narrativeTypes={adHocNarrativeTypes}
+                      narrativesEnabled={narrativesEnabled}
+                    />
+                  ) : null
+                }
               />
             </div>
             {/* The "Solicitações de correção" cockpit CARD is gone (ADR 0085's

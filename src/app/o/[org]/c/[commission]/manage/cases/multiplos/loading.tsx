@@ -11,7 +11,7 @@ export default function BulkCreateCasesLoading() {
         <Skeleton className="h-4 w-full max-w-prose" />
       </header>
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex flex-col gap-5">
           <div className="flex items-center gap-3">
             {[0, 1, 2, 3].map((i) => (

@@ -176,7 +176,7 @@ export default async function NspEventDetailPage({
         </p>
       </header>
 
-      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-8">
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_408px] lg:items-start lg:gap-8">
         <div className="flex flex-col gap-6">
           {/* Reporter narrative (sanitized Markdown — Rule 7). */}
           <section

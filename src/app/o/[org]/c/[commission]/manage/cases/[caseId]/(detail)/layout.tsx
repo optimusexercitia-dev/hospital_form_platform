@@ -11,7 +11,6 @@ import {
 } from "@/lib/queries/cases";
 import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listMembers, sortMembers } from "@/lib/queries/members";
-import { listForms } from "@/lib/queries/forms";
 import {
   CaseStatusBadge,
   CaseStatusBadgeFixed,
@@ -24,8 +23,9 @@ import type { Department } from "@/lib/hospitals/departments";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 import { CaseTabs } from "@/components/cases/case-tabs";
 import { formatCaseNumberWithTerm, formatDate } from "@/components/cases/format";
+import { listCaseCorrectionRequests } from "@/lib/queries/corrections";
+import { isOpenCorrection } from "@/components/cases/correction-labels";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
-import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { loadCasePatientForNotify } from "@/lib/cases/actions";
@@ -114,48 +114,53 @@ export default async function CaseDetailLayout({
   // via the audited door). Mirrors `CaseDetailView`'s `showPatientPanel` derivation.
   const showPatientPanel = casePatientOn && c.patientEnabled;
 
-  // The lifecycle-actions menu (open cases only) needs the assignee + publishable-
-  // form + phase pickers. These derive from cheap commission-scoped reads; loaded
-  // here in the spine so the action menu is available from BOTH tabs.
-  let assignees: { userId: string; name: string }[] = [];
-  let publishableForms: { id: string; title: string }[] = [];
+  // The lifecycle-actions menu (open cases only) is Concluir + Cancelar now, so all
+  // it needs from here is the conclude dialog's two warning lists. The assignee and
+  // publishable-form pickers left with the ad-hoc buttons; loaded in the spine so
+  // the menu stays available from BOTH tabs.
   // Advisory soft-close warning (ADR 0032, decision 7): the labels of EXPECTED
   // narratives left empty. Non-blocking — surfaced in the conclude dialog so the
   // coordinator notices, but `close_case` is untouched. Flag-gated.
   let expectedEmptyNarrativeLabels: string[] = [];
-  // Narrative feature state + the commission's type vocabulary seed the ad-hoc
-  // "Adicionar narrativa" dialog (button gated on `narrativesOn`; the picker gets
-  // the non-archived types, `[]` being valid — inline "Criar novo tipo" covers it).
+  // BLOCKING conclude gate (HC0T0): the targets of this case's OPEN correction
+  // requests. `listCaseCorrectionRequests` returns `[]` when the `case_corrections`
+  // flag is off, so no extra flag read is needed here.
+  let pendingCorrectionLabels: string[] = [];
+  // Narrative feature state — gates the conclude dialog's expected-empty advisory.
+  // The ad-hoc "Adicionar narrativa" dialog moved to the work card, and took the
+  // type vocabulary + publishable-form loads with it (see the (detail) page).
   let narrativesOn = false;
-  let narrativeTypes: { id: string; label: string }[] = [];
   // The hospital's ACTIVE departments seed the edit-meta dialog's "Unidade / setor"
   // dropdown (ADR 0061); loaded only when the case is open (the affordance is
   // open-only). A commission with no hospital → `[]` (the "Outros" value still works).
   let departments: Department[] = [];
   if (isOpen) {
-    const [forms, narrativesEnabledResult, deps] = await Promise.all([
-      listForms(access.commission.id),
+    const [narrativesEnabledResult, deps, corrections] = await Promise.all([
       narrativesEnabled(),
       access.commission.hospitalId
         ? listDepartmentsForHospital(access.commission.hospitalId)
         : Promise.resolve<Department[]>([]),
+      listCaseCorrectionRequests(caseId),
     ]);
     departments = deps;
+    // Name each open request by its TARGET, not by the request — "Fase 2 — Revisão"
+    // is what the coordinator has to go resolve; a request id tells them nothing.
+    pendingCorrectionLabels = corrections
+      .filter((r) => isOpenCorrection(r.status))
+      .map((r) => {
+        const phase = detail.phases.find((p) => p.id === r.casePhaseId);
+        if (phase) return phase.title || `Fase ${phase.position}`;
+        const narrative = detail.narratives.find(
+          (n) => n.id === r.caseNarrativeId,
+        );
+        if (narrative) return narrative.title || narrative.typeLabel;
+        return "Item do caso";
+      });
     narrativesOn = narrativesEnabledResult;
-    assignees = sortedMembers.map((m) => ({
-      userId: m.userId,
-      name: m.fullName ?? m.email ?? "Membro",
-    }));
-    publishableForms = forms
-      .filter((f) => f.publishedVersionNumber != null)
-      .map((f) => ({ id: f.id, title: f.title }));
     if (narrativesOn) {
       expectedEmptyNarrativeLabels = detail.narratives
         .filter((n) => n.isExpected && (n.bodyMd ?? "").trim().length === 0)
         .map((n) => n.title || n.typeLabel);
-      narrativeTypes = (await listNarrativeTypes(access.commission.id)).map(
-        (t) => ({ id: t.id, label: t.label }),
-      );
     }
   }
 
@@ -272,12 +277,9 @@ export default async function CaseDetailLayout({
                   caseId={c.id}
                   offeredOutcomes={detail.offeredOutcomes}
                   currentOutcomeId={c.outcomeId}
-                  forms={publishableForms}
                   phases={detail.phases}
-                  assignees={assignees}
                   expectedEmptyNarrativeLabels={expectedEmptyNarrativeLabels}
-                  narrativeTypes={narrativeTypes}
-                  narrativesEnabled={narrativesOn}
+                  pendingCorrectionLabels={pendingCorrectionLabels}
                 />
               )}
             </div>

@@ -30,11 +30,19 @@ function isOpenCase(myCase: MyCase): boolean {
 
 /** True when the viewer has ≥1 attributed item that is still open. */
 function hasOpenAssignment(myCase: MyCase): boolean {
-  return myCase.items.some((item) =>
-    item.kind === "phase"
-      ? item.status !== "completed" && item.status !== "not_required"
-      : item.status !== "completed",
-  );
+  return myCase.items.some((item) => {
+    if (item.kind === "phase") {
+      return item.status !== "completed" && item.status !== "not_required";
+    }
+    // A correction item exists ONLY while its request is open — `list_my_cases`
+    // filters to the five open statuses, and the terminal two (`approved` /
+    // `withdrawn`) are never emitted. Stated explicitly rather than left to the
+    // narrative arm below: that arm's `!== 'completed'` would return true here for
+    // the right answer by accident, and would keep returning it if the RPC ever
+    // started emitting resolved requests.
+    if (item.kind === "correction") return true;
+    return item.status !== "completed";
+  });
 }
 
 export function MyCasesFilter({

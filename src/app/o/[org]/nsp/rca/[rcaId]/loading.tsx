@@ -20,7 +20,7 @@ export default function NspRcaLoading() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_408px]">
         <div className="flex flex-col gap-6">
           <Skeleton className="h-48 w-full rounded-2xl" />
           <Skeleton className="h-48 w-full rounded-2xl" />

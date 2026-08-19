@@ -375,7 +375,7 @@ export default async function DocumentDetailPage({
 
       {aviso ? <DetailNotice aviso={aviso} /> : null}
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_384px]">
         <DocumentVersionHistory
           versions={versions}
           currentVersionId={document.currentVersionId}

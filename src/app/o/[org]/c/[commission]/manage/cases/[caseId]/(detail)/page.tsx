@@ -10,6 +10,9 @@ import {
   listCaseCustomFieldValues,
 } from "@/lib/queries/cases";
 import { caseCustomFieldsEnabled, featureEnabled } from "@/lib/queries/feature-flags";
+import { isTerminalCaseStatus } from "@/lib/cases/case-status";
+import { listForms } from "@/lib/queries/forms";
+import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import {
   listPhaseResults,
@@ -73,6 +76,10 @@ export default async function CaseDetailPage({
   if (!detail || detail.case.commissionId !== access.commission.id) {
     notFound();
   }
+
+  // A terminal case is frozen (HC025), so nothing may be appended to its work list.
+  // Mirrors the `(detail)` layout's own derivation.
+  const isOpen = !isTerminalCaseStatus(detail.case.status);
 
   const [
     interviewsOn,
@@ -144,6 +151,8 @@ export default async function CaseDetailPage({
     interviews,
     meetings,
     customFields,
+    forms,
+    narrativeTypes,
   ] = await Promise.all([
     listMembers(access.commission.id),
     listCaseDocuments(caseId),
@@ -156,7 +165,24 @@ export default async function CaseDetailPage({
     caseCustomFieldsOn
       ? listCaseCustomFieldValues(caseId)
       : Promise.resolve([]),
+    // The work card's ad-hoc "Adicionar fase" / "Adicionar narrativa" pickers.
+    // Loaded HERE rather than in the `(detail)` layout because this page owns the
+    // card, and only on an OPEN case — a terminal case is frozen (HC025), so the
+    // footer never renders and the reads would be pure waste. The staff route
+    // never makes them at all, which is what keeps the commission's form list and
+    // narrative vocabulary off that page's payload.
+    isOpen ? listForms(access.commission.id) : Promise.resolve([]),
+    isOpen && narrativesOn
+      ? listNarrativeTypes(access.commission.id)
+      : Promise.resolve([]),
   ]);
+  const adHocForms = forms
+    .filter((f) => f.publishedVersionNumber != null)
+    .map((f) => ({ id: f.id, title: f.title }));
+  const adHocNarrativeTypes = narrativeTypes.map((t) => ({
+    id: t.id,
+    label: t.label,
+  }));
 
   // The outbound-referrals card module (Phase 22; null when the flag is off). Built
   // from data already loaded — no inline supabase-js (Rule 9; UI-prop assembly).
@@ -203,6 +229,10 @@ export default async function CaseDetailPage({
       correctionsEnabled={correctionsData.enabled}
       corrections={correctionsData.requests}
       narrativeRevisions={correctionsData.narrativeRevisions}
+      // The work card's authoring footer. Supplying these IS the opt-in — the
+      // staff route passes neither, so it renders no footer and never loads them.
+      adHocForms={adHocForms}
+      adHocNarrativeTypes={adHocNarrativeTypes}
       caseParticipantsEnabled={caseParticipantsOn}
       organizationId={access.organization.id}
       participantRoles={participantRoles}

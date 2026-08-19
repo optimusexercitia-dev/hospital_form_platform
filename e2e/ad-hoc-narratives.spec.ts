@@ -73,6 +73,16 @@ async function signInAs(page: Page, email: string, password = 'Test1234!') {
   await cachedSignIn(page, email, password)
 }
 
+/**
+ * The "Trabalho do caso" card — the elevated frame that holds the phase/narrative
+ * timeline and, at its foot, the "Adicionar fase" / "Adicionar narrativa" pair.
+ * Distinct from the inner `Fases e narrativas do caso` region (the timeline
+ * itself), which the other specs scope to for the CARDS.
+ */
+function workCard(page: Page) {
+  return page.getByRole('region', { name: 'Trabalho do caso' })
+}
+
 function serviceHeaders(extra: Record<string, string> = {}) {
   return {
     apikey: SUPABASE_SERVICE_KEY,
@@ -158,8 +168,12 @@ test('AC-1: coordinator adds an ad-hoc narrative with an EXISTING type → botto
   await page.goto(`${BASE}/manage/cases/${caseId}`)
   await page.waitForURL(`**/cases/${caseId}**`, { timeout: 15_000 })
 
-  // Open the ad-hoc narrative dialog from the header lifecycle actions.
-  const addBtn = page.locator('header').getByRole('button', { name: /Adicionar narrativa/i })
+  // Open the ad-hoc narrative dialog from the "Trabalho do caso" card footer.
+  // It used to live in the page header beside Concluir/Cancelar; it moved to the
+  // work card because it appends to the work list rather than acting on the case.
+  // Scoped to that region, not unscoped, so it can never match the dialog's own
+  // "Adicionar narrativa" submit button.
+  const addBtn = workCard(page).getByRole('button', { name: /Adicionar narrativa/i })
   await expect(addBtn).toBeVisible({ timeout: 10_000 })
   await addBtn.click()
 
@@ -260,7 +274,7 @@ test('AC-2: inline "Criar novo tipo" on a process-less case — create then reus
 
   // ── First add: create the new type inline ──
   async function addWithNewType(label: string) {
-    const addBtn = page.locator('header').getByRole('button', { name: /Adicionar narrativa/i })
+    const addBtn = workCard(page).getByRole('button', { name: /Adicionar narrativa/i })
     await expect(addBtn).toBeVisible({ timeout: 10_000 })
     await addBtn.click()
 
@@ -436,7 +450,7 @@ test('AC-5: keyboard-only — open the dialog, operate the type select, and subm
   await page.waitForURL(`**/cases/${caseId}**`, { timeout: 15_000 })
 
   // Focus the "Adicionar narrativa" trigger without a mouse click, then activate via Enter.
-  const addBtn = page.locator('header').getByRole('button', { name: /Adicionar narrativa/i })
+  const addBtn = workCard(page).getByRole('button', { name: /Adicionar narrativa/i })
   await expect(addBtn).toBeVisible({ timeout: 10_000 })
   await addBtn.focus()
   await expect(addBtn).toBeFocused()

@@ -532,8 +532,13 @@ test('S6: add an ad-hoc phase to a process-less case, then conclude it', async (
   const caseId = caseIdFromUrl(page)
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
-  // Add an ad-hoc phase via the header "Adicionar fase" action.
-  const addPhaseBtn = page.locator('header').getByRole('button', { name: /Adicionar fase/i })
+  // Add an ad-hoc phase via the "Trabalho do caso" card footer. It used to sit in
+  // the page header beside Concluir/Cancelar; it moved to the work card, which is
+  // what it appends to. Scoped to that region rather than unscoped, so it cannot
+  // match the dialog's own "Adicionar fase" submit button.
+  const addPhaseBtn = page
+    .getByRole('region', { name: 'Trabalho do caso' })
+    .getByRole('button', { name: /Adicionar fase/i })
   await expect(addPhaseBtn).toBeVisible({ timeout: 10_000 })
   await addPhaseBtn.click()
 

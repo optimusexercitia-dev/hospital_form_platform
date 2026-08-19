@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Plus, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 
 import type { CaseDetail, OfferedCaseOutcome } from "@/lib/queries/cases";
 import { closeCase, cancelCase } from "@/lib/cases/actions";
@@ -30,11 +30,7 @@ import {
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useCaseAction } from "@/components/cases/use-case-action";
-import { AddAdHocPhaseDialog } from "@/components/cases/add-ad-hoc-phase-dialog";
-import { AddAdHocNarrativeDialog } from "@/components/cases/add-ad-hoc-narrative-dialog";
 import { CaseStatusBadge } from "@/components/cases/case-status-badge";
-import type { AssigneeOption } from "@/components/cases/case-phase-list";
-import type { SlotForm } from "@/components/process-templates/template-builder-shell";
 
 
 /**
@@ -48,28 +44,29 @@ import type { SlotForm } from "@/components/process-templates/template-builder-s
  *    none, it is a plain confirm → `closeCase`.
  *  - **Cancelar** — a confirm → `cancelCase` (no outcome needed, A6).
  *
- * "Adicionar fase" (ad-hoc) stays. Both terminal actions flip remaining open
- * phases to "não necessária" server-side.
+ * Both terminal actions flip remaining open phases to "não necessária" server-side.
+ *
+ * The ad-hoc "Adicionar fase" / "Adicionar narrativa" pair USED to sit here. It moved
+ * to the bottom of the "Trabalho do caso" card
+ * ({@link import('./add-case-work-actions').AddCaseWorkActions}): those append to the
+ * work list, while Concluir / Cancelar act on the case, and only the latter belong in
+ * a case-level top bar. That move also took `forms` / `assignees` / `narrativeTypes`
+ * off this component — and out of the `(detail)` layout that loaded them for it.
  */
 export function CaseLifecycleActions({
   caseId,
   offeredOutcomes,
   currentOutcomeId,
-  forms,
   phases,
-  assignees,
   expectedEmptyNarrativeLabels = [],
-  narrativeTypes = [],
-  narrativesEnabled = false,
+  pendingCorrectionLabels = [],
 }: {
   caseId: string;
   /** The case's FROZEN offered outcomes (D15); `[]` = process offers none. */
   offeredOutcomes: OfferedCaseOutcome[];
   /** The currently-assigned outcome id (pre-selects the conclude dialog). */
   currentOutcomeId: string | null;
-  forms: SlotForm[];
   phases: CaseDetail["phases"];
-  assignees: AssigneeOption[];
   /**
    * Labels of EXPECTED narratives (ADR 0032, decision 7) still empty — shown as a
    * NON-BLOCKING advisory in the conclude dialog. `[]` = none / feature off; the
@@ -77,17 +74,17 @@ export function CaseLifecycleActions({
    */
   expectedEmptyNarrativeLabels?: string[];
   /**
-   * The commission's non-archived narrative-type vocabulary — seeds the ad-hoc
-   * narrative dialog's type picker. `[]` is a valid state: the dialog's inline
-   * "Criar novo tipo" covers an empty vocabulary, so the button is NOT disabled
-   * on `[]` (only hidden when the feature is off).
+   * Target labels of the case's OPEN correction requests — a **BLOCKING** gate, and
+   * the counterpart of `expectedEmptyNarrativeLabels` above, which is advisory. The
+   * `close_case` door refuses while any request is open (HC0T0), so the dialog states
+   * the reason and disables the confirm rather than letting the coordinator submit
+   * into a certain error. `[]` = none / feature off, and the dialog is unaffected.
+   *
+   * A hidden button is not a control (Rule 1) — the door is the boundary; this only
+   * spares the round-trip and names the phases to resolve.
    */
-  narrativeTypes?: { id: string; label: string }[];
-  /** Whether the `case_narratives` feature is on — gates the "Adicionar narrativa" button. */
-  narrativesEnabled?: boolean;
+  pendingCorrectionLabels?: string[];
 }) {
-  const [adHocOpen, setAdHocOpen] = useState(false);
-  const [narrativeOpen, setNarrativeOpen] = useState(false);
   const [concludeOpen, setConcludeOpen] = useState(false);
 
   const hasOpenPhases = phases.some(
@@ -97,29 +94,6 @@ export function CaseLifecycleActions({
   return (
     <div className="flex shrink-0 flex-col items-end gap-2">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          onClick={() => setAdHocOpen(true)}
-          disabled={forms.length === 0}
-        >
-          <Plus aria-hidden="true" />
-          Adicionar fase
-        </Button>
-
-        {narrativesEnabled && (
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            onClick={() => setNarrativeOpen(true)}
-          >
-            <Plus aria-hidden="true" />
-            Adicionar narrativa
-          </Button>
-        )}
-
         <Button type="button" size="lg" onClick={() => setConcludeOpen(true)}>
           <CheckCircle2 aria-hidden="true" />
           Concluir
@@ -127,24 +101,6 @@ export function CaseLifecycleActions({
 
         <CancelCaseButton caseId={caseId} hasOpenPhases={hasOpenPhases} />
       </div>
-
-      <AddAdHocPhaseDialog
-        open={adHocOpen}
-        onOpenChange={setAdHocOpen}
-        caseId={caseId}
-        forms={forms}
-        assignees={assignees}
-      />
-
-      {narrativesEnabled && (
-        <AddAdHocNarrativeDialog
-          open={narrativeOpen}
-          onOpenChange={setNarrativeOpen}
-          caseId={caseId}
-          narrativeTypes={narrativeTypes}
-          assignees={assignees}
-        />
-      )}
 
       <ConcludeCaseDialog
         open={concludeOpen}
@@ -154,6 +110,7 @@ export function CaseLifecycleActions({
         currentOutcomeId={currentOutcomeId}
         hasOpenPhases={hasOpenPhases}
         expectedEmptyNarrativeLabels={expectedEmptyNarrativeLabels}
+        pendingCorrectionLabels={pendingCorrectionLabels}
       />
     </div>
   );
@@ -173,6 +130,7 @@ function ConcludeCaseDialog({
   currentOutcomeId,
   hasOpenPhases,
   expectedEmptyNarrativeLabels,
+  pendingCorrectionLabels,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -182,6 +140,8 @@ function ConcludeCaseDialog({
   hasOpenPhases: boolean;
   /** Expected-but-empty narrative labels — a NON-BLOCKING advisory (decision 7). */
   expectedEmptyNarrativeLabels: string[];
+  /** Open-correction target labels — BLOCKING (HC0T0); `[]` = nothing to resolve. */
+  pendingCorrectionLabels: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -202,8 +162,11 @@ function ConcludeCaseDialog({
 
   const selectedOutcome =
     offeredOutcomes.find((o) => o.id === selected) ?? null;
-  // When outcomes are offered, a choice is required (mirrors the server HC028 gate).
-  const canConfirm = !offersOutcomes || selected !== "";
+  const blockedByCorrections = pendingCorrectionLabels.length > 0;
+  // When outcomes are offered, a choice is required (mirrors the server HC028 gate);
+  // an open correction blocks outright (mirrors HC0T0).
+  const canConfirm =
+    (!offersOutcomes || selected !== "") && !blockedByCorrections;
 
   function handleConfirm() {
     setError(null);
@@ -244,6 +207,33 @@ function ConcludeCaseDialog({
 
         <div className="flex flex-col gap-4">
           {error && <FormBanner tone="error">{error}</FormBanner>}
+
+          {/* BLOCKING, unlike the advisory below it: `close_case` refuses with HC0T0
+              while any correction request is open, so the dialog names what has to be
+              resolved and disables the confirm. The two exits are the two the door
+              accepts — approve the correction, or withdraw the request ("Retirar"). */}
+          {blockedByCorrections && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3.5 py-3 text-sm text-foreground"
+            >
+              <p className="flex items-center gap-2 font-medium text-destructive">
+                <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
+                {pendingCorrectionLabels.length === 1
+                  ? "Há uma correção pendente"
+                  : "Há correções pendentes"}
+              </p>
+              <ul className="ml-6 list-disc text-muted-foreground">
+                {pendingCorrectionLabels.map((label, i) => (
+                  <li key={`${label}-${i}`}>{label}</li>
+                ))}
+              </ul>
+              <p className="text-muted-foreground">
+                Aprove a correção ou retire a solicitação antes de concluir o caso.
+              </p>
+            </div>
+          )}
 
           {expectedEmptyNarrativeLabels.length > 0 && (
             <div

@@ -86,6 +86,11 @@ const MESSAGES = {
   // Case data-model adjustments — the D3 conclude gate (close_case)
   outcomeRequired: 'Selecione um desfecho antes de concluir o caso.',
   phasesUnsettled: 'Conclua ou marque todas as fases antes de concluir o caso.',
+  // HC0T0 — an open correction request. Concluding over one would STRAND it: every
+  // correction door refuses on a terminal case (HC020), so the request could no
+  // longer be resubmitted, approved, or even withdrawn.
+  correctionsPending:
+    'Há solicitações de correção pendentes. Aprove-as ou retire-as antes de concluir o caso.',
   caseCreated: 'Caso criado com sucesso.',
   caseMetaSaved: 'Caso atualizado com sucesso.',
   phaseActivated: 'Fase ativada e atribuída.',
@@ -146,6 +151,8 @@ const HC_CASE_TERMINAL = 'HC025'
 // Case data-model adjustments — the D3 conclude gate (close_case).
 const HC_OUTCOME_REQUIRED = 'HC028'
 const HC_PHASES_UNSETTLED = 'HC031'
+// close_case: an OPEN correction request (phase or narrative) blocks conclusion.
+const HC_CORRECTIONS_PENDING = 'HC0T0'
 // Process-less case creation — outcome/commission mismatch (create_case).
 const HC_COMMISSION_MISMATCH = 'HC030'
 // Case custom fields (ADR 0083) — a required custom field has no value (both the
@@ -255,6 +262,8 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return error.message || MESSAGES.outcomeRequired
     case HC_PHASES_UNSETTLED:
       return error.message || MESSAGES.phasesUnsettled
+    case HC_CORRECTIONS_PENDING:
+      return error.message || MESSAGES.correctionsPending
     case HC_COMMISSION_MISMATCH:
       return error.message || MESSAGES.commissionMismatch
     case HC_CUSTOM_FIELD_REQUIRED:

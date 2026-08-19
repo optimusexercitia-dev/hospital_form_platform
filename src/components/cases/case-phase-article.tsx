@@ -130,14 +130,21 @@ export function CasePhaseArticle({
   const showDelete = phase.isAdHoc && canManageLifecycle;
 
   return (
-    <article className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs">
+    <article className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-xs sm:p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">
               Fase {phase.position}
             </span>
-            <PhaseStatusPill status={phase.status} />
+            {/* An open correction SUPPRESSES the status pill rather than sitting
+                beside it. `Concluída` + `Em correção` together read as a settled
+                phase with a side-note, when the truth is the opposite: the recorded
+                content is under active revision and the case cannot close over it.
+                Only "Concluída" is ever hidden here — a correction can only be filed
+                against a `completed` target (HC0M0), so no other status reaches this
+                branch. The pill returns the moment the request resolves. */}
+            {!openCorrection && <PhaseStatusPill status={phase.status} />}
             {phase.recommended && phase.status === "pending" && (
               <RecommendedChip />
             )}
@@ -245,6 +252,8 @@ export function CasePhaseArticle({
           caps={correctionCaps}
           targetLabel={heading}
           memberNames={memberNames}
+          org={org}
+          slug={slug}
         />
       )}
     </article>

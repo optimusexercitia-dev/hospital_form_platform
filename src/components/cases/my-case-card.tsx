@@ -1,6 +1,6 @@
 import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
-import { ArrowRight, FileText, Layers } from "lucide-react";
+import { ArrowRight, FileText, Layers, PenLine } from "lucide-react";
 
 import type { MyCase, MyCaseItem } from "@/lib/queries/cases";
 import { StartPhaseButton } from "@/components/cases/start-phase-button";
@@ -12,6 +12,10 @@ import {
   asNarrativeStatus,
 } from "@/components/cases/narrative-status-pill";
 import { ConcludeNarrativeButton } from "@/components/cases/conclude-narrative-button";
+import { ContinueCorrectionButton } from "@/components/cases/continue-correction-button";
+import { CorrectionStatusChip } from "@/components/cases/correction-chips";
+import { CORRECTION_KIND_META } from "@/components/cases/correction-labels";
+import type { CorrectionStatus } from "@/lib/queries/corrections";
 import { formatCaseNumber } from "@/components/cases/format";
 import type { CasePhaseStatus } from "@/lib/queries/cases";
 import { buttonVariants } from "@/components/ui/button";
@@ -45,6 +49,18 @@ export function MyCaseCard({
 }) {
   const caseHref = commissionHref(org, slug, "casos", myCase.caseId);
   const headingId = `my-case-${myCase.caseId}-heading`;
+
+  // Phases on this card that carry one of the viewer's OWN open corrections. The
+  // corrector defaults to the target's assignee, so a viewer very commonly holds
+  // BOTH items — and then the card would read "Fase 2 · Concluída" directly above
+  // "Correção · Em edição". Same contradiction the phase article suppresses, same
+  // resolution: the phase row drops its pill and the correction row carries the
+  // state. Derived from the items already on the card — no extra read.
+  const phasesInCorrection = new Set(
+    myCase.items
+      .filter((i) => i.kind === "correction" && i.casePhaseId != null)
+      .map((i) => i.casePhaseId as string),
+  );
 
   return (
     <article
@@ -89,6 +105,9 @@ export function MyCaseCard({
                 slug={slug}
                 caseId={myCase.caseId}
                 item={item}
+                inCorrection={
+                  item.kind === "phase" && phasesInCorrection.has(item.id)
+                }
               />
             </li>
           ))}
@@ -98,20 +117,39 @@ export function MyCaseCard({
   );
 }
 
-/** One attributed item (phase or narrative) inside a "Meus Casos" card. */
+/** One attributed item (phase, narrative or correction) inside a "Meus Casos" card. */
 function MyCaseItemRow({
   org,
   slug,
   caseId,
   item,
+  inCorrection,
 }: {
   org: string;
   slug: string;
   caseId: string;
   item: MyCaseItem;
+  /**
+   * Phase items only — this phase carries one of the viewer's own open corrections,
+   * which is rendered as its own row below. Suppresses this row's status pill so
+   * "Concluída" doesn't contradict it (see {@link MyCaseCard}).
+   */
+  inCorrection: boolean;
 }) {
-  const isPhase = item.kind === "phase";
-  const Icon = isPhase ? Layers : FileText;
+  const Icon =
+    item.kind === "phase"
+      ? Layers
+      : item.kind === "narrative"
+        ? FileText
+        : PenLine;
+  // A correction takes its KIND as the row label ("Correção" / "Adendo" /
+  // "Anulação") — which of the three it is changes what the corrector has to do.
+  const kindLabel =
+    item.kind === "phase"
+      ? "Fase"
+      : item.kind === "narrative"
+        ? "Narrativa"
+        : CORRECTION_KIND_META[item.correctionKind ?? "correction"].label;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 p-3">
@@ -119,12 +157,17 @@ function MyCaseItemRow({
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
             <Icon aria-hidden="true" className="size-3.5" />
-            {isPhase ? "Fase" : "Narrativa"}
+            {kindLabel}
           </span>
-          {isPhase ? (
-            <PhaseStatusPill status={item.status as CasePhaseStatus} />
-          ) : (
+          {item.kind === "phase" &&
+            (inCorrection ? null : (
+              <PhaseStatusPill status={item.status as CasePhaseStatus} />
+            ))}
+          {item.kind === "narrative" && (
             <NarrativeStatusPill status={asNarrativeStatus(item.status)} />
+          )}
+          {item.kind === "correction" && (
+            <CorrectionStatusChip status={item.status as CorrectionStatus} />
           )}
         </div>
         <span className="truncate text-sm font-medium text-foreground">
@@ -166,6 +209,27 @@ function MyCaseItemAction({
         slug={slug}
         caseId={caseId}
         phaseId={item.id}
+      />
+    );
+  }
+
+  if (item.kind === "correction") {
+    // `actionable` already mirrors canContinueCorrection (kind ≠ void, and the
+    // request is resting on the CORRECTOR). A non-actionable correction still
+    // renders its row — the corrector should see the request exists and where it
+    // sits — but the button belongs to the approver's turn, not theirs.
+    //
+    // The phase id is required, not merely expected: `start_correction_draft`
+    // refuses a narrative request outright, and the responder route it lands on is
+    // phase-scoped. A narrative correction is edited from the case page instead.
+    if (!item.actionable || !item.casePhaseId) return null;
+    return (
+      <ContinueCorrectionButton
+        org={org}
+        slug={slug}
+        caseId={caseId}
+        phaseId={item.casePhaseId}
+        requestId={item.id}
       />
     );
   }

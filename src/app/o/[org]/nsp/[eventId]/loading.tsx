@@ -13,7 +13,7 @@ export default function NspEventDetailLoading() {
         <Skeleton className="h-9 w-80 max-w-full" />
         <Skeleton className="h-6 w-64" />
       </div>
-      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_408px] lg:gap-8">
         <div className="flex flex-col gap-6">
           <Skeleton className="h-40 w-full rounded-2xl" />
           <Skeleton className="h-32 w-full rounded-2xl" />
