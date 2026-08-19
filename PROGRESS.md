@@ -109,17 +109,16 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ⛔ **The premise the refactor was proposed on was FALSE** — this file is **not** loaded
   by any spawn and never was (no `@`-import has ever existed). Always-loaded is
   CLAUDE.md 32 KB + MEMORY.md 20 KB, so cutting *this* file buys nothing at session start.
-  ⚠ **Rule firing is UNPROVEN, not proven** — `.claude/rules/` path-scoping is behind a
-  runtime feature flag and a mid-session rule did **not** load. An `InstructionsLoaded`
-  probe measures it. ⛔ **The probe was installed 2026-08-19 mid-session, so it could not
-  have been active that session** — `.claude/settings.json` is read at session start, and
-  the session that adds a hook can never be the session that observes it. **The first
-  honest reading is any LATER session.** Read `.claude/instructions-loaded.log` as a
-  **three-way** result, never yes/no: **no lines at all** ⇒ the hook never ran (say so,
-  don't conclude about rules) · **lines but none marked `RULE`** ⇒ the hook ran and rules
-  did **not** load — that is the answer · **`RULE` lines** ⇒ rules fire, and the CLAUDE.md
-  §8 intake line can be unheld. Until then treat the rule files as inert and the archives
-  as the live home.
+  ✅ **MEASURED 2026-08-19 — rules FIRE.** A fresh session touched PROGRESS.md and the probe
+  logged `RULE · progress-contract.md · reason=path_glob_match · globs=PROGRESS.md,docs/progress
+  · trigger=…\PROGRESS.md`. The feature flag is on; the earlier non-load was the mid-session
+  creation, as hypothesised. The CLAUDE.md §8 intake line is **unblocked** (ADR 0127 Amdt 4).
+  ⚠ **Bounded: NOT every session.** In a *resumed* session the hook was registered yet **no**
+  glob matched — not for PROGRESS.md, not for a file governed by `answer-maps`. Unexplained,
+  and not guessed at. **Read it as: rules fire in a FRESH session, not guaranteed in every
+  session type** — so a rule stays a strong hint, never a substitute for a gate.
+  ⭐ Incidental: every `session_start` entry names exactly **two** files — user CLAUDE.md and
+  project CLAUDE.md, **no PROGRESS.md**. The harness independently confirms ADR 0124 Amdt 1.
   ⛔ **`.claude/rules/` has a staleness gate, volume bounds and an exit — but NO documented
   intake, deliberately.** The one-line CLAUDE.md §8 rule-creation line is **HELD** until that
   log shows a `path_glob_match`: publishing an intake into a directory that may never load

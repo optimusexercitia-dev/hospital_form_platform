@@ -134,3 +134,30 @@
   stated in the script header, since the log itself cannot state them.
 - **Status of the question: still open.** Nothing has been measured yet. The first honest
   reading is any session after 2026-08-19.
+
+## Amendment 4 — MEASURED: rules fire, in a fresh session (2026-08-19)
+
+- **Status:** accepted (PO, 2026-08-19). **The open risk from the ADR body is CLOSED
+  positive**, by measurement rather than inference.
+- **The result.** A freshly-started session touched `PROGRESS.md`, and the probe logged:
+  `RULE · .claude/rules/progress-contract.md · reason=path_glob_match ·
+  globs=PROGRESS.md,docs/progress · trigger=…\PROGRESS.md`. The `claudemd_rule_globs`
+  feature flag is **on** for this account, the glob matched, and the trigger file is
+  attributed correctly. **Path-scoped rules load when Claude touches a governed file.**
+  The earlier non-load was the mid-session creation, exactly as hypothesised — not the flag.
+- ⚠ **Bounded, stated: NOT every session.** In a *resumed* session (continued across a
+  restart) the hook was registered — its `session_start` lines are in the log — yet touching
+  `PROGRESS.md` produced no rule load, and neither did touching
+  `src/lib/queries/responses.ts`, governed by `answer-maps.md`, a rule that had never loaded
+  anywhere. That session matched no globs at all. The mechanism is unexplained and is NOT
+  guessed at here. **Read the guarantee as: rules fire in a fresh session; they are not
+  guaranteed in every session type.** A rule is therefore a strong hint, never a substitute
+  for a gate — which is why ADR 0127's admission filter rejects any rule a gate already
+  enforces, and that rejection now has a second, independent reason.
+- ⭐ **Incidental, and it independently confirms ADR 0124 Amendment 1.** Every
+  `reason=session_start` entry names exactly two files: the user-level `CLAUDE.md` and the
+  project `CLAUDE.md`. **No `PROGRESS.md`.** The harness itself now attests what Amdt 1
+  derived from git — PROGRESS.md is not loaded at session start. Two independent methods,
+  same answer.
+- **Consequence.** The CLAUDE.md §8 intake line is **unblocked** (it was held pending exactly
+  this line in the log), subject to the caveat above being carried with it.
