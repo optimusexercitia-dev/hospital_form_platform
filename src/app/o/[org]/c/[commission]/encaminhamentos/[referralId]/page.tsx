@@ -349,7 +349,7 @@ export default async function ReferralDetailPage({
         </div>
       </header>
 
-      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-8">
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_408px] lg:items-start lg:gap-8">
         {/* MAIN — the narrative surfaces. On mobile both wrappers collapse to
             `contents` so the two columns INTERLEAVE by `order-N` into one calm
             sequence (the case-detail pattern); on `lg` each becomes its own flex

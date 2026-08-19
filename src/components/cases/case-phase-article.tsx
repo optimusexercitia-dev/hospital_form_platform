@@ -130,7 +130,7 @@ export function CasePhaseArticle({
   const showDelete = phase.isAdHoc && canManageLifecycle;
 
   return (
-    <article className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs">
+    <article className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-xs sm:p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">

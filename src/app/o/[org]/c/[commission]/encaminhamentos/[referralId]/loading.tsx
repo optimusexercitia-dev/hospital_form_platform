@@ -26,7 +26,7 @@ export default function ReferralDetailLoading() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-8">
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_408px] lg:items-start lg:gap-8">
         {/* MAIN — description, snapshot, Diálogo. */}
         <div className="contents lg:flex lg:flex-col lg:gap-6">
           <Skeleton className="order-4 h-28 w-full rounded-2xl lg:order-none" />

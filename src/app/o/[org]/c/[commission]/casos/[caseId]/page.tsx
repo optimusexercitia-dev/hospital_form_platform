@@ -243,6 +243,16 @@ export default async function StaffCaseDetailPage({
       viewerId={access.context.userId}
       myRole={myRole}
       withHeader
+      // This route is a READING surface. A coordinator who lands here (from Meus
+      // Casos, a notification, an assignee link) sees the case the way a committee
+      // member does; every management affordance is one click away behind the
+      // header's "Gerenciar caso" link, which is gated on the UN-narrowed
+      // capability so the narrowing can never strand them.
+      //
+      // Not a security control (Rule 1) — the same person keeps the same DB rights,
+      // and every door still decides for itself. It only stops this page from
+      // OFFERING two different jobs at once.
+      managementElsewhere
       viewerKind={isOversight ? "oversight" : "member"}
       backHref={
         isOversight

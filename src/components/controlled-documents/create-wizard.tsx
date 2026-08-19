@@ -609,7 +609,7 @@ export function CreateWizard({
   const cancelHref = commissionHref(org, commission, "manage", "documentos");
 
   return (
-    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="flex flex-col gap-5">
         <Stepper
           steps={STEPS}

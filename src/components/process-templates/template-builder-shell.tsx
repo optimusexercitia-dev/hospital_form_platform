@@ -333,7 +333,7 @@ export function TemplateBuilderShell({
       <div
         className={cn(
           "flex flex-col gap-6",
-          "lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-8",
+          "lg:grid lg:grid-cols-[minmax(0,1fr)_384px] lg:items-start lg:gap-8",
         )}
       >
         <div className="flex flex-col gap-6">
