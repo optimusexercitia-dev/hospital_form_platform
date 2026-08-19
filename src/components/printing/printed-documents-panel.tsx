@@ -18,6 +18,7 @@ import {
 import {
   formatDateTimePtBr,
   noPrintedDocumentsCopy,
+  printedDocumentsIntroCopy,
   printedDocumentsLoadErrorCopy,
   revokeReasonClassLabel,
 } from "@/components/printing/labels";
@@ -74,8 +75,7 @@ export function PrintedDocumentsSection(props: PrintedDocumentsProps) {
             Documentos emitidos
           </h2>
           <p className="text-sm text-muted-foreground">
-            Cada emissão gera um PDF permanente, verificável pelo QR code
-            impresso.
+            {printedDocumentsIntroCopy(props.registers)}
           </p>
         </div>
         {/* ADR 0125 D1 — ONE print action, DERIVED from source state. A locked

@@ -214,9 +214,13 @@ describe('the two axes are SEPARATE declarations (ADR 0125 D8 / 0126 D7)', () =>
 /**
  * The full input space, deliberately wider than the vectors: every kind crossed
  * with every kind's statuses (so `form_response`/`signed` and `meeting`/
- * `submitted` are probed too) plus junk, crossed with both flags. 220 cases.
+ * `submitted` are probed too) plus junk, crossed with EVERY flag.
  *
- * The vectors are 14 hand-chosen rows. "No FINAL-and-ephemeral vector" is a
+ * ⚠ The width is deliberately NOT stated here. It is asserted below against a
+ * literal, so it cannot go stale silently — a comment claiming a probe count is
+ * exactly the §J defect, and this file already carries the record of it.
+ *
+ * The vectors are a hand-chosen set. "No FINAL-and-ephemeral vector" is a
  * statement about those 14; the fourth cell must be unreachable over the whole
  * input space, which is what makes it a keystone rather than a sample.
  */
@@ -324,6 +328,12 @@ describe('ADR 0125 D5 — the fourth cell (FINAL content + prévia footer) is UN
       ALL_PROBES.some(
         (p) => LIVE.watermark(p.kind, p.state) === w && LIVE.registers(p.kind, p.state) === r,
       )
+    // ⭐ The width is pinned as a LITERAL, on purpose. §J happened because a
+    // probe count lived in PROSE, where widening the space left the number
+    // behind and nothing red. Here a changed space reds this line and forces a
+    // deliberate update — the same discipline as a template fingerprint.
+    // The product form beside it catches a flatMap that silently drops an axis.
+    expect(ALL_PROBES.length, 'the probe space changed — update this literal deliberately').toBe(440)
     expect(ALL_PROBES.length).toBe(ALL_KINDS.length * ALL_STATUSES.length * 8)
     expect(reaches('final', true), 'FINAL + registered (submitted response / signed ata)').toBe(true)
     expect(reaches('draft', true), 'RASCUNHO + registered — the in_signature ata (D1)').toBe(true)

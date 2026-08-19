@@ -58,7 +58,7 @@ const INCOHERENT_PROVENANCE =
  * a phase-blocking defect, not a rendering hiccup.
  *
  * ⚠ This guard is NOT the coverage. It fires only on inputs someone actually
- * builds; the 220-probe sweep in `src/lib/pdf-mint/print-source-vectors.test.ts`
+ * builds; the EXHAUSTIVE sweep in `src/lib/pdf-mint/print-source-vectors.test.ts`
  * is what proves the pair can never produce this state in the first place.
  */
 export function documentProvenance(

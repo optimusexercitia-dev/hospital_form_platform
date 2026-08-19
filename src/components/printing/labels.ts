@@ -291,3 +291,32 @@ export function previaHref(
 ): string {
   return `/api/previa/${kind}/${sourceId}`;
 }
+
+/**
+ * The registry panel's intro sentence — **conditional on whether the source
+ * registers** (ADR 0125 D1/D5).
+ *
+ * ⛔ **This was a live reserved-verb leak.** The panel used to state
+ * unconditionally that *"cada emissão gera um PDF permanente, verificável pelo
+ * QR code impresso"* — directly above the prévia control, which produces exactly
+ * the opposite. Four reserved-verb sweeps missed it because every one of them
+ * reads a RENDERED PRIMITIVE (the footer, the template, the document) and none
+ * reads the composed panel: **the verb was never in the thing being printed, it
+ * was in the furniture around the button.**
+ *
+ * ⚠ The non-registering sentence names **no cause**, on the same discipline as
+ * {@link PREVIA_HELPER_COPY}: a source can stop registering because it is a
+ * draft, because a correction is still rejectable, because its phase was voided,
+ * because the ata was cancelled, or because its minutes were disposed. It also
+ * avoids "ainda" — for a disposed ata the state is not a waypoint.
+ *
+ * ⚠ The HEADING stays "Documentos emitidos" in both branches, and that is
+ * correct rather than an oversight: it labels the LIST of registered emissions,
+ * which can be non-empty for a source that no longer registers — a reopened or
+ * disposed ata keeps the prints it minted while it was locked.
+ */
+export function printedDocumentsIntroCopy(registers: boolean): string {
+  return registers
+    ? "Cada emissão gera um PDF permanente, verificável pelo QR code impresso."
+    : "No estado atual, este registro não gera emissões. As anteriores continuam válidas e verificáveis pelo QR code impresso.";
+}

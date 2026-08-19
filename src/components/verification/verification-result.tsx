@@ -55,11 +55,12 @@ export function VerificationResult({
    * authenticity and from registry status, which is why it is its own prop and
    * its own rendered block rather than more words in `summary`.
    *
-   * ⚠ OPTIONAL because the lookup door does not return currency yet
-   * (`lookup_printed_document` has no such column — measured). Omitted, the page
-   * states nothing about currency, which is the honest behaviour: it is better
-   * to be silent than to tell every surveyor "could not determine" on every
-   * document. The page wires this when the door widens.
+   * ⚠ OPTIONAL, and no longer because the door lacks the column — it returns
+   * `is_current` and `/verificar` passes it (8c). It stays optional so a caller
+   * that genuinely has no verdict renders SILENCE rather than a false "could not
+   * determine": absent-at-the-boundary is a third state, distinct from both
+   * `notApplicable` (revoked, deliberately not evaluated) and `indeterminate`
+   * (a non-revoked print whose verdict is missing — a contract violation).
    */
   currency?: PrintCurrency;
 }) {
