@@ -16,6 +16,15 @@
 # at a filename.
 *.psql text eol=lf
 
+# A fixture whose RAW BYTES are hashed must have stable bytes across checkouts.
+# `gen-print-source-vectors.mjs` sha256s this JSON deliberately ("a reformat is a
+# change worth noticing") and stamps the digest into the generated `.psql`; the sync
+# guard compares them. Without eol=lf, core.autocrlf hands Windows a CRLF copy, the
+# digest changes, and the guard REDS on a clean checkout with nothing edited —
+# measured 2026-08-19, when pinning the generated file but not its INPUT left exactly
+# that hole. Pin the input to whatever is hashed, not just the output.
+src/lib/queries/__fixtures__/*.json text eol=lf
+
 # Markdown MUST stay LF in the repo AND the working tree — the tracker docs
 # (PROGRESS.md / CLAUDE.md / archives) are read and rewritten by shell tools (awk,
 # sed, node scripts, the lint:progress gate) that see raw bytes. With
