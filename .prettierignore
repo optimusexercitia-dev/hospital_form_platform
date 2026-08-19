@@ -6,3 +6,8 @@
 PROGRESS.md
 CLAUDE.md
 docs/progress/
+
+# CONTEXT.md is the domain glossary, edited inline term-by-term by the
+# domain-modeling skill. Prettier renormalizes its emphasis and wrapping, which
+# churns the diff of every such edit and obscures which term actually changed.
+CONTEXT.md
