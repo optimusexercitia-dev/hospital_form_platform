@@ -2026,3 +2026,11 @@ then immediately re-earned — this time by the highest-severity item in the pha
 announced as new by the follow-up batch, given full bodies in `follow-ups.md`, and named repeatedly in
 the phase narrative — **but neither ever got an index line**, so the next rotation would have dropped
 them. ⭐ *A body plus a narrative mention is not an index entry; the index is what a reader greps.*
+
+## Index line rotated from PROGRESS.md 2026-08-19
+
+> One line, resolved the same day it left. Moved verbatim except for the state marker
+> and the resolution clause; the item's full body remains in
+> [follow-ups.md](follow-ups.md), consistent with the 2026-08-18 set above.
+
+- ⬛ **FUP-DM5-NO-ANSWER-VS-NOTHING** — ✅ **CLOSED 2026-08-19 — all six instances. ⭐ THE CLASS: an observable PROXY is substituted for the property that actually matters, always failing in the REASSURING direction.** Last open instance (1, `--allow-orphans`) fixed by ADR [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md): unproven (exit 3) and dirty (exit 1) are separate classes with separate acknowledgements, **dirty outranks unproven**, and the retired flag is refused rather than aliased. Instance 3 discharged by ADR 0121 D4 **plus the 2026-08-18 Cloud probe**, which made `unavailable_on_platform` the true and permanent value rather than a holding one. ⛔ Closing the CONFLATION is not a claim that Cloud orphans are absent — they are **unobservable**, which is the opposite of reassuring — backend/lead

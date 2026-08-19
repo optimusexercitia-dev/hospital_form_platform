@@ -24,6 +24,12 @@ flag distinct from this.
 
 **Flag surface per subcommand (CONFIRMED, read from `argFlag()` call sites):**
 
+> ⚠ **`capture`'s row is HISTORY as of 2026-08-19 — ADR
+> [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md).** `--allow-orphans`
+> is **retired and refused** (exit 2); `capture` now takes **`--allow-unproven`** and
+> **`--allow-dirty`**, and gained exit code **3 (UNPROVEN)**. The rest of this table stands.
+> This record is not rewritten — it is what was measured on its date.
+
 | subcommand | flags | default when omitted |
 | --- | --- | --- |
 | `capture` | `--out <path>`, `--buckets <csv>`, `--allow-orphans` | `--out` → `DEFAULT_MANIFEST = 'supabase/manifests/dm5-retirement-baseline.json'` (the **committed** S0/S4 baseline); `--buckets` → the 8 `RETIREMENT_BUCKETS` |

@@ -328,10 +328,17 @@ It is evidence that the metadata and the Storage API agree with each other.
 >    refuses this (the `locateVolume()` origin guard, pinned by selftest C17) — this rule exists so the
 >    procedure does not DEPEND on that guard.* A guard and a rule protect against different failures:
 >    the guard covers this tool, the rule covers the operator's judgement about every future one.
-> 2. ⛔ **NEVER treat exit 0 or the `CAPTURE CLEAN` headline as a byte-level result on Cloud.** Read
->    `manifest.residuals` and the per-bucket verdict column. `--allow-orphans` is the only route to
->    exit 0 and it **silences genuine orphan verdicts** — it buys a green bar by conflating *"I could
->    not look"* with *"I looked and found nothing"*.
+> 2. ⛔ **NEVER treat exit 0 as a byte-level result on Cloud.** Read `manifest.residuals`, the
+>    per-bucket verdict column and `manifest.outcome`. ✅ **AMENDED 2026-08-19 (ADR
+>    [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md)) — the mechanism this
+>    rule used to describe is FIXED, and the rule survives it.** It used to read *"`--allow-orphans`
+>    is the only route to exit 0 and it silences genuine orphan verdicts"*. That flag is **retired
+>    and now refused** (exit 2, with a message naming its two successors). A Cloud run's route to
+>    exit 0 is **`--allow-unproven`**, which accepts *only* "no byte proof was obtainable" and leaves
+>    **every** dirty verdict fatal — `capture` exits **1** over a real finding even with that flag
+>    set. What still holds, and is why this rule stays: exit 0 under `--allow-unproven` means **no
+>    byte-level measurement happened**, which is not a byte-level result. `manifest.outcome.accepted`
+>    naming `unproven` is exactly that statement, in the artifact.
 > 3. ⛔ **NEVER record a Cloud byte deletion as verified.** Record it as **asserted**. ADR 0121 **D4**
 >    already provides the vocabulary — `unavailable on this platform` is a true statement and
 >    `local volume proof` would be a false one.
@@ -397,15 +404,31 @@ The guard lives in `locateVolume()` itself, so **every** subcommand inherits it,
 and both polarities are pinned by selftest **C17** (every local origin local,
 every remote/malformed origin not).
 
-**So the exit-code rule, correctly stated:** `UNVERIFIED_NO_LOCAL_PROOF` and exit
-**1** for every bucket is what a Cloud run yields **when no local stack is
-running** — and now also when one *is*, because the guard downgrades it. Either
-way the only route to exit 0 is `--allow-orphans`, which **also silences genuine
-orphan verdicts**: it conflates *"I could not look"* with *"I looked and found
-something"*, so buying a green exit code buys blindness to the finding you care
-about (FUP-DM5-NO-ANSWER-VS-NOTHING). **Read `manifest.residuals` and the
-per-bucket verdict column. Never automate on the exit code or the "CAPTURE CLEAN"
-headline.**
+**So the exit-code rule, correctly stated** (✅ **REWRITTEN 2026-08-19, ADR
+[0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md) — the
+conflation this paragraph described is FIXED**): `UNVERIFIED_NO_LOCAL_PROOF` for
+every bucket is what a Cloud run yields **when no local stack is running** — and
+now also when one *is*, because the project-affinity guard downgrades it. That
+outcome is **exit 3, UNPROVEN**, which is its own answer and no longer shares a
+code with a finding:
+
+| exit | meaning | how to acknowledge it |
+| --- | --- | --- |
+| **0** | every bucket judged clean | — |
+| **1** | **DIRTY** — the tool LOOKED and the API and the volume disagree. A finding. | `--allow-dirty`, and only to record a known-divergent state deliberately as a baseline |
+| **3** | **UNPROVEN** — the byte-level measurement did not happen. Says nothing about the bytes in either direction. **The normal Cloud outcome.** | `--allow-unproven` |
+| 2 | error (bad flag, unreachable client) | — |
+
+⛔ **`--allow-unproven` cannot silence a dirty verdict, by construction** — a run
+that is both exits **1**. A finding never hides behind a no-answer.
+⛔ **`--allow-orphans` is RETIRED and refused by name** (exit 2). It is not
+aliased, deliberately: reaching for it to get a green bar is the habit the fix
+exists to break.
+
+**Read `manifest.residuals`, the per-bucket verdict column and `manifest.outcome`.
+You may now branch on the exit code — 1 and 3 are different answers — but ⛔ never
+read exit 0 under `--allow-unproven` as a byte-level result. It means no byte
+proof was obtained, which on Cloud is permanent (§4).**
 
 **(b) The count comparison alone cannot certify the under-count class.** A
 manifest that lists 4 of 5 present keys deletes all 4, and reports `deleted=4

@@ -61,7 +61,19 @@
  *             so `storage.objects` rows exist. See cmdRehearse's header for why
  *             the with-metadata condition is the whole point.
  *
- * Exit codes: 0 clean · 1 drift/mismatch (a verdict, not a crash) · 2 error.
+ * Exit codes: 0 clean · 1 drift/mismatch (a verdict, not a crash) · 2 error ·
+ * **3 UNPROVEN — `capture` only** (ADR 0128).
+ *
+ * ⭐ 1 AND 3 ARE DIFFERENT ANSWERS AND MUST NOT BE COLLAPSED. `1` means the tool
+ * LOOKED and the API and the volume disagree — a finding. `3` means it COULD NOT
+ * LOOK: the byte-level measurement did not happen, which says nothing about the
+ * bytes in either direction and is the NORMAL outcome on Supabase Cloud, where no
+ * orphan-visible surface exists (measured — `docs/progress/cloud-orphan-probe-2026-08-18.md`).
+ * They carry separate acknowledgements — `--allow-unproven` and `--allow-dirty` —
+ * and accepting one cannot accept the other. A run that is both exits **1**: a
+ * finding never hides behind a no-answer. The single `--allow-orphans` flag that
+ * used to accept both is RETIRED and is refused by name, not aliased
+ * (FUP-DM5-NO-ANSWER-VS-NOTHING instance 1).
  *
  * ⚠ Flags are REJECTED when unrecognised, and a value-taking flag with no value
  * is an error rather than a silent fallback. FUP-DM5-MANIFEST-FLAG: `capture`
@@ -473,6 +485,155 @@ function verdictFor({ exists, apiKeys, proof }) {
 const CLEAN_VERDICTS = new Set(['CONSISTENT', 'CONSISTENT_EMPTY', 'BUCKET_ABSENT'])
 
 // ---------------------------------------------------------------------------
+// ⭐ FUP-DM5-NO-ANSWER-VS-NOTHING INSTANCE 1 — THE FIX (ADR 0128).
+//
+// Until now there were exactly TWO classes here: clean, and "everything else",
+// with ONE flag (`--allow-orphans`) that accepted "everything else". That flag
+// therefore silenced two facts an operator must never confuse:
+//
+//   "I COULD NOT LOOK"                     vs   "I LOOKED AND THE SIDES DISAGREE"
+//   the measurement did not happen              the measurement happened and found something
+//
+// On Cloud the local volume proof CANNOT exist (measured, not inferred:
+// docs/progress/cloud-orphan-probe-2026-08-18.md — every Cloud surface is
+// metadata-bound), so every bucket verdicts UNVERIFIED_NO_LOCAL_PROOF and a
+// perfectly healthy project exits non-zero. The only route to exit 0 was
+// `--allow-orphans` — so an operator who wanted a usable exit code had to buy
+// blindness to the finding this tool exists to produce. **The escape hatch for
+// the unanswerable question also silenced the answered one.**
+//
+// ⚠ And the flag's NAME was wrong about its own reach, which is the sibling
+// defect nobody filed: it read "allow ORPHANS" while it equally accepted
+// MISSING_BYTES (bytes destroyed, metadata still advertising them — under Rule 12
+// the WORSE direction) and DIVERGED_BOTH_WAYS. A flag that accepts more than its
+// name says is the same class one layer up.
+//
+// The fix is not a better message. It is that the two facts get separate names,
+// separate exit codes, and separate acknowledgements, so accepting one CANNOT
+// accept the other.
+// ---------------------------------------------------------------------------
+
+// "I could not look." The measurement did not happen, or it failed. Says NOTHING
+// about the bytes in either direction.
+const UNPROVEN_VERDICTS = new Set(['UNVERIFIED_NO_LOCAL_PROOF', 'UNVERIFIED_PROOF_ERROR'])
+
+// "I looked, and the two sides disagree." A positive finding, every one of them.
+const DIRTY_VERDICTS = new Set([
+  'ORPHANED_BYTES',
+  'MISSING_BYTES',
+  'DIVERGED_BOTH_WAYS',
+  'BUCKET_ABSENT_ORPHANED_BYTES',
+])
+
+// ⭐ THE KEYSTONE, and it is aimed at the NEXT instance rather than this one.
+// Every value `verdictFor` can return, enumerated once. Selftest C19 asserts the
+// three sets above PARTITION this list — every verdict has exactly one home, and
+// no verdict has two. Without it, a verdict added later inherits whatever the
+// `!CLEAN_VERDICTS.has(v)` fallback happens to be, which is precisely how the
+// original single-flag conflation came about: a codomain that grew while the
+// classification stayed binary.
+const ALL_VERDICTS = [
+  'CONSISTENT',
+  'CONSISTENT_EMPTY',
+  'BUCKET_ABSENT',
+  'BUCKET_ABSENT_ORPHANED_BYTES',
+  'UNVERIFIED_NO_LOCAL_PROOF',
+  'UNVERIFIED_PROOF_ERROR',
+  'MISSING_BYTES',
+  'ORPHANED_BYTES',
+  'DIVERGED_BOTH_WAYS',
+]
+
+/**
+ * Classify a capture's per-bucket verdicts into an outcome, an exit code and a
+ * headline. Pure — verdicts in, outcome out — so `selftest` can assert BOTH
+ * polarities of every acknowledgement directly, the same discipline `flagErrors`
+ * and `verdictFor` are held to.
+ *
+ * Exit codes, and the ordering between them is load-bearing:
+ *
+ *   0  every bucket judged clean (or a class was explicitly acknowledged)
+ *   1  DIRTY — at least one bucket was PROVEN to disagree
+ *   3  UNPROVEN — nothing dirty, but at least one bucket could not be judged
+ *
+ * ⛔ DIRTY OUTRANKS UNPROVEN. A run that is both must exit 1, and must do so even
+ * under `--allow-unproven`: a finding is never allowed to hide behind a
+ * no-answer. That single rule is the whole content of this fix.
+ *
+ * ⚠ An UNRECOGNISED verdict is DIRTY and is acknowledged by NEITHER flag. Failing
+ * closed on a value nobody classified is the runtime half of the C19 keystone —
+ * C19 catches the omission in the tool's own test run, this catches it in an
+ * operator's, and neither depends on the other.
+ */
+function captureOutcome(verdicts, { allowUnproven = false, allowDirty = false } = {}) {
+  const unclassified = verdicts.filter(
+    (v) => !CLEAN_VERDICTS.has(v) && !UNPROVEN_VERDICTS.has(v) && !DIRTY_VERDICTS.has(v),
+  )
+  const dirty = verdicts.filter((v) => DIRTY_VERDICTS.has(v))
+  const unproven = verdicts.filter((v) => UNPROVEN_VERDICTS.has(v))
+  const clean = verdicts.filter((v) => CLEAN_VERDICTS.has(v))
+  const accepted = []
+
+  if (unclassified.length) {
+    return {
+      counts: { clean: clean.length, unproven: unproven.length, dirty: dirty.length, unclassified: unclassified.length },
+      accepted,
+      exitCode: 1,
+      headline:
+        `⛔ UNCLASSIFIED VERDICT: ${[...new Set(unclassified)].join(', ')}. This verdict belongs to no ` +
+        'class, so no acknowledgement can cover it and it is treated as DIRTY. Add it to CLEAN_VERDICTS, ' +
+        'UNPROVEN_VERDICTS or DIRTY_VERDICTS and give it a control (selftest C19).',
+    }
+  }
+
+  if (dirty.length && !allowDirty) {
+    return {
+      counts: { clean: clean.length, unproven: unproven.length, dirty: dirty.length, unclassified: 0 },
+      accepted,
+      exitCode: 1,
+      headline:
+        `CAPTURE DIRTY: ${dirty.length} bucket(s) were LOOKED AT and the API and the volume DISAGREE ` +
+        `(${[...new Set(dirty)].join(', ')})` +
+        (unproven.length ? `; a further ${unproven.length} could not be judged at all` : '') +
+        '. This is a FINDING, not a missing measurement. Re-run with --allow-dirty ONLY to record a ' +
+        'known-divergent state deliberately as a baseline. ⛔ --allow-unproven does NOT and CANNOT cover this.',
+    }
+  }
+  if (dirty.length) accepted.push('dirty')
+
+  if (unproven.length && !allowUnproven) {
+    return {
+      counts: { clean: clean.length, unproven: unproven.length, dirty: dirty.length, unclassified: 0 },
+      accepted,
+      exitCode: 3,
+      headline:
+        `CAPTURE UNPROVEN: ${unproven.length} bucket(s) COULD NOT BE JUDGED ` +
+        `(${[...new Set(unproven)].join(', ')}) — the byte-level measurement did not happen. Nothing here ` +
+        'says the bytes are wrong; nothing here says they are right. This is the expected Cloud outcome ' +
+        '(no local volume proof exists there). Re-run with --allow-unproven to accept the absence of a ' +
+        'proof — it acknowledges ONLY this, and leaves every dirty verdict fatal.',
+    }
+  }
+  if (unproven.length) accepted.push('unproven')
+
+  return {
+    counts: { clean: clean.length, unproven: unproven.length, dirty: dirty.length, unclassified: 0 },
+    accepted,
+    exitCode: 0,
+    headline: accepted.length
+      ? `CAPTURE ACCEPTED — ${clean.length} clean, and acknowledged: ` +
+        accepted
+          .map((a) =>
+            a === 'dirty'
+              ? `${dirty.length} DIRTY bucket(s) via --allow-dirty (a recorded finding, NOT a clean result)`
+              : `${unproven.length} UNPROVEN bucket(s) via --allow-unproven (NO byte-level proof was obtained)`,
+          )
+          .join(' · ')
+      : 'CAPTURE CLEAN',
+  }
+}
+
+// ---------------------------------------------------------------------------
 // commands
 // ---------------------------------------------------------------------------
 
@@ -481,7 +642,11 @@ async function cmdCapture(argv) {
   const outPath = argFlag(argv, '--out') ?? DEFAULT_MANIFEST
   const scope = argFlag(argv, '--buckets')
   const buckets = scope ? scope.split(',').map((s) => s.trim()) : RETIREMENT_BUCKETS
-  const allowOrphans = argv.includes('--allow-orphans')
+  // ADR 0128 — two acknowledgements, each naming exactly one fact. There is
+  // deliberately NO flag that accepts both without saying so; the operator who
+  // wants both writes both, and the manifest records which were used.
+  const allowUnproven = argv.includes('--allow-unproven')
+  const allowDirty = argv.includes('--allow-dirty')
 
   const loc = locateVolume()
   const proof = loc.available
@@ -610,23 +775,31 @@ async function cmdCapture(argv) {
     )
   }
 
+  // ADR 0128 — the outcome is recorded IN the artifact, not left to be re-derived
+  // from the verdict column by every reader. The runbook's standing rule ("never
+  // automate on the exit code or the headline") was correct against a binary
+  // signal that could not say why it was non-zero; a downstream reader now has a
+  // structured, honest field. ⚠ It still does not certify bytes: `accepted`
+  // naming `unproven` is exactly the statement that no byte proof was obtained.
+  const outcome = captureOutcome(
+    Object.values(manifest.buckets).map((v) => v.verdict),
+    { allowUnproven, allowDirty },
+  )
+  manifest.outcome = {
+    ...outcome.counts,
+    accepted: outcome.accepted,
+    exitCode: outcome.exitCode,
+    byteProofAvailable: loc.available,
+  }
+
   mkdirSync(dirname(outPath), { recursive: true })
   writeFileSync(outPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 
   printManifestSummary(manifest)
   console.log(`\nmanifest written: ${outPath}`)
 
-  const dirty = Object.values(manifest.buckets).filter((v) => !CLEAN_VERDICTS.has(v.verdict))
-  if (dirty.length && !allowOrphans) {
-    console.log(
-      `\nCAPTURE NOT CLEAN: ${dirty.length} bucket(s) disagree between the API and the volume. ` +
-        'Re-run with --allow-orphans to record this deliberately as a baseline.',
-    )
-    process.exitCode = 1
-    return
-  }
-  console.log(dirty.length ? '\nBASELINE RECORDED (orphans acknowledged via --allow-orphans)' : '\nCAPTURE CLEAN')
-  process.exitCode = 0
+  console.log(`\n${outcome.headline}`)
+  process.exitCode = outcome.exitCode
 }
 
 function printManifestSummary(m) {
@@ -650,6 +823,15 @@ function printManifestSummary(m) {
     `TOTAL api_keys=${m.totals.keys}  orphan_keys=${m.totals.orphanKeys} ` +
       `(PHI-tier ${m.totals.phiOrphanKeys})  orphan_files=${m.totals.orphanFiles}  orphan_bytes=${m.totals.orphanBytes}`,
   )
+  // ADR 0128 — the three classes as counts, so "could not look" is legible on the
+  // face of the run and not only in the exit code. `unproven` printing non-zero
+  // beside `dirty=0` is the Cloud shape, and it must never read as a finding.
+  if (m.outcome) {
+    console.log(
+      `CLASS  clean=${m.outcome.clean}  unproven=${m.outcome.unproven} (could not look)  ` +
+        `dirty=${m.outcome.dirty} (looked, disagreed)  byte_proof_available=${m.outcome.byteProofAvailable}`,
+    )
+  }
   for (const r of m.residuals) console.log(`\n⚠ RESIDUAL: ${r}`)
 }
 
@@ -873,6 +1055,229 @@ async function cmdDelete(argv) {
   }
   process.exitCode = 0
 }
+// ---------------------------------------------------------------------------
+// PURE controls — no docker, no bucket, no network.
+//
+// ⭐ SPLIT OUT AT ADR 0128, and the reason is this file's own subject. `selftest`
+// used to `process.exit(2)` on the docker gate BEFORE running anything, so on a
+// machine with no local stack — which is EVERY machine a Cloud operator runs this
+// from — the count of controls that ran was ZERO. "The tool is not proven able to
+// fail here" is a true and useless statement when a third of the controls needed
+// nothing but the functions under test.
+//
+// These run everywhere. The byte-level ones still need docker, and when they are
+// skipped the summary says SKIPPED with a count — never silence, because
+// "nothing failed" is not "nothing ran".
+// ---------------------------------------------------------------------------
+function pureControls(check) {
+  // ---- C9: a DROPPED BUCKET ROW does not launder surviving bytes ---------
+  // ⭐ DM5 S5. `verdictFor` used to return BUCKET_ABSENT unconditionally on
+  // its first line, before consulting the volume proof — and BUCKET_ABSENT is
+  // a CLEAN verdict, so this state produced `CAPTURE CLEAN` and exit 0.
+  // Reproduced live before the fix. It is the tool's own success signal
+  // committing the error the tool exists to prevent: treating a missing
+  // METADATA row as proof of a missing OBJECT. All eight S4-retired buckets
+  // sit in the row-absent state permanently, so this is the state the tool
+  // will be pointed at for the rest of the program.
+  const ghostBytes = verdictFor({ exists: false, apiKeys: [], proof: { present: true, keys: ['left/behind.bin'], files: 1, bytes: 9 } })
+  check('C9 bucket row ABSENT with bytes still on the volume is NOT clean', ghostBytes === 'BUCKET_ABSENT_ORPHANED_BYTES' && !CLEAN_VERDICTS.has(ghostBytes), `verdict=${ghostBytes}`)
+
+  // ---- C10: the permissive twin for C9 -----------------------------------
+  // Without this, C9 is satisfied by a tool that calls every absent bucket
+  // dirty — which would red the completed S4 retirement forever.
+  const ghostEmpty = verdictFor({ exists: false, apiKeys: [], proof: { present: false, keys: [], files: 0, bytes: 0 } })
+  check('C10 bucket row absent AND no bytes stays BUCKET_ABSENT and CLEAN (the completed-retirement state)', ghostEmpty === 'BUCKET_ABSENT' && CLEAN_VERDICTS.has(ghostEmpty), `verdict=${ghostEmpty}`)
+
+  // ---- C14/C15/C16: the SIBLING BRANCH of C9, found by QA (MAJOR-1) -------
+  // ⭐ NUMBERED BY INSERTION, like C8 before them. And they exist because of a
+  // method, not a hunch: C9 fixed the `!exists` branch, so the next question is
+  // what the ADJACENT branch consults. Diffing the two guard sets found the
+  // `!proof.present` branch reading ONLY `proof === null` — never `apiKeys`,
+  // never `proof.error`. Two missing guards in the branch two lines below the
+  // one this slice had just fixed.
+  //
+  // C14 is the state QA built to find it: metadata says three live files, the
+  // volume directory is GONE. The old code returned CONSISTENT_EMPTY — a CLEAN
+  // verdict — so `capture` printed CAPTURE CLEAN and exited 0 over a bucket
+  // whose PHI bytes had been destroyed.
+  //
+  // ⛔ And it was NON-MONOTONIC: lose SOME of a bucket's bytes (directory
+  // present, fewer files) → MISSING_BYTES, dirty, exit 1; lose ALL of them
+  // (directory removed) → clean, exit 0. The worse state reported better.
+  // That is the state a storage-volume loss with the DB intact produces —
+  // FUP-DM5-STACK-CYCLE-DESTROYS-BYTES, which has already fired once here.
+  const bytesGoneRowsLive = verdictFor({ exists: true, apiKeys: ['a', 'b', 'c'], proof: { present: false, keys: [], files: 0, bytes: 0 } })
+  check('C14 volume directory GONE while the API still lists keys is NOT clean (MISSING_BYTES)',
+    bytesGoneRowsLive === 'MISSING_BYTES' && !CLEAN_VERDICTS.has(bytesGoneRowsLive), `verdict=${bytesGoneRowsLive}`)
+
+  // ---- C15: the permissive twin for C14 ----------------------------------
+  // Without it, C14 is satisfied by a tool that calls every absent directory
+  // dirty — which would red every genuinely empty bucket forever.
+  const bothEmpty = verdictFor({ exists: true, apiKeys: [], proof: { present: false, keys: [], files: 0, bytes: 0 } })
+  check('C15 no directory AND no API keys stays CONSISTENT_EMPTY and CLEAN (a genuinely empty bucket)',
+    bothEmpty === 'CONSISTENT_EMPTY' && CLEAN_VERDICTS.has(bothEmpty), `verdict=${bothEmpty}`)
+
+  // ---- C16: the THIRD missing guard in the same branch --------------------
+  // `volumeCensus`'s catch returns `{present: false, error}` when the docker
+  // exec FAILS for a bucket. The same branch mapped that to CONSISTENT_EMPTY —
+  // i.e. "I could not look" recorded as "there is nothing there", which is
+  // instance 1 of FUP-DM5-NO-ANSWER-VS-NOTHING appearing inside `verdictFor`
+  // itself. A failed measurement must never be a clean verdict.
+  const proofBroke = verdictFor({ exists: true, apiKeys: [], proof: { present: false, error: 'docker exec failed', keys: [], files: 0, bytes: 0 } })
+  check('C16 a FAILED volume measurement is UNVERIFIED, never CONSISTENT_EMPTY',
+    proofBroke === 'UNVERIFIED_PROOF_ERROR' && !CLEAN_VERDICTS.has(proofBroke), `verdict=${proofBroke}`)
+
+  // ---- C18: the ninth verdict, so every outcome has a direct mapping ------
+  // `DIVERGED_BOTH_WAYS` was referenced by exactly ONE line in this file — its
+  // own `return`. R8 constructs it end to end; this pins the mapping itself and
+  // that it is NOT clean.
+  const bothWays = verdictFor({ exists: true, apiKeys: ['gone.bin', 'ok.bin'], proof: { present: true, keys: ['ok.bin', 'ghost.bin'], files: 2, bytes: 2 } })
+  check('C18 wrong in BOTH directions at once is DIVERGED_BOTH_WAYS and NOT clean',
+    bothWays === 'DIVERGED_BOTH_WAYS' && !CLEAN_VERDICTS.has(bothWays), `verdict=${bothWays}`)
+
+  // ---- C17: the project-affinity guard, BOTH directions (QA MAJOR-2) ------
+  // A guard that answered "not local" to everything would make the tool refuse
+  // on every machine; one that answered "local" to everything is the defect.
+  // Both polarities are asserted, and the negative cases include the exact
+  // shape that matters — a real Supabase Cloud project URL.
+  const localOrigins = ['http://127.0.0.1:54321', 'http://localhost:54321', 'https://kong:8443', 'http://host.docker.internal:54321']
+  const remoteOrigins = ['https://azkbbhskturikxpgmafq.supabase.co', 'https://example.supabase.co', 'https://db.example.com', 'not a url', '']
+  const localVerdicts = localOrigins.map((u) => isLocalOrigin(u))
+  const remoteVerdicts = remoteOrigins.map((u) => isLocalOrigin(u))
+  check('C17 project-affinity guard: every LOCAL origin is local AND every remote/malformed one is NOT',
+    localVerdicts.every(Boolean) && remoteVerdicts.every((v) => v === false),
+    `local=[${localVerdicts.join(',')}] remote=[${remoteVerdicts.join(',')}]`)
+
+  // ---- C11/C12/C13: flag hostility (FUP-DM5-MANIFEST-FLAG) ---------------
+  // The filed incident, as an executable assertion. C12 is its permissive
+  // twin: a validator that rejected everything would pass C11 and C13 and
+  // make the tool unusable.
+  const wrongFlag = flagErrors('capture', ['--manifest', '/tmp/x.json'])
+  check('C11 capture REJECTS delete\'s --manifest flag instead of falling back to the committed baseline',
+    wrongFlag.some((e) => e.includes('unknown flag "--manifest"') && e.includes('"delete"')),
+    wrongFlag.join(' | ') || 'accepted silently')
+  const rightFlags = flagErrors('capture', ['--out', '/tmp/x.json', '--buckets', 'a,b', '--allow-unproven', '--allow-dirty'])
+  check('C12 capture ACCEPTS its own full flag set (the permissive twin)', rightFlags.length === 0, rightFlags.join(' | '))
+  const danglingValue = flagErrors('capture', ['--out'])
+  const flagAsValue = flagErrors('capture', ['--out', '--allow-unproven'])
+  check('C13 a value-taking flag with no value is an ERROR, not a silent fallback to the default path',
+    danglingValue.length === 1 && flagAsValue.length === 1,
+    `--out alone → ${danglingValue.length} error(s); --out --allow-unproven → ${flagAsValue.length} error(s)`)
+
+  // =========================================================================
+  // C19–C23 — FUP-DM5-NO-ANSWER-VS-NOTHING instance 1 (ADR 0128).
+  //
+  // The claim under test is ONE sentence: an acknowledgement of "I could not
+  // look" must not acknowledge "I looked and found something." Each control
+  // below is paired with the twin that stops it being satisfied by a tool that
+  // simply refuses (or accepts) everything.
+  // =========================================================================
+
+  // ---- C19: the three classes PARTITION the verdict codomain --------------
+  // ⭐ THE KEYSTONE, and it is aimed at the next instance, not this one. The
+  // original defect was a codomain that grew (nine verdicts) while the
+  // classification stayed binary (clean / not-clean), so every new verdict
+  // silently inherited "not-clean ⇒ suppressible by the one flag". This asserts
+  // in BOTH directions: every verdict has a home, and no verdict has two.
+  //
+  // ⚠ It is only as good as ALL_VERDICTS being complete, which is why C19b
+  // below checks that list against the function's actual returns rather than
+  // against itself — an enumeration bounded by a hand-written list is the
+  // failure this repo keeps meeting.
+  const homes = ALL_VERDICTS.map((v) => ({
+    v,
+    n: (CLEAN_VERDICTS.has(v) ? 1 : 0) + (UNPROVEN_VERDICTS.has(v) ? 1 : 0) + (DIRTY_VERDICTS.has(v) ? 1 : 0),
+  }))
+  const homeless = homes.filter((h) => h.n === 0).map((h) => h.v)
+  const doubled = homes.filter((h) => h.n > 1).map((h) => h.v)
+  const setTotal = CLEAN_VERDICTS.size + UNPROVEN_VERDICTS.size + DIRTY_VERDICTS.size
+  check('C19 clean/unproven/dirty PARTITION the verdict codomain — every verdict has exactly one home, and the sets add up',
+    homeless.length === 0 && doubled.length === 0 && setTotal === ALL_VERDICTS.length,
+    `homeless=[${homeless.join(',')}] doubled=[${doubled.join(',')}] set_total=${setTotal} enumerated=${ALL_VERDICTS.length}`)
+
+  // ---- C19b: ALL_VERDICTS is not merely a list that agrees with itself -----
+  // Drives `verdictFor` over inputs that reach each of its nine returns and
+  // requires every produced verdict to be in ALL_VERDICTS. A verdict added to
+  // the function but not the list fails here, which is the only reason C19's
+  // arithmetic means anything.
+  const produced = [
+    verdictFor({ exists: true, apiKeys: ['k'], proof: { present: true, keys: ['k'], files: 1, bytes: 1 } }),
+    verdictFor({ exists: true, apiKeys: [], proof: { present: true, keys: [], files: 0, bytes: 0 } }),
+    verdictFor({ exists: false, apiKeys: [], proof: { present: false, keys: [], files: 0, bytes: 0 } }),
+    verdictFor({ exists: false, apiKeys: [], proof: { present: true, keys: ['x'], files: 1, bytes: 1 } }),
+    verdictFor({ exists: true, apiKeys: [], proof: null }),
+    verdictFor({ exists: true, apiKeys: [], proof: { present: false, error: 'boom', keys: [], files: 0, bytes: 0 } }),
+    verdictFor({ exists: true, apiKeys: ['a'], proof: { present: false, keys: [], files: 0, bytes: 0 } }),
+    verdictFor({ exists: true, apiKeys: [], proof: { present: true, keys: ['ghost'], files: 1, bytes: 1 } }),
+    verdictFor({ exists: true, apiKeys: ['a'], proof: { present: true, keys: ['b'], files: 1, bytes: 1 } }),
+  ]
+  const unlisted = [...new Set(produced)].filter((v) => !ALL_VERDICTS.includes(v))
+  check('C19b every verdict verdictFor actually PRODUCES is in ALL_VERDICTS (the list is not self-certifying)',
+    unlisted.length === 0 && new Set(produced).size === ALL_VERDICTS.length,
+    `unlisted=[${unlisted.join(',')}] distinct_produced=${new Set(produced).size}/${ALL_VERDICTS.length}`)
+
+  // ---- C20: --allow-unproven CANNOT accept a dirty verdict ----------------
+  // ⭐ THE FILED DEFECT, as an executable assertion. Before ADR 0128 the single
+  // `--allow-orphans` made this exit 0.
+  const dirtyUnderUnproven = captureOutcome(['ORPHANED_BYTES', 'CONSISTENT'], { allowUnproven: true })
+  check('C20 --allow-unproven does NOT silence a DIRTY verdict (exit 1, the filed instance-1 defect)',
+    dirtyUnderUnproven.exitCode === 1 && dirtyUnderUnproven.accepted.length === 0,
+    `exit=${dirtyUnderUnproven.exitCode} accepted=[${dirtyUnderUnproven.accepted.join(',')}]`)
+
+  // ---- C21: the permissive twin — --allow-unproven DOES do its own job ----
+  // Without this, C20 is satisfied by a flag that does nothing at all, which
+  // would leave a healthy Cloud project unable to exit 0 by any route.
+  const unprovenAccepted = captureOutcome(['UNVERIFIED_NO_LOCAL_PROOF', 'UNVERIFIED_NO_LOCAL_PROOF'], { allowUnproven: true })
+  const unprovenRefused = captureOutcome(['UNVERIFIED_NO_LOCAL_PROOF', 'CONSISTENT'], {})
+  check('C21 --allow-unproven accepts an UNPROVEN-only capture (exit 0), and its absence yields exit 3 — not 1',
+    unprovenAccepted.exitCode === 0 && unprovenAccepted.accepted.includes('unproven') && unprovenRefused.exitCode === 3,
+    `accepted=${unprovenAccepted.exitCode} refused=${unprovenRefused.exitCode}`)
+
+  // ---- C22: DIRTY OUTRANKS UNPROVEN ---------------------------------------
+  // A run that is both must exit 1 (a finding), never 3 (a no-answer) — under
+  // --allow-unproven too. Ordering, not just membership: without it a dirty
+  // bucket could be reported as "could not look" simply by sharing a run with
+  // an unproven one, which is the original conflation with the arrow reversed.
+  const both = captureOutcome(['ORPHANED_BYTES', 'UNVERIFIED_NO_LOCAL_PROOF'], { allowUnproven: true })
+  const bothBare = captureOutcome(['MISSING_BYTES', 'UNVERIFIED_PROOF_ERROR'], {})
+  check('C22 dirty OUTRANKS unproven — a run that is both exits 1, including under --allow-unproven',
+    both.exitCode === 1 && bothBare.exitCode === 1,
+    `with_flag=${both.exitCode} bare=${bothBare.exitCode}`)
+
+  // ---- C22b: --allow-dirty is narrow in the other direction too -----------
+  // It accepts a proven divergence (the deliberate-baseline case, which must
+  // keep working) and does NOT accept an unproven one.
+  const dirtyAccepted = captureOutcome(['ORPHANED_BYTES', 'CONSISTENT'], { allowDirty: true })
+  const unprovenUnderDirty = captureOutcome(['UNVERIFIED_NO_LOCAL_PROOF'], { allowDirty: true })
+  check('C22b --allow-dirty accepts a PROVEN divergence (exit 0) and does NOT accept an UNPROVEN one (exit 3)',
+    dirtyAccepted.exitCode === 0 && dirtyAccepted.accepted.includes('dirty') && unprovenUnderDirty.exitCode === 3,
+    `dirty=${dirtyAccepted.exitCode} unproven=${unprovenUnderDirty.exitCode}`)
+
+  // ---- C22c: an UNRECOGNISED verdict fails CLOSED and is unsuppressible ----
+  // The runtime half of C19. A verdict nobody classified must not fall into the
+  // clean bucket, and no acknowledgement may cover it — otherwise the next
+  // verdict added quietly re-creates the defect in an operator's run rather
+  // than in the tool's own test run.
+  const unknownBare = captureOutcome(['SOMETHING_NEW'], {})
+  const unknownForced = captureOutcome(['SOMETHING_NEW'], { allowUnproven: true, allowDirty: true })
+  check('C22c an UNCLASSIFIED verdict is treated as DIRTY and NEITHER flag can accept it',
+    unknownBare.exitCode === 1 && unknownForced.exitCode === 1 && /UNCLASSIFIED/.test(unknownForced.headline),
+    `bare=${unknownBare.exitCode} both_flags=${unknownForced.exitCode}`)
+
+  // ---- C23: --allow-orphans is REFUSED, not aliased -----------------------
+  // ⭐ The retirement is a pinned property. Aliasing it to --allow-unproven was
+  // the one-line option and it was rejected: the flag's defect was the muscle
+  // memory of reaching for it to get a green bar, and an alias keeps that
+  // working. This asserts the refusal AND that the message names both
+  // successors — a refusal that does not say what to use instead gets worked
+  // around, not read.
+  const retired = flagErrors('capture', ['--allow-orphans'])
+  check('C23 --allow-orphans is REFUSED (not silently aliased) and the message names BOTH successors',
+    retired.length === 1 && /RETIRED/.test(retired[0]) &&
+      /--allow-unproven/.test(retired[0]) && /--allow-dirty/.test(retired[0]),
+    retired.join(' | ') || 'ACCEPTED SILENTLY — the retired flag still works')
+}
+
 
 // ---------------------------------------------------------------------------
 // selftest — prove the tool ABLE TO FAIL
@@ -881,24 +1286,46 @@ async function cmdDelete(argv) {
 // one that compares two empty sets." Every control below is designed so that a
 // BROKEN tool passes the naive check and FAILS here.
 //
-// Runs entirely inside a scratch bucket it creates and destroys. It touches no
-// project bucket and no project row. It needs local docker, because manufacturing
-// an orphan means deleting metadata while keeping bytes — which is exactly what
-// no supported API can do.
+// The BYTE-LEVEL half runs inside a scratch bucket it creates and destroys. It
+// touches no project bucket and no project row. It needs local docker, because
+// manufacturing an orphan means deleting metadata while keeping bytes — which is
+// exactly what no supported API can do.
+//
+// ⚠ The PURE half (`pureControls`) needs none of that and runs FIRST, before the
+// docker gate. See that function's header for why: gating everything on docker
+// meant zero controls ran on exactly the machines a Cloud operator uses.
 // ---------------------------------------------------------------------------
 async function cmdSelftest() {
-  const { admin } = adminClient()
-  const loc = locateVolume()
-  if (!loc.available) {
-    console.error(`selftest requires the local file backend (${loc.reason})`)
-    process.exit(2)
-  }
-  const bucket = `dm5-selftest-${randomUUID().slice(0, 8)}`
   const results = []
   const check = (name, pass, detail) => {
     results.push({ name, pass, detail })
     console.log(`${pass ? '  ok  ' : ' NOT OK '} ${name}${detail ? ` — ${detail}` : ''}`)
   }
+
+  pureControls(check)
+  const pureCount = results.length
+
+  const loc = locateVolume()
+  if (!loc.available) {
+    // ⛔ NOT exit 0, and the wording is the point. The pure controls passing says
+    // the classification logic is proven able to fail; it says NOTHING about the
+    // byte-level ones, which did not run. Reporting a count of what was skipped
+    // — rather than falling silent — is this tool's own subject applied to its
+    // own test harness: "nothing failed" is not "nothing ran".
+    const pureFailed = results.filter((r) => !r.pass)
+    console.log(`\n${pureCount - pureFailed.length}/${pureCount} PURE controls passed`)
+    console.error(
+      `\n⚠ THE BYTE-LEVEL CONTROLS DID NOT RUN — ${loc.reason}.\n` +
+        '   They need the local file backend to manufacture an orphan (delete metadata, keep bytes),\n' +
+        '   which no supported API can do. This is NOT a pass and NOT a failure: it is an unrun half.\n' +
+        '   The classification controls above ARE proven; the enumerator, the count comparison and the\n' +
+        '   orphan detector are NOT proven on this machine.',
+    )
+    process.exit(pureFailed.length ? 1 : 2)
+  }
+
+  const { admin } = adminClient()
+  const bucket = `dm5-selftest-${randomUUID().slice(0, 8)}`
 
   try {
     const { error: ce } = await admin.storage.createBucket(bucket, { public: false })
@@ -1026,99 +1453,8 @@ async function cmdSelftest() {
     const clean = verdictFor({ exists: true, apiKeys: ['k'], proof: { present: true, keys: ['k'], files: 1, bytes: 1 } })
     check('C7 the same verdict function returns CONSISTENT on agreeing inputs', clean === 'CONSISTENT', `verdict=${clean}`)
 
-    // ---- C9: a DROPPED BUCKET ROW does not launder surviving bytes ---------
-    // ⭐ DM5 S5. `verdictFor` used to return BUCKET_ABSENT unconditionally on
-    // its first line, before consulting the volume proof — and BUCKET_ABSENT is
-    // a CLEAN verdict, so this state produced `CAPTURE CLEAN` and exit 0.
-    // Reproduced live before the fix. It is the tool's own success signal
-    // committing the error the tool exists to prevent: treating a missing
-    // METADATA row as proof of a missing OBJECT. All eight S4-retired buckets
-    // sit in the row-absent state permanently, so this is the state the tool
-    // will be pointed at for the rest of the program.
-    const ghostBytes = verdictFor({ exists: false, apiKeys: [], proof: { present: true, keys: ['left/behind.bin'], files: 1, bytes: 9 } })
-    check('C9 bucket row ABSENT with bytes still on the volume is NOT clean', ghostBytes === 'BUCKET_ABSENT_ORPHANED_BYTES' && !CLEAN_VERDICTS.has(ghostBytes), `verdict=${ghostBytes}`)
-
-    // ---- C10: the permissive twin for C9 -----------------------------------
-    // Without this, C9 is satisfied by a tool that calls every absent bucket
-    // dirty — which would red the completed S4 retirement forever.
-    const ghostEmpty = verdictFor({ exists: false, apiKeys: [], proof: { present: false, keys: [], files: 0, bytes: 0 } })
-    check('C10 bucket row absent AND no bytes stays BUCKET_ABSENT and CLEAN (the completed-retirement state)', ghostEmpty === 'BUCKET_ABSENT' && CLEAN_VERDICTS.has(ghostEmpty), `verdict=${ghostEmpty}`)
-
-    // ---- C14/C15/C16: the SIBLING BRANCH of C9, found by QA (MAJOR-1) -------
-    // ⭐ NUMBERED BY INSERTION, like C8 before them. And they exist because of a
-    // method, not a hunch: C9 fixed the `!exists` branch, so the next question is
-    // what the ADJACENT branch consults. Diffing the two guard sets found the
-    // `!proof.present` branch reading ONLY `proof === null` — never `apiKeys`,
-    // never `proof.error`. Two missing guards in the branch two lines below the
-    // one this slice had just fixed.
-    //
-    // C14 is the state QA built to find it: metadata says three live files, the
-    // volume directory is GONE. The old code returned CONSISTENT_EMPTY — a CLEAN
-    // verdict — so `capture` printed CAPTURE CLEAN and exited 0 over a bucket
-    // whose PHI bytes had been destroyed.
-    //
-    // ⛔ And it was NON-MONOTONIC: lose SOME of a bucket's bytes (directory
-    // present, fewer files) → MISSING_BYTES, dirty, exit 1; lose ALL of them
-    // (directory removed) → clean, exit 0. The worse state reported better.
-    // That is the state a storage-volume loss with the DB intact produces —
-    // FUP-DM5-STACK-CYCLE-DESTROYS-BYTES, which has already fired once here.
-    const bytesGoneRowsLive = verdictFor({ exists: true, apiKeys: ['a', 'b', 'c'], proof: { present: false, keys: [], files: 0, bytes: 0 } })
-    check('C14 volume directory GONE while the API still lists keys is NOT clean (MISSING_BYTES)',
-      bytesGoneRowsLive === 'MISSING_BYTES' && !CLEAN_VERDICTS.has(bytesGoneRowsLive), `verdict=${bytesGoneRowsLive}`)
-
-    // ---- C15: the permissive twin for C14 ----------------------------------
-    // Without it, C14 is satisfied by a tool that calls every absent directory
-    // dirty — which would red every genuinely empty bucket forever.
-    const bothEmpty = verdictFor({ exists: true, apiKeys: [], proof: { present: false, keys: [], files: 0, bytes: 0 } })
-    check('C15 no directory AND no API keys stays CONSISTENT_EMPTY and CLEAN (a genuinely empty bucket)',
-      bothEmpty === 'CONSISTENT_EMPTY' && CLEAN_VERDICTS.has(bothEmpty), `verdict=${bothEmpty}`)
-
-    // ---- C16: the THIRD missing guard in the same branch --------------------
-    // `volumeCensus`'s catch returns `{present: false, error}` when the docker
-    // exec FAILS for a bucket. The same branch mapped that to CONSISTENT_EMPTY —
-    // i.e. "I could not look" recorded as "there is nothing there", which is
-    // instance 1 of FUP-DM5-NO-ANSWER-VS-NOTHING appearing inside `verdictFor`
-    // itself. A failed measurement must never be a clean verdict.
-    const proofBroke = verdictFor({ exists: true, apiKeys: [], proof: { present: false, error: 'docker exec failed', keys: [], files: 0, bytes: 0 } })
-    check('C16 a FAILED volume measurement is UNVERIFIED, never CONSISTENT_EMPTY',
-      proofBroke === 'UNVERIFIED_PROOF_ERROR' && !CLEAN_VERDICTS.has(proofBroke), `verdict=${proofBroke}`)
-
-    // ---- C18: the ninth verdict, so every outcome has a direct mapping ------
-    // `DIVERGED_BOTH_WAYS` was referenced by exactly ONE line in this file — its
-    // own `return`. R8 constructs it end to end; this pins the mapping itself and
-    // that it is NOT clean.
-    const bothWays = verdictFor({ exists: true, apiKeys: ['gone.bin', 'ok.bin'], proof: { present: true, keys: ['ok.bin', 'ghost.bin'], files: 2, bytes: 2 } })
-    check('C18 wrong in BOTH directions at once is DIVERGED_BOTH_WAYS and NOT clean',
-      bothWays === 'DIVERGED_BOTH_WAYS' && !CLEAN_VERDICTS.has(bothWays), `verdict=${bothWays}`)
-
-    // ---- C17: the project-affinity guard, BOTH directions (QA MAJOR-2) ------
-    // A guard that answered "not local" to everything would make the tool refuse
-    // on every machine; one that answered "local" to everything is the defect.
-    // Both polarities are asserted, and the negative cases include the exact
-    // shape that matters — a real Supabase Cloud project URL.
-    const localOrigins = ['http://127.0.0.1:54321', 'http://localhost:54321', 'https://kong:8443', 'http://host.docker.internal:54321']
-    const remoteOrigins = ['https://azkbbhskturikxpgmafq.supabase.co', 'https://example.supabase.co', 'https://db.example.com', 'not a url', '']
-    const localVerdicts = localOrigins.map((u) => isLocalOrigin(u))
-    const remoteVerdicts = remoteOrigins.map((u) => isLocalOrigin(u))
-    check('C17 project-affinity guard: every LOCAL origin is local AND every remote/malformed one is NOT',
-      localVerdicts.every(Boolean) && remoteVerdicts.every((v) => v === false),
-      `local=[${localVerdicts.join(',')}] remote=[${remoteVerdicts.join(',')}]`)
-
-    // ---- C11/C12/C13: flag hostility (FUP-DM5-MANIFEST-FLAG) ---------------
-    // The filed incident, as an executable assertion. C12 is its permissive
-    // twin: a validator that rejected everything would pass C11 and C13 and
-    // make the tool unusable.
-    const wrongFlag = flagErrors('capture', ['--manifest', '/tmp/x.json'])
-    check('C11 capture REJECTS delete\'s --manifest flag instead of falling back to the committed baseline',
-      wrongFlag.some((e) => e.includes('unknown flag "--manifest"') && e.includes('"delete"')),
-      wrongFlag.join(' | ') || 'accepted silently')
-    const rightFlags = flagErrors('capture', ['--out', '/tmp/x.json', '--buckets', 'a,b', '--allow-orphans'])
-    check('C12 capture ACCEPTS its own full flag set (the permissive twin)', rightFlags.length === 0, rightFlags.join(' | '))
-    const danglingValue = flagErrors('capture', ['--out'])
-    const flagAsValue = flagErrors('capture', ['--out', '--allow-orphans'])
-    check('C13 a value-taking flag with no value is an ERROR, not a silent fallback to the default path',
-      danglingValue.length === 1 && flagAsValue.length === 1,
-      `--out alone → ${danglingValue.length} error(s); --out --allow-orphans → ${flagAsValue.length} error(s)`)
+    // C9–C23 are PURE and already ran, before the docker gate — see
+    // `pureControls`. Nothing is asserted twice.
   } catch (e) {
     console.error(`\nselftest error: ${String(e)}`)
     process.exitCode = 2
@@ -1141,7 +1477,10 @@ async function cmdSelftest() {
   }
 
   const failed = results.filter((r) => !r.pass)
-  console.log(`\n${results.length - failed.length}/${results.length} controls passed`)
+  console.log(
+    `\n${results.length - failed.length}/${results.length} controls passed ` +
+      `(${pureCount} pure + ${results.length - pureCount} byte-level)`,
+  )
   if (failed.length) {
     console.log('⛔ SELFTEST FAILED — the tool is NOT proven able to fail; do not trust its verdicts.')
     process.exitCode = 1
@@ -1524,11 +1863,18 @@ async function cmdRehearse() {
     // i.e. by a tool that can no longer judge anything at all. The arm's claim is
     // that the ONE variable that changed is whether the proof was available, so
     // both sides of that variable have to be pinned in the same breath.
+    // ⚠ EXIT CODE CHANGED 1 → 3 AT ADR 0128, and that IS the fix rather than a
+    // detail of it. "I could not look" now has its own code, so it is no longer
+    // indistinguishable from "I looked and found something" at the only place an
+    // automated caller can see — the exit status. The sighted twin still pins
+    // that the ONE variable which changed is whether the proof was available.
     check(
-      'R6-capture WITHOUT the local proof, capture cannot judge at all — UNVERIFIED_NO_LOCAL_PROOF, exit 1 (vs the SIGHTED twin: CONSISTENT, exit 0)',
-      blindCapture.exit === 1 && blindCapture.manifest.buckets[bucket].verdict === 'UNVERIFIED_NO_LOCAL_PROOF' &&
+      'R6-capture WITHOUT the local proof, capture cannot judge at all — UNVERIFIED_NO_LOCAL_PROOF, exit 3 UNPROVEN (vs the SIGHTED twin: CONSISTENT, exit 0)',
+      blindCapture.exit === 3 && blindCapture.manifest.buckets[bucket].verdict === 'UNVERIFIED_NO_LOCAL_PROOF' &&
+        blindCapture.manifest.outcome.unproven === 1 && blindCapture.manifest.outcome.dirty === 0 &&
         cap7.exit === 0 && cap7.manifest.buckets[bucket].verdict === 'CONSISTENT',
-      `blind: exit=${blindCapture.exit} verdict=${blindCapture.manifest.buckets[bucket].verdict} | ` +
+      `blind: exit=${blindCapture.exit} verdict=${blindCapture.manifest.buckets[bucket].verdict} ` +
+        `outcome=${JSON.stringify(blindCapture.manifest.outcome)} | ` +
         `sighted: exit=${cap7.exit} verdict=${cap7.manifest.buckets[bucket].verdict}`,
     )
     // ⭐ QA r2 MINOR-1 — the WORDING of the no-proof residual is a pinned property,
@@ -1735,6 +2081,63 @@ async function cmdRehearse() {
         `(counts EQUAL, sets disjoint) orphans=[${b11.proof.orphanKeys.join(', ')}] volume_missing="${divergeKey}"`,
     )
     await replant()
+
+    // ---- R10: the acknowledgements, end to end through the CLI -------------
+    //
+    // ⭐ FUP-DM5-NO-ANSWER-VS-NOTHING instance 1 (ADR 0128). Selftest C20–C23
+    // pin `captureOutcome` as a function; these pin the same claim through the
+    // real argv → real bucket → real volume path, because the function being
+    // right and the COMMAND being right are different facts (the flag could be
+    // read wrong, the outcome could be computed and discarded).
+    //
+    // R10 is the load-bearing arm: a REAL orphan on the volume, and the flag an
+    // operator reaches for on Cloud. Before this fix the single --allow-orphans
+    // made this exit 0 with the orphan sitting in the manifest.
+    const ackOrphan = 'ack/unacknowledged.bin'
+    docker(['exec', loc.container, 'sh', '-c',
+      `mkdir -p '${loc.root}/${bucket}/${ackOrphan}' && printf 'ack' > '${loc.root}/${bucket}/${ackOrphan}/${randomUUID()}'`])
+    const capAck1 = await runCapture(tmp('capAck1'), ['--allow-unproven'])
+    const bAck1 = capAck1.manifest.buckets[bucket]
+    check(
+      'R10 --allow-unproven does NOT buy a green bar over a REAL orphan — exit 1, ORPHANED_BYTES, the orphan named',
+      capAck1.exit === 1 && bAck1.verdict === 'ORPHANED_BYTES' && bAck1.proof.orphanKeys.includes(ackOrphan) &&
+        capAck1.manifest.outcome.dirty === 1 && capAck1.manifest.outcome.accepted.length === 0,
+      `exit=${capAck1.exit} verdict=${bAck1.verdict} outcome=${JSON.stringify(capAck1.manifest.outcome)}`,
+    )
+
+    // ---- R10b: the permissive twin for the OTHER flag ----------------------
+    // Same bucket, same orphan, the flag that DOES name this fact. Without it
+    // R10 is satisfied by a tool that refuses everything, which would leave the
+    // deliberate-baseline capability (the reason an acknowledgement exists at
+    // all) broken.
+    const capAck2 = await runCapture(tmp('capAck2'), ['--allow-dirty'])
+    check(
+      'R10b --allow-dirty DOES accept the same orphan (exit 0) and the manifest records the acknowledgement rather than hiding it',
+      capAck2.exit === 0 && capAck2.manifest.buckets[bucket].verdict === 'ORPHANED_BYTES' &&
+        capAck2.manifest.outcome.accepted.includes('dirty') && capAck2.manifest.outcome.dirty === 1,
+      `exit=${capAck2.exit} outcome=${JSON.stringify(capAck2.manifest.outcome)}`,
+    )
+    docker(['exec', loc.container, 'sh', '-c', `rm -rf '${loc.root}/${bucket}/ack'`])
+
+    // ---- R10c: the Cloud shape — unproven ACCEPTED, and it is exit 0 --------
+    // The green bar a healthy Cloud project must be able to reach. Paired with
+    // R6-capture (same state, no flag → exit 3), this pins both polarities of
+    // --allow-unproven against a run that genuinely could not look.
+    let blindAck
+    try {
+      process.env.PATH = noDocker
+      if (locateVolume().available) throw new Error('could not force the no-local-proof branch — the arm would be vacuous')
+      blindAck = await runCapture(tmp('cap14'), ['--allow-unproven'])
+    } finally {
+      process.env.PATH = realPath
+    }
+    check(
+      'R10c --allow-unproven reaches exit 0 on a blind (Cloud-shaped) run, and the manifest says byte_proof_available=false',
+      blindAck.exit === 0 && blindAck.manifest.outcome.accepted.includes('unproven') &&
+        blindAck.manifest.outcome.byteProofAvailable === false && blindAck.manifest.outcome.dirty === 0,
+      `exit=${blindAck.exit} outcome=${JSON.stringify(blindAck.manifest.outcome)}`,
+    )
+    await replant()
   } catch (e) {
     console.error(`\nrehearsal error: ${String(e)}`)
     check('REHEARSAL COMPLETED WITHOUT ERROR', false, String(e))
@@ -1796,14 +2199,42 @@ async function cmdRehearse() {
 //
 // ⚠ A SECOND instance of the same footgun, found while fixing the first and not
 // named in the follow-up: `argFlag` returns `argv[i + 1]` blindly, so
-// `capture --out` (value omitted, flag last) and `capture --out --allow-orphans`
+// `capture --out` (value omitted, flag last) and `capture --out --allow-unproven`
 // (next token is another flag) BOTH resolve wrong — the first silently falls
 // back to DEFAULT_MANIFEST, the second writes a manifest to a file literally
-// named `--allow-orphans`. A value-taking flag with no value is therefore an
-// error here, not a fallback.
+// named `--allow-unproven`. A value-taking flag with no value is therefore an
+// error here, not a fallback. (⚠ This example named `--allow-orphans` until ADR
+// 0128 retired it; the mechanism is unchanged, only the flag that illustrates it.)
 // ---------------------------------------------------------------------------
+// ⭐ RETIRED FLAGS ARE REFUSED BY NAME, NEVER ALIASED (ADR 0128).
+//
+// `--allow-orphans` could have been aliased to `--allow-unproven` in one line.
+// That was rejected deliberately: the flag's whole defect was that an operator
+// reached for it to get a usable exit code on Cloud and bought blindness to
+// genuine findings with it. An alias keeps that muscle memory intact and working,
+// which is the one outcome the fix must not produce. The refusal costs an
+// operator one read of the message and buys a decision about WHICH fact they are
+// accepting — the decision the single flag never let them make.
+//
+// It also can't come back quietly: selftest C23 asserts the refusal and that the
+// message names both successors.
+const RETIRED_FLAGS = {
+  '--allow-orphans':
+    'RETIRED (FUP-DM5-NO-ANSWER-VS-NOTHING instance 1 / ADR 0128). One flag accepted two different ' +
+    'facts — "I could not look" (no byte proof exists here, the normal Cloud case) and "I looked and ' +
+    'the API and the volume disagree" (a real finding) — so buying a green exit code bought blindness ' +
+    'to the finding this tool exists to produce. It also accepted MISSING_BYTES and DIVERGED_BOTH_WAYS, ' +
+    'which are not orphans at all. Replaced by TWO flags, each naming exactly one fact:\n' +
+    '    --allow-unproven   accept UNVERIFIED_* verdicts (no byte proof was obtainable). Leaves every ' +
+    'dirty verdict fatal. This is what a Cloud run wants.\n' +
+    '    --allow-dirty      accept a PROVEN divergence, to record a known-divergent state deliberately ' +
+    'as a baseline. Use only when you have read the verdicts.\n' +
+    '  There is no flag that accepts both without saying so. Exit codes now distinguish them too: ' +
+    '1 = dirty (a finding), 3 = unproven (no answer).',
+}
+
 const FLAG_SPEC = {
-  capture: { value: ['--out', '--buckets'], boolean: ['--allow-orphans'] },
+  capture: { value: ['--out', '--buckets'], boolean: ['--allow-unproven', '--allow-dirty'] },
   verify: { value: ['--manifest'], boolean: [] },
   walk: { value: ['--buckets'], boolean: [] },
   delete: { value: ['--manifest'], boolean: ['--execute'] },
@@ -1825,6 +2256,10 @@ function flagErrors(cmd, argv) {
     const tok = argv[i]
     if (!tok.startsWith('--')) {
       errors.push(`unexpected positional argument "${tok}" — this tool takes flags only`)
+      continue
+    }
+    if (RETIRED_FLAGS[tok]) {
+      errors.push(`flag "${tok}" is ${RETIRED_FLAGS[tok]}`)
       continue
     }
     if (!known.has(tok)) {

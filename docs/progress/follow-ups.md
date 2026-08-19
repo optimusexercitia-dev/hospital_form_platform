@@ -8,7 +8,40 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
-### 🔴 FUP-DM5-NO-ANSWER-VS-NOTHING — *"I could not look"* is not distinguished from *"I looked and found nothing"* — and one instance persists that confusion as a **regulatory assertion** (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
+### ⬛ FUP-DM5-NO-ANSWER-VS-NOTHING — ✅ **ALL SIX INSTANCES CLOSED 2026-08-19** — *"I could not look"* is not distinguished from *"I looked and found nothing"* (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
+
+> ## ✅ CLOSED 2026-08-19 — the last open instance is fixed, and the class statement is KEPT
+>
+> **Instance 1 (`--allow-orphans`) — the item's own "remaining surface" — is FIXED**, by ADR
+> [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md): unproven and dirty
+> are now separate classes with separate exit codes (**3** vs **1**) and separate acknowledgements
+> (`--allow-unproven` / `--allow-dirty`), and **dirty outranks unproven** so a finding can never
+> hide behind a no-answer. `--allow-orphans` is **refused by name, not aliased** — the muscle
+> memory was the defect. ⭐ Fixing it surfaced a **second conflation nobody had filed**: the flag
+> read *"allow ORPHANS"* while equally accepting `MISSING_BYTES` and `DIVERGED_BOTH_WAYS`. *A flag
+> that accepts more than its name says is this class one layer up* — found by the sibling-guard
+> diff, which is the method [[new-door-must-inherit-every-sibling-arm]] keeps earning.
+>
+> **Instance 3 is discharged, not merely downgraded** — and the closing fact is a MEASUREMENT, not
+> a decision. ADR 0121 **D4** (shipped, `20260928000400`) made `disposed` record what it actually
+> verified (`metadata_absent` + a closed `byte_proof` vocabulary), and `FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED`
+> then made the one lane that really deletes bytes declare `unavailable_on_platform` instead of
+> riding the default. The open half was *"unless FUP-DM5-CLOUD-ORPHAN-SURFACE settles that an
+> orphan-visible surface exists"* — it was probed on 2026-08-18 and **all five Cloud surfaces are
+> metadata-bound** ([cloud-orphan-probe-2026-08-18.md](./cloud-orphan-probe-2026-08-18.md)). So
+> `unavailable_on_platform` is not a placeholder awaiting a better proof; it is the **true and
+> permanent** value there. The record no longer asserts more than the door verifies.
+>
+> ⛔ **What closing this item does NOT mean, stated because the class's own lesson predicts the
+> misreading.** It does not mean orphaned bytes are absent on Cloud — the probe proves they are
+> **unobservable**, which is the opposite of reassuring. It does not add a Cloud byte proof; none
+> exists and none is being built (PO-ratified, ADR 0120 D9 amendment 2026-08-18). **What closed is
+> the CONFLATION** — every surface that used to answer "I could not look" with a reassuring value
+> now says which of the two things happened.
+>
+> **Kept, not archived-and-forgotten:** the one-sentence class statement below is the most
+> productive review lens this program produced (six instances, three variants, four of them found
+> *inside the fix for another one*). It is retained here in full for that reason.
 
 > # ⭐ THE CLASS, IN ONE SENTENCE
 >
@@ -24,19 +57,23 @@ in [deferred-backlog.md](./deferred-backlog.md).
 >
 > ### Three variants, six instances
 >
-> | # | variant | the proxy actually observed | the property it was recorded as |
-> | --- | --- | --- | --- |
-> | 1 | **"I could not look"** | `--allow-orphans` — proof unavailable | *I looked and found nothing* |
-> | 2 | **"I could not look"** | `.list('')` — absence of a **bucket** | absence of **keys** |
-> | 3 | **action → state** | `complete_document_disposal` — **metadata row** gone | **bytes** gone |
-> | 4 | **action → state** | destruction — file **unlinked** | bytes **unrecoverable** |
-> | 5 | **action → state** *(caught pre-ship)* | backup pipeline **ran, exit 0** | a backup **exists** |
-> | 6 | **"I looked at the WRONG THING"** | `verdictFor` — no volume **directory** | the bucket is **consistent and empty** |
+> | # | variant | the proxy actually observed | the property it was recorded as | state |
+> | --- | --- | --- | --- | --- |
+> | 1 | **"I could not look"** | `--allow-orphans` — proof unavailable | *I looked and found nothing* | ✅ ADR 0128 |
+> | 2 | **"I could not look"** | `.list('')` — absence of a **bucket** | absence of **keys** | ✅ `d2b19808` |
+> | 3 | **action → state** | `complete_document_disposal` — **metadata row** gone | **bytes** gone | ✅ ADR 0121 D4 + the Cloud probe |
+> | 4 | **action → state** | destruction — file **unlinked** | bytes **unrecoverable** | ✅ runbook §6b (key-first) |
+> | 5 | **action → state** *(caught pre-ship)* | backup pipeline **ran, exit 0** | a backup **exists** | ✅ never shipped |
+> | 6 | **"I looked at the WRONG THING"** | `verdictFor` — no volume **directory** | the bucket is **consistent and empty** | ✅ `verdictFor` + R7/C14–C16 |
 >
 > ⭐ **Instance 6 is QA's MAJOR-1 and it is a THIRD distinct variant** — not "I could not look" and not
 > "an action recorded as a state", but **"I looked at the wrong thing."** The tool consulted the volume
 > and reported honestly about it, while never consulting the API set that contradicted it. That variant
 > is the hardest of the three to spot in review, because the measurement genuinely happened.
+>
+> **Severity 🔴 → ⬛ CLOSED 2026-08-19.** The ruling below stands as the reason it *was* 🔴; it is kept
+> because the rule it states — *the class heading carries the severity of its worst instance* — is the
+> part that transfers to the next class-shaped filing.
 >
 > **Severity 🔴** (lead ruling 2026-08-17, escalated from 🟠 on instance 3): the class heading carries
 > the severity of its worst instance. Instances 1–2 are 🟠 — tool output an operator reads and can
@@ -49,13 +86,45 @@ Filed 2026-08-17 (backend, S5.D) — **lead-ruled to be filed as a class, not as
 independent instances in one tool, in unrelated code paths, found days apart by different means. Filed
 as two items each gets fixed once and the shape stays open; filed as a class it gets a design answer.
 
-**Instance 1 — `--allow-orphans` (unfixed, the remaining surface).** One flag mutes two different
+**Instance 1 — `--allow-orphans`. ✅ FIXED 2026-08-19 (ADR 0128).** One flag muted two different
 facts. On Cloud the local volume proof cannot exist, so every bucket verdicts
-`UNVERIFIED_NO_LOCAL_PROOF` and `capture` exits **1 on a perfectly healthy project**; the only route
-to exit 0 is `--allow-orphans`, which **also** silences genuine `ORPHANED_BYTES` verdicts. An operator
-who wants a usable exit code must buy blindness to the finding the tool exists to produce. Fixing it
-needs new operator-facing semantics (a distinct flag, or distinct exit codes for "unproven" vs
-"proven dirty") — deliberately **out of S5 scope**, which is why this is filed rather than patched.
+`UNVERIFIED_NO_LOCAL_PROOF` and `capture` exited **1 on a perfectly healthy project**; the only route
+to exit 0 was `--allow-orphans`, which **also** silenced genuine `ORPHANED_BYTES` verdicts. An operator
+who wanted a usable exit code had to buy blindness to the finding the tool exists to produce. The fix
+took the shape the filing predicted — *"a distinct flag, or distinct exit codes for unproven vs proven
+dirty"* — and took **both**, because either alone leaves the other surface conflated:
+
+- `CLEAN` / `UNPROVEN` / `DIRTY` **partition** the nine-verdict codomain; exit **3** is UNPROVEN,
+  exit **1** is DIRTY, and **dirty outranks unproven** so a finding never hides behind a no-answer.
+- `--allow-unproven` and `--allow-dirty` each acknowledge exactly one class. There is deliberately
+  no flag that accepts both without saying so.
+- `--allow-orphans` is **refused by name** (exit 2, message naming both successors). Aliasing it was
+  the one-line option and was rejected: the habit of reaching for it to get a green bar *was* the
+  defect, and an alias keeps that habit working.
+- `manifest.outcome` records the class counts, what was acknowledged, and `byteProofAvailable`.
+
+⭐ **Two things the fix found that the filing had not.** (a) The flag's **name was wrong about its
+own reach** — it read *"allow ORPHANS"* while equally accepting `MISSING_BYTES` (bytes destroyed,
+metadata still advertising them — under Rule 12 the *worse* direction) and `DIVERGED_BOTH_WAYS`.
+(b) `selftest` **exited on the docker gate before running anything**, so on every machine a *Cloud*
+operator uses — the exact population this instance is about — the number of controls that ran was
+**zero**, while a third of them needed nothing but the functions under test. The pure half now runs
+first and the skipped half is reported **with a count**: *"nothing failed" is not "nothing ran"*.
+
+**Controls, all observed RED before the fix** (three mutants of the shipped file, 2026-08-19):
+restoring the pre-fix binary classification reds **C20/C21/C22/C22b/C22c** (13/18); re-admitting the
+retired flag as an alias reds **C23** (17/18); removing one verdict from its class set reds **C19**
+(17/18). Unmutated: **18/18**. ✅ **And the end-to-end CLI arms RAN** (local stack, same day):
+`selftest` **26/26** (18 pure + 8 byte-level), `rehearse` **25/25** — **R6-capture** blind → exit **3**
+(was 1) against its sighted twin at exit 0; **R10** a real orphan *under `--allow-unproven`* → exit
+**1** with `accepted: []` — *the exact state that exited 0 before this change*; **R10b** same orphan
+under `--allow-dirty` → exit 0, `accepted: ["dirty"]`; **R10c** blind under `--allow-unproven` →
+exit 0, `byteProofAvailable: false`.
+⭐ **C19 is the keystone and it is aimed at the NEXT instance, not this one:** the original defect was
+a codomain that grew to nine verdicts while the classification stayed binary, so each new verdict
+silently inherited *"not-clean ⇒ suppressible by the one flag"*. C19 requires every verdict to have
+exactly one home, C19b requires `ALL_VERDICTS` to be checked against what `verdictFor` actually
+returns rather than against itself, and C22c makes an unclassified verdict fail **closed** at runtime.
 
 **Instance 2 — `.list('')` on an absent bucket (FIXED in `d2b19808`, kept here as evidence).**
 `admin.storage.from(b).list('')` on a bucket whose **row is gone** returns `{data: [], error: null}` —
@@ -130,6 +199,33 @@ gone" is not merely *unchecked*; it is **unverifiable by the method we have**. W
 FUP-DM5-CLOUD-ORPHAN-SURFACE settles that an orphan-visible surface exists, or the door's contract is
 amended to say what it actually verifies. Until one of those happens, every Cloud disposal record
 carries a claim the platform cannot substantiate.
+
+> ### ✅ BOTH ALTERNATIVES RESOLVED — instance 3 is DISCHARGED (2026-08-19)
+>
+> The paragraph above named two exits. **Both were taken, in the order that matters.**
+>
+> 1. **The door's contract was amended** — ADR 0121 **D4**, shipped as `20260928000400`. `disposed`
+>    now writes `disposal_evidence` beside the state: `metadata_absent` + `metadata_source` (what it
+>    genuinely checks) and `byte_proof` from a **closed** vocabulary
+>    (`local_volume_verified` / `unavailable_on_platform` / `not_attempted`). An unconstrained
+>    free-text field would have been the same defect one layer up. `FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED`
+>    then fixed the caller half: the one lane that actually deletes bytes declares
+>    `unavailable_on_platform` rather than riding the `not_attempted` default.
+> 2. **The Cloud question was MEASURED, and answered NO** — 2026-08-18, `cloud-orphan-probe.mjs`
+>    against the live project. All five customer-reachable surfaces are metadata-bound; a byte with
+>    no `storage.objects` row is invisible to every one of them *while provably still existing*
+>    ([cloud-orphan-probe-2026-08-18.md](./cloud-orphan-probe-2026-08-18.md)).
+>
+> ⭐ **The second point is what discharges this, and it is worth stating precisely.**
+> `unavailable_on_platform` was written as a holding value — true, but pending a better proof. The
+> probe converts it into the **permanent and complete** answer: there is no better proof, and there
+> will not be one without a change on Supabase's side. A record saying *"metadata absent; byte proof
+> unavailable on this platform"* is now **exactly as strong as the truth**, which is the entire
+> demand this instance made. The claim the platform could not substantiate is no longer being made.
+>
+> ⛔ **Not established, and it must not be read in:** that orphaned bytes are *absent* on Cloud. The
+> probe proves they are **unobservable** — the opposite of reassuring. Under Rule 12 that is a
+> standing, PO-ratified limit (ADR 0120 D9 amendment), not a closed risk.
 
 ⭐ **Filed undecided rather than merged on backend's own judgement — the lead ruled that was the
 correct call, and it is noted as such.** The alternative (quietly folding it into the class, or

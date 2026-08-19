@@ -319,7 +319,13 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      (ADR 0114 **O2** is the open PO item to close that). `disposal_state` is the ADR 0121
      lifecycle (`none` → `disposal_pending` → `disposed`). ⚠ **`disposed` asserts "metadata row
      gone", NOT "bytes gone"** — the two are different facts and only one of them is a claim to a
-     regulator (FUP-DM5-NO-ANSWER-VS-NOTHING).
+     regulator (FUP-DM5-NO-ANSWER-VS-NOTHING, ⬛ closed 2026-08-19). ⛔ **The distinction did not go
+     away when the follow-up closed — it was made LEGIBLE.** ADR 0121 **D4** puts the answer in the
+     row: **read `disposal_evidence`, never `disposal_state` alone.** It carries `metadata_absent` +
+     `metadata_source` (what the door genuinely checks) and a closed-vocabulary `byte_proof`
+     (`local_volume_verified` / `unavailable_on_platform` / `not_attempted`). On Supabase Cloud
+     `unavailable_on_platform` is not a placeholder — it is the **permanent** answer, measured: all
+     five Cloud surfaces are metadata-bound (`docs/progress/cloud-orphan-probe-2026-08-18.md`).
      ⛔ **AND THE OPERATIONAL HALF, which belongs in the canon because the sharp fact above reads as
      reassuring without it** (added at the DM5 **phase** QA, R4, where the DM5 plan had required it
      since S5.D.4): **NOTHING COMPLETES A DISPOSAL AUTOMATICALLY.** `complete_document_disposal`

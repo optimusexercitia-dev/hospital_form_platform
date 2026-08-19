@@ -266,7 +266,14 @@ sees today's 699 is the local **proof**, not the gate, because it depends on
 >    **verification** is materially weaker on Cloud than the local rehearsal demonstrates, so a Cloud
 >    run **must not gate on the count comparison alone**, and `capture`'s exit code is unusable there
 >    as a gate (every bucket verdicts `UNVERIFIED_NO_LOCAL_PROOF` ⇒ exit 1; the only route to exit 0 is
->    `--allow-orphans`, which also silences genuine orphan verdicts). ⚠ **Whether D9 needs a formal
+>    `--allow-orphans`, which also silences genuine orphan verdicts).
+>    ⚠ **AMENDED 2026-08-19 by ADR [0128](./0128-unproven-is-not-clean-capture-outcome-classes.md) —
+>    the parenthesis above is HISTORY.** That conflation was `FUP-DM5-NO-ANSWER-VS-NOTHING` instance 1
+>    and is fixed: unproven is now exit **3** with its own acknowledgement (`--allow-unproven`), dirty
+>    stays exit **1** and cannot be silenced by it, and `--allow-orphans` is refused. **The
+>    surrounding sentence still stands** — an exit code that says "no measurement happened" is still
+>    not a byte-level gate on Cloud, where no such measurement is obtainable at all.
+>    ⚠ **Whether D9 needs a formal
 >    amendment — a Cloud-specific verification step, or an explicit ratification that the under-count
 >    class is accepted as unverified — is a PO decision at S6. It is recorded here, unresolved, rather
 >    than resolved silently in a runbook.** Full record: `docs/progress/dm5-s5-operational-closure.md`.
