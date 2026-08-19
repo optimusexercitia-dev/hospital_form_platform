@@ -13,8 +13,8 @@ suite stayed `PASS` (no keystone exercises it). **ERROR** = run shape != baselin
 identity guard to open (the gate is a conjunct inside the query), so this harness
 returns NO verdict about it — it is not swept, and it stays in the census backlog.
 
-Baseline: Files=161, Tests=4921, Result: PASS.
-Row-returning doors in the live catalog: 45.
+Baseline: Files=197, Tests=6514, Result: PASS.
+Row-returning doors in the live catalog: 51.
 
 ## BLIND — the work-list (no keystone exercises these)
 
@@ -22,41 +22,22 @@ Row-returning doors in the live catalog: 45.
 |---|---|---|---|---|
 | public.get_case_meeting_links(p_case_id uuid) | rowdoor | open-guard(1) | BLIND |  |
 
-> ⚠ **HAND-MERGED, 2026-08-06 (QO·A / ADR 0100).** The `public.quality_board_summary`
-> row below was merged by hand from a **diff-scoped** run (baseline Files=171,
-> Tests=5297, Result: PASS) — a subset run OVERWRITES this report (ADR 0079 Amendment 1
-> hazard 1). The same run RE-swept the six aggregate `dashboard_*` doors after M5
-> (`20260911000400`) OR-ed `app.can_read_quality_dashboards` into their gates: all six
-> still COVERED (now additionally noticed by `309_dashboard_quality_arm.sql` /
-> `310_quality_board_door.sql`); their standing rows below are left as generated.
-
-> ⚠ **HAND-MERGED, 2026-08-07 (PDF·P1 / ADR 0104).** The `public.open_printed_document`
-> row below was merged by hand from a **diff-scoped** run (baseline Files=173,
-> Tests=5444, Result: PASS; COVERED 1, BLIND 0, UNSUPPORTED 0) — a subset run
-> OVERWRITES this report (ADR 0079 Amendment 1 hazard 1). Its call-time authority is
-> additionally A33 drill-proven (D3: guard drop → 312 t27/t28 RED). The write doors
-> `mint_printed_document` / `revoke_printed_document` and the service_role-only
-> `lookup_printed_document` are outside this sweep's authenticated-reachable
-> row-door domain; their gates are RED-proven by the 312 A33 drills (D2/D4/D6).
-
 ## COVERED (asserted-through) + ERROR (harness bug)
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
-| public.open_printed_document(p_id uuid) | rowdoor | open-guard(1) | COVERED | 312_printed_documents.sql (PDF·P1 hand-merge — see header note) |
-| public.quality_board_summary(p_organization_id uuid) | rowdoor | open-guard(1) | COVERED | 310_quality_board_door.sql (QO·A hand-merge — see header note) |
 | public.case_action_items_kpis(p_commission_id uuid) | rowdoor | open-guard(1) | COVERED | 113_case_action_items.sql |
-| public.case_tag_report(p_commission_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 112_case_tags.sql |
-| public.dashboard_completion_by_member(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql |
-| public.dashboard_distributions(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 100_dashboard.sql,270_authz_dashboard_gate_uniformity.sql |
+| public.case_tag_report(p_commission_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 112_case_tags.sql,314_qob_org_admin_content_wall.sql |
+| public.dashboard_completion_by_member(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql,309_dashboard_quality_arm.sql,314_qob_org_admin_content_wall.sql |
+| public.dashboard_distributions(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 100_dashboard.sql,270_authz_dashboard_gate_uniformity.sql,309_dashboard_quality_arm.sql |
 | public.dashboard_entity_references(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql |
-| public.dashboard_export_rows(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql |
+| public.dashboard_export_rows(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql,309_dashboard_quality_arm.sql,314_qob_org_admin_content_wall.sql |
 | public.dashboard_form_totals(p_commission_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 172_phaseb_rls_rewrite.sql,270_authz_dashboard_gate_uniformity.sql |
-| public.dashboard_free_text(p_form_id uuid, p_from date, p_to date, p_limit integer) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql |
+| public.dashboard_free_text(p_form_id uuid, p_from date, p_to date, p_limit integer) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql,309_dashboard_quality_arm.sql,314_qob_org_admin_content_wall.sql |
 | public.dashboard_matrix_cells(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql |
 | public.dashboard_risk_scores(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql |
 | public.dashboard_submissions_over_time(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql |
-| public.documents_due_for_review(p_commission uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
+| public.documents_due_for_review(p_commission uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql,314_qob_org_admin_content_wall.sql |
 | public.evidence_candidates(p_commission uuid, p_kind text, p_query text) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
 | public.get_meeting_agenda_items(p_meeting_id uuid) | rowdoor | open-guard(1) | COVERED | 245_authz_c7_org_user_meeting_surface.sql |
 | public.get_meeting_cases(p_meeting_id uuid) | rowdoor | open-guard(1) | COVERED | 245_authz_c7_org_user_meeting_surface.sql |
@@ -68,13 +49,15 @@ Row-returning doors in the live catalog: 45.
 | public.indicator_kpis(p_commission uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
 | public.indicator_series(p_indicator uuid, p_from text, p_to text) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
 | public.list_addable_commission_members(p_commission_id uuid, p_search text) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
-| public.list_approver_candidates(p_commission uuid) | rowdoor | open-guard(1) | COVERED | 200_controlled_documents.sql |
-| public.list_org_people(p_org_id uuid, p_search text, p_cpf text) | rowdoor | open-guard(1) | COVERED | 302_affiliation_doors.sql |
-| public.list_case_access(p_case uuid) | rowdoor | open-guard(1) | COVERED | 144_case_access.sql |
-| public.list_commission_documents(p_commission uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
+| public.list_approver_candidates(p_commission uuid) | rowdoor | open-guard(1) | COVERED | 200_controlled_documents.sql,303_dominance_grid.sql |
+| public.list_case_access(p_case uuid) | rowdoor | open-guard(1) | COVERED | 144_case_access.sql,314_qob_org_admin_content_wall.sql |
+| public.list_commission_documents(p_commission uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql,314_qob_org_admin_content_wall.sql |
+| public.list_org_people(p_org_id uuid, p_search text, p_cpf text) | rowdoor | open-guard(1) | COVERED | 302_affiliation_doors.sql,316_act_p0_caller_gate_sweep.sql |
 | public.list_referral_target_commissions(p_source_commission_id uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
 | public.list_signoff_queue(p_commission_id uuid) | rowdoor | open-guard(1) | COVERED | 205_administrativo.sql,80_signoffs.sql |
-| public.open_attachment(p_id uuid) | rowdoor | open-guard(2) | ERROR | 228_ethics_e1.sql · QO·A M9 (2026-08-06): the multi-line `has_case_capability(CASE…END)` arm defeats the neutralizer's paren-matcher (pre-existing 2-guard ERROR, not M9-caused). "ERROR is not a pass" → covered ARM-SCOPED by q1 `open_resolver_door` → 308 §5.5 RED-PROVEN (reviewer resolves 0 / coordinator 1) |
+| public.open_printed_document(p_id uuid) | rowdoor | open-guard(1) | ERROR |  |
+| public.print_source_state(p_source_kind text, p_source_id uuid) | rowdoor | open-guard(1) | COVERED | 346_print_currency.sql |
+| public.quality_board_summary(p_organization_id uuid) | rowdoor | open-guard(1) | COVERED | 310_quality_board_door.sql,316_act_p0_caller_gate_sweep.sql |
 | public.readiness_evidence(p_commission uuid, p_standard uuid) | rowdoor | open-guard(1) | COVERED | 283_accreditation_readiness_report.sql |
 | public.readiness_report(p_commission uuid, p_framework uuid) | rowdoor | open-guard(1) | COVERED | 283_accreditation_readiness_report.sql |
 | public.triage_disposition(p_event_id uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
@@ -90,12 +73,15 @@ walk-through keystone in the shape of `supabase/tests/299_hospital_content_door_
 |---|---|---|---|---|
 | public.capa_kpis() | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
 | app.case_phase_option_aggregates(p_case_phase_id uuid) | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
+| public.commission_cadence_overview() | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
 | public.commission_overview() | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
+| public.document_delete_affordances(p_document_ids uuid[]) | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
 | app.eligible_voters(p_case_id uuid) | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
 | public.list_cases_board(p_commission_id uuid, p_limit integer) | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
 | public.list_my_assigned_capa_actions() | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
 | public.my_pending_meeting_signatures() | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
 | public.pqs_inbox(p_status text, p_suspected_harm_level text, p_reporting_commission_id uuid, p_cursor_reported_at timestamp with time zone, p_cursor_id uuid, p_limit integer) | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
+| public.printed_document_currency(p_ids uuid[]) | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
 | app.response_validation_errors(p_response_id uuid) | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
 | app.signoff_target(p_response_id uuid, p_section_id uuid) | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
 | app.submitted_form_responses(p_form_id uuid) | rowdoor | open-guard | UNSUPPORTED | no statement-level identity guard — the gate is a conjunct inside the query |
