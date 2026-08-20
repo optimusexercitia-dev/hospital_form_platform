@@ -131,9 +131,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   read **GRANTED** (N14). ⛔ What was owed was the **record**, not the work — yet "filed nowhere" was
   carried for a day as "unbuilt", which would have re-done all three.
   **▶ Resume: gate step 4 (PO approval) → step 5 (record + rotation) → merge + push.**
-  ⛔ **Not merged, not pushed** — **13** ahead of `origin/main`, local `main` separately **4** ahead,
-  tree **clean**. ⛔ **Re-measure, never re-read this line** (`git rev-list --count origin/main..HEAD`):
-  it said **9** and "4 uncommitted files", and both were false inside the same day.
+  ⛔ **Not merged, not pushed**; local `main` is separately ahead, unpushed. ⛔ **No commit count
+  appears here, deliberately** — measure it (`git rev-list --count origin/main..HEAD`). This line
+  carried **9** with "4 uncommitted files" (both false within the day), was corrected to **13**, and
+  the correcting commit made it **14** in the same act. A count in a tracked file is stale by
+  construction; § Bug Log declines to carry one for the same reason.
   ✅ branch renamed 2026-08-20 to `feat/dsr-subject-request-workflow` — the old name said "slice-2"
   while carrying all four slices.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
