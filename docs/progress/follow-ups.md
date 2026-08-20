@@ -4593,6 +4593,40 @@ sound only while the doors really do clear their lane. A confirmed under-erasure
 line the same species of over-claim `FUP-DISPOSE-DIALOG-OVERCLAIM` was filed to remove, in
 the constant written to prevent it. Re-check the notice as part of closing this item.
 
+### 🟠 FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED — the reopen corridor is the fallback remedy for PHI in free text, and its coverage is measured for ONE lane of seven (owner: backend + PO; filed 2026-08-20 when the PO asked whether minutes-adjustment mechanisms already existed)
+
+Filed 2026-08-20 (lead). ADR
+[0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) **Amendment 2**
+promotes the reopen corridor from "a documented procedure" to **the platform's corrective
+control** for PHI that reaches free text despite training. A control that load-bearing needs
+its coverage known, and it is known for exactly one lane.
+
+**Measured 2026-08-20:**
+- **Seven `reopen_*` doors exist** — `meeting`, `case`, `referral`, `rca`, `capa_plan`,
+  `interview`, `triage`.
+- **Only the MEETING corridor has analysed bounds** (ADR 0056 Amdt 1): `reopen_meeting`
+  reaches only `in_signature` and `signed`, so a **`distributed` or `cancelled`** meeting's
+  non-erased free text cannot be changed by *any* door; and its gate
+  (`is_staff_admin_of`) is **narrower** than `dispose_meeting_minutes`' (`is_staff_admin_of`
+  **OR** `is_tenancy_admin_of`), so the operator who may erase may not be the one who may
+  correct.
+- **The gate split is NOT uniform** — only **2 of 7** doors mention `is_staff_admin_of` — so
+  ⛔ neither bound above may be generalised to the other six **in either direction**. That
+  they might be *wider* is as unproven as that they might be narrower.
+
+**What must happen.** For each of the other six lanes, measure the same two properties from
+the catalog: (a) which locked states the door can reverse, against the states its lane's
+child-lock/guard covers — ⭐ *a gate says what it refuses; only the **transition graph** says
+what is reachable*, the exact error ADR 0056 Amdt 1 corrected for meetings; and (b) whether
+the reopen gate is narrower than the corresponding erasure door's. Record a per-lane verdict,
+so a lane with **no** corrective path is named rather than assumed.
+
+⚠ **Why this is 🟠 and not 🟡.** Under ADR 0131 the corridor is what makes the accepted
+residual risk *mitigable*. Wherever it does not reach, PHI typed into free text is
+**permanent** — and the pilot's risk acceptance is recorded without knowing where those
+places are. ⛔ This is not a claim that gaps exist beyond the measured meeting one; it is that
+nobody has looked.
+
 ### 🟡 FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING — `DSR_RESIDUE_NOTICE` line 1 is now CONDITIONALLY true, and the condition is a control the software cannot enforce (owner: PO copy call, then frontend; created by ADR 0131, 2026-08-20)
 
 Filed 2026-08-20 (lead). Not a defect — a **premise that became explicit** when ADR

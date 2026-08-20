@@ -39,8 +39,16 @@ MAY contain PHI.**
    store would contradict Rule 12.
 2. **Out of scope for the pilot — free text and titles that may incidentally contain PHI.**
    No door is widened to cover a column on the grounds that PHI *could* be typed into it.
-3. **The compensating control is TRAINING**, not software: users are trained to enter PHI
-   exclusively in PHI-specific fields.
+3. **The compensating controls are TWO-LAYERED** — ⚠ *this item said "the compensating
+   control is TRAINING, not software", which understated the platform's own position; see
+   **Amendment 2**.*
+   - **Preventive — training:** users enter PHI exclusively in PHI-specific fields
+     (reinforced by the `*.title` helper text promoted in Amendment 1).
+   - **Corrective — the reopen corridor:** `reopen_meeting` → edit → re-sign, already BUILT,
+     already the sanctioned surgical prose-redaction path under ADR 0130 D7, and already
+     documented to operators in `DSR_ATTEST_PROCEDURE_COMMON`. ⛔ **Bounded**: it reaches
+     only 2 of the 4 locked meeting states, and its gate is narrower than the disposal
+     door's. Amendment 2 carries the measurements.
 4. **Already-implemented erasure reach is MAINTAINED, not rolled back.** The ADR 0056
    Amendment 1 meeting widening (10 columns) stays as built. This decision bounds future
    extension; it does not reverse shipped behaviour.
@@ -133,3 +141,62 @@ turned out to rest on a second obligation this ADR does not govern.
 | `FUP-VACUOUS-COVERAGE-1` — "two PHI-remediation tests that NEVER RUN" | **Unaffected.** Reads as an erasure item; REM-8/REM-9 actually assert **audit emission** (`rca.viewed`, `capa_plan.viewed`) — Rule 11. The *spec file* is named `phi-remediation`; the tests are not about redaction. Checked in the spec, not in the follow-up's summary. |
 | `BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE` | **Unaffected** — the dialog fires `dispose_referral_phi`, which erases `referral_patient`, a designated Class-1 module. Squarely "perfect execution". |
 | `FUP-E2E-ABSENT-ROW-ASSERTIONS` | **Unaffected, arguably promoted** — its live instances assert that PHI erasure *happened* (`phi_disposed_at`, `audio_deleted_at`, `purged_at`) and pass when the row is absent. Verifying the confirmed set is exactly this decision's priority. |
+
+## Amendment 2 — the compensating control is NOT training alone: a correction corridor exists, is documented to operators, and is BOUNDED
+
+**2026-08-20, same day, prompted by the PO asking whether mechanisms to adjust meeting
+minutes were not already being built.** They were, and this ADR understated the platform's
+position by naming only the preventive control.
+
+### What exists (measured, catalog + shipped copy)
+
+- **`reopen_meeting` → edit → re-sign is BUILT**, and ADR
+  [0130](./0130-dsr-subject-request-workflow.md) **Decision 7** makes it the *sanctioned
+  surgical prose-redaction path* (Q10a) — an in-place redaction door was deliberately
+  **rejected** in its favour, not merely omitted.
+- **Operators are already told the procedure.** `DSR_ATTEST_PROCEDURE_COMMON`
+  (`src/lib/dsr/messages.ts`) ships: *"Para remover uma menção em conteúdo já bloqueado:
+  reabra a reunião, edite o trecho e assine novamente. A nova revisão invalida as impressões
+  já registradas."* — and *"Não existe remoção parcial de conteúdo bloqueado por outro
+  caminho."* The corridor is not a theoretical fallback; it is live guidance in the DSR
+  workflow.
+- **Seven `reopen_*` doors exist** across lanes (`meeting`, `case`, `referral`, `rca`,
+  `capa_plan`, `interview`, `triage`), so the corrective pattern is not meeting-specific.
+
+**So the control set is two-layered, and this ADR should have said so:**
+**preventive** — training, plus the `*.title` helper text promoted in Amendment 1;
+**corrective** — the reopen corridor, for prose that slips through anyway.
+
+### ⛔ But the corridor is bounded, and the bounds matter MORE under this decision
+
+Once free text is out of erasure scope, the corridor becomes the *only* remedy for PHI typed
+into it — so its coverage gaps become the platform's exposure. Measured, from ADR 0056
+Amendment 1:
+
+1. **Two of the four locked meeting states have NO path at all.** `reopen_meeting` accepts
+   only `in_signature` and `signed`; `app.guard_meeting_status`' transition list contains no
+   arm whose `old.status` is `distributed` or `cancelled`, and every writer including RPCs
+   must satisfy that list. For a **distributed or cancelled** meeting, non-erased free text
+   *cannot be changed by any door*.
+2. **The operator who may dispose may not be the one who may correct.**
+   `dispose_meeting_minutes` gates on `is_staff_admin_of` **OR** `is_tenancy_admin_of`;
+   `reopen_meeting` gates on `is_staff_admin_of` **alone**.
+3. **It is expensive by design** — reopening revokes every signature, bumps
+   `meetings.revision`, and that epoch bump invalidates registered prints (ADR 0126 D9).
+
+⚠ **Only the MEETING corridor has measured bounds.** The other six `reopen_*` doors have
+never been analysed for this purpose, and the gate split is not uniform — **2 of 7** mention
+`is_staff_admin_of`, so neither bound above may be generalised in either direction. Filed as
+`FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED`.
+
+### Consequence
+
+**The residual risk this decision accepts is real but NOT unmitigable — and it is not
+uniformly mitigable either.** Most PHI that slips into prose can be removed through the
+corridor. For a distributed or cancelled meeting's non-erased columns, it cannot be removed
+at all. That is the honest statement of the accepted exposure, and it is what belongs
+wherever the pilot risk acceptance is recorded.
+
+⚠ **`FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING` is re-framed, not withdrawn:** the notice's
+premise is *training plus a bounded corrective path*, which is a stronger position than the
+follow-up was filed under. The copy question stands.
