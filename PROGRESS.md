@@ -62,13 +62,31 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   `FUP-SUPERSESSION-BADGE-LANE-BLIND` · 🟡 `FUP-E2E-SUBMITTED-POOL-UNSCOPED` · 🟡
   `FUP-PREVIA-MINT-FLAG-ASYMMETRY`. Plus 🟡 `FUP-LINT-VECTOR-DIMENSION-DRIFT` (a gate proposal,
   filed not built).
+- **🆕 2026-08-19 — DSR ("Direitos do Titular") DESIGNED, ⛔ implementation NOT started (PO
+  instruction: a future session picks it up).** Sixteen PO-ratified decisions in a structured
+  design session: an **adjudicated DSR workflow** (refusal-with-basis first-class), a per-hospital
+  **`dpo` capability**, one task inbox at `/o/[org]/titulares` (flag `dsr`), hash-only DSR record
+  (Rule 12's "exactly three" survives), two-tier erasure claim, zero disposal-gate widenings, and
+  the **child-lock fix ruled as shape 2** (narrow `app.in_disposal_rpc`). ADRs
+  [0129](docs/decisions/0129-meeting-child-lock-disposal-flag.md) +
+  [0130](docs/decisions/0130-dsr-subject-request-workflow.md) (both **Proposed** — nothing may be
+  built); counsel's retention-overrides-erasure ruling recorded **with its scope question still
+  open** in ADR [0035](docs/decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1** (only the
+  refusal-guidance copy blocks on the return). **Resume point:
+  [dsr-workflow-plan.md](docs/plans/dsr-workflow-plan.md)** — Slice 1 (the 0129 fix) unblocks C1a;
+  Slice 2 discharges pilot-gate item 0. Filed alongside: 🟠 `FUP-DISPOSE-DIALOG-OVERCLAIM` · 🟠
+  `FUP-NOTIFICATIONS-PHI-RESIDUE` · 🟡 `FUP-XREF-PEPPER-ROTATION-ORPHANS` · 🔵
+  `FUP-ADR0121-REASON-VALUE-DRIFT` (an ADR-sweep found all four logged-but-never-registered).
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
      [`phi-disposal-runbook.md`](docs/deployment/phi-disposal-runbook.md).
-     ⛔ **BLOCKED, newly, by `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`** —
+     ⛔ **BLOCKED by `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`** —
      `dispose_meeting_minutes` **raises** on any locked meeting that has agenda items, i.e.
-     exactly the population carrying PHI. ⚠ **The rehearsal must name a locked meeting WITH
+     exactly the population carrying PHI. ⭕ **Fix RULED 2026-08-19 (ADR
+     [0129](docs/decisions/0129-meeting-child-lock-disposal-flag.md), shape 2 — narrow flag), NOT
+     built; the block stands until its evidence exists** (DSR plan Slice 1).
+     ⚠ **The rehearsal must name a locked meeting WITH
      agenda items as a fixture**, or it goes green having exercised only the case that works.
   2. **C2 Tier 1 sizing** (absorbs `Q1-OPEN-BYTES-CUT` + `SIBLING-GUARD-DIFF`).
   3. **`FUP-DM4-PRODROW`** — now actionable: re-derive a magnitude, or rule that it
@@ -237,6 +255,9 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-19 | **Counsel ruling RECORDED, scope OPEN: 20-yr retention overrides LGPD Art. 18 erasure** (PO-relayed). Quoted, not paraphrased; the scope question (prontuário-only vs governance records?) is back with counsel. ⛔ No door/enum change; only DSR refusal-guidance copy blocks on the return | ADR [0035](docs/decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1** |
+| 2026-08-19 | **DSR workflow DESIGNED — adjudicated requests, split powers (`dpo` capability intakes/closes; existing door-holders execute), hash-only record, two-tier claim, `/o/[org]/titulares`, flag `dsr`; ZERO disposal-gate widenings** (PO, 16 decisions). ⛔ Proposed — implementation waits for a future session | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) · [plan](docs/plans/dsr-workflow-plan.md) |
+| 2026-08-19 | **Child-lock fix RULED shape 2 — new narrow `app.in_disposal_rpc`, read only by `guard_meeting_child_lock`, set only by `dispose_meeting_minutes`; shape 1 rejected as a widening** (PO, Q11). ADR 0126 §E must be amended in the same change | ADR [0129](docs/decisions/0129-meeting-child-lock-disposal-flag.md) |
 | 2026-08-19 | **Both § 6b backup residues PROMOTED to § Critical FUP — C3 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (🔴) + C4 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (🟠)** (PO, explicit instruction). ⭐ C3 shares C1's pilot-data-load trigger for the **opposite** reason; C4 is reachable on Cloud **today** | [run log](docs/deployment/phi-backup-run-log.md) F5/F6 · **§ Critical FUP C3/C4** · [decisions-log](docs/progress/decisions-log.md) |
 | 2026-08-19 | ⛔ **"PROGRESS.md is loaded by every spawn" IS FALSE, and never was** — no `@`-import has ever existed. The claim sat in ADR 0124, the banner, the gate header and an external handoff. Always-loaded is CLAUDE.md 32 KB + MEMORY.md 20 KB; this file is read on demand | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) **Amdt 1** |
 | 2026-08-19 | **Standing rules move to `.claude/rules/` with `paths:`, admitted only if they declare checkable anchors and no gate already enforces them — 5 of 9 candidates REJECTED** (PO) | ADR [0127](docs/decisions/0127-standing-rules-home-and-staleness-gate.md) |
@@ -332,7 +353,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 
 - 🟠 **FUP-DM5-SUPERSEDE-SERVING-COLLISION** — ✅ **PO-RULED 2026-08-18 as option (b): supersession no longer marks bytes; the trigger moves to RETENTION EXPIRY** — backend
 - 🟠 **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — ⭐ **⭐ CRITICAL FUP C2. `ARM=census`'s DEFINER clause is bounded to `bool`/set-returning, so 407 reachable non-trigger command doors (326 RPC-callable) sit outside every arm's domain. ⭕…** — lead + backend
-- 🔴 **FUP-ACT-DISPOSE-UI** — LGPD Art. 18 referral-erasure has no UI route (authorized ∩ reachable = ∅); **PILOT-GATE CHECK, item 0 of [dm5-po-decisions.md](docs/progress/dm5-po-decisions.md) § "Remaining pre-pilot work"** — PO
+- 🔴 **FUP-ACT-DISPOSE-UI** — LGPD Art. 18 referral-erasure has no UI route (authorized ∩ reachable = ∅); **PILOT-GATE CHECK, item 0 of [dm5-po-decisions.md](docs/progress/dm5-po-decisions.md) § "Remaining pre-pilot work"**. ⭕ **Mount DECIDED 2026-08-19: subsumed by the DSR task inbox** (ADR 0130 / plan Slice 2) — open until that route ships and the check passes — PO
 - 🟠 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — **PARTIALLY RESOLVED 2026-08-17 (`4102149b`); the filed remedy was WITHDRAWN as unbuildable** — lead/backend
 - 🔴 **FUP-PGTAP-VACUOUS** — `lint:vacuous` scans TS specs only; ~6348 pgTAP assertions unscanned, live specimen in a PHI-boundary suite. The sweep must be **proven able to fail** first — lead/backend
 - 🔴 **FUP-AFF-1** — the census is BLIND to write-path doors (ADR 0079 Am. 5); ⛔ cite `302`'s keystones, **never `ARM=census`** — backend/harness
@@ -345,7 +366,11 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🔴 **FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM** — ⭐ **CRITICAL FUP C3 (PO-promoted 2026-08-19).** § 6b's mechanism is `docker exec … tar`, local-only; managed backups **exclude Storage objects by documented design** ⇒ **the pilot platform has NO Storage recovery point at all**. ⭐ It **inverts** its parent: an *absent* backup, not an over-wide one — PO/backend/lead
 - 🟠 **FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED** — ⭐ **CRITICAL FUP C4 (PO-promoted 2026-08-19).** § 6b's five values are scoped to *"the archive"*, yet the same section mandates a `db dump` + **scratch database** to earn *"verified good"* — neither governed, and nothing says to drop the scratch DB. ⚠ **Reachable on Cloud today** — PO/backend
 - 🟠 **FUP-DM5-DISPOSAL-JOB** — ⭐ **CRITICAL FUP C1, split into C1a (local) + C1b (Cloud) on 2026-08-18; the pilot bound is C1b.**
-- 🔴 **FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE** — ⛔ **BLOCKS C1a/C1b.** `dispose_meeting_minutes` sets `app.in_meeting_rpc` with the comment *"bypass the meeting freeze guards"* — **`app.guard_meeting_child_lock` does not read that flag** (measured from `pg_get_functiondef`; it is on 4 child tables). So the door nulls `minutes_md`, then **raises** on the agenda UPDATE and rolls back: **PHI erasure is impossible for any meeting at `in_signature`+ that has agenda items**, i.e. exactly the population that carries PHI. Constructed with 3 probes (with-agenda ⛔ raises · agenda-less ✅ disposes). ⚠ **The C1a rehearsal must name a locked meeting WITH agenda items as a fixture** or its green proves nothing. Fix is a real design question (3 shapes, none ruled — option 1 is a widening) — backend/PO
+- 🔴 **FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE** — ⛔ **BLOCKS C1a/C1b.** `dispose_meeting_minutes` sets `app.in_meeting_rpc` with the comment *"bypass the meeting freeze guards"* — **`app.guard_meeting_child_lock` does not read that flag** (measured from `pg_get_functiondef`; it is on 4 child tables). So the door nulls `minutes_md`, then **raises** on the agenda UPDATE and rolls back: **PHI erasure is impossible for any meeting at `in_signature`+ that has agenda items**, i.e. exactly the population that carries PHI. Constructed with 3 probes (with-agenda ⛔ raises · agenda-less ✅ disposes). ⚠ **The C1a rehearsal must name a locked meeting WITH agenda items as a fixture** or its green proves nothing. ⭕ **Fix RULED 2026-08-19: shape 2, narrow `app.in_disposal_rpc`** (ADR [0129](docs/decisions/0129-meeting-child-lock-disposal-flag.md); build = DSR plan Slice 1) — **NOT built, block stands** — backend/PO
+- 🟠 **FUP-DISPOSE-DIALOG-OVERCLAIM** — the shipped referral-dispose copy is ADR 0056 (b)'s forbidden "tudo apagado" over-claim (*"apaga permanentemente … todos os campos"*, no retained-bytes mention) AND offers the Art. 18 reason counsel's ruling may close. Fix = the shared residue-language constant, [DSR plan](docs/plans/dsr-workflow-plan.md) Slice 4 — frontend
+- 🟠 **FUP-NOTIFICATIONS-PHI-RESIDUE** — `notifications.title/body` copy entity text at write time and **no dispose door touches the table**: a granted disposal leaves pre-redaction PHI in every notification the entity emitted. Fix = scrub-by-(entity_type,entity_id) in all four doors + pgTAP pins w/ vacuity control, DSR plan Slice 4 — backend
+- 🟡 **FUP-XREF-PEPPER-ROTATION-ORPHANS** — rotating `mrn_pepper` permanently orphans DISPOSED `patient_xref` rows (raw MRN gone, key unrecomputable); ADR 0039 logged it as "follow-up", never registered. Every granted erasure widens the unrotatable population. Decide before any rotation task is scoped — backend
+- 🔵 **FUP-ADR0121-REASON-VALUE-DRIFT** — ADR 0121 Amdt 2 deliberately left the `superseded`-vs-`retention_expired` reason value OPEN; the D11 register body already states `'superseded'` as if chosen (live CHECK still admits only the original five). The D11 implementing slice decides explicitly + records in the ADR's reserved slot; neither value citable as decided until then — lead
 - 🔵 **FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN** — **⚠ HALF RESOLVED 2026-08-17 (`24cee179`): the fail-open half is fixed and proven; the arm is still a no-op pending a NAMED successor (deliberately not re-pointed — a successor must be named,…** — backend
 - 🟠 **FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES** — ✅ **DECIDED 2026-08-18: BUILD IT, at retention expiry** — backend
 - 🟠 **FUP-DM5-SIBLING-GUARD-DIFF** — **no authz arm can see a door that OMITS a check its siblings all make** — lead/backend

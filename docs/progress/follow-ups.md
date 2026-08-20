@@ -959,6 +959,17 @@ true as the runbook is actually executed.
 
 ### 🔴 FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE — `dispose_meeting_minutes` **cannot complete** on any locked meeting that has agenda items; its own "bypass the freeze guards" comment is FALSE (owner: backend + PO; **blocks Critical FUP C1a/C1b**, Rule 12 / LGPD Art. 18)
 
+> ⭕ **FIX RULED 2026-08-19 (PO, DSR design session Q11) — shape 2: a new narrow flag
+> `app.in_disposal_rpc`, read ONLY by `guard_meeting_child_lock`, set ONLY by
+> `dispose_meeting_minutes`.** Shape 1 (honour `app.in_meeting_rpc`) REJECTED as a widening —
+> ADR 0126 §E leans on the guard refusing inside RPCs; shape 3 rejected (redaction outside the
+> audited door). Full decision + obligations (the with-agenda pgTAP fixture, the no-flag
+> differential, the sibling over-grant twin, the diff-scoped sweep, the same-change ADR 0126 §E
+> amendment): ADR [0129](../decisions/0129-meeting-child-lock-disposal-flag.md); build slot:
+> [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 1**. ⛔ **NOT BUILT — the item
+> stays OPEN and C1a/C1b stay blocked until the 0129 evidence exists**, per PO instruction that
+> implementation waits for a future session.
+
 Filed 2026-08-18 (lead) — found by `backend` during the ADR 0125/0126 build while sweeping the writers of
 the content the meeting template renders, and **independently re-measured from the live catalog by the lead
 before filing**. Not the prévia build's subject; filed so it is not carried inside a build that does not own it.
@@ -4281,6 +4292,16 @@ rule out.**
 
 ### 🔴 FUP-ACT-DISPOSE-UI — LGPD Art. 18 referral-erasure has no UI route (owner: PO — mount point)
 
+> ⭕ **MOUNT POINT DECIDED 2026-08-19 (PO, DSR design session Q8b/Q16): SUBSUMED by the DSR task
+> inbox at `/o/[org]/titulares`** (ADR [0130](../decisions/0130-dsr-subject-request-workflow.md)
+> Decision 11; [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 2**, which includes
+> running THIS item's check and recording the named persona). Executors fire the existing doors
+> under their own sessions — zero gate changes. The same surface also gives `dispose_meeting_minutes`
+> its first UI (ADR 0056 Consequence (a), never built — verified 2026-08-19: no component calls the
+> case/event/meeting dispose actions; only the referral dialog exists). ⛔ **The item stays OPEN and
+> stays pilot-gate item 0 until that slice ships and the check passes** — a decided mount is not a
+> working route.
+
 _Verbatim from PROGRESS.md § "Remaining pre-pilot work" item 0, where it was carried as a **pilot-gate
 check** rather than a follow-up-list entry. It stays item 0 of that list; this is its body._
 
@@ -4420,4 +4441,68 @@ and the new live index line it would have disappeared entirely. Substance, from 
 the S3 mint **creates a fresh `file_object`** rather than binding a pre-existing one, which is what
 ADR 0120 required S3 to ensure, so the concern **stays latent** — it becomes live only if a future
 slice binds an existing `file_objects` row into `document_version_files`. Re-check at S4/S5.
+
+### 🟠 FUP-DISPOSE-DIALOG-OVERCLAIM — the shipped referral-dispose copy is the exact "tudo apagado" over-claim ADR 0056 (b) forbade — and it offers an Art. 18 reason counsel may have closed (owner: frontend; fix vehicle: DSR plan Slice 4)
+
+Filed 2026-08-19 (lead) — found by the disposal-touching-ADR sweep as an ADR 0056 Consequence that
+was logged there and never entered this register; then verified against the shipped component.
+
+**The defect, verbatim from the tree.** ADR 0056 Consequence (b) required the disposal-confirmation
+copy to reflect the **narrowed claim** — *"no 'tudo apagado' over-claim; it should say DB PHI is
+erased and attachments are retained encrypted under retention."*
+`src/components/referrals/referral-dispose-dialog.tsx` ships: *"Remove **permanentemente** a
+identificação do paciente e **todos os campos com dados sensíveis** … Esta ação é irreversível"* and
+*"apaga **permanentemente** … Não é possível desfazer"* — no mention of retained bytes, PITR, or
+distributed copies. This is pt-BR compliance copy shown to the operator at the moment they discharge
+a legal obligation, asserting more than the mechanism delivers (ADR 0056 §4 narrowed the claim
+precisely because Storage blobs survive).
+
+**Aggravated 2026-08-19:** the same dialog offers *"Solicitação do titular (LGPD Art. 18)"* as a
+selectable reason while counsel's ruling (ADR
+[0035](../decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1**) has that lane's status
+unresolved pending the scope return.
+
+**Fix (decided, Q12a):** rewrite with the shared fixed residue-language constant —
+[dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 4**, which also owes the same copy to
+every disposal surface the DSR inbox adds. Not a one-line patch: the residue language is decided
+once in the plan, never per-dialog.
+
+### 🟠 FUP-NOTIFICATIONS-PHI-RESIDUE — `notifications.title/body` copy entity text at write time and NO dispose door touches the table (owner: backend; fix vehicle: DSR plan Slice 4)
+
+Filed 2026-08-19 (lead) — measured during the DSR design session: `notifications` carries `title` +
+`body` built from entity labels/summaries at event time, and none of the four `dispose_*` door
+bodies references the table. ADR 0056 redacts `cases.label` *because* it is PHI-warned — but every
+notification that label ever generated keeps the pre-redaction text. So a `granted` disposal leaves
+PHI residue in a table the erasure claim never mentions.
+
+**Fix (decided, Q12a):** each dispose door gains a scrub of `notifications.title/body` by
+(`entity_type`, `entity_id`), one pgTAP pin each **plus the vacuity control** (a sibling entity's
+notification must survive — a scrub test that would also pass on `delete from notifications` is not
+a pin). [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 4**. Until built, the two-tier
+outcome record's residue language must not claim notifications are clean.
+
+### 🟡 FUP-XREF-PEPPER-ROTATION-ORPHANS — rotating `mrn_pepper` permanently orphans DISPOSED xref rows; documented in ADR 0039 as "follow-up", never filed (owner: backend; pre-pilot: decide, not build)
+
+Filed 2026-08-19 (lead) — from the disposal-ADR sweep. ADR
+[0039](../decisions/0039-patient-identity-cross-committee-linkage.md) Consequences: pepper rotation
+*"orphans disposed-row keys (the raw MRN is gone, so the key can't be recomputed) … a documented
+residual, **not** built (follow-up)"* — and no register entry was ever created. Measured 2026-08-19:
+1 live function references `mrn_pepper`; `patient_xref` holds rows whose `disposed_at` marks exactly
+the population a rotation strands. The interaction with the DSR program (ADR 0130) is that disposal
+**creates** the unrotatable population — every granted erasure widens it. Nothing to build now; the
+item exists so a future "rotate the pepper" task cannot be scoped without meeting it.
+
+### 🔵 FUP-ADR0121-REASON-VALUE-DRIFT — the `superseded`-vs-`retention_expired` question ADR 0121 Amdt 2 deliberately left open has been silently pre-answered by the D11 register entry (owner: lead)
+
+Filed 2026-08-19 (lead). ADR [0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md)
+Amendment 2: the reason value recorded when the retention clock fires on a superseded version is
+**deliberately left open** — *"the implementing slice decides it explicitly and records the choice
+here"*, because both candidate values are true and their regulator-facing meanings differ. But the
+`FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` body in this file already states
+`disposal_reason_category = 'superseded'` as if chosen. The live CHECK still admits only the
+original five values (measured 2026-08-19), so nothing is built on the drift — but the register is
+pre-empting an ADR's reserved decision, which is how an open question becomes a "decision" nobody
+made. **Fix:** the D11 implementing slice makes the call explicitly, records it in ADR 0121 Amdt 2's
+reserved slot, and reconciles the D11 body; until then, neither value may be cited as decided. (ADR
+[0130](../decisions/0130-dsr-subject-request-workflow.md) explicitly does **not** settle it.)
 

@@ -6,6 +6,42 @@ remediation (post external-consultant review) · **Relates to:** ADR
 ADR [0031](./0031-event-custody-ledger-and-phi-isolation.md) (PHI isolation),
 ARCHITECTURE.md Rules 11–12.
 
+> ## ⚠ AMENDMENT 1 (2026-08-19) — counsel's retention ruling: RECORDED, its SCOPE still open
+>
+> **What was reported.** The PO relayed a legal-team consultation, in substance: *"the
+> requirement to retain patient data for 20 years overrides any patient request to remove
+> data via LGPD [Art. 18]."* This replaces Decision 1's *reconciliation* of erasure with
+> retention by a *precedence*: the retention duty wins.
+>
+> ⛔ **What was NOT reported — and must be, before this amendment finalizes: the ruling's
+> SCOPE.** The question sent back to counsel (design session Q14, 2026-08-19):
+>
+> > *Does the CFM 1821/2007 20-year retention duty attach to quality-committee governance
+> > records (meeting minutes, referrals, committee case records) held outside the
+> > prontuário, or only to the medical record itself? If the former, state the basis; if
+> > the latter, Art. 18 erasure applies to this platform's records normally.*
+>
+> CFM 1821/2007's duty attaches to the **prontuário**; this platform is positioned beside
+> the EHR and does not duplicate it (CLAUDE.md §1). Reading a medical-record duty as
+> covering committee prose is a real rule quoted at a grain it may not bound — and here it
+> fails in the *permissive* direction (retaining PHI a subject asked to erase). An
+> approval recorded without its scope is the record class that goes stale silently; hence
+> the quote above, not a paraphrase of its conclusion.
+>
+> **Interim effect (until the return):** the `subject_request` disposal-reason value and
+> the doors are UNCHANGED — no lane is closed at the schema or gate level. The DSR
+> workflow (ADR [0130](./0130-dsr-subject-request-workflow.md)) is outcome-agnostic by
+> design: it can record `granted` and `refused_retention` outcomes either way, and only
+> its `refused_retention` guidance copy and default adjudication stance block on counsel's
+> answer. Precedent inside the tree: ADR [0072](./0072-ethics-access-spine.md) already
+> applies retention-over-erasure to Class-2 professional-identity records; this amendment
+> is about whether that extends to **patient** PHI in governance records.
+>
+> **Owed when the return arrives:** update this amendment with counsel's answer verbatim
+> + scope; settle ADR 0130's refusal guidance; re-examine the shipped dispose-dialog copy
+> (`FUP-DISPOSE-DIALOG-OVERCLAIM`), which currently offers *"Solicitação do titular (LGPD
+> Art. 18)"* as a reason for an erasure the hospital may have decided it will not perform.
+
 ## Context
 
 ADR 0030 reversed the no-patient-data rule and framed the platform's PHI posture
