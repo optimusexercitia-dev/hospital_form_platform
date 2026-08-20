@@ -13,7 +13,7 @@ program went stale within hours of being written, and that is the slice's own th
 
 | | |
 |---|---|
-| Branch | `feat/dsr-slice-2-execution-corridor` |
+| Branch | `feat/dsr-subject-request-workflow` — ⚠ **renamed 2026-08-20**; this handoff was written under the old name `feat/dsr-slice-2-execution-corridor` |
 | Head | **`7e370a19`** — `feat(dsr): the decision now governs the work …` |
 | Tree | **clean** |
 | State | ⛔ **NOT merged, NOT pushed** — 7 commits ahead of `origin/main` |

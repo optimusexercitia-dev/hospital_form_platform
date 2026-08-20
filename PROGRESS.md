@@ -118,7 +118,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ⚠ **No E2E reaches the changed dialog at all** (`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`), so the
   15 mutation-proven component tests are the only executable proof — a jsdom render is not a browser.
   ⛔ **Not merged, not pushed** (9 commits ahead of `origin/main`;
-  ⚠ the branch is still named `feat/dsr-slice-2-execution-corridor` and carries all four slices).
+  ✅ branch renamed 2026-08-20 to `feat/dsr-subject-request-workflow` — the old name said "slice-2"
+  while carrying all four slices).
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
