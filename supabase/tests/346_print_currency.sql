@@ -38,11 +38,13 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
--- Two meetings with NO agenda items. ⚠ Deliberate: `dispose_meeting_minutes`
--- RAISES on a locked meeting that has agenda items (app.guard_meeting_child_lock
--- reads no rpc flag), so the disposal leg below is only constructible on an
--- agenda-free meeting. Adding an agenda item here would make t5 vacuous by making
--- its fixture unreachable — filed as FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE.
+-- Two meetings with NO agenda items. ⚠ This was once FORCED: `dispose_meeting_minutes`
+-- used to RAISE on a locked meeting that had agenda items, so the disposal leg below was
+-- only constructible on an agenda-free meeting. ✅ Fixed 2026-08-19 by ADR 0129 (the
+-- narrow `app.in_disposal_rpc` stand-aside); the constraint is gone and agenda items
+-- would no longer break this fixture. They are still omitted here only because this
+-- suite is about print CURRENCY and does not need them — the locked-with-agenda
+-- population is covered by `348_disposal_flag_meeting_child_lock`.
 create temp table mm on commit drop as
   select '00000000-0000-0000-0000-0000000c0a01'::uuid as m_disp,
          '00000000-0000-0000-0000-0000000c0a02'::uuid as m_rev,

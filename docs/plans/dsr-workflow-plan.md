@@ -17,9 +17,11 @@ disagrees with the live catalog, **the catalog wins** (CLAUDE.md graphify except
 3. ✅ **Counsel's Q14 return ARRIVED 2026-08-19** (ADR 0035 Amdt 1 resolution + ADR 0130
    **Amendment 1**): committee records are NOT prontuário (CFM 1821 does not attach);
    removal requests adjudicated **case by case with legal consultation**; 20-yr retention
-   adopted **by default as institutional policy**. Nothing blocks on counsel anymore. ⚠ One
-   open confirmation at kickoff: the required/optional split of
-   `legal_consultation_ref` (0130 Amdt 1 item 3 is lead-drafted).
+   adopted **by default as institutional policy**. Nothing blocks on counsel anymore.
+   ✅ **The one open kickoff confirmation is CLOSED (PO, 2026-08-19): `legal_consultation_ref`
+   is NOT NULL for `granted` / `granted_partial` / `refused_retention`, optional for
+   `refused_identity` / `withdrawn`** — exactly as 0130 Amdt 1 item 3 drafted it. Nothing gates
+   Slice 2's migration now except ADR 0130's own status (still **Proposed**).
 4. Read `docs/progress/authz-handoff.md §7` before any RLS/gate work (standing ⭐ rule).
 5. Start at Slice 1.
 
@@ -60,8 +62,14 @@ commit) · Q16 `/o/[org]/titulares`, flag `dsr`, two-phase close, xref-based ide
 
 ### Slice 1 — the child-lock fix (ADR 0129). Standalone; FIRST; small.
 
-Backend only. **Unblocks Critical FUP C1a §3 → C1b → the pilot's PHI bound — do not
-couple it to any DSR schema.**
+Backend only. ✅ **SHIPPED 2026-08-19** — migration
+`20260930000100_disposal_flag_through_meeting_child_lock.sql`, suite
+`supabase/tests/348_disposal_flag_meeting_child_lock.sql` (15 tests). ⛔ **CORRECTION: it does
+NOT unblock C1a §3.** That link was wrong in grain — C1a is a run of the disposal runbook, which
+is the `file_objects`/Storage path, and `dispose_meeting_minutes` is disjoint from it in the
+catalog. What Slice 1 fixes is **meeting-minutes erasure**; C1a's status is unchanged. Full
+record: ADR [0129](../decisions/0129-meeting-child-lock-disposal-flag.md) § Build record +
+Consequences.
 
 1. Migration: `app.guard_meeting_child_lock` gains the single
    `current_setting('app.in_disposal_rpc', true) = 'on'` stand-aside;

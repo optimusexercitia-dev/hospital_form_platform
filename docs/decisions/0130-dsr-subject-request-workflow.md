@@ -34,9 +34,12 @@ precedent), Rule 12.
 >    outcomes, optional for `refused_identity` / `withdrawn`, CHECK-enforced). Holding 2
 >    makes the consultation part of every substantive adjudication; an unrecorded
 >    consultation is the approval-without-written-scope failure this program already paid
->    for once. ⚠ Lead-drafted interpretation of "together with legal consultation" —
->    confirm the required/optional split at implementation kickoff before the migration is
->    written.
+>    for once. ✅ **CONFIRMED BY THE PO at the Slice 1 kickoff, 2026-08-19: the split stands
+>    exactly as drafted** — NOT NULL for `granted` / `granted_partial` / `refused_retention`,
+>    optional for `refused_identity` / `withdrawn`. Rationale recorded so the CHECK is not
+>    re-litigated when it is written: counsel's holding 2 makes consultation part of every
+>    **substantive** adjudication, while an identity failure or a withdrawal never reaches the
+>    merits. This was the one open item gating Slice 2's migration; **it is closed.**
 > 4. **The `subject_request` lane is live** (no longer contingently closed): the dispose
 >    dialog's Art. 18 reason option is valid; `FUP-DISPOSE-DIALOG-OVERCLAIM` reduces to the
 >    over-claim alone.
@@ -121,8 +124,14 @@ from entities at write time and **no dispose door touches them**.
     meetings-dispose-UI gap (ADR 0056 Consequence (a), never built).
 12. **Repeat requests are idempotent via the xref's existing disposal columns** (Q16iv):
     disposed entries surface as history ("previously disposed on <date>"), never re-fire.
-13. **Sequencing** (Q13a): slice 1 = ADR 0129 alone (unblocks C1a §3 → C1b → the pilot's
-    PHI bound); slice 2 = minimal execution corridor (discharges pilot-gate item 0); the
+13. **Sequencing** (Q13a): slice 1 = ADR 0129 alone — ✅ **SHIPPED 2026-08-19**. ⛔ **Its
+    stated payoff was wrong in grain:** slice 1 does **not** unblock C1a §3 → C1b → the
+    pilot's PHI bound. Measured at build time, C1a is a run of the `file_objects`/Storage
+    disposal runbook and `dispose_meeting_minutes` is disjoint from it; what slice 1 fixes is
+    **meeting-minutes erasure**, which is this workflow's meeting lane (Decision 8) and not
+    the pilot bound. The slice ORDER is unaffected — slice 1 was still correctly first, as the
+    meeting lane's prerequisite. See ADR [0129](./0129-meeting-child-lock-disposal-flag.md)
+    Consequences. Slice 2 = minimal execution corridor (discharges pilot-gate item 0); the
     full workflow follows pilot-independently. Details: the plan document.
 
 ## Consequences

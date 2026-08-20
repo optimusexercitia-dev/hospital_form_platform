@@ -811,8 +811,8 @@ Tracked as **FUP-DM5-BACKUP-IS-PHI-EXPORT**.
 > findings** are recorded in **[`phi-backup-run-log.md`](./phi-backup-run-log.md)**; the four that
 > changed instructions are folded in above.
 >
-> ⛔ **This does NOT discharge Critical FUP C1a** (the § 3 disposal sequence was not run, and is
-> separately blocked by `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`) **nor C1b** — and finding F5
+> ⛔ **This does NOT discharge Critical FUP C1a** (the § 3 disposal sequence was not run) **nor
+> C1b** — and finding F5
 > is that this mechanism *has no Cloud form at all*, so C1b cannot inherit it. The § 3 UNREHEARSED
 > banner at the top of this document stands, unchanged and accurate.
 

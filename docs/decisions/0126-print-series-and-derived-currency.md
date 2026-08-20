@@ -458,8 +458,18 @@ it was never able to be.
 
 ⭐ **Stated positively, because it is what makes the bound safe:** `app.guard_meeting_child_lock` is installed on
 **four** child tables (`meeting_agenda_items`, `meeting_attendees`, `meeting_cases`, `meeting_closed_sessions`)
-and reads **no** RPC flag at all, so it refuses even inside RPCs. Agenda, attendee and closed-session content is
-genuinely frozen for every registering state, and is therefore not a currency exposure.
+and reads **exactly one** RPC flag — `app.in_disposal_rpc`, settable only by `public.dispose_meeting_minutes`
+(ADR [0129](./0129-meeting-child-lock-disposal-flag.md), built 2026-08-19) — so it refuses even inside every
+*other* RPC, including all 26 that set `app.in_meeting_rpc`. Agenda, attendee and closed-session content is
+genuinely frozen for every registering state, and is therefore not a currency exposure. The one door that does
+get through **erases** content rather than revising it, and §F already makes a disposed meeting stop
+registering, so the bound is unaffected.
+
+> ⚠ **Amended 2026-08-19** (ADR 0129 Decision 3). This paragraph previously read *"reads **no** RPC flag at
+> all"*. That was true when written and went false the moment the disposal flag landed — the exact
+> stale-positive-claim defect ADR 0129 exists to correct, reproduced inside the ADR that documented it. Pinned
+> by `supabase/tests/348_disposal_flag_meeting_child_lock.sql` t4/t5/t6/t13, which go RED if the stand-aside is
+> ever widened beyond that single door.
 
 ### F — DISPOSAL: a third registration conjunct for `meeting`, with the watermark in TANDEM (extension, PO-ruled)
 
@@ -487,10 +497,15 @@ was the first). Two instances is a pattern, so it becomes a standing obligation:
 > **Any refinement to a kind's LOCK predicate must re-derive that kind's WATERMARK in the same change, and the
 > vector fixture must gain the row that would have caught it.**
 
-⚠ A separate, **pre-existing** defect was found at this door and is **not** fixed here:
-`dispose_meeting_minutes` sets `app.in_meeting_rpc` with the comment *"bypass the meeting freeze guards"*, but
-`app.guard_meeting_child_lock` does not read that flag — so PHI erasure **raises** on any locked meeting that
-has agenda items. Filed as `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`; it blocks Critical FUP C1a/C1b.
+⚠ A separate, **pre-existing** defect was found at this door and was **not** fixed here:
+`dispose_meeting_minutes` set `app.in_meeting_rpc` with the comment *"bypass the meeting freeze guards"*, but
+`app.guard_meeting_child_lock` did not read that flag — so PHI erasure **raised** on any locked meeting that
+had agenda items. Filed as `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`. ⛔ That item was recorded as
+blocking Critical FUP C1a/C1b; measured 2026-08-19, **it never did** — C1a is the `file_objects`/Storage
+runbook and the two paths are disjoint (ADR 0129 Consequences).
+✅ **RESOLVED 2026-08-19** by ADR [0129](./0129-meeting-child-lock-disposal-flag.md) (migration
+`20260930000100`, suite `348`) — see the amendment in §E for what that changed about this section's
+neighbouring claim.
 
 ### G — `t14c` does not exist; the label is `14c`
 

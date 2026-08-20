@@ -2035,3 +2035,143 @@ them. ⭐ *A body plus a narrative mention is not an index entry; the index is w
 
 - ⬛ **FUP-DM5-BACKUP-IS-PHI-EXPORT** — ✅ **RESOLVED 2026-08-19 by EXECUTION** — a Storage backup is an unmanaged plaintext PHI export, and the S5 drill created one (245 files, 68 PHI-tier, no RLS, no audited door, no TTL). The widest PHI egress path the system has. Both remaining deliverables discharged: **destination path set** (archive `D:\phi-backups`, key `C:\Users\micha\phi-backup-keys` — separate volume) and the **§ 6b procedure executed end-to-end** on the local stack (census 812/14,691,282/231 PHI-tier → encrypted at creation → catalog-compared **812 = 812** + per-object hash → key-first destruction; the empty-archive control proven able to refuse). Record: [phi-backup-run-log.md](../deployment/phi-backup-run-log.md). ⛔ **Does NOT discharge C1a or C1b** — § 3 was not run, and the mechanism has **no Cloud form**. Residue carried by two NEW items, not dropped: 🔴 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` · 🟠 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` — PO/backend/lead
 - ⬛ **FUP-DM5-NO-ANSWER-VS-NOTHING** — ✅ **CLOSED 2026-08-19 — all six instances. ⭐ THE CLASS: an observable PROXY is substituted for the property that actually matters, always failing in the REASSURING direction.** Last open instance (1, `--allow-orphans`) fixed by ADR [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md): unproven (exit 3) and dirty (exit 1) are separate classes with separate acknowledgements, **dirty outranks unproven**, and the retired flag is refused rather than aliased. Instance 3 discharged by ADR 0121 D4 **plus the 2026-08-18 Cloud probe**, which made `unavailable_on_platform` the true and permanent value rather than a holding one. ⛔ Closing the CONFLATION is not a claim that Cloud orphans are absent — they are **unobservable**, which is the opposite of reassuring — backend/lead
+
+## Rotated from follow-ups.md 2026-08-19 — the ADR 0129 child-lock fix (DSR plan Slice 1)
+
+### ⬛ FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE — ✅ **RESOLVED 2026-08-19** — `dispose_meeting_minutes` could not complete on any locked meeting that had agenda items; its own "bypass the freeze guards" comment was FALSE (owner: backend + PO; ⛔ its **"blocks C1a/C1b"** claim was WRONG IN GRAIN — see the correction below; Rule 12 / LGPD Art. 18)
+
+> ## ⛔ CORRECTION 2026-08-19 — the "blocks Critical FUP C1a/C1b" claim in the preserved body below is FALSE, and it failed in the reassuring direction
+>
+> The body states *"It blocks Critical FUP C1a/C1b directly"*. Measured at build time: **it does
+> not.** C1a is a run of [`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md), which
+> is the **`file_objects` / Storage-bytes** completion mechanism — its § 0 says it exists because
+> `complete_document_disposal` has no automated caller. The two paths are **disjoint in the
+> catalog**: `dispose_meeting_minutes` writes no `file_objects` row and never sets
+> `disposal_pending`; `complete_document_disposal` never touches meetings; the runbook contains
+> **zero** occurrences of "meeting", "minutes_md", or `dispose_meeting_minutes`.
+>
+> The *defect* was real and severe — meeting-minutes PHI erasure was impossible on exactly the
+> population that carries PHI. Only its **consequence** was overstated. ⭐ The body's own reasoning
+> shows how: it argues that "a rehearsal that only ever exercises agenda-less meetings would go
+> green while proving nothing" — true of a rehearsal that exercises meetings, and **the runbook
+> exercises none**. A real filter cited for a conclusion it does not bound reads like a proof:
+> [[a-predicate-quoted-at-the-wrong-grain]]. It propagated into ADR 0121, the backup run log, the
+> runbook, PROGRESS.md § Now and the C1 row, and was corrected in all of them the same day.
+>
+> ⭐ The correction exposed the larger gap: `FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES` — the runbook
+> covers one of **two** PHI-disposal substrates, and the four column-erasing `dispose_*` doors have
+> no operational procedure at all.
+
+> ## ✅ RESOLVED 2026-08-19 — built as DSR plan **Slice 1**; this block supersedes every status line in the preserved body below
+>
+> **Shape 2, as ruled.** Migration
+> `20260930000100_disposal_flag_through_meeting_child_lock.sql`: the new transaction-local GUC
+> `app.in_disposal_rpc` is **set only** by `dispose_meeting_minutes` (immediately before its child
+> UPDATE, reset immediately after) and **read only** by `app.guard_meeting_child_lock`. The false
+> comment is corrected in the same migration; ADR 0126 §E was amended in the same change (ADR 0129
+> Decision 3), and §F's "not fixed here" note now points at the fix.
+>
+> **Evidence — the fixture the item demanded, and the differential.** Suite
+> `supabase/tests/348_disposal_flag_meeting_child_lock.sql` (15 tests) on a fresh reset. ⚠ **The seed
+> contains no locked meeting with agenda items** — its only meeting with children is `held` — so the
+> suite **constructs** the population instead of searching for it. (An E2E-mutated database shows that
+> same meeting as `in_signature`; a fixture derived from seed state can look correct and be wrong.)
+> Verified by **neutralization, not by reading**: with the stand-aside removed, the keystone dies
+> `23514 … está bloqueado`; with it, disposal completes and `status` is untouched. The refusal pins
+> (t5/t6/t8/t15) stay green in **both** directions — they are the over-grant twin, not the fix's
+> subject, and they go red if anyone later widens the stand-aside to `app.in_meeting_rpc` (which **26**
+> `public.*` doors set).
+>
+> **Gates:** pgTAP **199 files / 6550 tests PASS** · eight lint gates · `tsc` · vitest **1447** ·
+> `ARM=census` + `ARM=hat` + `ARM=floor` + `FROMFINDINGS=1 ARM=wrapper` **all HOLD**.
+>
+> ⭐ **The build found a second thing the obligations did not ask for.** ADR 0079 Amdt 1's diff-scoped
+> recipe filters to `^(is_|can_|has_)` names + RLS policies, and by that **syntax** this diff's case
+> list is **empty** (a trigger function and a plain `if not (...)` inside a door). Swept by the
+> **property** instead: rewriting `dispose_meeting_minutes`'s authorization gate to `if false then` —
+> so **any** caller passes — left the full **6548-test** suite **GREEN**. Door-blind by construction,
+> on a PHI-erasure door, since ADR 0056. `348` **t7** is the missing keystone (a plain commission
+> member refused `42501`) and it goes RED under exactly that mutation. Filed forward:
+> `FUP-DISPOSAL-DOOR-GATES-UNKEYSTONED` (the other three disposal doors were **not** measured).
+>
+> ⚠ **A residue is carried, not dropped:** `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT` — the door redacts
+> three of `meeting_agenda_items`' four text columns (`title` survives), and nothing redacts
+> `meeting_attendees.{note,external_name}` or `meeting_closed_sessions.label`. ADR 0056 §2 **declares**
+> that scope, so this is an over-claim in the disposal language rather than a regression — DSR Slice 4's
+> subject.
+
+
+> ⭕ **FIX RULED 2026-08-19 (PO, DSR design session Q11) — shape 2: a new narrow flag
+> `app.in_disposal_rpc`, read ONLY by `guard_meeting_child_lock`, set ONLY by
+> `dispose_meeting_minutes`.** Shape 1 (honour `app.in_meeting_rpc`) REJECTED as a widening —
+> ADR 0126 §E leans on the guard refusing inside RPCs; shape 3 rejected (redaction outside the
+> audited door). Full decision + obligations (the with-agenda pgTAP fixture, the no-flag
+> differential, the sibling over-grant twin, the diff-scoped sweep, the same-change ADR 0126 §E
+> amendment): ADR [0129](../decisions/0129-meeting-child-lock-disposal-flag.md); build slot:
+> [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 1**. ⛔ **NOT BUILT — the item
+> stays OPEN and C1a/C1b stay blocked until the 0129 evidence exists**, per PO instruction that
+> implementation waits for a future session.
+
+Filed 2026-08-18 (lead) — found by `backend` during the ADR 0125/0126 build while sweeping the writers of
+the content the meeting template renders, and **independently re-measured from the live catalog by the lead
+before filing**. Not the prévia build's subject; filed so it is not carried inside a build that does not own it.
+
+**The mechanism, measured — a comment that asserts a bypass it does not perform.**
+`public.dispose_meeting_minutes` opens with:
+
+```
+perform set_config('app.in_meeting_rpc', 'on', true);  -- bypass the meeting freeze guards
+```
+
+That flag is real and other meeting guards honour it. **`app.guard_meeting_child_lock` does not** — its body
+contains **no reference to `app.in_meeting_rpc` at all** (verified against `pg_get_functiondef`, not the
+migration text). It raises unconditionally:
+
+```
+if v_status in ('in_signature', 'signed', 'distributed', 'cancelled') then
+  raise exception 'o conteúdo desta reunião está bloqueado (%)', v_status using errcode = 'check_violation';
+```
+
+It is installed on **four** child tables: `meeting_agenda_items`, `meeting_attendees`, `meeting_cases`,
+`meeting_closed_sessions`.
+
+**⇒ The disposal door raises partway through its own transaction.** It nulls `minutes_md` first (the parent
+table, which *does* honour the flag), then UPDATEs `meeting_agenda_items` to `[PHI removido]` — and **that**
+statement trips the child lock, rolling the whole call back.
+
+**Constructed, not argued — three probes:**
+
+| Probe | Fixture | Result |
+| ----- | ------- | ------ |
+| **A** | `signed` meeting **with 2 agenda items** | ⛔ **RAISES** `o conteúdo desta reunião está bloqueado (signed)` — disposal impossible |
+| **B** | `signed` meeting, **0 agenda items** | ✅ succeeds; `phi_disposed_at` stamped, status stays `signed` |
+| **C** | as B, `minutes_md` populated first | ✅ succeeds; `minutes_md` → null, `phi_disposed = true`, status still `signed` |
+
+**Why it is 🔴 and not a curiosity.** The meetings that carry agenda content are exactly the meetings that
+carry PHI worth disposing. So the erasure obligation **cannot be discharged on precisely the population it
+exists for**, while succeeding on the empty ones — which means a disposal run over a real tenant would report
+partial success and leave the PHI-bearing minutes intact. Rule 12 / ADR 0035's LGPD + ANVISA/RDC regime makes
+this an obligation, not a feature: **LGPD Art. 18** erasure, and the 20-yr retention regime's expiry path.
+
+⛔ **It blocks Critical FUP C1a/C1b directly.** The disposal runbook
+([`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md)) is the next PO-sequenced item, and a
+rehearsal that only ever exercises agenda-less meetings would go **green while proving nothing about the
+blocking case** — the [[a-detector-that-finds-nothing-must-be-proven-able-to-find-something]] shape, in the
+highest-severity item in the register. **The C1a rehearsal must include a locked meeting WITH agenda items as
+a named fixture**, or its green is not evidence.
+
+**Not yet decided — the fix is a real design question, not a one-liner.** Three shapes, none ruled:
+1. Teach `guard_meeting_child_lock` to honour `app.in_meeting_rpc`, like its siblings. ⚠ **A widening** — it
+   opens every child table to every meeting RPC, and the guard's refusal-inside-RPCs may be load-bearing
+   somewhere it was not measured. A widening cannot be wrong-and-safe.
+2. A narrower flag read only by the child lock and set only by the disposal door.
+3. Redact through a DEFINER path that does not transit the trigger.
+
+**⭐ The class, because the instance is the cheap part.** A **comment asserted a bypass that the guard it
+names does not implement**, and nothing could contradict it — the door's own suite passes on agenda-less
+fixtures, and the runbook was written from the comment. Same family as
+[[a-comment-is-an-assertion-that-goes-stale-silently]] and [[guards-that-read-right-but-fail-open]]: the text
+read correctly and the catalog disagreed. ⚠ Note **which** measurement found it — not a read of the disposal
+function (that is where the false comment lives) but a **property-bounded sweep of every writer of the
+rendered content**, run for an unrelated reason. A sweep bounded by "writers of `meetings`" would have found
+the door and believed its comment.

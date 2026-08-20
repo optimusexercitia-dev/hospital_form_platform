@@ -595,9 +595,11 @@ verified**, and say so in the disposal record — which
 > check rejected it.
 >
 > ⛔ **What this does NOT discharge, stated so the close is not read wider than it is.** § 3 (the
-> disposal sequence) was not run: **C1a stands** — and is separately blocked by
-> `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`. **C1b stands**, and cannot inherit this run: the
-> mechanism is local-only *by construction*.
+> disposal sequence) was not run: **C1a stands** — it was *additionally* blocked by
+> `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`, ✅ **resolved 2026-08-19 (ADR 0129), so that
+> second block is gone and C1a is now runnable** — but C1a stands on its own terms until § 3 is
+> actually executed. **C1b stands**, and cannot inherit this run: the mechanism is local-only
+> *by construction*.
 >
 > **Six findings; four changed instructions in § 6b.** Full text in the run log.
 > - **F1 ⛔ the mandatory sync check green-lit a world-readable destination.** `phi_backup_dir_ok`
@@ -956,83 +958,6 @@ claim reads as honoured. Whichever is scheduled first, the other must be named i
 `disposal_pending` as permanently `indeterminate` — *never* drift — on the stated assumption that "the
 completion door is its owner". That assumption was false until the runbook existed, and it is only as
 true as the runbook is actually executed.
-
-### 🔴 FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE — `dispose_meeting_minutes` **cannot complete** on any locked meeting that has agenda items; its own "bypass the freeze guards" comment is FALSE (owner: backend + PO; **blocks Critical FUP C1a/C1b**, Rule 12 / LGPD Art. 18)
-
-> ⭕ **FIX RULED 2026-08-19 (PO, DSR design session Q11) — shape 2: a new narrow flag
-> `app.in_disposal_rpc`, read ONLY by `guard_meeting_child_lock`, set ONLY by
-> `dispose_meeting_minutes`.** Shape 1 (honour `app.in_meeting_rpc`) REJECTED as a widening —
-> ADR 0126 §E leans on the guard refusing inside RPCs; shape 3 rejected (redaction outside the
-> audited door). Full decision + obligations (the with-agenda pgTAP fixture, the no-flag
-> differential, the sibling over-grant twin, the diff-scoped sweep, the same-change ADR 0126 §E
-> amendment): ADR [0129](../decisions/0129-meeting-child-lock-disposal-flag.md); build slot:
-> [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 1**. ⛔ **NOT BUILT — the item
-> stays OPEN and C1a/C1b stay blocked until the 0129 evidence exists**, per PO instruction that
-> implementation waits for a future session.
-
-Filed 2026-08-18 (lead) — found by `backend` during the ADR 0125/0126 build while sweeping the writers of
-the content the meeting template renders, and **independently re-measured from the live catalog by the lead
-before filing**. Not the prévia build's subject; filed so it is not carried inside a build that does not own it.
-
-**The mechanism, measured — a comment that asserts a bypass it does not perform.**
-`public.dispose_meeting_minutes` opens with:
-
-```
-perform set_config('app.in_meeting_rpc', 'on', true);  -- bypass the meeting freeze guards
-```
-
-That flag is real and other meeting guards honour it. **`app.guard_meeting_child_lock` does not** — its body
-contains **no reference to `app.in_meeting_rpc` at all** (verified against `pg_get_functiondef`, not the
-migration text). It raises unconditionally:
-
-```
-if v_status in ('in_signature', 'signed', 'distributed', 'cancelled') then
-  raise exception 'o conteúdo desta reunião está bloqueado (%)', v_status using errcode = 'check_violation';
-```
-
-It is installed on **four** child tables: `meeting_agenda_items`, `meeting_attendees`, `meeting_cases`,
-`meeting_closed_sessions`.
-
-**⇒ The disposal door raises partway through its own transaction.** It nulls `minutes_md` first (the parent
-table, which *does* honour the flag), then UPDATEs `meeting_agenda_items` to `[PHI removido]` — and **that**
-statement trips the child lock, rolling the whole call back.
-
-**Constructed, not argued — three probes:**
-
-| Probe | Fixture | Result |
-| ----- | ------- | ------ |
-| **A** | `signed` meeting **with 2 agenda items** | ⛔ **RAISES** `o conteúdo desta reunião está bloqueado (signed)` — disposal impossible |
-| **B** | `signed` meeting, **0 agenda items** | ✅ succeeds; `phi_disposed_at` stamped, status stays `signed` |
-| **C** | as B, `minutes_md` populated first | ✅ succeeds; `minutes_md` → null, `phi_disposed = true`, status still `signed` |
-
-**Why it is 🔴 and not a curiosity.** The meetings that carry agenda content are exactly the meetings that
-carry PHI worth disposing. So the erasure obligation **cannot be discharged on precisely the population it
-exists for**, while succeeding on the empty ones — which means a disposal run over a real tenant would report
-partial success and leave the PHI-bearing minutes intact. Rule 12 / ADR 0035's LGPD + ANVISA/RDC regime makes
-this an obligation, not a feature: **LGPD Art. 18** erasure, and the 20-yr retention regime's expiry path.
-
-⛔ **It blocks Critical FUP C1a/C1b directly.** The disposal runbook
-([`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md)) is the next PO-sequenced item, and a
-rehearsal that only ever exercises agenda-less meetings would go **green while proving nothing about the
-blocking case** — the [[a-detector-that-finds-nothing-must-be-proven-able-to-find-something]] shape, in the
-highest-severity item in the register. **The C1a rehearsal must include a locked meeting WITH agenda items as
-a named fixture**, or its green is not evidence.
-
-**Not yet decided — the fix is a real design question, not a one-liner.** Three shapes, none ruled:
-1. Teach `guard_meeting_child_lock` to honour `app.in_meeting_rpc`, like its siblings. ⚠ **A widening** — it
-   opens every child table to every meeting RPC, and the guard's refusal-inside-RPCs may be load-bearing
-   somewhere it was not measured. A widening cannot be wrong-and-safe.
-2. A narrower flag read only by the child lock and set only by the disposal door.
-3. Redact through a DEFINER path that does not transit the trigger.
-
-**⭐ The class, because the instance is the cheap part.** A **comment asserted a bypass that the guard it
-names does not implement**, and nothing could contradict it — the door's own suite passes on agenda-less
-fixtures, and the runbook was written from the comment. Same family as
-[[a-comment-is-an-assertion-that-goes-stale-silently]] and [[guards-that-read-right-but-fail-open]]: the text
-read correctly and the catalog disagreed. ⚠ Note **which** measurement found it — not a read of the disposal
-function (that is where the false comment lives) but a **property-bounded sweep of every writer of the
-rendered content**, run for an unrelated reason. A sweep bounded by "writers of `meetings`" would have found
-the door and believed its comment.
 
 ### 🔵 FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN — ⚠ **HALF RESOLVED 2026-08-17: the guard no longer fails open; the arm is still a no-op awaiting a NAMED successor** (owner: backend)
 
@@ -4509,3 +4434,108 @@ made. **Fix:** the D11 implementing slice makes the call explicitly, records it 
 reserved slot, and reconciles the D11 body; until then, neither value may be cited as decided. (ADR
 [0130](../decisions/0130-dsr-subject-request-workflow.md) explicitly does **not** settle it.)
 
+
+### 🟠 FUP-DISPOSE-EVENT-DOOR-GATE-BLIND — `dispose_event_phi`'s authorization gate is exercised by NO keystone: opening it leaves the full suite green (owner: backend; found by the ADR 0129 diff-scoped sweep)
+
+**Measured 2026-08-19, by neutralization, on a fresh reset.** Rewriting the door's authz raise to
+`perform 1;` — so **any** caller passes the gate — and running the full pgTAP suite:
+
+| Door | Gate | Suite notices? |
+|---|---|---|
+| `dispose_case_phi` | `is_staff_admin_of(commission)` | ✅ **YES** — `151_case_patient` (6 tests) + `314_qob_org_admin_content_wall` (1) |
+| `dispose_referral_phi` | `is_tenancy_admin_of` ∨ `is_pqs_operator_of` (source ∨ target) | ✅ **YES** — `189_nsp_per_hospital_isolation` |
+| `dispose_meeting_minutes` | `is_staff_admin_of` ∨ `is_tenancy_admin_of` | ⛔ **WAS BLIND** — ✅ now keystoned by `348` t7 (ADR 0129 build) |
+| **`dispose_event_phi`** | `is_tenancy_admin_of(commission_of_event)` ∨ `is_pqs_operator_of(hospital_of_event)` | ⛔ **BLIND** — gate opened **alone**, suite **PASS**, 6550/6550 |
+
+⚠ **BLIND ≠ vulnerable, and the distinction is the whole point.** The gate is present and correct
+today; nothing is reachable that should not be. What is missing is the *keystone* — if a refactor
+dropped or weakened this gate, **nothing in 6550 tests would go red**, and a PHI-erasure door on the
+patient-safety module would be silently open. That is door-blindness in the ADR 0079 sense.
+
+**Why the standing gates did not catch it.** `ARM=census` asks whether a gate carries a *verdict*,
+not whether a keystone exercises it; `ARM=floor` asks only whether the door is **called** — and it
+is (its happy path is tested), which is exactly the [[a-predicate-quoted-at-the-wrong-grain]] shape:
+"the door is exercised" is true and does not bound "the door's *gate* is exercised". ADR 0079
+Amendment 1's diff-scoped recipe filters the diff to `^(is_|can_|has_)` function names + RLS
+policies; this gate is a plain `if not (...)` **inside** a door and matches no filter. ⭐ **The
+enumeration boundary is a syntax; the property is "an authorization decision no test can see change"**
+— [[enumeration-boundary-is-a-syntax-not-a-property]].
+
+**The fix** is one `throws_ok(..., '42501')` per door with a persona who holds the module's ordinary
+membership but neither gate arm — the shape `348` t7 uses (a plain commission member), with a CONTROL
+pinning that the persona really lacks the hat, so the refusal is attributable to the role and not to
+tenancy. ⛔ **Do not "fix" this by widening the gate to make a test pass.**
+
+**Not fixed here, deliberately.** Found *during* the ADR 0129 build, whose migration is bound to amend
+nothing else (0129 Decision 1) and whose subject is the child lock. Filed rather than carried, so it is
+not lost inside a build that does not own it — the same reason this door's sibling item was filed in the
+first place.
+
+### 🟠 FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT — meeting PHI disposal redacts THREE of `meeting_agenda_items`' four text columns and none of the other child tables' (owner: backend; fix vehicle: DSR plan Slice 4)
+
+**Measured 2026-08-19 from `information_schema` + the live `pg_proc` body**, while building ADR 0129.
+`dispose_meeting_minutes` nulls `meetings.minutes_md` and redacts
+`meeting_agenda_items.{description, discussion_notes, resolution}`. The free-text columns it does
+**not** touch:
+
+| Column | Touched by any dispose door? |
+|---|---|
+| `meeting_agenda_items.title` | ⛔ **no** — three of that table's four text columns are redacted; `title` survives |
+| `meeting_attendees.{note, external_name}` | ⛔ no |
+| `meeting_closed_sessions.label` | ⛔ no |
+| `meeting_cases.{summary, decision}` | ✅ yes — but by `dispose_case_phi`, per-case (ADR 0056 §2's deliberate decoupling), **not** by the meeting door |
+
+⚠ **This is an over-claim, not a regression.** ADR 0056 §2 *declares* exactly this scope, so the door
+does what its ADR says. The defect is that the **language** around it — the disposal confirmations and
+the runbook — reads as "the meeting's PHI is erased", and an agenda item titled with a patient's name
+survives that claim. `title` is the sharp one: a reader who sees three of a table's four text columns
+redacted will reasonably assume the fourth was considered.
+
+**Why it belongs to DSR Slice 4** (residue + copy honesty, ADR 0130 Decision 9): Slice 4 already owns
+the fixed, pre-written residue language and the `referral-dispose-dialog` rewrite. Either the columns
+join the redaction set or the residue language names them as retained — **the one thing that must not
+happen is the current state, where neither is true**. Sibling item: `FUP-NOTIFICATIONS-PHI-RESIDUE`.
+
+⚠ Note the method that found it, because the door's own suite could not: a **column census of the
+guard's four child tables**, run for an unrelated reason (checking what the child lock protects).
+Reading the door tells you what it redacts; only reading the *tables* tells you what it does not —
+[[new-door-must-inherit-every-sibling-arm]], applied to columns.
+
+### 🟠 FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES — the PHI-disposal runbook is the procedure for ONE of the two PHI-disposal substrates; the four column-erasing doors have no operational procedure at all (owner: backend + PO; found by correcting a wrong-grain claim, 2026-08-19)
+
+**Measured 2026-08-19** while checking whether `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`
+really blocked C1a (it did not). PHI leaves this system by **two structurally different
+substrates**, and only one has a runbook:
+
+| Substrate | Mechanism | Operational procedure |
+|---|---|---|
+| **Storage bytes** — `file_objects` parked at `disposal_state = 'disposal_pending'` | inflow: `request_document_disposition`, `dispose_case_phi`, `dispose_referral_phi`, `complete_document_reclassification`; outflow: `complete_document_disposal`, which **nothing schedules** | ✅ [`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md) — this is precisely why it exists (its § 0) |
+| **DB columns** — `minutes_md`, `meeting_agenda_items.*`, `patient_identifiers`, `event_patient`, `referral_patient`, narratives… redacted in place to `[PHI removido]` | `dispose_meeting_minutes`, `dispose_case_phi`, `dispose_event_phi`, `dispose_referral_phi` — each **completes synchronously inside its own transaction** | ⛔ **NONE** |
+
+**Measured, not inferred:** the runbook contains **zero** occurrences of `meeting`,
+`minutes_md`, `dispose_meeting_minutes`, `dispose_event_phi`, `patient_xref` or
+`PHI removido`; it names `dispose_case_phi` and `dispose_referral_phi` **once each**, and only
+as *inflow doors that park a `file_objects` row* — never as PHI-erasure operations in their
+own right. In the catalog the two paths are disjoint: `dispose_meeting_minutes` writes no
+`file_objects` row and never sets `disposal_pending`; `complete_document_disposal` never
+touches meetings.
+
+⚠ **This is not a claim that column PHI is un-erasable.** The column doors work, complete
+synchronously, and need no operator — which is exactly why they never acquired a procedure, and
+exactly why nobody noticed. The gap is that **"the PHI disposal runbook" is read as covering PHI
+disposal**, and a C1a rehearsal executed against it will exercise the byte path and record a
+green that says nothing about the column path. Under LGPD Art. 18 an erasure request spans both.
+
+**What is actually needed** (PO call — this may be a runbook § or an explicit scope statement):
+1. The runbook states its substrate **in its title or § 0 banner**, so its green cannot be read
+   wider than it is; **and**
+2. either a companion procedure for the four column doors, **or** a recorded decision that they
+   need none because they are synchronous — with the *evidence path* named either way (which
+   door, which audit event, what a verifier reads afterwards).
+
+⭐ **How it stayed invisible:** every document that touched it was individually correct about its
+own subject. The runbook never claimed to cover columns; the doors never claimed to need a
+runbook; C1a said "run the runbook". The gap lived **between** them, and it took a wrong-grain
+claim — *"the child lock blocks C1a"* — to point at the seam. Same shape as
+[[an-approvals-scope-is-a-fact-that-must-be-written-down]]: invisible from either document alone,
+because each is complete about its own subject.

@@ -20,7 +20,7 @@ creation archive → catalog-compared verification → key-first destruction. It
 
 | this run does NOT discharge | why |
 | --- | --- |
-| **C1a** (local disposal rehearsal) | § 3 was not run. C1a is separately **blocked** by `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`. |
+| **C1a** (local disposal rehearsal) | § 3 was not run. ⚠ This row previously added *"and is separately blocked by `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`"* — **corrected 2026-08-19: it never was** (that defect is on the meeting-minutes path; this runbook is the `file_objects`/Storage path, and the two are disjoint in the catalog). § 3 is un-run for its own reasons. |
 | **C1b** (Cloud) | the mechanism exercised here is **local-only by construction** — finding **F5** below is that it has no Cloud form at all. |
 | the § 3 UNREHEARSED banner | it is about the disposal sequence, and stays accurate. |
 
