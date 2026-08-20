@@ -16,6 +16,13 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
+- **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
+  user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
+  person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
+  register wizard (escape hatch removed); the three UM screens rebuilt to the design
+  handoff. ADR [0129](docs/decisions/0129-aff2-affiliation-scoped-administration-um-redesign.md)
+  · plan [aff2-user-management.md](docs/plans/aff2-user-management.md). **Start
+  condition: the PO's merge call on `feat/previa-split-adr-0125-0126`.**
 - **No phase is active.** The **DM program (DM0–DM5) is COMPLETE** — closed
   2026-08-18, all five gate steps; phase QA APPROVED r2
   ([review](docs/reviews/dm5-phase-review.md)). The DM follow-up triage of
@@ -237,6 +244,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-20 | **AFF2 accepted (PO): affiliation-scoped hospital_admin authority** — footprint-bounded person-level edits, credentials + lifecycle · CPF mandatory in UI, escape hatch REMOVED · `date_of_birth`+`phone` added column-locked · credentials SELECT widens · presence-only CPF display | ADR [0129](docs/decisions/0129-aff2-affiliation-scoped-administration-um-redesign.md) · amends 0097 D11/D14 · 0098 W3.2 · [0048](docs/decisions/0048-user-registration-identity.md) D10 |
 | 2026-08-19 | ⛔ **"PROGRESS.md is loaded by every spawn" IS FALSE, and never was** — no `@`-import has ever existed. The claim sat in ADR 0124, the banner, the gate header and an external handoff. Always-loaded is CLAUDE.md 32 KB + MEMORY.md 20 KB; this file is read on demand | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) **Amdt 1** |
 | 2026-08-19 | **Standing rules move to `.claude/rules/` with `paths:`, admitted only if they declare checkable anchors and no gate already enforces them — 5 of 9 candidates REJECTED** (PO) | ADR [0127](docs/decisions/0127-standing-rules-home-and-staleness-gate.md) |
 | 2026-08-19 | **`lint:rules` is GATE 8** — keystone: a rule whose own `paths:` glob matches zero files is orphaned. ⚠ Rule firing is **UNPROVEN** (feature-flagged); an `InstructionsLoaded` probe measures it | ADR [0127](docs/decisions/0127-standing-rules-home-and-staleness-gate.md) · CLAUDE.md §8 |
