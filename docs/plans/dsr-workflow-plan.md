@@ -1,8 +1,12 @@
 # DSR ("Direitos do Titular") — implementation plan
 
-**Status: Slices 1–3 SHIPPED (2026-08-19 / 2026-08-20 ×2). Slice 4 IN PROGRESS — copy half
-built, QA r1 CHANGES REQUESTED; its item 1 WITHDRAWN as premise-falsified (ADR 0130 Amdt 4),
-and it is blocked on widening `dispose_meeting_minutes` (PO-ruled).** ADR 0130 moved **Proposed → Accepted 2026-08-20** on PO instruction, which
+**Status: ALL FOUR SLICES BUILT (2026-08-19 / 2026-08-20 ×3); there is no Slice 5. Slice 4 is
+QA APPROVED at r3** (r1 + r2 were CHANGES REQUESTED); its item 1 WITHDRAWN as premise-falsified
+(ADR 0130 Amdt 4), and the `dispose_meeting_minutes` widening it was blocked on has **landed**
+(pgTAP `351`). ⛔ **What is pending is the GATE, not the build** — §6 step 4 (PO approval) and
+step 5 (record + rotation) are owed, and nothing is merged or pushed. **Live status is
+PROGRESS.md § Now**; this header is a pointer, and it went stale for a day while three
+conflicting statuses sat in one commit. ADR 0130 moved **Proposed → Accepted 2026-08-20** on PO instruction, which
 lifted the original "nothing may be built" hold. Design ratified by the PO in a structured
 sixteen-decision session on 2026-08-19; the binding decisions live in ADR
 [0130](../decisions/0130-dsr-subject-request-workflow.md) (workflow) and ADR
@@ -25,7 +29,7 @@ disagrees with the live catalog, **the catalog wins** (CLAUDE.md graphify except
    `refused_identity` / `withdrawn`** — exactly as 0130 Amdt 1 item 3 drafted it, and it is
    **BUILT** (the `dsr_requests_legal_consultation` CHECK + the door's pt-BR refusal, 349 t29/t31).
 4. Read `docs/progress/authz-handoff.md §7` before any RLS/gate work (standing ⭐ rule).
-5. **Slices 1–3 shipped; Slice 4 is IN PROGRESS (QA r1 CHANGES REQUESTED).** ⛔ Read ADR 0130
+5. **All four slices are built; Slice 4 is QA APPROVED at r3 — only the gate is open.** ⛔ Read ADR 0130
    **Amendments 3 and 4** before extending any of this. Amdt 3: six shape changes measurement forced on
    Slice 3, two live defects found in passing, one ACL over-grant an existing pin caught.
    Amdt 4: Slice 4's notification-scrubbing item was **withdrawn as premise-falsified** —
@@ -70,7 +74,7 @@ commit) · Q16 `/o/[org]/titulares`, flag `dsr`, two-phase close, xref-based ide
 
 ## 2 · Slices
 
-### Slice 1 — the child-lock fix (ADR 0129). Standalone; FIRST; small.
+### Slice 1 — the child-lock fix (ADR 0129). Standalone; FIRST; small. ✅ SHIPPED 2026-08-19.
 
 Backend only. ✅ **SHIPPED 2026-08-19** — migration
 `20260930000100_disposal_flag_through_meeting_child_lock.sql`, suite
@@ -236,9 +240,9 @@ verdict for this class.
    copy behind a constant regardless — the next counsel refinement is then a one-file
    change.
 
-### Slice 4 — residue + copy honesty (Q12a; independent of S3, after S2). 🔨 IN PROGRESS — QA r1 CHANGES REQUESTED.
+### Slice 4 — residue + copy honesty (Q12a; independent of S3, after S2). ✅ BUILT — QA APPROVED r3.
 
-⛔ **Item 4 (added at QA r1, PO-ruled, BLOCKING).** `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`
+✅ **Item 4 — SHIPPED (added at QA r1, PO-ruled, was BLOCKING).** `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`
 already required *either* the untouched free text join the redaction set *or* the residue
 language name it as retained, and named **this slice** as the vehicle. Items 2–3 shipped the
 language **without** naming it — so the slice's first act was to enter the one state that
@@ -253,6 +257,18 @@ be wrong on the referral dialog.
 ⭐ *The lesson is not the columns — it is that this slice closed an over-claim follow-up while
 shipping the constant that carried another one.* An open follow-up naming your slice as its
 vehicle is scope you already own, not adjacent work.
+✅ **AS BUILT, and wider than this item asked** (pgTAP `351`; ADR 0056 **Amdt 1**): the census
+bounded by **composition closure** (FK `NOT NULL` + `ON DELETE CASCADE`, to depth 3) found
+**10 columns, not the 4 listed above** — including depth-2 closed-session prose and **jsonb**
+minutes text. ⭐ *Free text is not a type*, and a column list read off a follow-up is not a
+census. ⛔ **Biggest find:** a minutes job resting in **`done`** kept the **verbatim meeting
+transcript** indefinitely — which falsified ADR 0056 **§4** itself, not merely the residue
+copy; now purged unconditionally. ⛔ Cite pgTAP **`351`**, never the authz arms:
+`ARM=census`/`wrapper` are green and **vacuous here** (the guards return `trigger`, the door
+returns `void`) — though ⚠ *not* "no arm", `ARM=floor` does contain `dispose_meeting_minutes`.
+⚠ The same census is **still owed for the other three doors** — `FUP-DOOR-ERASURE-FREETEXT-CENSUS`,
+and until it runs, `DSR_RESIDUE_NOTICE` line 1 is unproven for `dispose_case_phi`,
+`dispose_event_phi` and `dispose_referral_phi`.
 
 1. ⛔ **WITHDRAWN — the premise was false.** This item read: *"Extend all four dispose
    doors: scrub `notifications.title/body` for the disposed entity
@@ -294,9 +310,16 @@ vehicle is scope you already own, not adjacent work.
    over-claim vs ADR 0056's narrowed claim). Both over-claiming strings replaced (not
    supplemented), `DSR_RESIDUE_NOTICE` rendered verbatim, and a `subject_request`-only
    note that such a disposal presupposes an adjudicated DSR (ADR 0130).
-   ⚠ **The verification instrument for this follow-up is a grep**, so no prose in that
-   file — comments included — may ever quote the removed strings, or it hits forever on
-   a comment rather than on live copy. A first draft did exactly that and was corrected.
+   ⛔ **STALE — the instrument was SWAPPED 2026-08-20, and this prohibition dissolved with
+   it.** This read: *"the verification instrument for this follow-up is a grep, so no prose in
+   that file — comments included — may ever quote the removed strings."* That grep's measured
+   record was **0 true positives / 4 false positives** — every hit was prose *about* the
+   defect, so the instrument forbade writing down the very thing it was verifying
+   (`FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING`, closed **by dissolution**). The closure
+   instrument is now a **rendered-output** assertion — `referral-dispose-dialog.test.tsx`
+   claim 2, property shared from `src/components/dsr/disposal-copy-property.ts` — which
+   cannot see comments at all, so comments are free. ⛔ Do **not** re-run the grep to
+   re-verify this item. Standing lesson: [`ui-copy-forbidden-strings`](../../.claude/rules/ui-copy-forbidden-strings.md).
    ⚠ Left deliberately, flagged not fixed: the confirm-field helper ("exclusão
    **definitiva**") and the destructive button ("Apagar **definitivamente**") assert
    *finality*, not the *completeness* ADR 0056 (b) forbids; `DSR_RESIDUE_NOTICE` now
@@ -308,7 +331,14 @@ vehicle is scope you already own, not adjacent work.
   cross-hospital surface (Q4a). Storing patient identity in DSR rows (Q6). An in-place
   locked-content redaction door (Q10a). A scheduler/cron (Q9iii; C1's finding stands).
 - The C1a/C1b rehearsals themselves and the disposal-job decision (Critical FUP C1) —
-  unblocked by S1, owned by PO/lead.
+  owned by PO/lead. ⛔ **CORRECTED 2026-08-19: this said "unblocked by S1", which was wrong
+  in grain — S1 never blocked C1a.** The runbook is the **`file_objects`/Storage-bytes** path
+  and `dispose_meeting_minutes` is disjoint from it in the catalog (writes no `file_objects`
+  row, never sets `disposal_pending`; the runbook says "meeting" zero times). S1 fixed
+  **meeting-minutes erasure**, not this rehearsal. *A real defect cited for a conclusion it
+  did not bound, erring in the reassuring direction: it made C1a read as blocked-then-released
+  rather than simply never started.* ⚠ The column doors have **no operational procedure at
+  all** — `FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES`.
 - The `superseded` vs `retention_expired` reason value — stays with the D11 implementing
   slice (ADR 0121 Amdt 2).
 - `FUP-XREF-PEPPER-ROTATION-ORPHANS` — filed, related (disposal makes pepper rotation

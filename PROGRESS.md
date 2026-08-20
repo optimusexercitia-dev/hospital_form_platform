@@ -36,8 +36,13 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   (`FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`, ADR 0129 / DSR Slice 1; ⚠ its "blocks C1a/C1b"
   claim was **wrong in grain**). The other five are now **all carried in § Follow-ups** — ⛔ three
   of them had a body but **no index line**, and this bullet was their only live trace (see below).
-- **🆕 DSR ("Direitos do Titular") — designed 2026-08-19; ✅ ALL FOUR SLICES SHIPPED (19th / 20th
-  ×3). The program is complete; there is no Slice 5.** Sixteen PO-ratified decisions in a structured
+- **🆕 DSR ("Direitos do Titular") — designed 2026-08-19; ✅ ALL FOUR SLICES BUILT (19th / 20th
+  ×3); there is no Slice 5. ⛔ What is pending is the GATE, not the build** — steps 4 (PO approval)
+  and 5 (record + rotation) are owed, and nothing is merged or pushed.
+  ⚠ *Corrected 2026-08-20: this bullet read "the program is complete" while a sentence 50 lines below
+  it said Slice 4 was at QA r1 — **three conflicting statuses written into one commit** (`3d5e9a9c`).
+  A tracker that contradicts itself in one section is read by whichever line the reader reaches first.*
+  Sixteen PO-ratified decisions in a structured
   design session: an **adjudicated DSR workflow** (refusal-with-basis first-class), a per-hospital
   **`dpo` capability**, one task inbox at `/o/[org]/titulares` (flag `dsr`), hash-only DSR record
   (Rule 12's "exactly three" survives), two-tier erasure claim, zero disposal-gate widenings, and
@@ -91,7 +96,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   **10 bugs found and closed inside the slice** (8 product, 2 spec) → [bug-log-archive.md](docs/progress/bug-log-archive.md);
   ⭐ **four were visible only by EXECUTING something** — no static gate saw them. Build detail, the ARM bound,
   the ACL over-grant and the harness proofs → [dsr-slice-3.md](docs/progress/dsr-slice-3.md).
-  🔨 **Slice 4 IN PROGRESS — QA r1 CHANGES REQUESTED. Its item 1 was WITHDRAWN, not built.** Measuring the premise
+  ✅ **SLICE 4 BUILT 2026-08-20 — QA APPROVED at r3** (r1 + r2 were CHANGES REQUESTED). **Its item 1 was
+  WITHDRAWN, not built.** Measuring the premise
   before building falsified it: `notifications.entity_type`'s CHECK admits eight values and **`case`,
   `referral`, `event` are not among them**, so the prescribed scrub matched **zero rows by
   construction** for three of the four doors and its pgTAP pin would have been vacuous *by CHECK
@@ -103,7 +109,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   names — `entity_type`/`entity_id` read as a polymorphic handle to the disposed entity — and was
   internally coherent the whole time.* ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md)
   **Amdt 4**; successor filed as `FUP-DOOR-ERASURE-FREETEXT-CENSUS`.
-  **▶ Resume: QA r2.** ✅ **B1 + B2 both discharged.** B1 (a false ACL claim in an Accepted ADR)
+  **r2 → r3.** ✅ **B1 + B2 both discharged.** B1 (a false ACL claim in an Accepted ADR)
   corrected in all three copies — ⭐ *`attacl` belongs beside `relacl`*: a **column** grant
   (`read_at = authenticated=w`) is invisible in `pg_class.relacl`, and it slipped into the very
   sentence claiming the enumeration was *bounded*. B2: the meeting door was **WIDENED** (PO-ruled) —
@@ -117,9 +123,19 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   `dispose_meeting_minutes` (QA r2). Cite pgTAP **351**, never the arms.
   ⚠ **No E2E reaches the changed dialog at all** (`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`), so the
   15 mutation-proven component tests are the only executable proof — a jsdom render is not a browser.
-  ⛔ **Not merged, not pushed** (9 commits ahead of `origin/main`;
+  ⭐ **QA r3's three non-blocking findings N12/N13/N14 were BUILT and recorded NOWHERE** — an APPROVED
+  verdict absorbed them, and they survived only because someone re-read the review. Measured in the tree
+  2026-08-20, all three already in `3d5e9a9c`: `351`'s anchor comment now says Farmácia B **"ranked 4 of
+  4"** (N12); `351` t7 asserts `app.is_staff_admin_of` **under the persona's own claims**, plus a
+  SINGLE-ROLE anchor clause — *a membership row is not the door's gate* (N13); both `grantable` copies
+  read **GRANTED** (N14). ⛔ What was owed was the **record**, not the work — yet "filed nowhere" was
+  carried for a day as "unbuilt", which would have re-done all three.
+  **▶ Resume: gate step 4 (PO approval) → step 5 (record + rotation) → merge + push.**
+  ⛔ **Not merged, not pushed** — **13** ahead of `origin/main`, local `main` separately **4** ahead,
+  tree **clean**. ⛔ **Re-measure, never re-read this line** (`git rev-list --count origin/main..HEAD`):
+  it said **9** and "4 uncommitted files", and both were false inside the same day.
   ✅ branch renamed 2026-08-20 to `feat/dsr-subject-request-workflow` — the old name said "slice-2"
-  while carrying all four slices).
+  while carrying all four slices.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -370,7 +386,8 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 | --- | --- | --- |
 | 2026-08-20 | **PO: DROP Slice 4 item 1** — notification scrubbing **WITHDRAWN as premise-falsified**; the residue class does not exist. Successor `FUP-DOOR-ERASURE-FREETEXT-CENSUS` filed | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 4** |
 | 2026-08-20 | **PO: WIDEN `dispose_meeting_minutes`** rather than hedge the copy — the untouched free text joins the redaction set, so `DSR_RESIDUE_NOTICE` line 1 becomes true as written. Discharges `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`; needs an ADR 0056 §2 amendment | [follow-ups.md](docs/progress/follow-ups.md) |
-| 2026-08-20 | **DSR Slice 4 — copy half BUILT, QA r1 CHANGES REQUESTED, NOT complete.** `referral-dispose-dialog.tsx` renders the shared `DSR_RESIDUE_NOTICE`; both ADR 0056 (b) over-claims replaced (closes `FUP-DISPOSE-DIALOG-OVERCLAIM`). ⛔ Blocked on the meeting-door widening | [review](docs/reviews/dsr-slice-4-review.md) |
+| 2026-08-20 | **DSR Slice 4 BUILT — QA APPROVED r3.** `referral-dispose-dialog.tsx` renders the shared `DSR_RESIDUE_NOTICE` (closes `FUP-DISPOSE-DIALOG-OVERCLAIM`); meeting door widened; N12/N13/N14 built. ⛔ **Gate steps 4–5 + merge/push still owed** | [review](docs/reviews/dsr-slice-4-review.md) |
+| 2026-08-20 | ~~**DSR Slice 4 — QA r1 CHANGES REQUESTED, NOT complete; blocked on the meeting-door widening**~~ — **SUPERSEDED same day**: the widening landed and QA APPROVED at r3 | [review](docs/reviews/dsr-slice-4-review.md) |
 | 2026-08-20 | **DSR Slice 3 SHIPPED — QA APPROVED r2, PO-approved.** The ONE named widening (`search_patient_xref` + `is_dpo_of`), adjudication, attested tier, refusal-retirement, ADR 0056 Consequence (a) discharged. ⛔ Zero disposal-gate widenings; **no second read-boundary change** (QA catalog-verified) | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 3** · [review](docs/reviews/dsr-slice-3-review.md) |
 | 2026-08-20 | **PO: INVERT the `useFieldIds` `name` default** — the hook omits `name`; `FormData`/radio/autofill callers opt in. The dangerous case was the default, the safe one a discipline at 51 sites (**10/51 measured**). ⛔ Route-crawler gate NOT in scope | FUP-FORM-IDENTIFIER-IN-URL · [follow-ups.md](docs/progress/follow-ups.md) |
 | 2026-08-20 | **ADR 0130 Proposed → Accepted; DSR Slice 2 BUILT** (PO instruction). Four shape changes measurement forced — incl. ADR 0056 Consequence (a)'s meetings-dispose UI moving to Slice 3. ✅ **Pilot-gate item 0 DISCHARGED** | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 2** · [plan](docs/plans/dsr-workflow-plan.md) |
