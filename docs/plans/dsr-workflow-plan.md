@@ -14,8 +14,12 @@ disagrees with the live catalog, **the catalog wins** (CLAUDE.md graphify except
 1. Read ADR 0129 + ADR 0130 + ADR 0035 Amdt 1 (short).
 2. Re-measure every "Measured inputs" row below — they were true on 2026-08-19 and
    nothing gates their staleness.
-3. Check whether counsel's Q14 return has arrived (ask the PO). It blocks **only** S3's
-   refusal-guidance copy — do not let it block S1/S2.
+3. ✅ **Counsel's Q14 return ARRIVED 2026-08-19** (ADR 0035 Amdt 1 resolution + ADR 0130
+   **Amendment 1**): committee records are NOT prontuário (CFM 1821 does not attach);
+   removal requests adjudicated **case by case with legal consultation**; 20-yr retention
+   adopted **by default as institutional policy**. Nothing blocks on counsel anymore. ⚠ One
+   open confirmation at kickoff: the required/optional split of
+   `legal_consultation_ref` (0130 Amdt 1 item 3 is lead-drafted).
 4. Read `docs/progress/authz-handoff.md §7` before any RLS/gate work (standing ⭐ rule).
 5. Start at Slice 1.
 
@@ -48,9 +52,9 @@ capability grant + the one named search-door widening · Q8b single task inbox, 
 under their own sessions · Q9 outcome enum + required refusal basis + due-date badge (no
 scheduler) · Q10a revoke corridor for prose redaction (⛔ no in-place redaction door) ·
 Q11 child-lock fix shape 2 (ADR 0129) · Q12a notification scrubbing in doors + fixed
-residue language · Q13a slice order below · Q14a only refusal-guidance copy blocks on
-counsel · Q15 the paper trail (this commit) · Q16 `/o/[org]/titulares`, flag `dsr`,
-two-phase close, xref-based idempotence.
+residue language · Q13a slice order below · Q14a counsel-return handling — ✅ RETURNED
+same day, settled via ADR 0130 Amdt 1 (nothing blocks) · Q15 the paper trail (this
+commit) · Q16 `/o/[org]/titulares`, flag `dsr`, two-phase close, xref-based idempotence.
 
 ## 2 · Slices
 
@@ -87,7 +91,9 @@ gate" true (dm5-po-decisions § "Remaining pre-pilot work" item 0).
    encounter_key nullable, file_ref text, status
    `open/adjudicated/executing/closed`, outcome nullable
    `granted/granted_partial/refused_retention/refused_identity/withdrawn`,
-   outcome_basis text — **NOT NULL when outcome is a refusal** (CHECK), received_at,
+   outcome_basis text — **NOT NULL when outcome is a refusal** (CHECK),
+   **legal_consultation_ref text — NOT NULL for granted/granted_partial/refused_retention**
+   (CHECK; ADR 0130 Amdt 1 — confirm the split at kickoff), received_at,
    due_date, closed_at/by, created_by, timestamps) and `dsr_tasks` (id, request_id FK,
    kind `dispose_case/dispose_event/dispose_referral/dispose_meeting/attest_review/
    notify_scrub_check`, module+entity_id (nullable for attestation tasks),
@@ -133,9 +139,13 @@ gate" true (dm5-po-decisions § "Remaining pre-pilot work" item 0).
    staff_admin with reviewer name + redaction count in the note. The **procedure** for a
    found mention is the revoke corridor (Q10a) — document it in the task's UI copy;
    ⛔ build no in-place redaction door.
-5. Counsel-return integration (Q14a): `refused_retention` guidance copy + default
-   adjudication stance — **the only work that waits**; wire the copy behind a constant
-   so the return is a one-file change + ADR 0035 Amdt 1 update.
+5. ✅ Counsel-return integration (Q14a) — **settled, nothing waits** (ADR 0130 Amdt 1):
+   default stance = 20-yr institutional-policy retention, adjudication case-by-case with
+   counsel; `refused_retention` copy cites **the institutional policy, never CFM 1821**
+   (counsel held it does not cover these records — citing it to a data subject would be a
+   false legal basis); the adjudication UI captures `legal_consultation_ref`. Keep the
+   copy behind a constant regardless — the next counsel refinement is then a one-file
+   change.
 
 ### Slice 4 — residue + copy honesty (Q12a; independent of S3, after S2).
 

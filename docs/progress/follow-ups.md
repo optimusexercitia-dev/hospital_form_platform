@@ -4457,10 +4457,13 @@ distributed copies. This is pt-BR compliance copy shown to the operator at the m
 a legal obligation, asserting more than the mechanism delivers (ADR 0056 §4 narrowed the claim
 precisely because Storage blobs survive).
 
-**Aggravated 2026-08-19:** the same dialog offers *"Solicitação do titular (LGPD Art. 18)"* as a
-selectable reason while counsel's ruling (ADR
-[0035](../decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1**) has that lane's status
-unresolved pending the scope return.
+**Aggravated 2026-08-19, then NARROWED the same day:** the dialog offers *"Solicitação do titular
+(LGPD Art. 18)"* as a selectable reason, which was contingently invalid while counsel's blanket
+override stood — but the Q14 return (ADR
+[0035](../decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1**, resolved) rules removal
+requests **case-by-case with legal consultation**, so the lane is live and the reason option is
+valid. The over-claim is the whole remaining defect. ⚠ Slice 4's rewrite should still note that a
+`subject_request` disposal presupposes an adjudicated DSR (ADR 0130) once that workflow exists.
 
 **Fix (decided, Q12a):** rewrite with the shared fixed residue-language constant —
 [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 4**, which also owes the same copy to

@@ -11,6 +11,38 @@ narrowed claim), ADR [0129](./0129-meeting-child-lock-disposal-flag.md) (prerequ
 fix), ADR [0061](./0061-administrativo-delegated-role.md) (capability-grant
 precedent), Rule 12.
 
+> ## ✅ AMENDMENT 1 (2026-08-19, same day) — counsel's return SETTLES the refusal guidance; adjudication gains a recorded legal-consultation reference
+>
+> The Q14 scope return arrived (holdings quoted in ADR
+> [0035](./0035-lgpd-anvisa-regulatory-posture.md) Amendment 1): committee documentation is
+> the *analysis of* a prontuário and **not part of it**, so CFM 1821/2007 does not attach
+> directly; removal requests are decided **case by case, together with legal consultation**
+> (⭐ this supersedes the blanket retention-overrides-erasure framing — Context below reads
+> through this); the **20-year retention period is adopted by default as institutional
+> policy**. What this settles, against the items Decision 1 left open:
+>
+> 1. **Default adjudication stance:** records are held under the 20-year **institutional
+>    policy default**; a removal request is never auto-refused and never auto-granted —
+>    each is adjudicated with counsel. The workflow shape (Q1a) is thereby *mandated*, not
+>    merely chosen.
+> 2. **`refused_retention` basis language** cites the institutional retention policy
+>    (20-year default, adopted per counsel 2026-08-19), **never CFM 1821/2007 directly** —
+>    counsel has held that statute does not cover these records, and citing it would be a
+>    false legal basis delivered to a data subject.
+> 3. **The record gains one field:** `dsr_requests.legal_consultation_ref` (text — date +
+>    counsel reference; **required** for `granted` / `granted_partial` / `refused_retention`
+>    outcomes, optional for `refused_identity` / `withdrawn`, CHECK-enforced). Holding 2
+>    makes the consultation part of every substantive adjudication; an unrecorded
+>    consultation is the approval-without-written-scope failure this program already paid
+>    for once. ⚠ Lead-drafted interpretation of "together with legal consultation" —
+>    confirm the required/optional split at implementation kickoff before the migration is
+>    written.
+> 4. **The `subject_request` lane is live** (no longer contingently closed): the dispose
+>    dialog's Art. 18 reason option is valid; `FUP-DISPOSE-DIALOG-OVERCLAIM` reduces to the
+>    over-claim alone.
+>
+> Nothing else in this ADR moves. Status stays **Proposed**; implementation still waits.
+
 ## Context
 
 The platform has four patient-PHI disposal doors and no *process* around them: no way to

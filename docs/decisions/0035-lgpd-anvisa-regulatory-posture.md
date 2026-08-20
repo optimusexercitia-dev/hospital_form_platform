@@ -37,10 +37,31 @@ ARCHITECTURE.md Rules 11–12.
 > applies retention-over-erasure to Class-2 professional-identity records; this amendment
 > is about whether that extends to **patient** PHI in governance records.
 >
-> **Owed when the return arrives:** update this amendment with counsel's answer verbatim
-> + scope; settle ADR 0130's refusal guidance; re-examine the shipped dispose-dialog copy
-> (`FUP-DISPOSE-DIALOG-OVERCLAIM`), which currently offers *"Solicitação do titular (LGPD
-> Art. 18)"* as a reason for an erasure the hospital may have decided it will not perform.
+> ✅ **THE RETURN ARRIVED 2026-08-19 (same day, PO-relayed) — the scope question is
+> ANSWERED, and the answer REFINES the original ruling.** Counsel's holdings, in substance:
+>
+> 1. *"Committee documentation is not clearly defined legally. Committee documentation and
+>    analysis is clearly specified as the **analysis of** a prontuário and, ergo, is **not
+>    considered part of the prontuário**."* — So CFM 1821/2007's 20-year duty does **not**
+>    attach directly to this platform's records.
+> 2. *"For patient data removal requests, compliance with LGPD will be determined **case by
+>    case, together with legal consultation**."* — ⭐ This **supersedes the blanket
+>    precedence** relayed above: retention does not categorically override Art. 18. The
+>    `subject_request` lane is **live**; every removal request is adjudicated individually,
+>    with counsel in the loop.
+> 3. *"Even though not considered prontuário, the **20-year retention period will be
+>    adopted by default**."* — Retention is now an **institutional policy default**, not a
+>    statutory obligation, for these records. Refusal language must cite the policy, not
+>    CFM 1821 directly.
+>
+> **Consequences:** ADR [0130](./0130-dsr-subject-request-workflow.md)'s adjudication
+> design is confirmed as *mandated*, not merely prudent (holding 2 IS case management with
+> counsel); its refusal guidance settles via **0130 Amendment 1** (basis language +
+> a recorded legal-consultation reference on adjudicated outcomes). The `subject_request`
+> reason value and the dispose-dialog's Art. 18 option are legally valid again — the
+> dialog's remaining defect is the over-claim alone (`FUP-DISPOSE-DIALOG-OVERCLAIM`).
+> Nothing further blocks on counsel; the case-by-case consultations are an operating-mode
+> obligation, recorded per request, not a design dependency.
 
 ## Context
 
