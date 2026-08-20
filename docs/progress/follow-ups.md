@@ -4381,12 +4381,32 @@ slice binds an existing `file_objects` row into `document_version_files`. Re-che
 > disposal presupposes an adjudicated DSR (ADR 0130).
 >
 > ⚠ **Two facts worth carrying forward.**
-> **(a) The verification instrument for this item is a grep, so the fix could have
-> defeated its own check.** A first draft quoted the removed pt-BR strings in a docblock
-> as "do not reintroduce" — which would have made that grep hit **forever**, on a comment
-> rather than on live copy, and read as an unfixed defect. The prohibition is therefore
-> stronger than "don't ship the over-claim": *nothing in that file, comments included, may
-> ever contain those strings.*
+> **(a) ⭕ INSTRUMENT SWAPPED 2026-08-20 — the closure evidence is the rendered-output
+> assertion, and the grep is RETIRED for this item.** The original instrument was a grep
+> over `src/` for the shipped pt-BR literal, which made the fix able to defeat its own
+> check: a docblock quoting the removed strings as "do not reintroduce" hits **forever**,
+> on a comment rather than on live copy, and reads as an unfixed defect. That happened
+> four times in one day — `FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING` — and the grep's
+> measured record is **0 true positives / 4 false positives**: every string it ever
+> matched was prose *about* the defect. The one real over-claim was found by re-reading
+> the component, not by the grep.
+> The instrument is now **claim 2 of
+> [`referral-dispose-dialog.test.tsx`](../../src/components/referrals/referral-dispose-dialog.test.tsx)**
+> — `TOTALITY_QUANTIFIER` matched against **rendered DOM text**. Strictly stronger in both
+> directions, and exactly co-scoped with this item (which is about the *referral* dialog's
+> copy): it keys on the quantifier **family**, so a paraphrase one word off still reds
+> where the literal grep would have passed it; and comments are **not present in rendered
+> output at all**, so the false-positive class is structurally impossible rather than
+> merely discouraged.
+> ⛔ **Do not re-run the grep to re-verify this item** — a hit means a comment. QA's r2
+> record ([review](../reviews/dsr-slice-4-review.md), "the verification instrument … **is**
+> this grep") predates this swap and is left as written; it is a record, not an instruction.
+> ⭐ **The prohibition dissolves with the instrument.** *"Nothing in that file, comments
+> included, may ever contain those strings"* was downstream of the grep and had no other
+> ground. With the grep retired, quoting the defect in a comment is harmless — and keeping
+> an unenforceable standing rule after removing its only enforcer is precisely what ADR
+> 0127 refuses to admit. The fifth recurrence the PO's record-only ruling expected is now
+> a non-event rather than a suppressed instinct.
 > **(b) Left deliberately, flagged not fixed:** the confirm-field helper ("exclusão
 > **definitiva**") and the destructive button ("Apagar **definitivamente**"). These assert
 > *finality*, not the *completeness* ADR 0056 (b) forbids, `DSR_RESIDUE_NOTICE` now
@@ -4477,49 +4497,53 @@ notification must survive — a scrub test that would also pass on `delete from 
 a pin). [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 4**. Until built, the two-tier
 outcome record's residue language must not claim notifications are clean.
 
-### 🟡 FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING — prose that documents a forbidden string DEFEATS the grep that verifies its absence; 4 recurrences in one day, the 4th by the author who fixed the first 3 (owner: unassigned; **PO ruled 2026-08-20: RECORD ONLY, no gate**)
+### 🟡 FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY — the ADR 0056 (b) over-claim is asserted on ONE of four disposal surfaces, and the obvious extension REDS on the one string the slice forbids softening (owner: unassigned; found 2026-08-20 while swapping `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument)
 
-Filed 2026-08-20 (lead), from DSR Slice 4 QA r1 + r2.
+Filed 2026-08-20 (lead). Successor to the breadth clause of
+`FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING` (**closed 2026-08-20 by dissolution** — full body
++ closure record in [follow-ups-archive.md](follow-ups-archive.md); the instrument half became
+`.claude/rules/ui-copy-forbidden-strings.md`), which stated the gap as *"a **new** dispose
+surface with no test"* — measurement makes it **three existing ones**. ⚠ **The coverage half is
+this item and it is UNCHANGED by that closure**: the predecessor was about the *instrument*.
 
-**The class.** `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument was a grep over `src/` for the
-shipped pt-BR over-claim. But the natural way to warn the next reader off a defect is to **quote
-it** — so every warning comment makes the detector fire, and a fixed defect reads as unfixed.
-Measured instances, all on 2026-08-20: `dsr-meeting-dispose-dialog.tsx` · `dsr-task-inbox.tsx` ·
-`messages.ts` (worst — the docblock of `DSR_RESIDUE_NOTICE` itself) · `referral-dispose-dialog.test.tsx`.
+**Measured.** Four components reach a `dispose_*` door and render disposal copy. Only
+`referral-dispose-dialog.test.tsx` (claim 2) asserts the **absence of the over-claim** as a
+property, via `TOTALITY_QUANTIFIER` over rendered DOM text. `dsr-meeting-residue.test.tsx` imports
+all four components but greps **0** for a totality quantifier — it pins the *residue lines*, which
+is a different property. So `dsr-meeting-dispose-dialog`, the `dsr-task-inbox` dispose card and
+`dsr-outcome-record` are unpinned for this class.
 
-⭐⭐ **The finding is not the four instances — it is that the prohibition is not holdable by
-discipline.** The fourth author had *personally fixed the other three* and had written the
-"deliberately not quoted" note into each, then reintroduced it **in a docblock explaining the regex
-that detects it**. Their own account: *"when you write a pattern that matches a defect, quoting the
-defect is how you justify the pattern."* A rule that asks every future author to suppress the
-obvious phrasing forever, with nothing able to contradict them, is the shape CLAUDE.md §8 says a
-**gate** exists for — and it is also the shape ADR 0127 refuses to admit as a `.claude/rules/` entry,
-because it cannot be shown stale.
+**No live defect.** All three are clean today: zero totality quantifiers in their own source.
+`src/lib/dsr/messages.ts` has two hits and **neither is an over-claim** — one is subject-data
+guidance (`…nem qualquer dado que identifique o titular`), the other is below.
 
-⛔ **PO ruled 2026-08-20: record only.** No ninth lint gate, no rule file, no change to the closure
-instrument. A fifth recurrence is expected; this entry is so it is recognised rather than
-re-diagnosed.
+⛔ **The obvious fix is actively harmful, and this is the whole reason to file rather than just do
+it.** Extending claim 2's pattern to the meeting dialog REDS on **`DSR_MEETING_DISPOSAL_WARNING`**
+([messages.ts:205](../../src/lib/dsr/messages.ts:205)) — the constant whose own docblock calls it
+*"THE SINGLE MOST IMPORTANT STRING IN THIS SLICE"* and *"⛔ Never soften this"*, required by ADR
+0130 Amdt 2 item 3 to tell an operator that `dispose_meeting_minutes` destroys **other committees'**
+unrelated agenda items. Under a naive quantifier gate, **the cheapest way to make the build green is
+to soften that warning** — the gate would push an engineer toward the exact edit the docblock
+forbids.
 
-⚠ **Two design constraints, measured, for whoever does build it.** Both make the obvious
-implementation wrong:
-1. **The grep pattern and the prohibition are not the same set.** The fourth instance matched only
-   because the pattern happened to include `todos os campos com dados`; it was written in caps with
-   an ellipsis. A paraphrase one word off — different casing, a synonym, a line break mid-phrase —
-   **slips a real reintroduction past the same grep**. So a literal-string gate is wrong in *both*
-   directions: false-positive on prose *about* the defect, false-negative on a reworded instance of
-   it. The honest form is a lint rule scoped to **UI string literals, excluding comments**, keyed on
-   the over-claim *family* (a permanence adverb paired with a universal quantifier over the
-   sensitive fields — ⭐ the quantifier is the load-bearing half; ADR 0056 (b) forbids the
-   *completeness* claim, not the finality one).
-2. **The check must run where the writing happens.** All four were introduced by someone editing a
-   file for an unrelated reason. A repo-wide grep at QA time catches them a full cycle late; the
-   same check inside `npm run lint` fails the author within seconds — *the difference between a
-   habit and a gate.*
+⭐ **The distinction the pattern cannot currently make is POLARITY, not syntax.** Both strings pair a
+universal quantifier with an erasure verb. The forbidden shape quantifies over **the subject's data
+as the erased set, in a REASSURING frame** ("everything of yours is gone"); the required shape
+quantifies over **other people's records, in a WARNING frame** ("this also destroys all of that").
+Identical syntax, inverted semantics. Any extension must key on the *frame*, or scope itself to the
+reassurance block rather than the whole dialog.
 
-**What actually guards the property today** (so this is not read as uncovered): the mutation-proven
-component tests assert it on **rendered output** — no totality quantifier, and no erasure claim
-without all four residue lines beside it — which is a stronger instrument than the grep on the
-surfaces that have tests. The gap is breadth: a **new** dispose surface with no test is unguarded.
+**Consequence for the register's design constraints.** `FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING`
+recorded that a *literal* gate is wrong in both directions. This is the measured demonstration that
+the *family* pattern is too — false-positive on correct, deliberate, PO-ruled copy. Whoever revisits
+the ninth-gate question should treat this as the constraint that kills the lexical design outright,
+not as a tuning problem. ⛔ **Re-measured at the predecessor's close: `DSR_MEETING_DISPOSAL_WARNING`
+is the ONLY totality quantifier left across all four disposal surfaces plus `messages.ts`** — so a
+lexical gate's entire live yield today would be the one string that must never change.
+
+**Cost, corrected.** Estimated at "~15 lines" when filed as a breadth gap; that estimate assumed the
+pattern transferred. It does not. The cheap honest step is scoping claim 2's assertion to each
+dialog's *residue/reassurance* region; sizing that is the first task, not a foregone conclusion.
 
 ### 🟠 FUP-DOOR-ERASURE-FREETEXT-CENSUS — the four dispose doors erase a hand-picked column set, and at least one door demonstrably erases a GRANDCHILD while leaving its CHILD's free text intact (owner: backend; found 2026-08-20 while falsifying `FUP-NOTIFICATIONS-PHI-RESIDUE`)
 

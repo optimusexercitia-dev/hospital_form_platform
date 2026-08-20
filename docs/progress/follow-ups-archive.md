@@ -2325,3 +2325,110 @@ Closure record:
   holding the erasure duty may be unable to walk the corridor. ⭐ *Correcting a claim's **direction**
   without re-deriving its **magnitude** produces a second wrong claim that reads as a fix* — which is
   why the retention copy deliberately offers no remedy guidance.
+
+## Rotated from PROGRESS.md + follow-ups.md 2026-08-20 — FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING (resolved by dissolution)
+
+**The index line as it stood in PROGRESS.md, verbatim:**
+
+> - 🟡 **FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING** — prose documenting a forbidden string defeats the grep verifying its absence; **4 recurrences in one day**, the 4th by the author who fixed the first 3, in a docblock explaining the detecting regex. ⛔ **PO ruled 2026-08-20: record only, no gate.** Two measured constraints for any future implementation: a literal-string gate is wrong **both** ways (false-positive on prose about it, false-negative on a paraphrase), and the check must run in `npm run lint` where the writing happens, not at QA time a cycle late — unassigned
+
+**The body as it stood in follow-ups.md, verbatim** (it contained no links, so nothing was repointed):
+
+### 🟡 FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING — prose that documents a forbidden string DEFEATS the grep that verifies its absence; 4 recurrences in one day, the 4th by the author who fixed the first 3 (owner: unassigned; **PO ruled 2026-08-20: RECORD ONLY, no gate**)
+
+Filed 2026-08-20 (lead), from DSR Slice 4 QA r1 + r2.
+
+**The class.** `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument was a grep over `src/` for the
+shipped pt-BR over-claim. But the natural way to warn the next reader off a defect is to **quote
+it** — so every warning comment makes the detector fire, and a fixed defect reads as unfixed.
+Measured instances, all on 2026-08-20: `dsr-meeting-dispose-dialog.tsx` · `dsr-task-inbox.tsx` ·
+`messages.ts` (worst — the docblock of `DSR_RESIDUE_NOTICE` itself) · `referral-dispose-dialog.test.tsx`.
+
+⭐⭐ **The finding is not the four instances — it is that the prohibition is not holdable by
+discipline.** The fourth author had *personally fixed the other three* and had written the
+"deliberately not quoted" note into each, then reintroduced it **in a docblock explaining the regex
+that detects it**. Their own account: *"when you write a pattern that matches a defect, quoting the
+defect is how you justify the pattern."* A rule that asks every future author to suppress the
+obvious phrasing forever, with nothing able to contradict them, is the shape CLAUDE.md §8 says a
+**gate** exists for — and it is also the shape ADR 0127 refuses to admit as a `.claude/rules/` entry,
+because it cannot be shown stale.
+
+⛔ **PO ruled 2026-08-20: record only.** No ninth lint gate, no rule file, no change to the closure
+instrument. A fifth recurrence is expected; this entry is so it is recognised rather than
+re-diagnosed.
+
+⚠ **Two design constraints, measured, for whoever does build it.** Both make the obvious
+implementation wrong:
+1. **The grep pattern and the prohibition are not the same set.** The fourth instance matched only
+   because the pattern happened to include `todos os campos com dados`; it was written in caps with
+   an ellipsis. A paraphrase one word off — different casing, a synonym, a line break mid-phrase —
+   **slips a real reintroduction past the same grep**. So a literal-string gate is wrong in *both*
+   directions: false-positive on prose *about* the defect, false-negative on a reworded instance of
+   it. The honest form is a lint rule scoped to **UI string literals, excluding comments**, keyed on
+   the over-claim *family* (a permanence adverb paired with a universal quantifier over the
+   sensitive fields — ⭐ the quantifier is the load-bearing half; ADR 0056 (b) forbids the
+   *completeness* claim, not the finality one).
+2. **The check must run where the writing happens.** All four were introduced by someone editing a
+   file for an unrelated reason. A repo-wide grep at QA time catches them a full cycle late; the
+   same check inside `npm run lint` fails the author within seconds — *the difference between a
+   habit and a gate.*
+
+**What actually guards the property today** (so this is not read as uncovered): a mutation-proven
+component test asserts it on **rendered output** — no totality quantifier, and no erasure claim
+without the residue lines beside it — which is a stronger instrument than the grep, and on
+2026-08-20 it **replaced** the grep as `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument (that
+item's note (a)).
+
+⛔ **CORRECTED 2026-08-20 (measured, same day this was filed).** The sentence above previously read
+*"the mutation-proven component **tests** assert it … on the surfaces that have tests"*, which
+over-claimed the breadth in the entry that exists to document an over-claim. Measured: **one**
+surface carries the totality assertion — `referral-dispose-dialog.test.tsx` claim 2. Its sibling
+`dsr-meeting-residue.test.tsx` imports all four components but greps **0** for a totality
+quantifier: it pins the *residue lines*, not the *absence of the over-claim*. So the gap is not
+only the hypothetical **new** surface — it is **three existing ones**. Filed as
+`FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY`; ⭐ the general lesson is that *"the tests cover it"* is
+a claim with a cardinality, and this entry shipped without measuring it.
+
+Closure record:
+
+- [x] **✅ CLOSED 2026-08-20 — resolved by DISSOLUTION plus one standing rule. The PO's
+  record-only ruling stands: no ninth lint gate was built, and none should be.**
+  ⭐ **The item's own title over-scopes what was left to solve.** Re-measured at close:
+  the originating trap is already structurally dead. The `src/` grep for the three shipped
+  literals returns **exit 1** — all four false-positive sites are clean — and it is no
+  longer anyone's instrument, having been swapped on 2026-08-20 for claim 2 of
+  `referral-dispose-dialog.test.tsx`, which reads **rendered DOM text**, where comments do
+  not exist. The prohibition that made the four recurrences *defects* ("nothing in that
+  file, comments included, may contain those strings") was downstream of the grep and had
+  no other ground; it is now removed from the file that carried it, with the reason stated
+  in place. **The fifth recurrence the entry expected is a non-event, not a suppressed
+  instinct.** What genuinely remained was narrower and never stated in the title: nothing
+  stopped the **next** forbidden-string follow-up from being closed with a source grep and
+  re-arming the identical trap. That is now `.claude/rules/ui-copy-forbidden-strings.md`.
+- ⛔ **Why a rule and not the ninth gate — and why the entry's own second constraint is
+  the one that had to be dropped.** The entry required (1) a non-literal pattern and (2) a
+  check inside `npm run lint`, "where the writing happens". Constraint 2 is **void once
+  constraint 1's successor is measured**: `FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY` showed
+  the *family* pattern false-positives on `DSR_MEETING_DISPOSAL_WARNING`
+  (`src/lib/dsr/messages.ts:205`, *"⛔ Never soften this"*), so the cheapest way to green a
+  lexical gate is the edit ADR 0130 forbids. Re-measured at close: that constant is the
+  **only** totality quantifier surviving across all four disposal surfaces plus
+  `messages.ts`. A gate whose sole live match is copy that must never change is not a
+  tuning problem. ⭐ And constraint 2 was aimed at catching an author writing a **comment**
+  — which the instrument swap makes not-a-defect. *A constraint on the fix inherits the
+  premises of the instrument that motivated it; when the instrument is replaced, re-derive
+  the constraint instead of carrying it forward.*
+- **The rule states the instrument class, and contains no pt-BR pattern at all** — so it
+  cannot false-positive on prose *about* a string, and cannot false-negative on a
+  paraphrase. Both directions of the measured constraint are answered by having no pattern
+  rather than by a better one. ADR 0127 admission: `paths:` scoped to 4 files (the
+  register, the copy module, the two disposal-copy tests), two resolving `anchors:`, a
+  named `source:`. It **can** be shown stale — the exemplar anchor
+  (`referral-dispose-dialog.test.tsx#TOTALITY_QUANTIFIER`) reds if the instrument is
+  renamed or removed, and `lint:rules` was **observed red** on the archive anchor before
+  this rotation landed, so the gate is proven able to fail on this rule specifically.
+- ⚠ **What this closure does NOT cover, stated so it is not read as wider than it is.**
+  Three of the four disposal surfaces still carry **no** assertion of the over-claim's
+  absence — that is `FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY`, which stays **OPEN** and is
+  the successor for the breadth half. This item was about the *instrument*, not the
+  *coverage*, and closing it changes the coverage by nothing.

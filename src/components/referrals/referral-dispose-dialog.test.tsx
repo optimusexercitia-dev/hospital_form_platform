@@ -59,12 +59,18 @@ const REFERRAL_ID = "11111111-1111-4111-8111-111111111111";
  * sensitive fields, and the load-bearing half was the quantifier, not the adverb —
  * which is why this pattern targets quantifiers and leaves permanence alone.
  *
- * ⚠ THE pt-BR WORDING IS NOT REPRODUCED HERE, and the omission is load-bearing: the
- * over-claim is policed by a grep over `src/`, so a comment quoting it to warn the
- * next reader is indistinguishable from the defect itself. That happened four times
- * in one day, in four different files, to authors who knew the rule — describing a
- * defect by quoting it is simply the natural way to write the comment. Describe it in
- * English; never reproduce it.
+ * ⭕ THE pt-BR WORDING IS STILL NOT REPRODUCED HERE — but the REASON changed on
+ * 2026-08-20 and the prohibition is GONE. It used to be load-bearing: the over-claim
+ * was policed by a grep over `src/`, so a comment quoting it to warn the next reader
+ * was indistinguishable from the defect itself. That happened four times in one day,
+ * in four files, to authors who knew the rule — describing a defect by quoting it is
+ * simply how the comment wants to be written.
+ *
+ * THIS FILE REPLACED THAT GREP as the closure instrument for
+ * `FUP-DISPOSE-DIALOG-OVERCLAIM`, and it reads RENDERED OUTPUT, where comments do not
+ * exist. Quoting the string here is now harmless. It stays omitted only because
+ * English describes the CLASS better than one literal does — never reinstate the
+ * prohibition without reinstating an instrument that can enforce it.
  */
 const TOTALITY_QUANTIFIER =
   /\b(todos?|todas?|tudo|quaisquer|qualquer|integral(mente)?|completa(mente)?|por completo)\b/i;
