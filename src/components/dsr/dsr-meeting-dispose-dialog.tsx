@@ -55,9 +55,14 @@ const CONFIRM_PHRASE = "APAGAR";
  * copies — the over-claim ADR 0056's narrowed closure forbids. Both surfaces now draw
  * their language from one file.
  *
- * ⚠ The offending pt-BR strings are deliberately NOT quoted here: that follow-up is
- * verified by a grep over `src/`, which prose about the over-claim would trip as
- * readily as the over-claim itself. The prohibition is repo-wide, not file-local.
+ * ⚠ THE pt-BR WORDING IS NOT REPRODUCED HERE, but that is now a STYLE CHOICE, not a
+ * rule. It used to be load-bearing: the over-claim was policed by a grep over `src/`, so
+ * a comment quoting it to warn the next reader was indistinguishable from the defect
+ * itself — which happened four times in one day, to authors who knew the rule. That grep
+ * was RETIRED on 2026-08-20 (measured record: 0 true, 4 false positives) and replaced by
+ * rendered-output assertions, where comments do not exist. ⛔ Do not reinstate the
+ * prohibition without reinstating an instrument that could enforce it — see
+ * `.claude/rules/ui-copy-forbidden-strings.md`.
  *
  * ⛔ THE DSR NEVER FIRES A DOOR ON THE EXECUTOR'S BEHALF (ADR 0130 Decision 2).
  * `disposeMeetingMinutesTask` calls `dispose_meeting_minutes` under the CALLER'S OWN

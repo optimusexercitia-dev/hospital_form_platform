@@ -50,9 +50,16 @@ const DISPOSAL_KINDS = new Set([
  * The discipline exists because a dispose dialog once promised a permanent wipe of
  * every sensitive field while saying nothing about retained encrypted attachments, the
  * PITR window, or already-distributed copies — the over-claim ADR 0056's narrowed
- * closure forbids (`FUP-DISPOSE-DIALOG-OVERCLAIM`). ⚠ Its pt-BR wording is deliberately
- * NOT quoted anywhere in `src/`: that follow-up is verified by grep, and prose warning
- * the next reader off those strings trips the detector exactly as the strings would.
+ * closure forbids (`FUP-DISPOSE-DIALOG-OVERCLAIM`).
+ *
+ * ⚠ THE pt-BR WORDING IS NOT REPRODUCED HERE, but that is now a STYLE CHOICE, not a
+ * rule. It used to be load-bearing: the over-claim was policed by a grep over `src/`, so
+ * a comment quoting it to warn the next reader was indistinguishable from the defect
+ * itself — which happened four times in one day, to authors who knew the rule. That grep
+ * was RETIRED on 2026-08-20 (measured record: 0 true, 4 false positives) and replaced by
+ * rendered-output assertions, where comments do not exist. ⛔ Do not reinstate the
+ * prohibition without reinstating an instrument that could enforce it — see
+ * `.claude/rules/ui-copy-forbidden-strings.md`.
  */
 export function DsrTaskInbox({
   org,

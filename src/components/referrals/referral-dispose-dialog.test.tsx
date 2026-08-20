@@ -49,34 +49,40 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { DSR_RESIDUE_NOTICE } from "@/lib/dsr/messages";
+import {
+  ERASURE_CLAIM,
+  TOTALITY_QUANTIFIER,
+  renderedText,
+} from "@/components/dsr/disposal-copy-property";
 import { ReferralDisposeDialog } from "./referral-dispose-dialog";
 
 const REFERRAL_ID = "11111111-1111-4111-8111-111111111111";
 
 /**
- * The CLASS the over-claim belonged to: a universal quantifier over the erased set.
- * The shipped defect paired a permanence adverb with a universal quantifier over the
- * sensitive fields, and the load-bearing half was the quantifier, not the adverb —
- * which is why this pattern targets quantifiers and leaves permanence alone.
+ * ⭕ THE PROPERTY NOW LIVES IN ONE PLACE — `@/components/dsr/disposal-copy-property`,
+ * shared with `dsr-disposal-overclaim.test.tsx`, which asserts the same thing on the
+ * three OTHER disposal surfaces (`FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY`: this file
+ * was 1 of 4). Two copies of a pattern drift, and the copy nobody edits is the one that
+ * loosens. Read that module for what the property covers and why permanence is left
+ * alone.
  *
- * ⭕ THE pt-BR WORDING IS STILL NOT REPRODUCED HERE — but the REASON changed on
- * 2026-08-20 and the prohibition is GONE. It used to be load-bearing: the over-claim
- * was policed by a grep over `src/`, so a comment quoting it to warn the next reader
- * was indistinguishable from the defect itself. That happened four times in one day,
- * in four files, to authors who knew the rule — describing a defect by quoting it is
- * simply how the comment wants to be written.
+ * ⚠ TWO THINGS CHANGED HERE ON 2026-08-20, both measured, neither cosmetic.
  *
- * THIS FILE REPLACED THAT GREP as the closure instrument for
- * `FUP-DISPOSE-DIALOG-OVERCLAIM`, and it reads RENDERED OUTPUT, where comments do not
- * exist. Quoting the string here is now harmless. It stays omitted only because
- * English describes the CLASS better than one literal does — never reinstate the
- * prohibition without reinstating an instrument that can enforce it.
+ * 1. `renderedText()` REPLACED bare `.textContent`, which had a real blind spot: it
+ *    concatenates sibling text with NO separator, fusing the last word of one element to
+ *    the first of the next — so a quantifier sitting at an element EDGE has no word
+ *    boundary in front of it and never matched. An over-claim injected at such an edge
+ *    left this suite green. The property was never as wide as it read.
+ * 2. The pt-BR wording is still not reproduced, but the PROHIBITION IS GONE. It used to
+ *    be load-bearing: the over-claim was policed by a grep over `src/`, so a comment
+ *    quoting it to warn the next reader was indistinguishable from the defect itself —
+ *    four times in one day, in four files, to authors who knew the rule. This file
+ *    REPLACED that grep as `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument, and it
+ *    reads RENDERED OUTPUT, where comments do not exist. Quoting it here is now
+ *    harmless; it stays omitted only because English describes the CLASS better than one
+ *    literal does. ⛔ Never reinstate the prohibition without reinstating an instrument
+ *    that can enforce it — `.claude/rules/ui-copy-forbidden-strings.md`.
  */
-const TOTALITY_QUANTIFIER =
-  /\b(todos?|todas?|tudo|quaisquer|qualquer|integral(mente)?|completa(mente)?|por completo)\b/i;
-
-/** Proof-of-life for claim 2: the dialog really does make an erasure claim. */
-const ERASURE_CLAIM = /\b(apaga|apagar|apagad|remove|remover|exclus|excluir|descart)/i;
 
 beforeAll(() => {
   // Radix needs ResizeObserver; jsdom lacks it.
@@ -152,7 +158,7 @@ describe("ReferralDisposeDialog — the residue notice (claim 1)", () => {
     // The constant is the source of language, but this pins WHAT it has to cover, so
     // a future rewrite that keeps four lines while dropping a class still reds:
     // retained encrypted bytes, the PITR window, and distributed copies.
-    const text = openDialog().textContent ?? "";
+    const text = renderedText(openDialog());
     expect(text).toMatch(/cifrad/i); // retained encrypted attachments
     expect(text).toMatch(/PITR|recupera/i); // the point-in-time-recovery window
     expect(text).toMatch(/impressas|distribuídas/i); // copies beyond the platform
@@ -161,7 +167,7 @@ describe("ReferralDisposeDialog — the residue notice (claim 1)", () => {
 
 describe("ReferralDisposeDialog — the over-claim is absent (claim 2)", () => {
   it("makes no UNQUALIFIED erasure claim: totality quantifiers are absent", () => {
-    const text = openDialog().textContent ?? "";
+    const text = renderedText(openDialog());
 
     // Proof-of-life FIRST. Without this the assertion below would pass just as
     // happily on a dialog that says nothing about erasing anything.
@@ -179,7 +185,7 @@ describe("ReferralDisposeDialog — the over-claim is absent (claim 2)", () => {
     // claim and its qualification are inseparable. The shipped defect satisfied the
     // first half and not the second.
     const dialog = openDialog();
-    const text = dialog.textContent ?? "";
+    const text = renderedText(dialog);
     expect(text).toMatch(ERASURE_CLAIM);
     for (const line of DSR_RESIDUE_NOTICE) {
       expect(text).toContain(line);
@@ -193,7 +199,7 @@ describe("ReferralDisposeDialog — the over-claim is absent (claim 2)", () => {
     const summary = screen.getByRole("region", {
       name: "Apagar dados do paciente",
     });
-    const text = summary.textContent ?? "";
+    const text = renderedText(summary);
     expect(text).toMatch(ERASURE_CLAIM);
     expect(text.match(TOTALITY_QUANTIFIER)).toBeNull();
   });

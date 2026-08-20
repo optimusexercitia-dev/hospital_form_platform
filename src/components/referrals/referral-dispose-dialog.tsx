@@ -70,9 +70,14 @@ const CONFIRM_PHRASE = "APAGAR";
  * is compliance copy an operator reads at the moment they discharge a legal obligation;
  * it must not assert more than the door delivers.
  *
- * ⚠ The offending strings are deliberately NOT quoted above: the follow-up's verification
- * is a grep for them over this file, and a comment reproducing them would make that
- * detector hit forever.
+ * ⚠ THE pt-BR WORDING IS NOT REPRODUCED HERE, but that is now a STYLE CHOICE, not a
+ * rule. It used to be load-bearing: the over-claim was policed by a grep over `src/`, so
+ * a comment quoting it to warn the next reader was indistinguishable from the defect
+ * itself — which happened four times in one day, to authors who knew the rule. That grep
+ * was RETIRED on 2026-08-20 (measured record: 0 true, 4 false positives) and replaced by
+ * rendered-output assertions, where comments do not exist. ⛔ Do not reinstate the
+ * prohibition without reinstating an instrument that could enforce it — see
+ * `.claude/rules/ui-copy-forbidden-strings.md`.
  *
  * The PAGE decides whether to render this at all — it mounts the component only
  * when the authoritative `canDisposeReferralPhi` probe returns true (a PHI record

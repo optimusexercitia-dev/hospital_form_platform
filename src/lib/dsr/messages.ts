@@ -81,10 +81,14 @@ export const DSR_MESSAGES = {
  * forbids. DSR Slice 4 moved that dialog onto this constant and closed
  * `FUP-DISPOSE-DIALOG-OVERCLAIM`.
  *
- * ⚠ That pt-BR wording is deliberately NOT quoted anywhere in `src/`, this docblock
- * included: the offending copy is checked for by grep, so prose warning the next
- * reader off the strings is indistinguishable from the strings themselves. Describe
- * the over-claim in English; never reproduce it.
+ * ⚠ THE pt-BR WORDING IS NOT REPRODUCED HERE, but that is now a STYLE CHOICE, not a
+ * rule. It used to be load-bearing: the over-claim was policed by a grep over `src/`, so
+ * a comment quoting it to warn the next reader was indistinguishable from the defect
+ * itself — which happened four times in one day, to authors who knew the rule. That grep
+ * was RETIRED on 2026-08-20 (measured record: 0 true, 4 false positives) and replaced by
+ * rendered-output assertions, where comments do not exist. ⛔ Do not reinstate the
+ * prohibition without reinstating an instrument that could enforce it — see
+ * `.claude/rules/ui-copy-forbidden-strings.md`.
  *
  * ⚠ Every line is a NARROWED claim, checked against ADR 0056's narrowed closure:
  * what leaves is the database PHI of the named record, and nothing else does.

@@ -2432,3 +2432,126 @@ Closure record:
   absence — that is `FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY`, which stays **OPEN** and is
   the successor for the breadth half. This item was about the *instrument*, not the
   *coverage*, and closing it changes the coverage by nothing.
+
+## Rotated from PROGRESS.md + follow-ups.md 2026-08-20 — FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY (built)
+
+**The index line as it stood in PROGRESS.md, verbatim:**
+
+> - 🟡 **FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY** — the ADR 0056 (b) over-claim is pinned on **1 of 4** disposal surfaces (`referral-dispose-dialog.test.tsx` claim 2); `dsr-meeting-residue.test.tsx` imports all four but greps **0** for a totality quantifier — it pins the residue lines, a different property. ⛔ **No live defect, and the obvious fix is harmful:** extending the pattern REDS on `DSR_MEETING_DISPOSAL_WARNING` ([messages.ts:205](../../src/lib/dsr/messages.ts:205)) — *"⛔ Never soften this"* — so the cheapest green is to damage the ADR 0130 warning that a meeting disposal destroys **other committees'** items. ⭐ The undrawn distinction is **polarity, not syntax**: a quantifier over the subject's data in a REASSURING frame is forbidden, over others' records in a WARNING frame is required. Kills the lexical ninth-gate design outright — unassigned
+
+**The body as it stood in follow-ups.md, verbatim** (same directory, so its two links needed no repointing):
+
+### 🟡 FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY — the ADR 0056 (b) over-claim is asserted on ONE of four disposal surfaces, and the obvious extension REDS on the one string the slice forbids softening (owner: unassigned; found 2026-08-20 while swapping `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument)
+
+Filed 2026-08-20 (lead). Successor to the breadth clause of
+`FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING` (**closed 2026-08-20 by dissolution** — full body
++ closure record in [follow-ups-archive.md](follow-ups-archive.md); the instrument half became
+`.claude/rules/ui-copy-forbidden-strings.md`), which stated the gap as *"a **new** dispose
+surface with no test"* — measurement makes it **three existing ones**. ⚠ **The coverage half is
+this item and it is UNCHANGED by that closure**: the predecessor was about the *instrument*.
+
+**Measured.** Four components reach a `dispose_*` door and render disposal copy. Only
+`referral-dispose-dialog.test.tsx` (claim 2) asserts the **absence of the over-claim** as a
+property, via `TOTALITY_QUANTIFIER` over rendered DOM text. `dsr-meeting-residue.test.tsx` imports
+all four components but greps **0** for a totality quantifier — it pins the *residue lines*, which
+is a different property. So `dsr-meeting-dispose-dialog`, the `dsr-task-inbox` dispose card and
+`dsr-outcome-record` are unpinned for this class.
+
+**No live defect.** All three are clean today: zero totality quantifiers in their own source.
+`src/lib/dsr/messages.ts` has two hits and **neither is an over-claim** — one is subject-data
+guidance (`…nem qualquer dado que identifique o titular`), the other is below.
+
+⛔ **The obvious fix is actively harmful, and this is the whole reason to file rather than just do
+it.** Extending claim 2's pattern to the meeting dialog REDS on **`DSR_MEETING_DISPOSAL_WARNING`**
+([messages.ts:205](../../src/lib/dsr/messages.ts:205)) — the constant whose own docblock calls it
+*"THE SINGLE MOST IMPORTANT STRING IN THIS SLICE"* and *"⛔ Never soften this"*, required by ADR
+0130 Amdt 2 item 3 to tell an operator that `dispose_meeting_minutes` destroys **other committees'**
+unrelated agenda items. Under a naive quantifier gate, **the cheapest way to make the build green is
+to soften that warning** — the gate would push an engineer toward the exact edit the docblock
+forbids.
+
+⭐ **The distinction the pattern cannot currently make is POLARITY, not syntax.** Both strings pair a
+universal quantifier with an erasure verb. The forbidden shape quantifies over **the subject's data
+as the erased set, in a REASSURING frame** ("everything of yours is gone"); the required shape
+quantifies over **other people's records, in a WARNING frame** ("this also destroys all of that").
+Identical syntax, inverted semantics. Any extension must key on the *frame*, or scope itself to the
+reassurance block rather than the whole dialog.
+
+**Consequence for the register's design constraints.** `FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING`
+recorded that a *literal* gate is wrong in both directions. This is the measured demonstration that
+the *family* pattern is too — false-positive on correct, deliberate, PO-ruled copy. Whoever revisits
+the ninth-gate question should treat this as the constraint that kills the lexical design outright,
+not as a tuning problem. ⛔ **Re-measured at the predecessor's close: `DSR_MEETING_DISPOSAL_WARNING`
+is the ONLY totality quantifier left across all four disposal surfaces plus `messages.ts`** — so a
+lexical gate's entire live yield today would be the one string that must never change.
+
+**Cost, corrected.** Estimated at "~15 lines" when filed as a breadth gap; that estimate assumed the
+pattern transferred. It does not. The cheap honest step is scoping claim 2's assertion to each
+dialog's *residue/reassurance* region; sizing that is the first task, not a foregone conclusion.
+
+Closure record:
+
+- [x] **✅ CLOSED 2026-08-20 — the property is asserted on 4 of 4 disposal surfaces, defined
+  ONCE in [`src/components/dsr/disposal-copy-property.ts`](../../src/components/dsr/disposal-copy-property.ts).**
+  New suite [`dsr-disposal-overclaim.test.tsx`](../../src/components/dsr/dsr-disposal-overclaim.test.tsx)
+  (21 tests) covers the meeting dialog, the task-inbox card over **every** disposal kind plus its
+  executable arm, and the outcome record in **both** meeting arms;
+  `referral-dispose-dialog.test.tsx` claim 2 stays where it is — it is
+  `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument and also covers that dialog's pre-open
+  summary region — and now imports the same property, so the two cannot drift.
+- ⛔ **THIS ITEM'S OWN PRESCRIPTION WAS WRONG, AND MEASURING IT FIRST IS WHY THAT SURFACED.**
+  It named the cheap honest step as *"scoping claim 2's assertion to each dialog's
+  residue/reassurance region"*. Measured on all four: that region renders `DSR_RESIDUE_NOTICE`
+  (and `DSR_MEETING_RESIDUE_RETAINED`) **and nothing else** — so an assertion scoped to it would
+  only ever re-check constants claim 1 already pins, while the shipped defect lived in the
+  dialog's own **bespoke** copy *outside* that region. The prescribed fix would have moved the
+  assertion **away from the only place the defect has ever appeared** and read as coverage. ⭐ *A
+  filed item's proposed remedy is a hypothesis, not a spec; the item said "sizing that is the
+  first task" and sizing it is what falsified it.*
+- **What replaced it: subtraction by IDENTITY, not a cleverer pattern.** The property is applied
+  to the whole rendered surface MINUS the deliberately warning-framed constants, which are
+  imported rather than re-typed. That answers the polarity problem the item called
+  design-killing: a component's own bespoke string can never be in the subtraction set, so the
+  set cannot become an escape hatch. ⚠ Subtraction buys blindness unless paired, so the meeting
+  dialog carries a **positive pin** that `DSR_MEETING_DISPOSAL_WARNING` renders verbatim —
+  measured, nothing pinned it before, and a silent deletion of *"the single most important
+  string in this slice"* would have left every other assertion green.
+- **The item's central fear, discharged executably.** Mutation **M6** softens the warning by
+  removing its quantifier: the suite stays **GREEN** (36/36) — the gate is indifferent to that
+  edit, so it can never be the cheapest way to a green build. **M7** empties the subtraction set
+  and the meeting surface goes **RED**, which is the same claim from the other side: the naive
+  lexical gate really would have fired on the one string ADR 0130 forbids softening.
+- ⭐⭐ **A DEFECT IN THE INSTRUMENT ITSELF, found only by mutating it — and it narrows what the
+  PREDECESSOR ever proved.** `Element.textContent` concatenates descendant text with **no**
+  separator, so the last word of one element fuses to the first of the next
+  (`…Ana Souza` + `Tudo apagado` → `…SouzaTudo apagado`). There is no word boundary before that
+  `T`, so `\btudo\b` **does not match** and the over-claim passes. A deliberate over-claim
+  injected into `dsr-outcome-record.tsx` left the entire new suite **green** until
+  `renderedText()` (join text NODES with a space) existed. ⛔ `FUP-DISPOSE-DIALOG-OVERCLAIM`'s
+  closure assertion read `dialog.textContent` directly, so **it could only ever have caught a
+  quantifier sitting mid-element** — which the shipped defect happened to be. That closure was
+  true but narrower than it read; both files are on `renderedText()` now, with a positive
+  control that *demonstrates* the blind spot rather than asserting it away.
+  ⚠ **Bounded sweep, so this is not read as an unswept class:** only patterns anchored on `\b`
+  or `^` can be defeated by concatenation. Across `src/` and `e2e/`, the other four
+  regex-absence assertions over `.textContent` (`previa-link` ×1, `verification-result` ×3) are
+  unanchored substring alternations and are **not** vulnerable. The two fixed here were the only
+  ones.
+- **Four docblocks were still asserting a detector that no longer exists** — `messages.ts`,
+  `dsr-meeting-dispose-dialog.tsx`, `dsr-task-inbox.tsx` and `referral-dispose-dialog.tsx` each
+  told the next author the over-claim "is verified by a grep over `src/`" and reimposed the
+  prohibition dissolved when that grep was retired. ⛔ The 2026-08-20 dissolution had landed in
+  **one** of five sites — the test file — because the fix was enumerated by *"where was the
+  string quoted"* (4 sites) rather than by *"where is the claim made"* (5). All four corrected
+  and pointed at `.claude/rules/ui-copy-forbidden-strings.md`.
+- **Coverage:** 12 mutations — 11 that must red do (bespoke over-claim on each of the four
+  surfaces incl. the referral dialog; an over-claim at an element EDGE; the warning no longer
+  rendered; the subtraction set emptied; `reassuranceText` neutered; a residue line dropped; the
+  `SURFACES` roster emptied), and M6 must stay green and does. Rollback was proven before the
+  battery ran and re-verified byte-identical after every mutation; baseline and final both 36/36.
+  Full unit suite **1501 passed**, eight lint gates + typecheck green.
+- ⚠ **NOT covered, stated plainly:** the attestation lane is deliberately out of the roster —
+  `DSR_ATTEST_PROCEDURE_COMMON`'s last line quantifies universally in a PROHIBITION frame
+  addressed to the reviewer, which is required copy. And `outcomeBasis` /
+  `legalConsultationRef` are operator free text, not platform copy; the fixtures hold them null
+  on purpose, because asserting a copy property over what a DPO typed would red on their words.

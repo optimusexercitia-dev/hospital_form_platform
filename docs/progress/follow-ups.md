@@ -4497,54 +4497,6 @@ notification must survive — a scrub test that would also pass on `delete from 
 a pin). [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 4**. Until built, the two-tier
 outcome record's residue language must not claim notifications are clean.
 
-### 🟡 FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY — the ADR 0056 (b) over-claim is asserted on ONE of four disposal surfaces, and the obvious extension REDS on the one string the slice forbids softening (owner: unassigned; found 2026-08-20 while swapping `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument)
-
-Filed 2026-08-20 (lead). Successor to the breadth clause of
-`FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING` (**closed 2026-08-20 by dissolution** — full body
-+ closure record in [follow-ups-archive.md](follow-ups-archive.md); the instrument half became
-`.claude/rules/ui-copy-forbidden-strings.md`), which stated the gap as *"a **new** dispose
-surface with no test"* — measurement makes it **three existing ones**. ⚠ **The coverage half is
-this item and it is UNCHANGED by that closure**: the predecessor was about the *instrument*.
-
-**Measured.** Four components reach a `dispose_*` door and render disposal copy. Only
-`referral-dispose-dialog.test.tsx` (claim 2) asserts the **absence of the over-claim** as a
-property, via `TOTALITY_QUANTIFIER` over rendered DOM text. `dsr-meeting-residue.test.tsx` imports
-all four components but greps **0** for a totality quantifier — it pins the *residue lines*, which
-is a different property. So `dsr-meeting-dispose-dialog`, the `dsr-task-inbox` dispose card and
-`dsr-outcome-record` are unpinned for this class.
-
-**No live defect.** All three are clean today: zero totality quantifiers in their own source.
-`src/lib/dsr/messages.ts` has two hits and **neither is an over-claim** — one is subject-data
-guidance (`…nem qualquer dado que identifique o titular`), the other is below.
-
-⛔ **The obvious fix is actively harmful, and this is the whole reason to file rather than just do
-it.** Extending claim 2's pattern to the meeting dialog REDS on **`DSR_MEETING_DISPOSAL_WARNING`**
-([messages.ts:205](../../src/lib/dsr/messages.ts:205)) — the constant whose own docblock calls it
-*"THE SINGLE MOST IMPORTANT STRING IN THIS SLICE"* and *"⛔ Never soften this"*, required by ADR
-0130 Amdt 2 item 3 to tell an operator that `dispose_meeting_minutes` destroys **other committees'**
-unrelated agenda items. Under a naive quantifier gate, **the cheapest way to make the build green is
-to soften that warning** — the gate would push an engineer toward the exact edit the docblock
-forbids.
-
-⭐ **The distinction the pattern cannot currently make is POLARITY, not syntax.** Both strings pair a
-universal quantifier with an erasure verb. The forbidden shape quantifies over **the subject's data
-as the erased set, in a REASSURING frame** ("everything of yours is gone"); the required shape
-quantifies over **other people's records, in a WARNING frame** ("this also destroys all of that").
-Identical syntax, inverted semantics. Any extension must key on the *frame*, or scope itself to the
-reassurance block rather than the whole dialog.
-
-**Consequence for the register's design constraints.** `FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING`
-recorded that a *literal* gate is wrong in both directions. This is the measured demonstration that
-the *family* pattern is too — false-positive on correct, deliberate, PO-ruled copy. Whoever revisits
-the ninth-gate question should treat this as the constraint that kills the lexical design outright,
-not as a tuning problem. ⛔ **Re-measured at the predecessor's close: `DSR_MEETING_DISPOSAL_WARNING`
-is the ONLY totality quantifier left across all four disposal surfaces plus `messages.ts`** — so a
-lexical gate's entire live yield today would be the one string that must never change.
-
-**Cost, corrected.** Estimated at "~15 lines" when filed as a breadth gap; that estimate assumed the
-pattern transferred. It does not. The cheap honest step is scoping claim 2's assertion to each
-dialog's *residue/reassurance* region; sizing that is the first task, not a foregone conclusion.
-
 ### 🟠 FUP-DOOR-ERASURE-FREETEXT-CENSUS — the four dispose doors erase a hand-picked column set, and at least one door demonstrably erases a GRANDCHILD while leaving its CHILD's free text intact (owner: backend; found 2026-08-20 while falsifying `FUP-NOTIFICATIONS-PHI-RESIDUE`)
 
 Filed 2026-08-20 (lead). Successor to `FUP-NOTIFICATIONS-PHI-RESIDUE`, which was closed as
