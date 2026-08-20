@@ -681,6 +681,12 @@ Filed 2026-08-19, from the § 6b first execution (finding **F5**;
 [run log](../deployment/phi-backup-run-log.md)). **This is the residue that
 `FUP-DM5-BACKUP-IS-PHI-EXPORT`'s close does not absorb**, named rather than dropped.
 
+> ⭐⭐ **PROMOTED TO § Critical FUP as C3 on 2026-08-19, by explicit PO instruction** — the only way
+> an entry may land in that section. Its **trigger** lives there: ⛔ *before any real patient record
+> is loaded.* ⚠ That is the same instant as **C1**'s trigger and for the **opposite** reason — C1 is
+> about *destroying* bytes on request, C3 about *not being able to get them back*. Two items, one
+> deadline, easy to conflate; the § Critical FUP rows say so on both sides.
+
 The mechanism § 6b prescribes is `docker exec supabase_storage_<ref> … tar`. That cannot reach a
 Supabase-managed project. What is available on Cloud instead, **measured against Supabase's own
 documentation, not inferred**:
@@ -716,6 +722,11 @@ rehearsed like any other. ⚠ Note (b) overlaps **`FUP-DM5-CLOUD-ORPHAN-SURFACE`
 ### 🟠 FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED — the runbook's own DB-half verification creates **two plaintext PHI copies with no handling rule** (owner: PO decision, then backend)
 
 Filed 2026-08-19, from the § 6b first execution (finding **F6**).
+
+> ⭐⭐ **PROMOTED TO § Critical FUP as C4 on 2026-08-19, by explicit PO instruction.** Its **trigger**
+> lives there: **the first time anyone runs `supabase db dump --linked`** — which needs only the DB
+> password and is the natural next step of a **C1b** rehearsal. ⛔ So the ordering matters: do not
+> let a C1b run be the first execution of an ungoverned procedure.
 
 § 6b is titled *"PHI handling for the backup half"*, but its five values are scoped, literally, to
 **"a Storage backup" / "the archive"**. The same section then requires — for the word *"verified
