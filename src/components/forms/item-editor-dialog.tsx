@@ -343,12 +343,15 @@ export function ItemEditorDialog(props: Props) {
   const isConditional = visibleWhen !== null;
 
   const labelField = useFieldIds("label", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.label),
   });
   const explanationField = useFieldIds("questionExplanation", {
+    nameRequiredFor: "formData",
     hasDescription: true,
   });
   const altField = useFieldIds("alt", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.alt),
   });
 

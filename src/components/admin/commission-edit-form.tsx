@@ -37,6 +37,7 @@ export function CommissionEditForm({
   );
 
   const nameField = useFieldIds("name", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.name),
   });
   const slugField = useFieldIds("slug-display", { hasDescription: true });

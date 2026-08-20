@@ -275,3 +275,67 @@ same protocol as the S5/S4/S3 rotation.
 | 2026-08-18 | ✅ **`db push` EXECUTED on PO instruction — `…000800` + `…000900` applied; remote head `20260928000900` / 415.** Verified independently, not from the migration's own notice: first-party truncatable **63 → 0**, platform residue `net, storage` unchanged as accepted, and `…000800`'s new DEFINER carries **no PUBLIC** in its ACL | FUP-PCITV-1 item 3 ⬛ · [backend-state.md](../backend-state.md) |
 | 2026-08-18 | ✅ **TRUNCATE residue SWEPT (63 first-party tables) and the platform half ACCEPTED IN WRITING** — `20260928000900` + pgTAP `191` §5. ⭐ TRUNCATE fires no DELETE trigger, so it bypasses `storage.protect_delete` as well as RLS; and on Cloud a REVOKE we are not entitled to make returns **no error and changes nothing** (`t`→`t`), so the migration verifies the EFFECT, not the absence of an error | FUP-PCITV-1 item 3 ⬛ · FUP-DM5-STORAGE-ORPHANS |
 | 2026-08-19 | **BOTH residues of the § 6b backup run are PROMOTED to § Critical FUP — C3 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (🔴) and C4 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (🟠)** (PO, explicit instruction — the only route into that section). Both were filed the same day from the **first ever execution** of the disposal runbook's backup half, which closed `FUP-DM5-BACKUP-IS-PHI-EXPORT` by discharging its two named deliverables (destination path + first run). ⭐ **Why promotion rather than leaving them in the general register, stated because it is not visible from either item alone:** **(i) C3's trigger is the pilot data-load — the same instant as C1's, for the OPPOSITE reason.** C1 is *the bytes cannot be destroyed on request*; C3 is *the bytes cannot be got back*. Two items, one deadline, and a reader who has internalised C1 will read C3 as a duplicate of it. **(ii) C4 is the one reachable on Cloud TODAY** — `supabase db dump --linked` needs only the DB password, and running it is the natural next step of a **C1b** rehearsal, so without a ruling the C1b run would itself be the first execution of an ungoverned procedure. ⚠ Neither is a *decision about the risk* — both are still PO decisions owed; this decision is only that **they may not be lost in the register's length** | [phi-backup-run-log.md](../deployment/phi-backup-run-log.md) F5/F6 · **§ Critical FUP C3/C4** · [follow-ups.md](follow-ups.md) |
+
+## ↩ Rotated from PROGRESS.md 2026-08-20 (the DSR Slice 3 headroom pass) — 36 rows, VERBATIM apart from the link repoint
+
+> The concluded 2026-08-17 / 2026-08-18 rows (the DM5 docket, its eleven DM-FUP
+> triage rulings, and the record-contract decisions). ⛔ These are the **compressed**
+> live forms; most also have a **verbose** original in the 2026-08-18 section above —
+> both are kept, because proving a counterpart exists row-by-row is a weaker guarantee
+> than appending the bytes that were actually cut. Cell content only; the table header
+> is in the live file. Every decision they record is concluded — the open work they
+> reference lives in PROGRESS.md § Critical FUP, which never rotates.
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-18 | ✅ **REGISTRATION DERIVES FROM SOURCE STATE, AT THE LOCK POINT.** Editable → **ephemeral, audited `Imprimir prévia`** (no registry row, no bytes, no QR); locked → registered `Emitir documento`. **Amends 0104 D7 knowingly.** ⚠ Makes **HC069 unreachable**; guard RETAINED as backstop | ADR [0125](../decisions/0125-previa-ephemeral-and-emission-registered.md) · amends [0104](../decisions/0104-pdf-document-printing-module.md) D7 · discharges [0123](../decisions/0123-discarding-a-draft-that-has-emitted-documents.md) D7 |
+| 2026-08-18 | **PROGRESS.md becomes LIVE-STATE-ONLY, machine-enforced (`lint:progress`, gate 7); completed rows → phase-ledger.md; CLAUDE.md review cadence via Stop hook + `/review-claude-md`** (PO) | ADR [0124](../decisions/0124-progress-live-state-contract.md) |
+| 2026-08-18 | **DM-FUP TRIAGE #1 — the Cloud orphan measurement must CONSTRUCT an orphan, not probe for one** (PO) | FUP-DM5-CLOUD-ORPHAN-SURFACE |
+| 2026-08-18 | ✅ **MEASURED — Cloud exposes NO orphan-visible surface; all 5 surfaces METADATA-BOUND, both S3 auth modes.** The Cloud byte half is structurally unverifiable, so the runbook's *asserted, not verified* posture is evidenced. ⛔ Not reassurance: orphan bytes are **unobservable**, not absent | FUP-DM5-CLOUD-ORPHAN-SURFACE ⬛ · [run record](cloud-orphan-probe-2026-08-18.md) |
+| 2026-08-18 | ✅ **`db push` EXECUTED on PO instruction — `…000800` + `…000900` applied; remote head `20260928000900` / 415.** Verified independently, not from the migration's own notice: first-party truncatable **63 → 0**, and `…000800`'s new DEFINER carries **no PUBLIC** in its ACL | FUP-PCITV-1 item 3 ⬛ · [backend-state.md](../backend-state.md) |
+| 2026-08-18 | ✅ **TRUNCATE residue SWEPT (63 first-party tables) and the platform half ACCEPTED IN WRITING** — `20260928000900` + pgTAP `191` §5. ⭐ TRUNCATE fires no DELETE trigger, so it bypasses `storage.protect_delete` as well as RLS; the migration verifies the **EFFECT**, not the absence of an error | FUP-PCITV-1 item 3 ⬛ · FUP-DM5-STORAGE-ORPHANS |
+| 2026-08-18 | ⛔ **WITHDRAW the "~49 objects vanished with no `DELETE`" figure — the arithmetic compares tuples to objects.** A residual of **60** was manufactured against a true live count of **0** while destroying nothing unaccounted for | FUP-DM4-PRODROW · § State |
+| 2026-08-18 | **DM-FUP TRIAGE #2 — `reclassifyDocument` writes `unavailable_on_platform`** (PO) | FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED |
+| 2026-08-18 | **DM-FUP TRIAGE #3 — Critical FUP C1 SPLITS into C1a (local) + C1b (Cloud); C1 does NOT close on C1a** (PO) | ADR [0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) **Amdt 3** (amended) · **Critical FUP C1** |
+| 2026-08-18 | **DM-FUP TRIAGE #4 — `document_version_files` gets `UNIQUE (file_object_id)`** (PO) | FUP-DM5-DVF-FILEOBJ |
+| 2026-08-18 | **DM-FUP TRIAGE #5 — the Q1 arm's NAMED successor is `app.resolve_document_version_bytes`, and the arm moves into C2 Tier 1** (PO) | FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN · **Critical FUP C2** |
+| 2026-08-18 | **DM-FUP TRIAGE #6 — PRODROW is SEQUENCED, and the remote is NOT reset first** (PO) | FUP-DM4-PRODROW · FUP-DM5-STACK-CYCLE-DESTROYS-BYTES |
+| 2026-08-18 | **DM-FUP TRIAGE #9 — PRODROW STAYS OPEN, blocked on the C1b constructed-orphan probe** (PO; both closure options declined) | FUP-DM4-PRODROW |
+| 2026-08-18 | **DM-FUP TRIAGE #10 — CLAUDE.md §8 updated FIVE → SIX lint gates** (PO-approved; CLAUDE.md edits require it) | FUP-DM5-SETLOCAL-MIGRATION |
+| 2026-08-18 | **DM-FUP TRIAGE #11 — HOLD the `db push` of `20260928000600`/`…000700`** (PO) | FUP-DM5-DVF-FILEOBJ |
+| 2026-08-18 | **DM-FUP TRIAGE #7 — BUILD the `set local` lint gate, bounded by the FROZEN WATERMARK, not by an allowlist** (PO instrument; the lead had proposed an allowlist and was wrong) | FUP-DM5-SETLOCAL-MIGRATION |
+| 2026-08-18 | ✅ **DM-FUP TRIAGE #8b — RE-RULED AND BUILT: refuse to DELETE a response that has an ACTIVE printed document** (PO), replacing the withdrawn #8. Migration `20260928000700` — `app.guard_response_active_print`, a BEFORE DELETE trigger raising `HC069`. | ADR [0104](../decisions/0104-pdf-document-printing-module.md) D7 (preserved) · `20260928000700` |
+| 2026-08-18 | ⚠ **THE #8b MIGRATION SHIPPED A PUBLIC-EXECUTABLE `SECURITY DEFINER` FUNCTION, AND A GATE CAUGHT IT — not review, and not foresight.** Created without an explicit ACL,… | FUP-ACL-APP-POPULATION · pgTAP `320` U1 |
+| 2026-08-18 | ⛔ **DM-FUP TRIAGE #8 IS WITHDRAWN THE SAME DAY — it reverses a ratified decision, and NOTHING WAS BUILT.** | ADR [0104](../decisions/0104-pdf-document-printing-module.md) D7 · FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT |
+| 2026-08-18 | ~~**DM-FUP TRIAGE #8 — refuse a print mint from a non-`submitted` response**~~ ⛔ **WITHDRAWN — see the row above.** (PO). The narrowest of the three filed options, and the standing principle applies:… | FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT |
+| 2026-08-18 | **DM5 GATE STEP 4 — ALL SEVEN DOCKET ITEMS RULED** (PO) | [phase review](../reviews/dm5-phase-review.md) §§5–6 · § Critical FUP |
+| 2026-08-18 | ✅ **`db push` EXECUTED — all five local-only migrations applied to the remote** (PO-authorized at the docket, to carry out decision #1) | § "State" (a TOP-LEVEL section since 2026-08-18) |
+| 2026-08-18 | **#4 SUPERSEDE COLLISION RULED as (b) — supersession no longer marks bytes; the trigger moves to RETENTION EXPIRY** (PO) | ADR [0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) **Amdt 2** · ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) D11 |
+| 2026-08-18 | 🔒 **#7 PILOT RISK ACCEPTED, BOUNDED BY ONE REHEARSAL** (PO) — the pilot may proceed over the manual-only PHI-disposal path **on the condition that `phi-disposal-runbook.md` runs end-to-end against**… | ADR [0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) **Amdt 3** · **Critical FUP C1** |
+| 2026-08-18 | **#2 ADR 0114 O1 + O2 RULED** (PO) | ADR [0114](../decisions/0114-document-model-redesign.md) Open items |
+| 2026-08-18 | **#1 ADR 0120 D9 — the under-count class is RATIFIED AS ACCEPTED-UNVERIFIED on Cloud; no verification step is added** (PO) | ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) **D9** · [runbook](../deployment/phi-disposal-runbook.md) §6 |
+| 2026-08-18 | **#5 THE 407-DOOR TRIAGE IS SIZED — TWO TIERS** (PO) | **Critical FUP C2** · FUP-AUTHZ-COMMAND-DOOR-UNSWEPT |
+| 2026-08-18 | **#3 UPLOADER VISIBILITY IS NOT ADDED — S1-O3 CLOSED** (PO) | ADR [0117](../decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md) § S1-O3 · [0116](../decisions/0116-dm1-substrate-cutover-decisions.md) §11 |
+| 2026-08-18 | **#6 THE S2/S3/S5 `backend-state.md` SECTIONS ARE STILL WANTED — `backend` writes all three as ONE task before DM5 closes** (PO) | FUP-DM5-BACKEND-STATE-SLICE-SECTIONS |
+| 2026-08-17 | **DM5·S5 step 4 — the follow-up batch's PO approval CLOSES S5 TOO** (PO) | PROGRESS.md § Current Phase Tasks |
+| 2026-08-17 | **FUP-DM5-SUPERSEDE-SERVING-COLLISION — DECIDE LATER; the D11 inflow STAYS REVERTED** (PO) | ADR [0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) Amdt 1 |
+| 2026-08-17 | **FUP-DM4-RECUSAL — the Phase-19 deferral is OVERTURNED; close it now with a NARROWING arm** (PO) | ADR [0122](../decisions/0122-recusal-case-read-arm-at-the-referral-freeze-door.md) |
+| 2026-08-17 | **ADR 0121 ACCEPTED — D2 (cron outflow) + D4 (what `disposed` asserts) ratified as proposed** (PO) | ADR [0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) |
+| 2026-08-17 | **The PHI-disposal runbook's five open values SET** (PO) | `docs/deployment/phi-disposal-runbook.md` §6b |
+| 2026-08-17 | **The local Storage volume is NON-DURABLE DISPOSABLE TEST RESIDUE** (PO) | FUP-DM5-STORAGE-ORPHANS |
+| 2026-08-17 | **Finish the PROGRESS.md rotation before opening DM5·S6** (PO) | PROGRESS.md § Current Phase Tasks |
+
+## ↩ Rotated from PROGRESS.md 2026-08-20 (second headroom pass) — 6 concluded/superseded 2026-08-19 rows, VERBATIM apart from the link repoint
+
+> Two were superseded the same day they were written (the counsel-scope row by the return; the
+> DSR "Proposed, nothing may be built" row by ADR 0130 moving to Accepted on 2026-08-20); the
+> other four shipped. Cell content only; the table header is in the live file.
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-19 | **Counsel ruling RECORDED, scope OPEN: 20-yr retention overrides LGPD Art. 18 erasure** (PO-relayed). Quoted, not paraphrased; the scope question (prontuário-only vs governance records?) is back with counsel. ⭕ *Superseded the same day by the return — row above* | ADR [0035](../decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1** |
+| 2026-08-19 | **DSR workflow DESIGNED — adjudicated requests, split powers (`dpo` capability intakes/closes; existing door-holders execute), hash-only record, two-tier claim, `/o/[org]/titulares`, flag `dsr`; ZERO disposal-gate widenings** (PO, 16 decisions). ⛔ Proposed — implementation waits for a future session | ADR [0130](../decisions/0130-dsr-subject-request-workflow.md) · [plan](../plans/dsr-workflow-plan.md) |
+| 2026-08-19 | **Child-lock fix RULED shape 2 — new narrow `app.in_disposal_rpc`, read only by `guard_meeting_child_lock`, set only by `dispose_meeting_minutes`; shape 1 rejected as a widening** (PO, Q11). ADR 0126 §E must be amended in the same change | ADR [0129](../decisions/0129-meeting-child-lock-disposal-flag.md) |
+| 2026-08-19 | **Standing rules move to `.claude/rules/` with `paths:`, admitted only if they declare checkable anchors and no gate already enforces them — 5 of 9 candidates REJECTED** (PO) | ADR [0127](../decisions/0127-standing-rules-home-and-staleness-gate.md) |
+| 2026-08-19 | **`lint:rules` is GATE 8** — keystone: a rule whose own `paths:` glob matches zero files is orphaned. ⚠ Rule firing is **UNPROVEN** (feature-flagged); an `InstructionsLoaded` probe measures it | ADR [0127](../decisions/0127-standing-rules-home-and-staleness-gate.md) · CLAUDE.md §8 |
+| 2026-08-19 | **Cell/bullet shape caps + link-checking of the rotation destinations added to `lint:progress`; the size RATCHET was declined** — it would red on recording new state, pressuring the OPEN index §7 protects | `scripts/check-progress-doc.mjs` |

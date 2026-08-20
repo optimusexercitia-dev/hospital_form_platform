@@ -364,8 +364,10 @@ whose **claim** went false has no gate at all, so that queue is its only witness
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
 - ⛔ **Prettier does not govern the tracker docs** (`.prettierignore`: `PROGRESS.md`,
   `CLAUDE.md`, `docs/progress/`). Prettier pads every Markdown table cell to its column's
-  widest, taking PROGRESS.md from 45 KB to **66 KB — 4.8 KB past the 60 KB cap
-  `lint:progress` hard-fails on**: formatting the file *breaks* the gate that governs it.
+  widest — reformatting the live PROGRESS.md (60 KB, measured 2026-08-20) pads it to
+  **~75 KB, inside 5 KB of the 80 KB cap `lint:progress` hard-fails on** (raised from 60 KB
+  the same day, ADR 0124 Amdt 2): formatting the file *erodes* the headroom the gate
+  exists to protect, and the margin only shrinks as the live file grows toward the cap.
   The same padding on CLAUDE.md is context tax on every session + teammate spawn, and
   `docs/progress/` is excluded so PROGRESS.md's **verbatim** rotations stay byte-identical
   to their destination. Never add a "check these against Prettier" rule — obeying it is

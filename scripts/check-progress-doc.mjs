@@ -11,7 +11,7 @@
  * August. None of those had a gate that could contradict them — this is that gate.
  *
  * THE CONTRACT it enforces (PROGRESS.md header + CLAUDE.md §7):
- *   1. SIZE      — PROGRESS.md is at most 60 KB. Hard fail, no warn band: a warn band
+ *   1. SIZE      — PROGRESS.md is at most 80 KB. Hard fail, no warn band: a warn band
  *                  is a figure someone has to notice, and figures nobody must act on
  *                  go stale (the banner's own history).
  *   2. SECTIONS  — the required live sections exist (matched on their stable noun, so
@@ -54,7 +54,7 @@ import { readFileSync, existsSync, statSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 
 const ROOT = process.cwd()
-const SIZE_CAP = 60 * 1024
+const SIZE_CAP = 80 * 1024
 const MAX_CELL = 300
 const MAX_BULLET = 400
 

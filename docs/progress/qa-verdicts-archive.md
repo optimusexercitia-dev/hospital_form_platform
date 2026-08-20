@@ -300,3 +300,9 @@ of the phase.**
 | DM5 · S3 — printed renditions onto the core substrate | APPROVED (r2) | 2026-08-14 | [dm5-s3-review](../reviews/dm5-s3-review.md) |
 | DM4 — Wave C: referrals | APPROVED (r2) | 2026-08-14 | [dm4-referrals](../reviews/dm4-referrals-review.md) |
 | DM3 — Wave B: controlled documents | APPROVED (r2) | 2026-08-13 | [dm3-controlled-documents](../reviews/dm3-controlled-documents-review.md) |
+
+## ↩ Rotated from PROGRESS.md 2026-08-20 — concluded milestone, VERBATIM apart from the link repoint
+
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- | --- |
+| Prévia split — ADR 0125/0126 | APPROVED (r2) | 2026-08-19 | [previa-split-review](../reviews/previa-split-review.md) |

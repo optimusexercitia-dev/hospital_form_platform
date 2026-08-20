@@ -42,6 +42,7 @@ export function HospitalCreateForm({
   const [slugTouched, setSlugTouched] = useState(false);
 
   const orgField = useFieldIds("organizationId", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.organizationId),
   });
   // `OrganizationCreateForm` renders ABOVE this one on /admin and also uses the form
@@ -50,9 +51,11 @@ export function HospitalCreateForm({
   // key across two forms on one page no longer collides. `formData.get("name"/"slug")`
   // in `createHospital` reads the key, which is unchanged.
   const nameField = useFieldIds("name", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.name),
   });
   const slugField = useFieldIds("slug", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.slug),
     hasDescription: true,
   });

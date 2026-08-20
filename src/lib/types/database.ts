@@ -4374,6 +4374,8 @@ export type Database = {
       }
       dsr_requests: {
         Row: {
+          adjudicated_at: string | null
+          adjudicated_by: string | null
           closed_at: string | null
           closed_by: string | null
           created_at: string
@@ -4392,6 +4394,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          adjudicated_at?: string | null
+          adjudicated_by?: string | null
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
@@ -4410,6 +4414,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          adjudicated_at?: string | null
+          adjudicated_by?: string | null
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
@@ -4428,6 +4434,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "dsr_requests_adjudicated_by_fkey"
+            columns: ["adjudicated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "dsr_requests_closed_by_fkey"
             columns: ["closed_by"]
@@ -4453,9 +4466,12 @@ export type Database = {
       }
       dsr_tasks: {
         Row: {
+          attested_by_name: string | null
+          attested_redactions: number | null
           commission_id: string | null
           completed_at: string | null
           completed_by: string | null
+          completion_note: string | null
           created_at: string
           entity_id: string | null
           hospital_id: string
@@ -4467,9 +4483,12 @@ export type Database = {
           status: string
         }
         Insert: {
+          attested_by_name?: string | null
+          attested_redactions?: number | null
           commission_id?: string | null
           completed_at?: string | null
           completed_by?: string | null
+          completion_note?: string | null
           created_at?: string
           entity_id?: string | null
           hospital_id: string
@@ -4481,9 +4500,12 @@ export type Database = {
           status?: string
         }
         Update: {
+          attested_by_name?: string | null
+          attested_redactions?: number | null
           commission_id?: string | null
           completed_at?: string | null
           completed_by?: string | null
+          completion_note?: string | null
           created_at?: string
           entity_id?: string | null
           hospital_id?: string
@@ -10692,6 +10714,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      adjudicate_dsr_request: {
+        Args: {
+          p_dispose_meeting_ids?: string[]
+          p_legal_consultation_ref?: string
+          p_outcome: string
+          p_outcome_basis?: string
+          p_request_id: string
+        }
+        Returns: number
+      }
       advance_capa_action: {
         Args: { p_action_id: string; p_status: string }
         Returns: {
@@ -11114,6 +11146,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      attest_dsr_task: {
+        Args: {
+          p_note: string
+          p_redactions: number
+          p_reviewer_name: string
+          p_task_id: string
+        }
+        Returns: undefined
+      }
       audit_trail_enabled: { Args: never; Returns: boolean }
       begin_document_upload: {
         Args: {
@@ -11502,7 +11543,7 @@ export type Database = {
       close_dsr_request: {
         Args: {
           p_legal_consultation_ref?: string
-          p_outcome: string
+          p_outcome?: string
           p_outcome_basis?: string
           p_request_id: string
         }
@@ -13341,6 +13382,10 @@ export type Database = {
           updated_at: string
         }[]
       }
+      list_dsr_disposable_meetings: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
       list_hospital_eligible_users_for_pqs: {
         Args: { p_hospital_id: string }
         Returns: Json
@@ -13361,6 +13406,10 @@ export type Database = {
       }
       list_my_cases: { Args: { p_commission: string }; Returns: Json }
       list_my_dsr_hospitals: { Args: never; Returns: Json }
+      list_my_dsr_task_commissions: {
+        Args: { p_hospital_id: string }
+        Returns: Json
+      }
       list_my_executable_dsr_tasks: {
         Args: { p_hospital_id: string }
         Returns: Json

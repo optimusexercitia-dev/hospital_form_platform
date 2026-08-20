@@ -213,10 +213,57 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 > verified by `md5(pg_get_functiondef)` before the next ran, all RED. The full list and which
 > test caught each is in that suite's header.
 
+> ⚠ **HAND-MERGED, 2026-08-20 (DSR Slice 3, ADR 0130 Amendment 3).** ⛔ **This slice adds ZERO
+> boolean predicates and ZERO RLS policies**, so — unlike Slice 2 — the diff-scoped ARM-1 recipe
+> has *nothing to run*, and that is a measured fact, not an assumption: the recipe's own
+> `^(is_|can_|has_)` filter over the two new migrations returns an **EMPTY** case list, and
+> `create policy` returns **0**. Every object this slice changes is a `prosecdef` **scalar
+> non-bool command door** (`jsonb` / `void` / `integer` / `uuid`, `proretset = f`) — the same
+> `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` class as Slice 2's five, which no arm covers. A
+> `CASES=`-scoped run of `p0-authz-rowdoor-audit.sh` over all eight swept **0** for the same
+> reason (they are not row-returning either).
+>
+> ⛔ **So do NOT read this slice's four green arms as a verdict on its gates.** `ARM=census`,
+> `ARM=hat`, `ARM=floor` and `FROMFINDINGS=1 ARM=wrapper` all HOLD, and **none of them can see
+> the one authorization gate this program changes** (`search_patient_xref`, `jsonb`). The rows
+> below are earned the way Slice 2's five command doors were: a **37-probe** targeted
+> neutralization battery, one mutation at a time against suite
+> `350_dsr_adjudication_and_attested_tier.sql`, every probe required to MOVE
+> `md5(pg_get_functiondef(oid))` and every restore required to move it BACK — all 37 RED. Three
+> harness controls ran FIRST (a `from` string absent from the body, and a **lowercase**
+> `security definer` probe, both correctly aborting as "PROBE MATCHED NOTHING"; then a real gate
+> mutation, hash-moved → suite RED → hash restored). After the battery all 8 probed functions
+> hash-matched their saved originals and both policies read back their original expressions.
+>
+> ⭐ **The widening's keystone had to be a CONTENT DIFFERENTIAL.** `search_patient_xref`'s gate
+> returns an **empty bundle** — it does not raise — so `lives_ok` on a DPO's call passes
+> identically whether the new arm exists or not. That is the test a reasonable author writes
+> first, and it is vacuous by construction. 350 t4–t8 assert `matchCount` instead.
+>
+> ⚠ **And one over-grant this slice made and an EXISTING pin caught**, recorded because a
+> defect found by someone else's keystone is the best evidence that keystone was worth writing:
+> `app.patient_trajectory_bundle` — the raw, **ungated** PHI assembler, deliberately
+> service_role-only — was granted to `authenticated` by applying the house
+> `revoke from public, anon; grant to authenticated, service_role` idiom to a **rewrite**. Suite
+> `152` §M1 went RED and named it. `CREATE OR REPLACE FUNCTION` does not reset an ACL.
+
 ## COVERED (asserted-through) + ERROR (harness bug)
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| public.list_my_executable_dsr_tasks(uuid) | command door (jsonb) — **re-verdicted for the refusal-retirement fix** | targeted neutralization | COVERED | 350 t66 (status filter removed → retired tasks still offered) + t67 (filter flipped to `done`). ⚠ It had **no status filter at all** since Slice 2, so it offered `done` tasks as executable too — a pre-existing coarseness the `blocked` sweep exposed rather than caused; 349 t32q had to be repointed at a genuinely pending task |
+| public.close_dsr_request(uuid, text, text, text) | command door (void) — **re-verdicted (retirement)** | targeted neutralization | COVERED | 350 t65/t66/t68 (the retirement removed). ⛔ **The over-grant twin for the retirement GUARD is not constructible** — the granting path raises HCDS4 unless pending is already zero, so the `update … where status='pending'` matches nothing whether guarded or not. Inverting the guard to `if true` left the suite GREEN; the vacuous twin was REMOVED and the mechanism recorded in 350's tail. What protects the granting path is t36 (HCDS4), which IS falsifiable |
+| public.attest_dsr_task(uuid, text, integer, text) | command door (void) — **re-verdicted (retirement)** | targeted neutralization | COVERED | 350 t69. ⚠ **GREEN on first probe** — the `blocked` arm was added deliberately (guarding one of a sibling pair is the omission class) and had NO keystone, because the brief named only `complete_dsr_task` and nobody was owed a test for a fix the engineer invented. t69 exists because the battery found it |
+| public.complete_dsr_task(uuid, text) | command door (void) — **re-verdicted (retirement)** | targeted neutralization | COVERED | 350 t68 (the `blocked` arm removed) |
+| public.list_my_dsr_task_commissions(uuid) | command door (jsonb) | targeted neutralization | COVERED | 350 t57–t60 (BUG-DSR-S3-002 hand-merge 2026-08-20). 3 probes: gate removed → t59; hospital-wide join instead of the task's commission → t60; returns nothing → t57/t58/t60. ⚠ **t58 (the policy-drift differential) does NOT red on the hospital-wide join** — at that point the two sets coincide, and only t60's deletion separates them. The two pins are complementary; a suite carrying only the differential would have scored that mutation COVERED |
+| public.search_patient_xref(text, text, uuid) | command door (outside every arm's domain — jsonb) | targeted neutralization | COVERED | 350 t4/t5/t7/t8/t9 (DSR Slice 3 hand-merge 2026-08-20). ⭐ **The one named widening** (ADR 0130 D3). Four independent probes: DPO arm removed → t4; PQS arm removed (the over-narrow twin) → t8; whole gate opened → t5/t7; audit suppressed → t9 |
+| app.patient_trajectory_bundle(text, text, uuid) | internal helper, service_role-ONLY | targeted neutralization | COVERED | 350 t6 (hospital scope removed) + t10 (case-grain fix reverted). ⚠ NOT `authenticated`-reachable — 152 §M1 is the ACL guard, and it caught this slice widening it by reflex |
+| public.adjudicate_dsr_request(uuid, text, text, text, uuid[]) | command door (integer) | targeted neutralization | COVERED | 350 t18–t21 (gate), t27 (re-adjudication), t24 (escalation bounded by its OWN request), t25 (no escalation on a refusal), t31 (already-disposed), t26/t30 (the mint), t22 (legal consultation) — 7 independent probes |
+| public.attest_dsr_task(uuid, text, integer, text) | command door (void) | targeted neutralization | COVERED | 350 t44/t45 (gate), t40/t41/t42 (the three required fields), t43 (kind guard), t49 (⭐ the minted PROCEDURE survives, compared byte-for-byte against a snapshot — a `length > 0` check would have passed the overwrite), t48/t50 (the count reaches the outcome record) |
+| public.list_dsr_disposable_meetings(uuid) | command door (jsonb) | targeted neutralization | COVERED | 350 t55/t56 (gate removed) + t53/t54 (returns nothing — the positive arm, without which every refusal is satisfiable by an empty table) |
+| public.close_dsr_request(uuid, text, text, text) | command door (void) — **re-verdicted for Slice 3** | targeted neutralization | COVERED | 350 t32 (gate), t33 (granted requires the recorded decision), t34, t35 (outcome mismatch), t36 (pending work), t38 (the direct path still stamps the adjudication) — 6 probes. Supersedes the Slice 2 hand-keystone; the body changed |
+| public.complete_dsr_task(uuid, text) | command door (void) — **re-verdicted for Slice 3** | targeted neutralization | COVERED | 350 t39 (attest_review is REFUSED and routed to attest_dsr_task). ⭐ **Gate + EFFECT check RE-PROBED 2026-08-20 against the twice-rewritten body** (QA r1): effect check disabled → **RED** at 349 t19/t21; gate → RED at 349 t17/t18. Supersedes the inherited Slice 2 verdicts. ⚠ Both re-probes first ran against `350` alone and returned PASS — the wrong domain, since their keystones live in **349**; a verdict is meaningless unless the suite run CONTAINS the keystone being falsified |
+| public.create_dsr_request(uuid, text, text, text, integer) | command door (uuid) — **re-verdicted for Slice 3** | targeted neutralization | COVERED | 350 t13 (the per-commission attested arm), t14 (⭐ **the over-mint twin** — Hospital B holds no prose and must mint NOTHING; a detector that fires for everything is as wrong as one that fires for nothing), t15/t16 (intake still never mints `dispose_meeting`). ⭐ **Gate RE-PROBED 2026-08-20 against the Slice 3 body** (QA r1): opened → **RED** at 349 t6/t7/t8 + t32p. Supersedes the inherited Slice 2 verdict — a rewritten door inherits nothing, symmetric with this project's rule for a rewritten pin |
 | app.is_dpo_of(p_hospital_id uuid) | predicate | positive | COVERED | 349_dsr_request_workflow.sql (DSR Slice 2 hand-merge 2026-08-20) |
 | app.is_dpo_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | COVERED | 349_dsr_request_workflow.sql (DSR Slice 2 hand-merge 2026-08-20; its `is_active` arm is separately keystoned by t32b, which a suspended grantee makes non-vacuous) |
 | app.can_execute_dsr_task(p_hospital_id uuid, p_commission_id uuid, p_uid uuid) | predicate | positive | COVERED | 349_dsr_request_workflow.sql (DSR Slice 2 hand-merge 2026-08-20) |

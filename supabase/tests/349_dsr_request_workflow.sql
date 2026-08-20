@@ -130,8 +130,13 @@ select set_eq(
       where table_schema = 'public' and table_name = 'dsr_requests' $$,
   $$ values ('id'),('hospital_id'),('patient_key'),('encounter_key'),('file_ref'),
             ('status'),('outcome'),('outcome_basis'),('legal_consultation_ref'),
-            ('received_at'),('due_date'),('closed_at'),('closed_by'),
+            ('received_at'),('due_date'),('adjudicated_at'),('adjudicated_by'),
+            ('closed_at'),('closed_by'),
             ('created_by'),('created_at'),('updated_at') $$,
+  -- UPDATED BY SLICE 3, deliberately and visibly: `adjudicated_at`/`_by` are the
+  -- decision stamp (ADR 0130 Amdt 3). THIS PIN DID ITS JOB — it went RED on the
+  -- author's own ALTER TABLE, which is exactly the well-meant column addition it
+  -- exists to catch. Neither column is PHI; Rule 12's "exactly three" stands.
   't3: dsr_requests holds EXACTLY the declared PHI-free column set (Rule 12 / ADR 0130 Q6)'
 );
 
@@ -281,8 +286,14 @@ select is(
 -- ---------------------------------------------------------------------------
 update f set task_ref = (select id from public.dsr_tasks
                           where request_id = (select req1 from f) and kind = 'dispose_referral'),
+             -- SLICE 3: `attest_review` is no longer one-per-request. The fan-out
+             -- now also mints an entity-LESS attestation per prose-bearing commission
+             -- (ADR 0130 Amdt 3), so this subquery returned "more than one row" and
+             -- ABORTED the suite at fixture time — 16 of 53 tests ran and the rest
+             -- never existed to fail. Disambiguated on the MEETING grain it always meant.
              task_meet = (select id from public.dsr_tasks
-                          where request_id = (select req_meet from f) and kind = 'attest_review'),
+                          where request_id = (select req_meet from f)
+                            and kind = 'attest_review' and module = 'meeting'),
              task_scrub = (select id from public.dsr_tasks
                           where request_id = (select req1 from f) and kind = 'notify_scrub_check');
 
@@ -346,14 +357,20 @@ select is(
   't23: the first completion advances the request to executing'
 );
 
--- An attestation with no attestor statement is not an attestation.
+-- ⚠ SLICE 3 RELOCATED THIS PIN, deliberately and visibly. `complete_dsr_task` no
+-- longer completes an attestation AT ALL: the attested tier needs a named reviewer
+-- and a redaction count for the outcome record to state, and an OPTIONAL structured
+-- tier is an unreliable one. The blank-note refusal moved to `attest_dsr_task`
+-- (350 t42), beside the two new required fields (350 t40/t41). What is pinned HERE
+-- is the ROUTING. ⭐ Freshly neutralized in 350 — a rewritten pin is a NEW pin and
+-- inherits nothing from the verdict its predecessor carried.
 select test_helpers.claims_for((select executor from f), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.complete_dsr_task(%L::uuid, '   ') $$, (select task_meet from f)),
   'HCDS3',
-  'descreva o que foi revisado para concluir esta tarefa',
-  't24: an attest_review task refuses a blank note'
+  'esta é uma tarefa de revisão: use o formulário de atestação, informando quem revisou e quantas menções foram removidas',
+  't24: an attest_review task is ROUTED to the attestation door, not completed here'
 );
 reset role;
 
@@ -394,20 +411,37 @@ reset role;
 
 select test_helpers.claims_for((select dpo from f), false);
 set local role authenticated;
-select throws_ok(
-  format($$ select public.close_dsr_request(%L::uuid, 'granted', null, 'Parecer 12/2026') $$,
-         (select req1 from f)),
-  'HCDS4',
-  'ainda há 3 tarefa(s) pendente(s); conclua a execução antes de encerrar como atendida',
-  't28: closing as ATTENDED is refused while execution tasks are still pending'
-);
 
+-- ⚠ t29 NOW RUNS FIRST, because Slice 3's adjudication fixture below records a
+-- decision on `req1` and a close that CONTRADICTS a recorded decision is refused
+-- HCDS5 (350 t35). Order matters here; it did not before.
 select throws_ok(
   format($$ select public.close_dsr_request(%L::uuid, 'refused_retention', 'Retenção institucional de 20 anos.') $$,
          (select req1 from f)),
   '23514',
   'informe a referência da consulta jurídica que fundamentou a decisão',
   't29: refused_retention requires legal_consultation_ref (ADR 0130 Amdt 1 item 3)'
+);
+
+-- ⚠ SLICE 3 CHANGED THE CORRIDOR t28 RUNS THROUGH, deliberately and visibly.
+-- `granted` is an ERASING outcome and now requires a RECORDED DECISION first:
+-- adjudication is where the erasure population — including the per-meeting
+-- escalations — is finalized, so a granted close that skipped it would ship an
+-- erasure the workflow never finished enumerating. 350 t33 is the pin that the
+-- refusal exists; THIS is a fixture line, so t28 still asserts exactly what it
+-- always asserted.
+select public.adjudicate_dsr_request((select req1 from f), 'granted', null, 'Parecer 12/2026');
+
+-- ⚠ And the hardcoded "3 tarefa(s)" is gone. Slice 3's fan-out also mints a
+-- per-commission attestation, so a literal count in the expected MESSAGE would go
+-- stale against the seed silently — the pin is that the refusal fires, not how
+-- many tasks happened to be pending on the day it was written.
+select throws_ok(
+  format($$ select public.close_dsr_request(%L::uuid, 'granted', null, 'Parecer 12/2026') $$,
+         (select req1 from f)),
+  'HCDS4',
+  null,
+  't28: closing as ATTENDED is refused while execution tasks are still pending'
 );
 
 select throws_ok(
@@ -584,12 +618,20 @@ reset role;
 
 select test_helpers.claims_for((select executor from f), false);
 set local role authenticated;
+-- ⚠ SLICE 3 REPOINTED THIS PIN, deliberately. It used `task_ref`, which THIS FILE
+-- completes at t20–t22 — and `list_my_executable_dsr_tasks` now filters to
+-- `status = 'pending'`, so a DONE task is correctly no longer "executable". The
+-- pin's INTENT (an executor can act on a disposal routed to them) is unchanged; it
+-- now names a disposal that is actually still pending. ⛔ The old subject made the
+-- assertion depend on the lister having NO status filter at all, which was the
+-- coarseness the `blocked` sweep exposed (350 t66/t69).
 select ok(
   jsonb_exists(
     public.list_my_executable_dsr_tasks((select hosp_a from f)),
-    (select task_ref::text from f)
+    (select id::text from public.dsr_tasks
+      where request_id = (select req_hist from f) and kind = 'dispose_event')
   ),
-  't32q: the PQS executor CAN act on the disposal task routed to them'
+  't32q: the PQS executor CAN act on a PENDING disposal task routed to them'
 );
 reset role;
 

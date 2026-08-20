@@ -704,3 +704,44 @@ required** — verified, not assumed.
 | Date | Decision / run | Refs |
 | --- | --- | --- |
 | 2026-08-18 | **DM follow-up triage · LEAD** — the four shipped items (#2 byte proof · #4 DVF 1:1 · #8b draft-print delete guard · attachments deletion). Two fresh `supabase db reset --local` cycles; both new pgTAP arms authored **red-first** | **pgTAP 194 files / 6397 PASS** (6392 baseline **+2** `328` K17a/b **+3** `312` t74/75/76 — the parts sum) · **lint 5/5** · **typecheck 0** · **vitest 1305/1305** (+1) · authz **`census` / `hat` / `floor` / `FROMFINDINGS=1 wrapper` all INVARIANT HOLDS**. ⛔ **`e2e:prod` NOT RUN — this row is not a phase gate.** ⚠ One RED en route was a real defect in this batch's own migration, caught by pgTAP `320` U1 at **237→238** (PUBLIC-executable `SECURITY DEFINER`), **not** by review — `312` was fully green with the door open |
+
+## ↩ Rotated from PROGRESS.md 2026-08-20 (superseded by the DSR Slice 3 gate) — VERBATIM apart from the link repoint
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-20 | **DSR Slice 2 · LEAD** — 3 migrations, pgTAP `349` (53), E2E corridor (6), `/o/[org]/titulares`. Fresh reset; **16 gate neutralizations**, every restore hash-verified | **pgTAP 200f/6603** · **lint 8/8** · **tsc 0** · **vitest 1447** · 4 authz ARMs **HOLD** · door sweep **6 COVERED / 0 BLIND** · `e2e:prod` **1129p / 2f / 0 did-not-run**, 1134 of 1140 accounted — ⛔ **GATE RED**, both failures PRE-EXISTING (BUG-QO-STALE-CASOS, control-proven) |
+
+## DSR Slice 3 — declaring gate, 2026-08-20 (narrative for the PROGRESS.md row)
+
+**Tree HASH-VERIFIED unchanged throughout** — 48 source files hashed before the run and re-hashed after,
+because the *previous* declaring attempt was contaminated: the lead told all three teammates to write
+code while `e2e:prod` ran, so it built and served a tree that changed underneath it. That run was killed
+and discarded. ⛔ **A declaring gate must run against a frozen tree, and "frozen" has to be *measured*.**
+
+```
+db reset 0 · pgTAP 0 (6678/6678, Files=201) · lint(8) 0 · unit 0 (1448/1448) · tsc 0*
+e2e:prod  1153 passed · 3 failed · 4 flaky · 5 did-not-run · accounted 1165 of 1176
+batch-5 isolated re-run, same frozen tree: 68 passed · 0 failed · 0 did-not-run · 68/68 · exit 0
+```
+
+\* **`tsc` exited 2 on the first pass and it was the lead's ordering, not a defect.** `.next` was deleted
+immediately before it ran, and `RouteContext` is a Next-**generated** global living in `.next/types/`.
+Clean (exit 0) once a build had happened. ⚠ Worth knowing generally: `npm run typecheck` is **silently
+order-dependent on a prior build**, which CLAUDE.md §6 step 1 does not say.
+
+**The three failures resolve to two pre-existing, and none is DSR:**
+- `quality-oversight.spec.ts:569` / `:627` — **BUG-QO-STALE-CASOS**, pre-existing on `main`, already
+  control-proven by a `git stash -u` + clean-`.next` rebuild.
+- `ethics-e2-procedure.spec.ts:913` — **a worker process crash**, `code=3221226505` (`0xC0000409`,
+  stack buffer overrun), **not an assertion failure**. It and the 5 tests stranded behind the dead worker
+  all passed on the isolated re-run above.
+
+⭐ **The obvious hypothesis was tested, not waved off.** The `useFieldIds` `name` inversion touched every
+form in the app, and **8 ethics components spread `controlProps` with ZERO `nameRequiredFor`** — so an
+ethics regression was live until ruled out. Ruled out on evidence: `src/lib/ethics/actions.ts` reads
+**no `FormData` at all**, and `src/components/ethics/*.tsx` contains **zero** `action={}`, `onSubmit={}`
+or `useActionState`. Those components are state-driven with no form submission; `name` cannot reach them.
+
+⛔ **Two defects in the gate instrument itself**, filed as `FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER`:
+its census does not sum (11 tests in no bucket), and its INFRA classifier has no notion of a worker exit
+code, so a crash scores as a defect.

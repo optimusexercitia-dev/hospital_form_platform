@@ -186,3 +186,16 @@ a bare `DELETE`) → `measure --orphan-confirmed` → `cleanup` → `report`.
 **refuses to emit a Cloud verdict**. The rehearsal is what proved the tool could find
 something before it got its one shot; local orphan visibility is a property of the
 `file` backend and must not be carried to Cloud.
+
+## ↩ Rotated from PROGRESS.md § Now, 2026-08-20 — the completion bullet, verbatim apart from the link repoint
+
+> Concluded 2026-08-18. It left § Now at the DSR Slice 3 headroom pass because § Now holds
+> live state only; the measurement itself is the body of this file.
+
+- **✅ DONE 2026-08-18 — the Cloud constructed-orphan probe RAN and settled.** Every
+  measured Cloud surface is **METADATA-BOUND**; Cloud exposes **no orphan-visible
+  surface**, so the byte half is structurally unverifiable there and the runbook's
+  *asserted, not verified* posture is evidenced. `FUP-DM4-PRODROW` is **unblocked** —
+  and its "~49 vanished" figure is **withdrawn** (§ State). Record:
+  [cloud-orphan-probe-2026-08-18.md](cloud-orphan-probe-2026-08-18.md);
+  instrument `scripts/cloud-orphan-probe.mjs`.

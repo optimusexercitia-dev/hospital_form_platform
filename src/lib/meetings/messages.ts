@@ -26,6 +26,9 @@ export const HC_NOT_ENTITLED_ACTION_ITEM = 'HC037'
 export const HC_HELD_END_BEFORE_START = 'HC081' // held_end < held_at
 export const HC_HELD_AT_IN_FUTURE = 'HC082' // held_at > now()
 export const HC_HELD_EDIT_WRONG_STATE = 'HC083' // set_meeting_held_window off `held`
+// HC056 is REUSED from the PHI-disposal batch (ADR 0056): the one-shot guard on
+// every dispose_* door — the record's PHI has already been disposed.
+export const HC_ALREADY_DISPOSED = 'HC056'
 
 /** Generic Postgres SQLSTATEs the meetings RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'
@@ -124,6 +127,8 @@ export const MEETING_MESSAGES = {
   actionItemRemoved: 'Item de ação removido.',
   reservedSessionOpened: 'Sessão reservada aberta.',
   reservedItemAdded: 'Item de sessão reservada adicionado.',
+  minutesDisposed: 'Ata descartada.',
+  minutesAlreadyDisposed: 'A ata desta reunião já foi descartada.',
 } as const
 
 /**
@@ -160,6 +165,8 @@ export function mapMeetingError(
       return error.message || MEETING_MESSAGES.heldAtInFuture
     case HC_HELD_EDIT_WRONG_STATE:
       return error.message || MEETING_MESSAGES.heldEditWrongState
+    case HC_ALREADY_DISPOSED:
+      return error.message || MEETING_MESSAGES.minutesAlreadyDisposed
     case PG_FORBIDDEN:
       return MEETING_MESSAGES.forbidden
     case PG_NO_DATA_FOUND:

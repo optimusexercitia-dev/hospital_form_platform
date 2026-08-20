@@ -108,6 +108,143 @@ precedent), Rule 12.
 >    their commission — the identical dual-hat problem the NSP and quality-office entries beside
 >    it were added to solve.
 
+> ## ✅ AMENDMENT 3 (2026-08-20) — Slice 3 built; six shape changes measurement forced, and two live defects found in passing
+>
+> Same discipline as Amendment 2: each item below contradicts a sentence written above or
+> in the plan, and a plan that disagrees with its ADR is how a wrong shape gets built twice.
+>
+> 1. ⭐ **`adjudicated` WAS UNREACHABLE — the lane was a fiction.** `complete_dsr_task`
+>    advanced `open → executing` **directly** (measured), so no writer ever produced the
+>    middle state, and Slice 2's `status` CHECK admitted a value nothing could reach. The
+>    new `adjudicate_dsr_request` door produces it, and the advance now covers
+>    `status in ('open','adjudicated')`. ⚠ Believing the CHECK constraint would have said
+>    the lane already existed.
+> 2. **Close CONSUMES the decision; the direct path survives only for outcomes that erase
+>    nothing.** `adjudicate_dsr_request` is the sole writer of `outcome` / `outcome_basis` /
+>    `legal_consultation_ref`; re-adjudication is refused. `close_dsr_request`'s `p_outcome`
+>    becomes OPTIONAL, and a supplied one must MATCH (`HCDS5`) or close would be a second,
+>    unstamped author of the decision. **The rule:** *close may record a decision directly
+>    only when the decision erases nothing* — `granted`/`granted_partial` require the prior
+>    adjudication, because adjudication is where the erasure population (including the
+>    meeting escalations) is finalized. ⚠ The three non-erasing outcomes still **stamp**
+>    `adjudicated_at`/`_by`: `refused_retention` requires a legal consultation by CHECK, so
+>    it IS a substantive adjudication under Amendment 1 / ADR 0035 Amdt 1 holding 2, and a
+>    null stamp on a closed request would say a decision made with counsel was never taken.
+> 3. **`status` is the WORK state; `adjudicated_at` is the DECISION fact.** A request whose
+>    execution began before the decision stays `executing` and still records it. Reporting
+>    it as `adjudicated` would read as a regression of work that happened.
+> 4. **⛔ The `dispose_meeting` escalation is EXPLICIT, per meeting, and bounded by its own
+>    request** — not automatic on a `granted` outcome. Minting it mechanically would
+>    re-introduce exactly the over-broad erasure Amendment 2 item 3 refused to automate.
+>    `adjudicate_dsr_request` takes an explicit `p_dispose_meeting_ids uuid[]`; a meeting
+>    the census never enumerated is refused `HCDS2` (so the door's reach is its own request,
+>    not the hospital), a non-granting outcome `HCDS5`, an already-disposed ata `HCDS5`.
+> 5. **The attested tier's population is NARROWER than the plan said, and the plan's own
+>    words were right about what remains.** Measured from `dispose_case_phi`'s live body: it
+>    already erases `case_narratives.body_md`, `case_events`, `case_interviews`, case-phase
+>    `answers`, case-homed `documents` and `meeting_cases.summary/decision`. So **two of the
+>    three named attested-tier populations ("narratives", case-linked responses) are
+>    MECHANICAL**, not attested. What genuinely has no signal is meeting minutes prose
+>    (already minted per linked meeting) plus **non-case form responses and assorted
+>    per-commission free text** — so the fan-out now mints one `attest_review` per commission
+>    of the hospital **that holds such prose** (a measured predicate, not a guess). Without
+>    it the outcome record reports "attested: 0" forever and the two-tier claim is false in
+>    the direction this program exists to fix.
+> 6. **Attestation gets its OWN door, and `complete_dsr_task` refuses the kind.** A named
+>    reviewer plus a redaction count are required (`attest_dsr_task`), because an optional
+>    structured tier is an unreliable one and the outcome record cannot state a count nobody
+>    was obliged to give. `0` is a real, required answer — "I looked and found nothing" —
+>    where NULL is "nobody said". ⛔ Decision 7 is untouched: no in-place redaction door
+>    exists; the procedure is the revoke corridor, and it is now **carried in the task**.
+>
+> **Two live defects found while building, both fixed here, neither this slice's subject:**
+> (a) `app.patient_trajectory_bundle` computed the **case** entry's display code as
+> `cases.id = <a patient_participants id>` — the Slice-2 grain — so it rendered `—` for every
+> case, always, in the PQS console as well. Display-only, no pin asserted it, fixed in the
+> same migration because this slice puts that bundle in front of the Encarregado at intake.
+> (b) `complete_dsr_task` **overwrote `dsr_tasks.note`** — the column the fan-out uses to
+> carry the revoke-corridor procedure — destroying the instructions at the moment they were
+> being followed. `note` is now the immutable minted PROCEDURE; `completion_note` is what the
+> human wrote.
+>
+> 7. ⭐ **A REFUSAL RETIRES ITS OUTSTANDING WORK — and the asymmetry that makes it
+>    necessary is deliberate.** `close_dsr_request` counts pending tasks only for
+>    `granted` / `granted_partial`, which is correct and stays: demanding the
+>    disposal tasks be `done` before a REFUSAL close would force the executor to
+>    erase exactly the data the adjudication just decided to retain. But measured
+>    after a `refused_retention` close, **all six tasks stayed `pending` and the
+>    executor was still offered six executable tasks, three of them PHI erasures**.
+>    The workflow was instructing the opposite of its own decision, and it failed
+>    **OPEN against a decision to retain** — in a program whose entire subject is
+>    adjudicated retention. Non-granting closes now set those tasks to `blocked`,
+>    and both completion doors refuse the value.
+>    ⚠ **`blocked` is REUSED, not minted** — the enum has admitted it since Slice 2
+>    with nothing writing it. That avoids a new value, but the word's plain reading
+>    ("cannot proceed yet") is the WRONG one here: these are retired by decision.
+>
+>    > ⛔ **CORRECTION (QA r2) — this item previously said the distinction "lives
+>    > one join away in `dsr_requests`" and that *"any surface showing a blocked
+>    > task must resolve that join and say why"*. THAT WENT LIVE-FALSE INSIDE THIS
+>    > SAME AMENDMENT.** Item 7's own M2 change gave `blocked` a **second writer**:
+>    > an escalated meeting disposal retires that meeting's attestation while the
+>    > request is **open and `granted`**. Resolving the join and "saying why" on
+>    > that path produces a **false statement** — it reports a decision that
+>    > refused erasure when the decision in fact ordered a *fuller* one.
+>    >
+>    > **The rule that actually holds, and that all six code sites implement:**
+>    > ⛔ *no surface may name the cause of a retirement from `status` alone.*
+>    > `dsr_tasks` cannot distinguish the two writers, and the stamped-reason column
+>    > that would is deliberately **out of this slice**.
+>    >
+>    > ⭐ **Cause-neutral copy is not tidier — it is the only thing that stays
+>    > true.** The instruction to resolve the join was written when there was one
+>    > writer, and adding the second falsified it without touching it. Five strings
+>    > across two layers went false the same way; this ADR sentence was the sixth.
+>
+>    ⛔ Writing a value nothing wrote before
+>    can break readers that were correct when the old domain was the whole domain,
+>    silently — so the readers were swept first, asking "what does this DO when it
+>    meets `blocked`?". Three SQL readers needed fixing (`complete_dsr_task`,
+>    `attest_dsr_task`, `list_my_executable_dsr_tasks` — the last had **no status
+>    filter at all**), and `getDsrOutcomeRecord` gained a `retired` count because a
+>    retired task counted as neither disposed nor pending and `total` had stopped
+>    equalling its parts.
+>
+>    > ⛔ **CORRECTION (QA r1). This item previously claimed "all nine SQL readers
+>    > plus the TS and UI readers were swept". THAT WAS FALSE, and it is corrected
+>    > rather than softened, because an ADR that says a sweep is done is how the
+>    > next reader stops looking.**
+>    >
+>    > **What the sweep actually covered:** the nine SQL readers, enumerated from
+>    > `pg_proc` — that half was exhaustive and is the half the migration header
+>    > lists. Plus **two** TS readers found by reading the query layer.
+>    >
+>    > **What it did NOT cover: the rendering surfaces.** It reached
+>    > `src/lib/queries/**` and stopped. Four readers were missed there, none of
+>    > them by me — three by `frontend` (`isDone`, the panel's `outstanding` count,
+>    > and the minted procedure note still printing the revoke corridor on a
+>    > retired card) and a fourth by QA: `dsr-request-panel.tsx` computing
+>    > `done = totalTasks - pendingTasks`, which put a retired task in the DONE
+>    > bucket by subtraction and rendered **"6/6 tarefas concluídas"** beside
+>    > "Recusada — retenção" — six PHI erasures asserted as carried out when zero
+>    > were.
+>    >
+>    > ⚠ **The generalisable part.** A newly-writable enum value leaves every
+>    > downstream reader **unexercised by construction** — no environment had ever
+>    > rendered `blocked`. A catalog sweep closes the SQL half completely and is
+>    > structurally blind to the render half; only executing the new state finds
+>    > those. Three of the four were found in a browser, one by reading a
+>    > component. **Neither the sweep nor this ADR should be read as covering
+>    > surfaces.**
+>
+> ⚠ **And one over-grant the author committed and an existing pin caught.** The house idiom
+> `revoke from public, anon; grant to authenticated, service_role` was applied by reflex to
+> `app.patient_trajectory_bundle` — the RAW, UNGATED PHI assembler, deliberately
+> **service_role-only**. Suite `152` §M1 went red and named it. `CREATE OR REPLACE FUNCTION`
+> does **not** reset an ACL: when rewriting a body, leave the grants alone or diff the ACL
+> from the catalog *before* writing the grant line. "Every new function needs an explicit
+> grant" is a rule about NEW functions.
+
 ## Context
 
 The platform has four patient-PHI disposal doors and no *process* around them: no way to

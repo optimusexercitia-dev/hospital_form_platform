@@ -435,6 +435,48 @@ and silently**. Events and referrals ARE keyed on the entity itself. Verify in `
 Found by neutralization, not review. A NEW gate belongs to no BLIND set and so clears `ARM=policy`
 vacuously; only `ARM=census` sees it, and only after a diff-scoped sweep gives it a verdict.
 
+## DSR Slice 3 — adjudication + the attested tier (2026-08-20; ADR **0130** + **Amendment 3**; migrations `20261002000000`–`…000100`, **2**; pgTAP `350` `plan(56)`; flag **`dsr`**)
+
+| surface | what | note |
+| --- | --- | --- |
+| ⭐ the ONE widening | `public.search_patient_xref` gate → `app.is_pqs_operator_of(h) **or** app.is_dpo_of(h)` | the ONLY authorization gate the whole DSR program changes (ADR 0130 D3). ⛔ Its keystone must be a **content differential** — the gate returns an EMPTY BUNDLE, it does not raise, so `lives_ok` on a DPO's call is vacuous by construction (`350` t4–t8) |
+| new columns | `dsr_requests.{adjudicated_at,adjudicated_by}` · `dsr_tasks.{completion_note,attested_by_name,attested_redactions}` | table-wide `authenticated=r` already covers them (verified in `column_privileges` — these are NOT column-list grants like `profiles`/`case_referral`). `attested_by_name` is a **STAFF reviewer's** signature, never the subject's — Rule 12 pinned as a POSITIVE column list on both tables (`350` t11/t12) |
+| new doors | `adjudicate_dsr_request(uuid,text,text,text,uuid[])→int` · `attest_dsr_task(uuid,text,int,text)` · `list_dsr_disposable_meetings(uuid)→jsonb` | all `prosecdef`; ACLs `{postgres, authenticated, service_role}`, no PUBLIC (diffed from the catalog, not from intent) |
+| changed doors | `create_dsr_request` (attested-tier population) · `close_dsr_request` (consumes the decision; `p_outcome` now OPTIONAL) · `complete_dsr_task` (refuses `attest_review`; stops overwriting `note`; advances from `adjudicated` too) · `app.patient_trajectory_bundle` (case-code grain) | |
+| new index | `dsr_tasks_request_kind_commission_uniq` `(request_id, kind, commission_id) WHERE entity_id IS NULL AND commission_id IS NOT NULL` | the pre-existing guard is `WHERE entity_id IS NOT NULL` and **cannot** cover an entity-less commission-scoped task |
+| policies | **none added, none changed** | |
+| refusal retirement | `close_dsr_request` writes `dsr_tasks.status = 'blocked'` (migration `20261002000300`) | ⛔ Measured defect: after a `refused_retention` close **all six tasks stayed `pending` and the executor was still offered six executable tasks — three of them PHI erasures** — for a request whose decision was to RETAIN. The workflow was instructing the opposite of its own decision, failing **open against a retention decision**. ⚠ The pending-count asymmetry **stays** (demanding those tasks be done would force erasing what the refusal retained); the fix RETIRES them. ⚠ **`blocked` means RETIRED BY DECISION, not "waiting"** — that distinction lives only in `dsr_requests.status='closed'` + a non-granting `outcome`, ONE JOIN AWAY. Every reader of `dsr_tasks.status` was swept before the value was first written (all nine SQL readers + TS + UI; list in the migration header): `complete_dsr_task`, `attest_dsr_task` and `list_my_executable_dsr_tasks` all needed fixing, and `getDsrOutcomeRecord` gained a `retired` count so `total` still equals its parts |
+| BUG-DSR-S3-002 fix | `public.list_my_dsr_task_commissions(uuid)→jsonb` (migration `20261002000200`) | ⛔ `listMyDsrTasks` read commission names through a PostgREST **embed on `commissions`**, which is RLS-filtered — and the Encarregado is a plain member of ONE commission BY DESIGN, so a sibling commission's attestation rendered "Comissão fora do seu acesso" above procedure text saying "review THIS COMMISSION". An attestation against an unnameable scope is a NOMINAL one, and the outcome record reports it as coverage. Same fix shape as ADR 0130 Amdt 2 item 5, one grain down: a DEFINER lister over tasks the caller can already see. ⛔ **`commissions_select_member_or_admin` does not move.** Pinned by `350` t57–t60, incl. a **differential** (t58) that reds if the copied predicate ever drifts from `dsr_tasks_select`, and an **over-list twin** (t60) |
+
+⛔ **THE `dispose_meeting` ESCALATION IS THE ONE THING TO GET RIGHT.** `dispose_meeting_minutes`
+erases the **whole** ata — `minutes_md` plus `description`/`discussion_notes`/`resolution` on EVERY
+agenda item, including items unrelated to the subject. Intake therefore still mints only
+`attest_review` (Amdt 2 item 3). A `dispose_meeting` task exists **only** where a human passed that
+meeting's id to `adjudicate_dsr_request`, and the door bounds it three ways: the outcome must GRANT,
+the meeting must already be enumerated on **that** request (`HCDS2` — so the door's reach is its own
+request, not the hospital), and it must not already be disposed (`HCDS5`). ⛔ The disposal gate does
+not move; the DSR mints a **task**, and the executor fires the door under their own session.
+
+**The close rule, statable in one line:** *close may record a decision directly only when the
+decision erases nothing.* `granted`/`granted_partial` require a prior adjudication; the three
+non-erasing outcomes keep the one-step path — **and stamp `adjudicated_at` anyway**, so every closed
+request answers "when was this decided, and by whom?" with exactly one non-null answer.
+
+⚠ **`status` is the WORK state; `adjudicated_at` is the DECISION fact.** They are deliberately not
+the same thing: a request whose execution began before the decision stays `executing` and still
+carries the stamp. Read the value, not the noun — a predicate written against `status = 'adjudicated'`
+will be wrong for exactly that population.
+
+⚠ **Every official authz ARM passes and NONE of them can see this slice's gate change.** `ARM=census`,
+`hat`, `floor` and `FROMFINDINGS=1 wrapper` all HOLD, but ARMs 1/3/5 bound their domain by
+**boolean-ness** and the row-door sweep by **row-returning-ness**; `search_patient_xref` and all three
+new doors are `prosecdef` **scalar non-bool** command doors (`jsonb`/`void`/`integer`, `proretset=f`)
+— the `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` class, same as Slice 2's seven. The diff-scoped recipe's own
+syntax filter (`^(is_|can_|has_)`) yields an **EMPTY** case list for this diff, and a `CASES=`-scoped
+row-door run swept **0**. ⛔ So "the arms hold" is true and says NOTHING about these doors. Their
+coverage is a hand-run **37-probe** neutralization battery, one at a time, every restore hash-verified —
+recorded per keystone in `350`'s header. **Do not read a green arm as a verdict here.**
+
 ## Client-role TRUNCATE grants — swept 2026-08-18 (`20260928000900`, FUP-PCITV-1 item 3)
 
 | scope | before | after | note |

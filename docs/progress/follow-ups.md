@@ -4511,3 +4511,329 @@ runbook; C1a said "run the runbook". The gap lived **between** them, and it took
 claim — *"the child lock blocks C1a"* — to point at the seam. Same shape as
 [[an-approvals-scope-is-a-fact-that-must-be-written-down]]: invisible from either document alone,
 because each is complete about its own subject.
+
+### 🟠 FUP-FORM-IDENTIFIER-IN-URL — a sensitive field submitted BEFORE HYDRATION serialises into the query string. **4 leaks CONFIRMED AND FIXED (incl. CPF + MRN); the STANDING DETECTOR and the `useFieldIds` default remain open** (owner: frontend + lead; **class, correction, measurement and fixes all credited to `frontend`**)
+
+**Filed and largely closed 2026-08-20**, during DSR Slice 3, by `frontend` — found in its own new
+code, then measured and fixed across the app. ⛔ **Downgraded 🔴 → 🟠 because the measured leaks are
+gone, NOT because the class is closed.** What is open is the *detector* and the substrate default.
+
+**Mechanism.** A form input carrying a `name` is serialised by the browser's *native* GET submit.
+Pressing Enter **before React has hydrated** submits natively: no handler is attached yet, so
+`preventDefault` cannot run. A `<form onSubmit={…}>` with **no `action=`** GETs to the current URL.
+
+⛔ **`name` is INJECTED, not written.** `useFieldIds(name, …)` returns a `controlProps` object
+containing `name`, which components spread onto the input. **There is no `name=` in the source** — the
+defect is invisible to the obvious search, which it defeated three times.
+
+**MEASURED — the complete population that was examined, nothing predicted:**
+
+| surface | before | after |
+|---|---|---|
+| `users/cpf-field.tsx` (via `/manage/usuarios/novo` **and** `/manage/usuarios/[userId]`) | ⛔ LEAKS `?cpf=` | ✅ SAFE |
+| `users/user-profile-edit-form.tsx` | ⛔ LEAKS `?fullName=…&cpf=…&professionalCategoryId=…` | ✅ SAFE |
+| `users/affiliations-panel.tsx` | ⛔ LEAKS `?newHospitalId=…&newEmployeeId=…` | ✅ SAFE |
+| `patient-index/patient-search-view.tsx` | ⛔ LEAKS `?patient-mrn=…&patient-encounter=…` (**PHI**) | ✅ SAFE |
+| `users/register-user-form.tsx` (the predicted `?password=`) | ✅ NOT-REACHABLE-PRE-HYDRATION | — |
+| `printing/revoke-document-dialog` · `forms/save-to-library-dialog` · `forms/edit-library-entry-dialog` | ✅ NOT-REACHABLE-PRE-HYDRATION | — |
+
+The four NOT-REACHABLE verdicts are **measured, not assumed**: each host route was loaded JS-disabled
+and its server HTML counted zero forms and zero dialog nodes. (Two required creating a draft through
+the real UI first, since the seed has none; it was deleted afterwards.)
+
+**Fix:** ten one-line `name={undefined}` strips across five files. ⭐ **No `FormData` anywhere** — all
+four leaking forms were already `useState`-controlled, so no submission path changed and the
+`method="post"` question is moot. ⭐ **The two CPF leaks were ONE bug**: both routes render the shared
+`users/cpf-field.tsx`, so a single strip fixed both — which is also why the CPF exposure was *wider*
+than either route on its own suggested.
+
+**Control, both directions** (a sweep returning SAFE everywhere is indistinguishable from a sweep that
+stopped looking): the `cpf-field.tsx` strip was reverted and re-run → **LEAKS**; restored → **SAFE**.
+Same harness, same run, unmodified between.
+
+⭐⭐ **THE FINDING: BOTH PREDICTIONS WERE WRONG, IN OPPOSITE DIRECTIONS.** `backend` and the lead both
+escalated `?password=<plaintext>` as the thing that mattered — **it does not exist**. Meanwhile
+**`cpf`, the Brazilian national identity number, leaked in two places and was on NEITHER candidate
+list.** Both lists were assembled from field names their authors could think of. **A list of names you
+can think of is not an enumeration of the population.** See
+[[enumeration-boundary-is-a-syntax-not-a-property]].
+
+## ⛔ STILL OPEN — two limits `frontend` stated about its own sweep
+
+1. **"8 candidates, 8 measured" is NOT "the app is clean."** The population was a list a *static read*
+   proposed; the sweep measured that list honestly but never independently enumerated every `<form>` in
+   the app. Given this class has beaten a reasoned read three times, the standing check must be a
+   **crawler over authenticated routes that fails on ANY named input inside an action-less form** — not
+   a re-run of this list. ⛔ Never a `name=` grep: it cannot work against an injected `name`.
+2. **`<select>` coverage is weaker than text-input coverage.** The harness does not overwrite `<select>`
+   values, so a select is only caught by noticing its *real* value in the URL — which is exactly how
+   `professionalCategoryId` and `newHospitalId` surfaced. **A select that happened to be empty at page
+   load would have read as clean.** The select population is not reliably enumerated by this run.
+
+## ✅ PO-RULED 2026-08-20 — INVERT the `useFieldIds` default (assigned to `frontend`; a SEPARATE change after Slice 3)
+
+`frontend`'s recommendation (not actioned, per the lead's ruling): have `useFieldIds` **omit** `name`,
+and require the callers that genuinely use `FormData` to opt in explicitly. Today the **dangerous case
+is the default** and the safe case needs discipline at **51 call sites — with a measured failure rate
+of 10/51**. Inverting makes the safe case free, makes the dangerous case visible in review, and turns
+this from a discipline into something a lint rule could actually gate. ⚠ It touches every form in the
+app, so it is its own change with its own review, not a rider on a security fix.
+
+⛔ **The inversion's hazards run the OPPOSITE direction from the leak, and every one fails SILENTLY —
+green in `tsc`, lint and unit tests while broken at runtime.** Enumerate before changing the hook:
+1. ⛔ **`<form action={serverAction}>` / `useActionState`** — a server action receives **FormData built
+   from `name`d inputs**. Losing `name` does not degrade it; it submits **nothing**. Hardest to spot,
+   because such a form never had an `onSubmit` to notice.
+2. ⛔ **Radio groups** — `name` is what *groups* radios so only one can be selected. Purely behavioural.
+3. **Explicit `FormData` reads** (`new FormData`, `formData.get`).
+4. ⚠ **Autofill / password managers** — `name` feeds autocomplete heuristics; opting back in there is the
+   *correct* outcome, not a workaround.
+
+⛔ **Out of scope of the inversion:** the standing route-crawler gate (limit 1 above). It is the right
+detector, but CLAUDE.md's gate list is the PO's to extend.
+
+### ⛔ CORRECTION 2026-08-20 (`frontend`, self-reported) — the true blast radius was **GET FORMS ONLY**, not 133 spreads
+
+Measured during the step-3 verification, and it **shrinks a number this file previously carried**:
+
+```
+LOGIN (no JS): method=post  named=[…,"email","password"]
+ADMIN (no JS): method=post  named=["name","slug"] / ["organizationId","name","slug"] / …
+DSR   (no JS): method=get   named=[]
+```
+
+**Every server-action form renders as `method="post"`, and a POST body does not reach the query
+string.** So the 30 fields opted back in were **never at risk of this leak** — and all four genuine
+leaks were client `onSubmit` forms, which default to **GET**. The defect's population was never "every
+form using `useFieldIds`"; it was GET forms only.
+
+⭐ The inversion remains right — it makes the safe case free and the dangerous case *declared* — but the
+honest framing is **defence-in-depth plus a documented taxonomy**, ⛔ **not "133 live leaks closed."**
+Recorded because the teammate corrected its own headline downward rather than letting the larger number
+stand, and an inflated number in a security record is a claim that will be quoted.
+
+### Annotation landed at 30, not the 42 upper bound — the file-level trap was real
+
+Reading each site against its server action's actual `formData.get()` **read set** removed 12 that
+file-level bucketing would have wrongly opted in: 9 controlled fields in `add-participant-dialog` (its
+action never reads those keys), `add-member-picker`'s search box (a client-side filter — the action
+reads hidden inputs), and 2 resolving to the shared `cpf-field`. ⭐ **That is exactly the "33 is an upper
+bound, not a work list" hazard, and it fired.**
+
+⚠ **`radioGroup` and `autofill` have ZERO call sites.** All 20 radios take `name` from explicit
+attributes the hook never touches, and for the auth fields `formData` is the *binding* reason (they
+break without it), so they were annotated `formData`. Two union variants are unused — **open question
+for the PO**, since "a new reason must require adding a variant" argues for pruning to `formData` alone.
+
+### Enumeration (measured 2026-08-20, before the hook was touched) — the blast radius is ~1/3 of the class counts
+
+**43 files spread `{...X.controlProps}`; 133 spreads total.**
+
+| bucket | files | spreads | meaning |
+|---|---|---|---|
+| **AT RISK** — file also uses `action={}` / `useActionState` / `FormData` | 17 | **33** | per-site inspection required |
+| **RADIO** — `add-participant-dialog.tsx` | 1 | **9** | `name` groups the radios; stripping breaks selection **silently** |
+| **SAFE** — no action, no FormData, no radio | 25 | **91** | the inversion is a no-op |
+
+⭐ **The gap between class counts and the intersection is the useful finding.** 44 files use
+`useActionState`/`action={}` and 22 read `FormData` — but most get `name` from **hand-written
+attributes**, which the inversion cannot touch (`create-case-dialog.tsx`: 14 explicit `name=` vs 2
+spreads). ⚠ **And the bucketing is FILE-level: 33 is an UPPER BOUND on the work, not a work list.**
+"The file contains a server action" says nothing about whether *this control's* value is read from
+FormData. ⛔ Opting a field in because its file appeared in a bucket re-adds `name` to fields that do
+not need it — the worst available outcome, and invisible afterwards because the opt-in would *look*
+deliberate. Ambiguous site → leave un-annotated and **exercise** it: a broken submission is loud, a
+needless `name` is silent.
+
+### The opt-in shape (ruled 2026-08-20) — `nameRequiredFor`, a closed union, ⛔ no `"other"`
+
+```ts
+useFieldIds("email", { nameRequiredFor: "formData" })    // a server action / FormData read consumes it
+useFieldIds("kind",  { nameRequiredFor: "radioGroup" })  // `name` is what groups the radios
+useFieldIds("email", { nameRequiredFor: "autofill" })    // password-manager heuristics need it
+```
+
+⛔ **Rejected: `submitsVia`** (the proposed name) — false for two of its own three values, since neither
+radio-grouping nor autofill is submission. **A parameter name that lies about its content** is the
+class this repo paid for when `p_template_id` was renamed to stop lying and the forced `DROP`+`CREATE`
+silently reset an ACL. A closed union with **no `"other"`** keeps unclassifiable sites out of a catch-all
+— which is where the next leak would hide.
+
+**Sequencing — three steps, no broken intermediate:** (1) add the parameter, still always emitting
+`name` (no-op); (2) annotate the sites (no-op); (3) flip the default — one risky change, once, against
+an already-annotated tree. ⛔ Flipping first leaves ~42 sites broken while they are annotated.
+
+The auth forms (`login-form`, `password-set-form`, `reset-request-form`) are class 1 **and** class 4
+simultaneously — they opt back in under `"autofill"`, with the reason stated at the call site; that is
+the **correct outcome, not a workaround**.
+
+### ⚠ A cheap lint rule becomes possible — and it does NOT close this follow-up
+
+`nameRequiredFor: "formData"` co-occurring with an action or a `FormData` read is an ordinary static
+check, no browser needed. ⛔ **But it is a CLAIM-CHECKER, not a leak detector.** It verifies a *declared*
+opt-in is honest; it cannot see a field carrying `name` for another reason, a hand-written `name=`, or a
+form the enumeration never reached — and "8 candidates, 8 measured" was already not "the app is clean".
+**The route crawler remains the detector.** Recording a cheap check as coverage for an expensive one is
+exactly how this program's four authz ARMs came to pass while seeing nothing.
+
+### 🟡 FUP-VITEST-UNCAPTURED-FAILURE — one unit test failed once and **nobody knows which** (owner: backend/lead; **filed only because QA found it was missing from the record entirely**)
+
+**2026-08-20, DSR Slice 3.** A full `npm run test` run reported **1447 passed / 1 failed of 1448**. The
+failing test's name, assertion and cause were **not captured**, and the run was not preserved. It has
+passed on every run since (five-plus, all 1448/1448).
+
+⛔ **"Passed on every run since" is not a diagnosis.** The test cannot be named, so it cannot be
+re-examined, and nothing distinguishes *a fixed flake* from *a real intermittent defect that has not
+recurred yet*. The honest state is **undiagnosed**, and it must not be quietly graded as resolved by the
+passage of green runs.
+
+⚠ **Why this is filed at all:** the lead stated twice that it "stays a work item" and **never wrote it
+down**. QA found every occurrence in the record was a flat *"vitest 1447"* — the failure had been
+verbally acknowledged into non-existence. *A work item that lives only in a report is not a work item.*
+
+**If it recurs:** ⛔ **capture the full vitest output BEFORE re-running.** A re-run destroys the only
+evidence, and the re-run is the reflex.
+
+### 🔴 FUP-AUTHZ-HARNESS-PRECONDITIONS — a neutralization verdict has at least TWO preconditions and the harness checks ONE (owner: backend/harness; **filed after two near-miss false BLINDs on the same live door in one session**)
+
+**2026-08-20, DSR Slice 3.** The neutralization harness returned **`PASS`** for two probes against
+`create_dsr_request`'s authorization gate and `complete_dsr_task`'s effect check. Read literally, that
+says **a live PHI-adjacent authorization gate is BLIND**. It said nothing of the kind — **twice, by two
+different broken preconditions:**
+
+1. **The baseline was already red.** The `db reset` before the run had **exited 1** and the suite was
+   failing 73/75 before any probe fired. A probe verdict over a red baseline is not a weak verdict, it is
+   **no verdict**.
+2. **The domain did not contain the subject.** The harness's `SUITE` defaulted to `00_setup + 350`, and
+   **both keystones live in `349`.** The suite it ran never contained the assertion it was trying to
+   falsify.
+
+⛔ **The general form: *"nothing noticed the gate opening"* and *"nothing that could notice was running"*
+are INDISTINGUISHABLE in the output.** A neutralization verdict rests on at least two preconditions —
+**baseline green** and **the keystone present in the swept domain** — and the harness asserts only the
+first. Both near-misses were on the **same door**, reached by different routes, within one session.
+
+⚠ **How the second was caught: by wondering why a gate that had been watched working would suddenly be
+unguarded.** The author's own words: *"that is luck, not method."* ⛔ Had either been piped through
+`tail`, or believed, it would have been a **false P0 on a live authorization door** — the exact class
+that burned an external auditor in ADR 0078.
+
+**Scope — ⛔ do NOT read this as "RED verdicts are unaffected".** This defect cannot manufacture a false
+COVERED from a **green-verified** baseline: it fails toward PASS/BLIND, and the harness already asserts
+the probe moved `md5(pg_get_functiondef)` (a dead write channel aborts loudly). ⚠ **It does NOT follow
+that RED is unconditionally safe.** A **red baseline also yields a red post-probe run** — mutate a gate
+in an already-failing suite and it stays failing, the harness prints `# Failed test …`, and that reads as
+**RED = COVERED**, attributing a pre-existing failure to the mutation. That is a **false RED, failing in
+the *reassuring* direction** — the one nobody re-checks. It is the exact inverse of the two near-misses,
+and is **not** excluded by them.
+
+> **A RED verdict is sound iff the baseline was verified green for that run.**
+
+**Every verdict in DSR Slice 3 meets that bar:** each battery run gated on a printed green baseline, and
+**no verdict rests on a PASS — 47 RED + 1 GREEN, and the GREEN was recorded as a finding, not a pass.**
+So no Slice 3 verdict needs re-opening.
+
+⛔ **Provenance of this scope note, because it is the point.** QA argued structurally that *"a RED entails
+all three preconditions, so the harness defect cannot reach a RED"*, and **the lead endorsed it without
+testing it.** `backend` refuted it: the argument holds for two preconditions and **fails for the
+baseline**. An over-strong safety rule, adopted because its conclusion was correct for the case at hand,
+would have been relied on later where the conclusion does not hold. *The conclusion being right is not
+evidence that the reasoning is.*
+
+**A second instance of the same family, found fixing this one:** `350`'s verdict census. The strict
+pattern (`\.\.+` dot-leader) returned **46** — it missed a line appended with a one-dot leader. The naive
+pattern (`^--   .*RED`) returns **49** — inflated by prose lines merely containing the word. **Both
+candidate shapes are wrong, in opposite directions.** True total **48 = 47 RED + 1 GREEN**, now derived
+four ways and cross-checked. ⛔ The shape contract is written out — and **nothing enforces it**: a comment
+cannot check itself.
+
+**The fix (filed, NOT built):** the harness must assert its own preconditions and refuse to emit a
+verdict when either fails — baseline green ✅ *(already checked)*, and **keystone present in the domain
+❌ (not checked)**. A `PASS` with the subject absent must be an ERROR, never a verdict. This project
+leans on this instrument for its entire authz coverage story.
+
+### 🟡 FUP-PGTAP-184-T11-FLAKE — `184_hospital_admin_isolation.sql` test 11 failed once, undiagnosed but NAMED (owner: unassigned)
+
+**2026-08-20.** *"RLS: ha1 reads CCIH forms (swapped surface)"* failed on the first full `test:db` run
+after an orphaned server was reaped; **passed in isolation on a fresh reset and on two subsequent full
+runs** (6678/6678 twice). `184` runs **before** `350` alphabetically, so the DSR suite cannot contaminate
+it, and nothing Slice 3 touched goes near `forms`/`commissions` RLS.
+
+⛔ **Not a diagnosis** — "passed three times since" never is. But unlike
+[[FUP-VITEST-UNCAPTURED-FAILURE]] this one **has a name**, so it is actionable rather than a footnote:
+whoever picks it up has the file and the test. ⚠ Plausible but unverified: it first appeared during the
+window when a stray standalone server was deadlocking pgTAP, so contention is a candidate cause — that is
+a hypothesis, not a finding.
+
+### 🟡 FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER — the gate's own arithmetic does not sum, and it scores a worker crash as an assertion failure (owner: lead/tester)
+
+**2026-08-20, the DSR Slice 3 declaring run.** Two defects in `scripts/e2e-prod-gate.sh`, both found by
+reading its output rather than trusting the headline:
+
+1. ⛔ **The census does not sum.** `GATE SUMMARY: 1153 passed · 3 failed · 4 flaky · 5 did-not-run` and
+   `COVERAGE: accounted for 1165 of 1176 collected` — **11 tests are in no bucket at all.** They are
+   neither passed, failed, flaky, nor reported as never-run. A census whose parts do not sum is wrong,
+   and this one is the instrument that declares the phase green.
+2. ⛔ **The INFRA classifier has no notion of a worker exit code.** It classifies on `server_dead`,
+   `conn_errors` and `pgrst_unready`. `ethics-e2-procedure.spec.ts:913` died with
+   `worker process exited unexpectedly (code=3221226505)` — `0xC0000409`, a Windows stack-buffer-overrun
+   — and was scored as a **real assertion failure**, with 5 further tests stranded behind the dead
+   worker and reported as did-not-run. An isolated re-run of the same frozen tree passed 68/68.
+
+⚠ **Consequence, and it cuts both ways.** A crash counted as a defect sends someone hunting a
+non-existent bug (this cost a `useFieldIds`-regression investigation before being ruled out on
+evidence). ⛔ And the same blindness could equally hide a real defect behind "infra" once the classifier
+is taught about crashes — so the fix is **not** "add crash to the INFRA list", it is *classify a crash
+as its own third category: neither pass nor defect, and REQUIRING a re-run before any verdict.*
+
+**Related in kind, same session:** `FUP-AUTHZ-HARNESS-PRECONDITIONS` — a verdict emitted about a
+substrate that was not in the state the instrument assumed. This is the same family in the E2E gate.
+
+### 🔴 FUP-E2E-ABSENT-ROW-ASSERTIONS — `expect(row?.field).not.toBeNull()` passes when the row is ABSENT, and it is live on PHI-erasure assertions (owner: tester/lead; **the number was wrong in BOTH directions before anyone measured it**)
+
+**2026-08-20, found by QA r2 while falsifying a count the lead had relayed.** B2 fixed this shape inside
+the DSR specs. It is **not** confined to them.
+
+⛔ **Three numbers were claimed and none survived measurement:**
+- `tester` reported *"14 spec files carry private copies, exactly one other swallows"* — the lead relayed it.
+- QA measured *"≥49 swallowing helper bodies"* and flagged its own larger figure (85/67) as **unverified**.
+- **Lead's own measurement, bounded by shape and stated as such:** **17** assertions of the form
+  `expect(x?.field).not.toBeNull()` / `.toBeTruthy()` across **10 files**, and **9 separate private
+  `serviceQuery` definitions** in `e2e/`, several returning `[]` on a failed or non-array response.
+
+⚠ **17 is a LOWER BOUND on ONE SHAPE, not the population.** The *property* is "an assertion that a row's
+field is non-null where the row itself may be absent"; a regex over `?.` cannot enumerate that. See
+[[enumeration-boundary-is-a-syntax-not-a-property]]. ⛔ **Do not quote 17 as the count.**
+
+**The PHI-relevant instances — this is why it is 🔴, not 🟡:**
+- `e2e/pdf-printing-meetings.spec.ts:335` — `expect(row?.phi_disposed_at, 'the RPC actually disposed this
+  fixture').not.toBeNull()`. ⭐ **Its own assertion message is precisely the false statement an absent row
+  makes it assert.** Byte-identical in kind to B2.
+- `e2e/meeting-audio-minutes.spec.ts:482/483/492/571` — `applied_at`, `purged_at`, `audio_deleted_at`:
+  **audio-PHI deletion** assertions in the same shape.
+- `e2e/meeting-held-time.spec.ts:296/373/566` — `held_at`.
+
+⛔ **`lint:vacuous` sees none of it** — the vacuity is manufactured **one call frame away**, inside the
+helper, so the assertion reads as unconditional at the call site.
+
+**Not fixed here, deliberately:** the tree was hash-frozen for the declaring gate, and converting a
+swallowed read into an assertion can surface a hidden failure in a spec nobody has analysed. This needs
+its own pass, with each conversion's red triaged.
+
+⭐ **The lesson that outranks the fix:** *"exactly one other"* closed a question that was open. It is the
+partial-fix-reads-as-complete family **retiring the very lesson B2 had just taught** — and it took a
+reviewer measuring, not a reporter reporting, to catch it.
+
+### ⬛ INCIDENT (recorded 2026-08-20) — a process tree is not dead because the child you named is
+
+The lead killed the **listener** on :3000, saw the port go free, and declared the `e2e:prod` tree reaped.
+It was not: the **`npm run e2e:prod` parent was still alive and minting replacement standalone servers**,
+which is why two people looking at "the server on :3000" saw **different pids**. Those orphans served live
+app queries through PostgREST against pgTAP's `TRUNCATE` and **deadlocked three consecutive `test:db`
+runs — 21 deadlocks each, ~700 tests never executing.** `taskkill /PID <parent> /T /F` then took out a
+**4-deep chain**.
+
+⛔ **Generalisable, and this is the half that was missing from the record:** *the port going free is
+evidence about the CHILD, not the SUPERVISOR.* Reap by process tree from the parent, and verify by
+enumerating the **process table** — never by re-checking the port. ⚠ `TaskStop` does not reap a
+background command's process tree (standing rule, now with a second occurrence).

@@ -16,56 +16,26 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **No phase is active.** The **DM program (DM0–DM5) is COMPLETE** — closed
-  2026-08-18, all five gate steps; phase QA APPROVED r2
-  ([review](docs/reviews/dm5-phase-review.md)). The DM follow-up triage of
-  2026-08-18 ruled eleven items and shipped five (gate-green: pgTAP 194f/6397 ·
-  lint · tsc · vitest 1305 · 4 authz ARMs HOLD; ⛔ `e2e:prod` was NOT part of that
-  batch — the standing green is the 2026-08-17 DM5 gate run, 1121p/0f).
-- **✅ DONE 2026-08-18 — the Cloud constructed-orphan probe RAN and settled.** Every
-  measured Cloud surface is **METADATA-BOUND**; Cloud exposes **no orphan-visible
-  surface**, so the byte half is structurally unverifiable there and the runbook's
-  *asserted, not verified* posture is evidenced. `FUP-DM4-PRODROW` is **unblocked** —
-  and its "~49 vanished" figure is **withdrawn** (§ State). Record:
-  [cloud-orphan-probe-2026-08-18.md](docs/progress/cloud-orphan-probe-2026-08-18.md);
-  instrument `scripts/cloud-orphan-probe.mjs`.
-- **✅ SHIPPED 2026-08-19 — the `Imprimir prévia` / `Emitir documento` split (ADR
+- **No phase is active.** The **DM program (DM0–DM5) is COMPLETE** — closed 2026-08-18, all five
+  gate steps, phase QA APPROVED r2 ([review](docs/reviews/dm5-phase-review.md)); its follow-up triage
+  ruled eleven items and shipped five. ⛔ *The standing-green E2E figure this bullet used to carry
+  (the 2026-08-17 run, 1121p/0f) is **SUPERSEDED** — see the 2026-08-20 gate below, which is RED.*
+- **✅ CONCLUDED 2026-08-18 — the Cloud constructed-orphan probe.** Cloud exposes **no orphan-visible surface** (all 5 metadata-bound), so the byte half is structurally unverifiable and the runbook’s *asserted, not verified* posture is evidenced; `FUP-DM4-PRODROW` **unblocked**, its "~49 vanished" figure **withdrawn** (§ State). ⛔ Not reassurance — orphan bytes are **unobservable, not absent**. Narrative rotated 2026-08-20 → [cloud-orphan-probe-2026-08-18.md](docs/progress/cloud-orphan-probe-2026-08-18.md).
+- **✅ CONCLUDED 2026-08-19 — the `Imprimir prévia` / `Emitir documento` split** (ADR
   [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md) +
-  [0126](docs/decisions/0126-print-series-and-derived-currency.md)).** QA **APPROVED** r2
-  ([review](docs/reviews/previa-split-review.md)). ✅ **MERGED and PUSHED** — merge commit
-  `9ed197d5`, verified an ancestor of both `main` and `origin/main` on 2026-08-19; the branch
-  `feat/previa-split-adr-0125-0126` no longer exists locally or on the remote. ⚠ *This line read
-  "**not merged, not pushed** — awaiting the merge call" until 2026-08-19: a claim about git state
-  that went stale silently, in the paragraph a new session reads first.* Gate on a **fresh reset**:
-  pgTAP **197f/6520** · seven lint gates · `tsc` · vitest **1447** · E2E **20/20** (six corridor
-  cases, zero-leftover query) · **all four authz ARMs HOLD** · full 51-door row sweep ·
-  **12 new `prosecdef` gates**, catalog-confirmed, none an INVOKER wrapper.
-  **What it does:** a **locked** source yields a registered emission (QR, hash-pinned,
-  verifiable); anything still editable yields an **ephemeral prévia** (streamed, no bytes at
-  rest, no registry row, its own audit row). **The user never chooses** — and the **door**
-  enforces it (`HC0DP` mint, `HC0DV` prévia), not the UI. Prints belong to a **series**, not a
-  row; **currency is a third derived axis**, read-time and never stamped.
-  ⭐ **Three live defects were found that no ADR anticipated**, each invisible to a green suite
-  and each found by reading the **CALLER**: re-minting a reopened ata was **impossible through
-  the UI** (`p_source_revision` never passed — D9's own corridor); a **locked source could be
-  served as a prévia** (the door had no registration term at all — Rule 1); and the panel
-  **promised a permanent verifiable record** above the prévia link.
-  ⭐⭐ **The lesson, and it is the build's:** *a keystone proves the DOOR works and says nothing
-  about whether the ACTION can reach it — the test is a **second caller**, and a second caller
-  can satisfy a door the real one cannot even open.*
-  ⚠ **ADR 0126 gained Amendment 1 (eleven findings)** — 2 PO-ruled extensions, **4 corrections
-  to claims the ADRs state AS MEASURED**, 4 method rules, 1 live defect on the public page.
-  **Residue, carried NOT inherited:** the commission-level cascade path stays open (its sibling
-  is closed by measurement, 0125 Am. 1 §C), and `case`/`interview`'s lock/watermark/series
-  declarations remain deferred to provider activation (0126 D7).
-- **🆕 Five follow-ups filed during that build, NONE of them its subject** — all
-  measured, all with owners: ✅ `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE` (**RESOLVED
-  2026-08-19**, ADR 0129 / DSR Slice 1; ⚠ its "blocks C1a/C1b" claim was **wrong in grain** — see
-  § Now item 1) · 🟠
-  `FUP-42501-CONFLATES-GRANT-WITH-RLS` · 🟠
-  `FUP-SUPERSESSION-BADGE-LANE-BLIND` · 🟡 `FUP-E2E-SUBMITTED-POOL-UNSCOPED` · 🟡
-  `FUP-PREVIA-MINT-FLAG-ASYMMETRY`. Plus 🟡 `FUP-LINT-VECTOR-DIMENSION-DRIFT` (a gate proposal,
-  filed not built).
+  [0126](docs/decisions/0126-print-series-and-derived-currency.md)): shipped, QA **APPROVED** r2,
+  **merged and pushed** (`9ed197d5`), branch gone. A locked source yields a registered emission; an
+  editable one an **ephemeral prévia** — and the **door** enforces it, not the UI. ⭐ Its lesson,
+  kept here because it is not print-specific: *a keystone proves the DOOR works and says nothing
+  about whether the ACTION can reach it — the test is a **second caller**, and a second caller can
+  satisfy a door the real one cannot even open.* ⚠ ADR 0126 **Amdt 1** carries eleven findings,
+  **four of them corrections to claims the ADRs state AS MEASURED**. Full narrative rotated
+  2026-08-20 → [previa-split-2026-08-19.md](docs/progress/previa-split-2026-08-19.md); residue
+  (commission-level cascade path; `case`/`interview` lock declarations, 0126 D7) stays open there.
+- **🆕 Six follow-ups from the ADR 0125/0126 build, none of them its subject** — one ✅ RESOLVED
+  (`FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`, ADR 0129 / DSR Slice 1; ⚠ its "blocks C1a/C1b"
+  claim was **wrong in grain**). The other five are now **all carried in § Follow-ups** — ⛔ three
+  of them had a body but **no index line**, and this bullet was their only live trace (see below).
 - **🆕 DSR ("Direitos do Titular") — designed 2026-08-19; ✅ Slices 1 AND 2 SHIPPED (19th / 20th);
   Slices 3–4 NOT started.** Sixteen PO-ratified decisions in a structured
   design session: an **adjudicated DSR workflow** (refusal-with-basis first-class), a per-hospital
@@ -105,13 +75,24 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   first written; and the first neutralization harness's **"restore" was a silent no-op**, so five
   sweeps accumulated — *a rollback you have not watched succeed is not a rollback*. Four shape
   changes are in **ADR 0130 Amendment 2**; read it before extending.
-  **▶ Resume point:
-  [dsr-workflow-plan.md](docs/plans/dsr-workflow-plan.md) § Slice 3** — the `search_patient_xref`
-  widening (the program's ONE named gate change), adjudication, the attested tier, and the
-  meetings-dispose UI that Amdt 2 item 3 moved there from ADR 0056 Consequence (a).
-  Filed alongside: 🟠 `FUP-DISPOSE-DIALOG-OVERCLAIM` · 🟠
-  `FUP-NOTIFICATIONS-PHI-RESIDUE` · 🟡 `FUP-XREF-PEPPER-ROTATION-ORPHANS` · 🔵
-  `FUP-ADR0121-REASON-VALUE-DRIFT` (an ADR-sweep found all four logged-but-never-registered).
+  ✅ **SLICE 3 SHIPPED 2026-08-20 — QA APPROVED (r2), PO-approved.** Migrations `20261002000000`–`…000300`,
+  suite `350` (**75 tests**), 4 E2E specs (**37**), the DPO lane + `/o/[org]/titulares/[requestId]`, the
+  attested tier, the refusal-retirement, and `disposeMeetingMinutes` — **ADR 0056 Consequence (a), never
+  built until now and now reachable** (it shipped *unreachable*: adjudication posted the wrong id, BUG-DSR-S3-001).
+  Plus the **`useFieldIds` `name` inversion** (43 files, 30 annotated call sites, PO-ruled).
+  **Declaring gate, tree HASH-VERIFIED unchanged throughout:** pgTAP **6678/6678** · 8 lint gates · `tsc` ·
+  vitest **1448** · **all four authz ARMs hold** · `e2e:prod` with **only the 2 pre-existing
+  `quality-oversight` failures** (BUG-QO-STALE-CASOS) — **no DSR spec failed**.
+  ⛔ **Do NOT cite "all four authz ARMs hold" as coverage for this slice.** The diff-scoped case list came
+  back **EMPTY** — every changed object is a `prosecdef` scalar non-bool command door, outside every arm's
+  domain (**Critical FUP C2**). Coverage is a **48-probe battery: 47 RED + 1 GREEN**, the GREEN recorded as a
+  **finding, not a pass**. ⚠ **A RED is sound IFF its baseline was verified green** — a red baseline also
+  yields a red post-probe run, which reads as COVERED (`FUP-AUTHZ-HARNESS-PRECONDITIONS`). All 48 clear that bar.
+  **10 bugs found and closed inside the slice** (8 product, 2 spec) → [bug-log-archive.md](docs/progress/bug-log-archive.md);
+  ⭐ **four were visible only by EXECUTING something** — no static gate saw them. Build detail, the ARM bound,
+  the ACL over-grant and the harness proofs → [dsr-slice-3.md](docs/progress/dsr-slice-3.md).
+  **▶ Resume: [dsr-workflow-plan.md](docs/plans/dsr-workflow-plan.md) § Slice 4** (residue + copy honesty,
+  Q12a) — independent of S3. ⛔ **Not merged, not pushed.**
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -286,7 +267,8 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-20 | **DSR Slice 2 · LEAD** — 3 migrations, pgTAP `349` (53), E2E corridor (6), `/o/[org]/titulares`. Fresh reset; **16 gate neutralizations**, every restore hash-verified | **pgTAP 200f/6603** · **lint 8/8** · **tsc 0** · **vitest 1447** · 4 authz ARMs **HOLD** · door sweep **6 COVERED / 0 BLIND** · `e2e:prod` **1129p / 2f / 0 did-not-run**, 1134 of 1140 accounted — ⛔ **GATE RED**, both failures PRE-EXISTING (BUG-QO-STALE-CASOS, control-proven) |
+| 2026-08-20 | **DSR Slice 3 · LEAD — declaring gate, tree hash-verified unchanged** | pgTAP **6678/6678** · lint(8) · `tsc` · unit **1448** · `e2e:prod` **1153p/3f/5 unrun**. ⛔ 3f = **2 pre-existing** + **1 worker crash** `0xC0000409`; crash + its 5 stranded tests **passed on re-run, 68/68**. **No DSR spec failed.** → [archive](docs/progress/test-run-archive.md) |
+| 2026-08-20 | *(the DSR Slice 2 gate row rotated to [test-run-archive.md](docs/progress/test-run-archive.md) — superseded by the Slice 3 gate below)* | — |
 | 2026-08-18 | **DM follow-up triage · LEAD** — the four shipped items (#2 byte proof · #4 DVF 1:1 · #8b draft-print delete guard · attachments deletion). Two fresh `supabase db reset --local` cycles; both new pgTAP arms authored **red-first** | **pgTAP 194 files / 6397 PASS** · **lint 5/5** · **typecheck 0** · **vitest 1305/1305** · authz `census`/`hat`/`floor`/`wrapper` all **INVARIANT HOLDS**. ⛔ **`e2e:prod` NOT RUN — this row is not a phase gate.** Full row → [archive](docs/progress/test-run-archive.md) |
 
 ## QA Verdicts
@@ -300,7 +282,8 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| Prévia split — ADR 0125/0126 | APPROVED (r2) | 2026-08-19 | [previa-split-review](docs/reviews/previa-split-review.md) |
+| DSR Slice 3 — ADR 0130 (r2) | **APPROVED** | 2026-08-20 | [dsr-slice-3-review](docs/reviews/dsr-slice-3-review.md) |
+| ~~DSR Slice 3 — ADR 0130 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-3-review](docs/reviews/dsr-slice-3-review.md) |
 | _The seven DM rows_ — rotated 2026-08-19, the DM milestone being closed | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | _Verbose form of the 5 rows above, incl. both struck r1 rounds_ — rotated 2026-08-14 (§5: never restate rationale here) | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | 112 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
@@ -311,57 +294,22 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-20 | **DSR Slice 3 SHIPPED — QA APPROVED r2, PO-approved.** The ONE named widening (`search_patient_xref` + `is_dpo_of`), adjudication, attested tier, refusal-retirement, ADR 0056 Consequence (a) discharged. ⛔ Zero disposal-gate widenings; **no second read-boundary change** (QA catalog-verified) | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 3** · [review](docs/reviews/dsr-slice-3-review.md) |
+| 2026-08-20 | **PO: INVERT the `useFieldIds` `name` default** — the hook omits `name`; `FormData`/radio/autofill callers opt in. The dangerous case was the default, the safe one a discipline at 51 sites (**10/51 measured**). ⛔ Route-crawler gate NOT in scope | FUP-FORM-IDENTIFIER-IN-URL · [follow-ups.md](docs/progress/follow-ups.md) |
 | 2026-08-20 | **ADR 0130 Proposed → Accepted; DSR Slice 2 BUILT** (PO instruction). Four shape changes measurement forced — incl. ADR 0056 Consequence (a)'s meetings-dispose UI moving to Slice 3. ✅ **Pilot-gate item 0 DISCHARGED** | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 2** · [plan](docs/plans/dsr-workflow-plan.md) |
 | 2026-08-19 | ✅ **Counsel's Q14 return: committee records NOT prontuário; removal requests CASE-BY-CASE with legal consultation (supersedes the blanket override); 20-yr retention adopted BY DEFAULT as policy** (PO-relayed). `subject_request` lane live; refusal copy cites the policy, never CFM 1821 | ADR [0035](docs/decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1** (resolved) · ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 1** |
-| 2026-08-19 | **Counsel ruling RECORDED, scope OPEN: 20-yr retention overrides LGPD Art. 18 erasure** (PO-relayed). Quoted, not paraphrased; the scope question (prontuário-only vs governance records?) is back with counsel. ⭕ *Superseded the same day by the return — row above* | ADR [0035](docs/decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1** |
-| 2026-08-19 | **DSR workflow DESIGNED — adjudicated requests, split powers (`dpo` capability intakes/closes; existing door-holders execute), hash-only record, two-tier claim, `/o/[org]/titulares`, flag `dsr`; ZERO disposal-gate widenings** (PO, 16 decisions). ⛔ Proposed — implementation waits for a future session | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) · [plan](docs/plans/dsr-workflow-plan.md) |
-| 2026-08-19 | **Child-lock fix RULED shape 2 — new narrow `app.in_disposal_rpc`, read only by `guard_meeting_child_lock`, set only by `dispose_meeting_minutes`; shape 1 rejected as a widening** (PO, Q11). ADR 0126 §E must be amended in the same change | ADR [0129](docs/decisions/0129-meeting-child-lock-disposal-flag.md) |
 | 2026-08-19 | **Both § 6b backup residues PROMOTED to § Critical FUP — C3 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (🔴) + C4 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (🟠)** (PO, explicit instruction). ⭐ C3 shares C1's pilot-data-load trigger for the **opposite** reason; C4 is reachable on Cloud **today** | [run log](docs/deployment/phi-backup-run-log.md) F5/F6 · **§ Critical FUP C3/C4** · [decisions-log](docs/progress/decisions-log.md) |
 | 2026-08-19 | ⛔ **"PROGRESS.md is loaded by every spawn" IS FALSE, and never was** — no `@`-import has ever existed. The claim sat in ADR 0124, the banner, the gate header and an external handoff. Always-loaded is CLAUDE.md 32 KB + MEMORY.md 20 KB; this file is read on demand | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) **Amdt 1** |
-| 2026-08-19 | **Standing rules move to `.claude/rules/` with `paths:`, admitted only if they declare checkable anchors and no gate already enforces them — 5 of 9 candidates REJECTED** (PO) | ADR [0127](docs/decisions/0127-standing-rules-home-and-staleness-gate.md) |
-| 2026-08-19 | **`lint:rules` is GATE 8** — keystone: a rule whose own `paths:` glob matches zero files is orphaned. ⚠ Rule firing is **UNPROVEN** (feature-flagged); an `InstructionsLoaded` probe measures it | ADR [0127](docs/decisions/0127-standing-rules-home-and-staleness-gate.md) · CLAUDE.md §8 |
-| 2026-08-19 | **Cell/bullet shape caps + link-checking of the rotation destinations added to `lint:progress`; the size RATCHET was declined** — it would red on recording new state, pressuring the OPEN index §7 protects | `scripts/check-progress-doc.mjs` |
-| 2026-08-18 | ✅ **REGISTRATION DERIVES FROM SOURCE STATE, AT THE LOCK POINT.** Editable → **ephemeral, audited `Imprimir prévia`** (no registry row, no bytes, no QR); locked → registered `Emitir documento`. **Amends 0104 D7 knowingly.** ⚠ Makes **HC069 unreachable**; guard RETAINED as backstop | ADR [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md) · amends [0104](docs/decisions/0104-pdf-document-printing-module.md) D7 · discharges [0123](docs/decisions/0123-discarding-a-draft-that-has-emitted-documents.md) D7 |
-| 2026-08-18 | **PROGRESS.md becomes LIVE-STATE-ONLY, machine-enforced (`lint:progress`, gate 7); completed rows → phase-ledger.md; CLAUDE.md review cadence via Stop hook + `/review-claude-md`** (PO) | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) |
-| 2026-08-18 | **DM-FUP TRIAGE #1 — the Cloud orphan measurement must CONSTRUCT an orphan, not probe for one** (PO) | FUP-DM5-CLOUD-ORPHAN-SURFACE |
-| 2026-08-18 | ✅ **MEASURED — Cloud exposes NO orphan-visible surface; all 5 surfaces METADATA-BOUND, both S3 auth modes.** The Cloud byte half is structurally unverifiable, so the runbook's *asserted, not verified* posture is evidenced. ⛔ Not reassurance: orphan bytes are **unobservable**, not absent | FUP-DM5-CLOUD-ORPHAN-SURFACE ⬛ · [run record](docs/progress/cloud-orphan-probe-2026-08-18.md) |
-| 2026-08-18 | ✅ **`db push` EXECUTED on PO instruction — `…000800` + `…000900` applied; remote head `20260928000900` / 415.** Verified independently, not from the migration's own notice: first-party truncatable **63 → 0**, and `…000800`'s new DEFINER carries **no PUBLIC** in its ACL | FUP-PCITV-1 item 3 ⬛ · [backend-state.md](docs/backend-state.md) |
-| 2026-08-18 | ✅ **TRUNCATE residue SWEPT (63 first-party tables) and the platform half ACCEPTED IN WRITING** — `20260928000900` + pgTAP `191` §5. ⭐ TRUNCATE fires no DELETE trigger, so it bypasses `storage.protect_delete` as well as RLS; the migration verifies the **EFFECT**, not the absence of an error | FUP-PCITV-1 item 3 ⬛ · FUP-DM5-STORAGE-ORPHANS |
-| 2026-08-18 | ⛔ **WITHDRAW the "~49 objects vanished with no `DELETE`" figure — the arithmetic compares tuples to objects.** A residual of **60** was manufactured against a true live count of **0** while destroying nothing unaccounted for | FUP-DM4-PRODROW · § State |
-| 2026-08-18 | **DM-FUP TRIAGE #2 — `reclassifyDocument` writes `unavailable_on_platform`** (PO) | FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED |
-| 2026-08-18 | **DM-FUP TRIAGE #3 — Critical FUP C1 SPLITS into C1a (local) + C1b (Cloud); C1 does NOT close on C1a** (PO) | ADR [0121](docs/decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) **Amdt 3** (amended) · **Critical FUP C1** |
-| 2026-08-18 | **DM-FUP TRIAGE #4 — `document_version_files` gets `UNIQUE (file_object_id)`** (PO) | FUP-DM5-DVF-FILEOBJ |
-| 2026-08-18 | **DM-FUP TRIAGE #5 — the Q1 arm's NAMED successor is `app.resolve_document_version_bytes`, and the arm moves into C2 Tier 1** (PO) | FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN · **Critical FUP C2** |
-| 2026-08-18 | **DM-FUP TRIAGE #6 — PRODROW is SEQUENCED, and the remote is NOT reset first** (PO) | FUP-DM4-PRODROW · FUP-DM5-STACK-CYCLE-DESTROYS-BYTES |
-| 2026-08-18 | **DM-FUP TRIAGE #9 — PRODROW STAYS OPEN, blocked on the C1b constructed-orphan probe** (PO; both closure options declined) | FUP-DM4-PRODROW |
-| 2026-08-18 | **DM-FUP TRIAGE #10 — CLAUDE.md §8 updated FIVE → SIX lint gates** (PO-approved; CLAUDE.md edits require it) | FUP-DM5-SETLOCAL-MIGRATION |
-| 2026-08-18 | **DM-FUP TRIAGE #11 — HOLD the `db push` of `20260928000600`/`…000700`** (PO) | FUP-DM5-DVF-FILEOBJ |
-| 2026-08-18 | **DM-FUP TRIAGE #7 — BUILD the `set local` lint gate, bounded by the FROZEN WATERMARK, not by an allowlist** (PO instrument; the lead had proposed an allowlist and was wrong) | FUP-DM5-SETLOCAL-MIGRATION |
-| 2026-08-18 | ✅ **DM-FUP TRIAGE #8b — RE-RULED AND BUILT: refuse to DELETE a response that has an ACTIVE printed document** (PO), replacing the withdrawn #8. Migration `20260928000700` — `app.guard_response_active_print`, a BEFORE DELETE trigger raising `HC069`. | ADR [0104](docs/decisions/0104-pdf-document-printing-module.md) D7 (preserved) · `20260928000700` |
-| 2026-08-18 | ⚠ **THE #8b MIGRATION SHIPPED A PUBLIC-EXECUTABLE `SECURITY DEFINER` FUNCTION, AND A GATE CAUGHT IT — not review, and not foresight.** Created without an explicit ACL,… | FUP-ACL-APP-POPULATION · pgTAP `320` U1 |
-| 2026-08-18 | ⛔ **DM-FUP TRIAGE #8 IS WITHDRAWN THE SAME DAY — it reverses a ratified decision, and NOTHING WAS BUILT.** | ADR [0104](docs/decisions/0104-pdf-document-printing-module.md) D7 · FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT |
-| 2026-08-18 | ~~**DM-FUP TRIAGE #8 — refuse a print mint from a non-`submitted` response**~~ ⛔ **WITHDRAWN — see the row above.** (PO). The narrowest of the three filed options, and the standing principle applies:… | FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT |
-| 2026-08-18 | **DM5 GATE STEP 4 — ALL SEVEN DOCKET ITEMS RULED** (PO) | [phase review](docs/reviews/dm5-phase-review.md) §§5–6 · § Critical FUP |
-| 2026-08-18 | ✅ **`db push` EXECUTED — all five local-only migrations applied to the remote** (PO-authorized at the docket, to carry out decision #1) | § "State" (a TOP-LEVEL section since 2026-08-18) |
-| 2026-08-18 | **#4 SUPERSEDE COLLISION RULED as (b) — supersession no longer marks bytes; the trigger moves to RETENTION EXPIRY** (PO) | ADR [0121](docs/decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) **Amdt 2** · ADR [0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md) D11 |
-| 2026-08-18 | 🔒 **#7 PILOT RISK ACCEPTED, BOUNDED BY ONE REHEARSAL** (PO) — the pilot may proceed over the manual-only PHI-disposal path **on the condition that `phi-disposal-runbook.md` runs end-to-end against**… | ADR [0121](docs/decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) **Amdt 3** · **Critical FUP C1** |
-| 2026-08-18 | **#2 ADR 0114 O1 + O2 RULED** (PO) | ADR [0114](docs/decisions/0114-document-model-redesign.md) Open items |
-| 2026-08-18 | **#1 ADR 0120 D9 — the under-count class is RATIFIED AS ACCEPTED-UNVERIFIED on Cloud; no verification step is added** (PO) | ADR [0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md) **D9** · [runbook](docs/deployment/phi-disposal-runbook.md) §6 |
-| 2026-08-18 | **#5 THE 407-DOOR TRIAGE IS SIZED — TWO TIERS** (PO) | **Critical FUP C2** · FUP-AUTHZ-COMMAND-DOOR-UNSWEPT |
-| 2026-08-18 | **#3 UPLOADER VISIBILITY IS NOT ADDED — S1-O3 CLOSED** (PO) | ADR [0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md) § S1-O3 · [0116](docs/decisions/0116-dm1-substrate-cutover-decisions.md) §11 |
-| 2026-08-18 | **#6 THE S2/S3/S5 `backend-state.md` SECTIONS ARE STILL WANTED — `backend` writes all three as ONE task before DM5 closes** (PO) | FUP-DM5-BACKEND-STATE-SLICE-SECTIONS |
-| 2026-08-17 | **DM5·S5 step 4 — the follow-up batch's PO approval CLOSES S5 TOO** (PO) | PROGRESS.md § Current Phase Tasks |
-| 2026-08-17 | **FUP-DM5-SUPERSEDE-SERVING-COLLISION — DECIDE LATER; the D11 inflow STAYS REVERTED** (PO) | ADR [0121](docs/decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) Amdt 1 |
-| 2026-08-17 | **FUP-DM4-RECUSAL — the Phase-19 deferral is OVERTURNED; close it now with a NARROWING arm** (PO) | ADR [0122](docs/decisions/0122-recusal-case-read-arm-at-the-referral-freeze-door.md) |
-| 2026-08-17 | **ADR 0121 ACCEPTED — D2 (cron outflow) + D4 (what `disposed` asserts) ratified as proposed** (PO) | ADR [0121](docs/decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) |
-| 2026-08-17 | **The PHI-disposal runbook's five open values SET** (PO) | `docs/deployment/phi-disposal-runbook.md` §6b |
-| 2026-08-17 | **The local Storage volume is NON-DURABLE DISPOSABLE TEST RESIDUE** (PO) | FUP-DM5-STORAGE-ORPHANS |
-| 2026-08-17 | **Finish the PROGRESS.md rotation before opening DM5·S6** (PO) | PROGRESS.md § Current Phase Tasks |
+| 2026-08-20 | **`lint:progress` SIZE_CAP raised 60 KB → 80 KB** (PO instruction) — live file was 207 B under the old cap; project's live surface has outgrown the original sizing | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) **Amdt 2** |
+
+> ↩ **6 concluded/superseded rows dated 2026-08-19 rotated 2026-08-20** (2 superseded the same day they were written; 4 shipped) → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-20 (second headroom pass)", appended verbatim before the cut and `cmp`-verified.
+
+> ↩ **36 rows dated 2026-08-17 → 2026-08-18 rotated 2026-08-20** (the DM5 docket, its eleven DM-FUP triage rulings, and the record-contract decisions — every one concluded) → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-20", appended verbatim before the cut and `cmp`-verified at the destination. ⛔ **The open work those rows reference did NOT rotate** — it lives in § Critical FUP (C1–C4) and § Follow-ups, which this cut did not touch.
 
 > ↩ **23 rows dated 2026-08-05 and older rotated 2026-08-17** → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-17", preserved verbatim before the cut (`cmp`-verified). This table is the **head** of the log, not the log.
 | _pre-2026-07_ | **35 earlier decision rows (Phases 0–14, 2026-06-11 → 2026-06-25) rotated 2026-08-04** | [decisions-log.md](docs/progress/decisions-log.md) |
 
-> ↩ **12 rows dated 2026-08-08 → 2026-08-14, and the VERBOSE form of the 32 rows above, rotated 2026-08-18** → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-18". ⛔ *The live rows are deliberately one-line — every warning they carried has a body in [follow-ups.md](docs/progress/follow-ups.md); verified before compressing.*
+> ↩ **12 rows dated 2026-08-08 → 2026-08-14, and the VERBOSE form of the 32 rows that then stood above, rotated 2026-08-18** → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-18". ⚠ *"Above" went stale on 2026-08-20: those 32 compressed heads are no longer here — they are in § "Rotated from PROGRESS.md 2026-08-20" of the same file, so the verbose and compressed forms now sit in two adjacent sections of the log rather than one here and one there.* ⛔ *The live rows are deliberately one-line — every warning they carried has a body in [follow-ups.md](docs/progress/follow-ups.md); verified before compressing.*
 
 ## State — the three live remote facts (measure, never quote)
 
@@ -412,6 +360,16 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-DM5-SUPERSEDE-SERVING-COLLISION** — ✅ **PO-RULED 2026-08-18 as option (b): supersession no longer marks bytes; the trigger moves to RETENTION EXPIRY** — backend
 - 🟠 **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — ⭐ **⭐ CRITICAL FUP C2. `ARM=census`'s DEFINER clause is bounded to `bool`/set-returning, so 407 reachable non-trigger command doors (326 RPC-callable) sit outside every arm's domain. ⭕…** — lead + backend
 - 🟠 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — **PARTIALLY RESOLVED 2026-08-17 (`4102149b`); the filed remedy was WITHDRAWN as unbuildable** — lead/backend
+- 🟠 **FUP-FORM-IDENTIFIER-IN-URL** — ✅ **4 leaks FIXED + control-proven both directions** (`cpf-field` **CPF**, `user-profile-edit-form`, `affiliations-panel`, `patient-search-view` **MRN/PHI**); 4 more measured NOT-REACHABLE-PRE-HYDRATION. `name` is **INJECTED by `useFieldIds().controlProps`** — ⛔ a `name=` grep cannot find it (beat 3 reasoned reads). ⭐⭐ Both predictions were WRONG in opposite directions: `?password=` doesn't exist; **`cpf` was on no list**. ⛔ **STILL OPEN:** the standing detector must be a **route crawler**, not a re-run of this 8-file list; `<select>` coverage is weaker; and the ✅ **PO-RULED 2026-08-20 inversion of `useFieldIds`' `name` default** (**10/51 measured failure rate**) — assigned to `frontend`, ⛔ **as a SEPARATE change after Slice 3**, and only after enumerating the 4 classes that BREAK without `name` (server-action `FormData`, radio grouping, explicit `FormData` reads, autofill). Credited to `frontend` — frontend/lead
+- 🟡 **FUP-E2E-SUBMITTED-POOL-UNSCOPED** — the shared submitted-response pool has no `case_phase_id is null` filter and the one-line fix BREAKS a peer spec — lead/tester
+- 🟡 **FUP-PREVIA-MINT-FLAG-ASYMMETRY** — `HC0DV` refuses a prévia on the premise the mint is reachable; the mint’s preconditions are a strict superset — lead
+- 🟡 **FUP-LINT-VECTOR-DIMENSION-DRIFT** — a proposed lint gate over shared SQL↔TS vector fixtures (filed, deliberately NOT built) — backend
+- ⛔ **The three lines above were ADDED 2026-08-20**: each had a live 🟡 body in [follow-ups.md](docs/progress/follow-ups.md) and **no index line here** — invisible to the register the PO reads from. `lint:progress` checks index→body and **never body→index**, so nothing could contradict it — lead
+- 🟡 **FUP-VITEST-UNCAPTURED-FAILURE** — a unit test failed once (**1447/1 of 1448**) and **nobody captured which**; passing since is not a diagnosis. ⛔ Filed only because QA found the lead had acknowledged it verbally twice and never recorded it — every trace read a flat "vitest 1447". If it recurs, **capture the output before re-running** — backend/lead
+- 🟡 **FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER** — the declaring gate's **own census does not sum** (1165 accounted of 1176 collected — **11 tests in no bucket**), and its INFRA classifier has **no notion of a worker exit code**, so a `0xC0000409` crash is scored as an assertion failure with 5 tests stranded behind it. ⛔ The fix is **not** "add crash to INFRA" — that would hide real defects; a crash is a **third category** requiring a re-run before any verdict — lead/tester
+- 🔴 **FUP-E2E-ABSENT-ROW-ASSERTIONS** — `expect(row?.field).not.toBeNull()` **passes when the row is absent**, live on **PHI-erasure** assertions (`pdf-printing-meetings:335`, whose own message is the false statement it makes; `meeting-audio-minutes` ×4 on audio-PHI deletion). ⛔ **Three counts claimed, none survived**: "exactly one other" (tester, relayed by lead), "≥49" (QA, self-flagged unverified), **17 across 10 files + 9 private `serviceQuery` copies** (lead, ⚠ **a lower bound on ONE SHAPE, not the population**). `lint:vacuous` is blind — the vacuity is one call frame away — tester/lead
+- 🔴 **FUP-AUTHZ-HARNESS-PRECONDITIONS** — a neutralization verdict rests on **≥2 preconditions** (baseline green · **keystone present in the swept domain**) and the harness asserts **only the first**. ⛔ *"Nothing noticed the gate opening"* and *"nothing that could notice was running"* are **indistinguishable in the output**. Two near-miss **false BLINDs on the same live PHI-adjacent door in one session**, by different broken preconditions; caught by intuition, not by the instrument. A `PASS` with the subject absent must be an **ERROR**. ⚠ **Scope: a RED is sound IFF the baseline was verified green** — a red baseline also yields a red post-probe run, which reads as COVERED (a **false RED, failing in the reassuring direction**). Slice 3's 47 RED + 1 GREEN all clear that bar — backend/harness
+- 🟡 **FUP-PGTAP-184-T11-FLAKE** — `184_hospital_admin_isolation.sql` t11 failed once on a full run, passed in isolation + two full runs since. Runs **before** `350`, unrelated to DSR. Not diagnosed — but **named**, so actionable — unassigned
 - 🔴 **FUP-PGTAP-VACUOUS** — `lint:vacuous` scans TS specs only; ~6348 pgTAP assertions unscanned, live specimen in a PHI-boundary suite. The sweep must be **proven able to fail** first — lead/backend
 - 🔴 **FUP-AFF-1** — the census is BLIND to write-path doors (ADR 0079 Am. 5); ⛔ cite `302`'s keystones, **never `ARM=census`** — backend/harness
 - 🔴 **FUP-PCITV-1** — what QA APPROVED **over**, ranked: 5 open (TRUNCATE revoke residue · audit-mesh 2/7 arms · unexercised org-admin disjunct · resolver/GUC semantics · 10 bare `for select` policies) — unassigned

@@ -1,7 +1,7 @@
 # DSR ("Direitos do Titular") — implementation plan
 
-**Status: IN PROGRESS — Slices 1 and 2 SHIPPED (2026-08-19 / 2026-08-20); Slices 3 and 4
-not started.** ADR 0130 moved **Proposed → Accepted 2026-08-20** on PO instruction, which
+**Status: IN PROGRESS — Slices 1, 2 and 3 SHIPPED (2026-08-19 / 2026-08-20 / 2026-08-20);
+Slice 4 not started.** ADR 0130 moved **Proposed → Accepted 2026-08-20** on PO instruction, which
 lifted the original "nothing may be built" hold. Design ratified by the PO in a structured
 sixteen-decision session on 2026-08-19; the binding decisions live in ADR
 [0130](../decisions/0130-dsr-subject-request-workflow.md) (workflow) and ADR
@@ -24,9 +24,10 @@ disagrees with the live catalog, **the catalog wins** (CLAUDE.md graphify except
    `refused_identity` / `withdrawn`** — exactly as 0130 Amdt 1 item 3 drafted it, and it is
    **BUILT** (the `dsr_requests_legal_consultation` CHECK + the door's pt-BR refusal, 349 t29/t31).
 4. Read `docs/progress/authz-handoff.md §7` before any RLS/gate work (standing ⭐ rule).
-5. **Start at Slice 3** — Slices 1 and 2 are shipped. Slice 3 owns: the `search_patient_xref`
-   widening (the program's ONE named gate change, ADR 0130 Decision 3), the adjudication lane,
-   the attested tier, and the meetings-dispose UI that Amendment 2 item 3 moved here.
+5. **Start at Slice 4** — Slices 1, 2 and 3 are shipped. ⛔ Read ADR 0130 **Amendment 3**
+   first: six shape changes measurement forced on Slice 3, plus two live defects found in
+   passing and one ACL over-grant an existing pin caught. Slice 4 is residue + copy honesty
+   (notification scrubbing in the four dispose doors); it is independent of Slice 3.
 
 ---
 
@@ -165,7 +166,47 @@ rollback.**
    a tenancy admin holding the referral-door arm) who reaches the inbox AND passes
    `dispose_referral_phi` — catalog-verified, written into the item-0 row.
 
-### Slice 3 — full workflow: intake, adjudication, DPO grant, close.
+### Slice 3 — adjudication, the attested tier, the one named widening. ✅ SHIPPED 2026-08-20.
+
+**Built:** migrations `20261002000000` (the `search_patient_xref` widening + a case-grain
+display fix, isolated so the diff-scoped sweep has a two-object case list) and
+`20261002000100` (the decision stamp, the attestation columns, `adjudicate_dsr_request`,
+`attest_dsr_task`, `list_dsr_disposable_meetings`, and the three changed doors); suite
+`supabase/tests/350_dsr_adjudication_and_attested_tier.sql` (⛔ **count deliberately not restated here — read its `select plan(N)`**; a prose number about a machine-checkable fact has no gate, and this one was stale by six within a day); `src/lib/dsr/*`,
+`src/lib/queries/dsr.ts`, `src/lib/meetings/actions.ts` (`disposeMeetingMinutes` — ADR 0056
+Consequence (a), never built until now), `src/components/dsr/*` + the console lanes.
+
+**Six shape changes measurement forced — all recorded in ADR 0130 Amendment 3**, read it
+before extending any of this. Headlines: `adjudicated` was UNREACHABLE (the lane was a
+fiction); close now CONSUMES the decision and the direct path survives only for outcomes
+that erase nothing; the `dispose_meeting` escalation is explicit per meeting and bounded by
+its own request; and **two of the three attested-tier populations this plan named turned out
+to be MECHANICAL** — `dispose_case_phi` already erases narratives and case-linked responses,
+so the attested tier is meeting prose plus non-case commission free text, and nothing else.
+
+⭐ **Three things the build found that the plan could not have predicted:**
+1. `app.patient_trajectory_bundle` rendered EVERY case entry's code as `—`, always, in the
+   PQS console too — it compared a `patient_participants` id to `cases.id` (the Slice-2
+   grain). A live display defect inside the door being widened.
+2. `complete_dsr_task` OVERWROTE the minted procedure text with the completion note, so an
+   attestation task's revoke-corridor instructions were destroyed at the moment they were
+   being followed.
+3. ⚠ The author over-granted `app.patient_trajectory_bundle` — the raw, ungated PHI
+   assembler — to `authenticated`, by applying the house `grant to authenticated,
+   service_role` idiom to a **rewrite**. Suite `152` §M1 caught it. `CREATE OR REPLACE
+   FUNCTION` does not reset an ACL; leave a rewrite's grants alone.
+
+⚠ **And the authz finding that matters most for the next slice.** All four arms
+(`census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper`) HOLD — and **none of them can see this
+slice's gate change**. ARMs 1/3/5 bound their domain by boolean-ness, the row-door sweep by
+row-returning-ness; `search_patient_xref` and all three new doors are `prosecdef` scalar
+non-bool command doors (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`). The diff-scoped recipe's own
+`^(is_|can_|has_)` filter yields an **empty** case list here, and a `CASES=`-scoped row-door
+run swept **0**. Coverage is a hand-run 37-probe neutralization battery, one at a time, every
+restore hash-verified — per-keystone verdicts in `350`'s header. Do not read a green arm as a
+verdict for this class.
+
+### Slice 3 — original plan (kept for the record)
 
 1. **`dpo` capability**: per-hospital grant table (ADR 0061 `administrativo` pattern) +
    `app.is_dpo_of(hospital_id)` + grant/revoke doors (org/hospital admin), audited.

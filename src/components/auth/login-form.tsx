@@ -31,9 +31,11 @@ export function LoginForm({ redirect }: { redirect?: string }) {
   const [showPassword, setShowPassword] = useState(false);
 
   const emailField = useFieldIds("email", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.email),
   });
   const passwordField = useFieldIds("password", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.password),
   });
 
