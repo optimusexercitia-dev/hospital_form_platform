@@ -263,3 +263,35 @@ closes `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT` · ADR 0129 amended in the same 
 > `dispose_referral_phi` have **not** had this property applied to them
 > (`FUP-DOOR-ERASURE-FREETEXT-CENSUS`; `capa_action.title` is already a known survivor on
 > the event lane). This amendment makes the meeting lane truthful, not the other three.
+
+## Amendment 2 — the widening property is NARROWED to designated PHI fields, and stops here
+
+**2026-08-20 · PO decision after discussion with the development team · ADR
+[0131](./0131-phi-erasure-reach-bounded-to-designated-fields.md).**
+
+> **The sentence this bounds.** Amendment 1 generalised a rule — *a **PHI-capable** column
+> may not be left both unredacted and unnamed* — and its closing paragraph left the other
+> three doors owing the same treatment (`FUP-DOOR-ERASURE-FREETEXT-CENSUS`). That census
+> ran: **133 candidate columns** across `dispose_case_phi`, `dispose_event_phi` and
+> `dispose_referral_phi`, none of them designated PHI fields, all of them merely capable of
+> receiving PHI. Record:
+> [door-erasure-freetext-census.md](../progress/door-erasure-freetext-census.md).
+>
+> **The rule now reads: a *designated PHI* column may not be left both unredacted and
+> unnamed.** For non-designated free text, neither redaction nor disclosure is required —
+> the compensating control is **training** (users enter PHI only in PHI-specific fields),
+> and the pilot's effort goes to perfect execution on the confirmed set.
+>
+> ⚠ **Amendment 1 is NOT rolled back.** The meeting door keeps all ten columns as built;
+> `351` stands unchanged. ADR 0131 bounds *future* extension.
+>
+> ⛔ **What this does not touch, because neither is about reach:** the doors'
+> **authorization gates** (`FUP-DISPOSE-EVENT-DOOR-GATE-BLIND` — a gate no keystone
+> exercises is still a defect, and a sharper one once erasure correctness is the pilot's
+> focus) and the column doors' missing **operational procedure**
+> (`FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES`).
+>
+> ⚠ **Consequence for §4's companion claim:** `DSR_RESIDUE_NOTICE` line 1 becomes true
+> *conditionally on the training control* rather than structurally —
+> `FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING`, a PO copy call. Not falsified; its premise is now
+> explicit.

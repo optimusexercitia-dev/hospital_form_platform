@@ -266,9 +266,14 @@ transcript** indefinitely — which falsified ADR 0056 **§4** itself, not merel
 copy; now purged unconditionally. ⛔ Cite pgTAP **`351`**, never the authz arms:
 `ARM=census`/`wrapper` are green and **vacuous here** (the guards return `trigger`, the door
 returns `void`) — though ⚠ *not* "no arm", `ARM=floor` does contain `dispose_meeting_minutes`.
-⚠ The same census is **still owed for the other three doors** — `FUP-DOOR-ERASURE-FREETEXT-CENSUS`,
-and until it runs, `DSR_RESIDUE_NOTICE` line 1 is unproven for `dispose_case_phi`,
-`dispose_event_phi` and `dispose_referral_phi`.
+⛔ **SUPERSEDED 2026-08-20 — do NOT repeat this widening on the other three doors.** This
+paragraph read *"the same census is still owed for the other three doors."* It ran, found
+**133 candidate columns**, and the PO ruled the whole class **out of scope for the pilot**:
+ADR [0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) bounds PHI
+erasure to **designated PHI fields**, with **training** as the control for free text that
+*may* hold PHI. ⚠ **This widening (the meeting door) is maintained, not rolled back** — 0131
+bounds future extension only. Census, retained as the record of what is knowingly accepted:
+[door-erasure-freetext-census.md](../progress/door-erasure-freetext-census.md).
 
 1. ⛔ **WITHDRAWN — the premise was false.** This item read: *"Extend all four dispose
    doors: scrub `notifications.title/body` for the disposed entity

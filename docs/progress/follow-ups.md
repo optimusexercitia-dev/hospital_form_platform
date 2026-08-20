@@ -4508,7 +4508,28 @@ notification must survive — a scrub test that would also pass on `delete from 
 a pin). [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 4**. Until built, the two-tier
 outcome record's residue language must not claim notifications are clean.
 
-### 🟠 FUP-DOOR-ERASURE-FREETEXT-CENSUS — the four dispose doors erase a hand-picked column set, and at least one door demonstrably erases a GRANDCHILD while leaving its CHILD's free text intact (owner: backend; found 2026-08-20 while falsifying `FUP-NOTIFICATIONS-PHI-RESIDUE`)
+### ⬛ FUP-DOOR-ERASURE-FREETEXT-CENSUS — ✅ **CLOSED 2026-08-20 — RULED OUT OF SCOPE by ADR 0131, not remediated.** The four dispose doors erase a hand-picked column set, and at least one door demonstrably erases a GRANDCHILD while leaving its CHILD's free text intact (owner: backend; found 2026-08-20 while falsifying `FUP-NOTIFICATIONS-PHI-RESIDUE`)
+
+> ⛔ **CLOSED BY RULING 2026-08-20, and the distinction is load-bearing: the residue is REAL,
+> MEASURED and ACCEPTED — not absent.** ADR
+> [0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) bounds PHI
+> erasure to **designated PHI fields**; free text and titles that *may* hold PHI are out of
+> pilot scope, with **training** as the compensating control, and the pilot's effort goes to
+> perfect execution on the confirmed set. Shipped reach (the ADR 0056 Amdt 1 meeting
+> widening) is **maintained, not rolled back**.
+>
+> **The measurement is retained deliberately** →
+> [door-erasure-freetext-census.md](./door-erasure-freetext-census.md): 133 candidate columns
+> across the three doors, incl. `case_narrative_revisions.body_md` (every prior revision of
+> prose the door does erase) and `rca_why_chains.steps` (jsonb). That record is what makes
+> the acceptance auditable; deleting it would leave the decision with no evidence of what
+> was accepted.
+>
+> ⚠ **Consequence carried forward, not closed:** `DSR_RESIDUE_NOTICE` line 1 is now
+> conditionally rather than structurally true → `FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING`.
+> ⛔ **Explicitly NOT descoped by 0131:** `FUP-DISPOSE-EVENT-DOOR-GATE-BLIND` (a *gate*, not
+> a reach) and `FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES` (an operational procedure) — both are
+> "perfect execution of the confirmed set" and remain owed.
 
 Filed 2026-08-20 (lead). Successor to `FUP-NOTIFICATIONS-PHI-RESIDUE`, which was closed as
 premise-falsified — this is the question that one was standing in front of, and it is about
@@ -4539,12 +4560,138 @@ what is missing from it is the finding.
 door's actual erasure set from `pg_proc`. Reading a door tells you what it redacts; only
 reading the tables tells you what it does not.
 
+⭕ **MEASURED 2026-08-20 (lead) — the census half is DONE; the ruling half is OPEN.** Full
+record, method, the five instrument defects and the six-anchor control battery →
+[door-erasure-freetext-census.md](./door-erasure-freetext-census.md). Headlines, both
+**verified directly against `prosrc`** rather than through the instrument:
+- ⛔⛔ `dispose_case_phi` erases `case_narratives.body_md` and **never names
+  `case_narrative_revisions`** — every prior revision of the same prose survives. An
+  erasure that clears the current narrative and keeps its version history has not erased
+  the narrative.
+- ⛔ **No door names any `ethics_*` table** (0 matches across all four). Eleven free-text
+  `*_md` columns on a lane that hangs off `cases` by composition.
+- ⭐ `rca_why_chains.steps` (**jsonb**) survives while its `root_text` sibling is erased —
+  the Slice 4 lesson recurring: *free text is not a type*.
+- ✅ The filed instance (`capa_action.title`) is **confirmed**, and its sibling shape
+  recurs in a second door: `referral_internal_notes.title` survives while `body_md` dies.
+
+⛔ **The method this item prescribed missed the lane holding its own filed defect.**
+Composition closure (FK `NOT NULL` + `ON DELETE CASCADE`) cannot reach `capa_plan` —
+`source_event_id` is NULLABLE — so the capa lane was invisible until the walk was seeded
+with *the door's own write set* as well as the root. Three of the five instrument defects
+under-reported, each producing a clean confident answer on the one column named above.
+⚠ **A candidate count is not a defect count**: run against the PO-ruled-**complete**
+meeting door the same census returns **16**, which is the noise floor.
+⚠ **Static, therefore bounded**: it cannot see a `where` clause that matches no rows. The
+successor instrument is an **empirical sentinel differential** (seed every free-text column,
+run the door, assert which sentinels survive) — not yet built.
+
 ⛔ **Consequence if the census finds PHI.** `DSR_RESIDUE_NOTICE`'s first line —
 *"O descarte apaga os dados do paciente armazenados no banco para este registro"* — is a
 claim about the **database**, shown to an operator discharging an LGPD obligation. It is
 sound only while the doors really do clear their lane. A confirmed under-erasure makes that
 line the same species of over-claim `FUP-DISPOSE-DIALOG-OVERCLAIM` was filed to remove, in
 the constant written to prevent it. Re-check the notice as part of closing this item.
+
+### 🟡 FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING — `DSR_RESIDUE_NOTICE` line 1 is now CONDITIONALLY true, and the condition is a control the software cannot enforce (owner: PO copy call, then frontend; created by ADR 0131, 2026-08-20)
+
+Filed 2026-08-20 (lead). Not a defect — a **premise that became explicit** when ADR
+[0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) bounded PHI
+erasure to designated PHI fields.
+
+**The sentence** ([messages.ts:97](../../src/lib/dsr/messages.ts:97)), shown to an operator
+discharging an LGPD obligation and reproduced in the outcome record handed to the data
+subject: *"O descarte apaga os dados do paciente armazenados no banco para este registro e
+preserva o histórico de governança…"*
+
+**Before 0131** its truth was structural: the door was to be widened until it cleared every
+PHI-capable column on the lane. **After 0131** it holds **iff PHI was entered only into PHI
+fields** — a *training* control. The software cannot detect a patient name typed into a
+title, so nothing in the platform can make the sentence false-proof.
+
+⛔ **This does NOT make the notice an over-claim today**, and it must not be filed as one:
+under the ruling's own premise the sentence is true. What changed is *what the sentence
+rests on*. Compare `FUP-DISPOSE-DIALOG-OVERCLAIM`, which was a genuinely false claim about
+the door's reach; this is a true claim with a newly named dependency.
+
+**The PO's call, two shapes:**
+(a) **scope the sentence** to the designated fields (*"…apaga os dados do paciente
+registrados nos campos de identificação do paciente…"*) — narrower, and true independent of
+operator behaviour; or
+(b) **accept it as written** on the training premise, and record that premise.
+⚠ Either way, **ADR 0131's risk acceptance must also be recorded where the pilot decision is
+made**, not only in the ADR — the identical requirement Critical FUP C3 carries, and the
+reason C3 says it: an acceptance that lives only in the document that created it is invisible
+at the moment it matters.
+
+⚠ Whoever edits this constant: it is shared by **four** consumers (two dispose dialogs, the
+task-inbox disclosure, and `queries/dsr.ts` feeding the outcome record) and its per-lane
+companion `DSR_MEETING_DISPOSAL_WARNING` must stay a **separate** constant. Enumerate from
+the symbol's references, never from a roster.
+
+### ⬛ FUP-ETHICS-LANE-NO-ERASURE-DOOR — ✅ **CLOSED 2026-08-20 — RULED OUT OF SCOPE by ADR 0131, not remediated.** Seven `ethics_*` tables hang off `cases` by composition and hold twelve free-text columns; no disposal door names any of them (owner: backend + PO; split out of `FUP-DOOR-ERASURE-FREETEXT-CENSUS` 2026-08-20 on PO instruction)
+
+> ⛔ **CLOSED BY RULING 2026-08-20 — the residue is REAL, MEASURED and ACCEPTED.** ADR
+> [0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md): PHI erasure
+> reaches designated PHI fields only; free text that *may* contain PHI is out of pilot
+> scope, with **training** as the compensating control. The `ethics_*` lane holds **no
+> designated PHI field**, so it is descoped in full. ⛔ Do not read this close as
+> "investigated, nothing found" — everything measured below still stands.
+>
+> ⚠ **One half of this item is NOT obviously ruled on, and is preserved here rather than
+> buried in the close.** The lane exposed **two** data subjects. The *patient* half follows
+> directly from 0131. The other is the **accused professional**, whose allegation text is
+> personal data about them — **Class-2 professional identity** (Rule 12), a different data
+> class from patient PHI, for which ADR 0130's DSR workflow can return `granted` with **no
+> door to call**. ADR 0131 is written about *PHI*. Whether it also rules on Class-2 erasure
+> is the PO's to confirm; until then this question is open even though the item is closed.
+
+Filed 2026-08-20 (lead). Split from `FUP-DOOR-ERASURE-FREETEXT-CENSUS` because it is not a
+missed column on a covered lane — it is **a whole module with no erasure path at all**, and
+absorbing it into a per-column ruling would have hidden that difference. Census record:
+[door-erasure-freetext-census.md](./door-erasure-freetext-census.md).
+
+**Measured against the live catalog, 2026-08-20:**
+
+- **`ethics_` appears ZERO times in all four disposal doors' `prosrc`** — `dispose_case_phi`,
+  `dispose_event_phi`, `dispose_referral_phi`, `dispose_meeting_minutes`. Not "partially
+  covered": named nowhere.
+- **7 tables, 12 free-text columns**, every one a direct child of `cases` with
+  `case_id NOT NULL` + `ON DELETE CASCADE` — i.e. **composition**, the same relation that
+  makes `case_narratives` unambiguously in scope:
+  `ethics_allegations.description_md` · `ethics_appeals.{appeal_reason_md,outcome_rationale_md}` ·
+  `ethics_case_details.{admissibility_rationale_md,summary_md}` ·
+  `ethics_decision_details.remediation_description_md` ·
+  `ethics_findings.{evidence_summary_md,rationale_md}` ·
+  `ethics_hearings.{outcome_md,summary_md}` · `ethics_notifications.notes_md`.
+- **Nothing structurally separates an ethics case from a patient case.** `cases.case_type_id`
+  is a data-driven FK, not an enum, and **no CHECK gates any `ethics_*` table by case type**
+  (measured: 0). So a case may hold ethics rows *and* patient participants simultaneously,
+  and `dispose_case_phi` is the erasure door for **all** cases regardless of type.
+
+⛔ **Why 🔴 rather than 🟠.** Two distinct data subjects are exposed, not one:
+1. **Patient PHI** — an ethics narrative on a case with a patient participant may quote the
+   clinical facts, and the door that exists to erase that case's PHI does not reach it.
+2. ⭐ **The accused professional is themselves a data subject.** An ethics allegation is
+   personal data *about a named professional*, which is exactly what the ADR 0130 DSR
+   workflow adjudicates. A `granted` erasure on such a request has **no door to call** — the
+   workflow can decide, and the platform cannot execute. That is a gap in the DSR program's
+   own promise, not only in the case module's.
+
+**What must happen** — PO ruling first, two shapes, and the choice is not obvious:
+(a) **widen `dispose_case_phi`** to cover the lane, treating ethics prose as case content; or
+(b) **rule the lane out of scope with a recorded basis** — a plausible one exists (an ethics
+proceeding is a governance record with its own retention duty, and redacting a finding may
+destroy the evidence of due process), in which case `DSR_RESIDUE_NOTICE` must **disclose**
+it, since the notice claims the database is cleared.
+⛔ Do not pick (b) by default because it is cheaper. The Slice 4 precedent is the opposite
+ruling on the same question: *make the claim true, then disclose what is retained.*
+
+⚠ **Bounded:** this is a **static** finding — `ethics_` is named in no door body. It does not
+rest on the census instrument (which was wrong five times before it was right); it was
+verified by a direct `prosrc` match returning 0 across all four doors. What it does **not**
+establish is that these columns hold data today, which is a fixture question and irrelevant
+to the structural gap.
 
 ### 🟡 FUP-XREF-PEPPER-ROTATION-ORPHANS — rotating `mrn_pepper` permanently orphans DISPOSED xref rows; documented in ADR 0039 as "follow-up", never filed (owner: backend; pre-pilot: decide, not build)
 

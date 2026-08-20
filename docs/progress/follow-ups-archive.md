@@ -2555,3 +2555,25 @@ Closure record:
   addressed to the reviewer, which is required copy. And `outcomeBasis` /
   `legalConsultationRef` are operator free text, not platform copy; the fixtures hold them null
   on purpose, because asserting a copy property over what a DPO typed would red on their words.
+
+## Rotated from PROGRESS.md 2026-08-20 — RULED OUT OF SCOPE by ADR 0131 (2 items)
+
+⛔ **These closed by RULING, not by remediation. The residue they name is REAL, MEASURED and
+ACCEPTED** — PHI erasure reaches designated PHI fields only; free text that *may* hold PHI is
+out of pilot scope, with **training** as the compensating control (ADR
+[0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md)). A reader who
+finds these here must not read them as "investigated, nothing found": the census
+([door-erasure-freetext-census.md](./door-erasure-freetext-census.md)) is retained precisely
+so what is knowingly retained stays legible.
+
+⚠ **One question this ruling does not obviously settle**, preserved so a close cannot bury it:
+the `ethics_*` lane exposed **two** data subjects. The patient half is descoped by ADR 0131.
+The other is the **accused professional** — **Class-2 professional identity** under Rule 12, a
+different data class from patient PHI, for which ADR 0130's workflow can return `granted` with
+**no door to call**. ADR 0131 is written about PHI; whether it also rules on Class-2 erasure is
+the PO's to confirm.
+
+Index lines as they stood, verbatim (links repointed for this directory):
+
+- 🔴 **FUP-ETHICS-LANE-NO-ERASURE-DOOR** — **`ethics_` appears ZERO times in all four disposal doors**; 7 tables / 12 free-text `*_md` columns, every one a **composition** child of `cases` (`case_id NOT NULL` + CASCADE). Split from the census item 2026-08-20 (PO) because it is not a missed column — it is **a module with no erasure path at all**. ⛔ **Two data subjects, not one:** patient PHI on an ethics case (no CHECK gates these tables by case type — measured 0 — so nothing separates the lanes), and ⭐ **the accused professional, who is themselves a DSR data subject** — ADR 0130 can adjudicate `granted` and the platform has **no door to call**. PO ruling: widen `dispose_case_phi`, or rule out-of-scope with a basis **and disclose it in `DSR_RESIDUE_NOTICE`**. ⛔ Not by default because it is cheaper — Slice 4 ruled the opposite way on the same question. Verified by direct `prosrc` match, not by the census instrument — backend/PO
+- 🟠 **FUP-DOOR-ERASURE-FREETEXT-CENSUS** — ⭕ **MEASUREMENT HALF DONE 2026-08-20; the ruling half is OPEN.** All three remaining doors censused → [door-erasure-freetext-census.md](../progress/door-erasure-freetext-census.md). ⛔ **`DSR_RESIDUE_NOTICE` line 1 is NOT true for `dispose_case_phi`**: the door erases `case_narratives.body_md` and leaves **`case_narrative_revisions.body_md`** — every prior revision of the same prose — and **no door names any `ethics_*` table** (both verified against `prosrc` directly, not via the instrument). ⭐ The prescribed method missed the lane holding the filed defect: `capa_plan.source_event_id` is NULLABLE, so composition closure never reaches capa. **5 instrument defects, 3 under-reporting**; 6-anchor control battery. ⚠ Counts are candidates, not defects — the PO-ruled-**complete** meeting door still scores 16. Next: PO ruling per column, then the empirical sentinel differential (static census cannot see a `where` that matches nothing) — backend/PO

@@ -110,11 +110,21 @@ export const DSR_RESIDUE_NOTICE = [
  * titles or signature notes would be FALSE on those surfaces. Per-lane retention belongs
  * in a per-lane constant.
  *
- * WHY IT EXISTS AT ALL. The rule the widening was built on is that a PHI-capable column
+ * WHY IT EXISTS AT ALL. The rule the widening was built on is that a DESIGNATED PHI column
  * may not be left both unredacted AND unnamed — the forbidden state is the one where
  * neither the redaction nor the disclosure is true. ADR 0056 Amendment 1 widened
  * `dispose_meeting_minutes` to ten further columns; PO ruled the four below stay, so they
  * are named here. Each line corresponds to a column the door was measured NOT to touch.
+ *
+ * ⛔ THAT RULE SAID "PHI-CAPABLE" UNTIL 2026-08-20, AND THE NARROWING IS THE WHOLE POINT.
+ * Read as `PHI-capable`, it obliges every free-text column on a lane — a census measured
+ * that at 133 columns across the other three doors. ADR 0131 bounds PHI erasure to
+ * DESIGNATED PHI fields, with operator TRAINING as the control for free text that merely
+ * may hold PHI. So this constant is NOT a template for the case/referral/event lanes: do
+ * not add disclosure lines for their titles and notes, because 0131 does not require the
+ * redaction those lines would be disclosing the absence of.
+ * ⚠ This block itself stays exactly as it is — 0131 bounds future extension and does not
+ * roll back Amendment 1, so these four columns remain both retained AND named.
  *
  * ⚠ THE TITLE DOES HAVE A REMEDY, AND AN EARLIER VERSION OF THIS COMMENT SAID IT DID NOT.
  * That claim was false. It read `update_meeting`'s gate (`scheduled`/`held` only), saw that
