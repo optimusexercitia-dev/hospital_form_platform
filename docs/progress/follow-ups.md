@@ -4392,12 +4392,23 @@ slice binds an existing `file_objects` row into `document_version_files`. Re-che
 > the component, not by the grep.
 > The instrument is now **claim 2 of
 > [`referral-dispose-dialog.test.tsx`](../../src/components/referrals/referral-dispose-dialog.test.tsx)**
-> — `TOTALITY_QUANTIFIER` matched against **rendered DOM text**. Strictly stronger in both
-> directions, and exactly co-scoped with this item (which is about the *referral* dialog's
-> copy): it keys on the quantifier **family**, so a paraphrase one word off still reds
-> where the literal grep would have passed it; and comments are **not present in rendered
-> output at all**, so the false-positive class is structurally impossible rather than
-> merely discouraged.
+> — `TOTALITY_QUANTIFIER` matched against **rendered DOM text**, and exactly co-scoped with
+> this item (which is about the *referral* dialog's copy): it keys on the quantifier
+> **family**, so a paraphrase one word off still reds where the literal grep would have
+> passed it; and comments are **not present in rendered output at all**, so the
+> false-positive class is structurally impossible rather than merely discouraged.
+>
+> ⛔ **CORRECTED 2026-08-20 (later the same day). This paragraph said "strictly stronger in
+> both directions" and that was FALSE AS WRITTEN — an over-claim, in the note that exists to
+> record an over-claim.** The assertion read `dialog.textContent`, which concatenates sibling
+> text with no separator, so a ``-anchored pattern is blind at every element edge; the grep
+> it replaced read SOURCE, where the string is contiguous, and had no such hole. The swap was
+> stronger on the axis being discussed (paraphrase, and false positives on prose) and
+> **weaker on one nobody had looked at**. Closed by `renderedText()` (join text NODES with a
+> space) under `FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY`, found only by mutating the
+> instrument — so the claim is true now, and was not on the day it was written.
+> ⭐ *"Strictly stronger" is a claim over ALL axes, and it is almost never measured over
+> all of them.*
 > ⛔ **Do not re-run the grep to re-verify this item** — a hit means a comment. QA's r2
 > record ([review](../reviews/dsr-slice-4-review.md), "the verification instrument … **is**
 > this grep") predates this swap and is left as written; it is a record, not an instruction.
