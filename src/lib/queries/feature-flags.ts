@@ -133,6 +133,12 @@ export interface FeatureFlags {
   documents_wave_b: boolean
   documents_wave_c: boolean
   documents_wave_d: boolean
+  // DSR (ADR 0130): "Direitos do Titular" — LGPD Art. 18 subject-request intake,
+  // adjudication and execution. Gates the dsr_* doors and /o/[org]/titulares.
+  // Minted OFF by `20261001000000`; `seed.sql` forces it ON for local/E2E; the
+  // production flip is its own gate migration. Resolve the VALUE in
+  // `app.feature_flags.enabled`, never this comment.
+  dsr: boolean
 }
 
 /** A flag key. */

@@ -66,15 +66,15 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   `FUP-SUPERSESSION-BADGE-LANE-BLIND` · 🟡 `FUP-E2E-SUBMITTED-POOL-UNSCOPED` · 🟡
   `FUP-PREVIA-MINT-FLAG-ASYMMETRY`. Plus 🟡 `FUP-LINT-VECTOR-DIMENSION-DRIFT` (a gate proposal,
   filed not built).
-- **🆕 2026-08-19 — DSR ("Direitos do Titular") DESIGNED; ✅ Slice 1 SHIPPED the same day;
-  Slices 2–4 NOT started.** Sixteen PO-ratified decisions in a structured
+- **🆕 DSR ("Direitos do Titular") — designed 2026-08-19; ✅ Slices 1 AND 2 SHIPPED (19th / 20th);
+  Slices 3–4 NOT started.** Sixteen PO-ratified decisions in a structured
   design session: an **adjudicated DSR workflow** (refusal-with-basis first-class), a per-hospital
   **`dpo` capability**, one task inbox at `/o/[org]/titulares` (flag `dsr`), hash-only DSR record
   (Rule 12's "exactly three" survives), two-tier erasure claim, zero disposal-gate widenings, and
   the **child-lock fix ruled as shape 2** (narrow `app.in_disposal_rpc`). ADRs
   [0129](docs/decisions/0129-meeting-child-lock-disposal-flag.md) +
-  [0130](docs/decisions/0130-dsr-subject-request-workflow.md) — **0129 is Accepted/BUILT**; **0130
-  stays Proposed, so nothing in the workflow itself may be built yet**;
+  [0130](docs/decisions/0130-dsr-subject-request-workflow.md) — **0129 Accepted/BUILT**; **0130
+  moved Proposed → Accepted 2026-08-20 on PO instruction, lifting the build hold**;
   ✅ **counsel's Q14 return ARRIVED same day** (ADR
   [0035](docs/decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1**, resolved): committee
   records are **NOT prontuário** (CFM 1821 does not attach); removal requests **case-by-case with
@@ -82,19 +82,33 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   institutional policy**. Refusal guidance settled via ADR 0130 **Amdt 1** (+
   `legal_consultation_ref` on adjudicated outcomes — required/optional split to confirm at
   kickoff). **Nothing blocks on counsel.**
-  ✅ **SLICE 1 SHIPPED 2026-08-19** — migration `20260930000100`, suite `348` (15 tests). Gate on a
-  fresh reset: pgTAP **199 files / 6550 PASS** · eight lint gates · `tsc` · vitest **1447** ·
-  **all four authz ARMs HOLD** (`census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper`). Fix verified by
-  **neutralization in both directions**. ⛔ **It does NOT unblock C1a** — that link was wrong in
-  grain (§ Now item 1); what it fixes is **meeting-minutes erasure**. ⭐ The sweep found a second
-  thing: `dispose_meeting_minutes`'s own authz gate was **door-blind** (opened, 6548 tests stayed
-  green) — keystoned as `348` t7, and the sibling census filed `FUP-DISPOSE-EVENT-DOOR-GATE-BLIND`.
+  ✅ **SLICE 1 SHIPPED 2026-08-19** — migration `20260930000100`, suite `348` (15 tests); gate green
+  on a fresh reset, fix verified by **neutralization in both directions**. ⛔ **It does NOT unblock
+  C1a** — that link was wrong in grain (§ Now item 1); what it fixes is **meeting-minutes erasure**.
+  ⭐ The sweep found a second thing: `dispose_meeting_minutes`'s own authz gate was **door-blind**
+  (opened, 6548 tests stayed green) — keystoned as `348` t7; sibling census filed
+  `FUP-DISPOSE-EVENT-DOOR-GATE-BLIND`, **still open** (349 exercises the referral door, not the event door).
+  ✅ **SLICE 2 SHIPPED 2026-08-20** — migrations `20261001000000`–`…000200`, suite `349` (53 tests),
+  E2E `dsr-subject-requests.spec.ts` (5), `/o/[org]/titulares` + `src/lib/dsr/`. Gate on a fresh
+  reset: pgTAP **200f/6603 PASS** · eight lint gates · `tsc` · vitest **1447** · **all four authz
+  ARMs HOLD** · diff-scoped door sweep over the 6 new in-domain gates: **6 COVERED, 0 BLIND**.
+  ⛔ **Gate step 3 (QA review) was NOT run, and steps 1–2 were run by the lead, not by the
+  `tester`/`qa` teammates** — no independent review of this slice exists. Stated here because a
+  gate record that names only what passed reads as full coverage.
+  ✅ **Pilot-gate item 0 (`FUP-ACT-DISPOSE-UI`) is DISCHARGED** — `pqs.a@test.local` reaches the
+  inbox AND passes `dispose_event_phi`, both halves executed **in a browser**; written into its own
+  row ([dm5-po-decisions.md](docs/progress/dm5-po-decisions.md) item 0), bounded to the **event**
+  lane, meetings explicitly NOT claimed.
+  ⭐ **Three things the build found, none of them its subject:** `patient_xref` keys the **case**
+  module on a `patient_participants` id, not a case id (believing the module name would have shipped
+  a case lane failing **closed forever and silently**); `hospital_dpos_select` was **BLIND** when
+  first written; and the first neutralization harness's **"restore" was a silent no-op**, so five
+  sweeps accumulated — *a rollback you have not watched succeed is not a rollback*. Four shape
+  changes are in **ADR 0130 Amendment 2**; read it before extending.
   **▶ Resume point:
-  [dsr-workflow-plan.md](docs/plans/dsr-workflow-plan.md) § Slice 2** — the minimal execution
-  corridor, which discharges pilot-gate item 0. ✅ **The kickoff confirmation is CLOSED (PO,
-  2026-08-19):** `legal_consultation_ref` is NOT NULL for `granted`/`granted_partial`/
-  `refused_retention`, optional for `refused_identity`/`withdrawn`. ⛔ **What still gates Slice 2
-  is ADR 0130's own status — it remains `Proposed`, and Proposed means nothing may be built.**
+  [dsr-workflow-plan.md](docs/plans/dsr-workflow-plan.md) § Slice 3** — the `search_patient_xref`
+  widening (the program's ONE named gate change), adjudication, the attested tier, and the
+  meetings-dispose UI that Amdt 2 item 3 moved there from ADR 0056 Consequence (a).
   Filed alongside: 🟠 `FUP-DISPOSE-DIALOG-OVERCLAIM` · 🟠
   `FUP-NOTIFICATIONS-PHI-RESIDUE` · 🟡 `FUP-XREF-PEPPER-ROTATION-ORPHANS` · 🔵
   `FUP-ADR0121-REASON-VALUE-DRIFT` (an ADR-sweep found all four logged-but-never-registered).
@@ -212,6 +226,19 @@ exists because without it an open production blocker (BUG-BOOTSTRAP-001) read as
 a single day — first the heading, then a note saying "back to three" — in the one paragraph of this
 file whose whole subject is that a count is wrong the moment after it is right. Count the rows below.
 
+🔴 **BUG-QO-STALE-CASOS — `quality-oversight.spec.ts` asserts coordinator WRITE affordances on
+`/casos`, which `8675b7cd` (2026-08-19) deliberately made a READING surface. `main` is E2E-RED.**
+Filed 2026-08-20 (lead) during the DSR Slice 2 gate. Two tests fail — `:569` "no-lockout control"
+(header `Editar` absent) and `:627` "Reabrir caso" pairing — both navigating `${CCIH}/casos/<id>`.
+**Not a DSR regression: proven by control.** Stashing the entire slice (`git stash -u`), clearing
+`.next`, rebuilding and re-running the spec alone on a fresh DB reproduces **the same two failures,
+19 passed / 2 failed**, identical to the run with the slice present. Seed state matches the tests'
+premises (case 1 `pending`, case 2 `completed`), and the affordances still exist — on
+`/manage/cases/[caseId]/(detail)`, where that commit moved them. ⚠ **The repair is not "change the
+URL": the test's PURPOSE was to pair a coordinator against `quality.a`'s absence check on the SAME
+url, and if `/casos` is now read-only for everyone that pairing has gone VACUOUS** — it would pass
+while proving nothing. Owner: whoever owns `8675b7cd`; the E2E baseline is red until then.
+
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
 narrative was rotated — **this was the one open item in it that existed in no other tracked place**,
@@ -259,6 +286,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-20 | **DSR Slice 2 · LEAD** — 3 migrations, pgTAP `349` (53), E2E corridor (6), `/o/[org]/titulares`. Fresh reset; **16 gate neutralizations**, every restore hash-verified | **pgTAP 200f/6603** · **lint 8/8** · **tsc 0** · **vitest 1447** · 4 authz ARMs **HOLD** · door sweep **6 COVERED / 0 BLIND** · `e2e:prod` **1129p / 2f / 0 did-not-run**, 1134 of 1140 accounted — ⛔ **GATE RED**, both failures PRE-EXISTING (BUG-QO-STALE-CASOS, control-proven) |
 | 2026-08-18 | **DM follow-up triage · LEAD** — the four shipped items (#2 byte proof · #4 DVF 1:1 · #8b draft-print delete guard · attachments deletion). Two fresh `supabase db reset --local` cycles; both new pgTAP arms authored **red-first** | **pgTAP 194 files / 6397 PASS** · **lint 5/5** · **typecheck 0** · **vitest 1305/1305** · authz `census`/`hat`/`floor`/`wrapper` all **INVARIANT HOLDS**. ⛔ **`e2e:prod` NOT RUN — this row is not a phase gate.** Full row → [archive](docs/progress/test-run-archive.md) |
 
 ## QA Verdicts
@@ -283,6 +311,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-20 | **ADR 0130 Proposed → Accepted; DSR Slice 2 BUILT** (PO instruction). Four shape changes measurement forced — incl. ADR 0056 Consequence (a)'s meetings-dispose UI moving to Slice 3. ✅ **Pilot-gate item 0 DISCHARGED** | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 2** · [plan](docs/plans/dsr-workflow-plan.md) |
 | 2026-08-19 | ✅ **Counsel's Q14 return: committee records NOT prontuário; removal requests CASE-BY-CASE with legal consultation (supersedes the blanket override); 20-yr retention adopted BY DEFAULT as policy** (PO-relayed). `subject_request` lane live; refusal copy cites the policy, never CFM 1821 | ADR [0035](docs/decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1** (resolved) · ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 1** |
 | 2026-08-19 | **Counsel ruling RECORDED, scope OPEN: 20-yr retention overrides LGPD Art. 18 erasure** (PO-relayed). Quoted, not paraphrased; the scope question (prontuário-only vs governance records?) is back with counsel. ⭕ *Superseded the same day by the return — row above* | ADR [0035](docs/decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1** |
 | 2026-08-19 | **DSR workflow DESIGNED — adjudicated requests, split powers (`dpo` capability intakes/closes; existing door-holders execute), hash-only record, two-tier claim, `/o/[org]/titulares`, flag `dsr`; ZERO disposal-gate widenings** (PO, 16 decisions). ⛔ Proposed — implementation waits for a future session | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) · [plan](docs/plans/dsr-workflow-plan.md) |
@@ -382,7 +411,6 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 
 - 🟠 **FUP-DM5-SUPERSEDE-SERVING-COLLISION** — ✅ **PO-RULED 2026-08-18 as option (b): supersession no longer marks bytes; the trigger moves to RETENTION EXPIRY** — backend
 - 🟠 **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — ⭐ **⭐ CRITICAL FUP C2. `ARM=census`'s DEFINER clause is bounded to `bool`/set-returning, so 407 reachable non-trigger command doors (326 RPC-callable) sit outside every arm's domain. ⭕…** — lead + backend
-- 🔴 **FUP-ACT-DISPOSE-UI** — LGPD Art. 18 referral-erasure has no UI route (authorized ∩ reachable = ∅); **PILOT-GATE CHECK, item 0 of [dm5-po-decisions.md](docs/progress/dm5-po-decisions.md) § "Remaining pre-pilot work"**. ⭕ **Mount DECIDED 2026-08-19: subsumed by the DSR task inbox** (ADR 0130 / plan Slice 2) — open until that route ships and the check passes — PO
 - 🟠 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — **PARTIALLY RESOLVED 2026-08-17 (`4102149b`); the filed remedy was WITHDRAWN as unbuildable** — lead/backend
 - 🔴 **FUP-PGTAP-VACUOUS** — `lint:vacuous` scans TS specs only; ~6348 pgTAP assertions unscanned, live specimen in a PHI-boundary suite. The sweep must be **proven able to fail** first — lead/backend
 - 🔴 **FUP-AFF-1** — the census is BLIND to write-path doors (ADR 0079 Am. 5); ⛔ cite `302`'s keystones, **never `ARM=census`** — backend/harness

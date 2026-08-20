@@ -146,14 +146,36 @@ by [0086](../decisions/0086-flexible-forms-pre-pilot.md) (FF-1…FF-5), re-gated
 [0097](../decisions/0097-hospital-affiliation-person-identity.md). **All complete**, as are the ACT
 cutover and both pushes. Completed items are not re-listed. What is actually left:
 
-**0. 🔴 PILOT-GATE CHECK — the LGPD Art. 18 referral-erasure path must have a working UI route
-(FUP-ACT-DISPOSE-UI).** A **gate check, not a follow-up entry**, on the Stage-3 QA reviewer's explicit
-recommendation — *"'standing in prose alone' once meant a thing ran once in three weeks"* (the failure
-ADR 0079 was written about). **Stated so it can be run and can fail:** name a persona who can (a) reach
-the surface hosting the dispose affordance AND (b) pass `dispose_referral_phi`'s own gate. Today **no
-such persona exists** — the two sets are disjoint (catalog-verified), so subject-erasure is API-only.
-**Decision owner: PO** — *where* it mounts is a product call; *whether* it must work before pilot is
-not. ⚠ Precedent: `20260917000400` restored this door's tenancy-admin arm specifically to un-strand
+**0. ✅ PILOT-GATE CHECK — DISCHARGED 2026-08-20 (DSR Slice 2, ADR 0130). The LGPD Art. 18
+erasure path has a working UI route (FUP-ACT-DISPOSE-UI).** A **gate check, not a follow-up entry**,
+on the Stage-3 QA reviewer's explicit recommendation — *"'standing in prose alone' once meant a thing
+ran once in three weeks"* (the failure ADR 0079 was written about). **Stated so it can be run and can
+fail:** name a persona who can (a) reach the surface hosting the dispose affordance AND (b) pass the
+disposal door's own gate.
+
+**The check, run and recorded.** Persona **`pqs.a@test.local`** (`pqs_member` of Hospital Central A):
+(a) reaches **`/o/rede-a/titulares`** — the DSR task inbox, behind the `dsr` flag — because
+`app.can_execute_dsr_task` admits `app.is_pqs_operator_of_for(hospital)`; and (b) passes
+`dispose_event_phi`'s own gate (`app.is_tenancy_admin_of(commission) OR
+app.is_pqs_operator_of(hospital)`), catalog-verified. **Both halves executed in a browser**, not
+argued: `e2e/dsr-subject-requests.spec.ts` § *"the PQS executor disposes from the inbox under their own
+session"* clicks the affordance and then asserts `patient_safety_event.phi_disposed_at is not null` and
+`event_patient` gone, via the service role.
+
+⚠ **What was actually wrong, and what changed.** The two sets were disjoint because **no surface
+existed**, not because the gates were misaligned: the referral dispose dialog had a component, and the
+case/event dispose actions had **no caller anywhere in the app**. The inbox is that surface. ⛔ **No
+disposal gate widened** — the executor fires the module's own door under their own session (ADR 0130
+Decision 2), which is exactly why the check can be answered without touching authorization.
+
+⚠ **Bounded, so this is not read as more than it is.** The corridor proven is the **event** lane;
+`dispose_case_phi` and `dispose_referral_phi` ride the identical inbox path and the same fan-out, but
+their end-to-end browser proof is the pgTAP matrix (349), not this E2E — disposal is irreversible and
+pointing the spec at seeded records would erase PHI ~900 other tests share. The **meetings** lane is
+NOT discharged here and is not claimed: ADR 0056 Consequence (a)'s missing meetings-dispose UI moves to
+DSR Slice 3 with the adjudication that mints the task (ADR 0130 Amendment 2 item 3).
+
+⚠ Precedent, retained: `20260917000400` restored this door's tenancy-admin arm specifically to un-strand
 this obligation after QO·B cut it. Mechanism → [follow-ups.md](follow-ups.md).
 
 **1. 🔴 PILOT-GATE CHECK — DM5 exits with a KNOWN, runbook-mitigated PHI-DISPOSAL GAP, and it must be

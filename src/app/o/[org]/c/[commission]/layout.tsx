@@ -17,6 +17,7 @@ import { meetingsEnabled } from "@/lib/meetings/actions";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { actionItemsEnabled } from "@/lib/queries/action-items";
 import { getMemberOverview } from "@/lib/queries/overview";
+import { listMyDsrHospitals } from "@/lib/queries/dsr";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import {
@@ -219,6 +220,7 @@ export default async function CommissionLayout({
     chartersOn,
     accreditationOn,
     nspAccess,
+    dsrHospitals,
   ] = await Promise.all([
     meetingsEnabled(),
     auditTrailEnabled(),
@@ -232,6 +234,7 @@ export default async function CommissionLayout({
     chartersEnabled(),
     accreditationEnabled(),
     getNspAccessByOrg(org),
+    listMyDsrHospitals(),
   ]);
 
   // "Meus itens de ação" surfaces items from the shared action_items hub across
@@ -346,6 +349,14 @@ export default async function CommissionLayout({
         // this is their only route into the console.
         isQualityReviewer={access.context.qualityReviewerOf.some(
           (q) => q.organization.id === access.organization.id,
+        )}
+        // ADR 0130 — same dual-hat problem: the Encarregado is a plain committee
+        // member by design, and an executor wears their disposal hat alongside a
+        // day job, so both land here and this sidebar entry is their only route
+        // into the DSR console. Filtered to THIS org; the console re-gates
+        // server-side on the same predicate.
+        reachesDsr={dsrHospitals.some(
+          (h) => h.orgId === access.organization.id,
         )}
         notificationBell={<NotificationBell />}
         activeRole={access.context.activeRole}

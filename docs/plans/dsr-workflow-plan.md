@@ -1,7 +1,8 @@
 # DSR ("Direitos do Titular") — implementation plan
 
-**Status: PENDING — ⛔ implementation NOT started, by PO instruction (2026-08-19). A
-future session picks this up from here.** Design ratified by the PO in a structured
+**Status: IN PROGRESS — Slices 1 and 2 SHIPPED (2026-08-19 / 2026-08-20); Slices 3 and 4
+not started.** ADR 0130 moved **Proposed → Accepted 2026-08-20** on PO instruction, which
+lifted the original "nothing may be built" hold. Design ratified by the PO in a structured
 sixteen-decision session on 2026-08-19; the binding decisions live in ADR
 [0130](../decisions/0130-dsr-subject-request-workflow.md) (workflow) and ADR
 [0129](../decisions/0129-meeting-child-lock-disposal-flag.md) (prerequisite fix), with
@@ -20,10 +21,12 @@ disagrees with the live catalog, **the catalog wins** (CLAUDE.md graphify except
    adopted **by default as institutional policy**. Nothing blocks on counsel anymore.
    ✅ **The one open kickoff confirmation is CLOSED (PO, 2026-08-19): `legal_consultation_ref`
    is NOT NULL for `granted` / `granted_partial` / `refused_retention`, optional for
-   `refused_identity` / `withdrawn`** — exactly as 0130 Amdt 1 item 3 drafted it. Nothing gates
-   Slice 2's migration now except ADR 0130's own status (still **Proposed**).
+   `refused_identity` / `withdrawn`** — exactly as 0130 Amdt 1 item 3 drafted it, and it is
+   **BUILT** (the `dsr_requests_legal_consultation` CHECK + the door's pt-BR refusal, 349 t29/t31).
 4. Read `docs/progress/authz-handoff.md §7` before any RLS/gate work (standing ⭐ rule).
-5. Start at Slice 1.
+5. **Start at Slice 3** — Slices 1 and 2 are shipped. Slice 3 owns: the `search_patient_xref`
+   widening (the program's ONE named gate change, ADR 0130 Decision 3), the adjudication lane,
+   the attested tier, and the meetings-dispose UI that Amendment 2 item 3 moved here.
 
 ---
 
@@ -90,10 +93,41 @@ Consequences.
 (`docs/deployment/phi-disposal-runbook.md`), and it **must name a locked meeting WITH
 agenda items as a fixture**. That rehearsal is PO/lead-sequenced work, not this plan's.
 
-### Slice 2 — minimal execution corridor. Discharges pilot-gate item 0.
+### Slice 2 — minimal execution corridor. ✅ SHIPPED 2026-08-20. Discharges pilot-gate item 0.
 
 The smallest thing that makes "a persona can reach a dispose affordance AND pass the
-gate" true (dm5-po-decisions § "Remaining pre-pilot work" item 0).
+gate" true (dm5-po-decisions § "Remaining pre-pilot work" item 0) — **run and recorded**
+there: `pqs.a@test.local` reaches `/o/rede-a/titulares` and passes `dispose_event_phi`,
+both halves executed in a browser.
+
+**Built:** migrations `20261001000000` (the `dpo` capability + `app.is_dpo_of[_for]`),
+`20261001000100` (`dsr_requests` / `dsr_tasks` + RLS + the three doors),
+`20261001000200` (the two console listers); suite
+`supabase/tests/349_dsr_request_workflow.sql` (53 tests); `e2e/dsr-subject-requests.spec.ts`
+(5 tests); `/o/[org]/titulares` + `src/lib/dsr/` + `src/lib/queries/dsr.ts`.
+
+**Four shape changes measurement forced, all recorded in ADR 0130 Amendment 2** — read it
+before extending any of this: the `dpo` grant moved here from Slice 3; `complete_dsr_task`
+verifies the EFFECT rather than mirroring four gate expressions; the fan-out never mints
+`dispose_meeting` (so **ADR 0056 Consequence (a)'s meetings-dispose UI is Slice 3's**, not
+this one's); an unroutable xref row raises instead of being dropped.
+
+⭐ **Two things the build found that the plan could not have predicted:**
+1. **`patient_xref` keys the CASE module on a `patient_participants` id, not a case id**,
+   while `dispose_case_phi` takes a CASE id. Believing the module name would have shipped a
+   case lane that fails closed forever, silently. Pinned by 349 t10b.
+2. **`hospital_dpos_select` was BLIND when first written** — opening it left all 46 tests
+   green, in the same slice whose suite header warns about exactly that. Found by the
+   neutralization sweep, not by review; t32k/t32l exist because of it.
+
+⚠ **And a harness lesson worth more than either.** The first neutralization sweep's
+"restore" was a silent no-op (`docker exec … psql -f <hostpath>` resolves INSIDE the
+container), so five neutralizations **accumulated** and each verdict after the first was
+meaningless — the rising failure counts were the only tell. The replacement harness proves
+both channels before touching anything real: a probe mutation must move
+`md5(pg_get_functiondef)`, and the restore must move it back. Its first version's proof was
+itself vacuous for the same path reason. **A rollback you have not watched succeed is not a
+rollback.**
 
 1. **Schema core** (PHI-free, additive): `dsr_requests` (id, hospital_id, patient_key,
    encounter_key nullable, file_ref text, status

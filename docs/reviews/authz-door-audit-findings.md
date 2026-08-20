@@ -188,10 +188,41 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 > - `public.quality_board_summary` + the six armed `dashboard_*` doors are ROW doors:
 >   their verdicts live in `authz-rowdoor-audit-findings.md` (diff-scoped run, same day).
 
+> ⚠ **HAND-MERGED, 2026-08-20 (DSR Slice 2, ADR 0130).** The six authz gates that slice adds
+> — `app.is_dpo_of`, `app.is_dpo_of_for`, `app.can_execute_dsr_task`, and the
+> `dsr_requests_select` / `dsr_tasks_select` / `hospital_dpos_select` policies — are the first
+> six rows of the COVERED table below, merged by hand from a **diff-scoped** sweep
+> (`CASES="can_execute_dsr_task is_dpo_of is_dpo_of_for dsr_requests_select dsr_tasks_select
+> hospital_dpos_select"`, baseline Files=200, Tests=6603, Result: PASS): **6 COVERED, 0 BLIND,
+> 0 ERROR**, all held by `supabase/tests/349_dsr_request_workflow.sql`. Same reason as the
+> blocks above — a subset run OVERWRITES this report, so the verdict has nowhere else to land
+> and `ARM=census` would keep reporting all six UNKNOWN forever (Amendment 1 hazard 1;
+> Amendment 3 — a brand-new gate is in no BLIND set and so clears `ARM=policy` vacuously).
+>
+> ⭐ **`hospital_dpos_select` was BLIND when first written, and only a neutralization found it.**
+> The policy was correct and nothing in 6550 tests would have noticed its removal — in the same
+> slice whose suite header warns about exactly that. t32k/t32l were added FOR it, and the row
+> below records the verdict earned after they existed.
+>
+> ⚠ **BOUNDED, STATED.** Five of this slice's doors are outside this arm's domain by SHAPE, not
+> by choice: `create_dsr_request` (uuid), `complete_dsr_task` / `close_dsr_request` /
+> `appoint_hospital_dpo` / `revoke_hospital_dpo` (void) and the two jsonb listers are
+> `prosecdef` scalar non-bool command doors — the 407-door class
+> `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` that no arm covers. They were therefore keystoned by hand
+> in the same manner: each gate neutralized one at a time against suite 349, each restore
+> verified by `md5(pg_get_functiondef)` before the next ran, all RED. The full list and which
+> test caught each is in that suite's header.
+
 ## COVERED (asserted-through) + ERROR (harness bug)
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| app.is_dpo_of(p_hospital_id uuid) | predicate | positive | COVERED | 349_dsr_request_workflow.sql (DSR Slice 2 hand-merge 2026-08-20) |
+| app.is_dpo_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | COVERED | 349_dsr_request_workflow.sql (DSR Slice 2 hand-merge 2026-08-20; its `is_active` arm is separately keystoned by t32b, which a suspended grantee makes non-vacuous) |
+| app.can_execute_dsr_task(p_hospital_id uuid, p_commission_id uuid, p_uid uuid) | predicate | positive | COVERED | 349_dsr_request_workflow.sql (DSR Slice 2 hand-merge 2026-08-20) |
+| dsr_requests.dsr_requests_select (SELECT) | policy | open->true | COVERED | 349_dsr_request_workflow.sql t33/t34 (DSR Slice 2 hand-merge 2026-08-20) |
+| dsr_tasks.dsr_tasks_select (SELECT) | policy | open->true | COVERED | 349_dsr_request_workflow.sql t16/t33 (DSR Slice 2 hand-merge 2026-08-20) |
+| hospital_dpos.hospital_dpos_select (SELECT) | policy | open->true | COVERED | 349_dsr_request_workflow.sql t32k/t32l (DSR Slice 2 hand-merge 2026-08-20 — ⭐ **BLIND when first written**; these two keystones were added because the sweep found it, and this verdict is the re-run after they existed) |
 | app.can_read_document(p_document_id uuid, p_uid uuid) | predicate | positive | COVERED | 144_case_access.sql,191_grant_hardening.sql,229_authz_m1_exclusion_durability.sql,311_oversight_readonly_perimeter.sql,328_dm1_document_substrate.sql,342_dm5_s3_printed_renditions.sql (DM1 hand-merge 2026-08-12; re-swept 2026-08-13 after the DM2·S1 ceiling-arm body change — 1 case executed, COVERED; 228 t36-39 + 328 K14 added. **RE-STATED 2026-08-14, DM5·S3 added a NINTH arm — the PRINT arm — underneath this same name.** A GATE KEEPS ITS NAME WHEN ITS ARMS CHANGE, so this row is amended in the arm's own commit rather than left to read COVERED on a verdict earned by suites that never saw it — the STALE-COVERED shape `can_write_document` shipped one slice ago. Coverage for the print arm specifically is **342**, and it is MUTATION-PROVEN rather than asserted: with the arm's branch made unreachable in one rolled-back transaction the file reports **4 red of 49 with its run shape intact (`1..49`, no abort)** — S3c2 (the kernel stops admitting the print's creator), S3i1+S3i2 (the feature stops working at all), and ⭐ **S3j4, which flips to a LEAK: a commission member who is NOT an attendee of a `participants_only` meeting reads that meeting's print, because the home-type arm `app.is_member_of_for` is WIDER than `app.can_view_printed_document`. S3j5 stays green, so the arm narrows exactly one class rather than denying everyone.** Rollback verified byte-identical by md5(pg_get_functiondef) = 1dac2fa9660fdfad85c3fc89e22bf7c2) |
 | public.document_delete_affordances(p_document_ids uuid[]) | predicate | positive | COVERED | 329_dm2_document_commands.sql A1-A3 (S2.8 hand-merge 2026-08-13; ARM-1 case matcher cannot run it — name-shape blind spot, 0 cases executed, NOT citable; covered by TARGETED MUTATION: door forced true in a rolled-back txn -> plain member gains the affordance (A2/A3 would red), restored control f, restore catalog-verified — the DM1 storage_upload_reserved dialect) |
 | app.can_write_document(p_document_id uuid, p_uid uuid) | predicate | positive | COVERED | 229_authz_m1_exclusion_durability.sql,231_authz_m5_is_active_gate.sql,314_qob_org_admin_content_wall.sql,328_dm1_document_substrate.sql,329_dm2_document_commands.sql,340_dm4_referral_documents.sql,341_dm5_s2_nsp_evidence_substrate.sql,342_dm5_s3_printed_renditions.sql (DM1; RE-SWEPT 2026-08-14 after DM5·S2 added the `rca` + `capa_action` write arms — baseline Files=192 Tests=6284, 1 case executed, COVERED. ⚠ THE PRIOR ROW WAS STALE-COVERED: its verdict was earned by DM1-era suites against the SIX old arms, then two new arms were added underneath the SAME NAME. **A gate keeps its name when its arms change** — so ARM 1, the census and this row all kept reading COVERED while the new arms had ZERO executable coverage anywhere in the repo. This is the INVERSE of the rename hazard: a rename orphans a verdict loudly, this widens one silently. 341 block G is the coverage for the new arms (asserts through `begin_document_upload`; G9 — chefe.ccih writes the source RCA but NOT its CAPA — is the load-bearing row). The re-sweep also required guarding 329:494, whose unguarded raw `reclassify_document` call aborted the file mid-run and scored the gate ERROR run-shape!=baseline rather than COVERED. **AMENDED AGAIN 2026-08-14 — DM5·S3 added the NINTH arm, the PRINT arm**, mirroring `revoke_printed_document`'s authority (`is_staff_admin_of_for OR is_tenancy_admin_of_for` on the print's own commission). It HAD to grant something: ADR 0120 D11 retires superseded print bytes through `request_document_disposition` -> this gate, so a print arm returning false would have made D11's retirement a door nothing can reach. What the grant must NOT enable is bounded by migration 20260927000350's four guards, and 342 S3f1-S3f5 cover them EACH WITH A CONTENT-DOCUMENT TWIN — a guard that also binds ordinary documents is a regression, not a fix — plus S3f3t, the positive twin proving guard 3 is narrow rather than a blanket refusal, so D11's retirement path is reachable. ⚠ Note the arm deliberately does NOT name `can_view_printed_document`: read authority follows the print predicate, write authority mirrors the revoke door. The asymmetry is a decision, not a miss) |

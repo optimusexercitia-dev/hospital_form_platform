@@ -23,7 +23,7 @@
 >
 > | fact | measured | query |
 > | --- | --- | --- |
-> | migration registry | **411 == 411** (DB == files on disk) | `select count(*) from supabase_migrations.schema_migrations;` vs `ls supabase/migrations/*.sql \| wc -l` |
+> | migration registry | **426 == 426** (DB == files on disk), re-measured **2026-08-20**; it read **411 == 411** at DM5·S6 on 2026-08-17 | `select count(*) from supabase_migrations.schema_migrations;` vs `ls supabase/migrations/*.sql \| wc -l` |
 > | document-model tables | **13**, and **all 13 carry exactly ONE policy** | `pg_class` ⋈ `pg_policy`, `relname ~ '^(document\|file_object\|securable\|upload_session\|controlled_document\|printed_document)'` |
 > | document-surface doors | **38**, of which **5 are service-role-only** (`complete_document_disposal` · `complete_document_reclassification` · `complete_document_upload_verification` · `complete_evidence_upload_verification` · `lookup_printed_document`) | `pg_proc` ⋈ `pg_namespace`, `proname ~ '(document\|printed\|disposal\|dispose\|evidence_upload\|file_object\|placement\|legal_hold\|retention)'` + `has_function_privilege('authenticated', …)` |
 > | storage buckets | **4**: `documents-standard` · `documents-phi` (core) + `form-assets` · `meeting-audio` (out of scope, D13) | `select id from storage.buckets;` |
@@ -405,6 +405,35 @@ their home is here because they never conclude._
   derive). Function-count claims about flag reads have shipped wrong through four
   writers because each used a different bound — see the correction record at the top
   of this file (75 fns / 6 read a flag).
+
+## DSR Slice 2 — LGPD subject requests (2026-08-20; ADR **0130** Accepted + **Amendment 2**; migrations `20261001000000`–`…000200`, **3**; pgTAP `349` `plan(53)`; E2E `dsr-subject-requests.spec.ts`; flag **`dsr` OFF** — seed forces ON local/E2E)
+
+Re-derive every row from the catalog; this table is a map, not the authority.
+
+| surface | what | note |
+| --- | --- | --- |
+| tables | `hospital_dpos` · `dsr_requests` · `dsr_tasks` | RLS on at creation; `authenticated` holds **SELECT only** — every write is a DEFINER door, there is no write policy on any of the three |
+| predicates | `app.is_dpo_of(hospital)` · `app.is_dpo_of_for(hospital, uid)` · `app.can_execute_dsr_task(hospital, commission, uid)` | all `prosecdef`; all **COVERED** by the diff-scoped door sweep (`authz-door-audit-findings.md`, hand-merged 2026-08-20) |
+| doors | `create_dsr_request` · `complete_dsr_task` · `close_dsr_request` · `appoint_hospital_dpo` · `revoke_hospital_dpo` · `list_my_dsr_hospitals` · `list_my_executable_dsr_tasks` | ⚠ all seven are **outside every ARM's domain by shape** (scalar non-bool / void / jsonb command doors — the `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` class). Keystoned by hand instead, one neutralization at a time with a hash-verified restore; the list of which test catches which is in suite 349's header |
+| policies | `hospital_dpos_select` · `dsr_requests_select` · `dsr_tasks_select` | ⛔ **none carries a platform-admin arm** — ADR 0130 D2 puts `platform_admin` outside this plane entirely (ADR 0078 A35 noun rule). This is content, not tenancy |
+| SQLSTATE | `HCDS1` flag off · `HCDS2` unroutable/unresolvable xref row · `HCDS3` task not completable · `HCDS4` close refused, work outstanding · `HCDS5` illegal transition | |
+| app layer | `/o/[org]/titulares` · `src/lib/dsr/{actions,messages}.ts` · `src/lib/queries/dsr.ts` · `src/components/dsr/*` | |
+
+⛔ **ZERO disposal gates changed, and that is the design, not an omission.** The workflow ASSIGNS
+disposal work; executors fire `dispose_case_phi` / `dispose_event_phi` / `dispose_referral_phi`
+under their OWN sessions, so all four gates apply unchanged. `complete_dsr_task` verifies the
+**effect** — the module row's own `phi_disposed_at` — rather than mirroring four different gate
+expressions, because a fifth copy is a mirror nothing keeps in sync (ADR 0130 Amdt 2 item 2).
+
+⚠ **THE GRAIN, because the module name lies.** `patient_xref` keys the **case** module on a
+**`patient_participants` id**, not a case id (`app.trg_xref_maintain_patient_identifiers`), while
+`dispose_case_phi` takes a **case** id. `create_dsr_request` resolves it via
+`app.case_of_patient_participant`. Without that resolution the case lane fails **closed forever
+and silently**. Events and referrals ARE keyed on the entity itself. Verify in `pg_proc`, never here.
+
+⚠ **`hospital_dpos_select` was BLIND when first written** — opening it left the whole suite green.
+Found by neutralization, not review. A NEW gate belongs to no BLIND set and so clears `ARM=policy`
+vacuously; only `ARM=census` sees it, and only after a diff-scoped sweep gives it a verdict.
 
 ## Client-role TRUNCATE grants — swept 2026-08-18 (`20260928000900`, FUP-PCITV-1 item 3)
 

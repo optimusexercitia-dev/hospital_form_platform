@@ -1,8 +1,9 @@
 # ADR 0130 — DSR workflow: data-subject requests as adjudicated cases, not an erase button
 
-**Status:** Proposed (design PO-ratified 2026-08-19, sixteen decisions in a structured
-design session; ⛔ **nothing may be built until a future session picks this up** — PO
-instruction) · **Date:** 2026-08-19 · **Feature:** LGPD Art. 18 request intake /
+**Status:** **Accepted 2026-08-20 — PO instruction, implementation authorized** (design
+PO-ratified 2026-08-19, sixteen decisions in a structured design session; the original
+"nothing may be built" hold is **lifted**, see Amendment 2 for what Slice 2 builds and the
+three shape changes measurement forced) · **Date:** 2026-08-19 · **Feature:** LGPD Art. 18 request intake /
 adjudication / execution ("Direitos do Titular") · **Plan:**
 [docs/plans/dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) · **Relates:** ADR
 [0035](./0035-lgpd-anvisa-regulatory-posture.md) (+ its Amendment 1 — counsel's retention
@@ -45,6 +46,67 @@ precedent), Rule 12.
 >    over-claim alone.
 >
 > Nothing else in this ADR moves. Status stays **Proposed**; implementation still waits.
+
+> ## ✅ AMENDMENT 2 (2026-08-20) — Status → Accepted; four shape changes measurement forced on Slice 2
+>
+> The PO lifted the hold and authorized implementation. Building Slice 2 against the live
+> catalog moved four things. Each is recorded here because each contradicts a sentence
+> written above or in the plan, and a plan that disagrees with the ADR is how a wrong
+> shape gets built twice.
+>
+> 1. **The `dpo` capability grant moves from Slice 3 to Slice 2.** `create_dsr_request` is
+>    DPO-gated by Decision 2, and `app.is_dpo_of` **did not exist** (measured 2026-08-20).
+>    Gating Slice 2's door on a placeholder and replacing it in Slice 3 would change a live
+>    authorization gate **twice**, each change owing its own ADR-0079 sweep. Pulling the
+>    grant forward is strictly less gate churn. ⛔ **The one named widening (Decision 3 —
+>    `search_patient_xref` gains an `is_dpo_of` arm) does NOT move**: Slice 2 needs no
+>    patient search, because `create_dsr_request` derives `patient_key` itself.
+> 2. **`complete_dsr_task` verifies the EFFECT, not a mirrored gate.** The plan drafted it
+>    as "requires the task's own door-gate predicate to pass for the caller". The four
+>    disposal gates are four *different* expressions (measured); a fifth copy of each would
+>    be a mirror with no gate able to keep it in sync — and a gate that silently stops
+>    matching its original is the stale-mirror family this program has already paid for.
+>    Instead, for a `dispose_*` task the door reads **the module row's own
+>    `phi_disposed_at`** — measured present on all four module tables (`cases`,
+>    `patient_safety_event`, `case_referral`, `meetings`). That is *strictly stronger*: it
+>    proves the disposal **happened**, where the drafted shape only proved the caller could
+>    have done it. The caller must still be able to **see** the task (the routing
+>    predicate). Decision 2's binding constraint — the DSR never fires a door — is
+>    unchanged, and is now structural rather than promised.
+> 3. **The fan-out does NOT mint `dispose_meeting` tasks.** `meeting_cases` does link
+>    meetings to cases (measured), so a mechanical link exists — but `dispose_meeting_minutes`
+>    erases the **whole** minutes (the minutes text plus every agenda item's
+>    `description`/`discussion_notes`/`resolution`). Minting it because one agenda item
+>    touched the subject's case would destroy other committees' unrelated records. The
+>    fan-out mints an **`attest_review`** task per linked meeting instead, whose procedure is
+>    the Q10a revoke corridor. `dispose_meeting` stays in the kind enum for **adjudication
+>    (Slice 3)** to mint deliberately. ⛔ Consequence, stated so it is not read as an
+>    oversight: **ADR [0056](./0056-phi-disposal-closure-narrowed-claim.md) Consequence (a)'s
+>    missing meetings-dispose UI is discharged in Slice 3, not Slice 2** — shipping the
+>    affordance now would ship a door nothing can reach.
+> 4. **An unroutable xref row is loud.** `patient_xref.commission_id` is nullable; such a row
+>    has no hospital and so belongs to no controller. `create_dsr_request` **raises**
+>    (`HCDSR`) rather than silently omitting it — an enumeration that quietly drops a member
+>    of its own population is the wrong-grain failure, and a DSR's whole value is the
+>    completeness of that enumeration.
+> 5. **Two console listers, and NOT a policy arm.** `hospitals_select` admits platform_admin,
+>    org_admin, hospital_admin, nsp_org_admin and quality_reviewer — **and nobody else**
+>    (measured). The Encarregado is a plain committee member *by design* (Decision 2), so they
+>    cannot read the name of the hospital they serve, and neither can a PQS executor holding a
+>    routed task. Two shapes were available: add `or app.is_dpo_of(id)` to `hospitals_select` —
+>    a **second** widening in a program whose ADR names exactly one — or a DEFINER lister
+>    returning only the caller's OWN hospitals, which is what this codebase already does for
+>    exactly this need (`list_my_nsp_hospitals`, ADR 0052). **The lister.** No shared table's
+>    read boundary moves. A second lister, `list_my_executable_dsr_tasks`, answers "may I ACT
+>    here?" — because `dsr_tasks_select` lets the Encarregado SEE every task of their hospital
+>    (they must watch the work) while they can execute none, and the inbox was offering them an
+>    "Executar descarte" button the module door would refuse. ⚠ Both listers call the SAME
+>    predicates the RLS policies call — one definition, not a copy — so neither can report
+>    anything the caller could not already read.
+>    ⛔ **The console also gets a sidebar entry**, gated on the same lister. A console nothing
+>    links to is a door nothing can reach, and both principals (Encarregado, executor) land on
+>    their commission — the identical dual-hat problem the NSP and quality-office entries beside
+>    it were added to solve.
 
 ## Context
 

@@ -2175,3 +2175,59 @@ read correctly and the catalog disagreed. ⚠ Note **which** measurement found i
 function (that is where the false comment lives) but a **property-bounded sweep of every writer of the
 rendered content**, run for an unrelated reason. A sweep bounded by "writers of `meetings`" would have found
 the door and believed its comment.
+
+### ✅ FUP-ACT-DISPOSE-UI — RESOLVED 2026-08-20 (DSR Slice 2, ADR 0130). The LGPD Art. 18 erasure path has a working UI route.
+
+> **The check, run and recorded.** Persona **`pqs.a@test.local`** (`pqs_member` of Hospital Central A)
+> (a) reaches **`/o/rede-a/titulares`** — the DSR task inbox behind the `dsr` flag, because
+> `app.can_execute_dsr_task` admits `app.is_pqs_operator_of_for(hospital)` — and (b) passes
+> `dispose_event_phi`'s own gate, catalog-verified. **Both halves executed in a browser**:
+> `e2e/dsr-subject-requests.spec.ts` clicks the affordance, then asserts
+> `patient_safety_event.phi_disposed_at is not null` and `event_patient` gone via the service role.
+> The item's own row is updated in place at [dm5-po-decisions.md](dm5-po-decisions.md)
+> § "Remaining pre-pilot work" item 0, which is where the pilot decision is actually read.
+>
+> ⚠ **What was wrong, precisely.** The two sets were disjoint because **no surface existed**, not
+> because the gates were misaligned — the referral dispose dialog had a component and the
+> case/event dispose actions had **no caller anywhere in the app**. ⛔ **No disposal gate widened**:
+> the executor fires the module's own door under their own session (ADR 0130 Decision 2), which is
+> exactly why the check could be answered without touching authorization.
+>
+> ⚠ **Bounded, so this is not read as more than it is.** The corridor proven end-to-end is the
+> **event** lane; case and referral ride the identical inbox path and fan-out but their proof is the
+> pgTAP matrix (`349`), not the E2E — disposal is irreversible and pointing a spec at seeded records
+> would erase PHI ~900 other tests share. The **meetings** lane is NOT discharged and is not claimed:
+> ADR 0056 Consequence (a)'s missing meetings-dispose UI moved to DSR **Slice 3** with the
+> adjudication that mints the task (ADR 0130 Amendment 2 item 3), because minting a whole-minutes
+> erasure from a one-agenda-item match would destroy other committees' records.
+>
+> _Body below is the live text at resolution, verbatim._
+
+### 🔴 FUP-ACT-DISPOSE-UI — LGPD Art. 18 referral-erasure has no UI route (owner: PO — mount point)
+
+> ⭕ **MOUNT POINT DECIDED 2026-08-19 (PO, DSR design session Q8b/Q16): SUBSUMED by the DSR task
+> inbox at `/o/[org]/titulares`** (ADR [0130](../decisions/0130-dsr-subject-request-workflow.md)
+> Decision 11; [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 2**, which includes
+> running THIS item's check and recording the named persona). Executors fire the existing doors
+> under their own sessions — zero gate changes. The same surface also gives `dispose_meeting_minutes`
+> its first UI (ADR 0056 Consequence (a), never built — verified 2026-08-19: no component calls the
+> case/event/meeting dispose actions; only the referral dialog exists). ⛔ **The item stays OPEN and
+> stays pilot-gate item 0 until that slice ships and the check passes** — a decided mount is not a
+> working route.
+
+_Verbatim from PROGRESS.md § "Remaining pre-pilot work" item 0, where it was carried as a **pilot-gate
+check** rather than a follow-up-list entry. It stays item 0 of that list; this is its body._
+
+**0. 🔴 PILOT-GATE CHECK — the LGPD Art. 18 referral-erasure path must have a working UI route
+(FUP-ACT-DISPOSE-UI).** Placed here, as a **gate check rather than a follow-up-list entry**, on the
+Stage-3 QA reviewer's explicit recommendation — *"this program's own record shows 'standing in prose
+alone' once meant a thing ran once in three weeks"* (the same failure ADR 0079 was written about).
+**The check, stated so it can be run and can fail:** name a persona who can (a) reach the surface
+hosting the dispose affordance AND (b) pass `dispose_referral_phi`'s own gate. Today **no such
+persona exists** — the two sets are disjoint (catalog-verified; full mechanism in the
+`FUP-ACT-DISPOSE-UI` body → [follow-ups.md](follow-ups.md)). Until one does,
+subject-erasure is API-only. **Decision owner: PO** —
+*where* the affordance mounts is a product call (NSP surface reaches operators; manage-tier reaches
+tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that makes this
+non-negotiable: migration `20260917000400` restored this door's tenancy-admin arm specifically to
+un-strand this same obligation after QO·B cut it — the platform has already ruled once.

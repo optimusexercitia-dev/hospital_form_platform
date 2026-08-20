@@ -4372,6 +4372,159 @@ export type Database = {
           },
         ]
       }
+      dsr_requests: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          created_by: string
+          due_date: string
+          encounter_key: string | null
+          file_ref: string
+          hospital_id: string
+          id: string
+          legal_consultation_ref: string | null
+          outcome: string | null
+          outcome_basis: string | null
+          patient_key: string
+          received_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by: string
+          due_date: string
+          encounter_key?: string | null
+          file_ref: string
+          hospital_id: string
+          id?: string
+          legal_consultation_ref?: string | null
+          outcome?: string | null
+          outcome_basis?: string | null
+          patient_key: string
+          received_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string
+          due_date?: string
+          encounter_key?: string | null
+          file_ref?: string
+          hospital_id?: string
+          id?: string
+          legal_consultation_ref?: string | null
+          outcome?: string | null
+          outcome_basis?: string | null
+          patient_key?: string
+          received_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dsr_requests_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dsr_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dsr_requests_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dsr_tasks: {
+        Row: {
+          commission_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          entity_id: string | null
+          hospital_id: string
+          id: string
+          kind: string
+          module: string | null
+          note: string | null
+          request_id: string
+          status: string
+        }
+        Insert: {
+          commission_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          entity_id?: string | null
+          hospital_id: string
+          id?: string
+          kind: string
+          module?: string | null
+          note?: string | null
+          request_id: string
+          status?: string
+        }
+        Update: {
+          commission_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          entity_id?: string | null
+          hospital_id?: string
+          id?: string
+          kind?: string
+          module?: string | null
+          note?: string | null
+          request_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dsr_tasks_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dsr_tasks_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dsr_tasks_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dsr_tasks_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "dsr_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ethics_allegation_categories: {
         Row: {
           display_name: string
@@ -5920,6 +6073,65 @@ export type Database = {
             columns: ["hospital_id"]
             isOneToOne: false
             referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hospital_dpos: {
+        Row: {
+          appointed_at: string
+          appointed_by: string | null
+          hospital_id: string
+          id: string
+          revoked_at: string | null
+          revoked_by: string | null
+          user_id: string
+        }
+        Insert: {
+          appointed_at?: string
+          appointed_by?: string | null
+          hospital_id: string
+          id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          user_id: string
+        }
+        Update: {
+          appointed_at?: string
+          appointed_by?: string | null
+          hospital_id?: string
+          id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hospital_dpos_appointed_by_fkey"
+            columns: ["appointed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_dpos_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_dpos_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_dpos_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -10563,6 +10775,10 @@ export type Database = {
         Args: { p_commission_id: string; p_user_id: string }
         Returns: undefined
       }
+      appoint_hospital_dpo: {
+        Args: { p_hospital_id: string; p_user_id: string }
+        Returns: undefined
+      }
       appoint_technical_director: {
         Args: { p_hospital: string; p_user: string }
         Returns: undefined
@@ -11283,6 +11499,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      close_dsr_request: {
+        Args: {
+          p_legal_consultation_ref?: string
+          p_outcome: string
+          p_outcome_basis?: string
+          p_request_id: string
+        }
+        Returns: undefined
+      }
       commission_cadence_overview: {
         Args: never
         Returns: {
@@ -11382,6 +11607,10 @@ export type Database = {
           p_verified: boolean
         }
         Returns: Json
+      }
+      complete_dsr_task: {
+        Args: { p_note?: string; p_task_id: string }
+        Returns: undefined
       }
       complete_ethics_hearing: {
         Args: {
@@ -11943,6 +12172,16 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      create_dsr_request: {
+        Args: {
+          p_due_days?: number
+          p_encounter?: string
+          p_file_ref: string
+          p_hospital_id: string
+          p_mrn: string
+        }
+        Returns: string
       }
       create_ethics_allegation_category: {
         Args: { p_display_name: string; p_key: string; p_org: string }
@@ -13121,6 +13360,11 @@ export type Database = {
         }[]
       }
       list_my_cases: { Args: { p_commission: string }; Returns: Json }
+      list_my_dsr_hospitals: { Args: never; Returns: Json }
+      list_my_executable_dsr_tasks: {
+        Args: { p_hospital_id: string }
+        Returns: Json
+      }
       list_my_nsp_hospitals: { Args: never; Returns: Json }
       list_my_referral_assignments: { Args: never; Returns: Json }
       list_org_eligible_users: { Args: { p_org_id: string }; Returns: Json }
@@ -14338,6 +14582,10 @@ export type Database = {
       }
       revoke_hospital_admin: {
         Args: { p_hospital: string; p_user: string }
+        Returns: undefined
+      }
+      revoke_hospital_dpo: {
+        Args: { p_hospital_id: string; p_user_id: string }
         Returns: undefined
       }
       revoke_member_capability: {
