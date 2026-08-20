@@ -68,10 +68,23 @@ export const DSR_MESSAGES = {
  * ⭐ THE RESIDUE LANGUAGE (ADR 0130 Decision 9 / Q12a) — fixed, decided once,
  * NEVER improvised per request by an operator.
  *
- * Slice 4 owns rewriting the referral dispose dialog with it and closing
- * `FUP-DISPOSE-DIALOG-OVERCLAIM` (the shipped "apaga permanentemente … todos os
- * campos" over-claim). It is written HERE, in Slice 2, so this surface never
- * ships the over-claim in the first place — the plan's explicit instruction.
+ * ⛔ A RULE, NOT A ROSTER: every surface that confirms a disposal — and the outcome
+ * record handed to the subject — renders THESE lines verbatim; none writes,
+ * paraphrases or extends residue copy of its own, so the platform makes one claim,
+ * from one file, wherever it is made. A new dispose surface inherits that obligation.
+ * Read this symbol's references for the current callers; a list kept here would go
+ * stale the first time one is added.
+ *
+ * The rule is retrospective: a dispose dialog once promised a permanent wipe of every
+ * sensitive field while saying nothing about retained encrypted attachments, the PITR
+ * window, or already-distributed copies — the over-claim ADR 0056's narrowed closure
+ * forbids. DSR Slice 4 moved that dialog onto this constant and closed
+ * `FUP-DISPOSE-DIALOG-OVERCLAIM`.
+ *
+ * ⚠ That pt-BR wording is deliberately NOT quoted anywhere in `src/`, this docblock
+ * included: the offending copy is checked for by grep, so prose warning the next
+ * reader off the strings is indistinguishable from the strings themselves. Describe
+ * the over-claim in English; never reproduce it.
  *
  * ⚠ Every line is a NARROWED claim, checked against ADR 0056's narrowed closure:
  * what leaves is the database PHI of the named record, and nothing else does.
@@ -81,6 +94,48 @@ export const DSR_RESIDUE_NOTICE = [
   'Anexos e arquivos permanecem retidos e cifrados sob o regime de 20 anos; a exclusão de bytes verificada na nuvem é comprovada apenas em nível de metadados.',
   'A janela de recuperação do banco (PITR) ainda contém o conteúdo apagado por alguns dias.',
   'Cópias já impressas ou distribuídas estão fora do alcance da plataforma.',
+] as const
+
+/**
+ * ⭐ WHAT A MEETING DISPOSAL DELIBERATELY RETAINS (ADR 0056 Amendment 1) — the
+ * meeting lane's companion to {@link DSR_RESIDUE_NOTICE}, rendered BESIDE it on the
+ * meeting-dispose surfaces, never instead of it.
+ *
+ * ⛔ IT IS A SEPARATE CONSTANT AND MUST STAY ONE. `DSR_RESIDUE_NOTICE` is shared by the
+ * referral and case lanes, whose doors have different reaches; a fifth line about meeting
+ * titles or signature notes would be FALSE on those surfaces. Per-lane retention belongs
+ * in a per-lane constant.
+ *
+ * WHY IT EXISTS AT ALL. The rule the widening was built on is that a PHI-capable column
+ * may not be left both unredacted AND unnamed — the forbidden state is the one where
+ * neither the redaction nor the disclosure is true. ADR 0056 Amendment 1 widened
+ * `dispose_meeting_minutes` to ten further columns; PO ruled the four below stay, so they
+ * are named here. Each line corresponds to a column the door was measured NOT to touch.
+ *
+ * ⚠ THE TITLE DOES HAVE A REMEDY, AND AN EARLIER VERSION OF THIS COMMENT SAID IT DID NOT.
+ * That claim was false. It read `update_meeting`'s gate (`scheduled`/`held` only), saw that
+ * disposal targets locked meetings, and concluded nothing could reach it — without checking
+ * whether another door moves the meeting INTO that state. `reopen_meeting` sets
+ * `status = 'held'`. The corridor is the one {@link DSR_ATTEST_PROCEDURE_COMMON} already
+ * documents: reopen → edit → re-sign. A gate says what it refuses; only the transition
+ * graph says what is reachable.
+ *
+ * ⚠ These lines still state the retention as a fact rather than promising a fix, because
+ * the corridor is expensive and is not universal: reopening revokes every signature and
+ * bumps `meetings.revision`, which invalidates registered prints (ADR 0126 D9); it is
+ * refused for `distributed` and `cancelled` meetings (`app.guard_meeting_status` has no
+ * transition arm leaving either state); and it requires `staff_admin`, while disposal also
+ * admits a tenancy admin — so the operator reading this may not be able to walk it.
+ *
+ * ⚠ Keep each line tied to a column, so that a future widening of the door deletes the
+ * line it makes false. A retention disclosure that outlives the retention is the same
+ * defect as the over-claim, pointing the other way.
+ */
+export const DSR_MEETING_RESIDUE_RETAINED = [
+  'O título da reunião é preservado como identificação do registro e não é apagado pelo descarte.',
+  'As observações registradas nas assinaturas da ata são preservadas como evidência da validade da assinatura.',
+  'O resumo e a decisão de cada caso discutido nesta reunião pertencem ao descarte do próprio caso e não são apagados aqui.',
+  'A gravação de áudio da reunião, se houver, permanece retida e cifrada sob o regime de 20 anos; a transcrição armazenada no banco é apagada.',
 ] as const
 
 /**

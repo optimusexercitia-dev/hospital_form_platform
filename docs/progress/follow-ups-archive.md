@@ -2231,3 +2231,97 @@ subject-erasure is API-only. **Decision owner: PO** —
 tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that makes this
 non-negotiable: migration `20260917000400` restored this door's tenancy-admin arm specifically to
 un-strand this same obligation after QO·B cut it — the platform has already ruled once.
+
+## Rotated from PROGRESS.md 2026-08-20 — the DSR Slice 4 close-out (2 items)
+
+Both index lines left PROGRESS.md in the same edit that closed them. Full bodies remain in
+[follow-ups.md](./follow-ups.md) under their `⬛` headings until the next bulk rotation.
+
+**The two index lines as they stood in PROGRESS.md, verbatim** (links repointed for this directory):
+
+> - 🟠 **FUP-DISPOSE-DIALOG-OVERCLAIM** — the shipped referral-dispose copy is ADR 0056 (b)'s forbidden "tudo apagado" over-claim (*"apaga permanentemente … todos os campos"*, no retained-bytes mention). ⭕ *Narrowed 2026-08-19: counsel's return keeps the Art. 18 lane live, so the reason option is valid — the over-claim is the whole defect.* Fix = the shared residue-language constant, [DSR plan](../plans/dsr-workflow-plan.md) Slice 4 — frontend
+> - 🟠 **FUP-NOTIFICATIONS-PHI-RESIDUE** — `notifications.title/body` copy entity text at write time and **no dispose door touches the table**: a granted disposal leaves pre-redaction PHI in every notification the entity emitted. Fix = scrub-by-(entity_type,entity_id) in all four doors + pgTAP pins w/ vacuity control, DSR plan Slice 4 — backend
+
+Closure records:
+
+- [x] **✅ CLOSED 2026-08-20 — FUP-DISPOSE-DIALOG-OVERCLAIM** (DSR plan Slice 4 item 3).
+  `referral-dispose-dialog.tsx` now renders the shared `DSR_RESIDUE_NOTICE` verbatim and both
+  over-claiming strings are **replaced, not supplemented** — verified independently of the
+  implementer's report (`grep` for *permanentemente* / *todos os campos* / *Não é possível
+  desfazer* exits 1); eight lint gates + tsc green. ⚠ Carry forward: **the verification
+  instrument for this item was a grep, so the fix could have defeated its own check** — a first
+  draft quoted the removed pt-BR strings in a docblock as "do not reintroduce", which would have
+  made that grep hit forever on a comment rather than on live copy. *Nothing in that file,
+  comments included, may ever contain those strings.* Left deliberately and flagged: the
+  confirm-field helper ("exclusão **definitiva**") and the destructive button ("Apagar
+  **definitivamente**") assert *finality*, not the *completeness* ADR 0056 (b) forbids.
+- [x] **✅ CLOSED 2026-08-20 as PREMISE-FALSIFIED — FUP-NOTIFICATIONS-PHI-RESIDUE.** The residue
+  class it named **does not exist**. `notifications.entity_type`'s CHECK admits eight values and
+  **`case`, `referral` and `event` are not among them**, so the prescribed
+  scrub-by-`(entity_type,entity_id)` matches **zero rows by construction** for three of the four
+  doors — the pgTAP pin it asked for would have been vacuous *by CHECK constraint*, unfalsifiable
+  by any code. Established by **constructing the state** (both inserts refused; a `meeting` insert
+  as positive control). Its own cited evidence was false: **no notification writer reads
+  `cases.label`** — one writer, sixteen callers, none touches it — and the writer set is *bounded*
+  (SELECT/UPDATE policies only; **no INSERT GRANTED to `authenticated` at any grain**, table or column), not merely
+  enumerated. ⛔ **Corrected (QA r1):** this first said *"`authenticated` holds `r` alone"* — false;
+  `pg_attribute.attacl` carries a **column** grant `read_at = authenticated=w` invisible in
+  `pg_class.relacl`. Conclusion holds (scoped to `read_at`; `title`/`body` unwritable), reason did
+  not — ⭐ **`attacl` belongs beside `relacl`.** Nor is
+  any notification text source erased by any door. Full census: ADR
+  [0130](../decisions/0130-dsr-subject-request-workflow.md) **Amendment 4**; Decision 9's
+  scrubbing clause is **withdrawn** while its residue-language clause stands.
+  ⭐ *Why it read as obviously right for a day:* the design was inferred from **column names** —
+  `entity_type`/`entity_id` look exactly like a polymorphic handle to the disposed entity — and
+  was internally coherent throughout; only the **writers** say what the key points at, and
+  `compute_due_ethics_notifications` stores a `cases.id` under `entity_type='ethics_notification'`.
+  Successor, filed not folded in: **`FUP-DOOR-ERASURE-FREETEXT-CENSUS`**.
+
+## Rotated from PROGRESS.md 2026-08-20 — DSR Slice 4 item 4 (the meeting-door widening)
+
+**The index line as it stood in PROGRESS.md, verbatim** (links repointed for this directory):
+
+> - 🟠 **FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT** — meeting PHI disposal redacts **three of `meeting_agenda_items`' four** text columns (`title` survives) and touches none of `meeting_attendees.{note,external_name}` or `meeting_closed_sessions.label`. ADR 0056 §2 **declares** that scope, so this is an **over-claim in the language**, not a regression — but "the meeting's PHI is erased" is false while an agenda item can be titled with a patient's name. Fix vehicle: DSR plan **Slice 4** (residue + copy honesty) — either redact them or name them as retained; the one unacceptable state is the current one — backend
+
+Closure record:
+
+- [x] **✅ CLOSED 2026-08-20 — FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT.** The door was **widened**
+  (PO-ruled) rather than the copy hedged, so `DSR_RESIDUE_NOTICE` line 1 is true as written.
+  ⛔ **Slice 4's copy half had shipped straight into the state this item forbade** — the notice went
+  live claiming the record's DB patient data was erased while none of these columns were named as
+  retained; QA r1 blocked on it. *An open follow-up naming your slice as its vehicle is scope you
+  already own.* ⭐ The census returned **10 columns, not the 4 this item listed**, and each addition
+  was missed by a boundary that looked principled: `meeting_closed_session_items.{substance,decision,
+  withdrawals}` is **depth-2** (a direct-children census cannot see it); `meeting_minutes_jobs.
+  {transcript,draft,result}` — **`draft`/`result` are `jsonb`**, and the first census filtered on
+  `text/varchar/citext`, so ***free text is not a type***; `meeting_attendees.external_org` sat beside
+  the `external_name` already listed. ⛔ **The finding that outranks the item:** only 3 of
+  `audio_job_status`' 6 values purged the transcript, so a job resting in **`done`** — the normal
+  state, awaiting review — kept the **verbatim transcript of the whole meeting** indefinitely,
+  falsifying ADR 0056 **§4's central claim**, not merely the residue copy. Now nulled unconditionally
+  and set-based (no UNIQUE on `meeting_id`, so never `limit 1`). `meetings.title` is **kept and
+  therefore disclosed** (`DSR_MEETING_RESIDUE_RETAINED`). Two findings no column list could show: a
+  blanket `external_name` redaction violates `meeting_attendees_identity_xor` and **aborts the entire
+  disposal** (a legal obligation failing closed), and the first census was measured **mid-`db reset`**,
+  returning an **empty trigger census when there are 17** — which reads as *"no guards, safe to
+  widen."* Coverage: pgTAP `351`, **33** assertions (its declared `plan()`) on a **locked** meeting (a `scheduled` fixture fires
+  neither guard and would pass while the door is broken for every real disposal), **17/17
+  neutralization probes RED** incl. the over-grant twin; ⚠ **one pin was found vacuous by its own
+  author** — it asserted what the CHECK guarantees structurally and was green while the door was
+  completely broken. ⛔ `ARM=census`/`ARM=wrapper` are exit 0 and **vacuous here** (neither changed
+  function is in any arm's domain); ADR 0079 Amdt 1's syntax-filtered case list is **empty** and it was
+  swept by the property instead. Records: ADR 0056 **Amdt 1**, ADR 0129 **Amdt 1** (`app.in_disposal_rpc`
+  now has **two readers, still one setter**). ⛔ **No successor filed:** the reported gap *"a PHI-bearing
+  title on a locked meeting has no product remedy"* was written into two records and is **false as
+  stated absolutely** — `reopen_meeting` sets `public.meetings → 'held'`, which **is** in
+  `update_meeting`'s allowed set, so the revoke corridor is the remedy (at the cost of a revision bump
+  invalidating registered prints, ADR 0126 D9). ⭐ *A gate tells you what it refuses; only the
+  transition graph tells you what is reachable.* ⚠ **The lead's correction was itself too absolute and
+  was narrowed on re-measurement:** `reopen_meeting` accepts only `in_signature`/`signed`, while the
+  child lock also covers **`distributed` and `cancelled`** — and `app.guard_meeting_status` has **no
+  transition arm** for either (arms are `scheduled`/`held`/`in_signature`/`signed`), so for those two
+  terminal states the title genuinely cannot be changed by any door; and `reopen_meeting` gates on
+  `is_staff_admin_of` alone while the disposal door also allows `is_tenancy_admin_of`, so the operator
+  holding the erasure duty may be unable to walk the corridor. ⭐ *Correcting a claim's **direction**
+  without re-deriving its **magnitude** produces a second wrong claim that reads as a fix* — which is
+  why the retention copy deliberately offers no remedy guidance.

@@ -245,6 +245,88 @@ precedent), Rule 12.
 > from the catalog *before* writing the grant line. "Every new function needs an explicit
 > grant" is a rule about NEW functions.
 
+> ## ✅ AMENDMENT 4 (2026-08-20) — Decision 9's notification-scrubbing premise is FALSIFIED; the residue class it names does not exist
+>
+> Slice 4 opened by measuring what Decision 9 (Q12a) assumed. **The assumption is wrong in
+> three independent ways and the scrub it mandates is not constructible.** Recorded here
+> rather than dropped quietly from the plan, because Decision 9 is the sentence a future
+> session would rebuild from.
+>
+> 1. ⭐ **Three of the four doors' subjects cannot be NAMED in `notifications`.**
+>    `notifications.entity_type` is CHECK-constrained to eight values — `capa_action`,
+>    `response_section_signoff`, `meeting`, `action_item`, `ethics_notification`,
+>    `commission`, `controlled_document`, `controlled_document_version`. **`case`,
+>    `referral` and `event` are not among them.** Decision 9's predicate (`by
+>    entity_type, entity_id`) therefore matches **zero rows by construction** for
+>    `dispose_case_phi`, `dispose_referral_phi` and `dispose_event_phi` — and a pgTAP pin
+>    on a scrub whose population is empty **by CHECK constraint** is vacuous in the
+>    strongest available sense: it cannot fail, for any code, ever.
+>    ⚠ Verified by **constructing the state**, not by reading the constraint: inserts of
+>    `entity_type='case'` and `='referral'` were each **refused**, with a `'meeting'`
+>    insert as the positive control proving the probe itself could succeed.
+>
+> 2. **The cited evidence is false.** `FUP-NOTIFICATIONS-PHI-RESIDUE` argued that ADR 0056
+>    "redacts `cases.label` *because* it is PHI-warned — but every notification that label
+>    ever generated keeps the pre-redaction text." Measured against the catalog:
+>    **no notification writer ever reads `cases.label`.** There is exactly one writer
+>    (`app.enqueue_notification`, the sole `insert into notifications` in the catalog) and
+>    sixteen callers; not one reads a case label. The residue described has never existed.
+>    ⚠ The writer set is **bounded, not merely enumerated**: `notifications` carries
+>    SELECT/UPDATE policies only, and **no INSERT privilege is granted to
+>    `authenticated` at any grain** — table, column, or via role inheritance — so no
+>    caller can insert except through that DEFINER. ⚠ "granted", not "grantable": the
+>    owner may grant it at any time, and the measured fact is the weaker, true one about
+>    the privileges that exist now.
+>    There is no TS-layer insert.
+>    ⛔ **CORRECTION (QA r1) — this sentence first read "grants `authenticated` `r` alone",
+>    and that was FALSE.** The *table* ACL is `authenticated=r`, but a **column-level**
+>    grant sits beside it that `pg_class.relacl` does not show:
+>    `pg_attribute.attacl` carries `read_at = authenticated=w`, which is how the INVOKER
+>    `mark_notification_read` works. `authenticated` **can** UPDATE this table. The
+>    conclusion is unchanged — the write privilege is scoped to `read_at`, and `title`/`body`
+>    remain unwritable (constructed and rolled back: title UPDATE **denied**, `read_at`
+>    UPDATE **allowed**) — but the *stated reason* was wrong in a security record.
+>    ⭐ **The generalisable part: a table ACL is not the privilege census.** `relacl` and
+>    `attacl` are different catalogs, and a column grant is invisible in the one everybody
+>    reads. This is the same blindness that has bitten this project before, and it appeared
+>    here in the very sentence claiming the enumeration was *bounded*. **`attacl` belongs
+>    beside `relacl`, exactly as `prosecdef` belongs beside `pg_policies`.**
+>
+> 3. ⛔ **NOT ONE notification text source is erased by any dispose door.** The full
+>    title/body source census: `capa_action.title` · `meetings.title` ·
+>    `action_items.title` · a form-section title · `controlled_documents.title`/`.code` ·
+>    the commission name (commented PHI-free by Rule 12) · and the ethics body, which is
+>    `ethics_notifications.notification_type` — a **CHECK-constrained enum of eight
+>    values**, PHI-free by construction. Cross-referenced against all four door bodies:
+>    **zero overlap.** So even for `meeting` — the one representable subject — a scrub
+>    would erase copy whose source the door **deliberately leaves intact**:
+>    `dispose_meeting_minutes` nulls `minutes_md` and redacts agenda items, and never
+>    touches `meetings.title`.
+>
+> ⭐ **The generalisable part, and why it is a different error from Amendment 3's.**
+> Decision 9 called this residue class "cheap and mechanical". It was neither — it was
+> **absent**, and every word of the design was internally coherent. The premise was written
+> from the *column names* (`entity_type`, `entity_id`, `title`, `body`), which read exactly
+> like a polymorphic handle to the disposed entity. Only the **writers** say what the key
+> points at, and one of them — `compute_due_ethics_notifications` — stores a **`cases.id`
+> under `entity_type = 'ethics_notification'`**, which is neither the entity the column
+> name suggests nor a type the domain admits for cases. *A predicate read off a column name
+> is a guess wearing a schema's authority.*
+>
+> **Decision 9 is amended:** the notification-scrubbing clause is **WITHDRAWN**. The
+> fixed residue-language clause **stands unchanged** and has shipped as
+> `DSR_RESIDUE_NOTICE`. `FUP-NOTIFICATIONS-PHI-RESIDUE` closes as premise-falsified.
+>
+> ⚠ **What the measurement DID surface, filed rather than folded in silently**
+> (`FUP-DOOR-ERASURE-FREETEXT-CENSUS`): `capa_plan.source_event_id` references
+> `patient_safety_event` directly, and `dispose_event_phi` erases the **grandchild**
+> `capa_action_task.description` while leaving the **child** `capa_action.title`
+> (`text not null`, operator free text) intact. The real question was never the
+> notification copy — it is whether each door erases every free-text column on its own
+> lane. That is a column census **of the doors**, not of `notifications`, and it is the
+> method this program has twice credited: reading a door tells you what it redacts; only
+> reading the tables tells you what it does not.
+
 ## Context
 
 The platform has four patient-PHI disposal doors and no *process* around them: no way to

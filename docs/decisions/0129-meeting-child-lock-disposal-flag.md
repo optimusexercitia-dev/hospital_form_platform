@@ -133,3 +133,50 @@ and was blind anyway.
   doors were door-blind; this build closes one and files the other with its evidence. Neither is
   *vulnerable* — every gate is present and correct — but neither would have gone red if a
   refactor dropped it.
+
+## Amendment 1 — `app.in_disposal_rpc` now has TWO readers (still one setter)
+
+**2026-08-20 · PO-approved · migration `20261002000400` · pgTAP `351` t31/t32 ·
+driven by ADR [0056](./0056-phi-disposal-closure-narrowed-claim.md) Amendment 1.**
+
+> **The sentence this contradicts** is Decision 1, of `app.in_disposal_rpc`: "**read only**
+> by `app.guard_meeting_child_lock` … **No other guard reads it**; no other door sets it."
+> The second clause still holds. The first is now false.
+>
+> **Decision 1 is amended** to: set **only** by `public.dispose_meeting_minutes`, read by
+> `app.guard_meeting_child_lock` **and `app.guard_reserved_child_lock`**, each of which
+> stands aside iff the flag is `'on'`. **One setter, two readers.**
+>
+> **Why the widening was necessary rather than convenient.** ADR 0056 Amendment 1 widened
+> the erasure to `meeting_closed_session_items.{substance, decision, withdrawals}` — the
+> reserved-deliberation text, the most sensitive free text in the meeting aggregate. Those
+> rows are guarded by `app.guard_reserved_child_lock`, a *different* function that had **no
+> stand-aside branch at all**. On a locked meeting — precisely the population disposal
+> targets — the widened UPDATE raised `check_violation` and rolled the whole erasure back:
+> **the identical failure shape this ADR exists to fix, one table over.** The original
+> build fixed the guard it was looking at; the sibling guard, protecting a table two levels
+> down, was never in view.
+>
+> ⚠ **The invariant this ADR actually protects is unchanged.** It was never "exactly one
+> guard reads the flag" — it is *only the disposal door bypasses the child lock*, and that
+> is preserved exactly: the setter count is what bounds the bypass, and it is still one.
+> Decision 1's arithmetic was a description of the implementation, not the guarantee. It is
+> corrected here rather than left to rot, because a stale bound in the ADR that documented a
+> stale comment is the defect this ADR was written about.
+>
+> ⛔ **The rejected shape stays rejected.** This is NOT widened to `app.in_meeting_rpc`,
+> which 26 `public.*` doors set. `351` t32 pins that on the *second* guard exactly as `348`
+> t6 pins it on the first: a closed-session-item UPDATE with `app.in_meeting_rpc = on` is
+> still refused. Mutation-proven — flipping the new branch to read `app.in_meeting_rpc`
+> turns t32 red and nothing else.
+>
+> ⭐ **Both directions of the new branch were mutation-proven, because "disposal can now
+> write closed-session items" is the weak half.** That claim is satisfied just as well by
+> deleting the guard outright. Removing the stand-aside makes the door abort (`351` t8 red,
+> and every downstream pin with it); widening it to `in_meeting_rpc` reds t32 alone. The
+> pair is the over-grant twin — without it the stand-aside has no upper bound.
+>
+> **ADR 0126 §E** is unaffected in substance: each guard still reads exactly one flag,
+> settable only by the disposal door, so the currency-exposure argument for
+> agenda/attendee/closed-session content is undisturbed. The count of guards holding that
+> property changed; the property did not.

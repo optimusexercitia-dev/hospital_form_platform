@@ -2,6 +2,7 @@ import { CheckCircle2, CircleDashed, FileText, Scale, UserCheck } from "lucide-r
 
 import type { DsrOutcomeRecord } from "@/lib/queries/dsr";
 import {
+  DSR_MEETING_RESIDUE_RETAINED,
   DSR_OUTCOME_LABELS,
   DSR_STATUS_LABELS,
 } from "@/lib/dsr/messages";
@@ -223,6 +224,28 @@ export function DsrOutcomeRecord({ record }: { record: DsrOutcomeRecord }) {
             </li>
           ))}
         </ul>
+
+        {/* ⛔ MEETING LANE ONLY, AND CONDITIONAL IS THE POINT. This is the artifact
+            handed to the DATA SUBJECT, so a retention named here that never happened
+            is a false statement *to them* — the over-claim's mirror image. Gated on
+            the positive completion signal (`meetingMinutesDisposed`), rendered BESIDE
+            the shared notice and never merged into it: `record.residue` is the same
+            constant the referral and case lanes render, where a claim about meeting
+            titles or signature notes would be false. ADR 0056 Amdt 1. */}
+        {record.meetingMinutesDisposed ? (
+          <>
+            <h3 className="mt-2 text-sm font-semibold">
+              Nesta ata, também permanecem
+            </h3>
+            <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-muted-foreground">
+              {DSR_MEETING_RESIDUE_RETAINED.map((line) => (
+                <li key={line} className="text-pretty">
+                  {line}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
       </div>
     </section>
   );

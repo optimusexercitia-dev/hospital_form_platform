@@ -7,6 +7,7 @@ import { AlertTriangle, Trash2 } from "lucide-react";
 import { disposeMeetingMinutesTask } from "@/lib/dsr/actions";
 import {
   DSR_MEETING_DISPOSAL_WARNING,
+  DSR_MEETING_RESIDUE_RETAINED,
   DSR_MESSAGES,
   DSR_RESIDUE_NOTICE,
 } from "@/lib/dsr/messages";
@@ -45,11 +46,18 @@ const CONFIRM_PHRASE = "APAGAR";
  * committees' records.
  *
  * ⚠ COPY DISCIPLINE. This reuses the STRUCTURE of `referral-dispose-dialog.tsx`
- * (AlertDialog + type-to-confirm arming + destructive footer) and NONE of its copy:
- * that dialog's "apaga permanentemente … todos os campos" is a known over-claim
- * against ADR 0056's narrowed closure (`FUP-DISPOSE-DIALOG-OVERCLAIM`, Slice 4's to
- * fix). What ships here is the narrowed {@link DSR_RESIDUE_NOTICE} language, so this
- * surface never carries the over-claim in the first place.
+ * (AlertDialog + type-to-confirm arming + destructive footer) and none of its bespoke
+ * copy: what ships here is the narrowed {@link DSR_RESIDUE_NOTICE}, decided ONCE
+ * centrally (ADR 0130 Decision 9 / Q12a) and rendered verbatim. Slice 4 brought the
+ * referral dialog onto that same constant, closing `FUP-DISPOSE-DIALOG-OVERCLAIM`: its
+ * copy had promised a permanent wipe of every sensitive field while saying nothing
+ * about retained encrypted attachments, the PITR window, or already-distributed
+ * copies — the over-claim ADR 0056's narrowed closure forbids. Both surfaces now draw
+ * their language from one file.
+ *
+ * ⚠ The offending pt-BR strings are deliberately NOT quoted here: that follow-up is
+ * verified by a grep over `src/`, which prose about the over-claim would trip as
+ * readily as the over-claim itself. The prohibition is repo-wide, not file-local.
  *
  * ⛔ THE DSR NEVER FIRES A DOOR ON THE EXECUTOR'S BEHALF (ADR 0130 Decision 2).
  * `disposeMeetingMinutesTask` calls `dispose_meeting_minutes` under the CALLER'S OWN
@@ -144,6 +152,22 @@ export function DsrMeetingDisposeDialog({
             </h4>
             <ul className="flex list-disc flex-col gap-1 pl-5 text-xs text-muted-foreground">
               {DSR_RESIDUE_NOTICE.map((line) => (
+                <li key={line} className="text-pretty">
+                  {line}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* ⛔ BESIDE the shared notice, never merged into it (ADR 0056 Amdt 1).
+              `DSR_RESIDUE_NOTICE` is rendered by the referral and case lanes too,
+              where a claim about meeting titles or signature notes would be FALSE. */}
+          <div className="flex flex-col gap-1.5">
+            <h4 className="text-xs font-semibold tracking-wide uppercase">
+              Nesta ata, também permanecem
+            </h4>
+            <ul className="flex list-disc flex-col gap-1 pl-5 text-xs text-muted-foreground">
+              {DSR_MEETING_RESIDUE_RETAINED.map((line) => (
                 <li key={line} className="text-pretty">
                   {line}
                 </li>

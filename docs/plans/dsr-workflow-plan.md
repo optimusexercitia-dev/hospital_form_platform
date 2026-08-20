@@ -1,7 +1,8 @@
 # DSR ("Direitos do Titular") — implementation plan
 
-**Status: IN PROGRESS — Slices 1, 2 and 3 SHIPPED (2026-08-19 / 2026-08-20 / 2026-08-20);
-Slice 4 not started.** ADR 0130 moved **Proposed → Accepted 2026-08-20** on PO instruction, which
+**Status: Slices 1–3 SHIPPED (2026-08-19 / 2026-08-20 ×2). Slice 4 IN PROGRESS — copy half
+built, QA r1 CHANGES REQUESTED; its item 1 WITHDRAWN as premise-falsified (ADR 0130 Amdt 4),
+and it is blocked on widening `dispose_meeting_minutes` (PO-ruled).** ADR 0130 moved **Proposed → Accepted 2026-08-20** on PO instruction, which
 lifted the original "nothing may be built" hold. Design ratified by the PO in a structured
 sixteen-decision session on 2026-08-19; the binding decisions live in ADR
 [0130](../decisions/0130-dsr-subject-request-workflow.md) (workflow) and ADR
@@ -24,10 +25,15 @@ disagrees with the live catalog, **the catalog wins** (CLAUDE.md graphify except
    `refused_identity` / `withdrawn`** — exactly as 0130 Amdt 1 item 3 drafted it, and it is
    **BUILT** (the `dsr_requests_legal_consultation` CHECK + the door's pt-BR refusal, 349 t29/t31).
 4. Read `docs/progress/authz-handoff.md §7` before any RLS/gate work (standing ⭐ rule).
-5. **Start at Slice 4** — Slices 1, 2 and 3 are shipped. ⛔ Read ADR 0130 **Amendment 3**
-   first: six shape changes measurement forced on Slice 3, plus two live defects found in
-   passing and one ACL over-grant an existing pin caught. Slice 4 is residue + copy honesty
-   (notification scrubbing in the four dispose doors); it is independent of Slice 3.
+5. **Slices 1–3 shipped; Slice 4 is IN PROGRESS (QA r1 CHANGES REQUESTED).** ⛔ Read ADR 0130
+   **Amendments 3 and 4** before extending any of this. Amdt 3: six shape changes measurement forced on
+   Slice 3, two live defects found in passing, one ACL over-grant an existing pin caught.
+   Amdt 4: Slice 4's notification-scrubbing item was **withdrawn as premise-falsified** —
+   ⚠ note *what* was wrong, because the same reading error is cheap to repeat: the design
+   was inferred from **column names** (`entity_type`/`entity_id` read as a polymorphic
+   handle to the disposed entity) rather than from the **writers**, and it was internally
+   coherent the whole time. The successor question is `FUP-DOOR-ERASURE-FREETEXT-CENSUS`,
+   which is about the doors, not about `notifications`.
 
 ---
 
@@ -44,7 +50,7 @@ migration text:
 | `app.is_tenancy_admin_of_for` | admits `org_admin` (org) and `hospital_admin` (hospital) | hospital_admin already passes 3 of 4 doors; cases are the deliberate exception |
 | `app.guard_meeting_child_lock` | reads **no** GUC; raises on `in_signature/signed/distributed/cancelled`; installed on 4 child tables | The 0129 subject. Its raise set does **not** include `revoked` |
 | `reopen_meeting` | sets `status = 'revoked'` | The surgical-redaction corridor (Q10a): revoke → edit → re-sign; revision bump invalidates prints (ADR 0126) |
-| `notifications` | has `title`, `body` (entity-derived text); **no dispose door touches the table** | The Q12a residue class the doors will scrub |
+| `notifications` | has `title`, `body` (entity-derived text); **no dispose door touches the table** | ⛔ **NOT a residue class — premise falsified in S4** (ADR 0130 Amdt 4). `entity_type`'s CHECK admits neither `case`, `referral` nor `event`, and no notification text source is erased by any door |
 | Dispose UI census | Only referrals have a component (`referral-dispose-dialog.tsx`); case/event actions exist with **no** caller; meetings have **no action and no UI** | S2/S3 build the single inbox instead of 4 module UIs |
 | Feature flags | `app.feature_flags(key, enabled, description)`; one key per module | New key: `dsr` |
 | Route precedent | `/o/[org]/nsp` (hospital-scoped internally, has `pacientes/` search UI), `/o/[org]/qualidade` | Mount: `/o/[org]/titulares` |
@@ -230,20 +236,71 @@ verdict for this class.
    copy behind a constant regardless — the next counsel refinement is then a one-file
    change.
 
-### Slice 4 — residue + copy honesty (Q12a; independent of S3, after S2).
+### Slice 4 — residue + copy honesty (Q12a; independent of S3, after S2). 🔨 IN PROGRESS — QA r1 CHANGES REQUESTED.
 
-1. Extend all four dispose doors: scrub `notifications.title/body` for the disposed
-   entity (`entity_type`,`entity_id`) — one pgTAP pin each (insert a notification for
-   the fixture entity, dispose, assert redacted; plus the vacuity control: a sibling
-   entity's notification survives).
-2. **Fixed residue language** (pt-BR), one shared constant, rendered in the outcome
-   record and all disposal confirmations: DB PHI erased; attachment bytes retained
-   encrypted under the 20-yr regime (ADR 0056 §4); Cloud byte-deletion verified at
-   metadata level only; PITR window retains erased content ~N days; distributed/printed
-   copies out of reach. Decided once here — operators never improvise it.
-3. Rewrite `referral-dispose-dialog.tsx` copy with it — closes
+⛔ **Item 4 (added at QA r1, PO-ruled, BLOCKING).** `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`
+already required *either* the untouched free text join the redaction set *or* the residue
+language name it as retained, and named **this slice** as the vehicle. Items 2–3 shipped the
+language **without** naming it — so the slice's first act was to enter the one state that
+follow-up forbids, while `DSR_RESIDUE_NOTICE` line 1 tells the data subject their database
+patient data was erased. Confirmed: `dispose_meeting_minutes` redacts 3 of
+`meeting_agenda_items`' 4 text columns (**`title` survives**) and none of
+`meeting_attendees.{note,external_name}` or `meeting_closed_sessions.label`.
+**PO ruled: widen the door** — migration + one pgTAP pin per column with its vacuity control +
+an ADR 0056 §2 amendment, since §2 *declares* the narrow scope. Making the claim **true** beats
+hedging it: the notice is shared by all four doors, so a meeting-specific retention line would
+be wrong on the referral dialog.
+⭐ *The lesson is not the columns — it is that this slice closed an over-claim follow-up while
+shipping the constant that carried another one.* An open follow-up naming your slice as its
+vehicle is scope you already own, not adjacent work.
+
+1. ⛔ **WITHDRAWN — the premise was false.** This item read: *"Extend all four dispose
+   doors: scrub `notifications.title/body` for the disposed entity
+   (`entity_type`,`entity_id`) — one pgTAP pin each … plus the vacuity control."*
+   Measured against the live catalog before building (**ADR 0130 Amendment 4**, which
+   carries the full census): `notifications.entity_type` is CHECK-constrained to eight
+   values, and **`case`, `referral` and `event` are not among them** — so the predicate
+   matches **zero rows by construction** for three of the four doors, and each "pin"
+   would have been vacuous by CHECK constraint. Verified by constructing the state
+   (both inserts refused; a `meeting` insert as positive control). Separately, **no
+   notification title/body source column is erased by any door**, so even the one
+   representable subject (`meeting`) would have had copy scrubbed whose source
+   `dispose_meeting_minutes` deliberately keeps (`meetings.title`).
+   `FUP-NOTIFICATIONS-PHI-RESIDUE` closed as premise-falsified; the real question it was
+   standing in front of is filed as `FUP-DOOR-ERASURE-FREETEXT-CENSUS`.
+2. **Fixed residue language** (pt-BR), one shared constant — ✅ shipped in Slice 2 as
+   `DSR_RESIDUE_NOTICE` (`src/lib/dsr/messages.ts`): DB PHI erased; attachment bytes
+   retained encrypted under the 20-yr regime (ADR 0056 §4); Cloud byte-deletion verified
+   at metadata level only; PITR window retains erased content ~N days;
+   distributed/printed copies out of reach. Decided once — operators never improvise it.
+   ⚠ *"All disposal confirmations"* is **two confirmation dialogs, not four**, so item 2
+   collapses into item 3.
+   ⛔ **CORRECTED (QA r1).** This first justified that with *"`disposeCasePhi`/`disposeEventPhi`
+   have no UI caller at all — re-measured in S4"*, and the re-measurement was **wrong because
+   its scope was wrong**: it grepped `src/components/` and `src/app/` only. Both actions ARE
+   called, from `src/lib/dsr/actions.ts:102,105`, reached through the DSR task inbox — which
+   Slice 2/3 built, so the plan's own earlier census went stale the moment the inbox shipped.
+   The conclusion survives **by a better route**: those two lanes confirm inside the task
+   inbox, which renders `DSR_RESIDUE_NOTICE` at the confirmation point. ⭐ *A re-measurement
+   is only as good as its boundary; "I re-measured" is not a fact about coverage.*
+   ⛔ Do **not** read that as the constant's reach: `DSR_RESIDUE_NOTICE` has **four**
+   consumers — the two dispose dialogs, the task-inbox disclosure, and
+   `queries/dsr.ts` passing it into the outcome record handed to the subject. *Two* counts
+   confirmation dialogs; *four* counts render sites, and conflating them understates who
+   depends on this wording. Enumerate from the symbol's references, never from a
+   hand-kept roster — a roster is falsified by the next surface that renders it.
+3. ✅ Rewrote `referral-dispose-dialog.tsx` with it — closes
    `FUP-DISPOSE-DIALOG-OVERCLAIM` (the shipped "apaga permanentemente … todos os campos"
-   over-claim vs ADR 0056's narrowed claim).
+   over-claim vs ADR 0056's narrowed claim). Both over-claiming strings replaced (not
+   supplemented), `DSR_RESIDUE_NOTICE` rendered verbatim, and a `subject_request`-only
+   note that such a disposal presupposes an adjudicated DSR (ADR 0130).
+   ⚠ **The verification instrument for this follow-up is a grep**, so no prose in that
+   file — comments included — may ever quote the removed strings, or it hits forever on
+   a comment rather than on live copy. A first draft did exactly that and was corrected.
+   ⚠ Left deliberately, flagged not fixed: the confirm-field helper ("exclusão
+   **definitiva**") and the destructive button ("Apagar **definitivamente**") assert
+   *finality*, not the *completeness* ADR 0056 (b) forbids; `DSR_RESIDUE_NOTICE` now
+   qualifies them two blocks above, and relabelling the button re-scopes E2E locators.
 
 ## 3 · Explicitly out of scope
 

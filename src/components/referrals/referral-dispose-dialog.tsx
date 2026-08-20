@@ -6,6 +6,7 @@ import { Trash2 } from "lucide-react";
 
 import type { PhiDisposeReason } from "@/lib/safety/types";
 import { disposeReferralPhi } from "@/lib/referrals/actions";
+import { DSR_RESIDUE_NOTICE } from "@/lib/dsr/messages";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
@@ -52,12 +53,26 @@ const CONFIRM_PHRASE = "APAGAR";
  * is authoritative; this UI gate is defense-in-depth so an unentitled viewer never sees a
  * dangling control).
  *
- * The action PERMANENTLY deletes the isolated patient record and redacts every PHI
- * free-text field across the referral, its reply, and shared items — the governance
- * skeleton (code, status, provenance, audit chain) is preserved. It is IRREVERSIBLE,
+ * The action deletes the isolated patient record and redacts every PHI free-text
+ * field across the referral, its reply, and shared items — the governance skeleton
+ * (code, status, provenance, audit chain) is preserved. The platform offers no undo,
  * so the dialog requires (1) a constrained reason category and (2) typing a
- * confirmation phrase before the destructive button arms. Copy is unambiguous that
- * the erasure cannot be undone. Fully keyboard-operable; pt-BR throughout.
+ * confirmation phrase before the destructive button arms. Fully keyboard-operable;
+ * pt-BR throughout.
+ *
+ * ⛔ THE COPY IS NARROWED ON PURPOSE — do not "clarify" it back into a total-erasure
+ * promise. This dialog shipped exactly the over-claim ADR 0056 Consequence (b) forbids:
+ * it asserted a permanent wipe of every sensitive field while saying nothing about the
+ * retained encrypted attachments, the PITR window, or already-distributed copies.
+ * FUP-DISPOSE-DIALOG-OVERCLAIM closed it. What the mechanism actually leaves behind is
+ * stated by {@link DSR_RESIDUE_NOTICE}, decided ONCE centrally (ADR 0130 Decision 9 /
+ * Q12a) and rendered verbatim here — never paraphrased, never extended per-dialog. This
+ * is compliance copy an operator reads at the moment they discharge a legal obligation;
+ * it must not assert more than the door delivers.
+ *
+ * ⚠ The offending strings are deliberately NOT quoted above: the follow-up's verification
+ * is a grep for them over this file, and a comment reproducing them would make that
+ * detector hit forever.
  *
  * The PAGE decides whether to render this at all — it mounts the component only
  * when the authoritative `canDisposeReferralPhi` probe returns true (a PHI record
@@ -134,10 +149,10 @@ export function ReferralDisposeDialog({
         </h2>
       </div>
       <p className="text-sm text-muted-foreground text-pretty">
-        Remove permanentemente a identificação do paciente e todos os campos com
-        dados sensíveis deste encaminhamento (LGPD Art. 18). O histórico de
-        governança — código, situação e trilha de auditoria — é preservado. Esta
-        ação é irreversível.
+        Apaga do banco de dados a identificação do paciente e o conteúdo sensível
+        deste encaminhamento (LGPD Art. 18). O histórico de governança — código,
+        situação e trilha de auditoria — é preservado. A plataforma não oferece
+        desfazer; confira no diálogo o alcance do descarte antes de confirmar.
       </p>
 
       <AlertDialog open={open} onOpenChange={handleOpenChange}>
@@ -156,13 +171,27 @@ export function ReferralDisposeDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Apagar os dados do paciente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação apaga <strong>permanentemente</strong> a identificação do
-              paciente e todos os campos com dados sensíveis deste encaminhamento,
-              da resposta e dos itens compartilhados. Não é possível desfazer.
+              Esta ação apaga do banco de dados a identificação do paciente e o
+              conteúdo sensível deste encaminhamento, da resposta e dos itens
+              compartilhados. A plataforma não oferece desfazer.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <div className="flex flex-col gap-4">
+            {/* The narrowed residue language — verbatim, never improvised. */}
+            <div className="flex flex-col gap-1.5">
+              <h4 className="text-xs font-semibold tracking-wide uppercase">
+                O que o descarte apaga — e o que permanece
+              </h4>
+              <ul className="flex list-disc flex-col gap-1 pl-5 text-xs text-muted-foreground">
+                {DSR_RESIDUE_NOTICE.map((line) => (
+                  <li key={line} className="text-pretty">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
             <div className="flex flex-col gap-1.5">
               <label htmlFor={reasonId} className="text-sm font-medium">
                 Motivo da exclusão
@@ -174,6 +203,9 @@ export function ReferralDisposeDialog({
                   setReason(e.target.value as PhiDisposeReason | "")
                 }
                 disabled={isPending}
+                aria-describedby={
+                  reason === "subject_request" ? `${reasonId}-dsr` : undefined
+                }
               >
                 <option value="">Selecione o motivo…</option>
                 {REASON_ORDER.map((r) => (
@@ -182,6 +214,22 @@ export function ReferralDisposeDialog({
                   </option>
                 ))}
               </NativeSelect>
+              {/*
+                ADR 0130: a `subject_request` disposal is the EXECUTION of an
+                adjudicated DSR, never its origin — the decision is recorded first
+                and the task is minted from it. Shown only for that reason, because
+                it is false of the other four.
+              */}
+              {reason === "subject_request" ? (
+                <p
+                  id={`${reasonId}-dsr`}
+                  className="text-xs text-muted-foreground text-pretty"
+                >
+                  O descarte por solicitação do titular pressupõe uma solicitação
+                  já decidida (parecer registrado) no módulo de Direitos do
+                  Titular.
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-col gap-1.5">

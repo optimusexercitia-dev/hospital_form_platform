@@ -36,8 +36,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   (`FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`, ADR 0129 / DSR Slice 1; ⚠ its "blocks C1a/C1b"
   claim was **wrong in grain**). The other five are now **all carried in § Follow-ups** — ⛔ three
   of them had a body but **no index line**, and this bullet was their only live trace (see below).
-- **🆕 DSR ("Direitos do Titular") — designed 2026-08-19; ✅ Slices 1 AND 2 SHIPPED (19th / 20th);
-  Slices 3–4 NOT started.** Sixteen PO-ratified decisions in a structured
+- **🆕 DSR ("Direitos do Titular") — designed 2026-08-19; ✅ ALL FOUR SLICES SHIPPED (19th / 20th
+  ×3). The program is complete; there is no Slice 5.** Sixteen PO-ratified decisions in a structured
   design session: an **adjudicated DSR workflow** (refusal-with-basis first-class), a per-hospital
   **`dpo` capability**, one task inbox at `/o/[org]/titulares` (flag `dsr`), hash-only DSR record
   (Rule 12's "exactly three" survives), two-tier erasure claim, zero disposal-gate widenings, and
@@ -91,8 +91,34 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   **10 bugs found and closed inside the slice** (8 product, 2 spec) → [bug-log-archive.md](docs/progress/bug-log-archive.md);
   ⭐ **four were visible only by EXECUTING something** — no static gate saw them. Build detail, the ARM bound,
   the ACL over-grant and the harness proofs → [dsr-slice-3.md](docs/progress/dsr-slice-3.md).
-  **▶ Resume: [dsr-workflow-plan.md](docs/plans/dsr-workflow-plan.md) § Slice 4** (residue + copy honesty,
-  Q12a) — independent of S3. ⛔ **Not merged, not pushed.**
+  🔨 **Slice 4 IN PROGRESS — QA r1 CHANGES REQUESTED. Its item 1 was WITHDRAWN, not built.** Measuring the premise
+  before building falsified it: `notifications.entity_type`'s CHECK admits eight values and **`case`,
+  `referral`, `event` are not among them**, so the prescribed scrub matched **zero rows by
+  construction** for three of the four doors and its pgTAP pin would have been vacuous *by CHECK
+  constraint*. The item's own cited evidence was false — **no notification writer reads `cases.label`**
+  — and **no** notification text source is erased by **any** door. Established by constructing the
+  state (both inserts refused; `meeting` insert as positive control), not by reading the constraint.
+  Items 2+3 collapsed into one real change: `referral-dispose-dialog.tsx` now renders the shared
+  `DSR_RESIDUE_NOTICE` with both over-claims **replaced**. ⭐ *The design was inferred from column
+  names — `entity_type`/`entity_id` read as a polymorphic handle to the disposed entity — and was
+  internally coherent the whole time.* ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md)
+  **Amdt 4**; successor filed as `FUP-DOOR-ERASURE-FREETEXT-CENSUS`.
+  **▶ Resume: QA r2.** ✅ **B1 + B2 both discharged.** B1 (a false ACL claim in an Accepted ADR)
+  corrected in all three copies — ⭐ *`attacl` belongs beside `relacl`*: a **column** grant
+  (`read_at = authenticated=w`) is invisible in `pg_class.relacl`, and it slipped into the very
+  sentence claiming the enumeration was *bounded*. B2: the meeting door was **WIDENED** (PO-ruled) —
+  10 columns, not the 4 the follow-up listed, incl. depth-2 closed-session prose and **jsonb**
+  minutes text (*free text is not a type*). ⛔ **Biggest find of the slice:** a minutes job resting in
+  **`done`** kept the **verbatim meeting transcript** indefinitely — falsifying ADR 0056 **§4**, not
+  just the residue copy; now purged unconditionally. pgTAP `351` (lead-verified: 202 files / **6711**
+  / PASS), 17/17 probes RED on a **locked** fixture. ⛔ `ARM=census`/`wrapper` are green and
+  **vacuous here** — neither changed function is in *those two* arms' domains (the guards return
+  `trigger`, the door returns `void`); ⚠ **not "no arm"** — `ARM=floor` does contain
+  `dispose_meeting_minutes` (QA r2). Cite pgTAP **351**, never the arms.
+  ⚠ **No E2E reaches the changed dialog at all** (`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`), so the
+  15 mutation-proven component tests are the only executable proof — a jsdom render is not a browser.
+  ⛔ **Not merged, not pushed** (9 commits ahead of `origin/main`;
+  ⚠ the branch is still named `feat/dsr-slice-2-execution-corridor` and carries all four slices).
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -239,6 +265,50 @@ seed/CLI-driven bootstrap that mints the first admin idempotently. **Blocks noth
 E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is invisible to every
 gate), but it is on the critical path of the **first production deploy**.
 
+🔴 **BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE — `ReferralDisposeDialog`
+(`src/components/referrals/referral-dispose-dialog.tsx`) has never run in a BROWSER; no
+E2E test has ever rendered its trigger button, let alone opened the dialog.** ⚠ **Retitled + narrowed
+2026-08-20 (lead), same day it was filed as `…-ZERO-COVERAGE`:** that title was true when written and
+false hours later — `referral-dispose-dialog.test.tsx` now pins the residue lines, the over-claim
+property, the confirm/submit gating and both `aria-describedby` arms in **15 tests, all
+mutation-proven to fail** (11 mutations, each red under an anchor-uniqueness guard). **What remains is
+exactly the browser half:** real focus behaviour in the new block, Radix portal semantics, and the
+end-to-end confirm→submit→server-action path. ⛔ *A jsdom render is not a browser* — do not read the
+component tests as discharging this. Everything below stands as the mechanism. Filed 2026-08-20
+(tester) during the DSR Slice 4 verification (markup-only change: the `DSR_RESIDUE_NOTICE` `<ul>` +
+a conditional `subject_request` note; trigger/confirm-phrase/button-label locators deliberately left
+unchanged per `docs/plans/dsr-workflow-plan.md` § Slice 4 item 3, precisely to avoid re-scoping E2E).
+**Mechanism:** the component holds no gate of its own — it renders unconditionally once mounted, and
+the PAGE alone decides whether to include it, on the authoritative `canDisposeReferralPhi` probe.
+Under the ADR 0106 (D5) strict single-hat model, **no seeded persona can simultaneously reach**
+`encaminhamentos/[id]` **and** satisfy that probe — every hat that reaches the route fails the RPC
+gate, every hat that passes the gate 404s on the route (documented in-spec at
+`e2e/nsp-per-hospital.spec.ts:948-959` as `FUP-ACT-DISPOSE-UI`). Confirmed by grep across the whole
+`e2e/` tree: all three `getByRole('button', {name: /apagar dados do paciente/i})` assertions that
+exist (`nsp-per-hospital.spec.ts:939`, `:970`, `:1040`) assert `.toHaveCount(0)` — none asserts
+presence, anywhere. AC-7's mutating disposal test (`:995`) bypasses the component entirely, POSTing
+straight to `/rest/v1/rpc/dispose_referral_phi`; AC-8 was re-pointed at an unrelated PHI-reveal
+button for the same reason. **Impact:** the confirm/submit path (pick reason → type `APAGAR` → click
+"Apagar definitivamente") and the new residue-notice markup Slice 4 just shipped have never run in a
+browser. A regression that broke the confirm button, trapped focus in the new block, or dropped the
+`aria-describedby` wiring would ship green — the same "no persona can reach it" shape that let the
+now-closed `FUP-DISPOSE-DIALOG-OVERCLAIM` copy defect sit unnoticed in this exact dialog since it
+shipped.
+⚠ **Not a Slice 4 regression** — Slice 4 changed no locators and this gap predates it; root cause is
+the ADR 0106 re-scope. Verified this run: `e2e/nsp-per-hospital.spec.ts` AC-7 (3 tests) + AC-8 (1
+test) all pass on a fresh reset (`4 passed`, single-worker) — proving the RPC/audit/redaction
+mechanism and the PHI-reveal keyboard flow, **not** the dialog UI; do not cite this green as UI
+coverage.
+**Status:** OPEN, unassigned. Relates to the referral lane of `FUP-ACT-DISPOSE-UI` (pilot-gate item
+0, `docs/progress/dm5-po-decisions.md`) — discharged only for the **event** lane
+(`dispose_event_phi` via `pqs.a@test.local`); the referral lane was never claimed and remains open.
+Two candidate dispositions, PO/lead's call: (a) name or build a fixture persona with simultaneous
+route-access + disposal-entitlement (commission member AND tenancy-admin/PQS-operator on the source
+hospital, without a hat-switch) so a real browser flow can drive the dialog — a `seed.sql` change,
+backend's to make, not tester's to force unilaterally; or (b) accept the gap and rely on
+lint/tsc/code-review/a component-level test in place of E2E for this control, and say so explicitly
+wherever this dialog's verification is cited.
+
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
 Closed rows and their closure narratives live in the archive. The standing **warnings**
@@ -267,7 +337,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-20 | **DSR Slice 3 · LEAD — declaring gate, tree hash-verified unchanged** | pgTAP **6678/6678** · lint(8) · `tsc` · unit **1448** · `e2e:prod` **1153p/3f/5 unrun**. ⛔ 3f = **2 pre-existing** + **1 worker crash** `0xC0000409`; crash + its 5 stranded tests **passed on re-run, 68/68**. **No DSR spec failed.** → [archive](docs/progress/test-run-archive.md) |
+| 2026-08-20 | **DSR Slice 4 · LEAD — gate, all four re-run by the lead** | pgTAP **6711/6711** Files=202 · lint(8) **0** · `tsc` **0** · unit **1480/1480**, real exit codes. **No e2e**: nothing reaches the changed dialog (`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`); AC-7/AC-8 4/4 = route integrity only → [archive](docs/progress/test-run-archive.md) |
 | 2026-08-20 | *(the DSR Slice 2 gate row rotated to [test-run-archive.md](docs/progress/test-run-archive.md) — superseded by the Slice 3 gate below)* | — |
 | 2026-08-18 | **DM follow-up triage · LEAD** — the four shipped items (#2 byte proof · #4 DVF 1:1 · #8b draft-print delete guard · attachments deletion). Two fresh `supabase db reset --local` cycles; both new pgTAP arms authored **red-first** | **pgTAP 194 files / 6397 PASS** · **lint 5/5** · **typecheck 0** · **vitest 1305/1305** · authz `census`/`hat`/`floor`/`wrapper` all **INVARIANT HOLDS**. ⛔ **`e2e:prod` NOT RUN — this row is not a phase gate.** Full row → [archive](docs/progress/test-run-archive.md) |
 
@@ -282,6 +352,9 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| DSR Slice 4 — ADR 0130 Amdt 4 (r3) | **APPROVED** | 2026-08-20 | [dsr-slice-4-review](docs/reviews/dsr-slice-4-review.md) |
+| ~~DSR Slice 4 — ADR 0130 Amdt 4 (r2)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-4-review](docs/reviews/dsr-slice-4-review.md) |
+| ~~DSR Slice 4 — ADR 0130 Amdt 4 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-4-review](docs/reviews/dsr-slice-4-review.md) |
 | DSR Slice 3 — ADR 0130 (r2) | **APPROVED** | 2026-08-20 | [dsr-slice-3-review](docs/reviews/dsr-slice-3-review.md) |
 | ~~DSR Slice 3 — ADR 0130 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-3-review](docs/reviews/dsr-slice-3-review.md) |
 | _The seven DM rows_ — rotated 2026-08-19, the DM milestone being closed | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
@@ -294,6 +367,9 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-20 | **PO: DROP Slice 4 item 1** — notification scrubbing **WITHDRAWN as premise-falsified**; the residue class does not exist. Successor `FUP-DOOR-ERASURE-FREETEXT-CENSUS` filed | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 4** |
+| 2026-08-20 | **PO: WIDEN `dispose_meeting_minutes`** rather than hedge the copy — the untouched free text joins the redaction set, so `DSR_RESIDUE_NOTICE` line 1 becomes true as written. Discharges `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`; needs an ADR 0056 §2 amendment | [follow-ups.md](docs/progress/follow-ups.md) |
+| 2026-08-20 | **DSR Slice 4 — copy half BUILT, QA r1 CHANGES REQUESTED, NOT complete.** `referral-dispose-dialog.tsx` renders the shared `DSR_RESIDUE_NOTICE`; both ADR 0056 (b) over-claims replaced (closes `FUP-DISPOSE-DIALOG-OVERCLAIM`). ⛔ Blocked on the meeting-door widening | [review](docs/reviews/dsr-slice-4-review.md) |
 | 2026-08-20 | **DSR Slice 3 SHIPPED — QA APPROVED r2, PO-approved.** The ONE named widening (`search_patient_xref` + `is_dpo_of`), adjudication, attested tier, refusal-retirement, ADR 0056 Consequence (a) discharged. ⛔ Zero disposal-gate widenings; **no second read-boundary change** (QA catalog-verified) | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 3** · [review](docs/reviews/dsr-slice-3-review.md) |
 | 2026-08-20 | **PO: INVERT the `useFieldIds` `name` default** — the hook omits `name`; `FormData`/radio/autofill callers opt in. The dangerous case was the default, the safe one a discipline at 51 sites (**10/51 measured**). ⛔ Route-crawler gate NOT in scope | FUP-FORM-IDENTIFIER-IN-URL · [follow-ups.md](docs/progress/follow-ups.md) |
 | 2026-08-20 | **ADR 0130 Proposed → Accepted; DSR Slice 2 BUILT** (PO instruction). Four shape changes measurement forced — incl. ADR 0056 Consequence (a)'s meetings-dispose UI moving to Slice 3. ✅ **Pilot-gate item 0 DISCHARGED** | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 2** · [plan](docs/plans/dsr-workflow-plan.md) |
@@ -383,9 +459,8 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-DM5-DISPOSAL-JOB** — ⭐ **CRITICAL FUP C1, split into C1a (local) + C1b (Cloud) on 2026-08-18; the pilot bound is C1b.**
 - 🟠 **FUP-DISPOSE-EVENT-DOOR-GATE-BLIND** — `dispose_event_phi`'s authz gate is exercised by **no keystone**: opened alone, the full suite still **PASSES** (6550/6550). Measured 2026-08-19 by neutralization during the ADR 0129 sweep, which also cleared its three siblings — `dispose_case_phi` ✅ (151, 314), `dispose_referral_phi` ✅ (189), `dispose_meeting_minutes` ⛔→✅ (now `348` t7). So **2 of 4** PHI-disposal doors were door-blind; one is closed, this one is not. ⚠ **BLIND ≠ vulnerable** — the gate is present and correct; nothing would go red if a refactor dropped it. `ARM=floor` cannot see this (the door **is** called; its *gate* is not exercised) — backend
 - 🟠 **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** — PHI leaves by **two** substrates and only one has a procedure. [`phi-disposal-runbook.md`](docs/deployment/phi-disposal-runbook.md) is the **`file_objects`/Storage-bytes** mechanism; the four **column-erasing** doors (`dispose_meeting_minutes`, `dispose_case_phi`, `dispose_event_phi`, `dispose_referral_phi`) have **no operational procedure at all**. Measured: the runbook says `meeting` / `minutes_md` / `dispose_meeting_minutes` / `dispose_event_phi` / `PHI removido` **zero** times, and names the other two doors only as *inflow* that parks a `file_objects` row. ⚠ Not a claim that column PHI is un-erasable — those doors complete synchronously, which is why they never got a procedure. The risk is that **a C1a green is read as covering PHI disposal**. Needs: the runbook to state its substrate, plus either a companion procedure or a recorded "none needed" with the evidence path named. Found 2026-08-19 by correcting a wrong-grain claim — PO + backend
-- 🟠 **FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT** — meeting PHI disposal redacts **three of `meeting_agenda_items`' four** text columns (`title` survives) and touches none of `meeting_attendees.{note,external_name}` or `meeting_closed_sessions.label`. ADR 0056 §2 **declares** that scope, so this is an **over-claim in the language**, not a regression — but "the meeting's PHI is erased" is false while an agenda item can be titled with a patient's name. Fix vehicle: DSR plan **Slice 4** (residue + copy honesty) — either redact them or name them as retained; the one unacceptable state is the current one — backend
-- 🟠 **FUP-DISPOSE-DIALOG-OVERCLAIM** — the shipped referral-dispose copy is ADR 0056 (b)'s forbidden "tudo apagado" over-claim (*"apaga permanentemente … todos os campos"*, no retained-bytes mention). ⭕ *Narrowed 2026-08-19: counsel's return keeps the Art. 18 lane live, so the reason option is valid — the over-claim is the whole defect.* Fix = the shared residue-language constant, [DSR plan](docs/plans/dsr-workflow-plan.md) Slice 4 — frontend
-- 🟠 **FUP-NOTIFICATIONS-PHI-RESIDUE** — `notifications.title/body` copy entity text at write time and **no dispose door touches the table**: a granted disposal leaves pre-redaction PHI in every notification the entity emitted. Fix = scrub-by-(entity_type,entity_id) in all four doors + pgTAP pins w/ vacuity control, DSR plan Slice 4 — backend
+- 🟠 **FUP-DOOR-ERASURE-FREETEXT-CENSUS** — ⚠ **narrowed 2026-08-20: the MEETING door is now done** (censused to its composition closure, widened, and its retained columns disclosed — ADR 0056 Amdt 1). **Three doors remain uncensused**: `dispose_case_phi`, `dispose_event_phi`, `dispose_referral_phi`. Live instance: the event door clears the grandchild `capa_action_task.description` but leaves the child `capa_action.title` (free text on a `patient_safety_event` lane). Bound by the **property**, never by a door's own body — what is missing from it is the finding. ⭐ Use the meeting census's method: composition = FK **NOT NULL + ON DELETE CASCADE** (raw FK closure over-reaches), descend to **depth 3**, and census by *free text*, **not by type** — `jsonb` carried the minutes prose. Consequence: a confirmed under-erasure makes `DSR_RESIDUE_NOTICE`'s first line an over-claim — backend
+- 🟡 **FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING** — prose documenting a forbidden string defeats the grep verifying its absence; **4 recurrences in one day**, the 4th by the author who fixed the first 3, in a docblock explaining the detecting regex. ⛔ **PO ruled 2026-08-20: record only, no gate.** Two measured constraints for any future implementation: a literal-string gate is wrong **both** ways (false-positive on prose about it, false-negative on a paraphrase), and the check must run in `npm run lint` where the writing happens, not at QA time a cycle late — unassigned
 - 🟡 **FUP-XREF-PEPPER-ROTATION-ORPHANS** — rotating `mrn_pepper` permanently orphans DISPOSED `patient_xref` rows (raw MRN gone, key unrecomputable); ADR 0039 logged it as "follow-up", never registered. Every granted erasure widens the unrotatable population. Decide before any rotation task is scoped — backend
 - 🔵 **FUP-ADR0121-REASON-VALUE-DRIFT** — ADR 0121 Amdt 2 deliberately left the `superseded`-vs-`retention_expired` reason value OPEN; the D11 register body already states `'superseded'` as if chosen (live CHECK still admits only the original five). The D11 implementing slice decides explicitly + records in the ADR's reserved slot; neither value citable as decided until then — lead
 - 🔵 **FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN** — **⚠ HALF RESOLVED 2026-08-17 (`24cee179`): the fail-open half is fixed and proven; the arm is still a no-op pending a NAMED successor (deliberately not re-pointed — a successor must be named,…** — backend

@@ -188,6 +188,25 @@ export type DsrOutcomeRecord = {
     reviewers: string[]
   }
   residue: readonly string[]
+  /**
+   * ⭐ Did a meeting-minutes disposal actually COMPLETE on this request? Gates the
+   * meeting-lane retention disclosure (`DSR_MEETING_RESIDUE_RETAINED`) on the outcome
+   * record — the artifact handed to the data subject, and the one surface where a
+   * false statement is a false statement *to them*.
+   *
+   * ⛔ IT MUST NOT BE RENDERED UNCONDITIONALLY. A request that disposed no meeting
+   * would assert a retention that never happened — the over-claim's mirror image, and
+   * exactly what that constant's own docblock warns of: a retention disclosure that
+   * outlives the retention is the same defect pointing the other way.
+   *
+   * ⚠ COMPLETED, NOT MERELY MINTED. A `dispose_meeting` task that was RETIRED erased
+   * nothing, so it must not trigger the disclosure. Derived from the positive
+   * completion signal (`status === 'done'`) and never from `blocked` — `blocked` has
+   * two writers, and ADR 0130 Amendment 3's correction is that no surface may name the
+   * cause of a retirement from `status` alone. Asking "did one complete" needs no
+   * cause, so it does not consult one.
+   */
+  meetingMinutesDisposed: boolean
 }
 
 /**
@@ -500,6 +519,14 @@ export async function getDsrOutcomeRecord(
       ),
     },
     residue: DSR_RESIDUE_NOTICE,
+    // Derived from the POSITIVE completion signal on the meeting-lane disposal task.
+    // `mech` already excludes `notify_scrub_check`; narrowing to the one kind matters
+    // because a completed `dispose_case`/`dispose_event`/`dispose_referral` says
+    // nothing about meeting minutes, and the retention lines name meeting-specific
+    // columns.
+    meetingMinutesDisposed: rows.some(
+      (t) => t.kind === 'dispose_meeting' && t.status === 'done',
+    ),
   }
 }
 

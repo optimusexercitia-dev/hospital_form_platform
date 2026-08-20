@@ -745,3 +745,16 @@ or `useActionState`. Those components are state-driven with no form submission; 
 ⛔ **Two defects in the gate instrument itself**, filed as `FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER`:
 its census does not sum (11 tests in no bucket), and its INFRA classifier has no notion of a worker exit
 code, so a crash scores as a defect.
+
+## Rotated from PROGRESS.md 2026-08-20 — superseded by the DSR Slice 4 gate
+
+Verbatim, links repointed for this directory:
+
+> | 2026-08-20 | **DSR Slice 3 · LEAD — declaring gate, tree hash-verified unchanged** | pgTAP **6678/6678** · lint(8) · `tsc` · unit **1448** · `e2e:prod` **1153p/3f/5 unrun**. ⛔ 3f = **2 pre-existing** + **1 worker crash** `0xC0000409`; crash + its 5 stranded tests **passed on re-run, 68/68**. **No DSR spec failed.** → [archive](./test-run-archive.md) |
+
+⭐ **Method note carried out of the Slice 4 gate row** (`lint:progress` correctly refused it as
+rationale-in-a-row): all four gates were re-run by the lead with the **exit code captured
+directly**, because `npm run <gate> | tail -N` reports **`tail`'s** status, not the gate's. That
+masking produced a **false green** earlier the same day — `lint` was reported as passing while
+`lint:progress` was in fact RED on two over-long PROGRESS.md cells. A gate summary can hide a
+failed gate; capture `$?` from the gate itself, never from a pipeline.

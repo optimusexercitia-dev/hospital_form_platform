@@ -7,6 +7,7 @@ import { Ban, CheckCircle2, Info } from "lucide-react";
 import type { DsrTaskRow } from "@/lib/queries/dsr";
 import { completeDsrTask, executeDisposalTask } from "@/lib/dsr/actions";
 import {
+  DSR_MEETING_RESIDUE_RETAINED,
   DSR_MESSAGES,
   DSR_RESIDUE_NOTICE,
   DSR_TASK_EXECUTOR_HINTS,
@@ -40,10 +41,18 @@ const DISPOSAL_KINDS = new Set([
  * the EFFECT, not a copy of the gate).
  *
  * ⚠ THE RESIDUE NOTICE IS NOT DECORATION. It is the ADR 0130 Decision 9 fixed
- * language, shown BEFORE the irreversible click, and it is deliberately narrower
- * than the shipped referral dialog's "apaga permanentemente … todos os campos"
- * (`FUP-DISPOSE-DIALOG-OVERCLAIM`). Slice 4 rewrites that dialog with this same
- * constant; this surface simply never ships the over-claim.
+ * language, shown BEFORE the irreversible click, and it is deliberately narrower than
+ * an unqualified erasure promise: what leaves is the database PHI of the named record,
+ * and the notice says exactly that. ⛔ Every dispose surface renders this one shared
+ * constant — none writes, paraphrases or extends residue copy of its own — so the
+ * platform makes one claim to an operator, from one file, wherever it is made.
+ *
+ * The discipline exists because a dispose dialog once promised a permanent wipe of
+ * every sensitive field while saying nothing about retained encrypted attachments, the
+ * PITR window, or already-distributed copies — the over-claim ADR 0056's narrowed
+ * closure forbids (`FUP-DISPOSE-DIALOG-OVERCLAIM`). ⚠ Its pt-BR wording is deliberately
+ * NOT quoted anywhere in `src/`: that follow-up is verified by grep, and prose warning
+ * the next reader off those strings trips the detector exactly as the strings would.
  */
 export function DsrTaskInbox({
   org,
@@ -369,6 +378,24 @@ function DsrTaskCard({ org, task }: { org: string; task: DsrTaskRow }) {
                   </li>
                 ))}
               </ul>
+              {/* ⛔ MEETING LANE ONLY. This card renders for every disposal kind,
+                  and `DSR_MEETING_RESIDUE_RETAINED` is FALSE of the case, event and
+                  referral doors — their reaches differ. Gated on the kind, beside
+                  the shared notice, never merged into it (ADR 0056 Amdt 1). */}
+              {task.kind === "dispose_meeting" ? (
+                <>
+                  <p className="mt-3 text-xs font-semibold">
+                    Nesta ata, também permanecem
+                  </p>
+                  <ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-xs text-muted-foreground">
+                    {DSR_MEETING_RESIDUE_RETAINED.map((line) => (
+                      <li key={line} className="text-pretty">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
             </details>
           ) : (
             <Field>
