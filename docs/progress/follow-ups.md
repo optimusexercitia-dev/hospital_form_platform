@@ -5866,3 +5866,65 @@ created rather than on decision issuance — i.e. a trigger on `case_participant
 any ethics case that is not `cancelled`"*. ⛔ Do **not** fix it by narrowing
 `can_manage_professional`; that gate serves non-ethics professional administration too, and cutting
 it would be a different change with its own blast radius.
+
+### 🟡 FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT — the UI boolean cannot express the door's per-phase assignee arm (owner: frontend/PO; filed 2026-08-21, case-surface-split Increment 1, QA F-6)
+
+`public.set_case_phase_result_override` (`prosecdef = t`) admits **`v_assigned_to = auth.uid()` ∨
+`app.is_staff_admin_of(commission)`** — measured from the live catalog; there is **no `member_can`
+arm**, so an administrativo is correctly excluded. But the **assignee** disjunct is **per-phase**,
+and the UI's `canManagePhaseResults` prop is a **per-case boolean**, so it cannot represent it.
+Increment 1 set the manage host to `phaseResultsOn && access.role === "staff_admin"` — which is
+correct as far as it goes and closed a real over-grant T1 had created.
+
+**The residue:** a phase's own assignee who is *not* a coordinator can legitimately override that
+phase's result at the DB and is offered no affordance anywhere. That is an **under-grant**, and its
+signature is the dangerous one — a dead-end door raises a visible `42501`, an under-grant emits
+**nothing at all**: no error, no log, no failing test. No §6 gate can detect it.
+
+Deliberately **not** closed inside Increment 1: surfacing the assignee arm needs a per-phase prop
+and is a product decision about whether phase assignees should self-serve result corrections, not a
+gap to be silently patched. **Fix direction if ruled in:** thread a per-phase capability rather than
+widening the per-case boolean.
+
+### 🟡 FUP-CASE-T5-MEUS-CASOS-UNREPOINTED — T5 shipped narrower than its own text (owner: frontend; filed 2026-08-21, QA F-7)
+
+Plan T5 says board/list rows link to manage detail for viewers passing the entry predicate. Shipped:
+the `/casos` staff board and `manage/cases` re-point; **`meus-casos` rows still link to `/casos`**.
+
+⚠ **This is arguably correct, not merely unfinished** — "Meus Casos" is by definition
+name-attributed work, which D1 keeps on `/casos`. Filed rather than fixed because the *plan text*
+and the *shipped behaviour* disagree, and one of the two is wrong: either re-point the rows, or
+amend T5 to state the exception and why. Leaving them disagreeing is what makes a later reader
+"fix" the wrong one.
+
+### 🟡 FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED — a dead-end door nobody can currently construct (owner: backend; filed 2026-08-21, from QA F-3's remediation)
+
+`app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ app.is_member_of(commission)
+∧ ∃ capability row` (measured **three times independently**; ADR 0134 Amdt 2 **M8**). The TS mirror
+`canInCommission` checks **no membership**, so the mirror is **wider than the door** — an
+administrativo whose commission membership was removed but whose capability row survives would, on
+the TS side, be offered affordances the DB refuses.
+
+⛔ **Whether such a principal can reach any surface is UNVERIFIED, and the honest answer is
+"probably not":** `access.role` is populated only from the caller's own membership row, and the
+commission shell 404s `role === null && !isQualityViewer && !isTenancyAdmin` before any route under
+`/c/[commission]` renders. So the orphan very likely 404s upstream and the dead-end door is
+unreachable — **but no fixture in this repo constructs an orphan**, so neither direction is
+measured.
+
+⭐ **Recorded this way on purpose.** The docblock that previously described this stated the
+*opposite* of the door's behaviour and was believed for weeks (QA F-3). Replacing a false claim with
+a second unverified claim in the same spot is how that happens twice. **To close:** construct an
+orphan (delete the membership, leave the capability row) and measure whether they reach the board.
+
+### 🟡 FUP-CASE-TAGS-AND-OUTCOME-SELECTOR-NO-E2E — two case-wide affordances with zero E2E on any route (owner: tester; filed 2026-08-21)
+
+`CaseTagsPanel`'s write UI ("Adicionar"/"Gerenciar etiquetas") and the outcome selector /
+"Editar desfechos disponíveis" (`CaseOutcomeSelector` + `CaseOfferedOutcomesEditor`) have **no E2E
+coverage on any route** — confirmed by grep across all 103 spec files, twice.
+
+Both are **case-wide write affordances**, so both are inside D1's scope and both were relocated by
+Increment 1's narrowing — with nothing asserting either the absence on `/casos` or the presence on
+manage. They are a **coverage gap, not a stale assertion**, which is why the Step-0 sweep correctly
+did not file them as bugs; they are recorded here so a sweep that concluded "0 additional stale
+instances" cannot be read as "these are covered".
