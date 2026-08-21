@@ -796,8 +796,16 @@ stands.
 
 ### §6 step 1 — verified by the lead, not taken from teammate reports
 
-pgTAP **6789/6789** Files=**205** (fresh reset) · lint(8) **0** · `tsc` **0** · vitest **1506/1506**
-(106 files) · **434/434** migrations registered · `ARM=census` / `hat` / `floor` /
+> ⛔ **These figures were first written as 6789 / 205 / 434 and were ONE COMMIT STALE** — taken
+> before Part B added suite `355` (+6 tests, +1 file) and migration `20261003000300` (+1). Corrected
+> 2026-08-21 after QA re-review found the round's own gate record did not describe the commit that
+> fixed the round's own blocker. ⭐ **`backend-state`'s standing instruction — *re-derive, never
+> quote* — applied to a round's gate figures would have caught this**, and it is the same shape as
+> the blocker it failed to describe: a verified measurement whose only witness sat outside the
+> artifact it was about.
+
+pgTAP **6795/6795** Files=**206** (fresh reset) · lint(8) **0** · `tsc` **0** · vitest **1506/1506**
+(106 files) · **435/435** migrations registered · `ARM=census` / `hat` / `floor` /
 `FROMFINDINGS=1 wrapper` **all HOLD**.
 
 **Diff-scoped door sweep: case list EMPTY by the recipe's syntax filter** — the diff's function names

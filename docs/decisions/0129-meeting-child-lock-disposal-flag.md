@@ -296,6 +296,14 @@ driven by ADR [0056](./0056-phi-disposal-closure-narrowed-claim.md) Amendment 1.
 >
 > ### Gates
 >
+> ⚠ **AS MEASURED AT THIS AMENDMENT'S COMMIT, and both figures moved afterwards — kept as dated
+> history, not corrected in place.** pgTAP became **6795/6795 (206 files)** when Amendment 3a's
+> comment-correction migration brought suite `355`; vitest became **1506/1506** when the referral
+> dispose dialog was removed (ADR 0131 Amdt 5 §1) and its 15 tests were relocated and ported. ⛔ Read
+> the numbers below as *"true of this change"*, never as the round's final gate — the round's final
+> figures live in [test-run-archive.md](../progress/test-run-archive.md), and this line existing at
+> two values is the whole reason that file says *re-derive, never quote*.
+>
 > Fresh `supabase db reset`: pgTAP **6789/6789** (205 files; +60 from `353`, +12 from `354`) ·
 > lint 8/8 · `tsc` clean · vitest 1512/1512. `ARM=census` · `ARM=hat` · `ARM=floor` ·
 > `FROMFINDINGS=1 ARM=wrapper` all HOLD. The diff-scoped door sweep's case list is **EMPTY by the

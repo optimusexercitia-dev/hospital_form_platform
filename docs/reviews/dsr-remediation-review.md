@@ -5,7 +5,12 @@
 **Contract:** [docs/plans/dsr-operational-remediation.md](../plans/dsr-operational-remediation.md)
 (workstreams A–G, PO decisions P1–P4, constraints §3 + §3b, exclusions §4).
 
-# VERDICT: **CHANGES REQUESTED**
+# VERDICT (round 1): **CHANGES REQUESTED**
+
+> ⛔ **SUPERSEDED — see ROUND 2 at the bottom of this file, which is `APPROVED`. Do not act on
+> this verdict.** All three blockers below are closed and verified; §§9–15 record how. This
+> section is kept unedited as the record of what was found, not as a live verdict — the same
+> in-place supersession discipline this review required of ADR 0131:349.
 
 ⛔ **The engineering is not what fails.** The fix is correct, tighter than the shape ruled
 for, and better pinned than the ADR required. I re-derived every load-bearing catalog claim
@@ -542,3 +547,347 @@ sweep "which **statement of the invariant** did I just falsify?". Three surfaces
 three were left asserting the old count, two of them in the catalog this repo calls the sole
 truth. That is C2, and it is why the verdict is CHANGES REQUESTED rather than APPROVED with
 notes.
+
+---
+---
+
+# ROUND 2 — 2026-08-21
+
+**Reviewed at:** `188469dd` (14 commits ahead of `main`) · **6 new commits since round 1.**
+⛔ **Round 1 above is left exactly as written.** It is the record of what was found; the
+round-2 section says what happened to each item, not what round 1 should have said.
+
+# VERDICT: **APPROVED**
+
+with **one record obligation that must land before merge** — §12.1 **R2-1**. It belongs to
+CLAUDE.md §6 **step 5 (Record)**, which has not run yet, and it needs no re-measurement: the
+correct figures are already known, they are simply not in the repo.
+
+All three round-1 blockers are **closed and independently verified from the catalog**. All six
+majors are **closed**. The `e2e:prod` gate is red for exactly one pre-existing reason with
+`did-not-run 0`. The fix's correctness has now been proved twice, the second time by me.
+
+---
+
+## 9 · Method for round 2
+
+Everything in §§10–11 was re-measured on the live stack, not read from the round-2 report.
+The one thing I could do this round that I could not do last round: **round 1's catalog dump of
+both meeting guards is verbatim in my context**, taken *before* migration `20261003000300`
+existed. That made an independent before/after body-invariance proof possible (§11.2) rather
+than an audit of someone else's proof.
+
+Re-derived from scratch: the setter/reader invariant, the 48+3 crossing census, migration and
+suite counts, both guard bodies and their attribute sets, the `content_hash` chain, and the
+`app.feature_flags` shape.
+
+---
+
+## 10 · The three blockers — CLOSED
+
+### ✅ C1 — the flip's authorization
+
+Recorded in all three places, and the two riding questions are answered rather than deferred:
+
+- `plan:84` — new **P5** row, with the honest provenance line: *"⚠ Recorded here only on 2026-08-21, after QA blocker C1 found the authorization existed **nowhere but the migration's own comment**."*
+- `plan:183-199` — §3b amended in place, the now-false premise superseded **with the old text kept** rather than overwritten.
+- `dm5-po-decisions.md` **item 3** (the pilot-decision surface) and **ADR 0131 Amendment 5 §2**.
+- ⛔ **"The PUSH is a separate, untaken decision"** is stated explicitly. That is the right boundary: this branch's merge does not itself flip production.
+
+⭐ **The lapse was written up as a lead failure rather than filed as a nit.** That is the
+disposition that makes the lesson survive; a nit gets closed.
+
+### ✅ C2 — the invariant stated at its old value
+
+Re-derived by me from `pg_proc.prosrc`, comments stripped: **3 setters / 5 readers**, members
+unchanged. The corrected statements are live in the catalog — I read both guard bodies from
+`prosrc`, not from the migration file.
+
+⭐ **`backend` did not stop at the three instances I named.** It swept the axis
+*"which statement of the invariant did I just falsify?"* and found **two more** that neither of
+us had: ADR 0129 Decision 3's own quotation of what §E "becomes", and `follow-ups.md:4958`.
+**That is the sweep C2 was actually asking for** — my three were a hand list, and a hand list is
+what this round has spent itself correcting. Five instances, one axis, swept.
+
+**And the fix changes shape, not just value.** Both guards and ADR 0126 §E now state the bound
+as a **property** (*"only the disposal doors bypass a child lock"*) with the count beside it as
+a **dated measurement plus the re-derivation query**. A property does not go stale on the next
+correct change; that is the difference between this fix and the one it replaces.
+
+**Detectability now exists**, which it did not before: suite `355` (§11.3).
+
+### ✅ C3 — the overturned P3 ruling
+
+ADR **0131 Amendment 5 §1** reverses it; the Amendment-4 bullet at `:349` is marked
+*"⛔ REVERSED THE SAME DAY — see Amendment 5. Do not act on this bullet"* **in place**, so a
+reader arriving mid-document cannot act on the dead ruling. Plan P3/D2 corrected;
+`dm5-po-decisions.md` **item 4** records it at the pilot-decision surface. The
+`ADR 0130 D11` mis-citation is corrected.
+
+---
+
+## 11 · The three things the lead asked me to be sceptical about
+
+### 11.1 ⭐ ADR 0126 §E's NEW safety argument — it holds, and I verified it through the hash chain rather than through the artifact §E cites
+
+§E's replaced reasoning genuinely did have a hole, and §E is right about where:
+`dispose_case_phi` writes `meeting_cases` — one of `guard_meeting_child_lock`'s own four tables
+— and stamps `cases.phi_disposed_at`, **never** `meetings.phi_disposed_at`, so §F's
+un-registration does not fire. Confirmed from both door bodies.
+
+The new argument is *"`meeting_cases` content is not in the printed ata at all"*, derived from
+the TS body type and the template. **A TS type is not automatically evidence about a hash**, so
+I chased the hash to its source before accepting it:
+
+| step | measured |
+|---|---|
+| `printed_documents.content_hash` | a **parameter** — `p_content_hash` — to `mint_printed_document`; the SQL computes nothing (`prosrc`) |
+| what computes it | `sha256(renderDocumentHtml(payload))` — `src/lib/pdf/fingerprint.test.ts:281,321` |
+| `renderDocumentHtml`'s only input | `DocumentPayload` → the meeting arm is `MeetingDocumentBody` |
+| `MeetingDocumentBody` | meeting metadata · `minutesMd` · `agenda` · `attendance` · `actionItems` — **no case-shaped field exists to populate** (`types.ts:254-281`) |
+| `MeetingAgendaEntry` | exactly the four `meeting_agenda_items` columns (`types.ts:236-241`) |
+
+**⇒ Because the print hash is computed application-side over the rendered payload, the TS body
+type IS the right artifact — §E cites the correct layer.** A `meeting_cases` redaction cannot
+reach `renderDocumentHtml`, so it cannot move the hash.
+
+⭐ **A second, independent surface §E does not use, and it is the stronger one.**
+`sign_meeting`'s `content_hash` is `encode(digest(coalesce(v_minutes,''),'sha256'),'hex')` —
+**`meetings.minutes_md` alone**, straight from `prosrc`. `dispose_case_phi` never writes
+`minutes_md`. So the signature hash is immune **by a catalog-level formula that does not go
+stale when a template changes** — precisely the weakness §E names in its own bound. Worth
+adding; not required.
+
+**§E's stated bound is exactly right** and I want it on the record because it is unusually
+honest: *"derived from the TS body type and the template, **not** from an end-to-end hash
+differential … If a future template ever renders per-case notes into the ata, THIS is the
+paragraph that goes false — and it goes false silently."*
+
+⚠ **One completeness gap.** §E says the argument was *"re-derived for the new setters"*
+(plural) and re-derives it for `dispose_case_phi` only. The other new setter,
+`dispose_event_phi`, writes **none** of `guard_meeting_child_lock`'s four tables — verified from
+the 48-crossing enumeration (its write set is `rca*`, `capa*`, `event_triage`,
+`patient_safety_event`, `event_patient`). It is silently clean; a symmetric re-derivation says
+so in one clause. **Not a defect** — the conclusion is unaffected — but "re-derived for the new
+setters" currently shows one of two.
+
+### 11.2 ⭐ Body-invariance — the remediation is real, and I did not take it on trust; I proved it myself
+
+Round 1's dump of both guards predates migration `20261003000300`. I normalised both
+before/after pairs (strip `--` to end of line, remove all whitespace) and hashed:
+
+```
+guard_meeting_child_lock    OLD 6b6865410fcbae04b2c45855f4e9c6e6   NEW 6b6865410fcbae04b2c45855f4e9c6e6   (592 chars)
+guard_reserved_child_lock   OLD 1280e25f5b8c58e7822b7d6ae02ba2de   NEW 1280e25f5b8c58e7822b7d6ae02ba2de   (1200 chars)
+POSITIVE CONTROL - one executable token mutated in OLD (in_signature -> in_signatureX)
+                            CTL 827427a213c4448023f0dc03eb13a72b   != OLD   the detector moves
+```
+
+**The executable bodies are byte-identical. Comment text only, as claimed.** ⭐ Note the
+normalised strings are **592 and 1200 characters** — non-empty by a wide margin, which is the
+specific property that defeats the empty-compares-equal-to-empty failure. My proof is not
+vulnerable to the defect it is checking.
+
+⭐⭐ **And I reproduced the silent failure itself.** My own attribute census hit
+`ERROR: operator is not unique: text || "char"` on `provolatile` — **the identical error**
+`backend` reported. In `psql -c` it surfaced and exited 1; in a harness capturing stdout into a
+variable it yields an **empty string**, and empty compares equal to empty. **The reported defect
+is real, not a hypothetical retold.** That is exactly the class this round exists to close,
+found inside the instrument meant to prove the fix — and reported by its own author, which is
+the behaviour to keep.
+
+Attributes with explicit casts, both guards:
+`prosecdef=t · provolatile=v · proisstrict=f · proparallel=u · procost=100 · prorettype=trigger ·
+proacl=NULL · search_path=app,public,pg_catalog · plpgsql`. **`prosecdef`, `proconfig` and
+`proacl` match my round-1 record exactly**; `prorettype`/`proargtypes` cannot change under
+`CREATE OR REPLACE` (Postgres refuses). `proacl` is still NULL — unchanged, pre-existing, and
+harmless for the reason established in round 1 §4.1.
+
+✅ **The choice not to use a runtime `pg_get_functiondef() + replace() + execute` rewrite is
+correct** and the rationale is right: that pattern is what makes migration text stale by design
+and has already produced a confident false P0 here. Full literal text plus a proof is the better
+trade.
+
+### 11.3 Suite `355`, and the lead's own three instrument errors
+
+**`355` is well built.** t1/t2 are real vacuity controls (the identical predicate shape run
+against `app.in_meeting_rpc`, required non-empty, **before** anything else is believed). t3 is
+`set_eq` on **names**, not a count — and the header's reasoning for that is correct and worth
+keeping: *"a count reds identically for two opposite events … **the bump is the defect**"*. t4
+is a **property** (every reader is a trigger function) that survives a legitimate fourth child
+lock, paired with t5 so an empty reader set cannot satisfy it. Both pins are mutation-proven.
+
+**The two bounds it states are the right two**, and stating the `lint:vacuous` blindness inside
+the file is exactly right — `check-vacuous-assertions.mjs` globs `.spec.tsx?`/`.test.tsx?` over
+`e2e/` and `src/` and never scans `supabase/tests/`, so nothing outside `355` checks that `355`
+can fail.
+
+⭐ **I probed the bound I expected to find missing, and it is empirically covered.** The literal
+`like` predicate on `set_config('app.in_disposal_rpc'` has no whitespace tolerance, so
+`set_config( 'app.in_disposal_rpc'` would evade it. Measured across the whole catalog: **164
+functions call `set_config`, and 164 of 164 use the exact literal shape; 0 use whitespace before
+the quote.** Same for `current_setting`: **0**. The predicate matches the entire population as
+written. This belongs as one line in `355`'s bounds paragraph — not as a finding.
+
+**On the lead's three instrument errors** (`test-run-archive.md` §2026-08-21): the write-up is
+accurate and does **not** understate them. Both gate-run errors are named with their mechanism
+(a trailing `echo` supplying exit 0; `&&` reading `tail`'s status), and the third — the two
+over-cap cells at 741/345 against a 300 cap — is the stated reason for the rotation, with the
+right principle attached: *"a table cell carrying a paragraph is an archive entry that has not
+been written yet."* ⭐ It also names error 2 as a **recurrence** of a lesson the repo already
+carries. See **R2-6** for the one thing that follows from that and is not yet done.
+
+⭐ **The census-sum finding is a genuine resolution, not a restatement.** `1166 + 2 + 3 + 11 =
+1182` sums exactly; the gate prints `accounted for 1171 of 1182` because its coverage line omits
+the skipped bucket. So `FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER`'s *"11 tests in no bucket"*
+were **always skips in a bucket the coverage line does not add** — the arithmetic half is
+closed on evidence, and the write-up correctly keeps the crash-classifier half open rather than
+closing the whole item.
+
+---
+
+## 12 · Round-2 findings
+
+### 12.1 🟠 R2-1 — MUST FIX BEFORE MERGE. The gate record is one increment behind the branch, in all three places it appears, and the true figures exist nowhere in the repo
+
+| | recorded | live, measured by me |
+|---|---|---|
+| pgTAP | **6789/6789**, Files=**205** | Files=**206** on disk (`355` added by `188469dd`) |
+| migrations | **434/434** | **435 == 435** — `select count(*) from supabase_migrations.schema_migrations` **and** `ls supabase/migrations/*.sql \| wc -l`, both 435 (`20261003000300` registered) |
+
+Stale in `PROGRESS.md:299`, `docs/progress/test-run-archive.md:799`, and
+`docs/decisions/0129-…md:299`. The lead's own message states the correct figures — **pgTAP
+6795/6795, Files=206, 435/435** — and a `grep -rn` for `6795`, `Files=206`, `435/435` or
+`435 == 435` over `PROGRESS.md` and `docs/` returns **nothing**.
+
+⛔ **This is C1's shape one layer down: a verified measurement whose only witness is outside the
+repo.** The commit it fails to describe is precisely the one that added a pgTAP suite and a
+migration, so the recorded evidence does not cover the change being approved. It is the fourth
+instance in this round of *a mid-round number presented as final* (round-1 **m2** was the
+first).
+
+**It is not a step-3 blocker** — nothing needs re-running, the delta is fully explained
+(+1 suite = +6 tests, +1 migration), and the numbers are already verified. It is a **§6 step 5
+(Record)** obligation, which is the lead's own step and runs before merge. Hence APPROVED with
+this named.
+
+### 12.2 🟡 R2-2 — `backend-state.md`'s migration registry is now wrong by two, and the section still omits two of the round's four migrations
+
+Round-1 **m1**, unaddressed and now worse. `docs/backend-state.md:26` and `:501` both read
+**433 == 433, "measured 2026-08-21"**; live is **435 == 435**, measured today. The section header
+at `:480` still lists migrations `20261003000000`–`…000100`, omitting **`…000200`** (the
+production go-live flip — the round's highest-consequence migration) and **`…000300`**.
+
+This is the banner fact a new session reads first, in the file whose own header instructs the
+reader to measure rather than quote.
+
+### 12.3 🟡 R2-3 — suite `355` is recorded in no durable document
+
+A `grep -rln` across `docs/` and `PROGRESS.md` for `355_disposal_bypass_invariant` or
+"suite 355" returns **nothing**. The pin that makes the next drift of the security invariant go
+RED is reachable only from two guard comments and one migration header — not from
+`backend-state.md`'s disposal section, not from ADR 0129 Amdt 3, not from the gate row. C2's fix
+turned an undetectable invariant into a detectable one; the surface map does not know it.
+
+### 12.4 🟡 R2-4 — `355` t6's comment asserts more than its SQL checks
+
+```
+-- Stronger than "returns trigger": every reader is actually INSTALLED as a row-level
+-- BEFORE trigger somewhere. … a reader that is installed on a table NOT under a child
+-- lock would be a silent widening.
+… not exists (select 1 from pg_trigger t where t.tgfoid = p.oid and not t.tgisinternal)
+```
+
+The query examines **no `tgtype` bit** — neither row-level (`&1`) nor BEFORE (`&2`) — and does
+not check *which* table the trigger sits on. It asserts "installed somewhere, as some kind of
+trigger". The **test title is accurate** (*"installed as a trigger on at least one table"*); the
+comment above it is not, and it raises a widening it then does not detect. ⛔ In the newest
+artifact of a round about comments that assert more than the code does. Either tighten the SQL
+(`(t.tgtype & 1) = 1 and (t.tgtype & 2) = 2`, and constrain `tgrelid` to the child-lock tables)
+or narrow the comment to what t6 proves.
+
+### 12.5 🟡 R2-5 — `ADR 0129:300` still records vitest **1512/1512**
+
+Round-1 **m2**, unaddressed. The lead's verified figure is 1506/1506. Same class as R2-1.
+
+### 12.6 🟡 R2-6 — the `| tail` masking has now fired twice in ~24 hours, and the response is a third prose record
+
+`test-run-archive.md` carries the Slice-4 method note (*"a gate summary can hide a failed gate;
+capture `$?` from the gate itself, never from a pipeline"*) **and**, below it, the same defect
+recurring against a different gate. The standing lesson currently lives in a memory note and two
+archive paragraphs — **none of which is a gate or a `.claude/rules/` entry.**
+
+CLAUDE.md §8's admission test is met cleanly: it is a standing prohibition with **no resolution
+event**, it has a **checkable anchor** (a `package.json` script, or an invocation piping a gate
+into `tail`/`head`), it names a `source:`, and it is cheap to path-scope. Two occurrences in one
+day is the evidence the prose form does not hold. ⛔ **Recording a recurrence is not a control** —
+that is this round's own thesis.
+
+### 12.7 🟡 R2-7 — one dangling reference to the deleted dialog still reads as present tense
+
+`src/components/dsr/disposal-copy-property.ts:5-9`: *"The property **is asserted from two
+files** (`dsr-disposal-overclaim.test.tsx` …, **`referral-dispose-dialog.test.tsx` claim 2** for
+the referral dialog, where it **is also** `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure
+instrument)."* That file no longer exists — and the sentence is also the module's own stated
+reason to exist (*"Two copies of a pattern drift"*), which is now one copy.
+
+The other four references were correctly rewritten as historical provenance and are fine. This
+is the one still stated as a current fact.
+
+---
+
+## 13 · Majors from round 1 — all CLOSED
+
+| | how it was closed |
+|---|---|
+| **M1** | `backend-state:483-490` now states it at the right grain and says so: *"⛔ It is **not** true that every disposal fixture in the tree used a non-locking parent: `348` and `351` deliberately walk a meeting to `in_signature`, which is exactly why the **meeting** lane's door worked."* ⭐ The narrowed version is a better lesson than the one it replaces — **the lane forced to build a locked fixture is the lane that worked.** |
+| **M2** | now **"two of the four"**, naming `dispose_event_phi` and `dispose_case_phi`, with `dispose_referral_phi` and `dispose_meeting_minutes` each excluded for its own stated reason. |
+| **M3** | roster corrected to **three**, with *"three is the whole population, not a shortfall"* and an explicit ⛔ block explaining that the fourth surface **ceased to exist** rather than going unpinned. |
+| **M4** | precondition rewritten; all three corrections carried explicitly — flags are **GLOBAL not per-tenant**, the code is the lane's **`check_violation` not `HCDS1`**, and the `dsr` conjunct is gone. The true half (`app.assert_<lane>_enabled()` raises rather than no-ops) is kept. |
+| **M5** | fully re-derived with the grep beside each digit: **19 hosts / 20 rendered hints** — 14 render-prop, 5 constant-only, and the 4-vs-14 split that is the actual rationale for the render prop. ⭐ `frontend` also caught **its own** re-quoted figure ("eight pins" → 7). |
+| **M6** | deduplicated — `BUG-DSR-S3-AGENDA-TITLE-STALE` no longer appears in `PROGRESS.md` (0 occurrences); the archive keeps the `-PIN` name. |
+
+---
+
+## 14 · The round-1 "could not verify" list — what discharged
+
+| | status |
+|---|---|
+| **W1** ARMs | Re-run and HOLD per the lead. Still lead-verified, not qa-verified — unchanged in kind. |
+| **W2** mutations / stack cleanliness | ⭐ **Partly discharged by measurement.** I re-ran the census on the live stack: **48 direct crossings / 9 mask-disjoint**, identical to round 1; the invariant re-derives at 3/5; both guard bodies are byte-identical to their pre-migration state. Nothing in the disposal area is left neutralized. The mutation *runs* remain unre-executed. |
+| **W3** gate numbers | ⛔ **Superseded by R2-1** — the recorded figures are now one increment stale. |
+| **W4** `e2e:prod` | ✅ **DISCHARGED.** 1166p / 2f / 3 flaky / 11 skipped / **did-not-run 0** / 1182 collected, census sums. Both failures are `BUG-QO-STALE-CASOS`. Every DSR spec passed, including both new ones (batch 4, 57/57). ⭐ **`did-not-run 0` on all nineteen batches is the field that answers the serial-abort question**, and it is the right thing to have led with. |
+| **W5** flip authorization | ✅ **DISCHARGED** — §10, C1. |
+| **W6** pre-migration `proacl` | Unchanged; the harmlessness argument never depended on it. |
+| **W7** corridor coverage (7 lanes) | ⛔ **STANDS, UNTOUCHED.** ⚠ It is **not** discharged by the gate run, and I want to be plain about that since the message suggested it might be: W7 is a re-derivation of seven `reopen_*` **transition graphs** in the catalog. An E2E suite cannot answer it, and `FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED` is open precisely because nobody has. The precise claim still resting on nothing is `dm5-po-decisions.md` item 2's *"only `rca` is fully covered; six lanes each have a structurally terminal state no door reverses"* — a newly-precise number that arrived without a new measurement, sitting at the pilot-decision surface. |
+| **W8** nav runtime + build | ✅ Discharged by W4 — `e2e/dsr-nav-and-phi-hint.spec.ts` ran green in a prod-standalone build. |
+
+---
+
+## 15 · Why APPROVED
+
+The three blockers were not merely patched to the letter of what I wrote. **C2 in particular
+was answered by sweeping the axis rather than fixing my list** — which found two instances I had
+missed, changed the statement from a count to a property, and added the pgTAP pin that makes the
+next drift red instead of silent. That is a better outcome than the finding asked for, and it is
+the correct response to a finding of this class.
+
+What remains (R2-1 … R2-7) is entirely record and comment text. None of it is security-bearing,
+none changes behaviour, and R2-1 — the only one I am gating on — needs a transcription, not a
+measurement.
+
+⚠ **One pattern to name, because it is the round's own subject and it has not stopped.** Round 1
+found records quoting numbers from mid-round; round 2 finds the same thing again, three more
+times (R2-1, R2-2, R2-5), including the figures for the very commit that fixed C2. The
+mechanism is stable and worth stating once: **a record written at commit *n* is measured at
+commit *n*, and the round keeps going.** The `docs/backend-state.md` header's own instruction —
+*"re-derive from `pg_proc`, never from this table"* — is the right rule; **the same rule applied
+to the round's own gate figures would have caught all three.** The durable fix is what C2 did to
+the invariant: state the property, and mark the number as a dated measurement with the query
+beside it.
+
+⭐ Finally, the thing I most want on the record: **`backend` reported its own harness failing
+silently, and `frontend` reported its own re-quoted figure.** Both were found by their authors,
+not by review. Five corrected magnitudes in this round came from somebody re-measuring their
+own claim. That is the control that actually works here, and it is worth more than any of the
+findings above.
