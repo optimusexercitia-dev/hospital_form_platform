@@ -814,3 +814,47 @@ are `create_dsr_request`, `dispose_case_phi`, `dispose_event_phi` and three `gua
 as coverage.** Swept by the **property** instead — each rewritten `public.*` door's gate neutralized
 against the full suite: `dispose_event_phi` **COVERED**, `dispose_case_phi` **COVERED**,
 `create_dsr_request` **COVERED**, **0 BLIND**.
+
+## Rotated 2026-08-21 — superseded by the case-surface-split Increment-1 gate row
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-21 | ⭐ **DSR REMEDIATION · LEAD — §6 step 2, full `e2e:prod`** (19 batches) | **1166 p · 2 f · 3 flaky · 11 skip · did-not-run 0 · 1182 collected · exit 1.** RED for exactly `BUG-QO-STALE-CASOS` (`quality-oversight:569`/`:627`); no other spec failed. Detail → [test-run-archive.md](test-run-archive.md) |
+| 2026-08-21 | **DSR REMEDIATION · LEAD — §6 step 1, FINAL (re-measured after Part B)** | pgTAP **6795/6795** Files=**206** · lint(8) **0** · `tsc` **0** · vitest **1506/1506** · **435/435** migrations · 4 authz ARMs **HOLD** · sweep **0 BLIND**. ⛔ Earlier 6789/205/434 was one commit stale. Detail → [test-run-archive.md](test-run-archive.md) |
+| 2026-08-20 | **DSR PROGRAM CLOSE · LEAD — §6 step 1 on a FRESH `db reset`** | pgTAP **6717/6717** Files=**203** (+1/+6 = suite `352`, sums exactly) · lint(8) **0** · `tsc` **0** · vitest **1501/1501** (105 files) · ARM=census/hat/floor/wrapper **all HOLD** (hat 3 + wrapper 41 BLIND, all pre-existing reasoned-allowlist). ⛔ **No `e2e:prod`** — see § Now |
+| 2026-08-20 | **DSR Slice 4 · LEAD — gate, all four re-run by the lead** | pgTAP **6711/6711** Files=202 · lint(8) **0** · `tsc` **0** · unit **1480/1480**, real exit codes. **No e2e**: nothing reaches the changed dialog (`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`); AC-7/AC-8 4/4 = route integrity only → [archive](test-run-archive.md) |
+| 2026-08-20 | *(the DSR Slice 2 gate row rotated to [test-run-archive.md](test-run-archive.md) — superseded by the Slice 3 gate below)* | — |
+| 2026-08-18 | **DM follow-up triage · LEAD** — the four shipped items (#2 byte proof · #4 DVF 1:1 · #8b draft-print delete guard · attachments deletion). Two fresh `supabase db reset --local` cycles; both new pgTAP arms authored **red-first** | **pgTAP 194 files / 6397 PASS** · **lint 5/5** · **typecheck 0** · **vitest 1305/1305** · authz `census`/`hat`/`floor`/`wrapper` all **INVARIANT HOLDS**. ⛔ **`e2e:prod` NOT RUN — this row is not a phase gate.** Full row → [archive](test-run-archive.md) |
+
+## 2026-08-21 — CASE SURFACE SPLIT · Increment 1 · §6 steps 1+2 (detail for the live row)
+
+**Step 2 — full `e2e:prod`, 19 batches, `RESET=1 REBUILD=1`: GATE GREEN, exit 0.**
+`1176 passed · 0 failed · 2 flaky · 11 skipped · did-not-run 0 · 1189 collected.`
+
+⭐ **The census was verified from the PER-BATCH logs, not from the summary line.** The gate's own
+`COVERAGE: accounted for 1178 of 1189` reads as 11 unaccounted tests; it is not — the gate's
+"accounted" figure excludes skips. Summing the 19 batch logs (taking the re-run result where one
+occurred): passed **1176** + flaky **2** + skipped **11** = **1189** = collected. *A census whose
+parts do not sum is wrong; this one sums.* Stated because a summary line that appears to leave 11
+tests unexplained is exactly what a green gate must not be allowed to paper over.
+
+⛔ **Two INFRA re-runs, and they were checked rather than trusted.** Batches 5 and 17 failed first
+(batch 17 showed **54 failed**, batch 5 lost ~34 tests mid-batch). Root cause in both:
+`net::ERR_CONNECTION_REFUSED at http://localhost:3000` — the per-batch server restart had not come
+up. The downstream `toBeVisible failed` / `element(s) not found` errors are consequences of a dead
+server, not masked assertion failures. Re-runs: batch 5 → 63 p / 1 skip; batch 17 → 67 p / 2 skip,
+both accounting for their full batch. A gate that reclassifies failures as "infra" and re-runs
+them can hide real failures, so the reclassification was confirmed against the error signature.
+
+**Step 1 —** pgTAP **6795/6795**, Files=**206**, PASS · lint **8/8** exit 0 · `tsc` exit 0 ·
+vitest **1506/1506** (106 files) · authz `census` / `hat` / `floor` / `FROMFINDINGS=1 wrapper` — **all
+four INVARIANT HOLDS**. **No diff-scoped door sweep**, and the reason is measured rather than
+assumed: `git diff --stat $(git merge-base main HEAD)...HEAD -- supabase/` is **empty**, so the
+branch changes no policy and no `prosecdef` object and there is nothing in the sweep's domain.
+⚠ The pgTAP figure differs from the DSR-close 6717/203 — that growth is **`main`'s**, not this
+branch's, which the empty `supabase/` diff proves. "Unchanged" was checked as *unchanged by this
+branch*, not as *equal to a number recorded at a different commit*.
+
+⛔ **Not a phase close.** §6 step 3 (QA) and step 4 (PO approval) are outstanding, Increment 2 has
+not started, and **nothing is merged** — `main` is still E2E-red for the two QO bugs this branch
+fixes.
