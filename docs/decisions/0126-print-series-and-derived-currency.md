@@ -456,20 +456,68 @@ gets a conjunct**, deliberately:
 Writing the weaker claim down is what stops the next reader treating currency as a content-integrity guarantee
 it was never able to be.
 
-⭐ **Stated positively, because it is what makes the bound safe:** `app.guard_meeting_child_lock` is installed on
-**four** child tables (`meeting_agenda_items`, `meeting_attendees`, `meeting_cases`, `meeting_closed_sessions`)
-and reads **exactly one** RPC flag — `app.in_disposal_rpc`, settable only by `public.dispose_meeting_minutes`
-(ADR [0129](./0129-meeting-child-lock-disposal-flag.md), built 2026-08-19) — so it refuses even inside every
-*other* RPC, including all 26 that set `app.in_meeting_rpc`. Agenda, attendee and closed-session content is
-genuinely frozen for every registering state, and is therefore not a currency exposure. The one door that does
-get through **erases** content rather than revising it, and §F already makes a disposed meeting stop
-registering, so the bound is unaffected.
+⭐ **Stated as a PROPERTY, deliberately, because a count goes stale on the next change and a property does
+not:** `app.guard_meeting_child_lock` is installed on **four** child tables (`meeting_agenda_items`,
+`meeting_attendees`, `meeting_cases`, `meeting_closed_sessions`) and stands aside for **exactly one flag**,
+`app.in_disposal_rpc` (ADR [0129](./0129-meeting-child-lock-disposal-flag.md)). **The bound is not the reader
+count and never was — it is that ONLY THE LGPD DISPOSAL DOORS SET THAT FLAG, and the SETTER COUNT is what
+bounds the bypass** (ADR 0129 Amendment 1's own correction of its Decision 1). Every other RPC — including all
+26 that set `app.in_meeting_rpc` — still gets the raise. Agenda, attendee and closed-session content is
+therefore genuinely frozen for every registering state, and is not a currency exposure.
+
+> **The count is a MEASUREMENT with a date, not the rule — re-derive it, never quote it.** As of
+> **2026-08-21**: **3 setters** (`public.dispose_meeting_minutes`, `public.dispose_event_phi`,
+> `public.dispose_case_phi` — every one a disposal door) and **5 readers**
+> (`app.guard_meeting_child_lock`, `app.guard_reserved_child_lock`, `app.guard_rca_child_lock`,
+> `app.guard_capa_child_lock`, `app.guard_interview_child_lock` — every one a child lock).
+>
+> ```sql
+> -- setters (the bound) and readers, from the catalog, comments stripped
+> select 'setter' as role, p.oid::regprocedure::text from pg_proc p
+>  where regexp_replace(p.prosrc,'--[^\n]*','','g') like '%set_config(''app.in_disposal_rpc''%'
+> union all
+> select 'reader', p.oid::regprocedure::text from pg_proc p
+>  where regexp_replace(p.prosrc,'--[^\n]*','','g') like '%current_setting(''app.in_disposal_rpc''%'
+>  order by 1, 2;
+> ```
+
+⚠ **THE SAFETY ARGUMENT WAS RE-DERIVED FOR THE NEW SETTERS RATHER THAN CARRIED OVER, AND IT DID NOT SURVIVE
+INTACT.** The sentence this replaces reasoned that *the one door that gets through erases rather than revises,
+and §F already makes a disposed meeting stop registering, so the bound is unaffected*. **That reasoning does
+not cover `dispose_case_phi`**, which writes `meeting_cases` — one of this guard's own four tables — and stamps
+`cases.phi_disposed_at`, **never** `meetings.phi_disposed_at`. §F's un-registration therefore does **not** fire
+for that meeting, and the inherited justification has a hole exactly where the new setter landed.
+
+**The bound survives, for a DIFFERENT and measured reason: `meeting_cases` content is not in the printed ata at
+all.** `MeetingDocumentBody` (`src/lib/pdf/types.ts`) carries `minutesMd`, `agenda`, `attendance` and
+`actionItems`; `MeetingAgendaEntry` carries only the four `meeting_agenda_items` columns; and the template
+`src/lib/pdf/documents/meeting.ts` renders nothing case-shaped. A `meeting_cases` redaction cannot move a
+`content_hash` because those bytes were never in it.
+⚠ **Bounded, stated:** that is derived from the TS body type and the template, **not** from an end-to-end hash
+differential. **If a future template ever renders per-case notes into the ata, THIS is the paragraph that goes
+false** — and it goes false silently, because no gate compares a template's field set against this text.
+
+⛔ **The obligation this creates, and it is the point of stating the rule as a property:** a new setter of
+`app.in_disposal_rpc` obliges a re-derivation of *this paragraph*, not merely a bump of the number in it. That
+is what "the setter count bounds the bypass" is warning about.
 
 > ⚠ **Amended 2026-08-19** (ADR 0129 Decision 3). This paragraph previously read *"reads **no** RPC flag at
 > all"*. That was true when written and went false the moment the disposal flag landed — the exact
 > stale-positive-claim defect ADR 0129 exists to correct, reproduced inside the ADR that documented it. Pinned
 > by `supabase/tests/348_disposal_flag_meeting_child_lock.sql` t4/t5/t6/t13, which go RED if the stand-aside is
 > ever widened beyond that single door.
+>
+> ⛔ **Amended again 2026-08-21** (QA blocker C2 on the DSR operational-remediation round). It then asserted the
+> flag was *settable only by* `dispose_meeting_minutes`. **That went false the moment ADR 0129 Amendment 2's fix
+> landed** — `dispose_event_phi` and `dispose_case_phi` became setters in migration
+> `20261003000000`, tripling the bound this section rests on, and **nothing reds when a prose bound goes stale**.
+> ⭐ **The generalisable part, because it is the SAME miss one level up.** That round swept *"which door carries
+> a false comment?"* exhaustively — it is how the tenth statement (`dispose_case_phi` → `meeting_cases`) was
+> found at all — and never swept *"which STATEMENT OF THE INVARIANT did I just falsify?"*. Two sibling axes;
+> sweeping one reads as having swept the class ([[sweeping-one-sibling-axis-reads-as-sweeping-the-class]]). The
+> invariant statement is the thing that tells a future engineer not to add a setter, so a wrong statement of it
+> is precisely the shape that produced statement #10 in the first place. Restated as a property here so the next
+> change moves a measurement rather than falsifying a rule.
 
 ### F — DISPOSAL: a third registration conjunct for `meeting`, with the watermark in TANDEM (extension, PO-ruled)
 

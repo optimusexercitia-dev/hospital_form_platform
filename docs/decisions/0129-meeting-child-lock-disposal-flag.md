@@ -304,3 +304,46 @@ driven by ADR [0056](./0056-phi-disposal-closure-narrowed-claim.md) Amendment 1.
 > first build — so the three rewritten `public.*` doors were swept **by the property** instead,
 > each gate opened in turn against the full suite: `dispose_event_phi` **COVERED**,
 > `dispose_case_phi` **COVERED**, `create_dsr_request` **COVERED**. **0 BLIND.**
+>
+> ### ⛔ Amendment 3a (2026-08-21) — Decision 3's obligation, discharged a second time
+>
+> **QA blocker C2.** Amendment 3 above shipped the fix and **left every statement of the
+> invariant at its old value.** ADR 0126 §E still read *"settable only by
+> `public.dispose_meeting_minutes`"*, and Decision 2's own quotation of that replacement text
+> (above, in Decision 3) went stale with it. §E is re-amended 2026-08-21, and **restated as a
+> PROPERTY rather than a count**: *only the disposal doors bypass the child lock, and the SETTER
+> COUNT is what bounds the bypass* — with the measurement (**3 setters / 5 readers as of
+> 2026-08-21**) recorded beside the rule and a re-derivation query, not in place of it. Decision
+> 3's text is left as written, because it is a correct record of what the 2026-08-19 change did;
+> this note is what tells a reader it no longer describes §E's current wording.
+>
+> ⭐ **THE GENERALISABLE PART, AND IT IS THIS ADR'S OWN LESSON RECURRING ONE LEVEL UP.** The round
+> swept *"which **door** carries a false comment?"* exhaustively — that sweep is how the tenth
+> statement was found at all — and never swept *"which **statement of the invariant** did I just
+> falsify?"*. Two sibling axes; sweeping one reads as having swept the class
+> ([[sweeping-one-sibling-axis-reads-as-sweeping-the-class]]). It matters more than a nit because
+> **the invariant statement is the control**: it is the only thing telling a future engineer not to
+> add a setter, so a wrong statement of it is the very shape that produced statement #10.
+>
+> **Swept properly this time** — every non-migration mention of `app.in_disposal_rpc` across
+> `docs/`, `src/`, `e2e/`, `supabase/tests/`, `scripts/`, `.claude/`, classified as *asserts the
+> current bound* vs *dated history*:
+>
+> | location | verdict |
+> |---|---|
+> | `0126` §E | ⛔ **was stale — fixed here**, restated as a property |
+> | `0129` Decision 1 / Amendment 1 heading (*"one setter"*) | history, superseded in place by Amendment 3 |
+> | `0129` Decision 3's quotation of §E | ⛔ stale as a description of §E's wording — **this note** |
+> | `docs/backend-state.md` (the invariant row) | ✅ already 3 setters / 5 readers |
+> | `0131` Amdt 3 (*"setter count goes 1 → 3"*) · `docs/plans/dsr-operational-remediation.md` (*"set only by disposal doors"*) | ✅ correct, and already property-shaped |
+> | `docs/progress/decisions-log.md` (2026-08-19 row) · `follow-ups-archive.md` · `supabase/tests/346_print_currency.sql` | dated history, correct as written |
+> | `docs/progress/follow-ups.md` (*"two readers, still one setter"*, describing Amdt 1) | ⚠ accurate about Amdt 1, present-tense in a LIVE file — **raised to the lead, not edited here** (rotation surface) |
+>
+> ⚠ **And §E's SAFETY argument did not survive the re-derivation intact** — recorded because
+> correcting a bound's *number* without re-deriving what the bound was *protecting* is the
+> partial-fix shape. §E justified the bypass as *"the one door that gets through erases rather than
+> revises, and §F un-registers a disposed meeting"*. `dispose_case_phi` writes `meeting_cases` and
+> stamps `cases.phi_disposed_at`, **never** `meetings.phi_disposed_at`, so §F does not fire for it.
+> The bound survives for a **different, measured** reason — `meeting_cases` content is not in the
+> printed ata at all (`MeetingDocumentBody` / `MeetingAgendaEntry` / the meeting template carry
+> nothing case-shaped) — and §E now says so, with the limit of that derivation stated.
