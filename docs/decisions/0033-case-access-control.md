@@ -137,3 +137,21 @@ interviews participant-write predicate `app.can_write_interview` (ADR 0026); we 
   E2E suite can exercise every access path.
 - **Coordinators are unaffected** (they pass both predicates) and additionally gain their own
   "Meus Casos" for cases where they are personally attributed, alongside the management board.
+
+## Amendment 1 — the Q3 boundary gains an administrativo read arm; the write-grant SURFACE moves
+
+**2026-08-21 · ADR [0134](./0134-case-surface-split-and-administrativo-case-read.md) — design
+PO-ratified, NOT yet built (update this stub to the build record when Increment 2 lands).**
+
+> Two decisions of this ADR are amended by 0134; neither is reversed in spirit:
+>
+> - **Q3's restrictive boundary** ("no attribution + no grant ⇒ cannot see the case;
+>   coordinators/admins always pass") **adds one class to the always-pass-for-read set**: an
+>   administrativo (ADR 0061) appointed with the new `read_cases` capability, via a new
+>   `app._case_caps` arm conferring `read_case_content` only. Content write stays grant-gated
+>   exactly as Q2 decided — 0134 D6/D7.
+> - **Q7's "both routes mount the capability-gated view"** was already narrowed by `8675b7cd`
+>   (2026-08-19, `/casos` as a reading surface); 0134 D1–D3 completes that narrowing: the
+>   write grant's *semantics* are unchanged, but its *surface* is `/manage/cases/[caseId]`
+>   (entry: `staff_admin ∨ isAdministrativo ∨ canWriteContent`), and `/casos` keeps only
+>   name-attributed writes (Q14's assignee checks are untouched).

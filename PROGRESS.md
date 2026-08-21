@@ -179,6 +179,11 @@ premises (case 1 `pending`, case 2 `completed`), and the affordances still exist
 URL": the test's PURPOSE was to pair a coordinator against `quality.a`'s absence check on the SAME
 url, and if `/casos` is now read-only for everyone that pairing has gone VACUOUS** — it would pass
 while proving nothing. Owner: whoever owns `8675b7cd`; the E2E baseline is red until then.
+**Repair design PO-ratified 2026-08-21** (ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md)
+D8; recipe: [case-surface-split.md](docs/plans/case-surface-split.md) §2): re-anchor the `:569`
+pairing on "Gerenciar caso" presence (coordinator) vs absence (`quality.a`) on the same `/casos`
+URL — non-vacuous, survives the redesign — and move `Editar`/`Reabrir` to `/manage/cases/[caseId]`.
+Tester-owned, **not yet executed**; ordered before AFF2 pins its e2e baseline.
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
@@ -263,6 +268,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-21 | **PO: case split = read vs manage** — `/casos` = read + name-attributed work only; ONE manage surface (coordinator / administrativo / write-grantee); administrativo gets commission-wide case READ (5th cap `read_cases`). ⛔ NOT built — plan: [case-surface-split.md](docs/plans/case-surface-split.md) | ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md) |
 | 2026-08-21 | **PO: an ethics proceeding carries NO erasure entitlement, at any stage — no door, no UI.** Basis is the record's **administrative-proceeding** nature, ⛔ **not CFM 1821/2007**. Closes the Class-2 question. ⛔ **2 pre-existing doors DO remove ethics data** — filed, record-only | ADR [0132](docs/decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md) |
 | 2026-08-21 | **AFF2 Amdt 1 (PO): footprint bound SPLITS by capability** — fields+credentials → **intersection**, CPF-change+lifecycle keep **subset** · silent cross-hospital write **ACCEPTED residual** · LGPD: professional titulares administrative, **out of DSR scope BY DESIGN** · 6 rulings | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 1** |
 | 2026-08-20 | **AFF2 accepted (PO): affiliation-scoped hospital_admin authority** — footprint-bounded person-level edits, credentials + lifecycle · CPF mandatory in UI, escape hatch REMOVED · `date_of_birth`+`phone` added column-locked · credentials SELECT widens · presence-only CPF display | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) (né 0129) · amends 0097 D11/D14 · 0098 W3.2 · [0048](docs/decisions/0048-user-registration-identity.md) D10 |
