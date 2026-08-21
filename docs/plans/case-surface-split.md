@@ -192,6 +192,14 @@ It is therefore **not** Increment 2 work on a lead's say-so. Until ruled, bulk c
 `staff_admin`-only and D5 is **partially implemented by decision, not by omission** — say so
 in the build record rather than letting "T4 done" read as full coverage.
 
+⚠ **For the PO when OPEN-2 is ruled — a magnitude argument, not just a yes/no.** `create_cases`
+today authorises creating **one** case. `bulk_create_cases` creates **up to 200 in one atomic
+call and assigns them across members**. Hanging both on the same capability key means the
+existing `create_cases` checkbox in the appoint dialog silently changes meaning for **every
+appointee already holding it** — the capability's name would no longer describe its reach. That
+is an argument for a **separate menu key** (a sixth ADR 0061 entry) rather than reusing
+`create_cases`, and it is a design question for the ADR, not an implementation detail.
+
 ### T5 — row links
 
 Board/list rows (both the `/casos` staff board and `manage/cases`) link to manage detail for
@@ -207,8 +215,44 @@ historical — its Amendment 1 already says so.)
   **differential absence** on `/casos` (present-on-manage / absent-on-casos for the same
   user+case — pins D1 the way `8675b7cd`'s control did).
 - New fail-closed entries, one test each: read-grantee → direct-nav `manage/cases/[id]` 404;
-  plain member → 404; `quality.a` → 404; org_admin per V-A; cross-commission id → 404.
+  plain member → 404; `quality.a` → 404; org_admin **and `hospital_admin`** per V-A
+  (⚠ the arm is `app.is_tenancy_admin_of_for`, which covers **both** — the plan originally
+  named only `org_admin`, i.e. one sibling of a two-member axis, which would read as sweeping
+  the class); cross-commission id → 404.
 - Keyboard-only flow requirement (§8 of CLAUDE.md) applies to the new button path.
+
+⛔ **Not every class in that list can PROVE the new gate — know which gate turns each one away**
+(measured 2026-08-21). The manage layout has **two** gates: the new T1 entry predicate, and the
+pre-existing `getCaseDetail`-returns-null → `notFound()` at `(detail)/layout.tsx:67-70`. A class
+that cannot **read** the case 404s at the second gate regardless, so its test **passes with the
+T1 gate deleted** — blind as a pin on T1.
+
+Backend's measurement (differential, 9 personas): **a plain committee member does NOT get
+`read_case_content`.** `_case_caps` **S5 confers `read_case_deliberation` only**, and
+`app.has_case_capability` is a bare bitmask test with **no lattice closure**. Every seed member
+who reads a case does so through S3 (grant) or S4 (phase/narrative assignment) — never through
+membership. So the `canRead` arm set is **five, not six**: S1 · S3 · S4 · S6 · S7.
+
+| Excluded class | `can_read`? | Which gate turns it away | Proves T1? |
+| --- | --- | --- | --- |
+| **read-grantee** (S3, read-only) | **true** | **the T1 gate, alone** | ✅ **load-bearing** |
+| **`quality.a`** (S7) | **true** | **the T1 gate, alone** | ✅ **load-bearing** |
+| plain `staff` member | false | second gate would 404 anyway | ⚠ passes with T1 deleted |
+| `org_admin` / `hospital_admin` | false | T1 fires first, but second gate would too | ⚠ passes with T1 deleted |
+| `platform_admin` | n/a | `layout.tsx:110`, before either | ⛔ doubly blind |
+| cross-commission | false | earlier still | ⛔ blind |
+
+**Keep all of them** — they pin the boundary against future widening, which is real value. But
+**the record must say which two are the proof.** The control that makes it non-vacuous: revert
+the T1 gate and require the **read-grantee** and **`quality.a`** tests to go **RED**; the others
+will stay green, and that is the expected result, not a failure of the control.
+
+⚠ Consequence for ADR 0134 **D3**'s prose ("a pure read-grantee, a plain committee member, and a
+quality reviewer 404 — *their surface is `/casos`*"): true for the read-grantee and the quality
+reviewer; **false for the plain member**, who has no case surface at all without a grant or an
+attribution. That is ADR 0033 Q3's boundary working as designed (D6 amends it only for
+administrativos), not a defect — but do not write an E2E asserting a plain member reads the case
+on `/casos`, because they do not.
 
 ### Increment-1 gate
 
