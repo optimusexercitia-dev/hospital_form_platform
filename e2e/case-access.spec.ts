@@ -417,7 +417,7 @@ test('AC-3a grant-read (multi): viewer sees full case, content editors hidden', 
   await signOut(page)
 })
 
-test('AC-3b grant-write (staff3): collaborator can access case; sees content-write UI; no lifecycle; cannot fill phase', async ({
+test('AC-3b grant-write (staff3): collaborator gets NO content-write UI on /casos any more (T6 — 8675b7cd/D1); the SAME control moved to /manage/cases, which she reaches via the un-narrowed "Gerenciar caso" escape hatch; no lifecycle; cannot fill phase', async ({
   page,
 }) => {
   await signInAs(page, 'staff3.ccih@test.local')
@@ -427,20 +427,51 @@ test('AC-3b grant-write (staff3): collaborator can access case; sees content-wri
   await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
 
-  // Content-write UI IS present: narrative Editar buttons for un-attributed narratives.
-  // The "Achados e Discussão" and "Conclusão do Comitê" narratives have no assignee →
-  // canWriteContent means staff3 can edit them. At least one Editar should be visible.
-  // (The "Resumo Clínico" is attributed to staff2 — its Editar is blocked by Q14.)
-  // We assert at least one Editar button is present (for the un-attributed ones).
-  const editarButtons = page.getByRole('button', { name: /^Editar$/ })
-  await expect(editarButtons.first()).toBeVisible({ timeout: 8_000 })
+  // ⚠ T6 (case-surface-split Increment 1, ADR 0134 D1/D2): `readingAsMember` now
+  // fires on `rawCaps.canWriteContent` too, not just `canManageLifecycle`
+  // (case-detail-view.tsx) — a write-grantee is narrowed on THIS route exactly like
+  // a coordinator. The narrative Editar buttons this test used to find here (for
+  // the un-attributed narratives, "Achados e Discussão" / "Conclusão do Comitê" —
+  // "Resumo Clínico" stays Q14-blocked regardless, attributed to staff2) are gone
+  // from `/casos` for EVERY class now — asserting them present HERE would be
+  // exactly the vacuity trap this program keeps naming: `8675b7cd`'s own
+  // differential control is what proves this, not a bare absence. Reproduced as a
+  // differential below: content-write UI absent here, present on the SAME
+  // narratives at `/manage/cases`, reached by the un-narrowed "Gerenciar caso" link
+  // — D1's sentence ("/casos writes = name-attributed only") made literally true
+  // for the write-grantee class, not just the coordinator.
+  await expect(page.getByRole('button', { name: /^Editar$/ })).toHaveCount(0)
 
-  // Lifecycle controls absent.
+  // Lifecycle controls absent (unaffected by this increment — staff3 never held
+  // `canManageLifecycle`).
   await expect(page.getByRole('button', { name: /ativar fase/i })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /concluir caso/i })).toHaveCount(0)
 
   // staff3 is NOT the phase-assignee (staff1 is), so no "Preencher" button.
   await expect(page.getByRole('button', { name: /^Preencher$/ })).toHaveCount(0)
+
+  // The escape hatch: gated on the UN-narrowed `canOpenManagement` predicate (D3
+  // arm 3 — per-case `canWriteContent`), so it can never strand a write-grantee the
+  // gate itself would admit. Counts by href AND accessible name — this button IS
+  // the T1 predicate's entire UI surface for this class, previously asserted
+  // nowhere for a write-grantee.
+  const manageLink = page.getByRole('link', { name: 'Gerenciar caso' })
+  await expect(manageLink).toBeVisible({ timeout: 10_000 })
+  await expect(manageLink).toHaveAttribute('href', `${BASE}/manage/cases/${CASE_ID}`)
+
+  // NON-VACUOUS positive control (the differential's other half, mirroring
+  // `8675b7cd`'s own control and QA r1's "an absent control is not proof a door is
+  // shut" lesson): the SAME content-write UI, the SAME un-attributed narratives,
+  // genuinely present for the SAME user on the manage host.
+  await manageLink.click()
+  await page.waitForURL(`${BASE}/manage/cases/${CASE_ID}`)
+  await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
+  const editarButtons = page.getByRole('button', { name: /^Editar$/ })
+  await expect(editarButtons.first()).toBeVisible({ timeout: 8_000 })
+
+  // Lifecycle STILL absent here too (write-grant ≠ `canManageLifecycle`, on either host).
+  await expect(page.getByRole('button', { name: /ativar fase/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /concluir caso/i })).toHaveCount(0)
 
   await signOut(page)
 })
