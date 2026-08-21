@@ -222,3 +222,85 @@ driven by ADR [0056](./0056-phi-disposal-closure-narrowed-claim.md) Amendment 1.
 > stays rejected for exactly the reason given above: honouring each lane's own RPC flag would
 > grant every safety/interview RPC child-write power over locked parents. Carry the same
 > obligations, per lane: the no-flag differential, and the sibling-RPC over-grant twin.
+
+## Amendment 3 — the three siblings are FIXED, and the population was TEN across FOUR guards
+
+**2026-08-20 · `backend` · migration `20261003000000_disposal_flag_through_sibling_child_locks.sql`
+· suite `supabase/tests/353_disposal_child_lock_siblings.sql` (60 tests) · census
+[`docs/reviews/disposal-guard-crossing-census.md`](../reviews/disposal-guard-crossing-census.md).**
+
+> **Amendment 2's fix shape, executed.** `app.in_disposal_rpc`'s stand-aside — copied VERBATIM from
+> `app.guard_meeting_child_lock` — is now in `app.guard_rca_child_lock`,
+> `app.guard_capa_child_lock` and `app.guard_interview_child_lock`, and both remaining doors set
+> the flag around their own guarded child writes. Shape 1 stays rejected.
+>
+> ### The population was larger than Amendment 2 recorded, in two ways
+>
+> **1. TEN statements across FOUR guards, not nine across three.** The tenth —
+> `dispose_case_phi` → `update public.meeting_cases` — needed **no guard change**:
+> `app.guard_meeting_child_lock` has read `app.in_disposal_rpc` since Decision 1, and
+> `dispose_case_phi` simply never set it, while carrying the inline comment
+> `-- for meeting_cases child-lock` beside its `app.in_meeting_rpc` line. That comment was
+> **false against the live guard** (the flag it names reaches the parent-table guards only) and is
+> corrected in the same migration, per Decision 2. ⭐ **The defect this ADR exists to document — a
+> comment asserting a bypass the guard it names does not implement — was sitting in the sibling
+> door the whole time, written by the same fix.**
+>
+> **2. The candidate crossing is 48, not 15 — and 51 with the cascade closure.** Amendment 2's
+> "15 candidates, 3 confirmed" was bounded to `dispose_event_phi` + `dispose_case_phi`. Re-derived
+> across all four doors, with `--` comments stripped before the regex and with the DELETE targets
+> followed through `ON DELETE CASCADE`, the property returns **51**, verdicted
+> **14 CONFIRMED-reachable / 9 STRUCTURALLY-UNREACHABLE / 28 NON-BLOCKING** (the parts sum). The
+> census file carries the per-row verdict, the mask bit that proves each unreachable row, and the
+> query to re-run it.
+>
+> ### Four windows, not one — tighter than the shape ruled for
+>
+> The guarded child writes in each door form **two non-adjacent runs**, so each door opens a narrow
+> window per run. No window spans `capa_plan`, `cases`, `documents` or `file_objects` at all, which
+> **removes** the "a future trigger inside a wide window would stand aside silently" residual rather
+> than documenting it. Measured after the change, from `pg_trigger`: every table inside a window
+> carries exactly its intended child lock, and **no excluded table carries any trigger that reads
+> the flag**. The bound remains the setter count: **3 setters (all disposal doors) · 5 readers (all
+> child-lock guards)**, both re-derived from `pg_proc` after the migration.
+>
+> ### Mutation-proven in BOTH directions, per lane
+>
+> Green-on-first-run is not evidence, so each direction was executed, each restore hash-verified
+> before the next ran:
+>
+> | mutation | suite `353` result |
+> |---|---|
+> | stand-aside REMOVED from `guard_rca_child_lock` | RED t5, t6, t7, t9 |
+> | …from `guard_capa_child_lock` | RED t18-20, t22, t29-30 (both `completed` and `cancelled`) |
+> | …from `guard_interview_child_lock` | RED t35-37, t39, t46-47 (both terminal states) |
+> | `dispose_case_phi` window 2 never opens (the pre-fix state for #10) | RED t52-54 |
+> | `guard_rca_child_lock` WIDENED to `app.in_safety_rpc` (shape 1) | RED t13-14 |
+> | `guard_interview_child_lock` WIDENED to `app.in_interview_rpc` (shape 1) | RED t43-44 |
+>
+> ⭐ **Every lane's keystone asserts the CLASS-1 PHI IS GONE** (`event_patient` / `patient_identifiers`
+> at zero, `phi_disposed_at` stamped), not merely that free text redacted. On the failing path
+> NOTHING is written — including the redaction — so a redaction-only suite goes **green while the
+> PHI survives**. That is the trap this bug is made of, and t6/t19/t36/t53 are what avoid it.
+>
+> ### The legal-hold sibling, settled rather than left implicit
+>
+> The census's other CONFIRMED-reachable class is `HC0D3`: with an unreleased
+> `document_legal_holds` row, `app.guard_file_object_transition` aborts `dispose_case_phi` and
+> `dispose_referral_phi` — **the identical fail-closed shape, with PHI surviving**, executed with a
+> matched control (no hold ⇒ door completes, `patient_identifiers` = 0; hold ⇒ HC0D3,
+> `patient_identifiers` = 1). ⛔ **The INTENT is opposite**: a live retention obligation outranks an
+> Art. 18 erasure. `dispose_referral_phi` already said so in its body; `dispose_case_phi` did not,
+> and now does. No pin is added here — the guard arm is pinned three times already, and pinning
+> *"erasure is refused"* would freeze a **policy**, not a mechanism; that needs a PO reading first.
+>
+> ### Gates
+>
+> Fresh `supabase db reset`: pgTAP **6789/6789** (205 files; +60 from `353`, +12 from `354`) ·
+> lint 8/8 · `tsc` clean · vitest 1512/1512. `ARM=census` · `ARM=hat` · `ARM=floor` ·
+> `FROMFINDINGS=1 ARM=wrapper` all HOLD. The diff-scoped door sweep's case list is **EMPTY by the
+> recipe's syntax filter** (trigger functions and `if not (...)` inside a door match no
+> `^(is_|can_|has_)` pattern; zero RLS policies in the diff) — exactly as it was for this ADR's
+> first build — so the three rewritten `public.*` doors were swept **by the property** instead,
+> each gate opened in turn against the full suite: `dispose_event_phi` **COVERED**,
+> `dispose_case_phi` **COVERED**, `create_dsr_request` **COVERED**. **0 BLIND.**

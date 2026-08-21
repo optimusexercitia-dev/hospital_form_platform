@@ -426,3 +426,79 @@ from entities at write time and **no dispose door touches them**.
 - Open, deliberately: counsel's scope return (ADR 0035 Amdt 1) and the
   `superseded`-vs-`retention_expired` reason value (stays with the D11 implementing
   slice per ADR 0121 Amdt 2 — this ADR does not settle it).
+
+## Amendment 5 — Amendment 4's withdrawal reaches the CODE, and its rationale is COMPLETED
+
+**2026-08-20 · `backend` · migration `20261003000100_retire_notify_scrub_check_task.sql` ·
+suite `supabase/tests/354_dsr_notify_scrub_retired.sql` (12 tests).**
+
+> **Amendment 4 withdrew Decision 9's notification-scrubbing clause as premise-falsified. The
+> withdrawal reached this ADR and never reached the code.** `create_dsr_request` went on minting one
+> `notify_scrub_check` task per request, and `close_dsr_request` raises HCDS4 while any task is
+> `pending` on a `granted`/`granted_partial` outcome. So **every granted LGPD subject request was
+> blocked until a human attested to a residue class this program had proved absent** — and the
+> attestation text asserts, in a legal record, that something was checked which cannot exist.
+>
+> ⭐ **AND AMENDMENT 4'S RECORDED RATIONALE IS INCOMPLETE. Do not repeat it.** Item 1 argues that
+> `notifications.entity_type`'s CHECK does not admit `case` / `referral` / `event`. True — and **not
+> sufficient**: the same CHECK admits **`meeting`** and **`capa_action`**, and the disposal doors
+> touch both lanes. Stated as it stands, the argument is a real filter cited for a conclusion it
+> does not bound.
+>
+> **The complete argument is a census of the WRITERS, measured from the catalog:**
+> `app.enqueue_notification` is the only `insert into public.notifications` there is, with **16
+> callers / 25 call sites** (`--` comments stripped before matching). Every (entity_type,
+> body-source) pair: `capa_action` ← `capa_action.title` · `meeting` ← `meetings.title` (verbatim,
+> or title + a fixed string in the two minutes-job lanes) · `action_item` ← `action_items.title` ·
+> `controlled_document(_version)` ← `controlled_documents.code || ' — ' || .title` ·
+> `commission` ← the commission NAME + a fixed string · `ethics_notification` ←
+> `ethics_notifications.notification_type` (a CHECK enum) or a fixed string ·
+> `response_section_signoff` ← NULL or a form SECTION title.
+>
+> **Cross-referenced against all four `dispose_*` bodies: every admitted `entity_type` reachable
+> from a disposal door carries a TITLE as its body** — and ADR
+> [0131](./0131-phi-erasure-reach-bounded-to-designated-fields.md) Amendment 1's *title invariant*
+> puts titles out of erasure scope by design, which is why `dispose_meeting_minutes` deliberately
+> never touches `meetings.title` and `dispose_event_phi` never touches `capa_action.title`.
+> (`controlled_documents.title` is a different table from the `documents.title` the case and
+> referral doors redact; no door writes `controlled_documents`.) **So the conclusion holds — for a
+> better reason than the one on file.**
+>
+> ### What shipped, and what deliberately did not
+>
+> - ✅ The mint is **removed** from `create_dsr_request`; every other statement is unchanged.
+> - ⛔ `notify_scrub_check` **stays in `dsr_tasks_kind_check`** and stays admitted by
+>   `complete_dsr_task`: historical rows must remain valid AND completable. Retiring the *minting*
+>   must not strand the *completion*.
+> - ⛔ **No backfill.** Flipping surviving `pending` rows to `blocked` would make them
+>   indistinguishable from a **refusal** retirement — `blocked` means "retired by decision" in the
+>   vocabulary `close_dsr_request` writes, and Amendment 3's QA-r2 correction binds: no surface may
+>   name the cause of a retirement from `status` alone. **The migration touches no existing row**,
+>   which is true of every environment and is therefore the only safe thing to claim about any of
+>   them. Measured locally on a fresh reset: **0** `dsr_requests`, **0** `dsr_tasks`, so the local
+>   population of affected rows is zero.
+> - ⛔ `close_dsr_request` is **unchanged**. Its HCDS4 pending-task gate is a real control on
+>   erasure completeness and stays; it simply stops firing on a task nobody asked for.
+> - `src/lib/dsr/messages.ts` keeps its render copy, so a historical row still labels correctly.
+>
+> ### Mutation-proven
+>
+> Restoring the pre-fix mint (catalog-derived rewrite, hash-verified both ways) turns `354`
+> **RED at t3, t5, t8, t9, t10, t11** — including **t10, the granted close**, which is the
+> differential. **t12 stays GREEN**, which is the point: the HCDS4 gate itself still refuses a
+> genuinely pending task, so t10 cannot be satisfied by deleting the gate.
+>
+> ⚠ **One vacuity was caught in this suite's own first draft, by asking what the mutation would do
+> rather than by the suite going green — it did go green.** Completing *every* pending task before
+> the close models an executor who also attested to the phantom residue; t10 would then have passed
+> identically with the task still minted. The fixture now completes everything **except**
+> `notify_scrub_check`, which is what makes t9/t10 a differential at all.
+>
+> ### Downstream, routed rather than edited
+>
+> pgTAP `349` t12 asserted `= 1` and is reversed to `= 0` in place, with `354` named as the
+> contract; the dead `task_scrub` / `task_scrub_b` lookups in `349`/`350` (assigned, never read,
+> and now resolving to NULL) are removed. **Three Playwright specs assert the minted kind list and
+> will go red** — `e2e/dsr-subject-requests.spec.ts:190,209`,
+> `e2e/dsr-slice3-adjudication.spec.ts:314,344` (+ its header comment `:28` and the
+> BUG-DSR-S3-003 note `:1167`). `e2e/**` is tester-owned and was **not** touched.

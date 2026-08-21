@@ -227,11 +227,21 @@ select is(
   't11: every routed task belongs to this hospital (ADR 0130 D4 — hospital-scoped)'
 );
 
+-- ⛔ REVERSED, deliberately and visibly. This asserted `1` — "exactly one
+-- notification-residue check per request (Q12a)" — until 2026-08-20. ADR 0130
+-- **Amendment 4** withdrew Decision 9 as premise-falsified (the residue class it names
+-- does not exist), and migration `20261003000100` stopped minting the task. Leaving the
+-- old pin would have made the fix look like a regression in the file a reader trusts
+-- most. The FULL retirement contract — the positive control that this counter can still
+-- see such a row, that the KIND stays valid and completable, and that the HCDS4 gate is
+-- untouched — lives in `354_dsr_notify_scrub_retired.sql`; t12 here is the one-line
+-- consequence for this suite's own fixture. t9/t10 above are its non-vacuity control:
+-- this request DOES mint tasks, so the zero is a measurement over a populated request.
 select is(
   (select count(*)::int from public.dsr_tasks
     where request_id = (select req1 from f) and kind = 'notify_scrub_check'),
-  1,
-  't12: exactly one notification-residue check per request (Q12a)'
+  0,
+  't12: NO notification-residue check is minted any more (ADR 0130 Amdt 4; contract pinned in 354)'
 );
 
 -- The cross-hospital control. PRT-B-0001 is indexed only in Hospital B; opening
@@ -293,9 +303,11 @@ update f set task_ref = (select id from public.dsr_tasks
              -- never existed to fail. Disambiguated on the MEETING grain it always meant.
              task_meet = (select id from public.dsr_tasks
                           where request_id = (select req_meet from f)
-                            and kind = 'attest_review' and module = 'meeting'),
-             task_scrub = (select id from public.dsr_tasks
-                          where request_id = (select req1 from f) and kind = 'notify_scrub_check');
+                            and kind = 'attest_review' and module = 'meeting');
+-- (`task_scrub` was assigned here and never read by any assertion. Since ADR 0130 Amdt 4
+-- nothing mints the kind, so the subquery would resolve to NULL — a dead lookup that
+-- reads like coverage. Removed rather than left to rot; the column stays declared so the
+-- temp-table shape is untouched.)
 
 select test_helpers.claims_for((select plain_staff from f), false);
 set local role authenticated;

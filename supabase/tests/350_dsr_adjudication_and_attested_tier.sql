@@ -440,9 +440,10 @@ update f set task_comm = (select t.id from public.dsr_tasks t
                           where t.request_id = (select req_a from f)
                             and t.kind = 'attest_review' and t.entity_id is null
                             and c.slug = 'ccih');
-update f set task_scrub_b = (select id from public.dsr_tasks
-                              where request_id = (select req_b from f)
-                                and kind = 'notify_scrub_check');
+-- (`task_scrub_b` was assigned here and never read by any assertion. Since ADR 0130
+-- Amdt 4 nothing mints `notify_scrub_check`, so the subquery would resolve to NULL — a
+-- dead lookup that reads like coverage. Removed rather than left to rot; the column stays
+-- declared so the temp-table shape is untouched. The retirement contract is in `354`.)
 update f set task_ref = (select id from public.dsr_tasks
                           where request_id = (select req_a from f) and kind = 'dispose_referral');
 -- Snapshot the MINTED PROCEDURE before anyone completes the task. ⚠ t49 compares
