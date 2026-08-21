@@ -5337,6 +5337,35 @@ substrate that was not in the state the instrument assumed. This is the same fam
 **2026-08-20, found by QA r2 while falsifying a count the lead had relayed.** B2 fixed this shape inside
 the DSR specs. It is **not** confined to them.
 
+> ### ⛔ FOURTH CORRECTION 2026-08-20 (lead, measured) — the item was also read TOO WIDE, and the over-read is in the alarming direction
+>
+> A DSR-remediation sweep listed **five** live PHI-erasure instances: `case-patient.spec.ts:1193`,
+> `pdf-printing-meetings.spec.ts:335`, and `meeting-audio-minutes.spec.ts:483/492/571`. **Only the
+> first two are vacuous.** The three audio ones use `.toBeTruthy()`, and `undefined` is **falsy** —
+> they fail loudly on an absent row.
+>
+> **Measured, not reasoned** (vitest 4.1.8, four assertions, all passing):
+>
+> | matcher on `absent?.field` (⇒ `undefined`) | verdict |
+> |---|---|
+> | `.not.toBeNull()` | ⛔ **PASSES** — this is the vacuity, and it is the ONLY one |
+> | `.toBeTruthy()` | ✅ throws |
+> | `.toBe(false)` | ✅ throws |
+> | `.toBeNull()` | ✅ throws |
+>
+> ⭐ **So the defect is the MATCHER, not the optional chaining.** `row?.` is necessary but not
+> sufficient; every prior statement of this item said *"optional chaining converts a missing subject
+> into a passing assertion"*, which is true only in composition with a matcher that accepts
+> `undefined`. Stated at the wrong grain, that reads as a licence to sweep every `?.` in the tree —
+> and the population it yields is mostly sound tests. [[a-predicate-quoted-at-the-wrong-grain]]
+>
+> ⚠ **This does NOT shrink the item**, for two reasons. (1) The **second** vacuity mechanism the DSR
+> fix named — a helper that returns `[]` on a *failed read*, turning "the request errored" into "the
+> table is empty" — is **matcher-independent** and still unswept. (2) The population must be
+> re-derived as a property (**matcher ∈ the accepts-`undefined` set** × a possibly-absent subject),
+> ⛔ never as a grep for `?.`. Four counts have now been claimed for this item and four have been
+> wrong.
+
 ⛔ **Three numbers were claimed and none survived measurement:**
 - `tester` reported *"14 spec files carry private copies, exactly one other swallows"* — the lead relayed it.
 - QA measured *"≥49 swallowing helper bodies"* and flagged its own larger figure (85/67) as **unverified**.
@@ -5380,3 +5409,76 @@ runs — 21 deadlocks each, ~700 tests never executing.** `taskkill /PID <parent
 evidence about the CHILD, not the SUPERVISOR.* Reap by process tree from the parent, and verify by
 enumerating the **process table** — never by re-checking the port. ⚠ `TaskStop` does not reap a
 background command's process tree (standing rule, now with a second occurrence).
+
+### 🟠 FUP-DSR-OUTCOME-RECORD-HAS-NO-DELIVERY — the DSR workflow's one promise to the data subject has no mechanism (owner: PO/frontend; **filed 2026-08-20, PO-deferred the same day**)
+
+ADR [0130](../decisions/0130-dsr-subject-request-workflow.md) **D1** requires answering a subject
+request with its outcome and, for a refusal, its legal basis (LGPD Art. 18 §4). `BUG-DSR-S3-007`
+calls the outcome record *"the artifact delivered to the data subject"*.
+
+⛔ **`src/components/dsr/dsr-outcome-record.tsx` renders on screen only.** Measured 2026-08-20:
+the DSR module contains **no export, print, PDF or download path** — not in `src/components/dsr/`,
+not in `src/app/o/[org]/titulares/`, not in `src/lib/dsr/`. No document names how the record
+reaches the subject, and no runbook covers it. This is the workflow's **only** promise to the
+subject with neither a mechanism nor a procedure.
+
+**PO ruling 2026-08-20: OUT OF SCOPE for the operational-remediation round** (the round that fixed
+`BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW`). ⛔ **Deferred with the gap named — not closed, not
+descoped.** Today an operator delivers the answer out-of-band, keyed by the request's `file_ref`.
+
+**Two shapes when it is taken up, and they are not equivalent:**
+1. **Minimal print view** — a print stylesheet plus an `Imprimir` affordance on
+   `/o/[org]/titulares/[requestId]`. Cheap, no new door. ⚠ But ADR
+   [0125](../decisions/0125-previa-ephemeral-and-emission-registered.md) /
+   [0126](../decisions/0126-print-series-and-derived-currency.md) make printing a **registered
+   emission** concept in this platform, so an unregistered print sits *beside* that model rather
+   than inside it — and the delivered legal answer would carry no verification trail.
+2. **Registered emission** — route the record through the existing print/emission subsystem so the
+   delivered answer is a registered document. Correct for a legal deliverable; costs its own ADR
+   plus a print-source vector.
+
+⚠ **Do not let the screen render stand in for delivery in any status claim.** The record being
+*complete and correct on screen* is what the DSR gate verified; that it *reached the subject* has
+never been in scope and is not evidenced anywhere.
+
+### 🟡 FUP-DSR-ENCARREGADO-MUST-BE-A-COMMISSION-MEMBER — the LGPD data-protection officer cannot be a pure officer (owner: PO/product; **filed 2026-08-20 after a lead premise was measured false**)
+
+`app.is_dpo_of_for(p_hospital_id, p_user_id)` carries this as a **hard conjunct**, measured in the
+live catalog 2026-08-20:
+
+```sql
+and exists (
+  select 1 from public.commissions c
+  where c.hospital_id = p_hospital_id
+    and app.has_role_any('commission', c.id, p_user_id)
+)
+```
+
+So an *Encarregado* (LGPD Art. 41 data-protection officer) who holds **no commission role** in that
+hospital resolves `false`, arm 1 of `list_my_dsr_hospitals()` returns nothing, and
+`/o/[org]/titulares` 404s them. A second, independent lock says the same thing one layer out:
+`organizations_select` is `is_admin OR is_org_admin_of OR is_org_member OR is_pqs_operator_in_org OR
+is_nsp_org_admin_of OR is_org_level_admin_within OR is_quality_reviewer_in_org` — **no DPO arm** —
+and `titulares/layout.tsx` reads the organization row *before* the DSR gate.
+
+⛔ **This is BY DESIGN, not an oversight.** ADR [0130](../decisions/0130-dsr-subject-request-workflow.md)
+D2, quoted in `src/lib/queries/dsr.ts`: *"The Encarregado is a plain member of ONE commission BY
+DESIGN."* The seed's only DPO, `staff1.ccih@test.local`, is a plain CCIH `staff` member for exactly
+this reason.
+
+**The open product question, which the design does not answer:** in a real hospital the Encarregado
+is frequently a compliance/legal officer with no committee seat. Today onboarding one means giving
+them a commission membership they do not otherwise need — which is a *read grant over that
+commission's content*, i.e. paying for a DSR office with unrelated access.
+
+⭕ **Filed, not fixed.** Discovered 2026-08-20 when a lead spawn prompt asserted the opposite
+(*"in production an Encarregado is a hospital/org officer who need not be a member of any
+commission"*) and `frontend` measured it false before building against it. ⭐ The premise was wrong in
+the direction that would have produced **dead navigation code**, and the catch came from a teammate
+checking the catalog rather than the prompt.
+
+**If the PO wants the pure-officer persona**, it costs: an `is_dpo_of_for` widening, an
+`organizations_select` DPO arm, an ADR 0130 D2 amendment, and a re-think of where such a user lands
+after login (`list_my_dsr_hospitals()` returns `orgId` but **no `orgSlug`**, and a caller who cannot
+read `organizations` cannot resolve one). ⛔ Not a nav change — a boundary change, and it widens a
+read path, so it does not qualify as wrong-and-safe.

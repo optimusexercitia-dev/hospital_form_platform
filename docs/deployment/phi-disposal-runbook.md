@@ -1,4 +1,24 @@
-# PHI disposal runbook — manual completion + reconciliation
+# PHI disposal runbook — manual completion + reconciliation (STORAGE BYTES substrate)
+
+> ## ⛔ SUBSTRATE — read this before citing a run of this document as "PHI disposal"
+>
+> **This runbook covers ONE of the two substrates PHI leaves by: Storage BYTES, via the
+> `file_objects` `disposal_pending` → `disposed` queue.** It does not cover the four
+> **column-erasing** doors — `dispose_case_phi`, `dispose_event_phi`,
+> `dispose_referral_phi`, `dispose_meeting_minutes` — which erase patient identifiers and
+> designated PHI **in database columns** and complete **synchronously**, which is why they
+> never needed a queue and never got a procedure here. Their procedure is
+> [`phi-column-disposal-procedure.md`](./phi-column-disposal-procedure.md).
+>
+> ⛔ **The two mechanisms are disjoint in the catalog.** `dispose_meeting_minutes` writes no
+> `file_objects` row and never sets `disposal_pending`; `complete_document_disposal` never
+> touches meetings; this document says "meeting", "minutes_md" and `dispose_meeting_minutes`
+> **zero** times. So **a green run of this runbook is not evidence about column PHI** — that
+> conflation is exactly what `FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES` was filed to prevent,
+> after a real defect was cited for a conclusion it did not bound.
+>
+> ⚠ `dispose_case_phi` and `dispose_referral_phi` are *producers* for this queue — they park
+> `file_objects` rows at `disposal_pending`. That makes them **inflow**, not coverage.
 
 > **Status:** operational procedure. Created DM5 · S5.D, 2026-08-17.
 > **Binding decisions:** ADR 0120 (D9 + the S5.D ruling) · ADR 0099 D10 (the "no new

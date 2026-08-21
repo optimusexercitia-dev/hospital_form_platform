@@ -222,3 +222,51 @@ acceptance, not an engineering call. Detail → [S5 record](dm5-s5-operational-c
 > ⭕ *This block described the decision as owed for the whole of the day it was ruled — the stale form
 > sat at the exact place a pilot decision gets made, which is the failure R4 added it here to prevent.*
 § 6 (**20** NOT-COVERED items) + the [disposal runbook](../deployment/phi-disposal-runbook.md).
+
+**2. 🟠 PILOT-GATE CHECK — the platform's ERASURE CLAIM rests on a control the software does not
+enforce, and that risk acceptance is recorded HERE because an ADR is not where a pilot decision is
+made.** ⭕ Added 2026-08-20, discharging the requirement ADR
+[0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) states in its own
+Consequences: *"it must be recorded **where the pilot decision is made** and not only here — the same
+requirement Critical FUP C3 carries for its own acceptance."*
+
+**What was accepted.** ADR 0131 (PO, 2026-08-20) ruled that **PHI erasure reaches DESIGNATED PHI
+fields; it does not extend to columns that merely MAY contain PHI.** In scope and owed perfectly: the
+three Class-1 modules — `event_patient`, `referral_patient`, and `patient_identifiers` anchored on the
+patient `participants` row — plus the fields explicitly designated to carry patient data. Out of scope
+for the pilot: free text and titles.
+
+**What is knowingly retained — measured, not estimated.** **133 candidate columns** across
+`dispose_case_phi`, `dispose_event_phi` and `dispose_referral_phi`, plus a seven-table `ethics_*` lane
+no door touches. Record:
+[door-erasure-freetext-census.md](door-erasure-freetext-census.md). ⛔ **This is a risk acceptance,
+not a finding of absence.** The census is retained *because* an acceptance with no record of what was
+accepted is not an acceptance, and a future reader must not re-read this close as "nothing found".
+
+**The control set is two-layered, and one layer is bounded** (ADR 0131 Amdt 2):
+- **Preventive — training**, plus the `"Não inclua dados do paciente."` helper text on free-text and
+  title inputs. ⚠ The software **cannot detect** PHI typed into a title; this is a process control.
+- **Corrective — the reopen → edit → re-sign corridor**, already built and already documented to
+  operators in `DSR_ATTEST_PROCEDURE_COMMON`. ⛔ **Bounded, measured across all seven lanes:** only
+  `rca` is fully covered; six lanes each have a structurally terminal state no door reverses, and the
+  referral corridor never restores the source's own free text at all. **For a `distributed` or
+  `cancelled` meeting's non-erased columns there is NO removal path by any door.** That is the honest
+  statement of the exposure.
+
+**PO copy ruling, 2026-08-20:** `DSR_RESIDUE_NOTICE` line 1 (*"O descarte apaga os dados do paciente
+armazenados no banco para este registro"*) **stays as written**, on the training premise.
+⛔ It is therefore **conditionally** true — it holds *provided PHI was entered only in PHI fields* —
+rather than structurally true. ⛔ **Not falsified; its premise is newly explicit**, and this paragraph
+is where that premise is on the record. `FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING` closes on this ruling.
+
+⚠ **What this acceptance does NOT cover, so it is not over-read:**
+- ⛔ The **in-scope** erasure working is **not** part of the acceptance — it is an obligation
+  (ADR 0131 D4(a): *"In-scope reach that is not working is a DEFECT, not a rollback candidate"*).
+  `BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW` destroyed exactly that and was fixed, not accepted.
+- ⛔ The **Class-2 professional-identity** data subject in the `ethics_*` lane — the accused
+  professional, whose allegation text is personal data about them and for whom the DSR workflow can
+  return `granted` **with no door to call**. ADR 0131 is written about PHI; **whether it also rules on
+  Class-2 erasure is still the PO's to confirm.** Nothing here decides it.
+
+**Decision owner: PO** — accepting a legal-facing erasure claim that rests on training is a risk
+acceptance, not an engineering call. It is taken; this entry is its record at the pilot gate.

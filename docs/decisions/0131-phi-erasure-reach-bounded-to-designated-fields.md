@@ -270,3 +270,87 @@ does not roll it back. Two paths now exist for `BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA
 residue to be named is the nine columns' free text, which joins the census as knowingly
 retained; under the fix it is nothing. ⛔ Do not read this amendment as authorising the rollback
 — clause (c) requires the ruling to be recorded per lane, with the residue named.
+
+## Amendment 4 — the choice is taken (FIX, not rollback), and Amendment 3's own magnitude was wrong
+
+**2026-08-20 · PO-ruled, same day · closes the live choice Amendment 3 left open.**
+
+### The ruling
+
+⭐ **FIX THE GUARDS.** ADR [0129](./0129-meeting-child-lock-disposal-flag.md) Decision 1 — *shape 2,
+a new narrow flag* — repeated per lane, exactly as ADR 0129 Amendment 2 prescribes: extend
+`app.in_disposal_rpc` (still set **only by disposal doors**) to the sibling child locks. Clause
+**(b)**'s rollback of the out-of-scope free-text reach was **considered and declined**.
+
+⛔ **This is therefore NOT a rollback, and must never be recorded as one.** Clause (b) makes that
+reach *eligible*; the PO did not exercise it. Decision 4's default — *maintained, not rolled back* —
+stands, the census gains nothing, and no per-lane residue statement is owed under clause (c).
+
+Consequences of choosing the fix over the rollback, stated so the cost is on the record:
+- The setter count for `app.in_disposal_rpc` goes **1 → 3**, all three disposal doors. ⛔ ADR 0129
+  Amendment 1's invariant is what keeps this safe and it must be restated rather than assumed:
+  *"it was never 'exactly one guard reads the flag' — it is **only the disposal door bypasses the
+  child lock**, and **the setter count is what bounds the bypass**."* A non-disposal door setting
+  this flag would void the guarantee.
+- Three more stand-asides are a real erosion of the immutability those guards provide. Amendment 3
+  said *"three more is not free"*, and that remains true after the ruling; it was weighed, not
+  waived. Shape 1 — teaching a guard to honour the lane's own `app.in_*_rpc` flag — **stays
+  rejected**, because it would grant every lane RPC child-write power over locked parents.
+
+### ⛔ Amendment 3 named NINE statements and THREE guards. It is TEN and FOUR.
+
+Re-derived from the live catalog and confirmed by execution on 2026-08-20, before any fix was
+written. The tenth appears in **no** filed record — not in `BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW`,
+not in Amendment 3, not in the corridor measurement that produced both.
+
+**`dispose_case_phi` statement #13 — `update public.meeting_cases set summary = …, decision = …` —
+is guarded by `app.guard_meeting_child_lock` and aborts on `meetings.status in ('in_signature',
+'signed', 'distributed', 'cancelled')` with `23514`.**
+
+⭐ It is the cheapest of the ten and needs **no guard change at all**: `guard_meeting_child_lock`
+**already reads** `app.in_disposal_rpc` — this ADR's own Amendment 3 template gave it that
+stand-aside in ADR 0129. `dispose_case_phi` simply never sets the flag. What it *does* set is
+`app.in_meeting_rpc`, carrying the inline comment `-- for meeting_cases child-lock`, which is
+**false against the live guard**. [[a-comment-is-an-assertion-that-goes-stale-silently]]
+
+Executed differential, single session, rolled back, pre-state re-verified byte-for-byte:
+
+| probe | setup | GUCs | result |
+|---|---|---|---|
+| A | meeting walked `held→in_signature→signed` | `dispose_case_phi`'s exact set — `in_case_rpc`, `in_narrative_rpc`, `in_interview_rpc`, `in_submit_rpc`, `in_meeting_rpc` | ⛔ `ERROR: o conteúdo desta reunião está bloqueado (signed)` — `guard_meeting_child_lock` |
+| B | identical | A **plus** `app.in_disposal_rpc = 'on'` | ✅ `UPDATE 1` |
+
+### Why the miss matters more than the arithmetic
+
+⛔ **Amendment 3 was authored while correcting a magnitude, and got the magnitude wrong.** Its whole
+subject is that Decision 4 must be keyed on scope class rather than on discovered working state —
+sound, and adopted — but the enumeration it carried into the fix was a **hand list inherited from the
+bug report**, not a property re-derived from the catalog. That is the same shape the bug it was
+written about had: ADR 0129 swept the sibling axis *"which DOOR is gate-blind?"* and never
+*"which GUARD lacks the stand-aside?"*.
+
+⭐ **The lesson generalises past this ADR:** a correction that fixes a claim's *direction* without
+re-deriving its *magnitude* reads as complete and is not.
+[[a-partial-fix-reads-as-a-complete-one]] · [[enumeration-boundary-is-a-syntax-not-a-property]]
+
+**Binding consequence for the implementing change:** the guard population is re-derived **as a
+property over the catalog** — each door's write set × every row-level trigger on those tables that
+can `raise` × the trigger's `TG_OP` mask — with a recorded verdict per row (CONFIRMED-reachable /
+STRUCTURALLY-UNREACHABLE / NON-BLOCKING). ⛔ A candidate count is not a defect count; an unproven row
+is not a clean row either.
+
+### Two further rulings taken at the same time
+
+- **`DSR_RESIDUE_NOTICE` line 1 stays as written**, on the training premise
+  (`FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING` closes). ⛔ The premise is therefore load-bearing and is
+  recorded **where the pilot decision is made** —
+  [dm5-po-decisions.md](../progress/dm5-po-decisions.md) § *Remaining pre-pilot work* item 2 — as
+  this ADR's Consequences require, and not only here.
+- **The referral dispose dialog is made REACHABLE** rather than removed or accepted as a gap
+  (`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`). ⚠ Whether a **production** hat can hold the required
+  combination — route access **and** the disposal gate, without a hat switch under ADR 0106 D5 — is
+  a separate answer the implementing change must state; it decides whether this was a test-fixture
+  gap or a product gap.
+
+⛔ **Still not ruled by this ADR, and still the PO's:** Class-2 professional-identity erasure for the
+`ethics_*` lane's second data subject. Amendment 3 flagged it; Amendment 4 does not resolve it.
