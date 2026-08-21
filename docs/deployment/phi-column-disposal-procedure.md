@@ -57,9 +57,17 @@ corridor is the sanctioned surgical path.
 
 ## 2 · Preconditions
 
-1. **The `dsr` flag is on** for the tenant, and the lane's own flag is on
-   (`patient_safety` · `case_patient` · `case_referrals` · `meetings`). A door raises
-   `HCDS1`/lane-specific codes rather than silently no-op'ing when its flag is off.
+1. **The lane's own feature flag is on** — `patient_safety` · `case_patient` · `case_referrals` ·
+   `meetings`. Each door calls `app.assert_<lane>_enabled()` first and raises **`check_violation`**
+   with a pt-BR message rather than silently no-op'ing. ⛔ **Three corrections to what an earlier
+   draft of this section said, each caught in review:**
+   - Flags in `app.feature_flags` are keyed by **feature alone — they are GLOBAL, not per-tenant.**
+     There is no "on for this tenant"; enabling one enables it everywhere.
+   - The code is the lane's `check_violation`, **not `HCDS1`.** `HCDS1` is the **DSR workflow's**
+     code, raised by the `dsr_*` doors, not by these four.
+   - ⛔ **The `dsr` flag is NOT a precondition of these doors at all.** They are callable with `dsr`
+     off; what `dsr` gates is the *console that routes work to them*. Conflating the two would send
+     an operator to flip the wrong flag while the real refusal came from somewhere else.
 2. **The caller holds the door's own gate** — these differ per door and are **not**
    interchangeable:
 

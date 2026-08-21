@@ -227,28 +227,13 @@ not feed the runbook either way.
 
 ⛔ **THE E2E BASELINE ON `main` IS "AT LEAST N", NEVER A COUNT — corrected 2026-08-21.** The figure
 below ("two deterministic failures") was repeated for a day as if it were total. It is a **floor**.
-A **third** pre-existing failure surfaced 2026-08-21 (`BUG-DSR-S3-AGENDA-TITLE-STALE`), and
+A **third** pre-existing failure surfaced 2026-08-21 (`BUG-DSR-AGENDA-TITLE-STALE-PIN`, filed and
+resolved the same session — the fix is on this branch, so a gate run from HERE will not show it), and
 `dsr-slice3-adjudication.spec.ts` runs `mode: 'serial'` — **one failure aborts every test after
 it**, so behind any serial abort there is no way to know what else was red. State the baseline with
 its bound, never as a total; same family as `FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER`, one layer
 down (there the summary hid unrun tests, here the **runner** does).
 
-🔴 **BUG-DSR-S3-AGENDA-TITLE-STALE — `dsr-slice3-adjudication.spec.ts:728` asserts
-`meeting_agenda_items.title` SURVIVES `dispose_meeting_minutes`; the live catalog says the door
-redacts it. Pre-existing on `main` since 2026-08-20, undetected, and it was PREDICTED IN WRITING.**
-Found 2026-08-21 (tester) while doing unrelated work. Root cause: `3d5e9a9c` (DSR Slice 4, PO-ruled,
-already on `main`) widened the meeting door to its composition closure — `meeting_agenda_items.title`
-included, closing `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`. `meetings.title` (the meeting's **own**
-title) is the one PO-ruled exception that stays disclosed; the agenda **item's** title is not that
-exception. Verified from the live catalog, not migration text: the door runs `update
-public.meeting_agenda_items set title = v_redacted, …`, while the only `meetings` writes are
-`minutes_md = null` plus the disposal stamps. The Slice-3-vintage spec was never updated.
-⭐ **Why it survived a gate:** the DSR close recorded, in writing, that `e2e:prod` was **NOT re-run**
-for the final increment — and said so precisely because *"a gate record naming only what passed reads
-as full coverage."* The warning was right, the run still never happened, and a PO-ruled
-follow-up-closing change sat contradicted on `main` for a day. **A stated omission is not a mitigated
-one.** ⛔ **Not caused by the remediation round**; fixing it is what made that round's own E2E work
-observable, since the serial abort was swallowing every test after it. Owner: tester.
 
 🔴 **BUG-QO-STALE-CASOS — `quality-oversight.spec.ts` asserts coordinator WRITE affordances on
 `/casos`, which `8675b7cd` (2026-08-19) deliberately made a READING surface. `main` is E2E-RED.**
@@ -326,6 +311,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| DSR operational remediation (r1) | **CHANGES REQUESTED** | 2026-08-21 | [dsr-remediation-review](docs/reviews/dsr-remediation-review.md) |
 | DSR Slice 4 — ADR 0130 Amdt 4 (r3) | **APPROVED** | 2026-08-20 | [dsr-slice-4-review](docs/reviews/dsr-slice-4-review.md) |
 | ~~DSR Slice 4 — ADR 0130 Amdt 4 (r2)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-4-review](docs/reviews/dsr-slice-4-review.md) |
 | ~~DSR Slice 4 — ADR 0130 Amdt 4 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-4-review](docs/reviews/dsr-slice-4-review.md) |

@@ -247,11 +247,20 @@ accepted is not an acceptance, and a future reader must not re-read this close a
 - **Preventive — training**, plus the `"Não inclua dados do paciente."` helper text on free-text and
   title inputs. ⚠ The software **cannot detect** PHI typed into a title; this is a process control.
 - **Corrective — the reopen → edit → re-sign corridor**, already built and already documented to
-  operators in `DSR_ATTEST_PROCEDURE_COMMON`. ⛔ **Bounded, measured across all seven lanes:** only
-  `rca` is fully covered; six lanes each have a structurally terminal state no door reverses, and the
-  referral corridor never restores the source's own free text at all. **For a `distributed` or
-  `cancelled` meeting's non-erased columns there is NO removal path by any door.** That is the honest
-  statement of the exposure.
+  operators in `DSR_ATTEST_PROCEDURE_COMMON`. ⛔ **Bounded**: only `rca` is fully covered; six lanes
+  each have a structurally terminal state no door reverses, and the referral corridor never restores
+  the source's own free text at all. **For a `distributed` or `cancelled` meeting's non-erased
+  columns there is NO removal path by any door.** That is the honest statement of the exposure.
+  ⚠ **Where that seven-lane figure comes from, because it is more precise than the ADR it sits
+  beside.** ADR 0131 **Amendment 2** measured the **meeting** corridor only, and says so — *"Only the
+  MEETING corridor has measured bounds … neither bound above may be generalised in either
+  direction."* The seven-lane numbers are **not** a generalisation of it: they come from the separate
+  corridor measurement of 2026-08-20 (commit `3aa9a747`) — the live catalog plus a **59-probe
+  executed differential**, 7 positive controls and a THAW control, rolled back with the pre-state
+  re-verified. `FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED` remains open for its **residue** items,
+  not because the coverage question is unmeasured. ⛔ Cite that measurement, never Amendment 2, for
+  any lane other than `meeting` — a newly precise number that arrives without a named measurement is
+  indistinguishable from a widened one.
 
 **PO copy ruling, 2026-08-20:** `DSR_RESIDUE_NOTICE` line 1 (*"O descarte apaga os dados do paciente
 armazenados no banco para este registro"*) **stays as written**, on the training premise.
@@ -270,3 +279,59 @@ is where that premise is on the record. `FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING` c
 
 **Decision owner: PO** — accepting a legal-facing erasure claim that rests on training is a risk
 acceptance, not an engineering call. It is taken; this entry is its record at the pilot gate.
+
+**3. 🟢 PILOT-GATE CHECK — the `dsr` module is UNREACHABLE on the deployed project until a push, and
+the go-live flip is now authorised and ordered.** ⭕ Added 2026-08-21, discharging QA blocker **C1**
+of the DSR operational-remediation review: the decision below was ruled on 2026-08-20 and, until this
+entry, **existed nowhere but inside the comment header of the migration it authorised.**
+
+**The state that made it necessary, measured.** `20261001000000` inserts the `dsr` flag `false`, and
+the **only** writer that ever set it true was `supabase/seed.sql`, which runs on `db reset` and never
+on the deployed project. So on production the whole module was unreachable end to end — every door
+raising `HCDS1`, `list_my_dsr_hospitals()` returning `'[]'`, `/o/[org]/titulares` 404ing for every
+persona **including the appointed Encarregado** — while local and E2E were green throughout, because
+the seed path hid it. ⭐ *A feature flag inserted `false` and flipped only by `seed.sql` is OFF in
+production while every gate is green.*
+
+✅ **RULED (PO, 2026-08-20): FLIP IT, in its own migration, ordered AFTER the erasure fix.** Shipped
+as `20261003000200_flip_dsr_flag_on.sql`; ordering verified in `schema_migrations`
+(`…000000` fix → `…000100` scrub retirement → `…000200` flip). ⛔ **The ordering is the guarantee, not
+cosmetics:** reachable-before-fixed would have handed an executor a working button that silently
+accomplishes nothing on a `completed` RCA, a `completed`/`cancelled` CAPA plan, a terminal interview,
+or a locked meeting's case notes.
+
+- **Platform-wide, and not by preference** — `app.feature_flags` is keyed by feature alone, with **no
+  tenant dimension**. Per-tenant enablement is a schema change; it was offered as a distinct option
+  and not taken. The migration answers this by fiat, and that is a **constraint**, not a choice.
+- **Critical FUP C1b does NOT gate this, and the two are disjoint mechanisms** — C1b rehearses the
+  **Storage-bytes** runbook; the DSR doors erase **columns**, and the paths do not touch (see
+  [phi-column-disposal-procedure.md](../deployment/phi-column-disposal-procedure.md) § 0).
+  ⛔ **Disjoint is not unrelated:** C1b's own trigger is *before any real patient record is loaded*,
+  and a reachable DSR console on a tenant holding real PHI with no rehearsed byte-disposal path is a
+  state to enter deliberately. **The flip does not create that state — the push plus real data
+  would.**
+
+⛔ **THE PUSH IS A SEPARATE DECISION AND HAS NOT BEEN TAKEN.** Nothing is pushed, no `db push` has
+run, and the deployed project is unchanged. This entry authorises the migration's presence on the
+branch; it does not authorise its application.
+
+⚠ **Why this entry is dated a day after the decision, recorded because the lapse is the lesson.** QA
+searched this file, the round's plan, PROGRESS.md, three ADRs and `backend-state.md` for the
+authorisation and found it in **none** of them, and returned CHANGES REQUESTED on exactly that basis.
+A decision witnessed only by the artifact it authorises cannot be checked against anything — the
+artifact and its warrant are the same text. The engineering was correct throughout; what was missing
+was the record that anyone was allowed to do it, and that is a **lead** failure, not an implementer's.
+
+**4. 🟢 The referral dispose dialog is REMOVED — a ruling REVERSED the same day its premise was
+measured false.** ⭕ Added 2026-08-21 (QA blocker **C3**). The PO first ruled *"make it reachable"* on
+the understanding that a fixture persona was merely missing. Measured: route access admits active
+hats `staff`/`staff_admin`; `can_dispose_referral_phi` admits `org_admin`/`hospital_admin`/
+`nsp_coordinator`/`pqs_member`. **Disjoint under one session's single hat — in production, not just
+in the seed.** No persona exists or can be built; it was a **PRODUCT** gap.
+⛔ **Not fixed by widening anything.** The DSR task inbox already reaches that door for exactly the
+hats that hold the gate (ADR 0130 D11, *"one inbox"*), so the dialog was deleted rather than the gate
+opened. Full reasoning: ADR
+[0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) **Amendment 5**.
+⚠ **Residue:** `dispose_referral_phi` is now the only one of the four lanes with **no browser-level
+coverage on the surface that can reach it** (`FUP-DISPOSE-REFERRAL-HAS-NO-INBOX-BROWSER-COVERAGE`),
+and the bug it descends from closed **on removal of its subject, not on achieved coverage**.

@@ -346,11 +346,94 @@ is not a clean row either.
   recorded **where the pilot decision is made** —
   [dm5-po-decisions.md](../progress/dm5-po-decisions.md) § *Remaining pre-pilot work* item 2 — as
   this ADR's Consequences require, and not only here.
-- **The referral dispose dialog is made REACHABLE** rather than removed or accepted as a gap
-  (`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`). ⚠ Whether a **production** hat can hold the required
-  combination — route access **and** the disposal gate, without a hat switch under ADR 0106 D5 — is
-  a separate answer the implementing change must state; it decides whether this was a test-fixture
-  gap or a product gap.
+- ⛔ **REVERSED THE SAME DAY — see Amendment 5. Do not act on this bullet.** It read *"the referral
+  dispose dialog is made REACHABLE rather than removed or accepted as a gap"*, and flagged as open
+  the very question that overturned it: whether a **production** hat can hold route access **and**
+  the disposal gate without a hat switch. The answer is **no**. Kept rather than edited away,
+  because the ruling was sound on the facts it was given and it is the *facts* that moved.
 
 ⛔ **Still not ruled by this ADR, and still the PO's:** Class-2 professional-identity erasure for the
 `ethics_*` lane's second data subject. Amendment 3 flagged it; Amendment 4 does not resolve it.
+
+## Amendment 5 — the referral-dialog ruling is REVERSED, and the go-live flip is authorised
+
+**2026-08-21 · PO-ruled · written after QA returned CHANGES REQUESTED on the remediation round, with
+blockers C1 and C3 naming exactly the two records this amendment supplies.**
+
+### 1. Amendment 4's referral-dialog bullet is reversed: REMOVE, not "make reachable"
+
+Amendment 4 ruled *"the referral dispose dialog is made REACHABLE"* and, in the same sentence,
+flagged as open the question that overturned it. Measured 2026-08-20 and verified independently:
+
+| requirement | admissible active hats |
+|---|---|
+| reach `/o/[org]/c/[commission]/encaminhamentos/[referralId]` | `staff` · `staff_admin` |
+| pass `can_dispose_referral_phi` | `org_admin` · `hospital_admin` · `nsp_coordinator` · `pqs_member` |
+
+**Disjoint.** `getSessionContext()` hat-filters grants to `g.role === activeRole` *before*
+`partitionGrants`, which admits only `staff`/`staff_admin` into `memberships`; every arm of the
+dispose predicate bottoms out in `app.has_role`'s active-hat conjunct. One session, one hat ⇒ **no
+persona satisfies both, in production or in the seed.** It was a **PRODUCT** gap, not a fixture gap,
+and no `seed.sql` row could have closed it.
+
+⭐ **The measurement that settled it:** for the candidate persona **all four DB gates returned TRUE**
+and the page still **404'd**. Four green predicates and a dead route is the signature of a filter
+above the database — and the wrong first answer came from reading `public.session_context()`, which
+*is* hat-blind by design (ADR 0106 D9), and inferring the route's behaviour from it. **The SQL was
+truth about the SQL and evidence about nothing downstream.**
+
+**Ruling: REMOVE the affordance from the referral detail page.** The DSR task inbox already reaches
+`dispose_referral_phi` for exactly the hats that hold the gate, and is in fact the only working UI
+path to all four erasure doors — which is ADR [0130](./0130-dsr-subject-request-workflow.md) **D11**'s
+own design (*"one inbox"*). ⛔ **Nothing is lost:** no hat could open the removed dialog. What is
+removed is UI that reads as a capability the product does not have — the misreading that produced
+`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE` in the first place.
+
+⛔ **Two things this ruling deliberately does NOT do**, because either would trade a UI gap for a
+real authorization widening: it does **not** add a source-commission `staff_admin` arm to
+`can_dispose_referral_phi` (whose own documentation says a plain `staff_admin` is *intentionally* not
+entitled, PHI erasure being an org-admin / NSP action), and it does **not** carve an exception in
+QO·B's content wall (ADR 0100 D12).
+
+⚠ **Residue, named rather than absorbed:** `dispose_referral_phi` is now the **only** one of the four
+lanes with no browser-level coverage on the surface that can reach it
+(`FUP-DISPOSE-REFERRAL-HAS-NO-INBOX-BROWSER-COVERAGE`). ⛔ The bug it descends from closed **on
+removal of its subject, not on achieved coverage**, and that distinction must survive any future
+summary of this ADR.
+
+### 2. The `dsr` go-live flip is authorised — and this is where that fact lives
+
+**Ruled 2026-08-20; recorded 2026-08-21.** The `dsr` flag was inserted `false` by
+`20261001000000` and the only writer that ever set it true was `supabase/seed.sql`, so **on the
+deployed project the entire module was unreachable** — every door raising `HCDS1`, the hospital
+lister returning `'[]'`, `/o/[org]/titulares` 404ing for every persona including the appointed
+Encarregado, while local and E2E were green throughout because the seed path hid it.
+
+**Ruling: flip it, in its own migration, ordered AFTER the erasure fix.** Shipped as
+`20261003000200`; ordering verified in `schema_migrations`. The ordering is the guarantee, not
+cosmetics: making the module reachable first would have handed an executor a working button that
+silently accomplishes nothing on a `completed` RCA, a `completed`/`cancelled` CAPA plan, a terminal
+interview, or a locked meeting's case notes.
+
+- **Platform-wide, and not by preference** — `app.feature_flags` is keyed by feature alone with **no
+  tenant dimension**; per-tenant enablement is a schema change, offered and not taken.
+- **Critical FUP C1b does not gate it, and they are disjoint mechanisms** — C1b rehearses the
+  **Storage-bytes** runbook; these doors erase **columns**. ⛔ Disjoint is not unrelated: C1b's own
+  trigger is *before any real patient record is loaded*, and a reachable console on a tenant holding
+  real PHI with no rehearsed byte-disposal path is a state to enter deliberately. **The flip does not
+  create it; the push plus real data would.**
+- ⛔ **The PUSH is a separate decision and has NOT been taken.** Nothing is pushed, no `db push` has
+  run, the deployed project is unchanged.
+
+### ⛔ Why this amendment exists at all, stated plainly
+
+**Both rulings were taken on 2026-08-20 and neither was written down.** The referral reversal lived
+only in a chat exchange; the flip's authorization lived only in **comment text inside the migration
+it authorized**. QA searched the plan, `dm5-po-decisions.md`, PROGRESS.md, three ADRs and
+`backend-state.md`, found neither, and returned **CHANGES REQUESTED** — correctly, because a
+decision witnessed only by the artifact it authorizes cannot be checked against anything.
+
+⭐ **The engineering was right the whole time; what was missing was the fact that someone was allowed
+to do it.** That is a lead defect, not an implementer one, and it is the same class as
+[[an-approvals-scope-is-a-fact-that-must-be-written-down]] — an approval's existence and scope are
+facts, and a fact nobody recorded is indistinguishable from one nobody had.

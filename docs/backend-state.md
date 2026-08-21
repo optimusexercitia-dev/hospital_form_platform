@@ -480,10 +480,21 @@ recorded per keystone in `350`'s header. **Do not read a green arm as a verdict 
 ## DSR operational remediation — the doors actually erase (2026-08-21; ADR **0129 Amdt 3** + **0130 Amdt 5** + **0131 Amdt 4**; migrations `20261003000000`–`…000100`; pgTAP `353` `plan(60)` + `354`; flag **`dsr`**)
 
 ⛔ **Read this before touching any `dispose_*` door or any `*_child_lock` guard.** The DSR program
-closed green on 2026-08-20 with every gate passing **and the four LGPD erasure doors did not
-complete** on ordinary mature records. Nothing in the gate could see it: **every disposal fixture in
-the tree used a non-locking parent state** (`rca 'draft'`, interview `'scheduled'`, meetings
-`'held'`), so the suites were green over the trivially-unblocked graph.
+closed green on 2026-08-20 with every gate passing **and two of the four LGPD erasure doors did not
+complete** on ordinary mature records — `dispose_event_phi` and `dispose_case_phi`.
+`dispose_referral_phi` trips no child lock at all, and `dispose_meeting_minutes` had already been
+fixed by ADR 0129.
+
+**Why no gate saw it — stated at the right grain, because a wider version of this sentence was wrong
+and QA caught it.** ⛔ It is **not** true that every disposal fixture in the tree used a non-locking
+parent: `348` and `351` deliberately walk a meeting to `in_signature`, which is exactly why the
+**meeting** lane's door worked. The true statement is narrower and is the whole lesson: **no fixture
+anywhere reached a locking parent state for the three lanes that were still broken** — the seed's
+only `rca` is `in_progress`, its only `capa_plan` `in_execution`, its only `case_interviews`
+`awaiting_follow_up`, all three meetings `held`, and `197`'s constructed RCA is `'draft'` with a
+`'scheduled'` interview. ⭐ **The lane that had been forced to build a locked fixture was the lane
+that worked.** A fixture is written in the state that makes the feature easy to set up, which is
+systematically the state *before* the lifecycle locks — i.e. the state the guards do not fire in.
 
 | fact | detail |
 | --- | --- |
