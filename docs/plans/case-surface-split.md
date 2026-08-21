@@ -152,6 +152,33 @@ For non-coordinator entrants (administrativo, write-grantee), on the manage host
 - Subroutes: `correcoes`, `fase/respostas` keep their `staff_admin` gates (fail-closed
   default, D5); interviews keeps its own model (F6). No new subroute opens in this program.
 
+✅ **RESOLVED 2026-08-21 by measurement — "Nova entrevista" keying on `canManageLifecycle` is
+NOT an under-grant.** Raised during the build as a possible inverse-of-the-dead-end-door: gating
+UI on the coordinator bit where the DB door admits more **strips** an entitled affordance, and
+unlike a dead-end door (visible `42501`) an under-grant emits **nothing at all** — no error, no
+log — so no gate in §6 can catch it. Measured at **both** reachable doors, which agree:
+`public.create_interview` (`prosecdef = t`, so its body replaces RLS) has **exactly one authority
+branch**, `app.is_staff_admin_of` — no `elsif`, no second disjunct, no `member_can`; and the
+direct-INSERT path (`authenticated` does hold table INSERT) is governed by
+`case_interviews_insert` with the **identical** predicate. Empirically, rolled back: an
+administrativo holding **all four** capabilities, a per-case write-grantee, a phase assignee, and
+an `org_admin` are each refused `42501`; only the coordinator creates. **The gate strips nothing;
+D5's "interviews keeps its own model" is correct and now measured rather than assumed.**
+
+Why it is not another `canManageLifecycle` instance: interviews carries its width in a *different*
+predicate — `app.can_write_interview` has an interviewer arm the coordinator bit doesn't
+represent — but that arm governs **editing an existing** interview, and the detail page already
+mirrors it via `viewerCanWrite` → `interview_viewer_can_write` (F6). The arm also cannot bootstrap
+into create authority: `case_interview_interviewers_write`'s `WITH CHECK` is `can_write_interview`,
+so only someone who can already write the interview can add an interviewer. The creating
+coordinator seeds the list.
+
+⚠ **Carry forward to whatever ADR next touches the interview surface (not this program):**
+interview READ uses `app.can_read_case_committee` = `can_read_case AND NOT is_oversight_only_reader`,
+**not** `can_read_case`. So a `quality_reviewer` reads the case but **not** its interviews —
+deliberate (QO·A). If a later increment surfaces interviews on the manage host and gates them on
+the case-level read bit, it widens interviews to oversight readers **as a side effect**.
+
 ### T4 — `multiplos` re-gate (D5) — ⛔ **AMENDED AT BUILD TIME 2026-08-21 (lead ruling); D5's
 letter would build a dead-end door**
 
