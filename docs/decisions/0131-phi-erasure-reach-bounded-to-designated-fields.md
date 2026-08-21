@@ -49,9 +49,18 @@ MAY contain PHI.**
      documented to operators in `DSR_ATTEST_PROCEDURE_COMMON`. ⛔ **Bounded**: it reaches
      only 2 of the 4 locked meeting states, and its gate is narrower than the disposal
      door's. Amendment 2 carries the measurements.
-4. **Already-implemented erasure reach is MAINTAINED, not rolled back.** The ADR 0056
-   Amendment 1 meeting widening (10 columns) stays as built. This decision bounds future
-   extension; it does not reverse shipped behaviour.
+4. **Already-implemented erasure reach is MAINTAINED, not rolled back — with one bounded
+   exception.** The ADR 0056 Amendment 1 meeting widening (10 columns) stays as built. This
+   decision bounds future extension; it does not reverse shipped behaviour. ⚠ **Revised by
+   Amendment 3** (2026-08-20) after shipped reach was measured to be non-functional:
+   - **(a) In-scope reach that is not working is a DEFECT, not a rollback candidate.** Reach
+     over Decision 1's designated PHI is **fixed**, never removed. ⛔ Discovering a failure
+     **never** narrows a Decision-1 obligation.
+   - **(b) Out-of-scope reach (Decision 2 free text) that is not working MAY be rolled back**
+     — by an **explicit PO decision, recorded per lane**, citing the measurement that showed
+     the failure.
+   - **(c) A failure is never self-executing.** A rollback under (b) must name what is removed
+     and what the residue becomes. *"It was broken"* is a trigger, not a rationale.
 5. **The working rule from Amendment 1 is NARROWED**: *a **designated PHI** column may not
    be left both unredacted and unnamed.* For non-designated free text, neither redaction
    nor disclosure is required.
@@ -200,3 +209,64 @@ wherever the pilot risk acceptance is recorded.
 ⚠ **`FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING` is re-framed, not withdrawn:** the notice's
 premise is *training plus a bounded corrective path*, which is a stronger position than the
 follow-up was filed under. The copy question stands.
+
+## Amendment 3 — Decision 4 is keyed on SCOPE CLASS, not on working state
+
+**2026-08-20 · PO-ruled, prompted by the `BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW`
+measurement · revises Decision 4 in place (see the (a)/(b)/(c) clauses there).**
+
+### What forced the revision
+
+Decision 4 as originally written — *"already-implemented erasure reach is MAINTAINED, not
+rolled back"* — was authored on the assumption that shipped reach **works**. On 2026-08-20 that
+assumption was measured false: `app.guard_rca_child_lock`, `app.guard_capa_child_lock` and
+`app.guard_interview_child_lock` read no disposal stand-aside, so `dispose_event_phi` aborts on a
+`completed` RCA or a `completed`/`cancelled` CAPA plan, and `dispose_case_phi` aborts on a
+`completed`/`cancelled` interview. Under the original wording that broken reach was
+simultaneously **unfixable-by-removal** (D4 forbids rollback) and **unreachable-by-widening**
+(D2 forbids extension) — frozen in a state where it does nothing but fail.
+
+### The rule that was PROPOSED, and why it was not adopted verbatim
+
+The proposal was: *"already-implemented reach that **is working** is MAINTAINED; implemented
+reach that is not working is rolled back."* The instinct is right and is adopted as clause (b).
+The literal phrasing was not, for three reasons — recorded because each is a way this ADR could
+have been made worse by a change that reads as a tightening:
+
+1. ⛔ **It makes a legal entitlement a function of the bug backlog.** "Working" is a *discovered*
+   state, not a property. Every newly found defect would automatically narrow what a data
+   subject receives — inverting the normal direction, in which a defect creates an obligation to
+   fix. It also rewards not looking: this reach was "working" for six weeks in precisely the
+   sense that nobody had executed it. [[a-comment-is-an-assertion-that-goes-stale-silently]]
+2. ⛔ **It is a one-way ratchet.** Rolled-back reach becomes *unimplemented*, at which point D2
+   forbids its return. Reach could then only ever decrease, converging on the minimum without
+   anyone ever deciding that outcome.
+3. ⛔ **Its trigger is ambiguous in the dangerous direction, on this very case.** What is "not
+   working" here is the **`event_patient` DELETE** — Decision 1 Class-1 PHI — which is rolled
+   back by a guard firing ~10 statements later (measured: `event_patient` 1 → 1,
+   `phi_disposed_at` NULL; control with the RCA `in_progress`, 1 → 0 and stamped). Read
+   literally, the proposed rule points at the **mandatory** statement, because it does not
+   distinguish the statement that *fails* from the statement that is *failed by*. Clause (a)
+   exists to close exactly that reading.
+
+### Consequence — a live PO choice, NOT decided here
+
+Clause (b) makes the RCA / CAPA / interview free-text redaction **eligible** for rollback. It
+does not roll it back. Two paths now exist for `BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW`:
+
+- **Fix the guards** (ADR [0129](./0129-meeting-child-lock-disposal-flag.md) shape 2, repeated
+  per lane): extend `app.in_disposal_rpc` to the three child locks. Preserves the shipped reach.
+  ⚠ Cost, stated fairly: each stand-aside is a real erosion of the immutability those guards
+  provide, and 0129 rejected the wider shape for that reason. Three more is not free.
+- **Roll back under (b)**: delete the guard-tripping statements — the **five** `rca_*` child
+  UPDATEs and **three** `capa_*` child UPDATEs in `dispose_event_phi`, and the **one**
+  `case_interview_subjects.note` UPDATE in `dispose_case_phi`. Nine statements. The parent-row
+  redactions (`rca.*_md`, `patient_safety_event.description_md`,
+  `event_triage.disposition_notes_md`, `case_interviews.summary_md`) are **not** implicated —
+  their guards already honour the doors' flags — so they may stay regardless.
+
+⭐ **Either path resolves the P0, and that is the point of clause (a):** the in-scope
+`event_patient` / `patient_identifiers` erasure must work whichever is chosen. Under (b) the
+residue to be named is the nine columns' free text, which joins the census as knowingly
+retained; under the fix it is nothing. ⛔ Do not read this amendment as authorising the rollback
+— clause (c) requires the ruling to be recorded per lane, with the residue named.

@@ -118,7 +118,10 @@ and was blind anyway.
 - The guard's refusal stays load-bearing for every non-disposal writer — the §E bound
   narrows by exactly one named, audited door.
 - ✅ `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE` is **RESOLVED 2026-08-19** on the build
-  record above — the pgTAP + sweep evidence, not this text.
+  record above — the pgTAP + sweep evidence, not this text. ⛔ **For the MEETING lane only —
+  see Amendment 2**: the same shape was measured live on 2026-08-20 in
+  `guard_rca_child_lock`, `guard_capa_child_lock` and `guard_interview_child_lock`, and it
+  still aborts `dispose_event_phi` / `dispose_case_phi`.
 - ⚠ **Two residues found while building, filed rather than fixed** (neither is this ADR's
   subject, and Decision 1 binds the migration to amend nothing else):
   `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT` (the door redacts three of
@@ -180,3 +183,42 @@ driven by ADR [0056](./0056-phi-disposal-closure-narrowed-claim.md) Amendment 1.
 > settable only by the disposal door, so the currency-exposure argument for
 > agenda/attendee/closed-session content is undisturbed. The count of guards holding that
 > property changed; the property did not.
+
+## Amendment 2 — the class this ADR closed was closed for ONE lane; three siblings still have it
+
+**2026-08-20 · measured (lead) while measuring
+`FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED` · filed as
+`BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW` · NOT yet fixed.**
+
+> ⛔ **Consequences above record `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE` as RESOLVED.
+> That is true of the meeting lane and of nothing else.** `app.guard_rca_child_lock`,
+> `app.guard_capa_child_lock` and `app.guard_interview_child_lock` read **no `app.in_*` GUC
+> at all** — the identical body shape this ADR's Context describes — and they sit on tables
+> `dispose_event_phi` and `dispose_case_phi` write. Measured by **execution**, each against a
+> matched positive control:
+>
+> - `dispose_event_phi` raises **`HC047`** when the lane's RCA is `completed` (the normal end
+>   state of a finished investigation), and **`HC049`** when the CAPA plan is `completed` or
+>   `cancelled`.
+> - `dispose_case_phi` raises **`23514`** when the case has a `completed`/`cancelled` interview
+>   with subject rows.
+> - Controls: the same doors succeed with rca `in_progress` / interview `awaiting_follow_up`,
+>   and `dispose_meeting_minutes` on a `distributed` meeting succeeds (this ADR's fix working).
+>
+> The raise aborts the RPC, so **nothing is erased** — the same fail-closed-against-a-legal-
+> obligation this ADR was written to remove.
+>
+> ⭐ **How it survived this build.** The Consequences DO carry a sibling sweep — but it asks
+> *"which of the four disposal doors is gate-BLIND?"*. The question never asked was *"which
+> other child locks lack the stand-aside?"*. **Two different sibling axes; sweeping one reads
+> as having swept the class.** The enumeration was bounded by the **instance** (this door, this
+> guard), not by the **property** (a state-locking child guard on any table an erasure door
+> writes). Re-run by property, that crossing returns **15** candidate guards, **3 confirmed**;
+> the remaining twelve are unproven either way, not cleared — a candidate count is not a defect
+> count.
+>
+> **The fix shape is this ADR's own Decision 1, repeated per lane** — extend
+> `app.in_disposal_rpc` (still set only by disposal doors) to the three child locks. Shape 1
+> stays rejected for exactly the reason given above: honouring each lane's own RPC flag would
+> grant every safety/interview RPC child-write power over locked parents. Carry the same
+> obligations, per lane: the no-flag differential, and the sibling-RPC over-grant twin.
