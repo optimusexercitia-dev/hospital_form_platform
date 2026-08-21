@@ -12,14 +12,38 @@
  * promise a total erasure in its own bespoke copy two blocks above. That is exactly what
  * the referral dialog shipped.
  *
- * THE ROSTER, and where each surface is pinned (four of four, none by accident):
+ * THE ROSTER — **THREE surfaces, and three is the whole population, not a shortfall**
+ * (corrected 2026-08-21; this block said "four of four, none by accident" and its item 4
+ * named a file deleted 300 lines below in this same file's own diff):
  *   1. `dsr-meeting-dispose-dialog`      — here
  *   2. `dsr-task-inbox`'s disposal card  — here, over every disposal kind
  *   3. `dsr-outcome-record`              — here, in both meeting arms
- *   4. `referral-dispose-dialog`         — `referral-dispose-dialog.test.tsx` claim 2,
- *      left in place because it is `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument
- *      and covers that dialog's pre-open summary region too. It imports the SAME
- *      property from the same module, so the two cannot drift apart.
+ *
+ * ⛔ THE FOURTH SURFACE CEASED TO EXIST — it was not left unpinned. `referral-dispose-dialog`
+ * and its suite were REMOVED on 2026-08-21 by PO ruling: reaching
+ * `encaminhamentos/[referralId]` requires an active hat in {staff, staff_admin}, while every
+ * arm of `can_dispose_referral_phi` requires one in
+ * {org_admin, hospital_admin, nsp_coordinator, pqs_member} — disjoint in production, so no
+ * principal could open that dialog. Its erasure door is untouched and is still reached, by
+ * exactly the hats that hold the gate, through `dsr-task-inbox`'s `dispose_referral` card —
+ * which IS in this roster, at item 2.
+ *
+ * ⭐ SO THE COUNT MOVED 4 → 3 AND COVERAGE DID NOT MOVE AT ALL: every disposal surface that
+ * exists is pinned here. ⛔ Do NOT read the 3 as a regression and "restore" a fourth — that
+ * would mean re-adding UI for a capability the product does not have. A NEW dispose surface
+ * is a different matter and still owes a row: `SURFACES`' `>= 7` guard counts roster ENTRIES
+ * (one dialog + five inbox cards + two outcome-record arms), not components, so it does not
+ * notice a missing component on its own.
+ *
+ * ⚠ What genuinely did NOT survive the deletion, and is the reason this file grew a suite at
+ * the bottom: the removed file held the ONLY assertion about what `DSR_RESIDUE_NOTICE`'s four
+ * lines SAY. **7 source-level assertions** pin `DSR_RESIDUE_NOTICE.length === 4` (2 in this
+ * file, 5 in `dsr-meeting-residue.test.tsx` — `grep -rn 'DSR_RESIDUE_NOTICE).toHaveLength(4)'
+ * src/`), and before 2026-08-21 not one of them read what those four lines say. A cardinality
+ * pin and a content pin are different properties, and the cheaper one is the one that gets
+ * written. That property was
+ * relocated here rather than dropped — see the block above
+ * `describe('DSR_RESIDUE_NOTICE names the three residue classes …')`.
  *
  * ⚠ SCOPE, STATED SO THIS IS NOT READ AS WIDER THAN IT IS. The property is about
  * DISPOSAL copy — what a surface claims an erasure accomplishes. It is deliberately NOT
@@ -30,8 +54,9 @@
  * passing it.
  *
  * ⛔ NO SURFACE HERE HAS A LIVE DEFECT — this suite went green on the first run and that
- * is the expected result. Its value is regression: three of these four were unpinned,
- * and the one that WAS pinned is the one that shipped the defect.
+ * is the expected result. Its value is regression: at the time it was written three of the
+ * then-four surfaces were unpinned, and the one that WAS pinned is the one that shipped the
+ * defect. That fourth surface is now gone; the three that remain are all pinned here.
  */
 
 import { render, screen, fireEvent, within } from '@testing-library/react'

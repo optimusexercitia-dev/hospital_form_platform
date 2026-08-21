@@ -15,15 +15,23 @@
  * claim below resolves the control's `aria-describedby` to a real element and reads THAT
  * element's text — so deleting the wiring reds even though the sentence still renders.
  *
- * THE ROSTER, and what it does and does not cover. Fourteen title/free-text sites were
- * annotated; mounting all fourteen would mean fourteen action-mock harnesses for one
- * sentence. Pinned here instead: the PRIMITIVE (which all twelve legacy sites share, so
- * a regression in it reds once for all of them) plus one real consumer per WIRING SHAPE —
- * the render-prop path (`AgendaItemForm`, `AttachmentLinkForm`) and the
- * already-`useFieldIds` path (`DsrAttestForm`). ⚠ Stated plainly so this is not read as
- * "all fourteen are pinned": a site that forgot to spread `hintId` onto its control would
- * NOT be caught here. That gap is real; the primitive cannot close it, because
- * `aria-describedby` is the one part a render prop cannot apply for its child.
+ * THE ROSTER, and what it does and does not cover. ⛔ Census corrected 2026-08-21 (QA M5) —
+ * this block said "fourteen sites … all twelve legacy sites", two of the four mutually
+ * inconsistent figures the round shipped. The single derivation lives in the component's own
+ * docblock (`phi-input-hint.tsx`) so there is ONE place to re-derive; restated here only as
+ * the two numbers this file's coverage claim depends on:
+ *   · **19 annotated hosts** — 14 on the render prop, 5 taking the constant directly.
+ *   · **3 hosts mounted here**, chosen as one real consumer per WIRING SHAPE: the render-prop
+ *     path (`AgendaItemForm`, `AttachmentLinkForm`) and the already-`useFieldIds` path
+ *     (`DsrAttestForm`). Mounting all 19 would mean 19 action-mock harnesses for one sentence.
+ *
+ * The PRIMITIVE is pinned separately, and that is what carries the other 11 render-prop hosts:
+ * a regression inside `PhiInputHint` reds once for all of them.
+ *
+ * ⚠ Stated plainly so this is not read as "all 19 are pinned": a site that forgot to spread
+ * `hintId` onto its control would NOT be caught here. That gap is real, and the primitive
+ * cannot close it — `aria-describedby` is the one part a render prop cannot apply for its
+ * child.
  */
 
 import { render, screen, within, fireEvent } from "@testing-library/react";

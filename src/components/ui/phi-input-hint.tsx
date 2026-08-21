@@ -77,27 +77,59 @@ const HINT_TEXT = {
 } as const;
 
 /**
- * Wraps one legacy field — a `<label>`-wrapping-`<input>` control, the pattern 16 of
- * the 17 annotated hosts use — and renders the hint beneath it, wired by an id it
- * generates.
+ * Wraps ONE legacy field — a `<label>`-wrapping-`<input>` control — and renders the hint
+ * beneath it, wired by an id it generates.
  *
- * ## ⛔ Why this is a render prop and not "add a `FieldDescription`"
+ * ## The census, re-derived 2026-08-21 (QA M5)
  *
- * The natural instruction is *"wire it through `useFieldIds(name, { hasDescription:
- * true })`"*. Measured: only ONE of the 17 hosts uses those primitives; the rest are
- * `<label className="flex flex-col …"><span>Título</span><input name="title" …/></label>`.
- * Converting them would mean adopting `useFieldIds`, which emits **no DOM `name`**
- * unless the caller declares `nameRequiredFor` — and every one of these forms reads
- * `formData.get("title")`. A conversion that forgets the declaration breaks the form
- * and stays GREEN in tsc, lint and vitest. That risk is not worth taking for soft
- * guidance, so the hint attaches to the markup that is already there.
+ * ⛔ This block previously carried FOUR different figures for one population (17 / 16 / 14 /
+ * 12) and **none was reproducible**. Re-derived from the sites actually changed, each digit
+ * checkable by the command beside it, and each saying what it counts:
  *
- * ⛔ The hint CANNOT live inside the `<label>`: `<p>` is not phrasing content, and
- * text inside a label is folded into the control's ACCESSIBLE NAME — the name would
- * silently become "Título Não inclua dados do paciente…", moving every `getByLabel`
- * locator in the E2E suite. Hence the wrapper `<div>`: it preserves the label's
- * accessible name byte-for-byte while giving the hint a sibling slot at the right
- * spacing.
+ *   · **14 render-prop hosts** — `grep -rn '<PhiInputHint' src/ --include=*.tsx | grep -v
+ *     '\.test\.'` returns 15 lines; one is the `@example` in THIS file, leaving 14 call sites
+ *     in 14 files. These are the legacy `<label>`-wrap forms.
+ *   · **5 constant-only hosts / 6 rendered hints** — `grep -rn 'PHI_TITLE_HINT|PHI_FREE_TEXT_HINT'`
+ *     outside this file and outside tests: `dsr-adjudication-panel` (×2), `dsr-attest-form`,
+ *     `dsr-intake-panel`, `dsr-task-inbox`, `case-bulk-grid`. They import the CONSTANT and skip
+ *     this component entirely.
+ *
+ * **19 hosts, 20 rendered hints.** Those two numbers differ only because
+ * `dsr-adjudication-panel` renders the constant twice.
+ *
+ * ## ⛔ Why a render prop — and the honest version of the reason
+ *
+ * The instruction that prompted this was *"wire it through `useFieldIds(name, {
+ * hasDescription: true })`"*. The reason not to do that everywhere is **not** that the hosts
+ * lack the field primitives — the split is by what each host ALREADY IS, and all three arms
+ * were the right call for their arm:
+ *
+ *   · **4 hosts already sit on `Field`/`useFieldIds`** (the DSR panels). They take the
+ *     CONSTANT straight into their EXISTING `FieldDescription`. Wrapping them in this
+ *     component would have added a redundant SECOND description to a field that already had
+ *     one — worse a11y, not better.
+ *   · **1 host is a data grid** (`case-bulk-grid`), where a per-cell hint is the wrong shape:
+ *     200 rows of the same sentence is noise a screen-reader user hears on every arrow-key
+ *     move. It hand-rolls one `useId()` for a COLUMN-level hint that every title cell points
+ *     at.
+ *   · **14 hosts are the legacy `<label>`-wrap idiom** with no field primitives at all. Those
+ *     get this component.
+ *
+ * ⚠ **AND THE MIGRATION RISK IS REAL BUT BOUNDED — the earlier claim overstated it.** This
+ * block used to say *"every one of these forms reads `formData.get("title")`"*. Measured:
+ * **3 of the 14** wrap a control carrying a DOM `name=` (`add-ad-hoc-narrative-dialog`,
+ * `add-ad-hoc-phase-dialog`, `case-event-form`); the other 11 are controlled React state with
+ * no `name` at all. `useFieldIds` emits **no DOM `name`** unless the caller declares
+ * `nameRequiredFor`, so converting those 3 without it breaks their server action and stays
+ * GREEN in tsc, lint and vitest. That is a genuine trap on 3 files — it is not, as written
+ * before, a property of all 14. The load-bearing reason for the render prop is the
+ * accessible-name constraint below, which holds for every one of the 14 regardless.
+ *
+ * ⛔ The hint CANNOT live inside the `<label>`: `<p>` is not phrasing content, and text inside
+ * a label is folded into the control's ACCESSIBLE NAME — the name would silently become
+ * "Título Não inclua dados do paciente…", moving every `getByLabel` locator in the E2E suite.
+ * Hence the wrapper `<div>`: it preserves the label's accessible name byte-for-byte while
+ * giving the hint a sibling slot at the right spacing.
  *
  * @example
  * <PhiInputHint>
