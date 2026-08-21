@@ -174,6 +174,30 @@ shape is at `dsr-subject-requests.spec.ts:258-264`) · then §6 steps 1–5.
    in-door `if not (...)` gates** — sweep by the property and say so, rather than reporting an
    empty list as coverage.
 
+## 3b. ⛔ The deployment fact that makes every other item moot until it is decided
+
+**The `dsr` flag ships OFF and nothing but `seed.sql` turns it on.** Measured 2026-08-20:
+`supabase/migrations/20261001000000_dsr_dpo_capability.sql:31-33` inserts
+`('dsr', false, …)`, and the only writer that flips it is `supabase/seed.sql:3027`
+(`update app.feature_flags set enabled = true where key = 'dsr'`), which runs on local and E2E
+resets **only**.
+
+⇒ **On the deployed project the entire DSR module is unreachable today** — every `dsr_*` door
+raises `HCDS1`, `list_my_dsr_hospitals()` returns `'[]'`, and `/o/[org]/titulares` 404s for
+everyone. This is not a defect; it is the platform's standing convention (*"Ships OFF until the
+DSR gate"*, flipped by its own migration at the gate, as `20260828000900` did for FF-1).
+
+**The gate has since passed, so the flip is owed — but it is a PO call and an outward-facing
+production change, and it must not happen while the doors are broken.** Order matters:
+workstream A lands and is proven, *then* the flip. ⛔ Do **not** add a flip migration to this
+branch until the PO rules, because merging one makes the next `db push` flip it as a side
+effect.
+
+⚠ Two questions ride with it, neither answered here: platform-wide or per-tenant, and whether the
+pilot's Critical FUP **C1b** (the Cloud disposal rehearsal, which gates admitting real PHI) must
+close first. C1b is about *bytes* and DSR is *columns*, so they are disjoint mechanisms — but a
+live DSR console on a tenant with no rehearsed disposal path is a decision, not an oversight.
+
 ## 4. Explicitly NOT in this round
 
 - ⛔ Outcome-record delivery to the data subject (P2) — the workflow's one promise with no

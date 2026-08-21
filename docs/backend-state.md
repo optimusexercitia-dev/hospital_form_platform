@@ -23,7 +23,7 @@
 >
 > | fact | measured | query |
 > | --- | --- | --- |
-> | migration registry | **426 == 426** (DB == files on disk), re-measured **2026-08-20**; it read **411 == 411** at DM5·S6 on 2026-08-17 | `select count(*) from supabase_migrations.schema_migrations;` vs `ls supabase/migrations/*.sql \| wc -l` |
+> | migration registry | **433 == 433** (DB == files on disk), re-measured **2026-08-21**; **426 == 426** on 2026-08-20; **411 == 411** at DM5·S6 on 2026-08-17 | `select count(*) from supabase_migrations.schema_migrations;` vs `ls supabase/migrations/*.sql \| wc -l` |
 > | document-model tables | **13**, and **all 13 carry exactly ONE policy** | `pg_class` ⋈ `pg_policy`, `relname ~ '^(document\|file_object\|securable\|upload_session\|controlled_document\|printed_document)'` |
 > | document-surface doors | **38**, of which **5 are service-role-only** (`complete_document_disposal` · `complete_document_reclassification` · `complete_document_upload_verification` · `complete_evidence_upload_verification` · `lookup_printed_document`) | `pg_proc` ⋈ `pg_namespace`, `proname ~ '(document\|printed\|disposal\|dispose\|evidence_upload\|file_object\|placement\|legal_hold\|retention)'` + `has_function_privilege('authenticated', …)` |
 > | storage buckets | **4**: `documents-standard` · `documents-phi` (core) + `form-assets` · `meeting-audio` (out of scope, D13) | `select id from storage.buckets;` |
@@ -476,6 +476,34 @@ syntax filter (`^(is_|can_|has_)`) yields an **EMPTY** case list for this diff, 
 row-door run swept **0**. ⛔ So "the arms hold" is true and says NOTHING about these doors. Their
 coverage is a hand-run **37-probe** neutralization battery, one at a time, every restore hash-verified —
 recorded per keystone in `350`'s header. **Do not read a green arm as a verdict here.**
+
+## DSR operational remediation — the doors actually erase (2026-08-21; ADR **0129 Amdt 3** + **0130 Amdt 5** + **0131 Amdt 4**; migrations `20261003000000`–`…000100`; pgTAP `353` `plan(60)` + `354`; flag **`dsr`**)
+
+⛔ **Read this before touching any `dispose_*` door or any `*_child_lock` guard.** The DSR program
+closed green on 2026-08-20 with every gate passing **and the four LGPD erasure doors did not
+complete** on ordinary mature records. Nothing in the gate could see it: **every disposal fixture in
+the tree used a non-locking parent state** (`rca 'draft'`, interview `'scheduled'`, meetings
+`'held'`), so the suites were green over the trivially-unblocked graph.
+
+| fact | detail |
+| --- | --- |
+| migration registry | **433 == 433** (DB == files), measured 2026-08-21 — was 426 == 426 on 2026-08-20 |
+| the defect | a child-lock trigger raised **~10 statements after** the door's Class-1 DELETE, rolling the whole RPC back: `event_patient` 1 → **1**, `phi_disposed_at` **NULL**, `description_md` intact. ⭐ It failed **loudly**, which is the one mercy — a half-erasing door is strictly worse |
+| ⭐ the magnitude | **TEN statements across FOUR guards**, not the nine across three that `BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW` and ADR 0131 Amdt 3 both filed. The tenth — `dispose_case_phi` → `meeting_cases`, guarded by `app.guard_meeting_child_lock` — needed **no guard change**: that guard has read `app.in_disposal_rpc` since ADR 0129 and the door simply never set it, while carrying an inline comment claiming `app.in_meeting_rpc` covered the child lock |
+| the fix | ADR 0129 Decision 1 (**shape 2**) repeated per lane: the stand-aside block copied **verbatim** into `app.guard_{rca,capa,interview}_child_lock`, and `app.in_disposal_rpc` set around **four tight windows** (two per door — the guarded child writes form non-adjacent runs, so no window spans `capa_plan`, `cases`, `documents` or `file_objects`) |
+| ⛔ **THE INVARIANT** | **`app.in_disposal_rpc` has exactly 3 SETTERS — `dispose_case_phi`, `dispose_event_phi`, `dispose_meeting_minutes`, all disposal doors — and 5 READERS, all child-lock trigger guards** (`guard_{capa,interview,meeting,rca,reserved}_child_lock`). ADR 0129 Amdt 1: *"the setter count is what bounds the bypass."* A non-disposal door setting this flag voids every guarantee here. Re-derive from `pg_proc.prosrc`, never from this table |
+| ⛔ shape 1 stays rejected | teaching a guard to honour its lane's own `app.in_*_rpc` flag would give **every** lane RPC child-write power over locked parents. Pinned out by `353`'s over-grant twins, mutation-proven |
+| the census | `docs/reviews/disposal-guard-crossing-census.md` — **51 crossings = 14 CONFIRMED-reachable + 9 STRUCTURALLY-UNREACHABLE + 28 NON-BLOCKING** (48 direct + 3 cascade). Derived as a **property** (each door's write set × every row-level trigger that can `raise` × its `TG_OP` mask), with `--` comments stripped before the regex. ⚠ The previously filed **15** was event+case only |
+| legal hold | 4 of the 14 CONFIRMED are `HC0D3` legal-hold aborts on `documents`/`file_objects` — **same fail-closed shape as the bug, opposite intent**: a live hold outranks Art. 18. Executed with a matched control (no hold ⇒ door completes, `patient_identifiers` 0; hold live ⇒ `HC0D3`, `patient_identifiers` 1). Intent is now stated in `dispose_case_phi`'s own body — it was stated only in `dispose_referral_phi`, which is **exactly how the child-lock defect stayed invisible** |
+| `notify_scrub_check` retired | `create_dsr_request` no longer mints it. ADR 0130 Amdt 4 withdrew the scrub as premise-falsified and **the withdrawal never reached the code**, so `close_dsr_request`'s `HCDS4` blocked **every** granted close on an attestation to a residue that cannot exist. ⛔ The kind stays in `dsr_tasks_kind_check` and stays completable (historical rows); no backfill; the `HCDS4` gate is untouched and pinned by `354` t12 |
+| ⚠ the corrected rationale | the recorded one (*"`notifications.entity_type` does not admit `case`/`referral`/`event`"*) is **incomplete** — it also admits **`meeting`** and **`capa_action`**, both of which the doors touch. The conclusion survives because their writers pass `body = v_meeting_title` / `capa_action.title`, i.e. **titles**, out of scope by ADR 0131 Amdt 1's title invariant. Full writer census (16 callers / 25 call sites of `app.enqueue_notification`) is in the migration header |
+| ⭐ coverage note | `353` asserts in **every** lane that the **Class-1 PHI is gone**, not merely that free text redacted — on the failing path nothing is written *including the redaction*, so a redaction-only suite goes green while the patient's identifiers survive. Mutation-proven both directions, six mutations, every restore hash-verified |
+| `FUP-DISPOSE-EVENT-DOOR-GATE-BLIND` | ✅ **DISCHARGED** — `352` ran inside the full suite on a fresh reset and was re-neutralized in that context (opening the gate reds 2/6). The item did not close on the file existing |
+
+⛔ **Two reachability facts that are PRODUCT boundaries, not fixture gaps** (measured, and one was retracted after a wrong first answer):
+1. **Route reachability ⟺ activeRole ∈ {`staff`,`staff_admin`}** — `session.ts` hat-filters grants to `g.role === activeRole` **before** `partitionGrants`, and `session-grants.ts` admits only those two roles into `memberships`. **Dispose gate ⟺ activeRole ∈ {`org_admin`,`hospital_admin`,`nsp_coordinator`,`pqs_member`}** (every arm bottoms out in `app.has_role`'s active-hat conjunct). **Disjoint — in production, not just in seed.** No persona can hold both; the referral detail page's dispose dialog was therefore removed, and the **DSR task inbox is the only working UI path to all four erasure doors**.
+   ⚠ `public.session_context()` (SQL) IS hat-blind by design (ADR 0106 D9) — ⛔ **that is truth about the SQL and evidence about nothing downstream.** Reading it and inferring the route's behaviour produced a wrong "fixture gap" verdict.
+2. **`app.is_dpo_of_for` requires a commission role in the hospital as a hard conjunct**, and `organizations_select` has no DPO arm — so a pure LGPD *Encarregado* with no commission membership **cannot reach `/o/[org]/titulares` at all**. By design (ADR 0130 D2); filed as `FUP-DSR-ENCARREGADO-MUST-BE-A-COMMISSION-MEMBER`.
 
 ## Client-role TRUNCATE grants — swept 2026-08-18 (`20260928000900`, FUP-PCITV-1 item 3)
 
