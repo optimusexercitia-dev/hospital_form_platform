@@ -112,3 +112,19 @@ end-to-end verification live in the handoff doc referenced above.
 - **Title system is untouched** — "Secretário(a)" remains a pure descriptor with zero authority.
 - Status advances to **accepted/implemented** once the feature is built and passes the phase gate;
   until then this ADR records the committed design.
+
+## Amendment 1 — a fifth capability, `read_cases`, and a management surface
+
+**2026-08-21 · ADR [0134](./0134-case-surface-split-and-administrativo-case-read.md) — design
+PO-ratified, NOT yet built (update this stub to the build record when 0134's increments land).**
+
+> The curated menu grows from four capabilities to **five**: `read_cases` (default-checked in
+> the appoint dialog) keys a new `app._case_caps` arm conferring commission-wide
+> `read_case_content` — read only; content authorship stays per-case grant-gated and
+> `close_case`/`cancel_case` stay coordinator-only. Rationale: the four existing capabilities
+> were exercisable only on cases the appointee could already read (grant/assignment/creator),
+> so the delegation added a per-case grant step instead of removing coordinator load.
+> Additionally, the appointee's surface changes: `manage/cases/[caseId]` admits administrativos
+> (0134 D3) and `multiplos` re-gates on the `create_cases` capability instead of the
+> `staff_admin` role — the "board rows → staff `casos/[id]` route" frontend note above becomes
+> historical once 0134 Increment 1 lands.

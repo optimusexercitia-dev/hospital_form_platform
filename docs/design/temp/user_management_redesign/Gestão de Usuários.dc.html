@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body { margin:0; background:oklch(0.955 0.006 95); font-family:'IBM Plex Sans',system-ui,sans-serif; color:oklch(0.23 0.018 230); font-feature-settings:"tnum" 1; }
+a { color:oklch(0.475 0.11 252); text-decoration:none; }
+a:hover { color:oklch(0.42 0.105 252); }
+</style>
+</helmet>
+<section data-screen-label="Turno 1 — Gestão de usuários" style="display:flex;flex-direction:column;gap:28px;padding:52px 56px 80px">
+  <div style="max-width:860px;display:flex;flex-direction:column;gap:8px">
+    <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.475 0.11 252)">Comissões Hospitalares · Rede Hospitalar A</p>
+    <h1 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;letter-spacing:-0.01em;font-size:28px;font-weight:600">Redesign — Gestão de usuários</h1>
+    <p style="margin:0;font-size:13.5px;color:oklch(0.52 0.022 252);max-width:70ch">Duas direções com o mesmo conteúdo: diretório, perfil da pessoa e registro. A hierarquia pedida — situação → vínculos hospitalares → comissões → dados pessoais → registros profissionais — organiza os dois perfis. Use o painel Tweaks para filtrar o diretório por status.</p>
+  </div>
+  <div style="display:flex;gap:56px;align-items:flex-start;flex-wrap:wrap">
+
+    <!-- ===================== OPTION 1a ===================== -->
+    <div id="1a" style="width:1200px;display:flex;flex-direction:column;gap:22px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:oklch(0.23 0.018 230);color:#fff;font-size:12.5px;font-weight:700">1a</span>
+        <div>
+          <h2 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:18px;font-weight:600;letter-spacing:-0.01em">Prancheta clínica</h2>
+          <p style="margin:2px 0 0;font-size:12.5px;color:oklch(0.52 0.022 252)">Diretório em tabela densa · perfil com faixa de identidade + trilho lateral · registro em painel deslizante</p>
+        </div>
+      </div>
+
+      <!-- 1a · Directory -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:12.5px;font-weight:600">Diretório — tabela</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:oklch(0.52 0.022 252)">/o/rede-a/manage/usuarios</span>
+        </div>
+        <div style="border:1px solid oklch(0.9 0.008 250);border-radius:20px;background:oklch(0.985 0.004 95);box-shadow:0 14px 36px -22px oklch(0.23 0.018 230 / 0.3);overflow:hidden;display:flex">
+          <div style="width:212px;flex-shrink:0;border-right:1px solid oklch(0.9 0.008 250);background:oklch(0.99 0.003 95);padding:18px 12px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:center;gap:10px;padding:0 6px">
+              <div style="width:32px;height:32px;border-radius:9px;background:oklch(0.475 0.11 252);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:600;flex-shrink:0">CH</div>
+              <div style="min-width:0">
+                <div style="font-family:'IBM Plex Serif',Georgia,serif;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Rede Hospitalar A</div>
+                <div style="font-size:10.5px;color:oklch(0.52 0.022 252)">Organização</div>
+              </div>
+            </div>
+            <nav style="display:flex;flex-direction:column;gap:14px">
+              <sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="4">
+                <div>
+                  <p style="margin:0 0 4px;padding:0 10px;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(0.3 0.018 250 / 0.45)">{{ g.label }}</p>
+                  <div style="display:flex;flex-direction:column;gap:2px">
+                    <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="2">
+                      <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;background:{{ it.bg }};color:{{ it.fg }};font-size:12.5px;font-weight:{{ it.fw }}">{{ it.iconEl }}<span>{{ it.label }}</span></div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </nav>
+          </div>
+          <div style="flex:1;min-width:0;padding:26px 28px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+              <div>
+                <p style="margin:0 0 4px;font-size:10.5px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.475 0.11 252)">Rede Hospitalar A</p>
+                <h3 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:23px;font-weight:600;letter-spacing:-0.01em">Usuários</h3>
+                <p style="margin:4px 0 0;font-size:12.5px;color:oklch(0.52 0.022 252)">Busque, acompanhe o status e gerencie as pessoas registradas na organização.</p>
+              </div>
+              <button style="background:oklch(0.475 0.11 252);color:oklch(0.99 0.005 250);border:none;border-radius:10px;padding:9px 14px;font:600 12.5px 'IBM Plex Sans',sans-serif;display:inline-flex;gap:6px;align-items:center;cursor:pointer;white-space:nowrap" style-hover="background:oklch(0.42 0.1 252)">＋ Registrar pessoa</button>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <sc-for list="{{ pills }}" as="f" hint-placeholder-count="4">
+                  <button onClick="{{ f.select }}" style="background:{{ f.bg }};color:{{ f.fg }};border:1px solid {{ f.bd }};border-radius:999px;padding:5px 12px;font:600 11.5px 'IBM Plex Sans',sans-serif;cursor:pointer">{{ f.label }}</button>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:8px">
+                <input placeholder="Buscar por nome, e-mail ou registro…" style="width:250px;padding:8px 12px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 12.5px 'IBM Plex Sans',sans-serif;background:#fff;color:oklch(0.23 0.018 230)">
+                <select style="padding:8px 10px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:500 12.5px 'IBM Plex Sans',sans-serif;background:#fff;color:oklch(0.23 0.018 230)">
+                  <option>Hospital: todos</option><option>Hospital Santa Clara</option><option>Hospital São Rafael</option>
+                </select>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:14px;overflow:hidden">
+              <div style="display:grid;grid-template-columns:minmax(230px,1.5fr) 96px minmax(150px,0.9fr) minmax(190px,1.2fr) 118px 22px;gap:12px;align-items:center;padding:9px 18px;background:oklch(0.962 0.006 245 / 0.55);border-bottom:1px solid oklch(0.9 0.008 250);font-size:10.5px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:oklch(0.52 0.022 252)">
+                <span>Pessoa</span><span>Situação</span><span>Vínculo hospitalar</span><span>Comissões</span><span>Registro</span><span></span>
+              </div>
+              <sc-for list="{{ rows }}" as="u" hint-placeholder-count="6">
+                <div style="display:grid;grid-template-columns:minmax(230px,1.5fr) 96px minmax(150px,0.9fr) minmax(190px,1.2fr) 118px 22px;gap:12px;align-items:center;padding:11px 18px;border-top:1px solid oklch(0.94 0.005 250);opacity:{{ u.dim }};cursor:pointer" style-hover="background:oklch(0.95 0.022 250 / 0.35)">
+                  <div style="display:flex;align-items:center;gap:11px;min-width:0">
+                    <div style="width:34px;height:34px;border-radius:999px;background:oklch(0.95 0.022 250);color:oklch(0.42 0.105 252);display:grid;place-items:center;font-size:12px;font-weight:600;flex-shrink:0">{{ u.initials }}</div>
+                    <div style="min-width:0">
+                      <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ u.name }}</div>
+                      <div style="font-size:11.5px;color:oklch(0.52 0.022 252);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ u.email }}</div>
+                    </div>
+                  </div>
+                  <span style="justify-self:start;display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;background:{{ u.statusBg }};color:{{ u.statusFg }}">{{ u.statusLabel }}</span>
+                  <span style="font-size:12.5px;color:{{ u.hospFg }}">{{ u.hospLabel }}</span>
+                  <div style="display:flex;flex-wrap:wrap;gap:4px">
+                    <sc-for list="{{ u.comChips }}" as="c" hint-placeholder-count="1">
+                      <span style="display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500;background:{{ c.bg }};color:{{ c.fg }};border:{{ c.bd }}">{{ c.t }}</span>
+                    </sc-for>
+                  </div>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:oklch(0.52 0.022 252)">{{ u.regLabel }}</span>
+                  <span style="color:oklch(0.52 0.022 252);font-size:15px">›</span>
+                </div>
+              </sc-for>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 18px;border-top:1px solid oklch(0.9 0.008 250);font-size:11.5px;color:oklch(0.52 0.022 252)">
+                <span>{{ shownCount }} pessoas</span>
+                <span style="font-family:'IBM Plex Mono',monospace">‹ &nbsp;1 / 1&nbsp; ›</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1a · User detail -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:12.5px;font-weight:600">Perfil do usuário — faixa de identidade + trilho</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:oklch(0.52 0.022 252)">/manage/usuarios/[id]</span>
+        </div>
+        <div style="border:1px solid oklch(0.9 0.008 250);border-radius:20px;background:oklch(0.985 0.004 95);box-shadow:0 14px 36px -22px oklch(0.23 0.018 230 / 0.3);overflow:hidden;padding:28px 32px;display:flex;flex-direction:column;gap:18px">
+          <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:oklch(0.52 0.022 252);width:fit-content;cursor:pointer" style-hover="color:oklch(0.23 0.018 230)">← Todos os usuários</span>
+          <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:20px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+            <div style="width:54px;height:54px;border-radius:999px;background:oklch(0.95 0.022 250);color:oklch(0.42 0.105 252);display:grid;place-items:center;font-size:18px;font-weight:600;flex-shrink:0">AR</div>
+            <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:5px">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <h3 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:22px;font-weight:600;letter-spacing:-0.01em">Ana Beatriz Rocha</h3>
+                <span style="display:inline-flex;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;background:oklch(0.95 0.022 250);color:oklch(0.42 0.105 252)">Ativo</span>
+              </div>
+              <p style="margin:0;font-size:13px;color:oklch(0.52 0.022 252)">ana.rocha@redea.org.br · Médica — Infectologia</p>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <span style="display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;background:oklch(0.962 0.006 245);color:oklch(0.35 0.02 250)">CRM/SP 152.984 <span style="color:oklch(0.55 0.09 158);font-family:'IBM Plex Sans',sans-serif;font-weight:600">✓ verificado</span></span>
+                <span style="display:inline-flex;align-items:center;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:500;background:oklch(0.962 0.006 245);color:oklch(0.52 0.022 252)">Na organização desde 12/03/2024</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:10px;padding:8px 13px;font:600 12.5px 'IBM Plex Sans',sans-serif;color:oklch(0.23 0.018 230);cursor:pointer" style-hover="background:oklch(0.962 0.006 245)">Suspender</button>
+              <button style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:10px;padding:8px 13px;font:600 12.5px 'IBM Plex Sans',sans-serif;color:oklch(0.55 0.2 25);cursor:pointer" style-hover="background:oklch(0.55 0.2 25 / 0.08)">Desativar</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start">
+            <div style="display:flex;flex-direction:column;gap:18px;min-width:0">
+              <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                  <div>
+                    <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:16px;font-weight:600;letter-spacing:-0.01em">Vínculos hospitalares</h4>
+                    <p style="margin:3px 0 0;font-size:12px;color:oklch(0.52 0.022 252)">Onde esta pessoa trabalha. Encerrar um vínculo preserva o histórico e não afeta a conta.</p>
+                  </div>
+                  <button style="background:transparent;border:1px dashed oklch(0.9 0.008 250);border-radius:9px;padding:6px 11px;font:600 12px 'IBM Plex Sans',sans-serif;color:oklch(0.475 0.11 252);cursor:pointer;white-space:nowrap" style-hover="background:oklch(0.95 0.022 250 / 0.5)">＋ Adicionar vínculo</button>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid oklch(0.94 0.005 250);border-radius:12px;padding:12px 16px">
+                  <div>
+                    <div style="font-size:13.5px;font-weight:600">Hospital Santa Clara</div>
+                    <div style="font-size:12px;color:oklch(0.52 0.022 252)">Matrícula 48.291 · desde 12/03/2024</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <span style="display:inline-flex;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;background:oklch(0.55 0.09 158 / 0.12);color:oklch(0.45 0.09 158)">Ativo</span>
+                    <span style="font-size:12px;font-weight:600;color:oklch(0.55 0.2 25);cursor:pointer">Encerrar</span>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid oklch(0.94 0.005 250);border-radius:12px;padding:12px 16px;opacity:0.62">
+                  <div>
+                    <div style="font-size:13.5px;font-weight:600">Hospital São Rafael</div>
+                    <div style="font-size:12px;color:oklch(0.52 0.022 252)">Matrícula 31.007 · fev 2021 – nov 2023</div>
+                  </div>
+                  <span style="display:inline-flex;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;background:oklch(0.962 0.006 245);color:oklch(0.52 0.022 252)">Encerrado</span>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                  <div>
+                    <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:16px;font-weight:600;letter-spacing:-0.01em">Comissões</h4>
+                    <p style="margin:3px 0 0;font-size:12px;color:oklch(0.52 0.022 252)">Onde esta pessoa participa, e o papel em cada uma.</p>
+                  </div>
+                  <button style="background:transparent;border:1px dashed oklch(0.9 0.008 250);border-radius:9px;padding:6px 11px;font:600 12px 'IBM Plex Sans',sans-serif;color:oklch(0.475 0.11 252);cursor:pointer;white-space:nowrap" style-hover="background:oklch(0.95 0.022 250 / 0.5)">＋ Adicionar a uma comissão</button>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid oklch(0.94 0.005 250);border-radius:12px;padding:12px 16px">
+                  <div>
+                    <div style="font-size:13.5px;font-weight:600">Comissão de Controle de Infecção Hospitalar</div>
+                    <div style="font-size:12px;color:oklch(0.52 0.022 252)">Hospital Santa Clara · desde mar 2024</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <span style="display:inline-flex;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:600;background:oklch(0.95 0.022 250);color:oklch(0.42 0.105 252)">Coordenadora</span>
+                    <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer">Alterar papel</span>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid oklch(0.94 0.005 250);border-radius:12px;padding:12px 16px">
+                  <div>
+                    <div style="font-size:13.5px;font-weight:600">Comissão de Revisão de Óbitos</div>
+                    <div style="font-size:12px;color:oklch(0.52 0.022 252)">Hospital Santa Clara · desde ago 2024</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <span style="display:inline-flex;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:600;background:oklch(0.962 0.006 245);color:oklch(0.52 0.022 252)">Membro</span>
+                    <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer">Alterar papel</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:18px">
+              <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:15px;font-weight:600;letter-spacing:-0.01em">Dados pessoais</h4>
+                  <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer">Editar</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px">
+                  <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:oklch(0.52 0.022 252)">CPF</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">412.•••.•84-20</span></div>
+                  <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:oklch(0.52 0.022 252)">Nascimento</span><span>14/02/1985</span></div>
+                  <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:oklch(0.52 0.022 252)">Telefone</span><span>(11) 98123-4402</span></div>
+                  <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:oklch(0.52 0.022 252)">Categoria</span><span>Médica</span></div>
+                </div>
+                <p style="margin:0;font-size:11px;color:oklch(0.52 0.022 252);border-top:1px solid oklch(0.94 0.005 250);padding-top:10px">Fatos sobre a pessoa — editáveis apenas pela administração da organização.</p>
+              </div>
+              <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:15px;font-weight:600;letter-spacing:-0.01em">Registros profissionais</h4>
+                  <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer">Editar</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid oklch(0.94 0.005 250);border-radius:10px;padding:9px 12px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12px">CRM/SP 152.984</span>
+                  <span style="font-size:11px;font-weight:600;color:oklch(0.45 0.09 158)">✓ Verificado</span>
+                </div>
+                <p style="margin:0;font-size:11px;color:oklch(0.52 0.022 252)">Conselhos de classe (CRM, COREN, CRF…). Editar limpa a verificação atual.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1a · Register slide-over -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:12.5px;font-weight:600">Registrar pessoa — painel deslizante</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:oklch(0.52 0.022 252)">/manage/usuarios/novo</span>
+        </div>
+        <div style="border:1px solid oklch(0.9 0.008 250);border-radius:20px;background:oklch(0.985 0.004 95);box-shadow:0 14px 36px -22px oklch(0.23 0.018 230 / 0.3);overflow:hidden;position:relative;min-height:660px">
+          <div style="padding:26px 28px;opacity:0.4;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h3 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:23px;font-weight:600">Usuários</h3>
+              <div style="width:140px;height:34px;border-radius:10px;background:oklch(0.475 0.11 252)"></div>
+            </div>
+            <div style="width:250px;height:34px;border-radius:10px;background:#fff;border:1px solid oklch(0.9 0.008 250)"></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="height:58px;border-radius:12px;background:#fff;border:1px solid oklch(0.9 0.008 250)"></div>
+              <div style="height:58px;border-radius:12px;background:#fff;border:1px solid oklch(0.9 0.008 250)"></div>
+              <div style="height:58px;border-radius:12px;background:#fff;border:1px solid oklch(0.9 0.008 250)"></div>
+              <div style="height:58px;border-radius:12px;background:#fff;border:1px solid oklch(0.9 0.008 250)"></div>
+            </div>
+          </div>
+          <div style="position:absolute;inset:0;background:oklch(0.23 0.018 230 / 0.26)"></div>
+          <div style="position:absolute;top:0;right:0;bottom:0;width:396px;background:#fff;border-left:1px solid oklch(0.9 0.008 250);box-shadow:-28px 0 48px -32px oklch(0.23 0.018 230 / 0.4);display:flex;flex-direction:column">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 22px;border-bottom:1px solid oklch(0.94 0.005 250)">
+              <div>
+                <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:17px;font-weight:600;letter-spacing:-0.01em">Registrar pessoa</h4>
+                <p style="margin:3px 0 0;font-size:11.5px;color:oklch(0.52 0.022 252)">A pessoa recebe um convite por e-mail para ativar a conta.</p>
+              </div>
+              <span style="color:oklch(0.52 0.022 252);font-size:16px;cursor:pointer;line-height:1">✕</span>
+            </div>
+            <div style="flex:1;padding:18px 22px;display:flex;flex-direction:column;gap:13px;overflow:auto">
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <label style="font-size:11.5px;font-weight:600">Nome completo</label>
+                <input defaultValue="Mariana Duarte" style="padding:9px 12px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;color:oklch(0.23 0.018 230)">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <label style="font-size:11.5px;font-weight:600">E-mail</label>
+                <input defaultValue="mariana.duarte@redea.org.br" style="padding:9px 12px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;color:oklch(0.23 0.018 230)">
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <label style="font-size:11.5px;font-weight:600">Categoria profissional</label>
+                  <select style="padding:9px 10px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;background:#fff;color:oklch(0.23 0.018 230)"><option>Médica</option><option>Enfermeiro(a)</option><option>Farmacêutico(a)</option></select>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <label style="font-size:11.5px;font-weight:600">CPF <span style="font-weight:400;color:oklch(0.52 0.022 252)">(opcional)</span></label>
+                  <input placeholder="000.000.000-00" style="padding:9px 12px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;color:oklch(0.23 0.018 230)">
+                </div>
+              </div>
+              <div style="height:1px;background:oklch(0.94 0.005 250);margin:2px 0"></div>
+              <div style="display:flex;align-items:flex-start;gap:11px;cursor:pointer" onClick="{{ toggleConfig }}">
+                <div style="width:34px;height:20px;border-radius:999px;background:{{ switchBg }};position:relative;flex-shrink:0;transition:background 150ms">
+                  <div style="position:absolute;top:2px;left:{{ knobLeft }};width:16px;height:16px;border-radius:999px;background:#fff;box-shadow:0 1px 2px oklch(0.23 0.018 230 / 0.3);transition:left 150ms"></div>
+                </div>
+                <div>
+                  <div style="font-size:13px;font-weight:600">Configurar acesso agora</div>
+                  <div style="font-size:11.5px;color:oklch(0.52 0.022 252)">Opcional — ou registre só com nome e e-mail e configure os vínculos depois.</div>
+                </div>
+              </div>
+              <sc-if value="{{ showConfig }}" hint-placeholder-val="{{ true }}">
+                <div style="background:oklch(0.962 0.006 245 / 0.5);border:1px solid oklch(0.94 0.005 250);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:11px">
+                  <div style="display:flex;flex-direction:column;gap:5px">
+                    <label style="font-size:11.5px;font-weight:600">Hospital</label>
+                    <select style="padding:9px 10px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;background:#fff;color:oklch(0.23 0.018 230)"><option>Hospital São Rafael</option><option>Hospital Santa Clara</option></select>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:5px">
+                    <label style="font-size:11.5px;font-weight:600">Matrícula</label>
+                    <input placeholder="Ex.: 51.204" style="padding:9px 12px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;color:oklch(0.23 0.018 230)">
+                  </div>
+                  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:10px">
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      <label style="font-size:11.5px;font-weight:600">Comissão</label>
+                      <select style="padding:9px 10px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;background:#fff;color:oklch(0.23 0.018 230)"><option>CCIH</option><option>Comissão de Óbitos</option></select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      <label style="font-size:11.5px;font-weight:600">Papel</label>
+                      <select style="padding:9px 10px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;background:#fff;color:oklch(0.23 0.018 230)"><option>Membro</option><option>Coordenador(a)</option></select>
+                    </div>
+                  </div>
+                  <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer;width:fit-content">＋ Adicionar outra comissão</span>
+                </div>
+              </sc-if>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:9px;padding:14px 22px;border-top:1px solid oklch(0.94 0.005 250)">
+              <button style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:10px;padding:9px 13px;font:600 12.5px 'IBM Plex Sans',sans-serif;color:oklch(0.23 0.018 230);cursor:pointer" style-hover="background:oklch(0.962 0.006 245)">Cancelar</button>
+              <button style="background:oklch(0.475 0.11 252);color:oklch(0.99 0.005 250);border:none;border-radius:10px;padding:9px 14px;font:600 12.5px 'IBM Plex Sans',sans-serif;cursor:pointer" style-hover="background:oklch(0.42 0.1 252)">Registrar e enviar convite</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== OPTION 1b ===================== -->
+    <div id="1b" style="width:1200px;display:flex;flex-direction:column;gap:22px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:oklch(0.23 0.018 230);color:#fff;font-size:12.5px;font-weight:700">1b</span>
+        <div>
+          <h2 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:18px;font-weight:600;letter-spacing:-0.01em">Fichário por situação</h2>
+          <p style="margin:2px 0 0;font-size:12.5px;color:oklch(0.52 0.022 252)">Diretório em cartões agrupados por status · perfil com blocos de resumo e seções empilhadas · registro em etapas</p>
+        </div>
+      </div>
+
+      <!-- 1b · Directory -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:12.5px;font-weight:600">Diretório — cartões por situação</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:oklch(0.52 0.022 252)">/o/rede-a/manage/usuarios</span>
+        </div>
+        <div style="border:1px solid oklch(0.9 0.008 250);border-radius:20px;background:oklch(0.985 0.004 95);box-shadow:0 14px 36px -22px oklch(0.23 0.018 230 / 0.3);overflow:hidden;display:flex">
+          <div style="width:212px;flex-shrink:0;border-right:1px solid oklch(0.9 0.008 250);background:oklch(0.99 0.003 95);padding:18px 12px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:center;gap:10px;padding:0 6px">
+              <div style="width:32px;height:32px;border-radius:9px;background:oklch(0.475 0.11 252);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:600;flex-shrink:0">CH</div>
+              <div style="min-width:0">
+                <div style="font-family:'IBM Plex Serif',Georgia,serif;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Rede Hospitalar A</div>
+                <div style="font-size:10.5px;color:oklch(0.52 0.022 252)">Organização</div>
+              </div>
+            </div>
+            <nav style="display:flex;flex-direction:column;gap:14px">
+              <sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="4">
+                <div>
+                  <p style="margin:0 0 4px;padding:0 10px;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(0.3 0.018 250 / 0.45)">{{ g.label }}</p>
+                  <div style="display:flex;flex-direction:column;gap:2px">
+                    <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="2">
+                      <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;background:{{ it.bg }};color:{{ it.fg }};font-size:12.5px;font-weight:{{ it.fw }}">{{ it.iconEl }}<span>{{ it.label }}</span></div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </nav>
+          </div>
+          <div style="flex:1;min-width:0;padding:26px 28px;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+              <div>
+                <p style="margin:0 0 4px;font-size:10.5px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.475 0.11 252)">Rede Hospitalar A</p>
+                <h3 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:23px;font-weight:600;letter-spacing:-0.01em">Usuários</h3>
+                <p style="margin:4px 0 0;font-size:12.5px;color:oklch(0.52 0.022 252)">Quem precisa da sua atenção aparece primeiro.</p>
+              </div>
+              <button style="background:oklch(0.475 0.11 252);color:oklch(0.99 0.005 250);border:none;border-radius:10px;padding:9px 14px;font:600 12.5px 'IBM Plex Sans',sans-serif;display:inline-flex;gap:6px;align-items:center;cursor:pointer;white-space:nowrap" style-hover="background:oklch(0.42 0.1 252)">＋ Registrar pessoa</button>
+            </div>
+            <div style="display:flex;gap:8px">
+              <input placeholder="Buscar por nome, e-mail ou registro…" style="flex:1;max-width:320px;padding:8px 12px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 12.5px 'IBM Plex Sans',sans-serif;background:#fff;color:oklch(0.23 0.018 230)">
+              <select style="padding:8px 10px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:500 12.5px 'IBM Plex Sans',sans-serif;background:#fff;color:oklch(0.23 0.018 230)"><option>Hospital: todos</option></select>
+              <select style="padding:8px 10px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:500 12.5px 'IBM Plex Sans',sans-serif;background:#fff;color:oklch(0.23 0.018 230)"><option>Categoria: todas</option></select>
+            </div>
+            <sc-for list="{{ groups }}" as="grp" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:{{ grp.fg }}">{{ grp.label }}</span>
+                  <span style="display:inline-flex;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:600;background:oklch(0.962 0.006 245);color:oklch(0.52 0.022 252)">{{ grp.count }}</span>
+                  <div style="flex:1;height:1px;background:oklch(0.94 0.005 250)"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <sc-for list="{{ grp.users }}" as="u" hint-placeholder-count="2">
+                    <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:14px;padding:15px 16px;display:flex;flex-direction:column;gap:10px;opacity:{{ u.dim }};cursor:pointer" style-hover="border-color:oklch(0.475 0.11 252 / 0.45);box-shadow:0 6px 18px -12px oklch(0.23 0.018 230 / 0.35)">
+                      <div style="display:flex;align-items:center;gap:11px">
+                        <div style="width:36px;height:36px;border-radius:999px;background:oklch(0.95 0.022 250);color:oklch(0.42 0.105 252);display:grid;place-items:center;font-size:12.5px;font-weight:600;flex-shrink:0">{{ u.initials }}</div>
+                        <div style="min-width:0;flex:1">
+                          <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ u.name }}</div>
+                          <div style="font-size:11.5px;color:oklch(0.52 0.022 252);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ u.metaLine }}</div>
+                        </div>
+                        <span style="display:inline-flex;flex-shrink:0;border-radius:999px;padding:2px 8px;font-size:10px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;background:{{ u.noteBg }};color:{{ u.noteFg }}">{{ u.noteLabel }}</span>
+                      </div>
+                      <div style="display:flex;flex-wrap:wrap;gap:4px">
+                        <span style="display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500;background:{{ u.hospChipBg }};color:oklch(0.52 0.022 252);border:{{ u.hospChipBd }}">{{ u.hospLabel }}</span>
+                        <sc-for list="{{ u.comChips }}" as="c" hint-placeholder-count="1">
+                          <span style="display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500;background:{{ c.bg }};color:{{ c.fg }};border:{{ c.bd }}">{{ c.t }}</span>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1b · User detail -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:12.5px;font-weight:600">Perfil do usuário — blocos de resumo</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:oklch(0.52 0.022 252)">/manage/usuarios/[id]</span>
+        </div>
+        <div style="border:1px solid oklch(0.9 0.008 250);border-radius:20px;background:oklch(0.985 0.004 95);box-shadow:0 14px 36px -22px oklch(0.23 0.018 230 / 0.3);overflow:hidden;padding:28px 34px;display:flex;flex-direction:column;gap:18px">
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:oklch(0.52 0.022 252);width:fit-content;cursor:pointer" style-hover="color:oklch(0.23 0.018 230)">← Todos os usuários</span>
+          <div style="display:flex;align-items:center;gap:16px">
+            <div style="width:58px;height:58px;border-radius:999px;background:oklch(0.95 0.022 250);color:oklch(0.42 0.105 252);display:grid;place-items:center;font-size:19px;font-weight:600;flex-shrink:0">AR</div>
+            <div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <h3 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:25px;font-weight:600;letter-spacing:-0.01em">Ana Beatriz Rocha</h3>
+                <span style="display:inline-flex;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;background:oklch(0.95 0.022 250);color:oklch(0.42 0.105 252)">Ativo</span>
+              </div>
+              <p style="margin:4px 0 0;font-size:13px;color:oklch(0.52 0.022 252)">ana.rocha@redea.org.br · Médica — Infectologia</p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+            <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:14px;padding:13px 16px">
+              <p style="margin:0;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(0.52 0.022 252)">Situação</p>
+              <p style="margin:5px 0 0;font-size:15px;font-weight:600;color:oklch(0.42 0.105 252)">Ativa</p>
+              <p style="margin:2px 0 0;font-size:11.5px;color:oklch(0.52 0.022 252)">desde 12/03/2024</p>
+            </div>
+            <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:14px;padding:13px 16px">
+              <p style="margin:0;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(0.52 0.022 252)">Vínculos hospitalares</p>
+              <p style="margin:5px 0 0;font-size:15px;font-weight:600">1 ativo</p>
+              <p style="margin:2px 0 0;font-size:11.5px;color:oklch(0.52 0.022 252)">Hospital Santa Clara</p>
+            </div>
+            <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:14px;padding:13px 16px">
+              <p style="margin:0;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(0.52 0.022 252)">Comissões</p>
+              <p style="margin:5px 0 0;font-size:15px;font-weight:600">2</p>
+              <p style="margin:2px 0 0;font-size:11.5px;color:oklch(0.52 0.022 252)">1 coordenação</p>
+            </div>
+            <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:14px;padding:13px 16px">
+              <p style="margin:0;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(0.52 0.022 252)">Registros</p>
+              <p style="margin:5px 0 0;font-size:15px;font-weight:600;color:oklch(0.45 0.09 158)">1 verificado</p>
+              <p style="margin:2px 0 0;font-size:11.5px;color:oklch(0.52 0.022 252)">CRM/SP 152.984</p>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+            <div style="max-width:60ch">
+              <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:16px;font-weight:600;letter-spacing:-0.01em">Situação da conta</h4>
+              <p style="margin:4px 0 0;font-size:12px;color:oklch(0.52 0.022 252)">Desativar ou suspender encerra o acesso em toda a plataforma, inclusive em outros hospitais. Para desligar de um hospital, encerre o vínculo hospitalar.</p>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:10px;padding:8px 13px;font:600 12.5px 'IBM Plex Sans',sans-serif;color:oklch(0.23 0.018 230);cursor:pointer" style-hover="background:oklch(0.962 0.006 245)">Suspender</button>
+              <button style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:10px;padding:8px 13px;font:600 12.5px 'IBM Plex Sans',sans-serif;color:oklch(0.55 0.2 25);cursor:pointer" style-hover="background:oklch(0.55 0.2 25 / 0.08)">Desativar</button>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:20px 24px;display:flex;flex-direction:column;gap:13px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:16px;font-weight:600;letter-spacing:-0.01em">Vínculos hospitalares</h4>
+              <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer">＋ Adicionar vínculo</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid oklch(0.94 0.005 250);border-radius:12px;padding:12px 16px">
+              <div>
+                <div style="font-size:13.5px;font-weight:600">Hospital Santa Clara</div>
+                <div style="font-size:12px;color:oklch(0.52 0.022 252)">Matrícula 48.291 · desde 12/03/2024</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <span style="display:inline-flex;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;background:oklch(0.55 0.09 158 / 0.12);color:oklch(0.45 0.09 158)">Ativo</span>
+                <span style="font-size:12px;font-weight:600;color:oklch(0.55 0.2 25);cursor:pointer">Encerrar</span>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid oklch(0.94 0.005 250);border-radius:12px;padding:12px 16px;opacity:0.62">
+              <div>
+                <div style="font-size:13.5px;font-weight:600">Hospital São Rafael</div>
+                <div style="font-size:12px;color:oklch(0.52 0.022 252)">Matrícula 31.007 · fev 2021 – nov 2023</div>
+              </div>
+              <span style="display:inline-flex;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;background:oklch(0.962 0.006 245);color:oklch(0.52 0.022 252)">Encerrado</span>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:20px 24px;display:flex;flex-direction:column;gap:13px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:16px;font-weight:600;letter-spacing:-0.01em">Comissões</h4>
+              <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer">＋ Adicionar a uma comissão</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid oklch(0.94 0.005 250);border-radius:12px;padding:12px 16px">
+              <div>
+                <div style="font-size:13.5px;font-weight:600">Comissão de Controle de Infecção Hospitalar</div>
+                <div style="font-size:12px;color:oklch(0.52 0.022 252)">Hospital Santa Clara · desde mar 2024</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <span style="display:inline-flex;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:600;background:oklch(0.95 0.022 250);color:oklch(0.42 0.105 252)">Coordenadora</span>
+                <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer">Alterar papel</span>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid oklch(0.94 0.005 250);border-radius:12px;padding:12px 16px">
+              <div>
+                <div style="font-size:13.5px;font-weight:600">Comissão de Revisão de Óbitos</div>
+                <div style="font-size:12px;color:oklch(0.52 0.022 252)">Hospital Santa Clara · desde ago 2024</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <span style="display:inline-flex;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:600;background:oklch(0.962 0.006 245);color:oklch(0.52 0.022 252)">Membro</span>
+                <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer">Alterar papel</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
+            <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:18px 22px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:15px;font-weight:600;letter-spacing:-0.01em">Dados pessoais</h4>
+                <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer">Editar</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 18px;font-size:12.5px">
+                <div><div style="color:oklch(0.52 0.022 252);font-size:11px">CPF</div><div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">412.•••.•84-20</div></div>
+                <div><div style="color:oklch(0.52 0.022 252);font-size:11px">Nascimento</div><div>14/02/1985</div></div>
+                <div><div style="color:oklch(0.52 0.022 252);font-size:11px">Telefone</div><div>(11) 98123-4402</div></div>
+                <div><div style="color:oklch(0.52 0.022 252);font-size:11px">Categoria</div><div>Médica</div></div>
+              </div>
+              <p style="margin:0;font-size:11px;color:oklch(0.52 0.022 252);border-top:1px solid oklch(0.94 0.005 250);padding-top:10px">Fatos sobre a pessoa — editáveis apenas pela administração da organização.</p>
+            </div>
+            <div style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:18px 22px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:15px;font-weight:600;letter-spacing:-0.01em">Registros profissionais</h4>
+                <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252);cursor:pointer">Editar</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid oklch(0.94 0.005 250);border-radius:10px;padding:9px 12px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12px">CRM/SP 152.984</span>
+                <span style="font-size:11px;font-weight:600;color:oklch(0.45 0.09 158)">✓ Verificado</span>
+              </div>
+              <p style="margin:0;font-size:11px;color:oklch(0.52 0.022 252)">Conselhos de classe (CRM, COREN, CRF…). Editar limpa a verificação atual.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1b · Register stepper -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:12.5px;font-weight:600">Registrar pessoa — assistente em etapas</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:oklch(0.52 0.022 252)">/manage/usuarios/novo</span>
+        </div>
+        <div style="border:1px solid oklch(0.9 0.008 250);border-radius:20px;background:oklch(0.985 0.004 95);box-shadow:0 14px 36px -22px oklch(0.23 0.018 230 / 0.3);overflow:hidden;padding:30px 0 40px;display:flex;flex-direction:column;align-items:center;gap:22px">
+          <div style="width:620px;display:flex;flex-direction:column;gap:6px">
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:oklch(0.52 0.022 252);width:fit-content;cursor:pointer" style-hover="color:oklch(0.23 0.018 230)">← Usuários</span>
+            <p style="margin:6px 0 0;font-size:10.5px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.475 0.11 252)">Rede Hospitalar A</p>
+            <h3 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:23px;font-weight:600;letter-spacing:-0.01em">Registrar pessoa</h3>
+            <p style="margin:0;font-size:12.5px;color:oklch(0.52 0.022 252)">O convite por e-mail é enviado ao concluir — ou a qualquer momento, pulando as etapas restantes.</p>
+          </div>
+          <div style="width:620px;display:flex;align-items:center;gap:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:26px;height:26px;border-radius:999px;background:oklch(0.475 0.11 252);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:600">✓</div>
+              <span style="font-size:12px;font-weight:600;color:oklch(0.475 0.11 252)">Identificação</span>
+            </div>
+            <div style="flex:1;height:2px;background:oklch(0.475 0.11 252)"></div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:26px;height:26px;border-radius:999px;background:#fff;border:2px solid oklch(0.475 0.11 252);color:oklch(0.475 0.11 252);display:grid;place-items:center;font-size:12px;font-weight:600">2</div>
+              <span style="font-size:12px;font-weight:600">Vínculo hospitalar</span>
+            </div>
+            <div style="flex:1;height:2px;background:oklch(0.9 0.008 250)"></div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:26px;height:26px;border-radius:999px;background:oklch(0.962 0.006 245);color:oklch(0.52 0.022 252);display:grid;place-items:center;font-size:12px;font-weight:600">3</div>
+              <span style="font-size:12px;font-weight:500;color:oklch(0.52 0.022 252)">Comissões</span>
+            </div>
+          </div>
+          <div style="width:620px;background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;gap:15px">
+            <div>
+              <h4 style="margin:0;font-family:'IBM Plex Serif',Georgia,serif;font-size:16px;font-weight:600;letter-spacing:-0.01em">Vínculo hospitalar</h4>
+              <p style="margin:4px 0 0;font-size:12px;color:oklch(0.52 0.022 252)">Você pode pular esta etapa — a pessoa fica registrada na organização sem vínculo hospitalar.</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <label style="font-size:11.5px;font-weight:600">Hospital</label>
+              <select style="padding:9px 10px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;background:#fff;color:oklch(0.23 0.018 230)"><option>Hospital São Rafael</option><option>Hospital Santa Clara</option></select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <label style="font-size:11.5px;font-weight:600">Matrícula</label>
+                <input placeholder="Ex.: 51.204" style="padding:9px 12px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;color:oklch(0.23 0.018 230)">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <label style="font-size:11.5px;font-weight:600">Data de início</label>
+                <input defaultValue="20/08/2026" style="padding:9px 12px;border:1px solid oklch(0.9 0.008 250);border-radius:10px;font:400 13px 'IBM Plex Sans',sans-serif;color:oklch(0.23 0.018 230)">
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid oklch(0.94 0.005 250);padding-top:15px">
+              <button style="background:transparent;border:none;font:600 12.5px 'IBM Plex Sans',sans-serif;color:oklch(0.52 0.022 252);cursor:pointer;padding:8px 4px" style-hover="color:oklch(0.23 0.018 230)">← Voltar</button>
+              <div style="display:flex;gap:9px">
+                <button style="background:#fff;border:1px solid oklch(0.9 0.008 250);border-radius:10px;padding:9px 13px;font:600 12.5px 'IBM Plex Sans',sans-serif;color:oklch(0.23 0.018 230);cursor:pointer" style-hover="background:oklch(0.962 0.006 245)">Pular etapa</button>
+                <button style="background:oklch(0.475 0.11 252);color:oklch(0.99 0.005 250);border:none;border-radius:10px;padding:9px 15px;font:600 12.5px 'IBM Plex Sans',sans-serif;cursor:pointer" style-hover="background:oklch(0.42 0.1 252)">Continuar →</button>
+              </div>
+            </div>
+          </div>
+          <div style="width:620px;display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:oklch(0.52 0.022 252)">
+            <span style="flex-shrink:0">✉</span>
+            <span>Precisa só convidar? <span style="color:oklch(0.475 0.11 252);font-weight:600;cursor:pointer">Enviar convite agora</span> registra a pessoa apenas com nome e e-mail — vínculos e comissões podem ser configurados depois.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;statusFilter&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;todos&quot;,&quot;options&quot;:[&quot;todos&quot;,&quot;ativos&quot;,&quot;atencao&quot;,&quot;desativados&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Diretório&quot;},&quot;convitePainelCompleto&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Registro (opção 1a)&quot;}}">
+class Component extends DCLogic {
+  state = { filter: null, config: null };
+  renderVals() {
+    const R = React.createElement;
+    const PRI = 'oklch(0.475 0.11 252)', ACC = 'oklch(0.95 0.022 250)', ACCFG = 'oklch(0.42 0.105 252)',
+      MUT = 'oklch(0.52 0.022 252)', MUTBG = 'oklch(0.962 0.006 245)', BD = 'oklch(0.9 0.008 250)';
+    const icon = (parts) => R('svg', { width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', style: { flexShrink: 0 } },
+      parts.map((p, i) => R(p[0], Object.assign({ key: i }, p[1]))));
+    const P = (d) => ['path', { d }];
+    const ICONS = {
+      dash: [['rect', { x: 3, y: 3, width: 7, height: 9, rx: 1 }], ['rect', { x: 14, y: 3, width: 7, height: 5, rx: 1 }], ['rect', { x: 14, y: 12, width: 7, height: 9, rx: 1 }], ['rect', { x: 3, y: 16, width: 7, height: 5, rx: 1 }]],
+      users: [P('M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'), P('M16 3.128a4 4 0 0 1 0 7.744'), P('M22 21v-2a4 4 0 0 0-3-3.87'), ['circle', { cx: 9, cy: 7, r: 4 }]],
+      folder: [P('m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2')],
+      build: [P('M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z'), P('M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2'), P('M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2'), P('M10 6h4'), P('M10 10h4'), P('M10 14h4'), P('M10 18h4')],
+      chart: [P('M3 3v16a2 2 0 0 0 2 2h16'), P('M18 17V9'), P('M13 17V5'), P('M8 17v-3')],
+      gauge: [P('m12 14 4-4'), P('M3.34 19a10 10 0 1 1 17.32 0')],
+      award: [P('m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526'), ['circle', { cx: 12, cy: 8, r: 6 }]],
+      shield: [P('M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z')],
+      scroll: [P('M15 12h-5'), P('M15 8h-5'), P('M19 17V5a2 2 0 0 0-2-2H4'), P('M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3')],
+    };
+    const navGroups = [
+      { label: 'Geral', items: [{ l: 'Visão geral', i: 'dash' }] },
+      { label: 'Gestão', items: [{ l: 'Usuários', i: 'users', a: true }, { l: 'Comissões', i: 'folder' }, { l: 'Hospitais', i: 'build' }] },
+      { label: 'Acompanhamento', items: [{ l: 'Painel', i: 'chart' }, { l: 'Indicadores', i: 'gauge' }, { l: 'Acreditação', i: 'award' }] },
+      { label: 'Organização', items: [{ l: 'Administradores', i: 'shield' }, { l: 'Trilha de auditoria', i: 'scroll' }] },
+    ].map((g) => ({
+      label: g.label,
+      items: g.items.map((it) => ({
+        label: it.l, iconEl: icon(ICONS[it.i]),
+        bg: it.a ? ACC : 'transparent',
+        fg: it.a ? ACCFG : 'oklch(0.3 0.018 250 / 0.8)',
+        fw: it.a ? '600' : '500',
+      })),
+    }));
+    const SM = {
+      active: { label: 'Ativo', bg: ACC, fg: ACCFG },
+      pending: { label: 'Pendente', bg: MUTBG, fg: MUT },
+      suspended: { label: 'Suspenso', bg: 'oklch(0.62 0.13 65 / 0.16)', fg: 'oklch(0.49 0.12 65)' },
+      deactivated: { label: 'Desativado', bg: 'oklch(0.55 0.2 25 / 0.1)', fg: 'oklch(0.55 0.2 25)' },
+    };
+    const RAW = [
+      { name: 'Ana Beatriz Rocha', email: 'ana.rocha@redea.org.br', cat: 'Médica', reg: 'CRM/SP 152.984', status: 'active', hosp: 'Hospital Santa Clara', coms: [['CCIH', 'Coordenadora'], ['Óbitos', 'Membro']] },
+      { name: 'Carlos Eduardo Mendes', email: 'carlos.mendes@redea.org.br', cat: 'Enfermeiro', reg: 'COREN/SP 289.441', status: 'active', hosp: 'Hospital Santa Clara', coms: [['CCIH', 'Membro']] },
+      { name: 'Patrícia Gonçalves', email: 'patricia.g@redea.org.br', cat: 'Nutricionista', reg: 'CRN-3 45.812', status: 'active', hosp: '2 hospitais', coms: [['Nutrição', 'Membro']] },
+      { name: 'João Pedro Alves', email: 'joao.alves@redea.org.br', cat: 'Administrativo', reg: null, status: 'active', hosp: 'Hospital Santa Clara', coms: [] },
+      { name: 'Luís Otávio Prado', email: 'luis.prado@redea.org.br', cat: 'Médico', reg: 'CRM/SP 98.230', status: 'active', hosp: null, coms: [['Ética', 'Membro']] },
+      { name: 'Fernanda Lima Castro', email: 'fernanda.castro@redea.org.br', cat: 'Farmacêutica', reg: 'CRF/SP 88.412', status: 'suspended', note: 'Suspensa até 12/09', hosp: 'Hospital São Rafael', coms: [['Farmácia e Terapêutica', 'Membro']] },
+      { name: 'Mariana Duarte', email: 'mariana.duarte@redea.org.br', cat: 'Médica', reg: 'CRM/SP 201.377', status: 'pending', note: 'Convite pendente', hosp: 'Hospital São Rafael', coms: [['CCIH', 'Membro']] },
+      { name: 'Ricardo Nogueira', email: 'ricardo.n@redea.org.br', cat: 'Téc. de enfermagem', reg: 'COREN/SP 512.093', status: 'deactivated', hosp: 'Hospital São Rafael', coms: [] },
+    ];
+    const users = RAW.map((u) => {
+      const parts = u.name.split(' ');
+      const s = SM[u.status];
+      const noHosp = !u.hosp;
+      return {
+        name: u.name, email: u.email, status: u.status,
+        initials: parts[0][0] + parts[parts.length - 1][0],
+        statusLabel: s.label, statusBg: s.bg, statusFg: s.fg,
+        noteLabel: u.note || s.label,
+        noteBg: u.note ? s.bg : s.bg, noteFg: s.fg,
+        hospLabel: u.hosp || 'Sem vínculo hospitalar',
+        hospFg: noHosp ? MUT : 'oklch(0.23 0.018 230)',
+        hospChipBg: noHosp ? 'transparent' : MUTBG,
+        hospChipBd: noHosp ? '1px dashed ' + BD : '1px solid transparent',
+        regLabel: u.reg || '—',
+        metaLine: u.cat + (u.reg ? ' · ' + u.reg : ''),
+        dim: u.status === 'deactivated' ? '0.6' : '1',
+        comChips: u.coms.length === 0
+          ? [{ t: 'Sem comissão', bg: 'transparent', fg: MUT, bd: '1px dashed ' + BD }]
+          : u.coms.map((c) => ({ t: c[0] + ' · ' + c[1], bg: c[1] === 'Coordenadora' ? ACC : MUTBG, fg: c[1] === 'Coordenadora' ? ACCFG : MUT, bd: '1px solid transparent' })),
+      };
+    });
+    const filter = this.state.filter ?? this.props.statusFilter ?? 'todos';
+    const match = (u) =>
+      filter === 'todos' ? true :
+      filter === 'ativos' ? u.status === 'active' :
+      filter === 'atencao' ? (u.status === 'suspended' || u.status === 'pending') :
+      u.status === 'deactivated';
+    const rows = users.filter(match);
+    const countFor = (id) => users.filter((u) => (id === 'todos' ? true : id === 'ativos' ? u.status === 'active' : id === 'atencao' ? (u.status === 'suspended' || u.status === 'pending') : u.status === 'deactivated')).length;
+    const pills = [
+      ['todos', 'Todos'], ['ativos', 'Ativos'], ['atencao', 'Atenção'], ['desativados', 'Desativados'],
+    ].map(([id, l]) => {
+      const active = filter === id;
+      return {
+        label: l + ' · ' + countFor(id),
+        bg: active ? PRI : '#fff',
+        fg: active ? 'oklch(0.99 0.005 250)' : MUT,
+        bd: active ? PRI : BD,
+        select: () => this.setState({ filter: id }),
+      };
+    });
+    const groupDefs = [
+      ['Ativos', (u) => u.status === 'active', MUT],
+      ['Requer atenção', (u) => u.status === 'suspended' || u.status === 'pending', 'oklch(0.49 0.12 65)'],
+      ['Desativados', (u) => u.status === 'deactivated', MUT],
+    ];
+    const groups = groupDefs
+      .map(([label, fn, fg]) => ({ label, fg, users: rows.filter(fn), count: rows.filter(fn).length }))
+      .filter((g) => g.count > 0);
+    const showConfig = this.state.config ?? (this.props.convitePainelCompleto ?? true);
+    return {
+      navGroups, pills, rows, groups,
+      shownCount: rows.length,
+      showConfig,
+      switchBg: showConfig ? PRI : 'oklch(0.85 0.012 250)',
+      knobLeft: showConfig ? '16px' : '2px',
+      toggleConfig: () => this.setState({ config: !showConfig }),
+    };
+  }
+}
+</script>
+</body>
+</html>

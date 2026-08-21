@@ -16,6 +16,16 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
+- **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
+  user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
+  person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
+  register wizard (escape hatch removed); the three UM screens rebuilt to the design
+  handoff. ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md)
+  (renumbered from 0129 at the 2026-08-21 reconciliation — main's DSR track had taken
+  0129) **+ Amdt 1** (2026-08-21 — capability-split widening, § Decisions) · plan
+  [aff2-user-management.md](docs/plans/aff2-user-management.md). **Start
+  condition: the prévia merge call is SATISFIED (`9ed197d5`, merged + pushed); what
+  remains is the PO's merge call on `chore/small-optimizations` itself + explicit build go.**
 - **No phase is active.** The **DM program (DM0–DM5) is COMPLETE** — closed 2026-08-18, all five
   gate steps, phase QA APPROVED r2 ([review](docs/reviews/dm5-phase-review.md)); its follow-up triage
   ruled eleven items and shipped five. ⛔ *The standing-green E2E figure this bullet used to carry
@@ -169,6 +179,11 @@ premises (case 1 `pending`, case 2 `completed`), and the affordances still exist
 URL": the test's PURPOSE was to pair a coordinator against `quality.a`'s absence check on the SAME
 url, and if `/casos` is now read-only for everyone that pairing has gone VACUOUS** — it would pass
 while proving nothing. Owner: whoever owns `8675b7cd`; the E2E baseline is red until then.
+**Repair design PO-ratified 2026-08-21** (ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md)
+D8; recipe: [case-surface-split.md](docs/plans/case-surface-split.md) §2): re-anchor the `:569`
+pairing on "Gerenciar caso" presence (coordinator) vs absence (`quality.a`) on the same `/casos`
+URL — non-vacuous, survives the redesign — and move `Editar`/`Reabrir` to `/manage/cases/[caseId]`.
+Tester-owned, **not yet executed**; ordered before AFF2 pins its e2e baseline.
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
@@ -253,7 +268,10 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-21 | **PO: case split = read vs manage** — `/casos` = read + name-attributed work only; ONE manage surface (coordinator / administrativo / write-grantee); administrativo gets commission-wide case READ (5th cap `read_cases`). ⛔ NOT built — plan: [case-surface-split.md](docs/plans/case-surface-split.md) | ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md) |
 | 2026-08-21 | **PO: an ethics proceeding carries NO erasure entitlement, at any stage — no door, no UI.** Basis is the record's **administrative-proceeding** nature, ⛔ **not CFM 1821/2007**. Closes the Class-2 question. ⛔ **2 pre-existing doors DO remove ethics data** — filed, record-only | ADR [0132](docs/decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md) |
+| 2026-08-21 | **AFF2 Amdt 1 (PO): footprint bound SPLITS by capability** — fields+credentials → **intersection**, CPF-change+lifecycle keep **subset** · silent cross-hospital write **ACCEPTED residual** · LGPD: professional titulares administrative, **out of DSR scope BY DESIGN** · 6 rulings | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 1** |
+| 2026-08-20 | **AFF2 accepted (PO): affiliation-scoped hospital_admin authority** — footprint-bounded person-level edits, credentials + lifecycle · CPF mandatory in UI, escape hatch REMOVED · `date_of_birth`+`phone` added column-locked · credentials SELECT widens · presence-only CPF display | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) (né 0129) · amends 0097 D11/D14 · 0098 W3.2 · [0048](docs/decisions/0048-user-registration-identity.md) D10 |
 | 2026-08-20 | **PO: DSR gate CLOSED — approval given, program merged + pushed.** §6 steps 1–5 complete; step 1 re-run on a fresh reset. ⛔ Step 2 (`e2e:prod`) **not re-run** for the final increment — recorded, not implied | [dsr-program.md](docs/progress/dsr-program.md) |
 | 2026-08-20 | **PO: PHI erasure reaches DESIGNATED PHI fields ONLY** — free text/titles that *may* hold PHI are out of pilot scope; the control is **training**. Shipped reach MAINTAINED, not rolled back. Closes the census + ethics items **by ruling, not remediation — the residue is ACCEPTED, not absent** | ADR [0131](docs/decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) |
 | 2026-08-20 | **PO: DROP Slice 4 item 1** — notification scrubbing **WITHDRAWN as premise-falsified**; the residue class does not exist. Successor `FUP-DOOR-ERASURE-FREETEXT-CENSUS` filed | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 4** |
