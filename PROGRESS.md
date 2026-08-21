@@ -42,25 +42,23 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   (keystone `352` landed; closes when cited) · `FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES` ·
   `FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING` (PO copy call) · the **Class-2** professional-identity
   question.
-- **▶ IN BUILD 2026-08-20 — DSR operational remediation**, branch
-  `feat/dsr-operational-remediation`, [plan](docs/plans/dsr-operational-remediation.md). ⛔ **Not a
-  rebuild** — the DSR program is built and merged; this round fixes that **the doors it exists to
-  call do not complete**. Scope: (A) the ten child-lock aborts, PO-ruled **FIX THE GUARDS** (ADR
-  0129 shape 2 per lane; ADR [0131](docs/decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md)
-  **Amdt 4**) · (B) retire the dead `notify_scrub_check` gate — ADR 0130 Amdt 4 withdrew that scrub
-  as premise-falsified and **the withdrawal never reached the code**, so every granted request is
-  blocked until a human attests to a residue class the program proved absent · (C) run `352` in the
-  full suite to close `FUP-DISPOSE-EVENT-DOOR-GATE-BLIND` · (D) DSR nav reachability for the
-  **executor** hats + a persona that can actually reach the referral dispose dialog · (E) the ADR
-  0131 Amdt 1 helper-text control · (F) the column-door operator procedure, now written
-  ([phi-column-disposal-procedure.md](docs/deployment/phi-column-disposal-procedure.md)) · (G) the
-  live absent-row PHI-erasure assertions. ⛔ **Explicitly NOT in it**, PO-ruled: outcome-record
-  delivery to the data subject (`FUP-DSR-OUTCOME-RECORD-HAS-NO-DELIVERY`), rewording
-  `DSR_RESIDUE_NOTICE`, Class-2 erasure.
-  ⭐ **Two premises died on measurement in the first hour**, both in the reassuring direction: the
-  P0's own count (9/3 → **10/4**), and a lead spawn premise that an *Encarregado* need not be a
-  commission member — `app.is_dpo_of_for` requires one as a hard conjunct
-  (`FUP-DSR-ENCARREGADO-MUST-BE-A-COMMISSION-MEMBER`), so the DPO half of the nav gap never existed.
+- **✅ DSR OPERATIONAL REMEDIATION — COMPLETE 2026-08-21.** All five §6 gate steps; QA **APPROVED r2**
+  ([review](docs/reviews/dsr-remediation-review.md)); plan
+  [dsr-operational-remediation.md](docs/plans/dsr-operational-remediation.md); ledger row in
+  [phase-ledger.md](docs/progress/phase-ledger.md). **Branch `feat/dsr-operational-remediation` pushed
+  to origin; `db push` applied all 14 pending migrations to the linked project** (head
+  `20261003000300`, `dsr` flag **ON**, invariant re-derived **on the remote**: 3 setters / 5 readers).
+  ⛔ **NOT merged to `main`** — that decision is untaken.
+  ⛔ **What it fixed:** the DSR program closed green on 2026-08-20 and **its LGPD erasure doors did not
+  erase** — a child lock raised ~10 statements after the Class-1 DELETE, rolling the whole RPC back.
+  **10 statements across 4 guards** (filed as 9/3); PO ruled **FIX THE GUARDS**, rollback under ADR 0131
+  D4(b) **declined**. Plus: the dead `notify_scrub_check` gate that blocked every granted close, the
+  console's nav reachability, the ADR 0131 helper-text control, the column doors' first operator
+  procedure, and drift pin `355`.
+  ⛔ **Still open by PO ruling, not by omission** — `FUP-DSR-OUTCOME-RECORD-HAS-NO-DELIVERY` (the
+  workflow's one promise to the data subject has no mechanism) and **Class-2** professional-identity
+  erasure. Six residuals filed with their bounds named, incl. one **accepted with no mechanism**
+  (`FUP-EXIT-CODE-MASKING-HAS-NO-MECHANISM`).
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -313,6 +311,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| **DSR operational remediation** | ✅ **APPROVED** (r2; r1 CHANGES REQUESTED — 3 blockers, all records, no engineering) | 2026-08-21 | [dsr-remediation-review.md](docs/reviews/dsr-remediation-review.md) |
 | DSR operational remediation (r2) | **APPROVED** | 2026-08-21 | [dsr-remediation-review](docs/reviews/dsr-remediation-review.md) |
 | ~~DSR operational remediation (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [dsr-remediation-review](docs/reviews/dsr-remediation-review.md) |
 | DSR Slice 4 — ADR 0130 Amdt 4 (r3) | **APPROVED** | 2026-08-20 | [dsr-slice-4-review](docs/reviews/dsr-slice-4-review.md) |
@@ -366,7 +365,8 @@ still awaiting a concluding event stay here:_
 | live fact | concludes when |
 | --- | --- |
 | ⚠ **Remote storage byte-loss is UNQUANTIFIED — the "~49 vanished" figure is WITHDRAWN 2026-08-18.** `n_tup_ins − n_tup_del` compares two units: 5 uploads move `ins` by **+6**, 5 deletes move `del` by **+5** (measured). And by the probe below, any surviving bytes are **unobservable** anyway | a magnitude re-derived from something other than the `pg_stat` counters — or PO ruling that it cannot be ([FUP-DM4-PRODROW](docs/progress/follow-ups.md)) |
-| ⭐ **The remote is safe to touch today ONLY because it holds no data and no users** (census 2026-08-18) — a stronger reason than any flag argument | **expires at pilot data-load**, when it must be REPLACED by the rehearsed C1b disposal bound (§ Critical FUP C1), never just deleted |
+| ⛔ **CORRECTED 2026-08-21 — the remote holds the E2E SEED FIXTURE, not nothing.** This row said *"it holds no data and no users"* (census 2026-08-18). **Measured 2026-08-21 against the linked project: `auth.users` = 36, all `@test.local`, created 2026-08-19 — i.e. AFTER that census; 0 non-test accounts; 1 pre-promoted `platform_admin`; `cases` 10, `responses` 17; synthetic PHI `patient_identifiers` 2 / `event_patient` 3 / `referral_patient` 3.** ⭐ **No real customer data** — so the *conclusion* (safe to touch) survives; the *premise* did not, and the premise is what other decisions were resting on. ⚠ This is the **fifth** time a claim about the remote has gone stale in this file. ⛔ **Re-measure `auth.users` and `schema_migrations` before citing this row — never quote it.** | **expires at pilot data-load**, when it must be REPLACED by the rehearsed C1b disposal bound (§ Critical FUP C1), never just deleted |
+| ✅ **The remote is CURRENT as of 2026-08-21: 435 applied, head `20261003000300`** — 14 migrations pushed (ADR 0129 child-lock work + DSR Slices 2–4 + this round's four), PO-authorised. `dsr` flag **enabled**, and the disposal invariant re-derived **on the remote**: 3 setters / 5 readers. ⚠ A `git push` is not a `db push`; both were done, separately and deliberately | superseded by the next remote-affecting change — **re-measure, do not quote** |
 
 
 ## ⭐⭐ Critical FUP — the must-not-be-forgotten list
