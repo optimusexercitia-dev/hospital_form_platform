@@ -23,9 +23,29 @@ Every fact below was measured against the live catalog / code on 2026-08-21. The
 plan's premises, not its evidence — **re-verify each at build time** (catalog for SQL, file
 for TS; graphify first for code exploration).
 
+> ⛔ **READ THIS BEFORE TRUSTING ANY ROW. This baseline was wrong three times in two days, always
+> the same way and always in the same direction: it named the instance that was found, never the
+> class.** Measured during the build:
+> - **F1** named **one** gate site; there were **four** (the layout-only change would have been a
+>   no-op that passed every gate).
+> - **D8** named **two** stale `/casos` assertions; a **third** surfaced the moment the first was
+>   fixed — and a failing assertion masks every assertion after it, so two was a **floor**, not a
+>   count.
+> - **T6**'s excluded-class list named **`org_admin`**; the resolver arm is
+>   `app.is_tenancy_admin_of_for`, which covers **`hospital_admin`** too — one sibling of a
+>   two-member axis, which reads as sweeping the class.
+> - **F9** stated one disjunct of a guard that has **two branches with different second
+>   disjuncts** (a line-filtered `prosrc` extraction, which can only ever *drop* disjuncts).
+>
+> Each row here is a **hand-list wearing the label "verified"**, and that label is what stops the
+> next reader from re-deriving it. So: **re-derive every row by its PROPERTY** — "every gate in
+> this route group", "every assertion expecting a case-wide affordance on `/casos`", "every role
+> the resolver arm admits" — and never by the file, name, or count the row happens to state. A
+> row that matches what you find is not confirmation; it is a sample of size one.
+
 | # | Fact | Where |
 | --- | --- | --- |
-| F1 | Manage case-detail entry gate: `if (!access \|\| access.role !== "staff_admin") notFound()` | `src/app/o/[org]/c/[commission]/manage/cases/[caseId]/(detail)/layout.tsx:63` |
+| F1 | ⛔ **WRONG AS WRITTEN — corrected at build time 2026-08-21.** The `(detail)` route group carries **FOUR** copies of the `staff_admin` gate, not one: `(detail)/layout.tsx:63`, **`(detail)/page.tsx:71` (the Detalhes tab — the layout's DEFAULT CHILD, the one that matters)**, `(detail)/timeline/page.tsx:44`, `(detail)/etica/page.tsx:37`. Converting only the layout ships an increment that still 404s every class it was written to admit — **with all eight lint gates, tsc and pgTAP green**. `CaseTabs` also links all three tabs unconditionally, so a partial conversion offers links that 404. | catalog of the route group, not the one file the fact named |
 | F2 | `/casos` narrowing: `readingAsMember = managementElsewhere && rawCaps.canManageLifecycle` → zeroes `canManageLifecycle` + `canWriteContent`; sole host passing `managementElsewhere` is the `/casos` page | `src/components/cases/case-detail-view.tsx:366-369`; host `casos/[caseId]/page.tsx:255` |
 | F3 | Three role-implied props bypass the narrowing by construction: `canManagePhaseResults`, `canAssignPhases`, `canEditMeta` | `casos/[caseId]/page.tsx:265-268`; documented `case-detail-view.tsx:374-380` |
 | F4 | `manage/cases` (list) is already capability-gated: `canInCommission(access, "create_cases")` + standing check incl. `isAdministrativo` | `manage/cases/page.tsx:84-95` |
