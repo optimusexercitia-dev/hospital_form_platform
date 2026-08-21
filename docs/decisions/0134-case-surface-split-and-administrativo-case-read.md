@@ -237,8 +237,23 @@ governance gain. **Rejected: a separate sixth capability key.**
 
 ## Amendment 2 — 2026-08-21 (**PROPOSED — PO ruling requested**): creation-scoped PHI entry for `administrativo`, and the resolution of OPEN-4
 
-**Status: PROPOSED. This amendment records a question put to the PO, not a ruling.** ⛔ It
-authorizes nothing — no migration, no route change, no merge, no remote push. It is written down as
+**Status: ✅ ACCEPTED — the PO ruled OPTION D on 2026-08-21**, in the build session, when asked
+explicitly which option they were ruling. *(The text below was authored as a PROPOSED amendment and
+is preserved as the record of the question and its analysis; only this status block and §A2.7's
+scope note are post-ruling. The ruling was **asked for rather than inferred**: this document was
+pointed to with "the problem has been solved", but it was written to withhold authorization, and
+option D is the platform's first PHI write path not held by a coordinator — not a thing to derive
+from a summary.)*
+
+**What the ruling authorizes is exactly §A2.7's "yes on D" list** — the A2.2 split-writer mechanism,
+its migrations, the A2.5 test bill, and the A2.6 record updates, **locally on
+`feat/case-surface-split`**. It does **not** authorize any remote `db push`, any merge to `main`,
+PHI **read** for administrativo in any form, PHI write outside the creation path, or any change to
+`dispose_case_phi` / the xref gates. ⛔ It is **Increment 2** work and does not start until
+Increment 1 has passed its gate (currently **QA: CHANGES REQUESTED**).
+
+~~**Status: PROPOSED. This amendment records a question put to the PO, not a ruling.** ⛔ It
+authorizes nothing~~ — no migration, no route change, no merge, no remote push. It is written down as
 an amendment rather than left in a session because it would **extend D11's bounded scope a second
 time**, and because it is a **Rule 12** change: Amendment 1 §A1.2 opened *bulk creation* to a
 `create_cases` administrativo, and measurement then found that the same wizard's **patient block**

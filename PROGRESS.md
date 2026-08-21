@@ -78,8 +78,20 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   is closed entirely. ⛔ **The dead-end half is real and conditional:** the PHI call is step (d) of
   the per-row loop and the loop re-raises, **rolling back the whole batch** — so an administrativo
   on a **patient-collecting** template fills up to 200 rows and loses all of it to a message naming
-  *"a coordenação"*. PHI-free batches never reach step (d). ⇒ **OPEN-4 open for the PO — options
-  now WRITTEN UP as ADR 0134 Amendment 2 (PROPOSED, nothing authorized):** (A) suppress the
+  *"a coordenação"*. PHI-free batches never reach step (d).
+  **✅ OPEN-4 RULED 2026-08-21 — OPTION D** (ADR 0134 **Amendment 2**, PROPOSED → **ACCEPTED**).
+  Authorizes exactly §A2.7's "yes on D" list — the A2.2 split-writer mechanism, its migrations, the
+  A2.5 test bill and the A2.6 record updates — **locally**. NOT authorized: remote `db push`, merge
+  to `main`, PHI **read** in any form, PHI write outside the creation path, changes to
+  `dispose_case_phi` or the xref gates. **Increment 2 work; does not start until Increment 1
+  gates.** ⚠ Keystone `189_bulk_create_cases.sql:153` must be **inverted deliberately**, new intent
+  stated in its header; A2.6's record updates (incl. **CLAUDE.md Rule 12**) ship in the **same
+  commit**; A2.4's four residual risks are accepted explicitly, and risk 2's mitigation (echo the
+  written identifiers back so a typo is caught at the keyboard) is **required in the same change**.
+  ⚠ *Asked for, not inferred — Amendment 2 was authored as PROPOSED and stated that it authorized
+  nothing, so the pointer to it was treated as the analysis, not the approval.*
+  ⇒ *Original filing, retained as the record of the question —* **options
+  WRITTEN UP as ADR 0134 Amendment 2:** (A) suppress the
   wizard's PHI columns for administrativos, (B) block the capability on patient-collecting
   templates, (C) accept the 42501, or **(D, recommended)** a **creation-scoped** PHI write — entry
   during `create_case*`/`bulk_create_cases` only, still **no read, no edit, no disposal** (the
