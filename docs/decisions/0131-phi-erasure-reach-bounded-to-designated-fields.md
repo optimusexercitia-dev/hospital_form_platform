@@ -107,7 +107,12 @@ MAY contain PHI.**
   can return `granted` for with no door to call. This ADR is written about **PHI**; whether
   it also rules on Class-2 erasure is the PO's to confirm. Recorded in
   `FUP-ETHICS-LANE-NO-ERASURE-DOOR`'s closure note so the question is not lost inside a
-  close.
+  close. ✅ **CONFIRMED AND RULED 2026-08-21 — ADR
+  [0132](./0132-ethics-proceedings-carry-no-erasure-entitlement.md)** (see Amendment 6).
+  ⛔ **One clause above is FALSE and 0132 measured it so:** the workflow can *not* "return
+  `granted` with no door to call" — `dsr_requests.patient_key` is `NOT NULL` with no
+  subject-type column, so a professional-identity request cannot be **intaken**, let alone
+  adjudicated. The gap was one stage earlier than three records claimed.
 
 ## Rejected
 
@@ -354,6 +359,8 @@ is not a clean row either.
 
 ⛔ **Still not ruled by this ADR, and still the PO's:** Class-2 professional-identity erasure for the
 `ethics_*` lane's second data subject. Amendment 3 flagged it; Amendment 4 does not resolve it.
+✅ **RULED 2026-08-21 — ADR [0132](./0132-ethics-proceedings-carry-no-erasure-entitlement.md).** See
+Amendment 6 at the foot of this ADR.
 
 ## Amendment 5 — the referral-dialog ruling is REVERSED, and the go-live flip is authorised
 
@@ -437,3 +444,33 @@ decision witnessed only by the artifact it authorizes cannot be checked against 
 to do it.** That is a lead defect, not an implementer one, and it is the same class as
 [[an-approvals-scope-is-a-fact-that-must-be-written-down]] — an approval's existence and scope are
 facts, and a fact nobody recorded is indistinguishable from one nobody had.
+
+## Amendment 6 — the reserved Class-2 question is RULED (ADR 0132), on a basis this ADR does not use
+
+**2026-08-21 · PO-ruled · closes the one item Amendments 3, 4 and the
+`FUP-ETHICS-LANE-NO-ERASURE-DOOR` closure note each deliberately left open.**
+
+ADR [0132](./0132-ethics-proceedings-carry-no-erasure-entitlement.md): **an ethics proceeding
+carries no erasure entitlement at any stage**, because it is an administrative process with
+possible legal consequences and the record *is* the evidence of due process. No door and no UI
+will be built; the absence is now a decision rather than a gap.
+
+⭐ **Read the two rulings as independent, not as one restated.** This ADR descopes the lane on a
+**reach** bound (it holds no *designated* PHI field). 0132 descopes it on an **entitlement**
+bound (no grant is available to execute). ⛔ They are not redundant: this ADR's bound would
+evaporate the day a designated PHI column is added to an `ethics_*` table; 0132's would not.
+
+**What 0132 changes about this ADR, precisely:**
+
+- Decision 2's ruling on the lane is **unchanged and unweakened**; it simply is no longer the
+  only thing holding it.
+- Decision 1's Class-1 obligation is **untouched** — 0132 was scoped by the PO to the
+  proceeding record and the respondent professional, explicitly **not** to patient PHI on an
+  ethics-*typed* case. `dispose_case_phi` keeps erasing `patient_identifiers` / `answers` there.
+- The Consequences bullet quoted above had a **false clause**, corrected in place: the DSR
+  workflow cannot return `granted` for a professional-identity request, because it cannot
+  intake one.
+- ⚠ **Two live doors DO remove ethics-evaluation data**, both pre-existing and neither from the
+  DSR program — a `cases` DELETE that cascades all seven tables, and
+  `redact_professional_profile` on an undecided case. Enumerated with their measurements in
+  0132; **PO-ruled record-only**, so they are *accepted and open*, not fixed and not absent.

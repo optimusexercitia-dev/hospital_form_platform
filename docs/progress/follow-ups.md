@@ -5779,3 +5779,90 @@ transfer** to a different gate) — but memory is prose, and prose has now faile
 [dm5-po-decisions.md](dm5-po-decisions.md) item 2**: when a control rests entirely on a human, this
 repo says so plainly rather than letting a green gate imply otherwise. Raised by QA in the round-2
 addendum, and the framing is theirs.
+
+### 🔴 FUP-ETHICS-CASE-DELETE-CASCADE — a commission `staff_admin` can `DELETE` an in-flight ethics case over PostgREST, cascading all SEVEN `ethics_*` tables, with ZERO audit rows naming any ethics entity (owner: backend + PO; found 2026-08-21 answering the PO's "were any doors opened?", ADR 0132)
+
+**⛔ PO-ruled RECORD-ONLY 2026-08-21 (ADR
+[0132](../decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md)) — accepted and OPEN,
+not fixed and not absent.** Closing it is an RLS/gate change owing migrations, pgTAP keystones and
+an ADR 0079 diff-scoped door sweep; it was deliberately not slipped into a documentation change.
+
+**Measured against the live catalog at head `20261003000300`, 2026-08-21, and confirmed BY
+EXECUTION in a transaction — rolled back, pre-state re-verified byte-for-byte.**
+
+⭐ **The finding is not "cases can be deleted". It is that the ethics lane's deliberate
+write-lockdown is defeated by a parent that was never locked down.** Each of the nine `ethics_*`
+tables is granted `select` **and nothing else** to `authenticated` (verified: three `grant select`
+statements in the E2 intake migrations, no `insert`/`update`/`delete` anywhere), carries only a
+SELECT RLS policy, and is written exclusively by **14 DEFINER RPCs none of which contains a
+`DELETE`**. That is a real, intentional hardening — and the FK cascade walks straight through it.
+
+| probe (same JWT: `chefe.ccih`, `active_role=staff_admin`) | result |
+|---|---|
+| `DELETE /rest/v1/ethics_case_details?case_id=eq.…` | ⛔ **403** `42501` permission denied |
+| `DELETE /rest/v1/cases?id=eq.…` | ✅ **200** |
+
+- **The cascade:** all seven case-scoped tables (`ethics_allegations`, `ethics_appeals`,
+  `ethics_case_details`, `ethics_decision_details`, `ethics_findings`, `ethics_hearings`,
+  `ethics_notifications`) carry `case_id … REFERENCES cases(id) ON DELETE CASCADE`.
+- **The grant + policy:** `cases` grants `authenticated` DELETE; `cases_staff_admin_write` is
+  `FOR ALL` to any commission `staff_admin` (`is_staff_admin_of(commission_id) AND NOT
+  is_case_excluded(...)`). Both predicates measured TRUE for the seed persona.
+- **The only bound is too narrow:** `app.guard_case_status`' DELETE arm raises only for
+  `old.status in ('completed','cancelled')`. The CHECK admits five values, so `not_started`,
+  `pending` and `in_review` — **every in-flight proceeding** — are deletable. ⭐ That is exactly
+  the window in which a party has the strongest incentive to want the record gone.
+- **Executed differential:** ethics case + details `1 → 1` before, `0 → 0` after the DELETE,
+  `1 → 1` again after `rollback`. The probe MOVED state and the restore brought it BACK.
+- ⛔ **Rule 11 gap on this path:** the statement emits **3** audit rows — 2 `case_access.revoked`
+  + 1 `case.deleted` — and **none names any ethics entity**, because **no `ethics_*` table carries
+  an audit trigger** (measured: 2 triggers across all nine, both document-scope guards, neither on
+  DELETE). The proceeding's content vanishes leaving a row that says only *"Caso nº N excluído"*.
+
+⚠ **Bounded, stated:** this is a structural finding about reachability. It does **not** claim
+anyone has done it, and it does **not** enumerate the other case-composition children that share
+the cascade — the sweep was scoped to the ethics lane the PO asked about. ⛔ A future reader must
+not treat "ethics is the only lane affected" as measured; it was not asked.
+
+### 🟠 FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE — `redact_professional_profile` erases the accused doctor's identity from an UNDECIDED ethics case; the retention pin lands one lifecycle stage after the entitlement ends (owner: backend + PO; ADR 0132)
+
+**⛔ PO-ruled RECORD-ONLY 2026-08-21** — same disposition and same reason as the item above.
+
+**Measured 2026-08-21 against the live catalog; confirmed BY EXECUTION, rolled back.**
+
+The `HC0J7` retention bar fires only when `retention_pinned_at is not null` **OR** the professional
+is a respondent in a case with an **`issued`** decision. `app.trg_pin_respondent_retention` is an
+UPDATE trigger on `case_decisions` whose first statement is *"Only the transition INTO 'issued'"*.
+⇒ through intake, admissibility, findings and hearings, **both halves of the bar are false** and the
+door succeeds.
+
+- **Gate is wider than the subject suggests:** `app.can_manage_professional` = `is_admin()` OR
+  `is_org_admin_of(org)` OR **any commission `staff_admin` in that org**. The same persona that can
+  delete the case can redact its respondent.
+- **Executed:** `Dra. Denunciada` / `CRM-9001` → `Profissional (dados removidos)` / null
+  (`license_number`, `license_region`, `specialty`, `professional_type`, `cpf`, `user_id` all
+  nulled), on a case with `retention_pinned_at IS NULL` and **0** issued decisions. Rolled back and
+  re-verified.
+- ⚠ **No UI calls it — and that is NOT the control.** `redactProfessionalProfile`
+  ([actions.ts:637](../../src/lib/ethics/actions.ts)) has **zero** callers in `src/`. But the RPC is
+  `EXECUTE`-granted to `authenticated` and answers over PostgREST (probe returned `P0002`
+  *profissional não encontrado* — the body, not a 403). ⭐ The PO's *"no UI is needed"* is already
+  satisfied; the door is live anyway. [[correct-door-that-nothing-can-reach]] in reverse.
+- ⭐ **Why the existing coverage is green over this.** pgTAP `257` and
+  `e2e/ethics-e2-procedure.spec.ts` both pin the bar for a **pinned/decided** respondent — they
+  assert `HC0J7` fires when it should. Nothing asserts the pre-decision case, because
+  pre-decision redaction is **permitted by design** under ADR 0072 §7's original rationale. The
+  suites are sound; the design moved under them.
+  [[fixture-cannot-reach-the-failing-state]]
+
+**Why it is a defect now and was not before.** ADR 0072 §7 keyed retention on the *defensibility of
+the decision*, so pinning at issuance was coherent. ADR 0132 keys it on the **proceeding** being an
+administrative record with legal consequences, so the entitlement is absent from
+**allegation-filing**. The pin's trigger point is inherited from a rationale that no longer governs.
+
+**Fix shape when it is scoped** (filed, deliberately NOT built): pin on the respondent link being
+created rather than on decision issuance — i.e. a trigger on `case_participants` for
+`role.key = 'respondent_doctor'` — and widen the belt from `cd.status = 'issued'` to *"respondent in
+any ethics case that is not `cancelled`"*. ⛔ Do **not** fix it by narrowing
+`can_manage_professional`; that gate serves non-ethics professional administration too, and cutting
+it would be a different change with its own blast radius.

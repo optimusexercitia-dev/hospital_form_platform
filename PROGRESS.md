@@ -40,8 +40,14 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   PHI erasure reaches **designated PHI fields only**. Still open, and NOT descoped by it —
   `FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED` · `FUP-DISPOSE-EVENT-DOOR-GATE-BLIND`
   (keystone `352` landed; closes when cited) · `FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES` ·
-  `FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING` (PO copy call) · the **Class-2** professional-identity
-  question.
+  `FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING` (PO copy call) · ~~the **Class-2** professional-identity
+  question~~ ✅ **RULED 2026-08-21, ADR [0132](docs/decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md)**:
+  an ethics proceeding carries **no erasure entitlement at any stage** — no door, no UI, and the
+  absence is now a decision rather than a gap. ⛔ **Answering it surfaced two PRE-EXISTING doors
+  that DO remove ethics-evaluation data** (`FUP-ETHICS-CASE-DELETE-CASCADE` 🔴 ·
+  `FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE` 🟠) — neither from the DSR program, both **PO-ruled
+  record-only**, so the lane is *non-erasable by decision with two known open removal paths*, which
+  is a worse state than "no path exists" and must not be summarised as closure.
 - **✅ DSR OPERATIONAL REMEDIATION — COMPLETE 2026-08-21.** All five §6 gate steps; QA **APPROVED r2**
   ([review](docs/reviews/dsr-remediation-review.md)); plan
   [dsr-operational-remediation.md](docs/plans/dsr-operational-remediation.md); ledger row in
@@ -247,6 +253,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-21 | **PO: an ethics proceeding carries NO erasure entitlement, at any stage — no door, no UI.** Basis is the record's **administrative-proceeding** nature, ⛔ **not CFM 1821/2007**. Closes the Class-2 question. ⛔ **2 pre-existing doors DO remove ethics data** — filed, record-only | ADR [0132](docs/decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md) |
 | 2026-08-20 | **PO: DSR gate CLOSED — approval given, program merged + pushed.** §6 steps 1–5 complete; step 1 re-run on a fresh reset. ⛔ Step 2 (`e2e:prod`) **not re-run** for the final increment — recorded, not implied | [dsr-program.md](docs/progress/dsr-program.md) |
 | 2026-08-20 | **PO: PHI erasure reaches DESIGNATED PHI fields ONLY** — free text/titles that *may* hold PHI are out of pilot scope; the control is **training**. Shipped reach MAINTAINED, not rolled back. Closes the census + ethics items **by ruling, not remediation — the residue is ACCEPTED, not absent** | ADR [0131](docs/decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) |
 | 2026-08-20 | **PO: DROP Slice 4 item 1** — notification scrubbing **WITHDRAWN as premise-falsified**; the residue class does not exist. Successor `FUP-DOOR-ERASURE-FREETEXT-CENSUS` filed | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 4** |
@@ -317,6 +324,8 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 
 ⭐ **FOUR items also carry a [§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list) entry** — `FUP-DM5-DISPOSAL-JOB` (C1), `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2), and — **promoted by the PO 2026-08-19** — `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (C3) + `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (C4). Their lines below stay put; the Critical entry adds a **trigger and a deadline**, it does not replace the index line.
 
+- 🔴 **FUP-ETHICS-CASE-DELETE-CASCADE** — a commission `staff_admin` can `DELETE /rest/v1/cases` an **in-flight** ethics case, cascading all **7** `ethics_*` tables; the lane's deliberate SELECT-only lockdown (9 tables, 14 DEFINER writers, **no DELETE in any**) is defeated by a parent that was never locked down — same JWT gets **403** on `ethics_case_details`, **200** on `cases`. `guard_case_status` bars DELETE only for `completed`/`cancelled`. ⛔ **3** audit rows emitted, **0** naming any ethics entity (no `ethics_*` table has an audit trigger). Confirmed by execution, rolled back. **PO-ruled RECORD-ONLY 2026-08-21** — accepted and OPEN — backend/PO
+- 🟠 **FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE** — `redact_professional_profile` erases the accused doctor from an **undecided** ethics case: the `HC0J7` bar needs an `issued` decision and `trg_pin_respondent_retention` fires only on the transition **into** `issued`, so both halves are false all through intake/findings/hearings. Executed by a plain commission `staff_admin`. ⚠ **No UI calls it — that is not the control**; the RPC is `EXECUTE`-granted to `authenticated` and answers over PostgREST. Existing pgTAP `257` + E2E pin only the **pinned** case, so nothing is red. **PO-ruled RECORD-ONLY 2026-08-21** — backend/PO
 - 🟠 **FUP-DM5-SUPERSEDE-SERVING-COLLISION** — ✅ **PO-RULED 2026-08-18 as option (b): supersession no longer marks bytes; the trigger moves to RETENTION EXPIRY** — backend
 - 🟠 **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — ⭐ **⭐ CRITICAL FUP C2. `ARM=census`'s DEFINER clause is bounded to `bool`/set-returning, so 407 reachable non-trigger command doors (326 RPC-callable) sit outside every arm's domain. ⭕…** — lead + backend
 - 🟠 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — **PARTIALLY RESOLVED 2026-08-17 (`4102149b`); the filed remedy was WITHDRAWN as unbuildable** — lead/backend

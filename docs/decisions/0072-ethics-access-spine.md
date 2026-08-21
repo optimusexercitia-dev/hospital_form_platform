@@ -374,6 +374,12 @@ follows the whole S0 block.
 
 ## 7. M2 posture — professional-identity erasure vs CFM-1821/2007 retention (RECOMMENDATION for human sign-off)
 
+> ⚠ **READ THE 2026-08-21 AMENDMENT AT THE FOOT OF THIS ADR BEFORE QUOTING THIS SECTION.**
+> The *outcome* stands; the **CFM-1821/2007 basis is superseded** (counsel disclaimed it
+> 2026-08-19), *"E1 does not build it"* is **stale** — `redact_professional_profile` exists —
+> and the retention pin fires **one lifecycle stage too late**. ADR
+> [0132](./0132-ethics-proceedings-carry-no-erasure-entitlement.md).
+
 ADR 0064 §M2 deferred this to E1: a respondent doctor is LGPD *dado pessoal* with Art. 18
 correction/**eliminação** rights, but a **disciplinary** record has a strong CFM-1821/2007
 20-yr-retention + institutional-defensibility argument **against** erasure. E1 holds the disciplinary
@@ -511,3 +517,50 @@ flag — but the recommendation is to defer it.)
 ARCHITECTURE.md Rule 12's Class-2 bullet gains: *"professional-identity erasure is retention-pinned when the
 profile is a respondent in a decided case (CFM-1821/2007); correction is always available; minimise-not-destroy
 redaction — not row deletion — is the erasure shape, designed with the decision model (E2)."*
+
+---
+
+## ⚠ AMENDMENT (2026-08-21) — §7's BASIS is superseded and two of its factual claims have gone stale
+
+**PO-ruled via ADR [0132](./0132-ethics-proceedings-carry-no-erasure-entitlement.md).** §7's
+*outcome* survives intact — a respondent professional's identity is not erasable. Its
+**stated basis** and two of its **statements of fact** do not.
+
+### 1. The basis: CFM-1821/2007 no longer supports this posture
+
+§7 rests the retention pin on *"the disciplinary record's defensibility (CFM-1821/2007, 20-yr
+floor)"*, and §7·3 carried that phrasing into ARCHITECTURE.md Rule 12. **Counsel's return of
+2026-08-19** — ADR [0035](./0035-lgpd-anvisa-regulatory-posture.md) Amendment 1, holdings 1
+and 2 — holds that committee documentation is the *analysis of* a prontuário and **not part of
+it**, so CFM 1821/2007 does not attach; and that refusal language must cite the **institutional
+retention policy, never CFM 1821/2007 directly**. That correction was never propagated here,
+so this ADR and Rule 12 have carried a disclaimed legal basis since 2026-08-19.
+
+⭐ **ADR 0132 supplies a basis that does not depend on CFM 1821 at all:** an ethics proceeding is
+an **administrative process with possible legal consequences**, and the record *is* the evidence
+of due process. Cite that, not CFM 1821, wherever this posture is quoted.
+
+### 2. "E1 does not build it" was true; it is no longer the state of the world
+
+§7·2 says a future `redact_professional_profile` *"may"* be built at E2 and that **E1 does not
+build it**. **E2 did build it.** Measured in the live catalog 2026-08-21 (head `20261003000300`):
+`public.redact_professional_profile(uuid, text)` is `SECURITY DEFINER`, `EXECUTE`-granted to
+`authenticated`, reachable over PostgREST, wired to a server action, and covered by pgTAP `257`
+plus `e2e/ethics-e2-procedure.spec.ts`. ⛔ ARCHITECTURE.md Rule 12 still asserted *"there is **no
+`dispose_*` / erasure path** on `professional_profiles`"* until this amendment; that sentence was
+**false against the catalog** and is corrected in the same change.
+[[a-comment-is-an-assertion-that-goes-stale-silently]]
+
+### 3. ⛔ The retention pin fires ONE LIFECYCLE STAGE TOO LATE for ADR 0132's rationale
+
+`app.trg_pin_respondent_retention` fires only on the UPDATE transition **into**
+`case_decisions.status = 'issued'`, and `redact_professional_profile`'s `HC0J7` belt likewise
+requires an `issued` decision. Under §7's own *defensibility-of-the-decision* rationale that was
+coherent. Under ADR 0132's rationale — the **proceeding** is the administrative record — the
+entitlement is absent from **allegation-filing**, so an undecided case leaves the respondent
+redactable. Confirmed by execution 2026-08-21 (rolled back): a plain commission `staff_admin`
+turned `Dra. Denunciada` / `CRM-9001` into `Profissional (dados removidos)` / null on an open
+ethics case.
+
+**⛔ PO-ruled RECORD ONLY, 2026-08-21 — not fixed in this change.** Filed as an open follow-up.
+Do not read §7 as describing a closed hole.
