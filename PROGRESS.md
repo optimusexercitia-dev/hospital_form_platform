@@ -21,9 +21,18 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   (Step 0 → Increment 1 → Increment 2, strictly ordered, full §6 step-1 gate between each).
   **✅ Step 0 DONE** (`4ec53577`) — `quality-oversight.spec.ts` 21 p / 0 f / 0 did-not-run / exit 0
   on a fresh reset; both QO bugs closed and rotated. **🏗 Increment 1 code BUILT** (`01b41c87`) —
-  T1–T5, lint 8/8 + `tsc` green (lead-verified, exits read directly); **T6 specs NOT written and
-  no `e2e:prod` run**, so the increment is **not** gated. **Increment 2 NOT started** (blocked on
-  OPEN-1). ⛔ Nothing merged; `main` unchanged.
+  T1–T5, lint 8/8 + `tsc` green (lead-verified, exits read directly). **T6 specs written**
+  (`0d839242`) and **§6 steps 1+2 PASSED** (`ea89aeb0` — see Test Run Summary; full `e2e:prod`
+  GATE GREEN exit 0). **⛔ Step 3 QA: CHANGES REQUESTED** 2026-08-21
+  ([review](docs/reviews/case-surface-split-increment-1-review.md)) — 3 blocking, no security
+  defect; **F-1 falsifies D1's own acceptance bullet** (a *second* `/casos` route file,
+  `casos/[caseId]/narrativa/[narrativeId]/page.tsx`, was never converted and keeps two case-wide
+  arms — the fifth instance of this plan's hand-list hazard). So the increment is **NOT gated**:
+  steps 1–2 pass, step 3 fails, step 4 not sought. **Increment 2 NOT started.**
+  ⛔ Nothing merged; `main` unchanged.
+  ⚠ *This line previously read "T6 specs NOT written and no `e2e:prod` run" — stale from the moment
+  the gate ran, contradicted by the Test Run Summary in this same file, and caught by QA (F-2), not
+  by any gate. `lint:progress` cannot see a claim that has gone false.*
   **Approval scope, written down because it is a new fact:** ADR 0134 **D11 explicitly withheld
   build start** from the 2026-08-21 design ratification ("implementation happens in a future
   session, per the PO"). The PO gave the build go **2026-08-21, this session**, with the agent
@@ -80,7 +89,10 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   `app.in_case_rpc` GUC gate (22 setters incl. `close_case`/`dispose_case_phi`) and **not** a
   `member_can` disjunct on the public door (which checks the commission, never the caller's tie to
   the case). Ruling needed before Increment 2's door 2 ships.
-  ⛔ **OPEN-2 — a second PO ruling, found by measurement at build start and NOT in the ADR.**
+  ✅ **OPEN-2 — RULED 2026-08-21 (see the IN-BUILD bullet above for the ruling; ADR 0134
+  Amendment 1 §A1.2). The block below is the RECORD OF THE QUESTION, not a live open item** — it
+  was left reading as open after the ruling and flagged by QA as F-2, one of two contradictions in
+  this file that no gate can detect.
   ADR 0134 **D5** assumed an administrativo holding `create_cases` should reach *bulk* case
   creation; the door was never measured. It is `app.is_staff_admin_of` **only** — so D5's
   letter would admit them to a wizard whose commit always 42501s. Lead ruling: Increment 1
