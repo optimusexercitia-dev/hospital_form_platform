@@ -54,6 +54,15 @@
 -- ⚠ Deliberately UNSCOPED by schema: a setter hiding in a third schema is precisely what
 -- a `where nspname in ('app','public')` filter would miss, and the `like` predicate makes
 -- the wider sweep free.
+-- ⭐⭐ AND THE CLASS THIS SUITE EXISTS FOR WAS FOUND INSIDE THIS SUITE (QA r2, R2-4).
+-- t6's comment described a `tgtype` check and a wrong-table check that its SQL does not
+-- implement — a comment asserting a property the code beside it does not have. That is
+-- character-for-character the defect that produced the tenth erasure statement
+-- (`dispose_case_phi`'s `-- for meeting_cases child-lock`, naming a flag its guard never
+-- read), reproduced in the file written to stop it, by the author who had just fixed it
+-- twice. ⛔ THE COMMENT WAS CORRECTED TO THE ASSERTION, never the reverse. Left visible
+-- here because the pattern is the lesson: prose drifts toward what you MEANT to check,
+-- and nothing reds when it does — no gate compares a comment to the SQL beneath it.
 -- =============================================================================
 
 begin;
@@ -104,10 +113,28 @@ select cmp_ok(
   '>', 0,
   't5 ⛔ …and there ARE readers. t4 is a "rows failing the property = 0" assertion, which an empty reader set satisfies perfectly; this is the companion that stops it going vacuous the day the flag is renamed');
 
--- ── t6 — the readers really are the child locks, by installation ────────────────────
--- Stronger than "returns trigger": every reader is actually INSTALLED as a row-level
--- BEFORE trigger somewhere. A trigger-returning function nobody installs is inert, but a
--- reader that is installed on a table NOT under a child lock would be a silent widening.
+-- ── t6 — every reader is INSTALLED as a trigger somewhere ───────────────────────────
+-- Stronger than t4's `prorettype` alone: a function can RETURN trigger and be attached
+-- to nothing at all, in which case it is inert — and t4 happily counts it as a compliant
+-- reader. t6 requires each reader to be wired to at least one non-internal trigger.
+--
+-- ⛔ AND HERE IS WHAT IT DOES **NOT** CHECK, spelled out because the comment that stood
+-- here claimed both and the SQL implements neither (QA r2, R2-4):
+--   · it reads NO `tgtype` bit, so it does not check the trigger's LEVEL or TIMING —
+--     "row-level BEFORE" was an overclaim;
+--   · it does not check WHICH TABLE the trigger sits on, so a reader installed on a
+--     table under no child lock would pass this test.
+--
+-- ⚠ The wrong-table widening is deliberately LEFT UNPINNED rather than quietly implied.
+-- Catching it needs an enumerated list of child-locked tables, and a list of names is
+-- not a property: it rots silently every time a table is added, which is the exact
+-- failure mode this suite exists to prevent. `353_disposal_child_lock_siblings.sql`
+-- covers those lanes behaviourally instead, which is where that guarantee belongs.
+-- ⚠ The tgtype check was measured before being declined: all 21 reader-triggers are
+-- ROW+BEFORE (`tgtype = 31`) today, so the pin WOULD hold — it is omitted because a
+-- violation is not a widening. An AFTER child lock still raises (only its stand-aside
+-- return is ignored) and a STATEMENT one errors on `old`/`new` at runtime, i.e. it
+-- fails LOUD. Pinning it would add maintenance for a correctness nit, not a bypass.
 select is(
   (select count(*)::int from pg_proc p
     where regexp_replace(p.prosrc, '--[^\n]*', '', 'g')
