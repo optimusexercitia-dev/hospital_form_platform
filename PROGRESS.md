@@ -31,9 +31,15 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ADR 0134 **D5** assumed an administrativo holding `create_cases` should reach *bulk* case
   creation; the door was never measured. It is `app.is_staff_admin_of` **only** — so D5's
   letter would admit them to a wizard whose commit always 42501s. Lead ruling: Increment 1
-  ships the **narrowing half only** (drop the `context.isAdmin` bypass = the noun-rule fix,
-  at **both** sites — the gate *and* the "Múltiplos casos" link, or a `platform_admin` sees a
-  link that 404s). Closing D5's real intent needs a `member_can('create_cases')` arm on
+  ships the **narrowing half only** (drop the `context.isAdmin` bypass = the noun-rule fix, at
+  **both** sites — the gate *and* the "Múltiplos casos" link at `manage/cases/page.tsx:169`).
+  ⛔ **That bypass is DEAD CODE and its removal changes NO behaviour** (corrected same day — the
+  first version of this line claimed removing it at the gate alone would strand a visible link
+  that 404s; measured false): a `platform_admin` 404s on the whole commission area at
+  `layout.tsx:110` first — pinned by the **passing** spec `phase-multitenancy.spec.ts:149`. So
+  **no nav-404 E2E may be recorded as coverage for this fix** — it would pass identically against
+  unmodified code. Honest pin is source-level or none. Closing D5's real intent needs a
+  `member_can('create_cases')` arm on
   `bulk_create_cases` — **a widening of administrativo WRITE authority**, which D11 puts
   outside the ratified scope. Until the PO rules, **D5 is partially implemented by decision,
   not by omission** — recorded so "T4 done" cannot read as full coverage. Detail:

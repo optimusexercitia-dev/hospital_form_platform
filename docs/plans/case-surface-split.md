@@ -151,11 +151,38 @@ capability arm. Narrowing can be wrong and safe; widening cannot. The gate must 
 `role === "staff_admin"`, because "hand-set to the role the plan named" is how a TS gate and
 its SQL door drift apart in the first place.
 
+**The exact mirror is `access.role === "staff_admin"`** — measured, not assumed.
+`app.is_staff_admin_of` is `app.is_active(uid) AND app.has_role('commission', id, 'staff_admin', uid)`,
+and `has_role` is a `memberships` existence test closed with the ACT-hat condition. TS side:
+`access.role` is `'staff'|'staff_admin'|null`, populated only from the commission-scoped
+partition of `context.memberships`, which is **already hat-filtered** (`hatFilteredGrants`,
+`session.ts:336`). So the TS gate reproduces the membership arm *and* the hat arm. The one
+predicate it does **not** mirror is `app.is_active` (deactivated/suspended) — the shell routes
+those to `/conta-inativa` before any commission route, so it is covered **elsewhere, not here**.
+Say that in the PR so nobody later "improves" the gate by re-adding it.
+
 ⚠ **TWO sites, and they change together** (backend finding 2 — the plan named only the first):
 `manage/cases/multiplos/page.tsx:42-57` (the gate) **and** `manage/cases/page.tsx:169` (the
-"Múltiplos casos" *link*, `access.role === "staff_admin" || access.context.isAdmin`). Removing
-the bypass at the gate alone leaves a `platform_admin` a visible link that then 404s — worse
-than either state alone. Both are frontend-owned; one shared predicate, not two copies.
+"Múltiplos casos" *link*). Both frontend-owned; one shared predicate, not two copies.
+
+⛔ **The bypass is already DEAD CODE at both sites — removing it has ZERO behavioural change.**
+*(Corrected 2026-08-21: an earlier revision of this section claimed removing it at the gate
+alone would leave a `platform_admin` a visible link that 404s. Measured false — they never
+reach either site.)* `layout.tsx:110` 404s the whole commission area when
+`role === null && !isQualityViewer && !isTenancyAdmin`, and a `platform_admin` has all three
+false — `isCommissionAdmin` (`src/lib/auth/access.ts:30-38`) is org/hospital-admin membership
+only and deliberately excludes `ctx.isAdmin`. Measured, not inferred:
+`e2e/phase-multitenancy.spec.ts:149` (MT-3) is a **passing** spec asserting `platform@` → 404 on
+`/o/rede-a/c/ccih`. Site 2 is doubly dead (the list gate at `:85` is
+`canInCommission(access,'create_cases')`, which `role: null` / `capabilities: []` already fails),
+and `bulk_create_cases` refuses them regardless.
+
+⛔ **Consequence for T6 — do not accept a vacuous pin.** A new E2E of the form "platform_admin
+404s on `multiplos`" passes **identically before and after** the removal; green on its first run
+against unmodified code IS the finding, not the coverage. If the removal is to be pinned, the
+honest pin is **source-level** (no `context.isAdmin` in the cases-area gates) or none at all. The
+removal is correct as defense-in-depth and as deleting a false statement from the code — it is
+**not** closing a live hole, and the gate record must say so.
 
 **OPEN-2 — PO ruling needed, NOT resolved by this ruling:** D5's *actual intent*
 (administrativo does bulk creation by capability) needs a `member_can('create_cases')` arm
