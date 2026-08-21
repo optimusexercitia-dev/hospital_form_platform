@@ -144,95 +144,12 @@ exists because without it an open production blocker (BUG-BOOTSTRAP-001) read as
 a single day — first the heading, then a note saying "back to three" — in the one paragraph of this
 file whose whole subject is that a count is wrong the moment after it is right. Count the rows below.
 
-🔴 **BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW — the LGPD PHI-erasure doors ABORT on the records
-they exist to erase: `dispose_event_phi` on a `completed` RCA or a `completed`/`cancelled` CAPA plan,
-`dispose_case_phi` on a `completed`/`cancelled` interview. ADR 0129's defect, in three siblings its
-fix never looked at.**
-✅ **FIXED IN BUILD 2026-08-20 (backend) — awaiting the gate, not awaiting work.** Migration
-`20261003000000` puts ADR 0129's verbatim stand-aside in all three sibling guards and sets
-`app.in_disposal_rpc` around **four tight windows** (two per door — the guarded child writes form
-non-adjacent runs, so no window spans `capa_plan`/`cases`/`documents`/`file_objects` at all); the
-false `-- for meeting_cases child-lock` comment is corrected in the same migration. Invariant
-re-derived from `pg_proc` after: **3 setters, all disposal doors · 5 readers, all child-lock
-guards**. pgTAP `353` (60 tests, 4 lanes, both terminal states for capa+interview) asserts in every
-lane that the **Class-1 PHI is GONE** (`event_patient`/`patient_identifiers` = 0 + `phi_disposed_at`
-stamped), not merely that free text redacted — a redaction-only suite goes green while the rollback
-bug is live. **Mutation-proven both directions, six mutations, every restore hash-verified**
-(stand-aside removed per guard ⇒ that lane's keystone RED; widened to the lane's own `in_*_rpc`
-⇒ the shape-1 pins RED). ADR 0129 **Amdt 3**. — backend
-⭐ **CORRECTED 2026-08-20 (lead, before any fix was written): it is TEN statements across FOUR
-guards, not nine across three — and the tenth is in no filed record.** `dispose_case_phi` statement
-#13, `update public.meeting_cases set summary=…, decision=…`, is guarded by
-`app.guard_meeting_child_lock` and aborts on `meetings.status in ('in_signature','signed',
-'distributed','cancelled')` (`23514`). It is the **cheapest** of the ten and needs **no guard
-change**: that guard already reads `app.in_disposal_rpc`; the door never sets it, and the
-`-- for meeting_cases child-lock` comment beside its `app.in_meeting_rpc` line is **false against
-the live guard**. Measured by execution, rolled back, pre-state re-verified — PROBE A (the door's
-exact GUC set, meeting `signed`) ⇒ raises; PROBE B (same + `app.in_disposal_rpc='on'`) ⇒ `UPDATE 1`.
-⛔ **The count below and in ADR 0131 Amdt 3 read as an enumeration and were a hand list inherited
-from this filing** — the property re-derivation found a fourth guard. A `backend` property sweep
-then resized the candidate crossing from **15 to 48** (the 15 was event+case only). ✅ **PO-RULED
-2026-08-20: FIX THE GUARDS** (ADR 0129 shape 2 per lane); ⛔ rollback under 0131 D4(b) was
-considered and **declined**, so this is not a rollback and must not be recorded as one — ADR
-[0131](docs/decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) **Amdt 4**. In build
-on `feat/dsr-operational-remediation` ([plan](docs/plans/dsr-operational-remediation.md)).
-Filed 2026-08-20 (lead) while measuring `FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED`. ADR
-[0129](docs/decisions/0129-meeting-child-lock-disposal-flag.md) gave the new `app.in_disposal_rpc`
-stand-aside to **`app.guard_meeting_child_lock` alone**. `app.guard_rca_child_lock`,
-`app.guard_capa_child_lock` and `app.guard_interview_child_lock` read **no `app.in_*` GUC at all**
-and raise on parent state the disposal door never changes — so the door's own child UPDATEs are
-refused and the **whole RPC rolls back: nothing is erased, not even `event_patient`**. It fails
-LOUDLY, which is the one mercy. ⭐ **MEASURED 2026-08-20, not reasoned from statement order —
-and this is the severity-setting fact: the failure destroys the IN-SCOPE erasure, not merely the
-out-of-scope free-text redaction.** With the RCA `completed`, `dispose_event_phi` raises `HC047`
-and the Class-1 designated PHI of ADR 0131 item 1 **survives intact** — `event_patient` rows
-1 → **1**, `phi_disposed_at` **NULL**, `description_md` still present. Control, same lane, RCA
-`in_progress`: rows 1 → **0**, disposal stamped. The `delete from public.event_patient` runs
-FIRST in the body and is rolled back by a guard that fires ~10 statements later. ⛔ So *"we only
-erase designated PHI anyway"* is **not** a reason to defer this — the patient's name and MRN are
-exactly what stays behind. **Measured by execution, each against a matched positive control**
-(same door ALLOWED with rca `in_progress` / interview `awaiting_follow_up`; and
-`dispose_meeting_minutes` on `distributed`, `dispose_referral_phi` on `completed`,
-`dispose_case_phi` on `cancelled` all ALLOWED — so the blocker is the child guard, **not** the
-terminal state): rca ⇒ `HC047` · capa ⇒ `HC049` · interview ⇒ `23514`. A `completed` RCA is the
-**normal end state** of a finished investigation, so the safety lane's erasure door is unusable on
-its mature population. ⛔ **Static reading found the shape but got the population wrong** — the
-sibling column census read the same door bodies and never executed one; four probes in the corridor
-measurement did, and only then did this appear. ⚠ **Bound, stated:** a property-scoped sweep (write
-sets derived from the door bodies × every row-level trigger that can `raise`) returns **15** guards
-with no stand-aside on tables the erasure doors write; **3 are confirmed, the other 12 are unproven
-either way** — most are coherence guards, some are DELETE-only triggers on tables the door only
-UPDATEs. **A candidate count is not a defect count.** ⛔ **TWO fix paths, and the choice is the PO's** —
-ADR [0131](docs/decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) **Amendment 3**
-revised Decision 4 to be keyed on **scope class**, which makes this reach *eligible* for rollback
-where it previously was not. **(1) Fix the guards** — ADR 0129 shape 2, extend the existing
-`app.in_disposal_rpc` to the three child locks, carrying 0129's obligations per lane (the
-flag-absent differential + a sibling-RPC over-grant twin). 0129 rejected "teach the guard to honour
-the lane's own RPC flag" because that grants every lane RPC child-write power over locked parents —
-that rejection still stands. ⚠ Each stand-aside is a real erosion of the immutability the guards
-provide; three more is not free. **(2) Roll back under 0131 D4(b)** — delete the 9 guard-tripping
-statements (5 `rca_*` + 3 `capa_*` children in `dispose_event_phi`, 1 `case_interview_subjects.note`
-in `dispose_case_phi`); the parent-row redactions are NOT implicated, their guards already honour
-the flags. ⛔ **D4(c): a rollback must be recorded per lane with the residue named** — "it was
-broken" is a trigger, not a rationale. ⭐ **Either path must leave the in-scope
-`event_patient`/`patient_identifiers` erasure working — that is D4(a), and it is not optional.** ⛔ **Not a C1a blocker — a C1a FIXTURE CAVEAT**, stated at that grain
-deliberately, because this bug's predecessor was recorded as "blocks C1a/C1b" and that was wrong
-(§ Now item 1). `dispose_case_phi` **is** a producer for the runbook's queue (it sets
-`file_objects.disposal_state = 'disposal_pending'`) — but the interview child lock raises *earlier
-in the same body*, so a rehearsal case carrying a `completed`/`cancelled` interview yields **no
-`disposal_pending` row at all**. Pick the fixture accordingly, or the rehearsal reads as "nothing to
-complete". `dispose_event_phi` writes **no** `file_objects`/`documents` row, so the safety lane does
-not feed the runbook either way.
-
-⛔ **THE E2E BASELINE ON `main` IS "AT LEAST N", NEVER A COUNT — corrected 2026-08-21.** The figure
-below ("two deterministic failures") was repeated for a day as if it were total. It is a **floor**.
-A **third** pre-existing failure surfaced 2026-08-21 (`BUG-DSR-AGENDA-TITLE-STALE-PIN`, filed and
-resolved the same session — the fix is on this branch, so a gate run from HERE will not show it), and
-`dsr-slice3-adjudication.spec.ts` runs `mode: 'serial'` — **one failure aborts every test after
-it**, so behind any serial abort there is no way to know what else was red. State the baseline with
-its bound, never as a total; same family as `FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER`, one layer
-down (there the summary hid unrun tests, here the **runner** does).
-
+✅ **BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW — RESOLVED 2026-08-21**, fixed / mutation-proven / gated /
+merged (`96c49da4`) / applied to the linked project. Full row + closure narrative rotated verbatim →
+[bug-log-archive.md](docs/progress/bug-log-archive.md). ⛔ **It sat here wearing a 🔴 for hours after it was
+fixed** — `lint:progress` reds a resolved *follow-up index line* but **cannot see a fixed bug left in the OPEN
+section**, so rotation discipline is the only control, and it is the one this repo records as chronically
+skipped. Caught while writing a report **from this register**, which is the register's real test.
 
 🔴 **BUG-QO-STALE-CASOS — `quality-oversight.spec.ts` asserts coordinator WRITE affordances on
 `/casos`, which `8675b7cd` (2026-08-19) deliberately made a READING surface. `main` is E2E-RED.**
@@ -435,9 +352,6 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-COPY-PROPERTY-CANNOT-SEE-ITS-OWN-SURFACE-SET** — `disposal-copy-property.ts` is iterated by two suites and **nothing asserts which surfaces exist or how many import it**. Removing one surface (the PO-ruled `ReferralDisposeDialog` deletion) would have dropped **three** coverage items, **two silently**: the residue-CLASS content pin **1 → 0** (eight other assertions pin the notice's *length*, none its *content* — a cardinality pin and a content pin are different properties and the cheaper one gets written) and the type-to-confirm arming pin **1 → 0** on a **live** control, leaving the module's most dangerous button with zero behavioural coverage. ⛔ `lint:vacuous` is structurally blind — the assertions were **removed**, not made vacuous. Caught only by reading all 15 tests before deleting any; the fix shape is a declared surface roster with a floor, as the over-claim suite already has — lead/frontend
 - 🟠 **FUP-DSR-OUTCOME-RECORD-HAS-NO-DELIVERY** — ADR 0130 D1 owes the data subject a written answer with its legal basis (Art. 18 §4), and `dsr-outcome-record.tsx` **renders on screen only**: measured 2026-08-20, the DSR module has **no export, print, PDF or download path anywhere**, and no document says how the record reaches the subject. ⛔ **PO-DEFERRED 2026-08-20 with the gap named — not closed, not descoped.** Two shapes when taken up (minimal print vs registered emission under ADR 0125/0126); ⛔ do not let the screen render stand in for delivery in any status claim — PO/frontend
 - 🟡 **FUP-DSR-ENCARREGADO-MUST-BE-A-COMMISSION-MEMBER** — `app.is_dpo_of_for` requires a commission role in the hospital as a **hard conjunct**, and `organizations_select` has no DPO arm, so a pure LGPD data-protection officer **cannot reach `/o/[org]/titulares` at all**. ⛔ **BY DESIGN** (ADR 0130 D2, *"a plain member of ONE commission BY DESIGN"*) — filed as the product question it is: onboarding a real compliance officer today means granting a commission membership they do not need, which is a read grant over that commission's content. ⭐ Found 2026-08-20 when `frontend` measured a lead spawn premise false **before** building dead nav code against it — PO/product
-- 🟡 **FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING** — ADR [0131](docs/decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) makes `DSR_RESIDUE_NOTICE` line 1 (*"o descarte apaga os dados do paciente armazenados no banco"*) **conditionally** true rather than structurally true: it holds **provided PHI was entered only in PHI fields**, which is a **training** control the software cannot enforce. ⛔ **Not falsified — its premise is newly explicit.** PO copy call: scope the sentence to the designated fields, or accept it as-is on the training premise. ⚠ Whichever way, ADR 0131's risk acceptance must ALSO be recorded **where the pilot decision is made**, not only in the ADR (the same requirement C3 carries) — PO/frontend
-- 🟠 **FUP-DISPOSE-EVENT-DOOR-GATE-BLIND** — ⚠ **NOT descoped by ADR 0131** — this is the door's authorization **gate**, not its reach; "perfect execution of confirmed PHI columns" makes it *more* load-bearing. Keystone written (`352_dispose_event_door_gate.sql`, 6 tests, mutation-proven RED with the gate opened and GREEN restored, hash-verified both ways); ✅ **RUN 2026-08-20 (backend) inside the full suite on a fresh `db reset` — `352` **ok**, whole suite **6789/6789** (205 files), and re-neutralized in that same full-suite context: opening the gate reds 2/6 of `352` → **COVERED, 0 BLIND**. The blindness item is discharged; ready for the lead to rotate. `dispose_event_phi`'s authz gate is exercised by **no keystone**: opened alone, the full suite still **PASSES** (6550/6550). Measured 2026-08-19 by neutralization during the ADR 0129 sweep, which also cleared its three siblings — `dispose_case_phi` ✅ (151, 314), `dispose_referral_phi` ✅ (189), `dispose_meeting_minutes` ⛔→✅ (now `348` t7). So **2 of 4** PHI-disposal doors were door-blind; one is closed, this one is not. ⚠ **BLIND ≠ vulnerable** — the gate is present and correct; nothing would go red if a refactor dropped it. `ARM=floor` cannot see this (the door **is** called; its *gate* is not exercised) — backend
-- 🟠 **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** — PHI leaves by **two** substrates and only one has a procedure. [`phi-disposal-runbook.md`](docs/deployment/phi-disposal-runbook.md) is the **`file_objects`/Storage-bytes** mechanism; the four **column-erasing** doors (`dispose_meeting_minutes`, `dispose_case_phi`, `dispose_event_phi`, `dispose_referral_phi`) have **no operational procedure at all**. Measured: the runbook says `meeting` / `minutes_md` / `dispose_meeting_minutes` / `dispose_event_phi` / `PHI removido` **zero** times, and names the other two doors only as *inflow* that parks a `file_objects` row. ⚠ Not a claim that column PHI is un-erasable — those doors complete synchronously, which is why they never got a procedure. The risk is that **a C1a green is read as covering PHI disposal**. Needs: the runbook to state its substrate, plus either a companion procedure or a recorded "none needed" with the evidence path named. Found 2026-08-19 by correcting a wrong-grain claim — PO + backend
 - 🟡 **FUP-XREF-PEPPER-ROTATION-ORPHANS** — rotating `mrn_pepper` permanently orphans DISPOSED `patient_xref` rows (raw MRN gone, key unrecomputable); ADR 0039 logged it as "follow-up", never registered. Every granted erasure widens the unrotatable population. Decide before any rotation task is scoped — backend
 - 🔵 **FUP-ADR0121-REASON-VALUE-DRIFT** — ADR 0121 Amdt 2 deliberately left the `superseded`-vs-`retention_expired` reason value OPEN; the D11 register body already states `'superseded'` as if chosen (live CHECK still admits only the original five). The D11 implementing slice decides explicitly + records in the ADR's reserved slot; neither value citable as decided until then — lead
 - 🔵 **FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN** — **⚠ HALF RESOLVED 2026-08-17 (`24cee179`): the fail-open half is fixed and proven; the arm is still a no-op pending a NAMED successor (deliberately not re-pointed — a successor must be named,…** — backend
@@ -447,6 +361,9 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🔴 **FUP-DM4-PRODROW** — ⭕ **UNBLOCKED 2026-08-18: the probe answered its blocker (no Cloud orphan surface), and this item's "~49 vanished" figure is WITHDRAWN as unsound arithmetic.** The subject is still erased, not reconciled — lead/backend
 - 🟠 **FUP-42501-CONFLATES-GRANT-WITH-RLS** — ⛔ **coverage defect, NOT a vulnerability** (both tables ARE protected, by the missing grant). `42501` is both the RLS-refusal code AND Postgres's generic *permission denied for table*, so `throws_ok(…,'42501')` cannot tell them apart. Measured: of **12** live assertions in `252_authz_p0_isolation.sql`, `authenticated` lacks INSERT on **`rca_evidence`** + **`capa_action_evidence`** ⇒ those two pass on the **grant**, never reaching RLS. The P0 suite claims isolation on 12 tables and demonstrates it on **10**. ⚠ The tree already documented this trap **twice in prose** (`301`:21, `277`:328) and it recurred anyway. ⛔ Do NOT fix by granting INSERT — that widens real protection to make a test honest; fix the assertion. Model fix + the allow-leg differential that caught it: `345_previa_audit_door.sql` header. ⭐ **2026-08-19: filed as a GATE proposal, not a rule** (ADR 0127 rejected the rule form — a gate beats a rule where one is reachable). Measured population: **15 `throws_ok` sites carry a bare `'42501'`**, of 728 total references — so the gate costs 15 remediations, which is why it is a proposal and not built — backend/tester
 - 🟠 **FUP-SUPERSESSION-BADGE-LANE-BLIND** — `resolveSupersessionBadge` (`queries/submissions.ts`) mirrors `app.submitted_form_responses`' exclusion but **drops that rule's own `case_phase_id is null`**, while `listSubmissions` surfaces BOTH lanes. Standalone = correct (it IS ADR 0126 Am.1 §A's rule); **phase-bound = the chain-tip grain D8 examined and REJECTED** — the original reads "Substituído" before approval while `current_response_id` still points at it, flaps back on `reject_correction`, and an unapproved successor reads "Atual". ⭐ Differential: the **same pill** one file over is fed by `status === "approved"` (ADR 0085). ⭐⭐ And the lane conjunct **already exists in TS**: `isDashboardCountable` (`queries/dashboard.ts`) — which ARCHITECTURE.md calls *"the TS twin"*, singular — has `r.casePhaseId == null` explicitly, one file away. Two TS derivations of one choke-point; only one is sanctioned and only one is complete. ⚠ ADR **0074's** axis, not print-currency; found by accident in the §K sweep. ⛔ Read ADR 0074/0085 before fixing. Class: **a mirror inherits its source's PREDICATE, not just its shape** — frontend/backend
+
+
+_**Three items RESOLVED by the DSR remediation round, index lines rotated 2026-08-21** → [follow-ups-archive.md](docs/progress/follow-ups-archive.md): **FUP-DISPOSE-EVENT-DOOR-GATE-BLIND** (keystone `352` run **inside the full suite** on a fresh reset and re-neutralized there — the item closed on the RUN, never on the file existing) · **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** (the four column doors have their first operational procedure, and the bytes runbook now names its own substrate) · **FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING** (PO ruled the copy stays; the training premise it rests on is recorded at the pilot-decision surface, which was the item's actual requirement). Bodies stay in [follow-ups.md](docs/progress/follow-ups.md)._
 
 _Resolved, rotated out of both live files → [follow-ups-archive.md](docs/progress/follow-ups-archive.md):
 **FUP-DM1-CEILING · FUP-DM1-E2E · FUP-DM1-DISPOSE** (discharged by DM2 S1/S4/S2) · **FUP-F2-BUCKETS**
