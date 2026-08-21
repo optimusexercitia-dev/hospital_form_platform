@@ -2,7 +2,9 @@
 
 **Authority:** ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md)
 (all decisions PO-approved 2026-08-20; **renumbered from 0129** at the 2026-08-21
-reconciliation — main's DSR track had taken 0129). Design reference:
+reconciliation — main's DSR track had taken 0129) **+ its Amendment 1** (PO-ruled
+2026-08-21: the footprint bound splits by capability — fields/credentials widen to
+intersection, CPF-change/lifecycle keep subset; LGPD posture stated; D10 corrected). Design reference:
 `docs/design/temp/user_management_redesign/` (README + `Gestão de Usuários.dc.html`;
 option **1a** directory + profile, **1b** wizard; the HTML is a reference, never shipped).
 **Start condition:** ✅ the prévia merge call is SATISFIED (`9ed197d5` merged + pushed;
@@ -20,18 +22,17 @@ F starts screens that need the new data; F1 can start immediately against existi
 
 ### B1 · Migration: `profiles.date_of_birth` + `profiles.phone` (ADR 0133 D9–D10)
 
-- `date_of_birth date null`, `phone text null` (phone stored as digits-only or
-  lightly-normalized string; display formatting is frontend). Column comments state
+- `date_of_birth date null`, `phone text null` (phone stored **digits-only**, no
+  CHECK — Amdt 1 ruling 6; display formatting is frontend). Column comments state
   the LGPD justification and the column-lock posture.
 - ⛔ **Do NOT add either column to any `authenticated` column-list grant** (SELECT or
   UPDATE) — `profiles` has column-list grants since `20260909000200`; the default for
   a new column is *absent*, which is exactly right. Verify with a live
   `information_schema.column_privileges` probe in pgTAP, not by reading the migration.
-- Check `guard_profile_privileged_columns` interplay at build time: decide whether the
-  new columns join the self-mutation lock (they should — self-service is deferred,
-  FUP-AFF2-CONTA), and remember the trigger is late-bound plpgsql (the 0097
-  drop-column lesson applies in reverse: compare-by-name is safe to add, but test a
-  self-UPDATE path).
+- **The new columns JOIN `guard_profile_privileged_columns`** (decided — Amdt 1
+  ruling 6; self-service is deferred, FUP-AFF2-CONTA). Remember the trigger is
+  late-bound plpgsql (the 0097 drop-column lesson applies in reverse:
+  compare-by-name is safe to add, but test a self-UPDATE path).
 - `npm run gen:types` after; consumers treat both as `string | null`.
 - pgTAP: column-grant absence probe + guard behavior.
 
@@ -67,7 +68,9 @@ F starts screens that need the new data; F1 can start immediately against existi
 File: `src/lib/users/actions.ts` (+ a small pure helper module for testability, e.g.
 `src/lib/users/person-scope.ts`).
 
-- **`authorizePersonScopedAdmin(userId)`** — resolves, via the admin client:
+- **`authorizePersonScopedAdmin(userId, capability)`** — capability ∈
+  `'fields' | 'credentials' | 'cpf_change' | 'lifecycle'` (Amdt 1 ruling 1) —
+  resolves, via the admin client:
   1. target's `home_organization_id`; caller's org_admin orgs → org_admin arm passes
      as today;
   2. else caller's administered hospitals in that org (session context);
@@ -76,10 +79,14 @@ File: `src/lib/users/actions.ts` (+ a small pure helper module for testability, 
      `memberships_scope_shape`; do not hardcode a role list);
   4. footprint = active affiliations (`ended_on IS NULL`) ∪
      `commissions.hospital_id` of the commission-tier memberships;
-  5. allow iff footprint ≠ ∅ ∧ footprint ⊆ administered set.
+  5. allow iff footprint ≠ ∅ ∧ the capability's bound holds:
+     **`fields` / `credentials` → footprint ∩ administered ≠ ∅** (intersection);
+     **`cpf_change` / `lifecycle` → footprint ⊆ administered** (subset).
 - Swap `authorizeOrgAdminForUser` → the new authorizer in: `updateUserProfile`'s
-  person-level gate (line ~773), `upsertCredential`, `removeCredential`,
-  `deactivateUser`, `reactivateUser`, `suspendUser`. `authorizeOrgAdminForUser`
+  person-level gate (line ~773; capability `fields`, but **`cpf_change` whenever the
+  input includes `cpf`** — one action, two bounds), `upsertCredential` /
+  `removeCredential` (`credentials`), `deactivateUser` / `reactivateUser` /
+  `suspendUser` (`lifecycle`). `authorizeOrgAdminForUser`
   itself stays for any true org-only surface (grep for residual callers; if none
   remain outside the swap set, delete it — no dead authorizers).
 - `updateUserProfile` + `registerUser` gain `dateOfBirth` / `phone` (optional;
@@ -90,18 +97,22 @@ File: `src/lib/users/actions.ts` (+ a small pure helper module for testability, 
 - The `updateUserProfile` person-level-change detector now also compares
   `date_of_birth` and `phone` (they are person-level fields under D3).
 
-### B5 · Vitest keystone matrix (D4)
+### B5 · Vitest keystone matrix (D4 + Amdt 1)
 
-Six arms minimum, exercised through the real actions (not the helper alone):
-sole-hospital target ALLOW · cross-hospital footprint DENY · org-tier target DENY ·
+Eight arms minimum, exercised through the real actions (not the helper alone):
+sole-hospital target, all four capabilities ALLOW · **cross-hospital target: field
+edit ALLOW + credential edit ALLOW, CPF change DENY + deactivate DENY — the four on
+the SAME target, the Amdt-1 split's sharpest keystone** · org-tier target DENY ·
 hospital-tier target DENY (technical_director at the **caller's own** hospital — the
-sharp case) · zero-footprint DENY · sibling-hospital admin DENY. Plus: lifecycle
+sharp case) · zero-footprint DENY (every capability — intersection with ∅ is ∅, but
+pin it, don't derive it) · sibling-hospital admin DENY. Plus: lifecycle
 actions by a scoped hospital_admin succeed end-to-end; `lint:vacuous` will police the
 assertions — write them to fail first.
 
 ### B6 · Detail-page locked-column read (D10, D12)
 
-- A small server-side helper (admin client, behind the same authorizer) returning
+- A small server-side helper (admin client, behind the same authorizer — capability
+  `fields`, the intersection arm) returning
   `{ dateOfBirth, phone, cpfPresent: boolean }` for the profile rail. Never returns
   CPF digits. Lives in `src/lib/users/` beside the actions (it is an authorized
   service read, not an RLS query — document why it is not in `src/lib/queries/`).
@@ -146,14 +157,17 @@ accent, member muted, dashed "Sem comissão" — never an empty cell) · Registr
 Handoff §Screen 2: back link; identity band (avatar 54px, name + status badge,
 "email · categoria", credential chip + "✓ verificado", "Na organização desde",
 lifecycle actions); two-column grid (main + 320px rail, stacking < lg).
-- **Authority-aware rendering (ADR 0133 D1–D3):** lifecycle buttons and the
-  Dados pessoais / Registros "Editar" affordances render when the caller is
-  org_admin **or** a scoped hospital_admin — the server component computes this
-  with the same footprint inputs the action uses (compute server-side and pass a
-  boolean; never re-derive client-side). Out-of-scope hospital_admin gets the
-  ShieldAlert note with **updated, scope-aware copy** (the person works at another
-  hospital / holds an appointed role → "administração da organização"); the old
-  "somente organização" absolute is retired everywhere it appears.
+- **Authority-aware rendering (ADR 0133 D1–D3 + Amdt 1): per-CAPABILITY, not
+  per-person.** The server component computes **two booleans** with the same
+  footprint inputs the action uses (compute server-side and pass down; never
+  re-derive client-side): `canEditPerson` (intersection — gates the Dados
+  pessoais / Registros "Editar" affordances) and `canManageLifecycle` (subset —
+  gates Desativar/Suspender/Reativar and the CPF field inside the edit form).
+  A cross-hospital person thus shows editable fields **with** a lifecycle/CPF
+  note: scope-aware copy ("alterações de CPF e desativação/reativação são da
+  administração da organização" for spanning people; tier/unaffiliated people
+  keep the full ShieldAlert note). The old "somente organização" absolute is
+  retired everywhere it appears.
 - Vínculos hospitalares card: existing `AffiliationsPanel` actions (add via door,
   Encerrar with AlertDialog + the D5-of-0097 blocking-membership enumeration),
   ended rows dimmed with date range.
@@ -198,11 +212,13 @@ Playwright, chromium-first, personas from `supabase/seed.sql`:
 1. **Directory:** pill filtering + counts vs seeded statuses; search; pagination;
    hospital switcher (hospital_admin); "Sem comissão"/"Sem vínculo" render; a
    deactivated row navigates.
-2. **Scope rule end-to-end:** `hospitaladmin.a1@` edits name/category/credential and
-   deactivates a **sole-hospital** person (ALLOW); the same actions against a
-   cross-hospital person, a `technical_director` of their own hospital, and an
-   unaffiliated person show the note and no affordances (DENY); `orgadmin.a@` retains
-   everything.
+2. **Scope rule end-to-end (the Amdt-1 split):** `hospitaladmin.a1@` edits
+   name/category/credential and deactivates a **sole-hospital** person (all ALLOW);
+   against a **cross-hospital** person the SAME session edits name/category/credential
+   (ALLOW) but sees no lifecycle buttons and no CPF field, with the lifecycle note
+   (the split on one target — the sharp case); a `technical_director` of their own
+   hospital and an unaffiliated person show the full note and no affordances (DENY);
+   `orgadmin.a@` retains everything.
 3. **Wizard:** full walk (all steps) → Pendente profile; step-2/3 skips; hospital_admin
    registration always yields an affiliation row on the profile; CPF required
    (cannot proceed without); in-org duplicate CPF → affiliate offer;
@@ -268,8 +284,12 @@ and the six `authorizeOrgAdminForUser` call sites are still accurate).
   preconditions (persona confounders falsely confirm; the ad-hoc-probe lesson).
 - The directory widening multiplies per-page queries — keep it at 3 batched selects
   (profiles page, credentials-in, memberships-in) and measure before optimizing.
-- `docs/design/temp/` is a temp drop — after F-track sign-off, move the handoff to
-  `docs/design/user-management-redesign/` (or delete per PO) so `temp/` doesn't
-  become a permanent home.
+- ~~`docs/design/temp/` is a temp drop — move after F-track sign-off~~ — **RETIRED:
+  PO ruled 2026-08-21 the handoff STAYS in `docs/design/temp/user_management_redesign/`**
+  (Amdt 1 ruling 6).
+- **The `e2e:prod` declare-green baseline (PO ruled 2026-08-21):** pin the exact
+  failing set on the day AFF2 starts — a recorded stash-discipline run in
+  PROGRESS.md — and diff the gate against that pin; resolving BUG-QO-STALE-CASOS
+  first is preferred if capacity allows.
 - FUP-AFF2-CONTA (self-service DOB/phone on `/conta`) is registered in PROGRESS.md
   follow-ups at build start, not silently dropped.

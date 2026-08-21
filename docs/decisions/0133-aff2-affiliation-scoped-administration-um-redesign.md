@@ -21,6 +21,60 @@ Plan: [docs/plans/aff2-user-management.md](../plans/aff2-user-management.md).
 intent with 0097's cross-hospital safeguards; **upholds** 0097 D7 (CPF posture) and D12
 (identifier-first registration).
 
+> ## ✅ AMENDMENT 1 (2026-08-21) — the footprint bound splits by capability; the LGPD posture is stated; D10 gains its second read path
+>
+> PO-ruled 2026-08-21 (grilling interview at the post-DSR reconciliation; build still
+> not started). Six rulings:
+>
+> 1. **The footprint bound splits by capability (amends D1(c) as applied through D3).**
+>    D3's four classes no longer share one bound:
+>    - **Person-level fields** (name, category, DOB, phone) **and professional
+>      credentials** (add/edit/remove) widen to **footprint-INTERSECTION**: a
+>      hospital_admin holds these over any person whose active footprint intersects
+>      their administered set — spanning people included. Writes now match the read
+>      boundary D13 already draws (its legs are per-hospital, i.e. intersection); the
+>      name-fix local-knowledge argument holds at *every* hospital the person serves.
+>    - **CPF change and account lifecycle** (deactivate / reactivate / suspend) **keep
+>      the subset bound** — sole-footprint people only; spanning people stay
+>      org_admin-only. Deactivation is cross-hospital denial-of-access and a CPF
+>      rewrite is a person-key identity event other hospitals depend on; neither is a
+>      local fix.
+>    Consequence for D4: the authorizer takes the capability as an input (two arms,
+>    intersection vs subset), and `updateUserProfile` applies the **tighter** bound
+>    whenever the input includes `cpf`. The B5 matrix gains the split arms — the
+>    sharpest new keystone is the cross-hospital pair *field-edit ALLOW /
+>    deactivate DENY on the same target*.
+> 2. **D2 is untouched, for ALL capabilities**: any org-tier or hospital-tier
+>    membership on the target ⇒ org_admin-only; empty footprint ⇒ org_admin-only.
+> 3. **The silent cross-hospital write is an ACCEPTED residual** (it returns for
+>    fields/credentials, the exact write 0097 D14 existed to prevent): Hospital A's
+>    admin edits a person also serving at B without B's knowledge; concurrent edits
+>    are last-write-wins, arbitrated by the audit trail. Accepted on the PO's
+>    trust-plus-audit rationale. Nicety, not commitment: an "última alteração"
+>    provenance line on the profile ships only if it falls out of existing audit
+>    queries for free.
+> 4. **D10's wording is corrected — DOB has TWO read paths, phone one.** DOB is
+>    readable via (i) the B6 rail behind the (now intersection-widened) authorizer
+>    and (ii) the audited `list_org_people` door, whose gate is org_admin ∨ any
+>    hospital_admin of the org — D11's homonym rationale requires exactly that reach
+>    (the colliding person is typically at *another* hospital). Phone stays
+>    rail-only. "Readable only on the admin management surface" is retired as
+>    written; the column-lock posture (no `authenticated` grant) is unchanged.
+> 5. **The LGPD posture for the new columns is stated (reconciles ADR
+>    [0130](./0130-dsr-subject-request-workflow.md)):** the DSR lane is
+>    patient-keyed by design (`dsr_requests.patient_key` via `patient_xref`);
+>    **professional** data subjects exercise their Art. 18 rights administratively
+>    (through their organization's administration), out of DSR scope **by design,
+>    not omission**. DOB/phone claim no independent retention basis — they follow
+>    the account lifecycle. **FUP-AFF2-CONTA is the titular-access control**, not a
+>    UI nicety.
+> 6. **Two details pinned at decision level:** `phone` is stored digits-only (no
+>    CHECK constraint — optional contact data, not an identifier; formatting is
+>    display-side), and both new columns **join `guard_profile_privileged_columns`**
+>    (the plan's build-time hedge is struck; D10 already implied it). Also ruled:
+>    the design handoff **stays in `docs/design/temp/user_management_redesign/`**
+>    (the plan's move-on-sign-off item is retired).
+
 ## Context
 
 ADR 0051 created `hospital_admin` as "the org_admin of one hospital" for decentralized

@@ -22,7 +22,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   register wizard (escape hatch removed); the three UM screens rebuilt to the design
   handoff. ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md)
   (renumbered from 0129 at the 2026-08-21 reconciliation — main's DSR track had taken
-  0129) · plan [aff2-user-management.md](docs/plans/aff2-user-management.md). **Start
+  0129) **+ Amdt 1** (2026-08-21 — capability-split widening, § Decisions) · plan
+  [aff2-user-management.md](docs/plans/aff2-user-management.md). **Start
   condition: the prévia merge call is SATISFIED (`9ed197d5`, merged + pushed); what
   remains is the PO's merge call on `chore/small-optimizations` itself + explicit build go.**
 - **No phase is active.** The **DM program (DM0–DM5) is COMPLETE** — closed 2026-08-18, all five
@@ -263,6 +264,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 | Date | Decision | Ref |
 | --- | --- | --- |
 | 2026-08-21 | **PO: an ethics proceeding carries NO erasure entitlement, at any stage — no door, no UI.** Basis is the record's **administrative-proceeding** nature, ⛔ **not CFM 1821/2007**. Closes the Class-2 question. ⛔ **2 pre-existing doors DO remove ethics data** — filed, record-only | ADR [0132](docs/decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md) |
+| 2026-08-21 | **AFF2 Amdt 1 (PO): footprint bound SPLITS by capability** — fields+credentials → **intersection**, CPF-change+lifecycle keep **subset** · silent cross-hospital write **ACCEPTED residual** · LGPD: professional titulares administrative, **out of DSR scope BY DESIGN** · 6 rulings | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 1** |
 | 2026-08-20 | **AFF2 accepted (PO): affiliation-scoped hospital_admin authority** — footprint-bounded person-level edits, credentials + lifecycle · CPF mandatory in UI, escape hatch REMOVED · `date_of_birth`+`phone` added column-locked · credentials SELECT widens · presence-only CPF display | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) (né 0129) · amends 0097 D11/D14 · 0098 W3.2 · [0048](docs/decisions/0048-user-registration-identity.md) D10 |
 | 2026-08-20 | **PO: DSR gate CLOSED — approval given, program merged + pushed.** §6 steps 1–5 complete; step 1 re-run on a fresh reset. ⛔ Step 2 (`e2e:prod`) **not re-run** for the final increment — recorded, not implied | [dsr-program.md](docs/progress/dsr-program.md) |
 | 2026-08-20 | **PO: PHI erasure reaches DESIGNATED PHI fields ONLY** — free text/titles that *may* hold PHI are out of pilot scope; the control is **training**. Shipped reach MAINTAINED, not rolled back. Closes the census + ethics items **by ruling, not remediation — the residue is ACCEPTED, not absent** | ADR [0131](docs/decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) |
