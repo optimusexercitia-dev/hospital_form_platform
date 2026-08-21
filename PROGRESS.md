@@ -45,10 +45,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 - **✅ DSR OPERATIONAL REMEDIATION — COMPLETE 2026-08-21.** All five §6 gate steps; QA **APPROVED r2**
   ([review](docs/reviews/dsr-remediation-review.md)); plan
   [dsr-operational-remediation.md](docs/plans/dsr-operational-remediation.md); ledger row in
-  [phase-ledger.md](docs/progress/phase-ledger.md). **Branch `feat/dsr-operational-remediation` pushed
-  to origin; `db push` applied all 14 pending migrations to the linked project** (head
-  `20261003000300`, `dsr` flag **ON**, invariant re-derived **on the remote**: 3 setters / 5 readers).
-  ⛔ **NOT merged to `main`** — that decision is untaken.
+  [phase-ledger.md](docs/progress/phase-ledger.md). ✅ **MERGED to `main` and PUSHED 2026-08-21** — fast-forward,
+  `main` = `origin/main` = `96c49da4`, tree clean, lint 8/8 + `tsc` green **on `main`**. `db push` applied
+  all 14 pending migrations to the linked project (head `20261003000300`, `dsr` flag **ON**, invariant
+  re-derived **on the remote**: 3 setters / 5 readers). ⚠ The branch
+  `feat/dsr-operational-remediation` still exists locally and on origin — not deleted.
   ⛔ **What it fixed:** the DSR program closed green on 2026-08-20 and **its LGPD erasure doors did not
   erase** — a child lock raised ~10 statements after the Class-1 DELETE, rolling the whole RPC back.
   **10 statements across 4 guards** (filed as 9/3); PO ruled **FIX THE GUARDS**, rollback under ADR 0131
