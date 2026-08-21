@@ -38,9 +38,11 @@ export function CreateFormForm({ commissionId }: { commissionId: string }) {
   }, [state, router]);
 
   const titleField = useFieldIds("title", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.title),
   });
-  const descriptionField = useFieldIds("description", { hasDescription: true });
+  const descriptionField = useFieldIds("description", {
+    nameRequiredFor: "formData", hasDescription: true });
 
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>

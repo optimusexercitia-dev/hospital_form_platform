@@ -1,4 +1,10 @@
-# ADR 0129 — AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-management redesign
+# ADR 0133 — AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-management redesign
+
+> ⚠ **Renumbered 0129 → 0133 (2026-08-21).** Authored as 0129 on a branch while main's
+> DSR track independently allocated 0129
+> ([0129-meeting-child-lock-disposal-flag](./0129-meeting-child-lock-disposal-flag.md),
+> merged + pushed + cited across PROGRESS.md, ADR 0130 and migration history — that
+> claim to the number wins). Any external note citing "ADR 0129 (AFF2)" means this file.
 
 **Status:** Accepted (PO-approved 2026-08-20 via a two-round grilling interview; build
 not started) · **Date:** 2026-08-20 · **Feature:** the named workstream **AFF2** —

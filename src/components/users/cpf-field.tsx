@@ -66,6 +66,25 @@ export function CpfField({
   return (
     <Field>
       <FieldLabel htmlFor={field.controlProps.id}>{label}</FieldLabel>
+      {/* ⛔ THIS CONTROL MUST NEVER CARRY A DOM `name`. It does not, because
+          `useFieldIds` above omits `nameRequiredFor` and `name` is opt-in — but the
+          reason is worth keeping, because it was MEASURED here, not theorised.
+
+          A <form> whose JS has not hydrated yet still submits NATIVELY on Enter, and
+          a native GET submit serialises every NAMED input into the QUERY STRING —
+          address bar, browser history, and every proxy and access log in front of
+          the app. `event.preventDefault()` cannot stop it: pre-hydration there is no
+          handler to run.
+
+          While the hook emitted `name` unconditionally, a JS-disabled native submit
+          put a CPF — a Brazilian national identity number, LGPD personal data — into
+          the URL on BOTH consumers of this component:
+            /o/rede-a/manage/usuarios/novo?cpf=…
+            /o/rede-a/manage/usuarios/[userId]?fullName=…&cpf=…
+          This control's value comes from React state, never from `FormData`, so it
+          has no legitimate reason to be named. ⛔ Do not add `nameRequiredFor` here.
+          The a11y wiring is unaffected: `name` is only ever the form key; `id` and
+          `aria-describedby` are separate. */}
       <Input
         {...field.controlProps}
         ref={inputRef}

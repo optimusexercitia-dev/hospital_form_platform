@@ -990,10 +990,16 @@ persisted record asserting a fact to a regulator)** · destruction ("unlinked" �
 calling a destroyed-bytes bucket CLEAN). ⭐ Instances 4, 5 and 6 were each found **inside the fix for
 an earlier one** — expect the next one in whatever you write to close this.
 
-**3 · 🔴 `FUP-DM5-BACKUP-IS-PHI-EXPORT`** — the runbook's backup half produces **68 PHI-tier files**.
-Rule 12 / LGPD. The PO-decided values (owner = PO, monthly, ≤30 days, 7z-AES encrypted **at
-creation**, key-first destruction) are **in** the runbook; what remains is the literal destination
-path, deliberately unfilled because it is per-machine.
+**3 · ⬛ `FUP-DM5-BACKUP-IS-PHI-EXPORT` — ✅ RESOLVED 2026-08-19 by execution.** The PO-decided values
+(owner = PO, monthly, ≤30 days, encrypted **at creation**, key-first destruction) were already in the
+runbook; the destination path is now set and the § 6b half has been **run end-to-end** on the local
+stack — census **812 files / 14,691,282 bytes / 231 PHI-tier**, catalog-compared **812 = 812** plus a
+per-object hash, then destroyed key-first. Record:
+[`phi-backup-run-log.md`](../deployment/phi-backup-run-log.md), which carries **six findings**.
+⛔ **Read the close bounded.** It does **not** discharge C1a (§ 3 never ran) or C1b, and it spawned
+**🔴 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM`** — the mechanism is `docker exec`, so it has no Cloud form,
+and Supabase's managed backups **exclude Storage objects by documented design** ⇒ *the pilot platform
+has no Storage recovery point at all* — plus **🟠 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED`**.
 
 **4 · 🟠 `FUP-DM5-DISPOSAL-JOB`** — **the disposal job does not exist.** `complete_document_disposal`'s
 only production caller is `reclassifyDocument`. PO ruled *runbook now, automate later*; this is the

@@ -109,6 +109,17 @@
 > - **C1a — local.** Execute the runbook end-to-end against the local stack, once, and record the run.
 >   It debugs the procedure, and it produces the first **backup destination path** that
 >   `FUP-DM5-BACKUP-IS-PHI-EXPORT` is owed at first execution.
+>   ⭕ **PARTIAL 2026-08-19 — the § 6b BACKUP half ran; the § 3 DISPOSAL half did not.** The two are
+>   independently executable, so the destination path is now set and
+>   `FUP-DM5-BACKUP-IS-PHI-EXPORT` is **closed** ([run log](../deployment/phi-backup-run-log.md)),
+>   while **C1a itself stands** — § 3 is simply un-run. ⚠ *This line read "§ 3 is blocked by
+>   `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`" until 2026-08-19; **corrected — it never was.**
+>   That defect is on the meeting-minutes path, while § 3 is the `file_objects`/Storage path, and
+>   the two are disjoint in the catalog (ADR [0129](./0129-meeting-child-lock-disposal-flag.md)
+>   Consequences).*
+>   ⚠ And the run found that the backup half **has no Cloud form at all**
+>   (`FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM`, 🔴), so C1b cannot inherit even this part — which is the
+>   same wording-vs-purpose hazard this amendment was written for, arriving one level further in.
 > - **C1b — Cloud.** The same execution against the linked project. ⛔ **This is the run the pilot-risk
 >   acceptance is bounded by.** A green C1a does **not** release the pilot.
 >

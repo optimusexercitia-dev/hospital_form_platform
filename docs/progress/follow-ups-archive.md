@@ -2033,4 +2033,553 @@ them. ⭐ *A body plus a narrative mention is not an index entry; the index is w
 > and the resolution clause; the item's full body remains in
 > [follow-ups.md](follow-ups.md), consistent with the 2026-08-18 set above.
 
+- ⬛ **FUP-DM5-BACKUP-IS-PHI-EXPORT** — ✅ **RESOLVED 2026-08-19 by EXECUTION** — a Storage backup is an unmanaged plaintext PHI export, and the S5 drill created one (245 files, 68 PHI-tier, no RLS, no audited door, no TTL). The widest PHI egress path the system has. Both remaining deliverables discharged: **destination path set** (archive `D:\phi-backups`, key `C:\Users\micha\phi-backup-keys` — separate volume) and the **§ 6b procedure executed end-to-end** on the local stack (census 812/14,691,282/231 PHI-tier → encrypted at creation → catalog-compared **812 = 812** + per-object hash → key-first destruction; the empty-archive control proven able to refuse). Record: [phi-backup-run-log.md](../deployment/phi-backup-run-log.md). ⛔ **Does NOT discharge C1a or C1b** — § 3 was not run, and the mechanism has **no Cloud form**. Residue carried by two NEW items, not dropped: 🔴 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` · 🟠 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` — PO/backend/lead
 - ⬛ **FUP-DM5-NO-ANSWER-VS-NOTHING** — ✅ **CLOSED 2026-08-19 — all six instances. ⭐ THE CLASS: an observable PROXY is substituted for the property that actually matters, always failing in the REASSURING direction.** Last open instance (1, `--allow-orphans`) fixed by ADR [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md): unproven (exit 3) and dirty (exit 1) are separate classes with separate acknowledgements, **dirty outranks unproven**, and the retired flag is refused rather than aliased. Instance 3 discharged by ADR 0121 D4 **plus the 2026-08-18 Cloud probe**, which made `unavailable_on_platform` the true and permanent value rather than a holding one. ⛔ Closing the CONFLATION is not a claim that Cloud orphans are absent — they are **unobservable**, which is the opposite of reassuring — backend/lead
+
+## Rotated from follow-ups.md 2026-08-19 — the ADR 0129 child-lock fix (DSR plan Slice 1)
+
+### ⬛ FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE — ✅ **RESOLVED 2026-08-19** — `dispose_meeting_minutes` could not complete on any locked meeting that had agenda items; its own "bypass the freeze guards" comment was FALSE (owner: backend + PO; ⛔ its **"blocks C1a/C1b"** claim was WRONG IN GRAIN — see the correction below; Rule 12 / LGPD Art. 18)
+
+> ## ⛔ CORRECTION 2026-08-19 — the "blocks Critical FUP C1a/C1b" claim in the preserved body below is FALSE, and it failed in the reassuring direction
+>
+> The body states *"It blocks Critical FUP C1a/C1b directly"*. Measured at build time: **it does
+> not.** C1a is a run of [`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md), which
+> is the **`file_objects` / Storage-bytes** completion mechanism — its § 0 says it exists because
+> `complete_document_disposal` has no automated caller. The two paths are **disjoint in the
+> catalog**: `dispose_meeting_minutes` writes no `file_objects` row and never sets
+> `disposal_pending`; `complete_document_disposal` never touches meetings; the runbook contains
+> **zero** occurrences of "meeting", "minutes_md", or `dispose_meeting_minutes`.
+>
+> The *defect* was real and severe — meeting-minutes PHI erasure was impossible on exactly the
+> population that carries PHI. Only its **consequence** was overstated. ⭐ The body's own reasoning
+> shows how: it argues that "a rehearsal that only ever exercises agenda-less meetings would go
+> green while proving nothing" — true of a rehearsal that exercises meetings, and **the runbook
+> exercises none**. A real filter cited for a conclusion it does not bound reads like a proof:
+> [[a-predicate-quoted-at-the-wrong-grain]]. It propagated into ADR 0121, the backup run log, the
+> runbook, PROGRESS.md § Now and the C1 row, and was corrected in all of them the same day.
+>
+> ⭐ The correction exposed the larger gap: `FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES` — the runbook
+> covers one of **two** PHI-disposal substrates, and the four column-erasing `dispose_*` doors have
+> no operational procedure at all.
+
+> ## ✅ RESOLVED 2026-08-19 — built as DSR plan **Slice 1**; this block supersedes every status line in the preserved body below
+>
+> **Shape 2, as ruled.** Migration
+> `20260930000100_disposal_flag_through_meeting_child_lock.sql`: the new transaction-local GUC
+> `app.in_disposal_rpc` is **set only** by `dispose_meeting_minutes` (immediately before its child
+> UPDATE, reset immediately after) and **read only** by `app.guard_meeting_child_lock`. The false
+> comment is corrected in the same migration; ADR 0126 §E was amended in the same change (ADR 0129
+> Decision 3), and §F's "not fixed here" note now points at the fix.
+>
+> **Evidence — the fixture the item demanded, and the differential.** Suite
+> `supabase/tests/348_disposal_flag_meeting_child_lock.sql` (15 tests) on a fresh reset. ⚠ **The seed
+> contains no locked meeting with agenda items** — its only meeting with children is `held` — so the
+> suite **constructs** the population instead of searching for it. (An E2E-mutated database shows that
+> same meeting as `in_signature`; a fixture derived from seed state can look correct and be wrong.)
+> Verified by **neutralization, not by reading**: with the stand-aside removed, the keystone dies
+> `23514 … está bloqueado`; with it, disposal completes and `status` is untouched. The refusal pins
+> (t5/t6/t8/t15) stay green in **both** directions — they are the over-grant twin, not the fix's
+> subject, and they go red if anyone later widens the stand-aside to `app.in_meeting_rpc` (which **26**
+> `public.*` doors set).
+>
+> **Gates:** pgTAP **199 files / 6550 tests PASS** · eight lint gates · `tsc` · vitest **1447** ·
+> `ARM=census` + `ARM=hat` + `ARM=floor` + `FROMFINDINGS=1 ARM=wrapper` **all HOLD**.
+>
+> ⭐ **The build found a second thing the obligations did not ask for.** ADR 0079 Amdt 1's diff-scoped
+> recipe filters to `^(is_|can_|has_)` names + RLS policies, and by that **syntax** this diff's case
+> list is **empty** (a trigger function and a plain `if not (...)` inside a door). Swept by the
+> **property** instead: rewriting `dispose_meeting_minutes`'s authorization gate to `if false then` —
+> so **any** caller passes — left the full **6548-test** suite **GREEN**. Door-blind by construction,
+> on a PHI-erasure door, since ADR 0056. `348` **t7** is the missing keystone (a plain commission
+> member refused `42501`) and it goes RED under exactly that mutation. Filed forward:
+> `FUP-DISPOSAL-DOOR-GATES-UNKEYSTONED` (the other three disposal doors were **not** measured).
+>
+> ⚠ **A residue is carried, not dropped:** `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT` — the door redacts
+> three of `meeting_agenda_items`' four text columns (`title` survives), and nothing redacts
+> `meeting_attendees.{note,external_name}` or `meeting_closed_sessions.label`. ADR 0056 §2 **declares**
+> that scope, so this is an over-claim in the disposal language rather than a regression — DSR Slice 4's
+> subject.
+
+
+> ⭕ **FIX RULED 2026-08-19 (PO, DSR design session Q11) — shape 2: a new narrow flag
+> `app.in_disposal_rpc`, read ONLY by `guard_meeting_child_lock`, set ONLY by
+> `dispose_meeting_minutes`.** Shape 1 (honour `app.in_meeting_rpc`) REJECTED as a widening —
+> ADR 0126 §E leans on the guard refusing inside RPCs; shape 3 rejected (redaction outside the
+> audited door). Full decision + obligations (the with-agenda pgTAP fixture, the no-flag
+> differential, the sibling over-grant twin, the diff-scoped sweep, the same-change ADR 0126 §E
+> amendment): ADR [0129](../decisions/0129-meeting-child-lock-disposal-flag.md); build slot:
+> [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 1**. ⛔ **NOT BUILT — the item
+> stays OPEN and C1a/C1b stay blocked until the 0129 evidence exists**, per PO instruction that
+> implementation waits for a future session.
+
+Filed 2026-08-18 (lead) — found by `backend` during the ADR 0125/0126 build while sweeping the writers of
+the content the meeting template renders, and **independently re-measured from the live catalog by the lead
+before filing**. Not the prévia build's subject; filed so it is not carried inside a build that does not own it.
+
+**The mechanism, measured — a comment that asserts a bypass it does not perform.**
+`public.dispose_meeting_minutes` opens with:
+
+```
+perform set_config('app.in_meeting_rpc', 'on', true);  -- bypass the meeting freeze guards
+```
+
+That flag is real and other meeting guards honour it. **`app.guard_meeting_child_lock` does not** — its body
+contains **no reference to `app.in_meeting_rpc` at all** (verified against `pg_get_functiondef`, not the
+migration text). It raises unconditionally:
+
+```
+if v_status in ('in_signature', 'signed', 'distributed', 'cancelled') then
+  raise exception 'o conteúdo desta reunião está bloqueado (%)', v_status using errcode = 'check_violation';
+```
+
+It is installed on **four** child tables: `meeting_agenda_items`, `meeting_attendees`, `meeting_cases`,
+`meeting_closed_sessions`.
+
+**⇒ The disposal door raises partway through its own transaction.** It nulls `minutes_md` first (the parent
+table, which *does* honour the flag), then UPDATEs `meeting_agenda_items` to `[PHI removido]` — and **that**
+statement trips the child lock, rolling the whole call back.
+
+**Constructed, not argued — three probes:**
+
+| Probe | Fixture | Result |
+| ----- | ------- | ------ |
+| **A** | `signed` meeting **with 2 agenda items** | ⛔ **RAISES** `o conteúdo desta reunião está bloqueado (signed)` — disposal impossible |
+| **B** | `signed` meeting, **0 agenda items** | ✅ succeeds; `phi_disposed_at` stamped, status stays `signed` |
+| **C** | as B, `minutes_md` populated first | ✅ succeeds; `minutes_md` → null, `phi_disposed = true`, status still `signed` |
+
+**Why it is 🔴 and not a curiosity.** The meetings that carry agenda content are exactly the meetings that
+carry PHI worth disposing. So the erasure obligation **cannot be discharged on precisely the population it
+exists for**, while succeeding on the empty ones — which means a disposal run over a real tenant would report
+partial success and leave the PHI-bearing minutes intact. Rule 12 / ADR 0035's LGPD + ANVISA/RDC regime makes
+this an obligation, not a feature: **LGPD Art. 18** erasure, and the 20-yr retention regime's expiry path.
+
+⛔ **It blocks Critical FUP C1a/C1b directly.** The disposal runbook
+([`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md)) is the next PO-sequenced item, and a
+rehearsal that only ever exercises agenda-less meetings would go **green while proving nothing about the
+blocking case** — the [[a-detector-that-finds-nothing-must-be-proven-able-to-find-something]] shape, in the
+highest-severity item in the register. **The C1a rehearsal must include a locked meeting WITH agenda items as
+a named fixture**, or its green is not evidence.
+
+**Not yet decided — the fix is a real design question, not a one-liner.** Three shapes, none ruled:
+1. Teach `guard_meeting_child_lock` to honour `app.in_meeting_rpc`, like its siblings. ⚠ **A widening** — it
+   opens every child table to every meeting RPC, and the guard's refusal-inside-RPCs may be load-bearing
+   somewhere it was not measured. A widening cannot be wrong-and-safe.
+2. A narrower flag read only by the child lock and set only by the disposal door.
+3. Redact through a DEFINER path that does not transit the trigger.
+
+**⭐ The class, because the instance is the cheap part.** A **comment asserted a bypass that the guard it
+names does not implement**, and nothing could contradict it — the door's own suite passes on agenda-less
+fixtures, and the runbook was written from the comment. Same family as
+[[a-comment-is-an-assertion-that-goes-stale-silently]] and [[guards-that-read-right-but-fail-open]]: the text
+read correctly and the catalog disagreed. ⚠ Note **which** measurement found it — not a read of the disposal
+function (that is where the false comment lives) but a **property-bounded sweep of every writer of the
+rendered content**, run for an unrelated reason. A sweep bounded by "writers of `meetings`" would have found
+the door and believed its comment.
+
+### ✅ FUP-ACT-DISPOSE-UI — RESOLVED 2026-08-20 (DSR Slice 2, ADR 0130). The LGPD Art. 18 erasure path has a working UI route.
+
+> **The check, run and recorded.** Persona **`pqs.a@test.local`** (`pqs_member` of Hospital Central A)
+> (a) reaches **`/o/rede-a/titulares`** — the DSR task inbox behind the `dsr` flag, because
+> `app.can_execute_dsr_task` admits `app.is_pqs_operator_of_for(hospital)` — and (b) passes
+> `dispose_event_phi`'s own gate, catalog-verified. **Both halves executed in a browser**:
+> `e2e/dsr-subject-requests.spec.ts` clicks the affordance, then asserts
+> `patient_safety_event.phi_disposed_at is not null` and `event_patient` gone via the service role.
+> The item's own row is updated in place at [dm5-po-decisions.md](dm5-po-decisions.md)
+> § "Remaining pre-pilot work" item 0, which is where the pilot decision is actually read.
+>
+> ⚠ **What was wrong, precisely.** The two sets were disjoint because **no surface existed**, not
+> because the gates were misaligned — the referral dispose dialog had a component and the
+> case/event dispose actions had **no caller anywhere in the app**. ⛔ **No disposal gate widened**:
+> the executor fires the module's own door under their own session (ADR 0130 Decision 2), which is
+> exactly why the check could be answered without touching authorization.
+>
+> ⚠ **Bounded, so this is not read as more than it is.** The corridor proven end-to-end is the
+> **event** lane; case and referral ride the identical inbox path and fan-out but their proof is the
+> pgTAP matrix (`349`), not the E2E — disposal is irreversible and pointing a spec at seeded records
+> would erase PHI ~900 other tests share. The **meetings** lane is NOT discharged and is not claimed:
+> ADR 0056 Consequence (a)'s missing meetings-dispose UI moved to DSR **Slice 3** with the
+> adjudication that mints the task (ADR 0130 Amendment 2 item 3), because minting a whole-minutes
+> erasure from a one-agenda-item match would destroy other committees' records.
+>
+> _Body below is the live text at resolution, verbatim._
+
+### 🔴 FUP-ACT-DISPOSE-UI — LGPD Art. 18 referral-erasure has no UI route (owner: PO — mount point)
+
+> ⭕ **MOUNT POINT DECIDED 2026-08-19 (PO, DSR design session Q8b/Q16): SUBSUMED by the DSR task
+> inbox at `/o/[org]/titulares`** (ADR [0130](../decisions/0130-dsr-subject-request-workflow.md)
+> Decision 11; [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 2**, which includes
+> running THIS item's check and recording the named persona). Executors fire the existing doors
+> under their own sessions — zero gate changes. The same surface also gives `dispose_meeting_minutes`
+> its first UI (ADR 0056 Consequence (a), never built — verified 2026-08-19: no component calls the
+> case/event/meeting dispose actions; only the referral dialog exists). ⛔ **The item stays OPEN and
+> stays pilot-gate item 0 until that slice ships and the check passes** — a decided mount is not a
+> working route.
+
+_Verbatim from PROGRESS.md § "Remaining pre-pilot work" item 0, where it was carried as a **pilot-gate
+check** rather than a follow-up-list entry. It stays item 0 of that list; this is its body._
+
+**0. 🔴 PILOT-GATE CHECK — the LGPD Art. 18 referral-erasure path must have a working UI route
+(FUP-ACT-DISPOSE-UI).** Placed here, as a **gate check rather than a follow-up-list entry**, on the
+Stage-3 QA reviewer's explicit recommendation — *"this program's own record shows 'standing in prose
+alone' once meant a thing ran once in three weeks"* (the same failure ADR 0079 was written about).
+**The check, stated so it can be run and can fail:** name a persona who can (a) reach the surface
+hosting the dispose affordance AND (b) pass `dispose_referral_phi`'s own gate. Today **no such
+persona exists** — the two sets are disjoint (catalog-verified; full mechanism in the
+`FUP-ACT-DISPOSE-UI` body → [follow-ups.md](follow-ups.md)). Until one does,
+subject-erasure is API-only. **Decision owner: PO** —
+*where* the affordance mounts is a product call (NSP surface reaches operators; manage-tier reaches
+tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that makes this
+non-negotiable: migration `20260917000400` restored this door's tenancy-admin arm specifically to
+un-strand this same obligation after QO·B cut it — the platform has already ruled once.
+
+## Rotated from PROGRESS.md 2026-08-20 — the DSR Slice 4 close-out (2 items)
+
+Both index lines left PROGRESS.md in the same edit that closed them. Full bodies remain in
+[follow-ups.md](./follow-ups.md) under their `⬛` headings until the next bulk rotation.
+
+**The two index lines as they stood in PROGRESS.md, verbatim** (links repointed for this directory):
+
+> - 🟠 **FUP-DISPOSE-DIALOG-OVERCLAIM** — the shipped referral-dispose copy is ADR 0056 (b)'s forbidden "tudo apagado" over-claim (*"apaga permanentemente … todos os campos"*, no retained-bytes mention). ⭕ *Narrowed 2026-08-19: counsel's return keeps the Art. 18 lane live, so the reason option is valid — the over-claim is the whole defect.* Fix = the shared residue-language constant, [DSR plan](../plans/dsr-workflow-plan.md) Slice 4 — frontend
+> - 🟠 **FUP-NOTIFICATIONS-PHI-RESIDUE** — `notifications.title/body` copy entity text at write time and **no dispose door touches the table**: a granted disposal leaves pre-redaction PHI in every notification the entity emitted. Fix = scrub-by-(entity_type,entity_id) in all four doors + pgTAP pins w/ vacuity control, DSR plan Slice 4 — backend
+
+Closure records:
+
+- [x] **✅ CLOSED 2026-08-20 — FUP-DISPOSE-DIALOG-OVERCLAIM** (DSR plan Slice 4 item 3).
+  `referral-dispose-dialog.tsx` now renders the shared `DSR_RESIDUE_NOTICE` verbatim and both
+  over-claiming strings are **replaced, not supplemented** — verified independently of the
+  implementer's report (`grep` for *permanentemente* / *todos os campos* / *Não é possível
+  desfazer* exits 1); eight lint gates + tsc green. ⚠ Carry forward: **the verification
+  instrument for this item was a grep, so the fix could have defeated its own check** — a first
+  draft quoted the removed pt-BR strings in a docblock as "do not reintroduce", which would have
+  made that grep hit forever on a comment rather than on live copy. *Nothing in that file,
+  comments included, may ever contain those strings.* Left deliberately and flagged: the
+  confirm-field helper ("exclusão **definitiva**") and the destructive button ("Apagar
+  **definitivamente**") assert *finality*, not the *completeness* ADR 0056 (b) forbids.
+- [x] **✅ CLOSED 2026-08-20 as PREMISE-FALSIFIED — FUP-NOTIFICATIONS-PHI-RESIDUE.** The residue
+  class it named **does not exist**. `notifications.entity_type`'s CHECK admits eight values and
+  **`case`, `referral` and `event` are not among them**, so the prescribed
+  scrub-by-`(entity_type,entity_id)` matches **zero rows by construction** for three of the four
+  doors — the pgTAP pin it asked for would have been vacuous *by CHECK constraint*, unfalsifiable
+  by any code. Established by **constructing the state** (both inserts refused; a `meeting` insert
+  as positive control). Its own cited evidence was false: **no notification writer reads
+  `cases.label`** — one writer, sixteen callers, none touches it — and the writer set is *bounded*
+  (SELECT/UPDATE policies only; **no INSERT GRANTED to `authenticated` at any grain**, table or column), not merely
+  enumerated. ⛔ **Corrected (QA r1):** this first said *"`authenticated` holds `r` alone"* — false;
+  `pg_attribute.attacl` carries a **column** grant `read_at = authenticated=w` invisible in
+  `pg_class.relacl`. Conclusion holds (scoped to `read_at`; `title`/`body` unwritable), reason did
+  not — ⭐ **`attacl` belongs beside `relacl`.** Nor is
+  any notification text source erased by any door. Full census: ADR
+  [0130](../decisions/0130-dsr-subject-request-workflow.md) **Amendment 4**; Decision 9's
+  scrubbing clause is **withdrawn** while its residue-language clause stands.
+  ⭐ *Why it read as obviously right for a day:* the design was inferred from **column names** —
+  `entity_type`/`entity_id` look exactly like a polymorphic handle to the disposed entity — and
+  was internally coherent throughout; only the **writers** say what the key points at, and
+  `compute_due_ethics_notifications` stores a `cases.id` under `entity_type='ethics_notification'`.
+  Successor, filed not folded in: **`FUP-DOOR-ERASURE-FREETEXT-CENSUS`**.
+
+## Rotated from PROGRESS.md 2026-08-20 — DSR Slice 4 item 4 (the meeting-door widening)
+
+**The index line as it stood in PROGRESS.md, verbatim** (links repointed for this directory):
+
+> - 🟠 **FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT** — meeting PHI disposal redacts **three of `meeting_agenda_items`' four** text columns (`title` survives) and touches none of `meeting_attendees.{note,external_name}` or `meeting_closed_sessions.label`. ADR 0056 §2 **declares** that scope, so this is an **over-claim in the language**, not a regression — but "the meeting's PHI is erased" is false while an agenda item can be titled with a patient's name. Fix vehicle: DSR plan **Slice 4** (residue + copy honesty) — either redact them or name them as retained; the one unacceptable state is the current one — backend
+
+Closure record:
+
+- [x] **✅ CLOSED 2026-08-20 — FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT.** The door was **widened**
+  (PO-ruled) rather than the copy hedged, so `DSR_RESIDUE_NOTICE` line 1 is true as written.
+  ⛔ **Slice 4's copy half had shipped straight into the state this item forbade** — the notice went
+  live claiming the record's DB patient data was erased while none of these columns were named as
+  retained; QA r1 blocked on it. *An open follow-up naming your slice as its vehicle is scope you
+  already own.* ⭐ The census returned **10 columns, not the 4 this item listed**, and each addition
+  was missed by a boundary that looked principled: `meeting_closed_session_items.{substance,decision,
+  withdrawals}` is **depth-2** (a direct-children census cannot see it); `meeting_minutes_jobs.
+  {transcript,draft,result}` — **`draft`/`result` are `jsonb`**, and the first census filtered on
+  `text/varchar/citext`, so ***free text is not a type***; `meeting_attendees.external_org` sat beside
+  the `external_name` already listed. ⛔ **The finding that outranks the item:** only 3 of
+  `audio_job_status`' 6 values purged the transcript, so a job resting in **`done`** — the normal
+  state, awaiting review — kept the **verbatim transcript of the whole meeting** indefinitely,
+  falsifying ADR 0056 **§4's central claim**, not merely the residue copy. Now nulled unconditionally
+  and set-based (no UNIQUE on `meeting_id`, so never `limit 1`). `meetings.title` is **kept and
+  therefore disclosed** (`DSR_MEETING_RESIDUE_RETAINED`). Two findings no column list could show: a
+  blanket `external_name` redaction violates `meeting_attendees_identity_xor` and **aborts the entire
+  disposal** (a legal obligation failing closed), and the first census was measured **mid-`db reset`**,
+  returning an **empty trigger census when there are 17** — which reads as *"no guards, safe to
+  widen."* Coverage: pgTAP `351`, **33** assertions (its declared `plan()`) on a **locked** meeting (a `scheduled` fixture fires
+  neither guard and would pass while the door is broken for every real disposal), **17/17
+  neutralization probes RED** incl. the over-grant twin; ⚠ **one pin was found vacuous by its own
+  author** — it asserted what the CHECK guarantees structurally and was green while the door was
+  completely broken. ⛔ `ARM=census`/`ARM=wrapper` are exit 0 and **vacuous here** (neither changed
+  function is in any arm's domain); ADR 0079 Amdt 1's syntax-filtered case list is **empty** and it was
+  swept by the property instead. Records: ADR 0056 **Amdt 1**, ADR 0129 **Amdt 1** (`app.in_disposal_rpc`
+  now has **two readers, still one setter**). ⛔ **No successor filed:** the reported gap *"a PHI-bearing
+  title on a locked meeting has no product remedy"* was written into two records and is **false as
+  stated absolutely** — `reopen_meeting` sets `public.meetings → 'held'`, which **is** in
+  `update_meeting`'s allowed set, so the revoke corridor is the remedy (at the cost of a revision bump
+  invalidating registered prints, ADR 0126 D9). ⭐ *A gate tells you what it refuses; only the
+  transition graph tells you what is reachable.* ⚠ **The lead's correction was itself too absolute and
+  was narrowed on re-measurement:** `reopen_meeting` accepts only `in_signature`/`signed`, while the
+  child lock also covers **`distributed` and `cancelled`** — and `app.guard_meeting_status` has **no
+  transition arm** for either (arms are `scheduled`/`held`/`in_signature`/`signed`), so for those two
+  terminal states the title genuinely cannot be changed by any door; and `reopen_meeting` gates on
+  `is_staff_admin_of` alone while the disposal door also allows `is_tenancy_admin_of`, so the operator
+  holding the erasure duty may be unable to walk the corridor. ⭐ *Correcting a claim's **direction**
+  without re-deriving its **magnitude** produces a second wrong claim that reads as a fix* — which is
+  why the retention copy deliberately offers no remedy guidance.
+
+## Rotated from PROGRESS.md + follow-ups.md 2026-08-20 — FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING (resolved by dissolution)
+
+**The index line as it stood in PROGRESS.md, verbatim:**
+
+> - 🟡 **FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING** — prose documenting a forbidden string defeats the grep verifying its absence; **4 recurrences in one day**, the 4th by the author who fixed the first 3, in a docblock explaining the detecting regex. ⛔ **PO ruled 2026-08-20: record only, no gate.** Two measured constraints for any future implementation: a literal-string gate is wrong **both** ways (false-positive on prose about it, false-negative on a paraphrase), and the check must run in `npm run lint` where the writing happens, not at QA time a cycle late — unassigned
+
+**The body as it stood in follow-ups.md, verbatim** (it contained no links, so nothing was repointed):
+
+### 🟡 FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING — prose that documents a forbidden string DEFEATS the grep that verifies its absence; 4 recurrences in one day, the 4th by the author who fixed the first 3 (owner: unassigned; **PO ruled 2026-08-20: RECORD ONLY, no gate**)
+
+Filed 2026-08-20 (lead), from DSR Slice 4 QA r1 + r2.
+
+**The class.** `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument was a grep over `src/` for the
+shipped pt-BR over-claim. But the natural way to warn the next reader off a defect is to **quote
+it** — so every warning comment makes the detector fire, and a fixed defect reads as unfixed.
+Measured instances, all on 2026-08-20: `dsr-meeting-dispose-dialog.tsx` · `dsr-task-inbox.tsx` ·
+`messages.ts` (worst — the docblock of `DSR_RESIDUE_NOTICE` itself) · `referral-dispose-dialog.test.tsx`.
+
+⭐⭐ **The finding is not the four instances — it is that the prohibition is not holdable by
+discipline.** The fourth author had *personally fixed the other three* and had written the
+"deliberately not quoted" note into each, then reintroduced it **in a docblock explaining the regex
+that detects it**. Their own account: *"when you write a pattern that matches a defect, quoting the
+defect is how you justify the pattern."* A rule that asks every future author to suppress the
+obvious phrasing forever, with nothing able to contradict them, is the shape CLAUDE.md §8 says a
+**gate** exists for — and it is also the shape ADR 0127 refuses to admit as a `.claude/rules/` entry,
+because it cannot be shown stale.
+
+⛔ **PO ruled 2026-08-20: record only.** No ninth lint gate, no rule file, no change to the closure
+instrument. A fifth recurrence is expected; this entry is so it is recognised rather than
+re-diagnosed.
+
+⚠ **Two design constraints, measured, for whoever does build it.** Both make the obvious
+implementation wrong:
+1. **The grep pattern and the prohibition are not the same set.** The fourth instance matched only
+   because the pattern happened to include `todos os campos com dados`; it was written in caps with
+   an ellipsis. A paraphrase one word off — different casing, a synonym, a line break mid-phrase —
+   **slips a real reintroduction past the same grep**. So a literal-string gate is wrong in *both*
+   directions: false-positive on prose *about* the defect, false-negative on a reworded instance of
+   it. The honest form is a lint rule scoped to **UI string literals, excluding comments**, keyed on
+   the over-claim *family* (a permanence adverb paired with a universal quantifier over the
+   sensitive fields — ⭐ the quantifier is the load-bearing half; ADR 0056 (b) forbids the
+   *completeness* claim, not the finality one).
+2. **The check must run where the writing happens.** All four were introduced by someone editing a
+   file for an unrelated reason. A repo-wide grep at QA time catches them a full cycle late; the
+   same check inside `npm run lint` fails the author within seconds — *the difference between a
+   habit and a gate.*
+
+**What actually guards the property today** (so this is not read as uncovered): a mutation-proven
+component test asserts it on **rendered output** — no totality quantifier, and no erasure claim
+without the residue lines beside it — which is a stronger instrument than the grep, and on
+2026-08-20 it **replaced** the grep as `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument (that
+item's note (a)).
+
+⛔ **CORRECTED 2026-08-20 (measured, same day this was filed).** The sentence above previously read
+*"the mutation-proven component **tests** assert it … on the surfaces that have tests"*, which
+over-claimed the breadth in the entry that exists to document an over-claim. Measured: **one**
+surface carries the totality assertion — `referral-dispose-dialog.test.tsx` claim 2. Its sibling
+`dsr-meeting-residue.test.tsx` imports all four components but greps **0** for a totality
+quantifier: it pins the *residue lines*, not the *absence of the over-claim*. So the gap is not
+only the hypothetical **new** surface — it is **three existing ones**. Filed as
+`FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY`; ⭐ the general lesson is that *"the tests cover it"* is
+a claim with a cardinality, and this entry shipped without measuring it.
+
+Closure record:
+
+- [x] **✅ CLOSED 2026-08-20 — resolved by DISSOLUTION plus one standing rule. The PO's
+  record-only ruling stands: no ninth lint gate was built, and none should be.**
+  ⭐ **The item's own title over-scopes what was left to solve.** Re-measured at close:
+  the originating trap is already structurally dead. The `src/` grep for the three shipped
+  literals returns **exit 1** — all four false-positive sites are clean — and it is no
+  longer anyone's instrument, having been swapped on 2026-08-20 for claim 2 of
+  `referral-dispose-dialog.test.tsx`, which reads **rendered DOM text**, where comments do
+  not exist. The prohibition that made the four recurrences *defects* ("nothing in that
+  file, comments included, may contain those strings") was downstream of the grep and had
+  no other ground; it is now removed from the file that carried it, with the reason stated
+  in place. **The fifth recurrence the entry expected is a non-event, not a suppressed
+  instinct.** What genuinely remained was narrower and never stated in the title: nothing
+  stopped the **next** forbidden-string follow-up from being closed with a source grep and
+  re-arming the identical trap. That is now `.claude/rules/ui-copy-forbidden-strings.md`.
+- ⛔ **Why a rule and not the ninth gate — and why the entry's own second constraint is
+  the one that had to be dropped.** The entry required (1) a non-literal pattern and (2) a
+  check inside `npm run lint`, "where the writing happens". Constraint 2 is **void once
+  constraint 1's successor is measured**: `FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY` showed
+  the *family* pattern false-positives on `DSR_MEETING_DISPOSAL_WARNING`
+  (`src/lib/dsr/messages.ts:205`, *"⛔ Never soften this"*), so the cheapest way to green a
+  lexical gate is the edit ADR 0130 forbids. Re-measured at close: that constant is the
+  **only** totality quantifier surviving across all four disposal surfaces plus
+  `messages.ts`. A gate whose sole live match is copy that must never change is not a
+  tuning problem. ⭐ And constraint 2 was aimed at catching an author writing a **comment**
+  — which the instrument swap makes not-a-defect. *A constraint on the fix inherits the
+  premises of the instrument that motivated it; when the instrument is replaced, re-derive
+  the constraint instead of carrying it forward.*
+- **The rule states the instrument class, and contains no pt-BR pattern at all** — so it
+  cannot false-positive on prose *about* a string, and cannot false-negative on a
+  paraphrase. Both directions of the measured constraint are answered by having no pattern
+  rather than by a better one. ADR 0127 admission: `paths:` scoped to 4 files (the
+  register, the copy module, the two disposal-copy tests), two resolving `anchors:`, a
+  named `source:`. It **can** be shown stale — the exemplar anchor
+  (`referral-dispose-dialog.test.tsx#TOTALITY_QUANTIFIER`) reds if the instrument is
+  renamed or removed, and `lint:rules` was **observed red** on the archive anchor before
+  this rotation landed, so the gate is proven able to fail on this rule specifically.
+- ⚠ **What this closure does NOT cover, stated so it is not read as wider than it is.**
+  Three of the four disposal surfaces still carry **no** assertion of the over-claim's
+  absence — that is `FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY`, which stays **OPEN** and is
+  the successor for the breadth half. This item was about the *instrument*, not the
+  *coverage*, and closing it changes the coverage by nothing.
+
+## Rotated from PROGRESS.md + follow-ups.md 2026-08-20 — FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY (built)
+
+**The index line as it stood in PROGRESS.md, verbatim:**
+
+> - 🟡 **FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY** — the ADR 0056 (b) over-claim is pinned on **1 of 4** disposal surfaces (`referral-dispose-dialog.test.tsx` claim 2); `dsr-meeting-residue.test.tsx` imports all four but greps **0** for a totality quantifier — it pins the residue lines, a different property. ⛔ **No live defect, and the obvious fix is harmful:** extending the pattern REDS on `DSR_MEETING_DISPOSAL_WARNING` ([messages.ts:205](../../src/lib/dsr/messages.ts:205)) — *"⛔ Never soften this"* — so the cheapest green is to damage the ADR 0130 warning that a meeting disposal destroys **other committees'** items. ⭐ The undrawn distinction is **polarity, not syntax**: a quantifier over the subject's data in a REASSURING frame is forbidden, over others' records in a WARNING frame is required. Kills the lexical ninth-gate design outright — unassigned
+
+**The body as it stood in follow-ups.md, verbatim** (same directory, so its two links needed no repointing):
+
+### 🟡 FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY — the ADR 0056 (b) over-claim is asserted on ONE of four disposal surfaces, and the obvious extension REDS on the one string the slice forbids softening (owner: unassigned; found 2026-08-20 while swapping `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument)
+
+Filed 2026-08-20 (lead). Successor to the breadth clause of
+`FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING` (**closed 2026-08-20 by dissolution** — full body
++ closure record in [follow-ups-archive.md](follow-ups-archive.md); the instrument half became
+`.claude/rules/ui-copy-forbidden-strings.md`), which stated the gap as *"a **new** dispose
+surface with no test"* — measurement makes it **three existing ones**. ⚠ **The coverage half is
+this item and it is UNCHANGED by that closure**: the predecessor was about the *instrument*.
+
+**Measured.** Four components reach a `dispose_*` door and render disposal copy. Only
+`referral-dispose-dialog.test.tsx` (claim 2) asserts the **absence of the over-claim** as a
+property, via `TOTALITY_QUANTIFIER` over rendered DOM text. `dsr-meeting-residue.test.tsx` imports
+all four components but greps **0** for a totality quantifier — it pins the *residue lines*, which
+is a different property. So `dsr-meeting-dispose-dialog`, the `dsr-task-inbox` dispose card and
+`dsr-outcome-record` are unpinned for this class.
+
+**No live defect.** All three are clean today: zero totality quantifiers in their own source.
+`src/lib/dsr/messages.ts` has two hits and **neither is an over-claim** — one is subject-data
+guidance (`…nem qualquer dado que identifique o titular`), the other is below.
+
+⛔ **The obvious fix is actively harmful, and this is the whole reason to file rather than just do
+it.** Extending claim 2's pattern to the meeting dialog REDS on **`DSR_MEETING_DISPOSAL_WARNING`**
+([messages.ts:205](../../src/lib/dsr/messages.ts:205)) — the constant whose own docblock calls it
+*"THE SINGLE MOST IMPORTANT STRING IN THIS SLICE"* and *"⛔ Never soften this"*, required by ADR
+0130 Amdt 2 item 3 to tell an operator that `dispose_meeting_minutes` destroys **other committees'**
+unrelated agenda items. Under a naive quantifier gate, **the cheapest way to make the build green is
+to soften that warning** — the gate would push an engineer toward the exact edit the docblock
+forbids.
+
+⭐ **The distinction the pattern cannot currently make is POLARITY, not syntax.** Both strings pair a
+universal quantifier with an erasure verb. The forbidden shape quantifies over **the subject's data
+as the erased set, in a REASSURING frame** ("everything of yours is gone"); the required shape
+quantifies over **other people's records, in a WARNING frame** ("this also destroys all of that").
+Identical syntax, inverted semantics. Any extension must key on the *frame*, or scope itself to the
+reassurance block rather than the whole dialog.
+
+**Consequence for the register's design constraints.** `FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING`
+recorded that a *literal* gate is wrong in both directions. This is the measured demonstration that
+the *family* pattern is too — false-positive on correct, deliberate, PO-ruled copy. Whoever revisits
+the ninth-gate question should treat this as the constraint that kills the lexical design outright,
+not as a tuning problem. ⛔ **Re-measured at the predecessor's close: `DSR_MEETING_DISPOSAL_WARNING`
+is the ONLY totality quantifier left across all four disposal surfaces plus `messages.ts`** — so a
+lexical gate's entire live yield today would be the one string that must never change.
+
+**Cost, corrected.** Estimated at "~15 lines" when filed as a breadth gap; that estimate assumed the
+pattern transferred. It does not. The cheap honest step is scoping claim 2's assertion to each
+dialog's *residue/reassurance* region; sizing that is the first task, not a foregone conclusion.
+
+Closure record:
+
+- [x] **✅ CLOSED 2026-08-20 — the property is asserted on 4 of 4 disposal surfaces, defined
+  ONCE in [`src/components/dsr/disposal-copy-property.ts`](../../src/components/dsr/disposal-copy-property.ts).**
+  New suite [`dsr-disposal-overclaim.test.tsx`](../../src/components/dsr/dsr-disposal-overclaim.test.tsx)
+  (21 tests) covers the meeting dialog, the task-inbox card over **every** disposal kind plus its
+  executable arm, and the outcome record in **both** meeting arms;
+  `referral-dispose-dialog.test.tsx` claim 2 stays where it is — it is
+  `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument and also covers that dialog's pre-open
+  summary region — and now imports the same property, so the two cannot drift.
+- ⛔ **THIS ITEM'S OWN PRESCRIPTION WAS WRONG, AND MEASURING IT FIRST IS WHY THAT SURFACED.**
+  It named the cheap honest step as *"scoping claim 2's assertion to each dialog's
+  residue/reassurance region"*. Measured on all four: that region renders `DSR_RESIDUE_NOTICE`
+  (and `DSR_MEETING_RESIDUE_RETAINED`) **and nothing else** — so an assertion scoped to it would
+  only ever re-check constants claim 1 already pins, while the shipped defect lived in the
+  dialog's own **bespoke** copy *outside* that region. The prescribed fix would have moved the
+  assertion **away from the only place the defect has ever appeared** and read as coverage. ⭐ *A
+  filed item's proposed remedy is a hypothesis, not a spec; the item said "sizing that is the
+  first task" and sizing it is what falsified it.*
+- **What replaced it: subtraction by IDENTITY, not a cleverer pattern.** The property is applied
+  to the whole rendered surface MINUS the deliberately warning-framed constants, which are
+  imported rather than re-typed. That answers the polarity problem the item called
+  design-killing: a component's own bespoke string can never be in the subtraction set, so the
+  set cannot become an escape hatch. ⚠ Subtraction buys blindness unless paired, so the meeting
+  dialog carries a **positive pin** that `DSR_MEETING_DISPOSAL_WARNING` renders verbatim —
+  measured, nothing pinned it before, and a silent deletion of *"the single most important
+  string in this slice"* would have left every other assertion green.
+- **The item's central fear, discharged executably.** Mutation **M6** softens the warning by
+  removing its quantifier: the suite stays **GREEN** (36/36) — the gate is indifferent to that
+  edit, so it can never be the cheapest way to a green build. **M7** empties the subtraction set
+  and the meeting surface goes **RED**, which is the same claim from the other side: the naive
+  lexical gate really would have fired on the one string ADR 0130 forbids softening.
+- ⭐⭐ **A DEFECT IN THE INSTRUMENT ITSELF, found only by mutating it — and it narrows what the
+  PREDECESSOR ever proved.** `Element.textContent` concatenates descendant text with **no**
+  separator, so the last word of one element fuses to the first of the next
+  (`…Ana Souza` + `Tudo apagado` → `…SouzaTudo apagado`). There is no word boundary before that
+  `T`, so `\btudo\b` **does not match** and the over-claim passes. A deliberate over-claim
+  injected into `dsr-outcome-record.tsx` left the entire new suite **green** until
+  `renderedText()` (join text NODES with a space) existed. ⛔ `FUP-DISPOSE-DIALOG-OVERCLAIM`'s
+  closure assertion read `dialog.textContent` directly, so **it could only ever have caught a
+  quantifier sitting mid-element** — which the shipped defect happened to be. That closure was
+  true but narrower than it read; both files are on `renderedText()` now, with a positive
+  control that *demonstrates* the blind spot rather than asserting it away.
+  ⚠ **Bounded sweep, so this is not read as an unswept class:** only patterns anchored on `\b`
+  or `^` can be defeated by concatenation. Across `src/` and `e2e/`, the other four
+  regex-absence assertions over `.textContent` (`previa-link` ×1, `verification-result` ×3) are
+  unanchored substring alternations and are **not** vulnerable. The two fixed here were the only
+  ones.
+- **Four docblocks were still asserting a detector that no longer exists** — `messages.ts`,
+  `dsr-meeting-dispose-dialog.tsx`, `dsr-task-inbox.tsx` and `referral-dispose-dialog.tsx` each
+  told the next author the over-claim "is verified by a grep over `src/`" and reimposed the
+  prohibition dissolved when that grep was retired. ⛔ The 2026-08-20 dissolution had landed in
+  **one** of five sites — the test file — because the fix was enumerated by *"where was the
+  string quoted"* (4 sites) rather than by *"where is the claim made"* (5). All four corrected
+  and pointed at `.claude/rules/ui-copy-forbidden-strings.md`.
+- **Coverage:** 12 mutations — 11 that must red do (bespoke over-claim on each of the four
+  surfaces incl. the referral dialog; an over-claim at an element EDGE; the warning no longer
+  rendered; the subtraction set emptied; `reassuranceText` neutered; a residue line dropped; the
+  `SURFACES` roster emptied), and M6 must stay green and does. Rollback was proven before the
+  battery ran and re-verified byte-identical after every mutation; baseline and final both 36/36.
+  Full unit suite **1501 passed**, eight lint gates + typecheck green.
+- ⚠ **NOT covered, stated plainly:** the attestation lane is deliberately out of the roster —
+  `DSR_ATTEST_PROCEDURE_COMMON`'s last line quantifies universally in a PROHIBITION frame
+  addressed to the reviewer, which is required copy. And `outcomeBasis` /
+  `legalConsultationRef` are operator free text, not platform copy; the fixtures hold them null
+  on purpose, because asserting a copy property over what a DPO typed would red on their words.
+
+## Rotated from PROGRESS.md 2026-08-20 — RULED OUT OF SCOPE by ADR 0131 (2 items)
+
+⛔ **These closed by RULING, not by remediation. The residue they name is REAL, MEASURED and
+ACCEPTED** — PHI erasure reaches designated PHI fields only; free text that *may* hold PHI is
+out of pilot scope, with **training** as the compensating control (ADR
+[0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md)). A reader who
+finds these here must not read them as "investigated, nothing found": the census
+([door-erasure-freetext-census.md](./door-erasure-freetext-census.md)) is retained precisely
+so what is knowingly retained stays legible.
+
+⚠ **One question this ruling does not obviously settle**, preserved so a close cannot bury it:
+the `ethics_*` lane exposed **two** data subjects. The patient half is descoped by ADR 0131.
+The other is the **accused professional** — **Class-2 professional identity** under Rule 12, a
+different data class from patient PHI, for which ADR 0130's workflow can return `granted` with
+**no door to call**. ADR 0131 is written about PHI; whether it also rules on Class-2 erasure is
+the PO's to confirm.
+
+Index lines as they stood, verbatim (links repointed for this directory):
+
+- 🔴 **FUP-ETHICS-LANE-NO-ERASURE-DOOR** — **`ethics_` appears ZERO times in all four disposal doors**; 7 tables / 12 free-text `*_md` columns, every one a **composition** child of `cases` (`case_id NOT NULL` + CASCADE). Split from the census item 2026-08-20 (PO) because it is not a missed column — it is **a module with no erasure path at all**. ⛔ **Two data subjects, not one:** patient PHI on an ethics case (no CHECK gates these tables by case type — measured 0 — so nothing separates the lanes), and ⭐ **the accused professional, who is themselves a DSR data subject** — ADR 0130 can adjudicate `granted` and the platform has **no door to call**. PO ruling: widen `dispose_case_phi`, or rule out-of-scope with a basis **and disclose it in `DSR_RESIDUE_NOTICE`**. ⛔ Not by default because it is cheaper — Slice 4 ruled the opposite way on the same question. Verified by direct `prosrc` match, not by the census instrument — backend/PO
+- 🟠 **FUP-DOOR-ERASURE-FREETEXT-CENSUS** — ⭕ **MEASUREMENT HALF DONE 2026-08-20; the ruling half is OPEN.** All three remaining doors censused → [door-erasure-freetext-census.md](../progress/door-erasure-freetext-census.md). ⛔ **`DSR_RESIDUE_NOTICE` line 1 is NOT true for `dispose_case_phi`**: the door erases `case_narratives.body_md` and leaves **`case_narrative_revisions.body_md`** — every prior revision of the same prose — and **no door names any `ethics_*` table** (both verified against `prosrc` directly, not via the instrument). ⭐ The prescribed method missed the lane holding the filed defect: `capa_plan.source_event_id` is NULLABLE, so composition closure never reaches capa. **5 instrument defects, 3 under-reporting**; 6-anchor control battery. ⚠ Counts are candidates, not defects — the PO-ruled-**complete** meeting door still scores 16. Next: PO ruling per column, then the empirical sentinel differential (static census cannot see a `where` that matches nothing) — backend/PO
+
+## Index lines rotated from PROGRESS.md 2026-08-21 — the DSR remediation round
+
+- 🟠 **FUP-DISPOSE-EVENT-DOOR-GATE-BLIND** — ✅ **RESOLVED 2026-08-21.** `dispose_event_phi`'s authorization gate was exercised by **no keystone**: opened alone, the full suite still PASSED. Suite `352_dispose_event_door_gate.sql` (6 tests) was written on 2026-08-19 but ⛔ **the item did not close on the file existing** — it closed when `352` **ran inside the full suite on a fresh reset** and was **re-neutralized in that context** (opening the gate reds 2/6). ⭐ *A keystone that has never run in the suite it protects is a file, not a control.*
+- 🟠 **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** — ✅ **RESOLVED 2026-08-21.** PHI leaves by **two** substrates and only one had a procedure. Now: [`phi-column-disposal-procedure.md`](../deployment/phi-column-disposal-procedure.md) covers the four column-erasing doors (which door, which audit action, what a verifier reads after, and ⛔ **count rows — a stamp is not an erasure**), and [`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md) now names its own substrate in its banner so a green run of it can no longer read as covering column PHI.
+- 🟡 **FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING** — ✅ **RESOLVED 2026-08-21 by ruling.** PO ruled `DSR_RESIDUE_NOTICE` line 1 **stays as written** on the training premise. ⛔ The item's real requirement was never the copy — it was that the premise be recorded **where the pilot decision is made**; that is now [dm5-po-decisions.md](dm5-po-decisions.md) § *Remaining pre-pilot work* item 2, with the corridor's measured bounds beside it (for a `distributed`/`cancelled` meeting's non-erased columns there is **no removal path by any door**). ⚠ The notice is therefore **conditionally** true — not falsified, premise newly explicit.

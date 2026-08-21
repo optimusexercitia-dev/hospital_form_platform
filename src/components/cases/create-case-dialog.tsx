@@ -262,9 +262,11 @@ export function CreateCaseDialog({
     );
   }
 
-  const labelField = useFieldIds("label", { hasDescription: true });
+  const labelField = useFieldIds("label", {
+    nameRequiredFor: "formData", hasDescription: true });
   // `controlProps` supplies both `id` and the form `name` the action reads.
-  const caseTypeField = useFieldIds("caseTypeId", { hasDescription: true });
+  const caseTypeField = useFieldIds("caseTypeId", {
+    nameRequiredFor: "formData", hasDescription: true });
   const disabled = !processlessEnabled && templates.length === 0;
 
   // Whether step 1's primary can submit/advance. With the outcome toggle on, ≥1

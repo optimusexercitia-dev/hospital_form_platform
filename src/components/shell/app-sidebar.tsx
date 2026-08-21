@@ -38,6 +38,7 @@ import type { SessionGrant } from "@/lib/queries/session-grants";
 import { cn } from "@/lib/utils";
 import { nspHref, orgHref, qualidadeHref } from "@/lib/routing";
 import { CommissionSwitcher } from "./commission-switcher";
+import { DsrConsoleNavGroup } from "./dsr-console-link";
 import { UserMenu } from "./user-menu";
 
 /** Live counts shown as nav badges (0 = hidden). */
@@ -392,6 +393,7 @@ export function AppSidebar({
   isNspCoordinator = false,
   isPqsMember = false,
   isQualityReviewer = false,
+  reachesDsr = false,
   navScope = "member",
   activeRole = null,
   grants = [],
@@ -482,6 +484,20 @@ export function AppSidebar({
    * (who lands on their commission, not the console) still has a way in.
    */
   isQualityReviewer?: boolean;
+  /**
+   * ADR 0130 — the caller reaches the DSR ("Direitos do Titular") console for this
+   * org: they hold the Encarregado office at a hospital here, OR a subject-request
+   * task is routed to a scope they wear a hat in. Resolved server-side from
+   * `list_my_dsr_hospitals()`, which is built from the SAME predicates the console
+   * layout and the RLS policies use — so this link can never appear for someone the
+   * console would 404, and never when the `dsr` flag is off.
+   *
+   * ⚠ Honoured in BOTH nav scopes, unlike `isNspCoordinator`/`isQualityReviewer`
+   * beside it — a bare tenancy admin is an executor hat (`can_execute_dsr_task`),
+   * so the caller must pass this on the `navScope: "configuration"` mount too.
+   * Rationale in full at the render site and in {@link DsrConsoleNavGroup}.
+   */
+  reachesDsr?: boolean;
   /**
    * Which slice of the nav this principal gets (ADR 0100 D12 / BUG-QOB-003).
    * Defaults to `"member"` — today's behaviour. See {@link SidebarNavScope}.
@@ -838,6 +854,30 @@ export function AppSidebar({
               </div>
             );
           })()}
+
+          {/* DSR console — "Direitos do Titular" (LGPD Art. 18, ADR 0130).
+              Shown to whoever the DSR console actually admits: the Encarregado
+              (DPO) of a hospital in this org, OR anyone holding a routed task.
+              Both land on their commission, so this is their ONLY route in — the
+              same dual-hat problem the two blocks above solve, and the reason
+              this link is not optional: a console nothing links to is a door
+              nothing can reach. Org-level href; `reachesDsr` comes from
+              `list_my_dsr_hospitals()`, the same predicate the layout gates on.
+
+              ⛔ NOT gated on `showsMemberItems`, and that is a DELIBERATE
+              divergence from the two blocks above rather than an oversight.
+              Those consoles gate on standings a tenancy admin does not hold, so
+              hiding them in configuration scope costs nobody anything. The DSR
+              console does not: `app.can_execute_dsr_task` accepts
+              `is_tenancy_admin_of_for(commission)` as a first-class executor arm
+              (measured from the live catalog, 2026-08-20), so a bare tenancy
+              admin can hold a routed task here — and hiding the link would leave
+              that principal typing the URL. The `configuration` allowlist is
+              untouched: this is a bespoke block, not a `NavItem`, so
+              `NAV_GROUPS`' fail-closed opt-in is not weakened by it. */}
+          {reachesDsr ? (
+            <DsrConsoleNavGroup org={org} onNavigate={closeDrawer} />
+          ) : null}
 
           {/* Per-user document-approval queue — shown to any member when the
               controlled-documents feature is on, since an approver may be named

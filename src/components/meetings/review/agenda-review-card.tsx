@@ -6,6 +6,7 @@ import type { MinutesDraftAgendaItem, MinutesDraftLooseResolution } from "@/lib/
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import { cn } from "@/lib/utils";
 import { formatAttachResolutionLabel, MINUTES_UI } from "../minutes-labels";
 
@@ -59,15 +60,22 @@ export function AgendaReviewCard({
             {isNew ? MINUTES_UI.agendaNewTag : MINUTES_UI.agendaMatchedTag}
           </span>
           {isNew ? (
-            <input
-              type="text"
-              value={item.title}
-              onChange={(e) => onChange({ ...item, title: e.target.value })}
-              disabled={!item.include}
-              placeholder={MINUTES_UI.agendaNewTitlePlaceholder}
-              className={FIELD_CLASS}
-              aria-label="Título do item de pauta"
-            />
+            // Only the NEW-item branch is a title-AUTHORING control; the matched
+            // branch renders an existing title as text and has nothing to warn about.
+            <PhiInputHint>
+              {(hintId) => (
+                <input
+                  type="text"
+                  value={item.title}
+                  onChange={(e) => onChange({ ...item, title: e.target.value })}
+                  disabled={!item.include}
+                  placeholder={MINUTES_UI.agendaNewTitlePlaceholder}
+                  className={FIELD_CLASS}
+                  aria-label="Título do item de pauta"
+                  aria-describedby={hintId}
+                />
+              )}
+            </PhiInputHint>
           ) : (
             <p className="text-sm font-medium text-foreground">{item.title}</p>
           )}

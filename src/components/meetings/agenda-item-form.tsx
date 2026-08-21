@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 
 const FIELD_CLASS =
   "w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -111,23 +112,28 @@ export function AgendaItemForm({
             <FormBanner tone="error">{state.error}</FormBanner>
           )}
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Título</span>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className={FIELD_CLASS}
-              placeholder="Ex.: Aprovação da ata anterior"
-              aria-invalid={state?.fieldErrors?.title ? true : undefined}
-            />
-            {state?.fieldErrors?.title && (
-              <span role="alert" className="text-sm font-medium text-destructive">
-                {state.fieldErrors.title}
-              </span>
+          <PhiInputHint>
+            {(hintId) => (
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">Título</span>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                  className={FIELD_CLASS}
+                  placeholder="Ex.: Aprovação da ata anterior"
+                  aria-invalid={state?.fieldErrors?.title ? true : undefined}
+                  aria-describedby={hintId}
+                />
+                {state?.fieldErrors?.title && (
+                  <span role="alert" className="text-sm font-medium text-destructive">
+                    {state.fieldErrors.title}
+                  </span>
+                )}
+              </label>
             )}
-          </label>
+          </PhiInputHint>
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">

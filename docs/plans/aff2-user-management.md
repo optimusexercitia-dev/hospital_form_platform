@@ -1,12 +1,14 @@
 # AFF2 — implementation plan: affiliation-scoped administration + user-management redesign
 
-**Authority:** ADR [0129](../decisions/0129-aff2-affiliation-scoped-administration-um-redesign.md)
-(all decisions PO-approved 2026-08-20). Design reference:
+**Authority:** ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md)
+(all decisions PO-approved 2026-08-20; **renumbered from 0129** at the 2026-08-21
+reconciliation — main's DSR track had taken 0129). Design reference:
 `docs/design/temp/user_management_redesign/` (README + `Gestão de Usuários.dc.html`;
 option **1a** directory + profile, **1b** wizard; the HTML is a reference, never shipped).
-**Start condition:** after the PO's merge call on `feat/previa-split-adr-0125-0126`
-(no file overlap, but one unmerged feature branch at a time — the "claimed unmerged
-for 5 days" lesson).
+**Start condition:** ✅ the prévia merge call is SATISFIED (`9ed197d5` merged + pushed;
+the "one unmerged feature branch at a time" slot is now held by
+`chore/small-optimizations` itself). What remains: the PO's merge call on this branch
++ an explicit build go.
 
 **Shape:** one gated workstream, three tracks (backend `backend`, frontend `frontend`,
 tester `tester`), standard §6 phase gate, then `qa`. Contract-first: B1–B3 land before
@@ -16,7 +18,7 @@ F starts screens that need the new data; F1 can start immediately against existi
 
 ## Track B — backend
 
-### B1 · Migration: `profiles.date_of_birth` + `profiles.phone` (ADR 0129 D9–D10)
+### B1 · Migration: `profiles.date_of_birth` + `profiles.phone` (ADR 0133 D9–D10)
 
 - `date_of_birth date null`, `phone text null` (phone stored as digits-only or
   lightly-normalized string; display formatting is frontend). Column comments state
@@ -144,7 +146,7 @@ accent, member muted, dashed "Sem comissão" — never an empty cell) · Registr
 Handoff §Screen 2: back link; identity band (avatar 54px, name + status badge,
 "email · categoria", credential chip + "✓ verificado", "Na organização desde",
 lifecycle actions); two-column grid (main + 320px rail, stacking < lg).
-- **Authority-aware rendering (ADR 0129 D1–D3):** lifecycle buttons and the
+- **Authority-aware rendering (ADR 0133 D1–D3):** lifecycle buttons and the
   Dados pessoais / Registros "Editar" affordances render when the caller is
   org_admin **or** a scoped hospital_admin — the server component computes this
   with the same footprint inputs the action uses (compute server-side and pass a
@@ -164,7 +166,7 @@ lifecycle actions); two-column grid (main + 320px rail, stacking < lg).
 
 ### F3 · Register wizard (`usuarios/novo/page.tsx`, restructure `register-person-flow.tsx`)
 
-Handoff §Screen 3 + ADR 0129 D6–D8: centered 620px column; stepper
+Handoff §Screen 3 + ADR 0133 D6–D8: centered 620px column; stepper
 (Identificação → Vínculo hospitalar → Comissões) reusing/extending
 `src/components/ui/stepper.tsx`; one submit at the end via `registerUser`.
 - **Step 1, identifier-first (D7):** CPF field leads (existing `CpfField` +
@@ -223,13 +225,39 @@ Playwright, chromium-first, personas from `supabase/seed.sql`:
    vacuously; `ARM=census` is what catches it).
 2. Tester green loop → full `npm run e2e:prod` once to declare.
 3. QA review (`docs/reviews/aff2-review.md`) — explicitly: the six-arm matrix vs ADR
-   0129 D1–D3, the column-grant absence for the new profiles columns, the B2 DENY
+   0133 D1–D3, the column-grant absence for the new profiles columns, the B2 DENY
    arms, and a caller-level read of each rewired action (the prévia lesson: *a
    keystone proves the door, a second caller proves nothing about the real one* —
    verify the actual UI paths reach the widened actions).
 4. Human approval. 5. Record: PROGRESS.md rotation per the contract, ledger row,
-   `docs/backend-state.md` (B2/B3 surface changes), ADR 0129 status → note build
+   `docs/backend-state.md` (B2/B3 surface changes), ADR 0133 status → note build
    completion; name the ARMs run, never the script.
+
+## Reconciliation deltas (2026-08-21 — main moved 42 commits after this plan was written)
+
+Verified against post-DSR main; the plan's premises otherwise hold (`src/lib/users/` and
+`src/lib/queries/org-users.ts` have **zero drift** since the plan's base; the ~773 anchor
+and the six `authorizeOrgAdminForUser` call sites are still accurate).
+
+- **ADR renumbered 0129 → 0133** — main's DSR track took 0129
+  (`0129-meeting-child-lock-disposal-flag`). All references here updated.
+- **The `e2e:prod` declare-green baseline is RED**, not green: BUG-QO-STALE-CASOS
+  (2 `quality-oversight` failures) — and ⛔ "exactly 2 pre-existing" was a **floor,
+  not a count** (`mode: 'serial'` files abort after a failure and swallow the tail).
+  Gate step 2 must use the "mine or pre-existing?" discipline: `git stash -u`, clear
+  `.next`, rebuild, re-run the spec alone.
+- **New UM form inputs follow the inverted `useFieldIds` default** (PO 2026-08-20,
+  FUP-FORM-IDENTIFIER-IN-URL): the hook omits `name`; FormData/radio/autofill callers
+  opt in. The wizard must never let CPF reach a URL — `cpf-field` carries the fixed,
+  control-proven behavior; reuse it, never re-derive it.
+- **AFF2 migrations number after the remote head `20261003000300`** (remote is CURRENT
+  as of 2026-08-21, 435 applied — re-measure, never re-read, before B1).
+- **DSR shipped beside this work**: the manage shell now wires the "Direitos do
+  Titular" console entry (`listMyDsrHospitals` in `src/app/o/[org]/manage/layout.tsx`);
+  F-track rebuilds the `usuarios` pages only and must not regress the layout. DSR's
+  subject-request lane is **patient-keyed only** (`dsr_requests.patient_key` via
+  `patient_xref`) — it neither covers nor conflicts with the new `profiles` columns
+  (see the open LGPD question in the ADR discussion at reconciliation).
 
 ## Risks & open items
 

@@ -3012,3 +3012,26 @@ begin
     (v_farmb, 'Reunião de Farmácia B — antiga', 'presencial',
      now() - interval '30 days', 'held', 'commission_default', now() - interval '30 days', v_farmb_sa);
 end $ch$;
+
+-- ---------------------------------------------------------------------------
+-- DSR / "Direitos do Titular" (ADR 0130, Slice 2). Created OFF in
+-- 20261001000000_dsr_dpo_capability; forced ON here for local/E2E so
+-- create_dsr_request, complete_dsr_task, close_dsr_request, app.is_dpo_of and
+-- the /o/[org]/titulares surface are all reachable under test. Production flip
+-- is its own gate migration.
+-- NOTE for pgTAP authors: every DSR door raises HCDS1 and every DSR predicate
+-- returns false when this flag is OFF, so a fixture that forgets it makes each
+-- flag-guarded keystone SKIP while reporting green (the pgtap-fixture-flag-gaps
+-- scar). 349_dsr_request_workflow.sql asserts the flag is ON before it asserts
+-- anything else.
+update app.feature_flags set enabled = true where key = 'dsr';
+
+-- The seeded Encarregado (DPO) of Hospital Central A.
+-- ⚠ staff1.ccih is deliberately a PLAIN `staff` member: it makes ADR 0130
+-- Decision 2's power split visible in the fixture — this persona can open and
+-- close a subject request and can execute NONE of the four disposal doors. A
+-- persona who happened to hold both would let an over-grant pass unnoticed.
+insert into public.hospital_dpos (hospital_id, user_id)
+select '05000000-0000-0000-0000-00000000000a'::uuid, p.id
+from public.profiles p
+where p.email = 'staff1.ccih@test.local';

@@ -5,6 +5,8 @@ import { getRawGrants, getSessionContext } from "@/lib/queries/session";
 import { orgHref } from "@/lib/routing";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { isNspOrgAdmin } from "@/lib/pqs/org-admin";
+import { listMyDsrHospitals } from "@/lib/queries/dsr";
+import { DsrConsoleHeaderLink } from "@/components/shell/dsr-console-link";
 import { UserMenu } from "@/components/shell/user-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OrgNspAdminNav } from "@/components/shell/org-nsp-admin-nav";
@@ -52,10 +54,18 @@ export default async function OrgNspAdminLayout({
 
   // Defense in depth: confirm via the DEFINER probe + require the feature flag.
   // `grants` feeds ACT's `UserMenu` "Trocar papel" switch (hat-blind, D9).
-  const [confirmed, patientSafetyOn, grants] = await Promise.all([
+  //
+  // ADR 0130 — `listMyDsrHospitals()` drives the "Direitos do Titular" entry.
+  // `nsp_org_admin` is NOT itself a DSR executor hat, but `src/app/page.tsx` routes it
+  // here AHEAD of the commission branches, so an nsp_org_admin who ALSO holds a
+  // qualifying hat (PQS operator or tenancy admin) lands in this shell and would
+  // otherwise have no route into a console that routes work to them. Resolved from the
+  // same predicate the console gates on; `'[]'` when the `dsr` flag is off.
+  const [confirmed, patientSafetyOn, grants, dsrHospitals] = await Promise.all([
     isNspOrgAdmin(organization.id),
     patientSafetyEnabled(),
     getRawGrants(),
+    listMyDsrHospitals(),
   ]);
   if (!confirmed || !patientSafetyOn) {
     notFound();
@@ -87,6 +97,9 @@ export default async function OrgNspAdminLayout({
             NSP · organização
           </span>
           <OrgNspAdminNav org={organization.slug} />
+          {dsrHospitals.some((h) => h.orgId === organization.id) ? (
+            <DsrConsoleHeaderLink org={organization.slug} />
+          ) : null}
           <div className="ml-auto flex items-center gap-3">
             <NotificationBell />
             <UserMenu

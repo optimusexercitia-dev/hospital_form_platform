@@ -39,10 +39,12 @@ export function PasswordSetForm({ submitLabel }: { submitLabel: string }) {
   const mismatch = confirm.length > 0 && confirm !== password;
 
   const passwordField = useFieldIds("password", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.password),
     hasDescription: true,
   });
   const confirmField = useFieldIds("confirmPassword", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.confirmPassword) || mismatch,
   });
 

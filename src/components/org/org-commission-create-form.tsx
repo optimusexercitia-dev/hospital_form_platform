@@ -57,13 +57,16 @@ export function OrgCommissionCreateForm({
   const [slugTouched, setSlugTouched] = useState(false);
 
   const hospitalField = useFieldIds("hospitalId", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.hospitalId),
     hasDescription: hospitals.length === 0,
   });
   const nameField = useFieldIds("name", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.name),
   });
   const slugField = useFieldIds("slug", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.slug),
     hasDescription: true,
   });

@@ -604,15 +604,26 @@ may extend the schema but never contradict it. Cross-references elsewhere to
         regress is the *door's* audit, pinned by pgTAP `207` K4 ("exactly one
         `professional_profile.read` audit row for the entitled reader"). Widening the
         audited surface would mean reversing D4 — a decision, not a fix.
-        **Erasure posture (settled in ETH·E1, ADR 0072 §7; PO-signed 2026-07-14):**
+        **Erasure posture (settled in ETH·E1, ADR 0072 §7; PO-signed 2026-07-14 —
+        ⚠ BASIS SUPERSEDED + TWO CLAIMS CORRECTED 2026-08-21, ADR 0132):**
         professional-identity erasure is **retention-pinned** when the profile is a
-        respondent in a **decided** case (CFM-1821/2007, 20-yr floor);
-        **correction is always available** (`update_professional_profile`, audited);
-        **minimise-not-destroy redaction — not row deletion — is the erasure shape**,
-        designed with the decision model (E2). Accordingly there is **no `dispose_*`
-        / erasure path** on `professional_profiles` (E1 ships none by design — this
-        mirrors ADR 0035's PHI reconciliation rather than inventing a second,
-        conflicting erasure philosophy for the professional class).
+        respondent in a **decided** case; **correction is always available**
+        (`update_professional_profile`, audited); **minimise-not-destroy redaction —
+        not row deletion — is the erasure shape**, built with the decision model (E2).
+        - ⛔ **The basis is NOT CFM-1821/2007.** Counsel held 2026-08-19 that it does
+          not attach to committee documentation and must never be cited directly (ADR
+          0035 Amdt 1). The basis is that an ethics proceeding is an **administrative
+          process with possible legal consequences** — ADR 0132, which rules that such
+          a record carries **no erasure entitlement at any stage**.
+        - ⛔ **A redaction door DOES exist — this bullet asserted the opposite until
+          2026-08-21.** `redact_professional_profile` is `SECURITY DEFINER`,
+          `EXECUTE`-granted to `authenticated`, and reachable over PostgREST. E1
+          shipped none; **E2 built it**. *Verify against the catalog, never this
+          sentence.*
+        - ⚠ **Its retention bar fires one lifecycle stage too late** for ADR 0132's
+          rationale: the pin lands only on the transition into an `issued` decision,
+          so a respondent in an **undecided** case is redactable by any commission
+          `staff_admin` in the org. Measured, PO-ruled **record-only**, open.
       - **Attachments layer** (lands in **F2** / ADR 0063): two orthogonal columns
         on `attachments` — `sensitivity_tier ∈ {phi, standard}` is the *physical*
         PHI segregation (picks the bucket); `confidentiality_label` is the

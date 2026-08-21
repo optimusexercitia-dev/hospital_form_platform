@@ -932,12 +932,23 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
     await page.goto(REF_DETAIL_URL)
 
     // The referral detail IS reachable (chefe.ccih is the source-commission coordinator),
-    // so the subject renders — but the LGPD-erasure control is absent (canDisposeReferralPhi
-    // = false for a plain staff_admin who is not a commission-admin/operator).
+    // so the subject renders.
     await expect(page.getByText(REF_XHOSP_SUBJECT).first()).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: /apagar dados do paciente/i }),
-    ).toHaveCount(0)
+
+    // ⛔ DSR OPERATIONAL REMEDIATION (2026-08-21): `ReferralDisposeDialog` and its
+    // trigger button were REMOVED from this page entirely (commit `13610c0d`,
+    // PO-ruled — no hat can both reach this route and pass `canDisposeReferralPhi`;
+    // the DSR task inbox is the working path). The `.toHaveCount(0)` pin that used
+    // to sit here asserted a PERMISSION-SPECIFIC absence (this persona's gate
+    // correctly hides the control others might see) and is now VACUOUS BY
+    // CONSTRUCTION: no code path renders this button for ANY persona any more, so
+    // the assertion can never fail again regardless of what breaks — the same
+    // class T2 of this round names. There is no specimen to construct here (unlike
+    // T2's `notify_scrub_check` row, the rendering branch itself no longer exists
+    // in the codebase to exercise), so the pin is removed rather than re-pointed.
+    // Closes `BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE` — see that bug's row in
+    // PROGRESS.md for what it closes ON (the component's removal, not achieved
+    // coverage) and the residual gap it records.
 
     // Sanity: the PHI reveal affordance (a normal reader action) is unaffected.
     await expect(
@@ -966,9 +977,10 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
     const res = await page.goto(REF_DETAIL_URL)
     expect(res?.status()).toBe(200)
     await expect(page.getByText(REF_XHOSP_SUBJECT).first()).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: /apagar dados do paciente/i }),
-    ).toHaveCount(0)
+    // ⛔ The dispose control's `.toHaveCount(0)` pin that used to sit here is
+    // REMOVED — the component is gone for every persona, not merely this one
+    // (see the first test's docblock in this file for the full rationale;
+    // `BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`).
 
     // pqs_member hat: the operator arm is active but the commission-scoped
     // route itself is gone (no membership arm admits her) — the union journey
@@ -1036,9 +1048,14 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
     expect(afterBody).not.toContain(REF_XHOSP_SUBJECT)
     expect(afterBody).not.toContain(MRN_REF_XHOSP)
     expect(afterBody).not.toContain(PATIENT_NAME_REF_XHOSP)
-    await expect(
-      page.getByRole('button', { name: /apagar dados do paciente/i }),
-    ).toHaveCount(0)
+    // ⛔ The post-disposal dispose-control `.toHaveCount(0)` pin that used to sit
+    // here is REMOVED (component gone for every persona — see the first test's
+    // docblock in this file; `BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`). This test's
+    // own mutation still stands as the only browser-adjacent proof of
+    // `dispose_referral_phi`'s effect; it POSTs the RPC directly rather than
+    // through a UI trigger, because none exists any more — the DSR task inbox is
+    // the new pathway, and NO spec drives a `dispose_referral` task through it
+    // (recorded as the bug's residual, not silently closed over).
   })
 })
 

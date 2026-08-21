@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 
 const FIELD_CLASS =
@@ -155,20 +156,25 @@ export function AddAdHocNarrativeDialog({
             </label>
           )}
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">
-              Título{" "}
-              <span className="font-normal text-muted-foreground">
-                (opcional)
-              </span>
-            </span>
-            <input
-              name="title"
-              type="text"
-              className={FIELD_CLASS}
-              placeholder="Ex.: Resumo Clínico"
-            />
-          </label>
+          <PhiInputHint>
+            {(hintId) => (
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">
+                  Título{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (opcional)
+                  </span>
+                </span>
+                <input
+                  name="title"
+                  type="text"
+                  className={FIELD_CLASS}
+                  placeholder="Ex.: Resumo Clínico"
+                  aria-describedby={hintId}
+                />
+              </label>
+            )}
+          </PhiInputHint>
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">

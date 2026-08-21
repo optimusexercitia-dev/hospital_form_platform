@@ -60,6 +60,7 @@ export function SectionMetaDialog({
   }, [state, onOpenChange, router]);
 
   const titleField = useFieldIds("title", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.title),
   });
 

@@ -83,6 +83,27 @@ function FieldError({
  * optional. Omitted → the attribute is absent, so nothing changes for callers
  * that do not pass it.
  */
+/**
+ * Why a control genuinely needs a DOM `name`.
+ *
+ * ⛔ CLOSED UNION, AND DELIBERATELY NO `"other"`. A fourth reason must be added as
+ * a variant here, which forces the review. An escape hatch would simply collect
+ * the sites nobody could classify — which is exactly where the next leak hides.
+ *
+ * · `formData`   — a server action or a `new FormData(form)` read consumes this
+ *                  field by name. Without it the value never reaches the server.
+ * · `radioGroup` — `name` is what makes a set of radios ONE group; strip it and
+ *                  every radio becomes independently selectable, silently.
+ * · `autofill`   — password managers and browser autofill key off `name`
+ *                  (credentials, e-mail). Stripping it degrades a real user aid.
+ *
+ * ⚠ Only `formData` is about submission. `radioGroup` and `autofill` are not —
+ * which is why this option is NOT called `submitsVia`: that name would be false
+ * for two of its own three values, and a parameter whose name lies about its
+ * content is a debt this codebase has already paid for once.
+ */
+type NameRequiredFor = "formData" | "radioGroup" | "autofill";
+
 function useFieldIds(
   name: string,
   options: {
@@ -98,6 +119,24 @@ function useFieldIds(
      * Prefer omitting it: a generated id cannot collide.
      */
     id?: string;
+    /**
+     * Declare that this control genuinely needs a DOM `name`, and say WHY.
+     *
+     * ⛔ OMITTED = NO `name` IS EMITTED. That is the safe default, and it is the
+     * default precisely because the opposite shipped a measured MRN and CPF into
+     * URLs (see the `name:` line below).
+     *
+     * ⛔ Do NOT set this because a control's FILE contains a server action. The
+     * question is whether THIS control's value is read by name. When the 30 real
+     * sites were identified, a file-level heuristic would have wrongly opted in
+     * **10 more** — `add-participant-dialog`'s nine controlled fields (its action
+     * never reads them) and `add-member-picker`'s search box (a client-side
+     * filter; the action reads hidden inputs). A needless `name` is silent and,
+     * once annotated, looks deliberate forever; a missing one is loud and fails
+     * the first time someone submits. When genuinely unsure, leave it off and
+     * exercise the form.
+     */
+    nameRequiredFor?: NameRequiredFor;
   } = {},
 ) {
   const { hasError = false, hasDescription = false, required = false } = options;
@@ -126,7 +165,32 @@ function useFieldIds(
       // The DOM id — unique per instance, and NOT the form key. `name` below is
       // the form key and never changes with it.
       id: controlId,
-      name,
+      // ⛔ `name` IS OPT-IN. A control gets one only when the caller DECLARED why
+      // it needs one. Do not "restore" the unconditional `name` — read this first.
+      //
+      // WHY (measured, 2026-08-20): a <form> whose JS has not hydrated yet still
+      // submits NATIVELY on Enter, and a native GET submit serialises every NAMED
+      // input into the query string — address bar, browser history, and every
+      // proxy/access log. `preventDefault()` cannot stop it: pre-hydration there is
+      // no handler to run. While this hook emitted `name` unconditionally, EVERY
+      // consumer inherited that exposure by default. A sweep of 8 surfaces found 4
+      // leaking, including an MRN and a CPF (Brazilian national ID):
+      //   /o/rede-a/nsp/pacientes?patient-mrn=…&patient-encounter=…
+      //   /o/rede-a/manage/usuarios/novo?cpf=…
+      // Nothing static caught any of it — tsc, all lint gates and 1447 unit tests
+      // were green over the live leak. Only a rendered-DOM check found it.
+      //
+      // The inversion makes the SAFE case free and the DANGEROUS case declared,
+      // reviewable and greppable. Measured blast radius at the flip: 133 spreads
+      // across 43 files, of which exactly 30 genuinely needed a name (verified
+      // against each server action's own `formData.get()` read set, not by
+      // guessing from the file's contents).
+      //
+      // ⚠ THIS IS NOT A LEAK DETECTOR. It only governs names this hook emits. A
+      // hand-written `name=` attribute, or a form nothing enumerated, is still
+      // exposed. Treat a green tree as "the declared opt-ins are honest", never as
+      // "the app has no leaks".
+      name: options.nameRequiredFor ? name : undefined,
       "aria-describedby": describedBy,
       "aria-invalid": hasError || undefined,
       "aria-required": required || undefined,

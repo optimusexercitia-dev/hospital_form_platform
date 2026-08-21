@@ -18,6 +18,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import {
   Dialog,
   DialogContent,
@@ -140,17 +141,22 @@ export function CapaActionForm({
             <FormBanner tone="error">{state.error}</FormBanner>
           )}
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Título da ação</span>
-            <Textarea
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              rows={2}
-              className="text-sm"
-              placeholder="Ex.: Implementar via clínica padronizada de escalonamento"
-            />
-          </label>
+          <PhiInputHint>
+            {(hintId) => (
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">Título da ação</span>
+                <Textarea
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                  rows={2}
+                  className="text-sm"
+                  placeholder="Ex.: Implementar via clínica padronizada de escalonamento"
+                  aria-describedby={hintId}
+                />
+              </label>
+            )}
+          </PhiInputHint>
 
           <fieldset className="flex flex-col gap-1.5 text-sm">
             <legend className="font-medium">Força da ação</legend>

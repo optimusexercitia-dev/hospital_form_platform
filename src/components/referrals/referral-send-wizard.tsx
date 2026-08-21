@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import { cn } from "@/lib/utils";
 import {
   EMPTY_REFERRAL_PATIENT_DRAFT,
@@ -644,22 +645,29 @@ export function ReferralSendWizard({
               </label>
             )}
 
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">Assunto</span>
-              <input
-                type="text"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                required
-                maxLength={200}
-                className={FIELD_CLASS}
-                placeholder="Resumo de uma linha (sem dados do paciente)"
-              />
-              <span className="text-xs text-muted-foreground">
-                Visível em listas e painéis — não inclua identificação do
-                paciente aqui.
-              </span>
-            </label>
+            {/* ⚠ This field was ALREADY warned, in bespoke copy, INSIDE the
+                <label> — which made the sentence part of the control's ACCESSIBLE
+                NAME ("Assunto Visível em listas e painéis — não inclua…"). Moved
+                out and onto `aria-describedby`, and onto the shared ADR 0131
+                constant so the fourteen annotated sites cannot drift apart. The
+                name is now plainly "Assunto". */}
+            <PhiInputHint>
+              {(hintId) => (
+                <label className="flex flex-col gap-1.5 text-sm">
+                  <span className="font-medium">Assunto</span>
+                  <input
+                    type="text"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    required
+                    maxLength={200}
+                    className={FIELD_CLASS}
+                    placeholder="Resumo de uma linha (sem dados do paciente)"
+                    aria-describedby={hintId}
+                  />
+                </label>
+              )}
+            </PhiInputHint>
 
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">

@@ -46,9 +46,11 @@ export function OrgHospitalCreateForm({
   const [slugTouched, setSlugTouched] = useState(false);
 
   const nameField = useFieldIds("name", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.name),
   });
   const slugField = useFieldIds("slug", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.slug),
     hasDescription: true,
   });

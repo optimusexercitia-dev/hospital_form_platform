@@ -1527,7 +1527,44 @@ export async function referralFlowMetrics(): Promise<ReferralFlowMetrics> {
  * org-admin / NSP-operator action. The platform_admin arm was REMOVED by ADR 0078 M2
  * (A35): it could destroy referral PHI it cannot read. Backed by the read-only DEFINER probe
  * `can_dispose_referral_phi(referral)` (reads/mutates NO PHI); safe-default `false`
- * (called at render time, never throws). */
+ * (called at render time, never throws).
+ *
+ * ⛔ **THIS HELPER HAS NO CALLER, BY DECISION — NOT BY OVERSIGHT. DO NOT DELETE IT,
+ * AND DO NOT "RESTORE" A CALLER.** Measured 2026-08-21: zero call sites in `src/`.
+ *
+ * The referral dispose dialog was REMOVED (PO ruling, 2026-08-21) because
+ * `BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE` turned out to be a **product** gap, not a
+ * missing test persona. Under ADR 0106 D5's strict single-hat model the two predicates
+ * a caller must satisfy simultaneously are **disjoint**:
+ * - reaching `/o/[org]/c/[commission]/encaminhamentos/[id]` requires
+ *   `activeRole ∈ {staff, staff_admin}` — `getSessionContext` filters grants to
+ *   `g.role === activeRole` **before** `partitionGrants`, and only those two roles
+ *   become a `memberships` row (the BUG-ACT-HATBLIND-001 P0 fix);
+ * - passing this probe requires
+ *   `activeRole ∈ {org_admin, hospital_admin, nsp_coordinator, pqs_member}` — every arm
+ *   of `can_dispose_referral_phi` bottoms out in `app.has_role`'s active-hat conjunct.
+ *
+ * ⛔ **So re-adding a caller on the theory that a persona is merely missing will not
+ * work — no hat satisfies both, in seed OR in production.** That was measured, not
+ * reasoned: `pqsdual.a@test.local` under the `pqs_member` hat returns TRUE from all four
+ * DB gates on ENC-0004 and the page still 404s, because `public.session_context()` is
+ * hat-blind **by design** (ADR 0106 D9) and that blindness deliberately stops at the TS
+ * boundary. Reversing this needs a decision — widening the dispose gate, carving the
+ * QO·B content wall, or moving the affordance to a surface those hats reach.
+ *
+ * **The live LGPD path is the DSR task inbox** (`/o/[org]/titulares`, ADR 0130), which
+ * routes a `dispose_referral` task to the people who already hold the door and does
+ * **NOT** go through this helper — it gates on `app.can_execute_dsr_task`. Losing this
+ * helper's caller cost the product no capability; it cost it one affordance nobody could
+ * reach.
+ *
+ * **Why it survives with no caller:** it is the TS mirror of the SQL probe
+ * `public.can_dispose_referral_phi`, which pgTAP `189` pins as an entitlement MATRIX
+ * (also exercised by `295` and `314`). Deleting the mirror for tidiness would read, six
+ * months on, as *"the capability was removed"* — and that exact misreading is what this
+ * round spent a measurement correcting. ⚠ eslint does not flag an unused **export**, so
+ * nothing reds either way: this paragraph is the only thing that can tell you it is
+ * deliberate. */
 export async function canDisposeReferralPhi(referralId: string): Promise<boolean> {
   if (!referralId) return false
   const supabase = await createClient()

@@ -17,6 +17,7 @@ import { meetingsEnabled } from "@/lib/meetings/actions";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { actionItemsEnabled } from "@/lib/queries/action-items";
 import { getMemberOverview } from "@/lib/queries/overview";
+import { listMyDsrHospitals } from "@/lib/queries/dsr";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import {
@@ -147,10 +148,19 @@ export default async function CommissionLayout({
   // later is invisible here until someone deliberately marks it — the direction
   // that fails closed. Sibling counts stay 0: every badge counts content.
   if (access.role === null) {
-    const [configIndicatorsOn, configAuditOn] = await Promise.all([
-      qualityIndicatorsEnabled(),
-      auditTrailEnabled(),
-    ]);
+    const [configIndicatorsOn, configAuditOn, configDsrHospitals] =
+      await Promise.all([
+        qualityIndicatorsEnabled(),
+        auditTrailEnabled(),
+        // ADR 0130 — a BARE TENANCY ADMIN is a first-class DSR executor:
+        // `app.can_execute_dsr_task` accepts `is_tenancy_admin_of_for(commission)`
+        // (measured from the live catalog, 2026-08-20). This branch passed no
+        // `reachesDsr` at all, so such a principal had NO link to the console from
+        // anywhere and had to type the URL. `listMyDsrHospitals` is `cache()`-wrapped
+        // and returns `'[]'` when the `dsr` flag is off, so this costs one RPC that
+        // dedupes with any sibling call and can never surface a link to a 404.
+        listMyDsrHospitals(),
+      ]);
     return (
       <div className="flex min-h-svh flex-col md:flex-row">
         <AppSidebar
@@ -167,6 +177,9 @@ export default async function CommissionLayout({
           counts={EMPTY_COUNTS}
           qualityIndicatorsEnabled={configIndicatorsOn}
           auditEnabled={configAuditOn}
+          reachesDsr={configDsrHospitals.some(
+            (h) => h.orgId === access.organization.id,
+          )}
           notificationBell={<NotificationBell />}
           activeRole={access.context.activeRole}
           grants={grants}
@@ -219,6 +232,7 @@ export default async function CommissionLayout({
     chartersOn,
     accreditationOn,
     nspAccess,
+    dsrHospitals,
   ] = await Promise.all([
     meetingsEnabled(),
     auditTrailEnabled(),
@@ -232,6 +246,7 @@ export default async function CommissionLayout({
     chartersEnabled(),
     accreditationEnabled(),
     getNspAccessByOrg(org),
+    listMyDsrHospitals(),
   ]);
 
   // "Meus itens de ação" surfaces items from the shared action_items hub across
@@ -346,6 +361,14 @@ export default async function CommissionLayout({
         // this is their only route into the console.
         isQualityReviewer={access.context.qualityReviewerOf.some(
           (q) => q.organization.id === access.organization.id,
+        )}
+        // ADR 0130 — same dual-hat problem: the Encarregado is a plain committee
+        // member by design, and an executor wears their disposal hat alongside a
+        // day job, so both land here and this sidebar entry is their only route
+        // into the DSR console. Filtered to THIS org; the console re-gates
+        // server-side on the same predicate.
+        reachesDsr={dsrHospitals.some(
+          (h) => h.orgId === access.organization.id,
         )}
         notificationBell={<NotificationBell />}
         activeRole={access.context.activeRole}

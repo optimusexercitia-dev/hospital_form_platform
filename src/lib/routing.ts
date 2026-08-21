@@ -79,6 +79,22 @@ export function nspHref(
 }
 
 /**
+ * The per-org DSR ("Direitos do Titular") console URL: `/o/{org}/titulares`
+ * plus any nested path segments. Backs the LGPD Art. 18 subject-request area
+ * (ADR 0130), behind the `dsr` flag, hospital-scoped internally via `?hospital=`
+ * exactly like the NSP console — hospital is never a URL segment (ADR 0041 D8).
+ *
+ * @example dsrHref('org-a')            // /o/org-a/titulares
+ */
+export function dsrHref(
+  org: string,
+  ...segments: Array<string | number>
+): string {
+  const base = `/o/${encodeURIComponent(org)}/titulares`
+  return buildPath(base, segments)
+}
+
+/**
  * The per-org quality-office console URL: `/o/{org}/qualidade` plus any nested
  * path segments. Backs the standalone Escritório da Qualidade area (the
  * cross-committee case board + the aggregate compliance dashboards), gated

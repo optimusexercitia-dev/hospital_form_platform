@@ -83,7 +83,7 @@ full-sweep findings file with partial results.
 
 **PROGRESS.md is live state only, and the contract is machine-enforced** —
 `npm run lint:progress` (`scripts/check-progress-doc.mjs`, gate 7 of `npm run lint`)
-reds on: the file over 60 KB, a `✅ complete` row in § Phase Status, a resolved line in
+reds on: the file over 80 KB, a `✅ complete` row in § Phase Status, a resolved line in
 the § Follow-ups index, a broken relative link, an OPEN `FUP-*` index line with no body
 in `follow-ups.md`, a missing required section, or CRLF. So the discipline below is not
 a memory exercise; the gate tells you when it has been skipped. At the Record step, move:

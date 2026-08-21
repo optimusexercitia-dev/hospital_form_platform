@@ -704,3 +704,113 @@ required** — verified, not assumed.
 | Date | Decision / run | Refs |
 | --- | --- | --- |
 | 2026-08-18 | **DM follow-up triage · LEAD** — the four shipped items (#2 byte proof · #4 DVF 1:1 · #8b draft-print delete guard · attachments deletion). Two fresh `supabase db reset --local` cycles; both new pgTAP arms authored **red-first** | **pgTAP 194 files / 6397 PASS** (6392 baseline **+2** `328` K17a/b **+3** `312` t74/75/76 — the parts sum) · **lint 5/5** · **typecheck 0** · **vitest 1305/1305** (+1) · authz **`census` / `hat` / `floor` / `FROMFINDINGS=1 wrapper` all INVARIANT HOLDS**. ⛔ **`e2e:prod` NOT RUN — this row is not a phase gate.** ⚠ One RED en route was a real defect in this batch's own migration, caught by pgTAP `320` U1 at **237→238** (PUBLIC-executable `SECURITY DEFINER`), **not** by review — `312` was fully green with the door open |
+
+## ↩ Rotated from PROGRESS.md 2026-08-20 (superseded by the DSR Slice 3 gate) — VERBATIM apart from the link repoint
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-20 | **DSR Slice 2 · LEAD** — 3 migrations, pgTAP `349` (53), E2E corridor (6), `/o/[org]/titulares`. Fresh reset; **16 gate neutralizations**, every restore hash-verified | **pgTAP 200f/6603** · **lint 8/8** · **tsc 0** · **vitest 1447** · 4 authz ARMs **HOLD** · door sweep **6 COVERED / 0 BLIND** · `e2e:prod` **1129p / 2f / 0 did-not-run**, 1134 of 1140 accounted — ⛔ **GATE RED**, both failures PRE-EXISTING (BUG-QO-STALE-CASOS, control-proven) |
+
+## DSR Slice 3 — declaring gate, 2026-08-20 (narrative for the PROGRESS.md row)
+
+**Tree HASH-VERIFIED unchanged throughout** — 48 source files hashed before the run and re-hashed after,
+because the *previous* declaring attempt was contaminated: the lead told all three teammates to write
+code while `e2e:prod` ran, so it built and served a tree that changed underneath it. That run was killed
+and discarded. ⛔ **A declaring gate must run against a frozen tree, and "frozen" has to be *measured*.**
+
+```
+db reset 0 · pgTAP 0 (6678/6678, Files=201) · lint(8) 0 · unit 0 (1448/1448) · tsc 0*
+e2e:prod  1153 passed · 3 failed · 4 flaky · 5 did-not-run · accounted 1165 of 1176
+batch-5 isolated re-run, same frozen tree: 68 passed · 0 failed · 0 did-not-run · 68/68 · exit 0
+```
+
+\* **`tsc` exited 2 on the first pass and it was the lead's ordering, not a defect.** `.next` was deleted
+immediately before it ran, and `RouteContext` is a Next-**generated** global living in `.next/types/`.
+Clean (exit 0) once a build had happened. ⚠ Worth knowing generally: `npm run typecheck` is **silently
+order-dependent on a prior build**, which CLAUDE.md §6 step 1 does not say.
+
+**The three failures resolve to two pre-existing, and none is DSR:**
+- `quality-oversight.spec.ts:569` / `:627` — **BUG-QO-STALE-CASOS**, pre-existing on `main`, already
+  control-proven by a `git stash -u` + clean-`.next` rebuild.
+- `ethics-e2-procedure.spec.ts:913` — **a worker process crash**, `code=3221226505` (`0xC0000409`,
+  stack buffer overrun), **not an assertion failure**. It and the 5 tests stranded behind the dead worker
+  all passed on the isolated re-run above.
+
+⭐ **The obvious hypothesis was tested, not waved off.** The `useFieldIds` `name` inversion touched every
+form in the app, and **8 ethics components spread `controlProps` with ZERO `nameRequiredFor`** — so an
+ethics regression was live until ruled out. Ruled out on evidence: `src/lib/ethics/actions.ts` reads
+**no `FormData` at all**, and `src/components/ethics/*.tsx` contains **zero** `action={}`, `onSubmit={}`
+or `useActionState`. Those components are state-driven with no form submission; `name` cannot reach them.
+
+⛔ **Two defects in the gate instrument itself**, filed as `FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER`:
+its census does not sum (11 tests in no bucket), and its INFRA classifier has no notion of a worker exit
+code, so a crash scores as a defect.
+
+## Rotated from PROGRESS.md 2026-08-20 — superseded by the DSR Slice 4 gate
+
+Verbatim, links repointed for this directory:
+
+> | 2026-08-20 | **DSR Slice 3 · LEAD — declaring gate, tree hash-verified unchanged** | pgTAP **6678/6678** · lint(8) · `tsc` · unit **1448** · `e2e:prod` **1153p/3f/5 unrun**. ⛔ 3f = **2 pre-existing** + **1 worker crash** `0xC0000409`; crash + its 5 stranded tests **passed on re-run, 68/68**. **No DSR spec failed.** → [archive](./test-run-archive.md) |
+
+⭐ **Method note carried out of the Slice 4 gate row** (`lint:progress` correctly refused it as
+rationale-in-a-row): all four gates were re-run by the lead with the **exit code captured
+directly**, because `npm run <gate> | tail -N` reports **`tail`'s** status, not the gate's. That
+masking produced a **false green** earlier the same day — `lint` was reported as passing while
+`lint:progress` was in fact RED on two over-long PROGRESS.md cells. A gate summary can hide a
+failed gate; capture `$?` from the gate itself, never from a pipeline.
+
+## 2026-08-21 — DSR operational remediation, the two gate rows' detail
+
+_Rotated out of PROGRESS.md § Test Run Summary at authoring time: both rows exceeded the
+`lint:progress` 300-char cell cap (741 and 345). ⛔ The cap is not cosmetic — a table cell carrying a
+paragraph is an archive entry that has not been written yet._
+
+### §6 step 2 — the full `npm run e2e:prod` (19 batches, prod-standalone, fresh server + fresh `db reset` per batch)
+
+**`1166 passed · 2 failed · 3 flaky · 11 skipped · did-not-run 0 · 1182 collected · gate exit 1`.**
+
+⛔ **RED, and red for exactly one pre-existing reason.** Both failures are
+`quality-oversight.spec.ts:569` and `:627` — `BUG-QO-STALE-CASOS`, the same two tests already on
+file, byte-for-byte. **No other spec failed.** Every DSR spec passed, including both new ones
+(batch 4 carried all of them: **57 passed / 0 failed / 0 did-not-run**).
+
+⭐ **`did-not-run` was 0 on all nineteen batches, and that — not the pass count — is the number that
+answers "was anything swallowed?"** Earlier the same day a single stale assertion inside a
+`mode: 'serial'` file aborted every test behind it, which is how a pre-existing failure sat
+undetected on `main` for a day. A pass total cannot see that; this field can.
+
+**The census sums exactly:** 1166 + 2 + 3 + **11 skipped** = 1182 collected. The gate nonetheless
+prints `COVERAGE: accounted for 1171 of 1182`, because `accounted` omits the skipped bucket — so
+`FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER`'s *"11 tests in no bucket"* were always **skips in a
+bucket the coverage line does not add up**. Arithmetic half resolved; the crash-classifier half
+stands.
+
+⚠ **Two instrument errors of the lead's, on this run, both in the reassuring direction:**
+1. The run was first reported as **exit 0**. It was **exit 1**, correctly — the 0 came from a
+   trailing `echo` in the invoking command, which always succeeds.
+2. The commit recording all this was made **while `lint:progress` was failing**, because the gate was
+   piped through `tail` in an `&&` chain — so the chain saw `tail`'s status, not the gate's. The
+   repo already carries *"never pipe `e2e:prod` through `tail`"* as a standing lesson; the pipe was
+   applied to a different gate and had the identical effect. ⛔ **A pipe erases the exit code of
+   everything left of it.**
+
+### §6 step 1 — verified by the lead, not taken from teammate reports
+
+> ⛔ **These figures were first written as 6789 / 205 / 434 and were ONE COMMIT STALE** — taken
+> before Part B added suite `355` (+6 tests, +1 file) and migration `20261003000300` (+1). Corrected
+> 2026-08-21 after QA re-review found the round's own gate record did not describe the commit that
+> fixed the round's own blocker. ⭐ **`backend-state`'s standing instruction — *re-derive, never
+> quote* — applied to a round's gate figures would have caught this**, and it is the same shape as
+> the blocker it failed to describe: a verified measurement whose only witness sat outside the
+> artifact it was about.
+
+pgTAP **6795/6795** Files=**206** (fresh reset) · lint(8) **0** · `tsc` **0** · vitest **1506/1506**
+(106 files) · **435/435** migrations registered · `ARM=census` / `hat` / `floor` /
+`FROMFINDINGS=1 wrapper` **all HOLD**.
+
+**Diff-scoped door sweep: case list EMPTY by the recipe's syntax filter** — the diff's function names
+are `create_dsr_request`, `dispose_case_phi`, `dispose_event_phi` and three `guard_*_child_lock`s,
+**none** matching `^(is_|can_|has_)`, and zero `create policy`. ⛔ **That empty list was not reported
+as coverage.** Swept by the **property** instead — each rewritten `public.*` door's gate neutralized
+against the full suite: `dispose_event_phi` **COVERED**, `dispose_case_phi` **COVERED**,
+`create_dsr_request` **COVERED**, **0 BLIND**.

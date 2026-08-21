@@ -30,6 +30,7 @@ export function ResetRequestForm() {
 
   const sent = state?.ok === true;
   const emailField = useFieldIds("email", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.email),
   });
 

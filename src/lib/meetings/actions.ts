@@ -463,6 +463,47 @@ export async function cancelMeeting(meetingId: string): Promise<ActionState> {
 }
 
 /**
+ * ⭐ LGPD erasure of the meeting minutes (ADR 0056 §2). Consequence (a)'s
+ * never-built affordance, discharged by the DSR workflow (ADR 0130).
+ *
+ * ⛔ THE ERASURE IS TOTAL FOR THIS MEETING. `dispose_meeting_minutes` nulls
+ * `minutes_md` and overwrites `description`, `discussion_notes` and `resolution`
+ * on EVERY agenda item — including items with no relation to the data subject.
+ * There is no partial disposal of an ata. Any UI calling this MUST show
+ * `DSR_MEETING_DISPOSAL_WARNING` first.
+ *
+ * ⚠ NO PRE-CHECK, DELIBERATELY. The door's gate is `app.is_staff_admin_of` OR
+ * `app.is_tenancy_admin_of` of the meeting's commission (measured), which is WIDER
+ * than this module's `authorizeCommission` helper. A pre-check would refuse a
+ * tenancy admin the door admits — a mirror that no gate keeps in sync, the exact
+ * shape ADR 0130 Amendment 2 item 2 rejected. The door answers, in pt-BR.
+ */
+export async function disposeMeetingMinutes(
+  meetingId: string,
+  reason:
+    | 'retention_expired'
+    | 'subject_request'
+    | 'entered_in_error'
+    | 'duplicate'
+    | 'other',
+): Promise<ActionState> {
+  if (!meetingId) return { ok: false, error: MEETING_MESSAGES.missingMeeting }
+  if (!(await meetingsEnabled())) {
+    return { ok: false, error: MEETING_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('dispose_meeting_minutes', {
+    p_meeting_id: meetingId,
+    p_reason: reason,
+  })
+  if (error) return { ok: false, error: mapMeetingError(error) }
+
+  revalidateMeetings()
+  return { ok: true, error: MEETING_MESSAGES.minutesDisposed }
+}
+
+/**
  * Persist the minutes narrative (`minutes_md`, sanitized Markdown — Architecture
  * Rule 7). Editable only while `scheduled`/`held`; rejected once locked.
  * staff_admin-only.

@@ -5,6 +5,8 @@ import { getNspAccessByOrg, getRawGrants } from "@/lib/queries/session";
 import { nspHref } from "@/lib/routing";
 import { referralsEnabled } from "@/lib/queries/referrals";
 import { patientIndexEnabled } from "@/lib/queries/patient-index";
+import { listMyDsrHospitals } from "@/lib/queries/dsr";
+import { DsrConsoleHeaderLink } from "@/components/shell/dsr-console-link";
 import { UserMenu } from "@/components/shell/user-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { NspConsoleNav } from "@/components/shell/nsp-console-nav";
@@ -53,10 +55,20 @@ export default async function NspConsoleLayout({
   // Feature flags gate the flag-dependent nav entries (Encaminhamentos /
   // Pacientes). PHI-free reads; fail-closed to `false`. `grants` feeds ACT's
   // `UserMenu` "Trocar papel" switch (hat-blind by design, D9).
-  const [referralsOn, patientIndexOn, grants] = await Promise.all([
+  //
+  // ADR 0130 — `listMyDsrHospitals()` drives the "Direitos do Titular" entry. A PQS
+  // operator (`pqs_member` / `nsp_coordinator`) is a first-class DSR EXECUTOR — the
+  // one arm `app.can_execute_dsr_task` accepts on BOTH of its branches,
+  // commission-scoped and hospital-scoped (measured from the live catalog,
+  // 2026-08-20) — and `src/app/page.tsx` lands them in THIS console. Nothing here
+  // linked to the DSR console before, so that principal had to type the URL. The RPC
+  // gates on `app.feature_enabled('dsr')` and returns `'[]'` when the flag is off, so
+  // the entry can never point at a route that would 404.
+  const [referralsOn, patientIndexOn, grants, dsrHospitals] = await Promise.all([
     referralsEnabled(),
     patientIndexEnabled(),
     getRawGrants(),
+    listMyDsrHospitals(),
   ]);
 
   return (
@@ -94,6 +106,9 @@ export default async function NspConsoleLayout({
             referralsEnabled={referralsOn}
             patientIndexEnabled={patientIndexOn}
           />
+          {dsrHospitals.some((h) => h.orgId === organization.id) ? (
+            <DsrConsoleHeaderLink org={organization.slug} />
+          ) : null}
           <div className="ml-auto flex items-center gap-3">
             <NotificationBell />
             <UserMenu

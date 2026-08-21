@@ -50,7 +50,19 @@ export function setControlledDocsFlag(enabled: boolean): void {
 import { cachedSignIn as signInAs } from './auth'
 export { signInAs }
 
-/** Service-role REST query (DB-truth assertions only — never mutates data under test). */
+/**
+ * Service-role REST query (DB-truth assertions only — never mutates data under test).
+ *
+ * ⛔ ASSERTS `resp.ok()` RATHER THAN RETURNING `[]` ON FAILURE
+ * (FUP-E2E-ABSENT-ROW-ASSERTIONS' second, matcher-independent mechanism). A
+ * helper that swallows a failed read turns "the request errored" into "the
+ * table is empty", and a downstream absence/emptiness assertion then passes for
+ * the wrong reason — the same class `e2e/helpers/service-role.ts`'s `svcSelect`
+ * is already guarded against. Every caller uses the service-role key for BOTH
+ * headers (never an RLS-scoped read as a real user), so a non-2xx response here
+ * is always a genuine error, never an access boundary's "denied" empty set —
+ * asserting `resp.ok()` cannot misclassify a real security-boundary result.
+ */
 export async function serviceQuery<T>(page: Page, path: string): Promise<T[]> {
   const resp = await page.request.get(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: {
@@ -59,6 +71,7 @@ export async function serviceQuery<T>(page: Page, path: string): Promise<T[]> {
     },
   })
   const data = await resp.json()
+  expect(resp.ok(), `GET ${path}: ${JSON.stringify(data)}`).toBeTruthy()
   return Array.isArray(data) ? (data as T[]) : []
 }
 

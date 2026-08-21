@@ -50,9 +50,11 @@ export function OrgAdminAssignForm({
   // tie is gone: `useFieldIds` now generates a per-instance DOM id. The form key is
   // unchanged, so `formData.get("organizationId")` in `assignOrgAdmin` still reads it.
   const orgField = useFieldIds("organizationId", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.organizationId),
   });
   const emailField = useFieldIds("email", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.email),
     hasDescription: true,
   });

@@ -46,6 +46,7 @@ export function StaffAdminManager({
   }, [state?.ok]);
 
   const emailField = useFieldIds("email", {
+    nameRequiredFor: "formData",
     hasError: Boolean(state?.fieldErrors?.email),
     hasDescription: true,
   });

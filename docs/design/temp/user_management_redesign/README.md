@@ -1,5 +1,12 @@
 # Handoff: Gestão de Usuários (User Management Redesign)
 
+> ⚠ **Where this README disagrees with ADR 0133, the ADR wins.** Known stale points:
+> the "escape hatch" below (line: *"invite now, configure later"*) is **NOT built**
+> (0133 D8); CPF is **required**, never "(opcional)" (D6); step 1 is identifier-first
+> (D7); CPF renders presence-only, no masked digits (D12); and the ADR 0097 D14
+> field-ownership invariant cited under "Existing code to build on" is **amended by
+> 0133 D1–D3** — a footprint-scoped hospital_admin now holds person-level authority.
+
 Target codebase: `optimusexercitia-dev/hospital_form_platform` (Next.js App Router + Tailwind v4 + shadcn-style components, pt-BR).
 
 ## Overview

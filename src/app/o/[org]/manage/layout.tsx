@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getRawGrants, getSessionContext } from "@/lib/queries/session";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { accreditationEnabled, qualityIndicatorsEnabled } from "@/lib/queries/feature-flags";
+import { listMyDsrHospitals } from "@/lib/queries/dsr";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OrgManageSidebar } from "@/components/shell/org-manage-sidebar";
 
@@ -62,12 +63,24 @@ export default async function OrgManageLayout({
   // from the nav, ADR 0052, and patientSafety isn't a sidebar item).
   // ACT (ADR 0106) — `grants` feeds `UserMenu`'s "Trocar papel" switch
   // (hat-blind by design, D9).
-  const [auditOn, qualityIndicatorsOn, accreditationOn, grants] = await Promise.all([
-    auditTrailEnabled(),
-    qualityIndicatorsEnabled(),
-    accreditationEnabled(),
-    getRawGrants(),
-  ]);
+  //
+  // ADR 0130 — `listMyDsrHospitals()` drives the "Direitos do Titular" console
+  // entry. This shell is where a tenancy admin LANDS (`src/app/page.tsx` routes
+  // both `org_admin` and `hospital_admin` here), and a tenancy admin is a
+  // first-class DSR executor: `app.can_execute_dsr_task` accepts
+  // `is_tenancy_admin_of_for(commission)` and `is_hospital_admin_of_for(hospital)`
+  // (measured from the live catalog, 2026-08-20). Until now nothing in this shell
+  // linked to the console, so that principal had to type the URL. The RPC gates on
+  // `app.feature_enabled('dsr')` and returns `'[]'` when the flag is off, so the
+  // entry can never point at a route that would 404.
+  const [auditOn, qualityIndicatorsOn, accreditationOn, grants, dsrHospitals] =
+    await Promise.all([
+      auditTrailEnabled(),
+      qualityIndicatorsEnabled(),
+      accreditationEnabled(),
+      getRawGrants(),
+      listMyDsrHospitals(),
+    ]);
 
   return (
     <div className="flex min-h-svh flex-col md:flex-row">
@@ -80,6 +93,7 @@ export default async function OrgManageLayout({
         auditEnabled={auditOn}
         qualityIndicatorsEnabled={qualityIndicatorsOn}
         accreditationEnabled={accreditationOn}
+        reachesDsr={dsrHospitals.some((h) => h.orgId === organization.id)}
         notificationBell={<NotificationBell />}
         activeRole={context.activeRole}
         grants={grants}

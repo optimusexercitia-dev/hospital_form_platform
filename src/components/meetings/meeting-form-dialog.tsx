@@ -33,6 +33,7 @@ import {
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import { MODALITY_LABEL, MODALITY_ORDER } from "./meeting-labels";
 import { toDateTimeLocalValue } from "./format";
 
@@ -233,23 +234,28 @@ export function MeetingFormDialog({
             <FormBanner tone="error">{state.error}</FormBanner>
           )}
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Título</span>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className={FIELD_CLASS}
-              placeholder="Ex.: Reunião ordinária de junho"
-              aria-invalid={state?.fieldErrors?.title ? true : undefined}
-            />
-            {state?.fieldErrors?.title && (
-              <span role="alert" className="text-sm font-medium text-destructive">
-                {state.fieldErrors.title}
-              </span>
+          <PhiInputHint>
+            {(hintId) => (
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">Título</span>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                  className={FIELD_CLASS}
+                  placeholder="Ex.: Reunião ordinária de junho"
+                  aria-invalid={state?.fieldErrors?.title ? true : undefined}
+                  aria-describedby={hintId}
+                />
+                {state?.fieldErrors?.title && (
+                  <span role="alert" className="text-sm font-medium text-destructive">
+                    {state.fieldErrors.title}
+                  </span>
+                )}
+              </label>
             )}
-          </label>
+          </PhiInputHint>
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">
