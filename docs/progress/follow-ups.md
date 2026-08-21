@@ -5871,7 +5871,16 @@ it would be a different change with its own blast radius.
 
 `public.set_case_phase_result_override` (`prosecdef = t`) admits **`v_assigned_to = auth.uid()` ∨
 `app.is_staff_admin_of(commission)`** — measured from the live catalog; there is **no `member_can`
-arm**, so an administrativo is correctly excluded. But the **assignee** disjunct is **per-phase**,
+arm**, so an administrativo is correctly excluded.
+⛔ **GRAIN CORRECTION (QA r2 R-4, re-measured 2026-08-21):** that disjunction is **NOT the door's
+authority** — it is **one branch of two**. The body reads `if v_phase_status not in ('active',
+'completed') then raise …; if v_phase_status = 'active' then if not (v_assigned_to = auth.uid() or
+v_is_staff_admin) then raise 42501`. **The assignee arm applies ONLY while the phase is `active`**;
+once `completed` the caller falls to the other branch and it is **coordinator-only**. The original
+filing quoted one branch as the whole guard — the same wrong-grain error this program recorded
+against a line-filtered `prosrc` read, committed here by hand instead. **The under-grant is
+therefore narrower than filed:** it is the *active*-phase assignee who is offered nothing.
+But the **assignee** disjunct is **per-phase**,
 and the UI's `canManagePhaseResults` prop is a **per-case boolean**, so it cannot represent it.
 Increment 1 set the manage host to `phaseResultsOn && access.role === "staff_admin"` — which is
 correct as far as it goes and closed a real over-grant T1 had created.
@@ -5917,13 +5926,37 @@ measured.
 a second unverified claim in the same spot is how that happens twice. **To close:** construct an
 orphan (delete the membership, leave the capability row) and measure whether they reach the board.
 
-### 🟡 FUP-CASE-TAGS-AND-OUTCOME-SELECTOR-NO-CASOS-DIFFERENTIAL — two case-wide affordances covered on manage, with **no absence assertion on `/casos`** (owner: tester; filed 2026-08-21, ⛔ **CORRECTED THE SAME DAY — the original filing was FALSE**)
+### 🟡 FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED — the case-wide affordance class has **no absence assertions on `/casos`** (owner: tester; filed 2026-08-21, ⛔ **WRONG TWICE, corrected twice — read the history, it is the point of this entry**)
 
-⛔ **This item was first filed as “zero E2E coverage on any route” for case tags and the outcome selector. That is WRONG, and it was caught by reading a passing test name in the gate output rather than by any check.** Both are covered, on the manage host:
+⛔ **Filing history, kept because the item was wrong in a different way each time:**
+1. **v1 — FALSE.** Claimed case tags and the outcome selector had *“zero E2E coverage on any route”*. Both **are** covered on the manage host (`cases-extras.spec.ts:443` assigns a tag via `getByRole('region', {name:/Etiquetas/i})`; `processless-cases.spec.ts:473` drives the “Desfechos disponíveis” dialog). Cause: the sweep grepped **button labels**, while the real coverage uses a role+region locator and a dialog filter containing none of those strings — *a grep bounded by a label is a proxy for the property, not the property.* It reached the tracker as “confirmed … twice”, which reads like a measurement and was a restatement of one unsound search.
+2. **v2 — STILL HALF WRONG.** Claimed *“both were narrowed off `/casos` by Increment 1”*. Measured against the merge base: **tags** gate on `caps.canWriteContent`, which Increment 1 newly narrows, so tags did move — **but only for write-grantees** (a coordinator's were already hidden). The **outcome selector** gates on `caps.canManageLifecycle`, which `8675b7cd` already zeroed, so it was **already absent on `main` for everyone** and this increment changed nothing about it. And the class is **not two members**.
 
-- **Tags** — `e2e/cases-extras.spec.ts:443` (`AC-Tags`) creates a tag, then assigns it on `/manage/cases/<id>` via `getByRole('region', { name: /Etiquetas/i })`.
-- **Outcome selector** — `e2e/processless-cases.spec.ts:473` drives the “Desfechos disponíveis” editor dialog; `e2e/cases-outcomes-blockers.spec.ts` exercises outcomes throughout on `/manage/cases/<id>`.
+⭐ **The lesson is the repetition, not the item.** Each correction fixed the specific wrong clause and left the *method* that produced it unexamined — which is how one entry was wrong three times in a day, twice while being corrected. **Recorded as [[a-partial-fix-reads-as-a-complete-one]].**
 
-⭐ **How the false claim was produced, because the mechanism matters more than the item.** The sweep grepped the **button labels** (“Adicionar” / “Gerenciar etiquetas” / “Editar desfechos disponíveis”). The real coverage reaches these affordances through a **role+region locator** and a **dialog filter**, neither of which contains any of those strings. **A grep bounded by a label is a proxy for the property, not the property** — the same recorded failure as bounding an enumeration by a syntax. It then survived into the tracker because the grep result was repeated as “confirmed … twice”, which reads like a measurement and is a restatement.
+**What is actually open.** The case-wide affordance class — QA's enumeration, **to be re-derived by property before use, not quoted**: *Novo item · Adicionar registro · Anexar documento · custom fields · Corrigir resultado · Ativar e atribuir*, plus **tags** — has **no absence assertions on `/casos`**. Manage-side presence is covered for several of them; the `/casos` side is asserted for none. Close it the way `case-access.spec.ts` AC-3b and the T6 narrative differential are built: absence on `/casos` paired against presence on manage, same user and case, counted by structure as well as accessible name. ⚠ State for each member whether its absence is **new** (Increment 1) or **pre-existing** (`8675b7cd`) — conflating those is what made v2 wrong.
 
-**What is actually open — the narrower, real gap.** Both affordances are **case-wide**, so Increment 1 narrowed them off `/casos`, and **nothing asserts that absence**. The manage-side presence is covered; the `/casos` side is not. Close it the way `case-access.spec.ts`’s AC-3b and the T6 narrative differential are built: absence on `/casos` paired against the existing presence on manage, same user and case, counted by structure as well as accessible name.
+### 🟡 FUP-VACUOUS-DETECTOR-FALSE-POSITIVE — `check-vacuous-assertions.mjs` flags a test as vacuous when a helper is declared inside it (owner: tester/lead; filed 2026-08-21)
+
+`scripts/check-vacuous-assertions.mjs:284-299` — `containsTestExitingReturn` correctly skips
+**child** function nodes, but it still walks a statement that **is itself** a `FunctionDeclaration`.
+So a helper declared inside a test body contributes its own `return` to the test's statement list,
+which revokes the unconditional-assertion guarantee for **every later `expect`** in that test.
+
+**Live instance:** `e2e/case-access.spec.ts`'s `T6 keyboard-only` test declared a `focusTrace`
+helper and was reported `ALL-ASSERTIONS-CONDITIONAL`. The test was **not** vacuous. It reddened the
+whole eight-gate chain (eslint is link 1, but `lint:vacuous` is link 5 — everything after it also
+never ran). Worked around by **hoisting the helper to module scope**, which is a correct fix for that
+spec and not a fix for the class.
+
+⛔ **Do NOT "fix" this by relaxing the detector on the strength of this report.** `lint:vacuous`
+exists because tests that pass having asserted nothing shipped here before
+(`docs/reviews/vacuous-assertion-audit.md`), and its self-test suite (42/42) is what makes it
+trustworthy. **Admission condition for any change: a NEW self-test case that reproduces the real
+vacuous shape this walk was written to catch, proven to still go RED after the fix.** A detector
+loosened on a false-positive report, without a control proving it still catches the true positive,
+is strictly worse than the false positive.
+
+⭐ Worth noting for whoever takes it: the false positive pushes authors toward *restructuring tests
+to appease the detector*. That is usually harmless (hoisting a helper is fine) but it is a slow
+pressure toward writing tests the gate likes rather than tests that pin behaviour.

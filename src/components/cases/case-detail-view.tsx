@@ -141,6 +141,7 @@ export function CaseDetailView({
   casesExtrasEnabled = false,
   actionItemsEnabled = false,
   canAssignPhases = false,
+  canEditCustomFields = false,
   caseCustomFieldsEnabled = false,
   customFields = [],
   correctionsEnabled = false,
@@ -238,6 +239,27 @@ export function CaseDetailView({
    * `false` (a plain read/write grantee gets no phase-assignment controls).
    */
   canAssignPhases?: boolean;
+  /**
+   * Whether this viewer may EDIT the case's custom-field values (ADR 0083) — the UI
+   * mirror of `public.update_case_custom_field_values`, whose measured gate is
+   * `app.is_staff_admin_of(commission) ∨ app.member_can(commission, 'create_cases')`.
+   * Resolve it at the HOST as `canInCommission(access, "create_cases")`, which is
+   * that expression exactly (its `role === 'staff_admin'` arm covers the first
+   * disjunct). Default `false`.
+   *
+   * ⛔ **A SEPARATE AUTHORITY, deliberately its own prop.** It is not derivable from
+   * `caps` — `canManageLifecycle` is coordinator-only and would silently drop the
+   * administrativo arm, which is exactly the regression ADR 0134 F-5 introduced when
+   * this affordance was left riding on the deleted `canEditMeta` prop. Editing
+   * custom fields is CASE-WIDE, so the reading surface passes nothing and the
+   * narrowing keeps it off `/casos` (D1); the manage host passes the real value.
+   * That differential is the point, not an accident of which host remembered.
+   *
+   * ⚠ Server-computed, never derived in this component: two of the door's inputs
+   * (`role`, `capabilities`) live on the commission-access object the component
+   * never sees.
+   */
+  canEditCustomFields?: boolean;
   /** Whether the `case_custom_fields` flag is on (gates the custom-fields panel; ADR 0083). */
   caseCustomFieldsEnabled?: boolean;
   /** The case's custom-field values (ADR 0083); `[]` when none / the flag is off. */
@@ -525,16 +547,27 @@ export function CaseDetailView({
     detail.primarySubjectKind === "entity";
 
   // Custom fields (ADR 0083) — the panel shows when the flag is on and the case has
-  // any values. Edit authority follows `canManageLifecycle` while the case is OPEN
-  // (terminal cases are frozen server-side, HC025).
+  // any values; editing needs the authority below AND an OPEN case (terminal cases
+  // are frozen server-side, HC025).
   //
-  // ⛔ The `|| effectiveCanEditMeta` disjunct is GONE with the meta seam (ADR 0134
-  // F-5). It was structurally `false` — no host has passed `canEditMeta` since D2
-  // stopped the reading surface resolving it — so removing it changes nothing here.
-  // The `create_cases` administrativo's meta authority did not disappear with it:
-  // it lives on the manage host, in the `(detail)` layout's own edit button.
+  // ⛔ THIS LINE CARRIES ITS OWN AUTHORITY, and it must not be folded back into any
+  // other one. `update_case_custom_field_values` gates on
+  // `is_staff_admin_of ∨ member_can('create_cases')` (measured from the catalog), so
+  // a `create_cases` administrativo may edit custom fields. That is the SAME
+  // authority as the meta door but a DIFFERENT door, and the distinction is what
+  // this comment exists to keep.
+  //
+  // ⛔ Correcting the record: the ADR 0134 F-5 seam deletion removed a
+  // `|| effectiveCanEditMeta` disjunct from here and this comment called that a
+  // no-op. **It was a no-op for META and an UNDER-GRANT for CUSTOM FIELDS** — the
+  // administrativo's only path to this affordance rode on that prop, so deleting it
+  // left the door open at the DB with no surface offering it. An under-grant emits
+  // NOTHING: no 42501, no log, no red test. Lint, tsc, pgTAP, the four authz ARMs
+  // and a green `e2e:prod` all passed across the regression. Only a reviewer
+  // diffing the door against the UI caught it, which is why the authority is now
+  // named here explicitly instead of inherited from a neighbouring prop.
   const showCustomFieldsPanel = caseCustomFieldsEnabled && customFields.length > 0;
-  const canEditCustomFields = caps.canManageLifecycle && isOpen;
+  const customFieldsEditable = canEditCustomFields && isOpen;
 
   const body = (
     <>
@@ -815,7 +848,7 @@ export function CaseDetailView({
                 <CaseCustomFieldsPanel
                   caseId={c.id}
                   fields={customFields}
-                  canEdit={canEditCustomFields}
+                  canEdit={customFieldsEditable}
                 />
               </div>
             )}

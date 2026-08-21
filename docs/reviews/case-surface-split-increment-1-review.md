@@ -1,5 +1,15 @@
 # QA review — Case surface split, **Increment 1** (ADR 0134 D1–D5, D7)
 
+> **CURRENT VERDICT (r2, 2026-08-21): CHANGES REQUESTED** — see **§7 Re-review (r2)** at the
+> bottom. All five r1 code findings are genuinely fixed and the new specs are strong; the r2
+> blockers are a **red lint gate at HEAD** (`lint:vacuous`, so §6 step 1 is not satisfied), a
+> **custom-fields under-grant regression** the increment introduced, and a **PO ruling recorded
+> only in a commit message**. §§1–6 below are the r1 review, unchanged.
+
+---
+
+## r1 review (superseded — kept as the record of the round)
+
 **Verdict: CHANGES REQUESTED** · Reviewer: `qa` · Date: 2026-08-21 · Branch
 `feat/case-surface-split` @ `ea89aeb0`, diffed against `df88dced` (merge-base with `main`).
 
@@ -405,3 +415,370 @@ Nothing here impugns the engineering. The four-gate correction, the single-point
 fail-closed helper, the preserved read gate, the per-affordance authority mirroring, T4's
 narrowing, and the entry-gate spec's load-bearing/blind split are all correct and, where they make
 a DB claim, correct **against the catalog**. Re-review should be fast.
+
+---
+
+# 7. Re-review (r2) — 2026-08-21
+
+**Verdict: CHANGES REQUESTED** · Branch `feat/case-surface-split` @ `78d14cce`, still diffed
+against `df88dced`. New since r1: `3475c4d6` (F-1/F-3/F-4/F-5/F-8), `134138af` (specs), plus
+`63fb888f` / `748836d1` / `84d2fa60` / `78d14cce` (docs).
+
+**The r1 findings are fixed — all five code ones properly, and two of them better than I asked
+for.** The verdict turns on three *new* items, one of which I found by re-running a gate rather
+than by reading the diff.
+
+## 7.1 Method (r2)
+
+Same discipline as r1: catalog-only for SQL with `--` stripped and never line-filtered; every
+absence claim carries a positive control; every hand-list re-derived by property — including the
+lists in the lead's re-review message, one of which turned out to be half-true (§7.7). Gates
+re-run with exits read directly: `tsc` **0**, `vitest` **1506/1506 (106 files)**,
+`npm run lint` **exit 1** (§7.4). I did not re-run pgTAP or `e2e:prod` (§7.11).
+
+## 7.2 F-1 — fixed, both halves, and the harder half holds
+
+**The single definition is real.** Property probe — every expression in `src/` that zeroes a
+case-wide capability — returns exactly **one** implementation,
+`src/components/cases/reading-surface.ts:68`. (The other two hits are prose in comments; the
+`manage/cases/page.tsx:220` hit is the `{ canWriteContent: false }` *argument* to
+`canOpenCaseManagement`, a different thing.) Both consumers call it and neither re-narrows inline:
+`case-detail-view.tsx:384-387` and `casos/[caseId]/narrativa/[narrativeId]/page.tsx:78`. The
+`/casos` subtree has exactly two route files and both are converted.
+
+The refactor is also **behaviour-preserving**, which is worth stating because it changed shape:
+`caps = managementElsewhere ? narrowToReadingSurface(rawCaps) : rawCaps` is equivalent to the old
+`readingAsMember ? {…zeroed} : rawCaps`, because `narrowToReadingSurface` returns its argument
+unchanged when `isReadingAsMember` is false.
+
+**The assignee arm survived — verified, not assumed.** `canEditNarrative`
+(`narrative-access.ts:40-45`) tests `caps.canManageLifecycle` → assignee → `caps.canWriteContent`
+in that order, so narrowing the *caps* cannot reach attributed work; and `canConclude` is
+`caps.canManageLifecycle || isAssignee`, so a narrowed coordinator keeps concluding their own.
+`AC-4`'s new framing pins exactly this, using the seeded administrativo/assignee as the subject —
+the right choice, because she is the viewer most likely to be over-narrowed by accident.
+
+**The new manage host — gate census by property, since it is outside `(detail)`.** The
+`manage/cases/[caseId]/narrativa/` subtree contains exactly one file, and `find` over
+`manage/**` confirms **no layout** sits above it (only `acreditacao`, `documentos`, `indicadores`
+carry layouts), so it inherits nothing but the commission shell. Its own gates, in order:
+`!access` → `!flagOn` → **read gate** (`getCaseDetail` null / commission mismatch) → **entry
+predicate** → narrative-belongs-to-case. That is the correct order and the read gate is above the
+predicate, as in the three `(detail)` files.
+
+Two classes I checked against the catalog rather than the comment:
+
+- **quality reviewer** — passes `!access` (role null but `isQualityViewer`), passes the read gate
+  (S7 confers `read_case_content`), then `canOpenCaseManagement` returns false on all three arms →
+  404. So the missing `role === null && !isQualityViewer` check that the `/casos` twin carries is
+  **not** a gap: the predicate subsumes it.
+- **appointed administrativo, no grant, no assignment** — enters, and `canEditNarrative` gives
+  `false` on every arm, so read-only. The docblock's claim is accurate.
+
+`caseAccessEnabled()` is `return true` (`src/lib/case-access/actions.ts:102-104`), so the
+`!flagOn` gate cannot dark the corridor — checked because a flag-gated new route that is silently
+off would make every new spec vacuous.
+
+**One caveat on the claim the lead asked me to test hardest.** "A third `/casos` route reading raw
+`viewerCapabilities` is now a *visible anomaly*" is true about **reader attention** and false about
+**mechanism**: nothing detects it. The module's `⚠ A NEW ROUTE UNDER /casos MUST CALL THIS` is a
+standing prohibition with no resolution event and no gate — precisely the shape CLAUDE.md §8 says
+belongs in `.claude/rules/`, path-scoped, and even there is "a strong hint and never a substitute
+for a gate". The extraction is still a real improvement (one definition instead of N re-derivations)
+and I am **not** blocking on this. Recommendation, cheap and within the rules' volume bounds: a
+rule scoped to `src/app/**/casos/**` with checkable anchors (`reading-surface.ts`,
+`narrowToReadingSurface`). Not required for this increment.
+
+## 7.3 F-3, F-4, F-5, F-8 — fixed
+
+- **F-3** — the catalog fact is now stated as measured, and the consequence is correctly inverted
+  (TS mirror **wider** than the door ⇒ dead-end door, not lock-out). Ruling on the OPEN
+  disposition: **§7.8**.
+- **F-4** — corrected, with the meta-lesson kept ("a stale comment introduced by the pass that was
+  fixing stale comments").
+- **F-5** — seam deleted. I re-derived the consumer set from the **pre-branch** file rather than
+  trusting the fix: `effectiveCanEditMeta` had exactly three consumers (custom fields, the header
+  cluster condition, the meta dialog). Two of the three are correctly handled. The third is
+  **§7.5**, and it is a blocker.
+- **F-8** — fixed with a real row id and an empty-board short-circuit; the comment names the
+  latent failure ("the moment someone drops `knownCapabilities`") rather than just the fix.
+
+## 7.4 🔴 R-1 (BLOCKING) — `npm run lint` is RED at HEAD; §6 step 1 is not satisfied
+
+```
+scanned 210 spec files · 1 test(s) with NO unconditional assertion
+e2e/case-access.spec.ts  (1)
+  L941   ALL-ASSERTIONS-CONDITIONAL
+         T6 keyboard-only: Tab-only from the /casos narrative into "Gerenciar narrativa" …
+vacuous-assertion gate: FAILED   ·   exit 1
+```
+
+Measured at `78d14cce` on a clean tree (`git status` empty). CLAUDE.md §8: all eight gates must
+pass, and the eight are chained with `&&`, so `lint` exits 1. §6 step 1 requires lint green.
+
+**The recorded "lint 8/8" for the re-gate is not reproducible at HEAD, and I can date the
+regression.** `git diff --stat 134138af..HEAD -- e2e/` is **empty**, so the specs at HEAD are
+byte-identical to the specs at `134138af`. My own r1 run — same script, same 210 files, **0
+findings**, at `ea89aeb0` — is the control. Therefore the re-gate's lint step ran on a tree
+**without the specs the same record's step 2 executed**. That is the reassuring direction again,
+and it is the one gate in the eight whose entire purpose is to catch a test that proves nothing.
+
+**The flagged test is not actually vacuous — this is a detector false positive, and I located the
+mechanism** so the fix is not guesswork. `containsTestExitingReturn`
+(`scripts/check-vacuous-assertions.mjs:284-299`) skips **child** arrow / function-expression /
+function-declaration nodes, but when the statement *itself* is a `FunctionDeclaration` it is walked
+directly: `forEachChild` hands back its `Block` body, which is not one of the skipped kinds, so the
+`return` inside `focusTrace` counts as a test-exiting return. That revokes `guaranteed` for every
+statement after it — including the three real `expect(...).toBe(true)` calls. Any test that declares
+a helper with `async function` inside its body hits this.
+
+**Two valid fixes; my recommendation is the second, with a condition.**
+
+1. *Tester-side:* hoist `focusTrace` to module scope (it closes over `page`, so it takes `page` as a
+   parameter). Smallest change, matches other specs in the file, no gate is touched.
+2. *Script-side:* return `false` from `containsTestExitingReturn` when the node itself is a function
+   declaration / expression / arrow. This fixes the **class**, which will recur — a helper defined
+   inside a test body is idiomatic. ⛔ **Condition, non-negotiable:** loosening a detector requires a
+   new case in the script's own self-test (currently 42/42) proving it still flags a genuinely
+   conditional-only test that happens to declare a nested function first. A gate relaxed without a
+   red-first proof is how the gate stops gating.
+
+Either way this is minutes of work. It blocks because the gate is the authority, not because the
+test is bad — the test is good.
+
+## 7.5 🔴 R-2 (BLOCKING) — an under-grant regression: custom-field editing for a `create_cases` administrativo now exists on no surface
+
+Catalog, comment-stripped: `public.update_case_custom_field_values(uuid,jsonb)` (`prosecdef = t`)
+carries the **same** two-arm authority as `update_case_meta` —
+
+```sql
+if app.is_staff_admin_of(v_commission) then null;
+elsif app.member_can(v_commission, 'create_cases') then perform app.assert_administrativo_enabled();
+else raise exception 'sem permissão' using errcode = '42501';
+```
+
+`app.feature_flags` shows `case_custom_fields = t`, so this is live, not theoretical.
+
+**Before this branch**, on `/casos`, for an appointed administrativo holding `create_cases`:
+`readingAsMember` was `managementElsewhere && rawCaps.canManageLifecycle` → **false** (not a
+coordinator), so `effectiveCanEditMeta = canEditMeta = canInCommission(access,'create_cases')` →
+**true**, and `canEditCustomFields = (caps.canManageLifecycle || effectiveCanEditMeta) && isOpen`
+→ **true**. They could edit custom fields.
+
+**After this branch:** `/casos` narrows every case-wide arm, and the manage host computes
+`canEditCustomFields = caps.canManageLifecycle && isOpen` (`case-detail-view.tsx:537`), which is
+`is_staff_admin_of_for` — coordinator only. **Neither surface offers it.** The DB grants it and no
+UI exposes it: an under-grant, the direction that emits nothing at all — no error, no log, no
+failing test, no §6 gate.
+
+This is D2's relocation promise unmet for one of `canEditMeta`'s three consumers. The *meta* half
+relocated correctly (`(detail)/layout.tsx:341-347`, gated on
+`canInCommission(access,'create_cases')` — an exact mirror). The *custom-fields* half did not travel
+with it, and the F-5 comment at `case-detail-view.tsx:528-534` now documents the loss as a no-op:
+*"removing it changes nothing here … The `create_cases` administrativo's meta authority did not
+disappear with it: it lives on the manage host."* True of **meta**; false of **custom fields**,
+which the same block covers. That is the "a partial fix reads as a complete one" shape — the
+sentence is right about the affordance it names and wrong about the one it silently includes.
+
+**Fix shape:** thread the same `canInCommission(access, 'create_cases')` the layout already computes
+into the manage host's `CaseDetailView` as an explicit prop and OR it into `canEditCustomFields`
+there — i.e. relocate the second consumer the way the first was relocated. Do **not** restore it on
+`/casos`: that would re-open the carve-out D1 abolishes. And please add the differential the way
+AC-3b is built, since nothing currently asserts this affordance for this class on either host —
+which is exactly why the loss was invisible.
+
+**Bounded by property, so this is the only member:** I enumerated every consumer of the three
+removed props in the **pre-branch** `case-detail-view.tsx`. `canAssignPhases` → relocated
+(`(detail)/page.tsx:271`) ✅ · `canManagePhaseResults` → relocated (`:175`) ✅ · `canEditMeta` →
+three consumers, two handled, one lost. No other affordance is in this class.
+
+## 7.6 🔴 R-3 (BLOCKING, records) — the F-1 PO ruling exists only in a commit message
+
+`63fb888f`'s body carries: *"F-1 ruled: narrow the narrative route AND build the manage narrative
+host…"*. Positive control: `OPEN-4` — ruled in the same commit — appears **8 times** across ADR
+0134, the plan and PROGRESS.md, with its scope written out ("authorizes exactly §A2.7's list … NOT
+authorized: …"). The F-1 ruling appears **zero** times in all three files.
+
+This matters more than the usual records nit because the ruling **authorized a new route**. ADR 0134
+D11 bounds the ratified scope; Amendment 1 extended it once and said so; Amendment 2 extended it
+again and said so. A new surface at `manage/cases/[caseId]/narrativa/[narrativeId]` now exists with
+no decision record behind it, in a program whose own § Now paragraph is titled *"Approval scope,
+written down because it is a new fact."* This is the recorded lead failure mode exactly — the
+receiver remembers the ruling, so nobody writes it down — and the same commit that avoided it for
+OPEN-4 fell into it for F-1, one paragraph later.
+
+**Fix:** one paragraph — an ADR 0134 Amendment 3, or a plan §3-T2 note plus a § Now line — stating
+what was asked, what was ruled, and that the ruling authorized building the mirrored manage host
+inside Increment 1's routing/UI scope.
+
+## 7.7 Non-blocking findings
+
+**R-4 — `FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT` quotes the door at the wrong grain.** The filing
+states the authority as *"`v_assigned_to = auth.uid()` ∨ `app.is_staff_admin_of(commission)`"*
+unconditionally. Measured body: that disjunction applies **only while `v_phase_status = 'active'`**;
+once `completed` the door is `is_staff_admin_of` **only** (plus an `HC060` terminal-case check).
+Since the feature is *post-conclusion result correction*, the assignee arm covers the narrower and
+less common case, so the residue is smaller than the filing implies. The finding is real; its
+magnitude is overstated. Add the status condition — a predicate cited without the clause that bounds
+it reads as a proof.
+
+**R-5 — the corrected `FUP-CASE-TAGS-AND-OUTCOME-SELECTOR-NO-CASOS-DIFFERENTIAL` is still half
+wrong, and its class is larger than two.** I verified the two coverage citations and the mechanism
+paragraph: both are accurate, and the "a grep bounded by a label is a proxy for the property, not the
+property" lesson is exactly right. But the corrected claim *"Both are case-wide, so Increment 1
+narrowed them off `/casos`"* holds for **tags** and not for the **outcome selector**:
+
+- Tags gate on `caps.canWriteContent` (`case-detail-view.tsx:830`). On `main` a write-grantee was
+  **not** narrowed (`readingAsMember` was lifecycle-only), so Increment 1 did remove them. ✅
+- The outcome selector gates on `caps.canManageLifecycle` (`:872`). On `main` a coordinator on
+  `/casos` was **already** narrowed by that same bit, so it was **already absent** before this
+  branch. Increment 1 changed nothing for it.
+
+And the class — *affordances Increment 1 newly narrowed off `/casos` with no absence assertion* —
+has more members than the two named: **Novo item** (action items), **Adicionar registro** (events),
+**Anexar documento** (documents), **custom fields**, **Corrigir resultado**, and **Ativar e
+atribuir** for the administrativo. Narrative edit *is* covered (AC-3b's `Editar` count, plus the new
+T6 differential). This is the same instance-vs-class shape the correction itself diagnoses, surviving
+into the correction — worth fixing in the filing, because a follow-up that names two members of a
+six-member class will be closed by covering two.
+
+**R-6 — the third flaky is unnamed in a record that promises naming; I resolved it, and it is not
+this branch's.** The archive says *"named, not left as a number"* and then names two
+(`act-role-assumption.spec.ts:157`, `bulk-case-creation.spec.ts:756`) and locates the third only as
+"batch 15". I reproduced the gate's own packing (`pack_batches`, `BATCH_TESTS=70`, glob order) from a
+fresh `--list`: **1191 tests over 104 files → 19 batches**, matching both recorded numbers, so the
+reproduction is validated. **Batch 15 = `phase2-auth-shell.spec.ts` + `phase22-referrals-governance.spec.ts`.**
+Neither is touched by this branch. The branch's own specs sit in **batch 2** (`case-access` ·
+`case-manage-entry-gate` · …), which was not flagged flaky, and `administrativo.spec.ts` is in batch
+1 but is not either of the two named. **Conclusion: none of the three flaky is in a spec this
+increment authored or modified; no evidence of a real intermittent introduced here.** Still name the
+third in the record — the reason the promise exists is that "one in batch 15" is where a real
+intermittent would hide, and answering it took a batch-packing simulation rather than a glance.
+
+**R-7 — § Now lags its own Test Run Summary again.** F-2's two contradictions are fixed and
+annotated (good — including the note that `lint:progress` cannot see a claim that went false). But
+§ Now still describes the branch at `ea89aeb0`: *"§6 steps 1+2 PASSED (`ea89aeb0`) … ⛔ Step 3 QA:
+CHANGES REQUESTED … the increment is NOT gated"*, with no mention of `3475c4d6`, `134138af`, or the
+re-gate — while the Test Run Summary two sections down is headed **RE-GATE**. The verdict half is
+legitimately unchanged until this review lands; the missing half is that the remediation exists and
+steps 1–2 were re-run. Fix it in the same edit as the r2 verdict row.
+
+## 7.8 Ruling requested — is an unresolved OPEN in a docblock a defect?
+
+**No, and `frontend` was right to decline the instruction. I over-claimed in r1 and the pushback
+corrected me.** My F-3 wrote that an orphan "reaches the board and is offered Novo caso" — I
+asserted a reachability I had not constructed either, in the served direction, which is the same
+error class as the claim I was fixing.
+
+A docblock OPEN is sound when three conditions hold, and all three hold here: **(a)** it separates
+what is measured from what is not, in those words; **(b)** it names a tracked follow-up, so the OPEN
+cannot become permanent; **(c)** no code behaviour depends on the unresolved half — the
+`hasCaseStanding` arm stays either way, so the OPEN decides no gate. If (c) failed — if the OPEN were
+deciding whether a guard exists — it would be a defect. Replacing a false claim with a second
+unverified claim in the same spot is exactly how the first one survived for weeks; naming it OPEN is
+the honest alternative.
+
+**But I can sharpen the question, and the FUP should start from the sharper version.** The plain
+orphan case is *derivable*, not merely suggestive: `access.role` is populated only from this
+commission's membership row, and the shell 404s
+`role === null && !isQualityViewer && !isTenancyAdmin` (`c/[commission]/layout.tsx:107-112`) — so a
+plain orphan cannot reach any commission route. What is genuinely open is the **composite**: an
+orphan who *also* holds tenancy-admin or quality-reviewer standing passes the shell on the other
+disjunct, and then `canInCommission(access,'create_cases')` admits them on the capability rows alone
+(which survive the membership deletion), and `hasCaseStanding` admits them on `isAdministrativo`.
+**That** principal reaches the board and gets the dead-end door.
+`FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED` should say "construct orphan × tenancy-admin and
+orphan × quality-reviewer", not "construct an orphan" — otherwise it will be closed by testing the
+one composition that provably cannot reach.
+
+## 7.9 Ruling requested — the D1 refinement for `NotifyEventDialog`
+
+**Sound. Adopt it, with two wording conditions.** I re-measured the door rather than taking it:
+`public.notify_safety_event(...)` (`prosecdef = t`) opens with
+`if not (app.is_member_of(p_reporting_commission_id)) then raise … 42501` — membership only, no
+capability arm. The lead's measurement is correct.
+
+The proposed wording — *"name-attributed **or member-universal**; nothing on `/casos` varies by
+capability"* — is not a weakening. It is a **more accurate statement of the property the design
+actually protects**, and it is *stronger as a test target*: the differential E2E works by comparing
+two viewer classes on the same URL, and its power comes entirely from the second clause. A
+member-universal affordance is invariant across those classes, so it is outside the differential's
+domain **by construction** and cannot dilute it. The original wording, by contrast, would force
+deleting a member affordance with nowhere to relocate — deleting an authority to satisfy a sentence.
+
+Two conditions on the wording:
+
+1. **"Member-universal" must be earned at the door, not asserted.** Any affordance claiming the
+   exception has to show its door's predicate is membership-only, measured from the catalog. Without
+   that, the exception becomes the hole through which capability-varying affordances re-enter
+   `/casos` one at a time.
+2. **Say "member-universal", not "universal".** `NotifyEventDialog` renders on
+   `patientSafetyEnabled && !isOversight` — a quality reviewer is excluded, correctly (ADR 0100 D7:
+   notifying is a write and its pre-fill bridge carries PHI). The refinement is about members, and
+   the oversight exclusion is a separate, already-correct rule.
+
+Refer the refined wording to the PO as an ADR 0134 amendment — D1 is PO-ratified text, so QA cannot
+adopt it, and it should not live only in a review.
+
+## 7.10 New coverage — judged, including the vacuity question
+
+**The T6 narrative differential genuinely pins D1, and would fail against pre-`3475c4d6` code** —
+three independent ways: the `/casos` textbox would be present (`toHaveCount(0)` red), the "Gerenciar
+narrativa" link would not exist, and the manage URL would 404. Not vacuous.
+
+**AC-4's manage-host additions are non-vacuous only because of the control that follows them**, and
+the spec knows it: staff3's `toHaveCount(0)` assertions would pass on a 404 page, so against
+pre-`3475c4d6` code they would go green for the wrong reason — but the coordinator positive control
+immediately after (`toBeVisible`) would fail on that same 404. The pair is what carries it. Correct
+construction, correctly explained in the comment.
+
+**AC-4's reframing is the strongest single addition in this round**: using the seeded administrativo
+who is *also* the assignee as the over-reach proof turns an absence-heavy test file into one that
+also proves the narrowing removed **nothing it should not have**. That is the assertion most
+increments of this shape never write.
+
+**The keyboard test** is the weakest of the three — bounded Tab loops with tuned limits (35/15/10)
+and a comment admitting the limits were measured against one persona's sidebar. It is honest about
+that, and the focus-trace-per-Tab design is the right response to the earlier false "NOT REACHABLE".
+I would still expect it to be the first of these to drift when the sidebar changes. Not a blocker,
+and it is not among the three flaky (§7.6). It is, however, the test that trips R-1.
+
+## 7.11 Could not verify (r2)
+
+1. **pgTAP `6795/6795 F=206` — not re-run.** Premise re-checked instead: the branch's `supabase/`
+   diff against the merge base is still empty, so no DB object changed. An argument, not a
+   measurement.
+2. **`e2e:prod` — not re-run.** I verified the *collected* count independently (`--list` → **1191**,
+   matching the record) and reproduced the batch packing (19 batches, matching), which is what let me
+   resolve R-6. The pass/fail figures themselves I read from the record.
+3. **The four authz ARMs — not re-run.** Same empty-`supabase/`-diff argument as r1.
+4. **R-1's blast radius across the suite is unmeasured.** I confirmed one finding at HEAD; I did not
+   check whether other specs declare nested functions inside test bodies and currently pass only
+   because they also happen to assert before that declaration. If fix (2) is chosen, that sweep is
+   free; if fix (1) is chosen, the class stays live.
+5. **The custom-fields regression (R-2) was measured statically** — pre-branch expression, current
+   expression, catalog door, flag state. I did not drive a browser as an administrativo to watch the
+   panel become read-only. The four measurements compose, but the observation is not first-hand.
+6. **Runtime rendering, again, not exercised by me at all.** Every UI claim here is source + catalog.
+
+## 7.12 r2 verdict
+
+**CHANGES REQUESTED.**
+
+Blocking: **R-1** (`npm run lint` exits 1 at HEAD — §6 step 1 unsatisfied, and the recorded green
+predates the specs it is quoted for), **R-2** (an under-grant regression this increment introduced:
+the DB grants a `create_cases` administrativo custom-field editing and no surface offers it),
+**R-3** (the F-1 PO ruling, which authorized a new route, is recorded only in a commit message).
+
+Non-blocking, same pass: **R-4**, **R-5**, **R-6**, **R-7** — all filing/record corrections, each a
+few lines.
+
+Rulings issued: the docblock OPEN is **acceptable** as written, with a sharpened follow-up question
+(§7.8); the D1 refinement is **sound and should be adopted** via a PO amendment, with two wording
+conditions (§7.9).
+
+None of the three blockers is an architecture problem, and none is a security defect — I again found
+no UI gate claiming an authority the DB withholds. F-1's remediation in particular is better than
+what I asked for: the extracted module, the mirrored manage host, and AC-4's over-reach proof
+together close the finding at the level of the *class* rather than the instance. Re-review should be
+quick.

@@ -199,11 +199,11 @@ export default async function StaffCaseDetailPage({
   // Case Correction Lifecycle surface data (ADR 0085; empty when the flag is off).
   const correctionsData = await buildCaseCorrectionsData(detail);
 
-  // ⛔ ADR 0134 D2 — THREE PROPS THIS PAGE NO LONGER PASSES, and the deletion is the
-  // change, not an oversight: `canManagePhaseResults`, `canAssignPhases` and
-  // `canEditMeta` were resolved here from the viewer's ROLE / commission
-  // CAPABILITIES, which made them bypass `managementElsewhere`'s narrowing BY
-  // CONSTRUCTION. They are case-wide work, so under D1 they belong on
+  // ⛔ ADR 0134 D2 — FOUR PROPS THIS PAGE NO LONGER PASSES, and the deletion is the
+  // change, not an oversight: `canManagePhaseResults`, `canAssignPhases`,
+  // `canEditMeta` and `canEditCustomFields` were resolved here from the viewer's
+  // ROLE / commission CAPABILITIES, which made them bypass `managementElsewhere`'s
+  // narrowing BY CONSTRUCTION. They are case-wide work, so under D1 they belong on
   // `/manage/cases/[caseId]` — which D3 now opens to exactly the viewers who used to
   // need them here. Their FUEL (`listPhaseResults`, `listDepartmentsForHospital`)
   // goes with them, so this reading surface neither renders nor loads them.

@@ -878,3 +878,27 @@ unnamed flaky count is how a real intermittent defect hides inside a green gate.
 
 ⛔ **Not a phase close.** QA re-review and PO approval outstanding; Increment 2 not started; nothing
 merged.
+
+### ⛔ CORRECTION 2026-08-21 — the Increment-1 RE-GATE row's "lint(8) 0" was FALSE and is withdrawn
+
+`npm run lint` **exits 1 at HEAD**. `lint:vacuous` flags `e2e/case-access.spec.ts:941`
+(`ALL-ASSERTIONS-CONDITIONAL`). So **§6 step 1 was never satisfied for the tree the re-gate row
+describes**, and the row claimed it was.
+
+**How it happened, dated from the reflog rather than reconstructed:** lint was run at **18:14**,
+before `3475c4d6` was committed. The tester's specs landed at **18:35** (`134138af`, +171 lines to
+`case-access.spec.ts`), and `e2e:prod` ran after that. **Lint was never re-run on the tree whose
+step 2 it was recorded beside.** `git diff 134138af..HEAD -- e2e/` is empty, so the failing spec
+entered at `134138af` and has not changed since — the window is exact.
+
+⭐ **This is the same failure the program spent the day cataloguing in others, committed by the lead
+in the gate record itself:** a measurement taken at one tree, reported as covering another, and
+reading as full coverage because it names the right command. Every other figure in the row (pgTAP,
+vitest, tsc, the four ARMs, the E2E census) *was* measured at or after `134138af` and stands. The
+lint figure alone is withdrawn.
+
+⚠ **The flagged test is NOT actually vacuous** — it is a detector false positive
+(`scripts/check-vacuous-assertions.mjs:284-299`: `containsTestExitingReturn` skips *child* function
+nodes but walks a statement that **is** a `FunctionDeclaration`, so a helper's own `return` revokes
+the unconditional-assertion guarantee for every later `expect`). That does not soften the record:
+the gate exits 1, and a gate's exit code is the fact, not one's reading of why.

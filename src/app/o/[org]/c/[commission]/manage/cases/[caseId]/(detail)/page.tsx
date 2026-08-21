@@ -276,6 +276,12 @@ export default async function CaseDetailPage({
       casesExtrasEnabled={casesExtrasOn}
       actionItemsEnabled={actionItemsOn}
       canAssignPhases={canInCommission(access, "assign_case_phases")}
+      // ADR 0134 R-2 — the custom-fields edit door is
+      // `is_staff_admin_of ∨ member_can('create_cases')` (measured), and
+      // `canInCommission` is that expression exactly. Passed ONLY on this host:
+      // editing custom fields is case-wide work, so `/casos` passes nothing and the
+      // D1 narrowing keeps it off the reading surface.
+      canEditCustomFields={canInCommission(access, "create_cases")}
       caseCustomFieldsEnabled={caseCustomFieldsOn}
       customFields={customFields}
       correctionsEnabled={correctionsData.enabled}

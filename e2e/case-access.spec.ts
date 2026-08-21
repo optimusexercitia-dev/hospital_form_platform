@@ -282,6 +282,35 @@ async function openAccessDialog(page: Page) {
   return dialog
 }
 
+/**
+ * Read the currently focused element's identity — used by keyboard-only tests
+ * to trace Tab progress instead of trusting a fixed step count or a boolean
+ * "reachable" flag. HOISTED to module scope (lint:vacuous / QA r2): a
+ * `FunctionDeclaration` inside a test body is itself a statement in the
+ * test's own top-level list, and `check-vacuous-assertions.mjs`'s
+ * `containsTestExitingReturn` walks that list looking for a test-exiting
+ * `return` — it does not distinguish "a `return` inside a nested function
+ * declaration" from "a `return` that exits the test itself", so a local
+ * `function focusTrace() { ... return ... }` false-positived every later
+ * `expect()` in the test as conditional. Moving it here removes the
+ * declaration from the test body entirely (this file's own
+ * `openAccessDialog` above establishes the same page-as-parameter pattern).
+ */
+async function focusTrace(
+  page: Page,
+): Promise<{ tag: string; text: string; href: string | null; role: string | null } | null> {
+  return page.evaluate(() => {
+    const el = document.activeElement
+    if (!el) return null
+    return {
+      tag: el.tagName,
+      text: (el.textContent ?? '').trim(),
+      href: (el as HTMLAnchorElement).href ?? null,
+      role: el.getAttribute('role'),
+    }
+  })
+}
+
 // ---------------------------------------------------------------------------
 // AC-1 — Attribution → read (phase assignee sees full case, submitted-only)
 // ---------------------------------------------------------------------------
@@ -945,27 +974,14 @@ test('T6 keyboard-only: Tab-only from the /casos narrative into "Gerenciar narra
   const casosUrl = `${BASE}/casos/${CASE_ID}/narrativa/${achadosId}`
   const manageUrl = `${BASE}/manage/cases/${CASE_ID}/narrativa/${achadosId}`
 
-  // Print the focus trace at every Tab rather than trusting a fixed step
-  // count or a boolean "reachable" flag — `frontend`'s own first harness
-  // reported "NOT REACHABLE" and was wrong: it never left `/login`, because
-  // that form's tab order is email -> "Esqueci minha senha" -> password, not
-  // email -> password, and it was tabbing the login form the whole time. The
-  // helper below signs in NORMALLY (not via keyboard) precisely to stay clear
-  // of that trap; keyboard coverage starts only after landing on the target
-  // page, matching this file's own AC-10 pattern.
-  async function focusTrace(): Promise<{ tag: string; text: string; href: string | null; role: string | null } | null> {
-    return page.evaluate(() => {
-      const el = document.activeElement
-      if (!el) return null
-      return {
-        tag: el.tagName,
-        text: (el.textContent ?? '').trim(),
-        href: (el as HTMLAnchorElement).href ?? null,
-        role: el.getAttribute('role'),
-      }
-    })
-  }
-
+  // Print the focus trace (module-scope `focusTrace`, above) at every Tab
+  // rather than trusting a fixed step count or a boolean "reachable" flag —
+  // `frontend`'s own first harness reported "NOT REACHABLE" and was wrong: it
+  // never left `/login`, because that form's tab order is email ->
+  // "Esqueci minha senha" -> password, not email -> password, and it was
+  // tabbing the login form the whole time. Signing in NORMALLY (not via
+  // keyboard) here stays clear of that trap; keyboard coverage starts only
+  // after landing on the target page, matching this file's own AC-10 pattern.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(casosUrl)
   await page.waitForURL(casosUrl)
@@ -979,7 +995,7 @@ test('T6 keyboard-only: Tab-only from the /casos narrative into "Gerenciar narra
   let manageLinkFocused = false
   for (let i = 0; i < 35; i++) {
     await page.keyboard.press('Tab')
-    const focused = await focusTrace()
+    const focused = await focusTrace(page)
     if (focused && focused.tag === 'A' && /gerenciar narrativa/i.test(focused.text)) {
       manageLinkFocused = true
       break
@@ -994,7 +1010,7 @@ test('T6 keyboard-only: Tab-only from the /casos narrative into "Gerenciar narra
   let textareaFocused = false
   for (let i = 0; i < 15; i++) {
     await page.keyboard.press('Tab')
-    const focused = await focusTrace()
+    const focused = await focusTrace(page)
     if (focused && (focused.tag === 'TEXTAREA' || focused.role === 'textbox')) {
       textareaFocused = true
       break
@@ -1005,7 +1021,7 @@ test('T6 keyboard-only: Tab-only from the /casos narrative into "Gerenciar narra
   let salvarFocused = false
   for (let i = 0; i < 10; i++) {
     await page.keyboard.press('Tab')
-    const focused = await focusTrace()
+    const focused = await focusTrace(page)
     if (focused && /salvar/i.test(focused.text)) {
       salvarFocused = true
       break
