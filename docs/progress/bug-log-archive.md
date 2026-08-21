@@ -2917,3 +2917,60 @@ its bound, never as a total; same family as `FUP-E2E-GATE-CENSUS-AND-CRASH-CLASS
 down (there the summary hid unrun tests, here the **runner** does).
 
 
+
+## Rotated 2026-08-21 — BUG-QO-STALE-CASOS + BUG-QO-STALE-CASOS-2 (both RESOLVED, Step 0 of the case-surface-split program)
+
+✅ **BOTH RESOLVED 2026-08-21** on branch `feat/case-surface-split`, commit `4ec53577`. Declaring run on a fresh
+`supabase db reset --local`, `--workers=1`, exit read directly: **21 passed · 0 failed · 0 flaky · 0 skipped ·
+0 did-not-run · 21 collected · exit 0** (was 19p/2f at filing). The pairing was PRESERVED, not swapped: it
+re-anchors on "Gerenciar caso" present for the coordinator vs absent for `quality.a` on the SAME `/casos` URL —
+the surviving differential affordance, so it stays non-vacuous and survives Increments 1–2.
+
+⭐ **The durable lesson, recorded because the count was wrong in the reassuring direction:** "two failing tests"
+was a **FLOOR, not a count**. A failing assertion masks every assertion after it in the same test, so the third
+instance (`Nova entrevista`) was *invisible* until the first was fixed — and a run-fix-rerun loop converges only
+by luck, reporting green at the last **reachable** stale assertion rather than the last one. The class was
+therefore swept **statically** (reading, not running) across all 103 spec files, bounded to the 14 containing
+`/casos/`, by the property "a case-wide affordance asserted present for a real coordinator on a `/casos` URL".
+Sweep found **3 total, all in this file**. ⚠ Its stated limit, not closed: a test that click-throughs to `/casos/`
+without the URL string appearing anywhere is invisible to a text sweep — none found, non-existence NOT proven.
+
+⛔ **The sweep’s dismissal basis later EXPIRED** when Increment 1 (`01b41c87`) changed
+`readingAsMember` from `canManageLifecycle` to `(canManageLifecycle || canWriteContent)`: two dismissal categories
+(write-grantee, administrativo carve-out) became invalid, converting into the T6 work list. "0 additional" was true
+about the code swept and was NOT a statement about the code that then existed.
+
+**Original rows, verbatim:**
+
+🔴 **BUG-QO-STALE-CASOS — `quality-oversight.spec.ts` asserts coordinator WRITE affordances on
+`/casos`, which `8675b7cd` (2026-08-19) deliberately made a READING surface. `main` is E2E-RED.**
+Filed 2026-08-20 (lead) during the DSR Slice 2 gate. Two tests fail — `:569` "no-lockout control"
+(header `Editar` absent) and `:627` "Reabrir caso" pairing — both navigating `${CCIH}/casos/<id>`.
+**Not a DSR regression: proven by control.** Stashing the entire slice (`git stash -u`), clearing
+`.next`, rebuilding and re-running the spec alone on a fresh DB reproduces **the same two failures,
+19 passed / 2 failed**, identical to the run with the slice present. Seed state matches the tests'
+premises (case 1 `pending`, case 2 `completed`), and the affordances still exist — on
+`/manage/cases/[caseId]/(detail)`, where that commit moved them. ⚠ **The repair is not "change the
+URL": the test's PURPOSE was to pair a coordinator against `quality.a`'s absence check on the SAME
+url, and if `/casos` is now read-only for everyone that pairing has gone VACUOUS** — it would pass
+while proving nothing. Owner: whoever owns `8675b7cd`; the E2E baseline is red until then.
+**Repair design PO-ratified 2026-08-21** (ADR [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md)
+D8; recipe: [case-surface-split.md](../plans/case-surface-split.md) §2): re-anchor the `:569`
+pairing on "Gerenciar caso" presence (coordinator) vs absence (`quality.a`) on the same `/casos`
+URL — non-vacuous, survives the redesign — and move `Editar`/`Reabrir` to `/manage/cases/[caseId]`.
+⛔ **UPDATE 2026-08-21 (Step 0, branch `feat/case-surface-split`): "two failing tests" was a FLOOR,
+not a count — and the repair is what revealed it.** D8's two items are done and individually
+verified (stable **20 p / 1 f / 0 flaky / 0 did-not-run / 21 collected**, reproduced twice,
+`--workers=1`). The remaining red is a **third instance of the identical mechanism**:
+🔴 **BUG-QO-STALE-CASOS-2** — `InterviewsPanel`'s `canCreate={caps.canManageLifecycle}`
+(`case-detail-view.tsx`) reads the same **narrowed** caps, so "Nova entrevista" is also absent
+from `/casos` for a real coordinator. App correct by design (D1: case-wide creation is a
+management affordance); **spec stale**. It was **invisible until `Editar` was fixed**, because
+*a failing assertion masks every assertion after it in the same test* — so a run-fix-rerun loop
+converges only by luck and reports green at the last **reachable** stale assertion. Lead ruling:
+repaired under D8's pattern, whose enumeration is widened **by property, not by name** (a third
+instance of a ratified pattern needs no new PO call), and the class is being swept **statically
+across all of `e2e/`** — reading, not running, since running reveals at most one per test.
+⚠ This bug does not close until that sweep reports its size **and how it was bounded**: the
+hand-list of 2 was already wrong once.
+Tester-owned, **not yet executed**; ordered before AFF2 pins its e2e baseline.

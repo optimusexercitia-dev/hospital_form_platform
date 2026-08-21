@@ -19,6 +19,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 - **🏗 IN BUILD 2026-08-21 — CASE SURFACE SPLIT (ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md)).**
   Branch `feat/case-surface-split`; plan [case-surface-split.md](docs/plans/case-surface-split.md)
   (Step 0 → Increment 1 → Increment 2, strictly ordered, full §6 step-1 gate between each).
+  **✅ Step 0 DONE** (`4ec53577`) — `quality-oversight.spec.ts` 21 p / 0 f / 0 did-not-run / exit 0
+  on a fresh reset; both QO bugs closed and rotated. **🏗 Increment 1 code BUILT** (`01b41c87`) —
+  T1–T5, lint 8/8 + `tsc` green (lead-verified, exits read directly); **T6 specs NOT written and
+  no `e2e:prod` run**, so the increment is **not** gated. **Increment 2 NOT started** (blocked on
+  OPEN-1). ⛔ Nothing merged; `main` unchanged.
   **Approval scope, written down because it is a new fact:** ADR 0134 **D11 explicitly withheld
   build start** from the 2026-08-21 design ratification ("implementation happens in a future
   session, per the PO"). The PO gave the build go **2026-08-21, this session**, with the agent
@@ -195,38 +200,16 @@ fixed** — `lint:progress` reds a resolved *follow-up index line* but **cannot 
 section**, so rotation discipline is the only control, and it is the one this repo records as chronically
 skipped. Caught while writing a report **from this register**, which is the register's real test.
 
-🔴 **BUG-QO-STALE-CASOS — `quality-oversight.spec.ts` asserts coordinator WRITE affordances on
-`/casos`, which `8675b7cd` (2026-08-19) deliberately made a READING surface. `main` is E2E-RED.**
-Filed 2026-08-20 (lead) during the DSR Slice 2 gate. Two tests fail — `:569` "no-lockout control"
-(header `Editar` absent) and `:627` "Reabrir caso" pairing — both navigating `${CCIH}/casos/<id>`.
-**Not a DSR regression: proven by control.** Stashing the entire slice (`git stash -u`), clearing
-`.next`, rebuilding and re-running the spec alone on a fresh DB reproduces **the same two failures,
-19 passed / 2 failed**, identical to the run with the slice present. Seed state matches the tests'
-premises (case 1 `pending`, case 2 `completed`), and the affordances still exist — on
-`/manage/cases/[caseId]/(detail)`, where that commit moved them. ⚠ **The repair is not "change the
-URL": the test's PURPOSE was to pair a coordinator against `quality.a`'s absence check on the SAME
-url, and if `/casos` is now read-only for everyone that pairing has gone VACUOUS** — it would pass
-while proving nothing. Owner: whoever owns `8675b7cd`; the E2E baseline is red until then.
-**Repair design PO-ratified 2026-08-21** (ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md)
-D8; recipe: [case-surface-split.md](docs/plans/case-surface-split.md) §2): re-anchor the `:569`
-pairing on "Gerenciar caso" presence (coordinator) vs absence (`quality.a`) on the same `/casos`
-URL — non-vacuous, survives the redesign — and move `Editar`/`Reabrir` to `/manage/cases/[caseId]`.
-⛔ **UPDATE 2026-08-21 (Step 0, branch `feat/case-surface-split`): "two failing tests" was a FLOOR,
-not a count — and the repair is what revealed it.** D8's two items are done and individually
-verified (stable **20 p / 1 f / 0 flaky / 0 did-not-run / 21 collected**, reproduced twice,
-`--workers=1`). The remaining red is a **third instance of the identical mechanism**:
-🔴 **BUG-QO-STALE-CASOS-2** — `InterviewsPanel`'s `canCreate={caps.canManageLifecycle}`
-(`case-detail-view.tsx`) reads the same **narrowed** caps, so "Nova entrevista" is also absent
-from `/casos` for a real coordinator. App correct by design (D1: case-wide creation is a
-management affordance); **spec stale**. It was **invisible until `Editar` was fixed**, because
-*a failing assertion masks every assertion after it in the same test* — so a run-fix-rerun loop
-converges only by luck and reports green at the last **reachable** stale assertion. Lead ruling:
-repaired under D8's pattern, whose enumeration is widened **by property, not by name** (a third
-instance of a ratified pattern needs no new PO call), and the class is being swept **statically
-across all of `e2e/`** — reading, not running, since running reveals at most one per test.
-⚠ This bug does not close until that sweep reports its size **and how it was bounded**: the
-hand-list of 2 was already wrong once.
-Tester-owned, **not yet executed**; ordered before AFF2 pins its e2e baseline.
+✅ **BUG-QO-STALE-CASOS + BUG-QO-STALE-CASOS-2 — BOTH RESOLVED 2026-08-21** (Step 0 of the case-surface-split
+program, branch `feat/case-surface-split`, commit `4ec53577`). `quality-oversight.spec.ts` **21 p / 0 f /
+0 did-not-run / exit 0** on a fresh reset, was 19p/2f. The pairing was preserved, not swapped. Full rows +
+closure narrative rotated verbatim → [bug-log-archive.md](docs/progress/bug-log-archive.md).
+⭐ Carried forward because it outlives the bug: **"two failing tests" was a FLOOR, not a count** — a failing
+assertion masks every assertion after it in the same test, so instance 3 was invisible until instance 1 was
+fixed. Sweep the class **statically**; a run-fix-rerun loop reports green at the last **reachable** stale
+assertion. ⛔ **`main` IS STILL E2E-RED for these two** — the repair lives on the unmerged branch, so the
+2026-08-21 DSR gate row below stays accurate as written. The baseline expectation drops to **0 known-stale
+failures** only when `feat/case-surface-split` merges, and not before.
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
