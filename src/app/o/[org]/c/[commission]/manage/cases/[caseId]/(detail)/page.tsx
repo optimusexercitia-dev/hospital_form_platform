@@ -171,7 +171,14 @@ export default async function CaseDetailPage({
   // ⚠ The assignee disjunct is per-PHASE and this prop is per-CASE, so it cannot be
   // expressed here; only the coordinator arm is rendered. Surfacing the assignee arm
   // is a product question (it would need a per-phase prop), deliberately NOT
-  // invented in this increment. `/casos` hand-sets the same coordinator-only test.
+  // invented in this increment.
+  //
+  // ⛔ This comment ended "`/casos` hand-sets the same coordinator-only test" —
+  // FALSE as of the very commit that wrote it (ADR 0134 D2), which stopped the
+  // reading surface passing `canManagePhaseResults` at all. `/casos` does not set
+  // this test; it does not offer the affordance. A stale comment introduced by the
+  // pass that was FIXING stale comments — which is the argument for keeping
+  // cross-file claims out of a comment unless a gate can contradict them.
   const canManagePhaseResults = phaseResultsOn && access.role === "staff_admin";
   // The commission's full active vocabulary; the picker narrows it per phase — a
   // MANUAL phase is restricted to its allowed subset (phase-result-manual-mode).

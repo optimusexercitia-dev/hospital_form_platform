@@ -19,6 +19,10 @@ import {
   CaseStatusBadgeFixed,
 } from "@/components/cases/case-status-badge";
 import { CaseRoleChip } from "@/components/cases/case-role-chip";
+import {
+  isReadingAsMember,
+  narrowToReadingSurface,
+} from "@/components/cases/reading-surface";
 import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
 import type {
   CorrectionRequest,
@@ -27,8 +31,6 @@ import type {
 import type { CorrectionCaps } from "@/components/cases/correction-labels";
 import { ReopenCaseButton } from "@/components/cases/reopen-case-button";
 import { CasePhaseList, type AssigneeOption } from "@/components/cases/case-phase-list";
-import { EditCaseMetaDialog } from "@/components/cases/edit-case-meta-dialog";
-import type { Department } from "@/lib/hospitals/departments";
 import { CaseActionItemsPanel } from "@/components/cases/case-action-items-panel";
 import { CaseEventsTimeline } from "@/components/cases/case-events-timeline";
 import { CaseTagsPanel } from "@/components/cases/case-tags-panel";
@@ -139,8 +141,6 @@ export function CaseDetailView({
   casesExtrasEnabled = false,
   actionItemsEnabled = false,
   canAssignPhases = false,
-  canEditMeta = false,
-  departments = [],
   caseCustomFieldsEnabled = false,
   customFields = [],
   correctionsEnabled = false,
@@ -238,16 +238,6 @@ export function CaseDetailView({
    * `false` (a plain read/write grantee gets no phase-assignment controls).
    */
   canAssignPhases?: boolean;
-  /**
-   * Whether the viewer may EDIT this case's meta (label + department) — a coordinator
-   * OR a `create_cases` Administrativo (ADR 0061), resolved at the host page via
-   * `canInCommission(access, 'create_cases')`. Surfaces the "Editar" affordance in the
-   * self-contained (staff-route) header on an OPEN case; the coordinator `(detail)`
-   * layout renders its own edit-meta button. Default `false`.
-   */
-  canEditMeta?: boolean;
-  /** The case's hospital ACTIVE departments — seeds the edit-meta dialog. Default `[]`. */
-  departments?: Department[];
   /** Whether the `case_custom_fields` flag is on (gates the custom-fields panel; ADR 0083). */
   caseCustomFieldsEnabled?: boolean;
   /** The case's custom-field values (ADR 0083); `[]` when none / the flag is off. */
@@ -391,11 +381,12 @@ export function CaseDetailView({
   // work here — which is exactly the committee-member surface this route is meant to
   // be. After this, `/casos` writes are name-attributed only, which is D1's sentence
   // made literally true.
-  const readingAsMember =
-    managementElsewhere &&
-    (rawCaps.canManageLifecycle || rawCaps.canWriteContent);
-  const caps: CaseViewerCapabilities = readingAsMember
-    ? { ...rawCaps, canManageLifecycle: false, canWriteContent: false }
+  // ⛔ The narrowing itself lives in ONE place (`./reading-surface`) and is shared
+  // with every other `/casos` route — see that module's header for why a per-file
+  // copy of this rule is the defect it was extracted to prevent.
+  const readingAsMember = managementElsewhere && isReadingAsMember(rawCaps);
+  const caps: CaseViewerCapabilities = managementElsewhere
+    ? narrowToReadingSurface(rawCaps)
     : rawCaps;
   // ADR 0100 D7 — the oversight reader. Three affordances on this page are NOT
   // derived from `caps` and would otherwise render for them; see each use site.
@@ -418,7 +409,6 @@ export function CaseDetailView({
   const effectiveCanAssignPhases = readingAsMember
     ? false
     : canAssignPhases || caps.canManageLifecycle;
-  const effectiveCanEditMeta = readingAsMember ? false : canEditMeta;
   const effectiveCanManagePhaseResults = readingAsMember
     ? false
     : canManagePhaseResults;
@@ -535,12 +525,16 @@ export function CaseDetailView({
     detail.primarySubjectKind === "entity";
 
   // Custom fields (ADR 0083) — the panel shows when the flag is on and the case has
-  // any values. Edit authority mirrors the meta-edit door: a coordinator
-  // (`canManageLifecycle`) OR a `create_cases` Administrativo (`canEditMeta`), and only
-  // while the case is OPEN (terminal cases are frozen server-side, HC025).
+  // any values. Edit authority follows `canManageLifecycle` while the case is OPEN
+  // (terminal cases are frozen server-side, HC025).
+  //
+  // ⛔ The `|| effectiveCanEditMeta` disjunct is GONE with the meta seam (ADR 0134
+  // F-5). It was structurally `false` — no host has passed `canEditMeta` since D2
+  // stopped the reading surface resolving it — so removing it changes nothing here.
+  // The `create_cases` administrativo's meta authority did not disappear with it:
+  // it lives on the manage host, in the `(detail)` layout's own edit button.
   const showCustomFieldsPanel = caseCustomFieldsEnabled && customFields.length > 0;
-  const canEditCustomFields =
-    (caps.canManageLifecycle || effectiveCanEditMeta) && isOpen;
+  const canEditCustomFields = caps.canManageLifecycle && isOpen;
 
   const body = (
     <>
@@ -619,9 +613,7 @@ export function CaseDetailView({
                 OFF this reading surface. Gating it on the NARROWED capability would
                 hide the one exit the narrowing creates the need for — which is why
                 the host feeds it the un-narrowed predicate. */}
-            {((patientSafetyEnabled && !isOversight) ||
-              canOpenManagement ||
-              (isOpen && effectiveCanEditMeta)) && (
+            {((patientSafetyEnabled && !isOversight) || canOpenManagement) && (
               <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
                 {patientSafetyEnabled && !isOversight && (
                   <NotifyEventDialog
@@ -637,19 +629,12 @@ export function CaseDetailView({
                     }
                   />
                 )}
-                {/* Edit META (label + department) — the single audited edit door
-                    (ADR 0061). Open-only (terminal cases are frozen, HC025). Shown to a
-                    `create_cases` Administrativo on the staff route; coordinators edit
-                    from the `(detail)` layout's own button. */}
-                {isOpen && effectiveCanEditMeta && (
-                  <EditCaseMetaDialog
-                    caseId={c.id}
-                    currentLabel={c.label}
-                    currentDepartmentId={c.departmentId}
-                    currentDepartmentOther={c.departmentOther}
-                    departments={departments}
-                  />
-                )}
+                {/* ⛔ The Edit META dialog that stood here is DELETED (ADR 0134
+                    F-5), not hidden. It was reachable only via `canEditMeta`, which
+                    D2 stopped every host from passing, so the branch was structurally
+                    dead. `update_case_meta` is unchanged and its affordance lives on
+                    the manage host — coordinator ∨ `create_cases` — which is exactly
+                    where D1 puts case-wide work. */}
                 {canOpenManagement && (
                   <Link
                     href={commissionHref(org, slug, "manage", "cases", c.id)}
