@@ -211,6 +211,21 @@ while proving nothing. Owner: whoever owns `8675b7cd`; the E2E baseline is red u
 D8; recipe: [case-surface-split.md](docs/plans/case-surface-split.md) §2): re-anchor the `:569`
 pairing on "Gerenciar caso" presence (coordinator) vs absence (`quality.a`) on the same `/casos`
 URL — non-vacuous, survives the redesign — and move `Editar`/`Reabrir` to `/manage/cases/[caseId]`.
+⛔ **UPDATE 2026-08-21 (Step 0, branch `feat/case-surface-split`): "two failing tests" was a FLOOR,
+not a count — and the repair is what revealed it.** D8's two items are done and individually
+verified (stable **20 p / 1 f / 0 flaky / 0 did-not-run / 21 collected**, reproduced twice,
+`--workers=1`). The remaining red is a **third instance of the identical mechanism**:
+🔴 **BUG-QO-STALE-CASOS-2** — `InterviewsPanel`'s `canCreate={caps.canManageLifecycle}`
+(`case-detail-view.tsx`) reads the same **narrowed** caps, so "Nova entrevista" is also absent
+from `/casos` for a real coordinator. App correct by design (D1: case-wide creation is a
+management affordance); **spec stale**. It was **invisible until `Editar` was fixed**, because
+*a failing assertion masks every assertion after it in the same test* — so a run-fix-rerun loop
+converges only by luck and reports green at the last **reachable** stale assertion. Lead ruling:
+repaired under D8's pattern, whose enumeration is widened **by property, not by name** (a third
+instance of a ratified pattern needs no new PO call), and the class is being swept **statically
+across all of `e2e/`** — reading, not running, since running reveals at most one per test.
+⚠ This bug does not close until that sweep reports its size **and how it was bounded**: the
+hand-list of 2 was already wrong once.
 Tester-owned, **not yet executed**; ordered before AFF2 pins its e2e baseline.
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
