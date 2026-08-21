@@ -21,17 +21,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ruled eleven items and shipped five. ⛔ *The standing-green E2E figure this bullet used to carry
   (the 2026-08-17 run, 1121p/0f) is **SUPERSEDED** — see the 2026-08-20 gate below, which is RED.*
 - **✅ CONCLUDED 2026-08-18 — the Cloud constructed-orphan probe.** Cloud exposes **no orphan-visible surface** (all 5 metadata-bound), so the byte half is structurally unverifiable and the runbook’s *asserted, not verified* posture is evidenced; `FUP-DM4-PRODROW` **unblocked**, its "~49 vanished" figure **withdrawn** (§ State). ⛔ Not reassurance — orphan bytes are **unobservable, not absent**. Narrative rotated 2026-08-20 → [cloud-orphan-probe-2026-08-18.md](docs/progress/cloud-orphan-probe-2026-08-18.md).
-- **✅ CONCLUDED 2026-08-19 — the `Imprimir prévia` / `Emitir documento` split** (ADR
-  [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md) +
-  [0126](docs/decisions/0126-print-series-and-derived-currency.md)): shipped, QA **APPROVED** r2,
-  **merged and pushed** (`9ed197d5`), branch gone. A locked source yields a registered emission; an
-  editable one an **ephemeral prévia** — and the **door** enforces it, not the UI. ⭐ Its lesson,
-  kept here because it is not print-specific: *a keystone proves the DOOR works and says nothing
-  about whether the ACTION can reach it — the test is a **second caller**, and a second caller can
-  satisfy a door the real one cannot even open.* ⚠ ADR 0126 **Amdt 1** carries eleven findings,
-  **four of them corrections to claims the ADRs state AS MEASURED**. Full narrative rotated
-  2026-08-20 → [previa-split-2026-08-19.md](docs/progress/previa-split-2026-08-19.md); residue
-  (commission-level cascade path; `case`/`interview` lock declarations, 0126 D7) stays open there.
+- **✅ CONCLUDED 2026-08-19 — the `Imprimir prévia` / `Emitir documento` split** (ADR [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md) + [0126](docs/decisions/0126-print-series-and-derived-currency.md)): shipped, QA APPROVED r2, merged and pushed (`9ed197d5`). Bullet rotated verbatim 2026-08-21 → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md); narrative in [previa-split-2026-08-19.md](docs/progress/previa-split-2026-08-19.md), where its residue stays open.
 - **🆕 Six follow-ups from the ADR 0125/0126 build, none of them its subject** — one ✅ RESOLVED
   (`FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`, ADR 0129 / DSR Slice 1; ⚠ its "blocks C1a/C1b"
   claim was **wrong in grain**). The other five are now **all carried in § Follow-ups** — ⛔ three
@@ -117,37 +107,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      satisfied by a guard refusing every delete).
   3. **C1 split into C1a (local) + C1b (Cloud); the pilot bound is C1b** — a green
      local rehearsal does NOT release the pilot (§ Critical FUP C1).
-- **✅ SHIPPED 2026-08-19 — the documentation-stability refactor** (ADR
-  [0127](docs/decisions/0127-standing-rules-home-and-staleness-gate.md); ADR
-  [0124](docs/decisions/0124-progress-live-state-contract.md) **Amdt 1**). This file
-  **56.6 KB → 40 KB**. Standing rules moved to `.claude/rules/` — **4 admitted, 5 of 9
-  rejected** (already gate-enforced, dead anchor, or no tight glob). `lint:rules` is
-  **gate 8**; `lint:progress` gained cell/bullet shape caps and now link-checks the
-  rotation destinations, which immediately found **41 links already broken** in two of
-  them plus 3 orphaned anchors.
-  ⛔ **The premise the refactor was proposed on was FALSE** — this file is **not** loaded
-  by any spawn and never was (no `@`-import has ever existed). Always-loaded is
-  CLAUDE.md 32 KB + MEMORY.md 20 KB, so cutting *this* file buys nothing at session start.
-  ✅ **MEASURED 2026-08-19 — rules FIRE.** A fresh session touched PROGRESS.md and the probe
-  logged `RULE · progress-contract.md · reason=path_glob_match · globs=PROGRESS.md,docs/progress
-  · trigger=…\PROGRESS.md`. The feature flag is on; the earlier non-load was the mid-session
-  creation, as hypothesised. The CLAUDE.md §8 intake line is **unblocked** (ADR 0127 Amdt 4).
-  ✅ **Confirmed twice, incl. a SOURCE glob** (ADR 0127 Amdt 5): a fresh `claude -p` session
-  reading `src/lib/queries/responses.ts` loaded `answer-maps.md` by `path_glob_match`. That is
-  the case the §8 intake rests on — standing lessons are discovered in source, not in the
-  tracker. ⚠ **Bounded: fresh sessions 2/2 fired; the resumed session that built this 0/3.**
-  Unexplained, not guessed at. A rule is a strong hint, **never a substitute for a gate**.
-  ⭐ Incidental: every `session_start` entry names exactly **two** files — user CLAUDE.md and
-  project CLAUDE.md, **no PROGRESS.md**. The harness independently confirms ADR 0124 Amdt 1.
-  ✅ **`.claude/rules/` now has a COMPLETE lifecycle** — intake (CLAUDE.md §8, unheld once
-  firing was measured), staleness gate, volume bounds, and a **conditional** exit. ⛔ The exit
-  is conditional for a reason: **nothing reads `rules-archive.md`**, so retiring a rule that is
-  still true and enforced nowhere deletes the lesson, and `lint:rules` goes green either way.
-  "Too broad but still needed" is **not** a retirement — it is a gate waiting to be built, or
-  content that belongs in CLAUDE.md (ADR 0127 Amdt 2).
-  **Filed, not built:** the 42501 gate (15 `throws_ok` sites) · staleness **domain (b)**,
-  the docs that make claims about repo mechanics · MEMORY.md compaction (19.6 / 24.4 KB) ·
-  a CLAUDE.md context program — the file where cutting bytes actually pays.
+- **✅ SHIPPED 2026-08-19 — the documentation-stability refactor** (ADR [0127](docs/decisions/0127-standing-rules-home-and-staleness-gate.md); ADR [0124](docs/decisions/0124-progress-live-state-contract.md) Amdt 1): standing rules moved to `.claude/rules/`, `lint:rules` is gate 8, and rules were **measured to fire**. Bullet rotated verbatim 2026-08-21 → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md), which keeps the four filed-not-built items and the ⛔ premise-was-false note.
 - **In-flight worktrees:** `progress-methodology` (this restructure — tracker
   methodology + CLAUDE.md review cadence).
 
@@ -264,6 +224,31 @@ in the same body*, so a rehearsal case carrying a `completed`/`cancelled` interv
 `disposal_pending` row at all**. Pick the fixture accordingly, or the rehearsal reads as "nothing to
 complete". `dispose_event_phi` writes **no** `file_objects`/`documents` row, so the safety lane does
 not feed the runbook either way.
+
+⛔ **THE E2E BASELINE ON `main` IS "AT LEAST N", NEVER A COUNT — corrected 2026-08-21.** The figure
+below ("two deterministic failures") was repeated for a day as if it were total. It is a **floor**.
+A **third** pre-existing failure surfaced 2026-08-21 (`BUG-DSR-S3-AGENDA-TITLE-STALE`), and
+`dsr-slice3-adjudication.spec.ts` runs `mode: 'serial'` — **one failure aborts every test after
+it**, so behind any serial abort there is no way to know what else was red. State the baseline with
+its bound, never as a total; same family as `FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER`, one layer
+down (there the summary hid unrun tests, here the **runner** does).
+
+🔴 **BUG-DSR-S3-AGENDA-TITLE-STALE — `dsr-slice3-adjudication.spec.ts:728` asserts
+`meeting_agenda_items.title` SURVIVES `dispose_meeting_minutes`; the live catalog says the door
+redacts it. Pre-existing on `main` since 2026-08-20, undetected, and it was PREDICTED IN WRITING.**
+Found 2026-08-21 (tester) while doing unrelated work. Root cause: `3d5e9a9c` (DSR Slice 4, PO-ruled,
+already on `main`) widened the meeting door to its composition closure — `meeting_agenda_items.title`
+included, closing `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`. `meetings.title` (the meeting's **own**
+title) is the one PO-ruled exception that stays disclosed; the agenda **item's** title is not that
+exception. Verified from the live catalog, not migration text: the door runs `update
+public.meeting_agenda_items set title = v_redacted, …`, while the only `meetings` writes are
+`minutes_md = null` plus the disposal stamps. The Slice-3-vintage spec was never updated.
+⭐ **Why it survived a gate:** the DSR close recorded, in writing, that `e2e:prod` was **NOT re-run**
+for the final increment — and said so precisely because *"a gate record naming only what passed reads
+as full coverage."* The warning was right, the run still never happened, and a PO-ruled
+follow-up-closing change sat contradicted on `main` for a day. **A stated omission is not a mitigated
+one.** ⛔ **Not caused by the remediation round**; fixing it is what made that round's own E2E work
+observable, since the serial abort was swallowing every test after it. Owner: tester.
 
 🔴 **BUG-QO-STALE-CASOS — `quality-oversight.spec.ts` asserts coordinator WRITE affordances on
 `/casos`, which `8675b7cd` (2026-08-19) deliberately made a READING surface. `main` is E2E-RED.**
