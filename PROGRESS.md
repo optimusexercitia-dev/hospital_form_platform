@@ -49,6 +49,18 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   re-gate onto the capability. ⚠ **That supersedes Increment 1's T4 narrowing** — T4 was correct
   when shipped (the door refused the capability; the route must not out-run the door) and is
   reversed only once the door admits it. Sequence, not flip-flop.
+  ⛔ **OPEN-3 — a THIRD PO question, surfaced by measurement AFTER the OPEN-2 ruling and NOT
+  covered by it. Blocks door 2.** `bulk_create_cases` takes a **`patient` object per row** and
+  calls `set_case_patient` (**Rule 12 data**), so admitting an administrativo to bulk creation
+  makes a **PHI write path** reachable by them. `set_case_patient` is a gate-less compat wrapper
+  delegating to `set_participant_patient`, **whose authority is UNMEASURED** (stack was mid-reset
+  under the Increment-1 gate). Two outcomes, both PO calls: **(a)** it refuses them ⇒ the wizard's
+  PHI picker is a **dead-end door inside the widened door** (200 rows, `42501` on commit, batch
+  rolled back — the shape T4 was overruled to avoid), needing a ruling on suppressing that
+  affordance; **(b)** it admits them ⇒ administrativo gains **PHI WRITE** from a case-*creation*
+  capability — a Rule 12 widening the PO was never asked about (they ruled that creating many cases
+  carries the same responsibility as creating one; patient-identifier write was not in the
+  question). Measure first, then ask. Detail: [plan](docs/plans/case-surface-split.md) § OPEN-3.
   ⛔ **OPEN-2 — a second PO ruling, found by measurement at build start and NOT in the ADR.**
   ADR 0134 **D5** assumed an administrativo holding `create_cases` should reach *bulk* case
   creation; the door was never measured. It is `app.is_staff_admin_of` **only** — so D5's

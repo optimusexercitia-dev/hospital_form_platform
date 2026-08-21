@@ -355,6 +355,47 @@ widens without coordinator action) — and `supabase/seed.sql` DOES grant it to 
 seed is a contract with ~900 tests; changing personas' reach is a fixture decision, so update
 the seed header roster note in the same change).
 
+### ⛔ OPEN-3 — BLOCKS door 2 (M-bulk). A Rule 12 boundary the OPEN-2 ruling did not reach.
+
+**Measured 2026-08-21 (backend, live catalog).** `public.bulk_create_cases` accepts a **`patient`
+object per row** and calls `public.set_case_patient` — **Rule 12 data**. So the moment an
+administrativo may call bulk creation, that PHI path becomes reachable by them.
+`set_case_patient` is a **thin compat wrapper with no gate of its own**; it delegates to
+`public.set_participant_patient`, where the real authority lives. The outcome is one of two, and
+they are very different:
+
+- **(a) `set_participant_patient` refuses them** ⇒ an administrativo can bulk-create only PHI-free
+  batches, and the wizard's PHI column picker becomes **a dead-end door inside the widened door** —
+  fill 200 rows with patient data, `42501` on commit, whole batch rolled back. Exactly the failure
+  shape T4 was overruled to avoid.
+- **(b) it admits them** ⇒ an administrativo gains **PHI WRITE** as a side effect of a case-
+  *creation* capability. That is a **Rule 12 widening far beyond what the PO ruled**, and outside
+  D11's scope as extended by Amendment 1 — the PO ruled that creating many cases carries the same
+  responsibility as creating one; they were **not** asked about patient-identifier write.
+
+⛔ **`public.set_participant_patient`'s authority gate is UNMEASURED** — the one fact that decides
+(a) vs (b). The local stack was mid-reset under the Increment-1 `e2e:prod` gate. It is one query;
+it must be run before M-bulk is written, and it must **not** be inferred from the wrapper's comment
+(*"reuse the audited coordinator-only single door"*), which lives in `bulk_create_cases`, describes
+`set_case_patient`, and is **already imprecise about the very thing it names** — `set_case_patient`
+provably has no gate at all.
+
+**Either outcome is a PO question, not a lead call.** (a) needs a ruling on whether the wizard's
+PHI affordance is suppressed for administrativos; (b) needs a Rule 12 ruling the PO has not been
+asked for.
+
+⚠ **And when M-bulk is written, rewrite the comment in the same migration.** The current authority
+block documents the exclusion as **deliberate**: *"DELIBERATELY STRICTER than
+create_case_from_template's own gate … bulk dealing is a coordinator act (Design #9)."* OPEN-2
+**reverses a recorded design decision**; left as-is that comment asserts the exact opposite of the
+truth, in the file a future reader trusts most.
+
+⚠ Pre-existing, outside this program, noted because it sits one call away: `public.create_case`'s
+authority carries an **`app.is_admin()` disjunct** (`is_staff_admin_of ∨ is_admin() ∨
+member_can('create_cases')`) — a `platform_admin` creating commission content is noun-rule
+territory (ADR 0078 A35) — while `create_case_from_template` has **no** such arm. The two
+single-case doors already disagree with each other.
+
 ### M2 — the S8 arm
 
 `CREATE OR REPLACE` of `app._case_caps` **starting from the live catalog definition**
@@ -377,15 +418,44 @@ rendering wherever the four are listed).
   grantless case (`can_read_case` true; `list_cases_board` returns it; `get_case_detail`
   succeeds read-only — `can_write_content` false, `can_manage_lifecycle` false).
 - **P2 negative ×2:** capability revoked ⇒ read gone; appointment revoked ⇒ read gone.
+  ⚠ **Measured caveat (V-D):** `commission_admin_cap_appointment_fk` is
+  `ON DELETE CASCADE` to `commission_administrativos`, so "appointment revoked ⇒ capability gone"
+  is **structural** — that half of P2 tests **an FK, not S8**, and would pass with the arm removed.
+  Say so, or P2 reads as two independent negatives when it is one.
 - **P3 flag-dark:** `administrativo` flag off ⇒ S8 confers nothing.
 - **P4 over-grant twin (mutation):** with the arm reverted, P1 goes RED — run under the
   neutralization harness with hash-verified restore (probe must MOVE the hash, restore must
   bring it BACK; the harness's own rollback is proven first).
 - **P5 cross-commission:** administrativo of commission A gets nothing in commission B.
-- **P6 audit:** an S8-derived open emits `case.opened` (V-F).
-- **P7 PHI non-leak:** the same S8 administrativo **cannot** read `patient_identifiers` /
-  case-PHI for the case — direct DML and through every PHI door (V-E). This is the Rule-12
-  keystone of the whole program.
+- **P6 audit** — ⛔ **REWRITTEN 2026-08-21: as originally specified it cannot fail.** V-F measured
+  the coupling: `log_audit_access` **raises 42501** when `_audit_access_authorized` is false, and
+  the call sits **inside** `get_case_detail`. So the read and the audit row succeed or fail
+  **together, on the same predicate** — **P1 entails P6**, and a bare "a row exists" check asserts
+  nothing P1 has not already asserted. It must pin what P1 cannot: the row's **actor / commission /
+  entity**, that **exactly one** row is emitted, and the differential that gives it teeth — a
+  **coordinator** open emits **no** row (the emission site is `if not v_is_coordinator`). That
+  pairing is non-vacuous; existence alone is not.
+- **P7 PHI non-leak (the Rule-12 keystone)** — ⛔ **REWRITTEN 2026-08-21: as originally specified
+  it is theatre, for two independently measured reasons.** V-E confirms the *property* holds:
+  `app.can_read_case_patient` keys on **`read_standard_phi`**, not `read_case_content`;
+  `has_case_capability` is a bare bitmask test with **no lattice closure**; and only **S1** and
+  **S3** set the PHI bits. S8 therefore cannot leak PHI **structurally**. But:
+  1. the plan's **"direct DML"** half is denied by **table ACL** — `patient_identifiers` and
+     `patient_participants` grant `authenticated` **nothing at all** and carry **zero policies**.
+     That half passes with S8, without S8, and would pass **even if S8 leaked PHI through a door**.
+     It is the recorded *"a green gate can mean the fixture cannot reach the failing state"* shape.
+  2. bit-disjointness is a property **Postgres guarantees structurally**, and a property guaranteed
+     structurally cannot be pinned by asserting it.
+
+  **P7 must be a differential, run THROUGH THE DOORS, never against the table:**
+  (i) **positive control** — an S3 grantee holding `read_standard_phi` reads **successfully through
+  the same door** at which the S8 subject is denied, proving the fixture can reach the success
+  state; (ii) the S8 subject **denied** at that door; (iii) the **over-grant twin** — flip S8 to
+  also set `read_standard_phi` and require (ii) to go **RED**.
+  **Door set, bounded by property** (every routine whose comment-stripped `prosrc` references
+  `can_read_case_patient`) = exactly three: `app._audit_access_authorized`,
+  `public.get_case_patients`, `public.get_participant_patient`. The SQL comment names the same
+  three; that was **verified, not taken**.
 - **P8 authorship bound:** S8 holder cannot write content (a narrative/action-item/document
   write through the normal doors refuses without a grant) — pins D6's "read only".
 
