@@ -1,7 +1,9 @@
 # ADR 0134 — The case split is read vs manage: one management surface, and administrativo can read the commission's cases
 
 **Status:** **Accepted — design PO-ratified 2026-08-21** (design/grilling session; this ADR is
-the record of that approval and of its scope — see D11) · **NOT built** — implementation plan:
+the record of that approval and of its scope — see D11, **as extended by Amendment 1**) ·
+**IN BUILD** on `feat/case-surface-split` (PO build-go 2026-08-21; Step 0 ✅ done, Increment 1
+code built but **not gated**, Increment 2 not started, **nothing merged**) — implementation plan:
 [docs/plans/case-surface-split.md](../plans/case-surface-split.md) · **Date:** 2026-08-21 ·
 **Feature:** completes the `/casos` ↔ `/manage/cases` split begun by `8675b7cd` (2026-08-19,
 "make /casos a reading surface") and settles the design question underneath
@@ -176,3 +178,57 @@ updated from "not yet built" to the build record in the same change.
   Amendment 1 stubs point here) — left as written they would assert stale claims silently.
 - Out of scope, stated: lifecycle for administrativo, write-grant widening, a per-case
   `manage` level, any change to action-item completion authority, remote push.
+
+---
+
+## Amendment 1 — 2026-08-21 (PO-ruled at build start): the two OPEN items, and D5 widens to bulk
+
+**Status:** Accepted, PO-ruled 2026-08-21 during the build session that opened
+`feat/case-surface-split`. Recorded here because **D11 withheld build start and bounded the
+ratified scope** — one of these rulings extends that bound, so leaving it in PROGRESS.md alone
+would leave the ADR asserting a scope that is no longer the decision.
+
+### A1.1 — OPEN-1: no backfill (confirms the plan's recommendation)
+
+Existing `administrativo` appointees do **not** receive the new `read_cases` capability
+retroactively. The coordinator opts in per appointee, so the capability's audit trail always has
+a coordinator action behind it; a backfill would widen reach with no such action. `supabase/seed.sql`
+grants it explicitly to `staff2.ccih` — a fixture decision, and the seed header roster note moves
+in the same change.
+
+### A1.2 — OPEN-2: bulk case creation opens under the **same** `create_cases` key
+
+**This amends D5 and extends D11's scope.** D5 assumed an administrativo holding `create_cases`
+should reach bulk creation; the build measured the door and found `public.bulk_create_cases`
+gated by `app.is_staff_admin_of` **only** — no `member_can` arm — so D5's letter would have
+admitted them to a wizard whose commit always raises `42501`. Increment 1 therefore shipped the
+**narrowing half only** (dropping the dead `context.isAdmin` bypass), and the widening was
+referred to the PO because it is a change to administrativo **write** authority, which D11 placed
+outside the ratified scope.
+
+**PO ruling:** open it, under the existing key. In the PO's words — *an `administrativo` role is
+granted to a responsible healthcare professional; creating many cases carries the same logical
+responsibility as creating one.*
+
+**The counter-argument was put and rejected, and is recorded so it is not re-litigated as if
+unseen:** `create_cases` today authorises **one** case, while `bulk_create_cases` creates up to
+**200 in one atomic call and assigns them across members**, so reusing the key changes the reach
+of every checkbox already ticked without anyone re-ticking it. The PO ruled the responsibility is
+the same in kind, and that a sixth menu key would split one delegation into two for no
+governance gain. **Rejected: a separate sixth capability key.**
+
+### Consequences
+
+- Increment 2 gains a second migration: a `member_can(commission, 'create_cases')` arm on
+  `bulk_create_cases`, routed through the **flag-aware chokepoint** so the `administrativo` kill
+  switch darkens it exactly as it darkens `update_case_meta`.
+- It carries the **same** pgTAP obligations as the S8 arm — positive, negative (capability and
+  appointment revoked), flag-dark, and the **over-grant twin** (arm reverted ⇒ the positive goes
+  red). A widening without its twin is the one shape this program has refused throughout.
+- Only **after** that door admits it do `multiplos` and the "Múltiplos casos" link re-gate onto
+  the capability. ⚠ **Increment 1's T4 narrowing is superseded, not reversed as an error:** it
+  was correct when shipped, because the route must never out-run the door. Sequence, not
+  flip-flop — and any build record that shows T4 tightening then loosening must say which.
+- The existing `create_cases` checkbox's **meaning changes for appointees who already hold it**.
+  That is the accepted cost of the ruling, not an oversight; it is stated here so a later reader
+  does not discover it as a surprise and file it as a defect.

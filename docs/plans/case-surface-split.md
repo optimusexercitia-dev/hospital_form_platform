@@ -231,7 +231,19 @@ honest pin is **source-level** (no `context.isAdmin` in the cases-area gates) or
 removal is correct as defense-in-depth and as deleting a false statement from the code — it is
 **not** closing a live hole, and the gate record must say so.
 
-**OPEN-2 — PO ruling needed, NOT resolved by this ruling:** D5's *actual intent*
+✅ **OPEN-2 RULED 2026-08-21 — the PO opened it, under the SAME `create_cases` key** (ADR 0134
+**Amendment 1 §A1.2**): *"an `administrativo` role is granted to a responsible healthcare
+professional; creating many cases carries the same logical responsibility as creating one."* The
+magnitude counter-argument below was put and **rejected**; a separate sixth menu key was declined.
+⇒ **Increment 2 gains a second migration:** a `member_can(commission,'create_cases')` arm on
+`bulk_create_cases`, through the flag-aware chokepoint (so the kill switch darkens it, as it does
+`update_case_meta`), with the **same** pgTAP obligations as S8 including the **over-grant twin**.
+**Only then** do `multiplos` + the "Múltiplos casos" link re-gate onto the capability.
+⚠ **T4's Increment-1 narrowing is SUPERSEDED, not reverted as an error** — it was correct when
+shipped, because the route must never out-run the door. A build record showing T4 tighten then
+loosen must say which is which. Text below retained as the record of the decision's inputs:
+
+**~~OPEN-2 — PO ruling needed~~ (RULED — see above):** D5's *actual intent*
 (administrativo does bulk creation by capability) needs a `member_can('create_cases')` arm
 moved onto `bulk_create_cases`. That is a **widening of administrativo write authority**,
 which ADR 0134 **D11** places outside the PO's ratified scope, and outside D6's read-only arm.
@@ -333,10 +345,13 @@ Implements ADR 0134 D6. Read `docs/progress/authz-handoff.md` §7 first. Suggest
 
 ### M1 — capability vocabulary migration
 
-Add `read_cases` to the validated set (per V-D). **OPEN-1 — PO ruling needed at build start,
-recorded in the ADR when ruled:** do existing appointees get `read_cases` backfilled?
-Recommendation: **no backfill** (the coordinator opts in per appointee; a backfill widens
-without coordinator action) — but `supabase/seed.sql` DOES grant it to `staff2.ccih` (the
+Add `read_cases` to the validated set (per V-D). ✅ **OPEN-1 RULED by the PO 2026-08-21 — NO
+BACKFILL** (ADR 0134 Amendment 1 §A1.1), confirming the recommendation below. Existing appointees
+do **not** get `read_cases` retroactively; the coordinator opts in per appointee, so every grant
+has a coordinator action behind it in the audit trail.
+~~Question was: do existing appointees get `read_cases` backfilled?~~
+Recommendation (**adopted**): **no backfill** (the coordinator opts in per appointee; a backfill
+widens without coordinator action) — and `supabase/seed.sql` DOES grant it to `staff2.ccih` (the
 seed is a contract with ~900 tests; changing personas' reach is a fixture decision, so update
 the seed header roster note in the same change).
 

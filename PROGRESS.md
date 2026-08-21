@@ -30,8 +30,25 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   team authorized. **That go covers exactly:** creating the branch and executing the plan's
   Step 0 + Increments 1–2 locally. **It does NOT cover** — remote `db push` (standing
   discipline, unchanged), merge to `main` (a separate PO call per increment), any widening
-  beyond D6's read-only S8 arm, or **OPEN-1** (backfill `read_cases` to existing appointees —
-  still needs a PO ruling before Increment 2's M1; plan recommendation is *no backfill*).
+  beyond D6's read-only S8 arm.
+  **✅ OPEN-1 RULED by the PO 2026-08-21: NO BACKFILL.** Existing administrativo appointees do
+  **not** receive `read_cases`; the coordinator opts in per appointee. `seed.sql` still grants it
+  explicitly to `staff2.ccih` (a fixture decision — update the seed header roster note in the same
+  change). Increment 2's M1 is unblocked.
+  **✅ OPEN-2 RULED by the PO 2026-08-21: ALLOW BULK CREATION UNDER THE SAME `create_cases` KEY** —
+  *"an `administrativo` role is granted to a responsible healthcare professional; creating many
+  cases carries the same logical responsibility as creating one."* The PO was shown the magnitude
+  argument (one case vs. up to 200 atomically + assignment, and that reusing the key silently
+  changes the reach of every checkbox already ticked) and ruled **against** a separate sixth menu
+  key. ⛔ **This is a WIDENING of administrativo WRITE authority, which ADR 0134 D11 had placed
+  outside the ratified scope — so this ruling EXTENDS D11's scope and AMENDS D5**, and needs an
+  ADR 0134 amendment rather than living only here. Work lands in **Increment 2** (it is a DB
+  change; Increment 1 has none): a `member_can('create_cases')` arm on `bulk_create_cases`
+  routed through the flag-aware chokepoint so the `administrativo` kill switch darkens it, its own
+  pgTAP differential incl. the over-grant twin, then `multiplos` + the "Múltiplos casos" link
+  re-gate onto the capability. ⚠ **That supersedes Increment 1's T4 narrowing** — T4 was correct
+  when shipped (the door refused the capability; the route must not out-run the door) and is
+  reversed only once the door admits it. Sequence, not flip-flop.
   ⛔ **OPEN-2 — a second PO ruling, found by measurement at build start and NOT in the ADR.**
   ADR 0134 **D5** assumed an administrativo holding `create_cases` should reach *bulk* case
   creation; the door was never measured. It is `app.is_staff_admin_of` **only** — so D5's
