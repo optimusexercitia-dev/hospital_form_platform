@@ -232,3 +232,181 @@ governance gain. **Rejected: a separate sixth capability key.**
 - The existing `create_cases` checkbox's **meaning changes for appointees who already hold it**.
   That is the accepted cost of the ruling, not an oversight; it is stated here so a later reader
   does not discover it as a surprise and file it as a defect.
+
+---
+
+## Amendment 2 — 2026-08-21 (**PROPOSED — PO ruling requested**): creation-scoped PHI entry for `administrativo`, and the resolution of OPEN-4
+
+**Status: PROPOSED. This amendment records a question put to the PO, not a ruling.** ⛔ It
+authorizes nothing — no migration, no route change, no merge, no remote push. It is written down as
+an amendment rather than left in a session because it would **extend D11's bounded scope a second
+time**, and because it is a **Rule 12** change: Amendment 1 §A1.2 opened *bulk creation* to a
+`create_cases` administrativo, and measurement then found that the same wizard's **patient block**
+is refused by a different door — the open item recorded as **OPEN-4** (PROGRESS.md § Now).
+
+**Decides:** OPEN-4. **Amends, if accepted:** D6's read-only boundary (this is a **write** arm),
+Amendment 1 §A1.2's Consequences (door 2 gains a further migration), and the "audited single door"
+language in ADRs [0030](./0030-patient-safety-phi-and-pqs-architecture.md) /
+[0038](./0038-case-patient-identifiers.md) / [0066](./0066-patient-xref-participant-rekey.md) +
+CLAUDE.md §1 / §3 Rule 12. **Binding rules:** 1 (RLS is the boundary), 11 (audit), 12 (PHI
+minimum-necessary).
+
+### The decision, in one paragraph
+
+An `administrativo` may open cases. On a process that records a patient, the case-creation form
+shows the patient fields — and always has, because it keys on **the process**, not on **the
+viewer**. The database then refuses the write: case PHI is coordinator-only. So the helper types
+identifiers and loses them — one case today, and **up to 200 rows plus a whole-batch rollback**
+once A1.2's bulk door opens. The question is *not* whether administrativos should see patient data:
+under every option below they still cannot, ever, including the rows they typed. The question is
+whether they may **type identifiers in, once, while the case is being created**, with no ability to
+read, edit, or dispose of them afterwards.
+
+### Measured baseline (live catalog + code, 2026-08-21)
+
+⚠ **Re-derive every row by its property at build time; never quote this table.** This program's
+baselines have been wrong three times in two days, always the same way — naming the instance found
+instead of the class (plan §1's warning box).
+
+| # | Fact |
+| --- | --- |
+| M1 | `public.set_participant_patient` (`prosecdef = t`) has **one** authority branch: `app.is_staff_admin_of(commission)` — no `member_can`, no `can_write_case_content`, no `is_admin`. `public.set_case_patient` is a **gate-less** compat wrapper delegating to it. |
+| M2 | `app.can_read_case_patient` = `app.has_case_capability(case, uid, 'read_standard_phi')`. In `app._case_caps` that bit has **exactly two** sources: S1 coordinator, and S3 iff the grant's own `read_standard_phi` **column** is set (never inferred from a read or write grant — A16). |
+| M3 | `public.patient_identifiers` / `public.patient_participants`: RLS **on**, **0 policies**, **no `authenticated` ACL**. The DEFINER door does not supplement RLS here — it **is** the entire boundary, so a widening cannot be scoped row-wise by policy. |
+| M4 | A write to `patient_identifiers` fires `trg_derive_patient_keys` **and** `trg_xref_maintain_patient_identifiers` → the cross-module patient index behind `public.search_patient_xref` / `app.patient_trajectory_bundle` (gate: `is_pqs_operator_of ∨ is_dpo_of`, hospital-scoped). **Case PHI is not case-local.** |
+| M5 | `app.trg_audit_patient_identifiers` writes `case_patient.updated` with `'{}'::jsonb` — no payload, by Rule 11. A write is attributable but **not reconstructable**. |
+| M6 | `public.dispose_case_phi` is coordinator-only. |
+| M7 | `public.create_case` and `public.create_case_from_template` **already admit** `app.member_can(commission,'create_cases')`; the non-coordinator creator self-grant is level `'read'` with `p_read_standard_phi` **false**. ⇒ an administrativo who creates a PHI-collecting case today **cannot read its identifiers**. |
+| M8 | `app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ is_member_of(commission) ∧ ∃ capability row` — flag-aware **and** membership-aware. (Corrects the docblock falsified as F-3 in the Increment-1 review: it does **not** gate on the capability row alone.) |
+| M9 | The create dialog shows the PHI block on `casePatientEnabled && selectedTemplate?.collectsPatient` — **no viewer condition** (`create-case-dialog.tsx:223`); the bulk grid pre-selects Nome + Prontuário (`DEFAULT_PHI_KEYS`, `bulk-create-wizard.tsx:92`). The dead end is the **default** path, not a deliberate one. |
+| M10 | `createCaseFromTemplate` mints the case, then writes PHI in a second RPC; on refusal it returns `{ ok:false, caseId, error }` — **the case survives without its identifiers** (`src/lib/cases/actions.ts` ~:492). Bulk instead re-raises and rolls the **whole batch** back. |
+| M11 | Post-creation surfaces already behave correctly for a write-once actor: `CasePatientPanel` receives `canEdit={caps.canManageLifecycle}` (coordinator-only) and an unentitled reveal renders a **designed denial**, not an error (`case-detail-view.tsx:822`, `case-patient-panel.tsx:195`). |
+| M12 | **22** functions set the `app.in_case_rpc` GUC — incl. `close_case`, `cancel_case`, `reopen_case`, `approve_correction`, `dispose_case_phi`. It is a **trigger-guard bypass**, not an identity signal. |
+| M13 | `supabase/tests/189_bulk_create_cases.sql:153` is a live keystone pinning "an administrativo holding `create_cases` is denied bulk (42501)". Any widening must **invert it deliberately**. |
+
+### The options put to the PO
+
+- **A — Suppress the affordance (no DB change).** Pass a server-computed `canWritePatientPhi`
+  (mirroring M1) into the create dialog and the bulk wizard; when false: no PHI columns, no PHI
+  block, `patient: null`. Coordination fills identifiers afterwards on the case detail. *Cheapest,
+  changes no rights, and is honest — but it weakens the delegation exactly on patient-bearing
+  processes, and the coordinator must revisit every case the helper opened.*
+- **B — Block `create_cases` on patient-collecting processes.** Rejected in analysis: it disables
+  the delegation precisely where committees carry the most volume, and couples an **authority**
+  decision to **template configuration**, which any coordinator can change without an authority
+  review.
+- **C — Ship as-is and accept the `42501`.** Rebuilds, at 200× the cost, exactly the dead-end door
+  T4 was overruled to avoid. Not recommended under any reading.
+- **D — Creation-scoped PHI write (RECOMMENDED).** A `create_cases` administrativo may supply
+  patient identifiers **as part of creating a case**, single or bulk. No read, no later edit, no
+  disposal.
+
+> **Direction change, recorded:** the analysis session first recommended **A**, then moved to **D**
+> once the overwrite hazard was measured to be **edit-time only** — M1 is an upsert, but a case
+> being minted has no participant chain, so the creation path can only ever *insert*. A remains a
+> coherent choice; D is recommended. Stated so a later reader does not read the shift as drift.
+
+### A2.1 — Proposed decision (if the PO accepts D)
+
+A member holding the `create_cases` capability may write patient identifiers **only** through the
+case-creation path (`create_case`, `create_case_from_template`, `bulk_create_cases`). Everything
+else about case PHI is unchanged: they may not read it (M2 untouched), may not edit it afterwards,
+may not dispose of it (M6), and gain no access to the cross-module patient index (M4's gate is
+untouched).
+
+### A2.2 — Mechanism (binding if D is accepted — here the mechanism *is* the decision)
+
+**Two mechanisms are rejected, for reasons that outlive this feature:**
+
+1. ⛔ **A GUC-conditioned gate** (`current_setting('app.in_case_rpc')`). Per **M12**, 22 functions
+   set that GUC, and it means "a sanctioned case RPC is running", not "this caller is entitled".
+   Promoting it to an authority predicate makes all 22 sites — and every future one — PHI
+   authorization sites. It is also outside every ARM's domain (they bound by `prosecdef` and policy
+   presence), i.e. a door-blindness shape by construction (ADR 0079).
+2. ⛔ **Widening `public.set_participant_patient` with a "no identifiers yet" condition.** That door
+   checks the **commission**, never the caller's relationship to the **case** (M1). A `member_can`
+   disjunct there would admit writing identities into **any** patient-capable case in the commission
+   that has none — including the coordinator's and ethics cases — and S8's commission-wide read
+   would make those targets enumerable. *"First write wins" is not "a case I am creating".*
+
+**Accepted mechanism — one writer, two explicit gates.** Split the writer:
+
+- `app._set_participant_patient_unchecked(...)` — the whole body (flag, exclusion, `patient_enabled`,
+  disposal, sex, the ADR-0038 name-or-MRN floor, the participant chain, the upsert), **no authority
+  check**, in the `app` schema so it is unreachable from PostgREST. Naming precedent already in the
+  codebase: `app._grant_case_access_unchecked`.
+- `public.set_participant_patient` — keeps its coordinator gate (M1), then calls the helper.
+- The three creation RPCs — which have already gated on "may you create cases here" and hold a case
+  they minted **in the same transaction** — call the helper directly.
+
+Creation-scope is then **structural, not predicate-based**: no other caller exists. The audit
+trigger is table-level (M5) so it fires on every path, and the floor/flag checks live in one body,
+so the two doors cannot drift apart. Single-case creation must take the patient payload as an
+**argument** (today it is a second round-trip, M10) — a signature change + `gen:types` (Rule 8);
+`bulk_create_cases` swaps `public.set_case_patient` for the helper.
+
+### A2.3 — What D does **not** grant (each verifiable from the catalog)
+
+`read_standard_phi` (M2 keeps two sources — the S8 non-leak obligation is untouched) · editing
+identifiers after creation · `dispose_case_phi` (M6) · `search_patient_xref` /
+`patient_trajectory_bundle` (M4's gate) · anything in the `event_patient` or `referral_patient`
+modules · `close_case` / `cancel_case` / `set_case_outcome`.
+
+### A2.4 — Residual risks, accepted explicitly rather than discovered later
+
+1. **Cross-module amplification is NOT mitigated by creation-scoping (the strongest objection).**
+   Per M4, a 200-row batch seeds a hospital-wide identity graph read by PQS operators and the DPO,
+   typed by someone who can neither read it back nor search the index for an existing match. A
+   mistyped MRN mislinks a trajectory in modules the administrativo has no standing in.
+2. **Correction becomes a coordinator queue, and the detector is not the author.** Only a
+   coordinator can see the error; only the administrativo made it. **Mitigation required in the
+   same change:** the create/bulk response echoes the identifiers just written (the client already
+   holds them) so a typo is caught at the keyboard, not months later.
+3. **Duplicate patient chains scale with batch size.** No read, no xref ⇒ no dedup check. Not a
+   regression (coordinators cannot check either), but it grows with volume.
+4. **The "single audited door" claim becomes false as written** unless A2.6 lands in the same
+   commit. A stale record here is the failure mode this repo pays for most often.
+
+### A2.5 — Obligations (each blocks the migration that ships it)
+
+- **The keystone that makes "creation-only" true rather than decorative:** the same administrativo,
+  **one call later**, is refused on `set_case_patient` / `set_participant_patient` for the case they
+  just created. Without it, "creation-only" is a comment.
+- pgTAP differential, all directions: positive (single **and** bulk, with PHI) · negative
+  (capability revoked · appointment revoked · membership removed — M8 covers all three) · flag-dark
+  (`administrativo` off; `case_patient` off) · **over-grant twin** (revert the arm ⇒ the positive
+  goes red) · audit row `case_patient.updated` with the administrativo as actor (Rule 11) ·
+  **PHI non-leak proof from the catalog**: `app.can_read_case_patient` is still false for them
+  **after** they have written.
+- **Invert M13 deliberately**, in the same change, with the new intent stated in the test header.
+- §6 authz gates: all four ARMs, plus **`ARM=census`** specifically — a brand-new gate is in no
+  BLIND set and so passes `ARM=policy` **vacuously** (ADR 0079 Amdt 3) — plus the diff-scoped door
+  sweep over exactly the changed objects, list derived from the migration diff.
+- `gen:types` after the migrations (Rule 8); the route may re-gate onto the capability **only after**
+  the door admits it (the program's standing ordering rule — the route must never out-run the door).
+
+### A2.6 — Records that must change in the same commit (if D is accepted)
+
+CLAUDE.md §1 + §3 Rule 12 (the case module has one writer with **two** gates) · ADRs 0030 / 0038 /
+0066 single-door language · ADR [0061](./0061-administrativo-delegated-role.md)'s PHI note — its
+claim that `create_cases` lets an administrativo "enter and read patient context" is **false today
+in both halves** (M7) and would become half-true under D · this ADR's D6 and Amendment 1 §A1.2 ·
+PROGRESS.md OPEN-4.
+
+### A2.7 — Approval scope (an approval's scope is a fact that must be written down)
+
+A PO "yes" on **D** authorizes: the A2.2 mechanism, its migrations, the A2.5 test bill, and the A2.6
+record updates — **locally, on `feat/case-surface-split`**. It does **not** authorize: any remote
+`db push`, any merge to `main` (a separate call per increment), PHI **read** for administrativo in
+any form, PHI write outside the creation path, or any change to `dispose_case_phi` / the xref gates.
+A "yes" on **A** authorizes only the UI suppression and closes OPEN-4 with no DB change.
+
+### Consequences
+
+- OPEN-4 closes either way; under **D** it closes by making the door accept rather than by hiding an
+  affordance, and the post-creation surfaces (M11) already read correctly with no suppression work.
+- Under **D** the administrativo delegation finally covers patient-bearing processes end to end —
+  where committee volume concentrates — extending D6's take-load-off-the-coordinator goal from
+  *read* to *intake*.
+- Under **D** the platform gains its first PHI write path not held by a coordinator. That is the
+  fact a future auditor will find first; A2.4 exists so they find the reasoning attached to it.

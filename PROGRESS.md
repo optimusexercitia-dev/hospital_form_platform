@@ -69,10 +69,17 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   is closed entirely. ⛔ **The dead-end half is real and conditional:** the PHI call is step (d) of
   the per-row loop and the loop re-raises, **rolling back the whole batch** — so an administrativo
   on a **patient-collecting** template fills up to 200 rows and loses all of it to a message naming
-  *"a coordenação"*. PHI-free batches never reach step (d). ⇒ **OPEN-4 open for the PO:** suppress
-  the wizard's PHI columns for administrativos, block the capability on patient-collecting
-  templates, or accept the 42501 — shipping as-is rebuilds exactly the dead-end door T4 was
-  overruled to avoid.
+  *"a coordenação"*. PHI-free batches never reach step (d). ⇒ **OPEN-4 open for the PO — options
+  now WRITTEN UP as ADR 0134 Amendment 2 (PROPOSED, nothing authorized):** (A) suppress the
+  wizard's PHI columns for administrativos, (B) block the capability on patient-collecting
+  templates, (C) accept the 42501, or **(D, recommended)** a **creation-scoped** PHI write — entry
+  during `create_case*`/`bulk_create_cases` only, still **no read, no edit, no disposal** (the
+  overwrite hazard is edit-time only: a case being minted has no participant chain, so the create
+  path can only insert). ⚠ D is a **Rule 12 widening** extending D11's scope a second time, and
+  its mechanism is binding: an `app._…_unchecked` writer called by the create RPCs — **not** a
+  `app.in_case_rpc` GUC gate (22 setters incl. `close_case`/`dispose_case_phi`) and **not** a
+  `member_can` disjunct on the public door (which checks the commission, never the caller's tie to
+  the case). Ruling needed before Increment 2's door 2 ships.
   ⛔ **OPEN-2 — a second PO ruling, found by measurement at build start and NOT in the ADR.**
   ADR 0134 **D5** assumed an administrativo holding `create_cases` should reach *bulk* case
   creation; the door was never measured. It is `app.is_staff_admin_of` **only** — so D5's
@@ -312,6 +319,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| **Case surface split · Increment 1** (ADR 0134 D1–D5, D7) | 🔴 **CHANGES REQUESTED** (r1) — 3 blocking: D1 falsified on `/casos/[caseId]/narrativa/[narrativeId]` (never narrowed) · § Now stale vs its own gate row · `member_can` catalog claim false. No security defect found | 2026-08-21 | [case-surface-split-increment-1-review.md](docs/reviews/case-surface-split-increment-1-review.md) |
 | **DSR operational remediation** | ✅ **APPROVED** (r2; r1 CHANGES REQUESTED — 3 blockers, all records, no engineering) | 2026-08-21 | [dsr-remediation-review.md](docs/reviews/dsr-remediation-review.md) |
 | DSR operational remediation (r2) | **APPROVED** | 2026-08-21 | [dsr-remediation-review](docs/reviews/dsr-remediation-review.md) |
 | ~~DSR operational remediation (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [dsr-remediation-review](docs/reviews/dsr-remediation-review.md) |
