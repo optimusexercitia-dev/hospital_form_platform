@@ -328,12 +328,19 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     await expect(page.getByRole('link', { name: 'Imprimir prévia', exact: true })).toHaveCount(0)
 
     await disposeMeetingMinutes(page, token, meetingId, 'retention_expired')
-    const [row] = await serviceQuery<{ phi_disposed_at: string | null; status: string }>(
+    // ⛔ THE ROW'S EXISTENCE IS ASSERTED FIRST (FUP-E2E-ABSENT-ROW-ASSERTIONS). The
+    // destructured `row` is `undefined` on an absent row, and `undefined` PASSES
+    // `.not.toBeNull()` — the message below ("the RPC actually disposed this
+    // fixture") would have been asserted true while proving nothing. Copied from
+    // the corrected shape at `dsr-subject-requests.spec.ts:255-264`.
+    const rows = await serviceQuery<{ phi_disposed_at: string | null; status: string }>(
       page,
       `meetings?id=eq.${meetingId}&select=phi_disposed_at,status`,
     )
-    expect(row?.phi_disposed_at, 'the RPC actually disposed this fixture').not.toBeNull()
-    expect(row?.status, 'disposal does not touch status (ADR 0126 Amendment 1 §F)').toBe('signed')
+    expect(rows, 'the fixture meeting row is gone — an absent row must not be read as "disposed"').toHaveLength(1)
+    const [row] = rows
+    expect(row.phi_disposed_at, 'the RPC actually disposed this fixture').not.toBeNull()
+    expect(row.status, 'disposal does not touch status (ADR 0126 Amendment 1 §F)').toBe('signed')
 
     // The SAME differential, AFTER: flips to the ephemeral affordance only —
     // still `signed`/locked, but no longer registers.

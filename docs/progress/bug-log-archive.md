@@ -2699,3 +2699,111 @@ the archive. The navigation hooks worth keeping live:
 🟡 **BUG-DSR-S3-003 — ✅ FIXED 2026-08-20; unclosed until pinned.** A by-design null-commission task rendered as an access failure. Split **three** ways (name shown · hospital-scoped, no commission · genuinely unreadable) — collapsing any pair loses a fact. Body → [dsr-slice-3.md](dsr-slice-3.md).
 🟠 **BUG-XREF-CASE-ENTITYCODE-NULL — ✅ FIX LANDED 2026-08-20, pinned; unclosed until the slice gate passes.** `app.patient_trajectory_bundle` compared a `patient_participants` id to `cases.id`, so **every** case in **every** patient search rendered `—` — the PQS console too, outside this slice's subject. Same grain defect Slice 2 found, surviving in a second function; **no test pinned that value at all**. Body → [dsr-slice-3.md](dsr-slice-3.md).
 🟠 **BUG-DSR-COMPLETE-OVERWRITES-NOTE — ✅ FIX LANDED 2026-08-20; unclosed until the slice gate passes.** `complete_dsr_task` overwrote `dsr_tasks.note` — the column carrying an `attest_review` task's **revoke-corridor instructions** — erasing what the reviewer was told to do, in a workflow whose output is a legal document. `note` is now the immutable procedure; `completion_note` carries the human's statement. Body → [dsr-slice-3.md](dsr-slice-3.md).
+
+## Rotated 2026-08-21 — the DSR operational-remediation round
+
+_Two bugs CLOSED during the round, moved verbatim from PROGRESS.md § Bug Log. ⛔ Neither closed on
+achieved coverage: the first closed on **REMOVAL of its subject**, the second was **pre-existing on
+`main`** and is not attributable to the round. The block carries no relative links, so no prefix
+rewrite was owed — verified before the move rather than assumed._
+
+🟢 **BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE — `ReferralDisposeDialog`
+(`src/components/referrals/referral-dispose-dialog.tsx`) has never run in a BROWSER; no
+E2E test has ever rendered its trigger button, let alone opened the dialog.**
+⛔ **MEASURED 2026-08-20 (backend): it is a PRODUCT gap, not a fixture gap, and NO seed persona can
+close it.** Route reachable ⟺ activeRole ∈ {`staff`,`staff_admin`} (`session.ts` filters grants to
+`g.role === activeRole` **before** `partitionGrants`, which admits a `memberships` row only for
+those two — BUG-ACT-HATBLIND-001's P0 fix); disposal gate passes ⟺ activeRole ∈ {`org_admin`,
+`hospital_admin`, `nsp_coordinator`, `pqs_member`} (every arm of `can_dispose_referral_phi` bottoms
+out in `app.has_role`'s active-hat conjunct). **Disjoint — in seed and in production.** ⚠ The four
+DB gates are all TRUE for `pqsdual.a@test.local` under the `pqs_member` hat on ENC-0004 (the very
+referral the spec uses) and the page still 404s, because `public.session_context()` is hat-blind
+**by design** (ADR 0106 D9) and that blindness is deliberately not propagated past
+`getSessionContext`. ⛔ **`seed.sql` was NOT touched.** Options are (a) widen the dispose gate to a
+source `staff_admin` — explicitly refused today, (b) carve the QO·B content wall, (c) move the
+affordance to a surface those hats reach, (d) ratify as the ADR 0106 D5 capability loss
+`FUP-ACT-DISPOSE-UI` already records. **PO decision, not backend's.** — lead/PO ⚠ **Retitled + narrowed
+2026-08-20 (lead), same day it was filed as `…-ZERO-COVERAGE`:** that title was true when written and
+false hours later — `referral-dispose-dialog.test.tsx` now pins the residue lines, the over-claim
+property, the confirm/submit gating and both `aria-describedby` arms in **15 tests, all
+mutation-proven to fail** (11 mutations, each red under an anchor-uniqueness guard). **What remains is
+exactly the browser half:** real focus behaviour in the new block, Radix portal semantics, and the
+end-to-end confirm→submit→server-action path. ⛔ *A jsdom render is not a browser* — do not read the
+component tests as discharging this. Everything below stands as the mechanism. Filed 2026-08-20
+(tester) during the DSR Slice 4 verification (markup-only change: the `DSR_RESIDUE_NOTICE` `<ul>` +
+a conditional `subject_request` note; trigger/confirm-phrase/button-label locators deliberately left
+unchanged per `docs/plans/dsr-workflow-plan.md` § Slice 4 item 3, precisely to avoid re-scoping E2E).
+**Mechanism:** the component holds no gate of its own — it renders unconditionally once mounted, and
+the PAGE alone decides whether to include it, on the authoritative `canDisposeReferralPhi` probe.
+Under the ADR 0106 (D5) strict single-hat model, **no seeded persona can simultaneously reach**
+`encaminhamentos/[id]` **and** satisfy that probe — every hat that reaches the route fails the RPC
+gate, every hat that passes the gate 404s on the route (documented in-spec at
+`e2e/nsp-per-hospital.spec.ts:948-959` as `FUP-ACT-DISPOSE-UI`). Confirmed by grep across the whole
+`e2e/` tree: all three `getByRole('button', {name: /apagar dados do paciente/i})` assertions that
+exist (`nsp-per-hospital.spec.ts:939`, `:970`, `:1040`) assert `.toHaveCount(0)` — none asserts
+presence, anywhere. AC-7's mutating disposal test (`:995`) bypasses the component entirely, POSTing
+straight to `/rest/v1/rpc/dispose_referral_phi`; AC-8 was re-pointed at an unrelated PHI-reveal
+button for the same reason. **Impact:** the confirm/submit path (pick reason → type `APAGAR` → click
+"Apagar definitivamente") and the new residue-notice markup Slice 4 just shipped have never run in a
+browser. A regression that broke the confirm button, trapped focus in the new block, or dropped the
+`aria-describedby` wiring would ship green — the same "no persona can reach it" shape that let the
+now-closed `FUP-DISPOSE-DIALOG-OVERCLAIM` copy defect sit unnoticed in this exact dialog since it
+shipped.
+⚠ **Not a Slice 4 regression** — Slice 4 changed no locators and this gap predates it; root cause is
+the ADR 0106 re-scope. Verified this run: `e2e/nsp-per-hospital.spec.ts` AC-7 (3 tests) + AC-8 (1
+test) all pass on a fresh reset (`4 passed`, single-worker) — proving the RPC/audit/redaction
+mechanism and the PHI-reveal keyboard flow, **not** the dialog UI; do not cite this green as UI
+coverage.
+**Status: ✅ CLOSED 2026-08-21 (tester) — on REMOVAL, not on achieved coverage.** ⛔ **Say plainly
+what this closes ON**: `ReferralDisposeDialog` was deleted in this round (commit `13610c0d` —
+PO-ruled: no hat can both reach the route and pass `canDisposeReferralPhi`; the DSR task inbox is
+the working path). Confirmed by grep: zero references to `ReferralDisposeDialog` or "apagar dados
+do paciente" anywhere in `src/`. The bug's PREMISE — a real component somewhere lacking browser
+coverage — is now moot; there is no component left to cover. The three
+`nsp-per-hospital.spec.ts` `.toHaveCount(0)` pins this bug's own filing cited (`:939`, `:970`,
+`:1040`) went VACUOUS BY CONSTRUCTION the moment the component was removed (same class as this
+round's T2: they now assert an absence nothing could ever contradict, for ANY persona) and are
+REMOVED, not re-pointed — unlike T2's `notify_scrub_check`, the rendering branch itself no longer
+exists anywhere to construct a specimen against. File re-run clean: 31 passed / 1 pre-existing
+unrelated skip, chromium single-worker.
+⚠ **Residual, NOT closed by this**: `dispose_referral_phi`'s new pathway (the DSR task inbox) has
+**no browser-level coverage anywhere** — grepped the whole `e2e/` tree for `dispose_referral`;
+the only hit is `nsp-per-hospital.spec.ts`'s direct RPC POST (mechanism-only, matching
+`dispose_case`/`dispose_event`/`dispose_meeting`'s OWN inbox-driven coverage this round, which
+`dispose_referral` alone lacks). Not built here — out of this bug's original scope (component
+coverage) and not asked for in T5. PO/lead's call whether it merits its own item.
+
+🟢 **BUG-DSR-AGENDA-TITLE-STALE-PIN — `dsr-slice3-adjudication.spec.ts:728` pinned
+`meeting_agenda_items.title` SURVIVING `dispose_meeting_minutes`; the door has redacted it since
+Slice 4 (`3d5e9a9c`, already on `main`, pre-dating this remediation round) — RESOLVED same session.**
+Found by tester 2026-08-21 running T1/T2 of the DSR operational-remediation spec pass. **Not caused
+by this round**: `git log main..HEAD` excludes `3d5e9a9c`; it is an ancestor of `main` itself.
+**Repro (pre-fix):** fresh dev server, `npx playwright test e2e/dsr-slice3-adjudication.spec.ts
+--project=chromium --workers=1` — test 6 disposes a meeting's ata through the real inbox dialog,
+then reads `meeting_agenda_items`. **Expected (by the stale spec):** `item.title` equals the
+fixture's `AGENDA_TITLE`. **Actual:** `'[PHI removido]'` — verified against the LIVE catalog
+(`docker exec` into `supabase_db_…`, `pg_get_functiondef`, never migration text):
+`dispose_meeting_minutes` redacts the agenda ITEM's own title along with
+description/discussion_notes/resolution; only the MEETING's own `title` is the PO-ruled exception
+that stays disclosed (`DSR_MEETING_RESIDUE_RETAINED`). Commit `3d5e9a9c` widened the door to its
+"composition closure" closing `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`; this Slice-3-vintage
+assertion was never updated to match. **Violates no acceptance clause in the app** — the door's
+reach is correct and PO-ruled; the defect is a stale test.
+⭐ **Why it matters beyond one assertion:** the file runs `mode: 'serial'`, so this one failure
+aborted every test after it — 5 of 11, including the tester spawn's own T1/T2 edits (tests 7 and
+11), which were **unverifiable, not merely unverified**, until this was found. This is exactly what
+the DSR-close note above predicted in writing (*"`e2e:prod` NOT re-run for the final increment"*):
+a PO-ruled, follow-up-closing change sat contradicted by a stale spec on `main`, undetected, since
+Slice 4 shipped. The standing `e2e:prod` baseline ("red for exactly 2 pre-existing
+`quality-oversight` failures") is therefore a **floor, not a count** — behind a serial abort there
+is no way to know what else was red.
+**Fix (tester, e2e/** only):** flipped to `expect(item.title).not.toBe(AGENDA_TITLE)`, matching the
+block's sibling assertions. Checked first whether this was instead an over-redaction /
+scope-boundedness control before flipping it — it was not: that control already exists
+independently at the DB layer (`supabase/tests/351_meeting_disposal_redaction_set.sql` t9 pins the
+redaction, t18 is its paired sibling-meeting vacuity control), and this E2E file's own docblock
+scopes its purpose to browser-to-door wiring, never SQL-level re-derivation. No replacement control
+needed. **Status: RESOLVED, verified by tester** — full file re-run after the fix: 11/11 pass
+(chromium, `--workers=1`). RED-proof is the pre-fix run captured above (`Expected: "Pauta de
+fixture mt2r20sc"` / `Received: "[PHI removido]"`), not synthesized separately.
+

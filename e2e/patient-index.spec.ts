@@ -117,12 +117,24 @@ async function getToken(req: APIRequestContext, email: string, actAs?: string): 
   return accessToken(req, email, undefined, actAs)
 }
 
-/** PostgREST GET under a bearer token. */
+/**
+ * PostgREST GET under a bearer token.
+ *
+ * ⛔ ASSERTS `resp.ok()` RATHER THAN RETURNING `[]` ON FAILURE
+ * (FUP-E2E-ABSENT-ROW-ASSERTIONS' second, matcher-independent mechanism). A
+ * helper that swallows a failed read turns "the request errored" into "the
+ * table is empty" — dangerous here specifically because AC-6 asserts
+ * `cpRows.length).toBe(0)` as its "PHI is gone" pin: a silently-swallowed error
+ * on that query would satisfy the same assertion for the wrong reason. Every
+ * call site in this file passes `SUPABASE_SERVICE_KEY` as the bearer (never an
+ * RLS-scoped read), so a non-2xx response is always a genuine error.
+ */
 async function restGet<T>(req: APIRequestContext, path: string, bearer: string): Promise<T[]> {
   const resp = await req.get(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${bearer}` },
   })
   const data = await resp.json()
+  expect(resp.ok(), `GET ${path}: ${JSON.stringify(data)}`).toBeTruthy()
   return Array.isArray(data) ? (data as T[]) : []
 }
 

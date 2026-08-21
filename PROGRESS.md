@@ -282,63 +282,6 @@ seed/CLI-driven bootstrap that mints the first admin idempotently. **Blocks noth
 E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is invisible to every
 gate), but it is on the critical path of the **first production deploy**.
 
-🔴 **BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE — `ReferralDisposeDialog`
-(`src/components/referrals/referral-dispose-dialog.tsx`) has never run in a BROWSER; no
-E2E test has ever rendered its trigger button, let alone opened the dialog.**
-⛔ **MEASURED 2026-08-20 (backend): it is a PRODUCT gap, not a fixture gap, and NO seed persona can
-close it.** Route reachable ⟺ activeRole ∈ {`staff`,`staff_admin`} (`session.ts` filters grants to
-`g.role === activeRole` **before** `partitionGrants`, which admits a `memberships` row only for
-those two — BUG-ACT-HATBLIND-001's P0 fix); disposal gate passes ⟺ activeRole ∈ {`org_admin`,
-`hospital_admin`, `nsp_coordinator`, `pqs_member`} (every arm of `can_dispose_referral_phi` bottoms
-out in `app.has_role`'s active-hat conjunct). **Disjoint — in seed and in production.** ⚠ The four
-DB gates are all TRUE for `pqsdual.a@test.local` under the `pqs_member` hat on ENC-0004 (the very
-referral the spec uses) and the page still 404s, because `public.session_context()` is hat-blind
-**by design** (ADR 0106 D9) and that blindness is deliberately not propagated past
-`getSessionContext`. ⛔ **`seed.sql` was NOT touched.** Options are (a) widen the dispose gate to a
-source `staff_admin` — explicitly refused today, (b) carve the QO·B content wall, (c) move the
-affordance to a surface those hats reach, (d) ratify as the ADR 0106 D5 capability loss
-`FUP-ACT-DISPOSE-UI` already records. **PO decision, not backend's.** — lead/PO ⚠ **Retitled + narrowed
-2026-08-20 (lead), same day it was filed as `…-ZERO-COVERAGE`:** that title was true when written and
-false hours later — `referral-dispose-dialog.test.tsx` now pins the residue lines, the over-claim
-property, the confirm/submit gating and both `aria-describedby` arms in **15 tests, all
-mutation-proven to fail** (11 mutations, each red under an anchor-uniqueness guard). **What remains is
-exactly the browser half:** real focus behaviour in the new block, Radix portal semantics, and the
-end-to-end confirm→submit→server-action path. ⛔ *A jsdom render is not a browser* — do not read the
-component tests as discharging this. Everything below stands as the mechanism. Filed 2026-08-20
-(tester) during the DSR Slice 4 verification (markup-only change: the `DSR_RESIDUE_NOTICE` `<ul>` +
-a conditional `subject_request` note; trigger/confirm-phrase/button-label locators deliberately left
-unchanged per `docs/plans/dsr-workflow-plan.md` § Slice 4 item 3, precisely to avoid re-scoping E2E).
-**Mechanism:** the component holds no gate of its own — it renders unconditionally once mounted, and
-the PAGE alone decides whether to include it, on the authoritative `canDisposeReferralPhi` probe.
-Under the ADR 0106 (D5) strict single-hat model, **no seeded persona can simultaneously reach**
-`encaminhamentos/[id]` **and** satisfy that probe — every hat that reaches the route fails the RPC
-gate, every hat that passes the gate 404s on the route (documented in-spec at
-`e2e/nsp-per-hospital.spec.ts:948-959` as `FUP-ACT-DISPOSE-UI`). Confirmed by grep across the whole
-`e2e/` tree: all three `getByRole('button', {name: /apagar dados do paciente/i})` assertions that
-exist (`nsp-per-hospital.spec.ts:939`, `:970`, `:1040`) assert `.toHaveCount(0)` — none asserts
-presence, anywhere. AC-7's mutating disposal test (`:995`) bypasses the component entirely, POSTing
-straight to `/rest/v1/rpc/dispose_referral_phi`; AC-8 was re-pointed at an unrelated PHI-reveal
-button for the same reason. **Impact:** the confirm/submit path (pick reason → type `APAGAR` → click
-"Apagar definitivamente") and the new residue-notice markup Slice 4 just shipped have never run in a
-browser. A regression that broke the confirm button, trapped focus in the new block, or dropped the
-`aria-describedby` wiring would ship green — the same "no persona can reach it" shape that let the
-now-closed `FUP-DISPOSE-DIALOG-OVERCLAIM` copy defect sit unnoticed in this exact dialog since it
-shipped.
-⚠ **Not a Slice 4 regression** — Slice 4 changed no locators and this gap predates it; root cause is
-the ADR 0106 re-scope. Verified this run: `e2e/nsp-per-hospital.spec.ts` AC-7 (3 tests) + AC-8 (1
-test) all pass on a fresh reset (`4 passed`, single-worker) — proving the RPC/audit/redaction
-mechanism and the PHI-reveal keyboard flow, **not** the dialog UI; do not cite this green as UI
-coverage.
-**Status:** OPEN, unassigned. Relates to the referral lane of `FUP-ACT-DISPOSE-UI` (pilot-gate item
-0, `docs/progress/dm5-po-decisions.md`) — discharged only for the **event** lane
-(`dispose_event_phi` via `pqs.a@test.local`); the referral lane was never claimed and remains open.
-Two candidate dispositions, PO/lead's call: (a) name or build a fixture persona with simultaneous
-route-access + disposal-entitlement (commission member AND tenancy-admin/PQS-operator on the source
-hospital, without a hat-switch) so a real browser flow can drive the dialog — a `seed.sql` change,
-backend's to make, not tester's to force unilaterally; or (b) accept the gap and rely on
-lint/tsc/code-review/a component-level test in place of E2E for this control, and say so explicitly
-wherever this dialog's verification is cited.
-
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
 Closed rows and their closure narratives live in the archive. The standing **warnings**
@@ -494,6 +437,9 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED** — ⭐ **CRITICAL FUP C4 (PO-promoted 2026-08-19).** § 6b's five values are scoped to *"the archive"*, yet the same section mandates a `db dump` + **scratch database** to earn *"verified good"* — neither governed, and nothing says to drop the scratch DB. ⚠ **Reachable on Cloud today** — PO/backend
 - 🟠 **FUP-DM5-DISPOSAL-JOB** — ⭐ **CRITICAL FUP C1, split into C1a (local) + C1b (Cloud) on 2026-08-18; the pilot bound is C1b.**
 - 🟠 **FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED** — ✅ **ALL SEVEN LANES MEASURED 2026-08-20** (catalog + a **59-probe executed differential**; 7 positive controls + a THAW control; ⚠ 2 probes were re-run after matching their expectation **for the wrong reason** — a gate refusal masquerading as a state refusal; rolled back, pre-state re-verified). **(a)** Only **rca** is fully covered; the other six each have a structurally terminal state no door reverses (`distributed`/`cancelled` · `cancelled` · `cancelled` · `cancelled` · `closed`+`cancelled`) — and the **referral corridor never restores the SOURCE's own free text at all** (draft-only), it reopens the reply. **(b)** Of the six lanes the item said must not be generalised, only **two** repeat the meeting's "narrower": one **EQUAL**, one **WIDER**, one **CROSSING**, one **DISJOINT** — wrong in BOTH directions, as warned. ⛔ **And the erasure fallback this item assumed is BROKEN**: `dispose_event_phi` raises on a `completed` RCA or a `completed`/`cancelled` CAPA, `dispose_case_phi` on a `completed`/`cancelled` interview — ADR 0129's defect in three siblings its fix never looked at (`BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW`). Residue: PO ruling per frozen state; manual-source capa has NO erasure door; 2 guard messages point at an unreachable corridor — backend/PO
+- 🟠 **FUP-E2E-HELPERS-SWALLOW-FAILED-READS** — the **matcher-independent** half of `FUP-E2E-ABSENT-ROW-ASSERTIONS`: a helper returning `[]` on a **failed read** makes *"the request errored"* and *"the table is empty"* indistinguishable. **3 fixed 2026-08-21** (two local `restGet`s + the **shared** `serviceQuery` used by 6 specs, 47/47 re-run green, safe because every call site uses the service role). ⛔ Population is **~48 spec files + 2 helpers** carrying the same `Array.isArray(data) ? data : []` shape, deliberately **not** swept — ⭐ *a fix count is not a population count*. ⚠ Where a helper is used with an RLS-scoped key, `ok()` is the **wrong** assertion, which is what makes this per-helper rather than a codemod — tester/lead
+- 🟡 **FUP-DISPOSE-REFERRAL-HAS-NO-INBOX-BROWSER-COVERAGE** — `dispose_case`/`dispose_event`/`dispose_meeting` all gained inbox-driven browser coverage this round; **`dispose_referral_phi`'s live pathway has no browser test anywhere** (the only `e2e/` hit is a direct RPC POST, which proves the door and says nothing about the card, the confirm flow or the server action). ⚠ The named residual of `BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`, which closed **on removal of its subject, not on achieved coverage** — so the lane whose UI was deleted is the lane with the least coverage, and that close is the document a future reader finds first — tester
+- 🟡 **FUP-CHILD-LOCK-REGRESSION-GUARD-COVERS-ONE-LANE** — the browser-level P0 guard (`dsr-disposal-child-lock-regression.spec.ts`) drives a **locked interview** and asserts by count: that is item **9 of the P0's ten** statements. ⛔ The **`meeting_cases`** lane (item 10) and the **RCA/CAPA** lanes have no browser coverage; both are pgTAP-`353`-covered and mutation-proven, so this is a **layer** gap, not an unproven fix. ⭐ Filed by the guard's own author in the report delivering it — the alternative is a green spec whose name implies it covers the bug — tester
 - 🟠 **FUP-COPY-PROPERTY-CANNOT-SEE-ITS-OWN-SURFACE-SET** — `disposal-copy-property.ts` is iterated by two suites and **nothing asserts which surfaces exist or how many import it**. Removing one surface (the PO-ruled `ReferralDisposeDialog` deletion) would have dropped **three** coverage items, **two silently**: the residue-CLASS content pin **1 → 0** (eight other assertions pin the notice's *length*, none its *content* — a cardinality pin and a content pin are different properties and the cheaper one gets written) and the type-to-confirm arming pin **1 → 0** on a **live** control, leaving the module's most dangerous button with zero behavioural coverage. ⛔ `lint:vacuous` is structurally blind — the assertions were **removed**, not made vacuous. Caught only by reading all 15 tests before deleting any; the fix shape is a declared surface roster with a floor, as the over-claim suite already has — lead/frontend
 - 🟠 **FUP-DSR-OUTCOME-RECORD-HAS-NO-DELIVERY** — ADR 0130 D1 owes the data subject a written answer with its legal basis (Art. 18 §4), and `dsr-outcome-record.tsx` **renders on screen only**: measured 2026-08-20, the DSR module has **no export, print, PDF or download path anywhere**, and no document says how the record reaches the subject. ⛔ **PO-DEFERRED 2026-08-20 with the gap named — not closed, not descoped.** Two shapes when taken up (minimal print vs registered emission under ADR 0125/0126); ⛔ do not let the screen render stand in for delivery in any status claim — PO/frontend
 - 🟡 **FUP-DSR-ENCARREGADO-MUST-BE-A-COMMISSION-MEMBER** — `app.is_dpo_of_for` requires a commission role in the hospital as a **hard conjunct**, and `organizations_select` has no DPO arm, so a pure LGPD data-protection officer **cannot reach `/o/[org]/titulares` at all**. ⛔ **BY DESIGN** (ADR 0130 D2, *"a plain member of ONE commission BY DESIGN"*) — filed as the product question it is: onboarding a real compliance officer today means granting a commission membership they do not need, which is a read grant over that commission's content. ⭐ Found 2026-08-20 when `frontend` measured a lead spawn premise false **before** building dead nav code against it — PO/product

@@ -25,10 +25,19 @@ import { svcDelete, svcInsert, svcSelect } from './helpers/service-role'
  *      can ever mint (Amdt 2 item 3 / Amdt 3 item 4).
  *   3. The two-phase close: refused (HCDS4) while work is outstanding, and
  *      succeeding once it is not.
- *   4. `dispose_meeting` and `notify_scrub_check` COMPLETED, plus the attested
- *      tier attested — so the outcome record reports numbers that came from work
- *      that actually happened.
+ *   4. `dispose_meeting` COMPLETED, plus the attested tier attested — so the
+ *      outcome record reports numbers that came from work that actually happened.
  *
+ * ⚠ THIS DOCBLOCK USED TO LIST `notify_scrub_check` ALONGSIDE `dispose_meeting`
+ * IN ITEM 4. `create_dsr_request` no longer mints that kind at all (ADR 0130
+ * Amdt 4 reached the code in `20261003000100` — the withdrawal had been sitting
+ * in the ADR, unenacted, since 2026-08-20): the residue class it existed to
+ * check was proved absent, not merely reviewed. Test 7 below no longer drives a
+ * minted scrub card; test 11 (BUG-DSR-S3-003) constructs one directly, because
+ * it is the file's only live specimen of a hospital-scoped, commission-less
+ * task, and its docblock explains why that construction is necessary.
+ *
+
  * ⛔ THE FIXTURE IS BUILT, NOT BORROWED. Disposal is IRREVERSIBLE and this spec
  * disposes a case AND a whole meeting's ata. Pointing either at a seeded row
  * would erase records ~900 other tests share, and the damage would outlive the
@@ -306,12 +315,13 @@ test('the fan-out enumerates the case, its ata and the prose-bearing commissions
   // prose (measured). The differential is pinned at the door on Hospital B's
   // prose-free commissions (supabase/tests/350 t13/t14); what is pinned HERE is
   // that each task landed on the right scope with the right subject.
+  // ⚠ NO `notify_scrub_check` HERE ANY MORE (ADR 0130 Amdt 4 reached the code in
+  // `20261003000100`) — see the file docblock and BUG-DSR-S3-003 below.
   expect(minted.map((t) => t.kind).sort()).toEqual([
     'attest_review',
     'attest_review',
     'attest_review',
     'dispose_case',
-    'notify_scrub_check',
   ])
 
   // The mechanical tier: the CASE, not the participant. The xref keys this module
@@ -340,9 +350,6 @@ test('the fan-out enumerates the case, its ata and the prose-bearing commissions
   // subject's case would destroy other committees' records. Only an explicit
   // human adjudication escalates — proven by test 4, which mints it.
   expect(minted.filter((t) => t.kind === 'dispose_meeting')).toHaveLength(0)
-  expect(
-    minted.find((t) => t.kind === 'notify_scrub_check')?.commission_id,
-  ).toBeNull()
 })
 
 // ===========================================================================
@@ -708,6 +715,19 @@ test('the ata is disposed from the inbox dialog, and the whole minutes go with i
 
   // ⭐ THE WARNING WAS TRUE: every agenda item's prose is gone, not just the
   // subject's. This is the claim `DSR_MEETING_DISPOSAL_WARNING` makes, verified.
+  //
+  // ⚠ `item.title` USED TO BE PINNED SURVIVING (`.toBe(AGENDA_TITLE)`), copying the
+  // MEETING-title assertion two lines above as if the two were the same invariant.
+  // They are not: `meetings.title` (the meeting's OWN title) is the one column PO
+  // Amdt 1 keeps and DISCLOSES (`DSR_MEETING_RESIDUE_RETAINED`, asserted above via
+  // `meeting.title`); the agenda ITEM's own title carries no such exemption. Already
+  // shipped on `main` (commit `3d5e9a9c`, pre-dating this remediation branch):
+  // `dispose_meeting_minutes` was widened to its "composition closure" (closing
+  // `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`) and now redacts `meeting_agenda_items
+  // .title` along with `description`/`discussion_notes`/`resolution` — verified
+  // against the LIVE function body (`pg_get_functiondef`), never against migration
+  // text. This assertion was never updated to match, which the DSR program's own
+  // close narrative explains: `e2e:prod` was not re-run after that slice shipped.
   const [item] = await svcSelect<{
     title: string
     description: string | null
@@ -718,7 +738,7 @@ test('the ata is disposed from the inbox dialog, and the whole minutes go with i
     'meeting_agenda_items',
     `select=title,description,discussion_notes,resolution&meeting_id=eq.${meetingId}`,
   )
-  expect(item.title).toBe(AGENDA_TITLE)
+  expect(item.title).not.toBe(AGENDA_TITLE)
   expect(item.description).not.toBe(AGENDA_PROSE)
   expect(item.discussion_notes).not.toBe(AGENDA_PROSE)
   expect(item.resolution).not.toBe(AGENDA_PROSE)
@@ -729,10 +749,16 @@ test('the ata is disposed from the inbox dialog, and the whole minutes go with i
 })
 
 // ===========================================================================
-// 7 — The attested tier and the residue check, COMPLETED (not merely rendered).
+// 7 — The attested tier, COMPLETED (not merely rendered).
 // ===========================================================================
+//
+// ⚠ THIS SECTION USED TO ALSO DRIVE A MINTED `notify_scrub_check` CARD THROUGH
+// ITS NOTE-COMPLETION FLOW. `create_dsr_request` no longer mints that kind (ADR
+// 0130 Amdt 4 reached the code in `20261003000100`), so there is no scrub card
+// on this request any more — see BUG-DSR-S3-003's docblock (test 11) for where
+// that rendering branch is now covered instead.
 
-test('the attested tier is attested by a named human and the residue check is completed', async ({
+test('the attested tier is attested by a named human', async ({
   page,
   request,
 }) => {
@@ -860,21 +886,15 @@ test('the attested tier is attested by a named human and the residue check is co
   )
   expect(perCommission.map((t) => t.attested_redactions).sort()).toEqual([2, 3])
 
-  // The residue check is NOT an attestation — it takes the plain note flow, and
-  // a check with no statement is not a check.
-  const scrub = taskCard(page, 'Verificar resíduo em notificações')
-  await scrub.getByRole('button', { name: 'Concluir tarefa', exact: true }).click()
-  await expect(
-    scrub.getByText(/descreva o que foi revisado para concluir esta tarefa/i),
-  ).toBeVisible()
-  await scrub
-    .getByLabel(/o que foi revisado/i)
-    .fill('Títulos e corpos de notificações verificados; nenhum resíduo.')
-  await scrub.getByRole('button', { name: 'Concluir tarefa', exact: true }).click()
-  await expect(scrub.getByText('Concluída', { exact: true })).toBeVisible()
+  // ⚠ THIS USED TO ALSO DRIVE A MINTED `notify_scrub_check` CARD THROUGH THE
+  // PLAIN NOTE-COMPLETION FLOW HERE. That kind is no longer minted (ADR 0130
+  // Amdt 4 reached the code in `20261003000100`) — there is nothing left on this
+  // request to complete, so the block is gone rather than pointed at nothing.
 
   const all = await tasks(request)
-  expect(all).toHaveLength(6)
+  // One fewer than before `notify_scrub_check` was retired: 3 `attest_review` +
+  // 1 `dispose_case` (test 1) + 1 `dispose_meeting` (test 4) = 5.
+  expect(all).toHaveLength(5)
   // ⚠ NOT "all done" ANY MORE. The escalated ata's attestation is `blocked`, so
   // the invariant that actually matters for a granted close is that NOTHING is
   // PENDING — `close_dsr_request` counts pending, not not-done.
@@ -1137,43 +1157,97 @@ test('the attestation form is fully keyboard-operable, on a second request', asy
 })
 
 // ===========================================================================
-// 11 — TERMINAL, AND CURRENTLY RED: the attested tier does not say WHAT to review.
+// 11 — TERMINAL: the attested tier names what it asks a human to review
+// (BUG-DSR-S3-002 / BUG-DSR-S3-003, both app-fixed; pinned here).
 // ===========================================================================
 
 /**
- * ⭐ WHY THIS IS THE LAST TEST IN THE FILE. It is a failing pin for two live
- * defects, and this file is a serial chain — a red anywhere earlier would abort
- * every test after it and report "1 failed" while hiding them. Placed terminally,
- * it costs exactly one red and hides nothing.
+ * ⭐ WHY THIS IS THE LAST TEST IN THE FILE. It was authored as a failing pin for
+ * two live defects, and this file is a serial chain — a red anywhere earlier
+ * would abort every test after it and report "1 failed" while hiding them.
+ * Placed terminally, a red here costs exactly one failure and hides nothing.
  *
- * ⛔ DO NOT "FIX" THIS BY ASSERTING WHAT THE PAGE CURRENTLY SAYS. The current copy
- * is the defect; asserting it would convert a red pin into a green one that
- * documents a bug as intended behaviour.
+ * ⛔ DO NOT "FIX" A RED HERE BY ASSERTING WHAT THE PAGE CURRENTLY SAYS. If either
+ * bug regresses, the fix is in the app, never in this assertion — asserting the
+ * broken copy would convert a red pin into a green one that documents a bug as
+ * intended behaviour.
  *
- * BUG-DSR-S3-002 — the per-commission attestation card does not name its
- * commission for the Encarregado. `listMyDsrTasks` reads the name through a
- * PostgREST embed on `commissions`, which is RLS-filtered; the Encarregado is a
- * plain member of ONE commission by design (ADR 0130 Decision 2), so a sibling
- * commission's name is unreadable and the card renders "Comissão fora do seu
- * acesso". The task's own procedure text says "Revise o conteúdo em texto livre
- * DESTA COMISSÃO" — and the surface never says which one. The attestation is a
- * named human's statement entering a legal record delivered to a data subject;
- * attesting to an unidentified scope is the wrong-scope failure
- * `dsrAttestProcedure`'s two flavours exist to prevent. ⚠ This is the SAME class
- * ADR 0130 Amendment 2 item 5 solved for HOSPITAL names with a DEFINER lister
- * (`list_my_executable_dsr_tasks` / `list_my_nsp_hospitals`), recurring one grain
- * down at the commission.
+ * BUG-DSR-S3-002 — ✅ FIXED 2026-08-20 (`docs/progress/bug-log-archive.md`). The
+ * per-commission attestation card did not name its commission for the
+ * Encarregado. `listMyDsrTasks` used to read the name through a PostgREST embed
+ * on `commissions`, which is RLS-filtered; the Encarregado is a plain member of
+ * ONE commission by design (ADR 0130 Decision 2), so a sibling commission's name
+ * was unreadable and the card rendered "Comissão fora do seu acesso". The task's
+ * own procedure text says "Revise o conteúdo em texto livre DESTA COMISSÃO" — and
+ * the surface said nothing about which one. Fixed with the DEFINER lister
+ * `list_my_dsr_task_commissions` (same class as ADR 0130 Amendment 2 item 5's
+ * HOSPITAL-name fix, one grain down at the commission).
  *
- * BUG-DSR-S3-003 — `notify_scrub_check` is hospital-scoped BY DESIGN (Q12a: one
- * residue check per request, `commission_id` null), yet its card renders the same
- * "Comissão fora do seu acesso". That states a permission problem where none
- * exists, and it collapses two different facts — "this task has no commission"
- * and "you may not read this commission's name" — into one string.
+ * BUG-DSR-S3-003 — ✅ FIXED 2026-08-20 (`docs/progress/bug-log-archive.md`).
+ * `notify_scrub_check` was hospital-scoped BY DESIGN (Q12a: one residue check
+ * per request, `commission_id` null), yet its card rendered the same "Comissão
+ * fora do seu acesso" — a permission problem where none existed, collapsing two
+ * different facts ("this task has no commission" / "you may not read this
+ * commission's name") into one string. `dsr-task-inbox.tsx` now renders a third,
+ * correct string for the null-commission case.
+ *
+ * ⚠ DSR OPERATIONAL REMEDIATION (2026-08-21): `create_dsr_request` no longer
+ * mints ANY `notify_scrub_check` task (ADR 0130 Amdt 4 reached the code in
+ * `20261003000100`) — the residue class it existed to check was proved absent.
+ * Backend confirmed from the catalog that both `dsr_tasks` writers otherwise
+ * always set `commission_id`, so this was the file's ONLY live specimen of a
+ * hospital-scoped, commission-less task; without it, `dsr-task-inbox.tsx`'s
+ * null-commission branch (BUG-DSR-S3-003's fix) is reachable only for
+ * HISTORICAL rows a migration deliberately never backfills (a surviving
+ * `pending` row must stay completable exactly as today). So this test now
+ * CONSTRUCTS one such row directly via `svcInsert` rather than relying on the
+ * mint — still a valid `kind` (the CHECK constraint keeps it), still
+ * completable, still rendered by the unchanged component branch. Removing the
+ * construction (or breaking the branch) must turn this RED — proven, not
+ * assumed: see the repair note beside the insert below.
  */
 test('the attested tier names the commission it asks a human to review', async ({
   page,
+  request,
 }) => {
   await cachedSignIn(page, 'staff1.ccih@test.local')
+
+  // ⭐ THE CONSTRUCTED SPECIMEN (DSR operational remediation, T2). No writer
+  // mints a commission-less task any more, so the hospital-scoped rendering
+  // branch this test exists to pin would otherwise never be exercised by
+  // anything live — the pin would keep PASSING while proving NOTHING (the
+  // exact vacuity class `FUP-E2E-ABSENT-ROW-ASSERTIONS` is filed under).
+  // Attached to the file's own fixture request rather than a fresh one: RLS
+  // (`dsr_tasks_select`: `app.is_dpo_of(hospital_id) OR
+  // app.can_execute_dsr_task(...)`) and the page's own task read
+  // (`listMyDsrTasks(hospitalId)` filtered to `t.requestId === requestId`,
+  // `src/app/o/[org]/titulares/[requestId]/page.tsx`) both key on
+  // `hospital_id`/`request_id`, never on `dsr_requests.status` — so a closed
+  // request (this one was closed in test 8) still renders it. `hospital_id` is
+  // read off the request row itself rather than hardcoded, so this does not
+  // silently drift if the fixture's hospital ever changes.
+  //
+  // RED-PROOF (run once, not part of the committed suite): commenting out the
+  // `svcInsert` below reproduces exactly the failure this construction now
+  // prevents — `taskCard(page, 'Verificar resíduo em notificações')` matches
+  // ZERO elements, so every assertion against `scrub` below (starting with
+  // `scrub.getByText(/tarefa do hospital/i)).toBeVisible()`) times out unable
+  // to find the locator at all. Restored immediately after confirming the red.
+  // A pin nobody has watched fail is not a pin.
+  const [dsrRequest] = await svcSelect<{ hospital_id: string }>(
+    request,
+    'dsr_requests',
+    `select=hospital_id&id=eq.${requestId}`,
+  )
+  await svcInsert(request, 'dsr_tasks', {
+    request_id: requestId,
+    kind: 'notify_scrub_check',
+    hospital_id: dsrRequest.hospital_id,
+    note: 'Verificar resíduo de dados do titular em notificações (título e corpo) das entidades descartadas e registrar o resultado.',
+  })
+  // No explicit cleanup: `dsr_tasks` cascades from `dsr_requests` (`on delete
+  // cascade`), and `afterAll` deletes the fixture request by its `file_ref`.
+
   await page.goto(detailUrl)
 
   const sweeps = page.getByRole('article').filter({

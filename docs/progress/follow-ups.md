@@ -5567,3 +5567,61 @@ control; it is an unusually careful person. [[removing-a-subject-breaks-its-asse
 properties that *did* drop had no roster. ⛔ Filed rather than built — a roster asserted at the wrong
 grain (*"assert every adjacent affordance"*) is the un-checkable shape DSR Slice 3 already rejected;
 naming the gap honestly is the first deliverable.
+
+### 🟠 FUP-E2E-HELPERS-SWALLOW-FAILED-READS — ~48 spec files + 2 helpers turn a FAILED READ into "the table is empty" (owner: tester/lead; **filed 2026-08-21; 3 instances fixed, the population reported and deliberately NOT swept**)
+
+The second mechanism inside `FUP-E2E-ABSENT-ROW-ASSERTIONS`, and the one **no matcher choice
+defends against**: a helper that returns `[]` when the request itself failed, so *"the request
+errored"* and *"the table is empty"* become indistinguishable at every call site.
+
+**Fixed 2026-08-21, three live instances, all now `expect(resp.ok(), …)` before returning:**
+`e2e/case-patient.spec.ts`'s local `restGet` · `e2e/patient-index.spec.ts`'s local `restGet` · the
+**shared** `serviceQuery` in `e2e/helpers/documents.ts`. ⭐ The shared one is used by **6** spec
+files; all 6 re-run, **47/47 pass**. Safe by construction: every call site uses the service-role
+key, never an RLS-scoped read, so asserting `ok()` cannot misclassify a real access-boundary result
+as a failure — checked, not assumed.
+
+⛔ **The population is ~48 spec files + 2 helpers carrying the same
+`Array.isArray(data) ? data : []` shape, and it was deliberately left alone.** The overwhelming
+majority are unrelated to PHI erasure, and a 48-file sweep in the same session that fixed 3 would be
+a scope explosion with regressions nobody could individually verify. ⛔ **Do not read the 3 fixed as
+a sample that closes the item** — ⭐ *a fix count is not a population count*, the same shape as this
+round's other three magnitude corrections.
+
+**When this is taken up:** derive the population as a property (a helper that can return a
+collection **and** has a non-throwing failure path), not as a grep for `Array.isArray`; fix the
+**shared** helpers first, since each covers many call sites at once; and prove each fix by making a
+read fail and requiring red. ⚠ Where a helper is used with an **RLS-scoped** key rather than the
+service role, `ok()` is the wrong assertion — an empty result may be the correct answer there, and
+that distinction is what makes this a per-helper job rather than a codemod.
+
+### 🟡 FUP-DISPOSE-REFERRAL-HAS-NO-INBOX-BROWSER-COVERAGE — three of the four erasure lanes are driven through the DSR inbox in a browser; the referral lane is not (owner: tester; **filed 2026-08-21 as the named residual of a bug that closed on removal**)
+
+`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE` closed 2026-08-21 **on removal of its subject**, not on
+achieved coverage — the `ReferralDisposeDialog` was deleted (no hat could reach it). What that close
+does **not** cover, and what is recorded here so it is not inherited as coverage:
+
+**`dispose_referral_phi`'s live pathway — the DSR task inbox — has no browser-level test anywhere.**
+Grepped the whole `e2e/` tree: the only `dispose_referral` hit is `nsp-per-hospital.spec.ts`'s
+**direct RPC POST**, which proves the door and the audit trail and says nothing about the inbox card,
+its confirm flow, or the server action behind it. `dispose_case`, `dispose_event` and
+`dispose_meeting` all gained inbox-driven browser coverage in this round; the referral lane alone did
+not.
+
+⚠ **Asymmetry worth stating plainly:** the lane whose UI was removed is the lane with the least
+browser coverage, and the close of the removal bug is the document a future reader will find first.
+
+### 🟡 FUP-CHILD-LOCK-REGRESSION-GUARD-COVERS-ONE-LANE — the browser-level P0 guard covers the interview lane only (owner: tester; **filed 2026-08-21 by its own author, as a stated bound**)
+
+`e2e/dsr-disposal-child-lock-regression.spec.ts` drives a real inbox disposal against a **locked
+interview** and asserts by **count** (`patient_identifiers` = 0), never by null-check. That is item 9
+of the P0's **ten** guard-tripping statements.
+
+⛔ **Not covered at the browser level:** the **`meeting_cases`** lane (item 10 — the shared fixture's
+meeting stays `scheduled`, and reaching `signed` requires the real meeting-lifecycle RPCs) and the
+**RCA/CAPA** lanes (no NSP/event fixture exists in the DSR helper). Both are covered at the DB layer
+by pgTAP `353`, mutation-proven — so this is a *layer* gap, not an unproven fix.
+
+⭐ **Filed by the author of the guard, in the report that delivered it.** Recorded because the
+alternative — a green regression spec whose name implies it covers the bug — is exactly how the
+original defect survived a full gate.

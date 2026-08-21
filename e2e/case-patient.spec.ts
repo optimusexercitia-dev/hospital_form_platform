@@ -122,12 +122,28 @@ async function getToken(req: APIRequestContext, email: string): Promise<string> 
   return ((await resp.json()) as { access_token: string }).access_token
 }
 
-/** PostgREST GET under a bearer token. */
+/**
+ * PostgREST GET under a bearer token.
+ *
+ * ⛔ ASSERTS `resp.ok()` RATHER THAN RETURNING `[]` ON FAILURE (FUP-E2E-ABSENT-ROW-
+ * ASSERTIONS' second, matcher-independent mechanism: a helper that returns `[]` on
+ * a FAILED READ turns "the request errored" into "the table is empty", and an
+ * emptiness/absence assertion downstream then passes for the wrong reason — the
+ * same silent-return family `service-role.ts`'s `svcSelect` was already fixed
+ * against. Every call site in this file passes `SUPABASE_SERVICE_KEY` as BOTH the
+ * `apikey` and the `bearer` — i.e. every read here bypasses RLS by construction
+ * (a measurement instrument, never the security boundary under test — same
+ * discipline as `service-role.ts`), so a non-2xx response is always a genuine
+ * error, never an RLS-shaped "denied" empty set. Asserting `resp.ok()` therefore
+ * cannot misclassify a real access-boundary result as a failure anywhere this
+ * helper is called.
+ */
 async function restGet<T>(req: APIRequestContext, path: string, bearer: string): Promise<T[]> {
   const resp = await req.get(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${bearer}` },
   })
   const data = await resp.json()
+  expect(resp.ok(), `GET ${path}: ${JSON.stringify(data)}`).toBeTruthy()
   return Array.isArray(data) ? (data as T[]) : []
 }
 
@@ -1184,13 +1200,26 @@ test('AC-6a/b/c: dispose_case_phi RPC — happy path, HC056 one-shot, 42501 non-
   expect(disposeResp.ok(), `dispose_case_phi failed: ${await disposeResp.text()}`).toBeTruthy()
 
   // Verify has_patient=false after disposal
+  //
+  // ⛔ THE ROW'S EXISTENCE IS ASSERTED FIRST (FUP-E2E-ABSENT-ROW-ASSERTIONS). The
+  // case itself is never deleted by disposal — only its PHI (Rule 12's governance
+  // skeleton survives) — but `afterRows[0]?.phi_disposed_at).not.toBeNull()` on an
+  // ABSENT row still yields `undefined`, and `undefined` PASSES `.not.toBeNull()`.
+  // Optional chaining plus that matcher is what converts a missing subject into a
+  // passing assertion; asserting `toHaveLength(1)` first means the value check
+  // below can only ever be about a row that is really there. Copied from the
+  // corrected shape at `dsr-subject-requests.spec.ts:255-264`.
   const afterRows = await restGet<{ has_patient: boolean; phi_disposed_at: string | null }>(
     request,
     `cases?id=eq.${disposablePhiCaseId}&select=has_patient,phi_disposed_at`,
     SUPABASE_SERVICE_KEY,
   )
-  expect(afterRows[0]?.has_patient).toBe(false)
-  expect(afterRows[0]?.phi_disposed_at).not.toBeNull()
+  expect(
+    afterRows,
+    'the disposed case row is gone — an absent row must not be read as "disposed"',
+  ).toHaveLength(1)
+  expect(afterRows[0].has_patient).toBe(false)
+  expect(afterRows[0].phi_disposed_at).not.toBeNull()
 
   // Verify the patient identifiers record is gone (F1 re-key: PHI now lives in
   // patient_identifiers, reached via the case's patient participant chain).

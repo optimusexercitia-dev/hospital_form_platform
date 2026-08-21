@@ -1,9 +1,12 @@
 import { expect, type APIRequestContext } from '@playwright/test'
 import {
+  SUPABASE_URL,
   svcDelete,
+  svcHeaders,
   svcInsert,
   svcSelect,
 } from './service-role'
+import { accessToken } from './auth'
 
 // Re-exported so DSR specs keep one import site.
 export { svcDelete, svcHeaders, svcInsert, svcSelect } from './service-role'
@@ -70,6 +73,46 @@ export type DsrFixture = {
   agendaTitle: string
   agendaProse: string
   minutes: string
+  /** '' unless `createDsrFixture` was called with `completedInterview: true`. */
+  interviewId: string
+  /** '' unless `completedInterview: true` — the PHI-bearing note the door must redact. */
+  interviewSubjectNote: string
+}
+
+export type DsrFixtureOptions = {
+  /**
+   * ⭐ THE P0 REGRESSION SPECIMEN (DSR operational remediation, T4). When true,
+   * the fixture ALSO carries a `case_interviews` row already `completed`, with
+   * one `case_interview_subjects` row bearing PHI-adjacent free text.
+   *
+   * `completed` is a LOCKED state under `app.guard_interview_child_lock`
+   * (raises `23514` on `case_interviews.status in ('completed','cancelled')`,
+   * verified against `pg_get_functiondef` — never migration text). Before this
+   * round's fix (migration `20261003000000`), `dispose_case_phi`'s stand-aside
+   * covered only the PARENT-table guard (`app.guard_interview_status`, via
+   * `app.in_interview_rpc`) and never set `app.in_disposal_rpc` around the
+   * CHILD write on `case_interview_subjects` — so the guard fired, and because
+   * it fires AFTER the Class-1 `delete from patient_identifiers` earlier in the
+   * SAME function body, the whole RPC rolled back: the patient's identifiers
+   * survived intact. A `draft`/`in_progress`/`scheduled` interview never
+   * exercises this at all (`app.guard_interview_child_lock` is a no-op outside
+   * `completed`/`cancelled`) — which is exactly why the seed's ordinary
+   * interviews never caught it and a fixture must be built to reach the state.
+   *
+   * ⚠ REACHING THE STATE STILL NEEDS ONE REAL RPC. `guard_interview_status`
+   * fires only on `BEFORE DELETE OR UPDATE` (confirmed against `pg_trigger`),
+   * so the interview itself can be born `in_progress` in a single INSERT with
+   * no transition check — but `app.guard_interview_child_lock` fires on
+   * `BEFORE INSERT OR DELETE OR UPDATE` of the CHILD `case_interview_subjects`
+   * (measured empirically: a fixture that INSERTed the interview directly as
+   * `completed` then failed to insert the subject row at all, `23514`). So the
+   * subject is added FIRST, while unlocked, and the interview is walked
+   * `in_progress → completed` via the real `conclude_interview` RPC — which
+   * sets `app.in_interview_rpc` itself, the only way past
+   * `guard_interview_status`'s "transitions must go through the interview
+   * RPCs" rule (the same rule `guard_meeting_status` enforces for meetings).
+   */
+  completedInterview?: boolean
 }
 
 /**
@@ -81,6 +124,7 @@ export type DsrFixture = {
 export async function createDsrFixture(
   req: APIRequestContext,
   tag: string,
+  opts: DsrFixtureOptions = {},
 ): Promise<DsrFixture> {
   const fixture: DsrFixture = {
     mrn: `DSR-${tag}`,
@@ -92,6 +136,8 @@ export async function createDsrFixture(
     agendaTitle: `Pauta de fixture ${tag}`,
     agendaProse: `Discussão de fixture ${tag} — texto livre que o descarte da ata apaga.`,
     minutes: `Ata de fixture ${tag}. Este texto deve desaparecer no descarte integral.`,
+    interviewId: '',
+    interviewSubjectNote: '',
   }
 
   // ⚠ The template version is a GENERATED uuid — it changes on every
@@ -218,6 +264,67 @@ export async function createDsrFixture(
       'raises HCDS2 rather than enumerating',
   ).not.toBeNull()
 
+  if (opts.completedInterview) {
+    // Born `in_progress` — a fresh INSERT skips `guard_interview_status`
+    // entirely (BEFORE DELETE OR UPDATE only), but `in_progress` is also a
+    // legal PRE-conclusion state, so the RPC transition below is a real,
+    // valid one rather than an artifact of construction order.
+    const interview = await svcInsert<{ id: string }>(req, 'case_interviews', {
+      case_id: fixture.caseId,
+      commission_id: DSR_COMM_CCIH,
+      status: 'in_progress',
+      interview_category: 'witness',
+      created_by: chefe.id,
+    })
+    fixture.interviewId = interview.id
+    fixture.interviewSubjectNote = `Nota de entrevista de fixture ${tag} — texto que o descarte deve redigir.`
+    // While still unlocked — see the docblock above for why this must come
+    // BEFORE the interview is concluded.
+    await svcInsert(req, 'case_interview_subjects', {
+      interview_id: fixture.interviewId,
+      external_name: `Testemunha de fixture ${tag}`,
+      relationship_to_case: 'witness',
+      note: fixture.interviewSubjectNote,
+    })
+
+    // `chefe.ccih@test.local` is staff_admin of CCIH — a real writer of this
+    // interview, not a service-role bypass of the RPC's own gate. `apikey`
+    // stays the service key (PostgREST routes on the JWT's own role claim,
+    // not on `apikey` — same convention every persona-token RPC call in this
+    // suite uses); only `Authorization` carries the persona.
+    const chefeToken = await accessToken(req, 'chefe.ccih@test.local')
+    const concludeResp = await req.post(
+      `${SUPABASE_URL}/rest/v1/rpc/conclude_interview`,
+      {
+        headers: svcHeaders({ Authorization: `Bearer ${chefeToken}` }),
+        data: { p_interview_id: fixture.interviewId },
+      },
+    )
+    expect(
+      concludeResp.ok(),
+      `fixture: conclude_interview failed: ${await concludeResp.text()}`,
+    ).toBeTruthy()
+
+    // Fixture proves itself, same discipline as the xref/meeting_cases checks
+    // above: a locked interview built wrong would make the P0 regression guard
+    // downstream pass vacuously — the guard it exists to re-trip would never
+    // fire at all.
+    const interviewRow = await svcSelect<{ status: string }>(
+      req,
+      'case_interviews',
+      `select=status&id=eq.${fixture.interviewId}`,
+    )
+    expect(
+      interviewRow,
+      'fixture: the completed interview row is missing',
+    ).toHaveLength(1)
+    expect(
+      interviewRow[0].status,
+      'fixture: the interview did not persist as completed — the child-lock ' +
+        'guard this fixture exists to re-trip would never fire',
+    ).toBe('completed')
+  }
+
   return fixture
 }
 
@@ -266,6 +373,10 @@ export async function destroyDsrFixture(
       `participant_id=eq.${fixture.participantId}`,
     )
     await svcDelete(req, 'participants', `id=eq.${fixture.participantId}`)
+  }
+  if (fixture.interviewId) {
+    await svcDelete(req, 'case_interview_subjects', `interview_id=eq.${fixture.interviewId}`)
+    await svcDelete(req, 'case_interviews', `id=eq.${fixture.interviewId}`)
   }
   if (fixture.caseId) {
     await svcDelete(req, 'case_participants', `case_id=eq.${fixture.caseId}`)

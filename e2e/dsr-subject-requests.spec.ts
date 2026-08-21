@@ -152,9 +152,13 @@ test('the Encarregado opens a request and the fan-out routes the work', async ({
   await expect(page.getByRole('heading', { name: FILE_REF })).toBeVisible()
 
   // ⭐ THE FAN-OUT HAS TWO TIERS AND THIS PIN MUST SEE BOTH (ADR 0130 Amdt 3
-  // item 5). Mechanical: exactly one disposal task for the one indexed record,
-  // plus the one residue check per request (Q12a). Attested: one `attest_review`
-  // per commission of the hospital that HOLDS non-case free-text prose.
+  // item 5). Mechanical: exactly one disposal task for the one indexed record.
+  // Attested: one `attest_review` per commission of the hospital that HOLDS
+  // non-case free-text prose. ⚠ THIS USED TO ALSO NAME "plus the one residue
+  // check per request (Q12a)" — `notify_scrub_check` is no longer minted at all
+  // (ADR 0130 Amdt 4 reached the code in `20261003000100`; see BUG-DSR-S3-003's
+  // docblock in `dsr-slice3-adjudication.spec.ts`), so the fan-out this round is
+  // two kinds, not three.
   //
   // ⚠ THE KIND MULTISET ALONE IS A WEAK PIN, and saying so here is the point.
   // Hospital Central A has exactly TWO commissions and BOTH hold prose (measured
@@ -183,11 +187,15 @@ test('the Encarregado opens a request and the fan-out routes the work', async ({
     'dsr_tasks',
     `select=kind,entity_id,commission_id,module&request_id=eq.${requestId}`,
   )
+  // ⚠ NO `notify_scrub_check` HERE ANY MORE. `create_dsr_request` stopped
+  // minting it (ADR 0130 Amdt 4 / `20261003000100`) — the withdrawal reached the
+  // code this round. See BUG-DSR-S3-003's docblock in
+  // `dsr-slice3-adjudication.spec.ts` for where that task's hospital-scoped
+  // rendering branch is now covered (a CONSTRUCTED row — no writer mints one).
   expect(tasks.map((t) => t.kind).sort()).toEqual([
     'attest_review',
     'attest_review',
     'dispose_event',
-    'notify_scrub_check',
   ])
 
   const attestations = tasks.filter((t) => t.kind === 'attest_review')
@@ -204,10 +212,6 @@ test('the Encarregado opens a request and the fan-out routes the work', async ({
   const disposal = tasks.find((t) => t.kind === 'dispose_event')
   expect(disposal?.entity_id).toBe(fixtureEventId)
   expect(disposal?.commission_id).toBe(COMM_CCIH)
-  // The residue check is hospital-scoped, not commission-scoped (Q12a).
-  expect(
-    tasks.find((t) => t.kind === 'notify_scrub_check')?.commission_id,
-  ).toBeNull()
 
   // ⚠ The Encarregado is a plain staff member and holds NO disposal-door arm —
   // the disposal task is routed to the PQS operators, not to them.
