@@ -61,6 +61,18 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   capability — a Rule 12 widening the PO was never asked about (they ruled that creating many cases
   carries the same responsibility as creating one; patient-identifier write was not in the
   question). Measure first, then ask. Detail: [plan](docs/plans/case-surface-split.md) § OPEN-3.
+  **✅ OPEN-3 RESOLVED BY MEASUREMENT 2026-08-21 — shape (a); Rule 12 HOLDS, no change needed.**
+  `set_participant_patient` is `SECURITY DEFINER` with a **single** authority branch,
+  `app.is_staff_admin_of` — no `member_can`, no `can_write_case_content`, no `is_admin` anywhere in
+  the comment-stripped body. An administrativo with **all four** capabilities and a per-case
+  write-grantee are **both REFUSED**. ⇒ **Door 2 cannot become a PHI-write widening**; branch (b)
+  is closed entirely. ⛔ **The dead-end half is real and conditional:** the PHI call is step (d) of
+  the per-row loop and the loop re-raises, **rolling back the whole batch** — so an administrativo
+  on a **patient-collecting** template fills up to 200 rows and loses all of it to a message naming
+  *"a coordenação"*. PHI-free batches never reach step (d). ⇒ **OPEN-4 open for the PO:** suppress
+  the wizard's PHI columns for administrativos, block the capability on patient-collecting
+  templates, or accept the 42501 — shipping as-is rebuilds exactly the dead-end door T4 was
+  overruled to avoid.
   ⛔ **OPEN-2 — a second PO ruling, found by measurement at build start and NOT in the ADR.**
   ADR 0134 **D5** assumed an administrativo holding `create_cases` should reach *bulk* case
   creation; the door was never measured. It is `app.is_staff_admin_of` **only** — so D5's

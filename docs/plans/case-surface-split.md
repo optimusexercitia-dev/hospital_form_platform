@@ -355,7 +355,46 @@ widens without coordinator action) — and `supabase/seed.sql` DOES grant it to 
 seed is a contract with ~900 tests; changing personas' reach is a fixture decision, so update
 the seed header roster note in the same change).
 
-### ⛔ OPEN-3 — BLOCKS door 2 (M-bulk). A Rule 12 boundary the OPEN-2 ruling did not reach.
+### ✅ OPEN-3 — RESOLVED BY MEASUREMENT 2026-08-21: **shape (a)**. Rule 12 holds; a conditional dead-end door remains.
+
+**`public.set_participant_patient` is coordinator-only.** `SECURITY DEFINER` (so its body replaces
+RLS), and the authority region is a **single branch — no `elsif`, no second disjunct**:
+`if not app.is_staff_admin_of(v_case.commission_id) then raise 42501 'apenas a coordenação da
+comissão pode registrar dados do paciente'`. Everything after it is shape validation
+(`patient_enabled`, `phi_disposed_at`, the `sex` vocabulary, the ADR 0038 name-or-MRN floor), never
+authority. Comment-stripped body sweep: **no** `member_can`, **no** `can_write_case_content`, **no**
+`is_admin`. Verdicts, evaluated read-only under each persona's claims in a rolled-back transaction:
+an **administrativo holding all four capabilities → REFUSED**; a **per-case write-grantee →
+REFUSED** (`can_write_case_content` is never consulted on this path).
+
+⇒ **Branch (b) is closed entirely: door 2 CANNOT become a PHI-write widening.** An administrativo
+admitted to bulk creation gains **no** patient-identifier write, with no change required. Rule 12
+holds as-is.
+
+⛔ **But shape (a)'s dead-end is real, and sharper than a plain `42501`.** The `set_case_patient`
+call sits at step **(d)** of the per-row loop — *after* `create_case_from_template`, `activate_phase`
+and narrative assignment — and the loop's `exception when others` re-raises as `linha %: %`, which
+propagates and **rolls back the entire batch**. So an administrativo on a patient-collecting
+template fills up to **200 rows**, commits, and loses all of it to a message naming *"a
+coordenação"* — a role the UI had just invited them to act in.
+**It is conditional, not universal:** a PHI-free batch never reaches step (d) at all
+(`if v_patient is not null`), so it bites only when the template collects patient data **and** at
+least one row carries it.
+
+**⇒ OPEN-4 (PO): what happens on a patient-collecting template?** Shipping as-is rebuilds precisely
+the dead-end door T4 was overruled to avoid. The options are: suppress the wizard's PHI columns for
+administrativos (they bulk-create PHI-free cases someone completes later — mirrors the door
+exactly, which is this program's standing principle); or block the capability on patient-collecting
+templates (blunter — they lose bulk entirely for that template class); or accept the 42501.
+⚠ Consideration for the ruling: under option 1, administrativo-created batches on patient templates
+yield cases with **no patient attached**, which someone must fill in afterwards — that may make the
+delegation less useful for exactly the templates where bulk matters most.
+
+---
+
+#### Original filing, retained as the record of the question's inputs
+
+**~~⛔ OPEN-3 — BLOCKS door 2 (M-bulk)~~ (RESOLVED — see above). A Rule 12 boundary the OPEN-2 ruling did not reach.**
 
 **Measured 2026-08-21 (backend, live catalog).** `public.bulk_create_cases` accepts a **`patient`
 object per row** and calls `public.set_case_patient` — **Rule 12 data**. So the moment an
