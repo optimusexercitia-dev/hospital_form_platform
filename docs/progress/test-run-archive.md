@@ -858,3 +858,23 @@ branch*, not as *equal to a number recorded at a different commit*.
 ⛔ **Not a phase close.** §6 step 3 (QA) and step 4 (PO approval) are outstanding, Increment 2 has
 not started, and **nothing is merged** — `main` is still E2E-red for the two QO bugs this branch
 fixes.
+
+## 2026-08-21 — CASE SURFACE SPLIT · Increment 1 · §6 steps 1+2 **RE-GATE** after the QA fixes
+
+**GATE GREEN, exit 0.** `1177 passed · 0 failed · 0 infra · 3 flaky · 11 skipped · did-not-run 0 ·
+1191 collected.` Census **sums**: 1177 + 3 + 11 = 1191. (+2 collected vs the first gate — the two
+new narrative-differential specs.) Step 1 re-run on a fresh reset: pgTAP **6795/6795** F=**206**
+PASS · lint **8/8** · `tsc` 0 · vitest **1506/1506** · all four authz ARMs **HOLD**.
+
+⭐ **This run's log was kept in full.** The first gate was piped through `tail -60`, which discarded
+18 of 19 batch summaries and left the per-batch census unauditable — the `COVERAGE: accounted for
+1178 of 1189` line then read as 11 unexplained tests with no way to resolve it from the captured
+output. Keeping the whole log made the census a one-line check instead of an archaeology exercise.
+*Do not pipe a gate's output through `tail`; redirect it to a file.*
+
+**The 3 flaky (named, not left as a number):** `act-role-assumption.spec.ts:157` and
+`bulk-case-creation.spec.ts:756` (batch 1), plus one in batch 15. Flaky is not failure, but an
+unnamed flaky count is how a real intermittent defect hides inside a green gate.
+
+⛔ **Not a phase close.** QA re-review and PO approval outstanding; Increment 2 not started; nothing
+merged.

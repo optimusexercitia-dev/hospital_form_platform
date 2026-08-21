@@ -5917,14 +5917,13 @@ measured.
 a second unverified claim in the same spot is how that happens twice. **To close:** construct an
 orphan (delete the membership, leave the capability row) and measure whether they reach the board.
 
-### 🟡 FUP-CASE-TAGS-AND-OUTCOME-SELECTOR-NO-E2E — two case-wide affordances with zero E2E on any route (owner: tester; filed 2026-08-21)
+### 🟡 FUP-CASE-TAGS-AND-OUTCOME-SELECTOR-NO-CASOS-DIFFERENTIAL — two case-wide affordances covered on manage, with **no absence assertion on `/casos`** (owner: tester; filed 2026-08-21, ⛔ **CORRECTED THE SAME DAY — the original filing was FALSE**)
 
-`CaseTagsPanel`'s write UI ("Adicionar"/"Gerenciar etiquetas") and the outcome selector /
-"Editar desfechos disponíveis" (`CaseOutcomeSelector` + `CaseOfferedOutcomesEditor`) have **no E2E
-coverage on any route** — confirmed by grep across all 103 spec files, twice.
+⛔ **This item was first filed as “zero E2E coverage on any route” for case tags and the outcome selector. That is WRONG, and it was caught by reading a passing test name in the gate output rather than by any check.** Both are covered, on the manage host:
 
-Both are **case-wide write affordances**, so both are inside D1's scope and both were relocated by
-Increment 1's narrowing — with nothing asserting either the absence on `/casos` or the presence on
-manage. They are a **coverage gap, not a stale assertion**, which is why the Step-0 sweep correctly
-did not file them as bugs; they are recorded here so a sweep that concluded "0 additional stale
-instances" cannot be read as "these are covered".
+- **Tags** — `e2e/cases-extras.spec.ts:443` (`AC-Tags`) creates a tag, then assigns it on `/manage/cases/<id>` via `getByRole('region', { name: /Etiquetas/i })`.
+- **Outcome selector** — `e2e/processless-cases.spec.ts:473` drives the “Desfechos disponíveis” editor dialog; `e2e/cases-outcomes-blockers.spec.ts` exercises outcomes throughout on `/manage/cases/<id>`.
+
+⭐ **How the false claim was produced, because the mechanism matters more than the item.** The sweep grepped the **button labels** (“Adicionar” / “Gerenciar etiquetas” / “Editar desfechos disponíveis”). The real coverage reaches these affordances through a **role+region locator** and a **dialog filter**, neither of which contains any of those strings. **A grep bounded by a label is a proxy for the property, not the property** — the same recorded failure as bounding an enumeration by a syntax. It then survived into the tracker because the grep result was repeated as “confirmed … twice”, which reads like a measurement and is a restatement.
+
+**What is actually open — the narrower, real gap.** Both affordances are **case-wide**, so Increment 1 narrowed them off `/casos`, and **nothing asserts that absence**. The manage-side presence is covered; the `/casos` side is not. Close it the way `case-access.spec.ts`’s AC-3b and the T6 narrative differential are built: absence on `/casos` paired against the existing presence on manage, same user and case, counted by structure as well as accessible name.
