@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import {
   getCaseDetail,
+  canOpenCaseManagement,
   casePatientEnabled,
   casesExtrasEnabled,
   listCaseCustomFieldValues,
@@ -51,8 +52,13 @@ export const metadata: Metadata = {
  * `get_case_detail` envelope is coordinator-grade here) and the layout's richer
  * chrome (so `withHeader={false}`).
  *
- * Coordinator-gated + commission-scoped here too (defense in depth; the layout gates
- * identically and both reads are React `cache()`-memoized, so the repeat is free).
+ * Gated + commission-scoped here too (defense in depth; the layout gates
+ * IDENTICALLY — both call {@link canOpenCaseManagement} — and both reads are React
+ * `cache()`-memoized, so the repeat is free). ⛔ Since ADR 0134 D3 the entrant is
+ * no longer necessarily a coordinator: an appointed administrativo or a per-case
+ * write-grantee reaches this body too, with `detail.viewerCapabilities` — not the
+ * route — deciding what they may do. Every prop below that used to ride on the old
+ * role gate now carries its door's own authority explicitly.
  */
 export default async function CaseDetailPage({
   params,
@@ -68,18 +74,38 @@ export default async function CaseDetailPage({
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || access.role !== "staff_admin") {
+  if (!access) {
     notFound();
   }
 
+  // ⛔ READ GATE, and it must precede the entry predicate — see the identical note
+  // in the `(detail)` layout: `isAdministrativo` is independent of per-case read
+  // reach until the Increment-2 S8 arm lands, so this is what stops an appointed
+  // administrativo on a case they cannot read.
   const detail = await getCaseDetail(caseId);
   if (!detail || detail.case.commissionId !== access.commission.id) {
+    notFound();
+  }
+
+  // ADR 0134 D3 — the SAME single-point predicate the layout gates on. This page is
+  // the layout's default child, so leaving a `staff_admin` copy here would 404 every
+  // class the layout now admits and D3 would be a no-op. Defense in depth only
+  // works when both copies are the same expression; both call the helper.
+  if (
+    !(await canOpenCaseManagement(access, caseId, detail.viewerCapabilities))
+  ) {
     notFound();
   }
 
   // A terminal case is frozen (HC025), so nothing may be appended to its work list.
   // Mirrors the `(detail)` layout's own derivation.
   const isOpen = !isTerminalCaseStatus(detail.case.status);
+
+  // The coordinator claim STRAIGHT FROM THE DB ENVELOPE — the same value the body's
+  // `caps.canManageLifecycle` gates on (this host passes no `managementElsewhere`,
+  // so nothing narrows it). Used below to keep coordinator-only dialog FUEL absent
+  // by construction now that ADR 0134 D3 admits non-coordinators to this route.
+  const canManageLifecycle = detail.viewerCapabilities.canManageLifecycle;
 
   const [
     interviewsOn,
@@ -129,16 +155,27 @@ export default async function CaseDetailPage({
   // editor (processless_cases). Only needed when this case is process-less AND the
   // coordinator may edit the set; otherwise the editor never renders, so `[]`.
   const outcomes =
-    detail.case.templateId === null && casesExtrasOn
+    detail.case.templateId === null && casesExtrasOn && canManageLifecycle
       ? await listCaseOutcomes(access.commission.id)
       : [];
 
-  // Post-conclusion result correction (phase-results feature; task #10). This route
-  // is already staff_admin/admin-gated, so a coordinator here may correct a
-  // concluded phase's result when the flag is on. This is the commission's full
-  // active vocabulary; the picker narrows it per phase — a MANUAL phase is
-  // restricted to its allowed subset (phase-result-manual-mode).
-  const phaseResultOptions = phaseResultsOn
+  // Post-conclusion result correction (phase-results feature; task #10).
+  //
+  // ⛔ THE ROLE TEST IS LOAD-BEARING AND IS NOT A NARROWING. This prop was a bare
+  // `phaseResultsOn` while the route guaranteed `staff_admin`; ADR 0134 D3 removed
+  // that guarantee, which turns the bare flag into a UI over-grant for every newly
+  // admitted class. Measured authority of `set_case_phase_result_override`:
+  // coordinator ∨ the phase's OWN assignee — there is **no `member_can` arm**, so
+  // an administrativo is refused by the door and must not see the affordance.
+  //
+  // ⚠ The assignee disjunct is per-PHASE and this prop is per-CASE, so it cannot be
+  // expressed here; only the coordinator arm is rendered. Surfacing the assignee arm
+  // is a product question (it would need a per-phase prop), deliberately NOT
+  // invented in this increment. `/casos` hand-sets the same coordinator-only test.
+  const canManagePhaseResults = phaseResultsOn && access.role === "staff_admin";
+  // The commission's full active vocabulary; the picker narrows it per phase — a
+  // MANUAL phase is restricted to its allowed subset (phase-result-manual-mode).
+  const phaseResultOptions = canManagePhaseResults
     ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
     : [];
   const [
@@ -171,8 +208,16 @@ export default async function CaseDetailPage({
     // footer never renders and the reads would be pure waste. The staff route
     // never makes them at all, which is what keeps the commission's form list and
     // narrative vocabulary off that page's payload.
-    isOpen ? listForms(access.commission.id) : Promise.resolve([]),
-    isOpen && narrativesOn
+    //
+    // ⛔ `canManageLifecycle` joins `isOpen` since ADR 0134 D3. Both doors are
+    // ROLE-LOCKED at the DB (`add_ad_hoc_narrative` gates on `app.is_staff_admin_of`;
+    // `add_ad_hoc_phase` runs INVOKER under `case_phases_staff_admin_write`), so an
+    // administrativo or write-grantee entering this route would refuse at the door —
+    // and the pickers' data must be absent by construction, not merely unrendered.
+    isOpen && canManageLifecycle
+      ? listForms(access.commission.id)
+      : Promise.resolve([]),
+    isOpen && canManageLifecycle && narrativesOn
       ? listNarrativeTypes(access.commission.id)
       : Promise.resolve([]),
   ]);
@@ -218,7 +263,7 @@ export default async function CaseDetailPage({
       backHref={commissionHref(org, commission, "manage", "cases")}
       referralsModule={referralsModule}
       forwardParentReferralId={encaminharDe ?? null}
-      canManagePhaseResults={phaseResultsOn}
+      canManagePhaseResults={canManagePhaseResults}
       phaseResultOptions={phaseResultOptions}
       outcomes={outcomes}
       casesExtrasEnabled={casesExtrasOn}

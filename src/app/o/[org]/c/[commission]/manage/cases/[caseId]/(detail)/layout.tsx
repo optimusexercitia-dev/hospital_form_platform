@@ -3,12 +3,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, MapPin } from "lucide-react";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import {
   getCaseDetail,
+  canOpenCaseManagement,
   casePatientEnabled,
   listCaseAccessGrants,
 } from "@/lib/queries/cases";
+import type { CaseAccessGrant } from "@/lib/queries/cases";
 import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listMembers, sortMembers } from "@/lib/queries/members";
 import {
@@ -44,10 +46,32 @@ import { CaseTemplateProvenance } from "@/components/cases/case-template-provena
  * created/closed line, lifecycle actions when open) + the **tab bar**, so both
  * tabs share one identity and the body pages render only their tab content.
  *
- * Coordinator-gated (mirrors the board + the old page): a non-coordinator, or a
- * case from another commission, gets `notFound()`. `getCommissionAccessByOrg` and
- * `getCaseDetail` are React `cache()`-wrapped, so this guard/fetch and the child
- * page's identical guard/fetch collapse to one call per request (no double fetch).
+ * **Entry gate (ADR 0134 D3):** `staff_admin ∨ isAdministrativo ∨ per-case
+ * canWriteContent`, resolved by the single-point predicate
+ * {@link canOpenCaseManagement}. A pure read-grantee, a plain committee member, a
+ * quality reviewer, a tenancy admin and a case from another commission all get
+ * `notFound()`. ⛔ The predicate is NEVER re-expressed inline: the same function
+ * backs the "Gerenciar caso" button and the board row links, and two hand-written
+ * copies is exactly how a gate and the control pointing at it drift apart.
+ *
+ * ⚠ UX gate, not the security boundary (Rule 1). `getCaseDetail` runs FIRST and
+ * `notFound()`s on its own when RLS says the caller may not read this case, so the
+ * predicate only ever decides between two surfaces the caller can already reach.
+ * Fetching it first also lets us pass `detail.viewerCapabilities` as
+ * `knownCapabilities`, which spends the per-case arm with no second round trip.
+ * `getCommissionAccessByOrg` and `getCaseDetail` are React `cache()`-wrapped, so
+ * this guard/fetch and each child tab's identical guard/fetch collapse to one call
+ * per request (no double fetch).
+ *
+ * ⛔ **Entering is not managing (ADR 0134 D5 / T3).** Widening the gate does NOT
+ * hand a non-coordinator entrant the affordances the old role gate used to imply.
+ * Every control below is now gated on the authority of the DOOR IT OPENS, measured
+ * from the live catalog — never inferred from this route's former role check:
+ * lifecycle and the access roster are coordinator-only, meta edit mirrors
+ * `update_case_meta` (coordinator ∨ `create_cases`), and the "Processo ético" tab
+ * is not offered at all to a non-coordinator because `etica/` keeps its own
+ * `staff_admin` gate. Each control's data load carries the same condition, so what
+ * a viewer cannot open is absent BY CONSTRUCTION rather than fetched and hidden.
  */
 export default async function CaseDetailLayout({
   params,
@@ -60,14 +84,40 @@ export default async function CaseDetailLayout({
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || access.role !== "staff_admin") {
+  if (!access) {
     notFound();
   }
 
+  // ⛔ READ GATE — NOT redundant with the ADR 0134 D3 predicate below, and it must
+  // stay ABOVE it. `getCaseDetail` returns null when RLS says this caller cannot
+  // read this case, and `isAdministrativo` (arm 2 of the predicate) is INDEPENDENT
+  // of per-case read reach until the Increment-2 `_case_caps` S8 arm lands. So an
+  // appointed administrativo passes the predicate on a case they cannot read, and
+  // after D3 widened the entry gate this line is the ONLY thing that stops them.
+  // Deleting it as "the predicate already covers that" opens a read hole.
   const detail = await getCaseDetail(caseId);
   if (!detail || detail.case.commissionId !== access.commission.id) {
     notFound();
   }
+
+  // ADR 0134 D3 — the manage-surface entry predicate. Fail-closed: the helper
+  // returns `false` for every non-answer (RPC error, unknown case, thrown client),
+  // so an error path 404s and never admits.
+  if (
+    !(await canOpenCaseManagement(access, caseId, detail.viewerCapabilities))
+  ) {
+    notFound();
+  }
+
+  // ADR 0134 D5 / T3 — per-affordance authority, each mirroring the door it opens
+  // (measured from the live catalog, not inferred from the route's old role gate):
+  //   · lifecycle  — `close_case` / `cancel_case` / `reopen_case`: coordinator only.
+  //   · roster     — `case_access_grants` writes: coordinator only (ADR 0033).
+  //   · meta       — `update_case_meta`: coordinator ∨ member_can('create_cases'),
+  //                  i.e. an appointed administrativo holding `create_cases` passes.
+  //                  There is NO dedicated meta capability; do not invent one.
+  const isCoordinator = access.role === "staff_admin";
+  const canEditCaseMeta = canInCommission(access, "create_cases");
 
   const c = detail.case;
   const isOpen = !isTerminalCaseStatus(c.status);
@@ -92,10 +142,14 @@ export default async function CaseDetailLayout({
     caseAccessEnabled(),
     patientSafetyEnabled(),
     casePatientEnabled(),
-    // The stored read/write grant rows for the access roster's per-member badge
-    // (coordinator/admin-gated — safe here, the layout already requires
-    // staff_admin). Used only when the access button renders.
-    listCaseAccessGrants(caseId),
+    // The stored read/write grant rows for the access roster's per-member badge.
+    // ⛔ The read itself is coordinator/admin-gated, and since ADR 0134 D3 this
+    // layout no longer requires `staff_admin` — so the load is now conditional on
+    // the same test that renders the button, not on the entry gate. Absent by
+    // construction for a non-coordinator entrant rather than fetched-and-hidden.
+    isCoordinator
+      ? listCaseAccessGrants(caseId)
+      : Promise.resolve<CaseAccessGrant[]>([]),
     // The ethics procedure envelope (ETH·E2; ADR 0073) — `null` unless the case is
     // ethics-typed AND the `ethics` flag is on. Drives the "Processo ético" tab.
     // React `cache()`-memoized, so the `etica` page's own read reuses this.
@@ -107,7 +161,13 @@ export default async function CaseDetailLayout({
   // component renders it as "Sem processo".
   const templateProvenance = await getCaseTemplateProvenance(caseId);
   const sortedMembers = sortMembers(members);
-  const showEthics = ethicsProcedure !== null;
+  // ⛔ The "Processo ético" tab is COORDINATOR-ONLY, and the second conjunct is
+  // load-bearing since ADR 0134 D3 widened the entry gate. `etica/page.tsx` hosts
+  // five coordinator write controls plus the disciplinary procedure surface, so it
+  // is not capability-mapped and keeps its `staff_admin` gate (D5's fail-closed
+  // default). Offering the tab to an administrativo would hand them a link that
+  // then 404s — the exact failure the single-point predicate exists to prevent.
+  const showEthics = ethicsProcedure !== null && isCoordinator;
 
   // The NSP dialog seeds its patient panel from this case's identifiers only when
   // the case COLLECTS PHI and the `case_patient` flag is on (ADR 0038 — value copy
@@ -134,15 +194,22 @@ export default async function CaseDetailLayout({
   // dropdown (ADR 0061); loaded only when the case is open (the affordance is
   // open-only). A commission with no hospital → `[]` (the "Outros" value still works).
   let departments: Department[] = [];
-  if (isOpen) {
-    const [narrativesEnabledResult, deps, corrections] = await Promise.all([
+  // ⛔ SPLIT BY AFFORDANCE since ADR 0134 D3 widened the entry gate. These loads
+  // used to ride on `isOpen` alone because the route guaranteed `staff_admin`; now
+  // each is conditional on the SAME test that renders the control it fuels, so a
+  // non-coordinator entrant's dialogs are absent BY CONSTRUCTION rather than
+  // fetched-and-hidden. The departments dropdown follows the meta door
+  // (`create_cases`), the other two follow the conclude dialog (coordinator).
+  if (isOpen && canEditCaseMeta && access.commission.hospitalId) {
+    departments = await listDepartmentsForHospital(
+      access.commission.hospitalId,
+    );
+  }
+  if (isOpen && isCoordinator) {
+    const [narrativesEnabledResult, corrections] = await Promise.all([
       narrativesEnabled(),
-      access.commission.hospitalId
-        ? listDepartmentsForHospital(access.commission.hospitalId)
-        : Promise.resolve<Department[]>([]),
       listCaseCorrectionRequests(caseId),
     ]);
-    departments = deps;
     // Name each open request by its TARGET, not by the request — "Fase 2 — Revisão"
     // is what the coordinator has to go resolve; a request id tells them nothing.
     pendingCorrectionLabels = corrections
@@ -229,7 +296,9 @@ export default async function CaseDetailLayout({
             </p>
           </div>
 
-          {(accessEnabled || isOpen || patientSafetyOn) && (
+          {(patientSafetyOn ||
+            (accessEnabled && isCoordinator) ||
+            (isOpen && (isCoordinator || canEditCaseMeta))) && (
             <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
               {/* Patient-safety entry (Phase 14a): any commission member may notify
                   the NSP of a safety event from this case — open OR concluded — so it
@@ -249,8 +318,10 @@ export default async function CaseDetailLayout({
               )}
               {/* Coordinator access roster (ADR 0033). Rendered INDEPENDENTLY of the
                   lifecycle actions (open-only) so it still shows — alone — on a
-                  terminal case, where read grants remain allowed (D6). */}
-              {accessEnabled && (
+                  terminal case, where read grants remain allowed (D6).
+                  ⛔ `isCoordinator` is explicit since ADR 0134 D3: grant writes are
+                  coordinators-only, and this route no longer implies the role. */}
+              {accessEnabled && isCoordinator && (
                 <CaseAccessButton
                   caseId={c.id}
                   members={sortedMembers}
@@ -260,10 +331,12 @@ export default async function CaseDetailLayout({
                 />
               )}
               {/* Edit META (label + department) — the single audited edit door
-                  (ADR 0061). Open-only (a terminal case is frozen, HC025). Reachable
-                  today by coordinators; when the affordance-gating batch relaxes this
-                  route to admit `create_cases` Administrativos, they use the same RPC. */}
-              {isOpen && (
+                  (ADR 0061). Open-only (a terminal case is frozen, HC025). ADR 0134
+                  T3: `update_case_meta` is coordinator ∨ `member_can('create_cases')`
+                  (measured), so this mirrors `canInCommission(access,'create_cases')`
+                  exactly — the affordance an administrativo used to reach on `/casos`
+                  now lives here, where D1 says case-wide work belongs. */}
+              {isOpen && canEditCaseMeta && (
                 <EditCaseMetaDialog
                   caseId={c.id}
                   currentLabel={c.label}
@@ -272,7 +345,10 @@ export default async function CaseDetailLayout({
                   departments={departments}
                 />
               )}
-              {isOpen && (
+              {/* Concluir / Cancelar — `close_case` / `cancel_case` are
+                  coordinator-only (ADR 0134 §8 non-goal: no lifecycle for
+                  administrativo). Explicit since D3 widened the entry gate. */}
+              {isOpen && isCoordinator && (
                 <CaseLifecycleActions
                   caseId={c.id}
                   offeredOutcomes={detail.offeredOutcomes}

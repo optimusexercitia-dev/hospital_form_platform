@@ -16,15 +16,28 @@ import {
 import { formatInterviewNumber, formatNextSession, interviewTitle } from "./format";
 
 /**
- * The "Entrevistas" panel on the coordinator case-detail page (F1). Lists the
- * case's interviews (soonest upcoming session first), each linking into the
- * interview detail hub; the staff_admin sees the "Nova entrevista" action.
+ * The "Entrevistas" panel on the case-detail page (F1). Lists the case's
+ * interviews (soonest upcoming session first), each linking into the interview
+ * detail hub; whoever may create one sees the "Nova entrevista" action.
  * Server-Component shell — the data arrives as props; only the create button is a
  * client island.
  *
  * Discovery for plain-`staff` interviewers is via direct link only in v1 (no
- * "Minhas entrevistas" surface — noted follow-up); this panel lives on the
- * coordinator-gated case page, so `canCreate` here always implies a coordinator.
+ * "Minhas entrevistas" surface — noted follow-up).
+ *
+ * ⛔ This block used to close with *"this panel lives on the coordinator-gated case
+ * page, so `canCreate` here always implies a coordinator"*. **False since
+ * `8675b7cd`**, which mounted the shared case body on the staff `/casos/[caseId]`
+ * reading surface too, and false a second way since ADR 0134 D3, which admits
+ * administrativos and per-case write-grantees to `/manage/cases/[caseId]`. The
+ * panel now renders on BOTH hosts for several viewer classes.
+ *
+ * What is actually true: this component asserts NOTHING about the caller. Both
+ * hosts pass `canCreate={caps.canManageLifecycle}`, and on the reading surface
+ * `caps` is the NARROWED object (ADR 0134 D2), so "Nova entrevista" is absent
+ * there and present on the manage host for a coordinator — creating an interview
+ * is case-wide work, which D1 puts behind "Gerenciar caso". Read the value the
+ * host passes; do not infer the viewer from the route.
  */
 export function InterviewsPanel({
   org,

@@ -148,6 +148,7 @@ export function CaseDetailView({
   narrativeRevisions = {},
   viewerKind = "member",
   managementElsewhere = false,
+  canOpenManagement = false,
   adHocForms,
   adHocNarrativeTypes = [],
   backLabel = "Meus Casos",
@@ -283,17 +284,42 @@ export function CaseDetailView({
   viewerKind?: "member" | "oversight";
   /**
    * `true` on a host that is a READING surface — the staff `/casos/[caseId]`
-   * route. It narrows `canManageLifecycle` to `false` for EVERY child of this
-   * component, so a coordinator who opens that route sees the case the way a
-   * committee member does; management stays one click away behind the header's
-   * "Gerenciar caso" link, which is deliberately gated on the UN-narrowed
-   * capability (otherwise the narrowing would strand them here).
+   * route. It narrows EVERY case-wide capability to `false` for every child of this
+   * component — `canManageLifecycle` AND `canWriteContent` (ADR 0134 D2) — so a
+   * coordinator OR a per-case write-grantee who opens that route sees the case the
+   * way a committee member does; management stays one click away behind the
+   * header's "Gerenciar caso" link, which is gated on {@link canOpenManagement},
+   * i.e. the UN-narrowed predicate (otherwise the narrowing would strand them).
    *
    * Not a security control (Rule 1) — it is the same viewer with the same DB
    * rights, choosing a calmer surface. It only changes what is OFFERED, and every
    * door still decides for itself.
    */
   managementElsewhere?: boolean;
+  /**
+   * **May this viewer open `/manage/cases/[caseId]`?** (ADR 0134 D3/D4.) Gates the
+   * self-contained header's "Gerenciar caso" link — the single, uniformly labelled
+   * escape hatch off the reading surface.
+   *
+   * ⛔ **SERVER-COMPUTED, and by exactly ONE expression.** The host resolves it with
+   * `canOpenCaseManagement(access, caseId, detail.viewerCapabilities)` — the same
+   * helper the manage route's entry gate calls — and passes the resulting boolean.
+   * It is NOT derivable here: two of its three arms (`staff_admin`,
+   * `isAdministrativo`) live on the commission-access object this component never
+   * sees, and re-deriving the third from `caps` would be a second copy of the
+   * predicate, which is precisely how a gate and the control pointing at it drift
+   * into offering a link that 404s.
+   *
+   * ⚠ Fed from the UN-NARROWED capabilities on purpose: the narrowing above is what
+   * creates the need for this exit, so gating the exit on the narrowed value would
+   * strand every viewer it applies to. Default `false` — a host that does not pass
+   * it offers no link (fail-closed), which is also why the manage host (which
+   * renders no header at all) can omit it.
+   *
+   * ⚠ ONE LABEL FOR EVERY ROLE (D4). A per-role label fork would add an E2E locator
+   * axis for zero information gain.
+   */
+  canOpenManagement?: boolean;
   /**
    * The commission's PUBLISHED forms, for the work card's "Adicionar fase"
    * dialog. `undefined` — the staff route's case — renders NO authoring footer
@@ -337,13 +363,13 @@ export function CaseDetailView({
   participantRoleVocabularyHref?: string | null;
 }) {
   const c = detail.case;
-  // The viewer's TRUE capabilities, straight from the envelope. Only two things
-  // read this: the narrowing below, and the "Gerenciar caso" escape hatch — which
-  // must survive the narrowing or a coordinator lands on a reading surface with no
-  // route back to the management one.
+  // The viewer's TRUE capabilities, straight from the envelope. Exactly one thing
+  // reads this now: the narrowing below. (The "Gerenciar caso" escape hatch used to
+  // read it too; since ADR 0134 D4 it takes the host-computed `canOpenManagement`,
+  // whose predicate spans arms this envelope does not carry.)
   const rawCaps = detail.viewerCapabilities;
-  // `managementElsewhere` (the staff `/casos/[caseId]` route): a coordinator READS
-  // the case here and manages it from `/manage/...`. Narrowing at the single place
+  // `managementElsewhere` (the staff `/casos/[caseId]` route): the viewer READS the
+  // case here and manages it from `/manage/...`. Narrowing at the single place
   // `caps` is derived is what makes that ONE decision instead of one per card —
   // every child already gates off this object, so phase activate/reassign, narrative
   // assign/conclude, Encaminhar caso, Nova entrevista, patient + custom-field edit,
@@ -351,19 +377,23 @@ export function CaseDetailView({
   // follow from `canManageLifecycle: false`, and Novo item, Adicionar registro,
   // Anexar documento and the tag editor from `canWriteContent: false`.
   //
-  // BOTH are dropped, because "somewhere between read-only and full management" is
-  // the state the split exists to abolish: a coordinator who can file an action item
-  // here but not activate a phase has to learn which half of the page is live.
+  // ⭐ ADR 0134 D1/D2 — the TRIGGER is any case-wide claim, not just the
+  // coordinator's. `8675b7cd` tested `canManageLifecycle` alone, which left a
+  // per-case WRITE grantee holding the content affordances here: one of the two
+  // carve-outs that were exactly the "somewhere between read-only and full
+  // management" state the split exists to abolish. (Its own differential control
+  // proved it.) Both classes now do that work on `/manage/cases/[caseId]`, which
+  // since D3 admits a write-grantee too — so nothing is deleted, it RELOCATES.
   //
-  // What survives is what they hold as a PARTICIPANT rather than as the coordinator:
-  // `canEditNarrative` checks the assignee BEFORE `canWriteContent` (ADR 0033 Q14,
-  // CA-002), so a coordinator assigned a narrative still writes that narrative here —
-  // which is exactly the committee-member surface this route is meant to be.
-  //
-  // A COORDINATOR on the reading surface — the one test every narrowing below keys
-  // off. False for a plain member/assignee/grantee here, so none of this touches
-  // them: this page is their only surface and they must keep working on it.
-  const readingAsMember = managementElsewhere && rawCaps.canManageLifecycle;
+  // What survives is what the viewer holds by NAME rather than by capability: the
+  // assignee checks precede the capability checks (ADR 0033 Q14 / CA-002), so a
+  // coordinator assigned a narrative, or a grantee assigned a phase, still does that
+  // work here — which is exactly the committee-member surface this route is meant to
+  // be. After this, `/casos` writes are name-attributed only, which is D1's sentence
+  // made literally true.
+  const readingAsMember =
+    managementElsewhere &&
+    (rawCaps.canManageLifecycle || rawCaps.canWriteContent);
   const caps: CaseViewerCapabilities = readingAsMember
     ? { ...rawCaps, canManageLifecycle: false, canWriteContent: false }
     : rawCaps;
@@ -373,18 +403,18 @@ export function CaseDetailView({
   // Activate/reassign: an `assign_case_phases` Administrativo OR anyone who already
   // manages lifecycle (a coordinator) — the latter keeps coordinators from regressing
   // regardless of what the page passes.
-  // Three affordances arrive as their OWN props and so survive the `caps` narrowing
-  // above, yet are role-implied for a coordinator: `canInCommission` returns true for
-  // every `staff_admin` whether or not the capability was granted, and
-  // `canManagePhaseResults` is a bare `role === 'staff_admin'` at both hosts. Left
-  // alone, a coordinator on the reading surface would keep "Ativar e atribuir",
-  // "Corrigir resultado" and the meta-edit door while losing everything around them.
   //
-  // A NON-coordinator's explicit Administrativo grant is untouched — the test is
-  // `rawCaps.canManageLifecycle`, i.e. "this claim comes from the coordinator role".
-  // That distinction matters: `/manage/...` 404s for an Administrativo, so this page
-  // is their ONLY surface, and suppressing them here would delete the capability
-  // rather than relocate it.
+  // These three affordances arrive as their OWN props and so survive the `caps`
+  // narrowing above. ⛔ ADR 0134 D2 closes that bypass at BOTH ends, and neither end
+  // is load-bearing alone (the house rule this component states throughout): the
+  // reading-surface HOST no longer passes any of them, and these guards zero them
+  // again here. A host that forgets still cannot open a case-wide door on `/casos`;
+  // a caller that forgets `managementElsewhere` still cannot either.
+  //
+  // ⚠ The 2026-08-19 rationale for exempting a non-coordinator's Administrativo
+  // grant — "`/manage/...` 404s for an Administrativo, so this page is their ONLY
+  // surface" — is DEAD as of ADR 0134 D3, which admits them to the manage host.
+  // Suppressing them here now relocates the capability instead of deleting it.
   const effectiveCanAssignPhases = readingAsMember
     ? false
     : canAssignPhases || caps.canManageLifecycle;
@@ -576,19 +606,21 @@ export function CaseDetailView({
                 with `withHeader={false}`). The NSP entry is leftmost and gated only on
                 the flag, so any member may notify a safety event from an open OR
                 concluded case (mirrors the coordinator top bar). Lifecycle MANAGEMENT
-                lives on the coordinator `/manage/...` route, so here the right side
-                only offers the "Gerenciar caso" link to a coordinator. */}
+                lives on the `/manage/...` route, so here the right side only offers
+                the "Gerenciar caso" link — to everyone who may open that route
+                (ADR 0134 D3/D4), not only to a coordinator. */}
             {/* ⚠ ADR 0100 D7: `NotifyEventDialog` is gated on the FEATURE FLAG
                 alone — no capability check anywhere — so it is the second write
                 affordance on this page that `caps` does not close. Notifying an
                 event is a WRITE (it creates a patient-safety event) and its
                 pre-fill bridge carries PHI, both forbidden to the reviewer. */}
-            {/* `rawCaps`, not `caps`: this cluster hosts the "Gerenciar caso"
-                link, whose whole purpose is to carry a coordinator OFF this
-                reading surface. Gating it on the narrowed capability would hide
-                the one exit the narrowing creates the need for. */}
+            {/* `canOpenManagement`, not `caps`: this cluster hosts the "Gerenciar
+                caso" link, whose whole purpose is to carry a manage-capable viewer
+                OFF this reading surface. Gating it on the NARROWED capability would
+                hide the one exit the narrowing creates the need for — which is why
+                the host feeds it the un-narrowed predicate. */}
             {((patientSafetyEnabled && !isOversight) ||
-              rawCaps.canManageLifecycle ||
+              canOpenManagement ||
               (isOpen && effectiveCanEditMeta)) && (
               <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
                 {patientSafetyEnabled && !isOversight && (
@@ -618,7 +650,7 @@ export function CaseDetailView({
                     departments={departments}
                   />
                 )}
-                {rawCaps.canManageLifecycle && (
+                {canOpenManagement && (
                   <Link
                     href={commissionHref(org, slug, "manage", "cases", c.id)}
                     className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"

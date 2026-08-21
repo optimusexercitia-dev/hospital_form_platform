@@ -7,6 +7,7 @@ import { plural } from "@/lib/text";
 import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import {
   listCasesBoard,
+  canOpenCaseManagement,
   casePatientEnabled,
   processlessCasesEnabled,
   casesExtrasEnabled,
@@ -46,10 +47,18 @@ export const metadata: Metadata = {
  *
  * ADR 0078 Gate-2 fallout: `list_cases_board` now filters every row through
  * `app.can_read_case` with no coordinator fast-path, so a principal whose only
- * standing here is ADMINISTRATION — an org_admin/hospital_admin, resolved to the
- * coordinator `staff_admin` role by {@link getCommissionAccessByOrg} but holding
- * no membership row — gets exactly zero rows back. That board reads as "this
+ * standing here is ADMINISTRATION — an org_admin/hospital_admin holding no
+ * membership row — gets exactly zero rows back. That board reads as "this
  * commission has no cases" when it means "you may not see this", so we 404 it.
+ *
+ * ⛔ This paragraph said such a principal was "resolved to the coordinator
+ * `staff_admin` role by `getCommissionAccessByOrg`". **That has been false since
+ * BUG-QOB-003 / ADR 0100 D12 deleted the `memberRole ?? (isCommAdmin ?
+ * 'staff_admin' : null)` coercion.** `access.role` is now populated ONLY from the
+ * caller's own commission-scoped, hat-filtered membership row, so it can never
+ * hold a tenancy or platform standing; a tenancy admin arrives with `role: null`
+ * and the distinct `isTenancyAdmin` flag. They are excluded by
+ * `canInCommission(access, 'create_cases')` above, not by the standing check.
  *
  * The 404 keys on the principal's REACH, never on the row count: a genuine
  * coordinator of a brand-new commission with zero cases must still get the empty
@@ -95,6 +104,27 @@ export default async function CasesBoardPage({
   }
 
   const canCreateCases = canInCommission(access, "create_cases");
+
+  // ADR 0134 T5 — where a board ROW points. Resolved through the shared entry
+  // predicate {@link canOpenCaseManagement} so the row link and the route's own gate
+  // can never disagree.
+  //
+  // ⚠ Evaluated at the BOARD's grain, deliberately, and the `canWriteContent: false`
+  // argument is what says so: it answers the per-case arm locally instead of firing
+  // one `case_viewer_capabilities` RPC per row. That is exact rather than
+  // approximate HERE, because reaching this board at all requires
+  // `canInCommission(access, 'create_cases')` — coordinator or appointed
+  // administrativo — and both resolve on arms 1/2 with no query, so the per-case arm
+  // never decides anything for this audience. It also cannot strand anyone: a viewer
+  // who would have passed only on a per-case write grant lands on `/casos`, where the
+  // button IS resolved per case and carries them through.
+  const boardRowsOpenManagement = await canOpenCaseManagement(
+    access,
+    // No per-case probe happens on this path, so no case id is in play; pass the
+    // commission's own id rather than inventing a row-shaped lie.
+    access.commission.id,
+    { canWriteContent: false },
+  );
 
   const [
     // The board is CAPPED, not cursor-paginated (`nextCursor` is always null),
@@ -166,7 +196,21 @@ export default async function CasesBoardPage({
   // "Múltiplos casos" (ADR 0084): a staff_admin bulk-create link, shown only when
   // the flag is on and at least one ELIGIBLE template exists (active + ≥1 phase — a
   // phase-less template is rejected by the RPC, so it would offer nothing).
-  const isStaffAdmin = access.role === "staff_admin" || access.context.isAdmin;
+  //
+  // ⛔ `|| access.context.isAdmin` REMOVED (ADR 0134 D5 / the noun rule, ADR 0078
+  // A35). It was already dead — a platform_admin 404s on the whole commission area
+  // at the shell (`c/[commission]/layout.tsx`, pinned by the passing MT-3 spec) and
+  // `bulk_create_cases` refuses them regardless — so this is the deletion of a false
+  // statement, not the closing of a hole. It must change in lockstep with the
+  // `multiplos` route's own gate, or one of the two offers a link the other 404s.
+  //
+  // `access.role === 'staff_admin'` is the exact TS mirror of `app.is_staff_admin_of`,
+  // not a hand-set narrowing: `role` comes only from the caller's commission-scoped,
+  // hat-filtered membership partition, reproducing both the membership arm and the
+  // ACT-hat arm. The one predicate it does NOT mirror is `app.is_active` — the shell
+  // routes deactivated users to `/conta-inativa` before any commission route, so
+  // that is covered elsewhere. Do not "improve" this by re-adding it here.
+  const isStaffAdmin = access.role === "staff_admin";
   const eligibleBulkCount = templates.filter(
     (entry) => entry.version.status === "published" && entry.version.phases.length > 0,
   ).length;
@@ -288,9 +332,12 @@ export default async function CasesBoardPage({
             org={org}
             slug={slug}
             initialView={initialView}
-            // A non-coordinator reaching the board via `create_cases` (ADR 0061) is
-            // routed to the STAFF case route — the coordinator `(detail)` route 404s them.
-            staffCaseRoute={access.role !== "staff_admin"}
+            // ADR 0134 T5 — rows point at the manage detail for viewers who pass the
+            // entry predicate and at `/casos` for everyone else. Sourced from the
+            // SAME helper the manage route gates on, never a second copy of it: the
+            // old `access.role !== "staff_admin"` copy is exactly what would send an
+            // administrativo to the reading surface after D3 admitted them to manage.
+            staffCaseRoute={!boardRowsOpenManagement}
             caseCustomFieldsEnabled={caseCustomFieldsOn}
           />
         </>

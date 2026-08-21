@@ -2,22 +2,15 @@ import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
+import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
   getCaseDetail,
+  canOpenCaseManagement,
   casePatientEnabled,
   listCaseCustomFieldValues,
 } from "@/lib/queries/cases";
 import type { CaseViewerCapabilities, MyCaseRole } from "@/lib/queries/cases";
 import { caseCustomFieldsEnabled } from "@/lib/queries/feature-flags";
-import { isTerminalCaseStatus } from "@/lib/cases/case-status";
-import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
-import type { Department } from "@/lib/hospitals/departments";
-import {
-  listPhaseResults,
-  phaseResultsEnabled,
-} from "@/lib/queries/phase-results";
-import { toResolvedPhaseResultOptions } from "@/components/cases/phase-result-options";
 import { listMembers, listLinkableOrgUsers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
 import {
@@ -56,12 +49,19 @@ function roleFromCapabilities(caps: CaseViewerCapabilities): MyCaseRole {
 
 /**
  * The STAFF full-case view (Case Access Control increment, ADR 0033 D7): the SAME
- * capability-gated {@link CaseDetailView} the coordinator route mounts, opened by any
- * member who can read the case — a phase/narrative assignee (attribution-derived
- * read) or a `case_access` grantee. The view's affordances follow
- * `detail.viewerCapabilities`: a read grantee sees a pure-read case; a write grantee
- * ("collaborator") can edit un-attributed narratives + action items / docs / tags /
- * events; lifecycle stays coordinator-only.
+ * {@link CaseDetailView} the manage route mounts, opened by any member who can read
+ * the case — a phase/narrative assignee (attribution-derived read) or a
+ * `case_access` grantee.
+ *
+ * ⭐ **THIS IS A READING SURFACE, and since ADR 0134 D1 that is literally true.**
+ * What renders here is the case as the committee sees it, PLUS the viewer's own
+ * name-attributed work (my phase, my narrative, my action item — the assignee tests
+ * precede the capability tests, Q14 / CA-002). Every CASE-WIDE capability, whoever
+ * holds it and however they hold it, is offered on `/manage/cases/[caseId]` behind
+ * the header's single "Gerenciar caso" button. Two things enforce that jointly, and
+ * neither is load-bearing alone: `managementElsewhere` zeroes `canManageLifecycle`
+ * AND `canWriteContent` inside the view (D2), and this page stops resolving the
+ * three role/capability-implied props that used to bypass that narrowing.
  *
  * Security is RLS (Rule 1): `get_case_detail` returns null when the caller may not
  * read the case (BE-4 broadens its gate `is_staff_admin_of` → `can_read_case`), so a
@@ -103,7 +103,6 @@ export default async function StaffCaseDetailPage({
     patientSafetyOn,
     casePatientOn,
     narrativesOn,
-    phaseResultsOn,
     meetingsOn,
     actionItemsOn,
     caseCustomFieldsOn,
@@ -113,7 +112,6 @@ export default async function StaffCaseDetailPage({
     patientSafetyEnabled(),
     casePatientEnabled(),
     narrativesEnabled(),
-    phaseResultsEnabled(),
     meetingsEnabled(),
     actionItemsEnabled(),
     caseCustomFieldsEnabled(),
@@ -144,14 +142,6 @@ export default async function StaffCaseDetailPage({
         ])
       : [[], [], null];
 
-  // Post-conclusion result correction (phase-results feature; task #10) is
-  // staff_admin-only — a plain staff/collaborator/read-grantee at this shared staff
-  // surface never sees the affordance (the RPC is staff_admin-gated by RLS too).
-  const canManagePhaseResults =
-    phaseResultsOn && (access.role === "staff_admin");
-  const phaseResultOptions = canManagePhaseResults
-    ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
-    : [];
   const [
     members,
     documents,
@@ -209,15 +199,29 @@ export default async function StaffCaseDetailPage({
   // Case Correction Lifecycle surface data (ADR 0085; empty when the flag is off).
   const correctionsData = await buildCaseCorrectionsData(detail);
 
-  // Edit-meta affordance (ADR 0061): a `create_cases` Administrativo (or a coordinator)
-  // may edit an OPEN case's label + department here. Load the hospital's departments
-  // only when the affordance can actually show (create_cases holder + case open).
-  const canEditMeta = canInCommission(access, "create_cases");
-  const canEditMetaNow = canEditMeta && !isTerminalCaseStatus(detail.case.status);
-  const departments: Department[] =
-    canEditMetaNow && access.commission.hospitalId
-      ? await listDepartmentsForHospital(access.commission.hospitalId)
-      : [];
+  // ⛔ ADR 0134 D2 — THREE PROPS THIS PAGE NO LONGER PASSES, and the deletion is the
+  // change, not an oversight: `canManagePhaseResults`, `canAssignPhases` and
+  // `canEditMeta` were resolved here from the viewer's ROLE / commission
+  // CAPABILITIES, which made them bypass `managementElsewhere`'s narrowing BY
+  // CONSTRUCTION. They are case-wide work, so under D1 they belong on
+  // `/manage/cases/[caseId]` — which D3 now opens to exactly the viewers who used to
+  // need them here. Their FUEL (`listPhaseResults`, `listDepartmentsForHospital`)
+  // goes with them, so this reading surface neither renders nor loads them.
+  //
+  // ⚠ Nothing identity-attributed is touched. The assignee tests run BEFORE the
+  // capability tests (ADR 0033 Q14 / CA-002), so my phase, my narrative and my
+  // action item stay writable here — that is the whole point of the surface.
+
+  // ADR 0134 D3/D4 — the escape hatch. ONE predicate, shared verbatim with the
+  // manage route's entry gate, so this button can never offer a link that 404s.
+  // Fed `detail.viewerCapabilities` (the RAW, un-narrowed envelope) both to spend
+  // the per-case arm without a second round trip and because gating the exit on the
+  // narrowed value would strand the very viewers the narrowing applies to.
+  const canOpenManagement = await canOpenCaseManagement(
+    access,
+    caseId,
+    detail.viewerCapabilities,
+  );
 
   return (
     <CaseDetailView
@@ -243,16 +247,17 @@ export default async function StaffCaseDetailPage({
       viewerId={access.context.userId}
       myRole={myRole}
       withHeader
-      // This route is a READING surface. A coordinator who lands here (from Meus
-      // Casos, a notification, an assignee link) sees the case the way a committee
-      // member does; every management affordance is one click away behind the
-      // header's "Gerenciar caso" link, which is gated on the UN-narrowed
-      // capability so the narrowing can never strand them.
+      // This route is a READING surface. A coordinator OR a write-grantee who lands
+      // here (from Meus Casos, a notification, an assignee link) sees the case the
+      // way a committee member does; every case-wide affordance is one click away
+      // behind the header's "Gerenciar caso" link, which is gated on the UN-narrowed
+      // predicate so the narrowing can never strand them.
       //
       // Not a security control (Rule 1) — the same person keeps the same DB rights,
       // and every door still decides for itself. It only stops this page from
       // OFFERING two different jobs at once.
       managementElsewhere
+      canOpenManagement={canOpenManagement}
       viewerKind={isOversight ? "oversight" : "member"}
       backHref={
         isOversight
@@ -262,12 +267,7 @@ export default async function StaffCaseDetailPage({
       backLabel={isOversight ? "Escritório da Qualidade" : "Meus Casos"}
       templateProvenance={templateProvenance}
       referralsModule={referralsModule}
-      canManagePhaseResults={canManagePhaseResults}
-      phaseResultOptions={phaseResultOptions}
       actionItemsEnabled={actionItemsOn}
-      canAssignPhases={canInCommission(access, "assign_case_phases")}
-      canEditMeta={canEditMeta && !isOversight}
-      departments={departments}
       caseCustomFieldsEnabled={caseCustomFieldsOn}
       customFields={customFields}
       correctionsEnabled={correctionsData.enabled && !isOversight}
