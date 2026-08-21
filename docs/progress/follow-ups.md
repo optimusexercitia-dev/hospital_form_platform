@@ -5598,6 +5598,33 @@ properties that *did* drop had no roster. ⛔ Filed rather than built — a rost
 grain (*"assert every adjacent affordance"*) is the un-checkable shape DSR Slice 3 already rejected;
 naming the gap honestly is the first deliverable.
 
+> ### ⭕ A THIRD INSTANCE, INSIDE THE MODULE ITSELF — found 2026-08-21 during the QA round-2 sweep
+>
+> `disposal-copy-property.ts`'s own docblock said the property *"is asserted from two files"*. Measured:
+> **one** importer (`grep -rn "disposal-copy-property" src/` minus the module's own path). It had been
+> stale for a day, and **nothing could contradict it** — the roster is prose and no gate reads it.
+>
+> ⭐ **The module whose entire job is to define a property once so it cannot drift carried a stale count
+> OF ITS OWN CONSUMERS.** That is this item inside its own subject.
+>
+> ⚠ **The stale digit was load-bearing, so it was not quietly decremented.** The module's stated
+> justification was *"two copies of a pattern drift"* — a premise that evaporates at one consumer. The
+> docblock now states the two reasons the module still earns its place (it is the one place the property
+> is *stated*, and the deleted surface's content pins were relocated *into* the survivor, which is
+> auditable only because the property has a named home), with an explicit ⛔ against the obvious next
+> move: **a count of one is not evidence the abstraction was wrong** — inlining is the state it was
+> extracted *from*, and a second consumer is one dispose surface away.
+>
+> **Fix shape, proposed by `frontend` and deliberately NOT built:** a self-counting anti-vacuity test in
+> the consuming suite, in the shape that file already uses for `SURFACES.length >= 7` — read `src/`,
+> count importers, assert the number. It converts the roster from prose nothing can contradict into an
+> assertion that reds when a consumer is added or deleted, which is exactly the failure that occurred.
+> ⚠ Two caveats make it a decision rather than an obvious win: it is **a test that reads source**, the
+> shape `.claude/rules/ui-copy-forbidden-strings.md` warns against (though here the subject is the import
+> graph, not rendered copy, so that false-positive class does not apply); and it pins a number that
+> *should* change when a dispose surface is added, so it must red **loudly** rather than become a digit
+> someone bumps reflexively.
+
 ### 🟠 FUP-E2E-HELPERS-SWALLOW-FAILED-READS — ~48 spec files + 2 helpers turn a FAILED READ into "the table is empty" (owner: tester/lead; **filed 2026-08-21; 3 instances fixed, the population reported and deliberately NOT swept**)
 
 The second mechanism inside `FUP-E2E-ABSENT-ROW-ASSERTIONS`, and the one **no matcher choice
@@ -5714,3 +5741,41 @@ competing to be the tightest).
 redding a green build because a rule is at 96 % converts a nudge into a blocker and invites exactly
 the wrong response, which is trimming the codified lesson to fit. Visibility is the ask, not
 enforcement.
+
+### 🟡 FUP-EXIT-CODE-MASKING-HAS-NO-MECHANISM — a control that rests entirely on habit, with a measured failure rate (owner: lead; **filed 2026-08-21 as an ACCEPTED RESIDUAL, not as resolved**)
+
+**A pipe erases the exit status of everything to its left, and no gate in this repo can catch it.**
+
+**Measured failure rate: two occurrences in one day**, both by an operator who already knew the
+narrow form of the lesson:
+- `npm run lint:progress 2>&1 | tail -2 && git add … && git commit …` — the `&&` chain reads
+  **`tail`'s** status, which is 0 whatever the gate did. ⛔ **A commit landed on a FAILING gate.**
+- `npm run e2e:prod > log 2>&1; echo "E2E_EXIT=$?"` — reported as *"the gate finished with exit code
+  0"*. The 0 was the **trailing `echo`'s**. The gate had exited **1**, correctly.
+
+⭐ **Both failed in the reassuring direction** — the one that does not prompt a second look.
+
+### ⛔ Why this is filed as ACCEPTED rather than fixed: there is no mechanism to build
+
+| candidate | why it cannot work |
+|---|---|
+| `set -o pipefail` | cannot reach an **ad-hoc typed** command, which is what both occurrences were |
+| a check inside the gate scripts | **a script cannot detect that it is being piped** into something that discards its status |
+| `lint:progress` / any repo gate | cannot verify an exit code that was **never captured** |
+| a `.claude/rules/` entry | ⛔ **fails ADR 0127 admission.** Its subject is POSIX semantics — it **can never be shown stale**, so `lint:rules` would have nothing to check and it would sit unfalsifiable forever in a 12-slot, byte-bound population. It also has **no honest `paths:` glob**: the trigger is *authoring a command*, not opening a file |
+
+⚠ **An admissible variant is constructible and would be ineffective** — scope to `package.json` +
+`scripts/*.sh`, anchor on the gate script names. It would then fire when someone **edits those
+files**, and both occurrences touched **no file at all**. **Admissible and inert is not a hint; it is
+a fifth rule that never loads when the hazard occurs.**
+
+**So the control is: the operator runs the gate bare, captures `$?` immediately, and reads the
+value.** That is a habit, it is the whole of the mitigation, and it has a measured failure rate.
+⛔ **Recording it as resolved would be false.** The lesson is generalised in memory (auto-loaded, and
+generalised precisely because the narrow *"don't `tail` `e2e:prod`"* form **existed and failed to
+transfer** to a different gate) — but memory is prose, and prose has now failed here once.
+
+⭐ **This is filed in the same register as the ADR 0131 training premise at
+[dm5-po-decisions.md](dm5-po-decisions.md) item 2**: when a control rests entirely on a human, this
+repo says so plainly rather than letting a green gate imply otherwise. Raised by QA in the round-2
+addendum, and the framing is theirs.

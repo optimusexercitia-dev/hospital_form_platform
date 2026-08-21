@@ -859,7 +859,7 @@ is the one still stated as a current fact.
 | **W4** `e2e:prod` | ✅ **DISCHARGED.** 1166p / 2f / 3 flaky / 11 skipped / **did-not-run 0** / 1182 collected, census sums. Both failures are `BUG-QO-STALE-CASOS`. Every DSR spec passed, including both new ones (batch 4, 57/57). ⭐ **`did-not-run 0` on all nineteen batches is the field that answers the serial-abort question**, and it is the right thing to have led with. |
 | **W5** flip authorization | ✅ **DISCHARGED** — §10, C1. |
 | **W6** pre-migration `proacl` | Unchanged; the harmlessness argument never depended on it. |
-| **W7** corridor coverage (7 lanes) | ⛔ **STANDS, UNTOUCHED.** ⚠ It is **not** discharged by the gate run, and I want to be plain about that since the message suggested it might be: W7 is a re-derivation of seven `reopen_*` **transition graphs** in the catalog. An E2E suite cannot answer it, and `FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED` is open precisely because nobody has. The precise claim still resting on nothing is `dm5-po-decisions.md` item 2's *"only `rca` is fully covered; six lanes each have a structurally terminal state no door reverses"* — a newly-precise number that arrived without a new measurement, sitting at the pilot-decision surface. |
+| **W7** corridor coverage (7 lanes) | ⛔⛔ ~~**STANDS, UNTOUCHED.**~~ **RETRACTED IN FULL — see §17. This entry is WRONG and must not be acted on.** The seven lanes were measured 2026-08-20 at `3aa9a747` (transition graphs + a 59-probe executed differential, 7 positive controls + a THAW control). I read the FUP's *name* as its *status* while its own status line read *"✅ ALL SEVEN LANES MEASURED"*. Text below kept unedited as the record of the error. ~~⚠ It is **not** discharged by the gate run, and I want to be plain about that since the message suggested it might be: W7 is a re-derivation of seven `reopen_*` **transition graphs** in the catalog. An E2E suite cannot answer it, and `FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED` is open precisely because nobody has. The precise claim still resting on nothing is `dm5-po-decisions.md` item 2's *"only `rca` is fully covered; six lanes each have a structurally terminal state no door reverses"* — a newly-precise number that arrived without a new measurement, sitting at the pilot-decision surface.~~ |
 | **W8** nav runtime + build | ✅ Discharged by W4 — `e2e/dsr-nav-and-phi-hint.spec.ts` ran green in a prod-standalone build. |
 
 ---
@@ -891,3 +891,149 @@ silently, and `frontend` reported its own re-quoted figure.** Both were found by
 not by review. Five corrected magnitudes in this round came from somebody re-measuring their
 own claim. That is the control that actually works here, and it is worth more than any of the
 findings above.
+
+---
+
+# ROUND 2 ADDENDUM — 2026-08-21
+
+**Verdict unchanged: APPROVED.** R2-1's pre-merge condition is **discharged** (§16). This
+addendum exists for two items where the lead pushed back, and **the lead is right on both.**
+
+## 16 · R2-1 … R2-5, R2-7 — verified closed
+
+| | verified |
+|---|---|
+| **R2-1** ✅ | `PROGRESS.md:299` now **6795/6795 · Files=206 · 435/435**, and says *"⛔ Earlier 6789/205/434 was one commit stale."* `test-run-archive.md:807-808` matches. ⭐ **ADR 0129 Amdt 3 was handled correctly and it is the interesting one:** the dated build record was **not** rewritten — `:300` marks it as measured at that amendment's commit and points forward to the round's final figures. Correcting a dated measurement in place would have destroyed the evidence that it moved, which is the whole subject of this finding. The lead also **re-measured live rather than transcribing my numbers**, which is the right response to a finding about transcribed numbers. **Pre-merge condition discharged.** |
+| **R2-2** ✅ | `backend-state.md:501` now **435 == 435**, with the staleness admitted in the row and **all four migrations named**, the go-live flip called out. |
+| **R2-3** ✅ | `backend-state.md:480` header names `355 plan(6)`, and `:512` gives it a full row carrying **both** of its stated bounds verbatim — the dynamic-GUC blindness and `lint:vacuous` not scanning `supabase/tests/`. A pin recorded without its bounds would have been half the fix. |
+| **R2-5** ✅ | corrected. |
+| **R2-4 · R2-7** | routed to `backend` / `frontend`. ⭐ *"Fix the comment to the assertion, not the reverse"* is the correct direction and worth having said explicitly. |
+
+---
+
+## 17 · ⛔ W7 — I RETRACT IT. It was wrong in round 1, wrong again in round 2, and the evidence was in front of me the whole time
+
+**The finding is withdrawn in full.** Not narrowed, not "insufficient provenance" — withdrawn.
+
+`FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED` was measured on **2026-08-20**, before this branch
+existed, at commit `3aa9a747` — whose subject line reads, verbatim: *"docs(disposal): **the
+corridor is measured for all seven lanes**, and the erasure door fails on two."* Its body names
+the method I claimed nobody had used: *"read from each lane's **transition graph** rather than
+the door's own state check"*, over *"a **59-probe executed differential** (7 positive controls +
+a THAW control; rolled back, pre-state re-verified)"*. It even records that **two probes were
+re-run because they matched their expectation for the wrong reason** — a gate refusal
+masquerading as the state refusal being measured — and that the previously filed *"only 2 of 7
+doors mention `is_staff_admin_of`"* was a **symbol grep** that was wrong in both directions.
+
+That is a better measurement than the one I said was missing, and it is more self-sceptical than
+my finding about it.
+
+### How I got there, because the mechanism is the point
+
+**Three failures, compounding, and none of them is "the text moved under me":**
+
+1. ⛔ **I read an item's NAME as its STATUS.** In round 1 I cited
+   `FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED` as evidence that the coverage question was
+   unmeasured. Its own status line — `follow-ups.md:4596`, in the same string I grepped — begins
+   **"✅ ALL SEVEN LANES MEASURED 2026-08-20."** A FUP identifier is a permanent key; the status
+   is a live field beside it. I inferred the second from the first. **The name of an item is not
+   a claim about its state**, and this one had been renamed-in-effect by having its verdict
+   written next to it rather than into it.
+2. ⛔ **`3aa9a747` was in my context from the first turn.** It is the top entry of the
+   `Recent commits` block in the session's initial git status. I had the subject line — *"the
+   corridor is measured for all seven lanes"* — the entire time, and did not read it because I
+   had already decided what the FUP name meant.
+3. ⛔ **In round 2 I did not re-read the file at all.** I carried the round-1 reading forward
+   into a section headed *"Everything in §§10–11 was re-measured on the live stack."* W7 sits in
+   §14, outside that promise — which is precisely how it escaped. **A "could not verify" list is
+   the part of a review nobody re-verifies**, including its author.
+
+### What this is, named
+
+This is `[[absence-of-a-verdict-is-not-absence-of-coverage]]`, and it fails the way that memory
+says it fails: *"the filing's own evidence was false in the direction that UNDERSTATED it."* I
+inferred *unmeasured* from *I have not seen the measurement*, filed it as a work item, and the
+filing made the review look more rigorous than it was. It is also
+`[[a-reviewers-could-not-verify-list-is-a-work-item]]` — the voice of rigour, filed as coverage —
+turned on its author: I filed a work item that was **already discharged**, which costs someone
+else the time to discover that.
+
+⭐ **The lead's paragraph at `dm5-po-decisions.md:254-262` is not a patch for my finding; it is
+better than my finding asked for.** It names the measurement, names its commit, distinguishes it
+from ADR 0131 Amdt 2, quotes Amdt 2's own non-generalisation clause, and adds the standing
+instruction: *"⛔ Cite that measurement, never Amendment 2, for any lane other than `meeting` — a
+newly precise number that arrives without a named measurement is indistinguishable from a
+widened one."* That last sentence is the correct general rule and it is now recorded at the
+pilot-decision surface.
+
+⚠ **One thing I will not over-correct into.** The FUP stays 🟠 open for its **residue** items,
+and the paragraph says so. *"Coverage measured"* is not *"item closed"* — I got the first half
+wrong and will not now get the second half wrong in the other direction.
+
+**W7 is struck from §14. The round-1 and round-2 text stands unedited as the record of the
+error.**
+
+---
+
+## 18 · R2-6 — the lead is right to decline the rule, and my §8 reasoning was wrong
+
+I said the `| tail` masking *"meets CLAUDE.md §8's admission test cleanly."* It does not, and the
+lead has identified exactly where I went wrong.
+
+**My error: I conflated "has a greppable anchor" with "can be shown stale."** I offered as the
+anchor *"a `package.json` script, or an invocation piping a gate into `tail`/`head`"*. But
+`lint:rules` checks that a rule's declared anchors still **exist** — and a `package.json` script
+existing tests nothing about whether *a pipe erases the exit status of everything left of it* is
+still true. The rule's actual subject is **POSIX shell semantics**, which has no resident in this
+repo and cannot move. So the rule could **never** be contradicted by anything the gate can see,
+and would sit in a 12-slot, byte-bound population forever. That is exactly the condition ADR 0127
+built the gate to exclude. ⛔ **My anchor was the artifact I would scope to, not the thing that
+could falsify the claim.**
+
+The `paths:` objection is equally correct: the trigger is **authoring a shell command**, and no
+file glob captures an action. Unscoped means every session and every spawn, against a population
+the round has just measured as byte-bound.
+
+⭐ **And there is a sharper version of the objection that I want on the record, so nobody talks
+you back into this later.** An *admissible* variant is constructible — scope it to
+`package.json` + `scripts/*.sh`, anchor it on the gate script names, and phrase it as *"a gate
+invocation must capture `$?` from the gate, not from a pipeline."* That has a repo-resident
+subject and **can** go stale. But it would fire when someone **edits those files** — and both
+occurrences happened in an **ad-hoc, lead-typed terminal command**, which touches no file and
+loads no rule. So the admissible variant is admissible **and ineffective**: it would cost bytes
+on every matching session and be absent at the only moment that matters. That is CLAUDE.md §8's
+own warning — *"a rule is a strong hint and never a substitute for a gate"* — in its strongest
+form: here the rule is not even a hint, because it is not loaded when the hazard occurs.
+
+### On whether the memory generalisation is a fourth prose record
+
+**You asked me to say so if I think it is. Partly — and the honest answer is a split one.**
+
+- **It is a real improvement, not a cosmetic one.** MEMORY.md is auto-loaded on every session; the two archive paragraphs are not loaded by anything. Moving the lesson from *"never pipe `e2e:prod` through `tail`"* to the **class** ("a pipe erases the exit code of everything left of it — capture `$?` from the gate") fixes the specific way it failed this time: the narrow entry existed, and it was applied to the one gate it named while a different gate got piped. Generalising is the correct repair of *that* failure.
+- **But it is still prose, and prose has now failed once here.** So the disposition should not be *closed*.
+
+⛔ **My one ask, and it is the only thing I would change about your handling:** record it as an
+**accepted residual with no mechanism**, not as resolved. There is no gate available — `set -o
+pipefail` cannot reach an ad-hoc command, a gate script cannot detect that it is being piped, and
+`lint:progress` cannot verify an exit code that was never captured. **When this repo has a
+control that rests entirely on a human, it says so at the decision surface** — that is exactly
+what `dm5-po-decisions.md` item 2 does for the ADR 0131 training premise, and it is the pattern
+that made that acceptance honest. One line in the same register, naming that the control is
+habit and that two occurrences in one day is its measured failure rate, is a truer record than
+either a rule that cannot go stale or a memory entry filed as a fix.
+
+**Conclusion: decline the rule — agreed, for your reason, and my §8 reading was wrong. Take the
+memory generalisation — agreed. Close the item — no; carry it as an accepted residual.**
+
+---
+
+## 19 · Closing
+
+⭐ **The round's own thesis claimed one more scalp than it was entitled to, and it was mine.** I
+opened round 1 with *"the dominant failure mode here is a true-sounding record"* and then filed a
+true-sounding finding: W7 read a permanent identifier as a live status, ignored a commit subject
+that had been in front of me since the first turn, and survived into round 2 by sitting in the
+one section of the review that its own method statement did not cover. The two corrections in
+this addendum both came from the lead pushing back on a reviewer, which is the same control that
+produced this round's five other corrected magnitudes — somebody re-measuring a claim rather than
+re-reading it. **It works in both directions, and it had to be used in this one.**

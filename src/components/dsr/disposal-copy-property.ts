@@ -2,11 +2,28 @@
  * The ADR 0056 Consequence (b) OVER-CLAIM property, defined once for every disposal
  * surface that asserts it. Test-support: nothing in the component graph imports this.
  *
- * ⭐ WHY IT IS A MODULE AND NOT A REGEX IN EACH TEST. The property is asserted from
- * two files (`dsr-disposal-overclaim.test.tsx` for the three DSR surfaces,
- * `referral-dispose-dialog.test.tsx` claim 2 for the referral dialog, where it is also
- * `FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument). Two copies of a pattern drift,
- * and a pattern that drifts loosens silently in whichever copy nobody edited.
+ * ⛔ CONSUMER COUNT, RE-DERIVED 2026-08-21 (QA R2-7). This block said the property is
+ * "asserted from two files" and named `referral-dispose-dialog.test.tsx` as the second.
+ * That file was DELETED on 2026-08-21 with its component (no hat can both reach
+ * `encaminhamentos/[referralId]` and pass `can_dispose_referral_phi`). Measured rather
+ * than adjusted by inspection — `grep -rn 'disposal-copy-property' src/ --include=*.ts
+ * --include=*.tsx`, minus this file's own path, returns **1 importing file**:
+ * `dsr-disposal-overclaim.test.tsx`, which takes all five exports.
+ *
+ * ⚠ SO THE "TWO COPIES DRIFT" RATIONALE NO LONGER DESCRIBES THE PRESENT, and saying so
+ * is the point rather than a footnote. With ONE consumer this module is not currently
+ * preventing drift between copies — there is no second copy to drift from. It still earns
+ * its place for two other reasons: it is the ONE place the property is stated, so a
+ * reviewer has somewhere to read what is and is not covered; and the deleted file's
+ * content pins were relocated INTO the surviving consumer rather than dropped, which is
+ * auditable only because the property has a named home. ⛔ Do not read the 1 as "collapse
+ * it back into the test" — a second consumer is one new dispose surface away, and inlining
+ * is the state this module was extracted FROM (`FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY`).
+ *
+ * ⭐ AND NOTE WHERE THIS SENTENCE SAT: a module whose whole job is to define a property
+ * ONCE so it cannot drift carried a stale count OF ITS OWN CONSUMERS for a day. Nothing
+ * could contradict it — the roster is prose, and no gate reads it. That is
+ * `FUP-COPY-PROPERTY-CANNOT-SEE-ITS-OWN-SURFACE-SET` appearing inside its own subject.
  *
  * ⛔ READ `.claude/rules/ui-copy-forbidden-strings.md` BEFORE CHANGING ANY OF THIS.
  * These patterns are applied to RENDERED DOM TEXT and to nothing else. Running them
