@@ -17,6 +17,7 @@ import {
   FieldLabel,
   useFieldIds,
 } from "@/components/ui/field";
+import { PHI_FREE_TEXT_HINT } from "@/components/ui/phi-input-hint";
 import { FormBanner } from "@/components/auth/form-banner";
 
 /**
@@ -88,6 +89,7 @@ export function DsrAttestForm({
     required: true,
   });
   const noteIds = useFieldIds(`attest-note-${task.id}`, {
+    hasDescription: true,
     hasError: !!fieldErrors.note,
     required: true,
   });
@@ -200,6 +202,13 @@ export function DsrAttestForm({
           onChange={(e) => setNote(e.target.value)}
           placeholder="Quais conteúdos foram lidos e o que foi encontrado."
         />
+        {/* ⛔ The attestation note is where the risk is sharpest: the reviewer has
+            just READ the subject's content in order to write this, so the tempting
+            thing to type is the very mention they were looking for. The note is
+            persisted on the task and surfaced to the DPO. */}
+        <FieldDescription id={noteIds.descriptionId}>
+          {PHI_FREE_TEXT_HINT}
+        </FieldDescription>
         <FieldError id={noteIds.errorId}>{fieldErrors.note}</FieldError>
       </Field>
 

@@ -25,17 +25,12 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 const disposeMeetingMinutesTask = vi.fn();
 const completeDsrTask = vi.fn();
 const executeDisposalTask = vi.fn();
-const disposeReferralPhi = vi.fn();
 const refresh = vi.fn();
 
 vi.mock("@/lib/dsr/actions", () => ({
   disposeMeetingMinutesTask: (...a: unknown[]) => disposeMeetingMinutesTask(...a),
   completeDsrTask: (...a: unknown[]) => completeDsrTask(...a),
   executeDisposalTask: (...a: unknown[]) => executeDisposalTask(...a),
-}));
-
-vi.mock("@/lib/referrals/actions", () => ({
-  disposeReferralPhi: (...a: unknown[]) => disposeReferralPhi(...a),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -53,7 +48,6 @@ import {
 import { DsrMeetingDisposeDialog } from "./dsr-meeting-dispose-dialog";
 import { DsrTaskInbox } from "./dsr-task-inbox";
 import { DsrOutcomeRecord } from "./dsr-outcome-record";
-import { ReferralDisposeDialog } from "@/components/referrals/referral-dispose-dialog";
 
 beforeAll(() => {
   if (typeof globalThis.ResizeObserver === "undefined") {
@@ -69,7 +63,6 @@ beforeEach(() => {
   disposeMeetingMinutesTask.mockReset();
   completeDsrTask.mockReset();
   executeDisposalTask.mockReset();
-  disposeReferralPhi.mockReset();
   refresh.mockReset();
 });
 
@@ -148,14 +141,6 @@ function outcomeRecord(meetingMinutesDisposed: boolean): DsrOutcomeRecordType {
     residue: DSR_RESIDUE_NOTICE,
     meetingMinutesDisposed,
   };
-}
-
-function openReferralDialog(): HTMLElement {
-  render(<ReferralDisposeDialog referralId="ref-1" />);
-  fireEvent.click(
-    screen.getByRole("button", { name: "Apagar dados do paciente" }),
-  );
-  return screen.getByRole("alertdialog");
 }
 
 describe("the two residue constants are separate and stay separate", () => {
@@ -296,18 +281,11 @@ describe("NON-MEETING disposal surfaces render ONLY the shared notice (negative 
     }
   });
 
-  it("the referral dispose dialog shows the shared notice and NOT the meeting retention", () => {
-    // The other lane that renders the shared constant directly. A meeting-title
-    // claim here would be simply false — this referral has no minutes.
-    expect(DSR_RESIDUE_NOTICE).toHaveLength(4);
-    expect(DSR_MEETING_RESIDUE_RETAINED).toHaveLength(4);
-
-    const dialog = openReferralDialog();
-    for (const line of DSR_RESIDUE_NOTICE) {
-      expect(within(dialog).getByText(line)).toBeInTheDocument();
-    }
-    for (const line of DSR_MEETING_RESIDUE_RETAINED) {
-      expect(within(dialog).queryByText(line)).toBeNull();
-    }
-  });
+  // ⛔ THE REFERRAL-DIALOG ARM WAS REMOVED 2026-08-21 with its component (PO ruling:
+  // no hat can both reach `encaminhamentos/[referralId]` and pass
+  // `can_dispose_referral_phi`). The negative arm therefore drops from FIVE surfaces to
+  // FOUR. ⚠ The referral LANE is still covered — the `dispose_referral` inbox card above
+  // renders the shared notice through the same constant — so what was lost is one
+  // SURFACE, not the lane. Recorded because a suite that quietly shrinks its own
+  // iteration set stays green while asserting less.
 });

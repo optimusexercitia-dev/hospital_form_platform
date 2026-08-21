@@ -4391,7 +4391,7 @@ slice binds an existing `file_objects` row into `document_version_files`. Re-che
 > matched was prose *about* the defect. The one real over-claim was found by re-reading
 > the component, not by the grep.
 > The instrument is now **claim 2 of
-> [`referral-dispose-dialog.test.tsx`](../../src/components/referrals/referral-dispose-dialog.test.tsx)**
+> `referral-dispose-dialog.test.tsx` (**REMOVED 2026-08-21** with its component; the shared over-claim property survives in [`dsr-disposal-overclaim.test.tsx`](../../src/components/dsr/dsr-disposal-overclaim.test.tsx), and the residue-CLASS pin was RELOCATED there rather than deleted)**
 > — `TOTALITY_QUANTIFIER` matched against **rendered DOM text**, and exactly co-scoped with
 > this item (which is about the *referral* dialog's copy): it keys on the quantifier
 > **family**, so a paraphrase one word off still reds where the literal grep would have
@@ -5516,3 +5516,32 @@ ADR gains a sentence naming the split, or a future reader will cite the invarian
 it does not bound. ⚠ Also note the direction: the six are erased *more* than the invariant implies,
 so the error is conservative for the data subject and misleading for the record — which is why it
 is a documentation item, not a defect.
+
+### 🟠 FUP-COPY-PROPERTY-CANNOT-SEE-ITS-OWN-SURFACE-SET — the shared disposal-copy property has no census of the surfaces it is asserted on (owner: lead/frontend; **filed 2026-08-21, found by reading 15 tests before deleting them**)
+
+`src/components/dsr/disposal-copy-property.ts` defines the residue / over-claim properties once and
+is iterated by two suites. **Nothing asserts how many suites import it, or which surfaces exist.**
+
+Measured 2026-08-21 while removing `ReferralDisposeDialog` (PO-ruled; no hat can reach it). Deleting
+its 15-test suite would have caused **three coverage drops, two of them silent**:
+
+| drop | detail |
+|---|---|
+| ⛔ **residue-CLASS content pin: 1 → 0** | A repo-wide search found `cifrad` / `PITR` / `impressas` in **exactly one file** — the one being deleted. Eight other assertions pin `DSR_RESIDUE_NOTICE.length === 4`; **none looks at what the four lines say.** ⭐ *A cardinality pin and a content pin are different properties, and the cheaper one is the one that gets written.* Relocated to constant-level tests — tying it to a component is what made it deletable |
+| ⛔ **type-to-confirm arming: 1 → 0, on a LIVE control** | `toBeDisabled`/`toBeEnabled` existed **only** in that file. `DsrMeetingDisposeDialog` carries the identical `disabled={isPending \|\| !armed}` and had **no arming test at all** — so the deletion would have left the module's most dangerous button with zero behavioural coverage, and nothing would have gone red. Ported + mutation-proven (`disabled={isPending}` reds 3) |
+| ⚠ `dsr-meeting-residue.test.tsx` negative arm: **5 → 4** surfaces | The referral arm proved `DSR_MEETING_RESIDUE_RETAINED` does not leak onto a non-meeting surface. The **lane** is still covered (the `dispose_referral` inbox card renders the shared notice through the same constant); what was lost is one *surface*. Recorded in-file |
+
+⛔ **`lint:vacuous` is structurally blind to this.** The assertions were **removed**, not made vacuous —
+a deleted test is not a test that asserts nothing. Neither gate can see a property whose surface set
+silently shrinks, and the shared property file cannot see it either.
+
+**The only thing that caught it was reading all 15 tests before deleting any of them.** That is not a
+control; it is an unusually careful person. [[removing-a-subject-breaks-its-assertions-in-two-directions]]
+
+**What would be a control:** the property module declares its expected surface roster and asserts a
+**floor** on it, the way `dsr-disposal-overclaim.test.tsx`'s `SURFACES` roster already does with its
+`>= 7` anti-vacuity guard. ⚠ That guard is why the over-claim property's 4 → 3 surface reduction is
+**not** a loss here: the roster never contained the referral dialog, so nothing shrank. The two
+properties that *did* drop had no roster. ⛔ Filed rather than built — a roster asserted at the wrong
+grain (*"assert every adjacent affordance"*) is the un-checkable shape DSR Slice 3 already rejected;
+naming the gap honestly is the first deliverable.

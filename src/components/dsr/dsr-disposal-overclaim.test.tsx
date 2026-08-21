@@ -312,3 +312,47 @@ describe('the subtraction is paired with a positive pin, so it buys no blindness
     expect(reassuranceText(plain)).toBe(plain)
   })
 })
+
+/**
+ * ⭐ RELOCATED 2026-08-21 from `referral-dispose-dialog.test.tsx`, which was deleted with
+ * its component (PO ruling: no hat can both reach `encaminhamentos/[referralId]` and pass
+ * `can_dispose_referral_phi`, so the affordance was UI for a capability the product does
+ * not have).
+ *
+ * ⛔ IT HAD TO MOVE, NOT GO. Every OTHER assertion in that file was either
+ * component-specific or an application of a property this suite already iterates over
+ * eight surfaces. This one was neither: it is a claim about the CONTENT of the shared
+ * `DSR_RESIDUE_NOTICE` constant, and a repo-wide search found it in exactly ONE place.
+ * Deleting the file would have taken it from **1 surface to 0** — silently, because
+ * nothing else can notice: a rewrite that keeps four residue lines while dropping the
+ * PITR class would have gone green everywhere.
+ *
+ * ⚠ And note WHY the sibling pins did not cover it. Eight other assertions pin
+ * `DSR_RESIDUE_NOTICE.length === 4`; not one of them looks at what the four lines SAY.
+ * A cardinality pin and a content pin are different properties, and the cheaper one is
+ * the one that gets written.
+ *
+ * Asserted against the constant directly rather than through a rendered surface: the
+ * property belongs to the copy, so tying it to any one component is what let it become
+ * deletable in the first place.
+ */
+describe('DSR_RESIDUE_NOTICE names the three residue classes ADR 0056 requires', () => {
+  const text = DSR_RESIDUE_NOTICE.join(' ')
+
+  it('is not vacuous — the constant has content to search', () => {
+    expect(DSR_RESIDUE_NOTICE).toHaveLength(4)
+    expect(text.length).toBeGreaterThan(0)
+  })
+
+  it('names the retained encrypted bytes', () => {
+    expect(text).toMatch(/cifrad/i)
+  })
+
+  it('names the point-in-time-recovery window', () => {
+    expect(text).toMatch(/PITR|recupera/i)
+  })
+
+  it('names copies already beyond the platform', () => {
+    expect(text).toMatch(/impressas|distribuídas/i)
+  })
+})

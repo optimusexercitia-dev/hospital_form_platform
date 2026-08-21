@@ -28,6 +28,7 @@ import {
   FieldLabel,
   useFieldIds,
 } from "@/components/ui/field";
+import { PHI_FREE_TEXT_HINT } from "@/components/ui/phi-input-hint";
 import { FormBanner } from "@/components/auth/form-banner";
 
 /**
@@ -286,7 +287,8 @@ function DsrAdjudicateForm({
           />
           <FieldDescription id={basisIds.descriptionId}>
             Este texto é entregue ao titular (LGPD art. 18 §4). A recusa por
-            retenção se apoia na política institucional de 20 anos.
+            retenção se apoia na política institucional de 20 anos.{" "}
+            {PHI_FREE_TEXT_HINT}
           </FieldDescription>
           <FieldError id={basisIds.errorId}>{fieldErrors.basis}</FieldError>
         </Field>
@@ -306,7 +308,8 @@ function DsrAdjudicateForm({
           />
           <FieldDescription id={legalIds.descriptionId}>
             Data e referência do parecer que fundamentou a decisão. Toda análise
-            de mérito é feita caso a caso, com consulta jurídica.
+            de mérito é feita caso a caso, com consulta jurídica.{" "}
+            {PHI_FREE_TEXT_HINT}
           </FieldDescription>
           <FieldError id={legalIds.errorId}>{fieldErrors.legalRef}</FieldError>
         </Field>

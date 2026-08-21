@@ -15,6 +15,7 @@ import {
   FieldLabel,
   useFieldIds,
 } from "@/components/ui/field";
+import { PHI_TITLE_HINT } from "@/components/ui/phi-input-hint";
 import { FormBanner } from "@/components/auth/form-banner";
 import { DsrSubjectSearch } from "@/components/dsr/dsr-subject-search";
 
@@ -132,7 +133,7 @@ function DsrIntakeForm({
     hasError: !!fieldErrors.mrn,
     required: true,
   });
-  const encounterField = useFieldIds("dsr-encounter");
+  const encounterField = useFieldIds("dsr-encounter", { hasDescription: true });
   const fileField = useFieldIds("dsr-file-ref", {
     hasDescription: true,
     hasError: !!fieldErrors.fileRef,
@@ -213,6 +214,21 @@ function DsrIntakeForm({
             value={encounter}
             onChange={(e) => setEncounter(e.target.value)}
           />
+          {/* ⛔ DELIBERATELY NOT THE ADR 0131 "não inclua dados do paciente" HINT,
+              and the omission is the point. This field EXISTS to receive a patient
+              identifier, and `create_dsr_request` hashes it through
+              `app.derive_patient_key` into `dsr_requests.encounter_key` — measured:
+              there is no raw encounter column on that table. So the warning would be
+              false in its reason (nothing typed here is stored in the clear or shown
+              anywhere) and contradictory in its instruction (it would tell the
+              Encarregado not to do the one thing the field is for). Guidance that is
+              false is worse than absent — it teaches operators to skip guidance
+              (`D12_TITLE_GUIDANCE`'s docblock). It gets the MRN field's honest
+              statement instead, which it was missing entirely. */}
+          <FieldDescription id={encounterField.descriptionId}>
+            Opcional, e registrado do mesmo modo que o prontuário: a plataforma
+            guarda apenas o resumo criptográfico.
+          </FieldDescription>
         </Field>
       </div>
 
@@ -227,10 +243,16 @@ function DsrIntakeForm({
           value={fileRef}
           onChange={(e) => setFileRef(e.target.value)}
         />
+        {/* ⛔ THE HIGHEST-RISK FREE TEXT ON THE WHOLE DSR PATH, and the reason the
+            ADR 0131 hint belongs here above all: `file_ref` is stored IN THE CLEAR
+            (the only such column on `dsr_requests` — `patient_key`/`encounter_key`
+            are digests), it is rendered as the request's <h1>, AND
+            `create_dsr_request` interpolates it into the identity note of EVERY task
+            it mints. A name typed here fans out to every executor. */}
         <FieldDescription id={fileField.descriptionId}>
           Onde estão os documentos de identidade do titular: processo físico ou
           GED do hospital. É esta referência, e não a identidade, que a plataforma
-          guarda.
+          guarda. {PHI_TITLE_HINT}
         </FieldDescription>
         <FieldError id={fileField.errorId}>{fieldErrors.fileRef}</FieldError>
       </Field>

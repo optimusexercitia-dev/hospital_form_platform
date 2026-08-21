@@ -1405,7 +1405,7 @@ the moment the arm went, and is now *"apenas o NSP pode descartar dados do pacie
 `create_referral_draft`'s HC071 text needed no change: it already said "apenas a coordenação da
 comissão de origem", which the cut turns from an overstatement into the truth. Two stale TS
 docblocks fixed in the same wave ([`referrals/actions.ts`](../../src/lib/referrals/actions.ts),
-[`referral-dispose-dialog.tsx`](../../src/components/referrals/referral-dispose-dialog.tsx)) — both still
+`referral-dispose-dialog.tsx` (**REMOVED 2026-08-21** — PO ruling, see ADR 0130 D11)) — both still
 asserted `is_admin() OR is_commission_admin_of(...)`, i.e. they were **already** stale by one wave
 (ADR 0078 A35 removed `is_admin()`) and would have been stale by two.
 **Gate:** fresh `db reset` 330=330 · pgTAP **175f/5617 PASS** · the re-anchored `295` §7.6 twin +

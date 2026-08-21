@@ -148,10 +148,19 @@ export default async function CommissionLayout({
   // later is invisible here until someone deliberately marks it — the direction
   // that fails closed. Sibling counts stay 0: every badge counts content.
   if (access.role === null) {
-    const [configIndicatorsOn, configAuditOn] = await Promise.all([
-      qualityIndicatorsEnabled(),
-      auditTrailEnabled(),
-    ]);
+    const [configIndicatorsOn, configAuditOn, configDsrHospitals] =
+      await Promise.all([
+        qualityIndicatorsEnabled(),
+        auditTrailEnabled(),
+        // ADR 0130 — a BARE TENANCY ADMIN is a first-class DSR executor:
+        // `app.can_execute_dsr_task` accepts `is_tenancy_admin_of_for(commission)`
+        // (measured from the live catalog, 2026-08-20). This branch passed no
+        // `reachesDsr` at all, so such a principal had NO link to the console from
+        // anywhere and had to type the URL. `listMyDsrHospitals` is `cache()`-wrapped
+        // and returns `'[]'` when the `dsr` flag is off, so this costs one RPC that
+        // dedupes with any sibling call and can never surface a link to a 404.
+        listMyDsrHospitals(),
+      ]);
     return (
       <div className="flex min-h-svh flex-col md:flex-row">
         <AppSidebar
@@ -168,6 +177,9 @@ export default async function CommissionLayout({
           counts={EMPTY_COUNTS}
           qualityIndicatorsEnabled={configIndicatorsOn}
           auditEnabled={configAuditOn}
+          reachesDsr={configDsrHospitals.some(
+            (h) => h.orgId === access.organization.id,
+          )}
           notificationBell={<NotificationBell />}
           activeRole={access.context.activeRole}
           grants={grants}

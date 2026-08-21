@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { DatePicker } from "@/components/ui/date-picker";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import {
   EMPTY_PATIENT_DRAFT,
   PatientFields,
@@ -191,6 +192,8 @@ export function EventNotifyForm({
       )}
       {patientWarning && <FormBanner tone="info">{patientWarning}</FormBanner>}
 
+      <PhiInputHint>
+      {(hintId) => (
       <label className="flex flex-col gap-1.5 text-sm">
         <span className="font-medium">Título do evento</span>
         <input
@@ -202,7 +205,13 @@ export function EventNotifyForm({
           className={FIELD_CLASS}
           placeholder="Ex.: Queda de paciente sem lesão aparente"
           aria-invalid={titleError ? true : undefined}
-          aria-describedby={titleError ? `${idPrefix}-title-error` : undefined}
+          // ⚠ The hint and the error are BOTH described-by targets when the field
+          // is invalid — `aria-describedby` is a space-separated ID LIST, so the
+          // error must be appended, never replace the hint. Order puts the error
+          // first: it is the actionable half.
+          aria-describedby={
+            titleError ? `${idPrefix}-title-error ${hintId}` : hintId
+          }
         />
         {titleError && (
           <span
@@ -214,6 +223,8 @@ export function EventNotifyForm({
           </span>
         )}
       </label>
+      )}
+      </PhiInputHint>
 
       <div className="flex flex-col gap-1.5 text-sm">
         <label htmlFor={`${idPrefix}-desc`} className="font-medium">

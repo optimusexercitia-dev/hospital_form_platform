@@ -1,6 +1,14 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AlertTriangle, ClipboardPaste, Plus, ShieldAlert, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -9,6 +17,7 @@ import type { CustomFieldValueDraft } from "@/components/cases/custom-field-inpu
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { PHI_TITLE_HINT } from "@/components/ui/phi-input-hint";
 import {
   MAX_BULK_ROWS,
   autoTitle,
@@ -59,6 +68,15 @@ export function CaseBulkGrid({
   highlightRowNumber: number | null;
 }) {
   const [paste, setPaste] = useState<string[][] | null>(null);
+
+  // ADR 0131's soft preventive control for the "Título" COLUMN. ⛔ Rendered ONCE and
+  // pointed at from every title cell, not repeated per row: this is a data grid whose
+  // cells are `aria-label`-only by design, and 200 copies of a sentence is not
+  // guidance — it is noise that a screen-reader user hears on every arrow-key move.
+  // ⚠ The `hasPhiColumns` banner above is about the PATIENT columns, which legitimately
+  // hold PHI; this is the opposite instruction for the column that must not, so it is a
+  // separate, unconditional line rather than an extension of that one.
+  const titleHintId = useId();
 
   // Whether any PHI column is currently shown (E1 — driven by the Step-1 selection).
   const hasPhiColumns = useMemo(
@@ -171,6 +189,13 @@ export function CaseBulkGrid({
         </span>
       </p>
 
+      <p
+        id={titleHintId}
+        className="text-sm text-muted-foreground text-pretty"
+      >
+        {PHI_TITLE_HINT}
+      </p>
+
       {hasPhiColumns ? (
         <p className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-sm text-destructive text-pretty">
           <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
@@ -236,6 +261,7 @@ export function CaseBulkGrid({
                 rowNumber={index + 1}
                 columns={columns}
                 labelPrefix={labelPrefix}
+                titleHintId={titleHintId}
                 invalid={invalidByIndex.get(index) ?? null}
                 duplicateLabel={duplicateLabelSet.has(index + 1)}
                 duplicateMrn={duplicateMrnSet.has(index + 1)}
@@ -313,6 +339,7 @@ const GridRowView = memo(function GridRowView({
   rowNumber,
   columns,
   labelPrefix,
+  titleHintId,
   invalid,
   duplicateLabel,
   duplicateMrn,
@@ -325,6 +352,8 @@ const GridRowView = memo(function GridRowView({
   rowNumber: number;
   columns: TargetColumn[];
   labelPrefix: string;
+  /** The grid-level ADR 0131 hint, pointed at from the title cell (rendered once). */
+  titleHintId: string;
   invalid: RowInvalid | null;
   duplicateLabel: boolean;
   duplicateMrn: boolean;
@@ -351,6 +380,7 @@ const GridRowView = memo(function GridRowView({
             rowNumber={rowNumber}
             col={col}
             labelPrefix={labelPrefix}
+            titleHintId={titleHintId}
             invalid={Boolean(
               (col.kind === "custom" &&
                 col.customField &&
@@ -393,6 +423,7 @@ function GridCell({
   rowNumber,
   col,
   labelPrefix,
+  titleHintId,
   invalid,
   duplicate,
   onUpdate,
@@ -401,6 +432,8 @@ function GridCell({
   rowNumber: number;
   col: TargetColumn;
   labelPrefix: string;
+  /** The grid-level ADR 0131 hint; only the `title` cell describes itself with it. */
+  titleHintId: string;
   invalid: boolean;
   duplicate: boolean;
   onUpdate: (id: string, patch: (row: BulkGridRow) => BulkGridRow) => void;
@@ -417,6 +450,7 @@ function GridCell({
         }
         placeholder={autoTitle(labelPrefix, rowNumber)}
         aria-label={ariaLabel}
+        aria-describedby={titleHintId}
         maxLength={120}
         className={cn(CELL_INPUT, "min-w-[12rem]", ring)}
       />

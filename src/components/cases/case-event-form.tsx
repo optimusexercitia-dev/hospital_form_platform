@@ -23,6 +23,7 @@ import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimeField } from "@/components/ui/time-field";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import { EVENT_KIND_LABEL } from "./case-extras-labels";
 
 const FIELD_CLASS =
@@ -134,21 +135,26 @@ export function CaseEventForm({
             </label>
           )}
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">
-              Título{" "}
-              <span className="font-normal text-muted-foreground">
-                (opcional)
-              </span>
-            </span>
-            <input
-              name="title"
-              type="text"
-              className={FIELD_CLASS}
-              defaultValue={event?.title ?? ""}
-              placeholder="Ex.: Reunião de revisão"
-            />
-          </label>
+          <PhiInputHint>
+            {(hintId) => (
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">
+                  Título{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (opcional)
+                  </span>
+                </span>
+                <input
+                  name="title"
+                  type="text"
+                  className={FIELD_CLASS}
+                  defaultValue={event?.title ?? ""}
+                  placeholder="Ex.: Reunião de revisão"
+                  aria-describedby={hintId}
+                />
+              </label>
+            )}
+          </PhiInputHint>
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Descrição</span>

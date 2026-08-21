@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Trash2 } from "lucide-react";
 
@@ -12,6 +12,13 @@ import {
   DSR_RESIDUE_NOTICE,
 } from "@/lib/dsr/messages";
 import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldDescription,
+  FieldLabel,
+  useFieldIds,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -84,7 +91,9 @@ export function DsrMeetingDisposeDialog({
   label: string;
 }) {
   const router = useRouter();
-  const confirmId = useId();
+  const confirmIds = useFieldIds("dispose-meeting-confirm", {
+    hasDescription: true,
+  });
   const [open, setOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -180,29 +189,35 @@ export function DsrMeetingDisposeDialog({
             </ul>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={confirmId} className="text-sm font-medium">
-              Digite <span className="font-mono">{CONFIRM_PHRASE}</span> para
-              confirmar
-            </label>
-            <input
-              id={confirmId}
+          {/* ⛔ The type-to-confirm control, on the SHARED field primitives — see
+              the twin comment in `referral-dispose-dialog.tsx`. `useFieldIds` emits
+              NO DOM `name`, which is correct: `confirmText` is controlled React state
+              read by `handleDispose`, never out of a FormData. ⛔ Do not add
+              `nameRequiredFor`. Accessible name and the `APAGAR` phrase are unchanged;
+              E2E depends on both. */}
+          <Field>
+            <FieldLabel htmlFor={confirmIds.controlProps.id}>
+              <span>
+                Digite <span className="font-mono">{CONFIRM_PHRASE}</span> para
+                confirmar
+              </span>
+            </FieldLabel>
+            <Input
+              {...confirmIds.controlProps}
               type="text"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
               disabled={isPending}
               autoComplete="off"
-              aria-describedby={`${confirmId}-help`}
-              className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
             />
-            <p
-              id={`${confirmId}-help`}
-              className="text-xs text-muted-foreground text-pretty"
+            <FieldDescription
+              id={confirmIds.descriptionId}
+              className="text-xs text-pretty"
             >
               Confirmação exigida: o descarte atinge registros de outras comissões
               e não pode ser desfeito.
-            </p>
-          </div>
+            </FieldDescription>
+          </Field>
 
           {error ? (
             <p

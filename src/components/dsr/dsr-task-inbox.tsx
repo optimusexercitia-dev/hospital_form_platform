@@ -16,7 +16,13 @@ import {
 import { commissionHref, nspHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, FieldLabel, useFieldIds } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldLabel,
+  useFieldIds,
+} from "@/components/ui/field";
+import { PHI_FREE_TEXT_HINT } from "@/components/ui/phi-input-hint";
 import { FormBanner } from "@/components/auth/form-banner";
 import { DsrAttestForm } from "@/components/dsr/dsr-attest-form";
 import { DsrMeetingDisposeDialog } from "@/components/dsr/dsr-meeting-dispose-dialog";
@@ -107,7 +113,7 @@ function DsrTaskCard({ org, task }: { org: string; task: DsrTaskRow }) {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const router = useRouter();
-  const noteField = useFieldIds(`note-${task.id}`);
+  const noteField = useFieldIds(`note-${task.id}`, { hasDescription: true });
 
   const isDisposal = DISPOSAL_KINDS.has(task.kind);
   const isAttestation = task.kind === "attest_review";
@@ -416,6 +422,14 @@ function DsrTaskCard({ org, task }: { org: string; task: DsrTaskRow }) {
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Descreva o que foi verificado e o resultado."
               />
+              {/* ADR 0131's soft preventive control. Kept correct for HISTORICAL
+                  rows: backend is retiring the minting of the task kind that lands
+                  here, so this branch only ever renders for rows already in the
+                  table — which is exactly why it must stay right rather than be
+                  left as the one completion note with no guidance. */}
+              <FieldDescription id={noteField.descriptionId}>
+                {PHI_FREE_TEXT_HINT}
+              </FieldDescription>
             </Field>
           )}
 

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import type { AssignableMember } from "./referral-assignment-panel";
 
 const FIELD_CLASS =
@@ -203,22 +204,27 @@ export function ReferralRegistroDialog(
             </label>
           )}
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">
-              Título{" "}
-              <span className="font-normal text-muted-foreground">
-                (opcional)
-              </span>
-            </span>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className={FIELD_CLASS}
-              disabled={isPending}
-              placeholder="Ex.: Alinhamento com a farmácia"
-            />
-          </label>
+          <PhiInputHint>
+            {(hintId) => (
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">
+                  Título{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (opcional)
+                  </span>
+                </span>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className={FIELD_CLASS}
+                  disabled={isPending}
+                  placeholder="Ex.: Alinhamento com a farmácia"
+                  aria-describedby={hintId}
+                />
+              </label>
+            )}
+          </PhiInputHint>
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Descrição</span>

@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import { EvidenceUploadDialog } from "@/components/safety/evidence/evidence-upload-dialog";
 import {
   NSP_EVIDENCE_TITLE_GUIDANCE,
@@ -145,17 +146,22 @@ export function EvidenceLinkForm({ rcaId }: { rcaId: string }) {
             {error && (
               <FormBanner tone="error">{nspEvidenceErrorMessage(error)}</FormBanner>
             )}
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">Título</span>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                className={FIELD_CLASS}
-                placeholder="Ex.: Diretriz institucional"
-              />
-            </label>
+            <PhiInputHint>
+              {(hintId) => (
+                <label className="flex flex-col gap-1.5 text-sm">
+                  <span className="font-medium">Título</span>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
+                    className={FIELD_CLASS}
+                    placeholder="Ex.: Diretriz institucional"
+                    aria-describedby={hintId}
+                  />
+                </label>
+              )}
+            </PhiInputHint>
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">URL</span>
               <input

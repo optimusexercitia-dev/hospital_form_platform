@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { orgHref } from "@/lib/routing";
 import type { SessionGrant } from "@/lib/queries/session-grants";
+import { DsrConsoleNavGroup } from "./dsr-console-link";
 import { UserMenu } from "./user-menu";
 
 interface OrgNavItem {
@@ -122,6 +123,7 @@ export function OrgManageSidebar({
   auditEnabled = false,
   qualityIndicatorsEnabled = false,
   accreditationEnabled = false,
+  reachesDsr = false,
   notificationBell,
   activeRole = null,
   grants = [],
@@ -141,6 +143,19 @@ export function OrgManageSidebar({
   qualityIndicatorsEnabled?: boolean;
   /** Whether the `accreditation` flag is on (gates the "Acreditação" item, Phase 16). */
   accreditationEnabled?: boolean;
+  /**
+   * ADR 0130 — the caller reaches the DSR ("Direitos do Titular") console for this
+   * org. Resolved server-side from `listMyDsrHospitals()`, the same predicate the
+   * console layout gates on, so the entry can never appear for someone it would 404
+   * (and never when the `dsr` flag is off).
+   *
+   * ⚠ This is not a courtesy link. A tenancy admin is a first-class DSR EXECUTOR
+   * (`app.can_execute_dsr_task` accepts `is_tenancy_admin_of_for` /
+   * `is_hospital_admin_of_for`) and `/o/[org]/manage` is exactly where
+   * `src/app/page.tsx` lands them — so without this they had no route into a console
+   * that routes work to them.
+   */
+  reachesDsr?: boolean;
   /**
    * The S1·N (Phase 20) notification bell, pre-rendered by the Server
    * Component parent (`OrgManageLayout`) — a Client Component like this one
@@ -316,6 +331,19 @@ export function OrgManageSidebar({
               </div>
             );
           })}
+
+          {/* The DSR console (ADR 0130). A SIBLING console, not a `/manage`
+              surface — which is why it is not an `OrgNavItem` (that model is
+              "segments under `/o/[org]/manage`") and why its eyebrow is not
+              "Organização": this sidebar already has a group by that name, and a
+              second one would read as a duplicate heading rather than a sibling. */}
+          {reachesDsr ? (
+            <DsrConsoleNavGroup
+              org={org}
+              label="Outras áreas"
+              onNavigate={closeDrawer}
+            />
+          ) : null}
         </nav>
 
         {/* User / account footer. */}

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import type { SlotForm } from "@/components/process-templates/template-builder-shell";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 
@@ -103,18 +104,23 @@ export function AddAdHocPhaseDialog({
             )}
           </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">
-              Título da fase{" "}
-              <span className="font-normal text-muted-foreground">(opcional)</span>
-            </span>
-            <input
-              name="title"
-              type="text"
-              className={SELECT_CLASS}
-              placeholder="Ex.: Reavaliação"
-            />
-          </label>
+          <PhiInputHint>
+            {(hintId) => (
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">
+                  Título da fase{" "}
+                  <span className="font-normal text-muted-foreground">(opcional)</span>
+                </span>
+                <input
+                  name="title"
+                  type="text"
+                  className={SELECT_CLASS}
+                  placeholder="Ex.: Reavaliação"
+                  aria-describedby={hintId}
+                />
+              </label>
+            )}
+          </PhiInputHint>
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">

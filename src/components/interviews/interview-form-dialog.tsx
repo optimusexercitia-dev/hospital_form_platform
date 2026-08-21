@@ -32,6 +32,7 @@ import {
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { PhiInputHint } from "@/components/ui/phi-input-hint";
 import {
   CONFIDENTIALITY_HELPER_TEXT,
   CONFIDENTIALITY_LABEL,
@@ -227,21 +228,26 @@ export function InterviewFormDialog({
             <FormBanner tone="error">{state.error}</FormBanner>
           )}
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">
-              Título{" "}
-              <span className="font-normal text-muted-foreground">
-                (opcional)
-              </span>
-            </span>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className={FIELD_CLASS}
-              placeholder="Ex.: Entrevista com a equipe da UTI"
-            />
-          </label>
+          <PhiInputHint>
+            {(hintId) => (
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">
+                  Título{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (opcional)
+                  </span>
+                </span>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className={FIELD_CLASS}
+                  placeholder="Ex.: Entrevista com a equipe da UTI"
+                  aria-describedby={hintId}
+                />
+              </label>
+            )}
+          </PhiInputHint>
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Categoria</span>

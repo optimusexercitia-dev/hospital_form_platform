@@ -28,7 +28,6 @@ import {
   Settings2,
   ShieldAlert,
   ShieldCheck,
-  UserCheck,
   Users,
   Workflow,
   X,
@@ -37,8 +36,9 @@ import {
 import type { CommissionRole, Membership } from "@/lib/queries/session";
 import type { SessionGrant } from "@/lib/queries/session-grants";
 import { cn } from "@/lib/utils";
-import { dsrHref, nspHref, orgHref, qualidadeHref } from "@/lib/routing";
+import { nspHref, orgHref, qualidadeHref } from "@/lib/routing";
 import { CommissionSwitcher } from "./commission-switcher";
+import { DsrConsoleNavGroup } from "./dsr-console-link";
 import { UserMenu } from "./user-menu";
 
 /** Live counts shown as nav badges (0 = hidden). */
@@ -490,8 +490,12 @@ export function AppSidebar({
    * task is routed to a scope they wear a hat in. Resolved server-side from
    * `list_my_dsr_hospitals()`, which is built from the SAME predicates the console
    * layout and the RLS policies use — so this link can never appear for someone the
-   * console would 404. Both principals land on their commission, so this is their
-   * only route in.
+   * console would 404, and never when the `dsr` flag is off.
+   *
+   * ⚠ Honoured in BOTH nav scopes, unlike `isNspCoordinator`/`isQualityReviewer`
+   * beside it — a bare tenancy admin is an executor hat (`can_execute_dsr_task`),
+   * so the caller must pass this on the `navScope: "configuration"` mount too.
+   * Rationale in full at the render site and in {@link DsrConsoleNavGroup}.
    */
   reachesDsr?: boolean;
   /**
@@ -858,44 +862,22 @@ export function AppSidebar({
               same dual-hat problem the two blocks above solve, and the reason
               this link is not optional: a console nothing links to is a door
               nothing can reach. Org-level href; `reachesDsr` comes from
-              `list_my_dsr_hospitals()`, the same predicate the layout gates on. */}
-          {showsMemberItems && reachesDsr && (() => {
-            const href = dsrHref(org);
-            const isActive = pathname.startsWith(href);
-            return (
-              <div className="mb-4">
-                <p className="px-2 pb-1.5 text-[0.65rem] font-semibold tracking-[0.08em] text-sidebar-foreground/45 uppercase">
-                  Organização
-                </p>
-                <ul className="flex flex-col gap-0.5">
-                  <li>
-                    <Link
-                      href={href}
-                      onClick={closeDrawer}
-                      aria-current={isActive ? "page" : undefined}
-                      className={cn(
-                        "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-                        isActive
-                          ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
-                          : "font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-                      )}
-                    >
-                      <UserCheck
-                        aria-hidden="true"
-                        className={cn(
-                          "size-[1.05rem] shrink-0 transition-colors",
-                          isActive
-                            ? "text-sidebar-accent-foreground"
-                            : "text-sidebar-foreground/55 group-hover:text-sidebar-foreground",
-                        )}
-                      />
-                      <span className="flex-1 truncate">Direitos do Titular</span>
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-            );
-          })()}
+              `list_my_dsr_hospitals()`, the same predicate the layout gates on.
+
+              ⛔ NOT gated on `showsMemberItems`, and that is a DELIBERATE
+              divergence from the two blocks above rather than an oversight.
+              Those consoles gate on standings a tenancy admin does not hold, so
+              hiding them in configuration scope costs nobody anything. The DSR
+              console does not: `app.can_execute_dsr_task` accepts
+              `is_tenancy_admin_of_for(commission)` as a first-class executor arm
+              (measured from the live catalog, 2026-08-20), so a bare tenancy
+              admin can hold a routed task here — and hiding the link would leave
+              that principal typing the URL. The `configuration` allowlist is
+              untouched: this is a bespoke block, not a `NavItem`, so
+              `NAV_GROUPS`' fail-closed opt-in is not weakened by it. */}
+          {reachesDsr ? (
+            <DsrConsoleNavGroup org={org} onNavigate={closeDrawer} />
+          ) : null}
 
           {/* Per-user document-approval queue — shown to any member when the
               controlled-documents feature is on, since an approver may be named

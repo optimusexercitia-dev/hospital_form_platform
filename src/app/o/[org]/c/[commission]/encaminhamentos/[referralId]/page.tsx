@@ -6,7 +6,6 @@ import { ArrowLeft } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
-  canDisposeReferralPhi,
   getReferralCaseAccessSummary,
   getReferralDetail,
   listReferralInternalNotes,
@@ -42,7 +41,6 @@ import { ReferralRelatedCasesPanel } from "@/components/referrals/referral-relat
 import { ReferralInternalNotesPanel } from "@/components/referrals/referral-internal-notes-panel";
 import { ReferralDetailsCard } from "@/components/referrals/referral-details-card";
 import { ReferralCaseCard } from "@/components/referrals/referral-case-card";
-import { ReferralDisposeDialog } from "@/components/referrals/referral-dispose-dialog";
 import { ReferralDraftDelete } from "@/components/referrals/referral-draft-delete";
 import { formatReferralCode } from "@/components/referrals/format";
 import { RESOLVED_REFERRAL_STATUSES } from "@/lib/referrals/types";
@@ -258,17 +256,23 @@ export default async function ReferralDetailPage({
     ? await patientXrefCount("referral", detail.id)
     : 0;
 
-  // LGPD-erasure affordance gate (BUG-NPH-002): the authoritative disposer probe,
-  // mirroring the `dispose_referral_phi` RPC gate exactly (source commission-admin /
-  // PQS operator of EITHER endpoint hospital; the platform_admin arm was removed by
-  // ADR 0078 M2 — it could destroy referral PHI it cannot read). Only asked when a
-  // PHI record exists (nothing to erase otherwise). PHI-free; safe-defaults false —
-  // so the destructive control renders only for a caller the RPC would accept, never
-  // dangling for e.g. a plain source-commission staff_admin.
-  const canDisposePhi = detail.hasPatient
-    ? await canDisposeReferralPhi(detail.id)
-    : false;
-
+  // ⛔ NO LGPD-ERASURE AFFORDANCE HERE, and its absence is a RULING, not an omission
+  // (PO, 2026-08-21). The dialog and its `canDisposeReferralPhi` probe stood here until
+  // then. They were removed because the two predicates are DISJOINT in production, not
+  // merely unpopulated in the seed: reaching this route requires an active hat in
+  // {staff, staff_admin} (`session.ts` hat-filters, then `partitionGrants` admits only
+  // those two into `memberships`), while every arm of `can_dispose_referral_phi` bottoms
+  // out in `app.has_role`'s active-hat conjunct over
+  // {org_admin, hospital_admin, nsp_coordinator, pqs_member}. No principal can hold both,
+  // so the control could never render for anyone who could use it.
+  //
+  // ⛔ THE DOOR IS UNTOUCHED — `dispose_referral_phi` and `can_dispose_referral_phi` remain
+  // the authorization boundary, and the DSR task inbox (`dsr-task-inbox.tsx`) calls them
+  // for exactly the hats that hold the gate. That is ADR 0130 D11's "one inbox" design:
+  // the inbox is the only working UI path to all four erasure doors. Nothing was lost
+  // here except UI that read as a capability the product does not have.
+  // ⛔ Do not re-add this on the theory that a persona is missing. It is a product gap,
+  // and re-opening it means moving one of the two hat sets — a boundary change.
   const inFlight = !RESOLVED_REFERRAL_STATUSES.has(detail.status);
   const backHref = commissionHref(org, commission, "encaminhamentos");
 
@@ -576,17 +580,6 @@ export default async function ReferralDetailPage({
             </div>
           ) : null}
 
-          {/* LGPD-erasure control (ADR 0052 §6). Rendered only when the
-              `canDisposeReferralPhi` probe (which mirrors the RPC gate exactly:
-              admin / source commission-admin / PQS operator of either endpoint
-              hospital) returns true — so the destructive affordance never dangles
-              for a caller the RPC would reject (BUG-NPH-002). The RPC stays the
-              authoritative control. */}
-          {canDisposePhi ? (
-            <div data-rise className="order-12 lg:order-none">
-              <ReferralDisposeDialog referralId={detail.id} />
-            </div>
-          ) : null}
         </div>
       </div>
     </SafetyMotion>

@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 
 import { requireUser, type Membership } from "@/lib/queries/session";
+import { listMyDsrHospitals } from "@/lib/queries/dsr";
 import { commissionHref } from "@/lib/routing";
+import { DsrConsoleLink } from "@/components/shell/dsr-console-link";
 
 export const metadata: Metadata = {
   title: "Suas comissões",
@@ -38,10 +40,23 @@ export default async function CommissionPickerPage() {
     redirect("/");
   }
 
+  // ADR 0130 — the orgs whose DSR ("Direitos do Titular") console this caller
+  // reaches. This picker is a REAL landing for a DSR principal, not a waypoint: the
+  // Encarregado is a plain commission member by design (`app.is_dpo_of_for` requires a
+  // commission role), and `src/app/page.tsx` sends anyone holding more than one
+  // membership straight here. Without an entry they would have to open a commission
+  // first and find the link in its sidebar — a detour through an unrelated workspace
+  // to reach a legal-deadline queue. `listMyDsrHospitals()` is the same predicate the
+  // console layout gates on and returns `[]` when the `dsr` flag is off, so an entry
+  // here can never point at a route that would 404.
+  const dsrOrgIds = new Set(
+    (await listMyDsrHospitals()).map((h) => h.orgId),
+  );
+
   // Group memberships by organization, preserving the pt-BR membership sort.
   const byOrg = new Map<
     string,
-    { name: string; items: Membership[] }
+    { id: string; slug: string; name: string; items: Membership[] }
   >();
   for (const m of memberships) {
     const org = m.commission.organization;
@@ -49,7 +64,12 @@ export default async function CommissionPickerPage() {
     if (group) {
       group.items.push(m);
     } else {
-      byOrg.set(org.id, { name: org.name, items: [m] });
+      byOrg.set(org.id, {
+        id: org.id,
+        slug: org.slug,
+        name: org.name,
+        items: [m],
+      });
     }
   }
   const groups = [...byOrg.values()].sort((a, b) =>
@@ -145,6 +165,16 @@ export default async function CommissionPickerPage() {
                 );
               })}
             </ul>
+            {/* The org-level DSR console, when this caller reaches it. Rendered
+                UNDER the commission list and in the neutral link idiom rather than
+                as a card, because it is not a commission and must not read as one
+                more thing to "work in" — it is a separate console this person also
+                staffs. */}
+            {dsrOrgIds.has(group.id) ? (
+              <div className="flex">
+                <DsrConsoleLink org={group.slug} variant="topnav" />
+              </div>
+            ) : null}
           </section>
         ))}
       </div>
