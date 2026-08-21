@@ -27,6 +27,17 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   discipline, unchanged), merge to `main` (a separate PO call per increment), any widening
   beyond D6's read-only S8 arm, or **OPEN-1** (backfill `read_cases` to existing appointees —
   still needs a PO ruling before Increment 2's M1; plan recommendation is *no backfill*).
+  ⛔ **OPEN-2 — a second PO ruling, found by measurement at build start and NOT in the ADR.**
+  ADR 0134 **D5** assumed an administrativo holding `create_cases` should reach *bulk* case
+  creation; the door was never measured. It is `app.is_staff_admin_of` **only** — so D5's
+  letter would admit them to a wizard whose commit always 42501s. Lead ruling: Increment 1
+  ships the **narrowing half only** (drop the `context.isAdmin` bypass = the noun-rule fix,
+  at **both** sites — the gate *and* the "Múltiplos casos" link, or a `platform_admin` sees a
+  link that 404s). Closing D5's real intent needs a `member_can('create_cases')` arm on
+  `bulk_create_cases` — **a widening of administrativo WRITE authority**, which D11 puts
+  outside the ratified scope. Until the PO rules, **D5 is partially implemented by decision,
+  not by omission** — recorded so "T4 done" cannot read as full coverage. Detail:
+  [case-surface-split.md](docs/plans/case-surface-split.md) §3 T4.
 - **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
   user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
   person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step

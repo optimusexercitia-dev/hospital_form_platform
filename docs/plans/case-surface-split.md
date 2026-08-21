@@ -132,13 +132,38 @@ For non-coordinator entrants (administrativo, write-grantee), on the manage host
 - Subroutes: `correcoes`, `fase/respostas` keep their `staff_admin` gates (fail-closed
   default, D5); interviews keeps its own model (F6). No new subroute opens in this program.
 
-### T4 — `multiplos` re-gate (D5)
+### T4 — `multiplos` re-gate (D5) — ⛔ **AMENDED AT BUILD TIME 2026-08-21 (lead ruling); D5's
+letter would build a dead-end door**
 
-Mirror the list page (F4): `canInCommission(access, "create_cases")` + the same standing
-check; drop the role test. **V-C (verification, blocks T4):** what is
-`access.context.isAdmin`? If it admits `platform_admin` into bulk case *creation*, that is
-commission content and the noun rule (ADR 0078 A35) says remove it — check no E2E depends on
-it first; if it means something narrower, record what and decide with evidence in the PR.
+~~Mirror the list page (F4): `canInCommission(access, "create_cases")` + the same standing
+check; drop the role test.~~ **Measured (backend, V-C/V-D round, live catalog):
+`public.bulk_create_cases` is gated by `app.is_staff_admin_of(commission)` ONLY — no
+`member_can` arm, no admin arm.** D5 assumed an administrativo holding `create_cases`
+*should* reach bulk creation but never measured the door. Re-gating the route on a capability
+the door refuses admits an administrativo to a wizard whose commit **always 42501s** — "a
+correct door nothing can reach", inverted: a reachable door that refuses. Increment 1 has no
+DB changes, so nothing can fix that in-increment.
+
+**Ruling — Increment 1 does the narrowing half only:** drop the `access.context.isAdmin`
+bypass (that IS the noun-rule fix, and all V-C actually requires); do **not** add the
+capability arm. Narrowing can be wrong and safe; widening cannot. The gate must **mirror what
+`app.is_staff_admin_of` admits**, expressed in `access` terms — *not* hand-set to
+`role === "staff_admin"`, because "hand-set to the role the plan named" is how a TS gate and
+its SQL door drift apart in the first place.
+
+⚠ **TWO sites, and they change together** (backend finding 2 — the plan named only the first):
+`manage/cases/multiplos/page.tsx:42-57` (the gate) **and** `manage/cases/page.tsx:169` (the
+"Múltiplos casos" *link*, `access.role === "staff_admin" || access.context.isAdmin`). Removing
+the bypass at the gate alone leaves a `platform_admin` a visible link that then 404s — worse
+than either state alone. Both are frontend-owned; one shared predicate, not two copies.
+
+**OPEN-2 — PO ruling needed, NOT resolved by this ruling:** D5's *actual intent*
+(administrativo does bulk creation by capability) needs a `member_can('create_cases')` arm
+moved onto `bulk_create_cases`. That is a **widening of administrativo write authority**,
+which ADR 0134 **D11** places outside the PO's ratified scope, and outside D6's read-only arm.
+It is therefore **not** Increment 2 work on a lead's say-so. Until ruled, bulk creation stays
+`staff_admin`-only and D5 is **partially implemented by decision, not by omission** — say so
+in the build record rather than letting "T4 done" read as full coverage.
 
 ### T5 — row links
 
