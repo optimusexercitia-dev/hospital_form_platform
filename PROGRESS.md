@@ -16,6 +16,17 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
+- **🏗 IN BUILD 2026-08-21 — CASE SURFACE SPLIT (ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md)).**
+  Branch `feat/case-surface-split`; plan [case-surface-split.md](docs/plans/case-surface-split.md)
+  (Step 0 → Increment 1 → Increment 2, strictly ordered, full §6 step-1 gate between each).
+  **Approval scope, written down because it is a new fact:** ADR 0134 **D11 explicitly withheld
+  build start** from the 2026-08-21 design ratification ("implementation happens in a future
+  session, per the PO"). The PO gave the build go **2026-08-21, this session**, with the agent
+  team authorized. **That go covers exactly:** creating the branch and executing the plan's
+  Step 0 + Increments 1–2 locally. **It does NOT cover** — remote `db push` (standing
+  discipline, unchanged), merge to `main` (a separate PO call per increment), any widening
+  beyond D6's read-only S8 arm, or **OPEN-1** (backfill `read_cases` to existing appointees —
+  still needs a PO ruling before Increment 2's M1; plan recommendation is *no backfill*).
 - **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
   user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
   person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
