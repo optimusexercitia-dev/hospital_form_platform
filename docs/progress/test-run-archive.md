@@ -758,3 +758,51 @@ directly**, because `npm run <gate> | tail -N` reports **`tail`'s** status, not 
 masking produced a **false green** earlier the same day — `lint` was reported as passing while
 `lint:progress` was in fact RED on two over-long PROGRESS.md cells. A gate summary can hide a
 failed gate; capture `$?` from the gate itself, never from a pipeline.
+
+## 2026-08-21 — DSR operational remediation, the two gate rows' detail
+
+_Rotated out of PROGRESS.md § Test Run Summary at authoring time: both rows exceeded the
+`lint:progress` 300-char cell cap (741 and 345). ⛔ The cap is not cosmetic — a table cell carrying a
+paragraph is an archive entry that has not been written yet._
+
+### §6 step 2 — the full `npm run e2e:prod` (19 batches, prod-standalone, fresh server + fresh `db reset` per batch)
+
+**`1166 passed · 2 failed · 3 flaky · 11 skipped · did-not-run 0 · 1182 collected · gate exit 1`.**
+
+⛔ **RED, and red for exactly one pre-existing reason.** Both failures are
+`quality-oversight.spec.ts:569` and `:627` — `BUG-QO-STALE-CASOS`, the same two tests already on
+file, byte-for-byte. **No other spec failed.** Every DSR spec passed, including both new ones
+(batch 4 carried all of them: **57 passed / 0 failed / 0 did-not-run**).
+
+⭐ **`did-not-run` was 0 on all nineteen batches, and that — not the pass count — is the number that
+answers "was anything swallowed?"** Earlier the same day a single stale assertion inside a
+`mode: 'serial'` file aborted every test behind it, which is how a pre-existing failure sat
+undetected on `main` for a day. A pass total cannot see that; this field can.
+
+**The census sums exactly:** 1166 + 2 + 3 + **11 skipped** = 1182 collected. The gate nonetheless
+prints `COVERAGE: accounted for 1171 of 1182`, because `accounted` omits the skipped bucket — so
+`FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER`'s *"11 tests in no bucket"* were always **skips in a
+bucket the coverage line does not add up**. Arithmetic half resolved; the crash-classifier half
+stands.
+
+⚠ **Two instrument errors of the lead's, on this run, both in the reassuring direction:**
+1. The run was first reported as **exit 0**. It was **exit 1**, correctly — the 0 came from a
+   trailing `echo` in the invoking command, which always succeeds.
+2. The commit recording all this was made **while `lint:progress` was failing**, because the gate was
+   piped through `tail` in an `&&` chain — so the chain saw `tail`'s status, not the gate's. The
+   repo already carries *"never pipe `e2e:prod` through `tail`"* as a standing lesson; the pipe was
+   applied to a different gate and had the identical effect. ⛔ **A pipe erases the exit code of
+   everything left of it.**
+
+### §6 step 1 — verified by the lead, not taken from teammate reports
+
+pgTAP **6789/6789** Files=**205** (fresh reset) · lint(8) **0** · `tsc` **0** · vitest **1506/1506**
+(106 files) · **434/434** migrations registered · `ARM=census` / `hat` / `floor` /
+`FROMFINDINGS=1 wrapper` **all HOLD**.
+
+**Diff-scoped door sweep: case list EMPTY by the recipe's syntax filter** — the diff's function names
+are `create_dsr_request`, `dispose_case_phi`, `dispose_event_phi` and three `guard_*_child_lock`s,
+**none** matching `^(is_|can_|has_)`, and zero `create policy`. ⛔ **That empty list was not reported
+as coverage.** Swept by the **property** instead — each rewritten `public.*` door's gate neutralized
+against the full suite: `dispose_event_phi` **COVERED**, `dispose_case_phi` **COVERED**,
+`create_dsr_request` **COVERED**, **0 BLIND**.
