@@ -41,11 +41,16 @@ const CAPABILITIES: { key: MemberCapability; label: string; hint?: string }[] = 
     // ADR 0134 D6 + Amendment 4: read only, and bounded by the case's visibility
     // policy — an `explicit_grants_only` case is NOT reached by this capability.
     key: "read_cases",
-    label: "Visualizar todos os casos da comissão",
+    label: "Visualizar os casos da comissão",
+    // The reach ("todos") is stated in the hint's FIRST clause, where the next
+    // sentence bounds it — never in the label, which stands alone in the checklist
+    // and is the text a coordinator decides on.
     hint:
-      "Somente leitura: não permite criar, editar ou encerrar casos, nem dá acesso " +
-      "a dados de paciente. Casos com visibilidade “Somente quem receber acesso” " +
-      "ficam de fora — neles, o acesso continua dependendo de uma liberação individual.",
+      "Dá acesso de leitura a todos os casos da comissão, mesmo sem liberação " +
+      "individual. Somente leitura: não permite criar, editar ou encerrar casos, " +
+      "nem dá acesso a dados de paciente. Casos com visibilidade “Somente quem " +
+      "receber acesso” ficam de fora — neles, o acesso continua dependendo de uma " +
+      "liberação individual.",
   },
 ];
 
