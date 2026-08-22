@@ -585,19 +585,25 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
     await expect(
       page.getByRole('button', { name: 'Exibir identificação' }),
     ).toBeVisible()
-    // Scoped to <header>: the case ALSO has per-narrative "Editar" buttons
-    // (a different, narrative-content control) with the same accessible
-    // name — the header scope isolates the EditCaseMetaDialog trigger this
-    // test means to pair against quality.a's absence check.
-    await expect(
-      page.locator('header').getByRole('button', { name: 'Editar', exact: true }),
-    ).toBeVisible()
+    // `Editar` (the meta-edit header control quality.a's absence check at
+    // :471-472 pins) is asserted further down, on `/manage/cases/[caseId]`,
+    // NOT here — BUG-QO-STALE-CASOS / ADR 0134 D8. `8675b7cd` moved it off
+    // `/casos` for EVERY role, coordinator included (case-detail-view.tsx's
+    // `EditCaseMetaDialog` trigger only mounts inside the `withHeader` header,
+    // which this route no longer renders since D1); asserting it against THIS
+    // URL would pass while proving nothing — the exact vacuity trap this bug's
+    // own record names.
     await expect(
       page.getByRole('link', { name: 'Gerenciar caso' }),
     ).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: 'Nova entrevista' }),
-    ).toBeVisible()
+    // `Nova entrevista` (BUG-QO-STALE-CASOS-2, same mechanism as `Editar`
+    // above — `InterviewsPanel`'s `canCreate={caps.canManageLifecycle}` in
+    // case-detail-view.tsx reads the NARROWED `caps`, which `readingAsMember`
+    // zeroes for a real coordinator on this route) is asserted further down,
+    // on `/manage/cases/[caseId]`, NOT here. D8's pattern applies by
+    // property, not by name: a case-wide, non-name-attributed affordance
+    // asserted present on `/casos` for a coordinator is stale wherever it
+    // recurs.
     // The paired positive control for the audited download door, RESTORED
     // against the core document model: chefe.ccih (canDownload=true, the
     // non-oversight coordinator) sees the SAME document the negative half
@@ -622,19 +628,57 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
     const chefeToken = await accessToken(request, 'chefe.ccih@test.local')
     const openResp = await openDocumentVersion(request, chefeToken, m8DocVersionId)
     expect(openResp.ok, `expected the coordinator's own open to succeed; got ${JSON.stringify(openResp.body)}`).toBeTruthy()
+
+    // ⚠ BUG-QO-STALE-CASOS repair (ADR 0134 D8, applied by PROPERTY — lead
+    // ruling 2026-08-21, not a per-name PO list): `Editar` (EditCaseMetaDialog's
+    // header trigger) moved to `/manage/cases/[caseId]` with `8675b7cd` — its
+    // presence proof for the coordinator runs HERE, on that host, after every
+    // `/casos` affordance above is confirmed intact. quality.a can never reach
+    // this URL at all — the `(detail)` layout 404s any non-`staff_admin`
+    // (`manage/cases/[caseId]/(detail)/layout.tsx:63`), a STRICTER exclusion
+    // than an absent button, so no separate negative check is needed here.
+    // `Nova entrevista` (BUG-QO-STALE-CASOS-2) joins it here for the identical
+    // reason: `InterviewsPanel`'s `canCreate` reads the same narrowed `caps`.
+    await page.goto(`${CCIH}/manage/cases/${CASE_1}`)
+    await expect(
+      page.getByRole('heading', { name: 'Caso 0001', level: 1 }),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page.locator('header').getByRole('button', { name: 'Editar', exact: true }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Nova entrevista' }),
+    ).toBeVisible()
   })
 
-  test('"Reabrir caso" pairing on a COMPLETED case (case 1 is pending, so testing it there would be vacuous for everyone)', async ({
+  test('"Reabrir caso": intact for the coordinator on /manage/cases (where 8675b7cd moved it), absent for quality.a on the /casos read view of the SAME completed case (case 1 is pending, so testing it there would be vacuous for everyone)', async ({
     page,
   }) => {
     const completedUrl = `${CCIH}/casos/${CASE_2_COMPLETED}`
+    const manageCompletedUrl = `${CCIH}/manage/cases/${CASE_2_COMPLETED}`
 
+    // ⚠ BUG-QO-STALE-CASOS repair (ADR 0134 D8): `8675b7cd` moved "Reabrir
+    // caso" off `/casos` entirely — it is absent there for EVERY role now,
+    // coordinator included (case-detail-view.tsx's `showReopenCase` reads the
+    // NARROWED `caps`, which the `managementElsewhere` gate on this route
+    // always zeroes for `canManageLifecycle`). Asserting it against
+    // `completedUrl` for chefe.ccih here would pass while proving nothing —
+    // the exact vacuity trap this bug's own record names. The presence half
+    // now runs against the manage host, where the control actually lives.
     await signIn(page, 'chefe.ccih@test.local')
-    await page.goto(completedUrl)
+    await page.goto(manageCompletedUrl)
+    await expect(
+      page.getByRole('heading', { name: 'Caso 0002', level: 1 }),
+    ).toBeVisible({ timeout: 10_000 })
     await expect(
       page.getByRole('button', { name: 'Reabrir caso' }),
     ).toBeVisible({ timeout: 10_000 })
 
+    // quality.a stays on the READ surface (the pairing's negative half): she
+    // opens the SAME completed case there — content renders (the S7 read arm
+    // works) — and the lifecycle control stays absent, independent of the
+    // route-level move above: she has no `canManageLifecycle` at all, on
+    // EITHER route (and could not reach the manage route regardless).
     await signIn(page, 'quality.a@test.local')
     await page.goto(completedUrl)
     await expect(

@@ -232,12 +232,31 @@ test('POS-2 create_cases: Administrativo reaches the cases board, creates a case
   const token = await getToken(page.request, 'staff2.ccih@test.local')
   const caseId = await createCaseAs(page.request, token, `Caso Admin ${Date.now()}`)
 
-  // Administrativo rows link to the STAFF route — edit meta there via the "Editar" dialog.
+  // T6 (case-surface-split Increment 1, ADR 0134 D1/D3/D4): `/casos` is now a
+  // reading surface for EVERYONE, administrativo included — the three
+  // role/grant-implied props (incl. `canEditMeta`) are no longer passed on this
+  // host at all (T2), so the header "Editar" trigger has moved to
+  // `/manage/cases/[caseId]`, which staff2 now reaches DIRECTLY (D3 arm 2:
+  // `access.isAdministrativo`). The escape hatch there is "Gerenciar caso" —
+  // gated on the UN-narrowed `canOpenManagement` predicate, so it can never
+  // strand a viewer the gate itself would admit. Asserted present here (counts
+  // by both accessible name AND href — the T1 predicate's entire UI surface for
+  // this class had ZERO coverage before this addition) as the positive half of
+  // the pairing quality-oversight.spec.ts already carries the negative half of
+  // (quality.a, same button, same structure, different persona).
   await page.goto(`${BASE}/casos/${caseId}`)
   await page.waitForURL(`${BASE}/casos/${caseId}`)
   await expect(page.getByRole('heading', { name: /caso\s*\d+/i })).toBeVisible({ timeout: 10_000 })
 
-  // Scope to the header action cluster — narrative cards also carry an "Editar" button.
+  const manageLink = page.getByRole('link', { name: 'Gerenciar caso' })
+  await expect(manageLink).toBeVisible({ timeout: 10_000 })
+  await expect(manageLink).toHaveAttribute('href', `${BASE}/manage/cases/${caseId}`)
+  await manageLink.click()
+  await page.waitForURL(`${BASE}/manage/cases/${caseId}`)
+
+  // Scope to the header action cluster — narrative cards also carry an "Editar" button
+  // (the SAME ambiguity that produced a false positive earlier this program — never
+  // assert the bare, unscoped name).
   const editBtn = page.locator('header').getByRole('button', { name: /^Editar$/ })
   await expect(editBtn).toBeVisible({ timeout: 10_000 })
   await editBtn.click()
@@ -276,12 +295,15 @@ test('POS-3 assign_case_phases: activation + reassignment land; the assignee get
   const caseId = await createCaseAs(page.request, token, `Caso Fase ${Date.now()}`)
   const p1 = await phaseId(page.request, caseId, 1)
 
-  // The affordance IS rendered for an assign_case_phases holder (frontend gate). We
-  // exercise the assign path through the RPCs under staff2's OWN authority (the widened
-  // gate admits the capability holder); the UI-driven activation is covered by REG-ADM-001.
+  // The affordance IS rendered for an assign_case_phases holder (frontend gate), but
+  // T6: not on `/casos` any more — the three role/grant-implied props (incl.
+  // `canAssignPhases`) are no longer passed on that host (T2); it renders on
+  // `/manage/cases/[caseId]`, which staff2 reaches directly (D3 arm 2). We exercise
+  // the assign path through the RPCs under staff2's OWN authority (the widened gate
+  // admits the capability holder); the UI-driven activation is covered by REG-ADM-001.
   await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto(`${BASE}/casos/${caseId}`)
-  await page.waitForURL(`${BASE}/casos/${caseId}`)
+  await page.goto(`${BASE}/manage/cases/${caseId}`)
+  await page.waitForURL(`${BASE}/manage/cases/${caseId}`)
   const phase1 = page.getByRole('article').filter({ hasText: /Fase 1/i }).first()
   await expect(phase1).toBeVisible({ timeout: 10_000 })
   await expect(phase1.getByRole('button', { name: /Ativar e atribuir/i })).toBeVisible()
@@ -456,7 +478,7 @@ test('POS-5 view_signoffs drill-in: holder opens a queued response read-only —
 // the coordinator-only surfaces 404 for them.
 // ---------------------------------------------------------------------------
 
-test('NEG-1 boundary: Administrativo is rejected on conclude/cancel/set-outcome/appoint RPCs and 404s on coordinator surfaces', async ({
+test('NEG-1 boundary: Administrativo is rejected on conclude/cancel/set-outcome/appoint RPCs; 404s on tenancy surfaces (members); reaches case manage-detail (T6, D3 arm 2) but never sees lifecycle there or on /casos', async ({
   page,
 }) => {
   const token = await getToken(page.request, 'staff2.ccih@test.local')
@@ -503,22 +525,40 @@ test('NEG-1 boundary: Administrativo is rejected on conclude/cancel/set-outcome/
   // verified live across the QO·B CUT_ROUTES sample.
   await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 
-  // The coordinator case DETAIL route (/manage/cases/[id]) 404s them — they use the
-  // staff route. Caso 0001 is readable by staff2 on the staff route but not here.
+  // T6 correction (found by EXECUTION, not by the static sweep — the opposite
+  // direction of "moved to manage": a surface OPENED, not one that closed).
+  // The coordinator case DETAIL route (/manage/cases/[id]) now ADMITS staff2 —
+  // D3 arm 2 (`access.isAdministrativo`) is COMMISSION-WIDE, not per-case (the
+  // Increment-2 `_case_caps` S8 arm is what would scope commission-wide case
+  // READ; it has not landed — this route's entry gate was never per-case to
+  // begin with). She also independently holds ordinary READ on THIS case as the
+  // Resumo Clínico narrative assignee, so the read gate above D3 does not stop
+  // her either. Verified live (2026-08-21): the page renders "Caso 0001" /
+  // "Óbito UTI leito 7", not the not-found boundary. "Entering is not managing"
+  // (layout.tsx's own doc comment, ADR 0134 D5/T3) is the property that now
+  // needs asserting here instead: lifecycle stays coordinator-only ON THIS HOST
+  // too, `isCoordinator = access.role === "staff_admin"` — a role check
+  // independent of the entry gate she just cleared.
   await page.goto(`${BASE}/manage/cases/${CASE_0001}`)
-  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — every manage/** route in this
-  // file hits the commission not-found boundary (ACT ADR 0106's sibling),
-  // verified live across the QO·B CUT_ROUTES sample.
-  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
+  await page.waitForURL(`${BASE}/manage/cases/${CASE_0001}`)
+  await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
+  await expect(
+    page.locator('header').getByRole('button', { name: /Concluir caso/i }),
+  ).toHaveCount(0)
+  await expect(
+    page.locator('header').getByRole('button', { name: /Cancelar caso/i }),
+  ).toHaveCount(0)
 
-  // On the STAFF case route staff2 CAN read Caso 0001 but sees NO conclude/cancel/outcome.
+  // On the STAFF case route staff2 CAN read Caso 0001 but sees NO conclude/cancel/outcome
+  // (the `/casos` reading surface — unaffected by the manage-entry gate above).
   await page.goto(`${BASE}/casos/${CASE_0001}`)
   await page.waitForURL(`${BASE}/casos/${CASE_0001}`)
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
-  // Case LIFECYCLE (Concluir/Cancelar caso) is coordinator-only and lives on the
-  // /manage route — absent on the staff route. (A narrative "Concluir" IS present:
-  // staff2 is the Resumo Clínico narrative assignee — that Q14 action is unrelated to
-  // concluding the CASE, so we assert the case-specific labels only.)
+  // Case LIFECYCLE (Concluir/Cancelar caso) is coordinator-only and never lived on
+  // this route at all (case-detail-view.tsx does not import CaseLifecycleActions).
+  // (A narrative "Concluir" IS present: staff2 is the Resumo Clínico narrative
+  // assignee — that Q14 action is unrelated to concluding the CASE, so we assert
+  // the case-specific labels only.)
   await expect(page.getByRole('button', { name: /Concluir caso/i })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /Cancelar caso/i })).toHaveCount(0)
   // The outcome selector (conclude-adjacent) is coordinator-only — absent here.
@@ -685,6 +725,19 @@ test('KBD keyboard-only: edit-meta dialog is fully keyboard-operable for an Admi
   await page.goto(`${BASE}/casos/${caseId}`)
   await page.waitForURL(`${BASE}/casos/${caseId}`)
 
+  // T6: the "Editar" affordance moved to `/manage/cases/[caseId]` (POS-2's comment
+  // has the full mechanism). This flow MUST stay keyboard-only end to end — CLAUDE.md
+  // §8's obligation is on the FLOW, not on the one dialog, so the cross-surface hop
+  // via "Gerenciar caso" is itself keyboard-driven, not a `page.goto` shortcut; a
+  // silently-mouse escape hatch here would repair the assertions while quietly
+  // dropping the standing keyboard-only requirement.
+  const manageLink = page.getByRole('link', { name: 'Gerenciar caso' })
+  await expect(manageLink).toBeVisible({ timeout: 10_000 })
+  await manageLink.focus()
+  await expect(manageLink).toBeFocused()
+  await page.keyboard.press('Enter')
+  await page.waitForURL(`${BASE}/manage/cases/${caseId}`)
+
   // Focus the header "Editar" button and open the dialog with Enter (narrative cards
   // also carry an "Editar" button — scope to the header action cluster).
   const editBtn = page.locator('header').getByRole('button', { name: /^Editar$/ })
@@ -751,9 +804,11 @@ test('REG-ADM-001: Administrativo activates a phase through the UI — the activ
   const caseId = await createCaseAs(page.request, token, `Caso UI Fase ${Date.now()}`)
   const p1 = await phaseId(page.request, caseId, 1)
 
+  // T6: "Ativar e atribuir" moved to `/manage/cases/[caseId]` (POS-3's comment has
+  // the full mechanism) — staff2 reaches it directly (D3 arm 2).
   await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto(`${BASE}/casos/${caseId}`)
-  await page.waitForURL(`${BASE}/casos/${caseId}`)
+  await page.goto(`${BASE}/manage/cases/${caseId}`)
+  await page.waitForURL(`${BASE}/manage/cases/${caseId}`)
 
   const phase1 = page.getByRole('article').filter({ hasText: /Fase 1/i }).first()
   await expect(phase1).toBeVisible({ timeout: 10_000 })

@@ -110,6 +110,7 @@ const CASE_ID_NON_ETHICS = 'd0000000-0000-0000-0000-0000000000c1'
 const UID_CHEFE = '00000000-0000-0000-0000-000000000002' // chefe.ccih — coordinator
 const UID_STAFF1_RECUSED = '00000000-0000-0000-0000-000000000003' // staff1.ccih — seeded LIVE recusal
 const UID_STAFF2 = '00000000-0000-0000-0000-000000000004' // staff2.ccih — non-coordinator boundary + dynamic recusal target
+const UID_STAFF3 = '00000000-0000-0000-0000-000000000009' // staff3.ccih — plain member, GATE-C2's write-grantee
 const UID_STAFF4_RESPONDENT = '00000000-0000-0000-0000-00000000000a' // staff4.ccih — respondent_doctor
 const PROFESSIONAL_PROFILE_RESPONDENT = 'fb000000-0000-0000-0000-0000000000e1' // staff4's professional_profiles row
 
@@ -417,6 +418,69 @@ test('GATE-C ethics case Detalhes tab: renders + HYDRATES (CAVEAT A #1) + tab ba
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Editar caso' })).toHaveCount(0)
   await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// GATE-C2 — `showEthics && isCoordinator` (layout.tsx): a non-coordinator who
+// newly reaches THIS host under ADR 0134 D3 must NOT see "Processo ético".
+// Named by the lead as a gap `frontend` could not exercise for want of a
+// fixture: a non-coordinator inside a READABLE ethics-typed case. Built here —
+// a per-case WRITE grant for staff3 (a plain CCIH member with no other
+// standing) satisfies D3 arm 3 (`canWriteContent`) so she reaches the manage
+// host at all, and `isCoordinator` (`access.role === "staff_admin"`) is a
+// role check independent of that arm, so entering does not imply the tab.
+// GATE-C above is the paired positive control — same case, same host, same
+// tab bar region — so this is not a bare absence: someone genuinely sees the
+// tab here, and staff3 specifically does not.
+// ---------------------------------------------------------------------------
+
+test('GATE-C2 non-coordinator write-grantee (staff3) reaches the manage host (D3 arm 3) but does NOT see "Processo ético" (isCoordinator is a role check, not an entry check)', async ({
+  page,
+}) => {
+  await dbDelete('case_access_grants', { case_id: `eq.${CASE_ID}`, principal_id: `eq.${UID_STAFF3}` })
+  const grantRes = await fetch(`${SUPABASE_URL}/rest/v1/case_access_grants`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      case_id: CASE_ID,
+      principal_id: UID_STAFF3,
+      source: 'manual_grant',
+      read_case_content: true,
+      read_case_deliberation: true,
+      write_case_content: true,
+      reason_code: 'coordinator_grant',
+      granted_by: UID_CHEFE,
+    }),
+  })
+  expect(grantRes.ok, `write grant setup for staff3 on ${CASE_ID}: ${await grantRes.text()}`).toBeTruthy()
+
+  try {
+    await signInAs(page, 'staff3.ccih@test.local')
+    // Positive control for THIS grant: staff3 genuinely reaches the manage
+    // host at all (D3 arm 3 admitted her) — without this, an absent tab could
+    // just mean the whole page 404'd, which would prove nothing about
+    // `isCoordinator` specifically.
+    await page.goto(CASE_URL)
+    await page.waitForURL(CASE_URL)
+    await expect(page.getByText(CASE_LABEL)).toBeVisible({ timeout: 10_000 })
+
+    const tabs = page.getByRole('navigation', { name: 'Seções do caso' })
+    await expect(tabs.getByRole('link', { name: 'Processo ético' })).toHaveCount(0)
+    // Direct-nav to the etica subroute must ALSO deny her — the tab's absence
+    // must not be a UI-only omission (`etica/page.tsx` keeps its own
+    // `staff_admin` gate per the layout's own doc comment).
+    await page.goto(`${CASE_URL}/etica`)
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
+
+    await signOut(page)
+  } finally {
+    await dbDelete('case_access_grants', { case_id: `eq.${CASE_ID}`, principal_id: `eq.${UID_STAFF3}` })
+  }
 })
 
 test('GATE-D "Processo ético" tab: renders + HYDRATES (CAVEAT A #2) + "Nova decisão" disabled while admissibility is pending', async ({

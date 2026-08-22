@@ -339,3 +339,57 @@ same protocol as the S5/S4/S3 rotation.
 | 2026-08-19 | **Standing rules move to `.claude/rules/` with `paths:`, admitted only if they declare checkable anchors and no gate already enforces them — 5 of 9 candidates REJECTED** (PO) | ADR [0127](../decisions/0127-standing-rules-home-and-staleness-gate.md) |
 | 2026-08-19 | **`lint:rules` is GATE 8** — keystone: a rule whose own `paths:` glob matches zero files is orphaned. ⚠ Rule firing is **UNPROVEN** (feature-flagged); an `InstructionsLoaded` probe measures it | ADR [0127](../decisions/0127-standing-rules-home-and-staleness-gate.md) · CLAUDE.md §8 |
 | 2026-08-19 | **Cell/bullet shape caps + link-checking of the rotation destinations added to `lint:progress`; the size RATCHET was declined** — it would red on recording new state, pressuring the OPEN index §7 protects | `scripts/check-progress-doc.mjs` |
+
+## Rotated 2026-08-21 — OPEN-2 (case-surface-split): the RECORD OF THE QUESTION, after the PO ruled
+
+_Ruling itself stays live in PROGRESS.md § Now + ADR 0134 Amendment 1 §A1.2. This is the measured
+input that produced it, rotated at the §7 size cap because it is concluded material._
+
+  ✅ **OPEN-2 — RULED 2026-08-21 (see the IN-BUILD bullet above for the ruling; ADR 0134
+  Amendment 1 §A1.2). The block below is the RECORD OF THE QUESTION, not a live open item** — it
+  was left reading as open after the ruling and flagged by QA as F-2, one of two contradictions in
+  this file that no gate can detect.
+  ADR 0134 **D5** assumed an administrativo holding `create_cases` should reach *bulk* case
+  creation; the door was never measured. It is `app.is_staff_admin_of` **only** — so D5's
+  letter would admit them to a wizard whose commit always 42501s. Lead ruling: Increment 1
+  ships the **narrowing half only** (drop the `context.isAdmin` bypass = the noun-rule fix, at
+  **both** sites — the gate *and* the "Múltiplos casos" link at `manage/cases/page.tsx:169`).
+  ⛔ **That bypass is DEAD CODE and its removal changes NO behaviour** (corrected same day — the
+  first version of this line claimed removing it at the gate alone would strand a visible link
+  that 404s; measured false): a `platform_admin` 404s on the whole commission area at
+  `layout.tsx:110` first — pinned by the **passing** spec `phase-multitenancy.spec.ts:149`. So
+  **no nav-404 E2E may be recorded as coverage for this fix** — it would pass identically against
+  unmodified code. Honest pin is source-level or none. Closing D5's real intent needs a
+  `member_can('create_cases')` arm on
+  `bulk_create_cases` — **a widening of administrativo WRITE authority**, which D11 puts
+  outside the ratified scope. Until the PO rules, **D5 is partially implemented by decision,
+  not by omission** — recorded so "T4 done" cannot read as full coverage. Detail:
+  [case-surface-split.md](../plans/case-surface-split.md) §3 T4.
+
+## Rotated 2026-08-21 — OPEN-3 (case-surface-split): the Rule 12 question and its measured answer
+
+_Its CONCLUSION stays live in PROGRESS.md § Now because Increment 2 depends on it: Rule 12 holds,
+door 2 cannot become a PHI-write widening, no change required. This is the measurement and the
+dead-end analysis that produced OPEN-4, rotated at the §7 size cap._
+
+  ⛔ **OPEN-3 — a THIRD PO question, surfaced by measurement AFTER the OPEN-2 ruling and NOT
+  covered by it. Blocks door 2.** `bulk_create_cases` takes a **`patient` object per row** and
+  calls `set_case_patient` (**Rule 12 data**), so admitting an administrativo to bulk creation
+  makes a **PHI write path** reachable by them. `set_case_patient` is a gate-less compat wrapper
+  delegating to `set_participant_patient`, **whose authority is UNMEASURED** (stack was mid-reset
+  under the Increment-1 gate). Two outcomes, both PO calls: **(a)** it refuses them ⇒ the wizard's
+  PHI picker is a **dead-end door inside the widened door** (200 rows, `42501` on commit, batch
+  rolled back — the shape T4 was overruled to avoid), needing a ruling on suppressing that
+  affordance; **(b)** it admits them ⇒ administrativo gains **PHI WRITE** from a case-*creation*
+  capability — a Rule 12 widening the PO was never asked about (they ruled that creating many cases
+  carries the same responsibility as creating one; patient-identifier write was not in the
+  question). Measure first, then ask. Detail: [plan](../plans/case-surface-split.md) § OPEN-3.
+  **✅ OPEN-3 RESOLVED BY MEASUREMENT 2026-08-21 — shape (a); Rule 12 HOLDS, no change needed.**
+  `set_participant_patient` is `SECURITY DEFINER` with a **single** authority branch,
+  `app.is_staff_admin_of` — no `member_can`, no `can_write_case_content`, no `is_admin` anywhere in
+  the comment-stripped body. An administrativo with **all four** capabilities and a per-case
+  write-grantee are **both REFUSED**. ⇒ **Door 2 cannot become a PHI-write widening**; branch (b)
+  is closed entirely. ⛔ **The dead-end half is real and conditional:** the PHI call is step (d) of
+  the per-row loop and the loop re-raises, **rolling back the whole batch** — so an administrativo
+  on a **patient-collecting** template fills up to 200 rows and loses all of it to a message naming
+  *"a coordenação"*. PHI-free batches never reach step (d).

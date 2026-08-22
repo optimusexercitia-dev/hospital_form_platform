@@ -16,6 +16,29 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
+- **✅ CASE SURFACE SPLIT · INCREMENT 1 — COMPLETE 2026-08-21** (ADR
+  [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md) D1–D5, D7 + Step 0).
+  §6 steps **1–5 all done**; QA **APPROVED r3** ([review](docs/reviews/case-surface-split-increment-1-review.md));
+  **PO approved 2026-08-21** and merged to `main`. `/casos` is now literally a reading surface — both
+  of `8675b7cd`'s carve-outs are at zero — and the manage surface opens by capability.
+  Full narrative rotated verbatim → [case-surface-split-increment-1.md](docs/progress/case-surface-split-increment-1.md).
+  ⛔ **No remote `db push`** (the increment is DB-free; standing discipline unchanged).
+  ⚠ **Approval scope, written down:** the PO approved on the running session narrative rather than a
+  formal §6 step-4 summary, and the approval covers **Increment 1 + merge to `main`**. It does **not**
+  cover Increment 2, any remote push, or the D1 wording amendment (still undrafted).
+- **🚧 CASE SURFACE SPLIT · INCREMENT 2 — NOT STARTED, and it is the PHI-touching half.**
+  Three PO rulings already stand: **OPEN-1 no backfill** · **OPEN-2 bulk under the same `create_cases`
+  key** (ADR 0134 Amdt 1 §A1.2) · **OPEN-4 = option D, creation-scoped PHI write** (Amdt 2, ACCEPTED
+  — the platform's **first PHI write path not held by a coordinator**). Scope of that yes is A2.7's
+  list, **locally**; NOT remote push, NOT PHI read, NOT write outside the creation path.
+  Build bill: the S8 `_case_caps` read arm + `read_cases` capability · the `member_can('create_cases')`
+  arm on `bulk_create_cases` · A2.2's **split writer** (`app._set_participant_patient_unchecked`).
+  ⛔ **Binding on whoever starts it:** P6 and P7 are **rewritten as differentials** — as first specified
+  neither could fail (P7's direct-DML half passes even if S8 leaked PHI, because the table grants
+  `authenticated` nothing) · keystone `189_bulk_create_cases.sql:153` must be **inverted deliberately**
+  · A2.4 risk 2's mitigation ships in the same change · A2.6's record updates incl. **CLAUDE.md Rule 12**
+  ship in the **same commit** · re-check the `<CaseDetailView` **mount-site count** before reusing the
+  Increment-1 no-op argument. Plan: [case-surface-split.md](docs/plans/case-surface-split.md) §4.
 - **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
   user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
   person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
@@ -167,23 +190,16 @@ fixed** — `lint:progress` reds a resolved *follow-up index line* but **cannot 
 section**, so rotation discipline is the only control, and it is the one this repo records as chronically
 skipped. Caught while writing a report **from this register**, which is the register's real test.
 
-🔴 **BUG-QO-STALE-CASOS — `quality-oversight.spec.ts` asserts coordinator WRITE affordances on
-`/casos`, which `8675b7cd` (2026-08-19) deliberately made a READING surface. `main` is E2E-RED.**
-Filed 2026-08-20 (lead) during the DSR Slice 2 gate. Two tests fail — `:569` "no-lockout control"
-(header `Editar` absent) and `:627` "Reabrir caso" pairing — both navigating `${CCIH}/casos/<id>`.
-**Not a DSR regression: proven by control.** Stashing the entire slice (`git stash -u`), clearing
-`.next`, rebuilding and re-running the spec alone on a fresh DB reproduces **the same two failures,
-19 passed / 2 failed**, identical to the run with the slice present. Seed state matches the tests'
-premises (case 1 `pending`, case 2 `completed`), and the affordances still exist — on
-`/manage/cases/[caseId]/(detail)`, where that commit moved them. ⚠ **The repair is not "change the
-URL": the test's PURPOSE was to pair a coordinator against `quality.a`'s absence check on the SAME
-url, and if `/casos` is now read-only for everyone that pairing has gone VACUOUS** — it would pass
-while proving nothing. Owner: whoever owns `8675b7cd`; the E2E baseline is red until then.
-**Repair design PO-ratified 2026-08-21** (ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md)
-D8; recipe: [case-surface-split.md](docs/plans/case-surface-split.md) §2): re-anchor the `:569`
-pairing on "Gerenciar caso" presence (coordinator) vs absence (`quality.a`) on the same `/casos`
-URL — non-vacuous, survives the redesign — and move `Editar`/`Reabrir` to `/manage/cases/[caseId]`.
-Tester-owned, **not yet executed**; ordered before AFF2 pins its e2e baseline.
+✅ **BUG-QO-STALE-CASOS + BUG-QO-STALE-CASOS-2 — BOTH RESOLVED 2026-08-21** (Step 0 of the case-surface-split
+program, branch `feat/case-surface-split`, commit `4ec53577`). `quality-oversight.spec.ts` **21 p / 0 f /
+0 did-not-run / exit 0** on a fresh reset, was 19p/2f. The pairing was preserved, not swapped. Full rows +
+closure narrative rotated verbatim → [bug-log-archive.md](docs/progress/bug-log-archive.md).
+⭐ Carried forward because it outlives the bug: **"two failing tests" was a FLOOR, not a count** — a failing
+assertion masks every assertion after it in the same test, so instance 3 was invisible until instance 1 was
+fixed. Sweep the class **statically**; a run-fix-rerun loop reports green at the last **reachable** stale
+assertion. ⛔ **`main` IS STILL E2E-RED for these two** — the repair lives on the unmerged branch, so the
+2026-08-21 DSR gate row below stays accurate as written. The baseline expectation drops to **0 known-stale
+failures** only when `feat/case-surface-split` merges, and not before.
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
@@ -232,12 +248,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-21 | ⭐ **DSR REMEDIATION · LEAD — §6 step 2, full `e2e:prod`** (19 batches) | **1166 p · 2 f · 3 flaky · 11 skip · did-not-run 0 · 1182 collected · exit 1.** RED for exactly `BUG-QO-STALE-CASOS` (`quality-oversight:569`/`:627`); no other spec failed. Detail → [test-run-archive.md](docs/progress/test-run-archive.md) |
-| 2026-08-21 | **DSR REMEDIATION · LEAD — §6 step 1, FINAL (re-measured after Part B)** | pgTAP **6795/6795** Files=**206** · lint(8) **0** · `tsc` **0** · vitest **1506/1506** · **435/435** migrations · 4 authz ARMs **HOLD** · sweep **0 BLIND**. ⛔ Earlier 6789/205/434 was one commit stale. Detail → [test-run-archive.md](docs/progress/test-run-archive.md) |
-| 2026-08-20 | **DSR PROGRAM CLOSE · LEAD — §6 step 1 on a FRESH `db reset`** | pgTAP **6717/6717** Files=**203** (+1/+6 = suite `352`, sums exactly) · lint(8) **0** · `tsc` **0** · vitest **1501/1501** (105 files) · ARM=census/hat/floor/wrapper **all HOLD** (hat 3 + wrapper 41 BLIND, all pre-existing reasoned-allowlist). ⛔ **No `e2e:prod`** — see § Now |
-| 2026-08-20 | **DSR Slice 4 · LEAD — gate, all four re-run by the lead** | pgTAP **6711/6711** Files=202 · lint(8) **0** · `tsc` **0** · unit **1480/1480**, real exit codes. **No e2e**: nothing reaches the changed dialog (`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`); AC-7/AC-8 4/4 = route integrity only → [archive](docs/progress/test-run-archive.md) |
-| 2026-08-20 | *(the DSR Slice 2 gate row rotated to [test-run-archive.md](docs/progress/test-run-archive.md) — superseded by the Slice 3 gate below)* | — |
-| 2026-08-18 | **DM follow-up triage · LEAD** — the four shipped items (#2 byte proof · #4 DVF 1:1 · #8b draft-print delete guard · attachments deletion). Two fresh `supabase db reset --local` cycles; both new pgTAP arms authored **red-first** | **pgTAP 194 files / 6397 PASS** · **lint 5/5** · **typecheck 0** · **vitest 1305/1305** · authz `census`/`hat`/`floor`/`wrapper` all **INVARIANT HOLDS**. ⛔ **`e2e:prod` NOT RUN — this row is not a phase gate.** Full row → [archive](docs/progress/test-run-archive.md) |
+| 2026-08-21 | ⭐ **CASE SPLIT · Inc 1 — §6 steps 1+2 CLEAN at `e7ec7529`** | **GATE GREEN exit 0** — 1176 p / 0 f / 4 flaky / 11 skip / **did-not-run 0** / 1191; census sums. pgTAP **6795** F=206 · lint(8) **0** · `tsc` **0** · vitest **1506** · 4 ARMs **HOLD** — all re-measured on THIS tree. ⚠ 4 infra re-runs (was 2) → [archive](docs/progress/test-run-archive.md) |
 
 ## QA Verdicts
 
@@ -250,6 +261,9 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| **Case surface split · Increment 1** (ADR 0134 D1–D5, D7) | ✅ **APPROVED** (r3) — 4 conditions, all for the Record edit (§8.9). No security defect in any round | 2026-08-21 | [case-surface-split-increment-1-review.md](docs/reviews/case-surface-split-increment-1-review.md) |
+| ~~Case surface split · Increment 1 (r2)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |
+| ~~Case surface split · Increment 1 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |
 | **DSR operational remediation** | ✅ **APPROVED** (r2; r1 CHANGES REQUESTED — 3 blockers, all records, no engineering) | 2026-08-21 | [dsr-remediation-review.md](docs/reviews/dsr-remediation-review.md) |
 | DSR operational remediation (r2) | **APPROVED** | 2026-08-21 | [dsr-remediation-review](docs/reviews/dsr-remediation-review.md) |
 | ~~DSR operational remediation (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [dsr-remediation-review](docs/reviews/dsr-remediation-review.md) |
@@ -387,6 +401,12 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 📦 **Deferred backlog — 33 open items (🟡 24 · 🟢 1 · ▶ 8)**, moved out of the live index 2026-08-19: open, but not actionable next session. Severity · id · claim preserved verbatim → [deferred-backlog.md](docs/progress/deferred-backlog.md)
 - 🔴 **FUP-DM4-PRODROW** — ⭕ **UNBLOCKED 2026-08-18: the probe answered its blocker (no Cloud orphan surface), and this item's "~49 vanished" figure is WITHDRAWN as unsound arithmetic.** The subject is still erased, not reconciled — lead/backend
 - 🟠 **FUP-42501-CONFLATES-GRANT-WITH-RLS** — ⛔ **coverage defect, NOT a vulnerability** (both tables ARE protected, by the missing grant). `42501` is both the RLS-refusal code AND Postgres's generic *permission denied for table*, so `throws_ok(…,'42501')` cannot tell them apart. Measured: of **12** live assertions in `252_authz_p0_isolation.sql`, `authenticated` lacks INSERT on **`rca_evidence`** + **`capa_action_evidence`** ⇒ those two pass on the **grant**, never reaching RLS. The P0 suite claims isolation on 12 tables and demonstrates it on **10**. ⚠ The tree already documented this trap **twice in prose** (`301`:21, `277`:328) and it recurred anyway. ⛔ Do NOT fix by granting INSERT — that widens real protection to make a test honest; fix the assertion. Model fix + the allow-leg differential that caught it: `345_previa_audit_door.sql` header. ⭐ **2026-08-19: filed as a GATE proposal, not a rule** (ADR 0127 rejected the rule form — a gate beats a rule where one is reachable). Measured population: **15 `throws_ok` sites carry a bare `'42501'`**, of 728 total references — so the gate costs 15 remediations, which is why it is a proposal and not built — backend/tester
+- 🟡 **FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT** — `set_case_phase_result_override` (⛔ **grain-corrected**: the assignee arm applies **only while the phase is `active`**; once `completed` it is coordinator-only — the original line quoted one branch of two as the whole guard) admits **assignee ∨ coordinator** (per-*phase*), but the UI prop is a per-*case* boolean, so a non-coordinator phase assignee is offered nothing. ⛔ An **under-grant emits NOTHING** — no error, no log, no failing test — so no §6 gate can find it, unlike a dead-end door's visible `42501` — frontend/PO
+- 🟡 **FUP-CASE-T5-MEUS-CASOS-UNREPOINTED** — T5's text says board rows re-point to manage; `meus-casos` rows still go to `/casos`. ⚠ Arguably **correct** (Meus Casos *is* name-attributed work, which D1 keeps there) — filed because the plan text and the behaviour disagree and one is wrong; leaving them disagreeing is what makes a later reader fix the wrong one — frontend
+- 🟡 **FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED** — `member_can` requires `is_member_of`; the TS mirror `canInCommission` does **not**, so the mirror is wider than the door. Whether an orphan reaches any surface is **unmeasured in both directions** (the shell likely 404s them first) and **no fixture constructs one**. ⭐ Recorded as unverified on purpose — the previous docblock here asserted the door's OPPOSITE and was believed for weeks (QA F-3); a second unverified claim in the same spot is how that recurs — backend
+- 🟡 **FUP-ADMINISTRATIVO-CUSTOM-FIELDS-ARM-NOT-E2E-VERIFIABLE** — measured: **one** case platform-wide has custom-field values, **one** non-coordinator holds `create_cases`, and they **cannot read that case** — so the `member_can` disjunct of `update_case_custom_field_values` has **no reachable fixture**. ⚠ NOT “no coverage”: AC-5 + POS-2 pin every other arm. ⭐ The **second** reason the R-2 under-grant was invisible — a spec to catch it had no persona to write it with. Close via a **seed** change in Increment 2 (Inc 1 is DB-free by decision; its empty `supabase/` diff is load-bearing in three gate records) — backend/tester
+- 🟡 **FUP-VACUOUS-DETECTOR-FALSE-POSITIVE** — `check-vacuous-assertions.mjs` reports `ALL-ASSERTIONS-CONDITIONAL` when a helper is **declared inside** a test: the walk skips *child* functions but not a statement that **is** a `FunctionDeclaration`, so the helper's `return` revokes the guarantee for every later `expect`. Reddened the whole 8-gate chain; worked around by hoisting. ⛔ **Admission condition for any detector change: a NEW self-test reproducing the real vacuous shape, proven still RED after the fix** — a detector loosened on a false-positive report without that control is worse than the false positive — tester/lead
+- 🟡 **FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED** — the case-wide affordance class has **no absence assertions on `/casos`** (manage-side presence is covered for several). ⛔ **This entry was wrong TWICE and corrected twice** — v1 “zero coverage anywhere” (false: a grep bounded by **button labels** missed role+region locators), v2 “both narrowed by Increment 1” (false: tags moved **only for write-grantees**; the outcome selector was **already absent on `main`**). ⭐ Each fix corrected the clause and left the **method** unexamined — the lesson is the repetition — tester
 - 🟠 **FUP-SUPERSESSION-BADGE-LANE-BLIND** — `resolveSupersessionBadge` (`queries/submissions.ts`) mirrors `app.submitted_form_responses`' exclusion but **drops that rule's own `case_phase_id is null`**, while `listSubmissions` surfaces BOTH lanes. Standalone = correct (it IS ADR 0126 Am.1 §A's rule); **phase-bound = the chain-tip grain D8 examined and REJECTED** — the original reads "Substituído" before approval while `current_response_id` still points at it, flaps back on `reject_correction`, and an unapproved successor reads "Atual". ⭐ Differential: the **same pill** one file over is fed by `status === "approved"` (ADR 0085). ⭐⭐ And the lane conjunct **already exists in TS**: `isDashboardCountable` (`queries/dashboard.ts`) — which ARCHITECTURE.md calls *"the TS twin"*, singular — has `r.casePhaseId == null` explicitly, one file away. Two TS derivations of one choke-point; only one is sanctioned and only one is complete. ⚠ ADR **0074's** axis, not print-currency; found by accident in the §K sweep. ⛔ Read ADR 0074/0085 before fixing. Class: **a mirror inherits its source's PREDICATE, not just its shape** — frontend/backend
 
 

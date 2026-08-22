@@ -282,6 +282,35 @@ async function openAccessDialog(page: Page) {
   return dialog
 }
 
+/**
+ * Read the currently focused element's identity — used by keyboard-only tests
+ * to trace Tab progress instead of trusting a fixed step count or a boolean
+ * "reachable" flag. HOISTED to module scope (lint:vacuous / QA r2): a
+ * `FunctionDeclaration` inside a test body is itself a statement in the
+ * test's own top-level list, and `check-vacuous-assertions.mjs`'s
+ * `containsTestExitingReturn` walks that list looking for a test-exiting
+ * `return` — it does not distinguish "a `return` inside a nested function
+ * declaration" from "a `return` that exits the test itself", so a local
+ * `function focusTrace() { ... return ... }` false-positived every later
+ * `expect()` in the test as conditional. Moving it here removes the
+ * declaration from the test body entirely (this file's own
+ * `openAccessDialog` above establishes the same page-as-parameter pattern).
+ */
+async function focusTrace(
+  page: Page,
+): Promise<{ tag: string; text: string; href: string | null; role: string | null } | null> {
+  return page.evaluate(() => {
+    const el = document.activeElement
+    if (!el) return null
+    return {
+      tag: el.tagName,
+      text: (el.textContent ?? '').trim(),
+      href: (el as HTMLAnchorElement).href ?? null,
+      role: el.getAttribute('role'),
+    }
+  })
+}
+
 // ---------------------------------------------------------------------------
 // AC-1 — Attribution → read (phase assignee sees full case, submitted-only)
 // ---------------------------------------------------------------------------
@@ -417,7 +446,7 @@ test('AC-3a grant-read (multi): viewer sees full case, content editors hidden', 
   await signOut(page)
 })
 
-test('AC-3b grant-write (staff3): collaborator can access case; sees content-write UI; no lifecycle; cannot fill phase', async ({
+test('AC-3b grant-write (staff3): collaborator gets NO content-write UI on /casos any more (T6 — 8675b7cd/D1); the SAME control moved to /manage/cases, which she reaches via the un-narrowed "Gerenciar caso" escape hatch; no lifecycle; cannot fill phase', async ({
   page,
 }) => {
   await signInAs(page, 'staff3.ccih@test.local')
@@ -427,20 +456,51 @@ test('AC-3b grant-write (staff3): collaborator can access case; sees content-wri
   await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
 
-  // Content-write UI IS present: narrative Editar buttons for un-attributed narratives.
-  // The "Achados e Discussão" and "Conclusão do Comitê" narratives have no assignee →
-  // canWriteContent means staff3 can edit them. At least one Editar should be visible.
-  // (The "Resumo Clínico" is attributed to staff2 — its Editar is blocked by Q14.)
-  // We assert at least one Editar button is present (for the un-attributed ones).
-  const editarButtons = page.getByRole('button', { name: /^Editar$/ })
-  await expect(editarButtons.first()).toBeVisible({ timeout: 8_000 })
+  // ⚠ T6 (case-surface-split Increment 1, ADR 0134 D1/D2): `readingAsMember` now
+  // fires on `rawCaps.canWriteContent` too, not just `canManageLifecycle`
+  // (case-detail-view.tsx) — a write-grantee is narrowed on THIS route exactly like
+  // a coordinator. The narrative Editar buttons this test used to find here (for
+  // the un-attributed narratives, "Achados e Discussão" / "Conclusão do Comitê" —
+  // "Resumo Clínico" stays Q14-blocked regardless, attributed to staff2) are gone
+  // from `/casos` for EVERY class now — asserting them present HERE would be
+  // exactly the vacuity trap this program keeps naming: `8675b7cd`'s own
+  // differential control is what proves this, not a bare absence. Reproduced as a
+  // differential below: content-write UI absent here, present on the SAME
+  // narratives at `/manage/cases`, reached by the un-narrowed "Gerenciar caso" link
+  // — D1's sentence ("/casos writes = name-attributed only") made literally true
+  // for the write-grantee class, not just the coordinator.
+  await expect(page.getByRole('button', { name: /^Editar$/ })).toHaveCount(0)
 
-  // Lifecycle controls absent.
+  // Lifecycle controls absent (unaffected by this increment — staff3 never held
+  // `canManageLifecycle`).
   await expect(page.getByRole('button', { name: /ativar fase/i })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /concluir caso/i })).toHaveCount(0)
 
   // staff3 is NOT the phase-assignee (staff1 is), so no "Preencher" button.
   await expect(page.getByRole('button', { name: /^Preencher$/ })).toHaveCount(0)
+
+  // The escape hatch: gated on the UN-narrowed `canOpenManagement` predicate (D3
+  // arm 3 — per-case `canWriteContent`), so it can never strand a write-grantee the
+  // gate itself would admit. Counts by href AND accessible name — this button IS
+  // the T1 predicate's entire UI surface for this class, previously asserted
+  // nowhere for a write-grantee.
+  const manageLink = page.getByRole('link', { name: 'Gerenciar caso' })
+  await expect(manageLink).toBeVisible({ timeout: 10_000 })
+  await expect(manageLink).toHaveAttribute('href', `${BASE}/manage/cases/${CASE_ID}`)
+
+  // NON-VACUOUS positive control (the differential's other half, mirroring
+  // `8675b7cd`'s own control and QA r1's "an absent control is not proof a door is
+  // shut" lesson): the SAME content-write UI, the SAME un-attributed narratives,
+  // genuinely present for the SAME user on the manage host.
+  await manageLink.click()
+  await page.waitForURL(`${BASE}/manage/cases/${CASE_ID}`)
+  await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
+  const editarButtons = page.getByRole('button', { name: /^Editar$/ })
+  await expect(editarButtons.first()).toBeVisible({ timeout: 8_000 })
+
+  // Lifecycle STILL absent here too (write-grant ≠ `canManageLifecycle`, on either host).
+  await expect(page.getByRole('button', { name: /ativar fase/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /concluir caso/i })).toHaveCount(0)
 
   await signOut(page)
 })
@@ -780,7 +840,7 @@ test('AC-3g keyboard-only: grant dialog is fully keyboard-operable (level → ex
 // AC-4 — Q14 ownership: write-grantee cannot edit/conclude attributed narrative
 // ---------------------------------------------------------------------------
 
-test('AC-4 Q14 ownership: staff3 (write grant) cannot edit Resumo Clínico (attributed to staff2); staff2 can', async ({
+test('AC-4 Q14 ownership: staff3 (write grant) cannot edit Resumo Clínico (attributed to staff2) on EITHER host; staff2 — the ASSIGNEE, and ALSO the seeded administrativo — still can on /casos, which is the proof the reading-surface narrowing did not over-reach', async ({
   page,
 }) => {
   const narrativeId = await getResumoCaseNarrativeId()
@@ -799,10 +859,44 @@ test('AC-4 Q14 ownership: staff3 (write grant) cannot edit Resumo Clínico (attr
   // ConcludeNarrativeButton renders trigger as "Concluir" (the "Concluir narrativa"
   // label is on the AlertDialogAction INSIDE the dialog, not the visible trigger).
   await expect(page.getByRole('button', { name: 'Concluir', exact: true })).toHaveCount(0)
-
   await signOut(page)
 
-  // --- staff2 (narrative assignee) CAN edit the Resumo ---
+  // ⚠ T6 (QA F-1 fix, `3475c4d6`): Q14 must hold on EITHER host, not just
+  // `/casos`. The manage narrative editor (`manage/cases/[caseId]/narrativa/
+  // [narrativeId]`) applies NO narrowing — it takes the raw envelope, exactly
+  // mirroring `app.can_write_case_narrative` — so relocating the case-wide arms
+  // there must not accidentally turn an un-attributed write grant into
+  // attributed-narrative authorship just because the host changed. staff3 still
+  // has no claim on THIS narrative: not the assignee, and `canWriteContent`
+  // alone never reaches an attributed one (narrative-access.ts's own ordering).
+  await signInAs(page, 'staff3.ccih@test.local')
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}/narrativa/${narrativeId}`)
+  await page.waitForURL(`${BASE}/manage/cases/${CASE_ID}/narrativa/${narrativeId}`)
+  await expect(page.getByRole('textbox')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /salvar/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Concluir', exact: true })).toHaveCount(0)
+  await signOut(page)
+
+  // NON-VACUOUS positive control for the manage-host negative above: the SAME
+  // narrative, genuinely editable there for the coordinator — proves the
+  // corridor isn't just broken for everyone (mirrors AC-3b's own control shape).
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}/narrativa/${narrativeId}`)
+  await page.waitForURL(`${BASE}/manage/cases/${CASE_ID}/narrativa/${narrativeId}`)
+  await expect(page.getByRole('textbox')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: /salvar/i })).toBeVisible()
+  await signOut(page)
+
+  // --- staff2 (narrative assignee) CAN edit the Resumo, ON /casos — ⭐ THE
+  // OVER-REACH PROOF. She is ALSO the seeded administrativo (all four
+  // capabilities), so if the reading-surface narrowing zeroed anything beyond
+  // the two CASE-WIDE arms it names, this is where it would show: her write
+  // here is NAME-ATTRIBUTED (the assignee branch, ADR 0033 Q14/CA-002), and
+  // `narrowToReadingSurface` only touches `canManageLifecycle`/`canWriteContent`
+  // — never the assignee test, which `canEditNarrative` runs FIRST. This
+  // assertion matters more than either absence above: an absence proves the
+  // narrowing removed something; THIS proves it removed nothing it should not
+  // have. ---
   await signInAs(page, 'staff2.ccih@test.local')
   await page.goto(`${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`)
   await page.waitForURL(`${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`)
@@ -813,6 +907,128 @@ test('AC-4 Q14 ownership: staff3 (write grant) cannot edit Resumo Clínico (attr
   await expect(page.getByRole('button', { name: /salvar/i })).toBeVisible()
   // "Concluir" trigger button is present (assignee + aberta).
   await expect(page.getByRole('button', { name: 'Concluir', exact: true })).toBeVisible()
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// T6 (QA F-1 fix, `3475c4d6`) — the narrative differential, AC-3b's shape applied
+// to the SECOND `/casos` route: for an UN-ASSIGNED narrative ("Achados e
+// Discussão", seeded un-attributed), a coordinator's and a write-grantee's
+// case-wide claim (canManageLifecycle / canWriteContent) is narrowed away by
+// `narrowToReadingSurface` on `/casos`, and relocates — not vanishes — to the new
+// `manage/cases/[caseId]/narrativa/[narrativeId]` host, reached via "Gerenciar
+// narrativa" (NOT "Gerenciar caso" — a distinct link, pointed at the narrative's
+// own manage twin). AC-4 above is the companion proof that the ASSIGNEE arm
+// (name-attributed work) survives untouched on `/casos` — that is what makes
+// THIS test non-vacuous rather than "everything moved to manage".
+// ---------------------------------------------------------------------------
+
+test('T6 narrative differential: coordinator and write-grantee get NO case-wide narrative editor on /casos for an UN-ASSIGNED narrative; "Gerenciar narrativa" (counted by href) takes them to the SAME narrative, genuinely editable, on /manage/cases', async ({
+  page,
+}) => {
+  const achadosId = await getAchadosCaseNarrativeId()
+  const casosUrl = `${BASE}/casos/${CASE_ID}/narrativa/${achadosId}`
+  const manageUrl = `${BASE}/manage/cases/${CASE_ID}/narrativa/${achadosId}`
+
+  for (const email of ['chefe.ccih@test.local', 'staff3.ccih@test.local']) {
+    await signInAs(page, email)
+    await page.goto(casosUrl)
+    await page.waitForURL(casosUrl)
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
+
+    // Absent on /casos — narrowed away even though Achados is un-attributed,
+    // so both classes would otherwise qualify (coordinator via
+    // canManageLifecycle unconditionally; write-grantee via canWriteContent on
+    // an un-attributed narrative, narrative-access.ts's third branch).
+    await expect(page.getByRole('textbox')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /salvar/i })).toHaveCount(0)
+
+    // The escape hatch — gated on the UN-narrowed envelope (case-detail-view's
+    // "Gerenciar caso" sibling pattern), so it can never strand a viewer the
+    // gate itself would admit. Counted by href AND accessible name.
+    const manageLink = page.getByRole('link', { name: 'Gerenciar narrativa' })
+    await expect(manageLink).toBeVisible({ timeout: 10_000 })
+    await expect(manageLink).toHaveAttribute('href', manageUrl)
+
+    // NON-VACUOUS positive control: the SAME narrative, genuinely editable for
+    // the SAME user on the manage host — the relocation the PO ruled, not a
+    // deletion. (Not clicking "Salvar" here — a real save would mutate this
+    // shared seed narrative's body, which other specs assert on; presence of
+    // the affordance is the claim under test, matching `frontend`'s own
+    // discipline on this host.)
+    await manageLink.click()
+    await page.waitForURL(manageUrl)
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('textbox')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('button', { name: /salvar/i })).toBeVisible()
+
+    await signOut(page)
+  }
+})
+
+test('T6 keyboard-only: Tab-only from the /casos narrative into "Gerenciar narrativa" reaches the manage editor; the textarea and "Salvar" are keyboard-focusable (Salvar is not activated — a real save would mutate the shared seed narrative)', async ({
+  page,
+}) => {
+  const achadosId = await getAchadosCaseNarrativeId()
+  const casosUrl = `${BASE}/casos/${CASE_ID}/narrativa/${achadosId}`
+  const manageUrl = `${BASE}/manage/cases/${CASE_ID}/narrativa/${achadosId}`
+
+  // Print the focus trace (module-scope `focusTrace`, above) at every Tab
+  // rather than trusting a fixed step count or a boolean "reachable" flag —
+  // `frontend`'s own first harness reported "NOT REACHABLE" and was wrong: it
+  // never left `/login`, because that form's tab order is email ->
+  // "Esqueci minha senha" -> password, not email -> password, and it was
+  // tabbing the login form the whole time. Signing in NORMALLY (not via
+  // keyboard) here stays clear of that trap; keyboard coverage starts only
+  // after landing on the target page, matching this file's own AC-10 pattern.
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(casosUrl)
+  await page.waitForURL(casosUrl)
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
+
+  // The chefe.ccih coordinator carries the FULL commission sidebar (~22 nav
+  // links) ahead of this page's own header — measured via this trace (tab 26
+  // is "Gerenciar narrativa"), not assumed; 35 leaves headroom without risking
+  // a wrap-around back into the sidebar (observed at tab ~29, past a
+  // NEXTJS-PORTAL node at ~27).
+  let manageLinkFocused = false
+  for (let i = 0; i < 35; i++) {
+    await page.keyboard.press('Tab')
+    const focused = await focusTrace(page)
+    if (focused && focused.tag === 'A' && /gerenciar narrativa/i.test(focused.text)) {
+      manageLinkFocused = true
+      break
+    }
+  }
+  expect(manageLinkFocused, 'Tab must reach the "Gerenciar narrativa" link').toBe(true)
+
+  await page.keyboard.press('Enter')
+  await page.waitForURL(manageUrl, { timeout: 10_000 })
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
+
+  let textareaFocused = false
+  for (let i = 0; i < 15; i++) {
+    await page.keyboard.press('Tab')
+    const focused = await focusTrace(page)
+    if (focused && (focused.tag === 'TEXTAREA' || focused.role === 'textbox')) {
+      textareaFocused = true
+      break
+    }
+  }
+  expect(textareaFocused, 'Tab must reach the manage-host editor textarea').toBe(true)
+
+  let salvarFocused = false
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.press('Tab')
+    const focused = await focusTrace(page)
+    if (focused && /salvar/i.test(focused.text)) {
+      salvarFocused = true
+      break
+    }
+  }
+  // Deliberately NOT pressing Enter — see the test title.
+  expect(salvarFocused, 'Tab must reach the manage-host "Salvar" button').toBe(true)
 
   await signOut(page)
 })

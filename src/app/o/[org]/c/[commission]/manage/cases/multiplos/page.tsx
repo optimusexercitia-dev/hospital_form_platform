@@ -20,11 +20,11 @@ export const metadata: Metadata = {
 
 /**
  * "Múltiplos casos" — the full-page bulk-case creation wizard (ADR 0084). A
- * coordinator (staff_admin / commission-admin) picks one process, fills a grid of
- * cases, and the balanced deal distributes them across chosen members in a single
- * atomic operation. The route mirrors the board's access gate but is stricter
- * (Design #9: staff_admin only — an Administrativo with `create_cases` uses the
- * single-case flow); the `bulk_create_cases` RPC is the real authority (Rule 1).
+ * commission coordinator picks one process, fills a grid of cases, and the balanced
+ * deal distributes them across chosen members in a single atomic operation. The
+ * route mirrors the board's access gate but is stricter (Design #9: staff_admin
+ * only — an Administrativo with `create_cases` uses the single-case flow); the
+ * `bulk_create_cases` RPC is the real authority (Rule 1).
  *
  * A phase-less / narratives-only template cannot be bulk-created (first-only mode
  * would assign nobody), so only ACTIVE templates with ≥1 phase are offered. When the
@@ -43,11 +43,30 @@ export default async function BulkCreateCasesPage({
     notFound();
   }
 
-  // staff_admin gate (the board's coordinator seam; commission-admins resolve to
-  // 'staff_admin'). The RPC re-checks and 42501s anyone else.
-  const isStaffAdmin =
-    access.role === "staff_admin" || access.context.isAdmin;
-  if (!isStaffAdmin) {
+  // ⛔ THE EXACT TS MIRROR OF `app.is_staff_admin_of`, which is what
+  // `public.bulk_create_cases` gates on — not a hand-set narrowing.
+  // `app.is_staff_admin_of` = `app.is_active(uid) AND app.has_role('commission', id,
+  // 'staff_admin', uid)`, and `access.role` is populated only from the caller's
+  // commission-scoped, ACT-hat-filtered membership partition, so this reproduces
+  // both the membership arm and the hat arm. The one predicate it does NOT mirror is
+  // `app.is_active`: the shell sends deactivated/suspended users to `/conta-inativa`
+  // before any commission route runs, so it is covered ELSEWHERE, not here — do not
+  // "improve" this gate by re-adding a check that already ran.
+  //
+  // ⛔ `|| access.context.isAdmin` REMOVED (ADR 0134 D5 / noun rule, ADR 0078 A35),
+  // and the comment it carried — "commission-admins resolve to 'staff_admin'" — was
+  // FALSE from BUG-QOB-003 / ADR 0100 D12 onward, which deleted that coercion.
+  // The bypass was already dead: a platform_admin 404s on the entire commission area
+  // at the shell (pinned by the passing MT-3 spec in `phase-multitenancy.spec.ts`),
+  // and `bulk_create_cases` refuses them regardless. Removing it deletes a false
+  // statement; it does not close a hole. Changes in lockstep with the board's
+  // "Múltiplos casos" link, or one surface offers what the other 404s.
+  //
+  // ADR 0134 T4 keeps the ROLE gate rather than re-gating on the `create_cases`
+  // capability as the plan first proposed: `bulk_create_cases` is
+  // `app.is_staff_admin_of`-only, so a capability gate would walk an administrativo
+  // into a wizard whose commit always fails with 42501.
+  if (access.role !== "staff_admin") {
     notFound();
   }
 

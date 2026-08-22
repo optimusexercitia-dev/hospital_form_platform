@@ -19,6 +19,10 @@ import {
   CaseStatusBadgeFixed,
 } from "@/components/cases/case-status-badge";
 import { CaseRoleChip } from "@/components/cases/case-role-chip";
+import {
+  isReadingAsMember,
+  narrowToReadingSurface,
+} from "@/components/cases/reading-surface";
 import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
 import type {
   CorrectionRequest,
@@ -27,8 +31,6 @@ import type {
 import type { CorrectionCaps } from "@/components/cases/correction-labels";
 import { ReopenCaseButton } from "@/components/cases/reopen-case-button";
 import { CasePhaseList, type AssigneeOption } from "@/components/cases/case-phase-list";
-import { EditCaseMetaDialog } from "@/components/cases/edit-case-meta-dialog";
-import type { Department } from "@/lib/hospitals/departments";
 import { CaseActionItemsPanel } from "@/components/cases/case-action-items-panel";
 import { CaseEventsTimeline } from "@/components/cases/case-events-timeline";
 import { CaseTagsPanel } from "@/components/cases/case-tags-panel";
@@ -139,8 +141,7 @@ export function CaseDetailView({
   casesExtrasEnabled = false,
   actionItemsEnabled = false,
   canAssignPhases = false,
-  canEditMeta = false,
-  departments = [],
+  canEditCustomFields = false,
   caseCustomFieldsEnabled = false,
   customFields = [],
   correctionsEnabled = false,
@@ -148,6 +149,7 @@ export function CaseDetailView({
   narrativeRevisions = {},
   viewerKind = "member",
   managementElsewhere = false,
+  canOpenManagement = false,
   adHocForms,
   adHocNarrativeTypes = [],
   backLabel = "Meus Casos",
@@ -238,15 +240,26 @@ export function CaseDetailView({
    */
   canAssignPhases?: boolean;
   /**
-   * Whether the viewer may EDIT this case's meta (label + department) — a coordinator
-   * OR a `create_cases` Administrativo (ADR 0061), resolved at the host page via
-   * `canInCommission(access, 'create_cases')`. Surfaces the "Editar" affordance in the
-   * self-contained (staff-route) header on an OPEN case; the coordinator `(detail)`
-   * layout renders its own edit-meta button. Default `false`.
+   * Whether this viewer may EDIT the case's custom-field values (ADR 0083) — the UI
+   * mirror of `public.update_case_custom_field_values`, whose measured gate is
+   * `app.is_staff_admin_of(commission) ∨ app.member_can(commission, 'create_cases')`.
+   * Resolve it at the HOST as `canInCommission(access, "create_cases")`, which is
+   * that expression exactly (its `role === 'staff_admin'` arm covers the first
+   * disjunct). Default `false`.
+   *
+   * ⛔ **A SEPARATE AUTHORITY, deliberately its own prop.** It is not derivable from
+   * `caps` — `canManageLifecycle` is coordinator-only and would silently drop the
+   * administrativo arm, which is exactly the regression ADR 0134 F-5 introduced when
+   * this affordance was left riding on the deleted `canEditMeta` prop. Editing
+   * custom fields is CASE-WIDE, so the reading surface passes nothing and the
+   * narrowing keeps it off `/casos` (D1); the manage host passes the real value.
+   * That differential is the point, not an accident of which host remembered.
+   *
+   * ⚠ Server-computed, never derived in this component: two of the door's inputs
+   * (`role`, `capabilities`) live on the commission-access object the component
+   * never sees.
    */
-  canEditMeta?: boolean;
-  /** The case's hospital ACTIVE departments — seeds the edit-meta dialog. Default `[]`. */
-  departments?: Department[];
+  canEditCustomFields?: boolean;
   /** Whether the `case_custom_fields` flag is on (gates the custom-fields panel; ADR 0083). */
   caseCustomFieldsEnabled?: boolean;
   /** The case's custom-field values (ADR 0083); `[]` when none / the flag is off. */
@@ -283,17 +296,42 @@ export function CaseDetailView({
   viewerKind?: "member" | "oversight";
   /**
    * `true` on a host that is a READING surface — the staff `/casos/[caseId]`
-   * route. It narrows `canManageLifecycle` to `false` for EVERY child of this
-   * component, so a coordinator who opens that route sees the case the way a
-   * committee member does; management stays one click away behind the header's
-   * "Gerenciar caso" link, which is deliberately gated on the UN-narrowed
-   * capability (otherwise the narrowing would strand them here).
+   * route. It narrows EVERY case-wide capability to `false` for every child of this
+   * component — `canManageLifecycle` AND `canWriteContent` (ADR 0134 D2) — so a
+   * coordinator OR a per-case write-grantee who opens that route sees the case the
+   * way a committee member does; management stays one click away behind the
+   * header's "Gerenciar caso" link, which is gated on {@link canOpenManagement},
+   * i.e. the UN-narrowed predicate (otherwise the narrowing would strand them).
    *
    * Not a security control (Rule 1) — it is the same viewer with the same DB
    * rights, choosing a calmer surface. It only changes what is OFFERED, and every
    * door still decides for itself.
    */
   managementElsewhere?: boolean;
+  /**
+   * **May this viewer open `/manage/cases/[caseId]`?** (ADR 0134 D3/D4.) Gates the
+   * self-contained header's "Gerenciar caso" link — the single, uniformly labelled
+   * escape hatch off the reading surface.
+   *
+   * ⛔ **SERVER-COMPUTED, and by exactly ONE expression.** The host resolves it with
+   * `canOpenCaseManagement(access, caseId, detail.viewerCapabilities)` — the same
+   * helper the manage route's entry gate calls — and passes the resulting boolean.
+   * It is NOT derivable here: two of its three arms (`staff_admin`,
+   * `isAdministrativo`) live on the commission-access object this component never
+   * sees, and re-deriving the third from `caps` would be a second copy of the
+   * predicate, which is precisely how a gate and the control pointing at it drift
+   * into offering a link that 404s.
+   *
+   * ⚠ Fed from the UN-NARROWED capabilities on purpose: the narrowing above is what
+   * creates the need for this exit, so gating the exit on the narrowed value would
+   * strand every viewer it applies to. Default `false` — a host that does not pass
+   * it offers no link (fail-closed), which is also why the manage host (which
+   * renders no header at all) can omit it.
+   *
+   * ⚠ ONE LABEL FOR EVERY ROLE (D4). A per-role label fork would add an E2E locator
+   * axis for zero information gain.
+   */
+  canOpenManagement?: boolean;
   /**
    * The commission's PUBLISHED forms, for the work card's "Adicionar fase"
    * dialog. `undefined` — the staff route's case — renders NO authoring footer
@@ -337,13 +375,13 @@ export function CaseDetailView({
   participantRoleVocabularyHref?: string | null;
 }) {
   const c = detail.case;
-  // The viewer's TRUE capabilities, straight from the envelope. Only two things
-  // read this: the narrowing below, and the "Gerenciar caso" escape hatch — which
-  // must survive the narrowing or a coordinator lands on a reading surface with no
-  // route back to the management one.
+  // The viewer's TRUE capabilities, straight from the envelope. Exactly one thing
+  // reads this now: the narrowing below. (The "Gerenciar caso" escape hatch used to
+  // read it too; since ADR 0134 D4 it takes the host-computed `canOpenManagement`,
+  // whose predicate spans arms this envelope does not carry.)
   const rawCaps = detail.viewerCapabilities;
-  // `managementElsewhere` (the staff `/casos/[caseId]` route): a coordinator READS
-  // the case here and manages it from `/manage/...`. Narrowing at the single place
+  // `managementElsewhere` (the staff `/casos/[caseId]` route): the viewer READS the
+  // case here and manages it from `/manage/...`. Narrowing at the single place
   // `caps` is derived is what makes that ONE decision instead of one per card —
   // every child already gates off this object, so phase activate/reassign, narrative
   // assign/conclude, Encaminhar caso, Nova entrevista, patient + custom-field edit,
@@ -351,21 +389,26 @@ export function CaseDetailView({
   // follow from `canManageLifecycle: false`, and Novo item, Adicionar registro,
   // Anexar documento and the tag editor from `canWriteContent: false`.
   //
-  // BOTH are dropped, because "somewhere between read-only and full management" is
-  // the state the split exists to abolish: a coordinator who can file an action item
-  // here but not activate a phase has to learn which half of the page is live.
+  // ⭐ ADR 0134 D1/D2 — the TRIGGER is any case-wide claim, not just the
+  // coordinator's. `8675b7cd` tested `canManageLifecycle` alone, which left a
+  // per-case WRITE grantee holding the content affordances here: one of the two
+  // carve-outs that were exactly the "somewhere between read-only and full
+  // management" state the split exists to abolish. (Its own differential control
+  // proved it.) Both classes now do that work on `/manage/cases/[caseId]`, which
+  // since D3 admits a write-grantee too — so nothing is deleted, it RELOCATES.
   //
-  // What survives is what they hold as a PARTICIPANT rather than as the coordinator:
-  // `canEditNarrative` checks the assignee BEFORE `canWriteContent` (ADR 0033 Q14,
-  // CA-002), so a coordinator assigned a narrative still writes that narrative here —
-  // which is exactly the committee-member surface this route is meant to be.
-  //
-  // A COORDINATOR on the reading surface — the one test every narrowing below keys
-  // off. False for a plain member/assignee/grantee here, so none of this touches
-  // them: this page is their only surface and they must keep working on it.
-  const readingAsMember = managementElsewhere && rawCaps.canManageLifecycle;
-  const caps: CaseViewerCapabilities = readingAsMember
-    ? { ...rawCaps, canManageLifecycle: false, canWriteContent: false }
+  // What survives is what the viewer holds by NAME rather than by capability: the
+  // assignee checks precede the capability checks (ADR 0033 Q14 / CA-002), so a
+  // coordinator assigned a narrative, or a grantee assigned a phase, still does that
+  // work here — which is exactly the committee-member surface this route is meant to
+  // be. After this, `/casos` writes are name-attributed only, which is D1's sentence
+  // made literally true.
+  // ⛔ The narrowing itself lives in ONE place (`./reading-surface`) and is shared
+  // with every other `/casos` route — see that module's header for why a per-file
+  // copy of this rule is the defect it was extracted to prevent.
+  const readingAsMember = managementElsewhere && isReadingAsMember(rawCaps);
+  const caps: CaseViewerCapabilities = managementElsewhere
+    ? narrowToReadingSurface(rawCaps)
     : rawCaps;
   // ADR 0100 D7 — the oversight reader. Three affordances on this page are NOT
   // derived from `caps` and would otherwise render for them; see each use site.
@@ -373,22 +416,40 @@ export function CaseDetailView({
   // Activate/reassign: an `assign_case_phases` Administrativo OR anyone who already
   // manages lifecycle (a coordinator) — the latter keeps coordinators from regressing
   // regardless of what the page passes.
-  // Three affordances arrive as their OWN props and so survive the `caps` narrowing
-  // above, yet are role-implied for a coordinator: `canInCommission` returns true for
-  // every `staff_admin` whether or not the capability was granted, and
-  // `canManagePhaseResults` is a bare `role === 'staff_admin'` at both hosts. Left
-  // alone, a coordinator on the reading surface would keep "Ativar e atribuir",
-  // "Corrigir resultado" and the meta-edit door while losing everything around them.
   //
-  // A NON-coordinator's explicit Administrativo grant is untouched — the test is
-  // `rawCaps.canManageLifecycle`, i.e. "this claim comes from the coordinator role".
-  // That distinction matters: `/manage/...` 404s for an Administrativo, so this page
-  // is their ONLY surface, and suppressing them here would delete the capability
-  // rather than relocate it.
+  // These three affordances arrive as their OWN props and so survive the `caps`
+  // narrowing above. ⛔ ADR 0134 D2 closes that bypass at BOTH ends, and neither end
+  // is load-bearing alone (the house rule this component states throughout): the
+  // reading-surface HOST no longer passes any of them, and these guards zero them
+  // again here. A host that forgets still cannot open a case-wide door on `/casos`;
+  // a caller that forgets `managementElsewhere` still cannot either.
+  //
+  // ⚠ The 2026-08-19 rationale for exempting a non-coordinator's Administrativo
+  // grant — "`/manage/...` 404s for an Administrativo, so this page is their ONLY
+  // surface" — is DEAD as of ADR 0134 D3, which admits them to the manage host.
+  // Suppressing them here now relocates the capability instead of deleting it.
   const effectiveCanAssignPhases = readingAsMember
     ? false
     : canAssignPhases || caps.canManageLifecycle;
-  const effectiveCanEditMeta = readingAsMember ? false : canEditMeta;
+  // ⛔ BEHAVIOUR-NEUTRAL TODAY, AND DELIBERATELY KEPT. Do not "simplify" this back
+  // to a bare `canEditCustomFields` — it is defence in depth, not live logic:
+  //   · manage host — passes no `managementElsewhere`, so `readingAsMember` is
+  //     `false` and this expression is the IDENTITY.
+  //   · `/casos` host — passes no `canEditCustomFields`, so BOTH branches are
+  //     `false`.
+  // Every reachable (host, flag, caps, status) combination therefore yields the
+  // same value with or without this line.
+  //
+  // What it buys is the FUTURE host. `canEditCustomFields` sits OUTSIDE `caps`, so
+  // `narrowToReadingSurface` cannot see it, and without this backstop the only
+  // thing keeping a case-wide affordance off a reading surface is WHICH HOST
+  // REMEMBERED not to pass it — a convention, not a mechanism. That is exactly the
+  // ADR 0134 F-1 condition one prop later: a second `/casos` route kept case-wide
+  // narrative authorship because nobody re-derived the narrowing at the new site.
+  // With this line a forgetful host is narrowed anyway instead of leaking.
+  const effectiveCanEditCustomFields = readingAsMember
+    ? false
+    : canEditCustomFields;
   const effectiveCanManagePhaseResults = readingAsMember
     ? false
     : canManagePhaseResults;
@@ -505,12 +566,27 @@ export function CaseDetailView({
     detail.primarySubjectKind === "entity";
 
   // Custom fields (ADR 0083) — the panel shows when the flag is on and the case has
-  // any values. Edit authority mirrors the meta-edit door: a coordinator
-  // (`canManageLifecycle`) OR a `create_cases` Administrativo (`canEditMeta`), and only
-  // while the case is OPEN (terminal cases are frozen server-side, HC025).
+  // any values; editing needs the authority below AND an OPEN case (terminal cases
+  // are frozen server-side, HC025).
+  //
+  // ⛔ THIS LINE CARRIES ITS OWN AUTHORITY, and it must not be folded back into any
+  // other one. `update_case_custom_field_values` gates on
+  // `is_staff_admin_of ∨ member_can('create_cases')` (measured from the catalog), so
+  // a `create_cases` administrativo may edit custom fields. That is the SAME
+  // authority as the meta door but a DIFFERENT door, and the distinction is what
+  // this comment exists to keep.
+  //
+  // ⛔ Correcting the record: the ADR 0134 F-5 seam deletion removed a
+  // `|| effectiveCanEditMeta` disjunct from here and this comment called that a
+  // no-op. **It was a no-op for META and an UNDER-GRANT for CUSTOM FIELDS** — the
+  // administrativo's only path to this affordance rode on that prop, so deleting it
+  // left the door open at the DB with no surface offering it. An under-grant emits
+  // NOTHING: no 42501, no log, no red test. Lint, tsc, pgTAP, the four authz ARMs
+  // and a green `e2e:prod` all passed across the regression. Only a reviewer
+  // diffing the door against the UI caught it, which is why the authority is now
+  // named here explicitly instead of inherited from a neighbouring prop.
   const showCustomFieldsPanel = caseCustomFieldsEnabled && customFields.length > 0;
-  const canEditCustomFields =
-    (caps.canManageLifecycle || effectiveCanEditMeta) && isOpen;
+  const customFieldsEditable = effectiveCanEditCustomFields && isOpen;
 
   const body = (
     <>
@@ -576,20 +652,20 @@ export function CaseDetailView({
                 with `withHeader={false}`). The NSP entry is leftmost and gated only on
                 the flag, so any member may notify a safety event from an open OR
                 concluded case (mirrors the coordinator top bar). Lifecycle MANAGEMENT
-                lives on the coordinator `/manage/...` route, so here the right side
-                only offers the "Gerenciar caso" link to a coordinator. */}
+                lives on the `/manage/...` route, so here the right side only offers
+                the "Gerenciar caso" link — to everyone who may open that route
+                (ADR 0134 D3/D4), not only to a coordinator. */}
             {/* ⚠ ADR 0100 D7: `NotifyEventDialog` is gated on the FEATURE FLAG
                 alone — no capability check anywhere — so it is the second write
                 affordance on this page that `caps` does not close. Notifying an
                 event is a WRITE (it creates a patient-safety event) and its
                 pre-fill bridge carries PHI, both forbidden to the reviewer. */}
-            {/* `rawCaps`, not `caps`: this cluster hosts the "Gerenciar caso"
-                link, whose whole purpose is to carry a coordinator OFF this
-                reading surface. Gating it on the narrowed capability would hide
-                the one exit the narrowing creates the need for. */}
-            {((patientSafetyEnabled && !isOversight) ||
-              rawCaps.canManageLifecycle ||
-              (isOpen && effectiveCanEditMeta)) && (
+            {/* `canOpenManagement`, not `caps`: this cluster hosts the "Gerenciar
+                caso" link, whose whole purpose is to carry a manage-capable viewer
+                OFF this reading surface. Gating it on the NARROWED capability would
+                hide the one exit the narrowing creates the need for — which is why
+                the host feeds it the un-narrowed predicate. */}
+            {((patientSafetyEnabled && !isOversight) || canOpenManagement) && (
               <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
                 {patientSafetyEnabled && !isOversight && (
                   <NotifyEventDialog
@@ -605,20 +681,13 @@ export function CaseDetailView({
                     }
                   />
                 )}
-                {/* Edit META (label + department) — the single audited edit door
-                    (ADR 0061). Open-only (terminal cases are frozen, HC025). Shown to a
-                    `create_cases` Administrativo on the staff route; coordinators edit
-                    from the `(detail)` layout's own button. */}
-                {isOpen && effectiveCanEditMeta && (
-                  <EditCaseMetaDialog
-                    caseId={c.id}
-                    currentLabel={c.label}
-                    currentDepartmentId={c.departmentId}
-                    currentDepartmentOther={c.departmentOther}
-                    departments={departments}
-                  />
-                )}
-                {rawCaps.canManageLifecycle && (
+                {/* ⛔ The Edit META dialog that stood here is DELETED (ADR 0134
+                    F-5), not hidden. It was reachable only via `canEditMeta`, which
+                    D2 stopped every host from passing, so the branch was structurally
+                    dead. `update_case_meta` is unchanged and its affordance lives on
+                    the manage host — coordinator ∨ `create_cases` — which is exactly
+                    where D1 puts case-wide work. */}
+                {canOpenManagement && (
                   <Link
                     href={commissionHref(org, slug, "manage", "cases", c.id)}
                     className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
@@ -798,7 +867,7 @@ export function CaseDetailView({
                 <CaseCustomFieldsPanel
                   caseId={c.id}
                   fields={customFields}
-                  canEdit={canEditCustomFields}
+                  canEdit={customFieldsEditable}
                 />
               </div>
             )}

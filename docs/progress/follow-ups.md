@@ -5866,3 +5866,107 @@ created rather than on decision issuance — i.e. a trigger on `case_participant
 any ethics case that is not `cancelled`"*. ⛔ Do **not** fix it by narrowing
 `can_manage_professional`; that gate serves non-ethics professional administration too, and cutting
 it would be a different change with its own blast radius.
+
+### 🟡 FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT — the UI boolean cannot express the door's per-phase assignee arm (owner: frontend/PO; filed 2026-08-21, case-surface-split Increment 1, QA F-6)
+
+`public.set_case_phase_result_override` (`prosecdef = t`) admits **`v_assigned_to = auth.uid()` ∨
+`app.is_staff_admin_of(commission)`** — measured from the live catalog; there is **no `member_can`
+arm**, so an administrativo is correctly excluded.
+⛔ **GRAIN CORRECTION (QA r2 R-4, re-measured 2026-08-21):** that disjunction is **NOT the door's
+authority** — it is **one branch of two**. The body reads `if v_phase_status not in ('active',
+'completed') then raise …; if v_phase_status = 'active' then if not (v_assigned_to = auth.uid() or
+v_is_staff_admin) then raise 42501`. **The assignee arm applies ONLY while the phase is `active`**;
+once `completed` the caller falls to the other branch and it is **coordinator-only**. The original
+filing quoted one branch as the whole guard — the same wrong-grain error this program recorded
+against a line-filtered `prosrc` read, committed here by hand instead. **The under-grant is
+therefore narrower than filed:** it is the *active*-phase assignee who is offered nothing.
+But the **assignee** disjunct is **per-phase**,
+and the UI's `canManagePhaseResults` prop is a **per-case boolean**, so it cannot represent it.
+Increment 1 set the manage host to `phaseResultsOn && access.role === "staff_admin"` — which is
+correct as far as it goes and closed a real over-grant T1 had created.
+
+**The residue:** a phase's own assignee who is *not* a coordinator can legitimately override that
+phase's result at the DB and is offered no affordance anywhere. That is an **under-grant**, and its
+signature is the dangerous one — a dead-end door raises a visible `42501`, an under-grant emits
+**nothing at all**: no error, no log, no failing test. No §6 gate can detect it.
+
+Deliberately **not** closed inside Increment 1: surfacing the assignee arm needs a per-phase prop
+and is a product decision about whether phase assignees should self-serve result corrections, not a
+gap to be silently patched. **Fix direction if ruled in:** thread a per-phase capability rather than
+widening the per-case boolean.
+
+### 🟡 FUP-CASE-T5-MEUS-CASOS-UNREPOINTED — T5 shipped narrower than its own text (owner: frontend; filed 2026-08-21, QA F-7)
+
+Plan T5 says board/list rows link to manage detail for viewers passing the entry predicate. Shipped:
+the `/casos` staff board and `manage/cases` re-point; **`meus-casos` rows still link to `/casos`**.
+
+⚠ **This is arguably correct, not merely unfinished** — "Meus Casos" is by definition
+name-attributed work, which D1 keeps on `/casos`. Filed rather than fixed because the *plan text*
+and the *shipped behaviour* disagree, and one of the two is wrong: either re-point the rows, or
+amend T5 to state the exception and why. Leaving them disagreeing is what makes a later reader
+"fix" the wrong one.
+
+### 🟡 FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED — a dead-end door nobody can currently construct (owner: backend; filed 2026-08-21, from QA F-3's remediation)
+
+`app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ app.is_member_of(commission)
+∧ ∃ capability row` (measured **three times independently**; ADR 0134 Amdt 2 **M8**). The TS mirror
+`canInCommission` checks **no membership**, so the mirror is **wider than the door** — an
+administrativo whose commission membership was removed but whose capability row survives would, on
+the TS side, be offered affordances the DB refuses.
+
+⛔ **Whether such a principal can reach any surface is UNVERIFIED, and the honest answer is
+"probably not":** `access.role` is populated only from the caller's own membership row, and the
+commission shell 404s `role === null && !isQualityViewer && !isTenancyAdmin` before any route under
+`/c/[commission]` renders. So the orphan very likely 404s upstream and the dead-end door is
+unreachable — **but no fixture in this repo constructs an orphan**, so neither direction is
+measured.
+
+⭐ **Recorded this way on purpose.** The docblock that previously described this stated the
+*opposite* of the door's behaviour and was believed for weeks (QA F-3). Replacing a false claim with
+a second unverified claim in the same spot is how that happens twice. **To close:** construct an
+orphan (delete the membership, leave the capability row) and measure whether they reach the board.
+
+### 🟡 FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED — the case-wide affordance class has **no absence assertions on `/casos`** (owner: tester; filed 2026-08-21, ⛔ **WRONG TWICE, corrected twice — read the history, it is the point of this entry**)
+
+⛔ **Filing history, kept because the item was wrong in a different way each time:**
+1. **v1 — FALSE.** Claimed case tags and the outcome selector had *“zero E2E coverage on any route”*. Both **are** covered on the manage host (`cases-extras.spec.ts:443` assigns a tag via `getByRole('region', {name:/Etiquetas/i})`; `processless-cases.spec.ts:473` drives the “Desfechos disponíveis” dialog). Cause: the sweep grepped **button labels**, while the real coverage uses a role+region locator and a dialog filter containing none of those strings — *a grep bounded by a label is a proxy for the property, not the property.* It reached the tracker as “confirmed … twice”, which reads like a measurement and was a restatement of one unsound search.
+2. **v2 — STILL HALF WRONG.** Claimed *“both were narrowed off `/casos` by Increment 1”*. Measured against the merge base: **tags** gate on `caps.canWriteContent`, which Increment 1 newly narrows, so tags did move — **but only for write-grantees** (a coordinator's were already hidden). The **outcome selector** gates on `caps.canManageLifecycle`, which `8675b7cd` already zeroed, so it was **already absent on `main` for everyone** and this increment changed nothing about it. And the class is **not two members**.
+
+⭐ **The lesson is the repetition, not the item.** Each correction fixed the specific wrong clause and left the *method* that produced it unexamined — which is how one entry was wrong three times in a day, twice while being corrected. **Recorded as [[a-partial-fix-reads-as-a-complete-one]].**
+
+**What is actually open.** The case-wide affordance class — QA's enumeration, **to be re-derived by property before use, not quoted**: *Novo item · Adicionar registro · Anexar documento · custom fields · Corrigir resultado · Ativar e atribuir*, plus **tags** — has **no absence assertions on `/casos`**. Manage-side presence is covered for several of them; the `/casos` side is asserted for none. Close it the way `case-access.spec.ts` AC-3b and the T6 narrative differential are built: absence on `/casos` paired against presence on manage, same user and case, counted by structure as well as accessible name. ⚠ State for each member whether its absence is **new** (Increment 1) or **pre-existing** (`8675b7cd`) — conflating those is what made v2 wrong. ⛔ **And one member is already mis-labelled, which is v2's error one member over: “Corrigir resultado” is PRE-EXISTING, not new** — it *looks* new because its prop stopped being passed, but `effectiveCanManagePhaseResults` had already zeroed it for that class. **Derive new-vs-pre-existing per member from the merge base; never infer it from “the prop changed”.**
+
+### 🟡 FUP-VACUOUS-DETECTOR-FALSE-POSITIVE — `check-vacuous-assertions.mjs` flags a test as vacuous when a helper is declared inside it (owner: tester/lead; filed 2026-08-21)
+
+`scripts/check-vacuous-assertions.mjs:284-299` — `containsTestExitingReturn` correctly skips
+**child** function nodes, but it still walks a statement that **is itself** a `FunctionDeclaration`.
+So a helper declared inside a test body contributes its own `return` to the test's statement list,
+which revokes the unconditional-assertion guarantee for **every later `expect`** in that test.
+
+**Live instance:** `e2e/case-access.spec.ts`'s `T6 keyboard-only` test declared a `focusTrace`
+helper and was reported `ALL-ASSERTIONS-CONDITIONAL`. The test was **not** vacuous. It reddened the
+whole eight-gate chain (eslint is link 1, but `lint:vacuous` is link 5 — everything after it also
+never ran). Worked around by **hoisting the helper to module scope**, which is a correct fix for that
+spec and not a fix for the class.
+
+⛔ **Do NOT "fix" this by relaxing the detector on the strength of this report.** `lint:vacuous`
+exists because tests that pass having asserted nothing shipped here before
+(`docs/reviews/vacuous-assertion-audit.md`), and its self-test suite (42/42) is what makes it
+trustworthy. **Admission condition for any change: a NEW self-test case that reproduces the real
+vacuous shape this walk was written to catch, proven to still go RED after the fix.** A detector
+loosened on a false-positive report, without a control proving it still catches the true positive,
+is strictly worse than the false positive.
+
+⭐ Worth noting for whoever takes it: the false positive pushes authors toward *restructuring tests
+to appease the detector*. That is usually harmless (hoisting a helper is fine) but it is a slow
+pressure toward writing tests the gate likes rather than tests that pin behaviour.
+
+### 🟡 FUP-ADMINISTRATIVO-CUSTOM-FIELDS-ARM-NOT-E2E-VERIFIABLE — the `member_can` disjunct has no reachable fixture (owner: backend/tester; filed 2026-08-21, QA r3 §8.3)
+
+**Measured from the DB, not asserted:** exactly **one** case platform-wide carries custom-field values; exactly **three** principals can read it (`chefe.ccih`, `dualhat.a`, `quality.a`); exactly **one** non-coordinator holds `create_cases` (`staff2.ccih`), and `can_read_case` for them on that case is **false**. So the `member_can('create_cases')` arm of `update_case_custom_field_values` cannot be exercised end-to-end by any seed persona.
+
+⚠ **Do not state this as “not E2E-verifiable” unqualified — that overstates it.** `case-custom-fields.spec.ts` **AC-5** (coordinator edits custom fields on the manage host) and `administrativo.spec.ts` **POS-2** pin everything **except** the `member_can` disjunct. That one disjunct is what has no reachable fixture.
+
+⭐ **This is the SECOND reason the R-2 under-grant was invisible** — alongside the fact that an under-grant emits no signal at all, even a spec written to catch it would have had no persona to write it with.
+
+**To close:** a **seed** change — a case with custom-field values readable by a `create_cases` holder. Deliberately **not** done in Increment 1, which is DB-free **by decision** and whose empty `supabase/` diff is load-bearing in three gate records (it is why no diff-scoped door sweep was required). Forcing a seed change in would have broken the boundary those records rest on. Natural home: Increment 2, which touches the seed anyway for `read_cases`.

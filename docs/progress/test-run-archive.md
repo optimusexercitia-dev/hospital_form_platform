@@ -814,3 +814,149 @@ are `create_dsr_request`, `dispose_case_phi`, `dispose_event_phi` and three `gua
 as coverage.** Swept by the **property** instead — each rewritten `public.*` door's gate neutralized
 against the full suite: `dispose_event_phi` **COVERED**, `dispose_case_phi` **COVERED**,
 `create_dsr_request` **COVERED**, **0 BLIND**.
+
+## Rotated 2026-08-21 — superseded by the case-surface-split Increment-1 gate row
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-21 | ⭐ **DSR REMEDIATION · LEAD — §6 step 2, full `e2e:prod`** (19 batches) | **1166 p · 2 f · 3 flaky · 11 skip · did-not-run 0 · 1182 collected · exit 1.** RED for exactly `BUG-QO-STALE-CASOS` (`quality-oversight:569`/`:627`); no other spec failed. Detail → [test-run-archive.md](test-run-archive.md) |
+| 2026-08-21 | **DSR REMEDIATION · LEAD — §6 step 1, FINAL (re-measured after Part B)** | pgTAP **6795/6795** Files=**206** · lint(8) **0** · `tsc` **0** · vitest **1506/1506** · **435/435** migrations · 4 authz ARMs **HOLD** · sweep **0 BLIND**. ⛔ Earlier 6789/205/434 was one commit stale. Detail → [test-run-archive.md](test-run-archive.md) |
+| 2026-08-20 | **DSR PROGRAM CLOSE · LEAD — §6 step 1 on a FRESH `db reset`** | pgTAP **6717/6717** Files=**203** (+1/+6 = suite `352`, sums exactly) · lint(8) **0** · `tsc` **0** · vitest **1501/1501** (105 files) · ARM=census/hat/floor/wrapper **all HOLD** (hat 3 + wrapper 41 BLIND, all pre-existing reasoned-allowlist). ⛔ **No `e2e:prod`** — see § Now |
+| 2026-08-20 | **DSR Slice 4 · LEAD — gate, all four re-run by the lead** | pgTAP **6711/6711** Files=202 · lint(8) **0** · `tsc` **0** · unit **1480/1480**, real exit codes. **No e2e**: nothing reaches the changed dialog (`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`); AC-7/AC-8 4/4 = route integrity only → [archive](test-run-archive.md) |
+| 2026-08-20 | *(the DSR Slice 2 gate row rotated to [test-run-archive.md](test-run-archive.md) — superseded by the Slice 3 gate below)* | — |
+| 2026-08-18 | **DM follow-up triage · LEAD** — the four shipped items (#2 byte proof · #4 DVF 1:1 · #8b draft-print delete guard · attachments deletion). Two fresh `supabase db reset --local` cycles; both new pgTAP arms authored **red-first** | **pgTAP 194 files / 6397 PASS** · **lint 5/5** · **typecheck 0** · **vitest 1305/1305** · authz `census`/`hat`/`floor`/`wrapper` all **INVARIANT HOLDS**. ⛔ **`e2e:prod` NOT RUN — this row is not a phase gate.** Full row → [archive](test-run-archive.md) |
+
+## 2026-08-21 — CASE SURFACE SPLIT · Increment 1 · §6 steps 1+2 (detail for the live row)
+
+**Step 2 — full `e2e:prod`, 19 batches, `RESET=1 REBUILD=1`: GATE GREEN, exit 0.**
+`1176 passed · 0 failed · 2 flaky · 11 skipped · did-not-run 0 · 1189 collected.`
+
+⭐ **The census was verified from the PER-BATCH logs, not from the summary line.** The gate's own
+`COVERAGE: accounted for 1178 of 1189` reads as 11 unaccounted tests; it is not — the gate's
+"accounted" figure excludes skips. Summing the 19 batch logs (taking the re-run result where one
+occurred): passed **1176** + flaky **2** + skipped **11** = **1189** = collected. *A census whose
+parts do not sum is wrong; this one sums.* Stated because a summary line that appears to leave 11
+tests unexplained is exactly what a green gate must not be allowed to paper over.
+
+⛔ **Two INFRA re-runs, and they were checked rather than trusted.** Batches 5 and 17 failed first
+(batch 17 showed **54 failed**, batch 5 lost ~34 tests mid-batch). Root cause in both:
+`net::ERR_CONNECTION_REFUSED at http://localhost:3000` — the per-batch server restart had not come
+up. The downstream `toBeVisible failed` / `element(s) not found` errors are consequences of a dead
+server, not masked assertion failures. Re-runs: batch 5 → 63 p / 1 skip; batch 17 → 67 p / 2 skip,
+both accounting for their full batch. A gate that reclassifies failures as "infra" and re-runs
+them can hide real failures, so the reclassification was confirmed against the error signature.
+
+**Step 1 —** pgTAP **6795/6795**, Files=**206**, PASS · lint **8/8** exit 0 · `tsc` exit 0 ·
+vitest **1506/1506** (106 files) · authz `census` / `hat` / `floor` / `FROMFINDINGS=1 wrapper` — **all
+four INVARIANT HOLDS**. **No diff-scoped door sweep**, and the reason is measured rather than
+assumed: `git diff --stat $(git merge-base main HEAD)...HEAD -- supabase/` is **empty**, so the
+branch changes no policy and no `prosecdef` object and there is nothing in the sweep's domain.
+⚠ The pgTAP figure differs from the DSR-close 6717/203 — that growth is **`main`'s**, not this
+branch's, which the empty `supabase/` diff proves. "Unchanged" was checked as *unchanged by this
+branch*, not as *equal to a number recorded at a different commit*.
+
+⛔ **Not a phase close.** §6 step 3 (QA) and step 4 (PO approval) are outstanding, Increment 2 has
+not started, and **nothing is merged** — `main` is still E2E-red for the two QO bugs this branch
+fixes.
+
+## 2026-08-21 — CASE SURFACE SPLIT · Increment 1 · §6 steps 1+2 **RE-GATE** after the QA fixes
+
+**GATE GREEN, exit 0.** `1177 passed · 0 failed · 0 infra · 3 flaky · 11 skipped · did-not-run 0 ·
+1191 collected.` Census **sums**: 1177 + 3 + 11 = 1191. (+2 collected vs the first gate — the two
+new narrative-differential specs.) Step 1 re-run on a fresh reset: pgTAP **6795/6795** F=**206**
+PASS · lint **8/8** · `tsc` 0 · vitest **1506/1506** · all four authz ARMs **HOLD**.
+
+⭐ **This run's log was kept in full.** The first gate was piped through `tail -60`, which discarded
+18 of 19 batch summaries and left the per-batch census unauditable — the `COVERAGE: accounted for
+1178 of 1189` line then read as 11 unexplained tests with no way to resolve it from the captured
+output. Keeping the whole log made the census a one-line check instead of an archaeology exercise.
+*Do not pipe a gate's output through `tail`; redirect it to a file.*
+
+**The 3 flaky (named, not left as a number):** `act-role-assumption.spec.ts:157` and
+`bulk-case-creation.spec.ts:756` (batch 1), plus one in batch 15. Flaky is not failure, but an
+unnamed flaky count is how a real intermittent defect hides inside a green gate.
+
+⛔ **Not a phase close.** QA re-review and PO approval outstanding; Increment 2 not started; nothing
+merged.
+
+### ⛔ CORRECTION 2026-08-21 — the Increment-1 RE-GATE row's "lint(8) 0" was FALSE and is withdrawn
+
+`npm run lint` **exits 1 at HEAD**. `lint:vacuous` flags `e2e/case-access.spec.ts:941`
+(`ALL-ASSERTIONS-CONDITIONAL`). So **§6 step 1 was never satisfied for the tree the re-gate row
+describes**, and the row claimed it was.
+
+**How it happened, dated from the reflog rather than reconstructed:** lint was run at **18:14**,
+before `3475c4d6` was committed. The tester's specs landed at **18:35** (`134138af`, +171 lines to
+`case-access.spec.ts`), and `e2e:prod` ran after that. **Lint was never re-run on the tree whose
+step 2 it was recorded beside.** `git diff 134138af..HEAD -- e2e/` is empty, so the failing spec
+entered at `134138af` and has not changed since — the window is exact.
+
+⭐ **This is the same failure the program spent the day cataloguing in others, committed by the lead
+in the gate record itself:** a measurement taken at one tree, reported as covering another, and
+reading as full coverage because it names the right command. Every other figure in the row (pgTAP,
+vitest, tsc, the four ARMs, the E2E census) *was* measured at or after `134138af` and stands. The
+lint figure alone is withdrawn.
+
+⚠ **The flagged test is NOT actually vacuous** — it is a detector false positive
+(`scripts/check-vacuous-assertions.mjs:284-299`: `containsTestExitingReturn` skips *child* function
+nodes but walks a statement that **is** a `FunctionDeclaration`, so a helper's own `return` revokes
+the unconditional-assertion guarantee for every later `expect`). That does not soften the record:
+the gate exits 1, and a gate's exit code is the fact, not one's reading of why.
+
+## 2026-08-21 — CASE SURFACE SPLIT · Increment 1 · §6 steps 1+2 re-run CLEAN at `e7ec7529`
+
+**GATE GREEN, exit 0.** `1176 passed · 0 failed · 4 flaky · 11 skipped · did-not-run 0 · 1191
+collected.` Census sums: 1176 + 4 + 11 = 1191, read from the **full** log (19/19 batch lines
+present). Step 1, all re-measured on **this** tree from a cold start — nothing carried forward:
+pgTAP **6795/6795** F=**206** PASS on a fresh reset · lint **8/8** exit 0 · `tsc` 0 · vitest
+**1506/1506** · `census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` all **INVARIANT HOLDS**.
+
+⭐ **Why every figure was re-measured rather than reused.** The previous re-gate row recorded
+"lint 8/8" from a measurement taken **21 minutes before** the specs it was reported beside; QA
+caught it (r2 R-1) and it was withdrawn. A gate figure is a claim about a **tree**, not about a
+command, so a run that predates any commit in scope is not evidence about it.
+
+⚠ **4 infra re-runs this time (batches 3, 5, 7, 18), up from 2** — each classified on
+`server_dead=1` with corroborating connection errors (64 / 3 / 43 / 11). **Checked rather than
+accepted:** a batch-wide "INFRA" label can sweep up a genuine assertion failure that happened
+*before* the server died, so the retries were audited individually — all four accounted for their
+**full** batch (61/61, 64/64, 59/59, 69/69) with **0 failed**. A real failure would have reproduced
+on the retry, which runs the same specs on a fresh server. Nothing masked.
+⛔ The **rising** server-death rate (2 → 4 in consecutive runs on the same machine) is recorded as
+an environmental observation, not a defect of this branch. If it keeps climbing it is worth a look
+before it starts costing gate time or hiding something.
+
+⛔ **Not a phase close.** QA r3 outstanding (r1 and r2 were both CHANGES REQUESTED), PO approval not
+sought, Increment 2 not started, nothing merged.
+
+### ⛔ SCOPE NOTE 2026-08-21 — the gate figures describe `e7ec7529`, and HEAD is `121748fe`
+
+**The full §6 steps 1+2 run was measured at `e7ec7529`.** One commit later, `121748fe` — whose
+message reads `docs:` — also carries **21 lines of `src/components/cases/case-detail-view.tsx`**
+(QA r3 §8.4's `effectiveCanEditCustomFields` backstop). The lead committed with `git add -A` while
+`frontend` was still editing, so an app-code change landed inside a docs commit and **the history
+misdescribes where that fix lives**. Recorded rather than amended (this repo prefers a new commit
+to a rewrite), so the trail stays auditable.
+
+**What that means for the gate record, stated precisely rather than flatly:**
+
+| At `121748fe` (HEAD) | Status |
+| --- | --- |
+| lint 8/8 · `tsc` · vitest **1506/1506** | ✅ **re-measured at HEAD** |
+| `case-access` + `administrativo` + `case-manage-entry-gate` (41 p / 1 skip / exit 0) | ✅ **re-measured at HEAD** |
+| pgTAP **6795/206** · the four authz ARMs | ✅ **unaffected by construction** — `git diff e7ec7529..HEAD -- supabase/` is **empty**, and these test the database. No DB object changed. |
+| full `e2e:prod` (1176 p / 0 f / did-not-run 0 / 1191) | ⚠ **NOT re-run at HEAD.** Measured at `e7ec7529`. |
+
+**Why the `e2e:prod` figure is still load-bearing, and why that is an argument rather than a
+measurement.** The backstop is provably the **identity on every reachable path**, and `frontend`
+enumerated the three premises instead of asserting them: (1) exactly **two** `<CaseDetailView`
+mount sites; (2) `managementElsewhere` is passed by exactly **one** of them, the manage host
+relying on the destructured `false` default; (3) **no** unit test renders the component directly,
+so no non-route path can pass both props together. Given those, the manage host is the identity
+branch and `/casos` has both branches false. All four probe rows came back byte-identical to the
+pre-edit run.
+
+⛔ **The premise that would flip this is a THIRD mount site**, which is exactly what Increment 2's
+new hosts could add. **Re-check the mount-site count before reusing this reasoning.** This entry is
+an argument for not re-running an hour-long gate on a provable no-op — it is **not** a precedent
+for reporting an unmeasured tree as gated, which is the error QA caught in r2 R-1.

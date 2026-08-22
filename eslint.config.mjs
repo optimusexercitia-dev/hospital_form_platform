@@ -45,6 +45,29 @@ const eslintConfig = defineConfig([
     // all and the working practice became running the five individually.
     // Found in the 2026-08-12 FUP batch QA review.
     "supabase/.temp/**",
+    // Documentation — NOT first-party source. CLAUDE.md §8 already states the
+    // lint scope as first-party source (`src/`, `e2e/`, `*.test.*`), so `docs/`
+    // was never in scope; it simply had no lintable file until `2b50f83f`
+    // committed a vendored design mockup (`docs/design/temp/user_management_
+    // redesign/support.js` — a standalone React-18 UMD prototype, not built,
+    // not imported, not shipped). It reds eslint with `react/no-deprecated`
+    // (ReactDOM.render) + `@next/next/no-assign-module-variable`, which are
+    // true of the mockup and irrelevant to it.
+    //
+    // ⚠ This is the SAME failure the `supabase/.temp/**` note above describes,
+    // recurring: eslint is the FIRST link of the now-EIGHT-gate `&&` chain, so
+    // from `2b50f83f` (2026-08-20) until this ignore, `npm run lint` exited on
+    // link 1 and the other SEVEN gates NEVER RAN — css-vars, memberships-door,
+    // client-server-imports, vacuous, set-local, progress, rules. A §6 step-1
+    // record reading "lint green" was unobtainable, and one reading "lint run"
+    // would have delivered one eighth of itself. Found 2026-08-21 by `backend`
+    // during the case-surface-split build, on a tree with zero changes to the
+    // offending file.
+    //
+    // Bounded by the PROPERTY (documentation is not first-party source), not by
+    // the one path that happens to fail today — a `docs/design/temp/**` glob
+    // would need re-fixing the next time a mockup lands one directory over.
+    "docs/**",
   ]),
   // Honor the `_`-prefix convention for intentionally-unused bindings (already
   // used in the codebase, e.g. `_args` mock signatures). Severity stays at

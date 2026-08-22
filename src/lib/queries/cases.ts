@@ -2,7 +2,7 @@ import 'server-only'
 
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { getSessionContext } from '@/lib/queries/session'
+import { getSessionContext, type CommissionAccess } from '@/lib/queries/session'
 import { featureEnabled } from '@/lib/queries/feature-flags'
 import type { Page, PageParams } from '@/lib/types/pagination'
 import type { RecommendWhen, ResultRuleset } from '@/lib/queries/conditions'
@@ -514,27 +514,191 @@ export interface CasePhaseForFill {
  * the single capability-gated detail component (generalizing the interviews
  * `viewerCanWrite` signal): the page renders the lifecycle/assignment controls
  * only when `canManageLifecycle`, the content editors when `canWriteContent`, and
- * read-only otherwise. Computed server-side from `app.can_read_case` /
- * `app.can_write_case_content` (+ the staff_admin/admin lifecycle gate) for
- * `auth.uid()`; this is a CAPABILITY signal, NOT the security boundary — RLS is
- * (Rule 1).
+ * read-only otherwise. Computed server-side for `auth.uid()`; this is a
+ * CAPABILITY signal, NOT the security boundary — RLS is (Rule 1).
  *
- *   - `canRead`            — the viewer may open the full case (attributed or
- *                            granted, or coordinator). Always `true` on a detail
- *                            payload the viewer actually received.
+ * ⚠ The three bits below are stated from the LIVE CATALOG (re-measured
+ * 2026-08-21: `app._case_caps`, `app.can_write_case_content`,
+ * `public.case_viewer_capabilities`, `public.get_case_detail`), which is the only
+ * truth for them — migration text is stale by design here. An earlier version of
+ * this comment asserted an `/admin` arm on the two write bits and a
+ * `case_access(level)` grant shape; BOTH had been gone for months (M7 /
+ * BUG-QOB-002 cut the admin arms — pinned by
+ * `supabase/tests/314_qob_org_admin_content_wall.sql:845`; ADR 0078 Stage B
+ * replaced `case_access(level)` with per-column `case_access_grants`). Re-measure
+ * before trusting this paragraph; do not extend it from memory.
+ *
+ *   - `canRead`            — the viewer may open the full case. Backed by
+ *                            `app.can_read_case`, a thin projection of the
+ *                            `read_case_content` bit of `app._case_caps` — five
+ *                            arms set it: coordinator (S1), a per-case grant (S3),
+ *                            phase/narrative ASSIGNMENT (S4), NSP referral-touched
+ *                            (S6), quality reviewer on an oversight-visible
+ *                            commission (S7).
+ *                            ⛔ A plain committee member is NOT among them. S5
+ *                            confers `read_case_deliberation` ONLY, and
+ *                            `has_case_capability` is a bare bitmask test with no
+ *                            lattice closure — so bare membership yields
+ *                            `canRead = false`. Measured 2026-08-21 on the seed:
+ *                            three CCIH `staff` with zero grants and zero
+ *                            assignments (`ativo.registro`, `dr.john`,
+ *                            `staff4.ccih`) return `can_read = f` while
+ *                            `read_case_deliberation = t`; every seed member who
+ *                            reads does so through S3 or S4. Do not restate this
+ *                            arm as "members can read" — that inference was made
+ *                            here once and the control refuted it.
+ *                            On a `get_case_detail` payload the bit is hard-coded
+ *                            `true` (you only hold the payload if you could read
+ *                            it); `case_viewer_capabilities` evaluates it for real.
  *   - `canWriteContent`    — the viewer may author UN-attributed narratives and
  *                            manage non-identity-bound content (action items,
- *                            documents, tags, events): `staff_admin`/admin OR a
- *                            `case_access` row at level `write`. Does NOT grant
+ *                            documents, tags, events). Backed by
+ *                            `app.can_write_case_content` → the
+ *                            `write_case_content` bit, which exactly TWO arms set:
+ *                            a `staff_admin` MEMBERSHIP of the case's commission
+ *                            (S1), or a live `case_access_grants` row whose
+ *                            `write_case_content` COLUMN is true (S3 — never
+ *                            inferred from a read grant). NO admin arm: a tenancy
+ *                            admin gets `manage_case_access` only (S2) and a
+ *                            platform_admin gets no arm at all. NO assignment arm
+ *                            (ADR 0072 D10 — a deliberate divergence from the read
+ *                            side; the SQL says "do not fix it"). Does NOT grant
  *                            phase-fill (identity-bound) nor lifecycle.
- *   - `canManageLifecycle` — the viewer may run lifecycle + assignment (activate /
- *                            skip / reassign / close / cancel / add-ad-hoc / grant /
- *                            assign-narrative): `staff_admin`/admin only.
+ *   - `canManageLifecycle` — `app.is_staff_admin_of_for(commission, uid)` — an
+ *                            active `staff_admin` membership of the case's own
+ *                            commission, under that hat. No admin arm either
+ *                            (that is precisely what M7 cut).
+ *                            ⛔ This bit is NOT the whole authority for every door
+ *                            it is used to gate. `activate_phase` and
+ *                            `reassign_phase` ALSO admit
+ *                            `app.member_can(commission, 'assign_case_phases')`
+ *                            (ADR 0061), so gate phase assignment on that
+ *                            capability — via `canInCommission` — never on this
+ *                            bit, or an Administrativo loses an affordance the DB
+ *                            grants them. `add_ad_hoc_phase` /
+ *                            `add_ad_hoc_narrative` / `assign_narrative` are
+ *                            genuinely coordinator-only (verified), and
+ *                            `update_case_meta` takes `member_can('create_cases')`.
+ *
+ * Both write bits sit behind `app._case_caps`' unconditional hard denies: an
+ * inactive/suspended principal, a case RESPONDENT, and a RECUSED principal all
+ * resolve to zero capabilities before any positive arm is evaluated.
  */
 export interface CaseViewerCapabilities {
   canRead: boolean
   canWriteContent: boolean
   canManageLifecycle: boolean
+}
+
+/**
+ * ONE round trip to `public.case_viewer_capabilities(p_case_id)` for the CURRENT
+ * viewer, reduced to the single bit {@link canOpenCaseManagement} needs.
+ *
+ * `cache()`-wrapped so the two call sites that can co-occur in one render pass
+ * (the manage-detail layout gate and a "Gerenciar caso" affordance below it, or
+ * several board rows for the same case) collapse to one call — the same
+ * treatment {@link getCaseDetail} gets.
+ *
+ * ⛔ FAIL-CLOSED, unconditionally. Every non-answer — RPC error, a payload that
+ * is not a JSON object, a missing/non-`true` key, a thrown client error — yields
+ * `false`. A probe failure must never read as "allowed": this predicate decides
+ * whether a management surface opens, and the RPC's own contract already returns
+ * all-false rather than raising for an unknown case, so a failure here means we
+ * genuinely do not know.
+ *
+ * Verified live 2026-08-21 (local catalog + PostgREST, not migration text): the
+ * function exists as `public.case_viewer_capabilities(p_case_id uuid) RETURNS
+ * jsonb`, is `SECURITY DEFINER`, and carries an EXPLICIT `authenticated=X/postgres`
+ * EXECUTE grant (not a NULL/default ACL) — a plain `staff` member holding only a
+ * per-case write grant gets `HTTP 200 {"can_read":true,"can_write_content":true,
+ * "can_manage_lifecycle":false}`. "A correct door nothing can reach" does not
+ * apply here; no `get_case_detail` fallback is needed.
+ */
+const probeCaseWriteContent = cache(async (caseId: string): Promise<boolean> => {
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase.rpc('case_viewer_capabilities', {
+      p_case_id: caseId,
+    })
+    if (error || typeof data !== 'object' || data === null || Array.isArray(data)) {
+      return false
+    }
+    return data.can_write_content === true
+  } catch {
+    return false
+  }
+})
+
+/**
+ * **May this viewer open the MANAGE surface for this case?** (ADR 0134 D3.)
+ *
+ * The predicate is `staff_admin ∨ isAdministrativo ∨ canWriteContent(this case)`.
+ * A pure read-grantee, a plain committee member, a quality reviewer, a tenancy
+ * admin (org_admin / hospital_admin) and a platform_admin all resolve `false` —
+ * their surface is `/casos`.
+ *
+ * ⭐ SINGLE-POINT PREDICATE — this is the whole reason it exists. It backs BOTH
+ * the `manage/cases/[caseId]/(detail)` entry gate (T1) and the "Gerenciar caso"
+ * button plus the board/list row links that lead there (T2/T5). Two hand-written
+ * copies of this expression is exactly how a gate and the button that points at
+ * it drift apart, and the drift is invisible until a user hits a 404 from a
+ * control the UI offered them.
+ *
+ * ⚠ **UX gate, not the security boundary** (Rule 1). Every DB door still decides
+ * for itself; passing here opens a surface, never a right. Note the asymmetry
+ * this leaves deliberately intact: the layout's SECOND gate (`getCaseDetail`
+ * returning null ⇒ `notFound()`) is what stops an appointed Administrativo who
+ * cannot actually read THIS case — `isAdministrativo` is independent of both
+ * capabilities and per-case read reach until the ADR 0134 D6 `_case_caps` S8 arm
+ * lands, so this predicate alone is intentionally wider than reachability.
+ *
+ * Evaluation order is cheapest-first and short-circuits: the two role/appointment
+ * arms are already resolved on `access` and cost NO query, so a coordinator or an
+ * Administrativo never reaches the per-case probe. Only the write-grantee arm
+ * pays a round trip.
+ *
+ * @param access  The commission access object from `getCommissionAccessByOrg`.
+ *                Narrowed to the two fields actually read, like `canInCommission`,
+ *                so callers may pass a synthetic object in tests.
+ * @param caseId  The case being opened. Must belong to `access.commission` — this
+ *                helper does NOT verify tenancy; the caller's existing
+ *                `detail.case.commissionId !== access.commission.id` check does
+ *                (a cross-commission id fails the probe anyway, since
+ *                `can_write_case_content` is evaluated on the case's OWN
+ *                commission).
+ * @param knownCapabilities  Optional escape from the round trip for a caller that
+ *                ALREADY holds this case's viewer capabilities — the manage
+ *                layout fetches `getCaseDetail` a few lines later, so it can pass
+ *                `detail.viewerCapabilities` instead of probing a second time.
+ *                Pass `null`/omit to probe.
+ */
+export async function canOpenCaseManagement(
+  access: Pick<CommissionAccess, 'role' | 'isAdministrativo'>,
+  caseId: string,
+  knownCapabilities?: Pick<CaseViewerCapabilities, 'canWriteContent'> | null,
+): Promise<boolean> {
+  // Arm 1 — the commission coordinator. Membership role only: `access.role` is
+  // `'staff' | 'staff_admin' | null` and is populated from the caller's
+  // `memberships` row alone (ADR 0100 D12 / BUG-QOB-003 deleted the tenancy-admin
+  // -> 'staff_admin' coercion), so no tenancy or platform admin can arrive here.
+  if (access.role === 'staff_admin') {
+    return true
+  }
+
+  // Arm 2 — an appointed Administrativo of THIS commission (ADR 0061). Already
+  // flag-aware: `getCommissionAccessByOrg` forces it false when the
+  // `administrativo` kill switch is off, mirroring `app.member_can`.
+  if (access.isAdministrativo) {
+    return true
+  }
+
+  // Arm 3 — a per-case content-write grant (`_case_caps` S3). The only arm that
+  // costs a query, and the only one that is per-CASE rather than per-commission.
+  if (knownCapabilities) {
+    return knownCapabilities.canWriteContent === true
+  }
+
+  return probeCaseWriteContent(caseId)
 }
 
 // ---------------------------------------------------------------------------

@@ -22,10 +22,20 @@ export const metadata: Metadata = {
  * Detalhes/Timeline tabs inside the coordinator `(detail)` route group. Hosts the
  * five coordinator controls (Part 1) and the disciplinary procedure surface
  * (Part 2 — admissibility → allegations/findings → decision/votes → hearings →
- * notifications → appeals). Coordinator-gated + commission-scoped (mirrors the
- * layout, defense in depth). The tab is only linked when the case is ethics-typed;
- * a direct hit on a non-ethics case (or the `ethics` flag off) resolves to
- * `getEthicsCaseProcedure(...) === null` → `notFound()`.
+ * notifications → appeals).
+ *
+ * ⛔ **STAYS `staff_admin`-ONLY — this is the one `(detail)` tab that did NOT move
+ * to the ADR 0134 D3 predicate, and the divergence is deliberate.** D5's default is
+ * fail-closed: every subroute not explicitly capability-mapped keeps its role gate,
+ * and this page hosts five coordinator WRITE controls plus the whole disciplinary
+ * procedure surface — none of it mapped to an administrativo capability. The
+ * layout's `showEthics` carries the same `isCoordinator` conjunct, so the tab is
+ * never OFFERED to a viewer this gate would then 404.
+ *
+ * Commission-scoped as well (mirrors the layout, defense in depth). The tab is only
+ * linked when the case is ethics-typed; a direct hit on a non-ethics case (or the
+ * `ethics` flag off) resolves to `getEthicsCaseProcedure(...) === null` →
+ * `notFound()`.
  */
 export default async function EthicsProcedurePage({
   params,
