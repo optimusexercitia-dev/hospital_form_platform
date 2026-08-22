@@ -308,7 +308,7 @@ instead of the class (plan §1's warning box).
 | M5 | `app.trg_audit_patient_identifiers` writes `case_patient.updated` with `'{}'::jsonb` — no payload, by Rule 11. A write is attributable but **not reconstructable**. |
 | M6 | `public.dispose_case_phi` is coordinator-only. |
 | M7 | `public.create_case` and `public.create_case_from_template` **already admit** `app.member_can(commission,'create_cases')`; the non-coordinator creator self-grant is level `'read'` with `p_read_standard_phi` **false**. ⇒ an administrativo who creates a PHI-collecting case today **cannot read its identifiers**. |
-| M8 | `app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ is_member_of(commission) ∧ ∃ capability row` — flag-aware **and** membership-aware. (Corrects the docblock falsified as F-3 in the Increment-1 review: it does **not** gate on the capability row alone.) |
+| M8 | `app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ is_member_of(commission) ∧ ∃ capability row` — flag-aware **and** membership-aware. (Corrects the docblock falsified as F-3 in the Increment-1 review: it does **not** gate on the capability row alone.) ⛔ **Corrected 2026-08-22 by mutation, not by reading: that is FOUR terms but only THREE independent ones.** `app.is_member_of(_for)` is itself `is_active(u) ∧ has_role_any(...)`, so the explicit `is_active` term is implied by the membership term — deleting it alone leaves the whole S8 suite **71/71 green**. Not a hole (membership still covers it), but not the belt-and-braces the phrasing implies, and ⚠ **a sweep asserting `is_active` is PRESENT would pass on a body where it had been deleted.** |
 | M9 | The create dialog shows the PHI block on `casePatientEnabled && selectedTemplate?.collectsPatient` — **no viewer condition** (`create-case-dialog.tsx:223`); the bulk grid pre-selects Nome + Prontuário (`DEFAULT_PHI_KEYS`, `bulk-create-wizard.tsx:92`). The dead end is the **default** path, not a deliberate one. |
 | M10 | `createCaseFromTemplate` mints the case, then writes PHI in a second RPC; on refusal it returns `{ ok:false, caseId, error }` — **the case survives without its identifiers** (`src/lib/cases/actions.ts` **:494-501**, return at **:499**). ⛔ **Corrected 2026-08-22: the shape exists at TWO sites, not one** — `createCase` carries the identical block at **:570-577** (return at **:575**), and its own comment says so (*"exactly as createCaseFromTemplate does"*). Naming one site makes a two-site fix read as done. Bulk instead re-raises and rolls the **whole batch** back. |
 | M11 | Post-creation surfaces already behave correctly for a write-once actor: `CasePatientPanel` receives `canEdit={caps.canManageLifecycle}` (coordinator-only) and an unentitled reveal renders a **designed denial**, not an error. ⛔ **Line ref corrected 2026-08-22:** the mount is `case-detail-view.tsx` **:866-871** (`canEdit` on **:868**); the cited `:822` is inside `CaseOutboundReferralsCard`, a different component. Behaviour CONFIRMED; the pointer was not. |
@@ -814,8 +814,8 @@ the flag row, and the `enabled` column are unchanged, so the kill switch still s
 before any membership or capability probe.
 
 **The rejected alternative, and why** — adding `member_can_for` *beside* an untouched `member_can`
-(cheaper, zero regression surface on the 12 existing consumers) would leave **two hand-copies of a
-four-conjunct authorization predicate, one conjunct of which is the kill switch**. That is the shape
+(cheaper, zero regression surface on the 12 existing consumers) would leave **two hand-copies of an
+authorization predicate whose first term is the kill switch**. That is the shape
 this repo pays for most often, and it is the same shape the M1 migration had just closed for the
 capability vocabulary. A drift *detector* is worth less than removing the possibility of drift.
 
@@ -863,6 +863,14 @@ blind spot agreeing is worth nothing.**
   of those two it is; only one survives a refactor.
 - The `_for` family gains its fifth member, closing an asymmetry that had no reason behind it — every
   other membership/role helper in `app` already had one.
+- ⛔ **Correction, 2026-08-22, from the build's own mutation runs: this predicate has THREE independent
+  terms, not four.** The four-conjunct phrasing in the ruling above, in Amendment 2's **M8** row, and in
+  the TS mirror's docblock all over-count: `app.is_member_of_for(c,u)` is `is_active(u) ∧
+  has_role_any('commission',c,u)`, so `member_can_for`'s explicit `is_active(p_user_id)` is **implied by
+  its own third term** — deleting that term alone leaves 71/71 green. The term was **kept** (it holds the
+  two bodies term-for-term comparable with the pre-amendment predicate) and the pin was **re-labelled**
+  rather than left claiming a conjunct it does not isolate. ⚠ The reusable consequence: **a sweep that
+  checks `is_active` is PRESENT would pass on a body where it had been deleted.**
 - ⭐ Recorded for whoever writes the next arm: **the plan and the ADR both named this mechanism, and
   both were wrong** — the error survived a design session, a ratification, four amendments and a written
   implementation plan, because naming a real function that does a similar thing reads exactly like having

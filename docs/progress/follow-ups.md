@@ -6173,3 +6173,93 @@ default nobody wrote. A one-outlier framing invites a one-function fix that woul
 ⛔ **Do not "fix" this by adding `REVOKE` to the ADR 0134 migration.** It is outside that ruling's
 approval scope, it is unrelated to the case surface split, and a sweeping privilege change smuggled into
 a feature migration is how the next reader loses the reasoning.
+
+### 🟠 FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS — a pgTAP premise 136 files can state falsely (owner: backend/tester; filed 2026-08-22, found inside the ADR 0134 S8 suite)
+
+`test_helpers.claims_for(...)` sets `request.jwt.claims`; **`reset role` restores the ROLE only.** So a
+suite that says "back in owner context, `auth.uid()` is NULL" after a `reset role` may in fact still be
+asserting **as the last persona**, and every assertion resting on that sentence inherits a false premise.
+
+**Found by construction, not by review.** The ADR 0134 Increment-2 suite (`356`) stated exactly that
+premise for its `member_can` pins — including **1.5c, the Amendment-6 pin**, whose entire content is
+*"the bare `member_can` is false in owner context for everybody, which is why the resolver cannot use
+it."* That assertion depended on the premise being true and it was not. Fixed in `356` by pairing every
+`reset role` with an explicit claims clear **and by pinning the premise itself** (`0.5`) rather than
+stating it in a comment.
+
+⭐ **The class:** *a pin whose stated premise is false is the same defect as a pin that cannot fail* —
+both are green for a reason unrelated to the property. This one is worse to find later, because the
+comment above it reads like the verification.
+
+**Measured 2026-08-22 — and read the bound, because the headline number is not the defect count:**
+
+| property | count |
+|---|---|
+| files under `supabase/tests/` using `reset role` | **172** (2179 occurrences) |
+| files using `claims_for` | **177** |
+| files that clear `request.jwt.claims` anywhere | **39** |
+| **files that `reset role` but NEVER clear claims** | **136** |
+
+⛔ **136 is the population that CAN hold the defect, not the population that does.** A file that always
+runs under an explicit persona and never asserts an owner-context property is unaffected. **The number
+of actually-false premises is NOT established**, and nobody should quote 136 as a defect count — that
+is this repo's standing error (the instance named as the class) run in the opposite direction. Whoever
+takes this must derive the real population by the property *"asserts something that is only true when
+`auth.uid()` is NULL, after a `reset role`, without clearing claims"*, which no text filter decides.
+
+**To close:** (1) derive that population; (2) fix at the root — a `test_helpers` verb that resets role
+**and** clears claims together, so the two cannot drift apart, rather than 136 hand-paired edits; (3) the
+gate is **pgTAP, not `npm run lint`** (ADR 0127's stated bound: DB anchors are not checkable there), and
+it must be **red-first** — write a suite that asserts an owner-context property after a bare `reset role`
+and require it to RED before the helper lands.
+
+---
+
+### 🟠 FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME — the sweep's domain is a syntax standing in for a property (owner: backend; filed 2026-08-22, found when the census's own remediation recipe could not clear the gate it raised)
+
+`supabase/tests/mutation/p0-authz-door-audit.sh:~231` bounds the **predicate arm** by a **name prefix**:
+
+```
+prosecdef = true AND ( (rettype = bool AND proname ~ '^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)' AND proname !~ '^is_valid_') OR proname = 'assert_not_case_excluded' )
+```
+
+**How it surfaced.** `ARM=census` correctly VIOLATED on the brand-new gate `app.member_can_for`, and the
+diff-scoped door sweep it prints **as the remediation** then ran **zero cases** — `member_can*` matches
+no prefix. The run printed **`BLIND: 0  ERROR: 0`** with an empty predicate arm and an empty policy arm.
+⛔ **A detector that found nothing because it looked at nothing, and in a gate record that reads as a
+clean pass.** (The findings file was not overwritten — 0 cases, empty `git diff --numstat` — so the
+known clobber hazard did not bite.) It was resolved honestly, by adding `member_can_for` to
+`authz-unswept-backlog.txt` beside its twin `member_can`, which has been there since the first census —
+**not** by hand-writing a COVERED row into a machine-generated findings file. That file's own rule holds:
+*a verdict nobody earned is worse than an admitted gap.*
+
+**Measured 2026-08-22 (live catalog):**
+
+| property | count |
+|---|---|
+| `SECURITY DEFINER` functions in `app` + `public` | **802** |
+| in the predicate arm's domain | **101** |
+| outside it | **701** |
+| ⭐ outside it **and returning `boolean`** — i.e. shaped exactly like a predicate, excluded purely by NAME | **42** |
+
+Among those 42: **`_audit_access_authorized`** (the gate in front of every PHI-read audit),
+`confidentiality_clearance_ok`, `capa_viewer_can_manage`, `interview_viewer_can_write`,
+`rca_writer_can_write`, `member_can`, `member_can_for`, `event_capa_fully_settled`,
+`artifact_belongs_to_commission`, `department_belongs_to_commission`. The rest are feature-flag readers
+and `validate_*` shape-checkers, which is why **42 is not the defect count either** — the set needs
+classifying by whether each is an authorization predicate, which no regex decides.
+
+⛔ **Bound, stated so this is not over-read: "outside the predicate arm" ≠ "unswept".** The audit has
+other arms, and `ARM=census` demonstrably reached `member_can_for` — that is how this was found.
+**Whether each of the 42 is covered by another arm is NOT established by this measurement.**
+
+⚠ **Same class, one level worse, recorded in the same place:** `app._case_caps` — the resolver every
+case predicate bottoms out in — returns **`int`**, so it is in **no** arm's domain at all (`census`,
+`hat`, `floor` and `wrapper` each bound by `prosecdef` as a *boolean gate*). Its only evidence is the
+targeted P4/P9-twin mutations written by hand for this increment. That is the pre-existing
+`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` class.
+
+**To close:** replace the name filter with the property it stands in for, or — if no computable property
+exists — make the arm **declare its domain size and refuse to report `BLIND: 0` on an empty domain**. ⛔
+An empty-domain run must not be able to print the same line a clean run prints; that is the whole finding
+and it is cheaper to fix than the classification.

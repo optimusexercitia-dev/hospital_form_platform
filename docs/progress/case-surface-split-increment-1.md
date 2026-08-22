@@ -118,3 +118,36 @@ the standing discipline is unchanged.
   §A1.2). The measured **record of the question** — why D5's letter would have built a dead-end door,
   and why the `context.isAdmin` bypass was dead code whose removal no E2E can pin — rotated verbatim
   2026-08-21 at the §7 size cap → [decisions-log.md](decisions-log.md).
+
+---
+
+## § Now bullet, rotated verbatim 2026-08-22
+
+Moved out of [PROGRESS.md](../../PROGRESS.md) § Now at the Increment-2 build, under the §7 live-state
+discipline: Increment 1 **merged to `main` and was recorded** on 2026-08-21, so what remained in § Now
+was a summary of work this file already narrates. Immediate trigger, stated because it is the honest
+one: filing two cross-cutting follow-ups took the live file to **340 bytes** under the gate's hard cap.
+
+⛔ **Nothing open travelled with it.** The bullet named no follow-up or bug of its own; its two
+Increment-1 residue items (`FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED`,
+`FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED`) keep their own index lines in § Follow-ups and stay OPEN
+until this branch merges. Link targets rewritten and verified to resolve from `docs/progress/`.
+
+- **✅ CASE SURFACE SPLIT · INCREMENT 1 — COMPLETE 2026-08-21** (ADR
+  [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) D1–D5, D7 + Step 0).
+  §6 steps **1–5 all done**; QA **APPROVED r3** ([review](../reviews/case-surface-split-increment-1-review.md));
+  **PO approved 2026-08-21** and merged to `main`. `/casos` is now literally a reading surface — both
+  of `8675b7cd`'s carve-outs are at zero — and the manage surface opens by capability.
+  Full narrative rotated verbatim → [case-surface-split-increment-1.md](case-surface-split-increment-1.md).
+  ⛔ **No remote `db push`** (the increment is DB-free; standing discipline unchanged).
+  ⚠ **Approval scope, written down:** the PO approved on the running session narrative rather than a
+  formal §6 step-4 summary, and the approval covers **Increment 1 + merge to `main`**. It does **not**
+  cover Increment 2 or any remote push. ✅ **The D1 wording amendment is DRAFTED AND APPROVED
+  2026-08-22 — ADR 0134 Amendment 3** — replacing D1's sentence with a capability-invariance test
+  (`/casos` may host an affordance whose door **admits every member who can open the page**), because
+  the ratified letter was **observably false on `main`**: two write affordances there never consulted
+  `caps` at all (`notify_safety_event`, membership-only; `file_correction_request`, `can_read_case`-keyed
+  — both measured from the catalog). D1's live text is amended in the ADR; `reading-surface.ts` carries
+  the admission test; the plan's two restatements moved with it. **Scope of that yes:** the wording, those
+  record edits, and judging Increment 2 against the refined sentence — **not** any new `/casos` affordance,
+  DB change, push or merge.
