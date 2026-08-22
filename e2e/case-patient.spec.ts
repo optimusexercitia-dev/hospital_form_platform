@@ -1460,9 +1460,19 @@ test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', 
   await dialog.getByLabel(/^Prontuário$/i).fill(DIALOG_MRN)
   await dialog.getByLabel(/Atendimento/i).fill(DIALOG_ENCOUNTER)
 
-  // Submit — the action mints the case AND writes the PHI atomically, then the
-  // dialog navigates to the case detail page.
+  // Submit — the action mints the case AND writes the PHI atomically. Since
+  // identifiers were recorded (mrn + encounter_ref), ADR 0134 §A2.4
+  // (case-surface-split Increment 2) now HOLDS the dialog open on a
+  // confirmation of what was typed instead of navigating straight in — assert
+  // that confirmation, then advance via "Continuar para o caso".
   await dialog.getByRole('button', { name: /criar caso/i }).click()
+
+  await expect(
+    dialog.getByRole('heading', { name: /Caso criado\. Confira o que você digitou\./i }),
+  ).toBeVisible({ timeout: 15_000 })
+  await expect(dialog.getByText(DIALOG_MRN)).toBeVisible()
+  await expect(dialog.getByText(DIALOG_ENCOUNTER)).toBeVisible()
+  await dialog.getByRole('button', { name: /^Continuar para o caso$/i }).click()
 
   // Capture the new case id from the post-create navigation target.
   await page.waitForURL(/\/c\/ccih\/manage\/cases\/[0-9a-f-]{36}/i, {
