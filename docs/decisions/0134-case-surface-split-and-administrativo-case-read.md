@@ -2,8 +2,10 @@
 
 **Status:** **Accepted — design PO-ratified 2026-08-21** (design/grilling session; this ADR is
 the record of that approval and of its scope — see D11, **as extended by Amendment 1**) ·
-**IN BUILD** on `feat/case-surface-split` (PO build-go 2026-08-21; Step 0 ✅ done, Increment 1
-code built but **not gated**, Increment 2 not started, **nothing merged**) — implementation plan:
+**IN BUILD** (PO build-go 2026-08-21; Step 0 ✅ done · **Increment 1 ✅ gated §6 1–5, QA APPROVED r3,
+PO-approved and MERGED to `main` 2026-08-21 (`6e364203`)** · Increment 2 not started · **no remote
+`db push`**) — ⚠ *this line read "code built but not gated, nothing merged" until 2026-08-22; corrected
+by measurement, not by memory* — implementation plan:
 [docs/plans/case-surface-split.md](../plans/case-surface-split.md) · **Date:** 2026-08-21 ·
 **Feature:** completes the `/casos` ↔ `/manage/cases` split begun by `8675b7cd` (2026-08-19,
 "make /casos a reading surface") and settles the design question underneath
@@ -235,7 +237,7 @@ governance gain. **Rejected: a separate sixth capability key.**
 
 ---
 
-## Amendment 2 — 2026-08-21 (**PROPOSED — PO ruling requested**): creation-scoped PHI entry for `administrativo`, and the resolution of OPEN-4
+## Amendment 2 — 2026-08-21 (**✅ ACCEPTED — PO ruled option D**; authored as PROPOSED, see the status block): creation-scoped PHI entry for `administrativo`, and the resolution of OPEN-4
 
 **Status: ✅ ACCEPTED — the PO ruled OPTION D on 2026-08-21**, in the build session, when asked
 explicitly which option they were ruling. *(The text below was authored as a PROPOSED amendment and
@@ -425,3 +427,166 @@ A "yes" on **A** authorizes only the UI suppression and closes OPEN-4 with no DB
   *read* to *intake*.
 - Under **D** the platform gains its first PHI write path not held by a coordinator. That is the
   fact a future auditor will find first; A2.4 exists so they find the reasoning attached to it.
+
+---
+
+## Amendment 3 — 2026-08-22 (**PROPOSED — PO ruling requested**): D1's wording — the invariant `/casos` protects is capability-invariance, not the absence of writes
+
+**Status: PROPOSED. This amendment authorizes nothing and changes no code.** Until the PO rules,
+**D1 as ratified on 2026-08-21 stands exactly as written**, and any surface argument must be made
+against that sentence, not this one. ⛔ Amendment 2 was authored in this same shape and was briefly
+treated as its own approval because a summary pointed at it — *a pointer to this section is the
+analysis, never the ruling.* QA cannot adopt it either: D1 is PO-ratified text, which is why r2 §7.9
+judged the refinement sound and **referred** it here instead of applying it.
+
+**Why it is filed now, and not later.** Increment 2 (D6/S8) admits a new viewer class to `/casos` —
+an `administrativo` holding `read_cases`, who can suddenly reach every case in the commission. D1 is
+the sentence that increment's acceptance will be judged against, and as ratified it is **observably
+false on `main` today**. Judging a new increment against a rule its own codebase already contradicts
+is how Increment 1 spent two review rounds.
+
+### A3.1 — What is false about D1's letter, measured
+
+D1's *"the carve-outs go to zero"* is false in exactly one direction: `/casos` still renders **write
+affordances that `caps` does not close**, because they never consulted `caps` at all. The narrowing
+transform (`narrowToReadingSurface`) zeroes `canManageLifecycle` and `canWriteContent`; an affordance
+that reads neither is untouched by it. Both members of that class are annotated at their sites
+(`case-detail-view.tsx:484` and `:660`) and their doors were re-measured from the live catalog on
+2026-08-22 — `pg_get_functiondef`, comments stripped, **every** `if` branch read, never a
+line-filtered `prosrc`:
+
+| Affordance on `/casos` | Rendered when | Its door (`prosecdef = t`) | The door's **authorization** guard |
+| --- | --- | --- | --- |
+| `NotifyEventDialog` — notify a patient-safety event | `patientSafetyEnabled && !isOversight` | `public.notify_safety_event` | `app.is_member_of(reporting_commission)` **only**, itself `is_active(uid) ∧ has_role_any('commission', …)`. No capability, no grant, no specific role. |
+| "Corrigir…" — file a correction request | `correctionsEnabled && !isOversight`, `canFile: isOpen` | `public.file_correction_request` | `app.can_read_case(case, uid) ∧ ¬app.is_oversight_only_reader(case, uid)`, then `is_active`, then target/lifecycle validations (not authorization). |
+
+⚠ **The count "two" is QA r1 §F-1's enumeration restated in the code, not a fresh sweep.** Re-derive
+it by the property — *every `/casos` route that renders a write affordance* — before relying on the
+number. A short hand-list is the hazard this program has already been burned by, which is why
+Increment 1 replaced the checklist with a function in the first place.
+
+**Neither can be relocated, and that is the point.** `/manage` 404s plain members by D3 — and plain
+members are exactly the population both affordances exist for. Reporting a safety event and asking
+for a correction are the two things a committee member must be able to do on a case they do not
+manage. Obeying D1's letter would mean **deleting an authority to satisfy a sentence.**
+
+### A3.2 — The proposed replacement wording
+
+> **`/casos` shows the case as its readers see it, plus your own name-attributed work. Among the
+> viewers who can open that page, nothing on it varies by capability or by case-wide grant** — an
+> affordance may appear on `/casos` only if it is name-attributed, or if its door admits **every
+> member who can open the page**. Anything case-wide you may do *because of what you hold* lives
+> behind one uniform "Gerenciar caso" button on `/manage/cases/[caseId]`.
+
+### A3.3 — Why the second clause is a strengthening, not a loophole
+
+The rule is enforced by a **differential**: two viewer classes, the same `/casos` URL, compare what
+each is offered. Its entire power comes from *variation between the classes*.
+
+An affordance whose door admits every member who can open the page is **identical on both sides of
+that comparison**. It cancels out. It cannot make a broken narrowing look fixed, cannot mask a
+capability leak, and is outside the differential's domain **by construction rather than by
+permission**. The ratified wording, by contrast, is stricter than the property the test can measure
+*and* stricter than reality — and a rule stricter than reality is not obeyed, it is excepted, one
+undocumented affordance at a time. Restating D1 as capability-invariance makes it, for the first
+time, a sentence the E2E differential actually proves.
+
+### A3.4 — "Among the viewers who can open the page" — the clause Increment 2 forces
+
+QA's proposed phrasing was *"name-attributed or member-universal"*. Measured against the two live
+members, that phrasing admits `NotifyEventDialog` and **refuses "Corrigir…"**, whose door keys on
+`app.can_read_case` rather than on membership. Refusing it would be wrong, and the reason is
+structural:
+
+- `/casos/[caseId]` **is itself gated on the same predicate**. The route loads the case and 404s when
+  it comes back unreadable (`getCaseDetail → notFound()`), and `app.can_read_case` is a thin
+  projection of `read_case_content`. So the page's audience **is** the `can_read_case` set.
+- An affordance keyed on the page's own admission test is therefore invariant across everyone who can
+  see the page — trivially, since failing it means never seeing the page.
+
+**S8 widens the AUDIENCE; it does not introduce VARIATION inside it.** That distinction is what the
+clause exists to state, and it is what makes the sentence stable across Increment 2 instead of
+needing a fourth amendment the moment `read_cases` ships.
+
+⚠ **The test does real work here — it surfaced an unbounded arm.** Applying it to "Corrigir…" for the
+*new* S8 audience requires that an S8 administrativo pass `¬is_oversight_only_reader`, which is
+`read_case_content ∧ ¬read_case_deliberation`. Measured: S8 as specified in D6 confers
+`read_case_content` **only**, and the deliberation bit would come from **S5**
+(`committee_member_default`) — which is bounded by `not v_eg`, i.e. it does **not** fire on a case
+whose access policy is `explicit_grants_only`. Neither this ADR nor the plan mentions that bound
+anywhere (measured: zero occurrences). Consequences, both of which belong to D6 and **not** to this
+wording question — filed as `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY`, to be ruled before the M2
+migration is written:
+
+1. If S8 is unbounded, it **overrides `explicit_grants_only`** — the policy whose entire purpose is
+   that only explicit grants confer reach.
+2. On such a case the administrativo becomes content-without-deliberation, which is **the exact
+   bit-shape of a quality reviewer**, so every door keyed on `is_oversight_only_reader` would classify
+   them as one — starting with a "Corrigir…" button that renders and then raises `42501`. A dead-end
+   door, the same shape Amendment 1 §A1.2 caught for `bulk_create_cases`.
+
+### A3.5 — Conditions carried into the wording
+
+QA r2 §7.9's two conditions, adopted verbatim, plus one this measurement added:
+
+1. **"Admits every member" is earned at the door, never claimed.** Show the guard from the **live
+   catalog** (`pg_get_functiondef`, comments stripped, every `if`/`elsif` branch) — a line-filtered
+   `prosrc` under-reports multiline guards and always in the reassuring direction. A door whose guard
+   cannot be shown is not eligible for the exception. Without this condition the exception becomes the
+   hole through which capability-varying affordances re-enter `/casos` one at a time.
+2. **Say "member" / "audience", never "universal".** The oversight reviewer's exclusion
+   (`!isOversight`) is ADR 0100 D7's rule on a **different axis** — reviewers are read-only by design
+   and both affordances close to them correctly. D1 governs variation **among members** and says
+   nothing about that axis; conflating them would quietly claim a reviewer is included.
+3. **(added) The exception is a property of the DOOR, not of the affordance's importance.** "Members
+   really need this" is not the test and never becomes it. "Its door admits every member who can open
+   this page" is.
+
+### A3.6 — What this does not change
+
+- **D2–D11 are untouched**, including D2's narrowing rule and D3's entry predicate. This amends the
+  wording of D1 only.
+- **The narrowing transform is untouched.** `narrowToReadingSurface` still zeroes both case-wide bits;
+  nothing about the exception flows through `caps`.
+- **Rule 1 still holds** — none of this is a security control. Every door decides for itself; this
+  governs what a reading surface may *offer*.
+- **It authorizes nothing new on `/casos`.** It describes the two affordances already there and sets
+  the test any future one must pass. Adding a third is a new decision, not an application of this one.
+
+### A3.7 — Obligations if accepted (each in the same delivery, not after)
+
+1. D1's sentence is replaced in this ADR by A3.2's text; the one-sentence rule quoted in
+   [docs/plans/case-surface-split.md](../plans/case-surface-split.md) moves with it.
+2. `src/components/cases/reading-surface.ts`'s docblock gains the exception **and its admission test**;
+   the two site comments (`case-detail-view.tsx:484`, `:660`) repoint at A3 instead of each restating
+   the rule locally — that local restatement is what let the rule drift per-file before.
+3. `FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED` closes **against the refined sentence**: absence on
+   `/casos` paired with presence on `/manage`, per member of the case-wide class, **plus a presence
+   assertion for each claimed exception across two member classes**. The second half is what makes the
+   exception falsifiable instead of an excuse — without it, "member-universal" is unmeasured prose.
+4. Increment 2 adds the `read_cases` administrativo as a **third column** of that differential.
+5. `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY` (A3.4) is ruled before M2 is written. It is a D6 question,
+   not a D1 one, and must not be closed by this amendment's acceptance.
+6. **If the PO refuses the refinement:** the ruling must name which of the two affordances is deleted
+   from `/casos` and where its authority goes for a plain member. "Leave them and keep the sentence" is
+   the one outcome not available, because that is the state this amendment exists to end.
+
+### A3.8 — Approval scope (an approval's scope is a fact that must be written down)
+
+A PO "yes" authorizes: **the D1 replacement text in A3.2, the record edits in A3.7 items 1–2, and
+judging Increment 2's `/casos` surface against the refined sentence.** It does **not** authorize: any
+new affordance on `/casos`, any change to `narrowToReadingSurface` or to D3's entry predicate, any DB
+change, any remote `db push`, any merge, or a ruling on `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY`.
+
+### Consequences
+
+- D1 becomes a **testable property** rather than an aspiration, and the property is the one the E2E
+  differential already measures. That is the substantive gain: the sentence and the test finally have
+  the same subject.
+- The reading surface acquires a **named, bounded exception class with an admission procedure**. The
+  cost is that the class can grow; the control is condition 1 — every future member must show its
+  door's guard from the catalog, and A3.7 item 3 requires each one to carry a presence assertion.
+- Increment 2's new viewer class needs **no further wording change**, because A3.4 separates widening
+  the audience from varying what the audience is offered.
+- The amendment's own test found an unbounded S8 arm before the migration was written (A3.4). Recorded
+  because it is the argument for doing wording work *ahead* of the increment rather than after it.

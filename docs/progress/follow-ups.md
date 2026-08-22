@@ -5970,3 +5970,45 @@ pressure toward writing tests the gate likes rather than tests that pin behaviou
 ⭐ **This is the SECOND reason the R-2 under-grant was invisible** — alongside the fact that an under-grant emits no signal at all, even a spec written to catch it would have had no persona to write it with.
 
 **To close:** a **seed** change — a case with custom-field values readable by a `create_cases` holder. Deliberately **not** done in Increment 1, which is DB-free **by decision** and whose empty `supabase/` diff is load-bearing in three gate records (it is why no diff-scoped door sweep was required). Forcing a seed change in would have broken the boundary those records rest on. Natural home: Increment 2, which touches the seed anyway for `read_cases`.
+
+### 🟠 FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY — D6's S8 arm has no `explicit_grants_only` bound, and the resulting bit-shape IS a quality reviewer's (owner: backend/PO; filed 2026-08-22, from the ADR 0134 Amendment 3 wording test)
+
+**Measured from the live catalog 2026-08-22** (`pg_get_functiondef` on `app._case_caps`,
+`app.can_read_case`, `app.is_oversight_only_reader`, `app.is_member_of`) — not read from a migration
+file, which is stale by design here:
+
+- `app.can_read_case` = `has_case_capability(case, uid, 'read_case_content')`. Content bit only.
+- **S5 · `committee_member_default`** confers `read_case_deliberation` **only**, and is guarded
+  `if v_member and not v_eg`, where `v_eg := (v_policy = 'explicit_grants_only')`.
+- **S7 · `quality_reviewer`** confers `read_case_content` + `view_case_overview`, deliberately **no**
+  `read_case_deliberation`, and is likewise bounded `not v_eg`.
+- `app.is_oversight_only_reader` = `read_case_content ∧ ¬read_case_deliberation` — i.e. **the
+  quality reviewer's bit-shape is the predicate**, not a role test.
+
+**The gap:** ADR 0134 D6 specifies S8 as conferring `read_case_content` **only**, and neither the ADR
+nor [case-surface-split.md](../plans/case-surface-split.md) mentions `explicit_grants_only`, `v_eg`
+or a locked-case bound **anywhere** (measured: zero occurrences in both). Two consequences, and the
+second is the one that will not announce itself:
+
+1. **An unbounded S8 overrides `explicit_grants_only`** — the access policy whose entire purpose is
+   that only explicit grants confer reach. Both sibling read arms (S5, S7) are bounded by it; a new
+   read arm that is not inherits none of that intent. *A new door must inherit every sibling arm's
+   check, and no authz arm can see a door that OMITS a check its siblings all make.*
+2. **On such a case the administrativo's bits become content-without-deliberation — exactly
+   `is_oversight_only_reader`** — so every door keyed on that predicate classifies an appointed
+   administrativo as a quality reviewer. First live instance: `public.file_correction_request` refuses
+   them (`42501`) while `/casos` still renders the "Corrigir…" affordance, because the UI's
+   `isOversight` is `access.isQualityViewer` — **a different test from the door's**. A dead-end door,
+   the same shape ADR 0134 Amendment 1 §A1.2 caught for `bulk_create_cases`.
+
+⚠ **Not established: the size of the affected door set.** `file_correction_request` is the one member
+found while measuring something else. Before M2 ships, enumerate **by property** — every routine whose
+comment-stripped `prosrc` references `is_oversight_only_reader` — never by recalling which doors
+"feel oversight-related".
+
+**To close (before the M2 migration is written, not after):** a PO/backend ruling on whether S8 is
+bounded by `not v_eg` like its siblings — the recommendation is **yes**, since an unbounded arm makes
+a capability checkbox silently outrank a per-case access policy — plus a pgTAP pin for the chosen
+answer in Increment 2's suite (positive, negative, and the over-grant twin), and the door-set
+enumeration above. ⛔ **Do not close it by accepting ADR 0134 Amendment 3**: that amendment is a D1
+wording question and says so in A3.7 item 5. This is a D6 question.
