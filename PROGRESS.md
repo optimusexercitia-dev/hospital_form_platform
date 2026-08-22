@@ -23,18 +23,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   + that merge only** — not Increment 2, not any remote push; and **D1's ratified sentence was observably
   false on `main` the day it shipped**, repaired by ADR 0134 **Amendment 3** (capability-invariance), which
   is the wording Increment 2 is judged against.
-- **✅ RULED 2026-08-22 — ADR 0134 Amendment 4: S8 is bounded by `not v_eg`, like its siblings.** An
-  `explicit_grants_only` case is invisible to the `read_cases` arm; reach there rides an explicit grant
-  (S3) or nothing, exactly as for S5/S7. ⛔ Ruled **separately** from Amdt 3 and does not inherit its scope.
-  Unbounded, a capability checkbox would have **outranked a per-case access policy**, and left the appointee
-  `read_case_content ∧ ¬read_case_deliberation` — **the quality reviewer's exact bit-shape** — so every door
-  keyed on `is_oversight_only_reader` would misread an administrativo as a reviewer.
-  **Binds M2 before it is written:** the `not v_eg` condition · **P9** locked-case negative · **P9-twin**
-  (remove the bound ⇒ P9 RED — an omitted sibling check is invisible to every ARM) · **P10** bit-shape both
-  directions (Amdt 4's claim is *derived, not executed*) · **P11** the S3 grant path still works · and the
-  `is_oversight_only_reader` **door set enumerated by `prosrc` property** — ⚠ its size is **not established**
-  (one member found while measuring something else). `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY` stays **OPEN**
-  on that implementation residue: ruled ≠ discharged.
+- **✅ RULED 2026-08-22 — ADR 0134 Amendment 4: S8 is bounded by `not v_eg`, like S5/S7** — an
+  `explicit_grants_only` case is invisible to the `read_cases` arm. ✅ **Its binding work has LANDED**
+  (the bound, P9/P9-twin/P10/P11, and the door-set enumeration now **pinned** in `356` §13, not merely
+  recorded). Bullet rotated verbatim → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md).
+  ⚠ `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY` stays **OPEN** until this branch merges.
 - **🚧 CASE SURFACE SPLIT · INCREMENT 2 — IN PROGRESS since 2026-08-22 on `feat/case-surface-split-2`;
   it is the PHI-touching half.** ⭐ **Build-start scope, written down** (an approval's scope is a fact
   that must be recorded): the PO said *"continue implementation of case-surface-split"* on 2026-08-22,
@@ -81,6 +74,15 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
     consumer `app.can_read_case_committee` **is its negation** and is keyed on **bits, not arms**, reaching
     ~11 RLS policies + 3 routines — so a content-without-deliberation arm would join that extension
     silently. Recorded as findings; **nothing there is changed** (Amdt 4 §A4.4).
+  - **✅ RULED 2026-08-22 — ADR 0134 Amendment 7 (PO): bulk needs TWO existing keys.** A1.2's prescribed
+    arm was built and measured **insufficient** — `bulk_create_cases` is a **composition**: it calls
+    `activate_phase` (needs `assign_case_phases`) on every scope and `assign_narrative` (**coordinator-only,
+    no capability arm exists**) on `all_phases`, so the widened gate passed and the batch died **inside the
+    loop** (`linha 1:`). Ruled: `create_cases` **∧** `assign_case_phases`; `all_phases` stays coordinator-only
+    and ⛔ **must be refused AT THE GATE**, not after 200 rows and a rollback. PO was told this is a **third
+    shape** (A1.2 declined a *sixth key*; two existing keys is neither) and that key 2 is a **standing** grant.
+    ⭐ Lesson, not bulk-specific: *a ruling phrased "add an arm to door X" is unsafe when X is a composition* —
+    A1.2 was written from the door's **name**, not its **call graph**, and survived ratification and a plan.
   - **⛔ RULED 2026-08-22 — ADR 0134 Amendment 6 (lead, PO may overrule): D6 names a chokepoint that
     cannot answer S8's question.** `app.member_can` takes **no uid** and is `auth.uid()`-bound, while
     `app._case_caps` is a **`(case, uid)`** resolver — and it is the only membership helper in `app` with

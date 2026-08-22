@@ -901,3 +901,93 @@ blind spot agreeing is worth nothing.**
   both were wrong** — the error survived a design session, a ratification, four amendments and a written
   implementation plan, because naming a real function that does a similar thing reads exactly like having
   checked. It was caught by reading the signature at build time.
+
+---
+
+## Amendment 7 — 2026-08-22 (**✅ ACCEPTED — PO-ruled at build time**): bulk creation is a COMPOSITION, and §A1.2's one-arm sentence does not open it
+
+**Status: ✅ ACCEPTED — the PO ruled on 2026-08-22**, in the Increment-2 build session, when the change
+Amendment 1 §A1.2 prescribes was built and measured **insufficient**. This amends **A1.2** and **D5**.
+
+### A7.1 — What A1.2 says, and what happened when it was built
+
+A1.2's Consequences read: *"Increment 2 gains a second migration: a `member_can(commission,'create_cases')`
+arm on `bulk_create_cases`."* That arm was written, applied, and the keystone re-run. **The same five
+assertions stayed RED**, with `linha 1: sem permissão` — bulk's **row-indexed re-raise**, meaning the
+refusal was **inside the per-row loop**, not at the gate that had just been widened.
+
+**Bulk is a composition of three authority questions, not one** (measured from the live catalog, each
+door's gate read from `pg_get_functiondef`):
+
+| step | door | its gate | a `create_cases`-only administrativo |
+| --- | --- | --- | --- |
+| (a) | `create_case_from_template` | `is_staff_admin_of ∨ member_can('create_cases')` | ✅ admitted |
+| **(b)** | **`activate_phase`** | `is_staff_admin_of ∨ member_can('`**`assign_case_phases`**`')` | ⛔ 42501 — fires on **every** scope |
+| **(c)** | **`assign_narrative`** (`all_phases` scope only) | **`is_staff_admin_of` ONLY — no capability arm exists** | ⛔ 42501, and **no capability can fix it** |
+| (d) | the creation-scoped PHI helper | none, by design (Amendment 2) | ✅ |
+
+⇒ A1.2's ruling was correct in **intent** and its stated **mechanism was insufficient**. Left as
+written it relocates the dead-end door one step deeper — the very failure A1.2 was ruled to eliminate.
+
+### A7.2 — The ruling: **two existing keys**
+
+Bulk creation requires **`create_cases` AND `assign_case_phases`** — both already in the ADR 0061 menu.
+`bulk_create_cases`' gate becomes `is_staff_admin_of ∨ (member_can('create_cases') ∧
+member_can('assign_case_phases'))`. **No door is widened and no new mechanism is introduced.** The
+second key's meaning is honest: bulk genuinely activates phases, which is exactly that key's scope.
+
+**The `all_phases` scope stays coordinator-only**, because (c) has no capability arm at all and
+Amendment 4's discipline — findings first — forbids inventing one here.
+
+⛔ **Binding on the implementation, and not optional:** `all_phases` must be **refused AT THE GATE**
+for a non-coordinator, before any row is created, with its own pt-BR message naming the scope. As
+found, it dies at (c) **inside the loop**, after up to 200 rows, and rolls the whole batch back. An
+honest refusal before work begins is not a dead-end door; a rollback after 200 rows is the same defect
+the amendment exists to remove. The wizard suppresses the option, but **the door is the authority**
+(Rule 1) — the UI mirrors it, never replaces it.
+
+### A7.3 — What the PO was told, because the shape changed
+
+A1.2 declined a **sixth menu key** on the grounds that it *"would split one delegation into two"*.
+**Two existing keys is a third shape, and the PO was told so explicitly** before ruling — along with
+the two costs: `assign_case_phases` is a **standing** grant, so it also lets the holder activate and
+reassign phases on any case they can already reach (not only ones they create); and `all_phases` stays
+closed to them.
+
+**Rejected, with reasons recorded rather than left implicit:**
+- **Widening `activate_phase` / `assign_narrative` to admit `create_cases`** — changes what
+  `create_cases` means **everywhere**, not only inside bulk, and `assign_narrative` has no capability
+  arm *by design*. Widest blast radius for the least work.
+- **Unchecked composed variants of (b) and (c)** — coherent, and precedented by Amendment 2's split
+  writer; it is also **narrower in standing authority** than the ruling adopted, since the extra reach
+  would be confined to the creation act. Rejected as a **new mechanism decision on two more doors**
+  when an existing-vocabulary answer exists. ⚠ Recorded because it is the option a later reader will
+  re-propose, and it deserves the honest note that it was not rejected for being weaker.
+- **Deferring bulk entirely** — leaves A1.2 ruled but unimplemented.
+
+### A7.4 — Pins that carry the ruling (the negatives, not the positive)
+
+Two-key positive (`first_only`) · ⭐ **`create_cases` alone ⇒ refused** and ⭐ **`assign_case_phases`
+alone ⇒ refused** — the over-grant twins in the *key* dimension; without both, "requires two keys" is
+asserted rather than demonstrated · `all_phases` refused at the gate for a two-key holder, **pinned on
+the message, not the errcode** (a bare `42501` cannot distinguish which lock refused — measured at 670
+sites in this tree) · coordinator `all_phases` still succeeds, so the refusal is provably scope-and-role
+specific rather than a broken fixture.
+
+### A7.5 — Approval scope
+
+Authorizes: the two-key gate on `bulk_create_cases`, the gate-level `all_phases` refusal, their pins,
+and the wizard suppressing the option — **inside Increment 2, locally**. Does **not** authorize: any
+change to `activate_phase` or `assign_narrative`, a sixth capability, adding `assign_case_phases` to
+Amendment 5's appointment auto-grant (which stays *`read_cases` and nothing else*), a remote `db push`,
+or a merge.
+
+### Consequences
+
+- An administrativo delegated bulk creation now needs **two** boxes ticked, and the coordinator ticking
+  the second one is granting standing phase authority. That is the trade the ruling makes, stated here
+  so it is not rediscovered as a surprise.
+- ⭐ **The general lesson, and it is not bulk-specific:** an authority ruling phrased as *"add an arm to
+  door X"* is unsafe when X is a **composition**. A1.2's sentence was written from the door's name, not
+  from its call graph, and it survived ratification and a written plan. **Before ruling that a door
+  opens, enumerate the doors it calls and read each one's gate.**
