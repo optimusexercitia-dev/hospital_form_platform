@@ -47,15 +47,24 @@ export default async function BulkCreateCasesPage({
     notFound();
   }
 
-  // ⛔ THE EXACT TS MIRROR OF `app.is_staff_admin_of`, which is what
-  // `public.bulk_create_cases` gates on — not a hand-set narrowing.
-  // `app.is_staff_admin_of` = `app.is_active(uid) AND app.has_role('commission', id,
-  // 'staff_admin', uid)`, and `access.role` is populated only from the caller's
-  // commission-scoped, ACT-hat-filtered membership partition, so this reproduces
-  // both the membership arm and the hat arm. The one predicate it does NOT mirror is
-  // `app.is_active`: the shell sends deactivated/suspended users to `/conta-inativa`
-  // before any commission route runs, so it is covered ELSEWHERE, not here — do not
-  // "improve" this gate by re-adding a check that already ran.
+  // ⚠ CORRECTED 2026-08-22 (ADR 0134 Amendment 7; QA finding B4). This block used to
+  // read "⛔ THE EXACT TS MIRROR OF `app.is_staff_admin_of`, which is what
+  // `public.bulk_create_cases` gates on" and told the next author not to change the
+  // gate. Both halves are now false — and a comment instructing a reader NOT to make a
+  // change that has already been made is worse than a merely stale one, so it is quoted
+  // as superseded rather than silently rewritten.
+  //
+  // Read from the live catalog (`pg_get_functiondef`, never a migration file), the door
+  // is: `app.is_staff_admin_of(commission)
+  //       OR (app.member_can(commission,'create_cases')
+  //           AND app.member_can(commission,'assign_case_phases'))`.
+  // {@link canBulkCreateCases} is that shape, and it is SHARED with the board's link so
+  // the two surfaces cannot drift into one offering what the other 404s.
+  //
+  // Still true, and still the reason not to "improve" this: the one predicate the mirror
+  // does NOT reproduce is `app.is_active` — the shell sends deactivated/suspended users
+  // to `/conta-inativa` before any commission route runs, so it is covered ELSEWHERE.
+  // Do not re-add a check that already ran.
   //
   // ⛔ `|| access.context.isAdmin` REMOVED (ADR 0134 D5 / noun rule, ADR 0078 A35),
   // and the comment it carried — "commission-admins resolve to 'staff_admin'" — was

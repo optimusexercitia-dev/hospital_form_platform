@@ -244,9 +244,9 @@ export default async function CasesBoardPage({
   // a process at all ("Sem processo"). Drives the create button + empty-state copy.
   const canCreate = processlessOn || activeTemplates.length > 0;
 
-  // "Múltiplos casos" (ADR 0084): a staff_admin bulk-create link, shown only when
-  // the flag is on and at least one ELIGIBLE template exists (active + ≥1 phase — a
-  // phase-less template is rejected by the RPC, so it would offer nothing).
+  // "Múltiplos casos" (ADR 0084): the bulk-create link, shown only when the flag is on
+  // and at least one ELIGIBLE template exists (active + ≥1 phase — a phase-less
+  // template is rejected by the RPC, so it would offer nothing).
   //
   // ⛔ `|| access.context.isAdmin` REMOVED (ADR 0134 D5 / the noun rule, ADR 0078
   // A35). It was already dead — a platform_admin 404s on the whole commission area
@@ -255,11 +255,23 @@ export default async function CasesBoardPage({
   // statement, not the closing of a hole. It must change in lockstep with the
   // `multiplos` route's own gate, or one of the two offers a link the other 404s.
   //
-  // `access.role === 'staff_admin'` is the exact TS mirror of `app.is_staff_admin_of`,
-  // not a hand-set narrowing: `role` comes only from the caller's commission-scoped,
-  // hat-filtered membership partition, reproducing both the membership arm and the
-  // ACT-hat arm. The one predicate it does NOT mirror is `app.is_active` — the shell
-  // routes deactivated users to `/conta-inativa` before any commission route, so
+  // ⚠ CORRECTED 2026-08-22 (ADR 0134 Amendment 7; QA finding B4). This block used to
+  // read "`access.role === 'staff_admin'` is the exact TS mirror of
+  // `app.is_staff_admin_of`" and told the next author not to change it. Both halves are
+  // now false — and a comment instructing a reader NOT to make a change that has already
+  // been made is worse than a merely stale one, so it is quoted as superseded rather
+  // than silently rewritten.
+  //
+  // Read from the live catalog (`pg_get_functiondef`, never a migration file), the door
+  // is: `app.is_staff_admin_of(commission)
+  //       OR (app.member_can(commission,'create_cases')
+  //           AND app.member_can(commission,'assign_case_phases'))`.
+  // That shape lives once, in {@link canBulkCreateCases}, shared with the `multiplos`
+  // route's own gate — which is what the "must change in lockstep" note above now means
+  // mechanically rather than by discipline.
+  //
+  // Still true: the one predicate the mirror does NOT reproduce is `app.is_active` — the
+  // shell routes deactivated users to `/conta-inativa` before any commission route, so
   // that is covered elsewhere. Do not "improve" this by re-adding it here.
   const eligibleBulkCount = templates.filter(
     (entry) => entry.version.status === "published" && entry.version.phases.length > 0,

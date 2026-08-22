@@ -23,7 +23,23 @@ import { Button } from "@/components/ui/button";
  * non-coordinator `staff` rows (the parent decides).
  *
  * Minimum-necessary (Rule 12): on a PHI-bearing commission `create_cases` lets the
- * member enter and read patient context — `showPhiNotice` surfaces that plainly.
+ * member ENTER patient identifiers while creating a case — single or bulk — and
+ * nothing else; `showPhiNotice` surfaces that plainly.
+ *
+ * ⚠ CORRECTED 2026-08-22 (ADR 0134 Amendment 2 option D; QA finding B4). This docblock
+ * used to read "enter **and read** patient context". The READ half was false and stays
+ * false forever: an administrativo holds no PHI read entitlement under any part of this
+ * increment — not even for the identifiers they typed themselves. The old wording is
+ * quoted rather than deleted, because a reader who finds only the new text cannot tell
+ * whether the old claim was wrong or merely absent.
+ *
+ * ⭐ WHY IT SURVIVED THE FIX, worth carrying: the user-facing copy saying the same false
+ * thing was corrected in the same change and verified on RENDERED OUTPUT — which is
+ * precisely why this comment went unnoticed, since a rendered-output assertion cannot
+ * see a docblock. That is not an argument against asserting on rendered output (a
+ * source grep cannot tell live copy from prose about it, which is why the copy is
+ * verified that way). It is an argument for checking BOTH: the DOM for what users read,
+ * the source for what the next author believes.
  *
  * This menu is one of the hand-maintained copies of the capability vocabulary
  * enumerated in `MemberCapability`'s doc comment — keep it in sync with that union.
