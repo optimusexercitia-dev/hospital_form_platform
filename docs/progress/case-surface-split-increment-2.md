@@ -74,3 +74,31 @@ its own ADR section. What remained here was a summary of records that already ex
     **grant**, not a pre-ticked box — the dialog has no defaults (checkboxes render server state), so
     `appoint_administrativo` grants `read_cases`; the client-side-tick reading is **rejected outright** as a
     mirror wider than its door. Does **not** reopen OPEN-1 (that governs existing appointees).
+
+### The three unanticipated findings — rotated 2026-08-22, all three DISCHARGED
+
+Rotated because each has an outcome, and the outcome is not the same for all three:
+
+1. **The false PHI copy — FIXED.** The appoint dialog no longer claims `create_cases` lets someone
+   *"inserir **e visualizar** dados de paciente"*. New copy states entry-at-creation-only and no
+   reading ever, and it landed **in the same delivery as the door that made half of it true**. Verified
+   on **rendered output**, never by a source grep — the comment explaining the fix would itself be a hit.
+2. **The A2.2 mechanism gap — RESOLVED, and it was the smaller half of a larger one.** Splitting only
+   `set_participant_patient` would have left bulk coordinator-gated, because bulk calls the compat door.
+   ⭐ Fixing it then exposed the real problem: **bulk is a COMPOSITION**, which is ADR 0134
+   **Amendment 7**.
+3. **The `is_oversight_only_reader` door set — ENUMERATED *and pinned*** in `356` §13, not merely
+   recorded: 4 direct routines, **0 direct policies**, and — the number the "4 routines" framing hides —
+   **11 RLS policies + 3 routines transitively** through its negation `app.can_read_case_committee`,
+   which is keyed on **bits, not arms**. ⛔ Nothing in it was changed (Amdt 4 §A4.4: findings first).
+
+  - **🆕 Three findings the plan did not anticipate, each owned inside this increment.** ⛔ **A live UI
+    string over-claims PHI**: the appoint dialog tells the coordinator `create_cases` lets the person
+    *"inserir **e visualizar** dados de paciente"* — the *visualizar* half is **measurably false today and
+    stays false under option D**, and an E2E assertion pins the false text. ⛔ **The A2.2 split writer as
+    specified does not reach bulk**: `bulk_create_cases` calls `set_case_patient`, not
+    `set_participant_patient`, so splitting only the latter leaves bulk coordinator-gated — the mechanism
+    must cover the compat door too. ⚠ **The Amdt-4 §A4.3-item-6 door set is bigger than "4 routines"**: its
+    consumer `app.can_read_case_committee` **is its negation** and is keyed on **bits, not arms**, reaching
+    ~11 RLS policies + 3 routines — so a content-without-deliberation arm would join that extension
+    silently. Recorded as findings; **nothing there is changed** (Amdt 4 §A4.4).
