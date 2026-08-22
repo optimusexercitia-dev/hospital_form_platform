@@ -175,6 +175,63 @@ public.capa_viewer_can_manage(p_capa_id uuid)
 public.interview_viewer_can_write(p_interview_id uuid)
 public.rca_writer_can_write(p_rca_id uuid)
 
+# -- ⭐ NEW CLASS, opened 2026-08-22 (ADR 0134 Amdt 2 option D): `app` INVOKER PRIVATE
+#    WRITERS. Added because this file's own rule is that an ADMITTED GAP BEATS A VERDICT
+#    NOBODY EARNED — until now these sat in NO tracked class at all, which is worse than
+#    sitting in an admitted one. They are in NEITHER the census contract (`prosecdef`
+#    booleans + policies), NOR AUDIT-INVOKER-WRAPPER (bounded to `nspname = 'public'`),
+#    NOR the composite-returning backlog above.
+#
+#    ⛔⛔ DO NOT PRUNE THESE TWO LINES. `ARM=census` PRINTS, on every run:
+#        "note: backlog entries with no matching live gate (renamed/dropped — prune)"
+#    and names both of them. That note is CORRECT ABOUT ITS OWN DOMAIN and WRONG AS
+#    ADVICE HERE. The census's live-gate set is `prosecdef` booleans + set-returning
+#    doors + `public` INVOKER plpgsql + policies; these two are `app` INVOKER scalar
+#    functions, so they match nothing in it — which is PRECISELY WHY THEY ARE LISTED.
+#    Both were verified live in the catalog on 2026-08-22. Pruning them on the census's
+#    own advice would delete the admitted gap this section exists to record, and the
+#    class would go back to being untracked with nothing able to notice. If a future
+#    change brings `app` INVOKER writers INTO the census domain, these lines should be
+#    removed BY THAT CHANGE, together with the note it makes obsolete — not by a cleanup
+#    pass acting on the prune hint.
+#
+#    MEMBERSHIP IS BY PROPERTY, never by naming the one that prompted the entry:
+#      schema `app` · `prosecdef = f` · `prokind = 'f'` · comment-stripped body performs an
+#      INSERT/UPDATE/DELETE on a table carrying PHI or an authorization invariant ·
+#      NOT executable by `authenticated` or `anon`.
+#    Query: pg_proc ⋈ pg_namespace filtered as above, with has_function_privilege for the
+#    reachability conjunct. COUNT = 2. ⭐ The older member PREDATES the change that opened
+#    this section, so this class has been unswept since it was written, not since today.
+#
+#    ⚠ The property returns FOUR `app` INVOKER writers; two are excluded, for TWO
+#    INDEPENDENT reasons each (stated so the exclusion does not rest on the weaker one):
+#      app.save_instance_answers · app.seed_default_answers
+#        (a) they write `answers` / `answer_selected_options` — response-plane CONTENT,
+#            neither PHI nor an authorization invariant; AND
+#        (b) they ARE executable by `authenticated` and `anon` (proacl NULL = the
+#            permissive default, which includes PUBLIC), so they fail the reachability
+#            conjunct outright. Not escalated — `app` is not PostgREST-exposed — but the
+#            NULL proacl is recorded, because "a guard that reads right but fails open" is
+#            exactly how that shape has bitten this repo before.
+#
+#    WHAT COVERAGE THE MEMBERS ACTUALLY HAVE — named, never asserted as "covered":
+#      app._grant_case_access_unchecked
+#        ⛔ NO targeted mutation case is known to this file. It is the ORIGINAL member and
+#        has been in no tracked class since it was written. That is the finding this
+#        section exists to admit, and it is older than the change that found it.
+#      app._set_participant_patient_unchecked
+#        Targeted mutation twins, 2026-08-22, under a harness that REJECTS a no-op probe:
+#        `supabase/tests/357_creation_scoped_case_phi.sql` — PHI write reverted (11 RED),
+#        wrapper gate removed (4 RED, both K-CREATION-ONLY pins), helper ACL opened
+#        (1 RED), helper's own flag assert removed (1 RED). Plus standing catalog pins
+#        276 O5/O5b (the INVOKER exception, BOUNDED by name) and 321 K8.
+#        ⚠ SECURITY INVOKER DELIBERATELY. Measured, both cells, with EXECUTE granted to
+#        `authenticated`: INVOKER is REFUSED by the PHI tables, DEFINER SUCCEEDS. Do not
+#        "fix" a red by flipping prosecdef — read the COMMENT ON the function and
+#        migration 20261003000700's header first.
+app._grant_case_access_unchecked(p_case uuid, p_user uuid, p_level text, p_expires_at timestamp with time zone, p_reason text, p_reason_code text, p_read_standard_phi boolean, p_read_restricted_phi boolean)
+app._set_participant_patient_unchecked(p_case_id uuid, p_participant_id uuid, p_name text, p_mrn text, p_date_of_birth date, p_age_years integer, p_sex text, p_encounter_ref text, p_unit text, p_attending text, p_role_id uuid)
+
 # -- Tenant-scoping conjuncts: not principal-dependent on their own, but they appear
 #    INSIDE policies as the isolation half, so opening one widens a tenant boundary.
 app.artifact_belongs_to_commission(p_kind text, p_artifact uuid, p_commission uuid)
