@@ -130,3 +130,39 @@ target resolves from `docs/progress/`.
   workflow's one promise to the data subject has no mechanism) and **Class-2** professional-identity
   erasure. Six residuals filed with their bounds named, incl. one **accepted with no mechanism**
   (`FUP-EXIT-CODE-MASKING-HAS-NO-MECHANISM`).
+
+---
+
+## Third rotation — 2026-08-22, concluded material inside live bullets
+
+Two pieces of **concluded narrative that were sitting inside otherwise-live entries**, moved so the live
+half stays readable. Trigger, stated honestly: PROGRESS.md was at **69 bytes** under the hard cap and two
+new entries (a bug and an instrument finding) had to be filed.
+
+⛔ **Neither move takes anything actionable with it.** C1a itself is still **UN-RUN** and stays in § Now;
+what moved is the 2026-08-19 correction explaining that a defect once recorded as blocking it did not.
+The migration-hold entry was **RESOLVED** on 2026-08-18; its one still-live instruction — *re-measure
+`schema_migrations`, never re-read a recorded figure* — was **kept in § Now**, because that claim has gone
+stale five times and it is the reason the entry existed.
+
+### The C1a correction (2026-08-19), rotated from inside the "▶ Next, in order" item
+
+     ⭐ **CORRECTION (2026-08-19, measured):** `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE` was
+     recorded as **blocking C1a/C1b**. It did not. C1a is *a run of this runbook*, and the runbook
+     is the **`file_objects` / Storage-bytes** completion mechanism (§ 0: it exists because
+     `complete_document_disposal` has no automated caller). The two paths are **disjoint** in the
+     catalog: `dispose_meeting_minutes` writes **no** `file_objects` row and never sets
+     `disposal_pending`; `complete_document_disposal` never touches meetings; the runbook contains
+     **zero** occurrences of "meeting", "minutes_md" or `dispose_meeting_minutes`. The child-lock
+     defect was real and is **fixed** (ADR [0129](../decisions/0129-meeting-child-lock-disposal-flag.md),
+     DSR Slice 1) — it blocked **meeting-minutes erasure**, not this rehearsal. *A real defect was
+     cited for a conclusion it did not bound, and the error ran in the reassuring direction: it made
+     C1a look blocked-then-released rather than simply never started.*
+
+### The migration-hold resolution (2026-08-18)
+
+- **✅ RESOLVED 2026-08-18 — the migration hold is discharged and the remote is CURRENT.**
+  Remote head **`20260928000900`** / **415** applied (verified post-push). `…000600`/`…000700`
+  turned out to be on the remote already — the "HELD" line was **stale**, the third time that
+  claim has gone stale — and `…000800`/`…000900` were pushed on PO instruction. **0 local-only
+  migrations.** ⛔ Re-measure `schema_migrations`; never re-read a sentence about it.

@@ -6467,3 +6467,39 @@ a 103-site migration touching live doors; (c) a shared recognition registry gene
 catalog, so the list cannot drift from the doors. ⚠ Under (a) or (c) the standing control is that
 every entry must be copied from `pg_get_functiondef` verbatim and pinned, or the list silently
 degrades to the generic string — failing exactly as if it were not there, with nothing going red.
+
+### 🟠 FUP-DEV-SERVER-SERVED-STALE-CODE-FOR-HOURS — a green E2E run against a stale instrument is indistinguishable from a real pass (owner: tester/lead; filed 2026-08-22, found mid-verification in Increment 2)
+
+**What happened.** The long-lived `next dev` process (PID 10664, started **11:20:33** local) was serving
+**pre-Increment-2 code** for files whose commits landed at **12:33, 12:45 and 14:30** — hours earlier. It
+rendered the appoint dialog **without** the fifth `read_cases` checkbox and **with** the retired PHI copy
+(*"inserir e visualizar dados de paciente"*), while the same files on disk plainly carried the new code.
+`taskkill` + `rm -rf .next` + a fresh `npm run dev` fixed it immediately.
+
+⭐ **It was one step from being filed as a product bug.** A "Múltiplos casos" bulk-gate failure was about
+to be reported as a defect in the new two-key gate. It was the instrument. The tester's own discipline —
+*clear `.next`, rebuild, re-run before reporting a regression* — is the only reason it was not.
+
+⛔ **MECHANISM NOT ESTABLISHED, and that is the honest state.** The old process's console output was **not
+captured before the kill**, so it is unknown whether the watcher had died or was alive and silently
+dropping events. The staleness was **not** deliberately reproduced afterwards — manufacturing a second
+stale window mid-session was judged not worth the risk, which was the right call and leaves the cause
+open. ⚠ Do not let a later reader turn "restarting fixed it" into a diagnosis; it is a remedy, not a cause.
+
+⛔ **The blast radius is every green run, which is the direction nobody investigates.** A *failing* spec
+against stale code gets investigated and the staleness surfaces — that is exactly what happened here. A
+**passing** spec against stale code is indistinguishable from a real pass and is never questioned. So the
+suspect population is not "runs that failed"; it is **every `npx playwright test` executed against a
+long-lived dev server in this repo**, and its size is not established.
+
+**Bound, stated so this is not over-read:** `npm run e2e:prod` — the §6 step-2 gate — builds a prod
+standalone bundle and never touches a dev server. **The phase gate is unaffected.** This is a
+quick-loop-instrument problem, not a gate problem.
+
+**To close — the cheap fix does not require the mechanism.** A **proof-of-life** at the start of any
+dev-server E2E run: assert something that exists *only* in HEAD before any other assertion, so a stale
+server fails loudly at the first step instead of quietly passing. That catches the whole class whatever
+the cause. ⚠ It must be a check that is **read**, not an implicit `beforeAll` precondition, and it must
+be built so it can fail — this repo has a recorded case of a positive control that passed while priming a
+cache and made the real assertion meaningless. Establishing the actual mechanism (watcher death vs
+dropped events) stays worth doing, but it is not a precondition for the guard.

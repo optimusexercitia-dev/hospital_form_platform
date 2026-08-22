@@ -102,3 +102,32 @@ Rotated because each has an outcome, and the outcome is not the same for all thr
     consumer `app.can_read_case_committee` **is its negation** and is keyed on **bits, not arms**, reaching
     ~11 RLS policies + 3 routines — so a content-without-deliberation arm would join that extension
     silently. Recorded as findings; **nothing there is changed** (Amdt 4 §A4.4).
+
+## BUG-ADM-APPOINT-CAPS-NOT-SYNCED — filed 2026-08-22 by the tester
+
+`toggleAppointment()` in `src/components/members/member-administrativo-controls.tsx` calls
+`setAppointed(true)` on a successful appoint but **never syncs the client `caps` state**, so Amendment
+5's auto-granted `read_cases` renders **unchecked** in the live dialog. Reproduced 3× against a freshly
+rebuilt server.
+
+⛔ **The database is correct** — the `commission_administrativo_capabilities` row lands the instant
+`appoint_administrativo` returns, verified directly, and a page reload shows the box checked. This is a
+UI state-sync miss, **not** an authorization defect, and it must not be reported as one.
+
+⭐ **Why it is worth more than a normal state-sync miss.** Amendment 5's whole ruling is that the box is
+checked *because the grant exists*. A coordinator appointing someone sees the opposite of what the
+database says — and the obvious fix a later reader reaches for is to **pre-check it client-side**, which
+is the mirror-wider-than-its-door defect this branch closed **twice** (`canInCommission`, and the
+rejected third reading of Amendment 5 itself). The fix must sync **from the server**, never assume "we
+appointed, therefore they hold `read_cases`" — that hard-codes today's auto-grant into the UI and
+becomes a lie the day the grant changes.
+
+⚠ **B5's second assertion has never executed.** The spec throws at the first assertion, so
+*"unchecking `read_cases` empties the board again"* has never run. When the fix lands, that half runs for
+the **first time** — B5 going green must not be read as re-confirming behaviour that was previously
+passing.
+
+**Found only because the tester ruled out a stale instrument first** — see the dev-server staleness
+finding; the same session nearly filed a bulk-gate failure as a product bug when it was the server
+serving three-commits-old code.
+
