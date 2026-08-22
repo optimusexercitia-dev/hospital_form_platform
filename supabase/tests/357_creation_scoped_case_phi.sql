@@ -22,7 +22,7 @@
 -- was necessary and NOT sufficient. Nothing in this file depends on that ruling.
 
 begin;
-select plan(33);
+select plan(35);
 
 -- =========================================================================
 -- (0) FLAG PRECONDITIONS — asserted, not claimed. `app.audit_write` returns SILENTLY
@@ -81,6 +81,28 @@ select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname='public' and p.proname in ('create_case','create_case_from_template')),
   2, '1.5 ⛔ OVERLOAD COUNT: exactly one create_case and one create_case_from_template. CREATE OR REPLACE cannot add a parameter, so the migration DROPs and recreates — a signature mismatch would leave an overload and PostgREST would 300 on the ambiguity');
+
+-- ⭐ 1.6/1.7 — THE SIGNATURE ITSELF, pinned next to its reason.
+-- 1.5 catches an OVERLOAD (two candidates, PostgREST 300s). It CANNOT catch the other
+-- DROP+CREATE hazard, which is real and cost a suite abort here: a caller that NAMES the
+-- old arity. `100_dashboard.sql:439` asserted
+-- `has_function_privilege('anon', 'public.create_case_from_template(uuid,text,uuid,text,uuid,jsonb)', …)`
+-- — a signature STRING, which stopped resolving the moment the seventh argument landed,
+-- and the suite ABORTED rather than failing an assertion. Swept by property afterwards:
+-- exactly ONE such executable reference existed in the tree. These two pins make a future
+-- signature change red HERE, beside the explanation, instead of somewhere distant.
+select is(
+  (select p.oid::regprocedure::text from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname='public' and p.proname='create_case'),
+  'create_case(uuid,text,boolean,uuid[],uuid,text,uuid,jsonb)',
+  '1.6 create_case''s exact signature (p_patient is the eighth argument)');
+select is(
+  (select p.oid::regprocedure::text from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname='public' and p.proname='create_case_from_template'),
+  'create_case_from_template(uuid,text,uuid,text,uuid,jsonb,jsonb)',
+  '1.7 create_case_from_template''s exact signature (p_patient is the seventh argument)');
 
 -- =========================================================================
 -- (2) POSITIVE — the administrativo creates a case WITH identifiers, single-case path.

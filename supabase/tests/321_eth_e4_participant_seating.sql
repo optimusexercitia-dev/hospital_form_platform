@@ -616,6 +616,19 @@ select is((select count(*)::int from public.participants
 -- The pattern is deliberately narrow. A broader `insert into …participants` also
 -- matches `insert into public.case_participants`, which is a DIFFERENT table —
 -- that over-wide bucket is how a census hides an enforcement door.
+--
+-- ⭐ AMENDED 2026-08-22 (ADR 0134 Amdt 2 option D) — A SWAP, NOT A GROWTH, AND THE SET IS
+-- STILL THREE. The patient lane's member was renamed:
+--     public.set_participant_patient  ->  app._set_participant_patient_unchecked
+-- `set_participant_patient` was SPLIT at its authority cut: the gate stayed in the
+-- `public` door and the entire body below it — including the `insert into participants` —
+-- moved to the `app` helper. So the door still exists and still gates; it simply no longer
+-- performs the insert this census keys on, and it left the set on the same commit the
+-- helper joined it. The count did not change.
+-- ⛔ This note is not decoration. K8 is a NAME-KEYED verdict, and a rename is exactly what
+-- orphans one — updating the array quietly is the failure K8 exists to catch, performed by
+-- the person updating K8. If you are here because K8 went red, establish whether a writer
+-- was ADDED or RENAMED before you touch the array.
 -- ===========================================================================
 select is(
   (select array_agg(n.nspname || '.' || p.proname order by n.nspname, p.proname)
@@ -623,9 +636,9 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('public', 'app')
       and p.prosrc ~* 'insert\s+into\s+(public\.)?participants\M'),
-  array['public.create_external_participant',
-        'public.ensure_professional_participant',
-        'public.set_participant_patient'],
+  array['app._set_participant_patient_unchecked',
+        'public.create_external_participant',
+        'public.ensure_professional_participant'],
   'K8 ⭐ FUP-FF5-2: the `participants` writer set is EXACTLY these three, by name — '
   'the patient lane, the professional lane, and the external lane');
 select is(

@@ -50,7 +50,7 @@
 
 begin;
 
-select plan(73);
+select plan(74);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -1334,15 +1334,52 @@ select is(
   0,
   'O4. `authenticated` holds NO write grant on participants (writes are DEFINER-only)');
 
+-- ⭐ O5 AMENDED 2026-08-22 (ADR 0134 Amdt 2 option D) — IT NOW ASSERTS THE PROPERTY IT
+-- NAMES, NOT THE PROXY IT USED.
+-- The property is "no invoker-rights path in". `prosecdef` is a PROXY for it, and the
+-- right one for the two `public` writers: `authenticated` CAN call those, so they need
+-- DEFINER to write a table it holds no rights on. It is the WRONG test for a writer that
+-- satisfies the property another way — by being uncallable by an invoker at all.
+--
+-- `app._set_participant_patient_unchecked` is SECURITY INVOKER **deliberately**, and
+-- flipping it to DEFINER to make the old form of this assertion pass would have REMOVED a
+-- safeguard. Measured, both cells, in rolled-back transactions that granted the helper
+-- EXECUTE to `authenticated` and called it as `authenticated`:
+--     INVOKER, existing participant -> ERROR: permission denied for table patient_participants
+--     INVOKER, minting the chain    -> ERROR: new row violates RLS policy for case_participant_roles
+--     DEFINER, the same grant       -> SUCCEEDED, returned a participant uuid
+-- ⇒ on the intended path the two are identical (it is only ever called from DEFINER
+-- bodies owned by postgres); if the ACL ever leaks, INVOKER REFUSES and DEFINER WRITES
+-- PHI. ⛔ Do not "fix" a future red here by flipping prosecdef — read
+-- 20261003000700's header first, and the COMMENT ON the function itself.
 select is(
   (select count(*)::int from pg_proc p
    join pg_namespace n on n.oid = p.pronamespace
    where n.nspname in ('app', 'public')
      and (p.prosrc ~* 'insert\s+into\s+public\.participants'
           or p.prosrc ~* 'update\s+public\.participants')
-     and not p.prosecdef),
+     and not p.prosecdef
+     -- the INVOKER exception: admissible ONLY if no invoker can reach it. Both halves are
+     -- catalog-checkable. (`app` is absent from config.toml [api] schemas, so it is not
+     -- PostgREST-reachable; `public` is, which is why the exception is denied there.)
+     and not (n.nspname <> 'public'
+              and not has_function_privilege('authenticated', p.oid, 'EXECUTE')
+              and not has_function_privilege('anon', p.oid, 'EXECUTE'))),
   0,
-  'O5. every writer of participants is SECURITY DEFINER (no invoker-rights path in)');
+  'O5. every writer of participants has NO invoker-rights path in - DEFINER, or INVOKER and unreachable by authenticated/anon outside the exposed schema');
+
+-- ⛔ AND THE EXCEPTION IS BOUNDED. An escape hatch written for the one case that needs it
+-- silences every later case that does not, so the hatch is counted: exactly ONE writer
+-- may take it, by name. A second INVOKER writer reds here even if it is unreachable.
+select is(
+  (select coalesce(array_agg(n.nspname || '.' || p.proname order by p.proname), array[]::text[])
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('app', 'public')
+      and (p.prosrc ~* 'insert\s+into\s+public\.participants'
+           or p.prosrc ~* 'update\s+public\.participants')
+      and not p.prosecdef),
+  array['app._set_participant_patient_unchecked'],
+  'O5b. exactly ONE writer takes the INVOKER exception, by name - the hatch is bounded, not open');
 
 select * from finish();
 rollback;

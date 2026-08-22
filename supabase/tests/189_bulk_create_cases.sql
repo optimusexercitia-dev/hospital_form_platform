@@ -24,7 +24,7 @@
 -- pass count.
 -- =============================================================================
 begin;
-select plan(38);
+select plan(43);
 
 -- The bulk RPC composes doors gated by ALL of these; assert_bulk_create_enabled
 -- gates the RPC itself; set_participant_patient gates on case_patient;
@@ -155,6 +155,24 @@ reset role;
 --     holder really has create_cases, so the lives_ok lands on the WIDENED gate rather
 --     than on a lucky fixture. The created-case assertion after it is what stops the
 --     positive from passing on a silent no-op.
+--
+-- ⭐ TWO KEYS, NOT ONE (PO ruling 2026-08-22, option A). Widening bulk's own gate was
+--     measured NECESSARY AND NOT SUFFICIENT: bulk COMPOSES activate_phase, gated on
+--     `assign_case_phases`, so a create_cases-only delegate passed the gate and was
+--     refused INSIDE the per-row loop. The ruling requires BOTH existing keys.
+--
+-- WHICH ASSERTION BECAME WHICH — stated because a reused fixture reads like dead weight:
+--   * the ORIGINAL keystone ('a create_cases Administrativo is STILL denied bulk') is NOT
+--     deleted. Its fixture (st_x2 holding ONLY create_cases) and its refusal survive as
+--     NEG-A below — it is now the single-key negative, i.e. one of the two over-grant
+--     twins in the KEY dimension. Without NEG-A and NEG-C, "requires two keys" would be
+--     asserted rather than demonstrated: a single-key positive passing would mean the
+--     conjunction is not doing what the ruling says.
+--   * the INVERTED positive is the two-key one, and it fires only after the second key is
+--     granted, a few lines down.
+--   * NEG-B is new and has no predecessor: all_phases is refused AT THE GATE, before any
+--     row is minted, because step (c)'s assign_narrative is coordinator-only with NO
+--     capability arm — no combination of keys can satisfy it.
 -- st_x2 (a staff member of comm_x) is appointed + granted create_cases as the table
 -- owner (bypasses the guarded appoint/grant doors, like the seed; those doors are
 -- tested in 205).
@@ -167,16 +185,76 @@ insert into public.commission_administrativo_capabilities (commission_id, user_i
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select is(app.member_can((select comm_x from k), 'create_cases'), true,
-  'PRE: the Administrativo st_x2 HAS create_cases (the door reaches the stricter bulk gate, not a missing-capability deny)');
+  'PRE: the Administrativo st_x2 HAS create_cases (so every refusal below lands on the gate under test, not on a missing capability)');
+
+-- ⭐ NEG-A — the FIRST over-grant twin in the KEY dimension. This IS the original
+-- keystone's fixture and refusal, kept and re-purposed. create_cases ALONE is not enough.
+select throws_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'first_only',
+    jsonb_build_array(jsonb_build_object(
+      'label','NEG-A','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+    (select tid from tpl_multi)),
+  '42501', 'sem permissão',
+  'NEG-A ⭐ create_cases ALONE is REFUSED (the two-key conjunction is doing work; a pass here would mean it is not)');
+reset role;
+
+-- Grant the SECOND key. From here st_x2 is the two-key holder the ruling describes.
+insert into public.commission_administrativo_capabilities (commission_id, user_id, capability, granted_by)
+  values ((select comm_x from k), (select st_x2 from k), 'assign_case_phases', (select sa_x from k));
+
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is(app.member_can((select comm_x from k), 'assign_case_phases'), true,
+  'PRE2: and now they hold assign_case_phases too - so the positive below lands on the WIDENED gate, not on a lucky fixture');
 select lives_ok(
   format($$ select public.bulk_create_cases(%L, null, 'first_only',
     jsonb_build_array(jsonb_build_object(
       'label','ADM-BULK','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
     (select tid from tpl_multi)),
-  '⭐ INVERTED (ADR 0134 Amdt 1 A1.2): a create_cases Administrativo NOW reaches bulk creation');
+  '⭐ TWO-KEY POSITIVE (ADR 0134 Amdt 1 A1.2, PO option A): an Administrativo holding create_cases AND assign_case_phases reaches bulk creation');
 reset role;
 select is((select count(*)::int from public.cases where label = 'ADM-BULK'), 1,
-  'and the case actually landed - a returned count alone could be a no-op');
+  'and the case actually landed - a lives_ok alone could pass on a silent no-op');
+
+-- ⭐ NEG-B — all_phases is coordinator-only, and it is refused AT THE GATE. The count
+-- control is the half that matters: it proves the refusal happened BEFORE any row was
+-- minted, which is the whole difference between an honest refusal and the 200-row
+-- rollback that ADR 0134 Amdt 1 A1.2 was ruled to eliminate.
+update cnt set n = (select count(*) from public.cases where commission_id = (select comm_x from k));
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'all_phases',
+    jsonb_build_array(jsonb_build_object(
+      'label','NEG-B','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+    (select tid from tpl_multi)),
+  '42501', 'o escopo "todas as fases" é exclusivo da coordenação da comissão',
+  'NEG-B ⭐ all_phases is refused for a two-key holder, with a message NAMING THE SCOPE (errcode alone could not tell it from the authority gate)');
+reset role;
+select is((select count(*) from public.cases where commission_id = (select comm_x from k)),
+  (select n from cnt),
+  'NEG-B ⭐ AT THE GATE: not one case was minted before the refusal - an honest refusal before work, not a rollback after 200 rows');
+
+-- ⭐ NEG-C — the SECOND over-grant twin: the other key alone is not enough either.
+-- Without both NEG-A and NEG-C, "requires two keys" is asserted, not demonstrated.
+delete from public.commission_administrativo_capabilities
+ where commission_id = (select comm_x from k) and user_id = (select st_x2 from k)
+   and capability = 'create_cases';
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'first_only',
+    jsonb_build_array(jsonb_build_object(
+      'label','NEG-C','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+    (select tid from tpl_multi)),
+  '42501', 'sem permissão',
+  'NEG-C ⭐ assign_case_phases ALONE is REFUSED - the conjunction is symmetric, and neither key carries bulk on its own');
+reset role;
+insert into public.commission_administrativo_capabilities (commission_id, user_id, capability, granted_by)
+  values ((select comm_x from k), (select st_x2 from k), 'create_cases', (select sa_x from k));
+
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
 
 -- ⭐ THE SHARP TENANCY PIN. 314 11.14 already asserts bulk refuses the org_admin, but as
 -- throws_ok(..., null, null) - it accepts ANY raise, so it stays green under a WRONG
