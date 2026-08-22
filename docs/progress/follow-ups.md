@@ -5906,7 +5906,7 @@ and the *shipped behaviour* disagree, and one of the two is wrong: either re-poi
 amend T5 to state the exception and why. Leaving them disagreeing is what makes a later reader
 "fix" the wrong one.
 
-### 🟡 FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED — the dead-end door WAS reachable (owner: backend; filed 2026-08-21 from QA F-3's remediation; ✅ **MEASURED + FIXED 2026-08-22, NOT COMMITTED / NOT MERGED** — see § Resolution)
+### 🟡 FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED — the dead-end door WAS reachable (owner: backend; filed 2026-08-21 from QA F-3's remediation; ✅ **RESOLVED — MERGED to local `main` 2026-08-22 (`be546bbf`)** — see § Resolution; index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
 
 `app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ app.is_member_of(commission)
 ∧ ∃ capability row` (measured **four times independently** now; ADR 0134 Amdt 2 **M8**). The TS mirror
@@ -5998,7 +5998,7 @@ no CCIH membership (`staff2.farm`, `orgadmin.a`, `quality.a`), never by deleting
 membership; `seed.sql` is a contract with ~900 tests. Teardown is asserted empty and the seed's own
 four grants asserted intact.
 
-### 🟡 FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED — the case-wide affordance class has **no absence assertions on `/casos`** (owner: tester; filed 2026-08-21; ✅ **BUILT + GREEN 2026-08-22, NOT MERGED** — see § Resolution; ⛔ **WRONG TWICE, corrected twice — read the history, it is the point of this entry**)
+### 🟡 FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED — the case-wide affordance class has **no absence assertions on `/casos`** (owner: tester; filed 2026-08-21; ✅ **RESOLVED — MERGED to local `main` 2026-08-22 (`be546bbf`)** — see § Resolution; index line rotated → [follow-ups-archive.md](follow-ups-archive.md); ⛔ **WRONG TWICE, corrected twice — read the history, it is the point of this entry**)
 
 ⛔ **Filing history, kept because the item was wrong in a different way each time:**
 1. **v1 — FALSE.** Claimed case tags and the outcome selector had *“zero E2E coverage on any route”*. Both **are** covered on the manage host (`cases-extras.spec.ts:443` assigns a tag via `getByRole('region', {name:/Etiquetas/i})`; `processless-cases.spec.ts:473` drives the “Desfechos disponíveis” dialog). Cause: the sweep grepped **button labels**, while the real coverage uses a role+region locator and a dialog filter containing none of those strings — *a grep bounded by a label is a proxy for the property, not the property.* It reached the tracker as “confirmed … twice”, which reads like a measurement and was a restatement of one unsound search.
@@ -6008,7 +6008,7 @@ four grants asserted intact.
 
 **What is actually open.** The case-wide affordance class — QA's enumeration, **to be re-derived by property before use, not quoted**: *Novo item · Adicionar registro · Anexar documento · custom fields · Corrigir resultado · Ativar e atribuir*, plus **tags** — has **no absence assertions on `/casos`**. Manage-side presence is covered for several of them; the `/casos` side is asserted for none. Close it the way `case-access.spec.ts` AC-3b and the T6 narrative differential are built: absence on `/casos` paired against presence on manage, same user and case, counted by structure as well as accessible name. ⚠ State for each member whether its absence is **new** (Increment 1) or **pre-existing** (`8675b7cd`) — conflating those is what made v2 wrong. ⛔ **And one member is already mis-labelled, which is v2's error one member over: “Corrigir resultado” is PRE-EXISTING, not new** — it *looks* new because its prop stopped being passed, but `effectiveCanManagePhaseResults` had already zeroed it for that class. **Derive new-vs-pre-existing per member from the merge base; never infer it from “the prop changed”.**
 
-**✅ Resolution — BUILT + GREEN 2026-08-22, `e2e/casos-reading-surface-differential.spec.ts` (5 tests). NOT COMMITTED, NOT MERGED; this entry stays OPEN until it is.**
+**✅ Resolution — BUILT + GREEN 2026-08-22, `e2e/casos-reading-surface-differential.spec.ts` (5 tests). MERGED to local `main` 2026-08-22 (`be546bbf`); the condition this entry named is satisfied and it is CLOSED.**
 
 **1. The class, re-derived by property (not quoted).** Property: *an affordance rendered by `CaseDetailView`, or by the manage `(detail)` layout header that is its twin, whose visibility gate is a CASE-WIDE capability.* All six such gates resolve in ONE file (`case-detail-view.tsx`), which is what makes this an enumeration rather than a checklist: **G1** `caps.canWriteContent` · **G2** `caps.canManageLifecycle` · **G3** `effectiveCanAssignPhases` · **G4** `effectiveCanEditCustomFields` · **G5** `effectiveCanManagePhaseResults` · **G6** `canEditMeta` (prop deleted, ADR 0134 F-5). ⭐ **The derivation returns 16 members — QA's enumeration named 7.** The **nine** it missed entirely: *Encaminhar caso* · *Nova entrevista* · *Adicionar participante* · *Não necessária* · *Desfecho do caso* · *Adicionar fase* · *Adicionar narrativa* · *Editar desfechos disponíveis* · the case-meta *Editar*. The hand-list was under half the class, wrong in the same direction as v1's grep.
 
@@ -6057,7 +6057,7 @@ pressure toward writing tests the gate likes rather than tests that pin behaviou
 
 **To close:** a **seed** change — a case with custom-field values readable by a `create_cases` holder. Deliberately **not** done in Increment 1, which is DB-free **by decision** and whose empty `supabase/` diff is load-bearing in three gate records (it is why no diff-scoped door sweep was required). Forcing a seed change in would have broken the boundary those records rest on. Natural home: Increment 2, which touches the seed anyway for `read_cases`.
 
-### 🟠 FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY — D6's S8 arm has no `explicit_grants_only` bound, and the resulting bit-shape IS a quality reviewer's (owner: backend/PO; filed 2026-08-22, from the ADR 0134 Amendment 3 wording test)
+### 🟠 FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY — D6's S8 arm has no `explicit_grants_only` bound, and the resulting bit-shape IS a quality reviewer's (owner: backend/PO; filed 2026-08-22, from the ADR 0134 Amendment 3 wording test; ✅ **RESOLVED — residue discharged and MERGED to local `main` 2026-08-22 (`be546bbf`)**; index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
 
 ✅ **RULED 2026-08-22 by the PO — ADR 0134 Amendment 4: S8 IS bounded by `not v_eg`, exactly like S5
 and S7.** An `explicit_grants_only` case is invisible to the arm; reach there rides an explicit grant

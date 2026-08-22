@@ -27,7 +27,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   `explicit_grants_only` case is invisible to the `read_cases` arm. ✅ **Its binding work has LANDED**
   (the bound, P9/P9-twin/P10/P11, and the door-set enumeration now **pinned** in `356` §13, not merely
   recorded). Bullet rotated verbatim → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md).
-  ⚠ `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY` stays **OPEN** until this branch merges.
+  ✅ `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY` is **RESOLVED** — the merge condition this line named is
+  satisfied (`be546bbf`, on `main`), so the item rotated → [follow-ups-archive.md](docs/progress/follow-ups-archive.md).
 - **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
   user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
   person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
@@ -132,9 +133,12 @@ closure narrative rotated verbatim → [bug-log-archive.md](docs/progress/bug-lo
 ⭐ Carried forward because it outlives the bug: **"two failing tests" was a FLOOR, not a count** — a failing
 assertion masks every assertion after it in the same test, so instance 3 was invisible until instance 1 was
 fixed. Sweep the class **statically**; a run-fix-rerun loop reports green at the last **reachable** stale
-assertion. ⛔ **`main` IS STILL E2E-RED for these two** — the repair lives on the unmerged branch, so the
-2026-08-21 DSR gate row below stays accurate as written. The baseline expectation drops to **0 known-stale
-failures** only when `feat/case-surface-split` merges, and not before.
+assertion. ✅ **The repair is now ON `main`** — `feat/case-surface-split` merged at `6e364203`, so the
+condition this line named is satisfied and the baseline expectation is **0 known-stale failures**.
+⚠ **Expectation, not a measurement:** no full clean `e2e:prod` has confirmed it — the most recent gate row is
+the Increment-2 **union of two runs with 75 unrun**, and that row does not record which batches those were,
+so whether `quality-oversight.spec.ts` executed post-merge is **undetermined, not green**. Re-derive from a
+run before quoting it as the baseline.
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
@@ -197,7 +201,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **Case split · Inc 2** (ADR 0134 D6 + Amdt 1–7) | ✅ **APPROVED (r2)** — 5 record conditions, none blocking merge; r1 CHANGES REQUESTED (5 blocking, incl. a PHI write handed to `platform_admin`) | 2026-08-22 | [review](docs/reviews/case-surface-split-increment-2-review.md) |
+| **Case split · Inc 2** (ADR 0134 D6 + Amdt 1–7) | ✅ **APPROVED (r2)** — 5 record conditions, none blocking merge, **all 5 discharged 2026-08-22** (C-1/C-4 here · C-2/C-3 → [increment record](docs/progress/case-surface-split-increment-2.md) · C-5 → `FUP-CS2-QA-RESIDUE`); r1 CHANGES REQUESTED (5 blocking, incl. a PHI write handed to `platform_admin`) | 2026-08-22 | [review](docs/reviews/case-surface-split-increment-2-review.md) |
 | **Case surface split · Increment 1** (ADR 0134 D1–D5, D7) | ✅ **APPROVED** (r3) — 4 conditions, all for the Record edit (§8.9). No security defect in any round | 2026-08-21 | [case-surface-split-increment-1-review.md](docs/reviews/case-surface-split-increment-1-review.md) |
 | ~~Case surface split · Increment 1 (r2)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |
 | ~~Case surface split · Increment 1 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |

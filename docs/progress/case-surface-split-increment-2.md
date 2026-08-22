@@ -131,6 +131,96 @@ passing.
 finding; the same session nearly filed a bulk-gate failure as a product bug when it was the server
 serving three-commits-old code.
 
+## `orphan-administrativo-reachability.spec.ts` — executed standalone (QA r2 condition **C-2**)
+
+QA r2 approved with this file **unexecuted for twelve commits**: its control map had been asserted
+against a **pre-`read_cases`** build, so "the fix holds" rested on a run that could not have seen the
+capability this increment added. Run 2026-08-22 at `483f9216` (post-merge), through
+`npm run e2e:prod` scoped to the one file, with **`REBUILD=1`** — a forced fresh `next build`, because
+the instrument-staleness hazard is the one this condition exists to close
+(`FUP-DEV-SERVER-SERVED-STALE-CODE-FOR-HOURS`) — plus a fresh `supabase db reset`, a fresh server, and
+**`RETRIES=0`** for the stricter signal.
+
+```
+1 spec files → 1 batches · ≤70 tests/server · reset=1 · retries=0 · infra_retry=1
+  ok 1  C0 CONTROL — a MEMBER administrativo reaches the board and the door SERVES them
+  ok 2  C1 plain orphan — 404 everywhere; stopped by the COMMISSION ROW, not the shell gate
+  ok 3  C2 orphan × tenancy-admin — reads the commission row, REFUSED the capability affordance
+  ok 4  C3 orphan × quality-reviewer — reads the commission row, REFUSED the capability affordance
+GATE SUMMARY: 4 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 1 batches
+COVERAGE: accounted for 4 of 4 collected tests            → GATE GREEN, exit 0
+```
+
+**4 passed / 0 failed / 0 flaky / 0 skipped / `did-not-run` 0 / accounted 4/4.** All four executed —
+which is the specific thing that was missing, because the file is `serial` and a failure in C2 aborts
+the tail, where *"did not run" is not a verdict*.
+
+⚠ **What this run does and does not establish.** It establishes that all four tests execute and pass
+against a build that has `read_cases`. It does **not** re-establish the control map: only **2 of the 4**
+guard the mirror fix (C0 guards the fixture, C1 guards a different mechanism upstream), and that split
+came from a **neutralization**, which this run is not. A green standalone run is the precondition QA
+asked for, not a substitute for the differential.
+
+### Gate caveats — what the Test Run Summary's ⚠ points at
+
+The Increment-2 gate row carries `⚠ UNION of 2 runs` and links here. In full: `e2e:prod` recorded
+**1090 p / 0 FAILED / 75 unrun → RED(UNRUN)**, and the two named batches re-ran **129/129 GREEN**; the
+four authz ARMs exited 0 but are **all VACUOUS** (`FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`, 🔴 —
+an empty-domain run prints the byte-identical line a clean run prints).
+⛔ **The row does not record which two batches those were**, and the gate writes its logs to
+`$TMPDIR/e2e-prod-gate`, which each subsequent run overwrites — including the run above. So the batch
+identities are **not recoverable**, and no per-spec claim may be derived from that union. The increment
+merged on a gate that was never clean in one sweep; re-running it whole is owed work, not a formality.
+
+## V-1 — the `_case_caps` strip-and-compare (QA r2 condition **C-3**)
+
+`app._case_caps` was re-created **wholesale** by `CREATE OR REPLACE` — the single highest-leverage
+place in this increment for an unintended edit, and the one place the approval scope explicitly
+forbids touching (no change to S3 / S5 / S7 / `is_oversight_only_reader`). V-1 settles that by
+computation instead of by reading the diff: strip the injected S8 block out of the **live** body and
+compare the hash to the pre-change definition the migration header records.
+
+**Re-derived 2026-08-22 from the live catalog** at `483f9216`, on a stack whose registered migrations
+match the tree (**440 == 440**, head `20261003000800`) — not quoted from the review. Both hashes
+reproduce QA's exactly.
+
+| | |
+| --- | --- |
+| boundary `position(E'\n  -- ── S8 ·')` | **4406** |
+| boundary `position(E'\n  -- ── S3 ·')` | **6711** |
+| `md5(pg_get_functiondef(…))` — live | **`afbfed86c25e0a62c55163e83ad1f8a7`** (len **9328**) |
+| `md5(substring(1,4405) ‖ substring(from 6711))` — S8 stripped | **`edb85248a21326eb139e7e994b9c469b`** |
+| = the pre-change md5 in `…000500`'s header | **t** |
+
+Cut boundaries were inspected before the strip and are `end if;\n\n  -- ── S8` / `end if;\n\n  -- ── S3`,
+so the removed span is exactly the injected arm and nothing adjacent.
+⇒ **S1–S7, the S3 loop and STEPS 1–5 are byte-identical to the pre-change body.**
+
+Reproducible recipe (the marker text is matched by **code point**, so it survives any shell or editor
+round-trip that would mangle a literal box-drawing character). ✅ **Executed verbatim out of this file**
+on 2026-08-22 and it returns the two hashes above — the recipe is verified, not transcribed:
+
+```sql
+with d as (select pg_get_functiondef(p.oid) as def from pg_proc p
+           join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'app' and p.proname = '_case_caps'),
+     m as (select def,
+                  strpos(def, E'\n  -- ' || repeat(chr(9472),2) || ' S8 ') as s8,
+                  strpos(def, E'\n  -- ' || repeat(chr(9472),2) || ' S3 ') as s3 from d)
+select md5(def), md5(substring(def from 1 for s8-1) || substring(def from s3)) from m;
+```
+
+⚠ **Position convention, or the next reader will chase an off-by-one:** both figures are the position
+of the **`\n` preceding** the arm marker. Keeping that newline on either side of the cut yields the
+same string — `substring(1, s8-1) ‖ substring(from s3)` and `substring(1, s8) ‖ substring(from s3+1)`
+hash identically. Only cutting it from **both** sides, or **neither**, is wrong.
+
+⛔ **This is a recorded check, not a gate.** Nothing reds today if a future `_case_caps` change edits
+S1–S7 — the check has to be re-run by hand and nobody is prompted to. Promoting it to a pgTAP catalog
+assertion is QA's **C-3** recommendation and the highest-value item inside
+`FUP-CS2-QA-RESIDUE`; it is the one check that makes the **next** arm's author prove they changed only
+their own arm.
+
 ## The pre-build "binding on whoever starts it" clause — rotated 2026-08-22, ALL DISCHARGED
 
 Every obligation in it has an outcome, and several changed the build rather than merely constraining it:
