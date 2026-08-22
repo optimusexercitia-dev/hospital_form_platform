@@ -22,7 +22,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   **✅ Step 0 DONE** (`4ec53577`) — `quality-oversight.spec.ts` 21 p / 0 f / 0 did-not-run / exit 0
   on a fresh reset; both QO bugs closed and rotated. **🏗 Increment 1 code BUILT** (`01b41c87`) —
   T1–T5, lint 8/8 + `tsc` green (lead-verified, exits read directly). **T6 specs written**
-  (`0d839242`) and **§6 steps 1+2 PASSED** (`ea89aeb0` — see Test Run Summary; full `e2e:prod`
+  (`0d839242`); **§6 steps 1+2 re-run CLEAN at `e7ec7529`** (superseding `ea89aeb0` — see Test Run Summary; full `e2e:prod`
   GATE GREEN exit 0, census sums). **⛔ Step 3 QA: CHANGES REQUESTED — TWICE (r1 and r2)**
   ([review](docs/reviews/case-surface-split-increment-1-review.md)). **r1:** 3 blocking, no security
   defect; **F-1 falsified D1's own acceptance bullet** (a *second* `/casos` route file,
@@ -40,8 +40,16 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   offered it. **No signature: no `42501`, no log, no failing test**; nothing in 8 lint gates, pgTAP,
   4 ARMs or a green `e2e:prod` could catch it. ⛔ **R-3** — F-1's approval existed only in a commit
   body (recorded below). **Both blockers fixed** (tester hoist; frontend mirrors the door on the
-  manage host, over-grant twin run both directions). **Re-gate + QA r3 PENDING.**
-  So the increment is **NOT gated**: step 3 open, step 4 not sought. **Increment 2 NOT started.**
+  manage host, over-grant twin run both directions).
+  **✅ r3 APPROVED 2026-08-21** — both r2 blockers verified closed independently; gate re-run **clean
+  at `e7ec7529`** (every figure re-measured on that tree, none reused). **§6 steps 1–3 COMPLETE.**
+  ⛔ **Step 4 (PO approval) NOT SOUGHT YET; nothing merged; `main` unchanged.** r3 attached four
+  conditions, all **Record-edit** and none blocking merge — all four now discharged: the fixture-gap
+  measurement is filed (`FUP-ADMINISTRATIVO-CUSTOM-FIELDS-ARM-NOT-E2E-VERIFIABLE`, stated as *one
+  disjunct unreachable*, **not** “no coverage”), the detector FUP now requires **both** directions,
+  this bullet's drift is corrected (**third** occurrence, this time in the safe direction), and
+  PROGRESS.md was rotated **before** this edit (it had 1,119 bytes of headroom — gate 7 would have
+  redded on the very edit recording completion). **Increment 2 NOT started.**
   ⛔ Nothing merged; `main` unchanged.
   **✅ F-1 APPROVAL SCOPE — PO-ruled 2026-08-21, written down here because it authorized a NEW ROUTE and previously existed only in a commit body** (QA r2 **R-3**; their positive control: OPEN-4, ruled in the same commit, appears 8× across ADR/plan/tracker — F-1 appeared **0×**). The ruling: **narrow the `/casos` narrative route's two case-wide arms AND build a manage narrative host**, so they relocate rather than vanish. **Authorizes:** the narrowing, the new route `manage/cases/[caseId]/narrativa/[narrativeId]`, and its E2E. **Does NOT authorize:** touching the assignee arm (name-attributed work stays on `/casos` — ADR 0033 Q14), any other new route, or a D1 exception. ⚠ In a program whose own § Now header reads *“Approval scope, written down because it is a new fact”*, this one was not — the lead recorded OPEN-4's scope thoroughly and the same commit's other ruling not at all.
   ⚠ *This line previously read "T6 specs NOT written and no `e2e:prod` run" — stale from the moment
@@ -72,27 +80,13 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   re-gate onto the capability. ⚠ **That supersedes Increment 1's T4 narrowing** — T4 was correct
   when shipped (the door refused the capability; the route must not out-run the door) and is
   reversed only once the door admits it. Sequence, not flip-flop.
-  ⛔ **OPEN-3 — a THIRD PO question, surfaced by measurement AFTER the OPEN-2 ruling and NOT
-  covered by it. Blocks door 2.** `bulk_create_cases` takes a **`patient` object per row** and
-  calls `set_case_patient` (**Rule 12 data**), so admitting an administrativo to bulk creation
-  makes a **PHI write path** reachable by them. `set_case_patient` is a gate-less compat wrapper
-  delegating to `set_participant_patient`, **whose authority is UNMEASURED** (stack was mid-reset
-  under the Increment-1 gate). Two outcomes, both PO calls: **(a)** it refuses them ⇒ the wizard's
-  PHI picker is a **dead-end door inside the widened door** (200 rows, `42501` on commit, batch
-  rolled back — the shape T4 was overruled to avoid), needing a ruling on suppressing that
-  affordance; **(b)** it admits them ⇒ administrativo gains **PHI WRITE** from a case-*creation*
-  capability — a Rule 12 widening the PO was never asked about (they ruled that creating many cases
-  carries the same responsibility as creating one; patient-identifier write was not in the
-  question). Measure first, then ask. Detail: [plan](docs/plans/case-surface-split.md) § OPEN-3.
-  **✅ OPEN-3 RESOLVED BY MEASUREMENT 2026-08-21 — shape (a); Rule 12 HOLDS, no change needed.**
+  ✅ **OPEN-3 — RESOLVED BY MEASUREMENT 2026-08-21: Rule 12 HOLDS, no change needed.**
   `set_participant_patient` is `SECURITY DEFINER` with a **single** authority branch,
-  `app.is_staff_admin_of` — no `member_can`, no `can_write_case_content`, no `is_admin` anywhere in
-  the comment-stripped body. An administrativo with **all four** capabilities and a per-case
-  write-grantee are **both REFUSED**. ⇒ **Door 2 cannot become a PHI-write widening**; branch (b)
-  is closed entirely. ⛔ **The dead-end half is real and conditional:** the PHI call is step (d) of
-  the per-row loop and the loop re-raises, **rolling back the whole batch** — so an administrativo
-  on a **patient-collecting** template fills up to 200 rows and loses all of it to a message naming
-  *"a coordenação"*. PHI-free batches never reach step (d).
+  `app.is_staff_admin_of` — an administrativo with **all four** capabilities and a per-case
+  write-grantee are **both REFUSED**, so **door 2 cannot become a PHI-write widening**. The
+  conditional dead-end it left (PHI call is step (d) of the per-row loop, whole batch rolls back on
+  a patient-collecting template) became **OPEN-4**, ruled below. Full measurement + the dead-end
+  analysis rotated verbatim 2026-08-21 → [decisions-log.md](docs/progress/decisions-log.md).
   **✅ OPEN-4 RULED 2026-08-21 — OPTION D** (ADR 0134 **Amendment 2**, PROPOSED → **ACCEPTED**).
   Authorizes exactly §A2.7's "yes on D" list — the A2.2 split-writer mechanism, its migrations, the
   A2.5 test bill and the A2.6 record updates — **locally**. NOT authorized: remote `db push`, merge
@@ -341,7 +335,8 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **Case surface split · Increment 1** (ADR 0134 D1–D5, D7) | 🔴 **CHANGES REQUESTED** (r2) — r1's 5 code findings fixed; 3 NEW blocking: `lint` exits 1 at HEAD (`lint:vacuous`) · custom-field under-grant regression · F-1's PO ruling unrecorded. No security defect | 2026-08-21 | [case-surface-split-increment-1-review.md](docs/reviews/case-surface-split-increment-1-review.md) |
+| **Case surface split · Increment 1** (ADR 0134 D1–D5, D7) | ✅ **APPROVED** (r3) — 4 conditions, all for the Record edit (§8.9). No security defect in any round | 2026-08-21 | [case-surface-split-increment-1-review.md](docs/reviews/case-surface-split-increment-1-review.md) |
+| ~~Case surface split · Increment 1 (r2)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |
 | ~~Case surface split · Increment 1 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |
 | **DSR operational remediation** | ✅ **APPROVED** (r2; r1 CHANGES REQUESTED — 3 blockers, all records, no engineering) | 2026-08-21 | [dsr-remediation-review.md](docs/reviews/dsr-remediation-review.md) |
 | DSR operational remediation (r2) | **APPROVED** | 2026-08-21 | [dsr-remediation-review](docs/reviews/dsr-remediation-review.md) |
@@ -483,6 +478,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟡 **FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT** — `set_case_phase_result_override` (⛔ **grain-corrected**: the assignee arm applies **only while the phase is `active`**; once `completed` it is coordinator-only — the original line quoted one branch of two as the whole guard) admits **assignee ∨ coordinator** (per-*phase*), but the UI prop is a per-*case* boolean, so a non-coordinator phase assignee is offered nothing. ⛔ An **under-grant emits NOTHING** — no error, no log, no failing test — so no §6 gate can find it, unlike a dead-end door's visible `42501` — frontend/PO
 - 🟡 **FUP-CASE-T5-MEUS-CASOS-UNREPOINTED** — T5's text says board rows re-point to manage; `meus-casos` rows still go to `/casos`. ⚠ Arguably **correct** (Meus Casos *is* name-attributed work, which D1 keeps there) — filed because the plan text and the behaviour disagree and one is wrong; leaving them disagreeing is what makes a later reader fix the wrong one — frontend
 - 🟡 **FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED** — `member_can` requires `is_member_of`; the TS mirror `canInCommission` does **not**, so the mirror is wider than the door. Whether an orphan reaches any surface is **unmeasured in both directions** (the shell likely 404s them first) and **no fixture constructs one**. ⭐ Recorded as unverified on purpose — the previous docblock here asserted the door's OPPOSITE and was believed for weeks (QA F-3); a second unverified claim in the same spot is how that recurs — backend
+- 🟡 **FUP-ADMINISTRATIVO-CUSTOM-FIELDS-ARM-NOT-E2E-VERIFIABLE** — measured: **one** case platform-wide has custom-field values, **one** non-coordinator holds `create_cases`, and they **cannot read that case** — so the `member_can` disjunct of `update_case_custom_field_values` has **no reachable fixture**. ⚠ NOT “no coverage”: AC-5 + POS-2 pin every other arm. ⭐ The **second** reason the R-2 under-grant was invisible — a spec to catch it had no persona to write it with. Close via a **seed** change in Increment 2 (Inc 1 is DB-free by decision; its empty `supabase/` diff is load-bearing in three gate records) — backend/tester
 - 🟡 **FUP-VACUOUS-DETECTOR-FALSE-POSITIVE** — `check-vacuous-assertions.mjs` reports `ALL-ASSERTIONS-CONDITIONAL` when a helper is **declared inside** a test: the walk skips *child* functions but not a statement that **is** a `FunctionDeclaration`, so the helper's `return` revokes the guarantee for every later `expect`. Reddened the whole 8-gate chain; worked around by hoisting. ⛔ **Admission condition for any detector change: a NEW self-test reproducing the real vacuous shape, proven still RED after the fix** — a detector loosened on a false-positive report without that control is worse than the false positive — tester/lead
 - 🟡 **FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED** — the case-wide affordance class has **no absence assertions on `/casos`** (manage-side presence is covered for several). ⛔ **This entry was wrong TWICE and corrected twice** — v1 “zero coverage anywhere” (false: a grep bounded by **button labels** missed role+region locators), v2 “both narrowed by Increment 1” (false: tags moved **only for write-grantees**; the outcome selector was **already absent on `main`**). ⭐ Each fix corrected the clause and left the **method** unexamined — the lesson is the repetition — tester
 - 🟠 **FUP-SUPERSESSION-BADGE-LANE-BLIND** — `resolveSupersessionBadge` (`queries/submissions.ts`) mirrors `app.submitted_form_responses`' exclusion but **drops that rule's own `case_phase_id is null`**, while `listSubmissions` surfaces BOTH lanes. Standalone = correct (it IS ADR 0126 Am.1 §A's rule); **phase-bound = the chain-tip grain D8 examined and REJECTED** — the original reads "Substituído" before approval while `current_response_id` still points at it, flaps back on `reject_correction`, and an unapproved successor reads "Atual". ⭐ Differential: the **same pill** one file over is fed by `status === "approved"` (ADR 0085). ⭐⭐ And the lane conjunct **already exists in TS**: `isDashboardCountable` (`queries/dashboard.ts`) — which ARCHITECTURE.md calls *"the TS twin"*, singular — has `r.casePhaseId == null` explicitly, one file away. Two TS derivations of one choke-point; only one is sanctioned and only one is complete. ⚠ ADR **0074's** axis, not print-currency; found by accident in the §K sweep. ⛔ Read ADR 0074/0085 before fixing. Class: **a mirror inherits its source's PREDICATE, not just its shape** — frontend/backend

@@ -365,3 +365,31 @@ input that produced it, rotated at the §7 size cap because it is concluded mate
   outside the ratified scope. Until the PO rules, **D5 is partially implemented by decision,
   not by omission** — recorded so "T4 done" cannot read as full coverage. Detail:
   [case-surface-split.md](../plans/case-surface-split.md) §3 T4.
+
+## Rotated 2026-08-21 — OPEN-3 (case-surface-split): the Rule 12 question and its measured answer
+
+_Its CONCLUSION stays live in PROGRESS.md § Now because Increment 2 depends on it: Rule 12 holds,
+door 2 cannot become a PHI-write widening, no change required. This is the measurement and the
+dead-end analysis that produced OPEN-4, rotated at the §7 size cap._
+
+  ⛔ **OPEN-3 — a THIRD PO question, surfaced by measurement AFTER the OPEN-2 ruling and NOT
+  covered by it. Blocks door 2.** `bulk_create_cases` takes a **`patient` object per row** and
+  calls `set_case_patient` (**Rule 12 data**), so admitting an administrativo to bulk creation
+  makes a **PHI write path** reachable by them. `set_case_patient` is a gate-less compat wrapper
+  delegating to `set_participant_patient`, **whose authority is UNMEASURED** (stack was mid-reset
+  under the Increment-1 gate). Two outcomes, both PO calls: **(a)** it refuses them ⇒ the wizard's
+  PHI picker is a **dead-end door inside the widened door** (200 rows, `42501` on commit, batch
+  rolled back — the shape T4 was overruled to avoid), needing a ruling on suppressing that
+  affordance; **(b)** it admits them ⇒ administrativo gains **PHI WRITE** from a case-*creation*
+  capability — a Rule 12 widening the PO was never asked about (they ruled that creating many cases
+  carries the same responsibility as creating one; patient-identifier write was not in the
+  question). Measure first, then ask. Detail: [plan](../plans/case-surface-split.md) § OPEN-3.
+  **✅ OPEN-3 RESOLVED BY MEASUREMENT 2026-08-21 — shape (a); Rule 12 HOLDS, no change needed.**
+  `set_participant_patient` is `SECURITY DEFINER` with a **single** authority branch,
+  `app.is_staff_admin_of` — no `member_can`, no `can_write_case_content`, no `is_admin` anywhere in
+  the comment-stripped body. An administrativo with **all four** capabilities and a per-case
+  write-grantee are **both REFUSED**. ⇒ **Door 2 cannot become a PHI-write widening**; branch (b)
+  is closed entirely. ⛔ **The dead-end half is real and conditional:** the PHI call is step (d) of
+  the per-row loop and the loop re-raises, **rolling back the whole batch** — so an administrativo
+  on a **patient-collecting** template fills up to 200 rows and loses all of it to a message naming
+  *"a coordenação"*. PHI-free batches never reach step (d).

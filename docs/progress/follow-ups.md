@@ -5934,7 +5934,7 @@ orphan (delete the membership, leave the capability row) and measure whether the
 
 ⭐ **The lesson is the repetition, not the item.** Each correction fixed the specific wrong clause and left the *method* that produced it unexamined — which is how one entry was wrong three times in a day, twice while being corrected. **Recorded as [[a-partial-fix-reads-as-a-complete-one]].**
 
-**What is actually open.** The case-wide affordance class — QA's enumeration, **to be re-derived by property before use, not quoted**: *Novo item · Adicionar registro · Anexar documento · custom fields · Corrigir resultado · Ativar e atribuir*, plus **tags** — has **no absence assertions on `/casos`**. Manage-side presence is covered for several of them; the `/casos` side is asserted for none. Close it the way `case-access.spec.ts` AC-3b and the T6 narrative differential are built: absence on `/casos` paired against presence on manage, same user and case, counted by structure as well as accessible name. ⚠ State for each member whether its absence is **new** (Increment 1) or **pre-existing** (`8675b7cd`) — conflating those is what made v2 wrong.
+**What is actually open.** The case-wide affordance class — QA's enumeration, **to be re-derived by property before use, not quoted**: *Novo item · Adicionar registro · Anexar documento · custom fields · Corrigir resultado · Ativar e atribuir*, plus **tags** — has **no absence assertions on `/casos`**. Manage-side presence is covered for several of them; the `/casos` side is asserted for none. Close it the way `case-access.spec.ts` AC-3b and the T6 narrative differential are built: absence on `/casos` paired against presence on manage, same user and case, counted by structure as well as accessible name. ⚠ State for each member whether its absence is **new** (Increment 1) or **pre-existing** (`8675b7cd`) — conflating those is what made v2 wrong. ⛔ **And one member is already mis-labelled, which is v2's error one member over: “Corrigir resultado” is PRE-EXISTING, not new** — it *looks* new because its prop stopped being passed, but `effectiveCanManagePhaseResults` had already zeroed it for that class. **Derive new-vs-pre-existing per member from the merge base; never infer it from “the prop changed”.**
 
 ### 🟡 FUP-VACUOUS-DETECTOR-FALSE-POSITIVE — `check-vacuous-assertions.mjs` flags a test as vacuous when a helper is declared inside it (owner: tester/lead; filed 2026-08-21)
 
@@ -5960,3 +5960,13 @@ is strictly worse than the false positive.
 ⭐ Worth noting for whoever takes it: the false positive pushes authors toward *restructuring tests
 to appease the detector*. That is usually harmless (hoisting a helper is fine) but it is a slow
 pressure toward writing tests the gate likes rather than tests that pin behaviour.
+
+### 🟡 FUP-ADMINISTRATIVO-CUSTOM-FIELDS-ARM-NOT-E2E-VERIFIABLE — the `member_can` disjunct has no reachable fixture (owner: backend/tester; filed 2026-08-21, QA r3 §8.3)
+
+**Measured from the DB, not asserted:** exactly **one** case platform-wide carries custom-field values; exactly **three** principals can read it (`chefe.ccih`, `dualhat.a`, `quality.a`); exactly **one** non-coordinator holds `create_cases` (`staff2.ccih`), and `can_read_case` for them on that case is **false**. So the `member_can('create_cases')` arm of `update_case_custom_field_values` cannot be exercised end-to-end by any seed persona.
+
+⚠ **Do not state this as “not E2E-verifiable” unqualified — that overstates it.** `case-custom-fields.spec.ts` **AC-5** (coordinator edits custom fields on the manage host) and `administrativo.spec.ts` **POS-2** pin everything **except** the `member_can` disjunct. That one disjunct is what has no reachable fixture.
+
+⭐ **This is the SECOND reason the R-2 under-grant was invisible** — alongside the fact that an under-grant emits no signal at all, even a spec written to catch it would have had no persona to write it with.
+
+**To close:** a **seed** change — a case with custom-field values readable by a `create_cases` holder. Deliberately **not** done in Increment 1, which is DB-free **by decision** and whose empty `supabase/` diff is load-bearing in three gate records (it is why no diff-scoped door sweep was required). Forcing a seed change in would have broken the boundary those records rest on. Natural home: Increment 2, which touches the seed anyway for `read_cases`.

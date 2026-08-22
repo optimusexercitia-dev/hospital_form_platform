@@ -431,6 +431,25 @@ export function CaseDetailView({
   const effectiveCanAssignPhases = readingAsMember
     ? false
     : canAssignPhases || caps.canManageLifecycle;
+  // ⛔ BEHAVIOUR-NEUTRAL TODAY, AND DELIBERATELY KEPT. Do not "simplify" this back
+  // to a bare `canEditCustomFields` — it is defence in depth, not live logic:
+  //   · manage host — passes no `managementElsewhere`, so `readingAsMember` is
+  //     `false` and this expression is the IDENTITY.
+  //   · `/casos` host — passes no `canEditCustomFields`, so BOTH branches are
+  //     `false`.
+  // Every reachable (host, flag, caps, status) combination therefore yields the
+  // same value with or without this line.
+  //
+  // What it buys is the FUTURE host. `canEditCustomFields` sits OUTSIDE `caps`, so
+  // `narrowToReadingSurface` cannot see it, and without this backstop the only
+  // thing keeping a case-wide affordance off a reading surface is WHICH HOST
+  // REMEMBERED not to pass it — a convention, not a mechanism. That is exactly the
+  // ADR 0134 F-1 condition one prop later: a second `/casos` route kept case-wide
+  // narrative authorship because nobody re-derived the narrowing at the new site.
+  // With this line a forgetful host is narrowed anyway instead of leaking.
+  const effectiveCanEditCustomFields = readingAsMember
+    ? false
+    : canEditCustomFields;
   const effectiveCanManagePhaseResults = readingAsMember
     ? false
     : canManagePhaseResults;
@@ -567,7 +586,7 @@ export function CaseDetailView({
   // diffing the door against the UI caught it, which is why the authority is now
   // named here explicitly instead of inherited from a neighbouring prop.
   const showCustomFieldsPanel = caseCustomFieldsEnabled && customFields.length > 0;
-  const customFieldsEditable = canEditCustomFields && isOpen;
+  const customFieldsEditable = effectiveCanEditCustomFields && isOpen;
 
   const body = (
     <>

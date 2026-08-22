@@ -1,10 +1,14 @@
 # QA review — Case surface split, **Increment 1** (ADR 0134 D1–D5, D7)
 
-> **CURRENT VERDICT (r2, 2026-08-21): CHANGES REQUESTED** — see **§7 Re-review (r2)** at the
-> bottom. All five r1 code findings are genuinely fixed and the new specs are strong; the r2
-> blockers are a **red lint gate at HEAD** (`lint:vacuous`, so §6 step 1 is not satisfied), a
-> **custom-fields under-grant regression** the increment introduced, and a **PO ruling recorded
-> only in a commit message**. §§1–6 below are the r1 review, unchanged.
+> **CURRENT VERDICT (r3, 2026-08-21): ✅ APPROVED** — see **§8 Re-review (r3)**. Both r2 blockers
+> are closed and independently verified (`lint` exits 0 with no detector weakened and no assertion
+> lost; the custom-fields authority now mirrors its door, manage-host only). Four conditions attach,
+> all for the §6 step-5 Record edit — see §8.9. No security defect was found in any round.
+>
+> Prior rounds, kept as the record: **§7 (r2, CHANGES REQUESTED)** — red lint gate, the
+> custom-fields under-grant regression, and a PO ruling recorded only in a commit message.
+> **§§1–6 (r1, CHANGES REQUESTED)** — D1 falsified on the second `/casos` route, a stale
+> `member_can` catalog claim, and a stale § Now.
 
 ---
 
@@ -782,3 +786,263 @@ no UI gate claiming an authority the DB withholds. F-1's remediation in particul
 what I asked for: the extracted module, the mirrored manage host, and AC-4's over-reach proof
 together close the finding at the level of the *class* rather than the instance. Re-review should be
 quick.
+
+---
+
+# 8. Re-review (r3) — 2026-08-21 — **APPROVED**
+
+Branch `feat/case-surface-split` @ `fc41d3f2`, diffed against `df88dced`. New since r2:
+`e7ec7529` (R-1 + R-2 + record corrections), `fc41d3f2` (gate record).
+
+**Verdict: APPROVED**, with four conditions that belong in the §6 step-5 Record edit (§8.9) — none
+of them blocks the merge decision, and all four are records or a one-line hardening.
+
+## 8.1 R-1 — closed, and closed the way I conditioned
+
+`npm run lint` **exits 0** at HEAD, measured directly (not piped):
+`vacuous-assertion gate: OK (210 spec files, 0 findings)`. `tsc` **0**. `vitest` **1506/1506, 106
+files**. The branch's `supabase/` diff against the merge base is still **empty**.
+
+I read the spec diff rather than accepting "hoisted": it is purely mechanical — `focusTrace` moved
+to module scope taking `page` as a parameter (the pattern `openAccessDialog` already establishes in
+that file), three call sites gained the argument, and **nothing else changed**. No assertion
+removed, no loop bound altered, no `expect` weakened, the three `expect(...).toBe(true)` intact.
+**No detector change** — so my r2 condition (a loosened detector needs a red-first self-test) is
+satisfied by not arising.
+
+**On the detector FUP's framing, which the lead asked me to sanity-check: it is sound, and it is
+the right instinct.** `FUP-VACUOUS-DETECTOR-FALSE-POSITIVE` names the mechanism precisely, states
+the admission bar as a **new self-test reproducing the real vacuous shape, proven still RED**, and
+adds an observation I did not make and would endorse — that a false positive exerts slow pressure
+toward writing tests the gate likes rather than tests that pin behaviour.
+
+**One strengthening, cheap:** the bar currently requires only the *true-positive-still-red* half.
+Ask for **both directions**, as this program does everywhere else (the over-grant twin, the
+rollback-proving harness): the fix must also be shown to turn *this* false positive green. Stated
+as one clause — "prove the new self-test case still RED **and** the hoist-free original GREEN" — it
+closes the gap where a change is accepted because the red case still reds while not actually
+fixing anything. Without it, "still catches the true positive" is satisfiable by a no-op.
+
+## 8.2 R-2 — closed, and the fix mirrors the door rather than approximating it
+
+Re-measured from the catalog, not from the lead's message:
+`public.update_case_custom_field_values(uuid,jsonb)` (`prosecdef = t`) is
+`app.is_staff_admin_of(commission)` **elsif** `app.member_can(commission,'create_cases')` **else**
+`42501`. `canInCommission(access, cap)` is `access.role === 'staff_admin' || access.capabilities.includes(cap)`
+(`session.ts:670-675`) — the first arm mirrors `is_staff_admin_of` (membership + ACT hat; `is_active`
+covered at the shell) and the second mirrors `member_can`'s capability row, already flag-aware
+because `getCommissionAccessByOrg` short-circuits `capabilities` to `[]` when the `administrativo`
+kill switch is off. **That is the door, not an approximation.**
+
+Shape checks I ran against the fix rather than the description:
+
+- **`/casos` passes nothing** → the prop defaults `false` → `customFieldsEditable` false. The
+  narrowing holds, and the D1 sentence is unaffected.
+- **`effectiveCanEditMeta` was not reintroduced** — confirmed by grep; the deleted seam stayed
+  deleted.
+- **No other direction moved.** Coordinator on manage: true before and after. Coordinator on
+  `/casos`: false before (narrowed) and after (not passed). Oversight reader: false both ways.
+  Administrativo on manage: **false → true**, which is the whole intended change. Nothing else in
+  the diff touches `caps`.
+- **The prop is separate on purpose and the docblock says why** — it is not derivable from `caps`,
+  because `canManageLifecycle` is coordinator-only and would silently drop the administrativo arm.
+  That is the regression, named in the code where it happened.
+
+The corrected in-file comment is the strongest part of the fix: it states plainly that the F-5
+deletion "was a no-op for META and an UNDER-GRANT for CUSTOM FIELDS", and that lint, tsc, pgTAP,
+four ARMs and a green `e2e:prod` all passed across it. A comment that records what the gates could
+not see is worth more than one that records what they did.
+
+**Independent confirmation the fix did not break the pinned half:** `e2e/case-custom-fields.spec.ts`
+**AC-5** drives a `staff_admin` editing custom-field values on `/manage/cases/<id>` through the
+`Editar` button inside the `Etiquetas`-style region. That test sits in **batch 2**, which reported
+no failures in the `e7ec7529` gate. So the prop plumbing is pinned end-to-end for the coordinator
+arm; only the second disjunct is unpinned (§8.3).
+
+## 8.3 Ruling — the fixture limitation is an **acceptable open item**, not a blocker
+
+**I verified the premise myself rather than taking it, and it is exactly as reported.** From the
+live DB:
+
+- Exactly **one** case platform-wide carries custom-field values —
+  `d0cf0000-…-c1` (case #3, CCIH), 2 values.
+- Exactly **three** principals can read it: `chefe.ccih` (coordinator), `dualhat.a`, `quality.a`.
+- Exactly **one** principal platform-wide holds `create_cases` as a non-coordinator:
+  `staff2.ccih` — and `app.can_read_case('d0cf0000-…-c1', staff2)` = **false**.
+
+So the administrativo arm of this affordance genuinely cannot be exercised on the current seed.
+**That is the second reason the under-grant was invisible**, and it is worth more than the first:
+a missing prop is a mistake, a fixture that cannot reach the failing state is the recorded shape
+where a green gate means nothing at all.
+
+**Why it is nevertheless not a blocker.** The only durable pin is a **seed** change (values on a
+case `staff2` can read, or a standing read grant). `supabase/seed.sql` is backend-owned and is a
+contract with ~900 tests; more decisively, **Increment 1 is DB-free by decision** — the plan's own
+Increment-1 gate says pgTAP must be unchanged and "any pgTAP movement is a finding", and this
+branch's `supabase/` diff being empty is load-bearing evidence in three of its gate records.
+Forcing the pin into this increment would break the boundary that makes those records meaningful.
+The risk it leaves is bounded: the coordinator arm is pinned (AC-5), the authority expression is
+shared verbatim with `canEditCaseMeta` in the `(detail)` layout — which **is** covered, by
+`administrativo.spec.ts` POS-2 driving `Editar` on the manage host as `staff2` — and the over-grant
+twin was run manually in both directions.
+
+**I also verified the fixture cleanup**, because a leftover grant would silently widen the seed for
+~900 tests: `staff2` cannot read the custom-field case, so the temporary read grant is gone. The
+"deleted by identity and proved the revert" claim holds.
+
+**Conditions on accepting it** — all three in the Record edit:
+1. A follow-up naming the gap **with the measurement above written into it** (one case, three
+   readers, `staff2` not among them), so the next person does not re-derive it; plus the two
+   candidate fixtures and the note that either is a **seed** change ⇒ backend-owned ⇒ Increment 2
+   or later.
+2. Record that the **coordinator arm is pinned by AC-5** and the shared authority expression by
+   POS-2, so the unpinned surface is precisely the `member_can('create_cases')` disjunct — not the
+   whole affordance. An unqualified "not E2E-verifiable" overstates it.
+3. The manual over-grant twin (1→0→1) belongs **in the record**, not only in a message. A manual
+   measurement that lives in chat is the R-3 shape with a different subject.
+
+## 8.4 A-1 (non-blocking, recommend fixing now) — `canEditCustomFields` is missing the both-ends backstop its siblings have
+
+`case-detail-view.tsx` states a house rule throughout and applies it to the other role-implied
+props: `effectiveCanAssignPhases` (`:431`) and `effectiveCanManagePhaseResults` (`:434`) are both
+`readingAsMember ? false : …`, so *"a host that forgets still cannot open a case-wide door on
+`/casos`; a caller that forgets `managementElsewhere` still cannot either."* The new prop is
+consumed raw: `const customFieldsEditable = canEditCustomFields && isOpen` (`:570`). It is outside
+`caps`, so `narrowToReadingSurface` does not reach it either.
+
+**Latent only** — the host census (control: `canAssignPhases` hits the same probe) shows exactly one
+host passes it, and that host passes no `managementElsewhere`. So there is no live defect. But the
+single thing keeping this affordance off `/casos` is now *which host remembered*, which is the
+precise condition F-1 was filed for, one prop later. One line:
+`const customFieldsEditable = (readingAsMember ? false : canEditCustomFields) && isOpen`.
+
+I am **not** blocking on it: it is defense-in-depth for a door that is correctly gated today, and
+the fix is safe to land with any later touch of that file. But it should not be deferred to
+"someday" — it is cheaper now than the F-1 round was.
+
+## 8.5 R-3, R-4, R-5, R-7 — verified
+
+- **R-3** — F-1's approval scope is now in § Now, with what it authorizes (the narrowing, the new
+  route, its E2E) and what it does not (the assignee arm, any other route, a D1 exception). That is
+  the right shape, and it names its own absence honestly.
+- **R-4** — corrected, and the correction matches my measurement exactly: the assignee arm applies
+  only while `v_phase_status = 'active'`; once `completed` the caller falls to the coordinator-only
+  branch. The filing now says the under-grant is *narrower* than first filed. Right conclusion,
+  right direction.
+- **R-5 (third version) — checked, and it is right**, which I say deliberately after two wrong
+  versions. Both re-measured claims hold: tags gate on `caps.canWriteContent`, which this increment
+  newly narrows, and only a **write-grantee** loses them (a coordinator's were already hidden); the
+  outcome selector gates on `caps.canManageLifecycle`, which `8675b7cd` already zeroed, so it was
+  **already absent on `main` for everyone**. The entry's remaining assertion — *no absence
+  assertions on `/casos` for the class* — is true for all seven members.
+  ⭐ The disposition is what makes v3 right where v2 was wrong: it hands over an **unlabelled**
+  candidate list marked *"to be re-derived by property before use, not quoted"* and defers the
+  new-vs-pre-existing labelling instead of guessing it. Since I have now derived those labels, here
+  they are, so the FUP starts from data rather than from a re-derivation:
+
+  | Member | Gate | Absence on `/casos` is |
+  | --- | --- | --- |
+  | Tags · Novo item · Adicionar registro · Anexar documento | `caps.canWriteContent` | **NEW** (write-grantees) |
+  | Custom fields | own prop, unpassed on `/casos` | **NEW** (administrativos) |
+  | Ativar e atribuir | `effectiveCanAssignPhases` | **NEW** (administrativos w/ `assign_case_phases`) |
+  | **Corrigir resultado** | `effectiveCanManagePhaseResults` | ⚠ **PRE-EXISTING** |
+  | Outcome selector | `caps.canManageLifecycle` | ⚠ **PRE-EXISTING** |
+
+  ⚠ **"Corrigir resultado" is the trap**: it looks new because its prop stopped being passed, but
+  the pre-branch host resolved it as `phaseResultsOn && role === 'staff_admin'` and
+  `effectiveCanManagePhaseResults` already zeroed it for exactly that class. It is the same shape
+  as v2's outcome-selector error, one member over — which is why the "re-derive, don't quote"
+  instruction was the correct thing to write.
+- **R-7** — § Now refreshed and the rotation is correct: the OPEN-2 **record of a ruled question**
+  went to `decisions-log.md` verbatim, with the live ruling retained in § Now and ADR 0134 Amdt 1.
+  Concluded material, not live material. `lint:progress` passes.
+
+## 8.6 Ruling — the infra re-run audit **is sufficient**, and the flaky count is a floor
+
+I read the classifier rather than judging the audit on its summary. `scripts/e2e-prod-gate.sh:446`
+fires INFRA on `srv_dead = 1` **OR** `conn >= f` — so a dead server **alone** classifies the batch,
+without requiring the failures to be connection errors. Batch 5 is exactly that case
+(`server_dead=1`, `conn_errors=3`): if it had more than three failures, only the liveness tell
+fired. The script's own comment names the guard — *"a real failure reproduces on the fresh server
+and is then reported as a failure"* — and **the lead actually performed that guard** rather than
+citing it: all four retries accounted for their full batch (61/61, 64/64, 59/59, 69/69) with 0
+failed. **Sufficient. Nothing masked.**
+
+**The residual is not "something hid", it is "something was erased".** A genuinely *intermittent*
+assertion failure inside a discarded attempt is not carried forward as flaky — the attempt's counts
+are replaced. So the reported **4 flaky is a floor, not a count**, and this run discarded twice as
+many attempts as the last one. That is the substantive reason the rising server-death rate matters,
+and a better argument than gate time: **every discarded attempt is a batch of erased flake signal.**
+
+Recommend a small item (not a blocker) that records the 2 → 4 trend and proposes turning the manual
+audit into a machine check — require that a discarded attempt's failures were *all* connection
+errors, not merely that the server later died, and log the attempt-1 flaky lines before discarding
+them so the floor stops being a floor.
+
+## 8.7 Records — two things to fix in the Record edit
+
+**A-3 — § Now vs the Test Run Summary have drifted a third time, now in the safe direction.** § Now
+still reads *"**§6 steps 1+2 PASSED** (`ea89aeb0` …)"* and *"Re-gate + QA r3 **PENDING**"*, while the
+Test Run Summary two sections down carries the gate at **`e7ec7529`** GREEN, and the archive
+explicitly **withdraws** `ea89aeb0`'s lint figure. So the bullet simultaneously asserts that steps
+1+2 passed at `ea89aeb0` and that step 1 was unsatisfied there. It understates rather than
+overstates — the safe direction, and materially better than r1's version — but it is the same
+mechanism a third time, inside the paragraph that documents the mechanism. Repoint the "PASSED"
+clause at `e7ec7529` and flip "Re-gate PENDING" to done.
+
+**A-4 — PROGRESS.md is 1,196 bytes from the hard cap.** 80,724 bytes against `SIZE_CAP = 81,920`
+(`check-progress-doc.mjs:57`) — 1.5 % headroom, after a rotation. My verdict-row edit is written to
+be net-neutral, but the §6 step-5 Record edit adds a phase row, a gate row and follow-up lines, and
+will red gate 7 unless it rotates first. Rotate **before** writing, not after — and note that
+`lint:progress` will red on the *edit that records completion*, which is the worst moment to
+discover it.
+
+## 8.8 Could not verify (r3)
+
+1. **pgTAP `6795/6795 F=206` — not re-run.** Premise re-checked: `supabase/` diff against the merge
+   base is still empty, so no DB object changed and the figure cannot have moved for this branch's
+   reasons. An argument, not a measurement.
+2. **`e2e:prod` — not re-run.** I verified that `case-custom-fields.spec.ts` (AC-5, the coordinator
+   pin for the R-2 fix) sits in **batch 2**, which reported no failures, so the fix's pinned half is
+   covered by the recorded run. Pass/fail totals themselves I read from the record.
+3. **The four authz ARMs — not re-run**, same empty-diff argument.
+4. **The R-2 over-grant twin (1 → 0 → 1) is the lead's measurement, not mine.** I verified its
+   *preconditions* independently — the door's authority, the fixture's reach, and that the temporary
+   read grant was reverted — but I did not reproduce the twin.
+5. **The administrativo arm of custom-field editing is unexercised end-to-end by anyone**, by
+   construction (§8.3). Accepted with conditions; it is the largest single unpinned thing in this
+   increment.
+6. **Runtime rendering, again, not exercised by me.** Every UI claim across all three rounds is
+   source + catalog. The E2E suite covers that axis and is green.
+
+## 8.9 r3 verdict
+
+**APPROVED.**
+
+Both r2 blockers are closed and independently verified: `lint` exits 0 with no detector weakened and
+no assertion lost, and the custom-fields authority now mirrors its door exactly, on the manage host
+only, with the reading surface passing nothing. R-3, R-4, R-5 and R-7 are all addressed, and R-4 and
+R-5 were corrected in the direction the measurements actually point rather than in the direction
+that would have closed them fastest.
+
+**Conditions, all for the §6 step-5 Record edit — none blocks the merge decision:**
+1. **§8.3's three conditions** on the accepted fixture gap (write the measurement into the FUP;
+   record that AC-5 and POS-2 pin everything except the `member_can` disjunct; move the manual
+   over-grant twin into the record).
+2. **§8.7 A-3** — repoint § Now's "steps 1+2 PASSED" at `e7ec7529` and close out "Re-gate PENDING".
+3. **§8.7 A-4** — rotate PROGRESS.md **before** the Record edit; there are 1,196 bytes of headroom.
+4. **§8.1** — add the second direction to `FUP-VACUOUS-DETECTOR-FALSE-POSITIVE`'s admission bar.
+
+**Recommended, not required:** **§8.4** — give `canEditCustomFields` the `readingAsMember` backstop
+its two sibling props have (one line); and file the small item in **§8.6** on the 2 → 4 server-death
+trend and the erased-flake floor.
+
+Across three rounds I found **no security defect** — no UI gate claiming an authority the DB
+withholds, and after R-2, none withholding one it grants. What this increment is actually worth is
+narrower and better than "it passed": the entry predicate has one definition and five call sites,
+the reading-surface narrowing has one definition and two, the read gate that makes arm 2 safe is
+present in all four hosts and explained in each, and the specs that pin it were built as
+differentials with their own positive controls. The three rounds also produced something the code
+does not show — `reading-surface.ts`, the corrected custom-fields comment, and the withdrawn lint
+row each record a failure that every gate passed through, which is the only place that kind of
+knowledge survives.
