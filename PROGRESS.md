@@ -328,7 +328,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-21 | ⛔ **CASE SPLIT · Inc 1 RE-GATE — lint claim WITHDRAWN** | **E2E GREEN exit 0** — 1177 p / 0 f / 3 flaky / 11 skip / did-not-run 0 / 1191, census sums. pgTAP **6795** F=206 · `tsc` **0** · vitest **1506** · 4 ARMs **HOLD**. ⛔ **“lint(8) 0” FALSE** — measured before the specs landed; exits **1**. Step 1 UNSAT → [archive](docs/progress/test-run-archive.md) |
+| 2026-08-21 | ⭐ **CASE SPLIT · Inc 1 — §6 steps 1+2 CLEAN at `e7ec7529`** | **GATE GREEN exit 0** — 1176 p / 0 f / 4 flaky / 11 skip / **did-not-run 0** / 1191; census sums. pgTAP **6795** F=206 · lint(8) **0** · `tsc` **0** · vitest **1506** · 4 ARMs **HOLD** — all re-measured on THIS tree. ⚠ 4 infra re-runs (was 2) → [archive](docs/progress/test-run-archive.md) |
 
 ## QA Verdicts
 

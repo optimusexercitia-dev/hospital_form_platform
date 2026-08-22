@@ -902,3 +902,29 @@ lint figure alone is withdrawn.
 nodes but walks a statement that **is** a `FunctionDeclaration`, so a helper's own `return` revokes
 the unconditional-assertion guarantee for every later `expect`). That does not soften the record:
 the gate exits 1, and a gate's exit code is the fact, not one's reading of why.
+
+## 2026-08-21 — CASE SURFACE SPLIT · Increment 1 · §6 steps 1+2 re-run CLEAN at `e7ec7529`
+
+**GATE GREEN, exit 0.** `1176 passed · 0 failed · 4 flaky · 11 skipped · did-not-run 0 · 1191
+collected.` Census sums: 1176 + 4 + 11 = 1191, read from the **full** log (19/19 batch lines
+present). Step 1, all re-measured on **this** tree from a cold start — nothing carried forward:
+pgTAP **6795/6795** F=**206** PASS on a fresh reset · lint **8/8** exit 0 · `tsc` 0 · vitest
+**1506/1506** · `census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` all **INVARIANT HOLDS**.
+
+⭐ **Why every figure was re-measured rather than reused.** The previous re-gate row recorded
+"lint 8/8" from a measurement taken **21 minutes before** the specs it was reported beside; QA
+caught it (r2 R-1) and it was withdrawn. A gate figure is a claim about a **tree**, not about a
+command, so a run that predates any commit in scope is not evidence about it.
+
+⚠ **4 infra re-runs this time (batches 3, 5, 7, 18), up from 2** — each classified on
+`server_dead=1` with corroborating connection errors (64 / 3 / 43 / 11). **Checked rather than
+accepted:** a batch-wide "INFRA" label can sweep up a genuine assertion failure that happened
+*before* the server died, so the retries were audited individually — all four accounted for their
+**full** batch (61/61, 64/64, 59/59, 69/69) with **0 failed**. A real failure would have reproduced
+on the retry, which runs the same specs on a fresh server. Nothing masked.
+⛔ The **rising** server-death rate (2 → 4 in consecutive runs on the same machine) is recorded as
+an environmental observation, not a defect of this branch. If it keeps climbing it is worth a look
+before it starts costing gate time or hiding something.
+
+⛔ **Not a phase close.** QA r3 outstanding (r1 and r2 were both CHANGES REQUESTED), PO approval not
+sought, Increment 2 not started, nothing merged.
