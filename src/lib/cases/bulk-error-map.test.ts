@@ -23,9 +23,16 @@ import {
 describe('mapBulkRpcError', () => {
   const ALL_PHASES = 'o escopo "todas as fases" é exclusivo da coordenação da comissão'
 
-  it('is anchored on the door: the canonical entry matches the migration verbatim', () => {
-    // If the door's wording changes, this reds HERE rather than by silently falling
-    // back to the generic string in production.
+  // ⛔ RETITLED (QA B5-3). This was called "anchored on the door", which it is NOT and
+  // cannot be: it compares TS against a hand-copy of TS four lines above, so it is blind
+  // to the only thing that title claimed — the DOOR's message changing. A test whose
+  // title claims coverage it does not have is worse than no test, because it is what
+  // stops someone writing the real one.
+  // ⭐ THE REAL DOOR ANCHOR IS IN SQL, where the door is: `189_bulk_create_cases.sql`
+  // asserts `bulk_create_cases`' comment-stripped body contains this exact literal. If
+  // the door's wording changes, THAT reds. This one only guards the list against being
+  // edited out from under the mapper.
+  it('regression guard: the recognition list still contains the all_phases entry', () => {
     expect(RECOGNISED_FORBIDDEN_MESSAGES).toContain(ALL_PHASES)
   })
 

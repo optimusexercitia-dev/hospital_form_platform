@@ -6,6 +6,7 @@ import { getSessionContext } from '@/lib/queries/session'
 import { featureEnabled } from '@/lib/queries/feature-flags'
 import { createClient } from '@/lib/supabase/server'
 import { getCasePatient } from '@/lib/queries/cases'
+import { patientFieldsSet, patientRpcPayload } from '@/lib/cases/patient-payload'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
 import type {
@@ -341,35 +342,11 @@ function parseDueDate(raw: string): string | undefined | null {
  * the minimum-necessary FLOOR (require ≥ name OR mrn): identifiers below the floor
  * are treated as "nothing to write", not an error.
  */
-/**
- * The creation-scoped patient payload (ADR 0134 Amendment 2 option D). snake_case keys,
- * read with `->>` by all three creation RPCs — the same object shape
- * `bulk_create_cases` already takes per row, so one payload contract covers every door.
- */
-function patientRpcPayload(input: SetCasePatientInput) {
-  return {
-    name: input.name,
-    mrn: input.mrn,
-    date_of_birth: input.dateOfBirth,
-    age_years: input.ageYears,
-    sex: input.sex,
-    encounter_ref: input.encounterRef,
-    unit: input.unit,
-    attending: input.attending,
-  }
-}
-
-/**
- * ⛔ FIELD NAMES ONLY — NEVER VALUES. See {@link CreateCaseState.patientFieldsSet}.
- * Returns the keys the caller actually supplied, so the UI can confirm *what* was
- * recorded without the server handing any identifier back.
- */
-function patientFieldsSet(input: SetCasePatientInput): readonly string[] {
-  const p = patientRpcPayload(input)
-  return Object.entries(p)
-    .filter(([k, v]) => k !== 'sex' && v !== null && v !== undefined && v !== '')
-    .map(([k]) => k)
-}
+// The creation-scoped patient payload + its NON-PHI structural echo moved to
+// `patient-payload.ts` so they can be unit-tested: this module is `'use server'` and may
+// export ONLY async functions, so a synchronous helper here is unreachable from a test
+// whatever its visibility — which is why `patientFieldsSet`, the function enforcing the
+// A2.4 no-identifier-values narrowing, had no test of its own.
 
 function patientInputFromForm(formData: FormData): SetCasePatientInput | null {
   const name = String(formData.get('patientName') ?? '').trim()

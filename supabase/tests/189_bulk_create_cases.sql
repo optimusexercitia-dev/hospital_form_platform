@@ -24,7 +24,7 @@
 -- pass count.
 -- =============================================================================
 begin;
-select plan(43);
+select plan(44);
 
 -- The bulk RPC composes doors gated by ALL of these; assert_bulk_create_enabled
 -- gates the RPC itself; set_participant_patient gates on case_patient;
@@ -493,6 +493,26 @@ select throws_ok(
 reset role;
 select is((select count(*) from public.cases where commission_id = (select comm_x from k)),
   (select n from cnt), 'the PHI-rejected batch rolled back — 0 cases created');
+
+-- =========================================================================
+-- (9) ⭐ THE DOOR-SIDE ANCHOR for the app layer's recognition list (QA B5-3).
+-- `src/lib/cases/bulk-error-map.ts` surfaces this refusal's OWN message to the user by
+-- matching it VERBATIM — everything unrecognised falls back to a generic string, which
+-- is what keeps raw Postgres text out of the UI (Rule 8 / CLAUDE.md §8). That list is
+-- TypeScript and cannot see this SQL; a TS test comparing it to a TS constant is blind
+-- to the door changing. THIS is the assertion that reds if the wording drifts, and it
+-- lives here because the door does.
+-- ⛔ If you change the message below, change `RECOGNISED_FORBIDDEN_MESSAGES` in the same
+-- commit — otherwise the refusal silently degrades to "Você não tem permissão para esta
+-- ação." and the user stops being told WHICH half to change, with nothing going red.
+-- =========================================================================
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'bulk_create_cases'
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          like '%o escopo "todas as fases" é exclusivo da coordenação da comissão%'),
+  1,
+  '9.1 ⭐ DOOR ANCHOR: bulk_create_cases raises the all_phases refusal with the EXACT text the app layer''s recognition list matches on (src/lib/cases/bulk-error-map.ts). Drift here silently flattens a PO-ruled message to the generic one');
 
 select * from finish();
 rollback;

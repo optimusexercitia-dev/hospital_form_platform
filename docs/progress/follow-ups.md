@@ -6503,3 +6503,67 @@ the cause. ⚠ It must be a check that is **read**, not an implicit `beforeAll` 
 be built so it can fail — this repo has a recorded case of a positive control that passed while priming a
 cache and made the real assertion meaningless. Establishing the actual mechanism (watcher death vs
 dropped events) stays worth doing, but it is not a precondition for the guard.
+
+### 🟠 FUP-CREATE-CASE-IS-ADMIN-DISJUNCT-VS-THE-NOUN-RULE — `platform_admin` can create commission content, and `create_case` is the only creation door that lets them (owner: PO decision, measured by backend; filed 2026-08-22, split out of QA B1)
+
+**Not the PHI half.** QA B1's PHI widening is CLOSED by migration `20261003000800`: `create_case`
+now refuses a `p_patient` payload unless the caller is `is_staff_admin_of ∨ member_can('create_cases')`,
+refused **at the gate** with its own pt-BR message, pinned in `357` §8c both directions plus a
+same-door positive control. **This item is the disjunct underneath it**, which was deliberately left
+alone: it is pre-existing, outside Increment 2's authorization, and a noun-rule question the PO has
+never been asked.
+
+**The question.** CLAUDE.md §1 (ADR 0078 A35, the *noun rule*): `platform_admin` **may** administer
+**tenancy, identity, vocabulary and audit**, and **may NOT** touch **commission content or PHI**.
+`public.create_case`'s authority gate is
+```sql
+if not (app.is_staff_admin_of(p_commission_id) or app.is_admin()
+        or app.member_can(p_commission_id, 'create_cases')) then
+```
+⇒ a hatted `platform_admin` can open a case — commission content — in **any commission of any
+tenant**, and (`create_case:341-343`) receives a `creator_self_grant` READ on it, so they can then
+read what they opened. `app.is_admin()` requires the entitlement **and** `active_role() =
+'platform_admin'`, reachable in the product through `assume_role`.
+
+**⭐ THE SHARP MEASUREMENT — it is the sole outlier of its own family.** Comment-stripped `prosrc`
+over the three creation doors:
+
+| door | `app.is_admin()` arm | writes PHI |
+| --- | --- | --- |
+| **`public.create_case`** | **YES** | yes |
+| `public.create_case_from_template` | no | yes |
+| `public.bulk_create_cases` | no | yes |
+
+Two doors that do the same thing disagree, and nothing records which is intended. The delivery that
+found this even wrote the correct reasoning nine lines long for `bulk_create_cases` — *"NO
+`app.is_admin()` DISJUNCT AND NO TENANCY ARM … the noun rule keeps platform_admin out of commission
+content"* — one function away from where it was needed.
+
+**Population, by property** (`public` routines whose comment-stripped body calls `app.is_admin(`):
+**11**.
+```
+create_case · create_framework · create_referral_requested_action · delete_standard ·
+list_approver_candidates · set_case_offered_outcomes · set_framework_status ·
+update_framework · update_referral_requested_action · upsert_standard · verify_audit_chain
+```
+⚠ **The split below is a JUDGEMENT, not a measurement, and it is offered for the PO to correct.**
+Per the standing lesson that *"is this caller gated?" is a per-function judgement no text filter
+decides*, the count of 11 is the closed set; which of them are "commission content" is not derivable
+from `prosrc`:
+- **Plausibly noun-rule territory (content):** `create_case`, `set_case_offered_outcomes`,
+  `create_referral_requested_action`, `update_referral_requested_action`.
+- **Plausibly sanctioned (vocabulary / catalog / audit — explicitly allowed by A35):**
+  `create_framework`, `update_framework`, `set_framework_status`, `upsert_standard`,
+  `delete_standard`, `verify_audit_chain`.
+- **Unclassified:** `list_approver_candidates` (identity-adjacent; not read).
+
+**Why it is filed rather than fixed.** Removing the disjunct would (a) change `platform_admin`
+behaviour outside this increment's authorization, and (b) need re-derivation against the **whole**
+reach, not just the PHI half — the `creator_self_grant` above is the part a narrow reading misses.
+⛔ And the census census-arms cannot help here: `create_case` returns a composite, so it is in **no
+authz ARM's domain**; nothing would have flagged this and nothing will flag the next one.
+
+**To close:** a PO ruling on whether `platform_admin` may create commission content at all — with,
+whichever way it goes, a pin at the DOOR (not the predicate; asserting the predicate is what let the
+PHI half hide, QA B1's recorded contributing cause) and a same-door positive control so the verdict
+is not a broken fixture.

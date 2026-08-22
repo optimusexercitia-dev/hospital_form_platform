@@ -25,6 +25,38 @@
 -- ⛔ WHAT WOULD MAKE EACH PIN VACUOUS — stated per section, because "green" has three
 -- failure modes and only one of them is "the code is right".
 --
+-- ⭐⭐ MUTATION RUN RECORD — P4 and P9-twin, re-run 2026-08-22 (QA B3).
+-- ⛔ THESE TWO ARE THE ENTIRE EVIDENCE FOR THIS ARM, AND THAT IS STRUCTURAL, NOT A
+-- PREFERENCE. `app._case_caps` returns `int`, so it is in NO authz ARM's domain: the
+-- census covers `prosecdef` BOOLEANS, and the door audit's predicate arm additionally
+-- filters on a name prefix. All four ARMs pass on this function without ever asking a
+-- question about it. So there is no sweep behind these pins — only the twins below, and
+-- previously they existed only as a SPECIFICATION plus a sentence asserting the outcome.
+-- A run that lives in a chat message is a run no future reader can check.
+--
+-- Harness: `run_mut_v2.sh` — it reads `md5(pg_get_functiondef(...))` before and after,
+-- and REFUSES to score anything unless the hash MOVED and then came BACK.
+--   SELF-PROOF, run first: feeding it the CURRENT body as a "mutation" exits **9** with
+--   "hash did NOT move — the probe did nothing". A silent non-mutation therefore cannot
+--   be recorded as a passing twin. (v2 also treats an EMPTY/errored hash as a failure:
+--   two empties compare equal, which would read as a stable restore. v1 hit exactly that
+--   and refused to proceed, which is how this was noticed.)
+--
+--   P4 · the S8 arm reverted to the pre-migration body
+--     probe   afbfed86c25e0a62c55163e83ad1f8a7 -> edb85248a21326eb139e7e994b9c469b
+--     result  10 RED of 72 — tests 24, 25, 26 (P1), 30, 33, 36 (the restore-verified
+--             positives), 39, 40 (P6 audit), 47 (the P7 precondition), 58 (P10 content)
+--     restore afbfed86c25e0a62c55163e83ad1f8a7  (identical to the probe baseline)
+--
+--   P9-twin · `not v_eg` removed from S8, the arm otherwise identical
+--     probe   afbfed86c25e0a62c55163e83ad1f8a7 -> 74f6513cb3780603eccfe63f26e0ad46
+--     result  5 RED of 72 — tests 54, 56, 57 (P9 locked-case) AND 61, 63 (the locked-case
+--             BIT SHAPE). ⭐ That second pair is ADR 0134 Amdt 4 §A4.2's derivation
+--             becoming evidence: unbounded, the locked case yields content-without-
+--             deliberation and `is_oversight_only_reader` flips TRUE — the collision the
+--             bound exists to close, observed in the direction the ADR predicted.
+--     restore afbfed86c25e0a62c55163e83ad1f8a7  (identical to the probe baseline)
+--
 -- Personas (bootstrap + this file):
 --   sa_x  coordinator of comm_x            st_x   THE S8 SUBJECT — appointed + read_cases,
 --   st_x2 plain member of comm_x, later            ZERO grants, ZERO assignments

@@ -22,7 +22,7 @@
 -- was necessary and NOT sufficient. Nothing in this file depends on that ruling.
 
 begin;
-select plan(35);
+select plan(43);
 
 -- =========================================================================
 -- (0) FLAG PRECONDITIONS — asserted, not claimed. `app.audit_write` returns SILENTLY
@@ -42,6 +42,9 @@ create temp table k on commit drop as
          (v->>'st_x2')::uuid as st_x2, (v->>'comm_x')::uuid as comm_x
   from ctx;
 grant select on k to authenticated;
+-- The bootstrap platform_admin, for the B1 (8c) fixture.
+create temp table k2 on commit drop as select (v->>'admin')::uuid as admin_id from ctx;
+grant select on k2 to authenticated;
 
 -- st_x is the SUBJECT: a plain staff member appointed Administrativo with `create_cases`.
 -- Direct INSERT — the appoint/grant DOORS are 205's subject; here the appointment is a
@@ -273,9 +276,69 @@ create temp table mrow on commit drop as
    where commission_id = (select comm_x from k) and principal_id = (select st_x from k);
 delete from public.memberships
  where commission_id = (select comm_x from k) and principal_id = (select st_x from k);
+-- ⛔ RE-ANCHORED ON THE DOOR (QA B1 contributing cause). This asserted the PREDICATE
+-- (`member_can_for(...) = false`) and therefore never had to reckon with the DOOR's full
+-- disjunct set — which is how an extra `app.is_admin()` arm on `create_case` stayed
+-- invisible to an otherwise thorough suite. A predicate quoted at the wrong grain reads
+-- like a proof of the door. The predicate check is KEPT as the mechanism control, but the
+-- load-bearing assertion is now the door raising.
 select is(app.member_can_for((select comm_x from k), 'create_cases', (select st_x from k)), false,
-  '8.2 membership removed => the ORPHAN is refused, though appointment + capability rows survive (no FK, no cascade)');
+  '8.2a MECHANISM: membership removed => the ORPHAN loses the capability predicate, though appointment + capability rows survive (no FK, no cascade)');
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.create_case(%L, 'Orfao', true, '{}'::uuid[], null, null, null,
+              jsonb_build_object('name','N')) $$, (select comm_x from k)),
+  '42501', 'sem permissão',
+  '8.2b ⭐ AT THE DOOR: the ORPHAN is refused by create_case itself — the assertion that has to survive every disjunct the gate carries, not just the one under test');
+reset role;
+do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
 insert into public.memberships select * from mrow;
+
+-- =========================================================================
+-- (8c) ⭐ B1 — THE `is_admin()` ARM MUST NOT CARRY PHI (QA BLOCKING).
+-- `create_case`'s authority gate has a THIRD disjunct its two sibling creation doors do
+-- not: `app.is_admin()`. Migration 20261003000600 added an unconditional `p_patient`
+-- write once past that gate, handing a hatted platform_admin a patient-identifier write
+-- in ANY commission of ANY tenant — CLAUDE.md §1's noun rule (ADR 0078 A35), on the
+-- platform's most sensitive data class. It was NEW: before that migration the identifiers
+-- went out in a second call to set_case_patient, which is coordinator-only.
+-- ⛔ The `is_admin()` disjunct on CREATION is deliberately still here — pre-existing, and
+-- a noun-rule question for the PO. Only the PHI branch is gated down.
+-- =========================================================================
+do $$ begin perform set_config('request.jwt.claims',
+  json_build_object('sub', (select admin_id from k2), 'role', 'authenticated',
+                    'is_admin', true, 'active_role', 'platform_admin')::text, true); end $$;
+select is(app.is_admin(), true,
+  '8c.0 ⭐ PRE / ANTI-VACUITY: the fixture really IS a hatted platform_admin. app.is_admin() needs BOTH the entitlement AND active_role = platform_admin, so without this the refusals below could be a broken hat rather than the guard');
+set local role authenticated;
+select throws_ok(
+  format($$ select public.create_case(%L, 'Admin com PHI', true, '{}'::uuid[], null, null, null,
+              jsonb_build_object('name','Paciente Proibido','mrn','MRN-NAO')) $$, (select comm_x from k)),
+  '42501', 'apenas a coordenação da comissão ou um Administrativo autorizado a criar casos pode registrar dados do paciente',
+  '8c.1 ⭐ B1: a hatted platform_admin supplying p_patient is REFUSED AT THE DOOR, with its own message — not the generic gate message, so the assertion names which guard fired');
+select lives_ok(
+  format($$ select public.create_case(%L, 'Admin sem PHI', true, '{}'::uuid[], null, null, null, null) $$,
+         (select comm_x from k)),
+  '8c.2 ⭐ B1 SCOPE CONTROL: the SAME principal at the SAME door still creates a case WITHOUT p_patient — so the fix is provably scoped to the PHI payload and is not a silent behaviour change to case creation');
+reset role;
+do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select is((select count(*)::int from public.cases where label = 'Admin com PHI'), 0,
+  '8c.3 ⛔ REFUSED AT THE GATE: the rejected call minted NO case. A silently dropped payload would be data loss wearing a success, and would rebuild the M10 half-state this increment removed');
+select is(
+  (select count(*)::int from public.patient_identifiers where mrn = 'MRN-NAO'), 0,
+  '8c.4 …and wrote no identifiers anywhere');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.create_case(%L, 'Coord com PHI', true, '{}'::uuid[], null, null, null,
+              jsonb_build_object('name','Paciente Permitido','mrn','MRN-SIM')) $$, (select comm_x from k)),
+  '8c.5 ⭐ SAME-DOOR POSITIVE CONTROL: the coordinator supplying p_patient SUCCEEDS — so 8c.1 is a refusal of that principal class, not a door that refuses everyone');
+reset role;
+do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select is((select count(*)::int from public.patient_identifiers where mrn = 'MRN-SIM'), 1,
+  '8c.6 …and the coordinator''s identifiers actually landed');
 
 -- =========================================================================
 -- (9) FLAG-DARK — both switches, on the CREATION path specifically. The helper carries
