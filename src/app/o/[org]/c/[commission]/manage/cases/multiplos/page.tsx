@@ -8,6 +8,10 @@ import { getFeatureFlags } from "@/lib/queries/feature-flags";
 import { listProcessTemplateVersions } from "@/lib/queries/process-templates";
 import { activeMembers, listMembers } from "@/lib/queries/members";
 import { bulkCreateCases } from "@/lib/cases/bulk-actions";
+import {
+  canBulkCreateCases,
+  canUseAllPhasesScope,
+} from "@/components/cases/bulk-create-gate";
 import { BulkCreateWizard } from "@/components/cases/bulk-create-wizard";
 import type {
   BulkMember,
@@ -20,11 +24,11 @@ export const metadata: Metadata = {
 
 /**
  * "Múltiplos casos" — the full-page bulk-case creation wizard (ADR 0084). A
- * commission coordinator picks one process, fills a grid of cases, and the balanced
- * deal distributes them across chosen members in a single atomic operation. The
- * route mirrors the board's access gate but is stricter (Design #9: staff_admin
- * only — an Administrativo with `create_cases` uses the single-case flow); the
- * `bulk_create_cases` RPC is the real authority (Rule 1).
+ * coordinator — or an Administrativo holding BOTH `create_cases` and
+ * `assign_case_phases` (ADR 0134 Amendment 7) — picks one process, fills a grid of
+ * cases, and the balanced deal distributes them across chosen members in a single
+ * atomic operation. The gate is {@link canBulkCreateCases}, shared with the board's
+ * link; the `bulk_create_cases` RPC is the real authority (Rule 1).
  *
  * A phase-less / narratives-only template cannot be bulk-created (first-only mode
  * would assign nobody), so only ACTIVE templates with ≥1 phase are offered. When the
@@ -43,15 +47,24 @@ export default async function BulkCreateCasesPage({
     notFound();
   }
 
-  // ⛔ THE EXACT TS MIRROR OF `app.is_staff_admin_of`, which is what
-  // `public.bulk_create_cases` gates on — not a hand-set narrowing.
-  // `app.is_staff_admin_of` = `app.is_active(uid) AND app.has_role('commission', id,
-  // 'staff_admin', uid)`, and `access.role` is populated only from the caller's
-  // commission-scoped, ACT-hat-filtered membership partition, so this reproduces
-  // both the membership arm and the hat arm. The one predicate it does NOT mirror is
-  // `app.is_active`: the shell sends deactivated/suspended users to `/conta-inativa`
-  // before any commission route runs, so it is covered ELSEWHERE, not here — do not
-  // "improve" this gate by re-adding a check that already ran.
+  // ⚠ CORRECTED 2026-08-22 (ADR 0134 Amendment 7; QA finding B4). This block used to
+  // read "⛔ THE EXACT TS MIRROR OF `app.is_staff_admin_of`, which is what
+  // `public.bulk_create_cases` gates on" and told the next author not to change the
+  // gate. Both halves are now false — and a comment instructing a reader NOT to make a
+  // change that has already been made is worse than a merely stale one, so it is quoted
+  // as superseded rather than silently rewritten.
+  //
+  // Read from the live catalog (`pg_get_functiondef`, never a migration file), the door
+  // is: `app.is_staff_admin_of(commission)
+  //       OR (app.member_can(commission,'create_cases')
+  //           AND app.member_can(commission,'assign_case_phases'))`.
+  // {@link canBulkCreateCases} is that shape, and it is SHARED with the board's link so
+  // the two surfaces cannot drift into one offering what the other 404s.
+  //
+  // Still true, and still the reason not to "improve" this: the one predicate the mirror
+  // does NOT reproduce is `app.is_active` — the shell sends deactivated/suspended users
+  // to `/conta-inativa` before any commission route runs, so it is covered ELSEWHERE.
+  // Do not re-add a check that already ran.
   //
   // ⛔ `|| access.context.isAdmin` REMOVED (ADR 0134 D5 / noun rule, ADR 0078 A35),
   // and the comment it carried — "commission-admins resolve to 'staff_admin'" — was
@@ -62,11 +75,14 @@ export default async function BulkCreateCasesPage({
   // statement; it does not close a hole. Changes in lockstep with the board's
   // "Múltiplos casos" link, or one surface offers what the other 404s.
   //
-  // ADR 0134 T4 keeps the ROLE gate rather than re-gating on the `create_cases`
-  // capability as the plan first proposed: `bulk_create_cases` is
-  // `app.is_staff_admin_of`-only, so a capability gate would walk an administrativo
-  // into a wizard whose commit always fails with 42501.
-  if (access.role !== "staff_admin") {
+  // ⚠ REVERSED 2026-08-22 (ADR 0134 Amendment 1 §A1.2 + Amendment 7). This gate used
+  // to be `access.role !== "staff_admin"`, carrying the note that "T4 keeps the ROLE
+  // gate … `bulk_create_cases` is `app.is_staff_admin_of`-only". That is no longer
+  // true of the door, so the gate moved with it — and the door now takes TWO keys,
+  // which is why the predicate is shared rather than re-typed here. The old sentence
+  // is quoted rather than deleted, so a reader can tell this was reversed rather than
+  // overlooked. The route must never out-run the door.
+  if (!canBulkCreateCases(access)) {
     notFound();
   }
 
@@ -162,6 +178,7 @@ export default async function BulkCreateCasesPage({
           casePatientEnabled={flags.case_patient === true}
           caseCustomFieldsEnabled={flags.case_custom_fields === true}
           casesMultiPhaseEnabled={flags.cases_multi_phase === true}
+          canUseAllPhases={canUseAllPhasesScope(access)}
           caseNarrativesEnabled={flags.case_narratives === true}
         />
       )}

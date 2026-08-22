@@ -306,3 +306,17 @@ of the phase.**
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
 | Prévia split — ADR 0125/0126 | APPROVED (r2) | 2026-08-19 | [previa-split-review](../reviews/previa-split-review.md) |
+
+## ↩ Rotated from PROGRESS.md 2026-08-22 — DSR slices 3 and 4, VERBATIM apart from the link repoint
+
+_The DSR program closed, merged and pushed on 2026-08-20/21; these five rounds are concluded. Moved under
+this table's own retention rule (current milestone only) to make room for the Increment-2 verdict — PROGRESS.md
+stood at **10 bytes** under the hard cap._
+
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- | --- |
+| DSR Slice 4 — ADR 0130 Amdt 4 (r3) | **APPROVED** | 2026-08-20 | [dsr-slice-4-review](../reviews/dsr-slice-4-review.md) |
+| ~~DSR Slice 4 — ADR 0130 Amdt 4 (r2)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-4-review](../reviews/dsr-slice-4-review.md) |
+| ~~DSR Slice 4 — ADR 0130 Amdt 4 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-4-review](../reviews/dsr-slice-4-review.md) |
+| DSR Slice 3 — ADR 0130 (r2) | **APPROVED** | 2026-08-20 | [dsr-slice-3-review](../reviews/dsr-slice-3-review.md) |
+| ~~DSR Slice 3 — ADR 0130 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-3-review](../reviews/dsr-slice-3-review.md) |

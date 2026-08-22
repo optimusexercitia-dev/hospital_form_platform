@@ -18,13 +18,46 @@
 --   (B) BOARD — list_cases_board: a coordinator sees the whole board; a create_cases
 --       Administrativo sees ONLY cases they can already read (app.can_read_case); a
 --       foreign coordinator sees none.
+--   (VOC) VOCABULARY — the allowed capability set is enforced in exactly TWO catalog
+--       places (measured 2026-08-22 by property, not recall: the CHECK constraint
+--       `commission_administrativo_capabilities_capability_check`, and
+--       `public.grant_member_capability`'s `not in (...)` whitelist —
+--       `revoke_member_capability` has NO whitelist and is not one of them). Until
+--       ADR 0134 Increment 2, NOTHING anywhere asserted that an INVALID capability is
+--       refused, so the two could have diverged silently. Both are now pinned in both
+--       directions, and the two 23514s are told apart by MESSAGE — a whitelist removed
+--       from the RPC would still raise 23514 from the CHECK underneath it, which is
+--       exactly how this keystone would have gone green while asserting nothing.
+--   (A5) AUTO-GRANT — ADR 0134 Amendment 5: `appoint_administrativo` grants
+--       `read_cases` (and only that) with the appointment. A DIRECT-INSERT appointment
+--       (the seed's path) bypasses the door and therefore grants nothing; re-appointing
+--       an appointee who ALREADY STANDS grants nothing either (ADR 0134 Amendment 1
+--       §A1.1's no-backfill ruling still governs existing appointees); but re-appointing
+--       AFTER A REVOKE does grant — that is a genuinely new appointment. ⛔ The last two
+--       are the SAME RPC CALL and only one is a no-op, so both directions are pinned:
+--       a pin on either alone would read as a pin on both.
+--
+-- ⭐ NEUTRALIZATION RECORD (2026-08-22) — every pin above was proven able to fail, and
+-- the two that matter are recorded here because a later reader will otherwise assume the
+-- obvious mutation is the only one:
+--   N1 · drop the CHECK constraint                -> the CHECK negative RED, RPC pin green
+--   N2 · delete grant_member_capability's whitelist -> the RPC negative RED, CHECK pin green.
+--        ⛔ It still raised 23514 — from the CHECK underneath. An errcode-only throws_ok
+--        would have stayed GREEN with the validator gone. The pt-BR message is the
+--        assertion.
+--   N3 · make the auto-grant unconditional        -> the no-backfill pin RED
+--   N4 · move the auto-grant from the DOOR to a table TRIGGER -> the direct-INSERT pin RED.
+--        N4 is the one that stops "the door grants it" from being demonstrated by
+--        something that is not the door; N3 alone cannot tell those apart.
+--   N5 · delete the auto-grant entirely           -> the appoint pin and the
+--        re-appoint-after-revoke pin RED
 --
 -- Personas (bootstrap): sa_x coordinator, st_x + st_x2 plain staff of X, sa_y
 -- foreign coordinator. Plus sa_x2 = a SECOND coordinator of X (to test the
 -- "appoint a staff_admin" rejection without self-grant noise). st_x is the HOLDER.
 
 begin;
-select plan(50);
+select plan(67);
 
 -- The capability chokepoint is flag-aware; enable the surface + its dependencies.
 update app.feature_flags set enabled = true
@@ -84,6 +117,18 @@ select lives_ok(
   format($$ select public.appoint_administrativo(%L, %L) $$,
          (select comm_x from k), (select st_x from k)),
   'appoint_administrativo: coordinator appoints a staff member');
+-- ⭐ A5 KEYSTONE (ADR 0134 Amendment 5) — the appointment ITSELF granted `read_cases`,
+-- and NOTHING else. Asserted here, BEFORE the four explicit grants below, because
+-- after them the set is indistinguishable from "the coordinator granted five".
+-- Vacuity note: an `array_agg` equality (not a count, not an `exists`) is what makes
+-- the "and nothing else" half falsifiable — a count of 1 would pass on the wrong
+-- literal, and an `exists` would pass on a five-capability auto-grant.
+select is(
+  (select array_agg(capability order by capability)
+     from public.commission_administrativo_capabilities
+    where commission_id = (select comm_x from k) and user_id = (select st_x from k)),
+  array['read_cases'],
+  'A5: appoint_administrativo granted read_cases — exactly that one capability');
 select lives_ok(
   format($$ select public.grant_member_capability(%L, %L, 'schedule_meetings') $$,
          (select comm_x from k), (select st_x from k)),
@@ -107,10 +152,14 @@ select cmp_ok(
   (select count(*)::int from public.audit_log
    where action = 'administrativo.appointed' and entity_id = (select st_x from k)),
   '>=', 1, 'audit: administrativo.appointed emitted');
+-- ⚠ FIVE, not four, since ADR 0134 Amendment 5: the appointment's own `read_cases`
+-- auto-grant fires the same AFTER INSERT audit trigger as the four explicit grants.
+-- This number is test-local (it counts rows this test created), but the auto-grant is
+-- a NEW row on the appoint path, so it moved.
 select is(
   (select count(*)::int from public.audit_log
    where action = 'administrativo_capability.granted' and entity_id = (select st_x from k)),
-  4, 'audit: four administrativo_capability.granted rows emitted');
+  5, 'audit: five administrativo_capability.granted rows emitted (4 explicit + the A5 auto-grant)');
 
 -- =========================================================================
 -- (V) The SELECT-only door: self reads own capabilities; a foreign coordinator none.
@@ -120,7 +169,7 @@ set local role authenticated;
 select is(
   (select count(*)::int from public.commission_administrativo_capabilities
    where user_id = (select st_x from k)),
-  4, 'RLS: the holder reads their own four capability rows (self arm)');
+  5, 'RLS: the holder reads their own five capability rows (self arm)');
 reset role;
 
 select test_helpers.claims_for((select sa_y from k), false);
@@ -279,6 +328,12 @@ grant select on cs2 to authenticated;
 insert into public.cases (id, commission_id, case_number, label, created_by)
 values ((select case_id from cs2), (select comm_x from k), 9301, 'Caso sem acesso',
         (select sa_x from k));
+-- A LOCKED case, for the ADR 0134 Amendment 4 bound below.
+create temp table cs2l on commit drop as select gen_random_uuid() as case_id;
+grant select on cs2l to authenticated;
+insert into public.cases (id, commission_id, case_number, label, created_by, visibility_policy)
+values ((select case_id from cs2l), (select comm_x from k), 9302, 'Caso trancado',
+        (select sa_x from k), 'explicit_grants_only');
 
 -- Holder board: contains the readable (created + assigned) case, NOT the no-access one.
 select test_helpers.claims_for((select st_x from k), false);
@@ -287,10 +342,41 @@ select ok(
   exists (select 1 from public.list_cases_board((select comm_x from k), 200) b
           where b.case_id = (select case_id from cs)),
   'list_cases_board: the holder sees a case they can read (phase assignee)');
+-- ⛔ RE-ANCHORED FOR ADR 0134 D6/S8 — A SUBSTITUTION, NOT NEW COVERAGE.
+-- REPLACED: 'list_cases_board: the holder does NOT see a case they cannot read (no
+--            broadening)'  — an ADR-0061 assertion that st_x, holding create_cases,
+--            saw only cases they could already read.
+-- WHY it had to go: st_x is appointed through the DOOR at :84, so since ADR 0134
+--   Amendment 5 they also hold `read_cases`, and S8 gives them commission-wide read on
+--   ordinary cases. The old sentence is now FALSE OF THIS PERSONA — the behaviour it
+--   guarded did not regress, the persona changed underneath it.
+-- REPLACED BY, in order:
+--   (a) the same "create_cases does not broaden the board" claim, moved to the persona
+--       for whom it is still true — `adm2`, who holds create_cases and NOT read_cases;
+--   (b) an S8-EXPLICIT positive for st_x, with a zero-grant control so it names S8;
+--   (c) the Amendment-4 bound, on a locked case S8 must not reach.
+select ok(
+  exists (select 1 from public.list_cases_board((select comm_x from k), 200) b
+          where b.case_id = (select case_id from cs2)),
+  '(b) S8: the holder DOES now see a coordinator-created case with no attribution — commission-wide read (ADR 0134 D6)');
+select is(
+  (select count(*)::int from public.case_access_grants
+    where case_id = (select case_id from cs2) and principal_id = (select st_x from k)),
+  0, '(b) CONTROL: …and holds ZERO grants on it, so that reach is S8 and not S3');
+select ok(
+  not exists (select 1 from public.list_cases_board((select comm_x from k), 200) b
+             where b.case_id = (select case_id from cs2l)),
+  '(c) S8 BOUND (ADR 0134 Amdt 4): …but an explicit_grants_only case stays off their board');
+reset role;
+
+-- (a) The ORIGINAL "create_cases does not broaden the board" claim, re-anchored on adm2,
+-- who holds create_cases and NOT read_cases — the persona for whom it is still true.
+select test_helpers.claims_for((select adm2 from p), false);
+set local role authenticated;
 select ok(
   not exists (select 1 from public.list_cases_board((select comm_x from k), 200) b
              where b.case_id = (select case_id from cs2)),
-  'list_cases_board: the holder does NOT see a case they cannot read (no broadening)');
+  '(a) create_cases alone does NOT broaden the board — a create_cases-only Administrativo still sees only what they can read (the claim the re-anchored assertion above used to make)');
 reset role;
 
 -- Coordinator board: the whole commission board (both cases).
@@ -448,6 +534,129 @@ select lives_ok(
 reset role;
 
 update app.feature_flags set enabled = true where key = 'administrativo';
+
+-- =========================================================================
+-- (A5) NO BACKFILL — ADR 0134 Amendment 1 §A1.1 survives Amendment 5.
+-- `adm2` was appointed by DIRECT INSERT at the top of this file holding exactly
+-- `create_cases` — the shape of every appointee that predates the M1 migration.
+-- Re-appointing them through the door must NOT hand them `read_cases`: the
+-- auto-grant is bound to the appointment INSERT, and `on conflict do nothing`
+-- means no appointment happened here.
+-- ⚠ This runs LAST on purpose. It reads adm2's capability set, and the (VOC)
+-- block below deliberately widens it.
+-- =========================================================================
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.appoint_administrativo(%L, %L) $$,
+         (select comm_x from k), (select adm2 from p)),
+  'A5: re-appointing an existing appointee is accepted (idempotent no-op)');
+reset role;
+select is(
+  (select array_agg(capability order by capability)
+     from public.commission_administrativo_capabilities
+    where commission_id = (select comm_x from k) and user_id = (select adm2 from p)),
+  array['create_cases'],
+  'A5 NO-BACKFILL: an appointee who already existed keeps exactly their original capabilities');
+
+-- st_x2 is appointed by DIRECT INSERT — the seed's path (supabase/seed.sql runs as the
+-- RLS-exempt owner and never calls the DEFINER doors). ADR 0134 §A5.3: that path gains
+-- nothing from the auto-grant, and the two paths must be asserted separately or the
+-- seed's row would be read as evidence about the door.
+insert into public.commission_administrativos (commission_id, user_id, appointed_by)
+values ((select comm_x from k), (select st_x2 from k), (select sa_x from k));
+select is(
+  (select count(*)::int from public.commission_administrativo_capabilities
+    where commission_id = (select comm_x from k) and user_id = (select st_x2 from k)),
+  0, 'A5: a DIRECT-INSERT appointment bypasses the door and confers ZERO capabilities');
+
+-- =========================================================================
+-- (VOC) THE CAPABILITY VOCABULARY — both validators, both directions.
+-- Validator 1: the CHECK constraint (a direct INSERT as owner; RLS is not in play,
+-- the appointment FK is satisfied by st_x2's row above, and the PK is free — so the
+-- ONLY thing that can raise 23514 here is the CHECK itself).
+-- =========================================================================
+select throws_ok(
+  format($$ insert into public.commission_administrativo_capabilities
+              (commission_id, user_id, capability, granted_by)
+            values (%L, %L, 'bogus_cap', %L) $$,
+         (select comm_x from k), (select st_x2 from k), (select sa_x from k)),
+  '23514', null,
+  'VOC CHECK: an unknown capability literal is refused by the CHECK constraint (23514)');
+select lives_ok(
+  format($$ insert into public.commission_administrativo_capabilities
+              (commission_id, user_id, capability, granted_by)
+            values (%L, %L, 'read_cases', %L) $$,
+         (select comm_x from k), (select st_x2 from k), (select sa_x from k)),
+  'VOC CHECK: read_cases is accepted by the CHECK constraint');
+select is(
+  (select array_agg(capability order by capability)
+     from public.commission_administrativo_capabilities
+    where commission_id = (select comm_x from k) and user_id = (select st_x2 from k)),
+  array['read_cases'],
+  'VOC CHECK: …and the row actually landed (lives_ok alone would pass on a silent no-op)');
+
+-- Validator 2: `public.grant_member_capability`'s `not in (...)` whitelist.
+-- ⛔ THE MESSAGE IS LOAD-BEARING, NOT DECORATION. Removing the whitelist does not make
+-- this call succeed — the INSERT underneath then trips the CHECK and raises 23514 too.
+-- An errcode-only `throws_ok` would stay GREEN with the whitelist deleted, which is the
+-- "a door can have two locks" vacuity shape. Pinning the pt-BR message is what makes
+-- the assertion name the RPC's own arm.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.grant_member_capability(%L, %L, 'bogus_cap') $$,
+         (select comm_x from k), (select adm2 from p)),
+  '23514', 'capacidade inválida',
+  'VOC RPC: grant_member_capability refuses an unknown capability with its OWN guard');
+select lives_ok(
+  format($$ select public.grant_member_capability(%L, %L, 'read_cases') $$,
+         (select comm_x from k), (select adm2 from p)),
+  'VOC RPC: grant_member_capability accepts read_cases');
+reset role;
+select is(
+  (select array_agg(capability order by capability)
+     from public.commission_administrativo_capabilities
+    where commission_id = (select comm_x from k) and user_id = (select adm2 from p)),
+  array['create_cases', 'read_cases'],
+  'VOC RPC: …and the read_cases row actually landed (the door is idempotent, not inert)');
+
+-- =========================================================================
+-- (A5) REVOKE → RE-APPOINT **IS** A NEW APPOINTMENT — the other half of the
+-- no-backfill pin. ⛔ These two are the SAME RPC CALL and only ONE of them is a
+-- no-op, so a pin on either one alone READS as a pin on both: re-appointing a
+-- STANDING appointee grants nothing (the appointment insert conflicts away);
+-- re-appointing after a revoke grants `read_cases` again, because the revoke
+-- FK-cascaded every capability row and the appointment is genuinely new.
+-- The zero-capability check between them is a CONTROL, not decoration — without
+-- it the final assertion could be satisfied by a surviving row rather than by
+-- the door.
+-- =========================================================================
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.revoke_administrativo(%L, %L) $$,
+         (select comm_x from k), (select adm2 from p)),
+  'A5: the coordinator revokes the appointment');
+reset role;
+select is(
+  (select count(*)::int from public.commission_administrativo_capabilities
+    where commission_id = (select comm_x from k) and user_id = (select adm2 from p)),
+  0, 'A5 CONTROL: revoking the appointment FK-cascaded every capability row away');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.appoint_administrativo(%L, %L) $$,
+         (select comm_x from k), (select adm2 from p)),
+  'A5: the coordinator re-appoints them');
+reset role;
+select is(
+  (select array_agg(capability order by capability)
+     from public.commission_administrativo_capabilities
+    where commission_id = (select comm_x from k) and user_id = (select adm2 from p)),
+  array['read_cases'],
+  'A5: re-appointing AFTER a revoke IS a new appointment — read_cases is granted again, and only that');
 
 select * from finish();
 rollback;

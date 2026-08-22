@@ -5906,27 +5906,99 @@ and the *shipped behaviour* disagree, and one of the two is wrong: either re-poi
 amend T5 to state the exception and why. Leaving them disagreeing is what makes a later reader
 "fix" the wrong one.
 
-### 🟡 FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED — a dead-end door nobody can currently construct (owner: backend; filed 2026-08-21, from QA F-3's remediation)
+### 🟡 FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED — the dead-end door WAS reachable (owner: backend; filed 2026-08-21 from QA F-3's remediation; ✅ **MEASURED + FIXED 2026-08-22, NOT COMMITTED / NOT MERGED** — see § Resolution)
 
 `app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ app.is_member_of(commission)
-∧ ∃ capability row` (measured **three times independently**; ADR 0134 Amdt 2 **M8**). The TS mirror
-`canInCommission` checks **no membership**, so the mirror is **wider than the door** — an
-administrativo whose commission membership was removed but whose capability row survives would, on
-the TS side, be offered affordances the DB refuses.
+∧ ∃ capability row` (measured **four times independently** now; ADR 0134 Amdt 2 **M8**). The TS mirror
+`canInCommission` checked **no membership**, so the mirror was **wider than the door** — an
+administrativo whose commission membership was removed but whose capability row survives was, on
+the TS side, offered affordances the DB refuses.
 
-⛔ **Whether such a principal can reach any surface is UNVERIFIED, and the honest answer is
-"probably not":** `access.role` is populated only from the caller's own membership row, and the
-commission shell 404s `role === null && !isQualityViewer && !isTenancyAdmin` before any route under
-`/c/[commission]` renders. So the orphan very likely 404s upstream and the dead-end door is
-unreachable — **but no fixture in this repo constructs an orphan**, so neither direction is
-measured.
+**Filing state, kept:** the entry recorded reachability as UNVERIFIED **in both directions** and
+guessed "probably not" — `access.role` is membership-only, and the commission shell 404s
+`role === null && !isQualityViewer && !isTenancyAdmin`. It said so rather than asserting it because
+the docblock it replaced had stated the door's *opposite* for weeks (QA F-3).
 
-⭐ **Recorded this way on purpose.** The docblock that previously described this stated the
-*opposite* of the door's behaviour and was believed for weeks (QA F-3). Replacing a false claim with
-a second unverified claim in the same spot is how that happens twice. **To close:** construct an
-orphan (delete the membership, leave the capability row) and measure whether they reach the board.
+⛔ **The close condition as filed would have closed this WRONG.** It said "construct an orphan and
+measure whether they reach the board". QA's review (§7.8) had already sharpened it to *"construct
+orphan × tenancy-admin **and** orphan × quality-reviewer"* and warned, in those words, that the plain
+orphan is **the one composition that provably cannot reach** — so testing only it returns a clean
+GREEN that means nothing. That warning was correct and load-bearing: the sharper question is the
+whole finding.
 
-### 🟡 FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED — the case-wide affordance class has **no absence assertions on `/casos`** (owner: tester; filed 2026-08-21, ⛔ **WRONG TWICE, corrected twice — read the history, it is the point of this entry**)
+**✅ Resolution — MEASURED 2026-08-22 by construction, then FIXED. Not committed, not merged; this
+entry stays OPEN until it is.**
+
+**1. The guess was HALF WRONG, and wrong about the mechanism even where it was right.**
+
+| composition | `member_can` | commission row readable | reaches `/manage/cases` |
+| --- | --- | --- | --- |
+| C0 control — **member** administrativo | **true** | 1 | **yes, and the door SERVES it** |
+| C1 plain orphan | false | **0** | no |
+| C2 orphan × **tenancy-admin** | false | **1** | ⛔ **YES — offered "Novo caso"** |
+| C3 orphan × **quality-reviewer** | false | **1** | ⛔ **YES — offered "Novo caso"** |
+
+- **C1 never reaches — but NOT via the shell gate this entry predicted.**
+  `commissions_select_member_or_admin` denies a plain orphan the commission ROW, so
+  `getCommissionAccessByOrg` returns `null` and `!access` 404s them one step *earlier*; the shell's
+  `role === null && …` test never runs. Confirmed by the rendered boundary: C1 gets the **root**
+  404 ("Não encontramos esta página"), which only a LAYOUT `notFound()` produces.
+- **C2 and C3 DID reach.** They read that same row on a different policy arm
+  (`is_org_admin_of` / `is_quality_reviewer_of`), arrive with `role: null` **and** a full
+  `capabilities` array — the appointment and capability rows survive a membership deletion (no FK,
+  no cascade trigger) and stay readable through the **hat-blind** `user_id = auth.uid()` self arm of
+  `commission_administrativo_capabilities_select`. Both were offered "Novo caso"
+  (C2 twice — header + empty state) and both got **"Você não tem permissão para esta ação."**
+  ⚠ C3's rendered inside the **`QualityViewerShell`**, i.e. a write affordance inside a shell
+  labelled *SOMENTE LEITURA*.
+
+**2. Dead END, not over-grant — measured, because the severity turns entirely on it.**
+`create_case_from_template` opens `if not (is_staff_admin_of ∨ member_can(…,'create_cases'))`, and
+both arms were **false** for C2/C3 (`is_staff_admin_of` is membership-only — an org_admin does not
+satisfy it). Driven through the real dialog: the control created a case (board 22 → 23, torn down by
+id); **neither orphan created anything**. The refusal surfaces as sanitized pt-BR, not a raw `42501`.
+
+**3. The fix is in the mirror, not the pages.** `canInCommission` now carries the membership
+conjunct `app.member_can` always had — `access.role !== null` **is** that test, since `role` is
+populated only from the caller's own hat-filtered, non-expired `memberships` row. ⛔ It cannot
+under-grant: enumerated from the catalog, **every** consumer of the four capabilities is
+`is_staff_admin_of OR member_can(…)` — 9 functions plus the three `meetings_staff_admin_*` policies
+— and both arms require a membership. The narrowed mirror is the door's shape exactly.
+
+**4. Controls, stated in full including what cannot fail.** Unit: `session-capability-mirror.test.ts`
+(5 cases) — neutralized, **1 of 5** goes RED, and it is the orphan row; the other four pass either
+way because they do not exercise the missing conjunct. E2E:
+`orphan-administrativo-reachability.spec.ts` (4 tests) — neutralized **and the standalone bundle
+rebuilt**, C2 and C3 go RED, C0 and C1 stay GREEN. ⭐ **Only 2 of the 4 E2E tests guard this fix**;
+C0 guards the fixture and C1 guards a different mechanism upstream of the mirror. C3's RED needed a
+`-g` run of its own — the file is `serial`, so C2's failure aborted it and **"did not run" is not a
+verdict**.
+
+⛔ **A wrong matcher read exactly like a live defect.** The spec's first draft matched only the root
+404 copy and reported C2 as *still reaching the board* on a build that had already fixed it. The two
+boundaries carry different text — root `not-found.tsx` says "Não encontramos esta página", the
+commission-scoped one says "Página não encontrada" — and the distinction is not cosmetic: it names
+*which* gate fired. The spec now asserts the KIND, so a C2 refusal by the shell (C1's reason) cannot
+be mistaken for a refusal by the board gate.
+
+**5. Regression, run: `administrativo.spec.ts` 10/10, plus `cases-board-access` /
+`case-manage-entry-gate` / `case-custom-fields` / `casos-reading-surface-differential` 21/21.** The
+`administrativo` POS tests are the no-under-grant twin — they drive all five other `canInCommission`
+call sites (meetings, sign-off queue + drill-in, case meta, phase assignment) as a *member*
+administrativo, and all still pass.
+
+**6. Left alone, deliberately:** `hasCaseStanding`'s `isAdministrativo` arm on the board page. After
+the mirror fix every principal past the gate above already satisfies its `isCommissionMember` arm, so
+it can no longer decide anything. Kept as a fail-closed backstop and **documented as redundant rather
+than counted as defense in depth** — it reads off the same `context.memberships` as the gate above,
+so it is the same predicate twice, not a second lock.
+
+**Fixtures are purely additive** — C1/C2/C3 are built by *appointing* three personas who already hold
+no CCIH membership (`staff2.farm`, `orgadmin.a`, `quality.a`), never by deleting a seed persona's
+membership; `seed.sql` is a contract with ~900 tests. Teardown is asserted empty and the seed's own
+four grants asserted intact.
+
+### 🟡 FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED — the case-wide affordance class has **no absence assertions on `/casos`** (owner: tester; filed 2026-08-21; ✅ **BUILT + GREEN 2026-08-22, NOT MERGED** — see § Resolution; ⛔ **WRONG TWICE, corrected twice — read the history, it is the point of this entry**)
 
 ⛔ **Filing history, kept because the item was wrong in a different way each time:**
 1. **v1 — FALSE.** Claimed case tags and the outcome selector had *“zero E2E coverage on any route”*. Both **are** covered on the manage host (`cases-extras.spec.ts:443` assigns a tag via `getByRole('region', {name:/Etiquetas/i})`; `processless-cases.spec.ts:473` drives the “Desfechos disponíveis” dialog). Cause: the sweep grepped **button labels**, while the real coverage uses a role+region locator and a dialog filter containing none of those strings — *a grep bounded by a label is a proxy for the property, not the property.* It reached the tracker as “confirmed … twice”, which reads like a measurement and was a restatement of one unsound search.
@@ -5935,6 +6007,20 @@ orphan (delete the membership, leave the capability row) and measure whether the
 ⭐ **The lesson is the repetition, not the item.** Each correction fixed the specific wrong clause and left the *method* that produced it unexamined — which is how one entry was wrong three times in a day, twice while being corrected. **Recorded as [[a-partial-fix-reads-as-a-complete-one]].**
 
 **What is actually open.** The case-wide affordance class — QA's enumeration, **to be re-derived by property before use, not quoted**: *Novo item · Adicionar registro · Anexar documento · custom fields · Corrigir resultado · Ativar e atribuir*, plus **tags** — has **no absence assertions on `/casos`**. Manage-side presence is covered for several of them; the `/casos` side is asserted for none. Close it the way `case-access.spec.ts` AC-3b and the T6 narrative differential are built: absence on `/casos` paired against presence on manage, same user and case, counted by structure as well as accessible name. ⚠ State for each member whether its absence is **new** (Increment 1) or **pre-existing** (`8675b7cd`) — conflating those is what made v2 wrong. ⛔ **And one member is already mis-labelled, which is v2's error one member over: “Corrigir resultado” is PRE-EXISTING, not new** — it *looks* new because its prop stopped being passed, but `effectiveCanManagePhaseResults` had already zeroed it for that class. **Derive new-vs-pre-existing per member from the merge base; never infer it from “the prop changed”.**
+
+**✅ Resolution — BUILT + GREEN 2026-08-22, `e2e/casos-reading-surface-differential.spec.ts` (5 tests). NOT COMMITTED, NOT MERGED; this entry stays OPEN until it is.**
+
+**1. The class, re-derived by property (not quoted).** Property: *an affordance rendered by `CaseDetailView`, or by the manage `(detail)` layout header that is its twin, whose visibility gate is a CASE-WIDE capability.* All six such gates resolve in ONE file (`case-detail-view.tsx`), which is what makes this an enumeration rather than a checklist: **G1** `caps.canWriteContent` · **G2** `caps.canManageLifecycle` · **G3** `effectiveCanAssignPhases` · **G4** `effectiveCanEditCustomFields` · **G5** `effectiveCanManagePhaseResults` · **G6** `canEditMeta` (prop deleted, ADR 0134 F-5). ⭐ **The derivation returns 16 members — QA's enumeration named 7.** The **nine** it missed entirely: *Encaminhar caso* · *Nova entrevista* · *Adicionar participante* · *Não necessária* · *Desfecho do caso* · *Adicionar fase* · *Adicionar narrativa* · *Editar desfechos disponíveis* · the case-meta *Editar*. The hand-list was under half the class, wrong in the same direction as v1's grep.
+
+**2. New vs pre-existing is a (MEMBER × VIEWER-CLASS) CELL, not a member property** — measured at the merge base **`df88dced`**, never inferred. Coordinator column: **entirely PRE-EXISTING** (`readingAsMember` was already true there and already zeroed BOTH caps). Write-grantee: **G1 is NEW** (the trigger widened to `isReadingAsMember`); G2–G5 were never theirs on either host and are asserted as a *both-hosts control*, never as a differential. Administrativo: **G3 and G6 are NEW** (`/casos` itself passed both props at `df88dced`). "Corrigir resultado" confirmed **PRE-EXISTING for every class**, as this entry warned.
+
+**3. A THIRD mechanism the entry did not anticipate — NEVER-FED.** Three members are absent because `/casos` has never passed their fuel, at `df88dced` or at HEAD: *Adicionar fase* / *Adicionar narrativa* (`adHocForms`/`adHocNarrativeTypes`) and *Editar desfechos disponíveis* (`casesExtrasEnabled`). ⛔ **The spec's first draft labelled the third one narrowing-driven and the neutralization control is what caught it** — with the narrowing fully neutralized the button still did not appear. A member's mechanism is measured, not read off the gate it looks like it belongs to. A fourth, the case-meta *Editar*, is absent because its JSX was **deleted**.
+
+**4. The neutralization control (the part that makes the absences mean anything).** Run manually against the local stack, reverted immediately, `git diff -- src/` empty before continuing. **N1** (`narrowToReadingSurface` → identity): **9 of 14** members flip PRESENT on `/casos`; COORD-1 + WRITE-1 RED, ADM-1/PLESS-1/CF-1 correctly stay GREEN. **N2** (`isReadingAsMember` → false **and** the three props re-passed by `/casos`): **11 of 14**, adding G3 and G5; ADM-1 flips on G3 alone, CF-1 on G4. ⭐ **G4 and G5 needed BOTH halves neutralized** — for a coordinator they are doubly guarded, the "neither end is load-bearing alone" design measured rather than asserted. ⛔ **Four members cannot be made to fail at all** (the three NEVER-FED + G6): for those the `/casos` half is a regression guard, and the manage-side positive is what carries the differential. Stated because a control map listing only what flipped reads as though everything did.
+
+**5. Still not covered, deliberately:** the **administrativo × custom fields** cell (the one NEW cell with no reachable fixture — `FUP-ADMINISTRATIVO-CUSTOM-FIELDS-ARM-NOT-E2E-VERIFIABLE`, needs a seed change routed to Increment 2) · narrative authorship (owned by AC-3b + T6; its attributed half is reused here as the anti-over-reach control) · patient-panel edit (PHI, owned by `case-patient.spec.ts`) · event visibility (a field inside a dialog whose trigger is already proven unreachable).
+
+**Fixtures** are built and torn down by the spec itself (a published 2-phase template with an emitting phase driven to `completed` through the real RPC chain — `case_phases` refuses every direct write outside `app.in_case_rpc`; a process-less case; a per-case write grant; an assigned narrative). Teardown verified empty after the run. Nothing seeded is mutated.
 
 ### 🟡 FUP-VACUOUS-DETECTOR-FALSE-POSITIVE — `check-vacuous-assertions.mjs` flags a test as vacuous when a helper is declared inside it (owner: tester/lead; filed 2026-08-21)
 
@@ -6035,3 +6121,495 @@ go wrong:
 
 ⛔ **Do not close this item on the ADR edit.** The ruling settled the design question in one line; every
 line above is still un-built, and this is the register the PO reads reach from.
+
+### 🟢 FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED — half of `app` is PUBLIC-executable, and the only thing bounding it is one config line (owner: backend; filed 2026-08-22, found while deriving an ACL by property for ADR 0134 Amdt 6)
+
+**Found while doing something else** — the ADR 0134 Amendment 6 condition "derive `member_can_for`'s ACL
+from the catalog by property, do not invent one". The derivation surfaced an asymmetry, and the
+asymmetry turned out to be the small end of a much larger measured fact.
+
+**Filed as 🟢 informational, deliberately.** It is **not** a live hole, and it must not be reported as
+one — see the bound below. It is filed because the bound is a *config line*, not the ACLs, and nothing
+in the tree says so.
+
+**Measured 2026-08-22 from the live catalog** (property + count for each):
+
+| property | count |
+|---|---|
+| functions in schema `app` (`prokind='f'`) | **467** |
+| of those, **`anon` holds EXECUTE** (`has_function_privilege`) | **237** |
+| `proacl IS NULL` — the *permissive default*, which includes PUBLIC | **228** |
+| an **explicit** `=X/postgres` PUBLIC entry in `proacl` | **9** |
+
+The nine explicit ones: `answer_map`, `can_read_correction_response`, `commission_of_version`,
+`eval_condition`, `is_admin`, **`is_member_of`**, `is_org_admin_of`, **`is_staff_admin_of`**,
+`latest_published_version`. Four of those nine are **authorization predicates**.
+
+⛔ **THE BOUND, and it is the whole severity argument.** Schema `app` is **not exposed to PostgREST** —
+`supabase/config.toml:13` is `schemas = ["public", "graphql_public"]`. An `anon` caller cannot reach
+`app.*` over the API at all (this repo has already recorded that `app.*` RPCs are 404). So these grants
+confer nothing today. ⇒ **defense-in-depth gap, not a vulnerability.** If that one line ever gains
+`"app"`, 237 functions become directly callable by `anon` in the same edit — the ACLs are not the thing
+holding the line, and a reader auditing the ACLs would conclude they were.
+
+⭐ **How this was nearly filed wrong, which is the reusable part.** It was first reported as
+*"`app.is_member_of` carries a PUBLIC EXECUTE grant while its `_for` twin and the whole `_for` family do
+not — `is_member_of` is wider than every sibling."* Every clause of that is **true**, and the framing is
+**wrong in the way this repo keeps being wrong**: it names the instance found instead of the class. Run
+by property, the class is 237 of 467, `is_staff_admin_of` is a second explicit member the sentence
+missed, and the dominant mechanism is not a deliberate grant at all but **`proacl IS NULL`** — the
+default nobody wrote. A one-outlier framing invites a one-function fix that would change nothing.
+
+**To close** — this needs a *decision*, not a patch, and the decision is not this increment's:
+1. Rule whether `app` should be default-`REVOKE`d from PUBLIC at all (a sweeping ACL change across 228
+   functions, each of which must still work for `authenticated` / `service_role` / the DEFINER chains).
+2. If yes, the honest gate is a **pgTAP** assertion (⚠ DB anchors are not checkable in `npm run lint` —
+   ADR 0127's stated bound), and it must be **red-first**: create a throwaway `app` function with a NULL
+   `proacl` and require the gate to catch it, or the gate proves only that today's 228 were listed.
+3. Whatever is decided, `supabase/config.toml:13` should carry a comment saying that 237 `app` functions
+   are anon-executable and this line is what makes that safe. Right now the load-bearing line looks
+   routine.
+
+⛔ **Do not "fix" this by adding `REVOKE` to the ADR 0134 migration.** It is outside that ruling's
+approval scope, it is unrelated to the case surface split, and a sweeping privilege change smuggled into
+a feature migration is how the next reader loses the reasoning.
+
+### 🟠 FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS — a pgTAP premise 136 files can state falsely (owner: backend/tester; filed 2026-08-22, found inside the ADR 0134 S8 suite)
+
+`test_helpers.claims_for(...)` sets `request.jwt.claims`; **`reset role` restores the ROLE only.** So a
+suite that says "back in owner context, `auth.uid()` is NULL" after a `reset role` may in fact still be
+asserting **as the last persona**, and every assertion resting on that sentence inherits a false premise.
+
+**Found by construction, not by review.** The ADR 0134 Increment-2 suite (`356`) stated exactly that
+premise for its `member_can` pins — including **1.5c, the Amendment-6 pin**, whose entire content is
+*"the bare `member_can` is false in owner context for everybody, which is why the resolver cannot use
+it."* That assertion depended on the premise being true and it was not. Fixed in `356` by pairing every
+`reset role` with an explicit claims clear **and by pinning the premise itself** (`0.5`) rather than
+stating it in a comment.
+
+⭐ **The class:** *a pin whose stated premise is false is the same defect as a pin that cannot fail* —
+both are green for a reason unrelated to the property. This one is worse to find later, because the
+comment above it reads like the verification.
+
+**Measured 2026-08-22 — and read the bound, because the headline number is not the defect count:**
+
+| property | count |
+|---|---|
+| files under `supabase/tests/` using `reset role` | **172** (2179 occurrences) |
+| files using `claims_for` | **177** |
+| files that clear `request.jwt.claims` anywhere | **39** |
+| **files that `reset role` but NEVER clear claims** | **136** |
+
+⛔ **136 is the population that CAN hold the defect, not the population that does.** A file that always
+runs under an explicit persona and never asserts an owner-context property is unaffected. **The number
+of actually-false premises is NOT established**, and nobody should quote 136 as a defect count — that
+is this repo's standing error (the instance named as the class) run in the opposite direction. Whoever
+takes this must derive the real population by the property *"asserts something that is only true when
+`auth.uid()` is NULL, after a `reset role`, without clearing claims"*, which no text filter decides.
+
+**To close:** (1) derive that population; (2) fix at the root — a `test_helpers` verb that resets role
+**and** clears claims together, so the two cannot drift apart, rather than 136 hand-paired edits; (3) the
+gate is **pgTAP, not `npm run lint`** (ADR 0127's stated bound: DB anchors are not checkable there), and
+it must be **red-first** — write a suite that asserts an owner-context property after a bare `reset role`
+and require it to RED before the helper lands.
+
+---
+
+### 🟠 FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME — the sweep's domain is a syntax standing in for a property (owner: backend; filed 2026-08-22, found when the census's own remediation recipe could not clear the gate it raised)
+
+`supabase/tests/mutation/p0-authz-door-audit.sh:~231` bounds the **predicate arm** by a **name prefix**:
+
+```
+prosecdef = true AND ( (rettype = bool AND proname ~ '^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)' AND proname !~ '^is_valid_') OR proname = 'assert_not_case_excluded' )
+```
+
+**How it surfaced.** `ARM=census` correctly VIOLATED on the brand-new gate `app.member_can_for`, and the
+diff-scoped door sweep it prints **as the remediation** then ran **zero cases** — `member_can*` matches
+no prefix. The run printed **`BLIND: 0  ERROR: 0`** with an empty predicate arm and an empty policy arm.
+⛔ **A detector that found nothing because it looked at nothing, and in a gate record that reads as a
+clean pass.** (The findings file was not overwritten — 0 cases, empty `git diff --numstat` — so the
+known clobber hazard did not bite.) It was resolved honestly, by adding `member_can_for` to
+`authz-unswept-backlog.txt` beside its twin `member_can`, which has been there since the first census —
+**not** by hand-writing a COVERED row into a machine-generated findings file. That file's own rule holds:
+*a verdict nobody earned is worse than an admitted gap.*
+
+**Measured 2026-08-22 (live catalog):**
+
+| property | count |
+|---|---|
+| `SECURITY DEFINER` functions in `app` + `public` | **802** |
+| in the predicate arm's domain | **101** |
+| outside it | **701** |
+| ⭐ outside it **and returning `boolean`** — i.e. shaped exactly like a predicate, excluded purely by NAME | **42** |
+
+Among those 42: **`_audit_access_authorized`** (the gate in front of every PHI-read audit),
+`confidentiality_clearance_ok`, `capa_viewer_can_manage`, `interview_viewer_can_write`,
+`rca_writer_can_write`, `member_can`, `member_can_for`, `event_capa_fully_settled`,
+`artifact_belongs_to_commission`, `department_belongs_to_commission`. The rest are feature-flag readers
+and `validate_*` shape-checkers, which is why **42 is not the defect count either** — the set needs
+classifying by whether each is an authorization predicate, which no regex decides.
+
+⛔ **Bound, stated so this is not over-read: "outside the predicate arm" ≠ "unswept".** The audit has
+other arms, and `ARM=census` demonstrably reached `member_can_for` — that is how this was found.
+**Whether each of the 42 is covered by another arm is NOT established by this measurement.**
+
+⚠ **Same class, one level worse, recorded in the same place:** `app._case_caps` — the resolver every
+case predicate bottoms out in — returns **`int`**, so it is in **no** arm's domain at all (`census`,
+`hat`, `floor` and `wrapper` each bound by `prosecdef` as a *boolean gate*). Its only evidence is the
+targeted P4/P9-twin mutations written by hand for this increment. That is the pre-existing
+`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` class.
+
+**To close:** replace the name filter with the property it stands in for, or — if no computable property
+exists — make the arm **declare its domain size and refuse to report `BLIND: 0` on an empty domain**. ⛔
+An empty-domain run must not be able to print the same line a clean run prints; that is the whole finding
+and it is cheaper to fix than the classification.
+
+---
+
+#### ⭐ Third instance, 2026-08-22 — and the first on a REAL SHIPPED CHANGE, not on a new gate
+
+The two instances above were both about a **brand-new** object (`member_can_for`), which is the easiest
+case to dismiss as a corner. The Increment-2 PHI migration produced the general form. Its §6 step-1 gate
+record reads:
+
+> `ARM=census` 0 · `ARM=hat` 0 · `ARM=floor` 0 · `FROMFINDINGS=1 ARM=wrapper` 0 — **all HOLD**
+
+**All four held VACUOUSLY with respect to that change.** Measured per object, not inferred:
+
+| changed object | `prosecdef` | returns | in a census/bool domain | in the invoker arm |
+| --- | --- | --- | --- | --- |
+| `public.bulk_create_cases` | t | `integer` | **no** | no |
+| `public.create_case` | t | `cases` | **no** | no |
+| `public.create_case_from_template` | t | `cases` | **no** | no |
+| `public.set_participant_patient` | t | `uuid` | **no** | no |
+| `app._set_participant_patient_unchecked` | **f** | `uuid` | no | **no** (arm is `nspname='public'`-bounded) |
+
+Four are `prosecdef` **scalar non-bool command doors** — the census's own explicitly-named excluded class
+(`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, 407 reachable). The fifth is an `app` INVOKER helper, outside a
+`public`-bounded arm. The diff-scoped sweep was then **run rather than predicted**, with all five objects
+passed in: **PREDICATE ARM empty, POLICY ARM empty, `BLIND: 0  ERROR: 0`** — zero cases, the same line a
+clean run prints. Findings file verified untouched.
+
+⇒ **A change that rewrote the authority gate of the bulk-creation door and added a new PHI writer moved
+through all four ARMs without any of them looking at it.** The actual coverage is the targeted mutation
+twins written by hand in `357` / `189`. ⛔ The gate record must say *which arm had a domain* — "four ARMs
+HOLD" is true and, on this change, means nothing.
+
+⚠ **A class with no home, found in the same pass:** `app._set_participant_patient_unchecked` is in **no**
+tracked authz class at all — not the census contract (`prosecdef` booleans + policies), not the
+audit-invoker-wrapper class (`public`-bounded), not the composite-returning backlog. Unlike
+`member_can_for`, there was no backlog section it belonged to. Ruled 2026-08-22: add the class to
+`authz-unswept-backlog.txt` with membership **derived by property** (schema `app`, `prosecdef = f`, writes
+a PHI-bearing or invariant-bearing table, not executable by `authenticated`/`anon`), ⭐ expecting **≥ 2**
+members — `app._grant_case_access_unchecked`, the precedent it was modelled on, should be one, and if that
+function is not already tracked anywhere then this class has been unswept since before this increment.
+
+### 🟡 FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE — a caller that names the OLD ARITY fails as a plan mismatch, pointing nowhere near signatures (owner: backend; filed 2026-08-22, found when the full suite failed in a file this increment never touched)
+
+**What happened.** ADR 0134 Amdt 2 needed `p_patient` added to `public.create_case` and
+`public.create_case_from_template`. `CREATE OR REPLACE` **cannot add a parameter** — it creates an
+*overload*, and PostgREST 300s on an ambiguous candidate set — so both were `DROP FUNCTION` +
+`CREATE`. That hazard was anticipated and pinned (`357` 1.5 asserts the overload count is 1 each).
+
+**A second, different hazard was not.** `supabase/tests/100_dashboard.sql:439` asserted
+
+```sql
+has_function_privilege('anon', 'public.create_case_from_template(uuid,text,uuid,text,uuid,jsonb)', 'EXECUTE')
+```
+
+— a **signature STRING naming the old arity**. The moment the seventh argument landed, that string
+stopped resolving and the call raised `function ... does not exist`.
+
+**⛔ WHY IT IS WORTH A FOLLOW-UP RATHER THAN JUST A FIX — it does not present as a signature problem.**
+The raise happened mid-file, so the suite **ABORTED** rather than reddening an assertion. What the gate
+reported was:
+
+```
+Dubious, test returned 3 ... Parse errors: Bad plan.  You planned 22 tests but ran 20.
+```
+
+A plan mismatch in `100_dashboard.sql` — a file the increment never touched, about dashboards, naming no
+function. `Result: FAIL` with **zero `# Failed test` lines**, which is the recorded *"green has a third
+failure mode — the assertion that NEVER RAN"* shape wearing its opposite: a red that names the wrong
+subject. Reading the summary alone would send the next person into the dashboard suite.
+
+**The overload pin cannot catch this, and that is structural.** `357` 1.5 counts CANDIDATES; this is a
+caller pinning an ARITY. Different failures, and neither implies the other.
+
+**Population, swept by property** (`create_case(_from_template)?\([a-z]` across `supabase/tests/`, `src/`,
+`e2e/`, `supabase/seed.sql`, excluding `supabase/migrations/`): **9 textual hits, exactly ONE executable**
+— `100_dashboard.sql:439`. The other 8 are prose in docs, ADRs, comments and one test *description*
+string. Fixed in place.
+
+**Mitigation landed:** `supabase/tests/357_creation_scoped_case_phi.sql` 1.6/1.7 pin both doors' exact
+`p.oid::regprocedure::text` — which is the *same string form* `has_function_privilege` takes, so the pin
+matches the hazard rather than approximating it — and they sit beside the explanation, so a future
+signature change reds next to its reason instead of in a distant ACL assertion.
+
+**Why it stays open.** The mitigation covers the two doors this increment changed. The **class** is
+untreated: any future signature change in this repo walks into the same abort, and nothing enumerates
+signature-string callers generally. Cheap options, in increasing cost: (a) a lint/pgTAP sweep asserting
+that every `has_function_privilege(..., '<schema>.<fn>(<types>)', ...)` string in `supabase/tests/`
+resolves to a live `regprocedure` — catalog-checkable, and it would have caught this before the run;
+(b) a convention of passing `oid` rather than a signature string. ⚠ Whatever is built, the control must
+be that it goes RED on a deliberately stale signature — a sweep of this shape that finds nothing is
+indistinguishable from one that cannot find anything.
+
+### 🟠 FUP-GRANT-CASE-ACCESS-UNCHECKED-HAS-NO-COVERAGE — the precedent every `app` unchecked writer is modelled on has never been tested (owner: backend; filed 2026-08-22, found by deriving a class instead of naming an instance)
+
+Filed because a **property sweep** was run instead of a hand-list. Increment 2 added
+`app._set_participant_patient_unchecked` and it landed in **no tracked authorization class at all**.
+Rather than invent a class around the new function, the lead required its membership be derived by
+property, and predicted the count would be **≥ 2** — because the function the new one was *modelled on*
+must be a member. It is.
+
+**Property:** schema `app` · `prosecdef = f` · `prokind = 'f'` · comment-stripped body performs an
+INSERT/UPDATE/DELETE on a table carrying **PHI or an authorization invariant** · **not** executable by
+`authenticated`/`anon`. **Returns 2.**
+
+| member | ACL | `authenticated` / `anon` EXECUTE | targeted coverage |
+| --- | --- | --- | --- |
+| **`app._grant_case_access_unchecked`** | `{postgres=X/postgres}` | f / f | ⛔ **NONE KNOWN** |
+| `app._set_participant_patient_unchecked` | `{postgres=X/postgres}` | f / f | `357` mutation twins, `276` O5+O5b, `321` K8 |
+
+⛔ **`app._grant_case_access_unchecked` writes `case_access_grants` — the table that decides who can
+reach a case — with no authority check of its own, by design, and it has carried no targeted mutation
+case and belonged to no tracked class since it was written (2026-07).** ⭐ **The class predates the
+increment that revealed it.** The new helper did not create this gap; it made it visible, by being the
+second member of a class nobody had drawn.
+
+⚠ **It is not unprotected — it is untested, and those are different claims.** Its ACL is
+`{postgres=X/postgres}`, `authenticated` and `anon` hold no EXECUTE, and schema `app` is not exposed to
+PostgREST. What is missing is a **pin that any of that is still true tomorrow**: nothing reddens if the
+ACL is widened, if it is flipped to `SECURITY DEFINER`, or if a fifth caller appears.
+
+⚠ **Sweep hygiene recorded with it**, because the exclusions matter as much as the members: the property
+returns **four** `app` INVOKER writers. Two are excluded — `app.save_instance_answers` and
+`app.seed_default_answers` — for **two independent reasons each**, so the exclusion does not rest on the
+weaker one: they write response-plane **content** (neither PHI nor an invariant), **and** they *are*
+executable by `authenticated` **and** `anon`, because their `proacl` is **NULL — the permissive default
+including PUBLIC**. Not escalated (`app` is not PostgREST-reachable — see
+`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`), but recorded: that is the fail-open shape this repo
+has hit four times.
+
+⛔⛔ **DO NOT ACT ON THE CENSUS'S PRUNE HINT.** Once both members were entered in
+`authz-unswept-backlog.txt`, `ARM=census` began printing them every run under *"backlog entries with no
+matching live gate (renamed/dropped — prune)"*. The note is **correct about its own domain and wrong as
+advice**: the census's live-gate set is `prosecdef` booleans, set-returning doors, `public` INVOKER
+plpgsql and policies, and these are `app` INVOKER **scalars** — they match nothing in it, **which is
+exactly why they are listed**. Acting on that hint deletes the admitted gap. Both entries carry a
+DO-NOT-PRUNE block naming the note verbatim. ⭐ A gate that instructs the next maintainer to remove the
+record of a gap is worth more attention than the gap.
+
+**To close:** a targeted mutation case for `_grant_case_access_unchecked` of the same shape the new
+helper has — ACL widened ⇒ red · flipped to `SECURITY DEFINER` ⇒ red (the differential that proved
+INVOKER is the second lock, run on this function too) · caller set pinned by property. ⛔ Do **not**
+close it by asserting today's ACL alone; an assertion that restates the current catalog and cannot fail
+is the shape this increment spent the day removing.
+
+### 🟠 FUP-42501-AUTHORED-MESSAGES-FLATTENED-BY-EVERY-MAPPER — 103 authored pt-BR refusals, and the app layer discards essentially all of them (owner: backend/frontend; filed 2026-08-22, found when a PO-ruled message never reached the UI)
+
+**How it surfaced.** ADR 0134 Amendment 7 §A7.2 requires `bulk_create_cases` to refuse the
+`all_phases` scope **at the gate, with its own pt-BR message naming the scope** — so a delegate is
+told *which half to change* instead of being handed a generic "forbidden". The door does exactly
+that. `src/lib/cases/bulk-actions.ts` then mapped `42501` to a flat constant and **the message never
+reached the user**. Fixed narrowly for that one message (see below); the CLASS is what this item is.
+
+**Measured, both sides.**
+
+*Database side* — distinct `raise exception '<msg>' ... errcode = '42501'` across `public` + `app`,
+comment-stripped:
+```
+DISTINCT = 104   |   bare 'sem permissão' = 1   |   INFORMATIVE = 103
+```
+Almost every authored `42501` in this schema says something specific — *"apenas a coordenação da
+comissão de destino pode atribuir responsáveis"*, *"apenas a coordenação pode abrir uma sessão
+reservada"*, and 101 more.
+
+*App side* — modules under `src/lib/**` (excluding tests) that map `42501`: **63**. Modules doing ANY
+message recognition rather than returning a flat constant: **2** (`dsr/messages.ts`,
+`forms/actions.ts`), plus the pair added by this fix.
+
+⇒ **The answer to "does the mapping flatten every `42501` from every door?" is essentially YES**, and
+it is 103 authored sentences wide.
+
+**⛔ WHY THIS IS NOT SIMPLY A BUG TO SWEEP.** The flattening is not careless — it is the only
+*safe* default, because **`42501` is the one SQLSTATE whose message cannot be trusted from the code
+alone**: Postgres raises it both for an authored refusal AND for its own raw-English
+`permission denied for table X`. Passing `42501` messages through wholesale would leak raw English to
+the UI and breach CLAUDE.md §8 / Rule 10. That is the same conflation recorded in
+`FUP-42501-CONFLATES-GRANT-WITH-RLS`, one layer up: there it makes a TEST unable to say which lock
+refused; here it makes the UI unable to say what the user should do differently.
+
+**The shape that works, demonstrated by the fix.** An explicit **recognition list** — not an
+allowlist on the code, and not a passthrough: only messages named verbatim survive, everything else
+still becomes the generic string. `src/lib/cases/bulk-error-map.ts` does this for one message, and
+returns the CANONICAL entry rather than the matched text, so no `linha N:` prefix or Postgres
+`CONTEXT:` detail can ride along.
+
+**⚠ The test must have BOTH halves or it tests nothing.** `bulk-error-map.test.ts` asserts the
+recognised message survives AND that an unrecognised `42501` (including
+`permission denied for table patient_identifiers`) still maps to the generic string. Proven by two
+neutralizations with **complementary** red sets: emptying the recognition list reds 4 (the anchor +
+the three surfacing tests), converting the mapper to a passthrough reds 4 (the canonical-text and
+both unrecognised-`42501` tests). Neither mutation alone reds both halves — which is exactly why
+both are needed. ⛔ The first attempt at the emptying mutation **did not actually mutate** (the regex
+missed; the suite stayed green) and was caught only by grepping the file for the entry afterwards.
+A "9 passed" from a no-op probe is not evidence.
+
+**What to decide (not urgent, but it is 103 messages).** Options, increasing cost: (a) leave it and
+extend the recognition list per message as product need arises — cheap, but each one is discovered
+by a user hitting a dead end, which is how this one was found; (b) mark authored refusals with a
+distinguishable SQLSTATE (an `HC***` in the project's own space) so the existing
+`PT_BR_SQLSTATES` allowlist handles them structurally and `42501` stays reserved for real
+privilege errors — the cleanest, and it makes the trust question decidable from the code, but it is
+a 103-site migration touching live doors; (c) a shared recognition registry generated FROM the
+catalog, so the list cannot drift from the doors. ⚠ Under (a) or (c) the standing control is that
+every entry must be copied from `pg_get_functiondef` verbatim and pinned, or the list silently
+degrades to the generic string — failing exactly as if it were not there, with nothing going red.
+
+### 🟠 FUP-DEV-SERVER-SERVED-STALE-CODE-FOR-HOURS — a green E2E run against a stale instrument is indistinguishable from a real pass (owner: tester/lead; filed 2026-08-22, found mid-verification in Increment 2)
+
+**What happened.** The long-lived `next dev` process (PID 10664, started **11:20:33** local) was serving
+**pre-Increment-2 code** for files whose commits landed at **12:33, 12:45 and 14:30** — hours earlier. It
+rendered the appoint dialog **without** the fifth `read_cases` checkbox and **with** the retired PHI copy
+(*"inserir e visualizar dados de paciente"*), while the same files on disk plainly carried the new code.
+`taskkill` + `rm -rf .next` + a fresh `npm run dev` fixed it immediately.
+
+⭐ **It was one step from being filed as a product bug.** A "Múltiplos casos" bulk-gate failure was about
+to be reported as a defect in the new two-key gate. It was the instrument. The tester's own discipline —
+*clear `.next`, rebuild, re-run before reporting a regression* — is the only reason it was not.
+
+⛔ **MECHANISM NOT ESTABLISHED, and that is the honest state.** The old process's console output was **not
+captured before the kill**, so it is unknown whether the watcher had died or was alive and silently
+dropping events. The staleness was **not** deliberately reproduced afterwards — manufacturing a second
+stale window mid-session was judged not worth the risk, which was the right call and leaves the cause
+open. ⚠ Do not let a later reader turn "restarting fixed it" into a diagnosis; it is a remedy, not a cause.
+
+⛔ **The blast radius is every green run, which is the direction nobody investigates.** A *failing* spec
+against stale code gets investigated and the staleness surfaces — that is exactly what happened here. A
+**passing** spec against stale code is indistinguishable from a real pass and is never questioned. So the
+suspect population is not "runs that failed"; it is **every `npx playwright test` executed against a
+long-lived dev server in this repo**, and its size is not established.
+
+**Bound, stated so this is not over-read:** `npm run e2e:prod` — the §6 step-2 gate — builds a prod
+standalone bundle and never touches a dev server. **The phase gate is unaffected.** This is a
+quick-loop-instrument problem, not a gate problem.
+
+#### ⭐ MECHANISM ESTABLISHED 2026-08-22 (later the same day) — and it is OUR tooling, not another session
+
+The entry above says the mechanism was not established, and twice that day the interference was
+attributed to *"another Claude session on this shared machine"*. **That attribution was wrong, and the
+real mechanism is in this repo's own config.**
+
+`playwright.config.ts:31-36`:
+```ts
+webServer: { command: 'npm run dev', url: 'http://localhost:3000',
+             reuseExistingServer: !process.env.CI, timeout: 120_000 }
+```
+
+So **every `npx playwright test` invocation boots `npm run dev` on port 3000** when nothing is
+listening, and **reuses** whatever is listening when something is. Two consequences, both observed:
+
+1. **A `npm run dev` server is left behind.** The tester found and killed *"one more benign leftover
+   from my own successful `webServer` boot — not crashed, just idle"* — i.e. it observed this happening
+   from its own run, not someone else's.
+2. **That server holds ~20 live connections to the local database**, which is what makes
+   `supabase db reset --local` fail part-way through the baseline. Measured: with it killed, app
+   connections dropped 20 → 11 and a reset succeeded **on the first attempt** (440 registered = 440
+   files) after failing **3 of 4** attempts before.
+
+⛔ **This explains the whole day's interference without invoking another session:** backend's three
+failed resets and the DB stranded at 325 of 440 migrations · a pgTAP run returning **4 failures and ~300
+fewer tests** (6621 vs 6941) that was **fully green** on a clean re-run · `191_grant_hardening` §2.3
+failing once and never again · and the "stale server" this entry was originally filed about — a
+**reused** long-lived dev server is exactly what `reuseExistingServer: true` produces, and nothing
+guarantees it is younger than the code under test.
+
+⚠ **What is still NOT established:** whether *every* leftover observed that day came from this path.
+Other sessions on the machine can also start servers, and one process seen listening cannot be traced
+to its parent after the fact. The claim here is that this path **is sufficient** to produce every
+symptom observed — not that no other path contributed.
+
+⭐ **The reusable lesson is about the attribution, not the config.** "Another session did it" is
+unfalsifiable, costs nothing to say, and **stops the search**. It was believed twice, by two different
+agents, on evidence that fit the local explanation equally well. The config line had been sitting in the
+repo the whole time.
+
+**Additional close condition, now that the mechanism is known:** either stop the E2E entry point from
+leaving a server behind, or make `supabase db reset` refuse to start while anything holds a connection
+— a reset that half-applies **440 migrations** and reports a partial state is worse than one that
+declines. ⚠ `e2e:prod` is unaffected (it manages its own standalone server and clears the port per
+batch); this is the **quick-loop** entry point.
+
+**To close — the cheap fix does not require the mechanism.** A **proof-of-life** at the start of any
+dev-server E2E run: assert something that exists *only* in HEAD before any other assertion, so a stale
+server fails loudly at the first step instead of quietly passing. That catches the whole class whatever
+the cause. ⚠ It must be a check that is **read**, not an implicit `beforeAll` precondition, and it must
+be built so it can fail — this repo has a recorded case of a positive control that passed while priming a
+cache and made the real assertion meaningless. Establishing the actual mechanism (watcher death vs
+dropped events) stays worth doing, but it is not a precondition for the guard.
+
+### 🟠 FUP-CREATE-CASE-IS-ADMIN-DISJUNCT-VS-THE-NOUN-RULE — `platform_admin` can create commission content, and `create_case` is the only creation door that lets them (owner: PO decision, measured by backend; filed 2026-08-22, split out of QA B1)
+
+**Not the PHI half.** QA B1's PHI widening is CLOSED by migration `20261003000800`: `create_case`
+now refuses a `p_patient` payload unless the caller is `is_staff_admin_of ∨ member_can('create_cases')`,
+refused **at the gate** with its own pt-BR message, pinned in `357` §8c both directions plus a
+same-door positive control. **This item is the disjunct underneath it**, which was deliberately left
+alone: it is pre-existing, outside Increment 2's authorization, and a noun-rule question the PO has
+never been asked.
+
+**The question.** CLAUDE.md §1 (ADR 0078 A35, the *noun rule*): `platform_admin` **may** administer
+**tenancy, identity, vocabulary and audit**, and **may NOT** touch **commission content or PHI**.
+`public.create_case`'s authority gate is
+```sql
+if not (app.is_staff_admin_of(p_commission_id) or app.is_admin()
+        or app.member_can(p_commission_id, 'create_cases')) then
+```
+⇒ a hatted `platform_admin` can open a case — commission content — in **any commission of any
+tenant**, and (`create_case:341-343`) receives a `creator_self_grant` READ on it, so they can then
+read what they opened. `app.is_admin()` requires the entitlement **and** `active_role() =
+'platform_admin'`, reachable in the product through `assume_role`.
+
+**⭐ THE SHARP MEASUREMENT — it is the sole outlier of its own family.** Comment-stripped `prosrc`
+over the three creation doors:
+
+| door | `app.is_admin()` arm | writes PHI |
+| --- | --- | --- |
+| **`public.create_case`** | **YES** | yes |
+| `public.create_case_from_template` | no | yes |
+| `public.bulk_create_cases` | no | yes |
+
+Two doors that do the same thing disagree, and nothing records which is intended. The delivery that
+found this even wrote the correct reasoning nine lines long for `bulk_create_cases` — *"NO
+`app.is_admin()` DISJUNCT AND NO TENANCY ARM … the noun rule keeps platform_admin out of commission
+content"* — one function away from where it was needed.
+
+**Population, by property** (`public` routines whose comment-stripped body calls `app.is_admin(`):
+**11**.
+```
+create_case · create_framework · create_referral_requested_action · delete_standard ·
+list_approver_candidates · set_case_offered_outcomes · set_framework_status ·
+update_framework · update_referral_requested_action · upsert_standard · verify_audit_chain
+```
+⚠ **The split below is a JUDGEMENT, not a measurement, and it is offered for the PO to correct.**
+Per the standing lesson that *"is this caller gated?" is a per-function judgement no text filter
+decides*, the count of 11 is the closed set; which of them are "commission content" is not derivable
+from `prosrc`:
+- **Plausibly noun-rule territory (content):** `create_case`, `set_case_offered_outcomes`,
+  `create_referral_requested_action`, `update_referral_requested_action`.
+- **Plausibly sanctioned (vocabulary / catalog / audit — explicitly allowed by A35):**
+  `create_framework`, `update_framework`, `set_framework_status`, `upsert_standard`,
+  `delete_standard`, `verify_audit_chain`.
+- **Unclassified:** `list_approver_candidates` (identity-adjacent; not read).
+
+**Why it is filed rather than fixed.** Removing the disjunct would (a) change `platform_admin`
+behaviour outside this increment's authorization, and (b) need re-derivation against the **whole**
+reach, not just the PHI half — the `creator_self_grant` above is the part a narrow reading misses.
+⛔ And the census census-arms cannot help here: `create_case` returns a composite, so it is in **no
+authz ARM's domain**; nothing would have flagged this and nothing will flag the next one.
+
+**To close:** a PO ruling on whether `platform_admin` may create commission content at all — with,
+whichever way it goes, a pin at the DOOR (not the predicate; asserting the predicate is what let the
+PHI half hide, QA B1's recorded contributing cause) and a same-door positive control so the verdict
+is not a broken fixture.

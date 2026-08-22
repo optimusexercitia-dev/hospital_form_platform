@@ -5,6 +5,7 @@ import { CheckCircle2, FolderOpen, Layers } from "lucide-react";
 import { commissionHref } from "@/lib/routing";
 import { plural } from "@/lib/text";
 import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
+import { canBulkCreateCases } from "@/components/cases/bulk-create-gate";
 import {
   listCasesBoard,
   canOpenCaseManagement,
@@ -66,6 +67,14 @@ export const metadata: Metadata = {
  * resolver's own `memberRole` arm, mirroring the meetings route's C7 gate) OR an
  * Administrativo appointment (ADR 0061).
  *
+ * ⚠ Since the 2026-08-22 mirror fix this is **NOT a second, independent lock** —
+ * say so rather than counting it as defense in depth. `canInCommission` now
+ * requires `role !== null`, and `isCommissionMember` is that same predicate read
+ * off the same `context.memberships`, so every principal past the gate above
+ * already satisfies the `isCommissionMember` arm and the `isAdministrativo` arm
+ * can no longer decide anything. Kept as a fail-closed backstop against a
+ * regression in the gate above, not because it admits or refuses anyone today.
+ *
  * ⛔ **THE ORPHANED-ADMINISTRATIVO RATIONALE WAS BACKWARDS, AND THE CONSEQUENCE
  * INVERTS.** This block used to justify the Administrativo arm by claiming
  * "`app.member_can` gates on the capability row alone", so an orphan — appointment
@@ -82,25 +91,32 @@ export const metadata: Metadata = {
  *       AND EXISTS (capability row)
  *
  * So an orphan is REFUSED by the door, not served by it, and the direction of the
- * risk flips: the TS mirror is now the WIDER of the two. `canInCommission` tests
- * `role === 'staff_admin' || capabilities.includes(cap)` and checks **no
+ * risk flips: the TS mirror was the WIDER of the two. `canInCommission` tested
+ * `role === 'staff_admin' || capabilities.includes(cap)` and checked **no
  * membership at all**, while `access.capabilities` is read straight from
- * `commission_administrativo_capabilities` regardless of membership. An orphan
- * that reached this page would therefore pass the gate above and be offered "Novo
- * caso" behind a door that answers 42501 — a dead-end door, which is the opposite
- * failure from the one this comment used to describe.
+ * `commission_administrativo_capabilities` regardless of membership — a dead-end
+ * door, the opposite failure from the one this comment used to describe.
  *
- * ⚠ **OPEN — whether an orphan can reach this page at all is UNVERIFIED, and the
- * question is deliberately left open rather than answered here.** Two measured
- * facts bear on it: `access.role` is populated only from the caller's own
- * membership row (`session.ts`), and the commission shell 404s
- * `role === null && !isQualityViewer && !isTenancyAdmin` before any route under
- * `/c/[commission]` renders. Together they SUGGEST an orphan never gets here, and
- * that both this arm and the dead-end door are unreachable — but that is an
- * inference from two guards, not an observation, and no fixture in this repo
- * constructs an orphan. Do not promote it to a claim without building one. Same
- * shape as the `access.context.isAdmin` bypass removed in ADR 0134 T4: probably
- * dead, cheap to keep, and it must not be *documented* as live.
+ * ✅ **RESOLVED 2026-08-22 by construction, not by inference**
+ * (FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED). The earlier text left this
+ * OPEN because the two guards it cited were an inference from guards, not an
+ * observation. Built and measured, the inference was **half wrong**:
+ *
+ *   - A **plain** orphan indeed never gets here — but NOT via the shell gate this
+ *     comment predicted. `commissions_select_member_or_admin` denies them the
+ *     commission ROW, so `getCommissionAccessByOrg` returns `null` one step
+ *     earlier and `!access` 404s them. The shell's
+ *     `role === null && !isQualityViewer && !isTenancyAdmin` never even runs.
+ *   - An orphan who ALSO holds **tenancy-admin** or **quality-reviewer** standing
+ *     reads that row on the other policy arm and **DID reach this page** — both
+ *     were offered "Novo caso" and got "Você não tem permissão para esta ação."
+ *     The dead-end door was live for two principal classes, not unreachable.
+ *
+ * The fix is in the mirror, not here: `canInCommission` now carries the
+ * `role !== null` membership conjunct that `app.member_can` always had, so the
+ * gate above refuses both composites for the same reason the DB does.
+ * `e2e/orphan-administrativo-reachability.spec.ts` pins all three compositions
+ * against a member-administrativo positive control.
  *
  * UX gate only — `can_read_case` is the authority (Rule 1). The rows are already
  * correct with or without this check; it only decides empty-state vs. 404.
@@ -228,9 +244,9 @@ export default async function CasesBoardPage({
   // a process at all ("Sem processo"). Drives the create button + empty-state copy.
   const canCreate = processlessOn || activeTemplates.length > 0;
 
-  // "Múltiplos casos" (ADR 0084): a staff_admin bulk-create link, shown only when
-  // the flag is on and at least one ELIGIBLE template exists (active + ≥1 phase — a
-  // phase-less template is rejected by the RPC, so it would offer nothing).
+  // "Múltiplos casos" (ADR 0084): the bulk-create link, shown only when the flag is on
+  // and at least one ELIGIBLE template exists (active + ≥1 phase — a phase-less
+  // template is rejected by the RPC, so it would offer nothing).
   //
   // ⛔ `|| access.context.isAdmin` REMOVED (ADR 0134 D5 / the noun rule, ADR 0078
   // A35). It was already dead — a platform_admin 404s on the whole commission area
@@ -239,19 +255,34 @@ export default async function CasesBoardPage({
   // statement, not the closing of a hole. It must change in lockstep with the
   // `multiplos` route's own gate, or one of the two offers a link the other 404s.
   //
-  // `access.role === 'staff_admin'` is the exact TS mirror of `app.is_staff_admin_of`,
-  // not a hand-set narrowing: `role` comes only from the caller's commission-scoped,
-  // hat-filtered membership partition, reproducing both the membership arm and the
-  // ACT-hat arm. The one predicate it does NOT mirror is `app.is_active` — the shell
-  // routes deactivated users to `/conta-inativa` before any commission route, so
+  // ⚠ CORRECTED 2026-08-22 (ADR 0134 Amendment 7; QA finding B4). This block used to
+  // read "`access.role === 'staff_admin'` is the exact TS mirror of
+  // `app.is_staff_admin_of`" and told the next author not to change it. Both halves are
+  // now false — and a comment instructing a reader NOT to make a change that has already
+  // been made is worse than a merely stale one, so it is quoted as superseded rather
+  // than silently rewritten.
+  //
+  // Read from the live catalog (`pg_get_functiondef`, never a migration file), the door
+  // is: `app.is_staff_admin_of(commission)
+  //       OR (app.member_can(commission,'create_cases')
+  //           AND app.member_can(commission,'assign_case_phases'))`.
+  // That shape lives once, in {@link canBulkCreateCases}, shared with the `multiplos`
+  // route's own gate — which is what the "must change in lockstep" note above now means
+  // mechanically rather than by discipline.
+  //
+  // Still true: the one predicate the mirror does NOT reproduce is `app.is_active` — the
+  // shell routes deactivated users to `/conta-inativa` before any commission route, so
   // that is covered elsewhere. Do not "improve" this by re-adding it here.
-  const isStaffAdmin = access.role === "staff_admin";
   const eligibleBulkCount = templates.filter(
     (entry) => entry.version.status === "published" && entry.version.phases.length > 0,
   ).length;
+  // ⛔ ONE PREDICATE, SHARED WITH THE `multiplos` ROUTE'S OWN GATE. Two hand-written
+  // copies of the same sentence is how one surface came to offer what the other 404s;
+  // `canBulkCreateCases` mirrors the door's TWO keys (ADR 0134 Amendment 7).
+  // `canCreateCases` is now implied by it (create_cases is one of the two keys) and is
+  // dropped from this conjunction rather than restated.
   const showBulk =
-    canCreateCases &&
-    isStaffAdmin &&
+    canBulkCreateCases(access) &&
     flags.cases_bulk_create === true &&
     eligibleBulkCount > 0;
   const multiplosHref = commissionHref(org, slug, "manage", "cases", "multiplos");

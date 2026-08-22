@@ -23,6 +23,10 @@ are PHI, and (b) Rule 12 confined PHI identifiers to **two** modules — the NSP
 `event_patient` and the referral `referral_patient` — each under an isolated-satellite +
 audited-single-door + disposal posture. Capturing identifiers on cases makes Cases the
 **third** such module, which is a conscious Rule 12 change, not a silent edit.
+⛔ **Amended 2026-08-22 (ADR 0134 Amendment 2, option D, PO-ruled):** the case module is no
+longer *single-door* on the **write** side — it has **one writer body with two gates** (the
+coordinator gate, and the creation path). The **read** side is untouched and every
+single-door claim about reads in this ADR remains true. See "Doors / writers" below.
 
 Rather than build a generic custom-field engine (none exists, and it would be a PHI
 minefield), we reuse the proven pattern: the same fixed 8-field identifier catalog and the
@@ -101,9 +105,20 @@ exact `event_patient`/`referral_patient` machinery, copy-and-adapted.
 - **`process_templates.collects_patient`** (`NOT NULL DEFAULT false`).
 - **Predicate** `app.can_read_case_patient(case, uid)` = a thin DEFINER wrapper over the
   live broad `app.can_read_case` (the QPS-term version).
-- **Doors / writers** (DEFINER): `get_case_patient` (audited single read door),
-  `set_case_patient` (coordinator gate `42501`; asserts `patient_enabled`; refuses after
-  disposal), `dispose_case_phi` (staff_admin/admin gate; one-shot `HC056`; reason enum),
+- **Doors / writers** — ⛔ **amended 2026-08-22 (ADR 0134 Amdt 2): the write side is now one
+  body behind two gates.** `app._set_participant_patient_unchecked` (**`SECURITY INVOKER`**,
+  `app` schema, `proacl` `{postgres}`, **no authority check by design**) holds the entire
+  body — flag, exclusion, `patient_enabled`, disposal, sex vocabulary, the name-or-MRN floor,
+  the participant chain, the upsert. In front of it: `public.set_participant_patient` (the
+  coordinator gate, unchanged, `42501`) **and** the three creation RPCs `create_case`,
+  `create_case_from_template`, `bulk_create_cases`, which have already gated on "may you
+  create cases here" and hold a case minted in the same transaction. **That caller set is
+  pinned in the catalog**, so creation-scope is structural rather than a promise, and a fifth
+  caller reds. ⚠ INVOKER is **load-bearing**: measured, an INVOKER call by a non-owner is
+  refused and a DEFINER one succeeds — it is the second lock behind the ACL, not an oversight.
+  `set_case_patient` remains a gate-less compat wrapper. Read side unchanged:
+  `get_case_patient` (audited single read door), `dispose_case_phi` (staff_admin/admin gate;
+  one-shot `HC056`; reason enum),
   `set_template_collects_patient` (draft-only). `create_case_from_template` + `get_case_detail`
   re-emitted via `CREATE OR REPLACE` (snapshot `patient_enabled`; echo the two flags).
 - **Audit verbs** (PHI-free metadata, Rule 11): `case_patient.updated` (trigger, empty

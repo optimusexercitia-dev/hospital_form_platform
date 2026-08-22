@@ -1,7 +1,7 @@
 "use client";
 
 import { commissionHref } from "@/lib/routing";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, ShieldAlert } from "lucide-react";
 
@@ -14,6 +14,7 @@ import type { CaseOutcome } from "@/lib/queries/case-outcomes";
 import type { CaseType } from "@/lib/cases/case-types";
 import type { CustomFieldDef } from "@/lib/queries/process-templates";
 import type { Department } from "@/lib/hospitals/departments";
+import { CasePatientConfirmation } from "@/components/cases/case-patient-confirmation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -229,8 +230,23 @@ export function CreateCaseDialog({
     !isProcessless && caseCustomFieldsEnabled ? (selectedTemplate?.customFields ?? []) : [];
   const showCustomFields = customFields.length > 0;
 
+  /**
+   * Whether to hold the dialog open on a confirmation of the identifiers just typed
+   * (ADR 0134 §A2.4) instead of navigating straight into the case. Only when the
+   * creation actually recorded identifier fields — `patientFieldsSet` is the server's
+   * STRUCTURAL report (field names, never values); the values come from `patient`.
+   */
+  const confirmFields = state?.ok ? (state.patientFieldsSet ?? []) : [];
+  const awaitingPatientConfirmation = Boolean(
+    state?.ok && state.caseId && confirmFields.length > 0,
+  );
+
   useEffect(() => {
     if (!state?.ok || !state.caseId) return;
+    // ⛔ A case that recorded identifiers does NOT auto-navigate: the whole point of
+    // the confirmation is that the person who typed them sees them once, at the
+    // keyboard. Navigating away is exactly the behaviour A2.4 exists to change.
+    if (state.patientFieldsSet && state.patientFieldsSet.length > 0) return;
     // Case minted (and its optional PHI written atomically server-side). Navigate
     // into the case detail — the push unmounts the dialog, so no explicit close is
     // needed (mirrors the original templated flow).
@@ -281,6 +297,7 @@ export function CreateCaseDialog({
     );
   // The PHI step exists only when the case will be PHI-capable AND the flag is on.
   const showPatientStep = isProcessless && casePatientEnabled && patientEnabled;
+  const patientConfirmationHeadingId = useId();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -294,12 +311,42 @@ export function CreateCaseDialog({
         <DialogHeader>
           <DialogTitle>Novo caso</DialogTitle>
           <DialogDescription>
-            {isProcessless
-              ? "Crie um caso sem processo. Você poderá adicionar fases avulsas conforme o trabalho avançar."
-              : "Crie um caso a partir de um processo publicado. As fases do processo serão copiadas para o caso no estado atual."}
+            {awaitingPatientConfirmation
+              ? "O caso foi criado. Confira os identificadores antes de continuar."
+              : isProcessless
+                ? "Crie um caso sem processo. Você poderá adicionar fases avulsas conforme o trabalho avançar."
+                : "Crie um caso a partir de um processo publicado. As fases do processo serão copiadas para o caso no estado atual."}
           </DialogDescription>
         </DialogHeader>
 
+        {awaitingPatientConfirmation ? (
+          <div className="flex flex-col gap-4">
+            <CasePatientConfirmation
+              fieldsSet={confirmFields}
+              draft={patient}
+              headingId={patientConfirmationHeadingId}
+            />
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                size="lg"
+                onClick={() =>
+                  router.push(
+                    commissionHref(
+                      org,
+                      slug,
+                      "manage",
+                      "cases",
+                      state!.caseId as string,
+                    ),
+                  )
+                }
+              >
+                Continuar para o caso
+              </Button>
+            </div>
+          </div>
+        ) : (
         <form action={formAction} className="flex flex-col gap-4" noValidate>
           {state && !state.ok && !state.fieldErrors?.templateId && (
             <FormBanner tone="error">{state.error}</FormBanner>
@@ -600,6 +647,7 @@ export function CreateCaseDialog({
             )}
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );

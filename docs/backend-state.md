@@ -406,6 +406,120 @@ their home is here because they never conclude._
   writers because each used a different bound — see the correction record at the top
   of this file (75 fns / 6 read a flag).
 
+## Case surface split — Increment 2 (2026-08-22; ADR **0134** D6 + Amendments 1/2/4/5/6; migrations `20261003000400`–`…00700`, **4**; pgTAP `205` `plan(67)` · `356` `plan(72)` · `357` `plan(35)` · `189` `plan(43)`; **NO new flag** — rides `administrativo`, permanently ON)
+
+Re-derive every row from the catalog; this is a map, not the authority. **⛔ For SQL the live
+catalog is the sole truth** — and two of these migrations rewrite bodies derived from
+`pg_get_functiondef`, so the files are stale by design.
+
+### The `administrativo` capability vocabulary is now FIVE
+
+`read_cases` joins `schedule_meetings` / `create_cases` / `assign_case_phases` / `view_signoffs`.
+The allowed set is enforced in **exactly two** catalog places and described in a third:
+
+| # | where | enforces? |
+| --- | --- | --- |
+| 1 | CHECK `commission_administrativo_capabilities_capability_check` | **yes** |
+| 2 | `public.grant_member_capability`'s `not in (...)` whitelist | **yes** |
+| 3 | `app.feature_flags` row `key='administrativo'`, column `description` | no — prose |
+
+⚠ `public.revoke_member_capability` has **NO** whitelist (it deletes by equality, so an unknown
+literal is a silent no-op). ⛔ **The two validators share errcode 23514**: delete the RPC whitelist
+and the INSERT trips the CHECK underneath, raising 23514 anyway — so an errcode-only `throws_ok`
+on the door is GREEN with the validator gone. `205` § (VOC) pins the **pt-BR message**. There are
+**five** hand-lists of this vocabulary outside the DB (three TS, one test, one in `seed.sql`) and
+⛔ **`gen:types` is structurally blind to all of them** — the column is `text` + CHECK, so
+`database.ts` types it `string`.
+
+**Appointing now GRANTS `read_cases`** (Amdt 5). `public.appoint_administrativo` inserts the row
+attributed to the appointing coordinator, guarded on `GET DIAGNOSTICS row_count > 0` from the
+appointment's `on conflict do nothing` — so **re-appointing an existing appointee grants nothing**
+(Amdt 1 §A1.1's no-backfill ruling still governs them), while re-appointing **after a revoke** does,
+because the FK cascade emptied the set and the appointment is genuinely new. Both directions pinned.
+
+### `app.member_can_for` is the single implementation; `member_can` delegates
+
+⛔ **`app.member_can` resolves `auth.uid()` and takes no uid.** `app._case_caps(p_case_id, p_uid)`
+is a **(case, uid)** resolver whose callers routinely ask about a THIRD party, so the bare form
+would answer about the CALLER — dark wherever `auth.uid()` is null, and setting
+content-without-deliberation for a non-member `p_uid`, which is `app.is_oversight_only_reader`'s
+exact bit shape. Amendment 6 added the missing `_for` twin; `member_can` is now
+`select app.member_can_for(p_commission_id, p_capability, auth.uid())`. **One body, not two** —
+pinned from the catalog (`356` §2): exactly ONE `app` routine may carry both
+`feature_enabled('administrativo')` and `commission_administrativo_capabilities`.
+
+⚠ **The predicate has THREE independent terms, not four.** Deleting `is_active(p_user_id)` alone
+leaves the suite fully green, because `is_member_of_for` already contains it. Measured, not read.
+A sweep asserting `is_active` is PRESENT would pass on a body where it had been deleted.
+
+### `app._case_caps` gained arm **S8** — administrativo commission-wide case READ
+
+`if not v_eg and app.member_can_for(v_commission, 'read_cases', p_uid)` → **`read_case_content`
+only**. Positioned after S7, so it inherits STEP-4's hard denies BY POSITION as S5/S7 do. Bounded
+by `not v_eg` (Amdt 4): an `explicit_grants_only` case is invisible to the arm; reach there rides an
+explicit grant (S3) or nothing. ⛔ **The bound is the half nothing in the gate set can see** —
+proven only by the P9-twin mutation, which also reddens the locked-case bit-shape pins.
+No write bits, no PHI bits (structural: `can_read_case_patient` is a bare bit-8 test with no lattice
+closure, and only S1/S3 set it), no `view_case_overview`, no lifecycle.
+
+### Case PHI gained a **creation-scoped write path** — the first not held by a coordinator
+
+`public.set_participant_patient` was **split at its authority cut**:
+
+| object | shape | authority |
+| --- | --- | --- |
+| `public.set_participant_patient` | DEFINER, signature/ACL/SQLSTATEs unchanged | coordinator gate + `assert_not_case_excluded`, then delegates |
+| `app._set_participant_patient_unchecked` | **INVOKER**, `proacl {postgres=X/postgres}` | **none, by design** |
+
+The three creation RPCs call the helper directly, so **creation-scope is STRUCTURAL** — no other
+caller exists, pinned by property (`357` §1), currently **4** callers.
+
+⛔ **THE HELPER IS `SECURITY INVOKER` DELIBERATELY — DO NOT FLIP IT.** Measured, both cells, with
+EXECUTE granted to `authenticated` and called as `authenticated`: **INVOKER is REFUSED**
+(`permission denied for table patient_participants`; the mint path hits `case_participant_roles`'
+RLS first — different lock, same verdict), **DEFINER SUCCEEDS**. On the intended path the two are
+identical; the difference appears only if the ACL leaks, and there INVOKER is the second lock.
+`276` **O5 asserts the PROPERTY** ("no invoker-rights path in"), not the `prosecdef` proxy, and
+**O5b bounds the exception by name** so a hatch written for one case cannot silence the next. The
+rationale is also a `COMMENT ON FUNCTION`, i.e. in the catalog, where `\df+` shows it.
+
+⚠ `321` **K8**'s name-keyed writer array swapped `public.set_participant_patient` →
+`app._set_participant_patient_unchecked`. **A SWAP, not a growth** — the set is still three.
+
+**`p_patient jsonb` on both single-case doors.** `CREATE OR REPLACE` cannot add a parameter (it
+creates an overload PostgREST 300s on), so both were `DROP FUNCTION` (⛔ **no CASCADE**) + `CREATE`,
+with ACLs re-issued and verified from the catalog. This also removed M10's half-state at **both** TS
+sites: the case and its identifiers are now one call. ⛔ **No PHI travels back** — neither return
+type changed (`cases` carries zero identifier-shaped columns), and the action returns **field names
+only**. ⚠ A DROP+CREATE also breaks any caller naming the **old arity** in a signature string; that
+fails as a **plan-mismatch ABORT** in an unrelated file (see `FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE`).
+
+### `public.bulk_create_cases` — TWO keys, and `all_phases` refused AT THE GATE
+
+Gate: `is_staff_admin_of ∨ (member_can('create_cases') ∧ member_can('assign_case_phases'))`.
+⛔ **Widening bulk's own gate is NOT sufficient and that was measured**: bulk is a COMPOSITION —
+step (b) `activate_phase` needs `assign_case_phases`, and step (c) `assign_narrative` is
+`is_staff_admin_of` **ONLY, with no capability arm at all**. So `all_phases` can never be satisfied
+by a delegate and is refused **before the advisory lock and before any row is minted**, with its own
+pt-BR message naming the scope — an honest refusal before work, rather than a 200-row rollback.
+⛔ **No `is_admin()` disjunct and no tenancy arm** (`314` §11.34 is a catalog assertion forbidding it).
+
+### ⚠ Authz-sweep coverage of this surface — state it before quoting a green ARM
+
+**Every object this increment changed sits OUTSIDE every ARM's domain**, so all four ARMs held
+**vacuously** with respect to it:
+
+| object | why it is out of domain |
+| --- | --- |
+| `bulk_create_cases`, `create_case`, `create_case_from_template`, `set_participant_patient` | `prosecdef` **scalar non-bool** command doors — the census's own named exclusion (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, 407 reachable) |
+| `app._set_participant_patient_unchecked` | `app` INVOKER; the invoker arm is bounded by `nspname='public'` |
+| `app.member_can`, `app.member_can_for` | the door audit's predicate arm filters on a NAME PREFIX `^(is_\|can_\|has_\|…)`; `member_can*` matches none |
+
+A diff-scoped sweep over exactly these runs **ZERO cases** and prints `BLIND: 0` — the same line a
+clean run prints. Coverage comes from the **targeted mutation twins** in `356`/`357`/`189`, not from
+any sweep. All are recorded in `authz-unswept-backlog.txt`; ⛔ the two `app` INVOKER writers carry a
+**DO NOT PRUNE** note there, because `ARM=census` actively advises deleting them.
+
 ## DSR Slice 2 — LGPD subject requests (2026-08-20; ADR **0130** Accepted + **Amendment 2**; migrations `20261001000000`–`…000200`, **3**; pgTAP `349` `plan(53)`; E2E `dsr-subject-requests.spec.ts`; flag **`dsr` OFF** — seed forces ON local/E2E)
 
 Re-derive every row from the catalog; this table is a map, not the authority.

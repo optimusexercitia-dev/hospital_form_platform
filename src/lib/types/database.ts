@@ -11904,6 +11904,7 @@ export type Database = {
           p_department_other?: string
           p_label?: string
           p_outcome_ids?: string[]
+          p_patient?: Json
           p_patient_enabled?: boolean
         }
         Returns: {
@@ -11959,6 +11960,7 @@ export type Database = {
           p_department_id?: string
           p_department_other?: string
           p_label?: string
+          p_patient?: Json
           p_template_id: string
         }
         Returns: {

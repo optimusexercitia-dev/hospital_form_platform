@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { Json } from '@/lib/types/database'
 import type { CasePatientSex, SetCasePatientInput } from '@/lib/cases/types'
+import { GENERIC_ERROR, mapBulkRpcError } from '@/lib/cases/bulk-error-map'
 
 /**
  * Bulk case creation ("Múltiplos casos") server action (Architecture Rules 9 & 10).
@@ -33,9 +34,6 @@ import type { CasePatientSex, SetCasePatientInput } from '@/lib/cases/types'
 const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
 const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
 
-const GENERIC_ERROR =
-  'Não foi possível criar os casos. Tente novamente.'
-const FORBIDDEN_ERROR = 'Você não tem permissão para esta ação.'
 
 export interface BulkCaseCustomFieldValue {
   key: string
@@ -112,36 +110,11 @@ function parseFailedRowIndex(message: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined
 }
 
-/**
- * SQLSTATEs the RPC + its composed doors raise INTENTIONALLY, whose (row-indexed)
- * messages are user-facing pt-BR and may be surfaced verbatim. Mirrors
- * `actions.ts::mapCaseError`'s allowlist. Anything OUTSIDE this set is an
- * unexpected low-level Postgres error whose message is raw English — mapped to the
- * generic pt-BR instead (Architecture Rule 8: raw Postgres text never reaches the UI).
- */
-const PT_BR_SQLSTATES = new Set<string>([
-  '23514', // check_violation — scope/cap/count/template-status/PHI-floor/patient-not-enabled
-  'P0002', // no_data_found — processo/caso não encontrado
-  'HC017', // no published version for a phase form
-  'HC018', // phase blocked (its blockers unsettled)
-  'HC019', // phase not pending
-  'HC020', // case not open
-  'HC021', // assignee not a member
-  'HC055', // narrative not in the required state
-  'HC068', // required custom field missing
-  'HC0F1', // case-excluded (exclusion perimeter)
-])
-
-function mapError(error: { code?: string; message?: string } | null): string {
-  if (!error) return GENERIC_ERROR
-  if (error.code === '42501') return FORBIDDEN_ERROR
-  // Only the RPC's intentional pt-BR SQLSTATEs pass their message through; any other
-  // code is unexpected raw-English Postgres → generic pt-BR (Rule 8).
-  if (error.code && PT_BR_SQLSTATES.has(error.code)) {
-    return error.message?.trim() || GENERIC_ERROR
-  }
-  return GENERIC_ERROR
-}
+// ⛔ The SQLSTATE allowlist, the RECOGNISED-42501 list and the mapper moved to
+// `bulk-error-map.ts` so they can be unit-tested: this module is `'use server'`, and
+// such a module may only EXPORT async functions — a private synchronous mapper here is
+// unreachable from a test, which is how the ADR 0134 Amdt 7 §A7.2 gate-level `all_phases`
+// refusal was silently flattened to the generic "forbidden" string.
 
 /**
  * Create many cases from one template in a single atomic transaction, dealing them
@@ -191,7 +164,7 @@ export async function bulkCreateCases(
   if (error || data === null) {
     return {
       ok: false,
-      error: mapError(error),
+      error: mapBulkRpcError(error),
       failedRowIndex: parseFailedRowIndex(error?.message),
     }
   }

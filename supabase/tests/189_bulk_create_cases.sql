@@ -24,7 +24,7 @@
 -- pass count.
 -- =============================================================================
 begin;
-select plan(31);
+select plan(44);
 
 -- The bulk RPC composes doors gated by ALL of these; assert_bulk_create_enabled
 -- gates the RPC itself; set_participant_patient gates on case_patient;
@@ -50,7 +50,8 @@ create temp table k on commit drop as
          (v->>'st_y')::uuid   as st_y,
          (v->>'comm_x')::uuid as comm_x,
          (v->>'comm_y')::uuid as comm_y,
-         (v->>'form_u')::uuid as form_u
+         (v->>'form_u')::uuid as form_u,
+         (v->>'oa_b')::uuid   as oa_b
   from ctx;
 grant select on k to authenticated;
 
@@ -139,13 +140,39 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- 2b) AUTHORITY KEYSTONE (Decision #5) — an Administrativo holding ONLY
---     create_cases is STILL denied: bulk is DELIBERATELY stricter than
---     create_case_from_template (whose gate DOES admit a create_cases holder).
+-- 2b) AUTHORITY KEYSTONE — ⛔ INVERTED 2026-08-22, DELIBERATELY.
 --
--- ⛔ Fixture-trap discipline (ADR 0078 §7.1): PROVE the holder HAS create_cases
---     (member_can → true) FIRST, so the 42501 lands on the stricter bulk gate, not
---     on a missing capability — otherwise this keystone would be vacuous.
+-- WAS: 'a create_cases Administrativo is STILL denied bulk creation (Decision #5:
+--      stricter than create_case_from_template)' — a throws_ok on 42501.
+-- NOW: they are ADMITTED. ADR 0134 Amendment 1 §A1.2 (PO-ruled 2026-08-21) overruled
+--      Design #5: creating many cases carries the same logical responsibility as
+--      creating one, so bulk and create_case_from_template now agree.
+-- ⚠ This is a REVERSAL of a recorded design decision, not the correction of a defect.
+--      Stated here because an inverted keystone with no explanation reads to the next
+--      person as a test someone bent to make their change pass.
+--
+-- ⛔ The PRE-check below is KEPT and still does work after the inversion: it proves the
+--     holder really has create_cases, so the lives_ok lands on the WIDENED gate rather
+--     than on a lucky fixture. The created-case assertion after it is what stops the
+--     positive from passing on a silent no-op.
+--
+-- ⭐ TWO KEYS, NOT ONE (PO ruling 2026-08-22, option A). Widening bulk's own gate was
+--     measured NECESSARY AND NOT SUFFICIENT: bulk COMPOSES activate_phase, gated on
+--     `assign_case_phases`, so a create_cases-only delegate passed the gate and was
+--     refused INSIDE the per-row loop. The ruling requires BOTH existing keys.
+--
+-- WHICH ASSERTION BECAME WHICH — stated because a reused fixture reads like dead weight:
+--   * the ORIGINAL keystone ('a create_cases Administrativo is STILL denied bulk') is NOT
+--     deleted. Its fixture (st_x2 holding ONLY create_cases) and its refusal survive as
+--     NEG-A below — it is now the single-key negative, i.e. one of the two over-grant
+--     twins in the KEY dimension. Without NEG-A and NEG-C, "requires two keys" would be
+--     asserted rather than demonstrated: a single-key positive passing would mean the
+--     conjunction is not doing what the ruling says.
+--   * the INVERTED positive is the two-key one, and it fires only after the second key is
+--     granted, a few lines down.
+--   * NEG-B is new and has no predecessor: all_phases is refused AT THE GATE, before any
+--     row is minted, because step (c)'s assign_narrative is coordinator-only with NO
+--     capability arm — no combination of keys can satisfy it.
 -- st_x2 (a staff member of comm_x) is appointed + granted create_cases as the table
 -- owner (bypasses the guarded appoint/grant doors, like the seed; those doors are
 -- tested in 205).
@@ -158,15 +185,92 @@ insert into public.commission_administrativo_capabilities (commission_id, user_i
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select is(app.member_can((select comm_x from k), 'create_cases'), true,
-  'PRE: the Administrativo st_x2 HAS create_cases (the door reaches the stricter bulk gate, not a missing-capability deny)');
+  'PRE: the Administrativo st_x2 HAS create_cases (so every refusal below lands on the gate under test, not on a missing capability)');
+
+-- ⭐ NEG-A — the FIRST over-grant twin in the KEY dimension. This IS the original
+-- keystone's fixture and refusal, kept and re-purposed. create_cases ALONE is not enough.
 select throws_ok(
   format($$ select public.bulk_create_cases(%L, null, 'first_only',
     jsonb_build_array(jsonb_build_object(
-      'label','X','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+      'label','NEG-A','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
     (select tid from tpl_multi)),
-  '42501', null,
-  'a create_cases Administrativo is STILL denied bulk creation (Decision #5: stricter than create_case_from_template)');
+  '42501', 'sem permissão',
+  'NEG-A ⭐ create_cases ALONE is REFUSED (the two-key conjunction is doing work; a pass here would mean it is not)');
 reset role;
+
+-- Grant the SECOND key. From here st_x2 is the two-key holder the ruling describes.
+insert into public.commission_administrativo_capabilities (commission_id, user_id, capability, granted_by)
+  values ((select comm_x from k), (select st_x2 from k), 'assign_case_phases', (select sa_x from k));
+
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is(app.member_can((select comm_x from k), 'assign_case_phases'), true,
+  'PRE2: and now they hold assign_case_phases too - so the positive below lands on the WIDENED gate, not on a lucky fixture');
+select lives_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'first_only',
+    jsonb_build_array(jsonb_build_object(
+      'label','ADM-BULK','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+    (select tid from tpl_multi)),
+  '⭐ TWO-KEY POSITIVE (ADR 0134 Amdt 1 A1.2, PO option A): an Administrativo holding create_cases AND assign_case_phases reaches bulk creation');
+reset role;
+select is((select count(*)::int from public.cases where label = 'ADM-BULK'), 1,
+  'and the case actually landed - a lives_ok alone could pass on a silent no-op');
+
+-- ⭐ NEG-B — all_phases is coordinator-only, and it is refused AT THE GATE. The count
+-- control is the half that matters: it proves the refusal happened BEFORE any row was
+-- minted, which is the whole difference between an honest refusal and the 200-row
+-- rollback that ADR 0134 Amdt 1 A1.2 was ruled to eliminate.
+update cnt set n = (select count(*) from public.cases where commission_id = (select comm_x from k));
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'all_phases',
+    jsonb_build_array(jsonb_build_object(
+      'label','NEG-B','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+    (select tid from tpl_multi)),
+  '42501', 'o escopo "todas as fases" é exclusivo da coordenação da comissão',
+  'NEG-B ⭐ all_phases is refused for a two-key holder, with a message NAMING THE SCOPE (errcode alone could not tell it from the authority gate)');
+reset role;
+select is((select count(*) from public.cases where commission_id = (select comm_x from k)),
+  (select n from cnt),
+  'NEG-B ⭐ AT THE GATE: not one case was minted before the refusal - an honest refusal before work, not a rollback after 200 rows');
+
+-- ⭐ NEG-C — the SECOND over-grant twin: the other key alone is not enough either.
+-- Without both NEG-A and NEG-C, "requires two keys" is asserted, not demonstrated.
+delete from public.commission_administrativo_capabilities
+ where commission_id = (select comm_x from k) and user_id = (select st_x2 from k)
+   and capability = 'create_cases';
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'first_only',
+    jsonb_build_array(jsonb_build_object(
+      'label','NEG-C','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+    (select tid from tpl_multi)),
+  '42501', 'sem permissão',
+  'NEG-C ⭐ assign_case_phases ALONE is REFUSED - the conjunction is symmetric, and neither key carries bulk on its own');
+reset role;
+insert into public.commission_administrativo_capabilities (commission_id, user_id, capability, granted_by)
+  values ((select comm_x from k), (select st_x2 from k), 'create_cases', (select sa_x from k));
+
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+
+-- ⭐ THE SHARP TENANCY PIN. 314 11.14 already asserts bulk refuses the org_admin, but as
+-- throws_ok(..., null, null) - it accepts ANY raise, so it stays green under a WRONG
+-- widening and cannot say which lock refused. This one names the gate.
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'first_only',
+    jsonb_build_array(jsonb_build_object(
+      'label','OA','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+    (select tid from tpl_multi)),
+  '42501', 'sem permissão',
+  'the org_admin is refused BY THE AUTHORITY GATE (errcode AND message) - the widening admits commission delegates, not tenancy admins');
+reset role;
+select is(app.member_can_for((select comm_x from k), 'create_cases', (select oa_b from k)), false,
+  'and the reason is structural: member_can is membership-aware and an org_admin is not a member');
 
 -- =========================================================================
 -- 3) MEMBERSHIP — a row assigned to a NON-member (st_y) → HC021, 0 created.
@@ -338,6 +442,42 @@ select is((select pi.name
            where c.label = 'P1' limit 1),
   'Paciente Um', 'the patient identifier was written through the single door');
 
+-- =========================================================================
+-- 8b) ⭐ THE ADMINISTRATIVO PHI TWIN (ADR 0134 Amendment 2, option D) - the same bulk
+--     PHI write as 8) above, by a create_cases Administrativo instead of a coordinator.
+--     This is the whole point of option D: fill up to 200 rows and KEEP them.
+-- ⛔ Vacuity: a returned 1 would pass on a batch that wrote no identifiers, so the row
+--     is read back. And the Rule-12 half is the one that matters - the writer still
+--     cannot READ what they just wrote.
+-- =========================================================================
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'first_only',
+    jsonb_build_array(jsonb_build_object(
+      'label','ADM-PHI','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,
+      'patient', jsonb_build_object('name','Paciente Adm','mrn','MRN-ADM','sex','male')))) $$,
+    (select tid from tpl_phi)),
+  '8b: a create_cases Administrativo bulk-creates WITH patient identifiers');
+reset role;
+select is((select pi.mrn
+           from public.patient_identifiers pi
+           join public.case_participants cp on cp.participant_id = pi.participant_id
+           join public.cases c on c.id = cp.case_id
+           where c.label = 'ADM-PHI' limit 1),
+  'MRN-ADM', '8b: and the identifiers actually landed (not a silent no-op)');
+select is(
+  app.can_read_case_patient((select id from public.cases where label = 'ADM-PHI'),
+                            (select st_x2 from k)),
+  false,
+  '8b ⭐ RULE 12: and the writer STILL cannot read what they just wrote - option D grants write, never read');
+select is(
+  (select count(*)::int from public.patient_participants pp
+   join public.case_participants cp on cp.participant_id = pp.participant_id
+   where cp.case_id = (select id from public.cases where label = 'ADM-PHI')),
+  1,
+  '8b REGRESSION GUARD (cannot fail today): exactly one patient participant. The helper is the ONLY surface that can create one (catalog property, migration header), so this guards a future second writer and is NOT evidence about the current path');
+
 -- PHI rejected when the template does NOT collect patient identifiers → batch aborts.
 update cnt set n = (select count(*) from public.cases where commission_id = (select comm_x from k));
 select test_helpers.claims_for((select sa_x from k), false);
@@ -353,6 +493,26 @@ select throws_ok(
 reset role;
 select is((select count(*) from public.cases where commission_id = (select comm_x from k)),
   (select n from cnt), 'the PHI-rejected batch rolled back — 0 cases created');
+
+-- =========================================================================
+-- (9) ⭐ THE DOOR-SIDE ANCHOR for the app layer's recognition list (QA B5-3).
+-- `src/lib/cases/bulk-error-map.ts` surfaces this refusal's OWN message to the user by
+-- matching it VERBATIM — everything unrecognised falls back to a generic string, which
+-- is what keeps raw Postgres text out of the UI (Rule 8 / CLAUDE.md §8). That list is
+-- TypeScript and cannot see this SQL; a TS test comparing it to a TS constant is blind
+-- to the door changing. THIS is the assertion that reds if the wording drifts, and it
+-- lives here because the door does.
+-- ⛔ If you change the message below, change `RECOGNISED_FORBIDDEN_MESSAGES` in the same
+-- commit — otherwise the refusal silently degrades to "Você não tem permissão para esta
+-- ação." and the user stops being told WHICH half to change, with nothing going red.
+-- =========================================================================
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'bulk_create_cases'
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          like '%o escopo "todas as fases" é exclusivo da coordenação da comissão%'),
+  1,
+  '9.1 ⭐ DOOR ANCHOR: bulk_create_cases raises the all_phases refusal with the EXACT text the app layer''s recognition list matches on (src/lib/cases/bulk-error-map.ts). Drift here silently flattens a PO-ruled message to the generic one');
 
 select * from finish();
 rollback;

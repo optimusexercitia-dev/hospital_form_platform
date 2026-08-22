@@ -14,7 +14,8 @@ import { getPublishedTemplateVersion } from './helpers/process-templates'
  * Seeded personas (password Test1234!), all commission CCIH under org rede-a:
  *   chefe.ccih@test.local   staff_admin (coordinator)                 …02
  *   staff1.ccih@test.local  plain staff (NOT appointed)               …03
- *   staff2.ccih@test.local  Administrativo — ALL FOUR capabilities    …04
+ *   staff2.ccih@test.local  Administrativo — ALL FIVE capabilities, incl.
+ *                           `read_cases` (ADR 0134 S8)              …04
  *   staff4.ccih@test.local  plain staff (reassign target)             …0a
  * Farmácia (same org) — the seeded staff_admin signoff QUEUE fixture lives here (CCIH
  * has none), so the view_signoffs DRILL-IN is exercised by runtime-appointing
@@ -276,6 +277,76 @@ test('POS-2 create_cases: Administrativo reaches the cases board, creates a case
       return rows[0]?.label
     }, { timeout: 10_000 })
     .toBe(newLabel)
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// POS-2b — closes FUP-ADMINISTRATIVO-CUSTOM-FIELDS-ARM-NOT-E2E-VERIFIABLE
+// (docs/progress/follow-ups.md). Filed because exactly ONE case platform-wide
+// carried custom-field values and staff2 (the only non-coordinator create_cases
+// holder) could not read it — `can_read_case` was false — so the
+// `member_can('create_cases')` disjunct of `update_case_custom_field_values` had
+// no reachable fixture. S8 (`read_cases`, seeded on staff2 — ADR 0134) now makes
+// that SAME case reachable: verified live 2026-08-22 against the local stack —
+// `case_viewer_capabilities` for staff2 on it flipped from unreachable to
+// `{can_read:true, can_write_content:false, can_manage_lifecycle:false}`, and
+// `update_case_custom_field_values` under staff2's own JWT returned 204 and the
+// DB row changed. This test pins that measurement as a spec. ⛔ The case is a
+// SHARED seed fixture other specs read verbatim (case-custom-fields.spec.ts
+// AC-4/AC-6, "READ-ONLY … never mutates the shared seed") — the write below MUST
+// leave `turno_obito` back at its contract value 'manha' even if an assertion
+// throws, so the mutate+restore is wrapped and DB-verified both ways.
+// ---------------------------------------------------------------------------
+
+test('POS-2b create_cases: S8 makes the shared custom-fields case reachable, and the member_can(create_cases) write disjunct is now drivable end to end', async ({
+  page,
+}) => {
+  const CF_CASE_ID = 'd0cf0000-0000-0000-0000-0000000000c1' // "Óbito enfermaria leito 3"
+
+  // UI half — reachability. Before S8 this 404'd for staff2 (no grant/authorship);
+  // it must now render, including the create_cases-gated edit affordance (D3's
+  // `canEditCustomFields = canInCommission(access,'create_cases')` is commission-
+  // wide and unaffected by S8 — the NEW thing S8 buys is getting PAST the read
+  // gate at all).
+  await signInAs(page, 'staff2.ccih@test.local')
+  await page.goto(`${BASE}/manage/cases/${CF_CASE_ID}`)
+  await page.waitForURL(`${BASE}/manage/cases/${CF_CASE_ID}`)
+  await expect(page.getByRole('heading', { name: /caso\s*\d+/i })).toBeVisible({ timeout: 10_000 })
+  const panel = page.getByRole('region', { name: 'Campos personalizados' })
+  await expect(panel).toBeVisible({ timeout: 10_000 })
+  await expect(panel.getByText('Manhã', { exact: true })).toBeVisible()
+  await expect(panel.getByRole('button', { name: /^Editar$/ })).toBeVisible()
+
+  // Backend gate half — drive the RPC directly under staff2's own JWT (mirrors
+  // POS-1's "backend gate" pattern), tight mutate-then-restore window, DB-verified
+  // both directions so the shared fixture is left exactly as found.
+  const token = await getToken(page.request, 'staff2.ccih@test.local')
+  async function turnoValue(): Promise<string | undefined> {
+    const rows = await dbQuery<{ value: string }>(page.request, 'case_custom_field_values', {
+      case_id: `eq.${CF_CASE_ID}`,
+      key: 'eq.turno_obito',
+    })
+    return rows[0]?.value
+  }
+  try {
+    const writeRes = await rpcAs(page.request, token, 'update_case_custom_field_values', {
+      p_case_id: CF_CASE_ID,
+      p_values: [{ key: 'turno_obito', value: 'tarde' }],
+    })
+    expect(
+      writeRes.ok(),
+      `update_case_custom_field_values as staff2 (member_can('create_cases') disjunct): ${await writeRes.text()}`,
+    ).toBeTruthy()
+    await expect.poll(turnoValue, { timeout: 10_000 }).toBe('tarde')
+  } finally {
+    const revertRes = await rpcAs(page.request, token, 'update_case_custom_field_values', {
+      p_case_id: CF_CASE_ID,
+      p_values: [{ key: 'turno_obito', value: 'manha' }],
+    })
+    expect(revertRes.ok(), `restore turno_obito to the seed contract value: ${await revertRes.text()}`).toBeTruthy()
+    await expect.poll(turnoValue, { timeout: 10_000 }).toBe('manha')
+  }
 
   await signOut(page)
 })
@@ -630,9 +701,27 @@ test('MGR manager UI: coordinator sees the badge + staff_admin note + PHI note, 
   await expect(staff2Row.getByText('Administrativo', { exact: true })).toBeVisible()
 
   // PHI/minimum-necessary note under create_cases (case_patient is on for CCIH).
+  // ⛔ CORRECTED (case-surface-split Increment 2, ADR 0134 §A2.4 option D): the OLD
+  // copy claimed "inserir e visualizar dados de paciente" — that "visualizar" half
+  // was measurably FALSE (the capability is creation-scoped WRITE only, never a
+  // read path) and the live copy was fixed, not the assertion widened to match a
+  // stale claim. Assert the CURRENT rendered copy: the permission lets the holder
+  // type identifiers only while creating a case (single or bulk) and never read,
+  // edit or dispose of them afterwards — not even the ones they typed themselves.
   await expect(
-    page.getByText(/deixa a pessoa inserir e visualizar\s+dados de paciente/i).first(),
+    page
+      .getByText(/deixa a pessoa digitá-los apenas no momento de criar um caso/i)
+      .first(),
   ).toBeVisible()
+  await expect(
+    page
+      .getByText(/não pode consultar, editar nem excluir identificadores depois/i)
+      .first(),
+  ).toBeVisible()
+  // The retired claim must be GONE, not merely unasserted — a rendered-output
+  // check (never a source grep: the source still legitimately mentions
+  // "visualizar" in unrelated prose, e.g. the read_cases hint below).
+  await expect(page.getByText(/inserir e visualizar/i)).toHaveCount(0)
 
   // staff_admin rows show the "coordenador já possui estas permissões" note instead of
   // a checklist (chefe's own row is the staff_admin here).

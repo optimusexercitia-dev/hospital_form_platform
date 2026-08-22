@@ -11,7 +11,7 @@
 --   admin@test.local          org_admin of Rede A (+ enrolled in Rede A's PQS roster)
 --   chefe.ccih@test.local     staff_admin of commission A (CCIH)
 --   staff1.ccih@test.local     staff of A
---   staff2.ccih@test.local     staff of A
+--   staff2.ccih@test.local     staff of A + Administrativo of CCIH (all five ADR 0061/0134 capabilities, incl. read_cases)
 --   chefe.farm@test.local     staff_admin of commission B (Farmácia e Terapêutica)
 --   staff1.farm@test.local     staff of B
 --   staff2.farm@test.local     staff of B
@@ -2722,14 +2722,29 @@ begin
 end $cd$;
 
 -- ---------------------------------------------------------------------------
--- Administrativo delegation (ADR 0061). staff2.ccih (…04), a plain staff member
--- of commission A (CCIH), is appointed Administrativo with ALL FOUR capabilities
--- so the manager UI + E2E have a ready persona. Seeded via DIRECT INSERT (the seed
--- runs as the RLS-exempt owner, bypassing the guarded DEFINER doors + the internal
--- auth.uid() gates, which is null in seed context). The `administrativo` feature
--- flag stays OFF (seeded false by the migration) — app.member_can is flag-aware, so
--- these grants stay DORMANT until the flag is flipped ON for manual verification /
--- E2E. The audit triggers fire and record the appointment + grants.
+-- Administrativo delegation (ADR 0061; fifth capability ADR 0134 D6). staff2.ccih
+-- (…04), a plain staff member of commission A (CCIH), is appointed Administrativo
+-- with ALL FIVE capabilities so the manager UI + E2E have a ready persona.
+--
+-- Seeded via DIRECT INSERT: the seed runs as the RLS-exempt owner, bypassing the
+-- guarded DEFINER doors and their internal auth.uid() gates (auth.uid() is null in
+-- seed context).
+-- ⛔ CONSEQUENCE THAT MUST NOT BE FORGOTTEN (ADR 0134 §A5.3): because the door is
+-- bypassed, this appointment gains NOTHING from Amendment 5's auto-grant —
+-- `public.appoint_administrativo` grants `read_cases` with a new appointment, and
+-- that code never runs here. `read_cases` therefore has to be listed explicitly
+-- below, and the two paths must be asserted SEPARATELY in pgTAP
+-- (`205_administrativo.sql` § (A5) pins the DOOR; this row is a fixture and is
+-- evidence about nothing). Reading this row as evidence that the door works is
+-- exactly the mistake §A5.3 was written to prevent.
+--
+-- ⚠ CORRECTED 2026-08-22 — this comment previously said "The `administrativo`
+-- feature flag stays OFF (seeded false by the migration) … these grants stay
+-- DORMANT". That was MEASURED FALSE: `select enabled from app.feature_flags where
+-- key='administrativo'` is **t**, flipped by migration
+-- 20260715000300_enable_administrativo.sql. The grants are LIVE, not dormant.
+--
+-- The audit triggers fire and record the appointment + grants.
 -- ---------------------------------------------------------------------------
 insert into public.commission_administrativos (commission_id, user_id, appointed_by)
 values ('a0000000-0000-0000-0000-0000000000a1',   -- CCIH (commission A)
@@ -2742,7 +2757,12 @@ select 'a0000000-0000-0000-0000-0000000000a1',
        '00000000-0000-0000-0000-000000000004',
        cap,
        '00000000-0000-0000-0000-000000000002'
-from unnest(array['schedule_meetings', 'create_cases', 'assign_case_phases', 'view_signoffs']) as cap
+-- ⛔ THIS ARRAY IS A FIFTH HAND-LIST OF THE CAPABILITY VOCABULARY (after the DB CHECK,
+-- grant_member_capability's whitelist, `MemberCapability`, and `CAPABILITIES` in
+-- src/lib/members/actions.ts). No gate compares it against the CHECK — a literal that
+-- drifts here fails the seed at `db reset` with a 23514, which is the only feedback there is.
+from unnest(array['schedule_meetings', 'create_cases', 'assign_case_phases', 'view_signoffs',
+                  'read_cases']) as cap
 on conflict (commission_id, user_id, capability) do nothing;
 
 -- ---------------------------------------------------------------------------

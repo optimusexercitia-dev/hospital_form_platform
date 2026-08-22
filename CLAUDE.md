@@ -189,7 +189,7 @@ rules:
 9. **Data access via `src/lib/queries/`** — no inline supabase-js.
 10. **User-facing text pt-BR**; code, comments, commits, docs in English.
 11. **Auditability** — append-only, tamper-evident trail; every mutation emits a row; reads of another member's data + every PHI read are logged (records *that* + *who*, never payloads/PHI).
-12. **PHI / HIPAA** — see §1: three isolated **Class-1 patient-PHI** modules (`event_patient` / `referral_patient` / **`patient_identifiers`+`patient_participants`** — ⚠ *not* `case_patient`, which is a flag key, see §1) under identical isolation + audited-single-door safeguards. A distinct **Class-2 professional-identity** class (`professional_profiles`; case-scoped RLS + audited reads, no single door) lands in F1 (ADR 0064/0065); others hold none by design.
+12. **PHI / HIPAA** — see §1: three isolated **Class-1 patient-PHI** modules (`event_patient` / `referral_patient` / **`patient_identifiers`+`patient_participants`** — ⚠ *not* `case_patient`, which is a flag key, see §1) under identical isolation + audited-door safeguards. ⚠ **The CASE module is no longer single-door on the WRITE side** — it has **one writer body with TWO gates** (the coordinator door, and the creation path: ADR 0134 Amdt 2, PO-ruled 2026-08-22). `event_patient` / `referral_patient` are unchanged and remain single-door; every **read** claim is unchanged for all three. A distinct **Class-2 professional-identity** class (`professional_profiles`; case-scoped RLS + audited reads, no single door) lands in F1 (ADR 0064/0065); others hold none by design.
 
 ## 4. Agent Team
 

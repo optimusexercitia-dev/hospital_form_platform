@@ -314,6 +314,19 @@ test('S3: PHI ON → Próximo → step 2 PHI fields + warning + Voltar → fill 
   await dialog.getByLabel(/^Prontuário$/i).fill(PHI_MRN)
 
   await dialog.getByRole('button', { name: /^Criar caso$/i }).click()
+
+  // ADR 0134 §A2.4 (case-surface-split Increment 2): a creation that recorded
+  // identifiers no longer auto-navigates — the dialog HOLDS OPEN on a
+  // confirmation of what was just typed, and only "Continuar para o caso"
+  // proceeds. Assert the confirmation shows back the SAME values (never the
+  // server's, per the component's own contract) before advancing.
+  await expect(
+    dialog.getByRole('heading', { name: /Caso criado\. Confira o que você digitou\./i }),
+  ).toBeVisible({ timeout: 15_000 })
+  await expect(dialog.getByText(PHI_NAME)).toBeVisible()
+  await expect(dialog.getByText(PHI_MRN)).toBeVisible()
+  await dialog.getByRole('button', { name: /^Continuar para o caso$/i }).click()
+
   await page.waitForURL(/\/c\/ccih\/manage\/cases\/[0-9a-f-]{36}/i, { timeout: 20_000 })
   const caseId = caseIdFromUrl(page)
   await page.waitForLoadState('networkidle', { timeout: 15_000 })

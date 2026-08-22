@@ -545,6 +545,40 @@ material rotated out in the same edit) · decisions-log row for OPEN-1's ruling.
 
 ---
 
+### ⚙ BUILD OUTCOME — 2026-08-22 (built locally on `feat/case-surface-split-2`; NOT merged, NOT pushed)
+
+⛔ **Everything above this heading is the plan AS WRITTEN. Six of its prescriptions were changed by
+measurement during the build, and the plan text was left standing rather than edited, so a reader can
+see what was planned and what happened.** Read this section before implementing anything from §4.
+
+| §4 says | what shipped | why |
+| --- | --- | --- |
+| M1 adds `read_cases` to the validated set | ➕ **and `appoint_administrativo` GRANTS it** on a new appointment | ADR 0134 **Amdt 5** — D6's *"default-checked"* was unimplementable: the dialog has **no defaults**, its boxes render server state |
+| M2 routes S8 "through the flag-aware chokepoint `app.member_can`" | routes through **`app.member_can_for`**, now the single implementation, with `member_can` **delegating** | **Amdt 6** — `member_can` takes **no uid** and resolves `auth.uid()`, while `_case_caps` is a `(case, uid)` resolver with **14** measured cross-uid callers |
+| M-bulk: "a `member_can('create_cases')` arm on `bulk_create_cases`" | **two keys** — `create_cases` ∧ `assign_case_phases` — and `all_phases` refused **at the gate** | **Amdt 7** — bulk is a **composition**; the prescribed arm was built and the keystone stayed RED, dying *inside the per-row loop* |
+| A2.2 splits `set_participant_patient` | ➕ the **compat door** `set_case_patient` had to be covered too, and `create_case` also gained `p_patient` | bulk calls `set_case_patient`, not `set_participant_patient` — splitting only the latter left bulk coordinator-gated. And the PHI-loss-on-refusal shape existed at **two** TS sites, not the one M10 named |
+| A2.4 risk 2: "the response echoes the identifiers just written" | the server returns **no identifier value**; the confirmation is built **client-side** | lead ruling, recorded in the ADR — a response carrying identifiers to a principal with no PHI read entitlement is a read path wearing a different name |
+| "`gen:types` after the migrations (Rule 8)" | **blind** for M1/M2, a **real delta** for M3 | `capability` is `text`+CHECK and `app` is not PostgREST-exposed — *"clean `gen:types`"* meant two different things in one increment, and was confirmation exactly once |
+
+**Also measured, and not what §4 assumed:**
+- ⛔ **All four authz ARMs held VACUOUSLY** with respect to this change — none of the five changed objects
+  is in any arm's domain (four are `prosecdef` **scalar non-bool command doors**; the new helper is `app`
+  INVOKER and that arm is `public`-bounded). The diff-scoped sweep was **run rather than predicted** and
+  produced **zero cases**, printing the same `BLIND: 0` line a clean run prints. Real coverage for those
+  five is the hand-written mutation twins in `356`/`357`/`189`.
+- The `189` keystone is at **`:162-168`** (PRE at `:160-161`), **not `:153`** — which is the fixture INSERT
+  and was cited wrong in three files from filing until the build.
+- The `is_oversight_only_reader` door set is **4 routines direct, 0 policies direct** — and **11 RLS
+  policies + 3 routines transitively** through its negation `app.can_read_case_committee`, which keys on
+  **bits, not arms**. "4 routines" is true and misleading.
+- `<CaseDetailView` mount sites: **2**, both property sets agreeing.
+- New pgTAP suites: **356** (S8 + `member_can_for`) and **357** (creation-scoped PHI).
+
+⚠ **Still open at the time of writing:** §6 step 3 QA returned **CHANGES REQUESTED** (five blocking
+items; `docs/reviews/case-surface-split-increment-2-review.md`), and the full `e2e:prod` gate result is
+not yet recorded here. **Nothing in this section is a shipping claim.**
+
+
 ## §5 File ownership (binding — CLAUDE.md §4)
 
 | Who | Files |

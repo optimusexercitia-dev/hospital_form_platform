@@ -115,8 +115,11 @@ end-to-end verification live in the handoff doc referenced above.
 
 ## Amendment 1 — a fifth capability, `read_cases`, and a management surface
 
-**2026-08-21 · ADR [0134](./0134-case-surface-split-and-administrativo-case-read.md) — design
-PO-ratified, NOT yet built (update this stub to the build record when 0134's increments land).**
+**2026-08-21 design PO-ratified · ⚙ BUILD RECORD OPENED 2026-08-22 on
+`feat/case-surface-split-2`** (ADR [0134](./0134-case-surface-split-and-administrativo-case-read.md)
+Increment 2; local only — **no remote `db push`, not merged**). The design paragraph below is kept
+verbatim as the record of what was ratified; ⛔ **three of its clauses were changed by measurement
+during the build and are corrected underneath it — read both.**
 
 > The curated menu grows from four capabilities to **five**: `read_cases` (default-checked in
 > the appoint dialog) keys a new `app._case_caps` arm conferring commission-wide
@@ -128,3 +131,74 @@ PO-ratified, NOT yet built (update this stub to the build record when 0134's inc
 > (0134 D3) and `multiplos` re-gates on the `create_cases` capability instead of the
 > `staff_admin` role — the "board rows → staff `casos/[id]` route" frontend note above becomes
 > historical once 0134 Increment 1 lands.
+
+### What has LANDED (verify against the catalog, not this list)
+
+- **The vocabulary is five.** `read_cases` added to the two enforcing places — the CHECK constraint
+  and `public.grant_member_capability`'s whitelist — plus the non-enforcing `app.feature_flags`
+  description, which enumerated the four in prose. ⚠ Measured during the build: `capability` is plain
+  `text`, so `npm run gen:types` is **blind** here (`database.ts` types it `string`) and a clean
+  regeneration is **not** confirmation. The vocabulary also lives in **four TypeScript hand-lists**
+  and a fifth in `seed.sql`; none is derived from the DB.
+- **The appoint dialog offers it**, labelled *"Visualizar os casos da comissão"*, with the ceiling in
+  its hint (see the correction to clause 1 below), and the component gained its first unit coverage.
+
+### Three corrections to the ratified paragraph, each measured
+
+1. ⛔ **"default-checked in the appoint dialog" was not implementable as written** — that dialog has
+   **no defaults**; its checkboxes render server state, and a new appointee held zero capabilities.
+   **PO-ruled 2026-08-22 (ADR 0134 Amendment 5): the appointment GRANTS `read_cases`.**
+   `public.appoint_administrativo` now inserts the capability row, attributed to the appointing
+   coordinator, on a **new appointment only** — existing appointees are **not** backfilled (Amdt 1
+   §A1.1 still governs them), and re-appointing an existing appointee grants nothing while
+   re-appointing **after a revoke** does. The rejected third reading — tick the box client-side with
+   no grant behind it — is a mirror wider than its door and must never be implemented.
+2. ⛔ **"keys a new `app._case_caps` arm" understated the bound.** The arm is bounded by `not v_eg`
+   (ADR 0134 Amendment 4): a case whose access policy is `explicit_grants_only` is **invisible** to
+   it, exactly as for the committee-member and quality-reviewer arms. Reach there rides an explicit
+   per-case grant or nothing. The capability's ceiling is therefore *commission-wide across ordinary
+   cases, stopping at the same wall every other non-granted reader stops at* — which is what the
+   dialog's hint now says.
+3. ⛔ **"`multiplos` re-gates … becomes historical once 0134 Increment 1 lands" is FALSE.** Increment 1
+   deliberately did the **narrowing half only** (it dropped the `context.isAdmin` bypass and left the
+   role gate), because `public.bulk_create_cases` was measured to admit **only** `is_staff_admin_of` —
+   re-gating the route on a capability the door refuses builds a reachable door that always answers
+   `42501`. The route may re-gate **only after** the door admits it, which is Increment 2 work and is
+   **not yet landed**.
+
+### ⛔ The PHI note is now HALF TRUE — corrected 2026-08-22, in the commit that made it so
+
+This ADR's PHI note says `create_cases` lets an administrativo *"enter and read patient context"*.
+Measured at build time it was **false in both halves**. As of ADR 0134 Amendment 2 (option D,
+PO-ruled):
+
+- **"enter" is TRUE, and bounded** — a `create_cases` holder may type patient identifiers **only
+  while creating a case**, single or bulk. Not afterwards, not on a case someone else created, not
+  on their own case one call later. That last one is not a claim: it is the increment's keystone,
+  which refuses the same person on the same case immediately after they created it.
+- **"read" is FALSE and stays false forever** — including for the identifiers they typed
+  themselves. `app.can_read_case_patient` keys on `read_standard_phi`, which the S8 arm does not
+  set and which no capability confers.
+
+⚠ The manager UI states exactly this; the copy that previously claimed *"inserir e visualizar"*
+was corrected in the same increment, because a platform that describes itself falsely about PHI is
+a Rule 12 problem regardless of what the doors do.
+
+### Everything in this record has now LANDED locally — and that is not completion
+
+✅ The S8 `_case_caps` arm with its `not v_eg` bound · ✅ the bulk widening — ⛔ **NOT** the one-key arm
+this record originally described: `bulk_create_cases` proved to be a **composition**, so it now requires
+**`create_cases` AND `assign_case_phases`** (ADR 0134 **Amendment 7**, PO-ruled), with `all_phases`
+refused **at the gate** because `assign_narrative` has no capability arm at all · ✅ the keystone that
+pinned the old refusal, inverted deliberately with its intent restated · ✅ the `multiplos` re-gate and
+its board link, one predicate across both sites · ✅ the creation-scoped PHI write · ✅ this ADR's PHI
+note, corrected above **in the same delivery as the door that made half of it true**.
+
+⛔ **NOT merged, NOT pushed.** Everything above is local to `feat/case-surface-split-2` and subject to
+QA and a PO merge call. A build record is a record of what was built, not of what shipped.
+
+⚠ **Two things that stay open and must not be read away by the ticks above:** the appointee delegated
+bulk creation now needs a **second, standing** capability (`assign_case_phases` grants phase authority
+on every case they can reach, not only ones they create) — that is the trade Amendment 7 makes, stated
+in the ADR; and the `all_phases` scope remains **closed** to administrativos entirely.
+

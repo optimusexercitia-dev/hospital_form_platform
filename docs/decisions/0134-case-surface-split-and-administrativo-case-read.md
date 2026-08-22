@@ -3,9 +3,13 @@
 **Status:** **Accepted — design PO-ratified 2026-08-21** (design/grilling session; this ADR is
 the record of that approval and of its scope — see D11, **as extended by Amendment 1**) ·
 **IN BUILD** (PO build-go 2026-08-21; Step 0 ✅ done · **Increment 1 ✅ gated §6 1–5, QA APPROVED r3,
-PO-approved and MERGED to `main` 2026-08-21 (`6e364203`)** · Increment 2 not started · **no remote
-`db push`**) — ⚠ *this line read "code built but not gated, nothing merged" until 2026-08-22; corrected
-by measurement, not by memory* — implementation plan:
+PO-approved and MERGED to `main` 2026-08-21 (`6e364203`)** · **Increment 2 BUILT LOCALLY 2026-08-22 on
+`feat/case-surface-split-2` — §6 steps 1–2 green, step 3 QA **CHANGES REQUESTED**, NOT merged, NOT
+pushed** · **no remote `db push`**) — ⚠⚠ *this line has now gone stale **TWICE**: it read "code built
+but not gated, nothing merged" until 2026-08-22, and then read "Increment 2 not started" for the whole
+day Increment 2 was built — **inside the very sentence that warns it went stale before**. A warning
+about staleness is not a mechanism against it; `lint:progress` governs PROGRESS.md and **nothing at all
+governs this line.*** — implementation plan:
 [docs/plans/case-surface-split.md](../plans/case-surface-split.md) · **Date:** 2026-08-21 ·
 **Feature:** completes the `/casos` ↔ `/manage/cases` split begun by `8675b7cd` (2026-08-19,
 "make /casos a reading surface") and settles the design question underneath
@@ -97,9 +101,13 @@ baseline — **re-verify at build time, never quote**):
    capability-mapped stays `staff_admin`-only: `correcoes`, `fase/respostas`. Interviews keeps
    its own participant model.
 6. **A new `_case_caps` arm (S8): administrativo commission-wide case READ, keyed on a new
-   fifth ADR 0061 capability `read_cases`** (default-checked in the appoint dialog), routed
-   through the flag-aware chokepoint so the `administrativo` kill switch darkens it with the
-   rest. ⭐ **AMENDED 2026-08-22 by Amendment 4 (PO-ruled): the arm is bounded by `not v_eg`**, so an
+   fifth ADR 0061 capability `read_cases`** (⭐ *"default-checked" — **AMENDED 2026-08-22 by
+   Amendment 5**: that dialog has no defaults, so the **appointment GRANTS** it; a box ticked in the
+   client with no grant behind it is rejected outright*), routed through the flag-aware chokepoint so
+   the `administrativo` kill switch darkens it with the rest (⭐ **AMENDED 2026-08-22 by Amendment 6**:
+   the chokepoint this clause names, `app.member_can`, **takes no uid and cannot answer S8's question**;
+   the arm calls `app.member_can_for`, which is now the single implementation, with `member_can`
+   delegating — the flag-awareness this clause requires is unchanged). ⭐ **AMENDED 2026-08-22 by Amendment 4 (PO-ruled): the arm is bounded by `not v_eg`**, so an
    `explicit_grants_only` case is invisible to it — reach there rides an explicit grant (S3) or
    nothing, exactly as for S5 and S7. As first written this clause had no bound at all. S8 confers **`read_case_content` only** — content authorship (`canWriteContent`)
    still requires an explicit per-case grant, exactly like any staff member; `close_case` /
@@ -238,6 +246,15 @@ governance gain. **Rejected: a separate sixth capability key.**
 - Increment 2 gains a second migration: a `member_can(commission, 'create_cases')` arm on
   `bulk_create_cases`, routed through the **flag-aware chokepoint** so the `administrativo` kill
   switch darkens it exactly as it darkens `update_case_meta`.
+  ⭐ **AMENDED 2026-08-22 by Amendment 7 (PO-ruled): this sentence is INSUFFICIENT and was built
+  before it was found to be.** `bulk_create_cases` is a **composition** — it calls `activate_phase`
+  (which admits only `assign_case_phases`) on every scope, and `assign_narrative` (**`is_staff_admin_of`
+  only, no capability arm exists**) on `all_phases`. The prescribed arm was written, applied, and the
+  keystone stayed **red**: the batch died *inside the per-row loop*, not at the gate. Bulk therefore
+  requires **`create_cases` ∧ `assign_case_phases`**, and `all_phases` stays coordinator-only and is
+  refused **at the gate**. ⚠ The general lesson is not bulk-specific: **a ruling phrased "add an arm to
+  door X" is unsafe when X is a composition** — this one was written from the door's *name* rather than
+  its *call graph*, and survived ratification and a written implementation plan.
 - It carries the **same** pgTAP obligations as the S8 arm — positive, negative (capability and
   appointment revoked), flag-dark, and the **over-grant twin** (arm reverted ⇒ the positive goes
   red). A widening without its twin is the one shape this program has refused throughout.
@@ -302,18 +319,18 @@ instead of the class (plan §1's warning box).
 | # | Fact |
 | --- | --- |
 | M1 | `public.set_participant_patient` (`prosecdef = t`) has **one** authority branch: `app.is_staff_admin_of(commission)` — no `member_can`, no `can_write_case_content`, no `is_admin`. `public.set_case_patient` is a **gate-less** compat wrapper delegating to it. |
-| M2 | `app.can_read_case_patient` = `app.has_case_capability(case, uid, 'read_standard_phi')`. In `app._case_caps` that bit has **exactly two** sources: S1 coordinator, and S3 iff the grant's own `read_standard_phi` **column** is set (never inferred from a read or write grant — A16). |
+| M2 | `app.can_read_case_patient` = `app.has_case_capability(case, uid, 'read_standard_phi')`. ⛔ **Corrected 2026-08-22 by re-measurement: the bit has THREE writes in TWO arms, not "exactly two sources"** — S1 coordinator, S3 iff the grant's own `read_standard_phi` column is set, **and S3 again iff the grant's `read_restricted_phi` column is set** (restricted ⇒ standard). The substantive claim survives: it is never inferred from a read or write grant (A16). A count stated one short is how an over-grant twin gets aimed at the wrong arm. |
 | M3 | `public.patient_identifiers` / `public.patient_participants`: RLS **on**, **0 policies**, **no `authenticated` ACL**. The DEFINER door does not supplement RLS here — it **is** the entire boundary, so a widening cannot be scoped row-wise by policy. |
-| M4 | A write to `patient_identifiers` fires `trg_derive_patient_keys` **and** `trg_xref_maintain_patient_identifiers` → the cross-module patient index behind `public.search_patient_xref` / `app.patient_trajectory_bundle` (gate: `is_pqs_operator_of ∨ is_dpo_of`, hospital-scoped). **Case PHI is not case-local.** |
+| M4 | A write to `patient_identifiers` fires `trg_derive_patient_keys` **and** `trg_xref_maintain_patient_identifiers` → the cross-module patient index. **Case PHI is not case-local.** ⛔ **Corrected 2026-08-22: the gate is not one gate.** `public.search_patient_xref` is `is_pqs_operator_of ∨ is_dpo_of`; **`public.get_patient_trajectory_for_entity` is PQS-only, with no DPO arm**; and `app.patient_trajectory_bundle` holds no `authenticated` EXECUTE, so it is not a door at all. One gate quoted for three surfaces reads like a proof about all three. |
 | M5 | `app.trg_audit_patient_identifiers` writes `case_patient.updated` with `'{}'::jsonb` — no payload, by Rule 11. A write is attributable but **not reconstructable**. |
 | M6 | `public.dispose_case_phi` is coordinator-only. |
 | M7 | `public.create_case` and `public.create_case_from_template` **already admit** `app.member_can(commission,'create_cases')`; the non-coordinator creator self-grant is level `'read'` with `p_read_standard_phi` **false**. ⇒ an administrativo who creates a PHI-collecting case today **cannot read its identifiers**. |
-| M8 | `app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ is_member_of(commission) ∧ ∃ capability row` — flag-aware **and** membership-aware. (Corrects the docblock falsified as F-3 in the Increment-1 review: it does **not** gate on the capability row alone.) |
+| M8 | `app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ is_member_of(commission) ∧ ∃ capability row` — flag-aware **and** membership-aware. (Corrects the docblock falsified as F-3 in the Increment-1 review: it does **not** gate on the capability row alone.) ⛔ **Corrected 2026-08-22 by mutation, not by reading: that is FOUR terms but only THREE independent ones.** `app.is_member_of(_for)` is itself `is_active(u) ∧ has_role_any(...)`, so the explicit `is_active` term is implied by the membership term — deleting it alone leaves the whole S8 suite **71/71 green**. Not a hole (membership still covers it), but not the belt-and-braces the phrasing implies, and ⚠ **a sweep asserting `is_active` is PRESENT would pass on a body where it had been deleted.** |
 | M9 | The create dialog shows the PHI block on `casePatientEnabled && selectedTemplate?.collectsPatient` — **no viewer condition** (`create-case-dialog.tsx:223`); the bulk grid pre-selects Nome + Prontuário (`DEFAULT_PHI_KEYS`, `bulk-create-wizard.tsx:92`). The dead end is the **default** path, not a deliberate one. |
-| M10 | `createCaseFromTemplate` mints the case, then writes PHI in a second RPC; on refusal it returns `{ ok:false, caseId, error }` — **the case survives without its identifiers** (`src/lib/cases/actions.ts` ~:492). Bulk instead re-raises and rolls the **whole batch** back. |
-| M11 | Post-creation surfaces already behave correctly for a write-once actor: `CasePatientPanel` receives `canEdit={caps.canManageLifecycle}` (coordinator-only) and an unentitled reveal renders a **designed denial**, not an error (`case-detail-view.tsx:822`, `case-patient-panel.tsx:195`). |
+| M10 | `createCaseFromTemplate` mints the case, then writes PHI in a second RPC; on refusal it returns `{ ok:false, caseId, error }` — **the case survives without its identifiers** (`src/lib/cases/actions.ts` **:494-501**, return at **:499**). ⛔ **Corrected 2026-08-22: the shape exists at TWO sites, not one** — `createCase` carries the identical block at **:570-577** (return at **:575**), and its own comment says so (*"exactly as createCaseFromTemplate does"*). Naming one site makes a two-site fix read as done. Bulk instead re-raises and rolls the **whole batch** back. |
+| M11 | Post-creation surfaces already behave correctly for a write-once actor: `CasePatientPanel` receives `canEdit={caps.canManageLifecycle}` (coordinator-only) and an unentitled reveal renders a **designed denial**, not an error. ⛔ **Line ref corrected 2026-08-22:** the mount is `case-detail-view.tsx` **:866-871** (`canEdit` on **:868**); the cited `:822` is inside `CaseOutboundReferralsCard`, a different component. Behaviour CONFIRMED; the pointer was not. |
 | M12 | **22** functions set the `app.in_case_rpc` GUC — incl. `close_case`, `cancel_case`, `reopen_case`, `approve_correction`, `dispose_case_phi`. It is a **trigger-guard bypass**, not an identity signal. |
-| M13 | `supabase/tests/189_bulk_create_cases.sql:153` is a live keystone pinning "an administrativo holding `create_cases` is denied bulk (42501)". Any widening must **invert it deliberately**. |
+| M13 | `supabase/tests/189_bulk_create_cases.sql` **:162-168** is a live keystone pinning "an administrativo holding `create_cases` is denied bulk (42501)". Any widening must **invert it deliberately**, keeping its anti-vacuity PRE at **:160-161** (`member_can → true`, which is what stops the deny reading as a missing-capability deny). ⛔ **Line ref corrected 2026-08-22 by re-measurement:** this row said `:153` from filing until the build, and `:153` is the fixture INSERT — the row is the reason the correction was findable, and the reason to re-derive rather than quote. |
 
 ### The options put to the PO
 
@@ -393,6 +410,32 @@ modules · `close_case` / `cancel_case` / `set_case_outcome`.
    coordinator can see the error; only the administrativo made it. **Mitigation required in the
    same change:** the create/bulk response echoes the identifiers just written (the client already
    holds them) so a typo is caught at the keyboard, not months later.
+
+   > ⛔ **NARROWED AT BUILD TIME, 2026-08-22 (lead ruling; the PO may overrule and this note exists to
+   > be overruled).** The mitigation ships, but **the server returns no identifier value.** The
+   > confirmation is built **client-side from the payload the user just submitted**; the creation
+   > response carries a **non-PHI structural result only** — per row, the outcome, the `caseId`, and
+   > *which* identifier fields were set, never their values.
+   >
+   > **Why:** option D grants a **write** and grants **no read, ever** (§A2.3). A response body carrying
+   > identifier values back to a principal holding no `read_standard_phi` is a PHI read path wearing a
+   > different name, and it is the first thing an auditor finds in the module where Rule 12 says
+   > minimum-necessary. This clause's own parenthetical — *"the client already holds them"* — is
+   > simultaneously the justification for echoing and the reason the **server** need not be the one to
+   > do it. The stated purpose (*a typo is caught at the keyboard, not months later by a coordinator
+   > who cannot know who typed it*) is met in full by showing the user their own submission.
+   >
+   > **Narrowing what a PHI path moves is safe; widening is not** — that asymmetry is why this was
+   > ruled rather than escalated. ⚠ **What the narrowing does NOT catch, stated rather than
+   > discovered:** a **server-side normalization** surprise (`nullif(btrim(…))`, the derived keys, the
+   > ADR-0038 name-or-MRN floor) is invisible to a client-side echo, because the client shows what was
+   > typed rather than what was stored. A2.4's risk is a **typing** error and that is covered; a
+   > *storage* mismatch is not, and remains uncovered by design.
+   >
+   > **Pinned both directions:** the creation response for a `create_cases` administrativo contains
+   > **no identifier value** (asserted on the returned payload, not in a comment), **and** the write
+   > nonetheless landed in `patient_identifiers`. ⚠ The absence half is the one that can go vacuous —
+   > the fixture must write a value that *could* have appeared.
 3. **Duplicate patient chains scale with batch size.** No read, no xref ⇒ no dedup check. Not a
    regression (coordinators cannot check either), but it grows with volume.
 4. **The "single audited door" claim becomes false as written** unless A2.6 lands in the same
@@ -702,3 +745,266 @@ enumeration turns up — those are read as findings first.
 - Recorded for the build session: the gap was found by applying Amendment 3's wording test to an
   affordance, **before the migration existed**. That is the argument for settling wording ahead of an
   increment rather than after it — the same increment's worth of rework it would otherwise have been.
+
+---
+
+## Amendment 5 — 2026-08-22 (**✅ ACCEPTED — PO-ruled at build start**): "default-checked" means the appointment **grants** `read_cases`, not that a box is pre-ticked
+
+**Status: ✅ ACCEPTED — the PO ruled on 2026-08-22**, in the Increment-2 build session, when asked
+which of two readings D6's parenthetical carries. This amends **D6**. It was asked rather than
+inferred because the two readings produce materially different work and different default reach.
+
+### A5.1 — The measurement that forced the question
+
+D6 says the new `read_cases` capability is *"(default-checked in the appoint dialog)"*. Measured
+2026-08-22 from the live code, **that dialog has no defaults at all**:
+`src/components/members/member-administrativo-controls.tsx` renders one checkbox per capability with
+`checked = caps.has(c.key)`, where `caps` is initialised from **server state**
+(`capabilitiesByUser[member.userId] ?? []`). A newly appointed administrativo starts with **zero**
+capability rows, and none of the four is pre-ticked. ⇒ "default-checked" is not a UI default that
+exists to be set; it can only be made true by a **grant**.
+
+⛔ The third reading — tick the box in the client without a grant behind it — is **rejected outright
+and must not be implemented**. That is a mirror wider than its door, the exact defect class
+`FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED` was closed for one commit earlier.
+
+### A5.2 — The ruling
+
+**Appointing an administrativo grants `read_cases`.** `public.appoint_administrativo` (`prosecdef = t`)
+inserts the `read_cases` capability row alongside the appointment, attributed to the appointing
+coordinator, so the checkbox is checked because the grant exists. The coordinator may untick it, which
+revokes it like any other capability.
+
+### A5.3 — What this does and does not disturb
+
+- **It does not reopen OPEN-1.** A1.1's no-backfill ruling governs **existing** appointees, who stay
+  as they are; A5.2 governs **new** appointments only. The migration must state this and must not
+  touch existing rows — and a pgTAP negative must pin that an appointee predating the migration still
+  holds exactly their four.
+- **The coordinator-action-in-the-audit-trail rationale survives**, because the appointment itself is
+  that action and the grant is attributed to the appointer. This is the reason the two rulings do not
+  contradict: A1.1's concern was a grant with *no* coordinator act behind it.
+- **The seed is unaffected by the door.** `supabase/seed.sql` appoints `staff2.ccih` by **direct
+  INSERT**, bypassing the DEFINER doors, so it gains nothing automatically — the seed must add
+  `read_cases` explicitly (the plan §4 M1 already requires this) and the two paths must be asserted
+  separately, or the seed's row would be read as evidence about the door.
+- **The other four capabilities are untouched** — `appoint_administrativo` grants `read_cases` and
+  nothing else.
+- ⚠ **Every existing assertion that a fresh appointment confers zero capabilities becomes false** and
+  must be updated deliberately, not discovered. Enumerate them by property before writing the
+  migration; do not close on the ones you can recall.
+
+### A5.4 — Approval scope
+
+Authorizes: the `read_cases` auto-grant inside `appoint_administrativo`, its pins, and the D6 wording
+correction — **inside Increment 2, locally**. Does **not** authorize: auto-granting any other
+capability, a backfill to existing appointees, any change to `revoke_administrativo`'s cascade
+behaviour, a remote `db push`, or a merge.
+
+### Consequences
+
+- D6's parenthetical is now a **grant** rule, so the reach it describes is real rather than cosmetic:
+  from this migration on, appointing an administrativo confers commission-wide case read on the
+  commission's ordinary cases — bounded by Amendment 4's `not v_eg`.
+- The appoint door gains its first side-effect beyond the appointment row. That is the fact a later
+  reader will find surprising; it is written here so they find the reasoning attached to it.
+
+---
+
+## Amendment 6 — 2026-08-22 (**lead ruling at build time**, PO informed): D6 names a chokepoint that cannot answer the question S8 asks
+
+**Status: ACCEPTED by the lead during the Increment-2 build; recorded rather than substituted
+silently.** This amends **D6** and plan §4's **V-G / M2**. It is a **mechanism** correction: the
+*property* D6 requires — the `administrativo` kill switch darkens S8 with the rest of ADR 0061 — is
+preserved exactly. Nothing is widened, and no reach changes. ⛔ The PO may overrule it; it is written
+here so there is something to overrule.
+
+### A6.1 — What was measured (live catalog, twice, independently)
+
+D6 and plan §4 M2 both say S8 routes "through the flag-aware chokepoint `app.member_can`".
+
+`app.member_can(p_commission_id uuid, p_capability text)` takes **two arguments and no uid**. Its body
+is `feature_enabled('administrativo') ∧ is_active(auth.uid()) ∧ is_member_of(p_commission_id) ∧
+∃ capability row WHERE c.user_id = auth.uid()` — and `app.is_member_of` is itself `auth.uid()`-bound.
+It answers **about the caller**, and cannot be asked about a passed principal.
+
+`app._case_caps(p_case_id, p_uid)` is a **`(case, uid)` resolver**. Every other helper it uses has a
+`_for` twin for exactly this reason — `is_member_of_for`, `is_staff_admin_of_for`,
+`is_tenancy_admin_of_for`, `is_quality_reviewer_of_for` all exist. **`member_can_for` does not.** That
+gap is the whole finding.
+
+### A6.2 — Why using `member_can` as written would have been a defect, not a shortcut
+
+- **Cross-uid callers would get the caller's answer.** A property sweep of `can_read_case` call sites
+  passing a uid other than `auth.uid()` returns **14**, including `public.file_correction_request`
+  (which asks whether a *nominated corrector* may reach the case), `app.can_read_case_committee`,
+  `app.can_read_document` and `app._audit_access_authorized`. An S8 keyed on `auth.uid()` inside a
+  `p_uid` resolver answers the wrong question at every one of them.
+- **It would re-open the collision Amendment 4 exists to close, through a different door.** With the
+  caller's `member_can` true and `p_uid` a different, non-member principal, S8 sets `read_case_content`
+  for someone S5 will not give `read_case_deliberation` to — `app.is_oversight_only_reader`'s exact bit
+  shape. ⛔ And **no ARM can see it**: it is a uid-source mismatch inside a DEFINER body, not a missing
+  gate.
+- **The P1 keystone could not have been written honestly.** pgTAP asserts reach in owner context, where
+  `auth.uid()` is NULL; S8 would be silently dark and P1 red for the wrong reason. Wrapping every
+  assertion in `claims_for()` would have hidden the defect rather than fixed it.
+
+### A6.3 — The ruling: one implementation, not two
+
+`app.member_can_for(p_commission_id, p_capability, p_user_id)` becomes the **single** implementation of
+the predicate, and **`app.member_can` delegates to it**. S8 calls `member_can_for`. The four conjuncts,
+the flag row, and the `enabled` column are unchanged, so the kill switch still short-circuits the arm
+before any membership or capability probe.
+
+**The rejected alternative, and why** — adding `member_can_for` *beside* an untouched `member_can`
+(cheaper, zero regression surface on the 12 existing consumers) would leave **two hand-copies of an
+authorization predicate whose first term is the kill switch**. That is the shape
+this repo pays for most often, and it is the same shape the M1 migration had just closed for the
+capability vocabulary. A drift *detector* is worth less than removing the possibility of drift.
+
+⛔ **The cost argument against delegating was checked and did not survive.** It was that `member_can`
+is `LANGUAGE sql STABLE` and therefore inlinable into the three `meetings_staff_admin_*` policies, so
+a nesting level would cost the init-plan hoist. **Measured with a four-arm probe** (`EXPLAIN (VERBOSE,
+COSTS OFF)`, inlining visible as the body decomposed into the plan vs an opaque `Filter: fn(...)`):
+plain → **INLINED**; `SET search_path` only → not inlined; `SECURITY DEFINER` only → not inlined; both
+(= `member_can`'s shape) → **not inlined**. The plain arm is the positive control and it flips, so
+"not inlined" is a finding rather than a blind detector. ⇒ **there was no hoist to lose.** The three
+consumers are also **write-path** policies (INSERT/UPDATE/DELETE on `meetings`), not a hot SELECT scan.
+
+⚠ **Mechanism corrected, in the direction of less certainty:** the lead's stated reason was
+"`SECURITY DEFINER`, which Postgres never inlines". That is *a* sufficient blocker — but the probe shows
+`SET search_path` **alone** blocks inlining too, and `member_can` carries **both**. So `prosecdef` is not
+demonstrably *the* operative cause here. The conclusion is measured; the single-cause explanation was
+inferred, and an inferred mechanism reported as a measured one is the error this ADR keeps catching.
+⭐ The first probe run was invalid in exactly that way — it carried `SET search_path` on *both* arms, so
+neither flipped and the whole effect would have been attributed to `prosecdef`. **Two probes sharing a
+blind spot agreeing is worth nothing.**
+
+### A6.4 — Binding conditions (the migration may not be written without these)
+
+1. **`member_can_for`'s ACL is derived from the catalog by property** — matching what
+   `app.is_member_of_for` actually holds. ⚠ A NULL `proacl` is the permissive default, not a lock.
+2. ⛔ **The obvious drift pin is VACUOUS under this ruling and must not be counted as coverage.**
+   `member_can(c,cap) = member_can_for(c,cap,auth.uid())` is true **by construction** once one delegates
+   to the other, and a property guaranteed structurally cannot be pinned by asserting it. What is pinned
+   instead: (i) **one behavioural pin per conjunct** on `member_can_for`, each proven able to fail by
+   neutralizing that conjunct alone; and (ii) a **catalog** assertion that `member_can`'s body delegates
+   — that it carries no second copy of the conjunct list — in the shape
+   `314_qob_org_admin_content_wall.sql` already uses. That one can fail.
+3. **Regression evidence names the 12 consumers** (9 routines + the 3 `meetings_staff_admin_*` policies)
+   and states explicitly whether any suite exercises the **meetings write path**. "The suite is green" is
+   not the same claim.
+4. **`ARM=census` is run on `member_can_for`.** A brand-new gate is in no BLIND set, so `ARM=policy`
+   passes it **vacuously** (ADR 0079 Amdt 3).
+
+### Consequences
+
+- **Amendment 4 §A4.2's derivation gets stronger, not weaker.** `member_can_for`'s membership conjunct
+  **is literally** `app.is_member_of_for(v_commission, p_uid)` — the same call that assigns `v_member`
+  in `_case_caps`. So "an S8 appointee is necessarily also an S5 member on an ordinary case, therefore
+  not `is_oversight_only_reader`" holds **by construction** rather than by argument. P10 must say which
+  of those two it is; only one survives a refactor.
+- The `_for` family gains its fifth member, closing an asymmetry that had no reason behind it — every
+  other membership/role helper in `app` already had one.
+- ⛔ **Correction, 2026-08-22, from the build's own mutation runs: this predicate has THREE independent
+  terms, not four.** The four-conjunct phrasing in the ruling above, in Amendment 2's **M8** row, and in
+  the TS mirror's docblock all over-count: `app.is_member_of_for(c,u)` is `is_active(u) ∧
+  has_role_any('commission',c,u)`, so `member_can_for`'s explicit `is_active(p_user_id)` is **implied by
+  its own third term** — deleting that term alone leaves 71/71 green. The term was **kept** (it holds the
+  two bodies term-for-term comparable with the pre-amendment predicate) and the pin was **re-labelled**
+  rather than left claiming a conjunct it does not isolate. ⚠ The reusable consequence: **a sweep that
+  checks `is_active` is PRESENT would pass on a body where it had been deleted.**
+- ⭐ Recorded for whoever writes the next arm: **the plan and the ADR both named this mechanism, and
+  both were wrong** — the error survived a design session, a ratification, four amendments and a written
+  implementation plan, because naming a real function that does a similar thing reads exactly like having
+  checked. It was caught by reading the signature at build time.
+
+---
+
+## Amendment 7 — 2026-08-22 (**✅ ACCEPTED — PO-ruled at build time**): bulk creation is a COMPOSITION, and §A1.2's one-arm sentence does not open it
+
+**Status: ✅ ACCEPTED — the PO ruled on 2026-08-22**, in the Increment-2 build session, when the change
+Amendment 1 §A1.2 prescribes was built and measured **insufficient**. This amends **A1.2** and **D5**.
+
+### A7.1 — What A1.2 says, and what happened when it was built
+
+A1.2's Consequences read: *"Increment 2 gains a second migration: a `member_can(commission,'create_cases')`
+arm on `bulk_create_cases`."* That arm was written, applied, and the keystone re-run. **The same five
+assertions stayed RED**, with `linha 1: sem permissão` — bulk's **row-indexed re-raise**, meaning the
+refusal was **inside the per-row loop**, not at the gate that had just been widened.
+
+**Bulk is a composition of three authority questions, not one** (measured from the live catalog, each
+door's gate read from `pg_get_functiondef`):
+
+| step | door | its gate | a `create_cases`-only administrativo |
+| --- | --- | --- | --- |
+| (a) | `create_case_from_template` | `is_staff_admin_of ∨ member_can('create_cases')` | ✅ admitted |
+| **(b)** | **`activate_phase`** | `is_staff_admin_of ∨ member_can('`**`assign_case_phases`**`')` | ⛔ 42501 — fires on **every** scope |
+| **(c)** | **`assign_narrative`** (`all_phases` scope only) | **`is_staff_admin_of` ONLY — no capability arm exists** | ⛔ 42501, and **no capability can fix it** |
+| (d) | the creation-scoped PHI helper | none, by design (Amendment 2) | ✅ |
+
+⇒ A1.2's ruling was correct in **intent** and its stated **mechanism was insufficient**. Left as
+written it relocates the dead-end door one step deeper — the very failure A1.2 was ruled to eliminate.
+
+### A7.2 — The ruling: **two existing keys**
+
+Bulk creation requires **`create_cases` AND `assign_case_phases`** — both already in the ADR 0061 menu.
+`bulk_create_cases`' gate becomes `is_staff_admin_of ∨ (member_can('create_cases') ∧
+member_can('assign_case_phases'))`. **No door is widened and no new mechanism is introduced.** The
+second key's meaning is honest: bulk genuinely activates phases, which is exactly that key's scope.
+
+**The `all_phases` scope stays coordinator-only**, because (c) has no capability arm at all and
+Amendment 4's discipline — findings first — forbids inventing one here.
+
+⛔ **Binding on the implementation, and not optional:** `all_phases` must be **refused AT THE GATE**
+for a non-coordinator, before any row is created, with its own pt-BR message naming the scope. As
+found, it dies at (c) **inside the loop**, after up to 200 rows, and rolls the whole batch back. An
+honest refusal before work begins is not a dead-end door; a rollback after 200 rows is the same defect
+the amendment exists to remove. The wizard suppresses the option, but **the door is the authority**
+(Rule 1) — the UI mirrors it, never replaces it.
+
+### A7.3 — What the PO was told, because the shape changed
+
+A1.2 declined a **sixth menu key** on the grounds that it *"would split one delegation into two"*.
+**Two existing keys is a third shape, and the PO was told so explicitly** before ruling — along with
+the two costs: `assign_case_phases` is a **standing** grant, so it also lets the holder activate and
+reassign phases on any case they can already reach (not only ones they create); and `all_phases` stays
+closed to them.
+
+**Rejected, with reasons recorded rather than left implicit:**
+- **Widening `activate_phase` / `assign_narrative` to admit `create_cases`** — changes what
+  `create_cases` means **everywhere**, not only inside bulk, and `assign_narrative` has no capability
+  arm *by design*. Widest blast radius for the least work.
+- **Unchecked composed variants of (b) and (c)** — coherent, and precedented by Amendment 2's split
+  writer; it is also **narrower in standing authority** than the ruling adopted, since the extra reach
+  would be confined to the creation act. Rejected as a **new mechanism decision on two more doors**
+  when an existing-vocabulary answer exists. ⚠ Recorded because it is the option a later reader will
+  re-propose, and it deserves the honest note that it was not rejected for being weaker.
+- **Deferring bulk entirely** — leaves A1.2 ruled but unimplemented.
+
+### A7.4 — Pins that carry the ruling (the negatives, not the positive)
+
+Two-key positive (`first_only`) · ⭐ **`create_cases` alone ⇒ refused** and ⭐ **`assign_case_phases`
+alone ⇒ refused** — the over-grant twins in the *key* dimension; without both, "requires two keys" is
+asserted rather than demonstrated · `all_phases` refused at the gate for a two-key holder, **pinned on
+the message, not the errcode** (a bare `42501` cannot distinguish which lock refused — measured at 670
+sites in this tree) · coordinator `all_phases` still succeeds, so the refusal is provably scope-and-role
+specific rather than a broken fixture.
+
+### A7.5 — Approval scope
+
+Authorizes: the two-key gate on `bulk_create_cases`, the gate-level `all_phases` refusal, their pins,
+and the wizard suppressing the option — **inside Increment 2, locally**. Does **not** authorize: any
+change to `activate_phase` or `assign_narrative`, a sixth capability, adding `assign_case_phases` to
+Amendment 5's appointment auto-grant (which stays *`read_cases` and nothing else*), a remote `db push`,
+or a merge.
+
+### Consequences
+
+- An administrativo delegated bulk creation now needs **two** boxes ticked, and the coordinator ticking
+  the second one is granting standing phase authority. That is the trade the ruling makes, stated here
+  so it is not rediscovered as a surprise.
+- ⭐ **The general lesson, and it is not bulk-specific:** an authority ruling phrased as *"add an arm to
+  door X"* is unsafe when X is a **composition**. A1.2's sentence was written from the door's name, not
+  from its call graph, and it survived ratification and a written plan. **Before ruling that a door
+  opens, enumerate the doors it calls and read each one's gate.**
