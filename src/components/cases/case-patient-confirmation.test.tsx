@@ -5,14 +5,39 @@
  * server contributes field NAMES only. The narrowing that made option D acceptable is
  * that the creation response carries no identifier value — someone "simplifying" this
  * by rendering a server-supplied value would turn a write-only capability into a PHI
- * read path wearing a different name. The `fieldsSet` prop is typed `readonly string[]`
- * precisely so it cannot carry one; these tests pin that the rendered values track the
- * DRAFT and nothing else.
+ * read path wearing a different name.
  *
- * ⭐ NEUTRALIZATION RECORD (run 2026-08-22): rendering `row.key` instead of
- * `row.value` turns "shows the value the user typed" RED; dropping the `fieldsSet`
- * filter (rendering every FIELDS entry) turns "shows only the fields the server
- * reported as set" RED.
+ * ⚠ WHAT HOLDS THAT LINE — corrected after QA finding B5-4. An earlier version of this
+ * header claimed the `readonly string[]` type on `fieldsSet` meant it "cannot carry" a
+ * value. **A type is not a runtime guarantee**: `readonly string[]` accepts
+ * `["MRN-4471"]` as happily as `["mrn"]`, erases at compile time, and constrains
+ * nothing about what a server actually sends. That sentence asserted the reassuring,
+ * structurally-true thing while the mechanisms that can actually break went untested.
+ * There are exactly two, and this file's relationship to each is stated rather than
+ * implied:
+ *
+ *  1. **The `FIELDS` whitelist in this component** — an unrecognised key is DROPPED,
+ *     never rendered as a label or a value. This is the mechanism that turns a
+ *     regressed server response into a no-op instead of a leak, it lives in the file
+ *     under test, and it is pinned below with its own neutralization.
+ *  2. **`patientFieldsSet`'s keys-only construction** (`src/lib/cases/actions.ts`) —
+ *     the reason the response carries names at all. ⛔ NOT PINNED HERE, and not
+ *     pinnable from this file: it is module-private (no `export`) in a backend-owned
+ *     module. Its test belongs beside it. Recorded as an open gap rather than papered
+ *     over — this file must not read as though that half were covered.
+ *
+ * ⭐ NEUTRALIZATION RECORD (run 2026-08-22, each mutation applied alone):
+ *  · render `row.key` instead of `row.value` → "shows the value the user typed" REDs.
+ *  · drop the `fieldsSet` filter (render every FIELDS entry) → "shows only the fields
+ *    the server reported as set" REDs.
+ *  · replace the whitelist miss with a passthrough
+ *    (`FIELDS[key] ?? { label: key, from: "name" }`) → BOTH whitelist tests RED, each
+ *    on the canary string itself (`expected … not to contain
+ *    'PRONTUARIO-CANARIO-88231'`), which is the mechanism doing the work made visible.
+ *
+ * ⚠ All three were re-run after the file was reshaped for B5-4, not carried over from
+ * the earlier shape — a recorded control that has not been run against the CURRENT
+ * code is a claim about a program that no longer exists.
  */
 
 import { render, screen } from "@testing-library/react";
@@ -83,5 +108,63 @@ describe("CasePatientConfirmation", () => {
     );
     expect(screen.queryByRole("heading")).toBeNull();
     expect(container.textContent).toBe("");
+  });
+});
+
+/**
+ * ⭐ THE DIFFERENTIAL, and the sharpest pin available here (QA finding B5-4).
+ *
+ * One distinctive string, two channels. Through `draft` — the channel that is SUPPOSED
+ * to show values — it must render. Through `fieldsSet` — the channel that must only
+ * ever carry field names — it must not. Same string, same component, same assertion
+ * style, opposite verdicts: that is what makes the absence half meaningful rather than
+ * a check that would pass against a component rendering nothing at all.
+ *
+ * ⚠ Without the positive control this pair is exactly the vacuity trap: `not.toContain`
+ * passes trivially when the surface is empty, and the emptiest possible component would
+ * score perfectly. The control is what proves the canary is renderable in principle.
+ */
+describe("a value arriving where a field NAME belongs is dropped", () => {
+  const CANARY = "PRONTUARIO-CANARIO-88231";
+
+  it("drops a key that is not in the whitelist", () => {
+    // Simulates the regression the narrowing exists to prevent: a server that echoed
+    // an identifier VALUE into the slot reserved for field names.
+    const { container } = render(
+      <CasePatientConfirmation
+        fieldsSet={[CANARY]}
+        draft={DRAFT}
+        headingId="h"
+      />,
+    );
+    expect(renderedText(container)).not.toContain(CANARY);
+  });
+
+  it("POSITIVE CONTROL — the same string renders when it arrives as a value", () => {
+    const { container } = render(
+      <CasePatientConfirmation
+        fieldsSet={["mrn"]}
+        draft={{ ...DRAFT, mrn: CANARY }}
+        headingId="h"
+      />,
+    );
+    expect(renderedText(container)).toContain(CANARY);
+  });
+
+  it("keeps the good keys while dropping the bad one, in one render", () => {
+    // A mixed payload: the whitelist must not be all-or-nothing. The labels of the
+    // recognised keys still render, so the drop is targeted rather than a bail-out.
+    const { container } = render(
+      <CasePatientConfirmation
+        fieldsSet={["name", CANARY, "mrn"]}
+        draft={DRAFT}
+        headingId="h"
+      />,
+    );
+    const text = renderedText(container);
+    expect(text).toContain("Nome");
+    expect(text).toContain("Maria de Teste");
+    expect(text).toContain("MRN-4471");
+    expect(text).not.toContain(CANARY);
   });
 });
