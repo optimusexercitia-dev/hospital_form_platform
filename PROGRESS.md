@@ -50,6 +50,15 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   this bullet's drift is corrected (**third** occurrence, this time in the safe direction), and
   PROGRESS.md was rotated **before** this edit (it had 1,119 bytes of headroom — gate 7 would have
   redded on the very edit recording completion). **Increment 2 NOT started.**
+  ⚠ **Scope note:** the gate figures describe **`e7ec7529`**; HEAD is `121748fe`, which — despite a
+  `docs:` message — also carries the 21-line QA §8.4 backstop (lead committed with `git add -A` while
+  `frontend` was mid-edit). At HEAD: lint/`tsc`/vitest **re-measured**, the three case specs
+  **re-measured** (41 p, exit 0), pgTAP + the 4 ARMs **unaffected by construction** (empty
+  `supabase/` diff), full `e2e:prod` **NOT re-run** — the change is provably the **identity** on
+  every reachable path (3 premises enumerated, not asserted: two mount sites, one passes
+  `managementElsewhere`, no unit test renders it). ⛔ An **argument**, not a measurement, and **not a
+  precedent** for reporting an unmeasured tree as gated — detail:
+  [test-run-archive.md](docs/progress/test-run-archive.md).
   ⛔ Nothing merged; `main` unchanged.
   **✅ F-1 APPROVAL SCOPE — PO-ruled 2026-08-21, written down here because it authorized a NEW ROUTE and previously existed only in a commit body** (QA r2 **R-3**; their positive control: OPEN-4, ruled in the same commit, appears 8× across ADR/plan/tracker — F-1 appeared **0×**). The ruling: **narrow the `/casos` narrative route's two case-wide arms AND build a manage narrative host**, so they relocate rather than vanish. **Authorizes:** the narrowing, the new route `manage/cases/[caseId]/narrativa/[narrativeId]`, and its E2E. **Does NOT authorize:** touching the assignee arm (name-attributed work stays on `/casos` — ADR 0033 Q14), any other new route, or a D1 exception. ⚠ In a program whose own § Now header reads *“Approval scope, written down because it is a new fact”*, this one was not — the lead recorded OPEN-4's scope thoroughly and the same commit's other ruling not at all.
   ⚠ *This line previously read "T6 specs NOT written and no `e2e:prod` run" — stale from the moment

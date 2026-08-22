@@ -928,3 +928,35 @@ before it starts costing gate time or hiding something.
 
 ⛔ **Not a phase close.** QA r3 outstanding (r1 and r2 were both CHANGES REQUESTED), PO approval not
 sought, Increment 2 not started, nothing merged.
+
+### ⛔ SCOPE NOTE 2026-08-21 — the gate figures describe `e7ec7529`, and HEAD is `121748fe`
+
+**The full §6 steps 1+2 run was measured at `e7ec7529`.** One commit later, `121748fe` — whose
+message reads `docs:` — also carries **21 lines of `src/components/cases/case-detail-view.tsx`**
+(QA r3 §8.4's `effectiveCanEditCustomFields` backstop). The lead committed with `git add -A` while
+`frontend` was still editing, so an app-code change landed inside a docs commit and **the history
+misdescribes where that fix lives**. Recorded rather than amended (this repo prefers a new commit
+to a rewrite), so the trail stays auditable.
+
+**What that means for the gate record, stated precisely rather than flatly:**
+
+| At `121748fe` (HEAD) | Status |
+| --- | --- |
+| lint 8/8 · `tsc` · vitest **1506/1506** | ✅ **re-measured at HEAD** |
+| `case-access` + `administrativo` + `case-manage-entry-gate` (41 p / 1 skip / exit 0) | ✅ **re-measured at HEAD** |
+| pgTAP **6795/206** · the four authz ARMs | ✅ **unaffected by construction** — `git diff e7ec7529..HEAD -- supabase/` is **empty**, and these test the database. No DB object changed. |
+| full `e2e:prod` (1176 p / 0 f / did-not-run 0 / 1191) | ⚠ **NOT re-run at HEAD.** Measured at `e7ec7529`. |
+
+**Why the `e2e:prod` figure is still load-bearing, and why that is an argument rather than a
+measurement.** The backstop is provably the **identity on every reachable path**, and `frontend`
+enumerated the three premises instead of asserting them: (1) exactly **two** `<CaseDetailView`
+mount sites; (2) `managementElsewhere` is passed by exactly **one** of them, the manage host
+relying on the destructured `false` default; (3) **no** unit test renders the component directly,
+so no non-route path can pass both props together. Given those, the manage host is the identity
+branch and `/casos` has both branches false. All four probe rows came back byte-identical to the
+pre-edit run.
+
+⛔ **The premise that would flip this is a THIRD mount site**, which is exactly what Increment 2's
+new hosts could add. **Re-check the mount-site count before reusing this reasoning.** This entry is
+an argument for not re-running an hour-long gate on a provable no-op — it is **not** a precedent
+for reporting an unmeasured tree as gated, which is the error QA caught in r2 R-1.
