@@ -393,6 +393,32 @@ modules · `close_case` / `cancel_case` / `set_case_outcome`.
    coordinator can see the error; only the administrativo made it. **Mitigation required in the
    same change:** the create/bulk response echoes the identifiers just written (the client already
    holds them) so a typo is caught at the keyboard, not months later.
+
+   > ⛔ **NARROWED AT BUILD TIME, 2026-08-22 (lead ruling; the PO may overrule and this note exists to
+   > be overruled).** The mitigation ships, but **the server returns no identifier value.** The
+   > confirmation is built **client-side from the payload the user just submitted**; the creation
+   > response carries a **non-PHI structural result only** — per row, the outcome, the `caseId`, and
+   > *which* identifier fields were set, never their values.
+   >
+   > **Why:** option D grants a **write** and grants **no read, ever** (§A2.3). A response body carrying
+   > identifier values back to a principal holding no `read_standard_phi` is a PHI read path wearing a
+   > different name, and it is the first thing an auditor finds in the module where Rule 12 says
+   > minimum-necessary. This clause's own parenthetical — *"the client already holds them"* — is
+   > simultaneously the justification for echoing and the reason the **server** need not be the one to
+   > do it. The stated purpose (*a typo is caught at the keyboard, not months later by a coordinator
+   > who cannot know who typed it*) is met in full by showing the user their own submission.
+   >
+   > **Narrowing what a PHI path moves is safe; widening is not** — that asymmetry is why this was
+   > ruled rather than escalated. ⚠ **What the narrowing does NOT catch, stated rather than
+   > discovered:** a **server-side normalization** surprise (`nullif(btrim(…))`, the derived keys, the
+   > ADR-0038 name-or-MRN floor) is invisible to a client-side echo, because the client shows what was
+   > typed rather than what was stored. A2.4's risk is a **typing** error and that is covered; a
+   > *storage* mismatch is not, and remains uncovered by design.
+   >
+   > **Pinned both directions:** the creation response for a `create_cases` administrativo contains
+   > **no identifier value** (asserted on the returned payload, not in a comment), **and** the write
+   > nonetheless landed in `patient_identifiers`. ⚠ The absence half is the one that can go vacuous —
+   > the fixture must write a value that *could* have appeared.
 3. **Duplicate patient chains scale with batch size.** No read, no xref ⇒ no dedup check. Not a
    regression (coordinators cannot check either), but it grows with volume.
 4. **The "single audited door" claim becomes false as written** unless A2.6 lands in the same
