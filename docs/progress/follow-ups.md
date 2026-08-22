@@ -6263,3 +6263,43 @@ targeted P4/P9-twin mutations written by hand for this increment. That is the pr
 exists — make the arm **declare its domain size and refuse to report `BLIND: 0` on an empty domain**. ⛔
 An empty-domain run must not be able to print the same line a clean run prints; that is the whole finding
 and it is cheaper to fix than the classification.
+
+---
+
+#### ⭐ Third instance, 2026-08-22 — and the first on a REAL SHIPPED CHANGE, not on a new gate
+
+The two instances above were both about a **brand-new** object (`member_can_for`), which is the easiest
+case to dismiss as a corner. The Increment-2 PHI migration produced the general form. Its §6 step-1 gate
+record reads:
+
+> `ARM=census` 0 · `ARM=hat` 0 · `ARM=floor` 0 · `FROMFINDINGS=1 ARM=wrapper` 0 — **all HOLD**
+
+**All four held VACUOUSLY with respect to that change.** Measured per object, not inferred:
+
+| changed object | `prosecdef` | returns | in a census/bool domain | in the invoker arm |
+| --- | --- | --- | --- | --- |
+| `public.bulk_create_cases` | t | `integer` | **no** | no |
+| `public.create_case` | t | `cases` | **no** | no |
+| `public.create_case_from_template` | t | `cases` | **no** | no |
+| `public.set_participant_patient` | t | `uuid` | **no** | no |
+| `app._set_participant_patient_unchecked` | **f** | `uuid` | no | **no** (arm is `nspname='public'`-bounded) |
+
+Four are `prosecdef` **scalar non-bool command doors** — the census's own explicitly-named excluded class
+(`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, 407 reachable). The fifth is an `app` INVOKER helper, outside a
+`public`-bounded arm. The diff-scoped sweep was then **run rather than predicted**, with all five objects
+passed in: **PREDICATE ARM empty, POLICY ARM empty, `BLIND: 0  ERROR: 0`** — zero cases, the same line a
+clean run prints. Findings file verified untouched.
+
+⇒ **A change that rewrote the authority gate of the bulk-creation door and added a new PHI writer moved
+through all four ARMs without any of them looking at it.** The actual coverage is the targeted mutation
+twins written by hand in `357` / `189`. ⛔ The gate record must say *which arm had a domain* — "four ARMs
+HOLD" is true and, on this change, means nothing.
+
+⚠ **A class with no home, found in the same pass:** `app._set_participant_patient_unchecked` is in **no**
+tracked authz class at all — not the census contract (`prosecdef` booleans + policies), not the
+audit-invoker-wrapper class (`public`-bounded), not the composite-returning backlog. Unlike
+`member_can_for`, there was no backlog section it belonged to. Ruled 2026-08-22: add the class to
+`authz-unswept-backlog.txt` with membership **derived by property** (schema `app`, `prosecdef = f`, writes
+a PHI-bearing or invariant-bearing table, not executable by `authenticated`/`anon`), ⭐ expecting **≥ 2**
+members — `app._grant_case_access_unchecked`, the precedent it was modelled on, should be one, and if that
+function is not already tracked anywhere then this class has been unswept since before this increment.
