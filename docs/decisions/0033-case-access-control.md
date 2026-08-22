@@ -140,8 +140,23 @@ interviews participant-write predicate `app.can_write_interview` (ADR 0026); we 
 
 ## Amendment 1 — the Q3 boundary gains an administrativo read arm; the write-grant SURFACE moves
 
-**2026-08-21 · ADR [0134](./0134-case-surface-split-and-administrativo-case-read.md) — design
-PO-ratified, NOT yet built (update this stub to the build record when Increment 2 lands).**
+**2026-08-21 design PO-ratified · ⚙ BUILT LOCALLY 2026-08-22** on `feat/case-surface-split-2` (ADR
+[0134](./0134-case-surface-split-and-administrativo-case-read.md) Increment 2) — **NOT merged, NOT
+pushed**, QA **CHANGES REQUESTED** at the time of writing. ⚠ *This stub said "NOT yet built" for the
+whole day the arm was being built; it is an explicit obligation of 0134 and its twin in ADR 0061 was
+opened while this one was not.* ⛔ **Two clauses below are amended by measurement — read the corrections
+underneath, not only the ratified text.**
+
+> **Correction 1 — the read arm is BOUNDED.** The amendment below describes administrativos joining the
+> always-pass-for-read set without qualification. Measured and ruled since (0134 **Amendment 4**): the S8
+> arm carries `not v_eg`, so a case whose access policy is **`explicit_grants_only` is invisible to it**.
+> On such a case the appointee reaches it the way any other non-granted reader does — through an explicit
+> S3 grant, or not at all. Q3's boundary therefore gains a **bounded** class, not an unconditional one.
+>
+> **Correction 2 — the capability is granted by the APPOINTMENT.** 0134 **Amendment 5** rules that
+> `appoint_administrativo` grants `read_cases` on a new appointment; existing appointees are **not**
+> backfilled. So the class Q3 gains is "appointed administrativo holding `read_cases`", and that holding
+> is the default for appointments made from this migration onward.
 
 > Two decisions of this ADR are amended by 0134; neither is reversed in spirit:
 >

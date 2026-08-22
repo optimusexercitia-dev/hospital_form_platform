@@ -3,9 +3,13 @@
 **Status:** **Accepted — design PO-ratified 2026-08-21** (design/grilling session; this ADR is
 the record of that approval and of its scope — see D11, **as extended by Amendment 1**) ·
 **IN BUILD** (PO build-go 2026-08-21; Step 0 ✅ done · **Increment 1 ✅ gated §6 1–5, QA APPROVED r3,
-PO-approved and MERGED to `main` 2026-08-21 (`6e364203`)** · Increment 2 not started · **no remote
-`db push`**) — ⚠ *this line read "code built but not gated, nothing merged" until 2026-08-22; corrected
-by measurement, not by memory* — implementation plan:
+PO-approved and MERGED to `main` 2026-08-21 (`6e364203`)** · **Increment 2 BUILT LOCALLY 2026-08-22 on
+`feat/case-surface-split-2` — §6 steps 1–2 green, step 3 QA **CHANGES REQUESTED**, NOT merged, NOT
+pushed** · **no remote `db push`**) — ⚠⚠ *this line has now gone stale **TWICE**: it read "code built
+but not gated, nothing merged" until 2026-08-22, and then read "Increment 2 not started" for the whole
+day Increment 2 was built — **inside the very sentence that warns it went stale before**. A warning
+about staleness is not a mechanism against it; `lint:progress` governs PROGRESS.md and **nothing at all
+governs this line.*** — implementation plan:
 [docs/plans/case-surface-split.md](../plans/case-surface-split.md) · **Date:** 2026-08-21 ·
 **Feature:** completes the `/casos` ↔ `/manage/cases` split begun by `8675b7cd` (2026-08-19,
 "make /casos a reading surface") and settles the design question underneath
@@ -97,9 +101,13 @@ baseline — **re-verify at build time, never quote**):
    capability-mapped stays `staff_admin`-only: `correcoes`, `fase/respostas`. Interviews keeps
    its own participant model.
 6. **A new `_case_caps` arm (S8): administrativo commission-wide case READ, keyed on a new
-   fifth ADR 0061 capability `read_cases`** (default-checked in the appoint dialog), routed
-   through the flag-aware chokepoint so the `administrativo` kill switch darkens it with the
-   rest. ⭐ **AMENDED 2026-08-22 by Amendment 4 (PO-ruled): the arm is bounded by `not v_eg`**, so an
+   fifth ADR 0061 capability `read_cases`** (⭐ *"default-checked" — **AMENDED 2026-08-22 by
+   Amendment 5**: that dialog has no defaults, so the **appointment GRANTS** it; a box ticked in the
+   client with no grant behind it is rejected outright*), routed through the flag-aware chokepoint so
+   the `administrativo` kill switch darkens it with the rest (⭐ **AMENDED 2026-08-22 by Amendment 6**:
+   the chokepoint this clause names, `app.member_can`, **takes no uid and cannot answer S8's question**;
+   the arm calls `app.member_can_for`, which is now the single implementation, with `member_can`
+   delegating — the flag-awareness this clause requires is unchanged). ⭐ **AMENDED 2026-08-22 by Amendment 4 (PO-ruled): the arm is bounded by `not v_eg`**, so an
    `explicit_grants_only` case is invisible to it — reach there rides an explicit grant (S3) or
    nothing, exactly as for S5 and S7. As first written this clause had no bound at all. S8 confers **`read_case_content` only** — content authorship (`canWriteContent`)
    still requires an explicit per-case grant, exactly like any staff member; `close_case` /
@@ -238,6 +246,15 @@ governance gain. **Rejected: a separate sixth capability key.**
 - Increment 2 gains a second migration: a `member_can(commission, 'create_cases')` arm on
   `bulk_create_cases`, routed through the **flag-aware chokepoint** so the `administrativo` kill
   switch darkens it exactly as it darkens `update_case_meta`.
+  ⭐ **AMENDED 2026-08-22 by Amendment 7 (PO-ruled): this sentence is INSUFFICIENT and was built
+  before it was found to be.** `bulk_create_cases` is a **composition** — it calls `activate_phase`
+  (which admits only `assign_case_phases`) on every scope, and `assign_narrative` (**`is_staff_admin_of`
+  only, no capability arm exists**) on `all_phases`. The prescribed arm was written, applied, and the
+  keystone stayed **red**: the batch died *inside the per-row loop*, not at the gate. Bulk therefore
+  requires **`create_cases` ∧ `assign_case_phases`**, and `all_phases` stays coordinator-only and is
+  refused **at the gate**. ⚠ The general lesson is not bulk-specific: **a ruling phrased "add an arm to
+  door X" is unsafe when X is a composition** — this one was written from the door's *name* rather than
+  its *call graph*, and survived ratification and a written implementation plan.
 - It carries the **same** pgTAP obligations as the S8 arm — positive, negative (capability and
   appointment revoked), flag-dark, and the **over-grant twin** (arm reverted ⇒ the positive goes
   red). A widening without its twin is the one shape this program has refused throughout.
