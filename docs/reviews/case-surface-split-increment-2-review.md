@@ -1,5 +1,386 @@
 # QA review — Case surface split, Increment 2 (ADR 0134 D6 + Amendments 1–7)
 
+> **This file holds two rounds.** **r2 is below and is the live verdict.** **r1** follows it
+> verbatim from `## r1 — CHANGES REQUESTED` onward, unedited except for the two paragraphs marked
+> `[r2:` — it is the round that found the five blockers and it stays legible so the fixes can be
+> read against what they answer.
+
+---
+
+# r2 — 2026-08-22 · **APPROVED**, with five conditions on the §6 step-5 Record
+
+**Branch:** `feat/case-surface-split-2` @ `ab9eb564` (39 ahead of `main`, 0 behind, clean tree) ·
+**Reviewer:** `qa` · **Round:** 2 · **Scope:** the r1 blockers B1–B5, plus the six catalog
+verifications r1 deferred.
+
+## r2 verdict
+
+# APPROVED
+
+All five r1 blockers are **fixed and independently verified** — not taken on report. All six
+deferred catalog verifications **pass**, including the exact one r1 named as the highest-leverage
+check. **No security defect stands.** The five conditions are all record work at the Record step;
+none is engineering, and none is a re-review trigger.
+
+⭐ **Two of the fixes are better than what r1 asked for**, and one of them produced evidence that
+cross-checks my own measurement (§r2.3).
+
+---
+
+## r2.1 — The six catalog verifications (run 2026-08-22, stack free, port 3000 verified clear)
+
+All queries via `docker exec supabase_db_azkbbhskturikxpgmafq psql -U postgres -d postgres`, exit
+codes read directly, never through a pipe.
+
+### ⭐ V-1 — `app._case_caps`: S1–S7, the S3 loop and STEPS 1–5 are **byte-identical** to the pre-change body. **PASS, exactly.**
+
+```
+position(E'\n  -- ── S8 ·')  = 4406      position(E'\n  -- ── S3 ·') = 6711
+md5(pg_get_functiondef(...))            = afbfed86c25e0a62c55163e83ad1f8a7   (len 9328)
+md5(substring(1,4405) || substring(from 6711)) = edb85248a21326eb139e7e994b9c469b   → t
+```
+
+Cut boundaries were inspected before the strip (`…end if;\n\n  -- ── S8 ·` … `end if;\n\n  -- ── S3 ·`),
+so the removed span is exactly the injected arm and nothing adjacent. **The stripped hash equals the
+`edb85248a21326eb139e7e994b9c469b` the migration header records as the pre-change definition.**
+
+⇒ The approval-scope clauses *"no change to S5 / S7 / S3"* are settled, not argued. A
+`CREATE OR REPLACE` of a seven-arm resolver was the single highest-leverage place in this change for
+an unintended edit, and there was none.
+
+### V-2 — the S8 arm. **PASS.**
+
+Comment-stripped executable text of the arm, from the catalog, whitespace-normalised:
+
+```
+if not v_eg and app.member_can_for(v_commission, 'read_cases', p_uid) then
+  v_caps := v_caps | app._cap_bit('read_case_content');
+end if;
+```
+
+`read_case_content` **only** — no PHI bit, no write bit, no `view_case_overview`, no
+`manage_case_access`. Ordering verified as a property:
+`pos(is_case_respondent) < pos(is_recused_from_case) < pos(member_can_for)` → `true`, so the arm
+inherits STEP-4's hard denies by position exactly as A4.3 item 1 requires.
+
+### V-3 — the unchecked PHI writer. **PASS.**
+
+```
+prosecdef = false | proacl = {postgres=X/postgres}
+has_function_privilege('authenticated', …) = false | ('anon', …) = false
+callers = public.bulk_create_cases, public.create_case,
+          public.create_case_from_template, public.set_participant_patient   (exactly 4)
+```
+
+`proacl` is a real ACL, not the permissive NULL default, and PUBLIC is absent — which is what
+`357` §1.3 claims and what the r1 note about NULL-proacl-is-permissive required checking. The caller
+set is the sanctioned four and nothing else.
+
+### V-4 — the capability vocabulary. **PASS. No sixth capability.**
+
+```
+CHECK ((capability = ANY (ARRAY['schedule_meetings','create_cases','assign_case_phases',
+                                'view_signoffs','read_cases'])))
+```
+
+### V-5 — the objects the approval scope forbids touching. **PASS.**
+
+| object | live gate / body | expected |
+| --- | --- | --- |
+| `public.dispose_case_phi` | `is_staff_admin_of` only, `42501 'apenas a coordenação da comissão pode descartar dados do paciente'` | coordinator-only, unchanged ✓ |
+| `public.search_patient_xref` | `is_pqs_operator_of` ∨ `is_dpo_of` | matches ADR 0134 M4 **as corrected** ✓ |
+| `public.get_patient_trajectory_for_entity` | `is_pqs_operator_of` only — **no DPO arm** | matches M4's correction ✓ |
+| `app.is_oversight_only_reader` | `read_case_content ∧ ¬read_case_deliberation` | intact ✓ |
+| `app.can_read_case_patient` | `has_case_capability(p_case_id, p_uid, 'read_standard_phi')` | a **bare bit test, no lattice closure** — so S8's non-leak is structural, as claimed ✓ |
+| S5 / S7 / S3 / `can_read_case_committee` | — | settled by **V-1**'s exact md5 ✓ |
+
+### ⭐ V-6 — no remote `db push`. **PASS.**
+
+`npx supabase migration list --linked`, **exit 0**:
+
+```
+20261003000400 | (remote empty) | 20261003000500 | (remote empty) | 20261003000600 | (remote empty)
+20261003000700 | (remote empty) | 20261003000800 | (remote empty)
+```
+
+All five Increment-2 migrations are **Local-only**. The standing discipline held. (`…000300` and
+everything before it are present remotely, so the query is discriminating, not blind.)
+
+---
+
+## r2.2 — B1 verified from the catalog, and the fix is scoped correctly
+
+**Live body of `public.create_case(uuid,text,boolean,uuid[],uuid,text,uuid,jsonb)`,
+comment-stripped:**
+
+```sql
+if p_patient is not null
+   and not (app.is_staff_admin_of(p_commission_id)
+            or app.member_can(p_commission_id, 'create_cases')) then
+  raise exception 'apenas a coordenação da comissão ou um Administrativo autorizado a criar casos
+                   pode registrar dados do paciente' using errcode = '42501';
+```
+
+Verified as properties, not read off the file:
+
+| property | result |
+| --- | --- |
+| PHI gate precedes `insert into public.cases` | **true** — refused *at the gate*, before any row |
+| PHI gate precedes `_grant_case_access_unchecked` | **true** — no self-grant side effect either |
+| `_set_participant_patient_unchecked` call sites in this body | **1** |
+| `app.is_admin()` still present on the **creation** arm | **true** — as disclosed |
+
+**This is r1's option (2), executed exactly:** the disjunct that admits `platform_admin` to case
+*creation* is untouched and filed; the **PHI branch** is bounded to the principal class option D
+actually names. ⛔ And it refuses rather than silently dropping `p_patient` — a silent drop would
+have rebuilt the M10 half-state this increment removed, wearing a success.
+
+**Sibling doors re-checked, since the r1 finding was an asymmetry:**
+
+```
+bulk_create_cases         | is_admin=false | is_staff_admin_of ∨ (member_can('create_cases') ∧ member_can('assign_case_phases'))
+create_case_from_template | is_admin=false | is_staff_admin_of ∨ member_can('create_cases')
+```
+
+⇒ all three creation doors now bound the PHI write to the same principal class, by three different
+but equivalent routes. Combined with V-3's caller set of exactly four and
+`set_participant_patient`'s coordinator gate, **there is no path to `patient_identifiers` that is
+not either coordinator or `create_cases`.**
+
+**The pin set (`357` §8c) is stronger than r1 required** — seven assertions where I asked for one:
+
+- **8c.0** an anti-vacuity PRE that `app.is_admin()` is *genuinely true* for the fixture (it needs
+  both the entitlement **and** `active_role = 'platform_admin'`, so without this the refusal could be
+  a broken hat rather than the guard). This is the control that makes the rest mean something.
+- **8c.1** refused **on the message**, not a bare `42501`, so the assertion names which guard fired.
+- **8c.2** the **same principal at the same door** still creates a case *without* `p_patient` — the
+  fix is provably scoped to the payload and is not a silent behaviour change.
+- **8c.3/8c.4** no case minted, no identifiers written.
+- **8c.5/8c.6** a **same-door positive control**: the coordinator supplying `p_patient` succeeds and
+  the identifiers land — so 8c.1 refuses a principal *class*, not everyone.
+
+⭐ **And r1's contributing cause was fixed, not merely noted.** `357` §8.2 now asserts **at the
+door** (`8.2b`, `create_case` raising) with the predicate kept as `8.2a`, explicitly labelled the
+mechanism control — with a header saying why: *"a predicate quoted at the wrong grain reads like a
+proof of the door."* That is the general fix, and it is what would have caught B1 in the first place.
+
+**The residue is correctly bounded.** `FUP-CREATE-CASE-IS-ADMIN-DISJUNCT-VS-THE-NOUN-RULE`
+enumerates all 11 `app.is_admin()` callers and — the part that matters — labels its content-vs-
+vocabulary split **a judgement, not a measurement**. That is the right disclosure: the noun rule's
+boundary is a reading of ADR 0078 A35, and calling it measured is how a hand-list acquires the
+authority of a sweep.
+
+---
+
+## r2.3 — B3: the twins are recorded, and their hashes cross-check my own measurement
+
+`356`'s header now carries the run. Two facts in it are **independently verifiable against §r2.1's
+V-1**, which is what lifts this from a report to evidence:
+
+| record says | I measured independently |
+| --- | --- |
+| P4 probe: `afbfed86c25e0a62c55163e83ad1f8a7` → `edb85248a21326eb139e7e994b9c469b` | live md5 = `afbfed86…`; strip-S8 md5 = `edb85248…` |
+| both restores: `afbfed86c25e0a62c55163e83ad1f8a7` | the live body is still `afbfed86…` now |
+
+⇒ P4's mutation reverted the arm to a body I confirmed is the pre-change one, and both restores
+returned to a body still live at review time. **The hashes are not self-reported in a closed loop.**
+
+Also present and correct:
+- **Harness self-proof, run first:** feeding the *current* body as a "mutation" exits **9** with
+  *"hash did NOT move — the probe did nothing"*. A silent non-mutation cannot be scored as a passing
+  twin. This is the discipline the repo's own record says has failed twice before.
+- **The v1→v2 story is recorded rather than smoothed:** v1 returned an **empty** hash and refused to
+  proceed instead of comparing two empties as equal. ⭐ Worth the attention you flagged — that is the
+  same shape as *"a green gate can mean the fixture cannot reach the failing state"*, and v1 failing
+  **closed** is the reason it was noticed rather than banked.
+- **Red sets by test number.** P4 → 10 RED of 72 (P1's three, the three restore-verified positives,
+  both P6 audit rows, the P7 precondition, P10 content). P9-twin → 5 RED (P9's three **and 61, 63,
+  the locked-case bit shape**).
+
+⭐ **P9-twin's second pair is the substantive result.** Unbounded, the locked case yields
+content-without-deliberation and `is_oversight_only_reader` flips **true** — Amendment 4 §A4.2's
+derivation observed in the direction the ADR predicted, on the arm, from a mutation. That claim was
+*"derived, not executed"* through four amendments. It is now executed.
+
+---
+
+## r2.4 — B2, B4, B5 verified
+
+**B2 — fixed and diagnosed.** `orphan-administrativo-reachability.spec.ts:212` now asserts `toBe(5)`,
+matching the seed's five grants. The §A5.3 sweep was re-run by property and returns **exactly the one
+instance r1 found**, with every unaffected member listed and why — which confirms the diagnosis
+rather than patching the symptom. ⚠ Condition C-2 below still applies: this file had not run in
+twelve commits.
+
+**B4 — all six, plus the plan.** Verified at HEAD: ADR 0033's stub is now a build record carrying the
+`not v_eg` bound and the ⚠ note that it read *"NOT yet built"* while it was built; ADR 0134's status
+line is corrected **with its own double-staleness recorded**; the plan gained a supersession table
+(`:557-558`) naming both the Amdt 6 mechanism correction and Amdt 7's two-key replacement — the plan
+had never been amended at all; the two `⛔` route comments now **quote** their former text rather
+than assert it; and `member-administrativo-controls.tsx`'s *"enter and read patient context"*
+docblock is gone (verified by property — zero occurrences).
+
+⭐ The ADR 0134 status-line note is the one worth keeping visible: the sentence warning that it had
+gone stale before was the sentence that went stale again, for an entire build day. That is a
+reusable finding about *where* staleness lands, not about this ADR.
+
+**B5 — all four.**
+- **B5a** — the `member_can` probe is re-anchored on a **reachable** door
+  (`create_case_from_template`, which the orphan satisfies neither arm of), with the reason recorded
+  including my property check (`grep -rl "public\.member_can" supabase/migrations/` → exit 1).
+- **B5b** — `purgeFixtures` now throws on both `result.error` and `result.status !== 0`, with the
+  message naming psql's implicit-transaction abort. The silent-contamination path is closed.
+- **B5c** — the mis-titled test is retitled to what it asserts and points at the **real** anchor in
+  SQL (`189`), where the door is. And `patientFieldsSet` was extracted to `src/lib/cases/patient-payload.ts`
+  with its own suite — including the adversarial canary (`name: 'mrn'`, a value equal to a key name),
+  which is exactly the case a naive keys-only check fails. ⭐ Your correction to the diagnosis is
+  right and worth keeping: `actions.ts` is `'use server'` and may export only async functions, so
+  "module-private" was the symptom; the cause was the server-action export constraint. r1 named the
+  symptom.
+- **B5d** — the tail assertions run again once the sync bug is fixed. Partially addressed; see M-17.
+
+---
+
+## r2.5 — Judging the `e2e:prod` union, as you asked
+
+**You asked me not to let you declare it. My judgement: acceptable, conditionally — C-1 below.**
+
+*Why it is acceptable.* `npm run e2e:prod` **batches the suite and restarts the server per batch by
+design**, precisely because a monolith collapses on Windows. A batch-level re-run is the script's
+designed recovery, not a workaround, and re-running the **whole** batch is the only correct move —
+a `serial` file cannot have its tail re-run alone. **Zero assertion failures anywhere in either
+run**, and the re-run reports **129/129 accounted, did-not-run 0**, which is the field this repo
+records as the one that answers coverage.
+
+*Where it is not yet safe to call it.* **Run 1's 1090 passes were measured on the instrument that
+failed.** You diagnosed a half-applied DB reset — and you already have the proof that this
+instrument produces phantom results: the `191_grant_hardening` red that vanished on a clean run. A
+half-applied reset produces phantom **greens** by the same mechanism. So the union is sound only if
+the batches that passed in run 1 ran *before* the reset half-applied.
+
+⛔ **And a second ordering fact is unstated:** whether the `e2e:prod` run was made at or after
+`794bd971`, the commit carrying the B1 migration and the B2/B5 spec fixes. (`test:db` is
+self-evidencing here — `357` §8c cannot pass without migration `…000800`, so 6941/exit 0 places the
+pgTAP run at or after it. E2E has no such internal witness.) The risk is low — the B1 gate only bites
+a hatted `platform_admin` and no E2E flow assumes one — but "low" is a judgement and the fact is one
+line.
+
+Neither is a re-run requirement. Both are lines in the gate record. **What must not happen is the
+row reading "GATE GREEN" without the word "union" in it.**
+
+---
+
+## r2.6 — Conditions (all at the §6 step-5 Record; none blocks the PO's merge call)
+
+**C-1 · Write the Increment-2 gate row, and write it as a union.** The Test Run Summary still holds
+only the Increment-1 row (`e7ec7529`) — **the Increment-2 results exist only in a chat message**,
+which §7 forbids (*"never report status verbally without writing it there first"*). The row must
+carry: the commit the run was made at (the Increment-1 row sets that precedent); **union of two
+runs**, not a single sweep; the batch index at which the instrument failed and the statement that
+earlier batches ran against a verified-good reset; `did-not-run 0` and `129/129 accounted`; and — per
+`FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`, now 🔴 — **which ARM had a non-empty domain**,
+rather than "four ARMs HOLD".
+
+**C-2 · Record that `orphan-administrativo-reachability.spec.ts` ran.** It had not executed in twelve
+commits and its control map was asserted against a pre-`read_cases` build. State the standalone
+result and `did-not-run 0`.
+
+**C-3 · Record V-1 in the increment record.** The strip-and-compare is now a *performed* check with a
+reproducible recipe, and it is the cheapest possible regression guard for *"S1–S7 untouched"* on any
+future `_case_caps` change. Two lines: the boundary positions and the two hashes. ⚠ Better still,
+promote it to a pgTAP catalog assertion — it is the one check that makes the next arm's author prove
+they changed only their arm.
+
+**C-4 · Add the QA Verdicts rows.** r1 CHANGES REQUESTED (struck) and r2 APPROVED, per the table's
+own convention for a looped feature. I did not touch `PROGRESS.md`, per this round's hard boundary.
+
+**C-5 · Carry M-1 … M-17 forward as follow-ups or close them explicitly.** They are unaddressed by
+design (they were non-blocking) and several are cheap: **M-5** (`356` §13 is count-keyed where
+`276` O5b's `array_agg` shape is right there in the same delivery), **M-13** (`isAdministrativo` is
+still un-narrowed while its sibling `canInCommission` was narrowed — the sibling-axis gap),
+**M-14** (`ALL: MemberCapability[]` accepts subsets in the file whose docblock says it must not),
+**M-6**, **M-8**, **M-16**.
+
+---
+
+## r2.7 — On your pushback: **you are right, and I was wrong**
+
+r1 §5 reported the *A-full over A-lite* ruling as appearing in no document. **That finding is
+WITHDRAWN.** ADR 0134 **§A6.3** records it in full: the ruling (`member_can_for` becomes the single
+implementation, `member_can` delegates), **"The rejected alternative, and why"** — adding
+`member_can_for` *beside* an untouched `member_can`, cheaper, zero regression surface on the 12
+consumers, rejected because it leaves two hand-copies of a predicate whose first term is the kill
+switch — and the cost objection checked with a four-arm probe whose first run is recorded as invalid.
+That is the full/lite decision with its reasoning, its rejected branch, and its falsified cost
+argument. Only the conversational shorthand is absent, and shorthand is not a record.
+
+**Your diagnosis of my error is exact, and it is the class this review otherwise exists to catch.**
+I swept for the labels `A-full`, `A-lite`, `lite` — a **syntax** — and reported a null result as
+though I had swept for the **property** *"a ruling choosing between replacing the predicate and
+adding a twin beside it"*. A label search standing in for a property search is
+`enumeration-boundary-is-a-syntax-not-a-property` with the reviewer holding the wrong end. It is
+worse than an ordinary miss because a null result from a search reads as evidence of absence, and
+mine was evidence about a string.
+
+⛔ **The reusable half, since I am the one who wrote §5's rule and then broke it:** when a finding is
+*"X is recorded nowhere"*, the sweep must be defined by what the record would **say**, never by what
+it would be **called**. A name is the one attribute a record is free to choose.
+
+**What survives, separately and unchanged:** M-10's point that § Decisions has rows for Amendments 3
+and 4 but none for Amendment 2 (option D — the platform's first non-coordinator PHI write path), 5, 6
+or 7, and that `decisions-log.md` has no row for OPEN-1's ruling, which plan §4 "Docs & records"
+requires. That is a different claim from the withdrawn one, it was derived from the register's own
+contents rather than from a label, and it is still true at HEAD.
+
+**Your two severity re-ratings are accepted as accepted** — 🟠→🔴 on the door-audit follow-up and
+🟢→🟡 on the app-schema one. Nothing in r2 changes either argument.
+
+---
+
+## r2.8 — New minor, from r2
+
+**M-17 · `dbQuery`'s fail-open survives, under the one poll that still needs it.**
+`e2e/case-surface-split-increment-2.spec.ts:128` is still `if (!res.ok()) return []`, so the
+`expect.poll(...).toBe(0)` at `:521-530` — *"unchecking `read_cases` revoked the row"* — passes on a
+failed request. The absence at `:537` is defensible on review: `:508` asserts the same locator
+**visible** earlier in the same test while the capability was granted, so the locator is proven able
+to match. But it is a cross-navigation control, and the same file demonstrates the stronger
+same-navigation pattern 200 lines above (`:334-338`, with a comment naming the 404 hazard). Both sit
+in the tail that has never executed. **Fix them with the `BUG-ADM-APPOINT-CAPS-NOT-SYNCED` fix, not
+after it** — the first run of that tail must not be its first chance to be wrong.
+
+---
+
+## r2.9 — Summary
+
+| r1 blocker | r2 status |
+| --- | --- |
+| **B1** platform_admin PHI write | ✅ **FIXED** — verified from the catalog; gate before mint and before self-grant; seven pins incl. an anti-vacuity PRE and a same-door positive control; the contributing cause (§8.2 at the predicate) fixed too; residue filed with 11 callers and labelled a judgement |
+| **B2** seed count 4 vs 5 | ✅ **FIXED** — `toBe(5)`; §A5.3 sweep re-run by property, returning exactly the one instance |
+| **B3** P4 / P9-twin unrecorded | ✅ **FIXED** — run, recorded, harness self-proved; **both hashes cross-check my independent V-1** |
+| **B4** six stale records | ✅ **FIXED** — all six, plus the plan, which had never been amended |
+| **B5** assertion-integrity cluster | ✅ **FIXED** ×4 — B5d partially, carried as M-17 |
+
+| verification | result |
+| --- | --- |
+| V-1 `_case_caps` strip-and-compare | ✅ **exact match** to `edb85248a21326eb139e7e994b9c469b` |
+| V-2 S8 guard, position, bits | ✅ `read_case_content` only, after STEP 4 |
+| V-3 helper `prosecdef` / ACL / callers | ✅ `f` / `{postgres}` / exactly the sanctioned 4 |
+| V-4 no sixth capability | ✅ five literals |
+| V-5 forbidden-to-touch objects | ✅ all unchanged |
+| V-6 no remote `db push` | ✅ five migrations Local-only, exit 0 |
+
+**r2 verdict: APPROVED** — conditions C-1 … C-5 at the Record step.
+
+---
+---
+
+## r1 — CHANGES REQUESTED
+
+_Superseded by r2 above. Kept verbatim as the round that found B1–B5; the two `[r2: …]` notes are
+the only edits._
+
+
 **Branch:** `feat/case-surface-split-2` @ `3b53418a` (28 commits ahead of `main`, 0 behind,
 clean tree — verified, not assumed) · **Reviewer:** `qa` · **Date:** 2026-08-22 ·
 **Gate step:** §6 step 3 · **Scope:** commits `aa16057a`..`3b53418a`.
@@ -14,9 +395,9 @@ clean tree — verified, not assumed) · **Reviewer:** `qa` · **Date:** 2026-08
 
 ---
 
-## Verdict
+## Verdict (r1 — **superseded by r2 above**)
 
-# CHANGES REQUESTED
+### CHANGES REQUESTED
 
 Five blocking items:
 
@@ -599,6 +980,11 @@ sibling in the same edit and add the orphan fixture against `canOpenCaseManageme
   recorded lead failure mode is that the receiver remembers it and so never records it), this needs a
   line in § Decisions or the increment record naming what was chosen, what was rejected, and by whom.
   Filed as **M-2**.
+  > **[r2: WITHDRAWN — this finding was wrong.** ADR 0134 **§A6.3** records the ruling, its rejected
+  > branch and the falsified cost argument in full; only the shorthand label is absent. I swept for a
+  > **syntax** (`A-full`/`A-lite`/`lite`) and reported the null result as though I had swept for the
+  > **property**. See **r2.7**. M-2 is void; the § Decisions gap in M-10 is a separate claim and
+  > stands.**]**
 
 **The seven amendments.** Substantively sound; A2.2's rejection of the GUC gate and of a
 `member_can` disjunct on `set_participant_patient` are both right for reasons that outlive the
@@ -629,6 +1015,7 @@ delegation. A6.4-3 asks for that sentence precisely because *"the suite is green
 claim*. One line, derived by property over `supabase/tests/`.
 
 **M-2 · The "A-full over A-lite" ruling is unrecorded.** See §5.
+**[r2: VOID — withdrawn, see r2.7. The ruling is recorded in ADR 0134 §A6.3.]**
 
 **M-3 · ARCHITECTURE.md's INVOKER phrasing outruns the measurement.** *"measured, an INVOKER call by
 a non-owner is refused while a DEFINER one succeeds, **so INVOKER is the second lock**"* omits the
