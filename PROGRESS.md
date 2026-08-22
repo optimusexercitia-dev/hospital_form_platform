@@ -92,6 +92,16 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
     consumer `app.can_read_case_committee` **is its negation** and is keyed on **bits, not arms**, reaching
     ~11 RLS policies + 3 routines — so a content-without-deliberation arm would join that extension
     silently. Recorded as findings; **nothing there is changed** (Amdt 4 §A4.4).
+  - **⛔ RULED 2026-08-22 — ADR 0134 Amendment 6 (lead, PO may overrule): D6 names a chokepoint that
+    cannot answer S8's question.** `app.member_can` takes **no uid** and is `auth.uid()`-bound, while
+    `app._case_caps` is a **`(case, uid)`** resolver — and it is the only membership helper in `app` with
+    no `_for` twin. Used as written, S8 would answer **about the caller** at all **14** measured cross-uid
+    `can_read_case` call sites, and would re-open Amdt 4's bit-shape collision through a door **no ARM can
+    see** (a uid-source mismatch is not a missing gate). Ruling: `member_can_for` becomes the **single**
+    implementation and `member_can` **delegates** — one body, rather than two hand-copies of a predicate
+    whose first conjunct is the kill switch. The cost objection (lost inlining) was checked and **did not
+    survive**: `member_can` is `SECURITY DEFINER`, which Postgres never inlines. ⚠ The plan **and** the ADR
+    both named this mechanism and both were wrong for four amendments — caught by reading the signature.
 - **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
   user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
   person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step

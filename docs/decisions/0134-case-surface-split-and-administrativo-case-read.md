@@ -765,3 +765,93 @@ behaviour, a remote `db push`, or a merge.
   commission's ordinary cases — bounded by Amendment 4's `not v_eg`.
 - The appoint door gains its first side-effect beyond the appointment row. That is the fact a later
   reader will find surprising; it is written here so they find the reasoning attached to it.
+
+---
+
+## Amendment 6 — 2026-08-22 (**lead ruling at build time**, PO informed): D6 names a chokepoint that cannot answer the question S8 asks
+
+**Status: ACCEPTED by the lead during the Increment-2 build; recorded rather than substituted
+silently.** This amends **D6** and plan §4's **V-G / M2**. It is a **mechanism** correction: the
+*property* D6 requires — the `administrativo` kill switch darkens S8 with the rest of ADR 0061 — is
+preserved exactly. Nothing is widened, and no reach changes. ⛔ The PO may overrule it; it is written
+here so there is something to overrule.
+
+### A6.1 — What was measured (live catalog, twice, independently)
+
+D6 and plan §4 M2 both say S8 routes "through the flag-aware chokepoint `app.member_can`".
+
+`app.member_can(p_commission_id uuid, p_capability text)` takes **two arguments and no uid**. Its body
+is `feature_enabled('administrativo') ∧ is_active(auth.uid()) ∧ is_member_of(p_commission_id) ∧
+∃ capability row WHERE c.user_id = auth.uid()` — and `app.is_member_of` is itself `auth.uid()`-bound.
+It answers **about the caller**, and cannot be asked about a passed principal.
+
+`app._case_caps(p_case_id, p_uid)` is a **`(case, uid)` resolver**. Every other helper it uses has a
+`_for` twin for exactly this reason — `is_member_of_for`, `is_staff_admin_of_for`,
+`is_tenancy_admin_of_for`, `is_quality_reviewer_of_for` all exist. **`member_can_for` does not.** That
+gap is the whole finding.
+
+### A6.2 — Why using `member_can` as written would have been a defect, not a shortcut
+
+- **Cross-uid callers would get the caller's answer.** A property sweep of `can_read_case` call sites
+  passing a uid other than `auth.uid()` returns **14**, including `public.file_correction_request`
+  (which asks whether a *nominated corrector* may reach the case), `app.can_read_case_committee`,
+  `app.can_read_document` and `app._audit_access_authorized`. An S8 keyed on `auth.uid()` inside a
+  `p_uid` resolver answers the wrong question at every one of them.
+- **It would re-open the collision Amendment 4 exists to close, through a different door.** With the
+  caller's `member_can` true and `p_uid` a different, non-member principal, S8 sets `read_case_content`
+  for someone S5 will not give `read_case_deliberation` to — `app.is_oversight_only_reader`'s exact bit
+  shape. ⛔ And **no ARM can see it**: it is a uid-source mismatch inside a DEFINER body, not a missing
+  gate.
+- **The P1 keystone could not have been written honestly.** pgTAP asserts reach in owner context, where
+  `auth.uid()` is NULL; S8 would be silently dark and P1 red for the wrong reason. Wrapping every
+  assertion in `claims_for()` would have hidden the defect rather than fixed it.
+
+### A6.3 — The ruling: one implementation, not two
+
+`app.member_can_for(p_commission_id, p_capability, p_user_id)` becomes the **single** implementation of
+the predicate, and **`app.member_can` delegates to it**. S8 calls `member_can_for`. The four conjuncts,
+the flag row, and the `enabled` column are unchanged, so the kill switch still short-circuits the arm
+before any membership or capability probe.
+
+**The rejected alternative, and why** — adding `member_can_for` *beside* an untouched `member_can`
+(cheaper, zero regression surface on the 12 existing consumers) would leave **two hand-copies of a
+four-conjunct authorization predicate, one conjunct of which is the kill switch**. That is the shape
+this repo pays for most often, and it is the same shape the M1 migration had just closed for the
+capability vocabulary. A drift *detector* is worth less than removing the possibility of drift.
+
+⛔ **The cost argument against delegating was checked and did not survive.** It was that `member_can`
+is `LANGUAGE sql STABLE` and therefore inlinable into the three `meetings_staff_admin_*` policies, so
+a nesting level would cost the init-plan hoist. Measured: `member_can` is **`SECURITY DEFINER`**, which
+Postgres refuses to inline — there was no hoist to lose. The three consumers are also **write-path**
+policies (INSERT/UPDATE/DELETE on `meetings`), not a hot SELECT scan.
+
+### A6.4 — Binding conditions (the migration may not be written without these)
+
+1. **`member_can_for`'s ACL is derived from the catalog by property** — matching what
+   `app.is_member_of_for` actually holds. ⚠ A NULL `proacl` is the permissive default, not a lock.
+2. ⛔ **The obvious drift pin is VACUOUS under this ruling and must not be counted as coverage.**
+   `member_can(c,cap) = member_can_for(c,cap,auth.uid())` is true **by construction** once one delegates
+   to the other, and a property guaranteed structurally cannot be pinned by asserting it. What is pinned
+   instead: (i) **one behavioural pin per conjunct** on `member_can_for`, each proven able to fail by
+   neutralizing that conjunct alone; and (ii) a **catalog** assertion that `member_can`'s body delegates
+   — that it carries no second copy of the conjunct list — in the shape
+   `314_qob_org_admin_content_wall.sql` already uses. That one can fail.
+3. **Regression evidence names the 12 consumers** (9 routines + the 3 `meetings_staff_admin_*` policies)
+   and states explicitly whether any suite exercises the **meetings write path**. "The suite is green" is
+   not the same claim.
+4. **`ARM=census` is run on `member_can_for`.** A brand-new gate is in no BLIND set, so `ARM=policy`
+   passes it **vacuously** (ADR 0079 Amdt 3).
+
+### Consequences
+
+- **Amendment 4 §A4.2's derivation gets stronger, not weaker.** `member_can_for`'s membership conjunct
+  **is literally** `app.is_member_of_for(v_commission, p_uid)` — the same call that assigns `v_member`
+  in `_case_caps`. So "an S8 appointee is necessarily also an S5 member on an ordinary case, therefore
+  not `is_oversight_only_reader`" holds **by construction** rather than by argument. P10 must say which
+  of those two it is; only one survives a refactor.
+- The `_for` family gains its fifth member, closing an asymmetry that had no reason behind it — every
+  other membership/role helper in `app` already had one.
+- ⭐ Recorded for whoever writes the next arm: **the plan and the ADR both named this mechanism, and
+  both were wrong** — the error survived a design session, a ratification, four amendments and a written
+  implementation plan, because naming a real function that does a similar thing reads exactly like having
+  checked. It was caught by reading the signature at build time.
