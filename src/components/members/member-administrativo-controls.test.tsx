@@ -40,20 +40,34 @@
  *      failed on its own, because the label text IS the accessible name.
  *  · the OLD PHI notice copy restored ("inserir e visualizar dados de paciente")
  *      → "says the capability WRITES at creation and never that it can read" REDs.
+ *  · the prop-reconciliation block disabled (`if (false && …)`) → the three BUG-B5
+ *      tests RED. This is the fix for the bug the tester found.
+ *  · the TEMPTING fix planted instead — `setCaps(prev => prev.add("read_cases"))` in
+ *      `toggleAppointment` → "does not invent a capability the server has not
+ *      reported" REDs. ⚠ It did NOT red on the first draft of that test, which drove a
+ *      rerender rather than the click; the control is what exposed it. See the note
+ *      inside the test.
  *
  * Text is read through `renderedText` rather than `textContent`: the latter fuses
  * sibling text with no separator, so an assertion can silently miss anything sitting
  * at an element edge (see `disposal-copy-property.ts`).
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+const appointAdministrativo = vi.fn();
+const refresh = vi.fn();
+
 vi.mock("@/lib/members/actions", () => ({
-  appointAdministrativo: vi.fn(),
+  appointAdministrativo: (...a: unknown[]) => appointAdministrativo(...a),
   revokeAdministrativo: vi.fn(),
   grantMemberCapability: vi.fn(),
   revokeMemberCapability: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh, push: vi.fn(), replace: vi.fn() }),
 }));
 
 import { renderedText } from "@/components/dsr/disposal-copy-property";
@@ -189,6 +203,124 @@ describe("the read_cases capability entry (ADR 0134 D6)", () => {
     expect(
       screen.getByRole("checkbox", { name: READ_CASES_LABEL }),
     ).toBeChecked();
+  });
+});
+
+describe("BUG-B5 — the auto-granted capability must appear without a reload", () => {
+  /**
+   * Appointing GRANTS `read_cases` server-side (Amendment 5). The dialog seeded `caps`
+   * from a prop with `useState`, which ignores every later prop value, so the
+   * coordinator saw an UNCHECKED box while the database said granted — the UI showing
+   * the opposite of the door, in the one dialog whose entire ruling is that the tick
+   * follows the grant. It only looked right after a full page reload.
+   *
+   * ⛔ These tests must keep failing for a client-side simulation of the tick. They
+   * assert that the component ADOPTS a server-sent capability set, never that it
+   * predicts one — a `setCaps(add('read_cases'))` on appoint would pass a naive
+   * "box becomes checked" test while hard-coding today's auto-grant into the client.
+   * The last test is the one that separates the two.
+   */
+  it("adopts a capability the server reports after the appointment", () => {
+    const { rerender } = render(
+      <MemberAdministrativoControls
+        commissionId="c1"
+        userId="u1"
+        memberName="Enfermeiro CCIH Um"
+        initialAppointed
+        initialCapabilities={[]}
+        showPhiNotice={false}
+      />,
+    );
+    expect(
+      screen.getByRole("checkbox", { name: READ_CASES_LABEL }),
+    ).not.toBeChecked();
+
+    // The server page re-read `capabilitiesByUser` and now reports the grant.
+    rerender(
+      <MemberAdministrativoControls
+        commissionId="c1"
+        userId="u1"
+        memberName="Enfermeiro CCIH Um"
+        initialAppointed
+        initialCapabilities={["read_cases"]}
+        showPhiNotice={false}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: READ_CASES_LABEL })).toBeChecked();
+  });
+
+  it("asks the server to re-read after a successful appointment", () => {
+    appointAdministrativo.mockResolvedValue({ ok: true });
+    refresh.mockClear();
+    render(
+      <MemberAdministrativoControls
+        commissionId="c1"
+        userId="u1"
+        memberName="Enfermeiro CCIH Um"
+        initialAppointed={false}
+        initialCapabilities={[]}
+        showPhiNotice={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Tornar Administrativo/i }));
+    return waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it("does not invent a capability the server has not reported", async () => {
+    /**
+     * ⭐ THE TEST THAT REJECTS THE TEMPTING FIX, and it must go through the CLICK.
+     *
+     * ⚠ Its first draft drove a rerender instead, and the control proved it worthless:
+     * with `setCaps(prev => prev.add('read_cases'))` planted in `toggleAppointment`,
+     * the suite stayed GREEN — because a rerender never runs `toggleAppointment`, so
+     * the assertion was nowhere near the code it claimed to constrain. The temptation
+     * lives on the appoint path, so the test has to walk the appoint path.
+     */
+    appointAdministrativo.mockResolvedValue({ ok: true });
+    render(
+      <MemberAdministrativoControls
+        commissionId="c1"
+        userId="u1"
+        memberName="Enfermeiro CCIH Um"
+        initialAppointed={false}
+        initialCapabilities={[]}
+        showPhiNotice={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Tornar Administrativo/i }));
+
+    // The checklist opens (the appointment succeeded)…
+    const box = await screen.findByRole("checkbox", { name: READ_CASES_LABEL });
+    // …but with a server reporting NO capabilities, nothing is ticked. A client-side
+    // `add('read_cases')` here would tick it and fail this assertion.
+    expect(box).not.toBeChecked();
+  });
+
+  it("drops a capability the server no longer reports", () => {
+    const { rerender } = render(
+      <MemberAdministrativoControls
+        commissionId="c1"
+        userId="u1"
+        memberName="Enfermeiro CCIH Um"
+        initialAppointed
+        initialCapabilities={["read_cases"]}
+        showPhiNotice={false}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: READ_CASES_LABEL })).toBeChecked();
+    rerender(
+      <MemberAdministrativoControls
+        commissionId="c1"
+        userId="u1"
+        memberName="Enfermeiro CCIH Um"
+        initialAppointed
+        initialCapabilities={[]}
+        showPhiNotice={false}
+      />,
+    );
+    expect(
+      screen.getByRole("checkbox", { name: READ_CASES_LABEL }),
+    ).not.toBeChecked();
   });
 });
 

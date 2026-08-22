@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ShieldCheck, ShieldOff } from "lucide-react";
 
 import type { MemberCapability } from "@/lib/queries/members";
@@ -78,6 +79,7 @@ export function MemberAdministrativoControls({
   /** Whether to show the PHI/minimum-necessary note under `create_cases`. */
   showPhiNotice: boolean;
 }) {
+  const router = useRouter();
   const [appointed, setAppointed] = useState(initialAppointed);
   const [caps, setCaps] = useState<Set<MemberCapability>>(
     () => new Set(initialCapabilities),
@@ -85,6 +87,36 @@ export function MemberAdministrativoControls({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  /**
+   * ⛔ RECONCILE WITH THE SERVER, NEVER SIMULATE THE CHECKED STATE.
+   *
+   * Appointing a member GRANTS `read_cases` server-side (ADR 0134 Amendment 5), so the
+   * grant row exists the moment `appoint_administrativo` returns — but this component
+   * seeds `caps` from a prop with `useState`, which ignores every later prop value. The
+   * coordinator was shown an unchecked box while the database said granted: the UI
+   * contradicting the door, in the one dialog whose whole ruling is "the box is checked
+   * because the grant exists".
+   *
+   * ⛔ The tempting fix — `setCaps(prev => prev.add('read_cases'))` on a successful
+   * appointment — is the defect this branch already closed twice: it hard-codes today's
+   * auto-grant into the client, so the tick would survive the day the grant does not.
+   * The client must not hold an opinion about which capabilities an appointment confers.
+   *
+   * Instead: `router.refresh()` re-runs the server page, which re-reads
+   * `capabilitiesByUser` and sends fresh props; this block adopts them. Keyed on the
+   * props' CONTENT, not their identity — a server render produces a new array every
+   * time, and resetting on identity would clobber a just-toggled checkbox on any
+   * unrelated refresh. (React's documented "adjust state when a prop changes" pattern:
+   * set during render, no effect, no extra pass.)
+   */
+  const serverKey = `${initialAppointed}|${[...initialCapabilities].sort().join(",")}`;
+  const [syncedKey, setSyncedKey] = useState(serverKey);
+  if (serverKey !== syncedKey) {
+    setSyncedKey(serverKey);
+    setAppointed(initialAppointed);
+    setCaps(new Set(initialCapabilities));
+  }
 
   function fieldsFor(extra?: Record<string, string>): FormData {
     const fd = new FormData();
@@ -112,6 +144,10 @@ export function MemberAdministrativoControls({
         setAppointed(true);
       }
       setMessage(res.error ?? null);
+      // ⛔ THE APPOINTMENT'S CAPABILITY SET COMES FROM THE SERVER. `setAppointed(true)`
+      // above only opens the checklist; which boxes are ticked inside it is re-read,
+      // never inferred here (see the reconciliation block).
+      router.refresh();
     });
   }
 
@@ -132,6 +168,9 @@ export function MemberAdministrativoControls({
         return copy;
       });
       setMessage(res.error ?? null);
+      // Keep the server the authority here too: a grant/revoke can have effects this
+      // component did not ask for, and the reconciliation adopts whatever comes back.
+      router.refresh();
     });
   }
 
