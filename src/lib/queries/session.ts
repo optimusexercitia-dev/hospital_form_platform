@@ -679,15 +679,20 @@ async function getCommissionAccessByOrgUncached(
  *
  * ⭐ WHY THAT SURVIVES A NEW CAPABILITY, stated as a PROPERTY rather than as a
  * census (a census goes stale the next time the vocabulary grows — and it did):
- * the membership conjunct is inside `app.member_can` ITSELF (`app.is_member_of`),
- * not in the shape of whatever gate encloses it. So it holds whether the consumer
- * is written `is_staff_admin_of OR member_can(...)` — as all of today's are — or
- * `member_can(...)` alone. Measured 2026-08-22 by property (comment-stripped
- * `prosrc` over every non-system routine, plus `pg_policy`): the four content
- * capabilities are consumed by 9 functions + the 3 `meetings_staff_admin_*`
- * policies, all of the first shape; `read_cases` has no consumer yet — its
- * consumer is the ADR 0134 S8 arm inside `app._case_caps` (M2), which is
- * `member_can(...)` alone and inherits the conjunct exactly the same way.
+ * the membership term lives inside the capability predicate ITSELF, not in the
+ * shape of whatever gate encloses it. So it holds whether the consumer is written
+ * `is_staff_admin_of OR member_can(...)` — as all of the four content
+ * capabilities' consumers are (measured 2026-08-22 by property over
+ * comment-stripped `prosrc` plus `pg_policy`: 9 functions + the 3
+ * `meetings_staff_admin_*` policies) — or as a bare capability test.
+ *
+ * `read_cases`, the fifth value, is the second shape: its only consumer is the ADR
+ * 0134 S8 arm inside `app._case_caps`, which is a bare
+ * `app.member_can_for(commission, 'read_cases', uid)`. ⚠ Note the `_for` — ADR 0134
+ * Amendment 6: `app.member_can` resolves `auth.uid()` and cannot answer about a
+ * third party, so the resolver (a `(case, uid)` function) uses the `_for` twin, and
+ * `member_can` is now a thin `auth.uid()` binding of the same single body. Both
+ * carry `app.is_member_of[_for]`, so the orphan is refused on either.
  *
  * ⚠ That width was REACHABLE, not theoretical. A plain orphan is stopped a step
  * earlier (`commissions_select_member_or_admin` denies them the commission row,

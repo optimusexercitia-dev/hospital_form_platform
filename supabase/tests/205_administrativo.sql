@@ -57,7 +57,7 @@
 -- "appoint a staff_admin" rejection without self-grant noise). st_x is the HOLDER.
 
 begin;
-select plan(64);
+select plan(67);
 
 -- The capability chokepoint is flag-aware; enable the surface + its dependencies.
 update app.feature_flags set enabled = true
@@ -328,6 +328,12 @@ grant select on cs2 to authenticated;
 insert into public.cases (id, commission_id, case_number, label, created_by)
 values ((select case_id from cs2), (select comm_x from k), 9301, 'Caso sem acesso',
         (select sa_x from k));
+-- A LOCKED case, for the ADR 0134 Amendment 4 bound below.
+create temp table cs2l on commit drop as select gen_random_uuid() as case_id;
+grant select on cs2l to authenticated;
+insert into public.cases (id, commission_id, case_number, label, created_by, visibility_policy)
+values ((select case_id from cs2l), (select comm_x from k), 9302, 'Caso trancado',
+        (select sa_x from k), 'explicit_grants_only');
 
 -- Holder board: contains the readable (created + assigned) case, NOT the no-access one.
 select test_helpers.claims_for((select st_x from k), false);
@@ -336,10 +342,41 @@ select ok(
   exists (select 1 from public.list_cases_board((select comm_x from k), 200) b
           where b.case_id = (select case_id from cs)),
   'list_cases_board: the holder sees a case they can read (phase assignee)');
+-- ⛔ RE-ANCHORED FOR ADR 0134 D6/S8 — A SUBSTITUTION, NOT NEW COVERAGE.
+-- REPLACED: 'list_cases_board: the holder does NOT see a case they cannot read (no
+--            broadening)'  — an ADR-0061 assertion that st_x, holding create_cases,
+--            saw only cases they could already read.
+-- WHY it had to go: st_x is appointed through the DOOR at :84, so since ADR 0134
+--   Amendment 5 they also hold `read_cases`, and S8 gives them commission-wide read on
+--   ordinary cases. The old sentence is now FALSE OF THIS PERSONA — the behaviour it
+--   guarded did not regress, the persona changed underneath it.
+-- REPLACED BY, in order:
+--   (a) the same "create_cases does not broaden the board" claim, moved to the persona
+--       for whom it is still true — `adm2`, who holds create_cases and NOT read_cases;
+--   (b) an S8-EXPLICIT positive for st_x, with a zero-grant control so it names S8;
+--   (c) the Amendment-4 bound, on a locked case S8 must not reach.
+select ok(
+  exists (select 1 from public.list_cases_board((select comm_x from k), 200) b
+          where b.case_id = (select case_id from cs2)),
+  '(b) S8: the holder DOES now see a coordinator-created case with no attribution — commission-wide read (ADR 0134 D6)');
+select is(
+  (select count(*)::int from public.case_access_grants
+    where case_id = (select case_id from cs2) and principal_id = (select st_x from k)),
+  0, '(b) CONTROL: …and holds ZERO grants on it, so that reach is S8 and not S3');
+select ok(
+  not exists (select 1 from public.list_cases_board((select comm_x from k), 200) b
+             where b.case_id = (select case_id from cs2l)),
+  '(c) S8 BOUND (ADR 0134 Amdt 4): …but an explicit_grants_only case stays off their board');
+reset role;
+
+-- (a) The ORIGINAL "create_cases does not broaden the board" claim, re-anchored on adm2,
+-- who holds create_cases and NOT read_cases — the persona for whom it is still true.
+select test_helpers.claims_for((select adm2 from p), false);
+set local role authenticated;
 select ok(
   not exists (select 1 from public.list_cases_board((select comm_x from k), 200) b
              where b.case_id = (select case_id from cs2)),
-  'list_cases_board: the holder does NOT see a case they cannot read (no broadening)');
+  '(a) create_cases alone does NOT broaden the board — a create_cases-only Administrativo still sees only what they can read (the claim the re-anchored assertion above used to make)');
 reset role;
 
 -- Coordinator board: the whole commission board (both cases).
