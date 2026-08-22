@@ -20,11 +20,20 @@
  *     never rendered as a label or a value. This is the mechanism that turns a
  *     regressed server response into a no-op instead of a leak, it lives in the file
  *     under test, and it is pinned below with its own neutralization.
- *  2. **`patientFieldsSet`'s keys-only construction** (`src/lib/cases/actions.ts`) —
- *     the reason the response carries names at all. ⛔ NOT PINNED HERE, and not
- *     pinnable from this file: it is module-private (no `export`) in a backend-owned
- *     module. Its test belongs beside it. Recorded as an open gap rather than papered
- *     over — this file must not read as though that half were covered.
+ *  2. **`patientFieldsSet`'s keys-only construction** — the reason the response carries
+ *     names at all. Still not pinned in THIS file (it is not this component's code),
+ *     but ✅ **CLOSED 2026-08-22**, beside the function, in
+ *     `src/lib/cases/patient-payload.test.ts`.
+ *
+ *     ⚠ CORRECTED, and the correction is the useful part. This note previously said the
+ *     helper was untestable because it was "module-private (no `export`)". That was the
+ *     symptom, not the cause: it lived in `src/lib/cases/actions.ts`, which is
+ *     `'use server'`, and such a module may export **only async functions** — so a
+ *     synchronous helper there is unreachable from any test regardless of the `export`
+ *     keyword. Adding `export` would NOT have fixed it. The helper moved to a pure
+ *     module (`src/lib/cases/patient-payload.ts`) precisely because of that constraint.
+ *     Recorded because the wrong diagnosis would have sent the next person to add an
+ *     `export` and conclude the problem was elsewhere when it still failed.
  *
  * ⭐ NEUTRALIZATION RECORD (run 2026-08-22, each mutation applied alone):
  *  · render `row.key` instead of `row.value` → "shows the value the user typed" REDs.
