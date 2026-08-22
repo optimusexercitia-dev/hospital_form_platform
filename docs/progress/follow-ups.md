@@ -5962,7 +5962,7 @@ id); **neither orphan created anything**. The refusal surfaces as sanitized pt-B
 conjunct `app.member_can` always had — `access.role !== null` **is** that test, since `role` is
 populated only from the caller's own hat-filtered, non-expired `memberships` row. ⛔ It cannot
 under-grant: enumerated from the catalog, **every** consumer of the four capabilities is
-`is_staff_admin_of OR member_can(…)` — 10 functions plus the three `meetings_staff_admin_*` policies
+`is_staff_admin_of OR member_can(…)` — 9 functions plus the three `meetings_staff_admin_*` policies
 — and both arms require a membership. The narrowed mirror is the door's shape exactly.
 
 **4. Controls, stated in full including what cannot fail.** Unit: `session-capability-mirror.test.ts`

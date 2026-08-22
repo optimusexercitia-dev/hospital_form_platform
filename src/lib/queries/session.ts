@@ -676,7 +676,7 @@ async function getCommissionAccessByOrgUncached(
  * hat-BLIND, so `access.capabilities` stays populated for such an ORPHAN. The DB
  * refuses them — every gate consuming these four capabilities is
  * `is_staff_admin_of OR member_can(...)` and BOTH arms require a membership
- * (enumerated from the catalog: 10 functions + the 3 `meetings_staff_admin_*`
+ * (enumerated from the catalog: 9 functions + the 3 `meetings_staff_admin_*`
  * policies) — so the un-narrowed mirror was strictly WIDER than the door.
  *
  * ⚠ That width was REACHABLE, not theoretical. A plain orphan is stopped a step

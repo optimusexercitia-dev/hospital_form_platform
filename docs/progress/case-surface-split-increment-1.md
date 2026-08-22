@@ -95,7 +95,9 @@ the standing discipline is unchanged.
   A2.5 test bill and the A2.6 record updates — **locally**. NOT authorized: remote `db push`, merge
   to `main`, PHI **read** in any form, PHI write outside the creation path, changes to
   `dispose_case_phi` or the xref gates. **Increment 2 work; does not start until Increment 1
-  gates.** ⚠ Keystone `189_bulk_create_cases.sql:153` must be **inverted deliberately**, new intent
+  gates.** ⚠ Keystone `189_bulk_create_cases.sql:153` [⛔ **corrected 2026-08-22: the assertion is at
+  `:162-168`; `:153` is the fixture INSERT** — correction inserted into this rotated record rather than
+  left to send readers to the wrong line] must be **inverted deliberately**, new intent
   stated in its header; A2.6's record updates (incl. **CLAUDE.md Rule 12**) ship in the **same
   commit**; A2.4's four residual risks are accepted explicitly, and risk 2's mitigation (echo the
   written identifiers back so a typo is caught at the keyboard) is **required in the same change**.

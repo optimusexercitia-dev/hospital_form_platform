@@ -46,7 +46,17 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   `is_oversight_only_reader` **door set enumerated by `prosrc` property** — ⚠ its size is **not established**
   (one member found while measuring something else). `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY` stays **OPEN**
   on that implementation residue: ruled ≠ discharged.
-- **🚧 CASE SURFACE SPLIT · INCREMENT 2 — NOT STARTED, and it is the PHI-touching half.**
+- **🚧 CASE SURFACE SPLIT · INCREMENT 2 — IN PROGRESS since 2026-08-22 on `feat/case-surface-split-2`;
+  it is the PHI-touching half.** ⭐ **Build-start scope, written down** (an approval's scope is a fact
+  that must be recorded): the PO said *"continue implementation of case-surface-split"* on 2026-08-22,
+  which is the build-start go that ADR 0134 Amdt 2 §A2.7 and Amdt 4 §A4.4 each explicitly withheld.
+  It authorizes the Increment-2 bill below **locally**. It does **NOT** authorize a remote `db push`,
+  a merge to `main`, PHI **read** for administrativo, PHI write outside the creation path, any change
+  to `dispose_case_phi` / the xref gates / S5 / S7 / S3 / `is_oversight_only_reader`, or a decision
+  about the doors the Amdt 4 §A4.3-item-6 enumeration turns up — those are read as findings first.
+  ⚠ The branch's first commit (`aa16057a`) is **Increment-1 residue**, not Increment-2 work: the
+  `canInCommission` mirror narrowing + the two follow-up closures, carried here because `main` is the
+  default branch. Both follow-ups stay OPEN until this branch merges.
   Three PO rulings already stand: **OPEN-1 no backfill** · **OPEN-2 bulk under the same `create_cases`
   key** (ADR 0134 Amdt 1 §A1.2) · **OPEN-4 = option D, creation-scoped PHI write** (Amdt 2, ACCEPTED
   — the platform's **first PHI write path not held by a coordinator**). Scope of that yes is A2.7's
@@ -55,10 +65,33 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   arm on `bulk_create_cases` · A2.2's **split writer** (`app._set_participant_patient_unchecked`).
   ⛔ **Binding on whoever starts it:** P6 and P7 are **rewritten as differentials** — as first specified
   neither could fail (P7's direct-DML half passes even if S8 leaked PHI, because the table grants
-  `authenticated` nothing) · keystone `189_bulk_create_cases.sql:153` must be **inverted deliberately**
+  `authenticated` nothing) · keystone `189_bulk_create_cases.sql` **:162-168** must be **inverted deliberately**
+  (⛔ **line ref corrected 2026-08-22 by re-measurement** — the long-cited `:153` is the fixture INSERT, not
+  the assertion; its anti-vacuity PRE at **:160-161** must be KEPT, and `plan(31)` at `:27` re-counted)
   · A2.4 risk 2's mitigation ships in the same change · A2.6's record updates incl. **CLAUDE.md Rule 12**
   ship in the **same commit** · re-check the `<CaseDetailView` **mount-site count** before reusing the
   Increment-1 no-op argument. Plan: [case-surface-split.md](docs/plans/case-surface-split.md) §4.
+  - **✅ Pre-work measured 2026-08-22 (V-D · V-E/V-F/V-G · the Amdt-2 M1–M13 baseline), and it moved
+    five records.** ADR 0134's baseline rows are corrected **in place** with the correction marked, not
+    silently: **M13** the keystone is `:162-168`, `:153` is the fixture INSERT (cited wrong in 3 files
+    since filing) · **M10** the PHI-loss-on-refusal shape has **TWO** sites (`createCase` :570-577 as
+    well), so a one-site fix would have read as done · **M11** the `CasePatientPanel` mount is `:866-871`,
+    the cited `:822` is a different component · **M2** `read_standard_phi` has **3 writes in 2 arms**, not
+    "exactly two sources" · **M4** the xref "gate" is **three different gates** (`get_patient_trajectory_for_entity`
+    is PQS-only, no DPO arm). ⭐ **RULED 2026-08-22 — ADR 0134 Amendment 5:** D6's *"default-checked"* is a
+    **grant**, not a pre-ticked box — the dialog has no defaults (checkboxes render server state), so
+    `appoint_administrativo` grants `read_cases`; the client-side-tick reading is **rejected outright** as a
+    mirror wider than its door. Does **not** reopen OPEN-1 (that governs existing appointees).
+  - **🆕 Three findings the plan did not anticipate, each owned inside this increment.** ⛔ **A live UI
+    string over-claims PHI**: the appoint dialog tells the coordinator `create_cases` lets the person
+    *"inserir **e visualizar** dados de paciente"* — the *visualizar* half is **measurably false today and
+    stays false under option D**, and an E2E assertion pins the false text. ⛔ **The A2.2 split writer as
+    specified does not reach bulk**: `bulk_create_cases` calls `set_case_patient`, not
+    `set_participant_patient`, so splitting only the latter leaves bulk coordinator-gated — the mechanism
+    must cover the compat door too. ⚠ **The Amdt-4 §A4.3-item-6 door set is bigger than "4 routines"**: its
+    consumer `app.can_read_case_committee` **is its negation** and is keyed on **bits, not arms**, reaching
+    ~11 RLS policies + 3 routines — so a content-without-deliberation arm would join that extension
+    silently. Recorded as findings; **nothing there is changed** (Amdt 4 §A4.4).
 - **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
   user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
   person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
@@ -69,56 +102,16 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   [aff2-user-management.md](docs/plans/aff2-user-management.md). **Start
   condition: the prévia merge call is SATISFIED (`9ed197d5`, merged + pushed); what
   remains is the PO's merge call on `chore/small-optimizations` itself + explicit build go.**
-- **No phase is active.** The **DM program (DM0–DM5) is COMPLETE** — closed 2026-08-18, all five
-  gate steps, phase QA APPROVED r2 ([review](docs/reviews/dm5-phase-review.md)); its follow-up triage
-  ruled eleven items and shipped five. ⛔ *The standing-green E2E figure this bullet used to carry
-  (the 2026-08-17 run, 1121p/0f) is **SUPERSEDED** — see the 2026-08-20 gate below, which is RED.*
-- **✅ CONCLUDED 2026-08-18 — the Cloud constructed-orphan probe.** Cloud exposes **no orphan-visible surface** (all 5 metadata-bound), so the byte half is structurally unverifiable and the runbook’s *asserted, not verified* posture is evidenced; `FUP-DM4-PRODROW` **unblocked**, its "~49 vanished" figure **withdrawn** (§ State). ⛔ Not reassurance — orphan bytes are **unobservable, not absent**. Narrative rotated 2026-08-20 → [cloud-orphan-probe-2026-08-18.md](docs/progress/cloud-orphan-probe-2026-08-18.md).
-- **✅ CONCLUDED 2026-08-19 — the `Imprimir prévia` / `Emitir documento` split** (ADR [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md) + [0126](docs/decisions/0126-print-series-and-derived-currency.md)): shipped, QA APPROVED r2, merged and pushed (`9ed197d5`). Bullet rotated verbatim 2026-08-21 → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md); narrative in [previa-split-2026-08-19.md](docs/progress/previa-split-2026-08-19.md), where its residue stays open.
-- **🆕 Six follow-ups from the ADR 0125/0126 build, none of them its subject** — one ✅ RESOLVED
-  (`FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`, ADR 0129 / DSR Slice 1; ⚠ its "blocks C1a/C1b"
-  claim was **wrong in grain**). The other five are now **all carried in § Follow-ups** — ⛔ three
-  of them had a body but **no index line**, and this bullet was their only live trace (see below).
-- **✅ DSR ("Direitos do Titular") — PROGRAM COMPLETE 2026-08-20.** All four slices built,
-  QA APPROVED (S3 r2, S4 r3), **PO-approved, §6 steps 1–5 done, merged and pushed.** Narrative
-  rotated verbatim → [dsr-program.md](docs/progress/dsr-program.md); slice detail in
-  [dsr-slice-3.md](docs/progress/dsr-slice-3.md). Closing gate on a **fresh reset**: pgTAP
-  **6717/6717** (203 files) · lint(8) · `tsc` · vitest **1501/1501** · all four authz ARMs HOLD.
-  ⛔ **Step 2 (`e2e:prod`) was NOT re-run for the final increment** — last full run was the S3
-  gate (only the 2 pre-existing `quality-oversight` failures, BUG-QO-STALE-CASOS); everything
-  since is docs + one pgTAP suite + a dialog **no browser test reaches**
-  (`BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE`). Stated because a gate record naming only what
-  passed reads as full coverage.
-  ⛔ **Scope narrowed at close** by ADR [0131](docs/decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md):
-  PHI erasure reaches **designated PHI fields only**. Still open, and NOT descoped by it —
-  `FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED` · `FUP-DISPOSE-EVENT-DOOR-GATE-BLIND`
-  (keystone `352` landed; closes when cited) · `FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES` ·
-  `FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING` (PO copy call) · ~~the **Class-2** professional-identity
-  question~~ ✅ **RULED 2026-08-21, ADR [0132](docs/decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md)**:
-  an ethics proceeding carries **no erasure entitlement at any stage** — no door, no UI, and the
-  absence is now a decision rather than a gap. ⛔ **Answering it surfaced two PRE-EXISTING doors
-  that DO remove ethics-evaluation data** (`FUP-ETHICS-CASE-DELETE-CASCADE` 🔴 ·
-  `FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE` 🟠) — neither from the DSR program, both **PO-ruled
-  record-only**, so the lane is *non-erasable by decision with two known open removal paths*, which
-  is a worse state than "no path exists" and must not be summarised as closure.
-- **✅ DSR OPERATIONAL REMEDIATION — COMPLETE 2026-08-21.** All five §6 gate steps; QA **APPROVED r2**
-  ([review](docs/reviews/dsr-remediation-review.md)); plan
-  [dsr-operational-remediation.md](docs/plans/dsr-operational-remediation.md); ledger row in
-  [phase-ledger.md](docs/progress/phase-ledger.md). ✅ **MERGED to `main` and PUSHED 2026-08-21** — fast-forward,
-  `main` = `origin/main` = `96c49da4`, tree clean, lint 8/8 + `tsc` green **on `main`**. `db push` applied
-  all 14 pending migrations to the linked project (head `20261003000300`, `dsr` flag **ON**, invariant
-  re-derived **on the remote**: 3 setters / 5 readers). ⚠ The branch
-  `feat/dsr-operational-remediation` still exists locally and on origin — not deleted.
-  ⛔ **What it fixed:** the DSR program closed green on 2026-08-20 and **its LGPD erasure doors did not
-  erase** — a child lock raised ~10 statements after the Class-1 DELETE, rolling the whole RPC back.
-  **10 statements across 4 guards** (filed as 9/3); PO ruled **FIX THE GUARDS**, rollback under ADR 0131
-  D4(b) **declined**. Plus: the dead `notify_scrub_check` gate that blocked every granted close, the
-  console's nav reachability, the ADR 0131 helper-text control, the column doors' first operator
-  procedure, and drift pin `355`.
-  ⛔ **Still open by PO ruling, not by omission** — `FUP-DSR-OUTCOME-RECORD-HAS-NO-DELIVERY` (the
-  workflow's one promise to the data subject has no mechanism) and **Class-2** professional-identity
-  erasure. Six residuals filed with their bounds named, incl. one **accepted with no mechanism**
-  (`FUP-EXIT-CODE-MASKING-HAS-NO-MECHANISM`).
+- **A phase IS active** — case surface split **Increment 2**, above. Everything else that stood here
+  is done: the **DM program (DM0–DM5)** closed 2026-08-18 (QA APPROVED r2), the **DSR** program closed
+  2026-08-20 and its **operational remediation** 2026-08-21 (both merged **and pushed**), and the Cloud
+  constructed-orphan probe concluded 2026-08-18. All five bullets rotated **verbatim** 2026-08-22 →
+  [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md), which is also where the
+  `Imprimir prévia` / `Emitir documento` split already sat. ⛔ **Their open residue did NOT rotate** —
+  every follow-up and bug those bullets named was verified by name to hold its own line in
+  § Follow-ups / § Bug Log first. ⛔ **Two things there must not be read as closure:** `e2e:prod` was
+  **never re-run** for the DSR final increment (last full run was the S3 gate), and the ethics lane is
+  *non-erasable by decision with two known open removal paths* — a worse state than "no path exists".
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of

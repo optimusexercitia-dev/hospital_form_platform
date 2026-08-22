@@ -302,18 +302,18 @@ instead of the class (plan §1's warning box).
 | # | Fact |
 | --- | --- |
 | M1 | `public.set_participant_patient` (`prosecdef = t`) has **one** authority branch: `app.is_staff_admin_of(commission)` — no `member_can`, no `can_write_case_content`, no `is_admin`. `public.set_case_patient` is a **gate-less** compat wrapper delegating to it. |
-| M2 | `app.can_read_case_patient` = `app.has_case_capability(case, uid, 'read_standard_phi')`. In `app._case_caps` that bit has **exactly two** sources: S1 coordinator, and S3 iff the grant's own `read_standard_phi` **column** is set (never inferred from a read or write grant — A16). |
+| M2 | `app.can_read_case_patient` = `app.has_case_capability(case, uid, 'read_standard_phi')`. ⛔ **Corrected 2026-08-22 by re-measurement: the bit has THREE writes in TWO arms, not "exactly two sources"** — S1 coordinator, S3 iff the grant's own `read_standard_phi` column is set, **and S3 again iff the grant's `read_restricted_phi` column is set** (restricted ⇒ standard). The substantive claim survives: it is never inferred from a read or write grant (A16). A count stated one short is how an over-grant twin gets aimed at the wrong arm. |
 | M3 | `public.patient_identifiers` / `public.patient_participants`: RLS **on**, **0 policies**, **no `authenticated` ACL**. The DEFINER door does not supplement RLS here — it **is** the entire boundary, so a widening cannot be scoped row-wise by policy. |
-| M4 | A write to `patient_identifiers` fires `trg_derive_patient_keys` **and** `trg_xref_maintain_patient_identifiers` → the cross-module patient index behind `public.search_patient_xref` / `app.patient_trajectory_bundle` (gate: `is_pqs_operator_of ∨ is_dpo_of`, hospital-scoped). **Case PHI is not case-local.** |
+| M4 | A write to `patient_identifiers` fires `trg_derive_patient_keys` **and** `trg_xref_maintain_patient_identifiers` → the cross-module patient index. **Case PHI is not case-local.** ⛔ **Corrected 2026-08-22: the gate is not one gate.** `public.search_patient_xref` is `is_pqs_operator_of ∨ is_dpo_of`; **`public.get_patient_trajectory_for_entity` is PQS-only, with no DPO arm**; and `app.patient_trajectory_bundle` holds no `authenticated` EXECUTE, so it is not a door at all. One gate quoted for three surfaces reads like a proof about all three. |
 | M5 | `app.trg_audit_patient_identifiers` writes `case_patient.updated` with `'{}'::jsonb` — no payload, by Rule 11. A write is attributable but **not reconstructable**. |
 | M6 | `public.dispose_case_phi` is coordinator-only. |
 | M7 | `public.create_case` and `public.create_case_from_template` **already admit** `app.member_can(commission,'create_cases')`; the non-coordinator creator self-grant is level `'read'` with `p_read_standard_phi` **false**. ⇒ an administrativo who creates a PHI-collecting case today **cannot read its identifiers**. |
 | M8 | `app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ is_member_of(commission) ∧ ∃ capability row` — flag-aware **and** membership-aware. (Corrects the docblock falsified as F-3 in the Increment-1 review: it does **not** gate on the capability row alone.) |
 | M9 | The create dialog shows the PHI block on `casePatientEnabled && selectedTemplate?.collectsPatient` — **no viewer condition** (`create-case-dialog.tsx:223`); the bulk grid pre-selects Nome + Prontuário (`DEFAULT_PHI_KEYS`, `bulk-create-wizard.tsx:92`). The dead end is the **default** path, not a deliberate one. |
-| M10 | `createCaseFromTemplate` mints the case, then writes PHI in a second RPC; on refusal it returns `{ ok:false, caseId, error }` — **the case survives without its identifiers** (`src/lib/cases/actions.ts` ~:492). Bulk instead re-raises and rolls the **whole batch** back. |
-| M11 | Post-creation surfaces already behave correctly for a write-once actor: `CasePatientPanel` receives `canEdit={caps.canManageLifecycle}` (coordinator-only) and an unentitled reveal renders a **designed denial**, not an error (`case-detail-view.tsx:822`, `case-patient-panel.tsx:195`). |
+| M10 | `createCaseFromTemplate` mints the case, then writes PHI in a second RPC; on refusal it returns `{ ok:false, caseId, error }` — **the case survives without its identifiers** (`src/lib/cases/actions.ts` **:494-501**, return at **:499**). ⛔ **Corrected 2026-08-22: the shape exists at TWO sites, not one** — `createCase` carries the identical block at **:570-577** (return at **:575**), and its own comment says so (*"exactly as createCaseFromTemplate does"*). Naming one site makes a two-site fix read as done. Bulk instead re-raises and rolls the **whole batch** back. |
+| M11 | Post-creation surfaces already behave correctly for a write-once actor: `CasePatientPanel` receives `canEdit={caps.canManageLifecycle}` (coordinator-only) and an unentitled reveal renders a **designed denial**, not an error. ⛔ **Line ref corrected 2026-08-22:** the mount is `case-detail-view.tsx` **:866-871** (`canEdit` on **:868**); the cited `:822` is inside `CaseOutboundReferralsCard`, a different component. Behaviour CONFIRMED; the pointer was not. |
 | M12 | **22** functions set the `app.in_case_rpc` GUC — incl. `close_case`, `cancel_case`, `reopen_case`, `approve_correction`, `dispose_case_phi`. It is a **trigger-guard bypass**, not an identity signal. |
-| M13 | `supabase/tests/189_bulk_create_cases.sql:153` is a live keystone pinning "an administrativo holding `create_cases` is denied bulk (42501)". Any widening must **invert it deliberately**. |
+| M13 | `supabase/tests/189_bulk_create_cases.sql` **:162-168** is a live keystone pinning "an administrativo holding `create_cases` is denied bulk (42501)". Any widening must **invert it deliberately**, keeping its anti-vacuity PRE at **:160-161** (`member_can → true`, which is what stops the deny reading as a missing-capability deny). ⛔ **Line ref corrected 2026-08-22 by re-measurement:** this row said `:153` from filing until the build, and `:153` is the fixture INSERT — the row is the reason the correction was findable, and the reason to re-derive rather than quote. |
 
 ### The options put to the PO
 
@@ -702,3 +702,66 @@ enumeration turns up — those are read as findings first.
 - Recorded for the build session: the gap was found by applying Amendment 3's wording test to an
   affordance, **before the migration existed**. That is the argument for settling wording ahead of an
   increment rather than after it — the same increment's worth of rework it would otherwise have been.
+
+---
+
+## Amendment 5 — 2026-08-22 (**✅ ACCEPTED — PO-ruled at build start**): "default-checked" means the appointment **grants** `read_cases`, not that a box is pre-ticked
+
+**Status: ✅ ACCEPTED — the PO ruled on 2026-08-22**, in the Increment-2 build session, when asked
+which of two readings D6's parenthetical carries. This amends **D6**. It was asked rather than
+inferred because the two readings produce materially different work and different default reach.
+
+### A5.1 — The measurement that forced the question
+
+D6 says the new `read_cases` capability is *"(default-checked in the appoint dialog)"*. Measured
+2026-08-22 from the live code, **that dialog has no defaults at all**:
+`src/components/members/member-administrativo-controls.tsx` renders one checkbox per capability with
+`checked = caps.has(c.key)`, where `caps` is initialised from **server state**
+(`capabilitiesByUser[member.userId] ?? []`). A newly appointed administrativo starts with **zero**
+capability rows, and none of the four is pre-ticked. ⇒ "default-checked" is not a UI default that
+exists to be set; it can only be made true by a **grant**.
+
+⛔ The third reading — tick the box in the client without a grant behind it — is **rejected outright
+and must not be implemented**. That is a mirror wider than its door, the exact defect class
+`FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED` was closed for one commit earlier.
+
+### A5.2 — The ruling
+
+**Appointing an administrativo grants `read_cases`.** `public.appoint_administrativo` (`prosecdef = t`)
+inserts the `read_cases` capability row alongside the appointment, attributed to the appointing
+coordinator, so the checkbox is checked because the grant exists. The coordinator may untick it, which
+revokes it like any other capability.
+
+### A5.3 — What this does and does not disturb
+
+- **It does not reopen OPEN-1.** A1.1's no-backfill ruling governs **existing** appointees, who stay
+  as they are; A5.2 governs **new** appointments only. The migration must state this and must not
+  touch existing rows — and a pgTAP negative must pin that an appointee predating the migration still
+  holds exactly their four.
+- **The coordinator-action-in-the-audit-trail rationale survives**, because the appointment itself is
+  that action and the grant is attributed to the appointer. This is the reason the two rulings do not
+  contradict: A1.1's concern was a grant with *no* coordinator act behind it.
+- **The seed is unaffected by the door.** `supabase/seed.sql` appoints `staff2.ccih` by **direct
+  INSERT**, bypassing the DEFINER doors, so it gains nothing automatically — the seed must add
+  `read_cases` explicitly (the plan §4 M1 already requires this) and the two paths must be asserted
+  separately, or the seed's row would be read as evidence about the door.
+- **The other four capabilities are untouched** — `appoint_administrativo` grants `read_cases` and
+  nothing else.
+- ⚠ **Every existing assertion that a fresh appointment confers zero capabilities becomes false** and
+  must be updated deliberately, not discovered. Enumerate them by property before writing the
+  migration; do not close on the ones you can recall.
+
+### A5.4 — Approval scope
+
+Authorizes: the `read_cases` auto-grant inside `appoint_administrativo`, its pins, and the D6 wording
+correction — **inside Increment 2, locally**. Does **not** authorize: auto-granting any other
+capability, a backfill to existing appointees, any change to `revoke_administrativo`'s cascade
+behaviour, a remote `db push`, or a merge.
+
+### Consequences
+
+- D6's parenthetical is now a **grant** rule, so the reach it describes is real rather than cosmetic:
+  from this migration on, appointing an administrativo confers commission-wide case read on the
+  commission's ordinary cases — bounded by Amendment 4's `not v_eg`.
+- The appoint door gains its first side-effect beyond the appointment row. That is the fact a later
+  reader will find surprising; it is written here so they find the reasoning attached to it.
