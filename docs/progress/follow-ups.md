@@ -5906,27 +5906,99 @@ and the *shipped behaviour* disagree, and one of the two is wrong: either re-poi
 amend T5 to state the exception and why. Leaving them disagreeing is what makes a later reader
 "fix" the wrong one.
 
-### 🟡 FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED — a dead-end door nobody can currently construct (owner: backend; filed 2026-08-21, from QA F-3's remediation)
+### 🟡 FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED — the dead-end door WAS reachable (owner: backend; filed 2026-08-21 from QA F-3's remediation; ✅ **MEASURED + FIXED 2026-08-22, NOT COMMITTED / NOT MERGED** — see § Resolution)
 
 `app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ app.is_member_of(commission)
-∧ ∃ capability row` (measured **three times independently**; ADR 0134 Amdt 2 **M8**). The TS mirror
-`canInCommission` checks **no membership**, so the mirror is **wider than the door** — an
-administrativo whose commission membership was removed but whose capability row survives would, on
-the TS side, be offered affordances the DB refuses.
+∧ ∃ capability row` (measured **four times independently** now; ADR 0134 Amdt 2 **M8**). The TS mirror
+`canInCommission` checked **no membership**, so the mirror was **wider than the door** — an
+administrativo whose commission membership was removed but whose capability row survives was, on
+the TS side, offered affordances the DB refuses.
 
-⛔ **Whether such a principal can reach any surface is UNVERIFIED, and the honest answer is
-"probably not":** `access.role` is populated only from the caller's own membership row, and the
-commission shell 404s `role === null && !isQualityViewer && !isTenancyAdmin` before any route under
-`/c/[commission]` renders. So the orphan very likely 404s upstream and the dead-end door is
-unreachable — **but no fixture in this repo constructs an orphan**, so neither direction is
-measured.
+**Filing state, kept:** the entry recorded reachability as UNVERIFIED **in both directions** and
+guessed "probably not" — `access.role` is membership-only, and the commission shell 404s
+`role === null && !isQualityViewer && !isTenancyAdmin`. It said so rather than asserting it because
+the docblock it replaced had stated the door's *opposite* for weeks (QA F-3).
 
-⭐ **Recorded this way on purpose.** The docblock that previously described this stated the
-*opposite* of the door's behaviour and was believed for weeks (QA F-3). Replacing a false claim with
-a second unverified claim in the same spot is how that happens twice. **To close:** construct an
-orphan (delete the membership, leave the capability row) and measure whether they reach the board.
+⛔ **The close condition as filed would have closed this WRONG.** It said "construct an orphan and
+measure whether they reach the board". QA's review (§7.8) had already sharpened it to *"construct
+orphan × tenancy-admin **and** orphan × quality-reviewer"* and warned, in those words, that the plain
+orphan is **the one composition that provably cannot reach** — so testing only it returns a clean
+GREEN that means nothing. That warning was correct and load-bearing: the sharper question is the
+whole finding.
 
-### 🟡 FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED — the case-wide affordance class has **no absence assertions on `/casos`** (owner: tester; filed 2026-08-21, ⛔ **WRONG TWICE, corrected twice — read the history, it is the point of this entry**)
+**✅ Resolution — MEASURED 2026-08-22 by construction, then FIXED. Not committed, not merged; this
+entry stays OPEN until it is.**
+
+**1. The guess was HALF WRONG, and wrong about the mechanism even where it was right.**
+
+| composition | `member_can` | commission row readable | reaches `/manage/cases` |
+| --- | --- | --- | --- |
+| C0 control — **member** administrativo | **true** | 1 | **yes, and the door SERVES it** |
+| C1 plain orphan | false | **0** | no |
+| C2 orphan × **tenancy-admin** | false | **1** | ⛔ **YES — offered "Novo caso"** |
+| C3 orphan × **quality-reviewer** | false | **1** | ⛔ **YES — offered "Novo caso"** |
+
+- **C1 never reaches — but NOT via the shell gate this entry predicted.**
+  `commissions_select_member_or_admin` denies a plain orphan the commission ROW, so
+  `getCommissionAccessByOrg` returns `null` and `!access` 404s them one step *earlier*; the shell's
+  `role === null && …` test never runs. Confirmed by the rendered boundary: C1 gets the **root**
+  404 ("Não encontramos esta página"), which only a LAYOUT `notFound()` produces.
+- **C2 and C3 DID reach.** They read that same row on a different policy arm
+  (`is_org_admin_of` / `is_quality_reviewer_of`), arrive with `role: null` **and** a full
+  `capabilities` array — the appointment and capability rows survive a membership deletion (no FK,
+  no cascade trigger) and stay readable through the **hat-blind** `user_id = auth.uid()` self arm of
+  `commission_administrativo_capabilities_select`. Both were offered "Novo caso"
+  (C2 twice — header + empty state) and both got **"Você não tem permissão para esta ação."**
+  ⚠ C3's rendered inside the **`QualityViewerShell`**, i.e. a write affordance inside a shell
+  labelled *SOMENTE LEITURA*.
+
+**2. Dead END, not over-grant — measured, because the severity turns entirely on it.**
+`create_case_from_template` opens `if not (is_staff_admin_of ∨ member_can(…,'create_cases'))`, and
+both arms were **false** for C2/C3 (`is_staff_admin_of` is membership-only — an org_admin does not
+satisfy it). Driven through the real dialog: the control created a case (board 22 → 23, torn down by
+id); **neither orphan created anything**. The refusal surfaces as sanitized pt-BR, not a raw `42501`.
+
+**3. The fix is in the mirror, not the pages.** `canInCommission` now carries the membership
+conjunct `app.member_can` always had — `access.role !== null` **is** that test, since `role` is
+populated only from the caller's own hat-filtered, non-expired `memberships` row. ⛔ It cannot
+under-grant: enumerated from the catalog, **every** consumer of the four capabilities is
+`is_staff_admin_of OR member_can(…)` — 10 functions plus the three `meetings_staff_admin_*` policies
+— and both arms require a membership. The narrowed mirror is the door's shape exactly.
+
+**4. Controls, stated in full including what cannot fail.** Unit: `session-capability-mirror.test.ts`
+(5 cases) — neutralized, **1 of 5** goes RED, and it is the orphan row; the other four pass either
+way because they do not exercise the missing conjunct. E2E:
+`orphan-administrativo-reachability.spec.ts` (4 tests) — neutralized **and the standalone bundle
+rebuilt**, C2 and C3 go RED, C0 and C1 stay GREEN. ⭐ **Only 2 of the 4 E2E tests guard this fix**;
+C0 guards the fixture and C1 guards a different mechanism upstream of the mirror. C3's RED needed a
+`-g` run of its own — the file is `serial`, so C2's failure aborted it and **"did not run" is not a
+verdict**.
+
+⛔ **A wrong matcher read exactly like a live defect.** The spec's first draft matched only the root
+404 copy and reported C2 as *still reaching the board* on a build that had already fixed it. The two
+boundaries carry different text — root `not-found.tsx` says "Não encontramos esta página", the
+commission-scoped one says "Página não encontrada" — and the distinction is not cosmetic: it names
+*which* gate fired. The spec now asserts the KIND, so a C2 refusal by the shell (C1's reason) cannot
+be mistaken for a refusal by the board gate.
+
+**5. Regression, run: `administrativo.spec.ts` 10/10, plus `cases-board-access` /
+`case-manage-entry-gate` / `case-custom-fields` / `casos-reading-surface-differential` 21/21.** The
+`administrativo` POS tests are the no-under-grant twin — they drive all five other `canInCommission`
+call sites (meetings, sign-off queue + drill-in, case meta, phase assignment) as a *member*
+administrativo, and all still pass.
+
+**6. Left alone, deliberately:** `hasCaseStanding`'s `isAdministrativo` arm on the board page. After
+the mirror fix every principal past the gate above already satisfies its `isCommissionMember` arm, so
+it can no longer decide anything. Kept as a fail-closed backstop and **documented as redundant rather
+than counted as defense in depth** — it reads off the same `context.memberships` as the gate above,
+so it is the same predicate twice, not a second lock.
+
+**Fixtures are purely additive** — C1/C2/C3 are built by *appointing* three personas who already hold
+no CCIH membership (`staff2.farm`, `orgadmin.a`, `quality.a`), never by deleting a seed persona's
+membership; `seed.sql` is a contract with ~900 tests. Teardown is asserted empty and the seed's own
+four grants asserted intact.
+
+### 🟡 FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED — the case-wide affordance class has **no absence assertions on `/casos`** (owner: tester; filed 2026-08-21; ✅ **BUILT + GREEN 2026-08-22, NOT MERGED** — see § Resolution; ⛔ **WRONG TWICE, corrected twice — read the history, it is the point of this entry**)
 
 ⛔ **Filing history, kept because the item was wrong in a different way each time:**
 1. **v1 — FALSE.** Claimed case tags and the outcome selector had *“zero E2E coverage on any route”*. Both **are** covered on the manage host (`cases-extras.spec.ts:443` assigns a tag via `getByRole('region', {name:/Etiquetas/i})`; `processless-cases.spec.ts:473` drives the “Desfechos disponíveis” dialog). Cause: the sweep grepped **button labels**, while the real coverage uses a role+region locator and a dialog filter containing none of those strings — *a grep bounded by a label is a proxy for the property, not the property.* It reached the tracker as “confirmed … twice”, which reads like a measurement and was a restatement of one unsound search.
@@ -5935,6 +6007,20 @@ orphan (delete the membership, leave the capability row) and measure whether the
 ⭐ **The lesson is the repetition, not the item.** Each correction fixed the specific wrong clause and left the *method* that produced it unexamined — which is how one entry was wrong three times in a day, twice while being corrected. **Recorded as [[a-partial-fix-reads-as-a-complete-one]].**
 
 **What is actually open.** The case-wide affordance class — QA's enumeration, **to be re-derived by property before use, not quoted**: *Novo item · Adicionar registro · Anexar documento · custom fields · Corrigir resultado · Ativar e atribuir*, plus **tags** — has **no absence assertions on `/casos`**. Manage-side presence is covered for several of them; the `/casos` side is asserted for none. Close it the way `case-access.spec.ts` AC-3b and the T6 narrative differential are built: absence on `/casos` paired against presence on manage, same user and case, counted by structure as well as accessible name. ⚠ State for each member whether its absence is **new** (Increment 1) or **pre-existing** (`8675b7cd`) — conflating those is what made v2 wrong. ⛔ **And one member is already mis-labelled, which is v2's error one member over: “Corrigir resultado” is PRE-EXISTING, not new** — it *looks* new because its prop stopped being passed, but `effectiveCanManagePhaseResults` had already zeroed it for that class. **Derive new-vs-pre-existing per member from the merge base; never infer it from “the prop changed”.**
+
+**✅ Resolution — BUILT + GREEN 2026-08-22, `e2e/casos-reading-surface-differential.spec.ts` (5 tests). NOT COMMITTED, NOT MERGED; this entry stays OPEN until it is.**
+
+**1. The class, re-derived by property (not quoted).** Property: *an affordance rendered by `CaseDetailView`, or by the manage `(detail)` layout header that is its twin, whose visibility gate is a CASE-WIDE capability.* All six such gates resolve in ONE file (`case-detail-view.tsx`), which is what makes this an enumeration rather than a checklist: **G1** `caps.canWriteContent` · **G2** `caps.canManageLifecycle` · **G3** `effectiveCanAssignPhases` · **G4** `effectiveCanEditCustomFields` · **G5** `effectiveCanManagePhaseResults` · **G6** `canEditMeta` (prop deleted, ADR 0134 F-5). ⭐ **The derivation returns 16 members — QA's enumeration named 7.** The **nine** it missed entirely: *Encaminhar caso* · *Nova entrevista* · *Adicionar participante* · *Não necessária* · *Desfecho do caso* · *Adicionar fase* · *Adicionar narrativa* · *Editar desfechos disponíveis* · the case-meta *Editar*. The hand-list was under half the class, wrong in the same direction as v1's grep.
+
+**2. New vs pre-existing is a (MEMBER × VIEWER-CLASS) CELL, not a member property** — measured at the merge base **`df88dced`**, never inferred. Coordinator column: **entirely PRE-EXISTING** (`readingAsMember` was already true there and already zeroed BOTH caps). Write-grantee: **G1 is NEW** (the trigger widened to `isReadingAsMember`); G2–G5 were never theirs on either host and are asserted as a *both-hosts control*, never as a differential. Administrativo: **G3 and G6 are NEW** (`/casos` itself passed both props at `df88dced`). "Corrigir resultado" confirmed **PRE-EXISTING for every class**, as this entry warned.
+
+**3. A THIRD mechanism the entry did not anticipate — NEVER-FED.** Three members are absent because `/casos` has never passed their fuel, at `df88dced` or at HEAD: *Adicionar fase* / *Adicionar narrativa* (`adHocForms`/`adHocNarrativeTypes`) and *Editar desfechos disponíveis* (`casesExtrasEnabled`). ⛔ **The spec's first draft labelled the third one narrowing-driven and the neutralization control is what caught it** — with the narrowing fully neutralized the button still did not appear. A member's mechanism is measured, not read off the gate it looks like it belongs to. A fourth, the case-meta *Editar*, is absent because its JSX was **deleted**.
+
+**4. The neutralization control (the part that makes the absences mean anything).** Run manually against the local stack, reverted immediately, `git diff -- src/` empty before continuing. **N1** (`narrowToReadingSurface` → identity): **9 of 14** members flip PRESENT on `/casos`; COORD-1 + WRITE-1 RED, ADM-1/PLESS-1/CF-1 correctly stay GREEN. **N2** (`isReadingAsMember` → false **and** the three props re-passed by `/casos`): **11 of 14**, adding G3 and G5; ADM-1 flips on G3 alone, CF-1 on G4. ⭐ **G4 and G5 needed BOTH halves neutralized** — for a coordinator they are doubly guarded, the "neither end is load-bearing alone" design measured rather than asserted. ⛔ **Four members cannot be made to fail at all** (the three NEVER-FED + G6): for those the `/casos` half is a regression guard, and the manage-side positive is what carries the differential. Stated because a control map listing only what flipped reads as though everything did.
+
+**5. Still not covered, deliberately:** the **administrativo × custom fields** cell (the one NEW cell with no reachable fixture — `FUP-ADMINISTRATIVO-CUSTOM-FIELDS-ARM-NOT-E2E-VERIFIABLE`, needs a seed change routed to Increment 2) · narrative authorship (owned by AC-3b + T6; its attributed half is reused here as the anti-over-reach control) · patient-panel edit (PHI, owned by `case-patient.spec.ts`) · event visibility (a field inside a dialog whose trigger is already proven unreachable).
+
+**Fixtures** are built and torn down by the spec itself (a published 2-phase template with an emitting phase driven to `completed` through the real RPC chain — `case_phases` refuses every direct write outside `app.in_case_rpc`; a process-less case; a per-case write grant; an assigned narrative). Teardown verified empty after the run. Nothing seeded is mutated.
 
 ### 🟡 FUP-VACUOUS-DETECTOR-FALSE-POSITIVE — `check-vacuous-assertions.mjs` flags a test as vacuous when a helper is declared inside it (owner: tester/lead; filed 2026-08-21)
 

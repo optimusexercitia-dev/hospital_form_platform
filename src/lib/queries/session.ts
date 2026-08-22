@@ -666,12 +666,38 @@ async function getCommissionAccessByOrgUncached(
  * That falls out of `role` now being membership-only — do NOT add an
  * `isTenancyAdmin` arm here. Configuration affordances (the Q1–Q9 KEEP set) are
  * a different seam: {@link canConfigureCommission}.
+ *
+ * ⭐ `access.role !== null` IS the membership test, and it is load-bearing — it
+ * mirrors `app.member_can`'s `app.is_member_of` conjunct, which this helper
+ * omitted until FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED was closed by
+ * measurement (2026-08-22). Nothing revokes an Administrativo appointment or its
+ * capability rows when a membership is deleted (no FK, no cascade trigger), and
+ * `commission_administrativo_capabilities_select`'s `user_id = auth.uid()` arm is
+ * hat-BLIND, so `access.capabilities` stays populated for such an ORPHAN. The DB
+ * refuses them — every gate consuming these four capabilities is
+ * `is_staff_admin_of OR member_can(...)` and BOTH arms require a membership
+ * (enumerated from the catalog: 10 functions + the 3 `meetings_staff_admin_*`
+ * policies) — so the un-narrowed mirror was strictly WIDER than the door.
+ *
+ * ⚠ That width was REACHABLE, not theoretical. A plain orphan is stopped a step
+ * earlier (`commissions_select_member_or_admin` denies them the commission row,
+ * so the resolver returns `null`), but an orphan who ALSO holds tenancy-admin or
+ * quality-reviewer standing reads the commission row on that other arm, arrives
+ * with `role: null` + a full `capabilities` array, and was offered "Novo caso"
+ * behind a door that answered "Você não tem permissão para esta ação."
+ * Both composites are pinned by `e2e/orphan-administrativo-reachability.spec.ts`.
+ *
+ * ⛔ Narrowing here CANNOT under-grant: `role === 'staff_admin'` already implies a
+ * membership, and the capability arm now requires one, which is exactly the door's
+ * shape. Do NOT "restore" the membership-blind form to fix a missing affordance —
+ * an affordance missing HERE means the DB would have refused it too.
  */
 export function canInCommission(
   access: Pick<CommissionAccess, 'role' | 'capabilities'>,
   capability: MemberCapability,
 ): boolean {
-  return access.role === 'staff_admin' || access.capabilities.includes(capability)
+  if (access.role === 'staff_admin') return true
+  return access.role !== null && access.capabilities.includes(capability)
 }
 
 /**

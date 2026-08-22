@@ -66,6 +66,14 @@ export const metadata: Metadata = {
  * resolver's own `memberRole` arm, mirroring the meetings route's C7 gate) OR an
  * Administrativo appointment (ADR 0061).
  *
+ * ⚠ Since the 2026-08-22 mirror fix this is **NOT a second, independent lock** —
+ * say so rather than counting it as defense in depth. `canInCommission` now
+ * requires `role !== null`, and `isCommissionMember` is that same predicate read
+ * off the same `context.memberships`, so every principal past the gate above
+ * already satisfies the `isCommissionMember` arm and the `isAdministrativo` arm
+ * can no longer decide anything. Kept as a fail-closed backstop against a
+ * regression in the gate above, not because it admits or refuses anyone today.
+ *
  * ⛔ **THE ORPHANED-ADMINISTRATIVO RATIONALE WAS BACKWARDS, AND THE CONSEQUENCE
  * INVERTS.** This block used to justify the Administrativo arm by claiming
  * "`app.member_can` gates on the capability row alone", so an orphan — appointment
@@ -82,25 +90,32 @@ export const metadata: Metadata = {
  *       AND EXISTS (capability row)
  *
  * So an orphan is REFUSED by the door, not served by it, and the direction of the
- * risk flips: the TS mirror is now the WIDER of the two. `canInCommission` tests
- * `role === 'staff_admin' || capabilities.includes(cap)` and checks **no
+ * risk flips: the TS mirror was the WIDER of the two. `canInCommission` tested
+ * `role === 'staff_admin' || capabilities.includes(cap)` and checked **no
  * membership at all**, while `access.capabilities` is read straight from
- * `commission_administrativo_capabilities` regardless of membership. An orphan
- * that reached this page would therefore pass the gate above and be offered "Novo
- * caso" behind a door that answers 42501 — a dead-end door, which is the opposite
- * failure from the one this comment used to describe.
+ * `commission_administrativo_capabilities` regardless of membership — a dead-end
+ * door, the opposite failure from the one this comment used to describe.
  *
- * ⚠ **OPEN — whether an orphan can reach this page at all is UNVERIFIED, and the
- * question is deliberately left open rather than answered here.** Two measured
- * facts bear on it: `access.role` is populated only from the caller's own
- * membership row (`session.ts`), and the commission shell 404s
- * `role === null && !isQualityViewer && !isTenancyAdmin` before any route under
- * `/c/[commission]` renders. Together they SUGGEST an orphan never gets here, and
- * that both this arm and the dead-end door are unreachable — but that is an
- * inference from two guards, not an observation, and no fixture in this repo
- * constructs an orphan. Do not promote it to a claim without building one. Same
- * shape as the `access.context.isAdmin` bypass removed in ADR 0134 T4: probably
- * dead, cheap to keep, and it must not be *documented* as live.
+ * ✅ **RESOLVED 2026-08-22 by construction, not by inference**
+ * (FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED). The earlier text left this
+ * OPEN because the two guards it cited were an inference from guards, not an
+ * observation. Built and measured, the inference was **half wrong**:
+ *
+ *   - A **plain** orphan indeed never gets here — but NOT via the shell gate this
+ *     comment predicted. `commissions_select_member_or_admin` denies them the
+ *     commission ROW, so `getCommissionAccessByOrg` returns `null` one step
+ *     earlier and `!access` 404s them. The shell's
+ *     `role === null && !isQualityViewer && !isTenancyAdmin` never even runs.
+ *   - An orphan who ALSO holds **tenancy-admin** or **quality-reviewer** standing
+ *     reads that row on the other policy arm and **DID reach this page** — both
+ *     were offered "Novo caso" and got "Você não tem permissão para esta ação."
+ *     The dead-end door was live for two principal classes, not unreachable.
+ *
+ * The fix is in the mirror, not here: `canInCommission` now carries the
+ * `role !== null` membership conjunct that `app.member_can` always had, so the
+ * gate above refuses both composites for the same reason the DB does.
+ * `e2e/orphan-administrativo-reachability.spec.ts` pins all three compositions
+ * against a member-administrativo positive control.
  *
  * UX gate only — `can_read_case` is the authority (Rule 1). The rows are already
  * correct with or without this check; it only decides empty-state vs. 404.
