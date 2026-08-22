@@ -131,3 +131,21 @@ passing.
 finding; the same session nearly filed a bulk-gate failure as a product bug when it was the server
 serving three-commits-old code.
 
+## The pre-build "binding on whoever starts it" clause — rotated 2026-08-22, ALL DISCHARGED
+
+Every obligation in it has an outcome, and several changed the build rather than merely constraining it:
+**P6/P7 rebuilt as differentials** (as first specified **neither could fail** — P7's direct-DML half
+passes even if the arm leaked PHI, because the tables grant `authenticated` nothing), **the keystone
+inverted deliberately** with its anti-vacuity PRE kept, **A2.4's mitigation narrowed** so the server
+returns no identifier value, **A2.6's records shipped in the same delivery** (and the ADR's own list
+**over-scoped** — most single-door language is about *reads* and survives untouched), and the
+**`<CaseDetailView` mount-site count re-measured at 2**, both property sets agreeing.
+
+  ⛔ **Binding on whoever starts it:** P6 and P7 are **rewritten as differentials** — as first specified
+  neither could fail (P7's direct-DML half passes even if S8 leaked PHI, because the table grants
+  `authenticated` nothing) · keystone `189_bulk_create_cases.sql` **:162-168** must be **inverted deliberately**
+  (⛔ **line ref corrected 2026-08-22 by re-measurement** — the long-cited `:153` is the fixture INSERT, not
+  the assertion; its anti-vacuity PRE at **:160-161** must be KEPT, and `plan(31)` at `:27` re-counted)
+  · A2.4 risk 2's mitigation ships in the same change · A2.6's record updates incl. **CLAUDE.md Rule 12**
+  ship in the **same commit** · re-check the `<CaseDetailView` **mount-site count** before reusing the
+  Increment-1 no-op argument. Plan: [case-surface-split.md](../plans/case-surface-split.md) §4.

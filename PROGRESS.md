@@ -45,14 +45,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   list, **locally**; NOT remote push, NOT PHI read, NOT write outside the creation path.
   Build bill: the S8 `_case_caps` read arm + `read_cases` capability · the `member_can('create_cases')`
   arm on `bulk_create_cases` · A2.2's **split writer** (`app._set_participant_patient_unchecked`).
-  ⛔ **Binding on whoever starts it:** P6 and P7 are **rewritten as differentials** — as first specified
-  neither could fail (P7's direct-DML half passes even if S8 leaked PHI, because the table grants
-  `authenticated` nothing) · keystone `189_bulk_create_cases.sql` **:162-168** must be **inverted deliberately**
-  (⛔ **line ref corrected 2026-08-22 by re-measurement** — the long-cited `:153` is the fixture INSERT, not
-  the assertion; its anti-vacuity PRE at **:160-161** must be KEPT, and `plan(31)` at `:27` re-counted)
-  · A2.4 risk 2's mitigation ships in the same change · A2.6's record updates incl. **CLAUDE.md Rule 12**
-  ship in the **same commit** · re-check the `<CaseDetailView` **mount-site count** before reusing the
-  Increment-1 no-op argument. Plan: [case-surface-split.md](docs/plans/case-surface-split.md) §4.
+  ⛔ **The pre-build "binding on whoever starts it" clause is ALL DISCHARGED**, rotated 2026-08-22 → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md) — incl. P6/P7 rebuilt as differentials (as first specified **neither could fail**), the keystone inverted with its PRE kept, and the `<CaseDetailView` mount count re-measured at **2**. Plan: [case-surface-split.md](docs/plans/case-surface-split.md) §4.
   - **✅ Pre-work measured 2026-08-22 and it moved FIVE of ADR 0134's baseline rows** (M13 · M10 · M11 ·
     M2 · M4), each corrected **in the ADR** with the correction marked, plus **Amendment 5** (D1's
     "default-checked" is a **grant**). Rotated verbatim → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md).
