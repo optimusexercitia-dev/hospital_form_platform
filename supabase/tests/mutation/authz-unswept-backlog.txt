@@ -148,6 +148,29 @@ app._audit_access_authorized(p_action text, p_entity_id uuid, p_commission uuid)
 app.confidentiality_clearance_ok(p_case_id uuid, p_label text, p_uid uuid)
 app.event_current_custodian(p_event_id uuid, p_user_id uuid)
 app.member_can(p_commission_id uuid, p_capability text)
+# `member_can_for` joins its twin here on 2026-08-22 (ADR 0134 Amdt 6 / M2). ⛔ NOT because
+# nobody asked — this one WAS asked, just not by an arm, and the distinction is the point.
+#   * WHY THE ARM CANNOT ANSWER: `p0-authz-door-audit.sh:231` bounds the predicate arm by
+#     `proname ~ '^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)'`.
+#     `member_can*` matches none of them, so a diff-scoped run with
+#     CASES="member_can_for member_can" executes **ZERO cases** and prints `BLIND: 0` — a
+#     detector that found nothing because it looked at nothing. `ARM=census` therefore
+#     flags this gate and the remediation the census PRINTS cannot clear it. Recorded so
+#     the next person does not spend the run discovering that again.
+#   * WHAT WAS ASKED INSTEAD (sweep by the PROPERTY, per ADR 0079's own precedent that a
+#     gate the arm cannot score "owes a targeted mutation case"): each term of the body was
+#     neutralized ALONE against the full suite, under a harness that proves its own rollback
+#     (a no-op probe is rejected; every probe moved `md5(pg_get_functiondef)` and every
+#     restore returned it). Results, `supabase/tests/356_case_caps_s8_administrativo_read.sql`:
+#       feature_enabled('administrativo') removed -> 4 RED (1.1, 2.1, 2.2, 5.1)
+#       is_member_of_for(...)             removed -> 1 RED (1.3, the ORPHAN)
+#       is_active(p_user_id)              removed -> 0 RED — ⚠ and that is a FINDING, not a
+#         gap: the term is REDUNDANT, because `is_member_of_for` already contains it. The
+#         widely-quoted "four conjuncts" of this predicate are THREE independent terms.
+#     ⇒ the gate is behaviourally COVERED. It stays HERE and not in a findings md because
+#     no arm earned that verdict, and this file's own rule is that a verdict nobody earned
+#     is worse than an admitted gap.
+app.member_can_for(p_commission_id uuid, p_capability text, p_user_id uuid)
 public.capa_viewer_can_manage(p_capa_id uuid)
 public.interview_viewer_can_write(p_interview_id uuid)
 public.rca_writer_can_write(p_rca_id uuid)
