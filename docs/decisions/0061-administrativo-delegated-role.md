@@ -166,13 +166,39 @@ during the build and are corrected underneath it — read both.**
    `42501`. The route may re-gate **only after** the door admits it, which is Increment 2 work and is
    **not yet landed**.
 
-### Still PENDING in this build record (do not read the above as completion)
+### ⛔ The PHI note is now HALF TRUE — corrected 2026-08-22, in the commit that made it so
 
-The S8 `_case_caps` arm itself · the `member_can('create_cases')` widening of `bulk_create_cases` and
-the deliberate inversion of the keystone that pins today's refusal · the `multiplos` re-gate and its
-board link · the creation-scoped PHI write (ADR 0134 Amendment 2, option D — the platform's first PHI
-write path not held by a coordinator) · and **this ADR's own PHI note**, whose claim that `create_cases`
-lets an administrativo *"enter and read patient context"* is **measurably false today in both halves**
-and becomes half-true only when option D lands. ⛔ That correction ships in the **same commit** as the
-door, never before it — a record that out-runs its door is the same defect as a route that does.
+This ADR's PHI note says `create_cases` lets an administrativo *"enter and read patient context"*.
+Measured at build time it was **false in both halves**. As of ADR 0134 Amendment 2 (option D,
+PO-ruled):
+
+- **"enter" is TRUE, and bounded** — a `create_cases` holder may type patient identifiers **only
+  while creating a case**, single or bulk. Not afterwards, not on a case someone else created, not
+  on their own case one call later. That last one is not a claim: it is the increment's keystone,
+  which refuses the same person on the same case immediately after they created it.
+- **"read" is FALSE and stays false forever** — including for the identifiers they typed
+  themselves. `app.can_read_case_patient` keys on `read_standard_phi`, which the S8 arm does not
+  set and which no capability confers.
+
+⚠ The manager UI states exactly this; the copy that previously claimed *"inserir e visualizar"*
+was corrected in the same increment, because a platform that describes itself falsely about PHI is
+a Rule 12 problem regardless of what the doors do.
+
+### Everything in this record has now LANDED locally — and that is not completion
+
+✅ The S8 `_case_caps` arm with its `not v_eg` bound · ✅ the bulk widening — ⛔ **NOT** the one-key arm
+this record originally described: `bulk_create_cases` proved to be a **composition**, so it now requires
+**`create_cases` AND `assign_case_phases`** (ADR 0134 **Amendment 7**, PO-ruled), with `all_phases`
+refused **at the gate** because `assign_narrative` has no capability arm at all · ✅ the keystone that
+pinned the old refusal, inverted deliberately with its intent restated · ✅ the `multiplos` re-gate and
+its board link, one predicate across both sites · ✅ the creation-scoped PHI write · ✅ this ADR's PHI
+note, corrected above **in the same delivery as the door that made half of it true**.
+
+⛔ **NOT merged, NOT pushed.** Everything above is local to `feat/case-surface-split-2` and subject to
+QA and a PO merge call. A build record is a record of what was built, not of what shipped.
+
+⚠ **Two things that stay open and must not be read away by the ticks above:** the appointee delegated
+bulk creation now needs a **second, standing** capability (`assign_case_phases` grants phase authority
+on every case they can reach, not only ones they create) — that is the trade Amendment 7 makes, stated
+in the ADR; and the `all_phases` scope remains **closed** to administrativos entirely.
 

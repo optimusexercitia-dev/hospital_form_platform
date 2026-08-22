@@ -547,8 +547,18 @@ may extend the schema but never contradict it. Cross-references elsewhere to
       DEFINER-door serving) so list/hub/dashboard projections stay PHI-free; audited
       `referral_patient.read` + `referral.viewed`; no column encryption (ADR 0035). This
       reverses the former "PHI only in the NSP module" stance — PHI now lives in the NSP,
-      referral, **and case** modules, all under the same isolation + single-door + audit
-      posture.
+      referral, **and case** modules, all under the same isolation + audit posture.
+      ⛔ **"single door" is no longer accurate for the CASE module** (ADR 0134 Amendment 2,
+      PO-ruled 2026-08-22): case PHI has **one writer body with TWO gates** —
+      `app._set_participant_patient_unchecked` holds the whole body and **no authority
+      check**, `public.set_participant_patient` keeps the coordinator gate in front of it,
+      and the three **creation** RPCs call it directly, having already gated on "may you
+      create cases here". Creation-scope is therefore **structural, not predicate-based**:
+      no other caller exists, and that closure is pinned in the catalog rather than
+      asserted in a comment. ⚠ The helper is `SECURITY INVOKER` **deliberately** — measured,
+      an INVOKER call by a non-owner is refused while a DEFINER one succeeds, so INVOKER is
+      the second lock and must not be "fixed" to satisfy a `prosecdef` assertion. The NSP
+      and referral modules are unchanged and remain single-door.
     - **Third PHI module — case patient identifiers** (Cases module; ADR 0038,
       re-keyed by F1/ADR 0064+0066, gated by ADR 0078). A case may carry an OPTIONAL
       minimum-necessary identifier set. It lives in **`patient_identifiers`** (the
