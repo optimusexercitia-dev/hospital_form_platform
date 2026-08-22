@@ -23,6 +23,10 @@ import { Button } from "@/components/ui/button";
  *
  * Minimum-necessary (Rule 12): on a PHI-bearing commission `create_cases` lets the
  * member enter and read patient context — `showPhiNotice` surfaces that plainly.
+ *
+ * This menu is one of the hand-maintained copies of the capability vocabulary
+ * enumerated in `MemberCapability`'s doc comment — keep it in sync with that union.
+ * A `hint` renders under its checkbox and is wired to it via `aria-describedby`.
  */
 
 const CAPABILITIES: { key: MemberCapability; label: string; hint?: string }[] = [
@@ -33,6 +37,16 @@ const CAPABILITIES: { key: MemberCapability; label: string; hint?: string }[] = 
   },
   { key: "assign_case_phases", label: "Ativar e atribuir fases dos casos" },
   { key: "view_signoffs", label: "Ver a fila de assinaturas pendentes" },
+  {
+    // ADR 0134 D6 + Amendment 4: read only, and bounded by the case's visibility
+    // policy — an `explicit_grants_only` case is NOT reached by this capability.
+    key: "read_cases",
+    label: "Visualizar todos os casos da comissão",
+    hint:
+      "Somente leitura: não permite criar, editar ou encerrar casos, nem dá acesso " +
+      "a dados de paciente. Casos com visibilidade “Somente quem receber acesso” " +
+      "ficam de fora — neles, o acesso continua dependendo de uma liberação individual.",
+  },
 ];
 
 export function MemberAdministrativoControls({
@@ -158,6 +172,7 @@ export function MemberAdministrativoControls({
           {CAPABILITIES.map((c) => {
             const checked = caps.has(c.key);
             const inputId = `cap-${userId}-${c.key}`;
+            const hintId = `cap-${userId}-${c.key}-hint`;
             return (
               <div key={c.key} className="flex flex-col gap-1">
                 <label
@@ -169,11 +184,20 @@ export function MemberAdministrativoControls({
                     type="checkbox"
                     checked={checked}
                     disabled={isPending}
+                    aria-describedby={c.hint ? hintId : undefined}
                     onChange={(e) => toggleCapability(c.key, e.target.checked)}
                     className="size-4 rounded border-input text-primary focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
                   />
                   <span>{c.label}</span>
                 </label>
+                {c.hint && (
+                  <p
+                    id={hintId}
+                    className="ml-6.5 max-w-prose text-xs text-muted-foreground text-pretty"
+                  >
+                    {c.hint}
+                  </p>
+                )}
                 {c.key === "create_cases" && showPhiNotice && (
                   <p className="ml-6.5 max-w-prose text-xs text-warning text-pretty">
                     Nesta comissão os casos podem registrar contexto de paciente:
