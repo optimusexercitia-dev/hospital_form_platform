@@ -28,48 +28,26 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   (the bound, P9/P9-twin/P10/P11, and the door-set enumeration now **pinned** in `356` §13, not merely
   recorded). Bullet rotated verbatim → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md).
   ⚠ `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY` stays **OPEN** until this branch merges.
-- **🚧 CASE SURFACE SPLIT · INCREMENT 2 — IN PROGRESS since 2026-08-22 on `feat/case-surface-split-2`;
-  it is the PHI-touching half.** ⭐ **Build-start scope, written down** (an approval's scope is a fact
-  that must be recorded): the PO said *"continue implementation of case-surface-split"* on 2026-08-22,
-  which is the build-start go that ADR 0134 Amdt 2 §A2.7 and Amdt 4 §A4.4 each explicitly withheld.
-  It authorizes the Increment-2 bill below **locally**. It does **NOT** authorize a remote `db push`,
-  a merge to `main`, PHI **read** for administrativo, PHI write outside the creation path, any change
-  to `dispose_case_phi` / the xref gates / S5 / S7 / S3 / `is_oversight_only_reader`, or a decision
-  about the doors the Amdt 4 §A4.3-item-6 enumeration turns up — those are read as findings first.
-  ⚠ The branch's first commit (`aa16057a`) is **Increment-1 residue**, not Increment-2 work: the
-  `canInCommission` mirror narrowing + the two follow-up closures, carried here because `main` is the
-  default branch. Both follow-ups stay OPEN until this branch merges.
-  Three PO rulings already stand: **OPEN-1 no backfill** · **OPEN-2 bulk under the same `create_cases`
-  key** (ADR 0134 Amdt 1 §A1.2) · **OPEN-4 = option D, creation-scoped PHI write** (Amdt 2, ACCEPTED
-  — the platform's **first PHI write path not held by a coordinator**). Scope of that yes is A2.7's
-  list, **locally**; NOT remote push, NOT PHI read, NOT write outside the creation path.
-  Build bill: the S8 `_case_caps` read arm + `read_cases` capability · the `member_can('create_cases')`
-  arm on `bulk_create_cases` · A2.2's **split writer** (`app._set_participant_patient_unchecked`).
-  ⛔ **The pre-build "binding on whoever starts it" clause is ALL DISCHARGED**, rotated 2026-08-22 → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md) — incl. P6/P7 rebuilt as differentials (as first specified **neither could fail**), the keystone inverted with its PRE kept, and the `<CaseDetailView` mount count re-measured at **2**. Plan: [case-surface-split.md](docs/plans/case-surface-split.md) §4.
-  - **✅ Pre-work measured 2026-08-22 and it moved FIVE of ADR 0134's baseline rows** (M13 · M10 · M11 ·
-    M2 · M4), each corrected **in the ADR** with the correction marked, plus **Amendment 5** (D1's
-    "default-checked" is a **grant**). Rotated verbatim → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md).
-    ⭐ The reusable half: **every one of the five was found by re-deriving a row the ADR told readers never
-    to quote.**
-  - **✅ All three unanticipated findings DISCHARGED** (the false PHI copy fixed in the door's own
-    delivery · the A2.2 compat-door gap resolved, which then exposed Amendment 7 · the
-    `is_oversight_only_reader` set enumerated **and pinned** in `356` §13 — 4 routines direct, **11
-    policies + 3 routines transitively**, changed nothing). Rotated → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md).
-  - **✅ RULED 2026-08-22 — ADR 0134 Amendment 7 (PO): bulk needs TWO existing keys.** A1.2's prescribed
-    arm was built and measured **insufficient** — `bulk_create_cases` is a **composition**: it calls
-    `activate_phase` (needs `assign_case_phases`) on every scope and `assign_narrative` (**coordinator-only,
-    no capability arm exists**) on `all_phases`, so the widened gate passed and the batch died **inside the
-    loop** (`linha 1:`). Ruled: `create_cases` **∧** `assign_case_phases`; `all_phases` stays coordinator-only
-    and ⛔ **must be refused AT THE GATE**, not after 200 rows and a rollback. PO was told this is a **third
-    shape** (A1.2 declined a *sixth key*; two existing keys is neither) and that key 2 is a **standing** grant.
-    ⭐ Lesson, not bulk-specific: *a ruling phrased "add an arm to door X" is unsafe when X is a composition* —
-    A1.2 was written from the door's **name**, not its **call graph**, and survived ratification and a plan.
-  - **⛔ RULED 2026-08-22 — ADR 0134 Amendment 6 (lead, PO may overrule): D6 named a chokepoint that
-    cannot answer S8's question** — `app.member_can` takes **no uid** while `app._case_caps` is a
-    `(case, uid)` resolver. ✅ **LANDED**: `member_can_for` is the single implementation, `member_can`
-    delegates. Bullet rotated verbatim → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md),
-    with its two later corrections (the predicate has **three** independent terms, not four; the inlining
-    mechanism was inferred and stated as measured).
+- **✅ CASE SURFACE SPLIT · INCREMENT 2 — BUILT + §6 steps 1–3 DONE 2026-08-22 on
+  `feat/case-surface-split-2`. ⛔ NOT MERGED, NOT PUSHED — awaiting the PO's step-4 merge call.**
+  QA **APPROVED r2** ([review](docs/reviews/case-surface-split-increment-2-review.md); r1 was CHANGES
+  REQUESTED, 5 blocking — incl. **a PHI write this increment handed `platform_admin`**, now closed).
+  Shipped: S8 commission-wide read bounded by `not v_eg` · `read_cases` granted on appointment ·
+  `member_can_for` as the single predicate · creation-scoped PHI write · two-key bulk gate. Detail +
+  the rotated build bullet → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md).
+  ⛔ **The build-start go does NOT cover merge or push** — that is a separate PO call.
+  **Gate figures, with the caveats that belong to them:** `test:db` **208 files / 6941 tests exit 0** ·
+  lint 8/8 · `tsc` · vitest **1555** · 4 ARMs exit 0 — ⛔ **all four VACUOUS for this change** (no
+  changed object is in any arm's domain; real coverage is the hand-written twins). `e2e:prod`: run 1
+  **1090 passed / 0 failed / 75 did-not-run → RED(UNRUN)**, an **instrument** failure with **zero
+  assertion failures**; the 2 named batches re-ran **128/0/0, 129/129, GREEN**. ⚠ **A UNION of two runs,
+  not one clean sweep** — QA judged it acceptable *conditionally*, and the two ordering facts it demanded
+  are now measured: **no batch executed on a half-applied DB** (the only double reset failure produced a
+  DID-NOT-RUN, not a run) and the gate ran **after** `794bd971`, the commit carrying the B1 fix.
+  ⚠ **Five QA r2 conditions owed at the Record step** (C-1 the Test Run Summary row — these figures live
+  only here · C-2 record that the 12-commits-stale orphan spec actually ran · C-3 record V-1's
+  strip-and-compare, ideally promoted to a pgTAP catalog assertion · C-4 QA Verdict rows · C-5 carry
+  M-1…M-17).
 - **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
   user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
   person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
@@ -226,6 +204,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-22 | ⭐ **CASE SPLIT · Inc 2 — §6 steps 1–2 at `794bd971`** | `test:db` **208f/6941t** · lint 8/8 · `tsc` · vitest **1555** · 4 ARMs exit 0 ⛔ **all VACUOUS** · `e2e:prod` **1090p / 0 FAILED / 75 unrun → RED(UNRUN)**; the 2 named batches re-ran **129/129 GREEN**. ⚠ **UNION of 2 runs** — [caveats](docs/progress/case-surface-split-increment-2.md) |
 | 2026-08-21 | ⭐ **CASE SPLIT · Inc 1 — §6 steps 1+2 CLEAN at `e7ec7529`** | **GATE GREEN exit 0** — 1176 p / 0 f / 4 flaky / 11 skip / **did-not-run 0** / 1191; census sums. pgTAP **6795** F=206 · lint(8) **0** · `tsc` **0** · vitest **1506** · 4 ARMs **HOLD** — all re-measured on THIS tree. ⚠ 4 infra re-runs (was 2) → [archive](docs/progress/test-run-archive.md) |
 
 ## QA Verdicts
@@ -239,7 +218,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **Case split · Inc 2** (ADR 0134 D6 + Amdt 1–7) | ⛔ **CHANGES REQUESTED** (5 blocking) | 2026-08-22 | [review](docs/reviews/case-surface-split-increment-2-review.md) |
+| **Case split · Inc 2** (ADR 0134 D6 + Amdt 1–7) | ✅ **APPROVED (r2)** — 5 record conditions, none blocking merge; r1 CHANGES REQUESTED (5 blocking, incl. a PHI write handed to `platform_admin`) | 2026-08-22 | [review](docs/reviews/case-surface-split-increment-2-review.md) |
 | **Case surface split · Increment 1** (ADR 0134 D1–D5, D7) | ✅ **APPROVED** (r3) — 4 conditions, all for the Record edit (§8.9). No security defect in any round | 2026-08-21 | [case-surface-split-increment-1-review.md](docs/reviews/case-surface-split-increment-1-review.md) |
 | ~~Case surface split · Increment 1 (r2)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |
 | ~~Case surface split · Increment 1 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |
