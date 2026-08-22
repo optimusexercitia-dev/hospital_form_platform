@@ -2,7 +2,14 @@
 
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Layers, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Layers,
+  ShieldAlert,
+  Sparkles,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { commissionHref } from "@/lib/routing";
@@ -18,6 +25,7 @@ import {
   buildTargetColumns,
   makeEmptyRow,
   phiSelectionValid,
+  rowHasAnyPhi,
   serializeDraftCase,
   validateGrid,
   type BulkGridRow,
@@ -62,6 +70,7 @@ export function BulkCreateWizard({
   caseCustomFieldsEnabled,
   casesMultiPhaseEnabled,
   caseNarrativesEnabled,
+  canUseAllPhases,
 }: {
   org: string;
   slug: string;
@@ -72,6 +81,11 @@ export function BulkCreateWizard({
   caseCustomFieldsEnabled: boolean;
   casesMultiPhaseEnabled: boolean;
   caseNarrativesEnabled: boolean;
+  /**
+   * Whether the caller may choose the `all_phases` scope — coordinator-only, mirroring
+   * a refusal `bulk_create_cases` already makes at its gate (ADR 0134 Amendment 7).
+   */
+  canUseAllPhases: boolean;
 }) {
   const router = useRouter();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -156,6 +170,14 @@ export function BulkCreateWizard({
   // collects PHI and any identifier column is selected, Nome or Prontuário must be
   // among them (zero PHI columns is valid — no identifiers collected).
   const phiSelectionOk = !collectsPhi || phiSelectionValid(selectedPhiKeys);
+  /**
+   * How many rows actually carry identifiers — drives the A2.4 review note.
+   * `rowHasAnyPhi` is the grid model's own predicate; do not re-express the
+   * name-or-MRN floor here, or the note and the validator can disagree.
+   */
+  const rowsWithPatient = collectsPhi
+    ? rows.filter((row) => rowHasAnyPhi(row.patient)).length
+    : 0;
 
   const stepValid = [
     templateId !== "" && phiSelectionOk,
@@ -164,9 +186,18 @@ export function BulkCreateWizard({
     owners.length === rows.length && owners.every(Boolean),
   ];
 
-  const effectivePreviewScope: PhaseScope = casesMultiPhaseEnabled
-    ? phaseScope
-    : "first_only";
+  /**
+   * ⛔ ONE derivation, used by the rail preview, the "Distribuição" step AND the
+   * committed payload — they were three separate expressions, which is how a preview
+   * comes to describe something other than what is submitted.
+   *
+   * `canUseAllPhases` is enforced HERE, not only by hiding the option in step 1:
+   * hiding is a rendering decision, and a `phaseScope` already sitting in state would
+   * otherwise still be submitted. The door refuses it regardless (Rule 1) — this just
+   * means the wizard never asks for something guaranteed to be refused.
+   */
+  const effectiveScope: PhaseScope =
+    casesMultiPhaseEnabled && canUseAllPhases ? phaseScope : "first_only";
 
   const checklist: BulkChecklistItem[] = [
     { label: "Processo selecionado", done: templateId !== "" },
@@ -258,9 +289,6 @@ export function BulkCreateWizard({
 
   function commit() {
     setBanner(null);
-    const effectiveScope: PhaseScope = casesMultiPhaseEnabled
-      ? phaseScope
-      : "first_only";
     const payloadRows: BulkCaseRow[] = rows.map((row, i) => {
       const draft = serializeDraftCase(
         row,
@@ -345,6 +373,7 @@ export function BulkCreateWizard({
               caseCustomFieldsEnabled={caseCustomFieldsEnabled}
               casesMultiPhaseEnabled={casesMultiPhaseEnabled}
               caseNarrativesEnabled={caseNarrativesEnabled}
+              canUseAllPhases={canUseAllPhases}
             />
           ) : null}
 
@@ -396,10 +425,32 @@ export function BulkCreateWizard({
               onReshuffle={deal}
               onOverride={overrideOwner}
               deadline={deadline.trim() || null}
-              phaseScope={casesMultiPhaseEnabled ? phaseScope : "first_only"}
+              phaseScope={effectiveScope}
             />
           ) : null}
         </section>
+
+        {/* ADR 0134 §A2.4 — the bulk lane's typo mitigation. Deliberately a POINTER
+            back to the editable grid rather than an echo of the values: the identifiers
+            are still one step away and still correctable, and re-printing up to 200
+            patients' data onto a second screen would widen the PHI surface to buy
+            nothing. The creator can neither read them back after creation nor, if they
+            are an Administrativo, correct them — so the review has to happen here. */}
+        {step === DEAL_STEP && rowsWithPatient > 0 ? (
+          <p
+            role="note"
+            className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/12 px-3 py-2.5 text-sm text-warning text-pretty"
+          >
+            <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            <span>
+              {rowsWithPatient === 1
+                ? "1 caso leva identificadores de paciente. "
+                : `${rowsWithPatient} casos levam identificadores de paciente. `}
+              Confira-os na etapa “Casos” antes de criar: depois da criação, quem não
+              tem permissão para editar identificadores não consegue corrigi-los.
+            </span>
+          </p>
+        ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button asChild variant="ghost" size="lg">
@@ -446,7 +497,7 @@ export function BulkCreateWizard({
       </div>
 
       <div className="lg:sticky lg:top-6">
-        <BulkRail items={checklist} phaseScope={effectivePreviewScope} hasDeadline={deadline.trim() !== ""} />
+        <BulkRail items={checklist} phaseScope={effectiveScope} hasDeadline={deadline.trim() !== ""} />
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { GitBranchPlus, Layers, ShieldAlert } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -44,6 +45,7 @@ export function BulkStepProcess({
   caseCustomFieldsEnabled,
   casesMultiPhaseEnabled,
   caseNarrativesEnabled,
+  canUseAllPhases,
 }: {
   headingRef: React.RefObject<HTMLHeadingElement | null>;
   templates: BulkTemplateOption[];
@@ -62,8 +64,11 @@ export function BulkStepProcess({
   casePatientEnabled: boolean;
   caseCustomFieldsEnabled: boolean;
   casesMultiPhaseEnabled: boolean;
+  /** Whether the caller may choose the `all_phases` scope (coordinator-only). */
+  canUseAllPhases: boolean;
   caseNarrativesEnabled: boolean;
 }) {
+  const phaseScopeNoteId = useId();
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
   const customFields =
     caseCustomFieldsEnabled && selectedTemplate
@@ -217,34 +222,64 @@ export function BulkStepProcess({
         </Field>
       </div>
 
+      {/* ⛔ The "Todas as fases" option is COORDINATOR-ONLY, and this is a mirror of a
+          refusal that already exists — `bulk_create_cases` refuses `all_phases` from a
+          non-coordinator at the gate, before any row is minted, because its per-row
+          loop calls `assign_narrative`, gated on `is_staff_admin_of` alone. Rule 1: the
+          UI is not the boundary. Offering the option anyway would cost the user a
+          filled-in batch and return the GENERIC forbidden message, since 42501 is
+          mapped before the door's specific text reaches the UI.
+          With only one scope available the fieldset is a statement, not a choice, so
+          the whole block collapses to a single description rather than rendering a
+          radio group of one. */}
       {casesMultiPhaseEnabled ? (
-        <fieldset className="flex flex-col gap-3">
-          <legend className="text-sm font-medium">Fases atribuídas</legend>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <ScopeOption
-              icon={<Layers aria-hidden="true" className="size-4" />}
-              title="Apenas a primeira fase"
-              description={
-                caseNarrativesEnabled
-                  ? "Só a primeira fase é ativada e atribuída. As demais fases e narrativas ficam sem responsável."
-                  : "Só a primeira fase é ativada e atribuída. As demais fases ficam sem responsável."
-              }
-              selected={phaseScope === "first_only"}
-              onSelect={() => onPhaseScopeChange("first_only")}
-            />
-            <ScopeOption
-              icon={<GitBranchPlus aria-hidden="true" className="size-4" />}
-              title="Todas as fases"
-              description={
-                caseNarrativesEnabled
-                  ? "Todas as fases e narrativas são pré-atribuídas ao mesmo responsável do caso."
-                  : "Todas as fases são pré-atribuídas ao mesmo responsável do caso."
-              }
-              selected={phaseScope === "all_phases"}
-              onSelect={() => onPhaseScopeChange("all_phases")}
-            />
-          </div>
-        </fieldset>
+        canUseAllPhases ? (
+          <fieldset className="flex flex-col gap-3">
+            <legend className="text-sm font-medium">Fases atribuídas</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ScopeOption
+                icon={<Layers aria-hidden="true" className="size-4" />}
+                title="Apenas a primeira fase"
+                description={
+                  caseNarrativesEnabled
+                    ? "Só a primeira fase é ativada e atribuída. As demais fases e narrativas ficam sem responsável."
+                    : "Só a primeira fase é ativada e atribuída. As demais fases ficam sem responsável."
+                }
+                selected={phaseScope === "first_only"}
+                onSelect={() => onPhaseScopeChange("first_only")}
+              />
+              <ScopeOption
+                icon={<GitBranchPlus aria-hidden="true" className="size-4" />}
+                title="Todas as fases"
+                description={
+                  caseNarrativesEnabled
+                    ? "Todas as fases e narrativas são pré-atribuídas ao mesmo responsável do caso."
+                    : "Todas as fases são pré-atribuídas ao mesmo responsável do caso."
+                }
+                selected={phaseScope === "all_phases"}
+                onSelect={() => onPhaseScopeChange("all_phases")}
+              />
+            </div>
+          </fieldset>
+        ) : (
+          <section
+            aria-labelledby={phaseScopeNoteId}
+            className="flex flex-col gap-1.5 rounded-xl border border-border bg-muted/30 p-4"
+          >
+            <h3
+              id={phaseScopeNoteId}
+              className="flex items-center gap-2 text-sm font-medium"
+            >
+              <Layers aria-hidden="true" className="size-4 text-muted-foreground" />
+              Fases atribuídas: apenas a primeira
+            </h3>
+            <p className="max-w-prose text-xs text-muted-foreground text-pretty">
+              {caseNarrativesEnabled
+                ? "Só a primeira fase de cada caso é ativada e atribuída; as demais fases e narrativas ficam sem responsável. Pré-atribuir todas as fases é uma ação da coordenação da comissão."
+                : "Só a primeira fase de cada caso é ativada e atribuída; as demais ficam sem responsável. Pré-atribuir todas as fases é uma ação da coordenação da comissão."}
+            </p>
+          </section>
+        )
       ) : null}
     </div>
   );

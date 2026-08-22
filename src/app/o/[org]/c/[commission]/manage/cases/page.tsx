@@ -5,6 +5,7 @@ import { CheckCircle2, FolderOpen, Layers } from "lucide-react";
 import { commissionHref } from "@/lib/routing";
 import { plural } from "@/lib/text";
 import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
+import { canBulkCreateCases } from "@/components/cases/bulk-create-gate";
 import {
   listCasesBoard,
   canOpenCaseManagement,
@@ -260,13 +261,16 @@ export default async function CasesBoardPage({
   // ACT-hat arm. The one predicate it does NOT mirror is `app.is_active` — the shell
   // routes deactivated users to `/conta-inativa` before any commission route, so
   // that is covered elsewhere. Do not "improve" this by re-adding it here.
-  const isStaffAdmin = access.role === "staff_admin";
   const eligibleBulkCount = templates.filter(
     (entry) => entry.version.status === "published" && entry.version.phases.length > 0,
   ).length;
+  // ⛔ ONE PREDICATE, SHARED WITH THE `multiplos` ROUTE'S OWN GATE. Two hand-written
+  // copies of the same sentence is how one surface came to offer what the other 404s;
+  // `canBulkCreateCases` mirrors the door's TWO keys (ADR 0134 Amendment 7).
+  // `canCreateCases` is now implied by it (create_cases is one of the two keys) and is
+  // dropped from this conjunction rather than restated.
   const showBulk =
-    canCreateCases &&
-    isStaffAdmin &&
+    canBulkCreateCases(access) &&
     flags.cases_bulk_create === true &&
     eligibleBulkCount > 0;
   const multiplosHref = commissionHref(org, slug, "manage", "cases", "multiplos");

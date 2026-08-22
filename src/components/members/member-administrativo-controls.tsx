@@ -45,6 +45,14 @@ const CAPABILITIES: { key: MemberCapability; label: string; hint?: string }[] = 
     // The reach ("todos") is stated in the hint's FIRST clause, where the next
     // sentence bounds it — never in the label, which stands alone in the checklist
     // and is the text a coordinator decides on.
+    //
+    // ⚠ KNOWN, NOT AN OVERSIGHT: `explicit_grants_only` has TWO user-facing labels in
+    // this codebase. The quoted one is the general-cases label
+    // (`VISIBILITY_POLICY_LABELS` in `lib/cases/case-types.ts`), which is what a
+    // coordinator sees on a case; the ethics module carries its own wording
+    // ("Somente por concessão explícita", `components/ethics/ethics-labels.ts`). Do
+    // NOT "unify" this to the ethics wording — this is a cases screen, and it must
+    // name the policy with the words the case itself shows.
     hint:
       "Dá acesso de leitura a todos os casos da comissão, mesmo sem liberação " +
       "individual. Somente leitura: não permite criar, editar ou encerrar casos, " +
@@ -178,6 +186,15 @@ export function MemberAdministrativoControls({
             const checked = caps.has(c.key);
             const inputId = `cap-${userId}-${c.key}`;
             const hintId = `cap-${userId}-${c.key}-hint`;
+            const phiId = `cap-${userId}-${c.key}-phi`;
+            const showPhi = c.key === "create_cases" && showPhiNotice;
+            // Every note rendered under a checkbox is announced WITH it. The PHI
+            // notice used to be a bare sibling <p>, so a screen-reader user toggling
+            // `create_cases` never heard the warning it exists to give them.
+            const describedBy =
+              [c.hint ? hintId : null, showPhi ? phiId : null]
+                .filter(Boolean)
+                .join(" ") || undefined;
             return (
               <div key={c.key} className="flex flex-col gap-1">
                 <label
@@ -189,7 +206,7 @@ export function MemberAdministrativoControls({
                     type="checkbox"
                     checked={checked}
                     disabled={isPending}
-                    aria-describedby={c.hint ? hintId : undefined}
+                    aria-describedby={describedBy}
                     onChange={(e) => toggleCapability(c.key, e.target.checked)}
                     className="size-4 rounded border-input text-primary focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
                   />
@@ -203,11 +220,16 @@ export function MemberAdministrativoControls({
                     {c.hint}
                   </p>
                 )}
-                {c.key === "create_cases" && showPhiNotice && (
-                  <p className="ml-6.5 max-w-prose text-xs text-warning text-pretty">
-                    Nesta comissão os casos podem registrar contexto de paciente:
-                    conceder esta permissão deixa a pessoa inserir e visualizar
-                    dados de paciente (uso mínimo necessário — LGPD).
+                {showPhi && (
+                  <p
+                    id={phiId}
+                    className="ml-6.5 max-w-prose text-xs text-warning text-pretty"
+                  >
+                    Nesta comissão os casos podem registrar identificadores de
+                    paciente. Esta permissão deixa a pessoa digitá-los apenas no
+                    momento de criar um caso — individual ou em lote. Ela não pode
+                    consultar, editar nem excluir identificadores depois, nem os que
+                    ela mesma digitou (uso mínimo necessário — LGPD).
                   </p>
                 )}
               </div>

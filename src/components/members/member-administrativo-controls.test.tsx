@@ -38,6 +38,8 @@
  *      to match /todos/i` — which is why that test queries by id. See its comment: the
  *      first draft queried by name there, and the `todos` assertion could not have
  *      failed on its own, because the label text IS the accessible name.
+ *  · the OLD PHI notice copy restored ("inserir e visualizar dados de paciente")
+ *      → "says the capability WRITES at creation and never that it can read" REDs.
  *
  * Text is read through `renderedText` rather than `textContent`: the latter fuses
  * sibling text with no separator, so an assertion can silently miss anything sitting
@@ -187,5 +189,50 @@ describe("the read_cases capability entry (ADR 0134 D6)", () => {
     expect(
       screen.getByRole("checkbox", { name: READ_CASES_LABEL }),
     ).toBeChecked();
+  });
+});
+
+describe("the create_cases PHI notice (ADR 0134 Amendment 2 option D)", () => {
+  /**
+   * ⛔ ASSERTED ON RENDERED OUTPUT, NEVER ON SOURCE. Grepping the component cannot
+   * separate live copy from prose ABOUT it — the comment explaining this very fix
+   * contains the words being forbidden, and a source sweep counts it as a hit
+   * (measured in this repo: 0 true, 4 false positives in one day). Only the DOM the
+   * coordinator actually reads can answer the question.
+   *
+   * `renderedText` rather than `textContent`: the latter fuses sibling text with no
+   * separator, so a word sitting at an element edge is silently missed.
+   */
+  it("says the capability WRITES at creation and never that it can read", () => {
+    const { container } = renderControls({ showPhiNotice: true });
+    const notice = document.getElementById("cap-u1-create_cases-phi");
+    expect(notice).not.toBeNull();
+    const text = renderedText(notice!);
+
+    // The write is creation-scoped, and both creation paths are named.
+    expect(text).toMatch(/criar um caso/i);
+    expect(text).toMatch(/em lote/i);
+
+    // ⛔ THE CLAIM THAT MUST NEVER COME BACK. An administrativo holds no PHI read
+    // entitlement under any part of this increment — not even for rows they typed
+    // themselves. Asserted across the WHOLE rendered surface, not just this notice,
+    // so the claim cannot reappear one element over.
+    expect(renderedText(container)).not.toMatch(/inserir e visualizar/i);
+    // The notice must also state the read refusal positively.
+    expect(text).toMatch(/não pode consultar/i);
+  });
+
+  it("announces the PHI notice with the checkbox it warns about", () => {
+    // It used to be a bare sibling <p> with no id: a screen-reader user toggling
+    // `create_cases` never heard the warning.
+    renderControls({ showPhiNotice: true });
+    const box = document.getElementById("cap-u1-create_cases")!;
+    const describedBy = box.getAttribute("aria-describedby") ?? "";
+    expect(describedBy.split(/\s+/)).toContain("cap-u1-create_cases-phi");
+  });
+
+  it("renders no PHI notice on a commission that collects none", () => {
+    renderControls({ showPhiNotice: false });
+    expect(document.getElementById("cap-u1-create_cases-phi")).toBeNull();
   });
 });
