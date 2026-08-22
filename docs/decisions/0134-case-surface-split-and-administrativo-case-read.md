@@ -821,9 +821,21 @@ capability vocabulary. A drift *detector* is worth less than removing the possib
 
 ⛔ **The cost argument against delegating was checked and did not survive.** It was that `member_can`
 is `LANGUAGE sql STABLE` and therefore inlinable into the three `meetings_staff_admin_*` policies, so
-a nesting level would cost the init-plan hoist. Measured: `member_can` is **`SECURITY DEFINER`**, which
-Postgres refuses to inline — there was no hoist to lose. The three consumers are also **write-path**
-policies (INSERT/UPDATE/DELETE on `meetings`), not a hot SELECT scan.
+a nesting level would cost the init-plan hoist. **Measured with a four-arm probe** (`EXPLAIN (VERBOSE,
+COSTS OFF)`, inlining visible as the body decomposed into the plan vs an opaque `Filter: fn(...)`):
+plain → **INLINED**; `SET search_path` only → not inlined; `SECURITY DEFINER` only → not inlined; both
+(= `member_can`'s shape) → **not inlined**. The plain arm is the positive control and it flips, so
+"not inlined" is a finding rather than a blind detector. ⇒ **there was no hoist to lose.** The three
+consumers are also **write-path** policies (INSERT/UPDATE/DELETE on `meetings`), not a hot SELECT scan.
+
+⚠ **Mechanism corrected, in the direction of less certainty:** the lead's stated reason was
+"`SECURITY DEFINER`, which Postgres never inlines". That is *a* sufficient blocker — but the probe shows
+`SET search_path` **alone** blocks inlining too, and `member_can` carries **both**. So `prosecdef` is not
+demonstrably *the* operative cause here. The conclusion is measured; the single-cause explanation was
+inferred, and an inferred mechanism reported as a measured one is the error this ADR keeps catching.
+⭐ The first probe run was invalid in exactly that way — it carried `SET search_path` on *both* arms, so
+neither flipped and the whole effect would have been attributed to `prosecdef`. **Two probes sharing a
+blind spot agreeing is worth nothing.**
 
 ### A6.4 — Binding conditions (the migration may not be written without these)
 
