@@ -163,8 +163,10 @@ during the build and are corrected underneath it — read both.**
    deliberately did the **narrowing half only** (it dropped the `context.isAdmin` bypass and left the
    role gate), because `public.bulk_create_cases` was measured to admit **only** `is_staff_admin_of` —
    re-gating the route on a capability the door refuses builds a reachable door that always answers
-   `42501`. The route may re-gate **only after** the door admits it, which is Increment 2 work and is
-   **not yet landed**.
+   `42501`. The route may re-gate **only after** the door admits it. ✅ **That ordering was honoured and both
+   halves have now landed** (see below) — the door first, the route after. *⚠ This clause read "not
+   yet landed" while the section below already ticked the re-gate: a self-contradiction inside one
+   record, corrected 2026-08-22 at the Record step (QA M-10).*
 
 ### ⛔ The PHI note is now HALF TRUE — corrected 2026-08-22, in the commit that made it so
 

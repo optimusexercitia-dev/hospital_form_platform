@@ -16,7 +16,9 @@
 -- READ PATH wearing a different name. §7 pins that structurally.
 --
 -- ⚠ SCOPE OF THIS FILE: the SINGLE-CASE path. The bulk path's own pins live in
--- `189_bulk_create_cases.sql` §2b/§8b and are currently RED pending a PO ruling — bulk
+-- `189_bulk_create_cases.sql` §2b/§8b and were RED pending a PO ruling — ✅ RULED 2026-08-22 (ADR 0134 Amendment 7: bulk needs
+--     `create_cases` ∧ `assign_case_phases`, `all_phases` refused at the gate) and BUILT; the
+--     pins live in `189` §2b/§8b. This header said "currently RED" after they were green — bulk
 -- composes `activate_phase` (needs `assign_case_phases`) and, on `all_phases`,
 -- `assign_narrative` (coordinator-only, no capability arm), so widening bulk's own gate
 -- was necessary and NOT sufficient. Nothing in this file depends on that ruling.

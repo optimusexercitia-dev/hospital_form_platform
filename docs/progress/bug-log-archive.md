@@ -2974,3 +2974,7 @@ across all of `e2e/`** — reading, not running, since running reveals at most o
 ⚠ This bug does not close until that sweep reports its size **and how it was bounded**: the
 hand-list of 2 was already wrong once.
 Tester-owned, **not yet executed**; ordered before AFF2 pins its e2e baseline.
+
+## ↩ Rotated from PROGRESS.md 2026-08-22 — ADR 0134 Increment 2
+
+- 🟠 **BUG-ADM-APPOINT-CAPS-NOT-SYNCED** — appoint syncs `appointed` but not `caps`, so Amdt 5's auto-granted `read_cases` renders **UNCHECKED** until reload. DB correct — UI state-sync only, not an authz defect. ⛔ Do NOT fix by pre-checking client-side. Pinned red-on-purpose by B5, whose 2nd assertion has **never run**. [Detail](case-surface-split-increment-2.md) — frontend ✅ **FIXED 2026-08-22** (`a514d169`): `caps` was seeded from a prop with `useState`, so it ignored every later prop value — the grant landed, the props carrying it arrived, and the component discarded them. Now reconciled from the server, keyed on prop **content** not identity. ⚠ B5's second assertion (*unchecking empties the board*) had **never executed** before the fix and passed for the first time after it — not a return to green. MERGED `be546bbf`.
