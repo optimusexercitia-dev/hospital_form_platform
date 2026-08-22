@@ -660,9 +660,10 @@ async function getCommissionAccessByOrgUncached(
  * gates every delegated affordance through — mirrors the DB gate
  * `is_staff_admin_of OR member_can`.
  *
- * ⛔ ADR 0100 D12 (BUG-QOB-003): all four `MemberCapability` values
- * (`schedule_meetings` / `create_cases` / `assign_case_phases` / `view_signoffs`)
- * are committee CONTENT capabilities, so a bare tenancy admin holds NONE of them.
+ * ⛔ ADR 0100 D12 (BUG-QOB-003): all five `MemberCapability` values
+ * (`schedule_meetings` / `create_cases` / `assign_case_phases` / `view_signoffs` /
+ * `read_cases` — the fifth added by ADR 0134 D6) are committee CONTENT
+ * capabilities, so a bare tenancy admin holds NONE of them.
  * That falls out of `role` now being membership-only — do NOT add an
  * `isTenancyAdmin` arm here. Configuration affordances (the Q1–Q9 KEEP set) are
  * a different seam: {@link canConfigureCommission}.
@@ -674,10 +675,19 @@ async function getCommissionAccessByOrgUncached(
  * capability rows when a membership is deleted (no FK, no cascade trigger), and
  * `commission_administrativo_capabilities_select`'s `user_id = auth.uid()` arm is
  * hat-BLIND, so `access.capabilities` stays populated for such an ORPHAN. The DB
- * refuses them — every gate consuming these four capabilities is
- * `is_staff_admin_of OR member_can(...)` and BOTH arms require a membership
- * (enumerated from the catalog: 9 functions + the 3 `meetings_staff_admin_*`
- * policies) — so the un-narrowed mirror was strictly WIDER than the door.
+ * refuses them — so the un-narrowed mirror was strictly WIDER than the door.
+ *
+ * ⭐ WHY THAT SURVIVES A NEW CAPABILITY, stated as a PROPERTY rather than as a
+ * census (a census goes stale the next time the vocabulary grows — and it did):
+ * the membership conjunct is inside `app.member_can` ITSELF (`app.is_member_of`),
+ * not in the shape of whatever gate encloses it. So it holds whether the consumer
+ * is written `is_staff_admin_of OR member_can(...)` — as all of today's are — or
+ * `member_can(...)` alone. Measured 2026-08-22 by property (comment-stripped
+ * `prosrc` over every non-system routine, plus `pg_policy`): the four content
+ * capabilities are consumed by 9 functions + the 3 `meetings_staff_admin_*`
+ * policies, all of the first shape; `read_cases` has no consumer yet — its
+ * consumer is the ADR 0134 S8 arm inside `app._case_caps` (M2), which is
+ * `member_can(...)` alone and inherits the conjunct exactly the same way.
  *
  * ⚠ That width was REACHABLE, not theoretical. A plain orphan is stopped a step
  * earlier (`commissions_select_member_or_admin` denies them the commission row,

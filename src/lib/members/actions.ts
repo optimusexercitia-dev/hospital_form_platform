@@ -52,12 +52,21 @@ const MESSAGES = {
   invalidCapability: 'Permissão inválida.',
 } as const
 
-/** The finite Administrativo capability menu (ADR 0061) — mirrors the DB CHECK. */
+/**
+ * The finite Administrativo capability menu (ADR 0061; fifth entry ADR 0134 D6) —
+ * mirrors the DB CHECK on `commission_administrativo_capabilities.capability`.
+ *
+ * ⚠ This list gates BOTH `grantMemberCapability` and `revokeMemberCapability`, and
+ * on the revoke side it is the ONLY vocabulary check anywhere: measured from
+ * `pg_get_functiondef`, `public.revoke_member_capability` has no whitelist — it
+ * deletes by equality, so an unknown literal is a silent no-op at the door.
+ */
 const CAPABILITIES: readonly MemberCapability[] = [
   'schedule_meetings',
   'create_cases',
   'assign_case_phases',
   'view_signoffs',
+  'read_cases',
 ]
 
 /**

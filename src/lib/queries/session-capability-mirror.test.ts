@@ -32,11 +32,29 @@ import type { MemberCapability } from './members'
  * this file pins the predicate).
  */
 
+/**
+ * ⛔ EVERY `MemberCapability` VALUE MUST APPEAR HERE. A value missing from this
+ * list is silently untested — `lint:vacuous` cannot see an assertion that was
+ * never written, and `gen:types` is blind to this vocabulary (the DB column is
+ * `text` + CHECK, so `database.ts` types it `string`). This list is the fourth of
+ * four TypeScript hand-lists of the vocabulary; see `MemberCapability`'s docblock.
+ *
+ * ⚠ WHAT THE `read_cases` ROWS DO AND DO NOT CLAIM (ADR 0134 D6). The rows below
+ * are about the PREDICATE `canInCommission`, which is vocabulary-agnostic, so they
+ * hold for `read_cases` exactly as for the other four. They are NOT a claim that
+ * `read_cases` is gated through this seam: unlike the other four, its DB consumer
+ * is the S8 arm inside `app._case_caps` — case REACH is resolved in the database
+ * and arrives through `can_read_case` / `list_cases_board`, never through a UI
+ * capability check. The row that carries real weight for `read_cases` is the
+ * ORPHAN one: `app.member_can` requires `app.is_member_of` for EVERY capability,
+ * so a membership-less appointee must be refused here too.
+ */
 const ALL: MemberCapability[] = [
   'schedule_meetings',
   'create_cases',
   'assign_case_phases',
   'view_signoffs',
+  'read_cases',
 ]
 
 const access = (

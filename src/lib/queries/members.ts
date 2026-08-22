@@ -262,15 +262,31 @@ export async function listLinkableOrgUsers(
 }
 
 /**
- * Administrativo delegation (ADR 0061). The finite capability menu; the string
- * union mirrors the DB CHECK on `commission_administrativo_capabilities.capability`.
- * Keep in sync with the migration's CHECK list.
+ * Administrativo delegation (ADR 0061, fifth entry ADR 0134 D6). The finite
+ * capability menu; the string union mirrors the DB CHECK on
+ * `commission_administrativo_capabilities.capability`.
+ *
+ * ⛔ THIS UNION IS A HAND-LIST AND `gen:types` CANNOT CATCH IT. `capability` is a
+ * `text` column with a CHECK, so `database.ts` types it `string`; regenerating
+ * types after a vocabulary migration produces a byte-identical file for this
+ * table. There are FOUR hand-lists of this vocabulary in TypeScript (this union,
+ * `CAPABILITIES` in `src/lib/members/actions.ts`, the appoint dialog's menu in
+ * `src/components/members/member-administrativo-controls.tsx`, and `ALL` in
+ * `session-capability-mirror.test.ts`) plus a fifth in `supabase/seed.sql` — and
+ * two DB validators (the CHECK, and `public.grant_member_capability`'s whitelist;
+ * `revoke_member_capability` has none). Keep them in sync by hand; the DB pins
+ * live in `supabase/tests/205_administrativo.sql` § (VOC).
+ *
+ * ⚠ `read_cases` is NOT the ADR-0078 case bitmask's `read_case_content`. Two
+ * unrelated vocabularies, both called "capability", one word apart: this one is
+ * resolved by `app.member_can`, that one by `app._cap_bit` / `app._case_caps`.
  */
 export type MemberCapability =
   | 'schedule_meetings'
   | 'create_cases'
   | 'assign_case_phases'
   | 'view_signoffs'
+  | 'read_cases'
 
 /** An "Administrativo" appointment row for a commission member (ADR 0061). */
 export interface AdministrativoAppointment {
