@@ -317,6 +317,17 @@ async function svcGet<T>(request: APIRequestContext, path: string): Promise<T[]>
  * EXPLICITLY here instead of riding a cascade that only works in normal mode.
  * Ordering matters for the same reason: each subselect must run while its source
  * rows still exist.
+ *
+ * ⛔ THE EXIT STATUS IS READ, DELIBERATELY (QA case-surface-split-increment-2-review.md
+ * B5b). `psql -c "<14 statements>"` runs the whole string as ONE implicit
+ * transaction — the first statement to error aborts every statement after it,
+ * silently, with `spawnSync`'s own return value carrying the only signal. The
+ * previous version never inspected `status`/`stderr`, so a partial purge (a
+ * process template, a `phase_results` vocabulary row, or a case surviving) leaked
+ * into every later spec in the run with zero indication anything had gone wrong —
+ * a restore that fails and reads exactly like one that worked. This throws on any
+ * non-zero exit or spawn-level error, carrying `stderr` in the message, so a failed
+ * purge fails the `beforeAll`/`afterAll` hook loudly instead of returning silently.
  */
 function purgeFixtures() {
   const caseSel = `SELECT id FROM cases WHERE label LIKE 'Caso ${SPEC_TAG}%'`
@@ -343,9 +354,23 @@ function purgeFixtures() {
     'SET session_replication_role = DEFAULT',
   ].join('; ')
 
-  spawnSync('docker', ['exec', DB_CONTAINER, 'psql', '-U', 'postgres', '-d', 'postgres', '-c', sql], {
-    stdio: 'pipe',
-  })
+  const result = spawnSync(
+    'docker',
+    ['exec', DB_CONTAINER, 'psql', '-U', 'postgres', '-d', 'postgres', '-c', sql],
+    { stdio: 'pipe' },
+  )
+  if (result.error) {
+    throw new Error(`purgeFixtures: failed to spawn docker exec psql: ${result.error.message}`)
+  }
+  if (result.status !== 0) {
+    const stderr = result.stderr ? result.stderr.toString('utf-8') : '(no stderr captured)'
+    throw new Error(
+      `purgeFixtures: psql exited ${result.status} — the purge is PARTIAL (psql aborts the ` +
+        `remaining statements on the first error), so every later spec in this run would ` +
+        `otherwise inherit leftover fixture rows with no signal. stderr:
+${stderr}`,
+    )
+  }
 }
 
 /** The case HEADER on either host — the only `<header>` on the page carrying an h1. */

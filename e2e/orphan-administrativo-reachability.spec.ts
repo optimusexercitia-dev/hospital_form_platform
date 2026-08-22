@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import { cachedSignIn } from './helpers/auth'
+import { getAnyPublishedTemplateVersion } from './helpers/process-templates'
 
 /**
  * ORPHANED ADMINISTRATIVO — reachability, pinned by construction.
@@ -12,7 +13,7 @@ import { cachedSignIn } from './helpers/auth'
  * arm is hat-BLIND, so the survivor still READS their own capability rows. The DB
  * refuses them anyway: `app.member_can` is
  * `feature_enabled('administrativo') ∧ is_active ∧ app.is_member_of ∧ ∃ capability row`
- * (measured from `pg_proc`, ADR 0134 Amdt 2 M8), and every gate consuming the four
+ * (measured from `pg_proc`, ADR 0134 Amdt 2 M8), and every gate consuming the five
  * capabilities is `is_staff_admin_of OR member_can(...)` — both arms membership-bound.
  *
  * ⛔ WHY THE FUP'S OWN CLOSE CONDITION WOULD HAVE CLOSED IT WRONG. It said
@@ -51,7 +52,8 @@ import { cachedSignIn } from './helpers/auth'
  * flipped reads as though everything did.
  *
  * FIXTURES ARE PURELY ADDITIVE — nothing seeded is mutated. C0 is the seed's own
- * appointment (`staff2.ccih`, all four capabilities). C1/C2/C3 are constructed by
+ * appointment (`staff2.ccih`, all FIVE capabilities — ADR 0134 D6 added `read_cases`).
+ * C1/C2/C3 are constructed by
  * APPOINTING three personas who already hold no CCIH membership, rather than by
  * deleting a seed persona's membership (`seed.sql` is a contract with ~900 tests).
  * Each added appointment is deleted in `afterAll`, which cascades its capability
@@ -71,7 +73,7 @@ if (!SUPABASE_SERVICE_KEY) {
 const PW = 'Test1234!'
 const CCIH = 'a0000000-0000-0000-0000-0000000000a1'
 const UID_CHEFE = '00000000-0000-0000-0000-000000000002'
-const UID_STAFF2 = '00000000-0000-0000-0000-000000000004' // seed's own appointment — do NOT tear down
+const UID_STAFF2 = '00000000-0000-0000-0000-000000000004' // seed's own appointment — do NOT tear down; holds ALL FIVE capabilities (ADR 0134 D6 added read_cases)
 
 const BOARD = '/o/rede-a/c/ccih/manage/cases'
 const SHELL = '/o/rede-a/c/ccih'
@@ -201,7 +203,13 @@ test.afterAll(async ({ request }) => {
     request,
     `commission_administrativo_capabilities?commission_id=eq.${CCIH}&user_id=eq.${UID_STAFF2}&select=capability`,
   )
-  expect(seedIntact, "seed's own administrativo grants must survive").toBe(4)
+  // FIVE, not four (QA case-surface-split-increment-2-review.md B2): `e39ad3ac` added
+  // `read_cases` to the seed's staff2.ccih grant nine commits after this file was
+  // written, and this literal was not part of the sweep that updated it elsewhere
+  // (205_administrativo.sql's two spots + the board re-anchor) — it lived in a
+  // DIFFERENT file on the same branch, which is exactly the failure §A5.3 names:
+  // enumerate by property, not by which file you're already editing.
+  expect(seedIntact, "seed's own administrativo grants must survive").toBe(5)
 })
 
 test('C0 CONTROL — a MEMBER administrativo reaches the board and the door SERVES them', async ({
@@ -311,14 +319,37 @@ for (const { name, subject, arm } of [
       'the orphan still READS their own surviving capability rows',
     ).toBe(2)
 
-    // The door refuses them: `member_can` requires `is_member_of`.
-    const rpc = await request.post(`${SUPABASE_URL}/rest/v1/rpc/member_can`, {
+    // The door refuses them. Rewritten (QA case-surface-split-increment-2-review.md
+    // B5a): this used to probe `rpc/member_can` guarded by `if (rpc.ok())`.
+    // `member_can` exists ONLY as `app.member_can` — `supabase/config.toml` exposes
+    // `public`/`graphql_public` only (verified by property:
+    // `grep -rl "public\.member_can" supabase/migrations/` → exit 1, zero files) — so
+    // that POST always 404s (PGRST202), `rpc.ok()` is always false, and the assertion
+    // inside NEVER RAN. Probing a REACHABLE public door instead:
+    // `create_case_from_template` gates on `is_staff_admin_of ∨
+    // member_can(commission,'create_cases')`, and the orphan satisfies neither arm —
+    // this is the SAME predicate, exercised through the public surface that actually
+    // enforces it, which is what "the door refuses them" has to mean for an assertion
+    // that can run at all.
+    //
+    // Proof this can fail, not just pass: C0 (above, same file) drives the identical
+    // RPC as a genuine MEMBER administrativo and it SUCCEEDS (a case is created and
+    // torn down) — so this call is capable of returning `ok()` true for a persona
+    // that differs from this one only in holding a CCIH membership row. The
+    // assertion below is not unfalsifiable by construction.
+    const tpl = await getAnyPublishedTemplateVersion(
+      request,
+      { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+      CCIH,
+    )
+    const rpc = await request.post(`${SUPABASE_URL}/rest/v1/rpc/create_case_from_template`, {
       headers: { ...hdr, 'Content-Type': 'application/json' },
-      data: { p_commission_id: CCIH, p_capability: 'create_cases' },
+      data: { p_template_id: tpl.templateId, p_label: `orphan-refusal-probe ${Date.now()}` },
     })
-    if (rpc.ok()) {
-      expect(await rpc.json(), 'app.member_can must REFUSE the orphan').toBe(false)
-    }
+    expect(
+      rpc.ok(),
+      `create_case_from_template must REFUSE the orphan (reachable public door): ${await rpc.text()}`,
+    ).toBeFalsy()
 
     // ⭐ THE REGRESSION THIS FILE EXISTS FOR. Before the mirror carried the
     // `role !== null` conjunct, this page rendered for both composites and offered
