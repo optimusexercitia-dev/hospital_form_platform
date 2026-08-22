@@ -47,6 +47,18 @@ export interface ActionState {
 
 export interface CreateCaseState extends ActionState {
   caseId?: string
+  /**
+   * ⛔ FIELD NAMES ONLY — NEVER VALUES. ADR 0134 Amendment 2 §A2.4 risk 2 asks the
+   * creation response to "echo the identifiers just written" so a typo is caught at the
+   * keyboard rather than months later by a coordinator who cannot know who typed it.
+   * That was NARROWED (lead ruling, 2026-08-22): option D grants a PHI **write** and no
+   * read, ever, so a response body carrying identifier VALUES back to a principal holding
+   * no `read_standard_phi` would be a PHI read path wearing a different name. The
+   * confirmation the user sees is built client-side from the payload they just submitted
+   * — which they already hold — and the server contributes only the structural half:
+   * WHICH fields were set.
+   */
+  patientFieldsSet?: readonly string[]
 }
 
 export interface AddAdHocPhaseState extends ActionState {
@@ -329,6 +341,36 @@ function parseDueDate(raw: string): string | undefined | null {
  * the minimum-necessary FLOOR (require ≥ name OR mrn): identifiers below the floor
  * are treated as "nothing to write", not an error.
  */
+/**
+ * The creation-scoped patient payload (ADR 0134 Amendment 2 option D). snake_case keys,
+ * read with `->>` by all three creation RPCs — the same object shape
+ * `bulk_create_cases` already takes per row, so one payload contract covers every door.
+ */
+function patientRpcPayload(input: SetCasePatientInput) {
+  return {
+    name: input.name,
+    mrn: input.mrn,
+    date_of_birth: input.dateOfBirth,
+    age_years: input.ageYears,
+    sex: input.sex,
+    encounter_ref: input.encounterRef,
+    unit: input.unit,
+    attending: input.attending,
+  }
+}
+
+/**
+ * ⛔ FIELD NAMES ONLY — NEVER VALUES. See {@link CreateCaseState.patientFieldsSet}.
+ * Returns the keys the caller actually supplied, so the UI can confirm *what* was
+ * recorded without the server handing any identifier back.
+ */
+function patientFieldsSet(input: SetCasePatientInput): readonly string[] {
+  const p = patientRpcPayload(input)
+  return Object.entries(p)
+    .filter(([k, v]) => k !== 'sex' && v !== null && v !== undefined && v !== '')
+    .map(([k]) => k)
+}
+
 function patientInputFromForm(formData: FormData): SetCasePatientInput | null {
   const name = String(formData.get('patientName') ?? '').trim()
   const mrn = String(formData.get('patientMrn') ?? '').trim()
@@ -475,6 +517,7 @@ export async function createCaseFromTemplate(
   // type's visibility/confidentiality defaults. The RPC still accepts an override, but
   // exposing it on this path would let a creator DOWNGRADE the posture an ethics
   // process declares — the exact Rule-12 gap this chain was built to close.
+  const patientInput = patientInputFromForm(formData)
   const { data, error } = await supabase.rpc('create_case_from_template', {
     p_template_id: templateId,
     p_label: label || undefined,
@@ -483,25 +526,23 @@ export async function createCaseFromTemplate(
     // ADR 0083 — the dialog's custom-field values, snapshotted + written IN the
     // create transaction; a required field with no value raises HC068 here.
     p_custom_fields: customFieldsFromForm(formData),
+    // ADR 0134 Amendment 2 option D — the sanctioned PHI block travels IN the creation
+    // call. It used to be a SECOND round-trip that minted the case first and then wrote
+    // identifiers; on refusal the case survived WITHOUT them and the action returned
+    // `{ ok:false, caseId, error }` — a committed half-state. One call has no half-state
+    // to commit, and it is the same transaction, so a refusal rolls the case back too.
+    p_patient: patientInput ? patientRpcPayload(patientInput) : undefined,
   })
 
   if (error || !data) return { ok: false, error: mapCaseError(error) }
 
-  // Optional, sanctioned PHI block (ADR 0038): write it in the SAME request so it
-  // is never lost to a navigation race. The case already exists; if the PHI write
-  // fails we surface it (with the caseId, so the user can open the case and add
-  // identifiers via the detail panel) instead of swallowing the loss.
-  const patientInput = patientInputFromForm(formData)
-  if (patientInput) {
-    const patientError = await writeCasePatient(supabase, data.id, patientInput)
-    if (patientError) {
-      revalidateCases()
-      return { ok: false, caseId: data.id, error: patientError }
-    }
-  }
-
   revalidateCases()
-  return { ok: true, error: MESSAGES.caseCreated, caseId: data.id }
+  return {
+    ok: true,
+    error: MESSAGES.caseCreated,
+    caseId: data.id,
+    patientFieldsSet: patientInput ? patientFieldsSet(patientInput) : undefined,
+  }
 }
 
 /**
@@ -553,6 +594,7 @@ export async function createCase(
   // pre-gate here shadowed the widened RPC and rejected Administrativos before it
   // (BUG-ADM-001). Refusal still returns a clean pt-BR error via `42501` → forbidden.
   const supabase = await createClient()
+  const patientInput = patientInputFromForm(formData)
   const { data, error } = await supabase.rpc('create_case', {
     p_commission_id: commissionId,
     p_label: label || undefined,
@@ -561,23 +603,21 @@ export async function createCase(
     p_department_id: department.departmentId ?? undefined,
     p_department_other: department.departmentOther ?? undefined,
     p_case_type_id: caseTypeId || undefined,
+    // ADR 0134 Amendment 2 option D — see createCaseFromTemplate. M10 named only that
+    // site; the identical half-state shape lived here too, and fixing one would have
+    // read as done.
+    p_patient: patientInput ? patientRpcPayload(patientInput) : undefined,
   })
 
   if (error || !data) return { ok: false, error: mapCaseError(error) }
 
-  // Optional, sanctioned PHI block (ADR 0038): write it in the SAME request so it
-  // is never lost to a navigation race — exactly as createCaseFromTemplate does.
-  const patientInput = patientInputFromForm(formData)
-  if (patientInput) {
-    const patientError = await writeCasePatient(supabase, data.id, patientInput)
-    if (patientError) {
-      revalidateCases()
-      return { ok: false, caseId: data.id, error: patientError }
-    }
-  }
-
   revalidateCases()
-  return { ok: true, error: MESSAGES.caseCreated, caseId: data.id }
+  return {
+    ok: true,
+    error: MESSAGES.caseCreated,
+    caseId: data.id,
+    patientFieldsSet: patientInput ? patientFieldsSet(patientInput) : undefined,
+  }
 }
 
 /**

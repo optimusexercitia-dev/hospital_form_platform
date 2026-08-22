@@ -24,7 +24,7 @@
 -- pass count.
 -- =============================================================================
 begin;
-select plan(31);
+select plan(38);
 
 -- The bulk RPC composes doors gated by ALL of these; assert_bulk_create_enabled
 -- gates the RPC itself; set_participant_patient gates on case_patient;
@@ -50,7 +50,8 @@ create temp table k on commit drop as
          (v->>'st_y')::uuid   as st_y,
          (v->>'comm_x')::uuid as comm_x,
          (v->>'comm_y')::uuid as comm_y,
-         (v->>'form_u')::uuid as form_u
+         (v->>'form_u')::uuid as form_u,
+         (v->>'oa_b')::uuid   as oa_b
   from ctx;
 grant select on k to authenticated;
 
@@ -139,13 +140,21 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- 2b) AUTHORITY KEYSTONE (Decision #5) — an Administrativo holding ONLY
---     create_cases is STILL denied: bulk is DELIBERATELY stricter than
---     create_case_from_template (whose gate DOES admit a create_cases holder).
+-- 2b) AUTHORITY KEYSTONE — ⛔ INVERTED 2026-08-22, DELIBERATELY.
 --
--- ⛔ Fixture-trap discipline (ADR 0078 §7.1): PROVE the holder HAS create_cases
---     (member_can → true) FIRST, so the 42501 lands on the stricter bulk gate, not
---     on a missing capability — otherwise this keystone would be vacuous.
+-- WAS: 'a create_cases Administrativo is STILL denied bulk creation (Decision #5:
+--      stricter than create_case_from_template)' — a throws_ok on 42501.
+-- NOW: they are ADMITTED. ADR 0134 Amendment 1 §A1.2 (PO-ruled 2026-08-21) overruled
+--      Design #5: creating many cases carries the same logical responsibility as
+--      creating one, so bulk and create_case_from_template now agree.
+-- ⚠ This is a REVERSAL of a recorded design decision, not the correction of a defect.
+--      Stated here because an inverted keystone with no explanation reads to the next
+--      person as a test someone bent to make their change pass.
+--
+-- ⛔ The PRE-check below is KEPT and still does work after the inversion: it proves the
+--     holder really has create_cases, so the lives_ok lands on the WIDENED gate rather
+--     than on a lucky fixture. The created-case assertion after it is what stops the
+--     positive from passing on a silent no-op.
 -- st_x2 (a staff member of comm_x) is appointed + granted create_cases as the table
 -- owner (bypasses the guarded appoint/grant doors, like the seed; those doors are
 -- tested in 205).
@@ -159,14 +168,31 @@ select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select is(app.member_can((select comm_x from k), 'create_cases'), true,
   'PRE: the Administrativo st_x2 HAS create_cases (the door reaches the stricter bulk gate, not a missing-capability deny)');
+select lives_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'first_only',
+    jsonb_build_array(jsonb_build_object(
+      'label','ADM-BULK','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+    (select tid from tpl_multi)),
+  '⭐ INVERTED (ADR 0134 Amdt 1 A1.2): a create_cases Administrativo NOW reaches bulk creation');
+reset role;
+select is((select count(*)::int from public.cases where label = 'ADM-BULK'), 1,
+  'and the case actually landed - a returned count alone could be a no-op');
+
+-- ⭐ THE SHARP TENANCY PIN. 314 11.14 already asserts bulk refuses the org_admin, but as
+-- throws_ok(..., null, null) - it accepts ANY raise, so it stays green under a WRONG
+-- widening and cannot say which lock refused. This one names the gate.
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
 select throws_ok(
   format($$ select public.bulk_create_cases(%L, null, 'first_only',
     jsonb_build_array(jsonb_build_object(
-      'label','X','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+      'label','OA','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
     (select tid from tpl_multi)),
-  '42501', null,
-  'a create_cases Administrativo is STILL denied bulk creation (Decision #5: stricter than create_case_from_template)');
+  '42501', 'sem permissão',
+  'the org_admin is refused BY THE AUTHORITY GATE (errcode AND message) - the widening admits commission delegates, not tenancy admins');
 reset role;
+select is(app.member_can_for((select comm_x from k), 'create_cases', (select oa_b from k)), false,
+  'and the reason is structural: member_can is membership-aware and an org_admin is not a member');
 
 -- =========================================================================
 -- 3) MEMBERSHIP — a row assigned to a NON-member (st_y) → HC021, 0 created.
@@ -337,6 +363,42 @@ select is((select pi.name
            join public.cases c on c.id = cp.case_id
            where c.label = 'P1' limit 1),
   'Paciente Um', 'the patient identifier was written through the single door');
+
+-- =========================================================================
+-- 8b) ⭐ THE ADMINISTRATIVO PHI TWIN (ADR 0134 Amendment 2, option D) - the same bulk
+--     PHI write as 8) above, by a create_cases Administrativo instead of a coordinator.
+--     This is the whole point of option D: fill up to 200 rows and KEEP them.
+-- ⛔ Vacuity: a returned 1 would pass on a batch that wrote no identifiers, so the row
+--     is read back. And the Rule-12 half is the one that matters - the writer still
+--     cannot READ what they just wrote.
+-- =========================================================================
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'first_only',
+    jsonb_build_array(jsonb_build_object(
+      'label','ADM-PHI','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,
+      'patient', jsonb_build_object('name','Paciente Adm','mrn','MRN-ADM','sex','male')))) $$,
+    (select tid from tpl_phi)),
+  '8b: a create_cases Administrativo bulk-creates WITH patient identifiers');
+reset role;
+select is((select pi.mrn
+           from public.patient_identifiers pi
+           join public.case_participants cp on cp.participant_id = pi.participant_id
+           join public.cases c on c.id = cp.case_id
+           where c.label = 'ADM-PHI' limit 1),
+  'MRN-ADM', '8b: and the identifiers actually landed (not a silent no-op)');
+select is(
+  app.can_read_case_patient((select id from public.cases where label = 'ADM-PHI'),
+                            (select st_x2 from k)),
+  false,
+  '8b ⭐ RULE 12: and the writer STILL cannot read what they just wrote - option D grants write, never read');
+select is(
+  (select count(*)::int from public.patient_participants pp
+   join public.case_participants cp on cp.participant_id = pp.participant_id
+   where cp.case_id = (select id from public.cases where label = 'ADM-PHI')),
+  1,
+  '8b REGRESSION GUARD (cannot fail today): exactly one patient participant. The helper is the ONLY surface that can create one (catalog property, migration header), so this guards a future second writer and is NOT evidence about the current path');
 
 -- PHI rejected when the template does NOT collect patient identifiers → batch aborts.
 update cnt set n = (select count(*) from public.cases where commission_id = (select comm_x from k));
