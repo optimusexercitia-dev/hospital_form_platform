@@ -17,6 +17,24 @@ import type { CaseViewerCapabilities } from "@/lib/queries/cases";
  * ⚠ A NEW ROUTE UNDER `/casos` MUST CALL THIS. If you are reading raw
  * `detail.viewerCapabilities` in a route whose path contains `/casos/`, that is
  * the bug this module was written for.
+ *
+ * ⭐ **THE EXCEPTION, AND ITS ADMISSION TEST** (ADR 0134 **Amendment 3**, PO-ruled
+ * 2026-08-22). D1 no longer says "the carve-outs go to zero" — that sentence was
+ * false on `main` the day it was ratified. It now says: among the viewers who can
+ * open the page, **nothing on `/casos` varies by capability or case-wide grant**.
+ * An affordance may sit on `/casos` if it is name-attributed, **or if its door
+ * admits every member who can open the page**. Two exist today, both measured:
+ *   • `NotifyEventDialog` → `public.notify_safety_event`, guarded by
+ *     `app.is_member_of` alone.
+ *   • "Corrigir…" (file a correction) → `public.file_correction_request`, keyed on
+ *     `app.can_read_case` — which **is** this page's own admission test, so it is
+ *     invariant across everyone who can see the page.
+ * ⛔ **To claim the exception you must show the door's guard from the LIVE CATALOG**
+ * (`pg_get_functiondef`, comments stripped, every `if` branch — a line-filtered
+ * `prosrc` under-reports multiline guards, always reassuringly). "Members really
+ * need this" is NOT the test; the exception is a property of the **door**. Without
+ * that discipline this is the hole capability-gated affordances re-enter through,
+ * one at a time.
  */
 
 /**

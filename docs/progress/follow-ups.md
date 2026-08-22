@@ -5973,6 +5973,13 @@ pressure toward writing tests the gate likes rather than tests that pin behaviou
 
 ### 🟠 FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY — D6's S8 arm has no `explicit_grants_only` bound, and the resulting bit-shape IS a quality reviewer's (owner: backend/PO; filed 2026-08-22, from the ADR 0134 Amendment 3 wording test)
 
+✅ **RULED 2026-08-22 by the PO — ADR 0134 Amendment 4: S8 IS bounded by `not v_eg`, exactly like S5
+and S7.** An `explicit_grants_only` case is invisible to the arm; reach there rides an explicit grant
+(S3) or nothing. ⛔ **The item stays OPEN, because a ruling is not an implementation** — what remains
+is listed under *To close* below, and none of it is discharged by the ADR edit. The ruling was made
+**separately from Amendment 3** and does not inherit its scope; Amendment 3 §A3.7 item 5 says so
+explicitly.
+
 **Measured from the live catalog 2026-08-22** (`pg_get_functiondef` on `app._case_caps`,
 `app.can_read_case`, `app.is_oversight_only_reader`, `app.is_member_of`) — not read from a migration
 file, which is stale by design here:
@@ -6006,9 +6013,25 @@ found while measuring something else. Before M2 ships, enumerate **by property**
 comment-stripped `prosrc` references `is_oversight_only_reader` — never by recalling which doors
 "feel oversight-related".
 
-**To close (before the M2 migration is written, not after):** a PO/backend ruling on whether S8 is
-bounded by `not v_eg` like its siblings — the recommendation is **yes**, since an unbounded arm makes
-a capability checkbox silently outrank a per-case access policy — plus a pgTAP pin for the chosen
-answer in Increment 2's suite (positive, negative, and the over-grant twin), and the door-set
-enumeration above. ⛔ **Do not close it by accepting ADR 0134 Amendment 3**: that amendment is a D1
-wording question and says so in A3.7 item 5. This is a D6 question.
+**To close** — ~~a PO/backend ruling on whether S8 is bounded~~ ✅ **ruled 2026-08-22 (yes, bounded)**;
+what is left is all implementation, inside Increment 2, and each item is a separate way this can still
+go wrong:
+
+1. **The `not v_eg` condition in the M2 arm itself**, written from `pg_get_functiondef` and positioned
+   with the other positive arms so it inherits STEP 4's hard denies the way S5/S7 do.
+2. **P9** — locked-case negative: `can_read_case` false, absent from `list_cases_board`,
+   `get_case_detail` refuses.
+3. **P9-twin** — remove the bound, P9 must go **RED**. ⛔ Non-optional: a check a door OMITS is
+   invisible to every ARM, so nothing else in the §6 gate set can see this bound at all. An asserted
+   bound and an absent bound look identical in a green suite.
+4. **P10** — bit-shape, both directions (ordinary case: holds content **and** deliberation, so not
+   `is_oversight_only_reader`; locked case: holds neither). Amendment 4 §A4.2 derives this from the arm
+   conditions and says so; P10 is what makes it evidence.
+5. **P11** — an explicit S3 grant on a locked case still confers reach. The bound narrows the *arm*, not
+   the *grant path*.
+6. **The door-set enumeration** by comment-stripped `prosrc` referencing `is_oversight_only_reader`,
+   recorded. ⚠ Size still **not established** — `file_correction_request` is the one member found while
+   measuring something else.
+
+⛔ **Do not close this item on the ADR edit.** The ruling settled the design question in one line; every
+line above is still un-built, and this is the register the PO reads reach from.

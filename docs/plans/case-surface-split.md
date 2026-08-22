@@ -124,8 +124,11 @@ rights (Rule 1). Suggested branch: `feat/case-surface-split-1`.
 - `casos/[caseId]/page.tsx:265-268`: the three bypass props are no longer passed through
   role/grant-implied on this host — they render on manage now (their carve-out existed only
   because manage 404'd administrativos; T1 removes the reason). After this, `/casos` writes =
-  name-attributed only (assignee checks precede capability checks — ADR 0033 Q14 / CA-002 —
-  untouched).
+  name-attributed **or member-universal** (⭐ **ADR 0134 Amendment 3, PO-ruled 2026-08-22** — the
+  two affordances whose doors admit every member who can open the page: `notify_safety_event`,
+  membership-only, and `file_correction_request`, keyed on `can_read_case`, which **is** the page's
+  own admission test. Both measured from the catalog; a third claimant must show its guard the same
+  way). Assignee checks precede capability checks — ADR 0033 Q14 / CA-002 — untouched.
 - Button: visibility = the T1 shared predicate (un-narrowed — the escape hatch must not be
   strandable, `8675b7cd`'s own rule). Label stays exactly **"Gerenciar caso"** for every role
   (D4). `isAdministrativo` reaches the component as a server-computed boolean from the page,
@@ -441,7 +444,12 @@ single-case doors already disagree with each other.
 (`pg_get_functiondef`) — ⛔ never from a prior migration file's text (bodies are rewritten at
 runtime in this repo; the file is stale by design). Insert S8 in the function's own style:
 appointed administrativo of the case's commission holding `read_cases` (via the flag-aware
-chokepoint, V-G) → `read_case_content` **only**. Do not touch `list_cases_board` (its Gate-2
+chokepoint, V-G) → `read_case_content` **only**, **and bounded by `not v_eg`** (⭐ **ADR 0134
+Amendment 4, PO-ruled 2026-08-22** — an `explicit_grants_only` case is invisible to the arm, exactly
+as for S5 `if v_member and not v_eg` and S7 `if not v_eg`; reach there rides an explicit grant S3 or
+nothing). Position it with the other positive arms, **after** STEP 4's hard denies, so it inherits
+them by position as its siblings do. ⛔ **The bound is the half of the arm nothing else in the gate
+set can see** — an omitted sibling check is invisible to every ARM; P9-twin is what proves it. Do not touch `list_cases_board` (its Gate-2
 comment forbids caller short-circuits; S8 flows through `can_read_case` per-row as designed).
 `get_case_detail` / boards / the T1 predicate all inherit the arm with zero TS changes (F7/F8).
 
@@ -497,6 +505,22 @@ rendering wherever the four are listed).
   three; that was **verified, not taken**.
 - **P8 authorship bound:** S8 holder cannot write content (a narrative/action-item/document
   write through the normal doors refuses without a grant) — pins D6's "read only".
+- **P9 locked-case negative** (⭐ ADR 0134 **Amendment 4**) — an appointee with `read_cases` gets
+  **nothing** on an `explicit_grants_only` case: `can_read_case` false, absent from
+  `list_cases_board`, `get_case_detail` refuses.
+- **P9-twin over-grant, in the BOUND's direction** — remove `not v_eg` from the arm and **P9 must go
+  RED**. ⛔ Without this the bound is asserted, not proven, and it is precisely the half no ARM can
+  see (a door that omits a check its siblings all make is invisible to every sweep).
+- **P10 bit-shape** — on an ordinary case the appointee is **not** `is_oversight_only_reader` (holds
+  `read_case_content` from S8 **and** `read_case_deliberation` from S5); on a locked case they hold
+  neither. Both directions, because Amendment 4 §A4.2's claim is **derived, not executed** — this is
+  what turns it into evidence.
+- **P11 the grant path survives** — an explicit S3 grant on a locked case still confers reach to the
+  same appointee. The bound narrows the **arm**; it must not narrow the **grant**.
+- **Door-set enumeration (not a pin, a deliverable)** — every routine whose comment-stripped `prosrc`
+  references `is_oversight_only_reader`, recorded with the increment. ⚠ Size **not established**:
+  `file_correction_request` is the one member found while measuring something else. Enumerate by the
+  property, never by recalling which doors feel oversight-related.
 
 ### Authz gates (§6 step 1, full discipline)
 
@@ -555,12 +579,19 @@ Two teammates never edit the same file; shared types move only via `backend`.
 - **Step 0:** quality-oversight spec fully green on fresh stack; pairing still
   presence+absence; bug rotated to archive; e2e:prod baseline expectation updated in
   PROGRESS.md.
-- **Increment 1:** D1's sentence is *observably true* — on `/casos`, for every viewer class,
-  the only write affordances are name-attributed ones (differential E2E pins it); entry gate
-  fail-closed for all five excluded classes; multiplos reachable by capability; §6 step-1 set
-  green with pgTAP unchanged; full e2e:prod declared.
-- **Increment 2:** P1–P8 green, P4 mutation-proven both directions, sweep 0 BLIND, ARMs
-  HOLD, board fills for the seed administrativo, docs/records updated in the same delivery.
+- **Increment 1:** D1's sentence is *observably true* — on `/casos`, for every viewer class, the
+  only write affordances are name-attributed ones **or member-universal ones whose door admits
+  every member who can open the page** (⭐ D1 **as amended 2026-08-22**, Amendment 3; the ratified
+  wording said "carve-outs go to zero" and was false on `main` the day it shipped). Differential
+  E2E pins it, and each claimed exception carries a **presence** assertion across two member
+  classes — absence-only is what makes an exception unmeasured prose. Entry gate fail-closed for
+  all five excluded classes; multiplos reachable by capability; §6 step-1 set green with pgTAP
+  unchanged; full e2e:prod declared.
+- **Increment 2:** P1–P8 **plus P9/P9-twin/P10/P11** (ADR 0134 Amendment 4 — the `not v_eg`
+  bound) green, P4 **and P9-twin** mutation-proven both directions, the
+  `is_oversight_only_reader` door set enumerated by `prosrc` property and recorded, sweep 0
+  BLIND, ARMs HOLD, board fills for the seed administrativo, docs/records updated in the same
+  delivery.
 
 ## §8 Non-goals (from ADR 0134 — do not scope-creep them back in)
 

@@ -480,8 +480,14 @@ export function CaseDetailView({
   // ⚠ ADR 0100 D7: `canFile: isOpen` admits ANY case-content reader — which the
   // quality reviewer now is (D3 confers `read_case_content`). Filing a correction
   // request is a WRITE, so without the `!isOversight` guard every phase and
-  // narrative card would offer the reviewer a "Corrigir…" affordance. This is one
-  // of the two write affordances on this page that `caps` does NOT close.
+  // narrative card would offer the reviewer a "Corrigir…" affordance.
+  //
+  // ⭐ On `/casos` this is a SANCTIONED exception, not an escapee: its door
+  // (`public.file_correction_request`) is keyed on `app.can_read_case`, which is
+  // that page's own admission test, so the affordance is invariant across everyone
+  // who can see the page. The rule and its admission test live in ONE place —
+  // `./reading-surface` (ADR 0134 D1 as amended by Amendment 3). Do not restate
+  // the rule here; per-file restatement is how it drifted before.
   const correctionCaps: CorrectionCaps | null =
     correctionsEnabled && !isOversight
       ? {
@@ -656,10 +662,13 @@ export function CaseDetailView({
                 the "Gerenciar caso" link — to everyone who may open that route
                 (ADR 0134 D3/D4), not only to a coordinator. */}
             {/* ⚠ ADR 0100 D7: `NotifyEventDialog` is gated on the FEATURE FLAG
-                alone — no capability check anywhere — so it is the second write
-                affordance on this page that `caps` does not close. Notifying an
-                event is a WRITE (it creates a patient-safety event) and its
-                pre-fill bridge carries PHI, both forbidden to the reviewer. */}
+                alone — no capability check anywhere — so `caps` does not close it.
+                Notifying an event is a WRITE (it creates a patient-safety event)
+                and its pre-fill bridge carries PHI, both forbidden to the reviewer.
+                ⭐ On `/casos` that is SANCTIONED: `public.notify_safety_event` is
+                guarded by `app.is_member_of` alone (measured), so it admits every
+                member who can open the page — the exception ADR 0134 Amendment 3
+                names. Rule + admission test live in `./reading-surface`, once. */}
             {/* `canOpenManagement`, not `caps`: this cluster hosts the "Gerenciar
                 caso" link, whose whole purpose is to carry a manage-capable viewer
                 OFF this reading surface. Gating it on the NARROWED capability would

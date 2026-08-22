@@ -58,10 +58,22 @@ baseline — **re-verify at build time, never quote**):
 
 ## Decision
 
-1. **The split's meaning, in one sentence:** *`/casos` shows the case as the committee sees it
-   plus your own name-attributed work; anything case-wide you are allowed to do lives behind
-   one uniform "Gerenciar caso" button on `/manage/cases/[caseId]`.* The carve-outs go to
-   zero — this is what makes `8675b7cd`'s "reading surface" literally true.
+1. **The split's meaning, in one sentence** — ⭐ **AMENDED 2026-08-22 by Amendment 3 (PO-ruled);
+   this is the live text and the one Increment 2 is judged against:** *`/casos` shows the case as
+   its readers see it, plus your own name-attributed work. Among the viewers who can open that
+   page, nothing on it varies by capability or by case-wide grant — an affordance may appear on
+   `/casos` only if it is name-attributed, or if its door admits **every member who can open the
+   page**. Anything case-wide you may do because of what you hold lives behind one uniform
+   "Gerenciar caso" button on `/manage/cases/[caseId]`.* An affordance claiming the
+   "admits every member" exception must show its door's guard **from the live catalog** (A3.5
+   condition 1); the exception is a property of the **door**, never of the affordance's importance.
+   ~~*Ratified 2026-08-21, superseded:* `/casos` shows the case as the committee sees it plus your
+   own name-attributed work; anything case-wide you are allowed to do lives behind one uniform
+   "Gerenciar caso" button. **The carve-outs go to zero.**~~ ⛔ The struck sentence was **observably
+   false on `main` from the day it was ratified** — two write affordances on `/casos` never consulted
+   `caps` at all and neither could be relocated (A3.1, measured). It is kept because "the carve-outs
+   go to zero" was quoted as an acceptance criterion in three places, and a reader who finds only the
+   new text cannot tell which claim those citations were making.
 2. **The `/casos` narrowing extends to every case-wide capability.** `readingAsMember` triggers
    for `canWriteContent` holders, not only `canManageLifecycle`; the three props that today
    bypass the narrowing by construction (`canManagePhaseResults`, `canAssignPhases`,
@@ -87,7 +99,9 @@ baseline — **re-verify at build time, never quote**):
 6. **A new `_case_caps` arm (S8): administrativo commission-wide case READ, keyed on a new
    fifth ADR 0061 capability `read_cases`** (default-checked in the appoint dialog), routed
    through the flag-aware chokepoint so the `administrativo` kill switch darkens it with the
-   rest. S8 confers **`read_case_content` only** — content authorship (`canWriteContent`)
+   rest. ⭐ **AMENDED 2026-08-22 by Amendment 4 (PO-ruled): the arm is bounded by `not v_eg`**, so an
+   `explicit_grants_only` case is invisible to it — reach there rides an explicit grant (S3) or
+   nothing, exactly as for S5 and S7. As first written this clause had no bound at all. S8 confers **`read_case_content` only** — content authorship (`canWriteContent`)
    still requires an explicit per-case grant, exactly like any staff member; `close_case` /
    `cancel_case` stay coordinator-only. Their existing administrative doors (`create_case*`,
    `activate_phase` / `reassign_phase`, `update_case_meta`, `list_signoff_queue`) are
@@ -430,11 +444,28 @@ A "yes" on **A** authorizes only the UI suppression and closes OPEN-4 with no DB
 
 ---
 
-## Amendment 3 — 2026-08-22 (**PROPOSED — PO ruling requested**): D1's wording — the invariant `/casos` protects is capability-invariance, not the absence of writes
+## Amendment 3 — 2026-08-22 (**✅ ACCEPTED — PO-ruled 2026-08-22**; authored as PROPOSED, see the status block): D1's wording — the invariant `/casos` protects is capability-invariance, not the absence of writes
 
-**Status: PROPOSED. This amendment authorizes nothing and changes no code.** Until the PO rules,
+**Status: ✅ ACCEPTED — the PO approved the refined wording on 2026-08-22**, in the session that
+drafted it. **D1's sentence is replaced by §A3.2 above in the Decision list**, and the replacement is
+live from this ruling: Increment 2's `/casos` surface is judged against the refined sentence, not the
+ratified one.
+
+**What this approval covers (§A3.8, restated because scope is a fact that must be written down):**
+the D1 replacement text, the §A3.7 items 1–2 record edits (the plan's two restatements,
+`reading-surface.ts`'s docblock, the two site comments), and judging Increment 2 against the refined
+sentence. **It does NOT cover:** any new affordance on `/casos`, any change to
+`narrowToReadingSurface` or D3's entry predicate, any DB change, any remote `db push`, or any merge.
+⛔ **It did not close `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY`** — that is a D6 question and was ruled
+**separately, in the same session**, as **Amendment 4** below. Two rulings, two records; neither
+inherits the other's scope.
+
+*(The text below was authored as a PROPOSED amendment and is preserved as the record of the question
+and its analysis; only this status block is post-ruling.)*
+
+~~**Status: PROPOSED. This amendment authorizes nothing and changes no code.** Until the PO rules,
 **D1 as ratified on 2026-08-21 stands exactly as written**, and any surface argument must be made
-against that sentence, not this one. ⛔ Amendment 2 was authored in this same shape and was briefly
+against that sentence, not this one.~~ ⛔ Amendment 2 was authored in this same shape and was briefly
 treated as its own approval because a summary pointed at it — *a pointer to this section is the
 analysis, never the ruling.* QA cannot adopt it either: D1 is PO-ratified text, which is why r2 §7.9
 judged the refinement sound and **referred** it here instead of applying it.
@@ -590,3 +621,84 @@ change, any remote `db push`, any merge, or a ruling on `FUP-S8-UNBOUNDED-BY-CAS
   the audience from varying what the audience is offered.
 - The amendment's own test found an unbounded S8 arm before the migration was written (A3.4). Recorded
   because it is the argument for doing wording work *ahead* of the increment rather than after it.
+
+---
+
+## Amendment 4 — 2026-08-22 (**✅ ACCEPTED — PO-ruled**): D6's S8 arm is bounded by the case-access policy, exactly like its siblings
+
+**Status: ✅ ACCEPTED — the PO ruled on 2026-08-22**, in the same session as Amendment 3 and
+**separately from it**. This amends **D6**. It resolves `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY`,
+which Amendment 3 §A3.7 item 5 explicitly refused to close, because a wording question about `/casos`
+cannot settle a reach question about a resolver arm.
+
+### A4.1 — The ruling
+
+**S8 fires only when `not v_eg`** — i.e. an appointed `administrativo` holding `read_cases` gets
+`read_case_content` on the commission's cases **except** those whose access policy is
+`explicit_grants_only`. On such a case the arm confers nothing, and the appointee reaches it the same
+way a plain member or a quality reviewer does: **through an explicit grant (S3), or not at all.**
+
+D6's other clauses are unchanged — `read_case_content` only, no authorship, no lifecycle, routed
+through the flag-aware chokepoint so the `administrativo` kill switch darkens it.
+
+### A4.2 — Why (measured 2026-08-22 from the live catalog; full detail in the follow-up)
+
+- **Both sibling read arms already carry the bound.** S5 · `committee_member_default` is
+  `if v_member and not v_eg`; S7 · `quality_reviewer` is `if not v_eg …`, and its comment states the
+  intent outright — *"Locked cases (`v_eg`) are fully invisible to the arm (D6) — exceptions ride
+  `case_access_grants` (S3)."* A new read arm that omits the bound inherits none of that intent, and
+  **no authz arm can see a door that omits a check its siblings all make** — the omission is invisible
+  to every sweep this repo runs.
+- **Unbounded, a capability checkbox would silently outrank a per-case access policy.** The whole
+  purpose of `explicit_grants_only` is that only explicit grants confer reach; an arm that ignores it
+  makes the appoint dialog a way around it, with no coordinator action on the case itself.
+- **The bound also closes a bit-shape collision, in both directions.** `app.is_oversight_only_reader`
+  is not a role test — it is `read_case_content ∧ ¬read_case_deliberation`, the quality reviewer's
+  exact shape. With the bound: on an ordinary case the appointee holds content (S8) **and**
+  deliberation (S5, since they are a member), so the predicate is false; on a locked case S8 confers
+  nothing, so it is false there too. **Unbounded**, a locked case would have produced content without
+  deliberation — an administrativo classified as a quality reviewer by every door keyed on that
+  predicate, starting with `file_correction_request` refusing them `42501` while `/casos` renders the
+  "Corrigir…" button, because the UI's `isOversight` is `access.isQualityViewer`, **a different test
+  from the door's**. ⚠ This paragraph's two-directions claim is **derived from the measured arm
+  conditions, not executed** — P10 below is what turns it into evidence.
+
+### A4.3 — Binding on M2 (the migration may not be written without these)
+
+1. **The arm's condition carries `not v_eg`**, written in `_case_caps`' own style and positioned with
+   the other positive arms — after STEP 4's hard denies, so it inherits them by position exactly as
+   S5/S7 do. `CREATE OR REPLACE` starts from `pg_get_functiondef`, never from a migration file's text.
+2. **P9 · locked-case negative:** an appointee with `read_cases` gets **nothing** on an
+   `explicit_grants_only` case — `can_read_case` false, absent from `list_cases_board`,
+   `get_case_detail` refuses.
+3. **P9-twin · over-grant, in the bound's direction:** remove `not v_eg` from the arm and **P9 must go
+   RED**. Without this twin the bound is asserted, not proven — and a bound is the half of an arm that
+   nothing else in the gate set can see.
+4. **P10 · the bit-shape pin:** on an ordinary case the appointee is **not** `is_oversight_only_reader`
+   (they hold both bits); on a locked case they hold neither. Pin both, because A4.2's claim is
+   currently derivation.
+5. **P11 · the grant still works:** an explicit S3 grant on a locked case confers reach to the same
+   appointee — the bound narrows the *arm*, it must not narrow the *grant path*.
+6. **The door set keyed on `is_oversight_only_reader` is enumerated by property** — every routine whose
+   comment-stripped `prosrc` references it — and the enumeration is recorded. ⚠ Still owed:
+   `file_correction_request` is the one member found while measuring something else, so the set's size
+   is **not established**. Never enumerate it by recalling which doors feel oversight-related.
+
+### A4.4 — Approval scope
+
+This ruling authorizes: **the `not v_eg` bound on S8 and the A4.3 test bill, inside Increment 2,
+locally.** It does **not** authorize: starting Increment 2, any remote `db push`, any merge, any
+change to S5/S7/S3 or to `is_oversight_only_reader`, or a decision about the doors the A4.3 item 6
+enumeration turns up — those are read as findings first.
+
+### Consequences
+
+- **`FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY` is RULED, not discharged.** The design question is
+  settled; the implementation, the five pins and the door-set enumeration remain open work inside
+  Increment 2, and the follow-up stays open until they land.
+- The `read_cases` capability now has a **stated ceiling**: it widens reach across the commission's
+  ordinary cases and stops at the same wall every other non-granted reader stops at. That sentence is
+  what the appoint dialog's help text should say.
+- Recorded for the build session: the gap was found by applying Amendment 3's wording test to an
+  affordance, **before the migration existed**. That is the argument for settling wording ahead of an
+  increment rather than after it — the same increment's worth of rework it would otherwise have been.
