@@ -6354,3 +6354,55 @@ resolves to a live `regprocedure` — catalog-checkable, and it would have caugh
 (b) a convention of passing `oid` rather than a signature string. ⚠ Whatever is built, the control must
 be that it goes RED on a deliberately stale signature — a sweep of this shape that finds nothing is
 indistinguishable from one that cannot find anything.
+
+### 🟠 FUP-GRANT-CASE-ACCESS-UNCHECKED-HAS-NO-COVERAGE — the precedent every `app` unchecked writer is modelled on has never been tested (owner: backend; filed 2026-08-22, found by deriving a class instead of naming an instance)
+
+Filed because a **property sweep** was run instead of a hand-list. Increment 2 added
+`app._set_participant_patient_unchecked` and it landed in **no tracked authorization class at all**.
+Rather than invent a class around the new function, the lead required its membership be derived by
+property, and predicted the count would be **≥ 2** — because the function the new one was *modelled on*
+must be a member. It is.
+
+**Property:** schema `app` · `prosecdef = f` · `prokind = 'f'` · comment-stripped body performs an
+INSERT/UPDATE/DELETE on a table carrying **PHI or an authorization invariant** · **not** executable by
+`authenticated`/`anon`. **Returns 2.**
+
+| member | ACL | `authenticated` / `anon` EXECUTE | targeted coverage |
+| --- | --- | --- | --- |
+| **`app._grant_case_access_unchecked`** | `{postgres=X/postgres}` | f / f | ⛔ **NONE KNOWN** |
+| `app._set_participant_patient_unchecked` | `{postgres=X/postgres}` | f / f | `357` mutation twins, `276` O5+O5b, `321` K8 |
+
+⛔ **`app._grant_case_access_unchecked` writes `case_access_grants` — the table that decides who can
+reach a case — with no authority check of its own, by design, and it has carried no targeted mutation
+case and belonged to no tracked class since it was written (2026-07).** ⭐ **The class predates the
+increment that revealed it.** The new helper did not create this gap; it made it visible, by being the
+second member of a class nobody had drawn.
+
+⚠ **It is not unprotected — it is untested, and those are different claims.** Its ACL is
+`{postgres=X/postgres}`, `authenticated` and `anon` hold no EXECUTE, and schema `app` is not exposed to
+PostgREST. What is missing is a **pin that any of that is still true tomorrow**: nothing reddens if the
+ACL is widened, if it is flipped to `SECURITY DEFINER`, or if a fifth caller appears.
+
+⚠ **Sweep hygiene recorded with it**, because the exclusions matter as much as the members: the property
+returns **four** `app` INVOKER writers. Two are excluded — `app.save_instance_answers` and
+`app.seed_default_answers` — for **two independent reasons each**, so the exclusion does not rest on the
+weaker one: they write response-plane **content** (neither PHI nor an invariant), **and** they *are*
+executable by `authenticated` **and** `anon`, because their `proacl` is **NULL — the permissive default
+including PUBLIC**. Not escalated (`app` is not PostgREST-reachable — see
+`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`), but recorded: that is the fail-open shape this repo
+has hit four times.
+
+⛔⛔ **DO NOT ACT ON THE CENSUS'S PRUNE HINT.** Once both members were entered in
+`authz-unswept-backlog.txt`, `ARM=census` began printing them every run under *"backlog entries with no
+matching live gate (renamed/dropped — prune)"*. The note is **correct about its own domain and wrong as
+advice**: the census's live-gate set is `prosecdef` booleans, set-returning doors, `public` INVOKER
+plpgsql and policies, and these are `app` INVOKER **scalars** — they match nothing in it, **which is
+exactly why they are listed**. Acting on that hint deletes the admitted gap. Both entries carry a
+DO-NOT-PRUNE block naming the note verbatim. ⭐ A gate that instructs the next maintainer to remove the
+record of a gap is worth more attention than the gap.
+
+**To close:** a targeted mutation case for `_grant_case_access_unchecked` of the same shape the new
+helper has — ACL widened ⇒ red · flipped to `SECURITY DEFINER` ⇒ red (the differential that proved
+INVOKER is the second lock, run on this function too) · caller set pinned by property. ⛔ Do **not**
+close it by asserting today's ACL alone; an assertion that restates the current catalog and cannot fail
+is the shape this increment spent the day removing.

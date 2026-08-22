@@ -53,17 +53,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   · A2.4 risk 2's mitigation ships in the same change · A2.6's record updates incl. **CLAUDE.md Rule 12**
   ship in the **same commit** · re-check the `<CaseDetailView` **mount-site count** before reusing the
   Increment-1 no-op argument. Plan: [case-surface-split.md](docs/plans/case-surface-split.md) §4.
-  - **✅ Pre-work measured 2026-08-22 (V-D · V-E/V-F/V-G · the Amdt-2 M1–M13 baseline), and it moved
-    five records.** ADR 0134's baseline rows are corrected **in place** with the correction marked, not
-    silently: **M13** the keystone is `:162-168`, `:153` is the fixture INSERT (cited wrong in 3 files
-    since filing) · **M10** the PHI-loss-on-refusal shape has **TWO** sites (`createCase` :570-577 as
-    well), so a one-site fix would have read as done · **M11** the `CasePatientPanel` mount is `:866-871`,
-    the cited `:822` is a different component · **M2** `read_standard_phi` has **3 writes in 2 arms**, not
-    "exactly two sources" · **M4** the xref "gate" is **three different gates** (`get_patient_trajectory_for_entity`
-    is PQS-only, no DPO arm). ⭐ **RULED 2026-08-22 — ADR 0134 Amendment 5:** D6's *"default-checked"* is a
-    **grant**, not a pre-ticked box — the dialog has no defaults (checkboxes render server state), so
-    `appoint_administrativo` grants `read_cases`; the client-side-tick reading is **rejected outright** as a
-    mirror wider than its door. Does **not** reopen OPEN-1 (that governs existing appointees).
+  - **✅ Pre-work measured 2026-08-22 and it moved FIVE of ADR 0134's baseline rows** (M13 · M10 · M11 ·
+    M2 · M4), each corrected **in the ADR** with the correction marked, plus **Amendment 5** (D1's
+    "default-checked" is a **grant**). Rotated verbatim → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md).
+    ⭐ The reusable half: **every one of the five was found by re-deriving a row the ADR told readers never
+    to quote.**
   - **🆕 Three findings the plan did not anticipate, each owned inside this increment.** ⛔ **A live UI
     string over-claims PHI**: the appoint dialog tells the coordinator `create_cases` lets the person
     *"inserir **e visualizar** dados de paciente"* — the *visualizar* half is **measurably false today and
@@ -83,16 +77,12 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
     shape** (A1.2 declined a *sixth key*; two existing keys is neither) and that key 2 is a **standing** grant.
     ⭐ Lesson, not bulk-specific: *a ruling phrased "add an arm to door X" is unsafe when X is a composition* —
     A1.2 was written from the door's **name**, not its **call graph**, and survived ratification and a plan.
-  - **⛔ RULED 2026-08-22 — ADR 0134 Amendment 6 (lead, PO may overrule): D6 names a chokepoint that
-    cannot answer S8's question.** `app.member_can` takes **no uid** and is `auth.uid()`-bound, while
-    `app._case_caps` is a **`(case, uid)`** resolver — and it is the only membership helper in `app` with
-    no `_for` twin. Used as written, S8 would answer **about the caller** at all **14** measured cross-uid
-    `can_read_case` call sites, and would re-open Amdt 4's bit-shape collision through a door **no ARM can
-    see** (a uid-source mismatch is not a missing gate). Ruling: `member_can_for` becomes the **single**
-    implementation and `member_can` **delegates** — one body, rather than two hand-copies of a predicate
-    whose first conjunct is the kill switch. The cost objection (lost inlining) was checked and **did not
-    survive**: `member_can` is `SECURITY DEFINER`, which Postgres never inlines. ⚠ The plan **and** the ADR
-    both named this mechanism and both were wrong for four amendments — caught by reading the signature.
+  - **⛔ RULED 2026-08-22 — ADR 0134 Amendment 6 (lead, PO may overrule): D6 named a chokepoint that
+    cannot answer S8's question** — `app.member_can` takes **no uid** while `app._case_caps` is a
+    `(case, uid)` resolver. ✅ **LANDED**: `member_can_for` is the single implementation, `member_can`
+    delegates. Bullet rotated verbatim → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md),
+    with its two later corrections (the predicate has **three** independent terms, not four; the inlining
+    mechanism was inferred and stated as measured).
 - **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
   user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
   person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
@@ -427,6 +417,8 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-SUPERSESSION-BADGE-LANE-BLIND** — `resolveSupersessionBadge` (`queries/submissions.ts`) mirrors `app.submitted_form_responses`' exclusion but **drops that rule's own `case_phase_id is null`**, while `listSubmissions` surfaces BOTH lanes. Standalone = correct (it IS ADR 0126 Am.1 §A's rule); **phase-bound = the chain-tip grain D8 examined and REJECTED** — the original reads "Substituído" before approval while `current_response_id` still points at it, flaps back on `reject_correction`, and an unapproved successor reads "Atual". ⭐ Differential: the **same pill** one file over is fed by `status === "approved"` (ADR 0085). ⭐⭐ And the lane conjunct **already exists in TS**: `isDashboardCountable` (`queries/dashboard.ts`) — which ARCHITECTURE.md calls *"the TS twin"*, singular — has `r.casePhaseId == null` explicitly, one file away. Two TS derivations of one choke-point; only one is sanctioned and only one is complete. ⚠ ADR **0074's** axis, not print-currency; found by accident in the §K sweep. ⛔ Read ADR 0074/0085 before fixing. Class: **a mirror inherits its source's PREDICATE, not just its shape** — frontend/backend
 - 🟠 **FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS** — `reset role` restores the ROLE only; `request.jwt.claims` survives it, so a suite asserting "owner context, `auth.uid()` is NULL" may be asserting **as the last persona**. Found by construction in the S8 suite, where it hit the ADR-0134 **Amdt-6 pin itself**. ⭐ Class: *a pin whose stated PREMISE is false is the same defect as one that cannot fail* — and the comment above it reads like the verification. Measured: **172** files `reset role` (2179×), **39** ever clear claims ⇒ **136 CAN hold it**. ⛔ **136 is the capable population, NOT a defect count** — the real one is undetermined and no text filter decides it. Fix at the ROOT (one `test_helpers` verb that does both), gate in **pgTAP not lint**, red-first — backend/tester
 - 🟠 **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** — `p0-authz-door-audit.sh:~231` bounds the predicate arm by a **name prefix**, not by a property. `ARM=census` correctly VIOLATED on the new gate `member_can_for`; the diff-scoped sweep it prints **as the remediation** then ran **ZERO cases** and printed **`BLIND: 0 ERROR: 0`** — a detector that found nothing because it looked at nothing, in a line a gate record reads as a clean pass. Measured: **802** DEFINER fns, **101** in domain, **42 outside it yet BOOLEAN** — incl. **`_audit_access_authorized`** (the PHI-read audit gate), `confidentiality_clearance_ok`, `member_can*`. ⛔ Outside the arm ≠ unswept, and 42 is not a defect count either. ⚠ Worse one level up: `app._case_caps` returns **`int`**, so it is in **no** arm's domain at all. **Cheapest real fix: forbid an empty-domain run from printing the line a clean run prints** — backend
+- 🟠 **FUP-GRANT-CASE-ACCESS-UNCHECKED-HAS-NO-COVERAGE** — `app._grant_case_access_unchecked` writes **`case_access_grants`** — the table deciding who can reach a case — with no authority check by design, and has had **no targeted test and no tracked class since 2026-07**. ⭐ Found by deriving a class **by property** instead of naming the instance that prompted it: the sweep returns **2**, and the second is the precedent the new PHI helper was modelled on. **The class predates the increment that revealed it.** ⚠ Untested ≠ unprotected — ACL `{postgres}`, `anon`/`authenticated` false; what is missing is a pin that this is still true tomorrow. ⛔⛔ **`ARM=census` prints a PRUNE hint naming both entries — correct about its own domain, wrong as advice; acting on it deletes the admitted gap.** ⭐ A gate telling you to erase the record of a gap deserves more attention than the gap — backend
+- 🟡 **FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE** — a caller naming a function's **old arity** in a `has_function_privilege('…(uuid,text,…)')` string does not fail an assertion; it **ABORTS the suite** as a plan mismatch, in an unrelated file, naming no function (`Result: FAIL` with **zero** `# Failed test` lines — the never-ran shape wearing its opposite). Hit on the Increment-2 `DROP`+`CREATE`; the overload pin catches **ambiguity** and is structurally blind to **arity**. Swept: **9** textual hits, **1** executable — fixed, and `357` 1.6/1.7 now pin `oid::regprocedure::text`, the *same string form* the hazard uses. ⛔ Open on the **class**, not the two doors: whatever gate is built must go **RED on a deliberately stale signature** — a sweep of this shape that finds nothing is indistinguishable from one that cannot — backend
 - 🟢 **FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED** — ⛔ **informational, NOT a live hole; do not report it as one.** Measured 2026-08-22: of **467** functions in schema `app`, **237 are `anon`-executable** — **228** by `proacl IS NULL` (the permissive default nobody wrote) and **9** by an explicit `=X/postgres` entry, four of which are **authorization predicates** (`is_admin`, `is_member_of`, `is_org_admin_of`, `is_staff_admin_of`). The ONLY thing bounding this is **one config line** — `supabase/config.toml:13` does not expose `app` to PostgREST — so the ACLs are not holding the line and an auditor reading them would conclude they were. ⭐ First reported as *"`is_member_of` is wider than every sibling"*: every clause true, the framing wrong in this repo's standing way — the instance found, not the class (it missed a second explicit member and the 228-strong dominant mechanism), and a one-outlier framing invites a one-function fix that changes nothing. Needs a **decision**, not a patch; ⛔ never smuggled into a feature migration — backend/PO
 
 
