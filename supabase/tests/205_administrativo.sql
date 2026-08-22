@@ -30,16 +30,34 @@
 --       exactly how this keystone would have gone green while asserting nothing.
 --   (A5) AUTO-GRANT — ADR 0134 Amendment 5: `appoint_administrativo` grants
 --       `read_cases` (and only that) with the appointment. A DIRECT-INSERT appointment
---       (the seed's path) bypasses the door and therefore grants nothing, and
---       re-appointing an appointee who already exists grants nothing either — ADR 0134
---       Amendment 1 §A1.1's no-backfill ruling still governs existing appointees.
+--       (the seed's path) bypasses the door and therefore grants nothing; re-appointing
+--       an appointee who ALREADY STANDS grants nothing either (ADR 0134 Amendment 1
+--       §A1.1's no-backfill ruling still governs existing appointees); but re-appointing
+--       AFTER A REVOKE does grant — that is a genuinely new appointment. ⛔ The last two
+--       are the SAME RPC CALL and only one is a no-op, so both directions are pinned:
+--       a pin on either alone would read as a pin on both.
+--
+-- ⭐ NEUTRALIZATION RECORD (2026-08-22) — every pin above was proven able to fail, and
+-- the two that matter are recorded here because a later reader will otherwise assume the
+-- obvious mutation is the only one:
+--   N1 · drop the CHECK constraint                -> the CHECK negative RED, RPC pin green
+--   N2 · delete grant_member_capability's whitelist -> the RPC negative RED, CHECK pin green.
+--        ⛔ It still raised 23514 — from the CHECK underneath. An errcode-only throws_ok
+--        would have stayed GREEN with the validator gone. The pt-BR message is the
+--        assertion.
+--   N3 · make the auto-grant unconditional        -> the no-backfill pin RED
+--   N4 · move the auto-grant from the DOOR to a table TRIGGER -> the direct-INSERT pin RED.
+--        N4 is the one that stops "the door grants it" from being demonstrated by
+--        something that is not the door; N3 alone cannot tell those apart.
+--   N5 · delete the auto-grant entirely           -> the appoint pin and the
+--        re-appoint-after-revoke pin RED
 --
 -- Personas (bootstrap): sa_x coordinator, st_x + st_x2 plain staff of X, sa_y
 -- foreign coordinator. Plus sa_x2 = a SECOND coordinator of X (to test the
 -- "appoint a staff_admin" rejection without self-grant noise). st_x is the HOLDER.
 
 begin;
-select plan(60);
+select plan(64);
 
 -- The capability chokepoint is flag-aware; enable the surface + its dependencies.
 update app.feature_flags set enabled = true
@@ -565,6 +583,43 @@ select is(
     where commission_id = (select comm_x from k) and user_id = (select adm2 from p)),
   array['create_cases', 'read_cases'],
   'VOC RPC: …and the read_cases row actually landed (the door is idempotent, not inert)');
+
+-- =========================================================================
+-- (A5) REVOKE → RE-APPOINT **IS** A NEW APPOINTMENT — the other half of the
+-- no-backfill pin. ⛔ These two are the SAME RPC CALL and only ONE of them is a
+-- no-op, so a pin on either one alone READS as a pin on both: re-appointing a
+-- STANDING appointee grants nothing (the appointment insert conflicts away);
+-- re-appointing after a revoke grants `read_cases` again, because the revoke
+-- FK-cascaded every capability row and the appointment is genuinely new.
+-- The zero-capability check between them is a CONTROL, not decoration — without
+-- it the final assertion could be satisfied by a surviving row rather than by
+-- the door.
+-- =========================================================================
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.revoke_administrativo(%L, %L) $$,
+         (select comm_x from k), (select adm2 from p)),
+  'A5: the coordinator revokes the appointment');
+reset role;
+select is(
+  (select count(*)::int from public.commission_administrativo_capabilities
+    where commission_id = (select comm_x from k) and user_id = (select adm2 from p)),
+  0, 'A5 CONTROL: revoking the appointment FK-cascaded every capability row away');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.appoint_administrativo(%L, %L) $$,
+         (select comm_x from k), (select adm2 from p)),
+  'A5: the coordinator re-appoints them');
+reset role;
+select is(
+  (select array_agg(capability order by capability)
+     from public.commission_administrativo_capabilities
+    where commission_id = (select comm_x from k) and user_id = (select adm2 from p)),
+  array['read_cases'],
+  'A5: re-appointing AFTER a revoke IS a new appointment — read_cases is granted again, and only that');
 
 select * from finish();
 rollback;

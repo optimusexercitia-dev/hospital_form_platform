@@ -30,6 +30,20 @@
 --   Deliberately NOT extended: `public.revoke_member_capability`, which has NO
 --   whitelist at all (confirmed from `pg_get_functiondef`) — it deletes by equality, so
 --   an unknown literal is a silent no-op. Adding one is out of scope for this change.
+--
+-- ⛔ READ THIS BEFORE ADDING A SIXTH CAPABILITY — the two validators share an errcode,
+-- so the obvious test for one of them silently tests the other. `grant_member_capability`
+-- raises `check_violation` (= 23514) from its whitelist; the INSERT it guards raises
+-- 23514 from the CHECK constraint underneath. Delete the whitelist and the call STILL
+-- raises 23514 — measured, not reasoned:
+--     caught: 23514: new row for relation "commission_administrativo_capabilities"
+--             violates check constraint "…_capability_check"
+--     wanted: 23514: capacidade inválida
+-- So a `throws_ok(…, '23514', null, …)` on the RPC is GREEN with the validator gone: it
+-- proves the table refuses the literal, never that the door does. The pin in
+-- `supabase/tests/205_administrativo.sql` § (VOC) asserts the pt-BR MESSAGE for exactly
+-- this reason. Same shape as `FUP-42501-CONFLATES-GRANT-WITH-RLS`, one errcode over —
+-- a door can have two locks, and the second one answers in the same voice.
 -- Sweeps that returned ZERO, so nothing else needs extending (each by its own property
 -- over the catalog, with a positive control): column DEFAULTs, views/matviews,
 -- triggers, index expressions. The 3 RLS policies matching a literal are the
