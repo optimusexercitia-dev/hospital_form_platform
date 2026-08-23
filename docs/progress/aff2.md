@@ -135,7 +135,7 @@ was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
 | F1 · Directory table | ✅ **complete + VERIFIED 2026-08-23** — adapted to B7 (`f712dd61`), placeholders deleted, org_admin hospital filter added. lint 8/8, `tsc` 0, **21/21** live checks; both formerly-inert arms are now real |
 | F2 · Profile page | ✅ **complete + VERIFIED 2026-08-23** — lint 8/8, `tsc` 0, **21/21** browser checks incl. the Amdt-1 split on one target |
 | F3 · Register wizard | ✅ **complete 2026-08-23** — all three B4 insertion points closed (Nascimento, Telefone, redirect-to-profile). lint 8/8, `tsc` 0. ✅ **VERIFIED 2026-08-23**, 10/10 — including that the values SURVIVE the submit |
-| F4 · Copy + a11y pass | ⏳ **partial** — `error.tsx` ✅ built **and verified** 2026-08-23 (pulled forward, lead-approved); the copy/a11y sweep itself waits on F2/F3 being final |
+| F4 · Copy + a11y pass | ✅ **complete + VERIFIED 2026-08-23** — `error.tsx` (8/8 ×2) + the sweep (16/16). 3 fixes, incl. a shared-CSS reduced-motion defect |
 
 ### F1 — what shipped, and what is still inert
 
@@ -440,6 +440,49 @@ into the identity band, which has no such heading. Not worth keeping a heading a
 to satisfy a locator. `getByRole('region', { name: 'Vínculos hospitalares' })`
 (`aff-hospital-affiliation.spec.ts:655,689`) **still resolves** — that section kept its
 name.
+
+---
+
+### F4 — the sweep, and a reduced-motion defect that was a §8 violation
+
+**16/16 verified 2026-08-23.** Three fixes, one of them in shared CSS.
+
+🔴 **`globals.css` reset `animation-duration` but NOT `animation-delay`.** `.animate-rise-in`
+uses `both` fill-mode, so an element holds its `from` state — `opacity: 0` — for the whole
+delay. Under reduced motion the animation was suppressed and **the stagger was not**: rows
+stayed invisible and popped in one at a time. **Measured at `--rise-delay=760ms` on row 20.**
+CLAUDE.md §8 ("`prefers-reduced-motion` respected"), not a nicety, and app-wide — every
+`--rise-delay` consumer (audit feed, cases, NSP) was affected; the directory was merely the
+widest range. Fixed with `animation-delay`/`transition-delay: 0ms !important`.
+
+⭐ **The before/after is one measurement, which is why it attributes.** Under reduced motion
+the **input is unchanged** (`--rise-delay` still reads `760ms`) while the **output is fixed**
+(`animation-delay: 0s`, `opacity: 1`) — so the pass cannot be vacuous via a missing stagger.
+And under **normal** motion the last row still computes `0.76s`, proving the fix is scoped
+rather than having killed the animation for everyone. Confirmed on `/c`, a surface outside
+this workstream, because it is shared CSS.
+
+**Two a11y fixes:** the "Atenção" pill now carries an `sr-only` clarifier — it is the one
+**composite** label (suspenso ∪ pendente) appearing nowhere else on screen, so a sighted user
+discovers it by clicking while a screen-reader user heard only a word. Accessible name now
+reads *"Atenção (contas suspensas e convites pendentes)·2 pessoas"*. And the rail's "Editar"
+is a **disclosure**, now with `aria-expanded`/`aria-controls`; focus is deliberately **not**
+moved into the form, which would steal it from a keyboard user who only wanted to look.
+
+**One copy fix:** the withheld note said the matrícula is managed *"ao lado"* — false at every
+width below `lg`, where the rail stacks **below**. Now names the card. ⭐ Swept the class: the
+two other positional-copy instances refer to content genuinely below them at all widths and
+were left alone.
+
+**Keyboard + focus, measured not assumed:** Tab reaches 7 controls with no trap
+(Todos → Ativos → Atenção → Desativados → search → Buscar → hospital switcher) and **7/7 paint
+a ring** — `getComputedStyle` `boxShadow`/`outlineStyle`, because asserting the class name
+would pass on a ring that renders nothing. The disclosure opens by keyboard and flips
+`aria-expanded`; the wizard's CPF field rings and focus lands on the revealed step heading.
+
+**B8 wired:** `?hospital=` narrows **30 org-wide → 15 at Central A**, so the control that was
+navigate-but-do-nothing is now real. The stale "not yet applied" comment went with it — the
+fourth stale comment this workstream would have produced.
 
 ---
 

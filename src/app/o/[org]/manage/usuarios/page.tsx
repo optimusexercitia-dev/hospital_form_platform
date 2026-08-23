@@ -51,11 +51,11 @@ const PAGE_SIZE = 20;
  * administers and must always have one selected. Same component, different meaning:
  * `allowAll` is what separates a filter from a switcher.
  *
- * ⛔ ONE TRANSITIONAL GAP: for an `org_admin`, `?hospital=` is parsed and rendered but
- * NOT yet applied — `ListDirectoryOptions` has no `hospital` field (backend task **B8**,
- * landing next). Marked at the call site. Until it lands the org_admin select navigates
- * without narrowing; a `hospital_admin`'s scope is unaffected, since theirs comes from
- * `listHospitalUsers` rather than from an option.
+ * ⚠ `?hospital=` NARROWS the org roster and can never widen it (B8): someone visible at
+ * hospital H but not anchored to this org stays absent, which is intended rather than a
+ * dropped row. It is passed only on the org_admin arm — `listHospitalUsers` is
+ * hospital-scoped by construction, and a second expression of one scope is how the two
+ * come to disagree.
  */
 export default async function OrgUsersPage({
   params,
@@ -112,11 +112,10 @@ export default async function OrgUsersPage({
     search,
     status: statusFilter,
     paging: { page: pageNum - 1, pageSize: PAGE_SIZE },
-    // ⛔ B8 INSERTION POINT — the org_admin hospital filter goes here as
-    // `hospital: isOrgAdmin ? selectedHospitalId : undefined` once
-    // `ListDirectoryOptions` accepts it. Deliberately NOT invented: passing a key the
-    // type does not declare would be dropped silently, and the select would look like
-    // it filtered while returning the unfiltered page.
+    // Org-wide only (B8). `listHospitalUsers` is hospital-scoped by construction, so
+    // passing it there would be a second, weaker expression of the same scope — and
+    // two expressions of one scope is how they come to disagree.
+    hospital: isOrgAdmin ? selectedHospitalId : undefined,
   };
   const { rows, total, statusCounts } = isOrgAdmin
     ? await listOrgUsers(organization.id, options)

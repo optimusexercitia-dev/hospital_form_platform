@@ -315,5 +315,17 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+
+    /* ⛔ THE DELAY MUST BE RESET TOO, and its absence was a real defect rather than
+       an omission of tidiness. Collapsing only the DURATION leaves `animation-delay`
+       intact, and `.animate-rise-in` / `.animate-fade-in` above use `both` fill-mode
+       — so the element holds the `from` state, `opacity: 0`, for the whole delay.
+       A staggered group therefore stayed INVISIBLE and popped in one item at a time
+       for someone who asked for no motion: measured at up to ~760ms across the user
+       directory's 20 rows at a 40ms step. The animation was suppressed; the stagger
+       was not. Every `--rise-delay` consumer app-wide is affected (audit feed, cases,
+       NSP), the directory merely being the widest range. CLAUDE.md §8. */
+    animation-delay: 0ms !important;
+    transition-delay: 0ms !important;
   }
 }
