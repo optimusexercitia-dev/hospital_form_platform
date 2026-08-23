@@ -41,7 +41,7 @@
 --     every update, and the two new limbs would be untested.
 
 begin;
-select plan(18);
+select plan(21);
 
 -- ---------------------------------------------------------------------------
 -- Fixture: one additive person with a fixed id, in the seeded Rede A org.
@@ -219,6 +219,49 @@ select is(
     where conrelid = 'public.profiles'::regclass and contype = 'c'
       and pg_get_constraintdef(oid) ilike '%phone%'), 0,
   '5.3 ⭐ NO CHECK constraint mentions `phone` (Amdt 1 ruling 6: digits-only is a storage convention, not an identifier invariant; formatting is display-side)');
+
+-- ===========================================================================
+-- §6 `profiles.cpf` is DIGITS-ONLY BY CONSTRAINT, not by convention.
+--
+-- ⛔ WHY THIS LIVES HERE AND WHY IT MATTERS FAR BEYOND B1. `list_org_people` matches CPF
+-- EXACTLY — `pr.cpf = v_cpf`, at full storage length, because ADR 0097 D11 refuses partial
+-- matching as an enumeration oracle. So a FORMATTED value at rest is not merely untidy, it
+-- is UNFINDABLE: the lookup returns empty, the identifier-first wizard reports "nenhuma
+-- pessoa com este CPF", and the registrar creates a DUPLICATE PERSON. That is precisely the
+-- failure `registerUser`'s own doc names (`src/lib/users/actions.ts:90-91`) — the feature
+-- goes inert on exactly the population it exists for.
+--
+-- ⚠ A NOTE ON WHAT THIS DOES *NOT* PIN, because it was first specified as pinning it. The
+-- AFF2 B4 predicate normalises BOTH sides (`normalizeCpf(current) !== normalizeCpf(input)`),
+-- so that predicate is correct whatever the storage format and does NOT depend on this
+-- CHECK. The dependent named above does, and it survives any change to B4.
+--
+-- ⚠ This is also the reason the Vitest arm asserting a reformatted-CPF echo can only prove
+-- INPUT-side normalisation: a stored non-normalised CPF is unconstructible, so the
+-- discriminating fixture cannot be built in TypeScript at all. This is where that guarantee
+-- is testable, and this arm is what reds if anyone relaxes `app.is_valid_cpf`.
+-- ===========================================================================
+
+select throws_ok(
+  $$update public.profiles set cpf = '111.444.777-35'
+     where id = '0aff2001-0000-0000-0000-000000000001'$$,
+  '23514', null,
+  '6.1 ⭐ a FORMATTED CPF is REFUSED at rest (profiles_cpf_valid / app.is_valid_cpf ^[0-9]{11}$). Without this, exact-match lookup silently misses the person and a duplicate gets created');
+
+-- ⚠ THE VALUE MUST BE VALID **AND UNUSED**. First written with 11144477735, which is a
+-- perfectly valid CPF and is already held by a seed persona — the arm died on
+-- `profiles_cpf_key` (23505), not on the property, and a `lives_ok` that dies for an
+-- unrelated reason reads exactly like the constraint rejecting everything. Which is what
+-- this control exists to detect, so it caught itself. 10000000019 is valid per
+-- `app.is_valid_cpf` and held by nobody in the seed.
+select lives_ok(
+  $$update public.profiles set cpf = '10000000019'
+     where id = '0aff2001-0000-0000-0000-000000000001'$$,
+  '6.2 VACUITY CONTROL for 6.1: the SAME statement with the digits-only form SUCCEEDS. Without it, 6.1 is satisfiable by any constraint that rejects every CPF');
+
+select is(
+  (select app.is_valid_cpf('111.444.777-35')), false,
+  '6.3 ... and the predicate itself is the reason, asserted directly rather than inferred from the CHECK that calls it');
 
 select * from finish();
 rollback;
