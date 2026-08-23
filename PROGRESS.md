@@ -16,19 +16,27 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **✅ AFF2 — COMPLETE and PO-APPROVED 2026-08-23. ⛔ NOT merged, NOT pushed.** Affiliation-scoped
-  administration + the user-management redesign. Ledger row **AFF2**; full detail →
-  [aff2.md](docs/progress/aff2.md); build-start bullet rotated verbatim →
-  [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md). ⛔ **A commit count and a head
-  sha are LIVE FACTS — `git rev-list --count main..HEAD` and `git rev-parse --short HEAD`, never quoted
-  from here.** This bullet said *"39 commits, head `ed125b93`"* and was **already wrong when committed**:
-  the Record commit that wrote it is itself commit 40, so a count written inside the commit it counts is
-  off by one **by construction**. Measured 2026-08-23 after the Record step: **40 / `adde5e42`**; the
-  documentation-review commit that follows makes it 41. ⛔ **3 migrations are LOCAL ONLY**
-  (`20261003001000`–`20261003001200`, measured against the file list); the remote stands at
-  **441 / `20261003000900`** — ⛔ re-measure, never re-read. ⭐ **When the merge call comes: SCHEMA FIRST, then code** — the migrations are additive, so
-  old-code/new-schema is safe and new-code/old-schema is the broken state a code-first push would open.
-  ⚠ **Awaiting the PO's merge + push call; nothing about AFF2 is on `main` or the remote.**
+- **✅ AFF2 — COMPLETE, PO-APPROVED and MERGED to LOCAL `main` 2026-08-23** (`96acec61`, `--no-ff`;
+  branch `feat/aff2-user-management` deleted — `git branch -d` refuses a branch that is not fully
+  merged, so the delete *is* the merge proof). Affiliation-scoped administration + the
+  user-management redesign. Ledger row **AFF2**; full detail → [aff2.md](docs/progress/aff2.md).
+  ⛔ **NOTHING IS PUSHED — NEITHER HALF, and they must go in a fixed order.**
+  1. ⛔ **SCHEMA IS FIRST AND IS NOT DONE.** `npm run db:push` was **blocked by the environment's
+     permission classifier**, not skipped and not failed — so the 3 migrations
+     (`20261003001000`–`20261003001200`) are still pending. Measured on the remote at the attempt:
+     last applied `20261003000900`, three pending, **0 remote-only** (no drift). ⛔ Re-measure with
+     `npx supabase migration list --linked`, never quote this.
+  2. ⛔ **CODE IS SECOND AND IS DELIBERATELY HELD.** `main` is **43 commits ahead of `origin/main`**
+     and was **not** pushed, though the push was authorized — because
+     [coolify.md](docs/deployment/coolify.md) documents **auto-deploy on git push** to the deploy
+     branch, against this same Supabase project. ⭐ **The migrations are additive, so
+     old-code/new-schema is safe and new-code/old-schema is the broken state** — pushing code while
+     step 1 is blocked is precisely how that state gets opened. ⚠ Whether auto-deploy is enabled
+     *right now* is an **external fact no one here can verify**; the order costs nothing if it is off.
+  ⭐ **A commit count and a head sha are LIVE FACTS** — `git rev-list --count origin/main..main`,
+  never quoted from here. This bullet once said *"39 commits, head `ed125b93`"* and was **already
+  wrong when committed**: the Record commit that wrote it was itself commit 40. A count written
+  inside the commit it counts is off by one **by construction**.
 
 - **✅ CASE SURFACE SPLIT — COMPLETE through Increment 2, and its post-merge residue is WORKED** (ADR
   0134 D1–D7 + Amdt 1–8). Increments 1 (`6e364203`) and 2 (`be546bbf`) are merged to **local** `main`;
