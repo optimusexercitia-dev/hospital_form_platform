@@ -2,9 +2,10 @@
 
 **Status:** ✅ **EXECUTED — built, gated and PO-approved 2026-08-23.** Ledger row **AFF2**;
 per-task record → [../progress/aff2.md](../progress/aff2.md); QA APPROVED r2 →
-[../reviews/aff2-review.md](../reviews/aff2-review.md). ⛔ **The branch
-`feat/aff2-user-management` is NOT merged and NOT pushed** — three migrations
-(`20261003001000`–`20261003001200`) are local only. ⚠ **This plan is now a HISTORICAL
+[../reviews/aff2-review.md](../reviews/aff2-review.md). ✅ **MERGED + PUSHED 2026-08-23** —
+merge `96acec61`, branch `feat/aff2-user-management` deleted; schema first
+(remote **444 / `20261003001200`**), then code (`16b40c62..7320f341`).
+⚠ **This plan is now a HISTORICAL
 record, not an instruction** — where it disagrees with ADR 0133 + Amendments 1–4, the ADR
 wins, and where it disagrees with the code, the code wins.
 ⛔ **Two of its deliverables did NOT ship**, and reading the task list alone will not tell

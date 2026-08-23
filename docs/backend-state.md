@@ -408,9 +408,13 @@ their home is here because they never conclude._
 
 ## AFF2 — affiliation-scoped administration (2026-08-23; ADR **0133** + **Amendments 1–4**; migrations `20261003001000`–`…001200`, **3**; pgTAP `359` `plan(18)` · `360` `plan(21)` · `361` `plan(24)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **LOCAL ONLY, NOT PUSHED**
 
-⛔ **The remote stands at 441 / `20261003000900`; these three migrations exist only locally.** Re-measure
-before quoting. When the merge call comes: **schema first, then code** — the migrations are additive, so
-old-code/new-schema is safe and new-code/old-schema is the broken state a code-first push would open.
+✅ **PUSHED 2026-08-23 — schema first, then code.** Remote re-measured (not read off the push output):
+**444 / `20261003001200`**, `origin/main..main` = 0. Verified in the **catalog**: both columns exist
+(`date_of_birth date NULL`, `phone text NULL`), `list_org_people(uuid,text,text)` is `secdef` with
+`date_of_birth` in its return type and still **one** overload, `professional_credentials_select` carries
+both legs, and the column-lock holds as a **differential** — both new columns `authenticated:REFERENCES`
+only, identical to `cpf`, against `full_name`'s full set; no `anon` grant. ⛔ **Re-measure before quoting**
+— superseded by the next remote-affecting change.
 
 **Schema.** `profiles.date_of_birth date null` + `profiles.phone text null` (digits-only, **no CHECK** by
 decision — Amdt 1 r6; formatting is display-side). ⛔ **Column-locked exactly like `cpf`**: absent from every

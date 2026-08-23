@@ -20,19 +20,25 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   branch `feat/aff2-user-management` deleted — `git branch -d` refuses a branch that is not fully
   merged, so the delete *is* the merge proof). Affiliation-scoped administration + the
   user-management redesign. Ledger row **AFF2**; full detail → [aff2.md](docs/progress/aff2.md).
-  ⛔ **NOTHING IS PUSHED — NEITHER HALF, and they must go in a fixed order.**
-  1. ⛔ **SCHEMA IS FIRST AND IS NOT DONE.** `npm run db:push` was **blocked by the environment's
-     permission classifier**, not skipped and not failed — so the 3 migrations
-     (`20261003001000`–`20261003001200`) are still pending. Measured on the remote at the attempt:
-     last applied `20261003000900`, three pending, **0 remote-only** (no drift). ⛔ Re-measure with
-     `npx supabase migration list --linked`, never quote this.
-  2. ⛔ **CODE IS SECOND AND IS DELIBERATELY HELD.** `main` is **43 commits ahead of `origin/main`**
-     and was **not** pushed, though the push was authorized — because
-     [coolify.md](docs/deployment/coolify.md) documents **auto-deploy on git push** to the deploy
-     branch, against this same Supabase project. ⭐ **The migrations are additive, so
-     old-code/new-schema is safe and new-code/old-schema is the broken state** — pushing code while
-     step 1 is blocked is precisely how that state gets opened. ⚠ Whether auto-deploy is enabled
-     *right now* is an **external fact no one here can verify**; the order costs nothing if it is off.
+  ✅ **PUSHED 2026-08-23 — SCHEMA FIRST, THEN CODE, and both verified rather than reported.**
+  1. ✅ **Schema.** The PO ran `supabase db push` (the lead's attempt was blocked by the
+     environment's permission classifier — *blocked, not failed*). ⛔ **Not accepted on the "ran
+     successfully" report** — re-measured: registry shows `20261003001000`–`…001200` applied on
+     **both** sides, **0 remote-only**. Then the **catalog** itself, because a migration row says the
+     file ran, not that the schema matches the code: `date_of_birth date NULL` + `phone text NULL`
+     exist; `list_org_people(uuid,text,text)` is `secdef` with `date_of_birth` in its return type
+     (still **one** overload, no `citext` twin); `professional_credentials_select` carries the
+     affiliation leg **and** the `COALESCE` hospital-tier form; `guard_profile_privileged_columns`
+     covers both new columns. ⭐ **Column-lock proven as a DIFFERENTIAL, not as an absence:** both new
+     columns hold `authenticated:REFERENCES` **only** — identical to the locked `cpf`, against
+     `full_name`'s INSERT/REFERENCES/SELECT/UPDATE. No `anon` grant on any of them.
+  2. ✅ **Code.** `git push origin main` landed `16b40c62..7320f341`; re-fetched, `origin/main..main`
+     = **0**. ⭐ **The order was load-bearing and nearly went wrong:** the code push was authorized
+     while the schema push was blocked, and [coolify.md](docs/deployment/coolify.md) documents
+     **auto-deploy on git push** against this same Supabase project. Additive migrations make
+     old-code/new-schema safe and **new-code/old-schema the broken state**, so shipping code first
+     would have deployed an app reading a column that did not exist. ⚠ Whether auto-deploy is enabled
+     *right now* remains an **external fact nobody here can verify** — the order costs nothing if off.
   ⭐ **A commit count and a head sha are LIVE FACTS** — `git rev-list --count origin/main..main`,
   never quoted from here. This bullet once said *"39 commits, head `ed125b93`"* and was **already
   wrong when committed**: the Record commit that wrote it was itself commit 40. A count written
@@ -49,7 +55,9 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ⛔ **THREE things this does NOT mean, each of which a reader will assume:**
   1. ✅ **PUSHED 2026-08-23 — code AND schema, PO-authorised.** `git push` landed
      `df88dced..66160b9f` (`origin/main..main` = 0) and `npm run db:push` applied the 6 migrations;
-     the remote is **441 / `20261003000900`**, verified in its own catalog. ⭐ **Schema first, then
+     the remote reached **441 / `20261003000900`**, verified in its own catalog. ⚠ **That figure is
+     this push's OUTCOME, not the remote's current state** — AFF2 moved it to **444 /
+     `20261003001200`** the same day; § State carries the live row. ⭐ **Schema first, then
      code** — the migrations are additive, so old-code/new-schema is safe and new-code/old-schema is
      the broken state a code-first push would have opened. ⛔ Re-measure before quoting — § State.
   2. ✅ **`e2e:prod` HAS now been run — 2026-08-23, `REBUILD=1`, at `d885f621`** — the first full run
@@ -238,7 +246,7 @@ still awaiting a concluding event stay here:_
 | --- | --- |
 | ⚠ **Remote storage byte-loss is UNQUANTIFIED — the "~49 vanished" figure is WITHDRAWN 2026-08-18.** `n_tup_ins − n_tup_del` compares two units: 5 uploads move `ins` by **+6**, 5 deletes move `del` by **+5** (measured). And by the probe below, any surviving bytes are **unobservable** anyway | a magnitude re-derived from something other than the `pg_stat` counters — or PO ruling that it cannot be ([FUP-DM4-PRODROW](docs/progress/follow-ups.md)) |
 | ⛔ **CORRECTED 2026-08-21 — the remote holds the E2E SEED FIXTURE, not nothing.** This row said *"it holds no data and no users"* (census 2026-08-18). **Measured 2026-08-21 against the linked project: `auth.users` = 36, all `@test.local`, created 2026-08-19 — i.e. AFTER that census; 0 non-test accounts; 1 pre-promoted `platform_admin`; `cases` 10, `responses` 17; synthetic PHI `patient_identifiers` 2 / `event_patient` 3 / `referral_patient` 3.** ⭐ **No real customer data** — so the *conclusion* (safe to touch) survives; the *premise* did not, and the premise is what other decisions were resting on. ⚠ This is the **fifth** time a claim about the remote has gone stale in this file. ⛔ **Re-measure `auth.users` and `schema_migrations` before citing this row — never quote it.** | **expires at pilot data-load**, when it must be REPLACED by the rehearsed C1b disposal bound (§ Critical FUP C1), never just deleted |
-| ✅ **REMOTE IS CURRENT AGAIN — measured 2026-08-23 ON THE REMOTE, not inferred: `schema_migrations` = **441**, head `20261003000900`.** The 6 case-surface-split migrations were `db push`ed (PO-authorised) and `git push` landed `df88dced..66160b9f`; `origin/main..main` = **0**. ⭐ **Verified in the remote CATALOG, not from the migration output:** `create_case` has **0** `is_admin()` code lines (comments stripped), `app.member_can_for` exists, `_case_caps` carries the `read_cases` S8 arm, and its **md5 is `afbfed86c25e0a62c55163e83ad1f8a7` — byte-identical to local**. ⚠ **Schema was pushed BEFORE code, deliberately** — the migrations are additive, so old-code/new-schema is safe while new-code/old-schema is the broken state. `migration list` showed **0 remote-only** entries (no drift). ⛔ Superseded by the next remote-affecting change — **re-measure, do not quote** |
+| ✅ **REMOTE IS CURRENT — AFF2 SUPERSEDED the case-split row here, which is what that row said would happen.** Measured 2026-08-23 ON THE REMOTE: `schema_migrations` = **444**, head **`20261003001200`**; `origin/main..main` = **0** after `16b40c62..7320f341`. ⭐ **The count was MEASURED, not computed** — "441 + 3 = 444" would have been right today and is the habit that makes it wrong the day a migration lands from elsewhere. ⭐ **Verified in the remote CATALOG, not from the push output or the PO's success report:** `profiles.date_of_birth date NULL` + `phone text NULL` exist · `list_org_people(uuid,text,text)` is `secdef` with `date_of_birth` in its return type and still **ONE** overload (no `citext` twin) · `professional_credentials_select` carries the affiliation leg **and** the `COALESCE` hospital-tier form · `guard_profile_privileged_columns` covers both new columns. ⭐ **Column-lock proven as a DIFFERENTIAL:** both new columns hold `authenticated:REFERENCES` **only** — identical to locked `cpf`, against `full_name`'s INSERT/REFERENCES/SELECT/UPDATE; **no `anon` grant on any**. ⚠ **Schema went BEFORE code, deliberately** (additive ⇒ old-code/new-schema safe, new-code/old-schema broken). ⛔ Superseded by the next remote-affecting change — **re-measure, do not quote** |
 
 
 ## ⭐⭐ Critical FUP — the must-not-be-forgotten list

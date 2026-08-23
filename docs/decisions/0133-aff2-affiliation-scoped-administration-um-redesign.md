@@ -6,7 +6,7 @@
 > merged + pushed + cited across PROGRESS.md, ADR 0130 and migration history — that
 > claim to the number wins). Any external note citing "ADR 0129 (AFF2)" means this file.
 
-**Status:** Accepted (PO-approved 2026-08-20 via a two-round grilling interview) · ✅ **BUILT and PO-APPROVED 2026-08-23** — ledger row **AFF2**, QA APPROVED r2 ([review](../reviews/aff2-review.md)), detail [aff2.md](../progress/aff2.md). ⛔ **NOT merged, NOT pushed** — 39 commits on `feat/aff2-user-management`; the 3 migrations are local only.
+**Status:** Accepted (PO-approved 2026-08-20 via a two-round grilling interview) · ✅ **BUILT and PO-APPROVED 2026-08-23** — ledger row **AFF2**, QA APPROVED r2 ([review](../reviews/aff2-review.md)), detail [aff2.md](../progress/aff2.md). ⛔ **MERGED + PUSHED 2026-08-23** — merge `96acec61`, branch deleted; schema `db push`ed FIRST (remote re-measured **444 / `20261003001200`**, verified in the catalog), then `git push` `16b40c62..7320f341`.
 > ⚠ **Amendments 2, 3 and 4 were written DURING the build, because this ADR could not be implemented as
 > drafted** — D13 contradicted itself (Amdt 2 r1), Amdt 1's *"whenever the input includes `cpf`"* would have
 > reversed its own purpose (Amdt 3), and D11's match-card clause had no warrant against the actual caller
@@ -407,5 +407,6 @@ partitions all ten roles into org-tier / hospital-tier / commission-tier.
   - Also extended by AFF2 B1: **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** now covers
     `trigger`-returning `prosecdef` gates, which its own wording ("non-trigger") had excluded —
     and `guard_profile_privileged_columns` is the only in-DB control over the D9 columns.
-- ⛔ **The branch `feat/aff2-user-management` is NOT merged and NOT pushed**; migrations
-  `20261003001000`–`20261003001200` are local only. Re-measure before quoting.
+- ✅ **MERGED + PUSHED 2026-08-23**, schema first then code: remote **444 / `20261003001200`**
+  (re-measured, and verified in the catalog), `git push` `16b40c62..7320f341`, merge `96acec61`,
+  branch deleted. ⛔ **Re-measure before quoting** — superseded by the next remote-affecting change.
