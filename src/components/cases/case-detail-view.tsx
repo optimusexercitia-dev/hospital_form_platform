@@ -23,7 +23,7 @@ import {
   isReadingAsMember,
   narrowToReadingSurface,
 } from "@/components/cases/reading-surface";
-import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
+import type { PhaseResultGate } from "@/components/cases/phase-result-access";
 import type {
   CorrectionRequest,
   NarrativeRevision,
@@ -135,8 +135,7 @@ export function CaseDetailView({
   templateProvenance = null,
   referralsModule,
   forwardParentReferralId = null,
-  canManagePhaseResults = false,
-  phaseResultOptions = [],
+  phaseResultGate = null,
   outcomes = [],
   casesExtrasEnabled = false,
   actionItemsEnabled = false,
@@ -210,14 +209,19 @@ export function CaseDetailView({
    */
   templateProvenance?: TemplateProvenance | null;
   /**
-   * Whether the viewer may CORRECT a concluded phase's result post-conclusion
-   * (phase-results feature; task #10): resolved at the host page as
-   * `phaseResultsEnabled` + staff_admin/admin of the commission. Combined here with
-   * the case being non-terminal. Default `false`.
+   * The per-CASE half of the phase-result authority (phase-results feature; task
+   * #10) — the coordinator arm plus the picker's vocabulary. `null`/absent = the
+   * affordance is off entirely: the `case_phase_results` flag is off, no phase
+   * offers anything, or this is a READING surface (`/casos` passes nothing —
+   * ADR 0134 D2).
+   *
+   * ⚠ REPLACED the per-case `canManagePhaseResults` boolean, which structurally
+   * could not express the door's per-PHASE assignee arm
+   * (FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT). The per-phase half is derived
+   * per row from SERVER state by {@link phaseResultAffordance} — never from a
+   * client-side assumption about who the viewer is.
    */
-  canManagePhaseResults?: boolean;
-  /** The commission's active result options (the correction dialog's picker). */
-  phaseResultOptions?: ResolvedPhaseResult[];
+  phaseResultGate?: PhaseResultGate | null;
   /**
    * The commission's non-archived outcome vocabulary — threaded for the
    * process-less offered-outcome editor (processless_cases). Default `[]` (e.g.
@@ -450,9 +454,11 @@ export function CaseDetailView({
   const effectiveCanEditCustomFields = readingAsMember
     ? false
     : canEditCustomFields;
-  const effectiveCanManagePhaseResults = readingAsMember
-    ? false
-    : canManagePhaseResults;
+  // Same backstop as the two above, and for the same reason: the reading surface
+  // must not offer a phase-result affordance even if a future host forgets not to
+  // pass the gate. `null` is the whole "off" answer, so this zeroes BOTH arms at
+  // once — the coordinator arm and the per-phase assignee arm.
+  const effectivePhaseResultGate = readingAsMember ? null : phaseResultGate;
   const isOpen = !isTerminalCaseStatus(c.status);
   const offersOutcomes = detail.offeredOutcomes.length > 0;
   // A process-less case (templateId === null) has no template snapshot to freeze,
@@ -758,11 +764,12 @@ export function CaseDetailView({
                 canAssignPhases={effectiveCanAssignPhases}
                 viewerId={viewerId}
                 caseAccessEnabled={caseAccessEnabled}
-                // Post-conclusion correction (task #10): staff_admin + flag on +
-                // the case is non-terminal (open). The article also requires the
-                // phase to be `concluida`.
-                canCorrectResult={effectiveCanManagePhaseResults && isOpen}
-                resultOptions={phaseResultOptions}
+                // Per-phase result affordance (task #10). The list resolves it per
+                // row from this gate + each phase's own `status`/`assignedTo` +
+                // `viewerId` + `isOpen`, mirroring the door's two branches — a
+                // `completed` phase is coordinator-only, an `active` one also
+                // admits that phase's OWN assignee.
+                phaseResultGate={effectivePhaseResultGate}
                 correctionCaps={correctionCaps}
                 corrections={corrections}
                 memberNames={memberNames}

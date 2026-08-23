@@ -269,6 +269,15 @@ viewers passing the T1 predicate, `/casos` detail otherwise — via one helper b
 predicate. (ADR 0061's "Administrativo board rows → staff `casos/[id]` route" note becomes
 historical — its Amendment 1 already says so.)
 
+⚠ **CLARIFIED 2026-08-22 (PO ruling) — `meus-casos` is NOT in scope and its rows correctly stay on
+`/casos`.** The two surfaces named above are exhaustive. `FUP-CASE-T5-MEUS-CASOS-UNREPOINTED` was
+filed because *"Board/list rows"* reads as covering every row-bearing surface, and `meus-casos` is
+one; the **behaviour was right and this sentence was wrong by omission**. Ruled: **Meus Casos is
+name-attributed work, which ADR 0134 **D1** keeps on the read surface by definition** — re-pointing it
+would contradict D1 for the one surface D1 names as staying put. ⛔ Do not "fix" the routing to match
+a plan sentence; the plan was the defect. Class: *a plan and a behaviour left disagreeing is what makes
+a later reader correct the wrong one.*
+
 ### T6 — E2E re-anchoring + new coverage (tester)
 
 - `administrativo.spec.ts`: rows → manage detail; caps exercised on manage; `/casos` shows
@@ -432,11 +441,18 @@ create_case_from_template's own gate … bulk dealing is a coordinator act (Desi
 **reverses a recorded design decision**; left as-is that comment asserts the exact opposite of the
 truth, in the file a future reader trusts most.
 
-⚠ Pre-existing, outside this program, noted because it sits one call away: `public.create_case`'s
-authority carries an **`app.is_admin()` disjunct** (`is_staff_admin_of ∨ is_admin() ∨
-member_can('create_cases')`) — a `platform_admin` creating commission content is noun-rule
-territory (ADR 0078 A35) — while `create_case_from_template` has **no** such arm. The two
-single-case doors already disagree with each other.
+✅ **RESOLVED 2026-08-22 by PO ruling — the disjunct is GONE.** `public.create_case`'s authority is now
+`is_staff_admin_of ∨ member_can('create_cases')`, structurally identical to `create_case_from_template`;
+the noun rule (ADR 0078 A35) stands unamended and `platform_admin` may not create commission content.
+Pinned by `357` §8d.1 (gate text, exact — an ADDED arm reds too) and `314` §11.36/11.37 (family
+correspondence across all three creation doors). ⛔ There was **no** such pin anywhere before this.
+⚠ Cutting the arm also made the separate PHI gate added by `20261003000800` **structurally unreachable**
+(its predicate was the authority gate MINUS `is_admin`), so it was deleted rather than left as dead code
+a later reader would mistake for a second lock.
+
+_Original note, kept for provenance:_ `public.create_case`'s authority carries an **`app.is_admin()`
+disjunct** — a `platform_admin` creating commission content is noun-rule territory — while
+`create_case_from_template` has **no** such arm. The two single-case doors already disagree.
 
 ### M2 — the S8 arm
 

@@ -1008,3 +1008,64 @@ or a merge.
   door X"* is unsafe when X is a **composition**. A1.2's sentence was written from the door's name, not
   from its call graph, and it survived ratification and a written plan. **Before ruling that a door
   opens, enumerate the doors it calls and read each one's gate.**
+
+## Amendment 8 — 2026-08-22 (**✅ ACCEPTED — PO-ruled**): `create_case` loses its `app.is_admin()` arm, and Amendment 2's separate PHI gate collapses with it
+
+**Ruling.** `public.create_case`'s authority gate drops `app.is_admin()`. The noun rule (ADR 0078
+**A35** — `platform_admin` may administer tenancy, identity, vocabulary and audit, but **may not touch
+commission content or PHI**) stands **unamended**: a hatted `platform_admin` may no longer create a case
+in any commission of any tenant. The gate is now
+`app.is_staff_admin_of(commission) ∨ app.member_can(commission, 'create_cases')` — structurally
+identical to its sibling `create_case_from_template`.
+
+**Why it was the sole outlier.** Measured from the catalog: of the three creation doors,
+`create_case_from_template` and `bulk_create_cases` carry no such arm; only `create_case` did.
+
+### A8.1 — Amendment 2's PHI gate was **structurally unreachable** the moment the arm was cut, and was deleted
+
+Migration `…000800` did **not** narrow the authority gate. It added a **second, PHI-specific gate**
+immediately after it, whose predicate was *the authority gate minus `is_admin`*. Once `is_admin` is cut
+the two predicates are identical, so past the authority gate `not (A or C)` is false **by construction**.
+
+It was **deleted**, not kept as a backstop. ⛔ The rejected alternative matters more than the choice: a
+dead gate that a future widening silently makes live is worse than one that forces the next author to
+decide. This repo has already ruled on the same shape once — `hasCaseStanding`'s redundant arm was kept
+but recorded as *"the same predicate twice, not a second lock"* — and the lesson is that a duplicated
+predicate invites the next reader to count it as defence in depth.
+
+⚠ **A comment cannot carry that guarantee** (*a comment is an assertion that goes stale silently* — hit
+five times in this repo, one of which shipped a bug), so the collapse landed with a **pin instead**:
+
+- **`357` §8d.1** captures the gate expression **as text** and compares it exactly, so an **added** arm
+  reds as loudly as a removed one. Its failure message names the PHI consequence — *widening this gate
+  widens who may write PHI at creation; answer the PHI question first, do not just bump the string.*
+- **`357` §8d.2** witnesses that the deleted PHI message exists nowhere in the database.
+- **`314` §11.36/§11.37** pin family correspondence across all three creation doors, twinned with a
+  detector positive control (six vocabulary/audit doors that *do* still name the predicate = 6) so the
+  zero cannot mean "the regexp matches nothing".
+
+### A8.2 — the coverage that was believed to exist did not
+
+⛔ Before this change **no pgTAP test anywhere pinned `app.is_admin()` absence on any door.** The
+`bulk_create_cases` body carried a comment asserting that `314` §11.34 covered it; **§11.34's subject is
+`is_tenancy_admin_of`** — a different predicate. A comment claiming coverage that did not exist is how
+the same gap survived on `create_case`, and the lead repeated that claim before it was measured. The
+comment is corrected and the new pins' headers state they are **new coverage, not a restoration**.
+
+⚠ Neither `create_case` (returns `cases`) nor `bulk_create_cases` (returns `integer`) is in any authz
+ARM's domain — `backend-state.md` already records `create_case` as *"the census's own named exclusion"*.
+**Nothing would have caught this and nothing will catch the next one**, which is why §8d.1 is a text pin
+rather than a behavioural one.
+
+### A8.3 — consequences checked, not assumed
+
+- **No dead-end door.** `src/lib/cases/actions.ts` is the only caller and has no pre-gate by design; a
+  membership-less `platform_admin` is already 404'd upstream by `canInCommission`, which requires
+  `role !== null` (membership-only since ADR 0100 D12). No E2E spec drives case creation as a
+  `platform_admin`.
+- **No under-grant.** Both surviving arms were exercised through the door *after* the cut, with
+  read-back: coordinator with PHI, and — the arm the deleted gate existed to protect — an
+  **Administrativo** holding `member_can('create_cases')` with PHI.
+- ⭐ **A side effect worth recording:** the `creator_self_grant` comment claiming *"a NON-coordinator
+  (capability-arm) creator self-grants"* was **quietly false** before, because the `is_admin` arm also
+  reached that branch. It is true now.

@@ -27,14 +27,21 @@ const TEXTAREA_CLASS =
   "min-h-20 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
- * Staff-admin POST-CONCLUSION result correction (phase-results feature; task #10).
- * A coordinator-only "Corrigir resultado" surface on a `concluida` phase: pick any
- * active result option (or clear to fall back to the computed result) + an optional
- * reason, calling {@link overrideCasePhaseResult}. The server stashes the override
- * and recomputes the effective result honoring it (`source = 'manual'`); the
- * case-detail path revalidates so the {@link PhaseResultBadge} reflects the
- * correction. Distinct from the wizard's pre-submit override (task #8) — this is
- * the after-the-fact correction once the phase is locked.
+ * The case-detail result surface (phase-results feature; task #10): pick a result
+ * option (or clear it, on an automatic phase, to fall back to the computed one) +
+ * an optional reason, calling {@link overrideCasePhaseResult}.
+ *
+ * Two modes, mirroring the door's two branches:
+ *   - `correct` — POST-CONCLUSION correction of a `completed` phase, coordinator
+ *     only. The server stashes the override AND recomputes the effective result
+ *     honoring it (`source = 'manual'`), so it applies immediately.
+ *   - `set` — on an `active` phase, offered to that phase's OWN assignee as well as
+ *     a coordinator. The server only STASHES the override; it takes effect when the
+ *     phase concludes. Same entry point as the wizard's pre-submit override (task
+ *     #8), reachable without re-entering the wizard.
+ *
+ * The case-detail path revalidates either way, so the {@link PhaseResultBadge}
+ * reflects the change.
  */
 export function PhaseResultOverrideDialog({
   open,
@@ -44,6 +51,7 @@ export function PhaseResultOverrideDialog({
   currentResultId,
   phaseLabel,
   allowClear = true,
+  mode = "correct",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -65,6 +73,12 @@ export function PhaseResultOverrideDialog({
    * Default `true`.
    */
   allowClear?: boolean;
+  /**
+   * `correct` = a settled `completed` phase (the server recomputes now); `set` = an
+   * `active` phase (the result is stashed and applies on conclusion). Drives the
+   * title, the description and the submit label. Default `correct`.
+   */
+  mode?: "set" | "correct";
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -112,16 +126,25 @@ export function PhaseResultOverrideDialog({
 
   const selected = options.find((o) => o.id === resultId) ?? null;
 
+  // Copy per mode. On an ACTIVE phase nothing is being fixed — the result is being
+  // recorded ahead of conclusion, and saying "correção" there would tell an assignee
+  // they are undoing a mistake. A MANUAL phase's mandatory-pick wording wins over
+  // both, because that constraint is what the server will actually enforce (HC062).
+  const isSet = mode === "set";
+  const description = !allowClear
+    ? `Esta fase tem resultado manual: escolha uma das opções permitidas para ${phaseLabel}. O resultado é obrigatório e não pode ser removido.`
+    : isSet
+      ? `Registre o resultado de ${phaseLabel}. Ele fica guardado e passa a valer quando a fase for concluída.`
+      : `Ajuste o resultado registrado para ${phaseLabel}. O resultado corrigido é marcado como manual.`;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Corrigir resultado</DialogTitle>
-          <DialogDescription>
-            {allowClear
-              ? `Ajuste o resultado registrado para ${phaseLabel}. O resultado corrigido é marcado como manual.`
-              : `Esta fase tem resultado manual: escolha uma das opções permitidas para ${phaseLabel}. O resultado é obrigatório e não pode ser removido.`}
-          </DialogDescription>
+          <DialogTitle>
+            {isSet ? "Definir resultado" : "Corrigir resultado"}
+          </DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
@@ -190,7 +213,11 @@ export function PhaseResultOverrideDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               disabled={isPending}
-              placeholder="Descreva o motivo da correção…"
+              placeholder={
+                isSet
+                  ? "Descreva o motivo desta escolha…"
+                  : "Descreva o motivo da correção…"
+              }
             />
           </label>
 
@@ -208,7 +235,7 @@ export function PhaseResultOverrideDialog({
               size="lg"
               disabled={isPending || missingRequired}
             >
-              {isPending ? "Salvando…" : "Salvar correção"}
+              {isPending ? "Salvando…" : isSet ? "Salvar resultado" : "Salvar correção"}
             </Button>
           </DialogFooter>
         </form>

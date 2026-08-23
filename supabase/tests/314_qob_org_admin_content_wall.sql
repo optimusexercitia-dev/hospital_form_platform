@@ -31,7 +31,10 @@
 -- =============================================================================
 
 begin;
-select plan(120);
+-- 120 → 122 (2026-08-22): §11f pins the OTHER half of the same wall — the A35 noun rule
+-- for platform_admin across the three case-creation doors, twinned with its detector
+-- positive control. New coverage; nothing pinned that predicate before.
+select plan(122);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -956,6 +959,47 @@ select is(
           ~ 'is_tenancy_admin_of'),
   5,
   '11.35 ⭐ OVER-CUT GUARD (Q8/Q9): all FIVE ratified case-access/classification KEEP doors still admit the tenancy admin — M7 cut the list MINUS these, not the whole plane');
+
+-- ── §11f — THE OTHER HALF OF THE SAME WALL: the PLATFORM admin (ADR 0078 A35) ──
+--
+-- ⚠ NEW COVERAGE, NOT A RESTORATION — say so, because "we already had this" is exactly how
+-- the gap survived. Everything above this line pins `is_tenancy_admin_of` (org_admin /
+-- hospital_admin). NOTHING in this repo pinned `app.is_admin()` (platform_admin) anywhere,
+-- on any door — grepped across supabase/tests, zero hits. The `bulk_create_cases` body
+-- nonetheless carried a comment reading "NO app.is_admin() DISJUNCT AND NO TENANCY ARM.
+-- Test 314 §11.34 is a CATALOG assertion…", which claims §11.34 covers both halves. It does
+-- not: 11.34 checks the tenancy predicate and only that. So the platform-admin half was
+-- asserted in prose, believed, and pinned nowhere — and on `create_case` the arm was
+-- actually PRESENT the whole time (QA B1, then the PO ruling of 2026-08-22 that removed
+-- it). The comment is corrected by migration 20261003000900; these two pins are the
+-- coverage it now points at.
+--
+-- ⛔ SAME WALL, DIFFERENT PREDICATE. A35's noun rule and QO·B's content wall say the same
+-- thing about two different principal classes: administration may shape CONTAINERS, never
+-- committee CONTENT. A case is content. That is why this lives here rather than beside one
+-- door — a per-door pin is what let two of the three creation doors agree while the third
+-- silently disagreed.
+--
+-- ⭐ TWINNED, because a zero from a regexp is worthless until the regexp is shown able to
+-- return non-zero. 11.37 is that proof, on the SAME predicate, the SAME comment-stripping,
+-- and the SAME query shape.
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace and p.prokind='f'
+      and p.proname = any(array['create_case','create_case_from_template','bulk_create_cases'])
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          ~ 'app\.is_admin\s*\('),
+  0,
+  '11.36 ⭐ CATALOG (A35 noun rule): not ONE of the three case-creation doors names the platform-admin predicate. The population is the LIST — all three checked item by item — because the defect this replaces was precisely a family whose members disagreed: create_case carried the arm while create_case_from_template and bulk_create_cases never did');
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace and p.prokind='f'
+      and p.proname = any(array['create_framework','update_framework','set_framework_status',
+                                'upsert_standard','delete_standard','verify_audit_chain'])
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          ~ 'app\.is_admin\s*\('),
+  6,
+  '11.37 ⭐ DETECTOR POSITIVE CONTROL for 11.36: these six vocabulary/catalog/audit doors DO still name it, so 11.36''s zero means "the arm is absent", not "the regexp matches nothing" or "the comment strip ate the body". ⚠ NOT A RULING that they should — A35 explicitly ALLOWS platform_admin to administer vocabulary and audit, so today''s state is the honest anchor; if the PO ever rules on these, change this number deliberately rather than treating a red as noise');
 
 -- =============================================================================
 -- §12 — Q2 KEEP: the process-template DEFINER doors (`20260917000100`).

@@ -20,6 +20,10 @@ import {
   phaseResultsEnabled,
 } from "@/lib/queries/phase-results";
 import { toResolvedPhaseResultOptions } from "@/components/cases/phase-result-options";
+import {
+  phaseResultAffordance,
+  type PhaseResultGate,
+} from "@/components/cases/phase-result-access";
 import { listMembers, listLinkableOrgUsers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
@@ -159,32 +163,57 @@ export default async function CaseDetailPage({
       ? await listCaseOutcomes(access.commission.id)
       : [];
 
-  // Post-conclusion result correction (phase-results feature; task #10).
+  // Per-phase result affordance (phase-results feature; task #10).
   //
-  // ⛔ THE ROLE TEST IS LOAD-BEARING AND IS NOT A NARROWING. This prop was a bare
+  // ⛔ THE ROLE TEST IS LOAD-BEARING AND IS NOT A NARROWING. This started as a bare
   // `phaseResultsOn` while the route guaranteed `staff_admin`; ADR 0134 D3 removed
   // that guarantee, which turns the bare flag into a UI over-grant for every newly
-  // admitted class. Measured authority of `set_case_phase_result_override`:
-  // coordinator ∨ the phase's OWN assignee — there is **no `member_can` arm**, so
-  // an administrativo is refused by the door and must not see the affordance.
+  // admitted class. Measured authority of `set_case_phase_result_override` — TWO
+  // BRANCHES, not one guard: an `active` phase admits the phase's OWN assignee ∨
+  // coordinator; a `completed` one is coordinator-only + non-terminal case; any
+  // other status admits nobody. There is **no `member_can` arm**, so an
+  // administrativo is refused by the door and must not see the affordance, and no
+  // `is_admin` arm either. Full mirror + rationale: `phaseResultAffordance`.
   //
-  // ⚠ The assignee disjunct is per-PHASE and this prop is per-CASE, so it cannot be
-  // expressed here; only the coordinator arm is rendered. Surfacing the assignee arm
-  // is a product question (it would need a per-phase prop), deliberately NOT
-  // invented in this increment.
+  // ⚠ THE ASSIGNEE DISJUNCT IS PER-PHASE, so it CANNOT live in a per-case boolean —
+  // which is why the old `canManagePhaseResults` prop is gone. What this host
+  // resolves is only the per-CASE half (the flag + the coordinator arm); the
+  // per-phase half is derived from SERVER state (`status`, `assignedTo`) against the
+  // session's user id at each row. Closing
+  // FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT (PO ruling 2026-08-22).
   //
-  // ⛔ This comment ended "`/casos` hand-sets the same coordinator-only test" —
+  // ⛔ This comment once ended "`/casos` hand-sets the same coordinator-only test" —
   // FALSE as of the very commit that wrote it (ADR 0134 D2), which stopped the
-  // reading surface passing `canManagePhaseResults` at all. `/casos` does not set
-  // this test; it does not offer the affordance. A stale comment introduced by the
-  // pass that was FIXING stale comments — which is the argument for keeping
-  // cross-file claims out of a comment unless a gate can contradict them.
-  const canManagePhaseResults = phaseResultsOn && access.role === "staff_admin";
+  // reading surface passing this gate at all. `/casos` does not set it and does not
+  // offer the affordance. A stale comment introduced by the pass that was FIXING
+  // stale comments — the argument for keeping cross-file claims out of a comment
+  // unless a gate can contradict them.
+  const isPhaseResultCoordinator = access.role === "staff_admin";
+  // Load the commission's vocabulary only when at least ONE phase actually offers
+  // something — derived with the SAME predicate the rows render from, so the read
+  // can never drift wider (or narrower) than the affordance it feeds. A plain-member
+  // assignee can read it: `phase_results_select` is `app.is_member_of`.
+  const anyPhaseResultAffordance =
+    phaseResultsOn &&
+    detail.phases.some(
+      (p) =>
+        phaseResultAffordance(
+          p,
+          { isCoordinator: isPhaseResultCoordinator, options: [] },
+          isOpen,
+          access.context.userId,
+        ) !== "none",
+    );
   // The commission's full active vocabulary; the picker narrows it per phase — a
   // MANUAL phase is restricted to its allowed subset (phase-result-manual-mode).
-  const phaseResultOptions = canManagePhaseResults
-    ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
-    : [];
+  const phaseResultGate: PhaseResultGate | null = anyPhaseResultAffordance
+    ? {
+        isCoordinator: isPhaseResultCoordinator,
+        options: toResolvedPhaseResultOptions(
+          await listPhaseResults(access.commission.id),
+        ),
+      }
+    : null;
   const [
     members,
     documents,
@@ -270,8 +299,7 @@ export default async function CaseDetailPage({
       backHref={commissionHref(org, commission, "manage", "cases")}
       referralsModule={referralsModule}
       forwardParentReferralId={encaminharDe ?? null}
-      canManagePhaseResults={canManagePhaseResults}
-      phaseResultOptions={phaseResultOptions}
+      phaseResultGate={phaseResultGate}
       outcomes={outcomes}
       casesExtrasEnabled={casesExtrasOn}
       actionItemsEnabled={actionItemsOn}

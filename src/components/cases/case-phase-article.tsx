@@ -20,6 +20,7 @@ import {
   type CorrectionCaps,
 } from "@/components/cases/correction-labels";
 import { resolvePhaseCorrectionOptions } from "@/components/cases/phase-result-options";
+import type { PhaseResultAffordance } from "@/components/cases/phase-result-access";
 import { formatDueDate, isOverdue } from "@/components/cases/format";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import { cn } from "@/lib/utils";
@@ -45,7 +46,7 @@ export function CasePhaseArticle({
   isOpen,
   canManageLifecycle = true,
   canAssignPhases = false,
-  canCorrectResult = false,
+  resultAffordance = "none",
   resultOptions = [],
   correctionCaps = null,
   openCorrection = null,
@@ -67,12 +68,18 @@ export function CasePhaseArticle({
    * `assign_case_phases` Administrativo, ADR 0061). Default `false`. */
   canAssignPhases?: boolean;
   /**
-   * Whether the viewer may CORRECT this phase's result post-conclusion
-   * (phase-results feature; task #10): resolved at the page level as
-   * `phaseResultsEnabled` + staff_admin + the case is non-terminal. The button
-   * also requires the phase to be `concluida`. Default `false`.
+   * Which result affordance THIS phase offers THIS viewer (phase-results feature;
+   * task #10) — resolved by {@link phaseResultAffordance}, the mirror of the door's
+   * two branches: `set` on an `active` phase (its OWN assignee ∨ coordinator),
+   * `correct` on a `completed` one (coordinator, non-terminal case), `none`
+   * otherwise. Default `none`.
+   *
+   * ⚠ A KIND, not a boolean: the two are different acts. `set` PRE-STASHES the
+   * result the phase will conclude with; `correct` changes a settled one and makes
+   * the server recompute. Rendering both as "Corrigir resultado" would tell an
+   * assignee they are fixing a mistake when they are recording an outcome.
    */
-  canCorrectResult?: boolean;
+  resultAffordance?: PhaseResultAffordance;
   /**
    * The commission's live ACTIVE result vocabulary — the SOURCE the correction
    * picker draws from. A MANUAL phase is narrowed to its allowed subset here
@@ -109,10 +116,13 @@ export function CasePhaseArticle({
   // phase offers the full active vocabulary; a non-emitting phase offers no
   // correction at all. `resultOptions` is the commission's live active vocabulary.
   const correction = resolvePhaseCorrectionOptions(phase, resultOptions);
-  const showCorrect =
-    canCorrectResult &&
-    phase.status === "completed" &&
-    correction.mode !== "none";
+  // The phase-STATUS half of the gate now lives in `resultAffordance` (which
+  // mirrors the door's two branches). What is left here is the ORTHOGONAL question
+  // the door does not ask: whether this phase emits a result at all. A non-emitting
+  // phase has nothing to set or correct, so it offers neither — a deliberate
+  // narrowing, and the only one.
+  const showResultAction =
+    resultAffordance !== "none" && correction.mode !== "none";
 
   // Case Correction Lifecycle (ADR 0085): the request affordances on a COMPLETED
   // phase, now in the header's top-right action cluster. Filing is offered when the
@@ -231,7 +241,7 @@ export function CasePhaseArticle({
         canAssignPhases={canAssignPhases}
       />
 
-      {showCorrect && (
+      {showResultAction && (
         <div className="flex justify-end">
           <PhaseResultCorrectButton
             casePhaseId={phase.id}
@@ -239,6 +249,7 @@ export function CasePhaseArticle({
             currentResultId={phase.resultId}
             phaseLabel={heading}
             allowClear={correction.allowClear}
+            mode={resultAffordance}
           />
         </div>
       )}

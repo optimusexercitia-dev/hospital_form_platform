@@ -1,7 +1,10 @@
 import { PenLine } from "lucide-react";
 
 import type { CaseDetail, CaseViewerCapabilities } from "@/lib/queries/cases";
-import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
+import {
+  phaseResultAffordance,
+  type PhaseResultGate,
+} from "@/components/cases/phase-result-access";
 import type {
   CorrectionRequest,
   NarrativeRevision,
@@ -79,8 +82,7 @@ export function CasePhaseList({
   canAssignPhases = false,
   viewerId,
   caseAccessEnabled = true,
-  canCorrectResult = false,
-  resultOptions = [],
+  phaseResultGate = null,
   correctionCaps = null,
   corrections = [],
   memberNames = {},
@@ -102,13 +104,13 @@ export function CasePhaseList({
   /** The viewer's user id — for the per-narrative assignee check (Q14); `null` if unknown. */
   viewerId: string | null;
   /**
-   * Whether the viewer may CORRECT a concluded phase's result post-conclusion
-   * (phase-results feature; task #10): `phaseResultsEnabled` + staff_admin + the
-   * case is non-terminal, resolved at the page level. Default `false`.
+   * The per-CASE half of the phase-result authority (phase-results feature; task
+   * #10) — the coordinator arm + the picker's vocabulary; `null` = off. Combined
+   * PER ROW below with that phase's own `status`/`assignedTo`, the `viewerId`, and
+   * `isOpen` by {@link phaseResultAffordance}, which mirrors the door's two
+   * branches. Default `null`.
    */
-  canCorrectResult?: boolean;
-  /** The commission's active result options (the correction dialog's picker). */
-  resultOptions?: ResolvedPhaseResult[];
+  phaseResultGate?: PhaseResultGate | null;
   /**
    * Whether the `case_access` flag is on (ADR 0033). `false` renders narratives in
    * LEGACY mode (no status/assignee/Concluir; editability = `isOpen` +
@@ -259,8 +261,17 @@ export function CasePhaseList({
                     isOpen={isOpen}
                     canManageLifecycle={caps.canManageLifecycle}
                     canAssignPhases={canAssignPhases}
-                    canCorrectResult={canCorrectResult}
-                    resultOptions={resultOptions}
+                    // Derived HERE, per row, from this phase's own SERVER state —
+                    // the only place that has both the gate and the individual
+                    // phase, which is exactly what the per-case boolean could not
+                    // express.
+                    resultAffordance={phaseResultAffordance(
+                      item.phase,
+                      phaseResultGate,
+                      isOpen,
+                      viewerId,
+                    )}
+                    resultOptions={phaseResultGate?.options ?? []}
                     correctionCaps={correctionCaps}
                     openCorrection={
                       correctionCaps

@@ -1812,7 +1812,7 @@ against each. **All three went RED. The class is COVERED, not blind:**
 | door | neutralized | suite | failing assertion | verdict |
 |---|---|---|---|---|
 | `add_referral_shared_item` | `can_read_case` recusal check | 194f / **6392** / FAIL | `340` R5–R6 *"the recused coordinator can no longer freeze a NARRATIVE…"* | **COVERED** |
-| `create_case` | `is_staff_admin_of ∨ is_admin ∨ member_can` | 194f / **6392** / FAIL | `177`:13, `205`:45 *"a plain staff … is denied (42501)"* | **COVERED** |
+| `create_case` | ~~`is_staff_admin_of ∨ is_admin ∨ member_can`~~ → **`is_staff_admin_of ∨ member_can`** (arm CUT 2026-08-22, PO ruling) | 194f / **6392** / FAIL | `177`:13, `205`:45 *"a plain staff … is denied (42501)"* | ⚠ **COVERED was true about the DOOR, not about the ARM** — a plain-staff denial cannot see an `is_admin` disjunct, so the verdict said the door was *exercised*, never that it was *bounded*. Genuinely bounded now by `357` §8d.1 |
 | `assume_role` | `if not v_holds` (holds-the-role check) | 194f / **6377** / FAIL | `315`:5 *"sa_x CANNOT assume a role he does not hold"* | **COVERED**, ⚠ ERROR-shaped |
 
 ⚠ **`assume_role` is not a clean COVERED and is not recorded as one.** Its run shape differs
@@ -5867,7 +5867,7 @@ any ethics case that is not `cancelled`"*. ⛔ Do **not** fix it by narrowing
 `can_manage_professional`; that gate serves non-ethics professional administration too, and cutting
 it would be a different change with its own blast radius.
 
-### 🟡 FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT — the UI boolean cannot express the door's per-phase assignee arm (owner: frontend/PO; filed 2026-08-21, case-surface-split Increment 1, QA F-6)
+### 🟡 FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT — the UI boolean cannot express the door's per-phase assignee arm (owner: frontend/PO; filed 2026-08-21, case-surface-split Increment 1, QA F-6; ✅ **RESOLVED 2026-08-22 — PO ruled WIDEN; delivered as a KIND + a server-gate fix**; two residues filed separately; index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
 
 `public.set_case_phase_result_override` (`prosecdef = t`) admits **`v_assigned_to = auth.uid()` ∨
 `app.is_staff_admin_of(commission)`** — measured from the live catalog; there is **no `member_can`
@@ -5885,8 +5885,25 @@ and the UI's `canManagePhaseResults` prop is a **per-case boolean**, so it canno
 Increment 1 set the manage host to `phaseResultsOn && access.role === "staff_admin"` — which is
 correct as far as it goes and closed a real over-grant T1 had created.
 
-**The residue:** a phase's own assignee who is *not* a coordinator can legitimately override that
-phase's result at the DB and is offered no affordance anywhere. That is an **under-grant**, and its
+**The residue** — ⛔ **CORRECTED 2026-08-22 (frontend, at build time): the original wording below was
+WRONG IN BOTH DIRECTIONS, and the truth is a BIGGER gap, not a smaller one.**
+① *"Offered no affordance anywhere"* is **false**: the active-phase assignee already has a path — the
+**end-of-wizard override panel**, which reaches the same RPC through `submitCasePhaseResponse`
+(member-authorized). So the item over-stated the user-visible harm.
+② But the real gap is **wider than the assignee**: on the **case-detail** surface an `active` phase
+offers the override to **NOBODY — the coordinator included** — because `case-phase-article.tsx:113`
+hard-codes `phase.status === "completed"`, while the door admits assignee ∨ coordinator on `active`.
+③ And it **cannot be closed in the UI alone**: the dialog's server action `overrideCasePhaseResult`
+(`src/lib/cases/result-actions.ts`) pre-checks with its own `authorizeCommission` — `isAdmin ∨ membership
+staff_admin` — which is **coordinator-only and strictly narrower than the RPC**, so a widened UI would
+have produced a dead end behind a friendlier string than `42501`. ⭐ Class:
+[[sql-door-is-not-evidence-about-its-ts-caller]] — the door was measured correct and the TS caller
+re-filters. ⚠ That same gate admits `isAdmin` where the **RPC has no `is_admin` arm at all**, so it is
+*also* wider than its door in the other direction — an existing dead end for `platform_admin`.
+
+_Original wording, kept because the correction is the point:_ a phase's own assignee who is *not* a
+coordinator can legitimately override that phase's result at the DB and is offered no affordance
+anywhere. That is an **under-grant**, and its
 signature is the dangerous one — a dead-end door raises a visible `42501`, an under-grant emits
 **nothing at all**: no error, no log, no failing test. No §6 gate can detect it.
 
@@ -5895,7 +5912,7 @@ and is a product decision about whether phase assignees should self-serve result
 gap to be silently patched. **Fix direction if ruled in:** thread a per-phase capability rather than
 widening the per-case boolean.
 
-### 🟡 FUP-CASE-T5-MEUS-CASOS-UNREPOINTED — T5 shipped narrower than its own text (owner: frontend; filed 2026-08-21, QA F-7)
+### 🟡 FUP-CASE-T5-MEUS-CASOS-UNREPOINTED — T5 shipped narrower than its own text (owner: frontend; filed 2026-08-21, QA F-7; ✅ **RESOLVED 2026-08-22 — PO ruled the behaviour right and the PLAN TEXT wrong**; T5 clarified, index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
 
 Plan T5 says board/list rows link to manage detail for viewers passing the entry predicate. Shipped:
 the `/casos` staff board and `manage/cases` re-point; **`meus-casos` rows still link to `/casos`**.
@@ -6550,7 +6567,7 @@ be built so it can fail — this repo has a recorded case of a positive control 
 cache and made the real assertion meaningless. Establishing the actual mechanism (watcher death vs
 dropped events) stays worth doing, but it is not a precondition for the guard.
 
-### 🟠 FUP-CREATE-CASE-IS-ADMIN-DISJUNCT-VS-THE-NOUN-RULE — `platform_admin` can create commission content, and `create_case` is the only creation door that lets them (owner: PO decision, measured by backend; filed 2026-08-22, split out of QA B1)
+### 🟠 FUP-CREATE-CASE-IS-ADMIN-DISJUNCT-VS-THE-NOUN-RULE — `platform_admin` can create commission content, and `create_case` is the only creation door that lets them (owner: PO decision, measured by backend; filed 2026-08-22, split out of QA B1; ✅ **RESOLVED 2026-08-22 — PO ruled REMOVE; ADR 0134 Amdt 8**; index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
 
 **Not the PHI half.** QA B1's PHI widening is CLOSED by migration `20261003000800`: `create_case`
 now refuses a `p_patient` payload unless the caller is `is_staff_admin_of ∨ member_can('create_cases')`,
@@ -6653,3 +6670,42 @@ exactly. ⭐ **Promote it to a pgTAP catalog assertion**, because it is the chec
 arm's author prove they changed **only their arm** — today it exists as a one-off a reviewer happened to
 run. ⚠ Whatever is built must be **red-first**: mutate a non-S8 arm and require it to fail, or it is a
 hash comparison that has never been shown able to disagree.
+
+### 🟡 FUP-PLAIN-STAFF-ASSIGNEE-CANNOT-REACH-THE-MANAGE-HOST — the surfaced arm's own principal 404s before it (owner: frontend/PO; filed 2026-08-22 by the agent that surfaced the arm, as a stated bound on its own fix)
+
+⭐ **Filed by the fix's author, in the delivery, because the alternative is a close note that reads as
+completeness.** `FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT` is discharged — the case-detail surface now
+offers the result affordance per-phase, mirroring the door. But `canOpenCaseManagement` admits only
+**coordinator ∨ administrativo ∨ per-case write-grantee**, and a **plain-staff assignee is none of
+those**: they 404 at the manage host before any phase renders.
+
+**Measured in a browser, not read:** `staff1.ccih` (assignee of an active phase) and `staff3.ccih` both
+received the root 404.
+
+⇒ The widened arm is reachable for an assignee who **also** holds a manage-host arm. A plain-staff
+assignee still has only the end-of-wizard path — which is not nothing (that path is real and
+member-authorized), so this is a **narrower** residue than the parent item, not a reopening of it.
+
+⛔ **Not fixable inside the UI fix.** Widening `canOpenCaseManagement` is ADR 0134 routing territory —
+D1's read/manage split — and would admit plain staff to the manage host for every other purpose too.
+It needs a PO ruling on the routing, not a patch. ⚠ Do **not** close this by observing that the wizard
+path exists; the question is whether an assignee should reach the manage surface at all.
+
+### 🟡 FUP-ACTIVE-PHASE-STASHED-OVERRIDE-IS-INVISIBLE — the write succeeds and nothing shows it (owner: backend; filed 2026-08-22 from the phase-result widening)
+
+On an **active** phase the door *stashes* the override (no recompute — that is the documented difference
+between the `set` and `correct` kinds). But `getCaseDetail` does **not** select `result_override_id`;
+only `getCasePhaseForFill` does. So after a successful save: **no badge renders, and reopening the
+dialog shows no pre-selection.** The write landed; the surface cannot show it.
+
+⚠ **Mitigated with copy, not fixed** — the dialog now says the choice *"fica guardado e passa a valer
+quando a fase for concluída"*. The data gap is real and is a query-layer change (`src/lib/queries/`),
+which is backend's.
+
+⭐ **It produced a false defect report during the build**, which is the reason it is worth a line: a
+first-draft assertion demanded a result badge after a successful `set`, so a **correct save read exactly
+like a live defect**. Caught only by checking the catalog instead of believing the UI —
+[[a-wrong-matcher-reads-exactly-like-a-live-defect]].
+
+**Cosmetic, same area:** `PhaseResultCorrectButton` now renders *"Definir resultado"* as well, so its
+name is a misnomer. One import site.

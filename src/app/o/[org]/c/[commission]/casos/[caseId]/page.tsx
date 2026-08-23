@@ -200,7 +200,8 @@ export default async function StaffCaseDetailPage({
   const correctionsData = await buildCaseCorrectionsData(detail);
 
   // ⛔ ADR 0134 D2 — FOUR PROPS THIS PAGE NO LONGER PASSES, and the deletion is the
-  // change, not an oversight: `canManagePhaseResults`, `canAssignPhases`,
+  // change, not an oversight: the phase-result gate (then `canManagePhaseResults`,
+  // now the per-phase `phaseResultGate`), `canAssignPhases`,
   // `canEditMeta` and `canEditCustomFields` were resolved here from the viewer's
   // ROLE / commission CAPABILITIES, which made them bypass `managementElsewhere`'s
   // narrowing BY CONSTRUCTION. They are case-wide work, so under D1 they belong on

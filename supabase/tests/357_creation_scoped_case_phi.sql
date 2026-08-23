@@ -36,7 +36,9 @@
 -- was necessary and NOT sufficient. Nothing in this file depends on that ruling.
 
 begin;
-select plan(43);
+-- 43 → 48 (2026-08-22, migration 20261003000900): §8c gained 8c.3b + the 8c.7/8c.8
+-- no-under-grant twin, and §8d is new (the catalog exactness pin + the one-gate witness).
+select plan(48);
 
 -- =========================================================================
 -- (0) FLAG PRECONDITIONS — asserted, not claimed. `app.audit_write` returns SILENTLY
@@ -303,15 +305,30 @@ select test_helpers.reset_role_and_claims();
 insert into public.memberships select * from mrow;
 
 -- =========================================================================
--- (8c) ⭐ B1 — THE `is_admin()` ARM MUST NOT CARRY PHI (QA BLOCKING).
--- `create_case`'s authority gate has a THIRD disjunct its two sibling creation doors do
--- not: `app.is_admin()`. Migration 20261003000600 added an unconditional `p_patient`
--- write once past that gate, handing a hatted platform_admin a patient-identifier write
--- in ANY commission of ANY tenant — CLAUDE.md §1's noun rule (ADR 0078 A35), on the
--- platform's most sensitive data class. It was NEW: before that migration the identifiers
--- went out in a second call to set_case_patient, which is coordinator-only.
--- ⛔ The `is_admin()` disjunct on CREATION is deliberately still here — pre-existing, and
--- a noun-rule question for the PO. Only the PHI branch is gated down.
+-- (8c) ⭐ THE NOUN RULE AT THIS DOOR — platform_admin CREATES NOTHING HERE.
+--
+-- ⚠ REWRITTEN 2026-08-22 BY PO RULING (FUP-CREATE-CASE-IS-ADMIN-DISJUNCT-VS-THE-NOUN-RULE;
+-- migration 20261003000900). What this block used to pin was the QA-B1 HALF-MEASURE: the
+-- platform-admin disjunct stayed on CREATION and only the PHI branch was gated down, so
+-- 8c.1 expected a PHI-specific message and 8c.2 asserted that the SAME principal still
+-- created cases. The PO removed the disjunct outright, so **8c.2 INVERTS**. That inversion
+-- IS the ruling being delivered — it is not a regression being absorbed. CLAUDE.md §1's
+-- noun rule (ADR 0078 A35) stands unamended: a case is commission CONTENT, and
+-- platform_admin administers tenancy, identity, vocabulary and audit only.
+--
+-- ⛔ MESSAGE, NOT JUST ERRCODE. There used to be TWO gates here and BOTH raised 42501, so
+-- an errcode-only assertion could never say which refused. There is now exactly ONE — and
+-- that makes the message MORE load-bearing, not less: several other paths in this body
+-- raise 42501/23514 (the flag asserts, the shape checks, the outcome/department guards),
+-- so an errcode-only throws_ok would pass on the wrong lock. Every refusal below names the
+-- KIND of refusal.
+--
+-- ⛔ NO-UNDER-GRANT TWIN (8c.5–8c.8). Removing an arm is exactly the change that can
+-- over-narrow, and an under-grant EMITS NOTHING — no error, no log, no failing test. Both
+-- surviving arms therefore create a case HERE, after the cut, in this same transaction:
+-- the coordinator arm at 8c.5/8c.6 and the `member_can('create_cases')` arm at 8c.7/8c.8.
+-- Each `lives_ok` is followed by a read-back — a door that silently wrote nothing passes a
+-- bare `lives_ok`.
 -- =========================================================================
 do $$ begin perform set_config('request.jwt.claims',
   json_build_object('sub', (select admin_id from k2), 'role', 'authenticated',
@@ -322,15 +339,18 @@ set local role authenticated;
 select throws_ok(
   format($$ select public.create_case(%L, 'Admin com PHI', true, '{}'::uuid[], null, null, null,
               jsonb_build_object('name','Paciente Proibido','mrn','MRN-NAO')) $$, (select comm_x from k)),
-  '42501', 'apenas a coordenação da comissão ou um Administrativo autorizado a criar casos pode registrar dados do paciente',
-  '8c.1 ⭐ B1: a hatted platform_admin supplying p_patient is REFUSED AT THE DOOR, with its own message — not the generic gate message, so the assertion names which guard fired');
-select lives_ok(
+  '42501', 'sem permissão',
+  '8c.1 ⭐ a hatted platform_admin supplying p_patient is refused. ⚠ THE MESSAGE CHANGED with the ruling: it is now the AUTHORITY gate''s generic ''sem permissão'', because they no longer get past it — not 20261003000800''s PHI-specific message, whose gate was deleted once it became unreachable');
+select throws_ok(
   format($$ select public.create_case(%L, 'Admin sem PHI', true, '{}'::uuid[], null, null, null, null) $$,
          (select comm_x from k)),
-  '8c.2 ⭐ B1 SCOPE CONTROL: the SAME principal at the SAME door still creates a case WITHOUT p_patient — so the fix is provably scoped to the PHI payload and is not a silent behaviour change to case creation');
+  '42501', 'sem permissão',
+  '8c.2 ⭐⭐ THE RULING ITSELF (INVERTED 2026-08-22): the SAME principal at the SAME door is now refused WITHOUT any PHI payload too. platform_admin has lost case creation ENTIRELY — the noun rule was upheld rather than exempted at this door. This assertion previously read lives_ok');
 select test_helpers.reset_role_and_claims();
 select is((select count(*)::int from public.cases where label = 'Admin com PHI'), 0,
   '8c.3 ⛔ REFUSED AT THE GATE: the rejected call minted NO case. A silently dropped payload would be data loss wearing a success, and would rebuild the M10 half-state this increment removed');
+select is((select count(*)::int from public.cases where label = 'Admin sem PHI'), 0,
+  '8c.3b ⛔ …and so did the PHI-less call. Without this, 8c.2 could be satisfied by a door that raised AFTER minting the row — the refusal has to leave nothing behind, exactly as 8c.3 requires of the PHI one');
 select is(
   (select count(*)::int from public.patient_identifiers where mrn = 'MRN-NAO'), 0,
   '8c.4 …and wrote no identifiers anywhere');
@@ -340,10 +360,60 @@ set local role authenticated;
 select lives_ok(
   format($$ select public.create_case(%L, 'Coord com PHI', true, '{}'::uuid[], null, null, null,
               jsonb_build_object('name','Paciente Permitido','mrn','MRN-SIM')) $$, (select comm_x from k)),
-  '8c.5 ⭐ SAME-DOOR POSITIVE CONTROL: the coordinator supplying p_patient SUCCEEDS — so 8c.1 is a refusal of that principal class, not a door that refuses everyone');
+  '8c.5 ⭐ NO-UNDER-GRANT TWIN, ARM 1 OF 2 (is_staff_admin_of): the coordinator supplying p_patient SUCCEEDS at the same door in the same transaction — so 8c.1/8c.2 are a refusal of that principal class, not a door the cut broke for everyone');
 select test_helpers.reset_role_and_claims();
 select is((select count(*)::int from public.patient_identifiers where mrn = 'MRN-SIM'), 1,
   '8c.6 …and the coordinator''s identifiers actually landed');
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.create_case(%L, 'Adm pos-corte', true, '{}'::uuid[], null, null, null,
+              jsonb_build_object('name','Paciente Delegado','mrn','MRN-TWIN')) $$, (select comm_x from k)),
+  '8c.7 ⭐ NO-UNDER-GRANT TWIN, ARM 2 OF 2 (member_can(''create_cases'')): the Administrativo delegate ALSO still creates, WITH a PHI payload. This is the arm the deleted PHI gate existed to protect, so it is the one the collapse could have taken out silently — §2 proves it worked BEFORE the §8/§8b membership and capability churn, this proves it works AFTER, past the cut');
+select test_helpers.reset_role_and_claims();
+select is(
+  (select count(*)::int from public.patient_identifiers where mrn = 'MRN-TWIN'), 1,
+  '8c.8 …and the delegate''s identifiers actually landed — a bare lives_ok would pass on a door that wrote nothing');
+
+-- =========================================================================
+-- (8d) ⭐⭐ CATALOG — THE AUTHORITY GATE'S PREDICATE SET, PINNED AS TEXT.
+--
+-- ⛔ A COMMENT CANNOT CARRY THIS, which is why the pin exists. The migration's body says
+-- "exactly two arms"; a comment is an assertion that goes stale silently, and this repo
+-- has been bitten by that five times — one of them shipped a bug, and one of them is the
+-- comment inside `bulk_create_cases` that claimed 314 §11.34 covered a predicate §11.34
+-- never checked (corrected by the same migration).
+--
+-- ⛔ AND §8c ABOVE CANNOT CARRY IT EITHER. 8c pins today's BEHAVIOUR for three principals.
+-- It is structurally blind to a FOURTH arm added tomorrow for a principal no fixture in
+-- this file builds — which is EXACTLY how the platform-admin arm survived an otherwise
+-- thorough suite until QA B1. A behavioural suite can only refuse the principals it
+-- constructs; the catalog can refuse the ones nobody thought of.
+--
+-- ⚠ THE FAILURE MESSAGE CARRIES ITS OWN REASONING, deliberately: since 20261003000900
+-- deleted the second (PHI-specific) gate — unreachable once its predicate equalled the
+-- authority gate's — THIS EXPRESSION IS THE ONLY THING between a principal and the
+-- creation-scoped patient-identifier write at the bottom of the body (ADR 0134 Amdt 2).
+-- A red here must not read as a stale constant to bump.
+-- =========================================================================
+select is(
+  (select (regexp_match(
+     regexp_replace(
+       regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g'),
+       '\s+', ' ', 'g'),
+     'if not \((.*?)\) then raise exception ''sem permissão'''))[1]
+     from pg_proc p
+    where p.pronamespace='public'::regnamespace and p.prokind='f' and p.proname='create_case'),
+  'app.is_staff_admin_of(p_commission_id) or app.member_can(p_commission_id, ''create_cases'')',
+  '8d.1 ⭐⭐ EXACTNESS: create_case''s authority gate is EXACTLY {is_staff_admin_of, member_can(''create_cases'')} — no more arms, and no fewer. ⛔ IF THIS IS RED BECAUSE AN ARM WAS ADDED: widening this gate widens WHO MAY WRITE PHI AT CREATION (ADR 0134 Amdt 2 — nothing else gates that write since 20261003000900). Answer the PHI question first; do not just bump the string. ⛔ IF IT IS RED BECAUSE AN ARM WENT MISSING: that is an under-grant, which emits nothing at runtime — see the 8c.5/8c.7 twins');
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace and p.prokind='f' and p.proname='create_case'
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          like '%ou um Administrativo autorizado a criar casos pode registrar dados do paciente%'),
+  0,
+  '8d.2 ⭐ ONE GATE, NOT TWO: the second, PHI-specific gate 20261003000800 added is GONE, and its message string is the witness (measured: create_case was the ONLY routine in the database carrying that string). Its predicate had become identical to the authority gate''s the moment the platform-admin arm was cut, so it was dead code that would have SILENTLY COME BACK TO LIFE on a future widening — a bar the widener never knew they were inheriting');
 
 -- =========================================================================
 -- (9) FLAG-DARK — both switches, on the CREATION path specifically. The helper carries

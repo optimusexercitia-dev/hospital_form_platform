@@ -15,15 +15,19 @@ import type { PhaseResultColorToken } from '@/lib/queries/phase-results'
  * outcome vocabulary), but result options carry only the `isAdverse` tracking flag
  * (no `requiresActionPlan`).
  *
- * Architecture Rules 9 & 10: all mutations go through vetted RPCs (each gates the
- * `case_phase_results` flag + `is_staff_admin_of` server-side); user-facing strings
- * are pt-BR; raw Postgres errors never reach the UI (CLAUDE.md §8). Each action also
- * re-verifies commission-scoped authz for a clean pt-BR forbidden.
+ * Architecture Rules 9 & 10: all mutations go through vetted RPCs; user-facing
+ * strings are pt-BR; raw Postgres errors never reach the UI (CLAUDE.md §8).
  *
- * The override flows through TWO server actions: the END-OF-WIZARD override is
- * folded into `submitCasePhaseResponse` (`@/lib/responses/actions`); the
- * POST-CONCLUSION correction (staff_admin, on a concluida phase of a non-terminal
- * case) is `overrideCasePhaseResult` here.
+ * ⚠ The VOCABULARY RPCs gate on the `case_phase_results` flag + `is_staff_admin_of`.
+ * `set_case_phase_result_override` does NOT: it is two branches, and its `active`
+ * branch also admits the phase's own assignee. Do not describe the two as one rule —
+ * that conflation is what produced FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT.
+ *
+ * The override flows through TWO server actions, both landing on that same RPC and
+ * both membership-authorized, leaving the door as the authority: the END-OF-WIZARD
+ * override is folded into `submitCasePhaseResponse` (`@/lib/responses/actions`); the
+ * case-detail entry point (an `active` phase's assignee or a coordinator; a
+ * `completed` phase's coordinator) is `overrideCasePhaseResult` here.
  */
 
 export interface ActionState {
@@ -100,18 +104,45 @@ function revalidateCaseResult(): void {
 }
 
 /**
- * Authorize the CASE-CONTENT result action (overrideCasePhaseResult): admin, or
- * a MEMBERSHIP staff_admin of THAT commission. ⛔ Deliberately NOT the config
- * seam — a per-case result override is committee content under the ADR 0100 D12
- * wall (`set_case_phase_result_override` is on the ratified §4.4 CUT list).
+ * Pre-check for the CASE-CONTENT result action (overrideCasePhaseResult):
+ * MEMBERSHIP of THAT commission, any role. ⛔ It is a NECESSARY condition, not the
+ * authority — `set_case_phase_result_override` (DEFINER) is (Rule 1). Same shape,
+ * and for the same reason, as `authorizeMember` in `src/lib/responses/actions.ts`,
+ * which guards the OTHER entry point to the very same RPC (the end-of-wizard
+ * override) and has always let the door decide.
+ *
+ * ⛔ THIS USED TO BE COORDINATOR-ONLY (`role === 'staff_admin'`), which made it a
+ * SECOND, NARROWER authority that SHADOWED the door — the same defect as
+ * BUG-ADM-001 in `./actions.ts`. Measured from the live catalog, the door is two
+ * branches: on an `active` phase it admits `v_assigned_to = auth.uid()` OR
+ * `app.is_staff_admin_of(...)`; on a `completed` one, coordinator only. The
+ * coordinator-only pre-check refused the active phase's OWN assignee before the RPC
+ * ever ran, so the assignee arm was unreachable from this entry point
+ * (FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT). Membership is safe to keep because
+ * BOTH admitted principals are necessarily members: `is_staff_admin_of` requires a
+ * `staff_admin` membership, and a phase assignee is picked from the commission's
+ * member list.
+ *
+ * ⛔ THE `isAdmin` SHORT-CIRCUIT IS GONE, DELIBERATELY. The door has NO `is_admin`
+ * disjunct at all, so a hatted `platform_admin` passed here and was refused by the
+ * RPC — a dead-end door. Removing it is a NARROWING (it can admit nobody the door
+ * would not), it ends the dead end, and it aligns this gate with the noun rule
+ * (ADR 0078 A35): a per-case result override is commission CONTENT, which a
+ * platform_admin may not touch. A platform_admin who is also a member of the
+ * commission still passes, on the membership arm.
+ *
+ * ⛔ Still deliberately NOT the config seam — that point is UNCHANGED and is about
+ * the TENANCY-ADMIN / configuration axis, not about assignees. A per-case result
+ * override is committee content under the ADR 0100 D12 wall
+ * (`set_case_phase_result_override` is on the ratified §4.4 CUT list), so this must
+ * never be routed through `canConfigureCommissionById` the way the phase-result
+ * VOCABULARY actions below are. Admitting the phase's own assignee does not
+ * contradict that wall; routing a tenancy admin through it would.
  */
-async function authorizeCommission(commissionId: string): Promise<boolean> {
+async function authorizeCommissionMember(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
-  if (context.isAdmin) return true
-  return context.memberships.some(
-    (m) => m.commission.id === commissionId && m.role === 'staff_admin',
-  )
+  return context.memberships.some((m) => m.commission.id === commissionId)
 }
 
 /**
@@ -322,17 +353,33 @@ export async function archivePhaseResult(
 // ---------------------------------------------------------------------------
 
 /**
- * Apply a manual result override to a case phase (the POST-CONCLUSION correction
- * entry point — the case-detail surface, on a `completed` phase of a non-terminal
- * case). Wraps `set_case_phase_result_override`, which authorizes staff_admin/admin
- * of the case's commission, enforces the non-terminal-case precondition, validates
- * the option against the live vocabulary, and RECOMPUTES the effective result in
- * the same transaction (so the correction applies immediately; `resultId = null`
- * clears the override → recompute from the snapshotted ruleset). Per Rule 11 the
- * free-text `reason` is audited as a fact only, never copied into the payload.
+ * Set a case phase's result from the CASE-DETAIL surface. Wraps
+ * `set_case_phase_result_override`, which is the authority (Rule 1) and is TWO
+ * BRANCHES, not one guard — measured from the live catalog:
  *
- * (The END-OF-WIZARD override, on an `active` phase, flows through
- * `submitCasePhaseResponse` instead — same RPC, different entry point.)
+ *   - `active` phase    → the phase's OWN assignee ∨ `app.is_staff_admin_of`. The
+ *     override is STASHED (no recompute) and applies when the phase concludes.
+ *   - `completed` phase → coordinator only, and the case must be non-terminal
+ *     (HC060). The RPC recomputes the effective result in the same transaction, so
+ *     the correction applies immediately, and re-flips downstream
+ *     result-based recommendations (ADR 0043). `resultId = null` clears the
+ *     override → recompute from the snapshotted ruleset.
+ *   - any other status  → nobody (HC057).
+ *
+ * ⛔ There is NO `member_can` arm and NO `is_admin` arm, so neither an
+ * *administrativo* nor a hatted `platform_admin` is admitted. The RPC also
+ * re-validates the option against the live vocabulary, enforces a MANUAL phase's
+ * mandatory allowed-subset pick (HC062/HC058), and applies the exclusion perimeter
+ * (`assert_not_case_excluded`, HC0F1). Per Rule 11 the free-text `reason` is
+ * audited as a fact only, never copied into the payload.
+ *
+ * The pre-check below is membership only ({@link authorizeCommissionMember}) — a
+ * necessary condition that cannot shadow either branch. An unauthorized caller gets
+ * the door's `42501` mapped to a clean pt-BR "forbidden" by {@link mapOverrideError}.
+ *
+ * (The END-OF-WIZARD override, also on an `active` phase, flows through
+ * `submitCasePhaseResponse` instead — same RPC, different entry point, and already
+ * membership-authorized.)
  */
 export async function overrideCasePhaseResult(
   casePhaseId: string,
@@ -344,7 +391,7 @@ export async function overrideCasePhaseResult(
   const supabase = await createClient()
   const commissionId = await commissionOfCasePhase(supabase, casePhaseId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingCase }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionMember(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
