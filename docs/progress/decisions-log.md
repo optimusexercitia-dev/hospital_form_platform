@@ -454,3 +454,16 @@ _Verbatim from PROGRESS.md § Decisions. The **2026-08-20** rows (pre-AFF2-build
 | 2026-08-20 | **PO: WIDEN `dispose_meeting_minutes`** rather than hedge the copy — the untouched free text joins the redaction set, so `DSR_RESIDUE_NOTICE` line 1 becomes true as written. Discharges `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`; needs an ADR 0056 §2 amendment | [follow-ups.md](follow-ups.md) |
 | 2026-08-20 | **DSR Slice 4 BUILT — QA APPROVED r3.** `referral-dispose-dialog.tsx` renders the shared `DSR_RESIDUE_NOTICE` (closes `FUP-DISPOSE-DIALOG-OVERCLAIM`); meeting door widened; N12/N13/N14 built. ⛔ **Gate steps 4–5 + merge/push still owed** | [review](../reviews/dsr-slice-4-review.md) |
 
+## Rotated 2026-08-23 (fifth pass) — four concluded 2026-08-21 rows from the CASE-SPLIT / ETHICS programs
+
+_Verbatim from PROGRESS.md § Decisions. These belong to the case-surface-split program, whose §6 Record step
+landed at `c85af876` — they should have rotated then. The fifth 2026-08-21 row (**AFF2 Amdt 1**) stays live:
+that workstream is still in flight._
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-21 | **PO: OPEN-4 = option D — creation-scoped PHI write for `create_cases`** — the platform's **first PHI write path not held by a coordinator**: type identifiers **while creating** a case, never read or edit after. ⛔ Narrowed at build (lead): server returns **no identifier value** | ADR 0134 **Amdt 2** |
+| 2026-08-21 | **PO: OPEN-1 — NO BACKFILL.** Existing administrativo appointees do not receive `read_cases`; the coordinator opts in per appointee, so every grant has a coordinator action behind it | ADR 0134 **Amdt 1 §A1.1** |
+| 2026-08-21 | **PO: case split = read vs manage** — `/casos` = read + name-attributed work only; ONE manage surface (coordinator / administrativo / write-grantee); administrativo gets commission-wide case READ (5th cap `read_cases`). ⛔ NOT built — plan: [case-surface-split.md](../plans/case-surface-split.md) | ADR [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) |
+| 2026-08-21 | **PO: an ethics proceeding carries NO erasure entitlement, at any stage — no door, no UI.** Basis is the record's **administrative-proceeding** nature, ⛔ **not CFM 1821/2007**. Closes the Class-2 question. ⛔ **2 pre-existing doors DO remove ethics data** — filed, record-only | ADR [0132](../decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md) |
+
