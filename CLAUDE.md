@@ -71,7 +71,15 @@ tightest RLS, PHI-access-audited, and protected by platform at-rest encryption
     `profiles` policy allows (ratified: ADR
     [0097](./docs/decisions/0097-hospital-affiliation-person-identity.md) finding 1 + Consequences).
     ADR 0097 (AFF) also makes hospital **affiliation** a read-visibility input — reversing ADR
-    0048 D7's "hospital is never gated on".
+    0048 D7's "hospital is never gated on". ⚠ **ADR
+    [0133](./docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) (AFF2)
+    then makes it a WRITE input too, retiring 0097 D14's `org_admin`-only rule:** the bound is a
+    **footprint**, not a role, and it splits by capability — **INTERSECTION** for person-level
+    fields + credentials (any person whose active footprint *intersects* the caller's hospitals,
+    spanning people included), **SUBSET** for CPF-change + account lifecycle (only where the
+    *entire* footprint is inside them). Deactivation stays a platform-wide kill switch, which is
+    *why* lifecycle kept the tighter bound; a hospital admin's local offboarding is
+    `end_affiliation`, never deactivation.
   - `staff_admin` (per commission) — builds/edits forms, manages that commission's
     staff, views its dashboard.
   - `staff` (per commission) — fills published forms.
