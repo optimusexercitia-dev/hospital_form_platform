@@ -8,6 +8,7 @@ import {
 } from '@/lib/queries/affiliations'
 import {
   deriveUserStatus,
+  formatCouncilRegistration,
   statusesInFilter,
   type OrgUserDetail,
   type OrgUserListItem,
@@ -106,11 +107,50 @@ function pickCouncilRegistration(
     if (a.created_at !== b.created_at) return a.created_at < b.created_at ? -1 : 1
     return a.id < b.id ? -1 : 1
   })
-  const authority = best.issuing_authority.trim()
-  const state = best.issuing_state.trim()
-  const number = best.registration_number.trim()
-  const prefix = state ? authority + '/' + state : authority
-  return (prefix + ' ' + number).trim()
+  return formatCouncilRegistration(
+    best.issuing_authority,
+    best.issuing_state,
+    best.registration_number,
+  )
+}
+
+/**
+ * The set of people a hospital's directory covers (AFF2 B8 extraction).
+ *
+ * ACTIVELY AFFILIATED to the hospital UNION members of any commission under it. Both arms
+ * are resolved to id sets first (RLS-scoped: a hospital_admin reads its own hospital's
+ * affiliations, commissions and their members), then `profiles` is paged over the union.
+ *
+ * The union is an `.in()` over a resolved set rather than a raw `.or()` string: an `.or()`
+ * with interpolated values is the recorded PostgREST injection/parse hazard, and the id set
+ * is bounded by one hospital's roster.
+ *
+ * EXTRACTED SO THE RULE HAS ONE DEFINITION. `listHospitalUsers` uses it as its ENTIRE
+ * scope; `listOrgUsers` INTERSECTS it with the org roster for the `?hospital=` filter.
+ * Re-deriving "who works at this hospital" in the second caller is how the two would come
+ * to disagree about whether a committee seat counts.
+ */
+async function hospitalPeopleIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  hospitalId: string,
+): Promise<Set<string>> {
+  const { data: commRows } = await supabase
+    .from('commissions')
+    .select('id')
+    .eq('hospital_id', hospitalId)
+    .returns<{ id: string }[]>()
+  const commissionIds = (commRows ?? []).map((c) => c.id)
+
+  const ids = new Set<string>(await listActivePrincipalIdsForHospital(hospitalId))
+  if (commissionIds.length > 0) {
+    const { data: memberRows } = await supabase
+      .from('memberships')
+      .select('principal_id')
+      .in('commission_id', commissionIds)
+      .returns<{ principal_id: string }[]>()
+    for (const m of memberRows ?? []) ids.add(m.principal_id)
+  }
+  return ids
 }
 
 /**
@@ -296,6 +336,13 @@ export interface ListDirectoryOptions {
   search: string
   /** `null` = all. Parse the raw query value with `parseUserDirectoryStatusFilter`. */
   status: UserDirectoryStatusFilter | null
+  /**
+   * AFF2 B8 - narrow an ORG-wide directory to one hospital. `null` = all hospitals.
+   *
+   * Ignored by `listHospitalUsers`, which is hospital-scoped by construction; passing it
+   * there would be a second, weaker expression of the same scope.
+   */
+  hospital?: string | null
   paging: Paging
 }
 
@@ -318,7 +365,7 @@ export async function listOrgUsers(
   options: ListDirectoryOptions,
 ): Promise<OrgUserPage> {
   const supabase = await createClient()
-  const { search, status, paging } = options
+  const { search, status, hospital, paging } = options
 
   // ONE instant for the page predicate AND the three counts, so they cannot straddle a
   // tick and report a suspension that expired mid-request in two different buckets.
@@ -326,12 +373,30 @@ export async function listOrgUsers(
   const term = search.trim()
   const escaped = term.replace(/[%,()]/g, '')
 
+  // AFF2 B8 - the `?hospital=` filter NARROWS the org roster; it can never widen it.
+  //
+  // PO-ruled 2026-08-23. "People at hospital H" (affiliation UNION commission seat) is not
+  // a subset of "people homed in org O": a person homed elsewhere could hold a seat on a
+  // commission of H, and `memberships_scope_shape` does not forbid it. Intersecting keeps a
+  // filter doing what a filter does - only ever removing rows - so the unfiltered directory
+  // stays the superset of every filtered view of it.
+  //
+  // MEASURED 2026-08-23: ZERO rows currently differ. Probing
+  // `memberships x commissions x profiles` for a home-org/commission-org mismatch returns
+  // 0, so the two readings are indistinguishable today and NO test can tell them apart.
+  // Recorded because the first such row will make this behaviour look like a bug: a person
+  // visible at hospital H and absent from the org directory is INTENDED, not a dropped row.
+  const hospitalScope = hospital
+    ? Array.from(await hospitalPeopleIds(supabase, hospital))
+    : null
+
   /** The scoped set, WITHOUT the status filter - shared by the page read and the counts. */
   const scoped = (head: boolean) => {
     let q = supabase
       .from('profiles')
       .select(head ? 'id' : PROFILE_SELECT, { count: 'exact', head })
       .eq('home_organization_id', orgId)
+    if (hospitalScope) q = q.in('id', hospitalScope)
     if (term) {
       q = q.or(`full_name.ilike.%${escaped}%,email.ilike.%${escaped}%`)
     }
@@ -393,32 +458,9 @@ export async function listHospitalUsers(
   const { search, status, paging } = options
   const nowIso = new Date().toISOString()
 
-  // The hospital's user set = ACTIVELY AFFILIATED to the hospital UNION members of any
-  // commission under it. Both arms are resolved to id sets first (RLS-scoped: a
-  // hospital_admin reads its own hospital's affiliations, commissions and their members),
-  // then `profiles` is paged over the union.
-  //
-  // The union is an `.in()` over a resolved set rather than a raw `.or()` string: an
-  // `.or()` with interpolated values is the recorded PostgREST injection/parse hazard,
-  // and the id set is bounded by one hospital's roster.
-  const { data: commRows } = await supabase
-    .from('commissions')
-    .select('id')
-    .eq('hospital_id', hospitalId)
-    .returns<{ id: string }[]>()
-  const commissionIds = (commRows ?? []).map((c) => c.id)
-
-  const scopedUserIds = new Set<string>(
-    await listActivePrincipalIdsForHospital(hospitalId),
-  )
-  if (commissionIds.length > 0) {
-    const { data: memberRows } = await supabase
-      .from('memberships')
-      .select('principal_id')
-      .in('commission_id', commissionIds)
-      .returns<{ principal_id: string }[]>()
-    for (const m of memberRows ?? []) scopedUserIds.add(m.principal_id)
-  }
+  // The hospital's user set, from the ONE definition of it (AFF2 B8). `listOrgUsers`
+  // intersects the same helper for its `?hospital=` filter.
+  const scopedUserIds = await hospitalPeopleIds(supabase, hospitalId)
 
   // An empty `in.()` is invalid PostgREST - a hospital with no roster at all returns an
   // empty page without a round trip. The counts are all zero by construction, and are

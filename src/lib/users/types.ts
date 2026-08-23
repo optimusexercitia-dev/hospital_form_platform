@@ -133,6 +133,44 @@ export interface UserDirectoryStatusCounts {
   deactivated: number
 }
 
+/**
+ * Compose the directory's "Registro" cell from a credential's three parts.
+ *
+ * Pure and client-safe so it can be unit-tested without the server-only query layer, but
+ * it is CALLED once server-side (`org-users.ts`) so no table cell re-derives the rule.
+ *
+ * DEDUPLICATES A TRAILING UF. Measured 2026-08-23: BOTH seeded credentials store the UF
+ * inside `registration_number` (`123456-SP` with `issuing_state = 'SP'`), so the naive
+ * composition renders "CRM/SP 123456-SP" for 100% of the seed. Stripping it here rather
+ * than editing `seed.sql` is deliberate on two counts: the seed is a contract with ~900
+ * tests and an exact-count or positional assertion elsewhere is exactly what a casual edit
+ * trips; and nothing stops a REAL user typing the UF into the number field, so the tolerant
+ * formatter protects live input too, which a seed fix would not.
+ *
+ * Only an EXACT trailing `-<UF>` matching this credential's own state is removed, so
+ * `CRM/SP 123456-RJ` keeps its suffix — a mismatched UF is data worth showing, not noise.
+ */
+export function formatCouncilRegistration(
+  issuingAuthority: string,
+  issuingState: string,
+  registrationNumber: string,
+): string {
+  const authority = issuingAuthority.trim()
+  const state = issuingState.trim()
+  const number = registrationNumber.trim()
+
+  // endsWith, not a RegExp: `state` is caller data, and building a pattern from it would
+  // be a needless injection surface for a two-character comparison.
+  const suffix = '-' + state
+  const deduped =
+    state.length > 0 && number.toUpperCase().endsWith(suffix.toUpperCase())
+      ? number.slice(0, -suffix.length)
+      : number
+
+  const prefix = state ? authority + '/' + state : authority
+  return (prefix + ' ' + deduped).trim()
+}
+
 /** A professional-category lookup row (managed vocabulary, `professional_categories`). */
 export interface ProfessionalCategory {
   id: string
