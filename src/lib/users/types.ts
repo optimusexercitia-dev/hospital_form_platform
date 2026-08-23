@@ -27,10 +27,25 @@
 export type UserStatus = 'pending' | 'active' | 'suspended' | 'deactivated'
 
 /**
- * Pure derivation of the app-facing status from the raw profile lifecycle
- * columns. Ordering is deliberate and MUST match the SQL derivation used by the
- * directory query (a shared vector test keeps them in agreement, mirroring the
- * condition-evaluator discipline):
+ * Pure derivation of the app-facing status from the raw profile lifecycle columns.
+ *
+ * ⛔ THERE IS NO SQL TWIN, AND BUILDING ONE WOULD BE WRONG. This comment claimed until
+ * 2026-08-23 that the ordering "MUST match the SQL derivation used by the directory
+ * query" — there has never been such a function (measured against `pg_proc` in `app` and
+ * `public`), and `status-vectors.test.ts` says the opposite in as many words. The false
+ * claim was the dangerous half: it makes BUILDING a SQL derivation look like restoring
+ * parity, when it would manufacture a parity obligation between two predicates that are
+ * DESIGNED to disagree. The database's concern is the boolean `app.is_active()`
+ * (`is_active AND (suspended_until IS NULL OR now() >= suspended_until)`), which
+ * deliberately ignores `email_confirmed_at`: a `pending` user is app-ACTIVE for RLS and
+ * display-`pending` here. A future reader "fixing the drift" breaks RLS or the badge.
+ *
+ * The server-side `?status=` filter therefore does NOT translate this into SQL. It goes
+ * through {@link statusesInFilter}, whose column predicates are bound to the SAME vector
+ * fixture this function is (see `status-vectors.test.ts`) — one authority, two
+ * representations, machine-checked agreement.
+ *
+ * Ordering is deliberate:
  *   deactivated  >  suspended  >  pending  >  active
  * i.e. the master switch (`is_active`) dominates; a currently-suspended active
  * user reads `suspended`; an unconfirmed active, un-suspended user reads
@@ -53,6 +68,69 @@ export function deriveUserStatus(
   }
   if (emailConfirmedAt === null) return 'pending'
   return 'active'
+}
+
+/**
+ * The directory's `?status=` buckets (AFF2 B7 / ADR 0133 D14). English, matching the
+ * `ReferralStatus` / `EventStatus` precedent; the pt-BR labels are display-side.
+ *
+ * ⚠ THREE BUCKETS OVER FOUR STATUSES. `attention` is `suspended ∪ pending` — both are
+ * "someone must do something", and the design collapses them into one pill. Absent or
+ * unrecognised means ALL, which is why the parse returns `null` rather than throwing.
+ */
+export type UserDirectoryStatusFilter = 'active' | 'attention' | 'deactivated'
+
+/**
+ * Parse a raw `?status=` query value.
+ *
+ * ⛔ THE PARSE IS OWNED HERE, deliberately, and the page must not do its own. Two parses
+ * of one query parameter is how a page filters by one thing and counts by another —
+ * and the counts come from a different code path entirely, so nothing would reconcile
+ * them. Unknown values degrade to "all" rather than erroring: a stale bookmark or a
+ * hand-edited URL must not 500 a directory.
+ */
+export function parseUserDirectoryStatusFilter(
+  raw: string | null | undefined,
+): UserDirectoryStatusFilter | null {
+  if (raw === 'active' || raw === 'attention' || raw === 'deactivated') return raw
+  return null
+}
+
+/**
+ * Which display statuses a filter bucket admits.
+ *
+ * ⛔ THIS IS THE ONLY PLACE THE BUCKETS ARE DEFINED. The query layer turns the result into
+ * column predicates and the pill counts use the SAME helper, so a filtered page and its
+ * count can never disagree about what "attention" means. The mapping is pinned against
+ * `status-vectors.json` — the same fixture that pins {@link deriveUserStatus} — so the
+ * two representations cannot drift (Architecture Rule 3's mechanism, applied to a TS↔TS
+ * pair because there is no SQL side here).
+ */
+export function statusesInFilter(f: UserDirectoryStatusFilter): UserStatus[] {
+  switch (f) {
+    case 'active':
+      return ['active']
+    case 'attention':
+      return ['suspended', 'pending']
+    case 'deactivated':
+      return ['deactivated']
+  }
+}
+
+/**
+ * Pill counts for the directory.
+ *
+ * ⛔ ALWAYS COMPUTED OVER THE **UNFILTERED** SCOPED SET. A count that respects the active
+ * filter reads "Ativos 12" while showing 12 of 12 rows and tells the user nothing; worse,
+ * "Desativados 0" while filtered to Ativos looks like a fact about the org.
+ */
+export interface UserDirectoryStatusCounts {
+  /** = active + attention + deactivated. The four display statuses partition the set. */
+  all: number
+  active: number
+  /** suspended ∪ pending. */
+  attention: number
+  deactivated: number
 }
 
 /** A professional-category lookup row (managed vocabulary, `professional_categories`). */
@@ -103,14 +181,34 @@ export interface OrgUserListItem {
   categoryLabel: string | null
   status: UserStatus
   /**
-   * The hospital(s) this person ACTIVELY works at, joined by ', ' — derived from
-   * `hospital_affiliations` since AFF W1 (ADR 0097 D1/D3); it was a single
-   * `profiles.home_hospital_id` name before. Null when there is no visible active
-   * affiliation. One affiliation renders exactly as the old value did.
+   * The hospitals this person ACTIVELY works at (AFF2 B7). One entry per active
+   * `hospital_affiliations` row visible to the caller; `[]` is legitimate and renders
+   * "Sem vínculo hospitalar", never an empty cell.
+   *
+   * ⛔ AN ARRAY, NOT A JOINED STRING, AND THAT IS THE POINT. "N hospitais" cannot be
+   * derived from a `', '`-joined string once a hospital name contains a comma — the count
+   * silently inflates. The display layer joins; the contract carries the elements.
    */
-  homeHospitalName: string | null
-  /** Number of committees the user belongs to (directory badge). */
-  committeeCount: number
+  hospitalNames: string[]
+  /**
+   * The person's commission-tier seats (AFF2 B7), for the directory chips — coordinator
+   * accent vs member muted. `[]` renders the dashed "Sem comissão", never an empty cell.
+   */
+  committees: UserCommitteeMembership[]
+  /**
+   * The council registration for the "Registro" column, PRE-FORMATTED server-side
+   * (e.g. `"CRM/SP 152.984"`), or `null` when the person holds none.
+   *
+   * ⛔ COMPOSED ONCE, HERE-SIDE. The authority/UF/number composition is a domain rule, not
+   * a table-cell concern; duplicating it into the renderer is how two surfaces start
+   * formatting the same registration differently.
+   *
+   * ⚠ `null` means NO CREDENTIAL, not "not permitted". A hospital_admin can read these
+   * only because ADR 0133 D13 (AFF2 B2) widened `professional_credentials` SELECT — before
+   * that this column was silently empty for every hospital admin, which is the
+   * "empty means no-permission" state the codebase bans. B2 must stay landed.
+   */
+  councilRegistration: string | null
 }
 
 /**
@@ -174,8 +272,14 @@ export interface Paging {
   pageSize: number
 }
 
-/** A page of directory rows plus the total count (for pager UI). */
+/** A page of directory rows, the total for the pager, and the unfiltered pill counts. */
 export interface OrgUserPage {
   rows: OrgUserListItem[]
+  /** Rows matching the CURRENT filter + search — what the pager pages over. */
   total: number
+  /**
+   * Counts over the scoped set IGNORING `status` (search still applies, so the pills
+   * describe the set the user is looking at). See {@link UserDirectoryStatusCounts}.
+   */
+  statusCounts: UserDirectoryStatusCounts
 }
