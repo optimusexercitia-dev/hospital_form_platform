@@ -219,7 +219,8 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **AFF2** (ADR 0133 + Amdt 1–3) | ⚠ **CHANGES REQUESTED (r1)** — 2 blocking (R1 `resolvePersonFootprint` omits D1(c) "active" on the write authority · R2 plan F3 "match cards show DOB" unbuilt + unrecorded, B3 has no consumer) + 5 non-blocking; every remit item passed | 2026-08-23 | [aff2-review.md](docs/reviews/aff2-review.md) |
+| **AFF2** (ADR 0133 + Amdt 1–4) | ✅ **APPROVED (r2)** — both r1 blockers discharged at `02cc5817` (R1 fixed + future-expiry control · R2 ruled, Amdt 4 r2). 2 carried records: "strictly stricter" is false (the fix WIDENS both subset capabilities; no arm) + the seed warrant is mis-cited. r1 CHANGES REQUESTED | 2026-08-23 | [aff2-review.md](docs/reviews/aff2-review.md) |
+| ~~AFF2 (r1)~~ | ~~CHANGES REQUESTED~~ — 2 blocking, both found outside the given remit; every remit item passed | 2026-08-23 | [aff2-review](docs/reviews/aff2-review.md) |
 | **Case split · Inc 2** (ADR 0134 D6 + Amdt 1–7) | ✅ **APPROVED (r2)** — 5 record conditions, none blocking merge, **all 5 discharged 2026-08-22** (C-1/C-4 here · C-2/C-3 → [increment record](docs/progress/case-surface-split-increment-2.md) · C-5 → `FUP-CS2-QA-RESIDUE`); r1 CHANGES REQUESTED (5 blocking, incl. a PHI write handed to `platform_admin`) | 2026-08-22 | [review](docs/reviews/case-surface-split-increment-2-review.md) |
 | **Case surface split · Increment 1** (ADR 0134 D1–D5, D7) | ✅ **APPROVED** (r3) — 4 conditions, all for the Record edit (§8.9). No security defect in any round | 2026-08-21 | [case-surface-split-increment-1-review.md](docs/reviews/case-surface-split-increment-1-review.md) |
 | ~~Case surface split · Increment 1 (r2)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |

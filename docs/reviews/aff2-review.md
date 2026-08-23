@@ -12,6 +12,19 @@ ARCHITECTURE.md · CLAUDE.md §3/§6/§8
 
 ## Verdict
 
+# ✅ APPROVED (r2)
+
+**r1 was `CHANGES REQUESTED`** (2 blocking). Both discharged and re-verified at
+`02cc5817` — see **§ Round 2** at the end of this file, which also carries two
+non-blocking corrections to the *re-gating argument*, not to the fix.
+
+*The r1 analysis below is preserved unedited; it is the record of what was found and
+why.*
+
+---
+
+## Verdict (r1 — superseded)
+
 # ⚠ CHANGES REQUESTED
 
 Two findings block, and both are small to discharge. Everything in my explicit remit that
@@ -456,3 +469,144 @@ If R1 is discharged by route **(b)** (a PO ruling plus text corrections), no cod
 and therefore no re-run of gate steps 1 or 2 are needed for it — but the ADR wording, the
 two doc comments and the follow-up must all move in the same edit, or the next reader
 inherits a claim with nothing able to contradict it.
+
+---
+---
+
+# Round 2 — 2026-08-23, at `02cc5817`
+
+**Verdict: ✅ APPROVED.** Both blockers discharged. Nothing new blocks. Two corrections
+below are to the *re-gating rationale*, not to the fix — the fix is right, and one half of
+the argument offered for skipping a re-gate is false while the conclusion survives on the
+other half.
+
+## Gate, re-measured by me at HEAD (not accepted)
+
+| Check | Result |
+| --- | --- |
+| `npm run lint` | **exit 0** — 8/8, captured directly, no pipe in the exit path |
+| `npx tsc --noEmit` | **exit 0** |
+| `npx vitest run` (whole tree) | **exit 0** — **117 files / 1651 tests** |
+| Local DB | 444 / `20261003001200`, `auth.users` **36** — unmoved |
+| **DB delta from round 2** | **0** — read-only catalog queries only |
+
+Unchanged from r1: I did **not** re-run `test:db`, `e2e:prod`, or any `ARM=*` arm.
+
+## R1 — ✅ discharged in code
+
+`person-footprint.ts:83` selects `expires_at`; `:126-127` drops any commission-tier row
+whose expiry is non-null and `<= now()`. Semantics match `app.has_role`'s
+`(expires_at is null or expires_at > now())`, which I re-read from `pg_get_functiondef`.
+
+**The arms are non-vacuous, and the control is the reason.** `d14-person-level.test.ts`
+denies both intersection capabilities (`fields` via `updateUserProfile`, `credentials` via
+`upsertCredential` — separately, per F6's precedent that a shared gate can be reverted
+without reddening its sibling), each asserting **no write occurred** rather than only a
+falsy verdict. The **future-expiry control** is what makes them mean something: without it
+both denies are satisfied by an implementation that drops every row carrying an
+`expires_at` at all, or by one that broke the membership leg outright. The rule under test
+is *"expired"*, not *"has an expiry column set"*, and only the control distinguishes them.
+
+**The TS-vs-PostgREST choice is right.** `.or('expires_at.is.null,expires_at.gt.…')` is a
+string PostgREST parses, unobservable to a unit test — the documented blind spot. Filtering
+in TS puts the rule beside the tier derivation, which was already TS-side, and lets the
+keystones drive it through the real actions.
+
+### The unrequested sub-decision — I scrutinised it, and it is correct
+
+Expiry applies to what a membership **grants** and not to what it **withholds**. Two
+independent reasons it holds:
+
+1. **The ADR's text already says so.** *"active"* appears twice in **D1(c)**, both times
+   inside the footprint definition. **D1(b)** — *"the target's memberships are all
+   commission-tier"* — and **D2** carry no activity qualifier at all. The asymmetry is the
+   literal reading, not a departure from it.
+2. **Direction.** Reading an expired org-tier seat as untiered flips a person who reaches
+   nobody into one a hospital_admin may administer — a widening on the path with no RLS
+   backstop.
+
+`person-admin-view.test.ts` pins it with its own arm. Correctly decided, correctly pinned.
+
+### ⚠ Correction 1 — *"the change is strictly stricter"* is **false**
+
+Offered as half the reason no re-gate is owed. Shrinking the footprint cuts the two bounds
+in **opposite** directions:
+
+- **INTERSECTION** (`fields`, `credentials`) — `footprint ∩ administered`. A smaller
+  footprint can only lose intersections. **Strictly narrower.** ✅
+- **SUBSET** (`cpf_change`, `lifecycle`) — `footprint ⊆ administered`. A smaller footprint
+  is **easier** to satisfy. **Wider.**
+
+Constructed: person holds an active affiliation at **H2** and an *expired* commission seat
+at **H1**; caller administers **H2** only.
+
+| | footprint | `lifecycle` |
+| --- | --- | --- |
+| before `02cc5817` | `{H1, H2}` | **DENY** (H1 outside) |
+| after | `{H2}` | **ALLOW** |
+
+A hospital_admin who previously could not deactivate that person now can.
+
+**The behaviour is correct** — D1(c) defines the footprint as the active set, and an
+expired seat grants no access at H1 (`app.has_role` filters it), so deactivating denies
+nothing there. **No change is requested.** But the *rationale* is wrong, and it is the
+half that would carry the weight if any past-expiry row existed. Worth recording because
+the same fix invokes *"narrowing can be wrong and safe; widening can't"* for the tier flag
+while containing an unremarked widening one capability class over.
+
+**Coverage gap, non-blocking:** all three new R1 arms use `footprintExpiredSeatOnly`, which
+empties `hospital_affiliations` — so the footprint becomes **∅** and the denies come from
+the zero-footprint rule, not the subset logic. **No arm constructs the mixed fixture
+above**, so nothing would notice a revert in the widened direction. One arm closes it.
+
+### ⚠ Correction 2 — the `seed.sql:350` citation is at the wrong grain, and the real warrant is stronger
+
+`seed.sql:350` (*"No expires_at: permanent local fixtures"*) sits above **one** of **eight**
+`insert into public.memberships` statements — the quality-office oversight rows. It records
+that block's intent, not the seed's. Cited as *"the seed records the absence as
+deliberate"*, it is a real comment quoted for a conclusion it does not bound — this
+workstream's own named class.
+
+**The correctly-grained fact is stronger and I measured it:** **none of the eight column
+lists names `expires_at`**, so every seeded membership takes the column default. The
+absence is structural, not one block's convention and not a data accident.
+
+**Conclusion unchanged: no `e2e:prod` re-run and no diff-scoped sweep are owed.** It rests
+on reachability — 0 of 43 rows with any expiry, 0 past-expiry, re-measured by me at HEAD —
+and no policy or `prosecdef` gate moved. It does **not** rest on "strictly stricter".
+
+## R2 — ✅ discharged by ruling (Amendment 4 r2)
+
+Retiring D11's UI clause is the better of the two exits I offered. The amendment records
+what I could not: that the payload is a **built door awaiting its caller**, valid for a
+future name-search consumer, so the next reader finds B3 and does not conclude it is dead
+code and revert it. The plan line is corrected in place rather than deleted.
+
+## The understated residue — ✅ corrected, and sufficiently
+
+`FUP-AFF2-ACTIVE-MEANS-TWO-THINGS`'s bounding paragraph is replaced, quotes the false
+sentence it replaces, names the answerable set as **three** authorities, and records that
+the resolver was a fourth until Amdt 4 settled it. It also quotes the item's own warning
+against the error its bounding claim committed. Read half correctly left open.
+
+## Non-blocking items from r1
+
+- **R3** ✅ corrected; the affiliation start date is recorded as never closed.
+- **R4** ✅ fixed, and the vacuity story is right. I checked the reasoning independently:
+  `personLevelChanged` selects **whether** the person-scope check runs, not its verdict, so
+  on a cross-hospital target `fields` allows either way and the original arms could not
+  discriminate. The D2-tier re-fixture is the discriminating one, and extending to
+  `date_of_birth` alongside `phone` avoids the partial-fix shape.
+- **R6** ✅ comments corrected with the pt-BR string byte-identical; a sixth stale comment
+  (`actions.ts:190`) found and fixed in the sweep.
+- **R5, R7** — recorded, deliberately unchanged. Correct calls.
+
+## Carried forward, for the Record step
+
+Neither blocks; both are records that will otherwise go stale silently.
+
+1. Correct *"strictly stricter"* wherever the re-gate decision is written down, and add
+   the mixed-fixture arm (active affiliation + expired seat elsewhere) that pins the
+   widened `lifecycle` direction.
+2. Re-cite the seed warrant as *"no membership insert in `seed.sql` names `expires_at`"*
+   rather than as the `:350` comment.

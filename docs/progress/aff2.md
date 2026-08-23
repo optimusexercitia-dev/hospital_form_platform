@@ -753,6 +753,33 @@ T0-T4, zero seeded rows mutated.
 
 ## Rulings & corrections made during the build *(lead-owned)*
 
+- **⛔ 2026-08-23 · TWO corrections to the LEAD's re-gating rationale, both caught by QA r2. The
+  conclusion survives; the stated reasons did not.**
+  1. ⛔ **"The change is strictly stricter" is FALSE.** Shrinking the footprint cuts the two bounds in
+     **opposite** directions: `fields`/`credentials` are `footprint ∩ administered` — fewer intersections,
+     **narrower**; `cpf_change`/`lifecycle` are `footprint ⊆ administered` — and **a smaller set is EASIER
+     to be a subset of**, so those two get **WIDER**. Worked and confirmed: active affiliation at **H2** +
+     **expired** seat at **H1**, caller administers H2 only — before, footprint `{H1,H2}` ⇒ `lifecycle`
+     **DENY**; after, `{H2}` ⇒ **ALLOW**. A hospital_admin who could not deactivate that person now can.
+     ⚠ **The behaviour is correct** (D1(c) defines the footprint as the *active* set; an expired seat grants
+     no access at H1, so deactivating denies nothing there) — **no change was requested**. ⭐ But note the
+     shape: the same fix invokes *"narrowing can be wrong and safe; widening can't"* for the tier flag while
+     containing an **unremarked widening one capability class over**, in the subset capabilities the ADR
+     keeps tight because deactivation is a platform-wide kill switch.
+     ⚠ **Coverage gap it exposed:** all three R1 arms use `footprintExpiredSeatOnly`, which **empties**
+     `hospital_affiliations`, so the footprint is **∅** and the denies come from the **zero-footprint rule**,
+     not the subset logic — nothing would notice a revert in the widened direction. Closed by one
+     mixed-fixture arm, mutation-controlled.
+  2. ⛔ **The seed citation was at the wrong GRAIN.** The lead wrote *"`seed.sql:350` records the absence as
+     deliberate."* That comment governs **one of eight** `insert into public.memberships` statements — a real
+     comment quoted for a conclusion it does not bound, **this workstream's own named class, third
+     occurrence**. ⭐ The correctly-grained fact is **stronger** and was measured: **`expires_at` occurs
+     exactly ONCE in the whole of `seed.sql`** — that comment — so **no column list names it** and every
+     seeded row takes the default. Structural, not one block's convention.
+  ⛔ **The no-`e2e:prod`-re-run conclusion STANDS, but on REACHABILITY** (0 of 43 rows carry any expiry, 0
+  past-expiry, re-measured at HEAD) **and on nothing policy- or `prosecdef`-shaped having moved** — *not* on
+  strictness. Whoever writes the gate record must use the reachability leg.
+
 Decisions live in the ADR; this is the index so a reader finds them without re-deriving.
 
 - **2026-08-23 · Four PO rulings** → ADR 0133 **Amendment 2**: D13's mirror-vs-commission-tier
