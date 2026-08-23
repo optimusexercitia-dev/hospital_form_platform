@@ -195,6 +195,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-23 | ⭐ **AFF2 · authoritative GATE STEP 1**, both tracks still (`55b25be5`) | **exit 0 on every step; no pipe in any exit path.** lint **8/8** · `tsc` **0** · Vitest **117f/1644** · `test:db` **212f/7039 PASS**, 0 `not ok`, on a fresh reset (**444** / `20261003001200`, `auth.users` **36**) · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** · diff-scoped **policy** sweep `professional_credentials_select` **CLEAN/COVERED** + **row-door** sweep `list_org_people` **COVERED**; findings files restored **byte-identical**. ⚠ `guard_profile_privileged_columns` (`prosecdef`, returns **trigger**) sits in **no** sweep's domain — the filed `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` extension, not a miss. ⭐ The case list was derived with **ADR 0079 Amdt 8**'s amended recipe: the policy is found **only** via `alter policy`, so the old `create policy` grep would have returned **zero** and swept nothing. ⛔ **Step 2 (`e2e:prod`) NOT run** — `tester` owns it |
 | 2026-08-23 | ⭐⭐ **FULL `e2e:prod`** — first since Inc 2, `REBUILD=1`, at `d885f621` | ⛔ **RED, exit 1** · **1185 p · 2 f · 2 flaky · 8 DNR · 20 batches**, no gaps, no `reset FAILED`. ⭐ Both failures are **retry artifacts on non-idempotent tests**; alone → **25 p / 0 f GREEN**. **No regression attributable to this tree** — [triage](docs/progress/case-split-assertion-integrity.md) |
 
 ## QA Verdicts
