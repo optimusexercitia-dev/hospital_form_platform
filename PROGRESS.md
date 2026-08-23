@@ -167,7 +167,34 @@ seed/CLI-driven bootstrap that mints the first admin idempotently. **Blocks noth
 E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is invisible to every
 gate), but it is on the critical path of the **first production deploy**.
 
-### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
+🔴 **BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS — a successful "Dados pessoais" save shows the admin NO
+confirmation at all; the success banner is mounted and unmounted in the same React commit.** Filed
+2026-08-23 (`tester`, AFF2 T0) running the full regression on `e2e/form-name-attribute-invariant.spec.ts`
+(not a file named in the T0 breakage inventory — found by running beyond the named set). **Repro:**
+sign in as `orgadmin.a@test.local` (or any hospital_admin with `fields` capability on the target),
+open any person's profile (`/o/[org]/manage/usuarios/[userId]`), click "Editar" on the Dados pessoais
+card, change any field (e.g., Nome completo), click "Salvar alterações". **Expected:** the
+`<FormBanner tone="success">Perfil atualizado.</FormBanner>` is visible for at least a perceptible
+interval — this is the acceptance bar `form-name-attribute-invariant.spec.ts`'s own pre-existing
+"profile edit" test encodes, and CLAUDE.md §8's general "every action gets accessible feedback" bar.
+**Actual:** measured by polling every 50ms from the instant "Salvar alterações" is clicked — the
+banner's visible count is **0 at every poll from t=0ms**, and the form itself is already unmounted by
+the first poll; the card has already reverted to its read-only view (confirmed: "Editar" button count
+is back to 1). **Mechanism** (`src/components/users/user-profile-edit-form.tsx` +
+`personal-data-card.tsx`): `handleSubmit` calls `setSuccess(true)` then, in the same synchronous
+continuation, `onSaved?.()` — which is wired to `PersonalDataCard`'s `() => setEditing(false)`. Both
+state updates land in the same React commit, so the parent's `editing=false` unmounts
+`UserProfileEditForm` (banner included) before the success state it just set ever paints. The
+underlying save itself is NOT affected (the value persists — confirmed via the same test's
+service-role table read) — this is a pure UI/confirmation-feedback defect, not a data-integrity one.
+**Violates:** the spec clause `form-name-attribute-invariant.spec.ts` — "profile edit › an edited name
+persists, and neither it nor the CPF reaches the URL" (the `await expect(page.getByText(/perfil
+atualizado/i)).toBeVisible()` line) — and CLAUDE.md §8's accessible-feedback bar; not an ADR 0133
+decision (ADR 0133 does not speak to save-confirmation UX, so this is a build regression, not a
+scoped/intended behavior change). **Status:** OPEN, owner `frontend`. `tester` left the spec's banner
+assertion **unchanged and failing** (per role: file, don't paper over) — the surrounding fix (this
+same test now also clicks "Editar" before locating the Nome field, a genuine, unrelated repair for
+the disclosure-based edit UX ADR 0133 F2 introduced) is unaffected and correct on its own.
 
 Closed rows and their closure narratives live in the archive. The standing **warnings**
 this subsection used to hold were rules with no resolution event — which is why it could
@@ -349,6 +376,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟡 **FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED** — ⭐ **RAISED 🟢→🟡 on QA's argument 2026-08-22:** the schema it bounds now **hosts a PHI writer**, so the one config line carries more than it did when this was filed. — ⛔ **informational, NOT a live hole; do not report it as one.** Measured 2026-08-22: of **467** functions in schema `app`, **237 are `anon`-executable** — **228** by `proacl IS NULL` (the permissive default nobody wrote) and **9** by an explicit `=X/postgres` entry, four of which are **authorization predicates** (`is_admin`, `is_member_of`, `is_org_admin_of`, `is_staff_admin_of`). The ONLY thing bounding this is **one config line** — `supabase/config.toml:13` does not expose `app` to PostgREST — so the ACLs are not holding the line and an auditor reading them would conclude they were. ⭐ First reported as *"`is_member_of` is wider than every sibling"*: every clause true, the framing wrong in this repo's standing way — the instance found, not the class (it missed a second explicit member and the 228-strong dominant mechanism), and a one-outlier framing invites a one-function fix that changes nothing. Needs a **decision**, not a patch; ⛔ never smuggled into a feature migration — backend/PO
 - 🟡 **FUP-AFF2-CONTA** — LGPD **titular access** for the two new person columns: a professional has no self-service view of their own `profiles.date_of_birth` / `phone`. Both are column-locked (absent from every `authenticated` column-list grant, ADR 0133 D10) and readable **only** on the admin management surface, so the data subject is the one party who cannot see their own record. ⚠ **Named a control, not a nicety** — ADR 0133 **Amdt 1 ruling 5** states the LGPD posture explicitly: professional data subjects exercise Art. 18 administratively and are **out of DSR scope by design**, which makes `/conta` the access path that discharges it. ⛔ Severable by design and **deferred at AFF2 build start (2026-08-23), not dropped** — registered here so the deferral is a record rather than an omission — frontend/PO
 - 🟡 **FUP-AFF2-ACTIVE-MEANS-TWO-THINGS** — *"active membership"* is asserted by ADR 0133 D13, the AFF2 plan and the build prompt (3×), and **no policy implements it**: neither live `profiles` SELECT policy filters `expires_at`, and AFF2's new `professional_credentials` leg mirrors that absence (PO-ruled 2026-08-23, ADR 0133 **Amdt 2** ruling 3 — filtering one side would make the two silently disagree). ⚠ The asymmetry is **inside a single policy**: the affiliation leg filters activity (`ended_on IS NULL`), the membership leg does not. Answerable only for **both** policies at once; a one-sided fix is the defect. ⛔ Not a live hole — an expired membership grants a credential **read**, and the person is already directory-visible via the `profiles` leg — backend/PO
+- 🟡 **FUP-WAITFORURL-SATISFIED-BY-ITS-OWN-STARTING-URL** — `aff-hospital-affiliation.spec.ts:764` (AFF-K, keyboard) waits on `/\/usuarios\/[^/]+$/` immediately after a keyboard nav **FROM `/usuarios/novo`** — which the pattern **already matches**, so the wait returns with **zero navigation**. ⭐ **A wait predicate that is already true does not wait at all, and its symptom surfaces somewhere else entirely** (the same bug elsewhere produced a misleading *"person not found in search"* one step later). Green today only because the next assertion's own 10 s timeout absorbs the real navigation — i.e. **racing silently**, the shape that becomes a mystery flake. ⛔ Pre-existing, NOT AFF2's doing, and correctly left untouched by `tester` as scope creep into a fully-green file. Swept: **9** loose forms remain in `e2e/`; **8 are safe by structure** (a `card.click()` from `/usuarios?search=…`, which has no slash after `usuarios`) — this is the only unsafe one. Fix: the positive `[0-9a-f-]{36}` UUID form — tester/lead
 - 🟡 **FUP-MANAGE-ROUTES-HAVE-NO-ERROR-BOUNDARY** — **10** org-admin routes under `o/[org]/manage` have **no `error.tsx` between them and the ROOT boundary**, so any render failure destroys the whole shell — sidebar, org switcher and the DSR console entry go with it, leaving the user no navigation. Measured 2026-08-23 by ancestor-walk (not by `find` in-directory, which mis-reports children as gaps): `manage` itself · `acreditacao` · `audit` · `comissoes` · `documentos` · `hospitais` (+`/[hospitalId]`) · `indicadores` · `painel` · `tipos-de-caso`. ⭐ Found incidentally while AFF2 added `usuarios/error.tsx` — **4 of 14 `manage` segments had one**, so this is a GAP, not a design choice. ⛔ **Pre-existing and OUT of AFF2 scope** — do not smuggle the fix into the workstream. ⛔ **TWO files, not one** — `manage/error.tsx` for the ten page gaps **plus `o/[org]/error.tsx`**, because `error.js` does **not** wrap the layout in its own segment (this version's docs, `error.md:96`), so no `manage`-level boundary can ever catch **`manage/layout.tsx`** — which awaits `getSessionContext`, `getRawGrants` and the newest code on the surface, `listMyDsrHospitals`, and whose throw takes down **every** manage route at once. If only one is built, it is the second — frontend
 
 
