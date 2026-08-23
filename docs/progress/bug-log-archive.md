@@ -3011,3 +3011,42 @@ the Increment-2 **union of two runs with 75 unrun**, and that row does not recor
 so whether `quality-oversight.spec.ts` executed post-merge is **undetermined, not green**. Re-derive from a
 run before quoting it as the baseline.
 
+## Rotated 2026-08-23 — BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS (RESOLVED, closed on evidence)
+
+_Filed by `tester` during AFF2 T0, fixed by `frontend` at `d23d1045`, and closed only when the instrument that
+found it re-ran: `form-name-attribute-invariant.spec.ts`'s "profile edit" test passed in **batch 8 of the
+`e2e:prod` gate** (65 p / 0 f / 5 skipped, accounted 70/70, exit 0) — the production build, not just the
+dev-mode T2 confirmation. ⛔ The row below still carries its original **"Status: OPEN, owner `frontend`"**
+line beneath a later FIXED block; that contradiction is preserved because a verbatim rotation is verbatim._
+
+⭕ **BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS — a successful "Dados pessoais" save shows the admin NO
+confirmation at all; the success banner is mounted and unmounted in the same React commit.** Filed
+2026-08-23 (`tester`, AFF2 T0) running the full regression on `e2e/form-name-attribute-invariant.spec.ts`
+(not a file named in the T0 breakage inventory — found by running beyond the named set). **Repro:**
+sign in as `orgadmin.a@test.local` (or any hospital_admin with `fields` capability on the target),
+open any person's profile (`/o/[org]/manage/usuarios/[userId]`), click "Editar" on the Dados pessoais
+card, change any field (e.g., Nome completo), click "Salvar alterações". **Expected:** the
+`<FormBanner tone="success">Perfil atualizado.</FormBanner>` is visible for at least a perceptible
+interval — this is the acceptance bar `form-name-attribute-invariant.spec.ts`'s own pre-existing
+"profile edit" test encodes, and CLAUDE.md §8's general "every action gets accessible feedback" bar.
+**Actual:** measured by polling every 50ms from the instant "Salvar alterações" is clicked — the
+banner's visible count is **0 at every poll from t=0ms**, and the form itself is already unmounted by
+the first poll; the card has already reverted to its read-only view (confirmed: "Editar" button count
+is back to 1). **Mechanism** (`src/components/users/user-profile-edit-form.tsx` +
+`personal-data-card.tsx`): `handleSubmit` calls `setSuccess(true)` then, in the same synchronous
+continuation, `onSaved?.()` — which is wired to `PersonalDataCard`'s `() => setEditing(false)`. Both
+state updates land in the same React commit, so the parent's `editing=false` unmounts
+`UserProfileEditForm` (banner included) before the success state it just set ever paints. The
+underlying save itself is NOT affected (the value persists — confirmed via the same test's
+service-role table read) — this is a pure UI/confirmation-feedback defect, not a data-integrity one.
+
+⭕ **FIXED 2026-08-23 (`d23d1045`, `frontend`) and CONFIRMED LIVE by an independent instrument — held OPEN only until the originally-failing spec re-runs.** The confirmation moved to **`PersonalDataCard`**, which survives the collapse; the form keeps its **error** banner, because a failed save leaves it mounted and able to own that message. ⭐ **The recurrence stopper is that `onSaved` is now REQUIRED, not optional** — otherwise the next consumer mounts the form, reports nothing on success, and reproduces this **invisibly**, since the write still succeeds and every functional assertion passes. ⭐ **The general form, which predicts placement instead of diagnosing it: _a component may own a message only for the outcomes it SURVIVES._** ⚠ Two further routes to the same silence were closed or measured, not assumed: the live region is **permanently mounted and empty** (a region arriving in the same commit as its text is announced unreliably), and the **`router.refresh()` → `onSaved()`** sequence was verified **not** to remount `PersonalDataCard` — `saved` survives, banner paints (`tester` T2, **5/5**, with the assertion unmodified). A class sweep of the four sibling components found **no other instance**; two already used the surviving-component pattern, so the house pattern was right and this card was the outlier. ⛔ **Not closed yet:** `form-name-attribute-invariant.spec.ts`'s banner assertion — the instrument that found it — is in the in-flight `e2e:prod` run and has not re-run since the fix. Close on that evidence, not on this note.
+**Violates:** the spec clause `form-name-attribute-invariant.spec.ts` — "profile edit › an edited name
+persists, and neither it nor the CPF reaches the URL" (the `await expect(page.getByText(/perfil
+atualizado/i)).toBeVisible()` line) — and CLAUDE.md §8's accessible-feedback bar; not an ADR 0133
+decision (ADR 0133 does not speak to save-confirmation UX, so this is a build regression, not a
+scoped/intended behavior change). **Status:** OPEN, owner `frontend`. `tester` left the spec's banner
+assertion **unchanged and failing** (per role: file, don't paper over) — the surrounding fix (this
+same test now also clicks "Editar" before locating the Nome field, a genuine, unrelated repair for
+the disclosure-based edit UX ADR 0133 F2 introduced) is unaffected and correct on its own.
+
