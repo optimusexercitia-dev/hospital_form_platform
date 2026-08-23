@@ -467,3 +467,17 @@ that workstream is still in flight._
 | 2026-08-21 | **PO: case split = read vs manage** — `/casos` = read + name-attributed work only; ONE manage surface (coordinator / administrativo / write-grantee); administrativo gets commission-wide case READ (5th cap `read_cases`). ⛔ NOT built — plan: [case-surface-split.md](../plans/case-surface-split.md) | ADR [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) |
 | 2026-08-21 | **PO: an ethics proceeding carries NO erasure entitlement, at any stage — no door, no UI.** Basis is the record's **administrative-proceeding** nature, ⛔ **not CFM 1821/2007**. Closes the Class-2 question. ⛔ **2 pre-existing doors DO remove ethics data** — filed, record-only | ADR [0132](../decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md) |
 
+## Rotated 2026-08-23 at the AFF2 Record step — the workstream's decision rows
+
+_Verbatim from PROGRESS.md § Decisions. AFF2 completed its §6 gate and was PO-approved 2026-08-23; its
+decisions are concluded. Full rationale lives in ADR
+[0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) (+ Amendments 1–4) and ADR
+[0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 8._
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-23 | **PO ×4 (AFF2 build start)** — credentials membership leg **mirrors** `profiles`' `COALESCE` form · `expires_at` mirrored (absent) · org_admin hospital filter **BUILT** (new task B8) · search label honest, registro deferred | ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 2** |
+| 2026-08-23 | **LEAD: Amdt 1's "input includes `cpf`" is CHANGE-based**, normalised both sides — presence-based denies a hospital_admin editing the **name** of a cross-hospital person, the case Amdt 1 r1 exists to allow | ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 3** |
+| 2026-08-23 | **An RLS widening is invisible to the phase step and inherits its own STALE verdict** — the recipe greps `create policy`, a widening is `alter policy` → zero rows; `ARM=census` cannot backstop it. A zero-row case list is now a **FINDING** | ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amdt 8** |
+| 2026-08-21 | **AFF2 Amdt 1 (PO): footprint bound SPLITS by capability** — fields+credentials → **intersection**, CPF-change+lifecycle keep **subset** · silent cross-hospital write **ACCEPTED residual** · LGPD: professional titulares administrative, **out of DSR scope BY DESIGN** · 6 rulings | ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 1** |
+

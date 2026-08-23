@@ -320,3 +320,19 @@ stood at **10 bytes** under the hard cap._
 | ~~DSR Slice 4 — ADR 0130 Amdt 4 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-4-review](../reviews/dsr-slice-4-review.md) |
 | DSR Slice 3 — ADR 0130 (r2) | **APPROVED** | 2026-08-20 | [dsr-slice-3-review](../reviews/dsr-slice-3-review.md) |
 | ~~DSR Slice 3 — ADR 0130 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-20 | [dsr-slice-3-review](../reviews/dsr-slice-3-review.md) |
+
+## Rotated 2026-08-23 at the AFF2 Record step — the case-split and DSR milestone rows
+
+_Verbatim. AFF2 is now the current milestone, so these older concluded rows leave PROGRESS.md per the
+contract (§5: keep only the current milestone's rows live). Struck loop rows preserved as struck._
+
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- | --- |
+| **Case split · Inc 2** (ADR 0134 D6 + Amdt 1–7) | ✅ **APPROVED (r2)** — 5 record conditions, none blocking merge, **all 5 discharged 2026-08-22** (C-1/C-4 here · C-2/C-3 → [increment record](case-surface-split-increment-2.md) · C-5 → `FUP-CS2-QA-RESIDUE`); r1 CHANGES REQUESTED (5 blocking, incl. a PHI write handed to `platform_admin`) | 2026-08-22 | [review](../reviews/case-surface-split-increment-2-review.md) |
+| **Case surface split · Increment 1** (ADR 0134 D1–D5, D7) | ✅ **APPROVED** (r3) — 4 conditions, all for the Record edit (§8.9). No security defect in any round | 2026-08-21 | [case-surface-split-increment-1-review.md](../reviews/case-surface-split-increment-1-review.md) |
+| ~~Case surface split · Increment 1 (r2)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](../reviews/case-surface-split-increment-1-review.md) |
+| ~~Case surface split · Increment 1 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](../reviews/case-surface-split-increment-1-review.md) |
+| **DSR operational remediation** | ✅ **APPROVED** (r2; r1 CHANGES REQUESTED — 3 blockers, all records, no engineering) | 2026-08-21 | [dsr-remediation-review.md](../reviews/dsr-remediation-review.md) |
+| DSR operational remediation (r2) | **APPROVED** | 2026-08-21 | [dsr-remediation-review](../reviews/dsr-remediation-review.md) |
+| ~~DSR operational remediation (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [dsr-remediation-review](../reviews/dsr-remediation-review.md) |
+

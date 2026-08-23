@@ -981,3 +981,14 @@ _The contract keeps only the MOST RECENT gate row live; this is the superseded o
 | --- | --- | --- |
 | 2026-08-22 | ⭐ **CASE SPLIT · residue: assertion-integrity + PO rulings** (`e280cffa`, `d885f621`) | `test:db` **209f/6973t PASS** fresh reset (208/6941 → 209/6966 → 6973) · lint 8/8 · `tsc` 0 · vitest **113f/1568** · door audit CLEAN exit 0 — `ARM=predicate` 1/101 COVERED, `ARM=policy` **EMPTY and now says so** ⛔ **no `e2e:prod`** — [record](case-split-assertion-integrity.md) |
 
+## Rotated 2026-08-23 at the AFF2 Record step — the superseded `d885f621` pin
+
+_Verbatim. This was AFF2's declare-green **baseline**; AFF2's own run superseded it on every axis
+(passed +20, failed 2→1, DNR 8→1). ⚠ Its "2 flaky" were never decomposed to test identities and its batch
+logs were overwritten by the next run, so no future run can diff against it by identity —
+`FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES`._
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-23 | ⭐⭐ **FULL `e2e:prod`** — first since Inc 2, `REBUILD=1`, at `d885f621` | ⛔ **RED, exit 1** · **1185 p · 2 f · 2 flaky · 8 DNR · 20 batches**, no gaps, no `reset FAILED`. ⭐ Both failures are **retry artifacts on non-idempotent tests**; alone → **25 p / 0 f GREEN**. **No regression attributable to this tree** — [triage](case-split-assertion-integrity.md) |
+

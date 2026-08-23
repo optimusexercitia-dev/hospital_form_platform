@@ -16,44 +16,16 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **▶ IN PROGRESS 2026-08-23 — workstream AFF2 (affiliation-scoped administration +
-  user-management redesign): BUILD STARTED on `feat/aff2-user-management`.** Hospital admins gain
-  person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
-  register wizard (escape hatch removed); the three UM screens rebuilt to the design
-  handoff. ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md)
-  (renumbered from 0129 at the 2026-08-21 reconciliation — main's DSR track had taken
-  0129) **+ Amdt 1** (2026-08-21 — capability-split widening, § Decisions) · plan
-  [aff2-user-management.md](docs/plans/aff2-user-management.md). **Both start
-  conditions are now DISCHARGED** — `chore/small-optimizations` merged at `df88dced` (in `main`'s
-  history), and the PO gave the explicit build go 2026-08-23.
-  ⭐ **Five plan premises were re-measured at build start, and TWO of them were STALE** — the
-  plan is authority for *intent*, never for *facts about the stack*:
-  1. ⛔ **B3's `extensions.citext` instruction is WRONG for this door.** Measured in the catalog:
-     `list_org_people(p_org_id uuid, p_search text, p_cpf text)` — **one** overload, all three args
-     `pg_catalog.text`, **no `citext` anywhere**. Following the plan literally would `CREATE` a
-     **second overload** beside the door instead of replacing it, leaving an ungranted, un-audited
-     twin that PostgREST could resolve to. The citext lesson is real; it belongs to a *different* door.
-  2. ⚠ **B3 cannot use `CREATE OR REPLACE` at all.** Adding `date_of_birth` changes the RETURN
-     TYPE (`TABLE(user_id, full_name, email, professional_category, is_active, affiliations)`), which
-     `CREATE OR REPLACE` **refuses**. It must be `DROP` + `CREATE` — and a DROP resets `proacl` to
-     **NULL, which means PUBLIC**, the recorded fail-open default. The current ACL
-     (`postgres`/`service_role`/`authenticated` = `X`) must be re-GRANTed and then **re-measured from
-     the catalog**, not assumed. This also arms `FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE`.
-  3. **Migrations number from `20261003001000`** — the plan's "after `20261003000300`" is stale;
-     local **and** remote are both **441 / `20261003000900`** (measured, not read).
-  4. ✅ **Three premises HELD exactly:** `profiles` has neither `date_of_birth` nor `phone`;
-     `guard_profile_privileged_columns()` exists (SECURITY DEFINER); `professional_credentials_select`
-     carries exactly the three legs B2 widens (self / `app.is_admin()` / org_admin-of-home-org) and is
-     the table's **only** policy. Code anchors hold too: `authorizeOrgAdminForUser` defined at
-     `actions.ts:323` with **six** call sites (773, 839, 903, 1018, 1035, 1059).
-  5. ✅ **The `e2e:prod` baseline pin is SATISFIED without a new run** — the plan asks for a pinned
-     failing set "on the day AFF2 starts"; the 2026-08-23 run at `d885f621` **is** that pin, and every
-     commit since is docs-only (`PROGRESS.md`, `docs/progress/*`), so it holds at HEAD. ⛔ The plan's
-     risk bullet naming **BUG-QO-STALE-CASOS** as the thing to resolve first is **stale — it was
-     RESOLVED 2026-08-21**; the live baseline residue is
-     `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS` instead.
-  **FUP-AFF2-CONTA is registered** (index + body) — the plan's build-start requirement, discharged.
-  **Track task detail → [aff2.md](docs/progress/aff2.md)** (per-track sections, teammate-owned).
+- **✅ AFF2 — COMPLETE and PO-APPROVED 2026-08-23. ⛔ NOT merged, NOT pushed.** Affiliation-scoped
+  administration + the user-management redesign. Ledger row **AFF2**; full detail →
+  [aff2.md](docs/progress/aff2.md); build-start bullet rotated verbatim →
+  [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md). **39 commits on
+  `feat/aff2-user-management`**, head `ed125b93`. ⛔ **3 migrations are LOCAL ONLY**
+  (`20261003001000`–`20261003001200`); the remote stands at **441 / `20261003000900`** — ⛔ re-measure,
+  never re-read. ⭐ **When the merge call comes: SCHEMA FIRST, then code** — the migrations are additive, so
+  old-code/new-schema is safe and new-code/old-schema is the broken state a code-first push would open.
+  ⚠ **Awaiting the PO's merge + push call; nothing about AFF2 is on `main` or the remote.**
+
 - **✅ CASE SURFACE SPLIT — COMPLETE through Increment 2, and its post-merge residue is WORKED** (ADR
   0134 D1–D7 + Amdt 1–8). Increments 1 (`6e364203`) and 2 (`be546bbf`) are merged to **local** `main`;
   the §6 Record landed `c85af876`. Both bullets rotated verbatim →
@@ -206,7 +178,6 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 | --- | --- | --- |
 | 2026-08-23 | ⭐ **AFF2 · authoritative GATE STEP 1**, both tracks still (`55b25be5`) · detail: [aff2.md](docs/progress/aff2.md) | **exit 0 on every step; no pipe in any exit path.** lint 8/8 · `tsc` 0 · Vitest **1644** · `test:db` **212f/7039 PASS** on a fresh reset (444 / `20261003001200`) · four authz ARMs **HOLD** · both diff-scoped sweeps **COVERED**. ⛔ **`e2e:prod` NOT run** — `tester` owns step 2 |
 | 2026-08-23 | ⭐⭐ **AFF2 · FULL `e2e:prod` (gate step 2)**, `REBUILD=1` — detail: [aff2.md](docs/progress/aff2.md) | ✅ **GREEN** — 1205 p · 1 f · 2 flaky · 1 DNR · 20 batches, accounted 1209/1220. The 1 f + 1 DNR are the SAME test, a worker crash (not auto-infra-classified); isolated re-run → 7/7 GREEN. Flaky COUNT matches pin `d885f621` (2); IDENTITY unverifiable — see aff2.md. |
-| 2026-08-23 | ⭐⭐ **FULL `e2e:prod`** — first since Inc 2, `REBUILD=1`, at `d885f621` | ⛔ **RED, exit 1** · **1185 p · 2 f · 2 flaky · 8 DNR · 20 batches**, no gaps, no `reset FAILED`. ⭐ Both failures are **retry artifacts on non-idempotent tests**; alone → **25 p / 0 f GREEN**. **No regression attributable to this tree** — [triage](docs/progress/case-split-assertion-integrity.md) |
 
 ## QA Verdicts
 
@@ -221,13 +192,6 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 | --- | --- | --- | --- |
 | **AFF2** (ADR 0133 + Amdt 1–4) | ✅ **APPROVED (r2)** — both r1 blockers discharged at `02cc5817` (R1 fixed + future-expiry control · R2 ruled, Amdt 4 r2). 2 carried records: "strictly stricter" is false (the fix WIDENS both subset capabilities; no arm) + the seed warrant is mis-cited. r1 CHANGES REQUESTED | 2026-08-23 | [aff2-review.md](docs/reviews/aff2-review.md) |
 | ~~AFF2 (r1)~~ | ~~CHANGES REQUESTED~~ — 2 blocking, both found outside the given remit; every remit item passed | 2026-08-23 | [aff2-review](docs/reviews/aff2-review.md) |
-| **Case split · Inc 2** (ADR 0134 D6 + Amdt 1–7) | ✅ **APPROVED (r2)** — 5 record conditions, none blocking merge, **all 5 discharged 2026-08-22** (C-1/C-4 here · C-2/C-3 → [increment record](docs/progress/case-surface-split-increment-2.md) · C-5 → `FUP-CS2-QA-RESIDUE`); r1 CHANGES REQUESTED (5 blocking, incl. a PHI write handed to `platform_admin`) | 2026-08-22 | [review](docs/reviews/case-surface-split-increment-2-review.md) |
-| **Case surface split · Increment 1** (ADR 0134 D1–D5, D7) | ✅ **APPROVED** (r3) — 4 conditions, all for the Record edit (§8.9). No security defect in any round | 2026-08-21 | [case-surface-split-increment-1-review.md](docs/reviews/case-surface-split-increment-1-review.md) |
-| ~~Case surface split · Increment 1 (r2)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |
-| ~~Case surface split · Increment 1 (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [case-surface-split-increment-1-review](docs/reviews/case-surface-split-increment-1-review.md) |
-| **DSR operational remediation** | ✅ **APPROVED** (r2; r1 CHANGES REQUESTED — 3 blockers, all records, no engineering) | 2026-08-21 | [dsr-remediation-review.md](docs/reviews/dsr-remediation-review.md) |
-| DSR operational remediation (r2) | **APPROVED** | 2026-08-21 | [dsr-remediation-review](docs/reviews/dsr-remediation-review.md) |
-| ~~DSR operational remediation (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [dsr-remediation-review](docs/reviews/dsr-remediation-review.md) |
 | _The seven DM rows_ — rotated 2026-08-19, the DM milestone being closed | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | _Verbose form of the 5 rows above, incl. both struck r1 rounds_ — rotated 2026-08-14 (§5: never restate rationale here) | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | 117 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
@@ -238,10 +202,6 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
-| 2026-08-23 | **PO ×4 (AFF2 build start)** — credentials membership leg **mirrors** `profiles`' `COALESCE` form · `expires_at` mirrored (absent) · org_admin hospital filter **BUILT** (new task B8) · search label honest, registro deferred | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 2** |
-| 2026-08-23 | **LEAD: Amdt 1's "input includes `cpf`" is CHANGE-based**, normalised both sides — presence-based denies a hospital_admin editing the **name** of a cross-hospital person, the case Amdt 1 r1 exists to allow | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 3** |
-| 2026-08-23 | **An RLS widening is invisible to the phase step and inherits its own STALE verdict** — the recipe greps `create policy`, a widening is `alter policy` → zero rows; `ARM=census` cannot backstop it. A zero-row case list is now a **FINDING** | ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) **Amdt 8** |
-| 2026-08-21 | **AFF2 Amdt 1 (PO): footprint bound SPLITS by capability** — fields+credentials → **intersection**, CPF-change+lifecycle keep **subset** · silent cross-hospital write **ACCEPTED residual** · LGPD: professional titulares administrative, **out of DSR scope BY DESIGN** · 6 rulings | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 1** |
 
 > ↩ **6 concluded/superseded rows dated 2026-08-19 rotated 2026-08-20** (2 superseded the same day they were written; 4 shipped) → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-20 (second headroom pass)", appended verbatim before the cut and `cmp`-verified.
 

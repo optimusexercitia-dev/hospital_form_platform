@@ -185,3 +185,47 @@ of the "three facts a session must not trip over" block._
      ⚠ **HC069 is genuinely unreachable now**, so `312` §9/§10 were rebuilt **table-level**
      with the t76/t80 differentials preserved (a rebuild that dropped them would be equally
      satisfied by a guard refusing every delete).
+
+## Rotated 2026-08-23 at the AFF2 Record step — the § Now build-start bullet
+
+_Verbatim. AFF2 completed its §6 gate the same day it started: PO-approved 2026-08-23, ledger row **AFF2**, detail in [aff2.md](aff2.md). ⛔ What stayed in § Now is the part that is still **live state** — the branch is **unmerged and unpushed**, and 3 migrations exist only locally._
+
+- **▶ IN PROGRESS 2026-08-23 — workstream AFF2 (affiliation-scoped administration +
+  user-management redesign): BUILD STARTED on `feat/aff2-user-management`.** Hospital admins gain
+  person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
+  register wizard (escape hatch removed); the three UM screens rebuilt to the design
+  handoff. ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md)
+  (renumbered from 0129 at the 2026-08-21 reconciliation — main's DSR track had taken
+  0129) **+ Amdt 1** (2026-08-21 — capability-split widening, § Decisions) · plan
+  [aff2-user-management.md](../plans/aff2-user-management.md). **Both start
+  conditions are now DISCHARGED** — `chore/small-optimizations` merged at `df88dced` (in `main`'s
+  history), and the PO gave the explicit build go 2026-08-23.
+  ⭐ **Five plan premises were re-measured at build start, and TWO of them were STALE** — the
+  plan is authority for *intent*, never for *facts about the stack*:
+  1. ⛔ **B3's `extensions.citext` instruction is WRONG for this door.** Measured in the catalog:
+     `list_org_people(p_org_id uuid, p_search text, p_cpf text)` — **one** overload, all three args
+     `pg_catalog.text`, **no `citext` anywhere**. Following the plan literally would `CREATE` a
+     **second overload** beside the door instead of replacing it, leaving an ungranted, un-audited
+     twin that PostgREST could resolve to. The citext lesson is real; it belongs to a *different* door.
+  2. ⚠ **B3 cannot use `CREATE OR REPLACE` at all.** Adding `date_of_birth` changes the RETURN
+     TYPE (`TABLE(user_id, full_name, email, professional_category, is_active, affiliations)`), which
+     `CREATE OR REPLACE` **refuses**. It must be `DROP` + `CREATE` — and a DROP resets `proacl` to
+     **NULL, which means PUBLIC**, the recorded fail-open default. The current ACL
+     (`postgres`/`service_role`/`authenticated` = `X`) must be re-GRANTed and then **re-measured from
+     the catalog**, not assumed. This also arms `FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE`.
+  3. **Migrations number from `20261003001000`** — the plan's "after `20261003000300`" is stale;
+     local **and** remote are both **441 / `20261003000900`** (measured, not read).
+  4. ✅ **Three premises HELD exactly:** `profiles` has neither `date_of_birth` nor `phone`;
+     `guard_profile_privileged_columns()` exists (SECURITY DEFINER); `professional_credentials_select`
+     carries exactly the three legs B2 widens (self / `app.is_admin()` / org_admin-of-home-org) and is
+     the table's **only** policy. Code anchors hold too: `authorizeOrgAdminForUser` defined at
+     `actions.ts:323` with **six** call sites (773, 839, 903, 1018, 1035, 1059).
+  5. ✅ **The `e2e:prod` baseline pin is SATISFIED without a new run** — the plan asks for a pinned
+     failing set "on the day AFF2 starts"; the 2026-08-23 run at `d885f621` **is** that pin, and every
+     commit since is docs-only (`PROGRESS.md`, `docs/progress/*`), so it holds at HEAD. ⛔ The plan's
+     risk bullet naming **BUG-QO-STALE-CASOS** as the thing to resolve first is **stale — it was
+     RESOLVED 2026-08-21**; the live baseline residue is
+     `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS` instead.
+  **FUP-AFF2-CONTA is registered** (index + body) — the plan's build-start requirement, discharged.
+  **Track task detail → [aff2.md](aff2.md)** (per-track sections, teammate-owned).
+

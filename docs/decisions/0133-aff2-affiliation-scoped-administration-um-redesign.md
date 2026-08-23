@@ -6,8 +6,13 @@
 > merged + pushed + cited across PROGRESS.md, ADR 0130 and migration history — that
 > claim to the number wins). Any external note citing "ADR 0129 (AFF2)" means this file.
 
-**Status:** Accepted (PO-approved 2026-08-20 via a two-round grilling interview; build
-not started) · **Date:** 2026-08-20 · **Feature:** the named workstream **AFF2** —
+**Status:** Accepted (PO-approved 2026-08-20 via a two-round grilling interview) · ✅ **BUILT and PO-APPROVED 2026-08-23** — ledger row **AFF2**, QA APPROVED r2 ([review](../reviews/aff2-review.md)), detail [aff2.md](../progress/aff2.md). ⛔ **NOT merged, NOT pushed** — 39 commits on `feat/aff2-user-management`; the 3 migrations are local only.
+> ⚠ **Amendments 2, 3 and 4 were written DURING the build, because this ADR could not be implemented as
+> drafted** — D13 contradicted itself (Amdt 2 r1), Amdt 1's *"whenever the input includes `cpf`"* would have
+> reversed its own purpose (Amdt 3), and D11's match-card clause had no warrant against the actual caller
+> (Amdt 4 r2). A fourth ruling closed a real security gap the ADR's own wording implied but nothing
+> implemented (Amdt 4 r1). ⭐ Recorded here rather than only in the amendments: an ADR that survives a
+> two-round grilling can still be unbuildable as written, and the build is where that surfaces · **Date:** 2026-08-20 · **Feature:** the named workstream **AFF2** —
 (1) hospital admins gain person-level and account-lifecycle authority over people whose
 entire hospital footprint they administer; (2) registration becomes wizard-shaped with
 CPF mandatory in the UI and the quick-invite escape hatch removed; (3) the three
