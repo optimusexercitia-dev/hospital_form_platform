@@ -141,6 +141,24 @@ export interface OrgPerson {
   /** Resolved professional-category label (pt-BR), or null. */
   professionalCategory: string | null
   /**
+   * ISO `yyyy-mm-dd`, or null — AFF2 B3 / ADR 0133 D11, corrected by Amendment 1 ruling 4.
+   *
+   * This door is DOB's SECOND read path (the first is the profile rail behind the
+   * person-scope authorizer). D11's rationale requires that reach: Brazil's homonym rate
+   * makes birth date the practical human differentiator, and the colliding same-named
+   * person is typically at ANOTHER hospital in the network — which is exactly the span
+   * this door's gate (org_admin OR any hospital_admin of the org) covers.
+   *
+   * ⚠ `phone` is deliberately NOT here and must stay out: it differentiates nothing in a
+   * homonym match, so it keeps a single read path (D11).
+   *
+   * ⚠ The generated type says `date_of_birth: string`, non-nullable. Do not believe it —
+   * `supabase gen types` types EVERY `RETURNS TABLE` column as non-nullable, including
+   * `email` and `full_name`, which are nullable in the catalog. The column is nullable
+   * (optional at registration, D9) and this field is the honest shape.
+   */
+  dateOfBirth: string | null
+  /**
    * Deactivated people ARE returned, flagged. The identifier-first flow must be able to
    * say "this person exists but their account is deactivated" rather than silently
    * offering to affiliate them or, worse, to create a duplicate.
@@ -183,6 +201,9 @@ export async function listOrgPeople(params: {
     fullName: row.full_name,
     email: row.email,
     professionalCategory: row.professional_category,
+    // `?? null` is load-bearing despite the generated type claiming non-nullable — see
+    // the field's doc comment on OrgPerson.
+    dateOfBirth: row.date_of_birth ?? null,
     isActive: row.is_active,
     affiliations: (
       (row.affiliations ?? []) as {

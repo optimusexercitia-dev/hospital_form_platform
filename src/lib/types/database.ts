@@ -8456,6 +8456,7 @@ export type Database = {
         Row: {
           cpf: string | null
           created_at: string
+          date_of_birth: string | null
           email: string | null
           email_confirmed_at: string | null
           full_name: string
@@ -8464,12 +8465,14 @@ export type Database = {
           is_active: boolean
           is_admin: boolean
           must_change_password: boolean
+          phone: string | null
           professional_category_id: string | null
           suspended_until: string | null
         }
         Insert: {
           cpf?: string | null
           created_at?: string
+          date_of_birth?: string | null
           email?: string | null
           email_confirmed_at?: string | null
           full_name?: string
@@ -8478,12 +8481,14 @@ export type Database = {
           is_active?: boolean
           is_admin?: boolean
           must_change_password?: boolean
+          phone?: string | null
           professional_category_id?: string | null
           suspended_until?: string | null
         }
         Update: {
           cpf?: string | null
           created_at?: string
+          date_of_birth?: string | null
           email?: string | null
           email_confirmed_at?: string | null
           full_name?: string
@@ -8492,6 +8497,7 @@ export type Database = {
           is_active?: boolean
           is_admin?: boolean
           must_change_password?: boolean
+          phone?: string | null
           professional_category_id?: string | null
           suspended_until?: string | null
         }
@@ -13423,6 +13429,7 @@ export type Database = {
         Args: { p_cpf?: string; p_org_id: string; p_search?: string }
         Returns: {
           affiliations: Json
+          date_of_birth: string
           email: string
           full_name: string
           is_active: boolean
