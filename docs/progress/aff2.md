@@ -1,0 +1,926 @@
+# AFF2 — workstream task detail (live)
+
+Task-level state for **AFF2** (affiliation-scoped administration + user-management
+redesign). Created 2026-08-23 at build start because the tracker had nowhere for three
+parallel tracks to report: PROGRESS.md § Now and § Phase Status are both **lead-owned**
+under CLAUDE.md §7, so a teammate writing into either would violate *"every teammate
+updates only their own rows/sections"*. Found by `frontend` asking instead of guessing.
+
+**Authority:** ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md)
+(+ **Amendment 1**, 2026-08-21 — the capability split; + **Amendment 2**, 2026-08-23 —
+D13's contradiction resolved toward the artifact, the read/write asymmetry stated, B8
+added) · plan [aff2-user-management.md](../plans/aff2-user-management.md).
+
+**Ownership.** Each track owns **its own section below** and edits no other. The lead owns
+this header, § Cross-track, and PROGRESS.md § Now. ⛔ This file is **task detail, not live
+state** — the workstream's headline status stays in PROGRESS.md § Now; when AFF2 completes,
+this file is where its detail already lives (no rotation needed at the Record step).
+
+⛔ **Do not restate the gate contract here.** `npm run lint:progress` governs PROGRESS.md,
+not this file; the §6 phase gate is in CLAUDE.md. A second copy is what drifts.
+
+---
+
+## Cross-track — sequencing and shared facts *(lead-owned)*
+
+**Branch:** `feat/aff2-user-management`, cut from `main` at `16b40c62` (all 8 lint gates
+green at the cut).
+
+**Migrations number from `20261003001000`.** Local and remote are both **441 /
+`20261003000900`** (measured 2026-08-23, both sides). ⛔ Re-measure, never re-read.
+
+**Contract-first sequence.** B1–B3 land before F needs new data. F1 builds against today's
+`org-users.ts` shape with the new fields optional. B7 is what makes the pills and the
+Registro/Comissões columns real; **B2 is what makes the Registro cell non-empty for a
+hospital admin**, so B2 must precede any hospital-admin verification pass.
+
+**Sequencing constraint the tester must respect:** the F1 status pills ship **URL-wired but
+inert** until B7 merges. Pill filtering and pill counts are **not testable** before then, and
+a pill renders its label alone rather than a fabricated "· 0" — a fabricated zero is a false
+measurement, which this repo treats as worse than a missing one.
+
+**⛔ Shared local stack — CLOSED BY DEFAULT.** Ask the lead and **wait for an answer** before anything
+touches the DB. Writing code needs no permission; touching the DB does. Resets so far: `backend`
+2026-08-23 ×2 (441==441, then 444==444 / `20261003001200`).
+
+> ⚠ **This rule was tightened after it failed on 2026-08-23, and the earlier version is worth knowing
+> because it *sounded* sufficient.** It read "ping me when you want the stack" — which puts the
+> scheduling decision on the party who **cannot see the other track**, so it fails in exactly the case
+> it exists for. The lead released `frontend` for Playwright while telling `backend` to start the phase
+> gate, and F3 verification inserted **10 rows** into the database the gate was running against
+> (`auth.users` 36 → 46). ⭐ **The recorded lesson is that a `db reset` lands silently in another
+> agent's evidence; the inverse is equally real and less obvious — ordinary E2E *writes* contaminate a
+> GATE.** No reset, no crash, nothing to notice, and it runs **both ways**: a data-dependent assertion
+> can go spuriously *green* as readily as red.
+>
+> ✅ **Fully attributed, by two independent instruments that share no path:** the lead's catalog read
+> (`auth.users` 46 vs a 36 baseline = 10) and `frontend`'s UI read (Rede A directory 29 → 39 = 10),
+> reconciling exactly against their own 6 `f3.wizard.*` + 4 `f3.skip.*`. Established: **pure inserts,
+> no seeded row mutated** (fresh CPFs, `f3.*@test.local`), **no commissions/memberships/credentials
+> created**, all in **Rede A**. So only *counts* and *"list everyone"* reads can have moved — anything
+> keyed on a seeded identity, and the fixed-id B2 fixtures, are out of reach. That narrowed `backend`'s
+> question from "what moved?" to "did any assertion read Rede A cardinality?" — classify, don't
+> reflexively re-run. ⭐ **It reconciled only because the delta was reported as a NUMBER.** "A few test
+> users" would have left the two measurements unmatched, and the honest conclusion would then have been
+> *"something unexplained also moved"* — far more expensive to chase than the truth.
+
+**⛔ B4 GATES F3 SHIPPING — not just F3 finishing.** `RegisterUserInput` carries no
+`dateOfBirth`/`phone` (measured), so rendering those inputs before B4 is **silent data loss**: the
+admin types a birth date, sees it accepted, gets a success redirect, and the value is dropped.
+⭐ **The F1 "model it optional, absorb later" pattern does NOT transfer from DISPLAY fields to
+INPUTS** — for display, absent data renders a documented placeholder and nothing is lost; for input,
+the same shape is a lie with a success message. F3 therefore ships **"complete except two fields"**
+with a marked insertion point. ⚠ ADR 0133 D9 says both columns are *"optional at registration"*, so
+F3 without them is **incomplete against the ADR**, not merely deferred — F3 must not merge with the
+insertion point empty.
+
+**⛔ THREE actions-layer gaps block F3's completion — all the same class, found by `frontend` while
+wiring the submit.** Each is a marked insertion point in committed code, not a silent omission:
+1. **`registerUser` accepts no `dateOfBirth`/`phone`** (B4) — the fields are not rendered; see above.
+2. **`registerUser` returns `Promise<ActionState>` = `{ok, error?, fieldErrors?}` and NOT the created
+   id**, so the plan's *"Success → redirect to the new profile"* is **unimplementable**. No URL was
+   invented: the submit lands on the directory **filtered to the new e-mail**, so the admin still sees
+   exactly the person they created. One line (`orgHref(org,"manage","usuarios",id)`) the day the action
+   returns an id — offered to `backend` as an option while they are in `actions.ts` for B4, not imposed.
+3. **`registerUser` accepts no affiliation start date** ("Data de início"), so the affiliation begins
+   today — which is also the correct default for someone registered today, so this one costs nothing.
+   ⚠ Note the asymmetry is in the **actions layer, not the UI**: `affiliatePerson` (the existing-person
+   path) *does* accept a start date.
+
+**⛔ Known E2E breakage inventory — CORRECTED 2026-08-23 by `tester`. The first version was WRONG IN
+COMPOSITION, and the way it was wrong is the lesson.**
+
+The original list was produced by `frontend` from the **authoring** side — *"which specs will my change
+break"* — and the lead recorded it verbatim as authoritative without re-deriving it. `tester` derived
+theirs from the **call sites**, which is the property; the first was derived from the change, which is a
+proxy. Two independent errors followed, in opposite directions:
+
+- **Over-counted.** `aff-hospital-affiliation.spec.ts` was listed with **six** sites; it has **two**
+  (:176 — breaking at :196 — and :403). The file is `test.describe.configure({ mode: 'serial' })` at
+  `:65`, so one break **cascades into skips** that read as independent breaks. The other four flagged
+  lines hit outcomes **B/C/deactivated**, which `register-person-flow.tsx:53-54` states are terminal and
+  **have no stepper at all** — unchanged code paths.
+- **Under-counted.** `user-registration.spec.ts` was listed for the label rename (`:488`) only. It has
+  **five** `/registrar pessoa/i` click sites — **:183** (also does committee work now on step 3),
+  **:238**, **:281** (`test.skip`'d), **:463** (AC5 email-collision, same simple shape as :238),
+  **:598** (keyboard walk). *A list built from "files I
+  touched" cannot see a file the author never opened.*
+
+⭐ The two errors LOOKED like they cancelled to the same total (**9**) — until `:463` was classified
+too, making the real total **10**. So the corroborating arithmetic was *itself* wrong. ⛔ **A total that
+matches is not a list that matches** — the count agreed while both halves were false, which is the most
+reassuring way for an enumeration to be wrong. Same class as the universal-negative error on
+B8: the lead verified the checkable claims and ratified the enumeration.
+
+**Corrected list (10 sites):** `aff-hospital-affiliation.spec.ts` :176, :403 · `hospital-admin-tier.spec.ts` :741,
+:759, **:813** · `phase3-admin-members.spec.ts` :136 (the shared `registerActiveOrgUser` helper — one fix
+serves every caller) · `user-registration.spec.ts` :183, :238, :281, :488, :598.
+
+⚠ **`hospital-admin-tier.spec.ts:813` is a PREMISE INVERSION, not a heading deletion.** Its target
+`staff2.ccih` is commission-tier-only with footprint `{Central A}` (measured live) — under ADR 0133 D3 +
+Amdt 1 r1 that is a **lifecycle ALLOW**, so the test's core assertions invert, not just its
+"Situação da conta" heading. ⛔ Ruled in bounds as spec repair **on one condition: the ALLOW must be
+justified from the ADR, never from observed behaviour** — *"the app now shows Desativar, so assert
+Desativar"* is how a spec launders an over-grant into expected behaviour. The lifecycle-DENY class must
+not lose coverage in the move (T2's cross-hospital target carries it).
+
+⚠ **T2's "unaffiliated person renders the full note" arm is STRUCTURALLY UNREACHABLE.** Pulled from
+`pg_policies`: neither `profiles_select_self_or_admin` nor `profiles_admin_select` has an
+"any org member" leg, so a zero-footprint person satisfies neither hospital_admin leg and the page
+**404s before `getPersonAdminView` is consulted**. Covered instead as a 404/no-leakage assertion, with
+**`dt.a`** (hospital-tier at the caller's own hospital) carrying the renders-with-note DENY — which is the
+case ADR 0133 D2 itself calls sharp.
+
+- ⛔ **NOT affected:** the `getByLabel('Buscar pessoa')` hits are `AddMemberPicker`, a different component.
+- ✅ **Deliberately preserved anchors:** **"Comece pelo CPF"** (`aff-hospital-affiliation.spec.ts:77`,
+  `hospital-admin-tier.spec.ts:145`) and **"Dados pessoais"** (`form-name-attribute-invariant.spec.ts:564`
+  — re-confirmed by `tester` as still step 1's exact heading).
+
+**✅ GATE STEP 1 — the AUTHORITATIVE run, lead, both tracks still (2026-08-23, at `55b25be5`).**
+Every exit code captured directly; **no pipe in any exit path**. On a fresh `supabase db reset --local`
+(**444** migrations / `20261003001200`, `auth.users` **36** = exact seed baseline):
+
+| step | result |
+| --- | --- |
+| `npm run lint` | **exit 0** — 8/8 |
+| `npx tsc --noEmit` | **exit 0** |
+| `npm run test` | **exit 0** — 117 files / **1644** tests |
+| `npm run test:db` | **exit 0** — **212 files / 7039 tests PASS**, zero `not ok` |
+| `ARM=census` · `hat` · `floor` · `FROMFINDINGS=1 wrapper` | **all HOLD, exit 0** (`hat`: 3 findings, all reasoned-allowlisted) |
+| diff-scoped **policy** sweep — `professional_credentials_select` | **CLEAN / COVERED**, exit 0 |
+| diff-scoped **row-door** sweep — `list_org_people` | **COVERED**, exit 0 |
+
+Findings files restored afterwards and `cmp`-verified **byte-identical** to their pre-sweep baseline.
+
+⭐ **A live demonstration of ADR 0079 Amendment 8, in the run that ratified it.** The case list was derived
+from the migration diff with the amended recipe: `professional_credentials_select` is found **only** by the
+`alter policy` pattern. The pre-amendment `create policy` grep returns **zero rows** for this diff — the
+sweep would have run over nothing and reported clean.
+
+⚠ **Two classifications, stated rather than left as silence:**
+- **`guard_profile_privileged_columns`** (`prosecdef = t`, returns **`trigger`**) is in **no** sweep's
+  domain — excluded structurally by return type. That is the filed `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`
+  extension, **classified, not missed**. Its property is pinned by pgTAP `359` §3.
+- An initial combined invocation returned **exit 3 (UNPROVEN)** because three gates from **three different
+  domains** were fed to one script. That was an **operator error, not a finding** — re-run per domain, both
+  came back exit 0. ⛔ Recorded because *"exit 3 on the AFF2 sweep"* would otherwise read as a defect forever.
+
+⛔ **Step 2 (`e2e:prod`) is NOT part of this run** — `tester` owns it.
+
+⛔ **And a lead process failure worth more than the result:** the first attempt at the PROGRESS.md row was
+committed **on a red gate** (`9d09e1a7`), because the shell used `lint; git commit` instead of
+`lint && git commit` — the `;` runs the commit regardless of the exit code. This is
+`FUP-EXIT-CODE-MASKING-HAS-NO-MECHANISM`, third occurrence, committed by the same person who had warned two
+teammates about it earlier the same day. The gate itself was fine — it caught an 881-char cell against the
+300 cap. **The failure was the chaining operator, and no gate can catch that.**
+
+**The e2e:prod baseline pin** for this workstream is the 2026-08-23 run at `d885f621`
+(1185 p · 2 f · 2 flaky · 8 DNR · 20 batches, no batch gaps). Both failures are retry
+artifacts on non-idempotent tests — re-run alone they are 25 p / 0 f, exit 0. Diff the
+gate against that pin, with the stash-discipline re-run for anything new.
+⛔ The plan's risk list names **BUG-QO-STALE-CASOS** as the thing to resolve first; that bug
+was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
+`FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`.
+
+---
+
+## Track B — backend *(backend-owned)*
+
+| Task | State |
+| --- | --- |
+| B1 · `profiles.date_of_birth` + `phone` | ✅ **built 2026-08-23** — `20261003001000`; pgTAP `359` 18/18, red-first observed |
+| B2 · `professional_credentials` SELECT widening | ✅ **built 2026-08-23** (mirror form, Amdt 2 r1) — `20261003001100`; pgTAP `360` 21/21, red-first observed |
+| B3 · `list_org_people` payload + `date_of_birth` | ✅ **built 2026-08-23** — `20261003001200` (DROP+CREATE); pgTAP `361` 23/23, red-first observed |
+| B4 · `authorizePersonScopedAdmin` + action rewiring | ✅ **built 2026-08-23** — `fe701251`; 6 call sites rewired, CPF grain ruled change-based (Amdt 3) |
+| B5 · Vitest keystone matrix | ✅ **built 2026-08-23** — `fe701251`; 8 flipped arms, 8 red pre-B4, 8 green after. Control caught 2 vacuous arms (DOB/phone asserted `ok:true` + "a write happened", green while the field was dropped) |
+| B6 · Detail-page locked-column read | ✅ **built 2026-08-23** — `04deb478`; `person-footprint.ts`, deliberately NO `'use server'`. Evidence is MUTATION-based (a new module cannot be temporally red-first): 4 mutations, all 4 observed red |
+| B7 · Directory query widening | ✅ **built 2026-08-23** — `f712dd61`; status filter bound to `status-vectors.json`. ⚠ typecheck red by design in 2 `frontend` files until their adapting commit |
+| B8 · `hospital` filter arg on `listOrgUsers` | ✅ **built 2026-08-23 — TRACK B CLOSED** — `4eb14b4e`; `hospital?: string \| null` on `ListDirectoryOptions` (`org-users.ts:345`). ⚖ **NARROW**, and it **falls out of an intersection** rather than having logic of its own: `hospitalPeopleIds()` extracted so the union has ONE definition — `listHospitalUsers` uses it as its whole scope, `listOrgUsers` intersects it with the org roster. ⭐ Semantics **measured on live data, not asserted**: org roster **30** · hospital people **15** · narrowed **15** · **would-be-added-by-widening 0** — and the 15 independently cross-checks `frontend`'s live "2 credentials across 15 rows". ⭐ **Scope HALVED at signature time** — the PO approved *"an org-hospitals list **+** a filter arg"*, but `listOrgHospitals` already existed and shipped (`org.ts:454`); see § Rulings. **Plus the doubled-UF fix**: `formatCouncilRegistration`, whose discriminating arm is the **MISMATCH** — `CRM/SP 123456-RJ` **keeps** its suffix, because a formatter stripping any trailing `-<UF>` passes every positive arm while silently destroying a discrepancy an admin needs to see. Guard is `endsWith('-' + state)`, not a RegExp built from caller data. 8 arms |
+| **QA r1 fixes** | ✅ `02cc5817` — **R1** `expires_at` on the footprint's membership leg (the blocker; red-first through the real actions, with a **future-expiry control** so the rule is *expired*, not *carries an expiry*) · **R4** Amdt-3 normalisation extended to `phone` **and** `date_of_birth` · one stale comment. ⭐ R4's first arms were **VACUOUS and the mutation caught it** — reverting the fix left them green, because `personLevelChanged` selects *whether the check runs*, not its verdict, so a cross-hospital fixture could not discriminate. Re-fixtured onto a **D2-tier** target |
+| **QA r2 arm** | ✅ `8aa80826` — pins the **SUBSET widening** the R1 fix causes, on the only fixture that reaches it (active affiliation at H2 + **expired** seat at H1, caller administers H2). ⭐ The mutation result is the evidence it is not a fourth sibling: reverting the filter reds **4 of 50** — the two r2 arms flip ALLOW→DENY (the subset path) while the three R1 arms stay red for the unrelated **zero-footprint** reason |
+
+---
+
+## Track F — frontend *(frontend-owned)*
+
+| Task | State |
+| --- | --- |
+| F1 · Directory table | ✅ **complete + VERIFIED 2026-08-23** — adapted to B7 (`f712dd61`), placeholders deleted, org_admin hospital filter added. lint 8/8, `tsc` 0, **21/21** live checks; both formerly-inert arms are now real |
+| F2 · Profile page | ✅ **complete + VERIFIED 2026-08-23** — lint 8/8, `tsc` 0, **21/21** browser checks incl. the Amdt-1 split on one target |
+| F3 · Register wizard | ✅ **complete 2026-08-23** — all three B4 insertion points closed (Nascimento, Telefone, redirect-to-profile). lint 8/8, `tsc` 0. ✅ **VERIFIED 2026-08-23**, 10/10 — including that the values SURVIVE the submit |
+| F4 · Copy + a11y pass | ✅ **complete + VERIFIED 2026-08-23** — `error.tsx` (8/8 ×2) + the sweep (16/16). 3 fixes, incl. a shared-CSS reduced-motion defect |
+
+### F1 — what shipped, and what is still inert
+
+Files (5): `usuarios/page.tsx` · `usuarios/loading.tsx` (new) ·
+`components/users/user-directory-list.tsx` · `user-directory-search.tsx` ·
+`user-directory-status-pills.tsx` (new). Nothing under `src/lib/**` or `supabase/**` touched.
+
+⛔ **Two arms are URL-wired but INERT until B7 lands, by design — not defects:**
+1. **`?status=` does not filter.** Parsed, rendered, `aria-current` correct, params
+   preserved — but not passed to the query, which does not accept it. Deriving it page-side
+   needs either a second copy of `deriveUserStatus` or an unpaged read. Pills show their
+   label alone; **no fabricated "· 0"**.
+2. **Registro is "—" for every row and Comissões shows counts, not named chips.** Both fall
+   back to the current row's data; neither is ever blank. Registro additionally needs **B2**
+   before a hospital admin sees anything.
+
+**Verified in a real browser** (headless Playwright vs `npm run dev`; never the Browser pane,
+which composites nothing). 24/24 — org_admin **29 people / 20 rows**, hospital_admin
+**15 rows** (scope holds); search 20 → 1; pill sets `?status=`, keeps `?search=`, drops
+`?page=`; empty copy is *"none found"* and the word *permiss* appears nowhere; Tab walks
+pills → search → Buscar → rows; Enter on a row opens the profile; **0px** horizontal
+overflow at 375px; 0 console errors.
+
+⭐ **The `exact: true` risk the lead flagged is measured CLOSED, not reasoned closed.**
+`getByText('Sem comissão', { exact: true })` resolves **11 matches** (one per committee-less
+row) and `'Sem vínculo hospitalar'` **17** — so the `sr-only` prefixes are *not* fusing and
+`aff-hospital-affiliation.spec.ts:206,425,436` **does not break**. Each empty-state string
+sits in its own element, which is what makes that true; it is load-bearing, not tidiness.
+
+**Row accessible name, from the aria tree** (not `textContent`): *"Admin Hospital A1
+hospitaladmin.a1@test.local Situação: Ativo Vínculo hospitalar: Hospital Central A Comissões:
+Sem comissão Registro profissional: sem registro"* — every cell self-labels, the avatar
+initials and chevron are excluded, and "—" is replaced by *"sem registro"*.
+
+**Deliberate deviations from the handoff, each with a reason:**
+- Pills are server-rendered `<Link>`s, not `<button onClick>` — zero JS, native keyboard,
+  real `aria-current`.
+- Not a `<table>`: an `<a>` may not wrap a `<tr>` and the whole row is one link. `<ul>`/`<li>`
+  + grid; the header strip is `aria-hidden` decoration because every cell self-labels.
+- **Stacked below `lg`, 6-col grid at `lg`+.** The handoff's track needs ~866px; an
+  `overflow-x-auto` trough would need its own keyboard-scrollable region.
+- CSS `.animate-rise-in` (40ms stagger), **not** `RiseInGroup` — that is a Client Component,
+  and wrapping 20 decorative rows in GSAP would push `"use client"` around the whole table.
+- Search keeps its "Buscar" button (existing affordance; the handoff draws input-only).
+
+⚠ **One spec still breaks and is `tester`'s:** `user-registration.spec.ts:488` uses
+`getByLabel('Buscar por nome, e-mail ou categoria')`; the label is now
+**"Buscar por nome ou e-mail"** (Amdt 2 r4 — say only what the query searches).
+
+⚠ **The DSR "Direitos do Titular" console entry is NOT regressed** — established by
+non-modification (`manage/layout.tsx` is untouched), not by test. It did not render for
+`orgadmin.a@`, which is its own eligibility gate, not this change.
+
+---
+
+### F1 — the B7 adaptation, and an A2 claim of mine that was WRONG
+
+Adapted to B7 at `f712dd61`. **All three placeholders DELETED, not translated** —
+`DirectoryRowExtras`, `UserDirectoryStatusFilter`, `UserDirectoryStatusCounts` now come
+from `src/lib/users/types.ts`, which was the point of settling the names in advance.
+`page.tsx` moved to the options-object call shape (`listOrgUsers(orgId, { search, status,
+paging })`) so `status` could not become a fourth positional string beside `search`.
+
+⛔ **MY A2 FINDING WAS FALSE IN ITS THIRD CLAIM.** I wrote *"there is no query anywhere
+that lists the hospitals of this org for an org_admin."* **`listOrgHospitals(orgId)` has
+existed all along** (`src/lib/queries/org.ts:454`), RLS-scoped and already shipping in
+`manage/administradores/page.tsx:56`. Two thirds of A2 held — `adminedHospitals` reads
+only `ctx.hospitalAdminOf`, and `listOrgUsers` took no hospital argument — but the
+**universal negative** did not, and it was the claim that drove the scope decision.
+⭐ Class: *a universal negative is the claim most likely to be wrong and the one least
+likely to be checked* — it reads as thorough, and an absence cannot be confirmed by the
+search that failed to find it. It survived my own review and the lead's ratification;
+`backend` caught it by refusing to build a query before measuring whether one existed.
+⚠ Note "fix `adminedHospitals`" would NOT have worked either: the org_admin arm was a
+**hardcoded `[]`** at the call site, so the helper's return value was never consulted.
+
+**Now built:** the org_admin "Todos os hospitais" control, reusing `HospitalSwitcher`
+with `allowAll={isOrgAdmin}` rather than a new component — `allowAll` is exactly what
+separates a *filter* (org_admin may stand outside any hospital) from a *switcher*
+(hospital_admin must always have one). ⛔ **One transitional gap:** `?hospital=` is parsed
+and rendered but not yet applied for an org_admin — `ListDirectoryOptions` has no
+`hospital` field until **B8**. Marked at the call site; deliberately not invented, since a
+key the type does not declare is dropped silently and the select would *look* like it
+filtered.
+
+**Verified live, 21/21 — the first real test of everything that used to be a fallback.**
+⭐ Counts checked against an **independent catalog query**, not against the page:
+**30 / 27 / 2 / 1**, matching exactly, and the three buckets **partition** the set. Each
+pill genuinely filters to its own count while the counts stay over the **unfiltered** set.
+⚠ This mattered because `backend`'s Vitest binding pins the *rule* and not its rendering
+into PostgREST predicate syntax — so this was the first thing able to catch a bad
+`suspended_until.gt.…`. It did not; no defect.
+⭐ **`hospital_admin` sees credentials** — 2 across 15 rows — so ADR 0133 D13/B2 is live
+end-to-end and the Registro column is no longer the "empty means no-permission" trap.
+Comissões render `NAME · Coordenação|Membro`; "Sem comissão" still resolves.
+
+⚠ **One of my own assertions was wrong and looked exactly like a defect.** A body-wide
+search for "Coordenadora" went red — the string is the SEED PERSON **"Coordenadora
+Multi"**, not a role label. Fixed by scoping the matcher to role chips (11 chips, only
+"Membro"/"Coordenação"). *A wrong matcher reads exactly like a live defect*; measuring
+where the string came from is what separated them.
+⚠ Observation for the copy pass, not a bug: seed credentials store
+`registration_number = '123456-SP'`, so the cell renders **"CRM/SP 123456-SP"** — the UF
+twice. Seed data, not a formatting defect in either layer.
+
+### F3 — built, and why it must not merge yet
+
+Files: `usuarios/novo/page.tsx` (centered column) ·
+`components/users/register-person-flow.tsx` (outcome A now hands off to the wizard) ·
+`components/users/register-person-wizard.tsx` (new) · **`register-user-form.tsx` RETIRED** —
+the wizard supersedes it and `register-person-flow` was its only consumer.
+
+⛔ **THREE FIELDS THE PLAN/HANDOFF SPECIFY ARE NOT BUILT, because the action cannot accept
+them.** All three are the same class: `RegisterUserInput` has no such field, so rendering the
+control would take input, show it accepted, and drop it under a success redirect.
+1. **Nascimento / Telefone** (step 1) — needs **B4**. ⛔ **This is why F3 must not merge**:
+   ADR 0133 D9 says both columns are *"optional at registration"*, so the wizard is supposed
+   to collect them and F3 without them is **incomplete against the ADR, not merely deferred**.
+   Insertion point is marked in both the payload and the step-1 JSX.
+2. **Data de início** (step 2) — `registerUser` takes `homeHospitalId` + `hospitalEmployeeId`
+   and no start date, so the affiliation begins today (also the right default for someone
+   registered today). `affiliatePerson`, on the existing-person path, does accept one.
+3. **"Redirect to the new profile"** — `registerUser` returns `ActionState`
+   (`{ ok, error?, fieldErrors? }`) and **does not return the id it created**, so there is no
+   profile URL to go to. Lands on the directory filtered to the new e-mail instead: the admin
+   still sees exactly the person they made, one click from their page. A one-line change if
+   the action ever returns the id.
+
+**⭕ TWO OF THE THREE CLOSED 2026-08-23 against B4 (`fe701251`), verified from the signatures, not
+the message announcing them:** `RegisterUserState extends ActionState { userId?: string }` and
+`RegisterUserInput` carrying `dateOfBirth?: string | null` / `phone?: string | null`.
+
+⛔ **CORRECTED 2026-08-23 (QA R3) — this line said "ALL THREE" and closed a DIFFERENT three than the
+list it answers.** The three gaps enumerated above are DOB/phone, the **affiliation start date**, and the
+returned id. The three *closed* are DOB, phone and the id — **"Data de início" was never closed**:
+`RegisterUserInput` still has no start-date field (`register-person-wizard.tsx:59` still marks it open),
+so a hospital_admin's affiliation begins **today**. ⚠ That is the correct default for someone registered
+today and costs nothing — the defect is the **record**, not the behaviour: a reader checking whether the
+start date shipped would have found a green claim. ⭐ *A total that matches is not a list that matches* —
+this file's own lesson, applied to this file. The asymmetry stands: `affiliatePerson` accepts a start date
+and `registerUser` does not, which is an **actions-layer** gap, not a UI limitation.
+⭕ **FILED 2026-08-23 at the post-Record documentation review — `FUP-AFF2-REGISTRATION-HAS-NO-START-DATE`**
+(body in [follow-ups.md](follow-ups.md), index line in PROGRESS.md). ⛔ **Correcting this text was only HALF
+of QA R3's discharge condition** — it read *"correct the closure text **and either build the field or file
+it**"*, and the filing half sat undone through the Record step. ⭐ Worth noting how it survived: the
+correction above is long, specific and self-critical, so the item **read as handled**. A finding that has
+been written about at length is the hardest kind to notice is still open.
+- **Nascimento** — `DatePicker`, `max={todayIso()}` so a future birth date is unstorable.
+  `todayIso` is built from LOCAL date parts, not `toISOString()`, which converts to UTC and
+  would hand back tomorrow west of Greenwich late in the day — a ceiling one day too loose.
+- **Telefone** — new `components/users/phone-field.tsx`, a deliberate sibling of `CpfField`:
+  digits-only in state, mask only in the rendered value, and ⛔ **no DOM `name`** for the same
+  measured pre-hydration-native-submit reason (a phone number is LGPD personal data on the
+  same footing as the CPF that leaked). ⛔ **No format validation** — the column has no CHECK
+  by decision (Amdt 1 r6), and a UI stricter than its own schema rejects numbers the database
+  accepts.
+- **Redirect** — now `orgHref(org, manage, usuarios, result.userId)`. ⚠ Guarded, because
+  `userId` is `string | undefined` and `ok: true` does **not** narrow it; the type admits an
+  ok-without-id, and the fallback keeps the admin on the filtered directory rather than
+  routing them to `/usuarios/undefined`.
+
+✅ **VERIFIED 2026-08-23 — 10/10, end to end.** The point was never that the fields render; it
+is that what the admin types **survives the submit**, because an input the action silently drops
+is the exact failure the deferral existed to prevent and only a round trip distinguishes the two.
+Measured: phone masks to `(11) 98765-4321` while state stays digits-only and the input carries
+**no `name`** · a birth date is pickable · submit lands on **`/usuarios/<uuid>`**, the created
+person's own page, not the filtered directory · and on that page the rail shows **`15/08/1985`**
+and **`(11) 98765-4321`**, with CPF **presence-only**.
+
+⭐ **The generalisable lesson, stated because the instruction that produced it was reasonable:**
+"model the missing fields optional and absorb the backend as a type change" was carried over
+from F1/B7 and **does not transfer from DISPLAY fields to INPUTS**. A display field with no
+data renders a documented placeholder and loses nothing; an input whose value the action
+discards is silent data loss with a success message on top.
+
+**Verified in a real browser** (headless Playwright vs `npm run dev`), 24/24: full org_admin
+three-step walk → person created with the step-2 hospital as a real affiliation; step 1
+refuses Continuar with per-field messages rather than a bare block; Voltar preserves input;
+CPF never reaches the URL (fill **and** keyboard-Enter paths); focus lands on the new step
+heading; stepper renders 3 steps; 0 console errors.
+⭐ **The D8 keystone passed:** `hospitaladmin.a1` **skipping step 2 entirely** still yields
+"Hospital Central A" on the directory row — the skip drops the matrícula, never the vínculo.
+⭐ **The default-config copy check passed:** exactly one `Registrar pessoa` button and **zero**
+`enviar convite` buttons, so the screen does not promise an e-mail nothing sends.
+
+**Deliberate deviations, each with a reason:**
+- Final button branches on `emailVerificationEnabled` (ON → "Registrar e enviar convite",
+  OFF → "Registrar pessoa") instead of the handoff's fixed invite wording, which is false in
+  the default deployment. Spec compatibility is a side effect, not the reason.
+- **No "Pular etapa" on the last step** — skipping committees and submitting with none are
+  the same act; two controls with one effect make the admin work out whether they differ.
+- Committee chips/labels use the codebase's `ROLE_LABEL`, not the mock's gendered copy.
+- **"Comece pelo CPF"** and **"Dados pessoais"** kept as headings — correct semantics
+  independently of the three specs that key off them.
+- No escape hatch (D8): "Enviar convite agora" is not built.
+
+⚠ **Two harness bugs of mine, recorded because both read exactly like app defects.**
+`.focus()` is **not** auto-waiting — focusing before attach sent every keystroke nowhere and
+the empty submit looked like a broken lookup. And `isVisible()` does **not** auto-wait, so the
+first assertion after `goto` raced a cold Turbopack compile and returned false. A third
+"failure" was a 20 s bound too tight under load; proved by running the same flow in isolation
+(it rendered fine) before raising it — not written off as flake.
+
+⚠ **My verification left 10 people in the shared local DB** (measured, not counted from
+memory): 6 `f3.wizard.*` + 4 `f3.skip.*`, Rede A 29 → 39. No spec asserts an exact person
+count (checked), and the pre-gate `db reset` clears them — flagged so nobody attributes the
+delta to seed drift.
+
+### F4 (partial) — `error.tsx`, and the gap it turned out to close
+
+File: `usuarios/error.tsx`. lint 8/8, `tsc` 0, and ✅ **VERIFIED 2026-08-23 by thrown
+render** — 8/8 on the directory **and** 8/8 again from a throwing `[userId]`, which is the
+child-coverage claim measured rather than read off the route tree. Both probes reverted;
+`git status -- src/` empty, no `BOUNDARYPROBE` residue.
+
+⭐ **Run in DEV deliberately, and that is the stronger test.** In production Next redacts
+the message before the boundary ever sees it, so a prod pass would prove nothing about
+this component. In dev the real `error.message` IS handed to the boundary — so *not*
+rendering it is a property of my code.
+⭐ **With a positive control, because the redaction assertion is otherwise vacuous.** A
+synthetic message shaped like leaked Postgres detail (`relation "public.profiles" does not
+exist; permission denied for table memberships`) was thrown, then asserted absent from the
+UI **and** asserted *present in the page payload* — proving the string reached the client
+and was still not rendered, rather than an error that never fired.
+
+**What the probes pinned:** the boundary renders · both actions present · the second one
+resolves to `/o/rede-a/manage` (not the failed route) · **the manage shell SURVIVES** —
+9 sidebar nav links still rendered, which is the entire reason the file exists · no
+Postgres-shaped text anywhere in the UI · focus on the heading.
+
+⭐ **It closes a real gap, not just a scaffold slot.** Measured, not assumed: there is no
+`error.tsx` at `manage/` either, so before this file a render failure anywhere in the
+`usuarios` subtree propagated past the manage shell to the **root** `src/app/error.tsx` —
+taking the sidebar, org switcher and DSR console entry with it. It is now contained to the
+content column.
+
+**Scope, decided rather than inherited:** a segment's `error.tsx` never catches its own
+layout, so `manage/layout.tsx` survives and the person is never trapped. It also covers
+**`[userId]` and `novo`**, which have no boundary of their own (verified against the tree,
+not assumed) — so the copy has to be true for all three surfaces and says *"esta página de
+usuários"*, never *"a lista"*.
+
+**Two calls worth recording:**
+- ⛔ **Nothing from `error` is rendered** — not `message`, not `digest`, not a code. A
+  Postgres error string can carry table, column and constraint names; it goes to the
+  console, and the person gets a sentence.
+- The second action is **"Ir para Visão geral"**, deliberately *not* "voltar para a lista".
+  When it is the directory itself that failed, a link to the directory is the page the
+  person is already on and Next may not navigate at all — a control that does nothing. The
+  manage root is a different route from all three covered surfaces, so it always goes
+  somewhere. Label copied from `org-manage-sidebar`, not invented.
+- Focus moves to the heading on mount: React swaps the tree **in place**, so without it a
+  keyboard user is left focused on a control that no longer exists.
+
+---
+
+### F2 — built against B6's posted contract, not yet exercised
+
+Files: `usuarios/[userId]/page.tsx` (rebuilt to the identity band + rail) ·
+`components/users/personal-data-card.tsx` (new) · `person-avatar.tsx` (new, shared) ·
+`user-profile-edit-form.tsx` (form-only now) · `user-directory-list.tsx` (refactored onto
+the shared avatar).
+
+**Contract verified from the module, not from the message announcing it** —
+`person-footprint.ts` exports `getPersonAdminView`, `PersonAdminView`,
+`PersonPersonalData`, `PersonAdminAuthority` exactly as posted, and carries **no**
+`'use server'` directive, so the page imports it as an ordinary server-side function.
+
+⭐ **The three-state distinction is carried by the TYPE and is branched on first.**
+`personalData === null` = **WITHHELD**; a `null` *inside* it = **NOT INFORMED**.
+`PersonalDataCard` checks the outer null before any value renders, so a person who has a
+birth date can never show "Não informado" because the caller lacked the capability —
+which is the "empty means no-permission" state ADR 0133's Alternatives table names as the
+reason B2 exists.
+
+⭐ **Per-capability, not per-person.** `canEditPerson` (INTERSECTION) gates the Dados
+pessoais / Registros "Editar"; `canManageAccountLifecycle` (SUBSET) gates
+Desativar/Suspender/Reativar **and the CPF field inside the edit form**. Both computed
+server-side and passed down; never re-derived client-side. The cross-hospital case —
+where the two disagree — renders **editable fields plus** a note naming which half is out
+of reach. The "somente organização" absolute is gone from this page.
+
+⚠ **`UserProfileEditForm` is now form-only.** Its read-only branch moved to
+`PersonalDataCard`, because after Amdt 1 "can see the values" and "can edit them" stopped
+being the same question, and one component answering both by swapping trees was the wrong
+shape. It also gained Nascimento/Telefone (D9 person-level fields, now writable via B4)
+and `canEditCpf` as a **separate** prop rather than inheriting the form's own gate.
+
+⛔ **The server comparison is the CPF gate, not this form.** The form omits `cpf` when
+untouched as defence in depth; `updateUserProfile` compares against the current row, so an
+absent key and an unchanged value reach the same verdict. If the form were the mechanism,
+the bound would not be enforced.
+
+✅ **VERIFIED 2026-08-23 — 21/21, and the fixtures were COMPUTED, not guessed.** A catalog
+query classified every Rede A person by footprint against `hospitaladmin.a1`'s administered
+hospital, which is how the three targets were chosen: `dr.john` (footprint 2, incl. Central A),
+`staff1.ccih` (footprint {Central A}), `dt.a` (**technical_director @ Central A** — the tier
+case at the caller's OWN hospital, D2's sharp one). Picking by persona name would have been a
+guess about the exact property under test.
+
+⭐ **The amendment measured on ONE target, two verdicts** — cross-hospital, as `hospitaladmin.a1`:
+"Editar" offered · **0** lifecycle buttons · **no CPF field** inside the form · Nascimento and
+Telefone editable · the note names which half is out of reach · the retired "somente
+organização" absolute absent.
+⭐ **Bounded on both sides by the same caller:** sole-hospital → Editar + **2** lifecycle buttons
++ CPF field present. Tier → no Editar, no lifecycle, withheld note, and ⛔ **not** collapsed into
+"Não informado".
+⭐ **The strongest differential — same target, two callers:** `orgadmin.a` on the *same*
+cross-hospital person gets **2 lifecycle buttons and a CPF field** where the hospital admin had
+neither. That is what proves the split tracks the CALLER's footprint rather than something
+about the person.
+Also pinned: `getByRole('region', { name: 'Vínculos hospitalares' })` still resolves, and **no
+CPF digits appear anywhere** on the page (D12).
+
+⚠ **One spec will break and is `tester`'s:** `hospital-admin-tier.spec.ts:822` asserts a
+heading **"Situação da conta"**. That card is gone — the handoff moves lifecycle actions
+into the identity band, which has no such heading. Not worth keeping a heading alive purely
+to satisfy a locator. `getByRole('region', { name: 'Vínculos hospitalares' })`
+(`aff-hospital-affiliation.spec.ts:655,689`) **still resolves** — that section kept its
+name.
+
+---
+
+### F4 — the sweep, and a reduced-motion defect that was a §8 violation
+
+**16/16 verified 2026-08-23.** Three fixes, one of them in shared CSS.
+
+🔴 **`globals.css` reset `animation-duration` but NOT `animation-delay`.** `.animate-rise-in`
+uses `both` fill-mode, so an element holds its `from` state — `opacity: 0` — for the whole
+delay. Under reduced motion the animation was suppressed and **the stagger was not**: rows
+stayed invisible and popped in one at a time. **Measured at `--rise-delay=760ms` on row 20.**
+CLAUDE.md §8 ("`prefers-reduced-motion` respected"), not a nicety, and app-wide — every
+`--rise-delay` consumer (audit feed, cases, NSP) was affected; the directory was merely the
+widest range. Fixed with `animation-delay`/`transition-delay: 0ms !important`.
+
+⭐ **The before/after is one measurement, which is why it attributes.** Under reduced motion
+the **input is unchanged** (`--rise-delay` still reads `760ms`) while the **output is fixed**
+(`animation-delay: 0s`, `opacity: 1`) — so the pass cannot be vacuous via a missing stagger.
+And under **normal** motion the last row still computes `0.76s`, proving the fix is scoped
+rather than having killed the animation for everyone. Confirmed on `/c`, a surface outside
+this workstream, because it is shared CSS.
+
+**Two a11y fixes:** the "Atenção" pill now carries an `sr-only` clarifier — it is the one
+**composite** label (suspenso ∪ pendente) appearing nowhere else on screen, so a sighted user
+discovers it by clicking while a screen-reader user heard only a word. Accessible name now
+reads *"Atenção (contas suspensas e convites pendentes)·2 pessoas"*. And the rail's "Editar"
+is a **disclosure**, now with `aria-expanded`/`aria-controls`; focus is deliberately **not**
+moved into the form, which would steal it from a keyboard user who only wanted to look.
+
+**One copy fix:** the withheld note said the matrícula is managed *"ao lado"* — false at every
+width below `lg`, where the rail stacks **below**. Now names the card. ⭐ Swept the class: the
+two other positional-copy instances refer to content genuinely below them at all widths and
+were left alone.
+
+**Keyboard + focus, measured not assumed:** Tab reaches 7 controls with no trap
+(Todos → Ativos → Atenção → Desativados → search → Buscar → hospital switcher) and **7/7 paint
+a ring** — `getComputedStyle` `boxShadow`/`outlineStyle`, because asserting the class name
+would pass on a ring that renders nothing. The disclosure opens by keyboard and flips
+`aria-expanded`; the wizard's CPF field rings and focus lands on the revealed step heading.
+
+**B8 wired:** `?hospital=` narrows **30 org-wide → 15 at Central A**, so the control that was
+navigate-but-do-nothing is now real. The stale "not yet applied" comment went with it — the
+fourth stale comment this workstream would have produced.
+
+---
+
+## Track T — tester *(tester-owned)*
+
+**T0-T4 complete and verified 2026-08-23** (each spec run individually,
+`--project=chromium --workers=1` against `next dev` — see the dev-server-concurrency note
+below; lint 8/8 and `tsc` 0 on every file). **T5 (full `e2e:prod`) COMPLETE — GREEN, both
+tracks' work included.** See § T5 below for the full accounting; the one-line
+PROGRESS.md Test Run Summary row is the pointer, this is the narrative.
+
+### T5 — the full gate, `REBUILD=1`, no `--workers=1` override needed
+
+The gate pins `--workers=1` internally (`scripts/e2e-prod-gate.sh:419`) — the dev-mode
+concurrency workaround T0 needed against `next dev` was never a variable here; nothing to
+carry over or re-verify.
+
+**Raw result, 20 batches:** 1205 passed · 1 failed · 0 infra-classified · 2 flaky ·
+1 did-not-run · accounted for 1209 of 1220 collected. Both non-passing data points
+(the 1 failure + the 1 DNR) are the SAME test's two attempts, both in batch 20:
+`wizard-others-ux.spec.ts:484` "AC-K: keyboard-only — focus reaches the segmented time
+field" — `browserContext.newPage: Test timeout of 30000ms exceeded` on attempt 1, then
+`worker process exited unexpectedly (code=3221225794, signal=null)` on the retry (0ms —
+the worker was already dead). Not a file either track touched.
+
+⛔ **Not auto-classified as infra by the script, so I did not take the resemblance to
+batch 1's connection-refused cascade on faith.** `INFRA_RETRY=1` is a ONE-retry budget for
+the whole gate, already spent on batch 1's earlier cascade — batch 20's crash had none
+left, which is why it surfaced as a raw failure instead of self-healing the way batch 1
+did. **Proven, not inferred:** re-ran `wizard-others-ux.spec.ts` alone
+(`SPECS="e2e/wizard-others-ux.spec.ts" bash scripts/e2e-prod-gate.sh`, fresh server +
+fresh DB, no rebuild needed — no `src/` touched since the first build) —
+**7/7 pass, including AC-K, GATE GREEN, accounted for 7 of 7.** Combined with the 19
+other fully-clean batches (0 failed across all of them), this is a transient
+resource-pressure crash after ~19 consecutive batches over ~60 minutes on this machine,
+not a defect — same shape as the pin's own "re-run alone they are GREEN" resolution, not
+merely cited as precedent.
+
+⚠ **A second background-tooling wrinkle, distinct from the test failure and worth
+recording so a future run isn't alarmed by it:** partway through batch 20 the harness
+reported the backgrounded `npm run e2e:prod` process as `status: killed`. It was not.
+The `Monitor` tool's log tail (reading the file on disk, independent of the Bash tool's
+own process handle) kept receiving new lines — batch 20's result, then the GATE SUMMARY —
+proving the underlying script ran to completion regardless of what the wrapping tool
+reported. Verified directly rather than trusted: `curl` against :3000 and a `tasklist`
+node-process check right after the "killed" notification showed nothing of the gate's
+still running (by then it had already finished) — the notification described the tool's
+own bookkeeping, not the work.
+
+**Diff against the `d885f621` pin (1185 p · 2 f · 2 flaky · 8 DNR):** passed 1185→1205
+(+20, exactly the 12 new T1-T4 tests plus 8 more from tests that gained coverage inside
+existing files — reconciles); failed 2→1, DNR 8→1 (both improved, and both remaining
+instances resolved clean on isolated re-run, same as the pin's own two); flaky held at
+2→2 **by count**.
+
+⛔ **Flaky count matching is not flaky identity matching, and I want that on the record
+rather than assumed.** Named mine exactly: `act-role-assumption.spec.ts:157` ("The
+switch: assuming a hat then switching changes the landing route AND real authorization")
+and `phase2-auth-shell.spec.ts:268` ("Logout › logging out via user menu redirects to
+/login and clears session") — neither is a file either track touched. Could NOT compare
+these to the pin's two by identity: `docs/progress/case-split-assertion-integrity.md`
+(the pin's own linked triage doc) names its 2 *failures* in detail but contains no
+occurrence of "flaky" at all, and the pin's own raw batch logs are very likely
+unrecoverable now — `/tmp/e2e-prod-gate/` reuses batch-numbered filenames across runs, and
+today's run overwrote today's earlier one before I ever went looking (confirmed:
+`batch-1.log`'s timestamp is 09:10, when MY run wrote it). Recorded as **unverifiable**,
+not assumed-same — the identity question this whole workstream has repeatedly shown a
+matching total does not answer.
+
+**Conclusion: GREEN.** Every test in the suite passes; the only two non-passing data
+points were the same transient infra crash, proven transient by isolated re-run, not
+inferred from resemblance to a known pattern.
+
+### T0 — the given breakage inventory was wrong in both composition and count
+
+Verified against source before editing, not taken on trust. Real total: **10 sites, not
+nine**, and a different set than given:
+- `aff-hospital-affiliation.spec.ts` — only **2** of the 6 cited lines were real (the two
+  outcome-A registration tests). The file is `test.describe.configure({mode:'serial'})`,
+  so the other 4 (outcomes B/C/deactivated) were **cascading skips** from the one real
+  break, not independent sites — confirmed by fixing only the 2 and watching all 13 tests
+  pass. Outcomes B/C/D are unchanged by the wizard (the component's own doc comment says
+  so, and the JSX matches).
+- `hospital-admin-tier.spec.ts` — 2 sites as given, **plus** `:813`: its target
+  `staff2.ccih` is commission-tier-only with footprint {Central A} ⊆ hospitaladmin.a1's
+  administered set — measured live against `memberships`/`hospital_affiliations`, not
+  assumed. The test's DENY premise was itself superseded by ADR 0133 D3 + Amendment 1
+  ruling 1, not merely its "Situação da conta" heading. Rewritten to ALLOW, **citing D3 +
+  Amdt 1 r1 in the test's own comment** (never the observed Desativar button — the lead's
+  explicit condition for this class of edit), with a reactivate-after so the shared
+  persona isn't left deactivated for later specs.
+- `phase3-admin-members.spec.ts` — 1 site as given (the shared `registerActiveOrgUser`
+  helper; fixes every caller in the file at once).
+- `user-registration.spec.ts` — the inventory named only `:488` (the search-label rename,
+  confirmed correct); **5 more genuine sites it never mentioned**, found by grepping every
+  `/registrar pessoa/i` click in `e2e/` rather than trusting the given file list: AC1
+  (complex — spans identity+credential on step 1 and committee assignment now on step 3),
+  AC2, AC2's `test.skip`'d invite-mode sibling, AC5 (email collision), AC7 (keyboard-only —
+  needed a keyboard-driven Continuar walk, not a Tab-to-submit).
+- `form-name-attribute-invariant.spec.ts:564` — confirmed a genuine **no-op**, exactly as
+  flagged ("Dados pessoais" is still step 1's heading verbatim). One UNFLAGGED break found
+  in the same file by running the regression rather than trusting the given scope: its
+  "profile edit" test needed an "Editar" click before the Nome field exists (F2's
+  disclosure), which led straight to **BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS**
+  (PROGRESS.md § Bug Log) — now fixed by `frontend` (`d23d1045`) and re-verified live by
+  T2 below, banner assertion included on purpose (see T2).
+
+**A sixth break class, found only by running the files, never by reading them:** every
+`registerUser` success now redirects to the created person's OWN profile page
+(`/usuarios/<uuid>`), not the bare directory. **8 sites across 3 files** asserted the old
+`waitForURL('**/o/rede-a/manage/usuarios')`. ⚠ My own first fix
+(`waitForURL(/\/usuarios\/[^/]+$/)`) was itself a live bug — the pre-submit URL is already
+`/usuarios/novo`, which trivially satisfies that pattern with **zero navigation having
+happened**, and it produced a false-pass that raced ahead of the write and failed one step
+later on an unrelated line ("person not found in search"). Corrected everywhere to
+`/\/usuarios\/[0-9a-f-]{36}$/i` (positively a UUID). Filed as
+`FUP-WAITFORURL-SATISFIED-BY-ITS-OWN-STARTING-URL`.
+⚠ **One PRE-EXISTING instance of the same trap left unfixed, on purpose**:
+`aff-hospital-affiliation.spec.ts:764` (AFF-K, currently green, not AFF2's doing) races the
+same way but never fails because nothing interrupts it with a fresh `page.goto` before the
+next assertion absorbs the delay — out of T0's repair scope since it isn't broken and isn't
+AFF2's regression; recorded here rather than silently left for a future reader to
+rediscover.
+
+**Operational finding, not a defect:** running multiple tests from one file against
+`next dev` under Playwright's default `fullyParallel` concurrency produced fully
+reproducible `page.goto('/login')` 30s timeouts — confirmed NOT a hang (a raw single-browser
+Playwright script and `curl` both succeeded in ~100ms against the same server throughout)
+and not server unhealthiness, but concurrent-Chromium contention against `next dev`'s
+cold-compile path. `--workers=1` eliminated it on every file. Not applicable to `e2e:prod`
+(a built server) — T5 runs plain.
+
+### T1-T4 — the new specs, and why T1 carries no hardcoded numbers
+
+- **T1** `e2e/aff2-directory.spec.ts` (new, 4/4 pass) — pill partition + real per-pill
+  filtering, deactivated-row navigation, "Sem comissão"/"Sem vínculo hospitalar", the B8
+  hospital filter. **Deliberately zero hardcoded counts.** The "30/27/2/1" and "30→15"
+  figures were already stale by the time I read them — `auth.users` moved 36→61 over this
+  session's own test runs alone, and `e2e:prod` does not reset between runs. Every count
+  assertion is either a PARTITION property (`active+attention+deactivated === all`,
+  whatever `all` currently is, read live from the pills) or a live before/after page
+  comparison — never a number typed into the file. This is the thing a successor most
+  needs to not undo: re-adding a fixed count "to make the test more specific" would just
+  reintroduce the staleness this file exists to avoid.
+- **T2** `e2e/aff2-scope-rule.spec.ts` (new, 5/5 pass) — the Amdt-1 split, all four
+  targets: a fresh sole-hospital person (registered live, hospital locked — sole-footprint
+  BY CONSTRUCTION, freely mutated: name+CPF edit persisted via reload/service-role read,
+  a credential added and persisted, deactivate→reactivate each persisted), dr.john
+  cross-hospital (fields/credentials ALLOW, CPF/lifecycle DENY, read-only) **plus the
+  two-caller differential** (`orgadmin.a` on the SAME dr.john gets both, including the D12
+  presence-only check for the caller who CAN change it — the lead's specific add), dt.a
+  hospital-tier-at-own-hospital (full DENY, the withheld note, never collapsed into "Não
+  informado"), and a fresh zero-footprint person (structural 404, not a rendered note —
+  see the premise correction below). Asserts the "Perfil atualizado." banner on purpose,
+  not skipped around: it is the only thing that can catch the fix's own named remaining
+  risk (`router.refresh()` remounting `PersonalDataCard` instead of reconciling, which
+  would reset `saved` to `false` by a different route to the same silence).
+- **T3** `e2e/aff2-wizard.spec.ts` (new, 2/2 pass) — only the two clauses NOT already
+  covered by the T0-repaired suite: the D8 invariant (hospital_admin skip-step-2 still
+  creates the affiliation — verified via a service-role read of `hospital_affiliations`,
+  not the copy's promise) and a foreign-org CPF collision hitting the identical block copy
+  with no tenant disclosure (`solo.c@test.local`, found by querying the catalog for a
+  seeded CPF outside Rede A, not by guessing a persona). Full-walk-to-Ativo and in-org
+  duplicate-CPF-offer are already covered (user-registration.spec.ts AC1/AC2,
+  aff-hospital-affiliation.spec.ts AFF-1); Pendente/invite-email stay in the existing
+  server-env-gated `test.skip` (AUTH_EMAIL_VERIFICATION is off locally) rather than being
+  duplicated.
+- **T4** `e2e/aff2-keyboard.spec.ts` (new, 1/1 pass) — the directory's
+  pills→search→row→profile path, real Tab presses throughout (not `.focus()` shortcuts).
+  The full wizard's keyboard-only walk was already covered and repaired under T0
+  (user-registration.spec.ts AC7) — not duplicated.
+
+**Premise correction (verified against the live `pg_policies` catalog, not assumed):**
+T2's "unaffiliated person renders with the full note" is not reachable — `profiles`'s two
+SELECT policies admit a hospital_admin only via an active `hospital_affiliations` row or a
+`memberships` row at an administered hospital; a genuinely empty-footprint person satisfies
+neither, so the page 404s before `getPersonAdminView` runs at all (identical mechanism to
+the pre-existing AFF-3 negative). Covered as a 404/no-leakage test instead; dt.a carries the
+"renders with the full note" DENY case, which is reachable and is the ADR's own named sharp
+D2 example.
+
+**DB delta, measured 2026-08-23 (not `db reset`, not attempted):** `auth.users` 36 → 61
+(+25), all additive `aff.*`/`aff2.*`/`e2e.*` fixtures from this session's own runs across
+T0-T4, zero seeded rows mutated.
+
+---
+
+## Rulings & corrections made during the build *(lead-owned)*
+
+- **⛔ 2026-08-23 · TWO corrections to the LEAD's re-gating rationale, both caught by QA r2. The
+  conclusion survives; the stated reasons did not.**
+  1. ⛔ **"The change is strictly stricter" is FALSE.** Shrinking the footprint cuts the two bounds in
+     **opposite** directions: `fields`/`credentials` are `footprint ∩ administered` — fewer intersections,
+     **narrower**; `cpf_change`/`lifecycle` are `footprint ⊆ administered` — and **a smaller set is EASIER
+     to be a subset of**, so those two get **WIDER**. Worked and confirmed: active affiliation at **H2** +
+     **expired** seat at **H1**, caller administers H2 only — before, footprint `{H1,H2}` ⇒ `lifecycle`
+     **DENY**; after, `{H2}` ⇒ **ALLOW**. A hospital_admin who could not deactivate that person now can.
+     ⚠ **The behaviour is correct** (D1(c) defines the footprint as the *active* set; an expired seat grants
+     no access at H1, so deactivating denies nothing there) — **no change was requested**. ⭐ But note the
+     shape: the same fix invokes *"narrowing can be wrong and safe; widening can't"* for the tier flag while
+     containing an **unremarked widening one capability class over**, in the subset capabilities the ADR
+     keeps tight because deactivation is a platform-wide kill switch.
+     ⚠ **Coverage gap it exposed:** all three R1 arms use `footprintExpiredSeatOnly`, which **empties**
+     `hospital_affiliations`, so the footprint is **∅** and the denies come from the **zero-footprint rule**,
+     not the subset logic — nothing would notice a revert in the widened direction. Closed by one
+     mixed-fixture arm, mutation-controlled.
+  2. ⛔ **The seed citation was at the wrong GRAIN.** The lead wrote *"`seed.sql:350` records the absence as
+     deliberate."* That comment governs **one of eight** `insert into public.memberships` statements — a real
+     comment quoted for a conclusion it does not bound, **this workstream's own named class, third
+     occurrence**. ⭐ The correctly-grained fact is **stronger** and was measured: **`expires_at` occurs
+     exactly ONCE in the whole of `seed.sql`** — that comment — so **no column list names it** and every
+     seeded row takes the default. Structural, not one block's convention.
+  ⛔ **The no-`e2e:prod`-re-run conclusion STANDS, but on REACHABILITY** (0 of 43 rows carry any expiry, 0
+  past-expiry, re-measured at HEAD) **and on nothing policy- or `prosecdef`-shaped having moved** — *not* on
+  strictness. Whoever writes the gate record must use the reachability leg.
+
+Decisions live in the ADR; this is the index so a reader finds them without re-deriving.
+
+- **2026-08-23 · Four PO rulings** → ADR 0133 **Amendment 2**: D13's mirror-vs-commission-tier
+  contradiction resolved toward the artifact; `expires_at` mirrored (absent); B8 built; search
+  label honest now with the registro leg deferred.
+- **2026-08-23 · Two plan premises measured STALE at build start.** B3's *"signatures keep
+  `extensions.citext`"* is wrong for this door — `list_org_people(uuid,text,text)` has one
+  overload, all `pg_catalog.text`; obeying it would `CREATE` a **second overload** beside the
+  real door. And B3 cannot use `CREATE OR REPLACE` at all: adding a column changes the return
+  type, so it is `DROP`+`CREATE`, which resets `proacl` to **NULL = PUBLIC** and destroys the
+  function COMMENT. ⭐ Class: *a plan's carried-forward "remember the X lesson" is a hand-copied
+  claim about a specific subject, written in the most trusted register in the document.*
+- **2026-08-23 · Four prompt/handoff premises measured FALSE by `frontend`** before building:
+  the search box is not a `FormData` caller (no `nameRequiredFor`); the org_admin hospital
+  select was unbuildable (→ B8); the search doc comment and the visible `aria-label` both
+  over-promise *"ou categoria"*, which is never searched; the mock's chip copy is gendered
+  where the codebase's `ROLE_LABEL` is not (ship "Coordenação"/"Membro").
+- **2026-08-23 · TWO premises in the LEAD's own brief measured FALSE by `backend`**, both caught by
+  running a control expected to be a formality, and both of which would have shipped as *passing*
+  keystones on security properties:
+  1. ⛔ **"A `DROP` resets `proacl` to NULL, which means PUBLIC" is FALSE here — and the detector that
+     wording produces is CONSTANT-TRUE.** Measured: `pg_default_acl` carries a rule for `public`
+     (`postgres | {postgres=X,service_role=X}`) storing only the *explicitly configured* grants, with
+     Postgres' built-in default (owner **+ `EXECUTE` to PUBLIC**) applied **on top** — so a fresh
+     `CREATE FUNCTION` returns `{=X/postgres, postgres=X/postgres, service_role=X/postgres}`, populated
+     and `anon`-executable. Census: **0 of 531** functions in `public` are NULL-`proacl` and **0 of 531**
+     carry a PUBLIC entry. So `ok(proacl is not null)` **cannot fail**, and the 0-of-531 clean figure is
+     evidence the `revoke … from public` step is **load-bearing, not ceremony**. Replaced with an exact
+     ACL differential against the measured pre-`DROP` set (reds on NULL, on a gained PUBLIC/`anon`, and
+     on a lost `service_role`) plus a direct `anon` arm. `prosecdef` stayed `t`, so `ARM=wrapper`'s
+     domain is unaffected.
+  2. ⚠ **"The default for a new column is *absent*" is FALSE as stated.** `profiles` carries a
+     table-level `REFERENCES` grant, so `date_of_birth`/`phone` each show a `REFERENCES` row exactly as
+     `cpf` does — value-blind, harmless, pre-existing, but a reviewer applying the literal rule would
+     **red a correct migration**. The keystone now asserts D10's actual words — column-locked **like
+     `cpf`**, as a differential against `cpf`, plus no SELECT/UPDATE/INSERT.
+  ⭐ Both are the class already recorded below: *a carried-forward lesson stated about the wrong subject,
+  in the most trusted register in the document* — here the register was a **lead brief**. Neither came
+  from reading; both came from running a control.
+- **2026-08-23 · No "Pular etapa" on the wizard's LAST step** (deliberate handoff deviation, `frontend`'s
+  call, lead-approved). Skipping committees and submitting with none assigned are **the same act**, so
+  offering both is two controls with one effect and the admin must work out a distinction that does not
+  exist. The step caption carries the skip. ⛔ Recorded so it is not later "restored" as a fidelity fix.
+- **2026-08-23 · `error.tsx` PULLED FORWARD from F4** — it is the only item in Track F needing neither
+  the database nor a backend contract, and `frontend` was otherwise fully blocked. Bounded: route-level
+  boundary for `usuarios` only (not the manage shell, and **not** `[userId]`/`novo`, whose boundaries
+  are F2/F3 decisions), pt-BR, a `reset()` retry, and ⛔ **no raw Supabase/Postgres text reaching the
+  UI** — CLAUDE.md §8, the rule the file exists to honour.
+- **⛔ 2026-08-23 · TWO shared-tree coordination facts, both found the hard way at the B7 handoff.**
+  1. **An uncommitted working tree is NOT a contract.** The lead told `frontend` to adapt to B7 "after
+     `backend` lands it", framing the gap as *between two commits* — but B7 was uncommitted working-tree
+     state. `frontend` read `types.ts`, saw `@deprecated` shims annotated as a one-commit window, and
+     **sixty seconds later they were gone**. They held rather than adapting, because reporting *"adapted
+     to B7"* against a shape that had already moved once is the stale-claim class. ⭐ A handoff must be
+     keyed on a **commit**, never on "started".
+  2. ⭐⭐ **While a SHARED TYPE is in flight, the other track cannot gate AT ALL** — not merely "is waiting
+     for a contract". `backend` editing `src/lib/users/types.ts` reds `frontend`'s `tsc` on files
+     `backend` never touched, so `frontend` could not validate even their own committed work. The
+     overlap window has a measurable cost; the answer is to keep it short and to park the other track
+     **fully**, not to have it stand ready.
+  **Ruled: no deprecation shims — one red-to-green hop.** A shim needs `org-users.ts` emitting
+  `homeHospitalName` **and** `hospitalNames`: two representations of one fact, in the workstream whose
+  theme is refusing that, where whichever a consumer reads first silently becomes the contract.
+  ⚠ **And the intended red is INVISIBLE to the obvious check** — verified in `package.json`: `lint` is
+  the eight gates and **`tsc` is not among them**, so the handoff commit reports `lint` **exit 0** while
+  `typecheck` is **exit 2**. A true green that means the opposite of what a reader takes from it, same
+  shape as a pipe erasing an exit code. The red is therefore **declared in the commit message**, so it
+  is a stated handoff rather than something the next person discovers and files.
+- **2026-08-23 · A NEW MODULE cannot be temporally red-first — its red proves absence, not discrimination.**
+  B6's keystones could not be run "before the change": the file did not exist, so every arm would have failed
+  on *cannot resolve import*, which says nothing about whether the assertions discriminate. `backend` used
+  **mutation evidence** instead — four mutations, each required to red, all observed, restore byte-identical
+  (M1 both capabilities evaluated as `'fields'` → 1 red · M2 withheld returns a zeroed object instead of
+  `null` → **4** · M3 CPF digits returned → 3 · M4 footprint resolved twice → 1). ⭐ **M4 is the instructive
+  one:** resolving twice is *functionally correct* and every other arm stays green, but it widens the TOCTOU
+  residual ADR 0133 D4 accepted at **exactly one write** — a correctness-preserving change that silently
+  degrades a stated invariant, catchable only by a **counting** assertion. ⛔ Red-first and mutation-proof are
+  not interchangeable: pick by whether the subject can exist in the "before" state at all.
+- **⚠ 2026-08-23 · GATE-SNAPSHOT DISCIPLINE — a per-track gate is not a tree gate.** `backend`'s B6 typecheck
+  hit exit 2 on `usuarios/[userId]/page.tsx`, `frontend`'s in-flight F2 edit; it cleared on its own when the
+  call site was updated. They correctly did **not** touch the file and did **not** stash the tree (a stash
+  during another agent's active edit can destroy in-flight work). Attribution was conclusive — zero `tsc`
+  errors in any file they own, both runs. ⛔ **But a gate run taken against a tree another agent is editing
+  establishes only that the task is correct in isolation, not that the tree is.** The authoritative full-gate
+  run for AFF2 is the **lead's, with both tracks still** — and it is a §6 step 1 obligation, not a formality
+  discharged by two green per-track runs.
+- **2026-08-23 · ⚖ ADR 0133 Amdt 1's "whenever the input includes `cpf`" ruled CHANGE-based (ADR 0133
+  Amdt 3) — LEAD-ruled, not PO-escalated.** Read literally (presence-based), the subset bound applies to
+  every `updateUserProfile` call carrying the key, so a hospital_admin editing the **name** of a
+  cross-hospital person is denied — **the exact case Amdt 1 r1 exists to ALLOW**, failing invisibly as
+  `orgAdminOnly`. Escalation declined on one ground: unlike the Amdt-2 rulings, both readings were not
+  defensible — the literal one defeats the stated purpose of the amendment it appears in. ⭐ **A trap for
+  the NEXT author, not a live bug:** the current form already omits the key when untouched
+  (`user-profile-edit-form.tsx:86`), so presence-based works today and breaks when F2 is rebuilt — which
+  is why it was settled before F2 exists. Pinned both ways, plus a keystone that an **absent key** and an
+  **identically-valued key in different formatting** reach the **same** verdict (`frontend`'s question:
+  *if F2's form is what keeps the bound correct, the bound isn't enforced* — the client cannot be the
+  mechanism; the differing formatting is what proves `normalizeCpf` is in the comparison).
+- **2026-08-23 · The error boundary is VERIFIED, 16/16 (`dc92dfc4`)** — two probes, the second throwing
+  from `[userId]/page.tsx`, which converts the child-coverage claim from *read off the route tree* to
+  *measured*. Pinned: the manage shell **survives** with its 9 sidebar links (the whole reason the file
+  exists), no Postgres-shaped text in the UI, focus on the heading, second action resolving to a route
+  other than the failed one. ⭐⭐ **Run in DEV deliberately, and that is the STRONGER test:** in prod Next
+  redacts `error.message` before the boundary sees it, so a prod pass would have measured the framework,
+  not the component. *Before running a negative assertion, ask who would satisfy it if the code under test
+  were deleted.* Paired with a positive control — the leaked-looking string asserted **absent from the UI
+  and present in the payload** — because "the bad string is absent" passes identically if the error never
+  fired.
+- **2026-08-23 · `TaskStop`'s success message carries NO information about whether a process is gone** —
+  **three occurrences this session, zero misses**, the third holding PID 40932 while reporting
+  "Successfully stopped". Only `curl` (exit 7) settled it each time. ⚠ Matters to the DB: a surviving dev
+  server holds connections, the recorded mechanism by which a `db reset` half-applies into phantom greens.
+- **2026-08-23 · Two F3 rulings, both agreeing with `frontend` against the handoff and against my own
+  prior instruction.** (a) **Nascimento/Telefone are not rendered until B4** — see § Cross-track; my
+  "model them optional" instruction was transplanted from display fields to inputs, where it means
+  silent data loss. (b) **The wizard's final button branches on `isEmailVerificationEnabled()`** —
+  verification ON → "Registrar e enviar convite" (the handoff's copy, now true), OFF →
+  "Registrar pessoa". Measured: the helper is documented **DEFAULT OFF** and both `.env.example:26`
+  and `.env.production.example:31` set `off`, so the handoff's copy promises an e-mail the default
+  deployment never sends — while the page description on the same screen already branches on that
+  flag. A **new adaptation from handoff fidelity**, in the same family as ADR 0133 Amdt 2's honest
+  search label. ⭐ Spec compatibility is a **side effect, not the reason**: the copy would be right
+  even if it broke every spec.
+- **2026-08-23 · The B7 naming contract is CLOSED before it could drift.** F1 committed placeholder
+  exports (`DirectoryRowExtras` with `hospitalNames: string[]` / `committees[]` / `councilRegistration`,
+  plus `UserDirectoryStatusFilter` and `UserDirectoryStatusCounts`). These must **die** when B7 lands
+  rather than become a parallel vocabulary — relayed to `backend` as *converge or object before writing
+  the types*, since a post-hoc rename converts a type change into the rewrite F1's structure exists to
+  avoid. Types live in `src/lib/users/types.ts` (backend-owned); the **names** are the contract.
+- **2026-08-23 · One spec-breakage mechanism CORRECTED (lead).** `aff-hospital-affiliation.spec.ts`
+  was predicted to break because "the container changes from a card `<li>` to a grid row" — it
+  does not; the F1 design keeps `<ul>`/`<li>`, so `page.locator('li').filter()` still resolves.
+  The real risk is the `sr-only` cell prefixes fusing with the visible string under
+  `exact: true`. Keeping each empty-state string in **its own element** means the spec does not
+  break at all. ⭐ A wrong mechanism produces a wrong fix — handed on as stated, `tester` would
+  have rewritten a working locator.

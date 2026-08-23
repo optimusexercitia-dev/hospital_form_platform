@@ -406,6 +406,43 @@ their home is here because they never conclude._
   writers because each used a different bound — see the correction record at the top
   of this file (75 fns / 6 read a flag).
 
+## AFF2 — affiliation-scoped administration (2026-08-23; ADR **0133** + **Amendments 1–4**; migrations `20261003001000`–`…001200`, **3**; pgTAP `359` `plan(18)` · `360` `plan(21)` · `361` `plan(24)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **LOCAL ONLY, NOT PUSHED**
+
+⛔ **The remote stands at 441 / `20261003000900`; these three migrations exist only locally.** Re-measure
+before quoting. When the merge call comes: **schema first, then code** — the migrations are additive, so
+old-code/new-schema is safe and new-code/old-schema is the broken state a code-first push would open.
+
+**Schema.** `profiles.date_of_birth date null` + `profiles.phone text null` (digits-only, **no CHECK** by
+decision — Amdt 1 r6; formatting is display-side). ⛔ **Column-locked exactly like `cpf`**: absent from every
+`authenticated` column-list grant, so they carry **only** `REFERENCES` (the table-level grant) — verified
+byte-for-byte against `cpf`, and against `full_name`'s full set. Both join
+`guard_profile_privileged_columns`, on its **`v_identity_changed`** limb (service-role-only), **not**
+`v_privilege_changed` — a platform_admin must not write a DOB from a session (§1 noun rule).
+
+**RLS — one policy widened.** `professional_credentials_select` gains an **affiliation** leg
+(`ended_on IS NULL`) and a **membership** leg, both **mirroring the live `profiles` legs verbatim**, i.e.
+`COALESCE(hm.hospital_id, hc.hospital_id)` — **hospital-tier admitted** (Amdt 2 r1: D13 named the artifact
+to copy, and narrower-than-`profiles` manufactures the "empty means no-permission" state the widening
+exists to remove). ⚠ **No `expires_at` filter, deliberately** (Amdt 2 r3) — the read half of that question
+is open across **three** authorities: both `profiles` policies and this one
+(`FUP-AFF2-ACTIVE-MEANS-TWO-THINGS`).
+
+**Door.** `list_org_people(uuid, text, text)` payload gains `date_of_birth` (phone stays out). Return-type
+change forced **`DROP` + `CREATE`**, so the ACL, `prosecdef`, `SET search_path` and the COMMENT were all
+re-issued and re-measured. ⚠ **Its signature is all `pg_catalog.text` — NOT `citext`**, and there is exactly
+**one** overload; a `citext` twin would be a second, ungranted door. ⭕ **The `date_of_birth` payload has NO
+reader today** — D11's match-card clause was **retired** (Amdt 4 r2: the caller matches CPF exactly at full
+length, returning at most one row, where a birth date disambiguates nothing). It is a **built door awaiting
+a name-search caller**, by decision — do not revert it as dead code.
+
+**TS surface (no RLS backstop — Rule 9 exception, authorized service reads).**
+- `src/lib/users/person-scope.ts` — the **pure** predicate `personScopeAllows(capability, footprint, administered)`. Capabilities: `fields` / `credentials` → **intersection**; `cpf_change` / `lifecycle` → **subset** (Amdt 1 r1).
+- `src/lib/users/person-footprint.ts` — ⛔ **deliberately carries NO `'use server'`**, and that is the load-bearing property of the file: `actions.ts` has the directive, so every export there is a callable endpoint, and exporting the resolver from it would publish an authority oracle. Holds `resolvePersonFootprint` (**filters `ended_on` AND `expires_at`** — QA R1) and `getPersonAdminView`, which returns `{ personalData: {...} | null, authority: { canEditPerson, canManageAccountLifecycle } }`. ⚠ **The OUTER null means WITHHELD, not "nothing informed"** — the nesting is what forces the caller to distinguish them. ⚠ `canManageAccountLifecycle` is **unrelated** to the cases domain's `caps.canManageLifecycle`.
+- `src/lib/users/actions.ts` — `authorizePersonScopedAdmin` replaces `authorizeOrgAdminForUser` at **six** sites. ⚠ `updateUserProfile` applies the **tighter** bound on a CPF **change**, compared **normalised on both sides** — **change-based, not presence-based** (Amdt 3): the literal reading would deny a hospital_admin editing the *name* of a cross-hospital person, the exact case Amdt 1 r1 exists to allow. `registerUser` returns the created id (`RegisterUserState`).
+- `src/lib/queries/org-users.ts` — directory widening: `hospitalNames[]`, `committees[]`, pre-formatted `councilRegistration`, `statusCounts` from the **unfiltered** scoped set, and `hospital?: string | null` on `ListDirectoryOptions` (**NARROW** — `home_organization_id = orgId` AND at H; it falls out of an intersection, so the rule has one definition).
+
+⚠ **`expires_at` semantics, stated because the direction is counter-intuitive:** filtering it **narrows** the intersection capabilities and **WIDENS** the subset ones — a smaller footprint is easier to be a subset of. Both directions are pinned; the widening arm is the only one that reaches the subset path (the others deny via the zero-footprint rule).
+
 ## Case surface split — Increment 2 (2026-08-22; ADR **0134** D6 + Amendments 1/2/4/5/6; migrations `20261003000400`–`…00700`, **4**; pgTAP `205` `plan(67)` · `356` `plan(72)` · `357` `plan(35)` · `189` `plan(43)`; **NO new flag** — rides `administrativo`, permanently ON)
 
 Re-derive every row from the catalog; this is a map, not the authority. **⛔ For SQL the live

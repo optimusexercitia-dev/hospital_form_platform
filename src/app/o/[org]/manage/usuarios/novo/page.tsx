@@ -105,7 +105,10 @@ export default async function OrgRegisterUserPage({
       : orgHref(org, "manage", "usuarios");
 
   return (
-    <div className="flex flex-col gap-8">
+    // Centered single column (handoff §Screen 3). The header travels with the wizard
+    // rather than staying flush left, so the back link, the title and the step card
+    // read as one object instead of a narrow card adrift under a wide heading.
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
       <header className="flex flex-col gap-3">
         <Link
           href={backHref}

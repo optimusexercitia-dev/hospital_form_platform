@@ -5,6 +5,12 @@ import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { personScopeAllows, type PersonScopeCapability } from './person-scope'
+// ⛔ `resolvePersonFootprint` and `authorizeOrgOps` live in `person-footprint.ts`, NOT here,
+// and the reason is structural: this file is `'use server'`, so every export of it becomes a
+// callable endpoint. Exporting the resolver to share it with the B6 detail read would have
+// published a person's hospital footprint as an RPC. Keep them there; import, never copy.
+import { authorizeOrgOps, resolvePersonFootprint } from './person-footprint'
 import { isEmailVerificationEnabled } from '@/lib/config/auth'
 import { isValidCpf, normalizeCpf } from '@/lib/users/cpf'
 
@@ -30,6 +36,18 @@ export interface ActionState {
   ok: boolean
   error?: string
   fieldErrors?: Record<string, string>
+}
+
+/**
+ * `registerUser`'s state. Carries the created person's id so the wizard can redirect to
+ * their new profile (ADR 0133 F3) instead of guessing the route or re-searching for them.
+ *
+ * A dedicated extension rather than a field on `ActionState`: eight other actions in this
+ * module return `ActionState`, and widening it there would have every one of them
+ * advertise an id they never set. Present ONLY when `ok` is true.
+ */
+export interface RegisterUserState extends ActionState {
+  userId?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +92,10 @@ export interface RegisterUserInput {
   homeHospitalId?: string | null
   /** Matrícula. Rides on the affiliation created above; ignored without a hospital. */
   hospitalEmployeeId?: string | null
+  /** ADR 0133 D9 (AFF2 B1). Optional at registration. ISO `yyyy-mm-dd`. */
+  dateOfBirth?: string | null
+  /** ADR 0133 D9 (AFF2 B1). Optional at registration. Stored digits-only. */
+  phone?: string | null
   /**
    * CPF, the person key (ADR 0097 D7). Digits or formatted — normalized here.
    *
@@ -125,6 +147,17 @@ export interface UpdateUserProfileInput {
    * unchanged value is fine — the gate fires on a real change, not on presence.
    */
   cpf?: string | null
+  /**
+   * ADR 0133 D9/D10 (AFF2 B1). ISO `yyyy-mm-dd`. OMIT the key to leave it untouched;
+   * `null` clears it — the same discipline as `cpf` above. Person-level under D3, so a
+   * change is gated by the `fields` capability.
+   */
+  dateOfBirth?: string | null
+  /**
+   * ADR 0133 D9/D10 (AFF2 B1). Stored DIGITS-ONLY, no CHECK (Amdt 1 ruling 6) —
+   * formatting is display-side. Same undefined-means-untouched discipline.
+   */
+  phone?: string | null
 }
 
 /** Create-or-update a single credential. `id` present ⇒ update (which CLEARS `verified_at`). */
@@ -154,7 +187,15 @@ const MESSAGES = {
   cpfCollision: 'Este CPF já está cadastrado na plataforma.',
   cpfInvalid: 'Informe um CPF válido.',
   cpfRequired: 'Informe o CPF.',
-  // ADR 0097 D14 — person-level fields and the account lifecycle are org_admin-only.
+  // ⚠ THE COMMENT WAS STALE, THE STRING IS NOT — and the pairing is why it survived six
+  // reviews, a QA pass and eight lint gates. It read "ADR 0097 D14 — person-level fields and
+  // the account lifecycle are org_admin-only", which ADR 0133 Amdt 1 ruling 1 REVERSED for
+  // person-level fields and credentials (they take the intersection bound); only CPF-change
+  // and lifecycle kept the subset bound.
+  //
+  // The MESSAGE stays exactly as it is. It renders only when a caller was genuinely refused,
+  // and in every such case the org admin really is the only one who can act — a conditional
+  // truth that still holds. Do not "fix" the copy to match the old comment.
   orgAdminOnly:
     'Apenas o administrador da organização pode alterar os dados pessoais e a situação da conta.',
   credentialCollision:
@@ -194,19 +235,6 @@ async function appOrigin(): Promise<string> {
 }
 
 /**
- * Authorize an org-scoped user-management action: the caller must be an
- * `org_admin` of `orgId`. Returns false (deny) otherwise. The platform_admin is
- * DELIBERATELY not admitted (vendor isolation; ADR 0041). This is the ONLY
- * authority on the service-role path — the client is never trusted.
- */
-async function authorizeOrgOps(orgId: string): Promise<boolean> {
-  const context = await getSessionContext()
-  if (!context) return false
-  if (context.isInactive) return false
-  return context.orgAdminOf.some((o) => o.organization.id === orgId)
-}
-
-/**
  * Authorize a HOSPITAL-scoped user-management action (ADR 0051 Decision 7): the
  * caller must be a `hospital_admin` of `hospitalId`. Returns false otherwise.
  * Amendment 11: the service-role path has NO RLS backstop, so this TS check is
@@ -232,36 +260,22 @@ async function callerHospitalAdminMayManageUser(
 ): Promise<boolean> {
   const context = await getSessionContext()
   if (!context || context.isInactive) return false
-  const adminedHospitalIds = new Set(
-    context.hospitalAdminOf.map((h) => h.hospital.id),
-  )
-  if (adminedHospitalIds.size === 0) return false
+  const administered = new Set(context.hospitalAdminOf.map((h) => h.hospital.id))
+  if (administered.size === 0) return false
 
-  const admin = createAdminClient()
-
-  // (a) an ACTIVE affiliation to an administered hospital (ADR 0097 D1/D3 — this arm
-  // read profiles.home_hospital_id until that column was dropped).
-  const { data: affiliations } = await admin
-    .from('hospital_affiliations')
-    .select('hospital_id')
-    .eq('principal_id', userId)
-    .is('ended_on', null)
-    .returns<{ hospital_id: string }[]>()
-  if ((affiliations ?? []).some((a) => adminedHospitalIds.has(a.hospital_id))) {
-    return true
-  }
-
-  // (b) membership in any commission under an admined hospital. MEM: commission-scope
-  // rows of `memberships` (commission_id set); resolve the hospital via the FK.
-  const { data: memberships } = await admin
-    .from('memberships')
-    .select('commissions:commission_id(hospital_id)')
-    .eq('principal_id', userId)
-    .not('commission_id', 'is', null)
-    .returns<{ commissions: { hospital_id: string } | null }[]>()
-  return (memberships ?? []).some(
-    (m) => m.commissions && adminedHospitalIds.has(m.commissions.hospital_id),
-  )
+  // ⛔ SEMANTICS DELIBERATELY UNCHANGED BY THE ADR 0133 GENERALISATION: ANY intersection,
+  // NO tier rule, NO subset bound. This gates the ENTRY to `updateUserProfile` and gates
+  // `resendInvite` outright, and neither is person-level authority — resending an invite
+  // re-sends an email the person is already entitled to. Routing this through
+  // `personScopeAllows` would silently import D2 and deny a hospital_admin the ability to
+  // resend an invite to, say, a technical_director at their own hospital.
+  //
+  // It shares `resolvePersonFootprint` rather than re-deriving the footprint beside it —
+  // a second derivation of the same thing is the "same predicate twice, drifting" shape.
+  // Pinned by `d14-person-level.test.ts` §7, whose cross-hospital and hospital-tier arms
+  // are the only things that would notice if this acquired either bound.
+  const footprint = await resolvePersonFootprint(userId)
+  return footprint.hospitalIds.some((hospitalId) => administered.has(hospitalId))
 }
 
 /**
@@ -303,25 +317,29 @@ async function ensureActiveAffiliation(params: {
 }
 
 /**
- * D14 AUTHORITY — person-level fields are `org_admin`-ONLY.
+ * ADR 0133 D1–D4 (+ Amendment 1 ruling 1) — THE person-level authority gate.
  *
- * ADR 0097 D14: name, CPF, professional category and credentials are facts about the
- * PERSON, not about a hospital, so two hospital admins editing them is a silent
- * cross-hospital write. Same for the account lifecycle: `app.is_active` is folded into
- * every membership predicate, which makes deactivation a PLATFORM-WIDE kill switch —
- * one hospital's offboarding must never end a professional's access at another.
+ * Replaces `authorizeOrgAdminForUser`, whose blanket "org_admin only" this ADR reversed
+ * for two of the four capability classes. The org_admin arm is unchanged and is NOT
+ * footprint-bounded; the new hospital_admin arm is.
  *
- * ⚠ THIS IS THE ONLY AUTHORITY ON THESE PATHS. They run on the service-role client,
- * which has no RLS backstop, and the `profiles` column grants that lock `cpf` govern
- * PostgREST only — the service client walks straight around them. Until this function
- * existed, `authorizeForUser`'s hospital arm admitted a `hospital_admin` to every one
- * of them, so D14 was asserted in an ADR and enforced nowhere.
+ * ⚠ THIS IS THE ONLY AUTHORITY ON THESE PATHS. They run on the service-role client, which
+ * has no RLS backstop, and the `profiles` column grants that lock `cpf`/`date_of_birth`/
+ * `phone` govern PostgREST only — the service client walks straight around them. A SQL
+ * twin is deliberately NOT built (D4): no policy would consume it and a dead DB predicate
+ * is a census liability forever. Keystoned in `d14-person-level.test.ts` (wiring, through
+ * the real actions) and `person-scope.test.ts` (the decision).
  *
- * Deliberately NOT platform_admin either: `authorizeOrgOps` excludes it (ADR 0041 /
- * the noun rule — commission content and person records are not platform_admin's).
+ * ⚠ THE CAPABILITY ARGUMENT IS LOAD-BEARING — it selects between an INTERSECTION bound and
+ * a SUBSET one. Passing the wrong one at a call site is invisible to `person-scope.test.ts`
+ * however perfect that predicate is, which is why the wiring has its own keystone file.
+ *
+ * Deliberately NOT platform_admin either: `authorizeOrgOps` excludes it (ADR 0041 / the
+ * noun rule — commission content and person records are not platform_admin's).
  */
-async function authorizeOrgAdminForUser(
+async function authorizePersonScopedAdmin(
   userId: string,
+  capability: PersonScopeCapability,
 ): Promise<{ ok: boolean; orgId?: string }> {
   const admin = createAdminClient()
   const { data } = await admin
@@ -331,7 +349,24 @@ async function authorizeOrgAdminForUser(
     .maybeSingle()
   const orgId = data?.home_organization_id ?? undefined
   if (!orgId) return { ok: false }
-  return { ok: await authorizeOrgOps(orgId), orgId }
+
+  // The org_admin arm, exactly as before this ADR.
+  if (await authorizeOrgOps(orgId)) return { ok: true, orgId }
+
+  // The hospital_admin arm (D1). (a) the caller must hold hospital_admin in the TARGET'S
+  // home org — a hospital administered in some other org is not a claim on this person.
+  const context = await getSessionContext()
+  if (!context || context.isInactive) return { ok: false, orgId }
+  const administeredHospitalIds = context.hospitalAdminOf
+    .filter((h) => h.organization.id === orgId)
+    .map((h) => h.hospital.id)
+  if (administeredHospitalIds.length === 0) return { ok: false, orgId }
+
+  const footprint = await resolvePersonFootprint(userId)
+  return {
+    ok: personScopeAllows(capability, footprint, administeredHospitalIds),
+    orgId,
+  }
 }
 
 /**
@@ -410,7 +445,7 @@ function revalidateDirectory(): void {
  */
 export async function registerUser(
   input: RegisterUserInput,
-): Promise<ActionState> {
+): Promise<RegisterUserState> {
   const fullName = input.fullName.trim()
   const email = input.email.trim().toLowerCase()
 
@@ -594,6 +629,11 @@ export async function registerUser(
       full_name: fullName,
       professional_category_id: input.professionalCategoryId,
       cpf,
+      // ADR 0133 D9 — optional at registration; `null` when not supplied. Written here on
+      // the SERVICE path, which is the only path that may set them at all (D10: the
+      // privileged-column guard refuses every signed-in caller).
+      date_of_birth: input.dateOfBirth || null,
+      phone: input.phone ? input.phone.replace(/\D/g, '') || null : null,
       // Flag-OFF path only: the admin set the initial password, so force the user
       // to rotate it at /primeiro-acesso before using the app (ADR 0049). The
       // flag-ON invite path leaves it false (the user sets their own at /convite).
@@ -727,6 +767,9 @@ export async function registerUser(
   revalidateDirectory()
   return {
     ok: true,
+    // ADR 0133 F3 — the wizard redirects to the new person's profile. Returned only on
+    // success, which is why `RegisterUserState.userId` is optional rather than required.
+    userId,
     error: emailVerification
       ? MESSAGES.registeredInvited
       : MESSAGES.registeredActive,
@@ -759,18 +802,62 @@ export async function updateUserProfile(
   const adminClient = createAdminClient()
   const { data: current } = await adminClient
     .from('profiles')
-    .select('full_name, professional_category_id, cpf')
+    .select('full_name, professional_category_id, cpf, date_of_birth, phone')
     .eq('id', input.userId)
     .maybeSingle()
   if (!current) return { ok: false, error: MESSAGES.missingUser }
 
+  // ⛔ THE CPF GRAIN IS "A REAL CHANGE", NOT "THE KEY IS PRESENT" — ruled 2026-08-23,
+  // recorded as ADR 0133 Amendment 3. Amdt 1's own wording says "whenever the input
+  // INCLUDES cpf", and taken literally that DEFEATS the amendment it appears in: ruling 1
+  // exists to let a hospital_admin edit a cross-hospital person's fields, and presence-based
+  // gating denies exactly that the moment the form posts the key. It is not weaker either —
+  // a caller who may not change the CPF is refused the instant they try, and sending an
+  // unchanged value accomplishes nothing, so gating presence buys no security.
+  //
+  // ⚠ NORMALISED ON BOTH SIDES deliberately. `profiles_cpf_valid` CHECKs `app.is_valid_cpf`
+  // (`^[0-9]{11}$`), so the stored side is digits-only today and a one-sided compare would
+  // also work — but only by importing an invariant declared in another file with nothing
+  // pointing here. Symmetric, this is correct under either answer.
+  //
+  // Clearing (`null` / `''`) against a stored value IS a change and correctly hits the
+  // tighter bound: erasing a person-key is a person-key identity event like rewriting one.
+  const cpfChanged =
+    cpf !== undefined && normalizeCpf(current.cpf ?? '') !== normalizeCpf(cpf ?? '')
+
+  // QA R4 — NORMALISE BOTH SIDES FOR THE B1 COLUMNS TOO, exactly as `cpf` does above.
+  //
+  // Amdt 3's symmetry ruling was applied to `cpf` and not to its two siblings: these
+  // compared RAW while the write path normalises. `phone: '(11) 98765-4321'` against a
+  // stored `'11987654321'` read as a CHANGE and gated a person-level write that would have
+  // stored byte-identical digits; `dateOfBirth: ''` against a stored `null` did the same,
+  // because the write path coerces `''` to null and the comparison did not.
+  //
+  // ⚠ IT FAILED CLOSED — over-gating, never under — and it is latent behind the current
+  // form, which is precisely what makes it the "trap for the next author" Amdt 3 was ruled
+  // on, one field over. The normalisers are the SAME expressions the write path uses; a
+  // comparison that disagrees with its own writer is the defect, not the formatting.
+  const normalizePhone = (v: string | null | undefined): string | null =>
+    v ? v.replace(/\D/g, '') || null : null
+  const normalizeDob = (v: string | null | undefined): string | null => v || null
+
   const personLevelChanged =
     current.full_name !== fullName ||
     current.professional_category_id !== input.professionalCategoryId ||
-    (cpf !== undefined && current.cpf !== cpf)
+    cpfChanged ||
+    // D3: the B1 columns are person-level fields, so a change to either is gated. Same
+    // undefined-means-untouched discipline as `cpf`.
+    (input.dateOfBirth !== undefined &&
+      normalizeDob(current.date_of_birth) !== normalizeDob(input.dateOfBirth)) ||
+    (input.phone !== undefined &&
+      normalizePhone(current.phone) !== normalizePhone(input.phone))
 
   if (personLevelChanged) {
-    const personAuth = await authorizeOrgAdminForUser(input.userId)
+    // Amdt 1 ruling 1 — ONE action, TWO bounds. A CPF rewrite is a person-key identity
+    // event other hospitals depend on, so it keeps the SUBSET bound while every other
+    // person-level field takes the widened INTERSECTION one.
+    const capability: PersonScopeCapability = cpfChanged ? 'cpf_change' : 'fields'
+    const personAuth = await authorizePersonScopedAdmin(input.userId, capability)
     if (!personAuth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
   }
 
@@ -803,8 +890,15 @@ export async function updateUserProfile(
       full_name: fullName,
       professional_category_id: input.professionalCategoryId,
       // `cpf` is written ONLY when the caller supplied the key at all, so an edit form
-      // that does not carry the field can never null it out.
+      // that does not carry the field can never null it out. The two B1 columns follow
+      // exactly the same rule (ADR 0133 D9/D10).
       ...(cpf === undefined ? {} : { cpf }),
+      // The SAME normalisers the change-detector above uses. Two copies of one coercion is
+      // how a comparison and its writer come to disagree (QA R4).
+      ...(input.dateOfBirth === undefined
+        ? {}
+        : { date_of_birth: normalizeDob(input.dateOfBirth) }),
+      ...(input.phone === undefined ? {} : { phone: normalizePhone(input.phone) }),
     })
     .eq('id', input.userId)
   if (error) {
@@ -835,8 +929,9 @@ export async function updateUserProfile(
 export async function upsertCredential(
   input: UpsertCredentialInput,
 ): Promise<ActionState> {
-  // D14: a professional council registration is a fact about the PERSON.
-  const auth = await authorizeOrgAdminForUser(input.userId)
+  // ADR 0133 D3: a council registration is a fact about the PERSON, and Amdt 1 ruling 1
+  // widened it to the INTERSECTION bound alongside the other person-level fields.
+  const auth = await authorizePersonScopedAdmin(input.userId, 'credentials')
   if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const row = {
@@ -899,8 +994,10 @@ export async function removeCredential(
     .maybeSingle()
   if (!cred) return { ok: false, error: MESSAGES.generic }
 
-  // D14: person-level.
-  const auth = await authorizeOrgAdminForUser(cred.user_id)
+  // ADR 0133 D3 — person-level, `credentials` capability (intersection). Carries its own
+  // call site rather than sharing upsert's: F6 recorded that reverting the shared gate
+  // reded nothing, so removal needs its own arm and its own capability.
+  const auth = await authorizePersonScopedAdmin(cred.user_id, 'credentials')
   if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const { error } = await admin
@@ -1011,11 +1108,12 @@ export async function removeCommittee(
 
 /** Deactivate a user (master switch off). Next-request logout via the gate. */
 export async function deactivateUser(userId: string): Promise<ActionState> {
-  // D14 — UNREACHABLE BY A HOSPITAL ADMIN. `app.is_active` is folded into every
-  // membership predicate, so this is a PLATFORM-WIDE kill switch: one hospital's
-  // offboarding would end the person's access at every other hospital and committee
-  // they hold. Offboarding from a hospital is `end_affiliation`, not this.
-  const auth = await authorizeOrgAdminForUser(userId)
+  // ADR 0133 D3 + Amdt 1 ruling 1 — `lifecycle`, which KEEPS THE SUBSET BOUND. `app.is_active`
+  // is folded into every membership predicate, so this is a PLATFORM-WIDE kill switch: one
+  // hospital's offboarding would end the person's access at every other hospital and
+  // committee they hold. A hospital_admin may therefore deactivate only a person whose
+  // ENTIRE footprint they administer. Offboarding from ONE hospital is `end_affiliation`.
+  const auth = await authorizePersonScopedAdmin(userId, 'lifecycle')
   if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const admin = createAdminClient()
@@ -1031,8 +1129,9 @@ export async function deactivateUser(userId: string): Promise<ActionState> {
 
 /** Reactivate a deactivated user (is_active=true; also clears any residual suspension). */
 export async function reactivateUser(userId: string): Promise<ActionState> {
-  // D14 — the inverse of deactivateUser is equally platform-wide.
-  const auth = await authorizeOrgAdminForUser(userId)
+  // ADR 0133 — the inverse of deactivateUser is equally platform-wide, so it carries the
+  // same `lifecycle` (subset) bound: reactivating restores access everywhere at once.
+  const auth = await authorizePersonScopedAdmin(userId, 'lifecycle')
   if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const admin = createAdminClient()
@@ -1055,8 +1154,9 @@ export async function suspendUser(
   userId: string,
   suspendedUntil: string | null,
 ): Promise<ActionState> {
-  // D14 — suspension routes through the same `app.is_active` kill switch.
-  const auth = await authorizeOrgAdminForUser(userId)
+  // ADR 0133 — suspension routes through the same `app.is_active` kill switch, so it is
+  // `lifecycle` (subset) too, not a lesser act.
+  const auth = await authorizePersonScopedAdmin(userId, 'lifecycle')
   if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const admin = createAdminClient()

@@ -2978,3 +2978,75 @@ Tester-owned, **not yet executed**; ordered before AFF2 pins its e2e baseline.
 ## ↩ Rotated from PROGRESS.md 2026-08-22 — ADR 0134 Increment 2
 
 - 🟠 **BUG-ADM-APPOINT-CAPS-NOT-SYNCED** — appoint syncs `appointed` but not `caps`, so Amdt 5's auto-granted `read_cases` renders **UNCHECKED** until reload. DB correct — UI state-sync only, not an authz defect. ⛔ Do NOT fix by pre-checking client-side. Pinned red-on-purpose by B5, whose 2nd assertion has **never run**. [Detail](case-surface-split-increment-2.md) — frontend ✅ **FIXED 2026-08-22** (`a514d169`): `caps` was seeded from a prop with `useState`, so it ignored every later prop value — the grant landed, the props carrying it arrived, and the component discarded them. Now reconciled from the server, keyed on prop **content** not identity. ⚠ B5's second assertion (*unchecking empties the board*) had **never executed** before the fix and passed for the first time after it — not a return to green. MERGED `be546bbf`.
+
+## Rotated 2026-08-23 — two RESOLVED closure narratives, moved out of PROGRESS.md § Bug Log
+
+_Both bugs were already fixed and their full rows already archived; what remained live were the ✅ closure
+summaries. Rotated verbatim (link prefixes mechanically rewritten, inverse transform verified) at the AFF2
+rotation pass. **`BUG-BOOTSTRAP-001` remains the only OPEN bug** and stays in PROGRESS.md._
+
+> ⚠ One clause below is now STALE and is kept only because a verbatim rotation is verbatim: the
+> *"no full clean `e2e:prod` has confirmed it"* caveat was true when written and was **discharged on
+> 2026-08-23** by a full `REBUILD=1` run at `d885f621` (1185 p · 2 f · 2 flaky · 8 DNR · 20 batches, both
+> failures retry artifacts that pass 25/0 when re-run alone).
+
+✅ **BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW — RESOLVED 2026-08-21**, fixed / mutation-proven / gated /
+merged (`96c49da4`) / applied to the linked project. Full row + closure narrative rotated verbatim →
+[bug-log-archive.md](bug-log-archive.md). ⛔ **It sat here wearing a 🔴 for hours after it was
+fixed** — `lint:progress` reds a resolved *follow-up index line* but **cannot see a fixed bug left in the OPEN
+section**, so rotation discipline is the only control, and it is the one this repo records as chronically
+skipped. Caught while writing a report **from this register**, which is the register's real test.
+
+✅ **BUG-QO-STALE-CASOS + BUG-QO-STALE-CASOS-2 — BOTH RESOLVED 2026-08-21** (Step 0 of the case-surface-split
+program, branch `feat/case-surface-split`, commit `4ec53577`). `quality-oversight.spec.ts` **21 p / 0 f /
+0 did-not-run / exit 0** on a fresh reset, was 19p/2f. The pairing was preserved, not swapped. Full rows +
+closure narrative rotated verbatim → [bug-log-archive.md](bug-log-archive.md).
+⭐ Carried forward because it outlives the bug: **"two failing tests" was a FLOOR, not a count** — a failing
+assertion masks every assertion after it in the same test, so instance 3 was invisible until instance 1 was
+fixed. Sweep the class **statically**; a run-fix-rerun loop reports green at the last **reachable** stale
+assertion. ✅ **The repair is now ON `main`** — `feat/case-surface-split` merged at `6e364203`, so the
+condition this line named is satisfied and the baseline expectation is **0 known-stale failures**.
+⚠ **Expectation, not a measurement:** no full clean `e2e:prod` has confirmed it — the most recent gate row is
+the Increment-2 **union of two runs with 75 unrun**, and that row does not record which batches those were,
+so whether `quality-oversight.spec.ts` executed post-merge is **undetermined, not green**. Re-derive from a
+run before quoting it as the baseline.
+
+## Rotated 2026-08-23 — BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS (RESOLVED, closed on evidence)
+
+_Filed by `tester` during AFF2 T0, fixed by `frontend` at `d23d1045`, and closed only when the instrument that
+found it re-ran: `form-name-attribute-invariant.spec.ts`'s "profile edit" test passed in **batch 8 of the
+`e2e:prod` gate** (65 p / 0 f / 5 skipped, accounted 70/70, exit 0) — the production build, not just the
+dev-mode T2 confirmation. ⛔ The row below still carries its original **"Status: OPEN, owner `frontend`"**
+line beneath a later FIXED block; that contradiction is preserved because a verbatim rotation is verbatim._
+
+⭕ **BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS — a successful "Dados pessoais" save shows the admin NO
+confirmation at all; the success banner is mounted and unmounted in the same React commit.** Filed
+2026-08-23 (`tester`, AFF2 T0) running the full regression on `e2e/form-name-attribute-invariant.spec.ts`
+(not a file named in the T0 breakage inventory — found by running beyond the named set). **Repro:**
+sign in as `orgadmin.a@test.local` (or any hospital_admin with `fields` capability on the target),
+open any person's profile (`/o/[org]/manage/usuarios/[userId]`), click "Editar" on the Dados pessoais
+card, change any field (e.g., Nome completo), click "Salvar alterações". **Expected:** the
+`<FormBanner tone="success">Perfil atualizado.</FormBanner>` is visible for at least a perceptible
+interval — this is the acceptance bar `form-name-attribute-invariant.spec.ts`'s own pre-existing
+"profile edit" test encodes, and CLAUDE.md §8's general "every action gets accessible feedback" bar.
+**Actual:** measured by polling every 50ms from the instant "Salvar alterações" is clicked — the
+banner's visible count is **0 at every poll from t=0ms**, and the form itself is already unmounted by
+the first poll; the card has already reverted to its read-only view (confirmed: "Editar" button count
+is back to 1). **Mechanism** (`src/components/users/user-profile-edit-form.tsx` +
+`personal-data-card.tsx`): `handleSubmit` calls `setSuccess(true)` then, in the same synchronous
+continuation, `onSaved?.()` — which is wired to `PersonalDataCard`'s `() => setEditing(false)`. Both
+state updates land in the same React commit, so the parent's `editing=false` unmounts
+`UserProfileEditForm` (banner included) before the success state it just set ever paints. The
+underlying save itself is NOT affected (the value persists — confirmed via the same test's
+service-role table read) — this is a pure UI/confirmation-feedback defect, not a data-integrity one.
+
+⭕ **FIXED 2026-08-23 (`d23d1045`, `frontend`) and CONFIRMED LIVE by an independent instrument — held OPEN only until the originally-failing spec re-runs.** The confirmation moved to **`PersonalDataCard`**, which survives the collapse; the form keeps its **error** banner, because a failed save leaves it mounted and able to own that message. ⭐ **The recurrence stopper is that `onSaved` is now REQUIRED, not optional** — otherwise the next consumer mounts the form, reports nothing on success, and reproduces this **invisibly**, since the write still succeeds and every functional assertion passes. ⭐ **The general form, which predicts placement instead of diagnosing it: _a component may own a message only for the outcomes it SURVIVES._** ⚠ Two further routes to the same silence were closed or measured, not assumed: the live region is **permanently mounted and empty** (a region arriving in the same commit as its text is announced unreliably), and the **`router.refresh()` → `onSaved()`** sequence was verified **not** to remount `PersonalDataCard` — `saved` survives, banner paints (`tester` T2, **5/5**, with the assertion unmodified). A class sweep of the four sibling components found **no other instance**; two already used the surviving-component pattern, so the house pattern was right and this card was the outlier. ⛔ **Not closed yet:** `form-name-attribute-invariant.spec.ts`'s banner assertion — the instrument that found it — is in the in-flight `e2e:prod` run and has not re-run since the fix. Close on that evidence, not on this note.
+**Violates:** the spec clause `form-name-attribute-invariant.spec.ts` — "profile edit › an edited name
+persists, and neither it nor the CPF reaches the URL" (the `await expect(page.getByText(/perfil
+atualizado/i)).toBeVisible()` line) — and CLAUDE.md §8's accessible-feedback bar; not an ADR 0133
+decision (ADR 0133 does not speak to save-confirmation UX, so this is a build regression, not a
+scoped/intended behavior change). **Status:** OPEN, owner `frontend`. `tester` left the spec's banner
+assertion **unchanged and failing** (per role: file, don't paper over) — the surrounding fix (this
+same test now also clicks "Editar" before locating the Nome field, a genuine, unrelated repair for
+the disclosure-based edit UX ADR 0133 F2 introduced) is unaffected and correct on its own.
+

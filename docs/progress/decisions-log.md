@@ -393,3 +393,91 @@ dead-end analysis that produced OPEN-4, rotated at the §7 size cap._
   the per-row loop and the loop re-raises, **rolling back the whole batch** — so an administrativo
   on a **patient-collecting** template fills up to 200 rows and loses all of it to a message naming
   *"a coordenação"*. PHI-free batches never reach step (d).
+
+## Rotated 2026-08-23 at AFF2 build start — three concluded 2026-08-19 decision rows
+
+_Moved verbatim from PROGRESS.md § Decisions (link prefixes mechanically rewritten, inverse transform verified) to bring the live file back under the 80 KB `lint:progress` cap. Concluded rows; no live item references them._
+
+| Date | Decision | Reference |
+| --- | --- | --- |
+| 2026-08-19 | ✅ **Counsel's Q14 return: committee records NOT prontuário; removal requests CASE-BY-CASE with legal consultation (supersedes the blanket override); 20-yr retention adopted BY DEFAULT as policy** (PO-relayed). `subject_request` lane live; refusal copy cites the policy, never CFM 1821 | ADR [0035](../decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1** (resolved) · ADR [0130](../decisions/0130-dsr-subject-request-workflow.md) **Amdt 1** |
+| 2026-08-19 | **Both § 6b backup residues PROMOTED to § Critical FUP — C3 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (🔴) + C4 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (🟠)** (PO, explicit instruction). ⭐ C3 shares C1's pilot-data-load trigger for the **opposite** reason; C4 is reachable on Cloud **today** | [run log](../deployment/phi-backup-run-log.md) F5/F6 · **§ Critical FUP C3/C4** · [decisions-log](decisions-log.md) |
+| 2026-08-19 | ⛔ **"PROGRESS.md is loaded by every spawn" IS FALSE, and never was** — no `@`-import has ever existed. The claim sat in ADR 0124, the banner, the gate header and an external handoff. Always-loaded is CLAUDE.md 32 KB + MEMORY.md 20 KB; this file is read on demand | ADR [0124](../decisions/0124-progress-live-state-contract.md) **Amdt 1** |
+
+## Rotated 2026-08-23 (second pass) — two more concluded decision rows
+
+_Moved verbatim from PROGRESS.md § Decisions to keep the live file under the 80 KB `lint:progress` cap while AFF2's build-start rulings were added. Concluded rows._
+
+| Date | Decision | Reference |
+| --- | --- | --- |
+| 2026-08-20 | **ADR 0130 Proposed → Accepted; DSR Slice 2 BUILT** (PO instruction). Four shape changes measurement forced — incl. ADR 0056 Consequence (a)'s meetings-dispose UI moving to Slice 3. ✅ **Pilot-gate item 0 DISCHARGED** | ADR [0130](../decisions/0130-dsr-subject-request-workflow.md) **Amdt 2** · [plan](../plans/dsr-workflow-plan.md) |
+| 2026-08-20 | **`lint:progress` SIZE_CAP raised 60 KB → 80 KB** (PO instruction) — live file was 207 B under the old cap; project's live surface has outgrown the original sizing | ADR [0124](../decisions/0124-progress-live-state-contract.md) **Amdt 2** |
+
+## Rotated 2026-08-23 (third pass) — two more concluded decision rows
+
+_Verbatim from PROGRESS.md § Decisions, to make room for the AFF2 build-start follow-ups._
+
+| Date | Decision | Reference |
+| --- | --- | --- |
+| 2026-08-20 | **DSR Slice 3 SHIPPED — QA APPROVED r2, PO-approved.** The ONE named widening (`search_patient_xref` + `is_dpo_of`), adjudication, attested tier, refusal-retirement, ADR 0056 Consequence (a) discharged. ⛔ Zero disposal-gate widenings; **no second read-boundary change** (QA catalog-verified) | ADR [0130](../decisions/0130-dsr-subject-request-workflow.md) **Amdt 3** · [review](../reviews/dsr-slice-3-review.md) |
+| 2026-08-20 | **PO: INVERT the `useFieldIds` `name` default** — the hook omits `name`; `FormData`/radio/autofill callers opt in. The dangerous case was the default, the safe one a discipline at 51 sites (**10/51 measured**). ⛔ Route-crawler gate NOT in scope | FUP-FORM-IDENTIFIER-IN-URL · [follow-ups.md](follow-ups.md) |
+
+## Rotated 2026-08-23 (fourth pass) — one more concluded decision row
+
+_Verbatim from PROGRESS.md § Decisions, making room for the amended error-boundary follow-up._
+
+| Date | Decision | Reference |
+| --- | --- | --- |
+| 2026-08-20 | ~~**DSR Slice 4 — QA r1 CHANGES REQUESTED, NOT complete; blocked on the meeting-door widening**~~ — **SUPERSEDED same day**: the widening landed and QA APPROVED at r3 | [review](../reviews/dsr-slice-4-review.md) |
+
+## Rotated 2026-08-23 (AFF2 rotation pass) — 15 concluded decision rows
+
+_Verbatim from PROGRESS.md § Decisions. The **2026-08-20** rows (pre-AFF2-build) and the **2026-08-22** rows
+(the case-surface-split PO rulings, whose §6 Record step completed at `c85af876`) are concluded. The
+**2026-08-21** AFF2 rows stay live — that workstream is in flight._
+
+| Date | Decision | Reference |
+| --- | --- | --- |
+| 2026-08-22 | **PO: `create_case` loses its `app.is_admin()` disjunct** — the noun rule (ADR 0078 A35) stands unamended; `platform_admin` may not create commission content. It was the sole outlier of three creation doors | ADR [0078](../decisions/0078-authorization-capability-model.md) A35 (applied) |
+| 2026-08-22 | **PO: authored refusals get their own `HCxxx` SQLSTATE; `42501` stays RESERVED.** ⛔ ACCEPTED, then **DEFERRED by the PO — a decision, not a gap**; both source follow-ups stay OPEN. **814 pgTAP refs** vs 247 door lines: the TEST surface is the cost | ADR [0135](../decisions/0135-authored-refusals-get-their-own-sqlstate.md) |
+| 2026-08-22 | **PO: the phase-result UI widens to PER-PHASE** to match the door. ✅ **BUILT** as a KIND, not a boolean; required dropping a coordinator-only TS pre-gate **and** its `isAdmin` dead end. 2 residues filed | `FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT` |
+| 2026-08-22 | **PO: `meus-casos` rows correctly stay on `/casos`** — Meus Casos is name-attributed work, which D1 keeps on the read surface. **The plan sentence was the defect, not the routing**; T5 clarified | ADR [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) **D1** |
+| 2026-08-22 | **PO: bulk creation needs TWO existing keys** (`create_cases` ∧ `assign_case_phases`); `all_phases` stays coordinator-only and is refused **at the gate**, not after 200 rows. A1.2's one-arm sentence was built and measured insufficient — `bulk_create_cases` is a **composition** | ADR 0134 **Amdt 7** |
+| 2026-08-22 | **LEAD: `member_can_for` is the single predicate implementation, `member_can` delegates.** D6 named a chokepoint that takes **no uid** and so cannot answer S8's question | ADR 0134 **Amdt 6** |
+| 2026-08-22 | **PO: "default-checked" is a GRANT, not a pre-ticked box** — `appoint_administrativo` grants `read_cases` on a **new** appointment; existing appointees are **not** backfilled | ADR 0134 **Amdt 5** |
+| 2026-08-22 | **PO: D1 AMENDED — `/casos`'s invariant is capability-invariance, not absence of writes.** An affordance may sit there if name-attributed **or if its door admits every member who can open the page**; admission earned at the door, from the catalog. ⛔ *"Carve-outs go to zero"* was false on `main` | ADR [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) **Amdt 3** |
+| 2026-08-22 | **PO: S8 bounded by `not v_eg`, like S5/S7** — an `explicit_grants_only` case is invisible to the `read_cases` arm; reach rides an S3 grant or nothing. ⛔ Unbounded it left the appointee in the quality reviewer's exact bit-shape. Binds M2: P9 · P9-twin · P10 · P11 + door census | ADR [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) **Amdt 4** |
+| 2026-08-20 | **AFF2 accepted (PO): affiliation-scoped hospital_admin authority** — footprint-bounded person-level edits, credentials + lifecycle · CPF mandatory in UI, escape hatch REMOVED · `date_of_birth`+`phone` added column-locked · credentials SELECT widens · presence-only CPF display | ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) (né 0129) · amends 0097 D11/D14 · 0098 W3.2 · [0048](../decisions/0048-user-registration-identity.md) D10 |
+| 2026-08-20 | **PO: DSR gate CLOSED — approval given, program merged + pushed.** §6 steps 1–5 complete; step 1 re-run on a fresh reset. ⛔ Step 2 (`e2e:prod`) **not re-run** for the final increment — recorded, not implied | [dsr-program.md](dsr-program.md) |
+| 2026-08-20 | **PO: PHI erasure reaches DESIGNATED PHI fields ONLY** — free text/titles that *may* hold PHI are out of pilot scope; the control is **training**. Shipped reach MAINTAINED, not rolled back. Closes the census + ethics items **by ruling, not remediation — the residue is ACCEPTED, not absent** | ADR [0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) |
+| 2026-08-20 | **PO: DROP Slice 4 item 1** — notification scrubbing **WITHDRAWN as premise-falsified**; the residue class does not exist. Successor `FUP-DOOR-ERASURE-FREETEXT-CENSUS` filed | ADR [0130](../decisions/0130-dsr-subject-request-workflow.md) **Amdt 4** |
+| 2026-08-20 | **PO: WIDEN `dispose_meeting_minutes`** rather than hedge the copy — the untouched free text joins the redaction set, so `DSR_RESIDUE_NOTICE` line 1 becomes true as written. Discharges `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`; needs an ADR 0056 §2 amendment | [follow-ups.md](follow-ups.md) |
+| 2026-08-20 | **DSR Slice 4 BUILT — QA APPROVED r3.** `referral-dispose-dialog.tsx` renders the shared `DSR_RESIDUE_NOTICE` (closes `FUP-DISPOSE-DIALOG-OVERCLAIM`); meeting door widened; N12/N13/N14 built. ⛔ **Gate steps 4–5 + merge/push still owed** | [review](../reviews/dsr-slice-4-review.md) |
+
+## Rotated 2026-08-23 (fifth pass) — four concluded 2026-08-21 rows from the CASE-SPLIT / ETHICS programs
+
+_Verbatim from PROGRESS.md § Decisions. These belong to the case-surface-split program, whose §6 Record step
+landed at `c85af876` — they should have rotated then. The fifth 2026-08-21 row (**AFF2 Amdt 1**) stays live:
+that workstream is still in flight._
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-21 | **PO: OPEN-4 = option D — creation-scoped PHI write for `create_cases`** — the platform's **first PHI write path not held by a coordinator**: type identifiers **while creating** a case, never read or edit after. ⛔ Narrowed at build (lead): server returns **no identifier value** | ADR 0134 **Amdt 2** |
+| 2026-08-21 | **PO: OPEN-1 — NO BACKFILL.** Existing administrativo appointees do not receive `read_cases`; the coordinator opts in per appointee, so every grant has a coordinator action behind it | ADR 0134 **Amdt 1 §A1.1** |
+| 2026-08-21 | **PO: case split = read vs manage** — `/casos` = read + name-attributed work only; ONE manage surface (coordinator / administrativo / write-grantee); administrativo gets commission-wide case READ (5th cap `read_cases`). ⛔ NOT built — plan: [case-surface-split.md](../plans/case-surface-split.md) | ADR [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) |
+| 2026-08-21 | **PO: an ethics proceeding carries NO erasure entitlement, at any stage — no door, no UI.** Basis is the record's **administrative-proceeding** nature, ⛔ **not CFM 1821/2007**. Closes the Class-2 question. ⛔ **2 pre-existing doors DO remove ethics data** — filed, record-only | ADR [0132](../decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md) |
+
+## Rotated 2026-08-23 at the AFF2 Record step — the workstream's decision rows
+
+_Verbatim from PROGRESS.md § Decisions. AFF2 completed its §6 gate and was PO-approved 2026-08-23; its
+decisions are concluded. Full rationale lives in ADR
+[0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) (+ Amendments 1–4) and ADR
+[0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 8._
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-23 | **PO ×4 (AFF2 build start)** — credentials membership leg **mirrors** `profiles`' `COALESCE` form · `expires_at` mirrored (absent) · org_admin hospital filter **BUILT** (new task B8) · search label honest, registro deferred | ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 2** |
+| 2026-08-23 | **LEAD: Amdt 1's "input includes `cpf`" is CHANGE-based**, normalised both sides — presence-based denies a hospital_admin editing the **name** of a cross-hospital person, the case Amdt 1 r1 exists to allow | ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 3** |
+| 2026-08-23 | **An RLS widening is invisible to the phase step and inherits its own STALE verdict** — the recipe greps `create policy`, a widening is `alter policy` → zero rows; `ARM=census` cannot backstop it. A zero-row case list is now a **FINDING** | ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amdt 8** |
+| 2026-08-21 | **AFF2 Amdt 1 (PO): footprint bound SPLITS by capability** — fields+credentials → **intersection**, CPF-change+lifecycle keep **subset** · silent cross-hospital write **ACCEPTED residual** · LGPD: professional titulares administrative, **out of DSR scope BY DESIGN** · 6 rulings | ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 1** |
+

@@ -200,6 +200,15 @@ contradiction surfaces. This ADR resolves it.
     CPF-parameterized call emits an audit row** (Rule 11; audit LOW-2) recording the
     actor, the org, and whether it matched (the matched `user_id` when it did) — **never
     the CPF digits themselves** (Rule 11 logs *that* and *who*, never payloads).
+    > **Amended — ADR [0133](./0133-aff2-affiliation-scoped-administration-um-redesign.md)
+    > D11 + Amendment 4 r2 (AFF2, built 2026-08-23).** The payload gains **`date_of_birth`**
+    > (0133 D9's human homonym-differentiator); **phone does not join it**, and the CPF
+    > posture above is **upheld unchanged** — still an exact-match search input, still never
+    > returned, still audited per call. ⚠ **The DOB field is a built door awaiting its
+    > caller:** 0133 D11 also specified a match-card UI that would display it, and
+    > **Amendment 4 r2 RETIRED that clause** as unwarranted against the actual caller. So
+    > `list_org_people` returns the column and no surface renders it yet — deliberate, not
+    > an oversight.
 12. **One identifier-first registration flow**, not two buttons. The first field resolves
     the identifier, then branches: not found → the current create form; found in my org,
     unaffiliated → offer to affiliate; found and already affiliated → link to their page;
@@ -242,6 +251,42 @@ contradiction surfaces. This ADR resolves it.
     unreachable by hospital admins** — `app.is_active` is folded into every membership
     predicate, so account deactivation is a platform-wide kill switch, and one hospital's
     offboarding must never end a professional's access at another.
+    > ## ⛔ SUPERSEDED — ADR [0133](./0133-aff2-affiliation-scoped-administration-um-redesign.md) D3 + Amendment 1 ruling 1 (AFF2, built 2026-08-23)
+    >
+    > **Both bolded claims above are now FALSE**, and this is the most consequential
+    > amendment in this file — read it before citing D14 anywhere.
+    >
+    > **1. "Person-level fields are `org_admin`-only" — no longer true.** The bound is no
+    > longer *role*, it is **footprint**, and it splits by capability:
+    > - **INTERSECTION** — person-level fields (name, professional category, and the two
+    >   0133 D9 columns) **and** professional credentials: a `hospital_admin` holds these
+    >   over any person whose active footprint **intersects** their administered hospitals,
+    >   people who span hospitals included. This matches the read boundary D6 already draws.
+    > - **SUBSET** — `cpf_change` **and** the account lifecycle: held only over a person
+    >   whose **entire** active footprint lies inside the caller's administered set. Someone
+    >   who also works elsewhere, holds an org- or hospital-tier seat, or has **no** footprint
+    >   at all stays `org_admin`-only.
+    >
+    > **2. "Account deactivation is unreachable by hospital admins" — no longer true**, for
+    > sole-footprint people. ⭐ **The kill-switch rationale was not discarded, it was scoped
+    > to the people it actually protects**: `app.is_active` is still platform-wide, which is
+    > exactly why lifecycle kept the *tighter* SUBSET bound while fields widened. A hospital
+    > admin's LOCAL offboarding is still `end_affiliation`, never deactivation.
+    >
+    > **Mechanically:** `authorizeOrgAdminForUser` — the boundary ADR 0098 §W3.2 installed —
+    > is replaced by `authorizePersonScopedAdmin(userId, capability)` at **six** call sites
+    > in `src/lib/users/actions.ts`, over the pure predicate `personScopeAllows`
+    > (`src/lib/users/person-scope.ts`) and the footprint resolver
+    > (`src/lib/users/person-footprint.ts`). ⚠ **The resolver's membership leg filters
+    > `expires_at`** — an expired commission seat is not a footprint (0133 Amendment 4 r1).
+    > Note the direction: shrinking a footprint **narrows** the intersection capabilities but
+    > **WIDENS** the subset ones. Keystoned in Vitest (`d14-person-level.test.ts`), still not
+    > pgTAP, for W3.2's unchanged reason — the path is service-role, so there is no RLS to
+    > assert against.
+    >
+    > ⚠ **One premise all three authorities share is still unimplemented:** *"active
+    > membership"* is asserted by 0133 D13, the plan and the build prompt, and no policy
+    > enforces both of its halves — `FUP-AFF2-ACTIVE-MEANS-TWO-THINGS`.
 
 ### Professional identity
 

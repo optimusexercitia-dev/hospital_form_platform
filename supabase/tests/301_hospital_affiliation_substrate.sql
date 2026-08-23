@@ -96,9 +96,27 @@ select ok(
 -- F7 — THE COLUMN-GRANT RULE, MADE EXECUTABLE. Until now its discoverability rested on a
 -- `comment on table`: "every new profiles column needs its own GRANT or it reads 42501".
 -- A comment cannot fail. This can: the set of `profiles` columns WITHOUT an
--- `authenticated` SELECT grant must be exactly {cpf}. Add a column and forget the GRANT
--- and it reds here, instead of surfacing as a 42501 to somebody a year from now; add a
--- column and wrongly grant `cpf` and it reds too.
+-- `authenticated` SELECT grant must be exactly the locked set below. Add a column and
+-- forget the GRANT and it reds here, instead of surfacing as a 42501 to somebody a year
+-- from now; grant one of the locked columns and it reds too.
+--
+-- ⛔ THIS EXPECTED SET IS A HAND-LIST, DELIBERATELY, AND MUST STAY ONE. It is a tripwire on
+-- a security-relevant set: every change to it should cost an explicit edit and a reviewer's
+-- attention. Deriving it from the catalog would make it self-satisfying and worthless. Each
+-- member therefore needs a decision behind it:
+--   · `cpf`           — ADR 0097 D7 / HIGH-1: write-only on every admin surface, presence-only
+--                       on the profile rail (ADR 0133 D12). Never rendered, masked or otherwise.
+--   · `date_of_birth` — ADR 0133 D9/D10 (AFF2 B1). Served via the person-scope authorizer and
+--                       the audited `list_org_people` door (Amdt 1 ruling 4), never in-session.
+--   · `phone`         — ADR 0133 D9/D10 (AFF2 B1). One read path only; deliberately NOT in the
+--                       `list_org_people` payload (D11).
+-- ⚠ It grew from {cpf} on 2026-08-23 and this assertion is what forced the change to be
+-- deliberate rather than incidental — B1 reddened it, which is the control working. A future
+-- addition must edit this list and say why, or FUP-AFF2-CONTA must first supersede D10.
+--
+-- ⚠ SELECT is the right privilege to test and REFERENCES is correctly ignored: `profiles`
+-- carries a TABLE-level REFERENCES grant, so every column shows a REFERENCES row including
+-- the locked ones. 0.9 above is what makes that residual inert.
 select is(
   (select coalesce(string_agg(c.column_name, ',' order by c.column_name), '')
      from information_schema.columns c
@@ -108,8 +126,8 @@ select is(
          where g.table_schema = 'public' and g.table_name = 'profiles'
            and g.grantee = 'authenticated' and g.privilege_type = 'SELECT'
            and g.column_name = c.column_name)),
-  'cpf',
-  '0.10 F7: the profiles columns with NO authenticated SELECT grant are exactly {cpf} — the column-grant rule, executable');
+  'cpf,date_of_birth,phone',
+  '0.10 F7: the profiles columns with NO authenticated SELECT grant are exactly {cpf, date_of_birth, phone} — the column-grant rule, executable');
 
 -- ============================================================================
 -- §1 THE CPF PAIR. app.is_valid_cpf <-> isValidCpf (src/lib/users/cpf.ts) is a

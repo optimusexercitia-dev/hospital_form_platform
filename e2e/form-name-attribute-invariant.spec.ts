@@ -604,6 +604,11 @@ test.describe('profile edit', () => {
     await cachedSignIn(page, ORGADMIN)
     await page.goto(`${USERS_ROUTE}/${userId}`)
 
+    // AFF2 F2: "Dados pessoais" is now a disclosure — the edit form (Nome/CPF
+    // included) only mounts once "Editar" is clicked; it did not exist as a
+    // separate control on the old single-state rail.
+    await page.getByRole('button', { name: 'Editar' }).click()
+
     const name = page.getByLabel(/nome/i).first()
     await expect(name).toBeVisible()
     // Both controls are nameless BY DESIGN — this is the second consumer whose

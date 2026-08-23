@@ -6,8 +6,13 @@
 > merged + pushed + cited across PROGRESS.md, ADR 0130 and migration history — that
 > claim to the number wins). Any external note citing "ADR 0129 (AFF2)" means this file.
 
-**Status:** Accepted (PO-approved 2026-08-20 via a two-round grilling interview; build
-not started) · **Date:** 2026-08-20 · **Feature:** the named workstream **AFF2** —
+**Status:** Accepted (PO-approved 2026-08-20 via a two-round grilling interview) · ✅ **BUILT and PO-APPROVED 2026-08-23** — ledger row **AFF2**, QA APPROVED r2 ([review](../reviews/aff2-review.md)), detail [aff2.md](../progress/aff2.md). ⛔ **NOT merged, NOT pushed** — 39 commits on `feat/aff2-user-management`; the 3 migrations are local only.
+> ⚠ **Amendments 2, 3 and 4 were written DURING the build, because this ADR could not be implemented as
+> drafted** — D13 contradicted itself (Amdt 2 r1), Amdt 1's *"whenever the input includes `cpf`"* would have
+> reversed its own purpose (Amdt 3), and D11's match-card clause had no warrant against the actual caller
+> (Amdt 4 r2). A fourth ruling closed a real security gap the ADR's own wording implied but nothing
+> implemented (Amdt 4 r1). ⭐ Recorded here rather than only in the amendments: an ADR that survives a
+> two-round grilling can still be unbuildable as written, and the build is where that surfaces · **Date:** 2026-08-20 · **Feature:** the named workstream **AFF2** —
 (1) hospital admins gain person-level and account-lifecycle authority over people whose
 entire hospital footprint they administer; (2) registration becomes wizard-shaped with
 CPF mandatory in the UI and the quick-invite escape hatch removed; (3) the three
@@ -74,6 +79,137 @@ intent with 0097's cross-hospital safeguards; **upholds** 0097 D7 (CPF posture) 
 >    (the plan's build-time hedge is struck; D10 already implied it). Also ruled:
 >    the design handoff **stays in `docs/design/temp/user_management_redesign/`**
 >    (the plan's move-on-sign-off item is retired).
+
+> ## ✅ AMENDMENT 2 (2026-08-23) — D13's internal contradiction resolved toward the artifact; the read boundary is stated as deliberately wider than the write boundary
+>
+> PO-ruled 2026-08-23 at **build start**, on conflicts surfaced by `backend` and `frontend`
+> measuring the live stack before writing code. Four rulings + two named deferrals.
+>
+> 1. **D13 contradicted itself, and the artifact wins (amends D13).** D13 says the new
+>    `professional_credentials` legs *"mirror the AFF `profiles` widening"* **and** that they
+>    admit *"commission-tier seats"*. Measured 2026-08-23: both live `profiles` SELECT policies
+>    (`profiles_admin_select`, `profiles_select_self_or_admin`) use
+>    `COALESCE(hm.hospital_id, hc.hospital_id)`, which admits **hospital-tier** membership rows
+>    too. The two readings are different predicates and cannot both be built. **Ruled: mirror the
+>    live policy verbatim.** D13 names the artifact to copy, which is more specific than its own
+>    summary clause; and narrower-than-`profiles` manufactures a fresh instance of the
+>    *"empty never means no-permission"* state D13 exists to remove — a `technical_director` at
+>    the caller's own hospital, profile row readable, **Registro cell blank**.
+> 2. **The read boundary is DELIBERATELY WIDER than the write boundary — stated, because the
+>    `COALESCE` otherwise reads as a bug against D1.** D1(b)/D2's *"all commission-tier"* is a
+>    precondition for **administering** a person; Amdt 1 ruling 1 already says the widened writes
+>    match *"the read boundary D13 already draws"*. Nothing in D2 makes a hospital-tier person's
+>    credentials **unreadable** — it makes them **un-administrable**. So: reads mirror `profiles`;
+>    writes stay bounded by D1/D2. Required with the build: a pgTAP **ALLOW** arm pinning that a
+>    hospital-tier person's credential **is** readable, so the widest thing this ruling authorises
+>    is not the one thing no arm asserts — without it a later "tightening" back to commission-tier
+>    passes the whole suite green.
+> 3. **`expires_at` is mirrored too — i.e. absent (clarifies D13).** All three authorities say
+>    *"**active** membership"*; the live `profiles` membership leg has **no expiry filter at all**.
+>    Filtering only the new policy would make the two silently disagree about what "active" means,
+>    and the person with an expired membership still reaches the directory through the `profiles`
+>    leg — blank Registro cell, the same trap as ruling 1. ⚠ The asymmetry now lives **inside one
+>    policy**: the affiliation leg **does** filter activity (`ended_on IS NULL`), the membership leg
+>    does not. Registered as **FUP-AFF2-ACTIVE-MEANS-TWO-THINGS**, answerable only for **both**
+>    policies at once. ⛔ The `profiles` policy is not touched by AFF2.
+> 4. **The org_admin hospital filter is BUILT, as new backend task B8 (implements D14).** The
+>    handoff draws *"Hospital: todos"* and D14 names a *"hospital select/switcher"*, but `frontend`
+>    measured it unbuildable: `adminedHospitals(ctx, orgId)` returns only `ctx.hospitalAdminOf`
+>    (an org_admin gets `[]`) and `listOrgUsers()` takes no hospital argument. B7 covers neither.
+>    **Ruled: build it** — an org-hospitals list for an org_admin + a `hospital` filter arg —
+>    because AFF2's founding premise is the regionally-disjoint multi-hospital network, where an
+>    org_admin with an unfilterable directory is a real regression from the approved design.
+>
+> **Two deferrals, named so they are records rather than omissions:**
+> - **Search by registration number is NOT built (adapts D14).** The handoff's placeholder reads
+>   *"nome, e-mail ou **registro**"*. Measured: the search matches **name and email only** — and
+>   the pre-existing doc comment (`org-users.ts:78–79`) and the visible `aria-label` both already
+>   over-promised *"ou categoria"*, which is never searched. The label ships as
+>   **"Buscar por nome ou e-mail…"** — honest, and it fixes a live user-visible false claim. The
+>   registro leg crosses into `professional_credentials`, so it needs a join-filter rather than
+>   another `.or()` clause; deferred rather than smuggled into B7 — owner: backend/PO.
+> - **`error.tsx` for the `usuarios` route is deferred to F4.** The route has neither `loading.tsx`
+>   nor `error.tsx` today; `loading.tsx` ships with F1. An error boundary carries semantics
+>   (boundary scope, retry affordance, pt-BR copy that must not leak raw Postgres errors) and is a
+>   design decision, not a scaffold — owner: frontend.
+
+> ## ⚖ AMENDMENT 3 (2026-08-23) — Amdt 1's "whenever the input includes `cpf`" is CHANGE-based, not PRESENCE-based
+>
+> Lead-ruled during the B4 build, **not** PO-escalated — recorded here so the PO can reverse it.
+> Escalation was declined on one ground: unlike the Amdt-2 rulings, where both readings were
+> defensible and risk appetite decided, here the literal reading **provably defeats the stated
+> purpose of the amendment it appears in**. That is a drafting slip, not a choice.
+>
+> **Amendment 1 ruling 1** says `updateUserProfile` applies the tighter (subset) bound *"whenever
+> the input includes `cpf`"*. Read literally — presence-based — the subset bound applies to **every**
+> call whose payload carries the key. A hospital_admin editing the **name** of a cross-hospital
+> person would be denied: **the exact case Amdt 1 ruling 1 exists to ALLOW**, and the sharpest
+> keystone the amendment asked for. It would fail invisibly — the action simply returns
+> `orgAdminOnly`.
+>
+> **Ruled: the `cpf_change` bound fires on an actual change, compared on the NORMALISED value** —
+> `input.cpf !== undefined && current.cpf !== normalizeCpf(input.cpf)`. Normalising before comparing
+> is load-bearing: a reformatted-but-identical CPF must not read as a change.
+>
+> **Not weaker in any security-relevant way** — the test that decided it. A caller who may not change
+> CPF is refused the instant they try; sending an unchanged value accomplishes nothing, so gating on
+> its presence buys no security. It also restores consistency with the **documented live contract** on
+> that field (`actions.ts:124-125`: *"A hospital_admin sending an unchanged value is fine — the gate
+> fires on a real change, not on presence"*), its sibling rationale (`:755-758`: the edit form always
+> POSTs name and category, so presence-gating would deny a hospital admin editing only a matrícula),
+> and the existing keystone `d14-person-level.test.ts:251`.
+>
+> ⭐ **It is a trap for the NEXT author, not a live bug — which is why it was settled before F2 exists.**
+> Measured: the current edit form already omits the key when untouched
+> (`user-profile-edit-form.tsx:86`, `...(cpf ? { cpf } : {})`). So presence-based gating works **today**
+> and breaks **when F2 is rebuilt**. ⛔ F2 must not post `cpf` unconditionally — and, per D4's premise
+> that this path has no RLS backstop, the server must not rely on the form omitting it either.
+>
+> **Pinned both ways, on one cross-hospital target:** unchanged CPF echoed back + name change →
+> **ALLOW**; changed CPF → **DENY**.
+
+> ## ⚖ AMENDMENT 4 (2026-08-23) — the footprint resolver DOES filter expiry; and D11's UI clause is retired as unwarranted
+>
+> PO-ruled 2026-08-23 at the QA gate (step 3, `CHANGES REQUESTED`), on two findings QA reached
+> **outside** the remit it was given. Report:
+> [aff2-review.md](../reviews/aff2-review.md).
+>
+> 1. **🔴 `resolvePersonFootprint`'s membership leg MUST filter `expires_at` (amends D1(c) as built).**
+>    Measured: the affiliation leg filters `ended_on IS NULL`; the membership leg three lines below
+>    filtered nothing. So an **expired** commission seat at hospital H still placed H in the target's
+>    footprint, and `personScopeAllows('fields' | 'credentials', …)` — the **intersection** capabilities —
+>    returned true for a hospital_admin of H over a person with no remaining tie to H. That is person-level
+>    **WRITE** authority (`updateUserProfile`, `upsertCredential`, `removeCredential`) on the path **D4**
+>    declares has **no RLS backstop**. D1(c), and the doc comments in `person-scope.ts` and
+>    `person-footprint.ts`, all say *"active"* — three statements, no implementation.
+>    ⛔ **This does NOT conflict with Amendment 2 ruling 3.** That barred the two **RLS policies** from
+>    disagreeing *with each other* about "active". This is the **write** resolver, and a resolver stricter
+>    than the read policies is precisely the read-wider-than-write asymmetry **Amdt 2 ruling 2** already
+>    established: you may *see* a person you may not *administer*. The policies are untouched.
+>    **Required with the fix:** a red-first keystone — a target whose only tie to the caller's hospital is
+>    an **expired** membership is DENIED `fields` **and** `credentials`.
+>    ⚠ Subset capabilities (`cpf_change`, `lifecycle`) and the D2 tier flag failed **closed** under the
+>    same gap; only the intersection arm was affected.
+>    ⭐ **The residue that should have caught this said the opposite.** `FUP-AFF2-ACTIVE-MEANS-TWO-THINGS`
+>    read *"Not a live hole … the write boundary is untouched: D1/D2 bound administration separately."*
+>    D1/D2 are not separate — they run **through this resolver**. The FUP's own body warns against
+>    *"quoting a real filter for a conclusion it does not bound"*, and its bounding sentence did exactly
+>    that. Corrected in the same change. **The READ half stays open, across THREE authorities** (both
+>    `profiles` policies and B2's `professional_credentials` leg), not the two the FUP named.
+>
+> 2. **D11's UI clause — *"DOB joins the match cards"* — is RETIRED as unwarranted; the payload stays.**
+>    Measured: `OrgPerson.dateOfBirth` has **zero readers**; the match card renders name, e-mail, category
+>    and affiliations, no DOB. So B3 in its entirety — migration `20261003001200`, the DROP+CREATE
+>    re-emission, its ACL differential, and pgTAP `361`'s 23 arms — currently feeds nothing.
+>    ⭐ **The rationale does not survive contact with the caller, which is why it is retired rather than
+>    built.** D11's homonym argument needs a **name-search** result list; the live caller passes `cpf` to a
+>    door that matches **exactly and only at full storage length**, returning at most one row — where a
+>    birth date disambiguates nothing. Building the display would have honoured the plan while buying no
+>    disambiguation whatever.
+>    **What stays:** the `list_org_people` payload and Amdt 1 ruling 4's second read path remain valid for
+>    a future **name-search** caller, which is the shape the homonym problem actually needs. ⛔ Recorded so
+>    the next reader does not find B3 and conclude it is dead code: it is a **built door awaiting its
+>    caller**, by decision — not an oversight, and not to be reverted.
 
 ## Context
 
@@ -230,8 +366,21 @@ partitions all ten roles into org-tier / hospital-tier / commission-tier.
   exclusions and a `guard_profile_privileged_columns` check-at-build), the
   `professional_credentials` SELECT widening, and the `list_org_people` payload — the
   door body **re-emitted from the live `pg_get_functiondef`**, never from migration
-  text, with `extensions.citext` signatures (both standing lessons). Diff-scoped
-  sweep covers exactly these; no new door, no new role, no `prosecdef` flip.
+  text. Diff-scoped sweep covers exactly these; no new role, no `prosecdef` flip.
+  > ⛔ **CORRECTED 2026-08-23 — this bullet carried a FALSE standing lesson, and it is the
+  > kind that fails silently.** It read *"with `extensions.citext` signatures (both standing
+  > lessons)"*. Measured against the live catalog, both at build start and again at the
+  > post-Record review: `list_org_people` has **exactly one overload** and its arguments are
+  > `(p_org_id uuid, p_search text, p_cpf text)` — **all `pg_catalog.text`, no `citext`
+  > anywhere.** The citext lesson is real but belongs to a *different* door. ⭐ **Obeying it
+  > here would not have errored** — writing the signature with `citext` **succeeds**, and
+  > `CREATE`s a second, ungranted, un-audited overload beside the real door that PostgREST
+  > can resolve to. A *"remember the X lesson"* note is written in the voice of accumulated
+  > wisdom, which invites compliance rather than verification; it is a hand-copied claim
+  > about a **specific subject**, and whether the subject has that property is a fresh
+  > measurement every time. ⚠ **The door was `DROP`+`CREATE`d** (a return-type change refuses
+  > `CREATE OR REPLACE`), so "no new door" is true of intent and false of mechanics — the ACL,
+  > `prosecdef`, `SET search_path` and COMMENT all had to be re-issued and re-measured.
 - **The Vitest keystone matrix becomes the authority** for the scope rule (service
   path, no RLS to pgTAP against) — the 0098 W3.2 precedent, now with six arms.
 - **Directory queries widen** (credentials + committee chips + status filter/counts,
@@ -241,4 +390,22 @@ partitions all ten roles into org-tier / hospital-tier / commission-tier.
   instead of an accumulating exception list.
 - The pre-existing service-path audit-attribution gap now covers more actors doing
   more things; its dedicated workstream inherits AFF2's surfaces (Decision 5).
-- Follow-up registered: **FUP-AFF2-CONTA** (self-service DOB/phone view on `/conta`).
+- **Follow-ups registered — SIX, not the one this bullet named until 2026-08-23.** Bodies in
+  [follow-ups.md](../progress/follow-ups.md), index lines in PROGRESS.md:
+  - **FUP-AFF2-CONTA** — self-service DOB/phone view on `/conta`; **the LGPD titular-access
+    control** for D9's two columns (Amdt 1 r5), not a nicety.
+  - **FUP-AFF2-ACTIVE-MEANS-TWO-THINGS** — *"active membership"* is asserted by D13, the plan
+    and the build prompt, and **no policy implements both halves**; open across **three**
+    authorities (both `profiles` legs and the widened `professional_credentials_select`).
+  - **FUP-AFF2-REGISTRATION-HAS-NO-START-DATE** — the plan's "Data de início" (F3 step 2) was
+    **not built**, and the tracker recorded it as closed. Behaviourally free; a record defect.
+  - **FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD** — a **decision owed**: the loose entry
+    gate on `updateUserProfile` is justified by a path no caller takes (QA R5).
+  - **FUP-MANAGE-ROUTES-HAVE-NO-ERROR-BOUNDARY** and
+    **FUP-WAITFORURL-SATISFIED-BY-ITS-OWN-STARTING-URL** — both **pre-existing**, surfaced by
+    this workstream and deliberately not fixed inside it.
+  - Also extended by AFF2 B1: **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** now covers
+    `trigger`-returning `prosecdef` gates, which its own wording ("non-trigger") had excluded —
+    and `guard_profile_privileged_columns` is the only in-DB control over the D9 columns.
+- ⛔ **The branch `feat/aff2-user-management` is NOT merged and NOT pushed**; migrations
+  `20261003001000`–`20261003001200` are local only. Re-measure before quoting.

@@ -155,8 +155,24 @@ async function registerActiveOrgUser(
   const firstReal = await opts[1].getAttribute('value')
   if (firstReal) await categorySelect.selectOption(firstReal)
 
+  // AFF2 F3 (ADR 0133 D6-D8): step 1 ("Dados pessoais") no longer submits directly —
+  // Hospital/Matrícula moved to step 2 ("Vínculo hospitalar") and committees to step 3
+  // ("Comissões"). This helper wants neither, so it walks both intermediate steps
+  // untouched (both are skippable with no required fields) before the final submit,
+  // which keeps the "Registrar pessoa" label since email verification is off by default.
+  const continueButton = page.getByRole('button', { name: 'Continuar' })
+  await continueButton.click()
+  await continueButton.click()
+
   await page.getByRole('button', { name: /registrar pessoa/i }).click()
-  await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 15_000 })
+  // AFF2 F3: a successful registerUser() now redirects to the CREATED PERSON'S OWN
+  // profile page (`orgHref(org, manage, usuarios, result.userId)`), not the bare
+  // directory — the old static-path wait no longer matches. Callers navigate on
+  // their own afterward, so only the wait target needs correcting. ⚠ Must
+  // positively match a UUID, not a bare `[^/]+$` — the pre-submit URL is already
+  // "/usuarios/novo", which would trivially satisfy a looser pattern with no
+  // navigation having happened, silently masking a submission failure.
+  await page.waitForURL(/\/usuarios\/[0-9a-f-]{36}$/i, { timeout: 15_000 })
 
   return { email, fullName }
 }

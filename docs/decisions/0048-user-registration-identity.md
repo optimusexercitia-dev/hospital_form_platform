@@ -121,6 +121,19 @@ Deferred by explicit decision: MFA, live credential verification, SSO, bulk impo
 10. **LGPD minimization: no `date_of_birth`.** Required fields are name, email,
     category; everything else optional. We collect the minimum necessary
     (ADR 0035).
+    > **AMENDED — ADR [0133](./0133-aff2-affiliation-scoped-administration-um-redesign.md)
+    > D9/D10 (AFF2, built 2026-08-23). This decision's headline is now FALSE:
+    > `profiles.date_of_birth` EXISTS and is collected**, alongside `profiles.phone`, both
+    > nullable and both optional at registration. The minimization *principle* is upheld,
+    > not discarded — 0133 D9 records the minimum-necessary justification (Brazil's homonym
+    > rate makes DOB the practical **human** differentiator between same-named
+    > professionals, since CPF differentiates only at the system level and is deliberately
+    > undisclosed; phone lets an org_admin reach a professional without routing through a
+    > hospital admin) — and D10 column-locks both exactly like `cpf`: excluded from every
+    > `authenticated` column-list grant on `profiles`, readable only on the admin surface
+    > through a service-role read behind the person-scope authorizer. ⚠ **The open LGPD
+    > residue is titular access**: the data subject is the one party with no self-service
+    > view of their own two columns — `FUP-AFF2-CONTA`.
 
 ## The activation-link fix (BUG-UREG-002)
 

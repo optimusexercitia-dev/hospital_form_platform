@@ -2,87 +2,121 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldAlert } from "lucide-react";
 
 import type { OrgUserDetail, ProfessionalCategory } from "@/lib/users/types";
 import type { UpdateUserProfileInput } from "@/lib/users/actions";
+import type { PersonPersonalData } from "@/lib/users/person-footprint";
 import { updateUserProfile } from "@/lib/users/actions";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldLabel,
   useFieldIds,
 } from "@/components/ui/field";
 import { FormBanner } from "@/components/auth/form-banner";
 import { CpfField } from "@/components/users/cpf-field";
+import { PhoneField } from "@/components/users/phone-field";
 
 /**
- * PERSON-LEVEL fields on the per-user management page (AFF W3/T3.3 — ADR 0097 D14).
+ * PERSON-LEVEL fields on the per-user management page (AFF2 F2 — ADR 0133 D3 + Amdt 1).
  *
- * Everything here is a fact about the HUMAN — name, CPF, professional category — and
- * is therefore `org_admin`-only: two hospital admins editing the same person's name is
- * a silent cross-hospital write. Employment facts (which hospital, matrícula, start,
- * end) moved out to `AffiliationsPanel`, where a hospital's own admin owns them.
+ * Everything here is a fact about the HUMAN — name, CPF, professional category, and the
+ * D9 columns (birth date, phone) — as opposed to employment facts (which hospital,
+ * matrícula, start, end), which live in `AffiliationsPanel` where a hospital's own admin
+ * owns them.
  *
- * ⚠ `canEditPersonFields` IS UX, NOT SECURITY (Architecture Rule 1). The boundary is
- * `updateUserProfile`, which re-derives the caller's authority server-side and compares
- * the submitted person-level values against the CURRENT row — only an actual CHANGE is
- * a person-level write — refusing with `MESSAGES.orgAdminOnly`. That refusal is
- * rendered by this component in pt-BR; hiding the controls only spares an admin the
- * pointless attempt. Never read the hidden state as the protection.
+ * ⚠ THE FORM IS NOW FORM-ONLY. Its former read-only branch moved to
+ * `PersonalDataCard`, which owns the display/edit swap and the withheld case — because
+ * after Amdt 1 "can this caller see the values" and "can this caller edit them" are no
+ * longer the same question, and a component that answered both by rendering a different
+ * tree was the wrong shape for that.
  *
- * ⚠ CPF IS WRITE-ONLY HERE, and that is deliberate (D7 / audit HIGH-1). `cpf` is
- * excluded from the `authenticated` column grants on `profiles`, so no admin surface
- * reads another person's CPF at all — the row policies admit co-commission members and
- * a national ID must not ride along on a colleague's row read. Leaving the field blank
- * keeps the stored value; the action only writes the column when the key is present.
+ * ⚠ TWO CAPABILITIES, NOT ONE (ADR 0133 Amdt 1 ruling 1). `canEditPerson` is the
+ * INTERSECTION bound and admits this form at all; `canEditCpf` is the SUBSET bound and
+ * admits only the CPF field inside it. They genuinely disagree on the same target: a
+ * hospital_admin editing a person who also works elsewhere may fix a name and may NOT
+ * rewrite the person key. That disagreement is the amendment's entire point, so the CPF
+ * field is gated separately rather than inheriting the form's own gate.
+ *
+ * ⚠ BOTH FLAGS ARE UX, NOT SECURITY (Architecture Rule 1). The boundary is
+ * `updateUserProfile`, which re-derives authority server-side and applies the tighter
+ * bound on an actual CPF CHANGE — comparing against the current row, so an absent key
+ * and an unchanged value reach the same verdict. ⛔ That server comparison is the gate;
+ * this form omitting `cpf` when untouched is defence in depth. If the form were the
+ * mechanism, the bound would not be enforced.
+ *
+ * ⚠ CPF IS WRITE-ONLY HERE (D7 / D12 / audit HIGH-1). `cpf` is excluded from the
+ * `authenticated` column grants on `profiles`, so no admin surface reads another
+ * person's CPF — the row policies admit co-commission members and a national ID must
+ * not ride along on a colleague's row read. Blank keeps the stored value.
  */
 export function UserProfileEditForm({
   user,
   categories,
-  canEditPersonFields,
+  personalData,
+  canEditCpf,
+  onSaved,
 }: {
   user: OrgUserDetail;
   categories: ProfessionalCategory[];
+  /** The column-locked values, read via B6 behind the `fields` authorizer. */
+  personalData: PersonPersonalData;
+  /** The SUBSET bound — gates ONLY the CPF field. See the note above. */
+  canEditCpf: boolean;
   /**
-   * Whether the caller is an `org_admin` of this person's organisation. UX only —
-   * see the component note above.
+   * Called after a successful save.
+   *
+   * ⛔ REQUIRED, and that is the fix for BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS rather
+   * than a style preference. Whoever mounts this form owns telling the user the save
+   * worked, because this component cannot: the only consumer collapses a disclosure in
+   * response, unmounting the form in the same commit. Making the callback optional
+   * would let the next consumer mount the form, show nothing on success, and reproduce
+   * the bug — invisibly, since the write itself succeeds and every functional
+   * assertion passes.
    */
-  canEditPersonFields: boolean;
+  onSaved: () => void;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [success, setSuccess] = useState(false);
 
   const [fullName, setFullName] = useState(user.fullName ?? "");
   const [categoryId, setCategoryId] = useState(
     user.professionalCategoryId ?? "",
   );
   const [cpf, setCpf] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState(personalData.dateOfBirth ?? "");
+  const [phone, setPhone] = useState(personalData.phone ?? "");
 
   const fullNameField = useFieldIds("fullName", {
     hasError: Boolean(fieldErrors.fullName),
     required: true,
   });
   const categoryField = useFieldIds("professionalCategoryId");
+  const dobField = useFieldIds("dateOfBirth", { hasDescription: true });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
-    setSuccess(false);
 
     const input: UpdateUserProfileInput = {
       userId: user.id,
       fullName: fullName.trim(),
       professionalCategoryId: categoryId || null,
-      // Omit the key entirely when untouched: the action writes `cpf` only when it is
-      // present, so an empty field can never null out a stored CPF.
+      // Both are person-level fields under D3, so they ride the same write. Empty
+      // means "clear it" here, unlike at registration — the admin is looking at the
+      // current value and deleting it is a deliberate act.
+      dateOfBirth: dateOfBirth || null,
+      phone: phone || null,
+      // Omit the key entirely when untouched. The server compares against the current
+      // row, so this changes no verdict — it is defence in depth, not the mechanism.
       ...(cpf ? { cpf } : {}),
     };
 
@@ -93,55 +127,23 @@ export function UserProfileEditForm({
         setFieldErrors(result.fieldErrors ?? {});
         return;
       }
-      setSuccess(true);
       setCpf("");
       router.refresh();
+      // ⛔ SUCCESS IS THE PARENT'S TO REPORT, and this form must not try. Calling
+      // `onSaved` collapses the disclosure, which UNMOUNTS this component in the same
+      // React commit — so a success banner owned here mounts and unmounts without ever
+      // painting. That was BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS: the write succeeded,
+      // every functional assertion passed, and the admin was told nothing. No timing
+      // tweak can fix it; state that lives inside the unmounting tree dies with it.
+      onSaved();
     });
   }
 
-  // Read-only rendering for a caller who does not own these fields. No disabled form,
-  // no submit that will be refused — the values are simply shown, with the reason.
-  if (!canEditPersonFields) {
-    return (
-      <div className="flex flex-col gap-5">
-        <dl className="flex flex-col gap-4 text-sm">
-          <div className="flex flex-col gap-1">
-            <dt className="font-medium">E-mail</dt>
-            <dd className="text-muted-foreground">
-              {user.email ?? "Sem e-mail"}
-            </dd>
-          </div>
-          <div className="flex flex-col gap-1">
-            <dt className="font-medium">Nome completo</dt>
-            <dd className="text-muted-foreground">
-              {user.fullName?.trim() || "Sem nome"}
-            </dd>
-          </div>
-          <div className="flex flex-col gap-1">
-            <dt className="font-medium">Categoria profissional</dt>
-            <dd className="text-muted-foreground">
-              {user.categoryLabel ?? "Nenhuma"}
-            </dd>
-          </div>
-        </dl>
-
-        <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3.5 py-2.5 text-sm text-muted-foreground text-pretty">
-          <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-          Nome, CPF e categoria profissional são dados da pessoa, não do
-          hospital, e só podem ser alterados por um administrador da organização.
-          O vínculo com o seu hospital e a matrícula você gerencia abaixo.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
-      {success ? (
-        <FormBanner tone="success">Perfil atualizado.</FormBanner>
-      ) : (
-        <FormBanner tone="error">{error}</FormBanner>
-      )}
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+      {/* Errors only. A failed save KEEPS this form mounted, so it can own that
+          message; a successful one destroys the form, so it cannot own that one. */}
+      <FormBanner tone="error">{error}</FormBanner>
 
       <Field>
         <FieldLabel>E-mail</FieldLabel>
@@ -162,18 +164,41 @@ export function UserProfileEditForm({
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
         />
-        <FieldError id={fullNameField.errorId}>
-          {fieldErrors.fullName}
-        </FieldError>
+        <FieldError id={fullNameField.errorId}>{fieldErrors.fullName}</FieldError>
       </Field>
 
-      <CpfField
-        value={cpf}
-        onChange={setCpf}
-        required={false}
-        label="CPF"
-        error={fieldErrors.cpf}
-        description="Por privacidade, o CPF cadastrado não é exibido. Preencha apenas para substituí-lo; em branco, o valor atual é mantido."
+      {canEditCpf ? (
+        <CpfField
+          value={cpf}
+          onChange={setCpf}
+          required={false}
+          label="CPF"
+          error={fieldErrors.cpf}
+          description="Por privacidade, o CPF cadastrado não é exibido. Preencha apenas para substituí-lo; em branco, o valor atual é mantido."
+        />
+      ) : null}
+
+      <Field>
+        <FieldLabel htmlFor={dobField.controlProps.id}>Nascimento</FieldLabel>
+        <DatePicker
+          id={dobField.controlProps.id}
+          value={dateOfBirth}
+          onChange={setDateOfBirth}
+          clearable
+          max={todayIso()}
+          placeholder="Não informado"
+          aria-describedby={dobField.descriptionId}
+        />
+        <FieldDescription id={dobField.descriptionId}>
+          Diferencia pessoas com o mesmo nome.
+        </FieldDescription>
+      </Field>
+
+      <PhoneField
+        value={phone}
+        onChange={setPhone}
+        label="Telefone"
+        description="Contato direto da pessoa. Não é usado para login nem para notificações."
       />
 
       <Field>
@@ -194,9 +219,21 @@ export function UserProfileEditForm({
         </NativeSelect>
       </Field>
 
-      <Button type="submit" size="lg" className="self-start" disabled={isPending}>
+      <Button type="submit" className="self-start" disabled={isPending}>
         {isPending ? "Salvando…" : "Salvar alterações"}
       </Button>
     </form>
   );
+}
+
+/**
+ * Today as ISO `yyyy-mm-dd` in LOCAL calendar terms. `toISOString()` converts to UTC and
+ * would return tomorrow west of Greenwich late in the day, letting a birth-date ceiling
+ * drift one day into the future.
+ */
+function todayIso(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
 }

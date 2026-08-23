@@ -743,6 +743,20 @@ test.describe('HA-6: Hospital-scoped user directory + registration + lifecycle',
     await page.goto('/o/rede-a/manage/usuarios/novo')
     await beginRegistrationWithFreshCpf(page, uniqueCpf())
 
+    // AFF2 F3 (ADR 0133 D6-D8): "Vínculo hospitalar" is now step 2 — reached only
+    // once step 1's required fields ("Dados pessoais") are complete and "Continuar"
+    // is pressed. The locked-hospital display under test lives on that step, not
+    // the CPF-resolved step this test used to assert against directly.
+    const ts = Date.now()
+    await page.getByLabel('Nome completo').fill(`Locked Hospital Check ${ts}`)
+    await page.getByLabel('E-mail').fill(`locked.hospital.${ts}@test.local`)
+    await page.getByLabel('Senha inicial').fill('Test1234!')
+    const stepOneCategory = page.getByLabel('Categoria profissional')
+    const stepOneOpts = await stepOneCategory.locator('option').all()
+    const stepOneFirstReal = await stepOneOpts[1].getAttribute('value')
+    if (stepOneFirstReal) await stepOneCategory.selectOption(stepOneFirstReal)
+    await page.getByRole('button', { name: 'Continuar' }).click()
+
     // AFF W3/T3.3 (ADR 0051 D7 / ADR 0097): `getByLabel('Hospital de origem')` is
     // GONE — a hospital_admin's target hospital is a plain read-only <p>, not a form
     // control (the create form never asks; it is hard-set server-side regardless).
@@ -750,7 +764,11 @@ test.describe('HA-6: Hospital-scoped user directory + registration + lifecycle',
     // selectable Hospital control on the page at all.
     const vinculoHeading = page.getByRole('heading', { name: /vínculo hospitalar/i })
     await expect(vinculoHeading).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText('Hospital Central A')).toBeVisible()
+    // exact: true — the step's own description paragraph ("A pessoa será vinculada
+    // ao Hospital Central A. Pular esta etapa...") also contains this substring, so
+    // a non-exact match is a strict-mode violation (2 elements). The locked-hospital
+    // <p> display itself is the exact-match node.
+    await expect(page.getByText('Hospital Central A', { exact: true })).toBeVisible()
     await expect(
       page.getByRole('combobox', { name: /^hospital/i }),
     ).toHaveCount(0)
@@ -777,6 +795,13 @@ test.describe('HA-6: Hospital-scoped user directory + registration + lifecycle',
       await passwordField.fill('Test1234!')
     }
 
+    // AFF2 F3 (ADR 0133 D6-D8): step 1 no longer submits directly — walk the two
+    // skippable steps (Vínculo hospitalar, Comissões) untouched; hospital is
+    // hard-set server-side regardless (the whole point under test), so nothing
+    // needs filling on step 2.
+    await page.getByRole('button', { name: 'Continuar' }).click()
+    await page.getByRole('button', { name: 'Continuar' }).click()
+
     await page.getByRole('button', { name: /registrar/i }).click()
 
     // Should navigate back to the directory (or show a success state) — assert
@@ -796,21 +821,28 @@ test.describe('HA-6: Hospital-scoped user directory + registration + lifecycle',
     })
   })
 
-  // SPEC-DRIFT, NOT A REGRESSION (found running this file for T3.6): this test
-  // originally asserted "hospitaladmin.a1 can deactivate a central-a user" — true
-  // under ADR 0051 Phase A. AFF ADR 0097 D14 / ADR 0098 §W3.2 deliberately and
-  // explicitly REMOVES that capability: "account deactivation is unreachable by
-  // hospital admins — `app.is_active` is a platform-wide kill switch, so one
-  // hospital's offboarding must never end a professional's access at another."
-  // `UserLifecycleActions`' `canManageAccountStatus={isOrgAdmin}` (src/app/o/[org]/
-  // manage/usuarios/[userId]/page.tsx:139) hides the Desativar/Suspender controls
-  // entirely for a hospital_admin — this is the CURRENT, ratified contract, so the
-  // test is rewritten rather than left asserting the superseded behaviour (the "281
-  // D1 was inverted, not deleted" lesson: a fixed/changed decision leaving behind a
-  // test pinning the OLD behaviour is how the next reader "repairs" it back in).
-  // Org-level deactivation is unaffected and covered separately
-  // (user-registration.spec.ts AC3, with orgadmin.a).
-  test('hospitaladmin.a1 CANNOT deactivate a central-a user (D14 — account lifecycle is org_admin-only)', async ({ page }) => {
+  // SPEC-DRIFT, NOT A REGRESSION, SECOND TIME (found running this file for AFF2 T0):
+  // this test previously asserted "hospitaladmin.a1 CANNOT deactivate a central-a
+  // user" — true under ADR 0097 D14 / ADR 0098 §W3.2's org-admin-only absolute. ADR
+  // 0133 (AFF2) Decision 3 puts account lifecycle in the widened capability set, and
+  // Amendment 1 ruling 1 keeps it on the SUBSET bound: a hospital_admin gets it over a
+  // target whose whole hospital footprint is inside the caller's administered set.
+  // staff2.ccih is commission-tier-only (CCIH, central-a) with NO affiliation and NO
+  // other membership — measured live against the catalog (`memberships`/
+  // `hospital_affiliations`) — so her footprint is exactly {central-a}, a SUBSET of
+  // hospitaladmin.a1's administered set. That is the ALLOW case Amendment 1 ruling 1
+  // exists to create, not a widening this spec invents from observed behaviour.
+  // The warrant is the ADR clause, not the rendered page — if the two ever disagree,
+  // that is a bug to file, not a spec to relax.
+  //
+  // The "Situação da conta" heading this test also asserted is independently gone
+  // (AFF2 F2 — lifecycle actions moved into the identity band; no relocation exists).
+  //
+  // The old DENY case is NOT dropped, only relocated: hospital-tier-at-own-hospital
+  // and cross-hospital lifecycle refusals now live in the AFF2 scope-rule spec
+  // (aff2-scope-rule.spec.ts, dr.john / dt.a) — org-level deactivation is unaffected
+  // and covered separately (user-registration.spec.ts AC3, with orgadmin.a).
+  test('hospitaladmin.a1 CAN now deactivate a sole-hospital central-a user (ADR 0133 D3 + Amdt 1 r1 — the D14 absolute is amended)', async ({ page }) => {
     await signInAs(page, 'hospitaladmin.a1@test.local')
     // Scoped to the EXACT seeded user via `?search=` — an unfiltered page-1 guess is
     // positional-luck-dependent once enough E2E-created users accumulate in the shared
@@ -818,19 +850,45 @@ test.describe('HA-6: Hospital-scoped user directory + registration + lifecycle',
     // "registers a new user" test above; found again running this file for AFF T3.6).
     await page.goto('/o/rede-a/manage/usuarios?search=staff2.ccih')
     await page.getByText(/Enfermeira CCIH Dois/i).first().click()
+    await page.waitForURL(/\/usuarios\/[^/]+$/, { timeout: 10_000 })
 
-    await expect(page.getByRole('heading', { name: 'Situação da conta' })).toBeVisible({
+    // The affordances are present — the CURRENT, ratified contract — and the
+    // org-admin-only restriction note is ABSENT (it names the case this ISN'T).
+    await expect(page.getByRole('button', { name: /^Desativar$/ })).toBeVisible({
       timeout: 10_000,
     })
-    // No lifecycle controls at all for a hospital_admin — hiding is UX only (Rule 1);
-    // the server boundary (`authorizeOrgAdminForUser`) is Vitest-covered
-    // (`d14-person-level.test.ts`, ADR 0098 §W3.2 — a service-role action has no RLS
-    // to assert against through the UI, so this is the reachable half of the claim).
-    await expect(page.getByRole('button', { name: /^Desativar$/ })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: /^Suspender$/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Suspender$/ })).toBeVisible()
     await expect(
       page.getByText(/só pode ser alterada por um administrador da organização|é feito por um administrador da organização/i),
-    ).toBeVisible()
+    ).not.toBeVisible()
+
+    // Assert the VALUE, not a toast: deactivate, then confirm the status persists
+    // through a reload (a no-op refusal dressed as a toast is the exact bug class
+    // this codebase's other lifecycle keystones guard against).
+    await page.getByRole('button', { name: /^Desativar$/ }).click()
+    const deactivateDialog = page.getByRole('alertdialog')
+    await expect(deactivateDialog).toBeVisible({ timeout: 5_000 })
+    await deactivateDialog.getByRole('button', { name: /^Desativar$/ }).click()
+    await expect(deactivateDialog).not.toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Desativado', { exact: true })).toBeVisible({
+      timeout: 10_000,
+    })
+    await page.reload()
+    await expect(page.getByText('Desativado', { exact: true })).toBeVisible({
+      timeout: 10_000,
+    })
+
+    // Cleanup, unconditional intent: staff2.ccih is a seeded persona other specs
+    // (case narratives, phase3 fixtures) assume is active — leaving her deactivated
+    // would poison every later spec run against the same shared local DB.
+    await page.getByRole('button', { name: /^Reativar$/ }).click()
+    const reactivateDialog = page.getByRole('alertdialog')
+    await expect(reactivateDialog).toBeVisible({ timeout: 5_000 })
+    await reactivateDialog.getByRole('button', { name: /^Reativar$/ }).click()
+    await expect(reactivateDialog).not.toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Ativo', { exact: true })).toBeVisible({ timeout: 10_000 })
+    await page.reload()
+    await expect(page.getByText('Ativo', { exact: true })).toBeVisible({ timeout: 10_000 })
   })
 
   test('hospitaladmin.a1 is refused (404) on a sibling-hospital user (secundario-a has none seeded — use org-b user as the boundary)', async ({ page }) => {
