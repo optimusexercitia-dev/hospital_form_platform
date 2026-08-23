@@ -34,6 +34,7 @@ import { SectionStep } from "./section-step";
 import { WizardNav } from "./wizard-nav";
 import { ReviewScreen } from "./review-screen";
 import { PhaseResultPanel } from "./phase-result-panel";
+import { buildResultAnswerMap } from "./result-aggregates";
 import { SubmitPanel } from "./submit-panel";
 import { OrphanWarningDialog } from "./orphan-warning-dialog";
 import { ConfirmationScreen } from "./confirmation-screen";
@@ -850,6 +851,26 @@ export function WizardClient({
    * gathered across every visible section there. Errors are deliberately absent:
    * they are already blocking, and the server's refusal places them per field.
    */
+  /**
+   * The answer map the RESULT preview walks: the plain map PLUS the two reserved
+   * aggregate keys, exactly as `app.compute_case_phase_result` injects them
+   * before its own rule-walk. Passing the bare `answerMap` here made every
+   * score/flag rule test an ABSENT key, so the preview silently fell through to
+   * the ruleset's default while the concluded phase recorded the right result.
+   */
+  const resultAnswerMap = useMemo(
+    () =>
+      phaseResult
+        ? buildResultAnswerMap({
+            sections: data.tree.sections,
+            answers,
+            instances: Object.values(instancesByGroup).flat(),
+            answerMap,
+          })
+        : answerMap,
+    [phaseResult, data.tree.sections, answers, instancesByGroup, answerMap],
+  );
+
   const reviewFeedback = useMemo(() => {
     const out: { label: string; message: string }[] = [];
     const requiredNow = new Set<string>();
@@ -1239,7 +1260,7 @@ export function WizardClient({
       mode={phaseResult.mode}
       ruleset={phaseResult.ruleset}
       options={phaseResult.options}
-      answerMap={answerMap}
+      answerMap={resultAnswerMap}
       overrideEnabled={overrideEnabled}
       overrideResultId={overrideResultId}
       reason={overrideReason}

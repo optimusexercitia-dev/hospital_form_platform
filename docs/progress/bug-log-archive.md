@@ -3050,3 +3050,19 @@ assertion **unchanged and failing** (per role: file, don't paper over) — the s
 same test now also clicks "Editar" before locating the Nome field, a genuine, unrelated repair for
 the disclosure-based edit UX ADR 0133 F2 introduced) is unaffected and correct on its own.
 
+---
+
+## Rotated 2026-08-23 — BUG-PHASE-RESULT-PREVIEW-1 (filed and RESOLVED the same session)
+
+### 🟢 BUG-PHASE-RESULT-PREVIEW-1 — ✅ **FIXED 2026-08-23** — the wizard's end-of-fill RESULT preview never injected `__total_score__` / `__flagged_count__`, so EVERY scoring or flagging ruleset previewed the ruleset's DEFAULT (owner: `frontend`)
+
+| Field | Value |
+| ----- | ----- |
+| Severity | MAJOR (display-only, but it is the number the filler decides whether to OVERRIDE from) |
+| Repro | Author a phase with scored `multiple_choice` options → a process whose phase slot emits a result when `__total_score__ >= 2` → open a case, answer for 2 points, reach the wizard's review screen. "Resultado calculado" shows the ruleset's default; the concluded phase then shows the CORRECT result on the case detail page. |
+| Root cause | `walkResultRuleset` is an UNCHANGED evaluator on both sides of the mirror — an aggregate rule fires only because the CALLER injected the key first. SQL `app.compute_case_phase_result` injects both aggregates (via `app.case_phase_option_aggregates` + the per-item `flaggedWhen` pass) before its rule-walk; `WizardClient` handed `PhaseResultPanel` the bare `answerMap`, so `{ __total_score__ >= 2 }` tested an ABSENT key, evaluated false, and fell through to `default_result_id`. `computeAggregateKeys` existed and was correct — its only caller was the BUILDER's simulated preview. |
+| Blast radius | Preview only. The conclude-time compute (the authority) was right throughout, which is why the case detail page disagreed with the screen the filler had just read. Every ruleset keyed on `__total_score__`/`__flagged_count__` was affected; plain `question_key` rules were never affected. |
+| Fix | New `src/components/responses/wizard/result-aggregates.ts` — `buildResultAnswerMap` walks the version tree + the wizard's top-level AND per-instance answers, resolves each selected option's `score`/`flagged`, evaluates each `number`/`date`/`time` item's `flaggedWhen` through the unchanged `evalCondition`, and merges `computeAggregateKeys(...)` into the map. `WizardClient` passes that map to `PhaseResultPanel`. |
+| Known divergence (documented in the module) | The `flaggedWhen` half reads the TOP-LEVEL map, so a `flaggedWhen` on a repeating-group CHILD contributes nothing to the preview. SQL's `app.case_phase_answer_map` folds instance scalars into the same flat key space, where N repetitions of one key collapse last-writer-wins — an order-dependent value no client mirror can reproduce. |
+| Proof | `result-aggregates.test.ts` (10 unit tests: score sum, null score, checkbox multi-select, per-instance scoring, flagged + flaggedWhen tally) and `phase-result-preview.test.tsx` (2 tests rendering the REAL `WizardClient` to review). The wiring test was **red-proved**: reverting the one prop back to `answerMap` fails it with "Não conforme" where "Conforme" is expected. Full unit suite 1580/1580. Live confirmation on the reporter's local DB: `app.case_phase_option_aggregates` returns 3 for the phase that recorded the scored result, 1 for the phase that recorded the default. |
+| Lesson | A "mirror of the SQL" comment on the EVALUATOR says nothing about the CALLER. Both sides walked the same rules; only one side prepared the same map. A local harness that mirrored `WizardClient`'s wiring would have passed the whole time — the regression test renders the real component for that reason. |
