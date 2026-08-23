@@ -6,12 +6,14 @@ import { UserPlus } from "lucide-react";
 import { getSessionContext } from "@/lib/queries/session";
 import { adminedHospitals } from "@/lib/auth/access";
 import { listOrgUsers, listHospitalUsers } from "@/lib/queries/org-users";
+import { listOrgHospitals } from "@/lib/queries/org";
 import { orgHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import { HospitalSwitcher } from "@/components/shell/hospital-switcher";
 import { UserDirectorySearch } from "@/components/users/user-directory-search";
 import { UserDirectoryList } from "@/components/users/user-directory-list";
-import { UserDirectoryStatusPills, parseStatusFilter } from "@/components/users/user-directory-status-pills";
+import { parseUserDirectoryStatusFilter } from "@/lib/users/types";
+import { UserDirectoryStatusPills } from "@/components/users/user-directory-status-pills";
 import { UserPagination } from "@/components/users/user-pagination";
 
 export const metadata: Metadata = {
@@ -38,25 +40,22 @@ const PAGE_SIZE = 20;
  * appears** — that is the whole point of the affiliation table, and the case a
  * commission-derived roster silently drops.
  *
- * ⛔ TWO TRANSITIONAL GAPS ON THIS BRANCH, both backend-side and both closing before
- * the phase gate. Neither is a defect to "fix" here:
+ * ⚠ `?status=` is parsed by `parseUserDirectoryStatusFilter` — the SINGLE owner of that
+ * vocabulary, in `src/lib/users/types.ts`. The page deliberately does not parse it
+ * itself: the pill counts come from a different code path, and two parses of one query
+ * parameter is how a directory filters by one thing and counts by another.
  *
- * 1. **`?status=` is parsed and rendered but NOT yet applied to the query.** The
- *    server-side status filter and the pill counts are backend task **B7**;
- *    `listOrgUsers` / `listHospitalUsers` do not accept a status argument yet. It is
- *    deliberately not derived here: doing so would need either a second copy of
- *    `deriveUserStatus` (a parallel derivation of the one authority) or an unpaged
- *    read (a broken pager). Until B7 lands the pills navigate but do not filter, and
- *    counts are absent rather than fabricated as zero.
- * 2. **The Registro column and the named Comissões chips have no data source yet**
- *    (also B7; the hospital-admin rows of Registro additionally need B2's
- *    `professional_credentials` SELECT widening, ADR 0133 D13). Each column falls
- *    back to its documented empty rendering, never to a blank cell.
+ * ⚠ THE HOSPITAL CONTROL DIFFERS BY ROLE, and both arms are real. An `org_admin`
+ * filters the org-wide directory across `listOrgHospitals` (RLS-scoped, "Todos os
+ * hospitais" = no filter); a `hospital_admin` SWITCHES between the hospitals it
+ * administers and must always have one selected. Same component, different meaning:
+ * `allowAll` is what separates a filter from a switcher.
  *
- * ⚠ An org_admin gets NO hospital filter today — `adminedHospitals` resolves
- * `hospital_admin` seats only, and `listOrgUsers` takes no hospital argument. The
- * handoff's "Hospital: todos" select is backend task **B8**, sequenced after B7; the
- * toolbar's right-hand group is the slot it drops into.
+ * ⛔ ONE TRANSITIONAL GAP: for an `org_admin`, `?hospital=` is parsed and rendered but
+ * NOT yet applied — `ListDirectoryOptions` has no `hospital` field (backend task **B8**,
+ * landing next). Marked at the call site. Until it lands the org_admin select navigates
+ * without narrowing; a `hospital_admin`'s scope is unaffected, since theirs comes from
+ * `listHospitalUsers` rather than from an option.
  */
 export default async function OrgUsersPage({
   params,
@@ -89,23 +88,47 @@ export default async function OrgUsersPage({
   }
 
   const isOrgAdmin = Boolean(orgAdminEntry);
-  const hospitals = isOrgAdmin ? [] : adminedHospitals(context, organization.id);
+  // ⚠ `adminedHospitals` reads `ctx.hospitalAdminOf` ONLY, so it is structurally empty
+  // for an org_admin — the org-wide list has to come from `listOrgHospitals`, which is
+  // RLS-scoped and already used by the Administradores page.
+  const hospitals = isOrgAdmin
+    ? await listOrgHospitals(organization.id)
+    : adminedHospitals(context, organization.id);
 
   const search = sp.search?.trim() ?? "";
-  const statusFilter = parseStatusFilter(sp.status);
+  const statusFilter = parseUserDirectoryStatusFilter(sp.status);
   const pageNum = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
-  // A hospital_admin MUST have a selected hospital (defaults to the first).
+  // An org_admin's hospital is an OPTIONAL FILTER — `null` legitimately means "todos".
+  // A hospital_admin MUST have one selected (defaults to the first): there is no
+  // cross-hospital view for them, so `null` would be an empty directory, not "all".
   const selectedHospitalId = isOrgAdmin
-    ? null
+    ? (sp.hospital ?? null)
     : (sp.hospital ?? hospitals[0]?.id ?? null);
 
-  const paging = { page: pageNum - 1, pageSize: PAGE_SIZE };
-  // ⛔ `statusFilter` is NOT passed: these signatures do not accept it yet (B7).
-  const { rows, total } = isOrgAdmin
-    ? await listOrgUsers(organization.id, search, paging)
+  // ⚠ An OPTIONS OBJECT, not a fourth positional argument. `search` and `status` are
+  // both nullable-ish strings, so positionally they are one transposition away from
+  // silently filtering by the wrong thing — a bug nothing would type-check.
+  const options = {
+    search,
+    status: statusFilter,
+    paging: { page: pageNum - 1, pageSize: PAGE_SIZE },
+    // ⛔ B8 INSERTION POINT — the org_admin hospital filter goes here as
+    // `hospital: isOrgAdmin ? selectedHospitalId : undefined` once
+    // `ListDirectoryOptions` accepts it. Deliberately NOT invented: passing a key the
+    // type does not declare would be dropped silently, and the select would look like
+    // it filtered while returning the unfiltered page.
+  };
+  const { rows, total, statusCounts } = isOrgAdmin
+    ? await listOrgUsers(organization.id, options)
     : selectedHospitalId
-      ? await listHospitalUsers(selectedHospitalId, search, paging)
-      : { rows: [], total: 0 };
+      ? await listHospitalUsers(selectedHospitalId, options)
+      : {
+          rows: [],
+          total: 0,
+          // A hospital_admin with no selected hospital sees nothing — so the pills must
+          // read zero rather than be absent, which would imply "not counted yet".
+          statusCounts: { all: 0, active: 0, attention: 0, deactivated: 0 },
+        };
 
   // Preserve the hospital scope on the "Registrar pessoa" link for a hospital_admin.
   const registerHref =
@@ -140,16 +163,17 @@ export default async function OrgUsersPage({
           basePath={orgHref(org, "manage", "usuarios")}
           searchParams={sp}
           current={statusFilter}
+          counts={statusCounts}
         />
 
-        {/* The B8 org_admin hospital `<select>` slots in beside these two. */}
         <div className="flex flex-1 flex-wrap items-center justify-end gap-2 sm:flex-none">
           <UserDirectorySearch initialSearch={search} />
-          {!isOrgAdmin && hospitals.length > 1 ? (
+          {hospitals.length > 1 ? (
             <HospitalSwitcher
               hospitals={hospitals}
               currentHospitalId={selectedHospitalId}
-              allowAll={false}
+              // An org_admin may stand outside any one hospital; a hospital_admin may not.
+              allowAll={isOrgAdmin}
             />
           ) : null}
         </div>

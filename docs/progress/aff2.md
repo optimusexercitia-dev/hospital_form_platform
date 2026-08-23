@@ -132,7 +132,7 @@ was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
 
 | Task | State |
 | --- | --- |
-| F1 · Directory table | ✅ **built 2026-08-23** — lint 8/8, `tsc` 0, 24/24 browser checks. ⚠ Two arms inert pending B7 (below) |
+| F1 · Directory table | ✅ **complete + VERIFIED 2026-08-23** — adapted to B7 (`f712dd61`), placeholders deleted, org_admin hospital filter added. lint 8/8, `tsc` 0, **21/21** live checks; both formerly-inert arms are now real |
 | F2 · Profile page | ✅ **complete + VERIFIED 2026-08-23** — lint 8/8, `tsc` 0, **21/21** browser checks incl. the Amdt-1 split on one target |
 | F3 · Register wizard | ✅ **complete 2026-08-23** — all three B4 insertion points closed (Nascimento, Telefone, redirect-to-profile). lint 8/8, `tsc` 0. ✅ **VERIFIED 2026-08-23**, 10/10 — including that the values SURVIVE the submit |
 | F4 · Copy + a11y pass | ⏳ **partial** — `error.tsx` ✅ built **and verified** 2026-08-23 (pulled forward, lead-approved); the copy/a11y sweep itself waits on F2/F3 being final |
@@ -190,6 +190,56 @@ non-modification (`manage/layout.tsx` is untouched), not by test. It did not ren
 `orgadmin.a@`, which is its own eligibility gate, not this change.
 
 ---
+
+### F1 — the B7 adaptation, and an A2 claim of mine that was WRONG
+
+Adapted to B7 at `f712dd61`. **All three placeholders DELETED, not translated** —
+`DirectoryRowExtras`, `UserDirectoryStatusFilter`, `UserDirectoryStatusCounts` now come
+from `src/lib/users/types.ts`, which was the point of settling the names in advance.
+`page.tsx` moved to the options-object call shape (`listOrgUsers(orgId, { search, status,
+paging })`) so `status` could not become a fourth positional string beside `search`.
+
+⛔ **MY A2 FINDING WAS FALSE IN ITS THIRD CLAIM.** I wrote *"there is no query anywhere
+that lists the hospitals of this org for an org_admin."* **`listOrgHospitals(orgId)` has
+existed all along** (`src/lib/queries/org.ts:454`), RLS-scoped and already shipping in
+`manage/administradores/page.tsx:56`. Two thirds of A2 held — `adminedHospitals` reads
+only `ctx.hospitalAdminOf`, and `listOrgUsers` took no hospital argument — but the
+**universal negative** did not, and it was the claim that drove the scope decision.
+⭐ Class: *a universal negative is the claim most likely to be wrong and the one least
+likely to be checked* — it reads as thorough, and an absence cannot be confirmed by the
+search that failed to find it. It survived my own review and the lead's ratification;
+`backend` caught it by refusing to build a query before measuring whether one existed.
+⚠ Note "fix `adminedHospitals`" would NOT have worked either: the org_admin arm was a
+**hardcoded `[]`** at the call site, so the helper's return value was never consulted.
+
+**Now built:** the org_admin "Todos os hospitais" control, reusing `HospitalSwitcher`
+with `allowAll={isOrgAdmin}` rather than a new component — `allowAll` is exactly what
+separates a *filter* (org_admin may stand outside any hospital) from a *switcher*
+(hospital_admin must always have one). ⛔ **One transitional gap:** `?hospital=` is parsed
+and rendered but not yet applied for an org_admin — `ListDirectoryOptions` has no
+`hospital` field until **B8**. Marked at the call site; deliberately not invented, since a
+key the type does not declare is dropped silently and the select would *look* like it
+filtered.
+
+**Verified live, 21/21 — the first real test of everything that used to be a fallback.**
+⭐ Counts checked against an **independent catalog query**, not against the page:
+**30 / 27 / 2 / 1**, matching exactly, and the three buckets **partition** the set. Each
+pill genuinely filters to its own count while the counts stay over the **unfiltered** set.
+⚠ This mattered because `backend`'s Vitest binding pins the *rule* and not its rendering
+into PostgREST predicate syntax — so this was the first thing able to catch a bad
+`suspended_until.gt.…`. It did not; no defect.
+⭐ **`hospital_admin` sees credentials** — 2 across 15 rows — so ADR 0133 D13/B2 is live
+end-to-end and the Registro column is no longer the "empty means no-permission" trap.
+Comissões render `NAME · Coordenação|Membro`; "Sem comissão" still resolves.
+
+⚠ **One of my own assertions was wrong and looked exactly like a defect.** A body-wide
+search for "Coordenadora" went red — the string is the SEED PERSON **"Coordenadora
+Multi"**, not a role label. Fixed by scoping the matcher to role chips (11 chips, only
+"Membro"/"Coordenação"). *A wrong matcher reads exactly like a live defect*; measuring
+where the string came from is what separated them.
+⚠ Observation for the copy pass, not a bug: seed credentials store
+`registration_number = '123456-SP'`, so the cell renders **"CRM/SP 123456-SP"** — the UF
+twice. Seed data, not a formatting defect in either layer.
 
 ### F3 — built, and why it must not merge yet
 

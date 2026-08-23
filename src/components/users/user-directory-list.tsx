@@ -1,15 +1,12 @@
 import Link from "next/link";
 import { ChevronRight, UserRoundX } from "lucide-react";
 
-import type { OrgUserListItem } from "@/lib/users/types";
+import type { OrgUserListItem, UserDirectoryStatusFilter } from "@/lib/users/types";
 import { orgHref } from "@/lib/routing";
 import { cn } from "@/lib/utils";
 import { UserStatusBadge } from "@/components/users/user-status-badge";
 import { PersonAvatar } from "@/components/users/person-avatar";
-import {
-  STATUS_FILTER_LABEL,
-  type UserDirectoryStatusFilter,
-} from "@/components/users/user-directory-status-pills";
+import { STATUS_FILTER_LABEL } from "@/components/users/user-directory-status-pills";
 
 /**
  * The user directory's table (AFF2 F1, handoff §Screen 1 option 1a).
@@ -46,33 +43,6 @@ import {
  */
 
 /**
- * F1 INTERIM — the three facts this table shows that today's `OrgUserListItem`
- * does not carry. They are backend task **B7** (widening `OrgUserListItem` in
- * `src/lib/users/types.ts`, which `backend` owns); the Registro column additionally
- * needs B2's `professional_credentials` SELECT widening before a hospital_admin can
- * see anything in it (ADR 0133 D13).
- *
- * ⛔ OPTIONAL ON PURPOSE. Until B7 lands each column falls back to the fact the
- * current row does carry, and never to a blank. When B7 lands, `DirectoryRow`
- * collapses to `OrgUserListItem`, the three `?? fallback` branches below go, and
- * this block is deleted — a type change, not a rewrite.
- */
-export interface DirectoryRowExtras {
-  /** ACTIVE affiliations by name. An ARRAY, not the joined string: "N hospitais"
-   * cannot be recovered from a `', '`-join when a hospital name may contain a comma. */
-  hospitalNames: string[];
-  committees: {
-    commissionId: string;
-    commissionName: string;
-    role: "staff" | "staff_admin";
-  }[];
-  /** Pre-formatted for display, e.g. "CRM/SP 152.984". Null when none is visible. */
-  councilRegistration: string | null;
-}
-
-export type DirectoryRow = OrgUserListItem & Partial<DirectoryRowExtras>;
-
-/**
  * Role labels come from the codebase's own vocabulary
  * (`committee-role-assigner.tsx`, `affiliations-panel.tsx`), NOT from the design
  * reference — which renders "Coordenadora", gendered feminine for whichever person
@@ -93,19 +63,13 @@ const ROW_GRID =
   "lg:grid lg:grid-cols-[minmax(230px,1.5fr)_96px_minmax(150px,0.9fr)_minmax(190px,1.2fr)_118px_22px] lg:items-center lg:gap-3";
 
 /** The "Vínculo hospitalar" cell's text, and whether it is the muted "none" variant. */
-function hospitalCell(user: DirectoryRow): { text: string; muted: boolean } {
+function hospitalCell(user: OrgUserListItem): { text: string; muted: boolean } {
   const names = user.hospitalNames;
-  if (names !== undefined) {
-    if (names.length === 0) return { text: "Sem vínculo hospitalar", muted: true };
-    if (names.length === 1) return { text: names[0]!, muted: false };
-    return { text: `${names.length} hospitais`, muted: false };
-  }
-  // Pre-B7: the `', '`-joined string. One affiliation renders exactly as it will
-  // afterwards; several render the joined names rather than a count, because the
-  // count is not recoverable from the join.
-  return user.homeHospitalName
-    ? { text: user.homeHospitalName, muted: false }
-    : { text: "Sem vínculo hospitalar", muted: true };
+  if (names.length === 0) return { text: "Sem vínculo hospitalar", muted: true };
+  if (names.length === 1) return { text: names[0]!, muted: false };
+  // ⛔ COUNTED FROM THE ARRAY, never from a joined string: a hospital name may contain
+  // a comma, and splitting one back apart silently inflates the count.
+  return { text: `${names.length} hospitais`, muted: false };
 }
 
 export function UserDirectoryList({
@@ -118,7 +82,7 @@ export function UserDirectoryList({
   pagination,
 }: {
   org: string;
-  users: DirectoryRow[];
+  users: OrgUserListItem[];
   /** Total rows in the CURRENT filter, across all pages — the footer's "N pessoas". */
   total: number;
   /** Whether a `?search=` term is active (changes the empty-state copy). */
@@ -271,27 +235,12 @@ export function UserDirectoryList({
  * chip of its own, never a blank cell, and the "none" variant is carried by wording
  * plus a dashed outline together, never by colour alone.
  */
-function CommitteeChips({ user }: { user: DirectoryRow }) {
-  const committees = user.committees;
-
-  if (committees === undefined) {
-    // Pre-B7: only a count is available. Render the count rather than invent names.
-    return user.committeeCount === 0 ? (
-      <Chip variant="none">Sem comissão</Chip>
-    ) : (
-      <Chip variant="member">
-        {user.committeeCount === 1
-          ? "1 comissão"
-          : `${user.committeeCount} comissões`}
-      </Chip>
-    );
-  }
-
-  if (committees.length === 0) return <Chip variant="none">Sem comissão</Chip>;
+function CommitteeChips({ user }: { user: OrgUserListItem }) {
+  if (user.committees.length === 0) return <Chip variant="none">Sem comissão</Chip>;
 
   return (
     <>
-      {committees.map((c) => (
+      {user.committees.map((c) => (
         <Chip
           key={c.commissionId}
           variant={c.role === "staff_admin" ? "coordinator" : "member"}

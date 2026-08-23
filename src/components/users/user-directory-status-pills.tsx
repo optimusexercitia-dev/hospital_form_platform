@@ -1,5 +1,9 @@
 import Link from "next/link";
 
+import type {
+  UserDirectoryStatusCounts,
+  UserDirectoryStatusFilter,
+} from "@/lib/users/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,36 +24,14 @@ import { cn } from "@/lib/utils";
  */
 
 /**
- * F1 INTERIM — backend task **B7** exports the canonical union from
- * `src/lib/users/types.ts` and owns the `?status=` parse. Values are English to
- * match the `?status=` precedent already set by `ReferralStatus` / `EventStatus`
- * (`/o/[org]/nsp`), and CLAUDE.md §8's "code in English".
+ * pt-BR labels, also used by the directory's empty state.
  *
- * ⛔ `attention` is NOT a `UserStatus`. It is the composite suspended ∪ pending,
- * which is why this union cannot simply reuse `UserStatus`.
- *
- * Swap the declaration for an import once B7 lands — one line, no other change.
+ * ⚠ The LABELS stay here while the VOCABULARY lives in `src/lib/users/types.ts`
+ * (B7). That split is deliberate: which buckets exist, and which statuses each
+ * admits, is a domain rule the query and the counts share — but what a bucket is
+ * CALLED in pt-BR is presentation, and putting UI copy in the data-access contract
+ * would make a wording change a backend edit.
  */
-export type UserDirectoryStatusFilter = "active" | "attention" | "deactivated";
-
-/** Pill counts over the unfiltered scoped set (B7). */
-export interface UserDirectoryStatusCounts {
-  all: number;
-  active: number;
-  attention: number;
-  deactivated: number;
-}
-
-/** Narrow an untrusted `?status=` value; anything else means "no filter". */
-export function parseStatusFilter(
-  raw: string | undefined,
-): UserDirectoryStatusFilter | null {
-  return raw === "active" || raw === "attention" || raw === "deactivated"
-    ? raw
-    : null;
-}
-
-/** pt-BR labels, also used by the directory's empty state. */
 export const STATUS_FILTER_LABEL: Record<UserDirectoryStatusFilter, string> = {
   active: "Ativos",
   attention: "Atenção",
