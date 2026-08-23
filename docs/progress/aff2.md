@@ -133,7 +133,7 @@ was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
 | Task | State |
 | --- | --- |
 | F1 · Directory table | ✅ **built 2026-08-23** — lint 8/8, `tsc` 0, 24/24 browser checks. ⚠ Two arms inert pending B7 (below) |
-| F2 · Profile page | blocked on B6 |
+| F2 · Profile page | ⚠ **built 2026-08-23** — lint 8/8, `tsc` 0. ⛔ **NOT verified** (stack held by `backend`); the Amdt-1 split is exactly what needs a browser |
 | F3 · Register wizard | ✅ **complete 2026-08-23** — all three B4 insertion points closed (Nascimento, Telefone, redirect-to-profile). lint 8/8, `tsc` 0. ⚠ the three closes are **not yet re-verified in a browser** |
 | F4 · Copy + a11y pass | ⏳ **partial** — `error.tsx` ✅ built **and verified** 2026-08-23 (pulled forward, lead-approved); the copy/a11y sweep itself waits on F2/F3 being final |
 
@@ -315,6 +315,52 @@ usuários"*, never *"a lista"*.
   somewhere. Label copied from `org-manage-sidebar`, not invented.
 - Focus moves to the heading on mount: React swaps the tree **in place**, so without it a
   keyboard user is left focused on a control that no longer exists.
+
+---
+
+### F2 — built against B6's posted contract, not yet exercised
+
+Files: `usuarios/[userId]/page.tsx` (rebuilt to the identity band + rail) ·
+`components/users/personal-data-card.tsx` (new) · `person-avatar.tsx` (new, shared) ·
+`user-profile-edit-form.tsx` (form-only now) · `user-directory-list.tsx` (refactored onto
+the shared avatar).
+
+**Contract verified from the module, not from the message announcing it** —
+`person-footprint.ts` exports `getPersonAdminView`, `PersonAdminView`,
+`PersonPersonalData`, `PersonAdminAuthority` exactly as posted, and carries **no**
+`'use server'` directive, so the page imports it as an ordinary server-side function.
+
+⭐ **The three-state distinction is carried by the TYPE and is branched on first.**
+`personalData === null` = **WITHHELD**; a `null` *inside* it = **NOT INFORMED**.
+`PersonalDataCard` checks the outer null before any value renders, so a person who has a
+birth date can never show "Não informado" because the caller lacked the capability —
+which is the "empty means no-permission" state ADR 0133's Alternatives table names as the
+reason B2 exists.
+
+⭐ **Per-capability, not per-person.** `canEditPerson` (INTERSECTION) gates the Dados
+pessoais / Registros "Editar"; `canManageAccountLifecycle` (SUBSET) gates
+Desativar/Suspender/Reativar **and the CPF field inside the edit form**. Both computed
+server-side and passed down; never re-derived client-side. The cross-hospital case —
+where the two disagree — renders **editable fields plus** a note naming which half is out
+of reach. The "somente organização" absolute is gone from this page.
+
+⚠ **`UserProfileEditForm` is now form-only.** Its read-only branch moved to
+`PersonalDataCard`, because after Amdt 1 "can see the values" and "can edit them" stopped
+being the same question, and one component answering both by swapping trees was the wrong
+shape. It also gained Nascimento/Telefone (D9 person-level fields, now writable via B4)
+and `canEditCpf` as a **separate** prop rather than inheriting the form's own gate.
+
+⛔ **The server comparison is the CPF gate, not this form.** The form omits `cpf` when
+untouched as defence in depth; `updateUserProfile` compares against the current row, so an
+absent key and an unchanged value reach the same verdict. If the form were the mechanism,
+the bound would not be enforced.
+
+⚠ **One spec will break and is `tester`'s:** `hospital-admin-tier.spec.ts:822` asserts a
+heading **"Situação da conta"**. That card is gone — the handoff moves lifecycle actions
+into the identity band, which has no such heading. Not worth keeping a heading alive purely
+to satisfy a locator. `getByRole('region', { name: 'Vínculos hospitalares' })`
+(`aff-hospital-affiliation.spec.ts:655,689`) **still resolves** — that section kept its
+name.
 
 ---
 

@@ -5,6 +5,7 @@ import type { OrgUserListItem } from "@/lib/users/types";
 import { orgHref } from "@/lib/routing";
 import { cn } from "@/lib/utils";
 import { UserStatusBadge } from "@/components/users/user-status-badge";
+import { PersonAvatar } from "@/components/users/person-avatar";
 import {
   STATUS_FILTER_LABEL,
   type UserDirectoryStatusFilter,
@@ -90,17 +91,6 @@ const ROLE_LABEL: Record<"staff" | "staff_admin", string> = {
  */
 const ROW_GRID =
   "lg:grid lg:grid-cols-[minmax(230px,1.5fr)_96px_minmax(150px,0.9fr)_minmax(190px,1.2fr)_118px_22px] lg:items-center lg:gap-3";
-
-/** Initials for the avatar: first + last word of the name, else the e-mail's first letter. */
-function initialsOf(fullName: string | null, email: string | null): string {
-  const words = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
-  if (words.length > 0) {
-    const first = words[0]!.charAt(0);
-    const last = words.length > 1 ? words[words.length - 1]!.charAt(0) : "";
-    return (first + last).toUpperCase();
-  }
-  return (email ?? "").trim().charAt(0).toUpperCase() || "?";
-}
 
 /** The "Vínculo hospitalar" cell's text, and whether it is the muted "none" variant. */
 function hospitalCell(user: DirectoryRow): { text: string; muted: boolean } {
@@ -189,12 +179,7 @@ export function UserDirectoryList({
               >
                 {/* Pessoa */}
                 <span className="flex min-w-0 items-center gap-3">
-                  <span
-                    aria-hidden="true"
-                    className="grid size-8.5 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground"
-                  >
-                    {initialsOf(user.fullName, user.email)}
-                  </span>
+                  <PersonAvatar fullName={user.fullName} email={user.email} />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold">
                       {displayName}
