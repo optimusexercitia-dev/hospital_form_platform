@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import { cachedSignIn } from './helpers/auth'
 import { getAnyPublishedTemplateVersion } from './helpers/process-templates'
+import { notFoundKind } from './helpers/not-found'
 
 /**
  * ORPHANED ADMINISTRATIVO — reachability, pinned by construction.
@@ -132,31 +133,15 @@ async function countRows(req: APIRequestContext, path: string): Promise<number> 
 }
 
 /**
- * WHICH 404 rendered — and it is not cosmetic, it names the gate that fired.
- * `notFound()` streams as HTTP 200 on a standalone server, so the status line
- * cannot be keyed on; and the two boundaries carry DIFFERENT copy:
- *
- *   'root'       — `src/app/not-found.tsx`, "Não encontramos esta página."
- *                  A LAYOUT called `notFound()`, so it bubbled past
- *                  `c/[commission]/not-found.tsx` to the root boundary. For this
- *                  spec that means the commission shell itself refused ⇒ the
- *                  resolver returned `null` (no readable commission row).
- *   'commission' — `c/[commission]/not-found.tsx`, "Página não encontrada".
- *                  The shell RENDERED (its chrome is on the page) and the PAGE
- *                  called `notFound()` ⇒ the `canInCommission` gate refused.
- *
- * ⛔ An earlier draft of this file matched only the root copy and reported C2 as
- * "still reaching the board" when it was in fact correctly 404'd — a wrong
- * matcher reads exactly like a live defect. Assert the KIND, never a generic
- * "some 404 happened".
+ * WHICH 404 rendered — and it is not cosmetic, it names the gate that fired. The
+ * detector now lives in `./helpers/not-found` (imported above) so the SAME verdict
+ * is used by `case-surface-split-increment-2.spec.ts`, whose five 404 sites used to
+ * match a generic `/não encontr/i` that cannot tell the two boundaries apart (QA
+ * case-surface-split-increment-2-review.md M-16). The record of why the KIND
+ * matters — including the earlier draft of THIS file that matched only the root
+ * copy and reported C2 as still reaching the board when it was correctly 404'd —
+ * moved with it, into that module's docblock.
  */
-async function notFoundKind(page: Page): Promise<'root' | 'commission' | null> {
-  const text = await page.locator('body').innerText().catch(() => '')
-  if (/Não encontramos esta página/i.test(text)) return 'root'
-  if (/Página não encontrada/i.test(text)) return 'commission'
-  return null
-}
-
 async function gotoSettled(page: Page, path: string) {
   await page.goto(path, { waitUntil: 'load' })
   await page.waitForTimeout(1200)

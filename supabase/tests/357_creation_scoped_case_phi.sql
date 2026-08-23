@@ -15,6 +15,18 @@
 -- carrying identifier values to a principal holding no `read_standard_phi` would be a PHI
 -- READ PATH wearing a different name. §7 pins that structurally.
 --
+-- ⛔ OWNER CONTEXT COMES FROM `test_helpers.reset_role_and_claims()`, NEVER FROM A BARE
+-- `reset role` (FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS). `reset role` restores the ROLE
+-- only; `request.jwt.claims` is transaction-scoped and survives it, so `auth.uid()` keeps
+-- returning the LAST PERSONA. Every predicate assertion in this file that runs between
+-- persona blocks — 5.1, 8.2a, 9.3 — is evaluated in what the file calls owner context, and
+-- a stale claims GUC would silently re-point some of them at a persona. The verb does both
+-- halves in one call so they cannot drift apart; both halves are pinned by
+-- `358_unchecked_writers_and_owner_context.sql` §G.
+-- ⚠ The ONE surviving raw `set_config('request.jwt.claims', ...)` here is §8c's, which
+-- SETS a hand-built platform_admin hat rather than clearing one. It is not an instance of
+-- the pattern above and must stay.
+--
 -- ⚠ SCOPE OF THIS FILE: the SINGLE-CASE path. The bulk path's own pins live in
 -- `189_bulk_create_cases.sql` §2b/§8b and were RED pending a PO ruling — ✅ RULED 2026-08-22 (ADR 0134 Amendment 7: bulk needs
 --     `create_cases` ∧ `assign_case_phases`, `all_phases` refused at the gate) and BUILT; the
@@ -122,8 +134,7 @@ create temp table c1 on commit drop as
             jsonb_build_object('name','Paciente Criado','mrn','MRN-CRIADO','sex','female')
           )).id as case_id;
 grant select on c1 to authenticated;
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 
 select isnt((select case_id from c1), null,
   '2.1 the administrativo created a PHI-collecting case in ONE call (no second round-trip to lose)');
@@ -156,8 +167,7 @@ select throws_ok(
               jsonb_build_object('name','X')) $$, (select comm_x from k)),
   '23514', 'este caso não coleta identificação do paciente',
   '3.2 patient_enabled is still enforced: identifiers on a non-collecting case are refused');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 
 -- =========================================================================
 -- (4) ⭐ K-CREATION-ONLY — THE KEYSTONE. One call later, the same person is refused.
@@ -175,8 +185,7 @@ select throws_ok(
   format($$ select public.set_participant_patient(%L, null, 'Tentativa', 'MRN-X') $$, (select case_id from c1)),
   '42501', 'apenas a coordenação da comissão pode registrar dados do paciente',
   '4.2 ⭐ CREATION-ONLY: …and so does the real gated writer. The wrapper kept its gate; only the body moved');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 select is(
   (select pi.mrn from public.patient_identifiers pi
     join public.case_participants cp on cp.participant_id = pi.participant_id
@@ -196,15 +205,13 @@ select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select is(public.get_case_patients((select case_id from c1)), null,
   '5.2 ⭐ THROUGH THE DOOR: get_case_patients returns NULL to the person who wrote the row');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select isnt(public.get_case_patients((select case_id from c1)), null,
   '5.3 ⭐ POSITIVE CONTROL, SAME DOOR, SAME CASE: the coordinator CAN read it — so 5.2 is a denial, not an empty fixture');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 
 -- =========================================================================
 -- (6) AUDIT (Rule 11) — the write is attributable to the administrativo.
@@ -268,8 +275,7 @@ select throws_ok(
               jsonb_build_object('name','N')) $$, (select comm_x from k)),
   '42501', 'sem permissão',
   '8.1 capability revoked => creation (and therefore its PHI write) is refused at the door');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 insert into public.commission_administrativo_capabilities (commission_id, user_id, capability, granted_by)
   values ((select comm_x from k), (select st_x from k), 'create_cases', (select sa_x from k));
 
@@ -293,8 +299,7 @@ select throws_ok(
               jsonb_build_object('name','N')) $$, (select comm_x from k)),
   '42501', 'sem permissão',
   '8.2b ⭐ AT THE DOOR: the ORPHAN is refused by create_case itself — the assertion that has to survive every disjunct the gate carries, not just the one under test');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 insert into public.memberships select * from mrow;
 
 -- =========================================================================
@@ -323,8 +328,7 @@ select lives_ok(
   format($$ select public.create_case(%L, 'Admin sem PHI', true, '{}'::uuid[], null, null, null, null) $$,
          (select comm_x from k)),
   '8c.2 ⭐ B1 SCOPE CONTROL: the SAME principal at the SAME door still creates a case WITHOUT p_patient — so the fix is provably scoped to the PHI payload and is not a silent behaviour change to case creation');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 select is((select count(*)::int from public.cases where label = 'Admin com PHI'), 0,
   '8c.3 ⛔ REFUSED AT THE GATE: the rejected call minted NO case. A silently dropped payload would be data loss wearing a success, and would rebuild the M10 half-state this increment removed');
 select is(
@@ -337,8 +341,7 @@ select lives_ok(
   format($$ select public.create_case(%L, 'Coord com PHI', true, '{}'::uuid[], null, null, null,
               jsonb_build_object('name','Paciente Permitido','mrn','MRN-SIM')) $$, (select comm_x from k)),
   '8c.5 ⭐ SAME-DOOR POSITIVE CONTROL: the coordinator supplying p_patient SUCCEEDS — so 8c.1 is a refusal of that principal class, not a door that refuses everyone');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 select is((select count(*)::int from public.patient_identifiers where mrn = 'MRN-SIM'), 1,
   '8c.6 …and the coordinator''s identifiers actually landed');
 
@@ -355,8 +358,7 @@ select throws_ok(
               jsonb_build_object('name','N')) $$, (select comm_x from k)),
   '42501', 'sem permissão',
   '9.1 administrativo flag OFF => the kill switch darkens the creation door');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 update app.feature_flags set enabled = true where key = 'administrativo';
 
 update app.feature_flags set enabled = false where key = 'case_patient';
@@ -367,8 +369,7 @@ select throws_ok(
               jsonb_build_object('name','N','mrn','M')) $$, (select comm_x from k)),
   '23514', null,
   '9.2 ⭐ case_patient flag OFF => the creation path refuses the PHI write. This is what makes the helper''s OWN flag assert falsifiable — wrapper-only, this pin would go green while PHI was written in the dark');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 update app.feature_flags set enabled = true where key = 'case_patient';
 select is(app.feature_enabled('case_patient'), true,
   '9.3 restore verified: case_patient is back ON (a hardcoded restore goes stale exactly like the value it replaces)');
@@ -382,8 +383,7 @@ select lives_ok(
   format($$ select public.set_case_patient(%L, 'Editado pela coordenação', 'MRN-COORD') $$,
          (select case_id from c1)),
   '10.1 the coordinator still edits identifiers through the gated door after creation');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 select is(
   (select pi.mrn from public.patient_identifiers pi
     join public.case_participants cp on cp.participant_id = pi.participant_id

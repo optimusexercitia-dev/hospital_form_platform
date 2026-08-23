@@ -546,6 +546,55 @@ begin
 end;
 $$;
 
+-- ⛔ `reset role` RESTORES THE ROLE ONLY — the claims survive it
+-- (FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS, filed 2026-08-22).
+--
+-- `claims_for(...)` sets `request.jwt.claims` with `set_config(..., is_local => true)`,
+-- which is scoped to the TRANSACTION, not to the role. So a suite that writes
+--
+--     set local role authenticated;  ...  reset role;
+--
+-- and then says "back in owner context, `auth.uid()` is NULL" is stating a premise that
+-- is FALSE: `auth.uid()` still returns the last persona, and every assertion resting on
+-- that sentence inherits the falsehood. ⭐ A pin whose stated premise is false is the same
+-- defect as a pin that cannot fail — both are green for a reason unrelated to the
+-- property, and this one is worse to find later, because the comment above it reads like
+-- the verification. It was found by construction inside the ADR 0134 S8 suite, where it
+-- hit the Amendment-6 pin (`356` 1.5c) itself.
+--
+-- This verb is the ROOT fix required by the follow-up: the two halves are done together,
+-- by one call, so they cannot drift apart the way 136 files' hand-paired edits would.
+-- The gate that makes the false premise DETECTABLE is `358_unchecked_writers_and_owner_context.sql`
+-- §G — it pins the hazard (bare `reset role` leaves the persona resolvable) beside the
+-- fix (this verb clears it), so neither claim can rot into a comment.
+--
+-- ⚠ MEASURED, NOT ASSUMED — three properties this depends on, each probed 2026-08-22
+-- against the live stack rather than reasoned about:
+--   1. `authenticated` MAY `reset role`. The header on `claims_for` above notes that a
+--      non-superuser cannot `SET ROLE postgres` from inside a function; `RESET ROLE` is a
+--      different statement — it returns to the SESSION authorization and is always
+--      allowed — so the constraint recorded there does not apply here.
+--   2. A `RESET ROLE` issued inside a function STICKS after the function returns.
+--   3. It sticks even with a `SET search_path` clause attached. ⛔ I expected the SET
+--      clause to pop the GUC nest level and revert the reset; it does not. Recording the
+--      expectation as a comment without probing it would have produced exactly the class
+--      of false-but-plausible note this verb exists to kill.
+--
+-- `create or replace` is safe here with no DROP: this is a NEW name, so there is no prior
+-- signature for the argument list to collide with (the hazard the `claims_for` header
+-- documents applies only to CHANGING an existing signature). Zero arguments means it can
+-- never acquire that hazard either.
+create or replace function test_helpers.reset_role_and_claims()
+returns void
+language plpgsql
+set search_path to 'public', 'pg_catalog'
+as $$
+begin
+  execute 'reset role';
+  perform pg_catalog.set_config('request.jwt.claims', '', true);
+end;
+$$;
+
 grant usage on schema test_helpers to authenticated;
 grant execute on all functions in schema test_helpers to authenticated;
 

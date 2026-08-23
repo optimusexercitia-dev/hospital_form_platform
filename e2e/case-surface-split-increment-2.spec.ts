@@ -1,5 +1,13 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { expectNotFoundKind, notFoundKind } from './helpers/not-found'
+import {
+  assertAbsentHere,
+  assertPresentOnManage,
+  FULL_CLASS,
+  G3_MEMBERS,
+  G6_MEMBERS,
+} from './helpers/case-affordance-class'
 
 /**
  * ADR 0134 — case surface split, Increment 2 (S8 `read_cases`, the bulk two-key
@@ -227,8 +235,16 @@ test('B1 bulk two-key gate (negative 1/2): create_cases ALONE gets neither the b
   await expect(page.getByRole('link', { name: /Múltiplos casos/i })).toHaveCount(0)
 
   // Direct navigation is refused too — the route's own gate, not just a hidden link.
+  // 'commission', not merely "a 404": staff1 IS a CCIH member, so the SHELL must
+  // render and only the PAGE may refuse. A 'root' kind here would mean the commission
+  // layout itself refused — a broader failure that has nothing to do with the two-key
+  // predicate under test, and which the old `/não encontr/i` matcher accepted silently.
   await page.goto(`${BASE}/manage/cases/multiplos`)
-  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
+  await expectNotFoundKind(
+    page,
+    'commission',
+    'create_cases alone must be refused by the /multiplos PAGE gate, inside a rendered commission shell',
+  )
 
   await signOut(page)
 })
@@ -245,10 +261,45 @@ test('B1 bulk two-key gate (negative 2/2): assign_case_phases ALONE gets neither
   // assign_case_phases alone does not even satisfy the BOARD's own gate
   // (`canInCommission(access,'create_cases')`), so this persona 404s here too —
   // asserted as the boundary actually met, not assumed.
-  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
+  //
+  // ⛔ THE KIND IS THE ASSERTION (QA M-16). This test used to be the WEAKEST of the
+  // five 404 sites: a bare `/não encontr/i` with NO positive control ahead of it, so
+  // it could not distinguish "the board gate refused" from "the page never rendered
+  // at all". Two things close that here. (1) 'commission' can only paint INSIDE the
+  // commission layout, so the kind itself proves the shell rendered — a structural
+  // presence control the generic matcher could never give. (2) The coordinator
+  // control below re-walks the SAME two paths and gets the real pages.
+  await expectNotFoundKind(
+    page,
+    'commission',
+    'assign_case_phases alone must be refused by the BOARD gate, inside a rendered commission shell',
+  )
 
   await page.goto(`${BASE}/manage/cases/multiplos`)
-  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
+  await expectNotFoundKind(
+    page,
+    'commission',
+    'assign_case_phases alone must be refused by the /multiplos PAGE gate, inside a rendered commission shell',
+  )
+
+  await signOut(page)
+
+  // ── POSITIVE CONTROL, same two paths. Without it the refusals above would read
+  // identically if the routes were dead, the build were stale, or the fixture never
+  // took. The coordinator holds no appointment at all, so what differs between the
+  // two personas is exactly the capability set. ──
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`${BASE}/manage/cases`)
+  await page.waitForURL(`${BASE}/manage/cases`)
+  await expect(page.getByRole('heading', { name: /^Casos$/i })).toBeVisible({ timeout: 10_000 })
+  expect(await notFoundKind(page), 'the board route must NOT 404 for the coordinator').toBeNull()
+
+  await page.goto(`${BASE}/manage/cases/multiplos`)
+  await page.waitForURL(`${BASE}/manage/cases/multiplos`)
+  await expect(page.getByRole('heading', { name: /^Múltiplos casos$/i })).toBeVisible({
+    timeout: 10_000,
+  })
+  expect(await notFoundKind(page), 'the /multiplos route must NOT 404 for the coordinator').toBeNull()
 
   await signOut(page)
 })
@@ -348,30 +399,57 @@ test('B3 S8 board-fill (staff2, neutralized) + the read-only boundary at a case 
   await signInAs(page, 'staff1.ccih@test.local')
 
   await page.goto(`${BASE}/manage/cases`)
-  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
+  // 'commission' — the BOARD page's own gate (it reads create_cases, which this
+  // persona does not hold), inside a shell that renders because staff1 is a member.
+  // The case DETAIL immediately below IS this test's positive control on the same
+  // host: it renders fully for the same persona in the same session, so the refusal
+  // here cannot be "read_cases sees nothing at all".
+  await expectNotFoundKind(
+    page,
+    'commission',
+    'a read_cases-ONLY administrativo must be refused by the BOARD gate, inside a rendered commission shell',
+  )
 
   await page.goto(`${BASE}/manage/cases/${CF_CASE_ID}`)
   await page.waitForURL(`${BASE}/manage/cases/${CF_CASE_ID}`)
   await expect(page.getByRole('heading', { name: /caso\s*\d+/i })).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('header').getByRole('button', { name: /^Editar$/ })).toHaveCount(0)
-  const phase1 = page.getByRole('article').filter({ hasText: /Fase 1/i }).first()
-  await expect(phase1).toBeVisible({ timeout: 10_000 })
-  await expect(phase1.getByRole('button', { name: /Ativar e atribuir/i })).toHaveCount(0)
+
+  // ⛔ "READ-ONLY" IS THE CLASS, NOT TWO NAMES (QA case-surface-split-increment-2-review.md
+  // M-15). This assertion used to name exactly TWO absences by hand — the header
+  // "Editar" (G6) and "Ativar e atribuir" (G3) — against a class that
+  // `casos-reading-surface-differential.spec.ts` had ALREADY derived by property at
+  // 16 members, in the same delivery. Two of sixteen is a hand-list wearing the label
+  // of a claim about the whole shell; in particular it said nothing about the four
+  // `canWriteContent` editors (G1), which an S8-only administrativo must equally not
+  // have. The tables are now shared (`helpers/case-affordance-class`) and the whole
+  // class is swept here.
+  //
+  // The census guard is deliberate: a table-driven sweep that silently lost rows
+  // would pass having asserted nothing.
+  expect(FULL_CLASS.length, 'the derived case-wide class must have 16 members').toBe(16)
+  await assertAbsentHere(
+    page,
+    FULL_CLASS,
+    'an S8 (read_cases-ONLY) administrativo holds NO case-wide write affordance on the MANAGE host — the whole derived class must be absent, not just the two that were named by hand',
+    `/manage/cases/${CF_CASE_ID} (read_cases-only administrativo)`,
+  )
   await signOut(page)
 
-  // Positive control — same case, same buttons, the coordinator: proves the
-  // absences above are the read-only boundary, not the buttons being gone from
-  // this case/page altogether.
+  // Positive control — same case, same controls, the coordinator: proves the
+  // absences above are the read-only boundary, not the controls being gone from this
+  // case/page altogether.
+  //
+  // ⚠ SCOPED TO G3+G6 ON PURPOSE, and the scope is a fixture fact, not a softening.
+  // The full 16 cannot be positively controlled on THIS case: G5's "Corrigir
+  // resultado" needs a COMPLETED result-emitting phase (this fixture's phase is
+  // pending) and PLESS's outcome-set editor renders only on a PROCESS-LESS case.
+  // Those two are paired on their own fixtures by PLESS-1 / CF-1 / COORD-1 in the
+  // differential spec. G3+G6 are exactly the two cells this fixture supports — now
+  // sourced FROM the shared tables rather than retyped.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`${BASE}/manage/cases/${CF_CASE_ID}`)
   await page.waitForURL(`${BASE}/manage/cases/${CF_CASE_ID}`)
-  await expect(page.locator('header').getByRole('button', { name: /^Editar$/ })).toBeVisible({
-    timeout: 10_000,
-  })
-  const phase1Coord = page.getByRole('article').filter({ hasText: /Fase 1/i }).first()
-  await expect(phase1Coord.getByRole('button', { name: /Ativar e atribuir/i })).toBeVisible({
-    timeout: 10_000,
-  })
+  await assertPresentOnManage(page, [...G3_MEMBERS, ...G6_MEMBERS])
   await signOut(page)
 
   await clearAppointment(page.request, UID_STAFF1)
@@ -401,9 +479,16 @@ test('B4 Amendment 4 ceiling: the explicit_grants_only ethics case is invisible 
   await expect(table.getByText(CF_CASE_LABEL)).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText(ETHICS_CASE_LABEL)).toHaveCount(0)
 
-  // Direct nav — no data leakage, ever.
+  // Direct nav — no data leakage, ever. 'commission': this persona reaches the shell
+  // and the board (asserted above, populated), so what must refuse them is the case
+  // DETAIL page's own read gate under Amendment 4's `explicit_grants_only` ceiling —
+  // not the shell. The board assertions above are this site's presence control.
   await page.goto(`${BASE}/manage/cases/${ETHICS_CASE_ID}`)
-  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
+  await expectNotFoundKind(
+    page,
+    'commission',
+    'the explicit_grants_only case must be refused by the case DETAIL gate, inside a rendered commission shell',
+  )
   const body = (await page.locator('body').textContent()) ?? ''
   expect(body).not.toContain('Denúncia Ética')
   expect(body).not.toContain('Dra. Denunciada')
@@ -431,16 +516,20 @@ test('B4 Amendment 4 ceiling: the explicit_grants_only ethics case is invisible 
 // state — D6's "default-checked" reading was rejected in favor of this: it is a
 // grant, not a client-side default). Unchecking it narrows the board back down.
 //
-// ⛔ CURRENTLY RED — pins a live defect, filed by the tester 2026-08-22 (bug row
-// owed by the lead, not this file): `MemberAdministrativoControls.toggleAppointment()`
-// (src/components/members/member-administrativo-controls.tsx) calls `setAppointed(true)`
-// on a successful appoint but never updates the `caps` state to include the
-// auto-granted `read_cases` — the DB row lands correctly (verified directly:
-// `commission_administrativo_capabilities` gets the row the instant
-// `appoint_administrativo` returns), but the checkbox renders UNCHECKED until a
-// full page reload re-derives `initialCapabilities` from fresh server props. Do
-// NOT "fix" this test to tolerate the unchecked state — the contract under test
-// (Amendment 5) is that the LIVE dialog reflects the grant with no extra click.
+// ✅ GREEN since `a514d169` — was RED, and the record is kept because the shape of
+// the defect is the reason this test is written the way it is. BUG-B5:
+// `MemberAdministrativoControls` seeded its `caps` state from a prop with
+// `useState`, which ignores every later prop value, so the checkbox rendered
+// UNCHECKED while `commission_administrativo_capabilities` already held the row —
+// the UI showing the opposite of the door. `a514d169` reconciles with the server
+// (`router.refresh()` + adopt props keyed on CONTENT) rather than simulating the
+// tick client-side.
+//
+// ⛔ Do NOT "fix" this test to tolerate an unchecked state if it ever reds again —
+// the contract under test (Amendment 5) is that the LIVE dialog reflects the grant
+// with no extra click, and the tempting client-side `setCaps(prev => …read_cases)`
+// is itself a defect (it hard-codes today's auto-grant into the client).
+// Re-verified GREEN 2026-08-22 during the QA M-15/M-16 remediation.
 // ---------------------------------------------------------------------------
 
 test('B5 Amendment 5: the appoint dialog renders read_cases CHECKED with no extra click; unchecking narrows the board', async ({

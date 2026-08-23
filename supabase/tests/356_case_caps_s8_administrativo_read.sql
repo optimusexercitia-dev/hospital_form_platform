@@ -74,7 +74,9 @@
 -- it was avoided.
 
 begin;
-select plan(72);
+-- 72 -> 78: +2 in §8 (8.1c/8.1d, the second PHI door's precondition + positive control)
+-- and +4 in §14 (V-1, the _case_caps strip-and-compare promoted from a recorded check).
+select plan(78);
 
 -- =========================================================================
 -- (0) FLAG PRECONDITIONS — ASSERTED, NOT CLAIMED. A reading is not a fact until it is
@@ -132,8 +134,7 @@ from public.hospitals h, k where h.id = k.hosp_b;
 select test_helpers.claims_for((select oa_b from k), false);
 set local role authenticated;
 select set_commission_oversight((select comm_x from k), 'visible');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 
 -- Appoint st_x + adm2 as owner (DIRECT INSERT — the appoint DOOR is 205's subject, not
 -- this file's; here the appointment is a fixture, so it must not depend on that door).
@@ -164,9 +165,15 @@ values ((select tag_id from tg), (select comm_x from k), 'Etiqueta S8');
 -- ⛔ OWNER CONTEXT IS NOT WHAT `reset role` GIVES YOU. `reset role` restores the ROLE
 -- but leaves the `request.jwt.claims` GUC set, so `auth.uid()` keeps returning the last
 -- persona — and every owner-context assertion below (§1's uid discrimination especially)
--- depends on it being NULL. Each `reset role` in this file is therefore paired with an
--- explicit claims clear, and the premise is PINNED here rather than assumed: a pin whose
+-- depends on it being NULL. The premise is PINNED here rather than assumed: a pin whose
 -- stated premise is false is the same defect as a pin that cannot fail.
+-- ⭐ FIXED AT THE ROOT (FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS). This file originally
+-- hand-paired each `reset role` with its own claims clear — two lines that can drift apart,
+-- and 136 files in this suite pair them nowhere at all. Every such pair here is now the
+-- single verb `test_helpers.reset_role_and_claims()`, which does both halves in one call so
+-- they CANNOT drift, and whose two halves are independently pinned by
+-- `358_unchecked_writers_and_owner_context.sql` §G. 0.5 below stays regardless: the root
+-- fix makes the premise true, and 0.5 is what makes it CHECKED.
 select ok(auth.uid() is null,
   '0.5 ⭐ PRECONDITION: owner context — auth.uid() is NULL. §1.5c reads the BARE member_can here and requires false; with a stale claims GUC it would read some persona instead');
 
@@ -231,23 +238,42 @@ select is(app.member_can((select comm_x from k), 'read_cases'), false,
 -- VACUOUS: once one delegates to the other it is true by construction, and a property
 -- guaranteed structurally cannot be pinned by asserting it. These CAN fail — hand-copy
 -- the conjunct list into a second body and 2.1 reds.
+--
+-- ⭐ DOMAIN WIDENED TO MATCH THE CLAIM (QA M-7). 2.1/2.2 were bounded to
+-- `pronamespace = 'app'` while their description claims the PREDICATE has one body. Those
+-- are different statements: a hand-copy of the conjunct list into a `public` routine — the
+-- one schema a client can actually reach — satisfied the old assertion and falsified the
+-- claim. The bound is now the PROPERTY (any routine anywhere whose comment-stripped body
+-- carries BOTH conjunct markers), never a namespace, and 2.2 carries the schema-qualified
+-- name so a body that MOVED reds as loudly as one that was copied.
+-- ⚠ Measured before widening, not after: over ALL namespaces the count is still 1. A
+-- widening that turns up nothing new is evidence the old bound was merely narrow; a
+-- widening that quietly required the expected answer would not be.
 -- =========================================================================
 select is(
   (select count(*)::int from pg_proc p
-    where p.pronamespace = 'app'::regnamespace
-      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+    where regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
           ~ 'feature_enabled\(''administrativo'''
       and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
           ~ 'commission_administrativo_capabilities'),
-  1, '2.1 ⭐ CATALOG: exactly ONE app routine carries both the administrativo flag conjunct and the capability table — the predicate has one body, not two');
+  1, '2.1 ⭐ CATALOG: exactly ONE routine IN THE WHOLE DATABASE carries both the administrativo flag conjunct and the capability table — the predicate has one body, not two. Unbounded by schema, because "one body" is a claim about the predicate, not about `app`');
+-- ⛔ 2.2 IS AN ARRAY, NOT A SCALAR SUBQUERY, AND THE REASON IS AN ABORT. As a scalar it
+-- read `(select n.nspname||'.'||p.proname from pg_proc where <both markers>)`. The moment a
+-- SECOND body exists — the exact event 2.1 exists to catch — that subquery raises
+-- "more than one row returned by a subquery used as an expression", which ABORTS the file
+-- rather than failing an assertion. ⭐ An abort is not a red: pgTAP reports no plan, and
+-- `100_dashboard.sql` has already lost a whole suite that way. The array form fails
+-- LOUDLY on the same event and names both bodies in the diagnostic.
 select is(
-  (select p.proname from pg_proc p
-    where p.pronamespace = 'app'::regnamespace
-      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+  (select coalesce(array_agg(n.nspname || '.' || p.proname order by n.nspname, p.proname),
+                   array[]::text[])
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
           ~ 'feature_enabled\(''administrativo'''
       and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
           ~ 'commission_administrativo_capabilities'),
-  'member_can_for', '2.2 CATALOG: …and it is member_can_for (2.1 alone would pass if the one body were the WRONG one)');
+  array['app.member_can_for'],
+  '2.2 CATALOG: …and it is app.member_can_for, SCHEMA-QUALIFIED (2.1 alone would pass if the one body were the WRONG one, or the RIGHT one relocated to a client-reachable schema)');
 select is(
   (select count(*)::int from pg_proc p
     where p.pronamespace = 'app'::regnamespace and p.proname = 'member_can'
@@ -300,8 +326,7 @@ select is(
 select is(
   (public.case_viewer_capabilities((select case_o from cs))->>'can_manage_lifecycle')::boolean, false,
   '3.5 P1: …and can_manage_lifecycle is FALSE (close/cancel stay coordinator-only)');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 
 -- =========================================================================
 -- (4) P2 — NEGATIVES ×2.
@@ -374,8 +399,7 @@ set local role authenticated;
 select lives_ok(
   format($$ select public.get_case_detail(%L) $$, (select case_o from cs)),
   '7.0 the appointee opens the case again (the emission trigger)');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 select is(
   (select count(*)::int from public.audit_log
     where action = 'case.opened' and entity_id = (select case_o from cs)
@@ -392,8 +416,7 @@ set local role authenticated;
 select lives_ok(
   format($$ select public.get_case_detail(%L) $$, (select case_o from cs)),
   '7.2 the COORDINATOR opens the same case');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 select is(
   (select count(*)::int from public.audit_log
     where action = 'case.opened' and entity_id = (select case_o from cs))
@@ -418,8 +441,7 @@ set local role authenticated;
 select lives_ok(
   format($$ select public.set_case_patient(%L, 'Paciente S8', 'MRN-S8-9403') $$, (select case_p from cs)),
   '8.0 fixture: the coordinator writes the case''s patient identifiers through the single audited door');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 
 -- The S3 grantee: st_x2 gets read_case_content + read_standard_phi on case_p.
 select test_helpers.claims_for((select sa_x from k), false);
@@ -428,17 +450,39 @@ select lives_ok(
   format($$ select public.grant_case_access(%L, %L, 'read', null, 'P7 positive control', true, false) $$,
          (select case_p from cs), (select st_x2 from k)),
   '8.0b fixture: the coordinator grants st_x2 a READ grant carrying read_standard_phi');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
+
+-- ⛔ THE SECOND DOOR'S ARGUMENT IS RESOLVED IN OWNER CONTEXT AND PINNED (QA M-6).
+-- 8.2d used to inline `(select cp.participant_id from case_participants … limit 1)`, and
+-- that subselect returns NULL when the chain is absent. `get_participant_patient(NULL)`
+-- returns NULL as well — measured: its first act is `app.case_of_patient_participant(NULL)`
+-- → NULL → `return null`, BEFORE any authority check. So the denial assertion was satisfied
+-- whether the subject was refused or simply absent, which is the recorded "a green gate can
+-- mean the FIXTURE cannot reach the failing state" shape. 8.1b made the chain LIKELY;
+-- nothing asserted it, and unlike 8.2c this door had no positive control of its own.
+-- ⚠ Resolved here, in owner context, because `patient_participants` grants `authenticated`
+-- NOTHING — the join below is impossible from inside the persona blocks that consume it.
+-- ⚠ And resolved by JOINING patient_participants rather than `limit 1` over an unordered
+-- case_participants: the old form would have picked an arbitrary participant the day this
+-- case acquires a second one, and silently answered about the wrong subject.
+create temp table pp on commit drop as
+  select cp.participant_id
+    from public.case_participants cp
+    join public.patient_participants ppx on ppx.participant_id = cp.participant_id
+   where cp.case_id = (select case_p from cs) and cp.removed_at is null;
+grant select on pp to authenticated;
 
 select is(app.can_read_case_patient((select case_p from cs), (select st_x2 from k)), true,
   '8.1a POSITIVE CONTROL: the S3 grantee holds read_standard_phi');
+select isnt((select participant_id from pp), null,
+  '8.1c PRECONDITION for the SECOND door: case_p really has a patient participant, so 8.2d''s argument is a real id and not a NULL that the door short-circuits on');
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select isnt(public.get_case_patients((select case_p from cs)), null,
   '8.1b ⭐ POSITIVE CONTROL, THROUGH THE DOOR: the grantee reads identifiers from get_case_patients — proving the fixture CAN reach the success state');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select isnt(public.get_participant_patient((select participant_id from pp)), null,
+  '8.1d ⭐ POSITIVE CONTROL, SECOND DOOR: the SAME grantee reads identifiers from get_participant_patient with the SAME argument 8.2d uses — so 8.2d''s NULL is a refusal of that principal, not an empty chain. This door had no control of its own; 8.2c had 8.1b and 8.2d had nothing');
+select test_helpers.reset_role_and_claims();
 
 select is(app.can_read_case((select case_p from cs), (select st_x from k)), true,
   '8.2a PRECONDITION: the S8 subject CAN read the case''s CONTENT — so 8.2b is a PHI denial, not a case-not-found');
@@ -448,13 +492,9 @@ select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select is(public.get_case_patients((select case_p from cs)), null,
   '8.2c ⭐ P7 THROUGH THE DOOR: the S8 subject is refused at the SAME door, on the SAME case, where 8.1b succeeded');
-select is(
-  public.get_participant_patient(
-    (select cp.participant_id from public.case_participants cp
-      where cp.case_id = (select case_p from cs) and cp.removed_at is null limit 1)), null,
-  '8.2d P7, SECOND DOOR: get_participant_patient refuses them too (2 of the 3 doors in the property-bounded set are public)');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select is(public.get_participant_patient((select participant_id from pp)), null,
+  '8.2d P7, SECOND DOOR: get_participant_patient refuses them too, on the SAME participant id where 8.1d succeeded (2 of the 3 doors in the 13.5 property-bounded set are public)');
+select test_helpers.reset_role_and_claims();
 
 -- =========================================================================
 -- (9) P8 — THE AUTHORSHIP BOUND. D6: read only.
@@ -470,15 +510,13 @@ select throws_ok(
   format($$ select public.assign_case_tag(%L, %L) $$, (select case_o from cs), (select tag_id from tg)),
   '42501', 'sem permissão',
   '9.2 P8: a real content-write DOOR refuses them — errcode AND message, so the flag guard cannot answer for the authority guard');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select lives_ok(
   format($$ select public.assign_case_tag(%L, %L) $$, (select case_o from cs), (select tag_id from tg)),
   '9.3 P8 CONTROL: …while the coordinator succeeds at that same door — so 9.2 is a refusal, not an unreachable door');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 
 -- =========================================================================
 -- (10) P9 — THE LOCKED CASE (ADR 0134 Amendment 4). `explicit_grants_only` is invisible
@@ -497,8 +535,7 @@ select ok(
 select throws_ok(
   format($$ select public.get_case_detail(%L) $$, (select case_l from cs)),
   'P0002', null, '10.4 P9: …and get_case_detail refuses (no_data_found — the not-found posture)');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 
 -- =========================================================================
 -- (11) P10 — THE BIT SHAPE, BOTH DIRECTIONS (Amendment 4 §A4.2, whose claim was DERIVED
@@ -532,8 +569,7 @@ select lives_ok(
   format($$ select public.grant_case_access(%L, %L, 'read', null, 'P11', false, false) $$,
          (select case_l from cs), (select st_x from k)),
   '12.0 fixture: the coordinator grants the appointee explicit read on the LOCKED case');
-reset role;
-do $$ begin perform set_config('request.jwt.claims', '', true); end $$;
+select test_helpers.reset_role_and_claims();
 select is(app.can_read_case((select case_l from cs), (select st_x from k)), true,
   '12.1 P11: the explicit grant confers reach on a case the S8 arm cannot touch');
 select is(app.can_read_case_patient((select case_l from cs), (select st_x from k)), false,
@@ -550,33 +586,156 @@ select is(app.can_read_case_patient((select case_l from cs), (select st_x from k
 -- predicate is keyed on BITS, not on arms, so an arm that lands inside or outside its
 -- extension moves all of them at once. Answering item 6 with "4 routines" is true and
 -- misleading.
+--
+-- ⭐ NAME-KEYED, NOT COUNT-KEYED (QA M-5). Every assertion here was `count(*) = N`, with
+-- the member names sitting in the test DESCRIPTION — and a description is not an
+-- assertion. `count(*) = 4` is satisfied by ANY four members: one door leaving the set and
+-- another joining it in the same change is exactly the mutation a door-set census exists to
+-- catch, and it was the one shape that passed. The shape below is `276` §O5b's
+-- (`array_agg(... order by ...)`, from the same delivery), and it FAILS CLOSED in both
+-- degenerate directions: `coalesce(..., array[]::text[])` means a regex that stops matching,
+-- or a dropped subject, reds instead of passing on a NULL comparison.
+--
+-- ⛔ THE CONVERSE HAZARD IS REAL AND THIS HEADER IS THE MITIGATION — a rename ORPHANS a
+-- name-keyed verdict, and quietly updating the array is the failure the array exists to
+-- catch, performed by the person updating it. Convention borrowed verbatim from `321` K8,
+-- which handles this correctly. ⛔ IF ANY ASSERTION BELOW GOES RED, ESTABLISH **ADDED vs
+-- RENAMED BEFORE YOU TOUCH THE ARRAY**:
+--   · RENAMED — the set is unchanged, the label moved. Update the array AND record the old
+--     → new name here, as `321` K8 does, so the next reader can tell the two apart.
+--   · ADDED — a new surface now keys on the oversight/committee predicates. That is a
+--     change in blast radius, needs its own keystone, and is a finding, not an edit.
+--   · REMOVED — a consumer stopped gating on it. Establish whether the gate moved or
+--     simply went away; the second is the one that matters.
+-- ⚠ Names are SCHEMA-QUALIFIED throughout: `public.foo` and `app.foo` are different doors,
+-- and only one of them is client-reachable.
 -- =========================================================================
 select is(
-  (select count(*)::int from pg_proc p
+  (select coalesce(array_agg(n.nspname || '.' || p.proname order by n.nspname, p.proname),
+                   array[]::text[])
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
           ~ '\yis_oversight_only_reader\y'),
-  4, '13.1 DOOR SET (direct): exactly 4 routines reference is_oversight_only_reader — can_read_case_committee, declare_conflict, file_correction_request, record_recusal');
+  array['app.can_read_case_committee', 'public.declare_conflict',
+        'public.file_correction_request', 'public.record_recusal'],
+  '13.1 ⭐ DOOR SET (direct), BY NAME: exactly these 4 routines reference is_oversight_only_reader. A swap — one leaving, one joining — kept the old count(*) = 4 green');
 select is(
-  (select count(*)::int from pg_policy pol
+  (select coalesce(array_agg(c.relname || '.' || pol.polname order by c.relname, pol.polname),
+                   array[]::text[])
+     from pg_policy pol join pg_class c on c.oid = pol.polrelid
     where coalesce(pg_get_expr(pol.polqual, pol.polrelid),'') || coalesce(pg_get_expr(pol.polwithcheck, pol.polrelid),'')
           ~ '\yis_oversight_only_reader\y'),
-  0, '13.2 DOOR SET: ZERO policies reference it DIRECTLY — which is the number that misleads (see 13.3)');
+  array[]::text[],
+  '13.2 DOOR SET: ZERO policies reference it DIRECTLY — which is the number that misleads (see 13.3). Kept as an explicit EMPTY ARRAY, so the assertion states the set rather than a count that any empty result satisfies');
 select is(
-  (select count(*)::int from pg_policy pol
+  (select coalesce(array_agg(c.relname || '.' || pol.polname order by c.relname, pol.polname),
+                   array[]::text[])
+     from pg_policy pol join pg_class c on c.oid = pol.polrelid
     where coalesce(pg_get_expr(pol.polqual, pol.polrelid),'') || coalesce(pg_get_expr(pol.polwithcheck, pol.polrelid),'')
           ~ '\ycan_read_case_committee\y'),
-  11, '13.3 ⭐ DOOR SET (transitive): its NEGATION can_read_case_committee is referenced by 11 RLS policies — the real blast radius, which a routine-bounded enumeration hides');
+  array['action_items.action_items_select',
+        'case_decisions.case_decisions_select',
+        'case_interview_links.case_interview_links_select',
+        'case_votes.case_votes_select',
+        'ethics_allegations.ethics_allegations_select',
+        'ethics_appeals.ethics_appeals_select',
+        'ethics_case_details.ethics_case_details_select',
+        'ethics_decision_details.ethics_decision_details_select',
+        'ethics_findings.ethics_findings_select',
+        'ethics_hearings.ethics_hearings_select',
+        'ethics_notifications.ethics_notifications_select'],
+  '13.3 ⭐ DOOR SET (transitive), BY NAME: its NEGATION can_read_case_committee is referenced by exactly these 11 RLS policies — the real blast radius, which a routine-bounded enumeration hides. Keyed table.policy, because a policy name alone is not unique across tables');
 select is(
-  (select count(*)::int from pg_proc p
+  (select coalesce(array_agg(n.nspname || '.' || p.proname order by n.nspname, p.proname),
+                   array[]::text[])
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
           ~ '\ycan_read_case_committee\y'
       and p.proname <> 'can_read_case_committee'),
-  3, '13.4 DOOR SET (transitive): …plus 3 further routines, incl. can_read_professional_profile — the Class-2 PHI door');
+  array['app.can_read_action_item', 'app.can_read_interview',
+        'app.can_read_professional_profile'],
+  '13.4 DOOR SET (transitive), BY NAME: …plus exactly these 3 further routines. app.can_read_professional_profile is the Class-2 professional-identity PHI door — which is WHY the identity matters and a count does not: swap it out for a harmless third routine and the count never moved');
 select is(
-  (select count(*)::int from pg_proc p
+  (select coalesce(array_agg(n.nspname || '.' || p.proname order by n.nspname, p.proname),
+                   array[]::text[])
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
           ~ '\ycan_read_case_patient\y'),
-  3, '13.5 DOOR SET: the can_read_case_patient door set is exactly 3 routines (§8 exercises the 2 public ones)');
+  array['app._audit_access_authorized', 'public.get_case_patients',
+        'public.get_participant_patient'],
+  '13.5 DOOR SET, BY NAME: the can_read_case_patient door set is exactly these 3 routines, and §8 exercises the 2 `public` ones. This is the set §8''s header bounds itself by, so a count here would let §8''s "both public doors are exercised" claim go stale in silence');
+
+-- =========================================================================
+-- (14) V-1 — THE `_case_caps` STRIP-AND-COMPARE, PROMOTED FROM A RECORDED CHECK TO A GATE
+-- (QA r2 condition C-3 / the highest-value item in FUP-CS2-QA-RESIDUE).
+--
+-- `app._case_caps` was re-created WHOLESALE by CREATE OR REPLACE — the single
+-- highest-leverage place in this increment for an unintended edit, and the one place the
+-- approval scope explicitly FORBIDS touching (no change to S3 / S5 / S7 /
+-- is_oversight_only_reader). V-1 settles that by computation rather than by reading a
+-- diff: strip the injected S8 block out of the LIVE body and compare what remains.
+--
+-- ⛔ UNTIL NOW IT WAS A CHECK A HUMAN HAD TO REMEMBER TO RUN. Nothing reddened if a future
+-- `_case_caps` change edited S1–S7; the recipe sat in a progress doc and nobody is prompted
+-- by a document. This is the pin that makes the NEXT arm's author prove they changed only
+-- their own arm.
+--
+-- ⭐⭐ THE PIN IS ON THE **STRIPPED** HASH, NOT THE LIVE ONE, AND THAT CHOICE IS THE WHOLE
+-- DESIGN. `md5(pg_get_functiondef(...)) = '<literal>'` would red on every LEGITIMATE S8
+-- edit too — and a constant that reds on legitimate work trains people to bump it on sight,
+-- at which point it has stopped being a gate and become a chore. Stripped, it is SILENT
+-- about S8 (the arm this file owns and tests behaviourally, §§3–12) and LOUD about
+-- everything else. The live hash is deliberately NOT pinned anywhere.
+--
+-- ⛔ IF 14.3 GOES RED, DO NOT BUMP THE CONSTANT UNTIL YOU KNOW WHICH OF THESE HAPPENED:
+--   (a) An arm OUTSIDE S8 was edited. That is the finding. It is outside the approval scope
+--       this arm was built under and needs a ruling, not a new hash.
+--   (b) A LATER, separately-approved migration legitimately changed S1–S7. Then the
+--       constant moves WITH that migration's own review, and this header records the new
+--       baseline, the migration that moved it, and why — the way `321` K8 records a rename.
+--   (c) The boundary markers themselves moved. 14.1/14.2 red FIRST and tell you that; the
+--       hash is then meaningless rather than wrong, and 14.3's red is a consequence.
+--
+-- ⚠ POSITION CONVENTION, or the next reader chases an off-by-one: both strpos figures are
+-- the position of the `\n` PRECEDING the arm marker. Keeping that newline on exactly ONE
+-- side of the cut yields the same string — `substring(1, s8-1) ‖ substring(from s3)` and
+-- `substring(1, s8) ‖ substring(from s3+1)` hash identically. Cutting it from BOTH sides,
+-- or NEITHER, is wrong.
+-- ⚠ The marker text is matched BY CODE POINT (`repeat(chr(9472),2)`), so it survives any
+-- editor or shell round-trip that would mangle a literal box-drawing character.
+-- ⚠ `nullif(...,0)` is load-bearing: a missing marker would otherwise make `substring`
+-- raise "negative substring length not allowed" and ABORT the suite, and an abort is not a
+-- red. NULL propagates to md5 instead, so 14.3 FAILS rather than vanishing.
+--
+-- Baseline: docs/progress/case-surface-split-increment-2.md § V-1, re-derived here from the
+-- live catalog on a stack whose registered migrations match the tree (440 == 440, head
+-- 20261003000800). Boundaries 4406 / 6711; live md5 afbfed86c25e0a62c55163e83ad1f8a7
+-- (len 9328, deliberately unpinned); stripped len 7023.
+-- =========================================================================
+create temp table vv on commit drop as
+  with d as (select pg_get_functiondef(p.oid) as def
+               from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'app' and p.proname = '_case_caps'),
+       m as (select def,
+                    strpos(def, E'\n  -- ' || repeat(chr(9472),2) || ' S8 ') as s8,
+                    strpos(def, E'\n  -- ' || repeat(chr(9472),2) || ' S3 ') as s3
+               from d)
+  select def, s8, s3,
+         substring(def from 1 for nullif(s8,0) - 1) || substring(def from nullif(s3,0))
+           as stripped
+    from m;
+
+select cmp_ok((select s8 from vv), '>', 0,
+  '14.1 the S8 arm''s boundary marker is present in the live body — without it the strip has no cut point and 14.3 is meaningless rather than wrong');
+select cmp_ok((select s3 from vv), '>', (select s8 from vv),
+  '14.2 …and the S3 marker follows it, which is both an existence check (0 fails this) and an ORDER check: the removed span is [S8, S3) and an inverted pair would silently cut the wrong region');
+select is(
+  (select md5(stripped) from vv),
+  'edb85248a21326eb139e7e994b9c469b',
+  '14.3 ⭐⭐ V-1: with the S8 arm stripped out, app._case_caps is BYTE-IDENTICAL to its pre-change definition — S1–S7, the S3 loop and STEPS 1–5 were not touched by the wholesale CREATE OR REPLACE. Read the header before bumping this constant');
+select ok(
+  (select (def ~ '\ymember_can_for\y') and not (stripped ~ '\ymember_can_for\y') from vv),
+  '14.4 ⭐ ANTI-VACUITY: the strip actually REMOVED the S8 arm. member_can_for appears in the live body and NOT in the stripped one — so 14.3 is comparing a genuinely cut string, not a no-op strip that happened to hash to the expected value. A neutralization that changes nothing reads exactly like a passing assertion');
 
 select * from finish();
 rollback;

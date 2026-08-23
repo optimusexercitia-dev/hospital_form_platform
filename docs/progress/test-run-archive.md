@@ -960,3 +960,9 @@ pre-edit run.
 new hosts could add. **Re-check the mount-site count before reusing this reasoning.** This entry is
 an argument for not re-running an hour-long gate on a provable no-op — it is **not** a precedent
 for reporting an unmeasured tree as gated, which is the error QA caught in r2 R-1.
+
+## ↩ Rotated from PROGRESS.md 2026-08-22 — retention (most recent gate only)
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-21 | ⭐ **CASE SPLIT · Inc 1 — §6 steps 1+2 CLEAN at `e7ec7529`** | **GATE GREEN exit 0** — 1176 p / 0 f / 4 flaky / 11 skip / **did-not-run 0** / 1191; census sums. pgTAP **6795** F=206 · lint(8) **0** · `tsc` **0** · vitest **1506** · 4 ARMs **HOLD** — all re-measured on THIS tree. ⚠ 4 infra re-runs (was 2) → [archive](test-run-archive.md) |

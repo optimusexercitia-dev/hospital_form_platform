@@ -38,6 +38,21 @@
 # Subset:              CASES="can_read_case is_case_respondent" bash .../p0-authz-door-audit.sh
 #   (CASES matches predicate proname OR policy name; space-separated.)
 #
+# ── EXIT CODES — three-way, NOT boolean (§7.17) ─────────────────────────────────────
+#   0  CLEAN     a NON-EMPTY selection was swept and every case came back COVERED
+#   1  DIRTY     ≥1 BLIND and/or ERROR  (also: baseline not green)
+#   2  ABORT     contaminated stack / a restore that did not round-trip
+#   3  UNPROVEN  NOTHING was measured — zero cases selected, or a CASES token that
+#                matched no gate. ⛔ An UNPROVEN run is NOT a pass and never prints a
+#                BLIND/ERROR count: "BLIND: 0" over an empty domain used to be the
+#                BYTE-IDENTICAL string a clean full sweep prints, and one such run was
+#                read into a §6 gate record as coverage for a change adding a PHI writer.
+# ⚠ Read the exit code DIRECTLY. `script | tail` reports TAIL's status and a trailing
+#   `echo $?` reports ECHO's; `pipefail` is not on by default (this repo has been bitten
+#   twice in one day, both times in the reassuring direction).
+# ⚠ Quote the ARM-DOMAIN line, not just the verdict: a record saying "the ARMs HOLD"
+#   is true and means nothing when the arm's domain was empty.
+#
 # ⚠ COST: the full sweep is ~75 min (one ~23s suite run per gate + per policy). Author
 # + smoke only in an interactive turn; a background process dies at turn-end. The LEAD
 # runs the full loop in the background.
@@ -185,19 +200,11 @@ if [ -n "$PRE_DEGEN" ]; then
 fi
 echo "    clean — 0 degenerate bodies (all three neutralization forms)"
 
-echo "--- preflight: capturing GREEN baseline (§7.3 assert the state) ---"
-BASE_OUT=$(run_suite)
-BASE_RES=$(echo "$BASE_OUT" | grep -oE 'Result: (PASS|FAIL)' | tail -1 | awk '{print $2}')
-BASE_FT=$(echo "$BASE_OUT" | grep -oE 'Files=[0-9]+, Tests=[0-9]+' | tail -1)
-BASE_FILES=$(echo "$BASE_FT" | grep -oE 'Files=[0-9]+' | grep -oE '[0-9]+')
-BASE_TESTS=$(echo "$BASE_FT" | grep -oE 'Tests=[0-9]+' | grep -oE '[0-9]+')
-if [ "$BASE_RES" != "PASS" ]; then
-  echo "*** PREFLIGHT FAILED: baseline is NOT green (Result: ${BASE_RES:-<none>}). A dirty"
-  echo "    baseline invalidates every case below (a COVERED can't be told from a pre-existing"
-  echo "    red). Fix the tree to green before auditing. Aborting."; exit 1
-fi
-echo "baseline OK: Result: PASS, Files=$BASE_FILES, Tests=$BASE_TESTS"
-echo
+# ⚠ The GREEN-BASELINE preflight used to run HERE. It now runs AFTER the domain gate
+# below (§7.17): capturing the baseline costs a full ~23 s suite run and *touches the
+# stack* (`supabase test db` creates/drops pgtap + test_helpers), and paying that to
+# then sweep ZERO cases is exactly the run this script must refuse. Domain first,
+# baseline second. Everything between here and the gate is READ-ONLY on the catalog.
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # Build the two worklists from the LIVE catalog (never migration text).
@@ -236,6 +243,38 @@ psql_c -c "\copy (
 ) to '/tmp/wl_pred.tsv' with (format text)" >/dev/null
 docker cp "$DB:/tmp/wl_pred.tsv" "$WORK/worklist_pred.tsv" >/dev/null
 
+# ─────────────────────────────────────────────────────────────────────────────────────
+# §7.17b  THE DOMAIN IS A NAME PREFIX STANDING IN FOR A PROPERTY — SO MEASURE THE GAP.
+#
+# The PRED filter above is a NAME regex. The property it stands in for is "is an
+# authorization predicate", which no regex decides: of the `prosecdef` booleans OUTSIDE
+# the regex, some ARE gates (`app._audit_access_authorized`, `confidentiality_clearance_ok`,
+# `member_can*`, `capa_viewer_can_manage`, …) while others are feature-flag readers,
+# `validate_*` shape-checkers, and two SIDE-EFFECTING writers (`app.enqueue_notification`,
+# `public.remind_document_approver`) whose body must NOT be swapped for `select true`.
+# So the arm is NOT auto-widened here — that would trade a silent gap for silent ERRORs.
+# Instead the gap is CENSUSED on every run and printed, so no report can imply the arm's
+# domain is the whole property. ⛔ "outside the predicate arm" != "unswept" (other arms
+# exist) and this count is NOT a defect count — it is the size of the unclassified set.
+# Classification is tracked in authz-unswept-backlog.txt, not decided here.
+# ─────────────────────────────────────────────────────────────────────────────────────
+psql_c -c "\copy (
+  select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
+  from pg_proc p
+  join pg_namespace n on n.oid=p.pronamespace
+  join pg_type      t on t.oid=p.prorettype
+  where n.nspname in ('app','public')
+    and p.prosecdef = true
+    and t.typname='bool'
+    and not (
+       (p.proname ~ '^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)'
+          and p.proname !~ '^is_valid_')
+       or p.proname = 'assert_not_case_excluded'
+    )
+  order by 1
+) to '/tmp/wl_pred_out.tsv' with (format text)" >/dev/null
+docker cp "$DB:/tmp/wl_pred_out.tsv" "$WORK/outofdomain_pred_bool.tsv" >/dev/null
+
 psql_c -c "\copy (
   select c.relname as tbl, pol.polname,
          (case pol.polcmd when 'r' then 'SELECT' when '*' then 'ALL' end) as cmd,
@@ -264,15 +303,132 @@ psql_c -c "\copy (
 ) to '/tmp/wl_skip.tsv' with (format text)" >/dev/null
 docker cp "$DB:/tmp/wl_skip.tsv" "$WORK/skipped_pol_true.tsv" >/dev/null
 
-# progress.tsv columns: arm  gate  direction  verdict  failing_files
-: > "$PROGRESS"
-
 want () {  # $1 = match key (proname or polname); returns 0 if in CASES (or CASES empty)
   [ -z "$CASES" ] && return 0
   local k
   for k in $CASES; do [ "$k" = "$1" ] && return 0; done
   return 1
 }
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# §7.17  THE DOMAIN GATE — an EMPTY-DOMAIN RUN MUST NOT PRINT THE LINE A CLEAN RUN PRINTS
+#        (FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME)
+#
+# ⛔ THE FINDING THIS CLOSES IS NOT A COVERAGE GAP. It is that a sweep of ZERO cases
+# ended with `BLIND: 0   ERROR(harness): 0` — BYTE-IDENTICAL to the line a clean sweep
+# of the full domain prints — and that line was then read into a §6 step-1 gate record
+# as a clean pass for a change that added a PHI writer. A detector that found nothing
+# because it LOOKED at nothing must be distinguishable from one that found nothing
+# because there was nothing to find. Measured (2026-08-22): the diff-scoped remediation
+# `ARM=census` itself prints ran 0 cases and reported 0 BLIND.
+#
+# So the outcome is THREE-WAY, not boolean — an escape hatch for the unmeasured must not
+# be spendable as a pass:
+#     exit 0  CLEAN     — a NON-EMPTY selection was swept and every case came back COVERED
+#     exit 1  DIRTY     — BLIND and/or ERROR cases exist (the pre-existing finding state)
+#     exit 3  UNPROVEN  — nothing was measured: no case selected, or a requested case
+#                         matched no gate. NEVER reported as 0/0.
+#     exit 2  ABORT     — contaminated stack / botched restore (pre-existing).
+#
+# The gate sits BEFORE the green-baseline capture on purpose: an UNPROVEN run then costs
+# ~0 s, mutates NOTHING (no suite run, no neutralization), and — because `emit_report` is
+# only ever called from `record` — cannot rewrite the findings file either.
+# ─────────────────────────────────────────────────────────────────────────────────────
+count_sel () {  # $1 = worklist file, $2 = 1-based field holding the match key
+  local n=0 line key
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    key=$(printf '%s' "$line" | cut -f"$2")
+    want "$key" && n=$((n+1))
+  done < "$1"
+  echo "$n"
+}
+
+PRED_TOTAL=$(grep -c . "$WORK/worklist_pred.tsv" | tr -d '[:space:]')
+POL_TOTAL=$(grep -c . "$WORK/worklist_pol.tsv"  | tr -d '[:space:]')
+PRED_OUT=$(grep -c . "$WORK/outofdomain_pred_bool.tsv" | tr -d '[:space:]')
+PRED_SEL=$(count_sel "$WORK/worklist_pred.tsv" 3)   # field 3 = proname
+POL_SEL=$(count_sel  "$WORK/worklist_pol.tsv"  2)   # field 2 = polname
+SEL_TOTAL=$((PRED_SEL + POL_SEL))
+
+echo "--- domain: what this run will actually look at (§7.17) ---"
+echo "ARM-DOMAIN predicate=$PRED_SEL/$PRED_TOTAL policy=$POL_SEL/$POL_TOTAL"
+echo "    predicate arm: $PRED_SEL selected of $PRED_TOTAL in domain"
+echo "    policy    arm: $POL_SEL selected of $POL_TOTAL in domain"
+echo "    ⚠ NOT in the predicate arm's domain at all: $PRED_OUT prosecdef BOOLEAN function(s)"
+echo "      excluded by the NAME regex, not by a property (list: $WORK/outofdomain_pred_bool.tsv)."
+echo "      This arm's domain is a name prefix. 'Outside it' != 'unswept' (other arms exist);"
+echo "      $PRED_OUT is the size of the UNCLASSIFIED set, never a defect count."
+
+# Any CASES token that matched NOTHING is itself an unproven case — name it, and say what
+# the catalog knows about it. This is the `member_can_for` incident verbatim: a token that
+# names a REAL prosecdef boolean gate which the name regex does not admit.
+# ⚠ -F -x = EXACT string equality, deliberately identical to `want()`'s `[ "$k" = "$1" ]`.
+# A regex match here would disagree with the selector on metacharacters and could call a
+# token "matched" that `want` never selects — a hole of exactly the kind being closed.
+UNMATCHED=""
+if [ -n "$CASES" ]; then
+  for tok in $CASES; do
+    if cut -f3 "$WORK/worklist_pred.tsv" | grep -qxF "$tok" \
+    || cut -f2 "$WORK/worklist_pol.tsv"  | grep -qxF "$tok"; then continue; fi
+    UNMATCHED="$UNMATCHED $tok"
+  done
+fi
+if [ -n "$UNMATCHED" ]; then
+  echo
+  echo "*** REQUESTED CASES THAT MATCHED NO GATE IN EITHER ARM:"
+  for tok in $UNMATCHED; do
+    safe=$(printf '%s' "$tok" | tr -cd 'A-Za-z0-9_')
+    diag=$(psql_c -c "select coalesce(string_agg(distinct
+              n.nspname||'.'||p.proname||' -> '||t.typname||
+              case when p.prosecdef then ' [SECURITY DEFINER]' else ' [INVOKER]' end, '; '),
+            '(no function of this name in app/public)')
+       from pg_proc p
+       join pg_namespace n on n.oid=p.pronamespace
+       join pg_type t on t.oid=p.prorettype
+      where n.nspname in ('app','public') and p.proname = '$safe';" | head -1)
+    echo "      $tok: $diag"
+  done
+  echo "    A gate named here was NOT swept. If the catalog line above says"
+  echo "    'bool [SECURITY DEFINER]', it is the FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME"
+  echo "    class: shaped exactly like a predicate, excluded purely by NAME. Record it in"
+  echo "    authz-unswept-backlog.txt — do NOT hand-write a COVERED row anywhere."
+  echo "    ⇒ This run can no longer end CLEAN: whatever it measures, part of what was"
+  echo "      ASKED FOR was not measured. Final result will be UNPROVEN (3) or DIRTY (1)."
+fi
+
+# Nothing selected at all -> stop HERE, before the baseline. Nothing is neutralized, the
+# suite is not run, and the findings file is not rewritten.
+if [ "$SEL_TOTAL" -eq 0 ]; then
+  echo
+  echo "=== RESULT: UNPROVEN — NOTHING WAS MEASURED. This is NOT a pass. ==="
+  echo "    Selected cases: 0 (predicate=$PRED_SEL, policy=$POL_SEL)${CASES:+ from CASES=\"$CASES\"}."
+  echo "    A sweep of zero gates cannot distinguish 'no blind door' from 'no door looked at',"
+  echo "    so this run deliberately does NOT print a BLIND/ERROR count."
+  echo "    Nothing was neutralized; the baseline suite was NOT run; $FINDINGS is UNTOUCHED."
+  echo "    Fix the SELECTION (or widen/annotate the arm's domain) and re-run."
+  exit 3
+fi
+# Some tokens unmatched but others selected: sweep what IS selectable (throwing away real
+# measurement helps nobody) and carry the incompleteness to the final verdict.
+echo
+
+echo "--- preflight: capturing GREEN baseline (§7.3 assert the state) ---"
+BASE_OUT=$(run_suite)
+BASE_RES=$(echo "$BASE_OUT" | grep -oE 'Result: (PASS|FAIL)' | tail -1 | awk '{print $2}')
+BASE_FT=$(echo "$BASE_OUT" | grep -oE 'Files=[0-9]+, Tests=[0-9]+' | tail -1)
+BASE_FILES=$(echo "$BASE_FT" | grep -oE 'Files=[0-9]+' | grep -oE '[0-9]+')
+BASE_TESTS=$(echo "$BASE_FT" | grep -oE 'Tests=[0-9]+' | grep -oE '[0-9]+')
+if [ "$BASE_RES" != "PASS" ]; then
+  echo "*** PREFLIGHT FAILED: baseline is NOT green (Result: ${BASE_RES:-<none>}). A dirty"
+  echo "    baseline invalidates every case below (a COVERED can't be told from a pre-existing"
+  echo "    red). Fix the tree to green before auditing. Aborting."; exit 1
+fi
+echo "baseline OK: Result: PASS, Files=$BASE_FILES, Tests=$BASE_TESTS"
+echo
+
+# progress.tsv columns: arm  gate  direction  verdict  failing_files
+: > "$PROGRESS"
 
 # Regenerate the two deliverables from progress.tsv. Called after EVERY case so a
 # mid-run kill still leaves a coherent partial report (brief requirement).
@@ -292,7 +448,22 @@ emit_report () {
     echo
     echo "Baseline: Files=$BASE_FILES, Tests=$BASE_TESTS, Result: PASS."
     echo "Policies swept: $total_pol (real qual). Policies skipped (qual=true, vacuous): $skipped_pol."
+    echo
+    echo "**Domain of this run** (§7.17 — a verdict is meaningless without the domain beside it):"
+    echo "\`ARM-DOMAIN predicate=$PRED_SEL/$PRED_TOTAL policy=$POL_SEL/$POL_TOTAL\`."
+    if [ "$PRED_SEL" -eq 0 ]; then echo "⚠ **PREDICATE ARM: EMPTY DOMAIN — measured nothing.** It did not hold; it did not run."; fi
+    if [ "$POL_SEL"  -eq 0 ]; then echo "⚠ **POLICY ARM: EMPTY DOMAIN — measured nothing.** It did not hold; it did not run."; fi
+    echo
+    echo "⛔ The predicate arm's domain is a **NAME REGEX**, not the property \"is an authorization"
+    echo "predicate\". **$PRED_OUT** \`prosecdef\` **boolean** function(s) are outside it purely by name"
+    echo "(listed at the end). \"Outside this arm\" is NOT \"unswept\" — other arms exist — and"
+    echo "$PRED_OUT is the size of the UNCLASSIFIED set, never a defect count."
     if [ -n "$CASES" ]; then echo; echo "> ⚠ PARTIAL RUN — CASES=\"$CASES\" (subset, not the full sweep)."; fi
+    if [ -n "$UNMATCHED" ]; then
+      echo
+      echo "> ⛔ **UNPROVEN.** These were REQUESTED and matched no gate in either arm, so they"
+      echo "> were never swept: \`${UNMATCHED# }\`. No verdict below applies to them."
+    fi
     echo
     echo "## BLIND — the work-list (no keystone exercises these)"
     echo
@@ -311,6 +482,16 @@ emit_report () {
     if [ -s "$WORK/skipped_pol_true.tsv" ]; then
       while IFS= read -r ln; do echo "- \`$ln\`"; done < "$WORK/skipped_pol_true.tsv"
     else echo "_(none)_"; fi
+    echo
+    echo "## OUTSIDE the predicate arm's domain — \`prosecdef\` booleans excluded by NAME, not property"
+    echo
+    echo "No verdict is claimed for these here. Some ARE authorization gates; others are"
+    echo "feature-flag readers, \`validate_*\` shape-checkers, or side-effecting writers that must"
+    echo "not be neutralized to \`select true\`. Classification lives in \`authz-unswept-backlog.txt\`."
+    echo
+    if [ -s "$WORK/outofdomain_pred_bool.tsv" ]; then
+      while IFS= read -r ln; do echo "- \`$ln\`"; done < "$WORK/outofdomain_pred_bool.tsv"
+    else echo "_(none — the name filter and the property now coincide)_"; fi
   } > "$FINDINGS"
 
   # machine-readable BLIND list
@@ -342,7 +523,8 @@ TMPL
 # ─────────────────────────────────────────────────────────────────────────────────────
 # PREDICATE ARM
 # ─────────────────────────────────────────────────────────────────────────────────────
-echo "=== PREDICATE ARM ==="
+echo "=== PREDICATE ARM (domain: $PRED_SEL selected of $PRED_TOTAL) ==="
+[ "$PRED_SEL" -eq 0 ] && echo "  ⚠ EMPTY DOMAIN — this arm measures NOTHING on this run."
 while IFS=$'\t' read -r oid label proname direction lang; do
   [ -z "$oid" ] && continue
   want "$proname" || continue
@@ -394,7 +576,8 @@ done < "$WORK/worklist_pred.tsv"
 # POLICY ARM
 # ─────────────────────────────────────────────────────────────────────────────────────
 echo
-echo "=== POLICY ARM ==="
+echo "=== POLICY ARM (domain: $POL_SEL selected of $POL_TOTAL) ==="
+[ "$POL_SEL" -eq 0 ] && echo "  ⚠ EMPTY DOMAIN — this arm measures NOTHING on this run."
 while IFS=$'\t' read -r tbl polname cmd has_wc; do
   [ -z "$tbl" ] && continue
   want "$polname" || continue
@@ -443,4 +626,34 @@ echo
 echo "=== DONE. Report: $FINDINGS   BLINDs: $BLINDS_TSV ==="
 blind_ct=$(awk -F'\t' '$4=="BLIND"' "$PROGRESS" | wc -l | tr -d '[:space:]')
 err_ct=$(awk -F'\t' '$4=="ERROR"' "$PROGRESS" | wc -l | tr -d '[:space:]')
-echo "BLIND: $blind_ct   ERROR(harness): $err_ct   (COVERED = the rest)"
+swept_ct=$(grep -c . "$PROGRESS" | tr -d '[:space:]')
+cov_ct=$((swept_ct - blind_ct - err_ct))
+
+# §7.17: the count line is USELESS without the domain beside it — "BLIND: 0" over an
+# empty domain and "BLIND: 0" over 101 gates were the same string. Print the domain
+# FIRST, per arm, so a §6 gate record can name WHICH ARM HAD A DOMAIN instead of
+# claiming "the ARMs HOLD".
+echo "ARM-DOMAIN predicate=$PRED_SEL/$PRED_TOTAL policy=$POL_SEL/$POL_TOTAL out-of-domain-bool=$PRED_OUT"
+[ "$PRED_SEL" -eq 0 ] && echo "    ⚠ PREDICATE ARM: EMPTY DOMAIN — this arm measured NOTHING. It did not hold; it did not run."
+[ "$POL_SEL"  -eq 0 ] && echo "    ⚠ POLICY ARM: EMPTY DOMAIN — this arm measured NOTHING. It did not hold; it did not run."
+[ -n "$UNMATCHED" ] && echo "    ⚠ REQUESTED BUT NEVER SWEPT (matched no gate):$UNMATCHED"
+echo "SWEPT: $swept_ct gate(s)   COVERED: $cov_ct   BLIND: $blind_ct   ERROR(harness): $err_ct"
+
+if [ "$swept_ct" -eq 0 ]; then
+  # Belt-and-braces: the domain gate above should have exited 3 long before here.
+  echo "=== RESULT: UNPROVEN — 0 gates swept despite a non-empty domain. Harness bug. ==="
+  exit 3
+elif [ "$blind_ct" -gt 0 ] || [ "$err_ct" -gt 0 ]; then
+  echo "=== RESULT: DIRTY — $blind_ct BLIND, $err_ct ERROR. BLIND blocks the phase (§6 step 1);"
+  echo "    ERROR is not a pass — fix the neutralization and re-run that case. ==="
+  exit 1
+elif [ -n "$UNMATCHED" ]; then
+  echo "=== RESULT: UNPROVEN (PARTIAL) — $swept_ct gate(s) measured and all COVERED, but"
+  echo "    these were requested and matched NO gate:$UNMATCHED"
+  echo "    A clean verdict over a subset of what was asked for is the finding this gate"
+  echo "    exists to prevent. NOT a pass. ==="
+  exit 3
+else
+  echo "=== RESULT: CLEAN — $swept_ct gate(s) measured, all COVERED. ==="
+  exit 0
+fi

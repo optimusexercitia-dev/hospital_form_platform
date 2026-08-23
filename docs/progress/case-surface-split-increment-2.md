@@ -215,11 +215,26 @@ of the **`\n` preceding** the arm marker. Keeping that newline on either side of
 same string — `substring(1, s8-1) ‖ substring(from s3)` and `substring(1, s8) ‖ substring(from s3+1)`
 hash identically. Only cutting it from **both** sides, or **neither**, is wrong.
 
-⛔ **This is a recorded check, not a gate.** Nothing reds today if a future `_case_caps` change edits
-S1–S7 — the check has to be re-run by hand and nobody is prompted to. Promoting it to a pgTAP catalog
-assertion is QA's **C-3** recommendation and the highest-value item inside
-`FUP-CS2-QA-RESIDUE`; it is the one check that makes the **next** arm's author prove they changed only
-their own arm.
+✅ **It is now a GATE, not a recorded check — QA condition C-3 is discharged** (2026-08-22, `356` §14).
+⛔ **The sentence that stood here — _"nothing reds today if a future `_case_caps` change edits S1–S7"_ —
+is false as of that change**, and is kept visible rather than overwritten because it is the shape this
+record keeps producing: a true line that a later change quietly turns false.
+
+Four assertions, and the design point is **which hash they key on: 14.3 pins the STRIPPED hash, and the
+live hash is deliberately pinned nowhere.** A raw live-hash pin would red on legitimate S8 work too, and
+a constant that reds on legitimate work trains people to bump it on sight — at which point it has stopped
+being a gate and become a chore. Stripped, it is silent about S8 (the arm that file tests behaviourally)
+and loud about everything else. Proven **both ways**: a non-S8 edit moves both hashes and reds 14.3; an
+S8-only edit moves the live hash and the suite stays green.
+
+Around it: **14.1/14.2** check the boundary markers exist *and are in order*, so a moved marker reds FIRST
+and says 14.3's hash is meaningless rather than wrong; **14.4 is an anti-vacuity control** proving the
+strip genuinely removed the arm — a no-op strip that happens to hash correctly reads exactly like a
+passing assertion; and `nullif(...,0)` is load-bearing, because a missing marker would otherwise make
+`substring` raise and **ABORT the suite — and an abort is not a red**.
+⚠ **Before bumping the constant, read the header at `356`:~685.** It enumerates the three things a red can
+mean — an out-of-scope arm was edited (*that is the finding, not a new hash*) · a later approved migration
+legitimately moved S1–S7 · the markers moved — and only one of them is “update the number”.
 
 ## The pre-build "binding on whoever starts it" clause — rotated 2026-08-22, ALL DISCHARGED
 

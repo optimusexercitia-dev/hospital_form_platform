@@ -6174,7 +6174,7 @@ default nobody wrote. A one-outlier framing invites a one-function fix that woul
 approval scope, it is unrelated to the case surface split, and a sweeping privilege change smuggled into
 a feature migration is how the next reader loses the reasoning.
 
-### 🟠 FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS — a pgTAP premise 136 files can state falsely (owner: backend/tester; filed 2026-08-22, found inside the ADR 0134 S8 suite)
+### 🟠 FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS — a pgTAP premise 136 files can state falsely (owner: backend/tester; filed 2026-08-22, found inside the ADR 0134 S8 suite; ⭕ **PARTIAL 2026-08-22** — root verb `test_helpers.reset_role_and_claims()` + red-first gate landed and adopted in `356`/`357`; ⛔ **step 1 (derive the real population) and the 134-file sweep remain OPEN**. Capable population 136 → 134, still not a defect count. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md))
 
 `test_helpers.claims_for(...)` sets `request.jwt.claims`; **`reset role` restores the ROLE only.** So a
 suite that says "back in owner context, `auth.uid()` is NULL" after a `reset role` may in fact still be
@@ -6215,7 +6215,7 @@ and require it to RED before the helper lands.
 
 ---
 
-### 🟠 FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME — the sweep's domain is a syntax standing in for a property (owner: backend; filed 2026-08-22, found when the census's own remediation recipe could not clear the gate it raised)
+### 🟠 FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME — the sweep's domain is a syntax standing in for a property (owner: backend; filed 2026-08-22, found when the census's own remediation recipe could not clear the gate it raised; ✅ **RESOLVED 2026-08-22** — four-way partition + `ARM-DOMAIN` census, both halves proven; ⭐⭐ it also surfaced that the script **exited 0 on `BLIND: 5`**. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md); index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
 
 `supabase/tests/mutation/p0-authz-door-audit.sh:~231` bounds the **predicate arm** by a **name prefix**:
 
@@ -6355,7 +6355,7 @@ resolves to a live `regprocedure` — catalog-checkable, and it would have caugh
 be that it goes RED on a deliberately stale signature — a sweep of this shape that finds nothing is
 indistinguishable from one that cannot find anything.
 
-### 🟠 FUP-GRANT-CASE-ACCESS-UNCHECKED-HAS-NO-COVERAGE — the precedent every `app` unchecked writer is modelled on has never been tested (owner: backend; filed 2026-08-22, found by deriving a class instead of naming an instance)
+### 🟠 FUP-GRANT-CASE-ACCESS-UNCHECKED-HAS-NO-COVERAGE — the precedent every `app` unchecked writer is modelled on has never been tested (owner: backend; filed 2026-08-22, found by deriving a class instead of naming an instance; ✅ **RESOLVED 2026-08-22** — `358` §A pins both class members' ACL + `prosecdef` and the 3-caller set, red-first. ⛔ The `ARM=census` PRUNE hint was NOT acted on. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md); index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
 
 Filed because a **property sweep** was run instead of a hand-list. Increment 2 added
 `app._set_participant_patient_unchecked` and it landed in **no tracked authorization class at all**.
@@ -6614,7 +6614,7 @@ whichever way it goes, a pin at the DOOR (not the predicate; asserting the predi
 PHI half hide, QA B1's recorded contributing cause) and a same-door positive control so the verdict
 is not a broken fixture.
 
-### 🟡 FUP-CS2-QA-RESIDUE — the twelve non-blocking QA findings from Increment 2, and four of them are the same class (owner: backend/tester/frontend; filed 2026-08-22 at the Record step)
+### 🟡 FUP-CS2-QA-RESIDUE — the twelve non-blocking QA findings from Increment 2, and four of them are the same class (owner: backend/tester/frontend; filed 2026-08-22 at the Record step; ⭕ **12 → 6 on 2026-08-22** — M-5/M-6/M-7/M-14/M-15/M-16 remediated red-first and QA C-3 discharged; **M-4 STRUCK as already-delivered**. Remaining: M-1, M-8, M-11, M-12, M-13, M-17. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md))
 
 ⛔ **Filed so the review's findings do not leave with the review.** QA r2 APPROVED with five record
 conditions; C-1 (gate figures), C-2, C-4 (verdict rows) and the M-3 / M-4 / M-9 / M-10 items are
