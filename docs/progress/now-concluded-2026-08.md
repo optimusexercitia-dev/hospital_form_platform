@@ -166,3 +166,22 @@ stale five times and it is the reason the entry existed.
   turned out to be on the remote already — the "HELD" line was **stale**, the third time that
   claim has gone stale — and `…000800`/`…000900` were pushed on PO instruction. **0 local-only
   migrations.** ⛔ Re-measure `schema_migrations`; never re-read a sentence about it.
+
+## ↩ Rotated from PROGRESS.md § Now 2026-08-23 — size discipline (79,876 B of an 80,000 B cap)
+
+_Fully concluded: `DANGLING-PRINT` and its third defect are both CLOSED. Kept verbatim; it was fact #2
+of the "three facts a session must not trip over" block._
+
+  2. `DANGLING-PRINT` is **CLOSED** (ADR
+     [0123](../decisions/0123-discarding-a-draft-that-has-emitted-documents.md));
+     a third defect found during closure is now ✅ **CLOSED**
+     (`FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION`, resolved 2026-08-19) — and it closed
+     by **removing the subject**, not by widening a predicate: under ADR
+     [0126](../decisions/0126-print-series-and-derived-currency.md) **D5** a draft no
+     longer registers at all (`HC0DP`, DB-enforced), so there is no draft print to be
+     invisible. Registration derives from the **lock point**: still-editable ⇒ ephemeral
+     prévia; locked ⇒ registered — for meetings that turns at `in_signature`, which
+     registers **stamped RASCUNHO**, watermark predicate unchanged.
+     ⚠ **HC069 is genuinely unreachable now**, so `312` §9/§10 were rebuilt **table-level**
+     with the t76/t80 differentials preserved (a rebuild that dropped them would be equally
+     satisfied by a guard refusing every delete).

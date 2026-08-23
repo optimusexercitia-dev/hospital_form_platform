@@ -16,19 +16,6 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **✅ CASE SURFACE SPLIT · INCREMENT 1 — COMPLETE, MERGED to `main` 2026-08-21** (ADR 0134 D1–D5, D7
-  + Step 0; §6 steps 1–5, QA APPROVED r3, PO-approved). Bullet rotated verbatim 2026-08-22 →
-  [case-surface-split-increment-1.md](docs/progress/case-surface-split-increment-1.md), which also holds
-  its narrative. ⚠ **Two things it carried that are still live:** the PO's approval covered **Increment 1
-  + that merge only** — not Increment 2, not any remote push; and **D1's ratified sentence was observably
-  false on `main` the day it shipped**, repaired by ADR 0134 **Amendment 3** (capability-invariance), which
-  is the wording Increment 2 is judged against.
-- **✅ RULED 2026-08-22 — ADR 0134 Amendment 4: S8 is bounded by `not v_eg`, like S5/S7** — an
-  `explicit_grants_only` case is invisible to the `read_cases` arm. ✅ **Its binding work has LANDED**
-  (the bound, P9/P9-twin/P10/P11, and the door-set enumeration now **pinned** in `356` §13, not merely
-  recorded). Bullet rotated verbatim → [case-surface-split-increment-2.md](docs/progress/case-surface-split-increment-2.md).
-  ✅ `FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY` is **RESOLVED** — the merge condition this line named is
-  satisfied (`be546bbf`, on `main`), so the item rotated → [follow-ups-archive.md](docs/progress/follow-ups-archive.md).
 - **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
   user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
   person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
@@ -39,13 +26,35 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   [aff2-user-management.md](docs/plans/aff2-user-management.md). **Start
   condition: the prévia merge call is SATISFIED (`9ed197d5`, merged + pushed); what
   remains is the PO's merge call on `chore/small-optimizations` itself + explicit build go.**
-- **A phase IS active** — case surface split **Increment 2**, above. Everything else that stood here
-  is done: the **DM program (DM0–DM5)** closed 2026-08-18 (QA APPROVED r2), the **DSR** program closed
-  2026-08-20 and its **operational remediation** 2026-08-21 (both merged **and pushed**), and the Cloud
-  constructed-orphan probe concluded 2026-08-18. All five bullets rotated **verbatim** 2026-08-22 →
-  [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md), which is also where the
-  `Imprimir prévia` / `Emitir documento` split already sat. ⛔ **Their open residue did NOT rotate** —
-  every follow-up and bug those bullets named was verified by name to hold its own line in
+- **✅ CASE SURFACE SPLIT — COMPLETE through Increment 2, and its post-merge residue is WORKED** (ADR
+  0134 D1–D7 + Amdt 1–8). Increments 1 (`6e364203`) and 2 (`be546bbf`) are merged to **local** `main`;
+  the §6 Record landed `c85af876`. Both bullets rotated verbatim →
+  [increment-1](docs/progress/case-surface-split-increment-1.md) · [increment-2](docs/progress/case-surface-split-increment-2.md).
+  On **2026-08-22** the open residue was grouped and worked in two commits — the **assertion-integrity
+  group** (`e280cffa`, record: [case-split-assertion-integrity.md](docs/progress/case-split-assertion-integrity.md))
+  and **three of four PO rulings** (`d885f621`). Gates on a fresh reset: `test:db` **209f/6973t PASS** ·
+  lint 8/8 · `tsc` 0 · vitest **113f/1568**.
+  ⛔ **THREE things this does NOT mean, each of which a reader will assume:**
+  1. **Nothing is pushed.** `main` is **78 commits ahead of `origin/main`** with **6 local-only
+     migrations**, and no `db push` has run. Every PO approval in this program was scoped to a **local**
+     merge. ⛔ Re-measure before quoting — see § State.
+  2. ✅ **`e2e:prod` HAS now been run — 2026-08-23, `REBUILD=1`, at `d885f621`** — the first full run
+     since Increment 2, superseding the Inc-2 union-with-75-unrun. **RED, exit 1: 1185 p · 2 f · 2 flaky ·
+     8 DNR · 20 batches**, no batch gaps, no `reset FAILED`. ⭐ **Both failures are retry artifacts on
+     non-idempotent tests, not defects** — re-run alone they are **25 p / 0 f, GREEN, exit 0** (tail
+     included), so **no regression is attributable to this tree**. Filed as
+     `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`. ⚠ **RED is still RED** — the gate
+     does not pass, and §6 step 2 is not satisfied by a triage note.
+  3. **The residue is smaller, not gone** — `FUP-CS2-QA-RESIDUE` is **12 → 6**; `FUP-RESET-ROLE`'s
+     134-file sweep is open; ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md)
+     is **ruled and DEFERRED**, not built; and B3 filed **two new residues** of its own.
+- **⚠ NO PHASE IS ACTIVE.** The case-surface-split program above is the most recent, and it is complete.
+  Everything else that stood here is done: the **DM program (DM0–DM5)** closed 2026-08-18 (QA APPROVED
+  r2), the **DSR** program closed 2026-08-20 and its **operational remediation** 2026-08-21 (both merged
+  **and pushed**), and the Cloud constructed-orphan probe concluded 2026-08-18. All five bullets rotated
+  **verbatim** 2026-08-22 → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md), which is
+  also where the `Imprimir prévia` / `Emitir documento` split already sat. ⛔ **Their open residue did NOT
+  rotate** — every follow-up and bug those bullets named was verified by name to hold its own line in
   § Follow-ups / § Bug Log first. ⛔ **Two things there must not be read as closure:** `e2e:prod` was
   **never re-run** for the DSR final increment (last full run was the S3 gate), and the ethics lane is
   *non-erasable by decision with two known open removal paths* — a worse state than "no path exists".
@@ -61,30 +70,20 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   3. **`FUP-DM4-PRODROW`** — now actionable: re-derive a magnitude, or rule that it
      cannot be (TRIAGE #9 already forbids closing it as "reconciled").
 - ⛔ **Re-measure `schema_migrations` and `auth.users` — never re-read a recorded figure** (stale **5×**, incl. a "HEAD is behind" claim that was false when written). The 2026-08-18 migration-hold resolution rotated 2026-08-22 → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md).
-- **⚠ Three facts a session must not trip over** (full context in the
+- **⚠ Two facts a session must not trip over** (full context in the
   [triage narrative](docs/progress/dm-fup-triage-2026-08-18.md)):
-  1. The remote DB is **EMPTY** (reset 2026-08-17 11:37Z) — see § State; the safety
-     of every remote action rests on that fact, and it **expires when the pilot
-     loads data**.
-  2. `DANGLING-PRINT` is **CLOSED** (ADR
-     [0123](docs/decisions/0123-discarding-a-draft-that-has-emitted-documents.md));
-     a third defect found during closure is now ✅ **CLOSED**
-     (`FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION`, resolved 2026-08-19) — and it closed
-     by **removing the subject**, not by widening a predicate: under ADR
-     [0126](docs/decisions/0126-print-series-and-derived-currency.md) **D5** a draft no
-     longer registers at all (`HC0DP`, DB-enforced), so there is no draft print to be
-     invisible. Registration derives from the **lock point**: still-editable ⇒ ephemeral
-     prévia; locked ⇒ registered — for meetings that turns at `in_signature`, which
-     registers **stamped RASCUNHO**, watermark predicate unchanged.
-     ⚠ **HC069 is genuinely unreachable now**, so `312` §9/§10 were rebuilt **table-level**
-     with the t76/t80 differentials preserved (a rebuild that dropped them would be equally
-     satisfied by a guard refusing every delete).
-  3. **C1 split into C1a (local) + C1b (Cloud); the pilot bound is C1b** — a green
+  1. The remote DB holds **NO REAL CUSTOMER DATA** — but ⛔ it is **NOT empty**: it carries the E2E
+     SEED FIXTURE (measured 2026-08-21: `auth.users` = 36, all `@test.local`, plus synthetic PHI).
+     This line said *"is EMPTY"* until 2026-08-23 and was contradicted by § State's own correction
+     the whole time — the **conclusion** (safe to touch) survives, the **premise** did not, and the
+     premise is what other decisions rested on. ⛔ **Re-measure, never quote** (stale 5×). It
+     **expires when the pilot loads data**.
+  2. **C1 split into C1a (local) + C1b (Cloud); the pilot bound is C1b** — a green
      local rehearsal does NOT release the pilot (§ Critical FUP C1).
 - **✅ SHIPPED 2026-08-19 — the documentation-stability refactor** (ADR [0127](docs/decisions/0127-standing-rules-home-and-staleness-gate.md); ADR [0124](docs/decisions/0124-progress-live-state-contract.md) Amdt 1): standing rules moved to `.claude/rules/`, `lint:rules` is gate 8, and rules were **measured to fire**. Bullet rotated verbatim 2026-08-21 → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md), which keeps the four filed-not-built items and the ⛔ premise-was-false note.
-- **In-flight worktrees:** `progress-methodology` (this restructure — tracker
-  methodology + CLAUDE.md review cadence).
-
+- **In-flight worktrees: NONE** (measured 2026-08-22, `git worktree list` → the primary checkout only).
+  The `progress-methodology` worktree recorded here was gone; a worktree line is a claim about an
+  external thing and goes stale with nothing able to contradict it.
 ## Phase Status — live rows only
 
 > **Completed rows live in [phase-ledger.md](docs/progress/phase-ledger.md)** —
@@ -187,8 +186,8 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-22 | ⭐ **CASE SPLIT · assertion-integrity group** (`7c8a7016` + uncommitted) | `test:db` **209f/6966t PASS** fresh reset (was 208/6941) · lint 8/8 · `tsc` 0 · vitest **112f/1556** · door audit CLEAN exit 0 — `ARM=predicate` 1/101 COVERED, `ARM=policy` **EMPTY and now says so** ⛔ **no `e2e:prod`** — [record](docs/progress/case-split-assertion-integrity.md) |
-| 2026-08-22 | ⭐ **CASE SPLIT · Inc 2 — §6 steps 1–2 at `794bd971`** | `test:db` **208f/6941t** · lint 8/8 · `tsc` · vitest **1555** · 4 ARMs exit 0 ⛔ **all VACUOUS** · `e2e:prod` **1090p / 0 FAILED / 75 unrun → RED(UNRUN)**; the 2 named batches re-ran **129/129 GREEN**. ⚠ **UNION of 2 runs** — [caveats](docs/progress/case-surface-split-increment-2.md) |
+| 2026-08-23 | ⭐⭐ **FULL `e2e:prod`** — first since Inc 2, `REBUILD=1`, at `d885f621` | ⛔ **RED, exit 1** · **1185 p · 2 f · 2 flaky · 8 DNR · 20 batches**, no gaps, no `reset FAILED`. ⭐ Both failures are **retry artifacts on non-idempotent tests**; alone → **25 p / 0 f GREEN**. **No regression attributable to this tree** — [triage](docs/progress/case-split-assertion-integrity.md) |
+| 2026-08-22 | ⭐ **CASE SPLIT · residue: assertion-integrity + PO rulings** (`e280cffa`, `d885f621`) | `test:db` **209f/6973t PASS** fresh reset (208/6941 → 209/6966 → 6973) · lint 8/8 · `tsc` 0 · vitest **113f/1568** · door audit CLEAN exit 0 — `ARM=predicate` 1/101 COVERED, `ARM=policy` **EMPTY and now says so** ⛔ **no `e2e:prod`** — [record](docs/progress/case-split-assertion-integrity.md) |
 
 ## QA Verdicts
 
@@ -270,7 +269,7 @@ still awaiting a concluding event stay here:_
 | --- | --- |
 | ⚠ **Remote storage byte-loss is UNQUANTIFIED — the "~49 vanished" figure is WITHDRAWN 2026-08-18.** `n_tup_ins − n_tup_del` compares two units: 5 uploads move `ins` by **+6**, 5 deletes move `del` by **+5** (measured). And by the probe below, any surviving bytes are **unobservable** anyway | a magnitude re-derived from something other than the `pg_stat` counters — or PO ruling that it cannot be ([FUP-DM4-PRODROW](docs/progress/follow-ups.md)) |
 | ⛔ **CORRECTED 2026-08-21 — the remote holds the E2E SEED FIXTURE, not nothing.** This row said *"it holds no data and no users"* (census 2026-08-18). **Measured 2026-08-21 against the linked project: `auth.users` = 36, all `@test.local`, created 2026-08-19 — i.e. AFTER that census; 0 non-test accounts; 1 pre-promoted `platform_admin`; `cases` 10, `responses` 17; synthetic PHI `patient_identifiers` 2 / `event_patient` 3 / `referral_patient` 3.** ⭐ **No real customer data** — so the *conclusion* (safe to touch) survives; the *premise* did not, and the premise is what other decisions were resting on. ⚠ This is the **fifth** time a claim about the remote has gone stale in this file. ⛔ **Re-measure `auth.users` and `schema_migrations` before citing this row — never quote it.** | **expires at pilot data-load**, when it must be REPLACED by the rehearsed C1b disposal bound (§ Critical FUP C1), never just deleted |
-| ✅ **The remote is CURRENT as of 2026-08-21: 435 applied, head `20261003000300`** — 14 migrations pushed (ADR 0129 child-lock work + DSR Slices 2–4 + this round's four), PO-authorised. `dsr` flag **enabled**, and the disposal invariant re-derived **on the remote**: 3 setters / 5 readers. ⚠ A `git push` is not a `db push`; both were done, separately and deliberately | superseded by the next remote-affecting change — **re-measure, do not quote** |
+| ⛔ **NO LONGER CURRENT as of 2026-08-22 — the remote is BEHIND by SIX migrations.** Measured on the local side only (`git diff origin/main..main`): local has **441** files, head `20261003000900_create_case_drops_is_admin_arm.sql`; **6 are unpushed** — `…000400` `…000500` `…000600` `…000700` `…000800` `…000900` (the whole case-surface-split Increment 2 + the Amdt-8 arm cut). ⚠ **No remote-side figure is quoted here on purpose** — the remote was not re-measured, and the row below is what it said on 2026-08-21. ⛔ A `git push` is not a `db push`; **neither** has been done. Every PO approval in this program was scoped to a LOCAL merge. _Superseded row, kept for provenance:_ ✅ **the remote was CURRENT as of 2026-08-21: 435 applied, head `20261003000300`** — 14 migrations pushed (ADR 0129 child-lock work + DSR Slices 2–4 + this round's four), PO-authorised. `dsr` flag **enabled**, and the disposal invariant re-derived **on the remote**: 3 setters / 5 readers. ⚠ A `git push` is not a `db push`; both were done, separately and deliberately | superseded by the next remote-affecting change — **re-measure, do not quote** |
 
 
 ## ⭐⭐ Critical FUP — the must-not-be-forgotten list
@@ -348,6 +347,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 📦 **Deferred backlog — 33 open items (🟡 24 · 🟢 1 · ▶ 8)**, moved out of the live index 2026-08-19: open, but not actionable next session. Severity · id · claim preserved verbatim → [deferred-backlog.md](docs/progress/deferred-backlog.md)
 - 🔴 **FUP-DM4-PRODROW** — ⭕ **UNBLOCKED 2026-08-18: the probe answered its blocker (no Cloud orphan surface), and this item's "~49 vanished" figure is WITHDRAWN as unsound arithmetic.** The subject is still erased, not reconciled — lead/backend
 - 🟠 **FUP-42501-CONFLATES-GRANT-WITH-RLS** — ⛔ **coverage defect, NOT a vulnerability** (both tables ARE protected, by the missing grant). `42501` is both the RLS-refusal code AND Postgres's generic *permission denied for table*, so `throws_ok(…,'42501')` cannot tell them apart. Measured: of **12** live assertions in `252_authz_p0_isolation.sql`, `authenticated` lacks INSERT on **`rca_evidence`** + **`capa_action_evidence`** ⇒ those two pass on the **grant**, never reaching RLS. The P0 suite claims isolation on 12 tables and demonstrates it on **10**. ⚠ The tree already documented this trap **twice in prose** (`301`:21, `277`:328) and it recurred anyway. ⛔ Do NOT fix by granting INSERT — that widens real protection to make a test honest; fix the assertion. Model fix + the allow-leg differential that caught it: `345_previa_audit_door.sql` header. ⭐ **2026-08-19: filed as a GATE proposal, not a rule** (ADR 0127 rejected the rule form — a gate beats a rule where one is reachable). ⛔ **COST BASIS RE-DERIVED 2026-08-22 and it is 25–45× the filed figure — do NOT quote the old one.** The line said *"**15** `throws_ok` sites carry a bare `'42501'`, of 728 total references — so the gate costs 15 remediations"*. Re-measured by **paren-balanced parse** of all 206 suites (a line grep under-reports these 3–5-line calls, in the reassuring direction): **1358** `throws_ok` calls, **1214 assert no message at all**, of which **376 are `42501`** and **670 carry any generic Postgres code two locks can raise** (`42501` 376 · `23514` 189 · `P0002` 41 · `23505` 37 · `23503` 22). Textual `42501` refs are **813**, not 728 — the tree grew. ⚠ The filed **15** was **not reproduced by any property run**; "bare" is a third property nobody has identified. ⭐ The proposal's whole build/defer verdict rests on this number, and 15 vs 670 is the difference between *just do it* and *needs its own phase* — **re-derive before building, never quote** — backend/tester ⭐ **RULED 2026-08-22 (ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md)): authored refusals get their own `HCxxx` SQLSTATE, `42501` stays RESERVED — build DEFERRED by the PO.** ⛔ Ruled ≠ discharged; this stays OPEN.
+- 🟠 **FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS** — `e2e:prod` runs `RETRIES=1`; where a test mutates shared state, a **transient** first-attempt failure leaves that state behind and the **retry fails DIFFERENTLY**, on an assertion about the state attempt 1 created. Measured 2026-08-23 on both of the run's "real" failures (`ethics-e4-participants:918` count 2→1; `user-registration:506` strict-mode on a `Remover…` button that only exists once assigned) — **both `-retry1`, both GREEN alone (25 p / 0 f)**. ⛔ **Worse than flake:** it prints `GATE RED — 2 real failure(s)` and points at the FEATURE, not the harness. ⚠ Do NOT fix by `RETRIES=0` — the retry absorbs the real Windows server-death family (5 batches hit it this run) — tester/lead
 - 🟡 **FUP-PLAIN-STAFF-ASSIGNEE-CANNOT-REACH-THE-MANAGE-HOST** — the phase-result arm is now surfaced, but `canOpenCaseManagement` admits only coordinator ∨ administrativo ∨ write-grantee, so a **plain-staff assignee 404s before any phase renders** (measured in a browser: `staff1.ccih`, `staff3.ccih` → root 404). ⭐ Filed **by the fix's own author as a stated bound**, because the alternative is a close note that reads as completeness. ⛔ Widening the gate is ADR 0134 **routing** territory (D1's read/manage split) and needs a PO ruling, not a patch. ⚠ Do not close it by noting the wizard path exists — frontend/PO
 - 🟡 **FUP-ACTIVE-PHASE-STASHED-OVERRIDE-IS-INVISIBLE** — on an `active` phase the door *stashes* the override, but `getCaseDetail` does not select `result_override_id` (only `getCasePhaseForFill` does), so **no badge renders and reopening the dialog shows no pre-selection**. The write landed; the surface cannot show it. Mitigated with **copy, not a fix**. ⭐ It produced a **false defect report** mid-build — a correct save read exactly like a live defect — caught only by checking the catalog instead of believing the UI. Cosmetic sibling: `PhaseResultCorrectButton` is now a misnomer — backend
 - 🟡 **FUP-VACUOUS-DETECTOR-FALSE-POSITIVE** — `check-vacuous-assertions.mjs` reports `ALL-ASSERTIONS-CONDITIONAL` when a helper is **declared inside** a test: the walk skips *child* functions but not a statement that **is** a `FunctionDeclaration`, so the helper's `return` revokes the guarantee for every later `expect`. Reddened the whole 8-gate chain; worked around by hoisting. ⛔ **Admission condition for any detector change: a NEW self-test reproducing the real vacuous shape, proven still RED after the fix** — a detector loosened on a false-positive report without that control is worse than the false positive — tester/lead

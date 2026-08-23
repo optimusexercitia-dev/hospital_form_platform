@@ -6709,3 +6709,40 @@ like a live defect**. Caught only by checking the catalog instead of believing t
 
 **Cosmetic, same area:** `PhaseResultCorrectButton` now renders *"Definir resultado"* as well, so its
 name is a misnomer. One import site.
+
+### 🟠 FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS — the gate's verdict is unreadable where a test poisons its own re-run (owner: tester/lead; filed 2026-08-23 from the first full `e2e:prod` since Increment 2)
+
+⭐ **Found by triaging a RED gate whose two "real failures" were neither real nor failures of the code.**
+
+`e2e:prod` runs with `RETRIES=1`. Where a test **mutates shared state and is not idempotent**, a
+transient first-attempt failure (server death, connection collapse — the known Windows prod-standalone
+family) leaves that state behind, and the **retry then fails DIFFERENTLY** — on an assertion about the
+state its own first attempt created. Measured, both instances from the 2026-08-23 run:
+
+| test | reported failure | why the retry produced it |
+| --- | --- | --- |
+| `ethics-e4-participants.spec.ts:918` | `expect(seatedTwice.length).toBe(2)` → **1** | attempt 1 already seated the participant |
+| `user-registration.spec.ts:506` | strict-mode: `getByLabel('Comissão')` matches the `<select>` **and** a `Remover Comissão…` button | attempt 1 already assigned the commission, so the Remover button exists |
+
+Both error-context directories end in **`-retry1`** — the tell, and the only thing in the output that
+distinguishes this from a hard defect. **Re-run alone with `RETRIES=0`: 25 passed / 0 failed, GREEN,
+exit 0**, including the 8-test serial tail the first run reported as `did-not-run`.
+
+⛔ **Why this is worse than flake, and rates 🟠 rather than 🟡.** A flake reads as noise and invites a
+re-run. This reads as a **deterministic product defect** — a wrong participant count, an ambiguous
+locator — and it points at the feature under test rather than at the harness. It cost a full triage
+cycle to establish that neither failure said anything about the code, and the next reader gets no hint:
+`GATE RED — 2 real failure(s)` is exactly what a genuine regression prints.
+
+⚠ **Do NOT "fix" this by setting `RETRIES=0`.** The retry exists to absorb the documented Windows
+server-death family, which is real and frequent (this run: five batches hit `server_dead=1` with 4–75
+connection errors, plus one `exit 127` crash). Removing it trades an unreadable RED for a much noisier
+one.
+
+**Directions, none free:** make the tests idempotent (delete-by-identity setup — ⛔ never positional,
+`seed.sql` is a contract with ~900 tests); or have the gate classify a retry-only failure distinctly, so
+`RED — 2 real failures` cannot be printed for a pair that passed alone; or run the retry against a fresh
+`db reset`, which is the batch's own recovery model applied one level down.
+
+⭐ Class: **a repair mechanism that changes what it is repairing.** Same family as the recorded lesson
+that a positive control can contaminate its own subject.
