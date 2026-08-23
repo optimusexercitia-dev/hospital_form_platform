@@ -33,17 +33,26 @@ import {
  * its own lightweight dialog rather than firing immediately. All driven by
  * `useTransition` (plain typed actions, not `useActionState`-shaped).
  *
- * ⚠ AFF W3/T3.3 (ADR 0097 D14): deactivate / reactivate / suspend are
- * `org_admin`-ONLY. `app.is_active` is folded into every membership predicate, so
- * deactivation is a PLATFORM-WIDE kill switch — one hospital's offboarding would end
- * the person's access at every other hospital and committee they hold. A hospital
- * admin's offboarding is `end_affiliation` (the affiliations panel), never this.
- * Resending an invite stays available: it is not a kill switch.
+ * ⚠ AFF2 (ADR 0133 D3 + Amdt 1 ruling 1): deactivate / reactivate / suspend are gated
+ * by the **SUBSET bound**, not by role. A `hospital_admin` holds them over a person
+ * whose entire active footprint lies inside the hospitals they administer; a person who
+ * ALSO works elsewhere, holds an org- or hospital-tier seat, or has no footprint at all
+ * stays `org_admin`-only.
+ *
+ * ⚠ Why lifecycle kept the TIGHTER bound while person-level fields widened to
+ * intersection: `app.is_active` is folded into every membership predicate, so
+ * deactivation is a PLATFORM-WIDE kill switch — for a person who spans hospitals it
+ * would end their access at hospitals the caller does not administer. That is the same
+ * rationale the pre-amendment `org_admin`-only rule rested on; the amendment did not
+ * discard it, it scoped it to the people it actually protects. A hospital admin's LOCAL
+ * offboarding is still `end_affiliation` (the affiliations panel), never this. Resending
+ * an invite stays available: it is not a kill switch.
  *
  * ⚠ `canManageAccountStatus` IS UX, NOT SECURITY (Architecture Rule 1). All three
- * actions re-derive the caller's authority server-side and refuse with
- * `MESSAGES.orgAdminOnly`; that refusal is rendered here. Hiding the buttons only
- * spares an admin an attempt that was always going to fail.
+ * actions re-derive authority server-side via
+ * `authorizePersonScopedAdmin(userId, 'lifecycle')` and refuse with
+ * `MESSAGES.orgAdminOnly`; that refusal is rendered here. Hiding the buttons only spares
+ * an admin an attempt that was always going to fail.
  */
 export function UserLifecycleActions({
   userId,
@@ -54,7 +63,17 @@ export function UserLifecycleActions({
   userId: string;
   status: UserStatus;
   fullName: string;
-  /** Whether the caller is an `org_admin` of this person's organisation. UX only. */
+  /**
+   * Whether the caller holds the ACCOUNT-LIFECYCLE capability over THIS person — the
+   * subset bound, resolved server-side by `getPersonAdminView`. UX only.
+   *
+   * ⛔ Deliberately not "whether the caller is an `org_admin`". That is what this said
+   * before ADR 0133 Amdt 1, and it went false the moment a footprint-scoped
+   * `hospital_admin` gained the capability — while the prop kept behaving correctly, so
+   * nothing could contradict the sentence. A capability flag must describe the
+   * CAPABILITY, never the role that happened to be its only holder: the role is an
+   * implementation of the answer, and it is the half that changes.
+   */
   canManageAccountStatus: boolean;
 }) {
   const router = useRouter();
