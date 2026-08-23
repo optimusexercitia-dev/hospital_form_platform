@@ -133,8 +133,8 @@ was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
 | Task | State |
 | --- | --- |
 | F1 · Directory table | ✅ **built 2026-08-23** — lint 8/8, `tsc` 0, 24/24 browser checks. ⚠ Two arms inert pending B7 (below) |
-| F2 · Profile page | ⚠ **built 2026-08-23** — lint 8/8, `tsc` 0. ⛔ **NOT verified** (stack held by `backend`); the Amdt-1 split is exactly what needs a browser |
-| F3 · Register wizard | ✅ **complete 2026-08-23** — all three B4 insertion points closed (Nascimento, Telefone, redirect-to-profile). lint 8/8, `tsc` 0. ⚠ the three closes are **not yet re-verified in a browser** |
+| F2 · Profile page | ✅ **complete + VERIFIED 2026-08-23** — lint 8/8, `tsc` 0, **21/21** browser checks incl. the Amdt-1 split on one target |
+| F3 · Register wizard | ✅ **complete 2026-08-23** — all three B4 insertion points closed (Nascimento, Telefone, redirect-to-profile). lint 8/8, `tsc` 0. ✅ **VERIFIED 2026-08-23**, 10/10 — including that the values SURVIVE the submit |
 | F4 · Copy + a11y pass | ⏳ **partial** — `error.tsx` ✅ built **and verified** 2026-08-23 (pulled forward, lead-approved); the copy/a11y sweep itself waits on F2/F3 being final |
 
 ### F1 — what shipped, and what is still inert
@@ -230,6 +230,14 @@ the message announcing them:** `RegisterUserState extends ActionState { userId?:
   `userId` is `string | undefined` and `ok: true` does **not** narrow it; the type admits an
   ok-without-id, and the fallback keeps the admin on the filtered directory rather than
   routing them to `/usuarios/undefined`.
+
+✅ **VERIFIED 2026-08-23 — 10/10, end to end.** The point was never that the fields render; it
+is that what the admin types **survives the submit**, because an input the action silently drops
+is the exact failure the deferral existed to prevent and only a round trip distinguishes the two.
+Measured: phone masks to `(11) 98765-4321` while state stays digits-only and the input carries
+**no `name`** · a birth date is pickable · submit lands on **`/usuarios/<uuid>`**, the created
+person's own page, not the filtered directory · and on that page the rail shows **`15/08/1985`**
+and **`(11) 98765-4321`**, with CPF **presence-only**.
 
 ⭐ **The generalisable lesson, stated because the instruction that produced it was reasonable:**
 "model the missing fields optional and absorb the backend as a type change" was carried over
@@ -354,6 +362,27 @@ and `canEditCpf` as a **separate** prop rather than inheriting the form's own ga
 untouched as defence in depth; `updateUserProfile` compares against the current row, so an
 absent key and an unchanged value reach the same verdict. If the form were the mechanism,
 the bound would not be enforced.
+
+✅ **VERIFIED 2026-08-23 — 21/21, and the fixtures were COMPUTED, not guessed.** A catalog
+query classified every Rede A person by footprint against `hospitaladmin.a1`'s administered
+hospital, which is how the three targets were chosen: `dr.john` (footprint 2, incl. Central A),
+`staff1.ccih` (footprint {Central A}), `dt.a` (**technical_director @ Central A** — the tier
+case at the caller's OWN hospital, D2's sharp one). Picking by persona name would have been a
+guess about the exact property under test.
+
+⭐ **The amendment measured on ONE target, two verdicts** — cross-hospital, as `hospitaladmin.a1`:
+"Editar" offered · **0** lifecycle buttons · **no CPF field** inside the form · Nascimento and
+Telefone editable · the note names which half is out of reach · the retired "somente
+organização" absolute absent.
+⭐ **Bounded on both sides by the same caller:** sole-hospital → Editar + **2** lifecycle buttons
++ CPF field present. Tier → no Editar, no lifecycle, withheld note, and ⛔ **not** collapsed into
+"Não informado".
+⭐ **The strongest differential — same target, two callers:** `orgadmin.a` on the *same*
+cross-hospital person gets **2 lifecycle buttons and a CPF field** where the hospital admin had
+neither. That is what proves the split tracks the CALLER's footprint rather than something
+about the person.
+Also pinned: `getByRole('region', { name: 'Vínculos hospitalares' })` still resolves, and **no
+CPF digits appear anywhere** on the page (D12).
 
 ⚠ **One spec will break and is `tester`'s:** `hospital-admin-tier.spec.ts:822` asserts a
 heading **"Situação da conta"**. That card is gone — the handoff moves lifecycle actions
