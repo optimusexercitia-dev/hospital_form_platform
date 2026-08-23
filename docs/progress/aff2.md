@@ -87,21 +87,51 @@ wiring the submit.** Each is a marked insertion point in committed code, not a s
    ⚠ Note the asymmetry is in the **actions layer, not the UI**: `affiliatePerson` (the existing-person
    path) *does* accept a start date.
 
-**Known E2E breakage inventory (for `tester`, enumerated 2026-08-23 by `frontend` before building).**
-The wizard moves **Hospital + Matrícula to step 2** and **committees to step 3**, so every spec that
-registers a person on one screen needs a `Continuar` walk inserted:
-- `aff-hospital-affiliation.spec.ts` — walks at **:176, :221, :379, :403, :546, :705**; **:196** is the
-  exact breaking line (`getByLabel(/^hospital/i)` while still on step 1).
-- `hospital-admin-tier.spec.ts` — **:743, :761** · `phase3-admin-members.spec.ts` — **:136**.
-- `user-registration.spec.ts:488` — `getByLabel('Buscar por nome, e-mail ou categoria')`; the F1 label
-  is now **"Buscar por nome ou e-mail"**.
-- ⛔ **NOT affected:** the `getByLabel('Buscar pessoa')` hits in those files are `AddMemberPicker`, a
-  different component. Recorded because the negative stops three files being "fixed" that never broke.
-- ✅ **Deliberately preserved anchors** (correct semantics *and* free spec compatibility, in that order):
-  **"Comece pelo CPF"** as step 1's region name (`aff-hospital-affiliation.spec.ts:77`,
-  `hospital-admin-tier.spec.ts:145`) and **"Dados pessoais"** as the revealed create-group heading
-  (`form-name-attribute-invariant.spec.ts:564` — the paired positive proving the CPF lookup reached
-  the server).
+**⛔ Known E2E breakage inventory — CORRECTED 2026-08-23 by `tester`. The first version was WRONG IN
+COMPOSITION, and the way it was wrong is the lesson.**
+
+The original list was produced by `frontend` from the **authoring** side — *"which specs will my change
+break"* — and the lead recorded it verbatim as authoritative without re-deriving it. `tester` derived
+theirs from the **call sites**, which is the property; the first was derived from the change, which is a
+proxy. Two independent errors followed, in opposite directions:
+
+- **Over-counted.** `aff-hospital-affiliation.spec.ts` was listed with **six** sites; it has **two**
+  (:176 — breaking at :196 — and :403). The file is `test.describe.configure({ mode: 'serial' })` at
+  `:65`, so one break **cascades into skips** that read as independent breaks. The other four flagged
+  lines hit outcomes **B/C/deactivated**, which `register-person-flow.tsx:53-54` states are terminal and
+  **have no stepper at all** — unchanged code paths.
+- **Under-counted.** `user-registration.spec.ts` was listed for the label rename (`:488`) only. It has
+  **five** `/registrar pessoa/i` click sites — **:183** (also does committee work now on step 3),
+  **:238**, **:281** (`test.skip`'d), **:463**, **:598** (keyboard walk). *A list built from "files I
+  touched" cannot see a file the author never opened.*
+
+⭐ The two errors happened to cancel to the same total (**9**), with a **materially different set** — so
+the count corroborated a list that was wrong in both halves. Same class as the universal-negative error on
+B8: the lead verified the checkable claims and ratified the enumeration.
+
+**Corrected list:** `aff-hospital-affiliation.spec.ts` :176, :403 · `hospital-admin-tier.spec.ts` :741,
+:759, **:813** · `phase3-admin-members.spec.ts` :136 (the shared `registerActiveOrgUser` helper — one fix
+serves every caller) · `user-registration.spec.ts` :183, :238, :281, :488, :598.
+
+⚠ **`hospital-admin-tier.spec.ts:813` is a PREMISE INVERSION, not a heading deletion.** Its target
+`staff2.ccih` is commission-tier-only with footprint `{Central A}` (measured live) — under ADR 0133 D3 +
+Amdt 1 r1 that is a **lifecycle ALLOW**, so the test's core assertions invert, not just its
+"Situação da conta" heading. ⛔ Ruled in bounds as spec repair **on one condition: the ALLOW must be
+justified from the ADR, never from observed behaviour** — *"the app now shows Desativar, so assert
+Desativar"* is how a spec launders an over-grant into expected behaviour. The lifecycle-DENY class must
+not lose coverage in the move (T2's cross-hospital target carries it).
+
+⚠ **T2's "unaffiliated person renders the full note" arm is STRUCTURALLY UNREACHABLE.** Pulled from
+`pg_policies`: neither `profiles_select_self_or_admin` nor `profiles_admin_select` has an
+"any org member" leg, so a zero-footprint person satisfies neither hospital_admin leg and the page
+**404s before `getPersonAdminView` is consulted**. Covered instead as a 404/no-leakage assertion, with
+**`dt.a`** (hospital-tier at the caller's own hospital) carrying the renders-with-note DENY — which is the
+case ADR 0133 D2 itself calls sharp.
+
+- ⛔ **NOT affected:** the `getByLabel('Buscar pessoa')` hits are `AddMemberPicker`, a different component.
+- ✅ **Deliberately preserved anchors:** **"Comece pelo CPF"** (`aff-hospital-affiliation.spec.ts:77`,
+  `hospital-admin-tier.spec.ts:145`) and **"Dados pessoais"** (`form-name-attribute-invariant.spec.ts:564`
+  — re-confirmed by `tester` as still step 1's exact heading).
 
 **✅ GATE STEP 1 — the AUTHORITATIVE run, lead, both tracks still (2026-08-23, at `55b25be5`).**
 Every exit code captured directly; **no pipe in any exit path**. On a fresh `supabase db reset --local`
