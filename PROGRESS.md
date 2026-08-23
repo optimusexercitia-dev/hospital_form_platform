@@ -75,6 +75,15 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      included), so **no regression is attributable to this tree**. Filed as
      `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`. ⚠ **RED is still RED** — the gate
      does not pass, and §6 step 2 is not satisfied by a triage note.
+     ⭕ **QUALIFIED 2026-08-23 (PO ruling, AFF2 gate step 2).** This line stands for a **test-quality**
+     failure — which is what it was written about: non-idempotent tests whose retry poisons them. It does
+     **not** extend to an **infrastructure** crash. AFF2's run carried 1 failure + 1 DNR that were the *same*
+     test's two attempts (`wizard-others-ux.spec.ts:484`, a file neither track touched): a `newPage` timeout
+     then `worker process exited unexpectedly (code=3221225794)`. It escaped the gate's own infra
+     classification only because `INFRA_RETRY=1` is a **one-shot budget for the whole gate** and batch 1's
+     unrelated cascade had spent it. Re-run alone on a fresh server + DB: **7/7, exit 0**. ⛔ The
+     qualification is narrow — *proven transient, in an untouched file, better than the pin on every axis*
+     — and it is **not** licence to accept a red gate on a triage note.
   3. **The residue is smaller, not gone** — `FUP-CS2-QA-RESIDUE` is **12 → 6**; `FUP-RESET-ROLE`'s
      134-file sweep is open; ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md)
      is **ruled and DEFERRED**, not built; and B3 filed **two new residues** of its own.
