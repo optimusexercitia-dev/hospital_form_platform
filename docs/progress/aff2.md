@@ -559,7 +559,123 @@ fourth stale comment this workstream would have produced.
 
 ## Track T — tester *(tester-owned)*
 
-Not yet spawned. Spawns when F lands per-screen and the dev server runs.
+**T0-T4 complete and verified 2026-08-23** (each spec run individually,
+`--project=chromium --workers=1` against `next dev` — see the dev-server-concurrency note
+below; lint 8/8 and `tsc` 0 on every file). **T5 (full `e2e:prod`) is RUNNING, not yet
+reported** — do not read this section as declaring green; the Test Run Summary row lands
+in PROGRESS.md only once that completes.
+
+### T0 — the given breakage inventory was wrong in both composition and count
+
+Verified against source before editing, not taken on trust. Real total: **10 sites, not
+nine**, and a different set than given:
+- `aff-hospital-affiliation.spec.ts` — only **2** of the 6 cited lines were real (the two
+  outcome-A registration tests). The file is `test.describe.configure({mode:'serial'})`,
+  so the other 4 (outcomes B/C/deactivated) were **cascading skips** from the one real
+  break, not independent sites — confirmed by fixing only the 2 and watching all 13 tests
+  pass. Outcomes B/C/D are unchanged by the wizard (the component's own doc comment says
+  so, and the JSX matches).
+- `hospital-admin-tier.spec.ts` — 2 sites as given, **plus** `:813`: its target
+  `staff2.ccih` is commission-tier-only with footprint {Central A} ⊆ hospitaladmin.a1's
+  administered set — measured live against `memberships`/`hospital_affiliations`, not
+  assumed. The test's DENY premise was itself superseded by ADR 0133 D3 + Amendment 1
+  ruling 1, not merely its "Situação da conta" heading. Rewritten to ALLOW, **citing D3 +
+  Amdt 1 r1 in the test's own comment** (never the observed Desativar button — the lead's
+  explicit condition for this class of edit), with a reactivate-after so the shared
+  persona isn't left deactivated for later specs.
+- `phase3-admin-members.spec.ts` — 1 site as given (the shared `registerActiveOrgUser`
+  helper; fixes every caller in the file at once).
+- `user-registration.spec.ts` — the inventory named only `:488` (the search-label rename,
+  confirmed correct); **5 more genuine sites it never mentioned**, found by grepping every
+  `/registrar pessoa/i` click in `e2e/` rather than trusting the given file list: AC1
+  (complex — spans identity+credential on step 1 and committee assignment now on step 3),
+  AC2, AC2's `test.skip`'d invite-mode sibling, AC5 (email collision), AC7 (keyboard-only —
+  needed a keyboard-driven Continuar walk, not a Tab-to-submit).
+- `form-name-attribute-invariant.spec.ts:564` — confirmed a genuine **no-op**, exactly as
+  flagged ("Dados pessoais" is still step 1's heading verbatim). One UNFLAGGED break found
+  in the same file by running the regression rather than trusting the given scope: its
+  "profile edit" test needed an "Editar" click before the Nome field exists (F2's
+  disclosure), which led straight to **BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS**
+  (PROGRESS.md § Bug Log) — now fixed by `frontend` (`d23d1045`) and re-verified live by
+  T2 below, banner assertion included on purpose (see T2).
+
+**A sixth break class, found only by running the files, never by reading them:** every
+`registerUser` success now redirects to the created person's OWN profile page
+(`/usuarios/<uuid>`), not the bare directory. **8 sites across 3 files** asserted the old
+`waitForURL('**/o/rede-a/manage/usuarios')`. ⚠ My own first fix
+(`waitForURL(/\/usuarios\/[^/]+$/)`) was itself a live bug — the pre-submit URL is already
+`/usuarios/novo`, which trivially satisfies that pattern with **zero navigation having
+happened**, and it produced a false-pass that raced ahead of the write and failed one step
+later on an unrelated line ("person not found in search"). Corrected everywhere to
+`/\/usuarios\/[0-9a-f-]{36}$/i` (positively a UUID). Filed as
+`FUP-WAITFORURL-SATISFIED-BY-ITS-OWN-STARTING-URL`.
+⚠ **One PRE-EXISTING instance of the same trap left unfixed, on purpose**:
+`aff-hospital-affiliation.spec.ts:764` (AFF-K, currently green, not AFF2's doing) races the
+same way but never fails because nothing interrupts it with a fresh `page.goto` before the
+next assertion absorbs the delay — out of T0's repair scope since it isn't broken and isn't
+AFF2's regression; recorded here rather than silently left for a future reader to
+rediscover.
+
+**Operational finding, not a defect:** running multiple tests from one file against
+`next dev` under Playwright's default `fullyParallel` concurrency produced fully
+reproducible `page.goto('/login')` 30s timeouts — confirmed NOT a hang (a raw single-browser
+Playwright script and `curl` both succeeded in ~100ms against the same server throughout)
+and not server unhealthiness, but concurrent-Chromium contention against `next dev`'s
+cold-compile path. `--workers=1` eliminated it on every file. Not applicable to `e2e:prod`
+(a built server) — T5 runs plain.
+
+### T1-T4 — the new specs, and why T1 carries no hardcoded numbers
+
+- **T1** `e2e/aff2-directory.spec.ts` (new, 4/4 pass) — pill partition + real per-pill
+  filtering, deactivated-row navigation, "Sem comissão"/"Sem vínculo hospitalar", the B8
+  hospital filter. **Deliberately zero hardcoded counts.** The "30/27/2/1" and "30→15"
+  figures were already stale by the time I read them — `auth.users` moved 36→61 over this
+  session's own test runs alone, and `e2e:prod` does not reset between runs. Every count
+  assertion is either a PARTITION property (`active+attention+deactivated === all`,
+  whatever `all` currently is, read live from the pills) or a live before/after page
+  comparison — never a number typed into the file. This is the thing a successor most
+  needs to not undo: re-adding a fixed count "to make the test more specific" would just
+  reintroduce the staleness this file exists to avoid.
+- **T2** `e2e/aff2-scope-rule.spec.ts` (new, 5/5 pass) — the Amdt-1 split, all four
+  targets: a fresh sole-hospital person (registered live, hospital locked — sole-footprint
+  BY CONSTRUCTION, freely mutated: name+CPF edit persisted via reload/service-role read,
+  a credential added and persisted, deactivate→reactivate each persisted), dr.john
+  cross-hospital (fields/credentials ALLOW, CPF/lifecycle DENY, read-only) **plus the
+  two-caller differential** (`orgadmin.a` on the SAME dr.john gets both, including the D12
+  presence-only check for the caller who CAN change it — the lead's specific add), dt.a
+  hospital-tier-at-own-hospital (full DENY, the withheld note, never collapsed into "Não
+  informado"), and a fresh zero-footprint person (structural 404, not a rendered note —
+  see the premise correction below). Asserts the "Perfil atualizado." banner on purpose,
+  not skipped around: it is the only thing that can catch the fix's own named remaining
+  risk (`router.refresh()` remounting `PersonalDataCard` instead of reconciling, which
+  would reset `saved` to `false` by a different route to the same silence).
+- **T3** `e2e/aff2-wizard.spec.ts` (new, 2/2 pass) — only the two clauses NOT already
+  covered by the T0-repaired suite: the D8 invariant (hospital_admin skip-step-2 still
+  creates the affiliation — verified via a service-role read of `hospital_affiliations`,
+  not the copy's promise) and a foreign-org CPF collision hitting the identical block copy
+  with no tenant disclosure (`solo.c@test.local`, found by querying the catalog for a
+  seeded CPF outside Rede A, not by guessing a persona). Full-walk-to-Ativo and in-org
+  duplicate-CPF-offer are already covered (user-registration.spec.ts AC1/AC2,
+  aff-hospital-affiliation.spec.ts AFF-1); Pendente/invite-email stay in the existing
+  server-env-gated `test.skip` (AUTH_EMAIL_VERIFICATION is off locally) rather than being
+  duplicated.
+- **T4** `e2e/aff2-keyboard.spec.ts` (new, 1/1 pass) — the directory's
+  pills→search→row→profile path, real Tab presses throughout (not `.focus()` shortcuts).
+  The full wizard's keyboard-only walk was already covered and repaired under T0
+  (user-registration.spec.ts AC7) — not duplicated.
+
+**Premise correction (verified against the live `pg_policies` catalog, not assumed):**
+T2's "unaffiliated person renders with the full note" is not reachable — `profiles`'s two
+SELECT policies admit a hospital_admin only via an active `hospital_affiliations` row or a
+`memberships` row at an administered hospital; a genuinely empty-footprint person satisfies
+neither, so the page 404s before `getPersonAdminView` runs at all (identical mechanism to
+the pre-existing AFF-3 negative). Covered as a 404/no-leakage test instead; dt.a carries the
+"renders with the full note" DENY case, which is reachable and is the ADR's own named sharp
+D2 example.
+
+**DB delta, measured 2026-08-23 (not `db reset`, not attempted):** `auth.users` 36 → 61
+(+25), all additive `aff.*`/`aff2.*`/`e2e.*` fixtures from this session's own runs across
+T0-T4, zero seeded rows mutated.
 
 ---
 
