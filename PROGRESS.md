@@ -167,7 +167,7 @@ seed/CLI-driven bootstrap that mints the first admin idempotently. **Blocks noth
 E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is invisible to every
 gate), but it is on the critical path of the **first production deploy**.
 
-🔴 **BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS — a successful "Dados pessoais" save shows the admin NO
+⭕ **BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS — a successful "Dados pessoais" save shows the admin NO
 confirmation at all; the success banner is mounted and unmounted in the same React commit.** Filed
 2026-08-23 (`tester`, AFF2 T0) running the full regression on `e2e/form-name-attribute-invariant.spec.ts`
 (not a file named in the T0 breakage inventory — found by running beyond the named set). **Repro:**
@@ -187,6 +187,8 @@ state updates land in the same React commit, so the parent's `editing=false` unm
 `UserProfileEditForm` (banner included) before the success state it just set ever paints. The
 underlying save itself is NOT affected (the value persists — confirmed via the same test's
 service-role table read) — this is a pure UI/confirmation-feedback defect, not a data-integrity one.
+
+⭕ **FIXED 2026-08-23 (`d23d1045`, `frontend`) and CONFIRMED LIVE by an independent instrument — held OPEN only until the originally-failing spec re-runs.** The confirmation moved to **`PersonalDataCard`**, which survives the collapse; the form keeps its **error** banner, because a failed save leaves it mounted and able to own that message. ⭐ **The recurrence stopper is that `onSaved` is now REQUIRED, not optional** — otherwise the next consumer mounts the form, reports nothing on success, and reproduces this **invisibly**, since the write still succeeds and every functional assertion passes. ⭐ **The general form, which predicts placement instead of diagnosing it: _a component may own a message only for the outcomes it SURVIVES._** ⚠ Two further routes to the same silence were closed or measured, not assumed: the live region is **permanently mounted and empty** (a region arriving in the same commit as its text is announced unreliably), and the **`router.refresh()` → `onSaved()`** sequence was verified **not** to remount `PersonalDataCard` — `saved` survives, banner paints (`tester` T2, **5/5**, with the assertion unmodified). A class sweep of the four sibling components found **no other instance**; two already used the surviving-component pattern, so the house pattern was right and this card was the outlier. ⛔ **Not closed yet:** `form-name-attribute-invariant.spec.ts`'s banner assertion — the instrument that found it — is in the in-flight `e2e:prod` run and has not re-run since the fix. Close on that evidence, not on this note.
 **Violates:** the spec clause `form-name-attribute-invariant.spec.ts` — "profile edit › an edited name
 persists, and neither it nor the CPF reaches the URL" (the `await expect(page.getByText(/perfil
 atualizado/i)).toBeVisible()` line) — and CLAUDE.md §8's accessible-feedback bar; not an ADR 0133
