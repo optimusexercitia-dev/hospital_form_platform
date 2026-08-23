@@ -241,6 +241,27 @@ function footprintExpiredSeatOnly(): void {
   ]
 }
 
+/**
+ * QA r2 — the MIXED fixture: an ACTIVE affiliation at HOSP_B plus an EXPIRED commission
+ * seat at HOSP_A. The caller administers HOSP_B only.
+ *
+ * ⛔ THE ONLY FIXTURE THAT REACHES THE SUBSET PATH. `footprintExpiredSeatOnly` empties the
+ * affiliations, so the footprint collapses to ∅ and every deny there comes from the
+ * zero-footprint rule — the subset logic is never consulted, and a revert in the widened
+ * direction would go unnoticed.
+ */
+function footprintActiveElsewherePlusExpiredHere(): void {
+  rows.hospital_affiliations = [{ hospital_id: HOSP_B }]
+  rows.memberships = [
+    {
+      commission_id: 'comm-a',
+      hospital_id: null,
+      commissions: { hospital_id: HOSP_A },
+      expires_at: '2020-01-01T00:00:00.000Z',
+    },
+  ]
+}
+
 /** The CONTROL for the arm above: identical fixture, expiry still in the future. */
 function footprintFutureExpirySeatOnly(): void {
   rows.hospital_affiliations = []
@@ -694,6 +715,41 @@ describe('§4 ADR 0133 D2 — tier and empty footprint are org_admin-only', () =
       professionalCategoryId: 'cat-1',
     })
     expect(result.ok, result.error).toBe(true)
+  })
+
+  it.each([
+    ['DEACTIVATION (lifecycle)', 'lifecycle'],
+    ['a CPF CHANGE (cpf_change)', 'cpf_change'],
+  ])('⭐ QA r2 — dropping an expired seat WIDENS the subset capabilities: %s is ALLOWED', async (_l, capability) => {
+    // ⛔ THIS ARM EXISTS BECAUSE "THE FIX IS STRICTLY STRICTER" WAS FALSE. Shrinking the
+    // footprint cuts the two bounds in OPPOSITE directions: fewer intersections, but a
+    // smaller set is easier to be a SUBSET of. Worked against the pure predicate —
+    //   before  footprint {H1,H2} vs administered {H2}:  fields ALLOW, lifecycle DENY
+    //   after   footprint {H2}    vs administered {H2}:  fields ALLOW, lifecycle ALLOW
+    // So the R1 fix WIDENS `cpf_change` and `lifecycle` — the two the ADR keeps tight
+    // precisely because deactivation is a platform-wide kill switch.
+    //
+    // ⚠ THE BEHAVIOUR IS CORRECT AND IS PINNED AS INTENDED, not tolerated. D1(c) defines the
+    // footprint as the ACTIVE set; an expired seat grants no access at HOSP_A, so
+    // deactivating denies nothing there and the caller does administer everywhere the person
+    // still reaches. The point of the arm is that the widening must be DELIBERATE — the
+    // three sibling R1 arms all collapse the footprint to ∅ and would not notice a revert.
+    footprintActiveElsewherePlusExpiredHere()
+    session = siblingHospitalAdminSession // administers HOSP_B only
+    const actions = await import('./actions')
+
+    if (capability === 'lifecycle') {
+      const result = await actions.deactivateUser(TARGET)
+      expect(result.ok, result.error).toBe(true)
+    } else {
+      const result = await actions.updateUserProfile({
+        userId: TARGET,
+        fullName: 'Chefe CCIH',
+        professionalCategoryId: 'cat-1',
+        cpf: '52998224725', // genuinely different from the stored 11144477735
+      })
+      expect(result.ok, result.error).toBe(true)
+    }
   })
 
   it('the hospital-tier deny also blocks the lifecycle (self-deactivation is structurally impossible)', async () => {
