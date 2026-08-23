@@ -164,6 +164,31 @@ boundary. Three consequences worth stating:
   overwrite, and D12's identifier-first flow has the registrar type the CPF to search
   before it offers to create.
 
+> **⛔ W3.2 AMENDED — ADR [0133](./0133-aff2-affiliation-scoped-administration-um-redesign.md)
+> D3 + Amendment 1 ruling 1 (AFF2, built 2026-08-23).** *"`authorizeOrgAdminForUser` is the
+> new boundary"* stood from this ADR's date (2026-08-06) until AFF2; it is **replaced** by
+> `authorizePersonScopedAdmin(userId, capability)` at all six sites named above. The bound
+> is no longer a role but a **footprint**, split by capability — person-level fields and
+> credentials take the **INTERSECTION** bound, `cpf_change` and the lifecycle take the
+> **SUBSET** bound. Full statement + the retained kill-switch rationale: ADR 0097 D14's
+> superseding note.
+>
+> ⭐ **Two of the three consequences below SURVIVE the change and are worth keeping in view,
+> because the amendment does not touch them:**
+> - *"There is no RLS backstop and there cannot be one"* — **unchanged**. Still service-role,
+>   still Vitest-keystoned, still not pgTAP. The new predicate is pure TypeScript, so this is
+>   now the load-bearing sentence in this section rather than a caveat on it.
+> - *"The gate fires on a CHANGE, not on a field being present"* — **unchanged, and it was
+>   re-litigated.** ADR 0133 Amendment 3 had to restate it for `cpf`, because Amdt 1's
+>   *"whenever the input includes `cpf`"* would have made the gate **presence**-based and
+>   thereby denied a hospital_admin editing a cross-hospital person's **name** — the exact
+>   case Amdt 1 r1 exists to allow. Both sides are normalised. QA R4 then found the two 0133
+>   D9 columns compared **raw** while the write path normalised; fixed at `02cc5817`.
+>
+> The third — *"creating a person with a CPF is NOT editing one"* — **also survives**:
+> `cpf_change` is a change-gated capability, and `registerUser` still accepts a CPF from any
+> authorized registrar.
+
 **W3.3 — the deactivated-account guard reads the MASTER SWITCH, not `app.is_active`.**
 A deactivated account cannot be affiliated (`HC0R4`). The guard deliberately reads
 `profiles.is_active` and NOT `app.is_active(p_user)`, which also folds

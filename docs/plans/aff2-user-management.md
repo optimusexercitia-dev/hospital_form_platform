@@ -1,5 +1,19 @@
 # AFF2 — implementation plan: affiliation-scoped administration + user-management redesign
 
+**Status:** ✅ **EXECUTED — built, gated and PO-approved 2026-08-23.** Ledger row **AFF2**;
+per-task record → [../progress/aff2.md](../progress/aff2.md); QA APPROVED r2 →
+[../reviews/aff2-review.md](../reviews/aff2-review.md). ⛔ **The branch
+`feat/aff2-user-management` is NOT merged and NOT pushed** — three migrations
+(`20261003001000`–`20261003001200`) are local only. ⚠ **This plan is now a HISTORICAL
+record, not an instruction** — where it disagrees with ADR 0133 + Amendments 1–4, the ADR
+wins, and where it disagrees with the code, the code wins.
+⛔ **Two of its deliverables did NOT ship**, and reading the task list alone will not tell
+you which: the **affiliation start date** ("Data de início", F3 step 2) is not built
+(`FUP-AFF2-REGISTRATION-HAS-NO-START-DATE`), and D11's **match-card UI** was retired by
+Amendment 4 r2 rather than built. ⭐ Its B3 *"remember the citext lesson"* note was
+**measured false for this door** at build start — a carried-forward lesson is a claim about
+a specific subject, not guidance.
+
 **Authority:** ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md)
 (all decisions PO-approved 2026-08-20; **renumbered from 0129** at the 2026-08-21
 reconciliation — main's DSR track had taken 0129) **+ its Amendment 1** (PO-ruled
@@ -11,6 +25,13 @@ option **1a** directory + profile, **1b** wizard; the HTML is a reference, never
 the "one unmerged feature branch at a time" slot is now held by
 `chore/small-optimizations` itself). What remains: the PO's merge call on this branch
 + an explicit build go.
+> ✅ **DISCHARGED — the build go was given 2026-08-23 and the work is done.** ⚠ Amendments
+> **2, 3 and 4** are absent from the Authority line above because they did not exist when
+> this plan was written: all three were ruled **during** the build, because ADR 0133 could
+> not be implemented as drafted (D13 contradicted itself; Amdt 1's CPF wording would have
+> reversed its own purpose; D11's match-card clause had no warrant; and a fourth ruling
+> closed a real gap the ADR implied but nothing implemented). **Read the ADR's amendments,
+> not this line, for the decisions that governed the build.**
 
 **Shape:** one gated workstream, three tracks (backend `backend`, frontend `frontend`,
 tester `tester`), standard §6 phase gate, then `qa`. Contract-first: B1–B3 land before

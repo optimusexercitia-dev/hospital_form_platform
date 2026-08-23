@@ -7017,3 +7017,85 @@ ones reports as parity. Flakiness is precisely the property that needs identity 
 assuming parity**. The honest answer is what produced the finding — a confident "same two, parity" would have
 closed the question and left the instrument broken.
 
+### 🟡 FUP-AFF2-REGISTRATION-HAS-NO-START-DATE — a plan deliverable was dropped, and the tracker said it shipped (owner: backend then frontend; filed 2026-08-23 at the AFF2 post-Record documentation review)
+
+`registerUser` accepts **no affiliation start date**. The AFF2 plan specifies one — F3 step 2,
+`docs/plans/aff2-user-management.md`: *"Hospital …, Matrícula, **Data de início**"* — and the sibling
+action on the existing-person path, `affiliatePerson`, **does** accept one. So the asymmetry is in the
+**actions layer**, not in the UI: `RegisterUserInput` (`src/lib/users/actions.ts`) has no such field, and
+`register-person-wizard.tsx:59` still carries the comment marking the insertion point.
+
+**Behaviourally this costs nothing today.** A person registered today starts their affiliation today,
+which is the correct default. ⛔ **The defect is the RECORD, and it is the reason this item exists.**
+`docs/progress/aff2.md` § F3 enumerated three blocked deliverables — DOB/phone · **start date** · redirect
+— and the next block announced *"✅ **ALL THREE CLOSED**"* over three bullets that were DOB · phone ·
+**redirect**. Item 2 left the list while the count stayed at three. Anyone checking whether the start date
+shipped would have found a green claim.
+
+⭐ *A total that matches is not a list that matches* — this workstream's own recorded lesson, and it landed
+**in the workstream's own record**, which is what makes it worth a line rather than a shrug. Found by QA
+(R3). The closure text was corrected at the Record step; **filing the dropped deliverable is the other half
+of QA's discharge condition** (*"either build the field or file it"*), and it had not been done.
+
+**Fix:** add `affiliationStartedOn?: string | null` to `RegisterUserInput`, pass it through to the
+affiliation insert, and render a `DatePicker` in wizard step 2 defaulting to today. One field, one
+pass-through, one control. **Do not close this by deciding the default is fine** — that decision is
+already recorded and is not what is open; what is open is that `affiliatePerson` and `registerUser`
+disagree about whether a start date is expressible.
+
+### 🟡 FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD — the looser entry gate is justified by a path no caller takes (owner: backend + PO decision; filed 2026-08-23 at the AFF2 post-Record documentation review)
+
+`updateUserProfile` takes `authorizeForUser` — the **no-tier, no-subset** gate — as its entry authority,
+and the reason is written into the code: *"a hospital_admin may still reach this action, because the
+AFFILIATION half of it is legitimately theirs (matrícula at their own hospital)."*
+
+**Measured (QA R5): no caller exercises that half.** `updateUserProfile` has exactly one caller in `src/**`
+— `UserProfileEditForm` — and its payload never sets `homeHospitalId` or `hospitalEmployeeId`. AFF2's F2
+moved employment facts to `AffiliationsPanel`, which goes through its own door. So the home-hospital
+validation and `ensureActiveAffiliation` inside `updateUserProfile` are reachable only by a hand-crafted
+server-action call, and the Vitest arm *"a hospital_admin editing ONLY the matrícula is ALLOWED"* pins a
+path the product cannot produce.
+
+⛔ **Not a hole, and must not be filed as one** — `affiliate_person_for` re-derives authority in PostgreSQL,
+and the per-capability gate inside the action is what actually bounds the write. This is a **decision owed**,
+not a defect.
+
+**The decision:** with the affiliation half dead, the entry gate could tighten to
+`authorizePersonScopedAdmin('fields')`, which **shrinks the blast radius of the R1 class for free** —
+R1 was an over-grant that survived precisely because the entry gate was permissive and the real bound sat
+deeper. Against that: the affiliation half may be re-wired to a caller later, and tightening now makes that
+a two-step change. ⚠ **Whoever rules on this must also decide what happens to the Vitest arm** — a keystone
+pinning an unreachable path is the *"a keystone proves the door, a second caller proves nothing about the
+real one"* shape, and silently deleting it would remove the only assertion covering the loosening if the
+half is ever revived.
+
+### 🟠 FUP-ADR-AMENDMENT-HAS-NO-BACK-POINTER — an amended ADR reads as live, and only the amending ADR knows (owner: lead; filed 2026-08-23 at the AFF2 post-Record documentation review)
+
+ADR 0133 declares *"**Amends** ADR 0097 D11 + D14, ADR 0098 §W3.2, and ADR 0048 D10."* Measured at the
+Record step: **all three amended ADRs contained zero occurrences of `0133` or `AFF2`.** A reader arriving at
+ADR 0048 D10 read *"LGPD minimization: no `date_of_birth`"* while the column existed and was being
+collected; a reader at 0097 D14 read *"person-level fields are `org_admin`-only"* and *"account deactivation
+is unreachable by hospital admins"*, both retired. **Those three are now fixed** (in-place amendment
+blockquotes, matching the house style 0097 D4 and D14 already used for ADR 0098's amendments).
+
+⛔ **The class is not.** A property-derived sweep over `docs/decisions/` — every ADR that claims to
+supersede or amend another, checked for whether the target mentions the claimant — reports **44** such
+relationships with no back-pointer, including `0110 → 0109` (which PROGRESS.md independently records as a
+real supersession) and `0079 → 0078`.
+
+⚠ **Do NOT quote 44 as a count.** The detector is **proximity-based** — an ADR number within 160 characters
+of the word *supersede*/*amend* — and it demonstrably over-reports: `0073 → 0078` was a false positive,
+because ADR 0073 line 31 reads *"Amended … reconciled to ADR 0078"*, which is a back-pointer **already
+present, in the correct direction**, misread as a forward claim. A number-ordering filter (a later ADR may
+amend an earlier one, not the reverse) removed exactly that one hit and no others, so the remaining shapes
+are unbounded. ⭐ *A detector that finds a lot needs proving too* — **44 is an upper bound on a population
+whose true size is unmeasured; 4 are verified by hand.**
+
+**Fix, in order:** (1) sharpen the detector to read **direction** rather than proximity — parse the
+declarative `**Amends** / **Supersedes**` header line ADRs already use, not free prose; (2) run it, and
+back-point what it finds; (3) only then consider a gate. ⛔ **Do not add a `lint:` gate for this before
+step 1** — a proximity detector wired to a gate would red on its own false positives and be waived, which
+is worse than no gate. ⚠ And note what no gate can catch: an ADR whose **claim** went false with **no**
+amending ADR to point back from. This item covers only the case where the amendment exists and is
+one-directional.
+

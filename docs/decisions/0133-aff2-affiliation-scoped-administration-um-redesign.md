@@ -366,8 +366,21 @@ partitions all ten roles into org-tier / hospital-tier / commission-tier.
   exclusions and a `guard_profile_privileged_columns` check-at-build), the
   `professional_credentials` SELECT widening, and the `list_org_people` payload — the
   door body **re-emitted from the live `pg_get_functiondef`**, never from migration
-  text, with `extensions.citext` signatures (both standing lessons). Diff-scoped
-  sweep covers exactly these; no new door, no new role, no `prosecdef` flip.
+  text. Diff-scoped sweep covers exactly these; no new role, no `prosecdef` flip.
+  > ⛔ **CORRECTED 2026-08-23 — this bullet carried a FALSE standing lesson, and it is the
+  > kind that fails silently.** It read *"with `extensions.citext` signatures (both standing
+  > lessons)"*. Measured against the live catalog, both at build start and again at the
+  > post-Record review: `list_org_people` has **exactly one overload** and its arguments are
+  > `(p_org_id uuid, p_search text, p_cpf text)` — **all `pg_catalog.text`, no `citext`
+  > anywhere.** The citext lesson is real but belongs to a *different* door. ⭐ **Obeying it
+  > here would not have errored** — writing the signature with `citext` **succeeds**, and
+  > `CREATE`s a second, ungranted, un-audited overload beside the real door that PostgREST
+  > can resolve to. A *"remember the X lesson"* note is written in the voice of accumulated
+  > wisdom, which invites compliance rather than verification; it is a hand-copied claim
+  > about a **specific subject**, and whether the subject has that property is a fresh
+  > measurement every time. ⚠ **The door was `DROP`+`CREATE`d** (a return-type change refuses
+  > `CREATE OR REPLACE`), so "no new door" is true of intent and false of mechanics — the ACL,
+  > `prosecdef`, `SET search_path` and COMMENT all had to be re-issued and re-measured.
 - **The Vitest keystone matrix becomes the authority** for the scope rule (service
   path, no RLS to pgTAP against) — the 0098 W3.2 precedent, now with six arms.
 - **Directory queries widen** (credentials + committee chips + status filter/counts,
@@ -377,4 +390,22 @@ partitions all ten roles into org-tier / hospital-tier / commission-tier.
   instead of an accumulating exception list.
 - The pre-existing service-path audit-attribution gap now covers more actors doing
   more things; its dedicated workstream inherits AFF2's surfaces (Decision 5).
-- Follow-up registered: **FUP-AFF2-CONTA** (self-service DOB/phone view on `/conta`).
+- **Follow-ups registered — SIX, not the one this bullet named until 2026-08-23.** Bodies in
+  [follow-ups.md](../progress/follow-ups.md), index lines in PROGRESS.md:
+  - **FUP-AFF2-CONTA** — self-service DOB/phone view on `/conta`; **the LGPD titular-access
+    control** for D9's two columns (Amdt 1 r5), not a nicety.
+  - **FUP-AFF2-ACTIVE-MEANS-TWO-THINGS** — *"active membership"* is asserted by D13, the plan
+    and the build prompt, and **no policy implements both halves**; open across **three**
+    authorities (both `profiles` legs and the widened `professional_credentials_select`).
+  - **FUP-AFF2-REGISTRATION-HAS-NO-START-DATE** — the plan's "Data de início" (F3 step 2) was
+    **not built**, and the tracker recorded it as closed. Behaviourally free; a record defect.
+  - **FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD** — a **decision owed**: the loose entry
+    gate on `updateUserProfile` is justified by a path no caller takes (QA R5).
+  - **FUP-MANAGE-ROUTES-HAVE-NO-ERROR-BOUNDARY** and
+    **FUP-WAITFORURL-SATISFIED-BY-ITS-OWN-STARTING-URL** — both **pre-existing**, surfaced by
+    this workstream and deliberately not fixed inside it.
+  - Also extended by AFF2 B1: **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** now covers
+    `trigger`-returning `prosecdef` gates, which its own wording ("non-trigger") had excluded —
+    and `guard_profile_privileged_columns` is the only in-DB control over the D9 columns.
+- ⛔ **The branch `feat/aff2-user-management` is NOT merged and NOT pushed**; migrations
+  `20261003001000`–`20261003001200` are local only. Re-measure before quoting.
