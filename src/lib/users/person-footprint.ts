@@ -80,12 +80,13 @@ export async function resolvePersonFootprint(
 
   const { data: memberships } = await admin
     .from('memberships')
-    .select('commission_id, hospital_id, commissions:commission_id(hospital_id)')
+    .select('commission_id, hospital_id, expires_at, commissions:commission_id(hospital_id)')
     .eq('principal_id', userId)
     .returns<
       {
         commission_id: string | null
         hospital_id: string | null
+        expires_at: string | null
         commissions: { hospital_id: string | null } | null
       }[]
     >()
@@ -95,12 +96,36 @@ export async function resolvePersonFootprint(
     if (a.hospital_id) hospitalIds.push(a.hospital_id)
   }
 
+  const nowMs = Date.now()
   let hasNonCommissionTierMembership = false
   for (const m of memberships ?? []) {
+    // ⛔ THE D2 TIER FLAG IGNORES EXPIRY, DELIBERATELY, AND THE ASYMMETRY BELOW IS THE
+    // POINT (QA R1). Expiry is applied to what a membership GRANTS (a hospital in the
+    // footprint) and NOT to what it WITHHOLDS (org_admin-only status). Reading an expired
+    // org-tier seat as "no longer tiered" would WIDEN authority — a person who currently
+    // reaches nobody would become manageable by a hospital_admin — and this resolver is the
+    // sole authority on a path with no RLS backstop. Narrowing can be wrong and safe;
+    // widening cannot. If an expired tier seat should stop locking a person to the
+    // org_admin, that is a decision for the ADR, not a side effect of a bug fix.
     if (m.commission_id === null) {
       hasNonCommissionTierMembership = true
       continue
     }
+    // ADR 0133 D1(c): the footprint is the hospitals of the target's ACTIVE commission-tier
+    // memberships. The affiliations leg has always filtered (`ended_on is null`); this leg
+    // did not, so an EXPIRED seat still granted a hospital_admin person-level WRITE
+    // authority over someone with no remaining tie to their hospital. Found at QA (R1),
+    // PO-ruled to filter.
+    //
+    // ⚠ FILTERED IN TS, NOT IN THE QUERY, and that is a testability choice rather than a
+    // stylistic one: `.or('expires_at.is.null,expires_at.gt.…')` is a string PostgREST
+    // evaluates, so no unit test could observe it — the same blind spot documented for the
+    // directory's status predicates. Here the rule sits beside the tier derivation, which
+    // is already TS-side, and `d14-person-level.test.ts` §4 exercises it for real through
+    // the actions. Semantics match `app.has_role`: null expiry, or strictly in the future.
+    const expiresAt = m.expires_at
+    if (expiresAt !== null && new Date(expiresAt).getTime() <= nowMs) continue
+
     const hospitalId = m.commissions?.hospital_id
     if (hospitalId) hospitalIds.push(hospitalId)
   }

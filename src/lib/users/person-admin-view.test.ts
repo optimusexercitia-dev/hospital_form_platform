@@ -191,6 +191,46 @@ describe('§1 the two authority booleans — per CAPABILITY, not per person', ()
     })
   })
 
+  it('⭐ QA R1 — an EXPIRED commission seat grants NO footprint', async () => {
+    rows.hospital_affiliations = []
+    rows.memberships = [
+      {
+        commission_id: 'c-a',
+        hospital_id: null,
+        commissions: { hospital_id: HOSP_A },
+        expires_at: '2020-01-01T00:00:00.000Z',
+      },
+    ]
+    session = hospitalAdminSession
+    const v = await view()
+    expect(v.authority).toEqual({
+      canEditPerson: false,
+      canManageAccountLifecycle: false,
+    })
+    expect(v.personalData, 'and the locked columns stay withheld').toBeNull()
+  })
+
+  it('⭐ but an EXPIRED ORG-TIER seat still zeroes both — expiry does not RELAX D2', async () => {
+    // ⛔ THE DELIBERATE ASYMMETRY, pinned so it reads as a decision and not an oversight.
+    // Expiry is applied to what a membership GRANTS (a hospital in the footprint), never to
+    // what it WITHHOLDS (org_admin-only status). Treating an expired org-tier seat as "no
+    // longer tiered" would WIDEN authority on a path with no RLS backstop — the person
+    // becomes manageable by a hospital_admin — so the fix for R1 is narrowing-only in both
+    // directions. If that should change, it is an ADR decision, not a bug fix.
+    rows.hospital_affiliations = [{ hospital_id: HOSP_A }]
+    rows.memberships = [
+      {
+        commission_id: null,
+        hospital_id: null,
+        commissions: null,
+        expires_at: '2020-01-01T00:00:00.000Z',
+      },
+    ]
+    session = hospitalAdminSession
+    const v = await view()
+    expect(v.authority.canEditPerson, 'D2 must still fire on an expired tier seat').toBe(false)
+  })
+
   it('D1(a): a hospital administered in ANOTHER org is not a claim on this person', async () => {
     // The session administers a hospital with the same id in a different organisation.
     // Without the org filter the ids would match and this would wrongly allow.

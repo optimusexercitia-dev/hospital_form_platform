@@ -187,7 +187,15 @@ const MESSAGES = {
   cpfCollision: 'Este CPF já está cadastrado na plataforma.',
   cpfInvalid: 'Informe um CPF válido.',
   cpfRequired: 'Informe o CPF.',
-  // ADR 0097 D14 — person-level fields and the account lifecycle are org_admin-only.
+  // ⚠ THE COMMENT WAS STALE, THE STRING IS NOT — and the pairing is why it survived six
+  // reviews, a QA pass and eight lint gates. It read "ADR 0097 D14 — person-level fields and
+  // the account lifecycle are org_admin-only", which ADR 0133 Amdt 1 ruling 1 REVERSED for
+  // person-level fields and credentials (they take the intersection bound); only CPF-change
+  // and lifecycle kept the subset bound.
+  //
+  // The MESSAGE stays exactly as it is. It renders only when a caller was genuinely refused,
+  // and in every such case the org admin really is the only one who can act — a conditional
+  // truth that still holds. Do not "fix" the copy to match the old comment.
   orgAdminOnly:
     'Apenas o administrador da organização pode alterar os dados pessoais e a situação da conta.',
   credentialCollision:
@@ -817,6 +825,22 @@ export async function updateUserProfile(
   const cpfChanged =
     cpf !== undefined && normalizeCpf(current.cpf ?? '') !== normalizeCpf(cpf ?? '')
 
+  // QA R4 — NORMALISE BOTH SIDES FOR THE B1 COLUMNS TOO, exactly as `cpf` does above.
+  //
+  // Amdt 3's symmetry ruling was applied to `cpf` and not to its two siblings: these
+  // compared RAW while the write path normalises. `phone: '(11) 98765-4321'` against a
+  // stored `'11987654321'` read as a CHANGE and gated a person-level write that would have
+  // stored byte-identical digits; `dateOfBirth: ''` against a stored `null` did the same,
+  // because the write path coerces `''` to null and the comparison did not.
+  //
+  // ⚠ IT FAILED CLOSED — over-gating, never under — and it is latent behind the current
+  // form, which is precisely what makes it the "trap for the next author" Amdt 3 was ruled
+  // on, one field over. The normalisers are the SAME expressions the write path uses; a
+  // comparison that disagrees with its own writer is the defect, not the formatting.
+  const normalizePhone = (v: string | null | undefined): string | null =>
+    v ? v.replace(/\D/g, '') || null : null
+  const normalizeDob = (v: string | null | undefined): string | null => v || null
+
   const personLevelChanged =
     current.full_name !== fullName ||
     current.professional_category_id !== input.professionalCategoryId ||
@@ -824,8 +848,9 @@ export async function updateUserProfile(
     // D3: the B1 columns are person-level fields, so a change to either is gated. Same
     // undefined-means-untouched discipline as `cpf`.
     (input.dateOfBirth !== undefined &&
-      (current.date_of_birth ?? null) !== (input.dateOfBirth ?? null)) ||
-    (input.phone !== undefined && (current.phone ?? null) !== (input.phone ?? null))
+      normalizeDob(current.date_of_birth) !== normalizeDob(input.dateOfBirth)) ||
+    (input.phone !== undefined &&
+      normalizePhone(current.phone) !== normalizePhone(input.phone))
 
   if (personLevelChanged) {
     // Amdt 1 ruling 1 — ONE action, TWO bounds. A CPF rewrite is a person-key identity
@@ -868,12 +893,12 @@ export async function updateUserProfile(
       // that does not carry the field can never null it out. The two B1 columns follow
       // exactly the same rule (ADR 0133 D9/D10).
       ...(cpf === undefined ? {} : { cpf }),
+      // The SAME normalisers the change-detector above uses. Two copies of one coercion is
+      // how a comparison and its writer come to disagree (QA R4).
       ...(input.dateOfBirth === undefined
         ? {}
-        : { date_of_birth: input.dateOfBirth || null }),
-      ...(input.phone === undefined
-        ? {}
-        : { phone: input.phone ? input.phone.replace(/\D/g, '') || null : null }),
+        : { date_of_birth: normalizeDob(input.dateOfBirth) }),
+      ...(input.phone === undefined ? {} : { phone: normalizePhone(input.phone) }),
     })
     .eq('id', input.userId)
   if (error) {

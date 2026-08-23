@@ -224,6 +224,36 @@ function footprintHospitalTier(): void {
   rows.memberships = [{ commission_id: null, hospital_id: HOSP_A, commissions: null }]
 }
 
+/**
+ * QA R1 — the person's ONLY tie to HOSP_A is a commission seat that has EXPIRED.
+ * ADR 0133 D1(c) says the footprint is the hospitals of the target's *active*
+ * commission-tier memberships; an expired seat is not one.
+ */
+function footprintExpiredSeatOnly(): void {
+  rows.hospital_affiliations = []
+  rows.memberships = [
+    {
+      commission_id: 'comm-a',
+      hospital_id: null,
+      commissions: { hospital_id: HOSP_A },
+      expires_at: '2020-01-01T00:00:00.000Z',
+    },
+  ]
+}
+
+/** The CONTROL for the arm above: identical fixture, expiry still in the future. */
+function footprintFutureExpirySeatOnly(): void {
+  rows.hospital_affiliations = []
+  rows.memberships = [
+    {
+      commission_id: 'comm-a',
+      hospital_id: null,
+      commissions: { hospital_id: HOSP_A },
+      expires_at: '2099-01-01T00:00:00.000Z',
+    },
+  ]
+}
+
 /** No affiliation, no seat — belongs to no hospital ⇒ org_admin-only (D2). */
 function footprintEmpty(): void {
   rows.hospital_affiliations = []
@@ -517,6 +547,46 @@ describe('§3 the CPF gate fires on a CHANGE, not on the key being PRESENT', () 
     ).toHaveLength(0)
   })
 
+  it.each([
+    ['phone, reformatted to the same digits', { phone: '(11) 98765-4321' }, '11987654321'],
+    ['dateOfBirth, empty against a stored null', { dateOfBirth: '' }, null],
+  ])('⭐ QA R4 — %s is NOT a change, so no person-level gate is triggered', async (_l, patch, storedPhone) => {
+    // ⛔ THE FIXTURE IS THE WHOLE TEST, and my first attempt got it wrong in a way only a
+    // mutation control caught. `personLevelChanged` does not choose between allow and deny —
+    // it chooses whether the person-scope check RUNS AT ALL. So a false positive is only
+    // observable where that check would DENY while the entry gate ADMITS. On a
+    // cross-hospital target `fields` is allowed anyway, so the arm passed with the bug
+    // present and with it fixed: it was measuring a different allow path than its name
+    // claimed.
+    //
+    // The discriminating fixture is a D2-TIER target: an affiliation to HOSP_A gets the
+    // caller past the entry gate, and the hospital-tier seat makes `fields` deny. With the
+    // raw comparison, echoing an unchanged phone turned a legitimate MATRÍCULA-ONLY edit
+    // into a refused person-level write. It failed CLOSED, which is why nothing caught it.
+    rows.profiles = {
+      id: TARGET,
+      home_organization_id: ORG_A,
+      full_name: 'Chefe CCIH',
+      email: 'chefe.ccih@test.local',
+      professional_category_id: 'cat-1',
+      cpf: '11144477735',
+      date_of_birth: null,
+      phone: storedPhone,
+    }
+    footprintHospitalTier() // entry gate PASSES (affiliation), `fields` DENIES (D2)
+    session = hospitalAdminSession
+    const { updateUserProfile } = await import('./actions')
+    const result = await updateUserProfile({
+      userId: TARGET,
+      fullName: 'Chefe CCIH', // unchanged
+      professionalCategoryId: 'cat-1', // unchanged
+      homeHospitalId: HOSP_A,
+      hospitalEmployeeId: 'MAT-NOVA', // the edit that is legitimately theirs
+      ...patch,
+    } as never)
+    expect(result.ok, result.error).toBe(true)
+  })
+
   it('a hospital_admin editing ONLY the matrícula is ALLOWED', async () => {
     // The edit form always POSTS name and category, so gating on their PRESENCE would deny
     // a hospital admin their own legitimate affiliation edit.
@@ -570,6 +640,60 @@ describe('§4 ADR 0133 D2 — tier and empty footprint are org_admin-only', () =
       professionalCategoryId: 'cat-1',
     })
     expect(result.error, 'must be the person-scope refusal, not the entry-gate one').toMatch(FORBIDDEN)
+  })
+
+  it.each([
+    ['a FIELD edit', 'fields'],
+  ])('⭐ QA R1 — an EXPIRED commission seat is not a footprint: %s is DENIED', async () => {
+    // ⛔ THE BUG THIS PINS. `resolvePersonFootprint` filtered the affiliations leg
+    // (`ended_on is null`) and NOT the memberships leg, so an expired seat still put
+    // HOSP_A in `hospitalIds` and handed a hospital_admin person-level WRITE authority
+    // over someone with no remaining tie to their hospital — on the path ADR 0133 D4
+    // declares has NO RLS backstop. D1(c) says "active"; nothing implemented it.
+    footprintExpiredSeatOnly()
+    session = hospitalAdminSession
+    const { updateUserProfile } = await import('./actions')
+    const result = await updateUserProfile({
+      userId: TARGET,
+      fullName: 'Nome Alterado',
+      professionalCategoryId: 'cat-1',
+    })
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(ANY_REFUSAL)
+    expect(writes.filter((w) => w.table === 'profiles' && w.op === 'update')).toHaveLength(0)
+  })
+
+  it('⭐ QA R1 — and a CREDENTIAL write is DENIED on the same target', async () => {
+    // The second intersection capability. Asserted separately because `credentials` has
+    // its own call sites (`upsertCredential` / `removeCredential`) and F6 recorded that a
+    // shared gate can be reverted without reddening the sibling.
+    footprintExpiredSeatOnly()
+    session = hospitalAdminSession
+    const { upsertCredential } = await import('./actions')
+    const result = await upsertCredential({
+      userId: TARGET,
+      issuingCountry: 'BR',
+      issuingState: 'SP',
+      issuingAuthority: 'CRM',
+      registrationNumber: '55555',
+    })
+    expect(result.ok).toBe(false)
+    expect(writes.filter((w) => w.table === 'professional_credentials')).toHaveLength(0)
+  })
+
+  it('⭐ CONTROL for QA R1: the SAME fixture with a FUTURE expiry is ALLOWED', async () => {
+    // Without this, the two denies above are satisfied by any implementation that drops
+    // every membership carrying an `expires_at` at all — or indeed by one that broke the
+    // memberships leg entirely. The rule is "expired", not "has an expiry column set".
+    footprintFutureExpirySeatOnly()
+    session = hospitalAdminSession
+    const { updateUserProfile } = await import('./actions')
+    const result = await updateUserProfile({
+      userId: TARGET,
+      fullName: 'Nome Alterado',
+      professionalCategoryId: 'cat-1',
+    })
+    expect(result.ok, result.error).toBe(true)
   })
 
   it('the hospital-tier deny also blocks the lifecycle (self-deactivation is structurally impossible)', async () => {
