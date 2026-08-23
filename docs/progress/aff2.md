@@ -103,6 +103,44 @@ registers a person on one screen needs a `Continuar` walk inserted:
   (`form-name-attribute-invariant.spec.ts:564` — the paired positive proving the CPF lookup reached
   the server).
 
+**✅ GATE STEP 1 — the AUTHORITATIVE run, lead, both tracks still (2026-08-23, at `55b25be5`).**
+Every exit code captured directly; **no pipe in any exit path**. On a fresh `supabase db reset --local`
+(**444** migrations / `20261003001200`, `auth.users` **36** = exact seed baseline):
+
+| step | result |
+| --- | --- |
+| `npm run lint` | **exit 0** — 8/8 |
+| `npx tsc --noEmit` | **exit 0** |
+| `npm run test` | **exit 0** — 117 files / **1644** tests |
+| `npm run test:db` | **exit 0** — **212 files / 7039 tests PASS**, zero `not ok` |
+| `ARM=census` · `hat` · `floor` · `FROMFINDINGS=1 wrapper` | **all HOLD, exit 0** (`hat`: 3 findings, all reasoned-allowlisted) |
+| diff-scoped **policy** sweep — `professional_credentials_select` | **CLEAN / COVERED**, exit 0 |
+| diff-scoped **row-door** sweep — `list_org_people` | **COVERED**, exit 0 |
+
+Findings files restored afterwards and `cmp`-verified **byte-identical** to their pre-sweep baseline.
+
+⭐ **A live demonstration of ADR 0079 Amendment 8, in the run that ratified it.** The case list was derived
+from the migration diff with the amended recipe: `professional_credentials_select` is found **only** by the
+`alter policy` pattern. The pre-amendment `create policy` grep returns **zero rows** for this diff — the
+sweep would have run over nothing and reported clean.
+
+⚠ **Two classifications, stated rather than left as silence:**
+- **`guard_profile_privileged_columns`** (`prosecdef = t`, returns **`trigger`**) is in **no** sweep's
+  domain — excluded structurally by return type. That is the filed `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`
+  extension, **classified, not missed**. Its property is pinned by pgTAP `359` §3.
+- An initial combined invocation returned **exit 3 (UNPROVEN)** because three gates from **three different
+  domains** were fed to one script. That was an **operator error, not a finding** — re-run per domain, both
+  came back exit 0. ⛔ Recorded because *"exit 3 on the AFF2 sweep"* would otherwise read as a defect forever.
+
+⛔ **Step 2 (`e2e:prod`) is NOT part of this run** — `tester` owns it.
+
+⛔ **And a lead process failure worth more than the result:** the first attempt at the PROGRESS.md row was
+committed **on a red gate** (`9d09e1a7`), because the shell used `lint; git commit` instead of
+`lint && git commit` — the `;` runs the commit regardless of the exit code. This is
+`FUP-EXIT-CODE-MASKING-HAS-NO-MECHANISM`, third occurrence, committed by the same person who had warned two
+teammates about it earlier the same day. The gate itself was fine — it caught an 881-char cell against the
+300 cap. **The failure was the chaining operator, and no gate can catch that.**
+
 **The e2e:prod baseline pin** for this workstream is the 2026-08-23 run at `d885f621`
 (1185 p · 2 f · 2 flaky · 8 DNR · 20 batches, no batch gaps). Both failures are retry
 artifacts on non-idempotent tests — re-run alone they are 25 p / 0 f, exit 0. Diff the
