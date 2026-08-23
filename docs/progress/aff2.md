@@ -135,7 +135,7 @@ was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
 | F1 · Directory table | ✅ **built 2026-08-23** — lint 8/8, `tsc` 0, 24/24 browser checks. ⚠ Two arms inert pending B7 (below) |
 | F2 · Profile page | blocked on B6 |
 | F3 · Register wizard | ⚠ **built 2026-08-23, MUST NOT MERGE YET** — lint 8/8, `tsc` 0, 24/24 browser checks. **Blocked on B4** for Nascimento/Telefone (below) |
-| F4 · Copy + a11y pass | ⏳ **partial** — `error.tsx` ✅ built 2026-08-23 (pulled forward, lead-approved); the copy/a11y sweep itself waits on F2/F3 being final |
+| F4 · Copy + a11y pass | ⏳ **partial** — `error.tsx` ✅ built **and verified** 2026-08-23 (pulled forward, lead-approved); the copy/a11y sweep itself waits on F2/F3 being final |
 
 ### F1 — what shipped, and what is still inert
 
@@ -255,10 +255,25 @@ delta to seed drift.
 
 ### F4 (partial) — `error.tsx`, and the gap it turned out to close
 
-File: `usuarios/error.tsx`. Built off-stack: lint 8/8, `tsc` 0, **no dev server started**
-(lead bound — `backend` may still take a reset window). ⛔ **Not yet exercised in a
-browser**; the boundary needs a thrown render to prove it, which is queued for after the
-gate clears. Treat it as *written and statically green*, not *verified*.
+File: `usuarios/error.tsx`. lint 8/8, `tsc` 0, and ✅ **VERIFIED 2026-08-23 by thrown
+render** — 8/8 on the directory **and** 8/8 again from a throwing `[userId]`, which is the
+child-coverage claim measured rather than read off the route tree. Both probes reverted;
+`git status -- src/` empty, no `BOUNDARYPROBE` residue.
+
+⭐ **Run in DEV deliberately, and that is the stronger test.** In production Next redacts
+the message before the boundary ever sees it, so a prod pass would prove nothing about
+this component. In dev the real `error.message` IS handed to the boundary — so *not*
+rendering it is a property of my code.
+⭐ **With a positive control, because the redaction assertion is otherwise vacuous.** A
+synthetic message shaped like leaked Postgres detail (`relation "public.profiles" does not
+exist; permission denied for table memberships`) was thrown, then asserted absent from the
+UI **and** asserted *present in the page payload* — proving the string reached the client
+and was still not rendered, rather than an error that never fired.
+
+**What the probes pinned:** the boundary renders · both actions present · the second one
+resolves to `/o/rede-a/manage` (not the failed route) · **the manage shell SURVIVES** —
+9 sidebar nav links still rendered, which is the entire reason the file exists · no
+Postgres-shaped text anywhere in the UI · focus on the heading.
 
 ⭐ **It closes a real gap, not just a scaffold slot.** Measured, not assumed: there is no
 `error.tsx` at `manage/` either, so before this file a render failure anywhere in the
