@@ -335,9 +335,19 @@ control would take input, show it accepted, and drop it under a success redirect
    still sees exactly the person they made, one click from their page. A one-line change if
    the action ever returns the id.
 
-**✅ ALL THREE CLOSED 2026-08-23 against B4 (`fe701251`), verified from the signatures, not
+**⭕ TWO OF THE THREE CLOSED 2026-08-23 against B4 (`fe701251`), verified from the signatures, not
 the message announcing them:** `RegisterUserState extends ActionState { userId?: string }` and
 `RegisterUserInput` carrying `dateOfBirth?: string | null` / `phone?: string | null`.
+
+⛔ **CORRECTED 2026-08-23 (QA R3) — this line said "ALL THREE" and closed a DIFFERENT three than the
+list it answers.** The three gaps enumerated above are DOB/phone, the **affiliation start date**, and the
+returned id. The three *closed* are DOB, phone and the id — **"Data de início" was never closed**:
+`RegisterUserInput` still has no start-date field (`register-person-wizard.tsx:59` still marks it open),
+so a hospital_admin's affiliation begins **today**. ⚠ That is the correct default for someone registered
+today and costs nothing — the defect is the **record**, not the behaviour: a reader checking whether the
+start date shipped would have found a green claim. ⭐ *A total that matches is not a list that matches* —
+this file's own lesson, applied to this file. The asymmetry stands: `affiliatePerson` accepts a start date
+and `registerUser` does not, which is an **actions-layer** gap, not a UI limitation.
 - **Nascimento** — `DatePicker`, `max={todayIso()}` so a future birth date is unstorable.
   `todayIso` is built from LOCAL date parts, not `toISOString()`, which converts to UTC and
   would hand back tomorrow west of Greenwich late in the day — a ceiling one day too loose.

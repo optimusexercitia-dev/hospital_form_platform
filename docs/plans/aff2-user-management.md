@@ -188,8 +188,10 @@ Handoff §Screen 3 + ADR 0133 D6–D8: centered 620px column; stepper
   affiliate; already affiliated → link to profile; foreign collision → D8 block
   copy; not found → reveal Nome, E-mail, Categoria (required) + **Nascimento,
   Telefone (optional)** + Registro profissional (optional, `CredentialsEditor`
-  draft mode). CPF is **required** — no "(opcional)" label. Match cards show DOB
-  when present (B3).
+  draft mode). CPF is **required** — no "(opcional)" label. ⛔ **Match cards do NOT show DOB** — D11's UI clause is
+  **RETIRED** (ADR 0133 **Amdt 4** r2): the caller matches CPF exactly and returns at most one row, so a
+  birth date disambiguates nothing there. The `list_org_people` payload stays for a future name-search
+  caller.
 - **Step 2 (skippable):** Hospital (hospital_admin pre-locked via `?hospital=` and
   server-enforced), Matrícula, Data de início. For a hospital_admin, "Pular etapa"
   skips the details, **never the affiliation** (D8) — the step copy must say so.

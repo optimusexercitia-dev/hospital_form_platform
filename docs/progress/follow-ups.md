@@ -6829,11 +6829,38 @@ adds two legs: the **affiliation** leg filters activity (`ended_on IS NULL`), th
 does not. A reader who checks the affiliation leg and generalises will conclude both are activity-
 bounded. `backend` was asked to state this in the B2 test comments rather than leave it to inference.
 
-⛔ **Not a live hole; do not report it as one.** What an expired membership buys is a **read** of a
-professional credential (a council registration number — public-registry information in Brazil), by an
-admin who can already read that person's profile row. The write boundary is untouched: ADR 0133 D1/D2
-bound *administration* separately, and Amdt 2 ruling 2 records that the read boundary is deliberately
-wider than the write boundary.
+⛔⛔ **CORRECTED 2026-08-23 — THIS ITEM'S OWN BOUNDING CLAIM WAS FALSE, and it is what kept the item
+non-blocking.** The paragraph here previously read: *"Not a live hole; do not report it as one … The write
+boundary is untouched: ADR 0133 D1/D2 bound administration separately."* **That is wrong.** D1/D2 are not
+bounded *separately* — they are **implemented through `resolvePersonFootprint`**, and QA measured that its
+membership leg has the **identical missing `expires_at` filter** (`person-footprint.ts:81-91`; the
+affiliation leg three lines above *does* filter `ended_on`). So an expired seat granted person-level
+**WRITE** authority — `updateUserProfile`, `upsertCredential`, `removeCredential` — on the path D4 declares
+has no RLS backstop. Not a read-only exposure at all.
+
+⭐ **The error is this file's own named class, committed in the sentence warning against it.** The body
+below still says *"anyone closing this item on 'expiry is already handled' has quoted a real filter for a
+conclusion it does not bound"* — and the bounding claim above did exactly that, citing D1/D2 as a separate
+boundary while they run through the unfiltered resolver. Written by the lead; found by QA when asked
+whether any residue was understated.
+
+⚖ **PO-ruled 2026-08-23: FILTER the resolver** (ADR 0133 **Amendment 4** r1). That closes the write half —
+one line plus a red-first keystone (an expired-membership-only target must be DENIED `fields` and
+`credentials`). ⛔ It does **not** conflict with Amdt 2 r3: that ruling barred the two **RLS policies** from
+disagreeing *with each other*; this is the **write** resolver, and a resolver stricter than the read
+policies is the read-wider-than-write asymmetry Amdt 2 r2 already established.
+
+⚠ **What REMAINS open, and it is genuinely the READ half only:** the two `profiles` policies and the B2
+`professional_credentials` policy still carry no expiry filter, so an expired seat still admits a **read**.
+That is the original question — answerable only for all of them at once. ⛔ **And the answerable set is
+THREE authorities, not two**: this item said "both policies"; B2's membership leg is a third, and the
+resolver was a fourth until Amdt 4 settled it.
+
+⛔ **Reachability, measured (QA):** `memberships` rows with a non-null `expires_at` = **0 of 43**, and no
+app path writes one. But `public.grant_role` is DEFINER, `authenticated`-executable and takes
+`p_expires_at`, refusing only an already-past value — so a future-dated grant that later lapses **is
+constructible through the API**, though not through the UI. ⭐ Pre-AFF2 the same unfiltered read existed and
+bought nothing person-level; **AFF2 is what monetised it.**
 
 **Note the caller-side filter does NOT cover this.** `app.has_role` filters `expires_at` on the
 **admin's own** membership — their hat. It says nothing about the **target's** membership, which is

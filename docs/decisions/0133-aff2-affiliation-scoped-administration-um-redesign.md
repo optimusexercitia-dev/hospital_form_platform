@@ -163,6 +163,49 @@ intent with 0097's cross-hospital safeguards; **upholds** 0097 D7 (CPF posture) 
 > **Pinned both ways, on one cross-hospital target:** unchanged CPF echoed back + name change →
 > **ALLOW**; changed CPF → **DENY**.
 
+> ## ⚖ AMENDMENT 4 (2026-08-23) — the footprint resolver DOES filter expiry; and D11's UI clause is retired as unwarranted
+>
+> PO-ruled 2026-08-23 at the QA gate (step 3, `CHANGES REQUESTED`), on two findings QA reached
+> **outside** the remit it was given. Report:
+> [aff2-review.md](../reviews/aff2-review.md).
+>
+> 1. **🔴 `resolvePersonFootprint`'s membership leg MUST filter `expires_at` (amends D1(c) as built).**
+>    Measured: the affiliation leg filters `ended_on IS NULL`; the membership leg three lines below
+>    filtered nothing. So an **expired** commission seat at hospital H still placed H in the target's
+>    footprint, and `personScopeAllows('fields' | 'credentials', …)` — the **intersection** capabilities —
+>    returned true for a hospital_admin of H over a person with no remaining tie to H. That is person-level
+>    **WRITE** authority (`updateUserProfile`, `upsertCredential`, `removeCredential`) on the path **D4**
+>    declares has **no RLS backstop**. D1(c), and the doc comments in `person-scope.ts` and
+>    `person-footprint.ts`, all say *"active"* — three statements, no implementation.
+>    ⛔ **This does NOT conflict with Amendment 2 ruling 3.** That barred the two **RLS policies** from
+>    disagreeing *with each other* about "active". This is the **write** resolver, and a resolver stricter
+>    than the read policies is precisely the read-wider-than-write asymmetry **Amdt 2 ruling 2** already
+>    established: you may *see* a person you may not *administer*. The policies are untouched.
+>    **Required with the fix:** a red-first keystone — a target whose only tie to the caller's hospital is
+>    an **expired** membership is DENIED `fields` **and** `credentials`.
+>    ⚠ Subset capabilities (`cpf_change`, `lifecycle`) and the D2 tier flag failed **closed** under the
+>    same gap; only the intersection arm was affected.
+>    ⭐ **The residue that should have caught this said the opposite.** `FUP-AFF2-ACTIVE-MEANS-TWO-THINGS`
+>    read *"Not a live hole … the write boundary is untouched: D1/D2 bound administration separately."*
+>    D1/D2 are not separate — they run **through this resolver**. The FUP's own body warns against
+>    *"quoting a real filter for a conclusion it does not bound"*, and its bounding sentence did exactly
+>    that. Corrected in the same change. **The READ half stays open, across THREE authorities** (both
+>    `profiles` policies and B2's `professional_credentials` leg), not the two the FUP named.
+>
+> 2. **D11's UI clause — *"DOB joins the match cards"* — is RETIRED as unwarranted; the payload stays.**
+>    Measured: `OrgPerson.dateOfBirth` has **zero readers**; the match card renders name, e-mail, category
+>    and affiliations, no DOB. So B3 in its entirety — migration `20261003001200`, the DROP+CREATE
+>    re-emission, its ACL differential, and pgTAP `361`'s 23 arms — currently feeds nothing.
+>    ⭐ **The rationale does not survive contact with the caller, which is why it is retired rather than
+>    built.** D11's homonym argument needs a **name-search** result list; the live caller passes `cpf` to a
+>    door that matches **exactly and only at full storage length**, returning at most one row — where a
+>    birth date disambiguates nothing. Building the display would have honoured the plan while buying no
+>    disambiguation whatever.
+>    **What stays:** the `list_org_people` payload and Amdt 1 ruling 4's second read path remain valid for
+>    a future **name-search** caller, which is the shape the homonym problem actually needs. ⛔ Recorded so
+>    the next reader does not find B3 and conclude it is dead code: it is a **built door awaiting its
+>    caller**, by decision — not an oversight, and not to be reverted.
+
 ## Context
 
 ADR 0051 created `hospital_admin` as "the org_admin of one hospital" for decentralized
