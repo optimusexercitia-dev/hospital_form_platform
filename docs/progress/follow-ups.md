@@ -6953,3 +6953,40 @@ what it is not.
 correctly declined to fix it: the file is fully green and untouched by this workstream. **How to apply beyond
 this instance: a `waitForURL` pattern must be checked against the STARTING url, not only the destination.**
 
+### 🟠 FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES — the baseline can only be diffed arithmetically, and the evidence is destroyed before anyone can check (owner: tester/lead; filed 2026-08-23, found when the AFF2 gate tried to compare flaky tests by identity)
+
+The `e2e:prod` declare-green step works by diffing a run against a **pinned baseline**. AFF2's pin is the
+2026-08-23 run at `d885f621`: *"1185 p · 2 f · 2 flaky · 8 DNR · 20 batches"*. When AFF2's own run also
+produced **2 flaky**, the obvious reading is parity. It is not a reading anyone can justify.
+
+**Two measured facts, which together make it unknowable:**
+1. **No document names the pin's flaky tests.** The Test Run Summary row says *"2 flaky"*; the triage doc it
+   links (`case-split-assertion-integrity.md`) details the two **failures** and contains **zero** occurrences
+   of the word *flaky*. The identities were never written down.
+2. **The raw logs cannot supply them either.** `scripts/e2e-prod-gate.sh:57` sets
+   `GATE_LOGDIR="${TMPDIR:-/tmp}/e2e-prod-gate"` with batch files named **`batch-N.log`**. The directory is
+   **not run-scoped**, so every run overwrites the previous run's logs *by batch number*. Both runs happened
+   on 2026-08-23, so AFF2's `batch-1.log` overwrote the pin's before anyone thought to look.
+
+⛔ **So "2 then, 2 now" establishes same-COUNT and nothing about same-IDENTITY.** That is the
+*a total that matches is not a list that matches* trap — hit twice already this week — except here it is
+**built into the instrument** rather than into one person's enumeration. AFF2's two were named
+(`act-role-assumption.spec.ts:157` and `phase2-auth-shell.spec.ts:268`, both pre-existing session/auth specs,
+neither in any AFF2-touched file, both recovered on retry); the pin's two cannot be.
+
+⚠ **The consequence is permanent, and worth stating flatly: a NEW flake and a RECURRING one are
+indistinguishable in the gate record.** A run that silently trades two stable tests for two newly-unstable
+ones reports as parity. Flakiness is precisely the property that needs identity tracking, because its
+**count** is the one thing about it expected to vary run to run.
+
+**Fix — two small changes, neither urgent:**
+- **Name flaky tests (file + title) in the Test Run Summary row**, not just the count. Nothing else has to
+  change for a pin to become diffable.
+- **Make `GATE_LOGDIR` run-scoped** (a timestamp or commit sha in the path) so a run's evidence survives the
+  next one. ⚠ The script already reasons carefully about `batch-N-unrun.log` stubs at `:366-368`; the
+  **cross-run** collision was simply never considered.
+
+⭐ Found because `tester` was asked to compare by identity and **reported it as unverifiable rather than
+assuming parity**. The honest answer is what produced the finding — a confident "same two, parity" would have
+closed the question and left the instrument broken.
+
