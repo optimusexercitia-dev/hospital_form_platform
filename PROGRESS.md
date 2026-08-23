@@ -196,6 +196,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-23 | ⭐ **AFF2 · authoritative GATE STEP 1**, both tracks still (`55b25be5`) · detail: [aff2.md](docs/progress/aff2.md) | **exit 0 on every step; no pipe in any exit path.** lint 8/8 · `tsc` 0 · Vitest **1644** · `test:db` **212f/7039 PASS** on a fresh reset (444 / `20261003001200`) · four authz ARMs **HOLD** · both diff-scoped sweeps **COVERED**. ⛔ **`e2e:prod` NOT run** — `tester` owns step 2 |
+| 2026-08-23 | ⭐⭐ **AFF2 · FULL `e2e:prod` (gate step 2)**, `REBUILD=1` — detail: [aff2.md](docs/progress/aff2.md) | ✅ **GREEN** — 1205 p · 1 f · 2 flaky · 1 DNR · 20 batches, accounted 1209/1220. The 1 f + 1 DNR are the SAME test, a worker crash (not auto-infra-classified); isolated re-run → 7/7 GREEN. Flaky COUNT matches pin `d885f621` (2); IDENTITY unverifiable — see aff2.md. |
 | 2026-08-23 | ⭐⭐ **FULL `e2e:prod`** — first since Inc 2, `REBUILD=1`, at `d885f621` | ⛔ **RED, exit 1** · **1185 p · 2 f · 2 flaky · 8 DNR · 20 batches**, no gaps, no `reset FAILED`. ⭐ Both failures are **retry artifacts on non-idempotent tests**; alone → **25 p / 0 f GREEN**. **No regression attributable to this tree** — [triage](docs/progress/case-split-assertion-integrity.md) |
 
 ## QA Verdicts

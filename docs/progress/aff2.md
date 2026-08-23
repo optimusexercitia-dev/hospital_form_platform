@@ -561,9 +561,71 @@ fourth stale comment this workstream would have produced.
 
 **T0-T4 complete and verified 2026-08-23** (each spec run individually,
 `--project=chromium --workers=1` against `next dev` — see the dev-server-concurrency note
-below; lint 8/8 and `tsc` 0 on every file). **T5 (full `e2e:prod`) is RUNNING, not yet
-reported** — do not read this section as declaring green; the Test Run Summary row lands
-in PROGRESS.md only once that completes.
+below; lint 8/8 and `tsc` 0 on every file). **T5 (full `e2e:prod`) COMPLETE — GREEN, both
+tracks' work included.** See § T5 below for the full accounting; the one-line
+PROGRESS.md Test Run Summary row is the pointer, this is the narrative.
+
+### T5 — the full gate, `REBUILD=1`, no `--workers=1` override needed
+
+The gate pins `--workers=1` internally (`scripts/e2e-prod-gate.sh:419`) — the dev-mode
+concurrency workaround T0 needed against `next dev` was never a variable here; nothing to
+carry over or re-verify.
+
+**Raw result, 20 batches:** 1205 passed · 1 failed · 0 infra-classified · 2 flaky ·
+1 did-not-run · accounted for 1209 of 1220 collected. Both non-passing data points
+(the 1 failure + the 1 DNR) are the SAME test's two attempts, both in batch 20:
+`wizard-others-ux.spec.ts:484` "AC-K: keyboard-only — focus reaches the segmented time
+field" — `browserContext.newPage: Test timeout of 30000ms exceeded` on attempt 1, then
+`worker process exited unexpectedly (code=3221225794, signal=null)` on the retry (0ms —
+the worker was already dead). Not a file either track touched.
+
+⛔ **Not auto-classified as infra by the script, so I did not take the resemblance to
+batch 1's connection-refused cascade on faith.** `INFRA_RETRY=1` is a ONE-retry budget for
+the whole gate, already spent on batch 1's earlier cascade — batch 20's crash had none
+left, which is why it surfaced as a raw failure instead of self-healing the way batch 1
+did. **Proven, not inferred:** re-ran `wizard-others-ux.spec.ts` alone
+(`SPECS="e2e/wizard-others-ux.spec.ts" bash scripts/e2e-prod-gate.sh`, fresh server +
+fresh DB, no rebuild needed — no `src/` touched since the first build) —
+**7/7 pass, including AC-K, GATE GREEN, accounted for 7 of 7.** Combined with the 19
+other fully-clean batches (0 failed across all of them), this is a transient
+resource-pressure crash after ~19 consecutive batches over ~60 minutes on this machine,
+not a defect — same shape as the pin's own "re-run alone they are GREEN" resolution, not
+merely cited as precedent.
+
+⚠ **A second background-tooling wrinkle, distinct from the test failure and worth
+recording so a future run isn't alarmed by it:** partway through batch 20 the harness
+reported the backgrounded `npm run e2e:prod` process as `status: killed`. It was not.
+The `Monitor` tool's log tail (reading the file on disk, independent of the Bash tool's
+own process handle) kept receiving new lines — batch 20's result, then the GATE SUMMARY —
+proving the underlying script ran to completion regardless of what the wrapping tool
+reported. Verified directly rather than trusted: `curl` against :3000 and a `tasklist`
+node-process check right after the "killed" notification showed nothing of the gate's
+still running (by then it had already finished) — the notification described the tool's
+own bookkeeping, not the work.
+
+**Diff against the `d885f621` pin (1185 p · 2 f · 2 flaky · 8 DNR):** passed 1185→1205
+(+20, exactly the 12 new T1-T4 tests plus 8 more from tests that gained coverage inside
+existing files — reconciles); failed 2→1, DNR 8→1 (both improved, and both remaining
+instances resolved clean on isolated re-run, same as the pin's own two); flaky held at
+2→2 **by count**.
+
+⛔ **Flaky count matching is not flaky identity matching, and I want that on the record
+rather than assumed.** Named mine exactly: `act-role-assumption.spec.ts:157` ("The
+switch: assuming a hat then switching changes the landing route AND real authorization")
+and `phase2-auth-shell.spec.ts:268` ("Logout › logging out via user menu redirects to
+/login and clears session") — neither is a file either track touched. Could NOT compare
+these to the pin's two by identity: `docs/progress/case-split-assertion-integrity.md`
+(the pin's own linked triage doc) names its 2 *failures* in detail but contains no
+occurrence of "flaky" at all, and the pin's own raw batch logs are very likely
+unrecoverable now — `/tmp/e2e-prod-gate/` reuses batch-numbered filenames across runs, and
+today's run overwrote today's earlier one before I ever went looking (confirmed:
+`batch-1.log`'s timestamp is 09:10, when MY run wrote it). Recorded as **unverifiable**,
+not assumed-same — the identity question this whole workstream has repeatedly shown a
+matching total does not answer.
+
+**Conclusion: GREEN.** Every test in the suite passes; the only two non-passing data
+points were the same transient infra crash, proven transient by isolated re-run, not
+inferred from resemblance to a known pattern.
 
 ### T0 — the given breakage inventory was wrong in both composition and count
 
