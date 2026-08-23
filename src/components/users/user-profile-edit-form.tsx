@@ -68,14 +68,23 @@ export function UserProfileEditForm({
   personalData: PersonPersonalData;
   /** The SUBSET bound — gates ONLY the CPF field. See the note above. */
   canEditCpf: boolean;
-  /** Called after a successful save so the card can drop back to its display rows. */
-  onSaved?: () => void;
+  /**
+   * Called after a successful save.
+   *
+   * ⛔ REQUIRED, and that is the fix for BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS rather
+   * than a style preference. Whoever mounts this form owns telling the user the save
+   * worked, because this component cannot: the only consumer collapses a disclosure in
+   * response, unmounting the form in the same commit. Making the callback optional
+   * would let the next consumer mount the form, show nothing on success, and reproduce
+   * the bug — invisibly, since the write itself succeeds and every functional
+   * assertion passes.
+   */
+  onSaved: () => void;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [success, setSuccess] = useState(false);
 
   const [fullName, setFullName] = useState(user.fullName ?? "");
   const [categoryId, setCategoryId] = useState(
@@ -96,7 +105,6 @@ export function UserProfileEditForm({
     e.preventDefault();
     setError(null);
     setFieldErrors({});
-    setSuccess(false);
 
     const input: UpdateUserProfileInput = {
       userId: user.id,
@@ -119,20 +127,23 @@ export function UserProfileEditForm({
         setFieldErrors(result.fieldErrors ?? {});
         return;
       }
-      setSuccess(true);
       setCpf("");
       router.refresh();
-      onSaved?.();
+      // ⛔ SUCCESS IS THE PARENT'S TO REPORT, and this form must not try. Calling
+      // `onSaved` collapses the disclosure, which UNMOUNTS this component in the same
+      // React commit — so a success banner owned here mounts and unmounts without ever
+      // painting. That was BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS: the write succeeded,
+      // every functional assertion passed, and the admin was told nothing. No timing
+      // tweak can fix it; state that lives inside the unmounting tree dies with it.
+      onSaved();
     });
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-      {success ? (
-        <FormBanner tone="success">Perfil atualizado.</FormBanner>
-      ) : (
-        <FormBanner tone="error">{error}</FormBanner>
-      )}
+      {/* Errors only. A failed save KEEPS this form mounted, so it can own that
+          message; a successful one destroys the form, so it cannot own that one. */}
+      <FormBanner tone="error">{error}</FormBanner>
 
       <Field>
         <FieldLabel>E-mail</FieldLabel>

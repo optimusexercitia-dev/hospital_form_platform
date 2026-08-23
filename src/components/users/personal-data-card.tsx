@@ -45,6 +45,15 @@ export function PersonalDataCard({
   canManageAccountLifecycle: boolean;
 }) {
   const [editing, setEditing] = useState(false);
+  /**
+   * The save confirmation lives HERE, in the component that survives the collapse.
+   *
+   * ⛔ BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS: the form used to set its own success flag
+   * and then call `onSaved`, which collapses this disclosure — both in one React commit,
+   * so the banner mounted and unmounted without painting. The write succeeded and the
+   * admin was told nothing, which is why every functional assertion passed.
+   */
+  const [saved, setSaved] = useState(false);
 
   return (
     <section
@@ -64,7 +73,12 @@ export function PersonalDataCard({
              alone announces nothing about the form appearing below. */
           <button
             type="button"
-            onClick={() => setEditing((v) => !v)}
+            onClick={() => {
+              // Reopening to edit again retires the previous confirmation — leaving it
+              // up would have it describe a save the admin has moved on from.
+              setSaved(false);
+              setEditing((v) => !v);
+            }}
             aria-expanded={editing}
             aria-controls="dados-pessoais-form"
             className="rounded-md text-xs font-semibold text-primary transition-colors hover:text-primary/80 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
@@ -73,6 +87,24 @@ export function PersonalDataCard({
           </button>
         ) : null}
       </div>
+
+      {/* ⛔ PERMANENTLY MOUNTED, EMPTY UNTIL THERE IS SOMETHING TO SAY. A live region
+          that mounts together with its content is announced unreliably — the same
+          reason `register-person-flow` moves focus instead of wrapping its outcome in
+          one. Rendering `{saved ? <p role="status">…</p> : null}` would put the text
+          and the region in the same commit and reintroduce silence by a second route,
+          after the first route was the banner unmounting before it painted. */}
+      <p
+        role="status"
+        aria-live="polite"
+        className={
+          saved
+            ? "rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-[0.75rem] font-medium text-success"
+            : "sr-only"
+        }
+      >
+        {saved ? "Perfil atualizado." : ""}
+      </p>
 
       {personalData === null ? (
         /* WITHHELD — no values exist to show, so none are invented.
@@ -92,7 +124,10 @@ export function PersonalDataCard({
             categories={categories}
             personalData={personalData}
             canEditCpf={canManageAccountLifecycle}
-            onSaved={() => setEditing(false)}
+            onSaved={() => {
+              setEditing(false);
+              setSaved(true);
+            }}
           />
         </div>
       ) : (
