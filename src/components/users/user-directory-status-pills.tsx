@@ -42,10 +42,26 @@ const PILLS: {
   id: UserDirectoryStatusFilter | null;
   label: string;
   countKey: keyof UserDirectoryStatusCounts;
+  /**
+   * Spelled out for assistive tech only, and only where the label alone is not
+   * self-defining.
+   *
+   * ⚠ "Atenção" is the one bucket nobody can infer: three of the four labels name a
+   * status the row badges also show, but "Atenção" is a COMPOSITE (suspenso ∪ convite
+   * pendente) that appears nowhere else on the screen. A sighted user discovers it by
+   * clicking and reading the badges; without this a screen-reader user just hears a
+   * word. Not a `title` — those are unreachable by keyboard and unreliably announced.
+   */
+  srHint?: string;
 }[] = [
   { id: null, label: "Todos", countKey: "all" },
   { id: "active", label: STATUS_FILTER_LABEL.active, countKey: "active" },
-  { id: "attention", label: STATUS_FILTER_LABEL.attention, countKey: "attention" },
+  {
+    id: "attention",
+    label: STATUS_FILTER_LABEL.attention,
+    countKey: "attention",
+    srHint: "contas suspensas e convites pendentes",
+  },
   {
     id: "deactivated",
     label: STATUS_FILTER_LABEL.deactivated,
@@ -99,6 +115,9 @@ export function UserDirectoryStatusPills({
             )}
           >
             <span>{pill.label}</span>
+            {pill.srHint ? (
+              <span className="sr-only"> ({pill.srHint})</span>
+            ) : null}
             {count === undefined ? null : (
               <>
                 <span aria-hidden="true" className="mx-1.5 opacity-60">

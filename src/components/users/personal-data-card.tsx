@@ -57,9 +57,16 @@ export function PersonalDataCard({
           Dados pessoais
         </h2>
         {personalData && canEditPerson ? (
+          /* A DISCLOSURE, announced as one. `aria-expanded` + `aria-controls` tell a
+             screen-reader user that this control reveals something and whether it is
+             open — the alternative, moving focus into the form, steals it from a
+             sighted keyboard user who only wanted to see the fields. The label change
+             alone announces nothing about the form appearing below. */
           <button
             type="button"
             onClick={() => setEditing((v) => !v)}
+            aria-expanded={editing}
+            aria-controls="dados-pessoais-form"
             className="rounded-md text-xs font-semibold text-primary transition-colors hover:text-primary/80 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
           >
             {editing ? "Cancelar" : "Editar"}
@@ -68,19 +75,26 @@ export function PersonalDataCard({
       </div>
 
       {personalData === null ? (
-        /* WITHHELD — no values exist to show, so none are invented. */
+        /* WITHHELD — no values exist to show, so none are invented.
+           ⛔ The copy names the CARD, not a direction. This rail sits beside the main
+           column only at `lg` and up and stacks BELOW it on narrow screens, so "ao
+           lado" was false on every phone — copy that depends on the viewport is copy
+           that is wrong half the time. */
         <ScopeNote>
-          Os dados pessoais desta pessoa são administrados pela organização. Você
-          pode gerenciar o vínculo com o seu hospital e a matrícula ao lado.
+          Os dados pessoais desta pessoa são administrados pela organização. O
+          vínculo com o seu hospital e a matrícula você gerencia em “Vínculos
+          hospitalares”.
         </ScopeNote>
       ) : editing ? (
-        <UserProfileEditForm
-          user={user}
-          categories={categories}
-          personalData={personalData}
-          canEditCpf={canManageAccountLifecycle}
-          onSaved={() => setEditing(false)}
-        />
+        <div id="dados-pessoais-form">
+          <UserProfileEditForm
+            user={user}
+            categories={categories}
+            personalData={personalData}
+            canEditCpf={canManageAccountLifecycle}
+            onSaved={() => setEditing(false)}
+          />
+        </div>
       ) : (
         <>
           <dl className="flex flex-col gap-2.5 text-[0.8rem]">
