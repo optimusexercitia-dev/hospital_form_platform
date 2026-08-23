@@ -120,11 +120,11 @@ was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
 | B1 · `profiles.date_of_birth` + `phone` | ✅ **built 2026-08-23** — `20261003001000`; pgTAP `359` 18/18, red-first observed |
 | B2 · `professional_credentials` SELECT widening | ✅ **built 2026-08-23** (mirror form, Amdt 2 r1) — `20261003001100`; pgTAP `360` 21/21, red-first observed |
 | B3 · `list_org_people` payload + `date_of_birth` | ✅ **built 2026-08-23** — `20261003001200` (DROP+CREATE); pgTAP `361` 23/23, red-first observed |
-| B4 · `authorizePersonScopedAdmin` + action rewiring | not started |
-| B5 · Vitest keystone matrix | not started |
-| B6 · Detail-page locked-column read | not started |
-| B7 · Directory query widening | not started |
-| **B8 · org-hospitals list + `hospital` filter arg** | **NEW — PO-ruled 2026-08-23 (Amdt 2 r4)**; after B7 |
+| B4 · `authorizePersonScopedAdmin` + action rewiring | ✅ **built 2026-08-23** — `fe701251`; 6 call sites rewired, CPF grain ruled change-based (Amdt 3) |
+| B5 · Vitest keystone matrix | ✅ **built 2026-08-23** — `fe701251`; 8 flipped arms, 8 red pre-B4, 8 green after. Control caught 2 vacuous arms (DOB/phone asserted `ok:true` + "a write happened", green while the field was dropped) |
+| B6 · Detail-page locked-column read | ✅ **built 2026-08-23** — `04deb478`; `person-footprint.ts`, deliberately NO `'use server'`. Evidence is MUTATION-based (a new module cannot be temporally red-first): 4 mutations, all 4 observed red |
+| B7 · Directory query widening | ✅ **built 2026-08-23** — `f712dd61`; status filter bound to `status-vectors.json`. ⚠ typecheck red by design in 2 `frontend` files until their adapting commit |
+| **B8 · `hospital` filter arg on `listOrgUsers`** | **drafted, HELD for `frontend`'s commit.** ⚖ NARROW ruled. ⛔ SCOPE HALVED: `listOrgHospitals` already exists (`org.ts:454`, shipping in `administradores/page.tsx`) — the org-hospitals half needed no build, only a one-line call-site swap in `frontend`'s file |
 
 ---
 
@@ -449,6 +449,26 @@ Decisions live in the ADR; this is the index so a reader finds them without re-d
   boundary for `usuarios` only (not the manage shell, and **not** `[userId]`/`novo`, whose boundaries
   are F2/F3 decisions), pt-BR, a `reset()` retry, and ⛔ **no raw Supabase/Postgres text reaching the
   UI** — CLAUDE.md §8, the rule the file exists to honour.
+- **⛔ 2026-08-23 · TWO shared-tree coordination facts, both found the hard way at the B7 handoff.**
+  1. **An uncommitted working tree is NOT a contract.** The lead told `frontend` to adapt to B7 "after
+     `backend` lands it", framing the gap as *between two commits* — but B7 was uncommitted working-tree
+     state. `frontend` read `types.ts`, saw `@deprecated` shims annotated as a one-commit window, and
+     **sixty seconds later they were gone**. They held rather than adapting, because reporting *"adapted
+     to B7"* against a shape that had already moved once is the stale-claim class. ⭐ A handoff must be
+     keyed on a **commit**, never on "started".
+  2. ⭐⭐ **While a SHARED TYPE is in flight, the other track cannot gate AT ALL** — not merely "is waiting
+     for a contract". `backend` editing `src/lib/users/types.ts` reds `frontend`'s `tsc` on files
+     `backend` never touched, so `frontend` could not validate even their own committed work. The
+     overlap window has a measurable cost; the answer is to keep it short and to park the other track
+     **fully**, not to have it stand ready.
+  **Ruled: no deprecation shims — one red-to-green hop.** A shim needs `org-users.ts` emitting
+  `homeHospitalName` **and** `hospitalNames`: two representations of one fact, in the workstream whose
+  theme is refusing that, where whichever a consumer reads first silently becomes the contract.
+  ⚠ **And the intended red is INVISIBLE to the obvious check** — verified in `package.json`: `lint` is
+  the eight gates and **`tsc` is not among them**, so the handoff commit reports `lint` **exit 0** while
+  `typecheck` is **exit 2**. A true green that means the opposite of what a reader takes from it, same
+  shape as a pipe erasing an exit code. The red is therefore **declared in the commit message**, so it
+  is a stated handoff rather than something the next person discovers and files.
 - **2026-08-23 · A NEW MODULE cannot be temporally red-first — its red proves absence, not discrimination.**
   B6's keystones could not be run "before the change": the file did not exist, so every arm would have failed
   on *cannot resolve import*, which says nothing about whether the assertions discriminate. `backend` used
