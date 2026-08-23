@@ -420,6 +420,24 @@ Decisions live in the ADR; this is the index so a reader finds them without re-d
   boundary for `usuarios` only (not the manage shell, and **not** `[userId]`/`novo`, whose boundaries
   are F2/F3 decisions), pt-BR, a `reset()` retry, and ⛔ **no raw Supabase/Postgres text reaching the
   UI** — CLAUDE.md §8, the rule the file exists to honour.
+- **2026-08-23 · A NEW MODULE cannot be temporally red-first — its red proves absence, not discrimination.**
+  B6's keystones could not be run "before the change": the file did not exist, so every arm would have failed
+  on *cannot resolve import*, which says nothing about whether the assertions discriminate. `backend` used
+  **mutation evidence** instead — four mutations, each required to red, all observed, restore byte-identical
+  (M1 both capabilities evaluated as `'fields'` → 1 red · M2 withheld returns a zeroed object instead of
+  `null` → **4** · M3 CPF digits returned → 3 · M4 footprint resolved twice → 1). ⭐ **M4 is the instructive
+  one:** resolving twice is *functionally correct* and every other arm stays green, but it widens the TOCTOU
+  residual ADR 0133 D4 accepted at **exactly one write** — a correctness-preserving change that silently
+  degrades a stated invariant, catchable only by a **counting** assertion. ⛔ Red-first and mutation-proof are
+  not interchangeable: pick by whether the subject can exist in the "before" state at all.
+- **⚠ 2026-08-23 · GATE-SNAPSHOT DISCIPLINE — a per-track gate is not a tree gate.** `backend`'s B6 typecheck
+  hit exit 2 on `usuarios/[userId]/page.tsx`, `frontend`'s in-flight F2 edit; it cleared on its own when the
+  call site was updated. They correctly did **not** touch the file and did **not** stash the tree (a stash
+  during another agent's active edit can destroy in-flight work). Attribution was conclusive — zero `tsc`
+  errors in any file they own, both runs. ⛔ **But a gate run taken against a tree another agent is editing
+  establishes only that the task is correct in isolation, not that the tree is.** The authoritative full-gate
+  run for AFF2 is the **lead's, with both tracks still** — and it is a §6 step 1 obligation, not a formality
+  discharged by two green per-track runs.
 - **2026-08-23 · ⚖ ADR 0133 Amdt 1's "whenever the input includes `cpf`" ruled CHANGE-based (ADR 0133
   Amdt 3) — LEAD-ruled, not PO-escalated.** Read literally (presence-based), the subset bound applies to
   every `updateUserProfile` call carrying the key, so a hospital_admin editing the **name** of a

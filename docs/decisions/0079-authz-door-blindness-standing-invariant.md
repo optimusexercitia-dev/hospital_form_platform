@@ -535,3 +535,63 @@ than hand-listed** (Amendment 6's rule — the boundary must be the property, no
 Together: **56 of 88 supported**, against 32 for the inherited regex alone. The dry-run mode
 (`DRYRUN=1`) is part of the harness, not scaffolding — *a detector that finds nothing must be
 proven able to find something*, and this one silently found nothing once already.
+
+---
+
+## Amendment 8 — an RLS **widening** is invisible to the phase step, and it INHERITS ITS OWN STALE VERDICT (2026-08-23)
+
+Found by `backend` during AFF2 B2, while deriving the case list from the diff as Amendment 1 instructs.
+The phase was swept correctly **only because the operator noticed the recipe returning nothing and added
+a pattern by hand** — which is precisely the intervention a recipe exists to make unnecessary.
+
+**The defect, in the recipe itself** (the block above, line 93): it names
+
+```
+# + any `create policy <name>` added by the same diff
+```
+
+An RLS **widening** is not a `create policy`. It is an **`alter policy`**, and the grep returns **zero
+rows** for it. A phase whose entire authorization change is widening an existing policy derives an
+**empty case list**, sweeps nothing, and reads as clean.
+
+⭐ **The part that makes this worse than a missed grep pattern: `ARM=census` does NOT backstop it, and
+for a reason that inverts the census's whole design.** The census asks *"does every gate in the live
+catalog carry a verdict?"* — and an altered policy is **not a newcomer**. It already has one.
+Measured: `professional_credentials.professional_credentials_select` carries
+`| policy | open->true | COVERED | 180_user_registration.sql |` in the committed findings, earned
+against the **pre-widening** predicate. So after the `ALTER`:
+
+- the census passes — the gate has a verdict;
+- the diff-scoped sweep never runs — the recipe found nothing to sweep;
+- and the **stale `COVERED` silently transfers to a predicate it was never measured against.**
+
+Amendment 3 built the census to stop *"the sixteenth"* — a gate nobody had ever asked about. This is the
+opposite failure: a gate everyone has asked about, whose **answer is now about a different question**.
+A verdict is keyed to a gate's *name*, and `ALTER POLICY` changes the predicate while preserving the
+name — the [rename-orphans-a-verdict] hazard running in reverse, and strictly quieter, because a rename
+at least loses the row.
+
+**Decision — three changes to the phase step (§6 step 1):**
+
+1. **The recipe greps `alter policy` as well as `create policy`.** Both forms, same diff, one case list.
+2. **A zero-row case list is a FINDING, not a pass.** *A detector that finds nothing must be proven able
+   to find something* — this ADR's own closing line, and the recipe violated it. If the diff touched
+   `supabase/migrations/` at all, the operator must either name a gate or state, in the gate record,
+   that the migration contains no policy and no `prosecdef` gate. "The recipe printed nothing" and
+   "the phase changed no gate" must stop being the same observation.
+3. **An `ALTER POLICY` invalidates the altered gate's existing verdict.** The findings row must be
+   re-measured by the diff-scoped sweep, not inherited. Until the sweep tooling can detect this, the
+   operator names the altered policy in `CASES=` explicitly — which is what AFF2 did by hand.
+
+⚠ **Also re-confirmed, not new:** the recipe's predicate filter `^(is_|can_|has_)` excluded **both**
+functions AFF2 touched (`list_org_people`, `guard_profile_privileged_columns`). Amendment 3 already
+records that boundary as blind — *"an enumeration whose boundary is a naming convention is the same
+mistake as one whose boundary is a filename"* — but it is recorded as an argument **for the census**,
+and the census cannot see an altered gate. So for this class the acknowledged-blind filter has **no
+backstop at all**, which the earlier framing does not convey.
+
+⛔ **Scope of what AFF2 proves:** AFF2's own B2/B3 sweeps ran and returned `COVERED` with one gate
+measured each. This amendment is about the **recipe**, not about that phase — every phase since
+Amendment 1 that widened rather than created a policy should be assumed unswept on that gate until
+someone checks.
+

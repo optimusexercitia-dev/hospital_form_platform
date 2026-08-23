@@ -75,6 +75,94 @@ intent with 0097's cross-hospital safeguards; **upholds** 0097 D7 (CPF posture) 
 >    the design handoff **stays in `docs/design/temp/user_management_redesign/`**
 >    (the plan's move-on-sign-off item is retired).
 
+> ## ✅ AMENDMENT 2 (2026-08-23) — D13's internal contradiction resolved toward the artifact; the read boundary is stated as deliberately wider than the write boundary
+>
+> PO-ruled 2026-08-23 at **build start**, on conflicts surfaced by `backend` and `frontend`
+> measuring the live stack before writing code. Four rulings + two named deferrals.
+>
+> 1. **D13 contradicted itself, and the artifact wins (amends D13).** D13 says the new
+>    `professional_credentials` legs *"mirror the AFF `profiles` widening"* **and** that they
+>    admit *"commission-tier seats"*. Measured 2026-08-23: both live `profiles` SELECT policies
+>    (`profiles_admin_select`, `profiles_select_self_or_admin`) use
+>    `COALESCE(hm.hospital_id, hc.hospital_id)`, which admits **hospital-tier** membership rows
+>    too. The two readings are different predicates and cannot both be built. **Ruled: mirror the
+>    live policy verbatim.** D13 names the artifact to copy, which is more specific than its own
+>    summary clause; and narrower-than-`profiles` manufactures a fresh instance of the
+>    *"empty never means no-permission"* state D13 exists to remove — a `technical_director` at
+>    the caller's own hospital, profile row readable, **Registro cell blank**.
+> 2. **The read boundary is DELIBERATELY WIDER than the write boundary — stated, because the
+>    `COALESCE` otherwise reads as a bug against D1.** D1(b)/D2's *"all commission-tier"* is a
+>    precondition for **administering** a person; Amdt 1 ruling 1 already says the widened writes
+>    match *"the read boundary D13 already draws"*. Nothing in D2 makes a hospital-tier person's
+>    credentials **unreadable** — it makes them **un-administrable**. So: reads mirror `profiles`;
+>    writes stay bounded by D1/D2. Required with the build: a pgTAP **ALLOW** arm pinning that a
+>    hospital-tier person's credential **is** readable, so the widest thing this ruling authorises
+>    is not the one thing no arm asserts — without it a later "tightening" back to commission-tier
+>    passes the whole suite green.
+> 3. **`expires_at` is mirrored too — i.e. absent (clarifies D13).** All three authorities say
+>    *"**active** membership"*; the live `profiles` membership leg has **no expiry filter at all**.
+>    Filtering only the new policy would make the two silently disagree about what "active" means,
+>    and the person with an expired membership still reaches the directory through the `profiles`
+>    leg — blank Registro cell, the same trap as ruling 1. ⚠ The asymmetry now lives **inside one
+>    policy**: the affiliation leg **does** filter activity (`ended_on IS NULL`), the membership leg
+>    does not. Registered as **FUP-AFF2-ACTIVE-MEANS-TWO-THINGS**, answerable only for **both**
+>    policies at once. ⛔ The `profiles` policy is not touched by AFF2.
+> 4. **The org_admin hospital filter is BUILT, as new backend task B8 (implements D14).** The
+>    handoff draws *"Hospital: todos"* and D14 names a *"hospital select/switcher"*, but `frontend`
+>    measured it unbuildable: `adminedHospitals(ctx, orgId)` returns only `ctx.hospitalAdminOf`
+>    (an org_admin gets `[]`) and `listOrgUsers()` takes no hospital argument. B7 covers neither.
+>    **Ruled: build it** — an org-hospitals list for an org_admin + a `hospital` filter arg —
+>    because AFF2's founding premise is the regionally-disjoint multi-hospital network, where an
+>    org_admin with an unfilterable directory is a real regression from the approved design.
+>
+> **Two deferrals, named so they are records rather than omissions:**
+> - **Search by registration number is NOT built (adapts D14).** The handoff's placeholder reads
+>   *"nome, e-mail ou **registro**"*. Measured: the search matches **name and email only** — and
+>   the pre-existing doc comment (`org-users.ts:78–79`) and the visible `aria-label` both already
+>   over-promised *"ou categoria"*, which is never searched. The label ships as
+>   **"Buscar por nome ou e-mail…"** — honest, and it fixes a live user-visible false claim. The
+>   registro leg crosses into `professional_credentials`, so it needs a join-filter rather than
+>   another `.or()` clause; deferred rather than smuggled into B7 — owner: backend/PO.
+> - **`error.tsx` for the `usuarios` route is deferred to F4.** The route has neither `loading.tsx`
+>   nor `error.tsx` today; `loading.tsx` ships with F1. An error boundary carries semantics
+>   (boundary scope, retry affordance, pt-BR copy that must not leak raw Postgres errors) and is a
+>   design decision, not a scaffold — owner: frontend.
+
+> ## ⚖ AMENDMENT 3 (2026-08-23) — Amdt 1's "whenever the input includes `cpf`" is CHANGE-based, not PRESENCE-based
+>
+> Lead-ruled during the B4 build, **not** PO-escalated — recorded here so the PO can reverse it.
+> Escalation was declined on one ground: unlike the Amdt-2 rulings, where both readings were
+> defensible and risk appetite decided, here the literal reading **provably defeats the stated
+> purpose of the amendment it appears in**. That is a drafting slip, not a choice.
+>
+> **Amendment 1 ruling 1** says `updateUserProfile` applies the tighter (subset) bound *"whenever
+> the input includes `cpf`"*. Read literally — presence-based — the subset bound applies to **every**
+> call whose payload carries the key. A hospital_admin editing the **name** of a cross-hospital
+> person would be denied: **the exact case Amdt 1 ruling 1 exists to ALLOW**, and the sharpest
+> keystone the amendment asked for. It would fail invisibly — the action simply returns
+> `orgAdminOnly`.
+>
+> **Ruled: the `cpf_change` bound fires on an actual change, compared on the NORMALISED value** —
+> `input.cpf !== undefined && current.cpf !== normalizeCpf(input.cpf)`. Normalising before comparing
+> is load-bearing: a reformatted-but-identical CPF must not read as a change.
+>
+> **Not weaker in any security-relevant way** — the test that decided it. A caller who may not change
+> CPF is refused the instant they try; sending an unchanged value accomplishes nothing, so gating on
+> its presence buys no security. It also restores consistency with the **documented live contract** on
+> that field (`actions.ts:124-125`: *"A hospital_admin sending an unchanged value is fine — the gate
+> fires on a real change, not on presence"*), its sibling rationale (`:755-758`: the edit form always
+> POSTs name and category, so presence-gating would deny a hospital admin editing only a matrícula),
+> and the existing keystone `d14-person-level.test.ts:251`.
+>
+> ⭐ **It is a trap for the NEXT author, not a live bug — which is why it was settled before F2 exists.**
+> Measured: the current edit form already omits the key when untouched
+> (`user-profile-edit-form.tsx:86`, `...(cpf ? { cpf } : {})`). So presence-based gating works **today**
+> and breaks **when F2 is rebuilt**. ⛔ F2 must not post `cpf` unconditionally — and, per D4's premise
+> that this path has no RLS backstop, the server must not rely on the form omitting it either.
+>
+> **Pinned both ways, on one cross-hospital target:** unchanged CPF echoed back + name change →
+> **ALLOW**; changed CPF → **DENY**.
+
 ## Context
 
 ADR 0051 created `hospital_admin` as "the org_admin of one hospital" for decentralized

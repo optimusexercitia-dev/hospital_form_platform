@@ -972,3 +972,12 @@ for reporting an unmeasured tree as gated, which is the error QA caught in r2 R-
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-22 | ⭐ **CASE SPLIT · Inc 2 — §6 steps 1–2 at `794bd971`** | `test:db` **208f/6941t** · lint 8/8 · `tsc` · vitest **1555** · 4 ARMs exit 0 ⛔ **all VACUOUS** · `e2e:prod` **1090p / 0 FAILED / 75 unrun → RED(UNRUN)**; the 2 named batches re-ran **129/129 GREEN**. ⚠ **UNION of 2 runs** — [caveats](case-surface-split-increment-2.md) |
+
+## Rotated 2026-08-23 (AFF2 rotation pass)
+
+_The contract keeps only the MOST RECENT gate row live; this is the superseded one._
+
+| Date | Scope | Result |
+| --- | --- | --- |
+| 2026-08-22 | ⭐ **CASE SPLIT · residue: assertion-integrity + PO rulings** (`e280cffa`, `d885f621`) | `test:db` **209f/6973t PASS** fresh reset (208/6941 → 209/6966 → 6973) · lint 8/8 · `tsc` 0 · vitest **113f/1568** · door audit CLEAN exit 0 — `ARM=predicate` 1/101 COVERED, `ARM=policy` **EMPTY and now says so** ⛔ **no `e2e:prod`** — [record](case-split-assertion-integrity.md) |
+

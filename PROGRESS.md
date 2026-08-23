@@ -16,16 +16,44 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **📋 PLANNED 2026-08-20 — workstream AFF2 (affiliation-scoped administration +
-  user-management redesign): ADR accepted, build NOT started.** Hospital admins gain
+- **▶ IN PROGRESS 2026-08-23 — workstream AFF2 (affiliation-scoped administration +
+  user-management redesign): BUILD STARTED on `feat/aff2-user-management`.** Hospital admins gain
   person-level + lifecycle authority over sole-footprint people; CPF-mandatory 3-step
   register wizard (escape hatch removed); the three UM screens rebuilt to the design
   handoff. ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md)
   (renumbered from 0129 at the 2026-08-21 reconciliation — main's DSR track had taken
   0129) **+ Amdt 1** (2026-08-21 — capability-split widening, § Decisions) · plan
-  [aff2-user-management.md](docs/plans/aff2-user-management.md). **Start
-  condition: the prévia merge call is SATISFIED (`9ed197d5`, merged + pushed); what
-  remains is the PO's merge call on `chore/small-optimizations` itself + explicit build go.**
+  [aff2-user-management.md](docs/plans/aff2-user-management.md). **Both start
+  conditions are now DISCHARGED** — `chore/small-optimizations` merged at `df88dced` (in `main`'s
+  history), and the PO gave the explicit build go 2026-08-23.
+  ⭐ **Five plan premises were re-measured at build start, and TWO of them were STALE** — the
+  plan is authority for *intent*, never for *facts about the stack*:
+  1. ⛔ **B3's `extensions.citext` instruction is WRONG for this door.** Measured in the catalog:
+     `list_org_people(p_org_id uuid, p_search text, p_cpf text)` — **one** overload, all three args
+     `pg_catalog.text`, **no `citext` anywhere**. Following the plan literally would `CREATE` a
+     **second overload** beside the door instead of replacing it, leaving an ungranted, un-audited
+     twin that PostgREST could resolve to. The citext lesson is real; it belongs to a *different* door.
+  2. ⚠ **B3 cannot use `CREATE OR REPLACE` at all.** Adding `date_of_birth` changes the RETURN
+     TYPE (`TABLE(user_id, full_name, email, professional_category, is_active, affiliations)`), which
+     `CREATE OR REPLACE` **refuses**. It must be `DROP` + `CREATE` — and a DROP resets `proacl` to
+     **NULL, which means PUBLIC**, the recorded fail-open default. The current ACL
+     (`postgres`/`service_role`/`authenticated` = `X`) must be re-GRANTed and then **re-measured from
+     the catalog**, not assumed. This also arms `FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE`.
+  3. **Migrations number from `20261003001000`** — the plan's "after `20261003000300`" is stale;
+     local **and** remote are both **441 / `20261003000900`** (measured, not read).
+  4. ✅ **Three premises HELD exactly:** `profiles` has neither `date_of_birth` nor `phone`;
+     `guard_profile_privileged_columns()` exists (SECURITY DEFINER); `professional_credentials_select`
+     carries exactly the three legs B2 widens (self / `app.is_admin()` / org_admin-of-home-org) and is
+     the table's **only** policy. Code anchors hold too: `authorizeOrgAdminForUser` defined at
+     `actions.ts:323` with **six** call sites (773, 839, 903, 1018, 1035, 1059).
+  5. ✅ **The `e2e:prod` baseline pin is SATISFIED without a new run** — the plan asks for a pinned
+     failing set "on the day AFF2 starts"; the 2026-08-23 run at `d885f621` **is** that pin, and every
+     commit since is docs-only (`PROGRESS.md`, `docs/progress/*`), so it holds at HEAD. ⛔ The plan's
+     risk bullet naming **BUG-QO-STALE-CASOS** as the thing to resolve first is **stale — it was
+     RESOLVED 2026-08-21**; the live baseline residue is
+     `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS` instead.
+  **FUP-AFF2-CONTA is registered** (index + body) — the plan's build-start requirement, discharged.
+  **Track task detail → [aff2.md](docs/progress/aff2.md)** (per-track sections, teammate-owned).
 - **✅ CASE SURFACE SPLIT — COMPLETE through Increment 2, and its post-merge residue is WORKED** (ADR
   0134 D1–D7 + Amdt 1–8). Increments 1 (`6e364203`) and 2 (`be546bbf`) are merged to **local** `main`;
   the §6 Record landed `c85af876`. Both bullets rotated verbatim →
@@ -120,27 +148,6 @@ exists because without it an open production blocker (BUG-BOOTSTRAP-001) read as
 a single day — first the heading, then a note saying "back to three" — in the one paragraph of this
 file whose whole subject is that a count is wrong the moment after it is right. Count the rows below.
 
-✅ **BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW — RESOLVED 2026-08-21**, fixed / mutation-proven / gated /
-merged (`96c49da4`) / applied to the linked project. Full row + closure narrative rotated verbatim →
-[bug-log-archive.md](docs/progress/bug-log-archive.md). ⛔ **It sat here wearing a 🔴 for hours after it was
-fixed** — `lint:progress` reds a resolved *follow-up index line* but **cannot see a fixed bug left in the OPEN
-section**, so rotation discipline is the only control, and it is the one this repo records as chronically
-skipped. Caught while writing a report **from this register**, which is the register's real test.
-
-✅ **BUG-QO-STALE-CASOS + BUG-QO-STALE-CASOS-2 — BOTH RESOLVED 2026-08-21** (Step 0 of the case-surface-split
-program, branch `feat/case-surface-split`, commit `4ec53577`). `quality-oversight.spec.ts` **21 p / 0 f /
-0 did-not-run / exit 0** on a fresh reset, was 19p/2f. The pairing was preserved, not swapped. Full rows +
-closure narrative rotated verbatim → [bug-log-archive.md](docs/progress/bug-log-archive.md).
-⭐ Carried forward because it outlives the bug: **"two failing tests" was a FLOOR, not a count** — a failing
-assertion masks every assertion after it in the same test, so instance 3 was invisible until instance 1 was
-fixed. Sweep the class **statically**; a run-fix-rerun loop reports green at the last **reachable** stale
-assertion. ✅ **The repair is now ON `main`** — `feat/case-surface-split` merged at `6e364203`, so the
-condition this line named is satisfied and the baseline expectation is **0 known-stale failures**.
-⚠ **Expectation, not a measurement:** no full clean `e2e:prod` has confirmed it — the most recent gate row is
-the Increment-2 **union of two runs with 75 unrun**, and that row does not record which batches those were,
-so whether `quality-oversight.spec.ts` executed post-merge is **undetermined, not green**. Re-derive from a
-run before quoting it as the baseline.
-
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
 narrative was rotated — **this was the one open item in it that existed in no other tracked place**,
@@ -189,7 +196,6 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-23 | ⭐⭐ **FULL `e2e:prod`** — first since Inc 2, `REBUILD=1`, at `d885f621` | ⛔ **RED, exit 1** · **1185 p · 2 f · 2 flaky · 8 DNR · 20 batches**, no gaps, no `reset FAILED`. ⭐ Both failures are **retry artifacts on non-idempotent tests**; alone → **25 p / 0 f GREEN**. **No regression attributable to this tree** — [triage](docs/progress/case-split-assertion-integrity.md) |
-| 2026-08-22 | ⭐ **CASE SPLIT · residue: assertion-integrity + PO rulings** (`e280cffa`, `d885f621`) | `test:db` **209f/6973t PASS** fresh reset (208/6941 → 209/6966 → 6973) · lint 8/8 · `tsc` 0 · vitest **113f/1568** · door audit CLEAN exit 0 — `ARM=predicate` 1/101 COVERED, `ARM=policy` **EMPTY and now says so** ⛔ **no `e2e:prod`** — [record](docs/progress/case-split-assertion-integrity.md) |
 
 ## QA Verdicts
 
@@ -219,34 +225,14 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
-| 2026-08-22 | **PO: `create_case` loses its `app.is_admin()` disjunct** — the noun rule (ADR 0078 A35) stands unamended; `platform_admin` may not create commission content. It was the sole outlier of three creation doors | ADR [0078](docs/decisions/0078-authorization-capability-model.md) A35 (applied) |
-| 2026-08-22 | **PO: authored refusals get their own `HCxxx` SQLSTATE; `42501` stays RESERVED.** ⛔ ACCEPTED, then **DEFERRED by the PO — a decision, not a gap**; both source follow-ups stay OPEN. **814 pgTAP refs** vs 247 door lines: the TEST surface is the cost | ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md) |
-| 2026-08-22 | **PO: the phase-result UI widens to PER-PHASE** to match the door. ✅ **BUILT** as a KIND, not a boolean; required dropping a coordinator-only TS pre-gate **and** its `isAdmin` dead end. 2 residues filed | `FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT` |
-| 2026-08-22 | **PO: `meus-casos` rows correctly stay on `/casos`** — Meus Casos is name-attributed work, which D1 keeps on the read surface. **The plan sentence was the defect, not the routing**; T5 clarified | ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md) **D1** |
-| 2026-08-22 | **PO: bulk creation needs TWO existing keys** (`create_cases` ∧ `assign_case_phases`); `all_phases` stays coordinator-only and is refused **at the gate**, not after 200 rows. A1.2's one-arm sentence was built and measured insufficient — `bulk_create_cases` is a **composition** | ADR 0134 **Amdt 7** |
-| 2026-08-22 | **LEAD: `member_can_for` is the single predicate implementation, `member_can` delegates.** D6 named a chokepoint that takes **no uid** and so cannot answer S8's question | ADR 0134 **Amdt 6** |
-| 2026-08-22 | **PO: "default-checked" is a GRANT, not a pre-ticked box** — `appoint_administrativo` grants `read_cases` on a **new** appointment; existing appointees are **not** backfilled | ADR 0134 **Amdt 5** |
+| 2026-08-23 | **PO ×4 (AFF2 build start)** — credentials membership leg **mirrors** `profiles`' `COALESCE` form · `expires_at` mirrored (absent) · org_admin hospital filter **BUILT** (new task B8) · search label honest, registro deferred | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 2** |
+| 2026-08-23 | **LEAD: Amdt 1's "input includes `cpf`" is CHANGE-based**, normalised both sides — presence-based denies a hospital_admin editing the **name** of a cross-hospital person, the case Amdt 1 r1 exists to allow | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 3** |
+| 2026-08-23 | **An RLS widening is invisible to the phase step and inherits its own STALE verdict** — the recipe greps `create policy`, a widening is `alter policy` → zero rows; `ARM=census` cannot backstop it. A zero-row case list is now a **FINDING** | ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) **Amdt 8** |
 | 2026-08-21 | **PO: OPEN-4 = option D — creation-scoped PHI write for `create_cases`** — the platform's **first PHI write path not held by a coordinator**: type identifiers **while creating** a case, never read or edit after. ⛔ Narrowed at build (lead): server returns **no identifier value** | ADR 0134 **Amdt 2** |
 | 2026-08-21 | **PO: OPEN-1 — NO BACKFILL.** Existing administrativo appointees do not receive `read_cases`; the coordinator opts in per appointee, so every grant has a coordinator action behind it | ADR 0134 **Amdt 1 §A1.1** |
-| 2026-08-22 | **PO: D1 AMENDED — `/casos`'s invariant is capability-invariance, not absence of writes.** An affordance may sit there if name-attributed **or if its door admits every member who can open the page**; admission earned at the door, from the catalog. ⛔ *"Carve-outs go to zero"* was false on `main` | ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md) **Amdt 3** |
-| 2026-08-22 | **PO: S8 bounded by `not v_eg`, like S5/S7** — an `explicit_grants_only` case is invisible to the `read_cases` arm; reach rides an S3 grant or nothing. ⛔ Unbounded it left the appointee in the quality reviewer's exact bit-shape. Binds M2: P9 · P9-twin · P10 · P11 + door census | ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md) **Amdt 4** |
 | 2026-08-21 | **PO: case split = read vs manage** — `/casos` = read + name-attributed work only; ONE manage surface (coordinator / administrativo / write-grantee); administrativo gets commission-wide case READ (5th cap `read_cases`). ⛔ NOT built — plan: [case-surface-split.md](docs/plans/case-surface-split.md) | ADR [0134](docs/decisions/0134-case-surface-split-and-administrativo-case-read.md) |
 | 2026-08-21 | **PO: an ethics proceeding carries NO erasure entitlement, at any stage — no door, no UI.** Basis is the record's **administrative-proceeding** nature, ⛔ **not CFM 1821/2007**. Closes the Class-2 question. ⛔ **2 pre-existing doors DO remove ethics data** — filed, record-only | ADR [0132](docs/decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md) |
 | 2026-08-21 | **AFF2 Amdt 1 (PO): footprint bound SPLITS by capability** — fields+credentials → **intersection**, CPF-change+lifecycle keep **subset** · silent cross-hospital write **ACCEPTED residual** · LGPD: professional titulares administrative, **out of DSR scope BY DESIGN** · 6 rulings | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 1** |
-| 2026-08-20 | **AFF2 accepted (PO): affiliation-scoped hospital_admin authority** — footprint-bounded person-level edits, credentials + lifecycle · CPF mandatory in UI, escape hatch REMOVED · `date_of_birth`+`phone` added column-locked · credentials SELECT widens · presence-only CPF display | ADR [0133](docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) (né 0129) · amends 0097 D11/D14 · 0098 W3.2 · [0048](docs/decisions/0048-user-registration-identity.md) D10 |
-| 2026-08-20 | **PO: DSR gate CLOSED — approval given, program merged + pushed.** §6 steps 1–5 complete; step 1 re-run on a fresh reset. ⛔ Step 2 (`e2e:prod`) **not re-run** for the final increment — recorded, not implied | [dsr-program.md](docs/progress/dsr-program.md) |
-| 2026-08-20 | **PO: PHI erasure reaches DESIGNATED PHI fields ONLY** — free text/titles that *may* hold PHI are out of pilot scope; the control is **training**. Shipped reach MAINTAINED, not rolled back. Closes the census + ethics items **by ruling, not remediation — the residue is ACCEPTED, not absent** | ADR [0131](docs/decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) |
-| 2026-08-20 | **PO: DROP Slice 4 item 1** — notification scrubbing **WITHDRAWN as premise-falsified**; the residue class does not exist. Successor `FUP-DOOR-ERASURE-FREETEXT-CENSUS` filed | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 4** |
-| 2026-08-20 | **PO: WIDEN `dispose_meeting_minutes`** rather than hedge the copy — the untouched free text joins the redaction set, so `DSR_RESIDUE_NOTICE` line 1 becomes true as written. Discharges `FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT`; needs an ADR 0056 §2 amendment | [follow-ups.md](docs/progress/follow-ups.md) |
-| 2026-08-20 | **DSR Slice 4 BUILT — QA APPROVED r3.** `referral-dispose-dialog.tsx` renders the shared `DSR_RESIDUE_NOTICE` (closes `FUP-DISPOSE-DIALOG-OVERCLAIM`); meeting door widened; N12/N13/N14 built. ⛔ **Gate steps 4–5 + merge/push still owed** | [review](docs/reviews/dsr-slice-4-review.md) |
-| 2026-08-20 | ~~**DSR Slice 4 — QA r1 CHANGES REQUESTED, NOT complete; blocked on the meeting-door widening**~~ — **SUPERSEDED same day**: the widening landed and QA APPROVED at r3 | [review](docs/reviews/dsr-slice-4-review.md) |
-| 2026-08-20 | **DSR Slice 3 SHIPPED — QA APPROVED r2, PO-approved.** The ONE named widening (`search_patient_xref` + `is_dpo_of`), adjudication, attested tier, refusal-retirement, ADR 0056 Consequence (a) discharged. ⛔ Zero disposal-gate widenings; **no second read-boundary change** (QA catalog-verified) | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 3** · [review](docs/reviews/dsr-slice-3-review.md) |
-| 2026-08-20 | **PO: INVERT the `useFieldIds` `name` default** — the hook omits `name`; `FormData`/radio/autofill callers opt in. The dangerous case was the default, the safe one a discipline at 51 sites (**10/51 measured**). ⛔ Route-crawler gate NOT in scope | FUP-FORM-IDENTIFIER-IN-URL · [follow-ups.md](docs/progress/follow-ups.md) |
-| 2026-08-20 | **ADR 0130 Proposed → Accepted; DSR Slice 2 BUILT** (PO instruction). Four shape changes measurement forced — incl. ADR 0056 Consequence (a)'s meetings-dispose UI moving to Slice 3. ✅ **Pilot-gate item 0 DISCHARGED** | ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 2** · [plan](docs/plans/dsr-workflow-plan.md) |
-| 2026-08-19 | ✅ **Counsel's Q14 return: committee records NOT prontuário; removal requests CASE-BY-CASE with legal consultation (supersedes the blanket override); 20-yr retention adopted BY DEFAULT as policy** (PO-relayed). `subject_request` lane live; refusal copy cites the policy, never CFM 1821 | ADR [0035](docs/decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1** (resolved) · ADR [0130](docs/decisions/0130-dsr-subject-request-workflow.md) **Amdt 1** |
-| 2026-08-19 | **Both § 6b backup residues PROMOTED to § Critical FUP — C3 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (🔴) + C4 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (🟠)** (PO, explicit instruction). ⭐ C3 shares C1's pilot-data-load trigger for the **opposite** reason; C4 is reachable on Cloud **today** | [run log](docs/deployment/phi-backup-run-log.md) F5/F6 · **§ Critical FUP C3/C4** · [decisions-log](docs/progress/decisions-log.md) |
-| 2026-08-19 | ⛔ **"PROGRESS.md is loaded by every spawn" IS FALSE, and never was** — no `@`-import has ever existed. The claim sat in ADR 0124, the banner, the gate header and an external handoff. Always-loaded is CLAUDE.md 32 KB + MEMORY.md 20 KB; this file is read on demand | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) **Amdt 1** |
-| 2026-08-20 | **`lint:progress` SIZE_CAP raised 60 KB → 80 KB** (PO instruction) — live file was 207 B under the old cap; project's live surface has outgrown the original sizing | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) **Amdt 2** |
 
 > ↩ **6 concluded/superseded rows dated 2026-08-19 rotated 2026-08-20** (2 superseded the same day they were written; 4 shipped) → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-20 (second headroom pass)", appended verbatim before the cut and `cmp`-verified.
 
@@ -360,6 +346,9 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-42501-AUTHORED-MESSAGES-FLATTENED-BY-EVERY-MAPPER** — the DB authors **103 informative** `42501` refusals (104 distinct, exactly **1** bare *sem permissão*) and the app layer **flattens essentially all of them**: of **63** `src/lib/**` modules mapping `42501`, only **2** recognise any message. Found when a PO-ruled gate message (Amdt 7's `all_phases` refusal) never reached the UI. ⛔ **The flattening is the only safe DEFAULT** — `42501`'s message cannot be trusted from the code (Postgres raises it for authored refusals AND raw *permission denied for table*), so undoing it is a **decision, not a fix**; 3 options in the body, incl. giving authored refusals their own `HC***` so `42501` stays reserved. ⚠ Any hand-list entry must be copied from `pg_get_functiondef` **verbatim and pinned**, or it degrades to the generic string **failing exactly as if absent, with nothing red**. ⭐ This is `FUP-42501-CONFLATES-GRANT-WITH-RLS` one layer up: same root, tests there, users here — backend/frontend ⭐ **RULED 2026-08-22 (ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md)): authored refusals get their own `HCxxx` SQLSTATE, `42501` stays RESERVED — build DEFERRED by the PO.** ⛔ Ruled ≠ discharged; this stays OPEN.
 - 🟡 **FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE** — a caller naming a function's **old arity** in a `has_function_privilege('…(uuid,text,…)')` string does not fail an assertion; it **ABORTS the suite** as a plan mismatch, in an unrelated file, naming no function (`Result: FAIL` with **zero** `# Failed test` lines — the never-ran shape wearing its opposite). Hit on the Increment-2 `DROP`+`CREATE`; the overload pin catches **ambiguity** and is structurally blind to **arity**. Swept: **9** textual hits, **1** executable — fixed, and `357` 1.6/1.7 now pin `oid::regprocedure::text`, the *same string form* the hazard uses. ⛔ Open on the **class**, not the two doors: whatever gate is built must go **RED on a deliberately stale signature** — a sweep of this shape that finds nothing is indistinguishable from one that cannot — backend
 - 🟡 **FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED** — ⭐ **RAISED 🟢→🟡 on QA's argument 2026-08-22:** the schema it bounds now **hosts a PHI writer**, so the one config line carries more than it did when this was filed. — ⛔ **informational, NOT a live hole; do not report it as one.** Measured 2026-08-22: of **467** functions in schema `app`, **237 are `anon`-executable** — **228** by `proacl IS NULL` (the permissive default nobody wrote) and **9** by an explicit `=X/postgres` entry, four of which are **authorization predicates** (`is_admin`, `is_member_of`, `is_org_admin_of`, `is_staff_admin_of`). The ONLY thing bounding this is **one config line** — `supabase/config.toml:13` does not expose `app` to PostgREST — so the ACLs are not holding the line and an auditor reading them would conclude they were. ⭐ First reported as *"`is_member_of` is wider than every sibling"*: every clause true, the framing wrong in this repo's standing way — the instance found, not the class (it missed a second explicit member and the 228-strong dominant mechanism), and a one-outlier framing invites a one-function fix that changes nothing. Needs a **decision**, not a patch; ⛔ never smuggled into a feature migration — backend/PO
+- 🟡 **FUP-AFF2-CONTA** — LGPD **titular access** for the two new person columns: a professional has no self-service view of their own `profiles.date_of_birth` / `phone`. Both are column-locked (absent from every `authenticated` column-list grant, ADR 0133 D10) and readable **only** on the admin management surface, so the data subject is the one party who cannot see their own record. ⚠ **Named a control, not a nicety** — ADR 0133 **Amdt 1 ruling 5** states the LGPD posture explicitly: professional data subjects exercise Art. 18 administratively and are **out of DSR scope by design**, which makes `/conta` the access path that discharges it. ⛔ Severable by design and **deferred at AFF2 build start (2026-08-23), not dropped** — registered here so the deferral is a record rather than an omission — frontend/PO
+- 🟡 **FUP-AFF2-ACTIVE-MEANS-TWO-THINGS** — *"active membership"* is asserted by ADR 0133 D13, the AFF2 plan and the build prompt (3×), and **no policy implements it**: neither live `profiles` SELECT policy filters `expires_at`, and AFF2's new `professional_credentials` leg mirrors that absence (PO-ruled 2026-08-23, ADR 0133 **Amdt 2** ruling 3 — filtering one side would make the two silently disagree). ⚠ The asymmetry is **inside a single policy**: the affiliation leg filters activity (`ended_on IS NULL`), the membership leg does not. Answerable only for **both** policies at once; a one-sided fix is the defect. ⛔ Not a live hole — an expired membership grants a credential **read**, and the person is already directory-visible via the `profiles` leg — backend/PO
+- 🟡 **FUP-MANAGE-ROUTES-HAVE-NO-ERROR-BOUNDARY** — **10** org-admin routes under `o/[org]/manage` have **no `error.tsx` between them and the ROOT boundary**, so any render failure destroys the whole shell — sidebar, org switcher and the DSR console entry go with it, leaving the user no navigation. Measured 2026-08-23 by ancestor-walk (not by `find` in-directory, which mis-reports children as gaps): `manage` itself · `acreditacao` · `audit` · `comissoes` · `documentos` · `hospitais` (+`/[hospitalId]`) · `indicadores` · `painel` · `tipos-de-caso`. ⭐ Found incidentally while AFF2 added `usuarios/error.tsx` — **4 of 14 `manage` segments had one**, so this is a GAP, not a design choice. ⛔ **Pre-existing and OUT of AFF2 scope** — do not smuggle the fix into the workstream. ⛔ **TWO files, not one** — `manage/error.tsx` for the ten page gaps **plus `o/[org]/error.tsx`**, because `error.js` does **not** wrap the layout in its own segment (this version's docs, `error.md:96`), so no `manage`-level boundary can ever catch **`manage/layout.tsx`** — which awaits `getSessionContext`, `getRawGrants` and the newest code on the surface, `listMyDsrHospitals`, and whose throw takes down **every** manage route at once. If only one is built, it is the second — frontend
 
 
 _**Three items RESOLVED by the DSR remediation round, index lines rotated 2026-08-21** → [follow-ups-archive.md](docs/progress/follow-ups-archive.md): **FUP-DISPOSE-EVENT-DOOR-GATE-BLIND** (keystone `352` run **inside the full suite** on a fresh reset and re-neutralized there — the item closed on the RUN, never on the file existing) · **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** (the four column doors have their first operational procedure, and the bytes runbook now names its own substrate) · **FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING** (PO ruled the copy stays; the training premise it rests on is recorded at the pilot-decision surface, which was the item's actual requirement). Bodies stay in [follow-ups.md](docs/progress/follow-ups.md)._

@@ -2978,3 +2978,36 @@ Tester-owned, **not yet executed**; ordered before AFF2 pins its e2e baseline.
 ## ↩ Rotated from PROGRESS.md 2026-08-22 — ADR 0134 Increment 2
 
 - 🟠 **BUG-ADM-APPOINT-CAPS-NOT-SYNCED** — appoint syncs `appointed` but not `caps`, so Amdt 5's auto-granted `read_cases` renders **UNCHECKED** until reload. DB correct — UI state-sync only, not an authz defect. ⛔ Do NOT fix by pre-checking client-side. Pinned red-on-purpose by B5, whose 2nd assertion has **never run**. [Detail](case-surface-split-increment-2.md) — frontend ✅ **FIXED 2026-08-22** (`a514d169`): `caps` was seeded from a prop with `useState`, so it ignored every later prop value — the grant landed, the props carrying it arrived, and the component discarded them. Now reconciled from the server, keyed on prop **content** not identity. ⚠ B5's second assertion (*unchecking empties the board*) had **never executed** before the fix and passed for the first time after it — not a return to green. MERGED `be546bbf`.
+
+## Rotated 2026-08-23 — two RESOLVED closure narratives, moved out of PROGRESS.md § Bug Log
+
+_Both bugs were already fixed and their full rows already archived; what remained live were the ✅ closure
+summaries. Rotated verbatim (link prefixes mechanically rewritten, inverse transform verified) at the AFF2
+rotation pass. **`BUG-BOOTSTRAP-001` remains the only OPEN bug** and stays in PROGRESS.md._
+
+> ⚠ One clause below is now STALE and is kept only because a verbatim rotation is verbatim: the
+> *"no full clean `e2e:prod` has confirmed it"* caveat was true when written and was **discharged on
+> 2026-08-23** by a full `REBUILD=1` run at `d885f621` (1185 p · 2 f · 2 flaky · 8 DNR · 20 batches, both
+> failures retry artifacts that pass 25/0 when re-run alone).
+
+✅ **BUG-DISPOSAL-CHILD-LOCK-RCA-CAPA-INTERVIEW — RESOLVED 2026-08-21**, fixed / mutation-proven / gated /
+merged (`96c49da4`) / applied to the linked project. Full row + closure narrative rotated verbatim →
+[bug-log-archive.md](bug-log-archive.md). ⛔ **It sat here wearing a 🔴 for hours after it was
+fixed** — `lint:progress` reds a resolved *follow-up index line* but **cannot see a fixed bug left in the OPEN
+section**, so rotation discipline is the only control, and it is the one this repo records as chronically
+skipped. Caught while writing a report **from this register**, which is the register's real test.
+
+✅ **BUG-QO-STALE-CASOS + BUG-QO-STALE-CASOS-2 — BOTH RESOLVED 2026-08-21** (Step 0 of the case-surface-split
+program, branch `feat/case-surface-split`, commit `4ec53577`). `quality-oversight.spec.ts` **21 p / 0 f /
+0 did-not-run / exit 0** on a fresh reset, was 19p/2f. The pairing was preserved, not swapped. Full rows +
+closure narrative rotated verbatim → [bug-log-archive.md](bug-log-archive.md).
+⭐ Carried forward because it outlives the bug: **"two failing tests" was a FLOOR, not a count** — a failing
+assertion masks every assertion after it in the same test, so instance 3 was invisible until instance 1 was
+fixed. Sweep the class **statically**; a run-fix-rerun loop reports green at the last **reachable** stale
+assertion. ✅ **The repair is now ON `main`** — `feat/case-surface-split` merged at `6e364203`, so the
+condition this line named is satisfied and the baseline expectation is **0 known-stale failures**.
+⚠ **Expectation, not a measurement:** no full clean `e2e:prod` has confirmed it — the most recent gate row is
+the Increment-2 **union of two runs with 75 unrun**, and that row does not record which batches those were,
+so whether `quality-oversight.spec.ts` executed post-merge is **undetermined, not green**. Re-derive from a
+run before quoting it as the baseline.
+
