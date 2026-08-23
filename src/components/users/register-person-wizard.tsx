@@ -12,6 +12,7 @@ import { orgHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Stepper } from "@/components/ui/stepper";
 import {
   Field,
@@ -21,6 +22,7 @@ import {
   useFieldIds,
 } from "@/components/ui/field";
 import { formatCpf } from "@/components/users/cpf-field";
+import { PhoneField } from "@/components/users/phone-field";
 import { CredentialsEditor } from "@/components/users/credentials-editor";
 import {
   CommitteeRoleAssigner,
@@ -86,6 +88,18 @@ const STEPS = [
   { label: "Comissões" },
 ];
 
+/**
+ * Today as ISO `yyyy-mm-dd`, in LOCAL calendar terms — `toISOString()` would convert to
+ * UTC and hand back tomorrow's date for anyone west of Greenwich late in the day, which
+ * for a birth-date ceiling means silently allowing one day into the future.
+ */
+function todayIso(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 export function RegisterPersonWizard({
   org,
   organizationId,
@@ -109,6 +123,10 @@ export function RegisterPersonWizard({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  // ADR 0133 D9 — both optional at registration. `dateOfBirth` is ISO `yyyy-mm-dd`;
+  // `phone` is held digits-only, the storage form (Amdt 1 r6).
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [phone, setPhone] = useState("");
   const [credentials, setCredentials] = useState<CredentialInput[]>([]);
   // Step 2 — hospital link. Seeded from the locked hospital so a hospital_admin's
   // affiliation survives "Pular etapa" (D8).
@@ -185,6 +203,10 @@ export function RegisterPersonWizard({
       fullName: fullName.trim(),
       email: email.trim(),
       professionalCategoryId: categoryId,
+      // Optional (D9). Empty means "not provided", so send null rather than "" — the
+      // column is nullable and an empty string is not a birth date or a phone number.
+      dateOfBirth: dateOfBirth || null,
+      phone: phone || null,
       homeHospitalId: hospitalId || null,
       hospitalEmployeeId: employeeId.trim() || null,
       // Only carry an initial password when the invite-email flow is disabled;
@@ -195,8 +217,6 @@ export function RegisterPersonWizard({
         committees.length > 0
           ? committees.map((c) => ({ commissionId: c.commissionId, role: c.role }))
           : undefined,
-      // ⛔ B4 INSERTION POINT — `dateOfBirth` / `phone` go here together with their
-      // step-1 fields. Do not add either without the other half.
     };
 
     startTransition(async () => {
@@ -219,16 +239,18 @@ export function RegisterPersonWizard({
         if (Object.keys(fields).length > 0) setStep(0);
         return;
       }
-      // ⚠ The plan specifies "redirect to the new profile", and that is NOT
-      // implementable today: `registerUser` returns `ActionState`
-      // (`{ ok, error?, fieldErrors? }`) and does not hand back the id it created,
-      // so there is no profile URL to go to. Rather than guess one, land on the
-      // directory filtered to the address just registered — the admin still sees
-      // exactly the person they made, one click from their page. When the action
-      // starts returning the new id this becomes a direct
-      // `orgHref(org, "manage", "usuarios", id)`.
+      // Straight to the new person's page (B4 — `RegisterUserState.userId`). Status
+      // reads Pendente until the invite is accepted, or Ativo when the admin set an
+      // initial password.
+      //
+      // ⚠ The guard is not defensive noise: `userId` is `string | undefined` on the
+      // state and `ok: true` does not narrow it, so the type genuinely admits an
+      // ok-without-id. Falling back to the filtered directory keeps the admin looking
+      // at the person they just created instead of routing them to `/usuarios/undefined`.
       router.push(
-        `${orgHref(org, "manage", "usuarios")}?search=${encodeURIComponent(email.trim())}`,
+        result.userId
+          ? orgHref(org, "manage", "usuarios", result.userId)
+          : `${orgHref(org, "manage", "usuarios")}?search=${encodeURIComponent(email.trim())}`,
       );
       router.refresh();
     });
@@ -297,6 +319,10 @@ export function RegisterPersonWizard({
             categoryId={categoryId}
             setCategoryId={setCategoryId}
             categories={categories}
+            dateOfBirth={dateOfBirth}
+            setDateOfBirth={setDateOfBirth}
+            phone={phone}
+            setPhone={setPhone}
             credentials={credentials}
             setCredentials={setCredentials}
             emailVerificationEnabled={emailVerificationEnabled}
@@ -384,6 +410,10 @@ function StepIdentification({
   categoryId,
   setCategoryId,
   categories,
+  dateOfBirth,
+  setDateOfBirth,
+  phone,
+  setPhone,
   credentials,
   setCredentials,
   emailVerificationEnabled,
@@ -399,6 +429,12 @@ function StepIdentification({
   categoryId: string;
   setCategoryId: (v: string) => void;
   categories: ProfessionalCategory[];
+  /** ISO `yyyy-mm-dd`, or "" when not provided. */
+  dateOfBirth: string;
+  setDateOfBirth: (v: string) => void;
+  /** Digits only — the storage form (ADR 0133 Amdt 1 r6). */
+  phone: string;
+  setPhone: (v: string) => void;
   credentials: CredentialInput[];
   setCredentials: (v: CredentialInput[]) => void;
   emailVerificationEnabled: boolean;
@@ -421,6 +457,7 @@ function StepIdentification({
     hasError: Boolean(fieldErrors.professionalCategoryId),
     required: true,
   });
+  const dobField = useFieldIds("dateOfBirth", { hasDescription: true });
 
   return (
     <div className="flex flex-col gap-5">
@@ -513,9 +550,36 @@ function StepIdentification({
         </FieldError>
       </Field>
 
-      {/* ⛔ B4 INSERTION POINT — "Nascimento" and "Telefone" belong here, optional,
-          once `registerUser` accepts `dateOfBirth` / `phone`. Not rendered before
-          then: the action would silently discard whatever the admin typed. */}
+      {/* ADR 0133 D9 — both optional, and both column-locked (D10): they are readable
+          only on the admin management surface, never by a co-commission colleague. */}
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor={dobField.controlProps.id}>
+            Nascimento (opcional)
+          </FieldLabel>
+          <DatePicker
+            id={dobField.controlProps.id}
+            value={dateOfBirth}
+            onChange={setDateOfBirth}
+            clearable
+            // A birth date in the future is not a typo worth storing.
+            max={todayIso()}
+            placeholder="Selecionar data"
+            aria-describedby={dobField.descriptionId}
+          />
+          <FieldDescription id={dobField.descriptionId}>
+            Diferencia pessoas com o mesmo nome — comum o bastante para ser o
+            desempate prático quando o CPF não está à vista.
+          </FieldDescription>
+        </Field>
+
+        <PhoneField
+          value={phone}
+          onChange={setPhone}
+          label="Telefone (opcional)"
+          description="Contato direto da pessoa. Não é usado para login nem para notificações."
+        />
+      </div>
 
       <div className="flex flex-col gap-3 border-t border-border pt-5">
         <div>

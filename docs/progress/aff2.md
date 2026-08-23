@@ -134,7 +134,7 @@ was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
 | --- | --- |
 | F1 · Directory table | ✅ **built 2026-08-23** — lint 8/8, `tsc` 0, 24/24 browser checks. ⚠ Two arms inert pending B7 (below) |
 | F2 · Profile page | blocked on B6 |
-| F3 · Register wizard | ⚠ **built 2026-08-23, MUST NOT MERGE YET** — lint 8/8, `tsc` 0, 24/24 browser checks. **Blocked on B4** for Nascimento/Telefone (below) |
+| F3 · Register wizard | ✅ **complete 2026-08-23** — all three B4 insertion points closed (Nascimento, Telefone, redirect-to-profile). lint 8/8, `tsc` 0. ⚠ the three closes are **not yet re-verified in a browser** |
 | F4 · Copy + a11y pass | ⏳ **partial** — `error.tsx` ✅ built **and verified** 2026-08-23 (pulled forward, lead-approved); the copy/a11y sweep itself waits on F2/F3 being final |
 
 ### F1 — what shipped, and what is still inert
@@ -213,6 +213,23 @@ control would take input, show it accepted, and drop it under a success redirect
    profile URL to go to. Lands on the directory filtered to the new e-mail instead: the admin
    still sees exactly the person they made, one click from their page. A one-line change if
    the action ever returns the id.
+
+**✅ ALL THREE CLOSED 2026-08-23 against B4 (`fe701251`), verified from the signatures, not
+the message announcing them:** `RegisterUserState extends ActionState { userId?: string }` and
+`RegisterUserInput` carrying `dateOfBirth?: string | null` / `phone?: string | null`.
+- **Nascimento** — `DatePicker`, `max={todayIso()}` so a future birth date is unstorable.
+  `todayIso` is built from LOCAL date parts, not `toISOString()`, which converts to UTC and
+  would hand back tomorrow west of Greenwich late in the day — a ceiling one day too loose.
+- **Telefone** — new `components/users/phone-field.tsx`, a deliberate sibling of `CpfField`:
+  digits-only in state, mask only in the rendered value, and ⛔ **no DOM `name`** for the same
+  measured pre-hydration-native-submit reason (a phone number is LGPD personal data on the
+  same footing as the CPF that leaked). ⛔ **No format validation** — the column has no CHECK
+  by decision (Amdt 1 r6), and a UI stricter than its own schema rejects numbers the database
+  accepts.
+- **Redirect** — now `orgHref(org, manage, usuarios, result.userId)`. ⚠ Guarded, because
+  `userId` is `string | undefined` and `ok: true` does **not** narrow it; the type admits an
+  ok-without-id, and the fallback keeps the admin on the filtered directory rather than
+  routing them to `/usuarios/undefined`.
 
 ⭐ **The generalisable lesson, stated because the instruction that produced it was reasonable:**
 "model the missing fields optional and absorb the backend as a type change" was carried over
@@ -357,6 +374,32 @@ Decisions live in the ADR; this is the index so a reader finds them without re-d
   boundary for `usuarios` only (not the manage shell, and **not** `[userId]`/`novo`, whose boundaries
   are F2/F3 decisions), pt-BR, a `reset()` retry, and ⛔ **no raw Supabase/Postgres text reaching the
   UI** — CLAUDE.md §8, the rule the file exists to honour.
+- **2026-08-23 · ⚖ ADR 0133 Amdt 1's "whenever the input includes `cpf`" ruled CHANGE-based (ADR 0133
+  Amdt 3) — LEAD-ruled, not PO-escalated.** Read literally (presence-based), the subset bound applies to
+  every `updateUserProfile` call carrying the key, so a hospital_admin editing the **name** of a
+  cross-hospital person is denied — **the exact case Amdt 1 r1 exists to ALLOW**, failing invisibly as
+  `orgAdminOnly`. Escalation declined on one ground: unlike the Amdt-2 rulings, both readings were not
+  defensible — the literal one defeats the stated purpose of the amendment it appears in. ⭐ **A trap for
+  the NEXT author, not a live bug:** the current form already omits the key when untouched
+  (`user-profile-edit-form.tsx:86`), so presence-based works today and breaks when F2 is rebuilt — which
+  is why it was settled before F2 exists. Pinned both ways, plus a keystone that an **absent key** and an
+  **identically-valued key in different formatting** reach the **same** verdict (`frontend`'s question:
+  *if F2's form is what keeps the bound correct, the bound isn't enforced* — the client cannot be the
+  mechanism; the differing formatting is what proves `normalizeCpf` is in the comparison).
+- **2026-08-23 · The error boundary is VERIFIED, 16/16 (`dc92dfc4`)** — two probes, the second throwing
+  from `[userId]/page.tsx`, which converts the child-coverage claim from *read off the route tree* to
+  *measured*. Pinned: the manage shell **survives** with its 9 sidebar links (the whole reason the file
+  exists), no Postgres-shaped text in the UI, focus on the heading, second action resolving to a route
+  other than the failed one. ⭐⭐ **Run in DEV deliberately, and that is the STRONGER test:** in prod Next
+  redacts `error.message` before the boundary sees it, so a prod pass would have measured the framework,
+  not the component. *Before running a negative assertion, ask who would satisfy it if the code under test
+  were deleted.* Paired with a positive control — the leaked-looking string asserted **absent from the UI
+  and present in the payload** — because "the bad string is absent" passes identically if the error never
+  fired.
+- **2026-08-23 · `TaskStop`'s success message carries NO information about whether a process is gone** —
+  **three occurrences this session, zero misses**, the third holding PID 40932 while reporting
+  "Successfully stopped". Only `curl` (exit 7) settled it each time. ⚠ Matters to the DB: a surviving dev
+  server holds connections, the recorded mechanism by which a `db reset` half-applies into phantom greens.
 - **2026-08-23 · Two F3 rulings, both agreeing with `frontend` against the handoff and against my own
   prior instruction.** (a) **Nascimento/Telefone are not rendered until B4** — see § Cross-track; my
   "model them optional" instruction was transplanted from display fields to inputs, where it means
