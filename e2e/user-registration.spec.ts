@@ -173,6 +173,16 @@ test.describe('AC1 — org_admin registers a user; appears ATIVO in the director
     await page.getByLabel('Órgão emissor').fill('CRM')
     await page.getByLabel('Número de registro').fill(token)
 
+    // AFF2 F3 (ADR 0133 D6-D8): step 1 ("Dados pessoais") no longer submits directly.
+    // This test wants no hospital, so step 2 ("Vínculo hospitalar") is walked
+    // untouched (skippable, no required fields) straight to step 3 ("Comissões"),
+    // where the committee assignment below is unchanged — `CommitteeRoleAssigner`'s
+    // `collect` mode renders the identical "Comissão"/"Papel"/"Adicionar comissão"
+    // controls, only on a later step now.
+    const continueButton = page.getByRole('button', { name: 'Continuar' })
+    await continueButton.click()
+    await continueButton.click()
+
     // Optional: assign a committee with a role. Commit button is now
     // "Adicionar comissão" (FIX-1).
     const committeeSelect = page.getByLabel('Comissão');
@@ -182,8 +192,11 @@ test.describe('AC1 — org_admin registers a user; appears ATIVO in the director
 
     await page.getByRole('button', { name: /registrar pessoa/i }).click()
 
-    // Navigates back to the directory on success.
-    await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 15_000 })
+    // AFF2 F3: a successful registerUser() now redirects straight to the created
+    // person's own profile page, not the bare directory. ⚠ Must positively match a
+    // UUID — the pre-submit URL is already "/usuarios/novo", which would trivially
+    // satisfy a looser `[^/]+$` pattern with no navigation having happened at all.
+    await page.waitForURL(/\/usuarios\/[0-9a-f-]{36}$/i, { timeout: 15_000 })
 
     // The new user must appear, ATIVO (password mode → created active, not
     // pending). Scope to the EXACT user via the server-side directory filter
@@ -235,8 +248,16 @@ test.describe('AC2 — password-mode activation: registered user can sign in imm
       const value = await opts[1].getAttribute('value')
       if (value) await categorySelect.selectOption(value)
     }
+    // AFF2 F3 (ADR 0133 D6-D8): step 1 no longer submits directly — walk the two
+    // skippable steps (Vínculo hospitalar, Comissões) untouched; this test needs
+    // neither.
+    await page.getByRole('button', { name: 'Continuar' }).click()
+    await page.getByRole('button', { name: 'Continuar' }).click()
     await page.getByRole('button', { name: /registrar pessoa/i }).click()
-    await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 15_000 })
+    // ⚠ Must positively match a UUID — the pre-submit URL is already
+    // "/usuarios/novo", which would trivially satisfy a looser `[^/]+$` pattern
+    // with no navigation having happened at all.
+    await page.waitForURL(/\/usuarios\/[0-9a-f-]{36}$/i, { timeout: 15_000 })
 
     // The person can sign in IMMEDIATELY with the admin-set password — no invite
     // email / /convite set-password round-trip.
@@ -278,8 +299,14 @@ test.describe('AC2 — password-mode activation: registered user can sign in imm
       const value = await opts[1].getAttribute('value')
       if (value) await categorySelect.selectOption(value)
     }
+    // AFF2 F3 (ADR 0133 D6-D8): step 1 no longer submits directly — walk the two
+    // skippable steps untouched; this test needs neither.
+    await page.getByRole('button', { name: 'Continuar' }).click()
+    await page.getByRole('button', { name: 'Continuar' }).click()
     await page.getByRole('button', { name: /registrar pessoa/i }).click()
-    await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 15_000 })
+    // ⚠ Must positively match a UUID — see the sibling non-skipped AC2 test's
+    // comment on why a bare `[^/]+$` is unsafe from the "/usuarios/novo" form.
+    await page.waitForURL(/\/usuarios\/[0-9a-f-]{36}$/i, { timeout: 15_000 })
 
     // Fetch the invite email and follow its confirm link.
     const msg = await waitForMailpitMessage(email)
@@ -460,6 +487,11 @@ test.describe('AC5 — email collision blocks with a clear pt-BR error', () => {
       const value = await opts[1].getAttribute('value')
       if (value) await categorySelect.selectOption(value)
     }
+    // AFF2 F3 (ADR 0133 D6-D8): step 1 no longer submits directly — walk the two
+    // skippable steps untouched; the email collision this test wants fires at the
+    // FINAL submit (step 3) regardless of hospital/committee state.
+    await page.getByRole('button', { name: 'Continuar' }).click()
+    await page.getByRole('button', { name: 'Continuar' }).click()
     await page.getByRole('button', { name: /registrar pessoa/i }).click()
 
     // Must stay on the register page with a clear pt-BR error — no navigation,
@@ -485,7 +517,9 @@ test.describe('AC6 — committee assignment with role; searchable + paged direct
     await page.goto('/o/rede-a/manage/usuarios')
     await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 10_000 })
 
-    await page.getByLabel('Buscar por nome, e-mail ou categoria').fill('novato.pendente')
+    // AFF2 Amdt 2 r4: the label now says only what the query searches (name/email —
+    // never "categoria", which was never actually searched).
+    await page.getByLabel('Buscar por nome ou e-mail').fill('novato.pendente')
     await page.getByRole('button', { name: /^buscar$/i }).click()
     await page.waitForURL(/search=novato/, { timeout: 10_000 })
 
@@ -594,13 +628,34 @@ test.describe('AC7 — keyboard-only flow', () => {
     if (firstReal) await categorySelect.selectOption(firstReal)
     await expect(categorySelect).not.toHaveValue('')
 
+    // AFF2 F3 (ADR 0133 D6-D8): step 1 no longer submits directly — walk the two
+    // skippable steps via keyboard (focus + Enter) before the final submit. Retry
+    // the focus assertion (the established pattern above): `.focus()` is not
+    // auto-waiting and each step's heading swaps in via a fresh React render.
+    const continueButton1 = page.getByRole('button', { name: 'Continuar' })
+    await expect(async () => {
+      await continueButton1.focus()
+      await expect(continueButton1).toBeFocused({ timeout: 1_000 })
+    }).toPass({ timeout: 10_000 })
+    await page.keyboard.press('Enter')
+
+    const continueButton2 = page.getByRole('button', { name: 'Continuar' })
+    await expect(async () => {
+      await continueButton2.focus()
+      await expect(continueButton2).toBeFocused({ timeout: 1_000 })
+    }).toPass({ timeout: 10_000 })
+    await page.keyboard.press('Enter')
+
     // Submit via keyboard: focus the submit button and press Enter.
     const submitButton = page.getByRole('button', { name: /registrar pessoa/i })
     await submitButton.focus()
     await expect(submitButton).toBeFocused()
     await page.keyboard.press('Enter')
 
-    await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 15_000 })
+    // ⚠ Must positively match a UUID — the pre-submit URL is already
+    // "/usuarios/novo", which would trivially satisfy a looser `[^/]+$` pattern
+    // with no navigation having happened at all.
+    await page.waitForURL(/\/usuarios\/[0-9a-f-]{36}$/i, { timeout: 15_000 })
 
     // Scope to the EXACT keyboard-registered user via the directory filter so a
     // full-of-predecessors directory can't push it off page 1 (full-suite order

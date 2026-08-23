@@ -191,12 +191,24 @@ test.describe('AFF-1: the Dr. John path end to end — search by CPF, vincular, 
     const firstReal = await opts[1].getAttribute('value')
     if (firstReal) await categorySelect.selectOption(firstReal)
 
+    // AFF2 F3 (ADR 0133 D6-D8): step 1 ("Dados pessoais") no longer submits directly —
+    // advance to step 2 ("Vínculo hospitalar"), where the hospital picker now lives.
+    await page.getByRole('button', { name: 'Continuar' }).click()
+
     // Employed at Hospital Central A ("hired at Hospital Regional") — the org_admin
     // create form's hospital picker is OPTIONAL ("Hospital (opcional)"), not locked.
     await page.getByLabel(/^hospital/i).selectOption({ label: CENTRAL_A_NAME })
 
+    // Step 3 ("Comissões") — deliberately assign none for this basic path.
+    await page.getByRole('button', { name: 'Continuar' }).click()
+
     await page.getByRole('button', { name: /registrar pessoa/i }).click()
-    await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 15_000 })
+    // AFF2 F3: a successful registerUser() now redirects straight to the created
+    // person's own profile page, not the bare directory. ⚠ Must positively match a
+    // UUID, not merely "/usuarios/<anything>" — the pre-submit URL is already
+    // "/usuarios/novo", which trivially satisfies a bare `[^/]+$` with no navigation
+    // having happened at all, silently masking a submission failure.
+    await page.waitForURL(/\/usuarios\/[0-9a-f-]{36}$/i, { timeout: 15_000 })
 
     // Capture the userId and sanity-check the starting state: one affiliation
     // (Central A), zero committees.
@@ -405,12 +417,6 @@ test.describe('AFF-2: brand-new registration at a second hospital appears in the
     await lookupByCpf(page, uniqueCpf())
     await expect(page.getByLabel('Nome completo')).toBeVisible({ timeout: 10_000 })
 
-    // The hospital is LOCKED to Secundário A — no chooser rendered at all.
-    await expect(
-      page.getByRole('combobox', { name: /^hospital/i }),
-    ).toHaveCount(0)
-    await expect(page.getByText(SECUNDARIO_A_NAME)).toBeVisible()
-
     await page.getByLabel('Nome completo').fill(secondaryOnlyName)
     await page.getByLabel('E-mail').fill(secondaryOnlyEmail)
     await page.getByLabel('Senha inicial').fill('Test1234!')
@@ -418,9 +424,27 @@ test.describe('AFF-2: brand-new registration at a second hospital appears in the
     const opts = await categorySelect.locator('option').all()
     const firstReal = await opts[1].getAttribute('value')
     if (firstReal) await categorySelect.selectOption(firstReal)
-    // Deliberately assign NO committee — this is the exact D2 case.
+
+    // AFF2 F3 (ADR 0133 D6-D8): the locked-hospital display used to be step-1
+    // content; it now lives on step 2 ("Vínculo hospitalar").
+    await page.getByRole('button', { name: 'Continuar' }).click()
+
+    // The hospital is LOCKED to Secundário A — no chooser rendered at all.
+    await expect(
+      page.getByRole('combobox', { name: /^hospital/i }),
+    ).toHaveCount(0)
+    // exact: true — the step's own description paragraph ("A pessoa será vinculada
+    // ao Hospital Secundário A. Pular esta etapa...") also contains this substring.
+    await expect(page.getByText(SECUNDARIO_A_NAME, { exact: true })).toBeVisible()
+
+    // Step 3 ("Comissões") — deliberately assign NO committee, the exact D2 case.
+    await page.getByRole('button', { name: 'Continuar' }).click()
     await page.getByRole('button', { name: /registrar pessoa/i }).click()
-    await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 15_000 })
+    // AFF2 F3: redirects straight to the created person's own profile page. ⚠ Must
+    // positively match a UUID — see the sibling comment above on why a bare
+    // `[^/]+$` is unsafe here specifically (the pre-submit URL is already
+    // "/usuarios/novo").
+    await page.waitForURL(/\/usuarios\/[0-9a-f-]{36}$/i, { timeout: 15_000 })
 
     // The roster row is legible, not an empty cell: hospital name + "Sem comissão".
     // `?hospital=` is required — hospitaladmin.dual's directory defaults to their
