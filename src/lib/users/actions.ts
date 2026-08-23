@@ -5,11 +5,12 @@ import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
-import {
-  personScopeAllows,
-  type PersonFootprint,
-  type PersonScopeCapability,
-} from './person-scope'
+import { personScopeAllows, type PersonScopeCapability } from './person-scope'
+// ⛔ `resolvePersonFootprint` and `authorizeOrgOps` live in `person-footprint.ts`, NOT here,
+// and the reason is structural: this file is `'use server'`, so every export of it becomes a
+// callable endpoint. Exporting the resolver to share it with the B6 detail read would have
+// published a person's hospital footprint as an RPC. Keep them there; import, never copy.
+import { authorizeOrgOps, resolvePersonFootprint } from './person-footprint'
 import { isEmailVerificationEnabled } from '@/lib/config/auth'
 import { isValidCpf, normalizeCpf } from '@/lib/users/cpf'
 
@@ -226,19 +227,6 @@ async function appOrigin(): Promise<string> {
 }
 
 /**
- * Authorize an org-scoped user-management action: the caller must be an
- * `org_admin` of `orgId`. Returns false (deny) otherwise. The platform_admin is
- * DELIBERATELY not admitted (vendor isolation; ADR 0041). This is the ONLY
- * authority on the service-role path — the client is never trusted.
- */
-async function authorizeOrgOps(orgId: string): Promise<boolean> {
-  const context = await getSessionContext()
-  if (!context) return false
-  if (context.isInactive) return false
-  return context.orgAdminOf.some((o) => o.organization.id === orgId)
-}
-
-/**
  * Authorize a HOSPITAL-scoped user-management action (ADR 0051 Decision 7): the
  * caller must be a `hospital_admin` of `hospitalId`. Returns false otherwise.
  * Amendment 11: the service-role path has NO RLS backstop, so this TS check is
@@ -318,66 +306,6 @@ async function ensureActiveAffiliation(params: {
     p_employee_id: params.employeeId ?? undefined,
   })
   return !error
-}
-
-/**
- * ADR 0133 D1(c) — the target's HOSPITAL FOOTPRINT, resolved on the admin client.
- *
- * Footprint = active `hospital_affiliations` ∪ the hospitals of the target's
- * COMMISSION-tier memberships (via `commissions.hospital_id`). Both sources are required:
- * the org-wide member picker seats people on commissions of hospitals they hold no
- * affiliation with, so an affiliations-only footprint would make a multi-hospital person
- * look sole-footprint and hand their lifecycle to one hospital's admin (the ADR's
- * Alternatives table rejects that explicitly).
- *
- * ⚠ TIER IS DERIVED STRUCTURALLY, from `commission_id IS NULL`, matching
- * `memberships_scope_shape` — never from a role-name list. That vocabulary has been
- * widened four times (technical_director, technical_director_deputy, quality_reviewer,
- * pqs_member all postdate the original set) and a hardcoded list silently admits the next
- * one. A non-commission-tier row contributes NO hospital to the footprint and instead
- * raises the D2 flag, which denies every capability.
- *
- * Read on the service-role client so a foreign caller — who could not SELECT these rows —
- * still gets a correct answer rather than an empty one that reads as "no footprint".
- */
-async function resolvePersonFootprint(userId: string): Promise<PersonFootprint> {
-  const admin = createAdminClient()
-
-  const { data: affiliations } = await admin
-    .from('hospital_affiliations')
-    .select('hospital_id')
-    .eq('principal_id', userId)
-    .is('ended_on', null)
-    .returns<{ hospital_id: string | null }[]>()
-
-  const { data: memberships } = await admin
-    .from('memberships')
-    .select('commission_id, hospital_id, commissions:commission_id(hospital_id)')
-    .eq('principal_id', userId)
-    .returns<
-      {
-        commission_id: string | null
-        hospital_id: string | null
-        commissions: { hospital_id: string | null } | null
-      }[]
-    >()
-
-  const hospitalIds: string[] = []
-  for (const a of affiliations ?? []) {
-    if (a.hospital_id) hospitalIds.push(a.hospital_id)
-  }
-
-  let hasNonCommissionTierMembership = false
-  for (const m of memberships ?? []) {
-    if (m.commission_id === null) {
-      hasNonCommissionTierMembership = true
-      continue
-    }
-    const hospitalId = m.commissions?.hospital_id
-    if (hospitalId) hospitalIds.push(hospitalId)
-  }
-
-  return { hospitalIds, hasNonCommissionTierMembership }
 }
 
 /**
