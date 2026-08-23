@@ -102,14 +102,17 @@ proxy. Two independent errors followed, in opposite directions:
   **have no stepper at all** — unchanged code paths.
 - **Under-counted.** `user-registration.spec.ts` was listed for the label rename (`:488`) only. It has
   **five** `/registrar pessoa/i` click sites — **:183** (also does committee work now on step 3),
-  **:238**, **:281** (`test.skip`'d), **:463**, **:598** (keyboard walk). *A list built from "files I
+  **:238**, **:281** (`test.skip`'d), **:463** (AC5 email-collision, same simple shape as :238),
+  **:598** (keyboard walk). *A list built from "files I
   touched" cannot see a file the author never opened.*
 
-⭐ The two errors happened to cancel to the same total (**9**), with a **materially different set** — so
-the count corroborated a list that was wrong in both halves. Same class as the universal-negative error on
+⭐ The two errors LOOKED like they cancelled to the same total (**9**) — until `:463` was classified
+too, making the real total **10**. So the corroborating arithmetic was *itself* wrong. ⛔ **A total that
+matches is not a list that matches** — the count agreed while both halves were false, which is the most
+reassuring way for an enumeration to be wrong. Same class as the universal-negative error on
 B8: the lead verified the checkable claims and ratified the enumeration.
 
-**Corrected list:** `aff-hospital-affiliation.spec.ts` :176, :403 · `hospital-admin-tier.spec.ts` :741,
+**Corrected list (10 sites):** `aff-hospital-affiliation.spec.ts` :176, :403 · `hospital-admin-tier.spec.ts` :741,
 :759, **:813** · `phase3-admin-members.spec.ts` :136 (the shared `registerActiveOrgUser` helper — one fix
 serves every caller) · `user-registration.spec.ts` :183, :238, :281, :488, :598.
 
