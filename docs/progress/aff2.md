@@ -39,10 +39,30 @@ inert** until B7 merges. Pill filtering and pill counts are **not testable** bef
 a pill renders its label alone rather than a fabricated "· 0" — a fabricated zero is a false
 measurement, which this repo treats as worse than a missing one.
 
-**Shared local stack — one owner at a time.** Ask the lead before `supabase db reset --local`;
-a reset lands silently in another agent's evidence, and a half-applied one produces phantom
-reds *and* phantom greens. Resets so far: `backend`, 2026-08-23 (exit 0, 441 registered ==
-441 files).
+**⛔ Shared local stack — CLOSED BY DEFAULT.** Ask the lead and **wait for an answer** before anything
+touches the DB. Writing code needs no permission; touching the DB does. Resets so far: `backend`
+2026-08-23 ×2 (441==441, then 444==444 / `20261003001200`).
+
+> ⚠ **This rule was tightened after it failed on 2026-08-23, and the earlier version is worth knowing
+> because it *sounded* sufficient.** It read "ping me when you want the stack" — which puts the
+> scheduling decision on the party who **cannot see the other track**, so it fails in exactly the case
+> it exists for. The lead released `frontend` for Playwright while telling `backend` to start the phase
+> gate, and F3 verification inserted **10 rows** into the database the gate was running against
+> (`auth.users` 36 → 46). ⭐ **The recorded lesson is that a `db reset` lands silently in another
+> agent's evidence; the inverse is equally real and less obvious — ordinary E2E *writes* contaminate a
+> GATE.** No reset, no crash, nothing to notice, and it runs **both ways**: a data-dependent assertion
+> can go spuriously *green* as readily as red.
+>
+> ✅ **Fully attributed, by two independent instruments that share no path:** the lead's catalog read
+> (`auth.users` 46 vs a 36 baseline = 10) and `frontend`'s UI read (Rede A directory 29 → 39 = 10),
+> reconciling exactly against their own 6 `f3.wizard.*` + 4 `f3.skip.*`. Established: **pure inserts,
+> no seeded row mutated** (fresh CPFs, `f3.*@test.local`), **no commissions/memberships/credentials
+> created**, all in **Rede A**. So only *counts* and *"list everyone"* reads can have moved — anything
+> keyed on a seeded identity, and the fixed-id B2 fixtures, are out of reach. That narrowed `backend`'s
+> question from "what moved?" to "did any assertion read Rede A cardinality?" — classify, don't
+> reflexively re-run. ⭐ **It reconciled only because the delta was reported as a NUMBER.** "A few test
+> users" would have left the two measurements unmatched, and the honest conclusion would then have been
+> *"something unexplained also moved"* — far more expensive to chase than the truth.
 
 **⛔ B4 GATES F3 SHIPPING — not just F3 finishing.** `RegisterUserInput` carries no
 `dateOfBirth`/`phone` (measured), so rendering those inputs before B4 is **silent data loss**: the
@@ -53,6 +73,19 @@ the same shape is a lie with a success message. F3 therefore ships **"complete e
 with a marked insertion point. ⚠ ADR 0133 D9 says both columns are *"optional at registration"*, so
 F3 without them is **incomplete against the ADR**, not merely deferred — F3 must not merge with the
 insertion point empty.
+
+**⛔ THREE actions-layer gaps block F3's completion — all the same class, found by `frontend` while
+wiring the submit.** Each is a marked insertion point in committed code, not a silent omission:
+1. **`registerUser` accepts no `dateOfBirth`/`phone`** (B4) — the fields are not rendered; see above.
+2. **`registerUser` returns `Promise<ActionState>` = `{ok, error?, fieldErrors?}` and NOT the created
+   id**, so the plan's *"Success → redirect to the new profile"* is **unimplementable**. No URL was
+   invented: the submit lands on the directory **filtered to the new e-mail**, so the admin still sees
+   exactly the person they created. One line (`orgHref(org,"manage","usuarios",id)`) the day the action
+   returns an id — offered to `backend` as an option while they are in `actions.ts` for B4, not imposed.
+3. **`registerUser` accepts no affiliation start date** ("Data de início"), so the affiliation begins
+   today — which is also the correct default for someone registered today, so this one costs nothing.
+   ⚠ Note the asymmetry is in the **actions layer, not the UI**: `affiliatePerson` (the existing-person
+   path) *does* accept a start date.
 
 **Known E2E breakage inventory (for `tester`, enumerated 2026-08-23 by `frontend` before building).**
 The wizard moves **Hospital + Matrícula to step 2** and **committees to step 3**, so every spec that
@@ -102,7 +135,7 @@ was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
 | F1 · Directory table | ✅ **built 2026-08-23** — lint 8/8, `tsc` 0, 24/24 browser checks. ⚠ Two arms inert pending B7 (below) |
 | F2 · Profile page | blocked on B6 |
 | F3 · Register wizard | ⚠ **built 2026-08-23, MUST NOT MERGE YET** — lint 8/8, `tsc` 0, 24/24 browser checks. **Blocked on B4** for Nascimento/Telefone (below) |
-| F4 · Copy + a11y pass (**incl. the deferred `error.tsx`**) | not started |
+| F4 · Copy + a11y pass | ⏳ **partial** — `error.tsx` ✅ built 2026-08-23 (pulled forward, lead-approved); the copy/a11y sweep itself waits on F2/F3 being final |
 
 ### F1 — what shipped, and what is still inert
 
@@ -220,6 +253,37 @@ memory): 6 `f3.wizard.*` + 4 `f3.skip.*`, Rede A 29 → 39. No spec asserts an e
 count (checked), and the pre-gate `db reset` clears them — flagged so nobody attributes the
 delta to seed drift.
 
+### F4 (partial) — `error.tsx`, and the gap it turned out to close
+
+File: `usuarios/error.tsx`. Built off-stack: lint 8/8, `tsc` 0, **no dev server started**
+(lead bound — `backend` may still take a reset window). ⛔ **Not yet exercised in a
+browser**; the boundary needs a thrown render to prove it, which is queued for after the
+gate clears. Treat it as *written and statically green*, not *verified*.
+
+⭐ **It closes a real gap, not just a scaffold slot.** Measured, not assumed: there is no
+`error.tsx` at `manage/` either, so before this file a render failure anywhere in the
+`usuarios` subtree propagated past the manage shell to the **root** `src/app/error.tsx` —
+taking the sidebar, org switcher and DSR console entry with it. It is now contained to the
+content column.
+
+**Scope, decided rather than inherited:** a segment's `error.tsx` never catches its own
+layout, so `manage/layout.tsx` survives and the person is never trapped. It also covers
+**`[userId]` and `novo`**, which have no boundary of their own (verified against the tree,
+not assumed) — so the copy has to be true for all three surfaces and says *"esta página de
+usuários"*, never *"a lista"*.
+
+**Two calls worth recording:**
+- ⛔ **Nothing from `error` is rendered** — not `message`, not `digest`, not a code. A
+  Postgres error string can carry table, column and constraint names; it goes to the
+  console, and the person gets a sentence.
+- The second action is **"Ir para Visão geral"**, deliberately *not* "voltar para a lista".
+  When it is the directory itself that failed, a link to the directory is the page the
+  person is already on and Next may not navigate at all — a control that does nothing. The
+  manage root is a different route from all three covered surfaces, so it always goes
+  somewhere. Label copied from `org-manage-sidebar`, not invented.
+- Focus moves to the heading on mount: React swaps the tree **in place**, so without it a
+  keyboard user is left focused on a control that no longer exists.
+
 ---
 
 ## Track T — tester *(tester-owned)*
@@ -269,6 +333,15 @@ Decisions live in the ADR; this is the index so a reader finds them without re-d
   ⭐ Both are the class already recorded below: *a carried-forward lesson stated about the wrong subject,
   in the most trusted register in the document* — here the register was a **lead brief**. Neither came
   from reading; both came from running a control.
+- **2026-08-23 · No "Pular etapa" on the wizard's LAST step** (deliberate handoff deviation, `frontend`'s
+  call, lead-approved). Skipping committees and submitting with none assigned are **the same act**, so
+  offering both is two controls with one effect and the admin must work out a distinction that does not
+  exist. The step caption carries the skip. ⛔ Recorded so it is not later "restored" as a fidelity fix.
+- **2026-08-23 · `error.tsx` PULLED FORWARD from F4** — it is the only item in Track F needing neither
+  the database nor a backend contract, and `frontend` was otherwise fully blocked. Bounded: route-level
+  boundary for `usuarios` only (not the manage shell, and **not** `[userId]`/`novo`, whose boundaries
+  are F2/F3 decisions), pt-BR, a `reset()` retry, and ⛔ **no raw Supabase/Postgres text reaching the
+  UI** — CLAUDE.md §8, the rule the file exists to honour.
 - **2026-08-23 · Two F3 rulings, both agreeing with `frontend` against the handoff and against my own
   prior instruction.** (a) **Nascimento/Telefone are not rendered until B4** — see § Cross-track; my
   "model them optional" instruction was transplanted from display fields to inputs, where it means
