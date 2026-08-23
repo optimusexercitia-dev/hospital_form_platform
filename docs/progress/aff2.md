@@ -44,6 +44,32 @@ a reset lands silently in another agent's evidence, and a half-applied one produ
 reds *and* phantom greens. Resets so far: `backend`, 2026-08-23 (exit 0, 441 registered ==
 441 files).
 
+**⛔ B4 GATES F3 SHIPPING — not just F3 finishing.** `RegisterUserInput` carries no
+`dateOfBirth`/`phone` (measured), so rendering those inputs before B4 is **silent data loss**: the
+admin types a birth date, sees it accepted, gets a success redirect, and the value is dropped.
+⭐ **The F1 "model it optional, absorb later" pattern does NOT transfer from DISPLAY fields to
+INPUTS** — for display, absent data renders a documented placeholder and nothing is lost; for input,
+the same shape is a lie with a success message. F3 therefore ships **"complete except two fields"**
+with a marked insertion point. ⚠ ADR 0133 D9 says both columns are *"optional at registration"*, so
+F3 without them is **incomplete against the ADR**, not merely deferred — F3 must not merge with the
+insertion point empty.
+
+**Known E2E breakage inventory (for `tester`, enumerated 2026-08-23 by `frontend` before building).**
+The wizard moves **Hospital + Matrícula to step 2** and **committees to step 3**, so every spec that
+registers a person on one screen needs a `Continuar` walk inserted:
+- `aff-hospital-affiliation.spec.ts` — walks at **:176, :221, :379, :403, :546, :705**; **:196** is the
+  exact breaking line (`getByLabel(/^hospital/i)` while still on step 1).
+- `hospital-admin-tier.spec.ts` — **:743, :761** · `phase3-admin-members.spec.ts` — **:136**.
+- `user-registration.spec.ts:488` — `getByLabel('Buscar por nome, e-mail ou categoria')`; the F1 label
+  is now **"Buscar por nome ou e-mail"**.
+- ⛔ **NOT affected:** the `getByLabel('Buscar pessoa')` hits in those files are `AddMemberPicker`, a
+  different component. Recorded because the negative stops three files being "fixed" that never broke.
+- ✅ **Deliberately preserved anchors** (correct semantics *and* free spec compatibility, in that order):
+  **"Comece pelo CPF"** as step 1's region name (`aff-hospital-affiliation.spec.ts:77`,
+  `hospital-admin-tier.spec.ts:145`) and **"Dados pessoais"** as the revealed create-group heading
+  (`form-name-attribute-invariant.spec.ts:564` — the paired positive proving the CPF lookup reached
+  the server).
+
 **The e2e:prod baseline pin** for this workstream is the 2026-08-23 run at `d885f621`
 (1185 p · 2 f · 2 flaky · 8 DNR · 20 batches, no batch gaps). Both failures are retry
 artifacts on non-idempotent tests — re-run alone they are 25 p / 0 f, exit 0. Diff the
@@ -58,9 +84,9 @@ was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
 
 | Task | State |
 | --- | --- |
-| B1 · `profiles.date_of_birth` + `phone` | plan ACKed 2026-08-23 |
-| B2 · `professional_credentials` SELECT widening | plan ACKed 2026-08-23 (mirror form, Amdt 2 r1) |
-| B3 · `list_org_people` payload + `date_of_birth` | plan ACKed 2026-08-23 |
+| B1 · `profiles.date_of_birth` + `phone` | ✅ **built 2026-08-23** — `20261003001000`; pgTAP `359` 18/18, red-first observed |
+| B2 · `professional_credentials` SELECT widening | ✅ **built 2026-08-23** (mirror form, Amdt 2 r1) — `20261003001100`; pgTAP `360` 21/21, red-first observed |
+| B3 · `list_org_people` payload + `date_of_birth` | ✅ **built 2026-08-23** — `20261003001200` (DROP+CREATE); pgTAP `361` 23/23, red-first observed |
 | B4 · `authorizePersonScopedAdmin` + action rewiring | not started |
 | B5 · Vitest keystone matrix | not started |
 | B6 · Detail-page locked-column read | not started |
@@ -75,7 +101,7 @@ was **RESOLVED 2026-08-21** and the line is stale. The live baseline residue is
 | --- | --- |
 | F1 · Directory table | ✅ **built 2026-08-23** — lint 8/8, `tsc` 0, 24/24 browser checks. ⚠ Two arms inert pending B7 (below) |
 | F2 · Profile page | blocked on B6 |
-| F3 · Register wizard | blocked on B3 |
+| F3 · Register wizard | ⚠ **built 2026-08-23, MUST NOT MERGE YET** — lint 8/8, `tsc` 0, 24/24 browser checks. **Blocked on B4** for Nascimento/Telefone (below) |
 | F4 · Copy + a11y pass (**incl. the deferred `error.tsx`**) | not started |
 
 ### F1 — what shipped, and what is still inert
@@ -132,6 +158,70 @@ non-modification (`manage/layout.tsx` is untouched), not by test. It did not ren
 
 ---
 
+### F3 — built, and why it must not merge yet
+
+Files: `usuarios/novo/page.tsx` (centered column) ·
+`components/users/register-person-flow.tsx` (outcome A now hands off to the wizard) ·
+`components/users/register-person-wizard.tsx` (new) · **`register-user-form.tsx` RETIRED** —
+the wizard supersedes it and `register-person-flow` was its only consumer.
+
+⛔ **THREE FIELDS THE PLAN/HANDOFF SPECIFY ARE NOT BUILT, because the action cannot accept
+them.** All three are the same class: `RegisterUserInput` has no such field, so rendering the
+control would take input, show it accepted, and drop it under a success redirect.
+1. **Nascimento / Telefone** (step 1) — needs **B4**. ⛔ **This is why F3 must not merge**:
+   ADR 0133 D9 says both columns are *"optional at registration"*, so the wizard is supposed
+   to collect them and F3 without them is **incomplete against the ADR, not merely deferred**.
+   Insertion point is marked in both the payload and the step-1 JSX.
+2. **Data de início** (step 2) — `registerUser` takes `homeHospitalId` + `hospitalEmployeeId`
+   and no start date, so the affiliation begins today (also the right default for someone
+   registered today). `affiliatePerson`, on the existing-person path, does accept one.
+3. **"Redirect to the new profile"** — `registerUser` returns `ActionState`
+   (`{ ok, error?, fieldErrors? }`) and **does not return the id it created**, so there is no
+   profile URL to go to. Lands on the directory filtered to the new e-mail instead: the admin
+   still sees exactly the person they made, one click from their page. A one-line change if
+   the action ever returns the id.
+
+⭐ **The generalisable lesson, stated because the instruction that produced it was reasonable:**
+"model the missing fields optional and absorb the backend as a type change" was carried over
+from F1/B7 and **does not transfer from DISPLAY fields to INPUTS**. A display field with no
+data renders a documented placeholder and loses nothing; an input whose value the action
+discards is silent data loss with a success message on top.
+
+**Verified in a real browser** (headless Playwright vs `npm run dev`), 24/24: full org_admin
+three-step walk → person created with the step-2 hospital as a real affiliation; step 1
+refuses Continuar with per-field messages rather than a bare block; Voltar preserves input;
+CPF never reaches the URL (fill **and** keyboard-Enter paths); focus lands on the new step
+heading; stepper renders 3 steps; 0 console errors.
+⭐ **The D8 keystone passed:** `hospitaladmin.a1` **skipping step 2 entirely** still yields
+"Hospital Central A" on the directory row — the skip drops the matrícula, never the vínculo.
+⭐ **The default-config copy check passed:** exactly one `Registrar pessoa` button and **zero**
+`enviar convite` buttons, so the screen does not promise an e-mail nothing sends.
+
+**Deliberate deviations, each with a reason:**
+- Final button branches on `emailVerificationEnabled` (ON → "Registrar e enviar convite",
+  OFF → "Registrar pessoa") instead of the handoff's fixed invite wording, which is false in
+  the default deployment. Spec compatibility is a side effect, not the reason.
+- **No "Pular etapa" on the last step** — skipping committees and submitting with none are
+  the same act; two controls with one effect make the admin work out whether they differ.
+- Committee chips/labels use the codebase's `ROLE_LABEL`, not the mock's gendered copy.
+- **"Comece pelo CPF"** and **"Dados pessoais"** kept as headings — correct semantics
+  independently of the three specs that key off them.
+- No escape hatch (D8): "Enviar convite agora" is not built.
+
+⚠ **Two harness bugs of mine, recorded because both read exactly like app defects.**
+`.focus()` is **not** auto-waiting — focusing before attach sent every keystroke nowhere and
+the empty submit looked like a broken lookup. And `isVisible()` does **not** auto-wait, so the
+first assertion after `goto` raced a cold Turbopack compile and returned false. A third
+"failure" was a 20 s bound too tight under load; proved by running the same flow in isolation
+(it rendered fine) before raising it — not written off as flake.
+
+⚠ **My verification left 10 people in the shared local DB** (measured, not counted from
+memory): 6 `f3.wizard.*` + 4 `f3.skip.*`, Rede A 29 → 39. No spec asserts an exact person
+count (checked), and the pre-gate `db reset` clears them — flagged so nobody attributes the
+delta to seed drift.
+
+---
+
 ## Track T — tester *(tester-owned)*
 
 Not yet spawned. Spawns when F lands per-screen and the dev server runs.
@@ -157,6 +247,45 @@ Decisions live in the ADR; this is the index so a reader finds them without re-d
   select was unbuildable (→ B8); the search doc comment and the visible `aria-label` both
   over-promise *"ou categoria"*, which is never searched; the mock's chip copy is gendered
   where the codebase's `ROLE_LABEL` is not (ship "Coordenação"/"Membro").
+- **2026-08-23 · TWO premises in the LEAD's own brief measured FALSE by `backend`**, both caught by
+  running a control expected to be a formality, and both of which would have shipped as *passing*
+  keystones on security properties:
+  1. ⛔ **"A `DROP` resets `proacl` to NULL, which means PUBLIC" is FALSE here — and the detector that
+     wording produces is CONSTANT-TRUE.** Measured: `pg_default_acl` carries a rule for `public`
+     (`postgres | {postgres=X,service_role=X}`) storing only the *explicitly configured* grants, with
+     Postgres' built-in default (owner **+ `EXECUTE` to PUBLIC**) applied **on top** — so a fresh
+     `CREATE FUNCTION` returns `{=X/postgres, postgres=X/postgres, service_role=X/postgres}`, populated
+     and `anon`-executable. Census: **0 of 531** functions in `public` are NULL-`proacl` and **0 of 531**
+     carry a PUBLIC entry. So `ok(proacl is not null)` **cannot fail**, and the 0-of-531 clean figure is
+     evidence the `revoke … from public` step is **load-bearing, not ceremony**. Replaced with an exact
+     ACL differential against the measured pre-`DROP` set (reds on NULL, on a gained PUBLIC/`anon`, and
+     on a lost `service_role`) plus a direct `anon` arm. `prosecdef` stayed `t`, so `ARM=wrapper`'s
+     domain is unaffected.
+  2. ⚠ **"The default for a new column is *absent*" is FALSE as stated.** `profiles` carries a
+     table-level `REFERENCES` grant, so `date_of_birth`/`phone` each show a `REFERENCES` row exactly as
+     `cpf` does — value-blind, harmless, pre-existing, but a reviewer applying the literal rule would
+     **red a correct migration**. The keystone now asserts D10's actual words — column-locked **like
+     `cpf`**, as a differential against `cpf`, plus no SELECT/UPDATE/INSERT.
+  ⭐ Both are the class already recorded below: *a carried-forward lesson stated about the wrong subject,
+  in the most trusted register in the document* — here the register was a **lead brief**. Neither came
+  from reading; both came from running a control.
+- **2026-08-23 · Two F3 rulings, both agreeing with `frontend` against the handoff and against my own
+  prior instruction.** (a) **Nascimento/Telefone are not rendered until B4** — see § Cross-track; my
+  "model them optional" instruction was transplanted from display fields to inputs, where it means
+  silent data loss. (b) **The wizard's final button branches on `isEmailVerificationEnabled()`** —
+  verification ON → "Registrar e enviar convite" (the handoff's copy, now true), OFF →
+  "Registrar pessoa". Measured: the helper is documented **DEFAULT OFF** and both `.env.example:26`
+  and `.env.production.example:31` set `off`, so the handoff's copy promises an e-mail the default
+  deployment never sends — while the page description on the same screen already branches on that
+  flag. A **new adaptation from handoff fidelity**, in the same family as ADR 0133 Amdt 2's honest
+  search label. ⭐ Spec compatibility is a **side effect, not the reason**: the copy would be right
+  even if it broke every spec.
+- **2026-08-23 · The B7 naming contract is CLOSED before it could drift.** F1 committed placeholder
+  exports (`DirectoryRowExtras` with `hospitalNames: string[]` / `committees[]` / `councilRegistration`,
+  plus `UserDirectoryStatusFilter` and `UserDirectoryStatusCounts`). These must **die** when B7 lands
+  rather than become a parallel vocabulary — relayed to `backend` as *converge or object before writing
+  the types*, since a post-hoc rename converts a type change into the rewrite F1's structure exists to
+  avoid. Types live in `src/lib/users/types.ts` (backend-owned); the **names** are the contract.
 - **2026-08-23 · One spec-breakage mechanism CORRECTED (lead).** `aff-hospital-affiliation.spec.ts`
   was predicted to break because "the container changes from a card `<li>` to a grid row" — it
   does not; the F1 design keeps `<ul>`/`<li>`, so `page.locator('li').filter()` still resolves.

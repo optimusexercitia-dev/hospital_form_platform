@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/field";
 import { FormBanner } from "@/components/auth/form-banner";
 import { CpfField, formatCpf } from "@/components/users/cpf-field";
-import { RegisterUserForm } from "@/components/users/register-user-form";
+import { RegisterPersonWizard } from "@/components/users/register-person-wizard";
 
 /**
  * Identifier-first registration (AFF W3/T3.1 — ADR 0097 D12).
@@ -43,10 +43,16 @@ import { RegisterUserForm } from "@/components/users/register-user-form";
  * the first field resolves the identifier, and the screen then becomes whichever of
  * the four things is actually true.
  *
- *   A. not found in my org        → the ordinary create form, CPF carried forward
+ *   A. not found in my org        → the three-step create wizard, CPF carried forward
  *   B. found, unaffiliated here   → offer to affiliate ("Vincular ao …")
  *   C. found, already affiliated  → link to their page; nothing to create
  *   D. collides OUTSIDE my org    → `registerUser`'s existing pt-BR block, verbatim
+ *
+ * ⚠ AFF2 F3 (ADR 0133 D6–D8): outcome A is now {@link RegisterPersonWizard} — three
+ * steps, one atomic submit at the end — not the former single `RegisterUserForm`, which
+ * this component was its only consumer of and which is retired. Outcomes B, C and D are
+ * unchanged: they are terminal, so the stepper is deliberately absent from them. There
+ * is no "Enviar convite agora" escape hatch (D8).
  *
  * D has no branch of its own on purpose. `list_org_people` never crosses the tenant
  * anchor, so a CPF held in another organisation looks exactly like "not found" here —
@@ -295,20 +301,16 @@ export function RegisterPersonFlow({
           </div>
         </div>
 
-        <div
-          className="animate-rise-in rounded-2xl border border-border bg-card p-6 shadow-xs sm:p-7"
-          style={{ ["--rise-delay" as string]: "60ms" }}
-        >
-          <RegisterUserForm
-            organizationId={organizationId}
-            cpf={cpf}
-            categories={categories}
-            commissions={commissions}
-            emailVerificationEnabled={emailVerificationEnabled}
-            affiliableHospitals={affiliableHospitals}
-            lockedHospital={lockedHospital}
-          />
-        </div>
+        <RegisterPersonWizard
+          org={org}
+          organizationId={organizationId}
+          cpf={cpf}
+          categories={categories}
+          commissions={commissions}
+          emailVerificationEnabled={emailVerificationEnabled}
+          affiliableHospitals={affiliableHospitals}
+          lockedHospital={lockedHospital}
+        />
       </div>
     );
   }
