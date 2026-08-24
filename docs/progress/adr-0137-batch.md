@@ -155,6 +155,22 @@ indistinguishable from a deleted one.
 
 ---
 
+## The residue increment — 2026-08-24 (commit `78ac44cf`), rotated from § Now 2026-08-24
+
+⛔ **This increment's commit and file inventory existed in PROGRESS.md § Now and NOWHERE ELSE** —
+its *findings* were recorded here and in ADR 0137 Amendment 1, but the shipping record was not, so
+compacting § Now would have deleted the only copy. Kept verbatim:
+
+> (1) `78ac44cf`, 2026-08-24: `supabase/tests/365_*`, `referral-send-wizard{,-phi-failclosed.test}`,
+> `messages.ts`. ⚠ `e2e:prod` NOT re-run for it.
+
+What it shipped: the referral send wizard **fails closed on a failed PHI prefill**, and the
+post-send blanking question is settled **by fixture** (`365_referral_mrn_persistence_floor.sql`,
+12 tests) rather than by argument — the measurement ADR 0137 D4's blockquote and Amendment 1 both
+rest on.
+
+---
+
 ## The follow-up sweep — 2026-08-24 (commit `5c8f3542`; PUSHED the same day, schema first)
 
 Nine of the ten open items solved in one increment. **Two were PO rulings, not fixes** — both

@@ -336,3 +336,11 @@ contract (§5: keep only the current milestone's rows live). Struck loop rows pr
 | DSR operational remediation (r2) | **APPROVED** | 2026-08-21 | [dsr-remediation-review](../reviews/dsr-remediation-review.md) |
 | ~~DSR operational remediation (r1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-21 | [dsr-remediation-review](../reviews/dsr-remediation-review.md) |
 
+
+## ↩ Rotated from PROGRESS.md 2026-08-24 at the ADR 0137 Record step — retention (current milestone only)
+
+_The AFF2 pair, verbatim (links repointed). Still standing in § QA Verdicts after the ADR 0137
+Record step, which is the rotation that should have moved them: 0137 is the current milestone._
+
+| **AFF2** (ADR 0133 + Amdt 1–4) | ✅ **APPROVED (r2)** — both r1 blockers discharged at `02cc5817` (R1 fixed + future-expiry control · R2 ruled, Amdt 4 r2). 2 carried records: "strictly stricter" is false (the fix WIDENS both subset capabilities; no arm) + the seed warrant is mis-cited. r1 CHANGES REQUESTED | 2026-08-23 | [aff2-review.md](../reviews/aff2-review.md) |
+| ~~AFF2 (r1)~~ | ~~CHANGES REQUESTED~~ — 2 blocking, both found outside the given remit; every remit item passed | 2026-08-23 | [aff2-review](../reviews/aff2-review.md) |

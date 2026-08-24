@@ -229,3 +229,73 @@ _Verbatim. AFF2 completed its §6 gate the same day it started: PO-approved 2026
   **FUP-AFF2-CONTA is registered** (index + body) — the plan's build-start requirement, discharged.
   **Track task detail → [aff2.md](aff2.md)** (per-track sections, teammate-owned).
 
+
+## Rotated 2026-08-24 at the ADR 0137 Record step — four concluded § Now bullets
+
+_Verbatim, links repointed for this directory (9 of 9 resolve; the inverse-`cmp` caveat at the head
+of this file applies here too — two source prefixes collapse onto one). PROGRESS.md stood at
+79,174 B of an 80,000 B cap when this cut was made: **3.4 % headroom**._
+
+⛔ **What did NOT rotate, verified by name before the cut:** every follow-up these bullets cite holds
+its own line in PROGRESS.md § Follow-ups — `FUP-CS2-QA-RESIDUE`, `FUP-RESET-ROLE`,
+`FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`,
+`FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES`. The two standing prohibitions these bullets carried have a
+**different** home, because an archive is not loaded and a rule with no resolution event can only
+accumulate in the tracker: [`.claude/rules/live-facts-measure-dont-quote.md`](../../.claude/rules/live-facts-measure-dont-quote.md).
+
+⭐ **One premise died between the writing and the cut, and it is the reason the case-split bullet
+could go at all:** its item 1 said *"`e2e:prod` is RED and §6 step 2 is NOT satisfied"*. The ADR 0137
+batch then ran a **full `e2e:prod` gate GREEN, exit 0 — 1221 p / 0 f** on 2026-08-24, which
+post-dates that red. The bullet is rotated as written; the **current** e2e state is stated live in
+§ Now, and it is neither this red nor that green: the last full gate was green at `1320d0b0`, and
+the two residue increments after it are uncovered.
+
+### The AFF2 bullet
+
+- **✅ AFF2 — COMPLETE, PO-APPROVED, MERGED (`96acec61`, `--no-ff`) and PUSHED 2026-08-23** — schema
+  first, then code, both **re-measured rather than accepted on report**. Rotated out of § Now
+  2026-08-23; full record → ledger row **AFF2** + [aff2.md](aff2.md).
+  ⭐ **One lesson kept here because its subject is THIS file: a commit count and a head sha are LIVE
+  FACTS** — `git rev-list --count origin/main..main`, never quoted from here. This bullet once read
+  *"39 commits, head `ed125b93`"* and was **already wrong when committed**: the Record commit that
+  wrote it was itself commit 40. A count written inside the commit it counts is off by one **by
+  construction**.
+
+### The case-surface-split bullet
+
+- **✅ CASE SURFACE SPLIT — COMPLETE (Inc 1+2), MERGED and PUSHED 2026-08-23** (ADR 0134 D1–D7 + Amdt 1–8),
+  schema first then code. Compacted in § Now 2026-08-23 — completed-run detail (commit shas, gate counts,
+  push ranges) is in the **ledger row** + [inc-1](case-surface-split-increment-1.md) ·
+  [inc-2](case-surface-split-increment-2.md) ·
+  [assertion-integrity](case-split-assertion-integrity.md). ⛔ Re-measure remote figures
+  from § State — never quote a push OUTCOME as the remote's current state.
+  ⛔ **What is still LIVE, and the only reason this bullet remains:**
+  1. **`e2e:prod` is RED and §6 step 2 is NOT satisfied.** Its 2 failures were retry artifacts on
+     non-idempotent tests (GREEN re-run alone) — filed `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`.
+     ⭕ The PO's 2026-08-23 qualification covers a **test-quality** failure only, and was extended once to a
+     *proven-transient infra crash in an untouched file*. ⛔ **RED is still RED — a triage note is never
+     licence to accept a red gate.**
+  2. **Residue is smaller, not gone** — `FUP-CS2-QA-RESIDUE` **12 → 6**; `FUP-RESET-ROLE`'s **134-file
+     sweep OPEN**; ADR [0135](../decisions/0135-authored-refusals-get-their-own-sqlstate.md) **ruled and
+     DEFERRED, not built**; B3 filed **two new residues**.
+
+### The rotation inventory carried by the "NO PHASE IS ACTIVE" bullet
+
+_The status line itself stays live in § Now; what moved is the record of which five bullets rotated where, which is a completed rotation describing this file._
+
+- **⚠ NO PHASE IS ACTIVE.** The case-surface-split program above is the most recent, and it is complete.
+  Everything else that stood here is done: the **DM program (DM0–DM5)** closed 2026-08-18 (QA APPROVED
+  r2), the **DSR** program closed 2026-08-20 and its **operational remediation** 2026-08-21 (both merged
+  **and pushed**), and the Cloud constructed-orphan probe concluded 2026-08-18. All five bullets rotated
+  **verbatim** 2026-08-22 → [now-concluded-2026-08.md](now-concluded-2026-08.md), which is
+  also where the `Imprimir prévia` / `Emitir documento` split already sat. ⛔ **Their open residue did NOT
+  rotate** — every follow-up and bug those bullets named was verified by name to hold its own line in
+  § Follow-ups / § Bug Log first. ⛔ **Two things there must not be read as closure:** `e2e:prod` was
+  **never re-run** for the DSR final increment (last full run was the S3 gate), and the ethics lane is
+  *non-erasable by decision with two known open removal paths* — a worse state than "no path exists".
+
+### The documentation-stability-refactor bullet
+
+_A pointer to a pointer: the narrative rotated here 2026-08-21, and this line was what remained in § Now._
+
+- **✅ SHIPPED 2026-08-19 — the documentation-stability refactor** (ADR [0127](../decisions/0127-standing-rules-home-and-staleness-gate.md); ADR [0124](../decisions/0124-progress-live-state-contract.md) Amdt 1): standing rules moved to `.claude/rules/`, `lint:rules` is gate 8, and rules were **measured to fire**. Bullet rotated verbatim 2026-08-21 → [now-concluded-2026-08.md](now-concluded-2026-08.md), which keeps the four filed-not-built items and the ⛔ premise-was-false note.

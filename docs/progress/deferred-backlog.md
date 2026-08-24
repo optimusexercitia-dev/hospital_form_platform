@@ -44,7 +44,7 @@
 - 🟡 **FUP-VACUOUS-COVERAGE-1** — **`phi-remediation` REM-8/REM-9 are honest `test.skip()`s that never run, so they are outside the vacuity property and `lint:vacuous` can never catch them. ✅ Body written 2026-08-17 (it had no** — tester/backend
 - 🟡 **FUP-329-ABORT-SHAPE** — a `329` keystone whose failure **aborts the file** (drops 41 assertions), making a mutation sweep over those gates unclassifiable — backend
 - 🟡 **FUP-E2E-REPEAT-FLAKY** — ⭕ **TWO members: `act-role-assumption:157` + `phase2-auth-shell:268`** — lead/tester
-- 🟡 **FUP-E2E-SERVER-DEAD-1** — the prod-standalone server dies under load in ~3 of 17 batches; `BATCH_TESTS=22` rescues. Infra, never an assertion failure — **but a batch with no verdict is not a pass** — unassigned
+- 🟡 **FUP-E2E-SERVER-DEAD-1** — the prod-standalone server dies under load; `BATCH_TESTS=22` rescues. Infra, never an assertion failure — **but a batch with no verdict is not a pass**. ⚠ **The rate DRIFTS and must not be quoted from here**: 1/17 → 3/17 → **4 of 20** at the ADR 0137 gate (ledger row 0137) — unassigned
 - 🟡 **FUP-E2E-PRINT-POOL-DEVLOOP** — **`submittedResponseIds` claims the print fixture pool by POSITION (`order=id.asc`), so a second `npx playwright test e2e/pdf-printing.spec.ts` without a reset reds at `:47`. Mechanism PROVEN…** — tester
 - 🟡 **FUP-GATE-PDFP1-FLAKE** — `pdf-printing.spec.ts:38` empty-state flake; ⚠ mechanism **UNPROVEN** and both evidence artifacts were overwritten by the re-runs. Real fix: the gate script must archive a failing batch's log + `test-results/` **before** any re-run — lead/tester
 - 🟡 **FUP-LINT-STALE-SYMBOL-COMMENT** — a 6th lint gate for comments naming deleted identifiers. ⚠ **Lead recommendation: do NOT build** (43% coverage ceiling) — lead/PO

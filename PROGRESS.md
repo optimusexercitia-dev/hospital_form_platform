@@ -16,80 +16,38 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **✅ ADR 0137 batch — COMPLETE, PO-APPROVED, and PUSHED 2026-08-24 (schema first, then code).**
-  Full record → ledger row **0137** + [adr-0137-batch.md](docs/progress/adr-0137-batch.md); reviews
-  [r1](docs/reviews/adr-0137-batch-review.md) (`CHANGES REQUESTED`) → [r2](docs/reviews/adr-0137-batch-review-r2.md) (`APPROVED`).
-  ✅ **PUSHED 2026-08-24, PO-authorised, in the ruled order: `db:push` FIRST, then `git push`.**
-  Both halves **re-measured on the remote, never accepted on the command's own report** — 5 migrations
-  applied (`20261003001300`–`001700`), and the CATALOG then queried directly: `patient_mode` +
-  `patient_required_fields` present on `cases` and `process_template_versions`, `collects_patient` /
-  `patient_enabled` **gone**, and `set_referral_patient` carrying the new draft-only arm.
-  ⛔ **Coolify auto-deploys on push, so the code deploy was IN FLIGHT when this was written and its
-  outcome is NOT recorded here** — check the Coolify deployment, not this line.
-  ⚠ **The window was real, and briefly open in the safe direction:** between `db:push` and the code
-  deploy the OLD build was live against the NEW schema, where it selects two dropped columns directly
-  (ADR 0137 Amdt 2). Chosen deliberately over the reverse, which breaks sooner and wider.
-  ⛔ What shipped in the last two increments, for the record: (1) `78ac44cf` — `supabase/tests/365_*`,
-  `referral-send-wizard{,-phi-failclosed.test}`, `messages.ts`; ⚠ `e2e:prod` NOT re-run for it.
-  (2) `5c8f3542` — the follow-up sweep: nine follow-ups resolved, migration `20261003001700`, a new
-  mutation harness, the `usePendingFocus` hook + its 3 adopters, two deletions. Green on lint 8/8,
-  typecheck, vitest **123 files / 1703** (10 consecutive clean runs — one new spec was flaky and was
-  FIXED, not retried), pgTAP **216 / 7139** on a fresh reset, authz `census`/`hat`/`floor`/`wrapper`,
-  and a **prod-standalone E2E over the 11 affected specs: 147 passed / 0 failed / 0 flaky**
-  (⚠ scoped, **NOT** the full 113-spec gate, which has not run since before `78ac44cf`).
-  ⚠ **1 follow-up OPEN** (was 7) — **`FUP-0137-PHI-MODE-SHIMS`, and it is HALF closed on purpose.**
-  The nine others were solved 2026-08-24 in a dedicated increment → [archive](docs/progress/follow-ups-archive.md);
-  two of them were **PO rulings**, not fixes (post-send PHI amendment is not a product capability;
-  `CaseDepartmentField` deleted). ⭐ **The shims item's blocker CLEARED with this push** — `get_case_detail`'s derived
-  `patient_enabled` key existed to protect the OLD build, and the new one is deploying. It is now
-  ACTIONABLE (a one-migration drop), not blocked. ⚠ Do it only once the Coolify deploy is CONFIRMED
-  live: while the old build is still serving, dropping the key makes it decide every case collects
-  no PHI, silently (`?? false`).
-  ⛔ **CORRECTION, and it is the one that bites at push time: "additive ⇒ old-code/new-schema is safe"
-  is FALSE for this batch** — the dropped columns are selected DIRECTLY by the deployed build, so the
-  schema→code window is real, not zero. Order unchanged. Measurement + blast radius → **ADR 0137
-  Amendment 2**; do not re-derive it here.
-  ⭐ The post-send PHI closure was **INCIDENTAL** and is now **DESIGNED** (migration `20261003001700`) —
-  blanking the MRN went from ONE edit away to TWO. Rationale → **ADR 0137 Amendment 1**.
+- **✅ ADR 0137 batch — COMPLETE, PO-APPROVED, PUSHED 2026-08-24** (schema first, then code; both
+  halves re-measured on the remote catalog, never accepted on the command's own report). Compacted
+  in § Now 2026-08-24 — the completed-run detail (per-increment commits + file inventories, gate
+  figures, the QA rounds, the deploy-window measurement) is in the **ledger row 0137** +
+  [adr-0137-batch.md](docs/progress/adr-0137-batch.md) · reviews
+  [r1](docs/reviews/adr-0137-batch-review.md) → [r2](docs/reviews/adr-0137-batch-review-r2.md)
+  (`APPROVED`) · ADR [0137](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md)
+  **Amdt 1–3**. ⛔ Re-measure remote figures from § State; do not re-derive Amdt 2 here.
+  ⛔ **What is still LIVE, and the only reason this bullet remains:**
+  1. **The Coolify deploy outcome is UNKNOWN and deliberately unrecorded.** Coolify auto-deploys on
+     push, so the code deploy was in flight when the push was recorded. ⛔ **Check the Coolify
+     deployment — no line in this file answers it**, and two items below depend on the answer.
+  2. **`FUP-0137-PHI-MODE-SHIMS` is OPEN and now ACTIONABLE** (a one-migration drop of
+     `get_case_detail`'s derived `patient_enabled` key) — its blocker cleared with the push.
+     ⚠ **Gated on the deploy being CONFIRMED live:** while the old build still serves, dropping the
+     key makes it decide every case collects no PHI, silently (`?? false`).
+  3. **No full `e2e:prod` gate covers the current HEAD.** The last full run was **GREEN, exit 0
+     (1221 p / 0 f)** at `1320d0b0`; the two increments after it — `78ac44cf` and `5c8f3542` — are
+     covered only by a **scoped** 11-spec run. §6 step 2 is satisfied for the batch as gated, **not**
+     for what now sits on `main`.
 - **⛔ ADR 0136 (deferred `staff_admin` sign-off) is NOT in that batch — sequenced AFTER** (PO ruling
   2026-08-23). Its § Open decline-path question was **settled the same day as shape (a)**, the
   correction/supersession machinery — recorded as **ADR 0136 § D7**, so it is now plannable.
   ⚠ **Its § Size table was re-derived; every wrong row was wrong in the REASSURING direction, and the
   TS row is literally true yet the wrong measure.** ⛔ Read the correction under that table in the ADR,
   never the original rows — the figures live there, not here.
-
-- **✅ AFF2 — COMPLETE, PO-APPROVED, MERGED (`96acec61`, `--no-ff`) and PUSHED 2026-08-23** — schema
-  first, then code, both **re-measured rather than accepted on report**. Rotated out of § Now
-  2026-08-23; full record → ledger row **AFF2** + [aff2.md](docs/progress/aff2.md).
-  ⭐ **One lesson kept here because its subject is THIS file: a commit count and a head sha are LIVE
-  FACTS** — `git rev-list --count origin/main..main`, never quoted from here. This bullet once read
-  *"39 commits, head `ed125b93`"* and was **already wrong when committed**: the Record commit that
-  wrote it was itself commit 40. A count written inside the commit it counts is off by one **by
-  construction**.
-
-- **✅ CASE SURFACE SPLIT — COMPLETE (Inc 1+2), MERGED and PUSHED 2026-08-23** (ADR 0134 D1–D7 + Amdt 1–8),
-  schema first then code. Compacted in § Now 2026-08-23 — completed-run detail (commit shas, gate counts,
-  push ranges) is in the **ledger row** + [inc-1](docs/progress/case-surface-split-increment-1.md) ·
-  [inc-2](docs/progress/case-surface-split-increment-2.md) ·
-  [assertion-integrity](docs/progress/case-split-assertion-integrity.md). ⛔ Re-measure remote figures
-  from § State — never quote a push OUTCOME as the remote's current state.
-  ⛔ **What is still LIVE, and the only reason this bullet remains:**
-  1. **`e2e:prod` is RED and §6 step 2 is NOT satisfied.** Its 2 failures were retry artifacts on
-     non-idempotent tests (GREEN re-run alone) — filed `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`.
-     ⭕ The PO's 2026-08-23 qualification covers a **test-quality** failure only, and was extended once to a
-     *proven-transient infra crash in an untouched file*. ⛔ **RED is still RED — a triage note is never
-     licence to accept a red gate.**
-  2. **Residue is smaller, not gone** — `FUP-CS2-QA-RESIDUE` **12 → 6**; `FUP-RESET-ROLE`'s **134-file
-     sweep OPEN**; ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md) **ruled and
-     DEFERRED, not built**; B3 filed **two new residues**.
-- **⚠ NO PHASE IS ACTIVE.** The case-surface-split program above is the most recent, and it is complete.
-  Everything else that stood here is done: the **DM program (DM0–DM5)** closed 2026-08-18 (QA APPROVED
-  r2), the **DSR** program closed 2026-08-20 and its **operational remediation** 2026-08-21 (both merged
-  **and pushed**), and the Cloud constructed-orphan probe concluded 2026-08-18. All five bullets rotated
-  **verbatim** 2026-08-22 → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md), which is
-  also where the `Imprimir prévia` / `Emitir documento` split already sat. ⛔ **Their open residue did NOT
-  rotate** — every follow-up and bug those bullets named was verified by name to hold its own line in
-  § Follow-ups / § Bug Log first. ⛔ **Two things there must not be read as closure:** `e2e:prod` was
+- **⚠ NO PHASE IS ACTIVE.** The ADR 0137 batch above is the most recent program, and it is complete.
+  Everything else that stood here is done — the DM program, DSR + its operational remediation, the
+  Cloud orphan probe, the `Imprimir prévia` split, AFF2 and the case-surface split. Every one of those
+  bullets is rotated **verbatim** → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md),
+  and in each cut the **open residue stayed here**, verified by name against § Follow-ups / § Bug Log.
+  ⛔ **Two things there must not be read as closure, and they have no other live line:** `e2e:prod` was
   **never re-run** for the DSR final increment (last full run was the S3 gate), and the ethics lane is
   *non-erasable by decision with two known open removal paths* — a worse state than "no path exists".
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
@@ -103,7 +61,6 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   2. **C2 Tier 1 sizing** (absorbs `Q1-OPEN-BYTES-CUT` + `SIBLING-GUARD-DIFF`).
   3. **`FUP-DM4-PRODROW`** — now actionable: re-derive a magnitude, or rule that it
      cannot be (TRIAGE #9 already forbids closing it as "reconciled").
-- ⛔ **Re-measure `schema_migrations` and `auth.users` — never re-read a recorded figure** (stale **5×**, incl. a "HEAD is behind" claim that was false when written). The 2026-08-18 migration-hold resolution rotated 2026-08-22 → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md).
 - **⚠ Two facts a session must not trip over** (full context in the
   [triage narrative](docs/progress/dm-fup-triage-2026-08-18.md)):
   1. The remote DB holds **NO REAL CUSTOMER DATA** — but ⛔ it is **NOT empty**: it carries the E2E
@@ -114,10 +71,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      **expires when the pilot loads data**.
   2. **C1 split into C1a (local) + C1b (Cloud); the pilot bound is C1b** — a green
      local rehearsal does NOT release the pilot (§ Critical FUP C1).
-- **✅ SHIPPED 2026-08-19 — the documentation-stability refactor** (ADR [0127](docs/decisions/0127-standing-rules-home-and-staleness-gate.md); ADR [0124](docs/decisions/0124-progress-live-state-contract.md) Amdt 1): standing rules moved to `.claude/rules/`, `lint:rules` is gate 8, and rules were **measured to fire**. Bullet rotated verbatim 2026-08-21 → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md), which keeps the four filed-not-built items and the ⛔ premise-was-false note.
-- **In-flight worktrees: NONE** (measured 2026-08-22, `git worktree list` → the primary checkout only).
-  The `progress-methodology` worktree recorded here was gone; a worktree line is a claim about an
-  external thing and goes stale with nothing able to contradict it.
+- **In-flight worktrees: NONE** — re-measured 2026-08-24, `git worktree list` → the primary checkout
+  only. ⛔ A worktree line is a claim about an external thing: re-measure it, never read it.
 ## Phase Status — live rows only
 
 > **Completed rows live in [phase-ledger.md](docs/progress/phase-ledger.md)** —
@@ -225,8 +180,8 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-23 | ⭐ **AFF2 · authoritative GATE STEP 1**, both tracks still (`55b25be5`) · detail: [aff2.md](docs/progress/aff2.md) | **exit 0 on every step; no pipe in any exit path.** lint 8/8 · `tsc` 0 · Vitest **1644** · `test:db` **212f/7039 PASS** on a fresh reset (444 / `20261003001200`) · four authz ARMs **HOLD** · both diff-scoped sweeps **COVERED**. ⛔ **`e2e:prod` NOT run** — `tester` owns step 2 |
-| 2026-08-23 | ⭐⭐ **AFF2 · FULL `e2e:prod` (gate step 2)**, `REBUILD=1` — detail: [aff2.md](docs/progress/aff2.md) | ✅ **GREEN** — 1205 p · 1 f · 2 flaky · 1 DNR · 20 batches, accounted 1209/1220. The 1 f + 1 DNR are the SAME test, a worker crash (not auto-infra-classified); isolated re-run → 7/7 GREEN. Flaky COUNT matches pin `d885f621` (2); IDENTITY unverifiable — see aff2.md. |
+| 2026-08-24 | ⭐ **ADR 0137 · GATE STEP 1** · detail: [adr-0137-batch.md](docs/progress/adr-0137-batch.md) | lint 8/8 · `tsc` 0 · Vitest **1685** · `test:db` **7126/7126** (215f) on a fresh reset · four authz ARMs **HOLD**, zero `ERROR` · ⚠ diff-scoped door sweep **NOT TRIGGERED — a MEASURED empty** (0 policy statements, 0 boolean fns), **not** a clean sweep |
+| 2026-08-24 | ⭐⭐ **ADR 0137 · FULL `e2e:prod` (gate step 2)**, at `1320d0b0` · detail: [adr-0137-batch.md](docs/progress/adr-0137-batch.md) | ✅ **GREEN, exit 0** — 1221 p · 0 f · 0 infra · 0 DNR · 2 flaky. ⚠ **Covers `1320d0b0`, NOT current HEAD** — the 2 increments after it have only a scoped 11-spec run. ⛔ Two earlier runs failed DIFFERENTLY (RED exit 1; exit 5 **UNRUN**) — ledger row 0137 |
 
 ## QA Verdicts
 
@@ -239,11 +194,10 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **AFF2** (ADR 0133 + Amdt 1–4) | ✅ **APPROVED (r2)** — both r1 blockers discharged at `02cc5817` (R1 fixed + future-expiry control · R2 ruled, Amdt 4 r2). 2 carried records: "strictly stricter" is false (the fix WIDENS both subset capabilities; no arm) + the seed warrant is mis-cited. r1 CHANGES REQUESTED | 2026-08-23 | [aff2-review.md](docs/reviews/aff2-review.md) |
-| ~~AFF2 (r1)~~ | ~~CHANGES REQUESTED~~ — 2 blocking, both found outside the given remit; every remit item passed | 2026-08-23 | [aff2-review](docs/reviews/aff2-review.md) |
 | **ADR 0137 batch** | ✅ **APPROVED (r2)** — 4 r1 items discharged; `required` is product-reachable + E2E-driven. 4 pre-commit conditions in §7. r1 CHANGES REQUESTED | 2026-08-24 | [r2](docs/reviews/adr-0137-batch-review-r2.md) |
+| _The AFF2 pair (r2 + struck r1)_ — rotated 2026-08-24, 0137 being the current milestone | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | _The seven DM rows_ — rotated 2026-08-19, the DM milestone being closed | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
-| _Verbose form of the 5 rows above, incl. both struck r1 rounds_ — rotated 2026-08-14 (§5: never restate rationale here) | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
+| _Verbose form of the 5 rows then above, incl. both struck r1 rounds_ — rotated 2026-08-14 (§5: never restate rationale here) | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | 117 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
 
 ## Decisions
@@ -279,7 +233,7 @@ still awaiting a concluding event stay here:_
 | --- | --- |
 | ⚠ **Remote storage byte-loss is UNQUANTIFIED — the "~49 vanished" figure is WITHDRAWN 2026-08-18.** `n_tup_ins − n_tup_del` compares two units: 5 uploads move `ins` by **+6**, 5 deletes move `del` by **+5** (measured). And by the probe below, any surviving bytes are **unobservable** anyway | a magnitude re-derived from something other than the `pg_stat` counters — or PO ruling that it cannot be ([FUP-DM4-PRODROW](docs/progress/follow-ups.md)) |
 | ⛔ **CORRECTED 2026-08-21 — the remote holds the E2E SEED FIXTURE, not nothing.** This row said *"it holds no data and no users"* (census 2026-08-18). **Measured 2026-08-21 against the linked project: `auth.users` = 36, all `@test.local`, created 2026-08-19 — i.e. AFTER that census; 0 non-test accounts; 1 pre-promoted `platform_admin`; `cases` 10, `responses` 17; synthetic PHI `patient_identifiers` 2 / `event_patient` 3 / `referral_patient` 3.** ⭐ **No real customer data** — so the *conclusion* (safe to touch) survives; the *premise* did not, and the premise is what other decisions were resting on. ⚠ This is the **fifth** time a claim about the remote has gone stale in this file. ⛔ **Re-measure `auth.users` and `schema_migrations` before citing this row — never quote it.** | **expires at pilot data-load**, when it must be REPLACED by the rehearsed C1b disposal bound (§ Critical FUP C1), never just deleted |
-| ✅ **REMOTE IS CURRENT — the ADR 0137 batch SUPERSEDED the AFF2 row here, which is what that row said would happen.** Measured ON THE REMOTE 2026-08-24, after `db:push`: `schema_migrations` = **449**, head **`20261003001700`**; `origin/main..main` = **0** at **`ec1271a8`**. ⭐ **The 449 was MEASURED, not computed** — “444 + 5” would have been right today and is the habit that makes it wrong the day a migration lands from elsewhere. ⭐ **Verified in the remote CATALOG, not from the push output:** `cases` + `process_template_versions` carry `patient_mode` and `patient_required_fields`; `collects_patient` / `patient_enabled` are **absent**; `public.set_referral_patient` contains the draft-only arm (ADR 0137 Amdt 1). ⚠ **Data, re-measured the same day:** `auth.users` = **36**, **0** non-`@test.local`, `cases` = **14** — still the E2E seed fixture and no real customer data, so the row below it stands. ⚠ **`patient_mode='required'` versions on the remote: 0** — the compliance mode is live but nobody has turned it on. ⛔ **Schema went BEFORE code, deliberately — but NOT because old-code/new-schema is safe** (it is not: ADR 0137 Amdt 2), rather because the reverse breaks sooner and wider. ⛔ Superseded by the next remote-affecting change — **re-measure, do not quote** |
+| ✅ **REMOTE IS CURRENT — the ADR 0137 batch SUPERSEDED the AFF2 row here, which is what that row said would happen.** Measured ON THE REMOTE 2026-08-24, after `db:push`: `schema_migrations` = **449**, head **`20261003001700`**; `origin/main..main` was **0** when measured. ⛔ **The head sha this row used to quote (`ec1271a8`) was stale within the day** — HEAD moved to `2b69f19f`, the Record commit that wrote the row, which is the off-by-one-by-construction that [rule `live-facts-measure-dont-quote`](.claude/rules/live-facts-measure-dont-quote.md) now stands against. Measure the sha; never read one here. ⭐ **The 449 was MEASURED, not computed** — “444 + 5” would have been right today and is the habit that makes it wrong the day a migration lands from elsewhere. ⭐ **Verified in the remote CATALOG, not from the push output:** `cases` + `process_template_versions` carry `patient_mode` and `patient_required_fields`; `collects_patient` / `patient_enabled` are **absent**; `public.set_referral_patient` contains the draft-only arm (ADR 0137 Amdt 1). ⚠ **Data, re-measured the same day:** `auth.users` = **36**, **0** non-`@test.local`, `cases` = **14** — still the E2E seed fixture and no real customer data, so the row below it stands. ⚠ **`patient_mode='required'` versions on the remote: 0** — the compliance mode is live but nobody has turned it on. ⛔ **Schema went BEFORE code, deliberately — but NOT because old-code/new-schema is safe** (it is not: ADR 0137 Amdt 2), rather because the reverse breaks sooner and wider. ⛔ Superseded by the next remote-affecting change — **re-measure, do not quote** |
 
 
 ## ⭐⭐ Critical FUP — the must-not-be-forgotten list
