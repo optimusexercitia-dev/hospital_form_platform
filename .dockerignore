@@ -3,6 +3,18 @@ node_modules
 .env*.local
 docker
 e2e
+# `next build` never reads supabase/ — every reference to it from src/ is a code
+# comment, and nothing in src/ reads the filesystem. It is ~13 MB, roughly half
+# the build context, and it sits inside the builder's `COPY . .`, so leaving it
+# in makes a migration- or pgTAP-only commit invalidate the builder layer and
+# pay the full ~6 min rebuild for files the image cannot use. Keep it excluded.
+supabase
+# A worktree checked out under worktrees/ would otherwise be copied whole — see
+# the outputFileTracingRoot note in next.config.ts for the same hazard.
+worktrees
+# Lint/codegen/gate tooling; `npm run build` is plain `next build` and there are
+# no npm lifecycle hooks, so none of it runs during the image build.
+scripts
 playwright-report
 test-results
 test
