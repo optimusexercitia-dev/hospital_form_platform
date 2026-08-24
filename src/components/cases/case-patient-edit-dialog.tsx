@@ -176,7 +176,6 @@ export function CasePatientEditDialog({
               disabled={busy}
               idPrefix="case-patient-edit"
               hideUnit
-              hideAge
               requiredFields={requiredFields}
             />
             {/* Names the outstanding fields rather than only greying the button.

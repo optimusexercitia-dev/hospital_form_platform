@@ -65,25 +65,30 @@ export const G1_MEMBERS: Member[] = [
   },
   {
     gate: 'G1',
-    // ⚠ SUBSTITUTED 2026-08-23 (ADR 0137 D12) — the "Registros" card was
-    // redesigned as "Atividade": the region's accessible name is now driven by
-    // its own `h2` ("Atividade"), so `region(/^Registros$/)` no longer matches
-    // anything and the member would read as permanently absent rather than
-    // relocated. The G1 `canWriteContent` control is now the inline COMPOSER's
-    // submit button ("Registrar"/"Registrando…" while pending), not a
-    // dialog-opening "Adicionar registro" button — that button no longer
-    // exists on this card (the full form is now reached via "Mais detalhes").
-    // Same property (a write-grantee's ability to add a manual record), same
-    // gate, new name and control — not a different affordance.
+    // ⚠ SUBSTITUTED TWICE — the property is unchanged both times (a
+    // write-grantee's ability to add a manual record), only its NAME and control
+    // moved, so this stayed one member rather than becoming a different
+    // affordance:
+    //   2026-08-23 (ADR 0137 D12) — the "Registros" card was redesigned as
+    //     "Atividade", so the region's accessible name comes from its own `h2`
+    //     and `region(/^Registros$/)` matched nothing; the control became the
+    //     inline composer's submit button ("Registrar").
+    //   2026-08-24 — the composer was removed and the dialog-opening "Adicionar
+    //     registro" button came back as the single authoring affordance. There is
+    //     no "Registrar" button on this card any more.
+    // ⛔ THE STRUCTURE LOCATOR IS UNCHANGED ACROSS BOTH. If a future edit makes
+    // this member read as absent, check the CONTROL first — the region name has
+    // now survived two redesigns and is the stable half.
     // ⛔ Anchored exactly like every sibling (`^…$`). The count badge beside
     // "Atividade" carries `aria-hidden="true"` (component fix, 2026-08-23) —
     // an EARLIER version of this locator had to widen past that count while
     // the badge was still exposed to the accessible name; that workaround is
     // gone now that the component is fixed. Do not re-widen this without
     // re-confirming the badge is still hidden.
-    name: 'Registrar (Atividade)',
+    name: 'Adicionar registro (Atividade)',
     structure: (p) => region(p, /^Atividade$/),
-    control: (p) => region(p, /^Atividade$/).getByRole('button', { name: 'Registrar' }),
+    control: (p) =>
+      region(p, /^Atividade$/).getByRole('button', { name: 'Adicionar registro' }),
   },
   {
     gate: 'G1',

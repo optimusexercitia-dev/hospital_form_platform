@@ -30,6 +30,20 @@ export interface PatientDraft {
   name: string;
   mrn: string;
   dateOfBirth: string;
+  /**
+   * ⛔ NO LONGER WRITTEN BY ANY INPUT. The "Idade" field was removed from every PHI
+   * dialog (2026-08-24), extending ADR 0137 **D9** — which had already removed it
+   * from the case surfaces — to the safety-event and referral ones, so all four
+   * share one layout. A date of birth and a free-typed age are two statements of the
+   * same fact that drift apart, and only one is verifiable.
+   *
+   * ⚠ **HIDING, NOT CLEARING — and no backend change.** This field, its `hasData` /
+   * `toInput` arms and the `age_years` column are all untouched, so a record that
+   * ALREADY carries an age keeps it through an edit-and-save round trip: the edit
+   * dialog seeds the draft from the stored record, and `patientDraftToInput` writes
+   * that value straight back. Deleting any of them would silently erase stored ages
+   * on the next save.
+   */
   ageYears: string;
   sex: PatientSex;
   encounterRef: string;
@@ -165,7 +179,6 @@ export function PatientFields({
   disabled = false,
   idPrefix,
   hideUnit = false,
-  hideAge = false,
   requiredFields = [],
 }: {
   draft: PatientDraft;
@@ -181,19 +194,6 @@ export function PatientFields({
    * free-text unit (default `false`).
    */
   hideUnit?: boolean;
-  /**
-   * Hide the "Idade" field (ADR 0137 **D9**). Set by every CASE surface: a date of
-   * birth and a free-typed age are two statements of the same fact that drift apart,
-   * and only one of them is verifiable.
-   *
-   * ⛔ **HIDING, NOT CLEARING — and no backend change.** `PatientDraft.ageYears`,
-   * `patientDraftToInput` and the `age_years` column are untouched, so a record that
-   * already carries an age keeps it through an edit-and-save round trip (the draft
-   * still holds the prefilled value; only the input is gone). Safety-event and
-   * referral flows keep `Idade` — that asymmetry is deliberate (ADR 0137
-   * Consequences). Default `false`.
-   */
-  hideAge?: boolean;
   /**
    * The identifier fields this surface REQUIRES (ADR 0137 **D2/D3 layer 3**).
    * Each named field renders an "(obrigatório)" suffix INSIDE its `<label>` — so
@@ -242,8 +242,19 @@ export function PatientFields({
           : "Dados sensíveis do paciente, registrados apenas quando necessários para a análise. Informe somente o mínimo necessário; deixe em branco se não se aplica."}
       </p>
 
+      {/* THE COMMON PHI LAYOUT (2026-08-24) — shared field-for-field with
+          `ReferralPatientFields`, so a coordinator who fills one PHI dialog reads
+          the next one in the same shape:
+            1. Nome (full width)
+            2. Sexo · Data de nascimento
+            3. Prontuário · Atendimento
+            4. Unidade / setor · Profissional responsável
+          ⚠ Row 4 collapses to a single cell on every CASE surface, which passes
+          `hideUnit` (ADR 0137 D9 — the case collects a structured, non-PHI
+          department instead). That asymmetry is the ONLY permitted deviation;
+          keep the row order identical either way. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5 text-sm">
+        <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
           <span className="font-medium">
             Nome
             {mark("name")}
@@ -258,67 +269,6 @@ export function PatientFields({
             autoComplete="off"
           />
         </label>
-
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">
-            Prontuário
-            {mark("mrn")}
-          </span>
-          <input
-            type="text"
-            value={draft.mrn}
-            onChange={(e) => set("mrn", e.target.value)}
-            disabled={disabled}
-            aria-required={ariaRequired("mrn")}
-            className={FIELD_CLASS}
-            autoComplete="off"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">
-            Data de nascimento
-            {mark("date_of_birth")}
-          </span>
-          {/* MEASURED (real Chromium AX tree, same class of check that proved the
-              welded `mrn` checkbox correctly named): a wrapping <label> DOES name a
-              <button> — the premise this comment used to state was false. The
-              `aria-label` below is therefore NOT what makes this accessible; it's
-              redundant, not load-bearing. `aria-label` wins accname precedence over
-              label-wrapping when both are present, but `labelOf` was written to
-              mirror `mark`'s rendered text exactly, so the wrapping <label> alone
-              would already produce the identical name — belt-and-suspenders, kept
-              for that reason, not removed. The "(obrigatório)" suffix still has to
-              live IN the name either way (not an `aria-required` attribute),
-              because the button role supports no `aria-required`. */}
-          <DatePicker
-            value={draft.dateOfBirth}
-            onChange={(v) => set("dateOfBirth", v)}
-            disabled={disabled}
-            aria-label={labelOf("date_of_birth")}
-          />
-        </label>
-
-        {!hideAge && (
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">
-              Idade{" "}
-              <span className="font-normal text-muted-foreground">
-                (se a data não for conhecida)
-              </span>
-            </span>
-            <input
-              type="number"
-              min={0}
-              max={150}
-              inputMode="numeric"
-              value={draft.ageYears}
-              onChange={(e) => set("ageYears", e.target.value)}
-              disabled={disabled}
-              className={FIELD_CLASS}
-            />
-          </label>
-        )}
 
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">
@@ -346,6 +296,46 @@ export function PatientFields({
               </option>
             ))}
           </NativeSelect>
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium">
+            Data de nascimento
+            {mark("date_of_birth")}
+          </span>
+          {/* MEASURED (real Chromium AX tree, same class of check that proved the
+              welded `mrn` checkbox correctly named): a wrapping <label> DOES name a
+              <button> — the premise this comment used to state was false. The
+              `aria-label` below is therefore NOT what makes this accessible; it's
+              redundant, not load-bearing. `aria-label` wins accname precedence over
+              label-wrapping when both are present, but `labelOf` was written to
+              mirror `mark`'s rendered text exactly, so the wrapping <label> alone
+              would already produce the identical name — belt-and-suspenders, kept
+              for that reason, not removed. The "(obrigatório)" suffix still has to
+              live IN the name either way (not an `aria-required` attribute),
+              because the button role supports no `aria-required`. */}
+          <DatePicker
+            value={draft.dateOfBirth}
+            onChange={(v) => set("dateOfBirth", v)}
+            disabled={disabled}
+            aria-label={labelOf("date_of_birth")}
+          />
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium">
+            Prontuário
+            {mark("mrn")}
+          </span>
+          <input
+            type="text"
+            value={draft.mrn}
+            onChange={(e) => set("mrn", e.target.value)}
+            disabled={disabled}
+            aria-required={ariaRequired("mrn")}
+            className={FIELD_CLASS}
+            autoComplete="off"
+          />
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">

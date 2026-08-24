@@ -222,7 +222,9 @@ export function TemplateBuilderShell({
   // The right-hand rail: version history (always) + the per-case DATA-COLLECTION
   // config (feature-gated). History makes the rail unconditional — versioning is
   // the point of this screen, so the picker is never hidden.
-  const showPatientMode = isDraft && casePatientEnabled;
+  // ⚠ FLAG ONLY — the `isDraft` arm was removed 2026-08-24; the card must survive
+  // publication (see its mount below). `editable={isDraft}` carries the draft rule.
+  const showPatientMode = casePatientEnabled;
 
   // The merged sequence (phases + narratives) when the feature is on; phase-only
   // otherwise. `mergeTemplateLayout` of phases + [] is just the phases in order.
@@ -505,6 +507,32 @@ export function TemplateBuilderShell({
             currentVersionId={version.id}
           />
 
+          {/* ADR 0137 **D1/D2** — the three-mode PHI collection setting plus, in
+              `required` mode, the field set the case must carry. This is the ONLY
+              user-reachable channel to `patient_mode = 'required'`; the DB, the
+              minting DEFINERs and the pgTAP suite supported the mode while nothing
+              in the product could select it (QA C-1).
+
+              ⛔ NOT draft-gated any more (2026-08-24). It used to mount only while
+              `isDraft`, so the moment a coordinator PUBLISHED the version the card
+              vanished — and with it the only statement of whether cases from this
+              process carry patient identifiers at all. That is a fact about every
+              case the version mints, so it must stay readable for the version's whole
+              life; `editable` now carries the draft rule instead, matching
+              `CustomFieldsCard` and the outcomes picker → published-card pair. It
+              renders for `none` too: "does this process collect PHI?" is a question
+              whose answer is worth stating even when the answer is no.
+
+              It leads the data-collection pair because PHI outranks custom fields. */}
+          {showPatientMode && (
+            <PatientModePicker
+              templateVersionId={version.id}
+              patientMode={version.patientMode}
+              patientRequiredFields={version.patientRequiredFields}
+              editable={isDraft}
+            />
+          )}
+
           {/* Custom fields (ADR 0083) — editable while draft, read-only once published
               (mirrors the outcomes picker → published-card treatment). */}
           {caseCustomFieldsEnabled && (
@@ -512,19 +540,6 @@ export function TemplateBuilderShell({
               templateVersionId={version.id}
               fields={version.customFields}
               editable={isDraft}
-            />
-          )}
-
-          {/* ADR 0137 **D1/D2** — the three-mode PHI collection setting plus, in
-              `required` mode, the field set the case must carry. This is the ONLY
-              user-reachable channel to `patient_mode = 'required'`; the DB, the
-              minting DEFINERs and the pgTAP suite supported the mode while nothing
-              in the product could select it (QA C-1). */}
-          {showPatientMode && (
-            <PatientModePicker
-              templateVersionId={version.id}
-              patientMode={version.patientMode}
-              patientRequiredFields={version.patientRequiredFields}
             />
           )}
         </aside>

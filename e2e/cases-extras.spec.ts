@@ -410,13 +410,15 @@ test('AC-Docs: uploads and downloads a document (core document model, DM2 Wave A
   await popup.close().catch(() => {})
 
   // ── Add a free-text event ──
-  // ADR 0137 D12 — "Registros" -> "Atividade"; the card's own "Adicionar
-  // registro" button is gone, replaced by the inline composer's "Mais
-  // detalhes" escape hatch, which opens the same full dialog.
+  // ADR 0137 D12 renamed "Registros" -> "Atividade" and replaced the card's
+  // "Adicionar registro" button with an inline composer whose "Mais detalhes"
+  // escape hatch opened the full dialog. The composer was REMOVED 2026-08-24 and
+  // the button came back: it is once again the single authoring affordance, and
+  // it opens the same dialog "Mais detalhes" used to.
   const eventsPanel = page.getByRole('region', { name: /Atividade/i })
   await expect(eventsPanel).toBeVisible({ timeout: 10_000 })
 
-  await eventsPanel.getByRole('button', { name: /Mais detalhes/i }).click()
+  await eventsPanel.getByRole('button', { name: 'Adicionar registro' }).click()
   const eventDialog = page.getByRole('dialog').filter({ hasText: /registro/i })
   await expect(eventDialog).toBeVisible({ timeout: 10_000 })
 

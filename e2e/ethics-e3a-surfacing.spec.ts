@@ -872,12 +872,12 @@ test('EVT-3 coordinator manual write: a manually-created coordinator_only note A
   await page.waitForURL(`${MANAGE_BASE}/${EVT_CASE_ID}`)
 
   // ADR 0137 D12 — "Registros" -> "Atividade" (the region is named by its own h2).
-  // The card's own "Adicionar registro" button is GONE — the full authoring
-  // dialog (still titled "Adicionar registro") is now reached via the inline
-  // composer's "Mais detalhes" escape hatch, which needs `canWrite` exactly as
-  // the old button did.
+  // The card's "Adicionar registro" button briefly gave way to an inline composer
+  // + "Mais detalhes" escape hatch; the composer was removed 2026-08-24 and the
+  // button is the single authoring affordance again, gated on `canWrite` exactly
+  // as before. The dialog it opens is unchanged.
   const registros = page.getByRole('region', { name: 'Atividade' })
-  await registros.getByRole('button', { name: 'Mais detalhes' }).click()
+  await registros.getByRole('button', { name: 'Adicionar registro' }).click()
   const dialog = page.getByRole('dialog', { name: 'Adicionar registro' })
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('Visibilidade').selectOption({ label: 'Somente coordenação' })

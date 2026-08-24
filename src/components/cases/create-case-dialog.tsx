@@ -581,7 +581,6 @@ export function CreateCaseDialog({
                   disabled={busy}
                   idPrefix="create-case-patient"
                   hideUnit
-                  hideAge
                   requiredFields={requiredPatientFields}
                 />
                 {/* Names the outstanding fields rather than only greying the button —
@@ -659,7 +658,6 @@ export function CreateCaseDialog({
                 disabled={busy}
                 idPrefix="create-case-processless-patient"
                 hideUnit
-                hideAge
               />
               <PatientHiddenFields patient={patient} />
             </div>

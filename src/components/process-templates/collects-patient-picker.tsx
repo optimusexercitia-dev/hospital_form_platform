@@ -2,7 +2,7 @@
 
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, ShieldAlert } from "lucide-react";
+import { Check, Lock, ShieldAlert } from "lucide-react";
 
 import { setTemplatePatientMode } from "@/lib/cases/actions";
 // ⚠ TYPE-ONLY — `@/lib/queries/cases` is a server query module (see the note in
@@ -18,7 +18,8 @@ import { usePendingFocus } from "@/components/ui/use-pending-focus";
 
 /**
  * The process "Identificação do paciente" configuration (ADR 0038 — the THIRD PHI
- * module; ADR 0137 **D1/D2**; draft-only).
+ * module; ADR 0137 **D1/D2**). Editable while the version is a DRAFT; read-only,
+ * but still PRESENT, for its whole life after that (see {@link editable}).
  *
  * ⛔ This was a BOOLEAN toggle until ADR 0137, and the file name is the last trace
  * of that. D1 replaced `collects_patient` with a three-mode setting, and this
@@ -46,20 +47,38 @@ import { usePendingFocus } from "@/components/ui/use-pending-focus";
  * version; live cases are immutable (`app.guard_case_patient_mode_immutable`).
  *
  * Persists immediately via `setTemplatePatientMode`; optimistic with revert on
- * failure. The shell mounts it for DRAFT versions only, and only while the
- * `case_patient` flag is on — when the flag is off the platform is byte-identical
- * to before this feature.
+ * failure. The shell mounts it whenever the `case_patient` flag is on — when the
+ * flag is off the platform is byte-identical to before this feature. ⚠ It is NO
+ * LONGER draft-gated at the mount (2026-08-24); `editable` carries that rule, so a
+ * published version still states what it collects.
  */
 export function PatientModePicker({
   templateVersionId,
   patientMode,
   patientRequiredFields,
+  editable,
 }: {
   templateVersionId: string;
   /** The version's current collection mode (drives the radio group). */
   patientMode: PatientMode;
   /** The version's current required set; `mrn` is always a member when required. */
   patientRequiredFields: readonly PatientRequiredField[];
+  /**
+   * Draft → the radio group + required-field checkboxes; otherwise a READ-ONLY
+   * statement of what this version settled on (2026-08-24).
+   *
+   * ⛔ The card used to be unmounted entirely once the version left draft, which
+   * deleted the answer to "do cases from this process carry patient identifiers?"
+   * from the only screen that ever states it — at exactly the moment the answer
+   * became permanent. Read-only is the right treatment, not absence; it mirrors
+   * `CustomFieldsCard` and the outcomes picker → published-card pair.
+   *
+   * ⚠ The read-only branch renders from the PROPS, not from `mode` / `fields`
+   * state, so it cannot drift from the server's copy — nothing can move that state
+   * when no control is mounted, but reading props makes that structural rather than
+   * incidental.
+   */
+  editable: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -121,6 +140,78 @@ export function PatientModePicker({
     );
     if (!next.includes("mrn")) next.unshift("mrn");
     persist("required", next);
+  }
+
+  /** The canonical-ordered required set — shared by both branches. */
+  const orderedRequired = PATIENT_REQUIRED_FIELD_ORDER.filter((f) =>
+    patientRequiredFields.includes(f),
+  );
+
+  if (!editable) {
+    const selected = MODE_OPTIONS.find((o) => o.value === patientMode);
+    return (
+      <section
+        aria-labelledby="patient-mode-heading"
+        className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
+      >
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h2
+            id="patient-mode-heading"
+            className="inline-flex items-center gap-2 text-lg font-semibold"
+          >
+            <ShieldAlert aria-hidden="true" className="size-4 text-muted-foreground" />
+            Identificação do paciente
+          </h2>
+          <p className="max-w-prose text-sm text-muted-foreground text-pretty">
+            Definido nesta versão e aplicado a cada caso criado a partir dela. Uma
+            versão publicada não muda — para alterar a coleta, crie uma nova versão.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-0.5 rounded-lg border border-border bg-muted/30 p-3">
+          <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Coleta nos casos deste processo
+          </span>
+          <span className="text-sm font-medium">{selected?.title}</span>
+          <span className="text-xs text-muted-foreground text-pretty">
+            {selected?.hint}
+          </span>
+        </div>
+
+        {patientMode === "required" && (
+          <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border bg-muted/20 p-4">
+            <p className="px-1 text-sm font-medium">
+              Campos obrigatórios na criação
+            </p>
+            {/* A LIST, not disabled checkboxes. A disabled control announces
+                "unavailable" and drops out of the tab order, which is the wrong
+                message: these fields are not unavailable, they are SETTLED. */}
+            <ul className="flex flex-col gap-1">
+              {orderedRequired.map((field) => (
+                <li
+                  key={field}
+                  className="flex items-center gap-2.5 px-2 py-1 text-sm"
+                >
+                  <Check
+                    aria-hidden="true"
+                    className="size-4 shrink-0 text-muted-foreground"
+                  />
+                  <span className="font-medium">
+                    {PATIENT_REQUIRED_FIELD_LABELS[field]}
+                  </span>
+                  {field === "mrn" && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                      <Lock aria-hidden="true" className="size-3" />
+                      Sempre exigido
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+    );
   }
 
   return (

@@ -102,22 +102,27 @@ const MIXED: CaseEvent[] = [
 ];
 
 describe("Atividade — the card's own identity", () => {
-  it("is headed 'Atividade' and no longer offers an 'Adicionar registro' button", () => {
+  it("is headed 'Atividade' and authors ONLY through the 'Adicionar registro' dialog", () => {
     render(<CaseEventsTimeline caseId="case-1" events={MIXED} canWrite />);
 
-    // Presence half: the renamed heading and the composer that REPLACED the old
-    // header button. Without these, the absence below would prove nothing.
+    // Presence half. Without it the absences below would pass on a card that
+    // rendered nothing at all.
     // ⚠ EXACT STRING, never `/Atividade/i`. Testing Library matches a string `name`
     // in full after normalization, so this reds if the name becomes "Atividade 3";
     // a substring regex matches that happily — see the invariance test below.
     expect(screen.getByRole("heading", { name: "Atividade" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Registrar" })).toBeInTheDocument();
-
-    // Absence half: the old trigger is gone, so a spec scoped to it fails LOUDLY
-    // rather than silently doing something different.
     expect(
-      screen.queryByRole("button", { name: "Adicionar registro" }),
-    ).toBeNull();
+      screen.getByRole("button", { name: "Adicionar registro" }),
+    ).toBeInTheDocument();
+
+    // Absence half — the INLINE COMPOSER, removed 2026-08-24 (superseding half of
+    // ADR 0137 D12). ⛔ Three separate queries, not one: the composer had three
+    // distinguishable parts and re-introducing any ONE of them is the regression
+    // this guards. A single `queryByRole("button", …)` would go green on a card that
+    // had grown its textarea and kind pills back.
+    expect(screen.queryByRole("button", { name: "Registrar" })).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Tipo do registro" })).toBeNull();
   });
 
   it("names the landmark 'Atividade' INVARIANTLY of the record count", () => {
@@ -237,92 +242,23 @@ describe("Atividade — edit/delete are MANUAL-only", () => {
   });
 });
 
-describe("Atividade — the inline composer", () => {
-  it("offers the six manual kinds and no others", () => {
-    render(<CaseEventsTimeline caseId="case-1" events={[]} canWrite />);
-    const group = screen.getByRole("group", { name: "Tipo do registro" });
-    const radios = within(group).getAllByRole("radio");
-    expect(radios).toHaveLength(6);
-    // ⛔ The four ACTION-ITEM types from the handoff must never appear here.
-    expect(within(group).queryByRole("radio", { name: "Impedimento" })).toBeNull();
-    expect(within(group).queryByRole("radio", { name: "Progresso" })).toBeNull();
-  });
+/**
+ * ⛔ THE INLINE COMPOSER'S TESTS DID NOT DIE WITH IT — they MOVED, intact, to
+ * `case-event-form.test.tsx`. Removing a subject removes its assertions in two
+ * directions, and a DELETED assertion is invisible to `lint:vacuous`: the gate reads
+ * tests that exist. Three properties were asserted here and are now asserted on the
+ * dialog, which since 2026-08-24 is the only authoring path:
+ *   · the six manual kinds and NOT the handoff's four action-item types;
+ *   · Visibilidade offered to a coordinator and to nobody else (ETH·E3a);
+ *   · FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME — the body control's accessible name
+ *     is invariant across a validation error. ⚠ The dialog HAD this defect live; it
+ *     was fixed in the same change, because the composer's fix had never been
+ *     carried over and the composer was no longer there to carry it.
+ * One property was genuinely retired, deliberately: "disables submit until the body
+ * has content". That gate was the composer's controlled `!body.trim()`; the dialog is
+ * uncontrolled and validates server-side, surfacing a pt-BR `FieldError` instead.
+ */
 
-  it("disables submit until the body has content", () => {
-    render(<CaseEventsTimeline caseId="case-1" events={[]} canWrite />);
-    const submit = screen.getByRole("button", { name: "Registrar" });
-    expect(submit).toBeDisabled();
-    fireEvent.change(screen.getByRole("textbox"), {
-      target: { value: "Reunião realizada." },
-    });
-    expect(submit).toBeEnabled();
-  });
-
-  it("shows the visibility control only to a coordinator", () => {
-    const { unmount } = render(
-      <CaseEventsTimeline caseId="case-1" events={[]} canWrite />,
-    );
-    expect(screen.queryByLabelText(/Visibilidade/i)).toBeNull();
-    unmount();
-
-    render(<CaseEventsTimeline caseId="case-1" events={[]} canWrite canSetVisibility />);
-    expect(screen.getByLabelText(/Visibilidade/i)).toBeInTheDocument();
-  });
-
-  /**
-   * FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME.
-   *
-   * ⛔ THE PROPERTY IS INVARIANCE OF THE NAME ACROSS THE ERROR TRANSITION, not the
-   * presence of one string. Asserting `getByRole("textbox", { name: "Descrição do
-   * registro" })` in the clean state alone passes on the DEFECTIVE build too — the
-   * defect only appears once the error renders, and only in the NAME, which no
-   * assertion in this file previously read. So the same query runs twice, either side
-   * of a failed submit, and the failure half is the one that reds on the old markup.
-   *
-   * ⚠ Paired with a presence assertion on the MESSAGE: a fix that removed the alert
-   * entirely would keep the name invariant and silently drop the error, which is a
-   * worse defect wearing this test's green.
-   */
-  it("keeps the composer textarea's accessible name unchanged when the body errors", async () => {
-    createCaseEvent.mockResolvedValueOnce({
-      ok: false,
-      fieldErrors: { body: "Descreva o registro." },
-    });
-
-    render(<CaseEventsTimeline caseId="case-1" events={[]} canWrite />);
-
-    const clean = screen.getByRole("textbox", {
-      name: "Descrição do registro",
-    });
-    expect(clean).toBeInTheDocument();
-
-    fireEvent.change(clean, { target: { value: "Reunião realizada." } });
-    fireEvent.click(screen.getByRole("button", { name: "Registrar" }));
-
-    // The message must actually arrive — otherwise the invariance below is measured
-    // over a transition that never happened.
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Descreva o registro.",
-    );
-
-    // THE ASSERTION. On the pre-fix markup the alert was a child of the wrapping
-    // <label>, so the name here became "Descrição do registro Descreva o registro."
-    // and this query returns null.
-    expect(
-      screen.getByRole("textbox", { name: "Descrição do registro" }),
-    ).toBeInTheDocument();
-
-    // …and the message is REACHABLE from the control, which is what the old markup
-    // never provided: a user tabbing back to the invalid field heard nothing.
-    const described = screen
-      .getByRole("textbox", { name: "Descrição do registro" })
-      .getAttribute("aria-describedby");
-    expect(described).toBeTruthy();
-    expect(document.getElementById(described!)).toHaveTextContent(
-      "Descreva o registro.",
-    );
-  });
-});
 
 /**
  * FUP-0137-KIND-VISUAL-NO-FALLBACK.

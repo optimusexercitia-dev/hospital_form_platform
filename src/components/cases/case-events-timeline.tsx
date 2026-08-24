@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import {
   Activity,
   CalendarClock,
@@ -14,11 +13,11 @@ import {
   Mic,
   MoreHorizontal,
   Pencil,
+  Plus,
   RefreshCw,
   Scale,
   Send,
   ShieldAlert,
-  SlidersHorizontal,
   Undo2,
   Users,
   Vote,
@@ -26,16 +25,9 @@ import {
 } from "lucide-react";
 
 import type { AnyCaseEventKind, CaseEvent } from "@/lib/queries/case-documents";
-import {
-  createCaseEvent,
-  deleteCaseEvent,
-  type ActionState,
-} from "@/lib/cases/documents-actions";
-import { CASE_EVENT_KINDS, isCaseEventKind } from "@/lib/cases/registro-kinds";
+import { deleteCaseEvent } from "@/lib/cases/documents-actions";
+import { isCaseEventKind } from "@/lib/cases/registro-kinds";
 import { Button } from "@/components/ui/button";
-import { FormBanner } from "@/components/auth/form-banner";
-import { Field, FieldError, FieldLabel, useFieldIds } from "@/components/ui/field";
-import { NativeSelect } from "@/components/ui/native-select";
 import { RiseInGroup } from "@/components/motion/rise-in-group";
 import { cn } from "@/lib/utils";
 import { CaseEventForm } from "./case-event-form";
@@ -149,7 +141,7 @@ const FILTERS: { key: ActivityFilter; label: string }[] = [
   { key: "system", label: "Sistema" },
 ];
 
-/** Shared pill styling for the filter chips and the composer's kind segments. */
+/** Pill styling for the Tudo / Atualizações / Sistema filter chips. */
 function pillClass(active: boolean): string {
   return cn(
     "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors",
@@ -162,8 +154,22 @@ function pillClass(active: boolean): string {
 /**
  * The case's **Atividade** card (ADR 0137 **D12**, replacing "Registros") — one
  * chronological feed of the committee's own working notes AND the procedural events
- * the platform emits, with a `Tudo / Atualizações / Sistema` partition, an inline
- * composer, and a connector-spine timeline.
+ * the platform emits, with a `Tudo / Atualizações / Sistema` partition, a
+ * connector-spine timeline, and a single "Adicionar registro" action in its footer.
+ *
+ * ## ⛔ The INLINE COMPOSER is gone (2026-08-24) — superseding half of D12
+ *
+ * D12 shipped an inline composer here (kind pills + textarea + a "Mais detalhes"
+ * escape hatch into {@link CaseEventForm}). It was removed by PO decision: a
+ * permanently-open form sitting above the feed made the card read as a data-entry
+ * surface with a history attached, when what a coordinator opens it for is the
+ * chronology. The dialog is now the ONLY authoring path, and it always carried a
+ * SUPERSET of the composer's fields — Tipo, Visibilidade, corpo, plus the título /
+ * data / hora the composer never offered.
+ * ⚠ {@link CaseEventForm}'s `initialKind` / `initialBody` props existed solely to
+ * carry the composer's half-typed draft across that hand-off, and were deleted in the
+ * same change — nothing else ever passed them. Re-adding a prefill prop is not the
+ * way to re-open this question; the composer is a product decision, not a plumbing one.
  *
  * ## The partition is CLIENT-SIDE, on `kind` alone
  *
@@ -182,9 +188,10 @@ function pillClass(active: boolean): string {
  * ## What the handoff contributed, and what was deliberately NOT taken
  *
  * Chrome adopted at high fidelity: header + subtitle, the three filter pills, the
- * inline composer, the `2rem 1fr` timeline grid with a connector spine, tinted icon
- * circles and matching type chips, and the empty-filter state.
- * ⛔ **The composer's four-type vocabulary was NOT adopted** — `Progresso / Nota /
+ * `2rem 1fr` timeline grid with a connector spine, tinted icon circles and matching
+ * type chips, and the empty-filter state. (The handoff's inline composer WAS adopted
+ * and has since been removed — see the section above.)
+ * ⛔ **The four-type authoring vocabulary was NOT adopted** — `Progresso / Nota /
  * Impedimento / Alteração de prazo` is the ACTION-ITEM vocabulary from the page the
  * handoff was lifted from. This card keeps the case's own six kinds, which are
  * mirrored in three places (`case_events_kind_check`,
@@ -214,41 +221,8 @@ export function CaseEventsTimeline({
   canSetVisibility?: boolean;
 }) {
   const [filter, setFilter] = useState<ActivityFilter>("all");
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<CaseEvent | null>(null);
-
-  // Composer state. `kind` and `body` are lifted so the "Mais detalhes" escape
-  // hatch can carry what has already been typed into the full dialog instead of
-  // making the author retype it.
-  const [kind, setKind] = useState<string>("note");
-  const [body, setBody] = useState("");
-
-  const router = useRouter();
-  const [state, formAction, isPending] = useActionState<
-    ActionState | undefined,
-    FormData
-  >(createCaseEvent, undefined);
-
-  // Clear the textarea on a successful submit. Reconciled DURING RENDER (React's
-  // "adjust state when a prop changes" idiom, already used by
-  // `case-narrative-card.tsx`) rather than from an effect: a synchronous setState
-  // inside an effect body cascades renders and `react-hooks/set-state-in-effect`
-  // fails the lint gate on it.
-  //
-  // ⚠ The composer SURVIVES its own success — it stays mounted — which is what makes
-  // owning this reset legitimate at all. A dialog could not: it unmounts in the same
-  // commit, so anything it set would never paint.
-  const [seenState, setSeenState] = useState(state);
-  if (seenState !== state) {
-    setSeenState(state);
-    if (state?.ok) setBody("");
-  }
-
-  // `router.refresh()` is a call into an external system, not a state update, so it
-  // belongs in an effect and does not trip the rule above.
-  useEffect(() => {
-    if (state?.ok) router.refresh();
-  }, [state, router]);
 
   const shown = useMemo(
     () =>
@@ -259,18 +233,6 @@ export function CaseEventsTimeline({
       }),
     [events, filter],
   );
-
-  const bodyError = state && !state.ok ? state.fieldErrors?.body : undefined;
-  const bannerError =
-    state && !state.ok && !state.fieldErrors?.body ? state.error : null;
-  // `nameRequiredFor: "formData"` is DECLARED, not incidental: `createCaseEvent`
-  // reads `formData.get('body')`, so stripping the DOM `name` would post an empty
-  // record. (`useFieldIds` emits no `name` unless a caller says why it needs one —
-  // read the inversion note in `field.tsx`.)
-  const bodyField = useFieldIds("body", {
-    hasError: Boolean(bodyError),
-    nameRequiredFor: "formData",
-  });
 
   return (
     <section
@@ -333,111 +295,6 @@ export function CaseEventsTimeline({
           ))}
         </div>
       </header>
-
-      {canWrite && (
-        <form
-          action={formAction}
-          className="flex flex-col gap-3 rounded-xl border border-border bg-muted/35 p-3"
-          noValidate
-        >
-          <input type="hidden" name="caseId" value={caseId} />
-
-          {bannerError && <FormBanner tone="error">{bannerError}</FormBanner>}
-
-          {/* Segmented kind picker. Real radios inside a fieldset: native
-              arrow-key traversal and one accessible group name, which a row of
-              `aria-pressed` buttons would not give (they read as six independent
-              toggles). The input is `sr-only`; the visible pill takes the focus
-              ring through `peer-focus-visible`. */}
-          <fieldset className="flex flex-col gap-1.5">
-            <legend className="text-xs font-medium text-muted-foreground">
-              Tipo do registro
-            </legend>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {CASE_EVENT_KINDS.map((k) => (
-                <label key={k} className="cursor-pointer">
-                  <input
-                    type="radio"
-                    name="kind"
-                    value={k}
-                    checked={kind === k}
-                    onChange={() => setKind(k)}
-                    disabled={isPending}
-                    className="peer sr-only"
-                  />
-                  <span
-                    className={cn(
-                      pillClass(kind === k),
-                      "peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/40",
-                    )}
-                  >
-                    {EVENT_KIND_LABEL[k]}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          {/* ⛔ THE ERROR MUST NOT BE A CHILD OF THE LABEL. It was, until 2026-08-24:
-              a `role="alert"` inside the wrapping `<label>` is part of the accessible
-              NAME computation, so on a validation failure the textarea silently
-              renamed itself from "Descrição do registro" to that PLUS the error text.
-              Same family as the count badge that renamed this card's own landmark —
-              data reaching a name that must be invariant. `useFieldIds` + `FieldError`
-              is the house pattern (`src/components/ui/field.tsx`); it links the
-              message through `aria-describedby` instead, which is also what lets a
-              user who tabs BACK to the invalid control hear it at all. */}
-          <Field className="text-sm">
-            <FieldLabel htmlFor={bodyField.controlProps.id} className="sr-only">
-              Descrição do registro
-            </FieldLabel>
-            <textarea
-              {...bodyField.controlProps}
-              rows={2}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              disabled={isPending}
-              placeholder="Descreva uma nota, reunião, decisão ou acompanhamento… Nunca inclua dados de paciente."
-              className="min-h-16 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            <FieldError id={bodyField.errorId}>{bodyError}</FieldError>
-          </Field>
-
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {/* ETH·E3a: only a coordinator may narrow a record to the coordination.
-                A non-coordinator's composer omits the control entirely and the row
-                keeps the server-side default `case_readers`. */}
-            {canSetVisibility && (
-              <label className="mr-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span>Visibilidade</span>
-                <NativeSelect
-                  name="visibility"
-                  defaultValue="case_readers"
-                  disabled={isPending}
-                  className="h-8 w-auto py-0 text-xs"
-                >
-                  <option value="case_readers">Todos os leitores do caso</option>
-                  <option value="coordinator_only">Somente coordenação</option>
-                </NativeSelect>
-              </label>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setDetailsOpen(true)}
-              disabled={isPending}
-            >
-              <SlidersHorizontal aria-hidden="true" />
-              Mais detalhes
-            </Button>
-            <Button type="submit" size="sm" disabled={isPending || !body.trim()}>
-              <Send aria-hidden="true" />
-              {isPending ? "Registrando…" : "Registrar"}
-            </Button>
-          </div>
-        </form>
-      )}
 
       {/* `runKey={filter}` re-runs the entrance when the partition changes, so a
           filter switch reads as the feed re-forming rather than as a silent swap.
@@ -586,25 +443,38 @@ export function CaseEventsTimeline({
         )}
       </RiseInGroup>
 
-      {/* The full authoring form stays available for the fields the inline composer
-          deliberately omits — título, data and hora. Mounted only while open so its
-          uncontrolled `defaultValue`s pick up whatever the composer already holds
-          (a fresh mount is the prefill mechanism). */}
-      {canWrite && detailsOpen && (
+      {/* Authoring footer — the SINGLE way in, replacing the inline composer
+          (2026-08-24; supersedes the composer half of ADR 0137 D12). Bordered and
+          below the feed, matching "Trabalho do caso" and "Trabalho do processo", so
+          the card reads as a chronology with one action on it rather than a form
+          wearing a timeline. Nothing is lost: `CaseEventForm` already offers Tipo,
+          Visibilidade and the body the composer held, plus the título / data / hora
+          the composer deliberately omitted. */}
+      {canWrite && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setAddOpen(true)}
+            className="w-fit"
+          >
+            <Plus aria-hidden="true" />
+            Adicionar registro
+          </Button>
+        </div>
+      )}
+
+      {/* Mounted only while open — a fresh mount per open is what makes the dialog's
+          uncontrolled `defaultValue`s reset between records instead of freezing on
+          the first one. */}
+      {canWrite && addOpen && (
         <CaseEventForm
           mode="create"
           open
-          onOpenChange={(o) => {
-            if (o) return;
-            setDetailsOpen(false);
-            // The dialog took over authorship of this draft; clearing the composer
-            // stops the same text sitting in two places at once.
-            setBody("");
-          }}
+          onOpenChange={(o) => !o && setAddOpen(false)}
           caseId={caseId}
           canSetVisibility={canSetVisibility}
-          initialKind={kind}
-          initialBody={body}
         />
       )}
       {canWrite && editing && (

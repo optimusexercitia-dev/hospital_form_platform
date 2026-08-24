@@ -299,6 +299,28 @@ test('D8-4: no competing primary on the MANAGE host when the coordinator is also
 // on Caso 14) are E2E run residue that a fresh reset does not reproduce.
 // ===========================================================================
 
+/**
+ * Author a manual record through the "Adicionar registro" DIALOG.
+ *
+ * ⛔ THIS IS THE ONLY AUTHORING PATH since 2026-08-24, when the Atividade card's
+ * inline composer was removed (superseding half of ADR 0137 D12). The specs here used
+ * to fill the card's own textarea and click "Registrar"; neither control exists.
+ * ⚠ `exact: true` on both queries is load-bearing — Playwright's `name` matches a
+ * SUBSTRING by default, so a bare 'Adicionar' would also match the trigger button
+ * behind the overlay, and the dialog's own title.
+ */
+async function addAtividadeRecord(page: Page, body: string) {
+  const atividade = page.getByRole('region', { name: 'Atividade' })
+  await expect(atividade).toBeVisible({ timeout: 10_000 })
+  await atividade.getByRole('button', { name: 'Adicionar registro' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Adicionar registro' })
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+  await dialog.getByRole('textbox', { name: 'Descrição', exact: true }).fill(body)
+  await dialog.getByRole('button', { name: 'Adicionar', exact: true }).click()
+  await expect(dialog).toBeHidden({ timeout: 10_000 })
+}
+
 test('D12-1: the Atividade filter pills partition Tudo/Atualizações/Sistema correctly; edit/delete are absent on a Sistema (procedural) row and present on an Atualizações (manual) row', async ({
   page,
   request,
@@ -308,15 +330,13 @@ test('D12-1: the Atividade filter pills partition Tudo/Atualizações/Sistema co
   await page.goto(`/o/${ORG}/c/ccih/manage/cases/${CASE_A_ID}`)
   await page.waitForURL(new RegExp(`manage/cases/${CASE_A_ID}`), { timeout: 15_000 })
 
-  // Add a uniquely-tagged manual record via the inline composer, so the
-  // Atualizações-only membership check below is anchored on IDENTITY (this
-  // exact row), never on a count — Caso 0001 is a shared fixture other specs
-  // also write to.
+  // Add a uniquely-tagged manual record, so the Atualizações-only membership
+  // check below is anchored on IDENTITY (this exact row), never on a count —
+  // Caso 0001 is a shared fixture other specs also write to.
   const MANUAL_BODY = `[E2E ${TAG}] nota manual do teste de partição D12.`
   const atividade = page.getByRole('region', { name: 'Atividade' })
   await expect(atividade).toBeVisible({ timeout: 10_000 })
-  await atividade.getByRole('textbox', { name: /Descrição do registro/i }).fill(MANUAL_BODY)
-  await atividade.getByRole('button', { name: /^Registrar$/i }).click()
+  await addAtividadeRecord(page, MANUAL_BODY)
   await expect(atividade.locator('li').filter({ hasText: MANUAL_BODY })).toBeVisible({
     timeout: 10_000,
   })
@@ -393,15 +413,14 @@ test('D12-2: filtering to a kind the case has none of shows "Nada por aqui com e
 
   const atividade = page.getByRole('region', { name: 'Atividade' })
   await expect(atividade).toBeVisible({ timeout: 10_000 })
-  await atividade.getByRole('textbox', { name: /Descrição do registro/i }).fill('Nota única deste caso — sem eventos de sistema.')
-  await atividade.getByRole('button', { name: /^Registrar$/i }).click()
+  await addAtividadeRecord(page, 'Nota única deste caso — sem eventos de sistema.')
   await expect(atividade.getByText('Nada por aqui com este filtro.')).toHaveCount(0)
 
   await atividade.getByRole('group', { name: 'Filtrar atividade' }).getByRole('button', { name: 'Sistema' }).click()
   await expect(atividade.getByText('Nada por aqui com este filtro.')).toBeVisible({ timeout: 10_000 })
 })
 
-test('D12-K: keyboard-only — the Atividade composer is fully operable without a mouse (kind radios, description, Registrar)', async ({
+test('D12-K: keyboard-only — the Atividade card authors a record without a mouse (open the dialog, pick a Tipo, type, submit)', async ({
   page,
   request,
 }) => {
@@ -427,26 +446,43 @@ test('D12-K: keyboard-only — the Atividade composer is fully operable without 
   const atividade = page.getByRole('region', { name: 'Atividade' })
   await expect(atividade).toBeVisible({ timeout: 10_000 })
 
-  // Focus + select the "Decisão" radio in the kind fieldset with the keyboard.
-  const decisionRadio = atividade.getByRole('radio', { name: 'Decisão' })
-  await decisionRadio.focus()
-  await expect(decisionRadio).toBeFocused()
-  await page.keyboard.press('Space')
-  await expect(decisionRadio).toBeChecked()
+  // Open the authoring dialog with Enter — never a click. This step is NEW to the
+  // flow: before 2026-08-24 the composer was already on the page, so the keyboard
+  // path started at a field. The trigger is now the first thing a keyboard user has
+  // to reach, which makes it the first thing worth asserting.
+  const addBtn = atividade.getByRole('button', { name: 'Adicionar registro' })
+  await addBtn.focus()
+  await expect(addBtn).toBeFocused()
+  await page.keyboard.press('Enter')
 
-  // Tab to the description textarea and type — never a click.
+  const dialog = page.getByRole('dialog', { name: 'Adicionar registro' })
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+
+  // Select "Decisão" in the Tipo <select> with arrow keys. The picker order is
+  // `CASE_EVENT_KINDS` — note, meeting, decision — so two ArrowDowns from the
+  // default. ⚠ Asserted by VALUE afterwards rather than trusted: if the picker order
+  // ever changes, this reds here instead of silently filing the wrong kind.
+  const tipo = dialog.getByRole('combobox', { name: 'Tipo' })
+  await tipo.focus()
+  await expect(tipo).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await expect(tipo).toHaveValue('decision')
+
+  // Focus the description textarea and type — never a click.
   const KEYBOARD_BODY = `[E2E ${TAG}] registro criado inteiramente por teclado.`
-  const descField = atividade.getByRole('textbox', { name: /Descrição do registro/i })
+  const descField = dialog.getByRole('textbox', { name: 'Descrição', exact: true })
   await descField.focus()
   await expect(descField).toBeFocused()
   await page.keyboard.type(KEYBOARD_BODY)
 
-  // Focus + activate "Registrar" with Enter (never a click).
-  const registerBtn = atividade.getByRole('button', { name: /^Registrar$/i })
-  await registerBtn.focus()
-  await expect(registerBtn).toBeFocused()
+  // Focus + activate the submit with Enter (never a click).
+  const submitBtn = dialog.getByRole('button', { name: 'Adicionar', exact: true })
+  await submitBtn.focus()
+  await expect(submitBtn).toBeFocused()
   await page.keyboard.press('Enter')
 
+  await expect(dialog).toBeHidden({ timeout: 10_000 })
   const newRow = atividade.locator('li').filter({ hasText: KEYBOARD_BODY })
   await expect(newRow).toBeVisible({ timeout: 10_000 })
   await expect(newRow.getByText('Decisão', { exact: true })).toBeVisible()

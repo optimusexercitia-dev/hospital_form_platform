@@ -164,7 +164,12 @@ function SaveDraftButton({
   return (
     <Button
       type="button"
-      variant="outline"
+      // `ghost` — a borderless TEXT button (2026-08-24). Saving a draft is the
+      // secondary exit from every step; an outlined button gave it the same visual
+      // weight as `Avançar` / `Enviar` sitting beside it, so the row read as two
+      // equal choices. The hover tint and the focus ring are unchanged, so it stays
+      // discoverable and keyboard-visible.
+      variant="ghost"
       size="lg"
       onClick={onSave}
       disabled={disabled}

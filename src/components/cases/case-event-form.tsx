@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useId } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Field, FieldError, FieldLabel, useFieldIds } from "@/components/ui/field";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimeField } from "@/components/ui/time-field";
 import { PhiInputHint } from "@/components/ui/phi-input-hint";
@@ -43,8 +44,6 @@ export function CaseEventForm({
   caseId,
   event,
   canSetVisibility = false,
-  initialKind,
-  initialBody,
 }: {
   mode: "create" | "edit";
   open: boolean;
@@ -52,18 +51,6 @@ export function CaseEventForm({
   caseId: string;
   /** Required for `edit`; ignored for `create`. */
   event?: CaseEvent;
-  /**
-   * CREATE mode only — seed the kind / body from the Atividade card's inline
-   * composer (ADR 0137 D12), so opening "Mais detalhes" carries what the author
-   * already typed instead of making them retype it. Ignored in `edit` mode, where
-   * `event` is the source.
-   *
-   * ⚠ Consumed through `defaultValue`, so these apply at MOUNT. The caller mounts
-   * this dialog only while it is open — a fresh mount per open IS the prefill
-   * mechanism; keeping it permanently mounted would freeze the first values.
-   */
-  initialKind?: string;
-  initialBody?: string;
   /**
    * Whether the viewer (a coordinator) may set the record's visibility (ETH·E3a).
    * When `false`, the field is omitted and the record keeps the default
@@ -78,6 +65,14 @@ export function CaseEventForm({
     FormData
   >(action, undefined);
   const router = useRouter();
+
+  const visibilityId = useId();
+  const visibilityHintId = useId();
+
+  const bodyField = useFieldIds("body", {
+    hasError: Boolean(state?.fieldErrors?.body),
+    nameRequiredFor: "formData",
+  });
 
   useEffect(() => {
     if (state?.ok) {
@@ -115,7 +110,7 @@ export function CaseEventForm({
             <NativeSelect
               name="kind"
               className="py-2"
-              defaultValue={event?.kind ?? initialKind ?? "note"}
+              defaultValue={event?.kind ?? "note"}
             >
               {EVENT_KINDS.map((k) => (
                 <option key={k} value={k}>
@@ -130,23 +125,38 @@ export function CaseEventForm({
               non-coordinator's form omits this field entirely; the record then keeps
               the server-side default `case_readers` (today's behavior). */}
           {canSetVisibility && (
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">Visibilidade</span>
+            /* ⛔ THE HINT IS OUTSIDE THE <label> — same family as the body error
+                below, and it was live here too. A wrapping `<label>` contributes ALL
+                its text to the accessible name, so with the hint inside it this
+                select announced as "Visibilidade "Somente coordenação" restringe este
+                registro à coordenação da comissão, além das regras de acesso do
+                caso." — a whole paragraph where a name belongs, read out on every
+                focus. `htmlFor` + `aria-describedby` names it "Visibilidade" and
+                offers the explanation as a description instead. */
+            <div className="flex flex-col gap-1.5 text-sm">
+              <label htmlFor={visibilityId} className="font-medium">
+                Visibilidade
+              </label>
               <NativeSelect
+                id={visibilityId}
                 name="visibility"
                 className="py-2"
                 defaultValue={event?.visibility ?? "case_readers"}
+                aria-describedby={visibilityHintId}
               >
                 <option value="case_readers">
                   Todos os leitores do caso
                 </option>
                 <option value="coordinator_only">Somente coordenação</option>
               </NativeSelect>
-              <span className="text-xs text-muted-foreground text-pretty">
+              <span
+                id={visibilityHintId}
+                className="text-xs text-muted-foreground text-pretty"
+              >
                 &quot;Somente coordenação&quot; restringe este registro à coordenação
                 da comissão, além das regras de acesso do caso.
               </span>
-            </label>
+            </div>
           )}
 
           <PhiInputHint>
@@ -170,23 +180,42 @@ export function CaseEventForm({
             )}
           </PhiInputHint>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Descrição</span>
+          {/* ⛔ THE ERROR MUST NOT BE A CHILD OF THE LABEL — FUP-0137-ALERT-INSIDE-
+              LABEL-MUTATES-NAME, the same defect the Atividade card's composer was
+              fixed for. A `role="alert"` inside the wrapping `<label>` is part of the
+              accessible NAME computation, so on a validation failure this textarea
+              silently renamed itself from "Descrição" to "Descrição Descreva o
+              registro." — and a user who tabbed BACK to the invalid control heard the
+              message not at all, because nothing described it.
+
+              ⚠ It was fixed on the composer and left here, which mattered little
+              while the composer was the everyday path. Removing the composer
+              (2026-08-24) made THIS the only way to author a record, so the defect
+              went from one path of two to the only one. `useFieldIds` + `FieldError`
+              is the house pattern; it links the message through `aria-describedby`.
+
+              `nameRequiredFor: "formData"` is DECLARED, not incidental: the action
+              reads `formData.get('body')`, so dropping the DOM `name` would post an
+              empty record. */}
+          <Field className="text-sm">
+            <FieldLabel
+              htmlFor={bodyField.controlProps.id}
+              className="font-medium"
+            >
+              Descrição
+            </FieldLabel>
             <textarea
-              name="body"
+              {...bodyField.controlProps}
               required
               rows={4}
               className={FIELD_CLASS}
-              defaultValue={event?.body ?? initialBody ?? ""}
+              defaultValue={event?.body ?? ""}
               placeholder="Descreva o registro…"
-              aria-invalid={state?.fieldErrors?.body ? true : undefined}
             />
-            {state?.fieldErrors?.body && (
-              <span role="alert" className="text-sm font-medium text-destructive">
-                {state.fieldErrors.body}
-              </span>
-            )}
-          </label>
+            <FieldError id={bodyField.errorId}>
+              {state?.fieldErrors?.body}
+            </FieldError>
+          </Field>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-sm">

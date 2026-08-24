@@ -26,6 +26,12 @@ export interface ReferralPatientDraft {
   name: string;
   mrn: string;
   dateOfBirth: string;
+  /**
+   * ⛔ NO LONGER WRITTEN BY ANY INPUT — see the identical note on
+   * `PatientDraft.ageYears`. Retained so a prefilled age (a safety-event handoff, or
+   * a resumed draft) survives an edit-and-save round trip; removing it here or from
+   * `referralPatientDraftToInput` would erase stored ages on the next save.
+   */
   ageYears: string;
   sex: ReferralPatientSex;
   encounterRef: string;
@@ -127,8 +133,14 @@ export function ReferralPatientFields({
         ele.
       </p>
 
+      {/* THE COMMON PHI LAYOUT (2026-08-24) — the same four rows as
+          `PatientFields`, in the same order: Nome (full width), then
+          Sexo · Data de nascimento, Prontuário · Atendimento, and
+          Unidade / setor · Profissional responsável. ⛔ Keep the two files in step;
+          the whole point is that a coordinator moving between an encaminhamento and
+          a case reads one shape, not two. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5 text-sm">
+        <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
           <span className="font-medium">Nome</span>
           <input
             type="text"
@@ -137,6 +149,32 @@ export function ReferralPatientFields({
             disabled={disabled}
             className={FIELD_CLASS}
             autoComplete="off"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium">Sexo</span>
+          <NativeSelect
+            id={`${idPrefix}-sex`}
+            value={draft.sex}
+            onChange={(e) => set("sex", e.target.value as ReferralPatientSex)}
+            disabled={disabled}
+            className="h-10"
+          >
+            {SEX_ORDER.map((s) => (
+              <option key={s} value={s}>
+                {REFERRAL_PATIENT_SEX_LABELS[s]}
+              </option>
+            ))}
+          </NativeSelect>
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium">Data de nascimento</span>
+          <DatePicker
+            value={draft.dateOfBirth}
+            onChange={(v) => set("dateOfBirth", v)}
+            disabled={disabled}
           />
         </label>
 
@@ -165,51 +203,6 @@ export function ReferralPatientFields({
             Obrigatório para enviar o encaminhamento; opcional para salvar um
             rascunho.
           </span>
-        </label>
-
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">Data de nascimento</span>
-          <DatePicker
-            value={draft.dateOfBirth}
-            onChange={(v) => set("dateOfBirth", v)}
-            disabled={disabled}
-          />
-        </label>
-
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">
-            Idade{" "}
-            <span className="font-normal text-muted-foreground">
-              (se a data não for conhecida)
-            </span>
-          </span>
-          <input
-            type="number"
-            min={0}
-            max={150}
-            inputMode="numeric"
-            value={draft.ageYears}
-            onChange={(e) => set("ageYears", e.target.value)}
-            disabled={disabled}
-            className={FIELD_CLASS}
-          />
-        </label>
-
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">Sexo</span>
-          <NativeSelect
-            id={`${idPrefix}-sex`}
-            value={draft.sex}
-            onChange={(e) => set("sex", e.target.value as ReferralPatientSex)}
-            disabled={disabled}
-            className="h-10"
-          >
-            {SEX_ORDER.map((s) => (
-              <option key={s} value={s}>
-                {REFERRAL_PATIENT_SEX_LABELS[s]}
-              </option>
-            ))}
-          </NativeSelect>
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">
