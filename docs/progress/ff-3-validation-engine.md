@@ -12,7 +12,7 @@ backend surface [backend-state.md §FF-3](../backend-state.md).
 
 ### 🏗️ FF-3 — Validation Engine (`item_validations`) · IN PROGRESS (started 2026-07-28)
 
-ADR [0090](docs/decisions/0090-ff3-validation-engine.md) **accepted** — PO rulings taken
+ADR [0090](../../docs/decisions/0090-ff3-validation-engine.md) **accepted** — PO rulings taken
 2026-07-28: rule vocabulary = the plan's set · coverage = scalars + repeating-group children
 per-instance (matrix cells **out** of v1) · `error` blocks **submit only**, server-side.
 Migration window `20260901000000`+ · SQLSTATEs from **`HC0P9`** (live high-water `HC0P8`) ·
@@ -328,7 +328,7 @@ set. Trade-off accepted + recorded under ADR 0090 O-6.
 
 **Tester r2: FF-3 spec 25/25 · neighbours 62/62** (`phase4-builder` 8 · `form-builder-enhancements`
 15 · `ff1` 9 · `phase5-wizard` 12 · `wizard-others-ux` 7 · `ff2-matrix` 11). **QA r2: APPROVED**
-(0 BLOCKING · 1 MAJOR-coverage now closed by `13e4664` · 4 MINOR · 3 INFO) → [review](docs/reviews/ff-3-review.md).
+(0 BLOCKING · 1 MAJOR-coverage now closed by `13e4664` · 4 MINOR · 3 INFO) → [review](../../docs/reviews/ff-3-review.md).
 
 **Final full `e2e:prod` (`BATCH_SIZE=4`, RESET+REBUILD): 794 passed · 16 of 19 batches completely
 clean · every batch `accounted N/N` (910 of 914 collected).** The three failing batches are the

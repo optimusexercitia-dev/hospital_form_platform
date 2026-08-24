@@ -1,9 +1,20 @@
-# Archive — Decisions (full verbose form)
+# Archive — Decisions (PROGRESS.md § Decisions register)
 
-> Archived verbatim from PROGRESS.md on 2026-06-25 at the §7 progress-tracker cleanup.
-> This is the durable detail; PROGRESS.md keeps only a one-line pointer.
-
-> PROGRESS.md keeps a collapsed one-line-per-decision table; the full rationale is here + in the linked ADRs under docs/decisions/.
+> **What this is:** the append-only archive of PROGRESS.md § Decisions rows, moved here
+> **verbatim** at Record steps (lead-playbook §5). A row carries the decision date, the
+> operative statement as the register recorded it, and its refs — including
+> amendment-grain refs ("ADR 0137 Amdt 4") and rulings that have no ADR at all. Those
+> two classes exist **only here**: [INDEX.md](../decisions/INDEX.md) is **generated**
+> navigation over the ADR corpus (one row per ADR *file*: status + supersedes/amends
+> edges), is rebuilt from ADR headers at any time, and is **never a rotation
+> destination**. This file is not regenerable from anything.
+>
+> **Era note:** rows written before the ADR 0124 one-line contract (2026-08-18) are the
+> verbose pre-collapse form and were themselves the rationale — this file was first
+> archived 2026-06-25 at the §7 progress-tracker cleanup, when its header called it "the
+> full rationale". Under the current contract that claim is true only of those older
+> rows: rationale now lives in the ADR a row links to, and this file holds the
+> register's verbatim rows, whatever their era's form.
 
 | Date | Decision | ADR |
 | ---- | -------- | --- |

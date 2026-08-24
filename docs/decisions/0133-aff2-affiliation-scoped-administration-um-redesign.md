@@ -19,9 +19,9 @@ CPF mandatory in the UI and the quick-invite escape hatch removed; (3) the three
 user-management screens are rebuilt to the "Gestão de Usuários" design handoff
 (`docs/design/temp/user_management_redesign/`, option 1a directory + profile, 1b wizard).
 Plan: [docs/plans/aff2-user-management.md](../plans/aff2-user-management.md).
-**Amends** ADR [0097](./0097-hospital-affiliation-person-identity.md) D11 + D14, ADR
+**Amends:** ADR [0097](./0097-hospital-affiliation-person-identity.md) D11 + D14, ADR
 [0098](./0098-aff-w1-substrate-shape-decisions.md) §W3.2, and ADR
-[0048](./0048-user-registration-identity.md) D10; **reconciles** ADR
+[0048](./0048-user-registration-identity.md) D10. **Reconciles:** ADR
 [0051](./0051-hospital-admin-tier-and-hospital-audit-tier.md) D1's local-authority
 intent with 0097's cross-hospital safeguards; **upholds** 0097 D7 (CPF posture) and D12
 (identifier-first registration).

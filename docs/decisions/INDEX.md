@@ -12,13 +12,13 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**136 ADRs** · next free number: **0139** · 29 carry an inbound supersedes/amends edge
+**138 ADRs** · next free number: **0141** · 36 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
 - **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (7):** 0022, 0031, 0033, 0058, 0094, 0108, 0115 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. Re-read this list periodically against what is actually built.
+- **Still proposed / draft / deferred (7):** 0022, 0031, 0033, 0058, 0094, 0108, 0115 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -55,7 +55,7 @@
 | 0029 | [Audit Trail: Hash-Chained, Trigger-Captured, Append-Only](0029-audit-trail-hash-chain.md) | accepted | 2026-06-17 | – | – |
 | 0030 | [Patient-Safety PHI Posture Reversal & PQS/NSP Module Architecture (Phase 14)](0030-patient-safety-phi-and-pqs-architecture.md) | accepted | 2026-06-18 | supersedes 0028 | ⚠ amended by 0037, 0038 |
 | 0031 | [Event Custody Ledger, Access-Follows-Custody RLS & PHI Isolation (Phase 14a)](0031-event-custody-ledger-and-phi-isolation.md) | ⚠ draft | 2026-06-18 | – | – |
-| 0032 | [Case Narratives (per-case prose interleaved with phases)](0032-case-narratives.md) | accepted | 2026-06-19 | – | – |
+| 0032 | [Case Narratives (per-case prose interleaved with phases)](0032-case-narratives.md) | accepted | 2026-06-19 | – | ⚠ amended by 0047 |
 | 0033 | [Case Access Control (per-case read/write grants, attribution-driven access & "Meus Caso…](0033-case-access-control.md) | ⚠ proposed | 2026-06-19 | – | ⚠ amended by 0038, 0072, 0078, 0134 · ⛔ superseded by 0072, 0078 |
 | 0035 | [Regulatory Posture (LGPD / ANVISA / CFM) & Column-Encryption Decision](0035-lgpd-anvisa-regulatory-posture.md) | accepted | 2026-06-20 | – | – |
 | 0036 | [PHI Access Hardening: PQS Membership, Single-Door Identifier Read, Free-Text Classifica…](0036-phi-access-hardening.md) | accepted | 2026-06-20 | – | ⚠ amended by 0037, 0038 |
@@ -64,17 +64,17 @@
 | 0039 | [Patient identity & cross-committee linkage (`patient_index`)](0039-patient-identity-cross-committee-linkage.md) | accepted | 2026-06-22 | – | – |
 | 0040 | [Form Builder Enhancements: condition engine, per-item visibility, additive schema](0040-form-builder-enhancements-condition-engine.md) | accepted | 2026-06-23 | – | ⛔ superseded by 0043 |
 | 0041 | [Multi-Tenancy: organizations + hospitals above commissions](0041-multi-tenancy-organizations-hospitals.md) | accepted | 2026-06-24 | – | – |
-| 0042 | [NSP-per-org: per-org PQS roster + org-bound PHI doors](0042-nsp-per-org.md) | accepted | 2026-06-25 | – | – |
+| 0042 | [NSP-per-org: per-org PQS roster + org-bound PHI doors](0042-nsp-per-org.md) | accepted | 2026-06-25 | – | ⛔ superseded by 0052 |
 | 0043 | [Result-based phase recommendation (combinable `recommend_when`)](0043-phase-result-based-recommendation.md) | accepted | 2026-06-26 | supersedes 0017, 0040 | – |
 | 0044 | [Process-less cases ("Sem processo")](0044-processless-cases.md) | accepted | 2026-06-29 | – | – |
 | 0045 | [Answer-Model v2 (uniform answer entity, typed scalar columns, instance-ready keys)](0045-answer-model-v2.md) | accepted | 2026-07-01 | – | – |
 | 0046 | [Forward-compatible form capabilities (repeating groups, answer blocks, field confidenti…](0046-forward-compat-form-capabilities.md) | accepted | 2026-07-01 | – | – |
-| 0047 | [Ad-hoc Case Narratives (per-case narrative add on an open case)](0047-ad-hoc-case-narratives.md) | accepted | 2026-07-01 | – | – |
-| 0048 | [User Registration & Identity Management](0048-user-registration-identity.md) | accepted | 2026-07-01 | – | – |
+| 0047 | [Ad-hoc Case Narratives (per-case narrative add on an open case)](0047-ad-hoc-case-narratives.md) | accepted | 2026-07-01 | amends 0032 | – |
+| 0048 | [User Registration & Identity Management](0048-user-registration-identity.md) | accepted | 2026-07-01 | – | ⚠ amended by 0133 |
 | 0049 | [Email-verification flag & admin-set initial password](0049-email-verification-flag-admin-set-password.md) | accepted | 2026-07-02 | – | – |
 | 0050 | [Action-Items Fold, `visibility_scope`, and Case-Access Grant Expiry](0050-action-items-fold-visibility-scope-case-access-expiry.md) | accepted | 2026-07-02 | – | – |
 | 0051 | [Hospital-admin tier, 4-tier audit chain & committee member titles](0051-hospital-admin-tier-and-hospital-audit-tier.md) | accepted | 2026-07-03 | – | – |
-| 0052 | [NSP-per-hospital: re-key the PQS roster + every PHI door org → hospital, add `nsp_org_a…](0052-nsp-per-hospital.md) | accepted | 2026-07-03 | – | – |
+| 0052 | [NSP-per-hospital: re-key the PQS roster + every PHI door org → hospital, add `nsp_org_a…](0052-nsp-per-hospital.md) | accepted | 2026-07-03 | supersedes 0042 | – |
 | 0053 | [Audit-access entitlement guard (C-4): dispatch to the entity's own read predicate, not…](0053-audit-access-entitlement-guard.md) | accepted | 2026-07-04 | – | – |
 | 0054 | [Tenant-hierarchy composite FK: a commission's org must match its hospital's org](0054-tenant-composite-fk.md) | accepted | 2026-07-05 | – | – |
 | 0055 | [CAPA tenant anchor: hospital-scope every CAPA, close the cross-hospital write hole](0055-capa-tenant-anchor.md) | accepted | 2026-07-05 | – | – |
@@ -95,11 +95,11 @@
 | 0070 | [Interview data-model v2: sessions + reporting / confidentiality columns](0070-interview-data-model-v2-sessions.md) | accepted | 2026-07-12 | – | – |
 | 0071 | [Pre-pilot release scope expansion](0071-pre-pilot-release-scope-expansion.md) | accepted | 2026-07-12 | – | – |
 | 0072 | [Ethics access spine: confidentiality, respondent-exclusion, recusal/COI & the m2 gate r…](0072-ethics-access-spine.md) | accepted | 2026-07-13 | supersedes 0033, 0064 · amends 0033, 0064 | ⚠ amended by 0073, 0078 · ⛔ superseded by 0078 |
-| 0073 | [Ethics procedure model: admissibility → notice → allegations/findings → hearing → vote…](0073-ethics-procedure-model.md) | accepted | 2026-07-13 | amends 0072, 0078 | – |
+| 0073 | [Ethics procedure model: admissibility → notice → allegations/findings → hearing → vote…](0073-ethics-procedure-model.md) | accepted | 2026-07-13 | amends 0072 | – |
 | 0074 | [Supersession correction model (contract + UX finalization)](0074-supersession-correction-model.md) | accepted | 2026-07-13 | – | – |
 | 0075 | [Memberships collapse: service-role vs RLS-scoped write-path split](0075-memberships-collapse-write-path-split.md) | accepted | 2026-07-13 | – | – |
 | 0076 | [Notifications (S1·N): pilot scope — prove one vertical deep](0076-notifications-pilot-scope.md) | accepted | 2026-07-13 | – | – |
-| 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⚠ amended by 0073, 0134 · ⛔ superseded by 0079 |
+| 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134 |
 | 0079 | [AUTHZ door-blindness: the standing invariant + the write-policy keystone-isolation rule](0079-authz-door-blindness-standing-invariant.md) | accepted | 2026-07-18 | supersedes 0078 | ⚠ amended by 0134 |
 | 0080 | [Committee Charters & Cadence (S4·CH): delegate the regimento to the controlled-doc life…](0080-committee-charters-cadence-model.md) | accepted | 2026-07-20 | – | – |
 | 0081 | [Controlled-Document Redesign + Reviewer Notifications](0081-controlled-document-redesign.md) | accepted | 2026-07-21 | – | ⚠ amended by 0082 |
@@ -118,14 +118,14 @@
 | 0094 | [Membership-model hardening + Diretor Técnico (technical director) backend](0094-membership-hardening-and-technical-director.md) | ⚠ proposed | 2026-08-04 | – | – |
 | 0095 | [Process/case integrity audit: remediation scope, corrections, and deferred remodels](0095-process-case-integrity-audit-remediation.md) | accepted | 2026-08-04 | – | ⛔ superseded by 0096 |
 | 0096 | [Process-template versioning (audit M1, full remodel)](0096-process-template-versioning.md) | accepted | 2026-08-04 | supersedes 0095 | – |
-| 0097 | [Hospital affiliation, person identity (CPF) and the org-scoped people directory](0097-hospital-affiliation-person-identity.md) | accepted | 2026-08-05 | – | – |
-| 0098 | [AFF substrate & doors: the shape decisions ADR 0097 left open](0098-aff-w1-substrate-shape-decisions.md) | accepted | 2026-08-06 | – | – |
+| 0097 | [Hospital affiliation, person identity (CPF) and the org-scoped people directory](0097-hospital-affiliation-person-identity.md) | accepted | 2026-08-05 | – | ⚠ amended by 0133 |
+| 0098 | [AFF substrate & doors: the shape decisions ADR 0097 left open](0098-aff-w1-substrate-shape-decisions.md) | accepted | 2026-08-06 | – | ⚠ amended by 0133 |
 | 0099 | [Meeting audio → generated ata (minute_generator integration)](0099-meeting-audio-minutes.md) | accepted | 2026-08-06 | – | – |
 | 0100 | [Quality-office oversight: `quality_reviewer` role, commission oversight classification,…](0100-quality-office-oversight.md) | accepted | 2026-08-06 | – | ⚠ amended by 0102, 0134 |
 | 0101 | [The role→landing guard is catalog-derived, not remembered](0101-role-landing-guard.md) | accepted | 2026-08-07 | – | – |
 | 0102 | [`p_expires_at` is a real setter on both grant paths (extend-on-regrant)](0102-extend-on-regrant-expiry-seam.md) | accepted | 2026-08-07 | amends 0100 | – |
 | 0103 | [On the case-access door, a NULL expiry means PERMANENT (and that is intended)](0103-case-access-null-expiry-is-permanent.md) | accepted | 2026-08-07 | – | – |
-| 0104 | [PDF document printing module: record-semantics minting, single registry, template pipel…](0104-pdf-document-printing-module.md) | accepted | 2026-08-07 | – | – |
+| 0104 | [PDF document printing module: record-semantics minting, single registry, template pipel…](0104-pdf-document-printing-module.md) | accepted | 2026-08-07 | – | ⚠ amended by 0125 |
 | 0105 | [Rename `is_commission_admin_of` → `is_tenancy_admin_of`](0105-rename-is-tenancy-admin-of.md) | accepted | 2026-08-08 | – | – |
 | 0106 | ["Act as": role assumption as a binding constraint](0106-act-as-role-assumption.md) | accepted | 2026-08-09 | – | – |
 | 0107 | [ACT S4: hat-blindness gets its own allowlist artifact + a self-testing standing sweep](0107-act-s4-hat-blind-sweep-and-allowlist.md) | accepted | 2026-08-10 | – | – |
@@ -145,8 +145,8 @@
 | 0121 | [Disposal lifecycle: inflow, outflow, and what `disposed` asserts](0121-disposal-lifecycle-inflow-outflow-and-evidence.md) | accepted | 2026-08-17 | – | – |
 | 0122 | [A case-read arm at the referral freeze door (FUP-DM4-RECUSAL)](0122-recusal-case-read-arm-at-the-referral-freeze-door.md) | accepted | 2026-08-17 | – | – |
 | 0123 | [Discarding a draft that has emitted documents](0123-discarding-a-draft-that-has-emitted-documents.md) | accepted | 2026-08-18 | – | – |
-| 0124 | [PROGRESS.md live-state contract, machine-enforced](0124-progress-live-state-contract.md) | accepted | 2026-08-18 | – | – |
-| 0125 | [`Imprimir prévia` (ephemeral) vs `Emitir documento` (registered)](0125-previa-ephemeral-and-emission-registered.md) | accepted | 2026-08-18 | – | – |
+| 0124 | [PROGRESS.md live-state contract, machine-enforced](0124-progress-live-state-contract.md) | accepted | 2026-08-18 | – | ⚠ amended by 0139, 0140 |
+| 0125 | [`Imprimir prévia` (ephemeral) vs `Emitir documento` (registered)](0125-previa-ephemeral-and-emission-registered.md) | accepted | 2026-08-18 | amends 0104 | – |
 | 0126 | [A print belongs to a SERIES, and currency is DERIVED](0126-print-series-and-derived-currency.md) | accepted | 2026-08-18 | – | – |
 | 0127 | [standing rules get a path-scoped home, and a staleness gate](0127-standing-rules-home-and-staleness-gate.md) | accepted | 2026-08-19 | – | – |
 | 0128 | ["I could not look" gets its own exit code, its own name, and its own acknowledgement](0128-unproven-is-not-clean-capture-outcome-classes.md) | accepted | 2026-08-19 | amends 0120 | – |
@@ -154,9 +154,11 @@
 | 0130 | [DSR workflow: data-subject requests as adjudicated cases, not an erase button](0130-dsr-subject-request-workflow.md) | accepted | 2026-08-19 | – | – |
 | 0131 | [PHI erasure reach is bounded to DESIGNATED PHI fields; free text is out of scope for th…](0131-phi-erasure-reach-bounded-to-designated-fields.md) | accepted | 2026-08-20 | – | – |
 | 0132 | [An ethics proceeding carries NO erasure entitlement; the absent door is a DECISION, not…](0132-ethics-proceedings-carry-no-erasure-entitlement.md) | accepted | 2026-08-21 | – | – |
-| 0133 | [AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-manageme…](0133-aff2-affiliation-scoped-administration-um-redesign.md) | accepted | 2026-08-20 | – | – |
+| 0133 | [AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-manageme…](0133-aff2-affiliation-scoped-administration-um-redesign.md) | accepted | 2026-08-20 | amends 0048, 0097, 0098 | – |
 | 0134 | [The case split is read vs manage: one management surface, and administrativo can read t…](0134-case-surface-split-and-administrativo-case-read.md) | accepted | 2026-08-21 | amends 0033, 0061, 0078, 0079, 0100 | ⚠ amended by 0137 |
 | 0135 | [Authored refusals get their own SQLSTATE; `42501` stays reserved](0135-authored-refusals-get-their-own-sqlstate.md) | accepted | 2026-08-22 | – | – |
 | 0136 | [Deferred `staff_admin` sign-off: attest a FROZEN response, block the PHASE not the SUBM…](0136-deferred-staff-admin-signoff-attests-frozen-content.md) | accepted | 2026-08-23 | amends 0004, 0016, 0017 | – |
 | 0137 | [MRN as the LGPD erasure key; the case/referral usability batch](0137-mrn-erasure-key-and-case-referral-usability-batch.md) | accepted | 2026-08-23 | amends 0037, 0038, 0134 | – |
 | 0138 | [Unified (non-PHI) action_items hub](0138-unified-action-items.md) | accepted | 2026-07-02 | – | – |
+| 0139 | [Quarterly home for concluded § Now rotations](0139-quarterly-home-for-concluded-now-rotations.md) | accepted | 2026-08-24 | amends 0124 | – |
+| 0140 | [Tracking-apparatus hardening batch (labels, caps, residue, cadence, sweep)](0140-tracking-apparatus-hardening-batch.md) | accepted | 2026-08-24 | amends 0124 | – |

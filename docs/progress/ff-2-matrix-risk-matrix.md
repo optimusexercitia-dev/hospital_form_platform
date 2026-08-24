@@ -31,7 +31,7 @@ Worktree `worktrees/ff/flexible-forms-program`, branch `ff/flexible-forms-progra
 `main` at `b656ad4`. Flag `matrix_fields` — **not seeded yet** (FF-2 creates it, OFF).
 **Migration window `20260830000000+`** (`20260829…` is ADR 0088's).
 
-**✅ ADR [0089](docs/decisions/0089-ff2-matrix-risk-matrix.md) — accepted 2026-07-27.** Four PO
+**✅ ADR [0089](../../docs/decisions/0089-ff2-matrix-risk-matrix.md) — accepted 2026-07-27.** Four PO
 rulings settled the §3 FF-2 open questions:
 
 1. **Cell contract = radio grid** — columns *are* the options; each row takes exactly one column,
@@ -164,7 +164,7 @@ could ride FF-2's gate. Detail in **FUP-FF1-2** below.
 > `old.group_instance_id` is unsatisfiable by construction. That exact bug shipped in FF-1 as a
 > P0 (a correction silently destroyed every choice answer inside a repeating group, proven live
 > 2 → 0). FF-1's K4 covers **selections only** — nothing existing catches a repeat. Stated in
-> [flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-2/FF-5 with named keystones.
+> [flexible-forms-program.md](../../docs/plans/flexible-forms-program.md) §3 FF-2/FF-5 with named keystones.
 
 #### `backend` — Wave 1 (schema + contract) ✅ COMPLETE 2026-07-27
 
@@ -807,7 +807,7 @@ Kept for the audit trail; neither is outstanding.
 | **FUP-FF2-2** | Dashboard **cell-unit aggregation** — `(question_key, row_code, col_code)` counts and `risk_score`-as-number in `dashboard.ts`, each with its own supersession-tolerant predicate (ADR 0089 §Consequences). | Not built, so ADR 0089's `supersession_matrix_excluded` keystone is **deliberately absent** from `271_ff2_matrix_fields.sql` rather than written against a non-existent path. |
 FF-1's five (BUG-FF1-001…005 — three blockers, one critical, one blocker; all closed and
 re-verified) are recorded with full repro/fix detail in
-[ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md).
+[ff-1-repeating-groups.md](ff-1-repeating-groups.md).
 
 #### ✅ BUG-FF2-003 — the "Adicionar bloco" menu overflows the viewport with **no scroll**, so both new Matrix types are UNREACHABLE at 1280×720 · P1 · owner `frontend` · **CLOSED 2026-07-27, re-verified by `tester`**
 
@@ -969,9 +969,9 @@ QA **APPROVED** (r2, after CHANGES REQUESTED at r1) · human-approved · flag `m
 (gate flip `20260830001200`) · merged to `main`. **Remote `db push` NOT done** (local only, as every
 S-phase — user-gated). **36 commits · 16 migrations `20260830000000`–`20260830001500`.**
 
-**Full record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md)** (the four PO
+**Full record → [ff-2-matrix-risk-matrix.md](ff-2-matrix-risk-matrix.md)** (the four PO
 rulings, all 13 defects with repro/fix, the door-parity sweep, every mutation proof, the gate triage).
-Reviews: [r1](docs/reviews/ff-2-review.md) · [r2](docs/reviews/ff-2-review-r2.md).
+Reviews: [r1](../../docs/reviews/ff-2-review.md) · [r2](../../docs/reviews/ff-2-review-r2.md).
 
 **Final bar:** pgTAP **139 files / 4061 / PASS** (clean reset) · Vitest **593/593** · lint **0/0**
 (eslint + the new `[--var]` guard) · `next build` ✅ · migrations **216 == 216** · `e2e:prod` green

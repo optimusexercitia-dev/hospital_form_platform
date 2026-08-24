@@ -14,7 +14,7 @@ claimed that hole was closed; it was not. Proven live, both directions.
 decision O-1 and the call was never made. ADR 0064 D4's channel
 (`process_templates.case_type_id`) was never built.
 
-**Fixed** → ADR [0088](docs/decisions/0088-case-type-assignment-channel.md): template declares
+**Fixed** → ADR [0088](../../docs/decisions/0088-case-type-assignment-channel.md): template declares
 (`process_templates.case_type_id` + `set_template_case_type` + org-consistency trigger `HC0F7`),
 `create_case_from_template` inherits, process-less dialog picks, org-admin CRUD at
 `/o/[org]/manage/tipos-de-caso`. Migrations `20260829000000` + `20260829000100`.

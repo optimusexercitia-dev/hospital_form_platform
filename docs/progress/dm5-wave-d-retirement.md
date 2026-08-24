@@ -1629,7 +1629,7 @@ Critical FUP, which is never rotated at any size. Nothing in this archive supers
 > *(This pointer's target has now changed meaning three times without the pointer changing —
 > **a resume pointer goes stale every time the thing it points at completes**, which is exactly when
 > nobody re-reads it.)* ⚠ **The two live obligations are in
-> [§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list), not here.**
+> [§ Critical FUP](../../PROGRESS.md#-critical-fup--the-must-not-be-forgotten-list), not here.**
 > ⚠ **[dm5-handoff.md](../progress/dm5-handoff.md) §13 is now DISCHARGED HISTORY** — it
 > briefs a session resuming **S4/S5**, and every slice it describes as pending is closed. Read it only
 > for the environment traps in §13.4 and the mutation-harness incident in §6. *(This pointer read

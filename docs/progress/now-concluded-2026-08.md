@@ -1,5 +1,12 @@
 # § Now — concluded bullets, rotated 2026-08-21
 
+> **FROZEN 2026-08-24 — ADR [0139](../decisions/0139-quarterly-home-for-concluded-now-rotations.md).**
+> This was the ad-hoc destination for concluded § Now rotations before the quarterly convention.
+> New rotations go to the current quarter's file, starting with [2026-Q3.md](2026-Q3.md) — never here.
+> Renaming or merging would orphan this file's inbound name- and line-keyed references. Adding this
+> note shifted every line below it by 7; the one line-keyed citation (in
+> `case-surface-split-increment-2.md`) was repointed in the same edit.
+
 Moved **verbatim** out of [PROGRESS.md](../../PROGRESS.md) § Now at the DSR
 operational-remediation Record step, under the §7 live-state discipline: both bullets describe work
 that **merged and was recorded** days earlier, and their own narratives had already been rotated —

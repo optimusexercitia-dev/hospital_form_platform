@@ -2639,3 +2639,2920 @@ loaded, and a reader who re-measures `create_case` will re-derive this finding a
 mechanism while wrong about whether it is a defect._
 
 - 🟡 **FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI** — ADR 0137's MRN floor does NOT reach processless cases: `create_case(p_patient_enabled boolean)` maps to `'none'`/`'optional'` and always writes `patient_required_fields = '{}'`, so **`required` is unreachable on that door** and its PHI floor stays the legacy `name OR mrn` — the "record the platform cannot later erase" the ADR calls a compliance hole, still open on the one path the ADR never mentions (grep: 0137 says "processless" zero times). ⛔ Do NOT close it by citing `app.guard_case_patient_required` — that trigger returns immediately when `patient_mode <> 'required'`, so it bounds nothing here. Three shapes, PO's call: (a) scope it out IN the ADR · (b) widen the door — a new DEFINER arm + authz re-verification · (c) MRN-always on this path, which invents a fourth floor the ADR warns against — PO decision, then backend + frontend ✅ **CONCLUDED 2026-08-24 — PO RULING: expected, and in line with platform specifications.** Shape **(a)** of the three offered. D1 puts the mode on the TEMPLATE VERSION because that is what makes it versioned, publishable and reviewable; a processless case has no version to carry one, and a per-case compliance setting would sit where nothing governs it. ⛔ **Scope, now stated in the ADR so it stops reading as universal:** D1–D3 deliver *a commission may REQUIRE the MRN on cases minted from a process template version* — not a platform-wide MRN mandate. ⛔ **Do not reopen this by widening `create_case`**: that is a new DEFINER arm owing its own authz re-verification, and it would reverse a ruling rather than fill a gap. ⚠ **The erasure consequence is ACCEPTED, not overlooked** — a processless case may hold a name-only record that an MRN-keyed erasure lookup cannot find, so ADR 0137 § Open's cross-module lookup must treat name-only rows as a known bounded population, never assume the key is universal. Full ruling → **ADR 0137 Amendment 4**.
+- 🟠 **FUP-ADR-AMENDMENT-HAS-NO-BACK-POINTER** — an amended ADR reads as **live**; only the amending one records it. 0133's three targets held **zero** mentions of it, so 0048 D10 read *"no `date_of_birth`"* while the column shipped. ✅ Those 3 fixed 2026-08-23; ⛔ the class is not. Sweep reports **44** — ⚠ **do NOT quote it**: proximity-based, over-reports (`0073→0078` was an existing back-pointer misread). **Upper bound; 4 hand-verified.** Parse direction before any gate — lead ✅ **RESOLVED 2026-08-24** — detector now parses the declarative header (and its VOICE: `Amended:` ≠ `Amends:`), which killed this line's own named false positive `0073→0078`. ⛔ **44 is superseded**: the real population is **42 pairs over 30 amended ADRs**, only 5 of which had a hand-written back-pointer. All 30 now carry a generated banner, byte-compared by gate 9 (`lint:adr-index`). Body: `docs/progress/follow-ups.md`.
+
+## ↩ Body rotation 2026-08-24 (ADR 0140) — resolved bodies moved out of follow-ups.md
+
+Moved **verbatim** from [follow-ups.md](follow-ups.md): the full bodies of resolved items
+whose index lines already live above in this archive. Trigger: follow-ups.md stood at
+604 KB with 145 body headings, 47 of them for items no live register indexes;
+`lint:progress` now REDS on such residue (the inverse of the R3 body check).
+
+⚠ **Two index lines are RECONSTRUCTED here, not moved** — these two ids were in **no
+register at all** (not in PROGRESS.md, not in deferred-backlog.md, not in this archive):
+resolved per their own bodies, their index lines were evidently deleted instead of moved.
+
+- ⬛ **FUP-DM5-MANIFEST-FLAG** — ✅ RESOLVED (already fixed when re-checked 2026-08-17).
+  ⚠ Index line reconstructed 2026-08-24 from the body heading; the original was never archived.
+- 🟠 **FUP-DM5-REMOTE-STATE-MEASURED** — ✅ RESOLVED same-day (the 7 stranded objects
+  deleted; `db push` unblocked). ⚠ Index line reconstructed 2026-08-24 from the body
+  heading; the original was never archived.
+
+### The bodies
+### 🟠 FUP-DM5-REMOTE-STATE-MEASURED — the remote was measured for the first time; **the "flags ship OFF" grading premise is WRONG at the grain it was used**, and 7 objects are stranded in two retiring buckets (owner: lead; **blocks the next `db push`**)
+
+Filed 2026-08-17 (lead), from the first **read-only** contact with the linked project
+(`azkbbhskturikxpgmafq`). The handoff banner named this the next session's first action precisely
+because so many severities rested on it. Every figure below is a `select`, not an inference.
+
+**1 · The remote holds ZERO application data.** `organizations` **0** · `profiles` **0** ·
+`commissions` **0** · `cases` **0** · `documents` **0** · `document_versions` **0** ·
+`document_version_files` **0** · `file_objects` **0** · `printed_documents` **0** ·
+`controlled_documents` **0**. There are **no production users and no production rows**. This is the
+true reason there is no production exposure, and it is *stronger* than the reason the record has been
+giving — but it is a **different** reason, and the difference is the finding:
+
+**2 · ⛔ The "flags ship OFF so the path is unreachable in production" grading is WRONG AT ITS GRAIN.**
+Measured: all six document flags **are** off on the remote (`documents_foundation`,
+`documents_wave_a`..`_d`, `document_printing` — all `enabled = false`; 31 other flags are on). But of
+the **52** document-model functions in `app`/`public`, **51 do not read the flag at all** — exactly
+**one** does (`app.compute_due_document_review_notifications`), and **no RLS policy** on any document
+table consults it either. The flag is an **application-layer** gate. It does **not** make a DEFINER
+door or a policy unreachable to anything holding a JWT and speaking PostgREST.
+
+> ⭐ This is [[a-predicate-quoted-at-the-wrong-grain]] again, and it is the third time this phase: a
+> **real** control (the flag genuinely is off) cited for a conclusion it does not bound (DB-level
+> reachability). It reads exactly like a proof. **Re-grade on "the remote has no data", never on
+> "the flags are off"** — and when the pilot loads data, the flag will *still* not be the boundary.
+
+**3 · 7 objects are stranded in two retiring buckets, with nothing governing them.**
+`printed-documents` **4** (`std/…pdf` ×1 + **`phi/…pdf` ×3**, 103–109 KB each, minted 2026-08-10,
+`owner_id` NULL = service-role) and `controlled-documents` **3** (2 `.docx`, 1 `.txt`,
+2026-07-21 → 2026-08-05). The two **core** document buckets are clean (`documents-standard` 0,
+`documents-phi` 0). Separately `form-assets` holds **38** objects against **0** commissions — same
+shape, outside DM scope, noted so it is not rediscovered as new.
+
+*Inference, flagged as such:* one cause fits all of it — the remote DB was reset at some point and
+**storage was not**, which is the mechanism in [[remote-reset-storage-orphan-is-cli-version-dependent]].
+Not needed for anything below; the counts stand on their own.
+
+**Reachability — measured, not reasoned.** `storage.objects` has RLS **enabled** with **8** policies,
+and **none** of them grants SELECT on `printed-documents` or `controlled-documents` (the only
+document-bucket policies are `documents_{phi,std}_obj_insert_reserved`, INSERT-only). So no tenant
+JWT can read these bytes; they are reachable only by service-role, which is the app's own print path
+(`open_printed_document`), and that path finds **no `printed_documents` row** to authorise. **Not an
+exposure.** What they are is **permanently outside the disposal lifecycle**: every disposal path keys
+off `file_objects`, and there is no row — so nothing can ever mark, complete, or evidence their
+destruction. PHI-tier bytes that the platform's own retirement machinery cannot see.
+
+### ✅ RESOLVED the same day — the 7 objects are DELETED and the push is unblocked
+
+**PO-authorized 2026-08-17** (*"a remote database reset, including the S3 bucket, is acceptable — no
+active users"*). ⚠ **The offered tool was declined and the reason matters:** a `db:reset:linked`
+drops DB rows but **leaves storage objects behind** — that is the CLI-version-dependent orphaning
+hazard in [[remote-reset-storage-orphan-is-cli-version-dependent]], and almost certainly **how this
+state was created in the first place**. Resetting would have *recreated* the orphan condition, not
+cleared it. The bytes had to go through the **Storage API**.
+
+**Executed:** `supabase storage rm` per object, **by explicit path** — never a recursive/positional
+sweep ([[a-positional-cleanup-eats-seed-rows]]). 7/7 reported deleted.
+
+⚠ **The first attempt deleted NOTHING and reported success.** The CLI prompts
+`Confirm deleting files in bucket …? [y/N]`, stdin is null in this environment, and the loop still
+exited 0 — the exit code belonged to the pipeline, not the deletion. Caught by re-listing **before**
+believing it (still 4 + 3), then re-run with `--yes`. Textbook
+[[your-own-measurement-goes-stale-like-any-other]]: *"nothing failed" ≠ "nothing ran"*.
+
+**Verified on BOTH surfaces after the fact**, which is the runbook's mandatory count-vs-census step:
+CLI `ls -r` → `printed-documents` **0**, `controlled-documents` **0**; and `storage.objects` → the
+only bucket with rows anywhere is `form-assets` (**38**). ⇒ **all EIGHT S4 retirement buckets are
+empty**, so the Block-1 data guard now passes and `20260927000400` can be pushed.
+
+**`form-assets` — ✅ ALSO CLEARED, PO-authorized separately.** It held **38** objects against **0**
+commissions: equally stranded, but a RETAINED bucket (ADR 0114 D13) outside the document model and
+blocking nothing, so it was deliberately left out of the first pass and raised as its own decision.
+The PO then authorized it. Remote storage is now **12 buckets / 0 objects** total.
+
+### ⛔ INCIDENT — `supabase storage rm -r ss:///<bucket>` DELETES THE BUCKET, not just its contents
+
+Hit live on the remote, 2026-08-17, clearing `form-assets`. The flag reads
+`--recursive, -r  Recursively remove a directory`, and the object paths are `{org}/{file}`, so `-r` on
+the bucket root is the natural way to say *"remove everything inside"*. It is not. The output ends:
+
+```
+Deleting objects: [ …38 paths… ]
+Deleting bucket: form-assets          ← NOT asked for
+Successfully deleted
+```
+
+**Blast radius, measured rather than assumed:** the `storage.buckets` row was gone (12 → 11); the RLS
+policies `form_assets_insert_staff_admin` / `form_assets_select_member` **survived**, because they live
+on `storage.objects` and are not tied to the bucket row. So the failure mode is a bucket that no longer
+exists while every policy still references it — uploads would fail at runtime with nothing in
+`pg_policies` looking wrong.
+
+**Restored** from the authoritative definition — `20260620000000_baseline.sql:24962`, cross-checked
+against the live LOCAL row, which agrees exactly: `public=false`, `file_size_limit=5242880`,
+`allowed_mime_types={image/png,image/jpeg,image/webp,image/gif}`. Verified after: 12 buckets, 0 objects,
+`form-assets` present. ⚠ The pre-deletion REMOTE row was never captured, so the restore is to the
+**migration's intent**, not to a measured prior state — if the remote had drifted, that drift is gone.
+*Capture the row before deleting anything that owns rows.*
+
+⚠ **Binding on the ADR 0120 D9 byte-deletion runbook**, which sends an operator to do exactly this
+against a live project: **delete by explicit object path, never `-r` on a bucket root.** The project's
+own `scripts/storage-manifest.mjs delete --execute` is safe here — it calls `remove()` with an explicit
+path list — which is another reason to prefer it over ad-hoc CLI.
+
+⭐ The same shape as the confirmation-prompt miss two steps earlier: **the tool did what it was told,
+not what was meant, and reported "Successfully deleted" either way.** Read what a destructive command
+*enumerated*, not just its exit line.
+
+⭐ **A cheap CLOUD-ORPHAN-SURFACE sub-probe fell out of this for free.** That item names
+*"whether `supabase storage ls --linked --experimental` differs from a `storage.objects` query"* as a
+secondary probe. Both were run here, before and after: **they agreed exactly, in both states.**
+⛔ That does **not** settle the item — agreement is equally consistent with the CLI simply reading the
+same metadata (the likely explanation, since it speaks the Storage API). It rules the CLI **out** as
+an orphan-visible surface; the **S3 endpoint remains UNPROBED**.
+
+**4 · ✅ The S4 guard will fire, and that is the designed outcome — but it BLOCKS the next `db push`.**
+⚠ **PRESENT TENSE HERE IS HISTORICAL — read the "✅ RESOLVED the same day" section above first.** The
+7 objects were deleted 2026-08-17, all eight retirement buckets are empty, and `20260927000400` is
+**pushable**. This paragraph is preserved as the measurement that *predicted* the abort correctly;
+it is not a live blocker. ⛔ The **ordering** it states (byte-first, D9) still binds on any future run.
+`20260927000400_dm5_s4_retire_legacy_buckets.sql` Block 1 counts `storage.objects` per bucket and
+`raise exception`s naming the bucket and count. It is the **earliest of FIVE** local-only migrations
+(⚠ this read *"one of only two"* until re-measured 2026-08-17 — the batch added three more after it:
+`…0928000200`, `…0928000400`, `…0928000500`), so
+the next `db push` **will abort** on `printed-documents (4)` and `controlled-documents (3)`. Nothing to
+fix — the guard is correct and my measurement says exactly when it fires. **Ordering owed (ADR 0120
+D9, byte-first):** `scripts/storage-manifest.mjs capture` → `delete --execute` **against the remote**,
+then push. ⚠ And per the D9 Cloud half above, `locateVolume()` now **refuses** on a Cloud URL, so that
+deletion runs **without** byte-level proof — the API-only over-count refusal survives, the byte-side
+controls do not.
+
+**5 · `scripts/document-reconciliation.mjs` would have caught #3 and has never been pointed at the
+remote.** Checked rather than assumed: `BUCKETS` walks only the core two, **but** line 368 censuses
+`[...LEGACY_BUCKETS, ...RETAINED_BUCKETS]` — `printed-documents` and `controlled-documents` are both
+in `LEGACY_BUCKETS`. The tool is **correct and sufficient**; the gap is that it has only ever run
+against local. ⚠ Its comment *"DM5 S4 retired 8 of those 12 — only `documents-standard`,
+`documents-phi`, `form-assets` and `meeting-audio` still exist"* is **true locally and FALSE on the
+remote** (12 buckets live) — [[a-comment-is-an-assertion-that-goes-stale-silently]] in the narrow form
+where the subject is another system. Fixed in the same commit.
+
+**⛔ What this does NOT settle.** It does **not** touch **FUP-DM5-CLOUD-ORPHAN-SURFACE**, and the
+distinction is the whole point of that item's promotion ruling. **Two different "orphans":** what I
+found are **reconciler-orphans** — a `storage.objects` row with no `file_objects` row, *visible* to a
+metadata query, which is how I found them. That item asks about **byte-orphans** — bytes in the
+backing store with **no `storage.objects` row**, invisible to every query I ran. I read the metadata
+side only; **the S3 endpoint remains UNPROBED** and that item's severity is unchanged. Recording this
+explicitly because that section's own ruling is *"a buried obligation gets discharged by association
+the moment its parent looks resolved"* — remote contact having been made is exactly the kind of event
+that would otherwise be misread as having settled it.
+
+
+### ⬛ FUP-DM5-BACKEND-STATE-SLICE-SECTIONS — ✅ **RESOLVED 2026-08-18** — the per-slice `backend-state.md` sections for **S2 / S3 / S5** are written (owner: **backend**)
+
+> ### ✅ RESOLVED 2026-08-18 (backend). Three `##` sections added to `docs/backend-state.md`, in the
+> chronological body between the **DM5 follow-up batch** and **DM4** sections: `## DM5·S5` ·
+> `## DM5·S3` · `## DM5·S2`. Every figure carries its deriving query inline, per the S6 convention.
+>
+> **Derived from the LIVE catalog only** (local stack, read-only; registry **411 == 411**), never
+> from migration text, the slice records, or graphify: `supabase_migrations.schema_migrations`
+> (slice ranges, bounded by the **registry interval**, not a filename pattern) · `pg_proc`
+> (`prosecdef`, `provolatile`, `proconfig`, `proacl`, `pg_get_functiondef`,
+> `pg_get_function_identity_arguments`, `pg_get_function_result`) · `pg_constraint` +
+> `pg_get_constraintdef` · `pg_attribute` (+ `attacl` / `has_column_privilege`) · `pg_class.relacl` ·
+> `pg_trigger` · `pg_policy` / `pg_policies` · `pg_extension` / `pg_namespace` (the no-scheduler
+> proof) · `storage.buckets` / `storage.objects` policies.
+>
+> **Every DM END STATE aggregate figure re-derived and REPRODUCES**: 411==411 · 13 doc-model tables
+> × exactly 1 policy · 38 document-surface doors, 5 of them not EXECUTE-able by `authenticated` ·
+> 4 buckets · 4 `storage.objects` policies (3 INSERT + 1 SELECT) · 165/165 RLS · the flag census
+> **75 functions / 6 read a flag**. No aggregate figure was retired.
+>
+> ⛔ **Writing the sections found FOUR defects in the `###` stamps the aggregate block carries** —
+> corrected in place there, derived in the new sections:
+> 1. **S3 stamp header said "`…000350`, 6 migrations" — the registry says SEVEN** (`…000360
+>    dm5_s3_r1_mint_unique_violation_discrimination`, the QA-r1 fix). *A range typed at authoring
+>    time does not know about the migration the review adds.*
+> 2. ⛔ **S3 stamp: "A trigger on `responses` mints/drops its securable" — THERE IS NO SUCH
+>    TRIGGER.** `responses` carries 5 user triggers, none touching `securable_resources`; the
+>    `form_response` securable is minted **lazily inside `mint_printed_document`**, and the
+>    function's own comment says ADR 0120 **D17.2** rejected the trigger *on purpose*. ⭐ The claim
+>    did not merely go stale — it asserts the exact mechanism the design wrote a paragraph to refuse.
+> 3. **S2 stamp: "`securable_resources_tenant_shape` … `capa_action` (org + hospital, NULL
+>    commission)"** — the CHECK places **no** constraint on `commission_id` and the column is
+>    nullable. **NULL-commission is the INTENT, not the constraint.**
+> 4. **S2 stamp's "admits 8 types" is now 9** (S3 added `form_response`) — true as a delta, wrong as
+>    current state; both bounds now stated.
+>
+> ⚠ **Three more figures were right only under an unstated bound, and the bound is now written down:**
+> **(a)** `FUP-DM5-DISPOSAL-JOB`'s *"three inflow doors"* — there are **4** SET-form writers of
+> `disposal_pending`; 3 are `authenticated`-reachable and the 4th,
+> `complete_document_reclassification`, is service-role-only, so the queue is fed wider than the
+> figure says. **(b)** The DM5 follow-up-batch section's *"`authenticated` holds SELECT and nothing
+> else"* on the evidence tables — the ACL is **`rm`** (SELECT + MAINTAIN); the security conclusion
+> holds (no `a`/`w`/`d`), the literal string does not. **(c)** The S3 stamp's *"FIVE write guards"*
+> is a curated set; the property-bounded enumeration (*body references `printed_documents` AND
+> raises*) returns a **different** five, and the union is **7** — `guard_printed_document_binding`
+> raises **`HC0DA`**, outside the `HC0D[KLN]` family an errcode sweep would use.
+>
+> **Nothing failed to reproduce**; no figure was carried forward undivided. Two figures are stated as
+> *structural* rather than populated: `file_objects` and `printed_documents` both hold **0 rows** on
+> this stack, so the disposal census comes from function bodies and ACLs, not data — the measured
+> form of C1's UNREHEARSED gap.
+>
+> ✅ **S4 ADDED 2026-08-18 on a second PO ruling** — `## DM5·S4` now sits between the S5 and S3
+> sections, so **all four DM5 slices have one**. Derived from: `schema_migrations` (the interval is
+> **1** migration, `20260927000400`, derived not assumed) · `storage.buckets` · `pg_policy` on
+> `storage.objects` (**`polcmd` census: 3 INSERT + 1 SELECT; ZERO DELETE / UPDATE / FOR ALL**) ·
+> `pg_class.relacl` (`arwdDxtm` to `authenticated` **and `anon`**) · `pg_trigger` (`protect_objects_delete` /
+> `protect_buckets_delete`, both **BEFORE DELETE STATEMENT**) · `pg_proc` (`storage.protect_delete`
+> is role-agnostic, verified from the body) · `pg_constraint` (`file_objects_bucket_check` /
+> `_bucket_from_tier`). **Residue sweep: all NINE retired bucket names score 0 across function
+> bodies (comment-stripped), policy expressions and constraint defs. The census sums — 13 historical
+> names = 4 live + 9 retired.**
+>
+> ⛔ **S4 added a THIRD catalog-false stamp claim and the FIRST figure that does not reproduce at all:**
+> **(i)** *"`begin_document_upload` is the only thing that names a bucket"* — three functions do, plus
+> two CHECK constraints and a client-side constant; **`app.printed_rendition_storage_bucket` landed at
+> S3, so the claim was false when authored, not aged.** The correctly-bounded version is in
+> `docs/reviews/dm5-s4-review.md:334` — **the stamp is a compression of it into a false absolute.**
+> **(ii)** ⛔ **"4 / 6 / 4 / 13 other callers" — RETIRED, does not reproduce under any bound**
+> (measured: fn `5/5/5/12`, policy `8/7/8/11`, combined `13/12/13/23`; the stamp never said which it
+> counted, and two of the four drift the wrong way for a later-addition story). ⭐ **Its conclusion
+> survives untouched — every count is ≥5.**
+>
+> ⚠ **Two traps I walked into and had to back out of, both recorded in the section because they are
+> the item's whole point:** **(a)** grepping `src/` for bucket names as **string literals** returned
+> `'attachments'` ×3 and `"interview-attachments"` — which are a **feature-flag key** and a **`domId`**.
+> A string-literal bound is a *syntax* bound. **(b)** I nearly filed "the retirement has no standing
+> pin" — `325_legacy_bucket_policy_pin.sql` t6/t7/t8 pins it thoroughly, **with an explicit positive
+> control** (t8: a sweep that retired *everything* would satisfy t7 and fail t8). *Absence of a
+> verdict is not absence of coverage; neutralize before escalating.* The one true residual: the pin
+> is keyed to a **closed list of names**, and no assertion anywhere reads the **total** bucket count
+> (complete enumeration: 7 lines across 4 files read `storage.buckets`, all name-keyed).
+>
+> ⚠ **The sweep's own domain was under-wide on the first pass** — it began as the DM5 record's twelve
+> names and missed **`meeting-attachments`** (retired earlier at F2's `20260921000300`), which
+> surfaced only from the pgTAP estate. ⛔ **The dead set cannot be enumerated from the live catalog at
+> all** — a retired bucket leaves no residue to find — which is exactly why retirement had to be a
+> migration and why the only standing assertion possible is over the **surviving** set.
+>
+> **Deployment:** as of the **2026-08-18 push** local and remote are both at `20260928000500`; the
+> retirement is LIVE on the remote. The S4 section states that and carries no "local-only" phrasing.
+
+✅ **PO-RULED 2026-08-18: yes, still wanted — written by the `backend` engineer as ONE small task, before DM5 closes.**
+
+⛔ **Filed 2026-08-18 with an ID because it did not have one, and that was the whole risk.** Raised by
+the **S6 QA (F6)**, re-homed by the **DM5 phase QA**, and carried into the gate-step-4 docket as item
+6 — but it existed **only** inside those three documents and the `🛑 START HERE` block, which is
+retired the moment the docket is answered. ⭐ *A body plus a narrative mention is not an index entry;
+the index is what a reader greps* — the exact class as phase-QA finding **R3**, re-earned one item
+later, by an obligation whose stated purpose was *"named explicitly so it cannot die quietly when DM5
+closes."* **Naming a thing in the document that expires is not naming it.**
+
+**Scope.** Three sections in `docs/backend-state.md`, one per slice — **S2** (NSP RCA/CAPA evidence),
+**S3** (prints onto the core substrate), **S5** (operational closure). The DM END STATE block S6
+wrote is the *aggregate*; these are the per-slice surface deltas that let a future session see what
+each slice changed without re-deriving it.
+
+⚠ **Derive every figure from the live catalog, never from the slice records** — those are exactly the
+documents whose staleness this file exists to replace, and this program has already shipped
+`backend-state.md` currency stamps that were themselves stale (*"stale by three slices … registry
+391→407"*, corrected at S6 to a measured **411==411**). Each figure carries its query, per the
+convention S6 established.
+
+
+### ⬛ FUP-DM5-SETLOCAL-MIGRATION — `SET LOCAL` in a migration is **not guaranteed to be inside a transaction**; `20260921000300` still relies on it (owner: backend)
+
+> ## ✅ RESOLVED 2026-08-18 — the watermark-bounded gate is BUILT, WIRED, and VALIDATED AGAINST GROUND TRUTH
+>
+> `scripts/check-migration-set-local.mjs`, wired as **`lint:set-local`** — the **sixth** gate in the
+> `npm run lint` chain. Current state: **2 migrations above the watermark, 411 grandfathered, 0 findings.**
+>
+> **It is a position scanner, not a regex.** The whole question is *context* — the same eight characters
+> are a defect at top level, correct inside `do $$`, and irrelevant inside a comment or a string. It
+> tracks line comments, **nested** block comments, `''`-escaped strings, quoted identifiers, `$tag$`
+> bodies (consumed whole; `$1` is *not* a quote opener) and explicit `begin`/`commit` depth.
+>
+> ### ⭐ The validation that matters: it reproduces the BEHAVIOUR's answer exactly
+> Swept over **all 413** migrations with the watermark ignored, it returns **4 files / 6 sites** —
+> `20260710000000:40` · `20260711000200:68,73` · `20260921000300:58` · `20260925000300:100,118` — which
+> is *precisely* the set Postgres itself named via its `25P01` warnings during a reset, **line numbers
+> included**, while correctly clearing the other 8 of the 12 files `grep` flags. The ground truth was
+> established by the runtime, independently of this scanner. That is what retires the "syntax finds 12,
+> behaviour finds 4" objection: it is retired **empirically**, not by argument.
+> → [[detector-that-finds-nothing-must-be-proven-able-to-find-something]]
+>
+> ### The positive control the ruling demanded — three layers
+> 1. **23 in-process fixtures**, run before every scan; the gate refuses to report if they fail.
+>    The load-bearing one is *"bare `set local` AFTER a closed do-block"*: a scanner that enters a
+>    dollar quote and never leaves would pass **every file in the repo** silently, and that fixture is
+>    the only one that can catch it.
+> 2. **End-to-end injection**: a bare `set local` appended to an in-scope migration → **RED, exit 1**,
+>    correct file:line. Appended to a *grandfathered* migration → **green** (the watermark bound holds
+>    end-to-end, not just in a unit). Wrapped in `do $$ … $$` in an in-scope file → **green**.
+> 3. **Scope fixtures** pin the boundary itself, including that the watermark file *is* grandfathered
+>    (strictly-above, not at-or-above).
+>
+> ### ⛔ The watermark is a GRANDFATHER LINE — do not bump it on a push
+> Written at length in the script header, because the obvious "maintenance" is the one thing that
+> breaks it. Advancing it after each `db push` would grandfather the files you just wrote, converting
+> a gate that rots toward **stricter** into one that rots toward **weaker** — reversing the exact trade
+> the PO made. It never needs updating.
+>
+> ### One real defect found while validating
+> Importing the module for the all-migrations sweep **executed the CLI block**, which can
+> `process.exit(1)` and kill an importing test run. Guarded with an `import.meta.url` vs `process.argv[1]`
+> main check. Observed, not theorised — the sweep printed the gate's own summary line into my results.
+
+> ## ⛔ THIS ITEM HAD NO PROGRESS.md INDEX LINE UNTIL 2026-08-18 — added that day
+>
+> It has a full body here and is named in **five** documents, but `grep SETLOCAL PROGRESS.md` returned
+> **nothing** for its entire life, so the next §6-step-5 rotation would have dropped it silently.
+> ⭐ *A body plus a narrative mention is not an index entry; the index is what a reader greps.* That
+> warning is written twice in the register itself — this is the **third** item to re-earn it.
+>
+> ## ✅ REMEDY RULED 2026-08-18 (DM-FUP TRIAGE #7) — **a WATERMARK-bounded static lint gate, no allowlist**
+>
+> The lead proposed an allowlist of the frozen files and **was wrong**; the PO's instrument is better.
+> Bound the gate by the **frozen watermark** (`20260928000500`) instead: check only migrations *above*
+> it. **Measured: all 12 files containing `set local` sit at or below the watermark. Zero above.** So the
+> gate starts green with **nothing to allowlist** — no entry to rot, no anti-join to maintain.
+>
+> ⭐ **The failure directions are opposite, and that is the whole argument.** A stale **allowlist** rots
+> toward *weaker*: an entry outlives its file and silently skips it (`FUP-AUTHZ-ALLOWLIST-ROT` found six
+> such entries where the filing named one). A stale **watermark** rots toward *stricter*: it starts
+> checking newly-frozen files and reds **loudly**. Given a choice of rot, choose the one that fails loud.
+>
+> **Two consequences:**
+> - Because nothing existing sits above the line, the gate can be a **fast static check inside
+>   `npm run lint`** rather than a slow reset-log check in the Phase Gate. The "syntax finds 12, behaviour
+>   finds 4" objection dissolves — those 12 are excluded by construction, not by judgement.
+> - ⚠ It still needs a **positive control** proving its `do $$` / explicit-`begin` nesting detection can
+>   actually fail. A gate nobody has seen fire is not a gate.
+
+> ⛔ **STALE, CORRECTED 2026-08-18 — read this before the "still editable in place" paragraph below.**
+> That paragraph says *"the five local-only ones ARE still editable in place."* **They are not.** The
+> `db push` executed 2026-08-18 applied all five; the remote is at **`20260928000500`** and **zero
+> local-only migrations remain**. Nothing at or below that version may be edited in place — the editable
+> window did not move forward, it **closed**. → [[a-records-claim-about-an-external-system-goes-stale-silently]]
+
+> **⛔ CORRECTED 2026-08-17 by QA (S4 review).** Two claims in the original filing below were wrong:
+> 1. **It is NOT e2e-path-specific.** A plain `npx supabase db reset --local` emits **six** `25P01`
+>    warnings, one of them from `20260921000300` itself. The lead's standalone reset had simply been
+>    read with `tail -25`, which cut them off.
+> 2. **The lead's "the opt-in is load-bearing" probe was taken at the WRONG GRAIN.** It probed the
+>    **post-reset live DB**, where `protect_delete` genuinely raises `42501` — but that is not
+>    *migration-apply time*. QA's surviving hypothesis (stated as hypothesis, not demonstration): the
+>    trigger **is not in force while migrations apply**, because `storage.migrations` row 55
+>    (`prevent-direct-deletes`) re-executes during the reset. That explains the otherwise-unexplained
+>    fact that the DELETE succeeded despite a no-op opt-in.
+>
+> **The fix still stands and is still correct** — the `do`-block form removes the dependency on the
+> runner's transaction handling either way, and was re-proved by QA. Only the causal story changes.
+> ⭐ *A probe answers the question at the grain you took it; "the guard refuses" and "the guard refuses
+> **at apply time**" are different claims.* → [[a-predicate-quoted-at-the-wrong-grain]]
+
+> ## ⛔ RE-SCOPED 2026-08-17 — THREE different enumerations, and the REMEDY IS BLOCKED
+>
+> **The count, measured three ways, giving three answers:**
+> | method | answer |
+> | --- | --- |
+> | this item, as filed (one specimen someone noticed) | **1** migration |
+> | `grep -l 'set local' supabase/migrations/` (bounded by a SYNTAX) | **11** migrations |
+> | ⭐ **the reset's own `25P01` warnings** (bounded by the BEHAVIOUR) | **4 migrations, 6 sites** |
+>
+> Only the third is the defect set. The other seven `set local` uses are already inside a
+> `do $$` block or an explicit transaction and never warn. Sites, triaged — **they do not
+> share a severity**, which the single-specimen framing hid:
+> - 🔵 `20260710000000_nsp_per_hospital:40` — `check_function_bodies = false`. **Benign**: a
+>   no-op here makes `CREATE FUNCTION` fail **loudly**, and it is a validation setting, not a
+>   security bypass.
+> - 🟠 `20260711000200_answers_form_fk:68,73` · 🟠 `20260925000300_dm3_domain_core_binding:100,118`
+>   — **the dangerous class**: a GUC that bypasses an immutability guard, wrapped around a
+>   **data-dependent backfill**. On a fresh local reset the backfill matches **0 rows**, so the
+>   guard never fires and the no-op is invisible; on a data-bearing target it is not.
+>   Exactly [[backfill-guard-wrap-data-dependent-migration]].
+> - 🟠 `20260921000300_retire_meeting_attachments_bucket:58` — the originally-filed site.
+>
+> ### ⛔⛔ AND THE IN-PLACE FIX IS NOT AVAILABLE: all four are APPLIED ON THE REMOTE
+> Measured with `supabase migration list --linked`: the remote carries every migration through
+> **`20260927000360`**, i.e. **DM1–DM5·S3 have been pushed**. ⚠ **Re-measured 2026-08-17: FIVE are
+> local-only, not two** — `…0927000400` (S4) · `…0928000100` (recusal) · `…0928000200` (evidence
+> revoke) · `…0928000400` (D4 contract) · `…0928000500` (finalize-atomic); `…0928000300` was the
+> reverted D11 inflow and does not exist. Editing applied history creates the
+> drift that blocks `db push` — *restore, don't repair*. ⛔ **The five local-only ones ARE still
+> editable in place** — the "not available" verdict below applies only to the four APPLIED files.
+>
+> ⚠ **This contradicts `dm5-handoff.md` §13.1, which states "NOTHING PUSHED, no `db push`, no
+> remote reset … remote never touched by DM1–DM5". BOTH halves of that sentence are false** —
+> `origin/main` is also a DM5·S5 commit. **Nothing downstream may rely on either claim.**
+>
+> **Past state is fine and this is not an incident:** all four applied successfully, and
+> `answers_form_fk`'s following `alter column … set not null` would have failed had its backfill
+> silently skipped rows. The residual risk is **future invocations**, so the remaining remedy is
+> the **lint gate** below — a gate change, and therefore a PO decision, not a mid-batch edit.
+>
+> ⚠ **Two consequences that outrank this item.** S4's bucket retirement (`…000400`) has **never
+> reached the remote**, so ADR 0120 **D9**'s binding "delete bytes by manifest FIRST" ordering is
+> still owed against a **live remote** — and `FUP-DM5-CLOUD-ORPHAN-SURFACE` stops being
+> theoretical. And every follow-up resting on *"the flags ship OFF so the path is unreachable in
+> production"* now depends on the **remote** flag state, which **no one in this record has
+> measured**.
+
+Filed 2026-08-16 (lead) from a live near-miss in DM5·S4. `supabase db reset` **as invoked by
+`scripts/e2e-prod-gate.sh`** emitted `WARNING (25P01): SET LOCAL can only be used in transaction blocks`
+against `20260927000400`, whose destructive `delete from storage.buckets` is gated on
+`set local storage.allow_delete_query = 'true'`. **`SET LOCAL` outside a transaction is a silent no-op.**
+
+**The opt-in is genuinely load-bearing** — probed in a rolled-back txn: without it,
+`delete from storage.buckets` raises **`42501` from `storage.protect_delete()`**; with
+`set_config(..., is_local => true)` inside a `do` block, it succeeds.
+
+- ✅ **S4's own migration is FIXED** — opt-in and DELETE moved into one `do` block, which always runs
+  inside a transaction (its own, if none is open). Applies with no warning; catalog re-verified.
+- ⛔ **`20260921000300_retire_meeting_attachments_bucket.sql` still carries the original idiom.** It is
+  applied history and was deliberately left alone. It is fine wherever the runner wraps the file — which
+  is exactly the problem: *the correctness is conditional on an undocumented property of the tool that
+  applies it*, and **`db push` to the remote is a different invocation from `supabase db reset`.**
+- **Worth a lint gate:** flag `set local` at migration top level (outside `do $$`/explicit `begin`).
+  Cheap, and it is the same class as the four existing non-eslint gates — each added after the class
+  shipped a live defect.
+
+⚠ **Unexplained, recorded as such:** in the observed e2e-path run the migration did **not** error after
+the warning (the log continues to `Seeding data`; that batch failed later on an unrelated 502). Given the
+probe, a delete matching ≥1 row without the opt-in must raise — so either it matched 0 rows there or the
+session already held the GUC. **Not reproduced, and no mechanism invented for it.**
+
+
+### ⬛ FUP-DM5-MANIFEST-FLAG — ✅ **RESOLVED — and it was ALREADY FIXED when re-checked 2026-08-17** (owner: backend)
+
+> **✅ RESOLVED.** Re-measured before being worked on, and the guard was already live —
+> shipped in S5 (selftest control **C11**) but never marked here. Measured:
+> `capture --manifest /tmp/x.json` prints *"unknown flag "--manifest" for "capture" — that
+> is "verify"/"delete"'s flag"*, refuses to run, and **exits 2** — exactly the remedy this
+> item specified. The committed baseline was **not** touched (`git status` on
+> `supabase/manifests/` clean).
+>
+> ⚠ **A method note worth more than the item.** The first exit-code reading was taken
+> through `| head -5` and came back **0**; the real code is **2**. That is
+> [[gate-summary-can-hide-unrun-tests]]'s sibling — *a pipe reports the PIPE's exit code* —
+> the same mechanism that once masked an `exit 2` as `0` in a mutation sweep. **Never read
+> an exit code through a pipe.**
+
+Filed 2026-08-16 (lead) from a live near-miss during S4. `capture` takes **`--out`**; **`--manifest`** is
+`delete`'s flag. Passing `--manifest <scratch-path>` to `capture` did not error — `argFlag` returned nothing
+and the code took `?? DEFAULT_MANIFEST`, **overwriting the committed S0 baseline**
+(`supabase/manifests/dm5-retirement-baseline.json`). Caught by `git status`, restored with `git checkout`.
+
+**Why it is worth fixing rather than remembering:** this is a tool whose entire purpose is to be the
+authoritative record immediately *before* an irreversible deletion, and its failure mode on a typo is to
+**silently overwrite the previous authoritative record**. A wrong-but-plausible flag is exactly the input it
+must be hostile to. Fix: reject unrecognised `--flags` with exit 2, and/or refuse to write the default
+manifest path unless `--out` is given explicitly.
+
+⭐ **The accident was also a free verification, worth keeping:** the diff showed the retirement-bucket
+figures **byte-identical** to S0's (only `capturedAt` and the core-bucket census moved) — an independent
+reproduction of the 221 files / 6.93 MB / 15 PHI-tier orphan census, four days apart.
+
+
+### ⬛ FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT — ✅ **CLOSED 2026-08-18** (`20260928000800`, ADR [0123](../decisions/0123-discarding-a-draft-that-has-emitted-documents.md)) — a print of a DRAFT response outlives its response, invisible to every UI (owner: backend)
+
+> ## ✅ CLOSED 2026-08-18 — and re-deriving the shipped fix found TWO MORE DEFECTS
+>
+> Migration `20260928000800`. `312` **80 → 85**, red-first. The item is closed on **four** answers,
+> two of which are to questions it never asked:
+>
+> **D1 — the guard was WRONG, not merely incomplete.** `20260928000700` argued *"Only an ACTIVE print
+> represents a live page."* ⭐ **That sentence is false by this platform's own ruling.** ADR 0120
+> **D6/D8** — established the hard way by the D11 serving collision — says states change the overlay
+> **STAMP, never reachability**: a `superseded` print still serves bytes and still answers
+> `/verificar`. Reachable through supported actions only: mint P1 → re-mint (the mint's own
+> `SUPERSEDE_ACTIVE` flips P1) → coordination revokes the active P2. **Zero actives, one superseded,
+> guard open.** The exit holds: `revoke_printed_document` refuses only `status='revoked'`, so a
+> superseded row can still be voided (`312` t79 pins exactly that).
+> → [[a-partial-fix-reads-as-a-complete-one]] · [[a-comment-is-an-assertion-that-goes-stale-silently]]
+>
+> **D3 — the mint read its source UNLOCKED, and no arm was asking.** The guard is `BEFORE DELETE`;
+> nothing ordered it against a concurrent mint. **Measured**, not reasoned, in a scratch schema:
+> unlocked → *delete succeeds, mint commits after,* **orphan created**; with `for key share` → delete
+> blocks, then the trigger raises; reversed → the locked select returns **zero rows** and the mint
+> aborts on its **existing** `HC0D1`. Works because Postgres takes `LockTupleExclusive` **before**
+> running a `BEFORE DELETE` trigger body. The whole fix is `for key share` on one `select`.
+> ⚠ **Not pinnable behaviourally** — pgTAP is single-session, so `312` t81 pins it **structurally**
+> from `pg_proc`. Weaker, and said out loud rather than papered over: the alternative was a comment.
+>
+> **D4 — pre-existing orphans: the subject was EMPTY.** Measured on **both** environments: production
+> `0` prints / `0` responses / `0` documents / `0` dangling securables; local `0` after reset. ⭐ The
+> item's own *"6 of 9 local prints are `form_response` kind"* was **E2E residue in a since-reset DB**,
+> quoted forward for four days as a population. A reconcile would have had nothing to reconcile.
+> ⛔ **The measurement expires at the pilot** — the set is empty because nothing exists yet; D1+D3 are
+> what keep it empty. → [[your-own-measurement-goes-stale-like-any-other]]
+>
+> **D5 — the dangling securable: the obvious repair was the DEFECT.** Both `app.can_read_document` and
+> `app.can_write_document` open with `documents d join securable_resources s on s.id =
+> d.home_resource_id` and return **false** when the join misses. **Deleting** the orphaned securable
+> would silently revoke `request_document_disposition` for that print — **D11's only outflow** — and
+> leave unreachable bytes with no disposition authority at all. It is **retained by design** as the
+> historical home anchor; the full post-deletion semantics table is ADR 0123 D5.
+>
+> ## ⚠ A THIRD DEFECT WAS FOUND HERE AND DELIBERATELY NOT FIXED HERE
+>
+> `can_view_printed_document`'s `form_response` arm grants its `staff_admin` term only when
+> `status = 'submitted'`, and that predicate **is** the `printed_documents_select` policy — so a print
+> of an `in_progress` draft is invisible to **every coordinator except its creator**, with the source
+> still alive and no deletion involved. Filed as **FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION**
+> rather than folded in: closing this item over a new door with no UI caller would have been a
+> [[correct-door-that-nothing-can-reach]].
+>
+> <details><summary>The shipped-prevention record as it stood before closure (superseded)</summary>
+
+> ## ⛔ RULED THEN WITHDRAWN, SAME DAY (2026-08-18) — **option 1 reverses ADR 0104 D7. Nothing was built.**
+>
+> **The option list below is wrong, and that is the finding.** It offers *"refuse a mint from a
+> non-`submitted` response (narrowest, and **arguably right — a draft is not a document of record**)"*.
+> ADR [0104](../decisions/0104-pdf-document-printing-module.md) **D7** had already ruled the opposite:
+> the `RASCUNHO` watermark's derivation is *"Source not in final state at mint (**in_progress
+> response**, unapproved minutes, unsigned interview)"*, and D7 item 4 says outright — ***"Completeness
+> does not gate minting — FINAL/RASCUNHO already encodes it."*** Printing a draft is a **designed
+> feature with its own watermark**, not an oversight.
+>
+> pgTAP `312` t6 pins it **by name**: *"creator sees his own in_progress draft (RASCUNHO prints are
+> legal, D7)"*. The ruling would have red-ed that keystone.
+>
+> ⭐ **Where this actually went wrong.** The option list is part of this item's body — written once, by
+> the filer, and then quoted forward as the menu. The lead recommended from it without re-deriving its
+> premise; the PO ruled on the recommendation. **An option list is an assertion, and this one carried a
+> justification an ADR had already refuted.** It was caught only because implementation needed a
+> fixture, and the fixture file stated D7 in a comment.
+> → [[verify-dont-comply]] · [[a-comment-is-an-assertion-that-goes-stale-silently]]
+>
+> ## ✅ RE-RULED AND BUILT 2026-08-18 (#8b) — **option 1 below: refuse the DELETE, not the mint**
+>
+> Migration `20260928000700` — `app.guard_response_active_print`, BEFORE DELETE on `responses`,
+> raising **`HC069`**, mapped to pt-BR in `discardResponse`. ADR 0104 D7 is untouched; drafts still
+> print. pgTAP `312` **77 → 80**, red-first: t74 red **and its delete succeeded**, so the orphan is
+> demonstrated rather than argued.
+>
+> **Three design points, each measured rather than assumed:**
+> - **`status = 'active'` only.** `lookup_printed_document` (the public `/verificar` door) reads
+>   `printed_documents` directly and joins **only** commissions/hospitals — **never `responses`**. So
+>   public verification **survives** an orphan, and a *revoked* print must keep its row and bytes
+>   precisely so a paper-holder is still told `ANULADO`. Orphaning a revoked print is correct.
+> - **A trigger, not an RLS predicate.** Narrowing `responses_delete_own_draft` would refuse
+>   **silently**, as a zero-row delete the caller reads as success.
+> - **`SECURITY DEFINER`, and it is load-bearing.** `printed_documents` carries a SELECT policy; an
+>   invoker read would let a print the deleter cannot see make the guard find nothing and **allow** the
+>   delete → [[guards-that-read-right-but-fail-open]].
+>
+> ⭐ **t76 is the assertion that carries the weight.** After the coordinator revokes, the *same* delete
+> by the *same* principal succeeds. Without it, t74 is equally satisfied by a guard that blocks every
+> draft delete unconditionally — a worse bug that would have read as a pass.
+>
+> ## ⚠ AND THE MIGRATION SHIPPED A PUBLIC-EXECUTABLE DEFINER FUNCTION — caught by a gate, not by review
+>
+> Written without an explicit ACL, the function took Postgres' **default PUBLIC EXECUTE**, and pgTAP
+> `320` U1 (the `FUP-ACL-APP-POPULATION` census) went red at **237 → 238**. A `SECURITY DEFINER`
+> function PUBLIC may call is a live door, not a detail. Fixed with `revoke all … from public` plus
+> grants mirroring both sibling guards. ⭐⭐ **The defect was invisible in the diff, in review, and in
+> every functional test — `312` was fully GREEN with the door open.** That is the standing argument for
+> keeping the ACL census in the phase gate. → [[new-door-must-inherit-every-sibling-arm]]
+>
+> ## ~~⛔ STILL OPEN — two things this ruling does NOT close~~ ✅ BOTH ANSWERED 2026-08-18 (D4/D5 above)
+>
+> 1. ~~**Pre-existing orphans.** The guard prevents new ones; it repairs none.~~ → **D4: the set is
+>    empty in both environments, measured.** Nothing to repair.
+> 2. ~~**The dangling `securable_resources` row** — a securable with no subject, which every kernel arm
+>    joins through. Unchanged by this fix, and still owed.~~ → **D5: retained BY DESIGN.** It is the
+>    print's disposition anchor; ⛔ deleting it is the defect, not the fix.
+>
+> <details><summary>The options as they stood before the re-rule (superseded)</summary>
+>
+> ### 🔁 RE-RULE OWED — and the surviving options are NOT the three below
+>
+> D7 removes option 1. It also reframes the defect: **the harm was never that a draft can be printed —
+> it is that the print outlives the DELETED response** as a dangling `securable_resources` row with
+> unreachable bytes. Candidates, with the lead's current recommendation first:
+>
+> 1. ⭐ **Refuse to delete a response that has an active print.** A narrowing on the DELETE path, not the
+>    mint path. Preserves D7 completely, needs **no disposal outflow**, and therefore is **not gated on
+>    Critical FUP C1** — unlike cascade-disposal. The orphan stops being created.
+> 2. **Cascade the print's disposal when its source is deleted.** Handles existing rows too, but widens
+>    the disposal path whose only outflow is the manual unrehearsed runbook ⇒ gated on **C1**.
+> 3. **Surface orphaned prints in an admin view.** Manages orphans rather than preventing them.
+>
+> ⚠ Under **every** candidate, the two follow-on items stand: the **existing** dangling rows, and the
+> dangling **`securable_resources`** row itself — a securable with no subject, which every kernel arm
+> joins through.
+>
+> </details>
+>
+> **Cheap by measurement, not by assumption:** no E2E spec mints from an `in_progress` response, and the
+> print fixture pool is `submittedResponseIds` — submitted-only by construction.
+>
+> ⚠ **Two things the ruling does NOT cover, and they are the follow-on work:**
+> 1. **Existing rows.** 6 of 9 local prints are `form_response` kind; refusing future mints leaves those
+>    where they are. Needs a one-off reconcile.
+> 2. **The dangling `securable_resources` row** — the body below already says this needs handling under
+>    *every* option, because every kernel arm joins through it. A securable with no subject is a latent
+>    authorization question, and the chosen option does not answer it.
+>
+> ⛔ **Cascade-on-delete was declined** — it widens the disposal path, whose only outflow is the manual
+> **unrehearsed** runbook, so it would have created work gated on Critical FUP C1.
+
+</details>
+
+Filed 2026-08-14 (lead) from `qa`'s DM5·S3 review MINOR-5. **CONFIRMED by probe, not reasoned.**
+
+Mint a print from a **draft** response, then delete the response: the `responses` row goes, its
+`securable_resources` row is left **dangling**, and the print becomes reachable by **no UI surface at all**
+(0 rows in every projection) while its bytes and registry row persist. `revoke → dispose` still works **at the
+door**, so it is recoverable by someone who already knows the id — which in practice is nobody.
+
+Note the interaction with **D18** and `DocumentHomeResourceType`: `form_response` homes render **no panel**, so
+even without deletion a `form_response` print has no surface — deletion just makes it permanent. **6 of 9
+prints in the local DB are that kind**, so this is the common case, not the exotic one.
+
+**Options:** refuse a mint from a non-`submitted` response (narrowest, and arguably right — a draft is not a
+document of record); or cascade the print's disposal when its source is deleted; or surface orphaned prints in
+an admin view. ⚠ Whichever is chosen, the **`securable_resources` dangling row** needs handling either way —
+a securable with no subject is a latent authorization question, since every kernel arm joins through it.
+
+
+### ⬛ FUP-DM5-DEAD-CORE-PROJECTION — ✅ **RESOLVED 2026-08-17 by deletion** (owner: frontend + backend)
+
+> **✅ RESOLVED.** `getDocument` deleted from `src/lib/queries/documents.ts`. Verified at
+> every **import site**, not by grepping the symbol: all five detail routes import
+> `getDocument` from `@/lib/queries/controlled-documents`; the only imports from
+> `queries/documents` are `listDocumentsForResource` and `documentVersionAvailability`.
+> `tsc` 0, all five lint gates green after removing the now-unused `DocumentDetail` import.
+>
+> **Deleted rather than kept-and-documented:** keeping it preserves the trap — the next
+> reader has the same 50/50 chance of editing the unreachable copy, which is exactly what
+> happened to ADR 0120 **D18**. ⚠ The D18 filter **survives where it is reachable**:
+> `EXCLUDE_PRINTED_RENDITIONS` is still used by `listDocumentsForResource`.
+>
+> ⭐ **The "check for other same-name pairs" sub-item is discharged by measurement, not by
+> looking:** across `src/lib/queries/*.ts`, `getDocument` was the **only** duplicated
+> export name.
+
+Filed 2026-08-14 (lead) after `tester` found it and the lead re-verified by grep. **No behavioural
+defect — a legibility trap with a live cost already paid.**
+
+- `src/lib/queries/documents.ts:260` exports `getDocument` (Wave-A core `documents` projection). **Nothing
+  under `src/` imports it.**
+- `src/lib/queries/controlled-documents.ts:360` exports `getDocument` **too**, and *that* is the one all
+  five detail routes import.
+- **The cost already paid:** the lead's ADR-0120 **D18** ruling ("exclude prints from the detail projection
+  too") was implemented on the **unreachable** one. Harmless — the reachable projection selects
+  `from('controlled_documents')` and a print has no row there, so prints are excluded *structurally* — but
+  the ruling bought nothing, and the record briefly implied the detail path was protected by a filter when
+  it is protected by the schema. Recorded in ADR 0120's D18 amendment.
+
+**Why it hid:** two exports, one name, different modules. A grep for `getDocument` returns hits and
+*looks* answered; only `grep` for the **import site** distinguishes the reachable one. Same class as
+[[an-enumeration-s-boundary-must-be-the-property-not-a-syntax]] — the name is the syntax, "what the routes
+actually call" is the property.
+
+**Fix:** decide whether the core projection is (a) dead and should be deleted, or (b) intended for a
+detail route not yet mounted — and if (b), say so at the definition with what will mount it. **Do not
+simply delete the D18 filter from it**: if the function survives, the filter must survive with it, or a
+future route mounts an unfiltered projection. ⚠ Check for other same-name-different-module pairs in
+`src/lib/queries/` while there; this one was found by accident.
+
+
+### ⬛ FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED — ✅ **RESOLVED 2026-08-18** — the disposal evidence recorded `not_attempted` from the ONE lane that actually deleted the bytes (owner: backend)
+
+> ## ✅ RULED 2026-08-18 (DM-FUP TRIAGE #2) — **write `unavailable_on_platform`**
+>
+> Fix site: `reclassifyDocument` in [`src/lib/documents/actions.ts`](../../src/lib/documents/actions.ts)
+> — named by SYMBOL, not by line: this cited `:416` when written and the fix's own comment block moved
+> it to `:426` within the hour ([[a-comment-is-an-assertion-that-goes-stale-silently]]). Add
+> `p_byte_proof: 'unavailable_on_platform'` to the `complete_document_disposal` call, plus a pin so
+> nothing silently reverts to the DEFAULT. Vocabulary re-verified from the live catalog
+> (`pg_get_functiondef`, not migration text): `local_volume_verified` · `unavailable_on_platform` ·
+> `not_attempted`.
+>
+> ⭐ **The deciding fact was not in the filing: no app code branches on deployment.** `src/lib/documents/`
+> and `src/lib/supabase/` carry **zero** `STORAGE_BACKEND` / `isLocal` / `NODE_ENV` checks, so ONE literal
+> serves both environments — while the honest answer differs between them (locally the volume is
+> walkable and `local_volume_verified` is earnable; on Cloud it is not). `unavailable_on_platform` is the
+> only value that is never an overclaim in either: it understates locally and is exact on Cloud.
+>
+> **Two alternatives explicitly rejected, and why they are worth naming:**
+> - **Derive it from an env var.** Accurate per environment, but a *misconfigured* env writes a FALSE
+>   proof into the regulator-facing ADR 0121 D4 evidence — failing in the reassuring direction, which is
+>   the entire `FUP-DM5-NO-ANSWER-VS-NOTHING` class.
+> - **⛔ Verify at call time, then write the result.** The intuitive option, and the trap: a Storage-API
+>   `list()` after `remove()` reads **`storage.objects`** — metadata, not the volume. It would manufacture
+>   `local_volume_verified` out of the exact proxy that NO-ANSWER instance 3 exists to condemn. Recorded
+>   here so it is rejected deliberately rather than proposed again later.
+>
+> ⚠ **This ruling may be revisited by `FUP-DM5-CLOUD-ORPHAN-SURFACE`.** If the constructed-orphan probe
+> proves Cloud *does* expose an orphan-visible surface, a fourth vocabulary value gets **earned by that
+> measurement** — it is deliberately not pre-authorized here.
+
+Filed 2026-08-17 at the DM5 **phase** QA (M4), catalog-verified by the lead before filing.
+
+**Measured.** `public.complete_document_disposal(p_file_object_id uuid, p_byte_proof text DEFAULT
+'not_attempted')`. Its **only production caller** is `reclassifyDocument`
+(`src/lib/documents/actions.ts`), which calls it **without `p_byte_proof`** — *three lines after*
+performing `admin.storage.remove([oldFile.storage_path])` and checking `rmError`. So the row records
+**"byte deletion not attempted"** for a deletion that **was attempted and succeeded**.
+
+⛔ **Why this is more than cosmetic.** `disposal_evidence` is the ADR **0121 D4** artifact — the thing
+that says what a disposal actually did, for a regulator. This is the one code path in the product that
+*can* honestly claim a byte proof, and it is the one that disclaims it. ⚠ It errs **conservatively**
+(claims less than it did), which is why nothing catches it: no gate fails, and the record merely looks
+modest. But it is still a **false statement in a PHI evidence trail**, and it makes the strongest
+available evidence indistinguishable from the weakest.
+
+⭐ **Shape:** [[declared-param-no-caller-blind-spot]] — a parameter exists, carries a safe-looking
+default, and the only caller never passes it, so the default *is* the behaviour and the parameter reads
+as unused. Related: [[a-backfill-masks-the-broken-write-path]] (the write path was never taught).
+
+**Fix:** pass the real outcome from the lane that knows it. ⚠ Decide deliberately what the value means
+when `remove()` succeeds against Cloud — the S5 finding stands that a Storage-API success is **not**
+proof of byte destruction there (`FUP-DM5-CLOUD-ORPHAN-SURFACE`), so the honest value may be
+lane-dependent rather than a flat "attempted". **Needs a pgTAP pin either way** — today nothing asserts
+what any lane writes into `byte_proof`.
+
+
+### ⬛ FUP-DM5-ATTACHMENTS-MODULE-SURVIVED-RETIREMENT — ✅ **RESOLVED 2026-08-18 by deletion of `actions.ts` ONLY** — the legacy module the retirement phase was named for (owner: frontend + backend)
+
+> ## ⚠ SCOPE NARROWED 2026-08-18 BY MEASUREMENT — **the title over-reaches; do not delete the directory**
+>
+> The item says *"`src/lib/attachments/` survives."* Measured, the directory has **two** files and they
+> have opposite fates:
+> - **`actions.ts` — DELETE.** 6 `'use server'` exports, **zero importers**. The only surviving reference
+>   anywhere is a doc comment at `src/lib/queries/case-documents.ts:17` naming `openAttachment` as the
+>   audited door, which should be corrected in the same pass.
+> - **`constants.ts` — KEEP. It is LIVE**, with 3 importers: `src/lib/queries/attachments.ts`,
+>   `src/lib/queries/interviews.ts`, and transitively `src/lib/queries/meetings.ts` via `listAttachments`.
+>
+> ⭐ Deleting on the title rather than on the measurement would have broken three query modules — the
+> same shape as the defect the item itself describes, where a sweep bounded by the wrong unit misses what
+> it was aimed at.
+
+Filed 2026-08-17 at the DM5 **phase** QA (M3).
+
+`src/lib/attachments/` survives DM5 with **6 dead `'use server'` exports** whose own comments say
+*"until DM2 retires it"*. The **buckets** are retired and the catalog is clean — the S6 exit sweep
+measured **0 functions / 0 policies / 0 constraints / 0 defaults** referencing any of the 8 retired
+names — so this is **dead application code, not a live byte path**, which is why it is 🟡 and not
+higher.
+
+⭐ **Why the S6 exit sweep could not see it, and this is the transferable part:** that sweep was bounded
+by **identifier** (`storage_path`, `storage_bucket`, bucket literals, `createSignedUrl`) — deliberately,
+because bounding by directory had failed before. A module that no longer *references* a retired bucket
+but still *exists* matches none of those identifiers. **Both bounds are right and both are incomplete:**
+"does anything still point at the retired thing?" and "is the thing that pointed at it gone?" are
+different questions, and DM5 only ever asked the first.
+→ [[enumeration-boundary-is-a-syntax-not-a-property]], [[cutting-a-table-does-not-cut-its-doors]].
+
+**Before deleting:** verify by identifier that nothing imports these exports (a dead `'use server'`
+export is still a live RPC surface if any client references it), and check the `attachments`
+**feature-flag key** separately — it is still read live at `attachments/actions.ts:35` and
+`interviews/actions.ts:798`/`:834`, and it is a *flag key*, **not** a bucket name (the `case_patient`
+name-collision class).
+
+
+### ⬛ FUP-DM5-330-WRITE-BLIND — ✅ **RESOLVED 2026-08-17** (owner: backend)
+
+> **✅ RESOLVED** by `330` block W (+5, plan 57 → 62), a labelled commit of its own as the
+> re-scoping required.
+>
+> ⭐ **The blindness was RE-DERIVED, not inherited — and it was still real.** The filing
+> warned that `BUG-DM5-S2-WRITE-ARM-1`'s fix (`fc7a146d`) changed the body after the
+> verdict was recorded, and [[a-rename-orphans-a-name-keyed-verdict]] applies to a body
+> edit too. Measured against the live catalog: rewriting the `controlled_document` arm to
+> `return true` and re-running the file gave **All tests successful across all 57**. The
+> keystone was then authored *against that open gate*, so its red is a **run, not a
+> prediction** — W2 and W3 fail, the three positive controls stay green, and after
+> restoring the gate all 62 pass.
+>
+> **W3 is the discriminating one.** `staff1.farm` is an approver of this document and A3
+> (same file) already proves he READS it. The write arm deliberately has no approver half
+> — *"an approver reads the artifact he reviews; he does not replace its bytes"*, the
+> body's own comment. Same persona, same document, opposite answers: the asymmetry is now
+> pinned as a **decision** rather than surviving as an oversight nobody could distinguish
+> from one.
+>
+> ⚠ **The distinction that kept this open was correct and is worth keeping:** door-level
+> BLIND lifting ≠ arm-level coverage. `342` covering the print arm would have lifted the
+> door's finding while this arm stayed uncovered **wearing a COVERED status** — STALE-
+> COVERED as a *status* change rather than a *body* change, which no existing check looks
+> for. It was right not to close this on `342`.
+>
+> ⛔ **The gate restore was verified against `prosrc`, not assumed** — the shared local
+> stack has had an authz gate left open by a sweep before
+> ([[mutation-harness-must-prove-its-rollback-first]]).
+
+<details><summary>Original filing + re-scoping (2026-08-14) — retained</summary>
+
+> **Re-scoped 2026-08-14 (lead) after `backend` correctly declined to fix it inside S3.** Its reasoning
+> is right and is retained: the door sweep's unit is the **suite set**, not one file, so `342` noticing a
+> neutralized `can_write_document` is what lifts BLIND — and folding S3 keystones into DM3's suite is the
+> same objection that moved S3's own suite off `341`, one file over.
+>
+> ⛔ **The distinction that keeps this open: door-level BLIND lifting ≠ arm-level coverage.** Once `342`
+> covers the **print** arm, neutralizing the whole door is noticed and the finding lifts — while the
+> `controlled_document` arm `330` was supposed to be watching stays uncovered, now wearing a COVERED
+> status. That is **STALE-COVERED reappearing as a *status* change rather than a *body* change**, which no
+> existing check looks for. Do **not** close this on `342`'s coverage. `330`'s own hygiene is a separate
+> labelled commit, deliberately not in S3.
+
+Filed 2026-08-14 (lead), carried out of the DM5 handoff where it existed **only in prose** and so was
+in no tracked place. Surfaced when `can_write_document` was re-swept for the S2 arms (`fa28ec19`) —
+it had been **STALE-COVERED**: a verdict recorded against the door under its pre-S2 body, which the
+S2 `rca`/`capa_action` arms then changed. Per §6 step 1 a BLIND door **blocks a phase**, so this must
+be keystoned (not allowlisted — `can_write_document` is a write authority, never an unreachable
+backstop). ⚠ Re-derive whether it is *still* blind from the live catalog before writing the keystone:
+`BUG-DM5-S2-WRITE-ARM-1`'s fix (`fc7a146d`) changed the body afterwards, and
+[[a-rename-orphans-a-name-keyed-verdict]] applies — a name-keyed verdict does not follow a body edit.
+
+</details>
+
+
+### 🟡 FUP-VACUOUS-COVERAGE-1 — two PHI-remediation tests that **NEVER RUN**, and `lint:vacuous` is structurally unable to catch them (owner: tester + backend)
+
+> ### ⛔ BODY WRITTEN 2026-08-17 — this item had **NO body in this file** for its entire life
+>
+> Until now its single line in PROGRESS.md's head list *was* the whole record, and that line carried
+> its own warning: *"THIS LINE IS THE ONLY RECORD — do not compress or cut it believing a body
+> exists."* ⭐ **It was found exactly the way that warning anticipated** — by a pre-rotation check that
+> asked, for all 54 head entries, *"does this have a body?"* rather than assuming the head list was a
+> summary of something. **53 did. This one did not.** A rotation that compressed the head list without
+> that check would have deleted the item outright while looking like tidying.
+> → [[enumeration-boundary-is-a-syntax-not-a-property]]
+>
+> ⚠ Context also survives in `docs/reviews/vacuous-assertion-audit.md` and
+> `docs/progress/bug-log-archive.md`, but neither is the follow-up register, so neither would have
+> kept the item *open* — they record it as history, not as work.
+
+**The finding.** `e2e/phi-remediation.spec.ts` **REM-8** and **REM-9** skip on **every** run: there is
+no seeded RCA for `EV-0001`, and the only CAPA has a `NULL source_event_id` (both catalog-verified).
+
+⛔ **Why the lint gate can never help here — this is the point of the item.** They are *honest*
+`test.skip()`s, not silent greens. `lint:vacuous` (`scripts/check-vacuous-assertions.mjs`) exists to
+catch **a test that goes GREEN having asserted nothing**; a test that never runs is **outside that
+property**. So the gate is working as designed and the coverage hole is invisible to it —
+**two different failures that both end in "the suite is green and the behaviour is untested."**
+⭐ Filed *because* the audit that produced the gate noticed the gate's own boundary.
+
+**Why it is its own item and not a drive-by.** Closing it means new fixture work against `seed.sql`,
+which is **a contract with ~900 tests** — the shared-fixture hazard in
+[[shared-fixture-cannot-satisfy-two-specs]]. Adding a seeded RCA for `EV-0001` and a CAPA with a real
+`source_event_id` changes counts other specs assert on.
+
+⚠ **Whoever closes this must show the two tests RUN and can FAIL** — un-skipping them and observing
+green proves nothing on its own, which is the same class the parent audit was about.
+
+
+### ⬛ FUP-DM5-342-PLAN-COMMENT — ✅ **RESOLVED 2026-08-17**; the comment's own arithmetic already summed to 59 (owner: backend)
+
+> **✅ RESOLVED.** The header now cites the plan (`plan(59) = …`) instead of carrying a
+> free-standing total.
+>
+> ⭐ **The detail the item missed:** the itemised breakdown under that heading **already
+> summed to 59**. Only the leading total was stale — items were appended over three QA
+> rounds without re-adding. So the comment did not merely disagree with the code, it
+> disagreed with **itself**, and a reader who trusted the total would have concluded 15
+> assertions had gone missing. Textbook
+> [[a-comment-is-an-assertion-that-goes-stale-silently]].
+
+Filed 2026-08-14 from DM5·S3 QA **r2** (INFO). `supabase/tests/342_dm5_s3_printed_renditions.sql:21-27`
+documents a plan of 44; the executable `plan(59)` is correct and the suite passes. **Cosmetic today** —
+filed anyway because it is a pure instance of [[a-comment-is-an-assertion-that-goes-stale-silently]], the
+class that has been hit repeatedly in this repo and **shipped a live bug once**. The header is the first
+thing a reader trusts when deciding whether assertions went missing, which is precisely the judgement
+`pg_prove`'s plan line exists to support. **Fix:** make the comment cite the plan or drop the number.
+⚠ Lead did **not** fix it inline — `342` is `backend`'s file and file ownership is binding (CLAUDE.md §4).
+
+
+### ⬛ FUP-AUTHZ-ALLOWLIST-ROT — ✅ **RESOLVED 2026-08-17.** A resolve-in-`pg_proc` check now runs inside `ARM=floor`; it found **SIX** stale entries where this item named one (owner: lead + backend; filed 2026-08-14, DM5 S2)
+
+> **✅ RESOLVED 2026-08-17.** `ARM=floor` now anti-joins every allowlist signature against
+> `pg_proc` and fails `RC=1` on any that does not resolve. **Proven red-first**: the first run
+> exited **1** listing six entries; after the fix, `EXIT=0 · INVARIANT HOLDS` with the offender
+> count unchanged at **74**, all still allowlisted.
+>
+> ⭐ **This item named one specimen; the property-bounded check found six** — the phase's dominant
+> class ([[enumeration-boundary-is-a-syntax-not-a-property]]) recurring inside the follow-up list
+> itself. The six split cleanly, and the split is the interesting part:
+> - **ABSENT** (door dropped, entry is pure rot): `add_referral_reply_attachment` ·
+>   `get_referral_attachment_path` · `get_referral_snapshot_document_path`.
+> - **RE-SIGNATURED** (door LIVE under new params, and **called**): `decline_referral` (gained
+>   `p_decline_reason_code`) · `set_template_collects_patient` (`p_template_id` →
+>   `p_template_version_id`) · `update_controlled_document` (gained three params).
+>
+> **All six were removed, none replaced.** The three live doors are not in the offender set under
+> their real signatures, so they need no exemption — and per the `set_primary_subject` precedent
+> already in the file, *an allowlist entry for a door that IS called suppresses the floor arm's only
+> question about it.* If one later stops being called, the arm **should** fire and a human should
+> justify it then. ⚠ Note the second-order rot this exposes: a re-signatured entry keeps its original
+> **justification comment**, which now describes a door shape that no longer exists.
+
+`supabase/tests/mutation/authz-neverclled-door-allowlist.txt` keys entries on the **full identity
+signature**, and `p0-authz-invariant.sh:229` consumes it with
+`comm -23 <(offenders) <(allow_body …)` — i.e. it **only ever subtracts**. Nothing checks that a
+listed signature resolves to a function that exists.
+
+**Live specimen:** line 41 names `add_referral_reply_attachment(...)`, which **DM4 dropped**
+(`20260926000400`). Verified absent from `pg_proc` at HEAD.
+
+⚠ **Calibrated, and this corrects the lead's first framing.** A stale entry is **inert, not
+dangerous**: it can never match a live offender, so it masks nothing and fails nothing. The failure
+mode is **legibility, not enforcement** — a human reading the file sees a door "accounted for" that
+does not exist, and the entry's justification comment outlives the thing it justified.
+
+⭐ **The signature-keying is otherwise a FEATURE, and DM5 S2 demonstrates why.** When `…000120`
+drops `p_storage_path` from `add_capa_action_evidence`, line 37 stops matching the live door, which
+then appears in `unlisted` ⇒ **FLOOR VIOLATED, RC=1** — **loud**, exactly as designed. So the
+remedy for line 37 is to update it in the migration's own commit (planned), and the follow-up here
+is only about the rot the mechanism cannot see.
+
+**Proposed fix (not built):** a cheap assertion that every allowlist signature resolves in `pg_proc`,
+run as part of `ARM=floor` — turning silent rot into the same loud failure the live half already
+gets. ⚠ Prove it able to fail before trusting it: line 41 is a ready-made positive control.
+
+
+### ⬛ FUP-DM5-GRANTS — ✅ **CLOSED 2026-08-17.** The RPCs are now the only writers — and closing it nearly INTRODUCED a stale-COVERED policy (owner: backend; filed 2026-08-14 by ADR 0120)
+
+**Fix:** migration `20260928000200_evidence_tables_revoke_direct_write.sql` revokes
+`insert, update, delete, truncate, references, trigger` on both tables from `authenticated`.
+**SELECT is deliberately kept** — six measured call sites read these tables directly under RLS
+(`queries/rca.ts:553`, `queries/capa.ts:505`, `safety/capa-actions.ts:501,558`,
+`safety/rca-actions.ts:592,694`), all `.select()`, zero direct writes. The migration is
+self-verifying (asserts the write privileges are gone, that SELECT survived, and that the owner
+can still write).
+
+**Safe because the authorization moved WITH the path, verified from the live catalog:** all four
+doors are `prosecdef = t` owned by `postgres`, and each gates on the *same* predicate the RLS policy
+used — `add_rca_evidence` → `app.assert_rca_writable` → `app.can_write_rca` (HC048);
+`add_capa_action_evidence` → `app.assert_capa_writable` → `app.can_write_capa` (42501).
+⚠ **A first pass concluded there was NO gate**, because it grepped for `can_write_rca|can_write_capa`
+and the call is named `assert_rca_writable` — [[enumeration-boundary-is-a-syntax-not-a-property]]
+inside the verification of a security change. **The body was read; the regex was not believed.**
+
+**Evidence:** pgTAP `341` block **H**, plan 53→57 — H1/H2 `table_privs_are(...) = {SELECT}` exactly
+(fails in BOTH directions: a re-grant reds it, so does an over-revoke that strips SELECT), H3/H4
+behavioural twins proving the FUP's own bypass (`POST /rest/v1/rca_evidence`) now gets 42501.
+`table_privs_are` was **red-proven** by re-granting inside a throwaway suite.
+
+### ⭐⭐ The finding: this fix would have made TWO P0 policies silently BLIND
+
+The revoke closes the direct-DML path — which is the **subject under test** of two keystones in
+`252_authz_p0_isolation.sql`, an ADR-0078 P0 suite whose contract
+(`p0b-isolation-mutation-audit.sh:146,154`) is *"opening the policy must redden the DENY"*. With the
+grant gone the reader-non-writer's INSERT fails at the **grant** (42501) before RLS is consulted, so:
+
+| | before | after the naive revoke |
+|---|---|---|
+| `*_write POS` (authorized writer inserts) | passes | **FAILS** — loud, catchable |
+| `*_write DENY` (reader-non-writer refused) | passes *because RLS refused* | **passes because the GRANT refused** — green, and testing nothing |
+
+The DENY half is the dangerous one: `rca_evidence_write` and `capa_action_evidence_write` would have
+gone **BLIND** while `docs/reviews/authz-door-audit-findings.md:324,436` still recorded them
+**COVERED**. That is *STALE-COVERED arriving as a status change rather than a body change* — the exact
+defect **FUP-DM5-330-WRITE-BLIND** is open about. Found by asking which OTHER suites do direct DML on
+these tables, not by running the suite and reacting; `341`'s own F8 failed first and was the prompt.
+
+**Resolution — keep both properties.** `252` restores the grant **inside its own rolled-back
+transaction**, solely to reach the policy under test; production keeps the revoke, pinned by `341`
+H1–H4. **Mutation-proven, not asserted:** re-running `252` with both policies opened to
+`using(true) with check(true)` fails **tests 1 and 14 — exactly those two and nothing else**. Verified
+afterwards that neither policy was left open and grants are SELECT-only (the shared-stack hazard from
+[[mutation-harness-must-prove-its-rollback-first]]).
+
+⭐ **Why the RLS policies are KEPT rather than retired as unreachable.** They are now the second lock,
+and the one that matters: `ALTER DEFAULT PRIVILEGES FOR supabase_admin IN SCHEMA public` still grants
+`arwdDxtm` to `authenticated` on **every new table**, and `20260620000000_baseline.sql:22989,23088`
+is a pg_dump that already restored these grants once. A re-dump silently re-arms direct DML — and if
+RLS had been dropped as "unreachable", the tables would then be defended by nothing. **A protection
+that a routine re-dump disarms, while its keystone reads COVERED, is worse than the one it replaced.**
+
+⚠ **Generalises past this item:** that default-privilege posture means **any new table in `public`
+starts with full `authenticated` grants**. The narrow idiom this project uses elsewhere
+(`grant select on public.X to authenticated`) only holds where someone remembered to write it.
+
+<details><summary>Original filing (2026-08-14) — retained</summary>
+
+
+Both tables carry **table-wide `arwdDxtm` grants to `authenticated`**, so a client can
+`POST /rest/v1/rca_evidence` directly and never traverse `add_rca_evidence`.
+
+**⚠ Calibrated — this is hardening, NOT an open door.** RLS *is* enabled on both, with genuinely
+**distinct** read and write predicates — `app.can_read_event(app.event_of_rca(rca_id), auth.uid())`
+for SELECT versus `app.can_write_rca(rca_id, auth.uid())` for the `FOR ALL` write policy — so this is
+a real second lock, not [[a-door-can-have-two-locks]]'s same-predicate-twice trap. Verified against
+`pg_class.relacl` and `pg_policies` directly, at the DM5 open. What direct DML bypasses is the
+**RPC's flag gate and its fail-closed arms**, not row authorization.
+
+**Binding on DM5 S2:** do not assume the RPC is the only writer when placing the `documents_wave_d`
+assert (ADR 0120 D10). A flag gate that lives only in the RPC body is bypassable by exactly this
+path — the DM3 QA MAJOR-1 shape, where the gate sat on the last step of a corridor rather than the
+corridor. Note the parked CHECK `rca_evidence_cited_document_parked` **does** hold against direct
+DML, being a table constraint; that is the third of the three locks and the reason the citation seam
+is safe today.
+</details>
+
+
+### ⬛ FUP-DM4-RECUSAL — ✅ **RESOLVED 2026-08-17 (local catalog); ⚠ NOT YET ON THE REMOTE** — a RECUSED coordinator could freeze a case's PHI documents into a referral, around the exclusion perimeter (owner: lead + PO + backend; **deadline was the `documents_wave_c` flag-on date**)
+
+> ### ✅ RESOLUTION 2026-08-17 — `32054942`, migration `20260928000100`, ADR [0122](../decisions/0122-recusal-case-read-arm-at-the-referral-freeze-door.md)
+>
+> ⛔ **This header read `🟠` open until 2026-08-17 — a full day after the fix landed, in the file that
+> is the authority for what is open.** Nothing in the entry below had been touched. Recording it here
+> rather than silently rewriting: a closed security obligation that still reads OPEN costs the next
+> session a re-investigation, and the same rot in the opposite direction ships a hole.
+> → [[a-records-claim-about-an-external-system-goes-stale-silently]].
+>
+> **The PO overturned the 2026-08-14 Phase-19 deferral** (ADR 0122 **D1**): the deadline was always
+> the `documents_wave_c` flag-on date, and — as QA's standing caveat below demanded — **a plane that
+> only WIDENS cannot close an under-inclusive gate.** So it was closed by a **narrowing** arm, which
+> is what the caveat required.
+>
+> **What was built.** A `app.can_read_case(v_referral.source_case_id, auth.uid())` arm raising
+> `HC0DM`, placed **ABOVE the `p_kind` dispatch** — deliberately not inside the `document` arm where
+> the item was filed, because the **narrative** arm freezes `case_narratives.body_md` with the
+> identical omission and a guard in the reported arm would have left its sibling open
+> (that is `FUP-DM5-SIBLING-GUARD-DIFF`, applied rather than merely filed).
+>
+> **Evidence, red-first against the pre-migration catalog:** `340` R1–R4 green, **R5/R6 RED with
+> `caught: HC077 / wanted: HC0DM`** — and that `HC077` *is* the finding, the recused coordinator
+> reaching past every gate into the arm's own content lookup. Plan 76 → 82, all green after.
+>
+> **✅ Lead-verified from the LIVE CATALOG 2026-08-17, not from the commit message**
+> (`pg_get_functiondef`, per the CLAUDE.md §graphify SQL exception): the guard is at body line 24,
+> the `p_kind` dispatch at line 29 — the ordering the fix depends on is real, and
+> `public.add_referral_shared_item` is `prosecdef=true`.
+>
+> ⚠⚠ **THE ONE THING THIS DOES NOT YET COVER — and it is the half the deadline was about.**
+> `20260928000100` is **LOCAL-ONLY**. `supabase migration list --linked` (measured 2026-08-17) shows
+> the remote current through **`20260927000360`**, so **the recused-coordinator hole is still OPEN on
+> the remote.** It closes there on `db push`, which is itself gated behind S4's `20260927000400`.
+> **Do not read this ⬛ as "safe in production."** The deadline condition is unchanged: this must be
+> on the remote before `documents_wave_c` is ever enabled there.
+
+<details>
+<summary>Original filing (2026-08-14) — kept in full; the gap, the PO's first ruling, and QA's binding caveat</summary>
+
+Filed 2026-08-14 at DM4 QA r1 (**MAJOR-3**). **Found by `qa`, demonstrated LIVE** in a rolled-back
+transaction — not inferred from reading code.
+
+**The gap.** `add_referral_shared_item` checks referral-**source** authority
+(`can_manage_referral_source`) but **never `can_read_case` or `can_read_document`**. So for one
+user and one case, simultaneously:
+
+```
+can_read_case(caseA, u)                     = false      ← recused / excluded
+can_manage_referral_source(ref on caseA, u) = true
+can_read_referral_phi(ref on caseA, u)      = true        ← reaches the PHI bytes
+```
+
+A coordinator **recused** under the ADR-0072 / ETH·E1 exclusion perimeter can therefore freeze that
+case's PHI documents into a referral and read them through the referral corridor. ⚠ **Two
+authorization planes that were each individually correct**: ADR 0119 **D4** reasoned about exactly
+this seam for the D15 **clearance** plane and never considered the **case-capability** plane.
+Same shape as [[exclusion-only-as-strong-as-weakest-mutator]] — the excluded party reaches the
+content by a route the exclusion never modelled.
+
+**PO ruling 2026-08-14: DEFER to the Phase 19 access plane** (ADR 0114 Amdt 1 **D16**, which must
+cover **both widening and narrowing**). Legitimate: not P0 because `documents_wave_c` **ships OFF**,
+so the path is unreachable in production today. The other options offered and not taken were fixing
+it inside DM4 with a keystone + negative twin, or ratifying source-authority-is-enough in ADR 0119.
+
+⛔ **QA's standing caveat, binding on how this may close.** This is an open **security** obligation,
+not a backlog item, and **its deadline is the flag-on date, not Phase 19's delivery date**. It must
+**never** be absorbed into *"Phase 19 delivered an access plane"* — **a plane that only WIDENS would
+not close it.** Closure requires a **narrowing** arm that refuses a recused coordinator at the
+freeze door, **proven by a negative twin**, and the FUP is closed only against that evidence.
+
+⚠ **Before `documents_wave_c` is ever enabled in production, this must be resolved or explicitly
+re-ratified by the PO.** Name it in Phase 19's scope in
+[accreditation-track.md](../phases/accreditation-track.md) so D16 cannot land without meeting it.
+
+</details>
+
+> ⭐ **The caveat above was met on its own terms, and that is why this closed rather than deferred.**
+> It demanded a *narrowing* arm proven by a negative twin; it got one (R5/R6 red-first). ⚠ Its final
+> paragraph still binds on the **remote**, which does not have the fix — see the resolution box above.
+
+
+### 🟡 FUP-PDF-4 — verification rate limiter: comment FIXED, availability lever still OPEN and re-scoped (QA P1 MINOR-3; owner: backend)
+
+⛔ **The filed premise was wrong in a way that mattered, corrected 2026-08-11 against the code.**
+The entry said the limiter is *"one **global** 60/min counter"* and prescribed *"per-credential
+granularity (keep the global cap as a backstop)"* — **that is already exactly what ships, and
+has since the original commit `e1daba9`**: `PER_CREDENTIAL_LIMIT = 5` over a `perCredentialHits`
+map, plus the global 60 backstop. Anyone executing the prescription literally would have written
+a no-op and closed the item. The lesson is the standing one: **a prescription in a follow-up is a
+claim about the code and ages like one** — re-measure before implementing, not after.
+
+**DONE:** the false *"the page shows it verbatim"* comment is corrected. Confirmed against
+`src/app/(public)/verificar/[token]/page.tsx:84-90`, which catches **every** error, logs it, and
+returns `{ state: "unavailable" }` — so `VERIFICATION_RATE_LIMIT_MESSAGE` is never rendered and
+reaches only the server log. (The comment-asserting-an-untruth family, invisible to every gate.)
+
+**STILL OPEN — the availability lever, correctly described:** the per-credential arm bounds
+brute-forcing ONE code; it does nothing about the actual DoS. One visitor cycling ~12 distinct
+credentials × 5 each exhausts the **global** 60/min budget and throttles *every* anonymous
+visitor on the public `/verificar` surface. Both windows are also module-level process memory, so
+they are per-PROCESS — N app instances mean N× every budget.
+
+⚠ **Deliberately not fixed in the FUP quick batch, because neither half is guessable:** closing
+it needs per-**client** granularity (which needs a *trusted* client identity — `x-forwarded-for`
+is only as trustworthy as the proxy in front of it, a Coolify deploy decision, ADR 0059) **plus**
+shared cross-process state. Both are decisions, not code. The limitation is now recorded in the
+module docblock so the next reader does not re-derive it. The RPC stays service_role-only.
+
+
+### ⬛ FUP-QOB-3 — RESOLVED 2026-08-09: `dispose_event_phi` KEEPS its tenancy arm, and referral disposal gets the same backstop BACK (PO)
+
+**PO ruling 2026-08-09.** The finding was framed as "event is the odd one out" — investigating it
+inverted that: **event was the one that got it right**, and the same-day BUG-QOB-004 cut had gone
+one step too far on the referral plane.
+
+**Two facts decided it, neither available when BUG-QOB-004 was ruled:**
+1. **A hospital can have ZERO NSP operators.** Measured: `Hospital Unico C` has none, and NSP
+   staffing is a separate onboarding step. NSP-only disposal leaves such a hospital unable to
+   honour an **LGPD Art. 18 erasure request** — an obligation that sits with the ORGANIZATION
+   (the *controlador*), not with a clinical nurse.
+2. **This platform already rules the other way for acts of this shape.** ADR 0104 D11 keeps the
+   tenancy arm on `revoke_printed_document` because revocation is a **governance act that reveals
+   no content** — guarded by pgTAP `314` 8.5. Disposal is identical in shape: it discloses
+   nothing, it destroys. D5's "zero PHI bits must not destroy Rule 12 data" guards against
+   destroying what you cannot verify; that is a real concern, and it is the same one D11 already
+   weighed and answered.
+
+**Executed (`20260917000400`):** the tenancy arm is restored on `dispose_referral_phi` +
+`can_dispose_referral_phi`. **`create_referral_draft` stays CUT** and the **UI wall stays** — the
+backstop is disposal-only. ⚠ For a BARE tenancy admin the capability is therefore reachable only
+out-of-band; that is deliberate and recorded, unlike BUG-QOB-004's accidental orphan. A tenancy
+admin who is also a committee member reaches it normally.
+
+**Guarded so it cannot be re-cut by symmetry:** `314` **8.6** (all three disposal doors keep the
+arm) + **8.7** (drafting stays cut) + `295` **§7.7** flipped to assert the backstop behaviourally.
+Red-proven: re-cutting the arm reds both 7.7 and 8.6 and nothing else.
+
+**Also fixed in the same wave — three stale pt-BR messages, one per direction:**
+`dispose_referral_phi` (fixed in `…000000`, re-fixed here), `dispose_case_phi` (**promised** an
+org-admin arm QO·B had removed) and `revoke_printed_document` (**hid** the tenancy arm it carries).
+⚠ The class: *every* time an arm moved, its sentence stayed. Invisible to every gate in the repo —
+no test reads prose — and user-facing in both harmful directions.
+
+Found by the **sibling-coherence check** run immediately after `20260917000000` landed — i.e. by
+asking "what do this door's siblings look like now", not by anything in the ruling's own scope.
+Measured live (`pg_get_functiondef`), all six disposal doors:
+
+| Door | tenancy arm | PHI module (Rule 12) |
+| ---- | ----------- | -------------------- |
+| `dispose_case_phi` | ✗ cut (D5) | case |
+| `dispose_referral_phi` / `can_dispose_referral_phi` | ✗ cut 2026-08-09 | referral |
+| `dispose_attachment_phi` | ✗ none | — |
+| **`dispose_event_phi`** | ✅ **LIVE** | **patient-safety / NSP** |
+| `dispose_meeting_minutes` | ✅ live | not a PHI module |
+
+**The finding:** D5's ratified reasoning — *"a principal with zero PHI bits does not destroy Rule 12
+data"* — is what put `dispose_case_phi` on the CUT side, and it is what the PO applied verbatim to
+the referral plane on 2026-08-09. It applies to `dispose_event_phi` **identically**: patient-safety
+is PHI module 1, and a bare tenancy admin holds no PHI bits there either. So of the three Rule-12
+modules, two now deny the tenancy tier its disposal arm and one still grants it — a split produced
+by the order the rulings happened in, not by any decision about NSP.
+
+**Corroborating tell:** `dispose_event_phi` still carries the pt-BR message *"apenas um administrador
+da organização ou o NSP pode descartar dados do paciente"* — the exact sentence
+`dispose_referral_phi` had to shed in the same wave because the cut made it false. It is currently
+still TRUE for `dispose_event_phi`, which is the point: the two doors were written as a pair and have
+now diverged.
+
+⚠ **Deliberately NOT acted on.** It is outside the BUG-QOB-004 ruling, and cutting a live capability
+unasked is the standing trap in the other direction — *conferring or removing a capability requires
+enumerating its consumers*. `dispose_meeting_minutes` is a separate question and probably a genuine
+KEEP (meeting minutes are a governance artifact, not one of the three PHI modules) — do not sweep it
+in reflexively with the NSP call.
+
+**To close:** a PO ruling on `dispose_event_phi` only — CUT (D5 consistency across all three PHI
+modules) or KEEP-with-a-recorded-reason (NSP disposal is genuinely a tenancy-tier duty). Whichever
+way, the pt-BR message must end up matching the arms. Owner: **PO**, then backend.
+
+
+### 🟡 FUP-AFF-3 — pin door ACLs by DERIVING the door set, not by remembering it (2026-08-06)
+
+Raised by `backend` at AFF close-out, and it is the **class** behind QA's N2. `302` §1's ACL
+assertions covered "the doors that existed when §1 was written"; `log_cpf_probe_for` arrived two
+commits later and **inherited nothing** — its ACL is its *entire* boundary (it fronts nothing, it
+writes one audit row), so the one property most worth pinning was the one unpinned. Fixed for that
+instance in `304` §9; the class is open.
+
+⚠ **This is the third and fourth instance of the same failure inside one workstream** — the others
+being F2's error-code detector (bounded by a 5-char syntax, so it could not see `check_violation`)
+and `backend`'s own case-sensitive diff-derivation grep (which listed 1 of 4 changed gates, because
+`pg_get_functiondef` emits uppercase — ADR 0079 Amendment 5a). Every instance is the recorded rule:
+**an enumeration's boundary must be the property, not a syntax and not a remembered list.**
+
+Proposed scope: one assertion that derives the door set from `pg_proc` — every `public` `prosecdef`
+function granted to `service_role` must **not** be executable by `authenticated` — replacing the
+per-door transcription. Needs its own allowlist discussion (legitimate dual-audience doors exist),
+which is why it was flagged rather than widened into AFF unasked.
+
+
+### ▶ FUP-FF5-2 — `r2-m-1`: §O pins the door's behaviour, not the closure of the writer set
+
+ADR 0091's substrate paragraph claims *"an exhaustive `pg_proc` sweep for writers of `participants`
+returns exactly two functions"*. §O proves the two known doors behave (the surrogate holds) and O5
+proves no writer is invoker-rights — but neither pins that the set is **closed**, so a third
+DEFINER writer taking a caller-supplied label satisfies every assertion. QA r2: MINOR, not blocking
+(the runtime property is held by the mutation-proven O4, and a new writer arrives with its own
+migration and ADR). **Close:** one assertion pinning the writer set by **count *and* name**,
+matching `(public\.)?participants\y`. Two specifics — O5's current regex is
+`insert\s+into\s+public\.participants`, which matches only `public.`-qualified writes (exactly why
+a rogue *unqualified* writer probe stayed green), and use `\y`, **not `\b`** (backspace in Postgres
+regex).
+
+
+### ⬛ FUP-DM5-FINALIZE-ATOMIC — ✅ **RESOLVED 2026-08-17** (owner: backend + lead)
+
+> **✅ RESOLVED** by migration `20260928000500` + `341` block J (+10, plan 57 → 67).
+> `public.complete_evidence_upload_verification` **delegates** to the existing byte
+> verifier (one verifier, no drift) and mints the evidence row in the SAME transaction.
+> Both evidence actions now pass `{ evidenceCorridor: true }`; the old four-round-trip
+> sequence survives ONLY as the idempotent-retry recovery path, where the bytes are
+> already committed and there is nothing left to make atomic.
+>
+> ⭐ **The keystone I first wrote would have been VACUOUS, and the near-miss is the
+> transferable part.** "Call the door with an unwritable actor, assert the file is still
+> `verifying`" passes **whatever order the checks are in** — one RPC call is one
+> transaction, so any raise rolls everything back. It asserts Postgres, not the
+> migration; no reordering of the function could redden it. The property only becomes
+> observable as the **difference between one round-trip and two**, so J2 CONSTRUCTS the
+> orphan on the old path (`unscanned_accepted/0` — verified servable bytes, zero domain
+> rows) and J4 shows the identical fixture cannot reach it (`verifying/0`). Same shape as
+> [[construct-the-state-nobody-constructed]]: the assertion had to build the state the
+> defect lives in before it could measure anything.
+>
+> **Mutation-proven, not asserted:** neutralizing `can_write_rca` in the door reddens
+> **exactly J3 and J4** and nothing else. Restored from the migration file afterwards and
+> the restore VERIFIED against `prosrc` ([[mutation-harness-must-prove-its-rollback-first]]).
+>
+> ⛔ **Two designs were rejected, and the reasons are load-bearing.** (1) *Grant the
+> verification door to `authenticated` and wrap it* — its measured ACL is postgres +
+> service_role, never authenticated, and it takes `p_sha256`/`p_verified`, an
+> **attestation by the server that downloaded the bytes**. Exposed to `authenticated`,
+> any JWT holder could mark its own upload verified under a fabricated hash, defeating D9
+> on a PHI-adjacent corridor. J7 now pins BOTH doors closed. (2) *Impersonate the
+> uploader so `add_rca_evidence` could be reused unmodified* — `auth.uid()` is
+> `coalesce(request.jwt.claim.sub, request.jwt.claims->>'sub')` (catalog-read): **two**
+> GUCs behind a coalesce, so setting the one you thought of leaves the other winning.
+> [[guards-that-read-right-but-fail-open]]. The actor is instead read from
+> `upload_sessions.reserved_by` — written by the user-scoped `begin_document_upload`,
+> never supplied by the caller — and passed explicitly to the `(id, uid)` predicates.
+>
+> ⚠ **The document arm's validation is DUPLICATED in the new door, deliberately.**
+> Extracting a shared helper would rewrite the bodies of `add_rca_evidence` and
+> `add_capa_action_evidence` — two live DEFINER doors — and a body edit **orphans a
+> name-keyed door verdict** ([[a-rename-orphans-a-name-keyed-verdict]]). The duplication
+> is pinned executably instead: J3/J5/J8 assert the new door refuses and accepts on the
+> same terms, so drift reddens rather than accumulating.
+>
+> ⬜ **NOT closed by this:** the ⭐ blind-class half below. `document-reconciliation.mjs`
+> still cannot see a domain-layer orphan — J2c demonstrates one it would call healthy.
+> The corridor can no longer MINT one, but pre-existing rows and the other three
+> corridors are untouched. **That remains a binding input to S5.**
+
+<details><summary>Original filing (2026-08-14) — retained</summary>
+
+Filed 2026-08-14 at DM5 S2 close. Found by `backend` while implementing the TS layer;
+**not a bug in what shipped** — it is a design gap the contract's single-argument
+signature makes invisible.
+
+**The real path.** `finalizeRcaEvidenceUpload(sessionId)` / `finalizeCapaEvidenceUpload`
+delegate to `finalizeDocumentUpload` (`src/lib/documents/actions.ts:158`) rather than
+re-deriving the D9 verifier — one verifier, no drift, which is right. The consequence is
+that finalize is **four DB round-trips**:
+
+1. `finalize_document_upload(sessionId)`
+2. service-role `storage.download` + sha256 → `complete_document_upload_verification`
+3. admin read `document_versions → documents` (the evidence title comes from
+   `documents.title`, and finalize returns no `document_id` — see the note below)
+4. `add_rca_evidence` / `add_capa_action_evidence` (`kind:'document'`)
+
+**The failure path, precisely.** Steps 1–3 commit independently of step 4. If step 4
+fails — e.g. `assert_rca_writable` raises `HC048` because the RCA was locked between
+begin and finalize — the outcome is a **verified, servable `file_object`, a
+`document_version`, a bound rendition and an `active` document, with NO evidence row**.
+The user sees the upload fail. A retry re-enters at `begin_document_upload`, which mints
+a **NEW** document: the orphan is never recovered, only accumulated. It is invisible to
+`scripts/document-reconciliation.mjs`, whose classifier judges `file_objects` against
+storage and would call this row perfectly healthy — because it is. The drift is at the
+DOMAIN layer, which nothing reconciles.
+
+**Why it is not fixed in S2.** Making it atomic needs a wrapping RPC that finalizes and
+creates the evidence row in one transaction — a **design change, not a bug fix**, and S2
+has already been reopened once. A partial mitigation IS shipped: an idempotency guard
+probes for a live evidence row on the same `document_id` before inserting, so a *retried
+finalize on the same session* recovers rather than duplicating. It does not help when the
+session is already consumed and the caller restarts at `begin`.
+
+⚠ **Related latent defect in the DM2 twin, not introduced here.**
+`finalize_document_upload` returns no `document_id` on either arm, so
+`finalizeDocumentUpload` yields `documentId: ''` on the idempotent re-call
+(`actions.ts:172`, `r.document_id ?? ''`). It propagates through
+`finalizeReferralReplyAttachmentUpload`, which returns that result straight to its
+caller. S2 routes around it by resolving from `documentVersionId`; the twin still has it.
+
+⭐ **This is a BLIND CLASS in the reconciliation tooling, not just a property of this
+bug — and it is a binding S5 input.** `scripts/document-reconciliation.mjs` compares
+storage against `file_objects` in both directions. It cannot see a document that has
+bytes, a verified file object and **no domain row**, because every object it judges is
+accounted for. **S5 must not sign off a reconciliation command whose coverage is
+narrower than the orphan classes it is meant to catch** — S5's job is to name the
+operational owner and mechanism for the disposal job and the reconciliation command,
+and this is a class that command does not currently cover.
+
+Cross-reference: **FUP-DM5-STORAGE-ORPHANS** is the same shape one layer down — an
+emptiness proof narrower than the thing it claims to prove (the Storage API lists *from*
+`storage.objects`, so it cannot see bytes that table has forgotten). Two layers, one
+defect shape: **the reconciler's domain is narrower than the drift it is trusted to
+rule out.**
+
+</details>
+
+
+### ⬛ FUP-DM5-DVF-FILEOBJ — ✅ **RESOLVED 2026-08-18 (`20260928000600`, `UNIQUE (file_object_id)`); ⛔ LOCAL ONLY — census the remote before `db push`** — latency had rested on CALLER DISCIPLINE ALONE (owner: backend)
+
+> ## ✅ RULED 2026-08-18 (DM-FUP TRIAGE #4) — **add `UNIQUE (file_object_id)`**, in a migration above `20260928000500`
+>
+> Confirmed from the catalog: `document_version_files` carries `UNIQUE (document_version_id,
+> rendition_kind)` and **nothing on `file_object_id`**. All three writers —
+> `complete_document_reclassification`, `complete_document_upload_verification`,
+> `mint_printed_document` — insert a `file_object` they minted in the **same call**, so 1:1 holds today
+> by caller discipline and by nothing else.
+>
+> **Why structural beats a test:** a shared `file_object` means marking one row `disposal_pending`
+> silently destroys **another row's** bytes, and no arm would notice. That is the failure ADR 0121's
+> disposal lifecycle cannot absorb, so the invariant belongs in the schema rather than in a suite that
+> pins current behaviour. The ruling **knowingly forecloses** rendition byte-sharing (a PDF whose
+> `source` and `preview` are one object); the disposal-safety argument was judged worth that price.
+>
+> ⛔ **Census the remote for duplicates BEFORE pushing.** Local is **0 DVF rows / 0 duplicates**, so a
+> green local `db reset` proves **nothing** about push-safety — a constraint migration that passes an
+> empty local DB is exactly the shape that fails `db push` on data.
+> → [[backfill-guard-wrap-data-dependent-migration]]
+
+> **RE-CHECKED 2026-08-17 (the item's own "re-check at S4/S5" instruction).**
+> ✅ **Still latent, for the stated reason:** `mint_printed_document` is the only door that
+> both inserts into `document_version_files` **and** mints its own `file_objects` row, so the
+> S3 property held.
+>
+> ⚠ **What the recheck ADDED, and it changes who must care.** The item reads as though the
+> schema were holding the line. It is not: `document_version_files`'s only unique constraint
+> is **`(document_version_id, rendition_kind)`** — there is **no uniqueness on
+> `file_object_id`**. So one `file_object` bound to many versions is **structurally
+> permitted**, `ON DELETE RESTRICT` is the only backstop, and nothing would notice a slice
+> that started sharing bytes.
+>
+> ⛔ **This is a BINDING input to ADR 0121's disposal lifecycle, which is the slice that makes
+> it live.** Disposing a shared `file_object` would retire bytes still bound to another
+> version, and `complete_document_disposal`'s "all versions disposed" check walks
+> `document_id`, not the sharing graph. Whoever builds the outflow must either add the
+> uniqueness, or make disposal sharing-aware, or record the assumption executably.
+>
+> ⚠ A first pass at this recheck asked "does any door bind a pre-existing `file_object`" and
+> got **two** hits (`complete_document_upload_verification`, `complete_document_reclassification`)
+> — both false positives: they bind a row created moments earlier in the same corridor, which
+> is not the sharing the item means. *The predicate was quoted at the wrong grain*
+> ([[a-predicate-quoted-at-the-wrong-grain]]); the discriminating question was about the
+> CONSTRAINT, not the callers.
+
+⚠ **This item had no live bullet of its own** — it was named only inside the DM5 phase section's
+"Open:" list and inside the DM5·S3 QA verdict. Both were rotated on 2026-08-14, so without this body
+and the new live index line it would have disappeared entirely. Substance, from the QA r1 report:
+the S3 mint **creates a fresh `file_object`** rather than binding a pre-existing one, which is what
+ADR 0120 required S3 to ensure, so the concern **stays latent** — it becomes live only if a future
+slice binds an existing `file_objects` row into `document_version_files`. Re-check at S4/S5.
+
+
+### ⬛ FUP-NOTIFICATIONS-PHI-RESIDUE — ✅ **CLOSED 2026-08-20 as PREMISE-FALSIFIED** — `notifications.title/body` copy entity text at write time and NO dispose door touches the table (owner: backend; vehicle: DSR plan Slice 4)
+
+> ## ✅ CLOSED 2026-08-20 — the residue class this item names DOES NOT EXIST
+>
+> Slice 4 opened by measuring the premise instead of building the fix. It does not hold.
+> Full census in ADR [0130](../decisions/0130-dsr-subject-request-workflow.md)
+> **Amendment 4**; the three findings in short:
+>
+> 1. ⭐ **`notifications.entity_type` cannot NAME three of the four doors' subjects.** Its
+>    CHECK admits eight values and **`case`, `referral`, `event` are not among them**, so
+>    the prescribed predicate matches **zero rows by construction** — and the pgTAP pin
+>    this item asked for would have been vacuous *by CHECK constraint*, unfalsifiable by
+>    any code. ⚠ Established by **constructing the state**: inserts of `'case'` and
+>    `'referral'` were refused, with a `'meeting'` insert as the positive control proving
+>    the probe could succeed. Reading the constraint would have been the same guess again.
+> 2. ⛔ **This item's own cited evidence is false.** It argued *"ADR 0056 redacts
+>    `cases.label` because it is PHI-warned — but every notification that label ever
+>    generated keeps the pre-redaction text."* **No notification writer reads
+>    `cases.label`.** One writer exists (`app.enqueue_notification`) with sixteen callers;
+>    none touches a case label. The described residue has never existed. The writer set is
+>    **bounded**, not merely enumerated: `notifications` has SELECT/UPDATE policies only and
+>    **no INSERT privilege GRANTED to `authenticated` at any grain** — table or column — so nothing inserts
+>    except that DEFINER.
+>    ⛔ **CORRECTED (QA r1):** this first read *"grants `authenticated` `r` alone"* — **false**.
+>    The table ACL is `authenticated=r`, but `pg_attribute.attacl` carries a **column** grant
+>    `read_at = authenticated=w` (how the INVOKER `mark_notification_read` works) that
+>    `pg_class.relacl` does not show. The conclusion holds — the grant is scoped to `read_at`,
+>    and `title`/`body` stay unwritable (constructed + rolled back) — but the reason was wrong.
+>    ⭐ **A table ACL is not the privilege census: `attacl` belongs beside `relacl`** — and this
+>    slipped into the very sentence claiming the enumeration was *bounded*.
+> 3. **No notification text source is erased by any door** — census cross-referenced
+>    against all four bodies, zero overlap. Even `meeting`, the one representable subject,
+>    would have had `meetings.title` copy scrubbed while `dispose_meeting_minutes`
+>    deliberately keeps that column.
+>
+> ⭐ **Why it read as obviously right for a day:** the design was inferred from the
+> *column names* — `entity_type`/`entity_id` look exactly like a polymorphic handle to the
+> disposed entity — and was internally coherent throughout. Only the **writers** say what
+> the key points at, and `compute_due_ethics_notifications` stores a **`cases.id` under
+> `entity_type = 'ethics_notification'`**. *A predicate read off a column name is a guess
+> wearing a schema's authority.*
+>
+> **Successor:** `FUP-DOOR-ERASURE-FREETEXT-CENSUS` — the real question this stood in
+> front of, and it is about the doors, not about `notifications`.
+
+Filed 2026-08-19 (lead) — measured during the DSR design session: `notifications` carries `title` +
+`body` built from entity labels/summaries at event time, and none of the four `dispose_*` door
+bodies references the table. ADR 0056 redacts `cases.label` *because* it is PHI-warned — but every
+notification that label ever generated keeps the pre-redaction text. So a `granted` disposal leaves
+PHI residue in a table the erasure claim never mentions.
+
+**Fix (decided, Q12a):** each dispose door gains a scrub of `notifications.title/body` by
+(`entity_type`, `entity_id`), one pgTAP pin each **plus the vacuity control** (a sibling entity's
+notification must survive — a scrub test that would also pass on `delete from notifications` is not
+a pin). [dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 4**. Until built, the two-tier
+outcome record's residue language must not claim notifications are clean.
+
+
+### ⬛ FUP-DOOR-ERASURE-FREETEXT-CENSUS — ✅ **CLOSED 2026-08-20 — RULED OUT OF SCOPE by ADR 0131, not remediated.** The four dispose doors erase a hand-picked column set, and at least one door demonstrably erases a GRANDCHILD while leaving its CHILD's free text intact (owner: backend; found 2026-08-20 while falsifying `FUP-NOTIFICATIONS-PHI-RESIDUE`)
+
+> ⛔ **CLOSED BY RULING 2026-08-20, and the distinction is load-bearing: the residue is REAL,
+> MEASURED and ACCEPTED — not absent.** ADR
+> [0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) bounds PHI
+> erasure to **designated PHI fields**; free text and titles that *may* hold PHI are out of
+> pilot scope, with **training** as the compensating control, and the pilot's effort goes to
+> perfect execution on the confirmed set. Shipped reach (the ADR 0056 Amdt 1 meeting
+> widening) is **maintained, not rolled back**.
+>
+> **The measurement is retained deliberately** →
+> [door-erasure-freetext-census.md](./door-erasure-freetext-census.md): 133 candidate columns
+> across the three doors, incl. `case_narrative_revisions.body_md` (every prior revision of
+> prose the door does erase) and `rca_why_chains.steps` (jsonb). That record is what makes
+> the acceptance auditable; deleting it would leave the decision with no evidence of what
+> was accepted.
+>
+> ⚠ **Consequence carried forward, not closed:** `DSR_RESIDUE_NOTICE` line 1 is now
+> conditionally rather than structurally true → `FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING`.
+> ⛔ **Explicitly NOT descoped by 0131:** `FUP-DISPOSE-EVENT-DOOR-GATE-BLIND` (a *gate*, not
+> a reach) and `FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES` (an operational procedure) — both are
+> "perfect execution of the confirmed set" and remain owed.
+
+Filed 2026-08-20 (lead). Successor to `FUP-NOTIFICATIONS-PHI-RESIDUE`, which was closed as
+premise-falsified — this is the question that one was standing in front of, and it is about
+the **doors**, not about `notifications`.
+
+**The measured instance.** `capa_plan.source_event_id` is a FK straight to
+`patient_safety_event`, so a CAPA plan hangs directly off a patient-safety event and its
+rows are on a PHI lane. `dispose_event_phi` erases `capa_plan.lessons_learned_md`,
+`capa_effectiveness.method_md`, `capa_measure_result.note` and
+**`capa_action_task.description`** — the *grandchild* — while leaving
+**`capa_action.title`** (`text not null`, operator free text, the *child*) untouched. Two
+readings, and the item exists because nobody has ruled between them: either the title is
+out-of-scope by design and should be *recorded as such*, or the door **under-erases** and
+has done since it shipped.
+
+**Why this is a class and not one column.** Three further free-text columns are copied into
+`notifications` at write time and are erased by **no** door: `meetings.title`,
+`action_items.title`, and the form-section title. That census was assembled from the
+notification *writers*, which is an arbitrary lens — it enumerates the columns that happen
+to be quoted in a notification, **not** the columns a door leaves behind. The real boundary
+is *"every free-text column on the lane each door claims to clear"*, and nothing has ever
+enumerated it. ⚠ Bound this by the **property**, not by a table list and not by whatever a
+door's own body already mentions — a door's body is exactly the wrong enumerator, because
+what is missing from it is the finding.
+
+**Method that is known to work here** (it found both this and the DM2 child-lock gap): a
+**column census of the door's subject tables and their descendants**, diffed against the
+door's actual erasure set from `pg_proc`. Reading a door tells you what it redacts; only
+reading the tables tells you what it does not.
+
+⭕ **MEASURED 2026-08-20 (lead) — the census half is DONE; the ruling half is OPEN.** Full
+record, method, the five instrument defects and the six-anchor control battery →
+[door-erasure-freetext-census.md](./door-erasure-freetext-census.md). Headlines, both
+**verified directly against `prosrc`** rather than through the instrument:
+- ⛔⛔ `dispose_case_phi` erases `case_narratives.body_md` and **never names
+  `case_narrative_revisions`** — every prior revision of the same prose survives. An
+  erasure that clears the current narrative and keeps its version history has not erased
+  the narrative.
+- ⛔ **No door names any `ethics_*` table** (0 matches across all four). Eleven free-text
+  `*_md` columns on a lane that hangs off `cases` by composition.
+- ⭐ `rca_why_chains.steps` (**jsonb**) survives while its `root_text` sibling is erased —
+  the Slice 4 lesson recurring: *free text is not a type*.
+- ✅ The filed instance (`capa_action.title`) is **confirmed**, and its sibling shape
+  recurs in a second door: `referral_internal_notes.title` survives while `body_md` dies.
+
+⛔ **The method this item prescribed missed the lane holding its own filed defect.**
+Composition closure (FK `NOT NULL` + `ON DELETE CASCADE`) cannot reach `capa_plan` —
+`source_event_id` is NULLABLE — so the capa lane was invisible until the walk was seeded
+with *the door's own write set* as well as the root. Three of the five instrument defects
+under-reported, each producing a clean confident answer on the one column named above.
+⚠ **A candidate count is not a defect count**: run against the PO-ruled-**complete**
+meeting door the same census returns **16**, which is the noise floor.
+⚠ **Static, therefore bounded**: it cannot see a `where` clause that matches no rows. The
+successor instrument is an **empirical sentinel differential** (seed every free-text column,
+run the door, assert which sentinels survive) — not yet built.
+
+⛔ **Consequence if the census finds PHI.** `DSR_RESIDUE_NOTICE`'s first line —
+*"O descarte apaga os dados do paciente armazenados no banco para este registro"* — is a
+claim about the **database**, shown to an operator discharging an LGPD obligation. It is
+sound only while the doors really do clear their lane. A confirmed under-erasure makes that
+line the same species of over-claim `FUP-DISPOSE-DIALOG-OVERCLAIM` was filed to remove, in
+the constant written to prevent it. Re-check the notice as part of closing this item.
+
+
+### ⬛ FUP-ETHICS-LANE-NO-ERASURE-DOOR — ✅ **CLOSED 2026-08-20 — RULED OUT OF SCOPE by ADR 0131, not remediated.** Seven `ethics_*` tables hang off `cases` by composition and hold twelve free-text columns; no disposal door names any of them (owner: backend + PO; split out of `FUP-DOOR-ERASURE-FREETEXT-CENSUS` 2026-08-20 on PO instruction)
+
+> ⛔ **CLOSED BY RULING 2026-08-20 — the residue is REAL, MEASURED and ACCEPTED.** ADR
+> [0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md): PHI erasure
+> reaches designated PHI fields only; free text that *may* contain PHI is out of pilot
+> scope, with **training** as the compensating control. The `ethics_*` lane holds **no
+> designated PHI field**, so it is descoped in full. ⛔ Do not read this close as
+> "investigated, nothing found" — everything measured below still stands.
+>
+> ⚠ **One half of this item is NOT obviously ruled on, and is preserved here rather than
+> buried in the close.** The lane exposed **two** data subjects. The *patient* half follows
+> directly from 0131. The other is the **accused professional**, whose allegation text is
+> personal data about them — **Class-2 professional identity** (Rule 12), a different data
+> class from patient PHI, for which ADR 0130's DSR workflow can return `granted` with **no
+> door to call**. ADR 0131 is written about *PHI*. Whether it also rules on Class-2 erasure
+> is the PO's to confirm; until then this question is open even though the item is closed.
+
+Filed 2026-08-20 (lead). Split from `FUP-DOOR-ERASURE-FREETEXT-CENSUS` because it is not a
+missed column on a covered lane — it is **a whole module with no erasure path at all**, and
+absorbing it into a per-column ruling would have hidden that difference. Census record:
+[door-erasure-freetext-census.md](./door-erasure-freetext-census.md).
+
+**Measured against the live catalog, 2026-08-20:**
+
+- **`ethics_` appears ZERO times in all four disposal doors' `prosrc`** — `dispose_case_phi`,
+  `dispose_event_phi`, `dispose_referral_phi`, `dispose_meeting_minutes`. Not "partially
+  covered": named nowhere.
+- **7 tables, 12 free-text columns**, every one a direct child of `cases` with
+  `case_id NOT NULL` + `ON DELETE CASCADE` — i.e. **composition**, the same relation that
+  makes `case_narratives` unambiguously in scope:
+  `ethics_allegations.description_md` · `ethics_appeals.{appeal_reason_md,outcome_rationale_md}` ·
+  `ethics_case_details.{admissibility_rationale_md,summary_md}` ·
+  `ethics_decision_details.remediation_description_md` ·
+  `ethics_findings.{evidence_summary_md,rationale_md}` ·
+  `ethics_hearings.{outcome_md,summary_md}` · `ethics_notifications.notes_md`.
+- **Nothing structurally separates an ethics case from a patient case.** `cases.case_type_id`
+  is a data-driven FK, not an enum, and **no CHECK gates any `ethics_*` table by case type**
+  (measured: 0). So a case may hold ethics rows *and* patient participants simultaneously,
+  and `dispose_case_phi` is the erasure door for **all** cases regardless of type.
+
+⛔ **Why 🔴 rather than 🟠.** Two distinct data subjects are exposed, not one:
+1. **Patient PHI** — an ethics narrative on a case with a patient participant may quote the
+   clinical facts, and the door that exists to erase that case's PHI does not reach it.
+2. ⭐ **The accused professional is themselves a data subject.** An ethics allegation is
+   personal data *about a named professional*, which is exactly what the ADR 0130 DSR
+   workflow adjudicates. A `granted` erasure on such a request has **no door to call** — the
+   workflow can decide, and the platform cannot execute. That is a gap in the DSR program's
+   own promise, not only in the case module's.
+
+**What must happen** — PO ruling first, two shapes, and the choice is not obvious:
+(a) **widen `dispose_case_phi`** to cover the lane, treating ethics prose as case content; or
+(b) **rule the lane out of scope with a recorded basis** — a plausible one exists (an ethics
+proceeding is a governance record with its own retention duty, and redacting a finding may
+destroy the evidence of due process), in which case `DSR_RESIDUE_NOTICE` must **disclose**
+it, since the notice claims the database is cleared.
+⛔ Do not pick (b) by default because it is cheaper. The Slice 4 precedent is the opposite
+ruling on the same question: *make the claim true, then disclose what is retained.*
+
+⚠ **Bounded:** this is a **static** finding — `ethics_` is named in no door body. It does not
+rest on the census instrument (which was wrong five times before it was right); it was
+verified by a direct `prosrc` match returning 0 across all four doors. What it does **not**
+establish is that these columns hold data today, which is a fixture question and irrelevant
+to the structural gap.
+
+
+### ⬛ FUP-MEETING-DISPOSAL-LEAVES-CHILD-TEXT — ✅ **CLOSED 2026-08-20 (DSR Slice 4 item 4)** — meeting PHI disposal redacts THREE of `meeting_agenda_items`' four text columns and none of the other child tables' (owner: backend; vehicle: DSR plan Slice 4)
+
+> ## ✅ CLOSED 2026-08-20 — the door was WIDENED (PO-ruled), and the census found 10 columns, not 4
+>
+> This item gave two lawful exits and forbade the middle. ⛔ **Slice 4's copy half shipped
+> straight into the forbidden state** — `DSR_RESIDUE_NOTICE` went live claiming the record's
+> database patient data was erased, while none of these columns were named as retained. That
+> is what QA r1 blocked on, and it is the sharpest lesson of the slice: **an open follow-up
+> naming your slice as its vehicle is scope you already own**, not adjacent work.
+>
+> **PO ruled: widen the door.** Making the claim *true* beat hedging it — the notice is shared
+> by all four doors, so a meeting-specific retention line would have been false on the referral
+> and case lanes.
+>
+> ⭐ **The census returned 10 columns, not the 4 this item listed** — and every one of the six
+> additions was missed by a *boundary that looked principled*:
+> - `meeting_closed_session_items.{substance, decision, withdrawals}` — **depth-2** (keys on
+>   `closed_session_id`), so a direct-children census cannot see it. The most sensitive prose
+>   in the aggregate.
+> - `meeting_minutes_jobs.{transcript, draft, result}` — ⭐ **`draft`/`result` are `jsonb`**
+>   carrying the AI-generated minutes text. The first census filtered on
+>   `text/varchar/citext`. ***Free text is not a type.***
+> - `meeting_attendees.external_org` — sitting directly beside the `external_name` this item
+>   did list.
+>
+> ⛔ **The finding that outranks the whole item.** Only 3 of `audio_job_status`' 6 values
+> purge the transcript. A job resting in **`done`** — transcribed, awaiting human review, the
+> normal resting state — kept the **verbatim transcript of everything said in the meeting**,
+> indefinitely, and disposal never touched it. That falsifies ADR 0056 **§4's central claim**
+> ("disposal erases all DB-side PHI"), not merely the residue copy. Now nulled
+> **unconditionally** and set-based (no `limit 1` — there is no UNIQUE on `meeting_id`), so
+> the fix does not depend on the transition graph being complete. *A lifecycle predicate needs
+> the transition graph, not the state list.*
+>
+> **`meetings.title` is KEPT, by PO ruling, and therefore DISCLOSED** — the second lawful exit,
+> taken deliberately for one column: it is the meeting's identity in every list. Named in the
+> new `DSR_MEETING_RESIDUE_RETAINED`, beside (never merged into) the shared notice.
+>
+> ⚠ **Two implementation findings a column list could never show.**
+> **(a)** `meeting_attendees_identity_xor` — a blanket `set external_name = v_redacted` stamps
+> internal attendees, violates the CHECK and **aborts the entire disposal**: a legal obligation
+> failing closed on every meeting with an internal attendee. The conditional branches are
+> load-bearing for *correctness*, and this was visible only in `pg_constraint`.
+> **(b)** The first census was measured **mid-`db reset`** and returned an **empty trigger
+> census when there are 17** — which reads as *"no guards, safe to widen."* Re-derived as one
+> REPEATABLE READ snapshot bracketed by the migration count.
+>
+> **Coverage:** pgTAP `351`, **33** assertions (its declared `plan()`) on a **locked** meeting (⭐ a `scheduled` fixture
+> fires neither guard, so the pins would pass while the door is broken for every real
+> disposal), every redaction paired with a sibling-meeting survival control; **17/17
+> neutralization probes RED**, harness proving anchor-uniqueness and that the probe *moves* the
+> live body hash and restore *returns* it. Includes the over-grant twin (guard widened to
+> `in_meeting_rpc` → reds t32 alone) and guard-removal (door aborts).
+> ⚠ **One pin was found vacuous by its own author**: t22 asserted "no row has both `user_id`
+> and `external_name`" — but under the mutation the CHECK raises, everything rolls back, and an
+> unchanged row still satisfies it. **Green while the door was completely broken**, because it
+> pinned what the constraint guarantees structurally. Rewritten as a differential (the row must
+> be *touched* while `external_name` stayed NULL).
+>
+> ⛔ **Do NOT cite `ARM=census` / `ARM=wrapper` as coverage here.** Both are exit 0 and both are
+> **vacuous for this change**: the guards return `trigger` and `dispose_meeting_minutes` returns
+> `void`, so neither changed function is in any arm's domain and no findings file carries a
+> verdict for either. ADR 0079 Amdt 1's syntax-filtered case list is likewise **empty**; it was
+> swept **by the property** instead (recorded in ADR 0129 Amendment 1). What covers this is
+> pgTAP 351, mutation-proven in both directions.
+>
+> Records: ADR 0056 **Amendment 1** (incl. the PHI classification of every retained column) ·
+> ADR 0129 **Amendment 1** (`app.in_disposal_rpc` had **two readers, still one setter** *as of
+> 2026-08-19* — the flag's one-reader bound was 0129's own stated property, so it could not be
+> widened silently).
+> ⛔ **Corrected 2026-08-21: that sentence was present-tense in a LIVE file and had gone false.**
+> ADR 0129 **Amendment 3** took it to **3 setters / 5 readers**. ⭐ It was found by sweeping the
+> axis *"which statement of the invariant did I just falsify?"* — not by the three-instance list a
+> reviewer had pointed at, which would have missed this one and one other. **The bound was never
+> the count**: it is that only the LGPD disposal doors set the flag, and the setter count is what
+> bounds the bypass. Re-derive it from `pg_proc`, never quote a figure in prose.
+>
+> ⛔ **No successor follow-up — a claimed gap did not survive measurement.** The build reported
+> that *"a PHI-bearing title on a locked meeting has no product remedy"* (`update_meeting`
+> refuses outside `scheduled`/`held`, and disposal targets locked meetings), and it was written
+> into ADR 0056 Amdt 1 and the constant's docblock before being checked. **It is false as
+> stated absolutely.** `reopen_meeting` issues two updates to *different tables* —
+> `meeting_signatures → 'revoked'` **and `public.meetings → 'held'`** — and `held` **is** in
+> `update_meeting`'s allowed set, so the remedy is the revoke corridor already documented in
+> `DSR_ATTEST_PROCEDURE_COMMON`: reopen → edit → re-sign, at the real cost of a revision bump
+> that invalidates registered prints (ADR 0126 D9). Both records corrected in place.
+>
+> ⚠ **And my correction was itself too absolute — narrowed on re-measurement, which is the
+> point.** The corridor is **narrower than the disposal door in two measured ways**, so the
+> original claim was wrong *everywhere it was stated*, not wrong *everywhere*:
+> **(1)** `reopen_meeting` accepts only `in_signature` and `signed`, while the child lock covers
+> those **plus `distributed` and `cancelled`** — and `app.guard_meeting_status`' transition list
+> has **no arm whose `old.status` is `distributed` or `cancelled`** (verified: its only arms are
+> `scheduled`/`held`/`in_signature`/`signed`). For those two terminal states the title genuinely
+> **cannot** be changed by any door. **(2)** `dispose_meeting_minutes` gates on
+> `is_staff_admin_of` **OR** `is_tenancy_admin_of`; `reopen_meeting` on `is_staff_admin_of`
+> alone — so the operator holding the erasure duty may be unable to walk the corridor.
+> ⭐ *Correcting a claim's **direction** without re-deriving its **magnitude** produces a second
+> wrong claim that reads as a fix.* This is why the four pt-BR retention lines deliberately do
+> **not** point operators at the corridor: it would be advice that is wrong for two of the four
+> locked states and for a whole class of operators.
+> ⭐ **The shape, because this slice hit it repeatedly:** the gate was read correctly and the
+> target population was read correctly, but no one asked whether *another door moves the row
+> into the permitted state*. **A gate tells you what it refuses; only the transition graph tells
+> you what is reachable** — the same lesson as the `done`-state transcript, one level up.
+
+**Measured 2026-08-19 from `information_schema` + the live `pg_proc` body**, while building ADR 0129.
+`dispose_meeting_minutes` nulls `meetings.minutes_md` and redacts
+`meeting_agenda_items.{description, discussion_notes, resolution}`. The free-text columns it does
+**not** touch:
+
+| Column | Touched by any dispose door? |
+|---|---|
+| `meeting_agenda_items.title` | ⛔ **no** — three of that table's four text columns are redacted; `title` survives |
+| `meeting_attendees.{note, external_name}` | ⛔ no |
+| `meeting_closed_sessions.label` | ⛔ no |
+| `meeting_cases.{summary, decision}` | ✅ yes — but by `dispose_case_phi`, per-case (ADR 0056 §2's deliberate decoupling), **not** by the meeting door |
+
+⚠ **This is an over-claim, not a regression.** ADR 0056 §2 *declares* exactly this scope, so the door
+does what its ADR says. The defect is that the **language** around it — the disposal confirmations and
+the runbook — reads as "the meeting's PHI is erased", and an agenda item titled with a patient's name
+survives that claim. `title` is the sharp one: a reader who sees three of a table's four text columns
+redacted will reasonably assume the fourth was considered.
+
+**Why it belongs to DSR Slice 4** (residue + copy honesty, ADR 0130 Decision 9): Slice 4 already owns
+the fixed, pre-written residue language and the `referral-dispose-dialog` rewrite. Either the columns
+join the redaction set or the residue language names them as retained — **the one thing that must not
+happen is the current state, where neither is true**. Sibling item: `FUP-NOTIFICATIONS-PHI-RESIDUE`.
+
+⚠ Note the method that found it, because the door's own suite could not: a **column census of the
+guard's four child tables**, run for an unrelated reason (checking what the child lock protects).
+Reading the door tells you what it redacts; only reading the *tables* tells you what it does not —
+[[new-door-must-inherit-every-sibling-arm]], applied to columns.
+
+
+### 🟡 FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT — the UI boolean cannot express the door's per-phase assignee arm (owner: frontend/PO; filed 2026-08-21, case-surface-split Increment 1, QA F-6; ✅ **RESOLVED 2026-08-22 — PO ruled WIDEN; delivered as a KIND + a server-gate fix**; two residues filed separately; index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
+
+`public.set_case_phase_result_override` (`prosecdef = t`) admits **`v_assigned_to = auth.uid()` ∨
+`app.is_staff_admin_of(commission)`** — measured from the live catalog; there is **no `member_can`
+arm**, so an administrativo is correctly excluded.
+⛔ **GRAIN CORRECTION (QA r2 R-4, re-measured 2026-08-21):** that disjunction is **NOT the door's
+authority** — it is **one branch of two**. The body reads `if v_phase_status not in ('active',
+'completed') then raise …; if v_phase_status = 'active' then if not (v_assigned_to = auth.uid() or
+v_is_staff_admin) then raise 42501`. **The assignee arm applies ONLY while the phase is `active`**;
+once `completed` the caller falls to the other branch and it is **coordinator-only**. The original
+filing quoted one branch as the whole guard — the same wrong-grain error this program recorded
+against a line-filtered `prosrc` read, committed here by hand instead. **The under-grant is
+therefore narrower than filed:** it is the *active*-phase assignee who is offered nothing.
+But the **assignee** disjunct is **per-phase**,
+and the UI's `canManagePhaseResults` prop is a **per-case boolean**, so it cannot represent it.
+Increment 1 set the manage host to `phaseResultsOn && access.role === "staff_admin"` — which is
+correct as far as it goes and closed a real over-grant T1 had created.
+
+**The residue** — ⛔ **CORRECTED 2026-08-22 (frontend, at build time): the original wording below was
+WRONG IN BOTH DIRECTIONS, and the truth is a BIGGER gap, not a smaller one.**
+① *"Offered no affordance anywhere"* is **false**: the active-phase assignee already has a path — the
+**end-of-wizard override panel**, which reaches the same RPC through `submitCasePhaseResponse`
+(member-authorized). So the item over-stated the user-visible harm.
+② But the real gap is **wider than the assignee**: on the **case-detail** surface an `active` phase
+offers the override to **NOBODY — the coordinator included** — because `case-phase-article.tsx:113`
+hard-codes `phase.status === "completed"`, while the door admits assignee ∨ coordinator on `active`.
+③ And it **cannot be closed in the UI alone**: the dialog's server action `overrideCasePhaseResult`
+(`src/lib/cases/result-actions.ts`) pre-checks with its own `authorizeCommission` — `isAdmin ∨ membership
+staff_admin` — which is **coordinator-only and strictly narrower than the RPC**, so a widened UI would
+have produced a dead end behind a friendlier string than `42501`. ⭐ Class:
+[[sql-door-is-not-evidence-about-its-ts-caller]] — the door was measured correct and the TS caller
+re-filters. ⚠ That same gate admits `isAdmin` where the **RPC has no `is_admin` arm at all**, so it is
+*also* wider than its door in the other direction — an existing dead end for `platform_admin`.
+
+_Original wording, kept because the correction is the point:_ a phase's own assignee who is *not* a
+coordinator can legitimately override that phase's result at the DB and is offered no affordance
+anywhere. That is an **under-grant**, and its
+signature is the dangerous one — a dead-end door raises a visible `42501`, an under-grant emits
+**nothing at all**: no error, no log, no failing test. No §6 gate can detect it.
+
+Deliberately **not** closed inside Increment 1: surfacing the assignee arm needs a per-phase prop
+and is a product decision about whether phase assignees should self-serve result corrections, not a
+gap to be silently patched. **Fix direction if ruled in:** thread a per-phase capability rather than
+widening the per-case boolean.
+
+
+### 🟡 FUP-CASE-T5-MEUS-CASOS-UNREPOINTED — T5 shipped narrower than its own text (owner: frontend; filed 2026-08-21, QA F-7; ✅ **RESOLVED 2026-08-22 — PO ruled the behaviour right and the PLAN TEXT wrong**; T5 clarified, index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
+
+Plan T5 says board/list rows link to manage detail for viewers passing the entry predicate. Shipped:
+the `/casos` staff board and `manage/cases` re-point; **`meus-casos` rows still link to `/casos`**.
+
+⚠ **This is arguably correct, not merely unfinished** — "Meus Casos" is by definition
+name-attributed work, which D1 keeps on `/casos`. Filed rather than fixed because the *plan text*
+and the *shipped behaviour* disagree, and one of the two is wrong: either re-point the rows, or
+amend T5 to state the exception and why. Leaving them disagreeing is what makes a later reader
+"fix" the wrong one.
+
+
+### 🟡 FUP-ORPHAN-ADMINISTRATIVO-REACHABILITY-UNVERIFIED — the dead-end door WAS reachable (owner: backend; filed 2026-08-21 from QA F-3's remediation; ✅ **RESOLVED — MERGED to local `main` 2026-08-22 (`be546bbf`)** — see § Resolution; index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
+
+`app.member_can` = `feature_enabled('administrativo') ∧ is_active(uid) ∧ app.is_member_of(commission)
+∧ ∃ capability row` (measured **four times independently** now; ADR 0134 Amdt 2 **M8**). The TS mirror
+`canInCommission` checked **no membership**, so the mirror was **wider than the door** — an
+administrativo whose commission membership was removed but whose capability row survives was, on
+the TS side, offered affordances the DB refuses.
+
+**Filing state, kept:** the entry recorded reachability as UNVERIFIED **in both directions** and
+guessed "probably not" — `access.role` is membership-only, and the commission shell 404s
+`role === null && !isQualityViewer && !isTenancyAdmin`. It said so rather than asserting it because
+the docblock it replaced had stated the door's *opposite* for weeks (QA F-3).
+
+⛔ **The close condition as filed would have closed this WRONG.** It said "construct an orphan and
+measure whether they reach the board". QA's review (§7.8) had already sharpened it to *"construct
+orphan × tenancy-admin **and** orphan × quality-reviewer"* and warned, in those words, that the plain
+orphan is **the one composition that provably cannot reach** — so testing only it returns a clean
+GREEN that means nothing. That warning was correct and load-bearing: the sharper question is the
+whole finding.
+
+**✅ Resolution — MEASURED 2026-08-22 by construction, then FIXED. Not committed, not merged; this
+entry stays OPEN until it is.**
+
+**1. The guess was HALF WRONG, and wrong about the mechanism even where it was right.**
+
+| composition | `member_can` | commission row readable | reaches `/manage/cases` |
+| --- | --- | --- | --- |
+| C0 control — **member** administrativo | **true** | 1 | **yes, and the door SERVES it** |
+| C1 plain orphan | false | **0** | no |
+| C2 orphan × **tenancy-admin** | false | **1** | ⛔ **YES — offered "Novo caso"** |
+| C3 orphan × **quality-reviewer** | false | **1** | ⛔ **YES — offered "Novo caso"** |
+
+- **C1 never reaches — but NOT via the shell gate this entry predicted.**
+  `commissions_select_member_or_admin` denies a plain orphan the commission ROW, so
+  `getCommissionAccessByOrg` returns `null` and `!access` 404s them one step *earlier*; the shell's
+  `role === null && …` test never runs. Confirmed by the rendered boundary: C1 gets the **root**
+  404 ("Não encontramos esta página"), which only a LAYOUT `notFound()` produces.
+- **C2 and C3 DID reach.** They read that same row on a different policy arm
+  (`is_org_admin_of` / `is_quality_reviewer_of`), arrive with `role: null` **and** a full
+  `capabilities` array — the appointment and capability rows survive a membership deletion (no FK,
+  no cascade trigger) and stay readable through the **hat-blind** `user_id = auth.uid()` self arm of
+  `commission_administrativo_capabilities_select`. Both were offered "Novo caso"
+  (C2 twice — header + empty state) and both got **"Você não tem permissão para esta ação."**
+  ⚠ C3's rendered inside the **`QualityViewerShell`**, i.e. a write affordance inside a shell
+  labelled *SOMENTE LEITURA*.
+
+**2. Dead END, not over-grant — measured, because the severity turns entirely on it.**
+`create_case_from_template` opens `if not (is_staff_admin_of ∨ member_can(…,'create_cases'))`, and
+both arms were **false** for C2/C3 (`is_staff_admin_of` is membership-only — an org_admin does not
+satisfy it). Driven through the real dialog: the control created a case (board 22 → 23, torn down by
+id); **neither orphan created anything**. The refusal surfaces as sanitized pt-BR, not a raw `42501`.
+
+**3. The fix is in the mirror, not the pages.** `canInCommission` now carries the membership
+conjunct `app.member_can` always had — `access.role !== null` **is** that test, since `role` is
+populated only from the caller's own hat-filtered, non-expired `memberships` row. ⛔ It cannot
+under-grant: enumerated from the catalog, **every** consumer of the four capabilities is
+`is_staff_admin_of OR member_can(…)` — 9 functions plus the three `meetings_staff_admin_*` policies
+— and both arms require a membership. The narrowed mirror is the door's shape exactly.
+
+**4. Controls, stated in full including what cannot fail.** Unit: `session-capability-mirror.test.ts`
+(5 cases) — neutralized, **1 of 5** goes RED, and it is the orphan row; the other four pass either
+way because they do not exercise the missing conjunct. E2E:
+`orphan-administrativo-reachability.spec.ts` (4 tests) — neutralized **and the standalone bundle
+rebuilt**, C2 and C3 go RED, C0 and C1 stay GREEN. ⭐ **Only 2 of the 4 E2E tests guard this fix**;
+C0 guards the fixture and C1 guards a different mechanism upstream of the mirror. C3's RED needed a
+`-g` run of its own — the file is `serial`, so C2's failure aborted it and **"did not run" is not a
+verdict**.
+
+⛔ **A wrong matcher read exactly like a live defect.** The spec's first draft matched only the root
+404 copy and reported C2 as *still reaching the board* on a build that had already fixed it. The two
+boundaries carry different text — root `not-found.tsx` says "Não encontramos esta página", the
+commission-scoped one says "Página não encontrada" — and the distinction is not cosmetic: it names
+*which* gate fired. The spec now asserts the KIND, so a C2 refusal by the shell (C1's reason) cannot
+be mistaken for a refusal by the board gate.
+
+**5. Regression, run: `administrativo.spec.ts` 10/10, plus `cases-board-access` /
+`case-manage-entry-gate` / `case-custom-fields` / `casos-reading-surface-differential` 21/21.** The
+`administrativo` POS tests are the no-under-grant twin — they drive all five other `canInCommission`
+call sites (meetings, sign-off queue + drill-in, case meta, phase assignment) as a *member*
+administrativo, and all still pass.
+
+**6. Left alone, deliberately:** `hasCaseStanding`'s `isAdministrativo` arm on the board page. After
+the mirror fix every principal past the gate above already satisfies its `isCommissionMember` arm, so
+it can no longer decide anything. Kept as a fail-closed backstop and **documented as redundant rather
+than counted as defense in depth** — it reads off the same `context.memberships` as the gate above,
+so it is the same predicate twice, not a second lock.
+
+**Fixtures are purely additive** — C1/C2/C3 are built by *appointing* three personas who already hold
+no CCIH membership (`staff2.farm`, `orgadmin.a`, `quality.a`), never by deleting a seed persona's
+membership; `seed.sql` is a contract with ~900 tests. Teardown is asserted empty and the seed's own
+four grants asserted intact.
+
+
+### 🟡 FUP-CASOS-ABSENCE-DIFFERENTIAL-UNASSERTED — the case-wide affordance class has **no absence assertions on `/casos`** (owner: tester; filed 2026-08-21; ✅ **RESOLVED — MERGED to local `main` 2026-08-22 (`be546bbf`)** — see § Resolution; index line rotated → [follow-ups-archive.md](follow-ups-archive.md); ⛔ **WRONG TWICE, corrected twice — read the history, it is the point of this entry**)
+
+⛔ **Filing history, kept because the item was wrong in a different way each time:**
+1. **v1 — FALSE.** Claimed case tags and the outcome selector had *“zero E2E coverage on any route”*. Both **are** covered on the manage host (`cases-extras.spec.ts:443` assigns a tag via `getByRole('region', {name:/Etiquetas/i})`; `processless-cases.spec.ts:473` drives the “Desfechos disponíveis” dialog). Cause: the sweep grepped **button labels**, while the real coverage uses a role+region locator and a dialog filter containing none of those strings — *a grep bounded by a label is a proxy for the property, not the property.* It reached the tracker as “confirmed … twice”, which reads like a measurement and was a restatement of one unsound search.
+2. **v2 — STILL HALF WRONG.** Claimed *“both were narrowed off `/casos` by Increment 1”*. Measured against the merge base: **tags** gate on `caps.canWriteContent`, which Increment 1 newly narrows, so tags did move — **but only for write-grantees** (a coordinator's were already hidden). The **outcome selector** gates on `caps.canManageLifecycle`, which `8675b7cd` already zeroed, so it was **already absent on `main` for everyone** and this increment changed nothing about it. And the class is **not two members**.
+
+⭐ **The lesson is the repetition, not the item.** Each correction fixed the specific wrong clause and left the *method* that produced it unexamined — which is how one entry was wrong three times in a day, twice while being corrected. **Recorded as [[a-partial-fix-reads-as-a-complete-one]].**
+
+**What is actually open.** The case-wide affordance class — QA's enumeration, **to be re-derived by property before use, not quoted**: *Novo item · Adicionar registro · Anexar documento · custom fields · Corrigir resultado · Ativar e atribuir*, plus **tags** — has **no absence assertions on `/casos`**. Manage-side presence is covered for several of them; the `/casos` side is asserted for none. Close it the way `case-access.spec.ts` AC-3b and the T6 narrative differential are built: absence on `/casos` paired against presence on manage, same user and case, counted by structure as well as accessible name. ⚠ State for each member whether its absence is **new** (Increment 1) or **pre-existing** (`8675b7cd`) — conflating those is what made v2 wrong. ⛔ **And one member is already mis-labelled, which is v2's error one member over: “Corrigir resultado” is PRE-EXISTING, not new** — it *looks* new because its prop stopped being passed, but `effectiveCanManagePhaseResults` had already zeroed it for that class. **Derive new-vs-pre-existing per member from the merge base; never infer it from “the prop changed”.**
+
+**✅ Resolution — BUILT + GREEN 2026-08-22, `e2e/casos-reading-surface-differential.spec.ts` (5 tests). MERGED to local `main` 2026-08-22 (`be546bbf`); the condition this entry named is satisfied and it is CLOSED.**
+
+**1. The class, re-derived by property (not quoted).** Property: *an affordance rendered by `CaseDetailView`, or by the manage `(detail)` layout header that is its twin, whose visibility gate is a CASE-WIDE capability.* All six such gates resolve in ONE file (`case-detail-view.tsx`), which is what makes this an enumeration rather than a checklist: **G1** `caps.canWriteContent` · **G2** `caps.canManageLifecycle` · **G3** `effectiveCanAssignPhases` · **G4** `effectiveCanEditCustomFields` · **G5** `effectiveCanManagePhaseResults` · **G6** `canEditMeta` (prop deleted, ADR 0134 F-5). ⭐ **The derivation returns 16 members — QA's enumeration named 7.** The **nine** it missed entirely: *Encaminhar caso* · *Nova entrevista* · *Adicionar participante* · *Não necessária* · *Desfecho do caso* · *Adicionar fase* · *Adicionar narrativa* · *Editar desfechos disponíveis* · the case-meta *Editar*. The hand-list was under half the class, wrong in the same direction as v1's grep.
+
+**2. New vs pre-existing is a (MEMBER × VIEWER-CLASS) CELL, not a member property** — measured at the merge base **`df88dced`**, never inferred. Coordinator column: **entirely PRE-EXISTING** (`readingAsMember` was already true there and already zeroed BOTH caps). Write-grantee: **G1 is NEW** (the trigger widened to `isReadingAsMember`); G2–G5 were never theirs on either host and are asserted as a *both-hosts control*, never as a differential. Administrativo: **G3 and G6 are NEW** (`/casos` itself passed both props at `df88dced`). "Corrigir resultado" confirmed **PRE-EXISTING for every class**, as this entry warned.
+
+**3. A THIRD mechanism the entry did not anticipate — NEVER-FED.** Three members are absent because `/casos` has never passed their fuel, at `df88dced` or at HEAD: *Adicionar fase* / *Adicionar narrativa* (`adHocForms`/`adHocNarrativeTypes`) and *Editar desfechos disponíveis* (`casesExtrasEnabled`). ⛔ **The spec's first draft labelled the third one narrowing-driven and the neutralization control is what caught it** — with the narrowing fully neutralized the button still did not appear. A member's mechanism is measured, not read off the gate it looks like it belongs to. A fourth, the case-meta *Editar*, is absent because its JSX was **deleted**.
+
+**4. The neutralization control (the part that makes the absences mean anything).** Run manually against the local stack, reverted immediately, `git diff -- src/` empty before continuing. **N1** (`narrowToReadingSurface` → identity): **9 of 14** members flip PRESENT on `/casos`; COORD-1 + WRITE-1 RED, ADM-1/PLESS-1/CF-1 correctly stay GREEN. **N2** (`isReadingAsMember` → false **and** the three props re-passed by `/casos`): **11 of 14**, adding G3 and G5; ADM-1 flips on G3 alone, CF-1 on G4. ⭐ **G4 and G5 needed BOTH halves neutralized** — for a coordinator they are doubly guarded, the "neither end is load-bearing alone" design measured rather than asserted. ⛔ **Four members cannot be made to fail at all** (the three NEVER-FED + G6): for those the `/casos` half is a regression guard, and the manage-side positive is what carries the differential. Stated because a control map listing only what flipped reads as though everything did.
+
+**5. Still not covered, deliberately:** the **administrativo × custom fields** cell (the one NEW cell with no reachable fixture — `FUP-ADMINISTRATIVO-CUSTOM-FIELDS-ARM-NOT-E2E-VERIFIABLE`, needs a seed change routed to Increment 2) · narrative authorship (owned by AC-3b + T6; its attributed half is reused here as the anti-over-reach control) · patient-panel edit (PHI, owned by `case-patient.spec.ts`) · event visibility (a field inside a dialog whose trigger is already proven unreachable).
+
+**Fixtures** are built and torn down by the spec itself (a published 2-phase template with an emitting phase driven to `completed` through the real RPC chain — `case_phases` refuses every direct write outside `app.in_case_rpc`; a process-less case; a per-case write grant; an assigned narrative). Teardown verified empty after the run. Nothing seeded is mutated.
+
+
+### 🟡 FUP-ADMINISTRATIVO-CUSTOM-FIELDS-ARM-NOT-E2E-VERIFIABLE — the `member_can` disjunct has no reachable fixture (owner: backend/tester; filed 2026-08-21, QA r3 §8.3)
+
+**Measured from the DB, not asserted:** exactly **one** case platform-wide carries custom-field values; exactly **three** principals can read it (`chefe.ccih`, `dualhat.a`, `quality.a`); exactly **one** non-coordinator holds `create_cases` (`staff2.ccih`), and `can_read_case` for them on that case is **false**. So the `member_can('create_cases')` arm of `update_case_custom_field_values` cannot be exercised end-to-end by any seed persona.
+
+⚠ **Do not state this as “not E2E-verifiable” unqualified — that overstates it.** `case-custom-fields.spec.ts` **AC-5** (coordinator edits custom fields on the manage host) and `administrativo.spec.ts` **POS-2** pin everything **except** the `member_can` disjunct. That one disjunct is what has no reachable fixture.
+
+⭐ **This is the SECOND reason the R-2 under-grant was invisible** — alongside the fact that an under-grant emits no signal at all, even a spec written to catch it would have had no persona to write it with.
+
+**To close:** a **seed** change — a case with custom-field values readable by a `create_cases` holder. Deliberately **not** done in Increment 1, which is DB-free **by decision** and whose empty `supabase/` diff is load-bearing in three gate records (it is why no diff-scoped door sweep was required). Forcing a seed change in would have broken the boundary those records rest on. Natural home: Increment 2, which touches the seed anyway for `read_cases`.
+
+
+### 🟠 FUP-S8-UNBOUNDED-BY-CASE-ACCESS-POLICY — D6's S8 arm has no `explicit_grants_only` bound, and the resulting bit-shape IS a quality reviewer's (owner: backend/PO; filed 2026-08-22, from the ADR 0134 Amendment 3 wording test; ✅ **RESOLVED — residue discharged and MERGED to local `main` 2026-08-22 (`be546bbf`)**; index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
+
+✅ **RULED 2026-08-22 by the PO — ADR 0134 Amendment 4: S8 IS bounded by `not v_eg`, exactly like S5
+and S7.** An `explicit_grants_only` case is invisible to the arm; reach there rides an explicit grant
+(S3) or nothing. ⛔ **The item stays OPEN, because a ruling is not an implementation** — what remains
+is listed under *To close* below, and none of it is discharged by the ADR edit. The ruling was made
+**separately from Amendment 3** and does not inherit its scope; Amendment 3 §A3.7 item 5 says so
+explicitly.
+
+**Measured from the live catalog 2026-08-22** (`pg_get_functiondef` on `app._case_caps`,
+`app.can_read_case`, `app.is_oversight_only_reader`, `app.is_member_of`) — not read from a migration
+file, which is stale by design here:
+
+- `app.can_read_case` = `has_case_capability(case, uid, 'read_case_content')`. Content bit only.
+- **S5 · `committee_member_default`** confers `read_case_deliberation` **only**, and is guarded
+  `if v_member and not v_eg`, where `v_eg := (v_policy = 'explicit_grants_only')`.
+- **S7 · `quality_reviewer`** confers `read_case_content` + `view_case_overview`, deliberately **no**
+  `read_case_deliberation`, and is likewise bounded `not v_eg`.
+- `app.is_oversight_only_reader` = `read_case_content ∧ ¬read_case_deliberation` — i.e. **the
+  quality reviewer's bit-shape is the predicate**, not a role test.
+
+**The gap:** ADR 0134 D6 specifies S8 as conferring `read_case_content` **only**, and neither the ADR
+nor [case-surface-split.md](../plans/case-surface-split.md) mentions `explicit_grants_only`, `v_eg`
+or a locked-case bound **anywhere** (measured: zero occurrences in both). Two consequences, and the
+second is the one that will not announce itself:
+
+1. **An unbounded S8 overrides `explicit_grants_only`** — the access policy whose entire purpose is
+   that only explicit grants confer reach. Both sibling read arms (S5, S7) are bounded by it; a new
+   read arm that is not inherits none of that intent. *A new door must inherit every sibling arm's
+   check, and no authz arm can see a door that OMITS a check its siblings all make.*
+2. **On such a case the administrativo's bits become content-without-deliberation — exactly
+   `is_oversight_only_reader`** — so every door keyed on that predicate classifies an appointed
+   administrativo as a quality reviewer. First live instance: `public.file_correction_request` refuses
+   them (`42501`) while `/casos` still renders the "Corrigir…" affordance, because the UI's
+   `isOversight` is `access.isQualityViewer` — **a different test from the door's**. A dead-end door,
+   the same shape ADR 0134 Amendment 1 §A1.2 caught for `bulk_create_cases`.
+
+⚠ **Not established: the size of the affected door set.** `file_correction_request` is the one member
+found while measuring something else. Before M2 ships, enumerate **by property** — every routine whose
+comment-stripped `prosrc` references `is_oversight_only_reader` — never by recalling which doors
+"feel oversight-related".
+
+**To close** — ~~a PO/backend ruling on whether S8 is bounded~~ ✅ **ruled 2026-08-22 (yes, bounded)**;
+what is left is all implementation, inside Increment 2, and each item is a separate way this can still
+go wrong:
+
+1. **The `not v_eg` condition in the M2 arm itself**, written from `pg_get_functiondef` and positioned
+   with the other positive arms so it inherits STEP 4's hard denies the way S5/S7 do.
+2. **P9** — locked-case negative: `can_read_case` false, absent from `list_cases_board`,
+   `get_case_detail` refuses.
+3. **P9-twin** — remove the bound, P9 must go **RED**. ⛔ Non-optional: a check a door OMITS is
+   invisible to every ARM, so nothing else in the §6 gate set can see this bound at all. An asserted
+   bound and an absent bound look identical in a green suite.
+4. **P10** — bit-shape, both directions (ordinary case: holds content **and** deliberation, so not
+   `is_oversight_only_reader`; locked case: holds neither). Amendment 4 §A4.2 derives this from the arm
+   conditions and says so; P10 is what makes it evidence.
+5. **P11** — an explicit S3 grant on a locked case still confers reach. The bound narrows the *arm*, not
+   the *grant path*.
+6. **The door-set enumeration** by comment-stripped `prosrc` referencing `is_oversight_only_reader`,
+   recorded. ⚠ Size still **not established** — `file_correction_request` is the one member found while
+   measuring something else.
+
+⛔ **Do not close this item on the ADR edit.** The ruling settled the design question in one line; every
+line above is still un-built, and this is the register the PO reads reach from.
+
+
+### 🟠 FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME — the sweep's domain is a syntax standing in for a property (owner: backend; filed 2026-08-22, found when the census's own remediation recipe could not clear the gate it raised; ✅ **RESOLVED 2026-08-22** — four-way partition + `ARM-DOMAIN` census, both halves proven; ⭐⭐ it also surfaced that the script **exited 0 on `BLIND: 5`**. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md); index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
+
+`supabase/tests/mutation/p0-authz-door-audit.sh:~231` bounds the **predicate arm** by a **name prefix**:
+
+```
+prosecdef = true AND ( (rettype = bool AND proname ~ '^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)' AND proname !~ '^is_valid_') OR proname = 'assert_not_case_excluded' )
+```
+
+**How it surfaced.** `ARM=census` correctly VIOLATED on the brand-new gate `app.member_can_for`, and the
+diff-scoped door sweep it prints **as the remediation** then ran **zero cases** — `member_can*` matches
+no prefix. The run printed **`BLIND: 0  ERROR: 0`** with an empty predicate arm and an empty policy arm.
+⛔ **A detector that found nothing because it looked at nothing, and in a gate record that reads as a
+clean pass.** (The findings file was not overwritten — 0 cases, empty `git diff --numstat` — so the
+known clobber hazard did not bite.) It was resolved honestly, by adding `member_can_for` to
+`authz-unswept-backlog.txt` beside its twin `member_can`, which has been there since the first census —
+**not** by hand-writing a COVERED row into a machine-generated findings file. That file's own rule holds:
+*a verdict nobody earned is worse than an admitted gap.*
+
+**Measured 2026-08-22 (live catalog):**
+
+| property | count |
+|---|---|
+| `SECURITY DEFINER` functions in `app` + `public` | **802** |
+| in the predicate arm's domain | **101** |
+| outside it | **701** |
+| ⭐ outside it **and returning `boolean`** — i.e. shaped exactly like a predicate, excluded purely by NAME | **42** |
+
+Among those 42: **`_audit_access_authorized`** (the gate in front of every PHI-read audit),
+`confidentiality_clearance_ok`, `capa_viewer_can_manage`, `interview_viewer_can_write`,
+`rca_writer_can_write`, `member_can`, `member_can_for`, `event_capa_fully_settled`,
+`artifact_belongs_to_commission`, `department_belongs_to_commission`. The rest are feature-flag readers
+and `validate_*` shape-checkers, which is why **42 is not the defect count either** — the set needs
+classifying by whether each is an authorization predicate, which no regex decides.
+
+⛔ **Bound, stated so this is not over-read: "outside the predicate arm" ≠ "unswept".** The audit has
+other arms, and `ARM=census` demonstrably reached `member_can_for` — that is how this was found.
+**Whether each of the 42 is covered by another arm is NOT established by this measurement.**
+
+⚠ **Same class, one level worse, recorded in the same place:** `app._case_caps` — the resolver every
+case predicate bottoms out in — returns **`int`**, so it is in **no** arm's domain at all (`census`,
+`hat`, `floor` and `wrapper` each bound by `prosecdef` as a *boolean gate*). Its only evidence is the
+targeted P4/P9-twin mutations written by hand for this increment. That is the pre-existing
+`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` class.
+
+**To close:** replace the name filter with the property it stands in for, or — if no computable property
+exists — make the arm **declare its domain size and refuse to report `BLIND: 0` on an empty domain**. ⛔
+An empty-domain run must not be able to print the same line a clean run prints; that is the whole finding
+and it is cheaper to fix than the classification.
+
+---
+
+#### ⭐ Third instance, 2026-08-22 — and the first on a REAL SHIPPED CHANGE, not on a new gate
+
+The two instances above were both about a **brand-new** object (`member_can_for`), which is the easiest
+case to dismiss as a corner. The Increment-2 PHI migration produced the general form. Its §6 step-1 gate
+record reads:
+
+> `ARM=census` 0 · `ARM=hat` 0 · `ARM=floor` 0 · `FROMFINDINGS=1 ARM=wrapper` 0 — **all HOLD**
+
+**All four held VACUOUSLY with respect to that change.** Measured per object, not inferred:
+
+| changed object | `prosecdef` | returns | in a census/bool domain | in the invoker arm |
+| --- | --- | --- | --- | --- |
+| `public.bulk_create_cases` | t | `integer` | **no** | no |
+| `public.create_case` | t | `cases` | **no** | no |
+| `public.create_case_from_template` | t | `cases` | **no** | no |
+| `public.set_participant_patient` | t | `uuid` | **no** | no |
+| `app._set_participant_patient_unchecked` | **f** | `uuid` | no | **no** (arm is `nspname='public'`-bounded) |
+
+Four are `prosecdef` **scalar non-bool command doors** — the census's own explicitly-named excluded class
+(`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, 407 reachable). The fifth is an `app` INVOKER helper, outside a
+`public`-bounded arm. The diff-scoped sweep was then **run rather than predicted**, with all five objects
+passed in: **PREDICATE ARM empty, POLICY ARM empty, `BLIND: 0  ERROR: 0`** — zero cases, the same line a
+clean run prints. Findings file verified untouched.
+
+⇒ **A change that rewrote the authority gate of the bulk-creation door and added a new PHI writer moved
+through all four ARMs without any of them looking at it.** The actual coverage is the targeted mutation
+twins written by hand in `357` / `189`. ⛔ The gate record must say *which arm had a domain* — "four ARMs
+HOLD" is true and, on this change, means nothing.
+
+⚠ **A class with no home, found in the same pass:** `app._set_participant_patient_unchecked` is in **no**
+tracked authz class at all — not the census contract (`prosecdef` booleans + policies), not the
+audit-invoker-wrapper class (`public`-bounded), not the composite-returning backlog. Unlike
+`member_can_for`, there was no backlog section it belonged to. Ruled 2026-08-22: add the class to
+`authz-unswept-backlog.txt` with membership **derived by property** (schema `app`, `prosecdef = f`, writes
+a PHI-bearing or invariant-bearing table, not executable by `authenticated`/`anon`), ⭐ expecting **≥ 2**
+members — `app._grant_case_access_unchecked`, the precedent it was modelled on, should be one, and if that
+function is not already tracked anywhere then this class has been unswept since before this increment.
+
+
+### 🟠 FUP-GRANT-CASE-ACCESS-UNCHECKED-HAS-NO-COVERAGE — the precedent every `app` unchecked writer is modelled on has never been tested (owner: backend; filed 2026-08-22, found by deriving a class instead of naming an instance; ✅ **RESOLVED 2026-08-22** — `358` §A pins both class members' ACL + `prosecdef` and the 3-caller set, red-first. ⛔ The `ARM=census` PRUNE hint was NOT acted on. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md); index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
+
+Filed because a **property sweep** was run instead of a hand-list. Increment 2 added
+`app._set_participant_patient_unchecked` and it landed in **no tracked authorization class at all**.
+Rather than invent a class around the new function, the lead required its membership be derived by
+property, and predicted the count would be **≥ 2** — because the function the new one was *modelled on*
+must be a member. It is.
+
+**Property:** schema `app` · `prosecdef = f` · `prokind = 'f'` · comment-stripped body performs an
+INSERT/UPDATE/DELETE on a table carrying **PHI or an authorization invariant** · **not** executable by
+`authenticated`/`anon`. **Returns 2.**
+
+| member | ACL | `authenticated` / `anon` EXECUTE | targeted coverage |
+| --- | --- | --- | --- |
+| **`app._grant_case_access_unchecked`** | `{postgres=X/postgres}` | f / f | ⛔ **NONE KNOWN** |
+| `app._set_participant_patient_unchecked` | `{postgres=X/postgres}` | f / f | `357` mutation twins, `276` O5+O5b, `321` K8 |
+
+⛔ **`app._grant_case_access_unchecked` writes `case_access_grants` — the table that decides who can
+reach a case — with no authority check of its own, by design, and it has carried no targeted mutation
+case and belonged to no tracked class since it was written (2026-07).** ⭐ **The class predates the
+increment that revealed it.** The new helper did not create this gap; it made it visible, by being the
+second member of a class nobody had drawn.
+
+⚠ **It is not unprotected — it is untested, and those are different claims.** Its ACL is
+`{postgres=X/postgres}`, `authenticated` and `anon` hold no EXECUTE, and schema `app` is not exposed to
+PostgREST. What is missing is a **pin that any of that is still true tomorrow**: nothing reddens if the
+ACL is widened, if it is flipped to `SECURITY DEFINER`, or if a fifth caller appears.
+
+⚠ **Sweep hygiene recorded with it**, because the exclusions matter as much as the members: the property
+returns **four** `app` INVOKER writers. Two are excluded — `app.save_instance_answers` and
+`app.seed_default_answers` — for **two independent reasons each**, so the exclusion does not rest on the
+weaker one: they write response-plane **content** (neither PHI nor an invariant), **and** they *are*
+executable by `authenticated` **and** `anon`, because their `proacl` is **NULL — the permissive default
+including PUBLIC**. Not escalated (`app` is not PostgREST-reachable — see
+`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`), but recorded: that is the fail-open shape this repo
+has hit four times.
+
+⛔⛔ **DO NOT ACT ON THE CENSUS'S PRUNE HINT.** Once both members were entered in
+`authz-unswept-backlog.txt`, `ARM=census` began printing them every run under *"backlog entries with no
+matching live gate (renamed/dropped — prune)"*. The note is **correct about its own domain and wrong as
+advice**: the census's live-gate set is `prosecdef` booleans, set-returning doors, `public` INVOKER
+plpgsql and policies, and these are `app` INVOKER **scalars** — they match nothing in it, **which is
+exactly why they are listed**. Acting on that hint deletes the admitted gap. Both entries carry a
+DO-NOT-PRUNE block naming the note verbatim. ⭐ A gate that instructs the next maintainer to remove the
+record of a gap is worth more attention than the gap.
+
+**To close:** a targeted mutation case for `_grant_case_access_unchecked` of the same shape the new
+helper has — ACL widened ⇒ red · flipped to `SECURITY DEFINER` ⇒ red (the differential that proved
+INVOKER is the second lock, run on this function too) · caller set pinned by property. ⛔ Do **not**
+close it by asserting today's ACL alone; an assertion that restates the current catalog and cannot fail
+is the shape this increment spent the day removing.
+
+
+### 🟠 FUP-CREATE-CASE-IS-ADMIN-DISJUNCT-VS-THE-NOUN-RULE — `platform_admin` can create commission content, and `create_case` is the only creation door that lets them (owner: PO decision, measured by backend; filed 2026-08-22, split out of QA B1; ✅ **RESOLVED 2026-08-22 — PO ruled REMOVE; ADR 0134 Amdt 8**; index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
+
+**Not the PHI half.** QA B1's PHI widening is CLOSED by migration `20261003000800`: `create_case`
+now refuses a `p_patient` payload unless the caller is `is_staff_admin_of ∨ member_can('create_cases')`,
+refused **at the gate** with its own pt-BR message, pinned in `357` §8c both directions plus a
+same-door positive control. **This item is the disjunct underneath it**, which was deliberately left
+alone: it is pre-existing, outside Increment 2's authorization, and a noun-rule question the PO has
+never been asked.
+
+**The question.** CLAUDE.md §1 (ADR 0078 A35, the *noun rule*): `platform_admin` **may** administer
+**tenancy, identity, vocabulary and audit**, and **may NOT** touch **commission content or PHI**.
+`public.create_case`'s authority gate is
+```sql
+if not (app.is_staff_admin_of(p_commission_id) or app.is_admin()
+        or app.member_can(p_commission_id, 'create_cases')) then
+```
+⇒ a hatted `platform_admin` can open a case — commission content — in **any commission of any
+tenant**, and (`create_case:341-343`) receives a `creator_self_grant` READ on it, so they can then
+read what they opened. `app.is_admin()` requires the entitlement **and** `active_role() =
+'platform_admin'`, reachable in the product through `assume_role`.
+
+**⭐ THE SHARP MEASUREMENT — it is the sole outlier of its own family.** Comment-stripped `prosrc`
+over the three creation doors:
+
+| door | `app.is_admin()` arm | writes PHI |
+| --- | --- | --- |
+| **`public.create_case`** | **YES** | yes |
+| `public.create_case_from_template` | no | yes |
+| `public.bulk_create_cases` | no | yes |
+
+Two doors that do the same thing disagree, and nothing records which is intended. The delivery that
+found this even wrote the correct reasoning nine lines long for `bulk_create_cases` — *"NO
+`app.is_admin()` DISJUNCT AND NO TENANCY ARM … the noun rule keeps platform_admin out of commission
+content"* — one function away from where it was needed.
+
+**Population, by property** (`public` routines whose comment-stripped body calls `app.is_admin(`):
+**11**.
+```
+create_case · create_framework · create_referral_requested_action · delete_standard ·
+list_approver_candidates · set_case_offered_outcomes · set_framework_status ·
+update_framework · update_referral_requested_action · upsert_standard · verify_audit_chain
+```
+⚠ **The split below is a JUDGEMENT, not a measurement, and it is offered for the PO to correct.**
+Per the standing lesson that *"is this caller gated?" is a per-function judgement no text filter
+decides*, the count of 11 is the closed set; which of them are "commission content" is not derivable
+from `prosrc`:
+- **Plausibly noun-rule territory (content):** `create_case`, `set_case_offered_outcomes`,
+  `create_referral_requested_action`, `update_referral_requested_action`.
+- **Plausibly sanctioned (vocabulary / catalog / audit — explicitly allowed by A35):**
+  `create_framework`, `update_framework`, `set_framework_status`, `upsert_standard`,
+  `delete_standard`, `verify_audit_chain`.
+- **Unclassified:** `list_approver_candidates` (identity-adjacent; not read).
+
+**Why it is filed rather than fixed.** Removing the disjunct would (a) change `platform_admin`
+behaviour outside this increment's authorization, and (b) need re-derivation against the **whole**
+reach, not just the PHI half — the `creator_self_grant` above is the part a narrow reading misses.
+⛔ And the census census-arms cannot help here: `create_case` returns a composite, so it is in **no
+authz ARM's domain**; nothing would have flagged this and nothing will flag the next one.
+
+**To close:** a PO ruling on whether `platform_admin` may create commission content at all — with,
+whichever way it goes, a pin at the DOOR (not the predicate; asserting the predicate is what let the
+PHI half hide, QA B1's recorded contributing cause) and a same-door positive control so the verdict
+is not a broken fixture.
+
+
+### ⬛ FUP-ADR-AMENDMENT-HAS-NO-BACK-POINTER — ✅ **RESOLVED 2026-08-24** — an amended ADR reads as live, and only the amending ADR knows (owner: lead; filed 2026-08-23 at the AFF2 post-Record documentation review)
+
+> **Closed by doing the three steps below in the order this item required.**
+>
+> **(1) Detector reads direction, not proximity.** `scripts/build-adr-index.mjs` parses the
+> declarative `**Supersedes:**` / `**Amends:**` header label. ⭐ It also had to learn **voice**:
+> `**Amended (2026-07-14):**` in ADR 0073 is that ADR recording it *was* amended, and a naive
+> `/amend/` test read it as a forward claim — reproducing **this item's own named false
+> positive, `0073 → 0078`**, by a different mechanism. `\b` fails before the trailing `d`, so
+> `amends` never matches `amended`; that is the whole fix. The same pass found a *missing* edge
+> the proximity sweep never had: ADR 0047 `**Extends / partially reverses:**` ADR 0032.
+>
+> **(2) Measured, then back-pointed.** The real population, replacing the 44 upper bound:
+> **50 verb-edges → 42 distinct source→target pairs across 30 amended ADRs**, of which only
+> **5** carried a hand-written back-pointer (0028, 0032, 0033, 0061, 0120). All 30 now carry a
+> generated `<!-- adr-backpointers -->` banner directly under the H1 — a pure insertion, no
+> existing line touched, and the richer hand-written decision-level notes in those 5 are left
+> exactly as they were. The banner is ADR-level ("0078 changed this one"); those notes are
+> decision-level ("D9 specifically"), and they complement rather than duplicate.
+>
+> **(3) Gate built only after (1).** `npm run lint:adr-index` is gate 9. It byte-compares both
+> the index and every banner, so a new ADR declaring `**Amends:** 0033` puts the pointer into
+> 0033 with nobody remembering to. Idempotency and **edge-neutrality** are pinned in the
+> self-test — without the latter the generator would read its own banners back as new edges and
+> never reach a fixed point.
+>
+> ⚠ **What is still uncovered, unchanged from the filing:** an ADR whose claim went false with
+> **no** amending ADR to point back from, and an amendment nobody declared with a label. No gate
+> can see either — an undeclared amendment leaves no trace to detect. The Record step
+> (lead-playbook §4 step 5) is the only place the label is checked.
+
+ADR 0133 declares *"**Amends** ADR 0097 D11 + D14, ADR 0098 §W3.2, and ADR 0048 D10."* Measured at the
+Record step: **all three amended ADRs contained zero occurrences of `0133` or `AFF2`.** A reader arriving at
+ADR 0048 D10 read *"LGPD minimization: no `date_of_birth`"* while the column existed and was being
+collected; a reader at 0097 D14 read *"person-level fields are `org_admin`-only"* and *"account deactivation
+is unreachable by hospital admins"*, both retired. **Those three are now fixed** (in-place amendment
+blockquotes, matching the house style 0097 D4 and D14 already used for ADR 0098's amendments).
+
+⛔ **The class is not.** A property-derived sweep over `docs/decisions/` — every ADR that claims to
+supersede or amend another, checked for whether the target mentions the claimant — reports **44** such
+relationships with no back-pointer, including `0110 → 0109` (which PROGRESS.md independently records as a
+real supersession) and `0079 → 0078`.
+
+⚠ **Do NOT quote 44 as a count.** The detector is **proximity-based** — an ADR number within 160 characters
+of the word *supersede*/*amend* — and it demonstrably over-reports: `0073 → 0078` was a false positive,
+because ADR 0073 line 31 reads *"Amended … reconciled to ADR 0078"*, which is a back-pointer **already
+present, in the correct direction**, misread as a forward claim. A number-ordering filter (a later ADR may
+amend an earlier one, not the reverse) removed exactly that one hit and no others, so the remaining shapes
+are unbounded. ⭐ *A detector that finds a lot needs proving too* — **44 is an upper bound on a population
+whose true size is unmeasured; 4 are verified by hand.**
+
+**Fix, in order:** (1) sharpen the detector to read **direction** rather than proximity — parse the
+declarative `**Amends** / **Supersedes**` header line ADRs already use, not free prose; (2) run it, and
+back-point what it finds; (3) only then consider a gate. ⛔ **Do not add a `lint:` gate for this before
+step 1** — a proximity detector wired to a gate would red on its own false positives and be waived, which
+is worse than no gate. ⚠ And note what no gate can catch: an ADR whose **claim** went false with **no**
+amending ADR to point back from. This item covers only the case where the amendment exists and is
+one-directional.
+
+
+### ⬛ FUP-CASE-DEPARTMENT-FIELD-HAS-NO-CONSUMER — ✅ **RESOLVED 2026-08-24, PO ruling: DELETED** (owner: PO + frontend)
+
+> **Ruled option 1.** `case-department-field.tsx` and `case-department-field.test.tsx` are
+> deleted. The two call-site comments that described the component as *"retained by decision"*
+> were corrected in the same edit, and `edit-case-meta-dialog.tsx`'s docblock now says to recover
+> the component from git if ADR 0137 D9 is ever reversed — so the next reader does not re-derive
+> this question from an absence.
+>
+> ⭐ The reason it needed a ruling rather than a cleanup: it was **dead code wearing a green
+> check**. A test-only consumer satisfies `tsc`, eslint and `lint:vacuous` forever, and no gate in
+> the eight can distinguish "exercised by the product" from "exercised only by its own test".
+> `DepartmentsManager` — the hospital-admin department VOCABULARY — is untouched; it is a
+> different component, which was the false premise this item existed to correct.
+
+ADR [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) **D9** removed the
+"Unidade / setor" input from BOTH of `CaseDepartmentField`'s app call sites (`create-case-dialog.tsx`
+and `edit-case-meta-dialog.tsx`, Increment 1). Measured after that change:
+`grep -rn "CaseDepartmentField" src/ --include=*.tsx` returns the component's own definition, two
+explanatory comments, and **`case-department-field.test.tsx`** — **no app consumer at all.**
+
+⚠ **The Increment 1 brief's parenthetical is FALSE as written.** It read *"the component survives (the
+hospital-admin surface still uses departments)"*. The hospital-admin surface uses the department
+**vocabulary**, through `components/hospitals/departments-manager.tsx` — a **different component**.
+`CaseDepartmentField` is the per-case picker, and nothing renders it now. The brief's instruction ("do
+not delete the file") was followed, so this is a *recorded* orphan rather than an undetected one.
+
+⛔ **Not a defect and not urgent** — five tests still pass and nothing is broken. What is owed is a
+DECISION, and it is one of exactly three:
+
+1. **Delete** the component + its test (D9 says the case models a unit as a process custom field, ADR
+   0083, so the picker has no future call site).
+2. **Wire it** somewhere the department is still authored per case (no such surface exists today —
+   inventing one would reverse D9).
+3. **Keep it deliberately** as scaffolding for a named future increment — in which case say which one,
+   in the file's docblock, or the next reader re-derives this same question.
+
+⛔ **Do NOT delete it in this batch** (lead ruling 2026-08-23) — it is outside D9's scope, and deletion
+is a decision, not a cleanup.
+
+⚠ **The reason nobody will notice this on their own: it is DEAD CODE WEARING A GREEN CHECK.**
+`case-department-field.test.tsx` still renders the component five times and still passes. A test-only
+consumer satisfies `tsc` (the import is real), eslint (the symbol is used), and `lint:vacuous` (the
+assertions are unconditional and genuine) — **forever**. There is no gate in the eight that can
+distinguish "exercised by the product" from "exercised only by its own test", so this item's index line
+in PROGRESS.md is the ONLY thing that will ever raise it again. The resolution event is the ruling, not
+the code: whichever way it goes, the answer belongs in the component's docblock.
+
+
+### ⬛ FUP-REFERRAL-REVIEW-STEP-MRN-WARNING — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> The review step renders `REFERRAL_MESSAGES.sendRequiresMrn` **verbatim** (no second string)
+> as a non-blocking `role="status"` note. The MRN input's `required` is untouched and
+> `Salvar rascunho` still works, so pgTAP `363 §1.2a` is unaffected.
+>
+> ⭐ **The binding constraint is honoured — and tightened by measurement.** The buffer is
+> authoritative only when `!isResume || resumePatientState === 'loaded'`. ⚠ This item's table
+> implied `idle`-at-review was reachable; it is NOT — the only route to `review` runs through the
+> patient step, and reaching that step fires the load (the step indicator `<ol>` is not
+> clickable, verified). The row that pays for itself today is **`error`**: on a failed prefill
+> the buffer is empty and an unguarded warning would fire on precisely the draft whose stored MRN
+> this session could not read. The guard is still written over the STATE rather than over that
+> routing, because the routing is one button away from changing and the failure is silent.
+>
+> Nothing fetches, so no `referral_patient.read` audit row is emitted for merely reaching review.
+> Six tests, each pairing a VISIBLE case with an ABSENT one; two neutralizations red exactly
+> their own assertions.
+
+ADR [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) **D4** makes the MRN
+mandatory at SEND: `public.send_referral` raises `HC0T4`, `mapReferralError` maps it, and
+`sendReferral` surfaces `REFERRAL_MESSAGES.sendRequiresMrn` in the wizard's error banner. That works —
+but the coordinator only learns after pressing **Enviar encaminhamento** and eating a round trip.
+
+**The ask:** render `sendRequiresMrn` as a NON-BLOCKING warning on the wizard's review step when the
+referral will be refused for a missing MRN, so the requirement is visible before the attempt.
+
+⛔ **Do NOT invent a second string.** Reuse `REFERRAL_MESSAGES.sendRequiresMrn` verbatim — backend
+confirmed 2026-08-23 that its wording ("Informe o prontuário do paciente antes de enviar o
+encaminhamento.") already reads as advance notice, not only as a refusal. Two sentences for one rule is
+the drift class this repo keeps paying for.
+
+⛔ **Do NOT block the send, and do NOT touch the MRN input's `required`.** The DB is the authority
+(D3's three-layer model), and a native `required` would break `Salvar rascunho`, which D4 deliberately
+keeps working — pgTAP `363 §1.2a` pins that a name-only PHI block still SAVES.
+
+---
+
+⛔⛔ **THE BINDING CONSTRAINT — the naive version of this is WRONG, and wrong in the direction that
+teaches people to ignore warnings.** Raised by `inc0-backend` 2026-08-23, who read
+`goToPatientStep()` rather than assuming.
+
+The wizard's resume PHI hydration fires **only** inside `goToPatientStep()`, once, asynchronously:
+
+```
+if (isResume && referralId && onLoadPatient && !resumePatientLoaded) { … }
+```
+
+So on a RESUMED draft the local `patient` buffer is **empty until the coordinator actually walks
+through the patient step** — even when the server already holds a perfectly good MRN. A warning driven
+off the buffer alone is therefore **FALSE exactly on the resume path**: it tells a coordinator their
+referral has no MRN when it does, and pushes them to re-enter PHI that already exists.
+
+**Render only when the buffer is AUTHORITATIVE. Three cases, and the third is the important one:**
+
+| Case | Buffer is truth? | Render |
+|---|---|---|
+| Fresh draft | ✅ yes — nothing is persisted until flush | Warn. This is where it earns its keep (majority path). |
+| Resume, patient step visited (`resumePatientLoaded`, transition settled) | ✅ yes | Warn. |
+| Resume, patient step never visited | ⛔ **no — the client cannot answer** | **Render NOTHING.** Not a warning, and not a reassurance either. |
+
+⛔ **And do NOT fetch to power the warning.** That is the tempting fix and it is the wrong one:
+`get_referral_patient` emits an audited `referral_patient.read` row, fired deliberately *on intent, not
+on card mount*. A review-step warning that fetched would emit a PHI-read audit row for merely REACHING
+review — quietly changing what `referral_patient.read` means in the audit trail. That is a Rule 11 /
+Rule 12 semantic change smuggled in as a UX nicety, and it is a **lead decision, not a component one**.
+
+⭐ **The silence in case 3 is the correct answer, not a gap.** *"I could not look" is not "I looked and
+found nothing."* A warning that renders identically for "no MRN" and "MRN unknown to this client"
+collapses exactly the two states `FUP-DM5-NO-ANSWER-VS-NOTHING` exists to keep apart.
+
+**Why it was filed rather than built** (lead ruling): beyond §2c as scoped; the PO approved D1–D14, not
+adjacent improvements; and it adds accessible names that would land on the tester mid-gate. It is a
+genuine improvement on the majority path and costs nothing to suppress on the one path where the client
+cannot honestly answer — so it is worth doing, just not inside this batch.
+
+
+
+## ⬛ FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI — ✅ **CONCLUDED 2026-08-24 by PO ruling: EXPECTED, and in line with platform specifications.** Filed and closed the same day.
+
+> **The ruling** (shape **(a)** of the three below): D1 puts the mode on the **template version**
+> because that is what makes it versioned, publishable and reviewable. A processless case has no
+> version to carry one, so a per-case compliance setting would sit where nothing governs it.
+> ADR 0137 gains **Amendment 4**, which states the scope this ADR had left implicit: D1–D3 deliver
+> *a commission may REQUIRE the MRN on cases minted from a process template version* — **not** a
+> platform-wide MRN mandate.
+>
+> ⛔ **CLOSED BY RULING, NOT BY A CODE CHANGE — and that distinction is the whole risk here.**
+> Nothing below was fixed. Every measured fact in this item is still TRUE of `main`: `create_case`
+> still takes `p_patient_enabled boolean`, still writes `patient_required_fields = '{}'`, and
+> `required` is still unreachable on that door. A future reader who re-measures will re-derive this
+> finding and be **right about the mechanism and wrong about whether it is a defect**. That is why
+> the ruling lives in the ADR — the document they will already be reading — and not only in this
+> archive, which nothing loads.
+>
+> ⛔ **Do not reopen it by widening `create_case`.** That is a new DEFINER arm owing its own authz
+> re-verification, and it reverses a ruling rather than filling a gap.
+>
+> ⚠ **The erasure consequence is ACCEPTED, not overlooked.** A processless case may hold a name-only
+> patient record that an MRN-keyed lookup cannot find. ADR 0137 § Open's cross-module erasure
+> workflow must therefore treat name-only rows as a known, bounded population — never assume the key
+> is universally present. This is the one place the ruling has downstream cost.
+
+<details><summary>Original item, as filed 2026-08-24</summary>
+
+
+### 🟡 FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI — ADR 0137's compliance floor does not reach processless cases, and the boolean that made the others lossy is still live on that door (owner: PO decision, then backend + frontend)
+
+**Filed 2026-08-24**, found while closing [[FUP-0137-PHI-MODE-SHIMS]] — its "grep must return zero"
+property matched this code, which is how the gap surfaced. **Not caused by that work**, and
+deliberately filed rather than folded into it.
+
+**Measured from the live catalog, not read off the ADR:**
+
+- `public.create_case(p_commission_id, p_label, **p_patient_enabled boolean**, …)` is the processless
+  door. Its body computes `v_patient_mode := case when coalesce(p_patient_enabled,false) …` and
+  inserts `patient_mode, patient_required_fields` as that mode and **`'{}'::text[]`**, always.
+- So a processless case can only ever be `none` or `optional`. **`required` is unreachable on that
+  path**, and the required-field set is empty by construction.
+- The PHI writer's floor for such a case is therefore the legacy one:
+  `app._set_participant_patient_unchecked` raises *"informe ao menos o nome ou o prontuário"* when
+  BOTH are blank, and only calls `app.assert_patient_required_fields` — which no-ops outside
+  `required` mode.
+- Reachable in the product: `create-case-dialog.tsx` renders the `patientEnabled` checkbox on the
+  `isProcessless` branch and posts it as a form field.
+
+⛔ **Why this is an ADR-level gap and not a cosmetic one.** ADR 0137's Context calls a name-only
+patient record *"a record the platform cannot later erase on request … a compliance hole dressed as
+flexibility"*, and D1–D3 close it — **for cases minted from a template version**. A processless case
+is minted by a different door that the ADR never mentions (grep: `0137` says "processless" zero
+times), so the same hole is still open on it. The MRN is the erasure key or it is not; today it is,
+except here.
+
+⚠ **The mechanism is exactly the one the shims item described, still standing on this door**: a
+boolean over a three-valued setting is lossy in only the NEW direction. Nothing fails, no gate fires,
+and the compliance mode is simply unreachable.
+
+**Not obviously a build item — the PO's call, and the shapes differ in cost:**
+
+- **(a)** Rule that processless cases are out of scope for `required`, and say so IN ADR 0137
+  (it currently reads as universal). Cheapest; leaves the hole named rather than open.
+- **(b)** Widen the door: `create_case` takes a mode + required set like its template twin. ⚠ That is
+  a **new DEFINER arm and its own authz re-verification** — the same cost D7 declined for the
+  referral destination.
+- **(c)** Enforce MRN-always on the processless path only, without a mode. Narrowest fix, but it
+  invents a fourth floor across the three PHI modules, which ADR 0137's Consequences explicitly
+  warns a future reader will try to "fix".
+
+⚠ **Do NOT close this by pointing at `app.guard_case_patient_required`.** That guard is real and
+correct, and it is an `AFTER INSERT` constraint trigger keyed on `new.patient_mode <> 'required'` —
+so on a processless case it returns immediately. A guard that cannot be reached by the state in
+question bounds nothing about it.
+
+</details>
+
+
+## ⬛ FUP-0137-MRN-BLANKABLE-AFTER-SEND — ✅ **RESOLVED 2026-08-24 by measurement: NOT REACHABLE. The prediction was correct about its two premises and wrong about the conclusion.**
+
+> ⭐ **SETTLED THE WAY THE ITEM ITSELF ASKED — by fixture, not by reading.** The arm is
+> `supabase/tests/365_referral_mrn_persistence_floor.sql` (12 tests, green). An amend that
+> omits the MRN on a `sent` referral does **not** blank the key: the call raises **HC070**
+> and rolls back.
+>
+> ⚠ **BOTH PREMISES BELOW ARE TRUE — the missing one was in a different object.**
+> `set_referral_patient` really does refuse only `completed`/`rejected`/`withdrawn`, and its
+> `on conflict do update set mrn = excluded.mrn` really is a full replace. What no reading of
+> that definition can show is its **last statement** — `update public.case_referral set
+> has_patient = true` — tripping **`app.guard_referral_status`**, a BEFORE UPDATE trigger
+> that refuses any edit to a non-`draft` referral outside `app.in_referral_rpc`, a flag this
+> door never sets. The PHI upsert is rolled back with it. Verified attached, enabled and
+> unconditional (`tgqual is null`), not just present in `pg_proc`.
+>
+> ⛔ **THE CLOSURE IS INCIDENTAL, AND THAT IS THE PART TO CARRY FORWARD.** Nothing in
+> `set_referral_patient` protects the MRN; a trigger placed there for status immutability
+> does. Under neutralization — adding `set_config('app.in_referral_rpc','on')` to the door,
+> which is the obvious way to implement "let the source coordinator amend PHI after sending"
+> — **365 §1.2 reds with `have: NULL`**: the erasure key really is blanked, exactly as
+> predicted. So this was never a false alarm; it was a live mechanism one edit away from
+> reachable. **§2.2 is the keystone that reds on that edit.**
+>
+> ⭐ **A SECOND FINDING FELL OUT and is filed separately, not folded in here:** because the
+> door cannot complete for ANY non-draft, the post-send amend branch ADR 0078 D7 gates with
+> `can_amend_referral_phi_snapshot` is unreachable — pinned as the differential in §2.1 so
+> no reader mistakes §1 for an MRN floor. See [[FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD]].
+>
+> ⚠ The **draft** half of this family was real and IS fixed:
+> [[FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE]].
+
+🟠 **The erasure key can be blanked after the referral is sent.** Raised by `qa` in
+[adr-0137-batch-review.md](../reviews/adr-0137-batch-review.md) § 5, 2026-08-23.
+
+`public.set_referral_patient` refuses only `completed` / `rejected` / `withdrawn`. A **`sent`**
+referral stays amendable by the source coordinator, and the body's `on conflict do update set
+mrn = excluded.mrn` combined with `p_mrn` defaulting to NULL means an amend that omits the MRN
+**blanks it**. ADR 0137 D4 makes the MRN the erasure key and puts a floor at *send* (`HC0T4`) —
+that floor is real and correctly placed, but it **bounds entry, not persistence**.
+
+⚠ The cases module already closed the identical shape with `app.guard_case_patient_mode_immutable`.
+The referral analogue does not exist.
+
+⛔ **Status of the evidence, stated honestly:** derived from the **live function definitions**, not
+driven through a fixture — `test_helpers` does not exist outside the pgTAP harness, so `qa` could
+not construct the state. **A pgTAP arm settles it in either direction** and should be written before
+anyone treats this as either confirmed or dismissed. A guard read off its definition is exactly the
+class this project has been wrong about before.
+
+**Owner:** backend.
+
+---
+
+
+## ⬛ FUP-0137-FLUSH-FAILS-OPEN — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> `if (fresh) { … }` → an explicit `if (!fresh) { setError(REFERRAL_MESSAGES.draftReloadFailed);
+> return }`, so the flush no longer proceeds against the stale frozen map when the pre-flush
+> re-read returns null. The docblock's *refuse rather than ship more than the screen shows*
+> principle now holds in code and not only in prose.
+>
+> ⚠ Fixed in the same edit as [[FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE]] — same function,
+> same swallow-becomes-a-silent-wrong-outcome family. ⛔ **Not separately test-pinned**: the
+> null-re-read path needs `onLoadDraft` to resolve null *after* a successful first load, which
+> the new spec's fixture does not construct. Stated rather than implied — the fix is a
+> three-line early return whose correctness is legible, but it is unguarded against regression.
+
+🟡 **A staleness re-read fails open, against the principle its own docblock claims.** Raised by `qa`,
+2026-08-23.
+
+`src/components/referrals/referral-send-wizard.tsx:692` guards the flush with `if (fresh) { … }` and
+then **proceeds against the stale map when the re-read returns null** — the docblock ~70 lines above
+states the fail-closed principle it believes it is preserving.
+
+⚠ **Why it matters more now than when it was written:** the ADD step never records new shared-item
+ids, so that re-read is the *only* thing preventing duplicate adds on a retry — and ADR 0137 D4 made
+retries **common**, because `HC0T4` leaves the dialog open for the user to supply the MRN and try
+again. A pre-existing fail-open became reachable when the batch changed the retry rate.
+
+**Owner:** frontend.
+
+---
+
+
+## ⬛ FUP-0137-357-TWINS-ON-STALE-BODY — ✅ **RESOLVED 2026-08-24** (owner: backend)
+
+> **Re-run against the re-emitted body. All four twins bite.** Fresh reset; `357` baseline
+> 48 ok / 0 not ok. PHI write neutralized → **8 RED** · wrapper gate removed → **4 RED**, incl.
+> BOTH K-CREATION-ONLY pins (4.1 `set_case_patient`, 4.2 `set_participant_patient` — one
+> mutation reaches both, because the compat door delegates rather than re-gating) · helper ACL
+> opened → **1 RED** · helper's own flag assert removed → **1 RED**.
+>
+> ⚠ **The 8 is NOT the recorded 11, and that is not a regression.** The 2026-08-22 run's exact
+> edit was never written down, and `357` itself grew 43→48 assertions in between. The claim this
+> measurement supports is *"the current body is covered"* — not *"the count matches"*. Writing
+> the smaller number down rather than reconciling it to the remembered one is the point.
+>
+> ⭐ **The twins are now a committed harness**, `supabase/tests/mutation/p0137-phi-door-mutation-audit.sh`,
+> because hand-running them a second time would leave the next reader exactly where this item
+> found them. Three disciplines are built in: each mutation is injected INSIDE `357`'s own
+> transaction (nothing persists, even on abort); the mutation helper RAISES when a `replace()`
+> needle drifted, so a no-op mutation can never report GREEN; and each run DIFFS against a clean
+> baseline instead of a hand-written expected-red list, which is the copy that drifts.
+
+🟡 **The case-side gate's real coverage was red-proved against a body this batch replaced.** Raised by
+`qa`, 2026-08-23.
+
+`app._set_participant_patient_unchecked` is the enforcement point for ADR 0137 D3. It is
+`prosecdef = f`, non-boolean, and lives in `app` — so it is **outside every authz arm's domain**.
+⛔ `ARM=census` HOLDS is therefore *not* evidence about it; the census printed it as an orphaned
+backlog entry, and that orphan **predates this batch**.
+
+Its actual coverage is suite `357`'s mutation twins — whose recorded reds were taken on the
+**pre-0137 body that this batch re-emitted**. The twins have not been re-run against the current
+definition, so the compensating evidence for the batch's main case-side gate is stale by
+construction.
+
+**Fix:** re-run `357`'s mutation twins against the re-emitted body and record the reds. This is a
+measurement, not a defect claim — it may well pass.
+
+**Owner:** backend.
+
+---
+
+
+## ⬛ FUP-0137-BULK-WIZARD-STILL-BOOLEAN — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> `BulkTemplateOption.collectsPatient` → `patientMode` + `patientRequiredFields`, and the
+> `required` mode is now expressed in the grid rather than merely survived by it:
+> the required identifier columns are **welded** into the selection (`aria-disabled`, ticked,
+> *"Exigido pelo processo"* — the builder's `mrn` idiom, so a coordinator can reach the control
+> and hear that it cannot be removed); `validateGrid` gained a `requiredPhiFields` arm that
+> marks the offending **cell** and names the short **rows**; and `togglePhi` refuses a welded key
+> in the handler as well as in the renderer.
+>
+> ⚠ **The `sex = 'unknown'` sentinel is mirrored** (`app.patient_required_missing`). A blank sex
+> cell is coerced to `'unknown'`, so a naive is-the-cell-blank check would find every row
+> satisfied and advance a batch the door then refuses row by row.
+>
+> ⭐ **The CORRECTION this item recorded is discharged too:** `HC0T1` really was absent from
+> `bulk-error-map.ts`, so the bulk path returned the GENERIC string where the single-case path
+> named the fields. Mapped, and red-proven by removing it again. Six new model tests, each
+> pairing the `required` case with the `[]` case, so the regression half — every batch from an
+> `optional` template — is covered rather than assumed.
+
+🟡 **The bulk case wizard still reads the deprecated `collectsPatient`, so `required` mode degrades to a
+worse error.** Raised by `frontend` while building ADR 0137 D2/D3, 2026-08-23.
+
+`src/components/cases/bulk-create-types.ts` and `bulk-step-process.tsx` were not migrated to
+`patientMode` / `patientRequiredFields`. Against a `required` template the bulk grid therefore offers
+the PHI columns **unmarked** — no required indicator, no submit gate, no named missing field.
+
+⛔ **Not a compliance hole** — `app.patient_required_missing` still refuses the creation server-side, so
+nothing is written without its required PHI.
+
+⚠ **CORRECTION 2026-08-24 (QA r2): this item originally SOFTENED itself.** It claimed the refusal reaches
+the user "with the pt-BR message naming the fields". Measured: **`HC0T1` is absent from the mapped codes
+in `src/lib/cases/bulk-error-map.ts`**, so on the bulk path the user gets the **GENERIC** string — no
+named fields. The single-case path maps it; the bulk path does not. A follow-up that overstates the
+consolation is worse than none, because it is read as the reason not to prioritise the work. The defect is **user-facing quality** — the user is allowed to fill a whole grid before
+being told, instead of being told up front, which is precisely what D3 layer 3 exists to prevent on the
+single-case path.
+
+⚠ Deliberately out of scope: the QA remediation named two files and this is a third surface. Sequence it
+rather than letting it drift — the single-case and bulk paths now disagree about the same template.
+
+**Owner:** frontend.
+
+---
+
+
+## ⬛ FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> `requiredFields` threaded `case-detail-view` → `CasePatientPanel` → `CasePatientEditDialog`
+> → `PatientFields`, plus the create dialog's submit gate and its `Faltam preencher:` line,
+> reused word for word so the two surfaces cannot drift into two vocabularies for one rule.
+>
+> ⚠ **Sourced from the CASE's own snapshot** (`c.patientRequiredFields`), never the template's
+> live set: `patient_mode` is frozen at creation (`HC0T3`), so a later template edit must not
+> retroactively change what an open case demands.
+>
+> ⚠ **The gate is suppressed while the audited reveal is still `loading`.** The draft is empty
+> until that read lands, so gating on it then would tell a coordinator their COMPLETE record is
+> missing every field — the fixture-cannot-reach-the-state shape, pointed the other way.
+
+🟡 **`case-patient-edit-dialog.tsx` does not mark required fields.** Raised by `frontend`, 2026-08-23.
+
+The case's `patientRequiredFields` is not threaded page → panel → dialog, so editing a `required`
+case's patient block shows no required markers and no submit gate.
+
+⛔ Enforcement is intact — `app._set_participant_patient_unchecked` (ADR 0137 D3's enforcement point,
+`prosecdef = f`, inherited by both write doors) still refuses. As above, this is the **offer** layer
+disagreeing with the **enforcement** layer, not an authorization gap.
+
+⚠ Same class as [[FUP-0137-BULK-WIZARD-STILL-BOOLEAN]]: a value that was unreachable until 2026-08-23
+leaves every downstream surface **unexercised by construction**. The audit set is every reader of
+`patient_mode` down to and including the rendering layer — ask *"what does this DO when it meets
+`required`?"*, never *"is this still right?"*.
+
+**Owner:** frontend.
+
+---
+
+
+## ⬛ FUP-0137-PERSIST-REFRESH-DROPS-FOCUS — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> ⛔⛔ **THIS ITEM NAMED THE WRONG MECHANISM, and the correction is the valuable part.**
+> Measured in Chromium on a page isolating the three candidates:
+>
+> | what happens | `document.activeElement` after |
+> |---|---|
+> | an ancestor `<fieldset>` becomes `disabled` while a descendant holds focus | **`BODY`** |
+> | siblings churn around the focused node (what reconciliation does) | unchanged |
+> | the focused node is REPLACED | `BODY` |
+>
+> So it is the `disabled={isPending}` the transition toggles — which fires the instant
+> `startTransition` runs, **before** any refresh — and `router.refresh()` is innocent.
+>
+> ⚠ **That changes the sweep, which is why the item asked for one.** Its own predicate
+> (*"does this component refresh the route on an input event?"*) matches **146 files** and still
+> MISSES a component that disables without refreshing. The property that actually predicts the
+> defect is: *a control whose own change starts a transition that then disables it (directly or
+> through an ancestor `<fieldset>`), on a surface that stays mounted.* Swept, that is exactly
+> **three** components — `collects-patient-picker.tsx`, `commission-oversight-toggle.tsx`,
+> `submissions-filters.tsx` — all three now using the shared `usePendingFocus`
+> (`src/components/ui/use-pending-focus.ts`). A dialog whose SUBMIT starts the transition is
+> not in the class: it unmounts, and Radix restores focus to the trigger.
+>
+> **Verified end-to-end in the real app, with a positive control.** Neutralized, focus sits on
+> `<body>` at every sample after the persist and never returns; with the hook it returns.
+> Pinned by `use-pending-focus.test.tsx` (4 tests — one of which PINS that jsdom does NOT
+> reproduce the browser's blur, so nobody reads a green unit run as browser coverage) and by
+> E2E `patient-mode-required.spec.ts` **AC-R5**, red-proven with the message *"focus was dropped
+> to `<body>` by the persist"*.
+>
+> ⚠ AC-R5 must stay ordered BEFORE AC-R2, which publishes the version: the picker mounts for
+> DRAFT versions only, and placed after the publish the test fails on the fixture instead of on
+> the property.
+
+🟡 **`persist()` + `router.refresh()` resets keyboard focus to `<body>`, costing a keyboard user ~40 Tab
+presses per field.** Found by `tester` while writing `e2e/patient-mode-required.spec.ts`, 2026-08-23.
+
+`src/components/process-templates/collects-patient-picker.tsx`'s `persist()` calls `router.refresh()` on
+every mode/field change. Once that lands, `document.activeElement` is `<body>`: a keyboard or
+screen-reader user who ticks one required field **loses their position** and must Tab from the top of
+the page to reach the next one.
+
+⛔ **Verified in a real browser via genuine Tab-key navigation, not inferred and not a Playwright
+artifact.**
+
+⚠ **It does NOT violate ADR 0137 D2** — the welded `Prontuário` checkbox does keep its place in the tab
+order (confirmed by a full Tab walk), which is why `tester` correctly declined to file it as a bug
+against this batch. The defect is the refresh's effect on *everything after* it.
+
+⭐ **The reason this is filed rather than dropped: the shape is not specific to this picker.** Any
+component that persists on change and then calls `router.refresh()` has it. Scope the fix by the
+PROPERTY — *does this component refresh the route on an input event?* — not by grepping this one file.
+CLAUDE.md §8 requires keyboard navigation and visible focus on every input.
+
+**Owner:** frontend.
+
+---
+
+
+## ⬛ FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> **The fix, in three layers** — `referral-send-wizard.tsx`:
+> 1. `resumePatientLoaded: boolean` → `resumePatientState: "idle" | "loading" | "loaded" |
+>    "error"`, set **after** the await; the `catch` records `error` instead of swallowing,
+>    so a transient failure no longer latches for the session and re-entry retries.
+> 2. `flush` **refuses** to write PHI while the state is `error` — the write-level guard,
+>    because the buffer is a full row and not a patch.
+> 3. The PHI inputs are **disabled** and the step carries a pt-BR banner
+>    (`patientFieldsLocked`), so the coordinator learns it before typing rather than at save.
+>
+> Pinned by `src/components/referrals/referral-send-wizard-phi-failclosed.test.tsx` (4 tests).
+>
+> ⛔ **THE FIRST VERSION OF THAT TEST WAS VACUOUS AND THE REASON IS THE USEFUL PART.** It
+> asserted `setReferralPatient` was not called after a failed read — and **passed with the
+> guard removed**, because it never populated the buffer, so the flush's pre-existing
+> `referralPatientDraftHasData` short-circuit was doing the work. ⭐ What makes the overwrite
+> reachable is **not typing** (the inputs are disabled) but **`applyPrefill`**: the
+> safety-event prefill is a *separate* load with its own state and a button gated only on
+> `isPending`, so it fills the buffer with the EVENT's identifiers while the draft's own PHI
+> failed to load. Under the neutralization the test now reds carrying
+> **`"mrn": "MRN-EVENT-9"`** — the overwrite in the assertion output.
+>
+> ⚠ **A second record error, kept:** the neutralization list first claimed a "re-latch"
+> mutation reds three tests. Measured, (a) the re-latch is **two** edits and applying one
+> alone left the file entirely GREEN — a cosmetic mutation certifying coverage that did not
+> exist; (b) it reds **§1 + §2 only**, never §4, whose success path never enters the `catch`.
+> Both errors ran in the flattering direction.
+>
+> ⚠ The post-send half of this family turned out **not reachable** —
+> [[FUP-0137-MRN-BLANKABLE-AFTER-SEND]], closed by fixture the same day.
+
+🟠 **A swallowed PHI load turns into a silent PHI overwrite.** Raised as R-3 in
+[adr-0137-batch-review.md](../reviews/adr-0137-batch-review.md) § 5, 2026-08-23. ⛔ **Filed 2026-08-24
+only because QA r2 noticed it had never been filed anywhere** — it existed solely in a superseded review
+file, which is the same as deleted.
+
+`goToPatientStep` sets `resumePatientLoaded = true` **before** the await and swallows any failure
+(`:502-515`, `catch {}`), so **one transient failure means the saved PHI never loads again for the rest
+of the session.** If the coordinator then types anything, `flush` calls `setReferralPatient`, whose
+`ON CONFLICT DO UPDATE` **replaces every column** — blanking the stored `mrn`, `name`, `date_of_birth`.
+
+⭐ This is the **same full-replace shape the team correctly caught for departments in D9-bis**, here on a
+PHI field. And it is the same swallow-converts-a-broken-path-into-a-silent-outcome shape the plan already
+warns about in its own note.
+
+**Bounded:** confined to a draft, and D4's send gate catches the MRN case specifically. It does **not**
+catch `name` or `date_of_birth`.
+
+⚠ Related and worth fixing together: [[FUP-0137-MRN-BLANKABLE-AFTER-SEND]] is the post-send half of the
+same "full-replace upsert on PHI" family.
+
+**Owner:** frontend.
+
+---
+
+
+## ⬛ FUP-0137-KIND-VISUAL-NO-FALLBACK — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> `kindVisual(kind: string)` resolves the row's visual with an `UNKNOWN_KIND_VISUAL` fallback,
+> and the comment now claims what it delivers: exhaustive over the TYPE UNION, which is not a
+> guarantee about `case_events_kind_check`.
+>
+> ⚠ **The parameter is `string` deliberately.** Narrowed back to `AnyCaseEventKind` the lookup is
+> typed non-nullable, TypeScript prunes the fallback as unreachable, and a reviewer reads dead
+> code — while at runtime the value that arrives is whatever the CHECK admitted, asserted into
+> the union by a `.returns<>()` that verifies nothing.
+>
+> ⭐ **The SIBLING was swept in the same edit.** `EVENT_KIND_LABEL[ev.kind]` on the same row also
+> misses an unknown kind; it yields `undefined`, which React renders as an EMPTY chip — quieter
+> than the throw, and therefore likelier to ship. Fixing one lookup on a row and leaving the
+> other reads as having swept the class. Three tests, all RED on the pre-fix build (the render
+> THREW, so every assertion in the block died at once — which is the failure mode: a blank card,
+> not a missing icon).
+
+🟡 **`KIND_VISUAL[ev.kind]` has no runtime fallback, and its comment over-claims the guarantee.** R-6,
+same review; filed 2026-08-24 for the same reason.
+
+`case-events-timeline.tsx:59-60` claims exhaustiveness "by TYPE" means widening `case_events_kind_check`
+"cannot land without a visual". ⛔ **Widening the SQL CHECK touches no TypeScript**: `tsc` stays green,
+`.returns<CaseEventRow[]>()` asserts the row into the **stale** union, and `:386`'s destructure of
+`KIND_VISUAL[ev.kind]` **throws — taking the whole card down.**
+
+**Latent today** (DB CHECK and TS union agree, 16 = 16, verified). It becomes live the moment someone adds
+a kind in SQL — which is exactly the [[keystone-measured-what-i-built-not-what-breaks]] shape: a new enum
+value leaves every downstream reader unexercised by construction.
+
+**Fix:** a `?? { Icon: MoreHorizontal, tint: … }` fallback, and reword the comment so it claims what it
+actually delivers. ⚠ A comment is an assertion; this one asserts a cross-language guarantee no gate enforces.
+
+**Owner:** frontend.
+
+---
+
+
+## ⬛ FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> Adopted the house pattern — `Field` + `FieldLabel` + `FieldError` + `useFieldIds` — so the
+> message is linked through `aria-describedby` instead of living inside the `<label>`.
+> `nameRequiredFor: "formData"` is DECLARED, because `createCaseEvent` reads
+> `formData.get('body')` and `useFieldIds` emits no `name` unless a caller says why it needs one.
+>
+> ⭐ **The test asserts INVARIANCE across the error transition, not the presence of a string.**
+> The same `getByRole("textbox", { name: "Descrição do registro" })` runs either side of a failed
+> submit; the clean-state half passes on the DEFECTIVE build too, so only the pairing reds — and
+> it is paired with a presence assertion on the message, because a "fix" that simply deleted the
+> alert would keep the name invariant and inherit the green.
+
+🟡 **A `role="alert"` inside the wrapping `<label>` mutates the textarea's accessible name on validation
+failure.** R-7, same review; filed 2026-08-24 for the same reason.
+
+`case-events-timeline.tsx:312-329`: the body-error `<span role="alert">` is a **child of the wrapping
+`<label>`**, so on failure the accessible name changes from `Descrição do registro` to that **plus the
+error text**. `aria-invalid` is set, but nothing is linked via `aria-describedby`.
+
+⭐ **The house pattern already exists and is used one file over** — `useFieldIds` + `FieldError`
+(`src/components/ui/field.tsx:201-207`), as in `case-type-picker.tsx:65`. This is adoption, not design.
+
+⚠ Same family as [[a-component-may-own-a-message-only-for-outcomes-it-survives]] and the "count badge
+inside the `h2`" defect: **data reaching a name that should be invariant.** Pin it by rendering at two
+states and asserting the name is unchanged, not by asserting one string.
+
+**Owner:** frontend.
+
+---
+
+
+## ⬛ FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD — ✅ **RESOLVED 2026-08-24, PO ruling** (owner: backend/PO)
+
+> **Ruled shape (a): post-send PHI amendment is NOT a product capability** — and the door now
+> says so instead of stumbling into it. Migration `20261003001700` moves the refusal INTO
+> `public.set_referral_patient`: any non-`draft` status is refused BEFORE the upsert, with the
+> door's own `HC078` and a message about patient data (*"encaminhamento já enviado; …"* /
+> *"encaminhamento concluído; …"*). Behaviour is unchanged — every such call already failed —
+> but it failed LATER, by rollback, wearing the status trigger's `HC070` (*"mudanças de estado
+> do encaminhamento devem passar pelas RPCs"*), a sentence about lifecycle transitions surfaced
+> for a PHI edit.
+>
+> ⭐ **The two locks now fail INDEPENDENTLY, and that is measured rather than argued.** Removing
+> the door's arm alone reds `365` §1.1/§1.3/§2.1 — but §1.2 stays GREEN, because the trigger
+> still rolls the upsert back. Removing the arm AND setting `in_referral_rpc` reds §1.2 too.
+> So the blanking that was ONE edit away now takes TWO. Harness: mutations 5/6 of
+> `supabase/tests/mutation/p0137-phi-door-mutation-audit.sh`.
+>
+> `app.can_amend_referral_phi_snapshot`'s `COMMENT` now records its real scope — draft re-saves
+> only — so it can no longer be cited as evidence that a sent referral's PHI can be corrected.
+>
+> ⚠ **`365`'s header and §2.2/§2.4 were rewritten, not merely re-coded.** Its central claim
+> (*"the closure is incidental"*) was the premise this change retired; leaving that prose
+> standing would be the stale-tighter-rule shape — the old text reads as MORE careful, so nobody
+> questions it. The old mechanism is kept in the header as the lesson, marked as history.
+>
+> ⛔ **If post-send amendment is ever wanted, deleting the arm is NOT sufficient**: the
+> full-replace upsert is untouched, so an amend that omits the MRN blanks the erasure key. Build
+> the MRN persistence floor in the same change.
+
+🟡 **An authored write capability that cannot be exercised — `can_amend_referral_phi_snapshot`'s
+non-draft branch is structurally unreachable.** Found 2026-08-24 while settling
+[[FUP-0137-MRN-BLANKABLE-AFTER-SEND]] by fixture; **not** a hole, and filed so the dead branch is
+not later read as live protection.
+
+`public.set_referral_patient` branches on whether a `referral_patient` row already exists: a new
+snapshot needs `can_manage_referral_phi_disclosure`, an **amend** needs
+`can_amend_referral_phi_snapshot` (ADR 0078 D7). Measured: for any referral whose status is not
+`draft`, the door's own final statement — `update public.case_referral set has_patient = true` —
+is refused by `app.guard_referral_status` with **HC070**, so the call can never complete. The amend
+predicate therefore only ever governs **draft** re-saves, which is the one case it was not written
+for. Pinned as the differential in `365` §2.1.
+
+⚠ **Three independent reasons it is not a live defect**, which is why this is 🟡 and not orange:
+the door cannot complete; the only UI caller of `setReferralPatient` is the send wizard, which
+ADR 0137 **D6** confines to drafts; and the referral detail page (which serves non-drafts) offers
+no PHI-edit affordance at all.
+
+⛔ **The decision owed is which way to resolve it, and it is a PO question, not a patch.** Either
+(a) post-send PHI amendment is intended — then the door needs the RPC flag **and** the MRN
+persistence floor the sibling follow-up proposed, because `365` proves the flag alone opens the
+blanking (§1.2 reds with `have: NULL`); or (b) it is not intended — then the amend predicate and
+the `completed`/`rejected`/`withdrawn` arm are dead code, and HC070's *"encaminhamentos enviados
+são imutáveis fora das RPCs"* is a confusing thing to surface for a PHI edit.
+
+⭐ **Do not resolve it by adding the flag alone.** That is the cheap-looking half, and it is the
+exact edit `365` §2.2 exists to red.
+
+**Owner:** PO + backend.
+

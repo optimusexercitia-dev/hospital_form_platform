@@ -10,7 +10,7 @@ tracker keeps a one-line pointer; this file is the authority for how DM4 was don
 ### 🔵 IN PROGRESS — **DM4: Wave C — referrals** (opened 2026-08-14)
 
 > **Step 0 ✅ — the plan's mandatory surface re-verification is DONE.** Full evidence:
-> [dm4-surface-verification.md](docs/progress/dm4-surface-verification.md). Derived from the
+> [dm4-surface-verification.md](dm4-surface-verification.md). Derived from the
 > **live catalog**, then diffed against the plan text in *both* directions — the second
 > direction is where all three of this program's historical drop-list misses lived.
 >
@@ -103,7 +103,7 @@ tracker keeps a one-line pointer; this file is the authority for how DM4 was don
 > - 🔶 **Open question**: the DT page offers the upload control (the DT *is* the target side);
 >   whether `can_write_document`'s referral arm admits the DT office is backend's to confirm.
 >
-> **S0–S3 + S5 (backend) — ✅ BUILT** 2026-08-14 (ADR [0119](docs/decisions/0119-dm4-referral-document-substrate-decisions.md);
+> **S0–S3 + S5 (backend) — ✅ BUILT** 2026-08-14 (ADR [0119](../../docs/decisions/0119-dm4-referral-document-substrate-decisions.md);
 > M1–M4 lead-approved; both S4 🔶 items above are CLOSED — `SharedItem.canOpen` shipped
 > (`5788352e`, door-equivalent predicate, lane-consistent) and the DT office IS admitted
 > (catalog-verified: `can_manage_referral_target` carries the `technical_director` arm; the
@@ -205,7 +205,7 @@ tracker keeps a one-line pointer; this file is the authority for how DM4 was don
 > abort, with the stack exclusive they vanish. **No real finding behind them.**
 >
 > ## ⛔ GATE STEP 3 (QA) r1 — **CHANGES REQUESTED**: 0 P0 · 3 MAJOR (2 blocking) · 8 MINOR · 6 INFO
-> Review: [dm4-referrals-review.md](docs/reviews/dm4-referrals-review.md). **Both blockers
+> Review: [dm4-referrals-review.md](../../docs/reviews/dm4-referrals-review.md). **Both blockers
 > discharged in `f4d03f44`**; r2 pending.
 >
 > ⚠ **MAJOR-1 was the lead's error and is the phase's sharpest lesson.** I recorded "matrix 16/16

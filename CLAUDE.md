@@ -352,9 +352,12 @@ whose **claim** went false has no gate at all, so that queue is its only witness
     wrote and flips the rot direction from stricter to weaker. Rationale + the 3-layer positive
     control: the script header and `FUP-DM5-SETLOCAL-MIGRATION`.
   - `lint:progress` (`check-progress-doc.mjs`) — the PROGRESS.md live-state contract (§7): size,
-    no completed rows / resolved index lines, link + FUP-body integrity, LF. Every prior version
-    of that contract lived in prose and each clause was violated while green; the script
-    self-red-proves every checker on each run.
+    no completed rows / resolved index lines, link + FUP-body integrity, LF — plus, since ADR
+    0140: **CLAUDE.md's 40 KB cap** (never raised to pass; rotate content out instead), the
+    resolved-body residue check (a `follow-ups.md` body no live register indexes), and a
+    **registry-free link sweep of all `docs/progress/`** (new files covered on creation). Every
+    prior version of that contract lived in prose and each clause was violated while green; the
+    script self-red-proves every checker on each run.
   - `lint:rules` (`check-rules-staleness.mjs`) — a `.claude/rules/` rule that has gone stale.
     Standing rules have **no resolution event**, and path-scoped they are **invisible until they
     fire**, so a rule describing a renamed symbol loads and is believed forever with nothing able
@@ -367,16 +370,23 @@ whose **claim** went false has no gate at all, so that queue is its only witness
     **659** files; it was retired (ADR 0127 Amdt 1).
     ⚠ Bounded, stated: DB anchors (`prosecdef`, ACLs, policies) are **not** checkable in `lint` —
     those belong in pgTAP. Retirement → `docs/progress/rules-archive.md`, never deletion.
-  - `lint:adr-index` (`build-adr-index.mjs`) — a `docs/decisions/INDEX.md` out of date with the
-    ADR corpus, two ADRs sharing a number, or an ADR citing a number that has no file. Its
-    load-bearing column is the **inverse** edge ("0033 was amended by 0038") — the one fact an
-    ADR cannot record about itself, being written later, by someone else, elsewhere. Measured
-    2026-08-24 over 136 ADRs: **47 of 47** supersedes/amends edges were declared only by the
-    amending ADR, so a session opening 0033 read a superseded rule with nothing in the file
-    able to contradict it. ⚠ **The gate cannot detect a MISSING `Amends:` label** — no gate
-    can; a human checks that at the Record step (lead-playbook §4). The index also states the
-    **next free ADR number**: take it from there, never by eyeballing the directory (two
-    sessions eyeballing it on 2026-07-02 both filed an "ADR 0050").
+  - `lint:adr-index` (`build-adr-index.mjs`) — a stale `docs/decisions/INDEX.md`, a stale
+    `<!-- adr-backpointers -->` banner inside an amended ADR, two ADRs sharing a number, or an
+    ADR citing a number that has no file. Both artefacts are **generated** (`npm run adr:index`)
+    and byte-compared, so neither can drift. What they carry is the **inverse** edge — "0033 was
+    amended by 0038" — the one fact an ADR cannot record about itself, being written later, by
+    someone else, elsewhere. Measured 2026-08-24 across 136 ADRs: 42 source→target pairs over
+    **30 amended ADRs**, only **5** of which had a back-pointer anyone had written by hand; a
+    session opening 0033 read a superseded rule with nothing in the file able to contradict it.
+    ⚠ **The gate cannot detect a MISSING `Amends:` label** — no gate can, because an undeclared
+    amendment leaves no trace; a human checks it at the Record step (lead-playbook §4). A
+    **declared-but-malformed** label IS caught: a colon-less `**Amends**` is invisible to the
+    parser and now a **blocking** finding — 4 were live when the detector first ran (ADR 0140).
+    Gate 9 also reds on a stale proposed-ADR review stamp (`proposed-review.json`, 30-day cadence). ⚠ **Voice
+    is direction:** `**Amends:**` claims *this ADR changes another*; `**Amended:**` records that
+    *this one was changed* and is deliberately not an edge — conflating them inverts the arrow,
+    which it did until fixed. The index also states the **next free ADR number**: take it from
+    there, never by eyeballing the directory (two sessions eyeballing it both filed an "ADR 0050").
   eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
   `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.

@@ -6,10 +6,10 @@
 ### Feature — `case_patient` (THIRD PHI module; ADR 0038) — ✅ COMPLETE
 
 > **Gate APPROVED** — Build ✅ · E2E `case-patient.spec.ts` **15/15** (all 8 ACs) + full suite
-> **green, zero regressions** · QA **APPROVED** ([docs/reviews/case-patient-review.md](docs/reviews/case-patient-review.md),
+> **green, zero regressions** · QA **APPROVED** ([docs/reviews/case-patient-review.md](../../docs/reviews/case-patient-review.md),
 > 0 blockers/0 majors) · Human ✅ 2026-06-22. Feature code on `feat/case-patient` (`2accca7`); flag
 > `case_patient` **ON** in local + remote (deployed 2026-06-22 — migrations `…017000`+`…018000` pushed; local↔remote in sync 18/18). ADR
-> [0038](docs/decisions/0038-case-patient-identifiers.md); ARCHITECTURE Rule 12 (two→three PHI
+> [0038](../../docs/decisions/0038-case-patient-identifiers.md); ARCHITECTURE Rule 12 (two→three PHI
 > modules). Out-of-scope follow-ups (tracked, non-blocking): `dispose_referral_phi` parity gap;
 > CN-APP-AC4 (pre-existing narrative-save re-render on the prod standalone build) — **RESOLVED 2026-06-23** (optimistic render in `case-narrative-card.tsx`; verified RED→GREEN on the prod build). See Bug Log.
 
@@ -72,8 +72,8 @@ the prose-docs workstream (clean file-ownership split).
 > **✅ BUILD COMPLETE (2026-06-20)** — all workstreams (0, A, B, C, D, E + the RCA-write severance
 > ruled in mid-stream) landed. Backend final state: **pgTAP 665/665, `db diff` clean (90→12 baseline),
 > types +93 additive, lint/typecheck/unit green, 10 personas seeded — all LOCAL (no push)**. Docs:
-> ADR [0035](docs/decisions/0035-lgpd-anvisa-regulatory-posture.md) (regulatory posture / encryption
-> declined), ADR [0036](docs/decisions/0036-phi-access-hardening.md) (PHI access hardening),
+> ADR [0035](../../docs/decisions/0035-lgpd-anvisa-regulatory-posture.md) (regulatory posture / encryption
+> declined), ADR [0036](../../docs/decisions/0036-phi-access-hardening.md) (PHI access hardening),
 > ARCHITECTURE Rule 11/12, CLAUDE.md §1+§3. **Next: §6 Phase Gate → Test pass (`tester`) → QA review
 > (`qa`) → human approval → owner-run remote `db push` → Record.**
 >
@@ -107,8 +107,8 @@ the prose-docs workstream (clean file-ownership split).
 > ON alongside it.
 
 **Previous increment (complete): Case Access Control & "Meus Casos"** — plan
-[docs/phases/case-access-control.md](docs/phases/case-access-control.md), ADR
-[0033](docs/decisions/0033-case-access-control.md). Human-approved kickoff 2026-06-19 (DB reset +
+[docs/phases/case-access-control.md](../../docs/phases/case-access-control.md), ADR
+[0033](../../docs/decisions/0033-case-access-control.md). Human-approved kickoff 2026-06-19 (DB reset +
 interviews-deferral authorized). Phase 14 (Patient-Safety / NSP) complete (14a `984e787`, 14b–d
 `c4e20b3`); Case Narratives increment FE done (below).
 

@@ -1,0 +1,51 @@
+# ADR 0140 — Tracking-apparatus hardening batch (labels, caps, residue, cadence, sweep)
+
+- **Status:** accepted (PO, 2026-08-24 — approved as a batch: "implement the rest of your
+  recommendations")
+- **Amends:** ADR 0124 (gate 7's contract widens: the CLAUDE.md size cap, the follow-up
+  body-residue check, and the registry-free link domain all become part of it)
+- **Context:** Five weaknesses, each measured before it was fixed. (1) An ADR edge label
+  written without its colon (`**Amends** ADR …`) parses as bold emphasis — the edge never
+  reaches the index or the back-pointer. FOUR live instances: 0133 and 0125 found by hand,
+  then 0052 and 0072 found by the detector's first run — the hand-swept "complete class of
+  two" was wrong within the hour, which is the argument for the detector. (2) CLAUDE.md —
+  loaded by every session AND every teammate spawn — grew 32 KB → 37,291 B in five days
+  with no cap: the pre-ADR-0124 disease on the one file where bytes are paid everywhere.
+  (3) `follow-ups.md` stood at 604 KB with 145 body headings; 47 belonged to items no live
+  register indexes, including TWO in no register at all (`FUP-DM5-MANIFEST-FLAG`,
+  `FUP-DM5-REMOTE-STATE-MEASURED` — resolved per their own bodies, index lines evidently
+  deleted instead of moved: the R3 class). (4) The INDEX's "re-read the proposed-ADR list
+  periodically" was a prose cadence, the mechanism measured failing before (a "standing"
+  sweep in prose ran once in three weeks — ADR 0079). (5) The link gate covered 11 of 130
+  docs/progress files; the other 119 carried **133 broken links** across 24 files.
+- **Decision:** Five mechanisms, all self-tested and mutation-probed live:
+  1. **Colon-less edge labels are a HARD gate-9 finding** (`colonlessEdgeLabels`,
+     preamble-only, active-voice verbs only — the generated back-pointer block's passive
+     voice can never fire it). All four instances fixed; 0042/0048/0097/0098/0104 gained
+     their missing back-pointer banners.
+  2. **CLAUDE.md is capped at 40 KB in gate 7.** ⛔ The cap is never raised to make a red
+     pass (the `lint:set-local` watermark lesson) — content rotates to ARCHITECTURE.md, an
+     ADR, or a path-scoped rule; raising it is a PO decision recorded in an ADR.
+  3. **The inverse body check** (gate 7): a `follow-ups.md` body whose id appears in
+     neither PROGRESS.md nor `deferred-backlog.md` is a finding. Deliberately
+     under-flagging (any prose mention keeps a body alive) — it must never pressure an
+     OPEN body out. The 47-body backlog rotated verbatim to `follow-ups-archive.md`
+     (596 KB → 387 KB); the two orphans' index lines were **reconstructed there, marked
+     as reconstructed** — never fabricated as original.
+  4. **The proposed-ADR review is stamped and expiring** (`proposed-review.json`, gate 9):
+     reds when the review is > 30 days old or the proposed/draft/deferred set drifts from
+     the stamp. `reviewed: null` at install — no review was fabricated; the first one
+     comes due 30 days from installation. Check-time only; the rendered index stays
+     deterministic.
+  5. **The link sweep is registry-free**: every `docs/progress/*.md` is link-checked, so
+     a new destination or narrative file is covered the day it is created. The 133-link
+     debt was repaired mechanically (each rewrite applied only where the result resolves;
+     3 stale in-file anchors repointed to PROGRESS.md by hand). The ADR 0139 zero-match
+     control now guards the sweep itself.
+- **Consequences:** Every register that tracks this project is now either generated from
+  source, gate-checked, or both. Bounded, stated: the malformed-label detector catches a
+  *malformed* label, not a *missing* one — an amendment declared nowhere is still
+  invisible to every machine, and stays a human check at the Record step. The CLAUDE.md
+  cap will bite on legitimate growth; the answer is rotation, not a bump. Both gate
+  scripts now export their checkers behind entry-point guards so sibling tooling imports
+  them instead of re-implementing them.

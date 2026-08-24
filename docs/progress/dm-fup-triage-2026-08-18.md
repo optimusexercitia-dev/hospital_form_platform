@@ -71,7 +71,7 @@
 > [decisions-log.md](decisions-log.md).
 >
 > ⛔ **DO NOT READ "ANSWERED" AS "DONE".** Two rulings created obligations that outlive the
-> phase and stay live in **[§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list)**:
+> phase and stay live in **[§ Critical FUP](../../PROGRESS.md#-critical-fup--the-must-not-be-forgotten-list)**:
 > **C1** the PHI-disposal runbook must run end-to-end **before any real patient record is loaded**
 > (the pilot risk acceptance is *bounded by that rehearsal*), and **C2** Tier 1 of the 407-door
 > sweep is **sized but not counted**.

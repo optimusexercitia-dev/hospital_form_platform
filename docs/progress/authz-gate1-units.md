@@ -333,7 +333,7 @@ by the same convention now used here.
 
 ### ▶ AUTHZ · Gate 1 · M1 — exclusion durability (`backend`, 2026-07-15)
 
-Scope = `qa`'s **[§W-6](docs/reviews/authz-a0-inventory-review.md#w-6--the-authoritative-ordered-m1-scope--backend-builds-from-this)** (authoritative over A0 §6). Migrations
+Scope = `qa`'s **[§W-6](../../docs/reviews/authz-a0-inventory-review.md#w-6--the-authoritative-ordered-m1-scope--backend-builds-from-this)** (authoritative over A0 §6). Migrations
 `20260722000000_authz_m1_exclusion_durability` + `20260722000100_authz_m1_gate_helper_deny`; suite
 `supabase/tests/229_authz_m1_exclusion_durability.sql` (**86 tests**, authored RED before the SQL).
 **Full pgTAP 2623/2623 green on a fresh `db reset`** · lint 0/0 · typecheck ✅ · types regenerated. Local only —
@@ -350,7 +350,7 @@ NOT feed the document ceiling (that reads the *attachment* label) nor `create_in
 the case's governance classification record. **Not Rule 12; lands on D5's rule alone.** Suite **86 tests**, full pgTAP
 **2623/2623** on a fresh `db reset`, mutation audit **20/20 RED-PROVEN**.
 
-**Round 2 — `qa` CHANGES REQUESTED ([review](docs/reviews/authz-m1-review.md)): both fixed, plus 2 more the audit found.**
+**Round 2 — `qa` CHANGES REQUESTED ([review](../../docs/reviews/authz-m1-review.md)): both fixed, plus 2 more the audit found.**
 **B1** (vacuous keystone) — the M1·2 `record_recusal` positive twin left `st_x` self-recused, so M1·3's keystones
 measured the **recusal** arm while M1·3 guards the **respondent** arm; §W-6 (b) had said *"the respondent never
 acts."* Recusal now deleted + 2 guards assert he is excluded by the respondent arm **alone**.

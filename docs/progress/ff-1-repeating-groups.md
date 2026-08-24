@@ -17,8 +17,8 @@ are never loaded by teammate spawns — detail lives here to stay out of every s
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
 ▶ **ACTIVE: FF-1 — Repeating Groups** (Flexible-Forms Program, ADR
-[0086](docs/decisions/0086-flexible-forms-pre-pilot.md) → [program plan](docs/plans/flexible-forms-program.md)).
-Phase ADR **[0087](docs/decisions/0087-ff1-repeating-groups.md)** accepted 2026-07-27 (6 PO rulings; grilling
+[0086](../../docs/decisions/0086-flexible-forms-pre-pilot.md) → [program plan](../../docs/plans/flexible-forms-program.md)).
+Phase ADR **[0087](../../docs/decisions/0087-ff1-repeating-groups.md)** accepted 2026-07-27 (6 PO rulings; grilling
 interview). Flag `repeating_groups` (seeded OFF → enable migration at the gate). Worktree
 `worktrees/ff/flexible-forms-program`, branch `ff/flexible-forms-program`.
 
@@ -92,22 +92,22 @@ supplying the empty arrays, **never** by widening the type back.
 > does an unscoped `select … where response_id and item_id`, silently picking ONE instance's answer.
 
 Every concluded phase/track lives as a **row in the
-[Phase Status](#phase-status) table above**, with its full record under `docs/progress/`; the remaining
+[Phase Status](../../PROGRESS.md#phase-status) table**, with its full record under `docs/progress/`; the remaining
 pre-pilot work — the FF program, then the **pilot deploy** (origin push + Coolify + remote `db push`) — is
 tracked in **Remaining pre-pilot work** below. Phases 18–19 stay post-pilot.
 
 **Recently concluded** (S-track; all human-approved — detail in the linked records + the Phase Status rows):
-S5 [ETH·E3a](docs/progress/eth-e3a-surfacing.md) · [Case Corrections](docs/progress/case-corrections.md) ·
-[Controlled-Doc Redesign 17-v2](docs/progress/document-control-redesign.md) ·
-[AUDIT-DOOR-BLINDNESS P0](docs/progress/authz-p0-door-blindness.md) · [AUTHZ Gate 1+2](docs/progress/authz-handoff.md) ·
-S4 [ETH·E2](docs/progress/eth-e2-procedure.md) · [RV2 R2–R5](docs/progress/rv2-r2-r5-governance.md) ·
-[CH](docs/progress/ch-charters-cadence.md) · S3 [ETH·E1](docs/progress/eth-e1-access-spine.md) ·
-S2 [IV2](docs/progress/iv2-interviews.md) / [RV2·R1](docs/progress/rv2-r1-referrals.md) / [AI](docs/progress/ai-satellites.md) ·
-S1 [substrate (MEM/SUP/N)](docs/progress/s1-substrate.md) · [S0 gate](docs/plans/pre-pilot-release-s0-ratification.md).
+S5 [ETH·E3a](eth-e3a-surfacing.md) · [Case Corrections](case-corrections.md) ·
+[Controlled-Doc Redesign 17-v2](document-control-redesign.md) ·
+[AUDIT-DOOR-BLINDNESS P0](authz-p0-door-blindness.md) · [AUTHZ Gate 1+2](authz-handoff.md) ·
+S4 [ETH·E2](eth-e2-procedure.md) · [RV2 R2–R5](rv2-r2-r5-governance.md) ·
+[CH](ch-charters-cadence.md) · S3 [ETH·E1](eth-e1-access-spine.md) ·
+S2 [IV2](iv2-interviews.md) / [RV2·R1](rv2-r1-referrals.md) / [AI](ai-satellites.md) ·
+S1 [substrate (MEM/SUP/N)](s1-substrate.md) · [S0 gate](../../docs/plans/pre-pilot-release-s0-ratification.md).
 
 > ⚕️ **Suite-health** (deferred, non-blocking) — the `e2e:prod` gate carries a ~18–31 pre-existing flaky-red
 > baseline (memory [[e2e-prod-build-flaky-baseline]]); pay-down = per-test DB isolation / `retries=0` / a
-> known-flaky allowlist → [s1-substrate.md](docs/progress/s1-substrate.md).
+> known-flaky allowlist → [s1-substrate.md](s1-substrate.md).
 
 ### 📋 Remaining pre-pilot work / Completed work
 
@@ -155,11 +155,11 @@ verification, not inferred.
 
 > **Most recent gate: S5 · ETH·E3a** (2026-07-27) — the 2 rows above are the tester's clean-reset
 > re-verification + the pgTAP/E2E gate run. The lead's full `e2e:prod` declaration (triaged **GREEN, 0
-> deterministic regression**) is recorded in the ETH·E3a summary above + [eth-e3a-surfacing.md](docs/progress/eth-e3a-surfacing.md).
+> deterministic regression**) is recorded in the ETH·E3a summary above + [eth-e3a-surfacing.md](eth-e3a-surfacing.md).
 >
-> **Prior closed gate: AUTHZ Gate 2** (2026-07-17, 0 regressions → [authz-gate-2-review.md](docs/reviews/authz-gate-2-review.md)).
+> **Prior closed gate: AUTHZ Gate 2** (2026-07-17, 0 regressions → [authz-gate-2-review.md](../../docs/reviews/authz-gate-2-review.md)).
 > That row + the Case-Correction T-1/T-2 (2026-07-24 / 24b), case-custom-fields (2026-07-23), and
-> stale-spec-drift (2026-07-23b) rows rotated → [test-run-archive.md](docs/progress/test-run-archive.md) at
+> stale-spec-drift (2026-07-23b) rows rotated → [test-run-archive.md](test-run-archive.md) at
 > the 2026-07-27 cleanup. Full run history (Phases 0 → S4) lives there.
 
 
@@ -173,7 +173,7 @@ Still OPEN; the live tracker keeps a one-line pointer. Canonical analysis remain
 
 ### ▶ FUP-FF1-2 — FF-1 QA non-blocking items (review r2: 4 MINOR / 6 INFO)
 
-All ruled non-blocking by `qa`; [review](docs/reviews/phase-FF-1-review.md). INFO-1 and INFO-5 are
+All ruled non-blocking by `qa`; [review](../../docs/reviews/phase-FF-1-review.md). INFO-1 and INFO-5 are
 already discharged and are listed only so the numbering reconciles against the report.
 
 - [ ] **MINOR-1 — `completeness_authorities_agree` is one-directional in pgTAP.** Neutralising *every*
@@ -215,6 +215,6 @@ already discharged and are listed only so the numbering reconciles against the r
   written and applied (flag verified `enabled = true`, 198 files = 198 registered), and
   `docs/backend-state.md`'s high-water corrected (**`HC0M9`**, not `HC098`; FF-1 allocated `HC0N0`–`HC0N5`).
 - [x] **INFO-6 — CARRIED FORWARD as a binding FF-2/FF-5 requirement**, not left as a note →
-  [flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-2/FF-5, with named keystones
+  [flexible-forms-program.md](../../docs/plans/flexible-forms-program.md) §3 FF-2/FF-5, with named keystones
   (`correction_copies_matrix_answers` / `correction_copies_reference_answers`).
 

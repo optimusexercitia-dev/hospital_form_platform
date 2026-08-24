@@ -5,8 +5,8 @@ NSP-per-hospital. Re-key the PQS/NSP roster and **every PHI door** of the two PH
 (patient-safety/NSP and inter-committee referrals) from an **organization** to a **hospital**;
 add an org-level, **zero-PHI** `nsp_org_admin`; make the per-hospital `nsp_coordinator` a full
 local operator; allow dual-hospital (same-org) referral reads; land `dispose_referral_phi`.
-**Partially supersedes** ADR [0042](./0042-nsp-per-org.md) (NSP-per-org) — the org tier of the
-PQS roster/doors becomes the hospital tier. Builds on ADR
+**Partially supersedes:** ADR [0042](./0042-nsp-per-org.md) (NSP-per-org) — the org tier of the
+PQS roster/doors becomes the hospital tier. **Builds on:** ADR
 [0041](./0041-multi-tenancy-organizations-hospitals.md) (multi-tenancy) and ADR
 [0051](./0051-hospital-admin-tier-and-hospital-audit-tier.md) (hospital-admin tier + hospital
 audit tier). Extends the PQS duty-separation posture of ADR

@@ -4,8 +4,8 @@
 > Status of record: COMPLETE, merged to `main`. The Phase Status table remains the index.
 
 **▶ ACTIVE: Membership hardening + Diretor Técnico** (ADR
-[0094](docs/decisions/0094-membership-hardening-and-technical-director.md) + Amendments 1–3; plan
-[membership-hardening-technical-director.md](docs/plans/membership-hardening-technical-director.md)) —
+[0094](../../docs/decisions/0094-membership-hardening-and-technical-director.md) + Amendments 1–3; plan
+[membership-hardening-technical-director.md](../../docs/plans/membership-hardening-technical-director.md)) —
 merged to **`main`** (fast-forward) 2026-08-04, **not pushed to origin**. PO closed all
 four open items 2026-08-04: atomic replace · platform_admin may **not** appoint a DT · W1→W4 straight
 through · DT flag ships **ON at T4.9** — and it now **is ON** (`20260905000600`, the last step of W4).
@@ -76,22 +76,22 @@ Vitest **954/954** · real `next build` · `ARM=census` and `ARM=floor` both **I
 
 Both programs that gated the pilot are closed:
 
-- **Flexible-Forms, 5 of 5** (ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md)) — FF-1/FF-2
+- **Flexible-Forms, 5 of 5** (ADR [0086](../../docs/decisions/0086-flexible-forms-pre-pilot.md)) — FF-1/FF-2
   2026-07-27, FF-3/FF-5 2026-07-28, **FF-4 2026-08-03**. Per-phase flags, gate-flip migrations, ADRs
-  and records → [flexible-forms-program.md §Program outcome](docs/plans/flexible-forms-program.md).
+  and records → [flexible-forms-program.md §Program outcome](../../docs/plans/flexible-forms-program.md).
 - **Phase 16 — Standards Crosswalk & Readiness/Gap Engine v2** (ADR
-  [0093](docs/decisions/0093-phase-16-standards-crosswalk-replan.md) D1–D10 + Amendments 1–3) —
+  [0093](../../docs/decisions/0093-phase-16-standards-crosswalk-replan.md) D1–D10 + Amendments 1–3) —
   ✅ 2026-08-04, PO-approved, flag **ON** via Migration G (`20260904000100`); merged to **`main`**
   (`484a254`) and **pushed to `origin/main`** — the `phase-16-standards-crosswalk` branch was
   fast-forwarded and deleted 2026-08-04. Full log →
-  [phase-16-standards-crosswalk.md](docs/progress/phase-16-standards-crosswalk.md); as-built →
-  [accreditation-track.md §16](docs/phases/accreditation-track.md).
+  [phase-16-standards-crosswalk.md](phase-16-standards-crosswalk.md); as-built →
+  [accreditation-track.md §16](../../docs/phases/accreditation-track.md).
 - **Case-type assignment** (ADR 0088) shipped alongside →
-  [case-type-assignment.md](docs/progress/case-type-assignment.md).
+  [case-type-assignment.md](case-type-assignment.md).
 
 > ⚠ **The lesson Phase 16 leaves behind, because it fired FOUR times in one phase: a full green bar can
 > cover code nothing ever reached.** Throwing query stubs, a stale `gen:types`, and two RSC boundary
 > crashes all survived lint + typecheck + 895 Vitest + a real `next build`, because the routes sat
 > behind a flag seeded OFF. **For a flag-gated phase, "it compiles" and "it works" are unrelated
 > claims** — every one was caught by *executing* (a probe, a real E2E run, a fresh reset), none by
-> review or build. → [route-gate-assertions.md](docs/testing/route-gate-assertions.md).
+> review or build. → [route-gate-assertions.md](../../docs/testing/route-gate-assertions.md).

@@ -9,7 +9,7 @@ this file holds only the per-task detail.
 - **QA** — [review](../reviews/process-integrity-and-template-versioning-review.md) (r1 CHANGES REQUESTED -> r2 APPROVED)
 
 ---
-### ▶ TV — Process-Template Versioning (ADR [0096](docs/decisions/0096-process-template-versioning.md)) · `frontend` rows
+### ▶ TV — Process-Template Versioning (ADR [0096](../../docs/decisions/0096-process-template-versioning.md)) · `frontend` rows
 
 Branch `db/process-case-integrity`. Contract-first: built against `backend`'s committed
 signatures in `src/lib/queries/process-templates.ts` + `src/lib/process-templates/actions.ts`.
@@ -116,7 +116,7 @@ Probes reverted after every round; `grep MUTATION PROBE` clean and `git diff src
 (components byte-identical to HEAD).
 
 ⭐ **Vacuity rule — one mutation is not sufficient evidence of vacuity** → ADR
-[0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 2** (lifted there
+[0079](../../docs/decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 2** (lifted there
 2026-08-04; repo-wide, pgTAP and Vitest alike). The table above is the per-file application of it.
 
 > ⚠ **Two transitional sites in `template-builder-shell.tsx`, and they are OPPOSITE.** Both create-mode
@@ -151,11 +151,11 @@ FUP-PCITV-1 row 1. Caveat 2 was ruled VOID by the PO 2026-08-05. Rotated for the
 
 ### PCI row
 
-| **PCI** | **Process/Case integrity audit remediation** [0095](docs/decisions/0095-process-case-integrity-audit-remediation.md) · [audit](docs/reviews/process-case-integrity-audit.md) · [detail](docs/progress/process-case-integrity-and-template-versioning.md) | ✅ complete | ✅ lint 0/0 · tsc · vitest 945 | ✅ pgTAP **158f/4860** fresh reset · 4 guards neutralization-proven · `ARM=floor` HOLDS · diff-scoped `ARM=policy` **0 BLIND** · `e2e:prod` **GATE GREEN 965p** (shared with TV) | ✅ **APPROVED** r2 [review](docs/reviews/process-integrity-and-template-versioning-review.md) (r1 CHANGES REQUESTED → BUG-TV-001 fixed) | ✅ 2026-08-05 | 2026-08-05 | `44cd9bb`…`f6c847d` → ff `main` |
+| **PCI** | **Process/Case integrity audit remediation** [0095](../../docs/decisions/0095-process-case-integrity-audit-remediation.md) · [audit](../../docs/reviews/process-case-integrity-audit.md) · [detail](process-case-integrity-and-template-versioning.md) | ✅ complete | ✅ lint 0/0 · tsc · vitest 945 | ✅ pgTAP **158f/4860** fresh reset · 4 guards neutralization-proven · `ARM=floor` HOLDS · diff-scoped `ARM=policy` **0 BLIND** · `e2e:prod` **GATE GREEN 965p** (shared with TV) | ✅ **APPROVED** r2 [review](../../docs/reviews/process-integrity-and-template-versioning-review.md) (r1 CHANGES REQUESTED → BUG-TV-001 fixed) | ✅ 2026-08-05 | 2026-08-05 | `44cd9bb`…`f6c847d` → ff `main` |
 
 ### TV row
 
-| **TV** | **Process-Template Versioning** [0096](docs/decisions/0096-process-template-versioning.md) (+ Amendments 1.1–1.7) — PO-directed full remodel · [detail](docs/progress/process-case-integrity-and-template-versioning.md) | ✅ complete | ✅ lint 0/0 · tsc · vitest 945 · `db reset` 284=284 | ✅ pgTAP **158f/4860 PASS** · `297` 37 assertions all mutation-proven · `ARM=floor` HOLDS · diff-scoped `ARM=policy` **6 COVERED / 0 BLIND** (was 6 BLIND) · `e2e:prod` **GATE GREEN — 965 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 16 batches · 0 reset FAILED · accounted 965/970** | ✅ **APPROVED** r2 [review](docs/reviews/process-integrity-and-template-versioning-review.md) | ✅ 2026-08-05 | 2026-08-05 | `6b9314c`…`f6c847d` → ff `main` |
+| **TV** | **Process-Template Versioning** [0096](../../docs/decisions/0096-process-template-versioning.md) (+ Amendments 1.1–1.7) — PO-directed full remodel · [detail](process-case-integrity-and-template-versioning.md) | ✅ complete | ✅ lint 0/0 · tsc · vitest 945 · `db reset` 284=284 | ✅ pgTAP **158f/4860 PASS** · `297` 37 assertions all mutation-proven · `ARM=floor` HOLDS · diff-scoped `ARM=policy` **6 COVERED / 0 BLIND** (was 6 BLIND) · `e2e:prod` **GATE GREEN — 965 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 16 batches · 0 reset FAILED · accounted 965/970** | ✅ **APPROVED** r2 [review](../../docs/reviews/process-integrity-and-template-versioning-review.md) | ✅ 2026-08-05 | 2026-08-05 | `6b9314c`…`f6c847d` → ff `main` |
 
 > ⚠ **Two PCI/TV caveats survive the ✅ above — read them before treating this as deployable.**
 >

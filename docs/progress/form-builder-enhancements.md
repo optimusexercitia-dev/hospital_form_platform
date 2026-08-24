@@ -6,7 +6,7 @@
 ### Feature — Form Builder Enhancements (new question types · option colors · per-question conditions · observations) — ✅ COMPLETE (gate APPROVED · Human ✅ 2026-06-23)
 
 > Seven additive author/respondent capabilities (plan
-> [docs/plans/form-builder-enhancements.md](docs/plans/form-builder-enhancements.md), human-APPROVED
+> [docs/plans/form-builder-enhancements.md](../../docs/plans/form-builder-enhancements.md), human-APPROVED
 > `12a89fc`): `short_text`/`number`/`date`/`time` item types; per-option colors on
 > multiple_choice+checkbox; per-question conditional appearance (flat ALL/ANY groups + `gt/gte/lt/lte`
 > ops); optional per-answer observations. **Backward-compatible, additive migration, NO feature flag,
@@ -14,9 +14,9 @@
 > touches migrations + the condition evaluator + the submit RPC. Branch `feat/form-builder-enhancements`.
 > **✅ GATE CLOSED 2026-06-23.** Build green (tsc/lint 0 · vitest 113/113 · pgTAP **870/870** · prod build OK) ·
 > E2E `form-builder-enhancements` **15/15** + phase4 8/8 (clean DB) · full-suite **0 regressions** vs the `main`
-> baseline · QA **APPROVED** ([review](docs/reviews/form-builder-enhancements-review.md) — 1 MAJOR fixed + MINORs
+> baseline · QA **APPROVED** ([review](../../docs/reviews/form-builder-enhancements-review.md) — 1 MAJOR fixed + MINORs
 > cleared) · Human ✅ 2026-06-23. Commits `89989df`→`ef1e040`; ADR
-> [0040](docs/decisions/0040-form-builder-enhancements-condition-engine.md). **Remote: migrations
+> [0040](../../docs/decisions/0040-form-builder-enhancements-condition-engine.md). **Remote: migrations
 > `…120000/130000/140000` already applied (remote in sync, `db push` = no-op; NO flag → feature live on remote).**
 > ✅ **Resolved 2026-06-23:** the fix-loop's `db reset --linked` had reset+reseeded remote and reverted the
 > out-of-band `patient_index` flag → OFF (was manually ON per Phase-23) — **re-enabled + verified ON** on remote.

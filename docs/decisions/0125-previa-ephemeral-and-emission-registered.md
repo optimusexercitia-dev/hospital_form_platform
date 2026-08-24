@@ -3,7 +3,7 @@
 - **Status:** ACCEPTED — PO-ruled 2026-08-18. **Not built** — implementation is a
   separate phase item.
 - **Context:** Discharges ADR [0123](./0123-discarding-a-draft-that-has-emitted-documents.md)
-  **D7**, which deferred this split to "a separate ADR, on its own evidence". **Amends**
+  **D7**, which deferred this split to "a separate ADR, on its own evidence". **Amends:**
   ADR [0104](./0104-pdf-document-printing-module.md) **D7** item 4 — knowingly, in writing,
   which is the difference between this and DM-FUP TRIAGE #8 (withdrawn 2026-08-18 for
   reversing D7 without knowing it existed). Settles the approach for

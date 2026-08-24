@@ -33,7 +33,9 @@
  *                  punctuation/emoji slugging cannot false-red). Domain is PROGRESS.md,
  *                  CLAUDE.md **and the rotation destinations** — rotating verbatim into
  *                  an unchecked file is how 474 links broke once and 41 more were found
- *                  broken at the moment the destinations were added here.
+ *                  broken at the moment the destinations were added here. Quarterly
+ *                  § Now archives (<YYYY>-Q<n>.md, ADR 0139) are discovered by
+ *                  pattern, with a zero-match positive control.
  *   8. CELLS     — in the capped sections only (CAPPED_SECTIONS): cell length, plus
  *                  unbalanced inline-code / bold spans, which is the class where a
  *                  compression pass cut a cell mid-token and every gate stayed green.
@@ -50,35 +52,36 @@
  *
  *   node scripts/check-progress-doc.mjs [--self-test]   (--self-test: fixtures only)
  */
-import { readFileSync, existsSync, statSync } from 'node:fs'
+import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const ROOT = process.cwd()
 const SIZE_CAP = 80 * 1024
+const CLAUDE_SIZE_CAP = 40 * 1024
 const MAX_CELL = 300
 const MAX_BULLET = 400
 
 const TRACKER_DOCS = ['PROGRESS.md', 'CLAUDE.md', 'ARCHITECTURE.md', 'PHASES.md']
 
 /**
- * Link-checked docs. The ROTATION DESTINATIONS are in this list deliberately: a
- * verbatim rotation carries root-relative `docs/...` links into `docs/progress/`,
- * where they no longer resolve. That is not hypothetical — 41 links were already
- * broken this way at the moment these three were added, and an earlier pass broke
- * 474. Rotating into a file nothing link-checks is how the defect survives.
+ * Link-checked docs beyond docs/progress/. The link domain was once a hand-registered
+ * list of rotation destinations here — and every widening of it found debt the registry
+ * had been hiding: 41 broken links the moment the first three destinations were added,
+ * 130 more the moment the sweep went REGISTRY-FREE (2026-08-24, ADR 0140). Since then
+ * main() sweeps EVERY docs/progress/*.md, so a new destination or narrative file is
+ * covered the day it is created, with no list to keep current.
  */
-const LINK_CHECKED_DOCS = [
-  'PROGRESS.md',
-  'CLAUDE.md',
-  'docs/progress/deferred-backlog.md',
-  'docs/progress/follow-ups-archive.md',
-  'docs/progress/bug-log-archive.md',
-  'docs/progress/follow-ups.md',
-  'docs/progress/decisions-log.md',
-  'docs/progress/test-run-archive.md',
-  'docs/progress/phase-ledger.md',
-  'docs/progress/qa-verdicts-archive.md',
-]
+const LINK_CHECKED_DOCS = ['PROGRESS.md', 'CLAUDE.md']
+
+/**
+ * Quarterly § Now archives (ADR 0139): concluded § Now bullets rotate verbatim to
+ * docs/progress/<YYYY>-Q<n>.md, keyed to the ROTATION date. The full sweep link-checks
+ * them like everything else; this pattern remains as the ZERO-MATCH control's subject —
+ * 2026-Q3.md exists from 2026-08-24 and archives never delete, so a directory listing
+ * with no quarterly file means the sweep is looking at the wrong directory.
+ */
+export const QUARTERLY_ARCHIVE_RE = /^\d{4}-Q[1-4]\.md$/
 
 /**
  * Sections the shape caps apply to. § Critical FUP and the OPEN follow-up index are
@@ -133,8 +136,29 @@ export function checkSize(bytes) {
     : [
         `PROGRESS.md is ${bytes} bytes (cap ${SIZE_CAP}). Rotate at the property level: ` +
           `completed rows -> phase-ledger.md, resolved FUP lines -> follow-ups-archive.md, ` +
-          `concluded gate/QA/decision rows -> their archives. Never trim Critical FUP or ` +
-          `OPEN index lines.`,
+          `concluded S-Now bullets -> the current quarter's docs/progress/<YYYY>-Q<n>.md ` +
+          `(ADR 0139), concluded gate/QA/decision rows -> their archives. Never trim ` +
+          `Critical FUP or OPEN index lines.`,
+      ]
+}
+
+/**
+ * CLAUDE.md is loaded by every session AND every teammate spawn — the one file where
+ * bytes are paid on every context, which PROGRESS.md never was. It had the pre-ADR-0124
+ * disease PROGRESS.md was cured of: monotonic growth (32 KB on 2026-08-19 → 37,291 B on
+ * 2026-08-24) with no cap and no rotation pressure. The cap forces the same conscious
+ * "what leaves" decision. ⛔ NEVER raise the cap to make a red pass — that is the
+ * lint:set-local watermark lesson (a bumped watermark grandfathers the growth you just
+ * wrote and flips the rot direction). Rotate content into ARCHITECTURE.md, an ADR, or a
+ * path-scoped rule instead; raising the cap is a PO decision recorded in an ADR (0140).
+ */
+export function checkClaudeSize(bytes) {
+  return bytes <= CLAUDE_SIZE_CAP
+    ? []
+    : [
+        `CLAUDE.md is ${bytes} bytes (cap ${CLAUDE_SIZE_CAP}). It is loaded by EVERY session ` +
+          `and every teammate spawn. Rotate content to ARCHITECTURE.md, an ADR, or a ` +
+          `.claude/rules/ rule — never raise the cap to pass (ADR 0140).`,
       ]
 }
 
@@ -195,6 +219,36 @@ export function checkFupBodies(text, bodiesText) {
       )
     }
   })
+  return out
+}
+
+/**
+ * INVERSE of checkFupBodies (ADR 0140): a body in follow-ups.md whose id NO live
+ * register indexes is residue — resolved (its body belongs in follow-ups-archive.md) or
+ * worse, an ORPHAN whose index line was deleted instead of moved. Two orphans were found
+ * at the 2026-08-24 sweep (FUP-DM5-MANIFEST-FLAG, FUP-DM5-REMOTE-STATE-MEASURED — both
+ * resolved, indexed NOWHERE). A session that greps follow-ups.md and lands on such a
+ * body has no way to see the item is not open. LIVE = the id appears anywhere in
+ * PROGRESS.md or deferred-backlog.md — deliberately over-inclusive (a prose mention
+ * keeps a body alive), because the safe failure direction for this detector is
+ * under-flagging: it must never pressure an OPEN body out of the file.
+ */
+export function checkFupBodyResidue(bodiesText, progressText, backlogText) {
+  const out = []
+  const seen = new Set()
+  for (const m of bodiesText.matchAll(/^#{2,4} .*?(FUP-[A-Z0-9-]+)/gmu)) {
+    const id = m[1]
+    if (seen.has(id)) continue
+    seen.add(id)
+    if (!progressText.includes(id) && !backlogText.includes(id)) {
+      out.push(
+        `docs/progress/follow-ups.md — body for ${id}, but NO live register indexes it ` +
+          `(not in PROGRESS.md, not in deferred-backlog.md). If it is resolved, move the ` +
+          `body VERBATIM to follow-ups-archive.md; if it is open, its index line was ` +
+          `LOST — restore it (QA finding R3: a follow-up with no index line is invisible work).`,
+      )
+    }
+  }
   return out
 }
 
@@ -323,6 +377,21 @@ function selfTest() {
   expectRed('size', checkSize(SIZE_CAP + 1))
   expectGreen('size-green', checkSize(SIZE_CAP))
 
+  expectRed('claude-size', checkClaudeSize(CLAUDE_SIZE_CAP + 1))
+  expectGreen('claude-size-green', checkClaudeSize(CLAUDE_SIZE_CAP))
+
+  // ADR 0140: the residue check must fire on an unindexed body, and stay quiet for a
+  // body indexed in EITHER live register.
+  expectRed('fup-residue', checkFupBodyResidue('## ⬛ FUP-GONE-1 — done\n', 'no mention', 'none'))
+  expectGreen(
+    'fup-residue-live-green',
+    checkFupBodyResidue('## 🔴 FUP-LIVE-1 — x\n', '- 🔴 **FUP-LIVE-1** — open', ''),
+  )
+  expectGreen(
+    'fup-residue-backlog-green',
+    checkFupBodyResidue('### FUP-BACK-1 — x\n', '', 'FUP-BACK-1 parked in backlog'),
+  )
+
   expectRed('sections', checkSections('# empty file\n'))
 
   const phaseFixture =
@@ -369,6 +438,18 @@ function selfTest() {
 
   expectRed('eol', checkEol('X.md', 'a\r\nb'))
 
+  // ADR 0139: the quarterly-archive discovery pattern, proven able to match AND to
+  // reject — a pattern that matches nothing makes the quarterly loop vacuous, and one
+  // that matches everything link-checks files the list never promised to cover.
+  if (!QUARTERLY_ARCHIVE_RE.test('2026-Q3.md')) fails.push('quarterly-re-match')
+  if (
+    QUARTERLY_ARCHIVE_RE.test('now-concluded-2026-08.md') ||
+    QUARTERLY_ARCHIVE_RE.test('2026-Q5.md') ||
+    QUARTERLY_ARCHIVE_RE.test('x2026-Q3.md')
+  ) {
+    fails.push('quarterly-re-reject')
+  }
+
   if (fails.length) {
     console.error(`check-progress-doc SELF-TEST FAILED — checker(s) cannot fire: ${fails.join(', ')}`)
     process.exit(2)
@@ -388,6 +469,7 @@ function main() {
   const progress = readFileSync(progressPath, 'utf8')
 
   findings.push(...checkSize(statSync(progressPath).size))
+  findings.push(...checkClaudeSize(statSync(join(ROOT, 'CLAUDE.md')).size))
   findings.push(...checkSections(progress))
   findings.push(...checkPhaseRows(progress))
   findings.push(...checkFupIndex(progress))
@@ -396,8 +478,25 @@ function main() {
 
   const bodies = readFileSync(join(ROOT, 'docs', 'progress', 'follow-ups.md'), 'utf8')
   findings.push(...checkFupBodies(progress, bodies))
+  const backlog = readFileSync(join(ROOT, 'docs', 'progress', 'deferred-backlog.md'), 'utf8')
+  findings.push(...checkFupBodyResidue(bodies, progress, backlog))
 
-  for (const f of LINK_CHECKED_DOCS) {
+  // Registry-free link sweep (ADR 0140): EVERY docs/progress/*.md. The zero-match
+  // control stands guard on the sweep itself: 2026-Q3.md exists from 2026-08-24 and
+  // archives never delete, so a listing with no quarterly archive means the sweep is
+  // reading the wrong directory — absence of a verdict is not absence of coverage.
+  const progressDocs = readdirSync(join(ROOT, 'docs', 'progress'))
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => `docs/progress/${f}`)
+  if (!progressDocs.some((f) => QUARTERLY_ARCHIVE_RE.test(f.slice('docs/progress/'.length)))) {
+    findings.push(
+      `no docs/progress/<YYYY>-Q<n>.md quarterly archive found — 2026-Q3.md exists since ` +
+        `2026-08-24 and archives never delete, so a zero match means the link sweep is ` +
+        `reading the wrong directory and docs/progress is silently unchecked.`,
+    )
+  }
+
+  for (const f of [...LINK_CHECKED_DOCS, ...progressDocs]) {
     const text = readFileSync(join(ROOT, f), 'utf8')
     findings.push(...checkLinks(f, text, (p) => existsSync(resolve(ROOT, p))))
   }
@@ -413,4 +512,8 @@ function main() {
   console.log('check-progress-doc: OK (self-test + live-state contract hold)')
 }
 
-main()
+// Run only as the entry point, so sibling tooling can `import` the checkers instead of
+// re-implementing them — a second implementation would be free to disagree with the gate.
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main()
+}

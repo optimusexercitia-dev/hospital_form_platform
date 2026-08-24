@@ -309,7 +309,7 @@ _Its live remainder — status, gate figures and what is still owed — stays in
 ⚠ **Restored here because it was about to be lost.** The § Now bullet carrying it was compacted in place
 on 2026-08-23 to recover PROGRESS.md byte-cap headroom, and a check of every dropped fact against the
 archives found this one — the push range's **head sha** — existed **nowhere else**. (The range's start,
-`df88dced`, appears in `now-concluded-2026-08.md:201` but in an unrelated context: it is the
+`df88dced`, appears in `now-concluded-2026-08.md:208` but in an unrelated context: it is the
 `chore/small-optimizations` merge point, which only later became this range's base. A grep hit is not a
 record of the same fact.)
 

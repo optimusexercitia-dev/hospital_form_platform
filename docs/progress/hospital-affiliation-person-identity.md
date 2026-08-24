@@ -11,9 +11,9 @@
 > QA [aff-review.md](../reviews/aff-review.md) (APPROVED r1 + APPROVED final r2).
 
 **▶ ACTIVE: AFF — Hospital affiliation, person identity & the org people directory.**
-ADR [0097](docs/decisions/0097-hospital-affiliation-person-identity.md) **Accepted** (PO-approved
-2026-08-05) · plan [hospital-affiliation-person-identity.md](docs/plans/hospital-affiliation-person-identity.md)
-· external audit [aff-adr-0097-external-audit.md](docs/reviews/aff-adr-0097-external-audit.md)
+ADR [0097](../../docs/decisions/0097-hospital-affiliation-person-identity.md) **Accepted** (PO-approved
+2026-08-05) · plan [hospital-affiliation-person-identity.md](../../docs/plans/hospital-affiliation-person-identity.md)
+· external audit [aff-adr-0097-external-audit.md](../../docs/reviews/aff-adr-0097-external-audit.md)
 (BLOCKER-1 / HIGH-1 / MEDIUM-1…5 / MINOR-1 / LOW-1…3 all folded in before build).
 Branch **`feat/hospital-affiliation-person-identity`** (cut from `main` @ `f41fc69`).
 **Migration window: `20260909000100`+** — highest *registered* version at kickoff `20260908000100`
@@ -22,7 +22,7 @@ Branch **`feat/hospital-affiliation-person-identity`** (cut from `main` @ `f41fc
 
 | WS | Scope | Owner | State |
 | -- | ----- | ----- | ----- |
-| **W1** | Substrate — `hospital_affiliations` (T1.1) · `profiles.cpf` + column-list grant conversion (T1.2) · drop `home_hospital_id` / `hospital_employee_id` as a refactor (T1.3) · `professional_profiles.cpf` (T1.4) · pgTAP (T1.5) | `backend` | ✅ **done** — migrations `20260909000100`–`000400`; ADR [0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md) |
+| **W1** | Substrate — `hospital_affiliations` (T1.1) · `profiles.cpf` + column-list grant conversion (T1.2) · drop `home_hospital_id` / `hospital_employee_id` as a refactor (T1.3) · `professional_profiles.cpf` (T1.4) · pgTAP (T1.5) | `backend` | ✅ **done** — migrations `20260909000100`–`000400`; ADR [0098](../../docs/decisions/0098-aff-w1-substrate-shape-decisions.md) |
 | **W2** | Doors, visibility & the dominance grid — `affiliate_person` / `end_affiliation` (T2.1) · `list_org_people` (T2.2) · widened `profiles` SELECT (T2.3) · dominance grid + the 2 live gaps (T2.4) · `grant_role_impl` hospital arm (T2.5) · pgTAP (T2.6) | `backend` | ✅ **done** — migrations `20260909000500`–`000900`; ADR 0098 §W2 |
 | **W3** | Product surfaces — identifier-first registration (T3.1) · affiliation-derived roster (T3.2) · affiliation management + field ownership (T3.3) · single-hospital provisioning (T3.4) · seed Rede C (T3.5) · E2E (T3.6) | `frontend` + `backend` | ▶ backend ✅ (migrations `20260909001000`–`001100`; ADR 0098 §W3) · frontend ✅ · T3.6 ✅ `tester` (2026-08-06) — BUG-AFF-1 filed, fixed (`8155be2`, mirror-drift correction) and re-verified GREEN |
 
@@ -47,7 +47,7 @@ reads 42501** — the standing `case_referral` lesson now applies to `profiles`)
 > `guard_profile_privileged_columns` compares both doomed columns and plpgsql is **late-bound** — the
 > DROP succeeds and then *every* `profiles` UPDATE fails 42703 (rewrite the trigger in the **same**
 > migration, regenerated from live `pg_get_functiondef`); and
-> [org.ts:199](src/lib/queries/org.ts)'s embed string `profiles!profiles_home_hospital_id_fkey(count)`
+> [org.ts:199](../../src/lib/queries/org.ts)'s embed string `profiles!profiles_home_hospital_id_fkey(count)`
 > **typechecks after the drop and fails only at runtime** (the TV dropped-column mechanism — grep is
 > the authority for the client layer, the catalog for SQL).
 
@@ -66,7 +66,7 @@ discard 400+ committed verdicts). **11 mutations were run against `301`; every o
 target** (each of the four policy legs individually, `using(true)` for all four deny arms, the
 column lock, the stale trigger body, the partial unique, the composite FK, the CPF validator, the
 DML grant). Shape decisions ADR 0097 left open are recorded in ADR
-[0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md).
+[0098](../../docs/decisions/0098-aff-w1-substrate-shape-decisions.md).
 
 > ✅ **W1→W2 SEQUENCING HAZARD — CLOSED.** W1's `20260909000300` removed the `home_hospital_id`
 > leg and added nothing, so a person registered at a hospital and seated on no committee was
@@ -96,7 +96,7 @@ findings reports were **merged**, not discarded.
 > is meaningless for a `uuid`-returning door, so it skips them silently — and ARM 3's census
 > population is bool-or-set-returning, so it does not flag them either. **Their coverage is
 > `302` §1–§3's mutation-proven keystones, not the sweep.** This is the hole recorded in ADR
-> [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 5 / FUP-AFF-1,
+> [0079](../../docs/decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 5 / FUP-AFF-1,
 > and it is the reason that amendment exists — the arm reports a clean result in the same words
 > whether it swept everything or nothing.
 
@@ -327,5 +327,5 @@ after the remote `db push`.
 
 ## Phase Status row (rotated verbatim from PROGRESS.md 2026-08-08)
 
-| **AFF** | **Hospital affiliation, person identity & the org people directory** [0097](docs/decisions/0097-hospital-affiliation-person-identity.md) · [plan](docs/plans/hospital-affiliation-person-identity.md) · [audit](docs/reviews/aff-adr-0097-external-audit.md) — **gates the pilot deploy** (D19) | ✅ **complete** | ✅ lint 0/0 · tsc · Vitest **1023** · `db reset` **298=298** | ✅ pgTAP **165f/5060** fresh reset · `ARM=census` + `ARM=floor` HOLD · `e2e:prod` **GATE GREEN — 985 passed · 0 failed · 0 infra · 1 flaky · 0 did-not-run · 16 batches (no gaps) · 0 `reset FAILED` · accounted 986/991** | ✅ **APPROVED** [review](docs/reviews/aff-review.md) — 0 blocker; 6 non-blocking follow-ups, **all 6 since remediated** (`202c3db` · `8dde312` · `8111fc9`) | ✅ **2026-08-06** | 2026-08-06 | branch `feat/hospital-affiliation-person-identity`; `main` fast-forwarded + pushed to `origin` at `cc66483` (pre-remediation) |
+| **AFF** | **Hospital affiliation, person identity & the org people directory** [0097](../../docs/decisions/0097-hospital-affiliation-person-identity.md) · [plan](../../docs/plans/hospital-affiliation-person-identity.md) · [audit](../../docs/reviews/aff-adr-0097-external-audit.md) — **gates the pilot deploy** (D19) | ✅ **complete** | ✅ lint 0/0 · tsc · Vitest **1023** · `db reset` **298=298** | ✅ pgTAP **165f/5060** fresh reset · `ARM=census` + `ARM=floor` HOLD · `e2e:prod` **GATE GREEN — 985 passed · 0 failed · 0 infra · 1 flaky · 0 did-not-run · 16 batches (no gaps) · 0 `reset FAILED` · accounted 986/991** | ✅ **APPROVED** [review](../../docs/reviews/aff-review.md) — 0 blocker; 6 non-blocking follow-ups, **all 6 since remediated** (`202c3db` · `8dde312` · `8111fc9`) | ✅ **2026-08-06** | 2026-08-06 | branch `feat/hospital-affiliation-person-identity`; `main` fast-forwarded + pushed to `origin` at `cc66483` (pre-remediation) |
 

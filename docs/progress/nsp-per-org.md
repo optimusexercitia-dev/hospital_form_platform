@@ -8,13 +8,13 @@
 > modules work under multi-tenancy (lifts ADR 0041 amendment 10's interim `is_multi_org()`
 > guard). **A DONE:** migration `20260630000000_nsp_per_org.sql`; per-org seed; pgTAP
 > **1073/1073** (cross-org PHI isolation proven); QA **APPROVED**
-> ([report](docs/reviews/nsp-per-org-a-review.md)). **7 findings caught + fixed + permanently
+> ([report](../../docs/reviews/nsp-per-org-a-review.md)). **7 findings caught + fixed + permanently
 > guarded** across 3 fix-loop iterations: BUG-NSP-001 (stale-base referral arity), BUG-NSP-002
 > (within-referral PHI-body leak), BUG-NSP-003 (target-list platform arm), M1 (bundle over-grant),
 > M2 (dropped-symbol callers `capa_viewer_can_manage`+`capa_kpis`), M3 (`capa_kpis` cross-org
 > aggregate scope), I1 (folded-in: `dispose_case_phi` vendor-wall). Three systematized catalog
 > checks banked in ADR 0042 (stale-base / missed-door / body-not-scoped). Full spec:
-> [nsp-per-org-design.md](docs/progress/nsp-per-org-design.md). Next: sub-phase **B**.
+> [nsp-per-org-design.md](nsp-per-org-design.md). Next: sub-phase **B**.
 
 Backend (`backend`):
 
@@ -71,5 +71,5 @@ Tester (`tester`) — sub-phase B gate (spawn after B1–B4 land + dev server ru
 | B5 `[gate]` | Un-quarantine the **124 `MULTI_ORG_PILOT_SKIP`** specs (8 files: `phase14a/b/c/d`, `phi-remediation`, `patient-index`, `phase22-referrals`, `case-patient`); re-home to `/o/[org]/nsp/**` + per-org NSP personas (`pqs.a/.b`, `nspcoord.a/.b`); **add cross-org E2E** (org-A NSP user cannot reach org-B's console/PHI) + verify the commission-level `eventos\|encaminhamentos` surfaces un-inert; **new pgTAP guards** (`organizations_select` PQS/coordinator broadening · `list_org_eligible_users_for_pqs` · `appointNspCoordinator` refuses org_admin). Full pgTAP green; un-quarantined E2E green (fresh reset, `--workers=1`, chromium); lead runs the full E2E suite to declare. | ✅ **TARGETED-GREEN** — all 8 specs re-homed + green: 14a 16/16 · 14b 13/13 · 14c 17/17 · 14d 19/19 · phi-remediation 22/22 (+2 seed-gap skips) · patient-index/case-patient green · **phase22 29/29** (BUG-NSP-005 fix `9c53035` verified). NEW `e2e/nsp-cross-org-isolation.spec.ts` **10/10**; NEW pgTAP `176_nsp_per_org_b_support.sql` **29/29** (incl. §D commissions_select broadening + keystone negative, mutation-proved); **full pgTAP 1102/1102** on fresh reset. Both B-phase bugs (NSP-004/005) fixed + re-verified + guarded. **Lead runs the full E2E suite to declare the gate.** |
 
 > Then: whole-phase **QA** → **human approval** → **Record** (§6). The A-core QA report
-> ([nsp-per-org-a-review.md](docs/reviews/nsp-per-org-a-review.md)) covers the backend; B QA covers the UI + E2E.
+> ([nsp-per-org-a-review.md](../../docs/reviews/nsp-per-org-a-review.md)) covers the backend; B QA covers the UI + E2E.
 

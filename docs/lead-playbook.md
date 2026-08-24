@@ -68,15 +68,18 @@ When a phase passes human approval, the lead:
 3. Archives the phase's task detail to `docs/progress/phase-N.md` (or a feature-named
    file).
 4. Updates `docs/backend-state.md` if the backend surface changed.
-5. **If the phase produced or amended an ADR** — runs `npm run adr:index` and skims the
-   regenerated `docs/decisions/INDEX.md` diff. The row itself is generated, so the thing
-   to *check* is the `⚠ Changed by` column: if the new ADR changed an earlier one, its
-   header block needs a `**Supersedes:**` / `**Amends:**` label naming that ADR's number,
-   or the earlier ADR gains no back-pointer and a future session reads a superseded rule
-   with nothing in the file able to contradict it. Measured 2026-08-24, **47 of 47**
-   supersedes/amends edges were declared only by the amending ADR. `npm run lint:adr-index`
-   (gate 9) catches a missing row or a duplicate number; **nothing can catch a missing
-   label** — this step is the only place it is checked.
+5. **If the phase produced or amended an ADR** — runs `npm run adr:index`. That regenerates
+   `docs/decisions/INDEX.md` **and** the `<!-- adr-backpointers -->` banner inside every
+   amended ADR, so the row and the back-pointer both take care of themselves. The one thing
+   left to *check* by eye: if the new ADR changed an earlier one, its header block must carry
+   a `**Supersedes:**` / `**Amends:**` label naming that ADR's number. Without the label there
+   is no edge, so the earlier ADR gains no banner and a future session reads a superseded rule
+   with nothing in the file able to contradict it. **⚠ Voice matters** — `**Amends:**` is a
+   claim about another ADR; `**Amended:**` records that *this* one was changed and is
+   deliberately not an edge. Measured 2026-08-24 across 136 ADRs: 42 source→target pairs over
+   30 amended ADRs, of which only **5** had a back-pointer anyone had written by hand.
+   `npm run lint:adr-index` (gate 9) catches a missing row, a stale banner, or a duplicate
+   number; **nothing can catch a missing label** — this step is the only place it is checked.
 6. Runs `npm run lint:progress` (it verifies the contract mechanically) and commits
    with `phase(N): complete — <summary>`. The team stays warm for the next phase.
 7. Checks `.claude/claude-md-review-queue.md` — if it is non-empty, run
@@ -101,6 +104,14 @@ a memory exercise; the gate tells you when it has been skipped. At the Record st
   never leave *there*). Byte-compare the moved row before deleting the live one.
 - **Phase task detail + per-phase notes** → `docs/progress/phase-N.md` (or a
   feature-named file); leave a one-line pointer only if a live item references it.
+- **Concluded § Now bullets / narrative fragments** → the current quarter's
+  `docs/progress/<YYYY>-Q<n>.md` (e.g. `2026-Q3.md`), **verbatim**, links repointed —
+  keyed to the **rotation date**, not the conclusion date (ADR 0139). `lint:progress`
+  discovers quarterly archives by pattern and link-checks them, with a zero-match
+  control. The pre-convention destination `now-concluded-2026-08.md` is **frozen**
+  (inbound name- and line-keyed references make a rename or merge lossy) — never
+  append to it. Per-topic narrative files stay per-topic; only the § Now cut itself
+  goes quarterly.
 - **Bug Log** → keep only **OPEN** bugs live; move resolved/closed rows to
   `docs/progress/bug-log-archive.md`.
 - **Test Run Summary** → keep only the **most recent gate's** row live; move the rest to
@@ -114,6 +125,9 @@ a memory exercise; the gate tells you when it has been skipped. At the Record st
 - **Decisions** → **one line per decision** + ADR link; rationale lives in
   `docs/decisions/` (verbose pre-collapse history in `docs/progress/decisions-log.md`).
   Move concluded rows to `decisions-log.md` at the Record step (append verbatim first).
+  `docs/decisions/INDEX.md` is **generated** navigation over the ADR corpus — never a
+  rotation destination, never edited by hand; the log is the register's archive and
+  holds what the INDEX structurally cannot (amendment-grain refs, ADR-less rulings).
   Take a **new ADR's number from `docs/decisions/INDEX.md`** (it states the next free one),
   never from the directory listing — two sessions eyeballing the listing on 2026-07-02 both
   filed an "ADR 0050", and the collision survived seven weeks and 87 further ADRs.
