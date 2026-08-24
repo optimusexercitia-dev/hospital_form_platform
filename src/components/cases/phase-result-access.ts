@@ -21,7 +21,13 @@ import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
  * So the admitted set is:
  *   - `active`    → the phase's OWN assignee ∨ coordinator (`app.is_staff_admin_of`);
  *   - `completed` → coordinator only, AND the case must be non-terminal;
- *   - `pending` / `not_required` / `voided` → nobody.
+ *   - `pending` / `awaiting_signoff` / `not_required` / `voided` → nobody.
+ *
+ * ⚠ `awaiting_signoff` (ADR 0136) is refused BY THE DOOR, which is deliberate and
+ * not an oversight to be "fixed" by widening: the result is settled before the
+ * freeze (`sync_case_phase_on_submit` asserts HC061 on the submit) and correctable
+ * after the phase completes. Offering it in between would let a coordinator change
+ * the result of a record they have not yet attested to.
  *
  * ⛔ There is **no `member_can` arm**, so an *administrativo* is refused by the
  * door and must never be offered the affordance. The obvious widening — adding a
@@ -116,7 +122,7 @@ export function phaseResultAffordance(
     return caseOpen ? "correct" : "none";
   }
 
-  // `pending` / `not_required` / `voided` — the door's first guard raises HC057
-  // for everybody, coordinator included.
+  // `pending` / `awaiting_signoff` / `not_required` / `voided` — the door's first
+  // guard raises HC057 for everybody, coordinator included.
   return "none";
 }

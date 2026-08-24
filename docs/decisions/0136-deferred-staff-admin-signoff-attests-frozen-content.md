@@ -1,9 +1,15 @@
 # ADR 0136 — Deferred `staff_admin` sign-off: attest a FROZEN response, block the PHASE not the SUBMIT
 
-- **Status:** ACCEPTED 2026-08-23 (PO ruling) — ⛔ **build NOT started; a plan is developed separately.**
+- **Status:** ACCEPTED 2026-08-23 (PO ruling) — ✅ **BUILT 2026-08-24**, migration
+  `20261003001900_deferred_staff_signoff.sql`, plan
+  [deferred-staff-admin-signoff.md](../plans/deferred-staff-admin-signoff.md). Ships behind
+  `deferred_staff_signoff`, **OFF in production** (seed forces it on for local/E2E; the production
+  flip is its own migration at the gate). **Amended:** § Amendment 1 below — eight things the
+  § Size table and the Consequences got wrong, every one of them in the reassuring direction.
   ⭐ The acceptance covers the model below and the four points the PO ruled on directly.
-  ✅ **The formerly-open decline-path question was SETTLED 2026-08-23 as shape (a)** — see § D7. A plan
-  may now be written. ⛔ **Sequenced AFTER the ADR 0137 batch, not folded into it** (same ruling).
+  ✅ **The formerly-open decline-path question was SETTLED 2026-08-23 as shape (a)** — see § D7.
+  ⛔ **Sequenced AFTER the ADR 0137 batch, not folded into it** (same ruling) — satisfied; 0137 was
+  merged and pushed before this began.
 - **Supersedes:** nothing. **Amends in effect:** ADR [0004](0004-signoff-feature-flag.md) (the
   `signoff_enforcement` gate becomes role-split), ADR [0016](0016-signoff-definer-read-path.md) (its
   `in_progress` premise narrows — see Consequences), ADR [0017](0017-multi-phase-cases.md) (the
@@ -256,3 +262,92 @@ caught it; honour it for anything added below.
   and `awaiting_signoff → completed`. Whether `awaiting_signoff → not_required` (skip) and
   `awaiting_signoff → voided` are admitted is a plan-time decision; its INSERT arm carries a standing
   ⚠ comment about an assertion that was written and reverted once — read it before touching the function.
+
+---
+
+## Amendment 1 — what the build found (2026-08-24)
+
+⛔ **Read this before the § Size table or the Consequences.** The ADR's own closing lesson —
+*"every wrong row was wrong in the REASSURING direction"* — held again, and this time the errors were
+mostly not counts but **missing sites**. Everything below was measured against the live catalog on the
+day of the build; the full derivation is in the plan's § 1.
+
+**A1 · The signing door the Consequences never name.** They name `app.can_sign_section` (the
+`signoffs_insert` `WITH CHECK`) and `guard_submitted_signoffs_trg`. There is a **third** gate, and it
+is the one the UI actually calls: `public.sign_section` (`prosecdef = f`, INVOKER) carries its own
+`if v_status <> 'in_progress' then raise`. Widening the two the ADR names leaves every deferred
+signature refused **with every policy and trigger assertion green**. ⭐ `prosecdef` beside
+`pg_policies` is not enough — an INVOKER RPC in front of an RLS-gated insert is a *third* place to
+look.
+
+**A2 · "Two copies of the pending-signoff computation" is SIX.** The Consequences say it is computed
+in `submit_response` and `list_signoff_queue`, "and D5's trigger would be a third copy". Measured
+over every comment-stripped body containing `requires_signoff`: `submit_response` ·
+`list_signoff_queue` · `get_response_for_signoff` · `sign_section` (twice) ·
+`compute_due_notifications` · `save_section_answers`. The trigger is the **seventh**.
+
+**A3 · The predicted drift had ALREADY happened — a live defect (BUG-SIGNOFF-GROUPCOND-001).** Five
+of those six evaluated a *section's* `visible_when` with `app.eval_condition`, which handles only the
+legacy single shape and **raises** `unknown condition op: <NULL>` on the group shape
+`{match, conditions[]}` — a shape `app.is_valid_visibility` accepts and the section settings dialog
+authors. So a `requires_signoff` section carrying a grouped condition made the sign-off queue, the
+review-to-sign door, `sign_section` **and every save on that form** throw. The mandated extraction is
+what fixes it, unified on `app.eval_visibility` (the evaluator `submit_response` already used).
+
+**A4 · D7's ruled decline path did not exist.** `file_correction_request` gates
+`if v_target_status is distinct from 'completed' then raise HC0M0`, so an `awaiting_signoff` phase was
+not a correctable target. With no unfreeze (D7 rejects shape (b)) and no correction, a declined phase
+is stuck forever — and the widened `close_case` gate then blocks the case permanently. That is a
+**deadlock**, not the "heavier for a typo in field 3" cost D7 accepted. The build widens the gate
+(phase targets only) and admits `awaiting_signoff → voided` to match.
+
+**A5 · D5, moved naively, lands an HC061 raise on the wrong actor.**
+`app.compute_case_phase_result` raises `HC061 selecione o resultado da fase % antes de enviar` for a
+manual-result phase with no override. Today that aborts the SUBMIT, while the filler is present and
+their `active` phase still admits an override. Moved onto the signature it lands on the
+**coordinator** — for something only the filler can fix and can no longer fix, since
+`set_case_phase_result_override` admits `('active','completed')` only. ⭐ **D5 moves the COMPUTATION,
+not the PRECONDITION:** the build extracts `app.assert_phase_result_ready` and calls it from both the
+compute path and the submit path, so the two can never disagree.
+
+**A6 · "The test surface dominates, not the doors" is FALSE, and acting on it would have been
+destructive.** § Size warns that `80_signoffs.sql`'s central assertions *invert* for the `staff_admin`
+arm — "that inversion is the delivery". Measured: that file contains **zero** references to case
+phases. It is entirely the STANDALONE lane, which **D2 deliberately leaves unchanged**. Not one
+assertion inverts; the file is untouched and still passes. The delivery is a NEW suite
+(`367_deferred_staff_signoff.sql`, 61 assertions).
+
+**A7 · The database was never the whole gate.** `submit_response` stopped blocking — and the button
+stayed `disabled`: `wizard-client.tsx` carries its **own** submit gate ("Há seções pendentes de
+assinatura"), role-blind. With the DB half alone the feature is **unreachable in the product** while
+pgTAP is fully green — *the SQL is truth about the SQL and evidence about nothing downstream*. Caught
+only by `e2e/deferred-staff-signoff.spec.ts`. The client gate now splits by signer role exactly as
+`submit_response` does, and the review screen states what the deferral means rather than letting the
+requirement appear to lapse.
+
+**A8 · The door sweep's domain is a NAME PREFIX.** The new predicate was first written as
+`app.signoff_deferred_open`; `ARM=census` flagged it never-swept the day it landed, and the
+diff-scoped sweep then matched **zero** gates — that arm's domain is `^(is_|can_|has_|…)`, a name
+regex standing in for a property no regex decides. It was **renamed** to
+`app.is_signoff_deferral_open` rather than backlogged, so the standing sweep owns it from here on.
+Its sibling `app.pending_staff_signoffs` is set-returning with no identity guard, came back
+**UNSUPPORTED** from the row-door sweep, and is recorded in `authz-unswept-backlog.txt` — **not**
+under `helper:`, because it IS an input to `get_response_for_signoff`'s read-right scope.
+
+### Gate record
+
+`ARM=census` / `ARM=hat` / `ARM=floor` / `FROMFINDINGS=1 ARM=wrapper` — all **exit 0**, read unpiped.
+Diff-scoped door sweep over the changed and new gates: `app.can_sign_section` **COVERED**,
+`app.is_signoff_deferral_open` **COVERED**, `app.can_read_signoff` **COVERED**,
+`public.list_signoff_queue` **COVERED**, `app.pending_staff_signoffs` **UNSUPPORTED** → backlogged.
+pgTAP **218 files / 7210 tests / PASS** on a fresh reset (baseline before this change: 217 / 7149).
+Unit **1715 tests / 124 files**. Lint (nine gates) + typecheck clean. E2E: the new spec plus an
+eight-spec regression set over the touched surfaces — **65 passed / 0 failed / 0 infra / 0 flaky /
+0 did-not-run**, 65 of 65 collected accounted for, exit 0.
+⛔ **No full `e2e:prod` run covers this HEAD** — the scoped set above is what was measured.
+
+15 neutralizations were RED-proved against suite 367, each asserting that the mutation MOVED the body
+hash and that the restore brought it BACK. ⚠ One earned its keep immediately: the `close_case`
+keystone was **VACUOUS** on the first pass — its fixture case also carried a `pending` sibling phase,
+so HC031 raised for the wrong reason and reverting the widening left the suite GREEN. It now runs on
+a single-phase case behind a stated precondition.

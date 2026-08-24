@@ -50,12 +50,32 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      accounted 61 of 62 collected (the 62nd is a by-design skip, reconciled per batch: 18+25+18).
      ⛔ A first attempt was **exit 5 UNRUN** — `server_dead` left 27 tests never executed, plus a
      spec name that does not exist. Neither is a pass and neither is a regression signal.
-- **⛔ ADR 0136 (deferred `staff_admin` sign-off) is NOT in that batch — sequenced AFTER** (PO ruling
-  2026-08-23). Its § Open decline-path question was **settled the same day as shape (a)**, the
-  correction/supersession machinery — recorded as **ADR 0136 § D7**, so it is now plannable.
-  ⚠ **Its § Size table was re-derived; every wrong row was wrong in the REASSURING direction, and the
-  TS row is literally true yet the wrong measure.** ⛔ Read the correction under that table in the ADR,
-  never the original rows — the figures live there, not here.
+- **✅ ADR 0136 — deferred `staff_admin` sign-off: BUILT 2026-08-24, ⛔ NOT COMMITTED, awaiting §6
+  step 3 (QA) + step 4 (human approval).** Migration `20261003001900_deferred_staff_signoff.sql`
+  (20 changes, every body re-emitted from `pg_get_functiondef`), pgTAP **367** (61 assertions),
+  E2E `deferred-staff-signoff.spec.ts` (5), plan
+  [deferred-staff-admin-signoff.md](docs/plans/deferred-staff-admin-signoff.md), ADR
+  [0136 § Amendment 1](docs/decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md).
+  Ships behind `deferred_staff_signoff`, **OFF in production** — seed forces it on for local/E2E, and
+  ⛔ **the production flip is a separate migration, not written**, so local + E2E green says nothing
+  about production behaviour yet.
+  ⛔ **What a reader must not skip — the § Size table and the Consequences were wrong in EIGHT places,
+  every one in the reassuring direction. The figures live in ADR 0136 § Amendment 1, never here.** The
+  four that changed the build:
+  1. **A third signing door the ADR never names** — `public.sign_section` (INVOKER) carries its own
+     `in_progress` gate. Widening only the two named leaves every deferred signature refused with
+     every policy/trigger assertion green.
+  2. **D7's ruled decline path did not exist** — `file_correction_request` admitted `completed` only,
+     so a declined phase would be stuck forever behind the widened `close_case` gate. A deadlock, not
+     the cost D7 accepted.
+  3. **D5 moved naively lands HC061 on the coordinator** for something only the filler can fix and no
+     longer can. The COMPUTATION moved; the PRECONDITION stayed on the submit.
+  4. **The DB was never the whole gate** — the wizard's own submit button stayed `disabled`. The
+     feature was unreachable in the product with pgTAP fully green; only E2E saw it.
+  ⭐ A live defect was found by the pre-build measurement and is FIXED here —
+  **BUG-SIGNOFF-GROUPCOND-001** (§ Bug Log).
+  ⚠ **Gate state:** step 1 ✅ (figures in § Test Run Summary), step 2 ✅ **scoped only** — no full
+  `e2e:prod` covers this HEAD — step 3 ⛔ **not run**, step 4 ⛔ **not given**.
 - **⚠ NO PHASE IS ACTIVE.** The ADR 0137 batch above is the most recent program, and it is complete.
   Everything else that stood here is done — the DM program, DSR + its operational remediation, the
   Cloud orphan probe, the `Imprimir prévia` split, AFF2 and the case-surface split. Every one of those
@@ -120,6 +140,22 @@ exists because without it an open production blocker (BUG-BOOTSTRAP-001) read as
 ⛔ **No live bug count appears in this section, deliberately.** Two attempts already went stale inside
 a single day — first the heading, then a note saying "back to three" — in the one paragraph of this
 file whose whole subject is that a count is wrong the moment after it is right. Count the rows below.
+
+🔴 **BUG-SIGNOFF-GROUPCOND-001 — a `requires_signoff` section carrying a GROUPED `visible_when`
+made FIVE routines RAISE, including every SAVE on that form.** Filed 2026-08-24 (lead), found by the
+pre-build measurement for ADR 0136 — not by any gate, and no gate could have found it. `app.eval_condition`
+handles only the legacy single condition shape and raises `unknown condition op: <NULL>` on the group
+shape `{match, conditions[]}`; `app.is_valid_visibility` **accepts** that shape on a section and the
+section-settings condition builder authors it. Five routines evaluated a SECTION's `visible_when` with
+the wrong evaluator: `list_signoff_queue`, `get_response_for_signoff`, `sign_section` (×2),
+`compute_due_notifications`, `save_section_answers`. Blast radius: the commission's whole sign-off
+queue page 500s, the review-to-sign door 500s, and **every save on that form fails** — the last being
+much the worst, since it strands a filler mid-response. `submit_response` alone used the correct
+`app.eval_visibility`, which is why the drift survived: the one caller anybody tests was right.
+✅ **FIXED in the ADR 0136 increment** by the extraction the ADR mandated (`app.pending_staff_signoffs`,
+one definition on `eval_visibility`) — pgTAP 367 §7 pins it with a POSITIVE CONTROL asserting
+`eval_condition` still raises, so the doors' survival is attributable to the swap and not to the shape
+being unreachable. ⛔ Stays here until the increment is approved and recorded (§6 step 5).
 
 🔴 **BUG-CASEEVT-KIND-001 — a case writer can DELETE, or silently RE-KIND, a procedural `case_events`
 row: the UPDATE/DELETE policies carry no `kind` gate.** Filed 2026-08-23 (lead). Surfaced by ADR 0137
@@ -194,6 +230,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-24 | ⭐⭐ **ADR 0136 — STEP 1 + a SCOPED step 2** · full record: ADR [0136 § Amdt 1](docs/decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md) | lint 9/9 · `tsc` 0 · Vitest **124f/1715** · `test:db` **7210/7210** (218f, fresh reset; +1f/+61 = pgTAP `367`) · 4 authz ARMs **HOLD, exit 0 UNPIPED** + diff-scoped sweep · **15 mutations RED-proved** · E2E **scoped 9-spec 65p/0f/0 DNR**, exit 0. ⛔ **NO full `e2e:prod` on this HEAD**; step 3 NOT run |
 | 2026-08-24 | ⭐ **GATE STEP 1 — the `FUP-0137-PHI-MODE-SHIMS` closure** (supersedes the 0137 batch's step-1 row → [archive](docs/progress/test-run-archive.md)) | lint 8/8 · `tsc` 0 · Vitest **123f / 1703** · `test:db` **7149/7149** (217f) on a fresh reset — **+1 file / +10** is pgTAP `366` · four authz ARMs **HOLD**, exit 0 · no RLS policy and no `prosecdef` boolean gate touched, so no diff-scoped sweep was owed |
 | 2026-08-24 | ⭐⭐ **ADR 0137 · FULL `e2e:prod` (gate step 2)**, at `1320d0b0` · detail: [adr-0137-batch.md](docs/progress/adr-0137-batch.md) | ✅ **GREEN, exit 0** — 1221 p · 0 f · 0 infra · 0 DNR · 2 flaky. ⚠ **Covers `1320d0b0`, NOT current HEAD** — the 2 increments after it have only a scoped 11-spec run. ⛔ Two earlier runs failed DIFFERENTLY (RED exit 1; exit 5 **UNRUN**) — ledger row 0137 |
 
@@ -347,6 +384,11 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟡 **FUP-AFF2-REGISTRATION-HAS-NO-START-DATE** — `registerUser` takes no affiliation start date though the plan specifies it and sibling `affiliatePerson` accepts one (actions-layer asymmetry). ⚠ Behaviourally free; ⛔ **the defect is the RECORD** — `aff2.md` announced *"ALL THREE CLOSED"* over a **different** three. QA R3's other discharge half (*"build the field or file it"*), undone until now — backend then frontend
 - 🟡 **FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD** — `updateUserProfile` keeps the loose `authorizeForUser` entry gate to serve an affiliation half **no caller exercises**; a Vitest arm pins a path the product cannot produce. ⛔ Not a hole (`affiliate_person_for` re-derives in SQL) — a **decision owed**: tightening to `…ScopedAdmin('fields')` shrinks R1's blast radius but pre-commits a future re-wire. QA R5 — backend + PO
 - 🟡 **FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG** — `ARM=census`'s "prune" note names two LIVE `app`-schema INVOKER bodies as absent, because they fall outside its `public`-INVOKER domain. ⛔ Pruning as instructed deletes the record that they are unswept — backend
+- 🟡 **FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT** — the standalone `/forms/…/responder` route is not prevented from serving a CASE-PHASE response and passes `deferStaffSignoff=false`, so the same response has a dead submit button on one route and a live one on the other. ✅ Strictly MORE restrictive — not a security defect — but a divergence ADR 0136 created — frontend
+- 🟡 **FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE** — `app.pending_staff_signoffs` came back **UNSUPPORTED** from the row-door harness (no identity guard) and owes the per-principal walk-through keystone its class owes. ⚠ Behaviour IS drilled; that is a different question — backend
+- 🟡 **FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE** — `sign_section`'s invoker verdict is **PROVISIONAL** *and* was measured against the body ADR 0136 changed. ⛔ `FROMFINDINGS=1 ARM=wrapper` re-measures nothing, so a changed body is invisible to it by construction — backend
+- 🟡 **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** — the door sweep's predicate arm is bounded by a NAME REGEX standing in for a property (42 `prosecdef` booleans outside it, measured). ADR 0136 hit it live: the sweep matched **zero gates** until the function was renamed. ⛔ The rename is a workaround that makes coverage depend on a convention no gate enforces — backend
+- 🟡 **FUP-DSS-KEYBOARD-FLOW-IS-THIN** — the ADR 0136 spec's keyboard test asserts an a11y floor, not a keyboard-only flow; it never signs. ⚠ A thin test where the requirement points reads as the requirement being met — tester
 - 🟡 **FUP-E2E-CREATEFRESHCASE-SILENT-NULL** — `case-narratives.spec.ts`'s `createFreshCase()` returns `null` on any setup failure with no thrown error and no reason, so a broken fixture reads as "nothing to test". ⚠ **Pre-existing, NOT caused by ADR 0137** — tester
 - 🟡 **FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT** — 2 suites generate cases from `memberships_role_check` read LIVE at import, so vitest's total tracks DB state; §292 pins a durable shrink but not the transient mid-reset one. Assert the role SET against one shared literal, exported as a FUNCTION not a `const` — backend + frontend
 

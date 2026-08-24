@@ -6,7 +6,10 @@ import type { MyCase, MyCaseItem } from "@/lib/queries/cases";
 import { StartPhaseButton } from "@/components/cases/start-phase-button";
 import { CaseRoleChip } from "@/components/cases/case-role-chip";
 import { CaseStatusBadgeFixed } from "@/components/cases/case-status-badge";
-import { PhaseStatusPill } from "@/components/cases/phase-status-pill";
+import {
+  PhaseStatusPill,
+  asCasePhaseStatus,
+} from "@/components/cases/phase-status-pill";
 import {
   NarrativeStatusPill,
   asNarrativeStatus,
@@ -17,7 +20,6 @@ import { CorrectionStatusChip } from "@/components/cases/correction-chips";
 import { CORRECTION_KIND_META } from "@/components/cases/correction-labels";
 import type { CorrectionStatus } from "@/lib/queries/corrections";
 import { formatCaseNumber } from "@/components/cases/format";
-import type { CasePhaseStatus } from "@/lib/queries/cases";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -161,7 +163,7 @@ function MyCaseItemRow({
           </span>
           {item.kind === "phase" &&
             (inCorrection ? null : (
-              <PhaseStatusPill status={item.status as CasePhaseStatus} />
+              <PhaseStatusPill status={asCasePhaseStatus(item.status)} />
             ))}
           {item.kind === "narrative" && (
             <NarrativeStatusPill status={asNarrativeStatus(item.status)} />

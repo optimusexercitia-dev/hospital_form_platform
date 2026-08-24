@@ -34,9 +34,15 @@ type DetailPhase = CaseDetail["phases"][number];
  *    "Bloqueada por Fase N" note (the server also rejects via HC018).
  *  - **ativa** → "Alterar responsável" (reassign — only succeeds before the
  *    assignee starts; the backend returns a pt-BR message otherwise).
+ *  - **aguardando assinatura** (ADR 0136) → "Ver respostas" + a PRIMARY "Assinar"
+ *    deep-link into the sign-off queue's review screen. This branch had to be
+ *    written: without it an `awaiting_signoff` phase falls through to the
+ *    pendente/ativa cluster below and offers a coordinator "Alterar responsável"
+ *    on a frozen record, while the one act the phase is actually waiting for is
+ *    reachable only from a different page.
  *  - **concluída** → "Ver respostas" deep-link to the read-only answer view
- *    (`responseId` is populated only for submitted phases — the Phase-7
- *    invariant).
+ *    (`responseId` is populated only for phases whose response is submitted —
+ *    the Phase-7 invariant, widened by ADR 0136 to include `awaiting_signoff`).
  *  - **não necessária** → no action.
  *
  * All controls are hidden when the case is closed (`isOpen=false`), except the
@@ -102,6 +108,33 @@ export function CoordinatorPhaseActions({
   // A voided phase (Case Correction Lifecycle, ADR 0085) is terminal — no lifecycle
   // controls (it satisfies `blocks` like `not_required`; redo is via an ad-hoc phase).
   if (phase.status === "voided") return null;
+
+  // Aguardando assinatura (ADR 0136): the record is FROZEN, so no lifecycle control
+  // applies — the phase is waiting on ONE act. `Assinar` targets the sign-off queue's
+  // review screen, whose door (`get_response_for_signoff`) re-checks authority
+  // server-side, so this only decides what is OFFERED (Rule 1).
+  if (phase.status === "awaiting_signoff") {
+    if (!canManageLifecycle || !phase.responseId) return null;
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link
+            href={commissionHref(org, slug, "manage", "cases", phase.caseId, "fase", phase.id, "respostas")}
+          >
+            Ver respostas
+          </Link>
+        </Button>
+        <Button asChild size="sm">
+          <Link
+            href={commissionHref(org, slug, "manage", "assinaturas", phase.responseId)}
+          >
+            Assinar
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
+      </div>
+    );
+  }
 
   // Concluída: the read-only answer deep-link targets the coordinator `/manage` view,
   // so it stays coordinator-only (canManageLifecycle). Always available (even closed).

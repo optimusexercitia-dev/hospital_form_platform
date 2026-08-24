@@ -247,7 +247,7 @@ process_template_versions.process_template_versions_staff_admin_write (ALL)
 
 # -- ROW-RETURNING DEFINER DOORS — 11 of the original 45 remain. SWEPT AND UNSUPPORTED,
 #    which is a DIFFERENT claim from the rest of this file and must not be read as the same.
-#    Every other line here means *nobody has asked*. These eleven were asked, by
+#    Every other line here means *nobody has asked*. These TWELVE were asked, by
 #    `p0-authz-rowdoor-audit.sh` (ADR 0079 Amendment 4), and the harness answered that it
 #    has no mechanism for them: their gate is not a statement-level guard it can open, but
 #    an identity conjunct INSIDE the query (`where m.principal_id = auth.uid()`) or a
@@ -272,9 +272,28 @@ process_template_versions.process_template_versions_staff_admin_write (ALL)
 #    `299_hospital_content_door_noun_rule.sql` — whose §4 is the model for what each of
 #    these eleven owes: a COMPUTED enumeration plus a row-count assertion per principal,
 #    never a predicate call. `300_rowdoor_gate_keystones.sql` is a worked example.
+#
+#    ⬆ TWELFTH, added 2026-08-24 (ADR 0136 / migration 20261003001900):
+#    `app.pending_staff_signoffs`. Same class as its sibling `app.signoff_target`
+#    two lines below it — a projection over one response's sections, DEFINER
+#    because `sign_section` is INVOKER and cannot read the respondent's
+#    `in_progress` row. `ARM=census` flagged it never-swept the day it landed;
+#    `p0-authz-rowdoor-audit.sh` was then run over it and answered **UNSUPPORTED**
+#    ("no statement-level identity guard — the gate is a conjunct inside the
+#    query"), which is structurally exact: it carries no identity predicate at all.
+#    ⛔ It is NOT filed under `helper:`, and that is deliberate — a `helper:` line
+#    claims "not an authorization decision", and this one IS an input to one:
+#    `get_response_for_signoff` uses its emptiness as the read-right scope ("the
+#    read right is scoped to the act of signing"). UNSWEPT is the honest verdict.
+#    BEHAVIOUR is pinned and DRILLED (367_deferred_staff_signoff.sql; drills
+#    2026-08-24, RED in BOTH directions — narrowing to `where false` reds 7
+#    assertions incl. 2.3/3.1/4.1; dropping the already-signed conjunct reds 6
+#    incl. 4.3/5.1/8.8). That pins behaviour; it does NOT discharge the
+#    per-principal walk-through keystone this class owes.
 
 app.case_phase_option_aggregates(p_case_phase_id uuid)
 app.eligible_voters(p_case_id uuid)
+app.pending_staff_signoffs(p_response_id uuid)
 app.response_validation_errors(p_response_id uuid)
 app.signoff_target(p_response_id uuid, p_section_id uuid)
 app.submitted_form_responses(p_form_id uuid)

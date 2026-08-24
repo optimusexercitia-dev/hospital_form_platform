@@ -86,6 +86,8 @@ function data(t: VersionTree, initialAnswers: AnswerState = {}): WizardData {
       commissionName: "CCIH",
     },
     signoffsBySectionId: {},
+    // ADR 0136 — the standalone/draft lane; the deferred lane sets this true.
+    deferStaffSignoff: false,
     // FF-1: repeating-group instances (none in these fixtures).
     initialInstances: [],
     // FF-2: a fixture with no matrix still declares the slices — they are

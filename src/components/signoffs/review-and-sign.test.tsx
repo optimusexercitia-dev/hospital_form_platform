@@ -202,6 +202,8 @@ describe("toClientResponseForSignoff — the adapter forwards instances", () => 
     // not merely that the call succeeds.
     const instances = [instance("i1", 0, { medicamento: "Dipirona" })];
     const adapted = toClientResponseForSignoff({
+      // ADR 0136 — the draft lane; the deferred lane sets this true.
+      isFrozenCasePhase: false,
       responseId: "r1",
       formId: "f1",
       formTitle: "Checklist",

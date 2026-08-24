@@ -3965,6 +3965,57 @@ WHERE-clause **conjunct**, which is correct for per-row filtering and outside th
 RAISING, which aborts the transaction mid-file so the run shape stops matching baseline — the
 suites notice **emphatically**, 312 fails 64/90).
 
+## DSS — Deferred `staff_admin` sign-off (2026-08-24; ADR 0136 + Amendment 1; migration `20261003001900`; flag `deferred_staff_signoff` **OFF** — seed forces ON local/E2E)
+
+⛔ **Build complete, NOT yet approved or committed** (§6 step 3/4 outstanding). Read ADR 0136
+§ Amendment 1 before anything below — the ADR's own § Size table and Consequences were wrong in
+**eight** places, every one in the reassuring direction.
+
+**The shape.** `case_phases.status` gains a sixth value, `awaiting_signoff`, between `active` and
+`completed`. `submit_response` stops blocking on an unsigned `signoff_role = 'staff_admin'` section
+**of a case-phase response**; the phase parks; the last signature completes it and only then computes
+the phase result. `responses.status` is UNCHANGED (two values) — attestation state lives on the PHASE.
+A STANDALONE response keeps today's HC012 (D2), which is why `80_signoffs.sql` needed no edit at all.
+
+**New routines** (all four `SECURITY DEFINER`, all four `revoke all … from public`):
+
+| routine | what it answers | note |
+| --- | --- | --- |
+| `app.pending_staff_signoffs(uuid)` | "which visible sections still owe a `staff_admin` signature?" | THE single definition — it replaced **six** independent copies, five of which used `app.eval_condition` and therefore RAISED on a group-shaped section condition (**BUG-SIGNOFF-GROUPCOND-001**). Row-door sweep: **UNSUPPORTED** (no identity guard) → `authz-unswept-backlog.txt`. |
+| `app.is_signoff_deferral_open(uuid)` | "is this frozen response still open for its deferred attestation?" | THE single definition of the window, shared by `can_sign_section` (an RLS `WITH CHECK`), `guard_submitted_signoffs` and `sign_section`. ⚠ The `is_` prefix is **load-bearing**: the door sweep's predicate arm bounds its domain with `^(is_\|can_\|has_\|…)`. Sweep: **COVERED**. |
+| `app.assert_phase_result_ready(uuid)` | the HC061 precondition, extracted from `compute_case_phase_result` | D5 moves the COMPUTATION onto the signature; the PRECONDITION stays on the submit, or the raise lands on a coordinator who cannot fix it. |
+| `app.trg_complete_phase_on_signoff()` | D5's completion | `AFTER INSERT` on `response_section_signoffs`. Keys on `case_phases.current_response_id`, so signing a **superseded** response never completes the phase. |
+
+**`public.guard_submitted_signoffs()` is NEW and separate.** `guard_submitted_signoffs_trg` no longer
+runs `guard_submitted_children` — that shared body still backs `answers` **and**
+`response_group_instances`, so branching it would have touched three tables. The carve-out is
+INSERT-only and STRUCTURAL (it asks whether the phase still awaits attestation, never who is asking);
+authority stays with the `signoffs_insert` policy.
+
+**`public.list_signoff_queue` changed SIGNATURE** — `returns table (…, case_phase_id uuid)`, so it was
+DROPped and recreated and its grants re-issued. Non-null marks the FROZEN lane; the queue now mixes
+two lanes behind one button and the UI must say which.
+
+**Widened, and each for a stated reason:** `submit_response` (D1 role split — the section cursor had
+to gain `s.signoff_role`) · `sync_case_phase_on_submit` (D3) · `app.can_sign_section` (a LIVE authz
+change — it is the `signoffs_insert` `WITH CHECK`) · `sign_section` (**a third `in_progress` gate the
+ADR never names**) · `get_response_for_signoff` · `compute_due_notifications` (or the reminder ladder
+dies at submit) · `save_section_answers` · `close_case` (gate **and** sweep — the same line twice) ·
+`cancel_case` · `app.recompute_case_status` (first `bool_or` only) · `file_correction_request`
+(**D7's decline path did not otherwise exist**) · `approve_correction` (impact snapshot) ·
+`get_case_detail` · `app.guard_case_phase_status` (+3 transitions).
+
+⛔ **DELIBERATELY UNCHANGED, and each absence is load-bearing:** `activate_phase` —
+`awaiting_signoff` is **absent** from its settled set, which IS D3's whole mechanism (pgTAP 367 §3.4
+asserts the absence) · `set_case_phase_result_override` (HC057 — the result is settled before the
+freeze) · `start_or_resume_phase` / `skip_phase` (HC019) · `app.case_phase_answer_map` /
+`case_phase_option_aggregates` (an unattested phase must not feed indicators) ·
+`guard_submitted_children`.
+
+**Tests.** pgTAP `367_deferred_staff_signoff.sql` (61) — 15 neutralizations RED-proved; E2E
+`deferred-staff-signoff.spec.ts` (5), which caught the one thing pgTAP structurally cannot: the
+**wizard's own submit gate** kept the button `disabled` while the database allowed the submit.
+
 ## Migrations (forward-only, additive)
 
 > **This table is a HISTORICAL index and stops at E1 (`20260720001070`).** From DOC-REDESIGN /
@@ -4372,6 +4423,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | Flag | State | Notes |
 | ---- | ----- | ----- |
 | `signoff_enforcement` | **ON** (Phase 6, migration `…090001`) | `submit_response` blocks submission until every VISIBLE `requires_signoff` section is signed → **P0012**. Was OFF in Phases 1–5 (ADR 0004). |
+| `deferred_staff_signoff` | **OFF** (ADR 0136, migration `20261003001900`) — seed forces ON for local/E2E | Role-SPLITS the flag above (ADR 0004 amended in effect). When ON, `submit_response` stops blocking on an unsigned `signoff_role='staff_admin'` section **of a case-phase response** (`case_phase_id is not null` — D2); the phase parks in `case_phases.status = 'awaiting_signoff'` and the last signature completes it. HC012 SURVIVES for the `respondent` arm and for every standalone response. ⛔ The production flip is its own migration at the gate and is **not written** — local + E2E green says nothing about production behaviour. ⚠ The status-list widenings (`close_case`, `cancel_case`, `recompute_case_status`, `guard_case_phase_status`, `file_correction_request`) are deliberately **NOT** flag-gated: with the flag off no phase can reach the status, so they are inert — and gating them would strand a phase if the flag were ever flipped OFF after one parked. |
 | `cases_multi_phase` | **ON** (Phase 7, migration `…090008`) | Gates every Phase-7 cases RPC. Inserted OFF in `…090004`; flipped ON by the separate one-line `…090008` (mirrors the `signoff_enforcement` flip). The feature is live. |
 | `cases_extras` | **ON** (Extras, migration `…092006`) | Gates the Cases-Extras + outcome WRITE surface: the **OUTCOME** RPCs (`set_case_outcome`, `set_process_outcomes`, outcome vocab CRUD — ADR 0024); R3 tag CRUD/assign; R4 action-item authoring + lifecycle; R1 document/event actions via `cases_extras_enabled`. (The R2 `set_case_status` + status CRUD it formerly gated were REMOVED by ADR 0024.) Inserted OFF in `…092001`; flipped ON by `…092006`. The core phase RPCs (`activate_phase`/`skip_phase`/`add_ad_hoc_phase`/`reassign_phase`/`close_case`/`cancel_case`/`create_case_from_template`/`set_template_phase_blocks`) gate ONLY `cases_multi_phase`. |
 | `meetings` | **ON** (Phase 10, migration `…090008`) | Gates every Phase-10 meetings RPC + the TS-layer table writes via `public.meetings_enabled()`. Inserted OFF in `…090000`; flipped ON by `…090008` (enabled in-phase so the gate exercised the live feature — same pattern as `cases_multi_phase`). |

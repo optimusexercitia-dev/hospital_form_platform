@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getCaseDetail } from '@/lib/queries/cases'
+import { getCaseDetail, type CasePhaseStatus } from '@/lib/queries/cases'
 import { listCaseInterviews } from '@/lib/queries/interviews'
 import {
   listCaseDocuments,
@@ -91,12 +91,20 @@ export interface CaseMeetingLink {
 // Internal row shapes (RLS-scoped table reads)
 // ---------------------------------------------------------------------------
 
-/** A `case_phases` row read directly (RLS `case_phases_select`: members read). */
+/**
+ * A `case_phases` row read directly (RLS `case_phases_select`: members read).
+ *
+ * ⛔ `status` IMPORTS the union rather than restating it. It used to be a
+ * STRUCTURAL CLONE — `'pending' | 'active' | 'completed' | 'not_required'` — and
+ * it had already drifted: `'voided'` (ADR 0085) was never added here, so for two
+ * releases this file's type said a status the database emits could not occur, and
+ * nothing could contradict it. A clone of a union is a comment that compiles.
+ */
 interface CasePhaseTimelineRow {
   id: string
   position: number
   title: string | null
-  status: 'pending' | 'active' | 'completed' | 'not_required'
+  status: CasePhaseStatus
   activated_at: string | null
   completed_at: string | null
   skipped_at: string | null
@@ -366,7 +374,10 @@ function phaseToEvent(p: CasePhaseTimelineRow): CaseTimelineEvent | null {
     return { ...base, day: p.due_date }
   }
 
-  // active / completed → a durational bar. activated_at is set on activation.
+  // active / awaiting_signoff / completed / voided → a durational bar.
+  // `activated_at` is set on activation, and `end` stays null while the phase is
+  // still running — which is exactly right for `awaiting_signoff` (ADR 0136): the
+  // bar keeps running until the countersignature lands and stamps `completed_at`.
   if (!p.activated_at) return null
   return {
     ...base,

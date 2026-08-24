@@ -2,7 +2,7 @@ import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Lock } from "lucide-react";
 
 import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import { resolveTreeImageUrls } from "@/lib/queries/forms";
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * Review-and-sign screen (F2). Loads one in_progress response that has a pending
+ * Review-and-sign screen (F2). Loads one response that has a pending
  * `staff_admin` sign-off (B2's `getResponseForSignoff` — a narrow,
  * `is_staff_admin_of`-gated SECURITY DEFINER read composed with the
  * member-readable version tree). Renders the FULL response read-only and lets
@@ -86,6 +86,21 @@ export default async function ReviewAndSignPage({
             ? "Revise as respostas abaixo e assine as seções sob sua responsabilidade."
             : "Revise as respostas abaixo. A assinatura das seções é feita pela coordenação."}
         </p>
+        {/* ADR 0136 — the deferred lane. The signer MUST be told two things this
+            screen otherwise implies the opposite of: the content is frozen (so no
+            "ask the filler to fix it first" is available), and their signature is
+            what concludes the phase and releases everything downstream of it. */}
+        {data.isFrozenCasePhase && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-pretty">
+            <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
+            <p className="max-w-prose">
+              <span className="font-medium">Registro já enviado e congelado.</span>{" "}
+              {canSign
+                ? "O conteúdo abaixo não pode mais ser alterado por quem preencheu. Sua assinatura conclui a fase do caso e libera as fases que dependem dela. Se algo estiver incorreto, solicite uma correção na fase, no caso."
+                : "O conteúdo abaixo não pode mais ser alterado por quem preencheu. A assinatura da coordenação conclui a fase do caso."}
+            </p>
+          </div>
+        )}
       </header>
 
       <SignRunner

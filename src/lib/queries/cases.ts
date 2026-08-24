@@ -51,9 +51,10 @@ export type { CaseStatus } from '@/lib/cases/case-status'
  *   - `list_cases_board(commission_id)` — one row per case + aggregated phase
  *     STATUS (no answers).
  *   - `get_case_detail(case_id)` — case header + phases; `responseId`/`submittedAt`
- *     populated ONLY for SUBMITTED (completed) phases, so the coordinator can
- *     deep-link a completed phase's answers via the existing staff_admin
- *     submitted-response read path — never an in-progress answer.
+ *     populated ONLY for phases whose response is SUBMITTED (`completed`, and —
+ *     since ADR 0136 — `awaiting_signoff`), so the coordinator can deep-link the
+ *     frozen answers via the existing staff_admin submitted-response read path —
+ *     never an in-progress answer.
  *
  * `getCasePhaseForFill` is the assignee's RLS-scoped landing read (status +
  * metadata only). Mutations live in `src/lib/cases/actions.ts`. All user-facing
@@ -65,9 +66,23 @@ export type { CaseStatus } from '@/lib/cases/case-status'
 // Domain types
 // ---------------------------------------------------------------------------
 
+/**
+ * ⛔ ADDING A MEMBER HERE IS MOSTLY A **SILENT** CHANGE. There is no `assertNever`
+ * or `satisfies` guard anywhere over this union, so "the compiler will find the
+ * call sites" is FALSE. Measured when `'awaiting_signoff'` was added (ADR 0136):
+ * only **4 declaration sites** failed typecheck — the `Record<CasePhaseStatus, …>`
+ * maps in `phase-status-pill.tsx`, `cases-kanban.tsx` and `cases-table.tsx` (×2).
+ * Every other site is an `if`/`!==` chain that falls through. Sweep by hand.
+ */
 export type CasePhaseStatus =
   | 'pending'
   | 'active'
+  // ADR 0136 D3 — the response is SUBMITTED and frozen, and a visible
+  // `signoff_role = 'staff_admin'` section still owes its countersignature. NOT
+  // settled: `activate_phase`'s settled set is ('completed','not_required',
+  // 'voided'), so every downstream phase stays blocked with no new gating logic.
+  // ⛔ The DB is the authority — this union only decides what is RENDERED.
+  | 'awaiting_signoff'
   | 'completed'
   | 'not_required'
   // Case Correction Lifecycle (BE-4): a completed phase voided via an approved
@@ -419,9 +434,11 @@ export interface CaseBoardRow {
 
 /**
  * Full per-case detail: the case header + every phase. For each phase,
- * `responseId`/`submittedAt` are non-null ONLY when the phase is SUBMITTED
- * (completed) — the coordinator deep-links those to the existing staff_admin
- * submitted-response detail view. In-progress phases expose status only.
+ * `responseId`/`submittedAt` are non-null ONLY when the phase's response is
+ * FROZEN — `completed`, or `awaiting_signoff` (ADR 0136), where the coordinator
+ * must read the record in order to attest to it. The coordinator deep-links those
+ * to the existing staff_admin submitted-response detail view; every other phase
+ * status exposes status only.
  */
 export interface CaseDetail {
   case: Case
@@ -1518,7 +1535,8 @@ export async function countOpenCasesForBoard(
 /**
  * Full detail for one case. Backed by the SECURITY DEFINER `get_case_detail`
  * (internally `is_staff_admin_of`-gated): case header + phases, with
- * `responseId`/`submittedAt` only for SUBMITTED phases. `null` when the caller
+ * `responseId`/`submittedAt` only for phases whose response is SUBMITTED
+ * (`completed` / `awaiting_signoff` — ADR 0136). `null` when the caller
  * is not a staff_admin of the case's commission or the case does not exist (the
  * RPC raises, surfaced here as null).
  */

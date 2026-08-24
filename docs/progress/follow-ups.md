@@ -5147,6 +5147,167 @@ up. (`test:db` counts *are* stable â€” pgTAP plans are literal.)
 fails CLOSED â€” with the stack down it throws *"this guard reads the catalog on purpose and must never
 silently skip"* instead of defaulting to a hardcoded list. Preserve that behaviour through any refactor.
 
+### FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT
+
+⚠ **NEW — created by the ADR 0136 increment.** Filed 2026-08-24 (lead), from the build's own
+route census, not from a failing test.
+
+`WizardData.deferStaffSignoff` is resolved on **one** of the three routes that render the wizard —
+`…/cases/[caseId]/phase/[phaseId]/responder/[responseId]`. The standalone
+`…/forms/[formId]/responder/[responseId]` route takes the parameter's `false` default.
+
+**And that route is not structurally prevented from serving a CASE-PHASE response.** Measured:
+`getResponseForFill` filters on `id` alone (`src/lib/queries/responses.ts:816-823` — no
+`case_phase_id` predicate), and the page's guards are `formId` + `commissionId` + `status`, all of
+which a case-phase response satisfies (its form IS `formId`, its commission IS the caller's). So the
+same response renders with a DISABLED submit on one route and an ENABLED one on the other.
+
+✅ **Not a security defect, and the direction matters:** the divergence is strictly MORE restrictive
+— the standalone route refuses a submit the database would accept. Nothing is granted anywhere.
+
+⛔ **But it is a divergence that did not exist before this increment.** Until now both routes agreed
+because neither knew about case phases. It is reachable by hand-editing a URL the assignee already
+sees, and it presents as "the button is dead for no reason".
+
+**Decide between:**
+- **(a)** the standalone route `notFound()`s a response whose `case_phase_id` is non-null — the
+  narrower fix, and arguably right independently: that route's copy, back-link and confirmation
+  screen are all written for the standalone lane; or
+- **(b)** it resolves `deferred_staff_signoff` too and passes it through.
+
+⭐ (a) is preferred: it removes a whole class of "which route am I on?" divergence rather than
+keeping two routes in step forever. ⛔ Either way it needs a keystone — today NOTHING asserts which
+lane that route serves.
+
+**Owner:** frontend (with a backend one-liner if (a) needs a `case_phase_id` projection).
+
+---
+
+### FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE
+
+⚠ **NEW — an owed keystone the ADR 0136 increment did not discharge.** Filed 2026-08-24 (lead).
+
+`app.pending_staff_signoffs(uuid)` is a `SECURITY DEFINER` set-returning function with **no identity
+predicate at all**. `ARM=census` flagged it never-swept the day it landed;
+`p0-authz-rowdoor-audit.sh` was run over it and returned **UNSUPPORTED** — *"no statement-level
+identity guard — the gate is a conjunct inside the query"* — which is structurally exact. It is
+recorded in `supabase/tests/mutation/authz-unswept-backlog.txt` under the UNSUPPORTED block.
+
+⛔ **It is deliberately NOT filed under `helper:`.** A `helper:` line asserts "not an authorization
+decision"; this one IS an input to one — `get_response_for_signoff` uses its emptiness as the
+read-right scope (*"the read right is scoped to the act of signing"*).
+
+✅ **BEHAVIOUR is pinned and DRILLED** — pgTAP 367, drills 2026-08-24 RED in **both** directions
+(narrowing to `where false` reds 7 assertions; dropping the already-signed conjunct reds 6).
+
+⛔ **That is not the same thing, and the gap is the point of this entry:** a behaviour drill asks
+"does anything notice when the projection changes?". The keystone this class owes asks "does the
+projection return the same rows to a principal who should see NOTHING?" — a **computed enumeration
+plus a row-count assertion per principal**, in the shape of
+`supabase/tests/299_hospital_content_door_noun_rule.sql` §4 (worked example:
+`300_rowdoor_gate_keystones.sql`). It is the twelfth entry in that block; the eleven before it owe
+the same thing.
+
+**Owner:** backend.
+
+---
+
+### FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE
+
+⚠ **NEW — a verdict this increment invalidated and did not re-derive.** Filed 2026-08-24 (lead).
+
+`docs/reviews/authz-invoker-audit-findings.md:100` carries:
+
+```
+public.sign_section(…) | invoker | open-guard(g1=1,g2=0,g3=0) | COVERED
+  | ⚠ g1-only: PROVISIONAL, hand-classify (the opened probe may be a domain check, not the gate)
+  — 226_notifications.sql
+```
+
+The ADR 0136 increment **changed that function's gate**: its `if v_status <> 'in_progress' then raise`
+became `if v_status <> 'in_progress' and not app.is_signoff_deferral_open(p_response_id) then raise`.
+
+⛔ Two separate problems, and the second is the one that bites:
+1. The COVERED verdict was measured against the OLD body. `FROMFINDINGS=1 ARM=wrapper` passed at the
+   gate — but that mode compares a **committed findings file** to an allowlist and re-measures
+   nothing, so a changed body is invisible to it by construction.
+2. The verdict was **PROVISIONAL to begin with** and carries an explicit `hand-classify` instruction
+   that nobody has executed. A provisional COVERED reads as COVERED in every downstream summary.
+
+⭐ This is the ADR-0079 lesson one arm over: *absence of a verdict is not absence of coverage* — and
+a **stale** verdict is worse than an absent one, because the census counts it as satisfied.
+
+**Do:** re-run the invoker sweep scoped to `sign_section` (`p0-authz-invoker-audit.sh`) and
+hand-classify the g1 probe, recording WHICH of the three guards is the authorization gate. ⚠ Restore
+the findings file after a subset run, as with the door sweep.
+
+**Owner:** backend.
+
+---
+
+### FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME
+
+⚠ **The harness names this class in its own output and it has never been REGISTERED anywhere** —
+verified 2026-08-24: zero hits in `follow-ups.md` and `PROGRESS.md`, two in
+`supabase/tests/mutation/p0-authz-door-audit.sh` (`:315`, `:393`). Filed by the ADR 0136 increment,
+which is the first recorded instance of it actually costing something.
+
+The door sweep's predicate arm bounds its domain with a **name regex** —
+`^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)`, minus `^is_valid_` —
+standing in for the property *"is an authorization predicate"*, which no regex decides. The script is
+honest about this: it censuses the gap on every run and refuses to auto-widen (widening would swap a
+silent gap for silent ERRORs — the out-of-domain set contains feature-flag readers, `validate_*`
+shape checkers, and two SIDE-EFFECTING writers whose bodies must not be swapped for `select true`).
+**Measured 2026-08-24: `out-of-domain-bool=42`.**
+
+⭐ **THE LIVE INSTANCE.** ADR 0136's new predicate was first written as `app.signoff_deferred_open`.
+`ARM=census` flagged it never-swept; the diff-scoped sweep then matched **ZERO gates** and reported
+`UNPROVEN — NOTHING WAS MEASURED`. The function was shaped exactly like a predicate and excluded
+purely by its name. It was **renamed** to `app.is_signoff_deferral_open`, after which the same sweep
+returned **COVERED**.
+
+⛔ **The rename is a WORKAROUND, and it quietly created a new obligation:** the sweep's coverage now
+depends on an unwritten naming convention that no gate enforces. The next authz predicate someone
+names `signoff_x_allowed` or `phase_is_open` escapes the arm, and `ARM=census` will say so **only if
+it is a `prosecdef` boolean** — which is the one arm that would then have to be read carefully rather
+than skimmed.
+
+**Decide between:**
+- **(a)** a `lint`/pgTAP check that a `prosecdef` boolean in `app`/`public` either matches the arm's
+  prefix set or appears in `authz-unswept-backlog.txt` — turning the convention into a gate;
+- **(b)** classify the 42 out-of-domain booleans once, into `authz-unswept-backlog.txt`, so the census
+  gap is a reviewable list rather than a count; or
+- **(c)** widen the arm by PROPERTY (e.g. "references an authz predicate or `auth.uid()`") with the
+  known side-effecting writers excluded by name — the script's own stated reason for not doing this
+  is worth re-reading before choosing it.
+
+⚠ **(b) is the cheap half of (a) and does not replace it:** a one-time classification goes stale the
+next time someone adds a gate.
+
+**Owner:** backend.
+
+---
+
+### FUP-DSS-KEYBOARD-FLOW-IS-THIN
+
+⚠ **NEW — a self-reported gap in this increment's own E2E.** Filed 2026-08-24 (lead).
+
+CLAUDE.md §8 requires *"at least one keyboard-only flow per phase"*.
+`e2e/deferred-staff-signoff.spec.ts`'s keyboard test asserts that the queue no longer lists the
+attested row and that the first tab stop has an accessible name. **That is an a11y floor, not a
+keyboard-only FLOW** — it never signs anything with the keyboard.
+
+The act worth covering is the one this ADR creates: reach the queue row, open it, and **sign**, all
+without a pointer — because that signature now concludes a case phase and releases everything
+downstream of it, so a keyboard trap there is materially worse than one on a draft.
+
+⛔ Recorded rather than quietly left, because a thin test in the *place the requirement points at*
+reads as the requirement being met.
+
+**Owner:** tester.
+
+---
+
 ### FUP-E2E-CREATEFRESHCASE-SILENT-NULL
 
 âš  **PRE-EXISTING â€” not caused by ADR 0137.** Filed 2026-08-23 (tester) while auditing

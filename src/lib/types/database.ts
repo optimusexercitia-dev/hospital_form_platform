@@ -13477,6 +13477,7 @@ export type Database = {
       list_signoff_queue: {
         Args: { p_commission_id: string }
         Returns: {
+          case_phase_id: string
           form_id: string
           form_title: string
           pending_count: number
