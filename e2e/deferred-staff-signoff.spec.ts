@@ -1,4 +1,4 @@
-import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
+import { test, expect, type Locator, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from './helpers/auth'
 import { createDraftTemplateDirect } from './helpers/process-templates'
 
@@ -29,17 +29,46 @@ const UID_CHEFE_A = '00000000-0000-0000-0000-000000000002'
 const UID_STAFF_1 = '00000000-0000-0000-0000-000000000003'
 
 const SPEC_TAG = 'DSS-SPEC'
-const FORM_TITLE = `Checklist ${SPEC_TAG}`
-const TEMPLATE_TITLE = `Template ${SPEC_TAG}`
+/**
+ * A per-RUN suffix on every name this spec searches by.
+ *
+ * ⛔ IT IS NOT COSMETIC. This spec's whole subject is a FROZEN record, and a submitted
+ * response CANNOT be deleted — `submitted responses are immutable (delete blocked)` is a
+ * product trigger, and `responses.case_phase_id -> case_phases` is NO ACTION (measured),
+ * so the case and the form behind it cannot be deleted either. This spec therefore
+ * OUTLIVES its own run by design, and the old cleanup's premise ("the case cascade takes
+ * its phases + responses with it") was false — silently, because it never checked a
+ * delete's status. Three forms, four cases and four responses accumulated in one
+ * afternoon, and the symptom surfaced two tests away as a strict-mode violation on the
+ * sign-off queue: three rows matching one form title, which reads exactly like a product
+ * bug. Run-scoping the titles is what makes a leftover harmless instead of confusing.
+ * `supabase db reset` remains the only real cleaner.
+ */
+const RUN_TAG = `R${String(Date.now()).slice(-7)}`
+const FORM_TITLE = `Checklist ${SPEC_TAG} ${RUN_TAG}`
+const TEMPLATE_TITLE = `Template ${SPEC_TAG} ${RUN_TAG}`
 const SIGNOFF_SECTION_TITLE = `Revisão da coordenação ${SPEC_TAG}`
 const QUESTION_LABEL = 'A inspeção foi concluída sem intercorrências?'
 
 let specFormId = ''
 let specVersionId = ''
+let specSectionId = ''
+let specItemId = ''
 let templateId = ''
 let caseId = ''
 let phaseId = ''
 let responseId = ''
+
+// The KEYBOARD fixture's own case/phase/response (FUP-DSS-KEYBOARD-FLOW-IS-THIN).
+// A SECOND frozen record, because the keyboard flow must actually SIGN and the
+// first fixture's signature is consumed by the pointer-driven test above it.
+let kbPhaseId = ''
+let kbResponseId = ''
+
+// The lane-guard test's standalone draft. Module-level ONLY so `afterAll` can still
+// remove it if that test dies before its own `finally` runs — unlike the cases, it is
+// not covered by the RUN_TAG sweep, because a response carries no title of its own.
+let laneStandaloneId = ''
 
 // ---------------------------------------------------------------------------
 // Service-role plumbing (a MEASUREMENT/fixture instrument — never the subject:
@@ -104,34 +133,216 @@ async function rpc(
   })
 }
 
+/**
+ * Delete, tolerating exactly TWO refusals — both faces of ONE cause, and nothing else:
+ *   `23514` the submitted-immutable trigger refusing the frozen response itself;
+ *   `23503` the FK refusing the case / form that frozen response still hangs from
+ *           (`responses.case_phase_id` and `case_phases.form_version_id` are NO ACTION).
+ * Both are product invariants this spec must not fight, and neither leaves anything a
+ * run-scoped selector can trip over. ⛔ Every OTHER failure still fails the run —
+ * swallowing all errors is exactly how the previous cleanup leaked for weeks.
+ */
+async function svcDelete(req: APIRequestContext, path: string): Promise<void> {
+  const resp = await req.delete(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: svcHeaders(),
+  })
+  if (resp.ok()) return
+  const body = await resp.text()
+  if (body.includes('23514') || body.includes('23503')) return
+  expect(false, `svcDelete(${path}) failed ${resp.status()}: ${body}`).toBeTruthy()
+}
+
+/**
+ * Remove what THIS RUN created, in foreign-key order, best-effort.
+ *
+ * ⛔ THE ORDER IS LOAD-BEARING and the previous version had it wrong. Measured on the
+ * live catalog: `responses.case_phase_id -> case_phases` is **NO ACTION**, as are
+ * `responses.form_version_id -> form_versions` and `case_phases.form_version_id ->
+ * form_versions` — so "delete the case, the cascade takes its phases and responses with
+ * it" is false in both directions, and the old code never checked a delete's status, so
+ * it failed silently and leaked every run.
+ *
+ * ⚠ It is BEST-EFFORT because it must be: a submitted response cannot be deleted at all
+ * (see {@link RUN_TAG}). What survives is inert — run-scoped names keep it out of every
+ * selector here — and `supabase db reset` clears it.
+ */
+async function purgeSpecFixtures(req: APIRequestContext): Promise<void> {
+  const forms = await svcGet<{ id: string }>(
+    req,
+    `forms?commission_id=eq.${COMM_A}&title=like.*${RUN_TAG}*&select=id`,
+  )
+
+  // 1. responses — they block both the case and the form.
+  for (const f of forms) {
+    const versions = await svcGet<{ id: string }>(
+      req,
+      `form_versions?form_id=eq.${f.id}&select=id`,
+    )
+    for (const v of versions) await svcDelete(req, `responses?form_version_id=eq.${v.id}`)
+  }
+  // A lane-guard standalone draft, if that test died before its own `finally`.
+  if (laneStandaloneId) await svcDelete(req, `responses?id=eq.${laneStandaloneId}`)
+
+  // 2. cases — phases DO cascade from here (measured: confdeltype 'c').
+  await svcDelete(req, `cases?commission_id=eq.${COMM_A}&label=like.*${RUN_TAG}*`)
+
+  // 3. templates — nothing references them once the cases are gone. `process_templates`
+  //    carries no title column, so they are identified through their versions.
+  const tplVersions = await svcGet<{ template_id: string }>(
+    req,
+    `process_template_versions?title=like.*${RUN_TAG}*&select=template_id`,
+  )
+  for (const t of new Set(tplVersions.map((v) => v.template_id))) {
+    await svcDelete(req, `process_templates?id=eq.${t}`)
+  }
+
+  // 4. forms — versions, sections and items cascade from here.
+  for (const f of forms) await svcDelete(req, `forms?id=eq.${f.id}`)
+}
+
 async function signInAs(page: Page, email: string) {
   await cachedSignIn(page, email, 'Test1234!')
 }
 
 /** Read the phase's server-side status — the FACT behind whatever the screen says. */
 async function phaseStatus(req: APIRequestContext): Promise<string> {
+  return phaseStatusOf(req, phaseId)
+}
+
+/** The same read for any phase — the keyboard fixture owns a second one. */
+async function phaseStatusOf(req: APIRequestContext, id: string): Promise<string> {
   const rows = await svcGet<{ status: string }>(
     req,
-    `case_phases?id=eq.${phaseId}&select=status`,
+    `case_phases?id=eq.${id}&select=status`,
   )
-  expect(rows.length, 'phase row vanished').toBe(1)
+  expect(rows.length, `phase row ${id} vanished`).toBe(1)
   return rows[0].status
+}
+
+/**
+ * Build ANOTHER frozen case-phase record on the spec's template: create the case,
+ * activate phase 1 onto the plain staff member, fill the one required question and
+ * submit. The phase parks in `awaiting_signoff` — a queue row owing a signature.
+ *
+ * ⚠ FIXTURE PLUMBING, NOT THE SUBJECT: the fill/submit run over the RPCs rather
+ * than the wizard, because what the caller is about to test is the SIGNING, and
+ * re-driving the browser wizard would make a wizard regression red a keyboard test.
+ * The wizard path itself is covered by the first test in this file.
+ */
+async function freezeNewPhaseResponse(
+  req: APIRequestContext,
+  tag: string,
+): Promise<{ caseId: string; phaseId: string; responseId: string }> {
+  const started = await startNewPhaseResponse(req, tag)
+  const staffToken = await getToken(req, 'staff1.ccih@test.local')
+
+  // form-model-normalization: a multiple_choice selection goes through
+  // `p_selections` as the option CODE, not `p_answers` with the label.
+  const save = await rpc(req, 'save_section_answers', staffToken, {
+    p_response_id: started.responseId,
+    p_section_id: specSectionId,
+    p_answers: {},
+    p_selections: { [specItemId]: ['sim'] },
+  })
+  expect(
+    save.ok(),
+    `freezeNewPhaseResponse(${tag}): save_section_answers failed: ${await save.text()}`,
+  ).toBeTruthy()
+
+  const submit = await rpc(req, 'submit_response', staffToken, {
+    p_response_id: started.responseId,
+  })
+  expect(
+    submit.ok(),
+    `freezeNewPhaseResponse(${tag}): submit_response failed: ${await submit.text()}`,
+  ).toBeTruthy()
+
+  return started
+}
+
+/**
+ * The first half of the above: a case whose phase 1 is ACTIVE and holds a fresh
+ * `in_progress` response. Split out because the lane-guard test needs a case-phase
+ * response that is still a DRAFT — and needs its OWN, never the shared one.
+ */
+async function startNewPhaseResponse(
+  req: APIRequestContext,
+  tag: string,
+): Promise<{ caseId: string; phaseId: string; responseId: string }> {
+  const chefeToken = await getToken(req, 'chefe.ccih@test.local')
+  const staffToken = await getToken(req, 'staff1.ccih@test.local')
+
+  const created = await rpc(req, 'create_case_from_template', chefeToken, {
+    p_template_id: templateId,
+    p_label: `Caso ${SPEC_TAG} ${RUN_TAG} ${tag}`,
+  })
+  expect(
+    created.ok(),
+    `freezeNewPhaseResponse(${tag}): create_case_from_template failed: ${await created.text()}`,
+  ).toBeTruthy()
+  const newCaseId = ((await created.json()) as { id: string }).id
+
+  const phases = await svcGet<{ id: string }>(
+    req,
+    `case_phases?case_id=eq.${newCaseId}&position=eq.1&select=id`,
+  )
+  expect(phases.length, `freezeNewPhaseResponse(${tag}): phase 1 not found`).toBe(1)
+  const newPhaseId = phases[0].id
+
+  const activate = await rpc(req, 'activate_phase', chefeToken, {
+    p_case_phase_id: newPhaseId,
+    p_assigned_to: UID_STAFF_1,
+  })
+  expect(
+    activate.ok(),
+    `freezeNewPhaseResponse(${tag}): activate_phase failed: ${await activate.text()}`,
+  ).toBeTruthy()
+
+  const start = await rpc(req, 'start_or_resume_phase', staffToken, {
+    p_case_phase_id: newPhaseId,
+  })
+  expect(
+    start.ok(),
+    `freezeNewPhaseResponse(${tag}): start_or_resume_phase failed: ${await start.text()}`,
+  ).toBeTruthy()
+  const newResponseId = ((await start.json()) as { id: string }).id
+
+  return { caseId: newCaseId, phaseId: newPhaseId, responseId: newResponseId }
+}
+
+/**
+ * Walk focus to `target` with real Tab presses and nothing else.
+ *
+ * ⛔ Deliberately NOT `locator.focus()` — that sets focus programmatically and would
+ * pass over a control the Tab order cannot actually reach, which is precisely the
+ * defect a keyboard test exists to find (and `.focus()` does not auto-wait either).
+ * The bound is generous but finite: an unbounded walk on an unreachable control
+ * hangs until the suite timeout, which reads as flake rather than as a finding.
+ */
+async function tabUntilFocused(
+  page: Page,
+  target: Locator,
+  what: string,
+  max = 60,
+): Promise<void> {
+  for (let i = 0; i < max; i++) {
+    if (await target.evaluate((el) => el === document.activeElement).catch(() => false)) {
+      break
+    }
+    await page.keyboard.press('Tab')
+  }
+  await expect(
+    target,
+    `${what} was never reached after ${max} Tab presses — keyboard-unreachable`,
+  ).toBeFocused()
 }
 
 // ---------------------------------------------------------------------------
 
 test.beforeAll(async ({ request }) => {
-  // Idempotent purge of a previous aborted run — delete by IDENTITY (title), never
-  // positionally: a positional cleanup eats seed rows.
-  const staleCases = await svcGet<{ id: string }>(
-    request,
-    `cases?commission_id=eq.${COMM_A}&label=like.*${SPEC_TAG}*&select=id`,
-  )
-  for (const c of staleCases) {
-    await request.delete(`${SUPABASE_URL}/rest/v1/cases?id=eq.${c.id}`, {
-      headers: svcHeaders(),
-    })
-  }
+  // Idempotent purge of a previous aborted run — delete by IDENTITY (title/label),
+  // never positionally: a positional cleanup eats seed rows.
+  await purgeSpecFixtures(request)
 
   // 1. A spec-owned form: one required question + a staff_admin SIGN-OFF section.
   const formRow = await svcInsert<{ id: string }>(request, 'forms', {
@@ -156,6 +367,7 @@ test.beforeAll(async ({ request }) => {
     is_default: true,
     title: null,
   })
+  specSectionId = defaultSection.id
   const item = await svcInsert<{ id: string; form_version_id: string }>(
     request,
     'form_items',
@@ -168,6 +380,7 @@ test.beforeAll(async ({ request }) => {
       required: true,
     },
   )
+  specItemId = item.id
   for (const [i, opt] of [['sim', 'Sim'], ['nao', 'Não']].entries()) {
     await svcInsert(request, 'form_item_options', {
       item_id: item.id,
@@ -249,7 +462,7 @@ test.beforeAll(async ({ request }) => {
   //    removes was never there to remove.
   const createCase = await rpc(request, 'create_case_from_template', chefeToken, {
     p_template_id: templateId,
-    p_label: `Caso ${SPEC_TAG}`,
+    p_label: `Caso ${SPEC_TAG} ${RUN_TAG}`,
   })
   expect(
     createCase.ok(),
@@ -285,23 +498,7 @@ test.beforeAll(async ({ request }) => {
 })
 
 test.afterAll(async ({ request }) => {
-  // Delete by IDENTITY. The case cascade takes its phases + responses with it.
-  if (caseId) {
-    await request.delete(`${SUPABASE_URL}/rest/v1/cases?id=eq.${caseId}`, {
-      headers: svcHeaders(),
-    })
-  }
-  if (templateId) {
-    await request.delete(
-      `${SUPABASE_URL}/rest/v1/process_templates?id=eq.${templateId}`,
-      { headers: svcHeaders() },
-    )
-  }
-  if (specFormId) {
-    await request.delete(`${SUPABASE_URL}/rest/v1/forms?id=eq.${specFormId}`, {
-      headers: svcHeaders(),
-    })
-  }
+  await purgeSpecFixtures(request)
 })
 
 // ---------------------------------------------------------------------------
@@ -309,6 +506,93 @@ test.afterAll(async ({ request }) => {
 test.describe.configure({ mode: 'serial' })
 
 test.describe('ADR 0136 — the filler submits without the coordinator', () => {
+  /**
+   * FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT — WHICH LANE EACH ROUTE SERVES.
+   *
+   * Nothing structurally kept a CASE-PHASE response off the standalone
+   * `/forms/[formId]/responder/[responseId]` route: `getResponseForFill` filters
+   * on `id` alone, and that page's own guards (formId · commission · status) are
+   * ALL satisfied by a case-phase response — its form IS `formId`, its commission
+   * IS the caller's. ADR 0136 made that visible rather than causing it:
+   * `deferStaffSignoff` is resolved on the case-phase route only, so the same
+   * response rendered here showed a DISABLED submit for a submit `submit_response`
+   * would have accepted. One response, two behaviours, chosen by which URL was
+   * typed.
+   *
+   * ⛔ RUNS FIRST, DELIBERATELY. `responseId` is still `in_progress` at this point
+   * — the exact state the divergence lived in. Later tests freeze it.
+   *
+   * ⚠ THREE ASSERTIONS, NOT ONE. "It 404s" is also true of a route that 404s
+   * EVERYTHING, and of a response the caller simply cannot read — both would pass a
+   * one-sided test with the guard deleted. So the SAME response is walked through
+   * its OWN route (twin 1: the response and the session are fine), and a STANDALONE
+   * response of the SAME user is walked through the SAME route (twin 2: the route is
+   * fine). Only the LANE differs across the three.
+   */
+  test('the standalone forms route refuses a CASE-PHASE response, and only that', async ({
+    page,
+    request,
+  }) => {
+    // ⛔ OWN FIXTURES, CREATED AND DESTROYED INSIDE THIS TEST. Rendering a wizard is
+    // not read-only — the wizard persists resume state on navigation — and an earlier
+    // draft of this test drove the SHARED response's wizard, which left it resumed at
+    // a later section and reddened the submit test two tests down. An `in_progress`
+    // case-phase response also joins the sign-off queue as a live draft under the same
+    // form title, which would break the queue tests below; hence the `finally`.
+    const lane = await startNewPhaseResponse(request, 'LANE')
+
+    // A STANDALONE draft for the SAME user on the SAME version. Inserted directly
+    // rather than through `start_or_resume_response`, which would hand back the
+    // case-phase draft instead: its resume query filters on (version, creator,
+    // in_progress) and — unlike the `responses_one_draft_per_user_idx` index behind it
+    // — carries no `case_phase_id is null` conjunct.
+    const standalone = await svcInsert<{ id: string }>(request, 'responses', {
+      form_version_id: specVersionId,
+      commission_id: COMM_A,
+      created_by: UID_STAFF_1,
+      status: 'in_progress',
+      started_at: new Date().toISOString(),
+    })
+    laneStandaloneId = standalone.id
+
+    try {
+      await signInAs(page, 'staff1.ccih@test.local')
+
+      // (1) THE SUBJECT — case-phase response, standalone route: refused.
+      // ⚠ Asserted on CONTENT, never on the HTTP status: a streamed `notFound()`
+      // is served as 200 by design in this Next version.
+      await page.goto(
+        `/o/${ORG_A}/c/${SLUG_A}/forms/${specFormId}/responder/${lane.responseId}`,
+      )
+      await expect(page.getByText(/404|não encontrad/i).first()).toBeVisible()
+      await expect(page.getByRole('button', { name: /salvar e sair/i })).toHaveCount(0)
+
+      // (2) TWIN 1 — SAME response, SAME session, its OWN route: renders.
+      // Fails if the 404 above came from a broken response or a lost session.
+      await page.goto(
+        `/o/${ORG_A}/c/${SLUG_A}/cases/${lane.caseId}/phase/${lane.phaseId}` +
+          `/responder/${lane.responseId}`,
+      )
+      await expect(page.getByRole('button', { name: /salvar e sair/i })).toBeVisible()
+
+      // (3) TWIN 2 — SAME user, SAME route, SAME form version, a STANDALONE draft:
+      // renders. Fails if the guard were widened into "this route 404s everything".
+      // Only the LANE differs between (1) and (3).
+      await page.goto(
+        `/o/${ORG_A}/c/${SLUG_A}/forms/${specFormId}/responder/${standalone.id}`,
+      )
+      await expect(page.getByRole('button', { name: /salvar e sair/i })).toBeVisible()
+    } finally {
+      await request.delete(`${SUPABASE_URL}/rest/v1/responses?id=eq.${standalone.id}`, {
+        headers: svcHeaders(),
+      })
+      laneStandaloneId = ''
+      await request.delete(`${SUPABASE_URL}/rest/v1/cases?id=eq.${lane.caseId}`, {
+        headers: svcHeaders(),
+      })
+    }
+  })
+
   test('the wizard reaches submit and the phase PARKS instead of completing', async ({
     page,
     request,
@@ -421,27 +705,65 @@ test.describe('ADR 0136 — the coordinator finishes the phase', () => {
       .toBe('completed')
   })
 
-  test('keyboard-only: the queue row is reachable and openable without a mouse', async ({
+  /**
+   * FUP-DSS-KEYBOARD-FLOW-IS-THIN — the per-phase keyboard flow (CLAUDE.md §8).
+   *
+   * ⛔ THE ACT MUST BE THE SIGNATURE, not the arrival. The previous version of this
+   * test asserted that the attested row had left the queue and that the first tab
+   * stop had an accessible name — an a11y FLOOR, in the place the requirement
+   * points at, which reads as the requirement being met. It never signed anything.
+   * What this ADR creates is a signature that CONCLUDES a case phase and releases
+   * everything downstream of it, so a keyboard trap on THAT control is materially
+   * worse than one on a draft.
+   *
+   * ⚠ SECOND FIXTURE, ON PURPOSE. Signing needs an unsigned frozen record and the
+   * pointer-driven test above consumed the only one. Building a second case (rather
+   * than converting that test to keyboard) keeps the two failure modes separable:
+   * a red here means the KEYBOARD path broke, not that signing broke.
+   */
+  test('keyboard-only: reach the queue row, open it, and SIGN — no pointer', async ({
     page,
+    request,
   }) => {
-    // The per-phase keyboard flow (CLAUDE.md §8). Run AFTER the signature, so the
-    // queue is empty for this fixture — which is itself the assertion that the
-    // frozen row LEAVES the queue once attested.
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/${ORG_A}/c/${SLUG_A}/manage/assinaturas`)
 
+    // Carried over from the thin version, and still worth asserting: the record
+    // attested above LEFT the queue. It also guarantees the fixture built next is
+    // the ONLY row here, so the tab walk cannot land on a stale one.
     await expect(
       page.getByRole('listitem').filter({ hasText: FORM_TITLE }),
     ).toHaveCount(0)
 
-    // Tab into the page and confirm focus lands on something operable with a
-    // visible name (never a bare div) — the a11y floor for this surface.
-    await page.keyboard.press('Tab')
-    const focused = page.locator(':focus')
-    await expect(focused).toHaveCount(1)
-    const name = await focused.evaluate(
-      (el) => el.getAttribute('aria-label') ?? el.textContent?.trim() ?? '',
-    )
-    expect(name.length, 'the first tab stop has no accessible name').toBeGreaterThan(0)
+    // A second frozen record: same template, same form, its own case.
+    const kb = await freezeNewPhaseResponse(request, 'KB')
+    kbPhaseId = kb.phaseId
+    kbResponseId = kb.responseId
+    expect(await phaseStatusOf(request, kbPhaseId)).toBe('awaiting_signoff')
+
+    await page.reload()
+    const queueRow = page.getByRole('link', { name: new RegExp(FORM_TITLE, 'i') })
+    await expect(queueRow).toHaveCount(1)
+
+    // ── KEYBOARD ONLY FROM HERE. No click(), no tap(), no .focus(): every move is
+    //    a real Tab/Enter, which is what makes a focus trap or an unreachable
+    //    control fail this test instead of being stepped over.
+    await tabUntilFocused(page, queueRow, 'the sign-off queue row')
+    await page.keyboard.press('Enter')
+
+    await expect(page).toHaveURL(new RegExp(`/manage/assinaturas/${kbResponseId}$`))
+    // The signer must be looking at the frozen record's own content, reached
+    // without a pointer — a signature over a screen nobody could reach by keyboard
+    // is the trap this test exists to catch.
+    await expect(page.getByText('Registro já enviado e congelado.')).toBeVisible()
+
+    const signButton = page.getByRole('button', { name: /Assinar/ }).first()
+    await tabUntilFocused(page, signButton, 'the "Assinar" button')
+    await page.keyboard.press('Enter')
+
+    // THE ASSERTION THAT MATTERS: the phase concluded, from a keyboard alone.
+    await expect
+      .poll(async () => phaseStatusOf(request, kbPhaseId), { timeout: 15_000 })
+      .toBe('completed')
   })
 })

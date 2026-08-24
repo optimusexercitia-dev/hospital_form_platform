@@ -1013,3 +1013,14 @@ cites, and a ledger row whose cited run has vanished is a dangling claim._
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-24 | ⭐ **ADR 0137 · GATE STEP 1** · detail: [adr-0137-batch.md](adr-0137-batch.md) | lint 8/8 · `tsc` 0 · Vitest **1685** · `test:db` **7126/7126** (215f) on a fresh reset · four authz ARMs **HOLD**, zero `ERROR` · ⚠ diff-scoped door sweep **NOT TRIGGERED — a MEASURED empty** (0 policy statements, 0 boolean fns), **not** a clean sweep |
+
+## Gate rows rotated from PROGRESS.md 2026-08-24 (ADR 0137 batch)
+
+> Moved verbatim under § Test Run Summary's own retention rule — "the most recent gate
+> only". The ADR 0137 batch is complete, PO-approved and pushed; these are prior gates.
+> Byte-identical apart from link repointing (root-relative `docs/...` -> `../...`).
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-24 | ⭐ **GATE STEP 1 — the `FUP-0137-PHI-MODE-SHIMS` closure** (supersedes the 0137 batch's step-1 row → [archive](test-run-archive.md)) | lint 8/8 · `tsc` 0 · Vitest **123f / 1703** · `test:db` **7149/7149** (217f) on a fresh reset — **+1 file / +10** is pgTAP `366` · four authz ARMs **HOLD**, exit 0 · no RLS policy and no `prosecdef` boolean gate touched, so no diff-scoped sweep was owed |
+| 2026-08-24 | ⭐⭐ **ADR 0137 · FULL `e2e:prod` (gate step 2)**, at `1320d0b0` · detail: [adr-0137-batch.md](adr-0137-batch.md) | ✅ **GREEN, exit 0** — 1221 p · 0 f · 0 infra · 0 DNR · 2 flaky. ⚠ **Covers `1320d0b0`, NOT current HEAD** — the 2 increments after it have only a scoped 11-spec run. ⛔ Two earlier runs failed DIFFERENTLY (RED exit 1; exit 5 **UNRUN**) — ledger row 0137 |

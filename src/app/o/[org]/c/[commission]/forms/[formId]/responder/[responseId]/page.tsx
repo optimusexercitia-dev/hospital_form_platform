@@ -51,6 +51,21 @@ export default async function ResponderPage({
     notFound();
   }
 
+  // ⛔ THIS ROUTE SERVES THE STANDALONE LANE ONLY (ADR 0136 /
+  // FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT). A case-phase response satisfies
+  // every guard above — its form IS `formId`, its commission IS the caller's —
+  // so nothing structural kept it off this route, and `getResponseForFill`
+  // filters on `id` alone. The lane is a property of the ROW, so read it there.
+  //
+  // Why refuse rather than adapt: `deferStaffSignoff` is resolved on the
+  // case-phase route only, so the same response rendered here shows a DISABLED
+  // submit for a submit `submit_response` would accept — one response, two
+  // behaviours, chosen by which URL was typed. Everything else on this page is
+  // written for the standalone lane too (the "Formulários" back-link, the
+  // confirmation screen's onward link), so serving a case phase here was always
+  // wrong; the deferral is what made it visible.
+  if (response.casePhaseId !== null) notFound();
+
   // A submitted response is immutable — it can't be filled. We render the
   // confirmation here (rather than redirecting) so that the post-submit
   // revalidation of this route lands on the confirmation screen instead of

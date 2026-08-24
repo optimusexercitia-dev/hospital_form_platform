@@ -16,7 +16,7 @@
 -- what ships to production) would have no coverage at all.
 
 begin;
-select plan(61);
+select plan(79);
 
 -- ---------------------------------------------------------------------------
 -- Flags. ⚠ A missing flag-enable does not fail — it SILENTLY SKIPS the keystone
@@ -40,6 +40,8 @@ create temp table k on commit drop as
 select (v->>'comm_x')::uuid as comm_x, (v->>'org_b')::uuid as org_b,
        (v->>'form_s')::uuid as form_s, (v->>'ver_s')::uuid as ver_s,
        (v->>'sa_x')::uuid as sa_x, (v->>'st_x')::uuid as st_x, (v->>'st_x2')::uuid as st_x2,
+       -- §13's OUTSIDER: staff_admin of commission Y, same org and hospital as X.
+       (v->>'sa_y')::uuid as sa_y,
        (v->>'sec_signoff_r')::uuid as sec_r, (v->>'sec_signoff_a')::uuid as sec_a,
        (v->>'sec_s1')::uuid as sec_s1,
        (v->>'it_gate')::uuid as it_gate, (v->>'it_req')::uuid as it_req
@@ -644,5 +646,302 @@ select is(
      and p.prosrc like '%pending_staff_signoffs%'),
   7,
   '12.2 the helper has exactly SEVEN callers — sign_section, list_signoff_queue, get_response_for_signoff, compute_due_notifications, save_section_answers, sync_case_phase_on_submit, trg_complete_phase_on_signoff. An 8th means a copy came back; a 6th means one was reverted');
+
+-- =============================================================================
+-- §13 — FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE: the per-principal WALK
+--       THROUGH the door, which is a different question from §§1-12's behaviour.
+--
+-- `app.pending_staff_signoffs` is a `SECURITY DEFINER` set-returning function with
+-- NO identity predicate at all. `ARM=census` flagged it never-swept the day it
+-- landed; `p0-authz-rowdoor-audit.sh` answered **UNSUPPORTED** — "no
+-- statement-level identity guard" — which is structurally exact, and it is filed
+-- under the UNSUPPORTED block of authz-unswept-backlog.txt rather than under
+-- `helper:`, because a `helper:` line claims "not an authorization decision" and
+-- this one IS an input to one: `get_response_for_signoff` gate 3 uses its
+-- EMPTINESS as the read right ("the read right is scoped to the act of signing").
+--
+-- ⛔ THE USUAL KEYSTONE SHAPE CANNOT PASS HERE, and saying so is the point. The
+-- eleven siblings in that block owe "the outsider reads 0 rows through this door".
+-- This door has no gate, so it returns the SAME rows to everyone by construction —
+-- an outsider-reads-0 assertion would be FALSE, and writing one would have meant
+-- bolting a gate onto a helper whose four callers each already gate. So the
+-- boundary is walked where it actually lives: §13.1-13.3 PIN the caller-blindness
+-- as designed (so a gate added later without updating the record reds here), and
+-- §13.4-13.9 walk every principal through the two doors that consume it.
+--
+-- ⚠ EVERY ASSERTION IS A ROW COUNT / A REFUSAL THROUGH THE DOOR, never a predicate
+-- call: a correct predicate is not a correct door.
+-- ⚠ AND EVERY DENIAL HAS A NON-VACUITY TWIN. "sa_y reads 0" is also true of a door
+-- returning 0 to EVERYONE, so sa_x's positive read sits beside each zero; and
+-- §13.10-13.12 re-read the helper AFTER the section is signed, so §13.1-13.3's
+-- "1" is proven to track the projection rather than being a constant.
+--
+-- THE OUTSIDER IS `sa_y` — staff_admin of commission Y under the SAME org and
+-- hospital, deliberately not an org-B user: a fully foreign principal can be denied
+-- by the tenant boundary before this door's own gate is reached, and the keystone
+-- would then be exercising cross-org isolation while claiming to pin the
+-- commission gate. THE RESPONDENT `st_x` is the second denial and the sharper one:
+-- they own the response and still may not reach the signing door.
+-- =============================================================================
+update app.feature_flags set enabled = true where key = 'deferred_staff_signoff';
+
+select pg_temp.mk(910013, '00000000-0000-0000-0000-0000000013a1'::uuid,
+                  '00000000-0000-0000-0000-0000000013a2'::uuid, null,
+                  '00000000-0000-0000-0000-0000000013a3'::uuid);
+
+-- Freeze it: submit with the staff_admin section unsigned (the whole ADR).
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select public.submit_response('00000000-0000-0000-0000-0000000013a1'::uuid);
+select test_helpers.reset_role_and_claims();
+
+select is(
+  (select status from public.case_phases where id = '00000000-0000-0000-0000-0000000013a2'::uuid),
+  'awaiting_signoff',
+  '13.0 FIXTURE PRECONDITION: the phase is PARKED — every assertion below is about a frozen record owing a signature, and none of them can reach that state if this is wrong');
+
+-- ---------------------------------------------------------------------------
+-- §13.1-13.3 — CALLER-BLINDNESS, ASSERTED RATHER THAN ASSUMED.
+-- ---------------------------------------------------------------------------
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from app.pending_staff_signoffs('00000000-0000-0000-0000-0000000013a1'::uuid)),
+  1,
+  '13.1 the helper returns the 1 pending section to the COORDINATOR');
+select test_helpers.reset_role_and_claims();
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from app.pending_staff_signoffs('00000000-0000-0000-0000-0000000013a1'::uuid)),
+  1,
+  '13.2 ⭐ …and the IDENTICAL row to the RESPONDENT — this door carries no identity gate BY DESIGN; if this ever reds, a gate was added and the backlog record must move');
+select test_helpers.reset_role_and_claims();
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from app.pending_staff_signoffs('00000000-0000-0000-0000-0000000013a1'::uuid)),
+  1,
+  '13.3 ⭐ …and to a NON-MEMBER staff_admin. The projection is not the boundary — 13.4-13.9 are');
+select test_helpers.reset_role_and_claims();
+
+-- ---------------------------------------------------------------------------
+-- §13.4-13.6 — THE WALK-THROUGH: `get_response_for_signoff`, the door whose gate 3
+--              consumes this helper's emptiness. It RAISES no_data_found rather
+--              than returning empty, so the denial is asserted as a refusal.
+-- ---------------------------------------------------------------------------
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (public.get_response_for_signoff('00000000-0000-0000-0000-0000000013a1'::uuid) ->> 'response_id'),
+  '00000000-0000-0000-0000-0000000013a1',
+  '13.4 THE TWIN: the coordinator walks through and gets THIS response — without which every zero below is unfalsifiable');
+select test_helpers.reset_role_and_claims();
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  $probe$ select public.get_response_for_signoff('00000000-0000-0000-0000-0000000013a1'::uuid) $probe$,
+  'P0002', null,
+  '13.5 a same-tenant staff_admin of ANOTHER commission is refused the signing door');
+select test_helpers.reset_role_and_claims();
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $probe$ select public.get_response_for_signoff('00000000-0000-0000-0000-0000000013a1'::uuid) $probe$,
+  'P0002', null,
+  '13.6 ⭐ the RESPONDENT — who owns this very response — is refused it too: the read right is the act of SIGNING, not authorship');
+select test_helpers.reset_role_and_claims();
+
+-- ---------------------------------------------------------------------------
+-- §13.7-13.9 — THE WALK-THROUGH: `list_signoff_queue`, the second consumer. This
+--              one returns an EMPTY SET rather than raising, so it is counted.
+-- ---------------------------------------------------------------------------
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.list_signoff_queue((select comm_x from k))
+   where response_id = '00000000-0000-0000-0000-0000000013a1'::uuid),
+  1,
+  '13.7 THE TWIN: the frozen record IS in the coordinator''s queue');
+select test_helpers.reset_role_and_claims();
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.list_signoff_queue((select comm_x from k))),
+  0,
+  '13.8 a non-member staff_admin reads an EMPTY queue for commission X — not merely "not this row", nothing at all');
+select test_helpers.reset_role_and_claims();
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.list_signoff_queue((select comm_x from k))),
+  0,
+  '13.9 the respondent reads an EMPTY queue for their OWN commission — filling is not countersigning');
+select test_helpers.reset_role_and_claims();
+
+-- ---------------------------------------------------------------------------
+-- §13.10-13.12 — THE DIFFERENTIAL. Sign the section, then re-read the helper as all
+--                three principals. If 13.1-13.3's "1" were a constant rather than
+--                the live projection, these would stay 1 and this file would be
+--                asserting nothing about the door's contents.
+-- ---------------------------------------------------------------------------
+insert into public.response_section_signoffs (response_id, section_id, signed_by)
+select '00000000-0000-0000-0000-0000000013a1'::uuid, sec_a, sa_x from k;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from app.pending_staff_signoffs('00000000-0000-0000-0000-0000000013a1'::uuid)),
+  0,
+  '13.10 DIFFERENTIAL: once signed, the coordinator reads 0 — 13.1 tracked the projection');
+select test_helpers.reset_role_and_claims();
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from app.pending_staff_signoffs('00000000-0000-0000-0000-0000000013a1'::uuid)),
+  0,
+  '13.11 DIFFERENTIAL: …and so does the respondent — 13.2 tracked it too');
+select test_helpers.reset_role_and_claims();
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from app.pending_staff_signoffs('00000000-0000-0000-0000-0000000013a1'::uuid)),
+  0,
+  '13.12 DIFFERENTIAL: …and the non-member — 13.3 tracked it too, so all three zeros above are about the GATE and not about an empty projection');
+select test_helpers.reset_role_and_claims();
+
+-- =============================================================================
+-- §14 — FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE: walk the DOOR, not the predicate.
+--
+-- `p0-authz-invoker-audit.sh` re-run over the SHIPPED body on 2026-08-24 returned
+-- **BLIND** — `open-guard(g1=0,g2=0,g3=1)`. The pre-ADR-0136 findings row said
+-- `open-guard(g1=1,g2=0,g3=0) | COVERED | ⚠ PROVISIONAL`, so BOTH halves of that row
+-- were stale: the verdict AND the guard class the verdict was about. (`FROMFINDINGS=1
+-- ARM=wrapper` compares a committed file to an allowlist and re-measures nothing, so a
+-- changed body is invisible to it by construction.)
+--
+-- ⛔ WHY IT WAS BLIND, MEASURED RATHER THAN REASONED. The guard ADR 0136 rewrote is
+--        if v_status <> 'in_progress' and not app.is_signoff_deferral_open(...) then raise
+-- and §5 above pins exactly that bound — by calling `app.is_signoff_deferral_open` and
+-- `app.can_sign_section` DIRECTLY. A predicate call is not a walk through the door: open
+-- the door's own guard and §5.1/§5.2 stay green, because neither ever goes through it.
+-- That is this repo's standing lesson ("a correct predicate is not a correct door") landing
+-- on the one function ADR 0136 changed.
+--
+-- ⚠ HAND-CLASSIFICATION, which the PROVISIONAL row asked for and nobody had done:
+-- **none of `sign_section`'s `if` guards is the authorization gate.** They are a domain
+-- probe (does this response/section pair exist), a LIFECYCLE window (is it still
+-- signable), and two shape checks. `sign_section` is INVOKER, so the authorization
+-- decision is the RLS `WITH CHECK` on `response_section_signoffs.signoffs_insert` —
+-- `signed_by = auth.uid() AND app.can_sign_section(...)` — which the INSERT reaches as the
+-- caller. That gate is swept elsewhere and COVERED in both places: the write-path sweep
+-- (`251_authz_p0_isolation.sql`) and the predicate arm (`app.can_sign_section`).
+-- ⛔ AND THE FIRST VERSION OF §14.1 DID NOT FIX THE BLIND — measured, not assumed. It
+-- asserted `throws_ok(..., '23514', null, ...)`, and with the wrapper guard opened
+-- (`if false then`) the sweep still returned BLIND: the suite stayed PASS. The reason is
+-- THE SECOND LOCK. `public.guard_submitted_signoffs` — the INSERT trigger on
+-- `response_section_signoffs`, which shares the very same
+-- `app.is_signoff_deferral_open` window — refuses with `errcode = 'check_violation'`,
+-- i.e. **23514, the identical SQLSTATE the wrapper raises**. A matcher keyed on the code
+-- alone therefore passes whichever lock fires, and cannot notice the first one being
+-- removed. So 14.1 is pinned to the wrapper's own MESSAGE, which is the only thing that
+-- distinguishes them. ⚠ Two locks are a good thing; a keystone that cannot say which one
+-- held is not, and this one read as coverage while proving nothing about its subject.
+-- ==============================================================================
+
+-- 14.1 — THE DENIAL, THROUGH THE DOOR. Response …1303 sits on a COMPLETED phase, so the
+-- deferral window is shut (§5.1) and `can_sign_section` already refuses it (§5.2). What
+-- nothing asserted is that `sign_section` ITSELF refuses, with its own lifecycle error.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $probe$ select public.sign_section('00000000-0000-0000-0000-000000001303'::uuid,
+                                     (select sec_a from k), null) $probe$,
+  '23514', 'esta resposta já foi enviada e não pode mais ser assinada',
+  '14.1 ⭐ KEYSTONE: sign_section REFUSES a window-closed response with ITS OWN message — asserted through the DOOR (§5 calls the predicates and cannot) and pinned to the message because the SQLSTATE alone cannot say WHICH lock fired');
+select test_helpers.reset_role_and_claims();
+
+-- 14.2/14.3 — THE NON-VACUITY TWIN. "the door refuses" is also true of a door that
+-- refuses EVERYONE, so the same door, the same signer and the same section must SUCCEED
+-- on a response whose window is OPEN — and conclude the phase.
+select pg_temp.mk(910014, '00000000-0000-0000-0000-0000000014a1'::uuid,
+                  '00000000-0000-0000-0000-0000000014a2'::uuid, null,
+                  '00000000-0000-0000-0000-0000000014a3'::uuid);
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $probe$ select public.submit_response('00000000-0000-0000-0000-0000000014a1'::uuid) $probe$,
+  '14.2 the twin''s fixture freezes (submit succeeds with the staff_admin section unsigned)');
+select test_helpers.reset_role_and_claims();
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $probe$ select public.sign_section('00000000-0000-0000-0000-0000000014a1'::uuid,
+                                     (select sec_a from k), null) $probe$,
+  '14.3 ⭐ THE TWIN: the SAME door, signer and section SUCCEED while the window is open — so 14.1 pins the window, not a door that refuses everything');
+select test_helpers.reset_role_and_claims();
+
+-- =============================================================================
+-- §15 — THE LANE THE RESUME QUERY FORGOT (ADR 0136 /
+--       FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT, the route guard's other half).
+--
+-- `responses_one_draft_per_user_idx` is
+--     unique (form_version_id, created_by) where status = 'in_progress'
+--                                            AND case_phase_id IS NULL
+-- — i.e. the "one draft per user per version" rule is a STANDALONE-LANE rule, and the
+-- index says so explicitly. `start_or_resume_response`'s own resume query did NOT carry
+-- that conjunct: it selected any `in_progress` response for (version, caller). So a user
+-- holding a CASE-PHASE draft on version V, pressing "Preencher" on the standalone form V,
+-- was handed **the case-phase draft** — which the standalone responder route now refuses
+-- outright (it serves the standalone lane only). Before that guard existed the same path
+-- rendered a wizard whose submit button was dead. Both are wrong; the guard is what made
+-- it visible.
+--
+-- ⚠ THE STATE HAD TO BE CONSTRUCTED. `seed.sql` contains no `in_progress` case-phase
+-- response at all, so no existing test could have met this, and nothing here would have
+-- reddened on its own. (The two such rows visible on a working stack earlier were E2E
+-- leftovers, not seed rows — a measurement that goes stale the moment someone resets.)
+--
+-- ⚠ ASSERTED ON THE LANE, NOT ON AN ID: the contract is "this door yields a STANDALONE
+-- draft", which stays true whether it resumed one or created one.
+-- =============================================================================
+
+-- Deterministic start: st_x holds exactly ONE in_progress response on ver_s, and it is a
+-- case-phase draft. Without this the resume could pick a leftover standalone draft from
+-- an earlier section and pass while the defect is still there.
+delete from public.responses r
+where r.form_version_id = (select ver_s from k)
+  and r.created_by = (select st_x from k)
+  and r.status = 'in_progress';
+
+select pg_temp.mk(910015, '00000000-0000-0000-0000-0000000015a1'::uuid,
+                  '00000000-0000-0000-0000-0000000015a2'::uuid, null,
+                  '00000000-0000-0000-0000-0000000015a3'::uuid);
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+create temp table resumed on commit drop as
+  select * from public.start_or_resume_response((select ver_s from k));
+select test_helpers.reset_role_and_claims();
+
+select is(
+  (select case_phase_id is null from resumed),
+  true,
+  '15.1 ⭐ KEYSTONE: start_or_resume_response hands back a STANDALONE draft even when the caller holds a case-phase draft on the same version — the resume query must carry the same `case_phase_id is null` conjunct its own unique index does');
+
+select is(
+  (select status from public.responses where id = '00000000-0000-0000-0000-0000000015a1'::uuid),
+  'in_progress',
+  '15.2 THE TWIN: the case-phase draft is left alone — the fix must ADD a standalone lane, never hijack or close the phase draft');
 
 rollback;

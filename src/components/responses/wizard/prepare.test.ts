@@ -64,6 +64,9 @@ function response(over: Partial<ResponseForFill>): ResponseForFill {
     formId: "f1",
     formTitle: "Formulário",
     commissionId: "c1",
+    // ADR 0136 — the lane. `null` = the standalone lane, which is what every
+    // case in this file exercises; the case-phase arms pass their own override.
+    casePhaseId: null,
     status: "in_progress",
     // FF-4 (ADR 0092 ruling 5): REQUIRED on ResponseForFill — what `today`/
     // `now` resolve against (`prepare.ts`'s `dynamicDefaultContext`).

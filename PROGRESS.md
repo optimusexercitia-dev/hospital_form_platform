@@ -50,10 +50,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      accounted 61 of 62 collected (the 62nd is a by-design skip, reconciled per batch: 18+25+18).
      ⛔ A first attempt was **exit 5 UNRUN** — `server_dead` left 27 tests never executed, plus a
      spec name that does not exist. Neither is a pass and neither is a regression signal.
-- **✅ ADR 0136 — deferred `staff_admin` sign-off: BUILT 2026-08-24, ⛔ NOT COMMITTED, awaiting §6
+- **✅ ADR 0136 — deferred `staff_admin` sign-off: BUILT + COMMITTED `1069711c` 2026-08-24,
+  ⛔ NOT PUSHED (`main` is ahead of `origin/main` by 2 — measure, never quote), awaiting §6
   step 3 (QA) + step 4 (human approval).** Migration `20261003001900_deferred_staff_signoff.sql`
-  (20 changes, every body re-emitted from `pg_get_functiondef`), pgTAP **367** (61 assertions),
-  E2E `deferred-staff-signoff.spec.ts` (5), plan
+  (20 changes, every body re-emitted from `pg_get_functiondef`), pgTAP **367** (**79** assertions
+  after the follow-up round below), E2E `deferred-staff-signoff.spec.ts` (**6**), plan
   [deferred-staff-admin-signoff.md](docs/plans/deferred-staff-admin-signoff.md), ADR
   [0136 § Amendment 1](docs/decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md).
   Ships behind `deferred_staff_signoff`, **OFF in production** — seed forces it on for local/E2E, and
@@ -76,6 +77,26 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   **BUG-SIGNOFF-GROUPCOND-001** (§ Bug Log).
   ⚠ **Gate state:** step 1 ✅ (figures in § Test Run Summary), step 2 ✅ **scoped only** — no full
   `e2e:prod` covers this HEAD — step 3 ⛔ **not run**, step 4 ⛔ **not given**.
+  ⛔ **The figures carry a QUALIFICATION added after they were recorded** — three sessions shared the
+  local stack, unknown to the session that gated. Believed sound; **not proven**. ADR 0136 § Amdt 1.
+  ⭐ **FOLLOW-UP ROUND, 2026-08-24 — all five ADR-0136 follow-ups RESOLVED, ⛔ UNCOMMITTED on top of
+  `1069711c`** (index lines rotated below; each body in `follow-ups.md` carries its evidence).
+  Three things a reader must not skip, because none was in the follow-ups as filed:
+  1. **A DATABASE defect fell out of the route fix** — `start_or_resume_response`'s resume query
+     lacked the `case_phase_id is null` conjunct its own unique index carries, so "Preencher" handed
+     back the caller's CASE-PHASE draft. Migration `20261003002000`; the state is **not in
+     `seed.sql`**, so it was CONSTRUCTED and pinned red-first (pgTAP `367` §15).
+  2. **The stale invoker verdict was not merely stale — the honest re-run said BLIND**, and the
+     guard CLASS had moved g1→g3. Closed by `367` §14, whose FIRST version did not close it: keyed
+     on SQLSTATE `23514` it stayed green, because the INSERT trigger shares that exact code. Pinned
+     to the wrapper's MESSAGE instead → COVERED.
+  3. **The door sweep's arm was widened by PROPERTY** (ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md)
+     **Amdt 9**; domain 102→110). It found what it was widened to find: 6 COVERED · **1 BLIND** ·
+     1 ERROR → two NEW follow-ups below. ⛔ `FUP-RCA-WRITER-CAN-WRITE-IS-BLIND` blocks a phase.
+  ⛔ **Same shared-stack caveat applies to THIS round's figures** — ~8 `db reset`s were issued on a
+  stack ADR 0136 § Amdt 1 records as shared by three sessions. And it took THREE sweep runs to get
+  trustworthy verdicts: **a green baseline is not evidence the DB is fit to mutate** (ADR 0079
+  Amdt 9 records the mechanism as UNMEASURED — stale state and a concurrent session fit equally).
 - **⚠ NO PHASE IS ACTIVE.** The ADR 0137 batch above is the most recent program, and it is complete.
   Everything else that stood here is done — the DM program, DSR + its operational remediation, the
   Cloud orphan probe, the `Imprimir prévia` split, AFF2 and the case-surface split. Every one of those
@@ -231,8 +252,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-24 | ⭐⭐ **ADR 0136 — STEP 1 + a SCOPED step 2** · full record: ADR [0136 § Amdt 1](docs/decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md) | lint 9/9 · `tsc` 0 · Vitest **124f/1715** · `test:db` **7210/7210** (218f, fresh reset; +1f/+61 = pgTAP `367`) · 4 authz ARMs **HOLD, exit 0 UNPIPED** + diff-scoped sweep · **15 mutations RED-proved** · E2E **scoped 9-spec 65p/0f/0 DNR**, exit 0. ⛔ **NO full `e2e:prod` on this HEAD**; step 3 NOT run |
-| 2026-08-24 | ⭐ **GATE STEP 1 — the `FUP-0137-PHI-MODE-SHIMS` closure** (supersedes the 0137 batch's step-1 row → [archive](docs/progress/test-run-archive.md)) | lint 8/8 · `tsc` 0 · Vitest **123f / 1703** · `test:db` **7149/7149** (217f) on a fresh reset — **+1 file / +10** is pgTAP `366` · four authz ARMs **HOLD**, exit 0 · no RLS policy and no `prosecdef` boolean gate touched, so no diff-scoped sweep was owed |
-| 2026-08-24 | ⭐⭐ **ADR 0137 · FULL `e2e:prod` (gate step 2)**, at `1320d0b0` · detail: [adr-0137-batch.md](docs/progress/adr-0137-batch.md) | ✅ **GREEN, exit 0** — 1221 p · 0 f · 0 infra · 0 DNR · 2 flaky. ⚠ **Covers `1320d0b0`, NOT current HEAD** — the 2 increments after it have only a scoped 11-spec run. ⛔ Two earlier runs failed DIFFERENTLY (RED exit 1; exit 5 **UNRUN**) — ledger row 0137 |
+| 2026-08-24 | ⭐ **ADR 0136 FOLLOW-UP ROUND — step 1 re-run + scoped step 2** (uncommitted on `1069711c`); detail: ADR [0079 Amdt 9](docs/decisions/0079-authz-door-blindness-standing-invariant.md) + the five bodies in [follow-ups.md](docs/progress/follow-ups.md) | lint 9/9 · `tsc` 0 · `test:db` **7228/7228** (218f, fresh reset; `367` 61→**79**) · 4 authz ARMs HOLD · door sweep **8 gates**: 6 COVERED · **1 BLIND** · 1 ERROR · invoker `sign_section` BLIND→**COVERED** · `e2e:prod` **scoped 3 specs 28p/0f/0 flaky**, exit 0. ⛔ No FULL `e2e:prod`; steps 3–4 not run |
 
 ## QA Verdicts
 
@@ -257,12 +277,11 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-24 | **The door sweep's predicate arm admits by PROPERTY, not only by NAME** — a `prosecdef` boolean whose BODY reaches identity is in scope; the 2 side-effecting writers are held out by name, with the reason at the exclusion. Domain 102→110; 8 gates swept → 6 COVERED · 1 BLIND · 1 ERROR | ADR [0079 Amdt 9](docs/decisions/0079-authz-door-blindness-standing-invariant.md) |
 | 2026-08-24 | **Tracking hardening batch** — colon-less ADR-edge labels a HARD gate-9 finding (4 live fixed); CLAUDE.md capped 40 KB; FUP body-residue check, 47 bodies rotated (2 orphans reconstructed); proposed-ADR review stamped, 30-day cadence; docs/progress link sweep registry-free (133→0) | [ADR 0140](docs/decisions/0140-tracking-apparatus-hardening-batch.md) |
 | 2026-08-24 | **Concluded § Now bullets rotate to a QUARTERLY archive** — `docs/progress/<YYYY>-Q<n>.md`, keyed to **rotation date**; `lint:progress` link-checks quarterly files by pattern (zero-match control) + the frozen `now-concluded-2026-08.md`; other categories keep their homes | [ADR 0139](docs/decisions/0139-quarterly-home-for-concluded-now-rotations.md) |
-| 2026-08-24 | **PO: the MRN floor is a PROCESS-TEMPLATE feature; processless cases are EXPECTED out of scope** — D1–D3 mean *require the MRN on template-minted cases*, not a platform-wide mandate. ⛔ Closed by RULING, not code: `create_case` is unchanged, so re-measuring reproduces it | [ADR 0137 Amdt 4](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
-| 2026-08-24 | **PO: post-send referral PHI amendment is NOT a product capability.** The refusal moves INTO `set_referral_patient` (non-`draft` → its own `HC078`, before the upsert); `can_amend_referral_phi_snapshot` governs draft re-saves only. Blanking the MRN went from ONE edit away to TWO, measured | [ADR 0137 Amdt 1](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) · [ADR 0078 D7](docs/decisions/0078-authorization-capability-model.md) |
-| 2026-08-24 | **PO: `CaseDepartmentField` is DELETED** (component + test) — D9 left it with no consumer but its own test, which no gate in the eight can distinguish from real use | [ADR 0137 Amdt 3](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
-| 2026-08-24 | **Lead: ADR 0137's deploy rationale is FALSE and is corrected, not re-argued.** *"Additive ⇒ old-code/new-schema is safe"* — measured, the dropped columns are selected directly by the deployed build. Order unchanged (schema→code); the window is real | [ADR 0137 Amdt 2](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
+
+> ↩ **4 concluded rows of the ADR 0137 batch (3 PO rulings + the lead deploy-rationale correction) rotated 2026-08-24** → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-24". The batch is complete, PO-approved and pushed; each row is still one line, in full, there.
 
 > ↩ **6 concluded/superseded rows dated 2026-08-19 rotated 2026-08-20** (2 superseded the same day they were written; 4 shipped) → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-20 (second headroom pass)", appended verbatim before the cut and `cmp`-verified.
 
@@ -384,30 +403,16 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟡 **FUP-AFF2-REGISTRATION-HAS-NO-START-DATE** — `registerUser` takes no affiliation start date though the plan specifies it and sibling `affiliatePerson` accepts one (actions-layer asymmetry). ⚠ Behaviourally free; ⛔ **the defect is the RECORD** — `aff2.md` announced *"ALL THREE CLOSED"* over a **different** three. QA R3's other discharge half (*"build the field or file it"*), undone until now — backend then frontend
 - 🟡 **FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD** — `updateUserProfile` keeps the loose `authorizeForUser` entry gate to serve an affiliation half **no caller exercises**; a Vitest arm pins a path the product cannot produce. ⛔ Not a hole (`affiliate_person_for` re-derives in SQL) — a **decision owed**: tightening to `…ScopedAdmin('fields')` shrinks R1's blast radius but pre-commits a future re-wire. QA R5 — backend + PO
 - 🟡 **FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG** — `ARM=census`'s "prune" note names two LIVE `app`-schema INVOKER bodies as absent, because they fall outside its `public`-INVOKER domain. ⛔ Pruning as instructed deletes the record that they are unswept — backend
-- 🟡 **FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT** — the standalone `/forms/…/responder` route is not prevented from serving a CASE-PHASE response and passes `deferStaffSignoff=false`, so the same response has a dead submit button on one route and a live one on the other. ✅ Strictly MORE restrictive — not a security defect — but a divergence ADR 0136 created — frontend
-- 🟡 **FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE** — `app.pending_staff_signoffs` came back **UNSUPPORTED** from the row-door harness (no identity guard) and owes the per-principal walk-through keystone its class owes. ⚠ Behaviour IS drilled; that is a different question — backend
-- 🟡 **FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE** — `sign_section`'s invoker verdict is **PROVISIONAL** *and* was measured against the body ADR 0136 changed. ⛔ `FROMFINDINGS=1 ARM=wrapper` re-measures nothing, so a changed body is invisible to it by construction — backend
-- 🟡 **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** — the door sweep's predicate arm is bounded by a NAME REGEX standing in for a property (42 `prosecdef` booleans outside it, measured). ADR 0136 hit it live: the sweep matched **zero gates** until the function was renamed. ⛔ The rename is a workaround that makes coverage depend on a convention no gate enforces — backend
-- 🟡 **FUP-DSS-KEYBOARD-FLOW-IS-THIN** — the ADR 0136 spec's keyboard test asserts an a11y floor, not a keyboard-only flow; it never signs. ⚠ A thin test where the requirement points reads as the requirement being met — tester
+- 🟠 **FUP-RCA-WRITER-CAN-WRITE-IS-BLIND** — opening `public.rca_writer_can_write` reddens **NOTHING** across 218 files. ⭐ The first finding produced by ADR 0079 **Amdt 9**'s widening of the door sweep's predicate arm — the gate had never been swept in either direction, being outside the arm's NAME-bounded domain. ⛔ BLIND blocks a phase (§6 step 1) and owes a keystone; not an unreachable backstop, so the allowlist is not available — backend
+- 🟡 **FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE** — the door sweep cannot classify a gate whose opening makes a pgTAP file **ABORT**: the run shape moves and §7.15 withholds a verdict, correctly. Measured on `app.event_current_custodian` (`140_patient_safety.sql` reds its test 11, then "planned 35, ran 11"). ⚠ ERROR here means *unclassifiable*, not *unprotected* — the suite DID notice — but ⛔ ERROR is not a pass, and the newly-admitted broad gates are the likeliest to hit it — backend
 - 🟡 **FUP-E2E-CREATEFRESHCASE-SILENT-NULL** — `case-narratives.spec.ts`'s `createFreshCase()` returns `null` on any setup failure with no thrown error and no reason, so a broken fixture reads as "nothing to test". ⚠ **Pre-existing, NOT caused by ADR 0137** — tester
 - 🟡 **FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT** — 2 suites generate cases from `memberships_role_check` read LIVE at import, so vitest's total tracks DB state; §292 pins a durable shrink but not the transient mid-reset one. Assert the role SET against one shared literal, exported as a FUNCTION not a `const` — backend + frontend
 
+_**Five items RESOLVED 2026-08-24 (ADR 0136 follow-up round), index lines rotated** → [follow-ups-archive.md](docs/progress/follow-ups-archive.md): **FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT** · **FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE** · **FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE** · **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** (ADR 0079 **Amdt 9**) · **FUP-DSS-KEYBOARD-FLOW-IS-THIN**. Each body in [follow-ups.md](docs/progress/follow-ups.md) carries its resolution + evidence._
 
-_**Three items RESOLVED by the DSR remediation round, index lines rotated 2026-08-21** → [follow-ups-archive.md](docs/progress/follow-ups-archive.md): **FUP-DISPOSE-EVENT-DOOR-GATE-BLIND** (keystone `352` run **inside the full suite** on a fresh reset and re-neutralized there — the item closed on the RUN, never on the file existing) · **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** (the four column doors have their first operational procedure, and the bytes runbook now names its own substrate) · **FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING** (PO ruled the copy stays; the training premise it rests on is recorded at the pilot-decision surface, which was the item's actual requirement). Bodies stay in [follow-ups.md](docs/progress/follow-ups.md)._
-
-_Resolved, rotated out of both live files → [follow-ups-archive.md](docs/progress/follow-ups-archive.md):
-**FUP-DM1-CEILING · FUP-DM1-E2E · FUP-DM1-DISPOSE** (discharged by DM2 S1/S4/S2) · **FUP-F2-BUCKETS**
-(`meeting-attachments` retired in `20260921000300`, pinned by pgTAP `325`) · **FUP-PDF-3** (both doors
-now `RETURNS public.printed_document_public`; ADR 0111, pgTAP `323`)._
-
-_14 more index lines (the 2026-08-18 resolved set, `FUP-DM5-*` and peers) rotated 2026-08-18 → [follow-ups-archive.md](docs/progress/follow-ups-archive.md) § "Index lines rotated from PROGRESS.md 2026-08-18"; their bodies remain in [follow-ups.md](docs/progress/follow-ups.md) pending body rotation._
-
-_**FUP-DM5-NO-ANSWER-VS-NOTHING** (🔴, the class) rotated 2026-08-19 → [follow-ups-archive.md](docs/progress/follow-ups-archive.md) § "Index line rotated from PROGRESS.md 2026-08-19" — all six instances closed; last one (`--allow-orphans`) fixed by ADR [0128](docs/decisions/0128-unproven-is-not-clean-capture-outcome-classes.md). Body stays in [follow-ups.md](docs/progress/follow-ups.md); ⭐ the one-sentence class statement is deliberately KEPT there as a review lens, not archived away._
-
-_**FUP-DM5-BACKUP-IS-PHI-EXPORT** (🔴) rotated 2026-08-19 → the same archive section — ✅ **RESOLVED by execution**, not by decision: both remaining deliverables (destination path, first run) discharged against the local stack; record [phi-backup-run-log.md](docs/deployment/phi-backup-run-log.md). Body stays in [follow-ups.md](docs/progress/follow-ups.md). ⛔ **Its two residues are the NEW 🔴/🟠 lines above — the close is bounded, not total.**_
+_**Earlier resolved-item rotations (2026-08-18 → 2026-08-21) are recorded in the archive**, not here: five rotation notes covering the 2026-08-18 `FUP-DM5-*` set (14 lines), **FUP-DM5-NO-ANSWER-VS-NOTHING** and **FUP-DM5-BACKUP-IS-PHI-EXPORT** (both 🔴, both closed 2026-08-19), the DM1/F2/PDF set, and the DSR remediation round (2026-08-21) were moved VERBATIM on 2026-08-24 → [follow-ups-archive.md](docs/progress/follow-ups-archive.md) § "Rotation notes rotated from PROGRESS.md 2026-08-24". ⛔ Each still names what closed and why — the detail is in the archive, not lost._
 
 _Parked / deferred backlog — full detail (owner, rationale, repro) relocated to **[deferred-backlog.md](docs/progress/deferred-backlog.md)** to keep this tracker scannable; titles + pointers kept live below._
 
 - 📦 **Parked backlog — 27 items**, index and full detail (owner, rationale, repro) → [deferred-backlog.md](docs/progress/deferred-backlog.md)
-
 

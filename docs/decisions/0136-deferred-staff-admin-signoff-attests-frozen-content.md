@@ -346,6 +346,27 @@ eight-spec regression set over the touched surfaces — **65 passed / 0 failed /
 0 did-not-run**, 65 of 65 collected accounted for, exit 0.
 ⛔ **No full `e2e:prod` run covers this HEAD** — the scoped set above is what was measured.
 
+⚠ **QUALIFICATION ADDED 2026-08-24, after the figures above were recorded.** A peer session
+disclosed that **three sessions were sharing the local Supabase stack** during this build — unknown
+to this session at the time. `scripts/e2e-prod-gate.sh` defaults `RESET=1`, so it reset the shared DB
+before **every** batch (measured windows, UTC: 15:10, 15:11, 15:13, 15:20, 15:25, plus explicit
+`db reset` calls between ~14:40 and ~15:30). Confirmed still live: `pg_postmaster_start_time()` =
+**17:38:04 UTC**, i.e. a reset by a third party 17 minutes AFTER this session's last action.
+
+✅ The figures are believed sound — a reset landing mid-run produces hard failures, and both the
+pgTAP run (218 files, 0 `not ok`) and the E2E run (65/65 accounted, 0 infra, 0 flaky) came back fully
+clean. ⛔ **But "no session wrote under them" was not proven, and cannot be retrospectively.**
+`gate figures need a QUIET TREE` was not satisfied: it was not even known to be at issue.
+
+⛔ **One specific attribution is now UNSAFE.** An earlier pgTAP run in that window reported 13 files
+as *"planned N but ran 0"* and this session attributed it to the documented
+`FUP-PGTAP-WORKER-DEADLOCK`. *"Another session reset the DB under me"* is a competing explanation of
+the same symptom that cannot now be distinguished. The attribution stands as a hypothesis, not a
+finding. ⚠ The immediately-following run was fully green with all 218 files, which is why it was
+dismissed at the time — that is consistent with BOTH explanations.
+
+**Cheapest discharge:** one `test:db` + one scoped `e2e:prod` re-run on a stack confirmed quiet.
+
 15 neutralizations were RED-proved against suite 367, each asserting that the mutation MOVED the body
 hash and that the restore brought it BACK. ⚠ One earned its keep immediately: the `close_case`
 keystone was **VACUOUS** on the first pass — its fixture case also carried a `pending` sibling phase,

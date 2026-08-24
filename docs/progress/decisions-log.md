@@ -492,3 +492,14 @@ decisions are concluded. Full rationale lives in ADR
 | 2026-08-23 | **An RLS widening is invisible to the phase step and inherits its own STALE verdict** — the recipe greps `create policy`, a widening is `alter policy` → zero rows; `ARM=census` cannot backstop it. A zero-row case list is now a **FINDING** | ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amdt 8** |
 | 2026-08-21 | **AFF2 Amdt 1 (PO): footprint bound SPLITS by capability** — fields+credentials → **intersection**, CPF-change+lifecycle keep **subset** · silent cross-hospital write **ACCEPTED residual** · LGPD: professional titulares administrative, **out of DSR scope BY DESIGN** · 6 rulings | ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) **Amdt 1** |
 
+## Rotated from PROGRESS.md 2026-08-24
+
+> Four concluded decision rows of the ADR 0137 batch (complete, PO-approved, pushed).
+> Moved verbatim; byte-identical apart from link repointing (`docs/...` -> `../...`).
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-24 | **PO: the MRN floor is a PROCESS-TEMPLATE feature; processless cases are EXPECTED out of scope** — D1–D3 mean *require the MRN on template-minted cases*, not a platform-wide mandate. ⛔ Closed by RULING, not code: `create_case` is unchanged, so re-measuring reproduces it | [ADR 0137 Amdt 4](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
+| 2026-08-24 | **PO: post-send referral PHI amendment is NOT a product capability.** The refusal moves INTO `set_referral_patient` (non-`draft` → its own `HC078`, before the upsert); `can_amend_referral_phi_snapshot` governs draft re-saves only. Blanking the MRN went from ONE edit away to TWO, measured | [ADR 0137 Amdt 1](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) · [ADR 0078 D7](../decisions/0078-authorization-capability-model.md) |
+| 2026-08-24 | **PO: `CaseDepartmentField` is DELETED** (component + test) — D9 left it with no consumer but its own test, which no gate in the eight can distinguish from real use | [ADR 0137 Amdt 3](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
+| 2026-08-24 | **Lead: ADR 0137's deploy rationale is FALSE and is corrected, not re-argued.** *"Additive ⇒ old-code/new-schema is safe"* — measured, the dropped columns are selected directly by the deployed build. Order unchanged (schema→code); the window is real | [ADR 0137 Amdt 2](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
