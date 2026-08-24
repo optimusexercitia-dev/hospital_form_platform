@@ -5378,6 +5378,53 @@ reads as the requirement being met.
 
 ### FUP-RCA-WRITER-CAN-WRITE-IS-BLIND
 
+✅ **RESOLVED 2026-08-24 — keystoned, re-swept COVERED, and its allowlist line deleted.**
+
+**Built:** `142_rca.sql` §K — four assertions that call `public.rca_writer_can_write` **as each of
+four principals** (PQS operator → true · assigned non-observer SME → true · OBSERVER → false ·
+non-team non-PQS → false). The file already asserted the same four expectations, but against the
+INNER `app.can_write_rca(rca, uid)` **uid-purely** — which is precisely why the wrapper was BLIND:
+the wrapper takes only `p_rca_id` and resolves the caller through `auth.uid()`, so no uid-pure call
+can reach it, and neutralizing it does not touch the inner predicate.
+
+**Evidence — the sweep is the oracle, not review.** Diff-scoped `CASES="rca_writer_can_write"`
+(ADR 0079 Amdt 1 recipe) on a FRESH `supabase db reset`: baseline `Files=218, Tests=7232, PASS`,
+`ARM-DOMAIN predicate=1/110` (non-empty — not an UNPROVEN vacuous pass), **verdict COVERED, exit 0
+read UNPIPED**. ⭐ **The attribution was measured, not assumed:** the neutralized run failed exactly
+**one** file — `142_rca.sql` tests **10–11**, both by name, `have: true / want: false` — with run
+shape identical to baseline. The two GRANT twins stayed green, which is correct for an
+opening mutation and is what makes them twins rather than duplicates.
+
+**Second, independent confirmation:** its line was deleted from `authz-neverclled-door-allowlist.txt`
+in the same commit, so `ARM=floor` — which zeroes `pg_stat_user_functions` and runs the whole suite
+itself — could only hold if the door is genuinely called now. It holds, and the counter reads
+`rca_writer_can_write calls=4`, up from the 0 that put it on that list in July.
+
+⛔ **CORRECTION to this follow-up's own prescription, recorded because it would have misdirected the
+next reader.** It said the keystone owed the shape of `300_rowdoor_gate_keystones.sql` — "a row
+count through the door, never a predicate call". **That shape cannot apply here and the keystone is
+a predicate call by necessity.** That rule bounds ROW-RETURNING doors, where a correct predicate can
+sit behind a door that forgets to consult it. Measured in `pg_policies` + `pg_proc`: **no policy and
+no routine references this wrapper** — its one consumer is `src/lib/queries/rca.ts`
+(`viewerCanWrite`). The boolean IS the door's entire output; there is no corridor of rows to count.
+The two sibling probe doors the same widening scored COVERED are asserted exactly this way
+(`121_interviews.sql`, `143_capa.sql` §M2). The prescription was carried over from the row-door file
+without asking whether this door has rows behind it.
+
+⛔ **What the COVERED does and does not say, since the filing was careful about this and the closure
+must be too.** This is a **UI capability probe**. Opening it granted no write: the eight `rca*` RLS
+policies gate on `app.can_write_rca` directly and the mutation never touched them. BLIND meant
+*nothing would notice if it opened* — which is the only question the sweep asks — not *unprotected*.
+
+⭐ **The mechanism worth keeping.** The allowlist line was not wrong when written: the door really is
+exercised by E2E and not by pgTAP. But "never called by pgTAP, allowlisted with a rationale" is
+**exactly the state that makes a door BLIND**, and then the floor arm and the door arm AGREE with
+each other — and agreement reads as coverage. It sat that way from 2026-07-18 until a *different*
+question was asked of it on 2026-08-24. A line in that file states WHERE a door is exercised; it
+never states that it IS.
+
+---
+
 ⚠ **NEW — the first finding produced by widening the door sweep's predicate arm.** Filed 2026-08-24,
 by the sweep, not by review.
 

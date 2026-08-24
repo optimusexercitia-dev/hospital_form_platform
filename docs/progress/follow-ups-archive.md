@@ -5564,6 +5564,20 @@ exact edit `365` §2.2 exists to red.
 - 🟡 **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** — the door sweep's predicate arm is bounded by a NAME REGEX standing in for a property (42 `prosecdef` booleans outside it, measured). ADR 0136 hit it live: the sweep matched **zero gates** until the function was renamed. ⛔ The rename is a workaround that makes coverage depend on a convention no gate enforces — backend
 - 🟡 **FUP-DSS-KEYBOARD-FLOW-IS-THIN** — the ADR 0136 spec's keyboard test asserts an a11y floor, not a keyboard-only flow; it never signs. ⚠ A thin test where the requirement points reads as the requirement being met — tester
 
+### Resolved 2026-08-24 — the finding the ADR 0136 round's own sweep produced (index line rotated verbatim from PROGRESS.md)
+
+- 🟠 **FUP-RCA-WRITER-CAN-WRITE-IS-BLIND** — opening `public.rca_writer_can_write` reddens **NOTHING** across 218 files. ⭐ The first finding produced by ADR 0079 **Amdt 9**'s widening of the door sweep's predicate arm — the gate had never been swept in either direction, being outside the arm's NAME-bounded domain. ⛔ BLIND blocks a phase (§6 step 1) and owes a keystone; not an unreachable backstop, so the allowlist is not available — backend
+
+> ✅ **Closed the same day.** Keystone `142_rca.sql` §K (4 assertions, the wrapper called AS each
+> principal); re-swept single-case **COVERED**, baseline `Files=218, Tests=7232, PASS`,
+> `ARM-DOMAIN predicate=1/110`, exit 0 unpiped, the neutralized run failing ONE file —
+> `142_rca.sql` tests 10–11, by name. Its `authz-neverclled-door-allowlist.txt` line was deleted
+> in the same commit, so `ARM=floor` re-proves the call (`calls=4`, was 0). ⚠ Two things the
+> body in [follow-ups.md](./follow-ups.md) carries and this line cannot: the door is a **UI
+> capability probe** (no policy, no routine calls it — opening it granted no write), and this
+> follow-up's own prescribed shape — *"a row count through the door, never a predicate call"* —
+> **could not apply**, because the door returns a boolean and has no rows behind it.
+
 ### Rotation notes rotated from PROGRESS.md 2026-08-24
 
 > Moved verbatim from PROGRESS.md § Follow-ups (byte-identical apart from link

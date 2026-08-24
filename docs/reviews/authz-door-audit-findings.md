@@ -91,11 +91,26 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 > (FUP-AUTHZ-WP-SNAPSHOT class) and are NOT census members; their coverage is 328
 > K6d–K6h + the smuggled-SELECT-policy twin — never cite a sweep for them.
 
+> ⚠ **HAND-MERGED, 2026-08-24 (`FUP-RCA-WRITER-CAN-WRITE-IS-BLIND` — CLOSED).**
+> `public.rca_writer_can_write`'s row moves from **BLIND to COVERED**: it was keystoned
+> (`142_rca.sql` §K, 4 assertions) and re-swept in a single-case run — `CASES="rca_writer_can_write"`,
+> baseline `Files=218, Tests=7232, PASS`, `ARM-DOMAIN predicate=1/110`, **exit 0 read unpiped**.
+> Same hand-merge reason as every block above: a subset run OVERWRITES this report, so the
+> verdict has nowhere else to land (ADR 0079 Amendment 1, hazard 1). The BLIND row it replaces
+> is that keystone's red-first evidence, in the securable_resources_select shape.
+> ⭐ **The attribution was checked, not assumed** — the neutralized run failed **one** file,
+> `142_rca.sql` tests **10–11**, both by name (`have: true / want: false`), with run shape
+> **identical** to baseline. So the COVERED is this keystone's, not some other file's.
+> ⛔ **Read what the keystone does and does not prove.** This door is a UI capability probe:
+> measured in `pg_policies` + `pg_proc`, NO policy and NO routine calls it — its one consumer is
+> `src/lib/queries/rca.ts` (`viewerCanWrite`). Opening it never granted a write; the eight `rca*`
+> policies gate on `app.can_write_rca` directly and are unaffected by the mutation. BLIND here
+> meant *nothing would notice*, which is exactly what the sweep asks and all it ever asked.
+
 ## BLIND — the work-list (no keystone exercises these)
 
 | gate / policy | arm | direction | verdict | note |
 |---|---|---|---|---|
-| public.rca_writer_can_write(p_rca_id uuid) | predicate | positive | BLIND | ⭐ **ARM WIDENED (ADR 0079 Amendment 9 / `FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`).** This gate entered the predicate arm on 2026-08-24, when the arm stopped bounding its domain by NAME alone and began admitting a `prosecdef` boolean whose BODY references an identity primitive. It had never been swept in any direction before; it was in `authz-unswept-backlog.txt`. Measured by a subset run on a FRESH `supabase db reset`, baseline `Files=218, Tests=7223, PASS`, `ARM-DOMAIN predicate=8/110`; transcribed here because a subset run overwrites this file and is then reverted. ⛔ **BLIND: opening it reddened NOTHING across 218 files.** The first finding this widening produced, and the reason it was worth making — registered as `FUP-RCA-WRITER-CAN-WRITE-IS-BLIND`. |
 | app.can_read_document_object(p_name text, p_uid uuid) | predicate | positive | BLIND |  |
 | app.can_read_referral(p_referral_id uuid, p_uid uuid) | predicate | positive | BLIND |  |
 | app.can_read_xref_row(p_commission_id uuid, p_uid uuid) | predicate | positive | BLIND |  |
@@ -252,6 +267,7 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| public.rca_writer_can_write(p_rca_id uuid) | predicate | positive | COVERED | 142_rca.sql (tests 10–11). ⭐ **WAS BLIND; keystoned and re-swept 2026-08-24** — `142_rca.sql` §K asserts the wrapper AS each of four principals (PQS operator + assigned SME true; observer + non-team false), where the pre-existing assertions called the INNER `app.can_write_rca(rca, uid)` uid-purely and so could never reach it. Single-case run, baseline `Files=218, Tests=7232, PASS`, `ARM-DOMAIN predicate=1/110`, exit 0 unpiped; hand-merged per the note above the BLIND table. ⚠ A **UI capability probe** — no policy and no routine calls it (measured); its consumer is `src/lib/queries/rca.ts` `viewerCanWrite`. `FUP-RCA-WRITER-CAN-WRITE-IS-BLIND`. |
 | app._audit_access_authorized(p_action text, p_entity_id uuid, p_commission uuid) | predicate | positive | COVERED | 191_grant_hardening.sql,305_audio_minutes.sql,356_case_caps_s8_administrativo_read.sql. ⭐ **ARM WIDENED (ADR 0079 Amendment 9 / `FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`).** This gate entered the predicate arm on 2026-08-24, when the arm stopped bounding its domain by NAME alone and began admitting a `prosecdef` boolean whose BODY references an identity primitive. It had never been swept in any direction before; it was in `authz-unswept-backlog.txt`. Measured by a subset run on a FRESH `supabase db reset`, baseline `Files=218, Tests=7223, PASS`, `ARM-DOMAIN predicate=8/110`; transcribed here because a subset run overwrites this file and is then reverted. ⚠ This is the PHI-read audit gate. |
 | app.confidentiality_clearance_ok(p_case_id uuid, p_label text, p_uid uuid) | predicate | positive | COVERED | 228_ethics_e1.sql,328_dm1_document_substrate.sql,330_dm3_controlled_documents.sql. ⭐ **ARM WIDENED (ADR 0079 Amendment 9 / `FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`).** This gate entered the predicate arm on 2026-08-24, when the arm stopped bounding its domain by NAME alone and began admitting a `prosecdef` boolean whose BODY references an identity primitive. It had never been swept in any direction before; it was in `authz-unswept-backlog.txt`. Measured by a subset run on a FRESH `supabase db reset`, baseline `Files=218, Tests=7223, PASS`, `ARM-DOMAIN predicate=8/110`; transcribed here because a subset run overwrites this file and is then reverted. |
 | app.event_current_custodian(p_event_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=218 Tests=7199). ⭐ **ARM WIDENED (ADR 0079 Amendment 9 / `FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`).** This gate entered the predicate arm on 2026-08-24, when the arm stopped bounding its domain by NAME alone and began admitting a `prosecdef` boolean whose BODY references an identity primitive. It had never been swept in any direction before; it was in `authz-unswept-backlog.txt`. Measured by a subset run on a FRESH `supabase db reset`, baseline `Files=218, Tests=7223, PASS`, `ARM-DOMAIN predicate=8/110`; transcribed here because a subset run overwrites this file and is then reverted. ⛔ **ERROR is not a pass.** `140_patient_safety.sql` fails its test 11 and then ABORTS ("planned 35, ran 11"), so the run shape moved and the harness withholds a verdict — correctly, per §7.15. The suite DID notice; converting that into a COVERED needs a bespoke neutralization. Registered as `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE`. |

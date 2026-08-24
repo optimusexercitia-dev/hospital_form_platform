@@ -672,7 +672,19 @@ whatever it is called.
 - **BLIND — `public.rca_writer_can_write`.** Opening it reddened **nothing** across 218 files. This
   is the first finding the widening produced and the reason it was worth making: the gate had never
   been swept in any direction, in either sense — not COVERED, not BLIND, just outside the domain.
-  Owes a keystone (`FUP-RCA-WRITER-CAN-WRITE-IS-BLIND`); ⛔ BLIND blocks a phase (§6 step 1).
+  Owed a keystone (`FUP-RCA-WRITER-CAN-WRITE-IS-BLIND`); ⛔ BLIND blocks a phase (§6 step 1).
+  ✅ **CLOSED 2026-08-24** — keystone `142_rca.sql` §K calls the wrapper **as** each of four
+  principals; re-swept single-case **COVERED** (baseline `Files=218, Tests=7232, PASS`,
+  `ARM-DOMAIN predicate=1/110`, exit 0 unpiped), the neutralized run failing ONE file, `142_rca.sql`
+  tests 10–11, by name. Its `authz-neverclled-door-allowlist.txt` line was deleted in the same
+  commit, so `ARM=floor` re-proves the call (`calls=4`, was 0).
+  ⛔ **Two things this closure teaches the arm, both worth more than the verdict.** (1) The gate is a
+  **UI capability probe** — no policy and no routine calls it, so opening it granted no write; BLIND
+  meant *nothing would notice*, which is the only question this harness asks and all it ever asked.
+  (2) The follow-up prescribed the `300_rowdoor_gate_keystones.sql` shape — *"a row count through the
+  door, never a predicate call"* — and **that shape could not apply**: the door returns a boolean and
+  has no rows behind it. That rule bounds ROW-returning doors. A newly-admitted gate inherits the
+  arm, not the keystone SHAPE; the shape follows from what the door returns.
 - **ERROR — `app.event_current_custodian`.** `140_patient_safety.sql` fails its test 11 and then
   ABORTS ("planned 35, ran 11"), so the run shape moved and §7.15 withholds a verdict — correctly.
   The suite DID notice; converting that into a COVERED needs a bespoke neutralization
