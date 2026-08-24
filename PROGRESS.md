@@ -16,29 +16,35 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **✅ ADR 0137 batch — COMPLETE, PO-APPROVED and COMMITTED 2026-08-24. ⛔ NOT pushed.**
+- **✅ ADR 0137 batch — COMPLETE, PO-APPROVED, and PUSHED 2026-08-24 (schema first, then code).**
   Full record → ledger row **0137** + [adr-0137-batch.md](docs/progress/adr-0137-batch.md); reviews
   [r1](docs/reviews/adr-0137-batch-review.md) (`CHANGES REQUESTED`) → [r2](docs/reviews/adr-0137-batch-review-r2.md) (`APPROVED`).
-  ⛔ **The push is a SEPARATE, explicit decision.** Deploy order is **schema first, then code**
-  (⚠ *not* because old-code/new-schema is safe — it is NOT; see the CORRECTION below — but because
-  new-code/old-schema is broken sooner and wider), and `coolify.md` documents **auto-deploy on push** —
-  so pushing code before `db:push` opens the broken state on the deployed app.
-  ✅ **TWO RESIDUE INCREMENTS ARE COMMITTED — ⛔ neither pushed**, like the rest of this batch.
-  (1) `78ac44cf`, 2026-08-24: `supabase/tests/365_*`, `referral-send-wizard{,-phi-failclosed.test}`,
-  `messages.ts`. ⚠ `e2e:prod` NOT re-run for it. (2) **the follow-up sweep**, `5c8f3542`, 2026-08-24:
-  nine follow-ups resolved, one new migration (`20261003001700`), one new mutation harness, the
-  `usePendingFocus` hook + its 3 adopters, and two deletions. Green on lint 8/8, typecheck, vitest
-  **123 files / 1703** (10 consecutive clean runs — one new spec was flaky and was FIXED, not retried),
-  pgTAP **216 / 7139** on a fresh reset, authz `census`/`hat`/`floor`/`wrapper`, and a **prod-standalone
-  E2E over the 11 affected specs: 147 passed / 0 failed / 0 flaky** (⚠ scoped, NOT the full 113-spec
-  gate). ⛔ Re-measure the unpushed count with `git rev-list --count origin/main..main` — never quote one
-  from here (a count written inside the commit it counts is off by one **by construction**).
+  ✅ **PUSHED 2026-08-24, PO-authorised, in the ruled order: `db:push` FIRST, then `git push`.**
+  Both halves **re-measured on the remote, never accepted on the command's own report** — 5 migrations
+  applied (`20261003001300`–`001700`), and the CATALOG then queried directly: `patient_mode` +
+  `patient_required_fields` present on `cases` and `process_template_versions`, `collects_patient` /
+  `patient_enabled` **gone**, and `set_referral_patient` carrying the new draft-only arm.
+  ⛔ **Coolify auto-deploys on push, so the code deploy was IN FLIGHT when this was written and its
+  outcome is NOT recorded here** — check the Coolify deployment, not this line.
+  ⚠ **The window was real, and briefly open in the safe direction:** between `db:push` and the code
+  deploy the OLD build was live against the NEW schema, where it selects two dropped columns directly
+  (ADR 0137 Amdt 2). Chosen deliberately over the reverse, which breaks sooner and wider.
+  ⛔ What shipped in the last two increments, for the record: (1) `78ac44cf` — `supabase/tests/365_*`,
+  `referral-send-wizard{,-phi-failclosed.test}`, `messages.ts`; ⚠ `e2e:prod` NOT re-run for it.
+  (2) `5c8f3542` — the follow-up sweep: nine follow-ups resolved, migration `20261003001700`, a new
+  mutation harness, the `usePendingFocus` hook + its 3 adopters, two deletions. Green on lint 8/8,
+  typecheck, vitest **123 files / 1703** (10 consecutive clean runs — one new spec was flaky and was
+  FIXED, not retried), pgTAP **216 / 7139** on a fresh reset, authz `census`/`hat`/`floor`/`wrapper`,
+  and a **prod-standalone E2E over the 11 affected specs: 147 passed / 0 failed / 0 flaky**
+  (⚠ scoped, **NOT** the full 113-spec gate, which has not run since before `78ac44cf`).
   ⚠ **1 follow-up OPEN** (was 7) — **`FUP-0137-PHI-MODE-SHIMS`, and it is HALF closed on purpose.**
   The nine others were solved 2026-08-24 in a dedicated increment → [archive](docs/progress/follow-ups-archive.md);
   two of them were **PO rulings**, not fixes (post-send PHI amendment is not a product capability;
-  `CaseDepartmentField` deleted). ⛔ The shims item stays open because `get_case_detail`'s derived
-  `patient_enabled` key is what the **currently-deployed build** reads — retiring it before the code
-  deploy makes that build decide every case collects no PHI, silently (`?? false`).
+  `CaseDepartmentField` deleted). ⭐ **The shims item's blocker CLEARED with this push** — `get_case_detail`'s derived
+  `patient_enabled` key existed to protect the OLD build, and the new one is deploying. It is now
+  ACTIONABLE (a one-migration drop), not blocked. ⚠ Do it only once the Coolify deploy is CONFIRMED
+  live: while the old build is still serving, dropping the key makes it decide every case collects
+  no PHI, silently (`?? false`).
   ⛔ **CORRECTION, and it is the one that bites at push time: "additive ⇒ old-code/new-schema is safe"
   is FALSE for this batch** — the dropped columns are selected DIRECTLY by the deployed build, so the
   schema→code window is real, not zero. Order unchanged. Measurement + blast radius → **ADR 0137
@@ -273,7 +279,7 @@ still awaiting a concluding event stay here:_
 | --- | --- |
 | ⚠ **Remote storage byte-loss is UNQUANTIFIED — the "~49 vanished" figure is WITHDRAWN 2026-08-18.** `n_tup_ins − n_tup_del` compares two units: 5 uploads move `ins` by **+6**, 5 deletes move `del` by **+5** (measured). And by the probe below, any surviving bytes are **unobservable** anyway | a magnitude re-derived from something other than the `pg_stat` counters — or PO ruling that it cannot be ([FUP-DM4-PRODROW](docs/progress/follow-ups.md)) |
 | ⛔ **CORRECTED 2026-08-21 — the remote holds the E2E SEED FIXTURE, not nothing.** This row said *"it holds no data and no users"* (census 2026-08-18). **Measured 2026-08-21 against the linked project: `auth.users` = 36, all `@test.local`, created 2026-08-19 — i.e. AFTER that census; 0 non-test accounts; 1 pre-promoted `platform_admin`; `cases` 10, `responses` 17; synthetic PHI `patient_identifiers` 2 / `event_patient` 3 / `referral_patient` 3.** ⭐ **No real customer data** — so the *conclusion* (safe to touch) survives; the *premise* did not, and the premise is what other decisions were resting on. ⚠ This is the **fifth** time a claim about the remote has gone stale in this file. ⛔ **Re-measure `auth.users` and `schema_migrations` before citing this row — never quote it.** | **expires at pilot data-load**, when it must be REPLACED by the rehearsed C1b disposal bound (§ Critical FUP C1), never just deleted |
-| ✅ **REMOTE IS CURRENT — AFF2 SUPERSEDED the case-split row here, which is what that row said would happen.** Measured 2026-08-23 ON THE REMOTE: `schema_migrations` = **444**, head **`20261003001200`**; `origin/main..main` = **0** after `16b40c62..7320f341`. ⭐ **The count was MEASURED, not computed** — "441 + 3 = 444" would have been right today and is the habit that makes it wrong the day a migration lands from elsewhere. ⭐ **Verified in the remote CATALOG, not from the push output or the PO's success report:** `profiles.date_of_birth date NULL` + `phone text NULL` exist · `list_org_people(uuid,text,text)` is `secdef` with `date_of_birth` in its return type and still **ONE** overload (no `citext` twin) · `professional_credentials_select` carries the affiliation leg **and** the `COALESCE` hospital-tier form · `guard_profile_privileged_columns` covers both new columns. ⭐ **Column-lock proven as a DIFFERENTIAL:** both new columns hold `authenticated:REFERENCES` **only** — identical to locked `cpf`, against `full_name`'s INSERT/REFERENCES/SELECT/UPDATE; **no `anon` grant on any**. ⚠ **Schema went BEFORE code, deliberately** (additive ⇒ old-code/new-schema safe, new-code/old-schema broken). ⛔ Superseded by the next remote-affecting change — **re-measure, do not quote** |
+| ✅ **REMOTE IS CURRENT — the ADR 0137 batch SUPERSEDED the AFF2 row here, which is what that row said would happen.** Measured ON THE REMOTE 2026-08-24, after `db:push`: `schema_migrations` = **449**, head **`20261003001700`**; `origin/main..main` = **0** at **`ec1271a8`**. ⭐ **The 449 was MEASURED, not computed** — “444 + 5” would have been right today and is the habit that makes it wrong the day a migration lands from elsewhere. ⭐ **Verified in the remote CATALOG, not from the push output:** `cases` + `process_template_versions` carry `patient_mode` and `patient_required_fields`; `collects_patient` / `patient_enabled` are **absent**; `public.set_referral_patient` contains the draft-only arm (ADR 0137 Amdt 1). ⚠ **Data, re-measured the same day:** `auth.users` = **36**, **0** non-`@test.local`, `cases` = **14** — still the E2E seed fixture and no real customer data, so the row below it stands. ⚠ **`patient_mode='required'` versions on the remote: 0** — the compliance mode is live but nobody has turned it on. ⛔ **Schema went BEFORE code, deliberately — but NOT because old-code/new-schema is safe** (it is not: ADR 0137 Amdt 2), rather because the reverse breaks sooner and wider. ⛔ Superseded by the next remote-affecting change — **re-measure, do not quote** |
 
 
 ## ⭐⭐ Critical FUP — the must-not-be-forgotten list

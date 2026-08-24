@@ -155,7 +155,7 @@ indistinguishable from a deleted one.
 
 ---
 
-## The follow-up sweep — 2026-08-24 (commit `5c8f3542`, NOT pushed)
+## The follow-up sweep — 2026-08-24 (commit `5c8f3542`; PUSHED the same day, schema first)
 
 Nine of the ten open items solved in one increment. **Two were PO rulings, not fixes** — both
 asked before any code was written, because either answer changed what got built:
