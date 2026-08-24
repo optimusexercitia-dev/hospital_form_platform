@@ -68,9 +68,18 @@ When a phase passes human approval, the lead:
 3. Archives the phase's task detail to `docs/progress/phase-N.md` (or a feature-named
    file).
 4. Updates `docs/backend-state.md` if the backend surface changed.
-5. Runs `npm run lint:progress` (it verifies the contract mechanically) and commits
+5. **If the phase produced or amended an ADR** — runs `npm run adr:index` and skims the
+   regenerated `docs/decisions/INDEX.md` diff. The row itself is generated, so the thing
+   to *check* is the `⚠ Changed by` column: if the new ADR changed an earlier one, its
+   header block needs a `**Supersedes:**` / `**Amends:**` label naming that ADR's number,
+   or the earlier ADR gains no back-pointer and a future session reads a superseded rule
+   with nothing in the file able to contradict it. Measured 2026-08-24, **47 of 47**
+   supersedes/amends edges were declared only by the amending ADR. `npm run lint:adr-index`
+   (gate 9) catches a missing row or a duplicate number; **nothing can catch a missing
+   label** — this step is the only place it is checked.
+6. Runs `npm run lint:progress` (it verifies the contract mechanically) and commits
    with `phase(N): complete — <summary>`. The team stays warm for the next phase.
-6. Checks `.claude/claude-md-review-queue.md` — if it is non-empty, run
+7. Checks `.claude/claude-md-review-queue.md` — if it is non-empty, run
    `/review-claude-md` (or schedule it with the human) before the next phase opens.
    The Record step is the queue's trigger: a cadence with no trigger is the
    "standing in prose alone" failure ADR 0079 documents.
@@ -105,6 +114,9 @@ a memory exercise; the gate tells you when it has been skipped. At the Record st
 - **Decisions** → **one line per decision** + ADR link; rationale lives in
   `docs/decisions/` (verbose pre-collapse history in `docs/progress/decisions-log.md`).
   Move concluded rows to `decisions-log.md` at the Record step (append verbatim first).
+  Take a **new ADR's number from `docs/decisions/INDEX.md`** (it states the next free one),
+  never from the directory listing — two sessions eyeballing the listing on 2026-07-02 both
+  filed an "ADR 0050", and the collision survived seven weeks and 87 further ADRs.
 - **Follow-ups / Deferred** → PROGRESS.md carries a **one-line index only** (severity ·
   id · title · owner); full bodies of OPEN items live in `docs/progress/follow-ups.md`
   (update BOTH on any state change — the gate checks the body exists). Move resolved

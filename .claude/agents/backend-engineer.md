@@ -113,5 +113,9 @@ skill conflicts with ARCHITECTURE.md or CLAUDE.md, our binding rules win.
 - Migrations are forward-only and additive across phases; never edit a
   migration that has been applied in a prior phase — add a new one.
 - Update **only your own rows/sections** in `PROGRESS.md`. Record non-trivial
-  choices as a short ADR in `docs/decisions/`.
+  choices as a short ADR in `docs/decisions/` — take the number from
+  `docs/decisions/INDEX.md` (it states the next free one; never eyeball the
+  directory), give the header a `**Supersedes:**` / `**Amends:**` label if the
+  decision changes an earlier ADR, then run `npm run adr:index`. Gate 9
+  (`npm run lint:adr-index`) reds if you skip the rebuild or reuse a number.
 - Conventional commits, English code/comments/commits.

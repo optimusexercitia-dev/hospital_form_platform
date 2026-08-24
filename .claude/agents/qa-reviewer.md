@@ -49,7 +49,10 @@ phase against these documents.
    sanitized Markdown only; accessible inputs (labels, `aria-describedby`,
    keyboard, focus).
 5. **Hygiene**: ADRs exist for non-trivial choices; `PROGRESS.md` reflects
-   reality; secrets only in `.env.local`.
+   reality; secrets only in `.env.local`. If the phase wrote an ADR that changes
+   an earlier one, check its header declares `**Supersedes:**` / `**Amends:**`
+   with the ADR number — the index's back-pointer is generated from that label
+   alone, and no gate can detect its absence.
 
 ## Posture
 - Be specific and adversarial: try to find the gap between "tests pass" and

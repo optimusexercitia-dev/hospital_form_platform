@@ -332,10 +332,10 @@ whose **claim** went false has no gate at all, so that queue is its only witness
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` is **EIGHT gates chained**; ALL must pass (verify against
+- **Lint gate** — `npm run lint` is **NINE gates chained**; ALL must pass (verify against
   `package.json`, not this list): `eslint --max-warnings=0` **&&** `lint:css-vars` **&&**
   `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous` **&&**
-  `lint:set-local` **&&** `lint:progress` **&&** `lint:rules`. Each was added after the class it gates shipped a live defect:
+  `lint:set-local` **&&** `lint:progress` **&&** `lint:rules` **&&** `lint:adr-index`. Each was added after the class it gates shipped a live defect:
   - `lint:css-vars` (`check-tailwind-css-vars.mjs`) — the Tailwind-v4 bare `[--var]` form, which
     compiles to dead CSS; added after it shipped nine dead motion utilities.
   - `lint:memberships-door` (`check-memberships-door.mjs`) — direct `memberships` reads that
@@ -367,6 +367,16 @@ whose **claim** went false has no gate at all, so that queue is its only witness
     **659** files; it was retired (ADR 0127 Amdt 1).
     ⚠ Bounded, stated: DB anchors (`prosecdef`, ACLs, policies) are **not** checkable in `lint` —
     those belong in pgTAP. Retirement → `docs/progress/rules-archive.md`, never deletion.
+  - `lint:adr-index` (`build-adr-index.mjs`) — a `docs/decisions/INDEX.md` out of date with the
+    ADR corpus, two ADRs sharing a number, or an ADR citing a number that has no file. Its
+    load-bearing column is the **inverse** edge ("0033 was amended by 0038") — the one fact an
+    ADR cannot record about itself, being written later, by someone else, elsewhere. Measured
+    2026-08-24 over 136 ADRs: **47 of 47** supersedes/amends edges were declared only by the
+    amending ADR, so a session opening 0033 read a superseded rule with nothing in the file
+    able to contradict it. ⚠ **The gate cannot detect a MISSING `Amends:` label** — no gate
+    can; a human checks that at the Record step (lead-playbook §4). The index also states the
+    **next free ADR number**: take it from there, never by eyeballing the directory (two
+    sessions eyeballing it on 2026-07-02 both filed an "ADR 0050").
   eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
   `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
@@ -387,7 +397,13 @@ whose **claim** went false has no gate at all, so that queue is its only witness
 - Errors user-readable in pt-BR; raw Supabase/Postgres errors never reach the UI.
 - Secrets only in `.env.local` (gitignored). `NEXT_PUBLIC_` vars: Supabase URL + anon
   key only. Service-role key is server-only — in client code, that's a phase-blocking bug.
-- Non-trivial decisions get a 5–10 line ADR in `docs/decisions/`.
+- Non-trivial decisions get a 5–10 line ADR in `docs/decisions/` — number from
+  `docs/decisions/INDEX.md` (it states the next free one; never eyeball the listing), header
+  carries `**Status:**` plus a `**Supersedes:**` / `**Amends:**` label naming the ADR numbers
+  if it changes an earlier decision, then run `npm run adr:index`. That label is the ONLY
+  input to the index's back-pointer column, and no gate can notice it missing.
+  ⛔ Never create `docs/adr/` — that path appears in a generic skill; this repo's log is
+  `docs/decisions/`.
 - A standing prohibition with **no resolution event** ("never fix X by granting Y", "read
   BUG-N before touching Z") is **not** a PROGRESS.md line — it can only accumulate there.
   It belongs in **`.claude/rules/`**, path-scoped. ⛔ Admission: declare `paths:` (unscoped
@@ -410,7 +426,9 @@ npm run gen:types:linked       # regenerate types from the linked remote
 npm run dev                    # Next.js dev server (http://localhost:3000)
 npm run lint && npm run typecheck   # lint = eslint(0 warnings) && css-vars && memberships-door
                                #   && client-server-imports && vacuous && set-local && progress
-                               #   && rules — all eight (§8)
+                               #   && rules && adr-index — all nine (§8)
+npm run adr:index              # regenerate docs/decisions/INDEX.md — run after writing or
+                               #   editing an ADR header; gate 9 reds until you do
 npm run format:check           # Prettier (npm run format writes) — manual, NOT a lint gate;
                                #   tracker docs are .prettierignore'd (§8 — breaks lint:progress)
 npm run test                   # Vitest unit tests (full suite)

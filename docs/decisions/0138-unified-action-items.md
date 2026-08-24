@@ -1,6 +1,15 @@
-# 0050 — Unified (non-PHI) action_items hub
+# ADR 0138 — Unified (non-PHI) action_items hub
 
 Status: Accepted — 2026-07-02
+
+> **Numbering note:** originally filed as **ADR 0050** on 2026-07-02 and renumbered to 0138
+> on 2026-08-24. Two sessions claimed 0050 the same day: this one, and ADR
+> [0050](0050-action-items-fold-visibility-scope-case-access-expiry.md) — the *fold* of
+> `case_action_items` into this hub, which this ADR's § Decision explicitly defers. The
+> collision was invisible until [INDEX.md](INDEX.md) was generated. Nothing cited this file
+> by name (measured: 0 references), so **a bare "ADR 0050" anywhere in the repo means the
+> fold**, not this ADR. Precedent for the note: ADRs
+> [0061](0061-administrativo-delegated-role.md) / [0062](0062-meeting-actual-occurrence-time.md).
 
 ## Context
 

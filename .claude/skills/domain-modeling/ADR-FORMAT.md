@@ -1,8 +1,23 @@
 # ADR Format
 
-ADRs live in `docs/adr/` and use sequential numbering: `0001-slug.md`, `0002-slug.md`, etc.
+> ⛔ **In THIS repo, ADRs live in `docs/decisions/`, NOT `docs/adr/`.** There are 136 of
+> them. Creating `docs/adr/` would start a second, parallel decision log that nothing
+> reads and no gate covers. Numbering, header shape, and the index step below override
+> the generic guidance in the rest of this file.
+>
+> - **File name:** `docs/decisions/NNNN-kebab-slug.md`.
+> - **Number:** take the *next free number* from
+>   [`docs/decisions/INDEX.md`](../../../docs/decisions/INDEX.md) — never by eyeballing
+>   the directory listing. Two sessions eyeballing it on 2026-07-02 both filed an
+>   "ADR 0050"; the collision went unnoticed for seven weeks.
+> - **Header block** (between the `# ADR NNNN — Title` H1 and the first `##`) is parsed
+>   by `scripts/build-adr-index.mjs`. Give it `**Status:**` and `**Date:**`, and — if the
+>   decision changes an earlier ADR — a `**Supersedes:**` or `**Amends:**` label naming
+>   the ADR numbers. **That label is the only input to the index's `⚠ Changed by`
+>   column**, and it is the one fact the ADR being changed cannot record about itself.
+> - **Then run `npm run adr:index`.** `npm run lint:adr-index` (gate 9) reds otherwise.
 
-Create the `docs/adr/` directory lazily — only when the first ADR is needed.
+ADRs use sequential numbering: `0001-slug.md`, `0002-slug.md`, etc.
 
 ## Template
 
@@ -24,7 +39,9 @@ Only include these when they add genuine value. Most ADRs won't need them.
 
 ## Numbering
 
-Scan `docs/adr/` for the highest existing number and increment by one.
+Read the **next free number** off `docs/decisions/INDEX.md`, then run `npm run adr:index`
+after writing the file. Do not scan the directory by hand — the index computes the number
+from the same corpus the gate checks, so the two cannot disagree.
 
 ## When to offer an ADR
 
