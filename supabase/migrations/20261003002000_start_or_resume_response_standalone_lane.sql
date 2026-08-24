@@ -34,9 +34,19 @@
 -- function's previous body and passes against this one, and 15.2 pins that the fix ADDS a
 -- standalone draft rather than hijacking or closing the phase draft.
 --
--- ⚠ ONE CONJUNCT CHANGES. Everything else — the version/commission resolve, the
--- published-only backstop, the FF-4 default seeding on the create path, the
--- unique_violation re-read — is byte-identical to the previous definition.
+-- ⚠ ONE CONJUNCT, IN TWO PLACES — the resume SELECT and the `unique_violation`
+-- re-read, which is the same query and must answer the same question. Everything
+-- else — the version/commission resolve, the published-only backstop, the FF-4
+-- default seeding on the create path — is byte-identical to the previous definition.
+--
+-- ⚠ CORRECTED 2026-08-24 (QA review, MINOR-1). This paragraph listed "the
+-- unique_violation re-read" among the byte-identical parts while the code below
+-- changed it, and said so in its own comment ("Same conjunct as the resume
+-- branch") — a header contradicting its own body two screens down. Verified against
+-- the prior definition (20260903000400, whose text IS authoritative for this
+-- function: its two `pg_get_functiondef` mentions are in comments, not runtime
+-- rewrites): that re-read carried no such conjunct. The CODE was right and needed
+-- both sites; only this description was wrong.
 
 create or replace function public.start_or_resume_response(p_form_version_id uuid)
 returns public.responses

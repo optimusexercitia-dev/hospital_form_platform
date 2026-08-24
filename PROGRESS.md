@@ -75,10 +75,18 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      feature was unreachable in the product with pgTAP fully green; only E2E saw it.
   ⭐ A live defect was found by the pre-build measurement and is FIXED here —
   **BUG-SIGNOFF-GROUPCOND-001** (§ Bug Log).
-  ⚠ **Gate state:** step 1 ✅ (figures in § Test Run Summary), step 2 ✅ **scoped only** — no full
-  `e2e:prod` covers this HEAD — step 3 ⛔ **not run**, step 4 ⛔ **not given**.
-  ⛔ **The figures carry a QUALIFICATION added after they were recorded** — three sessions shared the
-  local stack, unknown to the session that gated. Believed sound; **not proven**. ADR 0136 § Amdt 1.
+  ⚠ **Gate state 2026-08-24, re-run after the follow-up round (`d899ceb3` + `20261003002000`):**
+  step 1 ✅ · step 2 ✅ **by COMPOSITION, not by one run** · step 3 ✅ **APPROVED**
+  ([review](docs/reviews/adr-0136-deferred-signoff-review.md)) · step 4 ⛔ **NOT GIVEN** — human approval
+  is the only thing left before the Record step.
+  ⛔ **Read § Test Run Summary, not this line, for what step 2 actually is.** The FULL `e2e:prod` exited
+  **5 (RED, nothing proven)**: zero assertion failures anywhere, but **33 tests never ran** when the
+  server died in batches 5 and 13. A targeted re-run of exactly those 10 specs was GREEN. Every
+  collected test therefore has a passing verdict, but **not from a single run**, which is what §6 step 2
+  asks for. ⚠ Batches 4 and 18 — which hold `deferred-staff-signoff` and `phase6-signoffs` — were
+  clean and fully accounted, so the RED does not overlap this ADR's surface.
+  ✅ **The earlier shared-stack QUALIFICATION is DISCHARGED for these figures** — the stack was measured
+  quiet (0 non-infra connections) before this run, which is the discharge ADR 0136 § Amdt 1 named.
   ⭐ **FOLLOW-UP ROUND, 2026-08-24 — all five ADR-0136 follow-ups RESOLVED, ⛔ UNCOMMITTED on top of
   `1069711c`** (index lines rotated below; each body in `follow-ups.md` carries its evidence).
   Three things a reader must not skip, because none was in the follow-ups as filed:
@@ -251,8 +259,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-24 | ⭐⭐ **ADR 0136 — STEP 1 + a SCOPED step 2** · full record: ADR [0136 § Amdt 1](docs/decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md) | lint 9/9 · `tsc` 0 · Vitest **124f/1715** · `test:db` **7210/7210** (218f, fresh reset; +1f/+61 = pgTAP `367`) · 4 authz ARMs **HOLD, exit 0 UNPIPED** + diff-scoped sweep · **15 mutations RED-proved** · E2E **scoped 9-spec 65p/0f/0 DNR**, exit 0. ⛔ **NO full `e2e:prod` on this HEAD**; step 3 NOT run |
-| 2026-08-24 | ⭐ **ADR 0136 FOLLOW-UP ROUND — step 1 re-run + scoped step 2** (uncommitted on `1069711c`); detail: ADR [0079 Amdt 9](docs/decisions/0079-authz-door-blindness-standing-invariant.md) + the five bodies in [follow-ups.md](docs/progress/follow-ups.md) | lint 9/9 · `tsc` 0 · `test:db` **7228/7228** (218f, fresh reset; `367` 61→**79**) · 4 authz ARMs HOLD · door sweep **8 gates**: 6 COVERED · **1 BLIND** · 1 ERROR · invoker `sign_section` BLIND→**COVERED** · `e2e:prod` **scoped 3 specs 28p/0f/0 flaky**, exit 0. ⛔ No FULL `e2e:prod`; steps 3–4 not run |
+| 2026-08-24 | ⭐⭐ **ADR 0136 — FULL GATE, stack measured QUIET first** · figures + limits: ADR [0136 § Amdt 1](docs/decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md) | lint 9/9 · `tsc` 0 · Vitest **125f/1714** · `test:db` **7228/7228** (218f) · 4 authz ARMs **exit 0 UNPIPED** + sweep | ⛔ **`e2e:prod` FULL = exit 5 RED-UNRUN**: 1160p / 0 failed / 35 infra / 33 **never ran** (`server_dead`, b5+b13); targeted re-run of those 10 specs GREEN 96p/0f. **Green by COMPOSITION, not one run** |
 
 ## QA Verdicts
 
@@ -265,6 +272,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| **ADR 0136 — deferred `staff_admin` sign-off** | ✅ **APPROVED** — D1–D7 all audited; MINOR-1 (a migration header contradicting its own code) fixed in the pass; INFO-1 recorded. ⛔ **SELF-REVIEW for `1069711c`** — the reviewing session wrote it; independent only for `d899ceb3` + `20261003002000` | 2026-08-24 | [review](docs/reviews/adr-0136-deferred-signoff-review.md) |
 | **ADR 0137 batch** | ✅ **APPROVED (r2)** — 4 r1 items discharged; `required` is product-reachable + E2E-driven. 4 pre-commit conditions in §7. r1 CHANGES REQUESTED | 2026-08-24 | [r2](docs/reviews/adr-0137-batch-review-r2.md) |
 | _The AFF2 pair (r2 + struck r1)_ — rotated 2026-08-24, 0137 being the current milestone | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | _The seven DM rows_ — rotated 2026-08-19, the DM milestone being closed | — | — | [archive](docs/progress/qa-verdicts-archive.md) |

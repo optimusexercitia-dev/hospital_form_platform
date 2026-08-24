@@ -1024,3 +1024,12 @@ cites, and a ledger row whose cited run has vanished is a dangling claim._
 | --- | --- | --- |
 | 2026-08-24 | ⭐ **GATE STEP 1 — the `FUP-0137-PHI-MODE-SHIMS` closure** (supersedes the 0137 batch's step-1 row → [archive](test-run-archive.md)) | lint 8/8 · `tsc` 0 · Vitest **123f / 1703** · `test:db` **7149/7149** (217f) on a fresh reset — **+1 file / +10** is pgTAP `366` · four authz ARMs **HOLD**, exit 0 · no RLS policy and no `prosecdef` boolean gate touched, so no diff-scoped sweep was owed |
 | 2026-08-24 | ⭐⭐ **ADR 0137 · FULL `e2e:prod` (gate step 2)**, at `1320d0b0` · detail: [adr-0137-batch.md](adr-0137-batch.md) | ✅ **GREEN, exit 0** — 1221 p · 0 f · 0 infra · 0 DNR · 2 flaky. ⚠ **Covers `1320d0b0`, NOT current HEAD** — the 2 increments after it have only a scoped 11-spec run. ⛔ Two earlier runs failed DIFFERENTLY (RED exit 1; exit 5 **UNRUN**) — ledger row 0137 |
+
+## Rotated 2026-08-24 — ADR 0136's two SUPERSEDED gate rows
+
+_Both superseded by the FULL-gate row that replaced them in PROGRESS.md § Test Run Summary (retention there is the most recent gate only). Kept verbatim: each recorded a real run, and the first is the one whose figures carried the shared-stack qualification — ADR 0136 § Amendment 1 § Gate record. ⛔ The row that replaced them is NOT a clean full run: the full `e2e:prod` exited 5 (RED, nothing proven) with 33 tests never executed, and a targeted re-run of the two collapsed batches supplied their verdict._
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-24 | ⭐⭐ **ADR 0136 — STEP 1 + a SCOPED step 2** · full record: ADR [0136 § Amdt 1](../decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md) | lint 9/9 · `tsc` 0 · Vitest **124f/1715** · `test:db` **7210/7210** (218f, fresh reset; +1f/+61 = pgTAP `367`) · 4 authz ARMs **HOLD, exit 0 UNPIPED** + diff-scoped sweep · **15 mutations RED-proved** · E2E **scoped 9-spec 65p/0f/0 DNR**, exit 0. ⛔ **NO full `e2e:prod` on this HEAD**; step 3 NOT run |
+| 2026-08-24 | ⭐ **ADR 0136 FOLLOW-UP ROUND — step 1 re-run + scoped step 2** (uncommitted on `1069711c`); detail: ADR [0079 Amdt 9](../decisions/0079-authz-door-blindness-standing-invariant.md) + the five bodies in [follow-ups.md](follow-ups.md) | lint 9/9 · `tsc` 0 · `test:db` **7228/7228** (218f, fresh reset; `367` 61→**79**) · 4 authz ARMs HOLD · door sweep **8 gates**: 6 COVERED · **1 BLIND** · 1 ERROR · invoker `sign_section` BLIND→**COVERED** · `e2e:prod` **scoped 3 specs 28p/0f/0 flaky**, exit 0. ⛔ No FULL `e2e:prod`; steps 3–4 not run |
