@@ -1,14 +1,19 @@
 import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
-import { ArrowUpRight, Clock, FileText, User } from "lucide-react";
+import { ArrowUpRight, Clock, FileText, Lock, User } from "lucide-react";
 
 import type { SignoffQueueRow } from "./types";
 
 /**
- * The staff_admin "pendentes de assinatura" queue (F1) — a list of in_progress
- * responses awaiting THIS commission's coordinator signature. Each row links to
- * the review-and-sign screen (F2). Server-Component-safe (no hooks, no actions):
- * the page loads `listSignoffQueue` and passes plain rows.
+ * The staff_admin "pendentes de assinatura" queue (F1) — responses awaiting THIS
+ * commission's coordinator signature. Each row links to the review-and-sign screen
+ * (F2). Server-Component-safe (no hooks, no actions): the page loads
+ * `listSignoffQueue` and passes plain rows.
+ *
+ * ADR 0136 put TWO lanes in this list, and `isFrozenCasePhase` is what tells them
+ * apart. On a DRAFT row the signature merely unblocks the respondent's own submit;
+ * on a FROZEN case-phase row it CONCLUDES a case phase and releases every phase
+ * that one blocks. Same button, materially different act — so the row says so.
  */
 export function SignoffQueueList({
   org,
@@ -26,8 +31,7 @@ export function SignoffQueueList({
         <CheckMark />
         <p className="text-base font-medium">Nenhuma assinatura pendente</p>
         <p className="max-w-prose text-sm text-muted-foreground text-pretty">
-          Quando uma resposta precisar da sua assinatura para ser enviada, ela
-          aparecerá aqui.
+          Quando uma resposta precisar da sua assinatura, ela aparecerá aqui.
         </p>
       </div>
     );
@@ -43,9 +47,17 @@ export function SignoffQueueList({
             className="animate-rise-in group flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
           >
             <div className="flex min-w-0 flex-col gap-1.5">
-              <h2 className="truncate text-base font-semibold">
-                {row.formTitle}
-              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="truncate text-base font-semibold">
+                  {row.formTitle}
+                </h2>
+                {row.isFrozenCasePhase && (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[0.7rem] font-medium tracking-wide text-warning uppercase">
+                    <Lock aria-hidden="true" className="size-3" />
+                    Fase de caso · enviada
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <User aria-hidden="true" className="size-3.5" />
@@ -69,7 +81,7 @@ export function SignoffQueueList({
             </div>
 
             <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary">
-              Revisar e assinar
+              {row.isFrozenCasePhase ? "Revisar e concluir" : "Revisar e assinar"}
               <ArrowUpRight
                 aria-hidden="true"
                 className="size-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"

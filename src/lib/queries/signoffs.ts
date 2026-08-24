@@ -52,6 +52,18 @@ export interface SignoffQueueItem {
   pendingCount: number
   startedAt: string
   updatedAt: string
+  /**
+   * ADR 0136 — the case phase this response belongs to, non-null ONLY for the
+   * DEFERRED lane: a response that is already `submitted` and frozen, whose phase
+   * is parked in `awaiting_signoff` waiting for this signature.
+   *
+   * ⚠ NOT decoration. The queue now mixes two lanes with opposite semantics — a
+   * live draft the respondent can still change, and a frozen record whose
+   * signature CONCLUDES a case phase and unblocks everything downstream. A
+   * reviewer who cannot tell them apart is being asked to attest without knowing
+   * what the attestation does.
+   */
+  casePhaseId: string | null
 }
 
 /** One recorded sign-off on a response (who/when/note), for read-only display. */
@@ -71,6 +83,17 @@ export interface SignoffRecord {
  * (RLS/definer gate) or it is not found.
  */
 export interface ResponseForSignoff {
+  /**
+   * ADR 0136 — this response is already SUBMITTED and frozen, and the signature
+   * being collected concludes its case phase.
+   *
+   * Derived from the door's own `status`, and that derivation is EXACT rather
+   * than a heuristic: `get_response_for_signoff` admits a `submitted` response
+   * only through `app.is_signoff_deferral_open`, which requires the response's case
+   * phase to be `awaiting_signoff` AND to point back at this response. So
+   * `status = 'submitted'` here means the deferred lane and nothing else.
+   */
+  isFrozenCasePhase: boolean
   responseId: string
   formId: string
   formTitle: string
@@ -154,6 +177,7 @@ interface QueueRow {
   pending_count: number
   started_at: string
   updated_at: string
+  case_phase_id: string | null
 }
 
 interface SignoffJsonRow {
@@ -293,10 +317,15 @@ function toRiskAnswers(
 // ---------------------------------------------------------------------------
 
 /**
- * The staff_admin "pendentes de assinatura" queue for a commission: in_progress
- * responses that are submit-ready and have a visible, unsigned, staff_admin-role
- * sign-off section. Returns `[]` for non-staff_admins (the RPC is internally
- * gated by `is_staff_admin_of`, so this never leaks). Already ordered by the RPC
+ * The staff_admin "pendentes de assinatura" queue for a commission. TWO lanes
+ * since ADR 0136:
+ *   - the original: `in_progress` responses that are submit-ready and have a
+ *     visible, unsigned, staff_admin-role sign-off section;
+ *   - the DEFERRED lane: `submitted`, frozen case-phase responses whose phase is
+ *     parked in `awaiting_signoff` — `casePhaseId` is non-null for exactly these.
+ *
+ * Returns `[]` for non-staff_admins (the RPC is internally gated by
+ * `is_staff_admin_of`, so this never leaks). Already ordered by the RPC
  * (most-recent activity first).
  */
 export async function listSignoffQueue(
@@ -322,11 +351,14 @@ export async function listSignoffQueue(
     pendingCount: r.pending_count,
     startedAt: r.started_at,
     updatedAt: r.updated_at,
+    casePhaseId: r.case_phase_id,
   }))
 }
 
 /**
- * One in_progress response prepared for the staff_admin review-to-sign screen.
+ * One response prepared for the staff_admin review-to-sign screen — an
+ * `in_progress` draft, or (ADR 0136) a `submitted` case-phase response whose
+ * phase is still `awaiting_signoff`.
  * Composes the SECURITY DEFINER `get_response_for_signoff` (answers + sign-offs +
  * identity, gated on a pending staff_admin section) with the member-readable
  * `getVersionTree` (the version-faithful structure). `null` when the caller is
@@ -352,6 +384,7 @@ export async function getResponseForSignoff(
   if (!tree) return null
 
   return {
+    isFrozenCasePhase: payload.status === 'submitted',
     responseId: payload.response_id,
     formId: payload.form_id,
     formTitle: payload.form_title,

@@ -33,6 +33,10 @@ export interface FeatureFlags {
   processless_cases: boolean
   case_referrals: boolean
   signoff_enforcement: boolean
+  /** ADR 0136 — a `staff_admin` section's signature is collected AFTER the
+   *  response freezes and gates the PHASE, not the SUBMIT. Case-phase responses
+   *  only (D2); a standalone response keeps today's blocking behaviour. */
+  deferred_staff_signoff: boolean
   action_items: boolean
   quality_indicators: boolean
   controlled_docs: boolean

@@ -62,6 +62,10 @@ type BoardPhase = CaseBoardRow["phases"][number];
  * done / total progress, where "total" excludes settled-away phases: não-necessária
  * AND anulada (voided — Case Correction Lifecycle, ADR 0085; it satisfies `blocks`
  * like `not_required`, so it is not counted work either).
+ *
+ * ADR 0136: `awaiting_signoff` counts toward TOTAL but NOT toward DONE, by
+ * fall-through — which is correct and deliberate. The record is frozen but the
+ * phase is not concluded, and every phase it blocks is still held back.
  */
 export function phaseProgress(row: CaseBoardRow): { done: number; total: number } {
   const counted = row.phases.filter(
@@ -71,18 +75,34 @@ export function phaseProgress(row: CaseBoardRow): { done: number; total: number 
   return { done, total: counted.length };
 }
 
-/** Every `ativa` phase of a row, in position order (A5 — parallel phases). */
+/**
+ * Every `ativa` phase of a row, in position order (A5 — parallel phases).
+ *
+ * ADR 0136: an `awaiting_signoff` phase is deliberately NOT "ativa". Nobody can
+ * fill it — the response is frozen and `start_or_resume_phase` refuses it — so
+ * surfacing it as active would offer work that does not exist.
+ */
 export function activePhases(row: CaseBoardRow): BoardPhase[] {
   return [...row.phases]
     .filter((p) => p.status === "active")
     .sort((a, b) => a.position - b.position);
 }
 
-/** The "current" phase: the first active one, else the lowest-position pending one. */
+/**
+ * The "current" phase: the first active one, else the first awaiting a signature,
+ * else the lowest-position pending one.
+ *
+ * ⚠ The middle arm is NOT a fall-through — it had to be added (ADR 0136). Without
+ * it a case whose only live phase is `awaiting_signoff` reports NO current phase,
+ * so the board card goes blank at exactly the moment the case needs a
+ * coordinator's attention. It sits AFTER `active` (someone is still filling that)
+ * and BEFORE `pending` (which has not been released to anyone yet).
+ */
 export function currentPhase(row: CaseBoardRow): BoardPhase | null {
   const ordered = [...row.phases].sort((a, b) => a.position - b.position);
   return (
     ordered.find((p) => p.status === "active") ??
+    ordered.find((p) => p.status === "awaiting_signoff") ??
     ordered.find((p) => p.status === "pending") ??
     null
   );
@@ -157,6 +177,11 @@ export function overduePhaseCount(rows: CaseBoardRow[]): number {
  * exactly like `not_required` — the downstream phase is no longer held back by it.
  */
 function isBlockerSatisfied(status: CasePhaseStatus): boolean {
+  // ⛔ `awaiting_signoff` (ADR 0136) is NOT here, and its absence is load-bearing:
+  // this list mirrors `activate_phase`'s settled set ('completed','not_required',
+  // 'voided') exactly. It would fall through to `false` anyway — but that would be
+  // an accident, and the DB is the authority. Named so the next reader sees the
+  // decision instead of the default.
   return (
     status === "completed" ||
     status === "not_required" ||
@@ -229,8 +254,14 @@ const ACTIVE_OR_PENDING: CasePhaseStatus[] = ["active", "pending"];
  * "closed" is decided by {@link isTerminalCaseStatus} over the FIXED enum
  * (`nao_iniciado`/`em_revisao`/`pendente` = open; `concluido`/`cancelado` = closed).
  *
- * "Etapas pendentes" (`fasesPendentes`) counts pending PHASES plus not-concluded
- * NARRATIVES (`openNarrativeCount`) — the two open-work kinds a case interleaves.
+ * "Etapas pendentes" (`fasesPendentes`) counts pending PHASES, phases AWAITING a
+ * countersignature (ADR 0136), plus not-concluded NARRATIVES
+ * (`openNarrativeCount`) — the open-work kinds a case interleaves.
+ *
+ * ⚠ The `awaiting_signoff` arm had to be ADDED. Left to fall through it is counted
+ * by NOTHING — not `fasesAtivas` (nobody can fill it) and not `fasesPendentes` —
+ * so a phase parking for a signature would silently REDUCE the commission's open-work
+ * KPI at the moment it grew.
  */
 export function computeCaseKpis(rows: CaseBoardRow[]): CaseKpis {
   const now = new Date();
@@ -247,7 +278,9 @@ export function computeCaseKpis(rows: CaseBoardRow[]): CaseKpis {
         fasesAtivas += 1;
         rowHasActive = true;
       }
-      if (p.status === "pending") fasesPendentes += 1;
+      if (p.status === "pending" || p.status === "awaiting_signoff") {
+        fasesPendentes += 1;
+      }
       if (
         open &&
         ACTIVE_OR_PENDING.includes(p.status) &&

@@ -6,8 +6,6 @@ owner) â€” **update BOTH when an item changes state**. Resolved items move 
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
-### â¬› Resolved â€” rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2Â·S1 + S4) Â· **FUP-DM1-E2E** (6+1 specs rewritten, DM2Â·S4) Â· **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2Â·S2) â€” each verified independently, not accepted from a report â†’ [follow-ups-archive.md](./follow-ups-archive.md)
-
 ### â¬› FUP-DM5-NO-ANSWER-VS-NOTHING â€” âœ… **ALL SIX INSTANCES CLOSED 2026-08-19** â€” *"I could not look"* is not distinguished from *"I looked and found nothing"* (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
 
 > ## âœ… CLOSED 2026-08-19 â€” the last open instance is fixed, and the class statement is KEPT
@@ -3268,42 +3266,6 @@ write, not a state) and some are DELETE-only triggers on tables the door only UP
    states. Copy fix, but it is an instruction to attempt the impossible during an LGPD response.
 4. **The twelve unproven sweep candidates** above.
 
-### ðŸŸ¡ FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING â€” `DSR_RESIDUE_NOTICE` line 1 is now CONDITIONALLY true, and the condition is a control the software cannot enforce (owner: PO copy call, then frontend; created by ADR 0131, 2026-08-20)
-
-Filed 2026-08-20 (lead). Not a defect â€” a **premise that became explicit** when ADR
-[0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) bounded PHI
-erasure to designated PHI fields.
-
-**The sentence** ([messages.ts:97](../../src/lib/dsr/messages.ts:97)), shown to an operator
-discharging an LGPD obligation and reproduced in the outcome record handed to the data
-subject: *"O descarte apaga os dados do paciente armazenados no banco para este registro e
-preserva o histÃ³rico de governanÃ§aâ€¦"*
-
-**Before 0131** its truth was structural: the door was to be widened until it cleared every
-PHI-capable column on the lane. **After 0131** it holds **iff PHI was entered only into PHI
-fields** â€” a *training* control. The software cannot detect a patient name typed into a
-title, so nothing in the platform can make the sentence false-proof.
-
-â›” **This does NOT make the notice an over-claim today**, and it must not be filed as one:
-under the ruling's own premise the sentence is true. What changed is *what the sentence
-rests on*. Compare `FUP-DISPOSE-DIALOG-OVERCLAIM`, which was a genuinely false claim about
-the door's reach; this is a true claim with a newly named dependency.
-
-**The PO's call, two shapes:**
-(a) **scope the sentence** to the designated fields (*"â€¦apaga os dados do paciente
-registrados nos campos de identificaÃ§Ã£o do pacienteâ€¦"*) â€” narrower, and true independent of
-operator behaviour; or
-(b) **accept it as written** on the training premise, and record that premise.
-âš  Either way, **ADR 0131's risk acceptance must also be recorded where the pilot decision is
-made**, not only in the ADR â€” the identical requirement Critical FUP C3 carries, and the
-reason C3 says it: an acceptance that lives only in the document that created it is invisible
-at the moment it matters.
-
-âš  Whoever edits this constant: it is shared by **four** consumers (two dispose dialogs, the
-task-inbox disclosure, and `queries/dsr.ts` feeding the outcome record) and its per-lane
-companion `DSR_MEETING_DISPOSAL_WARNING` must stay a **separate** constant. Enumerate from
-the symbol's references, never from a roster.
-
 ### ðŸŸ¡ FUP-XREF-PEPPER-ROTATION-ORPHANS â€” rotating `mrn_pepper` permanently orphans DISPOSED xref rows; documented in ADR 0039 as "follow-up", never filed (owner: backend; pre-pilot: decide, not build)
 
 Filed 2026-08-19 (lead) â€” from the disposal-ADR sweep. ADR
@@ -3329,42 +3291,6 @@ made. **Fix:** the D11 implementing slice makes the call explicitly, records it 
 reserved slot, and reconciles the D11 body; until then, neither value may be cited as decided. (ADR
 [0130](../decisions/0130-dsr-subject-request-workflow.md) explicitly does **not** settle it.)
 
-
-### ðŸŸ  FUP-DISPOSE-EVENT-DOOR-GATE-BLIND â€” `dispose_event_phi`'s authorization gate is exercised by NO keystone: opening it leaves the full suite green (owner: backend; found by the ADR 0129 diff-scoped sweep)
-
-**Measured 2026-08-19, by neutralization, on a fresh reset.** Rewriting the door's authz raise to
-`perform 1;` â€” so **any** caller passes the gate â€” and running the full pgTAP suite:
-
-| Door | Gate | Suite notices? |
-|---|---|---|
-| `dispose_case_phi` | `is_staff_admin_of(commission)` | âœ… **YES** â€” `151_case_patient` (6 tests) + `314_qob_org_admin_content_wall` (1) |
-| `dispose_referral_phi` | `is_tenancy_admin_of` âˆ¨ `is_pqs_operator_of` (source âˆ¨ target) | âœ… **YES** â€” `189_nsp_per_hospital_isolation` |
-| `dispose_meeting_minutes` | `is_staff_admin_of` âˆ¨ `is_tenancy_admin_of` | â›” **WAS BLIND** â€” âœ… now keystoned by `348` t7 (ADR 0129 build) |
-| **`dispose_event_phi`** | `is_tenancy_admin_of(commission_of_event)` âˆ¨ `is_pqs_operator_of(hospital_of_event)` | â›” **BLIND** â€” gate opened **alone**, suite **PASS**, 6550/6550 |
-
-âš  **BLIND â‰  vulnerable, and the distinction is the whole point.** The gate is present and correct
-today; nothing is reachable that should not be. What is missing is the *keystone* â€” if a refactor
-dropped or weakened this gate, **nothing in 6550 tests would go red**, and a PHI-erasure door on the
-patient-safety module would be silently open. That is door-blindness in the ADR 0079 sense.
-
-**Why the standing gates did not catch it.** `ARM=census` asks whether a gate carries a *verdict*,
-not whether a keystone exercises it; `ARM=floor` asks only whether the door is **called** â€” and it
-is (its happy path is tested), which is exactly the [[a-predicate-quoted-at-the-wrong-grain]] shape:
-"the door is exercised" is true and does not bound "the door's *gate* is exercised". ADR 0079
-Amendment 1's diff-scoped recipe filters the diff to `^(is_|can_|has_)` function names + RLS
-policies; this gate is a plain `if not (...)` **inside** a door and matches no filter. â­ **The
-enumeration boundary is a syntax; the property is "an authorization decision no test can see change"**
-â€” [[enumeration-boundary-is-a-syntax-not-a-property]].
-
-**The fix** is one `throws_ok(..., '42501')` per door with a persona who holds the module's ordinary
-membership but neither gate arm â€” the shape `348` t7 uses (a plain commission member), with a CONTROL
-pinning that the persona really lacks the hat, so the refusal is attributable to the role and not to
-tenancy. â›” **Do not "fix" this by widening the gate to make a test pass.**
-
-**Not fixed here, deliberately.** Found *during* the ADR 0129 build, whose migration is bound to amend
-nothing else (0129 Decision 1) and whose subject is the child lock. Filed rather than carried, so it is
-not lost inside a build that does not own it â€” the same reason this door's sibling item was filed in the
-first place.
 
 ### ðŸŸ  FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES â€” the PHI-disposal runbook is the procedure for ONE of the two PHI-disposal substrates; the four column-erasing doors have no operational procedure at all (owner: backend + PO; found by correcting a wrong-grain claim, 2026-08-19)
 
@@ -5146,6 +5072,362 @@ up. (`test:db` counts *are* stable â€” pgTAP plans are literal.)
 â­ **Credit, because it is the reason this was a conversation rather than a silent green:** the helper
 fails CLOSED â€” with the stack down it throws *"this guard reads the catalog on purpose and must never
 silently skip"* instead of defaulting to a hardcoded list. Preserve that behaviour through any refactor.
+
+### FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT
+
+✅ **RESOLVED 2026-08-24 — shape (a), the narrower fix, as this entry preferred.**
+
+- `getResponseForFill` now projects `case_phase_id` (`ResponseForFill.casePhaseId`), and the
+  standalone route `notFound()`s a response whose lane is not its own. The guard sits BEFORE the
+  `submitted` branch, so it holds at every status.
+- ⛔ **(a) is not one line, and the entry did not say so.** Two live links fed that route with a
+  case-phase draft and would now 404 instead of showing a dead button — measured, not guessed:
+  `listFillableForms`' "Continuar" annotation (its draft lookup had no lane conjunct) and
+  `MyResponseCard`'s in_progress row. Both are lane-filtered in the same change; SUBMITTED
+  case-phase rows stay in "Minhas respostas", because their link is the lane-agnostic read-only
+  viewer that also carries the respondent's own PDF path.
+- ⭐ **And a third feeder was a DATABASE defect, found by following the same thread.**
+  `start_or_resume_response`'s resume query selected any `in_progress` response for
+  (version, caller) while `responses_one_draft_per_user_idx` — the index it defers to on the CREATE
+  path — carries `AND case_phase_id IS NULL`. So "Preencher" on the standalone form handed back the
+  caller's CASE-PHASE draft. Fixed in migration `20261003002000`; the state is **not in `seed.sql`**
+  (no `in_progress` case-phase response exists there), so it was CONSTRUCTED and pinned red-first in
+  pgTAP `367` §15 — 15.1 failed against the old body and passes against the new one, 15.2 pins that
+  the fix adds a standalone draft rather than hijacking the phase draft.
+- Keystone: `e2e/deferred-staff-signoff.spec.ts` — "the standalone forms route refuses a CASE-PHASE
+  response, and only that". THREE assertions, because "it 404s" is also true of a route that 404s
+  everything and of a response the caller cannot read: the same response walks its OWN route (renders),
+  and a STANDALONE draft of the same user on the same route and version renders too. Only the lane
+  differs across the three.
+- ⚠ It runs on its OWN throwaway fixtures. An earlier draft drove the SHARED response's wizard, which
+  left it resumed at a later section and reddened the submit test two tests down — rendering a wizard
+  is not a read-only act.
+
+---
+
+⚠ **NEW — created by the ADR 0136 increment.** Filed 2026-08-24 (lead), from the build's own
+route census, not from a failing test.
+
+`WizardData.deferStaffSignoff` is resolved on **one** of the three routes that render the wizard —
+`…/cases/[caseId]/phase/[phaseId]/responder/[responseId]`. The standalone
+`…/forms/[formId]/responder/[responseId]` route takes the parameter's `false` default.
+
+**And that route is not structurally prevented from serving a CASE-PHASE response.** Measured:
+`getResponseForFill` filters on `id` alone (`src/lib/queries/responses.ts:816-823` — no
+`case_phase_id` predicate), and the page's guards are `formId` + `commissionId` + `status`, all of
+which a case-phase response satisfies (its form IS `formId`, its commission IS the caller's). So the
+same response renders with a DISABLED submit on one route and an ENABLED one on the other.
+
+✅ **Not a security defect, and the direction matters:** the divergence is strictly MORE restrictive
+— the standalone route refuses a submit the database would accept. Nothing is granted anywhere.
+
+⛔ **But it is a divergence that did not exist before this increment.** Until now both routes agreed
+because neither knew about case phases. It is reachable by hand-editing a URL the assignee already
+sees, and it presents as "the button is dead for no reason".
+
+**Decide between:**
+- **(a)** the standalone route `notFound()`s a response whose `case_phase_id` is non-null — the
+  narrower fix, and arguably right independently: that route's copy, back-link and confirmation
+  screen are all written for the standalone lane; or
+- **(b)** it resolves `deferred_staff_signoff` too and passes it through.
+
+⭐ (a) is preferred: it removes a whole class of "which route am I on?" divergence rather than
+keeping two routes in step forever. ⛔ Either way it needs a keystone — today NOTHING asserts which
+lane that route serves.
+
+**Owner:** frontend (with a backend one-liner if (a) needs a `case_phase_id` projection).
+
+---
+
+### FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE
+
+✅ **RESOLVED 2026-08-24 — pgTAP `367` §13, 13 assertions.**
+
+⛔ **The shape this entry asked for could not pass, and that is the finding.** The eleven siblings
+owe "the outsider reads 0 rows through this door". `app.pending_staff_signoffs` has **no identity
+predicate at all**, so it returns the SAME rows to every caller by construction — an
+outsider-reads-0 assertion would have been FALSE, and making it true would have meant bolting a gate
+onto a helper whose four callers each already gate.
+
+So the boundary is walked where it lives:
+- **13.1–13.3** pin the caller-blindness AS DESIGNED (coordinator, respondent and a non-member
+  staff_admin all read the same 1 row) — so a gate added later without moving the backlog record
+  reds here.
+- **13.4–13.9** walk every principal through the two consumers: `get_response_for_signoff` (refuses
+  with `P0002`) and `list_signoff_queue` (returns empty). The respondent — who OWNS the response —
+  is refused too: the read right is the act of signing, not authorship.
+- **13.10–13.12** are the differential: after the section is signed all three read 0, which is what
+  proves 13.1–13.3's "1" tracks the live projection instead of a constant.
+- The outsider is `sa_y` (same org, same hospital, other commission), never an org-B user — a fully
+  foreign principal is denied by the tenant boundary before this door's gate is reached.
+
+⭐ **Drilled RED, both consumers at once**: opening the authorization gate of
+`get_response_for_signoff` and `list_signoff_queue` (each `if not (...)` → `if false and not (...)`)
+reds exactly 13.5, 13.6, 13.8, 13.9; the restore was byte-compared back. ⚠ 13.1–13.3 are NOT
+mutation-proven — narrowing the projection to `where false` reds §2/§3 first and the file aborts at
+test 23, never reaching §13. Their non-vacuity is structural (13.10–13.12), and saying which of the
+two it is matters.
+
+---
+
+⚠ **NEW — an owed keystone the ADR 0136 increment did not discharge.** Filed 2026-08-24 (lead).
+
+`app.pending_staff_signoffs(uuid)` is a `SECURITY DEFINER` set-returning function with **no identity
+predicate at all**. `ARM=census` flagged it never-swept the day it landed;
+`p0-authz-rowdoor-audit.sh` was run over it and returned **UNSUPPORTED** — *"no statement-level
+identity guard — the gate is a conjunct inside the query"* — which is structurally exact. It is
+recorded in `supabase/tests/mutation/authz-unswept-backlog.txt` under the UNSUPPORTED block.
+
+⛔ **It is deliberately NOT filed under `helper:`.** A `helper:` line asserts "not an authorization
+decision"; this one IS an input to one — `get_response_for_signoff` uses its emptiness as the
+read-right scope (*"the read right is scoped to the act of signing"*).
+
+✅ **BEHAVIOUR is pinned and DRILLED** — pgTAP 367, drills 2026-08-24 RED in **both** directions
+(narrowing to `where false` reds 7 assertions; dropping the already-signed conjunct reds 6).
+
+⛔ **That is not the same thing, and the gap is the point of this entry:** a behaviour drill asks
+"does anything notice when the projection changes?". The keystone this class owes asks "does the
+projection return the same rows to a principal who should see NOTHING?" — a **computed enumeration
+plus a row-count assertion per principal**, in the shape of
+`supabase/tests/299_hospital_content_door_noun_rule.sql` §4 (worked example:
+`300_rowdoor_gate_keystones.sql`). It is the twelfth entry in that block; the eleven before it owe
+the same thing.
+
+**Owner:** backend.
+
+---
+
+### FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE
+
+✅ **RESOLVED 2026-08-24 — and the honest re-run said BLIND, not COVERED.**
+
+`CASES="sign_section" p0-authz-invoker-audit.sh`, fresh reset, baseline `Files=218, Tests=7226,
+PASS`: **BLIND**, `open-guard(g1=0,g2=0,g3=1)`. ⛔ **Both halves of the old row were stale** — the
+verdict AND the guard class it was about. ADR 0136 rewrote the lifecycle guard to
+`if v_status <> 'in_progress' and not app.is_signoff_deferral_open(...)`, which moved the opened
+guard from class G1 to class G3.
+
+⭐ **Hand-classification, which the PROVISIONAL note asked for and nobody had done: none of this
+wrapper's `if` guards is the authorization gate.** They are a domain probe, a lifecycle window and
+two shape checks. `sign_section` is INVOKER, so the authorization decision is the RLS `WITH CHECK`
+on `response_section_signoffs.signoffs_insert` (`signed_by = auth.uid() AND app.can_sign_section(...)`),
+which the INSERT reaches as the caller — COVERED independently by the write-path sweep
+(`251_authz_p0_isolation.sql`) and by the predicate arm (`app.can_sign_section`). The BLIND was
+therefore about the LIFECYCLE guard, and it was real: `367` §5 pinned that bound by calling the
+PREDICATES directly, and a predicate call is not a walk through the door.
+
+⛔ **THE FIRST FIX DID NOT WORK, AND WHY IS THE LESSON.** `367` §14.1 walked the door and asserted
+`throws_ok(..., '23514')` — and the sweep still returned BLIND. **The second lock:** the INSERT
+trigger `guard_submitted_signoffs` shares the very same `is_signoff_deferral_open` window and refuses
+with `errcode = 'check_violation'` — **the identical SQLSTATE**. A matcher keyed on the code alone
+passes whichever lock fires and cannot notice the first being removed. §14.1 is now pinned to the
+wrapper's own MESSAGE. Verdict after that: **COVERED**, earned by the keystone with the sweep as its
+own oracle. ⚠ Two locks are good; a keystone that cannot say which one held is not.
+
+---
+
+⚠ **NEW — a verdict this increment invalidated and did not re-derive.** Filed 2026-08-24 (lead).
+
+`docs/reviews/authz-invoker-audit-findings.md:100` carries:
+
+```
+public.sign_section(…) | invoker | open-guard(g1=1,g2=0,g3=0) | COVERED
+  | ⚠ g1-only: PROVISIONAL, hand-classify (the opened probe may be a domain check, not the gate)
+  — 226_notifications.sql
+```
+
+The ADR 0136 increment **changed that function's gate**: its `if v_status <> 'in_progress' then raise`
+became `if v_status <> 'in_progress' and not app.is_signoff_deferral_open(p_response_id) then raise`.
+
+⛔ Two separate problems, and the second is the one that bites:
+1. The COVERED verdict was measured against the OLD body. `FROMFINDINGS=1 ARM=wrapper` passed at the
+   gate — but that mode compares a **committed findings file** to an allowlist and re-measures
+   nothing, so a changed body is invisible to it by construction.
+2. The verdict was **PROVISIONAL to begin with** and carries an explicit `hand-classify` instruction
+   that nobody has executed. A provisional COVERED reads as COVERED in every downstream summary.
+
+⭐ This is the ADR-0079 lesson one arm over: *absence of a verdict is not absence of coverage* — and
+a **stale** verdict is worse than an absent one, because the census counts it as satisfied.
+
+**Do:** re-run the invoker sweep scoped to `sign_section` (`p0-authz-invoker-audit.sh`) and
+hand-classify the g1 probe, recording WHICH of the three guards is the authorization gate. ⚠ Restore
+the findings file after a subset run, as with the door sweep.
+
+**Owner:** backend.
+
+---
+
+### FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME
+
+✅ **RESOLVED 2026-08-24 — shape (c), widen by PROPERTY. ADR
+[0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 9.**
+
+⭐ **(b) turned out to be already done, measured before choosing:** all 42 out-of-domain booleans
+were already listed in `authz-unswept-backlog.txt`, so the "cheap half" bought nothing. And the
+script's stated reason for refusing (c) — *"the out-of-domain set contains two SIDE-EFFECTING
+writers"* — is an argument about widening by TYPE, not by property: of the 42, exactly **9** have a
+body referencing an identity primitive, and one of those 9 IS `remind_document_approver`. The
+property filter separates the gates from the writers, which the type filter could not.
+
+- Domain: **102 → 110**; out-of-domain **42 → 34**. The two writers are held out BY NAME with the
+  reason written at the exclusion, and stay VISIBLE in the census.
+- The domain is now ONE interpolated string instead of two hand-kept copies of the same SQL — the
+  census's `not (…)` is the same string, so the two cannot drift.
+- **8 gates swept, fresh reset, baseline `Files=218, Tests=7223, PASS`: 6 COVERED · 1 BLIND · 1
+  ERROR.** New follow-ups for the last two: `FUP-RCA-WRITER-CAN-WRITE-IS-BLIND` and
+  `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE`. `member_can`/`member_can_for` — the pair whose `CASES=`
+  run once executed zero cases and printed `BLIND: 0` — are **COVERED**, held by 12 and 40 files.
+- ⚠ It is still an approximation, and the census says so on every run: a gate reaching identity only
+  INDIRECTLY is outside the arm and looks like a feature-flag reader from there.
+
+⛔ **A measurement lesson, recorded in the amendment because it nearly shipped as a finding:** it
+took THREE runs to get a trustworthy answer. Run 1 was contaminated by the operator editing a pgTAP
+file mid-sweep; run 2 was a quiet tree with **no fresh reset** and still got 6 of 8 verdicts wrong.
+**A green baseline is not evidence the database is fit to mutate** — the preflight proves the tree
+unmutated, and says nothing about whether residual state will make a file ABORT once a gate opens.
+
+---
+
+⚠ **The harness names this class in its own output and it has never been REGISTERED anywhere** —
+verified 2026-08-24: zero hits in `follow-ups.md` and `PROGRESS.md`, two in
+`supabase/tests/mutation/p0-authz-door-audit.sh` (`:315`, `:393`). Filed by the ADR 0136 increment,
+which is the first recorded instance of it actually costing something.
+
+The door sweep's predicate arm bounds its domain with a **name regex** —
+`^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)`, minus `^is_valid_` —
+standing in for the property *"is an authorization predicate"*, which no regex decides. The script is
+honest about this: it censuses the gap on every run and refuses to auto-widen (widening would swap a
+silent gap for silent ERRORs — the out-of-domain set contains feature-flag readers, `validate_*`
+shape checkers, and two SIDE-EFFECTING writers whose bodies must not be swapped for `select true`).
+**Measured 2026-08-24: `out-of-domain-bool=42`.**
+
+⭐ **THE LIVE INSTANCE.** ADR 0136's new predicate was first written as `app.signoff_deferred_open`.
+`ARM=census` flagged it never-swept; the diff-scoped sweep then matched **ZERO gates** and reported
+`UNPROVEN — NOTHING WAS MEASURED`. The function was shaped exactly like a predicate and excluded
+purely by its name. It was **renamed** to `app.is_signoff_deferral_open`, after which the same sweep
+returned **COVERED**.
+
+⛔ **The rename is a WORKAROUND, and it quietly created a new obligation:** the sweep's coverage now
+depends on an unwritten naming convention that no gate enforces. The next authz predicate someone
+names `signoff_x_allowed` or `phase_is_open` escapes the arm, and `ARM=census` will say so **only if
+it is a `prosecdef` boolean** — which is the one arm that would then have to be read carefully rather
+than skimmed.
+
+**Decide between:**
+- **(a)** a `lint`/pgTAP check that a `prosecdef` boolean in `app`/`public` either matches the arm's
+  prefix set or appears in `authz-unswept-backlog.txt` — turning the convention into a gate;
+- **(b)** classify the 42 out-of-domain booleans once, into `authz-unswept-backlog.txt`, so the census
+  gap is a reviewable list rather than a count; or
+- **(c)** widen the arm by PROPERTY (e.g. "references an authz predicate or `auth.uid()`") with the
+  known side-effecting writers excluded by name — the script's own stated reason for not doing this
+  is worth re-reading before choosing it.
+
+⚠ **(b) is the cheap half of (a) and does not replace it:** a one-time classification goes stale the
+next time someone adds a gate.
+
+**Owner:** backend.
+
+---
+
+### FUP-DSS-KEYBOARD-FLOW-IS-THIN
+
+✅ **RESOLVED 2026-08-24 — the test now SIGNS with the keyboard.**
+
+`e2e/deferred-staff-signoff.spec.ts` — "keyboard-only: reach the queue row, open it, and SIGN — no
+pointer": Tab to the queue row, Enter to open it, Tab to "Assinar", Enter, then assert the phase
+reached `completed`. No `click()`, no `tap()`, and deliberately **no `locator.focus()`** — focusing
+programmatically would step over a control the Tab order cannot actually reach, which is the defect
+a keyboard test exists to find. The walk is bounded (60 presses) so an unreachable control fails as
+a finding rather than hanging to the suite timeout.
+
+⚠ **A SECOND fixture, on purpose.** Signing needs an unsigned frozen record and the pointer-driven
+test above consumes the only one. Building a second case rather than converting that test keeps the
+failure modes separable: a red here means the KEYBOARD path broke, not that signing broke. The
+old test's assertion (the attested row LEFT the queue) is kept and now also guarantees the new
+fixture is the only row the tab walk can land on.
+
+⭐ **Found while fixing it — the spec's cleanup had never worked.** `afterAll` deleted the case
+"and the cascade takes its phases + responses with it"; measured, `responses.case_phase_id →
+case_phases` is **NO ACTION**, as are the two `→ form_versions` edges, and a submitted response
+cannot be deleted at all (`submitted responses are immutable`). The deletes' status was never
+checked, so it failed SILENTLY: three spec-owned forms, four cases and four responses accumulated
+in one afternoon, and the symptom surfaced two tests away as a strict-mode violation on the sign-off
+queue — which reads exactly like a product bug. Fixed by deleting in FK order, asserting every
+delete except the two refusals that ARE product invariants, and RUN-SCOPING every name the spec
+searches by so an undeletable leftover can never collide with a later run.
+
+---
+
+⚠ **NEW — a self-reported gap in this increment's own E2E.** Filed 2026-08-24 (lead).
+
+CLAUDE.md §8 requires *"at least one keyboard-only flow per phase"*.
+`e2e/deferred-staff-signoff.spec.ts`'s keyboard test asserts that the queue no longer lists the
+attested row and that the first tab stop has an accessible name. **That is an a11y floor, not a
+keyboard-only FLOW** — it never signs anything with the keyboard.
+
+The act worth covering is the one this ADR creates: reach the queue row, open it, and **sign**, all
+without a pointer — because that signature now concludes a case phase and releases everything
+downstream of it, so a keyboard trap there is materially worse than one on a draft.
+
+⛔ Recorded rather than quietly left, because a thin test in the *place the requirement points at*
+reads as the requirement being met.
+
+**Owner:** tester.
+
+---
+
+### FUP-RCA-WRITER-CAN-WRITE-IS-BLIND
+
+⚠ **NEW — the first finding produced by widening the door sweep's predicate arm.** Filed 2026-08-24,
+by the sweep, not by review.
+
+`public.rca_writer_can_write(p_rca_id uuid)` is a `prosecdef` boolean whose body reads
+`auth.uid()`. Neutralizing it to `select true` — opening the gate — leaves the FULL pgTAP suite
+GREEN: **218 files, 7223 tests, Result: PASS**, zero assertions reddened.
+
+⛔ **It had never been swept in EITHER direction before**, because the arm's domain was a NAME regex
+(`^(is_|can_|has_|…)`) and this gate matches none of it. It entered the domain with ADR
+[0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 9 and returned BLIND
+on the first run. ⚠ **BLIND is not "vulnerable"** — it means no keystone exercises the gate, so
+nothing would notice if it were opened. Whether it is reachable, and by whom, is the next question,
+not a conclusion.
+
+⛔ **BLIND blocks a phase (CLAUDE.md §6 step 1)** and the allowlist is NOT available here: that file
+is for an unreachable backstop, and an RCA write gate is not one. It owes a keystone in the shape of
+`300_rowdoor_gate_keystones.sql` — a row count through the door per principal, never a predicate
+call, each denial with its non-vacuity twin.
+
+**Owner:** backend.
+
+---
+
+### FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE
+
+⚠ **NEW — a harness ceiling the same widening exposed.** Filed 2026-08-24 (lead).
+
+`app.event_current_custodian` came back **ERROR**: `run-shape != baseline (Files=218 Tests=7199)`.
+The cause is exact — with the gate open, `140_patient_safety.sql` fails its test 11 and then
+**ABORTS** (`Bad plan. You planned 35 tests but ran 11`), so the denominator moves and §7.15
+withholds a verdict rather than recording one against a run whose assertions did not all execute.
+
+✅ **The harness is right and must not be loosened.** ⚠ But **ERROR here means *unclassifiable*, not
+*unprotected*** — the suite plainly DID notice (test 11 reddened). ⛔ And it is not a pass either:
+CLAUDE.md §6 requires ERROR to be covered in the phase's mutation audit.
+
+⭐ **The class matters more than this one case.** Widening the arm by property admits BROADER gates
+— capability resolvers, audit gates — and a broad gate is exactly the kind whose opening makes some
+file abort. Expect more of these, not fewer, as the arm's domain grows.
+
+**Decide between:**
+- **(a)** a bespoke neutralization per case (what ADR 0079 Amendment 1 already prescribes for
+  value-returning raise-guards) — precise, and it does not touch the classifier; or
+- **(b)** teaching the classifier a fourth outcome for "shape moved AND the suite went FAIL", which
+  is strictly more information than ERROR — ⛔ but it must never collapse into COVERED, because the
+  failing assertions may belong to a different gate entirely.
+
+**Owner:** backend.
+
+---
 
 ### FUP-E2E-CREATEFRESHCASE-SILENT-NULL
 

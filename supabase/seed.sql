@@ -2318,6 +2318,16 @@ update app.feature_flags set enabled = true where key = 'cases_bulk_create';
 -- ON here for local/E2E so the correction request / void / reopen surfaces are
 -- reachable. Production flip deferred to the feature gate.
 update app.feature_flags set enabled = true where key = 'case_corrections';
+-- ADR 0136 — deferred staff_admin sign-off. Created OFF in 20261003001900; forced
+-- ON here for local/E2E so the `awaiting_signoff` phase state, the widened sign-off
+-- queue and the signature-completes-the-phase trigger are all exercised. ⛔ Production
+-- stays OFF until its own flip migration at the gate — a flag flipped only by
+-- seed.sql is OFF in production while local and E2E are green.
+-- ⚠ CONSEQUENCE: a test that wants to pin the deliberate flag-OFF contract (submit
+-- REFUSED with HC012 on a staff_admin section, phase → `completed` on submit) must
+-- turn the flag OFF itself and restore it — this seed hands it ON. pgTAP 367 does
+-- exactly that, and it is what keeps BOTH arms of D1 covered.
+update app.feature_flags set enabled = true where key = 'deferred_staff_signoff';
 -- FF-1 repeating groups (ADR 0087). Created OFF in
 -- 20260828000000_ff1_repeating_groups_schema; forced ON here for local/E2E so the
 -- container builder types, the three instance RPCs and instance-aware evaluation

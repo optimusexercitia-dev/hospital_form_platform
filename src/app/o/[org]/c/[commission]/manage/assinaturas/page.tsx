@@ -11,9 +11,11 @@ export const metadata: Metadata = {
 };
 
 /**
- * The "pendentes de assinatura" queue (F1): in_progress responses of this
- * commission that have a VISIBLE, unsigned, `staff_admin`-role sign-off section
- * awaiting the coordinator's signature.
+ * The "pendentes de assinatura" queue (F1): responses of this commission that have
+ * a VISIBLE, unsigned, `staff_admin`-role sign-off section awaiting the
+ * coordinator's signature — `in_progress` drafts, and (ADR 0136) FROZEN case-phase
+ * responses already submitted, whose phase is parked in `awaiting_signoff` until
+ * the signature lands.
  *
  * Access is gated HERE on the server in addition to RLS: a `staff_admin` of this
  * commission / a global admin — OR (ADR 0061) an Administrativo holding
@@ -55,6 +57,7 @@ export default async function SignoffQueuePage({
     pendingCount: item.pendingCount,
     startedAt: item.startedAt,
     updatedAt: item.updatedAt,
+    isFrozenCasePhase: item.casePhaseId !== null,
   }));
 
   return (
@@ -66,8 +69,8 @@ export default async function SignoffQueuePage({
         <h1 className="text-3xl text-balance">Assinaturas pendentes</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
           {canSign
-            ? "Respostas em andamento que aguardam a sua assinatura para que possam ser enviadas. Abra uma resposta para revisar o conteúdo e assinar as seções sob sua responsabilidade."
-            : "Respostas em andamento que aguardam a assinatura da coordenação. Você pode acompanhar a fila; a assinatura é feita pela coordenação."}
+            ? "Respostas que aguardam a sua assinatura. Abra uma resposta para revisar o conteúdo e assinar as seções sob sua responsabilidade."
+            : "Respostas que aguardam a assinatura da coordenação. Você pode acompanhar a fila; a assinatura é feita pela coordenação."}
         </p>
       </header>
 

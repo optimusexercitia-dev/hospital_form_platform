@@ -97,10 +97,13 @@
 #     UPDATE / DELETE policy is out of its domain by construction.
 #   * p0-authz-writepath-audit.sh covers those, but from a 33-row EMBEDDED SNAPSHOT
 #     captured 2026-07-18 and a 7-name hardcoded guard list. The snapshot never grew.
-#   * the door audit's predicate arm filters on a NAME PREFIX
+#   * the door audit's predicate arm filtered on a NAME PREFIX
 #     (`^(is_|can_|has_|…)`), so `capa_viewer_can_manage`, `interview_viewer_can_write`,
-#     `rca_writer_can_write`, `member_can` and `confidentiality_clearance_ok` are all
-#     real authz gates that no sweep has ever had in its worklist.
+#     `rca_writer_can_write`, `member_can` and `confidentiality_clearance_ok` were all
+#     real authz gates that no sweep had ever had in its worklist.
+#     ⭐ CLOSED 2026-08-24 by ADR 0079 Amendment 9 — the arm now admits by PROPERTY
+#     (identity-touching body) as well as by name, and all five carry verdicts. The other
+#     two bullets above are UNCHANGED and still live.
 # So a write policy or an off-convention gate could be added on any day and be invisible
 # to BOTH sweeps AND to ARM 1 — which compares BLIND to the allowlist, and a gate that
 # was never swept is in neither set. That is the hole ARM 3 closes.
@@ -141,39 +144,54 @@ case_events.case_events_writer_delete (DELETE)
 case_events.case_events_writer_insert (INSERT)
 case_events.case_events_writer_update (UPDATE)
 
-# -- DEFINER boolean gates the door audit's name-prefix worklist cannot see. Each is a
-#    principal-dependent authorization decision; `member_can` is the ADR 0061
-#    delegated-capability resolver, i.e. one of the most central gates in the schema.
-app._audit_access_authorized(p_action text, p_entity_id uuid, p_commission uuid)
-app.confidentiality_clearance_ok(p_case_id uuid, p_label text, p_uid uuid)
-app.event_current_custodian(p_event_id uuid, p_user_id uuid)
-app.member_can(p_commission_id uuid, p_capability text)
-# `member_can_for` joins its twin here on 2026-08-22 (ADR 0134 Amdt 6 / M2). ⛔ NOT because
-# nobody asked — this one WAS asked, just not by an arm, and the distinction is the point.
-#   * WHY THE ARM CANNOT ANSWER: `p0-authz-door-audit.sh:231` bounds the predicate arm by
-#     `proname ~ '^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)'`.
-#     `member_can*` matches none of them, so a diff-scoped run with
-#     CASES="member_can_for member_can" executes **ZERO cases** and prints `BLIND: 0` — a
-#     detector that found nothing because it looked at nothing. `ARM=census` therefore
-#     flags this gate and the remediation the census PRINTS cannot clear it. Recorded so
-#     the next person does not spend the run discovering that again.
-#   * WHAT WAS ASKED INSTEAD (sweep by the PROPERTY, per ADR 0079's own precedent that a
-#     gate the arm cannot score "owes a targeted mutation case"): each term of the body was
-#     neutralized ALONE against the full suite, under a harness that proves its own rollback
-#     (a no-op probe is rejected; every probe moved `md5(pg_get_functiondef)` and every
-#     restore returned it). Results, `supabase/tests/356_case_caps_s8_administrativo_read.sql`:
-#       feature_enabled('administrativo') removed -> 4 RED (1.1, 2.1, 2.2, 5.1)
-#       is_member_of_for(...)             removed -> 1 RED (1.3, the ORPHAN)
-#       is_active(p_user_id)              removed -> 0 RED — ⚠ and that is a FINDING, not a
-#         gap: the term is REDUNDANT, because `is_member_of_for` already contains it. The
-#         widely-quoted "four conjuncts" of this predicate are THREE independent terms.
-#     ⇒ the gate is behaviourally COVERED. It stays HERE and not in a findings md because
-#     no arm earned that verdict, and this file's own rule is that a verdict nobody earned
-#     is worse than an admitted gap.
-app.member_can_for(p_commission_id uuid, p_capability text, p_user_id uuid)
-public.capa_viewer_can_manage(p_capa_id uuid)
-public.interview_viewer_can_write(p_interview_id uuid)
-public.rca_writer_can_write(p_rca_id uuid)
+# -- ⭐ CLOSED 2026-08-24 — THE EIGHT "name-prefix worklist cannot see" GATES ARE NOW
+#    IN THE ARM'S DOMAIN AND CARRY VERDICTS. Kept as a comment, not deleted, because the
+#    reason they were here for three weeks is the finding.
+#
+#    They were: app._audit_access_authorized · app.confidentiality_clearance_ok ·
+#    app.event_current_custodian · app.member_can · app.member_can_for ·
+#    public.capa_viewer_can_manage · public.interview_viewer_can_write ·
+#    public.rca_writer_can_write — every one a principal-dependent authorization decision
+#    (`member_can` is the ADR 0061 delegated-capability resolver, one of the most central
+#    gates in the schema), and every one excluded from the sweep purely by its NAME.
+#
+#    ADR 0079 **Amendment 9** (`FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`) widened the
+#    predicate arm to admit a `prosecdef` boolean by PROPERTY as well as by name — a body
+#    that references an identity primitive — with the two side-effecting writers held out by
+#    name. Domain 102 -> 110; out-of-domain 42 -> 34. All eight were then swept on a FRESH
+#    `supabase db reset` (baseline Files=218, Tests=7223, PASS) and their rows transcribed
+#    into docs/reviews/authz-door-audit-findings.md:
+#
+#      6 COVERED  _audit_access_authorized · confidentiality_clearance_ok · member_can ·
+#                 member_can_for · capa_viewer_can_manage · interview_viewer_can_write
+#      1 BLIND    public.rca_writer_can_write — opening it reddened NOTHING across 218
+#                 files. The FIRST finding the widening produced, and the reason it was
+#                 worth making. Owes a keystone: FUP-RCA-WRITER-CAN-WRITE-IS-BLIND.
+#      1 ERROR    app.event_current_custodian — 140_patient_safety.sql fails its test 11
+#                 and then ABORTS, so the run shape moved and §7.15 withholds a verdict.
+#                 ERROR is not a pass: FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE.
+#
+#    ⛔ `member_can_for`'s hand-run property sweep (below, kept verbatim) is what this file
+#    had INSTEAD of an arm verdict, and it was right — the arm now agrees with it. Read it
+#    as the worked example of "a gate the arm cannot score owes a targeted mutation case",
+#    not as a live obligation.
+#
+#      * WHY THE ARM COULD NOT ANSWER (before Amendment 9): `p0-authz-door-audit.sh` bounded
+#        the predicate arm by `proname ~ '^(is_|can_|has_|referral_target_analyst|
+#        attachment_confidentiality_ok)'`. `member_can*` matches none of them, so a
+#        diff-scoped run with CASES="member_can_for member_can" executed **ZERO cases** and
+#        printed `BLIND: 0` — a detector that found nothing because it looked at nothing.
+#        `ARM=census` flagged the gate and the remediation the census PRINTS could not clear
+#        it. That incident is what the follow-up was filed on.
+#      * WHAT WAS ASKED INSTEAD: each term of the body was neutralized ALONE against the full
+#        suite, under a harness that proves its own rollback (a no-op probe is rejected; every
+#        probe moved `md5(pg_get_functiondef)` and every restore returned it). Results,
+#        `supabase/tests/356_case_caps_s8_administrativo_read.sql`:
+#          feature_enabled('administrativo') removed -> 4 RED (1.1, 2.1, 2.2, 5.1)
+#          is_member_of_for(...)             removed -> 1 RED (1.3, the ORPHAN)
+#          is_active(p_user_id)              removed -> 0 RED — ⚠ and that is a FINDING, not a
+#            gap: the term is REDUNDANT, because `is_member_of_for` already contains it. The
+#            widely-quoted "four conjuncts" of this predicate are THREE independent terms.
 
 # -- ⭐ NEW CLASS, opened 2026-08-22 (ADR 0134 Amdt 2 option D): `app` INVOKER PRIVATE
 #    WRITERS. Added because this file's own rule is that an ADMITTED GAP BEATS A VERDICT
@@ -247,7 +265,7 @@ process_template_versions.process_template_versions_staff_admin_write (ALL)
 
 # -- ROW-RETURNING DEFINER DOORS — 11 of the original 45 remain. SWEPT AND UNSUPPORTED,
 #    which is a DIFFERENT claim from the rest of this file and must not be read as the same.
-#    Every other line here means *nobody has asked*. These eleven were asked, by
+#    Every other line here means *nobody has asked*. These TWELVE were asked, by
 #    `p0-authz-rowdoor-audit.sh` (ADR 0079 Amendment 4), and the harness answered that it
 #    has no mechanism for them: their gate is not a statement-level guard it can open, but
 #    an identity conjunct INSIDE the query (`where m.principal_id = auth.uid()`) or a
@@ -272,9 +290,28 @@ process_template_versions.process_template_versions_staff_admin_write (ALL)
 #    `299_hospital_content_door_noun_rule.sql` — whose §4 is the model for what each of
 #    these eleven owes: a COMPUTED enumeration plus a row-count assertion per principal,
 #    never a predicate call. `300_rowdoor_gate_keystones.sql` is a worked example.
+#
+#    ⬆ TWELFTH, added 2026-08-24 (ADR 0136 / migration 20261003001900):
+#    `app.pending_staff_signoffs`. Same class as its sibling `app.signoff_target`
+#    two lines below it — a projection over one response's sections, DEFINER
+#    because `sign_section` is INVOKER and cannot read the respondent's
+#    `in_progress` row. `ARM=census` flagged it never-swept the day it landed;
+#    `p0-authz-rowdoor-audit.sh` was then run over it and answered **UNSUPPORTED**
+#    ("no statement-level identity guard — the gate is a conjunct inside the
+#    query"), which is structurally exact: it carries no identity predicate at all.
+#    ⛔ It is NOT filed under `helper:`, and that is deliberate — a `helper:` line
+#    claims "not an authorization decision", and this one IS an input to one:
+#    `get_response_for_signoff` uses its emptiness as the read-right scope ("the
+#    read right is scoped to the act of signing"). UNSWEPT is the honest verdict.
+#    BEHAVIOUR is pinned and DRILLED (367_deferred_staff_signoff.sql; drills
+#    2026-08-24, RED in BOTH directions — narrowing to `where false` reds 7
+#    assertions incl. 2.3/3.1/4.1; dropping the already-signed conjunct reds 6
+#    incl. 4.3/5.1/8.8). That pins behaviour; it does NOT discharge the
+#    per-principal walk-through keystone this class owes.
 
 app.case_phase_option_aggregates(p_case_phase_id uuid)
 app.eligible_voters(p_case_id uuid)
+app.pending_staff_signoffs(p_response_id uuid)
 app.response_validation_errors(p_response_id uuid)
 app.signoff_target(p_response_id uuid, p_section_id uuid)
 app.submitted_form_responses(p_form_id uuid)

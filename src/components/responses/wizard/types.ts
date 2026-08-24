@@ -151,6 +151,23 @@ export interface WizardData {
    */
   signoffsBySectionId: Record<string, SectionSignoff>;
   /**
+   * ADR 0136 — the `staff_admin` sign-off is DEFERRED past this submit: the
+   * response freezes, the case phase parks in `awaiting_signoff`, and a
+   * coordinator countersigns from the sign-off queue.
+   *
+   * ⛔ REQUIRED, not optional, and it is the reason the feature is reachable at
+   * all. `submit_response` stopped blocking on the DB side (D1/D2) — but the
+   * wizard has its OWN submit gate, and with that gate untouched the button stays
+   * `disabled` with "Há seções pendentes de assinatura", so the filler is stuck on
+   * exactly the screen the ADR exists to release. Caught by
+   * `e2e/deferred-staff-signoff.spec.ts`, which pgTAP structurally cannot see:
+   * the SQL is truth about the SQL and evidence about nothing downstream.
+   *
+   * True ONLY for a case-phase response with the flag on — the server resolves
+   * both, so the client never guesses.
+   */
+  deferStaffSignoff: boolean;
+  /**
    * Per-phase RESULT context (phase-results feature), present ONLY on the
    * case-phase responder page and left `undefined` for standalone fills. Drives
    * the end-of-wizard override panel: `ruleset` powers the live computed preview

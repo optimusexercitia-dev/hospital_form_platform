@@ -145,6 +145,21 @@ export interface ResponseForFill {
   formId: string
   formTitle: string
   commissionId: string
+  /**
+   * ADR 0136 — WHICH LANE THIS RESPONSE BELONGS TO: non-null = a case-phase
+   * response, null = a standalone one. Projected so a route can refuse a
+   * response from the other lane instead of rendering it with the wrong
+   * context.
+   *
+   * ⛔ It is not decorative. `deferStaffSignoff` is resolved on the case-phase
+   * route only; the standalone route takes the parameter's `false` default. So
+   * a case-phase response rendered on the standalone route shows a DISABLED
+   * submit for a submit the database would accept — the same response, two
+   * behaviours, chosen by which URL was typed. The lane is a property of the
+   * ROW, so the route reads it from the row rather than inferring it from the
+   * path.
+   */
+  casePhaseId: string | null
   status: ResponseStatus
   lastSectionId: string | null
   /**
@@ -321,13 +336,26 @@ export async function listFillableForms(
 
   if (fillable.length === 0) return []
 
-  // Annotate each with the caller's in_progress response on that version.
+  // Annotate each with the caller's in_progress STANDALONE response on that
+  // version.
+  //
+  // ⛔ `case_phase_id is null` is load-bearing, not tidiness. This annotation
+  // feeds `FillableFormCard`'s "Continuar" link, which targets
+  // `/forms/[formId]/responder/[responseId]` — the standalone lane's route, which
+  // refuses a case-phase response (ADR 0136 /
+  // FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT). Without the conjunct, a member
+  // holding an in_progress CASE-PHASE draft on a form that is also published for
+  // standalone filling gets offered "Continuar" into a 404 — and, before that
+  // route learned its lane, into a wizard whose submit button was dead. The
+  // case-phase draft's own home is "Minhas fases", which links it with the case
+  // and phase ids this route has no way to reconstruct.
   const versionIds = fillable.map((f) => f.publishedVersionId)
   const { data: drafts } = await supabase
     .from('responses')
     .select('id, form_version_id')
     .in('form_version_id', versionIds)
     .eq('status', 'in_progress')
+    .is('case_phase_id', null)
     .returns<{ id: string; form_version_id: string }[]>()
 
   const draftByVersion = new Map<string, string>()
@@ -345,6 +373,7 @@ interface ResponseRow {
   id: string
   form_version_id: string
   commission_id: string
+  case_phase_id: string | null
   status: string
   last_section_id: string | null
   started_at: string
@@ -815,7 +844,7 @@ export async function getResponseForFill(
   const { data: response } = await supabase
     .from('responses')
     .select(
-      'id, form_version_id, commission_id, status, last_section_id, started_at, ' +
+      'id, form_version_id, commission_id, case_phase_id, status, last_section_id, started_at, ' +
         // `!inner`: an orphaned response (form deleted) resolves to no row → null
         // → friendly 404, never a null-embed crash.
         'form_versions!inner(form_id, forms!inner(title))',
@@ -967,6 +996,7 @@ export async function getResponseForFill(
     formId: response.form_versions.form_id,
     formTitle: response.form_versions.forms.title,
     commissionId: response.commission_id,
+    casePhaseId: response.case_phase_id,
     status: response.status as ResponseStatus,
     lastSectionId: response.last_section_id,
     startedAt: response.started_at,
@@ -1032,6 +1062,18 @@ export async function listMyResponses(
     )
     .eq('commission_id', commissionId)
     .eq('created_by', uid)
+    // ⛔ IN-PROGRESS CASE-PHASE DRAFTS ARE EXCLUDED — the row's LINK is why, not
+    // the row (ADR 0136 / FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT).
+    // `MyResponseCard` sends an in_progress row to
+    // `/forms/[formId]/responder/[responseId]`, the standalone lane's route,
+    // which refuses a case-phase response; `MyResponse` carries no case/phase
+    // ids, so this list cannot build the correct case-phase href. The draft is
+    // NOT hidden from its owner — "Minhas fases" (`listMyAssignedPhases`) lists
+    // every active assigned phase and links it with both ids.
+    // SUBMITTED case-phase rows STAY: their link is the lane-agnostic read-only
+    // viewer `respostas/[responseId]`, which is also the respondent's own PDF
+    // path (FUP-PDF-1). Dropping them would take that away.
+    .or('case_phase_id.is.null,status.eq.submitted')
     .order('updated_at', { ascending: false })
     .returns<MyResponseRow[]>()
 

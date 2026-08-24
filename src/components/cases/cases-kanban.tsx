@@ -23,6 +23,9 @@ import { CaseCustomFieldChips } from "./case-custom-field-chips";
 
 const PHASE_DOT: Record<CasePhaseStatus, string> = {
   active: "bg-primary",
+  // ADR 0136 — frozen, awaiting the coordinator's countersignature. Not `success`:
+  // the phase is not concluded and still blocks everything downstream of it.
+  awaiting_signoff: "bg-warning",
   completed: "bg-success",
   pending: "bg-muted-foreground/35",
   not_required: "bg-muted-foreground/15",

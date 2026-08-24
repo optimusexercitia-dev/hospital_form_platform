@@ -20,6 +20,8 @@ type SortDir = "asc" | "desc";
 
 const PHASE_DOT: Record<CasePhaseStatus, string> = {
   active: "bg-primary",
+  // ADR 0136 — see the twin in `cases-kanban.tsx`.
+  awaiting_signoff: "bg-warning",
   completed: "bg-success",
   pending: "bg-muted-foreground/35",
   not_required: "bg-muted-foreground/15",
@@ -28,6 +30,7 @@ const PHASE_DOT: Record<CasePhaseStatus, string> = {
 
 const PHASE_WORD: Record<CasePhaseStatus, string> = {
   active: "Ativa",
+  awaiting_signoff: "Aguardando assinatura",
   completed: "Concluída",
   pending: "Pendente",
   not_required: "Não necessária",

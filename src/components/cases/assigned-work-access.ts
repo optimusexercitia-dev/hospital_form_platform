@@ -69,8 +69,9 @@ export function canFillAssignedPhase(
 ): boolean {
   if (!caseOpen) return false;
   // Only an ACTIVE phase has a response to start or resume. `pending` is not yet
-  // released to its assignee, `completed` is submitted, and `not_required`/`voided`
-  // are terminal — the door refuses all four.
+  // released to its assignee, `completed` and `awaiting_signoff` (ADR 0136) are
+  // submitted and FROZEN, and `not_required`/`voided` are terminal — the door
+  // (`start_or_resume_phase`, `v_status <> 'active'` → HC019) refuses all five.
   if (phase.status !== "active") return false;
   return isAssignedTo(phase.assignedTo, viewerId);
 }

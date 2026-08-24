@@ -208,16 +208,69 @@ echo "    clean — 0 degenerate bodies (all three neutralization forms)"
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # Build the two worklists from the LIVE catalog (never migration text).
-#   PRED: secdef boolean gates (is_/can_/has_/referral_target_analyst/attachment_confidentiality_ok,
-#         excluding the is_valid_* config validators) + the void raise-guard
-#         assert_not_case_excluded. Direction: the three deny predicates -> false;
-#         the void assert -> no-op; everything else -> true.
+#   PRED: secdef boolean gates — selected by NAME *or* by PROPERTY (see §7.17a below)
+#         — plus the void raise-guard assert_not_case_excluded. Direction: the three
+#         deny predicates -> false; the void assert -> no-op; everything else -> true.
 #         ⚠ value-returning raise-guards (assert_*_writable, assert_referral_*) are
 #         EXCLUDED from the auto-sweep — neutralizing a uuid/record raise-guard risks a
 #         NULL-propagation ABORT downstream (§7.15). They are listed in the report as a
 #         manual-neutralization GAP for the lead to hand-add bespoke.
 #   POL:  SELECT/ALL policies on public tables whose qual is a real predicate (not `true`).
 # ─────────────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# §7.17a  THE PREDICATE ARM'S DOMAIN — ONE DEFINITION, INTERPOLATED TWICE.
+#
+# ⛔ IT USED TO BE TWO HAND-KEPT COPIES of the same SQL (the worklist's filter and the
+# out-of-domain census's `not (...)`). Editing one and not the other would have made the
+# census silently disagree with the arm it censuses — the report would still print a
+# number, and the number would be about a domain nothing swept. The complement is now
+# `not ($PRED_DOMAIN)` on the same string, so the two CANNOT drift.
+#
+# ── WHY THIS IS A PROPERTY NOW AND NOT ONLY A NAME (FUP-DOOR-AUDIT-PREDICATE-ARM-
+#    BOUNDED-BY-A-NAME; ADR 0079 Amendment 8) ────────────────────────────────────────
+# The domain was `^(is_|can_|has_|…)` alone — a NAME regex standing in for the property
+# "is an authorization predicate", which no regex decides. ADR 0136 hit it live: its new
+# gate, written as `app.signoff_deferred_open`, was shaped exactly like a predicate and
+# excluded purely by its name; the diff-scoped sweep matched ZERO gates and reported
+# `UNPROVEN — NOTHING WAS MEASURED`. Renaming it to `app.is_signoff_deferral_open` cleared
+# the sweep — a workaround that made coverage depend on a naming convention no gate
+# enforces. The next gate called `phase_is_open` escapes the same way.
+#
+# So the arm now ALSO admits by what a function DOES: its body (with `--` comments
+# stripped first — a line-filtered prosrc drops disjuncts) references an identity
+# primitive. Measured 2026-08-24 on the live catalog: of the 42 `prosecdef` booleans then
+# outside the name regex, exactly NINE satisfy this property — eight are genuine gates
+# (`_audit_access_authorized`, `confidentiality_clearance_ok`, `event_current_custodian`,
+# `member_can`, `member_can_for`, `capa_viewer_can_manage`, `interview_viewer_can_write`,
+# `rca_writer_can_write`), and the ninth is a known side-effecting writer, excluded below.
+# The other 33 (feature-flag readers, `validate_*` shape checkers, `print_source_*`) touch
+# no identity and stay out — which is why widening by PROPERTY does not reproduce the
+# problem the script's own header warned about when it declined to widen by TYPE.
+#
+# ⛔ THE WRITER EXCLUSION IS THE WHOLE REASON THE ORIGINAL WIDENING WAS DECLINED. Two
+# `prosecdef` booleans have side effects: swapping their body for `select true` would
+# silently disarm a notification enqueue / an approver reminder rather than open a gate,
+# and the suite would go green for the wrong reason. `remind_document_approver` DOES match
+# the identity property (it reads `memberships`), so it must be excluded by name;
+# `enqueue_notification` does not match it, and is named anyway so that a future edit to
+# its body cannot pull it in silently. Both stay VISIBLE in the out-of-domain census.
+# ⚠ Any addition to this list is a claim that the function has side effects — never a way
+# to quiet a BLIND verdict.
+# ─────────────────────────────────────────────────────────────────────────────────────
+PRED_NAME_RE="^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)"
+PRED_IDENTITY_RE="auth\.uid\(\)|memberships|member_can|app\.is_|app\.can_|app\.has_|principal_id"
+PRED_SIDE_EFFECTING="'enqueue_notification','remind_document_approver'"
+PRED_DOMAIN="(
+       (t.typname='bool'
+          and p.proname not in ($PRED_SIDE_EFFECTING)
+          and (
+               (p.proname ~ '$PRED_NAME_RE' and p.proname !~ '^is_valid_')
+            or regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ '$PRED_IDENTITY_RE'
+          ))
+       or p.proname = 'assert_not_case_excluded'
+    )"
+
 psql_c -c "\copy (
   select p.oid,
          n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')' as label,
@@ -234,29 +287,30 @@ psql_c -c "\copy (
   join pg_type      t on t.oid=p.prorettype
   where n.nspname in ('app','public')
     and p.prosecdef = true
-    and (
-       (t.typname='bool' and p.proname ~ '^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)'
-          and p.proname !~ '^is_valid_')
-       or p.proname = 'assert_not_case_excluded'
-    )
+    and $PRED_DOMAIN
   order by p.proname
 ) to '/tmp/wl_pred.tsv' with (format text)" >/dev/null
 docker cp "$DB:/tmp/wl_pred.tsv" "$WORK/worklist_pred.tsv" >/dev/null
 
 # ─────────────────────────────────────────────────────────────────────────────────────
-# §7.17b  THE DOMAIN IS A NAME PREFIX STANDING IN FOR A PROPERTY — SO MEASURE THE GAP.
+# §7.17b  THE DOMAIN IS STILL NOT THE WHOLE PROPERTY — SO MEASURE WHAT IS OUTSIDE IT.
 #
-# The PRED filter above is a NAME regex. The property it stands in for is "is an
-# authorization predicate", which no regex decides: of the `prosecdef` booleans OUTSIDE
-# the regex, some ARE gates (`app._audit_access_authorized`, `confidentiality_clearance_ok`,
-# `member_can*`, `capa_viewer_can_manage`, …) while others are feature-flag readers,
-# `validate_*` shape-checkers, and two SIDE-EFFECTING writers (`app.enqueue_notification`,
-# `public.remind_document_approver`) whose body must NOT be swapped for `select true`.
-# So the arm is NOT auto-widened here — that would trade a silent gap for silent ERRORs.
-# Instead the gap is CENSUSED on every run and printed, so no report can imply the arm's
-# domain is the whole property. ⛔ "outside the predicate arm" != "unswept" (other arms
-# exist) and this count is NOT a defect count — it is the size of the unclassified set.
-# Classification is tracked in authz-unswept-backlog.txt, not decided here.
+# §7.17a widened the PRED filter from a bare NAME regex to `name OR identity-touching
+# body`, which is a far better approximation of "is an authorization predicate" — but it
+# is still an approximation, and this census is what keeps that admission attached to
+# every report. A gate whose body reaches identity only INDIRECTLY (through a helper this
+# regex does not name) is outside the arm and looks exactly like a feature-flag reader
+# from here.
+#
+# What remains outside, measured 2026-08-24 after the widening: feature-flag readers
+# (`*_enabled`), `validate_*` shape-checkers, `print_source_*`, and the two SIDE-EFFECTING
+# writers held out BY NAME (`app.enqueue_notification`, `public.remind_document_approver`)
+# whose body must NOT be swapped for `select true`. The writers appear here rather than
+# vanishing: an exclusion nobody can see is an exclusion nobody re-reads.
+#
+# ⛔ "outside the predicate arm" != "unswept" (other arms exist) and this count is NOT a
+# defect count — it is the size of the unclassified set. Classification is tracked in
+# authz-unswept-backlog.txt, not decided here.
 # ─────────────────────────────────────────────────────────────────────────────────────
 psql_c -c "\copy (
   select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
@@ -266,11 +320,7 @@ psql_c -c "\copy (
   where n.nspname in ('app','public')
     and p.prosecdef = true
     and t.typname='bool'
-    and not (
-       (p.proname ~ '^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)'
-          and p.proname !~ '^is_valid_')
-       or p.proname = 'assert_not_case_excluded'
-    )
+    and not $PRED_DOMAIN
   order by 1
 ) to '/tmp/wl_pred_out.tsv' with (format text)" >/dev/null
 docker cp "$DB:/tmp/wl_pred_out.tsv" "$WORK/outofdomain_pred_bool.tsv" >/dev/null
@@ -356,9 +406,11 @@ echo "ARM-DOMAIN predicate=$PRED_SEL/$PRED_TOTAL policy=$POL_SEL/$POL_TOTAL"
 echo "    predicate arm: $PRED_SEL selected of $PRED_TOTAL in domain"
 echo "    policy    arm: $POL_SEL selected of $POL_TOTAL in domain"
 echo "    ⚠ NOT in the predicate arm's domain at all: $PRED_OUT prosecdef BOOLEAN function(s)"
-echo "      excluded by the NAME regex, not by a property (list: $WORK/outofdomain_pred_bool.tsv)."
-echo "      This arm's domain is a name prefix. 'Outside it' != 'unswept' (other arms exist);"
-echo "      $PRED_OUT is the size of the UNCLASSIFIED set, never a defect count."
+echo "      (list: $WORK/outofdomain_pred_bool.tsv). The domain is 'authz-shaped NAME **or**"
+echo "      identity-touching BODY', minus the 2 side-effecting writers held out by name"
+echo "      (§7.17a) — a good approximation of the property, still not the property itself."
+echo "      'Outside it' != 'unswept' (other arms exist); $PRED_OUT is the size of the"
+echo "      UNCLASSIFIED set, never a defect count."
 
 # Any CASES token that matched NOTHING is itself an unproven case — name it, and say what
 # the catalog knows about it. This is the `member_can_for` incident verbatim: a token that
@@ -454,10 +506,11 @@ emit_report () {
     if [ "$PRED_SEL" -eq 0 ]; then echo "⚠ **PREDICATE ARM: EMPTY DOMAIN — measured nothing.** It did not hold; it did not run."; fi
     if [ "$POL_SEL"  -eq 0 ]; then echo "⚠ **POLICY ARM: EMPTY DOMAIN — measured nothing.** It did not hold; it did not run."; fi
     echo
-    echo "⛔ The predicate arm's domain is a **NAME REGEX**, not the property \"is an authorization"
-    echo "predicate\". **$PRED_OUT** \`prosecdef\` **boolean** function(s) are outside it purely by name"
-    echo "(listed at the end). \"Outside this arm\" is NOT \"unswept\" — other arms exist — and"
-    echo "$PRED_OUT is the size of the UNCLASSIFIED set, never a defect count."
+    echo "⛔ The predicate arm's domain APPROXIMATES the property \"is an authorization predicate\""
+    echo "(§7.17a: authz-shaped **name** OR identity-touching **body**, minus 2 side-effecting"
+    echo "writers held out by name) — it does not decide it. **$PRED_OUT** \`prosecdef\` **boolean**"
+    echo "function(s) are outside it (listed at the end). \"Outside this arm\" is NOT \"unswept\" —"
+    echo "other arms exist — and $PRED_OUT is the size of the UNCLASSIFIED set, never a defect count."
     if [ -n "$CASES" ]; then echo; echo "> ⚠ PARTIAL RUN — CASES=\"$CASES\" (subset, not the full sweep)."; fi
     if [ -n "$UNMATCHED" ]; then
       echo

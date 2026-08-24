@@ -14,6 +14,7 @@ import { isOpenCorrection } from "@/components/cases/correction-labels";
 import { WizardRunner } from "@/components/responses/wizard/wizard-runner";
 import { ConfirmationScreen } from "@/components/responses/wizard/confirmation-screen";
 import { toWizardData } from "@/components/responses/wizard/prepare";
+import { featureEnabled } from "@/lib/queries/feature-flags";
 
 export const metadata: Metadata = {
   title: "Preencher fase",
@@ -104,6 +105,11 @@ export default async function PhaseResponderPage({
   // null` when the feature is off, leaving the panel hidden. In CORRECTION mode the
   // panel is suppressed entirely (the recompute is owned by `approve_correction`), so
   // pass no result context and hand the wizard the correction context instead.
+  // ADR 0136 — resolve the deferral HERE, on the server. This page is by
+  // definition the case-phase lane (D2), so the flag alone decides. ⛔ Without
+  // this the wizard's own submit gate keeps the button `disabled` no matter what
+  // the database allows, and the feature is unreachable in the product.
+  const deferStaffSignoff = await featureEnabled("deferred_staff_signoff");
   const data = toWizardData(
     response,
     org,
@@ -114,6 +120,7 @@ export default async function PhaseResponderPage({
     signoffs,
     correction ? null : { casePhaseId: fill.phase.id, result: fill.result },
     correction,
+    deferStaffSignoff,
   );
   const imageUrls = await resolveTreeImageUrls(response.tree);
 

@@ -3,6 +3,7 @@
 import { commissionHref } from "@/lib/routing";
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { FileSignature } from "lucide-react";
 
 import type { Json } from "@/lib/types/database";
 import type { Section } from "@/lib/queries/forms";
@@ -1186,12 +1187,36 @@ export function WizardClient({
 
   /**
    * Visible sign-off sections still missing a sign-off row. While non-empty the
-   * submit affordance is disabled with a clear pt-BR reason; the server's P0012
+   * submit affordance is disabled with a clear pt-BR reason; the server's HC012
    * check stays the authority.
+   *
+   * ⛔ ADR 0136 D1 — THE GATE SPLITS BY SIGNER ROLE, exactly as `submit_response`
+   * does. A `staff_admin` section on a DEFERRED case-phase response no longer
+   * blocks: the response freezes, the phase parks in `awaiting_signoff`, and a
+   * coordinator countersigns from the sign-off queue. Leaving this filter
+   * role-blind keeps the button `disabled` while the server would happily accept
+   * the submit — an unreachable feature with a fully green pgTAP suite.
+   * The `respondent` arm is UNCHANGED: that signer is right here.
    */
   const pendingSignoffSections = visibleSections.filter(
-    (s) => s.requiresSignoff && !signoffs[s.id],
+    (s) =>
+      s.requiresSignoff &&
+      !signoffs[s.id] &&
+      !(data.deferStaffSignoff && s.signoffRole === "staff_admin"),
   );
+
+  /**
+   * The visible `staff_admin` sections whose signature this submit DEFERS. Not the
+   * same set as the one above — these are precisely the ones excluded from it, and
+   * the review screen must say so. A section that silently stops blocking, with no
+   * copy anywhere, reads to the filler as "the sign-off requirement disappeared".
+   */
+  const deferredSignoffSections = data.deferStaffSignoff
+    ? visibleSections.filter(
+        (s) =>
+          s.requiresSignoff && s.signoffRole === "staff_admin" && !signoffs[s.id],
+      )
+    : [];
   const signoffBlockReason =
     pendingSignoffSections.length > 0
       ? "Há seções pendentes de assinatura. Assine todas as seções marcadas antes de enviar."
@@ -1237,7 +1262,37 @@ export function WizardClient({
     />
   );
 
+  /**
+   * ADR 0136 — say out loud what the split gate did. Without this the filler sees a
+   * section marked "Pendente — chefia" and a submit button that works anyway, which
+   * reads as the sign-off requirement having quietly lapsed. It has not: the phase
+   * will not conclude, and nothing downstream of it unblocks, until a coordinator
+   * signs. Rendered in the submit slot rather than per-section so it appears exactly
+   * once, immediately above the act it explains.
+   */
+  const deferredSignoffNotice =
+    deferredSignoffSections.length > 0 ? (
+      <div
+        role="note"
+        className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm"
+      >
+        <FileSignature
+          aria-hidden="true"
+          className="mt-0.5 size-4 shrink-0 text-warning"
+        />
+        <p className="max-w-prose text-pretty">
+          {deferredSignoffSections.length === 1
+            ? "Uma seção ainda precisa da assinatura da coordenação"
+            : `${deferredSignoffSections.length} seções ainda precisam da assinatura da coordenação`}
+          . Você pode enviar agora: suas respostas ficam registradas e não poderão
+          mais ser alteradas, e a fase só é concluída quando a coordenação assinar.
+        </p>
+      </div>
+    ) : null;
+
   const submitPanel = (
+    <>
+      {deferredSignoffNotice}
     <SubmitPanel
       saving={saving}
       banner={banner}
@@ -1251,6 +1306,7 @@ export function WizardClient({
           : undefined
       }
     />
+    </>
   );
 
   // The end-of-wizard per-phase result panel (phase-results feature; task #8) —

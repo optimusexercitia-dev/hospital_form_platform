@@ -220,6 +220,13 @@ export function toWizardData(
    * and the wizard submits via `resubmitCorrection`.
    */
   correction?: WizardData["correction"] | null,
+  /**
+   * ADR 0136 — resolved by the route page: is this a CASE-PHASE response with the
+   * `deferred_staff_signoff` flag on? Defaults to `false`, which is exactly the
+   * standalone lane D2 leaves unchanged, so the standalone responder page needs no
+   * edit and cannot accidentally opt in.
+   */
+  deferStaffSignoff = false,
 ): WizardData {
   // In correction mode the override panel is hidden and never fires
   // `set_case_phase_result_override` — the result recompute is owned by
@@ -265,5 +272,11 @@ export function toWizardData(
     signoffsBySectionId: signoffRecordsToMap(signoffs),
     phaseResult,
     correction: correction ?? undefined,
+    // ⛔ A CORRECTION draft is never deferred: `sync_case_phase_on_submit` returns
+    // early on a successor (`supersedes_id is not null`), so its submit takes no
+    // phase effect at all and there is no `awaiting_signoff` park to defer INTO.
+    // Deferring here would hide the sign-off gate on a draft whose submit the
+    // server still blocks — an enabled button that fails.
+    deferStaffSignoff: correction ? false : deferStaffSignoff,
   };
 }

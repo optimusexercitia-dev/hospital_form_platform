@@ -124,6 +124,8 @@ function wizardData(answered: Record<string, string>): WizardData {
       commissionName: "CCIH",
     },
     signoffsBySectionId: {},
+    // ADR 0136 — the standalone/draft lane; the deferred lane sets this true.
+    deferStaffSignoff: false,
     initialInstances: [],
     initialMatrixCells: {},
     initialRiskMatrix: {},

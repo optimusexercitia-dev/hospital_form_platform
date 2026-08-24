@@ -146,7 +146,15 @@ export function CasePhaseArticle({
   // "Continuar correção" shows while a draft-bearing request is in a resting/editing
   // state. The requests themselves list at the BOTTOM of this card.
   const correctionsOn = correctionCaps?.enabled ?? false;
-  const showCorrectionRow = correctionsOn && phase.status === "completed";
+  // ADR 0136 D7 — `awaiting_signoff` belongs here, and this is NOT cosmetic: filing
+  // a correction is the ONLY decline path a coordinator has (D7 rejected the
+  // unfreeze), and this card is the only place the product offers it. Without this
+  // arm the database admits the request and nothing can send it — a phase whose
+  // signature is refused would be stuck, and `close_case` would then block the
+  // whole case on it.
+  const showCorrectionRow =
+    correctionsOn &&
+    (phase.status === "completed" || phase.status === "awaiting_signoff");
   const showFileCorrection =
     showCorrectionRow && !openCorrection && (correctionCaps?.canFile ?? false);
   const showContinueCorrection =
@@ -175,9 +183,12 @@ export function CasePhaseArticle({
                 beside it. `Concluída` + `Em correção` together read as a settled
                 phase with a side-note, when the truth is the opposite: the recorded
                 content is under active revision and the case cannot close over it.
-                Only "Concluída" is ever hidden here — a correction can only be filed
-                against a `completed` target (HC0M0), so no other status reaches this
-                branch. The pill returns the moment the request resolves. */}
+                Two statuses reach this branch since ADR 0136: `completed` and
+                `awaiting_signoff` — `file_correction_request` admits both and
+                refuses everything else (HC0M0). Suppressing "Aguardando assinatura"
+                is right for the same reason: once a correction is open, the
+                signature is owed on the SUCCESSOR, so the old obligation is not the
+                live fact. The pill returns the moment the request resolves. */}
             {!openCorrection && <PhaseStatusPill status={phase.status} />}
             {phase.recommended && phase.status === "pending" && (
               <RecommendedChip />
@@ -188,6 +199,10 @@ export function CasePhaseArticle({
                 adicional
               </span>
             )}
+            {/* No result badge while `awaiting_signoff`: ADR 0136 D5 moves the
+                result computation onto the SIGNATURE, so there is genuinely
+                nothing to show yet — and rendering an empty badge would imply a
+                result had been computed and come back blank. */}
             {phase.status === "completed" && (
               <PhaseResultBadge result={phase.result} />
             )}

@@ -33,6 +33,13 @@ export interface SignoffQueueRow {
   /** ISO timestamps. */
   startedAt: string;
   updatedAt: string;
+  /**
+   * ADR 0136 — true when this row is the DEFERRED lane: a FROZEN, already-submitted
+   * case-phase response whose signature concludes the phase. The list renders a
+   * distinguishing chip; a reviewer must know which of the two lanes they are in
+   * before they sign.
+   */
+  isFrozenCasePhase: boolean;
 }
 
 /**

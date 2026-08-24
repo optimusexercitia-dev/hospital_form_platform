@@ -5556,3 +5556,115 @@ exact edit `365` §2.2 exists to red.
 
 **Owner:** PO + backend.
 
+### Resolved 2026-08-24 — the ADR 0136 follow-up round (index lines rotated verbatim from PROGRESS.md)
+
+- 🟡 **FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT** — the standalone `/forms/…/responder` route is not prevented from serving a CASE-PHASE response and passes `deferStaffSignoff=false`, so the same response has a dead submit button on one route and a live one on the other. ✅ Strictly MORE restrictive — not a security defect — but a divergence ADR 0136 created — frontend
+- 🟡 **FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE** — `app.pending_staff_signoffs` came back **UNSUPPORTED** from the row-door harness (no identity guard) and owes the per-principal walk-through keystone its class owes. ⚠ Behaviour IS drilled; that is a different question — backend
+- 🟡 **FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE** — `sign_section`'s invoker verdict is **PROVISIONAL** *and* was measured against the body ADR 0136 changed. ⛔ `FROMFINDINGS=1 ARM=wrapper` re-measures nothing, so a changed body is invisible to it by construction — backend
+- 🟡 **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** — the door sweep's predicate arm is bounded by a NAME REGEX standing in for a property (42 `prosecdef` booleans outside it, measured). ADR 0136 hit it live: the sweep matched **zero gates** until the function was renamed. ⛔ The rename is a workaround that makes coverage depend on a convention no gate enforces — backend
+- 🟡 **FUP-DSS-KEYBOARD-FLOW-IS-THIN** — the ADR 0136 spec's keyboard test asserts an a11y floor, not a keyboard-only flow; it never signs. ⚠ A thin test where the requirement points reads as the requirement being met — tester
+
+### Rotation notes rotated from PROGRESS.md 2026-08-24
+
+> Moved verbatim from PROGRESS.md § Follow-ups (byte-identical apart from link
+> repointing: root-relative `docs/...` -> this directory's `../...`). Each records a
+> rotation that had already concluded; PROGRESS.md keeps one pointer line.
+
+_**Three items RESOLVED by the DSR remediation round, index lines rotated 2026-08-21** → [follow-ups-archive.md](follow-ups-archive.md): **FUP-DISPOSE-EVENT-DOOR-GATE-BLIND** (keystone `352` run **inside the full suite** on a fresh reset and re-neutralized there — the item closed on the RUN, never on the file existing) · **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** (the four column doors have their first operational procedure, and the bytes runbook now names its own substrate) · **FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING** (PO ruled the copy stays; the training premise it rests on is recorded at the pilot-decision surface, which was the item's actual requirement). Bodies stay in [follow-ups.md](follow-ups.md)._
+
+
+_Resolved, rotated out of both live files → [follow-ups-archive.md](follow-ups-archive.md):
+**FUP-DM1-CEILING · FUP-DM1-E2E · FUP-DM1-DISPOSE** (discharged by DM2 S1/S4/S2) · **FUP-F2-BUCKETS**
+(`meeting-attachments` retired in `20260921000300`, pinned by pgTAP `325`) · **FUP-PDF-3** (both doors
+now `RETURNS public.printed_document_public`; ADR 0111, pgTAP `323`)._
+
+
+_14 more index lines (the 2026-08-18 resolved set, `FUP-DM5-*` and peers) rotated 2026-08-18 → [follow-ups-archive.md](follow-ups-archive.md) § "Index lines rotated from PROGRESS.md 2026-08-18"; their bodies remain in [follow-ups.md](follow-ups.md) pending body rotation._
+
+
+_**FUP-DM5-NO-ANSWER-VS-NOTHING** (🔴, the class) rotated 2026-08-19 → [follow-ups-archive.md](follow-ups-archive.md) § "Index line rotated from PROGRESS.md 2026-08-19" — all six instances closed; last one (`--allow-orphans`) fixed by ADR [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md). Body stays in [follow-ups.md](follow-ups.md); ⭐ the one-sentence class statement is deliberately KEPT there as a review lens, not archived away._
+
+
+_**FUP-DM5-BACKUP-IS-PHI-EXPORT** (🔴) rotated 2026-08-19 → the same archive section — ✅ **RESOLVED by execution**, not by decision: both remaining deliverables (destination path, first run) discharged against the local stack; record [phi-backup-run-log.md](../deployment/phi-backup-run-log.md). Body stays in [follow-ups.md](follow-ups.md). ⛔ **Its two residues are the NEW 🔴/🟠 lines above — the close is bounded, not total.**_
+
+### Bodies rotated from follow-ups.md 2026-08-24 (resolved; their index lines left PROGRESS.md earlier)
+
+> Moved VERBATIM. All resolved on 2026-08-13/19/21 with their PROGRESS.md index lines
+> rotated then, but kept reachable only by the rotation NOTES — which themselves rotated
+> on 2026-08-24. `lint:progress` caught the orphaning the moment those notes left, which
+> is the check working: a body no live register indexes is invisible work. Link paths are
+> unchanged — both files sit in `docs/progress/`, so every relative link resolves here.
+
+### â¬› Resolved â€” rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2Â·S1 + S4) Â· **FUP-DM1-E2E** (6+1 specs rewritten, DM2Â·S4) Â· **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2Â·S2) â€” each verified independently, not accepted from a report â†’ [follow-ups-archive.md](./follow-ups-archive.md)
+
+### ðŸŸ¡ FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING â€” `DSR_RESIDUE_NOTICE` line 1 is now CONDITIONALLY true, and the condition is a control the software cannot enforce (owner: PO copy call, then frontend; created by ADR 0131, 2026-08-20)
+
+Filed 2026-08-20 (lead). Not a defect â€” a **premise that became explicit** when ADR
+[0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) bounded PHI
+erasure to designated PHI fields.
+
+**The sentence** ([messages.ts:97](../../src/lib/dsr/messages.ts:97)), shown to an operator
+discharging an LGPD obligation and reproduced in the outcome record handed to the data
+subject: *"O descarte apaga os dados do paciente armazenados no banco para este registro e
+preserva o histÃ³rico de governanÃ§aâ€¦"*
+
+**Before 0131** its truth was structural: the door was to be widened until it cleared every
+PHI-capable column on the lane. **After 0131** it holds **iff PHI was entered only into PHI
+fields** â€” a *training* control. The software cannot detect a patient name typed into a
+title, so nothing in the platform can make the sentence false-proof.
+
+â›” **This does NOT make the notice an over-claim today**, and it must not be filed as one:
+under the ruling's own premise the sentence is true. What changed is *what the sentence
+rests on*. Compare `FUP-DISPOSE-DIALOG-OVERCLAIM`, which was a genuinely false claim about
+the door's reach; this is a true claim with a newly named dependency.
+
+**The PO's call, two shapes:**
+(a) **scope the sentence** to the designated fields (*"â€¦apaga os dados do paciente
+registrados nos campos de identificaÃ§Ã£o do pacienteâ€¦"*) â€” narrower, and true independent of
+operator behaviour; or
+(b) **accept it as written** on the training premise, and record that premise.
+âš  Either way, **ADR 0131's risk acceptance must also be recorded where the pilot decision is
+made**, not only in the ADR â€” the identical requirement Critical FUP C3 carries, and the
+reason C3 says it: an acceptance that lives only in the document that created it is invisible
+at the moment it matters.
+
+âš  Whoever edits this constant: it is shared by **four** consumers (two dispose dialogs, the
+task-inbox disclosure, and `queries/dsr.ts` feeding the outcome record) and its per-lane
+companion `DSR_MEETING_DISPOSAL_WARNING` must stay a **separate** constant. Enumerate from
+the symbol's references, never from a roster.
+
+### ðŸŸ  FUP-DISPOSE-EVENT-DOOR-GATE-BLIND â€” `dispose_event_phi`'s authorization gate is exercised by NO keystone: opening it leaves the full suite green (owner: backend; found by the ADR 0129 diff-scoped sweep)
+
+**Measured 2026-08-19, by neutralization, on a fresh reset.** Rewriting the door's authz raise to
+`perform 1;` â€” so **any** caller passes the gate â€” and running the full pgTAP suite:
+
+| Door | Gate | Suite notices? |
+|---|---|---|
+| `dispose_case_phi` | `is_staff_admin_of(commission)` | âœ… **YES** â€” `151_case_patient` (6 tests) + `314_qob_org_admin_content_wall` (1) |
+| `dispose_referral_phi` | `is_tenancy_admin_of` âˆ¨ `is_pqs_operator_of` (source âˆ¨ target) | âœ… **YES** â€” `189_nsp_per_hospital_isolation` |
+| `dispose_meeting_minutes` | `is_staff_admin_of` âˆ¨ `is_tenancy_admin_of` | â›” **WAS BLIND** â€” âœ… now keystoned by `348` t7 (ADR 0129 build) |
+| **`dispose_event_phi`** | `is_tenancy_admin_of(commission_of_event)` âˆ¨ `is_pqs_operator_of(hospital_of_event)` | â›” **BLIND** â€” gate opened **alone**, suite **PASS**, 6550/6550 |
+
+âš  **BLIND â‰  vulnerable, and the distinction is the whole point.** The gate is present and correct
+today; nothing is reachable that should not be. What is missing is the *keystone* â€” if a refactor
+dropped or weakened this gate, **nothing in 6550 tests would go red**, and a PHI-erasure door on the
+patient-safety module would be silently open. That is door-blindness in the ADR 0079 sense.
+
+**Why the standing gates did not catch it.** `ARM=census` asks whether a gate carries a *verdict*,
+not whether a keystone exercises it; `ARM=floor` asks only whether the door is **called** â€” and it
+is (its happy path is tested), which is exactly the [[a-predicate-quoted-at-the-wrong-grain]] shape:
+"the door is exercised" is true and does not bound "the door's *gate* is exercised". ADR 0079
+Amendment 1's diff-scoped recipe filters the diff to `^(is_|can_|has_)` function names + RLS
+policies; this gate is a plain `if not (...)` **inside** a door and matches no filter. â­ **The
+enumeration boundary is a syntax; the property is "an authorization decision no test can see change"**
+â€” [[enumeration-boundary-is-a-syntax-not-a-property]].
+
+**The fix** is one `throws_ok(..., '42501')` per door with a persona who holds the module's ordinary
+membership but neither gate arm â€” the shape `348` t7 uses (a plain commission member), with a CONTROL
+pinning that the persona really lacks the hat, so the refusal is attributable to the role and not to
+tenancy. â›” **Do not "fix" this by widening the gate to make a test pass.**
+
+**Not fixed here, deliberately.** Found *during* the ADR 0129 build, whose migration is bound to amend
+nothing else (0129 Decision 1) and whose subject is the child lock. Filed rather than carried, so it is
+not lost inside a build that does not own it â€” the same reason this door's sibling item was filed in the
+first place.

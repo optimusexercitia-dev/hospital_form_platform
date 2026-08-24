@@ -605,3 +605,111 @@ measured each. This amendment is about the **recipe**, not about that phase — 
 Amendment 1 that widened rather than created a policy should be assumed unswept on that gate until
 someone checks.
 
+## Amendment 9 — the predicate arm's domain becomes a PROPERTY, not only a name (2026-08-24)
+
+**Found by:** ADR 0136 (deferred `staff_admin` sign-off), which is the first recorded case of this
+costing something, and registered as `FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`.
+
+**The defect.** ARM 1's predicate sweep bounded its domain with a **name regex** —
+`^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)`, minus `^is_valid_` —
+standing in for the property *"is an authorization predicate"*, which no regex decides. The script
+was honest about it and censused the gap on every run, but a censused gap is still a gap, and
+`ARM=census` is the only arm that would notice — for a `prosecdef` boolean, and only as a line in a
+list nobody re-reads.
+
+**The live instance.** ADR 0136's new gate was first written as `app.signoff_deferred_open`.
+`ARM=census` flagged it never-swept; the diff-scoped sweep printed as the remediation then matched
+**zero gates** and reported `UNPROVEN — NOTHING WAS MEASURED`. The function was shaped exactly like
+a predicate and excluded purely by its **name**. Renaming it to `app.is_signoff_deferral_open`
+returned `COVERED` from the identical command. ⛔ The rename is a workaround, and it quietly created
+a new obligation: coverage now depended on an unwritten naming convention that **no gate enforced**.
+The next predicate someone calls `phase_is_open` escapes the same way.
+
+**Why the widening had been declined before, and what changed.** The script's own header refused to
+auto-widen, for a real reason: the out-of-domain set contains feature-flag readers, `validate_*`
+shape checkers, and **two side-effecting writers** (`app.enqueue_notification`,
+`public.remind_document_approver`) whose bodies must never be swapped for `select true` — widening
+by RETURN TYPE would have traded a silent gap for silent ERRORs. That argument is correct about
+type and wrong about property. Measured on the live catalog 2026-08-24, of the **42** `prosecdef`
+booleans outside the name regex, exactly **9** have a body that references an identity primitive
+(`auth.uid()`, `memberships`, `member_can`, `app.is_*`/`can_*`/`has_*`, `principal_id`) — and one of
+those 9 is `remind_document_approver`, i.e. **the property filter itself separates the gates from
+the writers**, which the type filter could not. The other 33 stay out on their own merits.
+
+**Decision.**
+
+1. **The predicate arm admits by NAME *or* by PROPERTY** — a `prosecdef` boolean in `app`/`public`
+   whose body (with `--` comments stripped first; a line-filtered `prosrc` drops disjuncts)
+   references an identity primitive. Measured effect: domain **102 → 110**, out-of-domain
+   **42 → 34**, and the 8 that moved are
+   `app._audit_access_authorized` (the PHI-read audit gate) · `app.confidentiality_clearance_ok` ·
+   `app.event_current_custodian` · `app.member_can` · `app.member_can_for` ·
+   `public.capa_viewer_can_manage` · `public.interview_viewer_can_write` ·
+   `public.rca_writer_can_write`.
+2. **The two side-effecting writers are held out BY NAME, with the reason written at the exclusion.**
+   `remind_document_approver` matches the property and must still be excluded; `enqueue_notification`
+   does not match it and is named anyway, so a future edit to its body cannot pull it in silently.
+   ⚠ Adding a name to that list is a claim that the function has side effects — never a way to quiet
+   a BLIND verdict. Both remain VISIBLE in the out-of-domain census: an exclusion nobody can see is
+   an exclusion nobody re-reads.
+3. **The domain is now ONE string, interpolated into both the worklist and the census.** It used to
+   be two hand-kept copies of the same SQL, so editing one and not the other would have made the
+   census silently disagree with the arm it censuses — printing a number about a domain nothing
+   swept. The complement is `not ($PRED_DOMAIN)` on the same string, so they cannot drift.
+4. **The census stays, and its wording changes from "excluded by NAME" to "the domain approximates
+   the property".** It still does not decide it: a gate reaching identity only *indirectly*, through
+   a helper this regex does not name, is outside the arm and looks like a feature-flag reader from
+   here. The census is what keeps that admission attached to every report.
+
+**⛔ What this does NOT do.** It does not make the arm's domain equal to the property, and it does
+not enforce the naming convention — a gate can still be written outside the arm. What it does is
+remove the convention from the *critical path*: a correctly-shaped authz predicate is now swept
+whatever it is called.
+
+**Verdicts from the first run over the newly-admitted 8** — on a FRESH `supabase db reset`, baseline `Files=218, Tests=7223, PASS`,
+`ARM-DOMAIN predicate=8/110`: **6 COVERED · 1 BLIND · 1 ERROR**.
+
+- **BLIND — `public.rca_writer_can_write`.** Opening it reddened **nothing** across 218 files. This
+  is the first finding the widening produced and the reason it was worth making: the gate had never
+  been swept in any direction, in either sense — not COVERED, not BLIND, just outside the domain.
+  Owes a keystone (`FUP-RCA-WRITER-CAN-WRITE-IS-BLIND`); ⛔ BLIND blocks a phase (§6 step 1).
+- **ERROR — `app.event_current_custodian`.** `140_patient_safety.sql` fails its test 11 and then
+  ABORTS ("planned 35, ran 11"), so the run shape moved and §7.15 withholds a verdict — correctly.
+  The suite DID notice; converting that into a COVERED needs a bespoke neutralization
+  (`FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE`). ⛔ ERROR is not a pass.
+- ⚠ **What the widening did NOT find, which matters just as much:** `member_can` and `member_can_for`
+  — the pair whose `CASES="member_can_for member_can"` run once executed **zero cases** and printed
+  `BLIND: 0`, the incident this follow-up was filed on — came back **COVERED**, held by 12 and 40
+  suite files respectively. The backlog's hand-run property sweep had said as much; the arm now
+  agrees with it, which is the difference between a verdict someone earned and one nobody did.
+
+**⚠ TWO measurement lessons from this amendment's own execution, both recorded because each nearly
+shipped as a finding.** It took THREE runs of the same 8 cases to get a trustworthy answer:
+
+| run | conditions | result |
+|---|---|---|
+| 1 | fresh reset, but the operator **edited a pgTAP file mid-run** (`367` gained 13 assertions after the baseline was captured at `Tests=7210`) | 3 COVERED / 0 BLIND / 5 ERROR |
+| 2 | quiet tree, **no fresh reset** — 9 suite runs and 2 hand drills of accumulated state | 1 COVERED / 1 BLIND / 6 ERROR |
+| 3 | fresh reset **and** quiet tree | **6 COVERED / 1 BLIND / 1 ERROR** |
+
+1. **A door sweep's figures require a QUIET TREE, not merely a quiet database.** Every case after the
+   mid-run edit reported `run-shape != baseline`, because the denominator had moved under it. The
+   harness was right to withhold a verdict; the operator was wrong to be writing.
+2. ⛔ **A GREEN BASELINE IS NOT EVIDENCE THAT THE DATABASE IS FIT TO MUTATE.** Run 2's baseline was
+   `Files=218, Tests=7223, Result: PASS` — identical to run 3's — and six of its eight verdicts were
+   still wrong. The preflight proves the tree is green *unmutated*; it says nothing about what a
+   mutated run will do, and an aborted file is what turns a COVERED into an ERROR. CLAUDE.md §6
+   already requires a fresh reset for pgTAP; this extends it to the mutation sweeps, where the
+   failure is quieter — the run does not go red, it goes *unclassifiable*.
+   ⚠ **The MECHANISM of run 2's contamination is NOT established, and is recorded as unknown rather
+   than guessed.** Two candidates fit equally: state accumulated by run 2's own predecessors (nine
+   suite runs and two hand drills since the last reset), or a **concurrent session writing to the
+   same local stack** — ADR 0136's own 2026-08-24 qualification records that three sessions were
+   sharing this stack that day, resetting it under one another. Nothing measured after the fact
+   separates them. ⛔ The remedy is identical either way, which is why the lesson is stated as the
+   remedy and not as a diagnosis: **reset immediately before the sweep, and do not write while it
+   runs.**
+
+⭐ The confirmation that run 3 is the trustworthy one is not that it is last: run 1's **uncontaminated
+prefix** — the three cases that executed before the operator's edit — returns exactly the same three
+verdicts as run 3. Two independent runs agree on the part where neither was contaminated.
