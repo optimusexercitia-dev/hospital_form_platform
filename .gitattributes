@@ -1,3 +1,13 @@
+# Blanket default: normalize every text file to LF, overriding core.autocrlf=true
+# (the Windows Git installer default, set at the system level on this repo's dev
+# machines). Without this, the working tree gets CRLF while Prettier writes LF by
+# default (no `endOfLine` override in .prettierrc.json) — that mismatch is what let
+# ~20 files silently flip CRLF<->LF and show up as noise-only diffs in review
+# (caught 2026-08-24). `text=auto` still lets git auto-detect binaries (the tracked
+# .png/.ico) and leaves them alone. The specific rules below stay for their inline
+# rationale on files where CRLF breaks a tool outright, not just leaves noise.
+* text=auto eol=lf
+
 # Shell scripts MUST stay LF — with core.autocrlf=true, a CRLF checkout breaks
 # bash (Git Bash) on Windows with `$'\r': command not found` errors.
 *.sh text eol=lf
