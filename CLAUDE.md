@@ -207,8 +207,18 @@ that opens the project is the **team lead / orchestrator**: it coordinates, assi
 reviews plans, and does **not** write feature code. **Lead orchestration protocol →
 [docs/lead-playbook.md](./docs/lead-playbook.md)** (lead only).
 
-**Delegation:** exploration/grep → Haiku · implementation → Sonnet · architecture &
-multi-file refactors → Opus/Fable · read-only reviewers → Haiku/Sonnet.
+**Delegation:** mechanical search/enumeration → Haiku · interpretive exploration &
+implementation → Sonnet · architecture, authz semantics & multi-file refactors → Opus ·
+read-only reviewers → Haiku/Sonnet. ⛔ **Fable is never agent-selected** — the user
+assigns it case-by-case.
+
+**Delegation floor — binding on EVERY session, ad-hoc sessions included, not just leads:**
+before reading more than ~3 files, or running repeated grep/`sed` sweeps, to answer ONE
+question, spawn an **Explore** subagent and keep only its conclusions — raw exploration
+must not accumulate in the main context. Shell reads (`sed`/`cat`/`grep` via Bash) count
+as reads. graphify stays the FIRST move for codebase questions (§ graphify); Explore is
+for the file-reading that follows it. (Measured 2026-08-24: one session that skipped this
+climbed 79k→489k tokens — accumulation of small reads + loop chatter, no single big read.)
 
 | Teammate   | Agent type          | Scope |
 | ---------- | ------------------- | ----- |
