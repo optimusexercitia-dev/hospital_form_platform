@@ -30,9 +30,18 @@
 --    testing one expression, not two that happen to agree.
 --    ⚠ RESIDUAL, STATED: this is a one-time authoring check, not a continuous
 --      assertion — pgTAP runs inside the database and cannot read the repo. What
---      makes it durable is CLAUDE.md's forward-only rule: a migration that has
---      been applied is never edited, so the file cannot legitimately change. If
+--      makes it durable is the forward-only rule: a migration that has been
+--      applied is never edited, so the file cannot legitimately change. If
 --      someone violates that rule, this file will NOT notice.
+--      ⛔ CORRECTED 2026-08-24 (CLAUDE.md review queue). This said "CLAUDE.md's
+--      forward-only rule", and CLAUDE.md carried no such rule — in any wording,
+--      and neither did ARCHITECTURE.md or the lead-playbook. The only mention
+--      anywhere was a section HEADING in docs/backend-state.md. So this suite's
+--      durability rested on a rule that existed nowhere, and the citation read as
+--      care. It now lives at `.claude/rules/migrations-forward-only.md`, which
+--      this file is an anchor of — so `lint:rules` reds if this line is renamed
+--      or removed. ⚠ Still NOT a gate: nothing can see an edit to an applied
+--      file. The rule is the only witness, and that has not changed.
 --
 -- ⚠ TAKES BRIEF ACCESS EXCLUSIVE LOCKS on `process_template_versions` and
 --   `cases` (add column / disable trigger). Everything is inside one
