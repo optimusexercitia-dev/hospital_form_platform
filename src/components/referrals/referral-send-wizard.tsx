@@ -831,6 +831,49 @@ export function ReferralSendWizard({
   const stepIndex = STEPS.findIndex((s) => s.id === step);
   const sharedCount = pickedNarratives.size + pickedDocuments.size;
 
+  /**
+   * Whether the review step may warn that `send_referral` will refuse this draft for
+   * a missing MRN (ADR 0137 D4 / `HC0T4`; FUP-REFERRAL-REVIEW-STEP-MRN-WARNING).
+   *
+   * ⛔⛔ THE NAIVE VERSION IS WRONG, AND WRONG IN THE DIRECTION THAT TEACHES PEOPLE TO
+   * IGNORE WARNINGS. The `patient` buffer is only AUTHORITATIVE once this session has
+   * actually loaded what the server holds, and the audited prefill fires lazily, in
+   * `goToPatientStep()`. Three cases:
+   *
+   * | case | buffer is truth? | render | reachable at review? |
+   * |---|---|---|---|
+   * | fresh draft — nothing is persisted until `flush` | ✅ | warn (the majority path) | yes |
+   * | resume, prefill `loaded` | ✅ | warn | yes |
+   * | resume, prefill `error` — the read failed | ⛔ | **nothing** | yes |
+   * | resume, prefill `loading` — still in flight | ⛔ | **nothing** | yes (racy) |
+   * | resume, `idle` — never visited | ⛔ | **nothing** | ⚠ no, see below |
+   *
+   * ⚠ MEASURED, not assumed: `idle` cannot currently be observed HERE, because the
+   * only route to `review` is the patient step's own Continuar and reaching that step
+   * fires the load (the indicator `<ol>` is not clickable — verified). The guard is
+   * written over the STATE rather than over that routing, because the routing is one
+   * button away from changing and the failure mode is silent. The `error` row is the
+   * one that pays for itself today: on a failed prefill the inputs are disabled and
+   * the buffer is empty, so an unguarded warning would fire on precisely the draft
+   * whose stored MRN this session could not read.
+   *
+   * ⭐ The silence in case 3 is the ANSWER, not a gap: *"I could not look" is not "I
+   * looked and found nothing."* Warning there would tell a coordinator their referral
+   * has no MRN when the server holds a perfectly good one, and push them to re-enter
+   * PHI that already exists.
+   *
+   * ⛔ AND DO NOT FETCH TO POWER IT. `get_referral_patient` emits an audited
+   * `referral_patient.read`, fired deliberately on INTENT rather than on mount;
+   * a warning that fetched would emit a PHI-read row for merely REACHING review,
+   * quietly changing what that audit event means (Rules 11/12). That is a lead
+   * decision, not a component one.
+   */
+  const mrnBufferAuthoritative = !isResume || resumePatientState === "loaded";
+  const mrnWarningVisible =
+    step === "review" &&
+    mrnBufferAuthoritative &&
+    (patient.mrn ?? "").trim() === "";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-2xl">
@@ -1507,6 +1550,31 @@ export function ReferralSendWizard({
                 Nenhum item selecionado. Você pode enviar apenas com o assunto e a
                 descrição, ou voltar e adicionar narrativas/documentos.
               </FormBanner>
+            )}
+
+            {/* ADR 0137 D4, surfaced BEFORE the round trip
+                (FUP-REFERRAL-REVIEW-STEP-MRN-WARNING). `send_referral` refuses an
+                MRN-less draft with HC0T4 unconditionally — measured from the live
+                catalog, and NOT exempted by a `none`-mode source case — so the
+                coordinator otherwise learns it only by pressing Enviar.
+                ⛔ Non-blocking, and it does NOT touch the MRN input's `required`:
+                the DB is the authority (D3's three-layer model) and `Salvar
+                rascunho` must keep working on a name-only PHI block (pgTAP `363
+                §1.2a` pins that).
+                ⛔ ONE string, reused verbatim — `sendRequiresMrn` already reads as
+                advance notice. Two sentences for one rule is the drift class this
+                repo keeps paying for. */}
+            {mrnWarningVisible && (
+              <p
+                role="status"
+                className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/12 px-3 py-2.5 text-sm font-medium text-pretty"
+              >
+                <ShieldAlert
+                  aria-hidden="true"
+                  className="mt-0.5 size-4 shrink-0 text-warning"
+                />
+                <span>{REFERRAL_MESSAGES.sendRequiresMrn}</span>
+              </p>
             )}
 
             <p className="text-xs text-muted-foreground text-pretty">

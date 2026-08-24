@@ -34,6 +34,7 @@ import {
 import { CASE_EVENT_KINDS, isCaseEventKind } from "@/lib/cases/registro-kinds";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
+import { Field, FieldError, FieldLabel, useFieldIds } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { RiseInGroup } from "@/components/motion/rise-in-group";
 import { cn } from "@/lib/utils";
@@ -56,8 +57,19 @@ import { formatDate, formatDueDate } from "./format";
  * it: `decision`, the weightiest thing a committee records. Everything procedural
  * is deliberately muted — a system echo must never out-shout a person's note.
  *
- * Exhaustive over {@link AnyCaseEventKind} by TYPE, so widening
- * `case_events_kind_check` cannot land without a visual for the new kind.
+ * Exhaustive over {@link AnyCaseEventKind} by TYPE — which is a guarantee about
+ * THIS UNION, and nothing more.
+ *
+ * ⛔ **It is NOT a guarantee about `case_events_kind_check`, and an earlier version of
+ * this comment claimed it was.** Widening the CHECK in SQL touches no TypeScript:
+ * `tsc` stays green, `listCaseEvents`' `.returns<CaseEventRow[]>()` ASSERTS the new
+ * row into the stale union, and the lookup below then yields `undefined` — whose
+ * destructure threw and took the whole card down. The `Record` reds only when someone
+ * widens {@link AnyCaseEventKind} ITSELF, which is a second, separate edit nothing
+ * forces. Read {@link kindVisual} for what actually holds at runtime.
+ *
+ * Today the two agree — 16 kinds on both sides, verified 2026-08-24 against
+ * `case_events_kind_check`. That is a MEASUREMENT with a date on it, not a mechanism.
  */
 const KIND_VISUAL: Record<AnyCaseEventKind, { Icon: LucideIcon; tint: string }> = {
   // The SIX manual kinds (ADR 0137 D12) — `app.is_manual_case_event_kind`.
@@ -79,6 +91,55 @@ const KIND_VISUAL: Record<AnyCaseEventKind, { Icon: LucideIcon; tint: string }> 
   decision_issued: { Icon: Scale, tint: "bg-muted text-muted-foreground" },
   appeal_submitted: { Icon: Undo2, tint: "bg-muted text-muted-foreground" },
 };
+
+/**
+ * The visual for a kind the TypeScript union does not know about — a row whose
+ * `kind` the DB admits and this build has never heard of.
+ *
+ * Neutral on purpose: an unknown kind is by definition not classifiable as manual or
+ * procedural, and giving it the accent would let a row the platform cannot describe
+ * out-shout a committee decision.
+ */
+const UNKNOWN_KIND_VISUAL = {
+  Icon: MoreHorizontal,
+  tint: "bg-muted text-muted-foreground",
+} as const;
+
+/**
+ * Resolve a row's visual, falling back for a kind this build does not know.
+ *
+ * ⛔ **The parameter is `string`, DELIBERATELY, and narrowing it back to
+ * {@link AnyCaseEventKind} silently re-arms the crash this exists to prevent.** With
+ * the union as the parameter type the lookup is typed non-nullable, TypeScript prunes
+ * the fallback as unreachable, and a reviewer reads dead code — while at runtime the
+ * value that arrives is whatever `case_events_kind_check` admitted, asserted into the
+ * union by a `.returns<>()` that verifies nothing. `string` is what makes the
+ * `undefined` case exist for the type system as well as for the browser, which is
+ * also what lets a unit test reach it without a cast.
+ */
+function kindVisual(kind: string): { Icon: LucideIcon; tint: string } {
+  return (
+    (KIND_VISUAL as Record<string, { Icon: LucideIcon; tint: string } | undefined>)[
+      kind
+    ] ?? UNKNOWN_KIND_VISUAL
+  );
+}
+
+/**
+ * The row's type chip, falling back for a kind this build does not know.
+ *
+ * ⚠ Swept as the SIBLING of {@link kindVisual}, not because it crashed: the same
+ * unknown `kind` reaching `EVENT_KIND_LABEL` yields `undefined`, which React renders
+ * as an EMPTY chip — quieter than the throw, and therefore likelier to ship. Fixing
+ * one lookup on a row and leaving the other reads as having swept the class.
+ *
+ * The fallback shows the raw kind rather than a generic word: an operator debugging a
+ * row the build cannot name needs to see WHICH kind it is, and a chip reading
+ * "Registro" would hide exactly that.
+ */
+function kindLabel(kind: string): string {
+  return (EVENT_KIND_LABEL as Record<string, string | undefined>)[kind] ?? kind;
+}
 
 type ActivityFilter = "all" | "updates" | "system";
 
@@ -202,6 +263,14 @@ export function CaseEventsTimeline({
   const bodyError = state && !state.ok ? state.fieldErrors?.body : undefined;
   const bannerError =
     state && !state.ok && !state.fieldErrors?.body ? state.error : null;
+  // `nameRequiredFor: "formData"` is DECLARED, not incidental: `createCaseEvent`
+  // reads `formData.get('body')`, so stripping the DOM `name` would post an empty
+  // record. (`useFieldIds` emits no `name` unless a caller says why it needs one —
+  // read the inversion note in `field.tsx`.)
+  const bodyField = useFieldIds("body", {
+    hasError: Boolean(bodyError),
+    nameRequiredFor: "formData",
+  });
 
   return (
     <section
@@ -309,24 +378,30 @@ export function CaseEventsTimeline({
             </div>
           </fieldset>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="sr-only">Descrição do registro</span>
+          {/* ⛔ THE ERROR MUST NOT BE A CHILD OF THE LABEL. It was, until 2026-08-24:
+              a `role="alert"` inside the wrapping `<label>` is part of the accessible
+              NAME computation, so on a validation failure the textarea silently
+              renamed itself from "Descrição do registro" to that PLUS the error text.
+              Same family as the count badge that renamed this card's own landmark —
+              data reaching a name that must be invariant. `useFieldIds` + `FieldError`
+              is the house pattern (`src/components/ui/field.tsx`); it links the
+              message through `aria-describedby` instead, which is also what lets a
+              user who tabs BACK to the invalid control hear it at all. */}
+          <Field className="text-sm">
+            <FieldLabel htmlFor={bodyField.controlProps.id} className="sr-only">
+              Descrição do registro
+            </FieldLabel>
             <textarea
-              name="body"
+              {...bodyField.controlProps}
               rows={2}
               value={body}
               onChange={(e) => setBody(e.target.value)}
               disabled={isPending}
               placeholder="Descreva uma nota, reunião, decisão ou acompanhamento… Nunca inclua dados de paciente."
-              aria-invalid={bodyError ? true : undefined}
               className="min-h-16 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
             />
-            {bodyError && (
-              <span role="alert" className="text-sm font-medium text-destructive">
-                {bodyError}
-              </span>
-            )}
-          </label>
+            <FieldError id={bodyField.errorId}>{bodyError}</FieldError>
+          </Field>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
             {/* ETH·E3a: only a coordinator may narrow a record to the coordination.
@@ -383,7 +458,7 @@ export function CaseEventsTimeline({
           <ol className="flex flex-col">
             {shown.map((ev, index) => {
               const isLast = index === shown.length - 1;
-              const { Icon, tint } = KIND_VISUAL[ev.kind];
+              const { Icon, tint } = kindVisual(ev.kind);
               // ⛔ EDIT/DELETE ARE MANUAL-ONLY — and read the correction below before
               // trusting any claim about why.
               //
@@ -450,7 +525,7 @@ export function CaseEventsTimeline({
                           tint,
                         )}
                       >
-                        {EVENT_KIND_LABEL[ev.kind]}
+                        {kindLabel(ev.kind)}
                       </span>
                       {/* ETH·E3a: an informational "coordinator only" marker. RLS
                           never delivers a coordinator_only row to a non-coordinator,

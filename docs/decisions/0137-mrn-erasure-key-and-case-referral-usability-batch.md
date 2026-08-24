@@ -218,8 +218,12 @@ PHI configuration, the Novo-caso dialog and the referral wizard are exactly wher
 - **Two migrations, both additive-then-destructive.** The PHI-mode migration adds columns, backfills,
   re-emits the case-minting DEFINERs and only then drops the booleans; the narrative migration
   renames one column and re-emits seven bodies. ⚠ Deploy order is **schema first, then code** —
-  additive migrations make old-code/new-schema safe and new-code/old-schema the broken state
+  ~~additive migrations make old-code/new-schema safe~~ and new-code/old-schema the broken state
   (the AFF2 lesson, PROGRESS.md § Now).
+  ⛔ **The struck clause is FALSE for this batch — see Amendment 2.** These migrations are
+  additive-*then-destructive*, and the deployed build selects the dropped columns directly. The
+  ORDER is unchanged; the REASON is not. Left struck rather than deleted so a reader who remembers
+  the sentence can see it was reversed rather than overlooked.
 - **New DEFINER gates** (`set_case_narrative_assignment_role`, and the refusal arms added to the
   case-minting bodies) are **in no BLIND set**, so they pass `ARM=policy` vacuously. `ARM=census` is
   the arm that catches them (ADR 0079 Amdt 3), and every new `public.*` RPC needs
@@ -241,3 +245,69 @@ PHI configuration, the Novo-caso dialog and the referral wizard are exactly wher
   needs its own increment.
 - **No retro-fill for existing PHI rows.** Records already written with a name and no MRN stay that
   way. Whether they need a remediation sweep is a PO question, not a build one.
+
+---
+
+## Amendment 1 — post-send referral PHI amendment is not a product capability (PO ruling, 2026-08-24)
+
+**Context.** Settling `FUP-0137-MRN-BLANKABLE-AFTER-SEND` by fixture surfaced a second finding
+(`FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD`): `public.set_referral_patient` explicitly refused only
+`completed` / `rejected` / `withdrawn`, so for `sent` / `received` / `accepted` / `in_review` /
+`awaiting_information` / `answered` / `resolved` it ran the PHI upsert and was stopped only by its
+own trailing `update public.case_referral set has_patient = true` tripping
+`app.guard_referral_status` (**HC070**) — a BEFORE UPDATE trigger placed there for *status
+immutability*, three objects away. The `can_amend_referral_phi_snapshot` branch ADR 0078 D7 gates
+therefore governed **draft re-saves only**, the one case it was not written for.
+
+**Decision.** Post-send PHI amendment on a referral is **not** intended. Migration
+`20261003001700` moves the refusal INTO the door: any non-`draft` status is refused **before** any
+row is written, with the door's own `HC078` and a message about patient data
+(*"encaminhamento já enviado; …"* / *"encaminhamento concluído; …"*).
+`app.can_amend_referral_phi_snapshot`'s `COMMENT` records its real scope, so it can no longer be
+cited as evidence that a sent referral's PHI can be corrected.
+
+**Why it mattered when nothing was reachable.**
+
+1. The caller was told *"mudanças de estado do encaminhamento devem passar pelas RPCs"* — a
+   sentence about lifecycle transitions — for a PHI edit. That reads as a platform bug, not a rule.
+2. **An accidental guard is one refactor from removal by someone who cannot see what it holds up.**
+   `365` §1.2 red-proved that the single obvious edit — adding
+   `set_config('app.in_referral_rpc','on')` so post-send amends "work" — blanks the LGPD erasure key
+   (`have: NULL`), because the upsert full-replaces.
+
+**Measured consequence.** The two locks now fail **independently**: removing the door's arm alone
+reds `365` §1.1/§1.3/§2.1 while §1.2 stays GREEN (the trigger still rolls the upsert back); removing
+the arm *and* setting `in_referral_rpc` reds §1.2 as well. Blanking the MRN went from **one** edit
+away to **two**. Harness: `supabase/tests/mutation/p0137-phi-door-mutation-audit.sh` (mutations 5/6).
+
+⛔ **To reverse this, deleting the status arm is not sufficient.** The full-replace upsert is
+untouched, so an amend that omits the MRN would blank it. Build the MRN persistence floor in the
+same change.
+
+## Amendment 2 — the Consequences' deploy-order rationale is FALSE as written (measured 2026-08-24)
+
+The Consequences section says *"additive migrations make old-code/new-schema safe"*. **They do
+not, for this batch.** Measured against the live catalog: `collects_patient` and `patient_enabled`
+are **dropped columns**, and the pre-batch build **selects both directly** — the phase-fill read
+(`cases ( …, patient_enabled, … )`) and the template-version full select
+(`…, collects_patient, case_type_id, …`). Old code against the new schema raises `42703` on those
+routes.
+
+`get_case_detail` still emitting a derived `patient_enabled` key covers only the *detail* read, and
+it degrades silently (`?? false`) rather than erroring — which is why it must be retired in its own
+migration **after** the code deploy, not with it (`FUP-0137-PHI-MODE-SHIMS`).
+
+**Schema-first remains the right order** — new-code/old-schema breaks sooner and wider — but the
+window between `db:push` and the code deploy is a real broken window. Plan it; do not inherit the
+sentence above as a reason not to.
+
+## Amendment 3 — D9's `CaseDepartmentField` is deleted (PO ruling, 2026-08-24)
+
+D9 removed the "Unidade / setor" input from both of `CaseDepartmentField`'s app call sites, leaving
+the component with **no consumer but its own test** — which kept `tsc`, eslint and `lint:vacuous`
+satisfied forever. PO-ruled: **delete** the component and its test
+(`FUP-CASE-DEPARTMENT-FIELD-HAS-NO-CONSUMER`). The Increment-1 brief's claim that *"the
+hospital-admin surface still uses it"* was false: that surface uses `DepartmentsManager`, a
+different component, and it is untouched. If a per-case department input is ever wanted again, that
+is a reversal of D9 and needs its own decision — `edit-case-meta-dialog.tsx`'s docblock says where
+to recover the file from.

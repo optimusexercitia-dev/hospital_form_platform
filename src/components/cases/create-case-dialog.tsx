@@ -441,10 +441,13 @@ export function CreateCaseDialog({
                 0083).
                 ⚠ Measured, and stated because the plan assumed otherwise: this was
                 `CaseDepartmentField`'s LAST app call site apart from the edit-meta
-                dialog, and after D9 that component has NO non-test consumer at all.
-                The hospital-admin surface manages the department VOCABULARY through
-                `DepartmentsManager`, which is a different component. The file and its
-                test are retained by decision, not by use. */}
+                dialog, and after D9 that component had NO non-test consumer at all —
+                dead code wearing a green check, since its own test kept `tsc`,
+                eslint and `lint:vacuous` satisfied forever. PO-ruled DELETED
+                2026-08-24 (FUP-CASE-DEPARTMENT-FIELD-HAS-NO-CONSUMER); the component
+                and its test are gone. The hospital-admin surface is unaffected — it
+                manages the department VOCABULARY through `DepartmentsManager`, which
+                is a different component. */}
 
             {/* Process-less CASE TYPE (ADR 0064 D4). A templated case INHERITS its
                 type from the process, so this only mounts for "Sem processo" — there

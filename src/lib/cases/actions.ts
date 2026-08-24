@@ -1109,22 +1109,6 @@ export async function setTemplatePatientMode(
   return finishTemplatePatientModeWrite(MESSAGES.templatePatientModeSaved)
 }
 
-/**
- * Toggle a template VERSION's PHI collection on/off.
- *
- * @deprecated ADR 0137 D1 replaced the boolean with a three-mode setting; use
- * {@link setTemplatePatientMode}, which can also express `'required'`. Kept with
- * an UNCHANGED signature so the existing builder picker keeps working while the
- * UI migrates — it maps `true -> 'optional'`, `false -> 'none'`, which is
- * exactly D1's mechanical rule.
- */
-export async function setTemplateCollectsPatient(
-  templateVersionId: string,
-  collects: boolean,
-): Promise<ActionState> {
-  return setTemplatePatientMode(templateVersionId, collects ? 'optional' : 'none', [])
-}
-
 /** The shared revalidate + result tail of the two actions above. */
 function finishTemplatePatientModeWrite(message: string): ActionState {
 

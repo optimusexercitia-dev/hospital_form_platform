@@ -14,6 +14,7 @@ import {
 } from "@/components/safety/patient-fields";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { usePendingFocus } from "@/components/ui/use-pending-focus";
 
 /**
  * The process "Identificação do paciente" configuration (ADR 0038 — the THIRD PHI
@@ -70,6 +71,13 @@ export function PatientModePicker({
   const descriptionId = useId();
   const mrnNoteId = useId();
   const radioName = useId();
+  // FUP-0137-PERSIST-REFRESH-DROPS-FOCUS. Both fieldsets below are
+  // `disabled={isPending}`, and disabling an ANCESTOR fieldset blows focus to
+  // `<body>` (measured, Chromium) — so ticking one required field cost a keyboard
+  // user their place and a full Tab walk to reach the next one. `park()` runs before
+  // the state update that disables; the hook puts focus back when the write settles.
+  // ⚠ It is the `disabled`, NOT the `router.refresh()` — see the hook's docblock.
+  const parkFocus = usePendingFocus(isPending);
 
   /**
    * Write the pair, optimistically. Mode and set are ONE decision server-side
@@ -80,6 +88,7 @@ export function PatientModePicker({
   function persist(nextMode: PatientMode, nextFields: PatientRequiredField[]) {
     const prevMode = mode;
     const prevFields = fields;
+    parkFocus();
     setMode(nextMode);
     setFields(nextFields);
     setError(null);

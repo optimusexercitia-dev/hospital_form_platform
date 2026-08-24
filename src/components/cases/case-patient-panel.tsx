@@ -5,6 +5,9 @@ import { Eye, ShieldAlert } from "lucide-react";
 
 import { CASE_PATIENT_SEX_LABELS, type CasePatient } from "@/lib/cases/types";
 import type { SetCasePatientInput } from "@/lib/cases/types";
+// ⚠ TYPE-ONLY — `@/lib/queries/cases` is a server query module (see the note in
+// `patient-fields.tsx`); a value import here would abort `next build`.
+import type { PatientRequiredField } from "@/lib/queries/cases";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
 import { formatDate } from "@/components/cases/format";
@@ -37,11 +40,19 @@ import { CasePatientEditDialog } from "@/components/cases/case-patient-edit-dial
 export function CasePatientPanel({
   hasPatient,
   canEdit,
+  requiredFields = [],
   onReveal,
   onSave,
 }: {
   /** Denormalized flag — an isolated PHI record exists. Gates the revealed body. */
   hasPatient: boolean;
+  /**
+   * The case's own snapshotted required identifier set (ADR 0137 D2/D3), passed
+   * straight through to the edit dialog — this panel neither reads nor renders it.
+   * Threaded rather than re-derived: the page holds the `CaseDetail` and the dialog
+   * is two levels down (FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED).
+   */
+  requiredFields?: readonly PatientRequiredField[];
   /** Whether the viewer may edit (coordinator/admin — `canManageLifecycle`). */
   canEdit: boolean;
   /** The audited reveal door, bound by the page to the case id. */
@@ -96,6 +107,7 @@ export function CasePatientPanel({
   const editControl = canEdit ? (
     <CasePatientEditDialog
       hasPatient={hasPatient}
+      requiredFields={requiredFields}
       onReveal={onReveal}
       onSave={onSave}
       onSaved={refreshAfterSave}

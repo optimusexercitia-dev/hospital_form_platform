@@ -7113,7 +7113,19 @@ is worse than no gate. ⚠ And note what no gate can catch: an ADR whose **claim
 amending ADR to point back from. This item covers only the case where the amendment exists and is
 one-directional.
 
-### 🟡 FUP-CASE-DEPARTMENT-FIELD-HAS-NO-CONSUMER — `CaseDepartmentField` is kept by decision, not by use (owner: PO + frontend)
+### ⬛ FUP-CASE-DEPARTMENT-FIELD-HAS-NO-CONSUMER — ✅ **RESOLVED 2026-08-24, PO ruling: DELETED** (owner: PO + frontend)
+
+> **Ruled option 1.** `case-department-field.tsx` and `case-department-field.test.tsx` are
+> deleted. The two call-site comments that described the component as *"retained by decision"*
+> were corrected in the same edit, and `edit-case-meta-dialog.tsx`'s docblock now says to recover
+> the component from git if ADR 0137 D9 is ever reversed — so the next reader does not re-derive
+> this question from an absence.
+>
+> ⭐ The reason it needed a ruling rather than a cleanup: it was **dead code wearing a green
+> check**. A test-only consumer satisfies `tsc`, eslint and `lint:vacuous` forever, and no gate in
+> the eight can distinguish "exercised by the product" from "exercised only by its own test".
+> `DepartmentsManager` — the hospital-admin department VOCABULARY — is untouched; it is a
+> different component, which was the false premise this item existed to correct.
 
 ADR [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) **D9** removed the
 "Unidade / setor" input from BOTH of `CaseDepartmentField`'s app call sites (`create-case-dialog.tsx`
@@ -7148,7 +7160,24 @@ distinguish "exercised by the product" from "exercised only by its own test", so
 in PROGRESS.md is the ONLY thing that will ever raise it again. The resolution event is the ruling, not
 the code: whichever way it goes, the answer belongs in the component's docblock.
 
-### 🟡 FUP-REFERRAL-REVIEW-STEP-MRN-WARNING — warn on the review step BEFORE the send is refused (owner: frontend; lead-ruled FILE-not-build 2026-08-23)
+### ⬛ FUP-REFERRAL-REVIEW-STEP-MRN-WARNING — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> The review step renders `REFERRAL_MESSAGES.sendRequiresMrn` **verbatim** (no second string)
+> as a non-blocking `role="status"` note. The MRN input's `required` is untouched and
+> `Salvar rascunho` still works, so pgTAP `363 §1.2a` is unaffected.
+>
+> ⭐ **The binding constraint is honoured — and tightened by measurement.** The buffer is
+> authoritative only when `!isResume || resumePatientState === 'loaded'`. ⚠ This item's table
+> implied `idle`-at-review was reachable; it is NOT — the only route to `review` runs through the
+> patient step, and reaching that step fires the load (the step indicator `<ol>` is not
+> clickable, verified). The row that pays for itself today is **`error`**: on a failed prefill
+> the buffer is empty and an unguarded warning would fire on precisely the draft whose stored MRN
+> this session could not read. The guard is still written over the STATE rather than over that
+> routing, because the routing is one button away from changing and the failure is silent.
+>
+> Nothing fetches, so no `referral_patient.read` audit row is emitted for merely reaching review.
+> Six tests, each pairing a VISIBLE case with an ABSENT one; two neutralizations red exactly
+> their own assertions.
 
 ADR [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) **D4** makes the MRN
 mandatory at SEND: `public.send_referral` raises `HC0T4`, `mapReferralError` maps it, and
@@ -7496,7 +7525,25 @@ again. A pre-existing fail-open became reachable when the batch changed the retr
 
 ---
 
-## FUP-0137-357-TWINS-ON-STALE-BODY
+## ⬛ FUP-0137-357-TWINS-ON-STALE-BODY — ✅ **RESOLVED 2026-08-24** (owner: backend)
+
+> **Re-run against the re-emitted body. All four twins bite.** Fresh reset; `357` baseline
+> 48 ok / 0 not ok. PHI write neutralized → **8 RED** · wrapper gate removed → **4 RED**, incl.
+> BOTH K-CREATION-ONLY pins (4.1 `set_case_patient`, 4.2 `set_participant_patient` — one
+> mutation reaches both, because the compat door delegates rather than re-gating) · helper ACL
+> opened → **1 RED** · helper's own flag assert removed → **1 RED**.
+>
+> ⚠ **The 8 is NOT the recorded 11, and that is not a regression.** The 2026-08-22 run's exact
+> edit was never written down, and `357` itself grew 43→48 assertions in between. The claim this
+> measurement supports is *"the current body is covered"* — not *"the count matches"*. Writing
+> the smaller number down rather than reconciling it to the remembered one is the point.
+>
+> ⭐ **The twins are now a committed harness**, `supabase/tests/mutation/p0137-phi-door-mutation-audit.sh`,
+> because hand-running them a second time would leave the next reader exactly where this item
+> found them. Three disciplines are built in: each mutation is injected INSIDE `357`'s own
+> transaction (nothing persists, even on abort); the mutation helper RAISES when a `replace()`
+> needle drifted, so a no-op mutation can never report GREEN; and each run DIFFS against a clean
+> baseline instead of a hand-written expected-red list, which is the copy that drifts.
 
 🟡 **The case-side gate's real coverage was red-proved against a body this batch replaced.** Raised by
 `qa`, 2026-08-23.
@@ -7518,7 +7565,25 @@ measurement, not a defect claim — it may well pass.
 
 ---
 
-## FUP-0137-BULK-WIZARD-STILL-BOOLEAN
+## ⬛ FUP-0137-BULK-WIZARD-STILL-BOOLEAN — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> `BulkTemplateOption.collectsPatient` → `patientMode` + `patientRequiredFields`, and the
+> `required` mode is now expressed in the grid rather than merely survived by it:
+> the required identifier columns are **welded** into the selection (`aria-disabled`, ticked,
+> *"Exigido pelo processo"* — the builder's `mrn` idiom, so a coordinator can reach the control
+> and hear that it cannot be removed); `validateGrid` gained a `requiredPhiFields` arm that
+> marks the offending **cell** and names the short **rows**; and `togglePhi` refuses a welded key
+> in the handler as well as in the renderer.
+>
+> ⚠ **The `sex = 'unknown'` sentinel is mirrored** (`app.patient_required_missing`). A blank sex
+> cell is coerced to `'unknown'`, so a naive is-the-cell-blank check would find every row
+> satisfied and advance a batch the door then refuses row by row.
+>
+> ⭐ **The CORRECTION this item recorded is discharged too:** `HC0T1` really was absent from
+> `bulk-error-map.ts`, so the bulk path returned the GENERIC string where the single-case path
+> named the fields. Mapped, and red-proven by removing it again. Six new model tests, each
+> pairing the `required` case with the `[]` case, so the regression half — every batch from an
+> `optional` template — is covered rather than assumed.
 
 🟡 **The bulk case wizard still reads the deprecated `collectsPatient`, so `required` mode degrades to a
 worse error.** Raised by `frontend` while building ADR 0137 D2/D3, 2026-08-23.
@@ -7545,7 +7610,19 @@ rather than letting it drift — the single-case and bulk paths now disagree abo
 
 ---
 
-## FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED
+## ⬛ FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> `requiredFields` threaded `case-detail-view` → `CasePatientPanel` → `CasePatientEditDialog`
+> → `PatientFields`, plus the create dialog's submit gate and its `Faltam preencher:` line,
+> reused word for word so the two surfaces cannot drift into two vocabularies for one rule.
+>
+> ⚠ **Sourced from the CASE's own snapshot** (`c.patientRequiredFields`), never the template's
+> live set: `patient_mode` is frozen at creation (`HC0T3`), so a later template edit must not
+> retroactively change what an open case demands.
+>
+> ⚠ **The gate is suppressed while the audited reveal is still `loading`.** The draft is empty
+> until that read lands, so gating on it then would tell a coordinator their COMPLETE record is
+> missing every field — the fixture-cannot-reach-the-state shape, pointed the other way.
 
 🟡 **`case-patient-edit-dialog.tsx` does not mark required fields.** Raised by `frontend`, 2026-08-23.
 
@@ -7565,7 +7642,40 @@ leaves every downstream surface **unexercised by construction**. The audit set i
 
 ---
 
-## FUP-0137-PERSIST-REFRESH-DROPS-FOCUS
+## ⬛ FUP-0137-PERSIST-REFRESH-DROPS-FOCUS — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> ⛔⛔ **THIS ITEM NAMED THE WRONG MECHANISM, and the correction is the valuable part.**
+> Measured in Chromium on a page isolating the three candidates:
+>
+> | what happens | `document.activeElement` after |
+> |---|---|
+> | an ancestor `<fieldset>` becomes `disabled` while a descendant holds focus | **`BODY`** |
+> | siblings churn around the focused node (what reconciliation does) | unchanged |
+> | the focused node is REPLACED | `BODY` |
+>
+> So it is the `disabled={isPending}` the transition toggles — which fires the instant
+> `startTransition` runs, **before** any refresh — and `router.refresh()` is innocent.
+>
+> ⚠ **That changes the sweep, which is why the item asked for one.** Its own predicate
+> (*"does this component refresh the route on an input event?"*) matches **146 files** and still
+> MISSES a component that disables without refreshing. The property that actually predicts the
+> defect is: *a control whose own change starts a transition that then disables it (directly or
+> through an ancestor `<fieldset>`), on a surface that stays mounted.* Swept, that is exactly
+> **three** components — `collects-patient-picker.tsx`, `commission-oversight-toggle.tsx`,
+> `submissions-filters.tsx` — all three now using the shared `usePendingFocus`
+> (`src/components/ui/use-pending-focus.ts`). A dialog whose SUBMIT starts the transition is
+> not in the class: it unmounts, and Radix restores focus to the trigger.
+>
+> **Verified end-to-end in the real app, with a positive control.** Neutralized, focus sits on
+> `<body>` at every sample after the persist and never returns; with the hook it returns.
+> Pinned by `use-pending-focus.test.tsx` (4 tests — one of which PINS that jsdom does NOT
+> reproduce the browser's blur, so nobody reads a green unit run as browser coverage) and by
+> E2E `patient-mode-required.spec.ts` **AC-R5**, red-proven with the message *"focus was dropped
+> to `<body>` by the persist"*.
+>
+> ⚠ AC-R5 must stay ordered BEFORE AC-R2, which publishes the version: the picker mounts for
+> DRAFT versions only, and placed after the publish the test fails on the fixture instead of on
+> the property.
 
 🟡 **`persist()` + `router.refresh()` resets keyboard focus to `<body>`, costing a keyboard user ~40 Tab
 presses per field.** Found by `tester` while writing `e2e/patient-mode-required.spec.ts`, 2026-08-23.
@@ -7647,7 +7757,23 @@ same "full-replace upsert on PHI" family.
 
 ---
 
-## FUP-0137-KIND-VISUAL-NO-FALLBACK
+## ⬛ FUP-0137-KIND-VISUAL-NO-FALLBACK — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> `kindVisual(kind: string)` resolves the row's visual with an `UNKNOWN_KIND_VISUAL` fallback,
+> and the comment now claims what it delivers: exhaustive over the TYPE UNION, which is not a
+> guarantee about `case_events_kind_check`.
+>
+> ⚠ **The parameter is `string` deliberately.** Narrowed back to `AnyCaseEventKind` the lookup is
+> typed non-nullable, TypeScript prunes the fallback as unreachable, and a reviewer reads dead
+> code — while at runtime the value that arrives is whatever the CHECK admitted, asserted into
+> the union by a `.returns<>()` that verifies nothing.
+>
+> ⭐ **The SIBLING was swept in the same edit.** `EVENT_KIND_LABEL[ev.kind]` on the same row also
+> misses an unknown kind; it yields `undefined`, which React renders as an EMPTY chip — quieter
+> than the throw, and therefore likelier to ship. Fixing one lookup on a row and leaving the
+> other reads as having swept the class. Three tests, all RED on the pre-fix build (the render
+> THREW, so every assertion in the block died at once — which is the failure mode: a blank card,
+> not a missing icon).
 
 🟡 **`KIND_VISUAL[ev.kind]` has no runtime fallback, and its comment over-claims the guarantee.** R-6,
 same review; filed 2026-08-24 for the same reason.
@@ -7668,7 +7794,18 @@ actually delivers. ⚠ A comment is an assertion; this one asserts a cross-langu
 
 ---
 
-## FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME
+## ⬛ FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> Adopted the house pattern — `Field` + `FieldLabel` + `FieldError` + `useFieldIds` — so the
+> message is linked through `aria-describedby` instead of living inside the `<label>`.
+> `nameRequiredFor: "formData"` is DECLARED, because `createCaseEvent` reads
+> `formData.get('body')` and `useFieldIds` emits no `name` unless a caller says why it needs one.
+>
+> ⭐ **The test asserts INVARIANCE across the error transition, not the presence of a string.**
+> The same `getByRole("textbox", { name: "Descrição do registro" })` runs either side of a failed
+> submit; the clean-state half passes on the DEFECTIVE build too, so only the pairing reds — and
+> it is paired with a presence assertion on the message, because a "fix" that simply deleted the
+> alert would keep the name invariant and inherit the green.
 
 🟡 **A `role="alert"` inside the wrapping `<label>` mutates the textarea's accessible name on validation
 failure.** R-7, same review; filed 2026-08-24 for the same reason.
@@ -7688,7 +7825,34 @@ states and asserting the name is unchanged, not by asserting one string.
 
 ---
 
-## FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD
+## ⬛ FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD — ✅ **RESOLVED 2026-08-24, PO ruling** (owner: backend/PO)
+
+> **Ruled shape (a): post-send PHI amendment is NOT a product capability** — and the door now
+> says so instead of stumbling into it. Migration `20261003001700` moves the refusal INTO
+> `public.set_referral_patient`: any non-`draft` status is refused BEFORE the upsert, with the
+> door's own `HC078` and a message about patient data (*"encaminhamento já enviado; …"* /
+> *"encaminhamento concluído; …"*). Behaviour is unchanged — every such call already failed —
+> but it failed LATER, by rollback, wearing the status trigger's `HC070` (*"mudanças de estado
+> do encaminhamento devem passar pelas RPCs"*), a sentence about lifecycle transitions surfaced
+> for a PHI edit.
+>
+> ⭐ **The two locks now fail INDEPENDENTLY, and that is measured rather than argued.** Removing
+> the door's arm alone reds `365` §1.1/§1.3/§2.1 — but §1.2 stays GREEN, because the trigger
+> still rolls the upsert back. Removing the arm AND setting `in_referral_rpc` reds §1.2 too.
+> So the blanking that was ONE edit away now takes TWO. Harness: mutations 5/6 of
+> `supabase/tests/mutation/p0137-phi-door-mutation-audit.sh`.
+>
+> `app.can_amend_referral_phi_snapshot`'s `COMMENT` now records its real scope — draft re-saves
+> only — so it can no longer be cited as evidence that a sent referral's PHI can be corrected.
+>
+> ⚠ **`365`'s header and §2.2/§2.4 were rewritten, not merely re-coded.** Its central claim
+> (*"the closure is incidental"*) was the premise this change retired; leaving that prose
+> standing would be the stale-tighter-rule shape — the old text reads as MORE careful, so nobody
+> questions it. The old mechanism is kept in the header as the lesson, marked as history.
+>
+> ⛔ **If post-send amendment is ever wanted, deleting the arm is NOT sufficient**: the
+> full-replace upsert is untouched, so an amend that omits the MRN blanks the erasure key. Build
+> the MRN persistence floor in the same change.
 
 🟡 **An authored write capability that cannot be exercised — `can_amend_referral_phi_snapshot`'s
 non-draft branch is structurally unreachable.** Found 2026-08-24 while settling

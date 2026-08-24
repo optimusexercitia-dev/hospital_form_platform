@@ -31,9 +31,13 @@ import { FormBanner } from "@/components/auth/form-banner";
  * clear a department nobody was shown. The stored value keeps rendering read-only in
  * the case header.
  *
- * ⚠ With Novo-caso's copy of the field gone too, `CaseDepartmentField` now has NO
- * non-test consumer (measured — the hospital-admin surface uses `DepartmentsManager`,
- * a different component). It is retained by decision, not by use.
+ * ⚠ With Novo-caso's copy of the field gone too, `CaseDepartmentField` was left with
+ * NO non-test consumer — and its own test kept it green forever, which no gate in the
+ * eight can distinguish from "exercised by the product". PO-ruled DELETED 2026-08-24
+ * (FUP-CASE-DEPARTMENT-FIELD-HAS-NO-CONSUMER). The hospital-admin surface is
+ * unaffected: it uses `DepartmentsManager`, a different component. If a per-case
+ * department input is ever wanted again, that is a reversal of D9 and needs its own
+ * decision — recover the component from git rather than re-deriving this history.
  *
  * Rendered ONLY on an OPEN case (the parent gates on `isOpen`, mirroring the
  * lifecycle actions) — a terminal case is frozen (HC025), so the affordance is

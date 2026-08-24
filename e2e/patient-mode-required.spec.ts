@@ -407,6 +407,84 @@ test('AC-R1: builder — Prontuário (mrn) checkbox is non-interactive to click 
 })
 
 // ---------------------------------------------------------------------------
+// AC-R5 (KEYBOARD, §8) — the picker KEEPS the user's place across a persist.
+// `FUP-0137-PERSIST-REFRESH-DROPS-FOCUS`.
+//
+// ⛔ ORDER IS LOAD-BEARING: this runs BEFORE AC-R2, which PUBLISHES the version. The
+// picker mounts for DRAFT versions only, so placed after the publish its own
+// `<section>` does not exist and the test fails on the fixture rather than on the
+// property (measured — that is exactly how the first placement failed).
+// ---------------------------------------------------------------------------
+
+test('AC-R5 (keyboard): the picker restores focus after a persist, so a keyboard user keeps their place', async ({
+  page,
+}) => {
+  // ⛔⛔ THE FOLLOW-UP NAMED THE WRONG MECHANISM, AND THE DIFFERENCE IS THE WHOLE
+  // TEST. It attributed the lost focus to `persist()` + `router.refresh()`. Measured
+  // in Chromium 2026-08-24, on a page isolating the three candidates:
+  //   · an ancestor <fieldset> becoming `disabled` while a descendant holds focus
+  //     -> document.activeElement === BODY
+  //   · sibling churn around a REUSED node (what reconciliation does)  -> unchanged
+  //   · the focused node being REPLACED                                 -> BODY
+  // So it is the `disabled={isPending}` the transition toggles — which fires the
+  // instant `startTransition` runs, BEFORE any refresh — and `router.refresh()` is
+  // innocent. `usePendingFocus` parks the focused control and restores it when the
+  // write settles.
+  //
+  // ⚠ THIS TEST IS ALSO THE ANSWER TO `tabUntilFocused`'s docblock, which records
+  // that in-page `element.focus()` "silently stops moving document.activeElement for
+  // the rest of the page's life" after a refresh. Whatever that observation was, it
+  // does NOT prevent the component's own restore from working: the assertion below
+  // fails without `usePendingFocus` and passes with it, driven the same way.
+  test.setTimeout(150_000)
+  await signInAs(page, 'chefe.farm@test.local')
+  await page.goto(`/o/${ORG}/c/${SLUG}/manage/process-templates/${draftTemplateId}`)
+
+  const section = page.locator('section', {
+    has: page.getByRole('heading', { name: /Identificação do paciente/i }),
+  })
+  await expect(section).toBeVisible({ timeout: 10_000 })
+
+  // ⚠ LANDING is `focusReal`, the same idiom AC-R1/AC-R2 use — a Tab walk to the mode
+  // radio does not fit inside `tabUntilFocused`'s 80-press budget from a cold page
+  // (measured: it threw). That costs this test nothing, because the property under
+  // test is what happens AFTER the persist, and every keypress from here on is real.
+  const requiredRadio = section.getByRole('radio', { name: /Obrigatória/i })
+  const optionalRadio = section.getByRole('radio', { name: /Opcional/i })
+
+  // Space on an ALREADY-CHECKED radio changes nothing and starts no transition, so a
+  // test that assumed the starting mode would measure focus across a persist that
+  // never happened. AC-R1 leaves the version in `required`, so step down first.
+  if (await requiredRadio.isChecked()) {
+    await focusReal(optionalRadio)
+    await page.keyboard.press('Space')
+    await expect(optionalRadio).toBeChecked()
+    await settleAfterPersist(page)
+  }
+  await focusReal(requiredRadio)
+  await expect(requiredRadio).toBeFocused()
+  await page.keyboard.press('Space')
+  await expect(requiredRadio).toBeChecked()
+  await settleAfterPersist(page)
+
+  // ⭐ THE ASSERTION. Without the fix `document.activeElement` is `<body>` here and
+  // stays there — the coordinator Tabs from the top of the page to reach the next
+  // required field, ~40 presses, for every field they tick.
+  const active = await page.evaluate(() => document.activeElement?.tagName ?? 'NULL')
+  expect(active, 'focus was dropped to <body> by the persist').not.toBe('BODY')
+  await expect(requiredRadio).toBeFocused()
+
+  // …and the SAME property on the required-field checkboxes, which live in a SECOND
+  // `disabled={isPending}` fieldset. One fieldset passing proves nothing about the
+  // other: they are two independent renders of the same mistake.
+  const nome = section.getByRole('checkbox', { name: /^Nome$/ })
+  await tabUntilFocused(page, nome)
+  await page.keyboard.press('Space')
+  await settleAfterPersist(page)
+  await expect(nome).toBeFocused()
+})
+
+// ---------------------------------------------------------------------------
 // AC-R2 (KEYBOARD-ONLY, §8) — configure Obrigatória + {Nome, Data de
 // nascimento, Sexo} entirely via keyboard (focus + Space, the same idiom
 // `case-referral-usability-batch.spec.ts:431-434` already uses for this

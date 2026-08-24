@@ -21,6 +21,10 @@ import type {
 // Type-only — the runtime lives in a `"use client"` component; the import is erased.
 import type { CustomFieldValueDraft } from "@/components/cases/custom-field-input";
 import type { CasePatientSex, SetCasePatientInput } from "@/lib/cases/types";
+// Type-only: `@/lib/queries/cases` is a server query module and this file is
+// imported by the client grid — a VALUE import would abort `next build` (Rule 9,
+// `lint:client-server-imports`).
+import type { PatientRequiredField } from "@/lib/queries/cases";
 
 // ---------------------------------------------------------------------------
 // PHI columns (the grid spreads the patient block across compact columns)
@@ -67,6 +71,34 @@ export const VALID_SEX: readonly CasePatientSex[] = [
 
 /** The PHI columns selected by default (E1) — the common minimum-necessary pair. */
 export const DEFAULT_PHI_KEYS: readonly PatientColumnKey[] = ["name", "mrn"];
+
+/**
+ * `patient_required_fields` (snake_case, the DB vocabulary) → the grid's column key
+ * (camelCase). Two vocabularies for one set of identifiers, so the translation lives
+ * in ONE place rather than at each of the three call sites that need it.
+ *
+ * ⛔ TOTAL over {@link PatientRequiredField} by TYPE. `age_years` and `unit` are
+ * absent from that union BY CONSTRUCTION (ADR 0137 D2/D9 — a DB CHECK on both
+ * `process_template_versions` and `cases` says so), so widening the union reds `tsc`
+ * here rather than silently dropping a field the DB will then refuse. That is the
+ * whole reason this is a typed `Record` and not a lookup with a fallback.
+ */
+export const REQUIRED_FIELD_COLUMN: Record<PatientRequiredField, PatientColumnKey> = {
+  name: "name",
+  mrn: "mrn",
+  date_of_birth: "dateOfBirth",
+  sex: "sex",
+  encounter_ref: "encounterRef",
+  attending: "attending",
+}
+
+/** The grid columns a `required`-mode template forces, in canonical column order. */
+export function requiredPhiColumns(
+  requiredFields: readonly PatientRequiredField[],
+): PatientColumnKey[] {
+  const wanted = new Set(requiredFields.map((f) => REQUIRED_FIELD_COLUMN[f]))
+  return PATIENT_COLUMNS.map((c) => c.key).filter((k) => wanted.has(k))
+}
 
 /**
  * The name-or-MRN floor at the COLUMN-SELECTION level (Step 1; E1): once ANY PHI
@@ -333,11 +365,63 @@ export function missingRequiredFields(
   return requiredKeys.filter((key) => isCellBlank(row.customFields[key] ?? null));
 }
 
+/**
+ * The `patient_required_fields` this ROW leaves empty (ADR 0137 D2/D3, bulk path),
+ * in the canonical order the DB reports them in.
+ *
+ * ⚠ MIRRORS `app.patient_required_missing`, INCLUDING its `sex = 'unknown'`
+ * SENTINEL: the column always carries a value, so a required `sex` would be
+ * satisfied on every row by the coercion default unless `'unknown'` counts as
+ * missing. `coercePatientCell` writes exactly that default for a blank cell, so
+ * without this arm a `required`-sex batch would advance and then be refused row by
+ * row at the door.
+ *
+ * ⛔ UX ONLY, and NOT the authority (D3 — "the DB layer is the one that counts").
+ * `app.assert_patient_required_fields` refuses with HC0T1 either way; this only
+ * stops the wizard offering a submit already known to fail. Never move an
+ * enforcement decision here.
+ */
+export function missingRequiredPhi(
+  patient: PatientCells,
+  requiredFields: readonly PatientRequiredField[],
+): PatientRequiredField[] {
+  if (requiredFields.length === 0) return [];
+  const wanted = new Set(requiredFields);
+  return PATIENT_REQUIRED_FIELD_ORDER.filter((field) => {
+    if (!wanted.has(field)) return false;
+    const cell = patient[REQUIRED_FIELD_COLUMN[field]] ?? "";
+    if (field === "sex") return cell.trim() === "" || cell === "unknown";
+    return cell.trim() === "";
+  });
+}
+
+/**
+ * The canonical field order the DB reports missing fields in.
+ *
+ * ⚠ Re-declared here rather than imported from `@/lib/queries/cases`: that module is
+ * server-only and this one is in the client bundle, so only its TYPES may cross.
+ * `Record<PatientRequiredField, …>` above is what keeps the two key sets identical —
+ * this array only fixes the ORDER.
+ */
+const PATIENT_REQUIRED_FIELD_ORDER: readonly PatientRequiredField[] = [
+  "name",
+  "mrn",
+  "date_of_birth",
+  "sex",
+  "encounter_ref",
+  "attending",
+]
+
 export interface RowValidation {
   /** 0-based index into the grid rows. */
   index: number;
   missingRequired: string[];
   phiFloorViolated: boolean;
+  /**
+   * The `patient_required_fields` this row leaves empty (ADR 0137 D2/D3). Always
+   * `[]` for an `optional`/`none` template, so every pre-D1 batch is byte-identical.
+   */
+  missingRequiredPhi: PatientRequiredField[];
 }
 
 export interface GridValidation {
@@ -365,14 +449,26 @@ export function validateGrid(
   rows: BulkGridRow[],
   requiredKeys: readonly string[],
   prefix: string,
+  /**
+   * The template's `patient_required_fields` (ADR 0137 D2/D3). Defaults to `[]`, so
+   * every existing caller — and every `optional`/`none` template — behaves exactly
+   * as before this parameter existed.
+   */
+  requiredPhiFields: readonly PatientRequiredField[] = [],
 ): GridValidation {
   const invalidRows: RowValidation[] = [];
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     const missingRequired = missingRequiredFields(row, requiredKeys);
     const phiFloorViolated = !phiFloorSatisfied(row.patient);
-    if (missingRequired.length > 0 || phiFloorViolated) {
-      invalidRows.push({ index: i, missingRequired, phiFloorViolated });
+    const missingPhi = missingRequiredPhi(row.patient, requiredPhiFields);
+    if (missingRequired.length > 0 || phiFloorViolated || missingPhi.length > 0) {
+      invalidRows.push({
+        index: i,
+        missingRequired,
+        phiFloorViolated,
+        missingRequiredPhi: missingPhi,
+      });
     }
   }
 

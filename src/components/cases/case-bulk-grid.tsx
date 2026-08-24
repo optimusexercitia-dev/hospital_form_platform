@@ -27,6 +27,7 @@ import {
   isBulkPaste,
   makeEmptyRow,
   parsePasteMatrix,
+  REQUIRED_FIELD_COLUMN,
   VALID_SEX,
   type BulkGridRow,
   type CellSource,
@@ -107,11 +108,14 @@ export function CaseBulkGrid({
   }, [onRowsChange]);
 
   const invalidByIndex = useMemo(() => {
-    const map = new Map<number, { missing: Set<string>; floor: boolean }>();
+    const map = new Map<number, RowInvalid>();
     for (const iv of validation.invalidRows) {
       map.set(iv.index, {
         missing: new Set(iv.missingRequired),
         floor: iv.phiFloorViolated,
+        missingPhi: new Set(
+          iv.missingRequiredPhi.map((f) => REQUIRED_FIELD_COLUMN[f]),
+        ),
       });
     }
     return map;
@@ -332,6 +336,13 @@ function formatRowList(rows: number[]): string {
 interface RowInvalid {
   missing: Set<string>;
   floor: boolean;
+  /**
+   * The PHI COLUMN keys this row leaves empty against the template's
+   * `patient_required_fields` (ADR 0137 D2/D3). Column keys, not the DB's
+   * snake_case field names — `REQUIRED_FIELD_COLUMN` does that translation once, in
+   * the model, so the cell renderer compares like with like.
+   */
+  missingPhi: Set<string>;
 }
 
 const GridRowView = memo(function GridRowView({
@@ -387,7 +398,13 @@ const GridRowView = memo(function GridRowView({
                 invalid?.missing.has(col.customField.key)) ||
                 (col.kind === "phi" &&
                   (col.phiKey === "name" || col.phiKey === "mrn") &&
-                  invalid?.floor),
+                  invalid?.floor) ||
+                // ADR 0137 D2/D3 (bulk): a required identifier left empty marks the
+                // CELL, not only the row — the coordinator must be able to see which
+                // of 200 rows × 6 columns is short.
+                (col.kind === "phi" &&
+                  col.phiKey &&
+                  invalid?.missingPhi.has(col.phiKey)),
             )}
             duplicate={
               (col.kind === "title" && duplicateLabel) ||

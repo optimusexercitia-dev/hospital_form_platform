@@ -163,17 +163,6 @@ export interface Case {
    */
   hasPatient: boolean
   /**
-   * `true` when this case COLLECTS patient identifiers. Gates whether the
-   * create-dialog PHI block + the detail reveal panel are OFFERED at all.
-   * The board/phase-fill reads default to `false`.
-   *
-   * @deprecated ADR 0137 D1 replaced the boolean with {@link patientMode}. This
-   * field survives as a DERIVED convenience (`patientMode !== 'none'`) so the
-   * existing component reads keep working while the UI migrates; it carries no
-   * information `patientMode` does not. Read `patientMode` in new code.
-   */
-  patientEnabled: boolean
-  /**
    * How this case collects patient identifiers, snapshotted at creation from the
    * template version's `patient_mode` and IMMUTABLE thereafter (ADR 0137 D1;
    * `app.guard_case_patient_mode_immutable` raises `HC0T3` on any change):
@@ -1230,9 +1219,28 @@ interface CaseDetailJson {
   has_patient?: boolean | null
   /**
    * Snapshotted "this case collects patient identifiers" flag (ADR 0038).
-   * @deprecated ADR 0137 D1 — `get_case_detail` still emits this key, now
-   * DERIVED as `patient_mode <> 'none'`; the column itself is gone. Read
-   * `patient_mode` instead.
+   *
+   * @deprecated ADR 0137 D1 — `get_case_detail` still emits this key, now DERIVED as
+   * `patient_mode <> 'none'`; the column itself is gone. Read `patient_mode` instead.
+   *
+   * ⛔ **THIS IS THE LAST SURVIVING PHI-MODE SHIM, AND IT IS THE ONE THAT MUST NOT BE
+   * RETIRED YET** (FUP-0137-PHI-MODE-SHIMS). The three TypeScript shims
+   * (`CaseDetail.patientEnabled`, `ProcessTemplateVersion.collectsPatient`,
+   * `setTemplateCollectsPatient`) went on 2026-08-24 once the builder adopted
+   * `patientMode` — they were compile-time conveniences and nothing outside this repo
+   * could see them. This key is different: it is what the CURRENTLY DEPLOYED build
+   * reads, and the ADR 0137 batch is committed but NOT pushed. Dropping it from
+   * `get_case_detail` before the code deploy makes the deployed detail page silently
+   * decide every case collects no PHI — `?? false` degrades quietly rather than
+   * erroring, which is exactly why nothing would surface it.
+   *
+   * ⚠ And it is NOT the whole old-code/new-schema story: `collects_patient` /
+   * `patient_enabled` were DROPPED columns that the deployed build also selects
+   * DIRECTLY (the phase-fill read and the template-version full select), so those
+   * routes break on the new schema regardless of this key. Deploy order is still
+   * schema-then-code; the window is real, not zero.
+   *
+   * Retire this key in its own migration AFTER the code is deployed.
    */
   patient_enabled?: boolean | null
   /** ADR 0137 D1 — the three-mode PHI collection setting. */
@@ -1478,7 +1486,6 @@ export async function listCasesBoard(
       // The board row does not surface PHI flags (the panel only renders on the
       // detail page); default to false. The detail read carries the real values.
       hasPatient: false,
-      patientEnabled: false,
       // ADR 0137 D1 — the board row carries no PHI configuration (the panel only
       // renders on the detail page); the detail read carries the real values.
       patientMode: 'none' as PatientMode,
@@ -1781,7 +1788,6 @@ async function getCaseDetailUncached(
       createdAt: env.created_at,
       closedAt: env.closed_at,
       hasPatient: env.has_patient ?? false,
-      patientEnabled: toPatientMode(env.patient_mode) !== 'none',
       patientMode: toPatientMode(env.patient_mode),
       patientRequiredFields: toPatientRequiredFields(env.patient_required_fields),
       departmentId: deptRow?.department_id ?? null,
@@ -2071,7 +2077,6 @@ export async function getCasePhaseForFill(
       createdAt: c.created_at,
       closedAt: c.closed_at,
       hasPatient: c.has_patient,
-      patientEnabled: toPatientMode(c.patient_mode) !== 'none',
       patientMode: toPatientMode(c.patient_mode),
       patientRequiredFields: toPatientRequiredFields(c.patient_required_fields),
       // The phase-fill landing does not surface the case's department (setor); the

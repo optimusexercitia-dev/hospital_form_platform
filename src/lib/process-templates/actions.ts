@@ -146,7 +146,7 @@ function revalidateTemplates() {
  * template RPCs are INVOKER with no in-body identity probe (RLS is the entire
  * boundary). Pre-QO·B this guard was membership-only, silently converting the
  * ratified KEEP into a CUT at the action layer (the BUG-QOB-003 class).
- * ⚠ `setTemplateCaseType` / `setTemplateCollectsPatient` carry no pre-check here and no
+ * ⚠ `setTemplateCaseType` / `setTemplatePatientMode` carry no pre-check here and no
  * longer need one: `20260917000100` gave both DB doors the tenancy arm, closing the Q2
  * gap the PO approved 2026-08-09. That was NOT a widening — a bare tenancy admin could
  * already write both columns by direct DML (the `process_template_versions` FOR ALL write
@@ -1098,7 +1098,8 @@ export interface TemplateVersionState extends ActionState {
  * produce two drafts. That is the same guarantee the DB enforces independently —
  * at most one draft per template — so the UI never has to serialize the call.
  *
- * Copies the version's authored fields (title, description, collectsPatient,
+ * Copies the version's authored fields (title, description, patientMode +
+ * patientRequiredFields,
  * caseTypeId) and ALL children: phases (with blocks, recommendWhen, resultRuleset,
  * emitsResult and the allowed-results junction), narrative slots, offered outcomes
  * and custom-field definitions.

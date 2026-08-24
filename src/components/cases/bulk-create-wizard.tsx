@@ -25,11 +25,13 @@ import {
   buildTargetColumns,
   makeEmptyRow,
   phiSelectionValid,
+  requiredPhiColumns,
   rowHasAnyPhi,
   serializeDraftCase,
   validateGrid,
   type BulkGridRow,
 } from "@/lib/cases/bulk-grid-model";
+import { PATIENT_REQUIRED_FIELD_LABELS } from "@/components/safety/patient-fields";
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/ui/stepper";
 import { CaseBulkGrid } from "@/components/cases/case-bulk-grid";
@@ -148,17 +150,54 @@ export function BulkCreateWizard({
   );
 
   const collectsPhi = Boolean(
-    casePatientEnabled && selectedTemplate?.collectsPatient,
+    casePatientEnabled && selectedTemplate && selectedTemplate.patientMode !== "none",
   );
 
+  // ADR 0137 D2/D3, bulk path. Empty unless the chosen process is `'required'`, so
+  // every batch from an `optional` template behaves exactly as before.
+  const requiredPhiFields = useMemo(
+    () =>
+      collectsPhi && selectedTemplate?.patientMode === "required"
+        ? selectedTemplate.patientRequiredFields
+        : [],
+    [collectsPhi, selectedTemplate],
+  );
+
+  // The columns a `required` template FORCES into the selection. Welded, not merely
+  // pre-ticked: `bulk-step-process.tsx` renders them `aria-disabled` and refuses the
+  // toggle, mirroring how the builder welds `mrn`. Deselecting one would offer a
+  // batch the door is guaranteed to refuse.
+  const weldedPhiKeys = useMemo(
+    () => requiredPhiColumns(requiredPhiFields),
+    [requiredPhiFields],
+  );
+
+  // ⛔ Derived, NOT a second piece of state. Seeding `selectedPhiKeys` in an effect
+  // when the template changes would leave a render in which the grid's columns and
+  // the validator disagree about which identifiers this batch collects — and the
+  // reconciliation would be invisible in every test that renders once.
+  const effectivePhiKeys = useMemo(() => {
+    if (weldedPhiKeys.length === 0) return selectedPhiKeys;
+    return new Set<string>([...selectedPhiKeys, ...weldedPhiKeys]);
+  }, [selectedPhiKeys, weldedPhiKeys]);
+
   const columns = useMemo(
-    () => buildTargetColumns(chosenFields, collectsPhi, selectedPhiKeys),
-    [chosenFields, collectsPhi, selectedPhiKeys],
+    () => buildTargetColumns(chosenFields, collectsPhi, effectivePhiKeys),
+    [chosenFields, collectsPhi, effectivePhiKeys],
   );
 
   const validation = useMemo(
-    () => validateGrid(rows, requiredKeys, labelPrefix),
-    [rows, requiredKeys, labelPrefix],
+    () => validateGrid(rows, requiredKeys, labelPrefix, requiredPhiFields),
+    [rows, requiredKeys, labelPrefix, requiredPhiFields],
+  );
+
+  /** 1-based row numbers short of a required identifier — drives the grid summary. */
+  const phiIncompleteRows = useMemo(
+    () =>
+      validation.invalidRows
+        .filter((iv) => iv.missingRequiredPhi.length > 0)
+        .map((iv) => iv.index + 1),
+    [validation.invalidRows],
   );
 
   const selectedMembers = useMemo(
@@ -169,7 +208,10 @@ export function BulkCreateWizard({
   // Step 1 also enforces the PHI column-selection floor (E1): if the template
   // collects PHI and any identifier column is selected, Nome or Prontuário must be
   // among them (zero PHI columns is valid — no identifiers collected).
-  const phiSelectionOk = !collectsPhi || phiSelectionValid(selectedPhiKeys);
+  // ⚠ Over the EFFECTIVE set, not the raw one: on a `required` template the welded
+  // columns are part of what this batch collects, and checking the raw set would let
+  // step 1 advance on a floor the grid does not actually stand on.
+  const phiSelectionOk = !collectsPhi || phiSelectionValid(effectivePhiKeys);
   /**
    * How many rows actually carry identifiers — drives the A2.4 review note.
    * `rowHasAnyPhi` is the grid model's own predicate; do not re-express the
@@ -252,6 +294,10 @@ export function BulkCreateWizard({
   }
 
   function togglePhi(key: string) {
+    // Welded by the template's `required` mode — refused here as well as in the
+    // renderer, so a stale click or a keyboard Space cannot strip a column the door
+    // will then demand. Mirrors the builder's `mrn` weld.
+    if (weldedPhiKeys.includes(key as (typeof weldedPhiKeys)[number])) return;
     setSelectedPhiKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -361,7 +407,8 @@ export function BulkCreateWizard({
               onTemplateChange={changeTemplate}
               selectedOptionalKeys={selectedOptionalKeys}
               onToggleField={toggleField}
-              selectedPhiKeys={selectedPhiKeys}
+              selectedPhiKeys={effectivePhiKeys}
+              weldedPhiKeys={weldedPhiKeys}
               onTogglePhi={togglePhi}
               deadline={deadline}
               onDeadlineChange={setDeadline}
@@ -412,6 +459,23 @@ export function BulkCreateWizard({
                 validation={validation}
                 highlightRowNumber={highlightRow}
               />
+              {/* ADR 0137 D2/D3 (bulk). NAMES the fields and the row numbers rather
+                  than only greying "Avançar" — on a 200-row grid an unexplained
+                  disabled button is indistinguishable from a broken one. `role=
+                  "status"` (polite): it updates on every keystroke, and an assertive
+                  region would interrupt typing.
+                  ⛔ The cell rings are the per-row half; this is the summary. Both,
+                  because one of 1 200 cells is not findable by scanning. */}
+              {phiIncompleteRows.length > 0 ? (
+                <p role="status" className="text-sm font-medium text-muted-foreground">
+                  Este processo exige{" "}
+                  {requiredPhiFields
+                    .map((f) => PATIENT_REQUIRED_FIELD_LABELS[f])
+                    .join(", ")}{" "}
+                  em todas as linhas. Faltam preencher na(s) linha(s){" "}
+                  {phiIncompleteRows.join(", ")}.
+                </p>
+              ) : null}
             </div>
           ) : null}
 

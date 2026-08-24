@@ -105,7 +105,6 @@ function detail(
       createdAt: '2026-06-19T00:00:00Z',
       closedAt: null,
       hasPatient: false,
-      patientEnabled: false,
       patientMode: 'none',
       patientRequiredFields: [],
       departmentId: null,

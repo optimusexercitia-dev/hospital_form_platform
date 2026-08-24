@@ -20,22 +20,36 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   Full record → ledger row **0137** + [adr-0137-batch.md](docs/progress/adr-0137-batch.md); reviews
   [r1](docs/reviews/adr-0137-batch-review.md) (`CHANGES REQUESTED`) → [r2](docs/reviews/adr-0137-batch-review-r2.md) (`APPROVED`).
   ⛔ **The push is a SEPARATE, explicit decision.** Deploy order is **schema first, then code**
-  (additive ⇒ old-code/new-schema is safe, new-code/old-schema is broken), and `coolify.md` documents
-  **auto-deploy on push** — so pushing code before `db:push` opens the broken state on the deployed app.
-  ✅ **A RESIDUE INCREMENT IS COMMITTED (`78ac44cf`, 2026-08-24) — ⛔ still NOT pushed**, like the rest of
-  this batch: `supabase/tests/365_*`, `referral-send-wizard{,-phi-failclosed.test}`, `messages.ts`, + these
-  records. Green on lint 8/8, typecheck, vitest 122/1689, pgTAP 216/7138 (fresh reset), authz
-  census/hat/floor/wrapper. ⚠ **`e2e:prod` NOT re-run** for it. ⛔ Re-measure the unpushed count with
-  `git rev-list --count origin/main..main` — never quote one from here (it was 4 at the commit above, and
-  a count written inside the commit it counts is off by one **by construction**).
-  ⚠ **7 follow-ups OPEN** (was 9) — **no 🟠 remains**. The 🟠 family (full-replace PHI upsert blanking
-  identifiers) resolved **in OPPOSITE directions**, `FLUSH-FAILS-OPEN` fixed alongside →
-  [archive](docs/progress/follow-ups-archive.md). In-draft half: real, **FIXED**. Post-send half: **NOT
-  REACHABLE** — the door's own `has_patient` update trips `guard_referral_status` (HC070), rolling the
-  upsert back. ⛔ **That is "closed incidentally", NOT "safe by design"** — nothing in
-  `set_referral_patient` protects the MRN, and `365` §1.2 red-proves the blanking (`have: NULL`) under
-  the single edit that opens it (adding the RPC flag, i.e. the obvious way to grant post-send amends);
-  §2.2 keystones that edit. Dead amend branch → `FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD`.
+  (⚠ *not* because old-code/new-schema is safe — it is NOT; see the CORRECTION below — but because
+  new-code/old-schema is broken sooner and wider), and `coolify.md` documents **auto-deploy on push** —
+  so pushing code before `db:push` opens the broken state on the deployed app.
+  ✅ **TWO RESIDUE INCREMENTS ARE COMMITTED — ⛔ neither pushed**, like the rest of this batch.
+  (1) `78ac44cf`, 2026-08-24: `supabase/tests/365_*`, `referral-send-wizard{,-phi-failclosed.test}`,
+  `messages.ts`. ⚠ `e2e:prod` NOT re-run for it. (2) **the follow-up sweep**, 2026-08-24: the nine
+  resolved items below, one new migration (`20261003001700`), one new mutation harness, the
+  `usePendingFocus` hook + its 3 adopters, and two deletions. Green on lint 8/8, typecheck, vitest
+  **123 files / 1703** (10 consecutive clean runs — one new spec was flaky and was FIXED, not retried),
+  pgTAP **216 / 7139** on a fresh reset, authz `census`/`hat`/`floor`/`wrapper`, and a **prod-standalone
+  E2E over the 11 affected specs: 147 passed / 0 failed / 0 flaky** (⚠ scoped, NOT the full 113-spec
+  gate). ⛔ Re-measure the unpushed count with `git rev-list --count origin/main..main` — never quote one
+  from here (a count written inside the commit it counts is off by one **by construction**).
+  ⚠ **1 follow-up OPEN** (was 7) — **`FUP-0137-PHI-MODE-SHIMS`, and it is HALF closed on purpose.**
+  The nine others were solved 2026-08-24 in a dedicated increment → [archive](docs/progress/follow-ups-archive.md);
+  two of them were **PO rulings**, not fixes (post-send PHI amendment is not a product capability;
+  `CaseDepartmentField` deleted). ⛔ The shims item stays open because `get_case_detail`'s derived
+  `patient_enabled` key is what the **currently-deployed build** reads — retiring it before the code
+  deploy makes that build decide every case collects no PHI, silently (`?? false`).
+  ⛔ **CORRECTION to the deploy rationale above: "additive ⇒ old-code/new-schema is safe" is FALSE for
+  this batch.** Measured 2026-08-24 against the live catalog: `collects_patient` and `patient_enabled`
+  are **DROPPED columns**, and the deployed build SELECTS BOTH DIRECTLY (the phase-fill read and the
+  template-version full select). So the window between `db:push` and the code deploy is a real broken
+  window, not a zero one. Schema-first is still the right order — code-first breaks too, and sooner —
+  but plan the window rather than assuming it away.
+  ⚠ **The 🟠 family closed earlier, in OPPOSITE directions** (in-draft blanking: real, FIXED; post-send:
+  not reachable). ⭐ That post-send closure was **INCIDENTAL** — a status trigger three objects away —
+  and is now **DESIGNED**: migration `20261003001700` refuses every non-`draft` status inside
+  `set_referral_patient` itself, before the upsert, with its own `HC078`. Measured consequence: blanking
+  the MRN went from ONE edit away to TWO (`365` §1.2 stays green under the door-arm mutation alone).
 - **⛔ ADR 0136 (deferred `staff_admin` sign-off) is NOT in that batch — sequenced AFTER** (PO ruling
   2026-08-23). Its § Open decline-path question was **settled the same day as shape (a)**, the
   correction/supersession machinery — recorded as **ADR 0136 § D7**, so it is now plannable.
@@ -300,13 +314,6 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — ⭐ **⭐ CRITICAL FUP C2. `ARM=census`'s DEFINER clause is bounded to `bool`/set-returning, so 407 reachable non-trigger command doors (326 RPC-callable) sit outside every arm's domain. ⭕…** ⭕ **EXTENDED 2026-08-23 (AFF2 B1): `trigger`-returning `prosecdef` gates are in no arm's domain EITHER, and this item's own word "non-trigger" excluded them** — `guard_profile_privileged_columns` is now the only in-DB control over the two new person columns. ⛔ Not a live hole (no PUBLIC/`anon` grant; a direct call outside trigger context raises) — a **measurement-domain** gap — lead + backend
 - 🟠 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — **PARTIALLY RESOLVED 2026-08-17 (`4102149b`); the filed remedy was WITHDRAWN as unbuildable** — lead/backend
 - 🟠 **FUP-FORM-IDENTIFIER-IN-URL** — ✅ **4 leaks FIXED + control-proven both directions** (`cpf-field` **CPF**, `user-profile-edit-form`, `affiliations-panel`, `patient-search-view` **MRN/PHI**); 4 more measured NOT-REACHABLE-PRE-HYDRATION. `name` is **INJECTED by `useFieldIds().controlProps`** — ⛔ a `name=` grep cannot find it (beat 3 reasoned reads). ⭐⭐ Both predictions were WRONG in opposite directions: `?password=` doesn't exist; **`cpf` was on no list**. ⛔ **STILL OPEN:** the standing detector must be a **route crawler**, not a re-run of this 8-file list; `<select>` coverage is weaker; and the ✅ **PO-RULED 2026-08-20 inversion of `useFieldIds`' `name` default** (**10/51 measured failure rate**) — assigned to `frontend`, ⛔ **as a SEPARATE change after Slice 3**, and only after enumerating the 4 classes that BREAK without `name` (server-action `FormData`, radio grouping, explicit `FormData` reads, autofill). Credited to `frontend` — frontend/lead
-- 🟡 **FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD** — `can_amend_referral_phi_snapshot`’s non-draft branch is structurally unreachable: the door’s own `has_patient` update trips `guard_referral_status` (HC070) for any non-`draft`. NOT a hole (3 independent reasons) — a decision owed. ⛔ Resolving it by adding the RPC flag ALONE opens the blanking `365` §1.2 red-proves — PO + backend
-- 🟡 **FUP-0137-KIND-VISUAL-NO-FALLBACK** — widening `case_events_kind_check` in SQL touches no TS, so `KIND_VISUAL[ev.kind]` destructure THROWS and takes the card down; latent today (16=16 verified). ⛔ QA r1 R-6, unfiled until r2 — frontend
-- 🟡 **FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME** — a `role="alert"` inside the wrapping `<label>` mutates the textarea's accessible name on failure; `useFieldIds`+`FieldError` is the house pattern one file over. ⛔ QA r1 R-7, unfiled until r2 — frontend
-- 🟡 **FUP-0137-PERSIST-REFRESH-DROPS-FOCUS** — `persist()` + `router.refresh()` resets `activeElement` to `<body>`, so a keyboard user re-Tabs (~40) per field. Verified by real Tab walk; NOT a D2 violation. ⚠ Scope by the PROPERTY (refreshes the route on an input event), not this one file — frontend
-- 🟡 **FUP-0137-BULK-WIZARD-STILL-BOOLEAN** — the bulk grid still reads deprecated `collectsPatient`, so a `required` template offers the PHI columns UNMARKED; the DB still refuses, so it is a worse error, not a hole — frontend
-- 🟡 **FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED** — `patientRequiredFields` is not threaded page → panel → dialog, so the case patient-edit dialog marks nothing; `_set_participant_patient_unchecked` still enforces — frontend
-- 🟡 **FUP-0137-357-TWINS-ON-STALE-BODY** — `357`'s twins red-proved the **pre-0137** body this batch re-emitted; `ARM=census` cannot cover this fn (non-boolean, `app`). Re-run — backend
 - 🟡 **FUP-E2E-SUBMITTED-POOL-UNSCOPED** — the shared submitted-response pool has no `case_phase_id is null` filter and the one-line fix BREAKS a peer spec — lead/tester
 - 🟡 **FUP-PREVIA-MINT-FLAG-ASYMMETRY** — `HC0DV` refuses a prévia on the premise the mint is reachable; the mint’s preconditions are a strict superset — lead
 - 🟡 **FUP-TITLE-ERASURE-REACH-IS-NOT-UNIFORM** — six of the ten annotated `*.title` columns ARE inside a `dispose_*` door's reach and four are NOT, so the loose reading of ADR 0131 Amdt 1's "title invariant" (*titles are outside erasure*) is false for six of them. ⛔ The helper-text constants therefore give **visibility**, never erasure, as the reason — pinned by assertion. Open: whether the ADR names the split — PO/lead
@@ -367,9 +374,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟡 **FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG** — `ARM=census`'s "prune" note names two LIVE `app`-schema INVOKER bodies as absent, because they fall outside its `public`-INVOKER domain. ⛔ Pruning as instructed deletes the record that they are unswept — backend
 - 🟡 **FUP-E2E-CREATEFRESHCASE-SILENT-NULL** — `case-narratives.spec.ts`'s `createFreshCase()` returns `null` on any setup failure with no thrown error and no reason, so a broken fixture reads as "nothing to test". ⚠ **Pre-existing, NOT caused by ADR 0137** — tester
 - 🟡 **FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT** — 2 suites generate cases from `memberships_role_check` read LIVE at import, so vitest's total tracks DB state; §292 pins a durable shrink but not the transient mid-reset one. Assert the role SET against one shared literal, exported as a FUNCTION not a `const` — backend + frontend
-- 🟡 **FUP-REFERRAL-REVIEW-STEP-MRN-WARNING** — warn on the wizard's review step before `send_referral` refuses (`HC0T4`). ⛔ Buffer is NOT authoritative on a resumed draft, and ⛔ never fetch to power it (audited read) — frontend
-- 🟡 **FUP-0137-PHI-MODE-SHIMS** — retire the derived `patientEnabled`/`collectsPatient`/`setTemplateCollectsPatient` shims once the builder adopts `patientMode`. ⚠ Lossy toward the NEW mode: a boolean cannot express `required` — backend + frontend
-- 🟡 **FUP-CASE-DEPARTMENT-FIELD-HAS-NO-CONSUMER** — ADR 0137 D9 removed the "Unidade / setor" input from BOTH of `CaseDepartmentField`'s app call sites, leaving **only its own test**. ⚠ The Inc-1 brief's *"the hospital-admin surface still uses it"* is FALSE — that surface uses `DepartmentsManager`, a different component. Not a defect; a **decision owed** (delete · wire · keep-with-a-named-reason), and no gate can raise it again — PO + frontend
+- 🟡 **FUP-0137-PHI-MODE-SHIMS** — ⚠ **HALF CLOSED 2026-08-24, and the remaining half is the one that can break production.** The three TS shims (`patientEnabled` / `collectsPatient` / `setTemplateCollectsPatient`) are **DELETED** — the builder adopted `patientMode`, and every consumer migrated with the bulk-wizard + case-edit fixes. ⛔ **`get_case_detail` still emits the derived `patient_enabled` key and MUST keep it until the code is DEPLOYED**: it is what the currently-deployed build reads, and dropping it first makes that build decide every case collects no PHI — `?? false` degrades SILENTLY. ⚠ And it is not the whole deploy story: the deployed build also selects the DROPPED `collects_patient` / `patient_enabled` COLUMNS directly, so those routes break on the new schema regardless — the schema→code window is real, not zero. Retire the key in its own migration AFTER the push — backend
 - 🟠 **FUP-ADR-AMENDMENT-HAS-NO-BACK-POINTER** — an amended ADR reads as **live**; only the amending one records it. 0133's three targets held **zero** mentions of it, so 0048 D10 read *"no `date_of_birth`"* while the column shipped. ✅ Those 3 fixed 2026-08-23; ⛔ the class is not. Sweep reports **44** — ⚠ **do NOT quote it**: proximity-based, over-reports (`0073→0078` was an existing back-pointer misread). **Upper bound; 4 hand-verified.** Parse direction before any gate — lead
 
 

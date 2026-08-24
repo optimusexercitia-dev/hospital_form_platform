@@ -268,4 +268,144 @@ describe("Atividade — the inline composer", () => {
     render(<CaseEventsTimeline caseId="case-1" events={[]} canWrite canSetVisibility />);
     expect(screen.getByLabelText(/Visibilidade/i)).toBeInTheDocument();
   });
+
+  /**
+   * FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME.
+   *
+   * ⛔ THE PROPERTY IS INVARIANCE OF THE NAME ACROSS THE ERROR TRANSITION, not the
+   * presence of one string. Asserting `getByRole("textbox", { name: "Descrição do
+   * registro" })` in the clean state alone passes on the DEFECTIVE build too — the
+   * defect only appears once the error renders, and only in the NAME, which no
+   * assertion in this file previously read. So the same query runs twice, either side
+   * of a failed submit, and the failure half is the one that reds on the old markup.
+   *
+   * ⚠ Paired with a presence assertion on the MESSAGE: a fix that removed the alert
+   * entirely would keep the name invariant and silently drop the error, which is a
+   * worse defect wearing this test's green.
+   */
+  it("keeps the composer textarea's accessible name unchanged when the body errors", async () => {
+    createCaseEvent.mockResolvedValueOnce({
+      ok: false,
+      fieldErrors: { body: "Descreva o registro." },
+    });
+
+    render(<CaseEventsTimeline caseId="case-1" events={[]} canWrite />);
+
+    const clean = screen.getByRole("textbox", {
+      name: "Descrição do registro",
+    });
+    expect(clean).toBeInTheDocument();
+
+    fireEvent.change(clean, { target: { value: "Reunião realizada." } });
+    fireEvent.click(screen.getByRole("button", { name: "Registrar" }));
+
+    // The message must actually arrive — otherwise the invariance below is measured
+    // over a transition that never happened.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Descreva o registro.",
+    );
+
+    // THE ASSERTION. On the pre-fix markup the alert was a child of the wrapping
+    // <label>, so the name here became "Descrição do registro Descreva o registro."
+    // and this query returns null.
+    expect(
+      screen.getByRole("textbox", { name: "Descrição do registro" }),
+    ).toBeInTheDocument();
+
+    // …and the message is REACHABLE from the control, which is what the old markup
+    // never provided: a user tabbing back to the invalid field heard nothing.
+    const described = screen
+      .getByRole("textbox", { name: "Descrição do registro" })
+      .getAttribute("aria-describedby");
+    expect(described).toBeTruthy();
+    expect(document.getElementById(described!)).toHaveTextContent(
+      "Descreva o registro.",
+    );
+  });
+});
+
+/**
+ * FUP-0137-KIND-VISUAL-NO-FALLBACK.
+ *
+ * ⛔ THE INPUT IS A KIND THE DB ADMITS AND THIS BUILD DOES NOT KNOW — which is not a
+ * hypothetical: `listCaseEvents` asserts its rows into `AnyCaseEventKind` with a
+ * `.returns<>()` that verifies nothing, so widening `case_events_kind_check` in SQL
+ * puts exactly this value on the wire with `tsc` green. The cast in the fixture is
+ * therefore MODELLING the production path, not defeating the type system.
+ *
+ * On the pre-fix build the `KIND_VISUAL[ev.kind]` destructure throws and the render
+ * dies, so every assertion here reds at once — which is the point: the failure was a
+ * blank card, not a missing icon.
+ */
+describe("Atividade — a kind this build has never heard of", () => {
+  const FUTURE_KIND = "quantum_leap" as AnyCaseEventKind;
+
+  it("renders the row with a neutral fallback instead of taking the card down", () => {
+    render(
+      <CaseEventsTimeline
+        caseId="case-1"
+        events={[
+          event("future-1", FUTURE_KIND, { title: "Evento do futuro" }),
+          event("manual-1", "note", { title: "Nota da comissão" }),
+        ]}
+        canWrite
+      />,
+    );
+
+    // The card survived and BOTH rows are present.
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByText("Evento do futuro")).toBeInTheDocument();
+
+    // The chip falls back to the raw kind. An empty chip would be the quieter
+    // sibling defect (`EVENT_KIND_LABEL` misses it too), so it is pinned here.
+    expect(screen.getByText("quantum_leap")).toBeInTheDocument();
+
+    // POSITIVE CONTROL — a known kind still resolves its real pt-BR label, so the
+    // fallback is narrow rather than swallowing the whole vocabulary.
+    // ⚠ Scoped to the ROW: "Nota" is also the composer's `note` radio pill, so an
+    // unscoped `getByText` matches twice and fails on ambiguity rather than on
+    // behaviour — the same fixture-collision this file's header records.
+    const manualRow = screen
+      .getAllByRole("listitem")
+      .find((r) => within(r).queryByText("Nota da comissão"));
+    expect(manualRow).toBeDefined();
+    expect(within(manualRow!).getByText("Nota")).toBeInTheDocument();
+  });
+
+  it("classifies the unknown kind as Sistema, so it never gains edit/delete", () => {
+    render(
+      <CaseEventsTimeline
+        caseId="case-1"
+        events={[
+          event("future-1", FUTURE_KIND, { title: "Evento do futuro" }),
+          event("manual-1", "note", { title: "Nota da comissão" }),
+        ]}
+        canWrite
+      />,
+    );
+
+    const unknownRow = screen
+      .getAllByRole("listitem")
+      .find((r) => within(r).queryByText("Evento do futuro"));
+    expect(unknownRow).toBeDefined();
+
+    // ⛔ The write controls are the ONLY control over a procedural row (see this
+    // file's header), so an unknown kind must inherit the suppression rather than
+    // fall through it. `isCaseEventKind` already answers this — the assertion pins
+    // that the fallback did not change the answer.
+    expect(
+      within(unknownRow!).queryByRole("button", { name: /^Editar registro/ }),
+    ).toBeNull();
+    expect(
+      within(unknownRow!).queryByRole("button", { name: /^Remover registro/ }),
+    ).toBeNull();
+
+    // POSITIVE CONTROL — the manual row in the same render still has both.
+    const manualRow = screen
+      .getAllByRole("listitem")
+      .find((r) => within(r).queryByText("Nota da comissão"));
+    expect(
+      within(manualRow!).getByRole("button", { name: /^Editar registro/ }),
+    ).toBeInTheDocument();
+  });
 });

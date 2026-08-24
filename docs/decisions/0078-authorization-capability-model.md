@@ -366,6 +366,13 @@ minutes are reviewed for duplication **before** the tighter policy is enabled.
 **Pre-pilot (F-min) — the security seam:**
 1. Split the conflated predicate into `can_read_referral_metadata` · `can_read_referral_phi` ·
    `can_write_referral_response` · `can_manage_referral_phi_disclosure` · `can_amend_referral_phi_snapshot`.
+   > ⚠ **SCOPE AMENDED 2026-08-24 (PO ruling; ADR 0137 Amendment 1).**
+   > `can_amend_referral_phi_snapshot` governs **only re-saving PHI on a DRAFT referral**.
+   > `public.set_referral_patient` refuses every non-`draft` status itself (`HC078`, migration
+   > `20261003001700`), because post-send PHI amendment is **not a product capability**. ⛔ Do not
+   > cite this predicate as evidence that a sent referral's PHI can be corrected — until that
+   > migration the door reached its own trailing `case_referral` update and was refused by a status
+   > trigger, so the amend branch had never completed for any status it was written for.
 2. Gate the `referral_patient` snapshot write on **`can_manage_referral_phi_disclosure`**
    (source Committee Coordinator only). **Read never implies write** (Context·2).
 3. **`set_referral_patient` leaves the public API** (made private / removed).

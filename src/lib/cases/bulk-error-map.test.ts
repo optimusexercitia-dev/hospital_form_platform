@@ -86,4 +86,28 @@ describe('mapBulkRpcError', () => {
   it('maps a null error to the generic string', () => {
     expect(mapBulkRpcError(null)).toBe(GENERIC_ERROR)
   })
+
+  /**
+   * ADR 0137 D3 — `app.assert_patient_required_fields` (FUP-0137-BULK-WIZARD-STILL-BOOLEAN).
+   *
+   * ⛔ The assertion is `not.toBe(GENERIC_ERROR)` AS WELL AS the passthrough, because
+   * the defect was not a wrong string — it was the RIGHT string being replaced by the
+   * generic. Pinning only the passthrough would go green if someone later widened the
+   * allowlist to everything, which is the failure this file's `42501` tests exist to
+   * refuse.
+   */
+  it('passes HC0T1 through so the refusal NAMES the missing identifiers', () => {
+    // ⚠ Copied from the LIVE catalog (`pg_get_functiondef(app.assert_patient_
+    // required_fields)`, 2026-08-24), never retyped from an ADR — CLAUDE.md's binding
+    // exception. `%` is `v_labels`, whose `case f when 'mrn' then 'prontuário'` arm
+    // is LOWERCASE — it is not the UI's `PATIENT_REQUIRED_FIELD_LABELS` vocabulary.
+    // ⛔ The first version of this line wrote 'Prontuário' and claimed to be copied
+    // from the catalog; it was copied for the sentence and guessed for the label. It
+    // failed loudly here, which is the only reason it is not still wrong.
+    const authored = 'este processo exige a identificação do paciente: preencha prontuário'
+    const result = mapBulkRpcError({ code: 'HC0T1', message: `linha 3: ${authored}` })
+    expect(result).toBe(`linha 3: ${authored}`)
+    expect(result).not.toBe(GENERIC_ERROR)
+    expect(result).toContain('prontuário')
+  })
 })

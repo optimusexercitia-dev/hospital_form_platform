@@ -100,7 +100,10 @@ export default async function BulkCreateCasesPage({
   // `active`; phase-less templates are rejected by the RPC — Design minor rule).
   // `id` stays the TEMPLATE identity: `bulk_create_cases` follows
   // `create_case_from_template` and resolves the published version itself. Carry
-  // `collectsPatient` + `customFields` for the wizard's PHI + custom-field columns.
+  // `patientMode` + `patientRequiredFields` + `customFields` for the wizard's PHI +
+  // custom-field columns. ⚠ `patientMode`, never the derived `collectsPatient`
+  // boolean: it cannot express `'required'`, which is the mode ADR 0137 exists to
+  // introduce (FUP-0137-BULK-WIZARD-STILL-BOOLEAN).
   const eligibleTemplates: BulkTemplateOption[] = templates
     .filter(
       (entry) =>
@@ -109,7 +112,8 @@ export default async function BulkCreateCasesPage({
     .map((entry) => ({
       id: entry.template.id,
       title: entry.version.title,
-      collectsPatient: entry.version.collectsPatient,
+      patientMode: entry.version.patientMode,
+      patientRequiredFields: entry.version.patientRequiredFields,
       customFields: entry.version.customFields,
     }));
 

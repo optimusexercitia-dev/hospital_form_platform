@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DatePicker } from "@/components/ui/date-picker";
+import { usePendingFocus } from "@/components/ui/use-pending-focus";
 
 /**
  * F4 — submissions-browser filters: member, form, date range, and the explicit
@@ -51,6 +52,13 @@ export function SubmissionsFilters({
   const toId = useId();
   const inProgressId = useId();
   const [isPending, startTransition] = useTransition();
+  // FUP-0137-PERSIST-REFRESH-DROPS-FOCUS, same class as the patient-mode picker:
+  // every control below is `disabled={isPending}` and every one of them starts that
+  // transition itself, so narrowing by member dropped focus to `<body>` and a
+  // keyboard user re-Tabbed the whole bar to reach the next filter. The docblock's
+  // "the whole bar is keyboard-operable" was true of reaching the controls and false
+  // of using two in a row.
+  const parkFocus = usePendingFocus(isPending);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams.toString());
@@ -62,6 +70,7 @@ export function SubmissionsFilters({
     // Any filter change invalidates the keyset cursor (it encodes a position in
     // the OLD result set), so reset to the first page (WS-6 P3).
     next.delete("cursor");
+    parkFocus();
     startTransition(() => {
       router.replace(`${pathname}?${next.toString()}`, { scroll: false });
     });

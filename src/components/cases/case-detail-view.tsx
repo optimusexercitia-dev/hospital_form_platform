@@ -544,23 +544,32 @@ export function CaseDetailView({
   // yields no-/single-arg server references safe to hand the client panel, so the
   // audited read fires only when a reader clicks "Exibir identificação".
   //
-  // Rendered only when this case COLLECTS patient identifiers (`patientEnabled`) and
-  // the flag is on. ETH·E3a (ADR 0064 D4): this panel is patient-SUBJECT framing, so
-  // it must be ABSENT for a professional-subject case type (Ethics —
-  // `primary_subject_kind = 'professional'`, whose subject detail lives in the
-  // "Processo ético" tab, not this rail). `patientEnabled` is the canonical
-  // patient-subject signal here — it is snapshotted at creation and is `false` for a
+  // Rendered only when this case COLLECTS patient identifiers (`patientMode !==
+  // 'none'`) and the flag is on. ETH·E3a (ADR 0064 D4): this panel is
+  // patient-SUBJECT framing, so it must be ABSENT for a professional-subject case
+  // type (Ethics — `primary_subject_kind = 'professional'`, whose subject detail
+  // lives in the "Processo ético" tab, not this rail). `patientMode` is the canonical
+  // patient-subject signal here — it is snapshotted at creation and is `'none'` for a
   // professional-subject case type, so the panel is already omitted for an ethics
   // case. (The frozen contract does not project `primary_subject_kind` onto
-  // `CaseDetail`; `patientEnabled` is the available, equivalent guard. `terminology`
+  // `CaseDetail`; `patientMode` is the available, equivalent guard. `terminology`
   // is available on `detail.terminology` should later copy need per-type wording.)
+  // ⚠ Read `patientMode`, not the derived `patientEnabled` shim: the boolean cannot
+  // express `'required'`, and the required set below needs the third value
+  // (ADR 0137 D1; FUP-0137-PHI-MODE-SHIMS).
   //
   // ⚠ ADR 0100 D5: the reviewer arm carries ZERO PHI bits, so `get_case_patient`
   // returns null for them. Rendering the panel anyway would offer an "Exibir
   // identificação" button that fails — and, worse, would disclose that this case
   // HAS a patient, which is itself PHI-adjacent. Omitted entirely for oversight.
   const showPatientPanel =
-    casePatientEnabled && c.patientEnabled && !isOversight;
+    casePatientEnabled && c.patientMode !== "none" && !isOversight;
+  // ADR 0137 D3 layer 3, for the EDIT surface (FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED).
+  // The case's OWN snapshot, not the template's live set — `patient_mode` is frozen
+  // at creation (HC0T3), so a later template edit must not retroactively change what
+  // an open case demands. Empty unless this case was minted `required`.
+  const requiredPatientFields =
+    c.patientMode === "required" ? c.patientRequiredFields : [];
   const revealPatient = revealCasePatient.bind(null, c.id);
   const savePatient = setCasePatient.bind(null, c.id);
 
@@ -884,6 +893,7 @@ export function CaseDetailView({
                 <CasePatientPanel
                   hasPatient={c.hasPatient}
                   canEdit={caps.canManageLifecycle}
+                  requiredFields={requiredPatientFields}
                   onReveal={revealPatient}
                   onSave={savePatient}
                 />

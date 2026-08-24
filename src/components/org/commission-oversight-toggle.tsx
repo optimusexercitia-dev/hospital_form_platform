@@ -7,6 +7,7 @@ import {
   type QualityOversight,
 } from "@/lib/quality/actions";
 import { Switch } from "@/components/ui/switch";
+import { usePendingFocus } from "@/components/ui/use-pending-focus";
 
 /**
  * Opt a commission in/out of quality-office oversight (ADR 0100 D8/D9).
@@ -40,12 +41,18 @@ export function CommissionOversightToggle({
   const [isPending, startTransition] = useTransition();
   const hintId = useId();
   const errorId = useId();
+  // FUP-0137-PERSIST-REFRESH-DROPS-FOCUS, same class as the patient-mode picker:
+  // the Switch disables ITSELF while its own write is in flight, which blows focus
+  // to `<body>`. On this page that is a LIST of commissions, so the cost is a Tab
+  // walk back down the list for every row a hospital admin toggles.
+  const parkFocus = usePendingFocus(isPending);
 
   const isOn = current === "visible";
 
   function onCheckedChange(next: boolean) {
     const target: QualityOversight = next ? "visible" : "excluded";
     const previous = current;
+    parkFocus();
     setCurrent(target);
     setError(null);
     startTransition(async () => {

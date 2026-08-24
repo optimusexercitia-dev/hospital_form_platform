@@ -6,6 +6,7 @@
  */
 
 import type { CustomFieldDef } from "@/lib/queries/process-templates";
+import type { PatientMode, PatientRequiredField } from "@/lib/queries/cases";
 import type {
   BulkCreateCasesInput,
   BulkCreateCasesResult,
@@ -23,8 +24,22 @@ export type BulkCreateAction = (
 export interface BulkTemplateOption {
   id: string;
   title: string;
-  /** Snapshotted into `cases.patient_enabled`; gates the PHI columns (with the flag). */
-  collectsPatient: boolean;
+  /**
+   * Snapshotted into `cases.patient_mode`; gates the PHI columns (with the flag).
+   *
+   * ⛔ This was `collectsPatient: boolean` until 2026-08-24, and the boolean was
+   * LOSSY IN EXACTLY ONE DIRECTION — it could not express `'required'`. That is why
+   * a `required` template's PHI columns were offered UNMARKED here while the
+   * single-case dialog marked them: nothing failed, no gate fired, and the user
+   * filled a whole grid before the door refused it (FUP-0137-BULK-WIZARD-STILL-BOOLEAN).
+   */
+  patientMode: PatientMode;
+  /**
+   * When {@link patientMode} is `'required'`, the identifier fields every ROW must
+   * carry. `mrn` is always a member (the LGPD erasure key; the DB welds it in).
+   * Empty for the other two modes.
+   */
+  patientRequiredFields: PatientRequiredField[];
   /** The template's custom-field definitions (drive the grid columns). */
   customFields: CustomFieldDef[];
 }

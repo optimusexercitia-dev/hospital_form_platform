@@ -13,8 +13,11 @@ import {
   emptyPatientCells,
   isBulkPaste,
   makeEmptyRow,
+  missingRequiredPhi,
   normalizeDateInput,
   parsePasteMatrix,
+  REQUIRED_FIELD_COLUMN,
+  requiredPhiColumns,
   phiFloorSatisfied,
   phiSelectionValid,
   resolveLabel,
@@ -243,6 +246,94 @@ describe("PHI floor + validation", () => {
 
     // Empty grid cannot advance.
     expect(validateGrid([], req, "Lote").canAdvance).toBe(false);
+  });
+});
+
+/**
+ * ADR 0137 D2/D3 on the BULK path (FUP-0137-BULK-WIZARD-STILL-BOOLEAN).
+ *
+ * ⛔ EVERY TEST HERE PAIRS THE REQUIRED CASE WITH THE `[]` CASE. The whole risk of
+ * adding a fourth `validateGrid` parameter is that it changes behaviour for the
+ * batches that do NOT use it, and a suite that only exercises the new mode would
+ * never see that. `[]` must stay byte-identical to the pre-parameter behaviour.
+ */
+describe("required patient fields (ADR 0137 D2/D3)", () => {
+  const requiredRow = (over: Partial<ReturnType<typeof emptyPatientCells>> = {}) => ({
+    ...makeEmptyRow(),
+    title: "Caso",
+    patient: { ...emptyPatientCells(), ...over },
+  });
+
+  it("maps every required field to a grid column, and only to columns that exist", () => {
+    // TOTALITY, not a spot check: `REQUIRED_FIELD_COLUMN`'s value set must be a
+    // subset of the columns the grid can actually render, or a "required" field
+    // would be unfillable. `age_years`/`unit` are absent from the union by
+    // construction, which is what makes the Record exhaustive-by-type.
+    const columnKeys = new Set(PATIENT_COLUMNS.map((c) => c.key));
+    for (const column of Object.values(REQUIRED_FIELD_COLUMN)) {
+      expect(columnKeys.has(column)).toBe(true);
+    }
+    expect(requiredPhiColumns(["mrn", "date_of_birth"])).toEqual([
+      "mrn",
+      "dateOfBirth",
+    ]);
+    // Canonical COLUMN order, not the caller's argument order.
+    expect(requiredPhiColumns(["attending", "name"])).toEqual(["name", "attending"]);
+    expect(requiredPhiColumns([])).toEqual([]);
+  });
+
+  it("reports the missing required identifiers in canonical order", () => {
+    const row = requiredRow({ name: "Ana" });
+    expect(missingRequiredPhi(row.patient, ["mrn", "name"])).toEqual(["mrn"]);
+    expect(missingRequiredPhi(row.patient, ["attending", "mrn"])).toEqual([
+      "mrn",
+      "attending",
+    ]);
+    // The negative half — a satisfied set reports nothing.
+    const full = requiredRow({ name: "Ana", mrn: "0001" });
+    expect(missingRequiredPhi(full.patient, ["name", "mrn"])).toEqual([]);
+    // …and no required set means nothing is ever missing.
+    expect(missingRequiredPhi(requiredRow().patient, [])).toEqual([]);
+  });
+
+  it("treats sex = 'unknown' as MISSING — the DB's sentinel rule", () => {
+    // ⛔ THE ONE THAT CANNOT BE INFERRED FROM THE OTHERS. `coercePatientCell('sex',
+    // '')` writes `'unknown'`, so a naive "is the cell blank?" check would find
+    // every row satisfied and the wizard would advance a batch the door refuses
+    // row by row. Mirrors `app.patient_required_missing`.
+    expect(coercePatientCell("sex", "")).toBe("unknown");
+    const row = requiredRow({ name: "Ana", mrn: "1", sex: "unknown" });
+    expect(missingRequiredPhi(row.patient, ["sex"])).toEqual(["sex"]);
+
+    const known = requiredRow({ name: "Ana", mrn: "1", sex: "female" });
+    expect(missingRequiredPhi(known.patient, ["sex"])).toEqual([]);
+  });
+
+  it("blocks the grid on an incomplete row and reports which fields", () => {
+    const complete = requiredRow({ name: "Ana", mrn: "0001" });
+    const short = { ...requiredRow({ name: "Bruno" }), title: "Outro" };
+
+    const v = validateGrid([complete, short], [], "Lote", ["name", "mrn"]);
+    expect(v.canAdvance).toBe(false);
+    expect(v.invalidRows).toHaveLength(1);
+    expect(v.invalidRows[0].index).toBe(1);
+    expect(v.invalidRows[0].missingRequiredPhi).toEqual(["mrn"]);
+    // The OTHER two blocking reasons are untouched — this row is short of a
+    // required identifier only.
+    expect(v.invalidRows[0].missingRequired).toEqual([]);
+    expect(v.invalidRows[0].phiFloorViolated).toBe(false);
+  });
+
+  it("is INERT for a template with no required set — the regression half", () => {
+    // Same grid, same rows, no required fields: the short row must be perfectly
+    // valid, exactly as it was before this parameter existed.
+    const short = requiredRow({ name: "Bruno" });
+    const v = validateGrid([short], [], "Lote", []);
+    expect(v.canAdvance).toBe(true);
+    expect(v.invalidRows).toEqual([]);
+
+    // …and the default argument must behave the same as an explicit `[]`.
+    expect(validateGrid([short], [], "Lote").canAdvance).toBe(true);
   });
 });
 

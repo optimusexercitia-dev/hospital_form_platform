@@ -28,6 +28,17 @@ export const PT_BR_SQLSTATES: ReadonlySet<string> = new Set<string>([
   'HC055', // narrative not in the required state
   'HC068', // required custom field missing
   'HC0F1', // case-excluded (exclusion perimeter)
+  // ADR 0137 D3 — `app.assert_patient_required_fields`. Its message is authored
+  // pt-BR and NAMES the missing identifier fields in canonical order, so it is
+  // strictly better than the generic.
+  //
+  // ⛔ ITS ABSENCE HERE WAS A LIVE DEFECT, and the follow-up that recorded it first
+  // claimed the opposite: `FUP-0137-BULK-WIZARD-STILL-BOOLEAN` originally said the
+  // refusal reached the user "with the pt-BR message naming the fields". Measured
+  // 2026-08-24: it did not — the single-case path (`mapCaseError`) mapped HC0T1 and
+  // this path did not, so the same template refused the same batch with a GENERIC
+  // string naming nothing. Two paths, one rule, two messages.
+  'HC0T1',
 ])
 
 /**

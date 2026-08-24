@@ -35,7 +35,7 @@ export type { ProcessTemplateNarrative } from '@/lib/queries/case-narratives'
  * asserted until 2026-08-04. Two consequences worth stating because they are easy
  * to get backwards:
  *
- *  - `title` / `description` / `collectsPatient` / `caseTypeId` live on the
+ *  - `title` / `description` / `patientMode` / `caseTypeId` live on the
  *    VERSION, not the identity (ADR 0096 D1) — a deliberate divergence from
  *    `forms`, where they sit on the identity and therefore drift across versions.
  *  - The status value `'active'` is retired in favour of `'published'`. This is a
@@ -396,7 +396,7 @@ export async function phaseConditionTargets(
 /**
  * The template IDENTITY row (`process_templates`) after ADR 0096: a bare,
  * commission-scoped anchor owning the version list. Deliberately carries NO
- * `title`, `description`, `status`, `collectsPatient` or `caseTypeId` — D1 moved
+ * `title`, `description`, `status`, `patientMode` or `caseTypeId` — D1 moved
  * every one of those onto the version, which is what closes the audit's real
  * provenance gap (template title/description were never snapshotted per-case).
  */
@@ -448,15 +448,6 @@ export interface ProcessTemplateVersionSummary {
 export interface ProcessTemplateVersion extends ProcessTemplateVersionSummary {
   /** The owning commission, resolved through the identity for convenience. */
   commissionId: string
-  /**
-   * Version-scoped (D1). Surfaced behind the `case_patient` feature flag.
-   *
-   * @deprecated ADR 0137 D1 replaced the boolean with {@link patientMode}. This
-   * field survives as a DERIVED convenience (`patientMode !== 'none'`) so the
-   * existing builder picker keeps working while the UI migrates; it cannot
-   * express `'required'`. Read `patientMode` in new code.
-   */
-  collectsPatient: boolean
   /**
    * Version-scoped (ADR 0096 D1; ADR 0137 D1). How cases created from THIS
    * version collect patient identifiers — `'none'` · `'optional'` ·
@@ -605,7 +596,6 @@ function mapVersionFull(v: VersionFullRow): ProcessTemplateVersion {
   return {
     ...mapVersionSummary(v),
     commissionId: v.process_templates?.commission_id ?? '',
-    collectsPatient: toPatientMode(v.patient_mode) !== 'none',
     patientMode: toPatientMode(v.patient_mode),
     patientRequiredFields: toPatientRequiredFields(v.patient_required_fields),
     caseTypeId: v.case_type_id ?? null,

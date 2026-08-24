@@ -15,10 +15,15 @@ import {
 import { FormBanner } from "@/components/auth/form-banner";
 import {
   EMPTY_PATIENT_DRAFT,
+  PATIENT_REQUIRED_FIELD_LABELS,
   PatientFields,
+  patientDraftMissingRequired,
   patientDraftToInput,
   type PatientDraft,
 } from "@/components/safety/patient-fields";
+// ⚠ TYPE-ONLY — `@/lib/queries/cases` is a server query module; a value import from
+// a client component aborts `next build` while tsc/lint/vitest stay green.
+import type { PatientRequiredField } from "@/lib/queries/cases";
 
 /** Map a revealed {@link CasePatient} into the editable draft (camelCase strings). */
 function patientToDraft(patient: CasePatient): PatientDraft {
@@ -48,12 +53,28 @@ function patientToDraft(patient: CasePatient): PatientDraft {
  */
 export function CasePatientEditDialog({
   hasPatient,
+  requiredFields = [],
   onReveal,
   onSave,
   onSaved,
 }: {
   /** Whether an isolated PHI record already exists — switches label/copy. */
   hasPatient: boolean;
+  /**
+   * The identifier fields this CASE requires (ADR 0137 D2/D3 layer 3) — the case's
+   * OWN snapshotted `patient_required_fields`, never the template's live set: the
+   * mode is frozen at creation (`app.guard_case_patient_mode_immutable`, HC0T3) and
+   * a later template edit must not retroactively change what an open case demands.
+   * Empty for `optional`/`none` cases, which is every case that predates D1.
+   *
+   * ⛔ OFFER LAYER ONLY. `app._set_participant_patient_unchecked` is D3's enforcement
+   * point and refuses regardless (HC0T1, naming the missing fields in pt-BR). This
+   * exists so the coordinator is told BEFORE the round trip, which is the whole
+   * point of layer 3 — the create dialog has had it since the batch; this dialog
+   * marked nothing, so the same template disagreed with itself depending on which
+   * surface you reached it from (FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED).
+   */
+  requiredFields?: readonly PatientRequiredField[];
   /** The audited reveal door (bound to the case id) — pre-fills the form on open. */
   onReveal: () => Promise<CasePatient | null>;
   /** The PHI upsert door (bound to the case id). */
@@ -107,6 +128,13 @@ export function CasePatientEditDialog({
   }
 
   const busy = isPending || loading;
+  const missingRequired = patientDraftMissingRequired(draft, requiredFields);
+  // ⛔ UX gate ONLY, exactly as in `create-case-dialog.tsx` — the DB is the
+  // authority. Suppressed while `loading`, because the draft is still EMPTY until
+  // the audited reveal lands: gating on it then would tell a coordinator their
+  // complete record is missing every field, which is the "a green gate can mean the
+  // fixture cannot reach the state" shape pointed the other way.
+  const requiredBlocked = !loading && missingRequired.length > 0;
 
   return (
     <>
@@ -149,7 +177,22 @@ export function CasePatientEditDialog({
               idPrefix="case-patient-edit"
               hideUnit
               hideAge
+              requiredFields={requiredFields}
             />
+            {/* Names the outstanding fields rather than only greying the button.
+                `role="status"` (polite) — it updates on every keystroke, and an
+                assertive region would interrupt typing. Mirrors the create dialog
+                word for word so the two surfaces cannot drift into two vocabularies
+                for one rule. */}
+            {requiredBlocked && (
+              <p role="status" className="text-sm font-medium text-muted-foreground">
+                Faltam preencher:{" "}
+                {missingRequired
+                  .map((f) => PATIENT_REQUIRED_FIELD_LABELS[f])
+                  .join(", ")}
+                .
+              </p>
+            )}
             <div className="flex flex-wrap justify-end gap-2">
               <Button
                 type="button"
@@ -160,7 +203,7 @@ export function CasePatientEditDialog({
               >
                 Cancelar
               </Button>
-              <Button type="submit" size="lg" disabled={busy}>
+              <Button type="submit" size="lg" disabled={busy || requiredBlocked}>
                 {isPending && !loading ? "Salvando…" : "Salvar identificação"}
               </Button>
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { GitBranchPlus, Layers, ShieldAlert } from "lucide-react";
+import { GitBranchPlus, Layers, Lock, ShieldAlert } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,6 +53,7 @@ export function BulkStepProcess({
   selectedOptionalKeys,
   onToggleField,
   selectedPhiKeys,
+  weldedPhiKeys,
   onTogglePhi,
   deadline,
   onDeadlineChange,
@@ -73,6 +74,12 @@ export function BulkStepProcess({
   selectedOptionalKeys: Set<string>;
   onToggleField: (key: string) => void;
   selectedPhiKeys: Set<string>;
+  /**
+   * The PHI columns the chosen process REQUIRES (ADR 0137 D2/D3) — rendered ticked
+   * and non-interactive, exactly as the builder renders the welded `mrn`. Empty for
+   * an `optional` template, which leaves this step byte-identical to before.
+   */
+  weldedPhiKeys: readonly string[];
   onTogglePhi: (key: string) => void;
   deadline: string;
   onDeadlineChange: (v: string) => void;
@@ -94,8 +101,9 @@ export function BulkStepProcess({
       ? selectedTemplate.customFields
       : [];
   const collectsPhi = Boolean(
-    casePatientEnabled && selectedTemplate?.collectsPatient,
+    casePatientEnabled && selectedTemplate && selectedTemplate.patientMode !== "none",
   );
+  const phiRequired = selectedTemplate?.patientMode === "required";
 
   return (
     <div className="flex flex-col gap-6">
@@ -200,22 +208,49 @@ export function BulkStepProcess({
         <fieldset className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4">
           <legend className="px-1 text-sm font-medium">
             Identificadores do paciente (colunas da grade)
+            {phiRequired ? (
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                (obrigatórios)
+              </span>
+            ) : null}
           </legend>
           <PhiCaution>
-            Dados sensíveis de paciente (PHI). Selecione apenas os identificadores
-            necessários — cada um vira uma coluna da grade.
+            {phiRequired
+              ? "Dados sensíveis de paciente (PHI). Este processo exige os identificadores marcados como obrigatórios em TODAS as linhas do lote; informe somente o mínimo necessário."
+              : "Dados sensíveis de paciente (PHI). Selecione apenas os identificadores necessários — cada um vira uma coluna da grade."}
           </PhiCaution>
           <div className="flex flex-col gap-2">
-            {OFFERED_PATIENT_COLUMNS.map((col) => (
-              <label key={col.key} className="flex items-start gap-2.5 text-sm">
-                <Checkbox
-                  checked={selectedPhiKeys.has(col.key)}
-                  onCheckedChange={() => onTogglePhi(col.key)}
-                  className="mt-0.5"
-                />
-                <span className="font-medium">{col.label}</span>
-              </label>
-            ))}
+            {OFFERED_PATIENT_COLUMNS.map((col) => {
+              const welded = weldedPhiKeys.includes(col.key);
+              return (
+                <label key={col.key} className="flex items-start gap-2.5 text-sm">
+                  <Checkbox
+                    checked={welded ? true : selectedPhiKeys.has(col.key)}
+                    // ⛔ `aria-disabled`, NOT `disabled` — the builder's welded-`mrn`
+                    // rule (ADR 0137 D2), for the same reason: a disabled control
+                    // leaves the tab order, and a coordinator must be able to REACH
+                    // a required identifier and hear that it cannot be removed
+                    // rather than find it absent. The literal `checked` plus the
+                    // no-op handler is what makes it genuinely non-interactive.
+                    aria-disabled={welded || undefined}
+                    onCheckedChange={() => {
+                      if (!welded) onTogglePhi(col.key);
+                    }}
+                    className="mt-0.5"
+                  />
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="font-medium">{col.label}</span>
+                    {welded ? (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                        <Lock aria-hidden="true" className="size-3" />
+                        Exigido pelo processo
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+              );
+            })}
           </div>
           {!phiSelectionValid(selectedPhiKeys) ? (
             <p role="alert" className="text-sm font-medium text-destructive">

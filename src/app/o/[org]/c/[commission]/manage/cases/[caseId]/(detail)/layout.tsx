@@ -170,7 +170,7 @@ export default async function CaseDetailLayout({
   // The NSP dialog seeds its patient panel from this case's identifiers only when
   // the case COLLECTS PHI and the `case_patient` flag is on (ADR 0038 — value copy
   // via the audited door). Mirrors `CaseDetailView`'s `showPatientPanel` derivation.
-  const showPatientPanel = casePatientOn && c.patientEnabled;
+  const showPatientPanel = casePatientOn && c.patientMode !== "none";
 
   // The lifecycle-actions menu (open cases only) is Concluir + Cancelar now, so all
   // it needs from here is the conclude dialog's two warning lists. The assignee and
