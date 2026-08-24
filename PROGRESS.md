@@ -22,10 +22,12 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ⛔ **The push is a SEPARATE, explicit decision.** Deploy order is **schema first, then code**
   (additive ⇒ old-code/new-schema is safe, new-code/old-schema is broken), and `coolify.md` documents
   **auto-deploy on push** — so pushing code before `db:push` opens the broken state on the deployed app.
-  ⛔ **A RESIDUE INCREMENT SITS UNCOMMITTED IN THE WORKING TREE (2026-08-24)**: `supabase/tests/365_*`,
-  `referral-send-wizard{,-phi-failclosed.test}`, `messages.ts`, + these records. Green on lint 8/8,
-  typecheck, vitest 122/1689, pgTAP 216/7138 (fresh reset), authz census/hat/floor/wrapper. ⚠ **`e2e:prod`
-  NOT re-run.**
+  ✅ **A RESIDUE INCREMENT IS COMMITTED (`78ac44cf`, 2026-08-24) — ⛔ still NOT pushed**, like the rest of
+  this batch: `supabase/tests/365_*`, `referral-send-wizard{,-phi-failclosed.test}`, `messages.ts`, + these
+  records. Green on lint 8/8, typecheck, vitest 122/1689, pgTAP 216/7138 (fresh reset), authz
+  census/hat/floor/wrapper. ⚠ **`e2e:prod` NOT re-run** for it. ⛔ Re-measure the unpushed count with
+  `git rev-list --count origin/main..main` — never quote one from here (it was 4 at the commit above, and
+  a count written inside the commit it counts is off by one **by construction**).
   ⚠ **7 follow-ups OPEN** (was 9) — **no 🟠 remains**. The 🟠 family (full-replace PHI upsert blanking
   identifiers) resolved **in OPPOSITE directions**, `FLUSH-FAILS-OPEN` fixed alongside →
   [archive](docs/progress/follow-ups-archive.md). In-draft half: real, **FIXED**. Post-send half: **NOT
