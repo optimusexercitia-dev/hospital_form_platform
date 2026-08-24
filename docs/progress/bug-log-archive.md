@@ -3120,3 +3120,23 @@ a future regression fails loud.
 > `lint:vacuous`, which traces test bodies. The tell was a comment asserting a fixture fact
 > (*"no non-collecting template in this seed"*) that had been checked only against the swallow's
 > effect — see `FUP-E2E-CREATEFRESHCASE-SILENT-NULL` for the same shape still open elsewhere.
+
+## Rotated 2026-08-24 — BUG-SIGNOFF-GROUPCOND-001 (RESOLVED in the ADR 0136 increment)
+
+_Found by PRE-BUILD measurement, not by any gate — and no gate could have found it: every caller was green because the one caller anybody tests (`submit_response`) used the correct evaluator. Fixed by the extraction ADR 0136 mandated. Links repointed for this file's depth._
+
+🔴 **BUG-SIGNOFF-GROUPCOND-001 — a `requires_signoff` section carrying a GROUPED `visible_when`
+made FIVE routines RAISE, including every SAVE on that form.** Filed 2026-08-24 (lead), found by the
+pre-build measurement for ADR 0136 — not by any gate, and no gate could have found it. `app.eval_condition`
+handles only the legacy single condition shape and raises `unknown condition op: <NULL>` on the group
+shape `{match, conditions[]}`; `app.is_valid_visibility` **accepts** that shape on a section and the
+section-settings condition builder authors it. Five routines evaluated a SECTION's `visible_when` with
+the wrong evaluator: `list_signoff_queue`, `get_response_for_signoff`, `sign_section` (×2),
+`compute_due_notifications`, `save_section_answers`. Blast radius: the commission's whole sign-off
+queue page 500s, the review-to-sign door 500s, and **every save on that form fails** — the last being
+much the worst, since it strands a filler mid-response. `submit_response` alone used the correct
+`app.eval_visibility`, which is why the drift survived: the one caller anybody tests was right.
+✅ **FIXED in the ADR 0136 increment** by the extraction the ADR mandated (`app.pending_staff_signoffs`,
+one definition on `eval_visibility`) — pgTAP 367 §7 pins it with a POSITIVE CONTROL asserting
+`eval_condition` still raises, so the doors' survival is attributable to the swap and not to the shape
+being unreachable. ⛔ Stays here until the increment is approved and recorded (§6 step 5).

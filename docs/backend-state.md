@@ -3965,11 +3965,18 @@ WHERE-clause **conjunct**, which is correct for per-row filtering and outside th
 RAISING, which aborts the transaction mid-file so the run shape stops matching baseline — the
 suites notice **emphatically**, 312 fails 64/90).
 
-## DSS — Deferred `staff_admin` sign-off (2026-08-24; ADR 0136 + Amendment 1; migration `20261003001900`; flag `deferred_staff_signoff` **OFF** — seed forces ON local/E2E)
+## DSS — Deferred `staff_admin` sign-off (2026-08-24; ADR 0136 + Amendment 1; migrations `20261003001900` + `20261003002000` + `20261003002100`; flag `deferred_staff_signoff` **ON** — flipped at the gate by `…2100`)
 
-⛔ **Build complete, NOT yet approved or committed** (§6 step 3/4 outstanding). Read ADR 0136
-§ Amendment 1 before anything below — the ADR's own § Size table and Consequences were wrong in
-**eight** places, every one in the reassuring direction.
+✅ **COMPLETE — QA APPROVED + human-approved 2026-08-24; flag flipped ON by `20261003002100`.**
+⛔ **NOT PUSHED**: a flag flip changes production only when the migration reaches the linked
+project. Read ADR 0136 § Amendment 1 before anything below — the ADR's own § Size table and
+Consequences were wrong in **eight** places, every one in the reassuring direction.
+
+⚠ A THIRD migration joined this section after the follow-up round: `20261003002000` fixes
+`start_or_resume_response`, whose resume query was lane-blind while the unique index it defers to
+was not — so a member holding an `in_progress` CASE-PHASE draft was handed it back on the
+STANDALONE route. The route now refuses a case-phase response outright; the deferral is what made
+the pre-existing bug visible rather than what caused it.
 
 **The shape.** `case_phases.status` gains a sixth value, `awaiting_signoff`, between `active` and
 `completed`. `submit_response` stops blocking on an unsigned `signoff_role = 'staff_admin'` section
@@ -4012,7 +4019,7 @@ freeze) · `start_or_resume_phase` / `skip_phase` (HC019) · `app.case_phase_ans
 `case_phase_option_aggregates` (an unattested phase must not feed indicators) ·
 `guard_submitted_children`.
 
-**Tests.** pgTAP `367_deferred_staff_signoff.sql` (61) — 15 neutralizations RED-proved; E2E
+**Tests.** pgTAP `367_deferred_staff_signoff.sql` (**79**) — 15 neutralizations RED-proved; E2E
 `deferred-staff-signoff.spec.ts` (5), which caught the one thing pgTAP structurally cannot: the
 **wizard's own submit gate** kept the button `disabled` while the database allowed the submit.
 
@@ -4423,7 +4430,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | Flag | State | Notes |
 | ---- | ----- | ----- |
 | `signoff_enforcement` | **ON** (Phase 6, migration `…090001`) | `submit_response` blocks submission until every VISIBLE `requires_signoff` section is signed → **P0012**. Was OFF in Phases 1–5 (ADR 0004). |
-| `deferred_staff_signoff` | **OFF** (ADR 0136, migration `20261003001900`) — seed forces ON for local/E2E | Role-SPLITS the flag above (ADR 0004 amended in effect). When ON, `submit_response` stops blocking on an unsigned `signoff_role='staff_admin'` section **of a case-phase response** (`case_phase_id is not null` — D2); the phase parks in `case_phases.status = 'awaiting_signoff'` and the last signature completes it. HC012 SURVIVES for the `respondent` arm and for every standalone response. ⛔ The production flip is its own migration at the gate and is **not written** — local + E2E green says nothing about production behaviour. ⚠ The status-list widenings (`close_case`, `cancel_case`, `recompute_case_status`, `guard_case_phase_status`, `file_correction_request`) are deliberately **NOT** flag-gated: with the flag off no phase can reach the status, so they are inert — and gating them would strand a phase if the flag were ever flipped OFF after one parked. |
+| `deferred_staff_signoff` | **ON** (ADR 0136 — created OFF by `20261003001900`, flipped by `20261003002100` at the gate, 2026-08-24) | Role-SPLITS `signoff_enforcement` (ADR 0004 amended in effect). When ON, `submit_response` stops blocking on an unsigned `signoff_role='staff_admin'` section **of a CASE-PHASE response** (`case_phase_id is not null` — D2); the phase parks in `case_phases.status = 'awaiting_signoff'` and the last signature completes it. HC012 SURVIVES for the `respondent` arm and for every standalone response. ⛔ **Resolve the VALUE in the `enabled` column, never this sentence** — and on the REMOTE, measure it: the flip only reaches production when `20261003002100` is pushed. ⚠ The status-list widenings (`close_case`, `cancel_case`, `recompute_case_status`, `guard_case_phase_status`, `file_correction_request`) are deliberately **NOT** flag-gated: with the flag off no phase can reach the status, so they are inert — and gating them would strand a parked phase if the flag were ever flipped back OFF. |
 | `cases_multi_phase` | **ON** (Phase 7, migration `…090008`) | Gates every Phase-7 cases RPC. Inserted OFF in `…090004`; flipped ON by the separate one-line `…090008` (mirrors the `signoff_enforcement` flip). The feature is live. |
 | `cases_extras` | **ON** (Extras, migration `…092006`) | Gates the Cases-Extras + outcome WRITE surface: the **OUTCOME** RPCs (`set_case_outcome`, `set_process_outcomes`, outcome vocab CRUD — ADR 0024); R3 tag CRUD/assign; R4 action-item authoring + lifecycle; R1 document/event actions via `cases_extras_enabled`. (The R2 `set_case_status` + status CRUD it formerly gated were REMOVED by ADR 0024.) Inserted OFF in `…092001`; flipped ON by `…092006`. The core phase RPCs (`activate_phase`/`skip_phase`/`add_ad_hoc_phase`/`reassign_phase`/`close_case`/`cancel_case`/`create_case_from_template`/`set_template_phase_blocks`) gate ONLY `cases_multi_phase`. |
 | `meetings` | **ON** (Phase 10, migration `…090008`) | Gates every Phase-10 meetings RPC + the TS-layer table writes via `public.meetings_enabled()`. Inserted OFF in `…090000`; flipped ON by `…090008` (enabled in-phase so the gate exercised the live feature — same pattern as `cases_multi_phase`). |

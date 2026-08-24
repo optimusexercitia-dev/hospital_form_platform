@@ -3,8 +3,13 @@
 - **Status:** ACCEPTED 2026-08-23 (PO ruling) — ✅ **BUILT 2026-08-24**, migration
   `20261003001900_deferred_staff_signoff.sql`, plan
   [deferred-staff-admin-signoff.md](../plans/deferred-staff-admin-signoff.md). Ships behind
-  `deferred_staff_signoff`, **OFF in production** (seed forces it on for local/E2E; the production
-  flip is its own migration at the gate). **Amended:** § Amendment 1 below — eight things the
+  `deferred_staff_signoff`, **FLIPPED ON 2026-08-24** by its own gate migration
+  `20261003002100`, after §6 steps 1–4 closed (QA APPROVED + human approval). ⛔ **A migration
+  changes production only when PUSHED** — until `20261003002100` reaches the linked project the
+  remote still runs the flag OFF, whatever this line says; measure the remote, never quote it.
+  ⚠ **pgTAP 367 §1 is now the ROLLBACK contract, not "what ships"** — it stopped being the
+  production path on the day of the flip, which is exactly when a suite quietly loses the arm
+  nobody is looking at. **Amended:** § Amendment 1 below — eight things the
   § Size table and the Consequences got wrong, every one of them in the reassuring direction.
   ⭐ The acceptance covers the model below and the four points the PO ruled on directly.
   ✅ **The formerly-open decline-path question was SETTLED 2026-08-23 as shape (a)** — see § D7.
@@ -315,7 +320,8 @@ destructive.** § Size warns that `80_signoffs.sql`'s central assertions *invert
 arm — "that inversion is the delivery". Measured: that file contains **zero** references to case
 phases. It is entirely the STANDALONE lane, which **D2 deliberately leaves unchanged**. Not one
 assertion inverts; the file is untouched and still passes. The delivery is a NEW suite
-(`367_deferred_staff_signoff.sql`, 61 assertions).
+(`367_deferred_staff_signoff.sql`, **79** assertions after the follow-up round; it was 61 when
+this amendment was first written).
 
 **A7 · The database was never the whole gate.** `submit_response` stopped blocking — and the button
 stayed `disabled`: `wizard-client.tsx` carries its **own** submit gate ("Há seções pendentes de

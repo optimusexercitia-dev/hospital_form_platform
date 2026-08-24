@@ -11,9 +11,12 @@
 -- of its assertions inverts. The delivery is this NEW suite, and §1.4 below is the
 -- assertion that keeps the ADR's claim honest by pinning the standalone refusal.
 --
--- ⚠ The seed hands `deferred_staff_signoff` ON for local/E2E. §1 therefore turns
--- it OFF ITSELF and restores it — without that, the flag-OFF contract (which is
--- what ships to production) would have no coverage at all.
+-- ⚠ `deferred_staff_signoff` arrives ON — flipped by its gate migration
+-- `20261003002100` (2026-08-24), with seed.sql belt-and-suspendering it. §1
+-- therefore turns it OFF ITSELF and restores it. ⛔ That section is now the ONLY
+-- coverage of the flag-OFF path anywhere: it stopped being "what ships to
+-- production" the day of the flip, and became the rollback contract instead —
+-- which is exactly when a suite quietly loses the arm it is not looking at.
 
 begin;
 select plan(79);

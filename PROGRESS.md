@@ -50,61 +50,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      accounted 61 of 62 collected (the 62nd is a by-design skip, reconciled per batch: 18+25+18).
      ⛔ A first attempt was **exit 5 UNRUN** — `server_dead` left 27 tests never executed, plus a
      spec name that does not exist. Neither is a pass and neither is a regression signal.
-- **✅ ADR 0136 — deferred `staff_admin` sign-off: BUILT + COMMITTED `1069711c` 2026-08-24,
-  ⛔ NOT PUSHED (`main` is ahead of `origin/main` by 2 — measure, never quote), awaiting §6
-  step 3 (QA) + step 4 (human approval).** Migration `20261003001900_deferred_staff_signoff.sql`
-  (20 changes, every body re-emitted from `pg_get_functiondef`), pgTAP **367** (**79** assertions
-  after the follow-up round below), E2E `deferred-staff-signoff.spec.ts` (**6**), plan
-  [deferred-staff-admin-signoff.md](docs/plans/deferred-staff-admin-signoff.md), ADR
-  [0136 § Amendment 1](docs/decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md).
-  Ships behind `deferred_staff_signoff`, **OFF in production** — seed forces it on for local/E2E, and
-  ⛔ **the production flip is a separate migration, not written**, so local + E2E green says nothing
-  about production behaviour yet.
-  ⛔ **What a reader must not skip — the § Size table and the Consequences were wrong in EIGHT places,
-  every one in the reassuring direction. The figures live in ADR 0136 § Amendment 1, never here.** The
-  four that changed the build:
-  1. **A third signing door the ADR never names** — `public.sign_section` (INVOKER) carries its own
-     `in_progress` gate. Widening only the two named leaves every deferred signature refused with
-     every policy/trigger assertion green.
-  2. **D7's ruled decline path did not exist** — `file_correction_request` admitted `completed` only,
-     so a declined phase would be stuck forever behind the widened `close_case` gate. A deadlock, not
-     the cost D7 accepted.
-  3. **D5 moved naively lands HC061 on the coordinator** for something only the filler can fix and no
-     longer can. The COMPUTATION moved; the PRECONDITION stayed on the submit.
-  4. **The DB was never the whole gate** — the wizard's own submit button stayed `disabled`. The
-     feature was unreachable in the product with pgTAP fully green; only E2E saw it.
-  ⭐ A live defect was found by the pre-build measurement and is FIXED here —
-  **BUG-SIGNOFF-GROUPCOND-001** (§ Bug Log).
-  ⚠ **Gate state 2026-08-24, re-run after the follow-up round (`d899ceb3` + `20261003002000`):**
-  step 1 ✅ · step 2 ✅ **by COMPOSITION, not by one run** · step 3 ✅ **APPROVED**
-  ([review](docs/reviews/adr-0136-deferred-signoff-review.md)) · step 4 ⛔ **NOT GIVEN** — human approval
-  is the only thing left before the Record step.
-  ⛔ **Read § Test Run Summary, not this line, for what step 2 actually is.** The FULL `e2e:prod` exited
-  **5 (RED, nothing proven)**: zero assertion failures anywhere, but **33 tests never ran** when the
-  server died in batches 5 and 13. A targeted re-run of exactly those 10 specs was GREEN. Every
-  collected test therefore has a passing verdict, but **not from a single run**, which is what §6 step 2
-  asks for. ⚠ Batches 4 and 18 — which hold `deferred-staff-signoff` and `phase6-signoffs` — were
-  clean and fully accounted, so the RED does not overlap this ADR's surface.
-  ✅ **The earlier shared-stack QUALIFICATION is DISCHARGED for these figures** — the stack was measured
-  quiet (0 non-infra connections) before this run, which is the discharge ADR 0136 § Amdt 1 named.
-  ⭐ **FOLLOW-UP ROUND, 2026-08-24 — all five ADR-0136 follow-ups RESOLVED, ⛔ UNCOMMITTED on top of
-  `1069711c`** (index lines rotated below; each body in `follow-ups.md` carries its evidence).
-  Three things a reader must not skip, because none was in the follow-ups as filed:
-  1. **A DATABASE defect fell out of the route fix** — `start_or_resume_response`'s resume query
-     lacked the `case_phase_id is null` conjunct its own unique index carries, so "Preencher" handed
-     back the caller's CASE-PHASE draft. Migration `20261003002000`; the state is **not in
-     `seed.sql`**, so it was CONSTRUCTED and pinned red-first (pgTAP `367` §15).
-  2. **The stale invoker verdict was not merely stale — the honest re-run said BLIND**, and the
-     guard CLASS had moved g1→g3. Closed by `367` §14, whose FIRST version did not close it: keyed
-     on SQLSTATE `23514` it stayed green, because the INSERT trigger shares that exact code. Pinned
-     to the wrapper's MESSAGE instead → COVERED.
-  3. **The door sweep's arm was widened by PROPERTY** (ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md)
-     **Amdt 9**; domain 102→110). It found what it was widened to find: 6 COVERED · **1 BLIND** ·
-     1 ERROR → two NEW follow-ups below. ⛔ `FUP-RCA-WRITER-CAN-WRITE-IS-BLIND` blocks a phase.
-  ⛔ **Same shared-stack caveat applies to THIS round's figures** — ~8 `db reset`s were issued on a
-  stack ADR 0136 § Amdt 1 records as shared by three sessions. And it took THREE sweep runs to get
-  trustworthy verdicts: **a green baseline is not evidence the DB is fit to mutate** (ADR 0079
-  Amdt 9 records the mechanism as UNMEASURED — stale state and a concurrent session fit equally).
+- **✅ ADR 0136 — deferred `staff_admin` sign-off: COMPLETE, PO-APPROVED, flag flipped ON 2026-08-24.** Ledger row **0136**; the § Now narrative rotated verbatim → [2026-Q3.md](docs/progress/2026-Q3.md). ⛔ **NOT PUSHED** — the flip migration `20261003002100` is what changes production, and only when it is pushed; until then the remote runs the flag OFF whatever any document says. Push is a separate decision (schema-first: this batch only ADDS).
 - **⚠ NO PHASE IS ACTIVE.** The ADR 0137 batch above is the most recent program, and it is complete.
   Everything else that stood here is done — the DM program, DSR + its operational remediation, the
   Cloud orphan probe, the `Imprimir prévia` split, AFF2 and the case-surface split. Every one of those
@@ -169,22 +115,6 @@ exists because without it an open production blocker (BUG-BOOTSTRAP-001) read as
 ⛔ **No live bug count appears in this section, deliberately.** Two attempts already went stale inside
 a single day — first the heading, then a note saying "back to three" — in the one paragraph of this
 file whose whole subject is that a count is wrong the moment after it is right. Count the rows below.
-
-🔴 **BUG-SIGNOFF-GROUPCOND-001 — a `requires_signoff` section carrying a GROUPED `visible_when`
-made FIVE routines RAISE, including every SAVE on that form.** Filed 2026-08-24 (lead), found by the
-pre-build measurement for ADR 0136 — not by any gate, and no gate could have found it. `app.eval_condition`
-handles only the legacy single condition shape and raises `unknown condition op: <NULL>` on the group
-shape `{match, conditions[]}`; `app.is_valid_visibility` **accepts** that shape on a section and the
-section-settings condition builder authors it. Five routines evaluated a SECTION's `visible_when` with
-the wrong evaluator: `list_signoff_queue`, `get_response_for_signoff`, `sign_section` (×2),
-`compute_due_notifications`, `save_section_answers`. Blast radius: the commission's whole sign-off
-queue page 500s, the review-to-sign door 500s, and **every save on that form fails** — the last being
-much the worst, since it strands a filler mid-response. `submit_response` alone used the correct
-`app.eval_visibility`, which is why the drift survived: the one caller anybody tests was right.
-✅ **FIXED in the ADR 0136 increment** by the extraction the ADR mandated (`app.pending_staff_signoffs`,
-one definition on `eval_visibility`) — pgTAP 367 §7 pins it with a POSITIVE CONTROL asserting
-`eval_condition` still raises, so the doors' survival is attributable to the swap and not to the shape
-being unreachable. ⛔ Stays here until the increment is approved and recorded (§6 step 5).
 
 🔴 **BUG-CASEEVT-KIND-001 — a case writer can DELETE, or silently RE-KIND, a procedural `case_events`
 row: the UPDATE/DELETE policies carry no `kind` gate.** Filed 2026-08-23 (lead). Surfaced by ADR 0137
