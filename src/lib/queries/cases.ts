@@ -1218,32 +1218,15 @@ interface CaseDetailJson {
   /** Denormalized "an isolated case_patient (PHI) row exists" flag (ADR 0038). */
   has_patient?: boolean | null
   /**
-   * Snapshotted "this case collects patient identifiers" flag (ADR 0038).
+   * ADR 0137 D1 — the three-mode PHI collection setting.
    *
-   * @deprecated ADR 0137 D1 — `get_case_detail` still emits this key, now DERIVED as
-   * `patient_mode <> 'none'`; the column itself is gone. Read `patient_mode` instead.
-   *
-   * ⛔ **THIS IS THE LAST SURVIVING PHI-MODE SHIM, AND IT IS THE ONE THAT MUST NOT BE
-   * RETIRED YET** (FUP-0137-PHI-MODE-SHIMS). The three TypeScript shims
-   * (`CaseDetail.patientEnabled`, `ProcessTemplateVersion.collectsPatient`,
-   * `setTemplateCollectsPatient`) went on 2026-08-24 once the builder adopted
-   * `patientMode` — they were compile-time conveniences and nothing outside this repo
-   * could see them. This key is different: it is what the CURRENTLY DEPLOYED build
-   * reads, and the ADR 0137 batch is committed but NOT pushed. Dropping it from
-   * `get_case_detail` before the code deploy makes the deployed detail page silently
-   * decide every case collects no PHI — `?? false` degrades quietly rather than
-   * erroring, which is exactly why nothing would surface it.
-   *
-   * ⚠ And it is NOT the whole old-code/new-schema story: `collects_patient` /
-   * `patient_enabled` were DROPPED columns that the deployed build also selects
-   * DIRECTLY (the phase-fill read and the template-version full select), so those
-   * routes break on the new schema regardless of this key. Deploy order is still
-   * schema-then-code; the window is real, not zero.
-   *
-   * Retire this key in its own migration AFTER the code is deployed.
+   * ⛔ **There is NO `patient_enabled` key on this envelope any more, and re-adding one
+   * would be a regression, not a convenience** (`FUP-0137-PHI-MODE-SHIMS`, closed
+   * 2026-08-24 by migration `20261003001800`). A boolean over a three-valued setting is
+   * lossy in exactly one direction — the NEW one: it cannot express `required`, so a
+   * screen wired to it is silently unable to configure the compliance mode ADR 0137 was
+   * written to introduce, and no gate would ever fire. Keystone: pgTAP `366`.
    */
-  patient_enabled?: boolean | null
-  /** ADR 0137 D1 — the three-mode PHI collection setting. */
   patient_mode?: string | null
   /** ADR 0137 D2 — the required identifier set when `patient_mode` is 'required'. */
   patient_required_fields?: string[] | null

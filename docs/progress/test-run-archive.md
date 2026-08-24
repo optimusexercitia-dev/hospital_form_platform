@@ -1003,3 +1003,13 @@ newer, and the section's retention is the most recent gate only._
 | --- | --- | --- |
 | 2026-08-23 | ⭐ **AFF2 · authoritative GATE STEP 1**, both tracks still (`55b25be5`) · detail: [aff2.md](aff2.md) | **exit 0 on every step; no pipe in any exit path.** lint 8/8 · `tsc` 0 · Vitest **1644** · `test:db` **212f/7039 PASS** on a fresh reset (444 / `20261003001200`) · four authz ARMs **HOLD** · both diff-scoped sweeps **COVERED**. ⛔ **`e2e:prod` NOT run** — `tester` owns step 2 |
 | 2026-08-23 | ⭐⭐ **AFF2 · FULL `e2e:prod` (gate step 2)**, `REBUILD=1` — detail: [aff2.md](aff2.md) | ✅ **GREEN** — 1205 p · 1 f · 2 flaky · 1 DNR · 20 batches, accounted 1209/1220. The 1 f + 1 DNR are the SAME test, a worker crash (not auto-infra-classified); isolated re-run → 7/7 GREEN. Flaky COUNT matches pin `d885f621` (2); IDENTITY unverifiable — see aff2.md. |
+
+## ↩ Rotated from PROGRESS.md 2026-08-24 — the ADR 0137 batch's step-1 row, superseded
+
+_Superseded the same day by the `FUP-0137-PHI-MODE-SHIMS` closure's step 1, which re-ran the same
+gates on a fresh reset with one suite more. Kept because it is the figure the **ledger row 0137**
+cites, and a ledger row whose cited run has vanished is a dangling claim._
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-24 | ⭐ **ADR 0137 · GATE STEP 1** · detail: [adr-0137-batch.md](adr-0137-batch.md) | lint 8/8 · `tsc` 0 · Vitest **1685** · `test:db` **7126/7126** (215f) on a fresh reset · four authz ARMs **HOLD**, zero `ERROR` · ⚠ diff-scoped door sweep **NOT TRIGGERED — a MEASURED empty** (0 policy statements, 0 boolean fns), **not** a clean sweep |

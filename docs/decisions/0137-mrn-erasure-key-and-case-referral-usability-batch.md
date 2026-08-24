@@ -311,3 +311,35 @@ hospital-admin surface still uses it"* was false: that surface uses `Departments
 different component, and it is untouched. If a per-case department input is ever wanted again, that
 is a reversal of D9 and needs its own decision — `edit-case-meta-dialog.tsx`'s docblock says where
 to recover the file from.
+
+## Amendment 4 — the MRN floor is a PROCESS-TEMPLATE feature; processless cases are out of scope (PO ruling, 2026-08-24)
+
+**Context.** Closing `FUP-0137-PHI-MODE-SHIMS` surfaced that D1–D3's floor never reached the
+processless door. Measured from the live catalog: `public.create_case(…, p_patient_enabled boolean,
+…)` computes `v_patient_mode` from that boolean and inserts `patient_required_fields = '{}'::text[]`
+unconditionally — so on that path **`patient_mode = 'required'` is unreachable** and the PHI floor
+stays the legacy `name OR mrn` enforced in `app._set_participant_patient_unchecked`. As written,
+this ADR reads as universal and says *"processless"* zero times.
+
+**Decision.** This is **expected and in line with platform specifications**, not a defect. D1 puts
+the mode on the **template version** because that is what makes it a versioned, publishable,
+reviewable configuration; a processless case has no version to carry one, and inventing a per-case
+mode would put a compliance setting where nothing governs it. `FUP-0137-PROCESSLESS-CASES-CANNOT-
+REQUIRE-PHI` is **closed as concluded**, shape (a) of the three it offered.
+
+**Scope, stated so this ADR stops reading as universal.** *"The MRN is the erasure key"* (Context)
+remains the platform's posture. What D1–D3 deliver is narrower and is what should be cited:
+**a commission may REQUIRE the MRN on cases minted from a process template version.** Outside that —
+processless cases, and safety events per the Consequences' deliberate asymmetry — the floor is
+`name OR mrn`.
+
+⛔ **Do not "fix" this later by widening `create_case`.** Doing so is a new DEFINER arm owing its own
+authz re-verification (the cost D7 declined for the referral destination), and it would be reversing
+a ruling rather than filling a gap. If the processless path ever needs a required MRN, that is a new
+decision, and it should start from *why the setting has no version to live on*.
+
+⚠ **The erasure consequence is accepted, not overlooked.** A processless case can hold a name-only
+patient record, which is a record an LGPD erasure request cannot find by MRN — precisely what the
+Context calls *"a compliance hole dressed as flexibility"*. The ruling accepts it for this path.
+Whoever builds the cross-module erasure lookup (this ADR's § Open) must treat name-only rows as a
+known, bounded population rather than assuming the MRN is universally present.

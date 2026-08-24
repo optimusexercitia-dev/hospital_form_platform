@@ -7237,6 +7237,42 @@ genuine improvement on the majority path and costs nothing to suppress on the on
 cannot honestly answer — so it is worth doing, just not inside this batch.
 
 
+## ⬛ FUP-0137-PHI-MODE-SHIMS — ✅ **RESOLVED 2026-08-24. All four shims are gone; the last one needed the code deploy first, which is why it outlived the other three.**
+
+> **Closure.** Migration `20261003001800` removes the derived `patient_enabled` key from
+> `get_case_detail`, re-emitted from `pg_get_functiondef` (never migration text — this body has now
+> been re-emitted three times) with an anchor-uniqueness assert **and** a post-patch catalog assert,
+> so a drifted body fails loudly rather than patching nothing and leaving a green suite behind.
+> `CaseDetailJson.patient_enabled` is deleted with it.
+>
+> **Keystone: pgTAP `366`, 10 tests, RED-PROVEN.** Two levels — the catalog (`prosrc`, counted not
+> `like`-tested, because `case_patient_enabled` contains the substring) and the ENVELOPE the product
+> actually receives. The vacuity controls are the load-bearing half: `jsonb ? 'k'` is FALSE for an
+> empty envelope, a NULL-returning door and a refused call alike, so "the key is absent" would
+> otherwise pass for three reasons that are not the one being claimed. Re-adding the key moves the
+> body md5 and reds exactly 1.1 / 2.1 / 2.5 with `have: true`.
+>
+> ⚠ **The restore is part of the proof, and the first attempt FAILED it.** Hand-patching the probe
+> out left a stray newline — functionally identical, **not** byte-identical (`54b52828…` vs the
+> `0f72da26…` baseline). Rebuilding from the migration chain returned the exact baseline. A mutation
+> whose restore is verified by eye is not a verified restore.
+>
+> ⛔ **The deploy gate was discharged by the PO, not by a check.** No Coolify status is readable from
+> this repo (`coolify.md` carries placeholder domains only), so nothing here can assert the new build
+> is live. The PO's standing fact — the pilot has no real users — bounds the harm window to zero,
+> which is what made it safe; that is a **ruling**, and if it is ever cited again it must be re-asked,
+> not re-read.
+>
+> ⛔ **THE ITEM'S OWN VERIFICATION PROPERTY WAS WRONG, AND KEEPING IT IS THE LESSON.** It prescribed
+> *"`grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return
+> **zero**"*. It cannot, and never could: `create_case(p_patient_enabled boolean)` is a **live RPC
+> parameter** for the processless-case path, with a matching form field and React state. A property
+> written to bound a shim also matched code that was never a shim — so a reader obeying it would
+> either "fix" working code or declare the item unclosable. The residue is filed as its own item:
+> [[FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI]].
+
+<details><summary>Original item, as filed 2026-08-23</summary>
+
 ### 🟡 FUP-0137-PHI-MODE-SHIMS — the derived `patientEnabled` / `collectsPatient` / `setTemplateCollectsPatient` shims must retire once the builder UI adopts `patientMode` (owner: backend + frontend)
 
 > **Raised 2026-08-23, ADR 0137 Increment 0.** D1 replaced the boolean PHI switch with a three-mode
@@ -7272,6 +7308,84 @@ cannot honestly answer — so it is worth doing, just not inside this batch.
 > `grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return **zero**
 > hits when this closes, and `public.get_case_detail` should no longer emit the derived key
 > (`pg_get_functiondef`, not the migration file — it has been re-emitted twice already).
+
+</details>
+
+## ⬛ FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI — ✅ **CONCLUDED 2026-08-24 by PO ruling: EXPECTED, and in line with platform specifications.** Filed and closed the same day.
+
+> **The ruling** (shape **(a)** of the three below): D1 puts the mode on the **template version**
+> because that is what makes it versioned, publishable and reviewable. A processless case has no
+> version to carry one, so a per-case compliance setting would sit where nothing governs it.
+> ADR 0137 gains **Amendment 4**, which states the scope this ADR had left implicit: D1–D3 deliver
+> *a commission may REQUIRE the MRN on cases minted from a process template version* — **not** a
+> platform-wide MRN mandate.
+>
+> ⛔ **CLOSED BY RULING, NOT BY A CODE CHANGE — and that distinction is the whole risk here.**
+> Nothing below was fixed. Every measured fact in this item is still TRUE of `main`: `create_case`
+> still takes `p_patient_enabled boolean`, still writes `patient_required_fields = '{}'`, and
+> `required` is still unreachable on that door. A future reader who re-measures will re-derive this
+> finding and be **right about the mechanism and wrong about whether it is a defect**. That is why
+> the ruling lives in the ADR — the document they will already be reading — and not only in this
+> archive, which nothing loads.
+>
+> ⛔ **Do not reopen it by widening `create_case`.** That is a new DEFINER arm owing its own authz
+> re-verification, and it reverses a ruling rather than filling a gap.
+>
+> ⚠ **The erasure consequence is ACCEPTED, not overlooked.** A processless case may hold a name-only
+> patient record that an MRN-keyed lookup cannot find. ADR 0137 § Open's cross-module erasure
+> workflow must therefore treat name-only rows as a known, bounded population — never assume the key
+> is universally present. This is the one place the ruling has downstream cost.
+
+<details><summary>Original item, as filed 2026-08-24</summary>
+
+### 🟡 FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI — ADR 0137's compliance floor does not reach processless cases, and the boolean that made the others lossy is still live on that door (owner: PO decision, then backend + frontend)
+
+**Filed 2026-08-24**, found while closing [[FUP-0137-PHI-MODE-SHIMS]] — its "grep must return zero"
+property matched this code, which is how the gap surfaced. **Not caused by that work**, and
+deliberately filed rather than folded into it.
+
+**Measured from the live catalog, not read off the ADR:**
+
+- `public.create_case(p_commission_id, p_label, **p_patient_enabled boolean**, …)` is the processless
+  door. Its body computes `v_patient_mode := case when coalesce(p_patient_enabled,false) …` and
+  inserts `patient_mode, patient_required_fields` as that mode and **`'{}'::text[]`**, always.
+- So a processless case can only ever be `none` or `optional`. **`required` is unreachable on that
+  path**, and the required-field set is empty by construction.
+- The PHI writer's floor for such a case is therefore the legacy one:
+  `app._set_participant_patient_unchecked` raises *"informe ao menos o nome ou o prontuário"* when
+  BOTH are blank, and only calls `app.assert_patient_required_fields` — which no-ops outside
+  `required` mode.
+- Reachable in the product: `create-case-dialog.tsx` renders the `patientEnabled` checkbox on the
+  `isProcessless` branch and posts it as a form field.
+
+⛔ **Why this is an ADR-level gap and not a cosmetic one.** ADR 0137's Context calls a name-only
+patient record *"a record the platform cannot later erase on request … a compliance hole dressed as
+flexibility"*, and D1–D3 close it — **for cases minted from a template version**. A processless case
+is minted by a different door that the ADR never mentions (grep: `0137` says "processless" zero
+times), so the same hole is still open on it. The MRN is the erasure key or it is not; today it is,
+except here.
+
+⚠ **The mechanism is exactly the one the shims item described, still standing on this door**: a
+boolean over a three-valued setting is lossy in only the NEW direction. Nothing fails, no gate fires,
+and the compliance mode is simply unreachable.
+
+**Not obviously a build item — the PO's call, and the shapes differ in cost:**
+
+- **(a)** Rule that processless cases are out of scope for `required`, and say so IN ADR 0137
+  (it currently reads as universal). Cheapest; leaves the hole named rather than open.
+- **(b)** Widen the door: `create_case` takes a mode + required set like its template twin. ⚠ That is
+  a **new DEFINER arm and its own authz re-verification** — the same cost D7 declined for the
+  referral destination.
+- **(c)** Enforce MRN-always on the processless path only, without a mode. Narrowest fix, but it
+  invents a fourth floor across the three PHI modules, which ADR 0137's Consequences explicitly
+  warns a future reader will try to "fix".
+
+⚠ **Do NOT close this by pointing at `app.guard_case_patient_required`.** That guard is real and
+correct, and it is an `AFTER INSERT` constraint trigger keyed on `new.patient_mode <> 'required'` —
+so on a processless case it returns immediately. A guard that cannot be reached by the state in
+question bounds nothing about it.
+
+</details>
 
 ### FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG
 

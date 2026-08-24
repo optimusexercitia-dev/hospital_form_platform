@@ -28,14 +28,28 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   1. **The Coolify deploy outcome is UNKNOWN and deliberately unrecorded.** Coolify auto-deploys on
      push, so the code deploy was in flight when the push was recorded. ⛔ **Check the Coolify
      deployment — no line in this file answers it**, and two items below depend on the answer.
-  2. **`FUP-0137-PHI-MODE-SHIMS` is OPEN and now ACTIONABLE** (a one-migration drop of
-     `get_case_detail`'s derived `patient_enabled` key) — its blocker cleared with the push.
-     ⚠ **Gated on the deploy being CONFIRMED live:** while the old build still serves, dropping the
-     key makes it decide every case collects no PHI, silently (`?? false`).
-  3. **No full `e2e:prod` gate covers the current HEAD.** The last full run was **GREEN, exit 0
-     (1221 p / 0 f)** at `1320d0b0`; the two increments after it — `78ac44cf` and `5c8f3542` — are
-     covered only by a **scoped** 11-spec run. §6 step 2 is satisfied for the batch as gated, **not**
-     for what now sits on `main`.
+  2. ✅ **`FUP-0137-PHI-MODE-SHIMS` is CLOSED 2026-08-24** — migration `20261003001800` drops
+     `get_case_detail`'s derived `patient_enabled` key; keystone pgTAP **`366`** (10 tests,
+     RED-PROVEN, restore verified byte-identical). ⛔ **The deploy gate was discharged by PO RULING,
+     not by a check** — nothing in this repo can read Coolify status, and the ruling was *"no active
+     users"*, which bounds the window rather than confirming the build. ⛔ **This migration is
+     LOCAL-ONLY until `db:push`** (see 3). ⚠ The gap it surfaced — the MRN floor never reached the
+     processless door — was **PO-ruled EXPECTED the same day and closed**, scoping D1–D3 to cases
+     minted from a template version: **ADR 0137 Amendment 4**. ⛔ Closed by RULING, not by a code
+     change, so re-measuring `create_case` still reproduces the mechanism; read Amdt 4 before
+     re-filing it.
+  3. **UNPUSHED WORK SITS ON `main`, and it is schema.** Re-measure with
+     `git rev-list --count origin/main..main`. The `20261003001800` migration is applied LOCALLY
+     only; the remote still emits the derived key. Harmless in that direction (the new build ignores
+     it) — but § State's "REMOTE IS CURRENT" row is stale the moment this is read.
+  4. **No full `e2e:prod` gate covers the current HEAD.** The last full run was **GREEN, exit 0
+     (1221 p / 0 f)** at `1320d0b0`; everything after it — `78ac44cf`, `5c8f3542`, and this
+     increment — is covered only by **scoped** runs plus the full pgTAP + unit suites. §6 step 2 is
+     satisfied for the batch as gated, **not** for what now sits on `main`.
+     ⚠ This increment's scoped run: **61 p / 0 f / 0 infra / 0 flaky / 0 did-not-run**, 3 batches,
+     accounted 61 of 62 collected (the 62nd is a by-design skip, reconciled per batch: 18+25+18).
+     ⛔ A first attempt was **exit 5 UNRUN** — `server_dead` left 27 tests never executed, plus a
+     spec name that does not exist. Neither is a pass and neither is a regression signal.
 - **⛔ ADR 0136 (deferred `staff_admin` sign-off) is NOT in that batch — sequenced AFTER** (PO ruling
   2026-08-23). Its § Open decline-path question was **settled the same day as shape (a)**, the
   correction/supersession machinery — recorded as **ADR 0136 § D7**, so it is now plannable.
@@ -180,7 +194,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-24 | ⭐ **ADR 0137 · GATE STEP 1** · detail: [adr-0137-batch.md](docs/progress/adr-0137-batch.md) | lint 8/8 · `tsc` 0 · Vitest **1685** · `test:db` **7126/7126** (215f) on a fresh reset · four authz ARMs **HOLD**, zero `ERROR` · ⚠ diff-scoped door sweep **NOT TRIGGERED — a MEASURED empty** (0 policy statements, 0 boolean fns), **not** a clean sweep |
+| 2026-08-24 | ⭐ **GATE STEP 1 — the `FUP-0137-PHI-MODE-SHIMS` closure** (supersedes the 0137 batch's step-1 row → [archive](docs/progress/test-run-archive.md)) | lint 8/8 · `tsc` 0 · Vitest **123f / 1703** · `test:db` **7149/7149** (217f) on a fresh reset — **+1 file / +10** is pgTAP `366` · four authz ARMs **HOLD**, exit 0 · no RLS policy and no `prosecdef` boolean gate touched, so no diff-scoped sweep was owed |
 | 2026-08-24 | ⭐⭐ **ADR 0137 · FULL `e2e:prod` (gate step 2)**, at `1320d0b0` · detail: [adr-0137-batch.md](docs/progress/adr-0137-batch.md) | ✅ **GREEN, exit 0** — 1221 p · 0 f · 0 infra · 0 DNR · 2 flaky. ⚠ **Covers `1320d0b0`, NOT current HEAD** — the 2 increments after it have only a scoped 11-spec run. ⛔ Two earlier runs failed DIFFERENTLY (RED exit 1; exit 5 **UNRUN**) — ledger row 0137 |
 
 ## QA Verdicts
@@ -206,6 +220,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-24 | **PO: the MRN floor is a PROCESS-TEMPLATE feature; processless cases are EXPECTED out of scope** — D1–D3 mean *require the MRN on template-minted cases*, not a platform-wide mandate. ⛔ Closed by RULING, not code: `create_case` is unchanged, so re-measuring reproduces it | [ADR 0137 Amdt 4](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
 | 2026-08-24 | **PO: post-send referral PHI amendment is NOT a product capability.** The refusal moves INTO `set_referral_patient` (non-`draft` → its own `HC078`, before the upsert); `can_amend_referral_phi_snapshot` governs draft re-saves only. Blanking the MRN went from ONE edit away to TWO, measured | [ADR 0137 Amdt 1](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) · [ADR 0078 D7](docs/decisions/0078-authorization-capability-model.md) |
 | 2026-08-24 | **PO: `CaseDepartmentField` is DELETED** (component + test) — D9 left it with no consumer but its own test, which no gate in the eight can distinguish from real use | [ADR 0137 Amdt 3](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
 | 2026-08-24 | **Lead: ADR 0137's deploy rationale is FALSE and is corrected, not re-argued.** *"Additive ⇒ old-code/new-schema is safe"* — measured, the dropped columns are selected directly by the deployed build. Order unchanged (schema→code); the window is real | [ADR 0137 Amdt 2](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
@@ -233,7 +248,7 @@ still awaiting a concluding event stay here:_
 | --- | --- |
 | ⚠ **Remote storage byte-loss is UNQUANTIFIED — the "~49 vanished" figure is WITHDRAWN 2026-08-18.** `n_tup_ins − n_tup_del` compares two units: 5 uploads move `ins` by **+6**, 5 deletes move `del` by **+5** (measured). And by the probe below, any surviving bytes are **unobservable** anyway | a magnitude re-derived from something other than the `pg_stat` counters — or PO ruling that it cannot be ([FUP-DM4-PRODROW](docs/progress/follow-ups.md)) |
 | ⛔ **CORRECTED 2026-08-21 — the remote holds the E2E SEED FIXTURE, not nothing.** This row said *"it holds no data and no users"* (census 2026-08-18). **Measured 2026-08-21 against the linked project: `auth.users` = 36, all `@test.local`, created 2026-08-19 — i.e. AFTER that census; 0 non-test accounts; 1 pre-promoted `platform_admin`; `cases` 10, `responses` 17; synthetic PHI `patient_identifiers` 2 / `event_patient` 3 / `referral_patient` 3.** ⭐ **No real customer data** — so the *conclusion* (safe to touch) survives; the *premise* did not, and the premise is what other decisions were resting on. ⚠ This is the **fifth** time a claim about the remote has gone stale in this file. ⛔ **Re-measure `auth.users` and `schema_migrations` before citing this row — never quote it.** | **expires at pilot data-load**, when it must be REPLACED by the rehearsed C1b disposal bound (§ Critical FUP C1), never just deleted |
-| ✅ **REMOTE IS CURRENT — the ADR 0137 batch SUPERSEDED the AFF2 row here, which is what that row said would happen.** Measured ON THE REMOTE 2026-08-24, after `db:push`: `schema_migrations` = **449**, head **`20261003001700`**; `origin/main..main` was **0** when measured. ⛔ **The head sha this row used to quote (`ec1271a8`) was stale within the day** — HEAD moved to `2b69f19f`, the Record commit that wrote the row, which is the off-by-one-by-construction that [rule `live-facts-measure-dont-quote`](.claude/rules/live-facts-measure-dont-quote.md) now stands against. Measure the sha; never read one here. ⭐ **The 449 was MEASURED, not computed** — “444 + 5” would have been right today and is the habit that makes it wrong the day a migration lands from elsewhere. ⭐ **Verified in the remote CATALOG, not from the push output:** `cases` + `process_template_versions` carry `patient_mode` and `patient_required_fields`; `collects_patient` / `patient_enabled` are **absent**; `public.set_referral_patient` contains the draft-only arm (ADR 0137 Amdt 1). ⚠ **Data, re-measured the same day:** `auth.users` = **36**, **0** non-`@test.local`, `cases` = **14** — still the E2E seed fixture and no real customer data, so the row below it stands. ⚠ **`patient_mode='required'` versions on the remote: 0** — the compliance mode is live but nobody has turned it on. ⛔ **Schema went BEFORE code, deliberately — but NOT because old-code/new-schema is safe** (it is not: ADR 0137 Amdt 2), rather because the reverse breaks sooner and wider. ⛔ Superseded by the next remote-affecting change — **re-measure, do not quote** |
+| ⚠ **REMOTE IS BEHIND BY ONE MIGRATION AS OF 2026-08-24** — `20261003001800` (the `FUP-0137-PHI-MODE-SHIMS` closure) is applied LOCALLY only, so the remote `get_case_detail` still emits the derived `patient_enabled` key. Harmless in this direction; ⛔ it makes every figure below a MEASUREMENT OF THE PAST — re-measure before citing any of it. The rest of the row stands as the record of the batch push: ✅ **the ADR 0137 batch SUPERSEDED the AFF2 row here, which is what that row said would happen.** Measured ON THE REMOTE 2026-08-24, after `db:push`: `schema_migrations` = **449**, head **`20261003001700`**; `origin/main..main` was **0** when measured. ⛔ **The head sha this row used to quote (`ec1271a8`) was stale within the day** — HEAD moved to `2b69f19f`, the Record commit that wrote the row, which is the off-by-one-by-construction that [rule `live-facts-measure-dont-quote`](.claude/rules/live-facts-measure-dont-quote.md) now stands against. Measure the sha; never read one here. ⭐ **The 449 was MEASURED, not computed** — “444 + 5” would have been right today and is the habit that makes it wrong the day a migration lands from elsewhere. ⭐ **Verified in the remote CATALOG, not from the push output:** `cases` + `process_template_versions` carry `patient_mode` and `patient_required_fields`; `collects_patient` / `patient_enabled` are **absent**; `public.set_referral_patient` contains the draft-only arm (ADR 0137 Amdt 1). ⚠ **Data, re-measured the same day:** `auth.users` = **36**, **0** non-`@test.local`, `cases` = **14** — still the E2E seed fixture and no real customer data, so the row below it stands. ⚠ **`patient_mode='required'` versions on the remote: 0** — the compliance mode is live but nobody has turned it on. ⛔ **Schema went BEFORE code, deliberately — but NOT because old-code/new-schema is safe** (it is not: ADR 0137 Amdt 2), rather because the reverse breaks sooner and wider. ⛔ Superseded by the next remote-affecting change — **re-measure, do not quote** |
 
 
 ## ⭐⭐ Critical FUP — the must-not-be-forgotten list
@@ -332,7 +347,6 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟡 **FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG** — `ARM=census`'s "prune" note names two LIVE `app`-schema INVOKER bodies as absent, because they fall outside its `public`-INVOKER domain. ⛔ Pruning as instructed deletes the record that they are unswept — backend
 - 🟡 **FUP-E2E-CREATEFRESHCASE-SILENT-NULL** — `case-narratives.spec.ts`'s `createFreshCase()` returns `null` on any setup failure with no thrown error and no reason, so a broken fixture reads as "nothing to test". ⚠ **Pre-existing, NOT caused by ADR 0137** — tester
 - 🟡 **FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT** — 2 suites generate cases from `memberships_role_check` read LIVE at import, so vitest's total tracks DB state; §292 pins a durable shrink but not the transient mid-reset one. Assert the role SET against one shared literal, exported as a FUNCTION not a `const` — backend + frontend
-- 🟡 **FUP-0137-PHI-MODE-SHIMS** — ⚠ **HALF CLOSED 2026-08-24, and the remaining half is the one that can break production.** The three TS shims (`patientEnabled` / `collectsPatient` / `setTemplateCollectsPatient`) are **DELETED** — the builder adopted `patientMode`, and every consumer migrated with the bulk-wizard + case-edit fixes. ⛔ **`get_case_detail` still emits the derived `patient_enabled` key and MUST keep it until the code is DEPLOYED**: it is what the currently-deployed build reads, and dropping it first makes that build decide every case collects no PHI — `?? false` degrades SILENTLY. ⚠ And it is not the whole deploy story: the deployed build also selects the DROPPED `collects_patient` / `patient_enabled` COLUMNS directly, so those routes break on the new schema regardless — the schema→code window is real, not zero. Retire the key in its own migration AFTER the push — backend
 - 🟠 **FUP-ADR-AMENDMENT-HAS-NO-BACK-POINTER** — an amended ADR reads as **live**; only the amending one records it. 0133's three targets held **zero** mentions of it, so 0048 D10 read *"no `date_of_birth`"* while the column shipped. ✅ Those 3 fixed 2026-08-23; ⛔ the class is not. Sweep reports **44** — ⚠ **do NOT quote it**: proximity-based, over-reports (`0073→0078` was an existing back-pointer misread). **Upper bound; 4 hand-verified.** Parse direction before any gate — lead
 
 
