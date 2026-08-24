@@ -7165,7 +7165,7 @@ the drift class this repo keeps paying for.
 
 ⛔ **Do NOT block the send, and do NOT touch the MRN input's `required`.** The DB is the authority
 (D3's three-layer model), and a native `required` would break `Salvar rascunho`, which D4 deliberately
-keeps working — pgTAP `360 §1.2a` pins that a name-only PHI block still SAVES.
+keeps working — pgTAP `363 §1.2a` pins that a name-only PHI block still SAVES.
 
 ---
 
@@ -7272,7 +7272,7 @@ domain**, so the arm cannot match it — and reports the miss as *"no matching l
 action on the strength of it.** Pruning as instructed would delete the only committed record that these
 two are unswept — and `app._set_participant_patient_unchecked` is the **single PHI write choke point** for
 the case module, the body ADR 0137 D3's required-field guard was just placed in (measured: putting that
-guard in `set_case_patient` instead leaves the E1 multi-patient path unguarded, pgTAP `359` §4.1/§4.2).
+guard in `set_case_patient` instead leaves the E1 multi-patient path unguarded, pgTAP `362` §4.1/§4.2).
 
 ⚠ **It fails in the reassuring direction and inside a passing run** — `INVARIANT HOLDS`, exit 0, with the
 harmful advice in a `note:` line nothing gates on.

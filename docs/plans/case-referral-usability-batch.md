@@ -1,6 +1,15 @@
 # Plan — Case & Referral usability batch (ADR 0137)
 
-**Status:** ✅ **APPROVED — build STARTED 2026-08-23** (PO: "proceed with implementation").
+**Status:** ✅ **COMPLETE — all five §6 gate steps passed; PO-approved and COMMITTED 2026-08-24
+(`fix(ui)` `91278963` + `phase(0137)` `1320d0b0`). ⛔ NOT PUSHED** — the push is a separate explicit
+decision (schema first, then code; `coolify.md` auto-deploys on push). Full record →
+[adr-0137-batch.md](../progress/adr-0137-batch.md) + ledger row **0137**; reviews
+[r1](../reviews/adr-0137-batch-review.md) `CHANGES REQUESTED` → [r2](../reviews/adr-0137-batch-review-r2.md) `APPROVED`.
+⚠ **QA r1 blocked on a fact this plan did not surface:** `patient_mode = 'required'` was admitted by the
+CHECK and **written by nothing** — the builder UI half of D2/D3 was never built, so the ADR's
+load-bearing case-side MRN guarantee was dormant. PO ruled **build**; it now ships with
+`e2e/patient-mode-required.spec.ts` driving the mode through the product.
+_Prior status, kept for the record:_ ✅ APPROVED — build STARTED 2026-08-23 (PO: "proceed with implementation").
 ⚠ Approval scope, recorded because scope is the thing that gets remembered and never written down:
 the PO approved **implementing ADR 0137 D1–D14 per this plan**, and separately ruled that **ADR 0136 is
 sequenced after, not folded in** (§ "Out of scope"). It is **not** approval to merge, to push, or to skip

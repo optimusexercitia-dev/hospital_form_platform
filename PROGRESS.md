@@ -142,6 +142,15 @@ live authz change owing its own keystone + diff-scoped door sweep. **Bounded:** 
 `can_write_case_content` on that case — in-case records integrity, **not** a tenant-isolation break.
 ⭐ The review lesson: three real filters were cited as refusing this write; all three gate the **new**
 kind, so **none** of them bounds the claim they were cited for.
+⭕ **SECOND AXIS, added 2026-08-24 (QA r2, re-measured from `pg_policies` by the lead): the writer
+policies carry no VISIBILITY conjunct either — write is reachable where READ is not.**
+`case_events_select` is `can_read_case(…) AND (visibility = 'case_readers' OR is_staff_admin_of(…))`,
+but `case_events_writer_delete` / `…_writer_update` are `can_write_case_content(case_id, auth.uid())`
+**alone**. So a plain writer who is not a `staff_admin` can **DELETE or EDIT a `coordinator_only` row
+they cannot SELECT** — unauditedly, per the no-second-lock finding above. ⚠ The `…_staff_admin_*`
+variants at least carry `NOT app.is_case_excluded(…)`; the writer pair carries nothing.
+⛔ This is a **distinct property from the `kind` gate** — fixing `kind` alone leaves it standing, so
+the eventual fix owes **two** keystones, not one.
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion

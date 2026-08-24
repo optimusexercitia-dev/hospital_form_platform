@@ -1,5 +1,14 @@
 # QA Review — ADR 0137 batch, ROUND 2 (remediation of C-1 … C-4)
 
+> ⚠ **SUITE NUMBERS IN THIS DOCUMENT ARE PRE-RENUMBERING.** Every `359` / `360` / `361` below that
+> refers to *this batch's* suites now means **`362` / `363` / `364`** — renamed at the §6 Record step
+> (2026-08-24) acting on r2's own finding that those numbers were already cited by AFF2's records.
+> ⛔ **`359_profiles_dob_phone.sql`, `360_credentials_hospital_admin_read.sql` and
+> `361_list_org_people_dob.sql` are AFF2's, unrelated suites** — following a citation below to a
+> bare `359` lands in the wrong file. The bodies were left unedited on purpose: a review is a record
+> of what was found, not a document to retro-fit.
+
+
 **Reviewer:** `qa` · **Date:** 2026-08-24 · **Gate:** §6 step 3, second pass
 **Subject:** the uncommitted working tree. Round 1 is
 [adr-0137-batch-review.md](./adr-0137-batch-review.md) and is left intact as the record.
