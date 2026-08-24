@@ -25,8 +25,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   so pushing code before `db:push` opens the broken state on the deployed app.
   ✅ **TWO RESIDUE INCREMENTS ARE COMMITTED — ⛔ neither pushed**, like the rest of this batch.
   (1) `78ac44cf`, 2026-08-24: `supabase/tests/365_*`, `referral-send-wizard{,-phi-failclosed.test}`,
-  `messages.ts`. ⚠ `e2e:prod` NOT re-run for it. (2) **the follow-up sweep**, 2026-08-24: the nine
-  resolved items below, one new migration (`20261003001700`), one new mutation harness, the
+  `messages.ts`. ⚠ `e2e:prod` NOT re-run for it. (2) **the follow-up sweep**, `5c8f3542`, 2026-08-24:
+  nine follow-ups resolved, one new migration (`20261003001700`), one new mutation harness, the
   `usePendingFocus` hook + its 3 adopters, and two deletions. Green on lint 8/8, typecheck, vitest
   **123 files / 1703** (10 consecutive clean runs — one new spec was flaky and was FIXED, not retried),
   pgTAP **216 / 7139** on a fresh reset, authz `census`/`hat`/`floor`/`wrapper`, and a **prod-standalone
@@ -39,17 +39,12 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   `CaseDepartmentField` deleted). ⛔ The shims item stays open because `get_case_detail`'s derived
   `patient_enabled` key is what the **currently-deployed build** reads — retiring it before the code
   deploy makes that build decide every case collects no PHI, silently (`?? false`).
-  ⛔ **CORRECTION to the deploy rationale above: "additive ⇒ old-code/new-schema is safe" is FALSE for
-  this batch.** Measured 2026-08-24 against the live catalog: `collects_patient` and `patient_enabled`
-  are **DROPPED columns**, and the deployed build SELECTS BOTH DIRECTLY (the phase-fill read and the
-  template-version full select). So the window between `db:push` and the code deploy is a real broken
-  window, not a zero one. Schema-first is still the right order — code-first breaks too, and sooner —
-  but plan the window rather than assuming it away.
-  ⚠ **The 🟠 family closed earlier, in OPPOSITE directions** (in-draft blanking: real, FIXED; post-send:
-  not reachable). ⭐ That post-send closure was **INCIDENTAL** — a status trigger three objects away —
-  and is now **DESIGNED**: migration `20261003001700` refuses every non-`draft` status inside
-  `set_referral_patient` itself, before the upsert, with its own `HC078`. Measured consequence: blanking
-  the MRN went from ONE edit away to TWO (`365` §1.2 stays green under the door-arm mutation alone).
+  ⛔ **CORRECTION, and it is the one that bites at push time: "additive ⇒ old-code/new-schema is safe"
+  is FALSE for this batch** — the dropped columns are selected DIRECTLY by the deployed build, so the
+  schema→code window is real, not zero. Order unchanged. Measurement + blast radius → **ADR 0137
+  Amendment 2**; do not re-derive it here.
+  ⭐ The post-send PHI closure was **INCIDENTAL** and is now **DESIGNED** (migration `20261003001700`) —
+  blanking the MRN went from ONE edit away to TWO. Rationale → **ADR 0137 Amendment 1**.
 - **⛔ ADR 0136 (deferred `staff_admin` sign-off) is NOT in that batch — sequenced AFTER** (PO ruling
   2026-08-23). Its § Open decline-path question was **settled the same day as shape (a)**, the
   correction/supersession machinery — recorded as **ADR 0136 § D7**, so it is now plannable.
@@ -251,6 +246,9 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-24 | **PO: post-send referral PHI amendment is NOT a product capability.** The refusal moves INTO `set_referral_patient` (non-`draft` → its own `HC078`, before the upsert); `can_amend_referral_phi_snapshot` governs draft re-saves only. Blanking the MRN went from ONE edit away to TWO, measured | [ADR 0137 Amdt 1](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) · [ADR 0078 D7](docs/decisions/0078-authorization-capability-model.md) |
+| 2026-08-24 | **PO: `CaseDepartmentField` is DELETED** (component + test) — D9 left it with no consumer but its own test, which no gate in the eight can distinguish from real use | [ADR 0137 Amdt 3](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
+| 2026-08-24 | **Lead: ADR 0137's deploy rationale is FALSE and is corrected, not re-argued.** *"Additive ⇒ old-code/new-schema is safe"* — measured, the dropped columns are selected directly by the deployed build. Order unchanged (schema→code); the window is real | [ADR 0137 Amdt 2](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
 
 > ↩ **6 concluded/superseded rows dated 2026-08-19 rotated 2026-08-20** (2 superseded the same day they were written; 4 shipped) → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-20 (second headroom pass)", appended verbatim before the cut and `cmp`-verified.
 

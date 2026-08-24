@@ -130,20 +130,67 @@ rate is drifting **1/17 → 3/17 → 4/20**. Recovery is luck, not a property.
 
 ---
 
-## Follow-ups filed (all OPEN, indexed in PROGRESS.md)
+## Follow-ups filed — status as of 2026-08-24 (indexed in PROGRESS.md)
 
-| id | note |
-| --- | --- |
-| 🟠 `FUP-0137-MRN-BLANKABLE-AFTER-SEND` | `sent` stays amendable, `p_mrn` defaults NULL → the erasure key can be blanked post-send. Read off live definitions, **no fixture driven**. |
-| 🟠 `FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE` | QA r1 **R-3**, unfiled until r2 caught it. Swallowed load → next keystroke's full-replace upsert blanks `mrn`/`name`/`date_of_birth`. |
-| 🟡 `FUP-0137-FLUSH-FAILS-OPEN` | Null re-read proceeds against a stale map; `HC0T4` made retries common. |
-| 🟡 `FUP-0137-357-TWINS-ON-STALE-BODY` | Suite `357`'s twins red-proved the **pre-0137** body this batch re-emitted. |
-| 🟡 `FUP-0137-BULK-WIZARD-STILL-BOOLEAN` | Bulk grid still reads `collectsPatient`. ⚠ This item **originally softened itself** — `HC0T1` is absent from `bulk-error-map.ts`, so the user gets the **generic** string, not the field-naming one. |
-| 🟡 `FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED` | `patientRequiredFields` not threaded page → panel → dialog. |
-| 🟡 `FUP-0137-PERSIST-REFRESH-DROPS-FOCUS` | `persist()` + `router.refresh()` resets focus to `<body>`. ⚠ Scope by the **property** (refreshes the route on an input event), not this one file. |
-| 🟡 `FUP-0137-KIND-VISUAL-NO-FALLBACK` | QA r1 **R-6**, unfiled until r2. |
-| 🟡 `FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME` | QA r1 **R-7**, unfiled until r2. |
+_Nine were filed here. **All nine are now CLOSED**; the batch's tenth follow-up
+(`FUP-0137-PHI-MODE-SHIMS`, filed at Increment 0 rather than at gate-end) is deliberately
+HALF closed — see the sweep section below. Full resolutions:
+[follow-ups-archive.md](./follow-ups-archive.md)._
+
+| id | status | note |
+| --- | --- | --- |
+| 🟠 `FUP-0137-MRN-BLANKABLE-AFTER-SEND` | ✅ closed 2026-08-23 | `sent` stays amendable, `p_mrn` defaults NULL → the erasure key can be blanked post-send. Read off live definitions, **no fixture driven**. |
+| 🟠 `FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE` | ✅ fixed 2026-08-24 | QA r1 **R-3**, unfiled until r2 caught it. Swallowed load → next keystroke's full-replace upsert blanks `mrn`/`name`/`date_of_birth`. |
+| 🟡 `FUP-0137-FLUSH-FAILS-OPEN` | ✅ fixed 2026-08-24 | Null re-read proceeds against a stale map; `HC0T4` made retries common. |
+| 🟡 `FUP-0137-357-TWINS-ON-STALE-BODY` | ✅ measured 2026-08-24 | Suite `357`'s twins red-proved the **pre-0137** body this batch re-emitted. |
+| 🟡 `FUP-0137-BULK-WIZARD-STILL-BOOLEAN` | ✅ fixed 2026-08-24 | Bulk grid still reads `collectsPatient`. ⚠ This item **originally softened itself** — `HC0T1` is absent from `bulk-error-map.ts`, so the user gets the **generic** string, not the field-naming one. |
+| 🟡 `FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED` | ✅ fixed 2026-08-24 | `patientRequiredFields` not threaded page → panel → dialog. |
+| 🟡 `FUP-0137-PERSIST-REFRESH-DROPS-FOCUS` | ✅ fixed 2026-08-24 | ~~`persist()` + `router.refresh()` resets focus to `<body>`~~. ⚠ **The mechanism named here is WRONG** — measured in Chromium 2026-08-24, it is the `disabled={isPending}` fieldset (disabling an ancestor blows focus to `<body>`); `router.refresh()` reuses the node and focus rides along. ⛔ That matters because the scoping predicate this row hands the reader (*“refreshes the route on an input event”*) matches **146 files** AND still misses a component that disables without refreshing. The corrected property swept to **3**. |
+| 🟡 `FUP-0137-KIND-VISUAL-NO-FALLBACK` | ✅ fixed 2026-08-24 | QA r1 **R-6**, unfiled until r2. |
+| 🟡 `FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME` | ✅ fixed 2026-08-24 | QA r1 **R-7**, unfiled until r2. |
 
 ⛔ **Three of the nine existed only in a superseded review file until QA r2 noticed.** A review's
 open-risk list is a work item; once a later review supersedes the file, an unfiled risk is
 indistinguishable from a deleted one.
+
+---
+
+## The follow-up sweep — 2026-08-24 (commit `5c8f3542`, NOT pushed)
+
+Nine of the ten open items solved in one increment. **Two were PO rulings, not fixes** — both
+asked before any code was written, because either answer changed what got built:
+
+- **Post-send referral PHI amendment is NOT a product capability** (ADR 0137 **Amendment 1**).
+  Migration `20261003001700` moves the refusal INTO `set_referral_patient`. ⭐ Measured
+  consequence: blanking the MRN went from **one** edit away to **two** — removing the door's arm
+  alone leaves `365` §1.2 GREEN (the status trigger still rolls the upsert back); removing the arm
+  AND setting `in_referral_rpc` reds it. The two locks fail independently.
+- **`CaseDepartmentField` is DELETED** (ADR 0137 **Amendment 3**) — dead code wearing a green
+  check, which no gate in the eight can distinguish from “exercised by the product”.
+
+**Two records were found FALSE and corrected rather than left standing:**
+
+- ADR 0137's *“additive ⇒ old-code/new-schema is safe”* (Amendment 2). `collects_patient` /
+  `patient_enabled` are DROPPED columns the **deployed build selects directly**. The deploy ORDER
+  is unchanged; the REASON is replaced, and the schema→code window is real, not zero.
+- `365`'s central claim, *“the closure is incidental”*, was the premise Amendment 1 retired — its
+  header and §2.2/§2.4 were rewritten, with the old mechanism kept as the lesson.
+
+**Gate figures (this increment).** lint 8/8 · `tsc` 0 · Vitest **123 files / 1703**, ten consecutive
+clean full-suite runs — ⚠ one NEW spec was intermittently red and the cause was **fixed, not
+retried** (reaching the wizard's patient step starts the safety-prefill transition, which
+`disabled`s the PHI inputs; typing into a disabled input types nothing, silently) · `test:db`
+**216 files / 7139 PASS** on a fresh reset · all four authz ARMs **HOLD** · `p0137-phi-door-mutation-audit.sh`
+**6/6 RED-PROVEN**.
+
+⛔ **E2E is SCOPED, and that is stated rather than implied:** `e2e:prod` with `REBUILD=1` over the
+**11 affected specs** — 147 passed / 0 failed / 0 flaky / 0 did-not-run, 3 batches, accounted
+147 of 152 collected (5 skipped by design). This is **not** the full 113-spec gate, which has not
+been re-run since before the residue increment. AC-R5 (the new keyboard focus-retention test)
+passed on the **prod standalone build**, which is the build the tester's *“programmatic `.focus()`
+goes inert after a refresh”* note was recorded against.
+
+⚠ **Still open, deliberately: `FUP-0137-PHI-MODE-SHIMS`.** The three TypeScript shims are deleted;
+`get_case_detail`'s derived `patient_enabled` key **must survive until the code is deployed** — it
+is what the currently-deployed build reads, and dropping it first makes that build decide every
+case collects no PHI, silently (`?? false`). Retire it in its own migration after the push.
