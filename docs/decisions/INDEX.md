@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**138 ADRs** · next free number: **0141** · 36 carry an inbound supersedes/amends edge
+**139 ADRs** · next free number: **0142** · 36 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -162,3 +162,4 @@
 | 0138 | [Unified (non-PHI) action_items hub](0138-unified-action-items.md) | accepted | 2026-07-02 | – | – |
 | 0139 | [Quarterly home for concluded § Now rotations](0139-quarterly-home-for-concluded-now-rotations.md) | accepted | 2026-08-24 | amends 0124 | – |
 | 0140 | [Tracking-apparatus hardening batch (labels, caps, residue, cadence, sweep)](0140-tracking-apparatus-hardening-batch.md) | accepted | 2026-08-24 | amends 0124 | – |
+| 0141 | [Cases board (`manage/cases`) filter redesign: actionable KPIs, saved views, advanced pa…](0141-cases-board-filter-redesign.md) | accepted | 2026-08-24 | – | – |

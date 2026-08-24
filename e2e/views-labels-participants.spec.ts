@@ -288,18 +288,22 @@ test('AC-2: KPI label reads "Etapas pendentes"; the board count INCLUDES open na
   await expect(page.getByText(/Fases e narrativas em aberto/i)).toBeVisible()
 
   // The "Etapas pendentes" KPI card's OWN rendered value ≥ the openNarrativeCount
-  // sum (it also folds pending phases). Scope to the card that CONTAINS the exact
-  // label, then read its value paragraph once the count-up animation settles.
-  const card = page
-    .locator('div.rounded-xl')
-    .filter({ hasText: 'Etapas pendentes' })
-    .filter({ hasText: 'Fases e narrativas em aberto' })
-    .first()
+  // sum (it also folds pending phases).
+  //
+  // ⚠ The card is a BUTTON now (board redesign — KPI cards apply their filter), and
+  // its parts are <span>s, not <p>s. The old locator was `div.rounded-xl` →
+  // `p.font-bold`, which is a CLASS-and-TAG hook: it named how the card was styled,
+  // not what it is, so a restyle silently stops finding it. Query it by its ROLE and
+  // accessible name instead, and read the number out of the card's own text.
+  const card = page.getByRole('button', { name: /Etapas pendentes/ })
   await expect(card).toBeVisible({ timeout: 8_000 })
-  // The value <p> is the bold tabular-nums line; poll until it settles ≥ after.
+  await expect(card).toContainText('Fases e narrativas em aberto')
+  // Poll until the count-up animation settles. The card reads
+  // "Etapas pendentes <N> Fases e narrativas em aberto" and `StatCount` renders a
+  // bare integer (no thousands separator), so the FIRST run of digits IS the value.
   await expect(async () => {
-    const txt = await card.locator('p.font-bold').first().textContent()
-    const rendered = Number((txt ?? '').replace(/\D/g, ''))
+    const txt = (await card.textContent()) ?? ''
+    const rendered = Number(txt.match(/\d+/)?.[0] ?? NaN)
     expect(rendered).toBeGreaterThanOrEqual(after)
   }).toPass({ timeout: 8_000 })
 })

@@ -222,12 +222,32 @@ test('AC-FixedStatusAdvance: activating a phase auto-computes em_revisao; comple
   await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
-  // The cases view has "Em revisão" status filter chip (from CASE_STATUS_META).
-  const emRevisaoChip = page.getByRole('button', { name: /Em revisão/i })
-  await expect(emRevisaoChip).toBeVisible({ timeout: 10_000 })
+  // The board's status filter offers "Em revisão" (from CASE_STATUS_META).
+  //
+  // ⚠ It is inside the "Status" POPOVER since the board redesign, not a top-level
+  // chip. Opening it also lets this assert the whole proposition the old one only
+  // sampled: the filter offers EXACTLY the five FIXED statuses, so there is no
+  // configurable status vocabulary behind it.
+  const quickFilters = page.getByRole('group', { name: 'Filtros rápidos' })
+  await quickFilters.getByRole('button', { name: /^Status/ }).click()
+  const statusMenu = page.getByRole('dialog').filter({ hasText: 'Todos os status' })
+  await expect(statusMenu).toBeVisible({ timeout: 10_000 })
+  for (const label of [
+    'Não iniciado',
+    'Em revisão',
+    'Pendente',
+    'Concluído',
+    'Cancelado',
+  ]) {
+    await expect(
+      statusMenu.getByRole('button').filter({ hasText: label }),
+    ).toHaveCount(1, { timeout: 5_000 })
+  }
+  // "Todos os status" + the five fixed ones — nothing else.
+  await expect(statusMenu.getByRole('button')).toHaveCount(6, { timeout: 5_000 })
+  await page.keyboard.press('Escape')
 
-  // The chip is one of the five fixed status filters (no configurable vocab).
-  // Verify the correct count chips exist — there is no "Estado" dropdown.
+  // There is no "Estado" dropdown (the removed configurable vocabulary).
   const estadoBtn = page.getByRole('button', { name: 'Estado', exact: true })
   await expect(estadoBtn).toHaveCount(0, { timeout: 5_000 })
 
@@ -617,9 +637,16 @@ test('AC-ActionItems: coordinator creates action item assigned to staff1; staff1
     page.getByRole('heading', { name: /Casos/i }),
   ).toBeVisible({ timeout: 10_000 })
 
-  const kpiStrip = page.locator('[data-testid="kpi-strip"], section').filter({ hasText: /Itens de ação/i }).first()
+  // The action-item KPI card. ⚠ Scoped to THAT CARD, not to the whole strip: the
+  // redesigned strip also carries a "Fases atrasadas" card, so a strip-wide
+  // /[Aa]trasad/i now matches several elements and trips Playwright strict mode.
+  // The card is a link when the action-items surface is reachable and a plain card
+  // otherwise, so it is located by its label text rather than by role.
+  const kpiStrip = page.getByRole('region', { name: 'Indicadores dos casos' })
   if (await kpiStrip.isVisible().catch(() => false)) {
-    await expect(kpiStrip.getByText(/[Aa]trasad/i)).toBeVisible({ timeout: 5_000 })
+    await expect(
+      kpiStrip.getByText('Itens de ação em atraso', { exact: true }),
+    ).toBeVisible({ timeout: 5_000 })
   }
 
   const kpiResp = await page.request.post(

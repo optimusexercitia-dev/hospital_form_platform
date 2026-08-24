@@ -21,15 +21,11 @@ import {
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { listCaseTypes } from "@/lib/queries/case-types";
 import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
+import { actionItemsEnabled } from "@/lib/queries/action-items";
 import { listProcessTemplateVersions } from "@/lib/queries/process-templates";
 import { Button } from "@/components/ui/button";
 import { CreateCaseDialog } from "@/components/cases/create-case-dialog";
-import { CasesKpiStrip } from "@/components/cases/cases-kpi-strip";
 import { CasesView, type CasesViewMode } from "@/components/cases/cases-view";
-import {
-  computeCaseKpis,
-  computeOutcomeBreakdown,
-} from "@/components/cases/case-derive";
 
 export const metadata: Metadata = {
   title: "Casos",
@@ -161,6 +157,7 @@ export default async function CasesBoardPage({
     outcomes,
     flags,
     caseTypesOn,
+    actionItemsOn,
   ] = await Promise.all([
     listCasesBoard(access.commission.id),
     listProcessTemplateVersions(access.commission.id),
@@ -176,6 +173,11 @@ export default async function CasesBoardPage({
     // untouched and still render read-only on the case header.
     getFeatureFlags(),
     caseTypesEnabled(),
+    // Gates the action-item KPI card's LINK, not the card. `meus-itens-de-acao` is the
+    // only action-items surface this commission exposes, and the shell hides its nav
+    // entry on this same flag — so without it the card would offer a link the sidebar
+    // does not, to a page that has nothing behind it.
+    actionItemsEnabled(),
   ]);
 
   // ADR 0064 D4 — the org's ACTIVE case types for the process-less "Tipo de caso"
@@ -231,8 +233,10 @@ export default async function CasesBoardPage({
           canWriteContent: false,
         });
 
-  const kpis = computeCaseKpis(rows);
-  const outcomeBreakdown = computeOutcomeBreakdown(rows);
+  // ⛔ The KPIs + outcome breakdown are NO LONGER computed here. Their cards are filter
+  // CONTROLS now (R1) — they must read and write the board's filter state — so they are
+  // derived inside `CasesView` from the same rows this page already passes it. Computing
+  // them twice would be the two-copies-of-one-number defect the strip exists to avoid.
   const initialView: CasesViewMode = view === "kanban" ? "kanban" : "table";
 
   // A case can be created from an active template OR, when the flag is on, without
@@ -381,16 +385,22 @@ export default async function CasesBoardPage({
         </section>
       ) : (
         <>
-          <CasesKpiStrip
-            kpis={kpis}
-            actionItems={actionItemKpis}
-            outcomeBreakdown={outcomeBreakdown}
-          />
           <CasesView
             rows={rows}
             org={org}
             slug={slug}
+            commissionId={access.commission.id}
             initialView={initialView}
+            actionItems={actionItemKpis}
+            actionItemsHref={
+              actionItemsOn
+                ? commissionHref(org, slug, "meus-itens-de-acao")
+                : undefined
+            }
+            caseTypes={caseTypes.map((t) => ({
+              id: t.id,
+              displayName: t.displayName,
+            }))}
             // ADR 0134 T5 — rows point at the manage detail for viewers who pass the
             // entry predicate and at `/casos` for everyone else. Sourced from the
             // SAME helper the manage route gates on, never a second copy of it: the

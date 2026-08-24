@@ -25,6 +25,7 @@ import {
   type CaseStatus,
   type CaseStatusColorToken,
 } from "@/lib/cases/case-status";
+import { isOverdue } from "./format";
 
 // ---------------------------------------------------------------------------
 // Fixed-status grouping (kanban columns)
@@ -105,6 +106,48 @@ export function hasRecommendedPending(row: CaseBoardRow): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Overdue work (board "Fases atrasadas" KPI + the "Fase atrasada" filter)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether ONE phase is overdue. Delegates the date comparison to {@link isOverdue}
+ * (`format.ts`) rather than re-deriving it — that helper already encodes the two
+ * things easy to get wrong here: the LOCAL date-only parse (a `YYYY-MM-DD` fed to
+ * `new Date()` is UTC midnight, which reads as the previous day in Brazil), and the
+ * "only `pendente`/`ativa` counts" rule (a concluded phase past its date is not late).
+ */
+export function isOverduePhase(phase: {
+  dueDate: string | null;
+  status: CasePhaseStatus;
+}): boolean {
+  return isOverdue(phase.dueDate, phase.status);
+}
+
+/**
+ * Whether a case carries overdue WORK: it is still OPEN (non-terminal) and at least
+ * one of its phases is overdue. The terminal guard mirrors {@link hasUnassignedWork} —
+ * a concluded/cancelled case is never "late", however stale its phase dates are.
+ */
+export function hasOverdueWork(row: CaseBoardRow): boolean {
+  if (isTerminalCaseStatus(row.case.status)) return false;
+  return row.phases.some(isOverduePhase);
+}
+
+/**
+ * Total overdue PHASES across a row set — the "Fases atrasadas" KPI value. Counts
+ * phases, not cases (one case can hold several), so it is deliberately ≥ the number
+ * of rows {@link hasOverdueWork} matches; the card's sub-line states that denominator.
+ */
+export function overduePhaseCount(rows: CaseBoardRow[]): number {
+  let total = 0;
+  for (const row of rows) {
+    if (isTerminalCaseStatus(row.case.status)) continue;
+    total += row.phases.filter(isOverduePhase).length;
+  }
+  return total;
+}
+
+// ---------------------------------------------------------------------------
 // Phase blockers (D1/D4)
 // ---------------------------------------------------------------------------
 
@@ -159,6 +202,13 @@ export interface CaseKpis {
   casosComFaseAtiva: number;
   fasesPendentes: number;
   semResponsavel: number;
+  /**
+   * Overdue PHASES across the open cases ({@link overduePhaseCount}) — the value of
+   * the "Fases atrasadas" card. Phase-grained, so it can exceed {@link casosAtrasados}.
+   */
+  fasesAtrasadas: number;
+  /** Open cases carrying at least one overdue phase ({@link hasOverdueWork}). */
+  casosAtrasados: number;
   /** Cases in a TERMINAL status (concluído / cancelado). */
   concluidos: number;
   concluidosEsteMes: number;
@@ -226,6 +276,8 @@ export function computeCaseKpis(rows: CaseBoardRow[]): CaseKpis {
     casosComFaseAtiva,
     fasesPendentes,
     semResponsavel,
+    fasesAtrasadas: overduePhaseCount(rows),
+    casosAtrasados: rows.filter(hasOverdueWork).length,
     concluidos: concluidosRows.length,
     concluidosEsteMes: concluidosRows.filter((r) =>
       isSameMonth(r.case.closedAt, now),

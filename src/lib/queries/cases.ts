@@ -415,6 +415,26 @@ export interface CaseBoardRow {
    * supplementary batched query (not N+1); see {@link listCasesBoard}.
    */
   customFields: CaseCustomFieldValue[]
+  /**
+   * The case's assigned TAGS resolved for display (id + pt-BR name + palette token),
+   * ordered by name. Read in ONE supplementary batched query alongside the board (see
+   * {@link listCasesBoard}); `[]` when the case carries none / they are unreadable.
+   * Feeds the board's "Etiquetas" filter and folds into its search haystack.
+   */
+  tags: CaseBoardTag[]
+}
+
+/**
+ * A case's tag as the BOARD needs it — a trimmed projection of `CaseTag`
+ * (no commission / archived / createdAt: the board filters and renders by name +
+ * colour only). Deliberately declared here rather than importing `CaseTag`, so the
+ * board row keeps its own minimal shape.
+ */
+export interface CaseBoardTag {
+  id: string
+  /** pt-BR name (resolved LIVE, so a rename propagates). */
+  name: string
+  colorToken: CaseStatusColorToken
 }
 
 /**
@@ -1382,22 +1402,123 @@ async function fetchBoardCustomFields(
   return byCase
 }
 
-/** ETH·E3a — each board case's `case_type_id`, one batched RLS-scoped read (id → typeId). */
-async function fetchBoardCaseTypes(
+/** The per-case base-table columns the board RPC's TABLE signature does not carry. */
+interface BoardCaseMeta {
+  caseTypeId: string | null
+  departmentId: string | null
+  departmentOther: string | null
+}
+
+/**
+ * ETH·E3a (O-1) + the board's "Unidade / setor" filter — each board case's
+ * `case_type_id` and department columns in ONE batched RLS-scoped read. These are
+ * base-table columns on `cases` that the board RPC's TABLE signature does not
+ * carry; a batched select avoids a drop/recreate of the RPC. A case the caller
+ * cannot read via cases-RLS is simply absent from the map (→ all-null defaults).
+ */
+async function fetchBoardCaseMeta(
   supabase: Awaited<ReturnType<typeof createClient>>,
   caseIds: string[],
-): Promise<Map<string, string | null>> {
-  const byCase = new Map<string, string | null>()
+): Promise<Map<string, BoardCaseMeta>> {
+  const byCase = new Map<string, BoardCaseMeta>()
   if (caseIds.length === 0) return byCase
 
   const { data, error } = await supabase
     .from('cases')
-    .select('id, case_type_id')
+    .select('id, case_type_id, department_id, department_other')
     .in('id', caseIds)
-    .returns<{ id: string; case_type_id: string | null }[]>()
+    .returns<
+      {
+        id: string
+        case_type_id: string | null
+        department_id: string | null
+        department_other: string | null
+      }[]
+    >()
 
   if (error || !data) return byCase
-  for (const row of data) byCase.set(row.id, row.case_type_id ?? null)
+  for (const row of data) {
+    byCase.set(row.id, {
+      caseTypeId: row.case_type_id ?? null,
+      departmentId: row.department_id ?? null,
+      departmentOther: row.department_other ?? null,
+    })
+  }
+  return byCase
+}
+
+/**
+ * Resolve department names for a set of `hospital_departments` ids in ONE batched
+ * RLS-scoped read (the SELECT policy admits any hospital member, so a board viewer
+ * resolves them). A department archived-away or unreadable is simply absent, and the
+ * caller falls back to the case's `department_other` / `null` — the same
+ * "unreadable → null name" contract {@link getCaseDetail} documents.
+ */
+async function fetchBoardDepartmentNames(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  departmentIds: string[],
+): Promise<Map<string, string>> {
+  const byId = new Map<string, string>()
+  if (departmentIds.length === 0) return byId
+
+  const { data, error } = await supabase
+    .from('hospital_departments')
+    .select('id, name')
+    .in('id', departmentIds)
+    .returns<{ id: string; name: string }[]>()
+
+  if (error || !data) return byId
+  for (const row of data) byId.set(row.id, row.name)
+  return byId
+}
+
+/**
+ * Each board case's assigned TAGS in ONE batched RLS-scoped read, grouped by case id
+ * and ordered by name (pt-BR). Mirrors {@link listCaseTagsForCase} at the board's
+ * grain: `case_tag_assignments` is `can_read_case`-gated and the `case_tags` embed is
+ * member-gated, so both fail closed for a non-member — no leak. Archived tags already
+ * assigned to a case ARE included (a retired tag must not make its chip vanish).
+ * Returns an empty map on error / no ids; a case with none maps to `[]` at the call site.
+ */
+async function fetchBoardTags(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  caseIds: string[],
+): Promise<Map<string, CaseBoardTag[]>> {
+  const byCase = new Map<string, CaseBoardTag[]>()
+  if (caseIds.length === 0) return byCase
+
+  const { data, error } = await supabase
+    .from('case_tag_assignments')
+    .select('case_id, case_tags ( id, name, color_token )')
+    .in('case_id', caseIds)
+    .returns<
+      {
+        case_id: string
+        case_tags: {
+          id: string
+          name: string
+          color_token: CaseStatusColorToken
+        } | null
+      }[]
+    >()
+
+  if (error || !data) return byCase
+
+  for (const row of data) {
+    const tag = row.case_tags
+    if (!tag) continue
+    const mapped: CaseBoardTag = {
+      id: tag.id,
+      name: tag.name,
+      colorToken: tag.color_token,
+    }
+    const bucket = byCase.get(row.case_id)
+    if (bucket) bucket.push(mapped)
+    else byCase.set(row.case_id, [mapped])
+  }
+  for (const bucket of byCase.values()) {
+    bucket.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  }
   return byCase
 }
 
@@ -1446,53 +1567,87 @@ export async function listCasesBoard(
   const caseIds = (data as unknown as BoardRowJson[]).map((r) => r.case_id)
   const customFieldsByCase = await fetchBoardCustomFields(supabase, caseIds)
 
-  // ETH·E3a (O-1): project each board case's `case_type_id` in ONE batched RLS-scoped
-  // read (the board RPC's TABLE signature doesn't carry it; a batched select avoids a
-  // drop/recreate). Board heading stays default per FE's decision — this only carries the
-  // id per row. A case the caller can't read via cases-RLS simply maps to null.
-  const caseTypeByCase = await fetchBoardCaseTypes(supabase, caseIds)
+  // ETH·E3a (O-1) + the board's advanced filters: project each board case's
+  // `case_type_id` and department columns in ONE batched RLS-scoped read (the board
+  // RPC's TABLE signature doesn't carry them; a batched select avoids a drop/recreate).
+  // Board heading stays default per FE's decision — this only carries the id per row.
+  // A case the caller can't read via cases-RLS simply maps to the null defaults.
+  //
+  // The tag read is the board's twin of `listCaseTagsForCase`, batched — the board's
+  // "Etiquetas" filter and the tag fold in its search need names, not just ids.
+  const [metaByCase, tagsByCase] = await Promise.all([
+    fetchBoardCaseMeta(supabase, caseIds),
+    fetchBoardTags(supabase, caseIds),
+  ])
 
-  const rows = (data as unknown as BoardRowJson[]).map((r) => ({
-    case: {
-      id: r.case_id,
-      commissionId,
-      // The board row does not echo templateId (not needed for the board);
-      // detail carries it.
-      templateId: null,
-      caseTypeId: caseTypeByCase.get(r.case_id) ?? null,
-      caseNumber: r.case_number,
-      label: r.label,
-      status: r.status,
-      outcomeId: r.outcome_id ?? null,
-      createdAt: r.created_at,
-      closedAt: r.closed_at,
-      // The board row does not surface PHI flags (the panel only renders on the
-      // detail page); default to false. The detail read carries the real values.
-      hasPatient: false,
-      // ADR 0137 D1 — the board row carries no PHI configuration (the panel only
-      // renders on the detail page); the detail read carries the real values.
-      patientMode: 'none' as PatientMode,
-      patientRequiredFields: [],
-      // The department name is a detail-page concern (the board renders no setor
-      // column); default to null. The detail read resolves the real values.
-      departmentId: null,
-      departmentOther: null,
-      departmentName: null,
-    },
-    outcome: mapOutcomeJson(r.outcome ?? null),
-    phases: (r.phases ?? []).map((p) => ({
-      position: p.position,
-      title: p.title,
-      status: p.status,
-      recommended: p.recommended,
-      assignedTo: p.assigned_to,
-      assigneeName: p.assignee_name,
-      dueDate: p.due_date,
-      result: mapPhaseResultJson(p.result ?? null),
-    })),
-    openNarrativeCount: r.open_narrative_count ?? 0,
-    customFields: customFieldsByCase.get(r.case_id) ?? [],
-  }))
+  // Resolve the distinct department ids to LIVE names in one further batched read, so a
+  // rename propagates to the board exactly as it does to the case detail.
+  const departmentIds = [
+    ...new Set(
+      [...metaByCase.values()]
+        .map((m) => m.departmentId)
+        .filter((id): id is string => id != null),
+    ),
+  ]
+  const departmentNameById = await fetchBoardDepartmentNames(
+    supabase,
+    departmentIds,
+  )
+
+  const rows = (data as unknown as BoardRowJson[]).map((r) => {
+    const meta = metaByCase.get(r.case_id)
+    // Mirrors `getCaseDetail`: `department_other` is the "Outro" custom value and the
+    // fallback when the managed department row is archived-away or unreadable.
+    const departmentName =
+      (meta?.departmentId
+        ? (departmentNameById.get(meta.departmentId) ?? null)
+        : null) ??
+      meta?.departmentOther ??
+      null
+    return {
+      case: {
+        id: r.case_id,
+        commissionId,
+        // The board row does not echo templateId (not needed for the board);
+        // detail carries it.
+        templateId: null,
+        caseTypeId: meta?.caseTypeId ?? null,
+        caseNumber: r.case_number,
+        label: r.label,
+        status: r.status,
+        outcomeId: r.outcome_id ?? null,
+        createdAt: r.created_at,
+        closedAt: r.closed_at,
+        // The board row does not surface PHI flags (the panel only renders on the
+        // detail page); default to false. The detail read carries the real values.
+        hasPatient: false,
+        // ADR 0137 D1 — the board row carries no PHI configuration (the panel only
+        // renders on the detail page); the detail read carries the real values.
+        patientMode: 'none' as PatientMode,
+        patientRequiredFields: [],
+        // ⛔ NO LONGER NULL. The department is NON-PHI + case-level, and the board's
+        // "Unidade / setor" filter needs it, so it is resolved here exactly as
+        // `getCaseDetail` resolves it (batched over the page, never N+1).
+        departmentId: meta?.departmentId ?? null,
+        departmentOther: meta?.departmentOther ?? null,
+        departmentName,
+      },
+      outcome: mapOutcomeJson(r.outcome ?? null),
+      phases: (r.phases ?? []).map((p) => ({
+        position: p.position,
+        title: p.title,
+        status: p.status,
+        recommended: p.recommended,
+        assignedTo: p.assigned_to,
+        assigneeName: p.assignee_name,
+        dueDate: p.due_date,
+        result: mapPhaseResultJson(p.result ?? null),
+      })),
+      openNarrativeCount: r.open_narrative_count ?? 0,
+      customFields: customFieldsByCase.get(r.case_id) ?? [],
+      tags: tagsByCase.get(r.case_id) ?? [],
+    }
+  })
 
   return { rows, nextCursor: null }
 }

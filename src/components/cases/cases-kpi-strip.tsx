@@ -1,9 +1,17 @@
+"use client";
+
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
+
 import { StatCount } from "@/components/admin/stat-count";
 import { cn } from "@/lib/utils";
 import { plural } from "@/lib/text";
 import type { CaseActionItemKpis } from "@/lib/queries/case-action-items";
-import type { CaseKpis, OutcomeBreakdown } from "./case-derive";
-import { CaseStatusBadge } from "./case-status-badge";
+import type { CaseKpis } from "./case-derive";
+import {
+  DEFAULT_CASE_FILTERS,
+  type CaseFilterState,
+} from "./case-filters";
 
 type Tone = "accent" | "plain" | "warn" | "danger" | "good";
 
@@ -16,216 +24,261 @@ const TONE_DOT: Record<Tone, string> = {
   good: "bg-success",
 };
 
-function KpiCard({
+/**
+ * One clickable KPI. The card BODY is identical to the link variant below; only the
+ * element and the pressed affordance differ, so the two share this inner layout.
+ */
+function KpiBody({
+  label,
+  value,
+  sub,
+  tone,
+  valueClassName,
+  labelSuffix,
+  reserveBadge = false,
+}: {
+  label: string;
+  value: number;
+  sub: string;
+  tone: Tone;
+  valueClassName?: string;
+  labelSuffix?: React.ReactNode;
+  /** Keep the label clear of the absolutely-positioned "Filtrando" pill. */
+  reserveBadge?: boolean;
+}) {
+  return (
+    <>
+      {/*
+        The label reserves TWO lines' height on every card, whether it needs them or
+        not. "Itens de ação em atraso" wraps at this column width and the others do
+        not, and a card whose big number sits a line lower than its five neighbours
+        reads as a rendering fault rather than a longer label.
+      */}
+      <span
+        className={cn(
+          "flex min-h-[2.1em] items-start gap-1.5 text-[0.72rem] leading-[1.05rem] font-semibold text-muted-foreground",
+          reserveBadge && "pr-[4.5rem]",
+        )}
+      >
+        {label}
+        {labelSuffix}
+      </span>
+      <span
+        className={cn(
+          "mt-0.5 text-[1.7rem] leading-none font-bold text-foreground tabular-nums",
+          valueClassName,
+        )}
+      >
+        <StatCount value={value} />
+      </span>
+      <span className="mt-2 flex min-w-0 items-center gap-1.5 text-[0.72rem] text-muted-foreground">
+        <span
+          aria-hidden="true"
+          className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[tone])}
+        />
+        <span className="truncate">{sub}</span>
+      </span>
+    </>
+  );
+}
+
+/**
+ * A KPI card that APPLIES its own filter. `aria-pressed` carries the toggle state so
+ * the affordance is not conveyed by the ring alone, and the "Filtrando" pill states it
+ * in words for the same reason (never colour-only status — design system §2).
+ */
+function KpiFilterCard({
   label,
   value,
   sub,
   tone,
   index,
+  active,
+  onToggle,
 }: {
   label: string;
   value: number;
   sub: string;
   tone: Tone;
   index: number;
+  active: boolean;
+  onToggle: () => void;
 }) {
   return (
-    <div
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onToggle}
       style={{ ["--rise-delay" as string]: `${index * 60}ms` }}
-      className="animate-rise-in rounded-xl border border-border bg-card p-4 shadow-xs"
+      className={cn(
+        "animate-rise-in relative flex flex-col rounded-xl border bg-card px-4 py-3.5 text-left shadow-xs",
+        "transition-[border-color,box-shadow] hover:shadow-sm",
+        "focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+        active
+          ? "border-primary ring-[3px] ring-ring/18"
+          : "border-border hover:border-primary/35",
+      )}
     >
-      <p className="text-[0.72rem] font-semibold text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 text-[1.7rem] leading-none font-bold tabular-nums text-foreground">
-        <StatCount value={value} />
-      </p>
-      <p className="mt-2 flex items-center gap-1.5 text-[0.72rem] text-muted-foreground">
-        <span
-          aria-hidden="true"
-          className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[tone])}
-        />
-        <span className="truncate">{sub}</span>
-      </p>
-    </div>
+      {active && (
+        <span className="absolute top-2.5 right-2.5 rounded-full bg-accent px-1.5 py-0.5 text-[0.62rem] font-semibold text-primary">
+          Filtrando
+        </span>
+      )}
+      <KpiBody
+        label={label}
+        value={value}
+        sub={sub}
+        tone={tone}
+        reserveBadge={active}
+      />
+    </button>
   );
 }
 
 /**
- * The outcome breakdown panel (D14): per-outcome case counts + an overall
- * "% adverse" headline, derived from the loaded board rows
- * (`computeOutcomeBreakdown`). Only rendered when at least one case carries an
- * outcome. The % adverse is over the outcome-bearing cases (its denominator is
- * shown for honesty) — adverse-flagged outcomes also carry the destructive marker.
- */
-function OutcomeBreakdownPanel({ breakdown }: { breakdown: OutcomeBreakdown }) {
-  const { rows, totalWithOutcome, adverseCount, adversePercent } = breakdown;
-
-  return (
-    <section
-      aria-labelledby="outcome-breakdown-heading"
-      className="animate-fade-in rounded-2xl border border-border bg-card p-5 shadow-xs"
-    >
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <h2
-            id="outcome-breakdown-heading"
-            className="text-base font-semibold"
-          >
-            Desfechos
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {totalWithOutcome}{" "}
-            {totalWithOutcome === 1
-              ? "caso com desfecho atribuído"
-              : "casos com desfecho atribuído"}
-          </p>
-        </div>
-        <div className="flex flex-col items-end">
-          <p className="text-[1.4rem] leading-none font-bold tabular-nums text-foreground">
-            {adversePercent === null ? "—" : `${adversePercent}%`}
-          </p>
-          <p className="mt-1 flex items-center gap-1.5 text-[0.72rem] text-muted-foreground">
-            <span
-              aria-hidden="true"
-              className="size-1.5 shrink-0 rounded-full bg-destructive"
-            />
-            <span>
-              adversos ({adverseCount}/{totalWithOutcome})
-            </span>
-          </p>
-        </div>
-      </div>
-
-      <ul className="mt-4 flex flex-col gap-2">
-        {rows.map((r) => {
-          const pct =
-            totalWithOutcome === 0
-              ? 0
-              : Math.round((r.count / totalWithOutcome) * 100);
-          return (
-            <li key={r.outcomeId} className="flex flex-col gap-1">
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="flex min-w-0 items-center gap-2">
-                  <CaseStatusBadge label={r.label} colorToken={r.colorToken} />
-                  {r.isAdverse && (
-                    <span className="text-[0.65rem] font-semibold tracking-wide text-destructive uppercase">
-                      Adverso
-                    </span>
-                  )}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {r.count} · {pct}%
-                </span>
-              </div>
-              <div
-                aria-hidden="true"
-                className="h-1.5 overflow-hidden rounded-full bg-muted"
-              >
-                <span
-                  className={cn(
-                    "block h-full rounded-full",
-                    r.isAdverse ? "bg-destructive/70" : "bg-primary/70",
-                  )}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
-/**
- * The cases overview KPI strip. Derived entirely from the loaded board rows (no
- * new backend) and computed by {@link computeCaseKpis}. Numbers count up on mount
- * (reduced-motion-safe via StatCount). When an outcome breakdown is supplied and
- * any case carries an outcome, a per-outcome breakdown panel renders below the
- * cards (D14).
+ * The board KPI strip — six cards, five of which APPLY a filter on click (R1).
+ *
+ * Toggle semantics, deliberately asymmetric:
+ *  - Clicking an INACTIVE card resets every other filter (keeping only the search
+ *    query) before applying its own. Without that reset the headline number and the
+ *    rows listed under it disagree — the card says "12 fases atrasadas" while a
+ *    left-over Desfecho filter lists 3 — and the card is exactly the affordance a
+ *    chair uses to ask "show me those".
+ *  - Clicking an ACTIVE card clears ONLY its own fields, so un-toggling does not also
+ *    throw away filters the user set afterwards.
+ *
+ * The sixth card is NOT a filter: action items are a different entity with their own
+ * surface, so it is a LINK out. It renders as a plain card when that surface is off
+ * (`actionItemsHref` absent) rather than emitting a link that 404s.
  */
 export function CasesKpiStrip({
   kpis,
   actionItems,
-  outcomeBreakdown,
+  actionItemsHref,
+  filters,
+  onFiltersChange,
 }: {
   kpis: CaseKpis;
-  /** Action-item counts (R4). Adds an "Itens de ação" card when provided. */
+  /** Action-item counts (R4). Adds the "Itens de ação em atraso" card when provided. */
   actionItems?: CaseActionItemKpis;
-  /** Outcome breakdown (D14). Renders the breakdown panel when ≥1 case has one. */
-  outcomeBreakdown?: OutcomeBreakdown;
+  /** Where the action-items card links. Omit when that surface is unavailable. */
+  actionItemsHref?: string;
+  filters: CaseFilterState;
+  onFiltersChange: (next: CaseFilterState) => void;
 }) {
-  const cards: Array<{ label: string; value: number; sub: string; tone: Tone }> =
-    [
-      {
-        label: "Em aberto",
-        value: kpis.casosAbertos,
-        sub:
-          kpis.abertosEsteMes > 0
-            ? `+${kpis.abertosEsteMes} este mês`
-            : "Nenhum novo este mês",
-        tone: "accent",
-      },
-      {
-        label: "Fases ativas",
-        value: kpis.fasesAtivas,
-        sub:
-          kpis.casosComFaseAtiva === 1
-            ? "em 1 caso"
-            : `em ${kpis.casosComFaseAtiva} casos`,
-        tone: "plain",
-      },
-      {
-        label: "Etapas pendentes",
-        value: kpis.fasesPendentes,
-        sub: "Fases e narrativas em aberto",
-        tone: "warn",
-      },
-      {
-        label: "Sem responsável",
-        value: kpis.semResponsavel,
-        sub: "Atribuição necessária",
-        tone: "danger",
-      },
-      {
-        label: "Encerrados",
-        value: kpis.concluidos,
-        sub:
-          kpis.concluidosEsteMes > 0
-            ? `+${kpis.concluidosEsteMes} este mês`
-            : "Nenhum este mês",
-        tone: "good",
-      },
-    ];
+  /** Whether every field this card owns already holds the card's value. */
+  const isActive = (patch: Partial<CaseFilterState>) =>
+    (Object.keys(patch) as Array<keyof CaseFilterState>).every(
+      (key) => JSON.stringify(filters[key]) === JSON.stringify(patch[key]),
+    );
 
-  if (actionItems) {
-    cards.push({
-      label: "Itens de ação",
-      value: actionItems.open,
+  const toggle =
+    (patch: Partial<CaseFilterState>, clear: Partial<CaseFilterState>) => () => {
+      if (isActive(patch)) onFiltersChange({ ...filters, ...clear });
+      else onFiltersChange({ ...DEFAULT_CASE_FILTERS, q: filters.q, ...patch });
+    };
+
+  const cards: Array<{
+    label: string;
+    value: number;
+    sub: string;
+    tone: Tone;
+    patch: Partial<CaseFilterState>;
+    clear: Partial<CaseFilterState>;
+  }> = [
+    {
+      label: "Em aberto",
+      value: kpis.casosAbertos,
       sub:
-        actionItems.overdue > 0
-          ? `${actionItems.overdue} ${plural(actionItems.overdue, "atrasado", "atrasados")}`
-          : "Nenhum atrasado",
-      tone: actionItems.overdue > 0 ? "danger" : "plain",
-    });
-  }
+        kpis.abertosEsteMes > 0
+          ? `+${kpis.abertosEsteMes} este mês`
+          : "Nenhum novo este mês",
+      tone: "accent",
+      patch: { status: "abertos" },
+      clear: { status: "todos" },
+    },
+    {
+      label: "Fases ativas",
+      value: kpis.fasesAtivas,
+      sub: `em ${kpis.casosComFaseAtiva} ${plural(kpis.casosComFaseAtiva, "caso", "casos")}`,
+      tone: "plain",
+      patch: { status: "in_review" },
+      clear: { status: "todos" },
+    },
+    {
+      label: "Etapas pendentes",
+      value: kpis.fasesPendentes,
+      sub: "Fases e narrativas em aberto",
+      tone: "warn",
+      patch: { status: "pending" },
+      clear: { status: "todos" },
+    },
+    {
+      label: "Fases atrasadas",
+      value: kpis.fasesAtrasadas,
+      sub: `em ${kpis.casosAtrasados} ${plural(kpis.casosAtrasados, "caso", "casos")}`,
+      tone: "danger",
+      patch: { overdue: true },
+      clear: { overdue: false },
+    },
+    {
+      label: "Encerrados no mês",
+      value: kpis.concluidosEsteMes,
+      sub: `${kpis.concluidos} no total`,
+      tone: "good",
+      patch: { status: "completed", period: "month" },
+      clear: { status: "todos", period: "all" },
+    },
+  ];
 
-  const showBreakdown =
-    outcomeBreakdown != null && outcomeBreakdown.totalWithOutcome > 0;
+  const actionCard = actionItems && {
+    label: "Itens de ação em atraso",
+    value: actionItems.overdue,
+    sub: `de ${actionItems.open} ${plural(actionItems.open, "aberto", "abertos")}`,
+    tone: "danger" as Tone,
+    valueClassName: actionItems.overdue > 0 ? "text-destructive" : undefined,
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      <section
-        aria-label="Indicadores dos casos"
-        className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6"
-      >
-        {cards.map((c, i) => (
-          <KpiCard key={c.label} {...c} index={i} />
-        ))}
-      </section>
+    <section
+      aria-label="Indicadores dos casos"
+      className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"
+    >
+      {cards.map((c, i) => (
+        <KpiFilterCard
+          key={c.label}
+          label={c.label}
+          value={c.value}
+          sub={c.sub}
+          tone={c.tone}
+          index={i}
+          active={isActive(c.patch)}
+          onToggle={toggle(c.patch, c.clear)}
+        />
+      ))}
 
-      {showBreakdown && <OutcomeBreakdownPanel breakdown={outcomeBreakdown} />}
-    </div>
+      {actionCard &&
+        (actionItemsHref ? (
+          <Link
+            href={actionItemsHref}
+            style={{ ["--rise-delay" as string]: "300ms" }}
+            className="animate-rise-in relative flex flex-col rounded-xl border border-border bg-card px-4 py-3.5 text-left text-foreground shadow-xs transition-[border-color,box-shadow] hover:border-primary/35 hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+          >
+            <KpiBody
+              {...actionCard}
+              labelSuffix={
+                <ExternalLink aria-hidden="true" className="size-3 shrink-0" />
+              }
+            />
+          </Link>
+        ) : (
+          <div
+            style={{ ["--rise-delay" as string]: "300ms" }}
+            className="animate-rise-in relative flex flex-col rounded-xl border border-border bg-card px-4 py-3.5 shadow-xs"
+          >
+            <KpiBody {...actionCard} />
+          </div>
+        ))}
+    </section>
   );
 }

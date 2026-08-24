@@ -397,10 +397,14 @@ test('AC-OutcomeFlow: conclude with adverse outcome → case has outcome_id → 
   await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
-  // The "Desfechos" dropdown filter is visible (at least one case has an outcome
+  // The "Desfecho" quick-filter chip is visible (at least one case has an outcome
   // — both the newly concluded case and the seeded Caso 0002 carry outcomes).
+  // ⚠ It is a POPOVER TRIGGER now, not a <select>: the board redesign replaced the
+  // native combobox with a drop-chip whose accessible name is "Desfecho" while unset
+  // and "Desfecho: <label>" once a value is chosen.
+  const quickFilters = page.getByRole('group', { name: 'Filtros rápidos' })
   await expect(
-    page.getByRole('combobox', { name: /Filtrar por desfecho/i }),
+    quickFilters.getByRole('button', { name: /^Desfecho/ }),
   ).toBeVisible({ timeout: 15_000 })
 
   // ── Dashboard "Desfechos" outcome breakdown panel (D14) ──
@@ -408,82 +412,109 @@ test('AC-OutcomeFlow: conclude with adverse outcome → case has outcome_id → 
   await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
-  // The breakdown section heading.
+  // The breakdown section. ⚠ It is a COLLAPSIBLE ONE-LINE STRIP since the board
+  // redesign, not a full panel: the header carries the mix bar + the adverse share,
+  // and the per-outcome rows only exist in the DOM once it is expanded.
   const breakdownSection = page.getByRole('region', { name: /Desfechos/i })
   await expect(breakdownSection).toBeVisible({ timeout: 15_000 })
 
-  // The % adverse figure: at least 1 case is adverse (the newly concluded one
-  // + the seeded Caso 0002 with Óbito evitável). The % must appear and be > 0.
-  // Use .first() to avoid strict-mode violation (the panel may render NN% in
-  // both the large display and a per-row percentage span).
-  const adversePercent = breakdownSection.getByText(/%$/).first()
-  await expect(adversePercent).toBeVisible({ timeout: 10_000 })
+  // The header states the adverse share WITH its denominator — "NN% adversos (a/n)".
+  // Asserted as one pattern rather than "some element ending in %", because the
+  // percentage and the denominator now live in a single span.
+  await expect(
+    breakdownSection.getByText(/\d+% adversos \(\d+\/\d+\)/),
+  ).toBeVisible({ timeout: 10_000 })
 
-  // The panel must show "adversos" text (the denominator callout).
-  await expect(breakdownSection.getByText(/adversos/i).first()).toBeVisible({ timeout: 5_000 })
+  // Expand it: the per-outcome rows (badge + "ADVERSO" marker) are behind the toggle.
+  const breakdownToggle = breakdownSection.getByRole('button', { name: /Desfechos/i })
+  await expect(breakdownToggle).toHaveAttribute('aria-expanded', 'false')
+  await breakdownToggle.click()
+  await expect(breakdownToggle).toHaveAttribute('aria-expanded', 'true', { timeout: 5_000 })
 
-  // At least one row should contain "Adverso" badge label (for adverse outcomes).
-  await expect(breakdownSection.getByText(/Adverso/i).first()).toBeVisible({ timeout: 5_000 })
+  // At least one expanded row carries the uppercase "ADVERSO" marker.
+  await expect(
+    breakdownSection.getByText('Adverso', { exact: true }).first(),
+  ).toBeVisible({ timeout: 5_000 })
 })
 
 // ---------------------------------------------------------------------------
-// AC-OutcomeFilter: the "Apenas adversos" toggle filters the cases list to show
-// only cases with adverse outcomes (D14). The "Desfecho" dropdown also filters.
+// AC-OutcomeFilter: the "Apenas desfechos adversos" switch filters the cases list
+// to show only cases with adverse outcomes (D14). The "Desfecho" chip also filters.
+//
+// ⚠ REWRITTEN for the board redesign. Both controls moved:
+//   - "Apenas adversos" is now the "Apenas desfechos adversos" SWITCH inside the
+//     "Filtros avançados" sheet, which edits a DRAFT and commits on "Aplicar filtros".
+//   - The outcome `<select>` is now a POPOVER drop-chip.
+// The assertions are the same propositions, read off the new affordances.
 // ---------------------------------------------------------------------------
 
-test('AC-OutcomeFilter: "Apenas adversos" toggle shows only adverse cases; outcome dropdown filters by specific outcome', async ({
+test('AC-OutcomeFilter: the adverse-outcome switch shows only adverse cases; the Desfecho chip filters by a specific outcome', async ({
   page,
 }) => {
   test.setTimeout(90_000)
 
   // The seeded Caso 0002 has an adverse outcome ("Óbito evitável"). The board
-  // loads cases including Caso 0002 (concluido). With "Apenas adversos" active,
+  // loads cases including Caso 0002 (concluido). With the adverse switch on,
   // only adverse-outcome cases appear.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/cases')
   await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
-  // "Apenas adversos" toggle button.
-  const adverseToggle = page.getByRole('button', { name: /Apenas adversos/i })
-  await expect(adverseToggle).toBeVisible({ timeout: 15_000 })
+  // The board's result count is a `role="status"` live region — the ONLY reliable
+  // handle for it now that KPI sub-lines ("em 13 casos") also read as "N casos".
+  const countText = page.getByRole('status').filter({ hasText: /casos?$/ })
+  await expect(countText).toBeVisible({ timeout: 15_000 })
+  const readCount = async () =>
+    parseInt((await countText.textContent() ?? '').match(/(\d+)/)?.[1] ?? '0', 10)
+  const unfilteredCount = await readCount()
+  expect(unfilteredCount).toBeGreaterThan(0)
 
-  // Get the unfiltered case count.
-  const countText = page.getByText(/\d+ casos?/i).first()
-  await expect(countText).toBeVisible({ timeout: 10_000 })
-  const unfilteredText = await countText.textContent() ?? ''
-  const unfilteredCount = parseInt(unfilteredText.match(/(\d+)/)?.[1] ?? '0', 10)
+  const quickFilters = page.getByRole('group', { name: 'Filtros rápidos' })
 
-  // Click "Apenas adversos" — shows only adverse-outcome cases.
-  await adverseToggle.click()
-  await expect(adverseToggle).toHaveAttribute('aria-pressed', 'true', { timeout: 5_000 })
+  // ── The adverse switch, inside "Filtros avançados" ──
+  await quickFilters.getByRole('button', { name: /Mais filtros/ }).click()
+  const panel = page.getByRole('dialog', { name: /Filtros avançados/ })
+  await expect(panel).toBeVisible({ timeout: 10_000 })
 
-  // After toggling, count must be ≤ unfiltered count.
-  const filteredCountText = await countText.textContent() ?? ''
-  const filteredCount = parseInt(filteredCountText.match(/(\d+)/)?.[1] ?? '0', 10)
+  const adverseSwitch = panel.getByRole('switch', { name: /Apenas desfechos adversos/i })
+  await expect(adverseSwitch).toBeVisible({ timeout: 5_000 })
+  await adverseSwitch.click()
+  await expect(adverseSwitch).toBeChecked({ timeout: 5_000 })
+  await panel.getByRole('button', { name: /Aplicar filtros/ }).click()
+  await expect(panel).toHaveCount(0, { timeout: 10_000 })
+
+  // After applying, count must be ≤ unfiltered count.
+  const filteredCount = await readCount()
   expect(filteredCount).toBeLessThanOrEqual(unfilteredCount)
 
   // The seeded Caso 0002 (adverse outcome) must still be visible.
   await expect(page.getByText(/Óbito UTI leito 3/i)).toBeVisible({ timeout: 5_000 })
 
-  // Toggle off — all cases return.
-  await adverseToggle.click()
-  await expect(adverseToggle).toHaveAttribute('aria-pressed', 'false', { timeout: 5_000 })
-  const restoredText = await countText.textContent() ?? ''
-  const restoredCount = parseInt(restoredText.match(/(\d+)/)?.[1] ?? '0', 10)
-  expect(restoredCount).toBe(unfilteredCount)
+  // Clearing every filter restores the full board. The summary bar's "Limpar tudo" is
+  // the affordance the redesign gives for that.
+  await page.getByRole('button', { name: /Limpar tudo/ }).click()
+  await expect
+    .poll(readCount, { timeout: 10_000 })
+    .toBe(unfilteredCount)
 
-  // ── Outcome dropdown filter ──
-  const outcomeCombo = page.getByRole('combobox', { name: /Filtrar por desfecho/i })
-  await expect(outcomeCombo).toBeVisible({ timeout: 5_000 })
+  // ── Outcome drop-chip filter ──
+  // Unset, the chip's accessible name is bare "Desfecho"; it becomes
+  // "Desfecho: <label>" once a value is chosen.
+  const outcomeChip = quickFilters.getByRole('button', { name: /^Desfecho/ })
+  await expect(outcomeChip).toBeVisible({ timeout: 5_000 })
+  await outcomeChip.click()
 
   // Filter by "Sem desfecho" — cases without an outcome assigned.
-  // selectOption label must be a string (not regex); Playwright rejects regex here.
-  await outcomeCombo.selectOption({ label: 'Sem desfecho' })
-  const semDesfechoText = await countText.textContent() ?? ''
-  const semDesfechoCount = parseInt(semDesfechoText.match(/(\d+)/)?.[1] ?? '0', 10)
-  // Caso 0002 has an outcome, so the sem-desfecho count must be less than total.
-  expect(semDesfechoCount).toBeLessThanOrEqual(unfilteredCount)
+  await page.getByRole('button', { name: 'Sem desfecho', exact: true }).click()
+  await expect(
+    quickFilters.getByRole('button', { name: 'Desfecho: Sem desfecho' }),
+  ).toBeVisible({ timeout: 5_000 })
+
+  // Caso 0002 has an outcome, so the sem-desfecho count must be less than total —
+  // and, unlike the old assertion, STRICTLY less: at least one case is excluded.
+  await expect.poll(readCount, { timeout: 10_000 }).toBeLessThan(unfilteredCount)
+  await expect(page.getByText(/Óbito UTI leito 3/i)).toHaveCount(0, { timeout: 5_000 })
 })
 
 // ---------------------------------------------------------------------------
@@ -738,24 +769,32 @@ test('AC-SeedDashboard: seeded Caso 0002 (adverse outcome) causes the Desfechos 
   const breakdownSection = page.getByRole('region', { name: /Desfechos/i })
   await expect(breakdownSection).toBeVisible({ timeout: 15_000 })
 
-  // The % adverse figure is shown and must be non-zero (Caso 0002 is adverse).
-  // The panel renders as "NN%" where NN is adversePercent.
-  const adversePct = breakdownSection.locator('p.text-\\[1\\.4rem\\]')
-    .or(breakdownSection.locator('p', { hasText: /\d+%/ })).first()
-  await expect(adversePct).toBeVisible({ timeout: 10_000 })
-  const pctText = await adversePct.textContent() ?? ''
-  // Must contain a digit (non-zero) and "%".
-  expect(pctText).toMatch(/[1-9]\d*%/)
+  // ⚠ REWRITTEN for the board redesign. The breakdown is a COLLAPSIBLE ONE-LINE
+  // STRIP now: the adverse share lives in the header and the per-outcome rows only
+  // exist in the DOM once it is expanded. The old locator keyed on the removed
+  // panel's `p.text-[1.4rem]` class — a class-based hook that could not survive a
+  // restyle — so it is replaced by the rendered SENTENCE.
+  //
+  // The header reads "NN% adversos (a/n)". NN must be non-zero (Caso 0002 is adverse)
+  // AND the denominator must be there: a share alone never says what it is a share of.
+  const adverseHeadline = breakdownSection.getByText(/\d+% adversos \(\d+\/\d+\)/)
+  await expect(adverseHeadline).toBeVisible({ timeout: 10_000 })
+  expect(await adverseHeadline.textContent() ?? '').toMatch(
+    /[1-9]\d*% adversos \(\d+\/\d+\)/,
+  )
 
-  // The "adversos (N/M)" denominator line must be visible.
-  // Use .first() to avoid strict-mode violation (the text may also match row spans).
-  await expect(breakdownSection.getByText(/adversos/i).first()).toBeVisible({ timeout: 5_000 })
+  // Expand the strip — the per-outcome rows are behind the toggle.
+  const breakdownToggle = breakdownSection.getByRole('button', { name: /Desfechos/i })
+  await breakdownToggle.click()
+  await expect(breakdownToggle).toHaveAttribute('aria-expanded', 'true', { timeout: 5_000 })
 
   // The seeded outcome label "Óbito evitável" must appear in the breakdown rows.
   await expect(breakdownSection.getByText(/Óbito evitável/i)).toBeVisible({ timeout: 5_000 })
 
-  // The "Adverso" badge must be visible for the adverse outcomes.
-  // Use .first() — the panel renders "Adverso" badge + "adversos (...)" text,
-  // both match /Adverso/i so strict mode fires without .first().
-  await expect(breakdownSection.getByText(/Adverso/i).first()).toBeVisible({ timeout: 5_000 })
+  // …carrying the uppercase "ADVERSO" row marker. `exact: true` is what separates it
+  // from the header's "adversos"; the old /Adverso/i + .first() could match either,
+  // so it would have passed with the marker missing entirely.
+  await expect(
+    breakdownSection.getByText('Adverso', { exact: true }).first(),
+  ).toBeVisible({ timeout: 5_000 })
 })

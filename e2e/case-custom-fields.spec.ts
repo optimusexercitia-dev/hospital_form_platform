@@ -356,7 +356,9 @@ test('AC-6: cases list shows the show_in_list custom-field column and folds valu
   await expect(seededRow.getByText(SEEDED_DECL_NUMBER)).toBeVisible()
 
   // Search by the custom-field VALUE — the seeded row survives the filter.
-  const search = page.getByLabel('Buscar caso ou rótulo')
+  // Renamed by the board redesign — the box now folds TAG NAMES into the haystack
+  // too, so its label names all three of case / rótulo / etiqueta.
+  const search = page.getByLabel('Buscar caso, rótulo ou etiqueta')
   await search.fill(SEEDED_DECL_NUMBER)
   await expect(page.getByRole('row').filter({ hasText: SEEDED_CASE_LABEL })).toBeVisible({
     timeout: 10_000,

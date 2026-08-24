@@ -13,6 +13,7 @@ import {
   activePhases,
   currentPhase,
   groupByFixedStatus,
+  hasOverdueWork,
   hasRecommendedPending,
   phaseProgress,
 } from "./case-derive";
@@ -117,6 +118,11 @@ function CaseCard({
         ) : cp ? (
           <span className="truncate">· Fase {cp.position}</span>
         ) : null}
+        {/* The board's "Fase atrasada" filter has a per-card twin, so a filtered
+            kanban explains itself: the marker names WHICH cards matched. */}
+        {hasOverdueWork(row) && (
+          <span className="font-semibold text-destructive">· Atrasada</span>
+        )}
       </div>
 
       <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-border/70 pt-2">

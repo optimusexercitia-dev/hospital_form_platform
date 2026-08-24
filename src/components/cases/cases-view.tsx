@@ -2,115 +2,84 @@
 
 import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Search } from "lucide-react";
+import { KanbanSquare, Search, Table as TableIcon } from "lucide-react";
 
-import type { CaseBoardRow } from "@/lib/queries/cases";
-import {
-  CASE_STATUSES,
-  CASE_STATUS_META,
-  type CaseStatus,
-} from "@/lib/cases/case-status";
+import type { CaseBoardRow, ResolvedCaseOutcome } from "@/lib/queries/cases";
+import type { CaseActionItemKpis } from "@/lib/queries/case-action-items";
 import { cn } from "@/lib/utils";
-import { NativeSelect } from "@/components/ui/native-select";
+import { plural } from "@/lib/text";
 import { CasesTable } from "./cases-table";
 import { CasesKanban } from "./cases-kanban";
-import { hasUnassignedWork } from "./case-derive";
-import { formatCaseNumber } from "./format";
-import { customFieldDisplay } from "./custom-field-input";
+import { CasesKpiStrip } from "./cases-kpi-strip";
+import { CasesOutcomeStrip } from "./cases-outcome-strip";
+import {
+  CaseActiveFilters,
+  CaseChipRow,
+  CaseSavedViewTabs,
+  SaveViewDialog,
+} from "./cases-filter-bar";
+import { CasesFilterPanel } from "./cases-filter-panel";
+import { computeCaseKpis, computeOutcomeBreakdown } from "./case-derive";
+import {
+  DEFAULT_CASE_FILTERS,
+  matchesCaseFilters,
+  type CaseFilterContext,
+  type CaseFilterState,
+} from "./case-filters";
+import { useCaseSavedViews } from "./use-case-saved-views";
 
 export type CasesViewMode = "table" | "kanban";
 
-
-/**
- * Status filter chips: "Todos", the five FIXED statuses (D13), then the
- * phase-derived "Sem responsável". A `status:<key>` chip keys off the fixed
- * computed status.
- */
-type ChipKey = `status:${CaseStatus}` | "todos" | "sem_resp";
-
-const CHIPS: Array<{ key: ChipKey; label: string }> = [
-  { key: "todos", label: "Todos" },
-  ...CASE_STATUSES.map((s) => ({
-    key: `status:${s}` as ChipKey,
-    label: CASE_STATUS_META[s].label,
-  })),
-  { key: "sem_resp", label: "Sem responsável" },
-];
-
-/** The outcome filter selection: any, a specific outcome id, or "no outcome". */
-type OutcomeFilter = "todos" | "sem" | string;
-
-function matchesChip(row: CaseBoardRow, chip: ChipKey): boolean {
-  if (chip === "todos") return true;
-  if (chip === "sem_resp") return hasUnassignedWork(row);
-  // status:<key>
-  return row.case.status === (chip.slice("status:".length) as CaseStatus);
-}
-
-function matchesOutcome(
-  row: CaseBoardRow,
-  outcome: OutcomeFilter,
-  adverseOnly: boolean,
-): boolean {
-  if (adverseOnly && !(row.outcome?.isAdverse ?? false)) return false;
-  if (outcome === "todos") return true;
-  if (outcome === "sem") return row.outcome === null;
-  return row.outcome?.id === outcome;
-}
-
-function matchesQuery(
-  row: CaseBoardRow,
-  q: string,
-  includeCustomFields: boolean,
-): boolean {
-  if (!q) return true;
-  const needle = q.trim().toLowerCase();
-  if (!needle) return true;
-  const idText = formatCaseNumber(row.case.caseNumber).toLowerCase();
-  const label = row.case.label?.toLowerCase() ?? "";
-  if (
-    idText.includes(needle) ||
-    String(row.case.caseNumber).includes(needle) ||
-    label.includes(needle)
-  ) {
-    return true;
-  }
-  // Fold the searchable custom-field values (ADR 0083) into the haystack — both the
-  // field label and its resolved display value (a select code → its option label).
-  if (includeCustomFields) {
-    return row.customFields.some((f) => {
-      const value = customFieldDisplay(f).toLowerCase();
-      return (
-        f.label.toLowerCase().includes(needle) || value.includes(needle)
-      );
-    });
-  }
-  return false;
+/** The minimal case-type projection the board needs: an id and a label. */
+export interface CaseTypeOption {
+  id: string;
+  displayName: string;
 }
 
 /**
- * Client orchestrator for the cases screen: the segmented Tabela/Kanban toggle
- * (synced to ?view via the History API so it's shareable + survives refresh,
- * without a server round-trip on every toggle), plus client-side filters
- * (status chips + outcome select + "apenas adversos" + search, D14) that drive
- * BOTH views over the already-loaded rows. No backend — the outcome options are
- * derived from the resolved outcomes already on the board rows.
+ * Client orchestrator for the cases screen.
+ *
+ * It owns ONE filter state and hands it to every control that reads or writes it — the
+ * KPI cards, the saved-view tabs, the quick chips, the advanced panel and the summary
+ * bar — plus the segmented Tabela/Kanban toggle (synced to `?view` through the History
+ * API so it is shareable and survives a refresh without a server round-trip).
+ *
+ * ⚠ The KPI strip lives HERE, not on the server page, because its cards are filter
+ * controls now (R1): a card must be able to read whether its own filter is applied and
+ * write it when clicked. The numbers it shows are still derived from the full,
+ * UNFILTERED row set — a KPI that moved as you filtered could never be clicked to
+ * "show me those".
+ *
+ * All filtering stays client-side over the already-loaded board rows (the board read is
+ * capped, not paginated), so no control here causes a refetch.
  */
 export function CasesView({
   rows,
   org,
   slug,
+  commissionId,
   initialView,
   staffCaseRoute = false,
   caseCustomFieldsEnabled = false,
+  actionItems,
+  actionItemsHref,
+  caseTypes = [],
 }: {
   rows: CaseBoardRow[];
   /** Org slug for hrefs. */
   org: string;
   slug: string;
+  /** Scopes the user's saved views to this commission (localStorage key). */
+  commissionId: string;
   initialView: CasesViewMode;
   /** Whether the `case_custom_fields` flag is on — gates the list column + search fold (ADR 0083). */
   caseCustomFieldsEnabled?: boolean;
+  /** Action-item counts (R4) for the sixth KPI card. */
+  actionItems?: CaseActionItemKpis;
+  /** Where that card links; omit when the action-items surface is unavailable. */
+  actionItemsHref?: string;
+  /** The org's active case types (ADR 0064 D4) — labels for the "Tipo de caso" filter. */
+  caseTypes?: CaseTypeOption[];
   /**
    * Point each row at the STAFF case route (`casos/[id]`) instead of the
    * coordinator `(detail)` route (`manage/cases/[id]`). Set for a non-coordinator
@@ -122,21 +91,41 @@ export function CasesView({
 }) {
   const pathname = usePathname();
   const [view, setView] = useState<CasesViewMode>(initialView);
-  const [chip, setChip] = useState<ChipKey>("todos");
-  const [outcome, setOutcome] = useState<OutcomeFilter>("todos");
-  const [adverseOnly, setAdverseOnly] = useState(false);
-  const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<CaseFilterState>(DEFAULT_CASE_FILTERS);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const { views, saveView, removeView } = useCaseSavedViews(commissionId);
 
-  // Distinct outcomes present on the loaded rows (for the outcome <select>),
-  // ordered by label. Only shows the filter at all when ≥1 case carries one.
+  // One clock for the whole component, so a relative period ("últimos 7 dias") cannot
+  // straddle midnight between the count line and the rows listed beneath it.
+  const filterContext: CaseFilterContext = useMemo(
+    () => ({ includeCustomFields: caseCustomFieldsEnabled, now: new Date() }),
+    [caseCustomFieldsEnabled],
+  );
+
+  // KPIs + the outcome breakdown are computed over the FULL row set (see the class
+  // comment) — they describe the commission, not the current filter.
+  const kpis = useMemo(() => computeCaseKpis(rows), [rows]);
+  const outcomeBreakdown = useMemo(() => computeOutcomeBreakdown(rows), [rows]);
+
+  /** Distinct outcomes present on the loaded rows, label-ordered — the Desfecho menu. */
   const outcomeOptions = useMemo(() => {
-    const byId = new Map<string, string>();
-    for (const r of rows) if (r.outcome) byId.set(r.outcome.id, r.outcome.label);
-    return [...byId.entries()]
-      .map(([id, label]) => ({ id, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+    const byId = new Map<string, ResolvedCaseOutcome>();
+    for (const r of rows) if (r.outcome) byId.set(r.outcome.id, r.outcome);
+    return [...byId.values()].sort((a, b) =>
+      a.label.localeCompare(b.label, "pt-BR"),
+    );
   }, [rows]);
-  const hasOutcomes = outcomeOptions.length > 0;
+
+  const caseTypeNameById = useMemo(
+    () => new Map(caseTypes.map((t) => [t.id, t.displayName])),
+    [caseTypes],
+  );
+  const tagNameById = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const r of rows) for (const t of r.tags) byId.set(t.id, t.name);
+    return byId;
+  }, [rows]);
 
   const changeView = (v: CasesViewMode) => {
     setView(v);
@@ -145,14 +134,8 @@ export function CasesView({
   };
 
   const filtered = useMemo(
-    () =>
-      rows.filter(
-        (r) =>
-          matchesChip(r, chip) &&
-          matchesOutcome(r, outcome, adverseOnly) &&
-          matchesQuery(r, query, caseCustomFieldsEnabled),
-      ),
-    [rows, chip, outcome, adverseOnly, query, caseCustomFieldsEnabled],
+    () => rows.filter((r) => matchesCaseFilters(r, filters, filterContext)),
+    [rows, filters, filterContext],
   );
 
   // Show the custom-fields column only when the flag is on AND at least one loaded
@@ -161,141 +144,139 @@ export function CasesView({
     caseCustomFieldsEnabled && rows.some((r) => r.customFields.length > 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        {/* Status filter chips. */}
+    <div className="flex flex-col gap-5">
+      <CasesKpiStrip
+        kpis={kpis}
+        actionItems={actionItems}
+        actionItemsHref={actionItemsHref}
+        filters={filters}
+        onFiltersChange={setFilters}
+      />
+
+      <CasesOutcomeStrip breakdown={outcomeBreakdown} />
+
+      <div className="flex flex-col gap-2.5">
         <div
-          role="group"
-          aria-label="Filtrar casos por status"
-          className="flex flex-wrap items-center gap-1.5"
+          style={{ ["--rise-delay" as string]: "160ms" }}
+          className="animate-rise-in flex flex-wrap items-center gap-2"
         >
-          {CHIPS.map((c) => {
-            const active = chip === c.key;
-            return (
-              <button
-                key={c.key}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setChip(c.key)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-                  active
-                    ? "bg-primary text-primary-foreground"
-                    : "border border-border bg-card text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
+          <CaseSavedViewTabs
+            filters={filters}
+            onFiltersChange={setFilters}
+            userViews={views}
+            onRemoveView={removeView}
+            onRequestSave={() => setSaveOpen(true)}
+          />
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Search. */}
-          <div className="relative">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar caso ou rótulo"
-              aria-label="Buscar caso ou rótulo"
-              className="h-9 w-full rounded-lg border border-input bg-card pr-3 pl-8 text-sm placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none lg:w-56"
-            />
-          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <input
+                type="search"
+                value={filters.q}
+                onChange={(e) => setFilters({ ...filters, q: e.target.value })}
+                placeholder="Buscar caso, rótulo ou etiqueta"
+                aria-label="Buscar caso, rótulo ou etiqueta"
+                className="h-[2.125rem] w-full rounded-[0.625rem] border border-border bg-card pr-3 pl-8 text-sm placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none sm:w-[13.75rem]"
+              />
+            </div>
 
-          {/* Segmented view toggle. */}
-          <div
-            role="group"
-            aria-label="Modo de visualização"
-            className="inline-flex shrink-0 items-center rounded-lg border border-border bg-muted/50 p-0.5"
-          >
-            {(["table", "kanban"] as const).map((v) => {
-              const active = view === v;
-              return (
-                <button
-                  key={v}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => changeView(v)}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-                    active
-                      ? "bg-card text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {v === "table" ? "Tabela" : "Kanban"}
-                </button>
-              );
-            })}
+            <div
+              role="group"
+              aria-label="Modo de visualização"
+              className="inline-flex shrink-0 items-center rounded-[0.625rem] border border-border bg-muted p-0.5"
+            >
+              {(["table", "kanban"] as const).map((v) => {
+                const active = view === v;
+                const Icon = v === "table" ? TableIcon : KanbanSquare;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => changeView(v)}
+                    className={cn(
+                      "inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+                      active
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Icon aria-hidden="true" className="size-3.5" />
+                    {v === "table" ? "Tabela" : "Kanban"}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
+
+        <CaseChipRow
+          filters={filters}
+          onFiltersChange={setFilters}
+          rows={rows}
+          outcomes={outcomeOptions}
+          onOpenPanel={() => setPanelOpen(true)}
+        />
+
+        <CaseActiveFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          outcomes={outcomeOptions}
+          typeNameById={caseTypeNameById}
+          tagNameById={tagNameById}
+        />
+
+        {/* A LIVE REGION, not decoration: every control on this screen changes the
+            result set without moving focus, so a screen-reader user would otherwise
+            get no feedback that a filter did anything. */}
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-xs text-muted-foreground tabular-nums"
+        >
+          {filtered.length === rows.length
+            ? `${rows.length} ${plural(rows.length, "caso", "casos")}`
+            : `${filtered.length} de ${rows.length} casos`}
+        </p>
+
+        {view === "kanban" ? (
+          <CasesKanban
+            rows={filtered}
+            org={org}
+            slug={slug}
+            staffCaseRoute={staffCaseRoute}
+            showCustomFields={showCustomFields}
+          />
+        ) : (
+          <CasesTable
+            rows={filtered}
+            org={org}
+            slug={slug}
+            staffCaseRoute={staffCaseRoute}
+            showCustomFields={showCustomFields}
+          />
+        )}
       </div>
 
-      {/* Outcome filters (only when at least one case carries an outcome). */}
-      {hasOutcomes && (
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="font-medium">Desfecho</span>
-            <NativeSelect
-              value={outcome}
-              onChange={(e) => setOutcome(e.target.value)}
-              aria-label="Filtrar por desfecho"
-              className="h-9 px-2.5"
-            >
-              <option value="todos">Todos os desfechos</option>
-              <option value="sem">Sem desfecho</option>
-              {outcomeOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
+      <CasesFilterPanel
+        open={panelOpen}
+        onOpenChange={setPanelOpen}
+        filters={filters}
+        onApply={setFilters}
+        rows={rows}
+        filterContext={filterContext}
+        caseTypeNameById={caseTypeNameById}
+      />
 
-          <button
-            type="button"
-            aria-pressed={adverseOnly}
-            onClick={() => setAdverseOnly((v) => !v)}
-            className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-              adverseOnly
-                ? "bg-destructive/10 text-destructive ring-1 ring-destructive/30"
-                : "border border-border bg-card text-muted-foreground hover:text-foreground",
-            )}
-          >
-            Apenas adversos
-          </button>
-        </div>
-      )}
-
-      <p className="text-xs text-muted-foreground tabular-nums">
-        {filtered.length === rows.length
-          ? `${rows.length} ${rows.length === 1 ? "caso" : "casos"}`
-          : `${filtered.length} de ${rows.length} casos`}
-      </p>
-
-      {view === "kanban" ? (
-        <CasesKanban
-          rows={filtered}
-          org={org}
-          slug={slug}
-          staffCaseRoute={staffCaseRoute}
-          showCustomFields={showCustomFields}
-        />
-      ) : (
-        <CasesTable
-          rows={filtered}
-          org={org}
-          slug={slug}
-          staffCaseRoute={staffCaseRoute}
-          showCustomFields={showCustomFields}
-        />
-      )}
+      <SaveViewDialog
+        open={saveOpen}
+        onOpenChange={setSaveOpen}
+        onSave={(name) => saveView(name, filters)}
+      />
     </div>
   );
 }
