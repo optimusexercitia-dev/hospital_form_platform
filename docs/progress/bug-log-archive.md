@@ -3066,3 +3066,57 @@ the disclosure-based edit UX ADR 0133 F2 introduced) is unaffected and correct o
 | Known divergence (documented in the module) | The `flaggedWhen` half reads the TOP-LEVEL map, so a `flaggedWhen` on a repeating-group CHILD contributes nothing to the preview. SQL's `app.case_phase_answer_map` folds instance scalars into the same flat key space, where N repetitions of one key collapse last-writer-wins — an order-dependent value no client mirror can reproduce. |
 | Proof | `result-aggregates.test.ts` (10 unit tests: score sum, null score, checkbox multi-select, per-instance scoring, flagged + flaggedWhen tally) and `phase-result-preview.test.tsx` (2 tests rendering the REAL `WizardClient` to review). The wiring test was **red-proved**: reverting the one prop back to `answerMap` fails it with "Não conforme" where "Conforme" is expected. Full unit suite 1580/1580. Live confirmation on the reporter's local DB: `app.case_phase_option_aggregates` returns 3 for the phase that recorded the scored result, 1 for the phase that recorded the default. |
 | Lesson | A "mirror of the SQL" comment on the EVALUATOR says nothing about the CALLER. Both sides walked the same rules; only one side prepared the same map. A local harness that mirrored `WizardClient`'s wiring would have passed the whole time — the regression test renders the real component for that reason. |
+
+---
+
+## Rotated 2026-08-24 — two E2E bugs from the ADR 0137 batch, both RESOLVED
+
+Moved verbatim out of `PROGRESS.md § Bug Log` at the §6 Record step; the resolution note under each
+was added on rotation. Batch record: [adr-0137-batch.md](adr-0137-batch.md).
+
+🟠 **BUG-E2E-CORRECTIONS-KBD-FOCUS — the phase "Corrigir…" menu does not focus its first item on
+keyboard-open.** Filed 2026-08-23 (tester); attribution IN FLIGHT (`frontend`). `case-corrections.spec.ts:659`
+(AC-3) — after Enter on the trigger, `document.activeElement` is `div[role=menu]`, no menuitem; all three
+items visible. Reproduced twice (isolated + fresh-reset batch), blocks AC-4 via `mode: 'serial'`.
+⛔ **Attribution is OPEN, in BOTH directions.** ADR 0137 is ruled out *by mechanism* — the D8 insert is a
+sibling of the menu, outside `DropdownMenuContent`. But "it passed before" is **not** available as evidence:
+commit `36a18c88` is titled *"stop the gate false-greening"*, so the historical green cannot be trusted.
+The open question is app-defect vs the spec's own Radix assumption being wrong — measure, do not pick.
+
+> **✅ RESOLVED 2026-08-24 — neither hypothesis: an upstream Radix mount-order race, dev-only.**
+> `FocusScope` focuses the `DropdownMenuContent` container on mount and expects `RovingFocusGroup`'s
+> `ENTRY_FOCUS` chain to re-target the first `menuitem`; under `next dev`'s runtime overhead that
+> hand-off loses the race. **Measured, not read:** the unmodified spec failed **7 of 9** runs against a
+> fresh `next dev` server and passed **3/3** against the production standalone build. Control: the
+> app-shell `UserMenu`, identical primitives, zero custom props, advances focus correctly — so this is
+> timing, not "Radix never does this".
+> ⭐ **The gate had NEVER run AC-3** — `AC-1` failed first in `mode: 'serial'`, so it sat in the
+> did-not-run set. Its only failures were on dev servers. Fixed defensively in
+> `src/components/ui/dropdown-menu.tsx` (`onOpenAutoFocus` + one `requestAnimationFrame`, gated on the
+> container still holding focus **and** matching `:focus-visible`, so every pointer-driven open is a
+> no-op); shipped as its own `fix(ui):` commit rather than inside the batch, because the file is the
+> shared primitive behind every dropdown in the app. AC-3 subsequently passed under the production
+> build in the green gate (2.6s), and AC-4 ran for the first time.
+> ⚠ **Lesson:** *a dev-only failure is not a gate failure, and the fix loop runs against the surface
+> that lies.* §6 step 2's fix loop uses `next dev`; only the declare-green pass uses `e2e:prod`.
+
+🟠 **BUG-E2E-CP-HELPER-COLLECTSPATIENT — a broken PostgREST filter was SILENTLY CAUGHT, permanently
+disabling a negative-path assertion.** Filed 2026-08-23 (tester); **fixed in `e2e/**` by the same**.
+`helpers/process-templates.ts`'s `getAnyPublishedTemplateVersion(…, {collectsPatient:false})` filtered on
+`process_template_versions.collects_patient`, dropped by ADR 0137 Migration B — every call returned
+PostgREST **42703**. `case-patient.spec.ts` AC-1b wrapped it in **`.catch(() => null)`**, so the error
+never surfaced: the test **silently skipped its "PHI block disappears for a non-collecting template"
+assertion** under a comment reading *"no non-collecting template in this seed"* — ⛔ **which is FALSE**
+(CCIH has one; `bulk-case-creation`'s "Descritores de Óbito"). The comment was never checked against the
+fixture set, only against the swallow's effect. ⚠ **Pre-dates this batch**: the same shape would have
+hidden **any** prior break of that query, so AC-1b's negative half has asserted nothing for as long as the
+swallow existed. ⭐ Same shape `lint:vacuous` exists for, **outside what it can see — the vacuity is inside
+a helper the gate does not trace into.** No product defect. Fix: filter `patient_mode`; swallow removed so
+a future regression fails loud.
+
+> **✅ RESOLVED 2026-08-23** by the tester in the same session it was filed. Verified green in the
+> 2026-08-24 gate (`case-patient.spec.ts` clean in batch context).
+> ⚠ **The durable part is the class, not the fix:** a swallow inside a *helper* is invisible to
+> `lint:vacuous`, which traces test bodies. The tell was a comment asserting a fixture fact
+> (*"no non-collecting template in this seed"*) that had been checked only against the swallow's
+> effect — see `FUP-E2E-CREATEFRESHCASE-SILENT-NULL` for the same shape still open elsewhere.

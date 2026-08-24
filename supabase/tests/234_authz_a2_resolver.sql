@@ -74,11 +74,11 @@ select is(app.feature_enabled('case_patient'), true,
 --   c1 = commission_default, PHI-bearing   — the ordinary case
 --   c2 = explicit_grants_only, PHI-bearing — the ethics case
 -- ===========================================================================
-insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, patient_enabled)
+insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, patient_mode)
 values ('00000000-0000-0000-0000-0000000a2001', (select comm_x from k), 94001, (select sa_x from k),
-        'commission_default', true),
+        'commission_default', 'optional'),
        ('00000000-0000-0000-0000-0000000a2002', (select comm_x from k), 94002, (select sa_x from k),
-        'explicit_grants_only', true);
+        'explicit_grants_only', 'optional');
 
 -- The PHI itself, through the real coordinator door.
 select test_helpers.claims_for((select sa_x from k), false);
@@ -90,7 +90,7 @@ reset role;
 -- st_x2's ONLY arm on c1 is a narrative assignment.
 insert into public.case_narrative_types (id, commission_id, label, position)
 values ('00000000-0000-0000-0000-0000000a2010', (select comm_x from k), 'Relato', 1);
-insert into public.case_narratives (id, case_id, narrative_type_id, type_label, display_position, assigned_to)
+insert into public.case_narratives (id, case_id, narrative_type_id, display_label, display_position, assigned_to)
 values ('00000000-0000-0000-0000-0000000a2011', '00000000-0000-0000-0000-0000000a2001',
         '00000000-0000-0000-0000-0000000a2010', 'Relato', 1, (select st_x2 from k));
 

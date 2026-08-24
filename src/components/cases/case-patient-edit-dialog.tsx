@@ -137,11 +137,18 @@ export function CasePatientEditDialog({
           {error && <FormBanner tone="error">{error}</FormBanner>}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
+            {/* ADR 0137 D9 — a CASE surface collects neither "Unidade / setor" nor
+                "Idade". Hiding, not clearing: the draft is prefilled from the audited
+                reveal, so a record that already carries either keeps it through a
+                save (`patientDraftToInput` still sends the untouched values and the
+                columns are unchanged). Safety-event + referral flows keep both. */}
             <PatientFields
               draft={draft}
               onChange={setDraft}
               disabled={busy}
               idPrefix="case-patient-edit"
+              hideUnit
+              hideAge
             />
             <div className="flex flex-wrap justify-end gap-2">
               <Button

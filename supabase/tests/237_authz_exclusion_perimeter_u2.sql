@@ -79,7 +79,7 @@ values ('00000000-0000-0000-0000-0000000c8001', (select st_x2 from k), 'coordina
 
 -- CONTENT — one entity per twin so twins don't collide.
 --   narratives
-insert into public.case_narratives (id, case_id, type_label, display_position, status, assigned_to, created_by)
+insert into public.case_narratives (id, case_id, display_label, display_position, status, assigned_to, created_by)
 values ('00000000-0000-0000-0000-0000000c8201','00000000-0000-0000-0000-0000000c8001','N assign', 1,'open', null, (select sa_x from k)),
        ('00000000-0000-0000-0000-0000000c8202','00000000-0000-0000-0000-0000000c8001','N conclude',2,'open',(select sa_x from k),(select sa_x from k)),
        ('00000000-0000-0000-0000-0000000c8203','00000000-0000-0000-0000-0000000c8001','N reopen', 3,'completed',null,(select sa_x from k)),

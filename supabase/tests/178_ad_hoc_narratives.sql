@@ -79,9 +79,9 @@ select is(
   true,
   'the appended narrative is flagged is_ad_hoc = true');
 select is(
-  (select type_label from public.case_narratives where id = (select nid from n1)),
+  (select display_label from public.case_narratives where id = (select nid from n1)),
   'Resumo Clínico',
-  'type_label snapshots the resolved type label when no title override is given');
+  'display_label snapshots the resolved type label when no title override is given');
 select is(
   (select assigned_to from public.case_narratives where id = (select nid from n1)),
   (select sa_x from k),
@@ -114,9 +114,9 @@ select is(
    ) s),
   'display_position lands strictly after all existing phases + narratives');
 select is(
-  (select type_label from public.case_narratives where id = (select nid from n2)),
+  (select display_label from public.case_narratives where id = (select nid from n2)),
   'Título override',
-  'a title override wins over the type label for the snapshot type_label');
+  'a title override wins over the type label for the snapshot display_label');
 
 -- =========================================================================
 -- 3) Inline new-type create-or-reuse: adding twice with the same label REUSES.
@@ -216,7 +216,7 @@ reset role;
 -- 8) AUDIT: no body_md/title/instructions value leaks into audit metadata.
 -- =========================================================================
 -- n2 carried title 'Título override' + instructions 'Instruções'. The title
--- override legitimately becomes the audited type_label snapshot; what Rule 11
+-- override legitimately becomes the audited display_label snapshot; what Rule 11
 -- forbids is copying the free-text title/instructions/body_md payloads. Assert no
 -- narrative audit row exposes those keys, nor the 'Instruções' free-text value.
 select ok(

@@ -64,11 +64,11 @@ select is(app.feature_enabled('case_referrals'), true,
 --   c2 = explicit_grants_only, PHI-bearing  ← the ethics shape: org arm defeating this
 --        is the sharp harm A4 exists to end.
 -- ===========================================================================
-insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, patient_enabled)
+insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, patient_mode)
 values ('00000000-0000-0000-0000-0000000a4001', (select comm_x from k), 95001, (select sa_x from k),
-        'commission_default', true),
+        'commission_default', 'optional'),
        ('00000000-0000-0000-0000-0000000a4002', (select comm_x from k), 95002, (select sa_x from k),
-        'explicit_grants_only', true);
+        'explicit_grants_only', 'optional');
 
 -- PHI through the real coordinator door.
 select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
@@ -114,7 +114,7 @@ values ('00000000-0000-0000-0000-0000000a4032', (select comm_x from k), 'Tipo Na
 
 -- A narrative on c1 ASSIGNED to st_x2 — his ONLY arm (K8 positive: assignment reach
 -- is untouched by A4; the removal bound the org arm, nobody else's).
-insert into public.case_narratives (id, case_id, narrative_type_id, type_label, display_position, assigned_to)
+insert into public.case_narratives (id, case_id, narrative_type_id, display_label, display_position, assigned_to)
 values ('00000000-0000-0000-0000-0000000a4033', '00000000-0000-0000-0000-0000000a4001',
         '00000000-0000-0000-0000-0000000a4032', 'Relato A4', 1, (select st_x2 from k));
 

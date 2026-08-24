@@ -1,6 +1,6 @@
 import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
 
 import type { CaseTemplateProvenance as TemplateProvenance } from "@/lib/queries/process-templates";
 import { CaseTemplateProvenance } from "@/components/cases/case-template-provenance";
@@ -647,6 +647,17 @@ export function CaseDetailView({
               {c.label && (
                 <p className="max-w-prose text-muted-foreground text-pretty">
                   {c.label}
+                </p>
+              )}
+              {/* ADR 0137 D9 — the department INPUT is gone from every case surface,
+                  but an existing value stays VISIBLE. The coordinator `(detail)`
+                  layout already rendered this line; the reading surface did not, so a
+                  member could no longer learn a case's setor anywhere. Read-only on
+                  both hosts now, same MapPin idiom. Absent when unspecified. */}
+              {c.departmentName && (
+                <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
+                  {c.departmentName}
                 </p>
               )}
               {/* No `templateVersionHref`: staff cannot open the template builder

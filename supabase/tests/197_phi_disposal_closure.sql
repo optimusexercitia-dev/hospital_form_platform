@@ -41,8 +41,8 @@ create temp table cs on commit drop as
 grant select on cs to authenticated;
 
 -- Case + patient + a phase with a STORED institutional result (result_id set).
-insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
-  values ((select case_x from cs), (select comm_x from k), 9701, 'ROTULO-PHI', (select sa_x from k), true);
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_mode)
+  values ((select case_x from cs), (select comm_x from k), 9701, 'ROTULO-PHI', (select sa_x from k), 'optional');
 -- Patient identifiers via the participant chain (re-keyed, ADR 0064 E0 / F1). Direct
 -- owner inserts model the PHI state without needing the RPC's exact arg shape.
 insert into public.case_participant_roles (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
@@ -78,7 +78,7 @@ insert into public.answers (response_id, item_id, question_key, value)
 select set_config('app.in_submit_rpc','off',true);
 
 -- Narrative + events (body + title) + interview (+subject) + document + a linked meeting.
-insert into public.case_narratives (id, case_id, type_label, display_position, status, body_md, created_by)
+insert into public.case_narratives (id, case_id, display_label, display_position, status, body_md, created_by)
   values ((select narr_x from cs), (select case_x from cs), 'Resumo', 2, 'open', 'CORPO-NARRATIVA-PHI', (select sa_x from k));
 insert into public.case_events (id, case_id, kind, title, body, created_by)
   values ((select event_x from cs), (select case_x from cs), 'note', 'TITULO-EVENTO-PHI', 'CORPO-EVENTO-PHI', (select sa_x from k));

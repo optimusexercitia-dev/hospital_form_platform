@@ -104,7 +104,7 @@ values
    (select ver_u from k), 'active', (select st_x from k), '{}');
 
 insert into public.case_narratives
-  (id, case_id, type_label, display_position, status, assigned_to)
+  (id, case_id, display_label, display_position, status, assigned_to)
 values
   ((select narr1 from cs), (select case_x from cs), 'Resumo', 2, 'open',
    (select st_x2 from k)),

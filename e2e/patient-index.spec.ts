@@ -615,7 +615,9 @@ test('AC-6: dispose_case_phi → xref retained (disposed_at set), trajectory fla
   request,
   page,
 }) => {
-  // Create a throwaway case in COMM_A (rede-a) with patient_enabled=true
+  // Create a throwaway case in COMM_A (rede-a) with patient_mode='optional'
+  // (ADR 0137 D1 — `cases.patient_enabled` boolean was DROPPED; the mode is
+  // set at INSERT and immutable afterward, HC0T3)
   const caseResp = await request.post(`${SUPABASE_URL}/rest/v1/cases`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
@@ -627,7 +629,7 @@ test('AC-6: dispose_case_phi → xref retained (disposed_at set), trajectory fla
       commission_id: COMM_A,
       label: 'AC-6 disposal test — patient_index spec (throwaway)',
       status: 'pending',
-      patient_enabled: true,
+      patient_mode: 'optional',
       has_patient: false,
       created_by: UID_CHEFE_A,
     },

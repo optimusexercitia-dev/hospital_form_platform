@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process'
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 
 import { cachedSignIn, accessToken } from './helpers/auth'
+import { saveMinimalReferralPatientForSend } from './helpers/referrals'
 
 /**
  * Referral detail redesign (RDR / ADR 0109) — Phase 4 E2E.
@@ -231,6 +232,9 @@ async function draftAndSend(
   ).toBeTruthy()
   const { id } = (await draftResp.json()) as { id: string }
 
+  // ADR 0137 D4 — send_referral now refuses without an MRN (HC0T4). Fixture
+  // setup, not the subject under test.
+  await saveMinimalReferralPatientForSend(req, bearer, id)
   const sendResp = await rpc(req, 'send_referral', bearer, { p_referral_id: id })
   expect(sendResp.ok(), `send_referral(${input.subject}) failed: ${await sendResp.text()}`).toBeTruthy()
   return id

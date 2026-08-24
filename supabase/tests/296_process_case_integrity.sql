@@ -203,7 +203,7 @@ grant select on nt_y to authenticated;
 reset role;
 select throws_ok(
   format($q$insert into public.case_narratives
-             (case_id, narrative_type_id, type_label, display_position)
+             (case_id, narrative_type_id, display_label, display_position)
            values (%L, %L, 'X', 80)$q$,
          (select cid from c1), (select ntid from nt_y)),
   'HC054',
@@ -417,7 +417,7 @@ select lives_ok(
 -- MUTATION: drop case_narratives_concluded_paired → red.
 select throws_ok(
   format($q$insert into public.case_narratives
-             (case_id, type_label, display_position, status, concluded_at)
+             (case_id, display_label, display_position, status, concluded_at)
            values (%L, 'X', 81, 'open', now())$q$,
          (select cid from c1)),
   '23514',

@@ -14,6 +14,7 @@ import type { CaseLayoutItem } from "@/lib/queries/case-narratives";
 import { CasePhaseArticle } from "@/components/cases/case-phase-article";
 import { CaseNarrativeCard } from "@/components/cases/case-narrative-card";
 import { canEditNarrative } from "@/components/cases/narrative-access";
+import { isAssignedTo } from "@/components/cases/assigned-work-access";
 import {
   findOpenRequestForNarrative,
   findOpenRequestForPhase,
@@ -101,7 +102,15 @@ export function CasePhaseList({
   /** Whether the viewer may ACTIVATE / REASSIGN phases (coordinator OR an
    * `assign_case_phases` Administrativo, ADR 0061). Default `false`. */
   canAssignPhases?: boolean;
-  /** The viewer's user id — for the per-narrative assignee check (Q14); `null` if unknown. */
+  /**
+   * The viewer's user id — for the per-narrative assignee check (Q14) and, since ADR
+   * 0137 D8, for the per-PHASE "Preencher" affordance. `null` if unknown.
+   *
+   * ⛔ Threaded DOWN to both card kinds rather than resolved into a boolean here: the
+   * D8 rule ("attributed work is actionable") lives in ONE place
+   * (`./assigned-work-access`), keyed on identity and on nothing else, so
+   * `narrowToReadingSurface` cannot reach it.
+   */
   viewerId: string | null;
   /**
    * The per-CASE half of the phase-result authority (phase-results feature; task
@@ -282,6 +291,10 @@ export function CasePhaseList({
                       correctionCaps ? requestsForPhase(corrections, item.phase.id) : []
                     }
                     memberNames={memberNames}
+                    // ADR 0137 D8 — the article tests `assignedTo === viewerId`
+                    // itself. Passing the raw identity (never a derived authority)
+                    // is what keeps the affordance out of `caps`' reach.
+                    viewerId={viewerId}
                   />
                 ) : (
                   (() => {
@@ -313,12 +326,12 @@ export function CasePhaseList({
                           corrections={narrativeCorrections}
                           memberNames={memberNames}
                           narrativeRevisions={revisions}
+                          viewerId={viewerId}
                         />
                       );
                     }
                     const editable = canEditNarrative(narrative, caps, isOpen, viewerId);
-                    const isAssignee =
-                      viewerId != null && narrative.assignedTo === viewerId;
+                    const isAssignee = isAssignedTo(narrative.assignedTo, viewerId);
                     // Conclude: assignee or coordinator, while `aberta` + case open.
                     const canConclude =
                       isOpen &&
@@ -347,6 +360,10 @@ export function CasePhaseList({
                         corrections={narrativeCorrections}
                         memberNames={memberNames}
                         narrativeRevisions={revisions}
+                        // ADR 0137 D8 — the card promotes "Editar" to a primary
+                        // action for the narrative's OWN assignee. Identity, never
+                        // a capability.
+                        viewerId={viewerId}
                       />
                     );
                   })()

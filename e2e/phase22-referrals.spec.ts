@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn, accessToken } from "./helpers/auth"
+import { saveMinimalReferralPatientForSend } from "./helpers/referrals"
 
 /**
  * Phase 22 — Inter-Committee Case Referrals (`case_referrals`)
@@ -365,6 +366,9 @@ test.beforeAll(async ({ request }) => {
     `beforeAll: update_referral_draft failed: ${await updateResp.text()}`,
   ).toBeTruthy()
 
+  // ADR 0137 D4 — send_referral now refuses without an MRN (HC0T4). Fixture
+  // setup, not the subject under test.
+  await saveMinimalReferralPatientForSend(request, chefeAToken, gateReferralId)
   const sendResp = await rpc(request, 'send_referral', chefeAToken, {
     p_referral_id: gateReferralId,
   })
@@ -438,6 +442,9 @@ test.beforeAll(async ({ request }) => {
   const draftData = (await draftResp.json()) as { id: string }
   r1ReferralId = draftData.id
 
+  // ADR 0137 D4 — send_referral now refuses without an MRN (HC0T4). Fixture
+  // setup, not the subject under test.
+  await saveMinimalReferralPatientForSend(request, chefeAToken, r1ReferralId)
   const sendResp = await rpc(request, 'send_referral', chefeAToken, { p_referral_id: r1ReferralId })
   expect(sendResp.ok(), `R1 beforeAll: send_referral failed: ${await sendResp.text()}`).toBeTruthy()
 
@@ -861,8 +868,11 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
   expect(refId, 'create_referral_draft returned 2xx but no referral id').toBeTruthy()
 
   // Send the draft (same coordinator that created it). The failure message carries the
-  // response BODY, not just the status: this RPC has four distinct 400s (HC071, HC070,
-  // check_violation, P0002) and a bare status cannot tell them apart.
+  // response BODY, not just the status: this RPC has five distinct 400s (HC071, HC070,
+  // HC0T4, check_violation, P0002) and a bare status cannot tell them apart.
+  // ADR 0137 D4 — send_referral now refuses without an MRN (HC0T4). Fixture
+  // setup, not the subject under test.
+  await saveMinimalReferralPatientForSend(request, chefeAToken, refId)
   const sendResp = await rpc(request, 'send_referral', chefeAToken, { p_referral_id: refId })
   if (!sendResp.ok()) {
     expect(
@@ -1613,6 +1623,9 @@ test('R1-5: close_case blocks while a referral is awaiting_information (HC076, p
   expect(draftResp.ok(), `R1-5: create_referral_draft failed: ${await draftResp.text()}`).toBeTruthy()
   const { id: gateRef5Id } = (await draftResp.json()) as { id: string }
 
+  // ADR 0137 D4 — send_referral now refuses without an MRN (HC0T4). Fixture
+  // setup, not the subject under test.
+  await saveMinimalReferralPatientForSend(request, chefeAToken, gateRef5Id)
   const sendR = await rpc(request, 'send_referral', chefeAToken, { p_referral_id: gateRef5Id })
   expect(sendR.ok(), `R1-5: send_referral failed: ${await sendR.text()}`).toBeTruthy()
   const receiveR = await rpc(request, 'receive_referral', chefeBToken, { p_referral_id: gateRef5Id })

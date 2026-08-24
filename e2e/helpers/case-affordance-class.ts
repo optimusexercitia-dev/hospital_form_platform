@@ -65,9 +65,25 @@ export const G1_MEMBERS: Member[] = [
   },
   {
     gate: 'G1',
-    name: 'Adicionar registro (Registros)',
-    structure: (p) => region(p, /^Registros$/),
-    control: (p) => region(p, /^Registros$/).getByRole('button', { name: 'Adicionar registro' }),
+    // ⚠ SUBSTITUTED 2026-08-23 (ADR 0137 D12) — the "Registros" card was
+    // redesigned as "Atividade": the region's accessible name is now driven by
+    // its own `h2` ("Atividade"), so `region(/^Registros$/)` no longer matches
+    // anything and the member would read as permanently absent rather than
+    // relocated. The G1 `canWriteContent` control is now the inline COMPOSER's
+    // submit button ("Registrar"/"Registrando…" while pending), not a
+    // dialog-opening "Adicionar registro" button — that button no longer
+    // exists on this card (the full form is now reached via "Mais detalhes").
+    // Same property (a write-grantee's ability to add a manual record), same
+    // gate, new name and control — not a different affordance.
+    // ⛔ Anchored exactly like every sibling (`^…$`). The count badge beside
+    // "Atividade" carries `aria-hidden="true"` (component fix, 2026-08-23) —
+    // an EARLIER version of this locator had to widen past that count while
+    // the badge was still exposed to the accessible name; that workaround is
+    // gone now that the component is fixed. Do not re-widen this without
+    // re-confirming the badge is still hidden.
+    name: 'Registrar (Atividade)',
+    structure: (p) => region(p, /^Atividade$/),
+    control: (p) => region(p, /^Atividade$/).getByRole('button', { name: 'Registrar' }),
   },
   {
     gate: 'G1',

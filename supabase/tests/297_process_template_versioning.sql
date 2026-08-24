@@ -26,7 +26,7 @@
 --   m8  revert create_case's insert list to `template_id`    -> RB5, RB6
 --   m9  make `reorder_template_phase` a no-op                -> RB2
 --   m10 make ONLY the 'up' direction a no-op                 -> RB4
---   m11 make set_template_collects_patient update nothing    -> FL2
+--   m11 make set_template_patient_mode update nothing        -> FL2
 --
 -- TENANT-ISOLATION probes (section TI). Each of the six policies the ADR-0079 diff
 -- sweep reported BLIND is opened AND closed — one direction certifies the deny arm,
@@ -327,12 +327,16 @@ select is(
 );
 
 -- ===========================================================================
--- FL — ARM-2 FLOOR: `set_template_collects_patient` must COMPLETE somewhere.
+-- FL — ARM-2 FLOOR: `set_template_patient_mode` must COMPLETE somewhere.
 --
 -- `20260907000600` re-keyed this door's parameter from `p_template_id` to
 -- `p_template_version_id`. The ARM-2 floor allowlist keys entries by EXACT
 -- `proname(identity args)`, so its line 111 —
 --     set_template_collects_patient(p_template_id uuid, p_collects boolean)
+-- ⚠ AND THE DOOR HAS SINCE BEEN REPLACED OUTRIGHT: ADR 0137 D1 retired it for
+-- `set_template_patient_mode(uuid, text, text[])`. That is the SAME failure mode
+-- one turn further on — a floor entry keyed by a name that no longer exists — so
+-- the floor is re-cleared below against the new door, not against a ghost.
 -- — stopped matching the door it names, and the door dropped off the floor with
 -- nothing raising. Fifth instance of this phase's governing failure: **anything
 -- keyed by a name you changed is a dependant, including things that live OUTSIDE
@@ -353,15 +357,15 @@ select is(
 -- ===========================================================================
 
 select lives_ok(
-  format($$ select public.set_template_collects_patient(%L, true) $$,
+  format($$ select public.set_template_patient_mode(%L, 'optional') $$,
          (select vid from rtpl)),
-  'FL1: set_template_collects_patient COMPLETES on a draft (clears the ARM-2 floor)'
+  'FL1: set_template_patient_mode COMPLETES on a draft (clears the ARM-2 floor)'
 );
 
 select is(
-  (select collects_patient from public.process_template_versions
+  (select patient_mode from public.process_template_versions
    where id = (select vid from rtpl)),
-  true,
+  'optional',
   'FL2: …and it actually SET the flag — not a DEFINER that lives while doing nothing'
 );
 reset role;

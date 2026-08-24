@@ -103,16 +103,28 @@ export function ReferralPatientFields({
 
   return (
     <fieldset className="flex flex-col gap-4 rounded-xl border border-dashed border-warning/40 bg-warning/8 p-4">
+      {/* ADR 0137 **D4** — the legend loses "(opcional)". A referral without a
+          patient key is undeliverable work: the receiving committee has nothing to
+          look up, and a communication that needs no patient is a message, not an
+          encaminhamento. */}
       <legend className="flex items-center gap-1.5 px-1 text-sm font-medium">
         <ShieldAlert aria-hidden="true" className="size-4 text-warning" />
-        Identificação do paciente{" "}
-        <span className="font-normal text-muted-foreground">(opcional)</span>
+        Identificação do paciente
       </legend>
       <p className="text-xs text-muted-foreground text-pretty">
         Dados sensíveis do paciente, compartilhados apenas quando necessários
         para a análise da comissão de destino. Informe somente o mínimo
-        necessário; deixe em branco se não se aplica. O acesso a estes dados é
-        registrado em trilha de auditoria.
+        necessário. O acesso a estes dados é registrado em trilha de auditoria.
+      </p>
+      {/* ⚠ Says WHEN the requirement bites, because it does not bite here. The
+          `save_referral_patient` floor is unchanged (`name` OR `mrn`), so a
+          partially-entered draft is still savable — the MRN is enforced at SEND, by
+          `send_referral`. Telling the coordinator that up front is what stops the
+          requirement reading as a bug when "Salvar rascunho" succeeds without it. */}
+      <p className="text-xs text-pretty text-muted-foreground">
+        O <span className="font-medium text-foreground">prontuário</span> é
+        obrigatório para enviar o encaminhamento. Você pode salvar um rascunho sem
+        ele.
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -129,7 +141,12 @@ export function ReferralPatientFields({
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">Prontuário</span>
+          <span className="font-medium">
+            Prontuário{" "}
+            <span className="font-normal text-muted-foreground">
+              (obrigatório para enviar)
+            </span>
+          </span>
           <input
             type="text"
             value={draft.mrn}
@@ -137,7 +154,17 @@ export function ReferralPatientFields({
             disabled={disabled}
             className={FIELD_CLASS}
             autoComplete="off"
+            // ⛔ NOT `required`: this fieldset lives inside a wizard whose "Salvar
+            // rascunho" path must succeed WITHOUT an MRN (D4 leaves the
+            // `save_referral_patient` floor at `name OR mrn`). A native `required`
+            // would block the draft save too, which is the opposite of the decision.
+            // `send_referral` is the authority and returns a pt-BR refusal.
+            aria-describedby={`${idPrefix}-mrn-hint`}
           />
+          <span id={`${idPrefix}-mrn-hint`} className="sr-only">
+            Obrigatório para enviar o encaminhamento; opcional para salvar um
+            rascunho.
+          </span>
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">

@@ -662,9 +662,13 @@ test('A2 — a case event with date + time renders "date · HH:mm"; a date-only 
   await page.waitForURL(`**/manage/cases/${CASE_OPEN}`, { timeout: 15_000 })
 
   // --- Event WITH a time ---
-  const eventsSection = page.getByRole('region', { name: /Registros/i })
+  // ADR 0137 D12 — "Registros" -> "Atividade"; the card's own "Adicionar
+  // registro" button is gone, replaced by the inline composer's "Mais
+  // detalhes" escape hatch, which opens the same full dialog (title
+  // unchanged: "Adicionar registro").
+  const eventsSection = page.getByRole('region', { name: /Atividade/i })
   await expect(eventsSection).toBeVisible({ timeout: 10_000 })
-  await eventsSection.getByRole('button', { name: /Adicionar registro/i }).click()
+  await eventsSection.getByRole('button', { name: /Mais detalhes/i }).click()
 
   const dialog = page.getByRole('dialog', { name: /Adicionar registro/i })
   await expect(dialog).toBeVisible({ timeout: 8_000 })
@@ -699,7 +703,7 @@ test('A2 — a case event with date + time renders "date · HH:mm"; a date-only 
   expect(withTimeRows[0]?.occurred_time).toMatch(/^14:30/)
 
   // --- Event with a date but NO time ---
-  await eventsSection.getByRole('button', { name: /Adicionar registro/i }).click()
+  await eventsSection.getByRole('button', { name: /Mais detalhes/i }).click()
   const dialog2 = page.getByRole('dialog', { name: /Adicionar registro/i })
   await expect(dialog2).toBeVisible({ timeout: 8_000 })
   const titledDateOnly = 'Registro só com data E2E'

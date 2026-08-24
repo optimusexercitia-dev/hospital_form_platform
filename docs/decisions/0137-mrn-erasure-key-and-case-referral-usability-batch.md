@@ -132,7 +132,19 @@ PHI configuration, the Novo-caso dialog and the referral wizard are exactly wher
   department renders it read-only. A commission that needs a unit models it as a **process custom
   field** (ADR 0083). Rationale for `Idade`: a date of birth and a free-typed age are two
   statements of the same fact that drift apart, and only one of them is verifiable.
-- **D10 — `case_narratives.type_label` → `display_label`, as a real column rename.** ⚠ **Measured
+- **D10 — `case_narratives.type_label` → `display_label`, as a real column rename.**
+  > ⛔ **AMENDED 2026-08-23 — the measured list below is WRONG in both directions. Re-measured:
+  > 9 bodies reference `type_label`, splitting 6 must-rename / 3 must-not.
+  > `public.update_case_narrative_body` does NOT reference the column at all and comes OFF the
+  > rename set; `public.add_referral_shared_item`'s only `type_label` is
+  > `v_narrative.type_label` — a `case_narratives` reference that MUST be renamed, so the "leave
+  > its referral arm alone" caution below would ship a runtime break if obeyed.
+  > Authoritative table + the two-sided keystone:
+  > [the plan, Migration C step 12](../plans/case-referral-usability-batch.md).
+  > ⭐ This is why the "measured cost" label is not a guarantee — the label is what stops the
+  > next reader re-deriving it.**
+
+  ⚠ **Measured
   cost, from the live catalog (`pg_get_functiondef`, not migration text — the CLAUDE.md binding
   exception):** seven function bodies mention both `case_narratives` and `type_label` —
   `app.trg_audit_case_narratives`, `public.add_ad_hoc_narrative`,
@@ -173,9 +185,15 @@ PHI configuration, the Novo-caso dialog and the referral wizard are exactly wher
 - **D14 — `Tipo de caso` becomes draft-only on the Process detail page.** ⭐ **The reversal is
   cheaper than its citation suggests, and the finding is worth keeping:** the comment at
   `template-builder-shell.tsx:340` attributes *"Not draft-gated: … a live untyped process must stay
-  fixable"* to **ADR 0064 D4** — but ADR 0064 contains **no numbered decisions at all**. The rule
-  lives only in that comment; there is no ratified decision to overturn. This ADR is where the
+  fixable"* to **ADR 0064 D4**. ⛔ **This ADR previously said 0064 "contains no numbered decisions at
+  all" — that was FALSE, and it is corrected here** (2026-08-23, QA re-measured): 0064 carries
+  `### Decision 1` … `### Decision 4`. **The conclusion survives, on a different premise.** 0064 D4
+  exists and defines the `case_types` table (`key`, `primary_subject_kind`, terminology overrides) —
+  but it says **nothing about when the picker is editable**, so the draft-gating rule really does live
+  only in that comment and there is still no ratified decision to overturn. This ADR is where the
   draft-only rule is now recorded, and the dangling citation is removed with it.
+  ⚠ Keep the DISTINCTION: `template-builder-shell.tsx:186` cites `ADR 0064 D4` for the case-types
+  table itself, which is **correct** and stays. Only the two draft-gating comments were wrong.
   ⚠ **The risk the comment named is real and is accepted:** a published Process with
   `case_type_id = null` becomes unfixable in place and must be re-drafted to be typed.
 

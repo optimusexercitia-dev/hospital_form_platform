@@ -16,7 +16,7 @@ import type { CaseDetail, CaseNarrative } from '@/lib/queries/cases'
  *   - `process_template_narratives` — the per-template SLOTS, each bound to a
  *     narrative type, interleaved with the phase-slots by `display_position`.
  *   - `case_narratives` — the PER-CASE snapshot + content (the analogue of
- *     `case_phases`): `type_label` snapshotted at creation, plus the authored
+ *     `case_phases`): `display_label` snapshotted at creation, plus the authored
  *     `body_md` (sanitized Markdown, Rule 7).
  *
  * The interleave (narratives between phases) is RPC-GUARANTEED, not enforced by a
@@ -45,7 +45,7 @@ export interface CaseNarrativeType {
   description: string | null
   /**
    * `true` when retired — hidden from the slot picker, but still renders existing
-   * template slots / cases (the snapshot keeps `type_label`).
+   * template slots / cases (the snapshot keeps `display_label`).
    */
   archived: boolean
   /** 1-based order within the commission's vocabulary (the settings manager). */
@@ -55,6 +55,13 @@ export interface CaseNarrativeType {
 /**
  * One template narrative-SLOT (`process_template_narratives`), carrying the
  * joined LIVE `typeLabel` for the builder (mirror {@link import('@/lib/queries/process-templates').ProcessTemplatePhase}).
+ *
+ * ⛔ THIS `typeLabel` IS NOT `CaseNarrative.displayLabel` AND WAS NOT RENAMED BY
+ * ADR 0137 D10. It is the LIVE `case_narrative_types.label` joined onto a
+ * template SLOT; D10 renamed `case_narratives.type_label` (the per-case
+ * snapshot) only. Three distinct things are spelled `type_label` in this
+ * codebase — this one, the case snapshot, and `case_referral.type_label` — and
+ * only the middle one moved.
  * `displayPosition` interleaves it with the phase-slots; `title` overrides the
  * type label per slot when set, `instructions` is optional authoring guidance.
  */

@@ -869,10 +869,10 @@ begin
   values (v_tpl, v_comm_a, v_chefe_a);
 
   insert into public.process_template_versions
-    (id, template_id, version_number, status, title, description, collects_patient,
+    (id, template_id, version_number, status, title, description, patient_mode,
      created_by, published_at)
   values (v_tpl_v, v_tpl, 1, 'published', 'Investigação de Óbito (M&M)',
-          'Processo de avaliação multifásica de óbito.', true,
+          'Processo de avaliação multifásica de óbito.', 'optional',
           v_chefe_a, now());
 
   insert into public.process_template_phases
@@ -890,8 +890,8 @@ begin
   -- phases below are inserted: once Phase 1 lands 'completed' (and none 'active'),
   -- the case computes to 'pending' (>=1 concluida, none ativa) — matching the
   -- mid-flight fixture the dashboard/board E2E expects.
-  insert into public.cases (id, commission_id, template_version_id, label, created_by, patient_enabled)
-  values (v_case, v_comm_a, v_tpl_v, 'Óbito UTI leito 7', v_chefe_a, true);
+  insert into public.cases (id, commission_id, template_version_id, label, created_by, patient_mode)
+  values (v_case, v_comm_a, v_tpl_v, 'Óbito UTI leito 7', v_chefe_a, 'optional');
 
   -- Seeded patient identifiers for Case 0001 (gates the CasePatientPanel in the dev UI).
   -- Re-keyed to the participant layer (ADR 0064 E0 / F1): a patient participant +
@@ -1085,12 +1085,12 @@ begin
   values (v_tpl_cf, v_comm_a, v_chefe_a);
 
   insert into public.process_template_versions
-    (id, template_id, version_number, status, title, description, collects_patient,
+    (id, template_id, version_number, status, title, description, patient_mode,
      created_by, published_at)
   values (v_tpl_cf_v, v_tpl_cf, 1, 'published',
           'Descritores de Óbito (Campos Personalizados)',
           'Processo com campos personalizados para descritores administrativos do óbito.',
-          false, v_chefe_a, now());
+          'none', v_chefe_a, now());
 
   insert into public.process_template_phases
     (template_version_id, position, form_id, title, default_due_days)
@@ -1109,8 +1109,8 @@ begin
   -- One case from that template (number minted by the trigger). Inserted directly
   -- (no JWT context in seed → no DEFINER RPC), like the other seed cases.
   insert into public.cases
-    (id, commission_id, template_version_id, label, created_by, patient_enabled)
-  values (v_case_cf, v_comm_a, v_tpl_cf_v, 'Óbito enfermaria leito 3', v_chefe_a, false);
+    (id, commission_id, template_version_id, label, created_by, patient_mode)
+  values (v_case_cf, v_comm_a, v_tpl_cf_v, 'Óbito enfermaria leito 3', v_chefe_a, 'none');
 
   -- Materialize the phase (pending). in_case_rpc satisfies the case-status guard
   -- during the recompute the phase insert triggers, exactly like the M&M fixture.
@@ -1199,12 +1199,12 @@ begin
   perform set_config('app.in_case_rpc', 'off', true);
 
   -- Snapshot the three narratives into Caso 0001 (still 'aberto', so the freeze
-  -- guard passes). type_label is the EFFECTIVE label (no slot title overrides
+  -- guard passes). display_label is the EFFECTIVE label (no slot title overrides
   -- here, so = the type label). One has a short de-identified body_md; the other
   -- two are left empty (Achados to exercise the coordinator placeholder; Conclusão
   -- — is_expected — to exercise the empty-expected close warning).
   insert into public.case_narratives
-    (case_id, narrative_type_id, type_label, display_position, title, instructions,
+    (case_id, narrative_type_id, display_label, display_position, title, instructions,
      is_expected, body_md, created_by, updated_by)
   values
     (v_case1, v_nt_res,  'Resumo Clínico', 2, null, null, false,
@@ -1793,7 +1793,7 @@ begin
 
   -- A narrative + a document on the SOURCE case, to freeze into the snapshot.
   insert into public.case_narratives
-    (id, case_id, type_label, display_position, title, body_md, created_by)
+    (id, case_id, display_label, display_position, title, body_md, created_by)
   values
     (v_narr, v_src_case, 'Resumo do caso', 0, 'Resumo clínico',
      E'## Resumo\n\nPaciente do leito 7 com evolução desfavorável; solicita-se '
@@ -1807,8 +1807,12 @@ begin
   -- seed is a contract with ~900 tests, so the specimen did not move.
 
   -- A case in B to link onto ENC-0001 (so B's analyst path is demonstrable).
-  insert into public.cases (id, commission_id, case_number, label, status, created_by)
-  values (v_tgt_case, v_comm_b, 9001, 'Análise de parecer — CCIH', 'pending', v_chefe_b);
+  -- ⚠ `patient_mode` is set HERE, at INSERT, not flipped later: ADR 0137 D1 makes
+  -- the mode a per-case SNAPSHOT and `app.guard_case_patient_mode_immutable`
+  -- refuses any post-INSERT change (HC0T3). The cross-module patient fixture
+  -- further down (the patient_key match this case anchors) needs it non-'none'.
+  insert into public.cases (id, commission_id, case_number, label, status, created_by, patient_mode)
+  values (v_tgt_case, v_comm_b, 9001, 'Análise de parecer — CCIH', 'pending', v_chefe_b, 'optional');
 
   -- A PHASE-CLEAN source case in A for ENC-0002, so the close-gate E2E hits HC076
   -- (a referral still in flight) WITHOUT the HC031 unsettled-phases gate masking it.
@@ -1885,19 +1889,19 @@ begin
   -- (commission A) and the referral above. This makes case 9001 patient-bearing and
   -- completes the genuine CROSS-COMMITTEE (A ↔ B) + CROSS-MODULE (event/referral/case)
   -- match on one patient_key. Direct insert bypasses set_case_patient's
-  -- patient_enabled gate (like the Caso 0001 case_patient seed at ~line 446); flip
-  -- has_patient + patient_enabled so the panel/flags read true. Encounter omitted
+  -- patient_mode gate (like the Caso 0001 case_patient seed at ~line 446); flip
+  -- has_patient so the panel/flags read true. Encounter omitted
   -- here so the encounter_key match stays event<->referral only (a second, narrower
   -- match basis for the QPS view to demonstrate).
   -- Re-keyed to the participant layer (ADR 0064 E0 / F1). Surrogate registry display_name
-  -- (Q4); raw identifiers only in patient_identifiers. patient_enabled flipped first so
-  -- the case is patient-bearing; the derivation trigger fires on the identifiers insert.
+  -- (Q4); raw identifiers only in patient_identifiers.
+  -- ⚠ ADR 0137 D1: `patient_mode = 'optional'` is set at the case's INSERT above and
+  -- is IMMUTABLE thereafter (HC0T3), so there is no flip to perform here — this
+  -- block used to open with `update ... set patient_enabled = true`.
   declare
     v_role_pat_b uuid := 'e0000000-0000-0000-0000-0000000000b1';
     v_part_pat_b uuid := 'e0000000-0000-0000-0000-0000000000b9';
   begin
-    update public.cases set patient_enabled = true where id = v_tgt_case;
-
     insert into public.case_participant_roles
       (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
     values (v_role_pat_b, app.org_of_commission(v_comm_b), 'affected_patient', 'Paciente afetado', array['patient'], true)
@@ -1952,7 +1956,7 @@ begin
 
   -- A narrative on that case to snapshot into the referral.
   insert into public.case_narratives
-    (id, case_id, type_label, display_position, title, body_md, created_by, assigned_to, status)
+    (id, case_id, display_label, display_position, title, body_md, created_by, assigned_to, status)
   values (v_narr_b, v_src_case, 'Resumo', 1, 'Resumo do incidente',
           E'Resumo do incidente de identificação para parecer da Farmácia B.',
           v_coord_src, v_coord_src, 'open');
@@ -2018,7 +2022,7 @@ begin
   values (v_src_case, v_comm_src, 9201, 'Análise de incidente — Central A', 'not_started', v_coord_src);
 
   insert into public.case_narratives
-    (id, case_id, type_label, display_position, title, body_md, created_by, assigned_to, status)
+    (id, case_id, display_label, display_position, title, body_md, created_by, assigned_to, status)
   values (v_narr_a2, v_src_case, 'Resumo', 1, 'Resumo do incidente',
           E'Resumo do incidente de infecção para parecer da Segurança do Paciente A2.',
           v_coord_src, v_coord_src, 'open');

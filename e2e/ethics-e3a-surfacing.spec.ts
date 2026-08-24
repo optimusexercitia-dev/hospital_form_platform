@@ -12,7 +12,8 @@ import { cachedSignIn } from "./helpers/auth"
  *      `case_readers`; a respondent/recused reader sees NEITHER).
  *   auto-derive: driving real E2 procedure RPCs (decide_admissibility,
  *      add_ethics_allegation, record_ethics_finding) produces the matching
- *      procedural `case_events` rows, surfaced on the real "Registros" timeline.
+ *      procedural `case_events` rows, surfaced on the real "Atividade" timeline
+ *      (ADR 0137 D12 renamed the card from "Registros" to "Atividade").
  *   6/7. The ethics dashboard (`/dashboard/ethics`) confidentiality keystone: a
  *      coordinator vs. an excluded viewer (respondent / recused / non-granted) in
  *      the SAME commission render DIFFERENT (strictly lower) numbers.
@@ -400,7 +401,8 @@ test('EVT-1 coordinator: sees all 3 auto-derived events with correct kind labels
   await page.goto(`${MANAGE_BASE}/${EVT_CASE_ID}`)
   await page.waitForURL(`${MANAGE_BASE}/${EVT_CASE_ID}`)
 
-  const registros = page.getByRole('region', { name: 'Registros' })
+  // ADR 0137 D12 — "Registros" -> "Atividade" (the region is named by its own h2).
+  const registros = page.getByRole('region', { name: 'Atividade' })
   await expect(registros).toBeVisible({ timeout: 10_000 })
 
   const admissRow = registros.locator('li').filter({ hasText: 'Admissibilidade decidida' })
@@ -424,7 +426,8 @@ test('EVT-4 ordinary granted reader (staff2): sees the 2 case_readers events, NO
   await page.goto(`${BASE}/casos/${EVT_CASE_ID}`)
   await page.waitForURL(`${BASE}/casos/${EVT_CASE_ID}`)
 
-  const registros = page.getByRole('region', { name: 'Registros' })
+  // ADR 0137 D12 — "Registros" -> "Atividade" (the region is named by its own h2).
+  const registros = page.getByRole('region', { name: 'Atividade' })
   await expect(registros).toBeVisible({ timeout: 10_000 })
   await expect(registros.locator('li').filter({ hasText: 'Admissibilidade decidida' })).toBeVisible()
   await expect(registros.locator('li').filter({ hasText: 'Nova alegação registrada' })).toBeVisible()
@@ -850,7 +853,8 @@ test('EVT-2 coordinator: the finding_recorded (coordinator_only) row shows the "
   await page.goto(`${MANAGE_BASE}/${EVT_CASE_ID}`)
   await page.waitForURL(`${MANAGE_BASE}/${EVT_CASE_ID}`)
 
-  const registros = page.getByRole('region', { name: 'Registros' })
+  // ADR 0137 D12 — "Registros" -> "Atividade" (the region is named by its own h2).
+  const registros = page.getByRole('region', { name: 'Atividade' })
   const findingRow = registros.locator('li').filter({ hasText: 'Parecer de alegação registrado' })
   await expect(findingRow).toBeVisible({ timeout: 10_000 })
   // Acceptance §4 (case_events touch-list, §2.5): a coordinator_only row carries a
@@ -867,8 +871,13 @@ test('EVT-3 coordinator manual write: a manually-created coordinator_only note A
   await page.goto(`${MANAGE_BASE}/${EVT_CASE_ID}`)
   await page.waitForURL(`${MANAGE_BASE}/${EVT_CASE_ID}`)
 
-  const registros = page.getByRole('region', { name: 'Registros' })
-  await registros.getByRole('button', { name: 'Adicionar registro' }).click()
+  // ADR 0137 D12 — "Registros" -> "Atividade" (the region is named by its own h2).
+  // The card's own "Adicionar registro" button is GONE — the full authoring
+  // dialog (still titled "Adicionar registro") is now reached via the inline
+  // composer's "Mais detalhes" escape hatch, which needs `canWrite` exactly as
+  // the old button did.
+  const registros = page.getByRole('region', { name: 'Atividade' })
+  await registros.getByRole('button', { name: 'Mais detalhes' }).click()
   const dialog = page.getByRole('dialog', { name: 'Adicionar registro' })
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('Visibilidade').selectOption({ label: 'Somente coordenação' })

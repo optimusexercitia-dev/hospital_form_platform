@@ -101,7 +101,8 @@ export default async function NarrativeEditorPage({
     detail.viewerCapabilities,
   );
 
-  const heading = narrative.title || narrative.typeLabel;
+  // ADR 0137 D10 — `case_narratives.type_label` -> `display_label`.
+  const heading = narrative.title || narrative.displayLabel;
   const backHref = commissionHref(org, commission, "casos", caseId);
   const manageHref = commissionHref(
     org,

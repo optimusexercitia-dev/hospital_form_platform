@@ -16,7 +16,11 @@ import {
   ReferralTypeChip,
   ResponseExpectedChip,
 } from "./referral-chips";
-import { loadCaseSafetyPrefill } from "@/lib/referrals/actions";
+import {
+  loadCaseSafetyPrefill,
+  loadReferralDraft,
+  revealReferralPatient,
+} from "@/lib/referrals/actions";
 import {
   ReferralSendWizard,
   type PickableDocument,
@@ -90,6 +94,13 @@ export function CaseOutboundReferralsCard({
   const [wizardOpen, setWizardOpen] = useState(
     Boolean(forwardParentReferralId) && canManageLifecycle,
   );
+  /**
+   * The `rascunho` the wizard is RESUMING (ADR 0137 D6), or `null` for a fresh
+   * referral. Cleared whenever the wizard closes, so the next "Encaminhar caso"
+   * cannot inherit the previous resume target — a stale id here would silently reopen
+   * someone else's draft instead of starting a new referral.
+   */
+  const [resumeReferralId, setResumeReferralId] = useState<string | null>(null);
 
   return (
     <section
@@ -110,7 +121,15 @@ export function CaseOutboundReferralsCard({
           </span>
         </div>
         {canManageLifecycle && (
-          <Button type="button" size="sm" onClick={() => setWizardOpen(true)}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              // Always a FRESH referral — clear any resume target first.
+              setResumeReferralId(null);
+              setWizardOpen(true);
+            }}
+          >
             <Send aria-hidden="true" />
             Encaminhar caso
           </Button>
@@ -139,12 +158,31 @@ export function CaseOutboundReferralsCard({
                   <ReferralStatusChip status={r.status} />
                   {r.responseExpected && inFlight && <ResponseExpectedChip />}
                 </div>
-                <Link
-                  href={commissionHref(org, slug, "encaminhamentos", r.id)}
-                  className="rounded text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-                >
-                  {r.subject}
-                </Link>
+                {/* ADR 0137 **D6** — a `rascunho` reopens the WIZARD; every other
+                    status keeps navigating to the detail page. A draft has no
+                    recipient and nothing frozen for anyone to read, so the detail
+                    page has almost nothing to show it; the wizard is where the work
+                    actually continues. Gated on `canManageLifecycle` too: resuming is
+                    an authoring act, and a non-coordinator never had the wizard. */}
+                {r.status === "draft" && canManageLifecycle ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResumeReferralId(r.id);
+                      setWizardOpen(true);
+                    }}
+                    className="rounded text-left text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                  >
+                    {r.subject}
+                  </button>
+                ) : (
+                  <Link
+                    href={commissionHref(org, slug, "encaminhamentos", r.id)}
+                    className="rounded text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                  >
+                    {r.subject}
+                  </Link>
+                )}
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <ReferralTypeChip
                     label={r.typeLabel}
@@ -155,6 +193,20 @@ export function CaseOutboundReferralsCard({
                     {" · "}
                     {formatDate(r.sentAt ?? r.createdAt)}
                   </span>
+                  {/* ⛔ REACHABILITY, not new UI. ADR 0137 D6 keeps the discard-draft
+                      affordance on the detail page — but once the subject above opens
+                      the wizard instead of linking, and given the hub deliberately does
+                      NOT list drafts, that page would have had NO in-app path left and
+                      discarding a draft would have become a URL-only act. This link is
+                      what keeps D6's sentence true. */}
+                  {r.status === "draft" && canManageLifecycle && (
+                    <Link
+                      href={commissionHref(org, slug, "encaminhamentos", r.id)}
+                      className="rounded underline underline-offset-2 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                    >
+                      Abrir detalhes
+                    </Link>
+                  )}
                 </div>
                 {r.hasReply && (
                   <p className="text-xs text-success">
@@ -169,8 +221,19 @@ export function CaseOutboundReferralsCard({
 
       {canManageLifecycle && (
         <ReferralSendWizard
+          // Keyed on the resume target so reopening a DIFFERENT draft remounts the
+          // wizard. Without this, its once-only resume guard (`resumeState`) would
+          // still read "loaded" from the previous draft and the second one would
+          // render the first one's content.
+          key={resumeReferralId ?? "new"}
           open={wizardOpen}
-          onOpenChange={setWizardOpen}
+          onOpenChange={(next) => {
+            setWizardOpen(next);
+            if (!next) setResumeReferralId(null);
+          }}
+          resumeReferralId={resumeReferralId}
+          onLoadDraft={loadReferralDraft}
+          onLoadPatient={revealReferralPatient}
           sourceCaseId={sourceCaseId}
           sourceCaseNumber={sourceCaseNumber}
           referralTypes={referralTypes}

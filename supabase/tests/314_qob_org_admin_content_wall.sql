@@ -775,7 +775,7 @@ select f11.cp_d, f11.case_d, f11.pt_d, f11.role_d from f11;
 -- An AD-HOC narrative + AD-HOC phase on case_d (the delete doors reject a
 -- template-derived one before authority is even relevant, so the twin needs a
 -- genuinely ad-hoc row to reach past the authority gate).
-insert into public.case_narratives (id, case_id, type_label, display_position, status, is_ad_hoc)
+insert into public.case_narratives (id, case_id, display_label, display_position, status, is_ad_hoc)
 select f11.narr_ah, f11.case_d, 'Avulsa M7', 1, 'open', true from f11;
 insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, status, is_ad_hoc)
 select f11.phase_ah, f11.case_d, 1, 'Fase avulsa M7', k.form_u, k.ver_u, 'pending', true from f11, k;
@@ -790,7 +790,7 @@ insert into public.case_tag_assignments (case_id, tag_id)
 select f11.case_d, f11.tag_d from f11;
 
 -- A narrative on case_e (for the MAJOR-1 zero-row narrative probe).
-insert into public.case_narratives (id, case_id, type_label, display_position, status)
+insert into public.case_narratives (id, case_id, display_label, display_position, status)
 select f11.narr_e, f11.case_e, 'Resumo M7 E', 1, 'open' from f11;
 -- case_e: recuse sa_x from it, so sa_x passes authority (staff arm) but RLS hides
 -- the row — the exact MAJOR-1 shape the four INVOKER doors returned SUCCESS on.
@@ -1013,11 +1013,12 @@ select is(
 -- why closing the gap is not a widening.
 --
 -- ⚠ TWO doors, not one. The follow-up named only `set_template_case_type`;
--- `set_template_collects_patient` is the identical shape on the identical table and was
+-- `set_template_patient_mode` (ADR 0137 D1; formerly `set_template_collects_patient`)
+-- is the identical shape on the identical table and was
 -- found by sweeping the plane BY PROPERTY. Both are pinned here so a future "finish the
 -- template wall" sweep cannot silently reverse the ruling on either.
 -- =============================================================================
--- Flag explicitly, never by inheritance: set_template_collects_patient calls
+-- Flag explicitly, never by inheritance: set_template_patient_mode calls
 -- assert_case_patient_enabled() FIRST, so a flag-off fixture would make 12.3 raise
 -- check_violation and report a PASS-shaped skip of the authority it means to test.
 update app.feature_flags set enabled = true where key = 'case_patient';
@@ -1037,7 +1038,7 @@ select lives_ok(
   $$ select public.set_template_case_type((select vid from tq2), null) $$,
   '12.1 ⭐ KEEP DOOR (Q2): the tenancy admin declares a template''s case type — it shapes the container. Pre-20260917000100 this answered 42501 while the same principal could write the column by direct DML');
 select lives_ok(
-  $$ select public.set_template_collects_patient((select vid from tq2), true) $$,
+  $$ select public.set_template_patient_mode((select vid from tq2), 'optional') $$,
   '12.2 ⭐ KEEP DOOR (Q2) — THE TWIN THE FOLLOW-UP DID NOT NAME: same shape, same table, same defect. Fixing only its sibling would have left the plane half-consistent');
 reset role;
 

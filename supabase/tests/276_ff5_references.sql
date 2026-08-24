@@ -591,12 +591,12 @@ select set_config('request.jwt.claims', null, true);
 -- none of. TWO cases, each with its own patient, so "case-scoped" is tested
 -- against a real neighbour rather than against emptiness.
 -- ---------------------------------------------------------------------------
-insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_mode)
 values
   ('ff5c0000-0000-0000-0000-000000000001', (select comm_x from k), 9401, 'Caso Alfa',
-   (select sa_x from k), true),
+   (select sa_x from k), 'optional'),
   ('ff5c0000-0000-0000-0000-000000000002', (select comm_x from k), 9402, 'Caso Beta',
-   (select sa_x from k), true);
+   (select sa_x from k), 'optional');
 
 insert into public.case_phases
   (id, case_id, position, form_id, form_version_id, status, assigned_to, blocks)
@@ -1280,9 +1280,9 @@ select is(
 --     display_name -> O1 AND O2 red. Grant update on participants to
 --     authenticated -> O4 red. Verified.
 -- ===========================================================================
-insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_mode)
   values ('ff5c0000-0000-0000-0000-000000000005', (select comm_x from k), 9403, 'Caso Surrogate',
-          (select sa_x from k), true);
+          (select sa_x from k), 'optional');
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;

@@ -129,14 +129,14 @@ async function getCaseNarratives(
   caseId: string,
 ): Promise<Array<{
   id: string
-  type_label: string
+  display_label: string
   display_position: number
   body_md: string | null
   is_expected: boolean
 }>> {
   const resp = await supabaseGet(
     page,
-    `case_narratives?case_id=eq.${caseId}&order=display_position.asc&select=id,type_label,display_position,body_md,is_expected`,
+    `case_narratives?case_id=eq.${caseId}&order=display_position.asc&select=id,display_label,display_position,body_md,is_expected`,
   )
   const data = await resp.json()
   return Array.isArray(data) ? data : []
@@ -397,9 +397,13 @@ test('AC-2: builder — add narrative slot with is_expected to a DRAFT template;
   await page.waitForURL(`**/process-templates/${draftTemplateId}`, { timeout: 15_000 })
 
   // The builder renders the empty draft template (no slots yet).
-  await expect(page.getByRole('heading', { name: /Construtor de processo/i }).or(
-    page.getByRole('heading', { name: /Processo/i })
-  )).toBeVisible({ timeout: 10_000 })
+  // ⚠ ADR 0137 D13 added a "Trabalho do processo" <h2> shell heading around the
+  // slot list, which ALSO matches a bare /Processo/i — a strict-mode violation
+  // where there used to be exactly one match. Scoped to LEVEL 1: the page's own
+  // title heading (the template's name, e.g. "Processo Narrativas …") is the
+  // only h1 on this route, so it uniquely identifies "the builder rendered"
+  // without colliding with the new h2.
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
   // Click "Nova narrativa" (or equivalent) to add a narrative slot.
   // The narrative slot is added via the "Adicionar narrativa" button in the shell.
@@ -571,7 +575,7 @@ test('AC-4: inline Markdown fill — edit, preview, save; rendered Markdown appe
 
   // DB truth: body_md was persisted.
   const narratives = await getCaseNarratives(page, SEEDED_CASE_ID)
-  const achados = narratives.find((n) => /achados/i.test(n.type_label))
+  const achados = narratives.find((n) => /achados/i.test(n.display_label))
   expect(achados).toBeDefined()
   expect(achados!.body_md?.trim()).toBeTruthy()
   expect(achados!.body_md).toContain('Achados do Comitê')
@@ -621,7 +625,7 @@ test('AC-6: conclude with expected-empty narrative — advisory warning listed; 
   // Fill "Resumo Clínico" narrative via API so AC-7 can assert the Bloqueado pill
   // on a filled card (empty narratives are hidden on the closed view).
   const narratives = await getCaseNarratives(page, freshCaseId!)
-  const resumoNarrative = narratives.find((n) => /resumo/i.test(n.type_label))
+  const resumoNarrative = narratives.find((n) => /resumo/i.test(n.display_label))
   if (resumoNarrative) {
     await page.request.post(`${SUPABASE_URL}/rest/v1/rpc/update_case_narrative_body`, {
       headers: {
@@ -917,7 +921,7 @@ test('AC-10: correcting an individually-concluded narrative preserves its conclu
   expect(freshCaseId).toBeTruthy()
 
   const narrativesBefore = await getCaseNarratives(page, freshCaseId!)
-  const resumoNarrative = narrativesBefore.find((n) => /resumo/i.test(n.type_label))
+  const resumoNarrative = narrativesBefore.find((n) => /resumo/i.test(n.display_label))
   expect(resumoNarrative).toBeDefined()
 
   await page.goto(`${BASE}/manage/cases/${freshCaseId}`)

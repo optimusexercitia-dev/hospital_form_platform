@@ -390,10 +390,13 @@ test('AC-Docs: uploads and downloads a document (core document model, DM2 Wave A
   await popup.close().catch(() => {})
 
   // ── Add a free-text event ──
-  const eventsPanel = page.getByRole('region', { name: /Registros/i })
+  // ADR 0137 D12 — "Registros" -> "Atividade"; the card's own "Adicionar
+  // registro" button is gone, replaced by the inline composer's "Mais
+  // detalhes" escape hatch, which opens the same full dialog.
+  const eventsPanel = page.getByRole('region', { name: /Atividade/i })
   await expect(eventsPanel).toBeVisible({ timeout: 10_000 })
 
-  await eventsPanel.getByRole('button', { name: /Adicionar registro/i }).click()
+  await eventsPanel.getByRole('button', { name: /Mais detalhes/i }).click()
   const eventDialog = page.getByRole('dialog').filter({ hasText: /registro/i })
   await expect(eventDialog).toBeVisible({ timeout: 10_000 })
 

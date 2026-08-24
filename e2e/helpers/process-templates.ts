@@ -6,13 +6,20 @@ import { expect } from '@playwright/test'
  * VERSION-grained data via raw PostgREST calls.
  *
  * `process_templates` is identity-only (`id`, `commission_id`, `created_by`,
- * `created_at`, `updated_at`) — `status`, `title`, `description`,
- * `collects_patient` and `case_type_id` all moved onto `process_template_versions`
- * (D1). Every spec that used to do `process_templates?status=eq.active` or
- * `...&title=eq.X` or `...&collects_patient=eq.X` in one PostgREST call now needs
- * TWO: candidate identity ids for the commission, then the matching version among
- * them. This file is the single place that shape lives, so the next schema move
- * touches one helper instead of every call site (12 of them, pre-TV).
+ * `created_at`, `updated_at`) — `status`, `title`, `description` and
+ * `case_type_id` all moved onto `process_template_versions` (D1). Every spec
+ * that used to do `process_templates?status=eq.active` or `...&title=eq.X` in
+ * one PostgREST call now needs TWO: candidate identity ids for the commission,
+ * then the matching version among them. This file is the single place that
+ * shape lives, so the next schema move touches one helper instead of every
+ * call site (12 of them, pre-TV).
+ *
+ * ⚠ **ADR 0137 D1 (2026-08-23) — `process_template_versions.collects_patient`
+ * (boolean) was DROPPED**, not merely renamed; re-verified against the live
+ * catalog, never against migration text. `patient_mode text` (`'none' |
+ * 'optional' | 'required'`) replaces it. `opts.collectsPatient` below is KEPT
+ * as this helper's boolean-shaped public surface (callers pinned it), but it
+ * now filters on `patient_mode` internally — see {@link publishedVersionLookup}.
  *
  * ⚠ Always resolve the PUBLISHED version explicitly. Once a template has an open
  * draft it carries TWO versions, and grabbing "the newest" or "the only match"
@@ -33,7 +40,8 @@ export interface ResolvedTemplateVersion {
    * the create-case dialog's `templateId` select value take (both stay identity-grained;
    * `create_case_from_template` resolves the published version itself). */
   templateId: string
-  /** The VERSION id — what version-grained RPCs (`set_template_collects_patient`,
+  /** The VERSION id — what version-grained RPCs (`set_template_patient_mode` —
+   * ADR 0137 D1 renamed/re-signatured `set_template_collects_patient`,
    * `set_template_case_type`, `add_template_phase`, …) and
    * `cases.template_version_id` / provenance reads take. */
   versionId: string
@@ -49,8 +57,8 @@ export interface ResolvedTemplateVersion {
  * `publish_process_template`'s `p_template_id`) and `versionId` (for every
  * version-grained authoring RPC's `p_template_version_id`: `add_template_phase`,
  * `add_template_narrative`, `set_process_outcomes`, `set_template_case_type`,
- * `set_template_collects_patient`, `set_template_phase_blocks`, custom-field
- * setters — ADR 0096 Design).
+ * `set_template_patient_mode` (ADR 0137 D1 — was `set_template_collects_patient`),
+ * `set_template_phase_blocks`, custom-field setters — ADR 0096 Design).
  */
 export async function createDraftTemplateDirect(
   request: APIRequestContext,
@@ -128,8 +136,19 @@ async function publishedVersionLookup(
   const ids = await candidateTemplateIds(request, auth, commissionId)
   expect(ids.length, `no process_templates rows for commission ${commissionId}`).toBeGreaterThan(0)
 
+  // ADR 0137 D1 — `process_template_versions.collects_patient` was DROPPED
+  // (re-verified against the live catalog, never against migration text — the
+  // CLAUDE.md binding exception). `patient_mode` replaces it: the D1 backfill
+  // mapped `true -> 'optional'`, `false -> 'none'`, so `collectsPatient: true`
+  // is `patient_mode <> 'none'` and `collectsPatient: false` is `patient_mode =
+  // 'none'`. `'required'` also collects, so the positive arm must NOT narrow to
+  // `eq.optional` — a required-mode template would then read as non-collecting.
   const collectsFilter =
-    opts.collectsPatient != null ? `&collects_patient=eq.${opts.collectsPatient}` : ''
+    opts.collectsPatient == null
+      ? ''
+      : opts.collectsPatient
+        ? `&patient_mode=neq.none`
+        : `&patient_mode=eq.none`
   const verResp = await request.get(
     `${auth.baseUrl}/rest/v1/process_template_versions?status=eq.published&template_id=in.(${ids.join(',')})${collectsFilter}&select=id,template_id,version_number,title`,
     { headers },

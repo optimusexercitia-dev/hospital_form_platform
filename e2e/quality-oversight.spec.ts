@@ -33,7 +33,8 @@ import { createDocumentFixture, openDocumentVersion } from './helpers/document-m
  *   E1)") never appears — D6 lockdown beats the oversight-visible arm.
  *
  *   Case 1 (id d0000000-0000-0000-0000-0000000000c1, "Óbito UTI leito 7",
- *   status `pending`, `patient_enabled = true`) has 2 phases ("Fase 1 —
+ *   status `pending`, `patient_mode = 'optional'` — ADR 0137 D1 replaced the
+ *   `patient_enabled` boolean) has 2 phases ("Fase 1 —
  *   Coleta inicial" completed, "Fase 2 — Revisão do comitê" pending), and 2
  *   narratives with body text containing "leito 7".
  *   ✅ DISCHARGED — FUP-DM1-E2E (PROGRESS.md, `ebd398a`): Case 1 is reseeded
@@ -97,7 +98,7 @@ const CCIH = `/o/${ORG}/c/ccih`
 const FARMACIA = `/o/${ORG}/c/farmacia`
 const COMISSOES = `/o/${ORG}/manage/comissoes`
 
-const CASE_1 = 'd0000000-0000-0000-0000-0000000000c1' // "Óbito UTI leito 7" — open, patient_enabled
+const CASE_1 = 'd0000000-0000-0000-0000-0000000000c1' // "Óbito UTI leito 7" — open, patient_mode='optional'
 const CASE_2_COMPLETED = 'd0000000-0000-0000-0000-0000000000c2' // "Óbito UTI leito 3" — completed
 const LOCKED_CASE = 'ca000000-0000-0000-0000-0000000000e1' // case_number 6, explicit_grants_only
 const FARMACIA_CASE = 'dba00000-0000-0000-0000-0000000000b1' // case_number 1

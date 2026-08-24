@@ -54,8 +54,8 @@ grant select on k to authenticated;
 create temp table cs on commit drop as
   select gen_random_uuid() as case_x, gen_random_uuid() as phase_x;
 grant select on cs to authenticated;
-insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
-  values ((select case_x from cs), (select comm_x from k), 9401, 'Caso Part', (select sa_x from k), true);
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_mode)
+  values ((select case_x from cs), (select comm_x from k), 9401, 'Caso Part', (select sa_x from k), 'optional');
 insert into public.case_phases
   (id, case_id, position, form_id, form_version_id, status, assigned_to, blocks)
 values

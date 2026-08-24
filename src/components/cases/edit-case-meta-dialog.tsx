@@ -4,7 +4,6 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 
-import type { Department } from "@/lib/hospitals/departments";
 import { updateCaseMeta } from "@/lib/cases/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,14 +17,23 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { FormBanner } from "@/components/auth/form-banner";
-import { CaseDepartmentField } from "@/components/cases/case-department-field";
 
 /**
- * Edit a case's META — its non-identifying `label` + `department` (ADR 0061). The
- * single audited edit surface for coordinators AND `create_cases` Administrativos:
- * it routes through the `updateCaseMeta` server action → the `update_case_meta`
- * DEFINER RPC, which is the authority (terminal cases refused; department shape /
- * hospital ownership re-validated; only label/department touched).
+ * Edit a case's META — its non-identifying `label` (ADR 0061). The single audited
+ * edit surface for coordinators AND `create_cases` Administrativos: it routes through
+ * the `updateCaseMeta` server action → the `update_case_meta` DEFINER RPC, which is
+ * the authority (terminal cases refused; department shape / hospital ownership
+ * re-validated; only label/department touched).
+ *
+ * ⛔ **The "Unidade / setor" INPUT is gone (ADR 0137 D9) — the DEPARTMENT is not.**
+ * The RPC still takes both arguments and does a FULL replace, so this form carries
+ * the case's current department through as hidden mirrors; editing a label must never
+ * clear a department nobody was shown. The stored value keeps rendering read-only in
+ * the case header.
+ *
+ * ⚠ With Novo-caso's copy of the field gone too, `CaseDepartmentField` now has NO
+ * non-test consumer (measured — the hospital-admin surface uses `DepartmentsManager`,
+ * a different component). It is retained by decision, not by use.
  *
  * Rendered ONLY on an OPEN case (the parent gates on `isOpen`, mirroring the
  * lifecycle actions) — a terminal case is frozen (HC025), so the affordance is
@@ -38,14 +46,16 @@ export function EditCaseMetaDialog({
   currentLabel,
   currentDepartmentId,
   currentDepartmentOther,
-  departments,
 }: {
   caseId: string;
   currentLabel: string | null;
+  /**
+   * The case's CURRENT department, carried through unchanged (never edited here since
+   * ADR 0137 D9). At most one of the two is non-null — the DB enforces the XOR — so
+   * the hidden mirrors below can never trip the action's "both set" guard.
+   */
   currentDepartmentId: string | null;
   currentDepartmentOther: string | null;
-  /** The case's hospital ACTIVE departments; `[]` still allows the "Outros" value. */
-  departments: Department[];
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -92,8 +102,8 @@ export function EditCaseMetaDialog({
         <DialogHeader>
           <DialogTitle>Editar caso</DialogTitle>
           <DialogDescription>
-            Atualize a descrição e a unidade / setor deste caso. Estes campos não
-            devem conter dados de paciente.
+            Atualize a descrição deste caso. Este campo não deve conter dados de
+            paciente.
           </DialogDescription>
         </DialogHeader>
 
@@ -127,12 +137,37 @@ export function EditCaseMetaDialog({
             </span>
           </label>
 
-          <CaseDepartmentField
-            departments={departments}
-            disabled={isPending}
-            idPrefix="edit-case-department"
-            initialDepartmentId={currentDepartmentId}
-            initialDepartmentOther={currentDepartmentOther}
+          {/* ⛔ DO NOT DELETE THESE TWO HIDDEN INPUTS AS CRUFT. They are the whole
+              reason removing the "Unidade / setor" field (ADR 0137 D9) is safe here.
+
+              `update_case_meta` does a FULL REPLACE of label + department: an absent
+              `departmentId`/`departmentOther` is read as "clear it", not as "leave it"
+              (`departmentFromForm` maps '' -> null, and the RPC's
+              `nullif(btrim(...),'')` clears). So deleting the input WITHOUT these
+              mirrors would wipe a stored department on every unrelated label edit —
+              silent data loss, no error, no failing test.
+
+              ⭐ The mirrors PRESERVE THE PRE-EXISTING SEMANTICS EXACTLY: the field was
+              already a control pre-filled with the current value and re-submitted on
+              every save. A hidden mirror is that, minus editability. Nothing about
+              what reaches the RPC changes — which is what keeps this inside D9's
+              ⛔ "no backend change" constraint.
+
+              ⚠ The hazard is UNIQUE to this dialog (measured): the three CREATE paths
+              — `createCaseFromTemplate`, `createCase` and the bulk wizard — mint a new
+              row, so there is no prior value an omission could clear.
+
+              Exactly one of the two is ever non-empty (DB-enforced XOR), so the pair
+              can never trip the action's "both set" guard. */}
+          <input
+            type="hidden"
+            name="departmentId"
+            value={currentDepartmentId ?? ""}
+          />
+          <input
+            type="hidden"
+            name="departmentOther"
+            value={currentDepartmentOther ?? ""}
           />
 
           <DialogFooter>

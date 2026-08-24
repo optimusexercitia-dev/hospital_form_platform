@@ -75,9 +75,18 @@ function ensureSentDtReferral(subject: string): void {
     // or every hat-gated door (send_referral's coordinator check) denies.
     `'active_role','staff_admin')::text, false); ` +
     `set role authenticated;`
+  // ADR 0137 D4 — send_referral now refuses without an MRN (HC0T4). This file
+  // uses raw SQL (not the RPC-over-REST pattern the other referral specs
+  // share, so it cannot import `helpers/referrals.ts`'s
+  // `saveMinimalReferralPatientForSend` directly) — restructured as a CTE
+  // chain that mirrors the SAME floor: save_referral_patient with an MRN
+  // ONLY, nothing more, before send_referral. `new_draft` stays empty (and
+  // so do the two CTEs that depend on it) when the idempotent guard's `where
+  // not exists` fires, preserving the original re-run-safe behavior.
   sql(
     `${claims} ` +
-      `select public.send_referral((public.create_referral_draft(` +
+      `with new_draft as (` +
+      `select (public.create_referral_draft(` +
       `p_source_case_id => '${CCIH_CASE}', p_target_commission_id => null, ` +
       `p_target_hospital_id => '${HOSPITAL_CENTRAL_A}', ` +
       `p_referral_type_id => (select id from public.referral_types where is_active limit 1), ` +
@@ -85,8 +94,17 @@ function ensureSentDtReferral(subject: string): void {
       // menos uma narrativa ou documento") — a product rule, so the fixture satisfies
       // it rather than working around it.
       `p_description_md => 'Solicitamos parecer tecnico da direcao (fixture E2E).', ` +
-      `p_subject => '${subject}')).id) ` +
-      `where not exists (select 1 from public.case_referral where subject = '${subject}');`,
+      `p_subject => '${subject}')).id as id ` +
+      `where not exists (select 1 from public.case_referral where subject = '${subject}')` +
+      `), phi_saved as (` +
+      `select public.save_referral_patient(` +
+      `p_referral_id => new_draft.id, p_name => null, ` +
+      `p_mrn => 'E2E-FIXTURE-' || left(new_draft.id::text, 8), ` +
+      `p_date_of_birth => null, p_age_years => null, p_sex => 'unknown', ` +
+      `p_encounter_ref => null, p_unit => null, p_attending => null` +
+      `) as ok from new_draft` +
+      `) ` +
+      `select public.send_referral(new_draft.id) from new_draft, phi_saved;`,
   )
 }
 
@@ -184,7 +202,15 @@ test('DT-1: a coordinator addresses the direção técnica from the send wizard'
 
   await dialog.getByLabel('Tipo de encaminhamento').selectOption({ index: 1 })
   await dialog.getByLabel('Assunto').fill(SUBJECT_WIZARD)
+  // ⚠ ADR 0137 D5 — creation is DEFERRED: "Continuar" only advances the
+  // wizard's local step, it no longer mints the draft (that used to happen
+  // synchronously on this exact click, which is what this test originally
+  // relied on). An explicit "Salvar rascunho" is what actually persists the
+  // header fields under test here; nothing needs sending or picking for
+  // that, so save right after step 1 rather than driving further steps.
   await dialog.getByRole('button', { name: 'Continuar' }).click()
+  await dialog.getByRole('button', { name: 'Salvar rascunho' }).click()
+  await expect(dialog).toBeHidden({ timeout: 15_000 })
 
   // DB truth: the sum type resolved to the technical-direction arm, anchored on the
   // SOURCE commission's own hospital (the RPC refuses any other with HC071).

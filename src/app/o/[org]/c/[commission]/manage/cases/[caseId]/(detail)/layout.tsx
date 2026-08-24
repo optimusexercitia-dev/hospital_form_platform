@@ -20,8 +20,6 @@ import {
 import { CaseLifecycleActions } from "@/components/cases/case-lifecycle-actions";
 import { EditCaseMetaDialog } from "@/components/cases/edit-case-meta-dialog";
 import { CaseAccessButton } from "@/components/cases/case-access-button";
-import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
-import type { Department } from "@/lib/hospitals/departments";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 import { CaseTabs } from "@/components/cases/case-tabs";
 import { formatCaseNumberWithTerm, formatDate } from "@/components/cases/format";
@@ -190,21 +188,17 @@ export default async function CaseDetailLayout({
   // The ad-hoc "Adicionar narrativa" dialog moved to the work card, and took the
   // type vocabulary + publishable-form loads with it (see the (detail) page).
   let narrativesOn = false;
-  // The hospital's ACTIVE departments seed the edit-meta dialog's "Unidade / setor"
-  // dropdown (ADR 0061); loaded only when the case is open (the affordance is
-  // open-only). A commission with no hospital → `[]` (the "Outros" value still works).
-  let departments: Department[] = [];
-  // ⛔ SPLIT BY AFFORDANCE since ADR 0134 D3 widened the entry gate. These loads
-  // used to ride on `isOpen` alone because the route guaranteed `staff_admin`; now
-  // each is conditional on the SAME test that renders the control it fuels, so a
-  // non-coordinator entrant's dialogs are absent BY CONSTRUCTION rather than
-  // fetched-and-hidden. The departments dropdown follows the meta door
-  // (`create_cases`), the other two follow the conclude dialog (coordinator).
-  if (isOpen && canEditCaseMeta && access.commission.hospitalId) {
-    departments = await listDepartmentsForHospital(
-      access.commission.hospitalId,
-    );
-  }
+  // ⛔ The edit-meta "Unidade / setor" DROPDOWN is gone (ADR 0137 D9), and the
+  // departments read that fuelled it goes with it — absent by construction rather
+  // than fetched-and-hidden. The case's STORED department is unaffected: it still
+  // renders read-only in the header below, and the edit dialog carries it through
+  // unchanged so a label edit can never clear it.
+  //
+  // ⛔ SPLIT BY AFFORDANCE since ADR 0134 D3 widened the entry gate. The loads below
+  // used to ride on `isOpen` alone because the route guaranteed `staff_admin`; each
+  // is now conditional on the SAME test that renders the control it fuels, so a
+  // non-coordinator entrant's dialogs are absent by construction. These two follow
+  // the conclude dialog (coordinator).
   if (isOpen && isCoordinator) {
     const [narrativesEnabledResult, corrections] = await Promise.all([
       narrativesEnabled(),
@@ -220,14 +214,15 @@ export default async function CaseDetailLayout({
         const narrative = detail.narratives.find(
           (n) => n.id === r.caseNarrativeId,
         );
-        if (narrative) return narrative.title || narrative.typeLabel;
+        // ADR 0137 D10 — `case_narratives.type_label` -> `display_label`.
+        if (narrative) return narrative.title || narrative.displayLabel;
         return "Item do caso";
       });
     narrativesOn = narrativesEnabledResult;
     if (narrativesOn) {
       expectedEmptyNarrativeLabels = detail.narratives
         .filter((n) => n.isExpected && (n.bodyMd ?? "").trim().length === 0)
-        .map((n) => n.title || n.typeLabel);
+        .map((n) => n.title || n.displayLabel);
     }
   }
 
@@ -342,7 +337,6 @@ export default async function CaseDetailLayout({
                   currentLabel={c.label}
                   currentDepartmentId={c.departmentId}
                   currentDepartmentOther={c.departmentOther}
-                  departments={departments}
                 />
               )}
               {/* Concluir / Cancelar — `close_case` / `cancel_case` are

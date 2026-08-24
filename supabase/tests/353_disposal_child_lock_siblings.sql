@@ -365,8 +365,8 @@ create temp table lc on commit drop as
          'o conteúdo desta entrevista está bloqueado (completed)'::text as locked_msg;
 grant select on lc to authenticated;
 
-insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
-select lc.kase, k.comm_x, 9531, 'ROTULO-PHI-353C', k.sa_x, true from lc, k;
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_mode)
+select lc.kase, k.comm_x, 9531, 'ROTULO-PHI-353C', k.sa_x, 'optional' from lc, k;
 insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
 select lc.part, app.org_of_commission((select comm_x from k)), 'patient', 'patient_phi', 'Paciente 353C' from lc;
 insert into public.patient_participants (participant_id) select lc.part from lc;
@@ -457,8 +457,8 @@ create temp table lc2 on commit drop as
          'o conteúdo desta entrevista está bloqueado (cancelled)'::text as locked_msg;
 grant select on lc2 to authenticated;
 
-insert into public.cases (id, commission_id, case_number, created_by, patient_enabled)
-select lc2.kase, k.comm_x, 9533, k.sa_x, true from lc2, k;
+insert into public.cases (id, commission_id, case_number, created_by, patient_mode)
+select lc2.kase, k.comm_x, 9533, k.sa_x, 'optional' from lc2, k;
 insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
 select lc2.part, app.org_of_commission((select comm_x from k)), 'patient', 'patient_phi', 'Paciente 353C2' from lc2;
 insert into public.patient_participants (participant_id) select lc2.part from lc2;
@@ -510,8 +510,8 @@ create temp table ld on commit drop as
          'o conteúdo desta reunião está bloqueado (signed)'::text as locked_msg;
 grant select on ld to authenticated;
 
-insert into public.cases (id, commission_id, case_number, created_by, patient_enabled)
-select ld.kase, k.comm_x, 9541, k.sa_x, true from ld, k;
+insert into public.cases (id, commission_id, case_number, created_by, patient_mode)
+select ld.kase, k.comm_x, 9541, k.sa_x, 'optional' from ld, k;
 insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
 select ld.part, app.org_of_commission((select comm_x from k)), 'patient', 'patient_phi', 'Paciente 353D' from ld;
 insert into public.patient_participants (participant_id) select ld.part from ld;

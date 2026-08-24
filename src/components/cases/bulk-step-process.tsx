@@ -22,6 +22,25 @@ import type {
 } from "@/components/cases/bulk-create-types";
 
 /**
+ * The PHI columns this wizard OFFERS — {@link PATIENT_COLUMNS} minus `ageYears`
+ * (ADR 0137 **D9**: no case surface collects an age).
+ *
+ * ⛔ **Filtered at the OFFER, not at the cell renderer.** The grid's columns are
+ * derived from `selectedPhiKeys` by `buildTargetColumns`, so a key that can never be
+ * selected can never become a column, never reach the paste mapper, and never
+ * serialize. Dropping the branch in `case-bulk-grid.tsx` instead would leave the key
+ * selectable and render it as a plain text cell — a worse failure than the one being
+ * fixed.
+ *
+ * ⚠ **No backend change** (D9): `PatientColumnKey`, `PatientCells`, `age_years` and
+ * `bulk_create_cases`'s row shape are untouched. `bulk-grid-model.ts` still declares
+ * the column; this narrows what a human can pick, not what the model can express.
+ */
+const OFFERED_PATIENT_COLUMNS = PATIENT_COLUMNS.filter(
+  (col) => col.key !== "ageYears",
+);
+
+/**
  * Step 1 — pick the Process, choose which custom fields become grid columns
  * (required fields are always-on), set an optional deadline, the phase scope, and
  * the title prefix. All state lives in the wizard; this step is controlled.
@@ -187,7 +206,7 @@ export function BulkStepProcess({
             necessários — cada um vira uma coluna da grade.
           </PhiCaution>
           <div className="flex flex-col gap-2">
-            {PATIENT_COLUMNS.map((col) => (
+            {OFFERED_PATIENT_COLUMNS.map((col) => (
               <label key={col.key} className="flex items-start gap-2.5 text-sm">
                 <Checkbox
                   checked={selectedPhiKeys.has(col.key)}

@@ -33,6 +33,7 @@ import type {
   CorrectionRequest,
   NarrativeRevision,
 } from "@/lib/queries/corrections";
+import { isAssignedTo } from "@/components/cases/assigned-work-access";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import type { CaseNarrative } from "@/lib/queries/cases";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,7 @@ export function CaseNarrativeCard({
   corrections = [],
   memberNames = {},
   narrativeRevisions = [],
+  viewerId = null,
 }: {
   narrative: CaseNarrative;
   /** Whether the viewer may edit the body now (Q14 + `aberta` + case open). */
@@ -123,6 +125,18 @@ export function CaseNarrativeCard({
    * from `case_narrative_revisions`. `[]` = none. Rendered collapsed by the panel.
    */
   narrativeRevisions?: NarrativeRevision[];
+  /**
+   * The viewer's user id from the SESSION. Used for exactly one thing (ADR 0137 D8):
+   * whether THIS narrative is the viewer's own attributed work, which PROMOTES
+   * "Editar" from a ghost affordance to the card's primary action.
+   *
+   * ⛔ Identity, never authority. `canEdit` already decides WHETHER the control
+   * renders (via `canEditNarrative`, which mirrors `app.can_write_case_narrative`);
+   * this only decides how loudly. Gating the promotion on a capability would let
+   * `narrowToReadingSurface` take it away on `/casos`, which is the defect D8 closes.
+   * `null` (the default) simply means no promotion.
+   */
+  viewerId?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -149,7 +163,9 @@ export function CaseNarrativeCard({
   const [value, setValue] = useState(narrative.bodyMd ?? "");
   const [error, setError] = useState<string | null>(null);
 
-  const heading = narrative.title || narrative.typeLabel;
+  // ADR 0137 D10 — the per-case snapshot column `case_narratives.type_label` was
+  // renamed to `display_label`, so `CaseNarrative.typeLabel` is now `displayLabel`.
+  const heading = narrative.title || narrative.displayLabel;
   const hasBody = effectiveBody.trim().length > 0;
   const headingId = `narrative-${narrative.id}-heading`;
   const isConcluded = narrative.status === "completed";
@@ -162,6 +178,12 @@ export function CaseNarrativeCard({
     (correctionCaps?.canFile ?? false) &&
     isConcluded &&
     openCorrection == null;
+  // ADR 0137 D8 — attributed work is ACTIONABLE, and it must LOOK it. For the
+  // narrative's own assignee this is the card's primary act, so "Editar" drops the
+  // `ghost` variant and reads as the phase article's "Preencher" does. Everyone else
+  // who may edit (a coordinator, an un-attributed write-grantee) keeps the quiet
+  // treatment: for them this card is one of many, not their assignment.
+  const isAssignee = isAssignedTo(narrative.assignedTo, viewerId);
 
   function handleEdit() {
     setError(null);
@@ -286,7 +308,7 @@ export function CaseNarrativeCard({
             {canEdit && (
               <Button
                 type="button"
-                variant="ghost"
+                variant={isAssignee ? "default" : "ghost"}
                 size="sm"
                 onClick={handleEdit}
               >

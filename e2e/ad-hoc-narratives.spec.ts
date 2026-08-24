@@ -115,7 +115,7 @@ async function getCaseNarratives(
 ): Promise<
   Array<{
     id: string
-    type_label: string
+    display_label: string
     display_position: number
     is_ad_hoc: boolean
     is_expected: boolean
@@ -124,7 +124,7 @@ async function getCaseNarratives(
 > {
   return restGet(
     req,
-    `case_narratives?case_id=eq.${caseId}&order=display_position.asc&select=id,type_label,display_position,is_ad_hoc,is_expected,status`,
+    `case_narratives?case_id=eq.${caseId}&order=display_position.asc&select=id,display_label,display_position,is_ad_hoc,is_expected,status`,
   )
 }
 
@@ -204,7 +204,7 @@ test('AC-1: coordinator adds an ad-hoc narrative with an EXISTING type → botto
     .toBe(1)
 
   const adHoc = narratives.find((n) => n.is_ad_hoc)!
-  expect(adHoc.type_label).toBe(uniqueTitle)
+  expect(adHoc.display_label).toBe(uniqueTitle)
   expect(adHoc.is_expected).toBe(false)
   expect(adHoc.status).toBe('open')
 
@@ -330,7 +330,7 @@ test('AC-2: inline "Criar novo tipo" on a process-less case — create then reus
   await expect
     .poll(async () => {
       const ns = await getCaseNarratives(request, caseId)
-      return ns.filter((n) => n.is_ad_hoc && n.type_label === newLabel).length
+      return ns.filter((n) => n.is_ad_hoc && n.display_label === newLabel).length
     }, { timeout: 10_000 })
     .toBe(2) // two narratives, both using the reused type label
 

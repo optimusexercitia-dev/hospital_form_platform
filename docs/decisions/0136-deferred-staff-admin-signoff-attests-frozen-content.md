@@ -1,9 +1,9 @@
 # ADR 0136 — Deferred `staff_admin` sign-off: attest a FROZEN response, block the PHASE not the SUBMIT
 
 - **Status:** ACCEPTED 2026-08-23 (PO ruling) — ⛔ **build NOT started; a plan is developed separately.**
-  ⭐ The acceptance covers the model below and the four points the PO ruled on directly. One question is
-  deliberately **left open** (§ Open) and must be settled before a plan is written — it is the difference
-  between *extend a state machine* and *extend a state machine and re-open response immutability*.
+  ⭐ The acceptance covers the model below and the four points the PO ruled on directly.
+  ✅ **The formerly-open decline-path question was SETTLED 2026-08-23 as shape (a)** — see § D7. A plan
+  may now be written. ⛔ **Sequenced AFTER the ADR 0137 batch, not folded into it** (same ruling).
 - **Supersedes:** nothing. **Amends in effect:** ADR [0004](0004-signoff-feature-flag.md) (the
   `signoff_enforcement` gate becomes role-split), ADR [0016](0016-signoff-definer-read-path.md) (its
   `in_progress` premise narrows — see Consequences), ADR [0017](0017-multi-phase-cases.md) (the
@@ -88,11 +88,31 @@ attestation. Reversing the order is the fix for both costs at once.
   anyone has asked for the other two arms buys a test matrix and no behaviour. Revisit when a commission
   asks.
 
-## Open — settle BEFORE writing the plan
+## D7 — the decline path: SETTLED (PO ruling 2026-08-23)
 
-**What happens when the coordinator reads the frozen answers and declines to sign?** Today they tell the
-filler, who edits the still-`in_progress` draft. After this change the answers are frozen. Two shapes, and
-they are not the same size:
+⭐ **PO ruling: shape (a). A coordinator who declines to sign routes through the existing
+correction/supersession machinery.** No `awaiting_signoff → active` transition is added; a `submitted`
+response never returns to `in_progress`. Response immutability stays closed, and D4's blast radius is
+unchanged.
+
+This section was previously headed *"Open — settle BEFORE writing the plan"* and was the stated blocker on
+writing any plan for this ADR. It is no longer a blocker. ⛔ **The rejected shape (b) is recorded below as
+a rejected alternative, not as a live option** — do not re-open it without a new PO ruling.
+
+**Consequence of the ruling, and it is a real cost to state plainly:** correcting a typo in a frozen,
+declined response costs a full `file_correction_request` → `start_correction_draft` → `approve_correction`
+cycle. That is the price of the ruling, accepted deliberately. If it proves intolerable in practice, the
+answer is a *lighter correction flow*, **not** an unfreeze transition.
+
+**Sequencing ruling, same date:** this ADR is **NOT** folded into the ADR 0137 case/referral usability
+batch. It is sequenced **after** it, as its own increment with its own plan. Rationale is recorded in
+[case-referral-usability-batch.md](../plans/case-referral-usability-batch.md) § "Out of scope"; the short
+form is that the two collide on `get_case_detail` / `list_my_cases` (re-emitted by 0137 D10 **and**
+branching on phase status) and on `case-phase-article.tsx` / `case-phase-list.tsx` (edited by 0137 D8).
+
+### The two shapes that were weighed
+
+The original text is kept verbatim below, because the reasoning is what makes the ruling reviewable:
 
 - **(a) Route through the existing correction/supersession machinery** (`case_correction_requests`,
   `responses.supersedes_id`, `file_correction_request` → `start_correction_draft` → `approve_correction`).
@@ -102,8 +122,9 @@ they are not the same size:
   carve-out otherwise leave closed, and it means a `submitted` response can return to `in_progress` — a
   transition the platform has never permitted.
 
-⛔ This ADR does **not** decide it. A plan that assumes (a) and a plan that assumes (b) differ in scope,
-in risk, and in which invariants need re-proving.
+*(Original closing line, now superseded by the ruling above: "⛔ This ADR does not decide it. A plan that
+assumes (a) and a plan that assumes (b) differ in scope, in risk, and in which invariants need
+re-proving.")* — **(a) is the ruling; (b) is rejected.**
 
 ## Size — measured from the live catalog 2026-08-23; ⛔ re-derive before building
 
@@ -115,7 +136,7 @@ in risk, and in which invariants need re-proving.
 | …of those, branching on the settled set (`'not_required'`) | **5** (`guard_case_phase_status`, `activate_phase`, `cancel_case`, `close_case`, `skip_phase`) |
 | routines needing a substantive edit | **~10** (see Consequences) |
 | RLS policies referencing `case_phases` **directly** | **0** — ⚠ DEFINER helpers (`app._case_caps`) do reach it |
-| TS modules referencing `CasePhaseStatus` | **11**, real work in ~6 (`phase-status-pill`, `case-derive`, `cases-kanban`, `cases-table`, `format`, `case-status`) |
+| TS modules referencing `CasePhaseStatus` | **11** — ✅ literally correct, but ⛔ **it is the wrong MEASURE**; the work surface is 24. See the correction under the table. |
 | pgTAP suites referencing sign-off | **16**; `80_signoffs.sql` is **305 lines / 45 refs** |
 | E2E specs driving the sign-off queue | **7**; `phase6-signoffs.spec.ts` is **670 lines** |
 | data migration required | **none** — the new path is strictly more permissive; no live phase changes meaning |
@@ -123,6 +144,77 @@ in risk, and in which invariants need re-proving.
 ⚠ **The test surface dominates, not the doors** — `80_signoffs.sql`'s central assertions ("submit is
 refused while unsigned") **invert** for the `staff_admin` arm and **stand** for the `respondent` arm. That
 inversion is the delivery, not overhead attached to it.
+
+### Re-derivation of the whole table — 2026-08-23, two independent measurements
+
+Both measurements ran against the live catalog / an exhaustive `rg` over `src/` + `e2e/`, comment-stripped
+and word-boundary-matched.
+
+**Rows that MATCH exactly:** `case_phases.status` is `text` + `case_phases_status_check` (base type, not an
+enum — no `ALTER TYPE`); routines touching the settled set = **5**, and the same five names; RLS policies
+referencing `case_phases` directly = **0** (the `app._case_caps` reach is confirmed at one remove);
+pgTAP suites = **16**; E2E specs driving the queue = **7**; `phase6-signoffs.spec.ts` = **670 lines**;
+`80_signoffs.sql` = **305 lines**; `app.guard_case_phase_status`'s INSERT-arm ⚠ comment exists verbatim.
+
+**Rows that DIFFER, all upward — never assume the ADR's figure is the ceiling:**
+
+| row | ADR said | measured | note |
+| --- | --- | --- | --- |
+| routines referencing `case_phases` | 43 (15 app / 28 public) | **47 (19 app / 28 public)** | the `public` half is exactly right; the whole divergence is `app`. **No** measurement basis reaches 15 — the tightest defensible (excluding name-only and comment-only matches) is 16 app / 44 total |
+| …branching on `'active'`/`'completed'` | 22 | **23** | literal containment, the same shape the ADR's 22 must have used |
+| `80_signoffs.sql` sign-off refs | 45 | **59 occurrences / 54 lines** | not reproducible under any pattern tried; the 305-line figure is right |
+
+### ⛔ The TS row is literally correct and still misleading — this is the important correction
+
+The row read *"11, real work in ~6 (`phase-status-pill`, `case-derive`, `cases-kanban`, `cases-table`,
+`format`, `case-status`)"*. **11 is correct** for what it literally says: 11 modules reference the
+*identifier* `CasePhaseStatus`. But that is **the wrong measure for the question the row is used to
+answer** — "how much TS work is this?" — because it counts imports, not couplings:
+
+- ⭐ **24 code-bearing modules** branch on this union once you include the files that test the status
+  **string literals** without importing the type (plus 3 comment-only and 6 E2E specs). The identifier
+  count misses every one of them. The union is declared once, at `src/lib/queries/cases.ts:68-75`, with
+  5 members.
+- ⛔ **`src/lib/cases/case-status.ts` must come off the "real work" list** — it declares the *unrelated*
+  `CaseStatus` and mentions the phase union only in a comment at L68 **disclaiming** the relationship.
+  Zero coupling. A name-similar file assumed to be a caller.
+- ⭐ **The load-bearing fact the row omits entirely: adding a 6th member is mostly a SILENT change.** Only
+  **3 files / 4 declaration sites** fail typecheck — `phase-status-pill.tsx:25`, `cases-kanban.tsx:23`,
+  `cases-table.tsx:21` and `:29` (all `Record<CasePhaseStatus, …>`). Every other site is an `if`/`!==`
+  chain that falls through. There is **no `assertNever`/`satisfies` guard anywhere over this union**, so
+  "the compiler will find the call sites" is **false here** and must not be assumed.
+- Three silent-failure sites worth naming, each a behaviour change with no error:
+  - `src/components/cases/case-derive.ts:116-121` — `isBlockerSatisfied` returns `false` for an unknown
+    member, so a new status **blocks all downstream phases**. That happens to match D3's intent, but it is
+    accidental, not designed; the DB remains the authority.
+  - `src/lib/queries/case-timeline.ts:99` — a **structural clone** of the union rather than an import,
+    **already drifted**: missing `'voided'` (added for ADR 0085). A 6th member produces no error and routes
+    into the durational-bar arm.
+  - `src/components/cases/my-case-card.tsx:164` — casts `item.status as CasePhaseStatus` from `string`,
+    defeating the one exhaustive check in that render path; `PhaseStatusPill` then does an unguarded
+    `STATUS_META[status]` lookup — a runtime `TypeError`, not a fallback.
+
+### Three claims that are true but INCOMPLETE — each hides a site the plan must cover
+
+- **`close_case` carries `('pending','active')` TWICE** — the `HC031` gate *and* a post-update sweep that
+  sets those phases to `not_required`. With `cancel_case`'s identical sweep that is **three** sites, not
+  the two the Consequences imply. Adding `awaiting_signoff` to the gate but not the sweeps leaves the hole.
+- **`app.recompute_case_status` reads TWO `bool_or`s** — `'active'` **and** `'completed'` — in one
+  statement; the second decides `pending` vs `not_started`. The Consequences quote only the first.
+- **`public.guard_submitted_children` backs a THIRD table**, `public.response_group_instances`. Its body is
+  table-agnostic, so branching it would touch three tables — which strengthens, not weakens, the
+  Consequences' "write a separate `guard_submitted_signoffs`" instruction.
+
+⭐ **Not a number, but load-bearing for D1:** `submit_response`'s section cursor selects
+`s.id, s.position, s.visible_when, s.requires_signoff` — **`s.signoff_role` is NOT selected.** D1's
+role-split therefore requires **widening the cursor**, not merely adding a predicate. `submit_response`
+also never references `case_phase_id` or `case_phases` (it is absent from all 47), so D2's
+case-phase scoping needs a new lookup there too.
+
+⭐ **Lesson, and the reason this is written into the ADR rather than only into a review:** every wrong row
+was wrong in the *reassuring* direction, and the TS row was **wrong while being literally true** — the
+failure was the choice of measure, not the count. The `⛔ re-derive before building` instruction is what
+caught it; honour it for anything added below.
 
 ## Consequences
 

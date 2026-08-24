@@ -52,6 +52,7 @@ const TAG = 'DEPT-E2E'
 const DEPT_UTI = `UTI Adulto ${TAG}`
 const DEPT_UTI_RENAMED = `UTI Adulto Renomeada ${TAG}`
 const DEPT_PS = `Pronto-Socorro ${TAG}`
+const DEPT_KB = `Ambulatório Teclado ${TAG}`
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -238,91 +239,28 @@ test('AC-2: hospital_admin of central-a is denied the secundario-a detail page (
 })
 
 // ---------------------------------------------------------------------------
-// TASK 2 — Novo-caso "Unidade / setor" dropdown (chefe.ccih)
+// TASK 2 (ADR 0137 D9, 2026-08-23) — the Novo-caso "Unidade / setor" dropdown
+// this section originally drove was REMOVED, not hidden: every case surface
+// (create dialog, edit-meta dialog, bulk wizard, patient-edit dialog) stopped
+// COLLECTING a department. D9's floor is explicit that this is a UI-only cut —
+// "No backend change": `department_id`/`department_other`, the RPC arguments
+// and every stored value are untouched, and an existing department stays
+// VISIBLE, read-only, on both the manage and staff hosts. AC-3/AC-4 below
+// replace the old dropdown-driven tests (which now assert a control that no
+// longer exists) with: (a) a positive control that the dropdown is genuinely
+// GONE, not merely unreachable by this file's old selector, plus the read-only
+// display of a department set by the only remaining path (direct write — no
+// app UI can set one any more); and (b) the regression the build itself
+// surfaced and the plan calls out by name: `update_case_meta` FULL-REPLACES
+// label + department, so editing only the label must not silently clear a
+// stored department nobody was shown in the form.
 // ---------------------------------------------------------------------------
 
-test('AC-3: Novo caso — select a managed department → case detail shows it', async ({
-  page,
-}) => {
-  test.setTimeout(90_000)
-  await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
-
-  await page.getByRole('button', { name: /Novo caso/i }).click()
-  const dialog = page.getByRole('dialog', { name: /Novo caso/i })
-  await expect(dialog).toBeVisible({ timeout: 8_000 })
-
-  // Choose the process-less flow (no template dependency).
-  await dialog.locator('select[name="templateId"]').selectOption({ label: 'Sem processo' })
-
-  // A non-identifying label.
-  await dialog.getByRole('textbox').first().fill(`Caso ${TAG} — com setor`)
-
-  // The "Unidade / setor" dropdown. It is a native <select>; its active options
-  // include the seeded Pronto-Socorro (UTI was archived in AC-1) + an "Outros".
-  const unitSelect = dialog.getByLabel(/Unidade \/ setor/i)
-  await expect(unitSelect).toBeVisible({ timeout: 8_000 })
-  // The archived UTI department must NOT be selectable (active-only picker).
-  const optionTexts = (await unitSelect.locator('option').allTextContents()).map(
-    (t) => t.trim(),
-  )
-  expect(optionTexts).toContain(DEPT_PS)
-  expect(optionTexts.some((t) => t.includes(DEPT_UTI_RENAMED))).toBeFalsy()
-  expect(optionTexts.some((t) => /Outros/i.test(t))).toBeTruthy()
-
-  await unitSelect.selectOption({ label: DEPT_PS })
-
-  await dialog.getByRole('button', { name: /Criar caso/i }).click()
-  // Navigates into the new case detail on success.
-  await page.waitForURL(/\/manage\/cases\/[0-9a-f-]{36}/, { timeout: 20_000 })
-
-  // The case detail surfaces the chosen department.
-  await expect(page.getByText(DEPT_PS, { exact: false }).first()).toBeVisible({
-    timeout: 12_000,
-  })
-})
-
-test('AC-4: Novo caso — select "Outros" + custom value → case detail shows the custom value', async ({
-  page,
-}) => {
-  test.setTimeout(90_000)
-  const CUSTOM = `Ambulatório de Cardiologia ${TAG}`
-  await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
-
-  await page.getByRole('button', { name: /Novo caso/i }).click()
-  const dialog = page.getByRole('dialog', { name: /Novo caso/i })
-  await expect(dialog).toBeVisible({ timeout: 8_000 })
-  await dialog.locator('select[name="templateId"]').selectOption({ label: 'Sem processo' })
-  await dialog.getByRole('textbox').first().fill(`Caso ${TAG} — Outros`)
-
-  const unitSelect = dialog.getByLabel(/Unidade \/ setor/i)
-  await expect(unitSelect).toBeVisible({ timeout: 8_000 })
-  // Selecting the "Outros" option reveals a free-text input.
-  const otherOptionValue = await unitSelect
-    .locator('option')
-    .filter({ hasText: /Outros/i })
-    .first()
-    .getAttribute('value')
-  await unitSelect.selectOption(otherOptionValue!)
-
-  const otherInput = dialog.getByLabel(/Outra unidade \/ setor/i)
-  await expect(otherInput).toBeVisible({ timeout: 8_000 })
-  await otherInput.fill(CUSTOM)
-
-  await dialog.getByRole('button', { name: /Criar caso/i }).click()
-  await page.waitForURL(/\/manage\/cases\/[0-9a-f-]{36}/, { timeout: 20_000 })
-
-  // Detail shows the custom value.
-  await expect(page.getByText(CUSTOM, { exact: false }).first()).toBeVisible({
-    timeout: 12_000,
-  })
-
-  // DB truth: exactly one of department_id / department_other is set (the custom).
-  const caseId = page.url().match(/cases\/([0-9a-f-]{36})/)?.[1]
-  expect(caseId).toBeTruthy()
+/** Resolve an ACTIVE department's id by its exact name (service-role read). */
+async function departmentIdByName(page: Page, name: string): Promise<string> {
   const resp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/cases?id=eq.${caseId}&select=department_id,department_other`,
+    `${SUPABASE_URL}/rest/v1/hospital_departments?hospital_id=eq.${CENTRAL_A}` +
+      `&name=eq.${encodeURIComponent(name)}&archived=eq.false&select=id`,
     {
       headers: {
         apikey: SUPABASE_SERVICE_KEY,
@@ -330,12 +268,142 @@ test('AC-4: Novo caso — select "Outros" + custom value → case detail shows t
       },
     },
   )
-  const [row] = (await resp.json()) as {
-    department_id: string | null
-    department_other: string | null
-  }[]
-  expect(row.department_id).toBeNull()
-  expect(row.department_other).toBe(CUSTOM)
+  const rows = (await resp.json()) as { id: string }[]
+  expect(rows.length, `active department "${name}" not found`).toBe(1)
+  return rows[0].id
+}
+
+/**
+ * Create a fresh process-less case (label only, no PHI/outcomes) via the UI,
+ * returning its id. Shared by AC-3/AC-4 — neither test can set a department
+ * through the dialog any more (D9), so both mint a bare case first and then
+ * write the department directly, exactly as the app itself can no longer do.
+ */
+async function createBareCase(page: Page, label: string): Promise<string> {
+  await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
+  await page.getByRole('button', { name: /Novo caso/i }).click()
+  const dialog = page.getByRole('dialog', { name: /Novo caso/i })
+  await expect(dialog).toBeVisible({ timeout: 8_000 })
+  await dialog.locator('select[name="templateId"]').selectOption({ label: 'Sem processo' })
+  await dialog.getByRole('textbox').first().fill(label)
+  await dialog.getByRole('button', { name: /Criar caso/i }).click()
+  await page.waitForURL(/\/manage\/cases\/[0-9a-f-]{36}/, { timeout: 20_000 })
+  const caseId = page.url().match(/cases\/([0-9a-f-]{36})/)?.[1]
+  expect(caseId).toBeTruthy()
+  return caseId!
+}
+
+test('AC-3: Novo caso has NO department dropdown (ADR 0137 D9); a case whose department was set directly (the only remaining path) still renders it read-only on BOTH hosts', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
+  await page.getByRole('button', { name: /Novo caso/i }).click()
+  const dialog = page.getByRole('dialog', { name: /Novo caso/i })
+  await expect(dialog).toBeVisible({ timeout: 8_000 })
+  await dialog.locator('select[name="templateId"]').selectOption({ label: 'Sem processo' })
+
+  // The positive control: no department control of ANY shape is offered —
+  // neither the dropdown nor its label text, anywhere in the dialog.
+  await expect(dialog.getByLabel(/Unidade \/ setor/i)).toHaveCount(0)
+  await expect(dialog.getByText(/Unidade \/ setor/i)).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0, { timeout: 5_000 })
+
+  // Create a bare case, then write its department the only way still possible
+  // — directly (D9: no backend change; the column, RPC argument and stored
+  // value are all untouched, only the app's COLLECTION UI is gone).
+  const caseId = await createBareCase(page, `Caso ${TAG} — legado com setor`)
+  const deptId = await departmentIdByName(page, DEPT_PS)
+  const patchResp = await page.request.patch(
+    `${SUPABASE_URL}/rest/v1/cases?id=eq.${caseId}`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      data: { department_id: deptId },
+    },
+  )
+  expect(patchResp.ok(), `direct department write failed: ${await patchResp.text()}`).toBeTruthy()
+
+  // Read-only on the MANAGE host…
+  await page.goto(`/o/${ORG}/c/ccih/manage/cases/${caseId}`)
+  await expect(page.getByText(DEPT_PS, { exact: false }).first()).toBeVisible({
+    timeout: 12_000,
+  })
+  // …and on the staff READING SURFACE (D9's fix: it did not render this at all
+  // before — only the coordinator layout did).
+  await page.goto(`/o/${ORG}/c/ccih/casos/${caseId}`)
+  await expect(page.getByText(DEPT_PS, { exact: false }).first()).toBeVisible({
+    timeout: 12_000,
+  })
+})
+
+test('AC-4 (D9-bis regression): editing ONLY the case label via "Editar" must NOT clear a stored department', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  await signInAs(page, 'chefe.ccih@test.local')
+
+  const caseId = await createBareCase(page, `Caso ${TAG} — rotulo antes`)
+  const deptId = await departmentIdByName(page, DEPT_PS)
+  const patchResp = await page.request.patch(
+    `${SUPABASE_URL}/rest/v1/cases?id=eq.${caseId}`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      data: { department_id: deptId },
+    },
+  )
+  expect(patchResp.ok(), `direct department write failed: ${await patchResp.text()}`).toBeTruthy()
+
+  await page.goto(`/o/${ORG}/c/ccih/manage/cases/${caseId}`)
+  await expect(page.getByText(DEPT_PS, { exact: false }).first()).toBeVisible({
+    timeout: 12_000,
+  })
+
+  // Edit ONLY the label via the header "Editar" dialog. `update_case_meta`
+  // FULL-REPLACES label + department (`edit-case-meta-dialog.tsx`'s hidden
+  // `departmentId`/`departmentOther` mirrors are the guard against this — this
+  // spec is what makes that guard load-bearing rather than decorative).
+  const header = page.locator('header').filter({ has: page.getByRole('heading', { level: 1 }) })
+  await header.getByRole('button', { name: /^Editar$/ }).click()
+  const editDialog = page.getByRole('dialog').filter({ hasText: /Editar caso/i })
+  await expect(editDialog).toBeVisible({ timeout: 8_000 })
+  const NEW_LABEL = `Caso ${TAG} — rotulo depois`
+  await editDialog.getByLabel(/Descrição/i).fill(NEW_LABEL)
+  await editDialog.getByRole('button', { name: /^Salvar$/ }).click()
+  await expect(editDialog).toHaveCount(0, { timeout: 10_000 })
+
+  // The label changed…
+  await expect(page.getByText(NEW_LABEL)).toBeVisible({ timeout: 10_000 })
+  // …but the department did NOT — in the UI (both hosts) and in the DB.
+  await expect(page.getByText(DEPT_PS, { exact: false }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+  await page.goto(`/o/${ORG}/c/ccih/casos/${caseId}`)
+  await expect(page.getByText(DEPT_PS, { exact: false }).first()).toBeVisible({
+    timeout: 10_000,
+  })
+  const rows = await (
+    await page.request.get(
+      `${SUPABASE_URL}/rest/v1/cases?id=eq.${caseId}&select=department_id,label`,
+      {
+        headers: {
+          apikey: SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        },
+      },
+    )
+  ).json() as { department_id: string | null; label: string | null }[]
+  expect(rows[0]?.department_id, 'department_id must survive a label-only edit').toBe(deptId)
+  expect(rows[0]?.label).toBe(NEW_LABEL)
 })
 
 // ---------------------------------------------------------------------------
@@ -375,27 +443,44 @@ test('AC-5: Novo caso PHI block has NO free-text "Unidade" (hideUnit), but the s
 })
 
 // ---------------------------------------------------------------------------
-// Keyboard-only flow: the Novo-caso "Unidade / setor" dropdown is reachable and
-// operable with the keyboard.
+// Keyboard-only flow (CLAUDE.md §8) — ADR 0137 D9 removed the Novo-caso
+// dropdown this test used to drive, so it is replaced rather than deleted:
+// the hospital detail page's OWN department creation (AC-1's mouse-driven
+// "Novo setor" flow), driven entirely by keyboard — Tab/Enter, no mouse —
+// which is the surviving department-authoring surface this batch left intact.
 // ---------------------------------------------------------------------------
 
-test('AC-K: keyboard-only — Novo-caso unit dropdown is reachable and shows a focus ring', async ({
+test('AC-K: keyboard-only — create a department on the hospital detail page via Tab/Enter alone', async ({
   page,
 }) => {
-  await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
+  await signInAs(page, 'orgadmin.a@test.local')
+  await page.goto(HOSPITAL_DETAIL)
 
-  await page.getByRole('button', { name: /Novo caso/i }).click()
-  const dialog = page.getByRole('dialog', { name: /Novo caso/i })
-  await expect(dialog).toBeVisible({ timeout: 8_000 })
-  await dialog.locator('select[name="templateId"]').selectOption({ label: 'Sem processo' })
+  const newDeptBtn = page.getByRole('button', { name: /Novo setor/i })
+  await expect(newDeptBtn).toBeVisible({ timeout: 12_000 })
+  await newDeptBtn.focus()
+  await expect(newDeptBtn).toBeFocused()
+  await page.keyboard.press('Enter')
 
-  const unitSelect = dialog.getByLabel(/Unidade \/ setor/i)
-  await unitSelect.focus()
-  await expect(unitSelect).toBeFocused()
-  // Keyboard-select the Pronto-Socorro option.
-  await unitSelect.selectOption({ label: DEPT_PS })
-  await expect(unitSelect).toHaveValue(/.+/)
+  const createDialog = page.getByRole('dialog')
+  await expect(createDialog).toBeVisible({ timeout: 8_000 })
+  const nameInput = createDialog.getByRole('textbox').first()
+  await expect(nameInput).toBeFocused()
+  await page.keyboard.type(DEPT_KB)
+
+  // Tab order is name -> "Cancelar" -> submit (component docblock,
+  // `department-def-dialog.tsx`) — two Tabs, never a click, to reach the
+  // primary action.
+  await page.keyboard.press('Tab')
+  const cancelBtn = createDialog.getByRole('button', { name: /^Cancelar$/i })
+  await expect(cancelBtn).toBeFocused()
+  await page.keyboard.press('Tab')
+  const submitBtn = createDialog.getByRole('button', { name: /^Criar setor$/i })
+  await expect(submitBtn).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  await expect(createDialog).not.toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(DEPT_KB, { exact: true })).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------

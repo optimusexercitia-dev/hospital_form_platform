@@ -91,12 +91,12 @@ create temp table cs on commit drop as
          gen_random_uuid() as ref_xy;
 grant select on cs to authenticated;
 
-insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_mode)
 values
-  ((select case_x from cs),        (select comm_x from k), 9401, 'Caso X',         (select sa_x from k), true),
-  ((select case_y from cs),        (select comm_y from k), 9402, 'Caso Y',         (select sa_y from k), true),
-  ((select case_nameonly from cs), (select comm_x from k), 9403, 'Caso nome-só',   (select sa_x from k), true),
-  ((select src_case from cs),      (select comm_x from k), 9404, 'Caso origem',    (select sa_x from k), true);
+  ((select case_x from cs),        (select comm_x from k), 9401, 'Caso X',         (select sa_x from k), 'optional'),
+  ((select case_y from cs),        (select comm_y from k), 9402, 'Caso Y',         (select sa_y from k), 'optional'),
+  ((select case_nameonly from cs), (select comm_x from k), 9403, 'Caso nome-só',   (select sa_x from k), 'optional'),
+  ((select src_case from cs),      (select comm_x from k), 9404, 'Caso origem',    (select sa_x from k), 'optional');
 
 -- Patient participants + patient_identifiers (re-keyed, ADR 0064 E0 / F1). The case
 -- module now contributes one xref row PER PATIENT PARTICIPANT (ADR 0066 / Q1=A). Built

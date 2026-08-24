@@ -130,9 +130,12 @@ export type CaseEventVisibility = 'case_readers' | 'coordinator_only'
 export interface CaseEvent {
   id: string
   caseId: string
-  // NOTE: BE-5 widens this to `AnyCaseEventKind` (see the type doc above) once the
-  // frontend `EVENT_KIND_LABEL` covers the procedural kinds (O-4).
-  kind: CaseEventKind
+  // BE-5 (landed with ADR 0137 D12): widened to `AnyCaseEventKind`. The card
+  // partitions on `isCaseEventKind(ev.kind)` — manual kinds to "Atualizações",
+  // procedural kinds to "Sistema" — so it must be able to SEE the procedural
+  // kinds the DB has always returned. `EVENT_KIND_LABEL` is already exhaustive
+  // over the wider union (O-4 discharged).
+  kind: AnyCaseEventKind
   title: string | null
   /** Required free text. */
   body: string
@@ -162,7 +165,10 @@ export interface CaseEvent {
 interface CaseEventRow {
   id: string
   case_id: string
-  kind: CaseEventKind
+  // The DB `case_events_kind_check` has always admitted the procedural kinds and
+  // `listCaseEvents` has always returned them unfiltered; narrowing the ROW to
+  // the manual union was the lie that forced the cast BE-5 removes.
+  kind: AnyCaseEventKind
   title: string | null
   body: string
   visibility: CaseEventVisibility

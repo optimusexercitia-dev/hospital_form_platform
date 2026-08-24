@@ -9,6 +9,8 @@ import {
   RecommendedChip,
 } from "@/components/cases/phase-status-pill";
 import { CoordinatorPhaseActions } from "@/components/cases/coordinator-phase-actions";
+import { StartPhaseButton } from "@/components/cases/start-phase-button";
+import { canFillAssignedPhase } from "@/components/cases/assigned-work-access";
 import { PhaseResultBadge } from "@/components/cases/phase-result-badge";
 import { PhaseResultCorrectButton } from "@/components/cases/phase-result-correct-button";
 import { CasePhaseDelete } from "@/components/cases/case-phase-delete";
@@ -52,6 +54,7 @@ export function CasePhaseArticle({
   openCorrection = null,
   corrections = [],
   memberNames = {},
+  viewerId = null,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -108,6 +111,19 @@ export function CasePhaseArticle({
   corrections?: CorrectionRequest[];
   /** userId → display name, for the request list's requester / corrector lines. */
   memberNames?: Record<string, string>;
+  /**
+   * The viewer's user id from the SESSION — the ONLY input to the ADR 0137 D8
+   * "Preencher" affordance ({@link canFillAssignedPhase}). `null` (the default) means
+   * the identity could not be resolved, and the affordance can then never fire.
+   *
+   * ⛔ IDENTITY, not a derived boolean. A host-computed flag would sit outside
+   * `CaseViewerCapabilities` and so outside `narrowToReadingSurface` — but it would
+   * also be a value a host could forget or get wrong, which is how a case-wide
+   * affordance leaks onto `/casos` one prop at a time (ADR 0134 F-1). Identity is the
+   * same on both hosts, so threading it is safe in a way threading an authority
+   * never is.
+   */
+  viewerId?: string | null;
 }) {
   const heading = phase.title || `Fase ${phase.position}`;
 
@@ -138,6 +154,14 @@ export function CasePhaseArticle({
     openCorrection != null &&
     canContinueCorrection(openCorrection, correctionCaps?.viewerId ?? null);
   const showDelete = phase.isAdHoc && canManageLifecycle;
+
+  // ADR 0137 D8 — MY work is actionable here. Keyed on `assignedTo === viewerId` and
+  // on NOTHING else, so `narrowToReadingSurface` cannot take it: the assignee owns
+  // this phase on the reading surface (`/casos`) exactly as on the management host.
+  // Before this, `CoordinatorPhaseActions` returned `null` for anyone who was neither
+  // coordinator nor `assign_case_phases`, so an assigned `staff_admin`, an
+  // *administrativo* and a plain member all saw a phase they could not open.
+  const showFillAction = canFillAssignedPhase(phase, isOpen, viewerId);
 
   return (
     <article className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-xs sm:p-5">
@@ -230,6 +254,23 @@ export function CasePhaseArticle({
           </div>
         )}
       </div>
+
+      {/* The assignee's PRIMARY act, above the coordinator cluster so it leads the
+          row. NO competing primary can render beside it on either host: this branch
+          needs `status === 'active'`, and on an ACTIVE phase the coordinator cluster
+          offers only "Alterar responsável" (`outline`) and the result control
+          (`ghost`). The one other default-variant button in that cluster — "Ativar e
+          atribuir" — belongs to a PENDING phase, which this branch excludes. So a
+          coordinator who is also this phase's assignee still sees exactly one. */}
+      {showFillAction && (
+        <div className="flex justify-end">
+          <StartPhaseButton
+            org={org} slug={slug}
+            caseId={phase.caseId}
+            phaseId={phase.id}
+          />
+        </div>
+      )}
 
       <CoordinatorPhaseActions
         org={org} slug={slug}

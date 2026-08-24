@@ -62,7 +62,7 @@ grant select on cnt to authenticated;
 -- Templates in comm_x, authored by sa_x.
 --   tpl_multi : 2 phases (both on form_u, no blocks), published — scope tests.
 --   tpl_req   : 1 phase + a REQUIRED custom field, published — rollback test.
---   tpl_phi   : 1 phase, collects_patient = true, published — PHI tests.
+--   tpl_phi   : 1 phase, patient_mode = 'optional', published — PHI tests.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -100,11 +100,11 @@ grant select on tpl_multi to authenticated;
 grant select on tpl_req to authenticated;
 grant select on tpl_phi to authenticated;
 
--- collects_patient is set out-of-band (as the owner, RLS-bypassing) — mirrors 151's
+-- patient_mode is set out-of-band (as the owner, RLS-bypassing) — mirrors 151's
 -- direct fixture writes; the create-dialog/builder path is not under test here.
--- ADR 0096: collects_patient moved to the VERSION. The version is still a draft
+-- ADR 0096: the PHI setting moved to the VERSION. The version is still a draft
 -- here (it is published below), so the published-version guard does not fire.
-update public.process_template_versions set collects_patient = true
+update public.process_template_versions set patient_mode = 'optional'
   where id = (select vid from tpl_phi);
 
 select test_helpers.claims_for((select sa_x from k), false);

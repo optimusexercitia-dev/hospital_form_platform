@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn, accessToken } from "./helpers/auth"
+import { saveMinimalReferralPatientForSend } from "./helpers/referrals"
 
 /**
  * Pre-Pilot DB Hardening — Wave 2 (WS-6 perf sweep) — acceptance specs.
@@ -610,6 +611,9 @@ test.describe('P3 — keyset pagination', () => {
         p_description_md: 'perf-sweep fixture note, no PHI',
       })
       insertedReferralIds.push(draft.id)
+      // ADR 0137 D4 — send_referral now refuses without an MRN (HC0T4).
+      // Fixture setup, not the subject under test.
+      await saveMinimalReferralPatientForSend(request, chefeToken, draft.id)
       await rpcAsUser(request, chefeToken, 'send_referral', { p_referral_id: draft.id })
     }
     expect(insertedReferralIds.length).toBe(26)

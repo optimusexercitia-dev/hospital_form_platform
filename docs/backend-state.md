@@ -406,6 +406,53 @@ their home is here because they never conclude._
   writers because each used a different bound — see the correction record at the top
   of this file (75 fns / 6 read a flag).
 
+## ADR 0137 batch — MRN as erasure key; case/referral usability (2026-08-24; ADR **0137**; migrations `20261003001300`–`…001600`, **4**; pgTAP `362` `plan(58)` · `363` `plan(15)` · `364` `plan(14)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **LOCAL ONLY, NOT PUSHED**
+
+**The booleans are GONE.** `process_template_versions.collects_patient` and `cases.patient_enabled` are
+**DROPPED**, replaced by **`patient_mode text`** (`none` | `optional` | `required`, CHECK-constrained) plus
+**`patient_required_fields text[]`**. ⛔ **Any doc, comment or query still naming the booleans is stale** —
+including `docs/backend-state.md:326`'s reference to the old door name.
+
+**Door renamed:** `set_template_collects_patient` → **`set_template_patient_mode`** (same authority pair as
+its sibling `set_template_case_type`: `is_staff_admin_of or is_tenancy_admin_of`, **draft-only** — verified,
+not a widening).
+
+**Column renamed:** `case_narratives.type_label` → **`display_label`** (a real `alter table … rename`, with
+seven bodies re-emitted). ⛔ **Two look-alikes were deliberately NOT renamed and must stay:**
+`case_referral.type_label` (a *different* column on a *different* table — three referral bodies still
+reference it, correctly) and `add_ad_hoc_narrative`'s **parameter** `p_new_type_label` (excluded by the
+re-emission's `mtype_labelM` word boundaries, since `_` is a word character). A string-level sweep here
+is wrong by construction; bound it by the table.
+
+**New / changed routines:** `app.patient_required_missing` (returns the missing set, **not** a boolean —
+and it counts `sex = 'unknown'` as MISSING) · `app.assert_patient_required_fields` ·
+`app.guard_case_patient_required` · **`app.guard_case_patient_mode_immutable`** (fires on `patient_mode`
+**OR** `patient_required_fields` changing — the second arm is what closes the "insert `none`, then UPDATE to
+`required`" hole, pinned by `362` §7.1a) · `public.set_case_narrative_assignment_role` ·
+`public.send_referral` gains the **`HC0T4`** MRN floor.
+
+⭐ **D4's floor is at SEND, not at SAVE.** `send_referral` carries it; `save_referral_patient` deliberately
+does **not**, and `app.guard_referral_status` makes `send_referral` the sole transition authority — so the
+guard is reachable rather than merely present. Moving it to save would break D4.
+
+⭐ **D3's enforcement point is `app._set_participant_patient_unchecked`** (`prosecdef = f`), so **both** case
+write doors inherit it — which matters because the case module is **no longer single-door on the WRITE
+side** (one writer body, two gates: the coordinator door and the creation path). ⚠ That function is
+non-boolean and lives in `app`, so it is **outside every authz ARM's domain**: `ARM=census` HOLDING is not
+evidence about it. Its real coverage is suite `357`'s mutation twins — see
+`FUP-0137-357-TWINS-ON-STALE-BODY`, filed because those twins red-proved the **pre-0137** body.
+
+⚠ **Diff-scoped door sweep NOT TRIGGERED — a measured empty** (0 policy statements, 0 boolean-returning
+functions across all four migrations), **not** a clean sweep. An empty domain and a clean sweep print
+identically.
+
+⛔ **`patient_mode = 'required'` was unreachable from the product until 2026-08-24.** The column, the
+CHECK and 7,125 pgTAP assertions all supported it, but pgTAP reaches it **as `postgres`, by direct
+INSERT** — no UI could set it and no E2E ever drove it. Now built (`PatientModePicker`) and covered
+(`e2e/patient-mode-required.spec.ts`). The general form: **a value a CHECK admits and no product path
+writes is an orphan, and every reader of it is unexercised by construction.**
+
+
 ## AFF2 — affiliation-scoped administration (2026-08-23; ADR **0133** + **Amendments 1–4**; migrations `20261003001000`–`…001200`, **3**; pgTAP `359` `plan(18)` · `360` `plan(21)` · `361` `plan(24)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **LOCAL ONLY, NOT PUSHED**
 
 ✅ **PUSHED 2026-08-23 — schema first, then code.** Remote re-measured (not read off the push output):

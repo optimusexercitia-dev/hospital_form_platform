@@ -13,7 +13,8 @@ import {
 import type { CaseOutcome } from "@/lib/queries/case-outcomes";
 import type { CaseType } from "@/lib/cases/case-types";
 import type { CustomFieldDef } from "@/lib/queries/process-templates";
-import type { Department } from "@/lib/hospitals/departments";
+// ⚠ TYPE-ONLY — `@/lib/queries/cases` is a server query module.
+import type { PatientMode, PatientRequiredField } from "@/lib/queries/cases";
 import { CasePatientConfirmation } from "@/components/cases/case-patient-confirmation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,11 +38,12 @@ import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
   EMPTY_PATIENT_DRAFT,
+  PATIENT_REQUIRED_FIELD_LABELS,
   PatientFields,
+  patientDraftMissingRequired,
   type PatientDraft,
 } from "@/components/safety/patient-fields";
 import { OutcomeMultiselect } from "@/components/cases/outcome-multiselect";
-import { CaseDepartmentField } from "@/components/cases/case-department-field";
 import {
   CustomFieldInput,
   isCustomFieldBlank,
@@ -57,25 +59,38 @@ interface TemplateOption {
   id: string;
   title: string;
   /**
-   * Whether the process collects patient identifiers (ADR 0038). Snapshotted into
-   * `cases.patient_enabled` at creation. When `true` AND the `case_patient` flag is
-   * on, the dialog offers the optional PHI block. Defaults to `false`.
+   * How the process collects patient identifiers (ADR 0038; ADR 0137 **D1**).
+   * Snapshotted into `cases.patient_mode` at creation and immutable thereafter.
+   * With the `case_patient` flag on, `'optional'` and `'required'` both reveal the
+   * PHI block; `'required'` additionally marks {@link patientRequiredFields} and
+   * gates the submit.
+   *
+   * ⛔ This was `collectsPatient: boolean` and it named the column
+   * `cases.patient_enabled`, which ADR 0137 DROPPED — a boolean cannot express
+   * `'required'`, which is why the mode existed in the DB for a release with no
+   * user able to select it (QA C-1).
    */
-  collectsPatient: boolean;
+  patientMode: PatientMode;
+  /**
+   * The identifier fields a `'required'` process demands (ADR 0137 **D2**); `[]`
+   * for the other two modes. `mrn` is always a member — the LGPD erasure key.
+   */
+  patientRequiredFields: PatientRequiredField[];
   /**
    * The template's custom-field definitions (ADR 0083). When non-empty AND the
    * `case_custom_fields` flag is on, the dialog reveals a "Campos personalizados"
-   * block (mirrors `collectsPatient`). `[]` when the process defines none.
+   * block (mirrors the PHI block's reveal). `[]` when the process defines none.
    */
   customFields: CustomFieldDef[];
 }
 
 /**
- * The OPTIONAL patient (PHI) hidden-mirror block — submits the controlled
- * `PatientDraft` WITH the create request in a single round-trip (the create action
- * writes it atomically server-side, so identifiers are never lost to a navigation
- * race). Field names match what `createCase` / `createCaseFromTemplate` read.
- * Rendered only inside a branch that actually collects PHI.
+ * The patient (PHI) hidden-mirror block — submits the controlled `PatientDraft`
+ * WITH the create request in a single round-trip (the create action writes it
+ * atomically server-side, so identifiers are never lost to a navigation race).
+ * Field names match what `createCase` / `createCaseFromTemplate` read. Rendered
+ * only inside a branch that actually collects PHI — under `patient_mode`
+ * `'optional'` OR `'required'` (ADR 0137 D1), not under a dropped boolean.
  */
 function PatientHiddenFields({ patient }: { patient: PatientDraft }) {
   return (
@@ -83,7 +98,11 @@ function PatientHiddenFields({ patient }: { patient: PatientDraft }) {
       <input type="hidden" name="patientName" value={patient.name} />
       <input type="hidden" name="patientMrn" value={patient.mrn} />
       <input type="hidden" name="patientDateOfBirth" value={patient.dateOfBirth} />
-      <input type="hidden" name="patientAgeYears" value={patient.ageYears} />
+      {/* ⛔ No `patientAgeYears` mirror (ADR 0137 D9): the case surfaces no longer
+          COLLECT an age, so submitting one would mirror an input this dialog cannot
+          show. `createCase` / `createCaseFromTemplate` still READ the field and the
+          `age_years` column is untouched — an absent key is coerced to `null` by the
+          action exactly as an empty string was. */}
       <input type="hidden" name="patientSex" value={patient.sex} />
       <input type="hidden" name="patientEncounterRef" value={patient.encounterRef} />
       <input type="hidden" name="patientUnit" value={patient.unit} />
@@ -132,8 +151,10 @@ export function LabelPiiWarning() {
  *
  *  - **Templated** (unchanged): mints a case from a published process template
  *    (snapshotting its phases + pinning published versions) via
- *    `createCaseFromTemplate`. Its optional PHI block stays gated by
- *    `selectedTemplate.collectsPatient && casePatientEnabled`.
+ *    `createCaseFromTemplate`. Its PHI block is gated by
+ *    `selectedTemplate.patientMode !== 'none' && casePatientEnabled`, and under
+ *    `'required'` (ADR 0137 D3 layer 3) the named inputs are marked required and
+ *    the submit is gated until they carry a value.
  *  - **Process-less** ("Sem processo", `processless_cases`): a top sentinel option
  *    switches the dialog into a TWO-STEP wizard backed by `createCase` — a case
  *    with `template_id` NULL, zero phases, an OPTIONAL hand-picked offered-outcome
@@ -150,7 +171,6 @@ export function CreateCaseDialog({
   slug,
   templates,
   commissionId,
-  departments = [],
   casePatientEnabled = false,
   caseCustomFieldsEnabled = false,
   processlessEnabled = false,
@@ -165,12 +185,6 @@ export function CreateCaseDialog({
   templates: TemplateOption[];
   /** The commission id — required for the process-less `create_case` path. */
   commissionId: string;
-  /**
-   * The case's hospital ACTIVE departments (Hospital Departments) — the options
-   * for the case-level, NON-PHI "Unidade / setor" dropdown. `[]` → the field is
-   * still shown with only the "Outros" custom option (the field is optional).
-   */
-  departments?: Department[];
   /** Whether the `case_patient` flag is on (gates the optional PHI block + step). */
   casePatientEnabled?: boolean;
   /** Whether the `case_custom_fields` flag is on (gates the custom-fields block; ADR 0083). */
@@ -222,8 +236,24 @@ export function CreateCaseDialog({
 
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
   const showTemplatedPatientBlock = Boolean(
-    casePatientEnabled && selectedTemplate?.collectsPatient,
+    casePatientEnabled && selectedTemplate && selectedTemplate.patientMode !== "none",
   );
+  // ADR 0137 D3 layer 3. Empty unless the chosen process is in `'required'` mode —
+  // which also means the process-less path never has required fields (it has no
+  // template to carry a mode).
+  const requiredPatientFields =
+    showTemplatedPatientBlock && selectedTemplate?.patientMode === "required"
+      ? selectedTemplate.patientRequiredFields
+      : [];
+  const missingPatientFields = patientDraftMissingRequired(
+    patient,
+    requiredPatientFields,
+  );
+  // ⛔ UX gate ONLY. `app.assert_patient_required_fields` is the authority (D3 —
+  // "the DB layer is the one that counts") and refuses with a pt-BR message naming
+  // the same fields; this only keeps the button from offering a submit that is
+  // already known to fail. Never let an enforcement decision rest here.
+  const patientBlocked = missingPatientFields.length > 0;
   // Custom fields (ADR 0083) — templated path only (D9: process-less cases get none),
   // and only when the selected process actually defines fields.
   const customFields =
@@ -402,10 +432,19 @@ export function CreateCaseDialog({
 
             <LabelPiiWarning />
 
-            {/* Case-level, NON-PHI department ("Unidade / setor"). Shown for BOTH
-                the templated and process-less flows (it is not gated by PHI). Emits
-                exactly one of departmentId / departmentOther; optional. */}
-            <CaseDepartmentField departments={departments} disabled={busy} />
+            {/* ⛔ The case-level "Unidade / setor" field is REMOVED (ADR 0137 D9),
+                not hidden — this dialog no longer collects a department at all. The
+                columns (`department_id` / `department_other`), the RPC arguments and
+                every stored value are UNTOUCHED: a case that already carries a
+                department still renders it read-only on the detail page. A commission
+                that genuinely needs a unit models it as a process CUSTOM FIELD (ADR
+                0083).
+                ⚠ Measured, and stated because the plan assumed otherwise: this was
+                `CaseDepartmentField`'s LAST app call site apart from the edit-meta
+                dialog, and after D9 that component has NO non-test consumer at all.
+                The hospital-admin surface manages the department VOCABULARY through
+                `DepartmentsManager`, which is a different component. The file and its
+                test are retained by decision, not by use. */}
 
             {/* Process-less CASE TYPE (ADR 0064 D4). A templated case INHERITS its
                 type from the process, so this only mounts for "Sem processo" — there
@@ -513,16 +552,47 @@ export function CreateCaseDialog({
             )}
 
             {/* Templated PHI block (ADR 0038) — only when the chosen process
-                collects identifiers and the flag is on. */}
+                collects identifiers (`patient_mode` ≠ `'none'`) and the flag is on.
+                Under `'required'` (ADR 0137 D2/D3) the process names the fields that
+                must carry a value; `PatientFields` marks exactly those. */}
             {!isProcessless && showTemplatedPatientBlock && (
               <>
+                {requiredPatientFields.length > 0 && (
+                  <p
+                    role="note"
+                    className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/12 px-3 py-2.5 text-sm text-pretty"
+                  >
+                    <ShieldAlert
+                      aria-hidden="true"
+                      className="mt-0.5 size-4 shrink-0 text-warning"
+                    />
+                    <span>
+                      Este processo exige a identificação do paciente. Preencha os
+                      campos marcados como obrigatórios para criar o caso.
+                    </span>
+                  </p>
+                )}
                 <PatientFields
                   draft={patient}
                   onChange={setPatient}
                   disabled={busy}
                   idPrefix="create-case-patient"
                   hideUnit
+                  hideAge
+                  requiredFields={requiredPatientFields}
                 />
+                {/* Names the outstanding fields rather than only greying the button —
+                    `role="status"` (polite) because it updates on every keystroke and
+                    an assertive region would interrupt typing. */}
+                {patientBlocked && (
+                  <p role="status" className="text-sm font-medium text-muted-foreground">
+                    Faltam preencher:{" "}
+                    {missingPatientFields
+                      .map((f) => PATIENT_REQUIRED_FIELD_LABELS[f])
+                      .join(", ")}
+                    .
+                  </p>
+                )}
                 <PatientHiddenFields patient={patient} />
               </>
             )}
@@ -586,6 +656,7 @@ export function CreateCaseDialog({
                 disabled={busy}
                 idPrefix="create-case-processless-patient"
                 hideUnit
+                hideAge
               />
               <PatientHiddenFields patient={patient} />
             </div>
@@ -640,7 +711,7 @@ export function CreateCaseDialog({
                 key="submit"
                 type="submit"
                 size="lg"
-                disabled={busy || outcomeBlocked || customFieldsBlocked}
+                disabled={busy || outcomeBlocked || customFieldsBlocked || patientBlocked}
               >
                 {busy ? "Criando…" : "Criar caso"}
               </Button>

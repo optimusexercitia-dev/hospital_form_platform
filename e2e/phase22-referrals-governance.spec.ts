@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { saveMinimalReferralPatientForSend } from "./helpers/referrals"
 
 /**
  * Referrals v2 — R2–R5 governance (`case_referrals`; ADR 0037 Amendment 1)
@@ -296,6 +297,9 @@ async function draftAndSend(
   expect(draftResp.ok(), `create_referral_draft(${input.subject}) failed: ${await draftResp.text()}`).toBeTruthy()
   const { id } = (await draftResp.json()) as { id: string }
 
+  // ADR 0137 D4 — send_referral now refuses without an MRN (HC0T4). Fixture
+  // setup, not the subject under test.
+  await saveMinimalReferralPatientForSend(req, bearer, id)
   const sendResp = await rpc(req, 'send_referral', bearer, { p_referral_id: id })
   expect(sendResp.ok(), `send_referral(${input.subject}) failed: ${await sendResp.text()}`).toBeTruthy()
   return id
@@ -596,8 +600,12 @@ test('R2-1: send wizard sets priority / requested-action / response_due_at; revi
   await expect(wizard.getByRole('heading', { name: 'Narrativas' })).toBeVisible({ timeout: 10_000 })
   await wizard.getByRole('button', { name: 'Continuar' }).click()
 
-  // Step 3 (Paciente) → step 4 (Revisão)
+  // Step 3 (Paciente) → step 4 (Revisão). ADR 0137 D4 — send_referral now
+  // refuses without an MRN (HC0T4); this drives the real wizard, so the fix
+  // is filling the field through the UI (not the RPC helper other fixtures
+  // use) — the minimum PHI D4 requires, nothing more.
   await expect(wizard.getByRole('button', { name: 'Continuar' })).toBeVisible({ timeout: 10_000 })
+  await wizard.getByLabel(/^Prontuário/i).fill(`E2E-FIXTURE-${RUN_TAG}`)
   await wizard.getByRole('button', { name: 'Continuar' }).click()
 
   // Step 4 (Revisão) — confirm the triage fields round-tripped into the summary.
@@ -967,7 +975,10 @@ test('R3-8: "Encaminhar adiante" creates a child referral carrying parent lineag
   await wizard.getByRole('button', { name: 'Continuar' }).click()
   await expect(wizard.getByRole('heading', { name: 'Narrativas' })).toBeVisible({ timeout: 10_000 })
   await wizard.getByRole('button', { name: 'Continuar' }).click()
+  // ADR 0137 D4 — send_referral now refuses without an MRN (HC0T4); fill the
+  // minimum PHI it requires through the real UI (mirrors R2-1's fix).
   await expect(wizard.getByRole('button', { name: 'Continuar' })).toBeVisible({ timeout: 10_000 })
+  await wizard.getByLabel(/^Prontuário/i).fill(`E2E-FIXTURE-${RUN_TAG}-fwd`)
   await wizard.getByRole('button', { name: 'Continuar' }).click()
   await wizard.getByRole('button', { name: /enviar encaminhamento/i }).click()
   await expect(wizard).toBeHidden({ timeout: 15_000 })

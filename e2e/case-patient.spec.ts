@@ -27,7 +27,8 @@ import { getAnyPublishedTemplateVersion } from './helpers/process-templates'
  * **Seeded fixtures (after `supabase db reset --local`):**
  *   Caso 0001  id d0000000-0000-0000-0000-0000000000c1
  *              CCIH commission (chefe.ccih = coordinator)
- *              patient_enabled=true, has_patient=true
+ *              patient_mode='optional' (ADR 0137 D1 replaced the dropped
+ *              `patient_enabled` boolean), has_patient=true
  *              case_patient: name="Paciente Teste Silva", mrn="PRT-2026-0001",
  *                           unit="UTI Adulto", sex="female", attending="Dra. Helena Costa"
  *              Phase 1: concluida, assigned to staff1.ccih (phase assignee → can_read_case)
@@ -36,8 +37,9 @@ import { getAnyPublishedTemplateVersion } from './helpers/process-templates'
  *                           ADR 0078 Stage B: no read_standard_phi/read_restricted_phi set,
  *                           so this grant does NOT confer PHI reach)
  *              read-grant:  multi@test.local (same: content only, no PHI)
- *   Template  "Investigação de Óbito (M&M)" — PUBLISHED version, collects_patient=true
- *             (CCIH). ADR 0096: status/collects_patient live on the VERSION now.
+ *   Template  "Investigação de Óbito (M&M)" — PUBLISHED version, patient_mode='optional'
+ *             (CCIH). ADR 0096: status lives on the VERSION now; ADR 0137 D1
+ *             replaced the version's `collects_patient` boolean with `patient_mode`.
  *
  * **Personas (password Test1234!):**
  *   admin@test.local            global admin, PQS member          (00…001)
@@ -307,12 +309,16 @@ test.beforeAll(async ({ request }) => {
   // (b1e6dd3: "patient_index live on remote … flag ON").
   await setFeatureFlag('patient_index', true)
 
-  // Enable patient_enabled on Caso 0001 — the seed.sql inserts Caso 0001 without
-  // patient_enabled=true (seed.sql was committed before Phase 23 and has no case_patient
-  // fixtures). set_case_patient will reject with "este caso não coleta identificação do
-  // paciente" if patient_enabled=false (the column default). This service-role PATCH
-  // replicates what the real create_case_from_template RPC would do when called with a
-  // collects_patient=true template. Safe to run repeatedly (PATCH is idempotent).
+  // Ensure Caso 0001 is PHI-capable (`patient_mode <> 'none'`).
+  // ⚠ ADR 0137 D1 (2026-08-23) — `cases.patient_enabled` (boolean) was DROPPED
+  // from the live catalog; `patient_mode text` replaces it. `set_case_patient`
+  // rejects with "este caso não coleta identificação do paciente" while
+  // `patient_mode = 'none'`. This PATCH is now a NO-OP on a fresh reset (Caso
+  // 0001's seeded `patient_mode` is already `'optional'`) — kept anyway because
+  // `cases.patient_mode`/`patient_required_fields` are IMMUTABLE AFTER INSERT
+  // (`app.guard_case_patient_mode_immutable`, HC0T3: refuses only when the NEW
+  // value is DISTINCT from the stored one), so a same-value PATCH is the only
+  // shape that stays safe if the seed's backfilled value ever changes.
   const patchResp = await request.patch(
     `${SUPABASE_URL}/rest/v1/cases?id=eq.${CASE_A_ID}`,
     {
@@ -321,12 +327,12 @@ test.beforeAll(async ({ request }) => {
         Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
         'Content-Type': 'application/json',
       },
-      data: { patient_enabled: true },
+      data: { patient_mode: 'optional' },
     },
   )
   expect(
     patchResp.ok(),
-    `beforeAll: PATCH cases.patient_enabled failed: ${await patchResp.text()}`,
+    `beforeAll: PATCH cases.patient_mode failed: ${await patchResp.text()}`,
   ).toBeTruthy()
 
   // Ensure CASE_A_ID's case_patient row has both name AND mrn so we can assert on both.
@@ -344,8 +350,9 @@ test.beforeAll(async ({ request }) => {
   ).toBeTruthy()
 
   // Create a fresh DRAFT template in CCIH — we need a draft (not published) so
-  // that `set_template_collects_patient` is allowed. ADR 0096: a template is
-  // IDENTITY + versions, and `title`/`description`/`collects_patient` all live
+  // that `set_template_patient_mode` (ADR 0137 D1 — was `set_template_collects_patient`,
+  // same authority: draft-only) is allowed. ADR 0096: a template is IDENTITY +
+  // versions, and `title`/`description`/`patient_mode` all live
   // on the VERSION (D1) — `process_templates` itself carries only
   // commission_id/created_by. Two service-role inserts, identity then v1.
   const identityResp = await request.post(`${SUPABASE_URL}/rest/v1/process_templates`, {
@@ -381,7 +388,7 @@ test.beforeAll(async ({ request }) => {
       title: 'Caso com Paciente — spec CP (draft)',
       description: 'Template draft para testar collects_patient (case_patient spec).',
       created_by: UID_CHEFE_A,
-      // collects_patient defaults to false — we will toggle it on via the UI/RPC
+      // patient_mode defaults to 'none' — we will toggle it to 'optional' via the UI/RPC
     },
   })
   expect(
@@ -445,24 +452,29 @@ test('AC-1a: builder toggle enables collects_patient on draft template', async (
     // control exists, let alone that it persists `collects_patient`, which is what
     // this test is named for. Removed: a missing toggle now always falls through to
     // the RPC + DB verification below, which actually asserts the persisted state.
-    // Verify via DB that we can call the RPC (unit test of the setter). ADR
-    // 0096: `set_template_collects_patient` is now version-grained.
+    // Verify via DB that we can call the RPC (unit test of the setter).
+    // ADR 0137 D1 — `set_template_collects_patient` was DROPPED (not kept as a
+    // compat overload at the SQL level); `set_template_patient_mode` replaces
+    // it, version-grained same as before, now taking an explicit mode + a
+    // required-fields set (empty for 'optional').
     const chefeAToken = await getToken(page.request, 'chefe.ccih@test.local')
-    const resp = await rpc(page.request, 'set_template_collects_patient', chefeAToken, {
+    const resp = await rpc(page.request, 'set_template_patient_mode', chefeAToken, {
       p_template_version_id: draftVersionId,
-      p_collects: true,
+      p_mode: 'optional',
+      p_required_fields: [],
     })
     expect(
       resp.ok(),
-      `set_template_collects_patient RPC failed: ${await resp.text()}`,
+      `set_template_patient_mode RPC failed: ${await resp.text()}`,
     ).toBeTruthy()
-    // Verify the DB state
-    const rows = await restGet<{ collects_patient: boolean }>(
+    // Verify the DB state. `process_template_versions.collects_patient` was
+    // DROPPED; `patient_mode` replaces it.
+    const rows = await restGet<{ patient_mode: string }>(
       page.request,
-      `process_template_versions?id=eq.${draftVersionId}&select=collects_patient`,
+      `process_template_versions?id=eq.${draftVersionId}&select=patient_mode`,
       SUPABASE_SERVICE_KEY,
     )
-    expect(rows[0]?.collects_patient).toBe(true)
+    expect(rows[0]?.patient_mode).toBe('optional')
     return
   }
 
@@ -482,15 +494,16 @@ test('AC-1a: builder toggle enables collects_patient on draft template', async (
   if (await toggleAfter.isVisible({ timeout: 6_000 }).catch(() => false)) {
     await expect(toggleAfter).toBeChecked({ timeout: 5_000 })
   } else {
-    // Verify via DB (ADR 0096: collects_patient lives on the version)
-    const rows = await restGet<{ collects_patient: boolean }>(
+    // Verify via DB. ADR 0137 D1: `patient_mode` lives on the version, replacing
+    // the dropped `collects_patient` boolean.
+    const rows = await restGet<{ patient_mode: string }>(
       page.request,
-      `process_template_versions?id=eq.${draftVersionId}&select=collects_patient`,
+      `process_template_versions?id=eq.${draftVersionId}&select=patient_mode`,
       SUPABASE_SERVICE_KEY,
     )
     // Either the toggle clicked it on (verified by reload above) or the RPC path did
     // Either is acceptable — the DB is the source of truth
-    expect(rows[0]?.collects_patient).toBe(true)
+    expect(rows[0]?.patient_mode).toBe('optional')
   }
 })
 
@@ -498,14 +511,16 @@ test('AC-1b: Novo caso from collecting template shows PHI block; non-collecting 
   page,
   request,
 }) => {
-  // Ensure our draft template has collects_patient=true via RPC (idempotent).
-  // ADR 0096: version-grained.
+  // Ensure our draft template has patient_mode='optional' via RPC (idempotent).
+  // ADR 0137 D1 — version-grained, `set_template_patient_mode` replaces the
+  // dropped `set_template_collects_patient`.
   const chefeAToken = await getToken(request, 'chefe.ccih@test.local')
-  const setResp = await rpc(request, 'set_template_collects_patient', chefeAToken, {
+  const setResp = await rpc(request, 'set_template_patient_mode', chefeAToken, {
     p_template_version_id: draftVersionId,
-    p_collects: true,
+    p_mode: 'optional',
+    p_required_fields: [],
   })
-  expect(setResp.ok(), `set_template_collects_patient failed: ${await setResp.text()}`).toBeTruthy()
+  expect(setResp.ok(), `set_template_patient_mode failed: ${await setResp.text()}`).toBeTruthy()
 
   // Publish needs ≥1 phase (HC016 — not new, it's in the original baseline; the
   // pre-TV version of this spec skipped it entirely by flipping `status` with a
@@ -547,7 +562,7 @@ test('AC-1b: Novo caso from collecting template shows PHI block; non-collecting 
   // that renders inside the PHI block when a collecting template is chosen.
   const templateSelect = dialog.locator('select[name="templateId"]')
 
-  // First select our draft template (which has collects_patient=true per beforeAll+RPC)
+  // First select our draft template (patient_mode='optional' per beforeAll+RPC)
   // so the PHI block must appear.
   await templateSelect.selectOption({ value: draftTemplateId })
 
@@ -555,25 +570,32 @@ test('AC-1b: Novo caso from collecting template shows PHI block; non-collecting 
   const phiBlock = dialog.locator('[id^="create-case-patient"]').first()
   await expect(phiBlock).toBeVisible({ timeout: 8_000 })
 
-  // Now select a non-collecting template — query DB for one. ADR 0096:
-  // `collects_patient`/`status` live on `process_template_versions`, not
-  // `process_templates`. We genuinely don't care WHICH non-collecting template
-  // this resolves to (only that one exists) — the explicit "any" resolver
-  // names that intent, rather than an omitted title implying it silently.
+  // Now select a non-collecting template — query DB for one. ADR 0137 D1:
+  // `patient_mode` (replacing the dropped `collects_patient` boolean) lives on
+  // `process_template_versions`, not `process_templates`. We genuinely don't
+  // care WHICH non-collecting template this resolves to (only that one exists)
+  // — the explicit "any" resolver names that intent, rather than an omitted
+  // title implying it silently.
+  //
+  // ⛔ NO SWALLOW HERE, by decision (BUG-CP-HELPER-COLLECTSPATIENT, filed
+  // 2026-08-23). This call used to be wrapped in `.catch(() => null)` while the
+  // helper queried the (already-dropped) `collects_patient` column — every run
+  // hit the 42703 PostgREST error, was swallowed, and the negative half below
+  // silently never ran, under a comment ("no non-collecting template in this
+  // seed") that read as a deliberate fixture fact. The helper is fixed (queries
+  // `patient_mode` now); this call is deliberately UNGUARDED so a future
+  // regression here fails LOUD instead of vanishing into a skip again.
   const nonCollecting = await getAnyPublishedTemplateVersion(
     request,
     { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
     COMM_A,
     { collectsPatient: false },
-  ).catch(() => null)
-  if (nonCollecting) {
-    await templateSelect.selectOption({ value: nonCollecting.templateId })
-    // PHI block must be gone
-    await expect(
-      dialog.locator('[id^="create-case-patient"]').first()
-    ).not.toBeVisible({ timeout: 5_000 })
-  }
-  // else: no non-collecting template in this seed — skip the negative half.
+  )
+  await templateSelect.selectOption({ value: nonCollecting.templateId })
+  // PHI block must be gone
+  await expect(
+    dialog.locator('[id^="create-case-patient"]').first()
+  ).not.toBeVisible({ timeout: 5_000 })
 
   // Close dialog
   await page.keyboard.press('Escape')
@@ -601,7 +623,7 @@ test('AC-2a: opening case detail does NOT emit case_patient.read', async ({
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
   await page.waitForTimeout(1_500)
 
-  // The panel header should be visible (patient_enabled=true → panel renders)
+  // The panel header should be visible (patient_mode <> 'none' → panel renders)
   await expect(
     page.getByRole('heading', { name: /Identificação do paciente/i })
       .or(page.getByText(/Identificação do paciente/i)),
@@ -1159,7 +1181,9 @@ test('AC-6a/b/c: dispose_case_phi RPC — happy path, HC056 one-shot, 42501 non-
       commission_id: COMM_A,
       label: 'AC-6 disposal test case (case_patient spec)',
       status: 'pending',
-      patient_enabled: true,
+      // ADR 0137 D1 — `cases.patient_enabled` (boolean) was DROPPED; `patient_mode`
+      // replaces it, set at INSERT (immutable afterward — HC0T3).
+      patient_mode: 'optional',
       created_by: UID_CHEFE_A,
     },
   })
@@ -1353,9 +1377,13 @@ test('AC-8b: case_patient flag OFF — Novo caso PHI block absent even for colle
         .or(page.getByRole('dialog').filter({ hasText: /novo caso/i }))
       await expect(dialog).toBeVisible({ timeout: 8_000 })
 
-      // Select the collecting template. Scope to the templateId select by name:
-      // the dialog now also carries the "Unidade / setor" department select
-      // (hospital-departments batch), so a bare `select` matches 2 elements.
+      // Select the collecting template. Scope to the templateId select by name
+      // (not a bare `select`) so this stays correct regardless of how many
+      // other selects the dialog renders. ⚠ Historical note: the "Unidade /
+      // setor" department dropdown this comment used to warn about was REMOVED
+      // from Novo caso entirely by ADR 0137 D9 (2026-08-23) — case surfaces no
+      // longer collect a department at all — so the collision this scoping
+      // guarded against no longer exists on this path either way.
       const templateSelect = dialog.locator('select[name="templateId"]')
       const optText = await templateSelect.locator('option').filter({ hasText: /spec cp/i }).textContent()
       if (!optText) return
@@ -1407,14 +1435,15 @@ test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', 
   const DIALOG_ENCOUNTER = 'ATD-CC-DIALOG-9001'
 
   // Resolve the seeded active, collecting CCIH template ("Investigação de Óbito
-  // (M&M)" — collects_patient=true). Query by config (not title) so it stays robust.
+  // (M&M)" — patient_mode='optional'). Query by config (not title) so it stays robust.
   //
-  // ADR 0096: `collects_patient`/`status` moved onto `process_template_versions`.
-  // By the time AC-9 runs (after AC-1b/AC-8b), the "spec CP" draft template's v1
-  // is ALSO published+collecting (AC-1b published it) — so this can no longer
-  // assume a single match and must keep the "prefer the seeded M&M title" logic
-  // that predates ADR 0096, now resolved at the version grain (two-step: identity
-  // ids for the commission, then the matching published versions among them).
+  // ADR 0137 D1: `patient_mode` (replacing the dropped `collects_patient`
+  // boolean) lives on `process_template_versions`. By the time AC-9 runs (after
+  // AC-1b/AC-8b), the "spec CP" draft template's v1 is ALSO published+collecting
+  // (AC-1b published it) — so this can no longer assume a single match and must
+  // keep the "prefer the seeded M&M title" logic that predates ADR 0096, now
+  // resolved at the version grain (two-step: identity ids for the commission,
+  // then the matching published versions among them).
   const identityResp = await restGet<{ id: string }>(
     request,
     `process_templates?commission_id=eq.${COMM_A}&select=id`,
@@ -1424,7 +1453,7 @@ test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', 
   expect(identityIds.length, 'no process_templates rows for CCIH').toBeGreaterThan(0)
   const collectingRows = await restGet<{ template_id: string; title: string }>(
     request,
-    `process_template_versions?status=eq.published&collects_patient=eq.true&template_id=in.(${identityIds.join(',')})&select=template_id,title`,
+    `process_template_versions?status=eq.published&patient_mode=neq.none&template_id=in.(${identityIds.join(',')})&select=template_id,title`,
     SUPABASE_SERVICE_KEY,
   )
   const versionMatch =
@@ -1498,12 +1527,13 @@ test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', 
   await expect(page.getByText(DIALOG_ENCOUNTER)).toBeVisible({ timeout: 8_000 })
 
   // DB layer (service role): the PHI actually landed, atomically with the case.
-  const caseRows = await restGet<{ has_patient: boolean; patient_enabled: boolean }>(
+  // ADR 0137 D1 — `cases.patient_enabled` was DROPPED; `patient_mode` replaces it.
+  const caseRows = await restGet<{ has_patient: boolean; patient_mode: string }>(
     request,
-    `cases?id=eq.${caseId}&select=has_patient,patient_enabled`,
+    `cases?id=eq.${caseId}&select=has_patient,patient_mode`,
     SUPABASE_SERVICE_KEY,
   )
-  expect(caseRows[0]?.patient_enabled).toBe(true) // snapshotted from collects_patient
+  expect(caseRows[0]?.patient_mode).not.toBe('none') // snapshotted from the template's patient_mode
   expect(caseRows[0]?.has_patient).toBe(true) // the regression: was false before the fix
 
   // F1 re-key (ADR 0064/0066): case_patient is DROPPED → patient_identifiers,

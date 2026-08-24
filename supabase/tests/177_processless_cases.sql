@@ -8,7 +8,7 @@
 --     'not_started', ZERO case_phases.
 --   * an OPTIONAL offered-outcome set (two same-commission non-archived → two
 --     case_offered_outcomes rows); a cross-commission/archived outcome → HC030.
---   * patient_enabled true/false snapshot vs set_case_patient (check_violation
+--   * patient_mode optional/none snapshot vs set_case_patient (check_violation
 --     23514 when false).
 --   * plain staff (non-coordinator) → 42501.
 --   * processless_cases flag OFF → check_violation; cases_extras OFF: empty set
@@ -131,7 +131,7 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- 4) patient_enabled true/false snapshot vs set_case_patient.
+-- 4) patient_mode optional/none snapshot vs set_case_patient.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -142,32 +142,36 @@ grant select on cse_phi to authenticated;
 reset role;
 
 select is(
-  (select patient_enabled from public.cases where id = (select cid_on from cse_phi)),
-  true, 'create_case(p_patient_enabled:=true) snapshots patient_enabled = true');
+  (select patient_mode from public.cases where id = (select cid_on from cse_phi)),
+  'optional',
+  -- ADR 0137 D1: create_case KEEPS its boolean argument (supabase/tests/357 SS1.6
+  -- pins the signature verbatim) and MAPS it - true -> 'optional', never
+  -- 'required'. A process-less case has no template version to carry a mode.
+  'create_case(p_patient_enabled:=true) snapshots patient_mode = optional');
 select is(
   (select has_patient from public.cases where id = (select cid_on from cse_phi)),
   false, 'a freshly-created PHI-capable case has has_patient = false (no identifiers yet)');
 
--- The coordinator can set PHI on a patient_enabled case.
+-- The coordinator can set PHI on a patient-collecting case.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select lives_ok(
   format($$ select public.set_case_patient(%L, 'Paciente Teste', 'MRN-PL-1') $$,
          (select cid_on from cse_phi)),
-  'set_case_patient succeeds on a patient_enabled process-less case');
+  'set_case_patient succeeds on a patient-collecting process-less case');
 reset role;
 select is(
   (select has_patient from public.cases where id = (select cid_on from cse_phi)),
   true, 'set_case_patient flips has_patient = true on the process-less case');
 
--- patient_enabled = false ⇒ set_case_patient raises check_violation (23514).
+-- patient_mode = 'none' ⇒ set_case_patient raises check_violation (23514).
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.set_case_patient(%L, 'Nao', 'MRN-0') $$,
          (select cid_off from cse_phi)),
   '23514', null,
-  'set_case_patient on a patient_enabled=false process-less case raises check_violation (23514)');
+  'set_case_patient on a patient_mode=none process-less case raises check_violation (23514)');
 reset role;
 
 -- =========================================================================

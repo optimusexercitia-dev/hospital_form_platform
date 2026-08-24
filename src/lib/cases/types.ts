@@ -99,8 +99,15 @@ export interface CasePatient {
 /**
  * The isolated PHI write (Rule 12), same 9-arg shape as `SetEventPatientInput` /
  * `SetReferralPatientInput`. Minimum-necessary identifiers; entitlement is
- * coordinators-only on a `patient_enabled` case (the RPC raises 42501 / check
- * otherwise). The name-or-MRN floor is enforced in the action layer.
+ * coordinators-only on a case whose `patient_mode` is not `'none'` (the RPC
+ * raises 42501 / check otherwise). The name-or-MRN floor is enforced in the
+ * action layer AND in the shared writer.
+ *
+ * ⚠ ADR 0137 D3: a `'required'`-mode case additionally refuses this write with
+ * `HC0T1` unless every field in its `patient_required_fields` set carries a
+ * value. That check lives in `app._set_participant_patient_unchecked` — the
+ * shared body BOTH doors delegate to — not in `set_case_patient`, so the E1
+ * multi-patient door `set_participant_patient` inherits it too.
  */
 export interface SetCasePatientInput {
   name: string | null

@@ -7,7 +7,7 @@
 -- Covers: vocab CRUD + RLS isolation (mirror 115_case_outcomes); HC054
 -- same-commission type guard; the cross-table interleave reorder
 -- (reorder_case_layout_template renumbers BOTH tables + rejects an incomplete set);
--- create_case_from_template materializes narratives with the snapshot type_label +
+-- create_case_from_template materializes narratives with the snapshot display_label +
 -- interleaved display_position while phase.position is unchanged;
 -- guard_case_narrative_frozen rejects a body write on a terminal case but allows it
 -- while aberto; update_case_narrative_body allows staff_admin, rejects a plain
@@ -230,7 +230,7 @@ grant select on cse to authenticated;
 reset role;
 
 -- =========================================================================
--- 8) SNAPSHOT: case_narratives materialized with the EFFECTIVE type_label +
+-- 8) SNAPSHOT: case_narratives materialized with the EFFECTIVE display_label +
 --    the interleaved display_position; phase.position unchanged.
 -- =========================================================================
 select is(
@@ -239,9 +239,9 @@ select is(
   'create_case_from_template materializes the template narrative into case_narratives'
 );
 select is(
-  (select type_label from public.case_narratives where case_id = (select cid from cse)),
+  (select display_label from public.case_narratives where case_id = (select cid from cse)),
   'Resumo Clínico',
-  'the snapshot type_label = the effective label (coalesce(slot.title, type.label))'
+  'the snapshot display_label = the effective label (coalesce(slot.title, type.label))'
 );
 select is(
   (select display_position from public.case_narratives where case_id = (select cid from cse)),

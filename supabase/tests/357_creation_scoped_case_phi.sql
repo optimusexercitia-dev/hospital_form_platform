@@ -168,7 +168,7 @@ select throws_ok(
   format($$ select public.create_case(%L, 'Caso sem PHI', false, '{}'::uuid[], null, null, null,
               jsonb_build_object('name','X')) $$, (select comm_x from k)),
   '23514', 'este caso não coleta identificação do paciente',
-  '3.2 patient_enabled is still enforced: identifiers on a non-collecting case are refused');
+  '3.2 patient_mode is still enforced: identifiers on a patient_mode=none case are refused');
 select test_helpers.reset_role_and_claims();
 
 -- =========================================================================

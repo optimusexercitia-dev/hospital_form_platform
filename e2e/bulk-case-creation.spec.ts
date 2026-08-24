@@ -33,12 +33,14 @@ import { cachedSignIn } from "./helpers/auth"
  *   AC8  One keyboard-only pass over the grid (row removal + every cell type).
  *
  * Seeded fixtures used (supabase/seed.sql, commission A / CCIH):
- *   "Investigação de Óbito (M&M)"  — active, collects_patient=true, 2 phases
- *     (no custom fields). Its id is `gen_random_uuid()` in the seed (NOT
- *     deterministic across resets), so this file always selects it by its
- *     visible template-select LABEL, never a hardcoded id.
+ *   "Investigação de Óbito (M&M)"  — active, patient_mode='optional' (ADR 0137
+ *     D1 replaced the `collects_patient` boolean; the seed's pre-existing
+ *     `true` backfilled to `'optional'`), 2 phases (no custom fields). Its id
+ *     is `gen_random_uuid()` in the seed (NOT deterministic across resets), so
+ *     this file always selects it by its visible template-select LABEL, never
+ *     a hardcoded id.
  *   "Descritores de Óbito (Campos Personalizados)" — id d0cf0000-…-f1
- *     (deterministic), active, collects_patient=false, 1 phase, one REQUIRED
+ *     (deterministic), active, patient_mode='none', 1 phase, one REQUIRED
  *     short_text field (numero_declaracao_obito) + one optional dropdown
  *     (turno_obito, manha/tarde/noite).
  * Both templates are ACTIVE with ≥1 phase, so both are bulk-eligible — see
@@ -62,7 +64,7 @@ import { cachedSignIn } from "./helpers/auth"
  * in that environment; the same reasoning applies to "did my batch land").
  *
  * FIXTURE GAP (flagged per the spawn brief, not invented): no seeded template
- * has BOTH collects_patient=true AND custom fields, so AC2/AC5's PHI-write
+ * has BOTH patient_mode<>'none' AND custom fields, so AC2/AC5's PHI-write
  * coverage (M&M) and AC8's custom-field-grid coverage (Descritores) run
  * against different templates rather than one combined row. This does not
  * weaken either assertion (each column family is independently exercised end
@@ -133,7 +135,11 @@ async function restGet<T>(req: APIRequestContext, path: string): Promise<T[]> {
 interface CaseRow {
   id: string
   status: string
-  patient_enabled: boolean
+  // ADR 0137 D1 — `cases.patient_enabled` (boolean) was DROPPED; `patient_mode`
+  // (`'none' | 'optional' | 'required'`) replaces it. The seeded `true` backfilled
+  // to `'optional'`, so every existing `patient_enabled === true` assertion below
+  // becomes `patient_mode !== 'none'`.
+  patient_mode: string
   case_number: number
 }
 
@@ -141,7 +147,7 @@ interface CaseRow {
 async function caseByLabel(req: APIRequestContext, label: string): Promise<CaseRow> {
   const rows = await restGet<CaseRow>(
     req,
-    `cases?commission_id=eq.${COMM_A}&label=eq.${encodeURIComponent(label)}&select=id,status,patient_enabled,case_number`,
+    `cases?commission_id=eq.${COMM_A}&label=eq.${encodeURIComponent(label)}&select=id,status,patient_mode,case_number`,
   )
   expect(rows, `no case found with label "${label}"`).toHaveLength(1)
   return rows[0]
@@ -445,7 +451,7 @@ test('AC2+AC3(first_only)+AC4+AC5(write): paste 2 rows with PHI, a deadline, def
   const case2 = await caseByLabel(request, label2)
   for (const c of [case1, case2]) {
     expect(c.status).toBe('in_review')
-    expect(c.patient_enabled).toBe(true)
+    expect(c.patient_mode).not.toBe('none')
   }
 
   for (const c of [case1, case2]) {

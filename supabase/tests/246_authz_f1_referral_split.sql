@@ -40,7 +40,7 @@ grant select on cs to authenticated;
 insert into public.cases (id, commission_id, case_number, label, created_by) values
   ((select src_case from cs), (select comm_x from k), 9461, 'Caso A', (select sa_x from k)),
   ((select tgt_case from cs), (select comm_y from k), 9462, 'Caso B', (select sa_y from k));
-insert into public.case_narratives (id, case_id, type_label, display_position, title, body_md, created_by)
+insert into public.case_narratives (id, case_id, display_label, display_position, title, body_md, created_by)
 values ((select narr from cs), (select src_case from cs), 'Resumo', 0, 'Resumo',
         'CORPO-SENSIVEL-DO-PACIENTE', (select sa_x from k));
 

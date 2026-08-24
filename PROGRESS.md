@@ -16,69 +16,46 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **✅ AFF2 — COMPLETE, PO-APPROVED and MERGED to LOCAL `main` 2026-08-23** (`96acec61`, `--no-ff`;
-  branch `feat/aff2-user-management` deleted — `git branch -d` refuses a branch that is not fully
-  merged, so the delete *is* the merge proof). Affiliation-scoped administration + the
-  user-management redesign. Ledger row **AFF2**; full detail → [aff2.md](docs/progress/aff2.md).
-  ✅ **PUSHED 2026-08-23 — SCHEMA FIRST, THEN CODE, and both verified rather than reported.**
-  1. ✅ **Schema.** The PO ran `supabase db push` (the lead's attempt was blocked by the
-     environment's permission classifier — *blocked, not failed*). ⛔ **Not accepted on the "ran
-     successfully" report** — re-measured: registry shows `20261003001000`–`…001200` applied on
-     **both** sides, **0 remote-only**. Then the **catalog** itself, because a migration row says the
-     file ran, not that the schema matches the code: `date_of_birth date NULL` + `phone text NULL`
-     exist; `list_org_people(uuid,text,text)` is `secdef` with `date_of_birth` in its return type
-     (still **one** overload, no `citext` twin); `professional_credentials_select` carries the
-     affiliation leg **and** the `COALESCE` hospital-tier form; `guard_profile_privileged_columns`
-     covers both new columns. ⭐ **Column-lock proven as a DIFFERENTIAL, not as an absence:** both new
-     columns hold `authenticated:REFERENCES` **only** — identical to the locked `cpf`, against
-     `full_name`'s INSERT/REFERENCES/SELECT/UPDATE. No `anon` grant on any of them.
-  2. ✅ **Code.** `git push origin main` landed `16b40c62..7320f341`; re-fetched, `origin/main..main`
-     = **0**. ⭐ **The order was load-bearing and nearly went wrong:** the code push was authorized
-     while the schema push was blocked, and [coolify.md](docs/deployment/coolify.md) documents
-     **auto-deploy on git push** against this same Supabase project. Additive migrations make
-     old-code/new-schema safe and **new-code/old-schema the broken state**, so shipping code first
-     would have deployed an app reading a column that did not exist. ⚠ Whether auto-deploy is enabled
-     *right now* remains an **external fact nobody here can verify** — the order costs nothing if off.
-  ⭐ **A commit count and a head sha are LIVE FACTS** — `git rev-list --count origin/main..main`,
-  never quoted from here. This bullet once said *"39 commits, head `ed125b93`"* and was **already
-  wrong when committed**: the Record commit that wrote it was itself commit 40. A count written
-  inside the commit it counts is off by one **by construction**.
+- **✅ ADR 0137 batch — COMPLETE, PO-APPROVED and COMMITTED 2026-08-24. ⛔ NOT pushed.**
+  Full record → ledger row **0137** + [adr-0137-batch.md](docs/progress/adr-0137-batch.md); reviews
+  [r1](docs/reviews/adr-0137-batch-review.md) (`CHANGES REQUESTED`) → [r2](docs/reviews/adr-0137-batch-review-r2.md) (`APPROVED`).
+  ⛔ **The push is a SEPARATE, explicit decision.** Deploy order is **schema first, then code**
+  (additive ⇒ old-code/new-schema is safe, new-code/old-schema is broken), and `coolify.md` documents
+  **auto-deploy on push** — so pushing code before `db:push` opens the broken state on the deployed app.
+  ⚠ **9 follow-ups OPEN**, indexed below. The two 🟠 are ONE family — a full-replace PHI upsert that can
+  blank stored patient identifiers (`MRN-BLANKABLE-AFTER-SEND` post-send; `RESUME-SWALLOW-SILENT-PHI-
+  OVERWRITE` in-draft, where D4's send gate catches only the MRN, not `name`/`date_of_birth`).
+- **⛔ ADR 0136 (deferred `staff_admin` sign-off) is NOT in that batch — sequenced AFTER** (PO ruling
+  2026-08-23). Its § Open decline-path question was **settled the same day as shape (a)**, the
+  correction/supersession machinery — recorded as **ADR 0136 § D7**, so it is now plannable.
+  ⚠ **Its § Size table was re-derived; every wrong row was wrong in the REASSURING direction, and the
+  TS row is literally true yet the wrong measure.** ⛔ Read the correction under that table in the ADR,
+  never the original rows — the figures live there, not here.
 
-- **✅ CASE SURFACE SPLIT — COMPLETE through Increment 2, and its post-merge residue is WORKED** (ADR
-  0134 D1–D7 + Amdt 1–8). Increments 1 (`6e364203`) and 2 (`be546bbf`) are merged to **local** `main`;
-  the §6 Record landed `c85af876`. Both bullets rotated verbatim →
-  [increment-1](docs/progress/case-surface-split-increment-1.md) · [increment-2](docs/progress/case-surface-split-increment-2.md).
-  On **2026-08-22** the open residue was grouped and worked in two commits — the **assertion-integrity
-  group** (`e280cffa`, record: [case-split-assertion-integrity.md](docs/progress/case-split-assertion-integrity.md))
-  and **three of four PO rulings** (`d885f621`). Gates on a fresh reset: `test:db` **209f/6973t PASS** ·
-  lint 8/8 · `tsc` 0 · vitest **113f/1568**.
-  ⛔ **THREE things this does NOT mean, each of which a reader will assume:**
-  1. ✅ **PUSHED 2026-08-23 — code AND schema, PO-authorised.** `git push` landed
-     `df88dced..66160b9f` (`origin/main..main` = 0) and `npm run db:push` applied the 6 migrations;
-     the remote reached **441 / `20261003000900`**, verified in its own catalog. ⚠ **That figure is
-     this push's OUTCOME, not the remote's current state** — AFF2 moved it to **444 /
-     `20261003001200`** the same day; § State carries the live row. ⭐ **Schema first, then
-     code** — the migrations are additive, so old-code/new-schema is safe and new-code/old-schema is
-     the broken state a code-first push would have opened. ⛔ Re-measure before quoting — § State.
-  2. ✅ **`e2e:prod` HAS now been run — 2026-08-23, `REBUILD=1`, at `d885f621`** — the first full run
-     since Increment 2, superseding the Inc-2 union-with-75-unrun. **RED, exit 1: 1185 p · 2 f · 2 flaky ·
-     8 DNR · 20 batches**, no batch gaps, no `reset FAILED`. ⭐ **Both failures are retry artifacts on
-     non-idempotent tests, not defects** — re-run alone they are **25 p / 0 f, GREEN, exit 0** (tail
-     included), so **no regression is attributable to this tree**. Filed as
-     `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`. ⚠ **RED is still RED** — the gate
-     does not pass, and §6 step 2 is not satisfied by a triage note.
-     ⭕ **QUALIFIED 2026-08-23 (PO ruling, AFF2 gate step 2).** This line stands for a **test-quality**
-     failure — which is what it was written about: non-idempotent tests whose retry poisons them. It does
-     **not** extend to an **infrastructure** crash. AFF2's run carried 1 failure + 1 DNR that were the *same*
-     test's two attempts (`wizard-others-ux.spec.ts:484`, a file neither track touched): a `newPage` timeout
-     then `worker process exited unexpectedly (code=3221225794)`. It escaped the gate's own infra
-     classification only because `INFRA_RETRY=1` is a **one-shot budget for the whole gate** and batch 1's
-     unrelated cascade had spent it. Re-run alone on a fresh server + DB: **7/7, exit 0**. ⛔ The
-     qualification is narrow — *proven transient, in an untouched file, better than the pin on every axis*
-     — and it is **not** licence to accept a red gate on a triage note.
-  3. **The residue is smaller, not gone** — `FUP-CS2-QA-RESIDUE` is **12 → 6**; `FUP-RESET-ROLE`'s
-     134-file sweep is open; ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md)
-     is **ruled and DEFERRED**, not built; and B3 filed **two new residues** of its own.
+- **✅ AFF2 — COMPLETE, PO-APPROVED, MERGED (`96acec61`, `--no-ff`) and PUSHED 2026-08-23** — schema
+  first, then code, both **re-measured rather than accepted on report**. Rotated out of § Now
+  2026-08-23; full record → ledger row **AFF2** + [aff2.md](docs/progress/aff2.md).
+  ⭐ **One lesson kept here because its subject is THIS file: a commit count and a head sha are LIVE
+  FACTS** — `git rev-list --count origin/main..main`, never quoted from here. This bullet once read
+  *"39 commits, head `ed125b93`"* and was **already wrong when committed**: the Record commit that
+  wrote it was itself commit 40. A count written inside the commit it counts is off by one **by
+  construction**.
+
+- **✅ CASE SURFACE SPLIT — COMPLETE (Inc 1+2), MERGED and PUSHED 2026-08-23** (ADR 0134 D1–D7 + Amdt 1–8),
+  schema first then code. Compacted in § Now 2026-08-23 — completed-run detail (commit shas, gate counts,
+  push ranges) is in the **ledger row** + [inc-1](docs/progress/case-surface-split-increment-1.md) ·
+  [inc-2](docs/progress/case-surface-split-increment-2.md) ·
+  [assertion-integrity](docs/progress/case-split-assertion-integrity.md). ⛔ Re-measure remote figures
+  from § State — never quote a push OUTCOME as the remote's current state.
+  ⛔ **What is still LIVE, and the only reason this bullet remains:**
+  1. **`e2e:prod` is RED and §6 step 2 is NOT satisfied.** Its 2 failures were retry artifacts on
+     non-idempotent tests (GREEN re-run alone) — filed `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`.
+     ⭕ The PO's 2026-08-23 qualification covers a **test-quality** failure only, and was extended once to a
+     *proven-transient infra crash in an untouched file*. ⛔ **RED is still RED — a triage note is never
+     licence to accept a red gate.**
+  2. **Residue is smaller, not gone** — `FUP-CS2-QA-RESIDUE` **12 → 6**; `FUP-RESET-ROLE`'s **134-file
+     sweep OPEN**; ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md) **ruled and
+     DEFERRED, not built**; B3 filed **two new residues**.
 - **⚠ NO PHASE IS ACTIVE.** The case-surface-split program above is the most recent, and it is complete.
   Everything else that stood here is done: the **DM program (DM0–DM5)** closed 2026-08-18 (QA APPROVED
   r2), the **DSR** program closed 2026-08-20 and its **operational remediation** 2026-08-21 (both merged
@@ -149,6 +126,23 @@ exists because without it an open production blocker (BUG-BOOTSTRAP-001) read as
 a single day — first the heading, then a note saying "back to three" — in the one paragraph of this
 file whose whole subject is that a count is wrong the moment after it is right. Count the rows below.
 
+🔴 **BUG-CASEEVT-KIND-001 — a case writer can DELETE, or silently RE-KIND, a procedural `case_events`
+row: the UPDATE/DELETE policies carry no `kind` gate.** Filed 2026-08-23 (lead). Surfaced by ADR 0137
+D12's `CaseEvent.kind` widening, **not caused by it. Measured from the live catalog:**
+`case_events_writer_update` / `…_staff_admin_update` hold `app.is_manual_case_event_kind(kind)` in
+**`WITH CHECK` only** — that constrains the **new** kind, never **which rows may be touched**; their
+`USING` is `app.can_write_case_content(case_id, auth.uid())` alone. `case_events_writer_delete` /
+`…_staff_admin_delete` have **no kind gate at all**. So `decision_issued → note` satisfies both clauses
+and the row is silently re-kinded, and any procedural row can simply be deleted. ⛔ **No second lock:**
+`pg_trigger` shows **zero** non-internal triggers on `case_events`, **no** routine references both
+`case_events` and `audit_log`, and writes go **direct-table** over PostgREST — so the deletion is also
+**unaudited** (a Rule 11 gap). ⚠ **The only control today is the UI suppression D12 added, which Rule 1
+forbids counting as one.** ⛔ **Deliberately NOT fixed in this batch:** changing two RLS policies is a
+live authz change owing its own keystone + diff-scoped door sweep. **Bounded:** requires
+`can_write_case_content` on that case — in-case records integrity, **not** a tenant-isolation break.
+⭐ The review lesson: three real filters were cited as refusing this write; all three gate the **new**
+kind, so **none** of them bounds the claim they were cited for.
+
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
 narrative was rotated — **this was the one open item in it that existed in no other tracked place**,
@@ -212,6 +206,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 | --- | --- | --- | --- |
 | **AFF2** (ADR 0133 + Amdt 1–4) | ✅ **APPROVED (r2)** — both r1 blockers discharged at `02cc5817` (R1 fixed + future-expiry control · R2 ruled, Amdt 4 r2). 2 carried records: "strictly stricter" is false (the fix WIDENS both subset capabilities; no arm) + the seed warrant is mis-cited. r1 CHANGES REQUESTED | 2026-08-23 | [aff2-review.md](docs/reviews/aff2-review.md) |
 | ~~AFF2 (r1)~~ | ~~CHANGES REQUESTED~~ — 2 blocking, both found outside the given remit; every remit item passed | 2026-08-23 | [aff2-review](docs/reviews/aff2-review.md) |
+| **ADR 0137 batch** | ✅ **APPROVED (r2)** — 4 r1 items discharged; `required` is product-reachable + E2E-driven. 4 pre-commit conditions in §7. r1 CHANGES REQUESTED | 2026-08-24 | [r2](docs/reviews/adr-0137-batch-review-r2.md) |
 | _The seven DM rows_ — rotated 2026-08-19, the DM milestone being closed | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | _Verbose form of the 5 rows above, incl. both struck r1 rounds_ — rotated 2026-08-14 (§5: never restate rationale here) | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | 117 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
@@ -285,6 +280,15 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — ⭐ **⭐ CRITICAL FUP C2. `ARM=census`'s DEFINER clause is bounded to `bool`/set-returning, so 407 reachable non-trigger command doors (326 RPC-callable) sit outside every arm's domain. ⭕…** ⭕ **EXTENDED 2026-08-23 (AFF2 B1): `trigger`-returning `prosecdef` gates are in no arm's domain EITHER, and this item's own word "non-trigger" excluded them** — `guard_profile_privileged_columns` is now the only in-DB control over the two new person columns. ⛔ Not a live hole (no PUBLIC/`anon` grant; a direct call outside trigger context raises) — a **measurement-domain** gap — lead + backend
 - 🟠 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — **PARTIALLY RESOLVED 2026-08-17 (`4102149b`); the filed remedy was WITHDRAWN as unbuildable** — lead/backend
 - 🟠 **FUP-FORM-IDENTIFIER-IN-URL** — ✅ **4 leaks FIXED + control-proven both directions** (`cpf-field` **CPF**, `user-profile-edit-form`, `affiliations-panel`, `patient-search-view` **MRN/PHI**); 4 more measured NOT-REACHABLE-PRE-HYDRATION. `name` is **INJECTED by `useFieldIds().controlProps`** — ⛔ a `name=` grep cannot find it (beat 3 reasoned reads). ⭐⭐ Both predictions were WRONG in opposite directions: `?password=` doesn't exist; **`cpf` was on no list**. ⛔ **STILL OPEN:** the standing detector must be a **route crawler**, not a re-run of this 8-file list; `<select>` coverage is weaker; and the ✅ **PO-RULED 2026-08-20 inversion of `useFieldIds`' `name` default** (**10/51 measured failure rate**) — assigned to `frontend`, ⛔ **as a SEPARATE change after Slice 3**, and only after enumerating the 4 classes that BREAK without `name` (server-action `FormData`, radio grouping, explicit `FormData` reads, autofill). Credited to `frontend` — frontend/lead
+- 🟠 **FUP-0137-MRN-BLANKABLE-AFTER-SEND** — `sent` stays amendable + `p_mrn` defaults NULL, so the erasure key can be blanked post-send; the cases-side analogue IS guarded. Read off live defs, no fixture — a pgTAP arm settles it — backend
+- 🟠 **FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE** — `goToPatientStep` sets `resumePatientLoaded` BEFORE the await and swallows the failure, so saved PHI never reloads that session; the next keystroke's full-replace upsert BLANKS `mrn`/`name`/`date_of_birth`. D4's send gate catches only the MRN. ⛔ QA r1 R-3, unfiled until r2 caught it — frontend
+- 🟡 **FUP-0137-KIND-VISUAL-NO-FALLBACK** — widening `case_events_kind_check` in SQL touches no TS, so `KIND_VISUAL[ev.kind]` destructure THROWS and takes the card down; latent today (16=16 verified). ⛔ QA r1 R-6, unfiled until r2 — frontend
+- 🟡 **FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME** — a `role="alert"` inside the wrapping `<label>` mutates the textarea's accessible name on failure; `useFieldIds`+`FieldError` is the house pattern one file over. ⛔ QA r1 R-7, unfiled until r2 — frontend
+- 🟡 **FUP-0137-PERSIST-REFRESH-DROPS-FOCUS** — `persist()` + `router.refresh()` resets `activeElement` to `<body>`, so a keyboard user re-Tabs (~40) per field. Verified by real Tab walk; NOT a D2 violation. ⚠ Scope by the PROPERTY (refreshes the route on an input event), not this one file — frontend
+- 🟡 **FUP-0137-BULK-WIZARD-STILL-BOOLEAN** — the bulk grid still reads deprecated `collectsPatient`, so a `required` template offers the PHI columns UNMARKED; the DB still refuses, so it is a worse error, not a hole — frontend
+- 🟡 **FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED** — `patientRequiredFields` is not threaded page → panel → dialog, so the case patient-edit dialog marks nothing; `_set_participant_patient_unchecked` still enforces — frontend
+- 🟡 **FUP-0137-FLUSH-FAILS-OPEN** — wizard proceeds on a null re-read, against its own docblock; sole guard against duplicate adds on retry, which `HC0T4` made common — frontend
+- 🟡 **FUP-0137-357-TWINS-ON-STALE-BODY** — `357`'s twins red-proved the **pre-0137** body this batch re-emitted; `ARM=census` cannot cover this fn (non-boolean, `app`). Re-run — backend
 - 🟡 **FUP-E2E-SUBMITTED-POOL-UNSCOPED** — the shared submitted-response pool has no `case_phase_id is null` filter and the one-line fix BREAKS a peer spec — lead/tester
 - 🟡 **FUP-PREVIA-MINT-FLAG-ASYMMETRY** — `HC0DV` refuses a prévia on the premise the mint is reachable; the mint’s preconditions are a strict superset — lead
 - 🟡 **FUP-TITLE-ERASURE-REACH-IS-NOT-UNIFORM** — six of the ten annotated `*.title` columns ARE inside a `dispose_*` door's reach and four are NOT, so the loose reading of ADR 0131 Amdt 1's "title invariant" (*titles are outside erasure*) is false for six of them. ⛔ The helper-text constants therefore give **visibility**, never erasure, as the reason — pinned by assertion. Open: whether the ADR names the split — PO/lead
@@ -323,7 +327,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-DM5-SIBLING-GUARD-DIFF** — **no authz arm can see a door that OMITS a check its siblings all make** — lead/backend
 - 📦 **Deferred backlog — 33 open items (🟡 24 · 🟢 1 · ▶ 8)**, moved out of the live index 2026-08-19: open, but not actionable next session. Severity · id · claim preserved verbatim → [deferred-backlog.md](docs/progress/deferred-backlog.md)
 - 🔴 **FUP-DM4-PRODROW** — ⭕ **UNBLOCKED 2026-08-18: the probe answered its blocker (no Cloud orphan surface), and this item's "~49 vanished" figure is WITHDRAWN as unsound arithmetic.** The subject is still erased, not reconciled — lead/backend
-- 🟠 **FUP-42501-CONFLATES-GRANT-WITH-RLS** — ⛔ **coverage defect, NOT a vulnerability** (both tables ARE protected, by the missing grant). `42501` is both the RLS-refusal code AND Postgres's generic *permission denied for table*, so `throws_ok(…,'42501')` cannot tell them apart. Measured: of **12** live assertions in `252_authz_p0_isolation.sql`, `authenticated` lacks INSERT on **`rca_evidence`** + **`capa_action_evidence`** ⇒ those two pass on the **grant**, never reaching RLS. The P0 suite claims isolation on 12 tables and demonstrates it on **10**. ⚠ The tree already documented this trap **twice in prose** (`301`:21, `277`:328) and it recurred anyway. ⛔ Do NOT fix by granting INSERT — that widens real protection to make a test honest; fix the assertion. Model fix + the allow-leg differential that caught it: `345_previa_audit_door.sql` header. ⭐ **2026-08-19: filed as a GATE proposal, not a rule** (ADR 0127 rejected the rule form — a gate beats a rule where one is reachable). ⛔ **COST BASIS RE-DERIVED 2026-08-22 and it is 25–45× the filed figure — do NOT quote the old one.** The line said *"**15** `throws_ok` sites carry a bare `'42501'`, of 728 total references — so the gate costs 15 remediations"*. Re-measured by **paren-balanced parse** of all 206 suites (a line grep under-reports these 3–5-line calls, in the reassuring direction): **1358** `throws_ok` calls, **1214 assert no message at all**, of which **376 are `42501`** and **670 carry any generic Postgres code two locks can raise** (`42501` 376 · `23514` 189 · `P0002` 41 · `23505` 37 · `23503` 22). Textual `42501` refs are **813**, not 728 — the tree grew. ⚠ The filed **15** was **not reproduced by any property run**; "bare" is a third property nobody has identified. ⭐ The proposal's whole build/defer verdict rests on this number, and 15 vs 670 is the difference between *just do it* and *needs its own phase* — **re-derive before building, never quote** — backend/tester ⭐ **RULED 2026-08-22 (ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md)): authored refusals get their own `HCxxx` SQLSTATE, `42501` stays RESERVED — build DEFERRED by the PO.** ⛔ Ruled ≠ discharged; this stays OPEN.
+- 🟠 **FUP-42501-CONFLATES-GRANT-WITH-RLS** — ⛔ **coverage defect, NOT a vulnerability** (both tables ARE protected — by the missing grant). `42501` is BOTH the RLS-refusal code AND Postgres's generic *permission denied for table*, so a `throws_ok` on it cannot tell them apart: **2 of 12** P0-isolation assertions pass on the GRANT error, not the RLS refusal they claim to prove. Full statement + 12-way breakdown in the [body](docs/progress/follow-ups.md) — backend + tester
 - 🟠 **FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS** — `e2e:prod` runs `RETRIES=1`; where a test mutates shared state, a **transient** first-attempt failure leaves that state behind and the **retry fails DIFFERENTLY**, on an assertion about the state attempt 1 created. Measured 2026-08-23 on both of the run's "real" failures (`ethics-e4-participants:918` count 2→1; `user-registration:506` strict-mode on a `Remover…` button that only exists once assigned) — **both `-retry1`, both GREEN alone (25 p / 0 f)**. ⛔ **Worse than flake:** it prints `GATE RED — 2 real failure(s)` and points at the FEATURE, not the harness. ⚠ Do NOT fix by `RETRIES=0` — the retry absorbs the real Windows server-death family (5 batches hit it this run) — tester/lead
 - 🟡 **FUP-PLAIN-STAFF-ASSIGNEE-CANNOT-REACH-THE-MANAGE-HOST** — the phase-result arm is now surfaced, but `canOpenCaseManagement` admits only coordinator ∨ administrativo ∨ write-grantee, so a **plain-staff assignee 404s before any phase renders** (measured in a browser: `staff1.ccih`, `staff3.ccih` → root 404). ⭐ Filed **by the fix's own author as a stated bound**, because the alternative is a close note that reads as completeness. ⛔ Widening the gate is ADR 0134 **routing** territory (D1's read/manage split) and needs a PO ruling, not a patch. ⚠ Do not close it by noting the wizard path exists — frontend/PO
 - 🟡 **FUP-ACTIVE-PHASE-STASHED-OVERRIDE-IS-INVISIBLE** — on an `active` phase the door *stashes* the override, but `getCaseDetail` does not select `result_override_id` (only `getCasePhaseForFill` does), so **no badge renders and reopening the dialog shows no pre-selection**. The write landed; the surface cannot show it. Mitigated with **copy, not a fix**. ⭐ It produced a **false defect report** mid-build — a correct save read exactly like a live defect — caught only by checking the catalog instead of believing the UI. Cosmetic sibling: `PhaseResultCorrectButton` is now a misnomer — backend
@@ -331,7 +335,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-SUPERSESSION-BADGE-LANE-BLIND** — `resolveSupersessionBadge` (`queries/submissions.ts`) mirrors `app.submitted_form_responses`' exclusion but **drops that rule's own `case_phase_id is null`**, while `listSubmissions` surfaces BOTH lanes. Standalone = correct (it IS ADR 0126 Am.1 §A's rule); **phase-bound = the chain-tip grain D8 examined and REJECTED** — the original reads "Substituído" before approval while `current_response_id` still points at it, flaps back on `reject_correction`, and an unapproved successor reads "Atual". ⭐ Differential: the **same pill** one file over is fed by `status === "approved"` (ADR 0085). ⭐⭐ And the lane conjunct **already exists in TS**: `isDashboardCountable` (`queries/dashboard.ts`) — which ARCHITECTURE.md calls *"the TS twin"*, singular — has `r.casePhaseId == null` explicitly, one file away. Two TS derivations of one choke-point; only one is sanctioned and only one is complete. ⚠ ADR **0074's** axis, not print-currency; found by accident in the §K sweep. ⛔ Read ADR 0074/0085 before fixing. Class: **a mirror inherits its source's PREDICATE, not just its shape** — frontend/backend
 - 🟠 **FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS** — `reset role` restores the ROLE only; `request.jwt.claims` survives it, so a suite asserting "owner context, `auth.uid()` is NULL" may be asserting **as the last persona**. Found by construction in the S8 suite, where it hit the ADR-0134 **Amdt-6 pin itself**. ⭐ Class: *a pin whose stated PREMISE is false is the same defect as one that cannot fail* — and the comment above it reads like the verification. Measured: **172** files `reset role` (2179×), **39** ever clear claims ⇒ **136 CAN hold it**. ⛔ **136 is the capable population, NOT a defect count** — the real one is undetermined and no text filter decides it. ⭕ **PARTIALLY RESOLVED 2026-08-22** (assertion-integrity group, [record](docs/progress/case-split-assertion-integrity.md)): the ROOT fix is in — `test_helpers.reset_role_and_claims()` — with a red-first pgTAP gate (removing the claims-clear reds 18, removing the role-reset reds 19), adopted in `356`/`357`. ⛔ **STILL OPEN on the half that matters:** step 1 — deriving the real defect population — and the 134-file sweep are **not done**. The *capable* population drops 136 → **134**; it was never a defect count and still is not — backend/tester
 - 🟠 **FUP-DEV-SERVER-SERVED-STALE-CODE-FOR-HOURS** — a `next dev` started 11:20 served pre-Increment-2 code for files committed at 12:33/12:45/14:30. ⭐ One step from being filed as a **product bug**; the tester's clear-`.next`-rebuild discipline is why it wasn't. ⛔ **Mechanism NOT established** — the old console was not captured before the kill; *restarting fixed it* is a remedy, not a diagnosis. ⛔ **The suspect population is every GREEN run** — a failing spec gets investigated (that is how this surfaced), a passing one never does; size unestablished. ✅ **`e2e:prod` builds prod-standalone, so the phase gate is unaffected.** Cheap close, no mechanism needed: a **read** proof-of-life asserting something only HEAD has, before anything else — tester/lead
-- 🟡 **FUP-CS2-QA-RESIDUE** — ⭕ **12 → 6 on 2026-08-22** (assertion-integrity group, [record](docs/progress/case-split-assertion-integrity.md)): **M-5, M-6, M-7, M-14, M-15, M-16 remediated red-first, and QA C-3 — the highest-value item — is DISCHARGED** (V-1 is now a gate, `356` §14, keyed on the STRIPPED hash so legitimate S8 work does not train people to bump the constant). ⚠ **M-4 was STRUCK, not fixed — it was already delivered at `c85af876`** and the finding was stale; *verify, don't comply* applies to a QA finding too. ⛔ **Remaining SIX: M-1, M-8, M-11, M-12, M-13, M-17.** ⚠ Four of M-15's own clauses were measured wrong while implementing (the `Member[]` tables were **not** exported, the hand-list is in a different file, the line refs are ~24 off, and the third "soft" helper is correct) — re-measure a finding before working it. Original twelve (M-1, M-5–M-8, M-11–M-17), filed so they do not leave with the review; full statements in the [r2 review](docs/reviews/case-surface-split-increment-2-review.md). ⭐ **Four are one class — an assertion that proves less than its name claims:** `356` §13's door-set pins are **count-keyed, not name-keyed** (a **swap** passes) · §2.1's "one body" is bounded to the `app` schema (a `public` hand-copy passes) · the read-only-shell E2E claim is a **2-item hand-list against a 16-member derived class** · the 404 matcher cannot say **which gate fired**. ⭐ **Plus QA C-3, the highest-value item:** promote the strip-S8-and-compare-md5 check — which settled "S1–S7 untouched" by computation — from a reviewer's one-off to a **pgTAP catalog assertion**, red-first, so the NEXT arm's author must prove they changed only their arm — backend/tester/frontend
+- 🟡 **FUP-CS2-QA-RESIDUE** — ⭕ **12 → 6** (2026-08-22, [record](docs/progress/case-split-assertion-integrity.md)); ⛔ **remaining SIX: M-1, M-8, M-11, M-12, M-13, M-17** — full statements in the [r2 review](docs/reviews/case-surface-split-increment-2-review.md). ⭐ Four are ONE class, **an assertion that proves less than its name claims**: count-keyed door pins (a SWAP passes) · an `app`-bounded "one body" (a `public` copy passes) · a 2-item hand-list against a 16-member derived class · a 404 matcher that cannot say WHICH gate fired — backend/tester/frontend
 - 🟠 **FUP-42501-AUTHORED-MESSAGES-FLATTENED-BY-EVERY-MAPPER** — the DB authors **103 informative** `42501` refusals (104 distinct, exactly **1** bare *sem permissão*) and the app layer **flattens essentially all of them**: of **63** `src/lib/**` modules mapping `42501`, only **2** recognise any message. Found when a PO-ruled gate message (Amdt 7's `all_phases` refusal) never reached the UI. ⛔ **The flattening is the only safe DEFAULT** — `42501`'s message cannot be trusted from the code (Postgres raises it for authored refusals AND raw *permission denied for table*), so undoing it is a **decision, not a fix**; 3 options in the body, incl. giving authored refusals their own `HC***` so `42501` stays reserved. ⚠ Any hand-list entry must be copied from `pg_get_functiondef` **verbatim and pinned**, or it degrades to the generic string **failing exactly as if absent, with nothing red**. ⭐ This is `FUP-42501-CONFLATES-GRANT-WITH-RLS` one layer up: same root, tests there, users here — backend/frontend ⭐ **RULED 2026-08-22 (ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md)): authored refusals get their own `HCxxx` SQLSTATE, `42501` stays RESERVED — build DEFERRED by the PO.** ⛔ Ruled ≠ discharged; this stays OPEN.
 - 🟡 **FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE** — a caller naming a function's **old arity** in a `has_function_privilege('…(uuid,text,…)')` string does not fail an assertion; it **ABORTS the suite** as a plan mismatch, in an unrelated file, naming no function (`Result: FAIL` with **zero** `# Failed test` lines — the never-ran shape wearing its opposite). Hit on the Increment-2 `DROP`+`CREATE`; the overload pin catches **ambiguity** and is structurally blind to **arity**. Swept: **9** textual hits, **1** executable — fixed, and `357` 1.6/1.7 now pin `oid::regprocedure::text`, the *same string form* the hazard uses. ⛔ Open on the **class**, not the two doors: whatever gate is built must go **RED on a deliberately stale signature** — a sweep of this shape that finds nothing is indistinguishable from one that cannot — backend
 - 🟡 **FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED** — ⭐ **RAISED 🟢→🟡 on QA's argument 2026-08-22:** the schema it bounds now **hosts a PHI writer**, so the one config line carries more than it did when this was filed. — ⛔ **informational, NOT a live hole; do not report it as one.** Measured 2026-08-22: of **467** functions in schema `app`, **237 are `anon`-executable** — **228** by `proacl IS NULL` (the permissive default nobody wrote) and **9** by an explicit `=X/postgres` entry, four of which are **authorization predicates** (`is_admin`, `is_member_of`, `is_org_admin_of`, `is_staff_admin_of`). The ONLY thing bounding this is **one config line** — `supabase/config.toml:13` does not expose `app` to PostgREST — so the ACLs are not holding the line and an auditor reading them would conclude they were. ⭐ First reported as *"`is_member_of` is wider than every sibling"*: every clause true, the framing wrong in this repo's standing way — the instance found, not the class (it missed a second explicit member and the 228-strong dominant mechanism), and a one-outlier framing invites a one-function fix that changes nothing. Needs a **decision**, not a patch; ⛔ never smuggled into a feature migration — backend/PO
@@ -342,6 +346,12 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟡 **FUP-MANAGE-ROUTES-HAVE-NO-ERROR-BOUNDARY** — **10** org-admin routes under `o/[org]/manage` have **no `error.tsx` between them and the ROOT boundary**, so any render failure destroys the whole shell — sidebar, org switcher and the DSR console entry go with it, leaving the user no navigation. Measured 2026-08-23 by ancestor-walk (not by `find` in-directory, which mis-reports children as gaps): `manage` itself · `acreditacao` · `audit` · `comissoes` · `documentos` · `hospitais` (+`/[hospitalId]`) · `indicadores` · `painel` · `tipos-de-caso`. ⭐ Found incidentally while AFF2 added `usuarios/error.tsx` — **4 of 14 `manage` segments had one**, so this is a GAP, not a design choice. ⛔ **Pre-existing and OUT of AFF2 scope** — do not smuggle the fix into the workstream. ⛔ **TWO files, not one** — `manage/error.tsx` for the ten page gaps **plus `o/[org]/error.tsx`**, because `error.js` does **not** wrap the layout in its own segment (this version's docs, `error.md:96`), so no `manage`-level boundary can ever catch **`manage/layout.tsx`** — which awaits `getSessionContext`, `getRawGrants` and the newest code on the surface, `listMyDsrHospitals`, and whose throw takes down **every** manage route at once. If only one is built, it is the second — frontend
 - 🟡 **FUP-AFF2-REGISTRATION-HAS-NO-START-DATE** — `registerUser` takes no affiliation start date though the plan specifies it and sibling `affiliatePerson` accepts one (actions-layer asymmetry). ⚠ Behaviourally free; ⛔ **the defect is the RECORD** — `aff2.md` announced *"ALL THREE CLOSED"* over a **different** three. QA R3's other discharge half (*"build the field or file it"*), undone until now — backend then frontend
 - 🟡 **FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD** — `updateUserProfile` keeps the loose `authorizeForUser` entry gate to serve an affiliation half **no caller exercises**; a Vitest arm pins a path the product cannot produce. ⛔ Not a hole (`affiliate_person_for` re-derives in SQL) — a **decision owed**: tightening to `…ScopedAdmin('fields')` shrinks R1's blast radius but pre-commits a future re-wire. QA R5 — backend + PO
+- 🟡 **FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG** — `ARM=census`'s "prune" note names two LIVE `app`-schema INVOKER bodies as absent, because they fall outside its `public`-INVOKER domain. ⛔ Pruning as instructed deletes the record that they are unswept — backend
+- 🟡 **FUP-E2E-CREATEFRESHCASE-SILENT-NULL** — `case-narratives.spec.ts`'s `createFreshCase()` returns `null` on any setup failure with no thrown error and no reason, so a broken fixture reads as "nothing to test". ⚠ **Pre-existing, NOT caused by ADR 0137** — tester
+- 🟡 **FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT** — 2 suites generate cases from `memberships_role_check` read LIVE at import, so vitest's total tracks DB state; §292 pins a durable shrink but not the transient mid-reset one. Assert the role SET against one shared literal, exported as a FUNCTION not a `const` — backend + frontend
+- 🟡 **FUP-REFERRAL-REVIEW-STEP-MRN-WARNING** — warn on the wizard's review step before `send_referral` refuses (`HC0T4`). ⛔ Buffer is NOT authoritative on a resumed draft, and ⛔ never fetch to power it (audited read) — frontend
+- 🟡 **FUP-0137-PHI-MODE-SHIMS** — retire the derived `patientEnabled`/`collectsPatient`/`setTemplateCollectsPatient` shims once the builder adopts `patientMode`. ⚠ Lossy toward the NEW mode: a boolean cannot express `required` — backend + frontend
+- 🟡 **FUP-CASE-DEPARTMENT-FIELD-HAS-NO-CONSUMER** — ADR 0137 D9 removed the "Unidade / setor" input from BOTH of `CaseDepartmentField`'s app call sites, leaving **only its own test**. ⚠ The Inc-1 brief's *"the hospital-admin surface still uses it"* is FALSE — that surface uses `DepartmentsManager`, a different component. Not a defect; a **decision owed** (delete · wire · keep-with-a-named-reason), and no gate can raise it again — PO + frontend
 - 🟠 **FUP-ADR-AMENDMENT-HAS-NO-BACK-POINTER** — an amended ADR reads as **live**; only the amending one records it. 0133's three targets held **zero** mentions of it, so 0048 D10 read *"no `date_of_birth`"* while the column shipped. ✅ Those 3 fixed 2026-08-23; ⛔ the class is not. Sweep reports **44** — ⚠ **do NOT quote it**: proximity-based, over-reports (`0073→0078` was an existing back-pointer misread). **Upper bound; 4 hand-verified.** Parse direction before any gate — lead
 
 

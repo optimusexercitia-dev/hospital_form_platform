@@ -383,6 +383,11 @@ create temp table r3 on commit drop as
     p_referral_type_id     => (select type_parecer from voc),
     p_subject              => 'Encaminhamento comum',
     p_description_md       => 'via comissão');
+-- ADR 0137 D4: send_referral now refuses a referral with no referral_patient
+-- MRN (HC0T4) - the MRN is the LGPD erasure key. Fixture only; the SAVE floor
+-- is unchanged (name OR mrn), so this is about the SEND transition alone.
+select public.save_referral_patient(
+  (select id from r3), 'Paciente Fixture', 'MRN-295-R3');
 select public.send_referral((select id from r3));
 reset role;
 grant select on r3 to authenticated;

@@ -5,7 +5,11 @@ import { revalidatePath } from 'next/cache'
 import { getSessionContext } from '@/lib/queries/session'
 import { featureEnabled } from '@/lib/queries/feature-flags'
 import { createClient } from '@/lib/supabase/server'
-import { getCasePatient } from '@/lib/queries/cases'
+import {
+  getCasePatient,
+  type PatientMode,
+  type PatientRequiredField,
+} from '@/lib/queries/cases'
 import { patientFieldsSet, patientRpcPayload } from '@/lib/cases/patient-payload'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
@@ -132,10 +136,19 @@ const MESSAGES = {
   correctionsUnavailable: 'O recurso de correção de casos não está disponível.',
   // case_patient (ADR 0038) — the THIRD PHI module.
   patientNameOrMrnRequired: 'Informe ao menos o nome ou o prontuário do paciente.',
+  // ADR 0137 D2/D3 — `required`-mode processes. The DB (HC0T1) names the missing
+  // fields in its own pt-BR message and the mapper prefers it; this is the
+  // client-side pre-check's wording, and the per-field labels below drive it.
+  patientRequiredFieldsMissing: 'Este processo exige a identificação do paciente.',
+  patientModeImmutable:
+    'O modo de identificação do paciente é definido na criação do caso e não pode ser alterado.',
+  patientModeInvalid: 'Modo de identificação do paciente inválido.',
+  templatePatientModeSaved: 'Modo de identificação do paciente atualizado.',
   patientSaved: 'Identificação do paciente salva.',
   phiDisposed: 'Dados do paciente descartados.',
   patientNotCollected: 'Este caso não coleta identificação do paciente.',
   templateNotDraft: 'Apenas processos em rascunho podem ser editados.',
+  /** @deprecated ADR 0137 D1 — superseded by `templatePatientModeSaved`. */
   templateCollectsPatientSaved: 'Configuração de identificação do paciente atualizada.',
   // Hospital Departments — the case's "Unidade / setor" (NON-PHI, case-level).
   departmentBoth: "Selecione um setor da lista OU informe um valor em 'Outro', não ambos.",
@@ -187,6 +200,13 @@ const HC_ACCOUNT_INACTIVE = 'HC0F4'
 // `case_corrections` flag is OFF, via app.assert_case_corrections_enabled(). Was 23514
 // (mapped to the generic fallback); HC000 lets it surface the truthful "não disponível".
 const HC_FEATURE_DISABLED = 'HC000'
+// ADR 0137 D3 / ADR 0135 — the authored required-field refusal. Its message names
+// the MISSING fields in pt-BR, so it is preferred over any generic here.
+const HC_PATIENT_REQUIRED_FIELDS = 'HC0T1'
+// ADR 0137 D1/D2 — an invalid mode or an out-of-vocabulary required field.
+const HC_PATIENT_MODE_INVALID = 'HC0T2'
+// ADR 0137 D1 — cases.patient_mode is a snapshot and is immutable after INSERT.
+const HC_PATIENT_MODE_IMMUTABLE = 'HC0T3'
 
 const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
 const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
@@ -297,6 +317,12 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return error.message || MESSAGES.cancelledFinal
     case HC_ACCOUNT_INACTIVE:
       return error.message || MESSAGES.accountInactive
+    case HC_PATIENT_REQUIRED_FIELDS:
+      return error.message || MESSAGES.patientRequiredFieldsMissing
+    case HC_PATIENT_MODE_INVALID:
+      return error.message || MESSAGES.patientModeInvalid
+    case HC_PATIENT_MODE_IMMUTABLE:
+      return error.message || MESSAGES.patientModeImmutable
     case HC_FEATURE_DISABLED:
       // reopen_case with the `case_corrections` flag OFF (mirrors mapCorrectionError).
       return MESSAGES.correctionsUnavailable
@@ -943,11 +969,28 @@ export async function reopenCase(
  * Map a `case_patient` RPC error to friendly pt-BR. The DEFINER RPCs raise their
  * own pt-BR text for the authority (`42501`) / one-shot (`HC056`) / check
  * (`23514`) cases, so prefer `error.message` and fall back to a generic.
+ *
+ * ADR 0137's three refusals are named explicitly BEFORE that general preference.
+ * They would already surface through it today, but relying on "prefer
+ * error.message" makes their reaching the user an accident of the current
+ * fallback order rather than a decision — and ADR 0135's whole point is that an
+ * `HC***` message may be trusted unconditionally, so it should be trusted by
+ * name.
  */
 function mapCasePatientError(
   error: { code?: string; message?: string } | null,
 ): string {
   if (!error) return MESSAGES.generic
+  switch (error.code) {
+    case HC_PATIENT_REQUIRED_FIELDS:
+      return error.message || MESSAGES.patientRequiredFieldsMissing
+    case HC_PATIENT_MODE_INVALID:
+      return error.message || MESSAGES.patientModeInvalid
+    case HC_PATIENT_MODE_IMMUTABLE:
+      return error.message || MESSAGES.patientModeImmutable
+    default:
+      break
+  }
   // The RPC messages are already user-facing pt-BR; prefer them.
   if (error.message) return error.message
   return MESSAGES.generic
@@ -1038,24 +1081,52 @@ export async function disposeCasePhi(
 }
 
 /**
- * Toggle a template VERSION's `collects_patient` config (ADR 0096 D1 moved this
- * field onto the version). The `set_template_collects_patient` DEFINER gates
- * staff_admin/admin + the VERSION being `draft` (`42501` / `23514` otherwise).
- * When on (and the `case_patient` flag is on), cases created from the published
- * version offer the optional PHI block.
+ * Set a template VERSION's PHI collection MODE (ADR 0137 D1/D2; ADR 0096 D1 had
+ * already moved the setting onto the version). The `set_template_patient_mode`
+ * DEFINER gates staff_admin/tenancy-admin + the VERSION being `draft` (`42501` /
+ * `23514` otherwise) and refuses an unknown mode or field with `HC0T2`.
+ *
+ * `mrn` is welded into a `'required'` set server-side — the caller need not send
+ * it, and cannot remove it (it is the LGPD erasure key, ADR 0137 Context).
+ * `'none'` / `'optional'` always store an EMPTY set, so a later flip back to
+ * `'required'` cannot silently reactivate fields nobody re-picked.
+ */
+export async function setTemplatePatientMode(
+  templateVersionId: string,
+  mode: PatientMode,
+  requiredFields: PatientRequiredField[] = [],
+): Promise<ActionState> {
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_template_patient_mode', {
+    p_template_version_id: templateVersionId,
+    p_mode: mode,
+    p_required_fields: requiredFields,
+  })
+  if (error) return { ok: false, error: mapCasePatientError(error) }
+
+  return finishTemplatePatientModeWrite(MESSAGES.templatePatientModeSaved)
+}
+
+/**
+ * Toggle a template VERSION's PHI collection on/off.
+ *
+ * @deprecated ADR 0137 D1 replaced the boolean with a three-mode setting; use
+ * {@link setTemplatePatientMode}, which can also express `'required'`. Kept with
+ * an UNCHANGED signature so the existing builder picker keeps working while the
+ * UI migrates — it maps `true -> 'optional'`, `false -> 'none'`, which is
+ * exactly D1's mechanical rule.
  */
 export async function setTemplateCollectsPatient(
   templateVersionId: string,
   collects: boolean,
 ): Promise<ActionState> {
-  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
+  return setTemplatePatientMode(templateVersionId, collects ? 'optional' : 'none', [])
+}
 
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('set_template_collects_patient', {
-    p_template_version_id: templateVersionId,
-    p_collects: collects,
-  })
-  if (error) return { ok: false, error: mapCasePatientError(error) }
+/** The shared revalidate + result tail of the two actions above. */
+function finishTemplatePatientModeWrite(message: string): ActionState {
 
   // The builder lives under a different route; revalidate the template pages.
   // Post-multi-tenancy the manage area is /o/[org]/c/[commission]/manage/...
@@ -1065,7 +1136,7 @@ export async function setTemplateCollectsPatient(
     '/o/[org]/c/[commission]/manage/process-templates/[templateId]',
     'page',
   )
-  return { ok: true, error: MESSAGES.templateCollectsPatientSaved }
+  return { ok: true, error: message }
 }
 
 /**

@@ -78,6 +78,57 @@ export type CasePhaseStatus =
 /** `case_types.primary_subject_kind` (ADR 0064 D4). */
 export type PrimarySubjectKind = 'patient' | 'professional' | 'entity' | 'none'
 
+/**
+ * How a process version / case collects patient identifiers (ADR 0137 D1).
+ * Replaces the retired `collects_patient` / `patient_enabled` booleans; the
+ * mechanical mapping was `true → 'optional'`, `false → 'none'`, and NEVER
+ * `'required'` (a boolean carried no evidence of intent to mandate).
+ */
+export type PatientMode = 'none' | 'optional' | 'required'
+
+/**
+ * The identifier fields a `'required'`-mode process may demand (ADR 0137 D2).
+ *
+ * ⛔ `age_years` and `unit` are NOT members, and that is enforced by a CHECK
+ * constraint on both `process_template_versions` and `cases`, not merely by
+ * their absence from this union — ADR 0137 D2 (the set) and D9 (removing both
+ * inputs from every case surface) are two halves of one decision, and the
+ * constraint is what stops them drifting apart one field at a time.
+ *
+ * `'mrn'` is always present in a required set: it is the LGPD erasure key, and
+ * the DB welds it in (`set_template_patient_mode`) with a CHECK as backstop.
+ */
+export type PatientRequiredField =
+  | 'name'
+  | 'mrn'
+  | 'date_of_birth'
+  | 'sex'
+  | 'encounter_ref'
+  | 'attending'
+
+/** The canonical order the DB reports missing required fields in. */
+export const PATIENT_REQUIRED_FIELDS: readonly PatientRequiredField[] = [
+  'name',
+  'mrn',
+  'date_of_birth',
+  'sex',
+  'encounter_ref',
+  'attending',
+] as const
+
+/** Narrow an untyped `patient_mode` string from the DB. */
+export function toPatientMode(value: string | null | undefined): PatientMode {
+  return value === 'optional' || value === 'required' ? value : 'none'
+}
+
+/** Narrow an untyped `patient_required_fields` array from the DB. */
+export function toPatientRequiredFields(
+  value: readonly string[] | null | undefined,
+): PatientRequiredField[] {
+  if (!value) return []
+  return PATIENT_REQUIRED_FIELDS.filter((f) => value.includes(f))
+}
+
 export interface Case {
   id: string
   commissionId: string
@@ -112,13 +163,31 @@ export interface Case {
    */
   hasPatient: boolean
   /**
-   * `true` when this case COLLECTS patient identifiers — snapshotted at creation
-   * from the template's `collects_patient` (immutable per case; ADR 0038). Gates
-   * whether the create-dialog PHI block + the detail reveal panel are OFFERED at
-   * all. `false` keeps the case PHI-free. The board/phase-fill reads default to
-   * `false`.
+   * `true` when this case COLLECTS patient identifiers. Gates whether the
+   * create-dialog PHI block + the detail reveal panel are OFFERED at all.
+   * The board/phase-fill reads default to `false`.
+   *
+   * @deprecated ADR 0137 D1 replaced the boolean with {@link patientMode}. This
+   * field survives as a DERIVED convenience (`patientMode !== 'none'`) so the
+   * existing component reads keep working while the UI migrates; it carries no
+   * information `patientMode` does not. Read `patientMode` in new code.
    */
   patientEnabled: boolean
+  /**
+   * How this case collects patient identifiers, snapshotted at creation from the
+   * template version's `patient_mode` and IMMUTABLE thereafter (ADR 0137 D1;
+   * `app.guard_case_patient_mode_immutable` raises `HC0T3` on any change):
+   * `'none'` — no PHI block · `'optional'` — offered, may be left empty ·
+   * `'required'` — must be filled to create the case.
+   * The board/phase-fill reads default to `'none'`.
+   */
+  patientMode: PatientMode
+  /**
+   * When {@link patientMode} is `'required'`, the identifier fields that must
+   * carry a value (ADR 0137 D2). `mrn` is ALWAYS a member — it is the LGPD
+   * erasure key, and the DB CHECK welds it in. Empty for the other two modes.
+   */
+  patientRequiredFields: PatientRequiredField[]
   /**
    * The case's department ("Unidade / setor") — a HOSPITAL-SCOPED, NON-PHI
    * attribute (Hospital Departments). At most one of `departmentId` (a managed
@@ -230,7 +299,7 @@ export interface CasePhase {
 /**
  * One per-case NARRATIVE (`case_narratives`; Case Narratives increment, ADR
  * 0032): a snapshot of a template narrative-slot plus the authored prose. The
- * analogue of {@link CasePhase} on the narrative side. `typeLabel` is the
+ * analogue of {@link CasePhase} on the narrative side. `displayLabel` is the
  * effective label SNAPSHOTTED at case creation (so later vocabulary edits do not
  * rewrite an opened case); `bodyMd` is the de-identified sanitized-Markdown body
  * (Rule 7), authored inline by the coordinator and frozen once the case is
@@ -241,8 +310,15 @@ export interface CaseNarrative {
   caseId: string
   /** Provenance link to the vocabulary row (`set null` on type delete); `null` if detached. */
   narrativeTypeId: string | null
-  /** The effective label SNAPSHOTTED at creation (never rewritten by vocab edits). */
-  typeLabel: string
+  /**
+   * The effective label SNAPSHOTTED at creation (never rewritten by vocab edits).
+   * Renamed from `typeLabel` by ADR 0137 D10 (`case_narratives.type_label` ->
+   * `display_label`) — it is the displayed string, not a key into the type
+   * vocabulary. ⛔ Unrelated to `ProcessTemplateNarrative.typeLabel` (the LIVE
+   * joined `case_narrative_types.label`) and to the referral `typeLabel`
+   * (`case_referral.type_label`), NEITHER of which was renamed.
+   */
+  displayLabel: string
   /** Order in the merged case layout (interleaved with phases by `displayPosition`). */
   displayPosition: number
   /** Optional per-slot label override snapshotted from the template; `null` if none. */
@@ -871,7 +947,7 @@ export interface MyCaseItem {
    */
   id: string
   /**
-   * Display title (phase: title|form|"Fase N"; narrative: `type_label`/title). A
+   * Display title (phase: title|form|"Fase N"; narrative: `display_label`/title). A
    * `correction` carries its TARGET's title — the corrector is being asked to fix
    * "Fase 2", and the request's own id is not a thing they recognise.
    */
@@ -1094,7 +1170,7 @@ interface DetailPhaseJson {
 interface DetailNarrativeJson {
   id: string
   narrative_type_id: string | null
-  type_label: string
+  display_label: string
   display_position: number
   title: string | null
   instructions: string | null
@@ -1121,7 +1197,7 @@ function mapNarrativeJson(n: DetailNarrativeJson, caseId: string): CaseNarrative
     id: n.id,
     caseId,
     narrativeTypeId: n.narrative_type_id ?? null,
-    typeLabel: n.type_label,
+    displayLabel: n.display_label,
     displayPosition: n.display_position,
     title: n.title,
     instructions: n.instructions,
@@ -1152,8 +1228,17 @@ interface CaseDetailJson {
   outcome: OutcomeJson | null
   /** Denormalized "an isolated case_patient (PHI) row exists" flag (ADR 0038). */
   has_patient?: boolean | null
-  /** Snapshotted "this case collects patient identifiers" flag (ADR 0038). */
+  /**
+   * Snapshotted "this case collects patient identifiers" flag (ADR 0038).
+   * @deprecated ADR 0137 D1 — `get_case_detail` still emits this key, now
+   * DERIVED as `patient_mode <> 'none'`; the column itself is gone. Read
+   * `patient_mode` instead.
+   */
   patient_enabled?: boolean | null
+  /** ADR 0137 D1 — the three-mode PHI collection setting. */
+  patient_mode?: string | null
+  /** ADR 0137 D2 — the required identifier set when `patient_mode` is 'required'. */
+  patient_required_fields?: string[] | null
   /** The frozen offered-outcome set, resolved to label/flags (`[]` if none). */
   offered_outcomes: OutcomeJson[] | null
   created_at: string
@@ -1394,6 +1479,10 @@ export async function listCasesBoard(
       // detail page); default to false. The detail read carries the real values.
       hasPatient: false,
       patientEnabled: false,
+      // ADR 0137 D1 — the board row carries no PHI configuration (the panel only
+      // renders on the detail page); the detail read carries the real values.
+      patientMode: 'none' as PatientMode,
+      patientRequiredFields: [],
       // The department name is a detail-page concern (the board renders no setor
       // column); default to null. The detail read resolves the real values.
       departmentId: null,
@@ -1692,7 +1781,9 @@ async function getCaseDetailUncached(
       createdAt: env.created_at,
       closedAt: env.closed_at,
       hasPatient: env.has_patient ?? false,
-      patientEnabled: env.patient_enabled ?? false,
+      patientEnabled: toPatientMode(env.patient_mode) !== 'none',
+      patientMode: toPatientMode(env.patient_mode),
+      patientRequiredFields: toPatientRequiredFields(env.patient_required_fields),
       departmentId: deptRow?.department_id ?? null,
       departmentOther: deptRow?.department_other ?? null,
       departmentName,
@@ -1904,7 +1995,8 @@ interface PhaseFillRow {
     created_at: string
     closed_at: string | null
     has_patient: boolean
-    patient_enabled: boolean
+    patient_mode: string
+    patient_required_fields: string[]
   } | null
 }
 
@@ -1930,7 +2022,7 @@ export async function getCasePhaseForFill(
       forms ( title ),
       cases (
         id, commission_id, template_version_id, case_number, label, status, outcome_id,
-        created_at, closed_at, has_patient, patient_enabled,
+        created_at, closed_at, has_patient, patient_mode, patient_required_fields,
         process_template_versions ( template_id )
       )
     `,
@@ -1979,7 +2071,9 @@ export async function getCasePhaseForFill(
       createdAt: c.created_at,
       closedAt: c.closed_at,
       hasPatient: c.has_patient,
-      patientEnabled: c.patient_enabled,
+      patientEnabled: toPatientMode(c.patient_mode) !== 'none',
+      patientMode: toPatientMode(c.patient_mode),
+      patientRequiredFields: toPatientRequiredFields(c.patient_required_fields),
       // The phase-fill landing does not surface the case's department (setor); the
       // detail read carries it. Default to null.
       departmentId: null,

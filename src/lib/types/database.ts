@@ -2367,12 +2367,14 @@ export type Database = {
       case_narratives: {
         Row: {
           assigned_to: string | null
+          assignment_role_id: string | null
           body_md: string | null
           case_id: string
           concluded_at: string | null
           concluded_by: string | null
           created_at: string
           created_by: string | null
+          display_label: string
           display_position: number
           id: string
           instructions: string | null
@@ -2381,18 +2383,19 @@ export type Database = {
           narrative_type_id: string | null
           status: string
           title: string | null
-          type_label: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           assigned_to?: string | null
+          assignment_role_id?: string | null
           body_md?: string | null
           case_id: string
           concluded_at?: string | null
           concluded_by?: string | null
           created_at?: string
           created_by?: string | null
+          display_label: string
           display_position: number
           id?: string
           instructions?: string | null
@@ -2401,18 +2404,19 @@ export type Database = {
           narrative_type_id?: string | null
           status?: string
           title?: string | null
-          type_label: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           assigned_to?: string | null
+          assignment_role_id?: string | null
           body_md?: string | null
           case_id?: string
           concluded_at?: string | null
           concluded_by?: string | null
           created_at?: string
           created_by?: string | null
+          display_label?: string
           display_position?: number
           id?: string
           instructions?: string | null
@@ -2421,7 +2425,6 @@ export type Database = {
           narrative_type_id?: string | null
           status?: string
           title?: string | null
-          type_label?: string
           updated_at?: string
           updated_by?: string | null
         }
@@ -2431,6 +2434,13 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_narratives_assignment_role_id_fkey"
+            columns: ["assignment_role_id"]
+            isOneToOne: false
+            referencedRelation: "case_assignment_roles"
             referencedColumns: ["id"]
           },
           {
@@ -3472,7 +3482,8 @@ export type Database = {
           label: string | null
           organization_id: string
           outcome_id: string | null
-          patient_enabled: boolean
+          patient_mode: string
+          patient_required_fields: string[]
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -3498,7 +3509,8 @@ export type Database = {
           label?: string | null
           organization_id: string
           outcome_id?: string | null
-          patient_enabled?: boolean
+          patient_mode?: string
+          patient_required_fields?: string[]
           phi_disposed_at?: string | null
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
@@ -3524,7 +3536,8 @@ export type Database = {
           label?: string | null
           organization_id?: string
           outcome_id?: string | null
-          patient_enabled?: boolean
+          patient_mode?: string
+          patient_required_fields?: string[]
           phi_disposed_at?: string | null
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
@@ -8161,11 +8174,12 @@ export type Database = {
       process_template_versions: {
         Row: {
           case_type_id: string | null
-          collects_patient: boolean
           created_at: string
           created_by: string | null
           description: string | null
           id: string
+          patient_mode: string
+          patient_required_fields: string[]
           published_at: string | null
           status: string
           template_id: string
@@ -8174,11 +8188,12 @@ export type Database = {
         }
         Insert: {
           case_type_id?: string | null
-          collects_patient?: boolean
           created_at?: string
           created_by?: string | null
           description?: string | null
           id?: string
+          patient_mode?: string
+          patient_required_fields?: string[]
           published_at?: string | null
           status?: string
           template_id: string
@@ -8187,11 +8202,12 @@ export type Database = {
         }
         Update: {
           case_type_id?: string | null
-          collects_patient?: boolean
           created_at?: string
           created_by?: string | null
           description?: string | null
           id?: string
+          patient_mode?: string
+          patient_required_fields?: string[]
           published_at?: string | null
           status?: string
           template_id?: string
@@ -10195,12 +10211,14 @@ export type Database = {
         }
         Returns: {
           assigned_to: string | null
+          assignment_role_id: string | null
           body_md: string | null
           case_id: string
           concluded_at: string | null
           concluded_by: string | null
           created_at: string
           created_by: string | null
+          display_label: string
           display_position: number
           id: string
           instructions: string | null
@@ -10209,7 +10227,6 @@ export type Database = {
           narrative_type_id: string | null
           status: string
           title: string | null
-          type_label: string
           updated_at: string
           updated_by: string | null
         }
@@ -11237,7 +11254,8 @@ export type Database = {
           label: string | null
           organization_id: string
           outcome_id: string | null
-          patient_enabled: boolean
+          patient_mode: string
+          patient_required_fields: string[]
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -11529,7 +11547,8 @@ export type Database = {
           label: string | null
           organization_id: string
           outcome_id: string | null
-          patient_enabled: boolean
+          patient_mode: string
+          patient_required_fields: string[]
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -11929,7 +11948,8 @@ export type Database = {
           label: string | null
           organization_id: string
           outcome_id: string | null
-          patient_enabled: boolean
+          patient_mode: string
+          patient_required_fields: string[]
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -11985,7 +12005,8 @@ export type Database = {
           label: string | null
           organization_id: string
           outcome_id: string | null
-          patient_enabled: boolean
+          patient_mode: string
+          patient_required_fields: string[]
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -13912,11 +13933,12 @@ export type Database = {
         Args: { p_template_version_id: string }
         Returns: {
           case_type_id: string | null
-          collects_patient: boolean
           created_at: string
           created_by: string | null
           description: string | null
           id: string
+          patient_mode: string
+          patient_required_fields: string[]
           published_at: string | null
           status: string
           template_id: string
@@ -14374,7 +14396,8 @@ export type Database = {
           label: string | null
           organization_id: string
           outcome_id: string | null
-          patient_enabled: boolean
+          patient_mode: string
+          patient_required_fields: string[]
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -14900,6 +14923,10 @@ export type Database = {
         Args: { p_case_id: string; p_level: string }
         Returns: undefined
       }
+      set_case_narrative_assignment_role: {
+        Args: { p_narrative_id: string; p_role_id?: string }
+        Returns: undefined
+      }
       set_case_offered_outcomes: {
         Args: { p_case_id: string; p_outcome_ids: string[] }
         Returns: undefined
@@ -14922,7 +14949,8 @@ export type Database = {
           label: string | null
           organization_id: string
           outcome_id: string | null
-          patient_enabled: boolean
+          patient_mode: string
+          patient_required_fields: string[]
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -15319,8 +15347,12 @@ export type Database = {
         Args: { p_case_type_id?: string; p_template_version_id: string }
         Returns: undefined
       }
-      set_template_collects_patient: {
-        Args: { p_collects: boolean; p_template_version_id: string }
+      set_template_patient_mode: {
+        Args: {
+          p_mode: string
+          p_required_fields?: string[]
+          p_template_version_id: string
+        }
         Returns: undefined
       }
       set_template_phase_blocks: {
@@ -15933,7 +15965,8 @@ export type Database = {
           label: string | null
           organization_id: string
           outcome_id: string | null
-          patient_enabled: boolean
+          patient_mode: string
+          patient_required_fields: string[]
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -15954,12 +15987,14 @@ export type Database = {
         Args: { p_body_md: string; p_narrative_id: string }
         Returns: {
           assigned_to: string | null
+          assignment_role_id: string | null
           body_md: string | null
           case_id: string
           concluded_at: string | null
           concluded_by: string | null
           created_at: string
           created_by: string | null
+          display_label: string
           display_position: number
           id: string
           instructions: string | null
@@ -15968,7 +16003,6 @@ export type Database = {
           narrative_type_id: string | null
           status: string
           title: string | null
-          type_label: string
           updated_at: string
           updated_by: string | null
         }

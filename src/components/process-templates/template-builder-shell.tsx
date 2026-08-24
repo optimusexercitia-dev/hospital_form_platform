@@ -31,7 +31,7 @@ import { NarrativeSlotCard } from "@/components/process-templates/narrative-slot
 import { NarrativeSlotDialog } from "@/components/process-templates/narrative-slot-dialog";
 import { ProcessOutcomesPicker } from "@/components/process-templates/process-outcomes-picker";
 import { PublishedOutcomesCard } from "@/components/process-templates/published-outcomes-card";
-import { CollectsPatientPicker } from "@/components/process-templates/collects-patient-picker";
+import { PatientModePicker } from "@/components/process-templates/collects-patient-picker";
 import { CaseTypePicker } from "@/components/process-templates/case-type-picker";
 import type { CaseType } from "@/lib/cases/case-types";
 import { CustomFieldsCard } from "@/components/process-templates/custom-fields-card";
@@ -49,6 +49,13 @@ export interface SlotForm {
   id: string;
   title: string;
 }
+
+/**
+ * Static — one builder shell mounts per page (the route renders exactly one
+ * version), so a stable id keeps the work card's `aria-labelledby` simple. Mirrors
+ * `case-phase-list.tsx`'s `WORK_HEADING_ID`.
+ */
+const TEMPLATE_WORK_HEADING_ID = "template-work-heading";
 
 /**
  * A merged builder-layout item: a phase-slot OR a narrative-slot, tagged by
@@ -215,7 +222,7 @@ export function TemplateBuilderShell({
   // The right-hand rail: version history (always) + the per-case DATA-COLLECTION
   // config (feature-gated). History makes the rail unconditional — versioning is
   // the point of this screen, so the picker is never hidden.
-  const showCollectsPatient = isDraft && casePatientEnabled;
+  const showPatientMode = isDraft && casePatientEnabled;
 
   // The merged sequence (phases + narratives) when the feature is on; phase-only
   // otherwise. `mergeTemplateLayout` of phases + [] is just the phases in order.
@@ -337,55 +344,61 @@ export function TemplateBuilderShell({
         )}
       >
         <div className="flex flex-col gap-6">
-          {/* ADR 0064 D4 — the template DECLARES the case type its cases inherit (and
-              with it their default visibility/confidentiality). Not draft-gated: it only
-              affects cases created afterwards, and a live untyped process must stay
-              fixable. Leads the column: it frames every phase below it. */}
+          {/* ADR 0137 **D14** — the template DECLARES the case type its cases inherit
+              (and with it their default visibility/confidentiality), and that
+              declaration is now DRAFT-ONLY like every other authoring control here.
+              ⛔ The comment that stood in this spot attributed the OPPOSITE rule
+              ("Not draft-gated: … a live untyped process must stay fixable") to
+              **ADR 0064 D4**. ⚠ D14 justified the reversal by claiming ADR 0064
+              carries no numbered decisions at all — MEASURED FALSE at QA (C-4): it
+              carries `Decision 1`…`Decision 4`. What survives is the CONCLUSION on
+              a different premise: Decision 4 defines the `case_types` table and says
+              nothing about WHEN the picker is editable, so the draft-gating rule did
+              live only in that comment and D14 is the first ratified rule on the
+              question. D14 accepts the risk the comment named: a published Process
+              with `case_type_id = null` becomes unfixable in place and must be
+              re-drafted to be typed.
+              Leads the column: it frames every phase below it. */}
           {caseTypesEnabled && (
             <CaseTypePicker
               templateVersionId={version.id}
               caseTypeId={version.caseTypeId}
               caseTypes={caseTypes}
+              editable={isDraft}
             />
           )}
 
-          {!hasItems ? (
-            <section
-              aria-label="Nenhuma fase"
-              className="animate-rise-in flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center"
-            >
-              <h2 className="text-lg font-semibold">Nenhuma fase ainda</h2>
-              <p className="max-w-sm text-sm text-muted-foreground text-pretty">
-                Adicione a primeira fase do processo escolhendo um formulário
-                publicado.
+          {/* The process's WORK ZONE (ADR 0137 **D13**) — the same titled frame as the
+              case's "Trabalho do caso", so a coordinator reads a template and the
+              cases it mints in the same shape. The slot cards nest INSIDE it and the
+              authoring pair sits in its bordered footer.
+              ⛔ SHELL ONLY: no progress meter and no status bar. A template has no
+              progress to report — the case card's ratio counts CONCLUDED work, and a
+              slot DEFINITION is never concluded, so a copied meter would read a
+              permanent "0 de N". */}
+          <section
+            aria-labelledby={TEMPLATE_WORK_HEADING_ID}
+            className="rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-5"
+          >
+            <header className="border-b border-border pb-4">
+              <h2
+                id={TEMPLATE_WORK_HEADING_ID}
+                className="text-base font-semibold"
+              >
+                Trabalho do processo
+              </h2>
+              <p className="mt-0.5 text-xs text-pretty text-muted-foreground">
+                Fases e narrativas que cada caso deste processo receberá
               </p>
-              {isDraft && (
-                <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-                  <Button
-                    type="button"
-                    size="lg"
-                    onClick={() => setAddPhaseOpen(true)}
-                    disabled={!hasForms}
-                  >
-                    <Plus aria-hidden="true" />
-                    Adicionar fase
-                  </Button>
-                  {narrativesEnabled && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="lg"
-                      onClick={() => setAddNarrativeOpen(true)}
-                    >
-                      <FileText aria-hidden="true" />
-                      Adicionar narrativa
-                    </Button>
-                  )}
-                </div>
-              )}
-            </section>
-          ) : (
-            <div ref={containerRef} className="flex flex-col gap-4">
+            </header>
+
+            {!hasItems ? (
+              <p className="mt-4 rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-pretty text-muted-foreground">
+                Nenhuma fase ou narrativa neste processo ainda. Adicione a primeira
+                escolhendo um formulário publicado.
+              </p>
+            ) : (
+              <div ref={containerRef} className="mt-4 flex flex-col gap-4">
               {items.map((item, index) =>
                 item.kind === "phase" ? (
                   <PhaseSlotCard
@@ -422,36 +435,44 @@ export function TemplateBuilderShell({
                     onRemove={() => removeNarrative(item.narrative.id)}
                   />
                 ),
-              )}
-              {isDraft && (
-                <div className="flex flex-wrap items-center gap-2">
+                )}
+              </div>
+            )}
+
+            {/* Authoring footer — the SINGLE "Adicionar fase" / "Adicionar narrativa"
+                pair, whether the list is empty or not (it used to be duplicated
+                between the empty state and the end of the list). Mirrors the case
+                work card's footer: bordered, below the list, `outline`/`sm`.
+                Draft-only, because every authoring RPC refuses a non-draft version —
+                a DB invariant, not a UI convention. */}
+            {isDraft && (
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAddPhaseOpen(true)}
+                  disabled={!hasForms}
+                  className="w-fit"
+                >
+                  <Plus aria-hidden="true" />
+                  Adicionar fase
+                </Button>
+                {narrativesEnabled && (
                   <Button
                     type="button"
                     variant="outline"
-                    size="lg"
-                    onClick={() => setAddPhaseOpen(true)}
-                    disabled={!hasForms}
+                    size="sm"
+                    onClick={() => setAddNarrativeOpen(true)}
                     className="w-fit"
                   >
-                    <Plus aria-hidden="true" />
-                    Adicionar fase
+                    <FileText aria-hidden="true" />
+                    Adicionar narrativa
                   </Button>
-                  {narrativesEnabled && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="lg"
-                      onClick={() => setAddNarrativeOpen(true)}
-                      className="w-fit"
-                    >
-                      <FileText aria-hidden="true" />
-                      Adicionar narrativa
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </section>
 
           {isDraft && (
             <ProcessOutcomesPicker
@@ -494,10 +515,16 @@ export function TemplateBuilderShell({
             />
           )}
 
-          {showCollectsPatient && (
-            <CollectsPatientPicker
+          {/* ADR 0137 **D1/D2** — the three-mode PHI collection setting plus, in
+              `required` mode, the field set the case must carry. This is the ONLY
+              user-reachable channel to `patient_mode = 'required'`; the DB, the
+              minting DEFINERs and the pgTAP suite supported the mode while nothing
+              in the product could select it (QA C-1). */}
+          {showPatientMode && (
+            <PatientModePicker
               templateVersionId={version.id}
-              collectsPatient={version.collectsPatient}
+              patientMode={version.patientMode}
+              patientRequiredFields={version.patientRequiredFields}
             />
           )}
         </aside>

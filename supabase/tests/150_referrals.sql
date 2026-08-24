@@ -68,7 +68,7 @@ grant select on cs to authenticated;
 insert into public.cases (id, commission_id, case_number, label, created_by) values
   ((select src_case from cs), (select comm_x from k), 9201, 'Caso A', (select sa_x from k)),
   ((select tgt_case from cs), (select comm_y from k), 9202, 'Caso B', (select sa_y from k));
-insert into public.case_narratives (id, case_id, type_label, display_position, title, body_md, created_by)
+insert into public.case_narratives (id, case_id, display_label, display_position, title, body_md, created_by)
 values ((select narr from cs), (select src_case from cs), 'Resumo', 0, 'Resumo',
         'CORPO-SENSIVEL-DO-PACIENTE', (select sa_x from k));
 -- DM4 (ADR 0119): the document arm is OPEN on the document model. The frozen
@@ -458,6 +458,11 @@ create temp table r2 on commit drop as
 -- DM1: r2 just needs ≥1 snapshot item to send — share the NARRATIVE (the
 -- document arm is parked until DM4; the arm choice is incidental here).
 select public.add_referral_shared_item((select id from r2), 'narrative', (select narr from cs), null);
+-- ADR 0137 D4: send_referral now refuses a referral with no referral_patient
+-- MRN (HC0T4) - the MRN is the LGPD erasure key. Fixture only; the SAVE floor
+-- is unchanged (name OR mrn), so this is about the SEND transition alone.
+select public.save_referral_patient(
+  (select id from r2), 'Paciente Fixture', 'MRN-150-R2');
 select public.send_referral((select id from r2));
 reset role;
 grant select on r2 to authenticated;
@@ -483,7 +488,7 @@ create temp table cs2 on commit drop as
 grant select on cs2 to authenticated;
 insert into public.cases (id, commission_id, case_number, label, created_by)
 values ((select src2 from cs2), (select comm_x from k), 9203, 'Caso A2', (select sa_x from k));
-insert into public.case_narratives (id, case_id, type_label, display_position, title, body_md, created_by)
+insert into public.case_narratives (id, case_id, display_label, display_position, title, body_md, created_by)
 values ((select narr2 from cs2), (select src2 from cs2), 'Resumo', 0, 'Resumo', 'CORPO-A2', (select sa_x from k));
 
 select test_helpers.claims_for((select sa_x from k), false);
@@ -498,6 +503,11 @@ grant select on r3 to authenticated;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select public.add_referral_shared_item((select id from r3), 'narrative', (select narr2 from cs2), null);
+-- ADR 0137 D4: send_referral now refuses a referral with no referral_patient
+-- MRN (HC0T4) - the MRN is the LGPD erasure key. Fixture only; the SAVE floor
+-- is unchanged (name OR mrn), so this is about the SEND transition alone.
+select public.save_referral_patient(
+  (select id from r3), 'Paciente Fixture', 'MRN-150-R3');
 select public.send_referral((select id from r3));
 reset role;
 
@@ -758,6 +768,11 @@ create temp table r5 on commit drop as
     (select src_case from cs), (select comm_y from k),
     (select type_parecer from voc), 'Recusa R2', true,
     'Motivo do encaminhamento para exercício da recusa.');
+-- ADR 0137 D4: send_referral now refuses a referral with no referral_patient
+-- MRN (HC0T4) - the MRN is the LGPD erasure key. Fixture only; the SAVE floor
+-- is unchanged (name OR mrn), so this is about the SEND transition alone.
+select public.save_referral_patient(
+  (select id from r5), 'Paciente Fixture', 'MRN-150-R5');
 select public.send_referral((select id from r5));
 reset role;
 grant select on r5 to authenticated;
@@ -852,6 +867,11 @@ create temp table r6 on commit drop as
     (select src3 from cs3), (select comm_y from k),
     (select type_parecer from voc), 'Resolução R3', true,
     'Descrição para viabilizar o envio.');
+-- ADR 0137 D4: send_referral now refuses a referral with no referral_patient
+-- MRN (HC0T4) - the MRN is the LGPD erasure key. Fixture only; the SAVE floor
+-- is unchanged (name OR mrn), so this is about the SEND transition alone.
+select public.save_referral_patient(
+  (select id from r6), 'Paciente Fixture', 'MRN-150-R6');
 select public.send_referral((select id from r6));
 reset role;
 grant select on r6 to authenticated;
@@ -1041,6 +1061,11 @@ create temp table r8 on commit drop as
     (select src4 from cs4), (select comm_y from k),
     (select type_ciencia from voc), 'Ciência R3', false,
     'Descrição para viabilizar o envio.');
+-- ADR 0137 D4: send_referral now refuses a referral with no referral_patient
+-- MRN (HC0T4) - the MRN is the LGPD erasure key. Fixture only; the SAVE floor
+-- is unchanged (name OR mrn), so this is about the SEND transition alone.
+select public.save_referral_patient(
+  (select id from r8), 'Paciente Fixture', 'MRN-150-R8');
 select public.send_referral((select id from r8));
 reset role;
 grant select on r8 to authenticated;
@@ -1318,6 +1343,11 @@ create temp table r10 on commit drop as
     (select src6 from cs6), (select comm_y from k),
     (select type_parecer from voc), 'Notas internas R5', true,
     'Descrição para viabilizar o envio.');
+-- ADR 0137 D4: send_referral now refuses a referral with no referral_patient
+-- MRN (HC0T4) - the MRN is the LGPD erasure key. Fixture only; the SAVE floor
+-- is unchanged (name OR mrn), so this is about the SEND transition alone.
+select public.save_referral_patient(
+  (select id from r10), 'Paciente Fixture', 'MRN-150-R10');
 select public.send_referral((select id from r10));
 reset role;
 grant select on r10 to authenticated;

@@ -31,9 +31,9 @@ create temp table k on commit drop as
 grant select on k to authenticated;
 
 -- FIXTURE: c1 = a referral-touched, PHI-bearing case in comm_x.
-insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, patient_enabled)
+insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, patient_mode)
 values ('00000000-0000-0000-0000-0000000f1001', (select comm_x from k), 94701, (select sa_x from k),
-        'commission_default', true);
+        'commission_default', 'optional');
 
 -- PHI written through the real coordinator door.
 select test_helpers.claims_for((select sa_x from k), false);

@@ -7,6 +7,12 @@ import {
 } from '@/lib/queries/forms'
 import type { RecommendRule, ResultRuleset } from '@/lib/queries/conditions'
 import type { ProcessTemplateNarrative } from '@/lib/queries/case-narratives'
+import {
+  toPatientMode,
+  toPatientRequiredFields,
+  type PatientMode,
+  type PatientRequiredField,
+} from '@/lib/queries/cases'
 
 export type { ProcessTemplateNarrative } from '@/lib/queries/case-narratives'
 
@@ -443,10 +449,27 @@ export interface ProcessTemplateVersion extends ProcessTemplateVersionSummary {
   /** The owning commission, resolved through the identity for convenience. */
   commissionId: string
   /**
-   * Version-scoped (D1). Cases created from this version snapshot it into
-   * `cases.patient_enabled`. Surfaced behind the `case_patient` feature flag.
+   * Version-scoped (D1). Surfaced behind the `case_patient` feature flag.
+   *
+   * @deprecated ADR 0137 D1 replaced the boolean with {@link patientMode}. This
+   * field survives as a DERIVED convenience (`patientMode !== 'none'`) so the
+   * existing builder picker keeps working while the UI migrates; it cannot
+   * express `'required'`. Read `patientMode` in new code.
    */
   collectsPatient: boolean
+  /**
+   * Version-scoped (ADR 0096 D1; ADR 0137 D1). How cases created from THIS
+   * version collect patient identifiers — `'none'` · `'optional'` ·
+   * `'required'`. Snapshotted onto `cases.patient_mode` at creation, so
+   * publishing a new version is the only way to change it for future cases and
+   * live cases are unaffected.
+   */
+  patientMode: PatientMode
+  /**
+   * The identifier fields a `'required'` version demands (ADR 0137 D2); empty
+   * otherwise. `'mrn'` is always present — the LGPD erasure key.
+   */
+  patientRequiredFields: PatientRequiredField[]
   /**
    * Version-scoped (D1). Cases INHERIT this type's `default_visibility_policy` /
    * `default_confidentiality_level`, so it sets the access posture of every case
@@ -523,7 +546,8 @@ interface VersionSummaryRow {
 }
 
 interface VersionFullRow extends VersionSummaryRow {
-  collects_patient: boolean
+  patient_mode: string
+  patient_required_fields: string[]
   case_type_id: string | null
   process_templates: { commission_id: string } | null
   process_template_phases: TemplatePhaseRow[]
@@ -540,7 +564,8 @@ const VERSION_SUMMARY_SELECT = `
 
 const VERSION_FULL_SELECT = `
   id, template_id, version_number, status, title, description,
-  created_by, created_at, published_at, collects_patient, case_type_id,
+  created_by, created_at, published_at, patient_mode, patient_required_fields,
+  case_type_id,
   cases ( count ),
   process_templates ( commission_id ),
   process_template_phases (
@@ -580,7 +605,9 @@ function mapVersionFull(v: VersionFullRow): ProcessTemplateVersion {
   return {
     ...mapVersionSummary(v),
     commissionId: v.process_templates?.commission_id ?? '',
-    collectsPatient: v.collects_patient ?? false,
+    collectsPatient: toPatientMode(v.patient_mode) !== 'none',
+    patientMode: toPatientMode(v.patient_mode),
+    patientRequiredFields: toPatientRequiredFields(v.patient_required_fields),
     caseTypeId: v.case_type_id ?? null,
     phases: (v.process_template_phases ?? [])
       .slice()

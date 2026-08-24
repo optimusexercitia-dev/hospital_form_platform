@@ -69,7 +69,7 @@ function narrative(
   return {
     caseId: 'case-1',
     narrativeTypeId: 'type-1',
-    typeLabel: 'Resumo',
+    displayLabel: 'Resumo',
     title: null,
     instructions: null,
     isExpected: false,
@@ -106,6 +106,8 @@ function detail(
       closedAt: null,
       hasPatient: false,
       patientEnabled: false,
+      patientMode: 'none',
+      patientRequiredFields: [],
       departmentId: null,
       departmentOther: null,
       departmentName: null,

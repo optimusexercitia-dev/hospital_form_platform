@@ -96,7 +96,8 @@ export default async function ManageNarrativeEditorPage({
     narrative.status === "open" &&
     (caps.canManageLifecycle || isAssignee);
 
-  const heading = narrative.title || narrative.typeLabel;
+  // ADR 0137 D10 — `case_narratives.type_label` -> `display_label`.
+  const heading = narrative.title || narrative.displayLabel;
   // Back to the MANAGE case detail — staying on the management surface the reader
   // deliberately came to, rather than dropping them onto the reading one.
   const backHref = commissionHref(org, commission, "manage", "cases", caseId);

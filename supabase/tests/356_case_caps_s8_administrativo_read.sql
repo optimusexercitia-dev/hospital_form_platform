@@ -150,11 +150,11 @@ create temp table cs on commit drop as
   select gen_random_uuid() as case_o, gen_random_uuid() as case_l,
          gen_random_uuid() as case_p, gen_random_uuid() as case_y;
 grant select on cs to authenticated;
-insert into public.cases (id, commission_id, case_number, label, created_by, visibility_policy, patient_enabled)
-values ((select case_o from cs), (select comm_x from k), 9401, 'Caso ordinário',   (select sa_x from k), 'commission_default', false),
-       ((select case_l from cs), (select comm_x from k), 9402, 'Caso trancado',    (select sa_x from k), 'explicit_grants_only', false),
-       ((select case_p from cs), (select comm_x from k), 9403, 'Caso com paciente',(select sa_x from k), 'commission_default', true),
-       ((select case_y from cs), (select comm_y from k), 9404, 'Caso da comissão Y',(select sa_y from k), 'commission_default', false);
+insert into public.cases (id, commission_id, case_number, label, created_by, visibility_policy, patient_mode)
+values ((select case_o from cs), (select comm_x from k), 9401, 'Caso ordinário',   (select sa_x from k), 'commission_default', 'none'),
+       ((select case_l from cs), (select comm_x from k), 9402, 'Caso trancado',    (select sa_x from k), 'explicit_grants_only', 'none'),
+       ((select case_p from cs), (select comm_x from k), 9403, 'Caso com paciente',(select sa_x from k), 'commission_default', 'optional'),
+       ((select case_y from cs), (select comm_y from k), 9404, 'Caso da comissão Y',(select sa_y from k), 'commission_default', 'none');
 
 -- A tag to aim §9's write door at.
 create temp table tg on commit drop as select gen_random_uuid() as tag_id;

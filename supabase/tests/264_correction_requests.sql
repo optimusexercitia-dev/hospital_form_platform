@@ -418,7 +418,7 @@ begin
     values ((select case_id from n10), v_comm, 941010, 'in_review', v_sa);
   perform set_config('app.in_narrative_rpc','on',true);
   insert into public.case_narratives
-    (id, case_id, type_label, display_position, is_expected, is_ad_hoc, body_md, assigned_to,
+    (id, case_id, display_label, display_position, is_expected, is_ad_hoc, body_md, assigned_to,
      status, concluded_at, concluded_by, created_by)
     values ((select narr_id from n10), (select case_id from n10), 'Relato', 0, true, false,
       'corpo antigo', v_st, 'completed', (select conc_at from n10), v_st, v_sa);
@@ -504,7 +504,7 @@ begin
     values ((select case_id from n12), v_comm, 941012, 'in_review', v_sa);
   perform set_config('app.in_narrative_rpc','on',true);
   insert into public.case_narratives
-    (id, case_id, type_label, display_position, is_expected, is_ad_hoc, body_md, assigned_to,
+    (id, case_id, display_label, display_position, is_expected, is_ad_hoc, body_md, assigned_to,
      status, concluded_at, concluded_by, created_by)
     values ((select narr_id from n12), (select case_id from n12), 'Relato', 0, true, false,
       'corpo v', v_st, 'completed', now(), v_st, v_sa);

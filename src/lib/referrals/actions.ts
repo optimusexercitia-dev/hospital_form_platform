@@ -16,9 +16,11 @@ import {
 import { REFERRAL_MESSAGES, mapReferralError } from '@/lib/referrals/messages'
 import {
   getCaseSafetyEventPatientPrefill,
+  getReferralDetail,
   getReferralPatient,
 } from '@/lib/queries/referrals'
 import type { CaseSafetyPrefill } from '@/lib/queries/referrals'
+import type { ReferralDetail } from '@/lib/referrals/types'
 import type { PhiDisposeReason } from '@/lib/cases/types'
 import type {
   AddSharedItemInput,
@@ -1069,6 +1071,54 @@ export async function loadCaseSafetyPrefill(
 ): Promise<CaseSafetyPrefill | null> {
   if (!caseId) return null
   return getCaseSafetyEventPatientPrefill(caseId)
+}
+
+/**
+ * Load a DRAFT referral for resume in the send wizard (ADR 0137 D6).
+ *
+ * ⭐ WHY THIS EXISTS AS AN ACTION RATHER THAN A DIRECT QUERY IMPORT.
+ * `getReferralDetail` lives in `src/lib/queries/referrals.ts`, which reaches
+ * `@/lib/supabase/server` -> `next/headers`. A client value-import of that
+ * module **aborts `next build` while tsc, lint and vitest all stay green** —
+ * the class `lint:client-server-imports` gates. This module is `'use server'`,
+ * so the wizard can bind it safely, exactly as
+ * {@link loadCaseSafetyPrefill} is already bound from the referrals card.
+ *
+ * ⭐ AND WHY IT IS LAZY RATHER THAN LOADED BY THE HOST PAGE. The case's
+ * Encaminhamentos card lists EVERY referral on the case, so preloading detail
+ * to support resume on any draft row would drag `descriptionMd` — PHI-bearing
+ * free text (Rule 12) — into the page payload for drafts nobody opens. That is
+ * a minimum-necessary regression against the posture that keeps list/hub
+ * projections PHI-free. Firing on intent keeps the read where the intent is.
+ *
+ * Returns `null` for a miss, a non-draft, or an unentitled caller — never
+ * throws, so the wizard can render a pt-BR message instead of a boundary error.
+ * ⚠ The `null` for a NON-DRAFT is a server-side guarantee, not a UI
+ * convention: ADR 0137 D6 keeps non-draft statuses on the detail page, and
+ * enforcing it here means a future caller cannot resume a sent referral into an
+ * editing surface by forgetting a check.
+ */
+export async function loadReferralDraft(
+  referralId: string,
+): Promise<ReferralDetail | null> {
+  if (!referralId) return null
+
+  // ⚠ THE SECOND ARGUMENT IS DERIVED, NOT ACCEPTED, AND THAT IS DELIBERATE.
+  // `getReferralDetail`'s `viewerCommissionId` has no default precisely because
+  // omitting it once resolved `direction` to 'outgoing' for every reader (the
+  // A9 bug, documented at its declaration). Passing `null` here would inherit
+  // that same fallback silently. Instead the direction is RE-STATED below from
+  // a structural fact rather than from a caller-supplied value, so there is no
+  // argument for a caller to get wrong.
+  const detail = await getReferralDetail(referralId, null)
+  if (!detail) return null
+  if (detail.status !== 'draft') return null
+
+  // A DRAFT is only ever reachable by its SOURCE coordinator — `get_referral_detail`
+  // re-gates read authority, and every draft-mutating RPC gates on
+  // `can_manage_referral_source`. So for this door, and only this door,
+  // 'outgoing' is a structural truth rather than a default.
+  return { ...detail, direction: 'outgoing' }
 }
 
 // ---------------------------------------------------------------------------

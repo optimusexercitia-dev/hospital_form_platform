@@ -43,6 +43,8 @@ export function CaseEventForm({
   caseId,
   event,
   canSetVisibility = false,
+  initialKind,
+  initialBody,
 }: {
   mode: "create" | "edit";
   open: boolean;
@@ -50,6 +52,18 @@ export function CaseEventForm({
   caseId: string;
   /** Required for `edit`; ignored for `create`. */
   event?: CaseEvent;
+  /**
+   * CREATE mode only — seed the kind / body from the Atividade card's inline
+   * composer (ADR 0137 D12), so opening "Mais detalhes" carries what the author
+   * already typed instead of making them retype it. Ignored in `edit` mode, where
+   * `event` is the source.
+   *
+   * ⚠ Consumed through `defaultValue`, so these apply at MOUNT. The caller mounts
+   * this dialog only while it is open — a fresh mount per open IS the prefill
+   * mechanism; keeping it permanently mounted would freeze the first values.
+   */
+  initialKind?: string;
+  initialBody?: string;
   /**
    * Whether the viewer (a coordinator) may set the record's visibility (ETH·E3a).
    * When `false`, the field is omitted and the record keeps the default
@@ -101,7 +115,7 @@ export function CaseEventForm({
             <NativeSelect
               name="kind"
               className="py-2"
-              defaultValue={event?.kind ?? "note"}
+              defaultValue={event?.kind ?? initialKind ?? "note"}
             >
               {EVENT_KINDS.map((k) => (
                 <option key={k} value={k}>
@@ -163,7 +177,7 @@ export function CaseEventForm({
               required
               rows={4}
               className={FIELD_CLASS}
-              defaultValue={event?.body ?? ""}
+              defaultValue={event?.body ?? initialBody ?? ""}
               placeholder="Descreva o registro…"
               aria-invalid={state?.fieldErrors?.body ? true : undefined}
             />

@@ -373,7 +373,7 @@ test.beforeAll(async ({ request }) => {
   // 5. NARR case — fill + conclude the "Resumo Clínico" narrative (chefe = coordinator).
   const narrRows = await svcGet<{ id: string }>(
     request,
-    `case_narratives?case_id=eq.${caseNarrId}&select=id,type_label&order=display_position.asc`,
+    `case_narratives?case_id=eq.${caseNarrId}&select=id,display_label&order=display_position.asc`,
   )
   expect(narrRows.length, 'NARR case must have at least one narrative slot').toBeGreaterThan(0)
   narrHappyNarrativeId = narrRows[0].id

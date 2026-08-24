@@ -52,9 +52,9 @@ grant select on k to authenticated;
 
 -- ── FIXTURE: one commission_default, PHI-bearing case; the patient set through the
 --    real coordinator door so PHI reach is gated only by the capability. ──────────
-insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, patient_enabled)
+insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, patient_mode)
 values ('00000000-0000-0000-0000-0000000b1001', (select comm_x from k), 95001, (select sa_x from k),
-        'commission_default', true);
+        'commission_default', 'optional');
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;

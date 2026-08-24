@@ -79,7 +79,12 @@ export async function buildCaseReferralsModule(
     .filter((n) => (n.bodyMd ?? "").trim().length > 0)
     .map((n) => ({
       id: n.id,
-      label: n.title?.trim() || n.typeLabel,
+      // ADR 0137 D10 — `CaseNarrative.typeLabel` -> `displayLabel` (the per-case
+      // snapshot column `case_narratives.type_label` was renamed). ⛔ NOT a blanket
+      // rename: `ProcessTemplateNarrative.typeLabel` (the LIVE join onto
+      // `case_narrative_types.label`) and `case_referral.type_label` both keep the
+      // old name. `detail.narratives` is `CaseNarrative[]`, so this site renames.
+      label: n.title?.trim() || n.displayLabel,
       bodyMd: n.bodyMd as string,
     }));
 
@@ -135,7 +140,12 @@ export async function buildCaseReferralsModuleReadOnly(
     .filter((n) => (n.bodyMd ?? "").trim().length > 0)
     .map((n) => ({
       id: n.id,
-      label: n.title?.trim() || n.typeLabel,
+      // ADR 0137 D10 — `CaseNarrative.typeLabel` -> `displayLabel` (the per-case
+      // snapshot column `case_narratives.type_label` was renamed). ⛔ NOT a blanket
+      // rename: `ProcessTemplateNarrative.typeLabel` (the LIVE join onto
+      // `case_narrative_types.label`) and `case_referral.type_label` both keep the
+      // old name. `detail.narratives` is `CaseNarrative[]`, so this site renames.
+      label: n.title?.trim() || n.displayLabel,
       bodyMd: n.bodyMd as string,
     }));
 

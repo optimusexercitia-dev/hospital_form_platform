@@ -192,7 +192,10 @@ test.beforeAll(async ({ request }) => {
     template_version_id: seededCase.template_version_id,
     label: CASE_LABEL,
     created_by: chefe.id,
-    patient_enabled: true,
+    // ADR 0137 D1 — `cases.patient_enabled` (boolean) was DROPPED; `patient_mode`
+    // replaces it (`true` backfilled to `'optional'`). Set at INSERT — it is
+    // immutable afterward (`app.guard_case_patient_mode_immutable`, HC0T3).
+    patient_mode: 'optional',
     has_patient: true,
   })
   caseId = kase.id

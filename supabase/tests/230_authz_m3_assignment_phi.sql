@@ -36,9 +36,9 @@ update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'case_access', 'case_participants', 'case_patient', 'audit_trail');
 update app.feature_flags set enabled = false where key in ('case_types', 'case_referrals');
 
-insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, patient_enabled)
+insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, patient_mode)
 values ('00000000-0000-0000-0000-0000000a3001', (select comm_x from k), 96001, (select sa_x from k),
-        'commission_default', true);
+        'commission_default', 'optional');
 
 -- The PHI itself, via the real coordinator door.
 select test_helpers.claims_for((select sa_x from k), false);
@@ -51,7 +51,7 @@ reset role;
 insert into public.case_narrative_types (id, commission_id, label, position)
 values ('00000000-0000-0000-0000-0000000a3002', (select comm_x from k), 'Relato', 1);
 insert into public.case_narratives
-  (id, case_id, narrative_type_id, type_label, display_position, assigned_to)
+  (id, case_id, narrative_type_id, display_label, display_position, assigned_to)
 values ('00000000-0000-0000-0000-0000000a3003', '00000000-0000-0000-0000-0000000a3001',
         '00000000-0000-0000-0000-0000000a3002', 'Relato', 1, (select st_x2 from k));
 

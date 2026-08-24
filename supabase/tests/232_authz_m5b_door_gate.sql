@@ -62,7 +62,7 @@ select '00000000-0000-0000-0000-0000000b5002', '00000000-0000-0000-0000-0000000b
 insert into public.case_narrative_types (id, commission_id, label, position)
 values ('00000000-0000-0000-0000-0000000b5003', (select comm_x from k), 'Relato', 1);
 insert into public.case_narratives
-  (id, case_id, narrative_type_id, type_label, display_position, assigned_to, status)
+  (id, case_id, narrative_type_id, display_label, display_position, assigned_to, status)
 values ('00000000-0000-0000-0000-0000000b5004', '00000000-0000-0000-0000-0000000b5001',
         '00000000-0000-0000-0000-0000000b5003', 'Relato', 1, (select st_x2 from k), 'open');
 -- ⛔ A SECOND narrative, for the positive twin ALONE. The twin must not share a row
@@ -71,7 +71,7 @@ values ('00000000-0000-0000-0000-0000000b5004', '00000000-0000-0000-0000-0000000
 -- that has nothing to do with M5b. A twin whose result depends on the negatives
 -- failing is not an independent twin.
 insert into public.case_narratives
-  (id, case_id, narrative_type_id, type_label, display_position, assigned_to, status)
+  (id, case_id, narrative_type_id, display_label, display_position, assigned_to, status)
 values ('00000000-0000-0000-0000-0000000b5006', '00000000-0000-0000-0000-0000000b5001',
         '00000000-0000-0000-0000-0000000b5003', 'Relato 2', 2, (select st_x2 from k), 'open');
 -- A `manual` item so advance_committee_action_item takes the meeting/manual branch,

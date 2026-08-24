@@ -3533,6 +3533,20 @@ batching — its own sub-batches hit `server_dead` and recovered.
 failed in one of these batches. It is filed because it costs a full gate re-run each time it
 bites, and because "infra is not a pass": a batch that never produced a verdict must not be
 read as green.
+**⭕ NEW DATA POINT — ADR 0137 batch, 2026-08-24: 4 of 20 batches.** `REBUILD=1 npm run e2e:prod`,
+batches **5, 6, 9, 12** each `server_dead=1` (conn_errors 1 / 38 / 72 / 64). **All four recovered on
+`INFRA_RETRY`**, so the run finished `GATE GREEN`, exit 0 — 1221 passed, 0 failed, 0 infra,
+0 did-not-run.
+
+⚠ **The rate is still drifting: 1/17 → 3/17 → 4/20.** And the run IMMEDIATELY before this one
+(same tree, same day) is the counter-example that makes this expensive rather than cosmetic:
+batch 6 died, **its retry did not recover**, and a run with **zero assertion failures** exited
+**5 (UNRUN)** with 10 tests never executed. Recovery is luck, not a property.
+
+⭐ The gate is doing its job — clean/unproven/dirty stay partitioned, so a stack death never reads
+as a regression. What it cannot do is make an unrun test proven. `BATCH_TESTS=22` remains the
+recorded rescue and is still unapplied.
+
 ### 🟡 FUP-ACT-HATLESS-AUDIT — a hatless read's audit row omits the `acting_as` KEY, and absence has three meanings (S4 QA MINOR-6; owner: backend)
 
 Catalog-verified in `app.audit_write`:
@@ -7099,3 +7113,504 @@ is worse than no gate. ⚠ And note what no gate can catch: an ADR whose **claim
 amending ADR to point back from. This item covers only the case where the amendment exists and is
 one-directional.
 
+### 🟡 FUP-CASE-DEPARTMENT-FIELD-HAS-NO-CONSUMER — `CaseDepartmentField` is kept by decision, not by use (owner: PO + frontend)
+
+ADR [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) **D9** removed the
+"Unidade / setor" input from BOTH of `CaseDepartmentField`'s app call sites (`create-case-dialog.tsx`
+and `edit-case-meta-dialog.tsx`, Increment 1). Measured after that change:
+`grep -rn "CaseDepartmentField" src/ --include=*.tsx` returns the component's own definition, two
+explanatory comments, and **`case-department-field.test.tsx`** — **no app consumer at all.**
+
+⚠ **The Increment 1 brief's parenthetical is FALSE as written.** It read *"the component survives (the
+hospital-admin surface still uses departments)"*. The hospital-admin surface uses the department
+**vocabulary**, through `components/hospitals/departments-manager.tsx` — a **different component**.
+`CaseDepartmentField` is the per-case picker, and nothing renders it now. The brief's instruction ("do
+not delete the file") was followed, so this is a *recorded* orphan rather than an undetected one.
+
+⛔ **Not a defect and not urgent** — five tests still pass and nothing is broken. What is owed is a
+DECISION, and it is one of exactly three:
+
+1. **Delete** the component + its test (D9 says the case models a unit as a process custom field, ADR
+   0083, so the picker has no future call site).
+2. **Wire it** somewhere the department is still authored per case (no such surface exists today —
+   inventing one would reverse D9).
+3. **Keep it deliberately** as scaffolding for a named future increment — in which case say which one,
+   in the file's docblock, or the next reader re-derives this same question.
+
+⛔ **Do NOT delete it in this batch** (lead ruling 2026-08-23) — it is outside D9's scope, and deletion
+is a decision, not a cleanup.
+
+⚠ **The reason nobody will notice this on their own: it is DEAD CODE WEARING A GREEN CHECK.**
+`case-department-field.test.tsx` still renders the component five times and still passes. A test-only
+consumer satisfies `tsc` (the import is real), eslint (the symbol is used), and `lint:vacuous` (the
+assertions are unconditional and genuine) — **forever**. There is no gate in the eight that can
+distinguish "exercised by the product" from "exercised only by its own test", so this item's index line
+in PROGRESS.md is the ONLY thing that will ever raise it again. The resolution event is the ruling, not
+the code: whichever way it goes, the answer belongs in the component's docblock.
+
+### 🟡 FUP-REFERRAL-REVIEW-STEP-MRN-WARNING — warn on the review step BEFORE the send is refused (owner: frontend; lead-ruled FILE-not-build 2026-08-23)
+
+ADR [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) **D4** makes the MRN
+mandatory at SEND: `public.send_referral` raises `HC0T4`, `mapReferralError` maps it, and
+`sendReferral` surfaces `REFERRAL_MESSAGES.sendRequiresMrn` in the wizard's error banner. That works —
+but the coordinator only learns after pressing **Enviar encaminhamento** and eating a round trip.
+
+**The ask:** render `sendRequiresMrn` as a NON-BLOCKING warning on the wizard's review step when the
+referral will be refused for a missing MRN, so the requirement is visible before the attempt.
+
+⛔ **Do NOT invent a second string.** Reuse `REFERRAL_MESSAGES.sendRequiresMrn` verbatim — backend
+confirmed 2026-08-23 that its wording ("Informe o prontuário do paciente antes de enviar o
+encaminhamento.") already reads as advance notice, not only as a refusal. Two sentences for one rule is
+the drift class this repo keeps paying for.
+
+⛔ **Do NOT block the send, and do NOT touch the MRN input's `required`.** The DB is the authority
+(D3's three-layer model), and a native `required` would break `Salvar rascunho`, which D4 deliberately
+keeps working — pgTAP `360 §1.2a` pins that a name-only PHI block still SAVES.
+
+---
+
+⛔⛔ **THE BINDING CONSTRAINT — the naive version of this is WRONG, and wrong in the direction that
+teaches people to ignore warnings.** Raised by `inc0-backend` 2026-08-23, who read
+`goToPatientStep()` rather than assuming.
+
+The wizard's resume PHI hydration fires **only** inside `goToPatientStep()`, once, asynchronously:
+
+```
+if (isResume && referralId && onLoadPatient && !resumePatientLoaded) { … }
+```
+
+So on a RESUMED draft the local `patient` buffer is **empty until the coordinator actually walks
+through the patient step** — even when the server already holds a perfectly good MRN. A warning driven
+off the buffer alone is therefore **FALSE exactly on the resume path**: it tells a coordinator their
+referral has no MRN when it does, and pushes them to re-enter PHI that already exists.
+
+**Render only when the buffer is AUTHORITATIVE. Three cases, and the third is the important one:**
+
+| Case | Buffer is truth? | Render |
+|---|---|---|
+| Fresh draft | ✅ yes — nothing is persisted until flush | Warn. This is where it earns its keep (majority path). |
+| Resume, patient step visited (`resumePatientLoaded`, transition settled) | ✅ yes | Warn. |
+| Resume, patient step never visited | ⛔ **no — the client cannot answer** | **Render NOTHING.** Not a warning, and not a reassurance either. |
+
+⛔ **And do NOT fetch to power the warning.** That is the tempting fix and it is the wrong one:
+`get_referral_patient` emits an audited `referral_patient.read` row, fired deliberately *on intent, not
+on card mount*. A review-step warning that fetched would emit a PHI-read audit row for merely REACHING
+review — quietly changing what `referral_patient.read` means in the audit trail. That is a Rule 11 /
+Rule 12 semantic change smuggled in as a UX nicety, and it is a **lead decision, not a component one**.
+
+⭐ **The silence in case 3 is the correct answer, not a gap.** *"I could not look" is not "I looked and
+found nothing."* A warning that renders identically for "no MRN" and "MRN unknown to this client"
+collapses exactly the two states `FUP-DM5-NO-ANSWER-VS-NOTHING` exists to keep apart.
+
+**Why it was filed rather than built** (lead ruling): beyond §2c as scoped; the PO approved D1–D14, not
+adjacent improvements; and it adds accessible names that would land on the tester mid-gate. It is a
+genuine improvement on the majority path and costs nothing to suppress on the one path where the client
+cannot honestly answer — so it is worth doing, just not inside this batch.
+
+
+### 🟡 FUP-0137-PHI-MODE-SHIMS — the derived `patientEnabled` / `collectsPatient` / `setTemplateCollectsPatient` shims must retire once the builder UI adopts `patientMode` (owner: backend + frontend)
+
+> **Raised 2026-08-23, ADR 0137 Increment 0.** D1 replaced the boolean PHI switch with a three-mode
+> setting (`none` / `optional` / `required`). The database half is complete: `collects_patient` and
+> `patient_enabled` are **dropped**, and `patient_mode` + `patient_required_fields` are the only stored
+> truth.
+>
+> The **TypeScript half is deliberately unfinished**, and that is what this item tracks. To let the
+> schema land ahead of the UI (the batch's required deploy order — schema first, then code) three
+> compatibility shims were kept, all marked `@deprecated`:
+>
+> - `CaseDetail.patientEnabled` — now **derived** (`patientMode !== 'none'`), not a column.
+> - `ProcessTemplateVersion.collectsPatient` — same derivation.
+> - `setTemplateCollectsPatient(versionId, collects)` — signature unchanged, now delegating to
+>   `setTemplatePatientMode(versionId, collects ? 'optional' : 'none', [])`.
+> - `get_case_detail` also still emits a derived `patient_enabled` JSON key.
+>
+> ⛔ **The reason this needs an index line rather than a code comment: a boolean shim over a
+> three-valued setting is LOSSY IN ONE DIRECTION ONLY, and the lossy direction is the new one.**
+> `collectsPatient` cannot express `required`. Every existing caller keeps working — which is exactly
+> why nothing will ever fail, no gate will ever fire, and a builder screen wired to
+> `setTemplateCollectsPatient` will silently be unable to configure the one mode ADR 0137 was written
+> to introduce. The compliance feature would be shipped, reachable only through an RPC no UI calls.
+>
+> **Resolution event:** the process-template builder gains a mode picker (D1/D2 — three modes plus the
+> required-field set, with `mrn` rendered selected and non-interactive). At that point delete all four
+> shims and the `@deprecated` markers with them.
+>
+> ⚠ **Do NOT retire them before that.** They are what makes old-code/new-schema safe, and Coolify
+> auto-deploys on push.
+>
+> **Verify by property, not by memory:**
+> `grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return **zero**
+> hits when this closes, and `public.get_case_detail` should no longer emit the derived key
+> (`pg_get_functiondef`, not the migration file — it has been re-emitted twice already).
+
+### FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG
+
+**`ARM=census`'s "prune" note recommends deleting the record of two LIVE, UNSWEPT gates.** Found at the
+ADR 0137 batch-end gate, 2026-08-23. Pre-existing — `supabase/tests/mutation/` is untouched by that batch
+(verified: `git status` clean for the path), and both entries sit in the committed backlog at
+`authz-unswept-backlog.txt:232-233`.
+
+**What it prints** (`ARM=census`, exit 0, INVARIANT HOLDS):
+
+```
+note: backlog entries with no matching live gate (renamed/dropped — prune):
+    app._grant_case_access_unchecked(...)
+    app._set_participant_patient_unchecked(...)
+```
+
+⛔ **Both functions EXIST, live, with byte-identical signatures to the backlog lines.** Measured from
+`pg_proc`: `app._grant_case_access_unchecked` and `app._set_participant_patient_unchecked` are both
+`prosecdef = f`, `plpgsql`, schema **`app`**.
+
+**Mechanism.** The arm states its own domain: *prosecdef bool | prosecdef set-returning+reachable |
+**public** INVOKER plpgsql | all RLS policies*. An **`app`**-schema INVOKER plpgsql body is **outside that
+domain**, so the arm cannot match it — and reports the miss as *"no matching live gate (renamed/dropped
+— prune)"*.
+
+⭐ **The note conflates "outside my domain" with "does not exist", and then recommends a destructive
+action on the strength of it.** Pruning as instructed would delete the only committed record that these
+two are unswept — and `app._set_participant_patient_unchecked` is the **single PHI write choke point** for
+the case module, the body ADR 0137 D3's required-field guard was just placed in (measured: putting that
+guard in `set_case_patient` instead leaves the E1 multi-patient path unguarded, pgTAP `359` §4.1/§4.2).
+
+⚠ **It fails in the reassuring direction and inside a passing run** — `INVARIANT HOLDS`, exit 0, with the
+harmful advice in a `note:` line nothing gates on.
+
+**Fix (not attempted here — it is a gate-script change, outside the ADR 0137 batch):** the note must
+partition, not collapse. A backlog entry should report as **PRUNE** only when no function of that
+signature exists in the catalog **at all**; when one exists but falls outside the arm's domain it is
+**OUT-OF-DOMAIN — keep, still unswept**. Same shape as ADR 0128's clean/unproven/dirty partition, and the
+same failure the `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` domain line already acknowledges one column over.
+
+**Owner:** backend (gate script). **Do not prune those two lines in the meantime.**
+
+### 🟡 FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT — two suites generate their cases from the LIVE catalog; pin the role SET so a mid-reset read cannot shrink coverage silently (owner: backend + frontend)
+
+> **Raised 2026-08-23**, during ADR 0137's batch, from a vitest total that moved
+> **1684 → 1677 → hard-fail → 1684 with no source change on either side.**
+
+**The property.** Two unit suites read `public.memberships_role_check` from the LIVE database
+**at module import** and generate one test per role returned:
+
+| File | Helper | Generating blocks |
+|---|---|---|
+| `src/lib/queries/session-grants.test.ts` | `readRoleVocabularyFromCatalog()` at `:71` | `it.each(...)` at `:233` — **1** |
+| `src/components/shell/nav-scope-exclusivity.test.ts` | its own copy at `:74` | `it.each(ROLES)` at `:262` **and** `:289` — **2** |
+
+So the dynamic surface is **3N** for N roles, and `npm run test`'s total is a function of DB state
+rather than of the code. ⚠ The other role-shaped lines in `session-grants.test.ts` (`:228`, `:257`,
+`:275`) are `for` loops **inside one test** — they change what an assertion iterates, not how many tests
+exist. Blocks are the unit, not files.
+
+**What is already safe, and must not be re-litigated.** Coverage cannot shrink **durably**:
+`supabase/tests/292_session_context.sql` pins the vocabulary bidirectionally — §3.1 reds when the CHECK
+admits a role the hand-declared `role_scope` map does not name, §3.2 reds when the map names a role the
+CHECK no longer admits. A role genuinely disappearing reds `npm run test:db`.
+
+⛔ **The residual, and the whole reason for this item: §292 structurally cannot see the TRANSIENT
+window.** The two gates read the same database at different times. `memberships_role_check` is created
+by one migration and rebuilt by later ones, so a reset passes through a period where the constraint is
+**present and valid but partial**. Run `npm run test` inside that window and `test:db` after it, and
+vitest generates fewer cases, reports a tidy green, and nothing correlates the two. That is the failure
+actually observed above.
+
+## The fix
+
+Assert the role **SET** in both files, against one shared literal:
+
+```ts
+expect([...CATALOG_ROLES].sort()).toEqual(EXPECTED_ROLES)
+```
+
+- **A set, not `.length`.** A count misses a **substitution** — one role removed and one added leaves
+  the length identical while every generated case silently changes subject. A one-sided check passes
+  when too much changed, not only when too little did.
+- **`EXPECTED_ROLES` in ONE shared module**, imported by both files — never a literal pasted into each.
+  The helper is already duplicated; a second duplicated literal would give four written copies of the
+  vocabulary and two fresh drift paths.
+
+⛔⛔ **THE SHARED MODULE MUST EXPORT A FUNCTION, NEVER A TOP-LEVEL `const`.** This is the prohibition the
+item exists for, because the change that breaks it looks exactly like tidying.
+
+The helper's **logic** and its **invocation count** want opposite treatment:
+
+- the copy-pasted **logic** is a real defect — two independently-maintained regexes over
+  `pg_get_constraintdef` can drift with nothing to catch it. Collapse it to one definition.
+- the two independent **reads** are a **FEATURE** once each is pinned to the same literal. Two reads
+  that must both equal one constant make a catalog change *between them* detectable — which is the
+  transient window above. Collapse them and the only instrument that can observe it is gone.
+
+So: **one logic definition, two call sites.** Each test file keeps its own top-level
+`const ROLES = readRoleVocabularyFromCatalog()` and asserts it against the shared `EXPECTED_ROLES`.
+
+⚠ **Why a module-scope `const` is the trap — stated carefully, because the obvious reason is
+config-dependent.** A `const` evaluated at module scope makes *how many times the catalog is read* an
+emergent property of the runner's isolation/pool settings rather than a decision any author made: with
+per-file isolation each file re-evaluates it, without isolation the module registry is shared and the
+reads collapse to one per worker. ⛔ **Measured: `vitest.config.mts` pins NEITHER `pool` NOR `isolate`**
+(no `poolOptions` anywhere), so the behaviour is inherited from the installed Vitest's defaults
+(`^4.1.8`) and can change under a version bump or a perf tweak by someone who has never heard of these
+tests. **This has NOT been measured empirically** — only the absence of the config has. An exported
+function needs none of that reasoning to be safe: each read is explicit and reviewable at its call site,
+and the count stops depending on a knob.
+
+**The triangle this closes.** §292 ties CHECK ↔ `role_scope`; the new assertion ties CHECK ↔ literal;
+and two reads that disagree cannot both equal the same constant. Any divergence reds somewhere.
+
+## ⭐ The methodology note, which is the transferable part
+
+**Both enumerations of this property were wrong, in mirrored directions, and neither was settled by the
+grep:**
+
+- **Under-report from a syntax bound.** The first sweep was `execFileSync|execSync` and named *files*
+  ("two suites") when the moving unit is *generated blocks* (three).
+- **Over-report from a widened bound.** The corrective sweep added `spawnSync`, `child_process`,
+  `psql`, `docker exec` and `pg` client imports across `src/` **and** `e2e/`, and produced a third
+  candidate — `src/lib/queries/print-source-vectors.test.ts`. It is a **false positive**: it matched a
+  comment about `pg_prove` globbing and a `.psql` **filename**, and it `readFileSync`s a committed JSON
+  fixture. Its case count is a function of a **version-controlled file** — diffable and reviewable — not
+  of DB state. A different property entirely.
+
+Both were resolved by **opening the candidate and reading it**. A syntax bound over-reports as readily
+as it under-reports, and widening one does not convert it into a property.
+
+⚠ **Do not record a vitest test COUNT as gate evidence for this repo.** It is a property of the tree's
+database at an instant. The durable claim is pass/fail, on a fresh `supabase db reset`, with the stack
+up. (`test:db` counts *are* stable — pgTAP plans are literal.)
+
+⭐ **Credit, because it is the reason this was a conversation rather than a silent green:** the helper
+fails CLOSED — with the stack down it throws *"this guard reads the catalog on purpose and must never
+silently skip"* instead of defaulting to a hardcoded list. Preserve that behaviour through any refactor.
+
+### FUP-E2E-CREATEFRESHCASE-SILENT-NULL
+
+⚠ **PRE-EXISTING — not caused by ADR 0137.** Filed 2026-08-23 (tester) while auditing
+`catch(() => null/[]/undefined)` sites for the ADR 0137 `case-patient` rewrite.
+
+`e2e/case-narratives.spec.ts:192-207` — `createFreshCase(page, token)` resolves the M&M template via
+`getMandMTemplateId` (itself a `.catch(() => null)` around `getPublishedTemplateVersion`), then calls
+`create_case_from_template`. **Any failure along that chain — template not found, RPC non-2xx, malformed
+body — returns `null`, with no thrown error and no logged reason.** Its only caller (verified: one call
+site, `:193`) narrows on `if (!templateId) return null`, and the RPC branch likewise returns `null` on
+`!resp.ok()`.
+
+✅ **Not currently masking a live regression** — the M&M template resolution it wraps touches no name ADR
+0137 touched (verified separately from `BUG-E2E-CP-HELPER-COLLECTSPATIENT`).
+
+⭐ **But it is the same family, and that is why it is filed rather than left:** a test whose *setup*
+silently degrades reads as *"this case genuinely has nothing to test"* rather than *"the fixture broke"* —
+and **nothing distinguishes the two outcomes.** That is `lint:vacuous`'s own shape sitting outside what the
+gate can trace into, because the vacuity lives in a helper.
+
+**Decide between:**
+- **(a)** throw with the underlying reason instead of returning `null`; or
+- **(b)** keep null-on-failure but require **every** caller to assert non-null with a message naming the
+  failure mode — mirroring the `restGet` / `expect(resp.ok())` discipline already used elsewhere in this
+  suite.
+
+**Owner:** tester.
+
+---
+
+## FUP-0137-MRN-BLANKABLE-AFTER-SEND
+
+🟠 **The erasure key can be blanked after the referral is sent.** Raised by `qa` in
+[adr-0137-batch-review.md](../reviews/adr-0137-batch-review.md) § 5, 2026-08-23.
+
+`public.set_referral_patient` refuses only `completed` / `rejected` / `withdrawn`. A **`sent`**
+referral stays amendable by the source coordinator, and the body's `on conflict do update set
+mrn = excluded.mrn` combined with `p_mrn` defaulting to NULL means an amend that omits the MRN
+**blanks it**. ADR 0137 D4 makes the MRN the erasure key and puts a floor at *send* (`HC0T4`) —
+that floor is real and correctly placed, but it **bounds entry, not persistence**.
+
+⚠ The cases module already closed the identical shape with `app.guard_case_patient_mode_immutable`.
+The referral analogue does not exist.
+
+⛔ **Status of the evidence, stated honestly:** derived from the **live function definitions**, not
+driven through a fixture — `test_helpers` does not exist outside the pgTAP harness, so `qa` could
+not construct the state. **A pgTAP arm settles it in either direction** and should be written before
+anyone treats this as either confirmed or dismissed. A guard read off its definition is exactly the
+class this project has been wrong about before.
+
+**Owner:** backend.
+
+---
+
+## FUP-0137-FLUSH-FAILS-OPEN
+
+🟡 **A staleness re-read fails open, against the principle its own docblock claims.** Raised by `qa`,
+2026-08-23.
+
+`src/components/referrals/referral-send-wizard.tsx:692` guards the flush with `if (fresh) { … }` and
+then **proceeds against the stale map when the re-read returns null** — the docblock ~70 lines above
+states the fail-closed principle it believes it is preserving.
+
+⚠ **Why it matters more now than when it was written:** the ADD step never records new shared-item
+ids, so that re-read is the *only* thing preventing duplicate adds on a retry — and ADR 0137 D4 made
+retries **common**, because `HC0T4` leaves the dialog open for the user to supply the MRN and try
+again. A pre-existing fail-open became reachable when the batch changed the retry rate.
+
+**Owner:** frontend.
+
+---
+
+## FUP-0137-357-TWINS-ON-STALE-BODY
+
+🟡 **The case-side gate's real coverage was red-proved against a body this batch replaced.** Raised by
+`qa`, 2026-08-23.
+
+`app._set_participant_patient_unchecked` is the enforcement point for ADR 0137 D3. It is
+`prosecdef = f`, non-boolean, and lives in `app` — so it is **outside every authz arm's domain**.
+⛔ `ARM=census` HOLDS is therefore *not* evidence about it; the census printed it as an orphaned
+backlog entry, and that orphan **predates this batch**.
+
+Its actual coverage is suite `357`'s mutation twins — whose recorded reds were taken on the
+**pre-0137 body that this batch re-emitted**. The twins have not been re-run against the current
+definition, so the compensating evidence for the batch's main case-side gate is stale by
+construction.
+
+**Fix:** re-run `357`'s mutation twins against the re-emitted body and record the reds. This is a
+measurement, not a defect claim — it may well pass.
+
+**Owner:** backend.
+
+---
+
+## FUP-0137-BULK-WIZARD-STILL-BOOLEAN
+
+🟡 **The bulk case wizard still reads the deprecated `collectsPatient`, so `required` mode degrades to a
+worse error.** Raised by `frontend` while building ADR 0137 D2/D3, 2026-08-23.
+
+`src/components/cases/bulk-create-types.ts` and `bulk-step-process.tsx` were not migrated to
+`patientMode` / `patientRequiredFields`. Against a `required` template the bulk grid therefore offers
+the PHI columns **unmarked** — no required indicator, no submit gate, no named missing field.
+
+⛔ **Not a compliance hole** — `app.patient_required_missing` still refuses the creation server-side, so
+nothing is written without its required PHI.
+
+⚠ **CORRECTION 2026-08-24 (QA r2): this item originally SOFTENED itself.** It claimed the refusal reaches
+the user "with the pt-BR message naming the fields". Measured: **`HC0T1` is absent from the mapped codes
+in `src/lib/cases/bulk-error-map.ts`**, so on the bulk path the user gets the **GENERIC** string — no
+named fields. The single-case path maps it; the bulk path does not. A follow-up that overstates the
+consolation is worse than none, because it is read as the reason not to prioritise the work. The defect is **user-facing quality** — the user is allowed to fill a whole grid before
+being told, instead of being told up front, which is precisely what D3 layer 3 exists to prevent on the
+single-case path.
+
+⚠ Deliberately out of scope: the QA remediation named two files and this is a third surface. Sequence it
+rather than letting it drift — the single-case and bulk paths now disagree about the same template.
+
+**Owner:** frontend.
+
+---
+
+## FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED
+
+🟡 **`case-patient-edit-dialog.tsx` does not mark required fields.** Raised by `frontend`, 2026-08-23.
+
+The case's `patientRequiredFields` is not threaded page → panel → dialog, so editing a `required`
+case's patient block shows no required markers and no submit gate.
+
+⛔ Enforcement is intact — `app._set_participant_patient_unchecked` (ADR 0137 D3's enforcement point,
+`prosecdef = f`, inherited by both write doors) still refuses. As above, this is the **offer** layer
+disagreeing with the **enforcement** layer, not an authorization gap.
+
+⚠ Same class as [[FUP-0137-BULK-WIZARD-STILL-BOOLEAN]]: a value that was unreachable until 2026-08-23
+leaves every downstream surface **unexercised by construction**. The audit set is every reader of
+`patient_mode` down to and including the rendering layer — ask *"what does this DO when it meets
+`required`?"*, never *"is this still right?"*.
+
+**Owner:** frontend.
+
+---
+
+## FUP-0137-PERSIST-REFRESH-DROPS-FOCUS
+
+🟡 **`persist()` + `router.refresh()` resets keyboard focus to `<body>`, costing a keyboard user ~40 Tab
+presses per field.** Found by `tester` while writing `e2e/patient-mode-required.spec.ts`, 2026-08-23.
+
+`src/components/process-templates/collects-patient-picker.tsx`'s `persist()` calls `router.refresh()` on
+every mode/field change. Once that lands, `document.activeElement` is `<body>`: a keyboard or
+screen-reader user who ticks one required field **loses their position** and must Tab from the top of
+the page to reach the next one.
+
+⛔ **Verified in a real browser via genuine Tab-key navigation, not inferred and not a Playwright
+artifact.**
+
+⚠ **It does NOT violate ADR 0137 D2** — the welded `Prontuário` checkbox does keep its place in the tab
+order (confirmed by a full Tab walk), which is why `tester` correctly declined to file it as a bug
+against this batch. The defect is the refresh's effect on *everything after* it.
+
+⭐ **The reason this is filed rather than dropped: the shape is not specific to this picker.** Any
+component that persists on change and then calls `router.refresh()` has it. Scope the fix by the
+PROPERTY — *does this component refresh the route on an input event?* — not by grepping this one file.
+CLAUDE.md §8 requires keyboard navigation and visible focus on every input.
+
+**Owner:** frontend.
+
+---
+
+## FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE
+
+🟠 **A swallowed PHI load turns into a silent PHI overwrite.** Raised as R-3 in
+[adr-0137-batch-review.md](../reviews/adr-0137-batch-review.md) § 5, 2026-08-23. ⛔ **Filed 2026-08-24
+only because QA r2 noticed it had never been filed anywhere** — it existed solely in a superseded review
+file, which is the same as deleted.
+
+`goToPatientStep` sets `resumePatientLoaded = true` **before** the await and swallows any failure
+(`:502-515`, `catch {}`), so **one transient failure means the saved PHI never loads again for the rest
+of the session.** If the coordinator then types anything, `flush` calls `setReferralPatient`, whose
+`ON CONFLICT DO UPDATE` **replaces every column** — blanking the stored `mrn`, `name`, `date_of_birth`.
+
+⭐ This is the **same full-replace shape the team correctly caught for departments in D9-bis**, here on a
+PHI field. And it is the same swallow-converts-a-broken-path-into-a-silent-outcome shape the plan already
+warns about in its own note.
+
+**Bounded:** confined to a draft, and D4's send gate catches the MRN case specifically. It does **not**
+catch `name` or `date_of_birth`.
+
+⚠ Related and worth fixing together: [[FUP-0137-MRN-BLANKABLE-AFTER-SEND]] is the post-send half of the
+same "full-replace upsert on PHI" family.
+
+**Owner:** frontend.
+
+---
+
+## FUP-0137-KIND-VISUAL-NO-FALLBACK
+
+🟡 **`KIND_VISUAL[ev.kind]` has no runtime fallback, and its comment over-claims the guarantee.** R-6,
+same review; filed 2026-08-24 for the same reason.
+
+`case-events-timeline.tsx:59-60` claims exhaustiveness "by TYPE" means widening `case_events_kind_check`
+"cannot land without a visual". ⛔ **Widening the SQL CHECK touches no TypeScript**: `tsc` stays green,
+`.returns<CaseEventRow[]>()` asserts the row into the **stale** union, and `:386`'s destructure of
+`KIND_VISUAL[ev.kind]` **throws — taking the whole card down.**
+
+**Latent today** (DB CHECK and TS union agree, 16 = 16, verified). It becomes live the moment someone adds
+a kind in SQL — which is exactly the [[keystone-measured-what-i-built-not-what-breaks]] shape: a new enum
+value leaves every downstream reader unexercised by construction.
+
+**Fix:** a `?? { Icon: MoreHorizontal, tint: … }` fallback, and reword the comment so it claims what it
+actually delivers. ⚠ A comment is an assertion; this one asserts a cross-language guarantee no gate enforces.
+
+**Owner:** frontend.
+
+---
+
+## FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME
+
+🟡 **A `role="alert"` inside the wrapping `<label>` mutates the textarea's accessible name on validation
+failure.** R-7, same review; filed 2026-08-24 for the same reason.
+
+`case-events-timeline.tsx:312-329`: the body-error `<span role="alert">` is a **child of the wrapping
+`<label>`**, so on failure the accessible name changes from `Descrição do registro` to that **plus the
+error text**. `aria-invalid` is set, but nothing is linked via `aria-describedby`.
+
+⭐ **The house pattern already exists and is used one file over** — `useFieldIds` + `FieldError`
+(`src/components/ui/field.tsx:201-207`), as in `case-type-picker.tsx:65`. This is adoption, not design.
+
+⚠ Same family as [[a-component-may-own-a-message-only-for-outcomes-it-survives]] and the "count badge
+inside the `h2`" defect: **data reaching a name that should be invariant.** Pin it by rendering at two
+states and asserting the name is unchanged, not by asserting one string.
+
+**Owner:** frontend.

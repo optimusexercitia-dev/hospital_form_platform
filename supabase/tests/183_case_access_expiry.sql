@@ -59,7 +59,7 @@ values ((select case_x from cs), (select comm_x from k), 9401, 'Caso Expiry', (s
 
 -- An UN-assigned narrative (so a write-grantee may write it — the save gate uses
 -- can_write_case_content on an un-attributed narrative).
-insert into public.case_narratives (id, case_id, type_label, display_position, status, assigned_to)
+insert into public.case_narratives (id, case_id, display_label, display_position, status, assigned_to)
 values ((select narr_x from cs), (select case_x from cs), 'Resumo', 1, 'open', null);
 
 -- A referral whose TARGET case is our case, so referral_target_analyst consults a

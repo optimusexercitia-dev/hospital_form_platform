@@ -1,6 +1,13 @@
 "use client";
 
-import { useId, useMemo, useState, useTransition } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -16,12 +23,15 @@ import {
 import {
   addReferralSharedItem,
   createReferralDraft,
+  removeReferralSharedItem,
   sendReferral,
   setReferralPatient,
+  updateReferralDraft,
 } from "@/lib/referrals/actions";
 import { REFERRAL_MESSAGES } from "@/lib/referrals/messages";
 import {
   REFERRAL_PRIORITY_LABELS,
+  type ReferralDetail,
   type ReferralPatient,
   type ReferralPriority,
   type ReferralRequestedAction,
@@ -129,6 +139,46 @@ function nowLocalInput(): string {
   )}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * `Salvar rascunho` — present on ALL FOUR steps (ADR 0137 D5), always to the LEFT of
+ * the step's primary action.
+ *
+ * ⚠ Disabled until step 1's three required fields are filled, and that is a hard
+ * dependency rather than a UX nicety: `create_referral_draft` cannot be called
+ * without type + destination + subject, so an enabled button here would offer an act
+ * the platform cannot perform. The `title` explains the disabled state instead of
+ * leaving it inert and unexplained.
+ */
+function SaveDraftButton({
+  onSave,
+  disabled,
+  ready,
+  busy,
+}: {
+  onSave: () => void;
+  disabled: boolean;
+  /** Whether step 1's required fields are complete (drives the explanatory title). */
+  ready: boolean;
+  busy: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      onClick={onSave}
+      disabled={disabled}
+      title={
+        ready
+          ? undefined
+          : "Preencha tipo, destino e assunto para salvar um rascunho."
+      }
+    >
+      {busy ? "Salvando…" : "Salvar rascunho"}
+    </Button>
+  );
+}
+
 /** Map a {@link SafetyEventPrefill} patient into the editable draft (strings). */
 function prefillToDraft(patient: ReferralPatient): ReferralPatientDraft {
   return {
@@ -148,17 +198,29 @@ function prefillToDraft(patient: ReferralPatient): ReferralPatientDraft {
  * dialog a SOURCE coordinator drives to refer a case to another committee:
  *   1. Detalhes — type (seeds the reply-expected toggle from the type's
  *      `defaultResponseExpected`) + target commission + subject + description.
- *      Submitting opens the draft (`createReferralDraft`).
- *   2. Conteúdo — curate the snapshot: multi-select the case's narratives +
- *      documents; each pick freezes a copy onto the draft (`addReferralSharedItem`).
- *   3. Paciente (opcional) — minimum-necessary PHI (`setReferralPatient`); when the
- *      case has a linked safety event, offer to pre-fill from it.
- *   4. Revisão — review, then send (`sendReferral` freezes the snapshot server-side).
+ *   2. Conteúdo — curate the snapshot: multi-select the case's narratives + documents.
+ *   3. Paciente — minimum-necessary PHI; when the case has a linked safety event or
+ *      its own identifiers, offer to pre-fill from them (an AUDITED read, on intent).
+ *   4. Revisão — review, then send.
  *
- * The flow is incremental: the draft + its shared items are persisted as the
- * coordinator advances, so a mistaken close leaves a `rascunho` they can resume
- * from the hub (rather than losing work). Only `sendReferral` makes it visible to
- * the target.
+ * ## Creation is DEFERRED (ADR 0137 **D5**) — this is the load-bearing change
+ *
+ * Every step buffers CLIENT-SIDE. Nothing is persisted until the coordinator presses
+ * `Enviar` or `Salvar rascunho`, which run {@link flush} — create draft → add each
+ * picked item → save PHI → send. Two things follow, and both were the point:
+ *
+ *  - **A `rascunho` is now an explicit act.** Step 1 used to mint the draft on
+ *    "Continuar", so abandoning the wizard left litter nobody asked for.
+ *  - ⭐ **The un-pick defect dies structurally.** The old steps 2–3 round-tripped per
+ *    toggle, and the un-pick branch called `addReferralSharedItem` with BOTH source
+ *    ids null and then ignored the result — dropping the item locally while the
+ *    frozen row survived server-side, so an un-picked narrative was still shipped to
+ *    the receiving committee. With buffers there is no call to ignore: the flush only
+ *    ever ADDs, and it adds exactly what the Set holds at press time.
+ *
+ * ⚠ The flush is multi-step and NON-ATOMIC — no transaction spans those RPCs. Its
+ * partial-failure policy is stated on {@link flush} and is part of the contract, not
+ * an implementation detail.
  */
 export function ReferralSendWizard({
   open,
@@ -173,6 +235,9 @@ export function ReferralSendWizard({
   documents,
   parentReferralId,
   onLoadSafetyPrefill,
+  resumeReferralId = null,
+  onLoadDraft,
+  onLoadPatient,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -206,6 +271,35 @@ export function ReferralSendWizard({
    * AUDITED read — see {@link SafetyEventPrefill}). Absent when the case can never
    * have a prefill. Returns `null` when none / out of scope. */
   onLoadSafetyPrefill?: () => Promise<SafetyEventPrefill | null>;
+  /**
+   * RESUME (ADR 0137 **D6**): the `rascunho` this wizard should reopen and continue,
+   * or `null`/absent for a fresh referral. Set by the case's Encaminhamentos card
+   * when a `draft` row is clicked; non-draft statuses keep navigating to the detail
+   * page.
+   */
+  resumeReferralId?: string | null;
+  /**
+   * Loads the draft named by {@link resumeReferralId}. Injected rather than imported
+   * because `getReferralDetail` lives in a server QUERY module — a client
+   * value-import of it aborts `next build` while every static gate stays green. The
+   * host binds the `'use server'` `loadReferralDraft`, which returns `null` for a
+   * miss, a non-draft, or an unentitled caller.
+   *
+   * ⛔ **REQUIRED, and that is the point.** While this was optional, {@link flush}
+   * carried a documented bound — a host that omitted it could not remove a
+   * previously-frozen un-picked item, so the send had to fail closed. Making it
+   * non-optional deletes that whole branch: the bound is now structurally impossible
+   * instead of merely written down, and a reader cannot violate a signature the way
+   * they can overlook a caveat.
+   */
+  onLoadDraft: (referralId: string) => Promise<ReferralDetail | null>;
+  /**
+   * Loads the draft's ALREADY-SAVED patient identifiers, lazily, when the patient
+   * step is first reached on a resume (the audited `get_referral_patient` door —
+   * `referral_patient.read`). Kept off the resume load itself so reopening a draft
+   * to fix its subject never touches PHI.
+   */
+  onLoadPatient?: (referralId: string) => Promise<ReferralPatient | null>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -218,8 +312,29 @@ export function ReferralSendWizard({
   const [step, setStep] = useState<StepId>("details");
   const [error, setError] = useState<string | null>(null);
 
-  // The minted draft id, set once step 1 succeeds; subsequent steps target it.
+  // The minted draft id. `null` until the FIRST flush succeeds in creating it; from
+  // then on it is never re-minted for this wizard session (flush policy 1).
   const [referralId, setReferralId] = useState<string | null>(null);
+  /**
+   * SOURCE id → the `referral_shared_item` id already frozen for it on the server.
+   *
+   * ⭐ This is the diff basis, and it is deliberately SERVER TRUTH rather than local
+   * bookkeeping: {@link flush} refreshes it from `onLoadDraft` before computing what
+   * to add and what to remove. That single choice makes three things fall out —
+   * retrying after a partial failure re-adds nothing (the successes are already in
+   * here), resuming a draft knows what is on it, and un-picking a previously-frozen
+   * item can actually REMOVE it, because removal needs the shared-item id and this is
+   * where that id lives. A local "what I added" set could do the first and neither of
+   * the other two.
+   */
+  const [frozenItems, setFrozenItems] = useState<Map<string, string>>(new Map());
+  /** Resume lifecycle (D6). `error` keeps the wizard open with a pt-BR message. */
+  const [resumeState, setResumeState] = useState<
+    "idle" | "loading" | "loaded" | "error"
+  >("idle");
+  /** Whether PHI has been fetched for this resumed draft (fires once, on the step). */
+  const [resumePatientLoaded, setResumePatientLoaded] = useState(false);
+  const isResume = Boolean(resumeReferralId);
 
   // Step 1 fields.
   const [referralTypeId, setReferralTypeId] = useState("");
@@ -241,8 +356,9 @@ export function ReferralSendWizard({
   const [requestedActionId, setRequestedActionId] = useState("");
   const [responseDueAt, setResponseDueAt] = useState("");
 
-  // Step 2 selection: source ids the coordinator picked (kept local; each toggle
-  // calls the freeze/remove RPC so the server stays the source of truth).
+  // Step 2 selection (ADR 0137 **D5**): PURE LOCAL BUFFERS. Nothing is persisted
+  // until `flush()`. Before D5 each toggle round-tripped to the server, which is
+  // what made the un-pick defect possible; see `flush` for the whole rationale.
   const [pickedNarratives, setPickedNarratives] = useState<Set<string>>(new Set());
   const [pickedDocuments, setPickedDocuments] = useState<Set<string>>(new Set());
 
@@ -283,6 +399,9 @@ export function ReferralSendWizard({
       setStep("details");
       setError(null);
       setReferralId(null);
+      setFrozenItems(new Map());
+      setResumeState("idle");
+      setResumePatientLoaded(false);
       setReferralTypeId("");
       setTargetCommissionId("");
       setSubject("");
@@ -300,11 +419,101 @@ export function ReferralSendWizard({
     }
   }
 
+  /**
+   * RESUME (D6): hydrate the wizard from an existing `rascunho` — header fields, the
+   * picked source ids, and the shared-item ids those picks correspond to.
+   *
+   * ⛔ PHI is NOT loaded here. Reopening a draft to fix its subject must not fire
+   * `referral_patient.read`; that read happens on reaching the patient step
+   * ({@link goToPatientStep}), so the audit reflects intent (Rule 11 / Rule 12
+   * minimum-necessary), exactly as the safety-event prefill already does.
+   */
+  // ⚠ The once-only guard is a REF, not `resumeState`. Reading state here and
+  // setting it in the effect body is a synchronous setState inside an effect, which
+  // cascades renders and fails `react-hooks/set-state-in-effect`. A ref guards the
+  // fetch without a render, and the visible state moves inside the transition.
+  const resumeRequested = useRef(false);
+  useEffect(() => {
+    if (!open || !resumeReferralId) return;
+    if (resumeRequested.current) return;
+    resumeRequested.current = true;
+    startTransition(async () => {
+      setResumeState("loading");
+      const detail = await onLoadDraft(resumeReferralId);
+      if (!detail) {
+        // `loadReferralDraft` returns null for a miss, a NON-draft, or an unentitled
+        // caller. All three are "this is not a resumable draft" to the coordinator.
+        setResumeState("error");
+        // Reusing the existing message rather than minting one: `messages.ts` is
+        // backend-owned this increment, and "Encaminhamento não encontrado." is
+        // accurate for the dominant case (a draft discarded in another tab). It reads
+        // slightly off for the race where the draft was SENT meanwhile — rare, since
+        // the card offers resume only on a `draft` row.
+        setError(REFERRAL_MESSAGES.missingReferral);
+        return;
+      }
+      setReferralId(detail.id);
+      setReferralTypeId(detail.referralTypeId ?? "");
+      setTargetKind(
+        detail.targetType === "technical_director"
+          ? "technical_director"
+          : "commission",
+      );
+      setTargetCommissionId(detail.targetCommissionId ?? "");
+      setSubject(detail.subject);
+      setDescription(detail.descriptionMd ?? "");
+      setResponseExpected(detail.responseExpected);
+      setPriority(detail.priority);
+      setRequestedActionId(detail.requestedActionId ?? "");
+      // Rehydrate the picks from the frozen items' provenance back-pointers. A
+      // `sourceNarrativeId`/`sourceDocumentId` of null means the source row was
+      // deleted after sharing — the frozen copy survives but there is nothing to
+      // map it back to, so it cannot be represented as a "pick" and is skipped.
+      const narrativeIds = new Set<string>();
+      const documentIds = new Set<string>();
+      const frozen = new Map<string, string>();
+      for (const item of detail.sharedItems) {
+        const sourceId =
+          item.kind === "narrative" ? item.sourceNarrativeId : item.sourceDocumentId;
+        if (!sourceId) continue;
+        frozen.set(sourceId, item.id);
+        if (item.kind === "narrative") narrativeIds.add(sourceId);
+        else documentIds.add(sourceId);
+      }
+      setPickedNarratives(narrativeIds);
+      setPickedDocuments(documentIds);
+      setFrozenItems(frozen);
+      setResumeState("loaded");
+    });
+    // Deps are COMPLETE — no suppression needed. Moving the once-only guard to a ref
+    // removed `resumeState` from this effect, which is what made the honest dep array
+    // possible; the earlier version needed a disable directive to hide it.
+  }, [open, resumeReferralId, onLoadDraft]);
+
   /** Advance to the patient step, lazily firing the AUDITED prefill read the first
    * time it is reached (so the `event_patient.read` audit fires on intent, not on
    * card mount). Idempotent — only fetches once. */
   function goToPatientStep() {
     setStep("patient");
+    // RESUME (D6): fetch the identifiers already saved on this draft, once, through
+    // the audited `get_referral_patient` door. Fires here rather than on the resume
+    // load so `referral_patient.read` records reaching the PHI step, not reopening
+    // the draft.
+    if (isResume && referralId && onLoadPatient && !resumePatientLoaded) {
+      setResumePatientLoaded(true);
+      startTransition(async () => {
+        try {
+          const saved = await onLoadPatient(referralId);
+          if (saved) {
+            setPatient(prefillToDraft(saved));
+            setPatientSaved(true);
+          }
+        } catch {
+          // Best-effort: a failed read must never block manual entry. The
+          // coordinator can retype; the flush overwrites either way.
+        }
+      });
+    }
     if (prefillState !== "idle" || !onLoadSafetyPrefill) return;
     setPrefillState("loading");
     startTransition(async () => {
@@ -326,7 +535,16 @@ export function ReferralSendWizard({
     if (t) setResponseExpected(t.defaultResponseExpected);
   }
 
-  // ---- Step 1 → create draft -------------------------------------------------
+  // ---- Step 1 → validate locally (NO persistence; ADR 0137 D5) ---------------
+  /** Whether step 1 carries everything `create_referral_draft` needs. Also gates
+   * `Salvar rascunho` on every step — the RPC cannot be called without these three. */
+  const detailsComplete =
+    Boolean(referralTypeId) &&
+    (targetKind === "commission"
+      ? Boolean(targetCommissionId)
+      : Boolean(technicalDirectionHospitalId)) &&
+    Boolean(subject.trim());
+
   function submitDetails(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -336,124 +554,34 @@ export function ReferralSendWizard({
     if (targetKind === "technical_director" && !technicalDirectionHospitalId)
       return setError(REFERRAL_MESSAGES.referralTargetRequired);
     if (!subject.trim()) return setError(REFERRAL_MESSAGES.subjectRequired);
-
-    startTransition(async () => {
-      // If the draft already exists (the coordinator went back to step 1 and
-      // re-submitted), keep it — re-creating would orphan the first. In v1 we
-      // only create once; editing the draft's header is a hub affordance.
-      if (referralId) {
-        setStep("snapshot");
-        return;
-      }
-      const result = await createReferralDraft({
-        sourceCaseId,
-        // Exactly one arm reaches the RPC — the other is explicitly null, never "" or
-        // undefined-by-omission, so the action's two-sided check reads the intent
-        // rather than the absence.
-        targetCommissionId:
-          targetKind === "commission" ? targetCommissionId : null,
-        targetHospitalId:
-          targetKind === "technical_director"
-            ? (technicalDirectionHospitalId ?? null)
-            : null,
-        referralTypeId,
-        subject: subject.trim(),
-        descriptionMd: description.trim() || null,
-        responseExpected,
-        // RV2 R2 triage (PHI-free): priority defaults `routine`; action/due optional.
-        priority,
-        requestedActionId: requestedActionId || null,
-        responseDueAt: localDateTimeToIso(responseDueAt),
-        // RV2 R3: forward lineage ("Encaminhar adiante"); null for a root referral.
-        parentReferralId: parentReferralId ?? null,
-      });
-      if (!result.ok || !result.referralId) {
-        setError(result.error ?? REFERRAL_MESSAGES.generic);
-        return;
-      }
-      setReferralId(result.referralId);
-      setStep("snapshot");
-    });
+    // ⛔ NOTHING IS PERSISTED HERE ANY MORE (D5). Step 1 used to mint the draft, which
+    // is why an abandoned wizard left `rascunho` litter behind and why steps 2–3 had a
+    // server round trip to hang the un-pick bug on. Creation is now an explicit act.
+    setStep("snapshot");
   }
 
-  // ---- Step 2 → toggle a shared item ----------------------------------------
+  // ---- Step 2 → toggle a PURE LOCAL pick (no I/O) ----------------------------
+  // ⭐ THE UN-PICK DEFECT DIES HERE, and it is worth naming what it was: the old
+  // toggles called `addReferralSharedItem` with BOTH source ids null on an un-pick,
+  // then read `result.ok` only on the ADD branch — so the refusal was discarded and
+  // local state dropped the item while the frozen row survived server-side. The item
+  // vanished from the coordinator's screen and was still shipped to the receiving
+  // committee. A Set toggle cannot reproduce that: there is no call to ignore.
   function toggleNarrative(id: string) {
-    if (!referralId) return;
-    const isPicked = pickedNarratives.has(id);
     setError(null);
-    startTransition(async () => {
-      const result = await addReferralSharedItem({
-        referralId,
-        kind: "narrative",
-        sourceNarrativeId: isPicked ? null : id,
-        sourceDocumentId: null,
-      });
-      // NOTE: removal is a hub-draft affordance in v1; here we only ADD. Toggling
-      // OFF an already-frozen item before send is handled by the draft editor.
-      // We optimistically reflect the ADD; a failed add reverts.
-      if (!isPicked) {
-        if (!result.ok) {
-          setError(result.error ?? REFERRAL_MESSAGES.generic);
-          return;
-        }
-        setPickedNarratives((prev) => new Set(prev).add(id));
-      } else {
-        setPickedNarratives((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      }
+    setPickedNarratives((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
     });
   }
 
   function toggleDocument(id: string) {
-    if (!referralId) return;
-    const isPicked = pickedDocuments.has(id);
     setError(null);
-    startTransition(async () => {
-      const result = await addReferralSharedItem({
-        referralId,
-        kind: "document",
-        sourceNarrativeId: null,
-        sourceDocumentId: isPicked ? null : id,
-      });
-      if (!isPicked) {
-        if (!result.ok) {
-          setError(result.error ?? REFERRAL_MESSAGES.generic);
-          return;
-        }
-        setPickedDocuments((prev) => new Set(prev).add(id));
-      } else {
-        setPickedDocuments((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      }
-    });
-  }
-
-  // ---- Step 3 → save patient PHI --------------------------------------------
-  function savePatientThenAdvance() {
-    setError(null);
-    if (!referralId) return;
-    if (!referralPatientDraftHasData(patient)) {
-      // Nothing to save — skip straight to review.
-      setStep("review");
-      return;
-    }
-    startTransition(async () => {
-      const result = await setReferralPatient(
-        referralId,
-        referralPatientDraftToInput(patient),
-      );
-      if (!result.ok) {
-        setError(result.error ?? REFERRAL_MESSAGES.generic);
-        return;
-      }
-      setPatientSaved(true);
-      setStep("review");
+    setPickedDocuments((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
     });
   }
 
@@ -461,16 +589,189 @@ export function ReferralSendWizard({
     if (prefill) setPatient(prefillToDraft(prefill.patient));
   }
 
-  // ---- Step 4 → send ---------------------------------------------------------
-  function send() {
+  // ---- The FLUSH — the only thing that writes (ADR 0137 D5) ------------------
+  /**
+   * Persist the buffered wizard in order: create the draft → add each picked item →
+   * save the PHI buffer → send (when `mode === 'send'`).
+   *
+   * ⛔ **PARTIAL-FAILURE POLICY, and it is stated here because there is no
+   * transaction across these RPCs.** Each step is its own round trip, so a later one
+   * can fail with the draft already minted. The policy, in order of importance:
+   *
+   *  1. **The minted id is KEPT in `referralId` and never re-created.** If the draft
+   *     exists and a later step fails, retrying calls `create_referral_draft` again
+   *     ONLY if `referralId` is still null. Re-creating would orphan the first draft —
+   *     an invisible duplicate the coordinator cannot see or discard from here.
+   *  2. **The item diff is computed against SERVER TRUTH, re-read each flush.** When
+   *     the draft already exists, `frozenItems` is refreshed from `onLoadDraft` before
+   *     anything is written, and adds/removes are the difference between that and the
+   *     buffers. The RPC has no upsert semantics, so a retry after a mid-list failure
+   *     would otherwise duplicate every item that had already succeeded.
+   *  3. **The user retries; we never auto-retry.** The error surfaces in the banner and
+   *     the wizard stays open on its current step with the buffers intact, so a retry
+   *     resumes rather than restarts.
+   *
+   * ⭐ Re-reading is also what makes UN-PICKING correct on a resumed draft. Removal
+   * needs the `referral_shared_item` id, which the wizard's source-keyed buffers do
+   * not carry; `frozenItems` is the map that supplies it. Without this the resume path
+   * would silently reproduce the very defect D5 exists to kill — an item un-picked on
+   * screen and still shipped.
+   *
+   * ⭐ **The governing principle, which outlived the code that implemented it:**
+   * *refuse rather than ship more than the screen shows.* An earlier version made
+   * `onLoadDraft` optional and had to fail the send closed when a host omitted it,
+   * because the refresh that supplies the removal ids could not run. `onLoadDraft` is
+   * now REQUIRED, so that configuration cannot be constructed and the branch is gone —
+   * but the principle is why the branch existed, and it is what any future change here
+   * must preserve. Sending an item the coordinator un-picked is the one outcome D5
+   * forbids.
+   *
+   * ⚠ What this deliberately does NOT do: roll back a partial flush. A half-flushed
+   * draft is a real, reachable state — `rascunho`, invisible to the target, resumable,
+   * and discardable from the referral detail page. That is the accepted outcome.
+   */
+  function flush(mode: "draft" | "send") {
     setError(null);
-    if (!referralId) return;
+    if (!detailsComplete) {
+      setError(REFERRAL_MESSAGES.subjectRequired);
+      return;
+    }
     startTransition(async () => {
-      const result = await sendReferral(referralId);
-      if (!result.ok) {
-        setError(result.error ?? REFERRAL_MESSAGES.generic);
-        return;
+      // 1. The draft — created at most ONCE per session (policy 1), otherwise its
+      //    header is UPDATED so edits made after a first flush are not lost.
+      //    `update_referral_draft` takes no target argument: the destination is
+      //    immutable by design (D7).
+      let id = referralId;
+      let frozen = frozenItems;
+      if (!id) {
+        const created = await createReferralDraft({
+          sourceCaseId,
+          // Exactly one arm reaches the RPC — the other is explicitly null, never ""
+          // or undefined-by-omission, so the action's two-sided check reads the
+          // intent rather than the absence.
+          targetCommissionId:
+            targetKind === "commission" ? targetCommissionId : null,
+          targetHospitalId:
+            targetKind === "technical_director"
+              ? (technicalDirectionHospitalId ?? null)
+              : null,
+          referralTypeId,
+          subject: subject.trim(),
+          descriptionMd: description.trim() || null,
+          responseExpected,
+          priority,
+          requestedActionId: requestedActionId || null,
+          responseDueAt: localDateTimeToIso(responseDueAt),
+          parentReferralId: parentReferralId ?? null,
+        });
+        if (!created.ok || !created.referralId) {
+          setError(created.error ?? REFERRAL_MESSAGES.generic);
+          return;
+        }
+        id = created.referralId;
+        // Committed to state IMMEDIATELY, before any step that can fail — this is
+        // what makes policy 1 hold across a retry.
+        setReferralId(id);
+      } else {
+        const updated = await updateReferralDraft(id, {
+          referralTypeId,
+          subject: subject.trim(),
+          descriptionMd: description.trim() || null,
+          responseExpected,
+          priority,
+          requestedActionId: requestedActionId || null,
+          responseDueAt: localDateTimeToIso(responseDueAt),
+        });
+        if (!updated.ok) {
+          setError(updated.error ?? REFERRAL_MESSAGES.generic);
+          return;
+        }
+        // Policy 2 — re-read what is actually frozen before diffing against it.
+        // Unconditional: `onLoadDraft` is required, so there is no configuration in
+        // which this refresh can be skipped.
+        const fresh = await onLoadDraft(id);
+        if (fresh) {
+          frozen = new Map<string, string>();
+          for (const item of fresh.sharedItems) {
+            const sourceId =
+              item.kind === "narrative"
+                ? item.sourceNarrativeId
+                : item.sourceDocumentId;
+            if (sourceId) frozen.set(sourceId, item.id);
+          }
+          setFrozenItems(frozen);
+        }
       }
+
+      // 2. REMOVE what the coordinator un-picked. Runs BEFORE the adds so a draft
+      //    never transiently holds more than the screen shows.
+      const picked = new Set([...pickedNarratives, ...pickedDocuments]);
+      const staleFrozen = [...frozen].filter(([sourceId]) => !picked.has(sourceId));
+      for (const [sourceId, sharedItemId] of staleFrozen) {
+        const removed = await removeReferralSharedItem(sharedItemId);
+        if (!removed.ok) {
+          setError(removed.error ?? REFERRAL_MESSAGES.generic);
+          return;
+        }
+        setFrozenItems((prev) => {
+          const next = new Map(prev);
+          next.delete(sourceId);
+          return next;
+        });
+      }
+
+      // 3. ADD what is picked and not yet frozen.
+      const pendingNarratives = [...pickedNarratives].filter((n) => !frozen.has(n));
+      const pendingDocuments = [...pickedDocuments].filter((d) => !frozen.has(d));
+      for (const sourceNarrativeId of pendingNarratives) {
+        const added = await addReferralSharedItem({
+          referralId: id,
+          kind: "narrative",
+          sourceNarrativeId,
+          sourceDocumentId: null,
+        });
+        if (!added.ok) {
+          setError(added.error ?? REFERRAL_MESSAGES.generic);
+          return;
+        }
+      }
+      for (const sourceDocumentId of pendingDocuments) {
+        const added = await addReferralSharedItem({
+          referralId: id,
+          kind: "document",
+          sourceNarrativeId: null,
+          sourceDocumentId,
+        });
+        if (!added.ok) {
+          setError(added.error ?? REFERRAL_MESSAGES.generic);
+          return;
+        }
+      }
+
+      // 3. The PHI buffer, only when it carries something. `save_referral_patient`
+      // keeps its own `name OR mrn` floor (D4) — a partially-typed draft is savable.
+      if (referralPatientDraftHasData(patient)) {
+        const saved = await setReferralPatient(
+          id,
+          referralPatientDraftToInput(patient),
+        );
+        if (!saved.ok) {
+          setError(saved.error ?? REFERRAL_MESSAGES.generic);
+          return;
+        }
+        setPatientSaved(true);
+      }
+
+      // 4. Send, when that is what was asked. `send_referral` enforces the D4 MRN
+      // requirement server-side and returns a pt-BR refusal we surface as-is.
+      if (mode === "send") {
+        const sent = await sendReferral(id);
+        if (!sent.ok) {
+          setError(sent.error ?? REFERRAL_MESSAGES.generic);
+          return;
+        }
+      }
+
       onOpenChange(false);
       router.refresh();
     });
@@ -537,6 +838,15 @@ export function ReferralSendWizard({
 
         {error && <FormBanner tone="error">{error}</FormBanner>}
 
+        {/* Resume in flight (D6): the fields below are still empty at this point, so
+            say why rather than showing a blank step-1 form that looks like a new
+            referral. */}
+        {resumeState === "loading" && (
+          <p className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+            Carregando o rascunho…
+          </p>
+        )}
+
         {/* ---- Step 1: Detalhes ---- */}
         {step === "details" && (
           <form onSubmit={submitDetails} className="flex flex-col gap-4" noValidate>
@@ -564,10 +874,27 @@ export function ReferralSendWizard({
               )}
             </label>
 
+            {/* ADR 0137 **D7** — a draft's destination is IMMUTABLE, so on resume both
+                destination controls are replaced by a read-only statement plus the way
+                out. ⚠ An accepted limitation, not an oversight: `update_referral_draft`
+                takes no target argument, and widening it means a new DEFINER arm with
+                its own authz re-verification, which this batch does not buy. Saying so
+                in place is what stops it reading as a broken control. */}
+            {isResume && (
+              <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-muted/30 p-3 text-sm">
+                <span className="font-medium">Destino</span>
+                <span className="text-foreground">{targetName ?? "—"}</span>
+                <span className="text-xs text-pretty text-muted-foreground">
+                  O destino não pode ser alterado depois que o rascunho é criado. Para
+                  encaminhar a outra comissão, descarte este rascunho e crie um novo.
+                </span>
+              </div>
+            )}
+
             {/* ADR 0094 W4 — destination kind. Rendered only when the technical
                 direction is actually reachable; with a single arm there is nothing to
                 choose, and a radio group of one is noise. */}
-            {technicalDirectionAvailable && (
+            {!isResume && technicalDirectionAvailable && (
               <fieldset className="flex flex-col gap-2 text-sm">
                 <legend className="mb-1.5 font-medium">Destino</legend>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -619,7 +946,7 @@ export function ReferralSendWizard({
               </fieldset>
             )}
 
-            {targetKind === "commission" && (
+            {!isResume && targetKind === "commission" && (
               <label className="flex flex-col gap-1.5 text-sm">
                 <span className="font-medium">Comissão de destino</span>
                 <NativeSelect
@@ -771,18 +1098,24 @@ export function ReferralSendWizard({
               </span>
             </div>
 
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="lg"
                 onClick={() => onOpenChange(false)}
                 disabled={isPending}
               >
                 Cancelar
               </Button>
+              <SaveDraftButton
+                onSave={() => flush("draft")}
+                disabled={isPending || !detailsComplete}
+                ready={detailsComplete}
+                busy={isPending}
+              />
               <Button type="submit" size="lg" disabled={isPending}>
-                {isPending ? "Salvando…" : "Continuar"}
+                Continuar
                 <ArrowRight aria-hidden="true" />
               </Button>
             </div>
@@ -906,7 +1239,7 @@ export function ReferralSendWizard({
               )}
             </section>
 
-            <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <Button
                 type="button"
                 variant="ghost"
@@ -917,15 +1250,23 @@ export function ReferralSendWizard({
                 <ArrowLeft aria-hidden="true" />
                 Voltar
               </Button>
-              <Button
-                type="button"
-                size="lg"
-                onClick={goToPatientStep}
-                disabled={isPending}
-              >
-                Continuar
-                <ArrowRight aria-hidden="true" />
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <SaveDraftButton
+                  onSave={() => flush("draft")}
+                  disabled={isPending || !detailsComplete}
+                  ready={detailsComplete}
+                  busy={isPending}
+                />
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={goToPatientStep}
+                  disabled={isPending}
+                >
+                  Continuar
+                  <ArrowRight aria-hidden="true" />
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -968,7 +1309,7 @@ export function ReferralSendWizard({
               idPrefix="referral-wizard-patient"
             />
 
-            <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <Button
                 type="button"
                 variant="ghost"
@@ -979,15 +1320,25 @@ export function ReferralSendWizard({
                 <ArrowLeft aria-hidden="true" />
                 Voltar
               </Button>
-              <Button
-                type="button"
-                size="lg"
-                onClick={savePatientThenAdvance}
-                disabled={isPending}
-              >
-                {isPending ? "Salvando…" : "Continuar"}
-                <ArrowRight aria-hidden="true" />
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <SaveDraftButton
+                  onSave={() => flush("draft")}
+                  disabled={isPending || !detailsComplete}
+                  ready={detailsComplete}
+                  busy={isPending}
+                />
+                {/* No longer saves — the PHI buffer flushes with everything else.
+                    Advancing is now a pure step change (D5). */}
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={() => setStep("review")}
+                  disabled={isPending}
+                >
+                  Continuar
+                  <ArrowRight aria-hidden="true" />
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -1102,7 +1453,7 @@ export function ReferralSendWizard({
               alterar o que foi enviado.
             </p>
 
-            <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <Button
                 type="button"
                 variant="ghost"
@@ -1113,10 +1464,23 @@ export function ReferralSendWizard({
                 <ArrowLeft aria-hidden="true" />
                 Voltar
               </Button>
-              <Button type="button" size="lg" onClick={send} disabled={isPending}>
-                <Send aria-hidden="true" />
-                {isPending ? "Enviando…" : "Enviar encaminhamento"}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <SaveDraftButton
+                  onSave={() => flush("draft")}
+                  disabled={isPending || !detailsComplete}
+                  ready={detailsComplete}
+                  busy={isPending}
+                />
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={() => flush("send")}
+                  disabled={isPending}
+                >
+                  <Send aria-hidden="true" />
+                  {isPending ? "Enviando…" : "Enviar encaminhamento"}
+                </Button>
+              </div>
             </div>
           </div>
         )}

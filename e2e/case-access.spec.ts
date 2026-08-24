@@ -152,7 +152,7 @@ async function getResumoCaseNarrativeId(): Promise<string> {
 async function getAchadosCaseNarrativeId(): Promise<string> {
   const rows = await dbQuery<{ id: string }>('case_narratives', {
     case_id: `eq.${CASE_ID}`,
-    type_label: 'eq.Achados e Discussão',
+    display_label: 'eq.Achados e Discussão',
   })
   if (!rows.length) throw new Error('Achados e Discussão narrative not found in seed!')
   return rows[0].id
@@ -1413,10 +1413,14 @@ async function rpc(
 }
 
 /**
- * Ensure Caso 0001 has patient_enabled=true + a known case_patient/PHI value.
+ * Ensure Caso 0001 has patient_mode <> 'none' + a known case_patient/PHI value.
  * Idempotent (PATCH + upsert RPC) — safe to call from more than one test. Never
  * assume another spec file's beforeAll already did this (order-fragile); each
  * test that needs PHI present calls this itself.
+ *
+ * ADR 0137 D1 — `cases.patient_enabled` (boolean) was DROPPED; `patient_mode`
+ * replaces it. `'optional'` reproduces the old `true` exactly (no required
+ * fields), which is what every caller here needs.
  */
 async function ensureCasePatientPhi(request: APIRequestContext): Promise<void> {
   await request.patch(`${SUPABASE_URL}/rest/v1/cases?id=eq.${CASE_ID}`, {
@@ -1425,7 +1429,7 @@ async function ensureCasePatientPhi(request: APIRequestContext): Promise<void> {
       Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
       'Content-Type': 'application/json',
     },
-    data: { patient_enabled: true },
+    data: { patient_mode: 'optional' },
   })
   const chefeToken = await getToken(request, 'chefe.ccih@test.local')
   const resp = await rpc(request, 'set_case_patient', chefeToken, {
@@ -1788,7 +1792,7 @@ test('AC-N1 narrative attribution: coordinator assigns member via card DropdownM
   // After assignment, the DB row should reflect assigned_to = staff1's UID.
   const rows = await dbQuery<{ assigned_to: string | null }>('case_narratives', {
     case_id: `eq.${CASE_ID}`,
-    type_label: `eq.Achados e Discussão`,
+    display_label: `eq.Achados e Discussão`,
   })
   const assignedRow = rows.find((r) => r.assigned_to === '00000000-0000-0000-0000-000000000003')
   expect(assignedRow).toBeTruthy()
@@ -1822,7 +1826,7 @@ test('AC-N1 narrative attribution: coordinator assigns member via card DropdownM
   // Verify DB: assigned_to is now null for Achados e Discussão.
   const rows2 = await dbQuery<{ assigned_to: string | null }>('case_narratives', {
     case_id: `eq.${CASE_ID}`,
-    type_label: `eq.Achados e Discussão`,
+    display_label: `eq.Achados e Discussão`,
   })
   const clearedRow = rows2.find((r) => r.assigned_to === null)
   expect(clearedRow).toBeTruthy()

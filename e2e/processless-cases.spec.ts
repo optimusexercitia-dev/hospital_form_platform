@@ -347,11 +347,16 @@ test('S3: PHI ON → Próximo → step 2 PHI fields + warning + Voltar → fill 
   await expect(page.getByText(PHI_MRN)).toBeVisible({ timeout: 8_000 })
 
   // DB truth: PHI landed atomically with creation.
-  const caseRows = await restGet<{ has_patient: boolean; patient_enabled: boolean }>(
+  // ADR 0137 D1 — `cases.patient_enabled` (boolean) was DROPPED; `patient_mode`
+  // replaces it. `create_case`'s RPC ARGUMENT is still named `p_patient_enabled`
+  // (its signature is keystone-pinned — supabase/tests/357 §1.6/§1.5) and maps
+  // `true -> 'optional'` server-side, so the UI path here is unaffected; only
+  // the resulting COLUMN name/shape changed.
+  const caseRows = await restGet<{ has_patient: boolean; patient_mode: string }>(
     request,
-    `cases?id=eq.${caseId}&select=has_patient,patient_enabled`,
+    `cases?id=eq.${caseId}&select=has_patient,patient_mode`,
   )
-  expect(caseRows[0]?.patient_enabled).toBe(true)
+  expect(caseRows[0]?.patient_mode).not.toBe('none')
   expect(caseRows[0]?.has_patient).toBe(true)
   const cpRows = await patientIdentifiersForCase(request, caseId)
   expect(cpRows.length).toBe(1)
@@ -396,12 +401,13 @@ test('S4: PHI ON + step-2 blank → case is PHI-capable (panel present) with NO 
     page.getByRole('heading', { name: /Identificação do paciente/i }),
   ).toBeVisible({ timeout: 10_000 })
 
-  // DB truth: patient_enabled true, has_patient false, NO case_patient row.
-  const caseRows = await restGet<{ has_patient: boolean; patient_enabled: boolean }>(
+  // DB truth: patient_mode <> 'none', has_patient false, NO case_patient row.
+  // ADR 0137 D1 — `cases.patient_enabled` was DROPPED; see the S3 comment above.
+  const caseRows = await restGet<{ has_patient: boolean; patient_mode: string }>(
     request,
-    `cases?id=eq.${caseId}&select=has_patient,patient_enabled`,
+    `cases?id=eq.${caseId}&select=has_patient,patient_mode`,
   )
-  expect(caseRows[0]?.patient_enabled).toBe(true)
+  expect(caseRows[0]?.patient_mode).not.toBe('none')
   expect(caseRows[0]?.has_patient).toBe(false)
   const cpRows = await patientIdentifiersForCase(request, caseId)
   expect(cpRows.length).toBe(0)

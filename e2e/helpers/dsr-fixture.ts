@@ -168,7 +168,11 @@ export async function createDsrFixture(
     template_version_id: seededCase.template_version_id,
     label: fixture.caseLabel,
     created_by: chefe.id,
-    patient_enabled: true,
+    // ADR 0137 D1 — `cases.patient_enabled` was DROPPED; `patient_mode` replaces
+    // it (`true` backfilled to `'optional'`). 'optional' carries no required
+    // field set, so the new deferred INSERT constraint trigger
+    // (`app.guard_case_patient_required`) passes trivially.
+    patient_mode: 'optional',
     has_patient: true,
   })
   fixture.caseId = kase.id

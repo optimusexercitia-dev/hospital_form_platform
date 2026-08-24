@@ -80,6 +80,17 @@ export const HC_CASE_LINK_DOMAIN = 'HC0A8'
  * an invalid receipt event. DISTINCT from the 42501 authority failure, which is raised
  * FIRST — a wrong actor on a domain-valid request yields 42501, never HC0A9. */
 export const HC_INTERNAL_NOTE_DOMAIN = 'HC0A9'
+/**
+ * ADR 0137 D4 — `send_referral` refuses a referral carrying no
+ * `referral_patient` MRN. The MRN is the LGPD erasure key: a referral without a
+ * patient key is undeliverable work, because the receiving committee has
+ * nothing to look up.
+ *
+ * ⛔ This is the SEND floor and it is NOT the save floor. See
+ * {@link REFERRAL_MESSAGES.patientNameOrMrnRequired}, which stays `name OR mrn`
+ * so a partially-entered draft can still be saved (D4, explicitly).
+ */
+export const HC_SEND_REQUIRES_MRN = 'HC0T4'
 
 /** Generic Postgres SQLSTATEs the referral RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'
@@ -108,8 +119,29 @@ export const REFERRAL_MESSAGES = {
   referralTypeRequired: 'Selecione o tipo de encaminhamento.',
   sourceCaseRequired: 'Selecione o caso a encaminhar.',
   sharedItemKindInvalid: 'Selecione uma narrativa ou um documento para anexar.',
+  /**
+  * ⛔ THE DRAFT-SAVE FLOOR — `name OR mrn`, DELIBERATELY NOT TIGHTENED.
+  *
+  * ADR 0137 D4 requires exactly this: the MRN becomes mandatory at SEND, and
+  * "the existing `name OR mrn` floor on `save_referral_patient` is **not**
+  * tightened, so a partially-entered draft can still be saved."
+  *
+  * ⚠ Replacing this message with an MRN-specific one — the obvious reading of
+  * "make the MRN mandatory" — would silently move the requirement from the send
+  * transition to the save keystroke and break that rule. The send refusal has
+  * its own message, {@link REFERRAL_MESSAGES.sendRequiresMrn}.
+  *
+  * ⚠ MEASURED: this floor exists ONLY here, in the action layer. Neither
+  * `public.save_referral_patient` (a pure delegation) nor
+  * `public.set_referral_patient` contains any name-or-MRN check — the single
+  * body in the database carrying that rule is
+  * `app._set_participant_patient_unchecked`, which belongs to the CASE module.
+  */
   patientNameOrMrnRequired:
     'Informe ao menos o nome ou o prontuário do paciente.',
+  /** ADR 0137 D4 — the SEND-time MRN requirement (DB code `HC0T4`). */
+  sendRequiresMrn:
+    'Informe o prontuário do paciente antes de enviar o encaminhamento.',
   replyResultRequired: 'Descreva o resultado da análise.',
   replyOutcomeRequired: 'Selecione o desfecho da análise.',
   targetCaseRequired: 'Selecione o caso a vincular.',
@@ -284,6 +316,8 @@ export function mapReferralError(
       return error.message || REFERRAL_MESSAGES.caseLinkDomain
     case HC_INTERNAL_NOTE_DOMAIN:
       return error.message || REFERRAL_MESSAGES.internalNoteDomain
+    case HC_SEND_REQUIRES_MRN:
+      return error.message || REFERRAL_MESSAGES.sendRequiresMrn
     case PG_FORBIDDEN:
       return REFERRAL_MESSAGES.forbidden
     case PG_NO_DATA_FOUND:

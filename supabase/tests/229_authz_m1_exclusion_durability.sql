@@ -67,8 +67,13 @@ select is(app.feature_enabled('case_access'), false,
 -- ---------------------------------------------------------------------------
 -- FIXTURE · one case in comm_x; st_x is its respondent_doctor.
 -- ---------------------------------------------------------------------------
-insert into public.cases (id, commission_id, case_number, created_by)
-values ('00000000-0000-0000-0000-0000000f0001', (select comm_x from k), 99100, (select sa_x from k));
+-- ADR 0137 D1: `patient_mode` is a per-case SNAPSHOT set at INSERT and immutable
+-- thereafter (app.guard_case_patient_mode_immutable, HC0T3). §3.6·A2 below drives
+-- set_participant_patient against this case, which requires a non-'none' mode, so
+-- it is set HERE. It used to be flipped further down with
+-- `update public.cases set patient_enabled = true`, which the guard now refuses.
+insert into public.cases (id, commission_id, case_number, created_by, patient_mode)
+values ('00000000-0000-0000-0000-0000000f0001', (select comm_x from k), 99100, (select sa_x from k), 'optional');
 
 insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
 values ('00000000-0000-0000-0000-0000000f0101', (select org_x from k), 'professional',
@@ -478,7 +483,7 @@ select lives_ok(
 insert into public.case_narrative_types (id, commission_id, label, position)
 values ('00000000-0000-0000-0000-0000000f0501', (select comm_x from k), 'Relato', 1);
 insert into public.case_narratives
-  (id, case_id, narrative_type_id, type_label, display_position, title)
+  (id, case_id, narrative_type_id, display_label, display_position, title)
 values ('00000000-0000-0000-0000-0000000f0502', '00000000-0000-0000-0000-0000000f0001',
         '00000000-0000-0000-0000-0000000f0501', 'Relato', 1, 'Relato inicial');
 
@@ -602,7 +607,6 @@ select is(app.can_read_action_item('00000000-0000-0000-0000-0000000f0702', (sele
 -- gate helper (so M1·4b never reached it). Rule 12: the respondent must not
 -- overwrite the patient identity of the case in which he is the accused.
 update app.feature_flags set enabled = true where key in ('case_patient');
-update public.cases set patient_enabled = true where id = '00000000-0000-0000-0000-0000000f0001';
 
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;

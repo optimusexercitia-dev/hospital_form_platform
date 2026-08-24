@@ -22,7 +22,6 @@ import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { listCaseTypes } from "@/lib/queries/case-types";
 import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
 import { listProcessTemplateVersions } from "@/lib/queries/process-templates";
-import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
 import { Button } from "@/components/ui/button";
 import { CreateCaseDialog } from "@/components/cases/create-case-dialog";
 import { CasesKpiStrip } from "@/components/cases/cases-kpi-strip";
@@ -160,10 +159,6 @@ export default async function CasesBoardPage({
     casesExtrasOn,
     caseCustomFieldsOn,
     outcomes,
-    // The case's hospital ACTIVE departments (non-archived) for the Novo-caso
-    // "Unidade / setor" dropdown. A commission with no hospital → `[]` (the field
-    // still offers the "Outros" custom option). RLS-scoped (member-read).
-    departments,
     flags,
     caseTypesOn,
   ] = await Promise.all([
@@ -175,12 +170,10 @@ export default async function CasesBoardPage({
     casesExtrasEnabled(),
     caseCustomFieldsEnabled(),
     listCaseOutcomes(access.commission.id),
-    // The case's hospital ACTIVE departments (non-archived) for the Novo-caso
-    // "Unidade / setor" dropdown. A commission with no hospital → `[]` (the field
-    // still offers the "Outros" custom option). RLS-scoped (member-read).
-    access.commission.hospitalId
-      ? listDepartmentsForHospital(access.commission.hospitalId)
-      : Promise.resolve([]),
+    // ⛔ The Novo-caso "Unidade / setor" dropdown is GONE (ADR 0137 D9), and so is
+    // the departments read that fuelled it — absent by construction rather than
+    // fetched-and-hidden. The stored `department_id` / `department_other` are
+    // untouched and still render read-only on the case header.
     getFeatureFlags(),
     caseTypesEnabled(),
   ]);
@@ -196,14 +189,16 @@ export default async function CasesBoardPage({
   // the old `active`). The id stays the TEMPLATE identity: `create_case_from_template`
   // resolves the published version itself via `app.published_version_of_template`, so
   // passing a version id here would be wrong even though the config below is
-  // version-scoped. Carry `collectsPatient` so the create dialog can offer the
-  // optional patient block (ADR 0038).
+  // version-scoped. Carry `patientMode` + `patientRequiredFields` so the create
+  // dialog can offer the patient block and, in `'required'` mode, mark the fields
+  // the process demands (ADR 0038; ADR 0137 D1/D2/D3).
   const activeTemplates = templates
     .filter((entry) => entry.version.status === "published")
     .map((entry) => ({
       id: entry.template.id,
       title: entry.version.title,
-      collectsPatient: entry.version.collectsPatient,
+      patientMode: entry.version.patientMode,
+      patientRequiredFields: entry.version.patientRequiredFields,
       // Custom-field defs (ADR 0083) — drive the dialog's reveal + required-gating.
       customFields: entry.version.customFields,
     }));
@@ -339,7 +334,6 @@ export default async function CasesBoardPage({
               org={org} slug={slug}
               templates={activeTemplates}
               commissionId={access.commission.id}
-              departments={departments}
               casePatientEnabled={casePatientOn}
               caseCustomFieldsEnabled={caseCustomFieldsOn}
               processlessEnabled={processlessOn}
@@ -374,7 +368,6 @@ export default async function CasesBoardPage({
                 org={org} slug={slug}
                 templates={activeTemplates}
                 commissionId={access.commission.id}
-                departments={departments}
                 casePatientEnabled={casePatientOn}
                 caseCustomFieldsEnabled={caseCustomFieldsOn}
                 processlessEnabled={processlessOn}

@@ -227,7 +227,7 @@ create temp table c5 on commit drop as select pg_temp.mk_case(950006) as case_id
 grant select on c5 to authenticated;
 do $$ begin
   perform set_config('app.in_narrative_rpc','on',true);
-  insert into public.case_narratives (id, case_id, type_label, display_position, is_expected, is_ad_hoc,
+  insert into public.case_narratives (id, case_id, display_label, display_position, is_expected, is_ad_hoc,
     body_md, assigned_to, status, created_by)
     values ((select narr_id from c5), (select case_id from c5), 'Relato', 0, true, false,
             'corpo', (select st_x from k), 'completed', (select sa_x from k));

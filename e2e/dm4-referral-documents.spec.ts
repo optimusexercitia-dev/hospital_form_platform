@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 
 import { cachedSignIn, accessToken } from './helpers/auth'
 import { sql, focusByTabbing } from './helpers/documents'
+import { saveMinimalReferralPatientForSend } from './helpers/referrals'
 import {
   SUPABASE_URL,
   SUPABASE_SERVICE_KEY,
@@ -219,6 +220,10 @@ async function sendReferralDraft(
   sourceToken: string,
   referralId: string,
 ): Promise<void> {
+  // ADR 0137 D4 — send_referral now refuses without an MRN (HC0T4). Fixture
+  // setup, not the subject under test: e2e/case-referral-usability-batch.spec.ts
+  // covers the refusal itself.
+  await saveMinimalReferralPatientForSend(request, sourceToken, referralId)
   const resp = await rpc(request, 'send_referral', sourceToken, { p_referral_id: referralId })
   expect(resp.ok(), `send_referral: ${await resp.text()}`).toBeTruthy()
 }

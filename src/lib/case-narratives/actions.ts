@@ -435,7 +435,7 @@ export async function createNarrativeType(
 
 /**
  * Update a narrative-type definition (label / description). Edits propagate to the
- * vocabulary + template slots, but NOT to opened cases (they snapshot `type_label`).
+ * vocabulary + template slots, but NOT to opened cases (they snapshot `display_label`).
  * staff_admin-only. `FormData`-shaped: `narrativeTypeId`, `label`, `description?`.
  */
 export async function updateNarrativeType(
@@ -505,7 +505,7 @@ export async function reorderNarrativeTypes(
 
 /**
  * Archive (retire) a narrative type: hidden from the slot picker but still renders
- * template slots / cases that reference it (the snapshot keeps `type_label`).
+ * template slots / cases that reference it (the snapshot keeps `display_label`).
  * Library is archive-only (no delete), matching `case_outcomes`. staff_admin-only.
  */
 export async function archiveNarrativeType(

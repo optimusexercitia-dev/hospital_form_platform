@@ -81,7 +81,7 @@ insert into public.cases (id, commission_id, case_number, label, created_by) val
 
 -- S4 arm: a narrative on the source case assigned to st_x2.
 insert into public.case_narratives
-  (id, case_id, type_label, display_position, title, body_md, created_by, assigned_to)
+  (id, case_id, display_label, display_position, title, body_md, created_by, assigned_to)
 values ((select narr from cs), (select src_case from cs), 'Resumo', 0, 'Resumo',
         'Corpo da narrativa', (select sa_x from k), (select st_x2 from k));
 
@@ -99,6 +99,11 @@ create temp table r1 on commit drop as
     (select src_case from cs), (select comm_y from k),
     (select type_parecer from voc), 'Registros internos', true,
     'Descrição para viabilizar o envio.');
+-- ADR 0137 D4: send_referral now refuses a referral with no referral_patient
+-- MRN (HC0T4) - the MRN is the LGPD erasure key. Fixture only; the SAVE floor
+-- is unchanged (name OR mrn), so this is about the SEND transition alone.
+select public.save_referral_patient(
+  (select id from r1), 'Paciente Fixture', 'MRN-322-R1');
 select public.send_referral((select id from r1));
 reset role;
 grant select on r1 to authenticated;
@@ -119,6 +124,11 @@ create temp table r2 on commit drop as
     (select src_case from cs), (select comm_y from k),
     (select type_parecer from voc), 'Sem caso vinculado', true,
     'Descrição para viabilizar o envio.');
+-- ADR 0137 D4: send_referral now refuses a referral with no referral_patient
+-- MRN (HC0T4) - the MRN is the LGPD erasure key. Fixture only; the SAVE floor
+-- is unchanged (name OR mrn), so this is about the SEND transition alone.
+select public.save_referral_patient(
+  (select id from r2), 'Paciente Fixture', 'MRN-322-R2');
 select public.send_referral((select id from r2));
 reset role;
 grant select on r2 to authenticated;
@@ -533,6 +543,11 @@ create temp table rdt on commit drop as
     p_subject              => 'Direção técnica',
     p_description_md       => 'Parecer da direção técnica.',
     p_target_hospital_id   => (select hosp_b from k));
+-- ADR 0137 D4: send_referral now refuses a referral with no referral_patient
+-- MRN (HC0T4) - the MRN is the LGPD erasure key. Fixture only; the SAVE floor
+-- is unchanged (name OR mrn), so this is about the SEND transition alone.
+select public.save_referral_patient(
+  (select id from rdt), 'Paciente Fixture', 'MRN-322-RDT');
 select public.send_referral((select id from rdt));
 reset role;
 grant select on rdt to authenticated;

@@ -12,7 +12,7 @@
 --   * the case_patient.updated mutation-audit metadata is {} (NO identifier).
 --   * WRITE asymmetry: an assignee (broad READ) gets 42501 on set_participant_patient;
 --     a coordinator succeeds + flips has_patient=true.
---   * patient_enabled snapshot true/false; a set on a non-enabled case raises check_violation.
+--   * patient_mode snapshot optional/none; a set on a 'none' case raises check_violation.
 --   * dispose_case_phi: happy path (clears identifiers + redacts free text + stamps +
 --     flips has_patient false) + second call HC056 + bad reason check_violation + a
 --     non-coordinator 42501 + the org-scoped I1 gate.
@@ -51,7 +51,7 @@ insert into public.pqs_department (hospital_id, name, rca_default_due_days)
   select (v->>'hosp_b')::uuid, 'NSP Bootstrap', 30 from ctx
   on conflict (hospital_id) do nothing;
 
--- One case in X with patient_enabled = true, 1 phase (assigned st_x → broad READ),
+-- One case in X with patient_mode = 'optional', 1 phase (assigned st_x → broad READ),
 -- a narrative + an event (PHI free text to prove disposal redacts). organization_id
 -- is backfilled by the guard_case_org_matches_commission BEFORE trigger.
 create temp table cs on commit drop as
@@ -62,10 +62,10 @@ create temp table cs on commit drop as
          gen_random_uuid() as event_x;
 grant select on cs to authenticated;
 
-insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_mode)
 values
-  ((select case_x from cs),   (select comm_x from k), 9301, 'Caso PHI',     (select sa_x from k), true),
-  ((select case_off from cs), (select comm_x from k), 9302, 'Caso sem PHI', (select sa_x from k), false);
+  ((select case_x from cs),   (select comm_x from k), 9301, 'Caso PHI',     (select sa_x from k), 'optional'),
+  ((select case_off from cs), (select comm_x from k), 9302, 'Caso sem PHI', (select sa_x from k), 'none');
 
 insert into public.case_phases
   (id, case_id, position, form_id, form_version_id, status, assigned_to, blocks)
@@ -74,7 +74,7 @@ values
    (select ver_u from k), 'active', (select st_x from k), '{}');
 
 insert into public.case_narratives
-  (id, case_id, type_label, display_position, status, body_md, created_by)
+  (id, case_id, display_label, display_position, status, body_md, created_by)
 values
   ((select narr_x from cs), (select case_x from cs), 'Resumo', 2, 'open',
    'CORPO-SENSIVEL-NARRATIVA', (select sa_x from k));
@@ -137,14 +137,14 @@ select is(
   'Paciente', 'the patient participant registry display_name is a SURROGATE, never the raw name (Q4)');
 
 -- =========================================================================
--- patient_enabled snapshot + non-enabled-case guard.
+-- patient_mode snapshot + non-collecting-case guard (ADR 0137 D1).
 -- =========================================================================
 select is(
-  (select patient_enabled from public.cases where id = (select case_x from cs)),
-  true, 'case_x snapshots patient_enabled = true');
+  (select patient_mode from public.cases where id = (select case_x from cs)),
+  'optional', 'case_x snapshots patient_mode = optional');
 select is(
-  (select patient_enabled from public.cases where id = (select case_off from cs)),
-  false, 'case_off snapshots patient_enabled = false');
+  (select patient_mode from public.cases where id = (select case_off from cs)),
+  'none', 'case_off snapshots patient_mode = none');
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -280,8 +280,8 @@ insert into public.hospitals (id, organization_id, name, slug)
 insert into public.memberships (organization_id, principal_id, role) values
   ((select (v->>'org_b')::uuid from ctx), (select st_x2 from k), 'org_admin'),
   ((select org_other from i1),            (select sa_y from k),  'org_admin');
-insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
-  values ((select case_i1 from i1), (select comm_x from k), 9309, 'Caso I1', (select sa_x from k), true);
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_mode)
+  values ((select case_i1 from i1), (select comm_x from k), 9309, 'Caso I1', (select sa_x from k), 'optional');
 
 select test_helpers.claims_for((select admin from k), true);
 set local role authenticated;

@@ -367,7 +367,7 @@ grant select on wd to authenticated;
 -- HC0M4 — refusing for a WORKFLOW reason and never reaching the D7 gate. The
 -- assignee must itself hold case CONTENT (a plain member holds deliberation
 -- only), so the coordinator is the valid choice.
-insert into public.case_narratives (id, case_id, title, type_label, display_position, status, assigned_to, created_by)
+insert into public.case_narratives (id, case_id, title, display_label, display_position, status, assigned_to, created_by)
 select wd.narrative_id, cs.case_a, 'Narrativa', 'Relato', 1, 'completed', k.sa_x, k.sa_x from wd, cs, k;
 
 select test_helpers.claims_for((select qr from p), false);

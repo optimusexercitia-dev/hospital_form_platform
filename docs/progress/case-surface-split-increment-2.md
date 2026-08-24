@@ -301,3 +301,24 @@ _Its live remainder — status, gate figures and what is still owed — stays in
     delegates. Bullet rotated verbatim → [case-surface-split-increment-2.md](case-surface-split-increment-2.md),
     with its two later corrections (the predicate has **three** independent terms, not four; the inlining
     mechanism was inferred and stated as measured).
+
+---
+
+## Push record (restored 2026-08-23)
+
+⚠ **Restored here because it was about to be lost.** The § Now bullet carrying it was compacted in place
+on 2026-08-23 to recover PROGRESS.md byte-cap headroom, and a check of every dropped fact against the
+archives found this one — the push range's **head sha** — existed **nowhere else**. (The range's start,
+`df88dced`, appears in `now-concluded-2026-08.md:201` but in an unrelated context: it is the
+`chore/small-optimizations` merge point, which only later became this range's base. A grep hit is not a
+record of the same fact.)
+
+**Case Surface Split, pushed 2026-08-23 — schema first, then code, PO-authorised:**
+
+- code: `git push` landed **`df88dced..66160b9f`**; `origin/main..main` re-measured to **0** afterwards.
+- schema: `npm run db:push` applied 6 migrations; the remote reached **441 / `20261003000900`**, verified
+  in the remote's own catalog rather than from the migration registry alone.
+- ⛔ **That remote figure is this push's OUTCOME, not the remote's current state** — AFF2 moved it to
+  444 / `20261003001200` the same day. Re-measure from PROGRESS.md § State before quoting either.
+- ⭐ Order was load-bearing: the migrations are additive, so old-code/new-schema is safe and
+  new-code/old-schema is the broken state a code-first push would have opened.

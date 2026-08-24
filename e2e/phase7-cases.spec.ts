@@ -437,8 +437,15 @@ test('AC-Builder: coordinator creates a 3-phase template with recommend_when →
   await expect(slotDialog3).toHaveCount(0, { timeout: 15_000 })
 
   // The builder now shows 3 phase-slot cards.
-  // PhaseSlotCard renders as <section> elements (not <article>).
-  await expect(page.getByRole('region').filter({ hasText: /Fase 1 — Coleta inicial/i })).toBeVisible({ timeout: 10_000 })
+  // PhaseSlotCard renders as <section aria-label={heading}> elements (not
+  // <article>). ⚠ ADR 0137 D13 wrapped the slot list in a "Trabalho do
+  // processo" shell region, so a `.filter({hasText})` scan from the page root
+  // now matches BOTH that wrapper and each inner slot card (the wrapper's
+  // text content includes every slot's heading too) — a strict-mode
+  // violation where there used to be exactly one match. Scope by the slot
+  // card's own ACCESSIBLE NAME instead of filtering from the top; nothing
+  // was renamed or removed, a container was added around it.
+  await expect(page.getByRole('region', { name: 'Fase 1 — Coleta inicial' })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText(/Fase 1 — Coleta inicial/i)).toBeVisible()
   await expect(page.getByText(/Fase 2 — Revisão do comitê/i)).toBeVisible()
   await expect(page.getByText(/Fase 3 — Encerramento/i)).toBeVisible()
@@ -1460,7 +1467,11 @@ test('AC-DueDays-Template: adding a phase-slot with Prazo padrão (dias) persist
 
   // Re-open the edit dialog for the slot we just added and verify the field persisted.
   // The edit button (pencil/edit icon) is on the slot card.
-  const slotCard = page.getByRole('region').filter({ hasText: /Fase Prazo E2E/i })
+  // ⚠ ADR 0137 D13's "Trabalho do processo" wrapper region also contains this
+  // text (it wraps the whole slot list), so a `.filter({hasText})` scan from
+  // the page root is ambiguous — scope by the slot card's own accessible
+  // name instead (see the AC-happy-path fix above for the full mechanism).
+  const slotCard = page.getByRole('region', { name: 'Fase Prazo E2E' })
   await expect(slotCard).toBeVisible({ timeout: 10_000 })
   // Click the edit button for this slot.
   const editBtn = slotCard.getByRole('button', { name: /Editar/i })
