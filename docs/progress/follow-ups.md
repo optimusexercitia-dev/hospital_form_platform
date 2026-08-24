@@ -7413,7 +7413,37 @@ gate can trace into, because the vacuity lives in a helper.
 
 ---
 
-## FUP-0137-MRN-BLANKABLE-AFTER-SEND
+## ⬛ FUP-0137-MRN-BLANKABLE-AFTER-SEND — ✅ **RESOLVED 2026-08-24 by measurement: NOT REACHABLE. The prediction was correct about its two premises and wrong about the conclusion.**
+
+> ⭐ **SETTLED THE WAY THE ITEM ITSELF ASKED — by fixture, not by reading.** The arm is
+> `supabase/tests/365_referral_mrn_persistence_floor.sql` (12 tests, green). An amend that
+> omits the MRN on a `sent` referral does **not** blank the key: the call raises **HC070**
+> and rolls back.
+>
+> ⚠ **BOTH PREMISES BELOW ARE TRUE — the missing one was in a different object.**
+> `set_referral_patient` really does refuse only `completed`/`rejected`/`withdrawn`, and its
+> `on conflict do update set mrn = excluded.mrn` really is a full replace. What no reading of
+> that definition can show is its **last statement** — `update public.case_referral set
+> has_patient = true` — tripping **`app.guard_referral_status`**, a BEFORE UPDATE trigger
+> that refuses any edit to a non-`draft` referral outside `app.in_referral_rpc`, a flag this
+> door never sets. The PHI upsert is rolled back with it. Verified attached, enabled and
+> unconditional (`tgqual is null`), not just present in `pg_proc`.
+>
+> ⛔ **THE CLOSURE IS INCIDENTAL, AND THAT IS THE PART TO CARRY FORWARD.** Nothing in
+> `set_referral_patient` protects the MRN; a trigger placed there for status immutability
+> does. Under neutralization — adding `set_config('app.in_referral_rpc','on')` to the door,
+> which is the obvious way to implement "let the source coordinator amend PHI after sending"
+> — **365 §1.2 reds with `have: NULL`**: the erasure key really is blanked, exactly as
+> predicted. So this was never a false alarm; it was a live mechanism one edit away from
+> reachable. **§2.2 is the keystone that reds on that edit.**
+>
+> ⭐ **A SECOND FINDING FELL OUT and is filed separately, not folded in here:** because the
+> door cannot complete for ANY non-draft, the post-send amend branch ADR 0078 D7 gates with
+> `can_amend_referral_phi_snapshot` is unreachable — pinned as the differential in §2.1 so
+> no reader mistakes §1 for an MRN floor. See [[FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD]].
+>
+> ⚠ The **draft** half of this family was real and IS fixed:
+> [[FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE]].
 
 🟠 **The erasure key can be blanked after the referral is sent.** Raised by `qa` in
 [adr-0137-batch-review.md](../reviews/adr-0137-batch-review.md) § 5, 2026-08-23.
@@ -7437,7 +7467,18 @@ class this project has been wrong about before.
 
 ---
 
-## FUP-0137-FLUSH-FAILS-OPEN
+## ⬛ FUP-0137-FLUSH-FAILS-OPEN — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> `if (fresh) { … }` → an explicit `if (!fresh) { setError(REFERRAL_MESSAGES.draftReloadFailed);
+> return }`, so the flush no longer proceeds against the stale frozen map when the pre-flush
+> re-read returns null. The docblock's *refuse rather than ship more than the screen shows*
+> principle now holds in code and not only in prose.
+>
+> ⚠ Fixed in the same edit as [[FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE]] — same function,
+> same swallow-becomes-a-silent-wrong-outcome family. ⛔ **Not separately test-pinned**: the
+> null-re-read path needs `onLoadDraft` to resolve null *after* a successful first load, which
+> the new spec's fixture does not construct. Stated rather than implied — the fix is a
+> three-line early return whose correctness is legible, but it is unguarded against regression.
 
 🟡 **A staleness re-read fails open, against the principle its own docblock claims.** Raised by `qa`,
 2026-08-23.
@@ -7550,7 +7591,37 @@ CLAUDE.md §8 requires keyboard navigation and visible focus on every input.
 
 ---
 
-## FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE
+## ⬛ FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE — ✅ **FIXED 2026-08-24** (owner: frontend)
+
+> **The fix, in three layers** — `referral-send-wizard.tsx`:
+> 1. `resumePatientLoaded: boolean` → `resumePatientState: "idle" | "loading" | "loaded" |
+>    "error"`, set **after** the await; the `catch` records `error` instead of swallowing,
+>    so a transient failure no longer latches for the session and re-entry retries.
+> 2. `flush` **refuses** to write PHI while the state is `error` — the write-level guard,
+>    because the buffer is a full row and not a patch.
+> 3. The PHI inputs are **disabled** and the step carries a pt-BR banner
+>    (`patientFieldsLocked`), so the coordinator learns it before typing rather than at save.
+>
+> Pinned by `src/components/referrals/referral-send-wizard-phi-failclosed.test.tsx` (4 tests).
+>
+> ⛔ **THE FIRST VERSION OF THAT TEST WAS VACUOUS AND THE REASON IS THE USEFUL PART.** It
+> asserted `setReferralPatient` was not called after a failed read — and **passed with the
+> guard removed**, because it never populated the buffer, so the flush's pre-existing
+> `referralPatientDraftHasData` short-circuit was doing the work. ⭐ What makes the overwrite
+> reachable is **not typing** (the inputs are disabled) but **`applyPrefill`**: the
+> safety-event prefill is a *separate* load with its own state and a button gated only on
+> `isPending`, so it fills the buffer with the EVENT's identifiers while the draft's own PHI
+> failed to load. Under the neutralization the test now reds carrying
+> **`"mrn": "MRN-EVENT-9"`** — the overwrite in the assertion output.
+>
+> ⚠ **A second record error, kept:** the neutralization list first claimed a "re-latch"
+> mutation reds three tests. Measured, (a) the re-latch is **two** edits and applying one
+> alone left the file entirely GREEN — a cosmetic mutation certifying coverage that did not
+> exist; (b) it reds **§1 + §2 only**, never §4, whose success path never enters the `catch`.
+> Both errors ran in the flattering direction.
+>
+> ⚠ The post-send half of this family turned out **not reachable** —
+> [[FUP-0137-MRN-BLANKABLE-AFTER-SEND]], closed by fixture the same day.
 
 🟠 **A swallowed PHI load turns into a silent PHI overwrite.** Raised as R-3 in
 [adr-0137-batch-review.md](../reviews/adr-0137-batch-review.md) § 5, 2026-08-23. ⛔ **Filed 2026-08-24
@@ -7614,3 +7685,37 @@ inside the `h2`" defect: **data reaching a name that should be invariant.** Pin 
 states and asserting the name is unchanged, not by asserting one string.
 
 **Owner:** frontend.
+
+---
+
+## FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD
+
+🟡 **An authored write capability that cannot be exercised — `can_amend_referral_phi_snapshot`'s
+non-draft branch is structurally unreachable.** Found 2026-08-24 while settling
+[[FUP-0137-MRN-BLANKABLE-AFTER-SEND]] by fixture; **not** a hole, and filed so the dead branch is
+not later read as live protection.
+
+`public.set_referral_patient` branches on whether a `referral_patient` row already exists: a new
+snapshot needs `can_manage_referral_phi_disclosure`, an **amend** needs
+`can_amend_referral_phi_snapshot` (ADR 0078 D7). Measured: for any referral whose status is not
+`draft`, the door's own final statement — `update public.case_referral set has_patient = true` —
+is refused by `app.guard_referral_status` with **HC070**, so the call can never complete. The amend
+predicate therefore only ever governs **draft** re-saves, which is the one case it was not written
+for. Pinned as the differential in `365` §2.1.
+
+⚠ **Three independent reasons it is not a live defect**, which is why this is 🟡 and not orange:
+the door cannot complete; the only UI caller of `setReferralPatient` is the send wizard, which
+ADR 0137 **D6** confines to drafts; and the referral detail page (which serves non-drafts) offers
+no PHI-edit affordance at all.
+
+⛔ **The decision owed is which way to resolve it, and it is a PO question, not a patch.** Either
+(a) post-send PHI amendment is intended — then the door needs the RPC flag **and** the MRN
+persistence floor the sibling follow-up proposed, because `365` proves the flag alone opens the
+blanking (§1.2 reds with `have: NULL`); or (b) it is not intended — then the amend predicate and
+the `completed`/`rejected`/`withdrawn` arm are dead code, and HC070's *"encaminhamentos enviados
+são imutáveis fora das RPCs"* is a confusing thing to surface for a PHI edit.
+
+⭐ **Do not resolve it by adding the flag alone.** That is the cheap-looking half, and it is the
+exact edit `365` §2.2 exists to red.
+
+**Owner:** PO + backend.

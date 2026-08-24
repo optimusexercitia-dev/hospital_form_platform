@@ -84,6 +84,22 @@ PHI configuration, the Novo-caso dialog and the referral wizard are exactly wher
   independently isolated (`patient_identifiers` vs `referral_patient`); the coordinator enters the
   MRN by hand. This is a real friction and is accepted deliberately.
 
+  > ⭐ **MEASURED 2026-08-24, and it bounds what D4 can be cited for.** D4's floor is at *send*, so
+  > it governs **entry, not persistence** — a post-review question was whether a later amend could
+  > blank the key. Driven through a fixture
+  > (`supabase/tests/365_referral_mrn_persistence_floor.sql`, 12 tests) it **cannot**: for any
+  > non-`draft` referral, `set_referral_patient`'s own final statement
+  > (`update case_referral set has_patient = true`) is refused by `app.guard_referral_status`
+  > (**HC070**) and the PHI upsert rolls back with it.
+  > ⛔ **Do NOT cite this as "D4 protects the stored MRN".** Nothing in `set_referral_patient`
+  > inspects the MRN; a trigger placed there for *status immutability* closes it, three objects
+  > away. Neutralized — adding `set_config('app.in_referral_rpc','on')` to that door, which is the
+  > obvious way to implement post-send amendment — §1.2 reds with `have: NULL`, i.e. the blanking
+  > is real and one edit away. §2.2 is the keystone that reds on that edit.
+  > ⚠ Consequence for ADR 0078 D7: its `can_amend_referral_phi_snapshot` branch is unreachable for
+  > every non-draft status. Registered as `FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD` — a decision owed,
+  > not a hole (the wizard is drafts-only per D6, and the detail page offers no PHI edit).
+
 ### The referral wizard
 
 - **D5 — Creation is deferred to the end; the draft becomes an explicit act.** Steps 2–3 buffer

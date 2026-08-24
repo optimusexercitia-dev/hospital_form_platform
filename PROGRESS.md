@@ -22,9 +22,18 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ⛔ **The push is a SEPARATE, explicit decision.** Deploy order is **schema first, then code**
   (additive ⇒ old-code/new-schema is safe, new-code/old-schema is broken), and `coolify.md` documents
   **auto-deploy on push** — so pushing code before `db:push` opens the broken state on the deployed app.
-  ⚠ **9 follow-ups OPEN**, indexed below. The two 🟠 are ONE family — a full-replace PHI upsert that can
-  blank stored patient identifiers (`MRN-BLANKABLE-AFTER-SEND` post-send; `RESUME-SWALLOW-SILENT-PHI-
-  OVERWRITE` in-draft, where D4's send gate catches only the MRN, not `name`/`date_of_birth`).
+  ⛔ **A RESIDUE INCREMENT SITS UNCOMMITTED IN THE WORKING TREE (2026-08-24)**: `supabase/tests/365_*`,
+  `referral-send-wizard{,-phi-failclosed.test}`, `messages.ts`, + these records. Green on lint 8/8,
+  typecheck, vitest 122/1689, pgTAP 216/7138 (fresh reset), authz census/hat/floor/wrapper. ⚠ **`e2e:prod`
+  NOT re-run.**
+  ⚠ **7 follow-ups OPEN** (was 9) — **no 🟠 remains**. The 🟠 family (full-replace PHI upsert blanking
+  identifiers) resolved **in OPPOSITE directions**, `FLUSH-FAILS-OPEN` fixed alongside →
+  [archive](docs/progress/follow-ups-archive.md). In-draft half: real, **FIXED**. Post-send half: **NOT
+  REACHABLE** — the door's own `has_patient` update trips `guard_referral_status` (HC070), rolling the
+  upsert back. ⛔ **That is "closed incidentally", NOT "safe by design"** — nothing in
+  `set_referral_patient` protects the MRN, and `365` §1.2 red-proves the blanking (`have: NULL`) under
+  the single edit that opens it (adding the RPC flag, i.e. the obvious way to grant post-send amends);
+  §2.2 keystones that edit. Dead amend branch → `FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD`.
 - **⛔ ADR 0136 (deferred `staff_admin` sign-off) is NOT in that batch — sequenced AFTER** (PO ruling
   2026-08-23). Its § Open decline-path question was **settled the same day as shape (a)**, the
   correction/supersession machinery — recorded as **ADR 0136 § D7**, so it is now plannable.
@@ -289,14 +298,12 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟠 **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — ⭐ **⭐ CRITICAL FUP C2. `ARM=census`'s DEFINER clause is bounded to `bool`/set-returning, so 407 reachable non-trigger command doors (326 RPC-callable) sit outside every arm's domain. ⭕…** ⭕ **EXTENDED 2026-08-23 (AFF2 B1): `trigger`-returning `prosecdef` gates are in no arm's domain EITHER, and this item's own word "non-trigger" excluded them** — `guard_profile_privileged_columns` is now the only in-DB control over the two new person columns. ⛔ Not a live hole (no PUBLIC/`anon` grant; a direct call outside trigger context raises) — a **measurement-domain** gap — lead + backend
 - 🟠 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — **PARTIALLY RESOLVED 2026-08-17 (`4102149b`); the filed remedy was WITHDRAWN as unbuildable** — lead/backend
 - 🟠 **FUP-FORM-IDENTIFIER-IN-URL** — ✅ **4 leaks FIXED + control-proven both directions** (`cpf-field` **CPF**, `user-profile-edit-form`, `affiliations-panel`, `patient-search-view` **MRN/PHI**); 4 more measured NOT-REACHABLE-PRE-HYDRATION. `name` is **INJECTED by `useFieldIds().controlProps`** — ⛔ a `name=` grep cannot find it (beat 3 reasoned reads). ⭐⭐ Both predictions were WRONG in opposite directions: `?password=` doesn't exist; **`cpf` was on no list**. ⛔ **STILL OPEN:** the standing detector must be a **route crawler**, not a re-run of this 8-file list; `<select>` coverage is weaker; and the ✅ **PO-RULED 2026-08-20 inversion of `useFieldIds`' `name` default** (**10/51 measured failure rate**) — assigned to `frontend`, ⛔ **as a SEPARATE change after Slice 3**, and only after enumerating the 4 classes that BREAK without `name` (server-action `FormData`, radio grouping, explicit `FormData` reads, autofill). Credited to `frontend` — frontend/lead
-- 🟠 **FUP-0137-MRN-BLANKABLE-AFTER-SEND** — `sent` stays amendable + `p_mrn` defaults NULL, so the erasure key can be blanked post-send; the cases-side analogue IS guarded. Read off live defs, no fixture — a pgTAP arm settles it — backend
-- 🟠 **FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE** — `goToPatientStep` sets `resumePatientLoaded` BEFORE the await and swallows the failure, so saved PHI never reloads that session; the next keystroke's full-replace upsert BLANKS `mrn`/`name`/`date_of_birth`. D4's send gate catches only the MRN. ⛔ QA r1 R-3, unfiled until r2 caught it — frontend
+- 🟡 **FUP-0137-POSTSEND-PHI-AMEND-IS-DEAD** — `can_amend_referral_phi_snapshot`’s non-draft branch is structurally unreachable: the door’s own `has_patient` update trips `guard_referral_status` (HC070) for any non-`draft`. NOT a hole (3 independent reasons) — a decision owed. ⛔ Resolving it by adding the RPC flag ALONE opens the blanking `365` §1.2 red-proves — PO + backend
 - 🟡 **FUP-0137-KIND-VISUAL-NO-FALLBACK** — widening `case_events_kind_check` in SQL touches no TS, so `KIND_VISUAL[ev.kind]` destructure THROWS and takes the card down; latent today (16=16 verified). ⛔ QA r1 R-6, unfiled until r2 — frontend
 - 🟡 **FUP-0137-ALERT-INSIDE-LABEL-MUTATES-NAME** — a `role="alert"` inside the wrapping `<label>` mutates the textarea's accessible name on failure; `useFieldIds`+`FieldError` is the house pattern one file over. ⛔ QA r1 R-7, unfiled until r2 — frontend
 - 🟡 **FUP-0137-PERSIST-REFRESH-DROPS-FOCUS** — `persist()` + `router.refresh()` resets `activeElement` to `<body>`, so a keyboard user re-Tabs (~40) per field. Verified by real Tab walk; NOT a D2 violation. ⚠ Scope by the PROPERTY (refreshes the route on an input event), not this one file — frontend
 - 🟡 **FUP-0137-BULK-WIZARD-STILL-BOOLEAN** — the bulk grid still reads deprecated `collectsPatient`, so a `required` template offers the PHI columns UNMARKED; the DB still refuses, so it is a worse error, not a hole — frontend
 - 🟡 **FUP-0137-CASE-PATIENT-EDIT-NOT-MARKED** — `patientRequiredFields` is not threaded page → panel → dialog, so the case patient-edit dialog marks nothing; `_set_participant_patient_unchecked` still enforces — frontend
-- 🟡 **FUP-0137-FLUSH-FAILS-OPEN** — wizard proceeds on a null re-read, against its own docblock; sole guard against duplicate adds on retry, which `HC0T4` made common — frontend
 - 🟡 **FUP-0137-357-TWINS-ON-STALE-BODY** — `357`'s twins red-proved the **pre-0137** body this batch re-emitted; `ARM=census` cannot cover this fn (non-boolean, `app`). Re-run — backend
 - 🟡 **FUP-E2E-SUBMITTED-POOL-UNSCOPED** — the shared submitted-response pool has no `case_phase_id is null` filter and the one-line fix BREAKS a peer spec — lead/tester
 - 🟡 **FUP-PREVIA-MINT-FLAG-ASYMMETRY** — `HC0DV` refuses a prévia on the premise the mint is reachable; the mint’s preconditions are a strict superset — lead

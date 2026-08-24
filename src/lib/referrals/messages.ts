@@ -142,6 +142,35 @@ export const REFERRAL_MESSAGES = {
   /** ADR 0137 D4 — the SEND-time MRN requirement (DB code `HC0T4`). */
   sendRequiresMrn:
     'Informe o prontuário do paciente antes de enviar o encaminhamento.',
+  /**
+   * ⛔ A REFUSAL THAT PROTECTS STORED PHI, not a validation failure
+   * (`FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE`).
+   *
+   * `set_referral_patient` full-replaces every column, so when the audited
+   * prefill read fails on a resumed draft the wizard does not know what is
+   * stored and must refuse to write rather than blank `mrn` / `name` /
+   * `date_of_birth`. ⚠ D4's send gate would catch only the MRN.
+   */
+  patientReloadFailed:
+    'Não foi possível carregar os dados do paciente já salvos neste rascunho. Reabra o encaminhamento antes de alterá-los, para não sobrescrevê-los.',
+  /**
+   * The PROACTIVE half of the same refusal, shown on the patient step itself while
+   * {@link REFERRAL_MESSAGES.patientReloadFailed} is the one the flush surfaces.
+   *
+   * ⚠ Two strings and not one, deliberately: the step renders its banner and the flush
+   * sets the dialog-level banner, so a single string appeared TWICE on the patient step
+   * (caught by the test, not by review). They also say different things — this one
+   * explains why the inputs are locked, that one explains why a save was refused.
+   */
+  patientFieldsLocked:
+    'Os dados do paciente já salvos não puderam ser carregados. Os campos estão bloqueados para não sobrescrevê-los — feche e reabra o encaminhamento para editá-los.',
+  /**
+   * ⛔ The fail-closed half of the shared-item flush (`FUP-0137-FLUSH-FAILS-OPEN`).
+   * The pre-flush re-read is the only thing preventing duplicate adds on a retry,
+   * and D4 made retries ordinary.
+   */
+  draftReloadFailed:
+    'Não foi possível reler o rascunho para confirmar os itens compartilhados. Tente novamente.',
   replyResultRequired: 'Descreva o resultado da análise.',
   replyOutcomeRequired: 'Selecione o desfecho da análise.',
   targetCaseRequired: 'Selecione o caso a vincular.',

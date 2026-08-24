@@ -332,8 +332,22 @@ export function ReferralSendWizard({
   const [resumeState, setResumeState] = useState<
     "idle" | "loading" | "loaded" | "error"
   >("idle");
-  /** Whether PHI has been fetched for this resumed draft (fires once, on the step). */
-  const [resumePatientLoaded, setResumePatientLoaded] = useState(false);
+  /** PHI-prefill lifecycle for a resumed draft (fires on reaching the step).
+   *
+   * ⛔ THIS IS A STATE MACHINE AND NOT A BOOLEAN, AND THE REASON IS A FIXED BUG
+   * (`FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE`). The boolean it replaces was
+   * latched to `true` BEFORE the await and the failure was swallowed, so one
+   * transient read error meant the saved PHI never loaded again for the whole
+   * session — and the next keystroke's full-replace upsert then BLANKED the stored
+   * `mrn` / `name` / `date_of_birth`. D4's send gate catches only the MRN.
+   *
+   * ⚠ `error` is load-bearing in TWO places and must stay distinguishable from
+   * `idle`: it permits a RETRY on re-entry (which `idle` also would), and it makes
+   * the flush refuse to write PHI (which `idle` must NOT, because an untouched
+   * never-visited step is not a failed read). Collapsing them re-opens the bug. */
+  const [resumePatientState, setResumePatientState] = useState<
+    "idle" | "loading" | "loaded" | "error"
+  >("idle");
   const isResume = Boolean(resumeReferralId);
 
   // Step 1 fields.
@@ -401,7 +415,10 @@ export function ReferralSendWizard({
       setReferralId(null);
       setFrozenItems(new Map());
       setResumeState("idle");
-      setResumePatientLoaded(false);
+      // Back to `idle`, not `error` — reopening the dialog is the recovery path the
+      // `patientReloadFailed` message tells the coordinator to take, so a fresh open
+      // must be allowed to re-attempt the audited read.
+      setResumePatientState("idle");
       setReferralTypeId("");
       setTargetCommissionId("");
       setSubject("");
@@ -499,8 +516,13 @@ export function ReferralSendWizard({
     // the audited `get_referral_patient` door. Fires here rather than on the resume
     // load so `referral_patient.read` records reaching the PHI step, not reopening
     // the draft.
-    if (isResume && referralId && onLoadPatient && !resumePatientLoaded) {
-      setResumePatientLoaded(true);
+    if (
+      isResume &&
+      referralId &&
+      onLoadPatient &&
+      (resumePatientState === "idle" || resumePatientState === "error")
+    ) {
+      setResumePatientState("loading");
       startTransition(async () => {
         try {
           const saved = await onLoadPatient(referralId);
@@ -508,9 +530,15 @@ export function ReferralSendWizard({
             setPatient(prefillToDraft(saved));
             setPatientSaved(true);
           }
+          setResumePatientState("loaded");
         } catch {
-          // Best-effort: a failed read must never block manual entry. The
-          // coordinator can retype; the flush overwrites either way.
+          // ⛔ FAIL CLOSED, AND DO NOT LATCH. The previous version marked the load
+          // done before awaiting and swallowed this silently, which turned one
+          // transient read failure into a PHI OVERWRITE: `patient` stayed empty,
+          // and the first keystroke made the flush's full-replace upsert blank the
+          // stored identifiers. `error` both permits a retry on re-entry and stops
+          // the flush from writing (see `flush` step 3).
+          setResumePatientState("error");
         }
       });
     }
@@ -690,17 +718,26 @@ export function ReferralSendWizard({
         // Unconditional: `onLoadDraft` is required, so there is no configuration in
         // which this refresh can be skipped.
         const fresh = await onLoadDraft(id);
-        if (fresh) {
-          frozen = new Map<string, string>();
-          for (const item of fresh.sharedItems) {
-            const sourceId =
-              item.kind === "narrative"
-                ? item.sourceNarrativeId
-                : item.sourceDocumentId;
-            if (sourceId) frozen.set(sourceId, item.id);
-          }
-          setFrozenItems(frozen);
+        // ⛔ FAIL CLOSED (FUP-0137-FLUSH-FAILS-OPEN). This re-read is the ONLY thing
+        // that keeps step 3 from re-adding items already frozen — the ADD step
+        // records no new ids — so proceeding against the stale map on a null re-read
+        // contradicted the docblock's own *refuse rather than ship more than the
+        // screen shows* principle. ⚠ It became reachable rather than theoretical
+        // when D4 made retries ordinary: `HC0T4` leaves this dialog open so the
+        // coordinator supplies the MRN and flushes again.
+        if (!fresh) {
+          setError(REFERRAL_MESSAGES.draftReloadFailed);
+          return;
         }
+        frozen = new Map<string, string>();
+        for (const item of fresh.sharedItems) {
+          const sourceId =
+            item.kind === "narrative"
+              ? item.sourceNarrativeId
+              : item.sourceDocumentId;
+          if (sourceId) frozen.set(sourceId, item.id);
+        }
+        setFrozenItems(frozen);
       }
 
       // 2. REMOVE what the coordinator un-picked. Runs BEFORE the adds so a draft
@@ -750,6 +787,20 @@ export function ReferralSendWizard({
 
       // 3. The PHI buffer, only when it carries something. `save_referral_patient`
       // keeps its own `name OR mrn` floor (D4) — a partially-typed draft is savable.
+      //
+      // ⛔ REFUSE RATHER THAN OVERWRITE (FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE).
+      // `set_referral_patient` full-replaces EVERY column, so writing a buffer that
+      // never received the saved identifiers blanks them. When the audited prefill
+      // read FAILED we do not know what is stored, so the only safe move is to stop
+      // and say so — the same *refuse rather than ship more than the screen shows*
+      // principle this function's docblock states, applied to PHI.
+      // ⚠ Scoped to `error`, NOT to "anything other than loaded": a coordinator who
+      // never opened the patient step sits at `idle` with an empty buffer, which the
+      // `referralPatientDraftHasData` guard below already handles correctly.
+      if (isResume && resumePatientState === "error") {
+        setError(REFERRAL_MESSAGES.patientReloadFailed);
+        return;
+      }
       if (referralPatientDraftHasData(patient)) {
         const saved = await setReferralPatient(
           id,
@@ -1302,10 +1353,21 @@ export function ReferralSendWizard({
               </div>
             )}
 
+            {/* The audited prefill read failed, so the fields below are empty while
+                the draft may hold identifiers. Said HERE, before the coordinator
+                types, because the flush will refuse rather than overwrite them
+                (FUP-0137-RESUME-SWALLOW-SILENT-PHI-OVERWRITE) — a refusal that
+                arrives only on `Salvar` reads as a broken button. */}
+            {resumePatientState === "error" && (
+              <FormBanner tone="error">
+                {REFERRAL_MESSAGES.patientFieldsLocked}
+              </FormBanner>
+            )}
+
             <ReferralPatientFields
               draft={patient}
               onChange={setPatient}
-              disabled={isPending}
+              disabled={isPending || resumePatientState === "error"}
               idPrefix="referral-wizard-patient"
             />
 
