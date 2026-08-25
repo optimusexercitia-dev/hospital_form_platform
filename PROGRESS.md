@@ -16,27 +16,10 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **✅ ADR 0137 batch — CONCLUDED 2026-08-24; § Now bullet rotated verbatim** →
-  [2026-Q3.md](docs/progress/2026-Q3.md) § "Rotated 2026-08-24 — the ADR 0137 batch § Now bullet, all
-  four items concluded". Ledger row **0137** · detail [adr-0137-batch.md](docs/progress/adr-0137-batch.md)
-  · ADR [0137](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) **Amdt 1–4**.
-  ⛔ **All four items closed by four DIFFERENT kinds of evidence, and the kind is the point:** a human
-  observation (Coolify — no gate can read it), a PO ruling, a measurement, and a gate run. Only the
-  last is reproducible from this repo; read the archived bullet before treating any of the other three
-  as re-derivable.
-- **✅ ADR 0136 — deferred `staff_admin` sign-off: COMPLETE, PO-APPROVED, LIVE and PUSHED 2026-08-24.** Ledger row **0136**; § Now narrative rotated verbatim → [2026-Q3.md](docs/progress/2026-Q3.md). ⛔ **Re-measure § State, never quote it** — three migrations, and the flag measured **ON in the remote catalog**, which is the fact that makes the feature live.
-- **✅ Gate-tooling + follow-up round — CONCLUDED 2026-08-24/25; § Now narrative rotated verbatim** → [2026-Q3.md](docs/progress/2026-Q3.md). ⚠ Two cautions from it stay live and travelled with it: `ARM=floor` (and any "absent from the catalog" claim) needs a **fresh `supabase db reset`** — 110 never-called doors on a stale DB vs **72** fresh; and nvm still defaults to Node 20, where `npm run lint` dies at gate 8.
-- **✅ 22-v3 REG·KIND — CLOSED 2026-08-25, all five gate steps; row → [phase-ledger.md](docs/progress/phase-ledger.md), § Now narrative rotated verbatim** → [2026-Q3.md](docs/progress/2026-Q3.md). ⭐ Its lesson is a SHAPE, not a phase fact: a row states its own gates, so evidence discharging one *elsewhere and later* never reaches it — this row under-reported itself for **13 days** and no gate can catch that direction.
-- **⚠ NO PHASE IS ACTIVE.** **ADR 0136** is the most recent program, and it is complete — *not* 0137,
-  which this line named until 2026-08-24 because 0137's bullet outlived it in § Now while its four
-  items closed. **A bullet's POSITION is not its recency**; both are complete.
-  Everything else that stood here is done — the DM program, DSR + its operational remediation, the
-  Cloud orphan probe, the `Imprimir prévia` split, AFF2 and the case-surface split. Every one of those
-  bullets is rotated **verbatim** → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md),
-  and in each cut the **open residue stayed here**, verified by name against § Follow-ups / § Bug Log.
-  ⛔ **Two things there must not be read as closure, and they have no other live line:** `e2e:prod` was
-  **never re-run** for the DSR final increment (last full run was the S3 gate), and the ethics lane is
-  *non-erasable by decision with two known open removal paths* — a worse state than "no path exists".
+- **✅ ADR 0137 batch — CONCLUDED 2026-08-24, § Now bullet rotated verbatim** → [2026-Q3.md](docs/progress/2026-Q3.md); ledger row **0137** · detail [adr-0137-batch.md](docs/progress/adr-0137-batch.md) · ADR [0137](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) **Amdt 1–4**. ⛔ **Its four items closed by four DIFFERENT kinds of evidence, and the kind is the point** — a human observation (Coolify; no gate can read it), a PO ruling, a measurement, and a gate run. Only the last is reproducible from this repo; read the archived bullet before treating the other three as re-derivable.
+- **✅ CONCLUDED 2026-08-24/25, all § Now narratives rotated verbatim** → [2026-Q3.md](docs/progress/2026-Q3.md): **ADR 0136** deferred sign-off (ledger row 0136; LIVE + PUSHED), the **gate-tooling + follow-up round**, and **22-v3 REG·KIND** (row → [phase-ledger.md](docs/progress/phase-ledger.md)). ⚠ **Four things outlived them and are LIVE, not history:** ⛔ re-measure § State, never quote it; `ARM=floor` (and any "absent from the catalog" claim) needs a **fresh `supabase db reset`** — 110 never-called doors stale vs **72** fresh; nvm still defaults to Node 20, where `npm run lint` dies at gate 8; and ⭐ a row states its own gates, so evidence discharging one *elsewhere and later* never reaches it — 22-v3 under-reported itself for **13 days** and no gate can catch that direction.
+- **✅ User-profile redesign + AFF3 / AUD1 / AUD2 — COMPLETE, PO-APPROVED 2026-08-25.** Full record → [user-profile-redesign.md](docs/progress/user-profile-redesign.md); ADRs 0144 · [0145](docs/decisions/0145-ever-held-affiliation-read-visibility.md) · [0146](docs/decisions/0146-org-admin-reads-hospital-tier-audit.md) · [0147](docs/decisions/0147-audit-org-derived-from-hospital.md); QA **APPROVED r2**. ⛔ **GATE STEP 2 IS DEFERRED, NOT DISCHARGED — PO-ruled 2026-08-25: the full `e2e:prod` runs on a DIFFERENT MACHINE.** The 7 affected specs are GREEN (54/54) at HEAD; the full suite is RED at 18 (macOS `<select>` keyboard ×5 + `open_document_version` 500 ×6, both proven NOT from this branch, + 19 never run). **Until that run exists this batch has no full-suite evidence** — do not read step 1's green as covering it.
+- **⚠ NO PHASE IS ACTIVE.** The **user-profile redesign + AFF3/AUD1/AUD2** batch above is the most recent program and is complete; ADR 0136 before it. ⚠ **A bullet's POSITION is not its recency.** Everything else that stood here is done and rotated **verbatim** → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md), open residue kept here by name. ⛔ **Two things there must NOT be read as closure and have no other live line:** `e2e:prod` was **never re-run** for the DSR final increment (last full run was the S3 gate), and the ethics lane is *non-erasable by decision with two known open removal paths* — worse than "no path exists".
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
