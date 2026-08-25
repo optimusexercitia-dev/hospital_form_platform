@@ -553,3 +553,39 @@ public.printed_document_currency(p_ids uuid[])
 #   produced by a clean sweep, so this is measured-ERROR vs asserted-COVERED — not
 #   a regression introduced by the ADR 0125/0126 build.
 public.open_printed_document(p_id uuid)
+
+# ── PDF·P3 (ADR 0144 D4/D15), added 2026-08-25 ─────────────────────────────────
+# app.case_is_terminal(p_case_id uuid) is filed as `helper:` — which per the note
+# above is the STRONG claim ("not an authorization decision"). The justification is
+# structural rather than a judgement call, and each part was measured:
+#
+#   * IT TAKES NO SUBJECT. An authorization decision is a function of
+#     (subject, object). This signature carries only an object: no uid parameter,
+#     no auth.uid() in the body. There is nobody for it to decide about.
+#   * Its ONLY consumer is app.bump_case_print_revision, which gates WHEN a
+#     monotonic counter moves — never who may read, write or reach anything.
+#   * ZERO RLS policies reference it (pg_policies swept, not assumed).
+#
+# It answers a LIFECYCLE question — "is this case in a terminal status" — and is
+# named for the fact it tests rather than for its use, deliberately; see the
+# COMMENT ON FUNCTION in 20261003002200.
+#
+# ⛔ It IS entangled with correctness, just not with authorization: its status set
+# must equal app.print_source_registers' case arm, or content drift on a newly
+# registering status goes unbumped and /verificar starts claiming currency for a
+# dossier whose rendered text has changed. That correspondence is pinned by
+# SET-EQUALITY in pgTAP 368 t14 — the two are declared separately because ADR 0125
+# D8 forbids factoring the print axes into a shared helper, so nothing but that
+# assertion holds them together.
+#
+# ⚠ Surfaced by ARM=census the day it landed, which is the arm working as designed:
+# a brand-new gate is in no BLIND set and passes ARM 1 vacuously.
+#
+# ⛔ FORMAT NOTE, because the harness's own hint is misleading here: ARM 3's failure
+# message says to classify "under 'helper:' WITH the reason", but `allow_body()` reads
+# each non-comment line VERBATIM as a gate signature — so a literal `helper: ` prefix
+# makes the line match no function and the gate reappears as a GHOST ("no function of
+# that NAME anywhere in app/public"), which reads like a dropped-or-renamed gate rather
+# than a classification. The `helper:` claim belongs in this comment; the line below is
+# the bare signature.
+app.case_is_terminal(p_case_id uuid)
