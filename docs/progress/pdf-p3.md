@@ -43,9 +43,14 @@ currently does.
 
 ## Test surface added
 
-- `supabase/tests/368_printed_documents_cases.sql` — 48 assertions, **every absence-assertion
-  mutation-proven RED first**. Suites `344` / `313` / `229` / `356` updated; vector fixture to 34
-  vectors; 4 new case fingerprints.
+- `supabase/tests/368_printed_documents_cases.sql` — 48 assertions, of which **four absence
+  assertions were mutation-proven RED** (`can_read_full_case_content`, `open_printed_document`'s
+  gate, `log_document_previa`'s asymmetry, `can_read_case_patient`); **the remainder rest on paired
+  positive twins**, which is real rigor but a different claim. ⛔ **Corrected 2026-08-25 (R-4)** —
+  this line previously read *"every absence-assertion mutation-proven RED first"*, an overclaim:
+  a mutation audit's coverage is the set of mutations you RAN, never the suite you ran them IN.
+  Suites `344` / `313` / `229` / `356` updated; vector fixture to 34 vectors; 4 new case
+  fingerprints.
 - `src/lib/cases/pdf-payload.test.ts` — ⛔ **provider half only.** It mocks
   `@/lib/queries/cases` wholesale, so it cannot fail for a defect inside that module. The root
   cause is covered by `src/lib/queries/case-patients-door.test.ts`, which mocks the Supabase
@@ -63,3 +68,189 @@ currently does.
 `pdftotext` output of a **watermarked** page is not a valid matcher — the `RASCUNHO` watermark
 perturbs glyph spacing, so `54 anos` renders as `Idade:54anos`. A `'54 anos'` needle returned
 1 identified / 0 de-identified, which reads exactly like the de-identification floor being broken.
+
+---
+
+## QA meta-review — 2026-08-25 (second-opinion pass, PO-requested)
+
+**Method.** Independent critical review of the full P3 record — ADR 0144 + Amendments 1–4, both
+plans, [phase-p3-review.md](../reviews/phase-p3-review.md) (pass 1), the
+[handoff](./pdf-p3-handoff.md) — plus a fresh read of the implementation by three Explore agents
+(classifier + D15 substrate · test surface · mint UI + sanitize). **Static only: no DB was
+touched**, so every catalog-bound statement below inherits the handoff §6 item 1 reconciliation
+as its precondition, unchanged and still first among DB-bound items.
+
+**Verdict in one paragraph.** Keep the build; delete nothing. The code is genuinely good — QA
+pass 1's positive findings were independently reconfirmed at every point sampled, and the pieces
+this review went looking to indict (the 12-function D15 trigger set, the seven-axis predicate,
+the side table) each survived scrutiny with their design justified in place. The blockers are
+real but **small**: C-3 closes in tens of lines, C-2 in ~5 plus two comment corrections, and
+C-1 — the only live exposure — is best fixed by **deleting** the defective classifier rather
+than widening it (R-1). The phase's real inefficiency is process-side, not code-side: an ADR
+whose decisions were approved before being checked for buildability, and a ~153 KB six-document
+record whose copies have already started disagreeing with each other (R-5, R-8b).
+
+### R-1 ⭐ C-1's root cause is the classifier's *design*; recommend `containsPhi := !caseDisposed`
+
+The `hasMaskedFreeText` disjunction (`src/lib/cases/pdf-payload.ts:435-441`) is a hand-list that
+must agree with two other lists — the fields the template renders, and the fields
+`dispose_case_phi` redacts — **by discipline alone**. Widening it (the current pending-item 2
+shape) fixes the instance and preserves the mechanism; this repo's own record says what happens
+next to three lists kept in agreement by care.
+
+Measured instead: `case.ts:546-548` renders `body.title` (= `cases.label`) **unconditionally in
+the `<h1>`**, and the disposal door redacts that field — so by D6's own presence rule, *every
+non-disposed dossier contains masked-class free text*. The derivation is computing a constant,
+expensively and wrongly. The structural fix is `containsPhi := !caseDisposed` for the case kind:
+
+- **Nothing pins `false`.** No pgTAP or E2E assertion anywhere pins `contains_phi = false` /
+  standard tier / no band for a **case** document (the `false` pins in `312`/`342` are
+  `form_response`); `368` t29/t37 already assert `true` for both variants.
+- **One break, and it is honest:** the `CASE_DISPOSED` fixture (`fingerprint.test.ts:702`,
+  `containsPhi: false`) and its committed `disposed` fingerprint. Under `!caseDisposed` the
+  disposed prévia **keeps `false` truthfully** — post-redaction the band would be a false
+  statement — so the fixture stands and only the rule's location changes.
+- **Downstream is all kind-agnostic** (bucket choice, band, badge, mint param): always-`phi` for
+  live case dossiers is the correct side effect, and D6's accepted consequence ("nearly every
+  case mint lands `contains_phi = true`") becomes "every", a delta already accepted in spirit.
+  The M-1 residual edge (an all-NULL-fields identified mint at standard tier) also disappears.
+- The change is **contained**: `hasMaskedFreeText`/`renderedPatientField` are local consts with
+  zero other consumers; `renderedPatientField` stays only if the variant logic still wants it —
+  the *classifier* role goes away.
+
+⚠ This amends **D6** (derive-from-presence → constitutive-except-disposed) and needs a **PO
+ruling** — it is Amendment-5-shaped, not a unilateral fix. ⛔ If the PO prefers the widened
+hand-list instead, the widening must cover **all nine** uncounted rendered fields, not the three
+C-1 names: also `case_narratives.title`, `case_interviews.title`, `case_referral.question`,
+`action_items.title`, `case_correction_requests.justification`, participant names — plus a
+keystone coupling the list to the template, the same coupling D15's trigger set already carries.
+
+### R-2 C-2's fix shape verified — with two additions QA pass 1 did not have
+
+The derived-schema fix is right and the module structure supports it: a
+`PDF_MARKDOWN_SANITIZE_SCHEMA` beside the shared one, `tagNames` filtered of `img`, consumed
+only by `src/lib/pdf/markdown.ts` — one authority, one documented narrowing. Additions:
+
+- **A second stale "fetches nothing" claim** lives at `docs/deployment/pdf-renderer.md:10-11`,
+  not only `gotenberg.ts:1-6`. Both must be corrected in the fix commit.
+- **`srcSet` is never protocol-filtered upstream** (`hast-util-sanitize` gates only
+  `cite`/`href`/`longDesc`/`src`), so `<picture>/<source>` is a dormant sibling vector — inert
+  today only because neither pipeline enables raw HTML. `<img>` is the live one because
+  `![](url)` is first-class Markdown. Worth one docblock line beside the fix so `rehype-raw`
+  never gets added without tripping over it.
+- **No network-layer backstop exists anywhere**: the dev recipe is a bare `docker run` with no
+  egress restriction, and the Coolify docs constrain inbound only. The schema fix is currently
+  the *only* mitigation. Recommend (off the critical path, with the egress measurement pending
+  in QA item 7): run Gotenberg with outbound egress denied as defence in depth.
+
+### R-3 C-3 is much cheaper to close than the record's gravity suggests — plus a fourth unpinned claim
+
+- **Recused-member download (C-3b): ~5 lines.** §8 of `368` already has the exact
+  `claims_for` + `open_printed_document` count pattern for two other personas, and every
+  storage object is pre-inserted; adding the `st_x` block after t38 needs zero new fixtures.
+- **Phase-only respondent (C-3a): ~10–15 precedented lines**, copy-adjacent to
+  `230_authz_m3_assignment_phi.sql:50-56`. ⚠ Confirmed: `st_x2` is seeded as a bare `staff`
+  member with **no case reach at all** (`00_setup.sql:187`) — the persona must be constructed,
+  exactly as pass 1 cautioned.
+- **Identified-prévia read row (C-3c): one E2E assertion**, reusing the spec's existing
+  `auditRowsFor` helper. ⛔ **Trap for whoever writes it:** the emitter logs `entity_type =
+  'case_patient'` (entity id = the case id), **not** `'case'` — an assertion filtered on
+  `'case'` returns zero rows and passes-by-absence in the wrong direction, or reds for the
+  wrong reason. Positive-control it against a known-emitting call first.
+- **NEW, same family:** ADR 0144 **Amendment 2 pt 1** — *a de-identified print by a PHI-capable
+  minter emits `case_patient.read`* — is also pinned **nowhere** (pgTAP structurally cannot;
+  no E2E corridor asserts it). Confirmed reachable: `resolvePatients` calls the audited door
+  unconditionally before branching on `includePhi`. Close it in the same E2E edit as C-3c —
+  one more `auditRowsFor` call in an existing corridor.
+- **M-3:** make t39/t40 causal with a **count delta across the mint** (or retitle honestly);
+  a bare `exists` can never separate t18's row from the mint's.
+
+### R-4 ⛔ Correction to this file's own "Test surface" section — ✅ **APPLIED in place 2026-08-25**
+
+The section above states `368` has *"every absence-assertion mutation-proven RED first."*
+**That is an overclaim.** `368` carries **zero** recorded neutralize→RED trail (grep for any
+mutation-provenance marker returns nothing; its rigor rests on structural positive/negative
+pairing, which is real but different), and the handoff's own §5.4 records `backend`'s
+correction: **four** mutations were run, covering four named gates — t40 among the assertions
+never mutated. The claim above must be read as corrected to: *"four absence assertions
+mutation-proven RED; the remainder rest on paired positive twins."* This is the repo's
+mutation-audit-coverage lesson recurring **inside the phase's own record**, in the file a
+resuming session reads early.
+
+### R-5 The record has begun disagreeing with itself — treat the handoff as the single authority
+
+Two live contradictions found without looking for them: pass 1 §10's verdict precondition
+(superseded by the PO ruling, stale sentence still standing, flagged only in the handoff) and
+R-4 above. ~153 KB across six documents restating each other is past the point where the copies
+stay consistent; this repo's doctrine ("the restated check is the copy that drifts") applies to
+its own phase records. Recommendation for the resuming session: **handoff §6 is the only
+pending-work list**; when any other P3 document disagrees with it, fix the other document in
+the same edit rather than reconciling mentally.
+
+### R-6 Mint affordance residue (`FUP-P3-MINT-AFFORDANCE…`) — the fix has a natural home
+
+Confirmed: `phiCapable` on the card is the **static provider flag**, so every viewer passing
+the de-identified door sees the PHI checkbox and is refused only on submit — after
+`buildCasePayload` has already run its full ~9-query build (the refusal throws in
+`resolvePatients`, *after* the `Promise.all`). Two costs, one fix: add a `patientReadable`
+bit to `CasePrintContext` (DEFINER-sourced, same never-coalesced discipline the type already
+applies to `caseDisposed`), and compute the checkbox from `phiCapable && patientReadable`.
+The doors remain the backstop; the affordance stops over-promising; the wasted build goes
+away. Not blocking — but it is a small backend surface change, and if any migration is being
+written for this phase anyway it is cheapest to land together.
+
+### R-7 Minor: `buildCasePayload` serializes four independent legs
+
+`resolvePatients`, the phases leg, the interviews leg, and the referrals/hashes legs are
+awaited sequentially though none consumes another's result — one outer `Promise.all` removes
+the added latency. Measured worst case is 1.27 s against a 30 s budget, so this is a note,
+not a work item; do it opportunistically when the file is next open (R-1 opens it).
+
+### R-8 Process findings — where the loop actually came from
+
+- **(a) The four amendments are one finding, and it is about sequencing.** Each records a
+  decision that failed on a *catalog-measurable* fact (D4: `guard_case_status` freezes the
+  exact writes D15 needs; D7: no variant carrier, the one-active index already keyed
+  `template_key`; D5: age/sex/unit live on the Class-1 table; D13: render-provable). The ADR's
+  catalog-verification pass checked **named claims**, not **decision buildability** — a
+  different question. Recommendation, generalizable: for schema-coupled ADRs the substrate
+  brief is written and measured **before** acceptance, and each Decision that names a column,
+  carrier, or write path gets a one-line "verified buildable: <evidence>" stamp or an explicit
+  "unverified — expect amendment" marker. The phase's controls caught everything eventually;
+  the cost was the amendment-and-rework loop this review was asked about.
+- **(b)** Documentation drift — R-5.
+- **(c) The gate-2 Windows collapse is a platform tax P3 keeps paying.** The re-run is already
+  owed after the fixes; before it, spend the small fixes the handoff already scoped —
+  `free_port()` matching only `LISTENING` rows, and durable `GATE_EXIT`
+  (`FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH`) — so the ~1-in-3 collapse odds stop
+  costing a full re-run per incident and the next collapse finally leaves evidence.
+
+### What was considered for deletion — and why nothing qualifies
+
+- **D15 trigger set (12 functions):** examined for over-engineering; found well-bounded. Ten
+  tables already share one parameterized generic; the bespoke ones differ by real join
+  topology (`answers` statement-level transition tables, two join-resolved child tables, the
+  `printed_rendition` exclusion, five vocabulary fan-outs) — Postgres `WHEN` clauses cannot
+  express any of them. The template↔trigger coupling comment is present in both directions.
+- **Seven-axis predicate, side table, `template_key` carrier:** each is the measured answer to
+  a hard constraint (live SELECT policies; the terminal freeze; the existing one-active
+  index). Reverting any of them re-derives the same conclusion the long way.
+- The only deletion recommended is the `hasMaskedFreeText` disjunction (R-1) — a deletion that
+  is the fix.
+
+### Path to success — delta against handoff §6 (which otherwise stands)
+
+0. **Commit `tester`'s specs first** (re-measured this review: `e2e/pdf-printing-cases.spec.ts`
+   still untracked, three specs still modified). Zero-risk, and gate-2 evidence should not
+   remain one `git clean` from nonexistence for another session. *(Precedes even the
+   reconciliation — it needs no DB.)*
+1. **Catalog reconciliation** — unchanged, first among DB-bound items; C-1's premise rides
+   along free, as already scheduled.
+2. **PO ruling on R-1**, then fix C-1 accordingly (constitutive rule + the one fingerprint
+   fixture, or the nine-field widening + coupling keystone). Fold R-7 in while the file is open.
+3. **C-2** — derived print schema, both stale comments corrected, `srcSet` dormancy noted;
+   egress measurement + denial off the critical path.
+4. **C-3 all four cells** (incl. the Amendment 2 pt 1 assertion, R-3) + **M-3** causal +
+   **M-2** retitle. Amend D9's false pinning sentence whichever way the cells land.
+5. **QA pass 2 → verdict**, then gate-2 re-run (after R-8c's two small gate fixes), PO
+   approval, Record, push — unchanged from the handoff.
