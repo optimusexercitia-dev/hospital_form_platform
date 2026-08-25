@@ -72,16 +72,27 @@ export const TEMPLATE_FINGERPRINTS: Record<
   //
   // The rule at the top of this file — "output changed + version unchanged →
   // RED, bump it" — exists so a template cannot change under a version that
-  // already DESCRIBES SHIPPED ARTIFACTS. Measured on the live registry at the
-  // time of the change: `printed_documents` holds **zero** rows of any kind, and
-  // `template_key` has never recorded a single value. So case template v1
-  // describes nothing that exists anywhere, and bumping to v2 would assert a v1
+  // already DESCRIBES SHIPPED ARTIFACTS. **No `case` or `case_identified`
+  // dossier can have been minted anywhere**, and that is true BY CONSTRUCTION
+  // rather than by measurement: the provider did not exist until this phase, and
+  // `mint_printed_document` refused the kind outright (its PHI-capability and
+  // template-coherence sites both rejected it). So case template v1 describes
+  // nothing that exists in any environment, and bumping to v2 would assert a v1
   // generation of case dossiers that was never minted — a false statement in
   // registry metadata, which is the exact class of harm the version exists to
   // prevent.
   //
-  // ⛔ THIS REASONING EXPIRES AT THE FIRST MINT. Once one case document exists,
-  // any further change to this template REQUIRES the bump, no judgement call.
+  // ⚠ **The argument deliberately does NOT rest on "the registry is empty".**
+  // That was the first form of it, and it was measured on a locally reset
+  // database — where an empty `printed_documents` is trivially true of every
+  // reset and says nothing about what has been minted elsewhere. The
+  // by-construction claim above needs no database to check; the broad claim
+  // (nothing of ANY kind ever minted) is NOT established and would need the
+  // linked remote.
+  //
+  // ⛔ THIS REASONING EXPIRES AT THE FIRST `case` MINT. Once one case document
+  // exists, any further change to this template REQUIRES the bump — no
+  // judgement call, and no re-running of the argument above.
   // ─────────────────────────────────────────────────────────────────────────
   case: {
     version: 1,
