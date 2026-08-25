@@ -5682,3 +5682,83 @@ tenancy. â›” **Do not "fix" this by widening the gate to make a test pass.*
 nothing else (0129 Decision 1) and whose subject is the child lock. Filed rather than carried, so it is
 not lost inside a build that does not own it â€” the same reason this door's sibling item was filed in the
 first place.
+
+## ↩ Rotated from PROGRESS.md 2026-08-24 — the FUP-0137-PHI-MODE-SHIMS body, VERBATIM
+
+_Moved when the ADR 0137 § Now bullet rotated to [2026-Q3.md](2026-Q3.md): that bullet's item 2 was the only live register indexing this body, so rotating it left the body orphaned — `lint:progress` caught it as residue in the same edit, which is the check existing._
+
+⚠ **Byte-faithful, including a pre-existing mojibake in the heading.** The `⬛` in the `##` line is stored double-encoded (`c3 a2 c2 ac e2 80 ba`) and was already that way in git before this move — `cmp` against `HEAD` confirms the rotation introduced nothing. Left as-is: a verbatim rotation does not get to silently repair its subject, and fixing it here would make the archive and the history disagree.
+
+## â¬› FUP-0137-PHI-MODE-SHIMS â€” âœ… **RESOLVED 2026-08-24. All four shims are gone; the last one needed the code deploy first, which is why it outlived the other three.**
+
+> **Closure.** Migration `20261003001800` removes the derived `patient_enabled` key from
+> `get_case_detail`, re-emitted from `pg_get_functiondef` (never migration text â€” this body has now
+> been re-emitted three times) with an anchor-uniqueness assert **and** a post-patch catalog assert,
+> so a drifted body fails loudly rather than patching nothing and leaving a green suite behind.
+> `CaseDetailJson.patient_enabled` is deleted with it.
+>
+> **Keystone: pgTAP `366`, 10 tests, RED-PROVEN.** Two levels â€” the catalog (`prosrc`, counted not
+> `like`-tested, because `case_patient_enabled` contains the substring) and the ENVELOPE the product
+> actually receives. The vacuity controls are the load-bearing half: `jsonb ? 'k'` is FALSE for an
+> empty envelope, a NULL-returning door and a refused call alike, so "the key is absent" would
+> otherwise pass for three reasons that are not the one being claimed. Re-adding the key moves the
+> body md5 and reds exactly 1.1 / 2.1 / 2.5 with `have: true`.
+>
+> âš  **The restore is part of the proof, and the first attempt FAILED it.** Hand-patching the probe
+> out left a stray newline â€” functionally identical, **not** byte-identical (`54b52828â€¦` vs the
+> `0f72da26â€¦` baseline). Rebuilding from the migration chain returned the exact baseline. A mutation
+> whose restore is verified by eye is not a verified restore.
+>
+> â›” **The deploy gate was discharged by the PO, not by a check.** No Coolify status is readable from
+> this repo (`coolify.md` carries placeholder domains only), so nothing here can assert the new build
+> is live. The PO's standing fact â€” the pilot has no real users â€” bounds the harm window to zero,
+> which is what made it safe; that is a **ruling**, and if it is ever cited again it must be re-asked,
+> not re-read.
+>
+> â›” **THE ITEM'S OWN VERIFICATION PROPERTY WAS WRONG, AND KEEPING IT IS THE LESSON.** It prescribed
+> *"`grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return
+> **zero**"*. It cannot, and never could: `create_case(p_patient_enabled boolean)` is a **live RPC
+> parameter** for the processless-case path, with a matching form field and React state. A property
+> written to bound a shim also matched code that was never a shim â€” so a reader obeying it would
+> either "fix" working code or declare the item unclosable. The residue is filed as its own item:
+> [[FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI]].
+
+<details><summary>Original item, as filed 2026-08-23</summary>
+
+### ðŸŸ¡ FUP-0137-PHI-MODE-SHIMS â€” the derived `patientEnabled` / `collectsPatient` / `setTemplateCollectsPatient` shims must retire once the builder UI adopts `patientMode` (owner: backend + frontend)
+
+> **Raised 2026-08-23, ADR 0137 Increment 0.** D1 replaced the boolean PHI switch with a three-mode
+> setting (`none` / `optional` / `required`). The database half is complete: `collects_patient` and
+> `patient_enabled` are **dropped**, and `patient_mode` + `patient_required_fields` are the only stored
+> truth.
+>
+> The **TypeScript half is deliberately unfinished**, and that is what this item tracks. To let the
+> schema land ahead of the UI (the batch's required deploy order â€” schema first, then code) three
+> compatibility shims were kept, all marked `@deprecated`:
+>
+> - `CaseDetail.patientEnabled` â€” now **derived** (`patientMode !== 'none'`), not a column.
+> - `ProcessTemplateVersion.collectsPatient` â€” same derivation.
+> - `setTemplateCollectsPatient(versionId, collects)` â€” signature unchanged, now delegating to
+>   `setTemplatePatientMode(versionId, collects ? 'optional' : 'none', [])`.
+> - `get_case_detail` also still emits a derived `patient_enabled` JSON key.
+>
+> â›” **The reason this needs an index line rather than a code comment: a boolean shim over a
+> three-valued setting is LOSSY IN ONE DIRECTION ONLY, and the lossy direction is the new one.**
+> `collectsPatient` cannot express `required`. Every existing caller keeps working â€” which is exactly
+> why nothing will ever fail, no gate will ever fire, and a builder screen wired to
+> `setTemplateCollectsPatient` will silently be unable to configure the one mode ADR 0137 was written
+> to introduce. The compliance feature would be shipped, reachable only through an RPC no UI calls.
+>
+> **Resolution event:** the process-template builder gains a mode picker (D1/D2 â€” three modes plus the
+> required-field set, with `mrn` rendered selected and non-interactive). At that point delete all four
+> shims and the `@deprecated` markers with them.
+>
+> âš  **Do NOT retire them before that.** They are what makes old-code/new-schema safe, and Coolify
+> auto-deploys on push.
+>
+> **Verify by property, not by memory:**
+> `grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return **zero**
+> hits when this closes, and `public.get_case_detail` should no longer emit the derived key
+> (`pg_get_functiondef`, not the migration file â€” it has been re-emitted twice already).
+
+</details>

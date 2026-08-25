@@ -344,3 +344,13 @@ Record step, which is the rotation that should have moved them: 0137 is the curr
 
 | **AFF2** (ADR 0133 + Amdt 1–4) | ✅ **APPROVED (r2)** — both r1 blockers discharged at `02cc5817` (R1 fixed + future-expiry control · R2 ruled, Amdt 4 r2). 2 carried records: "strictly stricter" is false (the fix WIDENS both subset capabilities; no arm) + the seed warrant is mis-cited. r1 CHANGES REQUESTED | 2026-08-23 | [aff2-review.md](../reviews/aff2-review.md) |
 | ~~AFF2 (r1)~~ | ~~CHANGES REQUESTED~~ — 2 blocking, both found outside the given remit; every remit item passed | 2026-08-23 | [aff2-review](../reviews/aff2-review.md) |
+
+## ↩ Rotated from PROGRESS.md 2026-08-24 — the ADR 0137 row, at the point the batch fully concluded
+
+_Verbatim apart from the link repoint. The batch was PO-approved on 2026-08-24 and its § Now bullet rotated to [2026-Q3.md](2026-Q3.md) the same day, once the last of its four items (a full `e2e:prod` covering HEAD) closed **GATE GREEN at `77b0a467`**. Retention in § QA Verdicts is the current milestone only, and 0137 is no longer it._
+
+⚠ **The r1 finding is the part worth carrying forward, not the r2 verdict.** r1 was `CHANGES REQUESTED` on one measured fact: **`patient_mode='required'` was admitted by the CHECK and written by NOTHING** — pgTAP reached it only as `postgres`, by direct INSERT; no UI could set it and no E2E ever drove it. The ADR's load-bearing case-side MRN half was **dormant** while § Now recorded "all 4 increments BUILT". That is the shape a green suite cannot catch: a mode that is *admissible* but *unreachable*.
+
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- | --- |
+| **ADR 0137 batch** | ✅ **APPROVED (r2)** — 4 r1 items discharged; `required` is product-reachable + E2E-driven. 4 pre-commit conditions in §7. r1 CHANGES REQUESTED | 2026-08-24 | [r2](../reviews/adr-0137-batch-review-r2.md) |

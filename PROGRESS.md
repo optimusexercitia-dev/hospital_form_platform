@@ -16,45 +16,18 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **✅ ADR 0137 batch — COMPLETE, PO-APPROVED, PUSHED 2026-08-24** (schema first, then code; both
-  halves re-measured on the remote catalog, never accepted on the command's own report). Compacted
-  in § Now 2026-08-24 — the completed-run detail (per-increment commits + file inventories, gate
-  figures, the QA rounds, the deploy-window measurement) is in the **ledger row 0137** +
-  [adr-0137-batch.md](docs/progress/adr-0137-batch.md) · reviews
-  [r1](docs/reviews/adr-0137-batch-review.md) → [r2](docs/reviews/adr-0137-batch-review-r2.md)
-  (`APPROVED`) · ADR [0137](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md)
-  **Amdt 1–3**. ⛔ Re-measure remote figures from § State; do not re-derive Amdt 2 here.
-  ⛔ **What is still LIVE: item 4 alone.** Items 1–3 are closed, kept here for the record until this
-  bullet rotates.
-  1. ✅ **The Coolify deploy SUCCEEDED — confirmed by the PO in the Coolify UI, 2026-08-24.** ⛔ This
-     is a **human observation, not a gate**: nothing in this repo can read Coolify status, so the line
-     is testimony and cannot be re-derived from anything here. It closes the deploy window that the
-     *"no active users"* ruling in item 2 only **bounded** — the build is now known good, not merely
-     unattended.
-  2. ✅ **`FUP-0137-PHI-MODE-SHIMS` is CLOSED 2026-08-24** — migration `20261003001800` drops
-     `get_case_detail`'s derived `patient_enabled` key; keystone pgTAP **`366`** (10 tests,
-     RED-PROVEN, restore verified byte-identical). ⛔ **The deploy gate was discharged by PO RULING,
-     not by a check** — nothing in this repo can read Coolify status, and the ruling was *"no active
-     users"*, which bounds the window rather than confirming the build. ⛔ **This migration is
-     PUSHED 2026-08-24 and verified in the remote catalog** (§ State). ⚠ The gap it surfaced — the MRN floor never reached the
-     processless door — was **PO-ruled EXPECTED the same day and closed**, scoping D1–D3 to cases
-     minted from a template version: **ADR 0137 Amendment 4**. ⛔ Closed by RULING, not by a code
-     change, so re-measuring `create_case` still reproduces the mechanism; read Amdt 4 before
-     re-filing it.
-  3. **Both halves are PUSHED — code, then schema — and both were re-measured, not accepted on
-     report.** ⛔ **Do not read a push count out of this line**: measure it with
-     `git rev-list --count origin/main..main` ([rule](.claude/rules/live-facts-measure-dont-quote.md)),
-     because the Record commit that writes such a figure is itself uncounted by it.
-  4. **No full `e2e:prod` gate covers the current HEAD.** The last full run was **GREEN, exit 0
-     (1221 p / 0 f)** at `1320d0b0`; everything after it — `78ac44cf`, `5c8f3542`, and this
-     increment — is covered only by **scoped** runs plus the full pgTAP + unit suites. §6 step 2 is
-     satisfied for the batch as gated, **not** for what now sits on `main`.
-     ⚠ This increment's scoped run: **61 p / 0 f / 0 infra / 0 flaky / 0 did-not-run**, 3 batches,
-     accounted 61 of 62 collected (the 62nd is a by-design skip, reconciled per batch: 18+25+18).
-     ⛔ A first attempt was **exit 5 UNRUN** — `server_dead` left 27 tests never executed, plus a
-     spec name that does not exist. Neither is a pass and neither is a regression signal.
+- **✅ ADR 0137 batch — CONCLUDED 2026-08-24; § Now bullet rotated verbatim** →
+  [2026-Q3.md](docs/progress/2026-Q3.md) § "Rotated 2026-08-24 — the ADR 0137 batch § Now bullet, all
+  four items concluded". Ledger row **0137** · detail [adr-0137-batch.md](docs/progress/adr-0137-batch.md)
+  · ADR [0137](docs/decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) **Amdt 1–4**.
+  ⛔ **All four items closed by four DIFFERENT kinds of evidence, and the kind is the point:** a human
+  observation (Coolify — no gate can read it), a PO ruling, a measurement, and a gate run. Only the
+  last is reproducible from this repo; read the archived bullet before treating any of the other three
+  as re-derivable.
 - **✅ ADR 0136 — deferred `staff_admin` sign-off: COMPLETE, PO-APPROVED, and LIVE 2026-08-24.** Ledger row **0136**; the § Now narrative rotated verbatim → [2026-Q3.md](docs/progress/2026-Q3.md). ✅ **PUSHED** — this line said NOT PUSHED until the `db push` landed; § State carries the measurement (three migrations, and the flag measured **ON in the remote catalog**, which is the fact that makes the feature live). ⛔ **Re-measure, never quote either row.**
-- **⚠ NO PHASE IS ACTIVE.** The ADR 0137 batch above is the most recent program, and it is complete.
+- **⚠ NO PHASE IS ACTIVE.** **ADR 0136** is the most recent program, and it is complete — *not* 0137,
+  which this line named until 2026-08-24 because 0137's bullet outlived it in § Now while its four
+  items closed. **A bullet's POSITION is not its recency**; both are complete.
   Everything else that stood here is done — the DM program, DSR + its operational remediation, the
   Cloud orphan probe, the `Imprimir prévia` split, AFF2 and the case-surface split. Every one of those
   bullets is rotated **verbatim** → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md),
@@ -192,7 +165,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-24 | ⭐⭐ **ADR 0136 — FULL GATE, stack measured QUIET first** · figures + limits: ADR [0136 § Amdt 1](docs/decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md) | lint 9/9 · `tsc` 0 · Vitest **125f/1714** · `test:db` **7228/7228** (218f) · 4 authz ARMs **exit 0 UNPIPED** + sweep | ⛔ **`e2e:prod` FULL = exit 5 RED-UNRUN**: 1160p / 0 failed / 35 infra / 33 **never ran** (`server_dead`, b5+b13); targeted re-run of those 10 specs GREEN 96p/0f. **Green by COMPOSITION, not one run** |
+| 2026-08-24 | ⭐⭐ **FULL `e2e:prod` at `77b0a467`** — clean tree at HEAD; stack VERIFIED quiet first. Closes § Now item 4 + discharges ADR 0136 Amdt 1's remedy. Fresh reset · `test:db` **7232/7232** (218f, 0 `not ok`, no *planned-but-ran-0*) | ✅ **GATE GREEN, exit 0 unpiped** — **1227p · 0f · 0 infra · 3 flaky · 0 DNR · 21 batches** (+11 skips); every batch `accounted N/N`, sums = summary. ⭐ **Single-run**, not composed. ⛔ 0 infra is POST-RETRY (b2 `server_dead`). Detail + flaky names: § Now item 4 |
 
 ## QA Verdicts
 
@@ -206,8 +179,8 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
 | **ADR 0136 — deferred `staff_admin` sign-off** | ✅ **APPROVED** — D1–D7 all audited; MINOR-1 (a migration header contradicting its own code) fixed in the pass; INFO-1 recorded. ⛔ **SELF-REVIEW for `1069711c`** — the reviewing session wrote it; independent only for `d899ceb3` + `20261003002000` | 2026-08-24 | [review](docs/reviews/adr-0136-deferred-signoff-review.md) |
-| **ADR 0137 batch** | ✅ **APPROVED (r2)** — 4 r1 items discharged; `required` is product-reachable + E2E-driven. 4 pre-commit conditions in §7. r1 CHANGES REQUESTED | 2026-08-24 | [r2](docs/reviews/adr-0137-batch-review-r2.md) |
-| _The AFF2 pair (r2 + struck r1)_ — rotated 2026-08-24, 0137 being the current milestone | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
+| _The ADR 0137 row_ — rotated 2026-08-24 once the batch fully concluded, **0136** being the current milestone | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
+| _The AFF2 pair (r2 + struck r1)_ — rotated 2026-08-24, 0137 being the current milestone at the time | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | _The seven DM rows_ — rotated 2026-08-19, the DM milestone being closed | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | _Verbose form of the 5 rows then above, incl. both struck r1 rounds_ — rotated 2026-08-14 (§5: never restate rationale here) | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | 117 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
