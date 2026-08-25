@@ -432,11 +432,54 @@ server_log_path() {   # per batch AND per attempt, so an INFRA re-run cannot clo
 # STAGED, not that the tree is fresh relative to source.
 # `SERVER_IDENTITY=warn` downgrades even a definitive mismatch, should (2)/(3) ever misfire.
 SERVER_IDENTITY="${SERVER_IDENTITY:-strict}"       # strict | warn
-NONCE_PATH=".next/standalone/public/__gate-nonce.txt"
+# ⛔ THE NONCE MUST LIVE ON A PATH THE MIDDLEWARE DOES NOT GATE. The first version served it
+# from `public/` as `__gate-nonce.txt` and it hit the ADR-0007 auth gate: measured against a
+# real build, `GET /__gate-nonce.txt` returns **HTTP 307** with body
+# `/login?redirect=%2F__gate-nonce.txt`. That body is not a nonce, but it is not EMPTY either,
+# so the arm read it as "a different nonce" and hard-failed a perfectly good server.
+# `src/proxy.ts`'s matcher excludes `_next/static` BY NAME, so the nonce now rides with the
+# build output the gate already stages (`cp -r .next/static .next/standalone/.next/static`) —
+# which also makes it a better answer to "are these the bytes I staged". Measured on the same
+# real build: `GET /_next/static/__gate-nonce.txt` -> HTTP 200 with the exact nonce.
+# ⛔ Do NOT instead add this path to the middleware's public matcher: the middleware is the
+# security boundary and the harness adapts to the app, never the reverse. An excluded
+# *extension* (e.g. `.map`) also works, but that list exists for static-asset content types
+# and is a more fragile coupling than the `_next/static` name.
+NONCE_PATH=".next/standalone/.next/static/__gate-nonce.txt"
+NONCE_URL="/_next/static/__gate-nonce.txt"
+# A body only counts as a nonce if it is NONCE-SHAPED. Anything else — a redirect, an HTML
+# page, a 401/404, an empty body — means "I did not receive a nonce", which is INCONCLUSIVE
+# and must never be reported as a mismatch. Keep in step with `write_nonce`.
+NONCE_RE='^gate[0-9]+-b[0-9]+-a[0-9]+-[0-9]+ build='
 GATE_NONCE=""
 winpid_of() {   # MSYS pid -> Windows pid; empty when not resolvable. `ps -W` col 4 = WINPID
   [ "$IS_WIN" = "1" ] || return 0
   ps -W 2>/dev/null | awk -v p="$1" '$1==p {print $4; exit}'
+}
+# Is Windows pid $2 equal to, or a descendant of, Windows pid $1?
+#   0 = yes · 1 = no · 2 = COULD NOT DETERMINE
+# The third answer is the point. Without it, a listener owned by a CHILD of our server reads
+# as "owned by a stranger" — the same conflation as the nonce bug above, one arm along. Next
+# standalone is single-process today, so this should never decide anything; it exists so that
+# if it ever does, the arm says "cannot attribute" rather than hard-failing a live gate.
+pid_is_self_or_descendant() {
+  local root="$1" cand="$2" out
+  [ -n "$root" ] && [ -n "$cand" ] || return 2
+  [ "$cand" = "$root" ] && return 0
+  command -v powershell.exe >/dev/null 2>&1 || return 2
+  out="$(powershell.exe -NoProfile -NonInteractive -Command "
+    try {
+      \$m=@{}; Get-CimInstance Win32_Process | ForEach-Object { \$m[[int]\$_.ProcessId]=[int]\$_.ParentProcessId }
+      \$p=[int]$cand; \$r=[int]$root; \$n=0
+      \$ans='NO'
+      while (\$p -ne 0 -and \$n -lt 64) {
+        if (\$p -eq \$r) { \$ans='YES'; break }
+        if (-not \$m.ContainsKey(\$p)) { break }
+        \$p=\$m[\$p]; \$n++
+      }
+      Write-Output \$ans
+    } catch { Write-Output 'UNKNOWN' }" 2>/dev/null | tr -d '\r\n ')"
+  case "$out" in YES) return 0 ;; NO) return 1 ;; *) return 2 ;; esac
 }
 write_nonce() {
   GATE_NONCE="gate$$-b${BATCH_NO:-0}-a${attempt:-1}-$(date +%s)"
@@ -457,24 +500,50 @@ verify_server_identity() {
     lset="$(netstat -ano 2>/dev/null | awk -v port="$PORT" -f "$NETSTAT_PIDS_AWK" | tr '\n' ' ')"
     if [ -n "$wp" ] && [ -n "$lset" ]; then
       case " $lset " in
-        *" $wp "*) : ;;
-        *) echo "[$(LOG_TS)]   !! :$PORT is owned by pid(s) [${lset% }], NOT by the server this gate started (winpid $wp)"
-           verdict=1 ;;
+        *" $wp "*) : ;;   # we own the listener outright
+        *)
+          # Not our pid — but "not mine" and "cannot attribute" are DIFFERENT answers, and
+          # only the first may hard-fail. A listener owned by a descendant of ours is ours.
+          local lp attributed=0 unknown=0
+          for lp in $lset; do
+            pid_is_self_or_descendant "$wp" "$lp"
+            case $? in
+              0) attributed=1; break ;;
+              2) unknown=1 ;;
+            esac
+          done
+          if [ "$attributed" = "1" ]; then
+            echo "[$(LOG_TS)]   (identity) :$PORT is owned by a CHILD of the server this gate started — ours"
+          elif [ "$unknown" = "1" ]; then
+            echo "[$(LOG_TS)]   (identity) listener-ownership INCONCLUSIVE — :$PORT is owned by pid(s) [${lset% }] and this host could not resolve their ancestry against winpid $wp"
+          else
+            echo "[$(LOG_TS)]   !! :$PORT is owned by pid(s) [${lset% }], NOT by the server this gate started (winpid $wp) nor by any descendant of it"
+            verdict=1
+          fi ;;
       esac
     else
       echo "[$(LOG_TS)]   (identity) listener-ownership INCONCLUSIVE (winpid='${wp:-?}', listeners='${lset:-none}')"
     fi
   fi
   if [ -n "$GATE_NONCE" ]; then
-    nbody="$(curl -s -m 5 "http://localhost:$PORT/__gate-nonce.txt" 2>/dev/null | tr -d '\r')"
+    # ⚠ The status is captured alongside the body so an inconclusive result says WHY. The
+    # first version printed only the body, which is the sole reason the 307 was diagnosable.
+    local nraw ncode
+    nraw="$(curl -s -m 5 -w '\n%{http_code}' "http://localhost:$PORT$NONCE_URL" 2>/dev/null | tr -d '\r')"
+    ncode="$(printf '%s' "$nraw" | tail -1)"
+    nbody="$(printf '%s' "$nraw" | sed '$d')"
     ntok="${nbody%% *}"
-    if [ "$ntok" = "$GATE_NONCE" ]; then
+    if ! printf '%s' "$nbody" | grep -qE "$NONCE_RE"; then
+      # NOT NONCE-SHAPED => "I did not receive a nonce", which is a different fact from
+      # "I received one and it differs". Only the latter may conclude anything. A redirect to
+      # the auth gate landed here as HTTP 307 body `/login?redirect=…` and was briefly
+      # mis-read as a mismatch — the bug this branch exists to prevent.
+      echo "[$(LOG_TS)]   (identity) build-nonce INCONCLUSIVE — $NONCE_URL returned HTTP ${ncode:-?} and a body that is not nonce-shaped: '$(printf '%.60s' "${nbody:-<empty>}")'. A foreign server and a server that simply does not serve this path are indistinguishable here."
+    elif [ "$ntok" = "$GATE_NONCE" ]; then
       echo "[$(LOG_TS)]   (identity) serving the tree this run staged · ${nbody}"
-    elif [ -n "$ntok" ]; then
-      echo "[$(LOG_TS)]   !! :$PORT served a DIFFERENT nonce than the one staged for this batch (got '${ntok}')"
-      verdict=1
     else
-      echo "[$(LOG_TS)]   (identity) build-nonce INCONCLUSIVE — /__gate-nonce.txt returned nothing; a foreign server and a server that simply does not serve it look identical here"
+      echo "[$(LOG_TS)]   !! :$PORT served a nonce from a DIFFERENT staged tree (got '${ntok}', expected '${GATE_NONCE}')"
+      verdict=1
     fi
   fi
   [ "$verdict" = "0" ] && return 0

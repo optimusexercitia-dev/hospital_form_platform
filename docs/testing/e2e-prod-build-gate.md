@@ -174,7 +174,7 @@ that only ever passes is vacuous (`docs/progress/authz-handoff.md` §7.1).
 | 4 | `SPECS="e2e/home.spec.ts" RESET=0 REBUILD=0` | the gate still **runs tests** and reports GREEN |
 | 5 | `NETSTAT_AWK=<mutant> bash scripts/test-netstat-listener-pids.sh` | each mutant in the table below reds its own group; the unmutated parser is 17/17 |
 | 6 | `bash scripts/gate-harness/retention-keystone.sh` | 28/28; scenario 1b (fix reverted) must still print **"RED as required"** ×4 |
-| 7 | `bash scripts/gate-harness/false-green-keystone.sh` | 13/13. Per vector: real script **RED**, that fix reverted → **GREEN**, the *other* fix reverted → **still RED**. A vector that stays red with its own fix reverted is being closed by something else, and the differential is then meaningless |
+| 7 | `bash scripts/gate-harness/false-green-keystone.sh` | 18/18. Per vector: real script **RED**, that fix reverted → **GREEN**, the *other* fix reverted → **still RED**. A vector that stays red with its own fix reverted is being closed by something else, and the differential is then meaningless |
 
 3a/3b are unit tests against shell doubles, so they do not reset the local DB. Two real bugs were
 caught this way and neither would have shown up in review:
@@ -289,7 +289,7 @@ are **false-GREEN mechanisms**, so fixing them makes the gate *stricter*.
 ```bash
 bash scripts/test-netstat-listener-pids.sh              # ~1s   · the free_port selector
 bash scripts/gate-harness/retention-keystone.sh         # ~2min · server logs + gate-exit
-bash scripts/gate-harness/false-green-keystone.sh       # ~3min · vectors A and B
+bash scripts/gate-harness/false-green-keystone.sh       # ~5min · vectors A and B
 ```
 
 ⛔ None of them touches a real port (they use `PORT=39017`, which nothing binds), a Docker
@@ -390,20 +390,62 @@ Reproduced: `GATE GREEN`, `gate-exit=0`, server log `listen EADDRINUSE`.
 The wait loop now checks **liveness first**. On top of that, two further questions are asked
 — deliberately kept apart, because they are not the same question:
 
-| question | mechanism | on a definitive mismatch |
-|---|---|---|
-| is my process alive? | `kill -0`, first in the loop | **hard fail** |
-| is my process the one answering? | the listener on `$PORT` must be owned by my pid (`ps -W` col 4 → WINPID, matched against `netstat-listener-pids.awk`) | **hard fail** |
-| are these the bytes I staged? | a nonce written into the staged `public/` tree and fetched back over HTTP, carrying the `BUILD_ID` that answered | **hard fail** |
+| question | mechanism | definitive mismatch | cannot determine |
+|---|---|---|---|
+| is my process alive? | `kill -0`, first in the loop | hard fail | — |
+| is my process the one answering? | the listener on `$PORT` must be my WINPID (`ps -W` col 4) or a **descendant** of it | hard fail | inconclusive |
+| are these the bytes I staged? | a nonce under `.next/static`, fetched at `/_next/static/__gate-nonce.txt`, carrying the `BUILD_ID` that answered | hard fail | inconclusive |
 
-Where an arm **cannot reach a conclusion** it warns and proceeds — "this server does not
-serve the nonce" and "a foreign server answered" are indistinguishable from outside, and
-aborting a 40-minute gate on an unverifiable arm is the worse failure. `SERVER_IDENTITY=warn`
-downgrades even a definitive mismatch, should the identity arms ever misfire mid-gate.
+Where an arm **cannot reach a conclusion** it warns and proceeds — "this server does not serve
+the nonce" and "a foreign server answered" are indistinguishable from outside, and aborting a
+40-minute gate on an unverifiable arm is the worse failure. `SERVER_IDENTITY=warn` downgrades
+even a definitive mismatch, should the identity arms ever misfire mid-gate.
+
+> ⛔ **The nonce must live on a path the middleware does not gate — and the arm must be able to
+> tell "no nonce" from "a different nonce".** The first version served it from `public/` as
+> `__gate-nonce.txt`, which is **not** in `src/proxy.ts`'s matcher exclusions (`.txt` is absent
+> from the extension list), so it hit the ADR-0007 auth gate. Measured against a real build:
+> `GET /__gate-nonce.txt` → **HTTP 307**, body `/login?redirect=%2F__gate-nonce.txt`. That body
+> is not a nonce, but it is not *empty* either, so the arm read it as "a different nonce" and
+> **hard-failed a perfectly good server** — a 6-minute smoke run caught what 13/13 keystone
+> assertions had not. Two changes, and both were needed:
+>
+> 1. **Reachability.** The nonce moved to `.next/static`, served at
+>    `/_next/static/__gate-nonce.txt` — a matcher exclusion by **name**, and the directory the
+>    gate already stages, so the nonce rides with the build output rather than beside it.
+>    Measured on the same build: **HTTP 200** with the exact nonce.
+>    ⛔ **Do not instead add the path to the middleware's public matcher.** The middleware is
+>    the security boundary; the harness adapts to the app, never the reverse. An excluded
+>    *extension* (`.map`, `.css`, …) also works — measured — but that list exists for
+>    static-asset content types and is a more fragile coupling than the `_next/static` name.
+>    Adding `BUILD_ID` to the already-public `/api/health` was rejected too: that endpoint is
+>    unauthenticated and documented as "must never read a session or leak data", and widening
+>    an app security surface for a test harness is the same inversion.
+> 2. **Discrimination.** A body counts as a nonce only if it is **nonce-shaped**
+>    (`^gate<pid>-b<n>-a<n>-<epoch> build=`). Anything else — a redirect, an HTML page, a
+>    401/404, an empty body — is **inconclusive**. The HTTP status is captured alongside the
+>    body so the inconclusive line says *why*; printing only the body is the sole reason the
+>    307 was diagnosable at all.
+>    ⛔ **The fix is discrimination, not a weaker verdict.** Making mismatches warn would have
+>    silenced the measured case along with the unmeasurable one. The keystone pins **both**
+>    directions, and explicitly asserts that a genuine mismatch was *not* blanket-downgraded.
+>
+> ⚠ The sibling arm was re-checked for the same conflation and had a narrower version of it: a
+> listener owned by a **child** of our server read as "owned by a stranger". Next standalone is
+> single-process today, so this decided nothing — but it was a hard fail resting on an
+> unverified assumption, which is exactly what just misfired. It now resolves ancestry (via
+> `Get-CimInstance Win32_Process`) and answers **could not determine** when it cannot, verified
+> on a real parent/child pair where the listener was genuinely a child.
 
 > ⚠ **The nonce narrows the `REBUILD=1` trap; it does not close it.** It proves the answering
 > process serves the tree **this run staged**, not that the tree is fresh relative to source.
 > `REBUILD=1` when verifying a fix remains mandatory.
+
+> ⭐ **Exercised against a real build, which is the whole lesson.** With the shipped code and a
+> real standalone server: the nonce under `_next/static` **verifies**; the old gated path comes
+> out **inconclusive naming HTTP 307**; a real 200 carrying a nonce-shaped body from another
+> tree **hard-fails**; and `SERVER_IDENTITY=warn` downgrades it. An identity arm that has only
+> ever been run against shell doubles is not believed.
 
 ### 4. FALSE GREEN — a failed `--list` disabled coverage reconciliation (vector B)
 

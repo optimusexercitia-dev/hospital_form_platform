@@ -22,7 +22,7 @@ set -u
 T="$1"; REAL="$2"
 rm -rf "$T" 2>/dev/null
 mkdir -p "$T/scripts/lib" "$T/bin" "$T/state" \
-         "$T/.next/standalone/.next" "$T/.next/standalone/public" \
+         "$T/.next/standalone/.next" "$T/.next/standalone/.next/static" "$T/.next/standalone/public" \
          "$T/.next/static" "$T/public" "$T/e2e" "$T/node_modules/next" "$T/logs"
 
 # The code under test is COPIED, not reimplemented; the callers `cmp` it against the real
@@ -96,7 +96,15 @@ EOF
 # liveness and must go GREEN. An earlier attempt used "fail the first probe" for determinism
 # — that handed the PRE-FIX loop a free `kill -0`, so BOTH went red and the differential was
 # meaningless. The keystone caught it; do not reintroduce that shape.
-# CURL_NONCE : staged (default, serves the real staged nonce) | wrong | none
+# CURL_NONCE : staged (default, the real staged nonce, HTTP 200)
+#            | wrong    -> a NONCE-SHAPED body with a different token => HARD FAIL
+#            | redirect -> HTTP 307 + `/login?redirect=...` (the ADR-0007 auth gate)
+#            | html     -> an HTML 404 page      | none -> empty body
+# The last three are NOT nonce-shaped and must ALL come out INCONCLUSIVE. `redirect` is the
+# exact response a REAL build gave the first version of this arm (measured: HTTP 307, body
+# `/login?redirect=%2F__gate-nonce.txt`), which it mis-read as "a different nonce" and
+# hard-failed a healthy server on. Each reply is body, newline, status - the arm captures
+# `-w '\n%{http_code}'`.
 cat > "$T/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 S="$FAKE_STATE"
@@ -105,9 +113,11 @@ case " $* " in
   *"/rest/v1/"*) printf '{"swagger":"2.0"}'; exit 0 ;;
   *"__gate-nonce.txt"*)
     case "${CURL_NONCE:-staged}" in
-      wrong) printf 'someone-elses-nonce build=otherBuildId\n' ;;
-      none)  : ;;
-      *)     cat "$FAKE_ROOT/.next/standalone/public/__gate-nonce.txt" 2>/dev/null ;;
+      wrong)    printf 'gate11111-b9-a9-1700000000 build=someOtherBuildId\n200\n' ;;
+      redirect) printf '/login?redirect=%%2F_next%%2Fstatic%%2F__gate-nonce.txt\n307\n' ;;
+      html)     printf '<!DOCTYPE html><html><body>404: This page could not be found</body></html>\n404\n' ;;
+      none)     printf '\n000\n' ;;
+      *)        printf '%s\n200\n' "$(cat "$FAKE_ROOT/.next/standalone/.next/static/__gate-nonce.txt" 2>/dev/null)" ;;
     esac
     exit 0 ;;
   *"/login"*)

@@ -82,6 +82,19 @@ expect_red() {
   if grep -qE "$2" "$T/gate.out"; then ok "$1 — RED (rc=$rc), signal present"
   else bad "$1 — RED (rc=$rc) but for the WRONG reason: '$2' absent"; fi
 }
+# expect_green_because <label> <pattern that must appear>
+# A bare "it went green" is not enough for an INCONCLUSIVE arm: green is also what you get if
+# the arm never ran at all. The pattern pins WHY.
+expect_green_because() {
+  local rc; rc="$(cat "$T/gate.rc")"
+  if [ "$rc" != "0" ] || ! grep -q '^GATE GREEN' "$T/gate.out"; then
+    bad "$1 - expected GREEN (the arm must be INCONCLUSIVE, not a mismatch), got rc=$rc"
+    grep -E '!!|identity' "$T/gate.out" | head -3 | sed 's/^/          /'
+    return
+  fi
+  if grep -qE "$2" "$T/gate.out"; then ok "$1 - GREEN and the arm said INCONCLUSIVE"
+  else bad "$1 - GREEN but '$2' never appeared; it may be green because the arm never ran"; fi
+}
 expect_green() {  # used only on a mutant, to prove the fix is load-bearing
   local rc; rc="$(cat "$T/gate.rc")"
   if [ "$rc" = "0" ] && grep -q '^GATE GREEN' "$T/gate.out"; then
@@ -98,6 +111,14 @@ expect_green() {  # used only on a mutant, to prove the fix is load-bearing
 scen_a1() { export SRV_MODE=die-now CURL_LOGIN=after-server-gone CURL_NONCE=none; }
 # ---- vector A, case 2: our server lives, but the port serves a DIFFERENT build --
 scen_a2() { export SRV_MODE=alive CURL_LOGIN=always CURL_NONCE=wrong; }
+# ---- vector A, cases 3-5: the port answers with something that is NOT a nonce ----
+# ⛔ THE REGRESSION TEST. A real build returned HTTP 307 + `/login?redirect=...` for the nonce
+# path (the ADR-0007 auth gate), and the arm called that "a DIFFERENT nonce" and hard-failed a
+# healthy server. "I did not receive a nonce" and "I received one and it differs" are different
+# facts; only the second may conclude. These three must all be INCONCLUSIVE -> GREEN.
+scen_a3() { export SRV_MODE=alive CURL_LOGIN=always CURL_NONCE=redirect; }
+scen_a4() { export SRV_MODE=alive CURL_LOGIN=always CURL_NONCE=html; }
+scen_a5() { export SRV_MODE=alive CURL_LOGIN=always CURL_NONCE=none; }
 # ---- vector B: `--list` fails; only 3 of the batch's tests run, exit 0 ----------
 scen_b() {
   export LIST_MODE=fail
@@ -109,9 +130,23 @@ echo "  A1: spawned server dies (EADDRINUSE), something else answers the port"
 setup "";     scen_a1; gate; expect_red   "A1 real script"        "GONE before it ever served|is DEAD — something else is serving"
 setup "no-a"; scen_a1; gate; expect_green  "A1 with fix A reverted"
 setup "no-b"; scen_a1; gate; expect_red   "A1 with fix B reverted (independence)" "GONE before it ever served|is DEAD — something else is serving"
-echo "  A2: our server lives, but :PORT serves a nonce from a different tree"
-setup "";     scen_a2; gate; expect_red   "A2 real script"        "served a DIFFERENT nonce"
+echo "  A2: our server lives, but :PORT serves a NONCE-SHAPED body from a different tree"
+setup "";     scen_a2; gate; expect_red   "A2 real script"        "served a nonce from a DIFFERENT staged tree"
 setup "no-a"; scen_a2; gate; expect_green  "A2 with fix A reverted"
+
+echo "  A3-A5: the port answers with something that is NOT a nonce -> INCONCLUSIVE, never a mismatch"
+setup ""; scen_a3; gate; expect_green_because "A3 login redirect (HTTP 307) - the REAL misfire" "build-nonce INCONCLUSIVE .* HTTP 307"
+setup ""; scen_a4; gate; expect_green_because "A4 HTML 404 page"                                "build-nonce INCONCLUSIVE .* HTTP 404"
+setup ""; scen_a5; gate; expect_green_because "A5 empty body"                                   "build-nonce INCONCLUSIVE"
+echo "  and the discrimination is real in BOTH directions, not a blanket downgrade:"
+setup ""; scen_a3; gate
+if grep -q "served a nonce from a DIFFERENT staged tree" "$T/gate.out"; then
+  bad "A3 still reported a MISMATCH for a non-nonce body"
+else ok "A3 never reported a mismatch for a non-nonce body"; fi
+setup ""; scen_a2; gate
+if grep -q "build-nonce INCONCLUSIVE" "$T/gate.out"; then
+  bad "A2 downgraded a genuine nonce mismatch to INCONCLUSIVE - the fix silenced the measured case too"
+else ok "A2 still hard-fails a genuine nonce mismatch (not blanket-downgraded)"; fi
 
 echo
 echo "############ VECTOR B — failed --list disables coverage reconciliation ############"

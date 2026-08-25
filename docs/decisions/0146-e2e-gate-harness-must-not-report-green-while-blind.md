@@ -71,6 +71,25 @@ closed.** Concretely:
   failure. ⚠ This repo's own lesson applies against itself here — *an escape hatch for the
   unmeasurable also silences the measured* — so the hatch is **off by default**, and the first real
   run is treated as the arm's first exercise rather than as evidence it works.
+  ⭐⭐ **The arm's THIRD answer is part of the contract, not an implementation detail — and the first
+  real build proved why.** *"I did not receive a nonce"* and *"I received one and it differs"* are
+  different facts, and the arm shipped conflating them: a smoke run against a real build had the
+  middleware auth gate (ADR 0007) redirect the nonce request, so the arm received
+  `/login?redirect=…`, called it a **definitive mismatch** — its strongest verdict — and took the
+  batch down. **13/13 keystone assertions had passed**, because every fixture fed it a *server* and
+  none fed it an *auth gate*: the suite proved the logic, the real build proved the assumption.
+  ⛔ Fixed as a **discrimination** problem — conclude *mismatch* only on a nonce-shaped body;
+  redirect / HTML / 401 / empty ⇒ inconclusive — and **never** by downgrading mismatches to
+  warnings. The keystone now pins **both** directions, so a future "just make it warn" collapses it.
+  The same conflation then turned up in the sibling ownership arm, where a listener owned by a
+  **child** of our own server read as *owned by a stranger* and hard-failed.
+  ⛔ **Do not fix this class by widening the app.** Adding the nonce path to the middleware matcher,
+  and attaching `BUILD_ID` to the unauthenticated health endpoint, were both rejected: the middleware
+  is the security boundary, so the harness adapts to the app and never the reverse. The nonce lives
+  under `_next/static` — excluded by **name** rather than by extension, and staged *with* the build
+  output, which is a better answer to *are these the bytes I staged* anyway.
+  ⚠ **Smoke-run first, always.** One spec against a real build cost 6 minutes and found what the
+  keystone suite could not; the same discovery inside the full run would have cost ~80.
 - **B — a failed `--list` silently disables coverage reconciliation for that batch.**
   `expected_tests` had **no fallback**, unlike `pack_batches`, which guards `[ -z "$n" ] &&
   n=$BATCH_TESTS` for exactly this reason. With `exp=0` the per-batch identity check is skipped

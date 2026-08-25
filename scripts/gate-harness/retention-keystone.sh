@@ -60,6 +60,18 @@ setup() {  # $1 = mutate mode, or "" for the real script
   return 0
 }
 
+# ⚠ DO NOT signal on a fixed timer. The signal scenarios below used `wait for "BATCH 1" in
+# the log, then sleep 3`, and on a slow spawn that lands inside `preflight` — before
+# start_server has run at all — so "the server log survives the signal" failed intermittently
+# for a reason that had nothing to do with the fix. Wait for the SERVER to announce itself.
+wait_for_server_up() {
+  local i=0
+  while [ "$i" -lt 160 ]; do
+    grep -q 'SERVER_INSTANCE=' "$T/logs/e2e-prod-gate/server-batch-1.log" 2>/dev/null && { sleep 1; return 0; }
+    sleep 0.5; i=$(( i + 1 ))
+  done
+  return 1
+}
 gate() {  # $1 = SPECS
   ( cd "$T" && TMPDIR="$T/logs" PORT=39017 RESET=0 REBUILD=0 BATCH_TESTS=0 BATCH_SIZE=1 \
       SPECS="$1" INFRA_RETRY=1 RETRIES=0 MAX_RECOVER=0 \
@@ -150,8 +162,7 @@ TMPDIR="$T/logs" PORT=39017 RESET=0 REBUILD=0 BATCH_TESTS=0 BATCH_SIZE=1 \
   bash scripts/e2e-prod-gate.sh > "$T/gate.out" 2>&1 &
 GPID=$!
 cd "$KEEP"
-i=0; while [ "$i" -lt 60 ] && ! grep -q "BATCH 1" "$T/gate.out" 2>/dev/null; do sleep 0.5; i=$(( i + 1 )); done
-sleep 3
+wait_for_server_up || bad "3a: the batch server never came up, so the signal test is vacuous"
 kill -TERM "$GPID" 2>/dev/null; wait "$GPID" 2>/dev/null
 L="$T/logs/e2e-prod-gate"
 chk "SIGTERM to the gate records GATE_EXIT=143" "$(sed -n 's/^GATE_EXIT=//p' "$L/gate-exit")" "143"
@@ -166,8 +177,7 @@ printf '#!/usr/bin/env bash\nsleep 14\necho "  8 passed (14.0s)"\nexit 0\n' > "$
     SPECS="e2e/a.spec.ts" INFRA_RETRY=1 RETRIES=0 MAX_RECOVER=0 \
     bash scripts/e2e-prod-gate.sh > "$T/gate.out" 2>&1 ) &
 WPID=$!
-i=0; while [ "$i" -lt 60 ] && ! grep -q "BATCH 1" "$T/gate.out" 2>/dev/null; do sleep 0.5; i=$(( i + 1 )); done
-sleep 2
+wait_for_server_up || bad "3b: the batch server never came up, so the signal test is vacuous"
 kill -TERM "$WPID" 2>/dev/null; wait "$WPID" 2>/dev/null
 L="$T/logs/e2e-prod-gate"
 chk "while orphaned + in flight the record reads RUNNING, never absent" \
@@ -183,8 +193,7 @@ printf '#!/usr/bin/env bash\nsleep 14\necho "  8 passed (14.0s)"\nexit 0\n' > "$
     SPECS="e2e/a.spec.ts" INFRA_RETRY=1 RETRIES=0 MAX_RECOVER=0 \
     bash scripts/e2e-prod-gate.sh > "$T/gate.out" 2>&1 ) &
 KPID=$!
-i=0; while [ "$i" -lt 60 ] && ! grep -q "BATCH 1" "$T/gate.out" 2>/dev/null; do sleep 0.5; i=$(( i + 1 )); done
-sleep 3
+wait_for_server_up || bad "4: the batch server never came up, so the signal test is vacuous"
 kill -9 "$KPID" 2>/dev/null; wait "$KPID" 2>/dev/null; sleep 1
 L="$T/logs/e2e-prod-gate"
 GE="$(sed -n 's/^GATE_EXIT=//p' "$L/gate-exit" 2>/dev/null)"
