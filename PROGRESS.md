@@ -50,13 +50,15 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ⭐ **A COVERED verdict does NOT survive a body change, and no arm enforces that** — census passed
   `can_view_printed_document` on a **PDF·P2** row taken against a dispatch with **no `case` arm**;
   re-swept by hand → COVERED, suite list 2 → 7.
-  **⛔ Gate 2 RED (UNRUN)** — `1184 passed · 0 failed · 17 infra · 4 flaky · 36 did-not-run`.
-  **Zero assertion failures**; the 36 are all batch 6's, in files P3 never touched. P3's own spec
-  **11/11**; all 7 locator fixes verified at gate scale. Batch 6 **reproduces in isolation** and is
-  **proven infra, not a product defect** (dying server's whole log = 145 bytes of startup banner;
-  heap-OOM and app-exception both excluded, each prints; **zero Windows Event Log entries** in the
-  window on a machine whose WER channel demonstrably works). ⛔ Full-suite run still owed — a
-  compose-the-numbers green is a **documented past mistake**, not an option. Detail:
+  **⛔ Gate 2 RED (UNRUN)** — `1184 p · 0 failed · 17 infra · 36 did-not-run`; **zero assertion
+  failures**, the 36 all batch 6's in files P3 never touched, P3's own spec **11/11**, all 7 locator
+  fixes verified at gate scale. Collapse is **pre-existing Windows infra, NOT a product defect** —
+  four causes excluded by measurement. ⛔ A compose-the-numbers green is a **documented past
+  mistake**, not an option. **⛔ Gate 3 pass 1 (static): THREE blocking candidates — C-1 an Art. 18
+  PHI exposure, C-2 Gotenberg `<img>` fetch, C-3 undelivered D14 floor items. Development PAUSED by
+  PO 2026-08-25.**
+  ⭐ **RESUME HERE → [pdf-p3-handoff.md](docs/progress/pdf-p3-handoff.md)** (plan · built ·
+  obstacles · follow-ups · failures · ordered pending work). Detail:
   [pdf-p3.md](docs/progress/pdf-p3.md).
   ⭐ **PO RULING 2026-08-25 — accept the E2E evidence AS-IS, proceed to QA.** ⚠ **Scope, written
   down because an approval's bounds are what never get recorded:** it accepts **gate 2 standing at
