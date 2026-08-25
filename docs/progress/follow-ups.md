@@ -4731,80 +4731,6 @@ pinning an unreachable path is the *"a keystone proves the door, a second caller
 real one"* shape, and silently deleting it would remove the only assertion covering the loosening if the
 half is ever revived.
 
-## â¬› FUP-0137-PHI-MODE-SHIMS â€” âœ… **RESOLVED 2026-08-24. All four shims are gone; the last one needed the code deploy first, which is why it outlived the other three.**
-
-> **Closure.** Migration `20261003001800` removes the derived `patient_enabled` key from
-> `get_case_detail`, re-emitted from `pg_get_functiondef` (never migration text â€” this body has now
-> been re-emitted three times) with an anchor-uniqueness assert **and** a post-patch catalog assert,
-> so a drifted body fails loudly rather than patching nothing and leaving a green suite behind.
-> `CaseDetailJson.patient_enabled` is deleted with it.
->
-> **Keystone: pgTAP `366`, 10 tests, RED-PROVEN.** Two levels â€” the catalog (`prosrc`, counted not
-> `like`-tested, because `case_patient_enabled` contains the substring) and the ENVELOPE the product
-> actually receives. The vacuity controls are the load-bearing half: `jsonb ? 'k'` is FALSE for an
-> empty envelope, a NULL-returning door and a refused call alike, so "the key is absent" would
-> otherwise pass for three reasons that are not the one being claimed. Re-adding the key moves the
-> body md5 and reds exactly 1.1 / 2.1 / 2.5 with `have: true`.
->
-> âš  **The restore is part of the proof, and the first attempt FAILED it.** Hand-patching the probe
-> out left a stray newline â€” functionally identical, **not** byte-identical (`54b52828â€¦` vs the
-> `0f72da26â€¦` baseline). Rebuilding from the migration chain returned the exact baseline. A mutation
-> whose restore is verified by eye is not a verified restore.
->
-> â›” **The deploy gate was discharged by the PO, not by a check.** No Coolify status is readable from
-> this repo (`coolify.md` carries placeholder domains only), so nothing here can assert the new build
-> is live. The PO's standing fact â€” the pilot has no real users â€” bounds the harm window to zero,
-> which is what made it safe; that is a **ruling**, and if it is ever cited again it must be re-asked,
-> not re-read.
->
-> â›” **THE ITEM'S OWN VERIFICATION PROPERTY WAS WRONG, AND KEEPING IT IS THE LESSON.** It prescribed
-> *"`grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return
-> **zero**"*. It cannot, and never could: `create_case(p_patient_enabled boolean)` is a **live RPC
-> parameter** for the processless-case path, with a matching form field and React state. A property
-> written to bound a shim also matched code that was never a shim â€” so a reader obeying it would
-> either "fix" working code or declare the item unclosable. The residue is filed as its own item:
-> [[FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI]].
-
-<details><summary>Original item, as filed 2026-08-23</summary>
-
-### ðŸŸ¡ FUP-0137-PHI-MODE-SHIMS â€” the derived `patientEnabled` / `collectsPatient` / `setTemplateCollectsPatient` shims must retire once the builder UI adopts `patientMode` (owner: backend + frontend)
-
-> **Raised 2026-08-23, ADR 0137 Increment 0.** D1 replaced the boolean PHI switch with a three-mode
-> setting (`none` / `optional` / `required`). The database half is complete: `collects_patient` and
-> `patient_enabled` are **dropped**, and `patient_mode` + `patient_required_fields` are the only stored
-> truth.
->
-> The **TypeScript half is deliberately unfinished**, and that is what this item tracks. To let the
-> schema land ahead of the UI (the batch's required deploy order â€” schema first, then code) three
-> compatibility shims were kept, all marked `@deprecated`:
->
-> - `CaseDetail.patientEnabled` â€” now **derived** (`patientMode !== 'none'`), not a column.
-> - `ProcessTemplateVersion.collectsPatient` â€” same derivation.
-> - `setTemplateCollectsPatient(versionId, collects)` â€” signature unchanged, now delegating to
->   `setTemplatePatientMode(versionId, collects ? 'optional' : 'none', [])`.
-> - `get_case_detail` also still emits a derived `patient_enabled` JSON key.
->
-> â›” **The reason this needs an index line rather than a code comment: a boolean shim over a
-> three-valued setting is LOSSY IN ONE DIRECTION ONLY, and the lossy direction is the new one.**
-> `collectsPatient` cannot express `required`. Every existing caller keeps working â€” which is exactly
-> why nothing will ever fail, no gate will ever fire, and a builder screen wired to
-> `setTemplateCollectsPatient` will silently be unable to configure the one mode ADR 0137 was written
-> to introduce. The compliance feature would be shipped, reachable only through an RPC no UI calls.
->
-> **Resolution event:** the process-template builder gains a mode picker (D1/D2 â€” three modes plus the
-> required-field set, with `mrn` rendered selected and non-interactive). At that point delete all four
-> shims and the `@deprecated` markers with them.
->
-> âš  **Do NOT retire them before that.** They are what makes old-code/new-schema safe, and Coolify
-> auto-deploys on push.
->
-> **Verify by property, not by memory:**
-> `grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return **zero**
-> hits when this closes, and `public.get_case_detail` should no longer emit the derived key
-> (`pg_get_functiondef`, not the migration file â€” it has been re-emitted twice already).
-
-</details>
-
 ### ðŸŸ¡ FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT â€” two suites generate their cases from the LIVE catalog; pin the role SET so a mid-reset read cannot shrink coverage silently (owner: backend + frontend)
 
 > **Raised 2026-08-23**, during ADR 0137's batch, from a vitest total that moved
@@ -5205,6 +5131,79 @@ reads as the requirement being met.
 **Owner:** tester.
 
 ---
+
+### FUP-RCA-WRITER-CAN-WRITE-IS-BLIND
+
+✅ **RESOLVED 2026-08-24 — keystoned, re-swept COVERED, and its allowlist line deleted.**
+
+**Built:** `142_rca.sql` §K — four assertions that call `public.rca_writer_can_write` **as each of
+four principals** (PQS operator → true · assigned non-observer SME → true · OBSERVER → false ·
+non-team non-PQS → false). The file already asserted the same four expectations, but against the
+INNER `app.can_write_rca(rca, uid)` **uid-purely** — which is precisely why the wrapper was BLIND:
+the wrapper takes only `p_rca_id` and resolves the caller through `auth.uid()`, so no uid-pure call
+can reach it, and neutralizing it does not touch the inner predicate.
+
+**Evidence — the sweep is the oracle, not review.** Diff-scoped `CASES="rca_writer_can_write"`
+(ADR 0079 Amdt 1 recipe) on a FRESH `supabase db reset`: baseline `Files=218, Tests=7232, PASS`,
+`ARM-DOMAIN predicate=1/110` (non-empty — not an UNPROVEN vacuous pass), **verdict COVERED, exit 0
+read UNPIPED**. ⭐ **The attribution was measured, not assumed:** the neutralized run failed exactly
+**one** file — `142_rca.sql` tests **10–11**, both by name, `have: true / want: false` — with run
+shape identical to baseline. The two GRANT twins stayed green, which is correct for an
+opening mutation and is what makes them twins rather than duplicates.
+
+**Second, independent confirmation:** its line was deleted from `authz-neverclled-door-allowlist.txt`
+in the same commit, so `ARM=floor` — which zeroes `pg_stat_user_functions` and runs the whole suite
+itself — could only hold if the door is genuinely called now. It holds, and the counter reads
+`rca_writer_can_write calls=4`, up from the 0 that put it on that list in July.
+
+⛔ **CORRECTION to this follow-up's own prescription, recorded because it would have misdirected the
+next reader.** It said the keystone owed the shape of `300_rowdoor_gate_keystones.sql` — "a row
+count through the door, never a predicate call". **That shape cannot apply here and the keystone is
+a predicate call by necessity.** That rule bounds ROW-RETURNING doors, where a correct predicate can
+sit behind a door that forgets to consult it. Measured in `pg_policies` + `pg_proc`: **no policy and
+no routine references this wrapper** — its one consumer is `src/lib/queries/rca.ts`
+(`viewerCanWrite`). The boolean IS the door's entire output; there is no corridor of rows to count.
+The two sibling probe doors the same widening scored COVERED are asserted exactly this way
+(`121_interviews.sql`, `143_capa.sql` §M2). The prescription was carried over from the row-door file
+without asking whether this door has rows behind it.
+
+⛔ **What the COVERED does and does not say, since the filing was careful about this and the closure
+must be too.** This is a **UI capability probe**. Opening it granted no write: the eight `rca*` RLS
+policies gate on `app.can_write_rca` directly and the mutation never touched them. BLIND meant
+*nothing would notice if it opened* — which is the only question the sweep asks — not *unprotected*.
+
+⭐ **The mechanism worth keeping.** The allowlist line was not wrong when written: the door really is
+exercised by E2E and not by pgTAP. But "never called by pgTAP, allowlisted with a rationale" is
+**exactly the state that makes a door BLIND**, and then the floor arm and the door arm AGREE with
+each other — and agreement reads as coverage. It sat that way from 2026-07-18 until a *different*
+question was asked of it on 2026-08-24. A line in that file states WHERE a door is exercised; it
+never states that it IS.
+
+---
+
+⚠ **NEW — the first finding produced by widening the door sweep's predicate arm.** Filed 2026-08-24,
+by the sweep, not by review.
+
+`public.rca_writer_can_write(p_rca_id uuid)` is a `prosecdef` boolean whose body reads
+`auth.uid()`. Neutralizing it to `select true` — opening the gate — leaves the FULL pgTAP suite
+GREEN: **218 files, 7223 tests, Result: PASS**, zero assertions reddened.
+
+⛔ **It had never been swept in EITHER direction before**, because the arm's domain was a NAME regex
+(`^(is_|can_|has_|…)`) and this gate matches none of it. It entered the domain with ADR
+[0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 9 and returned BLIND
+on the first run. ⚠ **BLIND is not "vulnerable"** — it means no keystone exercises the gate, so
+nothing would notice if it were opened. Whether it is reachable, and by whom, is the next question,
+not a conclusion.
+
+⛔ **BLIND blocks a phase (CLAUDE.md §6 step 1)** and the allowlist is NOT available here: that file
+is for an unreachable backstop, and an RCA write gate is not one. It owes a keystone in the shape of
+`300_rowdoor_gate_keystones.sql` — a row count through the door per principal, never a predicate
+call, each denial with its non-vacuity twin.
+
+**Owner:** backend.
+
+---
+
 
 ### FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE
 

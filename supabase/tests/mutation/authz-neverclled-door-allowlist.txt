@@ -30,9 +30,19 @@
 # ── Accepted E2E-only / door-only baseline (captured 2026-07-18, 93 doors) ──
 # Thin CRUD mutation RPCs + feature-flag helpers + read helpers the frontend calls;
 # exercised by the Playwright E2E suite, not `supabase test db`. FIX-C read batches
-# will RETIRE the predicate-doors among these (is_pqs_member_self, rca_writer_can_write,
+# will RETIRE the predicate-doors among these (is_pqs_member_self,
 # case_viewer_capabilities, is_nsp_*/is_pqs_* of_self …) as they gain read keystones —
 # delete them from this file in the same commit as their keystone.
+#
+# ⭐ FIRST RETIREMENT, 2026-08-24 — `rca_writer_can_write(p_rca_id uuid)` DELETED from the
+#   list below, keystone in the same commit (142_rca.sql §K).
+#   ⚠ Read WHY, because the allowlist line was not wrong when written and is the mechanism:
+#   allowlisting a door as "E2E-only, never called by pgTAP" is EXACTLY the state that makes
+#   it BLIND to the neutralization sweep — the two arms agree, and the agreement reads as
+#   coverage. It sat here from 2026-07-18 until ADR 0079 Amdt 9 widened the predicate arm's
+#   domain by PROPERTY and asked the other question ("would anything NOTICE if it opened?").
+#   Answer: nothing, across 218 files. ⛔ So a line here is a statement about WHERE a door is
+#   exercised, never that it IS. FUP-RCA-WRITER-CAN-WRITE-IS-BLIND.
 action_items_enabled()
 add_capa_action_evidence(p_action_id uuid, p_kind text, p_title text, p_document_id uuid, p_external_url text)
 add_capa_action_task(p_action_id uuid, p_description text)

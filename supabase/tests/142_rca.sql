@@ -5,6 +5,10 @@
 --   * app.can_write_rca participant grant: PQS/admin write; an assigned plain-`staff`
 --     SME (non-observer) CAN write; an OBSERVER cannot (read-only); a non-team non-PQS
 --     user gets NO read;
+--   * §K the KEYSTONE for `public.rca_writer_can_write` — the DEFINER probe the UI
+--     trusts for write-gating, called AS each of those four principals (the bullet
+--     above calls the INNER predicate uid-purely, which is why the wrapper came back
+--     BLIND from the door sweep). FUP-RCA-WRITER-CAN-WRITE-IS-BLIND, ADR 0079 Amdt 9;
 --   * structured causal model: factor -> key-toggle -> 5-Whys chain (lazily created,
 --     ≤5 steps) -> root cause; the why-chain drops when a factor is un-keyed;
 --   * evidence three-way XOR (document/link/citation) — valid shapes insert, mixed
@@ -20,7 +24,7 @@
 -- through triage to mint one, then exercise the workspace.
 
 begin;
-select plan(32);
+select plan(36);
 
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
@@ -98,6 +102,65 @@ select is(app.can_write_rca((select rca_id from r), (select st_x2 from k)), fals
   'can_write_rca: an OBSERVER is read-only (false)');
 select is(app.can_write_rca((select rca_id from r), (select st_y from k)), false,
   'can_write_rca: a non-team user false');
+
+-- =========================================================================
+-- §K KEYSTONE — public.rca_writer_can_write, the DEFINER probe the UI trusts.
+-- FUP-RCA-WRITER-CAN-WRITE-IS-BLIND: the first finding produced by ADR 0079
+-- Amendment 9's widening of the door sweep's predicate arm. Neutralizing this
+-- wrapper's body to `select true` left the FULL suite green (218 files, 7223
+-- tests) — because the four assertions ABOVE call the INNER predicate
+-- `app.can_write_rca(rca, uid)` uid-purely, and opening the wrapper does not
+-- touch the inner one. Nothing in 218 files walked through the wrapper itself.
+--
+-- ⚠ THIS KEYSTONE IS A PREDICATE CALL, and that is NOT a lapse from
+-- 300_rowdoor_gate_keystones.sql's "a row count through the door, never a
+-- predicate call". That rule bounds ROW-RETURNING doors, where the rows are the
+-- output and a correct predicate can sit behind a door that forgets to consult
+-- it. Here the boolean IS the door's entire output: measured in pg_policies and
+-- pg_proc, NO policy and NO routine references this wrapper — its one consumer
+-- is src/lib/queries/rca.ts (`viewerCanWrite`, the UI's write-gating). There is
+-- no corridor of rows to count. The two sibling probe doors the same arm scored
+-- COVERED are asserted exactly this way: 121_interviews.sql
+-- (interview_viewer_can_write) and 143_capa.sql §M2 (capa_viewer_can_manage).
+--
+-- ⚠ CALLED AS THE PRINCIPAL, never with an explicit uid — the wrapper takes only
+-- p_rca_id and resolves the caller through auth.uid(). A uid-pure call cannot
+-- reach it, and that difference is the entire reason the gate was BLIND.
+--
+-- NON-VACUITY TWINS, both directions: the two DENIALS red when the body is
+-- opened (`select true`); the two GRANTS red if it is closed, or if it ever
+-- stops resolving auth.uid() and so answers for the wrong principal — the M2
+-- class in 143_capa.sql, where a dropped symbol made a sibling probe silently
+-- false for every user. The SAME four expectations are asserted at three layers
+-- — inner predicate above, wrapper here, the real write below (HC048) — so a
+-- probe that DIVERGES from what the policies do reds here.
+--
+-- ⛔ Rule 1 still governs what this proves: the probe gates the UI, not the
+-- data. Write authority is app.can_write_rca inside the eight rca* policies.
+-- =========================================================================
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
+set local role authenticated;
+select is(public.rca_writer_can_write((select rca_id from r)), true,
+  'KEYSTONE rca_writer_can_write: true for the PQS operator (twin of the denials)');
+reset role;
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is(public.rca_writer_can_write((select rca_id from r)), true,
+  'KEYSTONE rca_writer_can_write: true for the assigned non-observer SME (twin)');
+reset role;
+
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is(public.rca_writer_can_write((select rca_id from r)), false,
+  'KEYSTONE rca_writer_can_write: false for an OBSERVER — reds when the door opens');
+reset role;
+
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+select is(public.rca_writer_can_write((select rca_id from r)), false,
+  'KEYSTONE rca_writer_can_write: false for a non-team non-PQS user — reds when the door opens');
+reset role;
 
 -- The assigned plain-staff SME (st_x) CAN write (update the problem statement).
 select test_helpers.claims_for((select st_x from k), false);

@@ -5564,6 +5564,20 @@ exact edit `365` §2.2 exists to red.
 - 🟡 **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** — the door sweep's predicate arm is bounded by a NAME REGEX standing in for a property (42 `prosecdef` booleans outside it, measured). ADR 0136 hit it live: the sweep matched **zero gates** until the function was renamed. ⛔ The rename is a workaround that makes coverage depend on a convention no gate enforces — backend
 - 🟡 **FUP-DSS-KEYBOARD-FLOW-IS-THIN** — the ADR 0136 spec's keyboard test asserts an a11y floor, not a keyboard-only flow; it never signs. ⚠ A thin test where the requirement points reads as the requirement being met — tester
 
+### Resolved 2026-08-24 — the finding the ADR 0136 round's own sweep produced (index line rotated verbatim from PROGRESS.md)
+
+- 🟠 **FUP-RCA-WRITER-CAN-WRITE-IS-BLIND** — opening `public.rca_writer_can_write` reddens **NOTHING** across 218 files. ⭐ The first finding produced by ADR 0079 **Amdt 9**'s widening of the door sweep's predicate arm — the gate had never been swept in either direction, being outside the arm's NAME-bounded domain. ⛔ BLIND blocks a phase (§6 step 1) and owes a keystone; not an unreachable backstop, so the allowlist is not available — backend
+
+> ✅ **Closed the same day.** Keystone `142_rca.sql` §K (4 assertions, the wrapper called AS each
+> principal); re-swept single-case **COVERED**, baseline `Files=218, Tests=7232, PASS`,
+> `ARM-DOMAIN predicate=1/110`, exit 0 unpiped, the neutralized run failing ONE file —
+> `142_rca.sql` tests 10–11, by name. Its `authz-neverclled-door-allowlist.txt` line was deleted
+> in the same commit, so `ARM=floor` re-proves the call (`calls=4`, was 0). ⚠ Two things the
+> body in [follow-ups.md](./follow-ups.md) carries and this line cannot: the door is a **UI
+> capability probe** (no policy, no routine calls it — opening it granted no write), and this
+> follow-up's own prescribed shape — *"a row count through the door, never a predicate call"* —
+> **could not apply**, because the door returns a boolean and has no rows behind it.
+
 ### Rotation notes rotated from PROGRESS.md 2026-08-24
 
 > Moved verbatim from PROGRESS.md § Follow-ups (byte-identical apart from link
@@ -5666,6 +5680,89 @@ tenancy. â›” **Do not "fix" this by widening the gate to make a test pass.*
 
 **Not fixed here, deliberately.** Found *during* the ADR 0129 build, whose migration is bound to amend
 nothing else (0129 Decision 1) and whose subject is the child lock. Filed rather than carried, so it is
+not lost inside a build that does not own it â€” the same reason this door's sibling item was filed in the
+first place.
+
+## ↩ Rotated from PROGRESS.md 2026-08-24 — the FUP-0137-PHI-MODE-SHIMS body, VERBATIM
+
+_Moved when the ADR 0137 § Now bullet rotated to [2026-Q3.md](2026-Q3.md): that bullet's item 2 was the only live register indexing this body, so rotating it left the body orphaned — `lint:progress` caught it as residue in the same edit, which is the check existing._
+
+⚠ **Byte-faithful, including a pre-existing mojibake in the heading.** The `⬛` in the `##` line is stored double-encoded (`c3 a2 c2 ac e2 80 ba`) and was already that way in git before this move — `cmp` against `HEAD` confirms the rotation introduced nothing. Left as-is: a verbatim rotation does not get to silently repair its subject, and fixing it here would make the archive and the history disagree.
+
+## â¬› FUP-0137-PHI-MODE-SHIMS â€” âœ… **RESOLVED 2026-08-24. All four shims are gone; the last one needed the code deploy first, which is why it outlived the other three.**
+
+> **Closure.** Migration `20261003001800` removes the derived `patient_enabled` key from
+> `get_case_detail`, re-emitted from `pg_get_functiondef` (never migration text â€” this body has now
+> been re-emitted three times) with an anchor-uniqueness assert **and** a post-patch catalog assert,
+> so a drifted body fails loudly rather than patching nothing and leaving a green suite behind.
+> `CaseDetailJson.patient_enabled` is deleted with it.
+>
+> **Keystone: pgTAP `366`, 10 tests, RED-PROVEN.** Two levels â€” the catalog (`prosrc`, counted not
+> `like`-tested, because `case_patient_enabled` contains the substring) and the ENVELOPE the product
+> actually receives. The vacuity controls are the load-bearing half: `jsonb ? 'k'` is FALSE for an
+> empty envelope, a NULL-returning door and a refused call alike, so "the key is absent" would
+> otherwise pass for three reasons that are not the one being claimed. Re-adding the key moves the
+> body md5 and reds exactly 1.1 / 2.1 / 2.5 with `have: true`.
+>
+> âš  **The restore is part of the proof, and the first attempt FAILED it.** Hand-patching the probe
+> out left a stray newline â€” functionally identical, **not** byte-identical (`54b52828â€¦` vs the
+> `0f72da26â€¦` baseline). Rebuilding from the migration chain returned the exact baseline. A mutation
+> whose restore is verified by eye is not a verified restore.
+>
+> â›” **The deploy gate was discharged by the PO, not by a check.** No Coolify status is readable from
+> this repo (`coolify.md` carries placeholder domains only), so nothing here can assert the new build
+> is live. The PO's standing fact â€” the pilot has no real users â€” bounds the harm window to zero,
+> which is what made it safe; that is a **ruling**, and if it is ever cited again it must be re-asked,
+> not re-read.
+>
+> â›” **THE ITEM'S OWN VERIFICATION PROPERTY WAS WRONG, AND KEEPING IT IS THE LESSON.** It prescribed
+> *"`grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return
+> **zero**"*. It cannot, and never could: `create_case(p_patient_enabled boolean)` is a **live RPC
+> parameter** for the processless-case path, with a matching form field and React state. A property
+> written to bound a shim also matched code that was never a shim â€” so a reader obeying it would
+> either "fix" working code or declare the item unclosable. The residue is filed as its own item:
+> [[FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI]].
+
+<details><summary>Original item, as filed 2026-08-23</summary>
+
+### ðŸŸ¡ FUP-0137-PHI-MODE-SHIMS â€” the derived `patientEnabled` / `collectsPatient` / `setTemplateCollectsPatient` shims must retire once the builder UI adopts `patientMode` (owner: backend + frontend)
+
+> **Raised 2026-08-23, ADR 0137 Increment 0.** D1 replaced the boolean PHI switch with a three-mode
+> setting (`none` / `optional` / `required`). The database half is complete: `collects_patient` and
+> `patient_enabled` are **dropped**, and `patient_mode` + `patient_required_fields` are the only stored
+> truth.
+>
+> The **TypeScript half is deliberately unfinished**, and that is what this item tracks. To let the
+> schema land ahead of the UI (the batch's required deploy order â€” schema first, then code) three
+> compatibility shims were kept, all marked `@deprecated`:
+>
+> - `CaseDetail.patientEnabled` â€” now **derived** (`patientMode !== 'none'`), not a column.
+> - `ProcessTemplateVersion.collectsPatient` â€” same derivation.
+> - `setTemplateCollectsPatient(versionId, collects)` â€” signature unchanged, now delegating to
+>   `setTemplatePatientMode(versionId, collects ? 'optional' : 'none', [])`.
+> - `get_case_detail` also still emits a derived `patient_enabled` JSON key.
+>
+> â›” **The reason this needs an index line rather than a code comment: a boolean shim over a
+> three-valued setting is LOSSY IN ONE DIRECTION ONLY, and the lossy direction is the new one.**
+> `collectsPatient` cannot express `required`. Every existing caller keeps working â€” which is exactly
+> why nothing will ever fail, no gate will ever fire, and a builder screen wired to
+> `setTemplateCollectsPatient` will silently be unable to configure the one mode ADR 0137 was written
+> to introduce. The compliance feature would be shipped, reachable only through an RPC no UI calls.
+>
+> **Resolution event:** the process-template builder gains a mode picker (D1/D2 â€” three modes plus the
+> required-field set, with `mrn` rendered selected and non-interactive). At that point delete all four
+> shims and the `@deprecated` markers with them.
+>
+> âš  **Do NOT retire them before that.** They are what makes old-code/new-schema safe, and Coolify
+> auto-deploys on push.
+>
+> **Verify by property, not by memory:**
+> `grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return **zero**
+> hits when this closes, and `public.get_case_detail` should no longer emit the derived key
+> (`pg_get_functiondef`, not the migration file â€” it has been re-emitted twice already).
+
+</details>
+
 not lost inside a build that does not own it â€” the same reason this door's sibling item was filed in the
 first place.
 
@@ -5911,56 +6008,6 @@ would have reintroduced it. Now: 6/6 self-tests, anchors verified, 3 findings al
   fresh-reset rule, which was written about pgTAP, biting the authz arms too.
 - ⭐ **Neither defect is detectable by any existing gate.** `bash -n` over the gate scripts would have
   caught #2 instantly. Proposed, NOT built — a tenth lint gate is a decision, not a mid-batch edit.
-
-### FUP-RCA-WRITER-CAN-WRITE-IS-BLIND
-
-⚠ **NEW — the first finding produced by widening the door sweep's predicate arm.** Filed 2026-08-24,
-by the sweep, not by review.
-
-`public.rca_writer_can_write(p_rca_id uuid)` is a `prosecdef` boolean whose body reads
-`auth.uid()`. Neutralizing it to `select true` — opening the gate — leaves the FULL pgTAP suite
-GREEN: **218 files, 7223 tests, Result: PASS**, zero assertions reddened.
-
-⛔ **It had never been swept in EITHER direction before**, because the arm's domain was a NAME regex
-(`^(is_|can_|has_|…)`) and this gate matches none of it. It entered the domain with ADR
-[0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 9 and returned BLIND
-on the first run. ⚠ **BLIND is not "vulnerable"** — it means no keystone exercises the gate, so
-nothing would notice if it were opened. Whether it is reachable, and by whom, is the next question,
-not a conclusion.
-
-⛔ **BLIND blocks a phase (CLAUDE.md §6 step 1)** and the allowlist is NOT available here: that file
-is for an unreachable backstop, and an RCA write gate is not one. It owes a keystone in the shape of
-`300_rowdoor_gate_keystones.sql` — a row count through the door per principal, never a predicate
-call, each denial with its non-vacuity twin.
-
-**Owner:** backend.
-
----
-
-> ## ✅ RESOLVED 2026-08-24 — keystoned and mutation-proven, but NOT in the shape this item specified
->
-> **Proof, both directions:** `300_rowdoor_gate_keystones.sql` §1.10 (deny) + §2.10 (twin), plan 18→20.
-> Neutralize the body to `select true` ⇒ **1.10 reds ALONE (1/20)** and the twin correctly stays green;
-> restore ⇒ **218 files / 7230 tests PASS**. BLIND → COVERED.
->
-> ⛔ **The specified shape was impossible, and that is the real finding.** This item demanded *"a
-> row-count-through-the-door keystone, never a bare predicate call"*. Measured in the catalog: **nothing
-> references this wrapper** — no policy, no trigger, no function body. All **eight** rca write policies call
-> `app.can_write_rca(id, auth.uid())` **directly**. So the door is not in any enforcement path, and a
-> write-through-the-door assertion stays BLIND forever: verified in a rolled-back transaction that with the
-> wrapper neutralized to `select true`, an outsider's UPDATE still affected **0 rows**, because RLS consults
-> the underlying predicate itself. ⭐ *That* is why 218 files went green when it opened — not a missing test,
-> a door that enforces nothing.
->
-> **Shape actually used:** a plain two-sided `is()`, matching the house precedent for this door's sibling
-> (`121_interviews.sql:117-124`, `public.interview_viewer_can_write`). ⛔ Deliberately NOT dressed as a
-> `count(*) … where w`, which would have satisfied the file's row-count rule in FORM while remaining a
-> predicate assertion in SUBSTANCE — evading the rule rather than documenting the exception. The 300 file
-> carries the exception in a comment instead.
->
-> ⚠ **Named residual, filed separately as `FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE`:** this
-> keystone covers **the door**, not RLS, and does not pin that the wrapper still agrees with the predicate RLS
-> enforces. Six such wrappers exist; four have no coverage at all.
 
 ### ðŸŸ  FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS â€” a pgTAP premise 136 files can state falsely (owner: backend/tester; filed 2026-08-22, found inside the ADR 0134 S8 suite; â­• **PARTIAL 2026-08-22** â€” root verb `test_helpers.reset_role_and_claims()` + red-first gate landed and adopted in `356`/`357`; â›” **step 1 (derive the real population) and the 134-file sweep remain OPEN**. Capable population 136 â†’ 134, still not a defect count. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md))
 

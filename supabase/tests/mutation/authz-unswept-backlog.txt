@@ -166,7 +166,15 @@ case_events.case_events_writer_update (UPDATE)
 #                 member_can_for · capa_viewer_can_manage · interview_viewer_can_write
 #      1 BLIND    public.rca_writer_can_write — opening it reddened NOTHING across 218
 #                 files. The FIRST finding the widening produced, and the reason it was
-#                 worth making. Owes a keystone: FUP-RCA-WRITER-CAN-WRITE-IS-BLIND.
+#                 worth making. Owed a keystone: FUP-RCA-WRITER-CAN-WRITE-IS-BLIND.
+#                 ✅ CLOSED 2026-08-24 — keystone 142_rca.sql §K (4 assertions, the wrapper
+#                 called AS each principal); re-swept single-case COVERED (baseline
+#                 Files=218 Tests=7232 PASS, ARM-DOMAIN predicate=1/110, exit 0 unpiped),
+#                 the neutralized run failing ONE file — 142_rca.sql tests 10-11, by name.
+#                 ⛔ Its line in authz-neverclled-door-allowlist.txt was DELETED in the same
+#                 commit, and that line is the mechanism worth remembering: "never called by
+#                 pgTAP, exercised by E2E" is precisely the state that makes a door BLIND,
+#                 and the two arms then AGREE — which reads as coverage.
 #      1 ERROR    app.event_current_custodian — 140_patient_safety.sql fails its test 11
 #                 and then ABORTS, so the run shape moved and §7.15 withholds a verdict.
 #                 ERROR is not a pass: FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE.
