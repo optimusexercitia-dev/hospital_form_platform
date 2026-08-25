@@ -5631,3 +5631,40 @@ class; nothing does today.
 live and measured (`getByRole('button', { name: 'Suspenso até (opcional)' })`) — then assert the
 post-condition on the DATABASE or on a suspension-specific surface, not on a bare `'Ativo'` string
 that another component also renders.
+
+---
+
+### 🟠 FUP-AFF3-NO-REVOCATION-FOR-A-MIS-ENTERED-AFFILIATION — ever-held visibility has no correction path (owner: backend/PO; filed 2026-08-25 on PO instruction as Critical **C5**; found by `qa` reviewing AFF3)
+
+ADR [0145](../decisions/0145-ever-held-affiliation-read-visibility.md) changed person read
+visibility from *currently-held* to **ever-held** affiliation. That is correct for the defect it
+fixes — a hospital admin lost the person entirely at offboarding, and `end_affiliation` IS the
+documented offboarding action. It has a consequence D5 does not reach.
+
+**Measured (`qa`, confirmed by `backend`):** `hospital_affiliations` carries a **SELECT policy only**,
+`authenticated` holds `r` alone, and **no function anywhere deletes from it** (`pg_proc` swept for
+`delete from … hospital_affiliations` → empty). Deletion is additionally blocked by design —
+`guard_affiliation_no_delete`, ADR 0133 D4, a soft-end model.
+
+So an affiliation created against the **wrong hospital** — a data-entry error, not an employment
+fact — can only be *ended*. Before AFF3 ending it revoked that admin's read. After AFF3 **nothing ever
+does**: the admin of a hospital the person never worked at retains permanent read of their profile and,
+through the mirrored leg, their **council credentials**. ⚠ D5's "unbounded in time" is argued well for
+*legitimately departed staff*; the mis-entry case was not in view when it was written.
+
+⛔ **The blocker is semantics, not mechanism.** `backend` judges the mechanism cheap: a DEFINER
+`revoke_affiliation(affiliation_id, reason)` gated on the same footprint bound as `end_affiliation`,
+doing a real `DELETE` plus an `affiliation.revoked` audit row. But Rule 12's minimise-not-destroy
+posture (ADR 0072 §7·3) argues against row deletion in a governance record, so the honest shape is
+probably a `voided_at` column excluded from the read predicate — which introduces a **third tense**
+(active / ended / voided) onto a policy AFF3 and AUD1 just spent two migrations simplifying. That is a
+design decision with a cost either way, which is why it is a PO item and not a patch.
+
+⚠ **Trigger — why this cannot simply wait for a quiet week.** Every mis-entry made before the
+correction path exists is unrevocable, and the population only grows. The point it can no longer wait
+is **before the first real hospital roster is loaded**, because bulk onboarding is exactly when
+wrong-hospital rows get created at volume, and at that moment the platform has no way to take one back.
+
+⭐ Note what found this: a reviewer asking not "does the widening work" but "what did the widening
+remove". Every gate, keystone and probe on AFF3 measured the new visibility and none of them could
+have surfaced this, because nothing was broken — a capability quietly stopped existing.
