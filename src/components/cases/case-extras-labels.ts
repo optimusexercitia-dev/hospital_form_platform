@@ -4,12 +4,25 @@
  * place those slugs become human copy, so every panel agrees.
  */
 
-import type {
-  CaseDocumentType,
-  AnyCaseEventKind,
-} from "@/lib/queries/case-documents";
+import type { CaseDocumentType } from "@/lib/queries/case-documents";
 import type { ActionItemStatus } from "@/lib/queries/case-action-items";
-import { CASE_EVENT_KIND_LABELS } from "@/lib/cases/registro-kinds";
+
+/**
+ * ⭐ `EVENT_KIND_LABEL` and `ACTION_ITEM_STATUS_LABEL` MOVED to
+ * `@/lib/cases/labels` (PDF·P3) and are re-exported here so existing importers
+ * keep working. They are re-exported, NOT re-declared: `src/lib/cases/pdf-payload.ts`
+ * prints the same enums onto the dossier, `src/lib` cannot import upward from
+ * `src/components`, and a second copy would let the printed record carry a label
+ * the UI had already renamed.
+ *
+ * ⛔ Do not "restore" either map here. This file is now a compatibility surface
+ * for them, and the only reason it is not just deleted is that the map that
+ * remains below is presentational.
+ */
+export {
+  EVENT_KIND_LABEL,
+  ACTION_ITEM_STATUS_LABEL,
+} from "@/lib/cases/labels";
 
 /** File-backed document kinds (R1). */
 export const DOC_TYPE_LABEL: Record<CaseDocumentType, string> = {
@@ -20,42 +33,17 @@ export const DOC_TYPE_LABEL: Record<CaseDocumentType, string> = {
 };
 
 /**
- * Every case-event kind the DB `case_events_kind_check` allows (R1 + ETH·E3a).
- * Exhaustive over {@link AnyCaseEventKind}, so the timeline can label an
- * auto-derived procedural event once BE-5 widens `CaseEvent.kind`. The manual
- * create-select (`case-event-form.tsx`) still offers only the four manual kinds;
- * the rest are system-emitted and read-only.
- */
-export const EVENT_KIND_LABEL: Record<AnyCaseEventKind, string> = {
-  // Manually authored via CaseEventForm. Spread from the shared vocabulary the
-  // referral "Registros internos" panel files under too — one list, two surfaces.
-  ...CASE_EVENT_KIND_LABELS,
-  // System "registry echo" kinds (deduped off the timeline; labeled for completeness).
-  interview: "Entrevista",
-  safety_event: "Evento de segurança",
-  // Ethics procedural kinds (E3a) — auto-derived by the E2 procedure RPCs.
-  admissibility_decided: "Admissibilidade decidida",
-  allegation_added: "Alegação registrada",
-  finding_recorded: "Parecer registrado",
-  notification_issued: "Notificação emitida",
-  hearing_scheduled: "Audiência agendada",
-  vote_cast: "Voto registrado",
-  decision_issued: "Decisão emitida",
-  appeal_submitted: "Recurso interposto",
-};
-
-/** Action-item lifecycle statuses (R4). */
-export const ACTION_ITEM_STATUS_LABEL: Record<ActionItemStatus, string> = {
-  open: "Aberto",
-  in_progress: "Em andamento",
-  done: "Concluído",
-  cancelled: "Cancelado",
-};
-
-/**
  * Badge styling per action-item status (reuses the semantic colour tokens; no
  * raw CSS). Mirrors the convey-status-by-shape-and-text rule — paired with the
  * label text, never colour alone.
+ *
+ * ⚠ Paired with `ACTION_ITEM_STATUS_LABEL`, which now lives in
+ * `@/lib/cases/labels`. Navigation pointer only — what ENFORCES the pairing is
+ * that both carry an explicit `Record<ActionItemStatus, string>`, so adding a
+ * status is a compile error in both files in the same `tsc` run. ⛔ Do not
+ * replace the annotation below with an inferred object literal: it looks like a
+ * simplification, passes every gate, and silently removes the only check that
+ * these two halves still describe the same union.
  */
 export const ACTION_ITEM_STATUS_STYLE: Record<ActionItemStatus, string> = {
   open: "bg-muted text-muted-foreground",

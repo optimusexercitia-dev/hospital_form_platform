@@ -32,6 +32,11 @@ import type {
   CorrectionRequest,
   CorrectionStatus,
 } from "@/lib/queries/corrections";
+import {
+  CORRECTION_CLASSIFICATION_LABEL,
+  CORRECTION_KIND_LABEL,
+  CORRECTION_STATUS_LABEL,
+} from "@/lib/cases/labels";
 
 // ---------------------------------------------------------------------------
 // Capability descriptor (threaded from the host page → detail → rows)
@@ -70,22 +75,39 @@ interface KindMeta {
   className: string;
 }
 
-/** What a request does to its target. `void` = "Anulação". */
+/**
+ * What a request does to its target. `void` = "Anulação".
+ *
+ * ⭐ **The nouns come from `@/lib/cases/labels`, not from literals here** (PDF·P3).
+ * `src/lib/cases/pdf-payload.ts` prints the same vocabulary onto the dossier and
+ * cannot import upward from `src/components`, so the WORDS live in `src/lib` and
+ * this map supplies only what paper has no use for: the icon, the Tailwind class,
+ * and the verb-phrase menu label. Two authorities for one vocabulary would let
+ * the printed record carry a label the UI had already renamed.
+ *
+ * ⚠ `action` stays a literal ON PURPOSE — "Solicitar correção" is a menu verb
+ * phrase that exists only where there is a menu. It is not the noun, and the
+ * dossier never renders it.
+ *
+ * ⚠ The explicit `Record<CorrectionKind, KindMeta>` is what keeps this half in
+ * step with the lib half: a new kind fails to compile in BOTH files in one `tsc`
+ * run. ⛔ Do not replace it with an inferred literal.
+ */
 export const CORRECTION_KIND_META: Record<CorrectionKind, KindMeta> = {
   correction: {
-    label: "Correção",
+    label: CORRECTION_KIND_LABEL.correction,
     action: "Solicitar correção",
     icon: PencilLine,
     className: "bg-accent text-accent-foreground",
   },
   addendum: {
-    label: "Adendo",
+    label: CORRECTION_KIND_LABEL.addendum,
     action: "Solicitar adendo",
     icon: FilePlus2,
     className: "bg-primary/10 text-primary dark:bg-primary/15",
   },
   void: {
-    label: "Anulação",
+    label: CORRECTION_KIND_LABEL.void,
     action: "Solicitar anulação",
     icon: Ban,
     className: "bg-destructive/10 text-destructive",
@@ -102,70 +124,74 @@ interface StatusMeta {
  * The workflow state. `rejected` is a RESTING state (the corrector's next edit
  * flips it back to `in_progress`); `approved` / `withdrawn` are terminal. Conveys
  * state by ICON + TEXT + SHAPE (never colour alone — a11y).
+ *
+ * ⭐ Words from `@/lib/cases/labels`; icon + class are this layer's (PDF·P3).
+ * ⚠ Note what that means for the dossier: on paper only the TEXT survives, so
+ * "Reprovada" has to carry the whole meaning without the icon beside it. That is
+ * a reason to keep the words precise, not a reason to keep two copies of them.
+ *
+ * ⚠ Explicit `Record<CorrectionStatus, StatusMeta>` — the pairing with the lib
+ * half is enforced by this annotation, not by this comment. ⛔ Do not infer it.
  */
 export const CORRECTION_STATUS_META: Record<CorrectionStatus, StatusMeta> = {
   requested: {
-    label: "Solicitada",
+    label: CORRECTION_STATUS_LABEL.requested,
     icon: Clock,
     className: "bg-muted text-muted-foreground",
   },
   in_progress: {
-    label: "Em edição",
+    label: CORRECTION_STATUS_LABEL.in_progress,
     icon: PenLine,
     className: "bg-warning/15 text-warning",
   },
   resubmitted: {
-    label: "Reenviada",
+    label: CORRECTION_STATUS_LABEL.resubmitted,
     icon: Send,
     className: "bg-accent text-accent-foreground",
   },
   under_review: {
-    label: "Em revisão",
+    label: CORRECTION_STATUS_LABEL.under_review,
     icon: Eye,
     className: "bg-accent text-accent-foreground",
   },
   rejected: {
-    label: "Reprovada",
+    label: CORRECTION_STATUS_LABEL.rejected,
     icon: Undo2,
     className: "bg-destructive/10 text-destructive",
   },
   approved: {
-    label: "Aprovada",
+    label: CORRECTION_STATUS_LABEL.approved,
     icon: CheckCircle2,
     className: "bg-success/12 text-success dark:bg-success/15",
   },
   withdrawn: {
-    label: "Retirada",
+    label: CORRECTION_STATUS_LABEL.withdrawn,
     icon: CircleSlash,
     className: "bg-muted/60 text-muted-foreground/80",
   },
 };
 
-/** The descriptive classification (pt-BR). Never gates — advisory to the approver. */
+/**
+ * The descriptive classification (pt-BR). Never gates — advisory to the approver.
+ *
+ * ⭐ Pure copy (`label` + `hint`, no icon, no class), so it travelled WHOLE to
+ * `@/lib/cases/labels` and each entry is re-pointed rather than re-typed. The
+ * dossier renders corrections inline (ADR 0144 D2), where the classification is
+ * part of what an entry MEANS rather than decoration.
+ *
+ * ⚠ This map is now a pure alias. It stays only so its existing importers
+ * (`case-corrections-panel`, `file-correction-control`) are unaffected — the
+ * relocation-shim shape used elsewhere in `src/components/**`.
+ */
 export const CORRECTION_CLASSIFICATION_META: Record<
   CorrectionClassification,
   { label: string; hint: string }
 > = {
-  clerical: {
-    label: "Correção material",
-    hint: "Erro de digitação ou formatação, sem mudança de conteúdo.",
-  },
-  factual: {
-    label: "Correção factual",
-    hint: "Um dado registrado estava incorreto.",
-  },
-  interpretative: {
-    label: "Reinterpretação",
-    hint: "Nova leitura dos mesmos fatos.",
-  },
-  substantive: {
-    label: "Alteração substantiva",
-    hint: "Mudança relevante de conteúdo ou conclusão.",
-  },
-  compliance_related: {
-    label: "Conformidade regulatória",
-    hint: "Ajuste exigido por norma ou auditoria.",
-  },
+  clerical: CORRECTION_CLASSIFICATION_LABEL.clerical,
+  factual: CORRECTION_CLASSIFICATION_LABEL.factual,
+  interpretative: CORRECTION_CLASSIFICATION_LABEL.interpretative,
+  substantive: CORRECTION_CLASSIFICATION_LABEL.substantive,
+  compliance_related: CORRECTION_CLASSIFICATION_LABEL.compliance_related,
 };
 
 /** The three kinds in menu order. */
