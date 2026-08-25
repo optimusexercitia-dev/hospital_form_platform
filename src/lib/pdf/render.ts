@@ -30,6 +30,15 @@ import type { DocumentBody, DocumentPayload } from './types'
  * Gotenberg sidecar is private-network and must fetch nothing), print CSS,
  * the QR as inline SVG. Deterministic: same payload, same string — the
  * fingerprint test and the content-hash discipline both rely on it.
+ *
+ * ⚠ "must fetch nothing" above is a REQUIREMENT, and this file no longer
+ * enforces all of it. What THIS module assembles is inline by construction;
+ * author Markdown reaches the document through `prose()` in the case template,
+ * and it is `PDF_MARKDOWN_SANITIZE_SCHEMA` (ADR 0145) that keeps `<img src>`
+ * out of it — a different module. Two sibling comments asserted "fetches
+ * nothing" as a FACT and were falsified by PDF·P3; this one survives only
+ * because it is phrased as an obligation. ⛔ Do not restate it as a fact, and
+ * do not add a fetching element here on the strength of it.
  */
 
 /**
