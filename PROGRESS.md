@@ -38,35 +38,28 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   [case-printing-p3-substrate.md](docs/plans/case-printing-p3-substrate.md) — **read the substrate
   brief before touching P3.** Commits + amendments detail + the scoped-absence bound:
   [pdf-p3.md](docs/progress/pdf-p3.md). ⛔ **NOT pushed.**
-  **✅ Gate 1 COMPLETE · ⛔ Gate 2 RED (UNRUN, PO-accepted) · gate 3 pass 1 + a PO-requested
-  meta-review both done.** Both gates' evidence — the arm verdicts, the gate-2 figures and the
-  four excluded collapse causes — rotated **verbatim** → [pdf-p3.md](docs/progress/pdf-p3.md)
-  § "Gate evidence". ⛔ **Historical: re-measure, never quote.** Gate 3 pass 1 named THREE
-  blocking candidates — **C-1** an Art. 18 PHI exposure (the only live one), **C-2** Gotenberg
-  `<img>` fetch, **C-3** undelivered D14 floor items (⚠ missing EVIDENCE, not a defect — do not
-  quote its severity beside C-1).
-  **🔨 RESUMED 2026-08-25 (agent team, PO-authorised).** ✅ **Catalog reconciliation — gate 1's
-  authz greens STAND** (27 = 15 new + 12 body-only; policies 0/0; `A  B` read from the catalog, not
-  the diff) · ✅ **C-1** the Art. 18 hole, fixed as PO-ruled with the constitutive rule
-  (ADR 0144 **Amdt 5**) · ✅ **C-2** the Gotenberg beacon (ADR **0145**, amends 0014) · ✅ the band
-  notice + its pinning test. All mutation-proven. 🔨 Left: C-3's pgTAP cells + M-3 · C-3's E2E audit
-  rows + M-2 · the print placeholder. Then QA pass 2 → verdict → gate-2 re-run → gate 4.
-  ⭐ **RESUME HERE → [pdf-p3-handoff.md](docs/progress/pdf-p3-handoff.md)** (plan · built ·
-  obstacles · follow-ups · failures · ordered pending work). Detail:
-  [pdf-p3.md](docs/progress/pdf-p3.md).
-  ⭐ **PO RULING 2026-08-25 — accept the E2E evidence AS-IS, proceed to QA.** ⚠ **Scope, written
-  down because an approval's bounds are what never get recorded:** it accepts **gate 2 standing at
-  RED (UNRUN)** with its cause on record, and authorises **step 3 only.** ⛔ NOT phase approval
-  (step 4), NOT a push, NOT authority to edit the gate.
-  7 migrations · `368` (48 assertions; **four** absence assertions mutation-proven RED — "every" was an
-  overclaim, corrected 2026-08-25 by meta-review R-4).
-  ⭐ **All four amendments record a decision the approved ADR got WRONG, each found by building
-  it** — the reusable point, detail in [pdf-p3.md](docs/progress/pdf-p3.md).
-- **⚠ NO PHASE IS ACTIVE.** **ADR 0144** is the most recent program and is the first that is
-  *scoped but not built* — 0136 was the most recent COMPLETE one, and this line named it until
-  2026-08-25. **A bullet's POSITION is not its recency**; 0136 and 0137 are both complete — *not* 0137,
-  which this line named until 2026-08-24 because 0137's bullet outlived it in § Now while its four
-  items closed. **A bullet's POSITION is not its recency**; both are complete.
+  **✅ Gate 1 COMPLETE (re-measured on the final tree) · ⛔ Gate 2 RED (UNRUN, PO-accepted) ·
+  ✅ Gate 3 APPROVED — QA pass 2, 2026-08-25 · Gate 4 NOT GIVEN · Gate 5 not started.** 7 migrations.
+  Gate evidence, pass 1's three (now closed) blocking candidates, and the amendments lesson:
+  [pdf-p3.md](docs/progress/pdf-p3.md). ⛔ **Historical there: re-measure, never quote.**
+  **🔨 2026-08-25 — all five QA findings CLOSED in code**, each mutation-proven: the catalog
+  reconciliation (gate 1's authz greens **STAND** — 27 = 15 new + 12 body-only, policies 0/0,
+  `A  B` read from the catalog, not the diff) · **C-1** the Art. 18 hole (ADR 0144 **Amdt 5**) ·
+  **C-2** the Gotenberg beacon (ADR **0145**, amends 0014) · **C-3** all four D14 cells across both
+  layers · **M-2** · **M-3** made causal. ⭐ **Four more were found by BUILDING** — all four, plus
+  **Amdt 6**, in [pdf-p3.md](docs/progress/pdf-p3.md) § "Found by building".
+  **Left: gate-2 re-run → gate 4 (PO) → gate 5 Record.** QA's N-1…N-5 are non-blocking.
+  ⭐ **RESUME → [pdf-p3-handoff.md](docs/progress/pdf-p3-handoff.md)** · verdict
+  [phase-p3-review.md](docs/reviews/phase-p3-review.md) § Pass 2.
+  ⭐ **PO RULINGS 2026-08-25.** ⚠ **Scope, written down because an approval's bounds are what never
+  get recorded:** accepts **gate 2 at RED (UNRUN)** with its cause on record and authorises **step 3
+  only** — plus, later the same day, the agent team, the **C-1 constitutive ruling**, the print
+  placeholder, and fixing **the gate harness's own defects**. ⛔ NOT phase approval (step 4), NOT a
+  push, NOT authority to change what the gate MEASURES.
+- **⚠ ADR 0144 (PDF·P3) IS THE ACTIVE PHASE** — built, QA-APPROVED, gates 4–5 open. 0136 and 0137
+  are both complete. ⭐ **A bullet's POSITION is not its recency** — this line named the wrong
+  program twice (0137 until 2026-08-24, 0136 until 2026-08-25) because a concluded bullet outlived
+  its work in § Now, and it said NO PHASE IS ACTIVE until 2026-08-25 while one was.
   Everything else that stood here is done — the DM program, DSR + its operational remediation, the
   Cloud orphan probe, the `Imprimir prévia` split, AFF2 and the case-surface split. Every one of those
   bullets is rotated **verbatim** → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md),
@@ -141,10 +134,14 @@ D12's `CaseEvent.kind` widening, **not caused by it. Measured from the live cata
 **`WITH CHECK` only** — that constrains the **new** kind, never **which rows may be touched**; their
 `USING` is `app.can_write_case_content(case_id, auth.uid())` alone. `case_events_writer_delete` /
 `…_staff_admin_delete` have **no kind gate at all**. So `decision_issued → note` satisfies both clauses
-and the row is silently re-kinded, and any procedural row can simply be deleted. ⛔ **No second lock:**
-`pg_trigger` shows **zero** non-internal triggers on `case_events`, **no** routine references both
-`case_events` and `audit_log`, and writes go **direct-table** over PostgREST — so the deletion is also
-**unaudited** (a Rule 11 gap). ⚠ **The only control today is the UI suppression D12 added, which Rule 1
+and the row is silently re-kinded, and any procedural row can simply be deleted. ⛔ **No second lock — and this line's EVIDENCE was corrected 2026-08-25 (QA N-5): it said "zero
+non-internal triggers on `case_events`", which was true when filed and is now FALSE.** P3/D15 added
+`bump_case_print_revision` (AFTER ROW I/D/U) — tamper-**evidence**, not a lock, and it writes no
+audit row. **No** routine references both `case_events` and `audit_log`, and writes go
+**direct-table** over PostgREST — so the deletion is still **unaudited** (a Rule 11 gap). ⭐ P3 also
+**raised the stakes**: it seals these rows into a hash-verified artifact with a public verification
+URL, so a silent re-kind before a mint yields an *authentically signed* dossier that misrepresents a
+procedural decision. ⚠ **The only control today is the UI suppression D12 added, which Rule 1
 forbids counting as one.** ⛔ **Deliberately NOT fixed in this batch:** changing two RLS policies is a
 live authz change owing its own keystone + diff-scoped door sweep. **Bounded:** requires
 `can_write_case_content` on that case — in-case records integrity, **not** a tenant-isolation break.
@@ -208,9 +205,9 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **ADR 0136 — deferred `staff_admin` sign-off** | ✅ **APPROVED** — D1–D7 all audited; MINOR-1 (a migration header contradicting its own code) fixed in the pass; INFO-1 recorded. ⛔ **SELF-REVIEW for `1069711c`** — the reviewing session wrote it; independent only for `d899ceb3` + `20261003002000` | 2026-08-24 | [review](docs/reviews/adr-0136-deferred-signoff-review.md) |
+| **PDF·P3 (Printing Cases)** | ✅ **APPROVED** — gate step 3 only; gate 2 stays RED (UNRUN) by PO ruling. 5 non-blocking N-findings. | 2026-08-25 | [phase-p3-review.md](docs/reviews/phase-p3-review.md) § Pass 2 |
 | _Four prior rotations_ (ADR 0137 · the AFF2 pair · the seven DM rows · the 2026-08-14 verbose collapse) — each rotation's own date is recorded at the destination | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
-| 117 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
+| 118 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
 
 ## Decisions
 
@@ -218,9 +215,8 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Date | Decision | Ref |
 | --- | --- | --- |
-| 2026-08-24 | **The door sweep's predicate arm admits by PROPERTY, not only by NAME** — a `prosecdef` boolean whose BODY reaches identity is in scope; the 2 side-effecting writers are held out by name, with the reason at the exclusion. Domain 102→110; 8 gates swept → 6 COVERED · 1 BLIND · 1 ERROR | ADR [0079 Amdt 9](docs/decisions/0079-authz-door-blindness-standing-invariant.md) |
-| 2026-08-24 | **Tracking hardening batch** — colon-less ADR-edge labels a HARD gate-9 finding (4 live fixed); CLAUDE.md capped 40 KB; FUP body-residue check, 47 bodies rotated (2 orphans reconstructed); proposed-ADR review stamped, 30-day cadence; docs/progress link sweep registry-free (133→0) | [ADR 0140](docs/decisions/0140-tracking-apparatus-hardening-batch.md) |
-| 2026-08-24 | **Concluded § Now bullets rotate to a QUARTERLY archive** — `docs/progress/<YYYY>-Q<n>.md`, keyed to **rotation date**; `lint:progress` link-checks quarterly files by pattern (zero-match control) + the frozen `now-concluded-2026-08.md`; other categories keep their homes | [ADR 0139](docs/decisions/0139-quarterly-home-for-concluded-now-rotations.md) |
+> ↩ **3 concluded rows dated 2026-08-24 (the door-sweep predicate-arm property rule, the tracking-hardening batch, the quarterly § Now archive) rotated 2026-08-25** → **[decisions-log.md](docs/progress/decisions-log.md)**.
+
 
 > ↩ **4 concluded rows of the ADR 0137 batch (3 PO rulings + the lead deploy-rationale correction) rotated 2026-08-24** → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-24". The batch is complete, PO-approved and pushed; each row is still one line, in full, there.
 
@@ -358,6 +354,8 @@ _**Three items RESOLVED 2026-08-24 (gate-tooling round), index lines rotated** �
 - 🔴 **FUP-CASE-DOCS-DEAD-READER** — `listCaseDocuments` delegates to the PARKED `listAttachments` (body: `return []`), so **three live surfaces render zero case documents to every user** — the timeline, the staff case page and the coordinator detail page, none with a fallback. ⚠ **No gate can see it:** an empty array is legal at every layer, so a fixture with zero documents and a reader returning zero are indistinguishable. Predates P3, found while sourcing D2's manifest, deliberately not fixed in it — frontend + backend
 - 🟡 **FUP-P3-DOSSIER-HAS-NO-RECUSAL-ROSTER** — `CaseDetail.myRecusal` is the **caller's own** recusal only and no per-participant roster reader exists, so `recusalDisplay` could be populated for the minter and nobody else — an artifact that varies by who printed it (ADR 0104 **A7**), and a **second** A7 exception with none of the D5 justification the first one has. Dropped from the v1 payload type (D2 never enumerated recusals). ⚠ Filed rather than closed by scope because **ADR 0144 D8's Consequences paragraph discusses recused members by name**, so the silence is a gap someone re-discovers from the artifact instead of from a file. ⛔ Any fix must render for EVERY participant or none — backend
 - 🔴 **FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH** — `e2e-prod-gate.sh:308` truncates a **fixed** `server.log` per batch and tails it only on `start_server` **failure** (line 412), so a server that dies **mid-batch** — the `server_dead` case the INFRA classifier fires on — leaves **no server-side evidence**. Measured: 2 references, 1 truncating / 0 appending, while the script already per-batch-names three other logs. ⛔ **Heap ceiling · unhandled app exception · capacity are indistinguishable from the client side, and the middle one is a PRODUCT DEFECT booked as INFRA.** Host was clean (no orphans, 12.2/32.5 GB free), so the per-process causes are the likely ones. ⭐ **Body carries a SECOND finding of the same class: `GATE_EXIT` lost in both runs** — the artifact proving the outcome is not written durably by the thing producing it. ⭐ **PO-AUTHORISED 2026-08-25 to fix the harness’s own defects — with `free_port()`: its unanchored `netstat` grep matches the **Foreign** column, so it returns client PIDs with **0 LISTENING** and `taskkill //F` kills **Playwright workers**.** ⛔ Not authority to change what the gate MEASURES — tester + backend
+- 🟠 **FUP-DOSSIER-CAN-SILENTLY-OMIT-CONTENT** — QA N-2: `getResponseForFill` never inspects `error` on **eight** reads, so a transient failure yields an answer-less phase ⇒ **a hash-sealed dossier can silently omit content** under a verification URL. Also owed: a vector pinning the door↔policy parity Axis C rests on — backend
+- 🟡 **FUP-MINT-KIND-TIER-RULE-ONE-DIRECTION** — QA N-1: the mint door refuses `contains_phi = TRUE` for `form_response` but has **no mirror** refusing FALSE for `case`; Amdt 5's invariant holds via the **D3 registration gate**, not a tier check. ⛔ Not reachable is not protected — backend
 - 🟡 **FUP-GOTENBERG-EGRESS-UNRESTRICTED** — no network backstop for the print sidecar: dev is a bare `docker run`, Coolify constrains **inbound only**, so ADR 0145's schema narrowing is the **only** mitigation for an author-controlled fetch. ⛔ **PO-DEFERRED 2026-08-25 to a follow-up, NOT descoped** — owed: measure what the sidecar can actually reach in dev and on Coolify, then deny outbound — backend
 - 🟡 **FUP-MOJIBAKE-GATE-BLIND-TO-UNTRACKED-FILES** — `check-mojibake.mjs:144` sources `git ls-files`, so a **staged** file is covered and an **untracked** one is outside the domain. Measured: gate 10 printed `OK (2825 tracked text files clean)` while **2,226 lines across 4 new P3 artifacts** were not in the 2825 (scanned separately, controls fired, 0 hits — clean but **unproven by the green line**). ⭐ Same shape as ADR 0079 Amdt 3: the thing most likely wrong is what the domain excludes. Fix = union `--others --exclude-standard`, ⛔ red it on a corrupt untracked file first — backend
 

@@ -354,3 +354,9 @@ _Verbatim apart from the link repoint. The batch was PO-approved on 2026-08-24 a
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
 | **ADR 0137 batch** | ✅ **APPROVED (r2)** — 4 r1 items discharged; `required` is product-reachable + E2E-driven. 4 pre-commit conditions in §7. r1 CHANGES REQUESTED | 2026-08-24 | [r2](../reviews/adr-0137-batch-review-r2.md) |
+
+### Rotated from PROGRESS.md 2026-08-25 — the milestone before PDF·P3
+
+⛔ Verbatim; links repointed for this directory. Rationale stays in `docs/reviews/`, never here.
+
+| **ADR 0136 — deferred `staff_admin` sign-off** | ✅ **APPROVED** — D1–D7 all audited; MINOR-1 (a migration header contradicting its own code) fixed in the pass; INFO-1 recorded. ⛔ **SELF-REVIEW for `1069711c`** — the reviewing session wrote it; independent only for `d899ceb3` + `20261003002000` | 2026-08-24 | [review](../reviews/adr-0136-deferred-signoff-review.md) |

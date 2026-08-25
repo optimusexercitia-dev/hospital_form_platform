@@ -292,3 +292,37 @@ gates, so ⛔ **re-measure; never quote these numbers as current.**
   mistake**, not an option. **⛔ Gate 3 pass 1 (static): THREE blocking candidates — C-1 an Art. 18
   PHI exposure, C-2 Gotenberg `<img>` fetch, C-3 undelivered D14 floor items. Development PAUSED by
   PO 2026-08-25.**
+
+---
+
+## Found by building — the four the reviews did not have (2026-08-25)
+
+Rotated out of PROGRESS.md § Now, which holds live state only. Each was produced by *constructing*
+the fix, not by reading the code — the phase's recurring lesson, now with four more instances.
+
+1. ⭐⭐ **A committed E2E assertion had pinned C-1 as expected behaviour** — `contains_phi === false`
+   on C-1's exact shape, commented *"the one shape where `contains_phi` derives FALSE"* and
+   *"recorded as a measurement"*. The meta-review's *"nothing pins false"* had swept **pgTAP only**.
+   ⇒ P3's 11/11 green contained a test that would have gone RED on correct behaviour. Full record:
+   ADR [0144](../decisions/0144-case-printing-dossier-lock-and-phi-fork.md) Amendment 5.
+2. ⭐⭐ **The one D14 cell counted as DELIVERED was itself vacuous.** Neutralized, the recusal deny
+   moved **no verdict in the suite**: the persona was a plain staff member with no positive arm to
+   deny, while the assertion's caption read *"hard-denies before every positive arm"*. ⇒ C-3 was
+   **0 of 4** cells, not 1 of 4. The same shape then recurred *inside* the repair — an assertion
+   placed before the document it asserts on is minted — caught only because a mutation failed to
+   red it. Amendment 6.
+3. ⭐ **The retired rule was wrong in the DISPOSAL direction too.** `CaseEvent.body` is typed
+   non-nullable and disposal **redacts to a marker rather than nulling**, so a disposed case that
+   retained one event derived `contains_phi = true` — banding a dossier whose every rendered field
+   reads `[PHI removido]`. ⇒ the committed `CASE_DISPOSED` fingerprint had been pinning a payload
+   the old provider could not produce. Amendment 5.
+4. ⭐⭐ **The image placeholder made C-2's security keystone vacuous, silently.** With the sanitize
+   narrowing neutralized but the placeholder transform live, the beacon assertions stayed **GREEN** —
+   the transform strips the `img` node before the sanitizer sees it. A defence-in-depth layer added
+   *above* another one can retire the lower layer's ability to fail, and nothing reports it.
+   Mitigated three ways incl. a labelled layer probe: ADR
+   [0145](../decisions/0145-print-path-markdown-is-stricter-than-screen.md).
+
+⇒ The generalisable form, stated once: **neutralize each layer alone, and require that layer's own
+assertions to move.** Every item above is invisible to a coverage reading, a plan count, and a green
+suite.

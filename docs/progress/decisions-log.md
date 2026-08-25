@@ -503,3 +503,14 @@ decisions are concluded. Full rationale lives in ADR
 | 2026-08-24 | **PO: post-send referral PHI amendment is NOT a product capability.** The refusal moves INTO `set_referral_patient` (non-`draft` → its own `HC078`, before the upsert); `can_amend_referral_phi_snapshot` governs draft re-saves only. Blanking the MRN went from ONE edit away to TWO, measured | [ADR 0137 Amdt 1](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) · [ADR 0078 D7](../decisions/0078-authorization-capability-model.md) |
 | 2026-08-24 | **PO: `CaseDepartmentField` is DELETED** (component + test) — D9 left it with no consumer but its own test, which no gate in the eight can distinguish from real use | [ADR 0137 Amdt 3](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
 | 2026-08-24 | **Lead: ADR 0137's deploy rationale is FALSE and is corrected, not re-argued.** *"Additive ⇒ old-code/new-schema is safe"* — measured, the dropped columns are selected directly by the deployed build. Order unchanged (schema→code); the window is real | [ADR 0137 Amdt 2](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) |
+
+## Rotated from PROGRESS.md 2026-08-25 — the three 2026-08-24 rows
+
+⛔ Verbatim; links repointed for this directory. Rotated to make room for PDF·P3's rows at its
+Record step. Rationale stays in the ADRs these reference, never here.
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-24 | **The door sweep's predicate arm admits by PROPERTY, not only by NAME** — a `prosecdef` boolean whose BODY reaches identity is in scope; the 2 side-effecting writers are held out by name, with the reason at the exclusion. Domain 102→110; 8 gates swept → 6 COVERED · 1 BLIND · 1 ERROR | ADR [0079 Amdt 9](../decisions/0079-authz-door-blindness-standing-invariant.md) |
+| 2026-08-24 | **Tracking hardening batch** — colon-less ADR-edge labels a HARD gate-9 finding (4 live fixed); CLAUDE.md capped 40 KB; FUP body-residue check, 47 bodies rotated (2 orphans reconstructed); proposed-ADR review stamped, 30-day cadence; docs/progress link sweep registry-free (133→0) | [ADR 0140](../decisions/0140-tracking-apparatus-hardening-batch.md) |
+| 2026-08-24 | **Concluded § Now bullets rotate to a QUARTERLY archive** — `docs/progress/<YYYY>-Q<n>.md`, keyed to **rotation date**; `lint:progress` link-checks quarterly files by pattern (zero-match control) + the frozen `now-concluded-2026-08.md`; other categories keep their homes | [ADR 0139](../decisions/0139-quarterly-home-for-concluded-now-rotations.md) |

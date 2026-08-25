@@ -5931,3 +5931,49 @@ trim loses nothing):
 > the sidecar in both environments. (3) A positive control proving the denial is real: a template
 > that *deliberately* emits a remote URL must fail to fetch it, because a denial that was never
 > observed refusing anything is indistinguishable from a misconfigured flag.
+
+### 🟡 FUP-MINT-KIND-TIER-RULE-ONE-DIRECTION — the mint door refuses the wrong tier for one kind and not the other (owner: backend)
+
+> **Filed 2026-08-25, QA pass 2 finding N-1.** `mint_printed_document`'s `p_contains_phi` defaults
+> to `false`. The door **refuses `TRUE`** for `form_response` (`p_source_kind not in
+> ('meeting','case')`) but has **no mirror refusing `FALSE` for `case`**.
+>
+> ADR 0144 Amendment 5's claim — *"no registered case document can be standard-tier, without
+> exception"* — **holds today**, and QA proved the complement by construction through the real
+> door: `registers` true→false on disposal, label → `[PHI removido]`, mint → `HC0DP`. So
+> `contains_phi = false ⟺ caseDisposed ⟺ refused`. ⛔ **But it is closed by the D3 registration
+> gate, not by a tier check** — the invariant lives in a *composition*, one edit from breaking:
+> any future derivation for `containsPhi` reopens standard-tier for a **live** case with nothing
+> in the catalog objecting.
+>
+> **Owed:** a `if p_source_kind = 'case' and not coalesce(p_contains_phi,false) then raise`
+> conjunct, so the invariant lives where Rule 1 puts it. ⚠ It is a gate change: it owes a keystone
+> and a diff-scoped door sweep. **Not reachable today — and "not reachable" is not "protected",
+> which is why this is filed rather than dropped.**
+
+### 🟠 FUP-DOSSIER-CAN-SILENTLY-OMIT-CONTENT — a hash-sealed dossier's answer reads swallow their errors (owner: backend)
+
+> **Filed 2026-08-25, QA pass 2 finding N-2.** Two halves; the second is the one with teeth.
+>
+> **(a) Evidence.** `can_read_full_case_content` Axis C composes
+> `can_view_printed_document('form_response', …)` with an RLS-mediated TypeScript answer read. If
+> the two diverge the failure is **silent in both directions**. QA measured them equal over **975
+> cells** with both controls moving — and **no test, in any layer, compares them.** Owed: a
+> cross-kind pgTAP vector asserting set-equality of the door and the `answers_select` disjunction.
+> ⚠ QA's own first matrix reported 11 false over-grants because `app.has_role`'s act-as hat clause
+> is **vacuously satisfied** when called as `postgres` (`auth.uid()` is NULL) — whoever writes the
+> vector must supply the hat to **both** sides or reproduce that artefact.
+>
+> **(b) Correctness.** `getResponseForFill` (`src/lib/queries/responses.ts:844-979`) destructures
+> `data` only and **never inspects `error`** on any of its **eight** reads, coalescing with `?? []`.
+> A transient failure therefore yields an **answer-less phase** rather than an exception, and
+> `buildResponseSections` still returns non-null ⇒ **a hash-sealed dossier can silently omit
+> content**, carrying a verification URL that attests to the truncated artifact. The RLS half is
+> closed by Axis C; this half is not. ⭐ The same module already models the right shape:
+> `getCaseDetailUncached` explicitly throws on `error` for its side reads.
+>
+> ⚠ **Not a drop-in fix.** `getResponseForFill` also serves the fill wizard, where throwing on a
+> transient error changes behaviour from "empty answers" to "broken wizard". The print path wants
+> fail-loud and the fill path may not — decide that explicitly rather than flipping the shared
+> function. **Owed:** make the dossier path fail loudly, with a test that a read error produces an
+> error rather than a short document.
