@@ -5609,78 +5609,78 @@ _**FUP-DM5-BACKUP-IS-PHI-EXPORT** (🔴) rotated 2026-08-19 → the same archive
 > is the check working: a body no live register indexes is invisible work. Link paths are
 > unchanged — both files sit in `docs/progress/`, so every relative link resolves here.
 
-### â¬› Resolved â€” rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2Â·S1 + S4) Â· **FUP-DM1-E2E** (6+1 specs rewritten, DM2Â·S4) Â· **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2Â·S2) â€” each verified independently, not accepted from a report â†’ [follow-ups-archive.md](./follow-ups-archive.md)
+### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
-### ðŸŸ¡ FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING â€” `DSR_RESIDUE_NOTICE` line 1 is now CONDITIONALLY true, and the condition is a control the software cannot enforce (owner: PO copy call, then frontend; created by ADR 0131, 2026-08-20)
+### 🟡 FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING — `DSR_RESIDUE_NOTICE` line 1 is now CONDITIONALLY true, and the condition is a control the software cannot enforce (owner: PO copy call, then frontend; created by ADR 0131, 2026-08-20)
 
-Filed 2026-08-20 (lead). Not a defect â€” a **premise that became explicit** when ADR
+Filed 2026-08-20 (lead). Not a defect — a **premise that became explicit** when ADR
 [0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) bounded PHI
 erasure to designated PHI fields.
 
 **The sentence** ([messages.ts:97](../../src/lib/dsr/messages.ts:97)), shown to an operator
 discharging an LGPD obligation and reproduced in the outcome record handed to the data
 subject: *"O descarte apaga os dados do paciente armazenados no banco para este registro e
-preserva o histÃ³rico de governanÃ§aâ€¦"*
+preserva o histórico de governança…"*
 
 **Before 0131** its truth was structural: the door was to be widened until it cleared every
 PHI-capable column on the lane. **After 0131** it holds **iff PHI was entered only into PHI
-fields** â€” a *training* control. The software cannot detect a patient name typed into a
+fields** — a *training* control. The software cannot detect a patient name typed into a
 title, so nothing in the platform can make the sentence false-proof.
 
-â›” **This does NOT make the notice an over-claim today**, and it must not be filed as one:
+⛔ **This does NOT make the notice an over-claim today**, and it must not be filed as one:
 under the ruling's own premise the sentence is true. What changed is *what the sentence
 rests on*. Compare `FUP-DISPOSE-DIALOG-OVERCLAIM`, which was a genuinely false claim about
 the door's reach; this is a true claim with a newly named dependency.
 
 **The PO's call, two shapes:**
-(a) **scope the sentence** to the designated fields (*"â€¦apaga os dados do paciente
-registrados nos campos de identificaÃ§Ã£o do pacienteâ€¦"*) â€” narrower, and true independent of
+(a) **scope the sentence** to the designated fields (*"…apaga os dados do paciente
+registrados nos campos de identificação do paciente…"*) — narrower, and true independent of
 operator behaviour; or
 (b) **accept it as written** on the training premise, and record that premise.
-âš  Either way, **ADR 0131's risk acceptance must also be recorded where the pilot decision is
-made**, not only in the ADR â€” the identical requirement Critical FUP C3 carries, and the
+⚠ Either way, **ADR 0131's risk acceptance must also be recorded where the pilot decision is
+made**, not only in the ADR — the identical requirement Critical FUP C3 carries, and the
 reason C3 says it: an acceptance that lives only in the document that created it is invisible
 at the moment it matters.
 
-âš  Whoever edits this constant: it is shared by **four** consumers (two dispose dialogs, the
+⚠ Whoever edits this constant: it is shared by **four** consumers (two dispose dialogs, the
 task-inbox disclosure, and `queries/dsr.ts` feeding the outcome record) and its per-lane
 companion `DSR_MEETING_DISPOSAL_WARNING` must stay a **separate** constant. Enumerate from
 the symbol's references, never from a roster.
 
-### ðŸŸ  FUP-DISPOSE-EVENT-DOOR-GATE-BLIND â€” `dispose_event_phi`'s authorization gate is exercised by NO keystone: opening it leaves the full suite green (owner: backend; found by the ADR 0129 diff-scoped sweep)
+### 🟠 FUP-DISPOSE-EVENT-DOOR-GATE-BLIND — `dispose_event_phi`'s authorization gate is exercised by NO keystone: opening it leaves the full suite green (owner: backend; found by the ADR 0129 diff-scoped sweep)
 
 **Measured 2026-08-19, by neutralization, on a fresh reset.** Rewriting the door's authz raise to
-`perform 1;` â€” so **any** caller passes the gate â€” and running the full pgTAP suite:
+`perform 1;` — so **any** caller passes the gate — and running the full pgTAP suite:
 
 | Door | Gate | Suite notices? |
 |---|---|---|
-| `dispose_case_phi` | `is_staff_admin_of(commission)` | âœ… **YES** â€” `151_case_patient` (6 tests) + `314_qob_org_admin_content_wall` (1) |
-| `dispose_referral_phi` | `is_tenancy_admin_of` âˆ¨ `is_pqs_operator_of` (source âˆ¨ target) | âœ… **YES** â€” `189_nsp_per_hospital_isolation` |
-| `dispose_meeting_minutes` | `is_staff_admin_of` âˆ¨ `is_tenancy_admin_of` | â›” **WAS BLIND** â€” âœ… now keystoned by `348` t7 (ADR 0129 build) |
-| **`dispose_event_phi`** | `is_tenancy_admin_of(commission_of_event)` âˆ¨ `is_pqs_operator_of(hospital_of_event)` | â›” **BLIND** â€” gate opened **alone**, suite **PASS**, 6550/6550 |
+| `dispose_case_phi` | `is_staff_admin_of(commission)` | ✅ **YES** — `151_case_patient` (6 tests) + `314_qob_org_admin_content_wall` (1) |
+| `dispose_referral_phi` | `is_tenancy_admin_of` ∨ `is_pqs_operator_of` (source ∨ target) | ✅ **YES** — `189_nsp_per_hospital_isolation` |
+| `dispose_meeting_minutes` | `is_staff_admin_of` ∨ `is_tenancy_admin_of` | ⛔ **WAS BLIND** — ✅ now keystoned by `348` t7 (ADR 0129 build) |
+| **`dispose_event_phi`** | `is_tenancy_admin_of(commission_of_event)` ∨ `is_pqs_operator_of(hospital_of_event)` | ⛔ **BLIND** — gate opened **alone**, suite **PASS**, 6550/6550 |
 
-âš  **BLIND â‰  vulnerable, and the distinction is the whole point.** The gate is present and correct
-today; nothing is reachable that should not be. What is missing is the *keystone* â€” if a refactor
+⚠ **BLIND ≠ vulnerable, and the distinction is the whole point.** The gate is present and correct
+today; nothing is reachable that should not be. What is missing is the *keystone* — if a refactor
 dropped or weakened this gate, **nothing in 6550 tests would go red**, and a PHI-erasure door on the
 patient-safety module would be silently open. That is door-blindness in the ADR 0079 sense.
 
 **Why the standing gates did not catch it.** `ARM=census` asks whether a gate carries a *verdict*,
-not whether a keystone exercises it; `ARM=floor` asks only whether the door is **called** â€” and it
+not whether a keystone exercises it; `ARM=floor` asks only whether the door is **called** — and it
 is (its happy path is tested), which is exactly the [[a-predicate-quoted-at-the-wrong-grain]] shape:
 "the door is exercised" is true and does not bound "the door's *gate* is exercised". ADR 0079
 Amendment 1's diff-scoped recipe filters the diff to `^(is_|can_|has_)` function names + RLS
-policies; this gate is a plain `if not (...)` **inside** a door and matches no filter. â­ **The
+policies; this gate is a plain `if not (...)` **inside** a door and matches no filter. ⭐ **The
 enumeration boundary is a syntax; the property is "an authorization decision no test can see change"**
-â€” [[enumeration-boundary-is-a-syntax-not-a-property]].
+— [[enumeration-boundary-is-a-syntax-not-a-property]].
 
 **The fix** is one `throws_ok(..., '42501')` per door with a persona who holds the module's ordinary
-membership but neither gate arm â€” the shape `348` t7 uses (a plain commission member), with a CONTROL
+membership but neither gate arm — the shape `348` t7 uses (a plain commission member), with a CONTROL
 pinning that the persona really lacks the hat, so the refusal is attributable to the role and not to
-tenancy. â›” **Do not "fix" this by widening the gate to make a test pass.**
+tenancy. ⛔ **Do not "fix" this by widening the gate to make a test pass.**
 
 **Not fixed here, deliberately.** Found *during* the ADR 0129 build, whose migration is bound to amend
 nothing else (0129 Decision 1) and whose subject is the child lock. Filed rather than carried, so it is
-not lost inside a build that does not own it â€” the same reason this door's sibling item was filed in the
+not lost inside a build that does not own it — the same reason this door's sibling item was filed in the
 first place.
 
 ## ↩ Rotated from PROGRESS.md 2026-08-24 — the FUP-0137-PHI-MODE-SHIMS body, VERBATIM
@@ -5694,40 +5694,40 @@ _Moved when the ADR 0137 § Now bullet rotated to [2026-Q3.md](2026-Q3.md): that
 ## ⬛ FUP-0137-PHI-MODE-SHIMS — ✅ **RESOLVED 2026-08-24. All four shims are gone; the last one needed the code deploy first, which is why it outlived the other three.**
 
 > **Closure.** Migration `20261003001800` removes the derived `patient_enabled` key from
-> `get_case_detail`, re-emitted from `pg_get_functiondef` (never migration text â€” this body has now
+> `get_case_detail`, re-emitted from `pg_get_functiondef` (never migration text — this body has now
 > been re-emitted three times) with an anchor-uniqueness assert **and** a post-patch catalog assert,
 > so a drifted body fails loudly rather than patching nothing and leaving a green suite behind.
 > `CaseDetailJson.patient_enabled` is deleted with it.
 >
-> **Keystone: pgTAP `366`, 10 tests, RED-PROVEN.** Two levels â€” the catalog (`prosrc`, counted not
+> **Keystone: pgTAP `366`, 10 tests, RED-PROVEN.** Two levels — the catalog (`prosrc`, counted not
 > `like`-tested, because `case_patient_enabled` contains the substring) and the ENVELOPE the product
 > actually receives. The vacuity controls are the load-bearing half: `jsonb ? 'k'` is FALSE for an
 > empty envelope, a NULL-returning door and a refused call alike, so "the key is absent" would
 > otherwise pass for three reasons that are not the one being claimed. Re-adding the key moves the
 > body md5 and reds exactly 1.1 / 2.1 / 2.5 with `have: true`.
 >
-> âš  **The restore is part of the proof, and the first attempt FAILED it.** Hand-patching the probe
-> out left a stray newline â€” functionally identical, **not** byte-identical (`54b52828â€¦` vs the
-> `0f72da26â€¦` baseline). Rebuilding from the migration chain returned the exact baseline. A mutation
+> ⚠ **The restore is part of the proof, and the first attempt FAILED it.** Hand-patching the probe
+> out left a stray newline — functionally identical, **not** byte-identical (`54b52828…` vs the
+> `0f72da26…` baseline). Rebuilding from the migration chain returned the exact baseline. A mutation
 > whose restore is verified by eye is not a verified restore.
 >
-> â›” **The deploy gate was discharged by the PO, not by a check.** No Coolify status is readable from
+> ⛔ **The deploy gate was discharged by the PO, not by a check.** No Coolify status is readable from
 > this repo (`coolify.md` carries placeholder domains only), so nothing here can assert the new build
-> is live. The PO's standing fact â€” the pilot has no real users â€” bounds the harm window to zero,
+> is live. The PO's standing fact — the pilot has no real users — bounds the harm window to zero,
 > which is what made it safe; that is a **ruling**, and if it is ever cited again it must be re-asked,
 > not re-read.
 >
-> â›” **THE ITEM'S OWN VERIFICATION PROPERTY WAS WRONG, AND KEEPING IT IS THE LESSON.** It prescribed
+> ⛔ **THE ITEM'S OWN VERIFICATION PROPERTY WAS WRONG, AND KEEPING IT IS THE LESSON.** It prescribed
 > *"`grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return
 > **zero**"*. It cannot, and never could: `create_case(p_patient_enabled boolean)` is a **live RPC
 > parameter** for the processless-case path, with a matching form field and React state. A property
-> written to bound a shim also matched code that was never a shim â€” so a reader obeying it would
+> written to bound a shim also matched code that was never a shim — so a reader obeying it would
 > either "fix" working code or declare the item unclosable. The residue is filed as its own item:
 > [[FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI]].
 
 <details><summary>Original item, as filed 2026-08-23</summary>
 
-### ðŸŸ¡ FUP-0137-PHI-MODE-SHIMS â€” the derived `patientEnabled` / `collectsPatient` / `setTemplateCollectsPatient` shims must retire once the builder UI adopts `patientMode` (owner: backend + frontend)
+### 🟡 FUP-0137-PHI-MODE-SHIMS — the derived `patientEnabled` / `collectsPatient` / `setTemplateCollectsPatient` shims must retire once the builder UI adopts `patientMode` (owner: backend + frontend)
 
 > **Raised 2026-08-23, ADR 0137 Increment 0.** D1 replaced the boolean PHI switch with a three-mode
 > setting (`none` / `optional` / `required`). The database half is complete: `collects_patient` and
@@ -5735,32 +5735,32 @@ _Moved when the ADR 0137 § Now bullet rotated to [2026-Q3.md](2026-Q3.md): that
 > truth.
 >
 > The **TypeScript half is deliberately unfinished**, and that is what this item tracks. To let the
-> schema land ahead of the UI (the batch's required deploy order â€” schema first, then code) three
+> schema land ahead of the UI (the batch's required deploy order — schema first, then code) three
 > compatibility shims were kept, all marked `@deprecated`:
 >
-> - `CaseDetail.patientEnabled` â€” now **derived** (`patientMode !== 'none'`), not a column.
-> - `ProcessTemplateVersion.collectsPatient` â€” same derivation.
-> - `setTemplateCollectsPatient(versionId, collects)` â€” signature unchanged, now delegating to
+> - `CaseDetail.patientEnabled` — now **derived** (`patientMode !== 'none'`), not a column.
+> - `ProcessTemplateVersion.collectsPatient` — same derivation.
+> - `setTemplateCollectsPatient(versionId, collects)` — signature unchanged, now delegating to
 >   `setTemplatePatientMode(versionId, collects ? 'optional' : 'none', [])`.
 > - `get_case_detail` also still emits a derived `patient_enabled` JSON key.
 >
-> â›” **The reason this needs an index line rather than a code comment: a boolean shim over a
+> ⛔ **The reason this needs an index line rather than a code comment: a boolean shim over a
 > three-valued setting is LOSSY IN ONE DIRECTION ONLY, and the lossy direction is the new one.**
-> `collectsPatient` cannot express `required`. Every existing caller keeps working â€” which is exactly
+> `collectsPatient` cannot express `required`. Every existing caller keeps working — which is exactly
 > why nothing will ever fail, no gate will ever fire, and a builder screen wired to
 > `setTemplateCollectsPatient` will silently be unable to configure the one mode ADR 0137 was written
 > to introduce. The compliance feature would be shipped, reachable only through an RPC no UI calls.
 >
-> **Resolution event:** the process-template builder gains a mode picker (D1/D2 â€” three modes plus the
+> **Resolution event:** the process-template builder gains a mode picker (D1/D2 — three modes plus the
 > required-field set, with `mrn` rendered selected and non-interactive). At that point delete all four
 > shims and the `@deprecated` markers with them.
 >
-> âš  **Do NOT retire them before that.** They are what makes old-code/new-schema safe, and Coolify
+> ⚠ **Do NOT retire them before that.** They are what makes old-code/new-schema safe, and Coolify
 > auto-deploys on push.
 >
 > **Verify by property, not by memory:**
 > `grep -rn "patientEnabled\|collectsPatient\|setTemplateCollectsPatient" src/` should return **zero**
 > hits when this closes, and `public.get_case_detail` should no longer emit the derived key
-> (`pg_get_functiondef`, not the migration file â€” it has been re-emitted twice already).
+> (`pg_get_functiondef`, not the migration file — it has been re-emitted twice already).
 
 </details>

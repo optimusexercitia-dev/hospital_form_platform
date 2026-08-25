@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**140 ADRs** · next free number: **0143** · 37 carry an inbound supersedes/amends edge
+**141 ADRs** · next free number: **0144** · 37 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -164,3 +164,4 @@
 | 0140 | [Tracking-apparatus hardening batch (labels, caps, residue, cadence, sweep)](0140-tracking-apparatus-hardening-batch.md) | accepted | 2026-08-24 | amends 0124 | – |
 | 0141 | [Cases board (`manage/cases`) filter redesign: actionable KPIs, saved views, advanced pa…](0141-cases-board-filter-redesign.md) | accepted | 2026-08-24 | – | – |
 | 0142 | [One PHI dialog layout; the Atividade composer removed; the Process rail reordered](0142-phi-dialog-layout-atividade-composer-removal-process-rail.md) | accepted | 2026-08-24 | amends 0137 | – |
+| 0143 | [A gate for double-encoded UTF-8 (mojibake) in tracked text](0143-mojibake-gate-double-encoded-utf8.md) | accepted | 2026-08-25 | – | – |
