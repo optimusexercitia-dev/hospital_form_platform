@@ -342,8 +342,17 @@ async function mintCaseDocument(
 async function printRowsForCase(
   page: Page,
   caseId: string,
-): Promise<Array<{ template_key: string; status: string; contains_phi: boolean; source_revision: number }>> {
+): Promise<
+  Array<{
+    id: string
+    template_key: string
+    status: string
+    contains_phi: boolean
+    source_revision: number
+  }>
+> {
   return serviceQuery<{
+    id: string
     template_key: string
     status: string
     contains_phi: boolean
@@ -351,7 +360,37 @@ async function printRowsForCase(
   }>(
     page,
     `printed_documents?source_kind=eq.case&source_id=eq.${caseId}` +
-      `&select=template_key,status,contains_phi,source_revision&order=minted_at.asc`,
+      `&select=id,template_key,status,contains_phi,source_revision&order=minted_at.asc`,
+  )
+}
+
+/**
+ * The PHYSICAL tier a print's bytes landed in — the field the LGPD Art. 18
+ * erasure actually filters on.
+ *
+ * Looked up by the derived coordinate rather than through an embed:
+ * `app.guard_printed_document_binding` (a BEFORE INSERT trigger) refuses the
+ * registry row unless a `printed_pdf` rendition exists at exactly
+ * `printed/<printed_documents.id>.pdf`, so this flat filter is exact and cannot
+ * hit the ambiguous-embed trap (PGRST201) that two FKs off `printed_documents`
+ * would invite.
+ *
+ * ⚠ STATED PLAINLY SO NOBODY READS MORE INTO IT THAN IT CARRIES: the same
+ * trigger also pins `storage_bucket` to `contains_phi`, and
+ * `file_objects_bucket_from_tier` CHECK-pins `sensitivity_tier` to the bucket.
+ * So a bucket assertion is CONSTRAINT-IMPLIED by the flag, not an independent
+ * pin on the derivation. Its value is that it states what the flag MEANS at the
+ * erasure boundary, and that it proves the two pins are live in this database
+ * rather than only in migration text.
+ */
+async function printedFileTier(
+  page: Page,
+  printedDocumentId: string,
+): Promise<Array<{ storage_bucket: string; sensitivity_tier: string }>> {
+  return serviceQuery<{ storage_bucket: string; sensitivity_tier: string }>(
+    page,
+    `file_objects?storage_path=eq.${encodeURIComponent(`printed/${printedDocumentId}.pdf`)}` +
+      `&select=storage_bucket,sensitivity_tier`,
   )
 }
 
@@ -359,6 +398,89 @@ async function assertRealPdf(bytes: Buffer, what: string): Promise<void> {
   expect(bytes.subarray(0, 5).toString('latin1'), `${what}: PDF magic bytes`).toBe('%PDF-')
   expect(bytes.byteLength, `${what}: non-trivial length`).toBeGreaterThan(1000)
 }
+
+// ---------------------------------------------------------------------------
+// The audited PHI door's own trail (ADR 0144 D9 + Amendment 2 pt 1)
+// ---------------------------------------------------------------------------
+
+type AuditTrailRow = {
+  id: string
+  action: string
+  entity_type: string
+  entity_id: string
+  actor_id: string | null
+}
+
+/**
+ * Every row for one ACTION, newest first, and **deliberately NOT filtered by
+ * entity**. That omission is the whole design.
+ *
+ * ⛔ THE TRAP, and it fails in the direction that looks like a pass. The
+ * `case_patient.read` emitter (`public.get_case_patients`) logs
+ * `entity_type = 'case_patient'` with the CASE id as `entity_id` — NOT
+ * `entity_type = 'case'`, which is the value every other audit assertion in
+ * this file uses. An assertion written the obvious way, filtered on `'case'`,
+ * matches nothing; and nothing then either satisfies an absence-shaped
+ * expectation in exactly the wrong direction, or reds with "expected 1,
+ * received 0", which reads as a missing audit row rather than as a mistyped
+ * filter. Two failure modes, one indistinguishable from a pass and one
+ * indistinguishable from a product defect.
+ *
+ * So the filter here is the ACTION ALONE and the `entity_type`/`entity_id` pair
+ * is asserted as a VALUE. A wrong guess about either cannot hide: the matcher
+ * reports the pair the emitter actually wrote instead of a boolean.
+ *
+ * `limit` bounds the read; correctness only needs the newest page to contain
+ * every row the window added, and desc order guarantees that.
+ */
+async function auditRowsByActionOnly(page: Page, action: string): Promise<AuditTrailRow[]> {
+  return serviceQuery<AuditTrailRow>(
+    page,
+    `audit_log?action=eq.${encodeURIComponent(action)}` +
+      `&select=id,action,entity_type,entity_id,actor_id&order=occurred_at.desc&limit=300`,
+  )
+}
+
+/**
+ * Runs `body` and returns the audit rows THAT CALL wrote, for the given actions
+ * — computed as a ROW-ID DIFF.
+ *
+ * ⭐ Why an id diff rather than `exists`, and why it is the point of this
+ * helper. `368` t39/t40 (recorded as M-3) claim "a PHI mint emits both rows"
+ * and are in fact satisfied by a `case_patient.read` row that an assertion
+ * twenty steps EARLIER in the same transaction had already written — delete the
+ * mint and they still pass. A bare `exists` can never separate the two. Here
+ * every row an earlier step wrote is part of `before`, so a window's assertion
+ * is satisfiable ONLY by a row that call itself produced. That is what lets the
+ * identified and the de-identified prévia below each pin their OWN row instead
+ * of sharing one.
+ *
+ * Timestamps are avoided on purpose: `occurred_at` is the database clock while
+ * any comparison value would be the runner's, so a skew term would sit inside
+ * the definition of "new".
+ */
+async function withAuditWindow<T>(
+  page: Page,
+  actions: readonly string[],
+  body: () => Promise<T>,
+): Promise<{ result: T; rows: AuditTrailRow[] }> {
+  const before = new Set<string>()
+  for (const action of actions) {
+    for (const row of await auditRowsByActionOnly(page, action)) before.add(row.id)
+  }
+  const result = await body()
+  const rows: AuditTrailRow[] = []
+  for (const action of actions) {
+    rows.push(...(await auditRowsByActionOnly(page, action)).filter((r) => !before.has(r.id)))
+  }
+  return { result, rows }
+}
+
+/** `entity_type:entity_id` for the rows of one action — a matcher that reports
+ * the KIND it found, so a wrong `entity_type` names itself in the failure
+ * message rather than collapsing to a count. */
+const targetsOf = (rows: AuditTrailRow[], action: string) =>
+  rows.filter((r) => r.action === action).map((r) => `${r.entity_type}:${r.entity_id}`)
 
 // ---------------------------------------------------------------------------
 // Suite setup
@@ -590,20 +712,121 @@ test.describe('PDF·P3 — printing cases', () => {
     await expect(previaPhiLink).toBeVisible()
     expect(await previaPhiLink.getAttribute('href')).toBe(previaHref(caseOpenId, '1'))
 
-    // Both variants stream real PDF bytes to the coordinator.
+    /**
+     * The caller both prévias below are attributed to. Resolved, never
+     * hardcoded — `audit_log.actor_id` comes from `auth.uid()` inside
+     * `app.audit_write`, so this is the value that proves the door recorded the
+     * PERSON rather than a service role.
+     */
+    const [chefeProfile] = await serviceQuery<{ id: string }>(
+      page,
+      `profiles?email=eq.${encodeURIComponent(CHEFE)}&select=id`,
+    )
+    expect(chefeProfile?.id, 'the coordinator resolves to a profile').toMatch(/^[0-9a-f-]{36}$/)
+
+    // Both variants stream real PDF bytes to the coordinator — and each leaves
+    // its OWN row on the audited PHI door.
     for (const [what, href] of [
       ['de-identified prévia', previaHref(caseOpenId)],
       ['identified prévia', previaHref(caseOpenId, '1')],
     ] as const) {
-      const r = await page.request.get(href)
-      expect(r.status(), `${what}: status`).toBe(200)
-      expect(r.headers()['content-type'], `${what}: content-type`).toContain('application/pdf')
-      expect(r.headers()['content-disposition'] ?? '', `${what}: inline, not filed`).toContain(
-        'inline',
+      const { result: bytes, rows: emitted } = await withAuditWindow(
+        page,
+        ['case_patient.read', 'document.previa_printed'],
+        async () => {
+          const r = await page.request.get(href)
+          expect(r.status(), `${what}: status`).toBe(200)
+          expect(r.headers()['content-type'], `${what}: content-type`).toContain('application/pdf')
+          expect(r.headers()['content-disposition'] ?? '', `${what}: inline, not filed`).toContain(
+            'inline',
+          )
+          expect(r.headers()['cache-control'] ?? '', `${what}: never cached`).toContain('no-store')
+          return Buffer.from(await r.body())
+        },
       )
-      expect(r.headers()['cache-control'] ?? '', `${what}: never cached`).toContain('no-store')
-      await assertRealPdf(Buffer.from(await r.body()), what)
+      await assertRealPdf(bytes, what)
+
+      /**
+       * ⭐ CHANNEL CONTROL, DELIBERATELY FIRST. `app.audit_write` returns
+       * without inserting when the `audit_trail` flag is OFF, and that empties
+       * BOTH families at once — so a bare "no PHI-read row" red would be
+       * indistinguishable from "the trail is switched off". Asserting the
+       * prévia's own row from the SAME request, in the SAME window, proves the
+       * write path is live before the next assertion is allowed to mean
+       * anything. Positive-control every zero.
+       */
+      expect(
+        targetsOf(emitted, 'document.previa_printed'),
+        `${what}: the audit channel is live — this request logged its own prévia`,
+      ).toEqual([`case:${caseOpenId}`])
+
+      /**
+       * ⭐⭐ THE ASSERTION, and it closes TWO claims the record says are pinned
+       * and which were pinned nowhere at all.
+       *
+       * ① ADR 0144 **D9** — *"Both halves are pgTAP-pinned: read row present,
+       *   mint row absent."* Only the ABSENCE half was (`368` t43). The
+       *   PRESENCE half **cannot** live in pgTAP: neither RPC on the prévia
+       *   path calls `get_case_patients`, because the PHI read happens in
+       *   TypeScript — `buildCasePayload` → `resolvePatients` →
+       *   `getCasePatients` → the `get_case_patients` RPC. E2E is the only
+       *   level that crosses that seam, so this is the only place the claim
+       *   can be true.
+       *
+       * ② ADR 0144 **Amendment 2 pt 1** — *a DE-IDENTIFIED print by a
+       *   PHI-capable minter still emits `case_patient.read`.* That is the
+       *   reason the de-identified variant is a NAMED BOUNDED A7 EXCEPTION
+       *   rather than a PHI-free path (D5's field split was unbuildable:
+       *   age/sex/unit live on the Class-1 table). `resolvePatients` calls the
+       *   door BEFORE it branches on `includePhi`, so this loop's FIRST
+       *   iteration is that claim, and it too was asserted nowhere.
+       *
+       * ⛔ The two cannot be satisfied by ONE shared row. `withAuditWindow`
+       * diffs by row id, so the de-identified iteration's row is inside the
+       * identified iteration's `before` set. That is the M-3 defect's antidote
+       * applied prospectively: `368` t40 passes on a row an earlier assertion
+       * wrote, and would still pass with the mint deleted.
+       *
+       * ⚠ Exactly one row per call because `public.get_case_patients` emits one
+       * per patient identifier row and this fixture carries exactly one
+       * (`create_case` takes a single `p_patient` object, not a list). A zero
+       * would mean the door was not reached; a two would mean the payload was
+       * built twice.
+       */
+      expect(
+        targetsOf(emitted, 'case_patient.read'),
+        `${what}: the audited PHI door was reached exactly once, under the ` +
+          `entity_type/entity_id the emitter ACTUALLY writes (NOT 'case')`,
+      ).toEqual([`case_patient:${caseOpenId}`])
+
+      expect(
+        emitted.filter((r) => r.action === 'case_patient.read').map((r) => r.actor_id),
+        `${what}: the PHI read is attributed to the caller, not to a service role`,
+      ).toEqual([chefeProfile.id])
     }
+
+    /**
+     * ⛔ AND THE TRAP, PINNED IN BOTH DIRECTIONS so it cannot be discovered a
+     * third time. `auditRowsFor` — the helper every other audit assertion in
+     * this file uses, always with `'case'` — finds NOTHING for this action,
+     * because the emitter's `entity_type` is `'case_patient'`. Asserting only
+     * the presence half would leave the next reader free to write the `'case'`
+     * filter and read its zero as an answer.
+     *
+     * ⚠ The presence half is a FLOOR, not an equality: a retry of this serial
+     * group replays both prévias, and an equality would turn a retried PASS
+     * into a spurious RED (same reasoning as the prévia-count floor in the
+     * `?phi=` corridor below). The exact per-call count is pinned above, where
+     * the window makes it exact.
+     */
+    expect(
+      (await auditRowsFor(page, 'case_patient.read', 'case_patient', caseOpenId)).length,
+      "the emitter's entity_type is `case_patient`, and the typed filter finds both reads",
+    ).toBeGreaterThanOrEqual(2)
+    expect(
+      await auditRowsFor(page, 'case_patient.read', 'case', caseOpenId),
+      "⛔ NOT `case` — this zero is the trap, pinned so a wrong filter cannot pass by absence",
+    ).toEqual([])
 
     // ADR 0125 D3/D9 — no bytes at rest, no registry row, ANY number of times.
     // ⚠ Neutralization-proven 2026-08-25: pointed at `caseMintId` (which HAS a
@@ -882,12 +1105,78 @@ test.describe('PDF·P3 — printing cases', () => {
     await expect(page.getByRole('alert')).toBeVisible({ timeout: 30_000 })
     const rows = await printRowsForCase(page, caseNoPatientId)
     expect(rows.map((r) => r.template_key)).toEqual(['case'])
-    // ADR 0144 D6 — no patient identifiers rendered AND no masked free text on a
-    // bare case, so this is the one shape where `contains_phi` derives FALSE.
-    // Recorded as a measurement: it is the only place the de-identified variant
-    // is not PHI-tier, and it is exactly the shape Amendment 2 pt 4 warns about
-    // if it ever occurred WITH identifiers rendered.
-    expect(rows[0].contains_phi).toBe(false)
+
+    /**
+     * ⛔⛔ THIS ASSERTION USED TO READ `expect(rows[0].contains_phi).toBe(false)`
+     * AND IT PINNED A LIVE DEFECT AS EXPECTED BEHAVIOUR. Flipped 2026-08-25 by
+     * the tester who owns this file — recorded here rather than silently
+     * corrected, because the FLIP is the finding.
+     *
+     * What the old comment claimed: *"no patient identifiers rendered AND no
+     * masked free text on a bare case, so this is the one shape where
+     * `contains_phi` derives FALSE — recorded as a measurement."* Every word of
+     * that was an accurate description of what the code did. It was not a
+     * decision, and calling it a measurement is what made it look like one.
+     *
+     * What the shape actually is (finding **C-1**, the phase's only live
+     * exposure): a `completed` case, `has_patient = false`, no narratives, no
+     * bodied events, no answers — every disjunct of the old
+     * `hasMaskedFreeText || renderedPatientField` derivation false ⇒
+     * `contains_phi = false` ⇒ `sensitivity_tier = 'standard'` ⇒
+     * `documents-standard`. `dispose_case_phi` block (f) filters
+     * `sensitivity_tier = 'phi'` and therefore **SKIPS THE OBJECT**; block (f2)
+     * revokes only `where … and contains_phi` and **SKIPS THE ROW**. Meanwhile
+     * `src/lib/pdf/documents/case.ts` prints `cases.label` UNCONDITIONALLY in
+     * the `<h1>`, and the disposal door redacts that very field — which is the
+     * platform's own statement that it is masked-class. So a dossier headed
+     * *"Dossiê — Caso 0042 — Queda da paciente <name>, leito 302"* survived an
+     * LGPD Art. 18 erasure, still `active`, never band-marked. This corridor
+     * constructs that shape exactly, and asserted the survival was correct.
+     *
+     * ADR 0144 **Amendment 5** (PO-ruled) replaces D6's derive-from-presence
+     * rule with the constitutive one — `containsPhi := !caseDisposed` for the
+     * case kind (`src/lib/cases/pdf-payload.ts`). A hand-list that must agree
+     * with the fields the template RENDERS and the fields the disposal door
+     * REDACTS, by discipline alone, is the mechanism; widening it fixes only the
+     * instance.
+     *
+     * ⭐ WHY THIS PARTICULAR CASE IS THE DISCRIMINATING ONE, and why the flip is
+     * worth more than a green: under the OLD rule the bare case was the *only*
+     * shape deriving `false`. So this single assertion separates the old rule
+     * from the amended one — every other case print in this file was already
+     * `true` under both. A regression to a presence derivation lands here first.
+     *
+     * ⚠ WHAT THIS PAIR DOES **NOT** PIN, stated so nobody reads the rule as
+     * covered: the amended rule has two sides, and only one is reachable from
+     * this corridor. `true` here separates *constitutive* from
+     * *derive-from-presence*. The disposed case's truthful `false` — which
+     * separates *constitutive* from a bare `containsPhi := true` — is NOT
+     * asserted at this level and cannot be: `dispose_case_phi` REDACTS
+     * `cases.label`, and `purgeLeftoverState` finds this file's fixtures BY
+     * that label, so disposing a spec-owned case would strand every child row
+     * it owns in the shared local database. That half lives in pgTAP `368` and
+     * the committed `CASE_DISPOSED` fingerprint. ⛔ Do not "complete the pair"
+     * with an assertion the fixture cannot reach the state for.
+     */
+    expect(
+      rows.map((r) => r.contains_phi),
+      'a live case dossier is PHI-class constitutively — `cases.label` prints in the `<h1>` ' +
+        'and the disposal door redacts it (ADR 0144 Amendment 5, finding C-1)',
+    ).toEqual([true])
+
+    /**
+     * ...and the same claim at the boundary that decides whether the erasure
+     * can SEE this object at all. Constraint-implied by the flag above (see
+     * {@link printedFileTier}), so this is the flag's MEANING rather than a
+     * second pin — but it is the projection C-1 is actually about, and the
+     * length assertion first is what stops it passing on an empty read.
+     */
+    const files = await printedFileTier(page, rows[0].id)
+    expect(files.length, 'the print has exactly one bound file object').toBe(1)
+    expect(
+      `${files[0].storage_bucket}/${files[0].sensitivity_tier}`,
+      'the bytes land where `dispose_case_phi` block (f) can reach them',
+    ).toBe('documents-phi/phi')
   })
 
   // -------------------------------------------------------------------------
@@ -1128,34 +1417,50 @@ test.describe('PDF·P3 — printing cases', () => {
   })
 
   // -------------------------------------------------------------------------
-  // FILED DEFECT — kept LAST so a red here does not abort the corridors above
+  // Corridor 8 — the unentitled/empty distinction, guarded after its fix
+  //
+  // Kept LAST for its original reason, which still holds: this file is serial,
+  // so a red here masks nothing above it.
   // -------------------------------------------------------------------------
 
-  test('BUG-P3-PHI-REFUSAL-MESSAGE: an UNENTITLED caller is told the case has no patient data, instead of that they lack authorisation', async ({
+  test('an UNENTITLED caller is told they lack AUTHORISATION, never that the case has no patient data', async ({
     page,
   }) => {
     /**
-     * ⛔ EXPECTED RED until the defect is fixed. Filed as
-     * BUG-P3-PHI-REFUSAL-MESSAGE / BUG-P3-PATIENT-FIELD-MAPPING (one root cause).
+     * ⚠ REGRESSION GUARD for a FIXED defect. **This test is expected GREEN.**
      *
-     * `public.get_case_patients` has THREE answers by design and the substrate
-     * brief, ADR 0144 Amendment 2 and `pdf-payload.ts`'s own header all depend on
-     * telling them apart:
+     * ⛔ It previously carried the title `BUG-P3-PHI-REFUSAL-MESSAGE: an
+     * UNENTITLED caller is told the case has no patient data…` and the docstring
+     * *"EXPECTED RED until the defect is fixed"* — while PASSING, because the
+     * assertion below already checks the CORRECT copy. Recorded as finding M-2
+     * and corrected here: a title that claims a test is expected to fail teaches
+     * the next reader to discount its red, and a passing test whose title
+     * asserts a live defect is a false statement in the one place a gate
+     * summary quotes.
+     *
+     * THE DEFECT, past tense. `BUG-P3-PHI-REFUSAL-MESSAGE` (one root cause with
+     * `BUG-P3-PATIENT-FIELD-MAPPING`), FIXED in `0c472b54`.
+     * `src/lib/queries/cases.ts` `getCasePatients` was `if (!data) return []`
+     * with the signature `Promise<CasePatient[]>` — it could never return null —
+     * so `pdf-payload.ts`'s `if (rows === null) throw NO_PATIENT_ACCESS` was
+     * UNREACHABLE and every unentitled caller fell through to the "none on file"
+     * branch. The platform told a reader who was NOT entitled to a case's
+     * patient data that the case HAD NO patient data: a false statement about a
+     * record's contents, and a false diagnostic for whoever was asked to fix the
+     * access problem. The fix widened the signature to
+     * `Promise<CasePatient[] | null>` and narrowed the test to `data === null ||
+     * data === undefined`.
+     *
+     * WHAT THE GUARD IS ABOUT, and why it is worth keeping now that it is green:
+     * `public.get_case_patients` has THREE answers by design, and the substrate
+     * brief, ADR 0144 Amendment 2 and `pdf-payload.ts`'s own header all depend
+     * on telling them apart —
      *     null → unentitled       []   → entitled, none on file      rows → data
-     *
-     * `src/lib/queries/cases.ts` `getCasePatients` collapses `null` into `[]`
-     * (`if (!data) return []`, and its signature is `Promise<CasePatient[]>` —
-     * it can never return null), so `pdf-payload.ts`'s
-     *     if (rows === null) throw new Error(NO_PATIENT_ACCESS)
-     * is UNREACHABLE and every unentitled caller falls through to the `[]`
-     * branch. MEASURED, not inferred: `get_case_patients` returns literal `null`
-     * over PostgREST for this persona on this case, and the dialog still shows
-     * the "no patient data on record" copy.
-     *
-     * Why it is worth a test rather than a comment: the platform tells a reader
-     * who is NOT entitled to the case's patient data that the case HAS NO
-     * patient data — a false statement about a record's contents, and a false
-     * diagnostic for whoever is asked to fix the access problem.
+     * — and collapsing two of them is a ONE-CHARACTER regression (`!data`
+     * instead of `data === null`) that every type check and every other test in
+     * this suite would still pass. The differential that makes this non-vacuous
+     * is the corridor above it: the SAME dialog, the SAME tick, an entitled
+     * caller on a case with nothing on file, gets the OTHER message.
      */
     await signInAs(page, STAFF_1)
 
