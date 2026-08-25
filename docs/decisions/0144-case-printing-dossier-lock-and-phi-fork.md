@@ -187,8 +187,17 @@ via the domain's audited reader, and emits **no `document.minted` row** — noth
 
 ⚠ This is the most security-relevant decision in the phase. Reasoning "prévias are
 ephemeral, so they don't audit" turns the prévia into an **unaudited PHI export path** that
-bypasses the registry entirely. Both halves are pgTAP-pinned: read row present, mint row
-absent.
+bypasses the registry entirely. ~~Both halves are pgTAP-pinned: read row present, mint row
+absent.~~
+
+> ⛔ **THAT LAST SENTENCE IS FALSE — corrected by [Amendment 6](#amendment-6--d9s-pinning-claim-is-false-and-pgtap-cannot-make-it-true-2026-08-25).**
+> Only the **absence** half is pgTAP-pinned (twice). The **presence** half — `case_patient.read`
+> for an identified prévia — is not pinned in pgTAP and **structurally cannot be**: on the print
+> corridor the PHI read happens in TypeScript (`buildCasePayload` → `getCasePatients`), which
+> pgTAP cannot reach. D9's own wording gives the reason away — *"the domain's audited reader"*
+> is not the RPC. The decision itself is unchanged and correct; **only the claim about its
+> evidence was wrong**, and that claim is the more dangerous half to leave standing, because it
+> tells a reviewer to stop looking.
 
 ### D10 — PHI disposal deletes the bytes ⚠ **THIS AMENDS ADR 0104**
 
@@ -587,3 +596,60 @@ as the layer it swept** — that one swept pgTAP and generalised to the class.
   scoped to the **identified** thin case, so the **de-identified** thin case walked straight past it.
   ⛔ Its closing claim *"Pinned by a keystone, not by this comment"* was itself unbacked when written;
   the keystone above is the first thing that makes it true.
+
+## Amendment 6 — D9's pinning claim is false, and pgTAP cannot make it true (2026-08-25)
+
+**The decisions are unchanged. Two claims about their EVIDENCE were wrong, and both told a
+reviewer to stop looking.**
+
+1. **D9: *"Both halves are pgTAP-pinned: read row present, mint row absent."*** Only the absence
+   half is pinned (twice). The presence half — `case_patient.read` for an identified prévia — is
+   **structurally unpinnable in pgTAP**: neither RPC calls `get_case_patients`, because on the
+   print corridor the PHI read happens in **TypeScript** (`buildCasePayload` → `resolvePatients` →
+   `getCasePatients`) *before* any RPC. D9's own phrase — *"the domain's audited reader"* — names a
+   TypeScript door, not the mint.
+2. **D14's floor item *"a PHI mint emits both rows"* is not a pgTAP claim either.** `368` t39/t40
+   appeared to pin it; measured, the `case_patient.read` row they saw was written by **t18**,
+   twenty-odd assertions earlier in the same transaction. **`mint_printed_document` never calls
+   `get_case_patients` at all** — deleting the mint left t40 passing.
+
+⇒ **Both are E2E claims.** They are now pinned in `e2e/pdf-printing-cases.spec.ts` — one assertion
+for D9's presence half, one for **Amendment 2 point 1** (a *de-identified* print by a PHI-capable
+minter also emits the row, because `resolvePatients` calls the audited door before branching on
+`includePhi`), which was likewise pinned nowhere. ⚠ **Those two assertions are the only pins that
+half will ever have.**
+
+⭐ **`368` was repaired rather than retitled.** t40 is now a delta across t18 and t40a a zero-delta
+across the whole mint window, positive-twinned on the same counter — which *measured* the mint's
+contribution as exactly zero. A retitle would have made the caption honest and left D14's floor
+item silently unaddressed.
+
+### ⛔⛔ And the D14 cell that was counted as DELIVERED was vacuous too
+
+The A7 arm on a **recused member** was reported as the one of four cells the phase had. Measured by
+neutralization: with the recusal deny removed, **no verdict in the suite moved.** `st_x` is a plain
+staff member under `commission_default`, so its caps are deliberation-only and it never reaches
+`read_case_content` — the `case_recusals` row was decorative, and t25's caption
+(*"hard-denies before every positive arm"*) described a fixture that supplied **no positive arm to
+deny**. ⇒ **C-3 was 0 of 4 cells, not 1 of 4.** Fixed with an S3 grant; the mutation now reds all
+four. The same shape recurred *inside* the repair — an assertion was written into §6 against a
+document not minted until §7, so it passed against a row that does not exist — and was caught only
+because a mutation failed to red it.
+
+### The generalisable part, which is why this is an amendment and not a test commit
+
+- **A claim about where a property is pinned is itself an unpinned claim**, and no gate can check
+  it. D9's sentence was written in the same edit as the decision it describes, by the person who
+  knew the design best; it was wrong from the first commit and stayed wrong through review, a
+  handoff, and one full QA pass.
+- **A mutation audit's coverage is the set of mutations you RAN, never the suite you ran them IN.**
+  Four mutations were run and reported as covering `368`'s absence-and-pairing claims generally.
+  t40 was never neutralised — and neither, it turned out, was the recusal cell.
+- ⭐ **Neutralize each assertion that names a gate, and require the assertion to move.** Every
+  vacuity above is invisible to a coverage reading, a plan count, and a green suite; each surfaced
+  the moment something was removed and nothing changed.
+
+⚠ **Latent trap, recorded rather than fixed:** `313:175` places a *case* probe (`doc_c1`) in
+`documents-standard`. Harmless only while its t35 stays a throw — the mint never lands. If that
+assertion is ever relaxed, the row becomes a case document at standard tier, which Amendment 5
+otherwise makes unreachable.
