@@ -56,6 +56,21 @@ closed.** Concretely:
   `server_dead` printed zero times**, because the classifier only evaluates it when failures > 0.
   ⇒ Check liveness **before** the first probe; a build nonce answers the second, different question
   (*are these the bytes I built*) that a port check cannot.
+  ⭐ **Three questions, three mechanisms, deliberately not conflated:** *is my process alive*
+  (`kill -0`, re-checked **after** the port answers), *is my process the one answering* (the listener
+  on the port is owned by my pid — the same parser from Decision 1), and *are these the bytes I
+  staged* (a nonce written into the staged `public/` tree and fetched back with the `BUILD_ID` that
+  answered). A port check answers none of them on its own, which is how A existed at all.
+  ⚠ **Bounded, and the bound must not be over-read:** the nonce proves the answering process serves
+  the tree **this run staged** — *not* that the tree is fresh relative to source. It narrows the
+  documented `REBUILD=1` stale-build trap; it does not close it.
+  ⛔ **Arms that cannot CONCLUDE warn and proceed, and there is a `SERVER_IDENTITY=warn` escape
+  hatch that downgrades even a definitive mismatch. Both are decisions, not implementation detail,
+  and the honest reason is on the record:** the served-nonce path could not be exercised without a
+  real build, and hard-failing an ~80-minute gate on an arm nobody had ever run would be the worse
+  failure. ⚠ This repo's own lesson applies against itself here — *an escape hatch for the
+  unmeasurable also silences the measured* — so the hatch is **off by default**, and the first real
+  run is treated as the arm's first exercise rather than as evidence it works.
 - **B — a failed `--list` silently disables coverage reconciliation for that batch.**
   `expected_tests` had **no fallback**, unlike `pack_batches`, which guards `[ -z "$n" ] &&
   n=$BATCH_TESTS` for exactly this reason. With `exp=0` the per-batch identity check is skipped
