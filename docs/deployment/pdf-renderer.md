@@ -7,11 +7,23 @@ template-regression-test event (rendering may shift; acceptable — the registry
 hash pins mint-time bytes and we never re-render for verification), never a
 routine bump.
 
-The renderer is an off-the-shelf Chromium container that converts the app's
-fully self-contained HTML (fonts, QR, CSS all inline — it fetches nothing) into
-PDF bytes. It holds no state, no keys, no data at rest; **the HTML it receives
-IS the PHI** (from P3 onward), which is why privacy of the network path is the
-load-bearing property.
+The renderer is an off-the-shelf Chromium container that converts the app's HTML —
+everything the app authors is inline (fonts, QR, CSS) — into PDF bytes. It holds no
+state, no keys, no data at rest; **the HTML it receives IS the PHI** (from P3 onward),
+which is why privacy of the network path is the load-bearing property.
+
+> ⚠ **This paragraph used to end "— it fetches nothing", which P3 falsified.** From P3
+> the HTML carries author-written Markdown (case narratives, interview summaries,
+> referral replies), and `![](https://attacker/x)` is first-class Markdown — so a
+> narrative could make this container GET an author-chosen URL, from inside the private
+> network, on **every prévia and every mint**. The claim is restated with its mechanism
+> so it can be checked rather than believed: the print sanitize policy
+> (`PDF_MARKDOWN_SANITIZE_SCHEMA` in `src/lib/markdown/sanitize-schema.ts`) **drops
+> `<img>` from the allowlist**, and no other Markdown-reachable element carries a
+> fetching attribute. ⛔ That schema is the **only** mitigation today — the dev recipe
+> below is a bare `docker run` with no egress restriction and the Coolify section
+> constrains inbound only. Denying this container outbound egress is the missing
+> defence in depth, not a substitute for the schema.
 
 The app reaches it via **`PDF_RENDERER_URL`** only (server-only env; see
 `.env.example`). The mint is synchronous with a 30 s budget and a 3-permit

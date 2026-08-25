@@ -103,9 +103,24 @@ the `<h1>`**, and the disposal door redacts that field — so by D6's own presen
 non-disposed dossier contains masked-class free text*. The derivation is computing a constant,
 expensively and wrongly. The structural fix is `containsPhi := !caseDisposed` for the case kind:
 
-- **Nothing pins `false`.** No pgTAP or E2E assertion anywhere pins `contains_phi = false` /
+- ~~**Nothing pins `false`.** No pgTAP or E2E assertion anywhere pins `contains_phi = false` /
   standard tier / no band for a **case** document (the `false` pins in `312`/`342` are
-  `form_response`); `368` t29/t37 already assert `true` for both variants.
+  `form_response`); `368` t29/t37 already assert `true` for both variants.~~
+  ⛔⭐⭐ **FALSE — measured 2026-08-25 while implementing the ruled fix, and the correction is
+  worth more than the claim was.** The **pgTAP half holds**: `368` contains zero
+  `documents-standard` / `'standard'` / `std_bucket` occurrences, and the `false` pin this bullet
+  cited is neither in `312` nor `342` nor `form_response` — it is `313:470` t50, a **meeting**
+  document (`doc_m1`); `312:372` / `342:413` are `|active|false` substrings inside download-tuple
+  strings. **The E2E half does not hold.** `e2e/pdf-printing-cases.spec.ts:886-890` asserts
+  `contains_phi === false` on the de-identified mint over `caseNoPatientId` — a `completed` case,
+  `has_patient = false`, no masked free text — i.e. **C-1's exact shape**, with a comment calling
+  it *"the one shape where `contains_phi` derives FALSE"* and *"recorded as a measurement"*.
+  ⇒ **The spec canonized the Art. 18 hole as expected behaviour, so P3's 11/11 green included a
+  test that would have gone RED on correct behaviour.** The reusable lesson: *a pin can live in
+  the layer nobody swept* — R-1 checked pgTAP, found nothing, and generalised to the class, which
+  is the same wrong-grain move R-1 itself was written to indict. The assertion moves **with** the
+  fix (`tester` owns it); it never gated the ruling, because `cases.label` is rendered
+  unconditionally and redacted at Art. 18 time, which makes `true` the truthful answer.
 - **One break, and it is honest:** the `CASE_DISPOSED` fixture (`fingerprint.test.ts:702`,
   `containsPhi: false`) and its committed `disposed` fingerprint. Under `!caseDisposed` the
   disposed prévia **keeps `false` truthfully** — post-redaction the band would be a false

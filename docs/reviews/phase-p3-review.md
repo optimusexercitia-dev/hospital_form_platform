@@ -615,8 +615,15 @@ CLAUDE.md § 6 puts QA review at **step 3**, after step 2 declares green. PROGRE
 gate 2 as **⛔ RED (UNRUN)** with 36 did-not-run in a batch P3 never touched, and a full-suite
 run still owed. This pass therefore runs **ahead** of its gate, at the lead's explicit
 instruction, and is scoped to the half that a churning DB cannot contaminate. Recorded so the
-sequence is not later read as a completed step 3. **Pass 2 must not issue a verdict until
-gate 2 has declared green on a full run.**
+sequence is not later read as a completed step 3. ~~**Pass 2 must not issue a verdict until
+gate 2 has declared green on a full run.**~~
+
+⛔ **SUPERSEDED 2026-08-25, struck rather than deleted.** The PO ruling landed *after* this pass
+was written and **accepts gate 2 standing at RED (UNRUN)** with its cause on record. Pass 2's real
+preconditions are a **committed tree** (satisfied — `2c19ae27` for the docs, `a62a2bf3` for the
+specs, which also closes **H-1**) and a **settled DB** (the catalog reconciliation). The stale
+sentence stood here while two other documents flagged it elsewhere, which is the drift the
+meta-review's R-5 is about: the correction belongs in the file that carries the false claim.
 
 ---
 
@@ -640,5 +647,7 @@ phase today**, and C-1 is an Art. 18 / Rule 12 hole on top of it. Pass 2 exists 
 and to confirm C-1's premise against `pg_get_functiondef`, not to reopen the question of
 whether findings exist.
 
-⛔ Pass 2 must not issue a verdict until **gate 2 has declared green on a full run** and the
-tree is committed (**H-1**).
+⛔ ~~Pass 2 must not issue a verdict until **gate 2 has declared green on a full run** and the
+tree is committed (**H-1**).~~ **SUPERSEDED — see the correction under § 10.** Committed tree ✅
+(`a62a2bf3` closes H-1) · settled DB = the catalog reconciliation · gate 2 stays RED (UNRUN) by
+PO ruling. **Pass 2 issues the verdict.**
