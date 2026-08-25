@@ -41,21 +41,19 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   [case-printing-p3-substrate.md](docs/plans/case-printing-p3-substrate.md) — **read the substrate
   brief before touching P3.** Commits + amendments detail + the scoped-absence bound:
   [pdf-p3.md](docs/progress/pdf-p3.md). ⛔ **NOT pushed.**
-  **✅ Gate 1 COMPLETE** (arms run after the row was corrected downward — it had read "green" while
-  omitting them, and an omission reads as *not applicable* to `qa`): `tsc` 0 · lint ten gates ·
-  **unit 1792** (lead-verified: 130 files, exit 0 — **1783 was stale**) · `test:db` **219 files /
-  7322** · `ARM=census` **HOLDS** · `ARM=hat` **HOLDS** · `ARM=floor` **HOLDS** (72 never-called,
-  fresh reset immediately prior) · `FROMFINDINGS=1 ARM=wrapper` **HOLDS** · diff-scoped sweep
-  **CLEAN (2 COVERED, 0 BLIND, 0 ERROR)**. All on `615afaf0`, DB 460 == 460; evidence `90cabfe1`.
-  ⭐ **A COVERED verdict does NOT survive a body change, and no arm enforces that** — census passed
-  `can_view_printed_document` on a stale **PDF·P2** row; re-swept by hand → COVERED, 2 → 7.
-  **⛔ Gate 2 RED (UNRUN)** — `1184 p · 0 failed · 17 infra · 36 did-not-run`; **zero assertion
-  failures**, the 36 all batch 6's in files P3 never touched, P3's own spec **11/11**, all 7 locator
-  fixes verified at gate scale. Collapse is **pre-existing Windows infra, NOT a product defect** —
-  four causes excluded by measurement. ⛔ A compose-the-numbers green is a **documented past
-  mistake**, not an option. **⛔ Gate 3 pass 1 (static): THREE blocking candidates — C-1 an Art. 18
-  PHI exposure, C-2 Gotenberg `<img>` fetch, C-3 undelivered D14 floor items. Development PAUSED by
-  PO 2026-08-25.**
+  **✅ Gate 1 COMPLETE · ⛔ Gate 2 RED (UNRUN, PO-accepted) · gate 3 pass 1 + a PO-requested
+  meta-review both done.** Both gates' evidence — the eight authz-arm verdicts, the `1184 p ·
+  0 failed · 36 did-not-run` figures, and the four collapse causes each excluded through a
+  channel proven functional first — rotated **verbatim** → [pdf-p3.md](docs/progress/pdf-p3.md)
+  § "Gate evidence". ⛔ **Historical: re-measure, never quote.** Gate 3 pass 1 named THREE
+  blocking candidates — **C-1** an Art. 18 PHI exposure (the only live one), **C-2** Gotenberg
+  `<img>` fetch, **C-3** undelivered D14 floor items (⚠ missing EVIDENCE, not a defect — do not
+  quote its severity beside C-1).
+  **🔨 RESUMED 2026-08-25, agent team authorised by PO.** C-1 fix shape **RULED: the
+  constitutive rule** (`containsPhi := !caseDisposed`, meta-review R-1) — it amends **D6**, so
+  ADR 0144 owes **Amendment 5**. In flight: the catalog reconciliation (⭐ the only pending item
+  that can UNMAKE a recorded gate pass) · C-1 · C-2 · C-3 (two pgTAP cells + two E2E audit
+  assertions) · M-2 · M-3. Then QA pass 2 → verdict → gate-2 re-run → gate 4.
   ⭐ **RESUME HERE → [pdf-p3-handoff.md](docs/progress/pdf-p3-handoff.md)** (plan · built ·
   obstacles · follow-ups · failures · ordered pending work). Detail:
   [pdf-p3.md](docs/progress/pdf-p3.md).
@@ -63,7 +61,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   down because an approval's bounds are what never get recorded:** it accepts **gate 2 standing at
   RED (UNRUN)** with its cause on record, and authorises **step 3 only.** ⛔ NOT phase approval
   (step 4), NOT a push, NOT authority to edit the gate.
-  7 migrations · `368` (48 assertions, every absence-assertion mutation-proven RED first).
+  7 migrations · `368` (48 assertions; **four** absence assertions mutation-proven RED — "every" was an
+  overclaim, corrected 2026-08-25 by meta-review R-4).
   ⭐ **All four amendments record a decision the approved ADR got WRONG, each found by building
   it** — the reusable point, detail in [pdf-p3.md](docs/progress/pdf-p3.md).
 - **⚠ NO PHASE IS ACTIVE.** **ADR 0144** is the most recent program and is the first that is

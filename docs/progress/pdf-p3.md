@@ -254,3 +254,26 @@ not a work item; do it opportunistically when the file is next open (R-1 opens i
    **M-2** retitle. Amend D9's false pinning sentence whichever way the cells land.
 5. **QA pass 2 → verdict**, then gate-2 re-run (after R-8c's two small gate fixes), PO
    approval, Record, push — unchanged from the handoff.
+
+---
+
+## Gate evidence rotated from PROGRESS.md 2026-08-25
+
+⛔ **Historical measurement, not status.** Every figure below was true on `615afaf0` and is
+rotated **verbatim** out of § Now (which holds live state only). The resume path re-runs both
+gates, so ⛔ **re-measure; never quote these numbers as current.**
+  **✅ Gate 1 COMPLETE** (arms run after the row was corrected downward — it had read "green" while
+  omitting them, and an omission reads as *not applicable* to `qa`): `tsc` 0 · lint ten gates ·
+  **unit 1792** (lead-verified: 130 files, exit 0 — **1783 was stale**) · `test:db` **219 files /
+  7322** · `ARM=census` **HOLDS** · `ARM=hat` **HOLDS** · `ARM=floor` **HOLDS** (72 never-called,
+  fresh reset immediately prior) · `FROMFINDINGS=1 ARM=wrapper` **HOLDS** · diff-scoped sweep
+  **CLEAN (2 COVERED, 0 BLIND, 0 ERROR)**. All on `615afaf0`, DB 460 == 460; evidence `90cabfe1`.
+  ⭐ **A COVERED verdict does NOT survive a body change, and no arm enforces that** — census passed
+  `can_view_printed_document` on a stale **PDF·P2** row; re-swept by hand → COVERED, 2 → 7.
+  **⛔ Gate 2 RED (UNRUN)** — `1184 p · 0 failed · 17 infra · 36 did-not-run`; **zero assertion
+  failures**, the 36 all batch 6's in files P3 never touched, P3's own spec **11/11**, all 7 locator
+  fixes verified at gate scale. Collapse is **pre-existing Windows infra, NOT a product defect** —
+  four causes excluded by measurement. ⛔ A compose-the-numbers green is a **documented past
+  mistake**, not an option. **⛔ Gate 3 pass 1 (static): THREE blocking candidates — C-1 an Art. 18
+  PHI exposure, C-2 Gotenberg `<img>` fetch, C-3 undelivered D14 floor items. Development PAUSED by
+  PO 2026-08-25.**
