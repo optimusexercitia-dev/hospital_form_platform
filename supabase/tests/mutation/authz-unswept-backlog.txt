@@ -247,25 +247,22 @@ case_events.case_events_writer_update (UPDATE)
 #        `authenticated`: INVOKER is REFUSED by the PHI tables, DEFINER SUCCEEDS. Do not
 #        "fix" a red by flipping prosecdef — read the COMMENT ON the function and
 #        migration 20261003000700's header first.
-#        ⛔ THE PARAGRAPH ABOVE IS SUPERSEDED — re-measured 2026-08-24 against the live
-#        catalog. `app._set_participant_patient_unchecked` NO LONGER EXISTS in any schema,
-#        and no INVOKER helper remains on this path: the DEFINER-wrapper + INVOKER-helper
-#        pair collapsed into ONE body, `public.set_participant_patient` (prosecdef = TRUE,
-#        returns uuid, EXECUTE to `authenticated`), whose argument list is byte-identical to
-#        the old helper's. So the "deliberately INVOKER" instruction now describes nothing,
-#        and obeying it would argue against the live design. Kept, not deleted: it is the
-#        record of why the old shape was chosen.
-#        ⭐ HOW THIS WAS FOUND, and why the line was RE-POINTED rather than pruned: the
-#        census's ghost note listed this entry as "safe to prune" (its exact signature is
-#        absent). Pruning would have deleted the only committed record that the case
-#        module's PHI write door is unswept — while the door itself is very much alive
-#        under a new name. ARM=census now partitions absent-signature into RE-POINT
-#        (name live, args changed) vs no-such-name + a rename caveat
-#        (FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG, fixed 2026-08-24).
-#        ⚠ STILL UNSWEPT, and now for a second reason: as a prosecdef scalar non-bool
-#        command door it is in NO arm's domain — the FUP-AUTHZ-COMMAND-DOOR-UNSWEPT class.
+#        ⛔ RECORDED 2026-08-24, CORRECTED 2026-08-25 — A "RENAME" WAS RECORDED HERE AND IT
+#        WAS FALSE. Read this before trusting any absence measured against this catalog. A
+#        census run reported this entry as
+#        "no matching live gate — prune", and the line was re-pointed to
+#        `public.set_participant_patient` on the theory that the helper had been renamed and moved.
+#        ⭐ It had not. The measurement was taken against a LOCAL DB THAT HAD NOT BEEN RESET and
+#        was missing six functions this file names. On a fresh `supabase db reset` all six are
+#        present with byte-identical signatures, and this entry is exactly right as written.
+#        The paragraph above it is CORRECT and stands: the helper is SECURITY INVOKER
+#        (`prosecdef = f`, `proacl {postgres=X/postgres}`, re-measured), and
+#        `public.set_participant_patient` is its DEFINER sibling — not its successor — the
+#        authority split recorded in `docs/backend-state.md`.
+#        ⚠ Same hazard, measured twice the same day: `ARM=floor` reads 110 never-called doors on a
+#        stale DB and 72 on a fresh one. ⛔ A catalog ABSENCE proves nothing until the DB is reset.
 app._grant_case_access_unchecked(p_case uuid, p_user uuid, p_level text, p_expires_at timestamp with time zone, p_reason text, p_reason_code text, p_read_standard_phi boolean, p_read_restricted_phi boolean)
-public.set_participant_patient(p_case_id uuid, p_participant_id uuid, p_name text, p_mrn text, p_date_of_birth date, p_age_years integer, p_sex text, p_encounter_ref text, p_unit text, p_attending text, p_role_id uuid)
+app._set_participant_patient_unchecked(p_case_id uuid, p_participant_id uuid, p_name text, p_mrn text, p_date_of_birth date, p_age_years integer, p_sex text, p_encounter_ref text, p_unit text, p_attending text, p_role_id uuid)
 
 # -- Tenant-scoping conjuncts: not principal-dependent on their own, but they appear
 #    INSIDE policies as the isolation half, so opening one widens a tenant boundary.

@@ -478,14 +478,21 @@ run_arm_census () {
       where n.nspname = 'public';"
   } | grep -vE '^[[:space:]]*$' | sort -u > "$existing"
 
-  # THREE states, not two — the third was found by RUNNING the two-state version
-  # (2026-08-24). `app._set_participant_patient_unchecked` reported as "safe to prune"
-  # because its exact signature is gone; but the live successor is
-  # `public.set_participant_patient`, a prosecdef door under a DIFFERENT NAME AND SCHEMA.
-  # Pruning on absence is exactly how the unswept record for a renamed, still-live PHI door
-  # gets deleted — this note's own lesson, one level up. Same-name/different-args IS
-  # mechanically detectable and gets its own bucket; a full rename is NOT, so the prune
-  # bucket carries a caveat instead of the word "safe".
+  # THREE states, not two.
+  #
+  # ⛔ PROVENANCE, corrected 2026-08-25 — the third state was added on the strength of a FALSE
+  # measurement, and the correction is worth more than the state. A census run listed
+  # `app._set_participant_patient_unchecked` as "safe to prune"; that was read as a rename to
+  # `public.set_participant_patient`, and the backlog line was re-pointed. The function had NOT
+  # been renamed. The run was made against a LOCAL DB THAT HAD NOT BEEN RESET and was missing six
+  # functions the backlog names; on a fresh reset all six are present, byte-identical.
+  # ⭐ The partition is kept anyway, because it is right for a reason that does not depend on that
+  # episode: "outside this arm's domain" and "does not exist" are different facts, and only the
+  # first is what `live` can decide — `live` is THIS ARM'S DOMAIN, not the catalog. And the RE-POINT
+  # bucket plus the rename caveat are exactly what would have stopped the false conclusion from
+  # being actioned: prune-on-absence is how a live door's unswept record gets deleted.
+  # ⚠ Absence measured against a stale DB is not absence. `ARM=floor` reads 110 never-called doors
+  # on a stale DB and 72 on a fresh one — same day, same machine.
   local ghostfile names prunable outofdomain repoint g
   ghostfile="$WORK/census_ghosts.txt"; names="$WORK/census_names.txt"
   comm -13 "$live" <(allow_body "$UNSWEPT" | sort -u) > "$ghostfile"

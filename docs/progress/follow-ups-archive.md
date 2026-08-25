@@ -5841,32 +5841,35 @@ same failure the `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` domain line already acknowledg
 
 **Owner:** backend (gate script). **Do not prune those two lines in the meantime.**
 
-> ## ✅ RESOLVED 2026-08-24 — but with THREE states, because running the two-state fix disproved it
+> ## ✅ RESOLVED 2026-08-24 — shipped with THREE states; ⛔ one claim in the first version of this closure was FALSE and is corrected here (2026-08-25)
 >
-> The body asks for one partition: **PRUNE** vs **OUT-OF-DOMAIN**. Built, and then run — and the very
-> entry this item exists to protect, `app._set_participant_patient_unchecked`, came back labelled
-> **"safe to prune"** anyway. ⭐ Measured cause: the function had been **renamed and moved**, to
-> `public.set_participant_patient` (schema `app`→`public`, INVOKER→DEFINER, **byte-identical argument
-> list**, returns uuid, EXECUTE to `authenticated`). Its exact signature really is absent from the
-> catalog; the door is not.
->
-> ⛔ **So absence-of-signature is not one fact but two**, and the shipped note now says so:
+> **What was built.** The body asks for one partition: **PRUNE** vs **OUT-OF-DOMAIN**. The shipped note
+> has three:
 > - **OUT-OF-DOMAIN** — exact signature live, outside this arm's domain ⇒ keep, still unswept.
 > - **RE-POINT** — the function NAME is live, the arguments changed ⇒ re-key the line, never prune.
 > - **no such NAME in app/public** — ⚠ carries a **rename caveat instead of the word "safe"**, because a
->   rename to a different name is not mechanically detectable and pruning on absence is exactly how a
+>   rename to a different name is not mechanically detectable, and pruning on absence is exactly how a
 >   live door's unswept record gets deleted.
 >
-> **The backlog line was re-pointed**, not pruned: `authz-unswept-backlog.txt` now names
-> `public.set_participant_patient`, and the *"SECURITY INVOKER DELIBERATELY"* paragraph above it is
-> marked **superseded** (no INVOKER helper remains on that path) rather than deleted — it is the record
-> of why the old shape was chosen. ⚠ The door is **still unswept, now for a second reason**: as a
-> prosecdef scalar non-bool command door it falls in `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`'s 407-door class.
+> ⛔ **THE CORRECTION, and it is the more useful half.** This closure originally reported that running the
+> two-state version had exposed a live PHI door as *"safe to prune"* because
+> `app._set_participant_patient_unchecked` had been **renamed** to `public.set_participant_patient`, and
+> the backlog line was re-pointed accordingly. **That was wrong.** The function was never renamed. The
+> measurement was taken against a **local DB that had not been reset**, which was missing six of the
+> functions the backlog names; on a fresh `supabase db reset` all six are present with byte-identical
+> signatures. `public.set_participant_patient` is the helper's **DEFINER sibling**, not its successor —
+> the authority split `docs/backend-state.md` already documents. The backlog line has been restored and
+> the episode recorded in the file itself.
 >
-> ⭐ **Transferable:** this item was itself an instance of its own lesson. It warned that a note must not
-> conflate *"outside my domain"* with *"does not exist"* — and its own premise (*"both functions EXIST,
-> live, with byte-identical signatures"*) had gone false before anyone acted on it. The two-state fix
-> was correct against the report and wrong against the catalog.
+> ⭐ **Why the three states are kept anyway:** the partition is right for a reason independent of that
+> episode — `live` is the ARM'S DOMAIN, not the catalog, so "outside my domain" and "does not exist" were
+> always different facts. And the RE-POINT bucket and rename caveat are precisely what would have stopped
+> the false conclusion from being actioned.
+>
+> ⚠ **Transferable, and this item earned it twice:** it was filed because a note conflated *"outside my
+> domain"* with *"does not exist"*. Its own closure then conflated *"absent from this database"* with
+> *"absent"*. **A catalog absence proves nothing until the DB is freshly reset** — measured the same day
+> from the other direction: `ARM=floor` reads 110 never-called doors on a stale DB and 72 on a fresh one.
 
 ### ⬛ FUP-AUTHZ-GATE-SUITE-DID-NOT-RUN-ON-MACOS — ✅ **FOUND AND RESOLVED 2026-08-24, same change** (owner: lead/backend; found by RUNNING `ARM=census`, not by reading it)
 
