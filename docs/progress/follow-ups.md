@@ -5834,6 +5834,13 @@ trim loses nothing):
 > **falsified** — draining every named site RAISED the count. Do not re-attribute it without a
 > measurement. Detail: [phase-p3-review.md](../reviews/phase-p3-review.md) § N-4 and the
 > `drainBody` docblock in `e2e/pdf-printing-cases.spec.ts`.
+> ⚠ **And it is not ONE signal:** the print spec emits digest **`504373718`**; the 2026-08-25 gate
+> run's retained server logs carry **`2566810473`** — same message, different sites, so any future
+> attribution must say WHICH.
+> ⭐⭐ **That run also disproves the death-signature reading from the other direction:** the batch-7
+> server that **DIED** logged the error **twice** (351-byte log, no FATAL, no stack), and its re-run
+> server, which came back **56/56 clean**, logged it **six** times. A signal more frequent on the
+> healthy server cannot be the death signature.
  — the one failure mode the gate detects is the one whose evidence it deletes (owner: tester + backend)
 
 > `scripts/e2e-prod-gate.sh:308` redirects each batch's standalone server to a **fixed**

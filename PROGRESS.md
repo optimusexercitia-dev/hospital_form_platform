@@ -38,7 +38,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   [case-printing-p3-substrate.md](docs/plans/case-printing-p3-substrate.md) — **read the substrate
   brief before touching P3.** Commits + amendments detail + the scoped-absence bound:
   [pdf-p3.md](docs/progress/pdf-p3.md). ⛔ **NOT pushed.**
-  **✅ Gate 1 COMPLETE (re-measured on the final tree) · ⛔ Gate 2 RED (UNRUN, PO-accepted) ·
+  **✅ Gate 1 COMPLETE (re-measured on the final tree) · ✅ Gate 2 GREEN 2026-08-25 at `6394b95a` ·
   ✅ Gate 3 APPROVED — QA pass 2, 2026-08-25 · Gate 4 NOT GIVEN · Gate 5 not started.** 7 migrations.
   Gate evidence, pass 1's three (now closed) blocking candidates, and the amendments lesson:
   [pdf-p3.md](docs/progress/pdf-p3.md). ⛔ **Historical there: re-measure, never quote.**
@@ -48,7 +48,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   **C-2** the Gotenberg beacon (ADR **0145**, amends 0014) · **C-3** all four D14 cells across both
   layers · **M-2** · **M-3** made causal. ⭐ **Four more were found by BUILDING** — all four, plus
   **Amdt 6**, in [pdf-p3.md](docs/progress/pdf-p3.md) § "Found by building".
-  **Left: gate-2 re-run → gate 4 (PO) → gate 5 Record.** QA's N-1…N-5 are non-blocking.
+  **Left: gate 4 (PO approval) → gate 5 Record.** QA's N-1…N-5 are non-blocking.
   ⭐ **RESUME → [pdf-p3-handoff.md](docs/progress/pdf-p3-handoff.md)** · verdict
   [phase-p3-review.md](docs/reviews/phase-p3-review.md) § Pass 2.
   ⭐ **PO RULINGS 2026-08-25.** ⚠ **Scope, written down because an approval's bounds are what never
@@ -192,7 +192,7 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-24 | ⭐⭐ **FULL `e2e:prod` at `77b0a467`** — clean tree at HEAD; stack VERIFIED quiet first. Closes § Now item 4 + discharges ADR 0136 Amdt 1's remedy. Fresh reset · `test:db` **7232/7232** (218f, 0 `not ok`, no *planned-but-ran-0*) | ✅ **GATE GREEN, exit 0 unpiped** — **1227p · 0f · 0 infra · 3 flaky · 0 DNR · 21 batches** (+11 skips); every batch `accounted N/N`, sums = summary. ⭐ **Single-run**, not composed. ⛔ 0 infra is POST-RETRY (b2 `server_dead`). Detail + flaky names: § Now item 4 |
+| 2026-08-25 | ⭐ **FULL `e2e:prod` GATE GREEN at `6394b95a`** — PDF·P3 gate 2. `1236 passed · 0 failed · 0 infra · 5 flaky · 0 did-not-run · 21 batches`; every batch N/N; 1241 + 11 skipped = 1252. ⚠ `0 infra` ≠ nothing collapsed — **1 INFRA re-run**. Detail: [pdf-p3.md](docs/progress/pdf-p3.md) | ✅ **GREEN** |
 
 ## QA Verdicts
 

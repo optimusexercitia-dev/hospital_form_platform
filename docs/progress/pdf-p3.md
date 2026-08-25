@@ -326,3 +326,47 @@ the fix, not by reading the code — the phase's recurring lesson, now with four
 ⇒ The generalisable form, stated once: **neutralize each layer alone, and require that layer's own
 assertions to move.** Every item above is invisible to a coverage reading, a plan count, and a green
 suite.
+
+---
+
+## Gate 2 — the 2026-08-25 GREEN run, and the first retained collapse log
+
+`REBUILD=1 RESET=1` on a clean tree at `6394b95a`, **stock knobs** — ⛔ retries deliberately NOT
+raised, because a test that only passes on retry is *flaky*, not *passed*, and changing that changes
+what the gate measures.
+
+```
+GATE SUMMARY: 1236 passed · 0 failed · 0 infra · 5 flaky · 0 did-not-run · 21 batches
+COVERAGE: accounted for 1241 of 1252 collected tests
+INFRA re-runs performed: 1
+GATE GREEN
+```
+
+**Reconciliation, checked rather than read off the colour:** every one of the 21 batches reported
+`accounted N/N` (0 mismatches), and the 1241-of-1252 line closes exactly — **1241 accounted + 11
+skipped = 1252 collected**. Flaky: batch 1 (2), batch 16 (2), batch 18 (1).
+
+⚠ **`0 infra` is NOT the claim "nothing collapsed", and this run proves the distinction matters.**
+`INFRA re-runs performed: 1` — **batch 7 died mid-run** (`server_dead=1`, `conn_errors=76`), its 39
+failures were classified INFRA rather than as defects, and the re-run on a fresh server + fresh DB
+came back **56/56 clean**. A collapsed-then-recovered batch contributes nothing to `TOTAL_INFRA`, so
+the summary's `0 infra` and the reality "one server died" are both true. Always read
+`INFRA re-runs performed` beside it.
+
+### ⭐⭐ The retention fix paid off immediately — and the evidence says the server still dies silently
+
+This is the **first** time a mid-batch death left a log (ADR 0146). `server-batch-7.log` is **351
+bytes** and contains, in full: the Next banner, `✓ Ready in 0ms`, and **two** copies of
+`⨯ Error: The destination stream closed early.` — **no `FATAL ERROR`, no heap-limit block, no
+exception, no stack.** ⇒ The historical characterisation stands, now on retained evidence rather
+than inferred from a truncated file: **the server vanishes without writing a cause.**
+
+⛔ **And the same log kills the stream-error hypothesis a second way.** The **re-run** log — from the
+server that ran **56/56 clean** — carries **six** copies of the identical error, three times as many
+as the one that died. A signal that is *more* frequent on the healthy server cannot be the death
+signature. ⚠ Note also that this digest is **`2566810473`**, while the print spec's is
+**`504373718`**: same message, different sites, so "the string" is at least two distinct emitters
+and any future attribution must name which.
+
+`gate-exit` was written durably, the second half of the ADR 0146 fix:
+`GATE_EXIT=0 · verdict=GATE GREEN — 1236 passed, 5 flaky, accounted 1241/1252`.

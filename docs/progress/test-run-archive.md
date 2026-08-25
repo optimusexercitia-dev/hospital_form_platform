@@ -1043,3 +1043,12 @@ _Superseded by the **GATE GREEN, exit 0** full run at `77b0a467` (1227p / 0f / 0
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-24 | ⭐⭐ **ADR 0136 — FULL GATE, stack measured QUIET first** · figures + limits: ADR [0136 § Amdt 1](../decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md) | lint 9/9 · `tsc` 0 · Vitest **125f/1714** · `test:db` **7228/7228** (218f) · 4 authz ARMs **exit 0 UNPIPED** + sweep | ⛔ **`e2e:prod` FULL = exit 5 RED-UNRUN**: 1160p / 0 failed / 35 infra / 33 **never ran** (`server_dead`, b5+b13); targeted re-run of those 10 specs GREEN 96p/0f. **Green by COMPOSITION, not one run** |
+
+## Rotated from PROGRESS.md 2026-08-25 — superseded by PDF·P3's gate-2 run
+
+⛔ Verbatim; links repointed for this directory. § Test Run Summary retains the most recent gate
+only, and PDF·P3's 2026-08-25 run replaced this one.
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-24 | ⭐⭐ **FULL `e2e:prod` at `77b0a467`** — clean tree at HEAD; stack VERIFIED quiet first. Closes § Now item 4 + discharges ADR 0136 Amdt 1's remedy. Fresh reset · `test:db` **7232/7232** (218f, 0 `not ok`, no *planned-but-ran-0*) | ✅ **GATE GREEN, exit 0 unpiped** — **1227p · 0f · 0 infra · 3 flaky · 0 DNR · 21 batches** (+11 skips); every batch `accounted N/N`, sums = summary. ⭐ **Single-run**, not composed. ⛔ 0 infra is POST-RETRY (b2 `server_dead`). Detail + flaky names: § Now item 4 |
