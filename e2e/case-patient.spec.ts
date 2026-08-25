@@ -625,8 +625,12 @@ test('AC-2a: opening case detail does NOT emit case_patient.read', async ({
 
   // The panel header should be visible (patient_mode <> 'none' → panel renders)
   await expect(
-    page.getByRole('heading', { name: /Identificação do paciente/i })
-      .or(page.getByText(/Identificação do paciente/i)),
+    // ⚠ The `.or(getByText(…))` fallback was REMOVED, not narrowed. Since PDF·P3
+    // the prévia helper copy ("Abre a mesma prévia com a identificação do
+    // paciente…") is a <p> on this page, so the text arm matched it and the
+    // locator resolved to 2 elements. The heading arm alone is the real
+    // assertion and is what :733 and :1516 in this same file already use.
+    page.getByRole('heading', { name: /Identificação do paciente/i }),
   ).toBeVisible({ timeout: 10_000 })
 
   // BUT: the PHI values must NOT be in the page HTML (protected state)
@@ -1342,7 +1346,16 @@ test('AC-8a: case_patient flag OFF — detail panel absent from case detail', as
     await page.waitForTimeout(1_000)
 
     // The patient panel section must NOT be present
-    const panelSection = page.locator('section').filter({ hasText: /Identificação do paciente/i })
+    // ⚠ `has:` a HEADING, not `hasText:`. `hasText` searches all descendants, so
+    // since PDF·P3 it also matched the "Documentos emitidos" section — whose
+    // prévia helper <p> contains "identificação do paciente" — and this
+    // absence assertion started failing against a page that is CORRECT.
+    // Scoping to a section that *has the heading* is the shape
+    // `patient-mode-required.spec.ts` already uses, and is immune because the
+    // P3 collision is a <p>, which cannot satisfy the heading role.
+    const panelSection = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: /Identificação do paciente/i }) })
     await expect(panelSection).not.toBeVisible({ timeout: 5_000 })
 
     // No PHI in HTML

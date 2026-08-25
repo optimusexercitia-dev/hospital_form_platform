@@ -375,7 +375,12 @@ test('AC-Docs: uploads and downloads a document (core document model, DM2 Wave A
   // e2e/phase-f2-attachments.spec.ts for the full write-path (begin→PUT→
   // finalize→verify), retry/expiry, and audit-row-exactness contract; this
   // test only re-confirms the case panel's own upload→list→open path.
-  const docPanel = page.getByRole('region', { name: /Documentos/i })
+  // ⚠ ANCHORED. `/Documentos/i` is a SUBSTRING match and since PDF·P3 the case
+  // detail page also carries a "Documentos emitidos" region, so the unanchored
+  // form resolves to 2 elements and fails strict mode. Same shape the house
+  // helper already uses (`e2e/helpers/case-affordance-class.ts` → `/^Documentos$/`).
+  // The assertion is unchanged — this names which panel it always meant.
+  const docPanel = page.getByRole('region', { name: /^Documentos$/ })
   await expect(docPanel).toBeVisible({ timeout: 10_000 })
   await docPanel.getByRole('button', { name: 'Anexar documento' }).click()
   const uploadDialog = page.getByRole('dialog').filter({ hasText: 'Enviar documento' })

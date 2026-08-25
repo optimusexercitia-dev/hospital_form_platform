@@ -199,7 +199,15 @@ test('DM2-U1: uploads a document through the browser on a case home — availabl
   await page.goto(CASE_URL)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
 
-  const docPanel = page.getByRole('region', { name: /Documentos/i })
+  // ⚠ ANCHORED — and DELIBERATELY only at the sites that actually failed.
+  // PDF·P3 added a "Documentos emitidos" region to the case DETAIL route, so
+  // the substring form `/Documentos/i` resolves to 2 elements THERE and fails
+  // strict mode. Measured in the 2026-08-25 prod gate: lines 202/669/1045/1193
+  // red; 746/874/1016/1243 ran and did NOT — they exercise routes the P3 card
+  // does not render on. Those four are left unanchored ON PURPOSE: narrowing a
+  // locator with no failing case behind it is how a suite drifts into
+  // over-specification and starts breaking on every restyle.
+  const docPanel = page.getByRole('region', { name: /^Documentos$/ })
   await expect(docPanel).toBeVisible({ timeout: 10_000 })
 
   await docPanel.getByRole('button', { name: 'Anexar documento' }).click()
@@ -666,7 +674,7 @@ test('DM2-FLAGOFF: flag OFF removes upload/delete/open entirely; an existing ava
     await page.goto(CASE_URL)
     await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
 
-    const docPanel = page.getByRole('region', { name: /Documentos/i })
+    const docPanel = page.getByRole('region', { name: /^Documentos$/ })
     await expect(docPanel).toBeVisible({ timeout: 10_000 })
 
     // Upload trigger ABSENT (not disabled).
@@ -1042,7 +1050,7 @@ test('DM2-VERIFY-FAILED-TERMINAL-UI: a terminal verification failure (bytes land
   await page.goto(CASE_URL)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
 
-  const docPanel = page.getByRole('region', { name: /Documentos/i })
+  const docPanel = page.getByRole('region', { name: /^Documentos$/ })
   await expect(docPanel).toBeVisible({ timeout: 10_000 })
   await docPanel.getByRole('button', { name: 'Anexar documento' }).click()
   const dialog = page.getByRole('dialog').filter({ hasText: 'Enviar documento' })
@@ -1190,7 +1198,7 @@ test('DM2-CEILING-NOONE: a legal_privileged document on a case with zero case_ac
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(CASE_URL)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
-  const docPanel = page.getByRole('region', { name: /Documentos/i })
+  const docPanel = page.getByRole('region', { name: /^Documentos$/ })
   await expect(docPanel).toBeVisible({ timeout: 10_000 })
 
   // Absent entirely — no trace of the title anywhere on the page, and the
