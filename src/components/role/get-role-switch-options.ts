@@ -1,6 +1,6 @@
 import { getRawGrants, getSessionContext } from "@/lib/queries/session";
 import { getSelectableRoles } from "@/lib/queries/session-grants";
-import { landingRouteForRole } from "@/components/role/role-catalog";
+import { landingRouteForRole } from "@/lib/role/role-catalog";
 
 /**
  * ACT (ADR 0106 D9) — resolves the `RoleSwitchHint` props for a `not-found.tsx`

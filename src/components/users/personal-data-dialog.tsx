@@ -7,13 +7,11 @@ import type { OrgUserDetail, ProfessionalCategory } from "@/lib/users/types";
 import type { UpdateUserProfileInput } from "@/lib/users/actions";
 import type { PersonPersonalData } from "@/lib/users/person-footprint";
 import { updateUserProfile } from "@/lib/users/actions";
-import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldLabel,
   useFieldIds,
@@ -21,46 +19,59 @@ import {
 import { FormBanner } from "@/components/auth/form-banner";
 import { CpfField } from "@/components/users/cpf-field";
 import { PhoneField } from "@/components/users/phone-field";
+import { ProfileDialogShell } from "@/components/users/profile-dialog-shell";
 
 /**
- * PERSON-LEVEL fields on the per-user management page (AFF2 F2 — ADR 0133 D3 + Amdt 1).
+ * Dialog 3a — the PERSON-LEVEL fields (AFF2 F2 — ADR 0133 D3 + Amdt 1; redesign 3a).
  *
  * Everything here is a fact about the HUMAN — name, CPF, professional category, and the
  * D9 columns (birth date, phone) — as opposed to employment facts (which hospital,
  * matrícula, start, end), which live in `AffiliationsPanel` where a hospital's own admin
  * owns them.
  *
- * ⚠ THE FORM IS NOW FORM-ONLY. Its former read-only branch moved to
- * `PersonalDataCard`, which owns the display/edit swap and the withheld case — because
- * after Amdt 1 "can this caller see the values" and "can this caller edit them" are no
- * longer the same question, and a component that answered both by rendering a different
- * tree was the wrong shape for that.
+ * ⚠ RENAMED FROM `UserProfileEditForm`, AND THE NAME CHANGE IS THE POINT. The redesign
+ * moves these fields out of an inline disclosure and into a modal, so the component is
+ * now a DIALOG that happens to contain a form — it owns the panel, the CTA and the
+ * cancel path. Keeping "…EditForm" would have been a name that lies about its content,
+ * which is a debt this codebase has already paid for once.
  *
  * ⚠ TWO CAPABILITIES, NOT ONE (ADR 0133 Amdt 1 ruling 1). `canEditPerson` is the
- * INTERSECTION bound and admits this form at all; `canEditCpf` is the SUBSET bound and
- * admits only the CPF field inside it. They genuinely disagree on the same target: a
- * hospital_admin editing a person who also works elsewhere may fix a name and may NOT
- * rewrite the person key. That disagreement is the amendment's entire point, so the CPF
- * field is gated separately rather than inheriting the form's own gate.
+ * INTERSECTION bound and admits this dialog at all — the CARD decides that, by only
+ * rendering the trigger; `canEditCpf` is the SUBSET bound and admits only the CPF field
+ * inside it. They genuinely disagree on the same target: a hospital_admin editing a
+ * person who also works elsewhere may fix a name and may NOT rewrite the person key.
+ * That disagreement is the amendment's entire point, so the CPF field is gated
+ * separately rather than inheriting the dialog's own gate.
  *
  * ⚠ BOTH FLAGS ARE UX, NOT SECURITY (Architecture Rule 1). The boundary is
  * `updateUserProfile`, which re-derives authority server-side and applies the tighter
  * bound on an actual CPF CHANGE — comparing against the current row, so an absent key
  * and an unchanged value reach the same verdict. ⛔ That server comparison is the gate;
- * this form omitting `cpf` when untouched is defence in depth. If the form were the
+ * this dialog omitting `cpf` when untouched is defence in depth. If the form were the
  * mechanism, the bound would not be enforced.
  *
- * ⚠ CPF IS WRITE-ONLY HERE (D7 / D12 / audit HIGH-1). `cpf` is excluded from the
+ * ⚠ CPF IS WRITE-ONLY HERE (D7 / audit HIGH-1). `cpf` is excluded from the
  * `authenticated` column grants on `profiles`, so no admin surface reads another
- * person's CPF — the row policies admit co-commission members and a national ID must
- * not ride along on a colleague's row read. Blank keeps the stored value.
+ * person's raw CPF. The rail card now shows a SERVER-COMPUTED MASK
+ * (`personalData.cpfMasked`, ADR 0133 D12 as amended) — the digits still never cross the
+ * wire, and this field still starts blank, because a masked value is not something you
+ * can edit into. Blank keeps the stored value.
+ *
+ * ⛔ NO SUCCESS BANNER LIVES HERE, and that is a fix rather than a style preference
+ * (BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS). A successful save closes the dialog, which
+ * unmounts this component in the same React commit — so a success banner owned here
+ * would mount and unmount without ever painting. The write succeeded, every functional
+ * assertion passed, and the admin was told nothing. `onSaved` hands that job to
+ * `PersonalDataCard`, which survives the close. No timing tweak can fix it: state that
+ * lives inside the unmounting tree dies with it.
  */
-export function UserProfileEditForm({
+export function PersonalDataDialog({
   user,
   categories,
   personalData,
   canEditCpf,
   onSaved,
+  onClose,
 }: {
   user: OrgUserDetail;
   categories: ProfessionalCategory[];
@@ -69,17 +80,15 @@ export function UserProfileEditForm({
   /** The SUBSET bound — gates ONLY the CPF field. See the note above. */
   canEditCpf: boolean;
   /**
-   * Called after a successful save.
+   * Called after a successful save, BEFORE this dialog unmounts.
    *
-   * ⛔ REQUIRED, and that is the fix for BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS rather
-   * than a style preference. Whoever mounts this form owns telling the user the save
-   * worked, because this component cannot: the only consumer collapses a disclosure in
-   * response, unmounting the form in the same commit. Making the callback optional
-   * would let the next consumer mount the form, show nothing on success, and reproduce
-   * the bug — invisibly, since the write itself succeeds and every functional
-   * assertion passes.
+   * ⛔ REQUIRED. Whoever mounts this dialog owns telling the admin the save worked,
+   * because this component cannot — see the header. Making it optional would let the
+   * next consumer mount the dialog, show nothing on success, and reproduce the bug
+   * invisibly, since the write itself succeeds and every functional assertion passes.
    */
   onSaved: () => void;
+  onClose: () => void;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -99,10 +108,9 @@ export function UserProfileEditForm({
     required: true,
   });
   const categoryField = useFieldIds("professionalCategoryId");
-  const dobField = useFieldIds("dateOfBirth", { hasDescription: true });
+  const dobField = useFieldIds("dateOfBirth");
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function submit() {
     setError(null);
     setFieldErrors({});
 
@@ -123,34 +131,33 @@ export function UserProfileEditForm({
     startTransition(async () => {
       const result = await updateUserProfile(input);
       if (!result.ok) {
+        // A failed save KEEPS this dialog open, so it can own that message; a
+        // successful one destroys it, so it cannot own that one.
         setError(result.error ?? "Não foi possível salvar as alterações.");
         setFieldErrors(result.fieldErrors ?? {});
         return;
       }
       setCpf("");
       router.refresh();
-      // ⛔ SUCCESS IS THE PARENT'S TO REPORT, and this form must not try. Calling
-      // `onSaved` collapses the disclosure, which UNMOUNTS this component in the same
-      // React commit — so a success banner owned here mounts and unmounts without ever
-      // painting. That was BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS: the write succeeded,
-      // every functional assertion passed, and the admin was told nothing. No timing
-      // tweak can fix it; state that lives inside the unmounting tree dies with it.
       onSaved();
     });
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-      {/* Errors only. A failed save KEEPS this form mounted, so it can own that
-          message; a successful one destroys the form, so it cannot own that one. */}
-      <FormBanner tone="error">{error}</FormBanner>
-
-      <Field>
-        <FieldLabel>E-mail</FieldLabel>
-        <p className="text-sm text-muted-foreground">
-          {user.email ?? "Sem e-mail"}
-        </p>
-      </Field>
+    <ProfileDialogShell
+      open
+      onOpenChange={(next) => {
+        if (!next && !isPending) onClose();
+      }}
+      title="Editar dados pessoais"
+      subtitle={`${user.fullName?.trim() || user.email || "Esta pessoa"} · fatos sobre a pessoa, visíveis em toda a organização.`}
+      onSubmit={submit}
+      submitLabel="Salvar alterações"
+      pendingLabel="Salvando…"
+      isPending={isPending}
+      footerNote="Alterações ficam registradas na trilha de auditoria da organização."
+    >
+      {error ? <FormBanner tone="error">{error}</FormBanner> : null}
 
       <Field>
         <FieldLabel htmlFor={fullNameField.controlProps.id}>
@@ -159,46 +166,50 @@ export function UserProfileEditForm({
         <Input
           {...fullNameField.controlProps}
           type="text"
+          className="h-10"
           autoComplete="name"
           required
           value={fullName}
+          disabled={isPending}
           onChange={(e) => setFullName(e.target.value)}
         />
-        <FieldError id={fullNameField.errorId}>{fieldErrors.fullName}</FieldError>
+        <FieldError id={fullNameField.errorId}>
+          {fieldErrors.fullName}
+        </FieldError>
       </Field>
 
-      {canEditCpf ? (
-        <CpfField
-          value={cpf}
-          onChange={setCpf}
-          required={false}
-          label="CPF"
-          error={fieldErrors.cpf}
-          description="Por privacidade, o CPF cadastrado não é exibido. Preencha apenas para substituí-lo; em branco, o valor atual é mantido."
-        />
-      ) : null}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {canEditCpf ? (
+          <CpfField
+            value={cpf}
+            onChange={setCpf}
+            required={false}
+            label="CPF"
+            error={fieldErrors.cpf}
+            disabled={isPending}
+            description="Preencha apenas para substituir o CPF cadastrado; em branco, o valor atual é mantido."
+          />
+        ) : null}
 
-      <Field>
-        <FieldLabel htmlFor={dobField.controlProps.id}>Nascimento</FieldLabel>
-        <DatePicker
-          id={dobField.controlProps.id}
-          value={dateOfBirth}
-          onChange={setDateOfBirth}
-          clearable
-          max={todayIso()}
-          placeholder="Não informado"
-          aria-describedby={dobField.descriptionId}
-        />
-        <FieldDescription id={dobField.descriptionId}>
-          Diferencia pessoas com o mesmo nome.
-        </FieldDescription>
-      </Field>
+        <Field>
+          <FieldLabel htmlFor={dobField.controlProps.id}>Nascimento</FieldLabel>
+          <DatePicker
+            id={dobField.controlProps.id}
+            value={dateOfBirth}
+            onChange={setDateOfBirth}
+            clearable
+            max={todayIso()}
+            placeholder="Não informado"
+            disabled={isPending}
+          />
+        </Field>
+      </div>
 
       <PhoneField
         value={phone}
         onChange={setPhone}
         label="Telefone"
-        description="Contato direto da pessoa. Não é usado para login nem para notificações."
+        disabled={isPending}
       />
 
       <Field>
@@ -207,7 +218,9 @@ export function UserProfileEditForm({
         </FieldLabel>
         <NativeSelect
           {...categoryField.controlProps}
+          className="h-10"
           value={categoryId}
+          disabled={isPending}
           onChange={(e) => setCategoryId(e.target.value)}
         >
           <option value="">Nenhuma</option>
@@ -218,11 +231,7 @@ export function UserProfileEditForm({
           ))}
         </NativeSelect>
       </Field>
-
-      <Button type="submit" className="self-start" disabled={isPending}>
-        {isPending ? "Salvando…" : "Salvar alterações"}
-      </Button>
-    </form>
+    </ProfileDialogShell>
   );
 }
 

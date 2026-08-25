@@ -26,12 +26,11 @@ import {
 } from "@/components/ui/alert-dialog";
 
 /**
- * Lifecycle controls for the per-user management page (FE-3): deactivate,
- * reactivate, suspend (with an until-date), resend invite. Each destructive
- * or state-changing action goes through a confirm step (`AlertDialog`, like
- * `ConfirmRemoveButton`); resend is non-destructive so it confirms inline via
- * its own lightweight dialog rather than firing immediately. All driven by
- * `useTransition` (plain typed actions, not `useActionState`-shaped).
+ * Lifecycle controls in the profile's identity band (FE-3; redesign 2a): deactivate,
+ * reactivate, suspend (with an until-date), resend invite. Each destructive or
+ * state-changing action goes through a confirm step (`AlertDialog`); resend is
+ * non-destructive but confirms too, because "reenviar" is easy to hit twice. All driven
+ * by `useTransition` (plain typed actions, not `useActionState`-shaped).
  *
  * ⚠ AFF2 (ADR 0133 D3 + Amdt 1 ruling 1): deactivate / reactivate / suspend are gated
  * by the **SUBSET bound**, not by role. A `hospital_admin` holds them over a person
@@ -104,65 +103,61 @@ export function UserLifecycleActions({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex w-full flex-col gap-3 lg:w-auto">
       {error ? <FormBanner tone="error">{error}</FormBanner> : null}
 
       <div className="flex flex-wrap gap-2">
-        {canManageAccountStatus ? (
-          <>
-            {status === "deactivated" ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpenDialog("reactivate")}
-                disabled={isPending}
-              >
-                <Unlock aria-hidden="true" />
-                Reativar
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => setOpenDialog("deactivate")}
-                disabled={isPending}
-              >
-                <Lock aria-hidden="true" />
-                Desativar
-              </Button>
-            )}
-
-            {status !== "deactivated" ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpenDialog("suspend")}
-                disabled={isPending}
-              >
-                <PauseCircle aria-hidden="true" />
-                Suspender
-              </Button>
-            ) : null}
-          </>
-        ) : null}
-
         {status === "pending" ? (
-          <Button
-            type="button"
-            variant="outline"
+          <ActionButton
             onClick={() => setOpenDialog("resend")}
             disabled={isPending}
           >
             <Mail aria-hidden="true" />
             Reenviar convite
-          </Button>
+          </ActionButton>
+        ) : null}
+
+        {canManageAccountStatus ? (
+          <>
+            {status !== "deactivated" ? (
+              <ActionButton
+                onClick={() => setOpenDialog("suspend")}
+                disabled={isPending}
+              >
+                <PauseCircle aria-hidden="true" />
+                Suspender
+              </ActionButton>
+            ) : null}
+
+            {status === "deactivated" ? (
+              <ActionButton
+                onClick={() => setOpenDialog("reactivate")}
+                disabled={isPending}
+              >
+                <Unlock aria-hidden="true" />
+                Reativar
+              </ActionButton>
+            ) : (
+              <ActionButton
+                tone="destructive"
+                onClick={() => setOpenDialog("deactivate")}
+                disabled={isPending}
+              >
+                <Lock aria-hidden="true" />
+                Desativar
+              </ActionButton>
+            )}
+          </>
         ) : null}
       </div>
 
       {!canManageAccountStatus ? (
-        <p className="flex items-start gap-2 text-sm text-muted-foreground text-pretty">
-          <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+        /* ⛔ THE EXPLANATION REPLACES THE BUTTONS, it does not vanish with them. An
+           admin who simply finds no controls concludes the feature is broken; one who
+           reads this knows the action exists, why it is not theirs, and which action IS
+           theirs. Never hide data — only actions. */
+        <p className="flex max-w-sm items-start gap-2 text-xs text-muted-foreground text-pretty">
+          <ShieldAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
           Desativar ou suspender uma conta encerra o acesso da pessoa em toda a
           plataforma, inclusive em outros hospitais, e por isso é feito por um
           administrador da organização. Para desligá-la deste hospital, encerre o
@@ -179,8 +174,9 @@ export function UserLifecycleActions({
           <AlertDialogHeader>
             <AlertDialogTitle>Desativar {fullName}?</AlertDialogTitle>
             <AlertDialogDescription>
-              A pessoa perderá o acesso à plataforma na próxima requisição.
-              Esta ação pode ser desfeita reativando a conta depois.
+              A pessoa perderá o acesso à plataforma na próxima requisição, em
+              todos os hospitais. Esta ação pode ser desfeita reativando a conta
+              depois.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -312,5 +308,35 @@ export function UserLifecycleActions({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/**
+ * The identity band's compact action button (redesign 2a): a bordered card-coloured
+ * chip, `Desativar` tinted destructive.
+ *
+ * ⚠ THE ICON IS `aria-hidden` VIA `Button`'s own SVG handling and the label is real
+ * text, so the accessible name is exactly the visible word — "Desativar", "Suspender",
+ * "Reativar", "Reenviar convite". Those names are load-bearing: the tier suite addresses
+ * them with anchored patterns, and more importantly a lifecycle control that announces
+ * anything other than what it does is a control an admin can fire by mistake.
+ */
+function ActionButton({
+  tone = "default",
+  className,
+  ...props
+}: React.ComponentProps<typeof Button> & { tone?: "default" | "destructive" }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      className={`h-9 gap-1.5 bg-card px-3 text-xs font-semibold ${
+        tone === "destructive"
+          ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
+          : ""
+      } ${className ?? ""}`}
+      {...props}
+    />
   );
 }

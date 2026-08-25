@@ -1269,9 +1269,11 @@ note: `docs/design/act-role-picker.md`. Built against the backend-posted signatu
 ### 1. What landed
 
 New: `src/app/(auth)/selecionar-perfil/page.tsx` + `src/components/role/role-picker-form.tsx`
-(the picker) · `src/components/role/role-catalog.ts` (the ONE role→pt-BR-label and
-role→landing-route table, pure, no I/O, consumed by the picker, `UserMenu`, and the D9
-hint — "one map, many consumers") · `src/components/role/role-switch-hint.tsx` (the D9
+(the picker) · `src/lib/role/role-catalog.ts` (the ONE role→pt-BR-label and
+role→landing-route table, pure, no I/O, consumed by the picker, `UserMenu`, the D9
+hint and the person-history timeline — "one map, many consumers"; MOVED 2026-08-25 from
+`src/components/role/` so a `src/lib` query module could consume it without inverting the
+layering) · `src/components/role/role-switch-hint.tsx` (the D9
 hint) · `src/components/role/get-role-switch-options.ts` (small server helper: hat-blind
 grants minus the caller's OWN active hat) · `src/app/o/[org]/direcao-tecnica/layout.tsx`
 (new shell — this console had none, per the design note §4.4 option (a)) · 4 new

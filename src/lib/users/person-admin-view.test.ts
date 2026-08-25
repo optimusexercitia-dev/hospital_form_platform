@@ -268,6 +268,10 @@ describe('§2 ⭐ WITHHELD and NOT-INFORMED are separately observable', () => {
       dateOfBirth: null,
       phone: null,
       cpfPresent: false,
+      // ADR 0144: nothing stored ⇒ no mask either. `cpfMasked` is null on BOTH the
+      // "not informed" and the "malformed" paths, which is exactly why `cpfPresent`
+      // survived the amendment instead of being replaced by it.
+      cpfMasked: null,
     })
   })
 
@@ -317,21 +321,50 @@ describe('§2 ⭐ WITHHELD and NOT-INFORMED are separately observable', () => {
 })
 
 // ===========================================================================
-describe('§3 D12 — CPF is PRESENCE ONLY and the digits never cross the boundary', () => {
-  it('reports cpfPresent true WITHOUT the digits appearing anywhere in the payload', async () => {
+describe('§3 D12 as amended by ADR 0144 — CPF is MASKED, and the raw key never crosses', () => {
+  // ⛔ THIS SECTION USED TO ASSERT THE OPPOSITE, and the reversal is deliberate, not drift.
+  // ADR 0133 D12 said PRESENCE ONLY — "no digits, masked or otherwise" — and an arm here
+  // pinned that by refusing even a three-digit fragment. The PO reversed it (ADR 0144):
+  // administrators could not tell two same-named people apart, nor confirm they were
+  // editing the right record, from a boolean. What SURVIVES the reversal is the half that
+  // was always load-bearing — the four hidden digits, and the raw key, still never leave
+  // the server — and that is what the arms below now pin.
+  //
+  // CPF_DIGITS = 11144477735 ⇒ mask 111.•••.•77-35 (1-3 shown, 4-7 hidden, 8-11 shown).
+  const MASKED = '111.•••.•77-35'
+  const HIDDEN_DIGITS = '4447' // digits 4-7 — the half the mask exists to withhold
+
+  it('reports cpfPresent true and the MASKED form, never the raw key', async () => {
     // ⛔ MUTATION-CONTROLLED: adding `cpf: profile.cpf` to the returned object makes this
     // arm RED. Observed. The serialized-payload scan is what makes it a real control —
-    // asserting only `cpfPresent === true` would pass with the digits riding alongside.
+    // asserting only `cpfPresent === true` would pass with the raw digits riding alongside.
     session = hospitalAdminSession
     const v = await view()
     expect(v.personalData?.cpfPresent).toBe(true)
+    expect(v.personalData?.cpfMasked).toBe(MASKED)
     expect(
       JSON.stringify(v),
-      'the CPF digits must appear NOWHERE in the returned payload (D12)',
+      'the RAW 11-digit CPF must appear nowhere in the returned payload',
     ).not.toContain(CPF_DIGITS)
   })
 
-  it('reports cpfPresent false when the column is null', async () => {
+  it('⭐ the HIDDEN digits (4-7) never cross the boundary in any form', async () => {
+    // ⛔ MUTATION-CONTROLLED and the reason this arm is separate: a mask that hid the
+    // WRONG span — say `111.444.•••-35`, which still "looks masked" and still satisfies
+    // the raw-key scan above — makes this arm RED. Observed. Asserting the output shape
+    // alone would not catch it, because the shape assertion above would have been edited
+    // to match the new mask by whoever changed it.
+    session = hospitalAdminSession
+    const v = await view()
+    const payload = JSON.stringify(v)
+    for (const fragment of [HIDDEN_DIGITS, '111.444', '444.777']) {
+      expect(payload, `hidden CPF fragment "${fragment}" must not appear`).not.toContain(
+        fragment,
+      )
+    }
+  })
+
+  it('reports cpfPresent false and a null mask when the column is null', async () => {
     rows.profiles = {
       home_organization_id: ORG_A,
       date_of_birth: DOB,
@@ -341,15 +374,38 @@ describe('§3 D12 — CPF is PRESENCE ONLY and the digits never cross the bounda
     session = hospitalAdminSession
     const v = await view()
     expect(v.personalData?.cpfPresent).toBe(false)
+    expect(v.personalData?.cpfMasked).toBeNull()
   })
 
-  it('no masked or partial form leaks either — not even a suffix', async () => {
+  it('⭐ a stored value that is not 11 digits masks to null while presence stays TRUE', async () => {
+    // The pair that justifies keeping BOTH fields. A malformed/legacy value is real data —
+    // `cpfPresent` must still say "there is something on file" — but there is no honest
+    // mask for it, and half-rendering one invites the reader to believe it.
+    // ⛔ MUTATION-CONTROLLED: masking by slicing without the length check (which would
+    // emit a short, plausible-looking string) makes this arm RED. Observed.
+    rows.profiles = {
+      home_organization_id: ORG_A,
+      date_of_birth: DOB,
+      phone: PHONE,
+      cpf: '1114447',
+    }
     session = hospitalAdminSession
     const v = await view()
-    const payload = JSON.stringify(v)
-    for (const fragment of ['111', '77735', '111.444', '***']) {
-      expect(payload, `no CPF fragment "${fragment}" may appear`).not.toContain(fragment)
+    expect(v.personalData?.cpfPresent).toBe(true)
+    expect(v.personalData?.cpfMasked).toBeNull()
+    expect(JSON.stringify(v)).not.toContain('1114447')
+  })
+
+  it('tolerates stored punctuation — the mask is computed from the digits', async () => {
+    rows.profiles = {
+      home_organization_id: ORG_A,
+      date_of_birth: DOB,
+      phone: PHONE,
+      cpf: '111.444.777-35',
     }
+    session = hospitalAdminSession
+    const v = await view()
+    expect(v.personalData?.cpfMasked).toBe(MASKED)
   })
 })
 

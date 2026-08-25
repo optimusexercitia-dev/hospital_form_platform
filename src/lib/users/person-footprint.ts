@@ -174,18 +174,75 @@ export interface PersonAdminAuthority {
   canManageAccountLifecycle: boolean
 }
 
-/** The column-locked rail values (ADR 0133 D9/D10/D12). */
+/**
+ * Mask a stored CPF for display — ADR 0144 (amends ADR 0133 D12).
+ *
+ * `AAABBBCCCDD` → `AAA.•••.•CC-DD`: digits 1–3 visible, digits 4–7 hidden behind `•`,
+ * digits 8–11 visible. Returns `null` for an absent value or anything that is not
+ * exactly 11 digits after punctuation is stripped — a partial or malformed key is shown
+ * as "not informed" rather than as a broken string, because a half-rendered identifier
+ * invites the reader to believe it.
+ *
+ * ⛔ NEVER GIVEN THE RAW COLUMN BY A CALLER OUTSIDE THIS MODULE, and not exported for
+ * that reason: the whole point of D12-as-amended is that the masking happens on the
+ * server, beside the only authorized read of `profiles.cpf`, so the wire never carries
+ * the four hidden digits. An exported masker would invite a call site that had to hold
+ * the raw value first, which is precisely the boundary crossing the ADR forbids.
+ *
+ * Punctuation-tolerant on input because the CHECK constraint (`app.is_valid_cpf`,
+ * `^[0-9]{11}$`) is an invariant declared in another file: stripping here is correct
+ * under either answer, exactly as `updateUserProfile` normalises both sides of its
+ * comparison rather than trusting the stored shape.
+ */
+function maskCpf(raw: string | null): string | null {
+  if (!raw) return null
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length !== 11) return null
+  const bullet = '•'
+  return (
+    digits.slice(0, 3) +
+    '.' +
+    bullet.repeat(3) +
+    '.' +
+    bullet +
+    digits.slice(7, 9) +
+    '-' +
+    digits.slice(9, 11)
+  )
+}
+
+/** The column-locked rail values (ADR 0133 D9/D10/D12, D12 amended by ADR 0144). */
 export interface PersonPersonalData {
   /** ISO `yyyy-mm-dd`, or `null` meaning NOT INFORMED. */
   dateOfBirth: string | null
   /** Digits-only, or `null` meaning NOT INFORMED. Formatting is display-side. */
   phone: string | null
   /**
-   * ADR 0133 D12 — PRESENCE ONLY. No CPF digits cross this boundary, masked or otherwise;
-   * the full value appears nowhere outside the person's own future `/conta` surface and
-   * the edit form's blank write-only field.
+   * Whether a CPF is stored at all.
+   *
+   * ⚠ KEPT ALONGSIDE {@link cpfMasked}, not replaced by it, and the pair is not
+   * redundant: `cpfMasked` is `null` both when nothing is stored AND when the stored
+   * value fails the 11-digit shape, so `cpfMasked === null` cannot answer "is there a
+   * CPF on file". Presence is the fact the edit form and any future completeness check
+   * need; the mask is only for display.
    */
   cpfPresent: boolean
+  /**
+   * ADR 0144 (amends ADR 0133 D12) — the MASKED CPF, e.g. `412.•••.•84-20`, or `null`
+   * when nothing is stored / the stored value is not 11 digits.
+   *
+   * ⛔ D12 ORIGINALLY SAID PRESENCE ONLY — "no digits, masked or otherwise". The PO
+   * REVERSED that: administrators could not tell two same-named people apart, nor confirm
+   * they were editing the right record, from a boolean. Do not "restore" the stricter
+   * reading; it was decided against, not overlooked.
+   *
+   * ⛔ WHAT SURVIVES THE REVERSAL, and it is the load-bearing half: the RAW value still
+   * never crosses this boundary. Masking happens server-side, inside
+   * {@link getPersonAdminView}, so the four hidden digits are never serialized to the
+   * client under any branch. Adding `cpf` to the returned object — or masking in the
+   * renderer — re-opens exactly what the amendment preserved.
+   */
+  cpfMasked: string | null
 }
 
 export interface PersonAdminView {
@@ -210,7 +267,8 @@ export interface PersonAdminView {
  * concurrent footprint change — ADR 0133 D4 accepts a TOCTOU residual bounded to ONE
  * write, and a second independent resolution would widen the accepted residual for free.
  *
- * Never raises for an unauthorized caller and never returns CPF digits.
+ * Never raises for an unauthorized caller, and never returns the RAW CPF — the four
+ * hidden digits stay server-side under every branch (ADR 0144, amending ADR 0133 D12).
  */
 export async function getPersonAdminView(
   userId: string,
@@ -274,9 +332,11 @@ export async function getPersonAdminView(
       ? {
           dateOfBirth: profile.date_of_birth ?? null,
           phone: profile.phone ?? null,
-          // D12: the boolean is computed HERE and the column is never returned. The digits
-          // do not leave this function under any branch.
+          // D12 as amended by ADR 0144: BOTH derived values are computed HERE and the raw
+          // column is never returned. The masked form carries digits 1-3 and 8-11 by
+          // design; digits 4-7 do not leave this function under any branch.
           cpfPresent: Boolean(profile.cpf),
+          cpfMasked: maskCpf(profile.cpf),
         }
       : null,
     authority: { canEditPerson, canManageAccountLifecycle },

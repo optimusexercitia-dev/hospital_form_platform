@@ -30,8 +30,6 @@ import type { UserAffiliation } from '@/lib/users/types'
 export interface HospitalAffiliation extends UserAffiliation {
   principalId: string
   organizationId: string
-  /** null = active. A soft end; affiliation rows are never deleted (D4). */
-  endedOn: string | null
 }
 
 interface AffiliationRow {
@@ -94,6 +92,64 @@ export async function listActiveAffiliationsFor(
     const list = grouped.get(affiliation.principalId)
     if (list) list.push(affiliation)
     else grouped.set(affiliation.principalId, [affiliation])
+  }
+  return grouped
+}
+
+/**
+ * ACTIVE **and** ENDED affiliations for a set of principals, grouped by principal id —
+ * the employment HISTORY, for the person detail page's "Vínculos hospitalares" card.
+ *
+ * ⛔ A SIBLING OF {@link listActiveAffiliationsFor}, DELIBERATELY NOT A WIDENING OF IT.
+ * Relaxing the active-only filter in place would have been one line and would have been
+ * wrong: `listActiveAffiliationsFor` answers the PRESENT-TENSE question ("where does this
+ * person work"), and it feeds `OrgUserListItem.hospitalNames` in BOTH directory reads
+ * plus, through `hospitalPeopleIds`, the hospital-scoped roster itself. Admitting ended
+ * rows there would list a person under a hospital they left — silently, with no test
+ * naming the change, because both functions return the same TYPE. Two questions, two
+ * functions; the type carries `endedOn` so neither caller has to guess which it got.
+ *
+ * ORDER IS PART OF THE CONTRACT and is applied HERE rather than at the call site: ACTIVE
+ * rows first (earliest `started_on` first, matching the active-only reader), then ENDED
+ * rows most-recently-ended first. A second sort beside the caller is how one surface
+ * starts showing a different order from another.
+ *
+ * Empty map for an empty input — an empty `in.()` is invalid PostgREST, never send one.
+ * RLS-scoped exactly as the active reader is: fewer rows for a foreign caller, never an
+ * error, and an empty result NEVER means "not permitted".
+ */
+export async function listAffiliationsFor(
+  principalIds: string[],
+): Promise<Map<string, HospitalAffiliation[]>> {
+  const grouped = new Map<string, HospitalAffiliation[]>()
+  if (principalIds.length === 0) return grouped
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('hospital_affiliations')
+    .select(AFFILIATION_SELECT)
+    .in('principal_id', principalIds)
+    .order('started_on', { ascending: true })
+
+  if (error) throw error
+
+  for (const row of (data ?? []) as unknown as AffiliationRow[]) {
+    const affiliation = toAffiliation(row)
+    const list = grouped.get(affiliation.principalId)
+    if (list) list.push(affiliation)
+    else grouped.set(affiliation.principalId, [affiliation])
+  }
+
+  for (const list of grouped.values()) {
+    list.sort((a, b) => {
+      // Active before ended. Both null → keep the started_on order the query imposed.
+      if (a.endedOn === null && b.endedOn === null) return 0
+      if (a.endedOn === null) return -1
+      if (b.endedOn === null) return 1
+      // Both ended: most recently ended first.
+      if (a.endedOn === b.endedOn) return 0
+      return a.endedOn < b.endedOn ? 1 : -1
+    })
   }
   return grouped
 }

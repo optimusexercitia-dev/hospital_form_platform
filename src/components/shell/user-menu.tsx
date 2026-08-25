@@ -9,7 +9,7 @@ import {
   landingRouteForRole,
   platformRoleLabel,
   type PlatformRole,
-} from "@/components/role/role-catalog";
+} from "@/lib/role/role-catalog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,

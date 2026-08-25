@@ -4,7 +4,7 @@ import { useActionState } from "react";
 
 import { assumeRole, type AssumeRoleState } from "@/lib/role-selection/actions";
 import type { RoleSwitchHintOption } from "@/components/role/get-role-switch-options";
-import { platformRoleLabel, type PlatformRole } from "@/components/role/role-catalog";
+import { platformRoleLabel, type PlatformRole } from "@/lib/role/role-catalog";
 
 /**
  * ACT (ADR 0106 D9) — the "you also hold another role" hint appended to a

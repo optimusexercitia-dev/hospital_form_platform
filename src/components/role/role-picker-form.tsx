@@ -9,7 +9,7 @@ import {
   landingRouteForRole,
   platformRoleLabel,
   scopeSummary,
-} from "@/components/role/role-catalog";
+} from "@/lib/role/role-catalog";
 import { RiseInGroup } from "@/components/motion/rise-in-group";
 import { getMotionDurations, MOTION_EASE } from "@/components/motion/motion-tokens";
 import { useReducedMotion } from "@/components/motion/use-reduced-motion";

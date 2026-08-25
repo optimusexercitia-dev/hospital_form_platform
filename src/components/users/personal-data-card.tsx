@@ -6,13 +6,19 @@ import { ShieldAlert } from "lucide-react";
 import type { OrgUserDetail, ProfessionalCategory } from "@/lib/users/types";
 import type { PersonPersonalData } from "@/lib/users/person-footprint";
 import { formatPhone } from "@/components/users/phone-field";
-import { UserProfileEditForm } from "@/components/users/user-profile-edit-form";
+import { PersonalDataDialog } from "@/components/users/personal-data-dialog";
+import {
+  CardFootnote,
+  CardTextButton,
+  DefinitionRow,
+  RailCard,
+} from "@/components/users/profile-cards";
 
 /**
- * The profile rail's "Dados pessoais" card (AFF2 F2 — handoff §Screen 2).
+ * The profile rail's "Dados pessoais" card (AFF2 F2; redesign 2a rail + dialog 3a).
  *
- * Owns the display/edit swap so `UserProfileEditForm` can be form-only, and owns the
- * three states this card genuinely has — which is one more than the old page had.
+ * Owns the read view, the trigger for dialog 3a, and the three states this card
+ * genuinely has — which is one more than a naive read/edit pair.
  *
  * ⛔ THE THREE STATES ARE NOT TWO. `personalData === null` means **WITHHELD** (the
  * caller lacks the `fields` capability); a `null` INSIDE it means **NOT INFORMED**.
@@ -23,12 +29,21 @@ import { UserProfileEditForm } from "@/components/users/user-profile-edit-form";
  * memory — so the outer null is checked first, and it renders the scope note, never a
  * value.
  *
+ * ⚠ CPF RENDERS AS A SERVER-COMPUTED MASK (`cpfMasked`, e.g. `412.•••.•84-20`), which
+ * AMENDS ADR 0133 D12's "presence only". The raw digits still never cross the wire —
+ * `cpf` remains outside the `authenticated` column grants and the mask is built
+ * server-side in B6. `cpfMasked === null` means NOT INFORMED, and is a different fact
+ * from the withheld branch above; the two must not converge on the same string.
+ *
  * ⚠ PER-CAPABILITY, NOT PER-PERSON (ADR 0133 Amdt 1 ruling 1). `canEditPerson`
  * (INTERSECTION) admits the "Editar" affordance; `canManageAccountLifecycle` (SUBSET)
- * admits the CPF field inside the form. For a person who works at more than one hospital
- * these DISAGREE — a hospital_admin may fix the name and may not rewrite the person key —
- * and the footer note says which half is out of reach rather than the retired
- * "somente organização" absolute.
+ * admits the CPF field inside the dialog. For a person who works at more than one
+ * hospital these DISAGREE — a hospital_admin may fix the name and may not rewrite the
+ * person key — and the footer note says which half is out of reach rather than the
+ * retired "somente organização" absolute.
+ *
+ * ⚠ NO "Especialidade" ROW. The design asks for one; no column stores it. An omitted
+ * row is honest, a placeholder row is a promise the data cannot keep.
  */
 export function PersonalDataCard({
   user,
@@ -46,48 +61,43 @@ export function PersonalDataCard({
 }) {
   const [editing, setEditing] = useState(false);
   /**
-   * The save confirmation lives HERE, in the component that survives the collapse.
+   * The save confirmation lives HERE, in the component that survives the close.
    *
    * ⛔ BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS: the form used to set its own success flag
-   * and then call `onSaved`, which collapses this disclosure — both in one React commit,
-   * so the banner mounted and unmounted without painting. The write succeeded and the
-   * admin was told nothing, which is why every functional assertion passed.
+   * and then call `onSaved`, which tears down the editor — both in one React commit, so
+   * the banner mounted and unmounted without painting. The write succeeded and the admin
+   * was told nothing, which is why every functional assertion passed. Moving the editor
+   * from a disclosure into a MODAL does not retire that hazard, it sharpens it: closing
+   * a dialog unmounts its whole subtree just as surely.
    */
   const [saved, setSaved] = useState(false);
 
   return (
-    <section
-      aria-labelledby="dados-pessoais-heading"
-      className="animate-rise-in flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
-      style={{ ["--rise-delay" as string]: "100ms" }}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="dados-pessoais-heading" className="text-base font-semibold">
-          Dados pessoais
-        </h2>
-        {personalData && canEditPerson ? (
-          /* A DISCLOSURE, announced as one. `aria-expanded` + `aria-controls` tell a
-             screen-reader user that this control reveals something and whether it is
-             open — the alternative, moving focus into the form, steals it from a
-             sighted keyboard user who only wanted to see the fields. The label change
-             alone announces nothing about the form appearing below. */
-          <button
-            type="button"
+    <RailCard
+      titleId="dados-pessoais-heading"
+      title="Dados pessoais"
+      riseDelay="100ms"
+      action={
+        personalData && canEditPerson ? (
+          /* A DIALOG TRIGGER, announced as one. `aria-haspopup="dialog"` tells a screen
+             reader that activating this opens a modal rather than revealing content in
+             place — the disclosure's `aria-expanded`/`aria-controls` pair would now be a
+             lie, because nothing expands and the panel it names is portaled out of this
+             card's subtree entirely. */
+          <CardTextButton
+            aria-haspopup="dialog"
             onClick={() => {
               // Reopening to edit again retires the previous confirmation — leaving it
               // up would have it describe a save the admin has moved on from.
               setSaved(false);
-              setEditing((v) => !v);
+              setEditing(true);
             }}
-            aria-expanded={editing}
-            aria-controls="dados-pessoais-form"
-            className="rounded-md text-xs font-semibold text-primary transition-colors hover:text-primary/80 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
           >
-            {editing ? "Cancelar" : "Editar"}
-          </button>
-        ) : null}
-      </div>
-
+            Editar
+          </CardTextButton>
+        ) : null
+      }
+    >
       {/* ⛔ PERMANENTLY MOUNTED, EMPTY UNTIL THERE IS SOMETHING TO SAY. A live region
           that mounts together with its content is announced unreliably — the same
           reason `register-person-flow` moves focus instead of wrapping its outcome in
@@ -99,7 +109,7 @@ export function PersonalDataCard({
         aria-live="polite"
         className={
           saved
-            ? "rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-[0.75rem] font-medium text-success"
+            ? "rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-[0.72rem] font-medium text-success"
             : "sr-only"
         }
       >
@@ -117,54 +127,41 @@ export function PersonalDataCard({
           vínculo com o seu hospital e a matrícula você gerencia em “Vínculos
           hospitalares”.
         </ScopeNote>
-      ) : editing ? (
-        <div id="dados-pessoais-form">
-          <UserProfileEditForm
-            user={user}
-            categories={categories}
-            personalData={personalData}
-            canEditCpf={canManageAccountLifecycle}
-            onSaved={() => {
-              setEditing(false);
-              setSaved(true);
-            }}
-          />
-        </div>
       ) : (
         <>
-          <dl className="flex flex-col gap-2.5 text-[0.8rem]">
-            <Row label="CPF">
-              {/* D12 — PRESENCE ONLY. No digits, masked or otherwise. */}
-              {personalData.cpfPresent ? (
-                <span className="inline-flex items-center gap-1 text-success">
-                  Cadastrado
-                  <span aria-hidden="true">✓</span>
+          <dl className="flex flex-col gap-2.5 text-[0.78rem]">
+            <DefinitionRow label="CPF">
+              {personalData.cpfMasked ? (
+                <span className="font-mono text-[0.72rem]">
+                  {personalData.cpfMasked}
                 </span>
               ) : (
                 <span className="text-muted-foreground">Não informado</span>
               )}
-            </Row>
-            <Row label="Nascimento">
+            </DefinitionRow>
+            <DefinitionRow label="Nascimento">
               {personalData.dateOfBirth ? (
                 <span>{formatIsoDatePtBr(personalData.dateOfBirth)}</span>
               ) : (
                 <span className="text-muted-foreground">Não informado</span>
               )}
-            </Row>
-            <Row label="Telefone">
+            </DefinitionRow>
+            <DefinitionRow label="Telefone">
               {personalData.phone ? (
-                <span className="font-mono">{formatPhone(personalData.phone)}</span>
+                <span className="font-mono text-[0.72rem]">
+                  {formatPhone(personalData.phone)}
+                </span>
               ) : (
                 <span className="text-muted-foreground">Não informado</span>
               )}
-            </Row>
-            <Row label="Categoria">
+            </DefinitionRow>
+            <DefinitionRow label="Categoria">
               {user.categoryLabel ? (
                 <span>{user.categoryLabel}</span>
               ) : (
                 <span className="text-muted-foreground">Não informada</span>
               )}
-            </Row>
+            </DefinitionRow>
           </dl>
 
           {canEditPerson && !canManageAccountLifecycle ? (
@@ -175,29 +172,35 @@ export function PersonalDataCard({
               organização.
             </ScopeNote>
           ) : (
-            <p className="border-t border-border pt-3 text-[0.7rem] text-muted-foreground text-pretty">
-              Fatos sobre a pessoa, não sobre um hospital.
-            </p>
+            <CardFootnote>
+              Fatos sobre a pessoa — editáveis apenas pela administração da
+              organização.
+            </CardFootnote>
           )}
         </>
       )}
-    </section>
-  );
-}
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 truncate text-right font-medium">{children}</dd>
-    </div>
+      {editing && personalData ? (
+        <PersonalDataDialog
+          user={user}
+          categories={categories}
+          personalData={personalData}
+          canEditCpf={canManageAccountLifecycle}
+          onSaved={() => {
+            setEditing(false);
+            setSaved(true);
+          }}
+          onClose={() => setEditing(false)}
+        />
+      ) : null}
+    </RailCard>
   );
 }
 
 /** Status carried by icon + wording together, never by colour alone. */
 function ScopeNote({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-[0.75rem] text-muted-foreground text-pretty">
+    <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-[0.72rem] text-muted-foreground text-pretty">
       <ShieldAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
       {children}
     </p>
