@@ -153,13 +153,18 @@ set local role authenticated;
 select lives_ok(
   $$ select public.set_case_visibility('00000000-0000-0000-0000-0000000f6001', 'commission_default') $$,
   'M6·2 ⭐ POSITIVE TWIN: a clean coordinator CAN re-scope the case through the door (the narrowing did not close the legitimate path)');
-reset role;
 select is((select visibility_policy from public.cases where id = '00000000-0000-0000-0000-0000000f6001'),
   'commission_default',
   'M6·2: …and the write LANDED (a door that raises nothing but writes nothing is the same bug)');
 
 -- restore for the arms below
 select public.set_case_visibility('00000000-0000-0000-0000-0000000f6001', 'explicit_grants_only');
+-- ⛔ This `reset role` MUST stay BELOW the visibility restore above — that call is a WRITE
+-- through `public.set_case_visibility`, which raises HC0F5 'apenas a coordenação…' for a null
+-- actor. It ran above until 2026-08-24 and only succeeded by borrowing sa_x's surviving
+-- claims. Not wrapped in throws_ok, so a null actor ABORTS the file.
+-- (FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS)
+reset role;
 
 -- ===========================================================================
 -- M6·3 — a non-coordinator is DENIED on AUTHORITY (HC0F5).

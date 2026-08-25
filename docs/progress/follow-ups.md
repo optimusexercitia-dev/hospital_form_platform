@@ -4126,47 +4126,6 @@ default nobody wrote. A one-outlier framing invites a one-function fix that woul
 approval scope, it is unrelated to the case surface split, and a sweeping privilege change smuggled into
 a feature migration is how the next reader loses the reasoning.
 
-### ðŸŸ  FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS â€” a pgTAP premise 136 files can state falsely (owner: backend/tester; filed 2026-08-22, found inside the ADR 0134 S8 suite; â­• **PARTIAL 2026-08-22** â€” root verb `test_helpers.reset_role_and_claims()` + red-first gate landed and adopted in `356`/`357`; â›” **step 1 (derive the real population) and the 134-file sweep remain OPEN**. Capable population 136 â†’ 134, still not a defect count. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md))
-
-`test_helpers.claims_for(...)` sets `request.jwt.claims`; **`reset role` restores the ROLE only.** So a
-suite that says "back in owner context, `auth.uid()` is NULL" after a `reset role` may in fact still be
-asserting **as the last persona**, and every assertion resting on that sentence inherits a false premise.
-
-**Found by construction, not by review.** The ADR 0134 Increment-2 suite (`356`) stated exactly that
-premise for its `member_can` pins â€” including **1.5c, the Amendment-6 pin**, whose entire content is
-*"the bare `member_can` is false in owner context for everybody, which is why the resolver cannot use
-it."* That assertion depended on the premise being true and it was not. Fixed in `356` by pairing every
-`reset role` with an explicit claims clear **and by pinning the premise itself** (`0.5`) rather than
-stating it in a comment.
-
-â­ **The class:** *a pin whose stated premise is false is the same defect as a pin that cannot fail* â€”
-both are green for a reason unrelated to the property. This one is worse to find later, because the
-comment above it reads like the verification.
-
-**Measured 2026-08-22 â€” and read the bound, because the headline number is not the defect count:**
-
-| property | count |
-|---|---|
-| files under `supabase/tests/` using `reset role` | **172** (2179 occurrences) |
-| files using `claims_for` | **177** |
-| files that clear `request.jwt.claims` anywhere | **39** |
-| **files that `reset role` but NEVER clear claims** | **136** |
-
-â›” **136 is the population that CAN hold the defect, not the population that does.** A file that always
-runs under an explicit persona and never asserts an owner-context property is unaffected. **The number
-of actually-false premises is NOT established**, and nobody should quote 136 as a defect count â€” that
-is this repo's standing error (the instance named as the class) run in the opposite direction. Whoever
-takes this must derive the real population by the property *"asserts something that is only true when
-`auth.uid()` is NULL, after a `reset role`, without clearing claims"*, which no text filter decides.
-
-**To close:** (1) derive that population; (2) fix at the root â€” a `test_helpers` verb that resets role
-**and** clears claims together, so the two cannot drift apart, rather than 136 hand-paired edits; (3) the
-gate is **pgTAP, not `npm run lint`** (ADR 0127's stated bound: DB anchors are not checkable there), and
-it must be **red-first** â€” write a suite that asserts an owner-context property after a bare `reset role`
-and require it to RED before the helper lands.
-
----
-
 ### ðŸŸ¡ FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE â€” a caller that names the OLD ARITY fails as a plan mismatch, pointing nowhere near signatures (owner: backend; filed 2026-08-22, found when the full suite failed in a file this increment never touched)
 
 **What happened.** ADR 0134 Amdt 2 needed `p_patient` added to `public.create_case` and
@@ -5405,5 +5364,37 @@ select is(public.rca_writer_can_write(<rca>), app.can_write_rca(<rca>, auth.uid(
   one definition both the UI and RLS consult, so agreement is not a thing anyone has to test.
 
 **Owner:** backend + PO decision.
+
+---
+
+### 🟡 FUP-CLAIMS-SURVIVAL-DIFFERENTIAL-IS-NOT-RUN-BY-ANYTHING — the detector that found six false premises is a technique, not a gate (owner: backend/tester; filed 2026-08-24 at the close of FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS)
+
+`claims_for` writes `request.jwt.claims` with `is_local => true`, so the claims outlive `reset role`. A
+pgTAP test can therefore assert an owner-context property while still running as the last persona, and be
+green for a reason unrelated to what it names.
+
+**That class is now empty — and nothing keeps it empty.** It was emptied by a one-off differential: append
+`set local request.jwt.claims = '';` after every `reset role;` (2171 sites, 172 files), run the suite, and
+treat every moved verdict as a finding. Six were found and fixed. ⛔ **Nothing runs that comparison**, so a
+test written tomorrow can reintroduce the defect and the suite stays green — the same *"standing in prose
+only"* shape ADR 0079's door sweep was operationalised to escape.
+
+⚠ **It cannot simply be bolted into `npm run lint`** — ADR 0127's stated bound: DB anchors are not
+checkable there. And it is not a cheap check: it is a **full-suite run with a tree-wide edit applied and
+then reverted**, i.e. the shape of the periodic `ARM=wrapper` sweep, not of a per-phase step.
+
+⭐ **It has a working positive control already** — `358` G4 pins the hazard, so it MUST fail while the
+instrument is applied. A run where G4 passes means the edit did not take, and the result must be discarded
+rather than read as "clean". Any scripted version must assert that inversion before believing its own
+output.
+
+**Decide between:**
+- **(a)** script it as a periodic audit (alongside the other ~100-min sweeps), with the G4 inversion as its
+  self-test; or
+- **(b)** rule the class closed-by-convention and rely on `test_helpers.reset_role_and_claims()` adoption —
+  ⚠ but note the close measured that the verb is **not** a drop-in replacement for `reset role` (it needs
+  `test_helpers` schema USAGE, which a restricted role may lack), so adoption is not mechanical.
+
+**Owner:** backend/tester.
 
 ---

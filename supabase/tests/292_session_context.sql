@@ -323,13 +323,17 @@ select is(
   '',
   '3.4 GRID: public.revoke_role has an arm for EVERY role in the vocabulary');
 
-reset role;
 -- POSITIVE TWIN for 3.3/3.4: the probe must be able to REPORT HC0G0, or both
 -- assertions are string_aggs over an empty set for the wrong reason.
 select is(
   app._t292_probe_arm('grant', 'no_such_role', 'commission'),
   'HC0G0',
   '3.5 POSITIVE TWIN: the grid probe DOES return HC0G0 for a role with no arm');
+-- ⛔ This `reset role` MUST stay BELOW 3.5. `app.grant_role_impl`'s FIRST check raises 42501
+-- 'ator não identificado' on a null actor, so the probe would never reach the HC0G0 catchall
+-- this twin exists to prove reachable — the twin would go green-adjacent for the wrong reason,
+-- which is the very failure 3.3/3.4 pair it against. (FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS)
+reset role;
 
 select * from finish();
 rollback;

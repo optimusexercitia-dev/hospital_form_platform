@@ -63,7 +63,6 @@ set local role authenticated;
 -- create_form emits form.created + form_version.created + form_section.created.
 create temp table f1 on commit drop as
   select * from public.create_form((select comm_x from k), 'Pub Test', 'd');
-reset role;
 grant select on f1 to authenticated;
 
 -- Add a required item to the default section so publish validates, then publish.
@@ -82,6 +81,12 @@ insert into public.form_item_options (item_id, position, code, label)
 select lives_ok($$
   select public.publish_form_version((select version_id from f1))
 $$, 'publish the new draft');
+-- ⛔ This `reset role` MUST stay BELOW the publish above. It sat before it until 2026-08-24,
+-- so the publish ran with SUPERUSER role and sa_x's surviving claims — a hybrid that exists
+-- nowhere in production: RLS bypassed, while `app.audit_write` still read auth.uid() = sa_x
+-- and attributed the row correctly. The attribution assertion was green without the RLS half
+-- ever being exercised. (FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS)
+reset role;
 
 select is(
   (select count(*)::int from public.audit_log

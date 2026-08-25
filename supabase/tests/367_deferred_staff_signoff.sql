@@ -625,12 +625,16 @@ select is(
   (public.get_response_for_signoff('00000000-0000-0000-0000-000000001310'::uuid)) ->> 'status',
   'submitted',
   '11.4 …and reports it as SUBMITTED, so the screen can say so rather than implying a live draft');
-reset role;
 
 select is(
   (select (public.get_case_detail('00000000-0000-0000-0000-000000001328'::uuid) -> 'phases' -> 0 ->> 'response_id')),
   '00000000-0000-0000-0000-000000001310',
   '11.5 get_case_detail emits the response deep-link for a parked phase — the case surface is where a coordinator lands to review');
+-- ⛔ This `reset role` MUST stay BELOW 11.5. `public.get_case_detail` raises 'caso % não
+-- encontrado' when app.can_read_case fails, and a null actor always fails it — §11 is exactly
+-- the coordinator READ, so the assertion needs sa_x. Not in throws_ok, so it ABORTS the file.
+-- (FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS)
+reset role;
 
 -- =============================================================================
 -- §12 — the ONE-DEFINITION claim, structurally. The ADR predicted 2 copies + the

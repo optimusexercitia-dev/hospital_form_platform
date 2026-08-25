@@ -5958,3 +5958,85 @@ call, each denial with its non-vacuity twin.
 > ⚠ **Named residual, filed separately as `FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE`:** this
 > keystone covers **the door**, not RLS, and does not pin that the wrapper still agrees with the predicate RLS
 > enforces. Six such wrappers exist; four have no coverage at all.
+
+### ðŸŸ  FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS â€” a pgTAP premise 136 files can state falsely (owner: backend/tester; filed 2026-08-22, found inside the ADR 0134 S8 suite; â­• **PARTIAL 2026-08-22** â€” root verb `test_helpers.reset_role_and_claims()` + red-first gate landed and adopted in `356`/`357`; â›” **step 1 (derive the real population) and the 134-file sweep remain OPEN**. Capable population 136 â†’ 134, still not a defect count. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md))
+
+`test_helpers.claims_for(...)` sets `request.jwt.claims`; **`reset role` restores the ROLE only.** So a
+suite that says "back in owner context, `auth.uid()` is NULL" after a `reset role` may in fact still be
+asserting **as the last persona**, and every assertion resting on that sentence inherits a false premise.
+
+**Found by construction, not by review.** The ADR 0134 Increment-2 suite (`356`) stated exactly that
+premise for its `member_can` pins â€” including **1.5c, the Amendment-6 pin**, whose entire content is
+*"the bare `member_can` is false in owner context for everybody, which is why the resolver cannot use
+it."* That assertion depended on the premise being true and it was not. Fixed in `356` by pairing every
+`reset role` with an explicit claims clear **and by pinning the premise itself** (`0.5`) rather than
+stating it in a comment.
+
+â­ **The class:** *a pin whose stated premise is false is the same defect as a pin that cannot fail* â€”
+both are green for a reason unrelated to the property. This one is worse to find later, because the
+comment above it reads like the verification.
+
+**Measured 2026-08-22 â€” and read the bound, because the headline number is not the defect count:**
+
+| property | count |
+|---|---|
+| files under `supabase/tests/` using `reset role` | **172** (2179 occurrences) |
+| files using `claims_for` | **177** |
+| files that clear `request.jwt.claims` anywhere | **39** |
+| **files that `reset role` but NEVER clear claims** | **136** |
+
+â›” **136 is the population that CAN hold the defect, not the population that does.** A file that always
+runs under an explicit persona and never asserts an owner-context property is unaffected. **The number
+of actually-false premises is NOT established**, and nobody should quote 136 as a defect count â€” that
+is this repo's standing error (the instance named as the class) run in the opposite direction. Whoever
+takes this must derive the real population by the property *"asserts something that is only true when
+`auth.uid()` is NULL, after a `reset role`, without clearing claims"*, which no text filter decides.
+
+**To close:** (1) derive that population; (2) fix at the root â€” a `test_helpers` verb that resets role
+**and** clears claims together, so the two cannot drift apart, rather than 136 hand-paired edits; (3) the
+gate is **pgTAP, not `npm run lint`** (ADR 0127's stated bound: DB anchors are not checkable there), and
+it must be **red-first** â€” write a suite that asserts an owner-context property after a bare `reset role`
+and require it to RED before the helper lands.
+
+---
+
+> ## ✅ RESOLVED 2026-08-24 — the real population is **SIX**, and the remedy is NOT the one this item assumed
+>
+> **Step 1 done by EXECUTION, because the item said no text filter decides it.** Appended
+> `set local request.jwt.claims = '';` after all **2171** `reset role;` sites across **172** files, ran the
+> full suite, and diffed against an all-green **7230**-test baseline. A test whose verdict moves is, by
+> construction, a test whose green depended on surviving claims — the property stated, measured rather
+> than estimated.
+>
+> **Result: six findings in five files** (`110_indicators` ×2 · `130_audit` · `233_authz_m6_visibility_door`
+> ABORT · `274_ff3_validations` C6 · `292_session_context` 3.5 · `367_deferred_staff_signoff` 11.5 ABORT).
+> ⛔ **Not 134, and not 136.** The capable population was 172 files by the time this ran (drifted from the
+> filed 172/136 figures — re-measure, never quote).
+>
+> ⭐ **The experiment carried its own positive control.** `358` G4 exists to PIN the hazard, so clearing
+> claims makes it fail. Without that, *"only six failures"* and *"the edit did nothing"* would have looked
+> identical — the item's own *"a pin that cannot fail"* lesson, applied to the instrument instead of the code.
+>
+> ⛔ **THE REMEDY IS NOT WHAT THIS ITEM ASSUMED, and that is the finding.** All six triage as **misplaced
+> reset**, not missing claims-clear: in every case the statements *after* the `reset role` genuinely need a
+> non-null authorized `auth.uid()`, so pairing the reset with a claims-clear would have made all six FAIL,
+> not pass. The fix is to move the reset BELOW the statements that still need the persona — each of the six
+> now carries a comment saying so, because a bare one-line move is exactly what a later author reverts.
+> ⚠ What the tests were really doing: running with **SUPERUSER role + persona claims**, a hybrid that exists
+> nowhere in production — RLS bypassed while DEFINER bodies still saw the persona. So the RLS half of each
+> was never exercised. Relocating the reset makes them run as the persona in role *and* claims, which is
+> strictly stronger than either the old state or the assumed fix.
+>
+> ⚠ **`test_helpers.reset_role_and_claims()` is NOT a drop-in replacement for `reset role`** — measured, the
+> hard way. The first derivation pass substituted the verb and three EXTRA files aborted with
+> `permission denied for schema test_helpers`: the bare command needs no privileges, a function call needs
+> schema USAGE from whatever restricted role is live. Those three were artifacts of the instrument, and
+> reporting them would have inflated the population by 50% — this item's own warning, committed by the
+> person deriving the number. Re-run with a privilege-neutral inline `set local`, they went green.
+>
+> **Closing proof:** with the six fixed, re-running the same differential leaves **only the `358` control**
+> failing — no aborts, count holds at 7230. The derived population is empty.
+>
+> ⚠ **Named residual:** nothing RUNS this differential. It is a technique, not a gate, so a NEW test can
+> state a fresh false premise tomorrow and the suite will be green. Filed as
+> `FUP-CLAIMS-SURVIVAL-DIFFERENTIAL-IS-NOT-RUN-BY-ANYTHING`.

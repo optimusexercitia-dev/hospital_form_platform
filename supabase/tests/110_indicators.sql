@@ -159,7 +159,6 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select public.compute_derived_measurement((select id from _pct), '2026-06');
-reset role;
 
 select is(
   (select numerator::int from public.indicator_measurements where indicator_id = (select id from _pct)),
@@ -173,6 +172,13 @@ select is(
     where question_key='d_mc' and option_code='sim'),
   'PARITY: derived denominator == dashboard denom(d_mc)'
 );
+-- ⛔ This `reset role` MUST stay BELOW the two PARITY assertions. It sat above them until
+-- 2026-08-24, where it was harmless ONLY because `claims_for` writes request.jwt.claims with
+-- is_local => true, so the claims outlive `reset role` and auth.uid() kept returning sa_x.
+-- `public.dashboard_distributions` is SECURITY DEFINER and returns 0 rows for an actor that
+-- is not staff_admin of the commission, so a genuine owner-context read compares two empty
+-- sets and passes for the wrong reason. (FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS)
+reset role;
 select is(
   (select value from public.indicator_measurements where indicator_id = (select id from _pct)),
   50.0000::numeric,
