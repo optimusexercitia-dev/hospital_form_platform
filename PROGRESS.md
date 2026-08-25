@@ -49,6 +49,18 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   recorded here and in the authz backlog, and is corrected** — `app._set_participant_patient_unchecked`
   was never renamed. **(3)** ⚠ nvm's default is still Node 20, and `npm run lint` dies at gate 8 there
   (`globSync` needs 22): `.nvmrc` + `engines` are set, `nvm alias default 22` is not.
+- **✅ 22-v3 REG·KIND — CLOSED 2026-08-25, all five gate steps; row rotated → [phase-ledger.md](docs/progress/phase-ledger.md).**
+  It had sat here since 2026-08-12 as the ONLY non-complete phase row, reading `gates 2–4 UNRUN`.
+  ⛔ **Two of the three were already discharged and nobody had looked** — gate 3 by the 2026-08-12
+  FUP-batch QA review (APPROVED r1; REG·KIND was reviewed inside it, under a heading this row never
+  cited), gate 2 by the 2026-08-24 full `e2e:prod` GREEN at `77b0a467`, which **contains** the merge
+  `9a20c8a` and runs an unfiltered `e2e/`. Only the human ✓ was genuinely missing. ⭐ **The lesson is
+  the gap's shape, not its size:** a row states its own gates, so evidence that arrives *elsewhere and
+  later* never reaches it — this one under-reported itself for 13 days, and no gate can catch that
+  direction. ⚠ Neither discharge is a dedicated pass (E2E **inherited**, QA **catalog/schema-scoped**);
+  both caveats are in the ledger cell and were stated before approval. Residue closed in the same
+  commit: 3 dead mutation cases in `p0b-isolation-mutation-audit.sh` firing at objects REG·KIND
+  DELETED, and `docs/backend-state.md` still calling its migrations the unpushed drift.
 - **⚠ NO PHASE IS ACTIVE.** **ADR 0136** is the most recent program, and it is complete — *not* 0137,
   which this line named until 2026-08-24 because 0137's bullet outlived it in § Now while its four
   items closed. **A bullet's POSITION is not its recency**; both are complete.
@@ -95,7 +107,6 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 | 9 | Deployment | 🔜 not started | – | – | – | – | – | – |
 | 18 | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
 | 19 | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
-| 22-v3 | **REG·KIND — one Registro vocabulary** [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) **D2** only) | ⚠ **merged, gates 2–4 UNRUN** | ✅ Vitest 1254 | ⚠ **step 1 only** — pgTAP **183f/5857** · 3 ARMs HOLD · E2E targeted 24/24, **no `e2e:prod`** | ⛔ **not run** (PO direction) | ⛔ not sought | 2026-08-12 | remote catalog |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) ([plan](docs/plans/deliberations.md)) | ADR PROPOSED — NOT ratified; nothing built and nothing may start | – | – | – | ⛔ **not ratified** | – | taken |
 
 ## Bug Log

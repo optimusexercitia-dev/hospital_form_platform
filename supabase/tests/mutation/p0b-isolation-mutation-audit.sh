@@ -204,21 +204,25 @@ run298 "accreditation_standards_select" "alter policy accreditation_standards_se
 run298 "form_item_options_select_targeted" "alter policy form_item_options_select_targeted on public.form_item_options using(true);"       "form_item_options_select_targeted DENY"
 run298 "answer_selected_options_select_targeted" "alter policy answer_selected_options_select_targeted on public.answer_selected_options using(true);" "answer_selected_options_select_targeted DENY"
 run298 "answer_selected_options_write_targeted"  "alter policy answer_selected_options_write_targeted on public.answer_selected_options using(true) with check(true);" "answer_selected_options_write_targeted DENY"
-# referral "Registros internos" vocabulary (2026-08-11) — both policies are NEW, so
-# they are in no BLIND set and pass ARM=policy vacuously. These two cases are what
-# make 298's GROUP G non-vacuous.
-# NOTE on the write case: opening a FOR ALL policy to using(true) also opens SELECT,
-# so that mutation reddens the select DENY as well. Only the write DENY is asserted
-# here — that is the gate the mutation is aimed at.
-run298 "referral_note_types_select"       "alter policy referral_note_types_select on public.referral_note_types using(true);"                                  "referral_note_types_select DENY"
-run298 "referral_note_types_write"        "alter policy referral_note_types_staff_admin_write on public.referral_note_types using(true) with check(true);"       "referral_note_types_staff_admin_write DENY"
+# referral "Registros internos" vocabulary — RETIRED with 298's GROUP G (REG·KIND /
+# ADR 0110, 2026-08-12). Two cases stood here keystoning the `referral_note_types`
+# policies; the table was DROPPED, so both `alter policy` mutations now abort the
+# pgTAP file and print a permanent `NOT PROVEN -> ABSENT(aborted)` — a false red, not
+# a false green, but noise either way. Catalog-verified 2026-08-25: 0 relations,
+# 0 policies, 0 routines named or referencing `referral_note_types`.
+# The vocabulary's successor gate is a CHECK constraint on `referral_internal_notes`
+# (six values), not a policy — there is no `using(true)` to open, so it has no
+# mutation case here; its keystones live in 322 §2 (REQUIRED kind + CHECK backstop)
+# and 111 (BUG-CASEKIND-001: kind write authority on case_events).
 
 # =============================================================================
-# BATCH 5 (SRC=322) — the referral "Registros internos" doors. Three raise-guards,
+# BATCH 5 (SRC=322) — the referral "Registros internos" doors. Two raise-guards,
 # each neutralized to `if false then` (Amendment 4's row-door shape: these doors
-# return a row or void, so there is no boolean to open).
+# return a row or void, so there is no boolean to open). A third stood here for
+# `reorder_referral_note_types` until REG·KIND (ADR 0110) dropped that RPC with its
+# table; 322 §1 retired in the same change, so the case had no keystone left to redden.
 #
-# The fourth case is the odd one and the most valuable: it does not open a gate, it
+# The last case is the odd one and the most valuable: it does not open a gate, it
 # RESTORES A DEFECT. `create_referral_internal_note` used to gate with
 # `p_committee_id not in (source, target)`, which is NULL — not TRUE — on a
 # technical_director referral, where target_commission_id is NULL. Re-injecting that
@@ -236,10 +240,6 @@ begin execute replace(d, '  if (p_commission_id is distinct from v_ref.source_co
      or not app.is_member_of_for(p_commission_id, auth.uid())
      or not app.can_read_referral(p_referral_id, auth.uid()) then', '  if false then'); end \$z\$;"
 run322 "get_referral_case_access_summary" "$MUT_R1" "5.1 a principal|5.2 a member of Y"
-
-MUT_R2="do \$z\$ declare d text := pg_get_functiondef('public.reorder_referral_note_types(uuid,uuid[])'::regprocedure);
-begin execute replace(d, 'if not (app.is_staff_admin_of(p_commission_id) or app.is_tenancy_admin_of(p_commission_id)) then', 'if false then'); end \$z\$;"
-run322 "reorder_referral_note_types" "$MUT_R2" "1.5 reorder|1.6 a plain member cannot reorder"
 
 MUT_R3="do \$z\$ declare d text := pg_get_functiondef('public.update_referral_internal_note(uuid,text,text,uuid)'::regprocedure);
 begin execute replace(d, 'if not app.can_edit_referral_internal_note(p_note_id, auth.uid()) then', 'if false then'); end \$z\$;"

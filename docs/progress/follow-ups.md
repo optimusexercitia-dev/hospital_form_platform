@@ -5270,7 +5270,9 @@ gate can trace into, because the vacuity lives in a helper.
 Measured 2026-08-24: the sibling (`error.tsx` for the `usuarios` route) was **built** —
 `src/app/o/[org]/manage/usuarios/error.tsx` exists — and this one appeared in **no register at
 all**: zero occurrences in `follow-ups.md` and `deferred-backlog.md`, and PROGRESS.md's only
-`registro` is the unrelated REG·KIND row (`:98`). ⭐ Of a pair named so that neither would become an
+`registro` is the unrelated REG·KIND row (`:98`). ⚠ **That citation is spent as of 2026-08-25** —
+REG·KIND closed and its row rotated to [phase-ledger.md](phase-ledger.md), so PROGRESS.md now
+contains **no** `registro` at all. The finding STRENGTHENS: the last near-miss is gone too. ⭐ Of a pair named so that neither would become an
 omission, the one that became an omission is the one that stayed deferred — **naming a deferral
 inside an ADR is not filing it**, because nobody reads an ADR to find out what is open.
 

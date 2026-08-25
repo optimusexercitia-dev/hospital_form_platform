@@ -135,8 +135,15 @@
 > **FUP-AFF-1…4** · **FUP-PCITV-1** · **FUP-ETH-A11Y-1** · **FUP-ETH-ROLES-1** ·
 > **FUP-E2E-SERVER-DEAD-1** · **FUP-ACT-DISPOSE-UI** · **FUP-ACT-CAPA-ASSIGN** ·
 > **FUP-ACT-HATLESS-AUDIT**.
-> ⛔ **REG·KIND shipped with NO tester pass and NO QA review** (steps 2–4 unrun by PO direction) and
-> **AUDIT-INVOKER-WRAPPER was never QA-reviewed** — neither gap is closed by rotation.
+> ~~⛔ **REG·KIND shipped with NO tester pass and NO QA review** (steps 2–4 unrun by PO direction)~~
+> ✅ **CLOSED 2026-08-25 — REG·KIND passed all five gate steps** (ledger row `22-v3`). ⚠ The two gaps were
+> closed by evidence that ALREADY EXISTED, not by new runs: gate 2 by the 2026-08-24 full `e2e:prod`
+> GREEN at `77b0a467`, which **contains** the merge `9a20c8a` and runs an unfiltered `e2e/`; gate 3 by
+> the 2026-08-12 FUP-batch QA review, which had covered REG·KIND all along under a heading nobody read
+> back to this line. ⛔ **Neither is a dedicated pass** — the E2E is inherited and the QA is
+> catalog/schema-scoped; both caveats are stated in the ledger cell and were stated before approval.
+> ⛔ **AUDIT-INVOKER-WRAPPER was still never QA-reviewed** — that half of this warning STANDS, and it is
+> the reason this line is struck rather than deleted.
 
 ### 📋 Remaining pre-pilot work
 
