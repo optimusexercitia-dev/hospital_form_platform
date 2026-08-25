@@ -2101,7 +2101,7 @@ removal set from `git diff 5310358..HEAD -- src/lib` ∪ the `drop function|poli
 statements in the DM3 migrations (**12 symbols**), swept across `src/app` + `src/components`:
 `novo/page.tsx:40` · `nova-versao/page.tsx:27` · `revisar/page.tsx:33` ·
 `add-version-form.tsx:52` · `version-compare-modal.tsx:23` ·
-`documentos-pendentes/[documentId]/page.tsx:43` · `open-controlled-version-button.tsx:20`.
+`documentos-pendentes/[documentId]/page.tsx:43` · `src/components/controlled-documents/open-controlled-version-button.tsx:20`.
 **A population is only well-defined once its key is stated**, and recall is keyed to whatever
 you were last looking at ([[enumeration-boundary-is-a-syntax-not-a-property]], three times in
 one thread).
@@ -5499,7 +5499,7 @@ So it is **every raise**, not a P-class quirk. The function is `prosecdef`, `VOL
 for PostgREST to choke on.
 
 ⛔ **APP-FACING — this is not a test artefact.** `src/lib/documents/actions.ts:247` calls
-`supabase.rpc('open_document_version', …)`, and `open-controlled-version-button.tsx:32` describes it
+`supabase.rpc('open_document_version', …)`, and `src/components/controlled-documents/open-controlled-version-button.tsx:32` describes it
 as "the boundary" every controlled-document byte moves through. A denied or missing open therefore
 surfaces a raw 500 where CLAUDE.md §8 requires a pt-BR message and states that raw Supabase/Postgres
 errors never reach the UI. ⚠ **Bounded honestly: the SUCCESS path was never exercised** in this
