@@ -406,7 +406,7 @@ their home is here because they never conclude._
   writers because each used a different bound — see the correction record at the top
   of this file (75 fns / 6 read a flag).
 
-## ADR 0137 batch — MRN as erasure key; case/referral usability (2026-08-24; ADR **0137**; migrations `20261003001300`–`…001600`, **4**; pgTAP `362` `plan(58)` · `363` `plan(15)` · `364` `plan(14)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **LOCAL ONLY, NOT PUSHED**
+## ADR 0137 batch — MRN as erasure key; case/referral usability (2026-08-24; ADR **0137**; migrations `20261003001300`–`…001600`, **4**; pgTAP `362` `plan(58)` · `363` `plan(15)` · `364` `plan(14)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ✅ **PUSHED 2026-08-25**
 
 **The booleans are GONE.** `process_template_versions.collects_patient` and `cases.patient_enabled` are
 **DROPPED**, replaced by **`patient_mode text`** (`none` | `optional` | `required`, CHECK-constrained) plus
@@ -453,7 +453,7 @@ INSERT** — no UI could set it and no E2E ever drove it. Now built (`PatientMod
 writes is an orphan, and every reader of it is unexercised by construction.**
 
 
-## AFF2 — affiliation-scoped administration (2026-08-23; ADR **0133** + **Amendments 1–4**; migrations `20261003001000`–`…001200`, **3**; pgTAP `359` `plan(18)` · `360` `plan(21)` · `361` `plan(24)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **LOCAL ONLY, NOT PUSHED**
+## AFF2 — affiliation-scoped administration (2026-08-23; ADR **0133** + **Amendments 1–4**; migrations `20261003001000`–`…001200`, **3**; pgTAP `359` `plan(18)` · `360` `plan(21)` · `361` `plan(24)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ✅ **PUSHED 2026-08-25**
 
 ✅ **PUSHED 2026-08-23 — schema first, then code.** Remote re-measured (not read off the push output):
 **444 / `20261003001200`**, `origin/main..main` = 0. Verified in the **catalog**: both columns exist
@@ -510,7 +510,7 @@ a name-search caller**, by decision — do not revert it as dead code.
 
 ⚠ **`expires_at` semantics, stated because the direction is counter-intuitive:** filtering it **narrows** the intersection capabilities and **WIDENS** the subset ones — a smaller footprint is easier to be a subset of. Both directions are pinned; the widening arm is the only one that reaches the subset path (the others deny via the zero-footprint rule).
 
-## Audit read legs — AUD1 + the org-derivation class fix (2026-08-25; ADR **0149** + **0150**; migrations `20261003003000` + `20261003003100`, **2**; pgTAP `372` `plan(29)` · `373` `plan(22)`; **NO flag** — the migrations ARE the cutover) — ⛔ **LOCAL ONLY, NOT PUSHED**
+## Audit read legs — AUD1 + the org-derivation class fix (2026-08-25; ADR **0149** + **0150**; migrations `20261003003000` + `20261003003100`, **2**; pgTAP `372` `plan(29)` · `373` `plan(22)`; **NO flag** — the migrations ARE the cutover) — ✅ **PUSHED 2026-08-25**
 
 **RLS — one policy, two legs, two migrations.** `audit_log_select` is a single five-leg SELECT policy
 (`audit_log` holds **exactly one** policy; `authenticated` = `r` only, every write goes through the
@@ -4057,7 +4057,7 @@ suites notice **emphatically**, 312 fails 64/90).
 accepting gate 2 at **RED (UNRUN)**: 36 specs did not run, all in batch 6, all in files P3 never
 touched (the pre-existing Windows standalone collapse; P3's own spec ran 11/11, zero assertion
 failures). **PO phase-approval NOT given** — the 2026-08-25 ruling authorised gate step 3 only —
-and ⛔ **NOT PUSHED**. Record step not run at the time of writing.
+and NOT PUSHED at the time of writing — ✅ **PUSHED 2026-08-25**. Record step not run at the time of writing.
 
 **The artifact is ONE fixed template rendering the WHOLE dossier (D1/D2)** — phase answers,
 narratives, interviews, the referral frozen snapshot + reply, timeline, outcomes, action items,
@@ -4447,7 +4447,7 @@ green contained an assertion that would have gone RED on correct behaviour.
 ## DSS — Deferred `staff_admin` sign-off (2026-08-24; ADR 0136 + Amendment 1; migrations `20261003001900` + `20261003002000` + `20261003002100`; flag `deferred_staff_signoff` **ON** — flipped at the gate by `…2100`)
 
 ✅ **COMPLETE — QA APPROVED + human-approved 2026-08-24; flag flipped ON by `20261003002100`.**
-⛔ **NOT PUSHED**: a flag flip changes production only when the migration reaches the linked
+✅ **PUSHED 2026-08-25** — a flag flip changes production only when its migration reaches the linked
 project. Read ADR 0136 § Amendment 1 before anything below — the ADR's own § Size table and
 Consequences were wrong in **eight** places, every one in the reassuring direction.
 
