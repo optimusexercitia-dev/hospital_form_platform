@@ -35,7 +35,7 @@
 -- =============================================================================
 
 begin;
-select plan(68);
+select plan(110);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 create temp table k on commit drop as
@@ -49,8 +49,15 @@ create temp table k on commit drop as
 \ir vectors/print_source_registers_vectors.psql
 
 -- ── 1. Non-vacuity: the fixture actually loaded ─────────────────────────────
-select is((select count(*)::int from print_source_vectors), 20,
-  't1 ⭐ NON-VACUITY: the shared vector table loaded 20 rows. A \ir that resolved '
+-- ⛔ THE COUNT IS A HARDCODED LITERAL AND MUST STAY ONE. The obvious "fix"
+-- is comparing count(*) to itself, which would delete the only thing in this
+-- suite able to notice that the fixture changed WIDTH. PDF·P3 is the proof:
+-- adding the case kind widened it 20 -> 34 and THIS LINE RED. Without it the ten
+-- new case vectors would have been built by mk_source's fall-through (a random
+-- uuid, no row), would have asserted the fail-closed path, and would have PASSED
+-- — ten green assertions proving nothing about the arm they were added for.
+select is((select count(*)::int from print_source_vectors), 34,
+  't1 ⭐ NON-VACUITY: the shared vector table loaded 34 rows. A \ir that resolved '
   'to nothing would leave every loop below iterating zero rows and every is() '
   'emitting nothing — a green suite that asserted nothing');
 
@@ -60,7 +67,8 @@ select is((select count(*)::int from print_source_vectors), 20,
 -- state under test: the dispatch must fail closed before it ever looks.
 create function pg_temp.mk_source(
   p_kind text, p_status text,
-  p_correction_open boolean, p_phase_voided boolean, p_meeting_disposed boolean
+  p_correction_open boolean, p_phase_voided boolean, p_meeting_disposed boolean,
+  p_case_disposed boolean
 ) returns uuid language plpgsql as $fn$
 declare
   v_id uuid := gen_random_uuid();
@@ -130,17 +138,49 @@ begin
     end if;
     perform set_config('app.in_meeting_rpc', 'off', true);
     return v_id;
+
+  elsif p_kind = 'case' then
+    -- PDF·P3 (ADR 0144 D3). ⛔ A REAL ROW, not the fall-through below. Until
+    -- this arm existed the case vectors landed in `return v_id` -- "no row, by
+    -- design" -- so all ten asserted the fail-closed path and passed while
+    -- proving nothing whatsoever about the case arm.
+    select c.organization_id into v_org from public.commissions c where c.id = (select comm_x from k);
+    insert into public.cases (id, commission_id, organization_id, case_number)
+    values (v_id, (select comm_x from k), v_org,
+            (select coalesce(max(case_number), 0) + 1 from public.cases));
+
+    perform set_config('app.in_case_rpc', 'on', true);
+    -- ⚠ `closed_at` is NOT decoration: `cases_closed_at_paired` CHECKs that a
+    -- `completed` or `cancelled` case carries one, so a fixture setting status
+    -- alone RAISES and takes the whole suite down with it.
+    if p_status in ('completed', 'cancelled') then
+      update public.cases set status = p_status, closed_at = now() where id = v_id;
+    elsif p_status <> 'not_started' then
+      update public.cases set status = p_status where id = v_id;
+    end if;
+    -- The disposal STAMP only. ⛔ NOT `dispose_case_phi`: that door needs a
+    -- staff_admin session and destroys a content graph this suite never builds.
+    -- The fact under test is `phi_disposed_at is not null`, which is exactly what
+    -- the dispatch reads. Rides `app.in_case_rpc` because `app.guard_case_status`
+    -- freezes non-status updates on a terminal case -- the same conflict that
+    -- forced the revision counter off `public.cases` (ADR 0144 D4).
+    if p_case_disposed then
+      update public.cases set phi_disposed_at = now() where id = v_id;
+    end if;
+    perform set_config('app.in_case_rpc', 'off', true);
+    return v_id;
   end if;
 
-  return v_id;                       -- case | interview | unknown: no row, by design
+  return v_id;                       -- interview | unknown: no row, by design
 end $fn$;
 
 -- ── 3. Build every vector's state and evaluate both predicates ──────────────
 create temp table vres (
-  ord int, kind text, status text, co boolean, pv boolean, md boolean,
+  ord int, kind text, status text, co boolean, pv boolean, md boolean, cd boolean,
   exp_reg boolean, exp_wm text, src uuid,
   act_reg boolean, act_wm text,
-  built_status text, built_co boolean, built_pv boolean, built_md boolean, built_found boolean
+  built_status text, built_co boolean, built_pv boolean, built_md boolean,
+  built_cd boolean, built_found boolean
 ) on commit drop;
 
 do $$
@@ -148,18 +188,21 @@ declare v record; i int := 0; v_src uuid; s record;
 begin
   for v in select * from print_source_vectors loop
     i := i + 1;
-    v_src := pg_temp.mk_source(v.kind, v.status, v.correction_open, v.phase_voided, v.meeting_disposed);
+    v_src := pg_temp.mk_source(v.kind, v.status, v.correction_open, v.phase_voided,
+                               v.meeting_disposed, v.case_disposed);
     s := app.resolve_print_source_state(v.kind, v_src);
     insert into vres values (
       i, v.kind, v.status, v.correction_open, v.phase_voided, v.meeting_disposed,
+      v.case_disposed,
       v.registers, v.watermark, v_src,
       app.print_source_registers(v.kind, v_src),
       app.print_source_watermark(v.kind, v_src),
-      s.o_status, s.o_correction_open, s.o_phase_voided, s.o_meeting_disposed, s.o_found);
+      s.o_status, s.o_correction_open, s.o_phase_voided, s.o_meeting_disposed,
+      s.o_case_disposed, s.o_found);
   end loop;
 end $$;
 
-select is((select count(*)::int from vres), 20,
+select is((select count(*)::int from vres), 34,
   't2 ⭐ NON-VACUITY: the builder produced a row for every vector. A loop that '
   'raised or skipped would emit fewer is() calls below and the fixed plan would '
   'fail — this asserts it directly rather than leaving it to the plan count');
@@ -181,19 +224,26 @@ select is((select count(*)::int from vres), 20,
 -- ⭐ And it is STRONGER this way: it now also pins that `resolve_print_source_state`
 -- does not LEAK cross-kind state into its out-params.
 select is(
-  case when kind in ('form_response', 'meeting')
+  case when kind in ('form_response', 'meeting', 'case')
        then built_found::text || '|' || built_status || '|' || built_co::text || '|'
-            || built_pv::text || '|' || built_md::text
+            || built_pv::text || '|' || built_md::text || '|' || built_cd::text
        else built_found::text end,
   case when kind = 'form_response'
-         then 'true|' || status || '|' || co::text || '|' || pv::text || '|false'
+         then 'true|' || status || '|' || co::text || '|' || pv::text || '|false|false'
        when kind = 'meeting'
-         then 'true|' || status || '|false|false|' || md::text
+         then 'true|' || status || '|false|false|' || md::text || '|false'
+       -- PDF·P3: the case arm's OWN out-param, with the three FOREIGN flags
+       -- expected false -- the same rule the two kinds above follow. This is what
+       -- pins that `resolve_print_source_state` does not leak cross-kind state
+       -- into its out-params for the new kind either.
+       when kind = 'case'
+         then 'true|' || status || '|false|false|false|' || cd::text
        else 'false' end,
   't3.' || ord || ' FIXTURE CONTROL ' || kind || '/' || status
     || case when co then '+correction_open' else '' end
     || case when pv then '+phase_voided' else '' end
     || case when md then '+meeting_disposed' else '' end
+    || case when cd then '+case_disposed' else '' end
     || ': the CONSTRUCTED state matches the vector''s declared inputs'
 ) from vres order by ord;
 
@@ -203,6 +253,7 @@ select is(act_reg, exp_reg,
     || case when co then '+correction_open' else '' end
     || case when pv then '+phase_voided' else '' end
     || case when md then '+meeting_disposed' else '' end
+    || case when cd then '+case_disposed' else '' end
 ) from vres order by ord;
 
 select is(act_wm, exp_wm,
@@ -210,6 +261,7 @@ select is(act_wm, exp_wm,
     || case when co then '+correction_open' else '' end
     || case when pv then '+phase_voided' else '' end
     || case when md then '+meeting_disposed' else '' end
+    || case when cd then '+case_disposed' else '' end
 ) from vres order by ord;
 
 -- ── 6. SERIES (0126 D1) ─────────────────────────────────────────────────────

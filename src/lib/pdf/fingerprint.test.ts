@@ -520,7 +520,7 @@ const CASE_PATIENT_DEID = {
 
 const CASE_BODY_BASE = {
   kind: 'case' as const,
-  caseNumber: '0042',
+  caseDisplay: '0042',
   title: 'Evento adverso — sepse tardia',
   statusDisplay: 'Concluído',
   confidentialityDisplay: 'Restrito',

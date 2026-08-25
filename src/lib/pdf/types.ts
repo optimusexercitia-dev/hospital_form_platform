@@ -477,7 +477,21 @@ export interface CaseDocumentBody {
    * `case_identified` fingerprint pin a structure that actually exists.
    */
   variant: 'deidentified' | 'identified'
-  caseNumber: string
+  /**
+   * The case's full pt-BR display label, ALREADY FORMATTED — e.g. `Caso 0042`,
+   * or `Denúncia 0042` for an ethics case (ADR 0064 D4's case-type terminology).
+   *
+   * ⛔ **The NUMBER alone is not enough and the noun is not a constant.** The
+   * provider builds this with `formatCaseNumberWithTerm` from
+   * `@/lib/cases/format` — the app's own formatter — so the paper says exactly
+   * what every screen says. An earlier draft carried the raw integer and printed
+   * `Caso 1` while the app said `Caso 0001`, on a page that also contained a
+   * user-authored interview titled *"Entrevista sobre o Caso 0001"*: two forms
+   * of one identifier, on one page of a document whose premise is authority.
+   * ⛔ Do NOT re-implement the padding here or in a template — that second
+   * authority is how the two forms diverged.
+   */
+  caseDisplay: string
   /** ⚠ Redacted to "[PHI removido]" by `dispose_case_phi` (`cases.label`). */
   title: string | null
   statusDisplay: string

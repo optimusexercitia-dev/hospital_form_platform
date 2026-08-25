@@ -58,16 +58,60 @@ if (!Array.isArray(vectors) || vectors.length === 0) {
 }
 
 const q = (s) => `'${String(s).replace(/'/g, "''")}'`
-// The three kind-scoped flags default FALSE when absent (see the JSON's INPUT
-// SHAPE note); they are emitted explicitly for every row so the SQL consumer never
-// has to know the JSON's defaulting rule. `meeting_disposed` joined them with the
-// disposal conjunct — a NEW flag must be added HERE as well as in the column list
-// below, or every row silently takes the SQL default and the pgTAP suite asserts
-// the wrong input while staying green.
+
+/**
+ * The kind-scoped flag columns, in emission order. They default FALSE when
+ * absent from a vector (the JSON's INPUT SHAPE note) and are emitted explicitly
+ * for every row, so the SQL consumer never has to know the JSON's defaulting
+ * rule.
+ *
+ * ⛔ **THIS LIST IS NOW GUARDED, BECAUSE THE COMMENT ALONE WAS NOT ENOUGH.**
+ * The previous version of this file warned in prose that *"a NEW flag must be
+ * added HERE as well as in the column list below"* — and when PDF·P3 added
+ * `case_disposed` to the JSON, the generator emitted 34 rows without it anyway.
+ * The prose was correct and was not followed, which is the definition of a
+ * comment doing a gate's job. The check below makes an unmapped dimension a
+ * BUILD FAILURE instead of a silently narrower fixture.
+ *
+ * ⚠ The TS side has had this guard for a while (`print-source-vectors.test.ts`
+ * asserts the fixture's declared dimensions equal what `stateOf` maps). This is
+ * its SQL twin — the same hazard, one file over, previously uncovered.
+ */
+const FLAG_COLUMNS = [
+  'correction_open',
+  'phase_voided',
+  'meeting_disposed',
+  'case_disposed',
+]
+const NON_FLAG_KEYS = ['kind', 'status', 'registers', 'watermark', 'note']
+
+// ⭐ EVERY dimension the JSON declares must be emitted. An unmapped flag would
+// make every row take the SQL default (false) while the vector's expected
+// registers/watermark still encoded the flag being TRUE — so the suite would
+// assert one input against another input's answer.
+const declared = new Set()
+for (const v of vectors) {
+  for (const key of Object.keys(v)) {
+    if (!NON_FLAG_KEYS.includes(key)) declared.add(key)
+  }
+}
+const unmapped = [...declared].filter((k) => !FLAG_COLUMNS.includes(k))
+if (unmapped.length > 0) {
+  console.error(
+    `gen-print-source-vectors: refusing to emit — the fixture declares ` +
+      `dimension(s) this generator does not map: ${unmapped.join(', ')}. ` +
+      `Add them to FLAG_COLUMNS (emission order matters — the column list is ` +
+      `derived from it) and to the pgTAP consumers that read them.`,
+  )
+  process.exit(1)
+}
+
 const rows = vectors
   .map(
     (v) =>
-      `    (${q(v.kind)}, ${q(v.status)}, ${v.correction_open ?? false}, ${v.phase_voided ?? false}, ${v.meeting_disposed ?? false}, ${v.registers}, ${q(v.watermark)})`,
+      `    (${q(v.kind)}, ${q(v.status)}, ` +
+      FLAG_COLUMNS.map((c) => v[c] ?? false).join(', ') +
+      `, ${v.registers}, ${q(v.watermark)})`,
   )
   .join(',\n')
 
@@ -81,16 +125,16 @@ const body = `-- GENERATED FILE — DO NOT EDIT BY HAND.
 -- app.print_source_watermark are driven by the SAME rows as their TS twins in
 -- src/lib/pdf/documents/print-source.ts.
 --
--- The three flags are KIND-SCOPED: correction_open / phase_voided are
--- form_response-only, meeting_disposed is meeting-only, and every predicate must
--- IGNORE a flag outside its kind. That ignoring is PINNED by the cross-kind rows,
--- not left to this comment.
+-- The flags are KIND-SCOPED: correction_open / phase_voided are
+-- form_response-only, meeting_disposed is meeting-only, case_disposed is
+-- case-only, and every predicate must IGNORE a flag outside its kind. That
+-- ignoring is PINNED by the cross-kind rows, not left to this comment.
 --
 -- Editing this file by hand REDS src/lib/queries/print-source-vectors.test.ts.
 create temp table print_source_vectors on commit drop as
   select * from (values
 ${rows}
-  ) as t(kind, status, correction_open, phase_voided, meeting_disposed, registers, watermark);
+  ) as t(kind, status, ${FLAG_COLUMNS.join(', ')}, registers, watermark);
 `
 
 if (process.argv.includes('--check')) {

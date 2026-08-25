@@ -62,6 +62,26 @@ export const TEMPLATE_FINGERPRINTS: Record<
   // sit outside this guard entirely. `?? ''` appends nothing for the two kinds
   // above, so their committed hashes were unaffected (verified by running the
   // suite before and after that change, not inferred from the `??`).
+  //
+  // ⭐ VERSION DECISION, STATED — all four hashes below were RE-DERIVED once
+  // during PDF·P3 (running header lost the classification; the classification
+  // became "Classificação declarada"; the title became "Dossiê — <label>"; the
+  // case label became the app's own `formatCaseNumberWithTerm` output; and
+  // author Markdown started rendering through the sanitizing pipeline instead of
+  // being escaped). **`version` deliberately STAYED 1.**
+  //
+  // The rule at the top of this file — "output changed + version unchanged →
+  // RED, bump it" — exists so a template cannot change under a version that
+  // already DESCRIBES SHIPPED ARTIFACTS. Measured on the live registry at the
+  // time of the change: `printed_documents` holds **zero** rows of any kind, and
+  // `template_key` has never recorded a single value. So case template v1
+  // describes nothing that exists anywhere, and bumping to v2 would assert a v1
+  // generation of case dossiers that was never minted — a false statement in
+  // registry metadata, which is the exact class of harm the version exists to
+  // prevent.
+  //
+  // ⛔ THIS REASONING EXPIRES AT THE FIRST MINT. Once one case document exists,
+  // any further change to this template REQUIRES the bump, no judgement call.
   // ─────────────────────────────────────────────────────────────────────────
   case: {
     version: 1,
@@ -69,12 +89,12 @@ export const TEMPLATE_FINGERPRINTS: Record<
     // populated (participants · phases with answers · narratives · interviews ·
     // referral snapshot + reply · timeline · meetings · action items ·
     // corrections · document manifest), TOC listing all eleven.
-    fingerprint: '921db6286faba6a825aec9861ac580b4d278240ae12d7971a0863d5683030da3',
+    fingerprint: '065ea289887dfb048e355bc2b4525d2a3bdac1d3d2c1ec5fec9e01d718aa9014',
     variants: {
       // ADR 0125 D2/D5 — the EPHEMERAL branch: same template, prévia footer
       // instead of the QR block. Shares this template's `version` because it IS
       // this template.
-      previa: 'd5229427b266e8e6026dd6bae9095b0b892f787fc0e16e37f4e549c12f3e79a2',
+      previa: '2713e59cb5ae21379d9645faae8080daaa8d813d0f9d6e64a8b63fe75ceb1930',
       // ⭐ THE DEGENERATE STATE the canonical fixture cannot reach, and the one
       // most likely to be wrong: a case after `dispose_case_phi`. Pins that
       // gutted sections DROP ENTIRELY rather than printing bare headings, that
@@ -82,7 +102,7 @@ export const TEMPLATE_FINGERPRINTS: Record<
       // deliberate ASYMMETRY, that an interview's metadata SURVIVES (the fact
       // that it happened is process evidence) while its summary does not, where
       // a narrative whose body was nulled disappears completely.
-      disposed: 'de4e204a3058549993a1ecfbdd2bdbf5e50cc32fced757edfd68bb8dbd7d7071',
+      disposed: 'ee68db52d49be560a90fbfd7a1820d467a6aab72996e87eebddf7784a918bc05',
     },
   },
   case_identified: {
@@ -93,7 +113,7 @@ export const TEMPLATE_FINGERPRINTS: Record<
     // a pinned fact rather than a naming convention — and the suite asserts
     // BOTH directions: the five identifiers appear here and appear in NEITHER
     // of the de-identified renders.
-    fingerprint: '20d7bc1fb7275602443bd143047871658576ac44ba9d4cff7d4eb7ca04ec61fe',
+    fingerprint: 'f803a6417763a0aeb18835baaad952a7c178393a97384ac22f6d1e9bb7c22d16',
     // No variants: the prévia and disposed branches are pinned under `case`,
     // and a DISPOSED case has no identifiers left to render — an identified
     // dossier of a disposed case is unconstructible, not merely untested.

@@ -837,8 +837,8 @@ select is((select count(*)::int from public.patient_identifiers), 0,
 -- ===========================================================================
 select is((select count(*)::int from pg_trigger t
            join pg_class c on c.oid = t.tgrelid
-           where c.relname = 'case_participant_roles' and not t.tgisinternal), 2,
-  'M1·3 STRUCTURAL: case_participant_roles now carries its guard + audit triggers (today: 0)');
+           where c.relname = 'case_participant_roles' and not t.tgisinternal), 3,
+  'M1·3 STRUCTURAL: case_participant_roles carries its guard + audit triggers (M1·3 took it from 0 to 2) PLUS the PDF·P3 print-revision bump (ADR 0144 D15) — 3 today. ⚠ The count is deliberately a LITERAL: it red when D15 added a trigger here, which is the point. The renaming risk is real though — a future reader should check WHICH three: trg_guard_case_participant_role_key, trg_audit_case_participant_role, bump_case_print_revision. D15''s trigger is on this table because the dossier renders participant ROLE LABELS, so renaming a role changes the rendered text of every dossier that shows it');
 
 select isnt((select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
              where n.nspname = 'public' and p.proname = 'lift_recusal'), null,

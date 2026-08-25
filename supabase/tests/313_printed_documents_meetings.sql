@@ -375,8 +375,16 @@ select ok(
 -- ── 6. Fail-closed keystones, RELOCATED onto REAL fixtures ⭐ ────────────────
 select is(app.can_read_case((select case_a from cs), (select sa_x from k)), true,
   't33 PRECONDITION ⭐: sa_x reads case_a IN FULL — the case fixture is real, so t34''s false is the ELSE, never a missing row');
-select is(app.can_view_printed_document('case', (select case_a from cs), (select sa_x from k)), false,
-  't34 ⭐ FAIL-CLOSED: the case arm is UNREGISTERED through P2 — visible source, unreadable print kind (ADR 0104 D3)');
+-- ⚠⚠ t34/t35 MOVED BY PDF·P3, NOT DELETED. Through P2 these pinned that the
+-- `case` arm was UNREGISTERED — `can_view_printed_document` false, and the mint
+-- refusing with 42501. ADR 0144 registers the kind, so the OLD assertions became
+-- false statements about the product. ⛔ Deleting them would have removed the
+-- only coverage of this arm on the way past; they now pin the NEW behaviour, and
+-- the fail-closed ELSE they used to anchor is still anchored — by t37
+-- (`interview`, unregistered until P4) and t38 (an unknown kind). That is why
+-- those two were left exactly as they were.
+select is(app.can_view_printed_document('case', (select case_a from cs), (select sa_x from k)), true,
+  't34 ⭐ PDF·P3: the case arm is now REGISTERED and sa_x passes it — A7''s conjunction is reach (can_read_case, pinned by t33) AND unmasked sight (can_read_full_case_content''s seven axes, ADR 0144 D8). t33 remains the precondition that makes this a real ALLOW rather than a missing row');
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
@@ -384,8 +392,8 @@ select throws_ok(
       (select doc_c1 from d), 'case', (select case_a from cs),
       'case', 1, repeat('cc', 32),
       (select mtok3 from tk), (select msc3 from tk), false)$$,
-  '42501', null,
-  't35 ⭐ FAIL-CLOSED, write side: the case kind cannot mint (object EXISTS — authority is the only gate)');
+  'HC0DP', null,
+  't35 ⭐ PDF·P3, write side: the mint no longer refuses on AUTHORITY (42501) — it refuses on the LOCK POINT (HC0DP), because case_a is not terminal (ADR 0144 D3). ⭐ The changed ERRCODE is the assertion: 42501 would mean the case arm never got past the authority gate, so a lazy "still throws" pin would have passed against the OLD, unregistered behaviour and proved nothing about P3');
 reset role;
 select is(app.can_read_interview((select iv_a from cs), (select sa_x from k)), true,
   't36 PRECONDITION: sa_x reads the interview — the fixture is real');

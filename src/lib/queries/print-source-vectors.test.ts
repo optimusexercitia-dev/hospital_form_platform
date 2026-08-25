@@ -105,7 +105,11 @@ describe('print-source vectors: SQL/TS sync guard', () => {
     // of the row shape — a generator that silently dropped a column would still
     // hash clean.
     for (const v of vectors) {
-      const row = `('${v.kind}', '${v.status}', ${v.correction_open ?? false}, ${v.phase_voided ?? false}, ${v.meeting_disposed ?? false}, ${v.registers}, '${v.watermark}')`
+      // ⚠ EVERY flag column, in emission order. A flag missing from this literal
+      // would make the assertion match a generator that dropped it — the exact
+      // shape this test exists to catch, one level up. PDF·P3 added
+      // `case_disposed` as the fourth.
+      const row = `('${v.kind}', '${v.status}', ${v.correction_open ?? false}, ${v.phase_voided ?? false}, ${v.meeting_disposed ?? false}, ${v.case_disposed ?? false}, ${v.registers}, '${v.watermark}')`
       expect(generated, `vector ${label(v)} is missing from the generated SQL`).toContain(row)
     }
     const emitted = generated.match(/^ {4}\('/gm)?.length ?? 0

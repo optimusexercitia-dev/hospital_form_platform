@@ -652,9 +652,9 @@ select is(
     where regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
           ~ '\ycan_read_case_committee\y'
       and p.proname <> 'can_read_case_committee'),
-  array['app.can_read_action_item', 'app.can_read_interview',
-        'app.can_read_professional_profile'],
-  '13.4 DOOR SET (transitive), BY NAME: …plus exactly these 3 further routines. app.can_read_professional_profile is the Class-2 professional-identity PHI door — which is WHY the identity matters and a count does not: swap it out for a harmless third routine and the count never moved');
+  array['app.can_read_action_item', 'app.can_read_full_case_content',
+        'app.can_read_interview', 'app.can_read_professional_profile'],
+  '13.4 DOOR SET (transitive), BY NAME: …plus exactly these 4 further routines. app.can_read_professional_profile is the Class-2 professional-identity PHI door — which is WHY the identity matters and a count does not: swap it out for a harmless further routine and the count never moved. ⚠ PDF·P3 added app.can_read_full_case_content (ADR 0144 D8), whose action-items axis calls this negation: the case DOSSIER inlines case-restricted action items, so a caller who cannot reach the committee must not mint it');
 select is(
   (select coalesce(array_agg(n.nspname || '.' || p.proname order by n.nspname, p.proname),
                    array[]::text[])
@@ -662,8 +662,9 @@ select is(
     where regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
           ~ '\ycan_read_case_patient\y'),
   array['app._audit_access_authorized', 'public.get_case_patients',
-        'public.get_participant_patient'],
-  '13.5 DOOR SET, BY NAME: the can_read_case_patient door set is exactly these 3 routines, and §8 exercises the 2 `public` ones. This is the set §8''s header bounds itself by, so a count here would let §8''s "both public doors are exercised" claim go stale in silence');
+        'public.get_participant_patient', 'public.mint_printed_document',
+        'public.open_printed_document'],
+  '13.5 DOOR SET, BY NAME: the can_read_case_patient door set is exactly these 5 routines. §8 exercises get_case_patients + get_participant_patient; the two PDF·P3 additions are exercised by pgTAP 368. This is the set §8''s header bounds itself by, so a count here would let §8''s "both public doors are exercised" claim go stale in silence — and it is why this pin is BY NAME: PDF·P3 grew the set by two, and a count would have said only "3 became 5" without saying that the new members are a MINT door and a DOWNLOAD door for identified patient dossiers (ADR 0144 D8, the A7 mint-and-download-alike arm)');
 
 -- =========================================================================
 -- (14) V-1 — THE `_case_caps` STRIP-AND-COMPARE, PROMOTED FROM A RECORDED CHECK TO A GATE

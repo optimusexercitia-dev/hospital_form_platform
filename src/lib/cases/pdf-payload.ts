@@ -34,6 +34,7 @@ import {
 import { getCasePrintContext } from '@/lib/queries/printed-documents'
 import { getReferralDetail, listCaseOutboundReferrals } from '@/lib/queries/referrals'
 import { CASE_STATUS_META } from './case-status'
+import { formatCaseNumberWithTerm } from './format'
 import {
   ACTION_ITEM_STATUS_LABEL,
   CORRECTION_KIND_LABEL,
@@ -448,7 +449,22 @@ export async function buildCasePayload(
     body: {
       kind: 'case',
       variant,
-      caseNumber: String(detail.case.caseNumber),
+      // ⭐ F4 — the app's OWN formatter, TERM-AWARE. `formatCaseNumberWithTerm`
+      // renders "Denúncia 0042" for an ethics case and "Caso 0042" for a
+      // type-less one (ADR 0064 D4); the plain `formatCaseNumber` would print
+      // the wrong NOUN on every ethics dossier — a wrong word on an
+      // accreditation record. ⛔ Never a local `padStart`: that second authority
+      // is exactly what made the running header read "Caso 1" while the app said
+      // "Caso 0001", on the same page as a user-authored interview title using
+      // the app's form.
+      // ⚠ This makes the dossier consistent with ONE of the eight
+      // implementations of this display rule in the codebase; the other seven
+      // are filed separately and are not this phase's work. ⛔ Do not describe
+      // it as "the dossier now uses the canonical formatter".
+      caseDisplay: formatCaseNumberWithTerm(
+        detail.terminology?.case?.singular ?? 'Caso',
+        detail.case.caseNumber,
+      ),
       title: detail.case.label,
       statusDisplay: CASE_STATUS_META[detail.case.status]?.label ?? ENUM_FALLBACK,
       confidentialityDisplay:

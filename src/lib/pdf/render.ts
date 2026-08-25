@@ -239,7 +239,7 @@ function renderBody(payload: DocumentPayload): string {
 export function documentFooterHtml(payload: DocumentPayload): string | null {
   if (payload.body.kind !== 'case') return null
   return `<div style="width:100%;font-family:sans-serif;font-size:7pt;color:#555;padding:0 16mm;display:flex;justify-content:space-between;">
-<span>Caso ${esc(payload.body.caseNumber)}</span>
+<span>${esc(payload.body.caseDisplay)}</span>
 <span>página <span class="pageNumber"></span> de <span class="totalPages"></span></span>
 </div>`
 }

@@ -1,4 +1,5 @@
 import { esc } from '../escape'
+import { renderMarkdown } from '../markdown'
 import { renderTableOfContents, type TableOfContentsEntry } from '../primitives'
 import type {
   CaseActionItemEntry,
@@ -87,6 +88,14 @@ const STYLE = `<style>
 .toc-list { margin: 0; padding-left: 5mm; font-size: 9.5pt; }
 .toc-list li { margin: 0.4mm 0; }
 .toc-empty { font-size: 9pt; color: #767676; font-style: italic; }
+/* D13 (as amended): each top-level section starts on a new page — EXCEPT THE
+   FIRST, which shares page 1 with the letterhead and the index. Deliberate: the
+   first-of-type rule below is the whole implementation of it, and forcing
+   section 1 onto page 2 would spend an entire page on every dossier to satisfy a
+   sentence — on a short case, a quarter of the document. D13's wording is
+   amended to "each top-level section AFTER THE FIRST".
+   NOTE: no backticks in this block. It lives inside a JS template literal, so a
+   backtick here TERMINATES the string and breaks the module. */
 .case-section { break-before: page; margin-bottom: 6mm; }
 .case-section:first-of-type { break-before: auto; }
 .case-section-title { font-family: 'IBM Plex Serif', serif; font-weight: 600; font-size: 11.5pt;
@@ -130,10 +139,24 @@ function field(label: string, value: string | null): string {
     : `<div class="case-field"><span class="case-label">${esc(label)}:</span> ${esc(value)}</div>`
 }
 
+/**
+ * Author-written MARKDOWN → sanitized HTML (Architecture Rule 7).
+ *
+ * ⛔ **NOT `esc()`.** Escaping is correct for a plain string and WRONG here: the
+ * DB stores real Markdown, the screen renders it, and escaping printed the
+ * literal `##` and `**` onto an accreditation record. ⛔ And the naive repair —
+ * dropping the escape and interpolating the author's text — turns that cosmetic
+ * defect into **stored XSS reaching Gotenberg**, whose output is permanent,
+ * downloadable and handed to external auditors. `renderMarkdown` parses first
+ * and sanitizes the tree, using the SCREEN'S schema so paper can never be more
+ * permissive than the app.
+ *
+ * ⚠ The returned string is already HTML and must NOT be escaped again by the
+ * caller; that is the one place this function is easy to get wrong.
+ */
 function prose(value: string | null): string {
-  return value === null || value.trim() === ''
-    ? ''
-    : `<div class="case-prose">${esc(value)}</div>`
+  const html = renderMarkdown(value)
+  return html === '' ? '' : `<div class="case-prose">${html}</div>`
 }
 
 // ---------------------------------------------------------------------------
@@ -291,7 +314,11 @@ function referralsSection(rows: CaseReferralEntry[]): string {
     .map((r) => {
       const snapshot = r.snapshot.length
         ? `<table class="case-table"><tbody>
-${r.snapshot.map((s) => `<tr><td>${esc(s.label)}</td><td>${esc(s.value)}</td></tr>`).join('\n')}
+${r.snapshot
+            // ⚠ The snapshot VALUE is a frozen narrative body (`frozenBodyMd`) —
+            // author Markdown. The LABEL is a plain title and stays escaped.
+            .map((s) => `<tr><td>${esc(s.label)}</td><td>${prose(s.value)}</td></tr>`)
+            .join('\n')}
 </tbody></table>`
         : ''
       return `<div class="case-block">
@@ -320,7 +347,7 @@ function timelineSection(rows: CaseTimelineEntry[]): string {
       (e) =>
         `<tr><td>${esc(e.dateDisplay)}</td><td>${esc(e.kindDisplay)}</td><td>${esc(
           e.title,
-        )}${e.body ? `<div class="case-prose">${esc(e.body)}</div>` : ''}</td><td>${
+        )}${e.body ? prose(e.body) : ''}</td><td>${
           e.authorDisplay ? esc(e.authorDisplay) : '—'
         }</td></tr>`,
     )
@@ -337,7 +364,18 @@ function meetingsSection(rows: CaseMeetingEntry[]): string {
       (m) => `<div class="case-block">
 <div class="case-sub">${esc(m.meetingDisplay)}</div>
 ${field('Data', m.dateDisplay)}
-${[field('Resumo', m.summary), field('Decisão', m.decision)].filter(Boolean).join('\n')}
+${
+        // ⚠ MARKDOWN, not plain fields: `meeting_cases.summary` / `.decision`
+        // are authored in the same editor as the narratives, so `field()` (which
+        // escapes) would print their `##` literally. Labelled inline because
+        // `prose()` emits no label of its own.
+        [
+          m.summary ? `<div class="case-sub">Resumo</div>${prose(m.summary)}` : '',
+          m.decision ? `<div class="case-sub">Decisão</div>${prose(m.decision)}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n')
+      }
 </div>`,
     )
     .join('\n')
@@ -405,7 +443,20 @@ ${body}
 function metaLine(body: CaseDocumentBody): string {
   return [
     `<span class="meta-item">Situação: ${esc(body.statusDisplay)}</span>`,
-    `<span class="meta-item">Classificação: ${esc(body.confidentialityDisplay)}</span>`,
+    // ⛔ "Classificação DECLARADA", not "Classificação" — the word is doing real
+    // work. `CONFIDENTIALITY_LEVEL_LABELS.non_phi_internal` reads "Interno (sem
+    // dados de paciente)", whose parenthetical turns a CLASSIFICATION into a
+    // FACTUAL CLAIM ABOUT CONTENT — a claim the platform cannot support, because
+    // nothing constrains `confidentiality_level` against `has_patient`. Framed as
+    // a declaration the page asserts only that the commission classified the case
+    // this way, which is true even when the PHI band on the same page says the
+    // document contains patient data.
+    // ⛔ Do NOT solve this with a print-specific label map: two vocabularies for
+    // one thing is the drift class this phase already removed once (see the
+    // `label()` note in `@/lib/cases/pdf-payload`). The shared
+    // `CONFIDENTIALITY_LEVEL_LABELS` stays the single authority; only the FRAMING
+    // is print-side.
+    `<span class="meta-item">Classificação declarada: ${esc(body.confidentialityDisplay)}</span>`,
     body.caseTypeDisplay
       ? `<span class="meta-item">Tipo: ${esc(body.caseTypeDisplay)}</span>`
       : '',
@@ -428,19 +479,36 @@ function metaLine(body: CaseDocumentBody): string {
 }
 
 /**
- * The RUNNING HEADER (D13) — case number + confidentiality label, repeated on
- * every page.
+ * The RUNNING HEADER (D13, as amended) — **the case number, and nothing else.**
  *
- * ⚠ `position: fixed` is what repeats it: Chromium's print pipeline paints a
- * fixed box once per page, which is the same mechanism the shipped `.phi-band`
- * and `.wm-diagonal` primitives already rely on. It is NOT `@page` margin-box
- * content — Chromium ignores that entirely, which is also why the page NUMBER
- * cannot live here and travels as a Gotenberg footer instead.
+ * ⛔ **THE CONFIDENTIALITY LABEL WAS REMOVED FROM HERE, AND THE REASON IS THAT
+ * IT MADE THE DOCUMENT CONTRADICT ITSELF ON EVERY PAGE.** D13 said render
+ * `cases.confidentiality_level`; D6 derives the PHI band from content; nobody
+ * reconciled them. Measured on the seed, 2 of 8 cases carry
+ * `confidentiality_level = 'non_phi_internal'` together with
+ * `has_patient = true`, and nothing in the schema constrains that pair. The
+ * printed result was a page simultaneously headed *"Interno (sem dados de
+ * paciente)"*, banded *"CONTÉM DADOS DE PACIENTE"*, and printing a patient's
+ * name and MRN in its body.
+ *
+ * ⚠ It was WORST on the de-identified variant, where a reader has the most
+ * reason to believe the label — and on a record whose entire premise is
+ * authority, a self-contradicting page is worse than an ugly one.
+ *
+ * ⇒ The classification did not disappear (D13 wanted it): it moved into the
+ * identification block, framed as a DECLARATION — see {@link metaLine}. There
+ * the page says *the commission declared X* and *this document contains patient
+ * data*, and both statements are true.
+ *
+ * ⚠ `position: fixed` is what repeats this on every page: Chromium's print
+ * pipeline paints a fixed box once per page, the same mechanism the shipped
+ * `.phi-band` and `.wm-diagonal` primitives rely on. It is NOT `@page`
+ * margin-box content — Chromium ignores that entirely, which is also why the
+ * page NUMBER cannot live here and travels as a Gotenberg footer instead.
  */
 function runningHeader(body: CaseDocumentBody): string {
   return `<div class="case-running-header">
-  <span>Caso ${esc(body.caseNumber)}</span>
-  <span>${esc(body.confidentialityDisplay)}</span>
+  <span>${esc(body.caseDisplay)}</span>
 </div>`
 }
 
@@ -475,7 +543,7 @@ export function renderCaseBody(body: CaseDocumentBody): string {
 
   return `${STYLE}
 ${runningHeader(body)}
-<h1 class="doc-title">Dossiê do caso ${esc(body.caseNumber)}${
+<h1 class="doc-title">Dossiê — ${esc(body.caseDisplay)}${
     body.title ? ` — ${esc(body.title)}` : ''
   }</h1>
 <div class="case-meta">

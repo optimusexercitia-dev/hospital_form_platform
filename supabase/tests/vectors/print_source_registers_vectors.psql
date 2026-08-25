@@ -8,46 +8,46 @@
 -- app.print_source_watermark are driven by the SAME rows as their TS twins in
 -- src/lib/pdf/documents/print-source.ts.
 --
--- The three flags are KIND-SCOPED: correction_open / phase_voided are
--- form_response-only, meeting_disposed is meeting-only, and every predicate must
--- IGNORE a flag outside its kind. That ignoring is PINNED by the cross-kind rows,
--- not left to this comment.
+-- The flags are KIND-SCOPED: correction_open / phase_voided are
+-- form_response-only, meeting_disposed is meeting-only, case_disposed is
+-- case-only, and every predicate must IGNORE a flag outside its kind. That
+-- ignoring is PINNED by the cross-kind rows, not left to this comment.
 --
 -- Editing this file by hand REDS src/lib/queries/print-source-vectors.test.ts.
 create temp table print_source_vectors on commit drop as
   select * from (values
-    ('form_response', 'in_progress', false, false, false, false, 'draft'),
-    ('form_response', 'submitted', false, false, false, true, 'final'),
-    ('form_response', 'submitted', true, false, false, false, 'draft'),
-    ('form_response', 'in_progress', true, false, false, false, 'draft'),
-    ('form_response', 'submitted', false, true, false, false, 'draft'),
-    ('form_response', 'submitted', false, false, true, true, 'final'),
-    ('meeting', 'scheduled', false, false, false, false, 'draft'),
-    ('meeting', 'held', false, false, false, false, 'draft'),
-    ('meeting', 'in_signature', false, false, false, true, 'draft'),
-    ('meeting', 'signed', false, false, false, true, 'final'),
-    ('meeting', 'distributed', false, false, false, true, 'final'),
-    ('meeting', 'cancelled', false, false, false, false, 'draft'),
-    ('meeting', 'signed', false, false, true, false, 'draft'),
-    ('meeting', 'in_signature', false, false, true, false, 'draft'),
-    ('meeting', 'distributed', false, false, true, false, 'draft'),
-    ('meeting', 'signed', true, true, false, true, 'final'),
-    ('form_response', 'submitted', false, false, false, true, 'final'),
-    ('meeting', 'signed', false, false, false, true, 'final'),
-    ('case', 'not_started', false, false, false, false, 'draft'),
-    ('case', 'not_started', false, false, false, false, 'draft'),
-    ('case', 'in_review', false, false, false, false, 'draft'),
-    ('case', 'in_review', false, false, false, false, 'draft'),
-    ('case', 'pending', false, false, false, false, 'draft'),
-    ('case', 'pending', false, false, false, false, 'draft'),
-    ('case', 'completed', false, false, false, true, 'final'),
-    ('case', 'completed', false, false, false, false, 'draft'),
-    ('case', 'cancelled', false, false, false, true, 'final'),
-    ('case', 'cancelled', false, false, false, false, 'draft'),
-    ('case', 'completed', true, false, false, true, 'final'),
-    ('case', 'completed', false, true, false, true, 'final'),
-    ('case', 'completed', false, false, true, true, 'final'),
-    ('interview', 'scheduled', false, false, false, false, 'draft'),
-    ('unknown_kind', 'whatever', false, false, false, false, 'draft'),
-    ('unknown_kind', 'signed', true, true, true, false, 'draft')
-  ) as t(kind, status, correction_open, phase_voided, meeting_disposed, registers, watermark);
+    ('form_response', 'in_progress', false, false, false, false, false, 'draft'),
+    ('form_response', 'submitted', false, false, false, false, true, 'final'),
+    ('form_response', 'submitted', true, false, false, false, false, 'draft'),
+    ('form_response', 'in_progress', true, false, false, false, false, 'draft'),
+    ('form_response', 'submitted', false, true, false, false, false, 'draft'),
+    ('form_response', 'submitted', false, false, true, false, true, 'final'),
+    ('meeting', 'scheduled', false, false, false, false, false, 'draft'),
+    ('meeting', 'held', false, false, false, false, false, 'draft'),
+    ('meeting', 'in_signature', false, false, false, false, true, 'draft'),
+    ('meeting', 'signed', false, false, false, false, true, 'final'),
+    ('meeting', 'distributed', false, false, false, false, true, 'final'),
+    ('meeting', 'cancelled', false, false, false, false, false, 'draft'),
+    ('meeting', 'signed', false, false, true, false, false, 'draft'),
+    ('meeting', 'in_signature', false, false, true, false, false, 'draft'),
+    ('meeting', 'distributed', false, false, true, false, false, 'draft'),
+    ('meeting', 'signed', true, true, false, false, true, 'final'),
+    ('form_response', 'submitted', false, false, false, true, true, 'final'),
+    ('meeting', 'signed', false, false, false, true, true, 'final'),
+    ('case', 'not_started', false, false, false, false, false, 'draft'),
+    ('case', 'not_started', false, false, false, true, false, 'draft'),
+    ('case', 'in_review', false, false, false, false, false, 'draft'),
+    ('case', 'in_review', false, false, false, true, false, 'draft'),
+    ('case', 'pending', false, false, false, false, false, 'draft'),
+    ('case', 'pending', false, false, false, true, false, 'draft'),
+    ('case', 'completed', false, false, false, false, true, 'final'),
+    ('case', 'completed', false, false, false, true, false, 'draft'),
+    ('case', 'cancelled', false, false, false, false, true, 'final'),
+    ('case', 'cancelled', false, false, false, true, false, 'draft'),
+    ('case', 'completed', true, false, false, false, true, 'final'),
+    ('case', 'completed', false, true, false, false, true, 'final'),
+    ('case', 'completed', false, false, true, false, true, 'final'),
+    ('interview', 'scheduled', false, false, false, false, false, 'draft'),
+    ('unknown_kind', 'whatever', false, false, false, false, false, 'draft'),
+    ('unknown_kind', 'signed', true, true, true, true, false, 'draft')
+  ) as t(kind, status, correction_open, phase_voided, meeting_disposed, case_disposed, registers, watermark);
