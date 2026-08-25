@@ -26,10 +26,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ⛔ **ONE WARNING SURVIVES THE COLLAPSE, because it is still live: do NOT trust any authz-gate result
   predating 2026-08-24.** The step-1 gate suite was **not running on this platform at all**, in two
   independent committed ways, and `ARM=census` printed `INVARIANT HOLDS` at exit 0 **having enumerated
-  ZERO gates**. The archived bullets carry the rest — including why 0137's four items are not equally
-  re-derivable (four different KINDS of evidence, only one reproducible from this repo), and 22-v3's
-  reusable lesson that **a phase row states its own gates, so evidence arriving elsewhere and later
-  never reaches it** — it under-reported itself for 13 days and no gate can catch that direction.
+  ZERO gates**. The archived bullets carry the rest, and the 0137 re-derivability note moved with them → [2026-Q3.md](docs/progress/2026-Q3.md).
 - **🟠 nvm still defaults to Node 20, and `npm run lint` DIES AT GATE 8 there** (`globSync` needs 22).
   `.nvmrc` + `engines` are set; **`nvm alias default 22` is not**. ⛔ Kept live deliberately when the
   gate-tooling bullet was rotated 2026-08-25: it is the one item in that ✅-marked bullet with an
@@ -48,11 +45,12 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   blocking candidates — **C-1** an Art. 18 PHI exposure (the only live one), **C-2** Gotenberg
   `<img>` fetch, **C-3** undelivered D14 floor items (⚠ missing EVIDENCE, not a defect — do not
   quote its severity beside C-1).
-  **🔨 RESUMED 2026-08-25, agent team authorised by PO.** C-1 fix shape **RULED: the
-  constitutive rule** (`containsPhi := !caseDisposed`, meta-review R-1) — it amends **D6**, so
-  ADR 0144 owes **Amendment 5**. In flight: the catalog reconciliation (⭐ the only pending item
-  that can UNMAKE a recorded gate pass) · C-1 · C-2 · C-3 (two pgTAP cells + two E2E audit
-  assertions) · M-2 · M-3. Then QA pass 2 → verdict → gate-2 re-run → gate 4.
+  **🔨 RESUMED 2026-08-25 (agent team, PO-authorised).** ✅ **Catalog reconciliation — gate 1's
+  authz greens STAND** (27 = 15 new + 12 body-only; policies 0/0; `A  B` read from the catalog, not
+  the diff) · ✅ **C-1** the Art. 18 hole, fixed as PO-ruled with the constitutive rule
+  (ADR 0144 **Amdt 5**) · ✅ **C-2** the Gotenberg beacon (ADR **0145**, amends 0014) · ✅ the band
+  notice + its pinning test. All mutation-proven. 🔨 Left: C-3's pgTAP cells + M-3 · C-3's E2E audit
+  rows + M-2 · the print placeholder. Then QA pass 2 → verdict → gate-2 re-run → gate 4.
   ⭐ **RESUME HERE → [pdf-p3-handoff.md](docs/progress/pdf-p3-handoff.md)** (plan · built ·
   obstacles · follow-ups · failures · ordered pending work). Detail:
   [pdf-p3.md](docs/progress/pdf-p3.md).
@@ -360,13 +358,14 @@ _**Three items RESOLVED 2026-08-24 (gate-tooling round), index lines rotated** �
 - 🔴 **FUP-CASE-DOCS-DEAD-READER** — `listCaseDocuments` delegates to the PARKED `listAttachments` (body: `return []`), so **three live surfaces render zero case documents to every user** — the timeline, the staff case page and the coordinator detail page, none with a fallback. ⚠ **No gate can see it:** an empty array is legal at every layer, so a fixture with zero documents and a reader returning zero are indistinguishable. Predates P3, found while sourcing D2's manifest, deliberately not fixed in it — frontend + backend
 - 🟡 **FUP-P3-DOSSIER-HAS-NO-RECUSAL-ROSTER** — `CaseDetail.myRecusal` is the **caller's own** recusal only and no per-participant roster reader exists, so `recusalDisplay` could be populated for the minter and nobody else — an artifact that varies by who printed it (ADR 0104 **A7**), and a **second** A7 exception with none of the D5 justification the first one has. Dropped from the v1 payload type (D2 never enumerated recusals). ⚠ Filed rather than closed by scope because **ADR 0144 D8's Consequences paragraph discusses recused members by name**, so the silence is a gap someone re-discovers from the artifact instead of from a file. ⛔ Any fix must render for EVERY participant or none — backend
 - 🔴 **FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH** — `e2e-prod-gate.sh:308` truncates a **fixed** `server.log` per batch and tails it only on `start_server` **failure** (line 412), so a server that dies **mid-batch** — the `server_dead` case the INFRA classifier fires on — leaves **no server-side evidence**. Measured: 2 references, 1 truncating / 0 appending, while the script already per-batch-names three other logs. ⛔ **Heap ceiling · unhandled app exception · capacity are indistinguishable from the client side, and the middle one is a PRODUCT DEFECT booked as INFRA.** Host was clean (no orphans, 12.2/32.5 GB free), so the per-process causes are the likely ones. ⭐ **Body carries a SECOND finding of the same class: `GATE_EXIT` lost in both runs** — the artifact proving the outcome is not written durably by the thing producing it. ⭐ **PO-AUTHORISED 2026-08-25 to fix the harness’s own defects — with `free_port()`: its unanchored `netstat` grep matches the **Foreign** column, so it returns client PIDs with **0 LISTENING** and `taskkill //F` kills **Playwright workers**.** ⛔ Not authority to change what the gate MEASURES — tester + backend
+- 🟡 **FUP-GOTENBERG-EGRESS-UNRESTRICTED** — no network backstop for the print sidecar: dev is a bare `docker run`, Coolify constrains **inbound only**, so ADR 0145's schema narrowing is the **only** mitigation for an author-controlled fetch. ⛔ **PO-DEFERRED 2026-08-25 to a follow-up, NOT descoped** — owed: measure what the sidecar can actually reach in dev and on Coolify, then deny outbound — backend
 - 🟡 **FUP-MOJIBAKE-GATE-BLIND-TO-UNTRACKED-FILES** — `check-mojibake.mjs:144` sources `git ls-files`, so a **staged** file is covered and an **untracked** one is outside the domain. Measured: gate 10 printed `OK (2825 tracked text files clean)` while **2,226 lines across 4 new P3 artifacts** were not in the 2825 (scanned separately, controls fired, 0 hits — clean but **unproven by the green line**). ⭐ Same shape as ADR 0079 Amdt 3: the thing most likely wrong is what the domain excludes. Fix = union `--others --exclude-standard`, ⛔ red it on a corrupt untracked file first — backend
 
 _**Five items RESOLVED 2026-08-24 (ADR 0136 follow-up round), index lines rotated** → [follow-ups-archive.md](docs/progress/follow-ups-archive.md): **FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT** · **FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE** · **FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE** · **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** (ADR 0079 **Amdt 9**) · **FUP-DSS-KEYBOARD-FLOW-IS-THIN**. Each body in [follow-ups.md](docs/progress/follow-ups.md) carries its resolution + evidence._
 
 _**FUP-RCA-WRITER-CAN-WRITE-IS-BLIND RESOLVED 2026-08-24 (keystone `142_rca.sql` §K, re-swept COVERED), index line + evidence rotated** → [follow-ups-archive.md](docs/progress/follow-ups-archive.md); body in [follow-ups.md](docs/progress/follow-ups.md). ⛔ Its sibling **FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE stays OPEN** above — filed together, only one closed._
 
-_**Earlier resolved-item rotations (2026-08-18 → 2026-08-21) are recorded in the archive**, not here: five rotation notes covering the 2026-08-18 `FUP-DM5-*` set (14 lines), **FUP-DM5-NO-ANSWER-VS-NOTHING** and **FUP-DM5-BACKUP-IS-PHI-EXPORT** (both 🔴, both closed 2026-08-19), the DM1/F2/PDF set, and the DSR remediation round (2026-08-21) were moved VERBATIM on 2026-08-24 → [follow-ups-archive.md](docs/progress/follow-ups-archive.md) § "Rotation notes rotated from PROGRESS.md 2026-08-24". ⛔ Each still names what closed and why — the detail is in the archive, not lost._
+_**FUP-DM5-NO-ANSWER-VS-NOTHING** — ✅ resolved 2026-08-19, index in [follow-ups-archive.md](docs/progress/follow-ups-archive.md); its body deliberately STAYS in [follow-ups.md](docs/progress/follow-ups.md) as a review lens, not archived — see the archive's own rotation note._
 
 _Parked / deferred backlog — full detail (owner, rationale, repro) relocated to **[deferred-backlog.md](docs/progress/deferred-backlog.md)** to keep this tracker scannable; titles + pointers kept live below._
 
