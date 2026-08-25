@@ -5592,3 +5592,42 @@ including that an earlier version of its own comment had stated it. Twice now, a
 from it and reached a confident wrong conclusion; the second time it nearly produced three `aria-label`
 attributes that measurement showed would be exact no-ops. **The real defect was adjacent to the false
 one, and only visible to whoever actually ran the measurement.**
+
+---
+
+### 🟠 FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY — a test named for auto-reinstate never suspends anyone (owner: tester; filed 2026-08-25, found by `frontend` while moving an unrelated DOM id)
+
+`e2e/user-registration.spec.ts:463`:
+
+```js
+const dateInput = dialog.locator('input[type="date"], input#suspend-until')
+if (await dateInput.count()) { await dateInput.first().fill('2020-01-01') }
+```
+
+**Both alternatives are dead, and were before the profile redesign.** `DatePicker` *replaces*
+`<input type="date">` (`src/components/ui/date-picker.tsx:55`) and emits a hidden input **only when a
+`name` prop is given** (`:139`) — `user-lifecycle-actions.tsx` does not pass one. The id it does carry
+sits on a `<button>`, so `input#suspend-until` matches nothing either. Verified at `8ecf51de`: that
+site already rendered `DatePicker id="suspend-until"`, so this predates the branch that merely made
+the second alternative textually stale as well.
+
+**The consequence is that the test asserts a state it never creates.** With the fill skipped,
+`suspendUntil` stays `""`, so the flow calls `suspendUser(userId, null)` →
+`update({ suspended_until: null })` (`src/lib/users/actions.ts:1176`) against a persona that is
+already unsuspended. Measured directly after a run: `ativo.registro@test.local | is_active=t |
+suspended_until=NULL`. It then asserts `getByText('Ativo', { exact: true })` is visible — satisfied by
+an unrelated element, the affiliation `StatusPill` — and that the persona can still sign in, which is
+trivially true because nothing was suspended.
+
+⛔ **`lint:vacuous` structurally cannot catch this class**, and that is the part worth keeping. The
+gate looks for a test that can go green having asserted *nothing*; this test asserts plenty. Every
+assertion is real, unconditional, and **satisfied by something other than the behaviour under test**.
+A guard-wrapped setup step (`if (await x.count())`) is the specific shape: it degrades silently from
+"set the value" to "skip it" the moment its selector rots, and nothing downstream distinguishes the
+two. ⭐ Sweeping `e2e/` for `if (await …count())` around a *setup* action would find the rest of this
+class; nothing does today.
+
+**Fix:** address the control the way the rest of the suite now does — by its accessible name, which is
+live and measured (`getByRole('button', { name: 'Suspenso até (opcional)' })`) — then assert the
+post-condition on the DATABASE or on a suspension-specific surface, not on a bare `'Ativo'` string
+that another component also renders.

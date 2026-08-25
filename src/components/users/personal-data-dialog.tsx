@@ -16,7 +16,7 @@ import {
   FieldLabel,
   useFieldIds,
 } from "@/components/ui/field";
-import { FormBanner } from "@/components/auth/form-banner";
+import { LiveBanner } from "@/components/auth/form-banner";
 import { CpfField } from "@/components/users/cpf-field";
 import { PhoneField } from "@/components/users/phone-field";
 import { ProfileDialogShell } from "@/components/users/profile-dialog-shell";
@@ -157,7 +157,7 @@ export function PersonalDataDialog({
       isPending={isPending}
       footerNote="Alterações ficam registradas na trilha de auditoria da organização."
     >
-      {error ? <FormBanner tone="error">{error}</FormBanner> : null}
+      <LiveBanner tone="error">{error}</LiveBanner>
 
       <Field>
         <FieldLabel htmlFor={fullNameField.controlProps.id}>

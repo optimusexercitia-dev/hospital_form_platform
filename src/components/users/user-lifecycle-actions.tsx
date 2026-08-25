@@ -14,7 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
-import { FormBanner } from "@/components/auth/form-banner";
+import { useFieldIds } from "@/components/ui/field";
+import { LiveBanner } from "@/components/auth/form-banner";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -82,6 +83,13 @@ export function UserLifecycleActions({
     "deactivate" | "reactivate" | "suspend" | "resend" | null
   >(null);
   const [suspendUntil, setSuspendUntil] = useState("");
+  // ⛔ GENERATED, never the literal `"suspend-until"` it used to be. A hardcoded DOM id
+  // is unique only while exactly one instance renders, and `htmlFor` resolves to
+  // whichever element comes FIRST in document order — so the second instance silently
+  // steals the first one's label (BUG-A11Y-001, which is why `useFieldIds` exists).
+  // "Only one renders today" is a fact about the page, not a property of this component,
+  // and it is the half that changes.
+  const suspendUntilField = useFieldIds("suspendUntil");
 
   function run(action: () => Promise<{ ok: boolean; error?: string }>) {
     setError(null);
@@ -104,7 +112,11 @@ export function UserLifecycleActions({
 
   return (
     <div className="flex w-full flex-col gap-3 lg:w-auto">
-      {error ? <FormBanner tone="error">{error}</FormBanner> : null}
+      {/* PERMANENTLY MOUNTED — see `LiveBanner`. This banner is the ONLY report of a
+          refused lifecycle action, because the confirm dialog closes on either
+          outcome; a region that mounted with its own text would leave the refusal
+          painted and unspoken. */}
+      <LiveBanner tone="error">{error}</LiveBanner>
 
       <div className="flex flex-wrap gap-2">
         {status === "pending" ? (
@@ -243,9 +255,11 @@ export function UserLifecycleActions({
           </AlertDialogHeader>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="suspend-until">Suspenso até (opcional)</Label>
+            <Label htmlFor={suspendUntilField.controlProps.id}>
+              Suspenso até (opcional)
+            </Label>
             <DatePicker
-              id="suspend-until"
+              id={suspendUntilField.controlProps.id}
               value={suspendUntil}
               onChange={setSuspendUntil}
               clearable

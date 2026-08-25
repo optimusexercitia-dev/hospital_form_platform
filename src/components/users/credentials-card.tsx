@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, ShieldAlert, TriangleAlert } from "lucide-react";
 
@@ -10,8 +10,13 @@ import { removeCredential, upsertCredential } from "@/lib/users/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { Field, FieldLabel, useFieldIds } from "@/components/ui/field";
-import { FormBanner } from "@/components/auth/form-banner";
+import {
+  Field,
+  FieldError,
+  FieldLabel,
+  useFieldIds,
+} from "@/components/ui/field";
+import { LiveBanner } from "@/components/auth/form-banner";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -225,6 +230,14 @@ function CredentialsDialog({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // ⛔ FIELD-LEVEL, NOT THE FORM BANNER. "Informe o número do registro." is a fact about
+  // ONE input, and a banner cannot carry `aria-invalid` / `aria-describedby` back to it:
+  // a screen-reader user landing on the field heard a valid, unremarkable text box and
+  // was refused with no explanation attached to the thing that was wrong. Same wiring as
+  // `PersonalDataDialog`'s `fieldErrors.fullName`. The banner keeps the SERVER's
+  // messages, which are about the write, not about a field.
+  const [numberError, setNumberError] = useState<string | null>(null);
+  const numberRef = useRef<HTMLInputElement>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   const [authority, setAuthority] = useState(
@@ -235,13 +248,21 @@ function CredentialsDialog({
 
   const authorityField = useFieldIds("credentialAuthority", { required: true });
   const stateField = useFieldIds("credentialState", { required: true });
-  const numberField = useFieldIds("credentialNumber", { required: true });
+  const numberField = useFieldIds("credentialNumber", {
+    required: true,
+    hasError: Boolean(numberError),
+  });
 
   function save() {
     if (!number.trim()) {
-      setError("Informe o número do registro.");
+      setNumberError("Informe o número do registro.");
+      // The refusal is ABOUT this input, so put the caret in it. Focus makes the
+      // now-wired `aria-invalid` + `aria-describedby` audible on arrival rather than
+      // only to someone who happens to navigate back over the field.
+      numberRef.current?.focus();
       return;
     }
+    setNumberError(null);
     setError(null);
     startTransition(async () => {
       const result = await upsertCredential({
@@ -266,6 +287,7 @@ function CredentialsDialog({
 
   function remove() {
     if (!credential) return;
+    setNumberError(null);
     setError(null);
     startTransition(async () => {
       const result = await removeCredential(credential.id);
@@ -302,7 +324,7 @@ function CredentialsDialog({
       pendingLabel="Salvando…"
       isPending={isPending}
     >
-      {error ? <FormBanner tone="error">{error}</FormBanner> : null}
+      <LiveBanner tone="error">{error}</LiveBanner>
 
       <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/12 px-3 py-2.5 text-[0.72rem] text-warning text-pretty">
         <TriangleAlert aria-hidden="true" className="mt-px size-3.5 shrink-0" />
@@ -376,12 +398,20 @@ function CredentialsDialog({
             <FieldLabel htmlFor={numberField.controlProps.id}>Número</FieldLabel>
             <Input
               {...numberField.controlProps}
+              ref={numberRef}
               type="text"
               className="h-10 font-mono text-[0.78rem]"
               value={number}
               disabled={isPending}
-              onChange={(e) => setNumber(e.target.value)}
+              onChange={(e) => {
+                setNumber(e.target.value);
+                // Retire the refusal as soon as the admin acts on it — leaving
+                // `aria-invalid` on a field that now has a value announces the input
+                // as broken while they are still typing into it.
+                if (numberError) setNumberError(null);
+              }}
             />
+            <FieldError id={numberField.errorId}>{numberError}</FieldError>
           </Field>
         </div>
       </div>

@@ -13,7 +13,7 @@ import {
   FieldLabel,
   useFieldIds,
 } from "@/components/ui/field";
-import { FormBanner } from "@/components/auth/form-banner";
+import { LiveBanner } from "@/components/auth/form-banner";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -151,7 +151,7 @@ export function CommitteesPanel({
         ) : null
       }
     >
-      {error ? <FormBanner tone="error">{error}</FormBanner> : null}
+      <LiveBanner tone="error">{error}</LiveBanner>
 
       {memberships.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border bg-muted/40 px-4 py-6 text-center text-xs text-muted-foreground text-pretty">

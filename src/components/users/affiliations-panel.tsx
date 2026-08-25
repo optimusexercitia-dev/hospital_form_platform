@@ -20,7 +20,7 @@ import {
   FieldLabel,
   useFieldIds,
 } from "@/components/ui/field";
-import { FormBanner } from "@/components/auth/form-banner";
+import { LiveBanner } from "@/components/auth/form-banner";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -359,7 +359,7 @@ function AffiliationRow({
         </div>
       ) : null}
 
-      {state?.ok ? <FormBanner tone="success">{state.error}</FormBanner> : null}
+      <LiveBanner tone="success">{state?.ok ? state.error : null}</LiveBanner>
 
       <AlertDialog open={confirmEnd} onOpenChange={setConfirmEnd}>
         <AlertDialogContent>
@@ -508,7 +508,7 @@ function AffiliationDialog({
       isPending={isPending}
       submitDisabled={!editing && !hospitalId}
     >
-      {error ? <FormBanner tone="error">{error}</FormBanner> : null}
+      <LiveBanner tone="error">{error}</LiveBanner>
 
       {editing ? (
         <Field>
