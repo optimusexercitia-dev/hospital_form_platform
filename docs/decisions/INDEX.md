@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**141 ADRs** · next free number: **0144** · 37 carry an inbound supersedes/amends edge
+**142 ADRs** · next free number: **0145** · 37 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -125,7 +125,7 @@
 | 0101 | [The role→landing guard is catalog-derived, not remembered](0101-role-landing-guard.md) | accepted | 2026-08-07 | – | – |
 | 0102 | [`p_expires_at` is a real setter on both grant paths (extend-on-regrant)](0102-extend-on-regrant-expiry-seam.md) | accepted | 2026-08-07 | amends 0100 | – |
 | 0103 | [On the case-access door, a NULL expiry means PERMANENT (and that is intended)](0103-case-access-null-expiry-is-permanent.md) | accepted | 2026-08-07 | – | – |
-| 0104 | [PDF document printing module: record-semantics minting, single registry, template pipel…](0104-pdf-document-printing-module.md) | accepted | 2026-08-07 | – | ⚠ amended by 0125 |
+| 0104 | [PDF document printing module: record-semantics minting, single registry, template pipel…](0104-pdf-document-printing-module.md) | accepted | 2026-08-07 | – | ⚠ amended by 0125, 0144 |
 | 0105 | [Rename `is_commission_admin_of` → `is_tenancy_admin_of`](0105-rename-is-tenancy-admin-of.md) | accepted | 2026-08-08 | – | – |
 | 0106 | ["Act as": role assumption as a binding constraint](0106-act-as-role-assumption.md) | accepted | 2026-08-09 | – | – |
 | 0107 | [ACT S4: hat-blindness gets its own allowlist artifact + a self-testing standing sweep](0107-act-s4-hat-blind-sweep-and-allowlist.md) | accepted | 2026-08-10 | – | – |
@@ -165,3 +165,4 @@
 | 0141 | [Cases board (`manage/cases`) filter redesign: actionable KPIs, saved views, advanced pa…](0141-cases-board-filter-redesign.md) | accepted | 2026-08-24 | – | – |
 | 0142 | [One PHI dialog layout; the Atividade composer removed; the Process rail reordered](0142-phi-dialog-layout-atividade-composer-removal-process-rail.md) | accepted | 2026-08-24 | amends 0137 | – |
 | 0143 | [A gate for double-encoded UTF-8 (mojibake) in tracked text](0143-mojibake-gate-double-encoded-utf8.md) | accepted | 2026-08-25 | – | – |
+| 0144 | [Printing Cases (ADR 0104 P3): the dossier, its lock point, and the PHI fork](0144-case-printing-dossier-lock-and-phi-fork.md) | accepted | 2026-08-25 | amends 0104 | – |

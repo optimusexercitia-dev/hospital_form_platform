@@ -3140,3 +3140,54 @@ much the worst, since it strands a filler mid-response. `submit_response` alone 
 one definition on `eval_visibility`) — pgTAP 367 §7 pins it with a POSITIVE CONTROL asserting
 `eval_condition` still raises, so the doors' survival is attributable to the swap and not to the shape
 being unreachable. ⛔ Stays here until the increment is approved and recorded (§6 step 5).
+
+## Rotated 2026-08-25 — the § Bug Log "Closed →" subsection (the 2026-08-19 re-homing record)
+
+Concluded narrative describing where the old standing warnings went. Rotated at PDF·P3 to keep
+PROGRESS.md under the 80 KB cap; links repointed for this directory.
+
+Closed rows and their closure narratives live in the archive. The standing **warnings**
+this subsection used to hold were rules with no resolution event — which is why it could
+only grow. Rotated verbatim 2026-08-19 and re-homed:
+
+- **Path-scoped rule files**, loaded when you open the file they govern:
+  [answer-maps](../../.claude/rules/answer-maps.md) · [radix-dialogs](../../.claude/rules/radix-dialogs.md).
+  Staleness **and volume** gated by `npm run lint:rules`.
+- **The `is_active` print-door prohibition was a rule for one day and is now RETIRED** —
+  measured at **659 files** matched, and already enforced by pgTAP `342` S3c3. Full text +
+  reasoning → [rules-archive](rules-archive.md).
+- **Already enforced in code**, so no rule was written: the minutes `MINUTES_SERVICE_URL`
+  precondition (fails fast in `e2e/meeting-audio-minutes.spec.ts`), the `set local` watermark
+  (`lint:set-local`), the door-ACL census (pgTAP `320`).
+- **Not admitted — no verifiable anchor:** *"date a log before citing it"* (its
+  `batch-9-unrun.log` is untracked, so nothing could check it). Kept in the archive only.
+
+## Rotated 2026-08-25 — the two PDF·P3 patient-mapping bugs, both CLOSED
+
+Both FIXED in `0c472b54` and VERIFIED CLOSED at the rendered page by `tester`: a case with all
+eight patient fields renders **8 of 8** on the identified variant and **exactly D5's floor**
+(age + sex + unit) on the de-identified one, with all five identified fields absent — two-sided,
+with a positive control on every pass. Rotated at the E2E gate to keep PROGRESS.md under cap.
+⭐ The lasting lesson is in the first row: **a correct privacy decision (ADR 0144 Amdt 2 pt 3 —
+no marker for a missing demographic) made a correctness bug invisible on the page.**
+
+🔴 **BUG-P3-PATIENT-FIELD-MAPPING — the case dossier silently omits 3 of 8 patient fields, incl. a
+third of D5's de-identification floor.** Filed 2026-08-25 by `tester`, root cause verified by the lead.
+`getCasePatients` returns **camelCase**; `pdf-payload.ts:167` casts it to the **snake_case**
+`RawPatientRow`, so `age_years` / `date_of_birth` / `encounter_ref` read `undefined`. The other five
+survive only because their names are identical in both shapes. ⛔ **The `as` cast is why `tsc` stayed
+green.** ⭐ **A correct privacy decision hid it:** ADR 0144 Amdt 2 pt 3 renders a missing demographic
+with NO MARKER (a marker would print the minter's entitlement), so the omission is indistinguishable
+on the page from a legitimate entitlement-driven absence. ⚠ **Bound, quote it with the finding:** NOT
+a security or Art. 18 defect — `sex`/`unit` still map and `sex` is never null, so `contains_phi` stays
+true, storage stays `documents-phi`, and disposal still reaches it (both directions measured). Fix =
+**delete the cast**, not rename around it. No test at any level covers the read→render mapping —
+backend
+
+🔴 **BUG-P3-PHI-REFUSAL-MESSAGE — an UNENTITLED caller is told the case has no patient data.** Same
+root cause, other half: `getCasePatients` does `if (!data) return []`, so it can never return `null`
+and `pdf-payload.ts:170`'s `NO_PATIENT_ACCESS` throw is **unreachable dead code**. The DB door is
+correct (`get_case_patients` returns literal `null` over PostgREST); the collapse is in the query
+layer. ⛔ Breaks ADR 0144 Amdt 2 pt 5's three-answer contract (`null` / `[]` / rows). A false statement
+about a record's contents, to a reader not entitled to know them — backend
+

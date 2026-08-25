@@ -4679,6 +4679,29 @@ ones reports as parity. Flakiness is precisely the property that needs identity 
 assuming parity**. The honest answer is what produced the finding — a confident "same two, parity" would have
 closed the question and left the instrument broken.
 
+> ### ⭐ SECOND FAILURE MODE OF THE SAME DEFECT, measured 2026-08-25 (PDF·P3 gate)
+>
+> This item predicted that a non-run-scoped `GATE_LOGDIR` **destroys** evidence by overwriting
+> `batch-N.log` between runs. It does — and it also does the **opposite**, which nobody had named:
+> **the directory is never cleaned, so stale logs from earlier gates inflate any count taken from it.**
+>
+> `tester` was one step from reporting **20 infra retries** for a run that had **2**. `grep -c` over
+> `*-rerun.log` counted 18 files left behind by previous gates — `batch-21-rerun.log` was sitting on
+> disk while the run was still on batch 6. ⚠ **Nothing about the output looked wrong**; it took a
+> second, independent method (mtime-scoped to the run start, plus `classified INFRA` lines in the gate
+> log itself) to contradict it, and the two agreed at 2.
+>
+> ⛔ **The generalisable form — third variant of this phase's recurring family:** *a count taken from
+> a source that is not scoped to the question.* The command was correct and answered a real question
+> ("how many rerun logs exist on this disk"), which was simply not the question asked ("how many
+> retries did THIS run need"). Same shape as a zero from a broken matcher and an empty capture from a
+> shape-mismatched pattern: **the output is well-formed, plausible, and about something else.**
+>
+> ⇒ Strengthens the existing fix shape: **run-scoping `GATE_LOGDIR` fixes both directions at once**
+> — no cross-run overwrite, and no cross-run contamination of counts. Until it lands, ⛔ **never take
+> a per-run figure from that directory without scoping it by mtime and corroborating it against the
+> gate log.**
+
 ### 🟡 FUP-AFF2-REGISTRATION-HAS-NO-START-DATE — a plan deliverable was dropped, and the tracker said it shipped (owner: backend then frontend; filed 2026-08-23 at the AFF2 post-Record documentation review)
 
 `registerUser` accepts **no affiliation start date**. The AFF2 plan specifies one — F3 step 2,
@@ -5400,7 +5423,14 @@ output.
 
 ---
 
-### ✅ FUP-P3-MINT-AFFORDANCE-WIDER-THAN-ITS-DOOR — RESOLVED 2026-08-25, same day, by catalog measurement (owner: frontend/qa; filed by the builder as a stated bound on F2)
+### 🟡 FUP-P3-MINT-AFFORDANCE-WIDER-THAN-ITS-DOOR — NARROWED 2026-08-25 by catalog measurement; still OPEN on the identified axis (owner: frontend/qa; filed by the builder as a stated bound on F2)
+
+> ⛔ **HEADING CORRECTED BY THE LEAD, 2026-08-25 — it read `✅ … RESOLVED` while the body below
+> carried a ⛔ saying the resolution does not cover the identified variant.** The builder stated the
+> bound correctly in prose and then over-claimed it in the one line that gets scanned. That is the
+> "a partial fix reads as a complete one" mode: the caveat is real, but a reader skimming for `✅`
+> never reaches it, and severity markers are what drive whether anything gets fixed. **What is
+> closed is the DE-IDENTIFIED axis. What survives is below, under "BOUNDED".**
 
 > **RESOLUTION — the door I needed was already the one the page calls; no new backend surface.**
 > The card now renders on a **non-null `getCasePrintContext`**, which is the DB's own answer to
@@ -5492,6 +5522,378 @@ frontend one, and is why this is filed rather than built.
 ⛔ Not shape (c): re-deriving the predicate's arms in TypeScript. That is the divergence the module's
 standing rule exists to prevent.
 
+**Two facts folded down from the PROGRESS.md index line 2026-08-25** (it had grown to ~2 KB and was
+trimmed to a hook; these were the only claims it carried that this body did not — recorded here so the
+trim loses nothing):
+
+- **The affordance's audience is wider than it reads.** The card renders to everyone
+  `canOpenCaseManagement` admits, which **since ADR 0134 D3 includes `administrativo`s and per-case
+  write-grantees** — not just coordinators. That breadth is why the mismatch with D8's arm
+  (`can_read_case` ∧ the full-content predicate, seven masking axes) has real population behind it.
+- **There is no free fix for the identified axis, measured.** `public.case_viewer_capabilities`
+  returns only `can_read` / `can_write_content` / `can_manage_lifecycle` — **no PHI bit** — and
+  `getCasePrintContext` does not expose `app.can_read_case_patient` either. So a caller holding
+  case-read + full-content but **not** PHI read still sees the checkbox and is refused on submit,
+  and closing that needs shape (a)'s new surface. ⛔ Nothing already on the wire answers it.
+
 **Owner:** frontend/qa (needs a backend surface change under (a)).
+
+---
+
+### 🟡 FUP-P3-DOSSIER-HAS-NO-RECUSAL-ROSTER — the case dossier cannot show who was recused (owner: backend)
+
+> **Filed 2026-08-25 during the PDF·P3 build, as a named gap rather than a silent cut.**
+>
+> `CaseDetail.myRecusal` carries **the caller's own recusal only**; no per-participant recusal
+> roster reader exists in `src/lib/queries/`. So `recusalDisplay` on the dossier's participant
+> entries could be populated **for the minter and for nobody else**.
+>
+> ⛔ **A field populated only for the minter is worse than no field**, and the reason is ADR 0104
+> **A7**: it makes the artifact vary by who printed it. The de-identified variant already carries
+> one bounded A7 exception (ADR 0144 Amendment 2 — three demographic fields, justified by D5's
+> clinical floor and by D14's requirement that a content-only reader can still print). This would
+> be a **second** exception with **no** comparable justification, on a field D2 never enumerated.
+>
+> **Disposition: `recusalDisplay` is DROPPED from the v1 payload type.** D2's enumerated dossier
+> contents do not include recusals, so this is inside v1's stated scope.
+>
+> ⚠ **Why it is filed anyway rather than closed by scope:** ADR 0144 **D8's Consequences paragraph
+> discusses recused members by name** (a recused member can neither mint nor download). A reader who
+> knows recusal is a first-class case concept can reasonably expect the printed record to show it,
+> and "the ADR talks about recusals but the dossier is silent about them" is a gap someone will
+> re-discover from the artifact rather than from this file.
+>
+> **Fix shape (not built):** a per-participant recusal roster reader in `src/lib/queries/`, then a
+> `recusalDisplay` restored to the participant entry. ⛔ It must render for **every** participant or
+> for none — a partial roster reintroduces exactly the minter-varying artifact this note rejects.
+>
+> **Owner:** backend.
+
+---
+
+### 🔴 FUP-CASE-DOCS-DEAD-READER — three surfaces render zero case documents, silently (owner: frontend + backend)
+
+> **Filed 2026-08-25 during PDF·P3 while sourcing D2's document manifest. PREDATES the phase and
+> was deliberately NOT fixed in it.** Found by a cross-check enumeration, verified from the code by
+> `backend`, then re-verified independently by the lead before filing.
+>
+> `listCaseDocuments(caseId)` (`src/lib/queries/case-documents.ts:195`) delegates to `listAttachments`
+> (`src/lib/queries/attachments.ts:57`), whose entire body is **`return []`** — both parameters
+> underscore-prefixed as unused, under the comment *"PARKED (DM1): returns `[]` for every owner until
+> Wave A"*. Its `attachments` substrate was dropped by migration `20260923000100`.
+>
+> **Three live consumers, none with a fallback** (measured: not one of the three files imports
+> `listDocumentsForResource`):
+>
+> | call site | what the user sees |
+> | --- | --- |
+> | `src/lib/queries/case-timeline.ts:435` | the case TIMELINE shows zero documents |
+> | `src/app/o/[org]/c/[commission]/casos/[caseId]/page.tsx:158` | the staff case page's documents list is empty |
+> | `src/app/o/[org]/c/[commission]/manage/cases/[caseId]/(detail)/page.tsx:249` | the coordinator case DETAIL page's documents list is empty |
+>
+> ⚠ **The count matters and was nearly under-reported.** The first relay named only the timeline.
+> "The timeline shows zero" and "three surfaces show zero" are different bugs, and the smaller
+> framing is the one that gets deprioritised — a partial finding reading as a complete one.
+>
+> ⭐ **Why NO GATE CAN SEE THIS.** An empty array is a **legal answer at every layer**: no type error,
+> no lint error, no test failure, no runtime warning. A fixture with zero case documents and a reader
+> that always returns zero are **indistinguishable**. The only thing that could ever have caught it is
+> a human uploading a document and noticing it never appears.
+>
+> **Fix:** repoint all three to `listDocumentsForResource('case', caseId)` (`src/lib/queries/documents.ts`,
+> DM2), adapt the shape, then **delete `listCaseDocuments`** so the dead path cannot be re-adopted.
+> ⛔ **The test must upload a document and assert it APPEARS.** A test asserting the list is
+> well-formed passes against `return []` — it is the same fixture-cannot-reach-the-failing-state trap
+> that hid the defect.
+>
+> ⚠ PDF·P3's own manifest is safe: it is built on `listDocumentsForResource`, never on the dead reader.
+>
+> **Owner:** `frontend` (the two pages) + `backend` (the query layer).
+
+---
+
+### 🟡 FUP-REFERRAL-WIZARD-TEST-HAS-NO-TIMEOUT-MARGIN — a unit test that flakes on a busy box (owner: frontend)
+
+> **Filed 2026-08-25 (PDF·P3, reported by `frontend` as a not-mine red).**
+>
+> `referral-send-wizard-mrn-warning.test.tsx` times out at 5000 ms under parallel full-suite load.
+> Run **alone** it passes 6/6 — in **5.05 s against a 5000 ms per-test timeout**, i.e. essentially
+> **zero margin**. Its subject imports nothing the P3 work touched.
+>
+> ⚠ **The cost is misattribution, not the red itself.** A test with no margin fails whenever the
+> machine is busy, and it fails *during someone else's change* — so it is read as a regression in
+> whatever landed most recently. That is expensive twice: once to investigate, once more when the
+> real cause is dismissed as "the flaky one" on the day it is genuine.
+>
+> ⛔ **Do not fix it by raising the timeout alone.** A 5.05 s unit test is the finding; the timeout is
+> just what surfaced it. Establish where the 5 s goes first — if it is fake-timer or
+> `waitFor`-polling cost the fix is in the test, and if it is render cost the fix is in the subject.
+>
+> **Owner:** `frontend`.
+
+---
+
+### 🟠 FUP-CASE-CONFIDENTIALITY-VS-PHI — a case can be classified "no patient data" while holding patient data (owner: backend + PO ruling)
+
+> `cases.confidentiality_level` and `cases.has_patient` are **unconstrained against each other**:
+> nothing in the schema, no CHECK and no trigger prevents a case from being classified
+> `non_phi_internal` while carrying patient data. Measured on the seed 2026-08-25: **2 of 8 cases**
+> hold exactly that pair. The label for that level is *"Interno (sem dados de paciente)"*, so the
+> classification asserts something about CONTENT that the platform does not enforce.
+>
+> It surfaced in PDF·P3 as a printed dossier headed *"Interno (sem dados de paciente)"* while its own
+> confidentiality band read *"CONTÉM DADOS DE PACIENTE"* and its body printed a patient name and MRN.
+>
+> ⚠ **The print side is already mitigated** (ADR 0144 Amdt 3 frames the label as *"Classificação
+> declarada"*, which stays true regardless), so this is **NOT a printing bug and must not be closed by
+> pointing at that fix.**
+>
+> Three candidate answers, none chosen: **(a)** constrain the pair (a trigger, or a CHECK plus a
+> backfill of the offending rows); **(b)** derive `confidentiality_level` from content rather than
+> storing it as a declaration; **(c)** accept the pair as legitimate and **re-label the level** so it
+> stops asserting absence of patient data — the cheapest, and the only one touching no case data.
+> ⚠ The level also drives access decisions elsewhere, so re-labelling is **not purely cosmetic**.
+>
+> Predates PDF·P3; found by its visual pass. **Owner:** `backend` + a PO ruling on which answer.
+
+---
+
+### 🟡 FUP-CASE-NUMBER-FORMAT-HAS-EIGHT-AUTHORITIES — `padStart(4,'0')` is reimplemented at 8 sites (owner: frontend)
+
+> `formatCaseNumber` (`src/components/cases/format.ts:10`) is the intended canonical zero-pad, but the
+> rule is **reimplemented inline at 7+ further sites that never call it**:
+> `itens-de-acao/[itemId]/page.tsx:262,276` · `nsp/[eventId]/page.tsx:131` ·
+> `action-items-table.tsx:334,367` · `interviews/format.ts:33,38` · `meetings/action-item-form.tsx:49`.
+>
+> ⚠ **Why it is filed rather than folded into PDF·P3:** moving `format.ts` down to `src/lib/cases/` so
+> the dossier can use it (the F4 move) makes the printed record consistent with **one of eight**
+> implementations. That is a real improvement and it is **not** single-authority — and describing the
+> move as "the dossier now uses the canonical formatter" would over-claim exactly the way a partial fix
+> reads as a complete one.
+>
+> Surfaced by PDF·P3: the dossier printed `Caso 1` while the app and the mint dialog printed `Caso 0001`
+> — and page 5 of that same PDF carried a user-authored interview titled *"Entrevista sobre o Caso
+> 0001"* directly beneath a header reading *"Caso 1"*. Both forms, one page.
+>
+> **Fix:** repoint the seven inline sites at the shared formatter, then keep new ones out. ⛔ A ninth
+> `padStart` is the failure mode, not the eight existing ones. **Owner:** `frontend`.
+>
+> ⛔ **TWO TRAPS FOR WHOEVER PLANS THIS SWEEP — added 2026-08-25, both measured.**
+>
+> **1. One of the eight is NOT substitutable.** `src/components/referrals/format.ts:18` defines its own
+> `formatCaseNumber` with a **different signature** — `(n: number | null | undefined)`, returning
+> `"—"` on null. Repointing it at the shared formatter **changes its null behaviour**, so this entry
+> needs a null-handling decision, not a find-and-replace. A mechanical sweep that treats all eight as
+> duplicates will silently change what a referral renders for an absent case number.
+>
+> **2. `formatCaseNumber` is a PREFIX of `formatCaseNumberWithTerm`**, so a naive search for the short
+> name matches both and double-counts — measured live during F4, where the first extractor reported
+> "NOT A PURE MOVE" for exactly this reason before being anchored on the `(`. Same family as the
+> `\y`/`_for` trap that has cost this repo two sweeps: **the boundary is a property, not a syntax.**
+
+---
+
+### 🟡 FUP-BULK-GRID-MODEL-IMPORTS-UPWARD — a `src/lib` → `src/components` dependency no gate can see (owner: frontend)
+
+> `src/lib/cases/bulk-grid-model.ts:22` imports `CustomFieldValueDraft` from
+> `@/components/cases/custom-field-input` — a real **`src/lib` → `src/components`** dependency, the
+> layering inversion F3 and F4 exist to remove.
+>
+> ⚠ **It is an `import type`, so it erases at build and NOTHING can report it.**
+> `lint:client-server-imports` checks **value** imports only, by design; `tsc` is satisfied because
+> the type resolves; nothing at runtime is affected. So the inversion is real, permanent, and
+> invisible to every gate in `npm run lint`.
+>
+> ⛔ Do not "fix" it by widening `lint:client-server-imports` to type imports — that gate exists for a
+> different defect (a client value-import from a server query module **aborts `next build`** while
+> tsc/lint/vitest stay green) and widening it would blur what a red from it means.
+>
+> **Fix:** the F3/F4 shape — the type belongs in `src/lib/cases/types.ts`, with the component
+> re-exporting if it needs the name. Unrelated to printing; found while censusing for F4.
+> **Owner:** `frontend`.
+
+---
+
+### 🟡 FUP-MOCKED-MODULE-ASSERTED-ABOUT-ITSELF — suites that mock a module and then assert a property OF that module (owner: backend + qa)
+
+> **Filed 2026-08-25 (PDF·P3), from a live instance rather than a hypothesis.**
+>
+> `src/lib/cases/pdf-payload.test.ts` mocked `@/lib/queries/cases` wholesale and then asserted a
+> property of `getCasePatients` — that an unentitled caller and an entitled-but-empty one produce
+> **different** messages. Re-introducing the exact defect (`if (!data) return []`, collapsing the
+> door's three answers into two) left **every assertion green**, including that one.
+>
+> ⭐ **Why this is worse than an ordinary weak test: the assertion NAMES the defect.** A reviewer —
+> the lead, who wrote the specification the test satisfied — reads a test that spells out the symptom
+> and concludes it is covered. **The mock boundary is invisible at the assertion line:**
+> `expect(unentitled).not.toBe(empty)` reads as a complete claim, and nothing at the point of reading
+> says the module producing both values was replaced by a stub three imports up.
+>
+> **Closed for that instance** by `src/lib/queries/case-patients-door.test.ts`, which mocks the
+> Supabase client one layer lower so the real door body runs (same mutation reds it, restore greens
+> it) — and, the durable half, by **retitling the first suite "provider half only" with a ⛔ naming
+> the file that covers the root cause.** The second file closes the instance; the title stops the next
+> reader drawing the wrong conclusion.
+>
+> **The open work is the sweep, and it is deliberately narrow and greppable:** find suites that
+> `vi.mock` a `@/lib/queries/*` module and then assert a property **of that module**. ⛔ Not an
+> open-ended test audit — that predicate is the whole reason this is actionable.
+>
+> ⚠ **A green suite is not evidence here.** Every instance of this class is green by construction; the
+> only detection is re-introducing a defect in the mocked module and checking whether anything reds.
+>
+> **Owner:** `backend` (the sweep) + `qa` (review focus).
+
+---
+
+### 🔴 FUP-E2E-GATE-CLASSIFIER-BLIND-TO-WORKER-CRASHES — a host-resource collapse is booked as failures against the phase under test (owner: tester + backend)
+
+> `scripts/e2e-prod-gate.sh`'s infra classifier keys on `server_dead` / `conn_errors` /
+> `pgrst_unready`. A Playwright **worker process** dying and a **browser target** crashing match
+> **none** of those, so a host-resource collapse is recorded as ordinary test failures attributable to
+> whatever phase is under test.
+>
+> **Measured 2026-08-25 (PDF·P3 gate, `615afaf0`).** Batch 13 reported `16 passed, 27 failed,
+> 14 did-not-run` and was **not** classified INFRA. Error census of that batch:
+> `worker process exited unexpectedly` ×53 · `browserContext.newPage: Target crashed` ×1 ·
+> **strict-mode violations 0** · assertion failures **0**. The 27 were booked against
+> `phase-multitenancy` (13), `phase11-interviews` (13) and `phase10-meetings` (1) — **three files the
+> phase never touched.** Re-run in isolation against the same prod build: **57/57 pass, 0 flaky**, and
+> the `worker process exited` signature never reappeared.
+>
+> ⭐ **Impact — the headline verdict was wrong by 5.7×.** The gate read
+> `GATE RED — 34 real failure(s)` when the attributable count was **6**. A reader triaging from the
+> summary would have spent it on three unrelated files. This is the *"~320 of ~370 E2E failures were
+> infra, against 3 real regressions"* problem the classifier exists to solve, **recurring through a
+> signature the existing fix does not recognise.**
+>
+> ⚠ **It inflates TWO summary fields, not one:** the 14 masked tests in that batch also counted
+> toward the summary's `did-not-run 29`, so an unrecognised infra event corrupts both the failure count
+> and the coverage story.
+>
+> ⚠ **And it makes the reassuring field the misleading one:** that same run's summary read
+> **`0 infra`** while **3** `server_dead` retries had occurred — zero because each retry *succeeded* and
+> absorbed its failures. **Green-after-retry and green-first-time are different facts and the summary
+> cannot distinguish them.**
+>
+> **Suggested fix:** add `worker process exited unexpectedly` and `Target crashed` to the infra
+> signature set. ⛔ **Prove the detector can FAIL before trusting it** — a classifier arm that only ever
+> passes is vacuous, per the gate doc's own fault-injection checklist
+> ([e2e-prod-build-gate.md](../testing/e2e-prod-build-gate.md), *"each must fail and pass in the right
+> direction"*).
+>
+> **Owner:** `tester` (signature + fault injection) + `backend` (script).
+
+---
+
+### 🟡 FUP-MOJIBAKE-GATE-BLIND-TO-UNTRACKED-FILES — a brand-new file is in no `ls-files` set, so gate 10 passes it vacuously (owner: backend)
+
+> `scripts/check-mojibake.mjs:144` sources its file list from `git ls-files`. That lists the
+> **index**, so a *staged* file is covered — but an **untracked** one is outside the gate's domain
+> entirely. The blind window is therefore "authored but never `git add`-ed", which is **exactly the
+> state a phase's new files are in when `npm run lint` runs at Phase Gate step 1.**
+>
+> **Measured 2026-08-25 (PDF·P3).** `lint:mojibake` printed
+> `OK (self-test passes; 2825 tracked text files clean)` at exit 0 while **four artifacts of the phase
+> being gated** were not in the 2825: ADR [0144](../decisions/0144-case-printing-dossier-lock-and-phi-fork.md)
+> (496 lines), [case-printing-p3.md](../plans/case-printing-p3.md) (218),
+> [case-printing-p3-substrate.md](../plans/case-printing-p3-substrate.md) (329) and
+> `e2e/pdf-printing-cases.spec.ts` (1183) — **2,226 lines**. Scanned separately by importing the
+> module's own `hasMojibake` (positive control fired on a known-corrupt line; negative control clean on
+> valid pt-BR): **0 hits**. So the files are clean — but they were clean **unproven by the gate whose
+> green line reads as having checked them.**
+>
+> ⭐ **Same structural shape as ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md)
+> Amendment 3** — *"a brand-new gate is in no BLIND set, so it passes `ARM=policy` vacuously."* Here a
+> brand-new **file** is in no `ls-files` set. In both, the thing most likely to be wrong is the thing
+> the domain excludes.
+>
+> ⚠ **The direction is the hazard.** The gate is blind precisely at authoring time — when a fresh
+> shell round-trip is most likely to have corrupted the bytes — and ADR
+> [0143](../decisions/0143-mojibake-gate-double-encoded-utf8.md) records that the corruption **COMPOUNDS**
+> per repeat. A layer added while the file was untracked is already permanent at first commit; the
+> gate then starts watching a file it can no longer save.
+>
+> **Suggested fix:** union the list with `git ls-files --others --exclude-standard`. ⛔ **Prove it can
+> fire** — red the new arm on a deliberately corrupted *untracked* file before trusting it, or the fix
+> is the same vacuity one level along.
+>
+> **Owner:** `backend`.
+
+---
+
+### 🔴 FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH — the one failure mode the gate detects is the one whose evidence it deletes (owner: tester + backend)
+
+> `scripts/e2e-prod-gate.sh:308` redirects each batch's standalone server to a **fixed**
+> `server.log` with a **truncating** `>`, so every batch overwrites the last. The file is surfaced
+> at exactly one place — line 412, on `start_server` **failure**.
+>
+> ⇒ A server that **fails to start** gets its log tailed. A server that starts cleanly and then
+> **dies mid-batch** — the `server_dead` condition **the INFRA classifier exists to detect** —
+> leaves **no retained server-side artifact at all.**
+>
+> **Verified 2026-08-25, not taken on report:** `server.log` occurs at exactly **2** lines in the
+> script; truncating redirects to it = **1**, appending = **0**. ⭐ **And per-batch naming was never
+> unavailable** — the same script already writes `batch-$BATCH_NO.log`, `batch-$BATCH_NO-unrun.log`
+> and `reset-batch-$BATCH_NO.log`. The server log is the **lone exception to a convention the script
+> itself established**, and it is the exception for the one artifact a collapse investigation needs.
+>
+> **Consequence, measured across two full gates.** Batch 6 collapsed in run 1 (retry recovered) and
+> again in run 2 (**retry failed**: 15 passed, 17 failed, 36 did-not-run, `accounted 69/69`).
+> Every reading available in either run was **client-side** — `page.goto: net::ERR` ×33,
+> `server_dead=1`, `conn_errors=33`, **0** strict-mode violations, **0** assertion failures. All of
+> those say *"the server was gone"*; **none says why.** Batch 7's server truncated batch 6's log at
+> 07:32:53, seconds after it died.
+>
+> ⛔ **Three causes are indistinguishable from outside, and they prescribe opposite remedies:**
+>
+> | cause | remedy | cost of guessing wrong |
+> | --- | --- | --- |
+> | V8 heap ceiling | `--max-old-space-size` | `BATCH_SIZE=4` masks it and halves throughput forever |
+> | **unhandled exception in app code** | ⛔ **it is a product DEFECT** | the classifier books a real bug as INFRA, indefinitely |
+> | plain capacity | `BATCH_SIZE=4` (runbook's own remedy) | — |
+>
+> ⭐ **The middle branch is why this is 🔴 and not 🟡.** A genuine application crash presents to this
+> gate as pure infra, in both runs, with the evidence that would distinguish it already deleted. The
+> host was measured clean at the time — **no orphan processes** (all `node.exe` 1.5 min old against a
+> run started 29 min earlier) and **12.2 GB of 32.5 GB free** — so whole-machine exhaustion is out,
+> which makes the two per-process causes *more* likely, not less.
+>
+> ⚠ **Do not seize on `Error: The destination stream closed early`.** It appears in a **currently
+> healthy, passing** batch's log — a client aborting a response mid-flight — and is noise, not a
+> death signature.
+>
+> **Fix:** per-batch filename (`server-batch-N.log`, matching the existing convention) **and** a
+> `tail` on the **INFRA-classification** path, not only the start-failure path. ⛔ Prove it by
+> forcing a mid-batch server death and confirming the artifact survives — a retention fix that is
+> never observed retaining anything is the same vacuity as a classifier arm that only ever passes.
+>
+> **Owner:** `tester` (fault injection) + `backend` (script).
+>
+> ---
+>
+> ### ⭐⭐ SECOND FINDING, SAME CLASS — `GATE_EXIT` is lost for exactly the runs that need it
+>
+> The gate's exit code is captured by a `; echo "GATE_EXIT=$?"` clause **in the launching wrapper**,
+> not by the script. The harness killed that wrapper in **both** full runs (2026-08-25), so the token
+> never appeared either time and the exit code had to be **derived** from the verdict string via the
+> `:505-537` mapping.
+>
+> ⛔ **This makes the reporting contract unsatisfiable, not strict.** The lead required *"`GATE_EXIT`
+> read from the appended variable, never inferred from summary prose"* — a rule that assumes the
+> wrapper outlives an ~80-minute run. It demonstrably does not, twice. A contract requiring an
+> artifact the environment reliably destroys yields either a violated contract or a
+> "not available", and neither is the evidence it was written to get. **The contract must key on the
+> verdict line, or the script must persist the code itself.**
+>
+> ⭐ **THE UNIFYING MECHANISM, and why these are one item:** in both findings **the artifact that
+> proves the outcome is not written durably by the thing that produces it** — the server log goes to a
+> fixed name the next batch truncates, the exit code goes to a shell the harness reaps. Neither
+> survives the run it describes. ⚠ **Both are invisible while everything passes**, and both are gone
+> at precisely the moment someone needs them.
+>
+> **Fix (same shape as above):** the **script** writes `gate-exit` and `server-batch-N.log` into
+> `$GATE_LOGDIR` as it goes. Nothing downstream of the script should have to survive for the run's
+> own evidence to exist.
 
 ---
