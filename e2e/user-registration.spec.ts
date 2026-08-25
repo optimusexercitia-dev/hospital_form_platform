@@ -208,17 +208,29 @@ test.describe('AC1 — org_admin registers a user; appears ATIVO in the director
     await expect(card).toBeVisible({ timeout: 10_000 })
     await expect(card.getByText('Ativo', { exact: true })).toBeVisible()
 
-    // Open the per-user page and confirm the committee/role landed. Scope the
-    // role label to the assignment row (the <li> holding the commission name),
-    // since "Coordenação" also appears in the NSP nav link and the role
-    // <option> — assert on the row's own role <p>.
+    // Open the per-user page and confirm the committee/role landed. Scope the role
+    // label to the assignment row (the <li> holding the commission name), since the
+    // role word also appears in the NSP nav link and the role <option> — assert on the
+    // row's own pill.
+    //
+    // ⚠ SCOPED TO THE "Comissões" CARD as well as the row. The redesigned profile page
+    // (`2f6b0635`) added a "Histórico da conta" timeline built from the same audit rows
+    // that granted this seat, and its event details read "… na Comissão de Farmácia e
+    // Terapêutica, por …" — so a page-wide `locator('li')` filter now matches the
+    // membership row AND its own audit event. Both are `<li>`; only one is the seat.
+    // Scoping to the card is also what keeps the assertion HONEST: an audit line saying
+    // a role was granted is not evidence the membership still exists.
     await card.click()
     await page.waitForURL(/\/usuarios\/[^/]+$/, { timeout: 10_000 })
     const assignmentRow = page
+      .getByRole('region', { name: 'Comissões' })
       .locator('li')
       .filter({ hasText: 'Comissão de Farmácia e Terapêutica' })
     await expect(assignmentRow).toBeVisible()
-    await expect(assignmentRow.getByText('Coordenação', { exact: true })).toBeVisible()
+    // ⚠ The pill's wording changed with the redesign: the profile page now renders
+    // `committeeRoleLabel` ("Coordenador(a)"), where the pre-redesign panel wrote
+    // "Coordenação". The seat asserted is the same one; only the label moved.
+    await expect(assignmentRow.getByText('Coordenador(a)', { exact: true })).toBeVisible()
     // Email renders in both the page header and the Perfil section — assert the
     // header instance (first) is present.
     await expect(page.getByText(email).first()).toBeVisible()
@@ -537,23 +549,96 @@ test.describe('AC6 — committee assignment with role; searchable + paged direct
     await card.click()
     await page.waitForURL(/\/usuarios\/[^/]+$/, { timeout: 10_000 })
 
-    await page.getByLabel('Comissão').selectOption({ label: 'Comissão de Controle de Infecção Hospitalar' })
-    await page.getByLabel('Papel').selectOption('staff')
-    await page.getByRole('button', { name: /adicionar comissão/i }).click()
+    // The assignment form is dialog 3d now (`2f6b0635`) — opened from the "Comissões"
+    // card, portaled to <body>, and submitted with a real `type="submit"` CTA.
+    const comissoes = page.getByRole('region', { name: 'Comissões' })
+    await comissoes.getByRole('button', { name: 'Adicionar a uma comissão' }).click()
+    const addDialog = page.getByRole('dialog', { name: 'Adicionar a uma comissão' })
+    await expect(addDialog).toBeVisible({ timeout: 10_000 })
 
-    await expect(page.getByText('Comissão de Controle de Infecção Hospitalar')).toBeVisible({
-      timeout: 10_000,
+    // ⚠ SELECTED BY VALUE, resolved from the option's own text. The options now read
+    // "<Comissão> — <Hospital>", so the old exact-label match would break on any
+    // hospital rename while telling us nothing about the seat under test.
+    // `exact` — `getByLabel` is a case-insensitive SUBSTRING match, and both role
+    // choice-cards describe themselves as "… da comissão.", so the loose form resolves
+    // to the select plus both radios.
+    const commissionSelect = addDialog.getByLabel('Comissão', { exact: true })
+    const ccihOption = commissionSelect.locator('option', {
+      hasText: 'Comissão de Controle de Infecção Hospitalar',
     })
+    await expect(ccihOption).toHaveCount(1)
+    const ccihValue = await ccihOption.getAttribute('value')
+    expect(ccihValue, 'the CCIH option must carry a commission id').toBeTruthy()
+    await commissionSelect.selectOption(ccihValue as string)
 
-    // Scope the role label to the assignment row (the role <option> also reads
-    // "Membro").
-    const committeeRow = page
+    // "Papel" is a real radio group now, not a <select>. Drive it as one — and drive it
+    // BOTH WAYS: "Membro" is the default, so merely reading it back would pass on a
+    // picker wired to nothing. Moving to Coordenador(a) and back is what proves the
+    // control moves the value that then gets submitted as `staff`.
+    //
+    // ⚠ NOT `check()`. The inputs are `sr-only` and each sits beside the decorative
+    // `aria-hidden` dot that paints the radio, so Playwright's hit test lands on the
+    // span and the click is refused forever. That is not a defect — nobody operates
+    // this control by aiming at a 1px input. The two paths a person actually has are
+    // the CARD (which is the `<label>`) and the ARROW KEYS (which is what makes a
+    // native radio group worth using at all, per `role-choice-cards.tsx`), so those are
+    // the two paths asserted.
+    const membro = addDialog.getByRole('radio', { name: /^Membro/ })
+    const coordenador = addDialog.getByRole('radio', { name: /^Coordenador\(a\)/ })
+    await expect(membro).toBeChecked()
+
+    // Pointer path — the choice-card is the label, so clicking its title selects it.
+    await addDialog.getByText('Coordenador(a)', { exact: true }).click()
+    await expect(coordenador).toBeChecked()
+    await expect(membro).not.toBeChecked()
+
+    // Keyboard path — arrow keys move the selection within the group, the affordance a
+    // set of click-handled <div>s would silently not have.
+    await coordenador.focus()
+    await expect(coordenador).toBeFocused()
+    await page.keyboard.press('ArrowLeft')
+    await expect(membro).toBeChecked()
+    await expect(coordenador).not.toBeChecked()
+
+    await addDialog.getByRole('button', { name: 'Adicionar à comissão' }).click()
+    await expect(addDialog).not.toBeVisible({ timeout: 10_000 })
+
+    // Scope the row to the "Comissões" card: the page's "Histórico da conta" timeline
+    // now carries the same commission name inside its own <li>, so an unscoped filter
+    // matches the seat AND the audit line that recorded it — and only the seat is the
+    // thing this test claims to have created.
+    const committeeRow = comissoes
       .locator('li')
       .filter({ hasText: 'Comissão de Controle de Infecção Hospitalar' })
+    await expect(committeeRow).toBeVisible({ timeout: 10_000 })
     await expect(committeeRow.getByText('Membro', { exact: true })).toBeVisible()
 
+    // NEW SURFACE (redesign 2a): the "Histórico da conta" timeline must record the
+    // grant that was just made. Architecture Rule 11 says every mutation emits an audit
+    // row; this is the first assertion that the row also REACHES the admin looking at
+    // the person, which is the whole point of putting a trail on the profile.
+    //
+    // Asserted against a seat created seconds ago by this very test rather than against
+    // seeded history — a timeline that renders only pre-existing rows would satisfy a
+    // "card is present" check while being disconnected from live writes.
+    await page.reload()
+    const historico = page.getByRole('region', { name: 'Histórico da conta' })
+    const grantEvent = historico
+      .locator('li')
+      .filter({ hasText: 'Comissão de Controle de Infecção Hospitalar' })
+      .first()
+    await expect(grantEvent).toBeVisible({ timeout: 10_000 })
+    // Title + detail together: WHAT changed, and WHERE. `platformRoleLabel` names the
+    // seat ("Membro de comissão"), which is a different string from the row pill above
+    // ("Membro") on purpose — asserting both is what keeps the two surfaces from
+    // silently converging on one label source.
+    await expect(grantEvent).toContainText('Membro de comissão')
+    await expect(grantEvent).toContainText('na Comissão de Controle de Infecção Hospitalar')
+
     // Remove it again (AlertDialog confirm).
-    await committeeRow.getByRole('button', { name: /remover/i }).click()
+    await committeeRow
+      .getByRole('button', { name: 'Remover de Comissão de Controle de Infecção Hospitalar' })
+      .click()
     const dialog = page.getByRole('alertdialog')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
     await dialog.getByRole('button', { name: /^remover$/i }).click()

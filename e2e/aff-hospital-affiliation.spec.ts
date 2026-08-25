@@ -118,6 +118,30 @@ async function addMemberViaPicker(
 }
 
 /**
+ * ONE affiliation row on the person-detail page, addressed through the "Vínculos
+ * hospitalares" card rather than the page.
+ *
+ * ⛔ NOT A TIDINESS HELPER — it is what keeps these assertions MEANING what they say.
+ * The redesigned profile page (`2f6b0635`) added a "Histórico da conta" timeline whose
+ * event details are composed as "… no <Hospital>, por <Nome>", so a hospital name is no
+ * longer unique on the page: an unscoped `getByText(name)` matches the affiliation row
+ * AND its own audit trail. Two failure modes follow, and both are silent — strict mode
+ * reds on a page where the asserted row is present, and (worse) a `.first()` patch would
+ * make "the affiliation exists" pass on an audit line describing an affiliation that had
+ * since been ENDED. The card is where the fact lives, so the card is what gets asked.
+ *
+ * `<ul> → <li>` per affiliation (`affiliations-panel.tsx`), each `<li>` holding the
+ * hospital name in its own `<p>` — hence `exact: true`, which also keeps "Hospital
+ * Central A" from matching a longer sibling name.
+ */
+function affiliationRow(page: import('@playwright/test').Page, hospitalName: string) {
+  return page
+    .getByRole('region', { name: 'Vínculos hospitalares' })
+    .locator('li')
+    .filter({ has: page.getByText(hospitalName, { exact: true }) })
+}
+
+/**
  * Service-role REST read — the strongest available "assert the value, not the toast"
  * check: a raw row in `memberships`, bypassing RLS entirely. Used to confirm a seat
  * really exists (ALLOW arm) and that a sibling-hospital admin's refusal left the row
@@ -220,7 +244,7 @@ test.describe('AFF-1: the Dr. John path end to end — search by CPF, vincular, 
     await page.waitForURL(/\/usuarios\/[^/]+$/, { timeout: 10_000 })
     johnPathUserId = page.url().match(/\/usuarios\/([^/?]+)/)?.[1] ?? ''
     expect(johnPathUserId).toBeTruthy()
-    await expect(page.getByText(CENTRAL_A_NAME)).toBeVisible()
+    await expect(affiliationRow(page, CENTRAL_A_NAME)).toBeVisible()
   })
 
   test('hospitaladmin.dual finds the same CPF at Hospital Secundário A and vincula (outcome B)', async ({
@@ -258,8 +282,17 @@ test.describe('AFF-1: the Dr. John path end to end — search by CPF, vincular, 
     // Assert the VALUE, not a toast: BOTH affiliations are now listed on the person's
     // own page (the exact class of bug ADR 0098 flags for the sibling `updateAffiliation`
     // door — a wired-to-the-wrong-door mutation silently no-ops and only a toast lies).
-    await expect(page.getByText(CENTRAL_A_NAME)).toBeVisible()
-    await expect(page.getByText(SECUNDARIO_A_NAME)).toBeVisible()
+    //
+    // ⚠ SCOPED TO THE CARD, and that is not cosmetic tidying. The profile page now also
+    // renders a "Histórico da conta" timeline whose event details read "no Hospital
+    // Central A, por …", so a page-wide `getByText(CENTRAL_A_NAME)` matches the
+    // affiliation row AND its audit event — a strict-mode violation that reads as a
+    // regression while the row it is asserting is right there. Naming the card also
+    // says what the assertion MEANS: the affiliation exists, not merely that the
+    // hospital's name appears somewhere on the page (which an audit line alone would
+    // satisfy, and which is exactly the silent no-op this assertion exists to catch).
+    await expect(affiliationRow(page, CENTRAL_A_NAME)).toBeVisible()
+    await expect(affiliationRow(page, SECUNDARIO_A_NAME)).toBeVisible()
   })
 
   // BUG-AFF-1 — FIXED, `8155be2` (`authorizeStaffOps` now mirrors
@@ -299,9 +332,21 @@ test.describe('AFF-1: the Dr. John path end to end — search by CPF, vincular, 
     await addMemberViaPicker(page, johnPathEmail)
 
     // UI state: the roster AND the person's own page both show the seat.
+    //
+    // ⚠ THE SEAT, NOT ITS AUDIT LINE. The profile's "Histórico da conta" timeline
+    // renders the very grant this test just made as "… na Comissão de Ética, por …", so
+    // an unscoped name match now finds the membership row AND the event describing it.
+    // Those are not interchangeable evidence: BUG-AFF-1 was a door that REFUSED while
+    // the UI looked fine, and a trail entry can outlive the seat it recorded. The
+    // "Comissões" card is the only one of the two that answers "is this person seated".
     await expect(page.getByText(johnPathName).first()).toBeVisible({ timeout: 10_000 })
     await page.goto(`/o/rede-a/manage/usuarios/${johnPathUserId}`)
-    await expect(page.getByText('Comissão de Ética')).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page
+        .getByRole('region', { name: 'Comissões' })
+        .locator('li')
+        .filter({ hasText: 'Comissão de Ética' }),
+    ).toBeVisible({ timeout: 10_000 })
 
     // DB state, RLS-bypassed: exactly one membership row, never zero (a no-op refusal
     // dressed as success) and never more than one (a duplicate from a retried/racing
@@ -584,52 +629,89 @@ test.describe('AFF-5: matrícula/start-date edits go through updateAffiliation a
     await signInAs(page, 'hospitaladmin.a1@test.local')
     await page.goto(`/o/rede-a/manage/usuarios/${DR_JOHN_UID}`)
 
-    const centralRow = page
-      .locator('div')
-      .filter({ has: page.getByText(CENTRAL_A_NAME, { exact: true }) })
-      .filter({ has: page.getByRole('button', { name: /encerrar vínculo/i }) })
-      .first()
-    const employeeIdInput = centralRow.getByLabel('Matrícula')
-    await expect(employeeIdInput).toBeVisible({ timeout: 10_000 })
-    const original = await employeeIdInput.inputValue()
+    // ⚠ THE EDITOR IS A MODAL NOW (redesign 3c, `2f6b0635`) — the inline per-row
+    // matrícula field is gone and `updateAffiliation` is reached through the row's
+    // "Editar vínculo com <hospital>" trigger. What this test EXISTS to prove is
+    // unchanged and is not negotiable: the door actually writes. Nothing below is
+    // allowed to soften into "a dialog closed".
+    const centralRow = affiliationRow(page, CENTRAL_A_NAME)
+    await expect(centralRow).toBeVisible({ timeout: 10_000 })
 
-    await employeeIdInput.fill(NEW_MATRICULA)
-    await centralRow.getByRole('button', { name: /salvar vínculo/i }).click()
-    await expect(page.getByText(/vínculo atualizado|atualizado/i).first()).toBeVisible({
+    const original = await readMatricula(page, CENTRAL_A_NAME)
+    await setMatricula(page, CENTRAL_A_NAME, NEW_MATRICULA)
+
+    // ⛔ THE TOAST IS GONE, AND ITS REPLACEMENT IS STRICTLY STRONGER. 3c closes on
+    // success and lets the server action's revalidation repaint the card, so what is
+    // asserted here is the ROW as the server re-rendered it — not a client-side claim
+    // that a write happened. `affiliatePerson`'s silent no-op on an existing row (the
+    // bug class `update_affiliation` exists to close) leaves the old matrícula in this
+    // very string.
+    await expect(centralRow).toContainText(`Matrícula ${NEW_MATRICULA}`, {
       timeout: 10_000,
     })
 
-    // The rigor ADR 0098 asks for: reload from scratch and assert the STORED value —
-    // a toast alone cannot distinguish a real write from `affiliatePerson`'s silent
-    // no-op on an existing row (the exact bug class the `update_affiliation` door
-    // exists to close).
+    // The rigor ADR 0098 asks for: reload from scratch and assert the STORED value. A
+    // repaint driven by `revalidatePath` still reads the database, but only a fresh
+    // navigation rules out a cached client tree entirely.
     await page.reload()
-    const reloadedRow = page
-      .locator('div')
-      .filter({ has: page.getByText(CENTRAL_A_NAME, { exact: true }) })
-      .filter({ has: page.getByRole('button', { name: /encerrar vínculo/i }) })
-      .first()
-    await expect(reloadedRow.getByLabel('Matrícula')).toHaveValue(NEW_MATRICULA, {
-      timeout: 10_000,
-    })
+    await expect(affiliationRow(page, CENTRAL_A_NAME)).toContainText(
+      `Matrícula ${NEW_MATRICULA}`,
+      { timeout: 10_000 },
+    )
+    expect(await readMatricula(page, CENTRAL_A_NAME)).toBe(NEW_MATRICULA)
 
-    // Cleanup: restore the seeded value, and verify THAT persists too.
-    await reloadedRow.getByLabel('Matrícula').fill(original)
-    await reloadedRow.getByRole('button', { name: /salvar vínculo/i }).click()
-    await expect(page.getByText(/vínculo atualizado|atualizado/i).first()).toBeVisible({
-      timeout: 10_000,
-    })
+    // Cleanup: restore the seeded value, and verify THAT persists too — asserted on the
+    // form control rather than the row text, because the seeded original may be empty
+    // and an empty matrícula renders no "Matrícula …" segment at all.
+    await setMatricula(page, CENTRAL_A_NAME, original)
     await page.reload()
-    const restoredRow = page
-      .locator('div')
-      .filter({ has: page.getByText(CENTRAL_A_NAME, { exact: true }) })
-      .filter({ has: page.getByRole('button', { name: /encerrar vínculo/i }) })
-      .first()
-    await expect(restoredRow.getByLabel('Matrícula')).toHaveValue(original, {
-      timeout: 10_000,
-    })
+    expect(await readMatricula(page, CENTRAL_A_NAME)).toBe(original)
   })
 })
+
+/** Opens 3c's edit mode over one affiliation row and returns the dialog. */
+async function openAffiliationDialog(
+  page: import('@playwright/test').Page,
+  hospitalName: string,
+) {
+  await affiliationRow(page, hospitalName)
+    .getByRole('button', { name: `Editar vínculo com ${hospitalName}` })
+    .click()
+  const dialog = page.getByRole('dialog', { name: 'Editar vínculo hospitalar' })
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+  // The hospital is read-only in edit mode — confirming it here is what makes the
+  // matrícula assertions below about THIS affiliation rather than whichever row the
+  // trigger happened to belong to.
+  await expect(dialog.getByText(hospitalName, { exact: true })).toBeVisible()
+  return dialog
+}
+
+/** The matrícula currently STORED for an affiliation, read back through 3c. */
+async function readMatricula(
+  page: import('@playwright/test').Page,
+  hospitalName: string,
+): Promise<string> {
+  const dialog = await openAffiliationDialog(page, hospitalName)
+  const value = await dialog.getByLabel('Matrícula').inputValue()
+  await dialog.getByRole('button', { name: 'Cancelar' }).click()
+  await expect(dialog).not.toBeVisible({ timeout: 10_000 })
+  return value
+}
+
+/** Writes a matrícula through 3c and waits for the dialog to close on success. */
+async function setMatricula(
+  page: import('@playwright/test').Page,
+  hospitalName: string,
+  value: string,
+) {
+  const dialog = await openAffiliationDialog(page, hospitalName)
+  await dialog.getByLabel('Matrícula').fill(value)
+  await dialog.getByRole('button', { name: 'Salvar vínculo' }).click()
+  // 3c closes ONLY after the server action resolves ok — a refusal keeps it open and
+  // renders a FormBanner, so "closed" is a real (if weak) success signal. The value
+  // assertions at the call site are what make it a proof.
+  await expect(dialog).not.toBeVisible({ timeout: 15_000 })
+}
 
 test.describe('AFF-6: endAffiliation blockers name the actual seats (D5, HC0R1)', () => {
   // QA pass 1 found English text (" — no hospital") rendered inside this pt-BR alert.
