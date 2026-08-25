@@ -65,12 +65,34 @@ narrowing is deliberately **one-directional**.
 
 ## Consequences
 
-- ⚠ **An author image no longer appears on paper.** `hast-util-sanitize` drops the element, and `alt`
-  is an attribute, so the alt text goes with it: an image-only paragraph prints as `<p></p>` and an
-  inline image vanishes from its sentence. On screen it still renders. **Whether a printed dossier
-  should instead show a visible pt-BR placeholder is a product question this ADR does NOT decide** —
-  it is referred to the PO, because silently omitting content from a legal document and announcing the
-  omission are different postures, and only one of them is a rendering detail.
+- **An author image no longer appears on paper — and says so.** ✅ **PO-ruled 2026-08-25: print a
+  visible pt-BR placeholder**, because silently omitting content from a legal document and announcing
+  the omission are different postures, and only one of them is a rendering detail. A reader comparing
+  screen to paper now sees *[imagem não incluída na versão impressa: &lt;alt&gt;]*, or the same sentence
+  without the colon clause when there is no usable description (absent, empty **or whitespace-only**
+  alt — a whitespace alt printing `[…: ]` would be a visible defect on paper). ⛔ The `src` is never
+  emitted: a URL on paper invites someone to type it in, and it is attacker-controlled by
+  construction. The alt lands in a **text node**, so escaping is a property of the node type rather
+  than hand-rolled — pinned, because "put the alt on paper" is the kind of change someone later
+  reimplements with string concatenation.
+- ⚠ **The transform runs on `hast`, after `remarkRehype`, and that is load-bearing, not stylistic.**
+  Markdown has a second image syntax: `![alt][ref]` with a `[ref]: …` definition parses to
+  `imageReference`, **not** `image`, and only becomes an `img` during conversion. An mdast plugin
+  visiting `image` nodes would print a marker for one syntax and **silently drop the other** —
+  reintroducing this ADR's own defect through the back door. One node shape covers every route an
+  image can take.
+- ⛔⛔ **A defence-in-depth layer above another one can make the lower layer's tests vacuous, and
+  nothing reports it.** With the **schema** narrowing neutralized but the **transform** live, the
+  beacon assertions stayed **GREEN** — the transform removes the `img` node before the sanitizer ever
+  sees it. The behavioural keystone for this ADR was about to stop being able to fail, as a *side
+  effect of a cosmetic fix*. Handled three ways rather than one: the beacon test states that it now
+  proves the **composition** and no longer the schema alone; two structural assertions still red
+  under a schema-only neutralization; and a **labelled layer probe** — the chain minus the transform —
+  gives the schema back a behavioural test that can fail. ⭐ Whoever adds a third layer here owes the
+  same check: **neutralize each layer alone, and require each layer's own assertions to move.**
+  (Corollary measured in the same pass: neutralizing only the `tagNames` filter and not the
+  `attributes.img` drop left an assertion green — a two-part fix neutralized in one part reports a
+  false all-clear, and it also proves the two halves are independently load-bearing.)
 - **The schema is currently the only mitigation.** There is no network-layer backstop: the dev recipe
   is a bare `docker run` with no egress restriction, and the Coolify configuration constrains inbound
   only. Running Gotenberg with **outbound egress denied** is recommended as defence in depth, off the

@@ -1,3 +1,4 @@
+import type { Element, ElementContent, Root, RootContent } from 'hast'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeStringify from 'rehype-stringify'
 import remarkGfm from 'remark-gfm'
@@ -64,6 +65,90 @@ import { PDF_MARKDOWN_SANITIZE_SCHEMA } from '@/lib/markdown/sanitize-schema'
  */
 
 /**
+ * The two halves of the printed marker. Kept as one sentence in two shapes so a
+ * reader meets identical wording whether or not the author wrote an `alt`.
+ *
+ * ⚠ pt-BR, calm, no jargon (Rule 10). It is read by clinicians and by external
+ * auditors holding a printed dossier, not by developers.
+ */
+const IMAGE_PLACEHOLDER_TEXT = 'imagem não incluída na versão impressa'
+
+/**
+ * One dropped `<img>` → the visible marker that replaces it.
+ *
+ * ⛔ **The `src` is never emitted, in any shape.** It is attacker-controlled by
+ * construction (that is the whole of C-2), and a URL printed on paper invites a
+ * reader to type it into a browser — which hands the beacon the click that the
+ * schema just denied the renderer. The marker DESCRIBES; it never links.
+ *
+ * The `alt` is included when the author wrote one, because it is the only
+ * description of the missing content that exists anywhere. It is not a new
+ * disclosure: this document class is entirely PHI-banded (ADR 0144 Amendment 5),
+ * so the alt is already inside the band the dossier is handled under.
+ *
+ * ⚠ The alt lands in a hast TEXT node, so `rehype-stringify` escapes it on the
+ * way out — `![<script>…](…)` prints its angle brackets and executes nothing.
+ * That is a property of the node type, not of a string we escape by hand.
+ */
+function imagePlaceholder(image: Element): Element {
+  const rawAlt = image.properties?.alt
+  const alt = typeof rawAlt === 'string' ? rawAlt.trim() : ''
+  return {
+    type: 'element',
+    // `em` and text need NO schema grant — both are already in the print
+    // allowlist. That is the point of doing this here instead of re-allowing
+    // `img`: the marker exists precisely BECAUSE the element is gone.
+    tagName: 'em',
+    properties: {},
+    children: [
+      {
+        type: 'text',
+        value: alt === ''
+          ? `[${IMAGE_PLACEHOLDER_TEXT}]`
+          : `[${IMAGE_PLACEHOLDER_TEXT}: ${alt}]`,
+      },
+    ],
+  }
+}
+
+/**
+ * Replace every `img` element with {@link imagePlaceholder}, in place.
+ *
+ * ⚠ The `root`/`element` branches are identical text on purpose: `hast` types
+ * `Root['children']` and `Element['children']` as two different arrays, and a
+ * write into the union of them narrows to `never`. Splitting the assignment is
+ * what keeps this cast-free.
+ */
+function replaceImages(node: Root | Element): void {
+  if (node.type === 'root') node.children = node.children.map(mapChild)
+  else node.children = node.children.map(mapChild)
+}
+
+function mapChild<T extends RootContent | ElementContent>(child: T): T | Element {
+  if (child.type !== 'element') return child
+  if (child.tagName === 'img') return imagePlaceholder(child)
+  replaceImages(child)
+  return child
+}
+
+/**
+ * ⭐ **Why this runs on hast (after `remark-rehype`) and not on mdast.**
+ * The obvious seam is a remark plugin visiting mdast `image` nodes — and it is
+ * WRONG, because Markdown has a second image syntax: `![alt][ref]` with a
+ * `[ref]: https://…` definition parses to `imageReference`, not `image`, and
+ * only becomes an `img` during `remark-rehype`. A mdast `image` visitor prints
+ * a marker for one syntax and silently drops the other. Running after the
+ * conversion means ONE node shape (`element` + `tagName === 'img'`) covers every
+ * way an image can reach the document, including any future one. Pinned by the
+ * reference-image test in `sanitize-print-narrowing.test.tsx`.
+ */
+function printImagePlaceholders() {
+  return (tree: Root): void => {
+    replaceImages(tree)
+  }
+}
+
+/**
  * ⚠ Built ONCE at module load, not per call. The pipeline is stateless after
  * `.freeze()`, and rebuilding it per narrative on a 124-page dossier would run
  * the plugin-resolution work hundreds of times per render.
@@ -75,6 +160,12 @@ const PROCESSOR = unified()
   // is dropped at this boundary before the sanitizer even sees it. That is two
   // independent defences, and this one is the cheaper of the two to reason about.
   .use(remarkRehype)
+  // ⭐ ORDER IS LOAD-BEARING: the marker is substituted BEFORE the sanitizer
+  // runs, so no tag has to be newly allowed. ⛔ The sanitizer stays exactly as
+  // ADR 0145 left it — the two are defence in depth, not alternatives. If this
+  // transform were deleted tomorrow the schema would still strip the `<img>`;
+  // the only loss would be that the omission goes back to being silent.
+  .use(printImagePlaceholders)
   .use(rehypeSanitize, PDF_MARKDOWN_SANITIZE_SCHEMA)
   .use(rehypeStringify)
   .freeze()

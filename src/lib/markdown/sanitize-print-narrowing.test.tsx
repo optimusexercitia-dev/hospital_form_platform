@@ -1,4 +1,10 @@
 import { render } from '@testing-library/react'
+import rehypeSanitize from 'rehype-sanitize'
+import rehypeStringify from 'rehype-stringify'
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import remarkRehype from 'remark-rehype'
+import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 
 import { MarkdownRenderer } from '@/components/forms/markdown/markdown-renderer'
@@ -54,9 +60,19 @@ describe('C-2 — <img> is dropped on paper and kept on screen', () => {
     // gets there today.
     expect(html).not.toContain(BEACON_HOST)
 
-    // NOT a claim that the renderer produced nothing: see the ordinary-Markdown
-    // test below, which is what separates "dropped the tag" from "dropped
-    // everything".
+    // NOT a claim that the renderer produced nothing: the marker stands in its
+    // place, and the ordinary-Markdown test below separates "dropped the tag"
+    // from "dropped everything".
+    expect(html).toContain('imagem não incluída na versão impressa')
+
+    // ⚠ WHAT THIS TEST NOW PROVES, AND WHAT IT NO LONGER PROVES ALONE. Two
+    // independent layers strip the `<img>`: the placeholder transform removes the
+    // node, and the sanitize schema would remove it anyway. So this assertion
+    // measures the COMPOSITION. Neutralizing the schema by itself leaves it GREEN
+    // — the transform masks it — which is exactly the shape that turns a keystone
+    // vacuous without anyone noticing. The schema keeps its OWN failing proof in
+    // the two structural tests below and in the isolated layer probe; do not
+    // delete those on the grounds that this one covers the same ground.
   })
 
   it('⭐ CONTROL: the SAME payload still renders an <img> on SCREEN', () => {
@@ -71,6 +87,133 @@ describe('C-2 — <img> is dropped on paper and kept on screen', () => {
     // `undefined`: `toBe` on a concrete string fails for a missing element too.
     expect(img?.getAttribute('src')).toBe('https://attacker.example/x.png')
     expect(container.innerHTML).toContain(BEACON_HOST)
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // The visible marker (PO ruling): announcing an omission and silently making it
+  // are different postures, and a reader comparing screen to paper had no way to
+  // know anything had been there.
+  //
+  // ⚠ The expected strings are written out LONGHAND, deliberately. Importing the
+  // constant from the implementation would make these tests agree with whatever
+  // the implementation says — including a typo, or a future "improvement" into
+  // English. This is the pt-BR copy, pinned.
+  // ───────────────────────────────────────────────────────────────────────────
+  const WITH_ALT = '<em>[imagem não incluída na versão impressa: Radiografia do tórax]</em>'
+  const BARE = '<em>[imagem não incluída na versão impressa]</em>'
+
+  it('⭐ PLACEHOLDER: the alt text is printed when the author wrote one', () => {
+    expect(renderMarkdown('![Radiografia do tórax](https://a.example/x.png)')).toBe(
+      `<p>${WITH_ALT}</p>`,
+    )
+  })
+
+  it('⭐ PLACEHOLDER: the same sentence, without the colon clause, when there is no alt', () => {
+    // All three ways of writing "no description": absent, empty, whitespace. A
+    // whitespace-only alt printing `[…: ]` would be a visible defect on paper.
+    for (const md of [
+      '![](https://a.example/x.png)',
+      '![   ](https://a.example/x.png)',
+      '![](https://a.example/x.png "Radiografia")',
+    ]) {
+      expect(renderMarkdown(md), md).toBe(`<p>${BARE}</p>`)
+    }
+  })
+
+  it('⭐ PLACEHOLDER: both SHAPES survive — no empty <p>, and the sentence still reads', () => {
+    // The two cases measured before the fix: an image-only paragraph printed as
+    // `<p></p>`, and an inline image left `<p>Antes  depois.</p>` with a double
+    // space and nothing to explain the gap.
+    const alone = renderMarkdown('![Radiografia do tórax](https://a.example/x.png)')
+    expect(alone).not.toContain('<p></p>')
+    expect(alone).toContain(WITH_ALT)
+
+    const inline = renderMarkdown(
+      'Antes ![Radiografia do tórax](https://a.example/x.png) depois.',
+    )
+    expect(inline).toBe(`<p>Antes ${WITH_ALT} depois.</p>`)
+  })
+
+  it('⛔ PLACEHOLDER: the src is NEVER emitted, in any shape', () => {
+    // A URL on paper invites a reader to type it in, which hands the beacon the
+    // click the renderer was just denied. The marker describes; it never links.
+    for (const md of [
+      BEACON_MD,
+      `Antes ${BEACON_MD} depois.`,
+      '![](https://attacker.example/x.png)',
+      `[um link](https://attacker.example/page) e ${BEACON_MD}`,
+    ]) {
+      const html = renderMarkdown(md)
+      expect(html, md).not.toContain('x.png')
+      expect(html, md).not.toContain('<img')
+    }
+    // The link in the last payload proves the loop above is not "strips every
+    // URL": an `<a href>` is user-initiated navigation and correctly survives.
+    expect(renderMarkdown(`[um link](https://attacker.example/page) e ${BEACON_MD}`)).toContain(
+      'https://attacker.example/page',
+    )
+  })
+
+  it('⭐ PLACEHOLDER: reference images too — the reason the seam is hast, not mdast', () => {
+    // `![alt][ref]` parses to `imageReference`, NOT `image`, and only becomes an
+    // `img` during remark-rehype. A mdast `image` visitor would print a marker
+    // for one syntax and silently drop this one — the exact defect the PO ruling
+    // exists to remove, reintroduced through the back door.
+    const html = renderMarkdown(
+      'Veja ![Radiografia do tórax][ref] agora.\n\n[ref]: https://attacker.example/x.png\n',
+    )
+
+    expect(html).toBe(`<p>Veja ${WITH_ALT} agora.</p>`)
+    expect(html).not.toContain(BEACON_HOST)
+  })
+
+  it('⛔ PLACEHOLDER: an author-written alt is escaped, not injected', () => {
+    // The alt is author-controlled text travelling into the printed document. It
+    // lands in a hast TEXT node, so rehype-stringify escapes it — but that is a
+    // property worth pinning, because "put the alt on paper" is the kind of
+    // change someone later reimplements with string concatenation.
+    const html = renderMarkdown('![<script>alert(1)</script>](https://a.example/x.png)')
+
+    expect(html).not.toContain('<script>')
+    expect(html).toContain('&#x3C;script>')
+  })
+
+  it('⭐ LAYER PROBE: the sanitize schema still strips <img> on its own', () => {
+    // ⚠ WHY THIS RECONSTRUCTS THE PIPELINE, against this file's own advice. The
+    // placeholder transform now removes `img` nodes BEFORE the sanitizer sees
+    // them, so no input through `renderMarkdown` can still prove the schema is
+    // doing anything — its behavioural proof was silently swallowed by the fix
+    // that sits in front of it. This runs the chain MINUS the transform so the
+    // backstop keeps a test that can fail. It is a deliberate LAYER probe, and
+    // the only reconstruction in this file.
+    //
+    // ⛔ If this ever goes green with `img` restored to the schema, the sanitizer
+    // has stopped being a second line of defence and the transform is alone.
+    const html = String(
+      unified()
+        .use(remarkParse)
+        .use(remarkGfm)
+        .use(remarkRehype)
+        .use(rehypeSanitize, PDF_MARKDOWN_SANITIZE_SCHEMA)
+        .use(rehypeStringify)
+        .processSync(BEACON_MD),
+    )
+
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain(BEACON_HOST)
+    // ...and with the SCREEN schema the same chain keeps the image, so the
+    // assertion above is about the policy and not about the chain.
+    const screenHtml = String(
+      unified()
+        .use(remarkParse)
+        .use(remarkGfm)
+        .use(remarkRehype)
+        .use(rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA)
+        .use(rehypeStringify)
+        .processSync(BEACON_MD),
+    )
+    expect(screenHtml).toContain('<img')
+    expect(screenHtml).toContain(BEACON_HOST)
   })
 
   it('⛔ PRINT: the narrowing is the TAG, not the renderer', () => {
