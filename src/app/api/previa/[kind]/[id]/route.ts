@@ -61,8 +61,35 @@ import { createClient } from '@/lib/supabase/server'
 const KINDS = new Set(['form_response', 'meeting', 'case'])
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Not-found and not-authorized are ONE answer, deliberately — no existence oracle. */
-const NOT_FOUND = 'Registro não encontrado'
+/**
+ * The ONE body every 404 exit on this route returns — not-found and
+ * not-authorized are a single answer, deliberately: no existence oracle.
+ *
+ * ⛔ **DO NOT GIVE ANY EXIT ITS OWN MESSAGE.** Three paths reach a 404 here (an
+ * unknown kind or malformed uuid; the provider throwing; `log_document_previa`
+ * refusing), and the whole point of collapsing them is that the caller cannot
+ * tell which fired. A 403 for the authorization case was rejected because it
+ * confirms the case EXISTS — and a distinguishable *body* leaks the same bit one
+ * layer down, so a per-case string re-creates the oracle the status code was
+ * chosen to prevent.
+ *
+ * ⚠ **`a versão solicitada` LOOKS like a leak and is not**, which is why the
+ * argument is written down rather than left to be re-derived: the caller already
+ * knows which variant they asked for — it is in the URL they clicked (`?phi=1`
+ * or its absence). The phrase returns information the CALLER SUPPLIED, so it
+ * cannot disclose anything they lack. Existence stays undisclosed because the
+ * sentence names two possibilities and commits to neither.
+ *
+ * ⭐ It earns its place by being the only part useful to the actual victim of
+ * BUG-P3-PREVIA-404-COPY: a reader who CAN see the case, asked for the
+ * identified variant, lacks `app.can_read_case_patient`, and was previously told
+ * *"Registro não encontrado"* — a false statement (the record was found) and a
+ * false diagnostic for whoever they escalated to.
+ *
+ * ⚠ Truthful at the malformed-id exit too — awkward there, but not false.
+ */
+const NOT_FOUND =
+  'Não foi possível gerar a prévia. Verifique se o registro existe e se você tem autorização para a versão solicitada.'
 
 /**
  * The D9 identified-prévia flag.
