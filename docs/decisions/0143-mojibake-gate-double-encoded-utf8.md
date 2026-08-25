@@ -71,3 +71,8 @@ fail for the wrong reason.
   regression, only that one exists. Origin of the original 2,059 was never established.
 - ⚠ It reverses exactly **one** layer. Doubly-compounded text would need a second pass, and
   the gate would still red until clean — correct, but the message will not say "run it twice".
+- ⛔ **Documenting the defect trips the gate**, and this is correct behaviour, not a bug: the
+  CLAUDE.md §8 bullet written in the same change reddened gate 10 by containing a literal
+  garbled example. **Do not add an allowlist or a magic "example" marker** — either is a hole
+  the real defect can hide in. Break the adjacency instead: write the characters separately
+  (`` `â`+`¬`+`›` ``), which the run-based matcher ignores and which reads no worse.

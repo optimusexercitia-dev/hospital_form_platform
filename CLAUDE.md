@@ -342,10 +342,11 @@ whose **claim** went false has no gate at all, so that queue is its only witness
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` is **NINE gates chained**; ALL must pass (verify against
+- **Lint gate** — `npm run lint` is **TEN gates chained**; ALL must pass (verify against
   `package.json`, not this list): `eslint --max-warnings=0` **&&** `lint:css-vars` **&&**
   `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous` **&&**
-  `lint:set-local` **&&** `lint:progress` **&&** `lint:rules` **&&** `lint:adr-index`. Each was added after the class it gates shipped a live defect:
+  `lint:set-local` **&&** `lint:progress` **&&** `lint:rules` **&&** `lint:adr-index` **&&**
+  `lint:mojibake`. Each was added after the class it gates shipped a live defect:
   - `lint:css-vars` (`check-tailwind-css-vars.mjs`) — the Tailwind-v4 bare `[--var]` form, which
     compiles to dead CSS; added after it shipped nine dead motion utilities.
   - `lint:memberships-door` (`check-memberships-door.mjs`) — direct `memberships` reads that
@@ -397,6 +398,15 @@ whose **claim** went false has no gate at all, so that queue is its only witness
     *this one was changed* and is deliberately not an edge — conflating them inverts the arrow,
     which it did until fixed. The index also states the **next free ADR number**: take it from
     there, never by eyeballing the directory (two sessions eyeballing it both filed an "ADR 0050").
+  - `lint:mojibake` (`check-mojibake.mjs`) — **double-encoded UTF-8**: a tool read a file as
+    cp1252 and re-saved it, so `⬛` (`E2 AC 9B`) became `â`+`¬`+`›` — permanently, and it **COMPOUNDS**
+    per repeat. The file stays **valid UTF-8**, so there is no bad byte to find. Found **2,059
+    lines / 3 files**, all pre-existing, none detectable by any gate. ⛔ Not cosmetic: a grep for
+    `✅` misses every affected line, so **recorded work reads as absent**. ⚠ **A pattern match is
+    a CANDIDATE, not a finding** — `por quê…` is valid pt-BR of the same shape (2 live in
+    `src/components`); the discriminator is that real mojibake **decodes back**. On Windows the
+    vector is a shell round-trip (`sed -i`, `>` through a cp1252 console) — edit these files with
+    explicit UTF-8. ADR 0143.
   eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
   `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
@@ -446,7 +456,7 @@ npm run gen:types:linked       # regenerate types from the linked remote
 npm run dev                    # Next.js dev server (http://localhost:3000)
 npm run lint && npm run typecheck   # lint = eslint(0 warnings) && css-vars && memberships-door
                                #   && client-server-imports && vacuous && set-local && progress
-                               #   && rules && adr-index — all nine (§8)
+                               #   && rules && adr-index && mojibake — all ten (§8)
 npm run adr:index              # regenerate docs/decisions/INDEX.md — run after writing or
                                #   editing an ADR header; gate 9 reds until you do
 npm run format:check           # Prettier (npm run format writes) — manual, NOT a lint gate;
