@@ -5413,3 +5413,71 @@ output.
 **Owner:** backend/tester.
 
 ---
+
+---
+
+### 🟠 FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-ALTER-POLICY — Amendment 8 decided the fix and the recipe was never edited (owner: backend/lead; filed 2026-08-25, found while auditing a re-discovery)
+
+ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 8**
+(2026-08-23) records this hole completely and rules three changes to the phase step:
+
+1. the recipe greps `alter policy` as well as `create policy`;
+2. **a zero-row case list is a FINDING, not a pass** — *"the recipe printed nothing"* and *"the phase
+   changed no gate"* must stop being the same observation;
+3. an `ALTER POLICY` **invalidates** the altered gate's verdict; it must be re-measured, not inherited,
+   and until the tooling detects that, the operator names the altered policy in `CASES=` explicitly.
+
+**Measured 2026-08-25: none of the three reached the recipe.** The code block under § *The recipe* in
+that same ADR still ends `# + any create policy <name>` and nothing else. The decision and the artefact
+it governs sit **eleven screens apart in one file**, both authoritative, disagreeing.
+
+⭐ **What makes this worth a register line rather than a shrug: the cost was paid again, and measured.**
+During AFF3 (ADR 0145) `backend` derived the case list from the diff exactly as Amendment 1 instructs,
+got **zero rows**, recognised the shape, and hand-added an `alter policy` grep — arriving independently
+at Amendment 8's finding, two days after it was written, without knowing it existed. A second operator
+reproduced the whole diagnosis because the fix lived only in prose. That is the measurement: this hole
+now has a **demonstrated recurrence rate**, not merely a hypothetical one.
+
+⚠ **AFF3 is not itself unproven.** Its sweep ran over the three altered policies named by hand and
+returned `3 swept, 3 COVERED, 0 BLIND, 0 ERROR`, satisfying Amendment 8 ruling 3 in substance. The
+defect is that correctness depended on the operator noticing.
+
+⛔ **Do not close this by editing the ADR's prose alone** — that is the state it is already in. Ruling
+2 in particular needs somewhere that *reds*: a zero-row case list on a diff that touched
+`supabase/migrations/` must fail loudly, or the next operator to get zero rows will read it as a pass,
+which is the original defect with an extra amendment on top.
+
+---
+
+### 🟠 FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE — the blindness gate silently truncates the file every later run compares against (owner: backend; filed 2026-08-25, measured during AFF3)
+
+`supabase/tests/mutation/p0-authz-door-audit.sh:565` emits its report through a **truncating
+redirect**:
+
+```bash
+} > "$FINDINGS"          # $FINDINGS = docs/reviews/authz-door-audit-findings.md (line 65)
+```
+
+`$FINDINGS` is the **committed** baseline. A diff-scoped run — the one CLAUDE.md §6 step 1 mandates
+**every phase** — sweeps only the phase's own gates, so the redirect replaces the full audit with the
+subset. Measured 2026-08-25 during AFF3: **699 lines → 90**. Restored by hand and verified
+byte-identical to `HEAD`; `ARM=wrapper` re-run, BLIND set back to 41.
+
+⛔ **The failure mode is silent and self-concealing.** `FROMFINDINGS=1 ARM=wrapper` — a phase-gate arm —
+compares the committed findings file to an allowlist and **re-measures nothing**. Against a truncated
+file it sees fewer gates, finds every one of them allowlisted, and reports **HOLDS**. The arm gets
+*greener* as the baseline gets *emptier*. Nothing in the gate can distinguish "no blind gates" from
+"almost no gates".
+
+⚠ **The only thing standing between a phase and this today is that the operator remembers.** The
+instruction exists — *"Restore the findings file after a subset run, as with the door sweep"* — but it
+lives inside the body of an unrelated `sign_section` item, reachable only by someone already reading
+that item. A convention that must be recalled at exactly the right moment, by whoever happens to run
+the gate, is the shape this file exists to convert into a check.
+
+**Fix, in preference order:** (a) a run with `CASES=` set writes to a scratch path and never touches
+the committed file; (b) it merges its verdicts into the committed file rather than replacing it;
+(c) failing both, the script **refuses to write** when `CASES=` is set and prints where the subset
+report went. ⭐ Note the script already proves it can reason about this: its DRYRUN path prints
+*"the baseline suite was NOT run; $FINDINGS is UNTOUCHED"* (line 477). The concept exists in the
+script; it is simply not applied to the subset path.
