@@ -110,6 +110,9 @@ function roleLabel(role: string): string {
  * west of UTC, so they are read as LOCAL calendar parts throughout this file.
  */
 function formatDate(iso: string): string {
+  // Total by construction: a caller that hands over a missing date gets empty text,
+  // not a TypeError that unmounts the entire page around one malformed row.
+  if (typeof iso !== "string" || iso === "") return "";
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   if (!y || !m || !d) return iso;
   return new Intl.DateTimeFormat("pt-BR").format(new Date(y, m - 1, d));
@@ -117,6 +120,9 @@ function formatDate(iso: string): string {
 
 /** `fev 2021` — the abbreviated form the ended-row date range uses. */
 function formatMonthYear(iso: string): string {
+  // Total by construction: a caller that hands over a missing date gets empty text,
+  // not a TypeError that unmounts the entire page around one malformed row.
+  if (typeof iso !== "string" || iso === "") return "";
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   if (!y || !m || !d) return iso;
   return new Intl.DateTimeFormat("pt-BR", {
@@ -159,7 +165,11 @@ export function AffiliationsPanel({
   addableHospitals: { id: string; name: string }[];
 }) {
   const manageable = new Set(manageableHospitalIds);
-  const active = affiliations.filter((a) => a.endedOn === null);
+  // `== null` NOT `=== null`. `endedOn` is typed `string | null`, but an affiliation
+  // object built anywhere that omits the key arrives `undefined` — and `undefined !== null`
+  // classifies an ACTIVE affiliation as ENDED, then crashes formatting its absent end date.
+  // That is not hypothetical: it took the whole page down once. Absent means active here.
+  const active = affiliations.filter((a) => a.endedOn == null);
   const available = addableHospitals.filter(
     (h) => !active.some((a) => a.hospitalId === h.id),
   );
@@ -248,11 +258,15 @@ function AffiliationRow({
   const [state, setState] = useState<AffiliationActionState | null>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
 
-  const ended = affiliation.endedOn !== null;
+  const ended = affiliation.endedOn != null;
   const hospitalLabel = affiliation.hospitalName ?? "Hospital não visível";
-  const period = ended
-    ? `${formatMonthYear(affiliation.startedOn)} – ${formatMonthYear(affiliation.endedOn!)}`
-    : `desde ${formatDate(affiliation.startedOn)}`;
+  // ⛔ NARROWED ON THE FIELD ITSELF, never through `ended` plus a `!` assertion. The
+  // assertion that used to sit here silenced the compiler about precisely the one case
+  // that occurred — the ADR 0078 "keystone that could not fail", in miniature.
+  const period =
+    affiliation.endedOn != null
+      ? `${formatMonthYear(affiliation.startedOn)} – ${formatMonthYear(affiliation.endedOn)}`
+      : `desde ${formatDate(affiliation.startedOn)}`;
   const meta = affiliation.hospitalEmployeeId
     ? `Matrícula ${affiliation.hospitalEmployeeId} · ${period}`
     : period.charAt(0).toUpperCase() + period.slice(1);
