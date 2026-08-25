@@ -150,6 +150,8 @@ stop_server() { [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true; 
 on_exit() {
   local rc=$?
   stop_server
+  # `${NONCE_PATH:-}` because on_exit can fire before start_server's block is even reached.
+  [ -n "${NONCE_PATH:-}" ] && rm -f "$NONCE_PATH" 2>/dev/null
   [ "$GATE_EXIT_WRITTEN" = "1" ] && return 0
   printf 'GATE_EXIT=%s\nverdict=%s\nfinished=%s\nlogdir=%s\n' "$rc" \
     "NO VERDICT — the gate exited without reaching one of its own exit points (killed, or an unhandled shell error). Nothing is proven for this run." \
@@ -407,14 +409,99 @@ server_log_path() {   # per batch AND per attempt, so an INFRA re-run cannot clo
   if [ "$a" -gt 1 ]; then echo "$GATE_LOGDIR/server-batch-$n-rerun.log"
   else echo "$GATE_LOGDIR/server-batch-$n.log"; fi
 }
+
+# --- server identity (FALSE-GREEN VECTOR A, measured 2026-08-25) ---------------
+# `start_server` used to probe `curl /login` BEFORE `kill -0 "$SERVER_PID"`. If the spawned
+# node died at once — EADDRINUSE, because something ELSE already held the port — curl
+# succeeded against that FOREIGN listener on the first iteration and `start_server` returned
+# 0. The batch then ran against an engineer's `next dev`, or a previous gate's orphan serving
+# a STALE build; and because the INFRA classifier only evaluates `srv_dead` when `f > 0`, a
+# fully-passing batch reported **GATE GREEN with `server_dead=1` printed ZERO times**.
+# Reproduced on the harness: GATE GREEN, gate-exit=0, server log `listen EADDRINUSE`.
+#
+# Three DIFFERENT questions, deliberately kept apart:
+#   (1) is MY process alive?            -> `kill -0`, now checked FIRST in the wait loop
+#   (2) is MY process the one ANSWERING? -> the listener on $PORT must be owned by my pid
+#   (3) are these the bytes I STAGED?   -> a nonce served out of the staged public/ tree
+# (1) is the fix and it closes the measured reproduction on its own. (2) and (3) are defence
+# in depth and fail CLOSED only on a DEFINITIVE mismatch; where they cannot reach a
+# conclusion they warn and proceed, because "this server does not serve the nonce" and "a
+# foreign server answered" are indistinguishable from here, and aborting a 40-minute gate on
+# an unverifiable arm is the worse failure. ⚠ (3) narrows the documented REBUILD=1 stale-build
+# trap but does NOT close it: it proves the answering process serves the tree this run
+# STAGED, not that the tree is fresh relative to source.
+# `SERVER_IDENTITY=warn` downgrades even a definitive mismatch, should (2)/(3) ever misfire.
+SERVER_IDENTITY="${SERVER_IDENTITY:-strict}"       # strict | warn
+NONCE_PATH=".next/standalone/public/__gate-nonce.txt"
+GATE_NONCE=""
+winpid_of() {   # MSYS pid -> Windows pid; empty when not resolvable. `ps -W` col 4 = WINPID
+  [ "$IS_WIN" = "1" ] || return 0
+  ps -W 2>/dev/null | awk -v p="$1" '$1==p {print $4; exit}'
+}
+write_nonce() {
+  GATE_NONCE="gate$$-b${BATCH_NO:-0}-a${attempt:-1}-$(date +%s)"
+  local bid=""
+  [ -f .next/standalone/.next/BUILD_ID ] && bid="$(tr -d '\r\n' < .next/standalone/.next/BUILD_ID)"
+  printf '%s build=%s\n' "$GATE_NONCE" "${bid:-unknown}" > "$NONCE_PATH" 2>/dev/null || GATE_NONCE=""
+}
+# 0 = identity verified OR inconclusive · 1 = DEFINITIVELY not the server this gate started
+verify_server_identity() {
+  local verdict=0 wp lset nbody ntok
+  # The port answers. If MY process is not alive, then by definition something else is
+  # serving it — this is the vector-A signature and it is definitive.
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+    echo "[$(LOG_TS)]   !! :$PORT ANSWERS but the server this gate started is DEAD — something else is serving that port (log: $SERVER_LOG)"
+    verdict=1
+  elif [ "$IS_WIN" = "1" ]; then
+    wp="$(winpid_of "$SERVER_PID")"
+    lset="$(netstat -ano 2>/dev/null | awk -v port="$PORT" -f "$NETSTAT_PIDS_AWK" | tr '\n' ' ')"
+    if [ -n "$wp" ] && [ -n "$lset" ]; then
+      case " $lset " in
+        *" $wp "*) : ;;
+        *) echo "[$(LOG_TS)]   !! :$PORT is owned by pid(s) [${lset% }], NOT by the server this gate started (winpid $wp)"
+           verdict=1 ;;
+      esac
+    else
+      echo "[$(LOG_TS)]   (identity) listener-ownership INCONCLUSIVE (winpid='${wp:-?}', listeners='${lset:-none}')"
+    fi
+  fi
+  if [ -n "$GATE_NONCE" ]; then
+    nbody="$(curl -s -m 5 "http://localhost:$PORT/__gate-nonce.txt" 2>/dev/null | tr -d '\r')"
+    ntok="${nbody%% *}"
+    if [ "$ntok" = "$GATE_NONCE" ]; then
+      echo "[$(LOG_TS)]   (identity) serving the tree this run staged · ${nbody}"
+    elif [ -n "$ntok" ]; then
+      echo "[$(LOG_TS)]   !! :$PORT served a DIFFERENT nonce than the one staged for this batch (got '${ntok}')"
+      verdict=1
+    else
+      echo "[$(LOG_TS)]   (identity) build-nonce INCONCLUSIVE — /__gate-nonce.txt returned nothing; a foreign server and a server that simply does not serve it look identical here"
+    fi
+  fi
+  [ "$verdict" = "0" ] && return 0
+  if [ "$SERVER_IDENTITY" = "warn" ]; then
+    echo "[$(LOG_TS)]   !! SERVER_IDENTITY=warn — proceeding against a server that is NOT the one this gate started. Results are NOT attributable to this build."
+    return 0
+  fi
+  return 1
+}
+
 start_server() {
   free_port
   SERVER_LOG="$(server_log_path)"
+  write_nonce
   PORT="$PORT" HOSTNAME=0.0.0.0 node .next/standalone/server.js > "$SERVER_LOG" 2>&1 &
   SERVER_PID=$!
   for _ in $(seq 1 45); do
-    curl -sf -o /dev/null "http://localhost:$PORT/login" && return 0
-    kill -0 "$SERVER_PID" 2>/dev/null || return 1
+    # ⚠ THE ORDER IS THE FIX. Reversed (curl first), a spawned server that died of
+    # EADDRINUSE was masked by whatever else answered the port — see vector A above.
+    kill -0 "$SERVER_PID" 2>/dev/null || {
+      echo "[$(LOG_TS)]   the server process this gate started is GONE before it ever served (log: $SERVER_LOG)"
+      return 1
+    }
+    if curl -sf -o /dev/null "http://localhost:$PORT/login"; then
+      verify_server_identity || return 1
+      return 0
+    fi
     sleep 2
   done
   return 1
@@ -429,6 +516,17 @@ num() { grep -oE "^[[:space:]]*[0-9]+ $2([[:space:]]|\$)" "$1" | grep -oE '[0-9]
 
 # Expected test count for a batch, from `--list` (collection only, no browser).
 # Without this the gate cannot tell "everything passed" from "nothing ran".
+#
+# ⛔ FALSE-GREEN VECTOR B (measured 2026-08-25). This used to be consumed as
+# `exp=${exp:-0}` with NO fallback, and a zero `exp` disables the coverage machinery on BOTH
+# sides: the `count($accounted/$exp)` reconciliation is skipped (it is guarded by
+# `[ "$exp" != "0" ]`) AND `TOTAL_EXPECTED += 0`, so the denominator shrinks to whatever
+# actually ran. Reproduced: a batch holding 60 tests ran 3, Playwright exited 0, and the run
+# printed `COVERAGE: accounted for 3 of 0` and **GATE GREEN**.
+# `pack_batches` already guards the identical hazard — `[ -z "$n" ] && n=$BATCH_TESTS`,
+# with the comment "must not silently pack as 0" — this path simply never got the guard.
+# The caller now supplies the fallback, ANNOUNCES it, and reds the batch: a guessed
+# denominator nobody is told about is the same defect with a nicer number.
 expected_tests() {
   npx playwright test "$@" --project=chromium --list 2>/dev/null \
     | grep -oE '^Total: [0-9]+ test' | grep -oE '[0-9]+' | tail -1
@@ -437,6 +535,7 @@ expected_tests() {
 
 TOTAL_PASS=0 TOTAL_FAIL=0 TOTAL_FLAKY=0 BATCH_NO=0 RED_BATCHES=""
 TOTAL_DNR=0 TOTAL_EXPECTED=0 TOTAL_INFRA=0 INFRA_RERUNS=0
+EXP_UNKNOWN_BATCHES=0   # batches whose collected size `--list` could not establish (vector B)
 
 # Count the signatures that mean "the server went away", not "an assertion failed".
 # A dead standalone server turns every REMAINING test in its batch into one of these,
@@ -485,6 +584,18 @@ for BATCH_SPECS in "${BATCHES[@]}"; do
   # Collected BEFORE the reset/server steps: `--list` needs neither a DB nor a server,
   # and the failure paths above must be able to report how many tests they skipped.
   exp=$(expected_tests "${BATCH[@]}"); exp=${exp:-0}
+  # Vector B: an unknown collected size is NOT zero. Announce the guess and red the batch —
+  # coverage for it cannot be reconciled, so nothing about it is proven. (Rationale and the
+  # measured false green: the `expected_tests` header above.)
+  exp_guessed=0
+  if [ "$exp" = "0" ]; then
+    exp_guessed=1
+    EXP_UNKNOWN_BATCHES=$(( EXP_UNKNOWN_BATCHES + 1 ))
+    [ "$BATCH_TESTS" -gt 0 ] && exp=$BATCH_TESTS
+    echo "[$(LOG_TS)] batch $BATCH_NO -> !! \`--list\` produced NO test count. This batch's collected size is UNKNOWN;"
+    echo "[$(LOG_TS)]    using fallback exp=${exp} (a GUESS, from BATCH_TESTS). Coverage for this batch cannot be"
+    echo "[$(LOG_TS)]    reconciled, so it is reported RED as list-failed. Re-run it before declaring the phase green."
+  fi
   while : ; do
     echo "=================================================================="
     echo "[$(LOG_TS)] BATCH $BATCH_NO$( [ "$attempt" -gt 1 ] && echo ' · INFRA RE-RUN' ) (fresh server$( [ "$RESET" = 1 ] && echo ' + fresh DB' )): ${BATCH[*]##*/}"
@@ -611,6 +722,8 @@ for BATCH_SPECS in "${BATCHES[@]}"; do
   [ "$dnr"  != "0" ] && reasons="$reasons,did-not-run($dnr)"               # serial-mode masking
   [ "$intr" != "0" ] && reasons="$reasons,interrupted($intr)"
   [ "$exp" != "0" ] && [ "$accounted" != "$exp" ] && reasons="$reasons,count($accounted/$exp)"
+  # Vector B: an unreconcilable batch is red on its own, whatever the counts happen to say.
+  [ "$exp_guessed" = "1" ] && reasons="$reasons,list-failed(exp guessed $exp)"
   [ -n "$reasons" ] && RED_BATCHES="$RED_BATCHES b$BATCH_NO(${reasons#,})"
 
   echo "[$(LOG_TS)] batch $BATCH_NO -> ${p} passed, ${f} failed$( [ "$infra" = "1" ] && echo ' (INFRA)' ), ${fl} flaky, ${sk} skipped, ${dnr} did-not-run · accounted ${accounted}/${exp} · pw_exit ${pw_rc}  (log: $BLOG · server: $SERVER_LOG)"
@@ -626,6 +739,9 @@ echo "[$(LOG_TS)] COVERAGE: accounted for ${TOTAL_SEEN} of ${TOTAL_EXPECTED} col
 # 931" with a did-not-run count buried mid-line is exactly the shape a tired reader
 # skims past — and unrun tests are the one failure mode that looks BETTER than normal.
 [ "$TOTAL_DNR" -gt 0 ] && echo "[$(LOG_TS)] !! ${TOTAL_DNR} test(s) NEVER RAN — nothing is proven for them. Re-run the batch(es) named below before declaring green."
+# Say it about the DENOMINATOR too. The coverage line reads as authoritative; if any batch's
+# collected size had to be guessed it is not (vector B).
+[ "$EXP_UNKNOWN_BATCHES" -gt 0 ] && echo "[$(LOG_TS)] !! ${EXP_UNKNOWN_BATCHES} batch(es) had an UNKNOWN collected-test count (\`--list\` failed). The COVERAGE denominator above CONTAINS A GUESS and is not authoritative."
 [ -n "$RED_BATCHES" ] && echo "  batches with failures:$RED_BATCHES  (logs in $GATE_LOGDIR)"
 # The exit code is written by THIS script, so a reader never has to depend on the launching
 # wrapper having survived the run (FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH,

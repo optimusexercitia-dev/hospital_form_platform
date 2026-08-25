@@ -173,7 +173,8 @@ that only ever passes is vacuous (`docs/progress/authz-handoff.md` §7.1).
 | 3b | double `token_ok` → false | escalates to the full cycle, then returns failure so the gate aborts |
 | 4 | `SPECS="e2e/home.spec.ts" RESET=0 REBUILD=0` | the gate still **runs tests** and reports GREEN |
 | 5 | `NETSTAT_AWK=<mutant> bash scripts/test-netstat-listener-pids.sh` | each mutant in the table below reds its own group; the unmutated parser is 17/17 |
-| 6 | a fake server that dies mid-batch (shell doubles, see below) | `server-batch-N.log` retained + tailed on the INFRA path; `gate-exit` matches the exit status. Re-run against a pre-fix copy: **red on 4 counts** |
+| 6 | `bash scripts/gate-harness/retention-keystone.sh` | 28/28; scenario 1b (fix reverted) must still print **"RED as required"** ×4 |
+| 7 | `bash scripts/gate-harness/false-green-keystone.sh` | 13/13. Per vector: real script **RED**, that fix reverted → **GREEN**, the *other* fix reverted → **still RED**. A vector that stays red with its own fix reverted is being closed by something else, and the differential is then meaningless |
 
 3a/3b are unit tests against shell doubles, so they do not reset the local DB. Two real bugs were
 caught this way and neither would have shown up in review:
@@ -277,10 +278,28 @@ REAL). Packing was checked against the live suite (924 tests, counts matching th
 per-spec runs). The restructured loop was exercised with stubs across four scenarios:
 clean · infra-then-clean-on-retry · infra-twice · real failures.
 
-## Two defects in the HARNESS itself (fixed 2026-08-25, PDF·P3)
+## Four defects in the HARNESS itself (fixed 2026-08-25, PDF·P3)
 
-Both were in `scripts/e2e-prod-gate.sh`, and neither changed what the gate *measures* —
-one is how it kills processes, the other how it retains evidence.
+All four were in `scripts/e2e-prod-gate.sh`. The first two changed nothing the gate
+*measures* — one is how it kills processes, the other how it retains evidence. The last two
+are **false-GREEN mechanisms**, so fixing them makes the gate *stricter*.
+
+### The keystones — all three run without the DB, a server, or a gate run
+
+```bash
+bash scripts/test-netstat-listener-pids.sh              # ~1s   · the free_port selector
+bash scripts/gate-harness/retention-keystone.sh         # ~2min · server logs + gate-exit
+bash scripts/gate-harness/false-green-keystone.sh       # ~3min · vectors A and B
+```
+
+⛔ None of them touches a real port (they use `PORT=39017`, which nothing binds), a Docker
+container, or a database: `RESET=0` and every external command is a shim built by
+`scripts/gate-harness/build-fake-repo.sh`. The script under test is **copied and `cmp`-ed
+byte-for-byte** against the repo's, so a stale copy cannot quietly pass, and
+`scripts/gate-harness/lib/mutate.mjs` reverts **one fix at a time** so each is shown to be
+what closes its own reproduction. Every mutator edit asserts it matched exactly once — a
+mutation that silently fails to apply would report the mutant as "still red", which reads as
+independence when it is really a no-op.
 
 ### 1. `free_port()` selected PIDs from the wrong `netstat` column
 
@@ -357,6 +376,54 @@ block was echoed into the run output, and `gate-exit` matched the process exit s
 > reported "the trap did not fire", which was **wrong**: the signal had gone to a wrapper
 > subshell, not to the gate. Signalling the gate's own pid fires the trap promptly. A
 > trap-based fix must be proven firing *against the process you actually mean to signal*.
+
+### 3. FALSE GREEN — the gate attached to a foreign or stale listener (vector A)
+
+`start_server` probed `curl /login` **before** `kill -0 "$SERVER_PID"`. If the spawned node
+died at once — `EADDRINUSE`, because something else already held the port — curl succeeded
+against that **foreign** listener on the first iteration and `start_server` returned 0. The
+batch then ran against an engineer's `next dev`, or a previous gate's orphan serving a
+**stale build**. And because the INFRA classifier only evaluates `srv_dead` when `f > 0`, a
+fully-passing batch reported **`GATE GREEN` with `server_dead=1` printed zero times**.
+Reproduced: `GATE GREEN`, `gate-exit=0`, server log `listen EADDRINUSE`.
+
+The wait loop now checks **liveness first**. On top of that, two further questions are asked
+— deliberately kept apart, because they are not the same question:
+
+| question | mechanism | on a definitive mismatch |
+|---|---|---|
+| is my process alive? | `kill -0`, first in the loop | **hard fail** |
+| is my process the one answering? | the listener on `$PORT` must be owned by my pid (`ps -W` col 4 → WINPID, matched against `netstat-listener-pids.awk`) | **hard fail** |
+| are these the bytes I staged? | a nonce written into the staged `public/` tree and fetched back over HTTP, carrying the `BUILD_ID` that answered | **hard fail** |
+
+Where an arm **cannot reach a conclusion** it warns and proceeds — "this server does not
+serve the nonce" and "a foreign server answered" are indistinguishable from outside, and
+aborting a 40-minute gate on an unverifiable arm is the worse failure. `SERVER_IDENTITY=warn`
+downgrades even a definitive mismatch, should the identity arms ever misfire mid-gate.
+
+> ⚠ **The nonce narrows the `REBUILD=1` trap; it does not close it.** It proves the answering
+> process serves the tree **this run staged**, not that the tree is fresh relative to source.
+> `REBUILD=1` when verifying a fix remains mandatory.
+
+### 4. FALSE GREEN — a failed `--list` disabled coverage reconciliation (vector B)
+
+`expected_tests` had **no fallback**, so a transient `--list` failure left `exp=0` — and a
+zero `exp` disables the coverage machinery on *both* sides: the `count($accounted/$exp)`
+check is guarded by `[ "$exp" != "0" ]`, and `TOTAL_EXPECTED += 0` shrinks the denominator to
+whatever actually ran. Reproduced: a batch holding 60 tests ran 3, Playwright exited 0, and
+the run printed `COVERAGE: accounted for 3 of 0` and **`GATE GREEN`**. `pack_batches` already
+guards the identical hazard (`[ -z "$n" ] && n=$BATCH_TESTS`, commented *"must not silently
+pack as 0"*); this path simply never got the guard.
+
+The caller now supplies the fallback **and refuses to be quiet about it**: three lines at
+collection time naming the batch and the guess, a `list-failed(exp guessed N)` reason that
+reds the batch, and a summary line stating the COVERAGE denominator **contains a guess and is
+not authoritative**. A guessed denominator nobody is told about is the same defect with a
+nicer number.
+
+> ⚠ A transient `--list` failure now reds its batch even if every test ran and passed. That
+> is intended: an unprovable denominator means coverage for that batch is not established, and
+> the gate's own rule is that unproven is not green. Re-run the named batch.
 
 ## Recommendations
 
