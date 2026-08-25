@@ -28,7 +28,7 @@
 -- =============================================================================
 
 begin;
-select plan(48);
+select plan(58);   -- 48 + C-3a's 8 (t28a-h) + C-3b's t38a + M-3's t40a
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -117,8 +117,89 @@ insert into public.case_access_grants
 select c.case_d, k.st_y, 'manual_grant', true, false, k.sa_x, 'fixture: conteúdo sem PHI' from cs c, k;
 
 -- A RECUSED member (`st_x`) — STEP 4 hard deny.
+--
+-- ⛔⛔ THE GRANT BELOW IS LOAD-BEARING, AND IT WAS MISSING UNTIL 2026-08-25. Measured:
+-- with the recusal deny removed from `app._case_caps` STEP 4, `st_x` still could not
+-- read this case — a plain `staff` member under `commission_default` gets caps = 2
+-- (read_case_deliberation only, ADR 0104 A15), never `read_case_content`. So NO verdict
+-- in this suite moved when the recusal arm was neutralized: t25/t26/t28 were true
+-- because st_x had NO POSITIVE ARM AT ALL, and the `case_recusals` row was decorative.
+-- ⭐ t25's own caption said *"STEP 4 hard-denies before every positive arm"* — a true
+-- statement about the code and a false one about this fixture, which supplied no
+-- positive arm to deny. An S3 grant supplies one, so the deny now overrides a grant and
+-- mutation 6 of p3-case-print-mutation-audit.sh can red these four assertions.
+-- ⚠ read_standard_phi stays FALSE: the grant must make st_x a CONTENT reader that the
+-- recusal overrides, not confer PHI and change what t28 is refusing.
+insert into public.case_access_grants
+  (case_id, principal_id, source, read_case_content, read_standard_phi, granted_by, reason)
+select c.case_t, k.st_x, 'manual_grant', true, false, k.sa_x, 'fixture: arm que a recusa anula' from cs c, k;
 insert into public.case_recusals (case_id, user_id, source, reason_md, recused_at)
 select c.case_t, k.st_x, 'self', 'impedimento declarado', now() from cs c, k;
+
+-- ⭐⭐ C-3a (added 2026-08-25) — D14's PHASE-ONLY RESPONDENT (`st_x2`), STEP 4's OTHER
+-- hard-deny arm. Built HERE, in §0, because it must exist before the terminal walk
+-- below: `case_phases` carries a D15 bump trigger, and a phase inserted while the case
+-- is ALREADY terminal moves the print revision counter — which would red t7 and t34 for
+-- a fixture reason that reads exactly like a defect in the trigger.
+--
+-- ⛔ ADR 0144 D8's own words: "a recused member, OR A RESPONDENT LINKED TO A SINGLE
+-- PHASE, can neither mint nor download the dossier — not even de-identified." Those are
+-- the TWO ARMS of `app._case_caps` STEP 4, in the order the body evaluates them
+-- (`is_case_respondent`, then `is_recused_from_case`) — not one deny described twice.
+-- §6 pins both, and `supabase/tests/mutation/p3-case-print-mutation-audit.sh` removes
+-- each while keeping the other: a step with two sibling arms is precisely where one arm
+-- silently takes credit for the other's coverage.
+--
+-- ⛔ THE SHAPE IS NOT GUESSABLE, and a guessed one makes the deny fire for the wrong
+-- reason or not at all. `app.is_case_respondent` resolves through FOUR joins —
+-- case_participants -> case_participant_roles (key = 'respondent_doctor', a literal) ->
+-- professional_participants -> professional_profiles.user_id. There is no `user_id` on
+-- case_participants, and NO `case_phases` term anywhere in it. Copied from the sibling
+-- print suite's live fixture (`313_printed_documents_meetings.sql:110-119`), which
+-- builds this same persona for the MEETING arm of the same A7 keystone.
+--
+-- ⭐ THE TWO PHASE ASSIGNMENTS ARE THE NON-VACUITY ARGUMENT, not decoration:
+--   • on `case_t`, `case_phases.assigned_to = st_x2` is a POSITIVE ARM — _case_caps S4
+--     confers read_case_content + read_case_deliberation off that column alone
+--     (`230_authz_m3_assignment_phi.sql:106` pins it). STEP 4 returns 0 before S4 is
+--     ever reached, so t28d is a deny that OVERRIDES A GRANT — the claim ADR 0072 D2
+--     actually makes — rather than the absence of any reach at all.
+--   • on `case_n`, the SAME persona holds the SAME arm and is NOT a respondent, so t28c
+--     proves the arm is LIVE. Without it, t28d is equally satisfied by an S4 arm that
+--     grants nothing to anybody.
+create temp table rp on commit drop as
+  select '00000000-0000-0000-0000-0000000c0031'::uuid as part_r,
+         '00000000-0000-0000-0000-0000000c0032'::uuid as prof_r,
+         '00000000-0000-0000-0000-0000000c0033'::uuid as role_r,
+         '00000000-0000-0000-0000-0000000c0041'::uuid as ph_t,
+         '00000000-0000-0000-0000-0000000c0042'::uuid as ph_n;
+grant select on rp to authenticated;
+
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+select r.part_r, app.org_of_commission(k.comm_x), 'professional', 'professional_identity', 'Dr. Respondente' from rp r, k;
+insert into public.professional_profiles (id, organization_id, user_id, full_name)
+select r.prof_r, app.org_of_commission(k.comm_x), k.st_x2, 'Dr. Respondente' from rp r, k;
+insert into public.professional_participants (participant_id, professional_profile_id)
+select r.part_r, r.prof_r from rp r;
+insert into public.case_participant_roles (id, organization_id, key, display_name, allowed_participant_types)
+select r.role_r, app.org_of_commission(k.comm_x), 'respondent_doctor', 'Médico respondente', array['professional'] from rp r, k
+  on conflict (organization_id, key) where case_type_id is null do nothing;
+insert into public.case_participants (case_id, participant_id, role_id, added_by)
+select c.case_t, r.part_r,
+       (select id from public.case_participant_roles
+         where organization_id = app.org_of_commission(k.comm_x)
+           and key = 'respondent_doctor' and case_type_id is null),
+       k.sa_x from cs c, rp r, k;
+
+-- ⚠ `current_response_id` STAYS NULL on both, deliberately. Attaching a response makes
+-- `can_read_full_case_content`'s Axis C (every phase response must pass the
+-- `form_response` print arm) bite `st_y` as well — st_y is a member of comm_Y holding a
+-- manual grant, so it fails that arm — and t37 (st_y DOES download the de-identified
+-- dossier) would red for a fixture reason while t36 kept passing for the wrong one.
+insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, assigned_to)
+select r.ph_t, c.case_t, 1, 'Apuração', k.form_u, k.ver_u, k.st_x2 from rp r, cs c, k;
+insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, assigned_to)
+select r.ph_n, c.case_n, 1, 'Apuração', k.form_u, k.ver_u, k.st_x2 from rp r, cs c, k;
 
 -- Walk the two cases to their terminal states, then dispose one.
 select set_config('app.in_case_rpc', 'on', true);
@@ -237,6 +318,17 @@ select ok(not app.can_read_case_patient((select case_t from cs), (select st_y fr
 select ok(app.can_read_case((select case_t from cs), (select st_y from k)),
   't17 ⭐ POSITIVE TWIN for t16: that same caller CAN read the case. Without this, t16 is equally satisfied by a caller who cannot see the case at all, and the "de-identified allowed" half of the floor would be untested');
 
+-- ⭐⭐ M-3 (2026-08-25) — the counter §9 measures, snapshotted BEFORE the audited read.
+-- ⛔ WHY THIS EXISTS. §9's t40 used to assert `exists (case_patient.read for case_t)`
+-- under the caption "a PHI mint emits both rows". The row is emitted HERE, by t18,
+-- twenty-odd assertions earlier in the SAME transaction — `mint_printed_document`
+-- never calls `get_case_patients` at all. Deleting §7's mints left the old t40 GREEN.
+-- An `exists` can never separate a row from its cause when both live inside one
+-- transaction; a DELTA can. §9 reads these two snapshots and nothing else changed.
+create temp table phi_pre_read on commit drop as
+  select (select count(*)::int from public.audit_log
+           where action = 'case_patient.read' and entity_id = (select case_t from cs)) as n;
+
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select isnt(public.get_case_patients((select case_t from cs)), null,
@@ -248,6 +340,13 @@ set local role authenticated;
 select is(public.get_case_patients((select case_t from cs)), null,
   't19 ⭐ …and returns NULL to the content-only caller. This is the entire PHI protection on the provider path: the de-identified payload builder tolerates null, the identified one THROWS on it');
 reset role;
+
+-- ⭐⭐ M-3 — the SAME counter after the audited reads and before ANY mint. Everything
+-- between this line and §9 is the window t40a measures: §5's bare predicate calls, §6's
+-- A7 arms (including one REFUSED mint) and §7's TWO SUCCESSFUL mints.
+create temp table phi_pre_mint on commit drop as
+  select (select count(*)::int from public.audit_log
+           where action = 'case_patient.read' and entity_id = (select case_t from cs)) as n;
 
 -- ---------------------------------------------------------------------------
 -- §5 — can_read_full_case_content is FAIL-CLOSED STANDALONE.
@@ -268,6 +367,13 @@ select ok(app.can_read_full_case_content((select case_t from cs), (select sa_x f
 
 -- ---------------------------------------------------------------------------
 -- §6 — THE A7 ARM: recused member + phase-only respondent, MINT and DOWNLOAD.
+--
+-- ⚠ THIS HEADER WAS AN OVERCLAIM UNTIL 2026-08-25 (finding C-3). It has said "recused
+-- member + phase-only respondent, MINT and DOWNLOAD" — four cells — since the suite was
+-- written, while delivering ONE: `st_x2` appeared exactly once in the whole file, in the
+-- `k` projection, and in no assertion; the download tests all used a third persona. The
+-- other three cells are t28a-h (this section) and t38a (§8). ⛔ A section header is an
+-- assertion with no gate behind it; this one was believed for eight days.
 -- ---------------------------------------------------------------------------
 select ok(not app.can_read_case((select case_t from cs), (select st_x from k)),
   't25 a RECUSED member reaches nothing — _case_caps STEP 4 hard-denies before every positive arm');
@@ -285,6 +391,37 @@ select throws_ok(
   '42501', null,
   't28 ⭐ A7 on the MINT side: the recused member cannot mint. The storage object EXISTS for this id, so authority is the only gate that can fire');
 reset role;
+
+-- ── C-3a: STEP 4's OTHER arm — the PHASE-ONLY RESPONDENT (`st_x2`). Fixture and the
+-- full rationale are in §0; the two-arm mutation pair is in
+-- supabase/tests/mutation/p3-case-print-mutation-audit.sh.
+select is(app.is_case_respondent((select case_t from cs), (select st_x2 from k)), true,
+  't28a PRECONDITION ⭐: st_x2 IS the respondent of case_t — the four-join participants-registry chain is REAL, not a guessed shape that would make the deny fire for the wrong reason');
+select is(app.is_case_respondent((select case_n from cs), (select st_x2 from k)), false,
+  't28b PRECONDITION: …and the respondent link is CASE-SCOPED. This is what makes t28c a control rather than a coincidence');
+select is(app.can_read_case((select case_n from cs), (select st_x2 from k)), true,
+  't28c ⭐⭐ CONTROL: the SAME persona, holding the SAME single phase assignment, DOES read case_n. So the S4 assignment arm is LIVE for this user — without this, t28d is equally satisfied by an arm that grants nothing to anyone');
+select is(app.can_read_case((select case_t from cs), (select st_x2 from k)), false,
+  't28d ⭐⭐ …and reaches NOTHING on case_t, where he is the respondent. _case_caps STEP 4 returns 0 before S4 is evaluated, so this is a deny that OVERRIDES A GRANT (ADR 0072 D2''s actual claim) — not the absence of any reach');
+select is(app.can_read_full_case_content((select case_t from cs), (select st_x2 from k)), false,
+  't28e ⭐ …so the full-sight predicate collapses with it: Axis A reads read_case_content AND read_case_deliberation from the same zeroed caps. This is the middle term of D8''s conjunction, pinned separately because a future body could make it independent of caps');
+select is(app.can_view_printed_document('case', (select case_t from cs), (select st_x2 from k)), false,
+  't28f ⭐⭐ C-3a: the A7 arm refuses the phase-only respondent — D14''s second floor persona. t27 is the positive twin for this line exactly as it is for t26: a refusal of a PERSON, not of the kind');
+
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  $$select public.mint_printed_document(
+      (select doc_deny from d), 'case', (select case_t from cs), 'case', 1,
+      repeat('ab', 32), (select t3 from tk), (select s3 from tk), true, 0)$$,
+  '42501', null,
+  't28g ⭐⭐ C-3a, MINT side: the phase-only respondent cannot mint the DE-IDENTIFIED variant either — ADR 0144 D8''s "not even de-identified". ⚠ The errcode is the assertion: the storage object exists (§0) and case_t registers, so neither HC0D3 nor HC0DP can pre-empt authority. Distinct from t35, which is refused by the PHI term on the IDENTIFIED variant — a different conjunct of a different arm');
+reset role;
+-- ⚠ C-3a's DOWNLOAD half is t38b, in §8 — NOT here. It cannot live in this section:
+-- `doc_deid` is not minted until §7, so an `open_printed_document` probe placed here
+-- returns zero rows from the FIRST exit (`v_row.id is null`) and passes against a
+-- document that does not exist. It was written here first and caught by mutation 5,
+-- which failed to red it — the fixture could not reach the failing state.
 
 -- ---------------------------------------------------------------------------
 -- §7 — THE MINT. Both variants, and the identified gate on both sides.
@@ -360,18 +497,78 @@ select is((select count(*)::int from public.open_printed_document((select doc_id
   't38 POSITIVE TWIN: the entitled coordinator downloads the identified document — t36 refuses a PERSON, not the document');
 reset role;
 
+-- ⭐⭐ C-3b (added 2026-08-25) — D14's RECUSED-MEMBER cell on the DOWNLOAD side. The
+-- floor asks for the A7 arm "on a recused member … for mint AND download"; before this
+-- the mint half was t28 and the download half was missing (§8's refusals all use st_y).
+--
+-- ⛔ THIS IS A DIFFERENT CLAIM FROM t26, not a restatement of it. t26 pins the
+-- PREDICATE (`can_view_printed_document` refuses st_x); this pins the WIRING — that
+-- `open_printed_document` actually consults it. The predicate is truth about the
+-- predicate and evidence about nothing downstream of it, and this phase's own record
+-- carries a case where four DB gates all held while the page still 404'd.
+--
+-- ⛔ DE-IDENTIFIED ON PURPOSE. ADR 0144 D8: a recused member "can neither mint nor
+-- download the dossier — not even de-identified". The IDENTIFIED document is already
+-- refused to st_y at t36 by a second, template_key-keyed gate, so asserting on it here
+-- would be satisfied by that gate and would say nothing about the recusal.
+-- ⛔ DIFFERENTIAL, and the reason a zero here is not an empty fixture: t37 has THIS
+-- EXACT document returning 1 row to st_y, and t38 returns 1 to the coordinator.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.open_printed_document((select doc_deid from d))), 0,
+  't38a ⭐⭐ C-3b: the RECUSED member receives NO ROW for the DE-IDENTIFIED document either. Gate 1 of open_printed_document (the can_view_printed_document scope check) is what fires here; t36 is refused by gate 2 (template_key + can_read_case_patient) — so a mutation that opens one reds exactly one of the two, which is how the two gates are shown to be independent rather than one gate counted twice');
+reset role;
+
+-- ⭐⭐ C-3a's DOWNLOAD half, RELOCATED HERE from §6 (2026-08-25). It has to be after
+-- §7: `doc_deid` does not exist until t29 mints it, and an `open_printed_document`
+-- probe placed before that returns zero from the not-found exit — an absence satisfied
+-- by a missing row rather than by a refusal. Mutation 5 is what exposed it: opening the
+-- respondent deny reddened t28d-g and left the download probe GREEN, which is only
+-- possible if the probe was never testing the door.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.open_printed_document((select doc_deid from d))), 0,
+  't38b ⭐⭐ C-3a, DOWNLOAD side: the phase-only respondent receives no row for the de-identified document either. With t28g this closes D14''s floor "for mint AND download" on the second persona; t37 and t38 return 1 row for THIS document to two other callers, so the zero is a refusal of a PERSON and not a missing or unreadable document');
+reset role;
+
 -- ---------------------------------------------------------------------------
--- §9 — AUDIT: the PHI mint emits BOTH rows; the identified PRÉVIA emits the
---      read row and NO mint row (ADR 0144 D9 — the phase's sharpest item).
+-- §9 — AUDIT. ⚠ RETITLED 2026-08-25 (finding M-3). This section does NOT prove
+-- "a PHI mint emits both rows", and structurally CANNOT. It proves three things,
+-- each measured rather than asserted:
+--   t39   the MINT causes the `document.minted` row      — causal by IDENTITY
+--   t40   the AUDITED READER causes `case_patient.read`  — causal by DELTA (> 0)
+--   t40a  the MINT WINDOW causes no `case_patient.read`  — causal by DELTA (= 0)
+-- …and then the identified PRÉVIA's asymmetry (t41-t44, ADR 0144 D9), unchanged.
+--
+-- ⛔ WHY t40a IS NOT VACUOUS. It is an absence, and its positive twin is t40: the
+-- SAME counter, over the SAME entity, proven able to MOVE by this same fixture. An
+-- absence measured on a counter nothing can move proves the fixture, not the code.
+--
+-- ⛔ WHAT THIS MEANS FOR ADR 0144 D14 / D9 — written here because this is where the
+-- next reader lands. D14's floor item *"a PHI mint emits BOTH rows"* and D9's *"Both
+-- halves are pgTAP-pinned: read row present, mint row absent"* are NOT satisfiable in
+-- pgTAP. D9 itself says the read row is emitted *"via the domain's audited reader"* —
+-- and on the print corridor that reader is called from TYPESCRIPT
+-- (`buildCasePayload` -> `getCasePatients`) BEFORE the mint RPC is invoked. In-database
+-- the two rows are paired only by sharing a transaction, and a shared transaction is
+-- not causality. The MINT-ROW-ABSENT half (t43) is pinned here; the READ-ROW-PRESENT
+-- half of the PAIRING needs an E2E assertion over the real corridor. The same
+-- structural bound applies to the identified-prévia read row and to Amendment 2 pt 1.
 -- ---------------------------------------------------------------------------
 select ok(
   exists (select 1 from public.audit_log
            where action = 'document.minted' and entity_id = (select doc_ident from d)),
-  't39 the identified MINT emitted document.minted');
+  't39 ⭐ CAUSAL BY IDENTITY: the identified MINT emitted document.minted. entity_id is the DOCUMENT id — minted exactly once, by t30, and written by no other statement in this transaction. That is what the old t40 lacked: a row with exactly one possible author');
+
 select ok(
-  exists (select 1 from public.audit_log
-           where action = 'case_patient.read' and entity_id = (select case_t from cs)),
-  't40 ⭐ …and a case_patient.read row exists for the case — the Rule 11 PHI read, emitted by the audited reader in t18. BOTH rows, which is what D14''s "a PHI mint emits both" means');
+  (select n from phi_pre_mint) > (select n from phi_pre_read),
+  't40 ⭐⭐ M-3, THE CAUSAL REPAIR: the AUDITED READER caused the case_patient.read row — the counter for this case MOVED across t18/t19, the only statements between the two snapshots. ⛔ The old t40 credited this row to the mint and measured it with a bare `exists`, so deleting the mints left it green');
+
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'case_patient.read' and entity_id = (select case_t from cs)),
+  (select n from phi_pre_mint),
+  't40a ⭐⭐ M-3''s HONEST BOUND: the whole mint window (§5-§7, BOTH successful mints included) added ZERO case_patient.read rows. mint_printed_document holds only the BOOLEAN can_read_case_patient and never calls the audited reader, so the SQL mint emits ONE row, not two — see the section header for why D14''s "both rows" is an E2E claim, and t40 for why this absence is not vacuous');
 
 -- The PRÉVIA asymmetry, on the NON-TERMINAL case (log_document_previa refuses a
 -- registering source with HC0DV, so a prévia is only reachable there).
