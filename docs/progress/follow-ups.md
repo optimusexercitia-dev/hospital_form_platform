@@ -5556,3 +5556,39 @@ and was run under a different configuration; `scripts/e2e-prod-gate.sh:38` says 
 for the LOCAL **Windows** prod-standalone run". 21 batches against 114 was the visible tell, walked
 past. Before citing any gate row as a baseline, run `git log <baseline>..HEAD` and compare the batch
 count.
+
+---
+
+### 🟡 FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME — the date button announces its label and drops its value (owner: frontend; filed 2026-08-25, found by `frontend` while refuting a QA finding that was itself false)
+
+The shared `DatePicker` trigger is a `<button>` associated to a `<label for>`. Measured in Chromium
+via CDP `Accessibility.getPartialAXTree` name-sources on the real rendered page:
+
+```
+name = "Data de início"   sources = ["relatedElement:labelfor", "contents:"]
+```
+
+`relatedElement:labelfor` **wins**, so `contents:` — which is where the rendered date lives — is
+displaced, not appended. A sighted user sees `01/03/2023`; a screen-reader user hears
+*"Data de início, botão"* and has no way to learn the current value without entering the calendar.
+
+**Fix:** `aria-labelledby="{labelId} {buttonId}"` — the self-reference re-admits the button's own
+contents after the label. Measured to yield `"Suspenso até Selecionar data"` on
+`user-lifecycle-actions.tsx:247`.
+
+⛔ **DELIBERATELY NOT FIXED IN THE PROFILE-REDESIGN BRANCH.** It needs a new prop on a shared control
+with **23 call sites**, roughly 20 of which predate that branch, and it **changes accessible names** —
+so specs that address these controls by name legitimately need updating. Folding a platform-wide
+accname change into a feature branch is how a reviewable diff stops being reviewable, and it would put
+spec edits on the same commit as the change that necessitated them.
+
+⭐ **The premise trap, which is the durable part.** This surfaced only because QA filed a finding
+(M6) asserting the OPPOSITE — that `<label for>` is *not* in the accname chain for a `button`, and that
+the three new date triggers therefore had no accessible name at all. `frontend` measured it false twice
+(isolated CDP probe + all three real sites, each returning exactly one `getByRole('button', {name})`
+match) and correctly changed no code. ⛔ **That same false premise is already recorded as
+measured-false in this repo** — `src/components/safety/patient-fields.tsx:305-315` says so in terms,
+including that an earlier version of its own comment had stated it. Twice now, a reviewer has reasoned
+from it and reached a confident wrong conclusion; the second time it nearly produced three `aria-label`
+attributes that measurement showed would be exact no-ops. **The real defect was adjacent to the false
+one, and only visible to whoever actually ran the measurement.**
