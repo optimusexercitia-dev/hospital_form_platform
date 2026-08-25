@@ -48,8 +48,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   fresh reset immediately prior) · `FROMFINDINGS=1 ARM=wrapper` **HOLDS** · diff-scoped sweep
   **CLEAN (2 COVERED, 0 BLIND, 0 ERROR)**. All on `615afaf0`, DB 460 == 460; evidence `90cabfe1`.
   ⭐ **A COVERED verdict does NOT survive a body change, and no arm enforces that** — census passed
-  `can_view_printed_document` on a **PDF·P2** row taken against a dispatch with **no `case` arm**;
-  re-swept by hand → COVERED, suite list 2 → 7.
+  `can_view_printed_document` on a stale **PDF·P2** row; re-swept by hand → COVERED, 2 → 7.
   **⛔ Gate 2 RED (UNRUN)** — `1184 p · 0 failed · 17 infra · 36 did-not-run`; **zero assertion
   failures**, the 36 all batch 6's in files P3 never touched, P3's own spec **11/11**, all 7 locator
   fixes verified at gate scale. Collapse is **pre-existing Windows infra, NOT a product defect** —
