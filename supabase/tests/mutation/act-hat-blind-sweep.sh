@@ -94,7 +94,20 @@ ALLOWLIST="$HERE/act-hat-blind-allowlist.txt"
 psql_c () { MSYS_NO_PATHCONV=1 docker exec -i "$DB" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -X -q -t -A "$@"; }
 allow_body () { grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -vE '^[[:space:]]*$'; }
 
-OUT="$(psql_c <<'SQL'
+# ⛔ DO NOT write this as OUT="$(psql_c <<'SQL' … SQL\n)". It was written that way
+# until 2026-08-24, and the whole FILE failed to parse under bash 3.2 — the /bin/bash that
+# macOS ships — with "unexpected EOF while looking for matching". Cause: bash 3.2 parses a
+# heredoc body that sits INSIDE a command substitution, despite the quoted 'SQL' delimiter
+# that is supposed to suppress all interpretation. Two apostrophes in ordinary SQL COMMENTS
+# below ("this script's", "the caller's own param") therefore read as shell quotes and
+# unbalanced the parse. ⚠ The failure is not local to the typo: bash reports it at the LAST
+# line of the file, naming no cause, and `ARM=hat` — a mandatory CLAUDE.md §6 step-1 gate —
+# could not run at all on this platform. ⭐ Splitting the heredoc out of the substitution
+# makes the class impossible rather than fixing the two apostrophes: an apostrophe in a SQL
+# comment is a normal thing to write, and the next author would reintroduce it.
+HB_OUT="${TMPDIR:-/tmp}/act-hat-blind-sweep.$$.sql.out"
+trap 'rm -f "$HB_OUT"' EXIT
+psql_c > "$HB_OUT" <<'SQL'
 set client_min_messages = warning;
 -- ═══ analyzer (pg_temp; session-local, read-only outside the selftest txn) ═══
 
@@ -419,7 +432,9 @@ rollback;
 -- ═══ REAL SWEEP ═══════════════════════════════════════════════════════════════
 select kind || '|' || key from pg_temp.hb_findings() order by 1;
 SQL
-)" || { echo "act-hat-blind-sweep: psql FAILED"; echo "$OUT"; exit 1; }
+HB_RC=$?
+OUT="$(cat "$HB_OUT")"
+[ "$HB_RC" -eq 0 ] || { echo "act-hat-blind-sweep: psql FAILED"; echo "$OUT"; exit 1; }
 
 echo "=== ACT hat-blind sweep (ADR 0106 S4 / ADR 0079 Am. 6 method) ==="
 

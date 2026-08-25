@@ -282,6 +282,18 @@ function callsTestSkip(node) {
 
 /** A `return` that exits the TEST (not a nested callback) anywhere inside `node`. */
 function containsTestExitingReturn(node) {
+  // ⛔ A statement that IS itself a function is a HELPER declared inside the test: its
+  // `return` exits the helper, never the test. The forEachChild guard below skips function
+  // CHILDREN, but callers pass STATEMENTS — and a bare `function h() { … return x }` in a
+  // test body arrives here as `node`, walked into, its return counted as the test's. Every
+  // later expect() then read as conditional (FUP-VACUOUS-DETECTOR-FALSE-POSITIVE; live
+  // casualty case-access T6, which asserted unconditionally and still reddened the chain).
+  // ⚠ Guarded by the paired fixtures at the end of FIXTURES: removing this line turns the
+  // false-positive fixture RED, and the twin below it proves a REAL bare return beside the
+  // same helper is still caught.
+  if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+    return false
+  }
   let found = false
   const walk = (n) => {
     if (found) return
@@ -533,6 +545,18 @@ const FIXTURES = [
     file: 'fixture.tsx',
     src: `it('a', async () => { render(<Foo />); if (y) { expect(x).toBe(1) } })`,
   },
+  // FUP-VACUOUS-DETECTOR-FALSE-POSITIVE. A helper DECLARED INSIDE the test body is not a
+  // test-exiting return: `containsTestExitingReturn` skipped function CHILDREN but still
+  // walked a statement that IS a FunctionDeclaration, so the helper's own `return` revoked
+  // the unconditional guarantee for every later expect(). Live casualty: case-access T6,
+  // reported ALL-ASSERTIONS-CONDITIONAL while asserting unconditionally, reddening the whole
+  // lint chain from link 5 onward.
+  { flag: false, name: 'helper declared inside the test body', src: `test('a', async () => { function trace(el) { if (!el) return 'none'; return el.tag } expect(trace(x)).toBe('a') })` },
+  // ⛔ THE CONTROL, and the reason the fix is admissible: same helper, plus a REAL bare return
+  // in the test body. The detector must still flag this after the fix — a detector relaxed on a
+  // false-positive report without a control proving it still catches the true positive is
+  // strictly worse than the false positive it fixed.
+  { flag: true, name: 'helper declared inside the test body, plus a real bare return', src: `test('a', async () => { function trace(el) { return el.tag } if (!ok) { return } expect(trace(x)).toBe('a') })` },
 ]
 
 function selfTest(quiet) {

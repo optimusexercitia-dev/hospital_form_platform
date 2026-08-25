@@ -1920,69 +1920,6 @@ commission is named **`ComissÃ£o de Controle de InfecÃ§Ã£o Hospitalar`**; 
 convention (`chefe.ccih@test.local`), not the commission's name. **A filter built from the naming convention
 of an adjacent artifact returns a confident zero.**
 
-### ðŸŸ  FUP-42501-CONFLATES-GRANT-WITH-RLS â€” 2 of 12 P0-isolation assertions pass on a **table-grant** error, not on the RLS refusal they claim to prove (owner: backend + tester; **a COVERAGE defect, NOT a vulnerability â€” the tables are protected**)
-
-Filed 2026-08-18 (lead). Surfaced when `backend` hit the same shape building the ADR 0125 D6 keystone
-(`345_previa_audit_door.sql`) and noted it *"generalises to every `throws_ok(â€¦, '42501')` in the tree"*.
-Lead swept the tree and measured the population; **the generalisation is real but much narrower than
-that**, and it lands somewhere that matters.
-
-**â›” NEUTRALIZE BEFORE ESCALATING â€” this is not a vulnerability, and the distinction is the whole item.**
-Measured: `authenticated` holds **no INSERT privilege** on `public.rca_evidence` or
-`public.capa_action_evidence`. So those two tables are **protected â€” more strongly than the test claims**,
-by a missing grant rather than by RLS. Nothing is exposed. What is wrong is the **assertion**, not the
-posture.
-
-**The mechanism.** `42501` is simultaneously
-
-- the correct SQLSTATE for an **RLS / authority** refusal, and
-- Postgres's **generic** `permission denied for table â€¦` code.
-
-So `throws_ok($$ insert into public.X â€¦ $$, '42501')` **cannot distinguish** *"RLS refused this
-cross-tenant write"* from *"the role was never granted INSERT on this table at all"*. The assertion is
-satisfied by either, and it reports the first.
-
-**Measured population â€” the enumeration, not an estimate.** 15 tree-wide hits for `throws_ok` + `42501`;
-**3 are comments, 12 are live assertions**, all in `supabase/tests/252_authz_p0_isolation.sql`
-(lines 114â€“157), probing 6 `rca_*` and 6 `capa_*` tables. Grant check on all twelve:
-
-| | `authenticated` INSERT | assertion proves |
-| --- | --- | --- |
-| 10 tables (`rca_factors`, `rca_members`, `rca_root_causes`, `rca_timeline_entries`, `rca_why_chains`, `capa_action`, `capa_action_task`, `capa_measure`, `capa_measure_result`, `capa_effectiveness`) | **true** | âœ… RLS â€” the only thing that can raise `42501` |
-| **`rca_evidence`**, **`capa_action_evidence`** | **false** | â›” **the grant.** RLS is never reached |
-
-â‡’ **The P0 suite claims cross-tenant isolation on 12 tables and demonstrates it on 10.** An auditor asking
-*"is `rca_evidence` RLS-isolated?"* finds a green P0 assertion and concludes yes; the test never exercised
-RLS.
-
-â­ **The class is the inverse of the usual one here.** This project's recurring failure is
-[[absence-of-a-verdict-is-not-absence-of-coverage]] â€” reading a missing verdict as a hole. This is the
-mirror: **a PRESENT green assertion that is not coverage.** The `42501` conflation is what makes it
-invisible, because the test's own expected value is correct.
-
-âš  **The tree ALREADY KNEW this trap â€” twice â€” and it still recurred.** Both are comments, not gates:
-`301_hospital_affiliation_substrate.sql:21` (*"'grant' cannot be proven with `throws_ok(..., '42501')`: a
-missâ€¦"*) and `277_ff4_power_authoring.sql:328`. A hazard documented in prose in two files did not stop a
-third instance being written, or the two live ones surviving. **That is the argument for a mechanical
-check rather than a fourth comment.**
-
-**Fix â€” `backend`'s own two-part remedy from `345`, which is the model:**
-1. **Grant the probe role what the test is not testing**, so the only thing left that can raise `42501` is
-   the property under test; and/or
-2. **Remove the incidental read entirely** (`345` passes the source id as a literal so no fixture read
-   happens inside the probe at all).
-3. â­ **Two-sided is what actually catches it.** `backend`'s deny-leg passed on the fixture's own error and
-   **only the ALLOW leg failing exposed it.** A deny-only keystone is green while asserting nothing about
-   authorization. Every `42501` assertion needs its allow-side twin.
-
-âš  **Do not "fix" this by granting INSERT on the two tables** â€” that would be a widening performed to make a
-test honest, trading real protection for a truer assertion. Fix the **assertion**: either probe a role that
-holds the grant, or assert the RLS refusal by a means that cannot be satisfied by a missing privilege.
-
-â›” **Not fixed in the ADR 0125/0126 build** â€” different suite, different subject, and it needs the `252`
-owner's judgement about what each probe is meant to prove. `345`'s own instance **is** fixed, with the
-measurement in that file's header.
-
 ### ðŸŸ  FUP-SUPERSESSION-BADGE-LANE-BLIND â€” `resolveSupersessionBadge` mirrors an aggregation rule but drops that rule's OWN lane restriction, so a phase-bound response gets the grain ADR 0126 D8 rejected (owner: frontend + backend; **ADR 0074/0085 axis â€” NOT the print-currency axis**)
 
 Filed 2026-08-18 (lead). Found by `frontend` during the ADR 0126 Amendment 1 **Â§K sweep**, and **outside that
@@ -4137,31 +4074,6 @@ any ethics case that is not `cancelled`"*. â›” Do **not** fix it by narrowi
 `can_manage_professional`; that gate serves non-ethics professional administration too, and cutting
 it would be a different change with its own blast radius.
 
-### ðŸŸ¡ FUP-VACUOUS-DETECTOR-FALSE-POSITIVE â€” `check-vacuous-assertions.mjs` flags a test as vacuous when a helper is declared inside it (owner: tester/lead; filed 2026-08-21)
-
-`scripts/check-vacuous-assertions.mjs:284-299` â€” `containsTestExitingReturn` correctly skips
-**child** function nodes, but it still walks a statement that **is itself** a `FunctionDeclaration`.
-So a helper declared inside a test body contributes its own `return` to the test's statement list,
-which revokes the unconditional-assertion guarantee for **every later `expect`** in that test.
-
-**Live instance:** `e2e/case-access.spec.ts`'s `T6 keyboard-only` test declared a `focusTrace`
-helper and was reported `ALL-ASSERTIONS-CONDITIONAL`. The test was **not** vacuous. It reddened the
-whole eight-gate chain (eslint is link 1, but `lint:vacuous` is link 5 â€” everything after it also
-never ran). Worked around by **hoisting the helper to module scope**, which is a correct fix for that
-spec and not a fix for the class.
-
-â›” **Do NOT "fix" this by relaxing the detector on the strength of this report.** `lint:vacuous`
-exists because tests that pass having asserted nothing shipped here before
-(`docs/reviews/vacuous-assertion-audit.md`), and its self-test suite (42/42) is what makes it
-trustworthy. **Admission condition for any change: a NEW self-test case that reproduces the real
-vacuous shape this walk was written to catch, proven to still go RED after the fix.** A detector
-loosened on a false-positive report, without a control proving it still catches the true positive,
-is strictly worse than the false positive.
-
-â­ Worth noting for whoever takes it: the false positive pushes authors toward *restructuring tests
-to appease the detector*. That is usually harmless (hoisting a helper is fine) but it is a slow
-pressure toward writing tests the gate likes rather than tests that pin behaviour.
-
 ### ðŸŸ¢ FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED â€” half of `app` is PUBLIC-executable, and the only thing bounding it is one config line (owner: backend; filed 2026-08-22, found while deriving an ACL by property for ADR 0134 Amdt 6)
 
 **Found while doing something else** â€” the ADR 0134 Amendment 6 condition "derive `member_can_for`'s ACL
@@ -4934,47 +4846,6 @@ half is ever revived.
 
 </details>
 
-### FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG
-
-**`ARM=census`'s "prune" note recommends deleting the record of two LIVE, UNSWEPT gates.** Found at the
-ADR 0137 batch-end gate, 2026-08-23. Pre-existing â€” `supabase/tests/mutation/` is untouched by that batch
-(verified: `git status` clean for the path), and both entries sit in the committed backlog at
-`authz-unswept-backlog.txt:232-233`.
-
-**What it prints** (`ARM=census`, exit 0, INVARIANT HOLDS):
-
-```
-note: backlog entries with no matching live gate (renamed/dropped â€” prune):
-    app._grant_case_access_unchecked(...)
-    app._set_participant_patient_unchecked(...)
-```
-
-â›” **Both functions EXIST, live, with byte-identical signatures to the backlog lines.** Measured from
-`pg_proc`: `app._grant_case_access_unchecked` and `app._set_participant_patient_unchecked` are both
-`prosecdef = f`, `plpgsql`, schema **`app`**.
-
-**Mechanism.** The arm states its own domain: *prosecdef bool | prosecdef set-returning+reachable |
-**public** INVOKER plpgsql | all RLS policies*. An **`app`**-schema INVOKER plpgsql body is **outside that
-domain**, so the arm cannot match it â€” and reports the miss as *"no matching live gate (renamed/dropped
-â€” prune)"*.
-
-â­ **The note conflates "outside my domain" with "does not exist", and then recommends a destructive
-action on the strength of it.** Pruning as instructed would delete the only committed record that these
-two are unswept â€” and `app._set_participant_patient_unchecked` is the **single PHI write choke point** for
-the case module, the body ADR 0137 D3's required-field guard was just placed in (measured: putting that
-guard in `set_case_patient` instead leaves the E1 multi-patient path unguarded, pgTAP `362` Â§4.1/Â§4.2).
-
-âš  **It fails in the reassuring direction and inside a passing run** â€” `INVARIANT HOLDS`, exit 0, with the
-harmful advice in a `note:` line nothing gates on.
-
-**Fix (not attempted here â€” it is a gate-script change, outside the ADR 0137 batch):** the note must
-partition, not collapse. A backlog entry should report as **PRUNE** only when no function of that
-signature exists in the catalog **at all**; when one exists but falls outside the arm's domain it is
-**OUT-OF-DOMAIN â€” keep, still unswept**. Same shape as ADR 0128's clean/unproven/dirty partition, and the
-same failure the `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` domain line already acknowledges one column over.
-
-**Owner:** backend (gate script). **Do not prune those two lines in the meantime.**
-
 ### ðŸŸ¡ FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT â€” two suites generate their cases from the LIVE catalog; pin the role SET so a mid-reset read cannot shrink coverage silently (owner: backend + frontend)
 
 > **Raised 2026-08-23**, during ADR 0137's batch, from a vitest total that moved
@@ -5376,31 +5247,6 @@ reads as the requirement being met.
 
 ---
 
-### FUP-RCA-WRITER-CAN-WRITE-IS-BLIND
-
-⚠ **NEW — the first finding produced by widening the door sweep's predicate arm.** Filed 2026-08-24,
-by the sweep, not by review.
-
-`public.rca_writer_can_write(p_rca_id uuid)` is a `prosecdef` boolean whose body reads
-`auth.uid()`. Neutralizing it to `select true` — opening the gate — leaves the FULL pgTAP suite
-GREEN: **218 files, 7223 tests, Result: PASS**, zero assertions reddened.
-
-⛔ **It had never been swept in EITHER direction before**, because the arm's domain was a NAME regex
-(`^(is_|can_|has_|…)`) and this gate matches none of it. It entered the domain with ADR
-[0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 9 and returned BLIND
-on the first run. ⚠ **BLIND is not "vulnerable"** — it means no keystone exercises the gate, so
-nothing would notice if it were opened. Whether it is reachable, and by whom, is the next question,
-not a conclusion.
-
-⛔ **BLIND blocks a phase (CLAUDE.md §6 step 1)** and the allowlist is NOT available here: that file
-is for an unreachable backstop, and an RCA write gate is not one. It owes a keystone in the shape of
-`300_rowdoor_gate_keystones.sql` — a row count through the door per principal, never a predicate
-call, each denial with its non-vacuity twin.
-
-**Owner:** backend.
-
----
-
 ### FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE
 
 ⚠ **NEW — a harness ceiling the same widening exposed.** Filed 2026-08-24 (lead).
@@ -5459,3 +5305,105 @@ gate can trace into, because the vacuity lives in a helper.
 
 ---
 
+### FUP-AFF2-DIRECTORY-SEARCH-HAS-NO-REGISTRO-LEG
+
+⚠ **The deferral is real and PO-ruled; what was missing is the REGISTER LINE.** ADR 0133
+**Amendment 2** closes with two deferrals *"named so they are records rather than omissions"*.
+Measured 2026-08-24: the sibling (`error.tsx` for the `usuarios` route) was **built** —
+`src/app/o/[org]/manage/usuarios/error.tsx` exists — and this one appeared in **no register at
+all**: zero occurrences in `follow-ups.md` and `deferred-backlog.md`, and PROGRESS.md's only
+`registro` is the unrelated REG·KIND row (`:98`). ⭐ Of a pair named so that neither would become an
+omission, the one that became an omission is the one that stayed deferred — **naming a deferral
+inside an ADR is not filing it**, because nobody reads an ADR to find out what is open.
+
+**What is deferred.** The design handoff's directory search reads *"Buscar por nome, e-mail ou
+**registro**…"* — `docs/design/temp/user_management_redesign/Gestão de Usuários.dc.html:82` **and**
+`:374`. The live search matches **name and e-mail only**.
+
+✅ **Nothing is user-visibly false today, which is why this is 🟡 and not a bug.** Amdt 2's other
+half shipped: label and placeholder both read *"Buscar por nome ou e-mail"*
+(`src/components/users/user-directory-search.tsx:72,83`), replacing a pre-existing false claim
+(*"ou categoria"* — never searched, and it had propagated into the visible `aria-label`). The
+docblock at `src/lib/queries/org-users.ts:349-360` records the deferral in code, and until this line
+existed it was the **strongest record of it anywhere** — visible only to someone already reading the
+function they would have to change.
+
+⛔ **TWO query sites, not one.** `listOrgUsers` (`org-users.ts:401`) and `listHospitalUsers` (`:487`)
+each build the same `full_name.ilike,email.ilike` `.or()`. Fixing the first alone gives org admins
+and hospital admins **different search semantics on the same screen** — against ADR 0133 D14, whose
+premise is that both roles get the same screens with the differences data-side.
+
+**Shape of the fix, if it is built.** The number is `professional_credentials.registration_number`
+(`org-users.ts:68-76`) — a **1→N** table the directory already batch-reads per page in
+`loadPageExtras` (`:258`). So the leg is a **join filter**: resolve matching `user_id`s and `.in()`
+them, the shape `hospitalPeopleIds` (`:133`) already uses and whose `:124` comment explains why a
+resolved set beats a raw `.or()` string. Never another `.or()` clause on `profiles`.
+⚠ **It must respect ADR 0133 D13's widened `professional_credentials` SELECT.** A hospital_admin who
+may *see* a person but not *read* their credential must not get a search returning fewer rows than
+their own directory shows — that is the *"empty never means no-permission"* trap D13 exists to
+remove, re-entered through the search box. A DENY-arm keystone belongs with the build.
+
+**A decision is owed before any build.** Ruling *"not building it — the label is honest now"* is a
+legitimate close; **drifting into that by never deciding is not**, and was the live state for a day.
+
+**Owner:** backend/PO.
+
+---
+
+### 🟡 FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE — six `public` authz wrappers mirror an `app.*` rule that RLS calls directly, and nothing pins that the two agree (owner: backend + PO; filed 2026-08-24, found while keystoning `rca_writer_can_write`)
+
+**The shape.** A handful of `public` `prosecdef` SQL bool functions exist whose entire body delegates to an
+`app.*` predicate — e.g. `public.rca_writer_can_write(p_rca_id)` is exactly
+`select app.can_write_rca(p_rca_id, auth.uid())`.
+
+⛔ **They are NOT redundant, and must not be "simplified" away.** Measured: `app` is **not a
+PostgREST-exposed schema** (`supabase/config.toml:13` → `schemas = ["public", "graphql_public"]`), so the UI
+cannot call the enforcing predicate over the API *even though* `authenticated` does hold EXECUTE on
+`app.can_write_rca`. The wrapper is a necessary bridge. ⭐ Recorded because the first reading of the grant
+alone said "redundant" and was wrong — the exposure, not the grant, is what makes them load-bearing.
+
+**Population, measured in the catalog 2026-08-24** — 18 such wrappers, of which 12 are `*_enabled`
+feature-flag delegations (`select app.feature_enabled('x')`, low risk). **Six are authorization predicates:**
+
+| wrapper | delegates to | pgTAP coverage |
+| --- | --- | --- |
+| `rca_writer_can_write` | `app.can_write_rca` | ✅ `300_rowdoor_gate_keystones.sql` §1.10/2.10 (added 2026-08-24, mutation-proven) |
+| `interview_viewer_can_write` | `app.can_write_interview` | ✅ `121_interviews.sql:117-124` (two-sided `is()`) |
+| `is_nsp_coordinator_of_self` | `app.is_nsp_coordinator_of` | ⛔ **none — 0 files** |
+| `is_nsp_org_admin_of_self` | `app.is_nsp_org_admin_of` | ⛔ **none — 0 files** |
+| `is_pqs_member_of_self` | `app.is_pqs_member_of` | ⛔ **none — 0 files** |
+| `is_pqs_member_self` | `app.is_pqs_member_of_any` | ⛔ **none — 0 files** |
+
+**All six have ZERO catalog references** — no policy, no trigger, no other function body. Enforcement bypasses
+them entirely: all **eight** rca write policies (`rca_update` · `rca_delete` · `rca_evidence_write` ·
+`rca_factors_write` · `rca_members_write` · `rca_root_causes_write` · `rca_timeline_write` ·
+`rca_why_chains_write`) call `app.can_write_rca(id, auth.uid())` directly.
+
+**The hazard: two copies of one authorization rule, and only one of them is enforced.** Today they agree
+*because* the wrapper delegates — and **nothing pins that it keeps delegating**. Inline the logic, or "fix" one
+side, and the UI silently disagrees with the database: write affordances offered that the DB then refuses, or
+hidden that it would have allowed. ⚠ **No existing gate can see it.** The door sweep cannot — neutralize a
+wrapper and RLS is unaffected, which is precisely why `rca_writer_can_write` swept BLIND across 218 files. The
+RLS keystones cannot — they never call the wrapper.
+
+⚠ **NOT a live hole, and do not report it as one:** verified 2026-08-24 that every wrapper still delegates, so
+UI and DB agree today. The item is the absence of anything that would notice if they stopped.
+
+⭐ **What the two existing keystones still do NOT pin.** Both assert the wrapper's output against a
+**hardcoded expectation** (`is(..., false)` / `is(..., true)`). That catches a wrapper that breaks alone; it
+does **not** catch wrapper and predicate drifting apart, because nothing compares them. The assertion that
+would is the **differential**, evaluated as one principal:
+
+```sql
+select is(public.rca_writer_can_write(<rca>), app.can_write_rca(<rca>, auth.uid()),
+  'wrapper agrees with the predicate RLS actually enforces');
+```
+
+**Decide between:**
+- **(a)** differential assertions for all six, plus first-ever coverage for the four `is_*_self` wrappers; or
+- **(b)** a structural fix that removes the second copy — generate the wrappers from the predicate, or expose
+  one definition both the UI and RLS consult, so agreement is not a thing anyone has to test.
+
+**Owner:** backend + PO decision.
+
+---
