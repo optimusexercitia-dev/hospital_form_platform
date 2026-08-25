@@ -1805,9 +1805,15 @@ widened the read together.
   ⚠ **This corrects a ledger that claimed 11.** The removed *Remaining pre-pilot work* deploy row
   derived its drift by subtracting a **2026-08-10 baseline of 345** from the local file count,
   assuming nothing had been pushed since. Nine had been. A drift number computed from a remembered
-  baseline is a guess; count `schema_migrations` instead. ⚠ REG·KIND is also **ungated** (Phase Gate
-  step 1 only) and re-keys live `case_events` rows — it needs its own pre-push read, which the
-  closed check below does not provide.
+  baseline is a guess; count `schema_migrations` instead. ✅ **SUPERSEDED SAME DAY — the REG·KIND
+  pair WAS pushed 2026-08-12**, so this drift is now **zero**; both `20260920000100` and
+  `…000200` are registered on the linked project and `referral_note_types` is absent from the
+  remote catalog (`docs/progress/phase-status-archive.md` § 22-v3). The pre-push read the next
+  paragraph asks for was **performed**. ⚠ The "ungated" note is also spent: REG·KIND's gate 3 was
+  discharged by the 2026-08-12 QA review (`docs/reviews/fup-batch-2026-08-12-review.md`, APPROVED
+  r1) and gate 2 by the 2026-08-24 full `e2e:prod` GREEN at `77b0a467`, which contains the merge.
+  ⛔ **Re-measure, never quote** — this bullet is kept only because its drift-arithmetic lesson
+  (count `schema_migrations`, never subtract a remembered baseline) outlives its figures.
 - ~~**Before any remote `db push`:** the duplicate check on
   `professional_participants.professional_profile_id` (plan §6 step 3).~~ **CLOSED 2026-08-12** —
   the ETH·E4 batch `20260919000100`–`…000600` is already registered on the remote and
@@ -1815,9 +1821,10 @@ widened the read together.
   data**, which proves absence of duplicates more strongly than the pre-check ever could; a
   confirming read returned 0 duplicate groups (non-vacuous — 1 row, 1 non-null id, 0 nulls).
   ⚠ The general lesson still stands for the **next** push: a local `count=1` on a fresh reset is
-  true by construction of the fixture and proves nothing about a data-bearing remote. The two
-  unpushed REG·KIND migrations (`20260920000100`, `…000200`) re-key live `case_events` rows and
-  need their own pre-push read — this closure says nothing about them.
+  true by construction of the fixture and proves nothing about a data-bearing remote. ~~The two
+  unpushed REG·KIND migrations (`20260920000100`, `…000200`) … need their own pre-push read.~~
+  ✅ **DONE 2026-08-12** — both are registered on the remote and the re-key landed; nothing about
+  REG·KIND is unpushed.
 
 
 ## ACT — "act as" STRICT ROLE ASSUMPTION (2026-08-10; ADR 0106 D1–D14; migrations `20260918000000`–`…002800`; **NO flag — the migration IS the cutover**, PO-locked P4)
