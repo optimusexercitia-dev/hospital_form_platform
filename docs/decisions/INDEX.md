@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**142 ADRs** · next free number: **0145** · 38 carry an inbound supersedes/amends edge
+**143 ADRs** · next free number: **0146** · 38 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -118,7 +118,7 @@
 | 0094 | [Membership-model hardening + Diretor Técnico (technical director) backend](0094-membership-hardening-and-technical-director.md) | ⚠ proposed | 2026-08-04 | – | – |
 | 0095 | [Process/case integrity audit: remediation scope, corrections, and deferred remodels](0095-process-case-integrity-audit-remediation.md) | accepted | 2026-08-04 | – | ⛔ superseded by 0096 |
 | 0096 | [Process-template versioning (audit M1, full remodel)](0096-process-template-versioning.md) | accepted | 2026-08-04 | supersedes 0095 | – |
-| 0097 | [Hospital affiliation, person identity (CPF) and the org-scoped people directory](0097-hospital-affiliation-person-identity.md) | accepted | 2026-08-05 | – | ⚠ amended by 0133 |
+| 0097 | [Hospital affiliation, person identity (CPF) and the org-scoped people directory](0097-hospital-affiliation-person-identity.md) | accepted | 2026-08-05 | – | ⚠ amended by 0133, 0145 |
 | 0098 | [AFF substrate & doors: the shape decisions ADR 0097 left open](0098-aff-w1-substrate-shape-decisions.md) | accepted | 2026-08-06 | – | ⚠ amended by 0133 |
 | 0099 | [Meeting audio → generated ata (minute_generator integration)](0099-meeting-audio-minutes.md) | accepted | 2026-08-06 | – | – |
 | 0100 | [Quality-office oversight: `quality_reviewer` role, commission oversight classification,…](0100-quality-office-oversight.md) | accepted | 2026-08-06 | – | ⚠ amended by 0102, 0134 |
@@ -154,7 +154,7 @@
 | 0130 | [DSR workflow: data-subject requests as adjudicated cases, not an erase button](0130-dsr-subject-request-workflow.md) | accepted | 2026-08-19 | – | – |
 | 0131 | [PHI erasure reach is bounded to DESIGNATED PHI fields; free text is out of scope for th…](0131-phi-erasure-reach-bounded-to-designated-fields.md) | accepted | 2026-08-20 | – | – |
 | 0132 | [An ethics proceeding carries NO erasure entitlement; the absent door is a DECISION, not…](0132-ethics-proceedings-carry-no-erasure-entitlement.md) | accepted | 2026-08-21 | – | – |
-| 0133 | [AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-manageme…](0133-aff2-affiliation-scoped-administration-um-redesign.md) | accepted | 2026-08-20 | amends 0048, 0097, 0098 | ⚠ amended by 0144 |
+| 0133 | [AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-manageme…](0133-aff2-affiliation-scoped-administration-um-redesign.md) | accepted | 2026-08-20 | amends 0048, 0097, 0098 | ⚠ amended by 0144, 0145 |
 | 0134 | [The case split is read vs manage: one management surface, and administrativo can read t…](0134-case-surface-split-and-administrativo-case-read.md) | accepted | 2026-08-21 | amends 0033, 0061, 0078, 0079, 0100 | ⚠ amended by 0137 |
 | 0135 | [Authored refusals get their own SQLSTATE; `42501` stays reserved](0135-authored-refusals-get-their-own-sqlstate.md) | accepted | 2026-08-22 | – | – |
 | 0136 | [Deferred `staff_admin` sign-off: attest a FROZEN response, block the PHASE not the SUBM…](0136-deferred-staff-admin-signoff-attests-frozen-content.md) | accepted | 2026-08-23 | amends 0004, 0016, 0017 | – |
@@ -166,3 +166,4 @@
 | 0142 | [One PHI dialog layout; the Atividade composer removed; the Process rail reordered](0142-phi-dialog-layout-atividade-composer-removal-process-rail.md) | accepted | 2026-08-24 | amends 0137 | – |
 | 0143 | [A gate for double-encoded UTF-8 (mojibake) in tracked text](0143-mojibake-gate-double-encoded-utf8.md) | accepted | 2026-08-25 | – | – |
 | 0144 | [Masked CPF on the person detail rail](0144-masked-cpf-on-the-person-detail-rail.md) | accepted | 2026-08-25 | amends 0133 | – |
+| 0145 | [Ever-held affiliation as the person-read boundary](0145-ever-held-affiliation-read-visibility.md) | accepted | 2026-08-25 | amends 0097, 0133 | – |

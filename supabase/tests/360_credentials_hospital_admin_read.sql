@@ -18,15 +18,21 @@
 -- verbatim, hospital-tier included (§3 pins that arm). Narrower would manufacture a fresh
 -- instance of the very trap the widening exists to remove.
 --
--- ⚠ AN ASYMMETRY THAT NOW LIVES INSIDE ONE POLICY, stated here because a reader who sees
--- the affiliation leg's filter will assume its sibling has one: the AFFILIATION leg filters
--- activity (`ended_on IS NULL`); the MEMBERSHIP leg does NOT filter `expires_at`. That is
--- not an oversight — it mirrors both live `profiles` policies, neither of which filters
--- `expires_at` anywhere. Filtering only here would make two policies silently disagree
--- about what "active" means, and the person with an expired membership still reaches the
--- directory through the `profiles` leg with a blank Registro cell (the same trap again).
--- Tracked for BOTH policies at once as FUP-AFF2-ACTIVE-MEANS-TWO-THINGS. §5.2 pins the
--- current behaviour so whichever way that follow-up lands, the change is deliberate.
+-- ⛔ THE ASYMMETRY THIS HEADER USED TO DESCRIBE IS GONE — CORRECTED 2026-08-25, ADR 0145.
+-- It read: "the AFFILIATION leg filters activity (`ended_on IS NULL`); the MEMBERSHIP leg
+-- does NOT filter `expires_at` ... tracked as FUP-AFF2-ACTIVE-MEANS-TWO-THINGS". Migration
+-- 20261003002200 removed the `ended_on` conjunct from this policy and from both `profiles`
+-- SELECT policies, so NEITHER leg filters activity any more and the three now agree.
+-- Verified from the live catalog: zero occurrences of `ended_on` and zero of `expires_at`
+-- in all three predicates. That follow-up is answered in the negative for the READ side —
+-- "active" describes WRITE authority (still filtered, in `resolvePersonFootprint`) and was
+-- never the right rule for read visibility.
+--
+-- The mirroring rule below is UNCHANGED and is why this file still matters: these legs
+-- mirror the two live `profiles` SELECT legs verbatim, and narrowing this policy alone
+-- reinstates the blank-Registro em-dash the widening exists to remove. ADR 0145 §3 changed
+-- all three together for exactly that reason. The ever-held behaviour itself is covered by
+-- `368_offboarded_person_visibility.sql`, not here.
 --
 -- ⛔ FIXTURE DISCIPLINE: every id below is FIXED and self-contained (the `0aff2002-` block),
 -- never a seed persona and never `gen_random_uuid()`. Seed ids drift with the roster; a

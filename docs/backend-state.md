@@ -471,12 +471,21 @@ byte-for-byte against `cpf`, and against `full_name`'s full set. Both join
 `v_privilege_changed` — a platform_admin must not write a DOB from a session (§1 noun rule).
 
 **RLS — one policy widened.** `professional_credentials_select` gains an **affiliation** leg
-(`ended_on IS NULL`) and a **membership** leg, both **mirroring the live `profiles` legs verbatim**, i.e.
+and a **membership** leg, both **mirroring the live `profiles` legs verbatim**, i.e.
 `COALESCE(hm.hospital_id, hc.hospital_id)` — **hospital-tier admitted** (Amdt 2 r1: D13 named the artifact
 to copy, and narrower-than-`profiles` manufactures the "empty means no-permission" state the widening
-exists to remove). ⚠ **No `expires_at` filter, deliberately** (Amdt 2 r3) — the read half of that question
-is open across **three** authorities: both `profiles` policies and this one
-(`FUP-AFF2-ACTIVE-MEANS-TWO-THINGS`).
+exists to remove). ⚠ **No `expires_at` filter, deliberately** (Amdt 2 r3).
+
+> ⛔ **AMENDED 2026-08-25 by ADR 0145 (migration `20261003002200`).** This paragraph said the affiliation
+> leg carried `ended_on IS NULL`, and that the `expires_at` question stayed "open across three authorities
+> (`FUP-AFF2-ACTIVE-MEANS-TWO-THINGS`)". Both are now false. The `ended_on` conjunct was removed from this
+> policy **and** from both `profiles` SELECT policies: the affiliation leg is **EVER-HELD**, so a
+> `hospital_admin` keeps read visibility of people who once worked at a hospital they administer (without
+> it, `end_affiliation` — the documented offboarding action — 404'd its own actor). Verified from the live
+> catalog: **zero** occurrences of `ended_on` and zero of `expires_at` across all three predicates, so both
+> legs now agree and that follow-up **closes**. Write authority is untouched — a departed person has an
+> empty active footprint in `resolvePersonFootprint`, so `personScopeAllows` still denies all four
+> capabilities. Keystone: `supabase/tests/368_offboarded_person_visibility.sql`.
 
 **Door.** `list_org_people(uuid, text, text)` payload gains `date_of_birth` (phone stays out). Return-type
 change forced **`DROP` + `CREATE`**, so the ACL, `prosecdef`, `SET search_path` and the COMMENT were all
