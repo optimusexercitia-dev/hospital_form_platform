@@ -1,4 +1,12 @@
-import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
+
+import {
+  test,
+  expect,
+  type APIRequestContext,
+  type APIResponse,
+  type Page,
+} from '@playwright/test'
 
 import { focusByTabbing, serviceQuery, signInAs } from './helpers/documents'
 import {
@@ -397,6 +405,72 @@ async function printedFileTier(
 async function assertRealPdf(bytes: Buffer, what: string): Promise<void> {
   expect(bytes.subarray(0, 5).toString('latin1'), `${what}: PDF magic bytes`).toBe('%PDF-')
   expect(bytes.byteLength, `${what}: non-trivial length`).toBeGreaterThan(1000)
+
+  /**
+   * ⭐ N-3 (QA pass 2) — THE TRAILER, which is what turns this from "starts like
+   * a PDF" into "is a COMPLETE PDF". Neither line above can see a truncated
+   * transfer: a cut-off document keeps `%PDF-` and clears 1000 bytes trivially.
+   * `%%EOF` is the last token a conforming writer emits, so its absence is the
+   * one cheap signal that bytes went missing in flight.
+   *
+   * Why it was added: QA reasoned from the ROUTE SOURCE that the
+   * `504373718` stream signal is benign (see {@link drainBody}) — and it is —
+   * but observed that this suite could not have answered the question either
+   * way. The assertion exists so the answer stops living only in the routes.
+   *
+   * ⚠ Searched in the LAST 1 KB rather than with `endsWith`: a writer may or may
+   * not emit a trailing newline, so an exact-tail match would be brittle for a
+   * reason that has nothing to do with completeness. Bounding the window is also
+   * what stops it matching an EARLIER `%%EOF` — an incrementally-updated PDF
+   * contains one per revision, and only the last one means "the file ends here".
+   */
+  const tail = bytes.subarray(Math.max(0, bytes.byteLength - 1024)).toString('latin1')
+  expect(tail, `${what}: PDF trailer (%%EOF) — the bytes are COMPLETE, not truncated`).toContain(
+    '%%EOF',
+  )
+}
+
+/**
+ * Consume a response body this suite asserts nothing about.
+ *
+ * ⛔ WHAT `504373718` IS, AND WHAT IT IS NOT. Recorded here, once, because the
+ * repo has now misread this string FOUR times. The dev server logs:
+ *
+ *     ⨯ Error: The destination stream closed early.   digest: '504373718'
+ *
+ * and four documents call it a SERVER-DEATH signature. **It is not one.** Both
+ * PDF routes return `new Response(new Uint8Array(buf))` — the bytes are fully
+ * materialized and every audit write is awaited BEFORE the Response object
+ * exists. So the failure direction is over-audit, and a truncated PHI document
+ * discloses LESS rather than more. That much is settled.
+ *
+ * ⛔ It is therefore NOT evidence about the Windows gate collapse. Reading it as
+ * one has cost real investigation time during gate reds. That collapse's
+ * signature is a vanished `LISTENING` socket while clients are still connected —
+ * a different observation entirely, and this line says nothing about it.
+ *
+ * ⛔⛔ WHAT THE EMITTER IS REMAINS **UNKNOWN**, AND THE OBVIOUS ANSWER WAS
+ * MEASURED AND FALSIFIED. QA pass 2 (N-4) attributed it to responses this spec
+ * requested and dropped without reading, and these `drainBody` calls were added
+ * to test exactly that. They do NOT silence it. Measured over three 11/11 runs
+ * on the same build (2026-08-25): **4 signals undrained · 3 undrained · 5 with
+ * every named body drained** — the drained run was the HIGHEST, so the count is
+ * not monotone in abandoned bodies. Two cases settle it:
+ *
+ *   - Corridor 1 CONSUMES its PDF body (`await (await …get(downloadPath)).body()`)
+ *     and has no abandoned response at all — and it emits the signal.
+ *   - The prévia corridor consumes BOTH variants' bodies — and never emits it.
+ *
+ * ⇒ Treat the string as **unattributed dev-server noise whose cause has not been
+ * found.** It varies run to run, which points at timing rather than at any call
+ * site. ⛔ Do not write the abandoned-body explanation back into the record: that
+ * would be a FIFTH wrong attribution, and this time a measured-false one. Keep
+ * these calls anyway — draining a body you assert nothing about is right on its
+ * own terms; it is simply not the fix for this.
+ */
+async function drainBody(r: APIResponse): Promise<void> {
+  await r.body()
+  await r.dispose()
 }
 
 // ---------------------------------------------------------------------------
@@ -886,6 +960,7 @@ test.describe('PDF·P3 — printing cases', () => {
 
     const open = await page.request.get(previaHref(caseOpenId))
     expect(open.status(), 'differential: the same route, a non-terminal case').toBe(200)
+    await drainBody(open) // N-4 — this differential wants the STATUS, not the bytes.
 
     // And the refusal wrote no audit row for the locked case — the door raises
     // before `audit_write`.
@@ -935,6 +1010,7 @@ test.describe('PDF·P3 — printing cases', () => {
     for (const spelling of ['true', 'yes', '0', 'sim']) {
       const r = await page.request.get(previaHref(caseOpenId, spelling))
       expect(r.status(), `?phi=${spelling} must be the DE-IDENTIFIED variant`).toBe(200)
+      await drainBody(r) // N-4 — the claim is the STATUS; four bodies were dropped here.
     }
 
     // Every prévia this caller obtained was logged under the DE-IDENTIFIED key.
@@ -1299,6 +1375,17 @@ test.describe('PDF·P3 — printing cases', () => {
     await page.keyboard.press('Enter')
     const download = await downloadPromise
     expect(download.suggestedFilename()).toMatch(/\.pdf$/)
+
+    /**
+     * N-4 — drain the download rather than abandoning it. ⭐ And while the bytes
+     * are in hand, assert what they ARE: this corridor previously checked only
+     * the suggested filename, so the one flow that reaches the download without
+     * a mouse asserted nothing whatsoever about what arrived. With N-3's trailer
+     * check that is now a completeness claim, on the path least likely to be
+     * exercised by hand.
+     */
+    const downloadedPath = await download.path()
+    await assertRealPdf(await readFile(downloadedPath), 'keyboard-only download')
 
     const rows = await printRowsForCase(page, caseKeyboardId)
     expect(rows.map((r) => r.template_key)).toEqual(['case'])

@@ -1156,7 +1156,28 @@ plus `> 1000` bytes; sibling specs have no length floor. Add a `%%EOF` trailer c
 
 **N-4 — the `504373718` signal has a wrong attribution on record and no right one.** `LOW / record.`
 § 2.5. Four documents call it a server-death signature; one calls it benign noise; none connects
-it to the PDF routes or the abandoned-body pattern. Attribute it, and drain the bodies.
+it to the PDF routes or the abandoned-body pattern. ~~Attribute it, and drain the bodies.~~
+
+> ⛔ **N-4's PROPOSED ATTRIBUTION IS FALSIFIED — measured 2026-08-25 by acting on it.** The bodies
+> were drained at all three named sites and the signal **did not stop**; the drained run carried the
+> **highest** count of the three (5, vs 4 and 3 undrained on the same build), so the count is not
+> monotone in abandoned bodies. Two cases settle it: **corridor 1 consumes its PDF body and has no
+> abandoned response at all — and emits the signal**, while **the prévia corridor consumes both
+> variants' bodies and never emits it.** The test holding the four bodies still emitted exactly one
+> after all four were drained.
+> ⇒ **The cause is UNKNOWN and looks timing-dependent, not site-dependent.** ⛔ Do not write the
+> abandoned-body explanation back into the record: that would be the **fifth** wrong attribution and
+> the first one measured false. What this review established about the *mechanism* stands unchanged
+> and is what matters — both routes fully materialize the buffer with all audit work awaited before
+> the bytes, so the failure direction is **over**-audit and a truncated PHI document discloses less,
+> not more. The durable home for that is the helper's docblock in the spec, where a gate-collapse
+> investigator actually lands.
+> ⚠ A **fourth** abandoned body this review did not list (`:1478-1479`, the 404 byte-path probe in
+> the door-refused corridor — also the test that emitted the signal twice) was deliberately left
+> undrained so the file matches the run that was measured.
+> ⭐ The generalisable half: **N-4 asked for an attribution and got one that was wrong.** The fix was
+> cheap enough to *run*, and running it is what turned a plausible cause into a measured non-cause.
+> A recommendation to "attribute X" is a hypothesis, not a finding.
 
 **N-5 — ⭐ `BUG-CASEEVT-KIND-001`'s entry in PROGRESS.md now contains a false fact, and P3 both
 raised the bug's stakes and handed it a detection signal.** `MEDIUM / record accuracy.`

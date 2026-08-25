@@ -5822,7 +5822,19 @@ trim loses nothing):
 
 ---
 
-### 🔴 FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH — the one failure mode the gate detects is the one whose evidence it deletes (owner: tester + backend)
+### 🔴 FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH
+
+> ⭐ **READ THIS BEFORE INVESTIGATING ANY GATE COLLAPSE (added 2026-08-25, PDF·P3):** the string
+> `⨯ Error: The destination stream closed early.` (digest `504373718`) is **NOT a server-death
+> signature**, and four documents in this repo say it is. Measured: it appears in **every** run of
+> the print spec including the clean 11/11 ones; both PDF routes return a fully materialized
+> `Uint8Array` with all audit work awaited **before** the bytes, so the failure direction is
+> **over**-audit and a truncated PHI document discloses less, not more. ⛔ Its cause is **UNKNOWN**:
+> the abandoned-response-body explanation was proposed by QA pass 2 (N-4), acted on, and
+> **falsified** — draining every named site RAISED the count. Do not re-attribute it without a
+> measurement. Detail: [phase-p3-review.md](../reviews/phase-p3-review.md) § N-4 and the
+> `drainBody` docblock in `e2e/pdf-printing-cases.spec.ts`.
+ — the one failure mode the gate detects is the one whose evidence it deletes (owner: tester + backend)
 
 > `scripts/e2e-prod-gate.sh:308` redirects each batch's standalone server to a **fixed**
 > `server.log` with a **truncating** `>`, so every batch overwrites the last. The file is surfaced
