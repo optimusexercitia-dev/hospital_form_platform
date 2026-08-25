@@ -5400,7 +5400,59 @@ output.
 
 ---
 
-### 🟡 FUP-P3-MINT-AFFORDANCE-WIDER-THAN-ITS-DOOR — the P3 card renders to a class ADR 0144 D8 will refuse (owner: frontend/qa; filed 2026-08-25 by the builder, as a stated bound on F2)
+### ✅ FUP-P3-MINT-AFFORDANCE-WIDER-THAN-ITS-DOOR — RESOLVED 2026-08-25, same day, by catalog measurement (owner: frontend/qa; filed by the builder as a stated bound on F2)
+
+> **RESOLUTION — the door I needed was already the one the page calls; no new backend surface.**
+> The card now renders on a **non-null `getCasePrintContext`**, which is the DB's own answer to
+> *"may this caller mint?"*. Nothing is re-derived in TypeScript, and the predicate stays declared
+> exactly once, in SQL. Commit: the F1/F2 follow-up on `0bc37fb3`.
+>
+> ⭐ **The three-link chain, read from the LIVE CATALOG** (`pg_get_functiondef`, 2026-08-25 — never
+> migration text; CLAUDE.md's graphify exception). A positive control ran first: both function names
+> resolved (2 rows) before any structural claim was believed.
+>
+> 1. `public.print_source_state` is **SECURITY DEFINER** (`prosecdef = t`), so its own gate
+>    **replaces RLS** and is the entire authority. Its first act after the flag assert is
+>    `if not app.can_view_printed_document(...) then return; end if;` — a bare `return` in a
+>    `RETURNS TABLE` function, i.e. **zero rows**. Its own comment names the intent: *"no row: no
+>    oracle"*. There is exactly **one** `return query`, past that gate, so no row can be produced
+>    without it.
+> 2. `app.can_view_printed_document`'s `case` arm is
+>    `app.can_read_case(id, uid) AND app.can_read_full_case_content(id, uid)` — **ADR 0144 D8's mint
+>    arm exactly**, all seven masking axes included via the full-content predicate. Unknown kinds hit
+>    `else return false`.
+> 3. `getCasePrintContext` maps **every** incomplete answer to `null`: an RLS miss on `cases`, an
+>    absent RPC row, **and** a row whose fields are missing or mistyped (an explicit type-guard —
+>    stronger than the spec required, since `.maybeSingle<T>()` is an assertion, not a verification).
+>
+> ⚠ **The direction that matters is the contrapositive**, and it is the one the affordance rests on:
+> the measurement above proves *refusal ⇒ null*; the card needs *non-null ⇒ the door passed*. That
+> holds because the gate is the only path to the single `return query`. Stated explicitly because
+> proving the forward direction and *using* the reverse is how a sound measurement gets applied to
+> the wrong claim.
+>
+> **Side effect, and an improvement:** the fail-closed fallbacks the first draft carried
+> (`caseDisposed: … ?? true`, `status: … ?? detail.case.status`) are now **dead and removed**. They
+> would manufacture a state for a caller the door had already answered about, turning an honest
+> absence back into the refusal-on-click this gate exists to remove. A structural test pins that they
+> are not restored — the alternative was a code comment, which is the thing that goes stale silently.
+>
+> ⛔ **NOT resolved by shape (a) or (c).** (a) was unnecessary — no capability field, no new door.
+> (c) stays forbidden regardless: re-deriving the arms in TypeScript is the divergence the module's
+> standing rule exists to prevent, and the fact that a cheaper correct fix existed does not make the
+> wrong one safer.
+>
+> ⚠ **BOUNDED — a residue survives, and it is NOT closed.** The gate is D8's **de-identified** mint
+> authority. The identified variant additionally requires `app.can_read_case_patient`, which is
+> **not** exposed to the page. A caller with case-read + full-content but **without** PHI read still
+> sees the checkbox and is refused on submit. That is the original finding **narrowed, not
+> eliminated**; closing it needs the PHI door on the detail capability envelope (a backend surface
+> change) and must not be faked by re-deriving it in the UI. ⛔ Do not read this ✅ as covering the
+> PHI variant — a partial fix reading as a complete one is exactly how this class recurs.
+
+**The finding as originally filed** (kept because the reasoning about why (c) was wrong is the
+reusable part):
+
 
 **The gap.** The *Documentos impressos* card mounts on the case Detalhes tab
 (`src/app/o/[org]/c/[commission]/manage/cases/[caseId]/(detail)/page.tsx`) gated on the

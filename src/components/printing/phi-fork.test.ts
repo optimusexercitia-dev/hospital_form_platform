@@ -135,6 +135,52 @@ describe("⛔ the capability is READ, never written as a literal (ADR 0104 D9)",
   });
 });
 
+describe("⭐ the case card is gated on the DOOR'S OWN ANSWER (FUP-P3-MINT-AFFORDANCE)", () => {
+  /**
+   * `getCasePrintContext` returns `null` exactly when the caller cannot mint —
+   * `public.print_source_state` is DEFINER and answers a refusal with a bare
+   * `return` (zero rows), and its `case` arm is `can_read_case ∧
+   * can_read_full_case_content`, ADR 0144 D8's arm. Catalog-verified 2026-08-25.
+   *
+   * ⛔ So the card must render on the CONTEXT, never on the bare feature flag.
+   * The difference is invisible at runtime for an authorised viewer — both
+   * render the card — and shows up only for the excluded class, which is the
+   * class nobody has a fixture for. Only a structural assertion catches a
+   * regression here, and the alternative was a code comment, which is the thing
+   * that goes stale silently.
+   */
+  const caseSite = () => {
+    const site = findMountSites().find((s) => s.source.includes('sourceKind="case"'));
+    if (!site) throw new Error("no mount site renders sourceKind=\"case\"");
+    return site.source;
+  };
+
+  it("⭐ POSITIVE CONTROL: the case mount site exists and reads the print context", () => {
+    const source = caseSite();
+    expect(source).toContain("getCasePrintContext");
+    expect(source).toContain("<PrintedDocumentsSection");
+  });
+
+  it("⛔ renders on the print CONTEXT, not on the bare feature flag", () => {
+    const source = caseSite();
+    // The state object is derived from the context and is the render condition.
+    expect(source).toMatch(/\{casePrintState \?/);
+    // ...and the flag alone is NOT the condition. `documentPrintingOn` still
+    // guards the READ (no point calling the door when printing is off), which is
+    // a different thing from guarding the CARD.
+    expect(source).not.toMatch(/\{documentPrintingOn \? \(\s*<div/);
+  });
+
+  it("⛔ manufactures NO state for a caller the door already answered about", () => {
+    const source = caseSite();
+    // The earlier draft had `caseDisposed: casePrintContext?.caseDisposed ?? true`
+    // and a `?? detail.case.status`. Both are dead now, and restoring either
+    // would turn an honest absence back into a button that errors on click.
+    expect(source).not.toMatch(/caseDisposed:\s*[^,\n]*\?\?/);
+    expect(source).not.toMatch(/status:\s*casePrintContext\?\.\w+\s*\?\?/);
+  });
+});
+
 describe("⭐ ADR 0144 D6 — the band is NOT what the choice governs", () => {
   it("the notice says the band appears on BOTH variants", () => {
     expect(PHI_BAND_NOTICE).toMatch(/nas duas vers[õo]es/i);

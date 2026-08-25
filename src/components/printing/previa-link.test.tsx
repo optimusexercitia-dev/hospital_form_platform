@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { printSourceRegisters } from "@/lib/pdf/documents/print-source";
 
+import { renderedText } from "@/components/dsr/disposal-copy-property";
+
 import { PREVIA_BUTTON_LABEL, previaHref } from "./labels";
 import { PreviaLink } from "./previa-link";
 
@@ -181,10 +183,18 @@ describe("⭐ the PHI fork on a prévia (ADR 0144 D9)", () => {
     // the de-identified variant is NOT "sem dados do paciente". Copy that says
     // otherwise is the most dangerous string on this surface — a user who
     // believes it hands the PDF to someone they otherwise would not.
+    //
+    // ⚠ `renderedText`, NOT `textContent` — this is an ABSENCE property, so a
+    // miss is a FALSE GREEN. Bare `textContent` concatenates sibling text nodes
+    // with NO separator, so a promise split across two elements
+    // (`<span>sem</span><span>dados do paciente</span>`) fuses to "semdados do
+    // paciente" and every pattern below silently misses it. Joining text nodes
+    // with a space only ever ADDS a boundary, so the failure direction is toward
+    // detection.
     const { container } = render(
       <PreviaLink sourceKind="case" sourceId={SOURCE_ID} phiCapable />,
     );
-    const text = container.textContent!;
+    const text = renderedText(container);
     for (const promise of [
       /sem dados do paciente/i,
       /sem identificação/i,
@@ -202,7 +212,7 @@ describe("⭐ the PHI fork on a prévia (ADR 0144 D9)", () => {
     const { container } = render(
       <PreviaLink sourceKind="case" sourceId={SOURCE_ID} phiCapable />,
     );
-    const text = container.textContent!;
+    const text = renderedText(container);
     expect(text).toMatch(/trilha de auditoria/i);
     // The reserved-verb rule (ADR 0125 D5) still holds with the fork rendered —
     // "mesmo sem emissão" would deny the act while putting the reserved token on

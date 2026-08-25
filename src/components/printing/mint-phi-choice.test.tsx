@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { renderedText } from "@/components/dsr/disposal-copy-property";
 import type { MintPrintedDocumentInput } from "@/lib/pdf-mint/actions";
 
 const refresh = vi.fn();
@@ -216,7 +217,10 @@ describe("⭐ the keyboard path still completes mint → download", () => {
     const user = await openDialog(true);
     await user.click(screen.getByRole("button", { name: "Emitir documento" }));
     await waitFor(() => expect(action).toHaveBeenCalledTimes(1));
-    const text = document.body.textContent!;
+    // ⚠ `renderedText`, not `textContent` — an ABSENCE property, where fused
+    // sibling text nodes turn a miss into a false green. See the twin note in
+    // previa-link.test.tsx.
+    const text = renderedText(document.body);
     expect(text).toMatch(/ABCD-1234/); // the success state really rendered
     expect(text).not.toMatch(/sem identificação|sem dados do paciente|an[ôo]nim/i);
     expect(text).not.toMatch(/com a identificação do paciente/i);

@@ -303,11 +303,36 @@ export default async function CaseDetailPage({
   // ADR 0125 D5's forbidden fourth cell — a FINAL page carrying a prévia footer —
   // gets reached. One object makes that impossible here.
   //
-  // ⛔ Fails CLOSED on an absent context (`null` when the door refused, or the
-  // case is unresolvable): `caseDisposed: true` alone drops registration whatever
-  // the status is, so the screen offers a PRÉVIA rather than entering the
-  // registry on state nobody confirmed. The status fallback is the case row this
-  // page already gated on and read — a known fact, not an invented one.
+  // ⭐ **A NULL CONTEXT IS AN AUTHORITATIVE "THIS CALLER CANNOT MINT", so it
+  // gates the CARD — this is the whole affordance control, and it re-derives
+  // nothing.** Verified against the live catalog 2026-08-25 (never migration
+  // text — CLAUDE.md's graphify exception), all three links:
+  //
+  //   1. `public.print_source_state` is SECURITY DEFINER, so its own gate
+  //      REPLACES RLS and is the entire authority. Its first act after the flag
+  //      assert is `if not app.can_view_printed_document(...) then return;` — a
+  //      bare `return` in a `RETURNS TABLE` function, i.e. ZERO ROWS. Its own
+  //      comment names the intent: *"no row: no oracle"*. There is exactly one
+  //      `return query`, past that gate, so no row can be produced without it.
+  //   2. `app.can_view_printed_document`'s `case` arm is
+  //      `app.can_read_case(id, uid) AND app.can_read_full_case_content(id, uid)`
+  //      — ADR 0144 D8's mint arm exactly, all seven masking axes included via
+  //      the full-content predicate; unknown kinds hit `else return false`.
+  //   3. `getCasePrintContext` maps every incomplete answer to `null`: an RLS
+  //      miss on `cases`, an absent RPC row, AND a row whose fields are missing
+  //      or mistyped.
+  //
+  // The contrapositive is what this page relies on: a NON-NULL context means the
+  // door did not refuse. ⛔ Do NOT "restore" a defensive `?? true` /
+  // `?? detail.case.status` fallback here — an earlier draft had exactly that,
+  // and it is worse than useless now: it would manufacture a state for a caller
+  // the door already answered about, and turn an honest absence back into the
+  // refusal-on-click this gate exists to remove. Closes
+  // FUP-P3-MINT-AFFORDANCE-WIDER-THAN-ITS-DOOR.
+  //
+  // ⚠ Bounded, stated: this is the DE-IDENTIFIED mint authority. D8 adds
+  // `app.can_read_case_patient` for the identified variant only, and that door is
+  // not exposed here — see the PHI residue note on the card below.
   //
   // ⛔ Only the two fields the `case` arm reads. `correctionOpen` / `phaseVoided`
   // / `meetingDisposed` are IGNORED for this kind (pinned by ADR 0144 D14's
@@ -316,10 +341,12 @@ export default async function CaseDetailPage({
   const casePrintContext = documentPrintingOn
     ? await getCasePrintContext(caseId)
     : null;
-  const casePrintState = {
-    status: casePrintContext?.status ?? detail.case.status,
-    caseDisposed: casePrintContext?.caseDisposed ?? true,
-  };
+  const casePrintState = casePrintContext
+    ? {
+        status: casePrintContext.status,
+        caseDisposed: casePrintContext.caseDisposed,
+      }
+    : null;
 
   return (
     <>
@@ -384,15 +411,23 @@ export default async function CaseDetailPage({
         into "Linha do tempo" and "Processo ético" — printing belongs to the
         record, not to the chrome.
 
-        ⚠ What is deliberately ABSENT: this module reproduces NO visibility check.
-        The route already gated on `canOpenCaseManagement` AND on the case
-        belonging to this commission, and ADR 0144 D8's mint arm
-        (`can_read_case` ∧ the full-content predicate ∧, for the identified
-        variant, `app.can_read_case_patient`) re-decides at the door for mint and
-        download alike. A recused member or a phase-only respondent who reaches
-        this route is refused there, in pt-BR — that is the domain's gate doing
-        its job, not something for this card to pre-empt or compensate for. */}
-    {documentPrintingOn ? (
+        ⭐ The render condition is `casePrintState`, i.e. a NON-NULL print
+        context — which is the DB door's own answer, not a check this file makes.
+        See the derivation above the read. A caller ADR 0144 D8's arm refuses
+        gets an ABSENT card instead of a button that errors on click, and the
+        predicate stays declared exactly once, in SQL. ⛔ This is NOT the module
+        reproducing a visibility check: nothing here re-states the arms, and if
+        the door's definition changes this page follows it without an edit.
+
+        ⚠ **The PHI variant is a bounded residue, named rather than papered
+        over.** The gate above is D8's DE-IDENTIFIED authority. The identified
+        variant needs `app.can_read_case_patient` too, and that door is not
+        exposed to this page — so a caller with case-read + full-content but
+        without PHI read still sees the checkbox and is refused on submit. That
+        is the ORIGINAL finding, narrowed, not eliminated; closing it needs a
+        capability on the detail envelope (a backend surface change) and must not
+        be faked by re-deriving the PHI door here. */}
+    {casePrintState ? (
       <div className="animate-rise-in flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs">
         <PrintedDocumentsSection
           sourceKind="case"
