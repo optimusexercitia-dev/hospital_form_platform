@@ -222,11 +222,23 @@ export interface PersonPersonalData {
   /**
    * Whether a CPF is stored at all.
    *
-   * ⚠ KEPT ALONGSIDE {@link cpfMasked}, not replaced by it, and the pair is not
-   * redundant: `cpfMasked` is `null` both when nothing is stored AND when the stored
-   * value fails the 11-digit shape, so `cpfMasked === null` cannot answer "is there a
-   * CPF on file". Presence is the fact the edit form and any future completeness check
-   * need; the mask is only for display.
+   * ⚠ KEPT ALONGSIDE {@link cpfMasked}, not replaced by it — but NOT for the reason
+   * this comment used to give. It claimed `cpfMasked` is `null` both when nothing is
+   * stored AND when the stored value fails the 11-digit shape. ⛔ **The second half is
+   * unreachable through the only producer**, and stating it as live sent one reviewer
+   * looking for a render branch that cannot be entered (QA M11, refuted by measurement).
+   * `profiles_cpf_valid` is a VALIDATED check constraint admitting only
+   * `NULL OR app.is_valid_cpf(cpf)`, and that predicate rejects anything but
+   * `^[0-9]{11}$` — so a stored CPF is always maskable and `cpfMasked === null` means
+   * exactly "nothing stored". The malformed null path exists in `maskCpf` read in
+   * isolation; it does not exist in the system.
+   *
+   * The field stays because ADR 0144 D4 requires presence as a fact in its own right —
+   * what the edit form and any completeness check consume — not because display needs
+   * it to disambiguate. ⚠ Its correctness therefore RESTS ON A DATABASE CONSTRAINT that
+   * no lint, tsc or vitest run can see; the guards are pgTAP
+   * `359_profiles_dob_phone.sql:249` and `301_hospital_affiliation_substrate.sql:228`,
+   * which red if that CHECK is dropped or weakened.
    */
   cpfPresent: boolean
   /**
