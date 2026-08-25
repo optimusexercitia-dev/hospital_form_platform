@@ -179,7 +179,7 @@ only grow. Rotated verbatim 2026-08-19 and re-homed:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **User-profile redesign + AFF3/AUD1** | ⚠ **CHANGES REQUESTED** — B1: a hospital-tier audit writer passes no org, so those rows are invisible to their org_admin AND readable by platform_admin (lead-verified; ADR 0146's superset Consequence false). B2/B3 doc defects. M6 was itself false and correctly refused | 2026-08-25 | [review](docs/reviews/user-profile-redesign-review.md) |
+| **User-profile redesign + AFF3/AUD1** | ✅ **APPROVED (r2)** — looped: r1 **CHANGES REQUESTED** on B1, a hospital-tier audit writer passing no org (real, and wider than filed — it also let platform_admin read tenant rows). Fixed as a class + leg 5 bounded; r2 re-verified by construction, 5 mutations. r1's M6/M11 withdrawn as measured-false | 2026-08-25 | [review](docs/reviews/user-profile-redesign-review.md) |
 | _The ADR 0137 row_ — rotated 2026-08-24 once the batch fully concluded, **0136** being the current milestone | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | _The AFF2 pair (r2 + struck r1)_ — rotated 2026-08-24, 0137 being the current milestone at the time | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | _The seven DM rows_ — rotated 2026-08-19, the DM milestone being closed | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
