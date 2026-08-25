@@ -26,11 +26,20 @@
 -- RLS is being brought into line with an authorization decision the platform already
 -- shipped. §2 pins both halves so they cannot drift apart again.
 --
--- ⛔ LEG 5 IS DELIBERATELY UNTOUCHED. The `is_admin()` leg keeps its `organization_id IS
--- NULL` bound — that is the platform-admin NOUN RULE (CLAUDE.md §1, ADR 0078 A35): a
--- platform_admin administers tenancy, never tenant CONTENT. §5 asserts it still holds and
--- §6.5 asserts the conjunct is still literally present, because "I changed one leg and not
--- the other" is only credible if something fails when the other one moves.
+-- ⛔ LEG 5 IS DELIBERATELY UNTOUCHED *BY THIS MIGRATION*. The `is_admin()` leg keeps its
+-- `organization_id IS NULL` bound — that is the platform-admin NOUN RULE (CLAUDE.md §1,
+-- ADR 0078 A35): a platform_admin administers tenancy, never tenant CONTENT. §5 asserts it
+-- still holds and §6.5 asserts the conjunct is still literally present, because "I changed
+-- one leg and not the other" is only credible if something fails when the other one moves.
+--
+-- ⚠ AMENDED BY ADR 0147 / migration 20261003002400. The bound was right; the claim that
+-- `organization_id IS NULL` EXPRESSED it was not. `app.audit_write` and
+-- `public.verify_audit_chain` both define the platform chain as ALL THREE scope keys NULL,
+-- so leg 5 checking only two of them admitted a malformed hospital-tier row (`hospital_id`
+-- set, `organization_id` NULL) — which is what `app.trg_audit_standard_ownerships` was
+-- writing. Leg 5 now also carries `hospital_id IS NULL`. §6.4 and §6.8 below were rewritten
+-- for that; the behavioural arms in §5 are unchanged and still pass, because a WELL-FORMED
+-- hospital-tier row never satisfied leg 5 in the first place. Test 370 owns the new half.
 --
 -- ⛔ FIXTURE DISCIPLINE: every id is FIXED and self-contained (the `0ad00146-` block),
 -- never a seed persona and never `gen_random_uuid()`. Rows are created through
@@ -41,7 +50,7 @@
 -- resolved rather than trusting that.
 
 begin;
-select plan(28);
+select plan(29);
 
 -- ===========================================================================
 -- §0 Fixture + preconditions. Built as table owner, before any role switch.
@@ -293,10 +302,16 @@ select ok(
     where n.nspname = 'public' and c.relname = 'audit_log'),
   '6.3 ... and RLS is still ENABLED — without this every DENY above measures nothing (Architecture Rule 1)');
 
+-- ⚠ 6.4 WAS `qual NOT LIKE '%hospital_id IS NULL%'` over the WHOLE predicate. ADR 0147 put
+-- that string on leg 5 legitimately, so the old form reds on a correct policy. It was
+-- rewritten LEG-SCOPED rather than relaxed, and the replacement is STRICTLY STRONGER: the
+-- old `NOT LIKE` also passed if leg 4 were deleted outright, this one requires leg 4 to be
+-- literally present in the right shape. Verified by mutation both ways — restoring leg 4's
+-- conjunct reds 6.4, removing leg 5's reds 6.8.
 select ok(
   (select qual from pg_policies where tablename = 'audit_log' and policyname = 'audit_log_select')
-    not like '%hospital_id IS NULL%',
-  '6.4 ⭐ the `hospital_id IS NULL` conjunct is GONE from the predicate entirely — the single edit this migration makes');
+    like '%((commission_id IS NULL) AND app.is_org_admin_of(organization_id))%',
+  '6.4 ⭐ leg 4 — the ORG leg — carries `commission_id IS NULL` and NO hospital conjunct. This is the single edit this migration makes, pinned as the whole leg: a bare substring test cannot tell which leg the conjunct sits on, and "which leg" is the entire difference between the bug and the boundary');
 
 select ok(
   (select qual from pg_policies where tablename = 'audit_log' and policyname = 'audit_log_select')
@@ -316,6 +331,11 @@ select ok(
   and (select qual from pg_policies where tablename = 'audit_log' and policyname = 'audit_log_select')
     like '%is_hospital_admin_of%',
   '6.7 REGRESSION: legs 1-3 survived the re-emission. `alter policy` replaces the WHOLE using expression, so a leg lost in transcription would be invisible to arms that never exercise it');
+
+select ok(
+  (select qual from pg_policies where tablename = 'audit_log' and policyname = 'audit_log_select')
+    like '%((organization_id IS NULL) AND (hospital_id IS NULL) AND (commission_id IS NULL) AND app.is_admin())%',
+  '6.8 ⭐ (ADR 0147) leg 5 carries the FULL platform-chain shape — all three scope keys NULL, exactly as `app.audit_write` and `public.verify_audit_chain` define that chain. 6.5 above pins only the `organization_id` half, which was true while the leg was still too wide; this is the arm that reds if the `hospital_id` bound is removed again');
 
 select * from finish();
 rollback;

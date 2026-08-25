@@ -1,3 +1,5 @@
+import 'server-only'
+
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 

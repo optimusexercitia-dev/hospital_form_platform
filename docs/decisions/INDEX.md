@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**144 ADRs** · next free number: **0147** · 39 carry an inbound supersedes/amends edge
+**145 ADRs** · next free number: **0148** · 41 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -63,7 +63,7 @@
 | 0038 | [Case patient identifiers (`case_patient`, the third PHI module)](0038-case-patient-identifiers.md) | accepted | 2026-06-21 | amends 0030, 0033, 0036 | ⛔ superseded by 0064 · ⚠ amended by 0064, 0137 |
 | 0039 | [Patient identity & cross-committee linkage (`patient_index`)](0039-patient-identity-cross-committee-linkage.md) | accepted | 2026-06-22 | – | – |
 | 0040 | [Form Builder Enhancements: condition engine, per-item visibility, additive schema](0040-form-builder-enhancements-condition-engine.md) | accepted | 2026-06-23 | – | ⛔ superseded by 0043 |
-| 0041 | [Multi-Tenancy: organizations + hospitals above commissions](0041-multi-tenancy-organizations-hospitals.md) | accepted | 2026-06-24 | – | – |
+| 0041 | [Multi-Tenancy: organizations + hospitals above commissions](0041-multi-tenancy-organizations-hospitals.md) | accepted | 2026-06-24 | – | ⚠ amended by 0146 |
 | 0042 | [NSP-per-org: per-org PQS roster + org-bound PHI doors](0042-nsp-per-org.md) | accepted | 2026-06-25 | – | ⛔ superseded by 0052 |
 | 0043 | [Result-based phase recommendation (combinable `recommend_when`)](0043-phase-result-based-recommendation.md) | accepted | 2026-06-26 | supersedes 0017, 0040 | – |
 | 0044 | [Process-less cases ("Sem processo")](0044-processless-cases.md) | accepted | 2026-06-29 | – | – |
@@ -167,4 +167,5 @@
 | 0143 | [A gate for double-encoded UTF-8 (mojibake) in tracked text](0143-mojibake-gate-double-encoded-utf8.md) | accepted | 2026-08-25 | – | – |
 | 0144 | [Masked CPF on the person detail rail](0144-masked-cpf-on-the-person-detail-rail.md) | accepted | 2026-08-25 | amends 0133 | – |
 | 0145 | [Ever-held affiliation as the person-read boundary](0145-ever-held-affiliation-read-visibility.md) | accepted | 2026-08-25 | amends 0097, 0133 | – |
-| 0146 | [An org_admin reads the hospital-tier audit chain](0146-org-admin-reads-hospital-tier-audit.md) | accepted | 2026-08-25 | amends 0051 | – |
+| 0146 | [An org_admin reads the hospital-tier audit chain](0146-org-admin-reads-hospital-tier-audit.md) | accepted | 2026-08-25 | amends 0041, 0051 | ⚠ amended by 0147 |
+| 0147 | [The audit organization is derived from the hospital, and leg 5 means the platform chain](0147-audit-org-derived-from-hospital.md) | accepted | 2026-08-25 | amends 0146 | – |

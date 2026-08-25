@@ -1,3 +1,5 @@
+import 'server-only'
+
 import { createClient } from '@/lib/supabase/server'
 import { featureEnabled } from '@/lib/queries/feature-flags'
 import type { Json } from '@/lib/types/database'

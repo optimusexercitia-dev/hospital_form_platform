@@ -65,10 +65,22 @@ ever been consulted when the directory was specified.
    `profiles_admin_select` leaves arms 1.1, 1.2, 2.2, 2.3 and 3.4 green).
 
 3. **`professional_credentials_select` changes too — as its own decision, not a
-   ride-along.** Council registrations are **Class-2 professional-identity data**
-   (Architecture Rule 12; ADR 0064/0065), and the consequence is explicit: *an
-   ex-employee's council registration number becomes readable by an admin of a hospital
-   they used to work at.*
+   ride-along.** The consequence is explicit: *an ex-employee's council registration number
+   becomes readable by an admin of a hospital they used to work at.*
+
+   ⚠ **This is professional-identity data in the ordinary sense; it is NOT the Rule-12
+   "Class 2" population, and an earlier draft of this decision said it was.** Corrected
+   against the catalog and the spec rather than by memory: ARCHITECTURE.md Rule 12
+   (`:602-606`) scopes Class 2 to **`professional_profiles`** — a different table —
+   `professional_credentials` appears **zero** times in ADR 0064 and zero times in 0065, and
+   **no function in the live catalog audits a `professional_credentials` read**. Class 2's
+   defining controls are case-scoped RLS **plus audited reads**, and Rule 12 further notes
+   that "audited reads" is a property of the case-scoped DEFINER door
+   (`get_case_professional`), not of every read of the class. Invoking the class here while
+   the Consequences below decline its control would have been a contradiction sitting inside
+   an ADR — so the class claim is withdrawn, not the control. (Both ADRs cited in that draft
+   are also superseded: **0064 by 0072**, **0065 by 0114**. The live home of the taxonomy is
+   ARCHITECTURE.md Rule 12, amended by ADR 0072 §7·3.)
 
    It is changed because **not** changing it re-creates the exact defect that leg was
    written to remove. Migration `20261003001100` (ADR 0133 D13 Amdt 2) added it so the
@@ -99,10 +111,22 @@ ever been consulted when the directory was specified.
      `profiles_admin_update` is `app.is_admin()` and `profiles_update_self` is
      `id = auth.uid()`. This migration adds none.
    - The ADR-0133 (AFF2) capability derivation is untouched and still filters
-     `ended_on is null` in `resolvePersonFootprint`. A departed person therefore has an
-     **empty active footprint**, and `personScopeAllows` denies all four capabilities
-     (`fields` · `credentials` · `cpf_change` · `lifecycle`) at its explicit zero-footprint
-     guard. AFF2's INTERSECTION/SUBSET split is unchanged.
+     `ended_on is null` in `resolvePersonFootprint`. Where the person's ONLY tie was the
+     affiliation, they have an **empty active footprint**, and `personScopeAllows` denies all
+     four capabilities (`fields` · `credentials` · `cpf_change` · `lifecycle`) at its explicit
+     zero-footprint guard. AFF2's INTERSECTION/SUBSET split is unchanged.
+
+     ⚠ **"Departed ⇒ empty footprint" does NOT follow, and an earlier draft asserted it as a
+     "therefore".** `resolvePersonFootprint` has **two** sources
+     (`person-footprint.ts:70-100`): active affiliations **∪** the hospitals of active
+     commission-tier memberships. Someone whose affiliation ended but who still holds a live
+     commission seat at that hospital keeps a **non-empty** footprint and remains writable.
+     That behaviour is correct — a live commission seat is a live tie, and offboarding
+     someone from a hospital while leaving them seated on its committee is the anomaly — but
+     it is a *second* rule, not a consequence of the first. The write boundary is "no active
+     tie of EITHER kind", never "the affiliation ended".
+     ⛔ `departed-person-footprint.test.ts` exercises only the affiliation source
+     (`:92-99` sets `memberships: []`), so nothing currently pins the union arm.
 
    Net: a hospital admin can now **open** an ex-employee's record and still cannot edit
    their name, CPF, credentials, category, account status, or affiliations.
@@ -138,17 +162,50 @@ ever been consulted when the directory was specified.
   at all" to this bounded claim, because the broad version was a false statement about the
   platform sitting inside a keystone.
 
-- **`FUP-AFF2-ACTIVE-MEANS-TWO-THINGS` closes.** That follow-up recorded that three
-  authorities assert "active membership" while no policy implements it, and flagged an
-  asymmetry *inside* a single policy: the affiliation leg filtered activity
+- **`FUP-AFF2-ACTIVE-MEANS-TWO-THINGS` is NARROWED, and does NOT close.** That follow-up
+  recorded that three authorities assert "active membership" while no policy implements it,
+  and flagged an asymmetry *inside* a single policy: the affiliation leg filtered activity
   (`ended_on is null`), the membership leg never filtered `expires_at`. Verified from the
   live catalog after this migration — all three policies now contain **zero** occurrences
-  of `ended_on` **and** zero of `expires_at`. The asymmetry is genuinely gone, and it
-  resolves in the permissive direction: the follow-up's question is answered **in the
-  negative** for the read side. "Active" describes **write** authority — which does still
-  filter, in `resolvePersonFootprint` — and was never the right rule for read visibility.
-  A future decision to filter `expires_at` on the membership leg would now contradict this
-  ADR's ever-held principle and needs its own ruling.
+  of `ended_on` **and** zero of `expires_at`. The intra-policy asymmetry is genuinely gone.
+
+  > ⛔ **An earlier version of this bullet claimed the item CLOSES, and that closure was
+  > proposed and REJECTED on 2026-08-25** (`PROGRESS.md`; `docs/progress/follow-ups.md`
+  > § FUP-AFF2-ACTIVE-MEANS-TWO-THINGS). The argument was circular: the follow-up's open
+  > question is *whether the membership leg should ADD `expires_at`*, so "all three
+  > predicates now contain zero `expires_at`" states the defect and quotes it as the
+  > resolution — a true measurement carrying a conclusion it does not bound, which is a
+  > named failure class in this repo. The asymmetry resolved in the **permissive** direction,
+  > by removing a filter rather than adding one; that narrows the item, it does not discharge
+  > it. The **write** half did close separately (ADR 0133 Amdt 4 r1 — `resolvePersonFootprint`
+  > selects and applies `expires_at`). What remains open is the read half, now across
+  > **three** policies rather than two, answerable only for all three at once.
+  >
+  > What this ADR *does* settle is narrower and stands: for the **affiliation** leg, "ever
+  > held" is the deliberate rule, so a future decision to re-filter *that* leg on activity
+  > would contradict this ADR and needs its own ruling. It says nothing about `expires_at` on
+  > the membership leg.
+
+- **⚠ ACCEPTED CONSEQUENCE WITH A NAMED GAP: a MIS-ENTERED affiliation is not correctable,
+  only endable — so this widening makes a data-entry error permanent.** D5 argues
+  "unbounded in time" for *legitimately departed* staff and argues it well. It does not
+  address the error case, and the two are not the same: an affiliation created against the
+  **wrong hospital** grants that hospital's admin read access to a person who never worked
+  there, and after this ADR *ending* it no longer revokes that access.
+
+  Measured in the live catalog rather than inferred: `hospital_affiliations` carries a
+  **SELECT policy only** (`hospital_affiliations_select`), `authenticated` holds `r` alone
+  (`relacl` = `authenticated=r/postgres`), and **no function in any schema deletes from it**
+  (swept `pg_proc` for `delete from … hospital_affiliations` → 0 rows). The only mutation an
+  operator has is `end_affiliation`, which sets `ended_on` — the very column this ADR
+  removed from the read predicate.
+
+  ⛔ **Recorded as accepted, with the gap NAMED — not as closed.** No correction path is
+  built here, because building one is a decision about erasure semantics (Rule 12's
+  minimise-not-destroy posture, ADR 0072 §7·3) and about who may invoke it, not a fix that
+  belongs inside a read-visibility migration. The PO decides whether it is built; the point
+  of this bullet is that a reader arriving at D5 does not conclude the error case was
+  considered and accepted when it was never considered at all.
 
 - **An ex-employee's record and council registration are readable by their former
   hospital's admin, indefinitely.** This is the accepted cost. It is bounded to hospitals

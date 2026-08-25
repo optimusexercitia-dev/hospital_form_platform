@@ -950,11 +950,12 @@ export async function upsertCredential(
   const admin = createAdminClient()
   if (input.id) {
     // Editing clears verified_at (tamper-visible) + stamps updated_at.
-    const { error } = await admin
+    const { data: updated, error } = await admin
       .from('professional_credentials')
       .update({ ...row, verified_at: null, updated_at: new Date().toISOString() })
       .eq('id', input.id)
       .eq('user_id', input.userId)
+      .select('id')
     if (error) {
       return {
         ok: false,
@@ -963,6 +964,15 @@ export async function upsertCredential(
             ? MESSAGES.credentialCollision
             : MESSAGES.generic,
       }
+    }
+    // A zero-row UPDATE is NOT an error, so without this the UI reported
+    // "Registro profissional salvo." for a write that never happened. The
+    // `.eq('user_id', …)` conjunct above is the cross-person guard and its whole
+    // purpose is to match zero rows for a forged id — reporting that as success
+    // told the caller their edit landed on another person's row. `removeCredential`
+    // treats the same not-found case as `generic`; this matches it.
+    if (!updated || updated.length === 0) {
+      return { ok: false, error: MESSAGES.generic }
     }
   } else {
     const { error } = await admin

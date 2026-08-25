@@ -483,9 +483,16 @@ exists to remove). ⚠ **No `expires_at` filter, deliberately** (Amdt 2 r3).
 > `hospital_admin` keeps read visibility of people who once worked at a hospital they administer (without
 > it, `end_affiliation` — the documented offboarding action — 404'd its own actor). Verified from the live
 > catalog: **zero** occurrences of `ended_on` and zero of `expires_at` across all three predicates, so both
-> legs now agree and that follow-up **closes**. Write authority is untouched — a departed person has an
-> empty active footprint in `resolvePersonFootprint`, so `personScopeAllows` still denies all four
-> capabilities. Keystone: `supabase/tests/368_offboarded_person_visibility.sql`.
+> legs now agree. ⛔ **That does NOT close `FUP-AFF2-ACTIVE-MEANS-TWO-THINGS`** — an earlier version of this
+> paragraph said it did, and that closure was **proposed and rejected on 2026-08-25**. The item's open
+> question is whether the **membership** leg should ADD `expires_at`, so "zero `expires_at`" states the
+> defect and cannot also be its resolution; the asymmetry resolved **permissively**, which narrows the item
+> rather than discharging it. It stays 🟡 (`PROGRESS.md`; `docs/progress/follow-ups.md`; ADR 0145
+> Consequences). Write authority is untouched — where the affiliation was the person's **only** active tie
+> they have an empty footprint in `resolvePersonFootprint`, so `personScopeAllows` denies all four
+> capabilities; ⚠ a surviving **commission-tier** seat at that hospital keeps the footprint non-empty and the
+> person writable (the resolver unions two sources — ADR 0145 D6). Keystone:
+> `supabase/tests/368_offboarded_person_visibility.sql`.
 
 **Door.** `list_org_people(uuid, text, text)` payload gains `date_of_birth` (phone stays out). Return-type
 change forced **`DROP` + `CREATE`**, so the ACL, `prosecdef`, `SET search_path` and the COMMENT were all
@@ -502,6 +509,66 @@ a name-search caller**, by decision — do not revert it as dead code.
 - `src/lib/queries/org-users.ts` — directory widening: `hospitalNames[]`, `committees[]`, pre-formatted `councilRegistration`, `statusCounts` from the **unfiltered** scoped set, and `hospital?: string | null` on `ListDirectoryOptions` (**NARROW** — `home_organization_id = orgId` AND at H; it falls out of an intersection, so the rule has one definition).
 
 ⚠ **`expires_at` semantics, stated because the direction is counter-intuitive:** filtering it **narrows** the intersection capabilities and **WIDENS** the subset ones — a smaller footprint is easier to be a subset of. Both directions are pinned; the widening arm is the only one that reaches the subset path (the others deny via the zero-footprint rule).
+
+## Audit read legs — AUD1 + the org-derivation class fix (2026-08-25; ADR **0146** + **0147**; migrations `20261003002300` + `20261003002400`, **2**; pgTAP `369` `plan(29)` · `370` `plan(22)`; **NO flag** — the migrations ARE the cutover) — ⛔ **LOCAL ONLY, NOT PUSHED**
+
+**RLS — one policy, two legs, two migrations.** `audit_log_select` is a single five-leg SELECT policy
+(`audit_log` holds **exactly one** policy; `authenticated` = `r` only, every write goes through the
+DEFINER writer — Rule 11). Live `qual`, re-read from `pg_policies` after both migrations:
+
+```
+app.is_staff_admin_of(commission_id)
+OR app.is_tenancy_admin_of(commission_id)
+OR ((commission_id IS NULL) AND app.is_hospital_admin_of(hospital_id))
+OR ((commission_id IS NULL) AND app.is_org_admin_of(organization_id))                     -- leg 4, AUD1
+OR ((organization_id IS NULL) AND (hospital_id IS NULL) AND (commission_id IS NULL)
+    AND app.is_admin())                                                                   -- leg 5, ADR 0147
+```
+
+- **Leg 4 (`20261003002300`, ADR 0146)** lost `hospital_id IS NULL`. An `org_admin` now reads the
+  **hospital-tier** rows of its own org — previously a *total* blind spot (measured pre-change, both sides
+  scoped to org A: commission 173/173, **hospital 19/0**, org 16/16). It is a **reconciliation**: the
+  DEFINER door `public.verify_audit_chain` already authorized an org_admin on its hospital arm, so the
+  policy was brought into line with a decision the platform had already shipped.
+- **Leg 5 (`20261003002400`, ADR 0147)** gained `hospital_id IS NULL`. The platform chain is **all three**
+  scope keys NULL — that is how `app.audit_write`'s final `else` arm and `verify_audit_chain`'s enumeration
+  both define it — and leg 5 checked only two, so a malformed hospital-tier row (`hospital_id` set,
+  `organization_id` NULL) satisfied it and handed a `platform_admin` tenant **content**, against the noun
+  rule. ⚠ This **amends ADR 0146 D4**, which had frozen leg 5 as a deliberate non-decision.
+
+**Helper — `app.audit_write` now DERIVES the organization from the hospital** (`20261003002400`). It had
+derivation for `p_commission` and none for `p_hospital`, so every hospital-tier caller had to pass the org
+by hand; `app.trg_audit_standard_ownerships` did not, at all three of its call sites, and its rows landed
+`organization_id IS NULL`. Now:
+
+```sql
+if v_hospital is not null and v_org is null then
+  v_org := app.org_of_hospital(v_hospital);
+end if;
+```
+
+- ⚠ **`coalesce` semantics — derivation added, validation NOT.** An explicitly-passed org still wins, even a
+  foreign one. No caller does that today (swept: **179** `audit_write` callers, **27** mention a hospital,
+  **1** passed one without an org), and there is **no CHECK** tying `audit_log.organization_id` to
+  `hospital_id`'s org.
+- ⛔ **NO BACKFILL, and it is barred twice** — measured, not argued. `guard_audit_immutable()` rejects any
+  UPDATE on `audit_log` (append-only). Forcing past it shows why: `organization_id` feeds
+  `app.audit_canonical` → the sha256 `row_hash`, and the row stops replaying its own hash. **Consequence:
+  pre-existing NULL-org hospital-tier rows stay invisible to their org admin permanently** (availability
+  half, forward-only) while the leg-5 change hides them from `platform_admin` **retroactively**
+  (confidentiality half — a predicate touches no data). The two halves have different reach; do not
+  summarise this as "the gap is closed".
+- **Chain-neutral**, proven not assumed: the hospital chain is keyed on `hospital_id` + `commission_id IS
+  NULL` in **both** `audit_write`'s seq lookup and `verify_audit_chain`'s enumeration — neither reads
+  `organization_id` — and the precedence block tests `v_hospital is not null` **before** `v_org is not
+  null`. ⛔ Do not reorder those branches (test 370 §3).
+- A hospital id that does not resolve still yields org NULL, and such a row is now readable by **nobody** —
+  fail-closed by design (test 370 §4.3). `audit_log.hospital_id` carries **no FK**.
+
+**TS surface.** `src/lib/queries/audit.ts` — `listAuditForOrg`, `listAuditForHospital` and the
+account-history timeline had doc comments describing the gap as open; rewritten with leg 4. `verifyChain`'s
+scope list describes the chain *identity*, not an RLS predicate, and is unaffected. The module gained
+`import 'server-only'` (2026-08-25).
 
 ## Case surface split — Increment 2 (2026-08-22; ADR **0134** D6 + Amendments 1/2/4/5/6; migrations `20261003000400`–`…00700`, **4**; pgTAP `205` `plan(67)` · `356` `plan(72)` · `357` `plan(35)` · `189` `plan(43)`; **NO new flag** — rides `administrativo`, permanently ON)
 
@@ -1774,7 +1841,9 @@ widened the read together.
   one → RED).
 - ⚠ **Residual, by design:** the retention *fact* is still reachable through `audit_log` for an
   **`org_admin`** (`audit_log_select`'s org arm) — a sibling `staff_admin` sees 0 rows. That is the
-  designed oversight posture, not a gap.
+  designed oversight posture, not a gap. ⚠ **The org arm's REACH widened on 2026-08-25** (AUD1 / ADR
+  0146, migration `20261003002300`): it now also admits **hospital-tier** rows of the org. See
+  § *Audit read legs (AUD1 · ADR 0146 / 0147)* below — the posture is unchanged, the population is larger.
 
 ### App layer
 
