@@ -4529,6 +4529,20 @@ bought nothing person-level; **AFF2 is what monetised it.**
 what this leg tests. Anyone closing this item on "expiry is already handled" has quoted a real filter
 for a conclusion it does not bound.
 
+⭐ **UPDATE 2026-08-25 — AFF3 (ADR [0145](../decisions/0145-ever-held-affiliation-read-visibility.md))
+removed the affiliation leg's activity filter, and this item does NOT close on it.** AFF3 dropped
+`and ha.ended_on is null` from all three policies to fix a separate defect (a hospital_admin lost the
+person entirely at offboarding). Consequence for THIS item: the asymmetry that lived *inside* a single
+policy is resolved — neither leg filters activity now, so they agree — but it resolved in the
+**permissive** direction, by removing a filter rather than adding one.
+
+⛔ **Do not read "all three predicates now contain zero `expires_at`" as closure.** That was proposed
+and rejected on 2026-08-25: the absence of `expires_at` on the membership leg IS the open question, so
+quoting it as evidence of agreement is this file's own named class again — a true measurement carrying
+a conclusion it does not bound. The **write** half is genuinely closed (Amdt 4 r1 landed;
+`resolvePersonFootprint` selects and applies `expires_at`). What is left is exactly the read half
+below, now across three policies rather than two.
+
 **To decide:** whether "active" should mean `expires_at IS NULL OR expires_at > now()` on the
 membership legs of **both** policies, in one deliberate change with its own diff-scoped `ARM=policy`
 sweep — or whether the authorities' wording should be corrected to match the implemented behaviour.
