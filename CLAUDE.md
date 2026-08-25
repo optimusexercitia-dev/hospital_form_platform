@@ -419,7 +419,13 @@ whose **claim** went false has no gate at all, so that queue is its only witness
   The same padding on CLAUDE.md is context tax on every session + teammate spawn, and
   `docs/progress/` is excluded so PROGRESS.md's **verbatim** rotations stay byte-identical
   to their destination. Never add a "check these against Prettier" rule — obeying it is
-  the defect. `npm run format:check` is manual: no hook, no CI, **not** one of the seven gates.
+  the defect. `npm run format:check` is manual: no hook, no CI, **not** one of the ten gates.
+  ⚠ **A SECOND trap, and this one is NOT in `.prettierignore`: `src/`.** That tree is written
+  shadcn-style (double quotes, semicolons) while `.prettierrc.json` is `semi:false,
+  singleQuote:true`, so `prettier --write` on one component rewrites the WHOLE file away from its
+  neighbourhood and buries the real change in noise — hit for real 2026-08-25, restored by hand.
+  Nothing ignores it and no gate catches it, because the formatter is not wrong, it simply
+  disagrees with the tree. **Never run Prettier on `src/`.**
 - Conventional commits: `feat(scope):`, `fix:`, `test:`, `chore:`, `phase(N):`.
 - Server Components by default; `"use client"` only where interaction requires it.
 - Every form input accessible: labels, keyboard navigation, visible focus. The tester

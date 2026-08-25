@@ -359,4 +359,8 @@ _Verbatim apart from the link repoint. The batch was PO-approved on 2026-08-24 a
 
 ⛔ Verbatim; links repointed for this directory. Rationale stays in `docs/reviews/`, never here.
 
+0136 concluded; the user-profile redesign is the current milestone.
+
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- | --- |
 | **ADR 0136 — deferred `staff_admin` sign-off** | ✅ **APPROVED** — D1–D7 all audited; MINOR-1 (a migration header contradicting its own code) fixed in the pass; INFO-1 recorded. ⛔ **SELF-REVIEW for `1069711c`** — the reviewing session wrote it; independent only for `d899ceb3` + `20261003002000` | 2026-08-24 | [review](../reviews/adr-0136-deferred-signoff-review.md) |

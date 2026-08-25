@@ -1,6 +1,16 @@
+import 'server-only'
+
 import { createClient } from '@/lib/supabase/server'
 import { featureEnabled } from '@/lib/queries/feature-flags'
 import type { Json } from '@/lib/types/database'
+// The ADR 0106 single source of the pt-BR role vocabulary. It lived under
+// `src/components/role/` until 2026-08-25 and was moved to `src/lib/role/` precisely so
+// this import could exist: a query module reaching into `src/components` inverts the
+// layering, and as the first of its kind it would have been the precedent every later
+// query module copied. The module was always pure (no directive, no I/O, and it already
+// imported only from `src/lib`), so re-homing it was the honest fix — copying the label
+// map here would have been a THIRD copy of it.
+import { platformRoleLabel } from '@/lib/role/role-catalog'
 
 /**
  * Audit-trail data-access (Phase 13 — Audit Trail; Architecture Rule 9 — all
@@ -72,6 +82,11 @@ export type AuditEntityType =
   | 'patient'
   // centralized attachments (Phase F2; ADR 0063) — the audit trigger + PHI door.
   | 'attachment'
+  // hospital employment links (ADR 0097 D1/D4) — emitted by
+  // `app.trg_audit_hospital_affiliations`. Rows are HOSPITAL-tier (commission_id NULL,
+  // hospital_id set), which is what scopes who can read them; see the RLS note on
+  // {@link listPersonAccountHistory}.
+  | 'hospital_affiliation'
 
 /**
  * The audit `action` union — `'<entity>.<verb>'`. These are the verbs emitted by
@@ -102,6 +117,20 @@ export type AuditAction =
   | 'membership.granted'
   | 'membership.role_changed'
   | 'membership.revoked'
+  // ADR 0094 W2/T2.3 — the expiry arm of `app.trg_audit_memberships`. APPENDED late
+  // (2026-08-25): the trigger has emitted this verb since ADR 0094 and the union never
+  // carried it, so the action filter could not offer it and `mapAuditRow`'s cast quietly
+  // widened the type at the boundary. Found while reading the live trigger body for the
+  // person timeline, which surfaces exactly these rows.
+  | 'membership.expiry_changed'
+  // hospital employment links (ADR 0097 D1/D4) — `app.trg_audit_hospital_affiliations`.
+  // `affiliation.deleted` is the trigger's DELETE arm: reachable ONLY under
+  // `session_replication_role = replica` (the BEFORE guard raises otherwise), and it
+  // exists so that the one window in which D4 can be violated is not also invisible.
+  | 'affiliation.created'
+  | 'affiliation.ended'
+  | 'affiliation.updated'
+  | 'affiliation.deleted'
   // responses + sign-offs (status flips only — NEVER answer payloads)
   | 'response.submitted'
   | 'response.opened_foreign'
@@ -230,6 +259,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   referral_patient: 'Dados do paciente (encaminhamento)',
   patient: 'Paciente (vínculo entre comissões)',
   attachment: 'Anexo',
+  hospital_affiliation: 'Vínculo hospitalar',
 }
 
 /** pt-BR labels for the action filter (short verb phrases). */
@@ -251,6 +281,11 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'membership.granted': 'Função concedida',
   'membership.role_changed': 'Função alterada',
   'membership.revoked': 'Função revogada',
+  'membership.expiry_changed': 'Validade da função alterada',
+  'affiliation.created': 'Vínculo hospitalar criado',
+  'affiliation.ended': 'Vínculo hospitalar encerrado',
+  'affiliation.updated': 'Vínculo hospitalar atualizado',
+  'affiliation.deleted': 'Vínculo hospitalar excluído',
   'response.submitted': 'Resposta enviada',
   'response.opened_foreign': 'Resposta de terceiro visualizada',
   'signoff.recorded': 'Seção assinada',
@@ -494,11 +529,28 @@ export async function listAudit(
 
 /**
  * One page of audit entries for an ORGANIZATION (multi-tenancy Phase C), for the
- * `/o/[org]/manage` org-tier audit. Filters to `organization_id = orgId` — this
- * is the union of the org chain (`commission_id IS NULL`) AND every commission
- * chain under the org (every commission-tier row carries the derived
- * `organization_id`). RLS-scoped: empty for a caller who is not org_admin of
- * `orgId` (the `audit_log_select` org-tier term). Same shape/pagination as
+ * `/o/[org]/manage` org-tier audit. Filters to `organization_id = orgId`.
+ *
+ * ⭐ THE QUERY ASKS FOR THREE TIERS AND SINCE ADR 0149 RLS RETURNS THREE. `.eq('organization_id')`
+ * matches the org chain, every commission chain (those rows carry the trigger-derived
+ * `organization_id`) AND every HOSPITAL-tier row of the org. All three are now readable by an
+ * `org_admin`: leg 2 `is_tenancy_admin_of(commission_id)` carries the commission chains, and the
+ * org leg — `(commission_id IS NULL) AND is_org_admin_of(organization_id)` — carries the org and
+ * hospital chains together.
+ *
+ * ⛔ THIS COMMENT DOCUMENTED THE OPPOSITE UNTIL 2026-08-25, and the history matters because the
+ * bug was invisible from this file. The org leg used to carry a third conjunct,
+ * `(hospital_id IS NULL)`, so every hospital-tier row this query asked for was silently dropped:
+ * an org_admin saw NO hospital-scope membership grant (hospital_admin, nsp_coordinator,
+ * technical_director…) and NO affiliation event, ever. Measured before the fix, org A:
+ * 173/173 commission-tier, **0/19** hospital-tier, 16/16 org-tier. After: 173/19/16 visible
+ * against 173/19/16 existing — exact parity with what the table holds.
+ *
+ * The tell was that `verify_audit_chain` had ALWAYS let an org_admin attest a hospital chain it
+ * could not read. Migration 20261003003000 removed the conjunct; keystone
+ * `supabase/tests/372_audit_org_leg_hospital_tier.sql`.
+ *
+ * RLS-scoped: empty for a caller who is not org_admin of `orgId`. Same shape/pagination as
  * `listAudit`.
  */
 export async function listAuditForOrg(
@@ -539,12 +591,27 @@ export async function listAuditForOrg(
 /**
  * One page of audit entries for a HOSPITAL (ADR 0051 — the hospital audit tier),
  * for the `/o/[org]/manage` hospital-tier audit viewed by a `hospital_admin`.
- * Filters to `hospital_id = hospitalId` — the union of the hospital chain
+ * Filters to `hospital_id = hospitalId`, which matches the hospital chain
  * (`commission_id IS NULL`) AND every commission chain under the hospital (each
- * commission-tier row carries the trigger-derived `hospital_id`). RLS-scoped:
- * empty for a caller who is not a hospital_admin of `hospitalId` (nor org_admin of
- * its org). Same shape/pagination as {@link listAudit} / {@link listAuditForOrg}.
+ * commission-tier row carries the trigger-derived `hospital_id`).
  *
+ * ⭐ SINCE ADR 0149 AN `org_admin` GETS THE SAME UNION. It reaches the hospital chain through
+ * the org leg (`commission_id IS NULL AND is_org_admin_of(organization_id)`) and the commission
+ * chains through `is_tenancy_admin_of`, so both callers see both halves.
+ *
+ * ⚠ THIS COMMENT RECORDED A GAP HERE UNTIL 2026-08-25 — measured then on the same hospital:
+ * `hospitaladmin.a1` → 13 hospital-tier + 167 commission-tier, `orgadmin.a` → **0** hospital-tier
+ * + 167 commission-tier. The hospital-chain half vanished for an org_admin. Migration
+ * 20261003003000 closed it; the two roles no longer differ on THIS function. They still differ
+ * elsewhere: a `hospital_admin` reads only its own hospital, an `org_admin` every hospital in
+ * its org (test 372 §4.2 pins that leg 3 stayed hospital-bounded).
+ *
+ * ⚠ NO LIVE SURFACE HITS THAT CASE TODAY: `/o/[org]/manage/audit` routes `isOrgAdmin` to
+ * {@link listAuditForOrg} and only ever calls this one for a `hospital_admin`. The behaviour
+ * is recorded because it is a property of THIS FUNCTION, and the next caller will not know
+ * the page happens to shield it.
+ *
+ * Same shape/pagination as {@link listAudit} / {@link listAuditForOrg}.
  */
 export async function listAuditForHospital(
   hospitalId: string,
@@ -672,4 +739,200 @@ export async function listAuditFilterActors(
   // Surface the system actor as a selectable option when present.
   if (hasSystem) actors.push({ actorId: null, name: null })
   return actors
+}
+
+// ---------------------------------------------------------------------------
+// Per-person account history (user-profile redesign) — the "Histórico da conta"
+// timeline on `/o/[org]/manage/usuarios/[userId]`.
+// ---------------------------------------------------------------------------
+
+/**
+ * One event on a person's account timeline, COMPOSED SERVER-SIDE.
+ *
+ * `title` / `detail` are finished pt-BR strings rather than a slug plus ids, because the
+ * composition needs the role vocabulary, the commission/hospital names and the actor —
+ * four joins the renderer has no business performing (Architecture Rule 9), and a rule
+ * the dashboard would otherwise re-derive differently from the audit page.
+ */
+export interface PersonAccountEvent {
+  id: string
+  /** ISO timestamp of when the action occurred. */
+  occurredAt: string
+  /** pt-BR bold lead, e.g. `"Papel alterado para Coordenador(a) de comissão"`. */
+  title: string
+  /** pt-BR muted tail, e.g. `"na CCIH, por Renata Vaz"`; `null` when nothing to add. */
+  detail: string | null
+  /** Timeline dot: membership/lifecycle | verification | creation. */
+  tone: 'primary' | 'success' | 'muted'
+}
+
+/**
+ * The entity types whose rows are ABOUT a person rather than about a commission artifact.
+ *
+ * ⛔ THESE ROWS ARE NOT KEYED BY `entity_id = userId` — `entity_id` is the affiliation /
+ * membership ROW id. Both emitting triggers put the subject in `metadata.user_id`
+ * (`app.trg_audit_hospital_affiliations` and `app.trg_audit_memberships`, read from
+ * `pg_proc` on 2026-08-25, not from migration text). Filtering on `entity_id` returns
+ * nothing and looks like "this person has no history".
+ */
+const PERSON_HISTORY_ENTITY_TYPES: AuditEntityType[] = [
+  'hospital_affiliation',
+  'membership',
+]
+
+const DEFAULT_PERSON_HISTORY_LIMIT = 12
+const MAX_PERSON_HISTORY_LIMIT = 100
+
+interface PersonHistoryRow {
+  id: string
+  occurred_at: string
+  action: string
+  actor_id: string | null
+  metadata: Json
+  profiles: { full_name: string | null } | null
+  commissions: { name: string } | null
+}
+
+/** Read one string key out of the loose `Json` metadata; `null` for anything else. */
+function metaString(metadata: Json, key: string): string | null {
+  if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return null
+  }
+  const value = (metadata as { [k: string]: Json | undefined })[key]
+  return typeof value === 'string' ? value : null
+}
+
+/**
+ * The timeline dot.
+ *
+ * ⚠ `'success'` IS CURRENTLY UNREACHABLE, and that is a fact about the DATABASE, not an
+ * oversight here. It is meant for credential verification, and `professional_credentials`
+ * carries NO audit trigger (checked against `pg_trigger`, 2026-08-25) — nothing anywhere
+ * emits a verification event. The arm stays in the union so the surface does not have to
+ * change shape when one is instrumented.
+ *
+ * `affiliation.created` takes `'muted'` as the "creation" class: it is the first thing
+ * that happens to a person at a hospital and is the earliest event on a typical timeline,
+ * which is where the design puts the muted dot. Everything else is `'primary'`.
+ */
+function personEventTone(action: string): PersonAccountEvent['tone'] {
+  return action === 'affiliation.created' ? 'muted' : 'primary'
+}
+
+/**
+ * The bold lead. Falls back to the shared {@link AUDIT_ACTION_LABELS} so a verb added to
+ * the vocabulary renders sensibly here without a second edit; only the three role-bearing
+ * membership verbs are special-cased, because naming the role is the whole point of them.
+ */
+function personEventTitle(action: string, roleLabel: string | null): string {
+  if (roleLabel) {
+    if (action === 'membership.granted') return `Função concedida: ${roleLabel}`
+    if (action === 'membership.role_changed') return `Papel alterado para ${roleLabel}`
+    if (action === 'membership.revoked') return `Função revogada: ${roleLabel}`
+  }
+  return AUDIT_ACTION_LABELS[action as AuditAction] ?? action
+}
+
+/**
+ * A person's account history, newest first — affiliation and membership events, composed
+ * into finished pt-BR lines.
+ *
+ * ⚠ RLS-SCOPED, ON THE ORDINARY COOKIE CLIENT (never the admin client): this is a read of
+ * the audit log and the caller must see exactly what `audit_log_select` grants them.
+ *
+ * ⭐ AN `org_admin` NOW SEES HOSPITAL-TIER EVENTS HERE (ADR 0149, migration 20261003003000).
+ * `audit_log_select`'s org leg is `(commission_id IS NULL) AND is_org_admin_of(organization_id)`,
+ * so the org and hospital chains both reach an org_admin, and `is_tenancy_admin_of(commission_id)`
+ * carries the commission chains.
+ *
+ * ⛔ UNTIL 2026-08-25 THAT LEG ALSO REQUIRED `hospital_id IS NULL`, and this timeline was where
+ * it hurt most — the page IS the org-admin surface, so it was the common case, not an edge one.
+ * It silently removed:
+ *   · every `affiliation.*` event (hospital-tier by construction), AND
+ *   · every HOSPITAL-SCOPE membership grant — `hospital_admin`, `nsp_coordinator`,
+ *     `technical_director`, and anything else seated at hospital tier.
+ * Only COMMISSION-tier membership events survived. Measured then: for `nsp_coordinator c1`,
+ * whose only event is a hospital-tier grant, the timeline was 1 row for a superuser and **0**
+ * for `orgadmin.a` — an entirely empty history for a real person. Org A now measures at exact
+ * parity: 173/19/16 visible against 173/19/16 existing.
+ *
+ * ⛔ WHOLE CLASSES OF EVENT DO NOT EXIST YET, and none are synthesised: `profiles` carries
+ * no audit trigger at all (only the three guard triggers), so account CREATED, DEACTIVATED,
+ * SUSPENDED, REACTIVATED, invite ACCEPTED / email VERIFIED and profile-field EDITS emit
+ * nothing. This returns what the log actually holds.
+ *
+ * An EMPTY result is therefore a legitimate state and must never be rendered as
+ * "no permission".
+ */
+export async function listPersonAccountHistory(
+  userId: string,
+  limit: number = DEFAULT_PERSON_HISTORY_LIMIT,
+): Promise<PersonAccountEvent[]> {
+  const supabase = await createClient()
+  const capped = Math.min(MAX_PERSON_HISTORY_LIMIT, Math.max(1, limit))
+
+  const { data } = await supabase
+    .from('audit_log')
+    .select(
+      'id, occurred_at, action, actor_id, metadata, ' +
+        'profiles:actor_id(full_name), commissions:commission_id(name)',
+    )
+    .in('entity_type', PERSON_HISTORY_ENTITY_TYPES)
+    // The subject lives in the JSONB, not in `entity_id` — see the note on
+    // PERSON_HISTORY_ENTITY_TYPES. Verified against the live PostgREST, because a
+    // `.select()`/filter string is a STRING and a wrong one typechecks perfectly.
+    .eq('metadata->>user_id', userId)
+    .order('occurred_at', { ascending: false })
+    .order('seq', { ascending: false })
+    .limit(capped)
+    .returns<PersonHistoryRow[]>()
+
+  const rows = data ?? []
+  if (rows.length === 0) return []
+
+  // Hospital names need a SECOND read: there is no foreign key from `audit_log.hospital_id`
+  // to `hospitals` (checked against pg_constraint), so PostgREST cannot embed it the way it
+  // embeds the commission. RLS-scoped like everything else — an unresolvable hospital simply
+  // drops the scope phrase rather than rendering an id.
+  const hospitalIds = Array.from(
+    new Set(
+      rows
+        .map((r) => metaString(r.metadata, 'hospital_id'))
+        .filter((id): id is string => id !== null),
+    ),
+  )
+  const hospitalNames = new Map<string, string>()
+  if (hospitalIds.length > 0) {
+    const { data: hospitals } = await supabase
+      .from('hospitals')
+      .select('id, name')
+      .in('id', hospitalIds)
+      .returns<{ id: string; name: string }[]>()
+    for (const h of hospitals ?? []) hospitalNames.set(h.id, h.name)
+  }
+
+  return rows.map((r) => {
+    const role = metaString(r.metadata, 'role')
+    const hospitalId = metaString(r.metadata, 'hospital_id')
+
+    // The commission wins over the hospital when both are known: a commission-tier seat is
+    // the more specific fact, and naming its hospital too would read as two scopes.
+    const commissionName = r.commissions?.name ?? null
+    const hospitalName = hospitalId ? (hospitalNames.get(hospitalId) ?? null) : null
+
+    const parts: string[] = []
+    if (commissionName) parts.push(`na ${commissionName}`)
+    else if (hospitalName) parts.push(`no ${hospitalName}`)
+    // A null actor is the system/service-role writer (seeded and machine-run rows), which
+    // is a real answer to "who did this" and is stated rather than left blank.
+    parts.push(r.profiles?.full_name ? `por ${r.profiles.full_name}` : 'pelo sistema')
+
+    return {
+      id: r.id,
+      occurredAt: r.occurred_at,
+      title: personEventTitle(r.action, role ? platformRoleLabel(role) : null),
+      detail: parts.length > 0 ? parts.join(', ') : null,
+      tone: personEventTone(r.action),
+    }
+  })
 }

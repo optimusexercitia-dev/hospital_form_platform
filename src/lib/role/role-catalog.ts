@@ -5,13 +5,20 @@ import { commissionHref, nspHref, orgHref, qualidadeHref } from "@/lib/routing";
 /**
  * ACT (ADR 0106) — the shared role catalog: pt-BR labels and the role →
  * landing-route table, in ONE place so the picker (`/selecionar-perfil`), the
- * `UserMenu` "Trocar papel" switch, and the D9 `RoleSwitchHint` never hand-copy
- * three divergent implementations of the same mapping (`docs/design/act-role-
- * picker.md` §1 — extracted from `src/app/page.tsx`'s own precedence chain,
- * not invented here).
+ * `UserMenu` "Trocar papel" switch, the D9 `RoleSwitchHint` and the person-history
+ * timeline (`listPersonAccountHistory`) never hand-copy divergent implementations of
+ * the same mapping (`docs/design/act-role-picker.md` §1 — extracted from
+ * `src/app/page.tsx`'s own precedence chain, not invented here).
  *
  * Pure, no I/O, safe to import from Server AND Client Components alike
  * (mirrors `src/lib/routing.ts`'s own convention).
+ *
+ * ⚠ LIVES IN `src/lib/role/`, NOT `src/components/role/` — moved 2026-08-25. Its
+ * consumers now include a `src/lib/queries` module, and a query module importing from
+ * `src/components` inverts the layering; being the first such import in the repo, it
+ * would have become the precedent later query modules copied. Nothing about the module
+ * changed: it was always pure and always imported only from `src/lib`. Do not move it
+ * back to sit beside the components that happen to render it.
  */
 
 export type PlatformRole = Database["public"]["Enums"]["platform_role"];

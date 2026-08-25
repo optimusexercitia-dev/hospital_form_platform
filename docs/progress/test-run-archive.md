@@ -1049,6 +1049,23 @@ _Superseded by the **GATE GREEN, exit 0** full run at `77b0a467` (1227p / 0f / 0
 ⛔ Verbatim; links repointed for this directory. § Test Run Summary retains the most recent gate
 only, and PDF·P3's 2026-08-25 run replaced this one.
 
+Superseded by the 2026-08-25 macOS gate. ⚠ Retained because it is the row that was cited as a
+comparable baseline and was not one: **11 commits** landed after `77b0a467` (a whole phase plus a
+Node 20→24 pin) with no gate row between, and its **21 batches** against the later run's **114** is
+the visible tell that the two were configured differently — `scripts/e2e-prod-gate.sh:38` states the
+gate is primarily for the LOCAL **Windows** prod-standalone run.
+
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-24 | ⭐⭐ **FULL `e2e:prod` at `77b0a467`** — clean tree at HEAD; stack VERIFIED quiet first. Closes § Now item 4 + discharges ADR 0136 Amdt 1's remedy. Fresh reset · `test:db` **7232/7232** (218f, 0 `not ok`, no *planned-but-ran-0*) | ✅ **GATE GREEN, exit 0 unpiped** — **1227p · 0f · 0 infra · 3 flaky · 0 DNR · 21 batches** (+11 skips); every batch `accounted N/N`, sums = summary. ⭐ **Single-run**, not composed. ⛔ 0 infra is POST-RETRY (b2 `server_dead`). Detail + flaky names: § Now item 4 |
+
+## Rotated from PROGRESS.md 2026-08-25 — the user-profile batch's macOS gate
+
+⛔ Verbatim; links repointed for this directory. Rotated at the **merge** of
+`feat/user-profile-redesign` into `main`: § Test Run Summary retains the most recent
+**discharging** gate only, and this row is explicitly NOT one — the batch's § Now bullet
+records gate step 2 as DEFERRED, NOT DISCHARGED (RED at 18, 19 never run).
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-25 | **FULL `e2e:prod` at `d1ea9574`** — macOS, first gate since `77b0a467` (11 commits: a phase + Node 20→24) · `test:db` 7267/7267 | 🔴 **RED, exit 1** — 1172p · 18f · 2 flaky · **19 DNR** · 114 batches (1211/1222). All 18 proven NOT from the branch — bare `curl`, and migrations removed + reset. Deterministic on re-run | [FUP-OPEN-DOCUMENT-VERSION-500](../progress/follow-ups.md) + macOS `<select>` |

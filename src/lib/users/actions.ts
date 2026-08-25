@@ -219,6 +219,7 @@ const MESSAGES = {
   reactivated: 'Conta reativada.',
   suspended: 'Conta suspensa.',
   inviteResent: 'Convite reenviado.',
+  passwordResetSent: 'E-mail de redefinição de senha enviado.',
 } as const
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -949,11 +950,12 @@ export async function upsertCredential(
   const admin = createAdminClient()
   if (input.id) {
     // Editing clears verified_at (tamper-visible) + stamps updated_at.
-    const { error } = await admin
+    const { data: updated, error } = await admin
       .from('professional_credentials')
       .update({ ...row, verified_at: null, updated_at: new Date().toISOString() })
       .eq('id', input.id)
       .eq('user_id', input.userId)
+      .select('id')
     if (error) {
       return {
         ok: false,
@@ -962,6 +964,15 @@ export async function upsertCredential(
             ? MESSAGES.credentialCollision
             : MESSAGES.generic,
       }
+    }
+    // A zero-row UPDATE is NOT an error, so without this the UI reported
+    // "Registro profissional salvo." for a write that never happened. The
+    // `.eq('user_id', …)` conjunct above is the cross-person guard and its whole
+    // purpose is to match zero rows for a forged id — reporting that as success
+    // told the caller their edit landed on another person's row. `removeCredential`
+    // treats the same not-found case as `generic`; this matches it.
+    if (!updated || updated.length === 0) {
+      return { ok: false, error: MESSAGES.generic }
     }
   } else {
     const { error } = await admin
@@ -1191,4 +1202,56 @@ export async function resendInvite(userId: string): Promise<ActionState> {
   if (error) return { ok: false, error: MESSAGES.generic }
 
   return { ok: true, error: MESSAGES.inviteResent }
+}
+
+/**
+ * Send a password-reset email to `userId`'s own address, on an administrator's behalf —
+ * the "Enviar redefinição de senha" affordance on the person detail page.
+ *
+ * ⚠ THE BOUND IS `authorizeForUser`, DELIBERATELY, NOT `authorizePersonScopedAdmin`.
+ * This action's structural twin is {@link resendInvite}, not `updateUserProfile`: it
+ * changes NOTHING, and it sends a link to an address the person already controls, so an
+ * administrator who may manage this person at all may trigger it. Routing it through
+ * `personScopeAllows` would import ADR 0133 D2 and deny a hospital_admin the ability to
+ * help, say, a technical_director at their own hospital recover a login — the exact case
+ * the note on `callerHospitalAdminMayManageUser` exists to preserve. It is not the
+ * lifecycle capability either: nothing here touches the `app.is_active` kill switch.
+ *
+ * ⛔ NOT AN ENUMERATION ORACLE. Both "no such person" and "not permitted" return the SAME
+ * pt-BR refusal, and the authorizer resolves the profile on the service client so an
+ * unauthorized caller is refused identically whether or not the id exists. Note this is
+ * the OPPOSITE of `requestPasswordReset` in `@/lib/auth/actions`, which is anonymous and
+ * therefore must report success unconditionally; here the caller is an authenticated
+ * administrator who is entitled to know their own action failed, and the id comes from a
+ * directory they can already read.
+ *
+ * The email itself goes through the SAME mechanism the self-service flow uses
+ * (`resetPasswordForEmail` → `/auth/confirm`), so one recovery path exists, not two.
+ * Sent from the service-role client because the target's address is resolved on it — the
+ * caller is not the subject, and no cookie-client read of another person's email is
+ * guaranteed by RLS.
+ */
+export async function sendPasswordResetForUser(
+  userId: string,
+): Promise<ActionState> {
+  const auth = await authorizeForUser(userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('email')
+    .eq('id', userId)
+    .maybeSingle()
+  const email = profile?.email
+  if (!email) return { ok: false, error: MESSAGES.missingUser }
+
+  const origin = await appOrigin()
+  const { error } = await admin.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/confirm`,
+  })
+  // Raw Supabase/Postgres errors never reach the UI (CLAUDE.md §8).
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  return { ok: true, error: MESSAGES.passwordResetSent }
 }

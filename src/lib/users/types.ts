@@ -205,6 +205,26 @@ export interface UserCommitteeMembership {
   commissionName: string
   commissionSlug: string
   role: 'staff' | 'staff_admin'
+  /**
+   * The commission's hospital, or `null` when that hospital row is not visible to the
+   * caller — a NESTED embed is RLS-filtered independently of its parent, so a caller who
+   * reads the commission may still read `null` here. Render the commission without the
+   * hospital line in that case; `null` NEVER means the commission has no hospital
+   * (`commissions.hospital_id` is a hard FK).
+   */
+  hospitalName: string | null
+  /**
+   * When the seat was granted — ISO timestamp, for the detail page's "desde mar 2024".
+   *
+   * ⚠ SOURCED FROM `memberships.granted_at`, NOT `created_at`: that column does not exist
+   * on this table (verified against `information_schema`, 2026-08-25). The domain name
+   * stays `since` because that is what the surface means; only the source differs.
+   *
+   * Both readers fill it (the detail page and the directory chips) rather than one
+   * leaving `''`: an empty string here would be indistinguishable from a real absent
+   * value at the render site, and the column is NOT NULL, so there is no honest empty.
+   */
+  since: string
 }
 
 /**
@@ -267,6 +287,20 @@ export interface UserAffiliation {
   /** Matrícula for THIS employment — a property of the job, not of the person (D3). */
   hospitalEmployeeId: string | null
   startedOn: string
+  /**
+   * `null` = ACTIVE. A soft end: affiliation rows are never deleted (ADR 0097 D4), so an
+   * ended employment stays readable forever and the profile can show the history.
+   *
+   * ⛔ THE PRESENCE OF THIS FIELD DOES NOT MEAN A LIST CONTAINS ENDED ROWS. Which rows a
+   * list carries is a property of the QUERY, not of this type, and the two live reads
+   * deliberately disagree: the DIRECTORY (`listActiveAffiliationsFor`, feeding
+   * `OrgUserListItem.hospitalNames`) is active-only, because "where does this person
+   * work" is a present-tense question; the DETAIL page (`listAffiliationsFor`, feeding
+   * {@link OrgUserDetail.affiliations}) carries both. A consumer that counts, filters or
+   * summarises affiliations must therefore decide explicitly — `a.endedOn === null` — and
+   * never infer activity from mere membership of the array.
+   */
+  endedOn: string | null
 }
 
 /**
@@ -286,9 +320,19 @@ export interface OrgUserDetail {
   email: string | null
   homeOrganizationId: string
   /**
-   * ACTIVE affiliations, earliest first. EMPTY is a legitimate, meaningful state — a
-   * registered person employed nowhere yet (the `novato.pendente` case D2 exists to
-   * keep visible); render it, do not treat it as missing data.
+   * The employment HISTORY: ACTIVE **and** ENDED affiliations — active first (earliest
+   * `startedOn` first), then ended most-recently-ended first. Distinguish them by
+   * `endedOn === null`; never by position.
+   *
+   * EMPTY is a legitimate, meaningful state — a registered person employed nowhere yet
+   * (the `novato.pendente` case D2 exists to keep visible); render it, do not treat it
+   * as missing data.
+   *
+   * ⚠ WIDENED from active-only by the user-profile redesign. The detail page shows ended
+   * vínculos as history (ADR 0097 D4 keeps the rows forever); a consumer that counts
+   * "hospitals this person works at" must filter on `endedOn === null` rather than take
+   * `affiliations.length`. `OrgUserListItem.hospitalNames` is unaffected — it is fed by a
+   * different, still-active-only query.
    */
   affiliations: UserAffiliation[]
   professionalCategoryId: string | null

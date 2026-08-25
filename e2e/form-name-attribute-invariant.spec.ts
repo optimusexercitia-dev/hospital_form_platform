@@ -604,24 +604,40 @@ test.describe('profile edit', () => {
     await cachedSignIn(page, ORGADMIN)
     await page.goto(`${USERS_ROUTE}/${userId}`)
 
-    // AFF2 F2: "Dados pessoais" is now a disclosure — the edit form (Nome/CPF
-    // included) only mounts once "Editar" is clicked; it did not exist as a
-    // separate control on the old single-state rail.
-    await page.getByRole('button', { name: 'Editar' }).click()
+    // AFF2 F2 → redesign 3a: "Dados pessoais" is a card whose edit form (Nome/CPF
+    // included) lives in a MODAL, mounted only once "Editar" is clicked. It did not
+    // exist as a separate control on the old single-state rail, and since `2f6b0635`
+    // it is no longer inside the card's own subtree — `DialogContent` portals to
+    // <body>.
+    //
+    // ⛔ THE TRIGGER IS SCOPED TO ITS CARD, and `exact` is doing real work. Three cards
+    // on this page now offer an edit affordance and Playwright's accessible-name match
+    // is a SUBSTRING match, so a bare `getByRole('button', { name: 'Editar' })` also
+    // hits "Editar registros profissionais" and "Editar vínculo com <hospital>" — a
+    // strict-mode violation, not a missing control. Scoping is the fix; deleting the
+    // URL assertions below would not be.
+    const dadosPessoais = page.getByRole('region', { name: 'Dados pessoais' })
+    await dadosPessoais.getByRole('button', { name: 'Editar', exact: true }).click()
 
-    const name = page.getByLabel(/nome/i).first()
+    const dialog = page.getByRole('dialog', { name: 'Editar dados pessoais' })
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+
+    const name = dialog.getByLabel('Nome completo')
     await expect(name).toBeVisible()
     // Both controls are nameless BY DESIGN — this is the second consumer whose
     // URL carried `?fullName=…&cpf=…` before the fix.
     await expect(name).not.toHaveAttribute('name', /.+/)
-    await expect(page.getByLabel('CPF', { exact: true })).not.toHaveAttribute(
+    await expect(dialog.getByLabel('CPF', { exact: true })).not.toHaveAttribute(
       'name',
       /.+/,
     )
 
     await name.fill(edited)
-    await page.getByRole('button', { name: /salvar alterações/i }).click()
-    await expect(page.getByText(/perfil atualizado/i)).toBeVisible()
+    await dialog.getByRole('button', { name: /salvar alterações/i }).click()
+    await expect(dialog).not.toBeVisible({ timeout: 10_000 })
+    // The confirmation deliberately lives in the CARD, not the dialog, so that closing
+    // the modal cannot unmount it (BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS).
+    await expect(dadosPessoais.getByText(/perfil atualizado/i)).toBeVisible()
 
     // ⭐ ARRIVAL, ASSERTED AT THE TABLE. The success banner is the UI's claim; the
     // row is the fact. A controlled form wired to nothing would render the banner

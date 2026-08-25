@@ -1,4 +1,4 @@
-# Tracker docs are governed by `npm run lint:progress` (60 KB cap + live-state
+# Tracker docs are governed by `npm run lint:progress` (80 KB cap + live-state
 # contract in scripts/check-progress-doc.mjs), NOT by Prettier. Prettier's Markdown
 # table padding inflates PROGRESS.md to 66 KB -- 4.8 KB past the hard cap. CLAUDE.md
 # is loaded into every session and every teammate spawn; padding is a context tax.

@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**144 ADRs** · next free number: **0147** · 38 carry an inbound supersedes/amends edge
+**148 ADRs** · next free number: **0151** · 42 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -63,7 +63,7 @@
 | 0038 | [Case patient identifiers (`case_patient`, the third PHI module)](0038-case-patient-identifiers.md) | accepted | 2026-06-21 | amends 0030, 0033, 0036 | ⛔ superseded by 0064 · ⚠ amended by 0064, 0137 |
 | 0039 | [Patient identity & cross-committee linkage (`patient_index`)](0039-patient-identity-cross-committee-linkage.md) | accepted | 2026-06-22 | – | – |
 | 0040 | [Form Builder Enhancements: condition engine, per-item visibility, additive schema](0040-form-builder-enhancements-condition-engine.md) | accepted | 2026-06-23 | – | ⛔ superseded by 0043 |
-| 0041 | [Multi-Tenancy: organizations + hospitals above commissions](0041-multi-tenancy-organizations-hospitals.md) | accepted | 2026-06-24 | – | – |
+| 0041 | [Multi-Tenancy: organizations + hospitals above commissions](0041-multi-tenancy-organizations-hospitals.md) | accepted | 2026-06-24 | – | ⚠ amended by 0149 |
 | 0042 | [NSP-per-org: per-org PQS roster + org-bound PHI doors](0042-nsp-per-org.md) | accepted | 2026-06-25 | – | ⛔ superseded by 0052 |
 | 0043 | [Result-based phase recommendation (combinable `recommend_when`)](0043-phase-result-based-recommendation.md) | accepted | 2026-06-26 | supersedes 0017, 0040 | – |
 | 0044 | [Process-less cases ("Sem processo")](0044-processless-cases.md) | accepted | 2026-06-29 | – | – |
@@ -73,7 +73,7 @@
 | 0048 | [User Registration & Identity Management](0048-user-registration-identity.md) | accepted | 2026-07-01 | – | ⚠ amended by 0133 |
 | 0049 | [Email-verification flag & admin-set initial password](0049-email-verification-flag-admin-set-password.md) | accepted | 2026-07-02 | – | – |
 | 0050 | [Action-Items Fold, `visibility_scope`, and Case-Access Grant Expiry](0050-action-items-fold-visibility-scope-case-access-expiry.md) | accepted | 2026-07-02 | – | – |
-| 0051 | [Hospital-admin tier, 4-tier audit chain & committee member titles](0051-hospital-admin-tier-and-hospital-audit-tier.md) | accepted | 2026-07-03 | – | – |
+| 0051 | [Hospital-admin tier, 4-tier audit chain & committee member titles](0051-hospital-admin-tier-and-hospital-audit-tier.md) | accepted | 2026-07-03 | – | ⚠ amended by 0149 |
 | 0052 | [NSP-per-hospital: re-key the PQS roster + every PHI door org → hospital, add `nsp_org_a…](0052-nsp-per-hospital.md) | accepted | 2026-07-03 | supersedes 0042 | – |
 | 0053 | [Audit-access entitlement guard (C-4): dispatch to the entity's own read predicate, not…](0053-audit-access-entitlement-guard.md) | accepted | 2026-07-04 | – | – |
 | 0054 | [Tenant-hierarchy composite FK: a commission's org must match its hospital's org](0054-tenant-composite-fk.md) | accepted | 2026-07-05 | – | – |
@@ -118,7 +118,7 @@
 | 0094 | [Membership-model hardening + Diretor Técnico (technical director) backend](0094-membership-hardening-and-technical-director.md) | ⚠ proposed | 2026-08-04 | – | – |
 | 0095 | [Process/case integrity audit: remediation scope, corrections, and deferred remodels](0095-process-case-integrity-audit-remediation.md) | accepted | 2026-08-04 | – | ⛔ superseded by 0096 |
 | 0096 | [Process-template versioning (audit M1, full remodel)](0096-process-template-versioning.md) | accepted | 2026-08-04 | supersedes 0095 | – |
-| 0097 | [Hospital affiliation, person identity (CPF) and the org-scoped people directory](0097-hospital-affiliation-person-identity.md) | accepted | 2026-08-05 | – | ⚠ amended by 0133 |
+| 0097 | [Hospital affiliation, person identity (CPF) and the org-scoped people directory](0097-hospital-affiliation-person-identity.md) | accepted | 2026-08-05 | – | ⚠ amended by 0133, 0148 |
 | 0098 | [AFF substrate & doors: the shape decisions ADR 0097 left open](0098-aff-w1-substrate-shape-decisions.md) | accepted | 2026-08-06 | – | ⚠ amended by 0133 |
 | 0099 | [Meeting audio → generated ata (minute_generator integration)](0099-meeting-audio-minutes.md) | accepted | 2026-08-06 | – | – |
 | 0100 | [Quality-office oversight: `quality_reviewer` role, commission oversight classification,…](0100-quality-office-oversight.md) | accepted | 2026-08-06 | – | ⚠ amended by 0102, 0134 |
@@ -154,7 +154,7 @@
 | 0130 | [DSR workflow: data-subject requests as adjudicated cases, not an erase button](0130-dsr-subject-request-workflow.md) | accepted | 2026-08-19 | – | – |
 | 0131 | [PHI erasure reach is bounded to DESIGNATED PHI fields; free text is out of scope for th…](0131-phi-erasure-reach-bounded-to-designated-fields.md) | accepted | 2026-08-20 | – | – |
 | 0132 | [An ethics proceeding carries NO erasure entitlement; the absent door is a DECISION, not…](0132-ethics-proceedings-carry-no-erasure-entitlement.md) | accepted | 2026-08-21 | – | – |
-| 0133 | [AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-manageme…](0133-aff2-affiliation-scoped-administration-um-redesign.md) | accepted | 2026-08-20 | amends 0048, 0097, 0098 | – |
+| 0133 | [AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-manageme…](0133-aff2-affiliation-scoped-administration-um-redesign.md) | accepted | 2026-08-20 | amends 0048, 0097, 0098 | ⚠ amended by 0147, 0148 |
 | 0134 | [The case split is read vs manage: one management surface, and administrativo can read t…](0134-case-surface-split-and-administrativo-case-read.md) | accepted | 2026-08-21 | amends 0033, 0061, 0078, 0079, 0100 | ⚠ amended by 0137 |
 | 0135 | [Authored refusals get their own SQLSTATE; `42501` stays reserved](0135-authored-refusals-get-their-own-sqlstate.md) | accepted | 2026-08-22 | – | – |
 | 0136 | [Deferred `staff_admin` sign-off: attest a FROZEN response, block the PHASE not the SUBM…](0136-deferred-staff-admin-signoff-attests-frozen-content.md) | accepted | 2026-08-23 | amends 0004, 0016, 0017 | – |
@@ -168,3 +168,7 @@
 | 0144 | [Printing Cases (ADR 0104 P3): the dossier, its lock point, and the PHI fork](0144-case-printing-dossier-lock-and-phi-fork.md) | accepted | 2026-08-25 | amends 0104 | – |
 | 0145 | [The print path's Markdown is stricter than the screen's: no `<img>` inside Gotenberg](0145-print-path-markdown-is-stricter-than-screen.md) | accepted | 2026-08-25 | amends 0014 | – |
 | 0146 | [The E2E gate harness must not report green while blind](0146-e2e-gate-harness-must-not-report-green-while-blind.md) | accepted | 2026-08-25 | – | – |
+| 0147 | [Masked CPF on the person detail rail](0147-masked-cpf-on-the-person-detail-rail.md) | accepted | 2026-08-25 | amends 0133 | – |
+| 0148 | [Ever-held affiliation as the person-read boundary](0148-ever-held-affiliation-read-visibility.md) | accepted | 2026-08-25 | amends 0097, 0133 | – |
+| 0149 | [An org_admin reads the hospital-tier audit chain](0149-org-admin-reads-hospital-tier-audit.md) | accepted | 2026-08-25 | amends 0041, 0051 | ⚠ amended by 0150 |
+| 0150 | [The audit organization is derived from the hospital, and leg 5 means the platform chain](0150-audit-org-derived-from-hospital.md) | accepted | 2026-08-25 | amends 0149 | – |

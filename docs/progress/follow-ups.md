@@ -2101,7 +2101,7 @@ removal set from `git diff 5310358..HEAD -- src/lib` ∪ the `drop function|poli
 statements in the DM3 migrations (**12 symbols**), swept across `src/app` + `src/components`:
 `novo/page.tsx:40` · `nova-versao/page.tsx:27` · `revisar/page.tsx:33` ·
 `add-version-form.tsx:52` · `version-compare-modal.tsx:23` ·
-`documentos-pendentes/[documentId]/page.tsx:43` · `open-controlled-version-button.tsx:20`.
+`documentos-pendentes/[documentId]/page.tsx:43` · `src/components/controlled-documents/open-controlled-version-button.tsx:20`.
 **A population is only well-defined once its key is stated**, and recall is keyed to whatever
 you were last looking at ([[enumeration-boundary-is-a-syntax-not-a-property]], three times in
 one thread).
@@ -4529,6 +4529,20 @@ bought nothing person-level; **AFF2 is what monetised it.**
 what this leg tests. Anyone closing this item on "expiry is already handled" has quoted a real filter
 for a conclusion it does not bound.
 
+⭐ **UPDATE 2026-08-25 — AFF3 (ADR [0148](../decisions/0148-ever-held-affiliation-read-visibility.md))
+removed the affiliation leg's activity filter, and this item does NOT close on it.** AFF3 dropped
+`and ha.ended_on is null` from all three policies to fix a separate defect (a hospital_admin lost the
+person entirely at offboarding). Consequence for THIS item: the asymmetry that lived *inside* a single
+policy is resolved — neither leg filters activity now, so they agree — but it resolved in the
+**permissive** direction, by removing a filter rather than adding one.
+
+⛔ **Do not read "all three predicates now contain zero `expires_at`" as closure.** That was proposed
+and rejected on 2026-08-25: the absence of `expires_at` on the membership leg IS the open question, so
+quoting it as evidence of agreement is this file's own named class again — a true measurement carrying
+a conclusion it does not bound. The **write** half is genuinely closed (Amdt 4 r1 landed;
+`resolvePersonFootprint` selects and applies `expires_at`). What is left is exactly the read half
+below, now across three policies rather than two.
+
 **To decide:** whether "active" should mean `expires_at IS NULL OR expires_at > now()` on the
 membership legs of **both** policies, in one deliberate change with its own diff-scoped `ARM=policy`
 sweep — or whether the authorities' wording should be corrected to match the implemented behaviour.
@@ -6045,3 +6059,257 @@ trim loses nothing):
 > cleanup nobody checks. (2) Decide whether a reset should also empty `documents-*`. (3) Check whether
 > the production disposal path can orphan the same way: if a `printed_documents` row is ever deleted
 > rather than revoked, its bytes outlive every control that reaches them by registry.
+---
+
+### 🟠 FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-ALTER-POLICY — Amendment 8 decided the fix and the recipe was never edited (owner: backend/lead; filed 2026-08-25, found while auditing a re-discovery)
+
+ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 8**
+(2026-08-23) records this hole completely and rules three changes to the phase step:
+
+1. the recipe greps `alter policy` as well as `create policy`;
+2. **a zero-row case list is a FINDING, not a pass** — *"the recipe printed nothing"* and *"the phase
+   changed no gate"* must stop being the same observation;
+3. an `ALTER POLICY` **invalidates** the altered gate's verdict; it must be re-measured, not inherited,
+   and until the tooling detects that, the operator names the altered policy in `CASES=` explicitly.
+
+**Measured 2026-08-25: none of the three reached the recipe.** The code block under § *The recipe* in
+that same ADR still ends `# + any create policy <name>` and nothing else. The decision and the artefact
+it governs sit **eleven screens apart in one file**, both authoritative, disagreeing.
+
+⭐ **What makes this worth a register line rather than a shrug: the cost was paid again, and measured.**
+During AFF3 (ADR 0148) `backend` derived the case list from the diff exactly as Amendment 1 instructs,
+got **zero rows**, recognised the shape, and hand-added an `alter policy` grep — arriving independently
+at Amendment 8's finding, two days after it was written, without knowing it existed. A second operator
+reproduced the whole diagnosis because the fix lived only in prose. That is the measurement: this hole
+now has a **demonstrated recurrence rate**, not merely a hypothetical one.
+
+⚠ **AFF3 is not itself unproven.** Its sweep ran over the three altered policies named by hand and
+returned `3 swept, 3 COVERED, 0 BLIND, 0 ERROR`, satisfying Amendment 8 ruling 3 in substance. The
+defect is that correctness depended on the operator noticing.
+
+⛔ **Do not close this by editing the ADR's prose alone** — that is the state it is already in. Ruling
+2 in particular needs somewhere that *reds*: a zero-row case list on a diff that touched
+`supabase/migrations/` must fail loudly, or the next operator to get zero rows will read it as a pass,
+which is the original defect with an extra amendment on top.
+
+---
+
+### 🟠 FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE — the blindness gate silently truncates the file every later run compares against (owner: backend; filed 2026-08-25, measured during AFF3)
+
+`supabase/tests/mutation/p0-authz-door-audit.sh:565` emits its report through a **truncating
+redirect**:
+
+```bash
+} > "$FINDINGS"          # $FINDINGS = docs/reviews/authz-door-audit-findings.md (line 65)
+```
+
+`$FINDINGS` is the **committed** baseline. A diff-scoped run — the one CLAUDE.md §6 step 1 mandates
+**every phase** — sweeps only the phase's own gates, so the redirect replaces the full audit with the
+subset. Measured 2026-08-25 during AFF3: **699 lines → 90**. Restored by hand and verified
+byte-identical to `HEAD`; `ARM=wrapper` re-run, BLIND set back to 41.
+
+⛔ **The failure mode is silent and self-concealing.** `FROMFINDINGS=1 ARM=wrapper` — a phase-gate arm —
+compares the committed findings file to an allowlist and **re-measures nothing**. Against a truncated
+file it sees fewer gates, finds every one of them allowlisted, and reports **HOLDS**. The arm gets
+*greener* as the baseline gets *emptier*. Nothing in the gate can distinguish "no blind gates" from
+"almost no gates".
+
+⚠ **The only thing standing between a phase and this today is that the operator remembers.** The
+instruction exists — *"Restore the findings file after a subset run, as with the door sweep"* — but it
+lives inside the body of an unrelated `sign_section` item, reachable only by someone already reading
+that item. A convention that must be recalled at exactly the right moment, by whoever happens to run
+the gate, is the shape this file exists to convert into a check.
+
+**Fix, in preference order:** (a) a run with `CASES=` set writes to a scratch path and never touches
+the committed file; (b) it merges its verdicts into the committed file rather than replacing it;
+(c) failing both, the script **refuses to write** when `CASES=` is set and prints where the subset
+report went. ⭐ Note the script already proves it can reason about this: its DRYRUN path prints
+*"the baseline suite was NOT run; $FINDINGS is UNTOUCHED"* (line 477). The concept exists in the
+script; it is simply not applied to the subset path.
+
+---
+
+### 🟠 FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE — the controlled-document door returns a raw 500 instead of its pt-BR refusal (owner: backend; filed 2026-08-25, found triaging a full `e2e:prod`)
+
+`public.open_document_version` raises correctly in the database and returns **HTTP 500
+`text/plain "Something went wrong"`** through PostgREST. Measured 2026-08-25:
+
+| call | psql | via PostgREST |
+|---|---|---|
+| nonexistent id | `SQLSTATE P0002`, *versão de documento não encontrada* | **500 text/plain** |
+| a real version the caller cannot serve | `SQLSTATE HC0D8`, *arquivo ainda não disponível* | **500 text/plain** |
+
+So it is **every raise**, not a P-class quirk. The function is `prosecdef`, `VOLATILE`, returns
+`jsonb`, and raises plainly (`raise exception '…' using errcode = '…'`) with no `DETAIL`/`HINT` JSON
+for PostgREST to choke on.
+
+⛔ **APP-FACING — this is not a test artefact.** `src/lib/documents/actions.ts:247` calls
+`supabase.rpc('open_document_version', …)`, and `src/components/controlled-documents/open-controlled-version-button.tsx:32` describes it
+as "the boundary" every controlled-document byte moves through. A denied or missing open therefore
+surfaces a raw 500 where CLAUDE.md §8 requires a pt-BR message and states that raw Supabase/Postgres
+errors never reach the UI. ⚠ **Bounded honestly: the SUCCESS path was never exercised** in this
+triage — no evidence it is broken, and no evidence it works. Establish that first; it decides whether
+this is a message-quality defect or something larger.
+
+**What it is NOT** (each excluded by measurement, because three plausible theories died here first):
+- not encoding — server and client are UTF8 and the message is valid UTF-8 (`c3a3` = ã);
+- not PostgREST health or version — `verify_audit_chain` returns a correct accented `42501` JSON from
+  the same stack in the same second, and the v14.5 container started the day BEFORE a green gate;
+- not schema-cache reload — deterministic across repeated calls on a settled stack;
+- not a read-only transaction — it raises correctly inside `BEGIN READ ONLY` too;
+- not persona-specific — same result for every persona tried.
+
+⭐ **NOT caused by the AFF3/AUD1 branch, proven two structural ways rather than by argument:**
+reproducible with a **bare `curl`** (Kong → PostgREST, no Next app in the path, so no frontend change
+can reach it), and reproducible with **both migrations removed from `supabase/migrations/` followed by
+`db reset`** (pre-change catalog state confirmed) — identical failures.
+
+**Root cause NOT identified.** Best remaining lead: PostgREST's media-type handling of this function's
+`jsonb` return (the instance logs "4 Media Type Handlers"), i.e. the error response being serialised
+through a handler that cannot render it. **Costs 6 gate failures** — `ethics-e1-access-spine`,
+`dm3-wave-b-documents`, `dm4-referral-documents`, `phase-f2-attachments`,
+`process-template-versioning` — every one of them asserting the "absence ≡ denial" oracle-kill that
+this door exists to provide.
+
+---
+
+### 🟡 FUP-GATE-19-TESTS-NEVER-RAN-ON-MACOS — the failure count understates what went unexercised (owner: lead/tester; filed 2026-08-25)
+
+The 2026-08-25 full `e2e:prod` returned **1172 passed · 18 failed · 2 flaky · 19 did-not-run · 114
+batches**, accounting for **1211 of 1222** collected tests. A failure aborts the remainder of its
+spec, so 19 tests were never executed:
+
+| spec | never ran |
+|---|---|
+| `ethics-e1-access-spine` | 5 |
+| `ethics-e2-procedure` | 5 |
+| `dm4-referral-documents` | 5 |
+| `case-referral-usability-batch` | 3 |
+| `ethics-e4-participants` | 1 |
+
+⛔ **Nothing is proven for those 19 in either direction.** They are hostage to the two clusters that
+caused the reds — [[FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE]] and the macOS native-`<select>`
+`ArrowDown` no-op, which cannot pass on this OS at all — and stay unexercised until those are fixed.
+⚠ **The gate is not at fault here and must not be "fixed":** it reports the condition loudly and
+correctly (`!! 19 test(s) NEVER RAN — nothing is proven for them`) and refuses to count them as
+passes. The defect is that reds gate the coverage, not that the gate conceals it.
+
+⭐ **The lesson that outlives this run: a green gate row can be uncomparable while looking current.**
+The row cited as the baseline (`77b0a467`, 2026-08-24, GATE GREEN 1227p/0f/**21 batches**) was
+**11 commits stale** — a whole phase plus a Node 20→24 pin had landed with no gate row in between —
+and was run under a different configuration; `scripts/e2e-prod-gate.sh:38` says the gate "is primarily
+for the LOCAL **Windows** prod-standalone run". 21 batches against 114 was the visible tell, walked
+past. Before citing any gate row as a baseline, run `git log <baseline>..HEAD` and compare the batch
+count.
+
+---
+
+### 🟡 FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME — the date button announces its label and drops its value (owner: frontend; filed 2026-08-25, found by `frontend` while refuting a QA finding that was itself false)
+
+The shared `DatePicker` trigger is a `<button>` associated to a `<label for>`. Measured in Chromium
+via CDP `Accessibility.getPartialAXTree` name-sources on the real rendered page:
+
+```
+name = "Data de início"   sources = ["relatedElement:labelfor", "contents:"]
+```
+
+`relatedElement:labelfor` **wins**, so `contents:` — which is where the rendered date lives — is
+displaced, not appended. A sighted user sees `01/03/2023`; a screen-reader user hears
+*"Data de início, botão"* and has no way to learn the current value without entering the calendar.
+
+**Fix:** `aria-labelledby="{labelId} {buttonId}"` — the self-reference re-admits the button's own
+contents after the label. Measured to yield `"Suspenso até Selecionar data"` on
+`user-lifecycle-actions.tsx:247`.
+
+⛔ **DELIBERATELY NOT FIXED IN THE PROFILE-REDESIGN BRANCH.** It needs a new prop on a shared control
+with **23 call sites**, roughly 20 of which predate that branch, and it **changes accessible names** —
+so specs that address these controls by name legitimately need updating. Folding a platform-wide
+accname change into a feature branch is how a reviewable diff stops being reviewable, and it would put
+spec edits on the same commit as the change that necessitated them.
+
+⭐ **The premise trap, which is the durable part.** This surfaced only because QA filed a finding
+(M6) asserting the OPPOSITE — that `<label for>` is *not* in the accname chain for a `button`, and that
+the three new date triggers therefore had no accessible name at all. `frontend` measured it false twice
+(isolated CDP probe + all three real sites, each returning exactly one `getByRole('button', {name})`
+match) and correctly changed no code. ⛔ **That same false premise is already recorded as
+measured-false in this repo** — `src/components/safety/patient-fields.tsx:305-315` says so in terms,
+including that an earlier version of its own comment had stated it. Twice now, a reviewer has reasoned
+from it and reached a confident wrong conclusion; the second time it nearly produced three `aria-label`
+attributes that measurement showed would be exact no-ops. **The real defect was adjacent to the false
+one, and only visible to whoever actually ran the measurement.**
+
+---
+
+### 🟠 FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY — a test named for auto-reinstate never suspends anyone (owner: tester; filed 2026-08-25, found by `frontend` while moving an unrelated DOM id)
+
+`e2e/user-registration.spec.ts:463`:
+
+```js
+const dateInput = dialog.locator('input[type="date"], input#suspend-until')
+if (await dateInput.count()) { await dateInput.first().fill('2020-01-01') }
+```
+
+**Both alternatives are dead, and were before the profile redesign.** `DatePicker` *replaces*
+`<input type="date">` (`src/components/ui/date-picker.tsx:55`) and emits a hidden input **only when a
+`name` prop is given** (`:139`) — `user-lifecycle-actions.tsx` does not pass one. The id it does carry
+sits on a `<button>`, so `input#suspend-until` matches nothing either. Verified at `8ecf51de`: that
+site already rendered `DatePicker id="suspend-until"`, so this predates the branch that merely made
+the second alternative textually stale as well.
+
+**The consequence is that the test asserts a state it never creates.** With the fill skipped,
+`suspendUntil` stays `""`, so the flow calls `suspendUser(userId, null)` →
+`update({ suspended_until: null })` (`src/lib/users/actions.ts:1176`) against a persona that is
+already unsuspended. Measured directly after a run: `ativo.registro@test.local | is_active=t |
+suspended_until=NULL`. It then asserts `getByText('Ativo', { exact: true })` is visible — satisfied by
+an unrelated element, the affiliation `StatusPill` — and that the persona can still sign in, which is
+trivially true because nothing was suspended.
+
+⛔ **`lint:vacuous` structurally cannot catch this class**, and that is the part worth keeping. The
+gate looks for a test that can go green having asserted *nothing*; this test asserts plenty. Every
+assertion is real, unconditional, and **satisfied by something other than the behaviour under test**.
+A guard-wrapped setup step (`if (await x.count())`) is the specific shape: it degrades silently from
+"set the value" to "skip it" the moment its selector rots, and nothing downstream distinguishes the
+two. ⭐ Sweeping `e2e/` for `if (await …count())` around a *setup* action would find the rest of this
+class; nothing does today.
+
+**Fix:** address the control the way the rest of the suite now does — by its accessible name, which is
+live and measured (`getByRole('button', { name: 'Suspenso até (opcional)' })`) — then assert the
+post-condition on the DATABASE or on a suspension-specific surface, not on a bare `'Ativo'` string
+that another component also renders.
+
+---
+
+### 🟠 FUP-AFF3-NO-REVOCATION-FOR-A-MIS-ENTERED-AFFILIATION — ever-held visibility has no correction path (owner: backend/PO; filed 2026-08-25 on PO instruction as Critical **C5**; found by `qa` reviewing AFF3)
+
+ADR [0148](../decisions/0148-ever-held-affiliation-read-visibility.md) changed person read
+visibility from *currently-held* to **ever-held** affiliation. That is correct for the defect it
+fixes — a hospital admin lost the person entirely at offboarding, and `end_affiliation` IS the
+documented offboarding action. It has a consequence D5 does not reach.
+
+**Measured (`qa`, confirmed by `backend`):** `hospital_affiliations` carries a **SELECT policy only**,
+`authenticated` holds `r` alone, and **no function anywhere deletes from it** (`pg_proc` swept for
+`delete from … hospital_affiliations` → empty). Deletion is additionally blocked by design —
+`guard_affiliation_no_delete`, ADR 0133 D4, a soft-end model.
+
+So an affiliation created against the **wrong hospital** — a data-entry error, not an employment
+fact — can only be *ended*. Before AFF3 ending it revoked that admin's read. After AFF3 **nothing ever
+does**: the admin of a hospital the person never worked at retains permanent read of their profile and,
+through the mirrored leg, their **council credentials**. ⚠ D5's "unbounded in time" is argued well for
+*legitimately departed staff*; the mis-entry case was not in view when it was written.
+
+⛔ **The blocker is semantics, not mechanism.** `backend` judges the mechanism cheap: a DEFINER
+`revoke_affiliation(affiliation_id, reason)` gated on the same footprint bound as `end_affiliation`,
+doing a real `DELETE` plus an `affiliation.revoked` audit row. But Rule 12's minimise-not-destroy
+posture (ADR 0072 §7·3) argues against row deletion in a governance record, so the honest shape is
+probably a `voided_at` column excluded from the read predicate — which introduces a **third tense**
+(active / ended / voided) onto a policy AFF3 and AUD1 just spent two migrations simplifying. That is a
+design decision with a cost either way, which is why it is a PO item and not a patch.
+
+⚠ **Trigger — why this cannot simply wait for a quiet week.** Every mis-entry made before the
+correction path exists is unrevocable, and the population only grows. The point it can no longer wait
+is **before the first real hospital roster is loaded**, because bulk onboarding is exactly when
+wrong-hospital rows get created at volume, and at that moment the platform has no way to take one back.
+
+⭐ Note what found this: a reviewer asking not "does the widening work" but "what did the widening
+remove". Every gate, keystone and probe on AFF3 measured the new visibility and none of them could
+have surfaced this, because nothing was broken — a capability quietly stopped existing.

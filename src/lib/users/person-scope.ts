@@ -61,6 +61,14 @@ export interface PersonFootprint {
    * of the person's active COMMISSION-tier memberships, resolved via
    * `commissions.hospital_id`.
    *
+   * ⛔ THIS IS THE **WRITE** RULE, AND SINCE ADR 0148 IT NO LONGER MATCHES THE READ RULE.
+   * The `profiles` / `professional_credentials` SELECT policies test affiliation as
+   * EVER-HELD (the `ended_on` conjunct was removed in migration 20261003002900) so that
+   * `end_affiliation` does not 404 the admin who performed it. This footprint stays
+   * ACTIVE-ONLY on purpose: a hospital_admin may now OPEN an ex-employee's record and must
+   * still not be able to edit it. A departed person resolves to an empty footprint here,
+   * which `personScopeAllows` denies for every capability. Do not "align" the two.
+   *
    * ⚠ BOTH SOURCES ARE REQUIRED. "Affiliations only" was considered and rejected in the
    * ADR's Alternatives table for a concrete reason: the org-wide member picker seats
    * people on commissions of hospitals they hold no affiliation with, so an

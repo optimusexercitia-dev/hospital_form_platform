@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import {
   listActiveAffiliationsFor,
   listActivePrincipalIdsForHospital,
+  listAffiliationsFor,
   type HospitalAffiliation,
 } from '@/lib/queries/affiliations'
 import {
@@ -74,11 +75,57 @@ interface DirectoryCredentialRow {
   verified_at: string | null
   created_at: string
 }
-interface DirectoryMembershipRow {
-  principal_id: string
+/**
+ * A membership row as BOTH reads select it. The detail read casts to this; the directory
+ * read extends it with `principal_id` for grouping.
+ *
+ * ⚠ `commission.hospital` IS NULLABLE HERE AND THE GENERATED TYPE DISAGREES. `supabase gen
+ * types` infers a nested embed as non-nullable, exactly as it does for every `RETURNS
+ * TABLE` column (see the note on `OrgPerson.dateOfBirth`). It is wrong for the same reason
+ * in both places: a nested embed is RLS-filtered independently of its parent, so a caller
+ * who reads the commission can still read `null` for its hospital. This shape is the
+ * honest one, which is why both call sites cast to it rather than trusting the inference.
+ */
+interface MembershipRoleRow {
   role: string
-  commission: { id: string; name: string; slug: string } | null
+  granted_at: string
+  commission: MembershipCommissionEmbed | null
 }
+
+interface DirectoryMembershipRow extends MembershipRoleRow {
+  principal_id: string
+}
+
+/**
+ * The embedded commission, with its hospital.
+ *
+ * ⚠ THE HOSPITAL EMBED MUST STAY FK-HINTED. `commissions` reaches `hospitals` through
+ * TWO foreign keys — `commissions_hospital_id_fkey` and the composite
+ * `commissions_hospital_org_fkey` — so the bare `hospitals(name)` form is a hard
+ * PGRST201 ("Could not embed because more than one relationship was found"), verified
+ * against the live PostgREST on 2026-08-25. A `.select()` string is a STRING: this would
+ * typecheck perfectly and fail only at runtime, exactly as the dropped-column note on
+ * {@link PROFILE_SELECT} describes.
+ *
+ * `hospital` is nullable because a NESTED embed is RLS-filtered independently of its
+ * parent: a caller may read the commission and still read `null` here. That is not the
+ * same fact as "the commission has no hospital", which cannot happen — the FK is hard.
+ */
+interface MembershipCommissionEmbed {
+  id: string
+  name: string
+  slug: string
+  hospital: { name: string } | null
+}
+
+/**
+ * The commission embed's FIELD LIST, shared by both membership reads so the FK hint has
+ * one definition. The `!inner` modifier is deliberately NOT baked in: the directory read
+ * uses `commissions!inner` and the detail read does not, and folding that difference into
+ * a shared constant would silently change one read's join semantics.
+ */
+const MEMBERSHIP_COMMISSION_FIELDS =
+  'id, name, slug, hospital:hospitals!commissions_hospital_id_fkey(name)'
 
 /** The hospitals a person actively works at, sorted pt-BR. `[]` is a legitimate state. */
 function affiliationNames(affiliations: HospitalAffiliation[]): string[] {
@@ -276,7 +323,9 @@ async function loadPageExtras(
       .returns<DirectoryCredentialRow[]>(),
     supabase
       .from('memberships')
-      .select('principal_id, role, commission:commissions!inner(id, name, slug)')
+      .select(
+        `principal_id, role, granted_at, commission:commissions!inner(${MEMBERSHIP_COMMISSION_FIELDS})`,
+      )
       .not('commission_id', 'is', null)
       .in('principal_id', ids)
       .returns<DirectoryMembershipRow[]>(),
@@ -301,6 +350,8 @@ async function loadPageExtras(
       commissionName: m.commission.name,
       commissionSlug: m.commission.slug,
       role: m.role,
+      hospitalName: m.commission.hospital?.name ?? null,
+      since: m.granted_at,
     })
     committees.set(m.principal_id, list)
   }
@@ -548,7 +599,10 @@ export async function getOrgUser(userId: string): Promise<OrgUserDetail | null> 
       .order('created_at', { ascending: true }),
     supabase
       .from('memberships')
-      .select('role, commission:commissions(id, name, slug)')
+      // `granted_at`, NOT `created_at`: this table has no `created_at` column at all
+      // (verified against information_schema, 2026-08-25 — PostgREST answers a request
+      // for it with 42703 and suggests `granted_at`). The domain field stays `since`.
+      .select(`role, granted_at, commission:commissions(${MEMBERSHIP_COMMISSION_FIELDS})`)
       .eq('principal_id', userId)
       .not('commission_id', 'is', null),
   ])
@@ -571,13 +625,16 @@ export async function getOrgUser(userId: string): Promise<OrgUserDetail | null> 
     updatedAt: c.updated_at,
   }))
 
-  const committees: UserCommitteeMembership[] = (membershipsResult.data ?? [])
+  const membershipRows = (membershipsResult.data ??
+    []) as unknown as MembershipRoleRow[]
+
+  const committees: UserCommitteeMembership[] = membershipRows
     .filter(
       (
         m,
-      ): m is {
+      ): m is MembershipRoleRow & {
         role: 'staff' | 'staff_admin'
-        commission: { id: string; name: string; slug: string }
+        commission: MembershipCommissionEmbed
       } =>
         m.commission !== null &&
         (m.role === 'staff' || m.role === 'staff_admin'),
@@ -587,6 +644,8 @@ export async function getOrgUser(userId: string): Promise<OrgUserDetail | null> 
       commissionName: m.commission.name,
       commissionSlug: m.commission.slug,
       role: m.role,
+      hospitalName: m.commission.hospital?.name ?? null,
+      since: m.granted_at,
     }))
     .sort((a, b) => a.commissionName.localeCompare(b.commissionName, 'pt-BR'))
 
@@ -594,19 +653,27 @@ export async function getOrgUser(userId: string): Promise<OrgUserDetail | null> 
   // W1 shim that flattened it to a "primary" hospital is gone: a professional employed
   // by two hospitals of one org has two matrículas, and picking one silently is the
   // bug this feature exists to fix. An EMPTY list is a legitimate state.
-  const activeAffiliations = (await listActiveAffiliationsFor([userId])).get(userId) ?? []
+  //
+  // ⚠ HISTORY, NOT JUST THE PRESENT (user-profile redesign): this is `listAffiliationsFor`,
+  // the ACTIVE + ENDED reader, ordered active-first then most-recently-ended. The two
+  // DIRECTORY reads above deliberately still call `listActiveAffiliationsFor` — their
+  // `hospitalNames` cell answers "where does this person work NOW", and an ended row there
+  // would list someone under a hospital they left. Same type, two questions; the caller
+  // picks, and `endedOn` tells any consumer which it is holding.
+  const affiliations = (await listAffiliationsFor([userId])).get(userId) ?? []
 
   return {
     id: profile.id,
     fullName: profile.full_name,
     email: profile.email,
     homeOrganizationId: profile.home_organization_id ?? '',
-    affiliations: activeAffiliations.map((a) => ({
+    affiliations: affiliations.map((a) => ({
       id: a.id,
       hospitalId: a.hospitalId,
       hospitalName: a.hospitalName,
       hospitalEmployeeId: a.hospitalEmployeeId,
       startedOn: a.startedOn,
+      endedOn: a.endedOn,
     })),
     professionalCategoryId: profile.professional_category_id,
     categoryLabel: profile.category?.label_pt ?? null,
