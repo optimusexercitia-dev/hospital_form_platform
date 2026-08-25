@@ -5687,9 +5687,11 @@ first place.
 
 _Moved when the ADR 0137 § Now bullet rotated to [2026-Q3.md](2026-Q3.md): that bullet's item 2 was the only live register indexing this body, so rotating it left the body orphaned — `lint:progress` caught it as residue in the same edit, which is the check existing._
 
-⚠ **Byte-faithful, including a pre-existing mojibake in the heading.** The `⬛` in the `##` line is stored double-encoded (`c3 a2 c2 ac e2 80 ba`) and was already that way in git before this move — `cmp` against `HEAD` confirms the rotation introduced nothing. Left as-is: a verbatim rotation does not get to silently repair its subject, and fixing it here would make the archive and the history disagree.
+⚠ **Rotated byte-faithfully, then the heading's mojibake was repaired by explicit instruction (2026-08-24).** The `⬛`/`—`/`✅` in the `##` line below were stored double-encoded (`c3 a2 c2 ac e2 80 ba` where `e2 ac 9b` belongs) and were **already that way in git before this move** — `cmp` against `HEAD` confirmed the rotation introduced nothing. The repair is a verified cp1252→UTF-8 round-trip touching **one line**, applied after the verbatim move so the two steps stay separable in history.
 
-## â¬› FUP-0137-PHI-MODE-SHIMS â€” âœ… **RESOLVED 2026-08-24. All four shims are gone; the last one needed the code deploy first, which is why it outlived the other three.**
+⛔ **This heading is 1 of ~2,061 affected lines, and the rest are UNFIXED.** Measured 2026-08-24: `follow-ups.md` **1,682** · `docs/reviews/authz-a0-inventory-review.md` **321** · this file **45** (25 pre-existing + the 20 this rotation carried in) · `graphify-out/GRAPH_REPORT.md` 13 (generated — repairs itself on refresh). ⚠ **So the body below still contains 19 more mojibake lines** than the heading: fixing the one you can see does not make the block clean, and a reader who checks only the heading will conclude it is. The corruption predates this session and its origin is **not established** — a shell round-trip that read UTF-8 as cp1252 and wrote it back, on some earlier edit, is the shape but not a finding.
+
+## ⬛ FUP-0137-PHI-MODE-SHIMS — ✅ **RESOLVED 2026-08-24. All four shims are gone; the last one needed the code deploy first, which is why it outlived the other three.**
 
 > **Closure.** Migration `20261003001800` removes the derived `patient_enabled` key from
 > `get_case_detail`, re-emitted from `pg_get_functiondef` (never migration text â€” this body has now
