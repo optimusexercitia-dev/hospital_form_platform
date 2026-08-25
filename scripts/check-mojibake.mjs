@@ -184,4 +184,5 @@ function main() {
 
 // Run as a gate only when invoked directly, so the repair tool can import the SAME
 // verified detector rather than growing a second copy that drifts from it.
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+// process.argv[1] is undefined under `node -e`, where this module is only ever imported.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

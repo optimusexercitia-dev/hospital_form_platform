@@ -925,7 +925,6 @@ select public.set_item_validations('ff300000-0000-0000-0000-000000000021',
   '[{"rule_type":"unique_within_group","config":{},"severity":"error",
      "message":"Este código já foi usado em outra repetição.","position":0}]'::jsonb);
 
-reset role;
 
 -- ===========================================================================
 -- §C · KEYSTONE 5b `validations_door_parity` — asserted against pg_policies,
@@ -985,6 +984,11 @@ select throws_ok(
        '[{"rule_type":"number_range","config":{"min":1},"severity":"error","message":"m","position":0}]'::jsonb)$q$,
   'HC0P4', null,
   'C6. a PUBLISHED version refuses new validations (Rule 5, in the writer)');
+-- ⛔ This `reset role` MUST stay BELOW C6. `public.set_item_validations` checks AUTHORITY
+-- FIRST (42501) and only then the published-version rule (HC0P4) — the ADR 0079 ordering this
+-- B-series states at the top. So a null actor never reaches HC0P4 and C6 cannot test what it
+-- names. It passed only on sa_x's surviving claims. (FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS)
+reset role;
 
 insert into public.responses (id, form_version_id, commission_id, created_by, status)
   values ('ff300000-0000-0000-0000-0000000000a1', 'ff300000-0000-0000-0000-000000000002',

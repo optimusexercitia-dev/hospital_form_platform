@@ -128,6 +128,10 @@ intent with 0097's cross-hospital safeguards; **upholds** 0097 D7 (CPF posture) 
 >   **"Buscar por nome ou e-mail…"** — honest, and it fixes a live user-visible false claim. The
 >   registro leg crosses into `professional_credentials`, so it needs a join-filter rather than
 >   another `.or()` clause; deferred rather than smuggled into B7 — owner: backend/PO.
+>   ⛔ **Registered as `FUP-AFF2-DIRECTORY-SEARCH-HAS-NO-REGISTRO-LEG` only on 2026-08-24** — for a day
+>   this bullet was the entire record, and *"named so they are records"* turns out to name nothing:
+>   a deferral written into an ADR is invisible to the register the PO reads from. Its sibling below
+>   was BUILT, so this pair is its own control.
 > - **`error.tsx` for the `usuarios` route is deferred to F4.** The route has neither `loading.tsx`
 >   nor `error.tsx` today; `loading.tsx` ships with F1. An error boundary carries semantics
 >   (boundary scope, retry affordance, pt-BR copy that must not leak raw Postgres errors) and is a
@@ -390,7 +394,7 @@ partitions all ten roles into org-tier / hospital-tier / commission-tier.
   instead of an accumulating exception list.
 - The pre-existing service-path audit-attribution gap now covers more actors doing
   more things; its dedicated workstream inherits AFF2's surfaces (Decision 5).
-- **Follow-ups registered — SIX, not the one this bullet named until 2026-08-23.** Bodies in
+- **Follow-ups registered — SEVEN as of 2026-08-24** (it named ONE until 2026-08-23, and SIX until the seventh was filed). Bodies in
   [follow-ups.md](../progress/follow-ups.md), index lines in PROGRESS.md:
   - **FUP-AFF2-CONTA** — self-service DOB/phone view on `/conta`; **the LGPD titular-access
     control** for D9's two columns (Amdt 1 r5), not a nicety.
@@ -404,6 +408,9 @@ partitions all ten roles into org-tier / hospital-tier / commission-tier.
   - **FUP-MANAGE-ROUTES-HAVE-NO-ERROR-BOUNDARY** and
     **FUP-WAITFORURL-SATISFIED-BY-ITS-OWN-STARTING-URL** — both **pre-existing**, surfaced by
     this workstream and deliberately not fixed inside it.
+  - **FUP-AFF2-DIRECTORY-SEARCH-HAS-NO-REGISTRO-LEG** — Amendment 2's first deferral, filed
+    **2026-08-24** after a sweep found it in no register; the handoff's *"ou registro"* placeholder
+    against a search that matches name + e-mail only, at **two** query sites. A decision is owed.
   - Also extended by AFF2 B1: **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** now covers
     `trigger`-returning `prosecdef` gates, which its own wording ("non-trigger") had excluded —
     and `guard_profile_privileged_columns` is the only in-DB control over the D9 columns.

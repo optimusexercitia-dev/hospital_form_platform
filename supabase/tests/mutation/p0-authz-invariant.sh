@@ -84,7 +84,7 @@ set -u
 
 DB=supabase_db_azkbbhskturikxpgmafq
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-WORK="${WORK:-/c/Users/micha/AppData/Local/Temp/claude/C--Users-micha-Development-claude-hospital-form-platform/6d030efd-e072-4a80-a704-0dc4fb6c9049/scratchpad/authz-audit}"
+WORK="${WORK:-${TMPDIR:-/tmp}/authz-audit}"
 HERE="$ROOT/supabase/tests/mutation"
 ALLOWLIST="$HERE/authz-blind-allowlist.txt"
 FLOOR_ALLOW="$HERE/authz-neverclled-door-allowlist.txt"
@@ -96,7 +96,23 @@ ROW_FINDINGS="$ROOT/docs/reviews/authz-rowdoor-audit-findings.md"
 INV_FINDINGS="$ROOT/docs/reviews/authz-invoker-audit-findings.md"
 ARM="${ARM:-all}"
 FROMFINDINGS="${FROMFINDINGS:-0}"
-mkdir -p "$WORK"
+
+# ⛔ WORKSPACE PRECONDITION — a hard failure, never a warning.
+# Until 2026-08-24 the default above was one Windows session's scratchpad path, committed:
+# on every other machine `mkdir -p` failed, `set -e` is deliberately off here, and each
+# arm's `comm`/`wc` against the missing files produced EMPTY sets — which every arm reads
+# as "nothing unaccounted for". The gate printed `INVARIANT HOLDS` and exited 0 having
+# measured nothing at all. ⚠ This is CLAUDE.md §6 step 1, so the vacuous pass was wearing
+# the badge of a mandatory gate. The default is now TMPDIR-based (matching
+# `e2e-prod-gate.sh`), but a bad `WORK=` from the environment would re-create the hole —
+# so the WRITABILITY of the directory is asserted, not assumed. Probe, never infer.
+if ! mkdir -p "$WORK" 2>/dev/null || ! : > "$WORK/.writable" 2>/dev/null; then
+  echo "FATAL: WORK directory is not usable: $WORK" >&2
+  echo "       Every arm writes its census/findings there; without it this gate reports" >&2
+  echo "       INVARIANT HOLDS having measured NOTHING. Set WORK=<writable dir> and re-run." >&2
+  exit 2
+fi
+rm -f "$WORK/.writable"
 
 psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off "$@"; }
 psql_admin () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U supabase_admin -d postgres -tA -P pager=off "$@"; }
@@ -431,13 +447,82 @@ run_arm_census () {
     echo "  OK: no unswept newcomer WITHIN THIS ARM'S DOMAIN (see the domain lines above)."
   fi
 
-  # Hygiene (non-fatal): a backlog line with no live gate behind it — the gate was
-  # renamed or dropped, and the line is now a comforting no-op.
-  local ghosts
-  ghosts=$(comm -13 "$live" <(allow_body "$UNSWEPT" | sort -u))
-  if [ -n "$ghosts" ]; then
-    echo "  note: backlog entries with no matching live gate (renamed/dropped — prune):"
-    echo "$ghosts" | sed 's/^/      /'
+  # Hygiene (non-fatal): a backlog line with no live gate behind it.
+  #
+  # ⛔ PARTITIONED, never collapsed (FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG, fixed 2026-08-24).
+  # This note used to print ONE list headed "renamed/dropped — prune", built as
+  # `backlog − live`. But `live` is THIS ARM'S DOMAIN, not the catalog: an `app`-schema
+  # INVOKER plpgsql body is outside every clause above, so the arm cannot match it — and the
+  # note reported that miss as non-existence, then recommended deletion on the strength of it.
+  # Two live gates sat in that list, one of them `app._set_participant_patient_unchecked`, the
+  # case module's single PHI write choke point. Pruning as instructed would have deleted the
+  # only committed record that they are unswept. ⚠ It failed in the REASSURING direction,
+  # inside a run printing INVARIANT HOLDS at exit 0, in a `note:` line nothing gates on.
+  #
+  # So: "outside my domain" and "does not exist" are different facts and get different lines.
+  # Same shape as ADR 0128's clean/unproven/dirty partition — absence of evidence is its own
+  # verdict, not the negative one.
+  local existing="$WORK/census_existing.txt"
+  { psql_c -c "
+      select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname in ('app','public');"
+    psql_c -c "
+      select c.relname||'.'||pol.polname||' ('||
+             (case pol.polcmd when 'r' then 'SELECT' when '*' then 'ALL' when 'a' then 'INSERT'
+                              when 'w' then 'UPDATE' when 'd' then 'DELETE' end)||')'
+      from pg_policy pol
+      join pg_class c on c.oid = pol.polrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public';"
+  } | grep -vE '^[[:space:]]*$' | sort -u > "$existing"
+
+  # THREE states, not two.
+  #
+  # ⛔ PROVENANCE, corrected 2026-08-25 — the third state was added on the strength of a FALSE
+  # measurement, and the correction is worth more than the state. A census run listed
+  # `app._set_participant_patient_unchecked` as "safe to prune"; that was read as a rename to
+  # `public.set_participant_patient`, and the backlog line was re-pointed. The function had NOT
+  # been renamed. The run was made against a LOCAL DB THAT HAD NOT BEEN RESET and was missing six
+  # functions the backlog names; on a fresh reset all six are present, byte-identical.
+  # ⭐ The partition is kept anyway, because it is right for a reason that does not depend on that
+  # episode: "outside this arm's domain" and "does not exist" are different facts, and only the
+  # first is what `live` can decide — `live` is THIS ARM'S DOMAIN, not the catalog. And the RE-POINT
+  # bucket plus the rename caveat are exactly what would have stopped the false conclusion from
+  # being actioned: prune-on-absence is how a live door's unswept record gets deleted.
+  # ⚠ Absence measured against a stale DB is not absence. `ARM=floor` reads 110 never-called doors
+  # on a stale DB and 72 on a fresh one — same day, same machine.
+  local ghostfile names prunable outofdomain repoint g
+  ghostfile="$WORK/census_ghosts.txt"; names="$WORK/census_names.txt"
+  comm -13 "$live" <(allow_body "$UNSWEPT" | sort -u) > "$ghostfile"
+  if [ -s "$ghostfile" ]; then
+    sed -E 's/\(.*$//' "$existing" | sort -u > "$names"
+    outofdomain=$(comm -12 "$existing" "$ghostfile")
+    repoint=""; prunable=""
+    while IFS= read -r g; do
+      grep -Fxq "$g" "$existing" && continue
+      if grep -Fxq "${g%%(*}" "$names"; then repoint="${repoint}${g}"$'\n'
+      else prunable="${prunable}${g}"$'\n'; fi
+    done < "$ghostfile"
+    if [ -n "$outofdomain" ]; then
+      echo "  note: backlog entries that ARE live but fall OUTSIDE this arm's domain"
+      echo "        (see the domain lines above) — ⛔ KEEP THEM: still unswept, and this"
+      echo "        arm cannot match them, which is not the same as their being absent:"
+      echo "$outofdomain" | sed 's/^/      /'
+    fi
+    if [ -n "$repoint" ]; then
+      echo "  note: backlog entries whose FUNCTION NAME is live but whose ARGUMENTS changed"
+      echo "        — ⛔ RE-POINT the line to the new signature; do NOT prune it:"
+      printf '%s' "$repoint" | grep -v '^$' | sed 's/^/      /'
+    fi
+    if [ -n "$prunable" ]; then
+      echo "  note: backlog entries with no function of that NAME anywhere in app/public."
+      echo "        ⚠ Confirm the gate was DROPPED and not RENAMED before deleting a line —"
+      echo "        this check cannot tell those apart, and under a rename the unswept"
+      echo "        subject is still live under another name:"
+      printf '%s' "$prunable" | grep -v '^$' | sed 's/^/      /'
+    fi
   fi
 }
 

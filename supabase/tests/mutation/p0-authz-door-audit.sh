@@ -61,14 +61,31 @@ set -u
 DB=supabase_db_azkbbhskturikxpgmafq
 # Repo root = three levels up from supabase/tests/mutation/.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-WORK="${WORK:-/c/Users/micha/AppData/Local/Temp/claude/C--Users-micha-Development-claude-hospital-form-platform/6d030efd-e072-4a80-a704-0dc4fb6c9049/scratchpad/authz-audit}"
+WORK="${WORK:-${TMPDIR:-/tmp}/authz-audit}"
 FINDINGS="$ROOT/docs/reviews/authz-door-audit-findings.md"
 BLINDS_TSV="$WORK/blinds.tsv"
 PROGRESS="$WORK/progress.tsv"          # per-case log, written AS WE GO (§ mid-run kill)
 RUNLOGS="$WORK/runlogs"                # full suite output per case, for forensics
 CASES="${CASES:-}"                     # optional subset filter
 
-mkdir -p "$WORK" "$RUNLOGS"
+
+# ⛔ WORKSPACE PRECONDITION — a hard failure, never a warning.
+# Until 2026-08-24 the default above was one Windows session's scratchpad path, committed:
+# on every other machine `mkdir -p` failed, `set -e` is deliberately off here, and each
+# arm's `comm`/`wc` against the missing files produced EMPTY sets — which every arm reads
+# as "nothing unaccounted for". The gate printed `INVARIANT HOLDS` and exited 0 having
+# measured nothing at all. ⚠ This is CLAUDE.md §6 step 1, so the vacuous pass was wearing
+# the badge of a mandatory gate. The default is now TMPDIR-based (matching
+# `e2e-prod-gate.sh`), but a bad `WORK=` from the environment would re-create the hole —
+# so the WRITABILITY of the directory is asserted, not assumed. Probe, never infer.
+if ! mkdir -p "$WORK" 2>/dev/null || ! : > "$WORK/.writable" 2>/dev/null; then
+  echo "FATAL: WORK directory is not usable: $WORK" >&2
+  echo "       Every arm writes its census/findings there; without it this gate reports" >&2
+  echo "       INVARIANT HOLDS having measured NOTHING. Set WORK=<writable dir> and re-run." >&2
+  exit 2
+fi
+rm -f "$WORK/.writable"
+mkdir -p "$RUNLOGS"
 
 psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off "$@"; }
 # Run an SQL file inside the container (avoids all shell-quoting of quals/bodies).

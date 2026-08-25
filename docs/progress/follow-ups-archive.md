@@ -5764,3 +5764,331 @@ _Moved when the ADR 0137 § Now bullet rotated to [2026-Q3.md](2026-Q3.md): that
 > (`pg_get_functiondef`, not the migration file — it has been re-emitted twice already).
 
 </details>
+
+not lost inside a build that does not own it — the same reason this door's sibling item was filed in the
+first place.
+
+### Bodies rotated from follow-ups.md 2026-08-24 (batch: gate-tooling round) — all three RESOLVED
+
+### 🟠 FUP-42501-CONFLATES-GRANT-WITH-RLS — 2 of 12 P0-isolation assertions pass on a **table-grant** error, not on the RLS refusal they claim to prove (owner: backend + tester; **a COVERAGE defect, NOT a vulnerability — the tables are protected**)
+
+Filed 2026-08-18 (lead). Surfaced when `backend` hit the same shape building the ADR 0125 D6 keystone
+(`345_previa_audit_door.sql`) and noted it *"generalises to every `throws_ok(…, '42501')` in the tree"*.
+Lead swept the tree and measured the population; **the generalisation is real but much narrower than
+that**, and it lands somewhere that matters.
+
+**⛔ NEUTRALIZE BEFORE ESCALATING — this is not a vulnerability, and the distinction is the whole item.**
+Measured: `authenticated` holds **no INSERT privilege** on `public.rca_evidence` or
+`public.capa_action_evidence`. So those two tables are **protected — more strongly than the test claims**,
+by a missing grant rather than by RLS. Nothing is exposed. What is wrong is the **assertion**, not the
+posture.
+
+**The mechanism.** `42501` is simultaneously
+
+- the correct SQLSTATE for an **RLS / authority** refusal, and
+- Postgres's **generic** `permission denied for table …` code.
+
+So `throws_ok($$ insert into public.X … $$, '42501')` **cannot distinguish** *"RLS refused this
+cross-tenant write"* from *"the role was never granted INSERT on this table at all"*. The assertion is
+satisfied by either, and it reports the first.
+
+**Measured population — the enumeration, not an estimate.** 15 tree-wide hits for `throws_ok` + `42501`;
+**3 are comments, 12 are live assertions**, all in `supabase/tests/252_authz_p0_isolation.sql`
+(lines 114–157), probing 6 `rca_*` and 6 `capa_*` tables. Grant check on all twelve:
+
+| | `authenticated` INSERT | assertion proves |
+| --- | --- | --- |
+| 10 tables (`rca_factors`, `rca_members`, `rca_root_causes`, `rca_timeline_entries`, `rca_why_chains`, `capa_action`, `capa_action_task`, `capa_measure`, `capa_measure_result`, `capa_effectiveness`) | **true** | ✅ RLS — the only thing that can raise `42501` |
+| **`rca_evidence`**, **`capa_action_evidence`** | **false** | ⛔ **the grant.** RLS is never reached |
+
+⇒ **The P0 suite claims cross-tenant isolation on 12 tables and demonstrates it on 10.** An auditor asking
+*"is `rca_evidence` RLS-isolated?"* finds a green P0 assertion and concludes yes; the test never exercised
+RLS.
+
+⭐ **The class is the inverse of the usual one here.** This project's recurring failure is
+[[absence-of-a-verdict-is-not-absence-of-coverage]] — reading a missing verdict as a hole. This is the
+mirror: **a PRESENT green assertion that is not coverage.** The `42501` conflation is what makes it
+invisible, because the test's own expected value is correct.
+
+⚠ **The tree ALREADY KNEW this trap — twice — and it still recurred.** Both are comments, not gates:
+`301_hospital_affiliation_substrate.sql:21` (*"'grant' cannot be proven with `throws_ok(..., '42501')`: a
+miss…"*) and `277_ff4_power_authoring.sql:328`. A hazard documented in prose in two files did not stop a
+third instance being written, or the two live ones surviving. **That is the argument for a mechanical
+check rather than a fourth comment.**
+
+**Fix — `backend`'s own two-part remedy from `345`, which is the model:**
+1. **Grant the probe role what the test is not testing**, so the only thing left that can raise `42501` is
+   the property under test; and/or
+2. **Remove the incidental read entirely** (`345` passes the source id as a literal so no fixture read
+   happens inside the probe at all).
+3. ⭐ **Two-sided is what actually catches it.** `backend`'s deny-leg passed on the fixture's own error and
+   **only the ALLOW leg failing exposed it.** A deny-only keystone is green while asserting nothing about
+   authorization. Every `42501` assertion needs its allow-side twin.
+
+⚠ **Do not "fix" this by granting INSERT on the two tables** — that would be a widening performed to make a
+test honest, trading real protection for a truer assertion. Fix the **assertion**: either probe a role that
+holds the grant, or assert the RLS refusal by a means that cannot be satisfied by a missing privilege.
+
+⛔ **Not fixed in the ADR 0125/0126 build** — different suite, different subject, and it needs the `252`
+owner's judgement about what each probe is meant to prove. `345`'s own instance **is** fixed, with the
+measurement in that file's header.
+
+> ## ✅ RESOLVED — closed on MEASUREMENT 2026-08-24. ⭐ The fix had already landed on 2026-08-17,
+> **one day BEFORE this item was filed**, and the body above stayed open for six days saying otherwise.
+>
+> Verified independently in the file, not accepted from a report:
+> - **Fix option 1 is implemented** — an IN-TRANSACTION grant restore,
+>   `supabase/tests/252_authz_p0_isolation.sql:106-107`, re-granting insert/update/delete on
+>   `rca_evidence` + `capa_action_evidence` to `authenticated` inside the suite's own
+>   `begin;…rollback;`. ⛔ This is NOT the widening the body warns against: the PRODUCTION grant
+>   state stays pinned by suite `341` H1–H4 (`table_privs_are` = {SELECT} exactly), and the file's
+>   header block says so explicitly.
+> - **Fix option 3 is satisfied** — each DENY carries its `lives_ok` allow-side twin (`:128`, `:163`).
+> - **Proof the assertions now reach RLS rather than the grant wall**: `p0b-isolation-mutation-audit.sh`
+>   opens `rca_evidence_write` and `capa_action_evidence_write` (`:146`, `:154`) and requires the DENY to
+>   redden — a mutation that can only redden if RLS is what refuses.
+> - Suite green on a fresh reset: 218 files / 7228 tests PASS.
+>
+> ⚠ **NAMED RESIDUAL, not built:** the body's argument for *"a mechanical check rather than a fourth
+> comment"* over the `throws_ok(…, '42501')` class. The two prose warnings it cites
+> (`301_hospital_affiliation_substrate.sql:21`, `277_ff4_power_authoring.sql:328`) are still prose, and
+> nothing stops a fourth instance. Closed on the measured defect (2 assertions), NOT on the class.
+
+### 🟡 FUP-VACUOUS-DETECTOR-FALSE-POSITIVE — `check-vacuous-assertions.mjs` flags a test as vacuous when a helper is declared inside it (owner: tester/lead; filed 2026-08-21)
+
+`scripts/check-vacuous-assertions.mjs:284-299` — `containsTestExitingReturn` correctly skips
+**child** function nodes, but it still walks a statement that **is itself** a `FunctionDeclaration`.
+So a helper declared inside a test body contributes its own `return` to the test's statement list,
+which revokes the unconditional-assertion guarantee for **every later `expect`** in that test.
+
+**Live instance:** `e2e/case-access.spec.ts`'s `T6 keyboard-only` test declared a `focusTrace`
+helper and was reported `ALL-ASSERTIONS-CONDITIONAL`. The test was **not** vacuous. It reddened the
+whole eight-gate chain (eslint is link 1, but `lint:vacuous` is link 5 — everything after it also
+never ran). Worked around by **hoisting the helper to module scope**, which is a correct fix for that
+spec and not a fix for the class.
+
+⛔ **Do NOT "fix" this by relaxing the detector on the strength of this report.** `lint:vacuous`
+exists because tests that pass having asserted nothing shipped here before
+(`docs/reviews/vacuous-assertion-audit.md`), and its self-test suite (42/42) is what makes it
+trustworthy. **Admission condition for any change: a NEW self-test case that reproduces the real
+vacuous shape this walk was written to catch, proven to still go RED after the fix.** A detector
+loosened on a false-positive report, without a control proving it still catches the true positive,
+is strictly worse than the false positive.
+
+⭐ Worth noting for whoever takes it: the false positive pushes authors toward *restructuring tests
+to appease the detector*. That is usually harmless (hoisting a helper is fine) but it is a slow
+pressure toward writing tests the gate likes rather than tests that pin behaviour.
+
+> ## ✅ RESOLVED 2026-08-24 — root-caused from the CODE, and the admission condition was met red-first
+>
+> **Mechanism, confirmed rather than assumed:** the callers pass STATEMENTS
+> (`check-vacuous-assertions.mjs:139`, `:163`, `:187`, `:243`). `containsTestExitingReturn`'s
+> `forEachChild` guard skips function **children**, but a bare `function h() { … return x }` in a test
+> body arrives as `node` **itself** and is walked into — so the helper's return revoked the
+> unconditional-assertion guarantee for every later `expect()`. Fixed by returning false when `node`
+> is itself a FunctionDeclaration / ArrowFunction / FunctionExpression.
+>
+> ⭐ **The admission condition the body set was met in the order it demanded.** TWO fixtures added, and
+> the false-positive one was proven **RED first** — `self-test: 43/44 — DETECTOR IS UNSOUND`,
+> *"MISCLASSIFIED: helper declared inside the test body — expected clean, got FLAG"* — BEFORE the fix
+> existed. Its twin is the control the body insisted on: the **same helper plus a REAL bare return** in
+> the test body, `flag: true`, proving the detector still catches the true positive it was written for.
+> A detector relaxed without that control would have been strictly worse than the false positive.
+>
+> Verified: self-test **44/44**, `lint:vacuous` clean over **239** spec files, 0 findings.
+> ⚠ Not reverted: `e2e/case-access.spec.ts`'s hoisted `focusTrace` helper. Hoisting is a fine shape on
+> its own merits and re-inlining it to prove a point would be churn.
+
+### FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG
+
+**`ARM=census`'s "prune" note recommends deleting the record of two LIVE, UNSWEPT gates.** Found at the
+ADR 0137 batch-end gate, 2026-08-23. Pre-existing — `supabase/tests/mutation/` is untouched by that batch
+(verified: `git status` clean for the path), and both entries sit in the committed backlog at
+`authz-unswept-backlog.txt:232-233`.
+
+**What it prints** (`ARM=census`, exit 0, INVARIANT HOLDS):
+
+```
+note: backlog entries with no matching live gate (renamed/dropped — prune):
+    app._grant_case_access_unchecked(...)
+    app._set_participant_patient_unchecked(...)
+```
+
+⛔ **Both functions EXIST, live, with byte-identical signatures to the backlog lines.** Measured from
+`pg_proc`: `app._grant_case_access_unchecked` and `app._set_participant_patient_unchecked` are both
+`prosecdef = f`, `plpgsql`, schema **`app`**.
+
+**Mechanism.** The arm states its own domain: *prosecdef bool | prosecdef set-returning+reachable |
+**public** INVOKER plpgsql | all RLS policies*. An **`app`**-schema INVOKER plpgsql body is **outside that
+domain**, so the arm cannot match it — and reports the miss as *"no matching live gate (renamed/dropped
+— prune)"*.
+
+⭐ **The note conflates "outside my domain" with "does not exist", and then recommends a destructive
+action on the strength of it.** Pruning as instructed would delete the only committed record that these
+two are unswept — and `app._set_participant_patient_unchecked` is the **single PHI write choke point** for
+the case module, the body ADR 0137 D3's required-field guard was just placed in (measured: putting that
+guard in `set_case_patient` instead leaves the E1 multi-patient path unguarded, pgTAP `362` §4.1/§4.2).
+
+⚠ **It fails in the reassuring direction and inside a passing run** — `INVARIANT HOLDS`, exit 0, with the
+harmful advice in a `note:` line nothing gates on.
+
+**Fix (not attempted here — it is a gate-script change, outside the ADR 0137 batch):** the note must
+partition, not collapse. A backlog entry should report as **PRUNE** only when no function of that
+signature exists in the catalog **at all**; when one exists but falls outside the arm's domain it is
+**OUT-OF-DOMAIN — keep, still unswept**. Same shape as ADR 0128's clean/unproven/dirty partition, and the
+same failure the `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` domain line already acknowledges one column over.
+
+**Owner:** backend (gate script). **Do not prune those two lines in the meantime.**
+
+> ## ✅ RESOLVED 2026-08-24 — shipped with THREE states; ⛔ one claim in the first version of this closure was FALSE and is corrected here (2026-08-25)
+>
+> **What was built.** The body asks for one partition: **PRUNE** vs **OUT-OF-DOMAIN**. The shipped note
+> has three:
+> - **OUT-OF-DOMAIN** — exact signature live, outside this arm's domain ⇒ keep, still unswept.
+> - **RE-POINT** — the function NAME is live, the arguments changed ⇒ re-key the line, never prune.
+> - **no such NAME in app/public** — ⚠ carries a **rename caveat instead of the word "safe"**, because a
+>   rename to a different name is not mechanically detectable, and pruning on absence is exactly how a
+>   live door's unswept record gets deleted.
+>
+> ⛔ **THE CORRECTION, and it is the more useful half.** This closure originally reported that running the
+> two-state version had exposed a live PHI door as *"safe to prune"* because
+> `app._set_participant_patient_unchecked` had been **renamed** to `public.set_participant_patient`, and
+> the backlog line was re-pointed accordingly. **That was wrong.** The function was never renamed. The
+> measurement was taken against a **local DB that had not been reset**, which was missing six of the
+> functions the backlog names; on a fresh `supabase db reset` all six are present with byte-identical
+> signatures. `public.set_participant_patient` is the helper's **DEFINER sibling**, not its successor —
+> the authority split `docs/backend-state.md` already documents. The backlog line has been restored and
+> the episode recorded in the file itself.
+>
+> ⭐ **Why the three states are kept anyway:** the partition is right for a reason independent of that
+> episode — `live` is the ARM'S DOMAIN, not the catalog, so "outside my domain" and "does not exist" were
+> always different facts. And the RE-POINT bucket and rename caveat are precisely what would have stopped
+> the false conclusion from being actioned.
+>
+> ⚠ **Transferable, and this item earned it twice:** it was filed because a note conflated *"outside my
+> domain"* with *"does not exist"*. Its own closure then conflated *"absent from this database"* with
+> *"absent"*. **A catalog absence proves nothing until the DB is freshly reset** — measured the same day
+> from the other direction: `ARM=floor` reads 110 never-called doors on a stale DB and 72 on a fresh one.
+
+### ⬛ FUP-AUTHZ-GATE-SUITE-DID-NOT-RUN-ON-MACOS — ✅ **FOUND AND RESOLVED 2026-08-24, same change** (owner: lead/backend; found by RUNNING `ARM=census`, not by reading it)
+
+Two independent defects, both committed, both in CLAUDE.md §6 **step 1** — the mandatory authz gate. Neither
+was findable by reading: one printed a pass, the other named no cause.
+
+**1. `WORK` defaulted to another machine's scratchpad, and the gate passed vacuously.** All three
+`supabase/tests/mutation/p0-authz-*.sh` hardcoded
+`/c/Users/micha/AppData/Local/Temp/claude/…/scratchpad/authz-audit` as the `WORK:-` default. On anything
+that is not that Windows box: `mkdir -p` fails · `set -e` is deliberately off in these scripts · every
+`comm`/`wc` runs against files that do not exist and yields EMPTY · and an empty newcomer set is exactly
+what "nothing unaccounted for" looks like. ⛔ **`ARM=census` printed `=== INVARIANT HOLDS ===` and exited
+0 having enumerated ZERO gates.** After the fix the same command enumerates **546** live gates against
+**595** verdicts.
+⭐ **The default was changed AND the precondition asserted, because only the second one closes the class.**
+A TMPDIR-based default (matching `e2e-prod-gate.sh`) fixes today; a bad `WORK=` from the environment would
+re-create the hole tomorrow. So the directory's **writability is probed**, and a failed probe is `exit 2`
+with a message naming the consequence — proven red-first (`WORK=/c/nope` ⇒ exit 2).
+
+**2. `act-hat-blind-sweep.sh` could not be PARSED, so `ARM=hat` could not run at all.** `bash -n` fails on
+the committed file under **bash 3.2.57**, the `/bin/bash` macOS ships (no newer bash on the host). Cause:
+bash 3.2 parses a heredoc body that sits inside a **command substitution** despite the quoted `<<'SQL'`
+delimiter that is supposed to suppress interpretation. Two apostrophes in ordinary SQL **comments** —
+*"this script's"* and *"the caller's own param"* — therefore read as shell quotes and unbalanced the file.
+⚠ The error names the LAST line of the file and no cause at all.
+⭐ **Fixed structurally, not by deleting the two apostrophes**: the heredoc now writes to a temp file
+outside any substitution. An apostrophe in a SQL comment is a normal thing to write and the next author
+would have reintroduced it. Now: 6/6 self-tests, anchors verified, 3 findings all reasoned-allowlisted,
+`INVARIANT HOLDS`.
+
+**Standing consequences, worth more than the two fixes:**
+- ⛔ **A green gate record is evidence only if the gate could run.** Both of these are "the instrument was
+  disconnected" — the census reported a *pass*, which is worse than an error, and the hat arm reported a
+  syntax error naming nothing. Any pre-2026-08-24 authz gate record produced on **macOS** should be
+  re-run before it is cited.
+- ⚠ **`ARM=floor` must be run on a FRESH `supabase db reset`.** Measured the same day: **110** never-called
+  doors / **35 unallowlisted / exit 1** on an E2E-mutated DB, versus **73 / 0 unallowlisted / exit 0** on a
+  fresh reset. The dirty-DB number looks exactly like a real floor violation. This is CLAUDE.md §6's
+  fresh-reset rule, which was written about pgTAP, biting the authz arms too.
+- ⭐ **Neither defect is detectable by any existing gate.** `bash -n` over the gate scripts would have
+  caught #2 instantly. Proposed, NOT built — a tenth lint gate is a decision, not a mid-batch edit.
+
+### 🟠 FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS — a pgTAP premise 136 files can state falsely (owner: backend/tester; filed 2026-08-22, found inside the ADR 0134 S8 suite; ⭕ **PARTIAL 2026-08-22** — root verb `test_helpers.reset_role_and_claims()` + red-first gate landed and adopted in `356`/`357`; ⛔ **step 1 (derive the real population) and the 134-file sweep remain OPEN**. Capable population 136 → 134, still not a defect count. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md))
+
+`test_helpers.claims_for(...)` sets `request.jwt.claims`; **`reset role` restores the ROLE only.** So a
+suite that says "back in owner context, `auth.uid()` is NULL" after a `reset role` may in fact still be
+asserting **as the last persona**, and every assertion resting on that sentence inherits a false premise.
+
+**Found by construction, not by review.** The ADR 0134 Increment-2 suite (`356`) stated exactly that
+premise for its `member_can` pins — including **1.5c, the Amendment-6 pin**, whose entire content is
+*"the bare `member_can` is false in owner context for everybody, which is why the resolver cannot use
+it."* That assertion depended on the premise being true and it was not. Fixed in `356` by pairing every
+`reset role` with an explicit claims clear **and by pinning the premise itself** (`0.5`) rather than
+stating it in a comment.
+
+⭐ **The class:** *a pin whose stated premise is false is the same defect as a pin that cannot fail* —
+both are green for a reason unrelated to the property. This one is worse to find later, because the
+comment above it reads like the verification.
+
+**Measured 2026-08-22 — and read the bound, because the headline number is not the defect count:**
+
+| property | count |
+|---|---|
+| files under `supabase/tests/` using `reset role` | **172** (2179 occurrences) |
+| files using `claims_for` | **177** |
+| files that clear `request.jwt.claims` anywhere | **39** |
+| **files that `reset role` but NEVER clear claims** | **136** |
+
+⛔ **136 is the population that CAN hold the defect, not the population that does.** A file that always
+runs under an explicit persona and never asserts an owner-context property is unaffected. **The number
+of actually-false premises is NOT established**, and nobody should quote 136 as a defect count — that
+is this repo's standing error (the instance named as the class) run in the opposite direction. Whoever
+takes this must derive the real population by the property *"asserts something that is only true when
+`auth.uid()` is NULL, after a `reset role`, without clearing claims"*, which no text filter decides.
+
+**To close:** (1) derive that population; (2) fix at the root — a `test_helpers` verb that resets role
+**and** clears claims together, so the two cannot drift apart, rather than 136 hand-paired edits; (3) the
+gate is **pgTAP, not `npm run lint`** (ADR 0127's stated bound: DB anchors are not checkable there), and
+it must be **red-first** — write a suite that asserts an owner-context property after a bare `reset role`
+and require it to RED before the helper lands.
+
+---
+
+> ## ✅ RESOLVED 2026-08-24 — the real population is **SIX**, and the remedy is NOT the one this item assumed
+>
+> **Step 1 done by EXECUTION, because the item said no text filter decides it.** Appended
+> `set local request.jwt.claims = '';` after all **2171** `reset role;` sites across **172** files, ran the
+> full suite, and diffed against an all-green **7230**-test baseline. A test whose verdict moves is, by
+> construction, a test whose green depended on surviving claims — the property stated, measured rather
+> than estimated.
+>
+> **Result: six findings in five files** (`110_indicators` ×2 · `130_audit` · `233_authz_m6_visibility_door`
+> ABORT · `274_ff3_validations` C6 · `292_session_context` 3.5 · `367_deferred_staff_signoff` 11.5 ABORT).
+> ⛔ **Not 134, and not 136.** The capable population was 172 files by the time this ran (drifted from the
+> filed 172/136 figures — re-measure, never quote).
+>
+> ⭐ **The experiment carried its own positive control.** `358` G4 exists to PIN the hazard, so clearing
+> claims makes it fail. Without that, *"only six failures"* and *"the edit did nothing"* would have looked
+> identical — the item's own *"a pin that cannot fail"* lesson, applied to the instrument instead of the code.
+>
+> ⛔ **THE REMEDY IS NOT WHAT THIS ITEM ASSUMED, and that is the finding.** All six triage as **misplaced
+> reset**, not missing claims-clear: in every case the statements *after* the `reset role` genuinely need a
+> non-null authorized `auth.uid()`, so pairing the reset with a claims-clear would have made all six FAIL,
+> not pass. The fix is to move the reset BELOW the statements that still need the persona — each of the six
+> now carries a comment saying so, because a bare one-line move is exactly what a later author reverts.
+> ⚠ What the tests were really doing: running with **SUPERUSER role + persona claims**, a hybrid that exists
+> nowhere in production — RLS bypassed while DEFINER bodies still saw the persona. So the RLS half of each
+> was never exercised. Relocating the reset makes them run as the persona in role *and* claims, which is
+> strictly stronger than either the old state or the assumed fix.
+>
+> ⚠ **`test_helpers.reset_role_and_claims()` is NOT a drop-in replacement for `reset role`** — measured, the
+> hard way. The first derivation pass substituted the verb and three EXTRA files aborted with
+> `permission denied for schema test_helpers`: the bare command needs no privileges, a function call needs
+> schema USAGE from whatever restricted role is live. Those three were artifacts of the instrument, and
+> reporting them would have inflated the population by 50% — this item's own warning, committed by the
+> person deriving the number. Re-run with a privilege-neutral inline `set local`, they went green.
+>
+> **Closing proof:** with the six fixed, re-running the same differential leaves **only the `358` control**
+> failing — no aborts, count holds at 7230. The derived population is empty.
+>
+> ⚠ **Named residual:** nothing RUNS this differential. It is a technique, not a gate, so a NEW test can
+> state a fresh false premise tomorrow and the suite will be green. Filed as
+> `FUP-CLAIMS-SURVIVAL-DIFFERENTIAL-IS-NOT-RUN-BY-ANYTHING`.
