@@ -1,7 +1,7 @@
+import { buildCasePayload } from '@/lib/cases/pdf-payload'
 import { buildFormResponsePayload } from '@/lib/forms/pdf-payload'
 import { buildMeetingPayload } from '@/lib/meetings/pdf-payload'
 import type { MintRenderContext } from '@/lib/pdf/provenance'
-import { TEMPLATES } from '@/lib/pdf/render'
 import type { DocumentPayload, PrintedDocumentSourceKind } from '@/lib/pdf/types'
 
 /**
@@ -15,27 +15,71 @@ import type { DocumentPayload, PrintedDocumentSourceKind } from '@/lib/pdf/types
  * whose provider declares it (never hardcoded in UI), and the action refuses
  * `includePhi` for kinds that don't.
  */
+
+/**
+ * Per-mint build options (ADR 0104 D9 / ADR 0144 D5).
+ *
+ * ⚠ Optional on {@link PdfDataProvider.build} so the P1/P2 two-argument
+ * providers satisfy the interface STRUCTURALLY, without being rewritten to
+ * accept a parameter they ignore.
+ */
+export interface PdfBuildOptions {
+  /**
+   * The D9 per-mint patient-identifier choice: explicit, default OFF, no memory.
+   * ⛔ NOT the same thing as `DocumentPayload.containsPhi`, which is
+   * presence-derived and non-suppressible (A8 / ADR 0144 D6) and is TRUE for
+   * both case variants.
+   */
+  includePhi: boolean
+}
+
+/**
+ * ⛔ **NO `templateKey` / `templateVersion` FIELDS, AND THAT IS THE DESIGN.**
+ * They used to live here as static strings. `case` broke that — it has TWO keys
+ * (`case` / `case_identified`, ADR 0144 D7 as amended) selected per mint — and
+ * the obvious repair, a `templateKeyFor(options)` method, was REJECTED: it would
+ * compute the key from the same `{ includePhi }` request that drives `build()`,
+ * giving one fact two authorities that agree only by care.
+ *
+ * ⚠ That is not theoretical. `public.get_case_patients` answers `null`
+ * (unentitled) and `[]` (entitled, none on file) as well as rows, so a `build`
+ * called with `includePhi: true` can legitimately produce a payload containing
+ * no identifiers — and a request-derived key would label those bytes
+ * `case_identified`, minting them into the identified series and superseding a
+ * real identified dossier.
+ *
+ * ⇒ The template identity is derived from the PAYLOAD instead, by
+ * `templateFor(payload.body)` in `@/lib/pdf/render`, exactly as
+ * `DocumentPayload.sourceRevision` is read from the payload rather than re-read
+ * near the mint call, and for the same reason: a fact about the render must
+ * reach the door FROM the render.
+ */
 export interface PdfDataProvider {
-  templateKey: string
-  templateVersion: number
   /** false for every P1/P2 kind; the PHI delta lands in P3 (cases). */
   phiCapable: boolean
-  build(sourceId: string, ctx: MintRenderContext): Promise<DocumentPayload>
+  build(
+    sourceId: string,
+    ctx: MintRenderContext,
+    options?: PdfBuildOptions,
+  ): Promise<DocumentPayload>
 }
 
 export const PDF_PROVIDERS: Partial<
   Record<PrintedDocumentSourceKind, PdfDataProvider>
 > = {
   form_response: {
-    templateKey: TEMPLATES.form_response.key,
-    templateVersion: TEMPLATES.form_response.version,
     phiCapable: false,
     build: buildFormResponsePayload,
   },
   meeting: {
-    templateKey: TEMPLATES.meeting.key,
-    templateVersion: TEMPLATES.meeting.version,
     phiCapable: false, // meetings mint PHI-free only in v1 (ADR 0104 D9)
     build: buildMeetingPayload,
+  },
+  case: {
+    // ⭐ THE FIRST PHI-CAPABLE KIND (ADR 0144 D5). This declaration is the ONLY
+    // thing that makes the mint dialog offer the identified variant — ⛔ the UI
+    // must never hardcode the kind (ADR 0104 D9's v2-readiness seam).
+    phiCapable: true,
+    build: buildCasePayload,
   },
 }

@@ -31,6 +31,15 @@ interface PrintSourceVector {
   /** 0126 D10 — defaults false when absent; meaningful for form_response only. */
   phase_voided?: boolean
   /**
+   * PDF·P3 / ADR 0144 D3+D10 — `cases.phi_disposed_at is not null`. Defaults
+   * false when absent; meaningful for CASE only. `dispose_case_phi` GUTS the
+   * dossier (deletes the phases' answers and the patient rows, nulls or redacts
+   * every free-text column) without touching `cases.status`, so it moves BOTH
+   * case axes in tandem — keyed on status alone a completed+disposed case is
+   * the forbidden fourth cell.
+   */
+  case_disposed?: boolean
+  /**
    * The disposal conjunct — `meetings.phi_disposed_at is not null`. Defaults
    * false when absent; meaningful for MEETING only. `dispose_meeting_minutes`
    * erases the minutes without touching status or revision, so it moves BOTH
@@ -128,13 +137,31 @@ describe('print-source vectors: ADR 0125 D5 — the fourth cell is unreachable',
 })
 
 describe('print-source vectors: the decisions that are easy to lose', () => {
-  const find = (kind: string, status: string, flags?: { correctionOpen?: boolean; phaseVoided?: boolean }) =>
+  // ⚠ EVERY flag dimension is matched, not just the first two. Before PDF·P3
+  // this filtered on `correction_open`/`phase_voided` only, so `find('meeting',
+  // 'signed')` matched BOTH the plain row and the signed+disposed row and
+  // returned whichever came first — the assertion depended on fixture ORDERING
+  // rather than on the state it names. Adding the case rows would have made
+  // that ambiguity bite (10 case rows share 5 statuses), so the selector is
+  // exact instead: an unspecified flag means FALSE, never "don't care".
+  const find = (
+    kind: string,
+    status: string,
+    flags?: {
+      correctionOpen?: boolean
+      phaseVoided?: boolean
+      meetingDisposed?: boolean
+      caseDisposed?: boolean
+    },
+  ) =>
     vectors.find(
       (v) =>
         v.kind === kind &&
         v.status === status &&
         (v.correction_open ?? false) === (flags?.correctionOpen ?? false) &&
-        (v.phase_voided ?? false) === (flags?.phaseVoided ?? false),
+        (v.phase_voided ?? false) === (flags?.phaseVoided ?? false) &&
+        (v.meeting_disposed ?? false) === (flags?.meetingDisposed ?? false) &&
+        (v.case_disposed ?? false) === (flags?.caseDisposed ?? false),
     )
 
   it('a cancelled meeting is LOCKED but does NOT register (D1, the strict subset)', () => {
@@ -176,7 +203,66 @@ describe('print-source vectors: the decisions that are easy to lose', () => {
 
   it('an unhandled kind is ephemeral, not registered (D8, fail closed)', () => {
     expect(find('unknown_kind', 'whatever')?.registers).toBe(false)
-    expect(find('case', 'open')?.registers).toBe(false)
     expect(find('interview', 'scheduled')?.registers).toBe(false)
+    // ⛔ `case` IS NO LONGER HERE, AND THAT IS THE POINT OF PDF·P3. It used to
+    // sit in this list as `find('case', 'open')` — a status `cases.status`
+    // cannot hold (the set is not_started/in_review/pending/completed/cancelled),
+    // so the row pinned the fail-closed ELSE under a label that read like a real
+    // lifecycle state. The pin MOVED to the case's actual behaviour below rather
+    // than being deleted: deleting it would have left ADR 0144 D3's lock point
+    // asserted by nothing on this side.
+  })
+
+  it('⭐ PDF·P3 — the case LOCK POINT is terminality, and cancelled REGISTERS', () => {
+    // ADR 0144 D3. `completed` is a lock point because reopen_case is the only
+    // door out of it; `cancelled` is terminal-forever (HC0M8).
+    const completed = find('case', 'completed')
+    expect(completed?.registers, 'a completed case must yield a REGISTERED emission').toBe(true)
+    expect(completed?.watermark).toBe('final')
+
+    const cancelled = find('case', 'cancelled')
+    expect(
+      cancelled?.registers,
+      'a cancelled CASE registers — unlike a cancelled MEETING, which has no minutes to pin',
+    ).toBe(true)
+    expect(cancelled?.watermark).toBe('final')
+
+    // The differential: without these, a stub that never registers would satisfy
+    // every other case row in the fixture.
+    expect(find('case', 'not_started')?.registers).toBe(false)
+    expect(find('case', 'in_review')?.registers).toBe(false)
+    // ⚠ `pending` sounds settled and is NOT terminal — it is where reopen_case
+    // lands a previously completed case.
+    expect(find('case', 'pending')?.registers).toBe(false)
+  })
+
+  it('⭐ PDF·P3 — disposal drops BOTH case axes in tandem (0125 D5 fourth cell)', () => {
+    for (const status of ['completed', 'cancelled']) {
+      const v = find('case', status, { caseDisposed: true })
+      expect(v, `no case/${status}+disposed vector — the cross-product has a hole`).toBeDefined()
+      expect(
+        v?.registers,
+        'dispose_case_phi guts the dossier without touching status; registration must drop',
+      ).toBe(false)
+      // ⛔ THE TANDEM HALF. Keyed on status alone this row would be
+      // registers=false + watermark='final' — the forbidden fourth cell.
+      expect(v?.watermark, 'the watermark must drop WITH registration').toBe('draft')
+    }
+  })
+
+  it('⭐ PDF·P3 — the case arm IGNORES all three foreign flags', () => {
+    // Each on its OWN row: a set-everything row proves some flag is ignored but
+    // never WHICH, so a predicate leaking exactly one would still pass it.
+    for (const flags of [
+      { correctionOpen: true },
+      { phaseVoided: true },
+      { meetingDisposed: true },
+    ]) {
+      const key = Object.keys(flags)[0]
+      const v = find('case', 'completed', flags)
+      expect(v, `no case/completed+${key} ignore vector`).toBeDefined()
+      expect(v?.registers, `the case arm must IGNORE ${key}`).toBe(true)
+      expect(v?.watermark).toBe('final')
+    }
   })
 })

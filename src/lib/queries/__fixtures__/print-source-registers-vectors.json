@@ -18,8 +18,13 @@
     "becomes exactly the drift hole D3 refuses.",
     "",
     "CONSUMERS (do not add a fourth without updating this list):",
-    "  1. supabase/tests/vectors/print_source_registers_vectors.sql — GENERATED from",
-    "     this file by scripts/gen-print-source-vectors.mjs. pgTAP cannot read a JSON",
+    "  1. supabase/tests/vectors/print_source_registers_vectors.psql — GENERATED",
+    "     from",
+    "     this file by scripts/gen-print-source-vectors.mjs. ⚠ The extension is",
+    "     .psql, NOT .sql, and that is deliberate: `supabase test db` runs every",
+    "     *.sql under supabase/tests/ as its own suite, so a .sql vectors file",
+    "     would execute standalone (outside 344's plan) and fail. It is pulled in",
+    "     by `\\ir` from 344 instead. pgTAP cannot read a JSON",
     "     file at test time (it runs INSIDE the database; pg_read_file needs superuser",
     "     AND a container-visible path), so the vectors are compiled to SQL at build",
     "     time instead. The generated file carries a sourceSha256 header.",
@@ -36,10 +41,10 @@
     "  4. the pgTAP suite over the SQL predicates (backend-owned), which loads the",
     "     generated .sql from consumer 1.",
     "",
-    "INPUT SHAPE (0126 round 2 + the disposal conjunct). A vector is",
-    "(kind, status, correction_open, phase_voided, meeting_disposed) ->",
-    "(registers, watermark). All three flags default FALSE when absent, and each is",
-    "KIND-SCOPED — every predicate must IGNORE a flag outside its kind. That",
+    "INPUT SHAPE (0126 round 2 + the two disposal conjuncts). A vector is",
+    "(kind, status, correction_open, phase_voided, meeting_disposed, case_disposed)",
+    "-> (registers, watermark). All four flags default FALSE when absent, and each",
+    "is KIND-SCOPED — every predicate must IGNORE a flag outside its kind. That",
     "ignoring is PINNED by the cross-kind rows below, not left to the comment.",
     "  correction_open  (form_response only) = an open, still-rejectable correction",
     "     request exists whose draft_response_id is this response — operationally:",
@@ -58,6 +63,30 @@
     "     forever. Measured constructible: on a signed meeting with ZERO agenda",
     "     items the door succeeds (with agenda items guard_meeting_child_lock",
     "     refuses it outright — a separate, filed defect).",
+    "  case_disposed    (case only, PDF·P3 / ADR 0144 D3+D10) =",
+    "     cases.phi_disposed_at is not null. The case analogue of",
+    "     meeting_disposed and the STRONGER of the two: dispose_case_phi does not",
+    "     null one column, it GUTS the dossier — DELETES patient_identifiers and",
+    "     the phases' answers, nulls case_narratives.body_md and",
+    "     case_interviews.summary_md, redacts case_events.body/.title, the",
+    "     interview-subject notes, cases.label, documents.title/.description and",
+    "     meeting_cases.summary/.decision — while leaving cases.status UNTOUCHED.",
+    "     So the status term alone cannot see it, exactly as for meetings.",
+    "",
+    "⚠ THE CASE STATUS SET IS not_started / in_review / pending / completed /",
+    "cancelled — there is NO 'open'. An earlier placeholder vector in this file used",
+    "'open', a value cases.status cannot hold; it asserted the fail-closed ELSE",
+    "under a label that read like a real lifecycle state. It is replaced below by",
+    "the full 5 x {disposed, not} cross-product (ADR 0144 D14).",
+    "",
+    "⭐ THE CASE KIND DIVERGES FROM THE MEETING KIND AT `cancelled`, ON PURPOSE.",
+    "A cancelled MEETING does not register (no minutes to pin); a cancelled CASE",
+    "DOES — it has a complete process record worth attesting to, and it is",
+    "terminal-FOREVER (reopen_case refuses it with HC0M8, and cancel_case raises",
+    "HC025 on any terminal so completed->cancelled is unconstructible), which makes",
+    "its currency claim unconditional. It is the STRONGER of the two terminal",
+    "states here and the excluded one there. Anyone 'harmonising' the two kinds",
+    "reds on these rows, which is the point.",
     "",
     "TWO AXES, DECLARED SEPARATELY — that separation is D8's point, not ceremony.",
     "  registers  = is this source LOCKED, such that printing it yields a REGISTERED",
@@ -220,11 +249,119 @@
       "note": "⭐ CROSS-KIND IGNORE, the mirror of the form_response row above: correction_open and phase_voided are FORM_RESPONSE flags and both meeting arms must ignore them. This is the row that reds if someone 'simplifies' the dispatch into a single flag-reading predicate shared across kinds."
     },
     {
+      "kind": "form_response",
+      "status": "submitted",
+      "case_disposed": true,
+      "registers": true,
+      "watermark": "final",
+      "note": "⭐ CROSS-KIND IGNORE for the NEW flag: case_disposed is a CASE fact and both form_response arms must ignore it. Added with the flag itself — a new flag that no existing kind's vectors carry is a flag whose kind-scoping is untested for those kinds (see 'a new door must inherit every sibling arm')."
+    },
+    {
+      "kind": "meeting",
+      "status": "signed",
+      "case_disposed": true,
+      "registers": true,
+      "watermark": "final",
+      "note": "⭐ CROSS-KIND IGNORE for the NEW flag, meeting side. Deliberately paired with the row above: a predicate that read case_disposed globally would refuse to register every signed ata for a disposed case, which is nonsense the type system cannot prevent."
+    },
+    {
       "kind": "case",
-      "status": "open",
+      "status": "not_started",
       "registers": false,
       "watermark": "draft",
-      "note": "D8: in the source_kind CHECK but no provider registered (P3). Not-locked ⇒ ephemeral, no exceptions. Which state locks is the domain's to declare when it activates — as are its watermark, series and head declarations (0126 D7, four concepts)."
+      "note": "PDF·P3 / ADR 0144 D3. Non-terminal ⇒ freely editable ⇒ ephemeral prévia, never a registered emission. The case has not begun; there is nothing to attest to."
+    },
+    {
+      "kind": "case",
+      "status": "not_started",
+      "case_disposed": true,
+      "registers": false,
+      "watermark": "draft",
+      "note": "Disposal on a non-terminal case changes nothing about EITHER axis — both were already false. The row exists so the cross-product has no hole: absence here would let a predicate that INVERTED the disposal conjunct pass on every non-terminal row."
+    },
+    {
+      "kind": "case",
+      "status": "in_review",
+      "registers": false,
+      "watermark": "draft",
+      "note": "Under active committee work — the most editable state there is."
+    },
+    {
+      "kind": "case",
+      "status": "in_review",
+      "case_disposed": true,
+      "registers": false,
+      "watermark": "draft",
+      "note": "As above."
+    },
+    {
+      "kind": "case",
+      "status": "pending",
+      "registers": false,
+      "watermark": "draft",
+      "note": "⚠ 'pending' is NOT terminal despite sounding settled — it is where a REOPENED case lands (reopen_case moves completed -> pending). A print taken before the reopen keeps existing; it loses currency through the D15 revision bump, which no stateless vector can see."
+    },
+    {
+      "kind": "case",
+      "status": "pending",
+      "case_disposed": true,
+      "registers": false,
+      "watermark": "draft",
+      "note": "As above."
+    },
+    {
+      "kind": "case",
+      "status": "completed",
+      "registers": true,
+      "watermark": "final",
+      "note": "⭐ THE LOCK POINT. Both axes turn together, and the DEFAULTS matter: not disposed. This row is the differential that stops a fail-closed stub from passing every other case row — without it, 'return false' satisfies 9 of the 10."
+    },
+    {
+      "kind": "case",
+      "status": "completed",
+      "case_disposed": true,
+      "registers": false,
+      "watermark": "draft",
+      "note": "⭐⭐ THE DISPOSAL CONJUNCT, and the row that carries BOTH axes for the case kind. dispose_case_phi guts the rendered content while leaving status UNTOUCHED, so neither the status term nor the D15 revision match can see it. ⛔ The watermark MUST drop in tandem: keyed on status alone this row is registers=false + watermark='final' — ADR 0125 D5's forbidden FOURTH CELL, reached. Third kind, same shape, same answer."
+    },
+    {
+      "kind": "case",
+      "status": "cancelled",
+      "registers": true,
+      "watermark": "final",
+      "note": "⭐ REGISTERS — the deliberate DIVERGENCE from the meeting kind, where cancelled is the one excluded state. Terminal-forever (HC0M8: reopen_case refuses cancelled), so the currency claim is unconditional; and a cancelled case, unlike a cancelled meeting, has a complete process record worth attesting to. This is the row that reds if someone 'harmonises' the two kinds."
+    },
+    {
+      "kind": "case",
+      "status": "cancelled",
+      "case_disposed": true,
+      "registers": false,
+      "watermark": "draft",
+      "note": "Disposal beats the terminal status here too — the conjunct is on the state, not on how the case got there. Mirrors the meeting distributed+disposed row."
+    },
+    {
+      "kind": "case",
+      "status": "completed",
+      "correction_open": true,
+      "registers": true,
+      "watermark": "final",
+      "note": "⭐ CROSS-KIND IGNORE, isolated: correction_open is a FORM_RESPONSE flag. Deliberately its OWN row rather than folded into a set-everything row — a combined row proves some flag is ignored but not WHICH, and a predicate leaking exactly one of the three would still pass it."
+    },
+    {
+      "kind": "case",
+      "status": "completed",
+      "phase_voided": true,
+      "registers": true,
+      "watermark": "final",
+      "note": "⭐ CROSS-KIND IGNORE, isolated: phase_voided is a FORM_RESPONSE flag. ⚠ This one is the most tempting to leak — a case OWNS the phases whose voiding sets it, so 'a voided phase should stop the dossier registering' reads plausible. It must not: the dossier renders every phase including voided ones, and the case's own lock point is its status."
+    },
+    {
+      "kind": "case",
+      "status": "completed",
+      "meeting_disposed": true,
+      "registers": true,
+      "watermark": "final",
+      "note": "⭐ CROSS-KIND IGNORE, isolated: meeting_disposed is a MEETING flag. ⚠ Also tempting to leak, and for a sharper reason — a case IS discussed in meetings and the dossier renders meeting_cases rows. A disposed MEETING still must not suppress the CASE's registration; the case's own disposal flag is the only one that does."
     },
     {
       "kind": "interview",
@@ -246,9 +383,10 @@
       "correction_open": true,
       "phase_voided": true,
       "meeting_disposed": true,
+      "case_disposed": true,
       "registers": false,
       "watermark": "draft",
-      "note": "The fail-closed ELSE with EVERY flag set and a status that registers for a known kind — so the ELSE is pinned as unreachable-by-flags, not merely untested. A dispatch that fell through to a shared flag-reading tail would answer differently here."
+      "note": "The fail-closed ELSE with EVERY flag set and a status that registers for a known kind — so the ELSE is pinned as unreachable-by-flags, not merely untested. A dispatch that fell through to a shared flag-reading tail would answer differently here. ⚠ case_disposed added with the flag: a fail-closed row that omits the newest flag stops being 'every flag' the moment one is added, and nothing would say so."
     }
   ]
 }

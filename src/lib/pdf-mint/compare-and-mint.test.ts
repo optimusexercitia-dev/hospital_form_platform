@@ -91,8 +91,11 @@ vi.mock('./gotenberg', () => ({
 vi.mock('./providers', () => ({
   PDF_PROVIDERS: {
     meeting: {
-      templateKey: 'meeting',
-      templateVersion: 1,
+      // ⚠ No `templateKey`/`templateVersion`: PDF·P3 removed them from
+      // `PdfDataProvider`. The action now derives the template identity from
+      // the PAYLOAD via `templateFor(payload.body)`, for the same reason this
+      // suite exists for `sourceRevision` — a fact about the render must reach
+      // the door FROM the render, not from a second read of the request.
       phiCapable: false,
       // The ONLY source of a revision in this test. If the action ever fetches
       // its own, it will not be this number.

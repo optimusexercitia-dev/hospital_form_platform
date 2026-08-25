@@ -41,6 +41,7 @@ interface PrintSourceVector {
   correction_open?: boolean
   phase_voided?: boolean
   meeting_disposed?: boolean
+  case_disposed?: boolean
   registers: boolean
   watermark: string
   note: string
@@ -62,12 +63,17 @@ const stateOf = (v: PrintSourceVector): PrintSourceState => ({
   correctionOpen: v.correction_open ?? false,
   phaseVoided: v.phase_voided ?? false,
   meetingDisposed: v.meeting_disposed ?? false,
+  // PDF·P3 (ADR 0144 D3) — the fourth dimension. Mapped in the SAME commit that
+  // added it to the fixture, which is what the guard below exists to force.
+  caseDisposed: v.case_disposed ?? false,
 })
 
 const label = (v: PrintSourceVector) =>
   `${v.kind}/${v.status}${v.correction_open ? '+correction_open' : ''}${
     v.phase_voided ? '+phase_voided' : ''
-  }${v.meeting_disposed ? '+meeting_disposed' : ''}`
+  }${v.meeting_disposed ? '+meeting_disposed' : ''}${
+    v.case_disposed ? '+case_disposed' : ''
+  }`
 
 describe('printSourceRegisters / printSourceWatermark: the shared vectors', () => {
   it('the vector file is actually populated (the loops below are not vacuous)', () => {
@@ -77,6 +83,9 @@ describe('printSourceRegisters / printSourceWatermark: the shared vectors', () =
     expect(vectors.length).toBeGreaterThan(0)
     expect(vectors.some((v) => v.kind === 'form_response')).toBe(true)
     expect(vectors.some((v) => v.kind === 'meeting')).toBe(true)
+    // PDF·P3: the case kind must be represented too, or the ten rows added for
+    // ADR 0144 D14 could all disappear and every loop below would still pass.
+    expect(vectors.some((v) => v.kind === 'case')).toBe(true)
   })
 
   for (const v of vectors) {
@@ -100,7 +109,12 @@ describe('printSourceRegisters / printSourceWatermark: the shared vectors', () =
     expect(
       [...declared].sort(),
       'a fixture dimension is not mapped in stateOf() — its rows are vacuous',
-    ).toEqual(['correction_open', 'meeting_disposed', 'phase_voided'])
+    ).toEqual([
+      'case_disposed',
+      'correction_open',
+      'meeting_disposed',
+      'phase_voided',
+    ])
 
     // ...and each declared flag genuinely REACHES the predicate input. Knowing the
     // name is not the same as passing the value.
@@ -111,6 +125,7 @@ describe('printSourceRegisters / printSourceWatermark: the shared vectors', () =
       correction_open: true,
       phase_voided: true,
       meeting_disposed: true,
+      case_disposed: true,
       registers: false,
       watermark: 'draft',
       note: 'probe',
@@ -239,6 +254,16 @@ const ALL_STATUSES = [
   'distributed',
   'cancelled',
   'open',
+  // PDF·P3 (ADR 0144 D3): the REAL `cases.status` set. ⚠ `cancelled` is shared
+  // with meetings and already above — and the two kinds answer DIFFERENTLY on
+  // it (a cancelled case registers, a cancelled meeting does not), which is
+  // precisely why the sweep must cross kind × status rather than assume a
+  // status belongs to one kind. ⚠ `open` above is NOT a case status; it is
+  // retained as a nonsense-status probe, which is all it ever was.
+  'not_started',
+  'in_review',
+  'pending',
+  'completed',
   'whatever',
   '',
 ]
@@ -252,10 +277,23 @@ const ALL_PROBES: Probe[] = ALL_KINDS.flatMap((kind) =>
   ALL_STATUSES.flatMap((status) =>
     [false, true].flatMap((correctionOpen) =>
       [false, true].flatMap((phaseVoided) =>
-        [false, true].map((meetingDisposed) => ({
-          kind,
-          state: { status, correctionOpen, phaseVoided, meetingDisposed },
-        })),
+        [false, true].flatMap((meetingDisposed) =>
+          // PDF·P3 — the FOURTH boolean dimension. ⚠ Added in the same commit
+          // that added `caseDisposed` to the predicate, because the guard below
+          // is what forces it: when `meetingDisposed` was added the sweep
+          // silently stayed two-dimensional and NOTHING RED, since a narrower
+          // sweep still passes everything it does check.
+          [false, true].map((caseDisposed) => ({
+            kind,
+            state: {
+              status,
+              correctionOpen,
+              phaseVoided,
+              meetingDisposed,
+              caseDisposed,
+            },
+          })),
+        ),
       ),
     ),
   ),
@@ -271,7 +309,15 @@ type PredicatePair = {
 const finalEphemeralOffenders = (pair: PredicatePair): string[] =>
   ALL_PROBES.filter(
     (p) => pair.watermark(p.kind, p.state) === 'final' && pair.registers(p.kind, p.state) === false,
-  ).map((p) => `${p.kind}/${p.state.status}/c=${p.state.correctionOpen}/v=${p.state.phaseVoided}`)
+    // ⚠ EVERY dimension is in the label. An offender string that omits a
+    // dimension makes two distinct offenders print identically, so a
+    // regression that reaches the fourth cell only under `caseDisposed` would
+    // be reported as a duplicate of one that reaches it without.
+  ).map(
+    (p) =>
+      `${p.kind}/${p.state.status}/c=${p.state.correctionOpen}/v=${p.state.phaseVoided}` +
+      `/md=${p.state.meetingDisposed}/cd=${p.state.caseDisposed}`,
+  )
 
 describe('ADR 0125 D5 — the fourth cell (FINAL content + prévia footer) is UNREACHABLE', () => {
   const LIVE: PredicatePair = {
@@ -296,6 +342,7 @@ describe('ADR 0125 D5 — the fourth cell (FINAL content + prévia footer) is UN
         correction_open: true,
         phase_voided: true,
         meeting_disposed: true,
+        case_disposed: true,
         registers: false,
         watermark: 'draft',
         note: 'probe',
@@ -337,8 +384,13 @@ describe('ADR 0125 D5 — the fourth cell (FINAL content + prévia footer) is UN
     // behind and nothing red. Here a changed space reds this line and forces a
     // deliberate update — the same discipline as a template fingerprint.
     // The product form beside it catches a flatMap that silently drops an axis.
-    expect(ALL_PROBES.length, 'the probe space changed — update this literal deliberately').toBe(440)
-    expect(ALL_PROBES.length).toBe(ALL_KINDS.length * ALL_STATUSES.length * 8)
+    // PDF·P3: 440 -> 1200. FOUR case statuses joined the space (not_started /
+    // in_review / pending / completed — `cancelled` was already there, shared
+    // with meetings) and `caseDisposed` doubled the flag combinations from 8 to
+    // 16. ⚠ Both halves of that change had to be made deliberately, which is
+    // exactly what this literal is for.
+    expect(ALL_PROBES.length, 'the probe space changed — update this literal deliberately').toBe(1200)
+    expect(ALL_PROBES.length).toBe(ALL_KINDS.length * ALL_STATUSES.length * 16)
     expect(reaches('final', true), 'FINAL + registered (submitted response / signed ata)').toBe(true)
     expect(reaches('draft', true), 'RASCUNHO + registered — the in_signature ata (D1)').toBe(true)
     expect(reaches('draft', false), 'RASCUNHO + ephemeral — the ordinary prévia').toBe(true)
@@ -362,7 +414,39 @@ describe('ADR 0125 D5 — the fourth cell (FINAL content + prévia footer) is UN
     const offenders = finalEphemeralOffenders(MUTANT)
     expect(offenders.length, 'the mutant must be CAUGHT, or this suite proves nothing').toBeGreaterThan(0)
     // ...and specifically the two corridors the amendment exists for.
-    expect(offenders).toContain('form_response/submitted/c=true/v=false')
-    expect(offenders).toContain('form_response/submitted/c=false/v=true')
+    // ⚠ Labels carry every dimension since PDF·P3 (`/md=`/`/cd=`) — see
+    // `finalEphemeralOffenders`. Two distinct offenders printing identically is
+    // what the widened label prevents.
+    expect(offenders).toContain('form_response/submitted/c=true/v=false/md=false/cd=false')
+    expect(offenders).toContain('form_response/submitted/c=false/v=true/md=false/cd=false')
+  })
+
+  it('⭐ PDF·P3 — the sweep can find a CASE-side fourth-cell offender too', () => {
+    // ⛔ The Amendment-2 mutant above is a FORM_RESPONSE regression, so it proves
+    // the sweep can find an offender on that arm and NOTHING about the case arm.
+    // Without this, the ten new case rows and the doubled probe space would be
+    // covered only by "no offenders found" — a verdict a sweep blind to the case
+    // arm returns just as cheerfully. The mutant is the exact error ADR 0144 D3
+    // warns about: the disposal conjunct dropped from REGISTRATION only, leaving
+    // the watermark keyed on status alone.
+    const CASE_MUTANT: PredicatePair = {
+      registers: printSourceRegisters, // keeps the disposal conjunct
+      watermark: (kind, state) =>
+        kind === 'case'
+          ? state.status === 'completed' || state.status === 'cancelled'
+            ? 'final' // ⛔ status alone — the disposal term dropped
+            : 'draft'
+          : printSourceWatermark(kind, state),
+    }
+    const offenders = finalEphemeralOffenders(CASE_MUTANT)
+    expect(
+      offenders.length,
+      'the case-arm mutant must be CAUGHT, or the case rows prove nothing',
+    ).toBeGreaterThan(0)
+    expect(offenders).toContain('case/completed/c=false/v=false/md=false/cd=true')
+    expect(offenders).toContain('case/cancelled/c=false/v=false/md=false/cd=true')
+    // ⭐ And the LIVE pair must NOT be caught on those same inputs — otherwise
+    // this test would pass against a predicate that is broken for everyone.
+    expect(finalEphemeralOffenders(LIVE)).toEqual([])
   })
 })

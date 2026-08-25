@@ -2894,6 +2894,32 @@ export type Database = {
           },
         ]
       }
+      case_print_revisions: {
+        Row: {
+          case_id: string
+          revision: number
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          revision?: number
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          revision?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_print_revisions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: true
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_recusals: {
         Row: {
           case_id: string
@@ -13830,9 +13856,11 @@ export type Database = {
       print_source_state: {
         Args: { p_source_id: string; p_source_kind: string }
         Returns: {
+          case_disposed: boolean
           correction_open: boolean
           meeting_disposed: boolean
           phase_voided: boolean
+          source_revision: number
           status: string
         }[]
       }

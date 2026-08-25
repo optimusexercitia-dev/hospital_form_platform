@@ -435,6 +435,96 @@ export async function getMeetingPrintContext(
   }
 }
 
+/** Letterhead + lock/currency context of a case the CALLER can already read
+ * (PDF·P3; ADR 0144 D3/D4/D15). */
+export interface CasePrintContext {
+  commissionName: string
+  hospitalName: string
+  /** `cases.status` — one of not_started · in_review · pending · completed ·
+   * cancelled. Feeds `printSourceRegisters`/`printSourceWatermark`'s case arm. */
+  status: string
+  /** `cases.phi_disposed_at is not null` (ADR 0144 D10). */
+  caseDisposed: boolean
+  /** `public.case_print_revisions.revision`, 0 when the case has never been
+   * bumped (ADR 0144 D4/D15) — the compare-and-mint value. */
+  revision: number
+}
+
+/**
+ * Letterhead + lock context of a case the CALLER can already read. Same two-step
+ * shape (and rationale) as {@link getMeetingPrintContext}: step 1 proves
+ * visibility under the caller's OWN RLS on `cases` (the authority — routes
+ * `app.can_read_case`); step 3 resolves the two DISPLAY NAMES via the service
+ * role (`hospitals_select` still has no member arm — nothing else crosses).
+ *
+ * ⭐ Step 2 — status, disposal and revision — comes from the DEFINER door, NOT
+ * from the step-1 row or an inline join, and the DIRECTION is the reason. Read
+ * under the caller's own RLS, a fact the caller cannot see comes back ABSENT;
+ * the flags would then default false, the page would stamp FINAL and register,
+ * and the failure would be in the FAIL-OPEN direction — ADR 0125 D5's fourth
+ * cell reached by a permissions accident rather than a logic error. This is the
+ * same argument {@link getResponsePrintContext} makes, and it applies harder
+ * here: `cases.phi_disposed_at` is exactly the kind of column a masked reader
+ * may not select. `public.print_source_state` resolves all three with DEFINER
+ * truth *after* gating on `app.can_view_printed_document`, so the answer is
+ * either correct or absent.
+ */
+export async function getCasePrintContext(
+  caseId: string,
+): Promise<CasePrintContext | null> {
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('cases')
+    .select('id, commission_id')
+    .eq('id', caseId)
+    .maybeSingle<{ id: string; commission_id: string }>()
+  if (!data) return null // not reachable → the mint fails closed upstream
+
+  const { data: derivation } = await supabase
+    .rpc('print_source_state', { p_source_kind: 'case', p_source_id: caseId })
+    .maybeSingle<{
+      status: string | null
+      case_disposed: boolean | null
+      source_revision: number | null
+    }>()
+  // Absent ⇒ the door refused (or the source is unresolvable). Fail closed.
+  if (!derivation) return null
+
+  // ⛔ NO `?? false` / `?? 0` FALLBACK ON THESE, AND THAT IS THE WHOLE POINT.
+  // ⚠ THE ABSENCE OF THOSE COALESCINGS IS DELIBERATE — do not "tidy" them in.
+  // `.maybeSingle<T>()` is a type ASSERTION, not a verification — it cannot
+  // notice that the door's TABLE does not actually return these two columns.
+  // Coalescing an absent `case_disposed` to `false` would report a DISPOSED case
+  // as printable, which is precisely the fail-open direction this function
+  // sources from the door to avoid; coalescing an absent `source_revision` to 0
+  // would hand the mint a value it never observed and make HC0DU's
+  // compare-and-mint pass vacuously. So a missing field is a REFUSAL.
+  if (
+    typeof derivation.case_disposed !== 'boolean' ||
+    typeof derivation.source_revision !== 'number' ||
+    typeof derivation.status !== 'string'
+  ) {
+    return null
+  }
+
+  const admin = createAdminClient()
+  const { data: names } = await admin
+    .from('commissions')
+    // hospitals FK-HINTED (two FKs exist — un-hinted answers PGRST201).
+    .select('name, hospitals!commissions_hospital_id_fkey(name)')
+    .eq('id', data.commission_id)
+    .maybeSingle<{ name: string; hospitals: { name: string } | null }>()
+
+  return {
+    commissionName: names?.name ?? '—',
+    hospitalName: names?.hospitals?.name ?? '—',
+    status: derivation.status,
+    caseDisposed: derivation.case_disposed,
+    revision: derivation.source_revision,
+  }
+}
+
 /** The current session's display name (emission line). Self-read via RLS. */
 export async function getViewerDisplayName(): Promise<string> {
   const supabase = await createClient()

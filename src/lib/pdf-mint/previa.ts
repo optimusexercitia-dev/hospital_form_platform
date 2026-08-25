@@ -1,4 +1,4 @@
-import { renderDocumentHtml } from '@/lib/pdf/render'
+import { documentFooterHtml, renderDocumentHtml } from '@/lib/pdf/render'
 import type { DocumentPayload } from '@/lib/pdf/types'
 
 import { renderPdfViaGotenberg } from './gotenberg'
@@ -71,8 +71,14 @@ export async function renderPreviaPdf(payload: DocumentPayload): Promise<Buffer>
     throw new Error('Não foi possível gerar a prévia: estado de impressão inconsistente.')
   }
   const html = renderDocumentHtml(payload)
+  // ⚠ THE SAME FOOTER THE EMISSION GETS (ADR 0144 D13). A prévia that does not
+  // match the document it previews is not one — and a dossier previewed without
+  // its page numbers would paginate differently from the emission a coordinator
+  // is deciding whether to produce. `null` for every non-case kind, so no other
+  // prévia's bytes change.
+  const footer = documentFooterHtml(payload)
   return mintSemaphore.run(
-    () => renderPdfViaGotenberg(html),
+    () => renderPdfViaGotenberg(html, footer),
     PREVIA_ACQUIRE_TIMEOUT_MS,
     PREVIA_BUSY_MESSAGE,
   )

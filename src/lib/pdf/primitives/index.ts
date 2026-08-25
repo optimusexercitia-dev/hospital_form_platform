@@ -9,3 +9,7 @@ export { renderSignatureBlock, renderUnsigned } from './signature-block'
 export { renderQrFooter } from './qr-footer'
 export { renderPreviaFooter } from './previa-footer'
 export { renderSectionTable, type SectionTableRow } from './section-table'
+export {
+  renderTableOfContents,
+  type TableOfContentsEntry,
+} from './table-of-contents'

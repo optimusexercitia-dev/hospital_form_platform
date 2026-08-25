@@ -2,7 +2,7 @@
 
 import { createHash } from 'node:crypto'
 
-import { renderDocumentHtml } from '@/lib/pdf/render'
+import { documentFooterHtml, renderDocumentHtml, templateFor } from '@/lib/pdf/render'
 import type { PrintedDocumentSourceKind } from '@/lib/pdf/types'
 import { featureEnabled } from '@/lib/queries/feature-flags'
 import {
@@ -273,12 +273,21 @@ export async function mintPrintedDocument(
     // here, beside containsPhi, because both must survive the render window and
     // reach the door — see the assignment below.
     let sourceRevision: number
+    // The template identity of what was ACTUALLY rendered. Same class of fact,
+    // same rule: derived from the payload, never from `input`.
+    let template: { key: string; version: number }
     try {
-      const payload = await provider.build(input.sourceId, {
-        kind: 'registered',
-        qr: { token, shortCode, url: `${base}/verificar/${token}` },
-        emission: { at: new Date().toISOString(), byDisplay },
-      })
+      const payload = await provider.build(
+        input.sourceId,
+        {
+          kind: 'registered',
+          qr: { token, shortCode, url: `${base}/verificar/${token}` },
+          emission: { at: new Date().toISOString(), byDisplay },
+        },
+        // ADR 0104 D9 / ADR 0144 D5 — the per-mint patient-identifier choice,
+        // defaulted OFF. Providers that predate the seam ignore the argument.
+        { includePhi: input.includePhi ?? false },
+      )
       // A8 (ADR 0104): `containsPhi` is PRESENCE-DERIVED by the provider —
       // conservative labeling of masked-class content, never a user choice.
       // Distinct from `input.includePhi` (the D9 per-mint patient-identifier
@@ -296,10 +305,21 @@ export async function mintPrintedDocument(
       // WHILE LOOKING CORRECT. This action deliberately performs no source query
       // of its own, so there is no fresher value available to reach for.
       sourceRevision = payload.sourceRevision
+      // ⛔ DERIVED FROM THE PAYLOAD, NEVER FROM `input` (ADR 0144 D7 as
+      // amended). For the case kind the key encodes the D5 variant, and the
+      // payload's `variant` is assigned from what `get_case_patients` actually
+      // RETURNED — so the registry's label cannot disagree with the bytes. A
+      // key computed from `input.includePhi` here would mislabel a payload the
+      // provider legitimately built without identifiers. Same rule, and the
+      // same reason, as `sourceRevision` immediately above.
+      template = templateFor(payload.body)
       const html = renderDocumentHtml(payload)
+      // ADR 0144 D13 — the dossier's "página X de Y". `null` for every other
+      // kind, so their bytes (and their committed fingerprints) are untouched.
+      const footer = documentFooterHtml(payload)
       // D5: semaphore-bounded render; over capacity waits briefly then fails
       // pt-BR — never queues to disk. A timeout mints NOTHING (no upload yet).
-      pdf = await mintSemaphore.run(() => renderPdfViaGotenberg(html))
+      pdf = await mintSemaphore.run(() => renderPdfViaGotenberg(html, footer))
     } catch (error) {
       return {
         ok: false,
@@ -331,8 +351,8 @@ export async function mintPrintedDocument(
         p_id: id,
         p_source_kind: input.sourceKind,
         p_source_id: input.sourceId,
-        p_template_key: provider.templateKey,
-        p_template_version: provider.templateVersion,
+        p_template_key: template.key,
+        p_template_version: template.version,
         p_content_hash: sha256Hex(pdf),
         p_verification_token: token,
         p_verification_short_code: shortCode,

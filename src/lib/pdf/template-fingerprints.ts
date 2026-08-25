@@ -47,4 +47,56 @@ export const TEMPLATE_FINGERPRINTS: Record<
         '2af29e06c5df9cb43a4c6083e341c63f1ea00f2188376422ab7fb1544935deda',
     },
   },
+  // ─────────────────────────────────────────────────────────────────────────
+  // PDF·P3 — the case dossier (ADR 0144). ⚠ TWO KEYS, ONE MODULE
+  // (`documents/case.ts`), ONE renderer. `case` and `case_identified` are the
+  // ADR 0144 D5 variants; the key is DERIVED from `body.variant` by
+  // `templateFor`, so the registry's label cannot disagree with the bytes.
+  //
+  // ⛔ THEY SHARE A `version` DELIBERATELY: one module, one layout, one
+  // fingerprint-bump decision. A structural edit bumps BOTH and must move BOTH
+  // hashes, because both keys render through the same functions.
+  //
+  // ⚠ Since P3 the hashed input is `renderDocumentHtml(p) + (documentFooterHtml(p) ?? '')`
+  // — the D13 page footer is a SEPARATE Gotenberg document and would otherwise
+  // sit outside this guard entirely. `?? ''` appends nothing for the two kinds
+  // above, so their committed hashes were unaffected (verified by running the
+  // suite before and after that change, not inferred from the `??`).
+  // ─────────────────────────────────────────────────────────────────────────
+  case: {
+    version: 1,
+    // Canonical: REGISTERED + FINAL, de-identified patient block, every section
+    // populated (participants · phases with answers · narratives · interviews ·
+    // referral snapshot + reply · timeline · meetings · action items ·
+    // corrections · document manifest), TOC listing all eleven.
+    fingerprint: '921db6286faba6a825aec9861ac580b4d278240ae12d7971a0863d5683030da3',
+    variants: {
+      // ADR 0125 D2/D5 — the EPHEMERAL branch: same template, prévia footer
+      // instead of the QR block. Shares this template's `version` because it IS
+      // this template.
+      previa: 'd5229427b266e8e6026dd6bae9095b0b892f787fc0e16e37f4e549c12f3e79a2',
+      // ⭐ THE DEGENERATE STATE the canonical fixture cannot reach, and the one
+      // most likely to be wrong: a case after `dispose_case_phi`. Pins that
+      // gutted sections DROP ENTIRELY rather than printing bare headings, that
+      // the index shrinks with them, that the disposal notice renders — and the
+      // deliberate ASYMMETRY, that an interview's metadata SURVIVES (the fact
+      // that it happened is process evidence) while its summary does not, where
+      // a narrative whose body was nulled disappears completely.
+      disposed: 'de4e204a3058549993a1ecfbdd2bdbf5e50cc32fced757edfd68bb8dbd7d7071',
+    },
+  },
+  case_identified: {
+    version: 1,
+    // The ONLY key whose render contains `name` / `mrn` / `date_of_birth` /
+    // `attending` / `encounter_ref` (ADR 0144 D5). Its own committed hash is
+    // what makes "this key means the patient identification section is present"
+    // a pinned fact rather than a naming convention — and the suite asserts
+    // BOTH directions: the five identifiers appear here and appear in NEITHER
+    // of the de-identified renders.
+    fingerprint: '20d7bc1fb7275602443bd143047871658576ac44ba9d4cff7d4eb7ca04ec61fe',
+    // No variants: the prévia and disposed branches are pinned under `case`,
+    // and a DISPOSED case has no identifiers left to render — an identified
+    // dossier of a disposed case is unconstructible, not merely untested.
+    variants: {},
+  },
 }

@@ -214,24 +214,46 @@ function itemRows(
   }
 }
 
+/** What {@link buildResponseSections} returns: the rendered sections plus the
+ * attestations collected while rendering them (the two are produced by one pass
+ * and must not be recomputed separately). */
+export interface RenderedResponseSections {
+  sections: FormResponseDocumentSection[]
+  signatures: SignatureAttestation[]
+  formTitle: string
+  versionNumber: number
+  status: string
+  startedAt: string
+}
+
 /**
- * Build the full {@link DocumentPayload} for a form response the caller can
- * read. Throws a pt-BR Error when the response is unreachable (the mint
- * surfaces it as the not-found/unauthorized failure — indistinguishable,
- * deliberately).
+ * Render ONE response's sections — the shared answer renderer.
+ *
+ * ⭐ **EXPORTED FOR THE CASE DOSSIER (PDF·P3, ADR 0144 D2), AND THE REASON IS
+ * NOT CONVENIENCE.** The dossier inlines each phase's answers, which are the
+ * same answers this module renders for the standalone form print. If the two
+ * ever rendered an answer differently — a choice label, an "outro" free text, a
+ * matrix cell, an unanswered marker — the platform would have **two versions of
+ * one record on paper**, both claiming to be authoritative, with no gate able to
+ * notice. One renderer, both consumers.
+ *
+ * ⛔ The rejected alternative was for the dossier to call
+ * {@link buildFormResponsePayload} once per phase and discard everything but
+ * `body.sections`: that builds a letterhead, a provenance block and an extra
+ * `print_source_state` RPC per phase, all thrown away.
+ *
+ * Returns `null` when the response is unreachable under the caller's RLS —
+ * callers decide whether that is fatal (the form print) or a skipped section
+ * (the dossier).
  */
-export async function buildFormResponsePayload(
+export async function buildResponseSections(
   responseId: string,
-  ctx: MintRenderContext,
-): Promise<DocumentPayload> {
-  const [fill, context, signoffRecords] = await Promise.all([
+): Promise<RenderedResponseSections | null> {
+  const [fill, signoffRecords] = await Promise.all([
     getResponseForFill(responseId),
-    getResponsePrintContext(responseId),
     getResponseSignoffs(responseId),
   ])
-  if (!fill || !context) {
-    throw new Error('Registro não encontrado ou sem autorização de leitura.')
-  }
+  if (!fill) return null
 
   const topScope: ScopeMaps = {
     answersByItemId: fill.answersByItemId,
@@ -288,6 +310,35 @@ export async function buildFormResponsePayload(
   }
 
   return {
+    sections,
+    signatures,
+    formTitle: fill.formTitle,
+    versionNumber: fill.tree.versionNumber,
+    status: fill.status,
+    startedAt: fill.startedAt,
+  }
+}
+
+/**
+ * Build the full {@link DocumentPayload} for a form response the caller can
+ * read. Throws a pt-BR Error when the response is unreachable (the mint
+ * surfaces it as the not-found/unauthorized failure — indistinguishable,
+ * deliberately).
+ */
+export async function buildFormResponsePayload(
+  responseId: string,
+  ctx: MintRenderContext,
+): Promise<DocumentPayload> {
+  const [rendered, context] = await Promise.all([
+    buildResponseSections(responseId),
+    getResponsePrintContext(responseId),
+  ])
+  if (!rendered || !context) {
+    throw new Error('Registro não encontrado ou sem autorização de leitura.')
+  }
+  const { sections, signatures } = rendered
+
+  return {
     letterhead: {
       hospitalName: context.hospitalName,
       hospitalAddress: null, // hospitals carry no address column (B0 finding)
@@ -299,7 +350,7 @@ export async function buildFormResponsePayload(
     provenance: documentProvenance(
       ctx,
       printSourceWatermark('form_response', {
-        status: fill.status,
+        status: rendered.status,
         // ADR 0125 Amendment 2 + ADR 0126 D5/D10 — the watermark moves in TANDEM
         // with the refined lock, which is what keeps 0125 D5's fourth cell
         // unreachable. `submitted` alone is neither axis: a still-rejectable
@@ -320,11 +371,11 @@ export async function buildFormResponsePayload(
     sourceRevision: 0,
     body: {
       kind: 'form_response',
-      formTitle: fill.formTitle,
-      versionNumber: fill.tree.versionNumber,
+      formTitle: rendered.formTitle,
+      versionNumber: rendered.versionNumber,
       respondentDisplay: context.respondentDisplay,
-      responseStatus: fill.status === 'submitted' ? 'submitted' : 'in_progress',
-      startedAt: fill.startedAt,
+      responseStatus: rendered.status === 'submitted' ? 'submitted' : 'in_progress',
+      startedAt: rendered.startedAt,
       submittedAt: context.submittedAt,
       sections,
     },

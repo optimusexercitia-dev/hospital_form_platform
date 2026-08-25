@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { describe, expect, it } from 'vitest'
 
-import { renderDocumentHtml, TEMPLATES } from './render'
+import { documentFooterHtml, renderDocumentHtml, TEMPLATES } from './render'
 import { TEMPLATE_FINGERPRINTS } from './template-fingerprints'
 import type {
   DocumentPayload,
@@ -266,6 +266,28 @@ const MEETING_FINAL_SIGNED: DocumentPayload = {
 
 const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex')
 
+/**
+ * ⭐ THE FINGERPRINT INPUT IS THE PAGE **PLUS ITS GOTENBERG FOOTER** (PDF·P3,
+ * ADR 0144 D13).
+ *
+ * The footer is a SEPARATE multipart document sent to Gotenberg, so it never
+ * appears in `renderDocumentHtml`'s output — which means that without this
+ * composition it would be a piece of every printed page that ADR 0104 D4's
+ * silent-staleness guard **cannot see**. Someone could change the page numbering,
+ * or delete it, and no fingerprint would move.
+ *
+ * ⚠ TWO GUARDS, NOT ONE, AND THEY ARE NOT REDUNDANT: the footer's bytes are
+ * already inside `printed_documents.content_hash`, which detects tampering with
+ * a MINTED artifact. This is the STRUCTURAL guard — it stops *us* changing the
+ * footer without a deliberate `TEMPLATE_VERSION` decision.
+ *
+ * ⚠ `?? ''` appends NOTHING for `form_response` and `meeting`
+ * (`documentFooterHtml` returns null for them), so both committed fingerprints
+ * are unchanged by this composition — asserted below rather than assumed.
+ */
+const rendered = (p: DocumentPayload) =>
+  renderDocumentHtml(p) + (documentFooterHtml(p) ?? '')
+
 describe('template fingerprints (ADR 0104 D4)', () => {
   it('renders deterministically (same payload, same bytes)', () => {
     expect(renderDocumentHtml(CANONICAL)).toBe(renderDocumentHtml(CANONICAL))
@@ -278,7 +300,7 @@ describe('template fingerprints (ADR 0104 D4)', () => {
   })
 
   it('form_response: structural fingerprint matches — a template change REQUIRES a version bump', () => {
-    const computed = sha256(renderDocumentHtml(CANONICAL))
+    const computed = sha256(rendered(CANONICAL))
     const recorded = TEMPLATE_FINGERPRINTS.form_response.fingerprint
     expect(
       computed,
@@ -290,7 +312,7 @@ describe('template fingerprints (ADR 0104 D4)', () => {
   })
 
   it('form_response/final_phi_logo: the FINAL-chip + PHI-band + logo branches are version-pinned too (QA MAJOR-2)', () => {
-    const computed = sha256(renderDocumentHtml(FINAL_PHI_LOGO))
+    const computed = sha256(rendered(FINAL_PHI_LOGO))
     const recorded = TEMPLATE_FINGERPRINTS.form_response.variants.final_phi_logo
     expect(
       computed,
@@ -318,7 +340,7 @@ describe('template fingerprints (ADR 0104 D4)', () => {
   })
 
   it('meeting: structural fingerprint matches — a template change REQUIRES a version bump', () => {
-    const computed = sha256(renderDocumentHtml(MEETING_CANONICAL))
+    const computed = sha256(rendered(MEETING_CANONICAL))
     expect(
       computed,
       `Meeting template output changed (computed ${computed}). Deliberate change: bump ` +
@@ -327,7 +349,7 @@ describe('template fingerprints (ADR 0104 D4)', () => {
   })
 
   it('meeting/final_signed: the FINAL + attestation-footer + null-minutes branches are pinned', () => {
-    const computed = sha256(renderDocumentHtml(MEETING_FINAL_SIGNED))
+    const computed = sha256(rendered(MEETING_FINAL_SIGNED))
     expect(
       computed,
       `Meeting variant output changed (computed ${computed}). Same rule: version + both fields together.`,
@@ -408,7 +430,7 @@ describe('ADR 0125 D5 — REGISTERED documents are untouched by the prévia spli
   }
 
   it('form_response/previa: the EPHEMERAL branch is version-pinned too (D2)', () => {
-    const computed = sha256(renderDocumentHtml(PREVIA))
+    const computed = sha256(rendered(PREVIA))
     expect(
       computed,
       `Prévia variant output changed (computed ${computed}). Same rule as every ` +
@@ -476,5 +498,344 @@ describe('ADR 0125 D5 — REGISTERED documents are untouched by the prévia spli
       expect(html).toContain('<div class="wm-diagonal" aria-hidden="true">RASCUNHO</div>')
       expect(html).toContain('<div class="wm-chip wm-chip-draft">RASCUNHO</div>')
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// PDF·P3 — the case dossier (ADR 0144). TWO template keys, one module.
+// ---------------------------------------------------------------------------
+
+/** The de-identified block: the three demographics, and the five identified
+ * fields NULL — which is exactly what the provider produces on that path. */
+const CASE_PATIENT_DEID = {
+  ageDisplay: '67 anos',
+  sexDisplay: 'Feminino',
+  unitDisplay: 'UTI Adulto',
+  name: null,
+  mrn: null,
+  dateOfBirthDisplay: null,
+  attending: null,
+  encounterRef: null,
+}
+
+const CASE_BODY_BASE = {
+  kind: 'case' as const,
+  caseNumber: '0042',
+  title: 'Evento adverso — sepse tardia',
+  statusDisplay: 'Concluído',
+  confidentialityDisplay: 'Restrito',
+  caseTypeDisplay: 'Ocorrência',
+  outcomeDisplay: 'Procedente',
+  departmentDisplay: 'UTI Adulto',
+  tags: ['sepse'],
+  openedAtDisplay: '01/03/2026',
+  closedAtDisplay: '20/03/2026',
+  phiDisposed: false,
+  participants: [
+    {
+      name: 'Maria Silva',
+      roleDisplay: 'Relatora',
+      titleDisplay: 'Enfermagem',
+      recusalDisplay: null,
+    },
+  ],
+  phases: [
+    {
+      title: 'Fase 1 — Avaliação',
+      statusDisplay: 'Concluída',
+      respondentDisplay: 'Maria Silva',
+      submittedAtDisplay: '12/03/2026 14:32',
+      resultDisplay: 'Conforme',
+      items: [
+        { kind: 'question' as const, label: 'Houve dano ao paciente?', value: 'Sim' },
+        { kind: 'question' as const, label: 'Observações', value: null },
+      ],
+    },
+  ],
+  narratives: [
+    {
+      title: 'Relato inicial',
+      authorDisplay: 'Maria Silva',
+      dateDisplay: '02/03/2026 09:00',
+      bodyMd: 'Relato do evento.',
+    },
+  ],
+  interviews: [
+    {
+      title: 'Entrevista nº 1',
+      statusDisplay: 'Concluída',
+      dateDisplay: '05/03/2026 11:00',
+      subjects: ['Profissional A'],
+      interviewers: ['Coordenação'],
+      summaryMd: 'Resumo da entrevista.',
+    },
+  ],
+  referrals: [
+    {
+      directionDisplay: 'Encaminhamento enviado',
+      counterpartDisplay: 'Comissão de Ética',
+      statusDisplay: 'respondido',
+      sentAtDisplay: '06/03/2026 10:00',
+      question: 'Avaliação ética',
+      snapshot: [{ label: 'Relato inicial', value: 'Relato do evento.' }],
+      replyStatusDisplay: 'Procedente',
+      replyBody: 'Parecer da comissão.',
+      repliedAtDisplay: '10/03/2026 16:00',
+    },
+  ],
+  timeline: [
+    {
+      dateDisplay: '02/03/2026',
+      kindDisplay: 'Nota',
+      title: 'Registro inicial',
+      body: 'Texto do registro.',
+      authorDisplay: 'Maria Silva',
+    },
+  ],
+  meetings: [
+    {
+      meetingDisplay: 'Reunião nº 3',
+      dateDisplay: '12/03/2026 15:00',
+      summary: 'Discussão do caso.',
+      decision: 'Plano de ação aprovado.',
+    },
+  ],
+  actionItems: [
+    {
+      title: 'Revisar protocolo',
+      statusDisplay: 'Concluído',
+      assigneeDisplay: 'Equipe NSP',
+      dueDisplay: '30/03/2026',
+    },
+  ],
+  corrections: [
+    {
+      requestedByDisplay: null,
+      dateDisplay: '15/03/2026 08:00',
+      statusDisplay: 'Aprovada',
+      kindDisplay: 'Correção',
+      justification: 'Erro de digitação.',
+    },
+  ],
+  documents: [
+    {
+      title: 'Anexo 1.pdf',
+      uploaderDisplay: 'Maria Silva',
+      dateDisplay: '12/03/2026',
+      contentHash: 'b'.repeat(64),
+    },
+  ],
+}
+
+const CASE_ENVELOPE = {
+  letterhead: {
+    hospitalName: 'Hospital de Teste',
+    hospitalAddress: null,
+    logoDataUri: null,
+    commissionName: 'CCIH',
+  },
+  signatures: [],
+  containsPhi: true,
+  sourceRevision: 3,
+}
+
+const CASE_REGISTERED = {
+  kind: 'registered' as const,
+  watermark: 'final' as const,
+  qr: {
+    token: 'abcdefghijklmnopqrstuvwxyz012345',
+    shortCode: 'ABCDEFGHJK',
+    url: 'https://x.invalid/verificar/abcdefghijklmnopqrstuvwxyz012345',
+  },
+  emission: { at: '2026-03-20T12:00:00.000Z', byDisplay: 'Maria Silva' },
+}
+
+/** Canonical `case`: registered, FINAL, de-identified, every section populated. */
+const CASE_CANONICAL: DocumentPayload = {
+  ...CASE_ENVELOPE,
+  provenance: CASE_REGISTERED,
+  body: { ...CASE_BODY_BASE, variant: 'deidentified', patients: [CASE_PATIENT_DEID] },
+}
+
+/** Canonical `case_identified` — the ONLY payload that renders the five
+ * identifier fields, which is why it earns its own committed fingerprint rather
+ * than sharing the one above (ADR 0144 D1/D7). */
+const CASE_IDENTIFIED: DocumentPayload = {
+  ...CASE_ENVELOPE,
+  provenance: CASE_REGISTERED,
+  body: {
+    ...CASE_BODY_BASE,
+    variant: 'identified',
+    patients: [
+      {
+        ...CASE_PATIENT_DEID,
+        name: 'Fulana de Tal',
+        mrn: 'PR-998877',
+        dateOfBirthDisplay: '04/09/1958',
+        attending: 'Dr. Beltrano',
+        encounterRef: 'ATD-2026-0042',
+      },
+    ],
+  },
+}
+
+/** The EPHEMERAL branch (ADR 0125 D2/D5): prévia footer instead of the QR block. */
+const CASE_PREVIA: DocumentPayload = {
+  ...CASE_ENVELOPE,
+  provenance: {
+    kind: 'previa',
+    watermark: 'draft',
+    generation: { at: '2026-03-19T12:00:00.000Z', byDisplay: 'Maria Silva' },
+  },
+  body: { ...CASE_BODY_BASE, variant: 'deidentified', patients: [CASE_PATIENT_DEID] },
+}
+
+/**
+ * ⭐ THE DISPOSED BRANCH — the one the canonical fixture CANNOT reach, and the
+ * one most likely to be wrong. `dispose_case_phi` guts the dossier, so this pins
+ * that empty sections DROP (no bare headings), that the index shrinks with them,
+ * and that the disposal notice renders. Without it, "degrades gracefully on a
+ * disposed case" is a claim no test makes.
+ */
+const CASE_DISPOSED: DocumentPayload = {
+  ...CASE_ENVELOPE,
+  containsPhi: false,
+  provenance: {
+    kind: 'previa',
+    watermark: 'draft',
+    generation: { at: '2026-03-25T12:00:00.000Z', byDisplay: 'Maria Silva' },
+  },
+  body: {
+    ...CASE_BODY_BASE,
+    variant: 'deidentified',
+    title: '[PHI removido]',
+    phiDisposed: true,
+    patients: [],
+    phases: [{ ...CASE_BODY_BASE.phases[0]!, items: [] }],
+    narratives: [{ ...CASE_BODY_BASE.narratives[0]!, bodyMd: null }],
+    interviews: [{ ...CASE_BODY_BASE.interviews[0]!, summaryMd: null }],
+    referrals: [],
+    timeline: [
+      { ...CASE_BODY_BASE.timeline[0]!, title: '[PHI removido]', body: '[PHI removido]' },
+    ],
+    meetings: [
+      { ...CASE_BODY_BASE.meetings[0]!, summary: '[PHI removido]', decision: '[PHI removido]' },
+    ],
+    corrections: [],
+    documents: [{ ...CASE_BODY_BASE.documents[0]!, title: '[PHI removido]' }],
+  },
+}
+
+describe('PDF·P3 — case dossier fingerprints (ADR 0144 D1/D13)', () => {
+  it('both case template keys report the committed version', () => {
+    expect(TEMPLATES.case.version).toBe(TEMPLATE_FINGERPRINTS.case.version)
+    expect(TEMPLATES.case_identified.version).toBe(
+      TEMPLATE_FINGERPRINTS.case_identified.version,
+    )
+  })
+
+  it('case: structural fingerprint matches — a template change REQUIRES a version bump', () => {
+    expect(
+      sha256(rendered(CASE_CANONICAL)),
+      'the case dossier template changed: bump TEMPLATE_VERSION in documents/case.ts ' +
+        'AND update template-fingerprints.ts in the same commit.',
+    ).toBe(TEMPLATE_FINGERPRINTS.case.fingerprint)
+  })
+
+  it('case_identified: its OWN fingerprint — it renders a section `case` does not', () => {
+    expect(sha256(rendered(CASE_IDENTIFIED))).toBe(
+      TEMPLATE_FINGERPRINTS.case_identified.fingerprint,
+    )
+  })
+
+  it('case/previa + case/disposed branches are pinned too (the QA MAJOR-2 lesson)', () => {
+    expect(sha256(rendered(CASE_PREVIA))).toBe(TEMPLATE_FINGERPRINTS.case.variants.previa)
+    expect(sha256(rendered(CASE_DISPOSED))).toBe(
+      TEMPLATE_FINGERPRINTS.case.variants.disposed,
+    )
+  })
+
+  it('⭐ the four case fixtures are genuinely DIFFERENT renders (no vacuous pins)', () => {
+    // Four fingerprints that happened to hash the same bytes would all pass
+    // while pinning ONE branch. This anchor is what makes them mean something —
+    // the same shape as the form_response and meeting variant anchors above.
+    const hashes = [CASE_CANONICAL, CASE_IDENTIFIED, CASE_PREVIA, CASE_DISPOSED].map((p) =>
+      sha256(rendered(p)),
+    )
+    expect(new Set(hashes).size, 'two case fixtures render identically').toBe(4)
+  })
+
+  it('⭐ the identified variant renders the identifiers and the de-identified one does NOT', () => {
+    const identified = rendered(CASE_IDENTIFIED)
+    const deidentified = rendered(CASE_CANONICAL)
+    // The five ADR 0144 D5 identified-only fields.
+    for (const secret of [
+      'Fulana de Tal',
+      'PR-998877',
+      '04/09/1958',
+      'Dr. Beltrano',
+      'ATD-2026-0042',
+    ]) {
+      expect(identified, 'identified must render ' + secret).toContain(secret)
+      expect(deidentified, 'DE-IDENTIFIED LEAKED ' + secret).not.toContain(secret)
+    }
+    // ...and the de-identification FLOOR is present in BOTH (D5's table).
+    for (const floor of ['67 anos', 'Feminino', 'UTI Adulto']) {
+      expect(identified).toContain(floor)
+      expect(deidentified).toContain(floor)
+    }
+  })
+
+  it('⭐ the disposed dossier drops empty sections instead of printing bare headings', () => {
+    const html = rendered(CASE_DISPOSED)
+    for (const gone of [
+      'Identificação do paciente',
+      'Narrativas',
+      'Encaminhamentos entre comissões',
+      'Solicitações de correção',
+    ]) {
+      expect(html, 'a gutted section still renders a heading: ' + gone).not.toContain(gone)
+    }
+    // ...while what survived still renders, and the notice explains the thinness.
+    expect(html).toContain('Linha do tempo')
+    expect(html).toContain('LGPD Art. 18')
+
+    // ⭐ THE ASYMMETRY, PINNED RATHER THAN COMMENTED. `dispose_case_phi` nulls
+    // `case_interviews.summary_md` but does NOT delete the interview, its
+    // subjects or its interviewers — so "an interview happened, with whom, when"
+    // survives as process evidence while its CONTENT does not. Narratives, whose
+    // whole substance is the body, drop entirely. This test is what stops that
+    // difference being "fixed" into consistency in either direction.
+    expect(html, 'the fact of the interview must survive disposal').toContain(
+      'Entrevistas',
+    )
+    expect(html, 'the interview SUMMARY must not survive disposal').not.toContain(
+      'Resumo da entrevista.',
+    )
+    expect(html, 'a narrative body must not survive disposal').not.toContain(
+      'Relato do evento.',
+    )
+    // ⭐ The differential: the CANONICAL fixture DOES render those headings, so
+    // the absences above are about disposal — not about a template that never
+    // emits those strings at all.
+    const canonical = rendered(CASE_CANONICAL)
+    for (const present of ['Identificação do paciente', 'Narrativas', 'Entrevistas']) {
+      expect(canonical).toContain(present)
+    }
+  })
+
+  it('⭐ the case footer is INSIDE the fingerprint input, and no other kind has one', () => {
+    // Without `rendered()` composing it in, the D13 footer would be a piece of
+    // every printed page that ADR 0104 D4's guard cannot see.
+    expect(documentFooterHtml(CASE_CANONICAL)).toContain('pageNumber')
+    expect(rendered(CASE_CANONICAL)).toContain('totalPages')
+    expect(rendered(CASE_CANONICAL)).not.toBe(renderDocumentHtml(CASE_CANONICAL))
+    // ⚠ The deliberate ASYMMETRY (ADR 0144 D13): page numbers ship for the case
+    // kind ONLY. Enabling them globally would move two committed fingerprints
+    // for no layout change — this is what would red if someone did.
+    expect(documentFooterHtml(CANONICAL)).toBeNull()
+    expect(documentFooterHtml(MEETING_CANONICAL)).toBeNull()
+    expect(rendered(CANONICAL)).toBe(renderDocumentHtml(CANONICAL))
+    expect(rendered(MEETING_CANONICAL)).toBe(renderDocumentHtml(MEETING_CANONICAL))
   })
 })

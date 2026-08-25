@@ -76,6 +76,24 @@ export interface PrintSourceState {
    * drops, and currency then falls out of ADR 0126 D2's first conjunct for free.
    */
   meetingDisposed?: boolean
+  /**
+   * `cases.phi_disposed_at is not null` — the case's patient data has been
+   * erased (ADR 0144 D3/D10). Defaults FALSE; meaningful for **`case`** only.
+   *
+   * ⚠ The case analogue of {@link meetingDisposed}, and the STRONGER of the two:
+   * `dispose_case_phi` does not merely null one column, it GUTS the dossier —
+   * it deletes `patient_identifiers` and the phases' `answers`, nulls
+   * `case_narratives.body_md` and `case_interviews.summary_md`, and redacts
+   * `case_events.body`/`.title`, the interview-subject notes, `cases.label`,
+   * `documents.title`/`.description` and `meeting_cases.summary`/`.decision`.
+   * `cases.status` is untouched, so the status term alone cannot see it.
+   *
+   * ⛔ Optional, exactly like its three siblings, and that is a CONTRACT: a
+   * caller passing a bare `{ status }` gets `false`, i.e. "not disposed". The
+   * fail direction is safe because the only thing this flag can do is SUPPRESS
+   * registration — an absent flag never turns a prévia into a record.
+   */
+  caseDisposed?: boolean
 }
 
 /**
@@ -126,11 +144,40 @@ export function printSourceRegisters(kind: string, state: PrintSourceState): boo
         MEETING_REGISTERING_STATUSES.includes(state.status) &&
         !(state.meetingDisposed ?? false)
       )
+    case 'case':
+      // ADR 0144 D3 — the lock point is TERMINALITY, and it is two conjuncts.
+      //
+      // `completed` is a lock point because `reopen_case` is the ONLY door out
+      // of it (catalog-measured: 4 writers of `cases.status`;
+      // `recompute_case_status` returns early on a manual terminal;
+      // `cancel_case` raises HC025 on any terminal, so completed→cancelled is
+      // unconstructible). A state a door can walk back out of is not a lock
+      // point — and the one door that does walk it back bumps the revision on
+      // its way, so the head conjunct catches the round trip.
+      //
+      // ⭐ `cancelled` REGISTERS here, and that is a deliberate DIVERGENCE from
+      // the meeting arm above, not an oversight. A cancelled meeting has no
+      // minutes to pin; a cancelled case has a complete process record worth
+      // attesting to, and it is terminal-FOREVER (`reopen_case` refuses it with
+      // HC0M8), so its currency claim is unconditional. It is the STRONGER of
+      // the two terminal states here, where it is the excluded one there.
+      //
+      // ...AND NOT disposed. `dispose_case_phi` guts the rendered content while
+      // leaving `status` untouched — same shape as `meetingDisposed` and the
+      // voided phase: the content a registered hash would pin no longer exists.
+      //
+      // ⚠ `correctionOpen` / `phaseVoided` (form_response facts) and
+      // `meetingDisposed` (a meeting fact) are IGNORED here, by design. Pinned
+      // by cross-kind vectors, not by this comment.
+      return (
+        (state.status === 'completed' || state.status === 'cancelled') &&
+        !(state.caseDisposed ?? false)
+      )
     default:
-      // `case` (P3) and `interview` (P4) are in the `source_kind` CHECK but have
-      // no provider registered; their lock/watermark/series/head declarations are
-      // deferred to provider activation (0125 D8, 0126 D7). Not-locked ⇒
-      // ephemeral, no exceptions.
+      // `interview` (P4) is in the `source_kind` CHECK but has no provider
+      // registered; its lock/watermark/series/head declarations are deferred to
+      // provider activation (0125 D8, 0126 D7). Not-locked ⇒ ephemeral, no
+      // exceptions.
       return false
   }
 }
@@ -175,6 +222,28 @@ export function printSourceWatermark(kind: string, state: PrintSourceState): Wat
       // reached. The 440-probe sweep is what catches that, not this comment.
       return meetingWatermarkFor(state.status) === 'final' &&
         !(state.meetingDisposed ?? false)
+        ? 'final'
+        : 'draft'
+    case 'case':
+      // ⚠ THE SAME TWO CONJUNCTS AS `printSourceRegisters`' case arm, WRITTEN
+      // OUT AGAIN ON PURPOSE (0125 D8 / 0126 D7 — declared separately; 0125
+      // Amendment 2 states the rule for exactly this "looks like duplication"
+      // case: the coincidence is RECORDED, not exploited). ⛔ Do not factor
+      // these into a shared helper or a shared status constant — for `case` the
+      // two axes happen to coincide TODAY, and a shared declaration would make
+      // one future edit move both silently, which is the coupling 0125 D1
+      // exists to break. The meeting arm one line up is the standing proof that
+      // the axes can genuinely separate.
+      //
+      // ⭐ THE DISPOSAL TERM IS THE TANDEM MOVE, AND IT IS FORCED. Drop it from
+      // the registration arm alone and a `completed` + disposed case becomes
+      // registers=false + watermark='final' — ADR 0125 D5's forbidden FOURTH
+      // CELL, a page stamped FINAL carrying the prévia footer. This is
+      // Amendment 2's shape recurring for a third kind, so it takes Amendment
+      // 2's answer. The probe sweep is what catches a regression here, not this
+      // comment.
+      return (state.status === 'completed' || state.status === 'cancelled') &&
+        !(state.caseDisposed ?? false)
         ? 'final'
         : 'draft'
     default:

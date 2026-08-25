@@ -1,0 +1,71 @@
+-- ============================================================================
+-- PDF·P3 — ACL posture for the three `app.*` helpers this phase CREATED.
+--
+-- ⭐ FOUND BY RE-MEASURING `proacl` AFTER THE RESET, which is the only reason it
+--    was found at all. 20261003002400's header argues at length that a NULL
+--    `proacl` is the default and the default is EXECUTE TO PUBLIC — and then the
+--    same phase created three brand-new functions that landed at exactly that,
+--    two migrations earlier. Writing the warning did not apply it.
+--
+--    Measured on the fresh 458/458 reset, before this file:
+--      app.can_read_full_case_content  proacl = NULL   (20261003002300)
+--      app.case_is_terminal            proacl = NULL   (20261003002200)
+--      app.bump_case_print_revision    proacl = NULL   (20261003002200)
+--
+--    Against the house convention, which is NOT ambiguous: of the 51 `app.can_*`
+--    functions, **47 carry an explicit ACL and only 4 are NULL** — and three of
+--    those four are the ones above. The exact twin of the new predicate,
+--    `app.can_read_full_meeting_content`, is
+--    `{postgres=X, authenticated=X, service_role=X}`.
+--
+-- ⛔ FORWARD-ONLY: 002200 and 002300 are applied, so they are NOT edited. This
+--    is the fix in a new migration, which is also why the REVOKEs stand alone
+--    here rather than beside the `create` they belong to.
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+-- WHY POSTGRES-ONLY, AND NOT THE TWIN'S `authenticated` GRANT
+-- ═══════════════════════════════════════════════════════════════════════════
+-- The tempting move is to match `app.can_read_full_meeting_content` exactly —
+-- "a new door must inherit every sibling arm". But inheriting an arm a door does
+-- not need is how a surface widens by imitation, so the question asked here is
+-- what each function's CALLERS actually require:
+--
+--   · `app.can_read_full_case_content` is called from ONE place —
+--     `app.can_view_printed_document`, which is SECURITY DEFINER. A DEFINER
+--     body executes as its OWNER, so the inner call needs no grant on behalf of
+--     the outer caller. No RLS policy references it (it is new).
+--   · `app.case_is_terminal` is called only from `app.bump_case_print_revision`.
+--   · `app.bump_case_print_revision` is called only from the D15 trigger bodies,
+--     all SECURITY DEFINER.
+--
+-- ⇒ None of the three has a caller that needs a grant, so all three take the
+-- posture of `app.print_source_*` (`{postgres=X/postgres}`) rather than the
+-- meeting twin's. ⚠ If a future RLS policy or a non-DEFINER caller ever needs
+-- one of them, it fails LOUDLY with 42501 — a safe failure direction, and a
+-- better one than silently carrying a grant nobody could justify.
+--
+-- ⚠ Bounded honestly, same as 002400's header: schema `app` is NOT
+-- PostgREST-exposed (`[api] schemas = ["public","graphql_public"]`), so none of
+-- this was reachable over the API at any ACL. This is DEFENCE IN DEPTH, not a
+-- live hole — and it is worth doing precisely because a defence-in-depth layer
+-- everyone believes is there, and which is silently absent, is worth less than
+-- no layer at all.
+--
+-- ⛔ The three D15 TRIGGER functions (`app.trg_bump_case_revision*`) are
+-- deliberately NOT touched: `returns trigger` cannot be invoked directly at all,
+-- so their NULL `proacl` grants nothing to anybody. Revoking there would be
+-- ceremony that implies the opposite.
+-- ============================================================================
+
+revoke execute on function app.can_read_full_case_content(uuid, uuid) from public;
+revoke execute on function app.case_is_terminal(uuid) from public;
+revoke execute on function app.bump_case_print_revision(uuid) from public;
+
+-- ⚠ `revoke ... from public` on a function whose `proacl` was NULL MATERIALIZES
+-- the ACL: Postgres expands the implicit default into an explicit array, then
+-- removes the PUBLIC entry. So the post-condition is `{postgres=X/postgres}`,
+-- not NULL — which is exactly what makes the change VISIBLE to a later audit.
+-- A NULL that "means postgres-only" and a NULL that "means PUBLIC" are the same
+-- NULL; an explicit array is the only form that carries the intent.
+-- pgTAP 368 pins `has_function_privilege` false for BOTH `authenticated` and
+-- `anon` on all three, rather than trusting this comment.

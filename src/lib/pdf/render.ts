@@ -4,10 +4,17 @@ import {
   TEMPLATE_VERSION as FORM_RESPONSE_TEMPLATE_VERSION,
 } from './documents/form-response'
 import {
+  renderCaseBody,
+  TEMPLATE_KEY as CASE_TEMPLATE_KEY,
+  TEMPLATE_KEY_IDENTIFIED as CASE_IDENTIFIED_TEMPLATE_KEY,
+  TEMPLATE_VERSION as CASE_TEMPLATE_VERSION,
+} from './documents/case'
+import {
   renderMeetingBody,
   TEMPLATE_KEY as MEETING_TEMPLATE_KEY,
   TEMPLATE_VERSION as MEETING_TEMPLATE_VERSION,
 } from './documents/meeting'
+import { esc } from './escape'
 import { EMBEDDED_FONT_FACES } from './fonts.generated'
 import {
   renderLetterhead,
@@ -15,7 +22,7 @@ import {
   renderQrFooter,
   renderWatermarks,
 } from './primitives'
-import type { DocumentPayload } from './types'
+import type { DocumentBody, DocumentPayload } from './types'
 
 /**
  * Payload → complete, SELF-CONTAINED HTML document (PURE — ADR 0104 D14).
@@ -25,19 +32,92 @@ import type { DocumentPayload } from './types'
  * fingerprint test and the content-hash discipline both rely on it.
  */
 
-/** Template registry metadata, per kind (grows one entry per rollout phase). */
+/**
+ * Every registered template key.
+ *
+ * ⚠ **NOT one per body kind any more** — `case` contributes TWO (ADR 0144 D5/D7
+ * as amended): the de-identified dossier and the identified one are the same
+ * body kind rendered with different patient content, and the KEY is what carries
+ * the variant through the registry. `printed_documents_one_active` is
+ * `(source_kind, source_series_id, template_key)`, so the two keys supersede
+ * INDEPENDENTLY over one series — which is exactly what D7 needed and why the
+ * mint door required no new parameter.
+ */
+export type PdfTemplateKey =
+  | 'form_response'
+  | 'meeting'
+  | 'case'
+  | 'case_identified'
+
+/** Template registry metadata, per KEY (grows with each rollout phase). */
 export const TEMPLATES: Record<
-  DocumentPayload['body']['kind'],
-  { key: string; version: number }
+  PdfTemplateKey,
+  { key: PdfTemplateKey; version: number }
 > = {
   form_response: {
-    key: FORM_RESPONSE_TEMPLATE_KEY,
+    key: FORM_RESPONSE_TEMPLATE_KEY as PdfTemplateKey,
     version: FORM_RESPONSE_TEMPLATE_VERSION,
   },
   meeting: {
-    key: MEETING_TEMPLATE_KEY,
+    key: MEETING_TEMPLATE_KEY as PdfTemplateKey,
     version: MEETING_TEMPLATE_VERSION,
   },
+  case: {
+    key: CASE_TEMPLATE_KEY as PdfTemplateKey,
+    version: CASE_TEMPLATE_VERSION,
+  },
+  case_identified: {
+    key: CASE_IDENTIFIED_TEMPLATE_KEY as PdfTemplateKey,
+    // Deliberately the SAME version as `case`: one module, one layout, one
+    // fingerprint-bump decision. They are two KEYS of one template, not two
+    // templates — so a structural edit bumps both, and each key's committed
+    // fingerprint pins its own variant of that structure.
+    version: CASE_TEMPLATE_VERSION,
+  },
+}
+
+/**
+ * ⭐ **THE TEMPLATE IDENTITY OF A RENDER, DERIVED FROM THE PAYLOAD THAT WAS
+ * RENDERED.** This is the ONE authority on "which template key do we tell the
+ * registry we produced", and it reads the bytes' own description rather than the
+ * caller's request.
+ *
+ * ⛔ **The rejected design was a `templateKeyFor(options)` on the provider**,
+ * computed from the same `{ includePhi }` flag that drives `build()`. That gives
+ * one fact two authorities that agree only by care — and it has a live failure
+ * mode, not a theoretical one: `public.get_case_patients` answers `null` for an
+ * unentitled caller and `[]` for an entitled one with no patient on file, so a
+ * `build` invoked with `includePhi: true` can legitimately produce a payload
+ * with NO identifiers in it. A request-derived key would then label those bytes
+ * `case_identified` and mint them into the identified series, SUPERSEDING a real
+ * identified dossier with one that has no identifiers.
+ *
+ * The provider closes the other half by THROWING on both of those answers, so
+ * `variant: 'identified'` is provably equivalent to *"the patient identification
+ * section was rendered"*. Between the two rules, the registry's label cannot
+ * disagree with the bytes.
+ *
+ * ⚠ This is the same argument {@link DocumentPayload.sourceRevision}'s docstring
+ * already makes for the revision: a fact about the render must reach the door
+ * FROM the render, never from a second read.
+ *
+ * ⛔ EXHAUSTIVE, with no `default` — mirroring `renderBody` below. A future body
+ * kind that forgets its template is a COMPILE error here, not a runtime label.
+ */
+export function templateFor(body: DocumentBody): {
+  key: PdfTemplateKey
+  version: number
+} {
+  switch (body.kind) {
+    case 'form_response':
+      return TEMPLATES.form_response
+    case 'meeting':
+      return TEMPLATES.meeting
+    case 'case':
+      return body.variant === 'identified'
+        ? TEMPLATES.case_identified
+        : TEMPLATES.case
+  }
 }
 
 function fontFaces(): string {
@@ -114,10 +194,54 @@ function renderBody(payload: DocumentPayload): string {
     case 'meeting':
       // The ata's multi-signature footer renders from the ENVELOPE (D13).
       return renderMeetingBody(payload.body, payload.signatures)
+    case 'case':
+      // ⚠ ONE renderer for BOTH template keys — the variant changes what the
+      // patient section contains, never which function runs. `templateFor`
+      // above is what turns that into two registry keys.
+      return renderCaseBody(payload.body)
     // No default: the switch is EXHAUSTIVE over DocumentBody — a new kind that
     // forgets its template is a compile error here, mirroring the SQL
     // dispatch's fail-closed ELSE (ADR 0104 D3).
   }
+}
+
+/**
+ * The Gotenberg PAGE FOOTER for this payload, or `null` for kinds that have
+ * none (ADR 0144 D13's "página X de Y").
+ *
+ * ⚠ **THIS IS A SEPARATE DOCUMENT FROM THE PAGE**, and that is forced, not
+ * chosen: Chromium IGNORES CSS `@page` margin boxes, so `counter(page)` /
+ * `counter(pages)` are unreachable from the HTML itself. The only route to a
+ * real page number is Gotenberg's `footer.html` multipart file, where Chromium
+ * substitutes `.pageNumber` / `.totalPages`. It therefore inherits none of the
+ * document's CSS and must carry its own inline styles.
+ *
+ * ⛔ **PAGE NUMBERS SHIP FOR `case` ONLY, AND THAT ASYMMETRY IS DELIBERATE.**
+ * Someone will later notice the inconsistency and "fix" it by returning a footer
+ * for every kind. ⚠ That would change the BYTES of every form_response and
+ * meeting PDF, moving two committed template fingerprints and forcing
+ * `TEMPLATE_VERSION` bumps on two templates whose layout did not change — the
+ * same hazard {@link renderProvenanceFooter}'s note describes for the shared
+ * shell CSS. The dossier gets numbers because it is the only kind long enough to
+ * need them: a 60-page record handed to an accreditation tracer cannot be shown
+ * to be COMPLETE without them.
+ *
+ * ⚠ **Two guards cover this footer and they are not redundant.** The bytes are
+ * inside `printed_documents.content_hash` (so tampering is detectable on a
+ * MINTED document), while `fingerprint.test.ts` composes its input as
+ * `html + (footer ?? '')` — the STRUCTURAL guard that stops US changing the
+ * footer without a deliberate version decision. The hash protects the artifact;
+ * the fingerprint protects the template.
+ *
+ * PURE, and payload-derived like {@link templateFor} — so the mint action needs
+ * no branch on kind.
+ */
+export function documentFooterHtml(payload: DocumentPayload): string | null {
+  if (payload.body.kind !== 'case') return null
+  return `<div style="width:100%;font-family:sans-serif;font-size:7pt;color:#555;padding:0 16mm;display:flex;justify-content:space-between;">
+<span>Caso ${esc(payload.body.caseNumber)}</span>
+<span>página <span class="pageNumber"></span> de <span class="totalPages"></span></span>
+</div>`
 }
 
 /**

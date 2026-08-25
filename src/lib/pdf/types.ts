@@ -280,11 +280,247 @@ export interface MeetingDocumentBody {
   actionItems: MeetingActionItemRef[]
 }
 
+// ---------------------------------------------------------------------------
+// P3 body: the case DOSSIER (ADR 0104 D15 rollout step 3; ADR 0144).
+//
+// ⚠ THE ONLY BODY THAT CAN CARRY PHI (Rule 12). Its two D5 variants are ONE
+// body type discriminated by `variant`, not two types — they render the same
+// document with one section's contents differing, and the `template_key`
+// (`case` / `case_identified`) is DERIVED from `variant` by `templateFor` in
+// `../render`, never passed in alongside it. See that function's header for why
+// the derivation direction is load-bearing.
+// ---------------------------------------------------------------------------
+
 /**
- * The per-kind discriminated union. P3–P4 add `case` / `interview` members
- * here — one variant per phase, envelope untouched.
+ * One patient block (ADR 0144 D5 — the field split, verbatim).
+ *
+ * ⛔ `patient_key` / `encounter_key` are internal join keys and appear in
+ * NEITHER variant, so they have no member here at all — absence from the type
+ * is a stronger guarantee than a field the template remembers not to print.
+ *
+ * ⚠ EVERY field below is sourced from `public.patient_identifiers`, a Class-1
+ * PHI table, through the audited reader `public.get_case_patients`. That
+ * includes the three "de-identification floor" fields — reading `age_years` out
+ * of that table IS a PHI read and emits the Rule 11 row, de-identified variant
+ * or not.
  */
-export type DocumentBody = FormResponseDocumentBody | MeetingDocumentBody
+export interface CasePatientEntry {
+  /** Pre-formatted pt-BR ("47 anos"); null when not on file. BOTH variants. */
+  ageDisplay: string | null
+  /** BOTH variants. */
+  sexDisplay: string | null
+  /** BOTH variants. */
+  unitDisplay: string | null
+  /** ⛔ IDENTIFIED VARIANT ONLY — always null when `variant` is
+   * `'deidentified'`, and the provider is what guarantees that (it never copies
+   * the field), not the template. */
+  name: string | null
+  /** ⛔ Identified only. */
+  mrn: string | null
+  /** ⛔ Identified only. Pre-formatted pt-BR date. */
+  dateOfBirthDisplay: string | null
+  /** ⛔ Identified only. */
+  attending: string | null
+  /** ⛔ Identified only. */
+  encounterRef: string | null
+}
+
+/** One acting professional on the case. ADR 0144 D11: name + role/title ONLY —
+ * council registrations (CRM / COREN / …) are deferred, which is what keeps
+ * P3's audited-read delta to exactly one data class. */
+export interface CaseParticipantEntry {
+  name: string
+  roleDisplay: string
+  /** Professional title from `professional_profiles` (Class-2); null when none. */
+  titleDisplay: string | null
+  /** Pre-formatted pt-BR note when the participant is recused; null otherwise. */
+  recusalDisplay: string | null
+}
+
+/** One process phase, with its response answers INLINE (ADR 0144 D2). Reuses
+ * {@link FormResponseDocumentItem} deliberately — a phase answer set IS a form
+ * response, and a second near-identical line type would be two shapes for one
+ * thing. */
+export interface CasePhaseEntry {
+  title: string
+  statusDisplay: string
+  respondentDisplay: string | null
+  submittedAtDisplay: string | null
+  /** The phase's recorded result/outcome label; null when none. */
+  resultDisplay: string | null
+  items: FormResponseDocumentItem[]
+}
+
+/** One narrative. `bodyMd` is sanitized Markdown rendered as text (Rule 7);
+ * ⚠ null after `dispose_case_phi`, which nulls `body_md` outright. */
+export interface CaseNarrativeEntry {
+  title: string
+  authorDisplay: string | null
+  dateDisplay: string | null
+  bodyMd: string | null
+}
+
+/** One interview. ⚠ `summaryMd` is nulled by `dispose_case_phi`; the subject
+ * notes are redacted rather than dropped. */
+export interface CaseInterviewEntry {
+  title: string
+  statusDisplay: string
+  dateDisplay: string | null
+  subjects: string[]
+  interviewers: string[]
+  summaryMd: string | null
+}
+
+/** One timeline event. ⚠ Both `title` and `body` are REDACTED to
+ * "[PHI removido]" by `dispose_case_phi` — redacted, not removed, so these stay
+ * non-null on a disposed case and the section still renders. */
+export interface CaseTimelineEntry {
+  dateDisplay: string
+  kindDisplay: string
+  title: string
+  body: string | null
+  authorDisplay: string | null
+}
+
+/** One meeting at which this case was discussed. ⚠ `summary`/`decision` are
+ * redacted by `dispose_case_phi`. */
+export interface CaseMeetingEntry {
+  meetingDisplay: string
+  dateDisplay: string | null
+  summary: string | null
+  decision: string | null
+}
+
+/** One action item linked to the case — a REFERENCE line, never the item body. */
+export interface CaseActionItemEntry {
+  title: string
+  statusDisplay: string
+  assigneeDisplay: string | null
+  dueDisplay: string | null
+}
+
+/** One correction request against a phase response (ADR 0085). */
+export interface CaseCorrectionEntry {
+  requestedByDisplay: string | null
+  dateDisplay: string | null
+  statusDisplay: string
+  kindDisplay: string | null
+  justification: string | null
+}
+
+/** An inter-committee referral: the FROZEN SNAPSHOT plus the structured reply
+ * (ADR 0037 / 0144 D2). Rendered inline — it is platform-authored content. */
+export interface CaseReferralEntry {
+  directionDisplay: string
+  counterpartDisplay: string
+  statusDisplay: string
+  sentAtDisplay: string | null
+  question: string | null
+  /** The frozen snapshot, pre-flattened to label/value lines by the provider. */
+  snapshot: { label: string; value: string }[]
+  replyStatusDisplay: string | null
+  replyBody: string | null
+  repliedAtDisplay: string | null
+}
+
+/**
+ * One UPLOADED case document — a MANIFEST LINE ONLY (ADR 0144 D2).
+ *
+ * ⛔ The bytes are deliberately NOT embedded. Gotenberg renders HTML and cannot
+ * inline an arbitrary PDF or JPEG; embedding would duplicate bytes already
+ * governed by the DM3 controlled-document lifecycle; and a line carrying a
+ * CONTENT HASH is stronger evidence than a re-encoded copy.
+ *
+ * ⚠ `title` is redacted to "[PHI removido]" by `dispose_case_phi`.
+ */
+export interface CaseDocumentManifestEntry {
+  title: string
+  uploaderDisplay: string | null
+  dateDisplay: string | null
+  /** sha-256 hex of the stored bytes; null when the platform holds none. */
+  contentHash: string | null
+}
+
+/**
+ * P3 body: the full case dossier (ADR 0144 D1 — ONE fixed template per key, no
+ * per-mint section picker).
+ *
+ * ⚠ **EVERY COLLECTION HERE IS COUPLED TO A D15 TRIGGER.** The table behind each
+ * one carries a `bump_case_print_revision` trigger (migration
+ * `20261003002200`), because a rendered table with no trigger drifts silently
+ * while `/verificar` keeps reporting "autêntico e atual". ⛔ ADDING A FIELD
+ * SOURCED FROM A NEW TABLE REQUIRES ADDING A TRIGGER THERE — and, if that table
+ * has a per-caller SELECT policy, a new axis in
+ * `app.can_read_full_case_content` as well. The migration carries the mirror of
+ * this note.
+ *
+ * ⚠ **MUST DEGRADE ON A DISPOSED CASE.** `dispose_case_phi` guts this body:
+ * `patients` empties, every phase's `items` empties (the answers are DELETED),
+ * `bodyMd`/`summaryMd` go null, and `title`/`body`/`summary`/`decision` become
+ * "[PHI removido]". The template renders NO HEADING for an empty section.
+ */
+export interface CaseDocumentBody {
+  kind: 'case'
+  /**
+   * Which D5 identifier set this render actually INCLUDED — a property of the
+   * bytes, never a copy of the request.
+   *
+   * ⛔ The provider assigns this from what `public.get_case_patients` RETURNED,
+   * not from the caller's `includePhi` flag: the door answers `null`
+   * (unentitled) and `[]` (entitled, none on file) as well as rows, and both of
+   * those make an "identified" request produce a payload with no identifiers in
+   * it. Copying the request here would label such bytes `case_identified` and
+   * mint them into the identified series, superseding a real identified
+   * dossier with one that has no identifiers — so the provider THROWS on both
+   * instead. ⇒ `variant: 'identified'` is provably equivalent to "the patient
+   * identification section was rendered", which is what makes the committed
+   * `case_identified` fingerprint pin a structure that actually exists.
+   */
+  variant: 'deidentified' | 'identified'
+  caseNumber: string
+  /** ⚠ Redacted to "[PHI removido]" by `dispose_case_phi` (`cases.label`). */
+  title: string | null
+  statusDisplay: string
+  /**
+   * `cases.confidentiality_level`, pt-BR. ⛔ A CLASSIFICATION LABEL ONLY (D13):
+   * it renders on the letterhead and in the running header, and drives NOTHING.
+   * Storage bifurcation and the confidentiality band stay keyed to
+   * `containsPhi` alone — ADR 0104 D9.4 chose "two dumb policies, not one
+   * conditional one", and folding a second axis into the storage decision is
+   * exactly what that wording forbids.
+   */
+  confidentialityDisplay: string
+  caseTypeDisplay: string | null
+  outcomeDisplay: string | null
+  departmentDisplay: string | null
+  tags: string[]
+  openedAtDisplay: string
+  closedAtDisplay: string | null
+  /** `cases.phi_disposed_at is not null`. Rendered as a factual notice so the
+   * dossier states WHY it is thin, rather than looking like a rendering bug. */
+  phiDisposed: boolean
+  patients: CasePatientEntry[]
+  participants: CaseParticipantEntry[]
+  phases: CasePhaseEntry[]
+  narratives: CaseNarrativeEntry[]
+  interviews: CaseInterviewEntry[]
+  referrals: CaseReferralEntry[]
+  timeline: CaseTimelineEntry[]
+  meetings: CaseMeetingEntry[]
+  actionItems: CaseActionItemEntry[]
+  corrections: CaseCorrectionEntry[]
+  /** Uploaded binaries as manifest lines only (D2). */
+  documents: CaseDocumentManifestEntry[]
+}
+
+/**
+ * The per-kind discriminated union. P4 adds `interview` here — one variant per
+ * phase, envelope untouched.
+ */
+export type DocumentBody =
+  | FormResponseDocumentBody
+  | MeetingDocumentBody
+  | CaseDocumentBody
 
 // ---------------------------------------------------------------------------
 // The envelope (the frozen contract — plan §2.2)

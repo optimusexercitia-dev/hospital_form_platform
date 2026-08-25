@@ -1,7 +1,7 @@
 -- GENERATED FILE — DO NOT EDIT BY HAND.
 -- Source:    src/lib/queries/__fixtures__/print-source-registers-vectors.json
 -- Generator: scripts/gen-print-source-vectors.mjs
--- sourceSha256: d589fc03892f501457513c8db592f52eb747fc982e02f1ae280a57d7dc61a4d4
+-- sourceSha256: 93bb33e6ddf54ee5cc13f500569acd514342d72c3ef896e1c82cd7dde71dd803
 --
 -- ADR 0125 D1/D8 (+ Amendment 2) · ADR 0126 D5/D10 + the disposal conjunct.
 -- Loaded by the pgTAP print suites so app.print_source_registers and
@@ -32,7 +32,21 @@ create temp table print_source_vectors on commit drop as
     ('meeting', 'in_signature', false, false, true, false, 'draft'),
     ('meeting', 'distributed', false, false, true, false, 'draft'),
     ('meeting', 'signed', true, true, false, true, 'final'),
-    ('case', 'open', false, false, false, false, 'draft'),
+    ('form_response', 'submitted', false, false, false, true, 'final'),
+    ('meeting', 'signed', false, false, false, true, 'final'),
+    ('case', 'not_started', false, false, false, false, 'draft'),
+    ('case', 'not_started', false, false, false, false, 'draft'),
+    ('case', 'in_review', false, false, false, false, 'draft'),
+    ('case', 'in_review', false, false, false, false, 'draft'),
+    ('case', 'pending', false, false, false, false, 'draft'),
+    ('case', 'pending', false, false, false, false, 'draft'),
+    ('case', 'completed', false, false, false, true, 'final'),
+    ('case', 'completed', false, false, false, false, 'draft'),
+    ('case', 'cancelled', false, false, false, true, 'final'),
+    ('case', 'cancelled', false, false, false, false, 'draft'),
+    ('case', 'completed', true, false, false, true, 'final'),
+    ('case', 'completed', false, true, false, true, 'final'),
+    ('case', 'completed', false, false, true, true, 'final'),
     ('interview', 'scheduled', false, false, false, false, 'draft'),
     ('unknown_kind', 'whatever', false, false, false, false, 'draft'),
     ('unknown_kind', 'signed', true, true, true, false, 'draft')
