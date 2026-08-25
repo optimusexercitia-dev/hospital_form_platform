@@ -1,7 +1,8 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSanitize from "rehype-sanitize";
 
+import { MARKDOWN_SANITIZE_SCHEMA } from "@/lib/markdown/sanitize-schema";
 import { cn } from "@/lib/utils";
 
 /**
@@ -19,28 +20,32 @@ import { cn } from "@/lib/utils";
  *    in the path. Raw HTML in the source is NOT enabled (no `rehype-raw`), so
  *    inline `<script>`/`<img onerror=…>` etc. are passed through as inert text.
  *  - `rehype-sanitize` runs explicitly in the pipeline against a hardened
- *    allowlist schema (below): it strips disallowed tags/attributes and, via
- *    `protocols`, blocks `javascript:`/`data:` URLs on links and images. This is
- *    defense-in-depth on top of "no raw HTML".
+ *    allowlist schema — {@link MARKDOWN_SANITIZE_SCHEMA}: it strips disallowed
+ *    tags/attributes and, via `protocols`, blocks `javascript:`/`data:` URLs on
+ *    links and images. This is defense-in-depth on top of "no raw HTML".
  *
  * Server-Component-safe (no `"use client"`): it renders purely from props and is
  * used inside both server and client trees.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⛔ THE SCHEMA IS IMPORTED, NOT DECLARED — DO NOT REINTRODUCE A LOCAL COPY
+ * ═══════════════════════════════════════════════════════════════════════════
+ * This component used to carry its own `SANITIZE_SCHEMA` literal. The identical
+ * policy is now needed by the PRINT renderer (`src/lib/pdf/markdown.ts`), which
+ * is a pure module and cannot import a React component, so the policy lives in
+ * `@/lib/markdown/sanitize-schema` and both surfaces read it.
+ *
+ * ⚠ A divergence between the two is NOT symmetric. Paper stricter than screen is
+ * cosmetic — something vanishes from a PDF. Paper LOOSER than screen is a
+ * security defect: content this component judged unsafe gets rendered into a
+ * document that is stored, downloaded and handed to an external auditor
+ * (Rule 7). A local copy here is how that gap opens, silently, because both
+ * files keep passing their own tests.
+ *
+ * The repoint was proven behavioural, not assumed: `sanitize-equivalence.test.ts`
+ * renders 22 hostile and ordinary payloads through the old literal and the
+ * imported schema and requires byte-identical HTML.
  */
-
-/**
- * Hardened sanitize schema derived from rehype-sanitize's default. We keep the
- * default tag/attribute allowlist (already free of event handlers and `style`)
- * and only tighten the URL protocols to the few that make sense for hospital
- * form copy — no `irc`/`ircs`/`xmpp`, and never `javascript:`/`data:`.
- */
-const SANITIZE_SCHEMA = {
-  ...defaultSchema,
-  protocols: {
-    ...defaultSchema.protocols,
-    href: ["http", "https", "mailto"],
-    src: ["http", "https"],
-  },
-} satisfies typeof defaultSchema;
 
 export function MarkdownRenderer({
   content,
@@ -78,7 +83,7 @@ export function MarkdownRenderer({
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeSanitize, SANITIZE_SCHEMA]]}
+        rehypePlugins={[[rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA]]}
         components={{
           // External links from author content open in a new tab with a safe
           // rel; the sanitizer has already guaranteed an http(s)/mailto href.
