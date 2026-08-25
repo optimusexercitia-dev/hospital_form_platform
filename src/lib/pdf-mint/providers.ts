@@ -26,9 +26,13 @@ import type { DocumentPayload, PrintedDocumentSourceKind } from '@/lib/pdf/types
 export interface PdfBuildOptions {
   /**
    * The D9 per-mint patient-identifier choice: explicit, default OFF, no memory.
-   * ⛔ NOT the same thing as `DocumentPayload.containsPhi`, which is
-   * presence-derived and non-suppressible (A8 / ADR 0144 D6) and is TRUE for
-   * both case variants.
+   * ⛔ NOT the same thing as `DocumentPayload.containsPhi`, which for the case
+   * kind is CONSTITUTIVE and non-suppressible — `!caseDisposed`, ADR 0144
+   * Amendment 5 — and so is TRUE for both case variants of any live case.
+   * ⚠ It said "presence-derived (A8 / D6)" until 2026-08-25; that rule shipped
+   * finding C-1, an Art. 18 hole, and A8's presence derivation now governs
+   * MEETINGS only. The distinction this comment draws is unchanged and is the
+   * point: `includePhi` chooses structured identifiers, never the band.
    */
   includePhi: boolean
 }

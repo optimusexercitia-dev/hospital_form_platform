@@ -402,14 +402,37 @@ export const PHI_CHOICE_HINT =
   "Acrescenta nome, número do prontuário, data de nascimento, profissional responsável e referência do atendimento. Idade, sexo e unidade saem nas duas versões.";
 
 /**
- * ⭐ **ADR 0144 D6, stated before the user commits — the highest-value copy on
- * this surface.**
+ * ⭐ **ADR 0144 D6 as amended (Amendment 5), stated before the user commits —
+ * the highest-value copy on this surface.**
  *
- * A case dossier carries narratives, deliberações and entrevistas: free text a
- * clinician may have typed a patient's name into. `contains_phi` therefore
- * derives from the PRESENCE of that content and is non-suppressible, so **nearly
- * every case print carries the confidentiality band — including the
- * de-identified one.**
+ * `contains_phi` is **CONSTITUTIVE for a case dossier, not derived**:
+ * `containsPhi := !caseDisposed`. Every live case dossier carries the
+ * confidentiality band — including the de-identified one — and the band lifts
+ * only once the case's patient data has been discarded.
+ *
+ * ⛔ **This string used to name a CAUSE, and that cause is what shipped finding
+ * C-1.** It said the band was *"acionada pela presença de texto clínico livre"*,
+ * mirroring the old derived rule. That rule counted narratives and answers and
+ * counted NOT the masked-class fields `dispose_case_phi` actually redacts
+ * (`cases.label`, `case_events.title`, `documents.title`), so a case whose
+ * patient name sat in its title derived `false`, landed in the standard bucket,
+ * and was skipped by the erasure. The copy is now worded on the RULE, not on a
+ * content inventory — a sentence that enumerates what the band tracks is a
+ * sentence that goes false the moment the classifier's term set moves.
+ *
+ * ⚠ The condition is stated NEGATIVELY ("não tiverem sido descartados"), on the
+ * same discipline as {@link watermarkReasonCopy}'s conjunct and for the same
+ * reason: the predicate is `phi_disposed_at IS NULL`, which is equally true of a
+ * case that never held patient data at all. "Enquanto o caso mantiver seus dados
+ * de paciente" would assert PHI exists on every live case.
+ *
+ * ⚠ **Deliberately ONE constant rather than a kind-aware function, and the test
+ * pins why.** The notice renders under the provider's `phiCapable` declaration
+ * (never a kind test — ADR 0104 D9's v2-readiness seam), and `case` is the only
+ * kind that declares it. Writing a second arm now for a kind that cannot reach
+ * the string is the {@link KIND_SOURCE_PHRASE} mistake — copy for a screen that
+ * does not exist, which nothing can check and which goes stale silently. A
+ * second PHI-capable kind must come back here and split it.
  *
  * Without this sentence, a user who ticks nothing and then sees
  * "DOCUMENTO CONFIDENCIAL — CONTÉM DADOS DE PACIENTE" on the page has exactly two
@@ -420,7 +443,7 @@ export const PHI_CHOICE_HINT =
  * them treat an identified print as safe because they "didn't tick anything".
  */
 export const PHI_BAND_NOTICE =
-  "A tarja “DOCUMENTO CONFIDENCIAL — CONTÉM DADOS DE PACIENTE” aparece nas duas versões. Ela é acionada pela presença de texto clínico livre no caso — narrativas, deliberações, entrevistas — e não por esta opção. Esta escolha altera apenas os campos estruturados de identificação acima.";
+  "Enquanto os dados de paciente do caso não tiverem sido descartados, o dossiê sai sempre com a tarja “DOCUMENTO CONFIDENCIAL — CONTÉM DADOS DE PACIENTE” — nas duas versões, e não por esta opção. Esta escolha altera apenas os campos estruturados de identificação acima.";
 
 /** The identified prévia's link label. Says "identificada" outright: the two
  * links sit side by side and the difference between them must be legible from

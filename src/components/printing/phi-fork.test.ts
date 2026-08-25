@@ -72,6 +72,31 @@ function findMountSites(): { path: string; source: string }[] {
   return found;
 }
 
+/**
+ * The provider registry's `phiCapable` declarations, read from SOURCE rather
+ * than imported: `providers.ts` pulls in the server-side payload builders, and a
+ * client-component unit test that value-imports a server query module is the one
+ * failure that aborts `next build` while every local gate stays green
+ * (`lint:client-server-imports`).
+ *
+ * Parses on the two things that are the registry's stable API — the entry keys
+ * and the `phiCapable` field — never on formatting.
+ */
+function providerRegistryEntries(): { kind: string; phiCapable: boolean }[] {
+  const source = read("src/lib/pdf-mint/providers.ts");
+  const body = source.slice(source.indexOf("export const PDF_PROVIDERS"));
+  const keys = [...body.matchAll(/(\w+):\s*\{/g)].map((match) => ({
+    kind: match[1],
+    at: match.index ?? 0,
+  }));
+  return keys.map(({ kind, at }, index) => ({
+    kind,
+    phiCapable: /phiCapable:\s*true/.test(
+      body.slice(at, keys[index + 1]?.at ?? body.length),
+    ),
+  }));
+}
+
 // ---------------------------------------------------------------------------
 
 describe("⛔ the capability is READ, never written as a literal (ADR 0104 D9)", () => {
@@ -186,11 +211,88 @@ describe("⭐ ADR 0144 D6 — the band is NOT what the choice governs", () => {
     expect(PHI_BAND_NOTICE).toMatch(/nas duas vers[õo]es/i);
   });
 
-  it("it names the CAUSE the band actually tracks — free clinical text", () => {
-    expect(PHI_BAND_NOTICE).toMatch(/texto cl[íi]nico livre/i);
-    // ...and quotes the band as it is actually printed, so a reader can match
+  /**
+   * The RETIRED wording, kept verbatim as the detector's positive control below.
+   *
+   * It was true of the DERIVED `contains_phi` and is false of the constitutive
+   * one (Amendment 5), and the derived rule is what shipped finding C-1: it
+   * counted narratives and answers, not the masked-class title fields
+   * `dispose_case_phi` redacts, so a case with a patient name in its label
+   * derived `false` and survived the erasure. Keeping the sentence here means the
+   * regexes below are provably able to fire on the exact shape being banned.
+   */
+  const RETIRED_PRESENCE_CLAIM =
+    "Ela é acionada pela presença de texto clínico livre no caso — narrativas, deliberações, entrevistas — e não por esta opção.";
+
+  /** Shapes that assert the band tracks the PRESENCE of some content. Every one
+   * must fire on {@link RETIRED_PRESENCE_CLAIM} — that is what makes their
+   * absence from the live string a finding rather than a stale detector. */
+  const PRESENCE_CAUSE_CLAIMS = [
+    /texto cl[íi]nico livre/i,
+    /presen[çc]a d/i,
+    /acionad/i,
+    /narrativas/i,
+    /delibera[çc][õo]es/i,
+  ];
+
+  it("⭐ POSITIVE CONTROL: every presence-cause needle fires on the retired wording", () => {
+    expect(PRESENCE_CAUSE_CLAIMS.length).toBeGreaterThanOrEqual(5);
+    for (const claim of PRESENCE_CAUSE_CLAIMS) {
+      expect(
+        claim.test(RETIRED_PRESENCE_CLAIM),
+        `${claim} cannot fire — it is a dead needle, not a clean result`,
+      ).toBe(true);
+    }
+  });
+
+  it("⛔ it names NO presence-of-content cause — the band is CONSTITUTIVE", () => {
+    // `containsPhi := !caseDisposed`. A sentence that enumerates what the band
+    // tracks goes false the moment the classifier's term set moves — which is
+    // exactly how C-1 reached a user-facing string.
+    for (const claim of PRESENCE_CAUSE_CLAIMS) {
+      expect(
+        claim.test(PHI_BAND_NOTICE),
+        `the notice asserts a presence-derived cause: ${claim}`,
+      ).toBe(false);
+    }
+  });
+
+  it("⭐ it states the rule: the band lifts only on PHI DISPOSAL", () => {
+    // Minimal wording check, and deliberately on ONE stem. "descartad" is the
+    // platform's fixed vocabulary for the Art. 18 act — `watermarkReasonCopy`'s
+    // case arms and the `phi_disposed` revoke label both use it — so it is
+    // DECISION vocabulary, not prose a copy edit would move.
+    expect(PHI_BAND_NOTICE).toMatch(/descartad/i);
+    // The same act, named the same way, in the sibling sentence on the same
+    // screen. Two names for one act is how a reader concludes there are two acts.
+    expect(watermarkReasonCopy("case", "final")).toMatch(/descartad/i);
+    // ⚠ NEGATIVE phrasing is required, not stylistic: the predicate is "not
+    // disposed", which is equally true of a case that never held patient data.
+    // A positive "enquanto o caso mantiver seus dados de paciente" would assert
+    // PHI exists on every live case.
+    expect(PHI_BAND_NOTICE).not.toMatch(/mant[ée]m|mantiver|possui/i);
+    // ...and it quotes the band as it is actually printed, so a reader can match
     // the sentence to the page in front of them.
     expect(PHI_BAND_NOTICE).toContain("DOCUMENTO CONFIDENCIAL");
+  });
+
+  it("⛔ the notice's case-specific wording is REACHABLE only from the case kind", () => {
+    // The sentence names a CASE's own lifecycle, which is only honest while
+    // `case` is the sole PHI-capable kind. The notice renders under the
+    // provider's `phiCapable` declaration, never under a kind test (ADR 0104 D9),
+    // so a second kind that declares the capability silently INHERITS this
+    // sentence — and a case's disposal lifecycle on a meeting's dialog is the
+    // same defect moving. Whoever flips that boolean lands here and must split
+    // the copy per kind, as `watermarkReasonCopy` already is.
+    const entries = providerRegistryEntries();
+    // POSITIVE CONTROL: the parser actually found the registry. An empty or
+    // mis-parsed list would satisfy the claim below having read nothing.
+    expect(entries.map((e) => e.kind)).toContain("case");
+    expect(entries.length).toBeGreaterThanOrEqual(3);
+
+    expect(entries.filter((e) => e.phiCapable).map((e) => e.kind)).toEqual([
+      "case",
+    ]);
   });
 
   it("⛔ it denies that the choice removes the band", () => {

@@ -133,6 +133,13 @@ load-bearing sentence, preserved verbatim.
 
 ### D6 — `contains_phi` auto-derives from free-text presence (the A8 mirror)
 
+> ⛔ **AMENDED 2026-08-25 — read [Amendment 5](#amendment-5--d6-is-constitutive-not-derived-contains_phi--caseDisposed-2026-08-25) before acting on anything below.** The
+> derivation shipped finding **C-1**, a live LGPD Art. 18 exposure, and is replaced for the case
+> kind by the constitutive rule `contains_phi = !caseDisposed`. The text below is kept as the
+> superseded decision, not as guidance. ⚠ This marker exists because **only the amending document
+> knows about the amendment** — a reader arriving at D6 would otherwise find a self-consistent rule
+> with nothing in the file able to contradict it.
+
 A case dossier carries narratives, deliberation summaries and interview transcripts — free
 text a clinician will type a patient's name into. Mirroring A8 (meetings), `contains_phi`
 derives automatically from the **presence** of masked-class free-text content, is
@@ -428,11 +435,18 @@ and the de-identified one drops the five identified fields in TS.
    the minter's entitlement onto the page, a worse disclosure than the one it would be being honest
    about. **Both shapes are pinned as LEGAL in pgTAP 368** — a de-identified mint by a PHI-capable
    minter and by a content-only minter, both succeeding — so neither reads as a defect later.
-4. **`containsPhi` is one rule covering both variants:** masked-class free text present **OR any
+4. ⛔ **SUPERSEDED by Amendment 5 (2026-08-25) — the two-clause rule below was still a
+   presence derivation, and it is the paragraph C-1 was reasoned past:** the worry it raises is
+   scoped to the **identified** thin case, so the **de-identified** thin case walks straight past it.
+   `containsPhi` for the case kind is now **`!caseDisposed`**, and `includePhi` still drops out as a
+   term. Kept below as the superseded reasoning. ~~**`containsPhi` is one rule covering both
+   variants:** masked-class free text present **OR any
    `patient_identifiers`-sourced field rendered.** `includePhi` drops out as a term. ⛔ Without the
    second clause, an identified mint of a case with no free text derives `contains_phi = false`, lands
    in `documents-standard`, and **survives an Art. 18 erasure in Storage** — block (f) of
-   `dispose_case_phi` filters on `sensitivity_tier = 'phi'`.
+   `dispose_case_phi` filters on `sensitivity_tier = 'phi'`.~~ ⭐ **That last sentence describes
+   C-1 exactly, one clause short of finding it** — it names the mechanism, then closes the hole only
+   for the identified case.
 5. The identified path throws pt-BR on **both** `null` and `[]`, so `variant: 'identified'` is
    *provably* equivalent to "the identification section was rendered". ⛔ A silent downgrade to
    de-identified was rejected: it would make the committed `case_identified` fingerprint pin a
