@@ -233,9 +233,12 @@ export interface PersonPersonalData {
    * exactly "nothing stored". The malformed null path exists in `maskCpf` read in
    * isolation; it does not exist in the system.
    *
-   * The field stays because ADR 0144 D4 requires presence as a fact in its own right —
-   * what the edit form and any completeness check consume — not because display needs
-   * it to disambiguate. ⚠ Its correctness therefore RESTS ON A DATABASE CONSTRAINT that
+   * The field stays because ADR 0144 D4 requires presence as a fact in its own right, not
+   * because display needs it to disambiguate. ⚠ **It has NO consumer today** — `grep -rn
+   * cpfPresent src/` returns only this declaration, its producer below, and the tests that
+   * pin it. An earlier version of this note claimed it was "what the edit form and any
+   * completeness check consume"; that was false, and was written INTO the correction of a
+   * finding about exactly this class. Say what it is FOR, never what reads it. ⚠ Its correctness therefore RESTS ON A DATABASE CONSTRAINT that
    * no lint, tsc or vitest run can see; the guards are pgTAP
    * `359_profiles_dob_phone.sql:249` and `301_hospital_affiliation_substrate.sql:228`,
    * which red if that CHECK is dropped or weakened.

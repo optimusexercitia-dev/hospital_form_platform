@@ -352,3 +352,319 @@ different direction and agree with them.
 
 B1 is the finding I would most want acted on: it is the only one where a shipped ADR states something
 about the platform that is not true, and it is invisible to every gate this repo has.
+
+---
+
+# Round 2
+
+**Reviewer:** `qa` · **Date:** 2026-08-25 · **Range:** `32fa326d..67fcb6a4` (+ `857e6297`, `3cdb545d`)
+**Verdict: APPROVED**
+
+B1 is fixed, and fixed wider than I scoped it — I confirmed both halves by measurement rather than by
+reading the table I was given. The new keystones genuinely fail; I proved it with five distinct
+catalog mutations, each run inside the test file's own rolled-back transaction so the live catalog was
+never left altered. **Three of my round-1 findings were wrong and I withdraw them** (M6 entirely, M11
+entirely, and two of M9's four targets), plus one line citation in M12. Five new MINORs, none touching
+the security boundary; two are one-line doc edits.
+
+**Method note.** Every catalog claim below is `docker exec … psql` against the live local DB at
+migration `20261003002400`, with preconditions asserted in the same session before the measurement.
+Mutations were injected immediately after each pgTAP file's own `select plan(N)` in a scratchpad copy,
+so they roll back with the file — the catalog is **byte-identical to how I found it** (verified at the
+end: `audit_log_select` qual unchanged, `audit_write` derivation present, `track_functions=none`,
+seed row counts intact, `git status` clean apart from the pre-existing untracked
+`docs/design/temp/`). Nothing was restored because nothing was left changed.
+
+---
+
+## 1 · B1's fix — verified, both halves, by construction rather than by table
+
+### The fix is genuinely at the class level
+
+The offending writer is **unchanged**, which is the point: live `app.trg_audit_standard_ownerships`
+still passes `p_hospital =>` at **3** call sites and contains **zero** occurrences of
+`p_organization`. The correction sits in `app.audit_write` (live `pg_get_functiondef`, line 61):
+
+```
+if v_hospital is not null and v_org is null then
+  v_org := app.org_of_hospital(v_hospital);
+end if;
+```
+
+### Write side — measured, calling the writer with the trigger's exact arguments
+
+| | measured |
+| --- | --- |
+| row shape | `organization_id = <org A>` · `hospital_id = <hosp A>` · `commission_id = NULL` |
+| `seq` | hospital-chain max **+ 1** (`t`) |
+| `prev_hash` | equals the previous **hospital-chain** row's `row_hash` (`t`) |
+| org chain max `seq` | **unchanged** (`t`) |
+| org chain row count | **unchanged** (`t`) |
+| `verify_audit_chain(p_hospital => H_A)` | `ok = t` |
+| `verify_audit_chain(p_organization => org A)` | `ok = t` |
+
+Chain neutrality is not merely observed, it is **structural** and I read it in the live definitions:
+`audit_write`'s hospital arm selects on `hospital_id = v_hospital and commission_id is null`, and
+`verify_audit_chain` enumerates that same chain identically — **neither reads `organization_id`** — and
+the precedence block tests `v_hospital is not null` before `v_org is not null`.
+
+### Read side — the four personas, preconditions asserted in-session
+
+**(a) A new, well-formed hospital-tier row** (written through the real writer, no `p_organization`):
+
+| persona | precondition asserted | rows visible |
+| --- | --- | --- |
+| `org_admin` of org A | `is_org_admin_of(A)=true`, `is_admin()=false` | **1** ← was **0** in round 1 |
+| `hospital_admin` of hosp A | `is_hospital_admin_of(H)=true` | **1** |
+| `platform_admin` | `is_admin()=true` | **0** ← the noun rule holds |
+| `org_admin` of org **B** | `is_org_admin_of(B)=true`, `is_org_admin_of(A)=false` | **0** |
+
+The inversion ADR 0146 exists to remove is gone for this action class, and no tenant boundary moved.
+
+**(b) A *legacy* malformed row** (`organization_id` NULL, `hospital_id` set — the shape production may
+already hold), inserted directly as owner since the only triggers on `audit_log` are BEFORE
+UPDATE/DELETE/TRUNCATE:
+
+| persona | rows visible |
+| --- | --- |
+| `platform_admin` | **0** ← leg 5's new `hospital_id IS NULL` is what does this |
+| `org_admin` of org A | **0** — the accepted forward-only consequence, correctly documented |
+| `hospital_admin` of hosp A | **1** |
+| `org_admin` of org B | **0** |
+
+And the row does satisfy the **old** leg 5's conjuncts (`organization_id IS NULL` alone → `t`) while
+failing the new ones (`t`/`f` measured side by side). The platform_admin half was real and is closed
+retroactively, exactly as ADR 0147 D4 claims.
+
+**Residual, restated not re-opened.** `audit_log` carries **no** foreign key on `hospital_id` or
+`organization_id` and **no** CHECK tying them (measured: 7 constraints, none of them this). Agreement
+is a writer-discipline invariant — measured **0** rows whose org disagrees with their hospital's org,
+and **0** hospital-tier rows still org-NULL. ADR 0147 states "adds derivation and adds no validation"
+and test 370 §1.3 deliberately pins that a caller-supplied disagreeing org **wins**. Honest and
+bounded; named here only so it is not rediscovered as a surprise.
+
+---
+
+## 2 · The new keystones can fail — five mutations, measured
+
+`lint:vacuous` still does not read SQL, so this is again the only thing standing behind these suites.
+
+| mutation | 369 | 370 |
+| --- | --- | --- |
+| **A** — leg 5 reverted to pre-0147 (drop `hospital_id IS NULL`) | **§6.8 red** | **§4.2 red** (behavioural) + **§5.1 red** (structural) |
+| **B** — write-side derivation removed (`v_org := v_org`) | **PASS** — 369 is structurally blind, exactly as round 1 said | **§1.1 red** + **§2.1 red** |
+| **A+B** — the full pre-0147 platform | — | **§1.1, §2.1, §2.3, §4.2, §5.1 red** — all four ⭐ keystones |
+| **C1** — leg 4's `hospital_id IS NULL` restored (the 0146 bug) | §6.4 + §1.1, §1.2, §1.3, §2.2, §3.2 red | §5.2 + §2.1, §2.5 red |
+| **C2** — leg 4 **deleted outright** | §6.4, §6.6 + the same 5 behavioural arms red | §5.2 + §2.1, §2.5 red |
+| **C3** — `hospital_id IS NULL` poisoned onto **leg 3** | §4.1 red | §2.2 red |
+
+Mutation **B** is the one I most wanted: it isolates the write half, and 369 stays green under it.
+That is the finding of round 1 reproduced as a *measurement of the test suite*, and it is why 370 had
+to exist rather than 369 being extended.
+
+### 369 §6.4 is **strictly stronger**, not merely narrower — the concern was well placed and it holds
+
+I did not take this on the commit message's word. I set five candidate policies and evaluated **both**
+predicate forms against the qual Postgres actually renders:
+
+| candidate policy | old `NOT LIKE '%hospital_id IS NULL%'` | new leg-scoped `LIKE` |
+| --- | --- | --- |
+| Q0 — current, correct (post-0147) | **FAIL** ← false positive on a correct policy | PASS |
+| Q1 — pre-0147, correct | PASS | PASS |
+| Q2 — the 0146 bug (leg 4 carries the conjunct) | FAIL | FAIL |
+| **Q3 — leg 4 DELETED, pre-0147 leg 5** | **PASS — vacuously** | **FAIL** |
+| Q4 — leg 4 deleted, post-0147 leg 5 | FAIL | FAIL |
+
+Q3 is decisive: the form being replaced **passed while the entire org leg was absent**. The
+replacement catches everything the old form caught (Q2) *plus* a case the old form was blind to (Q3),
+and stops false-positiving on a correct policy (Q0). The one dimension the old form covered and the
+new one gives up — the conjunct migrating onto legs 1–3 — is covered **behaviourally**, measured:
+mutation C3 reds 369 §4.1 and 370 §2.2. This is a strengthening, not a relaxation-to-pass.
+
+---
+
+## 3 · The no-backfill reasoning — `backend` is right, and ADR 0147 already says so
+
+**Measured.** `app.guard_audit_immutable()` is a `BEFORE DELETE OR UPDATE … FOR EACH ROW` trigger
+whose entire body is:
+
+```
+raise exception 'os registros de auditoria são imutáveis (somente inserção)' using errcode = 'HC042';
+```
+
+No condition, no column test. A no-op `update … set summary = summary` on a real row is rejected with
+`HC042`. The UPDATE therefore never lands and the hash is never recomputed — **the trigger is the
+proximate bar, and the hash break is a second, independent fact.**
+
+That second fact is also true, and I measured it rather than accepting it: forcing past the guard with
+`alter table … disable trigger user` inside a rolled-back transaction, the row's own hash **replays
+`true` before and `false` after** the `organization_id` rewrite.
+
+⚠ One caution on the earlier measurement shape: a backfill `UPDATE … where … organization_id is null`
+run on this DB reports **success**, because it matches **zero rows** (measured: 0 pre-existing
+malformed rows here) and a row trigger cannot fire on a row that was never touched. Anyone re-deriving
+this must target a row that exists, as I did.
+
+**ADR 0147 D3 is correct as written** — it lists the guard *first* ("barred twice over"), then the
+hash, and both bullets check out. Nothing to change there. See R2-M3 for where the weaker half travels
+alone.
+
+---
+
+## 4 · Round-1 findings — disposition
+
+### Withdrawn
+
+- **M6 — WITHDRAWN, wholly.** `<label for>` **is** in the accessible-name chain for a `<button>` and
+  **outranks** subtree contents: `button` is a *labelable* element in HTML, so the associated `label`
+  is consumed at the native-host-language step, which precedes name-from-contents. All three sites I
+  cited do carry an associated label immediately above the `DatePicker`
+  (`personal-data-dialog.tsx:195`, `affiliations-panel.tsx:574`, `user-lifecycle-actions.tsx:258`,
+  each `htmlFor={…controlProps.id}` against the button's `id` at `date-picker.tsx:145`), so the three
+  `aria-label`s I asked for were measured to be exact no-ops. ⛔ **The premise was already recorded as
+  measured-false in this repo** at `src/components/safety/patient-fields.tsx:305-315`, including that
+  an earlier version of its own comment had asserted it — I reasoned from it anyway and did not check.
+  That is the real lesson here and it is mine, not the branch's. The adjacent defect `frontend` found
+  by actually measuring (`labelfor` **displaces** `contents:`, so the button announces its label and
+  drops its value) is the true one, correctly filed as
+  `FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME` and correctly not built inside a feature branch.
+- **M11 — WITHDRAWN.** `cpfPresent === true && cpfMasked === null` is unreachable. `profiles_cpf_valid`
+  is a **validated** CHECK (`cpf is null or app.is_valid_cpf(cpf)`, added at column creation with no
+  `NOT VALID`) and `app.is_valid_cpf` rejects anything but `^[0-9]{11}$`. A third render branch would
+  have been dead code. Correcting the comment was the right call; see R2-M1 and R2-M2 for what the
+  correction left behind.
+- **M9 — HALF WITHDRAWN.** `src/lib/queries/org-users.ts` and `src/lib/queries/affiliations.ts` both
+  **already** carried `import 'server-only'` at `32fa326d`; I mis-transcribed the targets. The two
+  genuinely missing were `src/lib/users/person-footprint.ts` and `src/lib/queries/audit.ts`, and both
+  now have it at line 1. I additionally proved this cannot have broken the build: `npm run build` exits
+  **0** — the check that matters, since a client value-import of a `server-only` module aborts
+  `next build` while tsc/lint/vitest stay green.
+- **M12 — HALF WITHDRAWN.** The truncating redirect `} > "$FINDINGS"` is at
+  `supabase/tests/mutation/p0-authz-door-audit.sh:**565**`, exactly as the follow-up originally cited;
+  `:475` is an unrelated `echo` inside the zero-selection UNPROVEN block. My relocation was wrong. The
+  unqualified-filename half was fair and is fixed.
+
+### Addressed
+
+| # | disposition |
+| --- | --- |
+| **B1** | **CLOSED** — §1 above. Fixed as a class, and the platform_admin half I missed is closed too |
+| **B2** | **CLOSED** — `0145:165` now reads "is NARROWED, and does **NOT** close", with the rejected argument quoted and named as circular; `backend-state.md:486` now reads "does **NOT** close". The four surfaces agree |
+| **B3** | **CLOSED** — `backend-state.md:513-545` is a new § covering both migrations, both legs, the `audit_write` derivation and the pgTAP plans; `:1844-1846` corrected and cross-linked. The "LOCAL ONLY, NOT PUSHED" flag on that § is the right kind of live-state honesty |
+| **M1** | **CLOSED** — ADR 0146's header now declares `**Amends:** 0041 … , 0051`, and 0041 carries the generated back-pointer. `lint:adr-index` green (145 ADRs, next free 0148) |
+| **M2** | **CLOSED, and better than I asked** — the Class-2 claim is **withdrawn** rather than the control declined, verified against ARCHITECTURE.md Rule 12 and the live catalog (`professional_credentials` appears zero times in 0064/0065; no function audits a read of it). The superseded citations are corrected to 0072 / 0114 |
+| **M3** | **ACCEPTED CONSEQUENCE, properly recorded** — `0145` now names the mis-entry gap explicitly, measured (SELECT-only policy, `authenticated=r`, zero deleting functions), and states that no correction path is built and why. PO decision; not mine to re-open |
+| **M4** | **CLOSED** — the "therefore" is retracted, the union of the two footprint sources is stated, and the test gap (`departed-person-footprint.test.ts:92-99` sets `memberships: []`) is named in the ADR itself |
+| **M5** | still true, still not this branch's defect |
+| **M7** | **PARTIAL** — see R2-M4 |
+| **M8** | **CLOSED** — `credentials-card.tsx:251-254` wires `hasError`, `:400` spreads `controlProps`, `:413` renders `<FieldError id={numberField.errorId}>`. No dangling `aria-describedby`: the id is only referenced when `numberError` is set, and `FieldError` renders in the same pass |
+| **M10** | **CLOSED** — `actions.ts:953-976` now `.select('id')`s and returns `MESSAGES.generic` (pt-BR) on a zero-row result |
+
+---
+
+## 5 · New in round 2 — MINOR
+
+**R2-M1 · the `cpfPresent` correction swapped one false claim for another — *measured*.**
+`src/lib/users/person-footprint.ts:236-238` now says the field stays "…because ADR 0144 D4 requires
+presence as a fact in its own right — **what the edit form and any completeness check consume**".
+`grep -rn cpfPresent src/` returns exactly **two** production hits, both inside `person-footprint.ts`
+itself (`:243` declaration, `:352` producer); `PersonalDataDialog` receives the whole object
+(`personal-data-dialog.tsx:79`) and reads only `dateOfBirth` and `phone`. There is no edit-form
+consumer and no completeness check. The comment written to stop a reader chasing a state that does not
+exist now sends them chasing a consumer that does not exist — the same class as B2, inside the fix for
+it. **One-line edit:** say the field is retained by ADR 0144 D4 as a fact with no current consumer.
+
+**R2-M2 · two unit tests still encode the CPF states that comment now calls impossible — *read*.**
+`src/lib/users/person-admin-view.test.ts:380-397` is a ⭐-starred, mutation-controlled arm pinning
+`cpf: '1114447'` → `cpfPresent === true, cpfMasked === null`, with a comment asserting "a
+malformed/legacy value **is real data**" — the exact premise `person-footprint.ts:230-234` now says
+"does not exist in the system". `:398-407` pins `cpf: '111.444.777-35'`, which
+`supabase/tests/359_profiles_dob_phone.sql:245-249` proves is refused at rest with `23514`. Neither
+test is *wrong* — testing a defensive path is legitimate — but neither is annotated, so the next
+reader re-derives the false premise from the tests. Two comment lines.
+
+**R2-M3 · the no-backfill argument travels at half strength in the two artefacts most likely to be
+read — *measured*.** `guard_audit_immutable` appears in ADR 0147 and **nowhere else**: zero occurrences
+in `supabase/migrations/20261003002400_…sql` and zero in
+`supabase/tests/370_…sql`, both of whose headers give only the hash-chain reason. The hash argument
+alone is *defeasible* — "just recompute the hashes" is the obvious next thought, and acting on it means
+reaching for `disable trigger`. The categorical bar (an unconditional BEFORE-UPDATE guard + Rule 11) is
+the one that should lead. One sentence in each header.
+
+**R2-M4 · M7 is fixed at six sites, not as a class, and the escalation half is refused — *measured*.**
+`FormBanner` still `return null`s when empty (`src/components/auth/form-banner.tsx:35`, byte-identical
+to round 1) and remains mount-with-content at **193** call sites across 149 files, several in this same
+feature area (`credentials-editor.tsx:201`, `committee-role-assigner.tsx:146`,
+`register-person-flow.tsx:457`). The new `LiveBanner` (`form-banner.tsx:63-85`) is correct and
+correctly applied at the six sites the branch touched, and the deferral is *documented* at
+`form-banner.tsx:57-61` — so this is a scoped fix with a stated boundary, not a silent one. Two things
+worth saying anyway: the **error** tone is still `role="status"`/`aria-live="polite"` for both
+components (`:38-39`, `:76-77`) while `affiliations-panel.tsx:335` uses `role="alert"` for the same
+message class, so the inconsistency I filed is unchanged; and `affiliations-panel.tsx:362` now mounts
+one permanent `role="status"` **per affiliation row**, while the same commit's own message declines to
+permanently mount the per-row **alert** precisely because it "would resolve to 2 for a person with two
+affiliations". The counting argument is applied to one and not the other. Nothing reds today — no
+current spec runs an unscoped `[role="status"]` query on `/manage/usuarios/[userId]` — but the
+asymmetry should be either justified or removed before it does.
+
+**R2-M5 · a correct fix with an incorrect stated mechanism — *read*.**
+`src/components/users/credentials-card.tsx:257-262` calls `setNumberError(...)` then
+`numberRef.current?.focus()` synchronously in the same handler, i.e. **before** React flushes; at the
+moment focus lands the input has neither `aria-invalid` nor `aria-describedby`, and screen readers do
+not generally re-announce a description change on an already-focused element. The comment at `:259-261`
+credits the announcement to exactly that. What actually announces is `FieldError`'s `role="alert"`
+insertion (`field.tsx:54`). Outcome fine, rationale wrong — and `FieldError` being a `role="alert"`
+that mounts with its content sits unreconciled beside `form-banner.tsx:19-26`'s new bold prohibition
+of that pattern. The two rules now coexist with no stated boundary.
+
+---
+
+## 6 · Gates I ran, and the one I did not
+
+**Green under Node 24, on the current tree, by me:**
+
+| gate | result |
+| --- | --- |
+| `npm run lint` (all ten) | **PASS** — incl. `lint:adr-index` 145 ADRs, `lint:vacuous` 240 specs / 0, `lint:progress`, `lint:rules`, `lint:mojibake` 2824 files |
+| `npx tsc --noEmit` | **clean**, exit 0 |
+| `npm run build` | **exit 0** — the check that actually proves the two new `import 'server-only'` are safe |
+| `npm run test` | **126 files / 1727 tests** pass |
+| `npm run test:db` | **221 files / 7318 tests** pass |
+| `ARM=census` | INVARIANT HOLDS — 560 live gates, no unswept newcomer in domain |
+| `ARM=hat` | INVARIANT HOLDS — 6/6 self-tests, 3 findings all reasoned-allowlisted |
+| `ARM=floor` | INVARIANT HOLDS — 72 never-called doors, all allowlisted (fresh-reset figure) |
+| `FROMFINDINGS=1 ARM=wrapper` | INVARIANT HOLDS — BLIND set 41 ⊆ allowlist |
+
+**⛔ Not run, deliberately: the diff-scoped `ARM=policy` door sweep over `audit_log_select` for
+migration `20261003002400`.** `p0-authz-door-audit.sh:565` writes the **tracked**
+`docs/reviews/authz-door-audit-findings.md` through a truncating redirect
+(`FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE`), and restoring it afterwards needs a `git checkout <path>`
+I am barred from. Its substance for this one policy I measured directly instead, which is the stronger
+form: **every one of the three legs a session could plausibly move — 3, 4, 5 — reds a named keystone
+when opened** (mutations A, C1, C2, C3 in §2). The formal sweep run remains the lead's step 1.
+
+**⚠ Phase Gate §6 step 2 is stale against the tree — the lead's call, flagged not adjudicated.** The
+recorded full `e2e:prod` is at **`d1ea9574`**, three commits behind. Since then `ec7d74b1` changed six
+live-region DOM shapes and moved the suspend `DatePicker`'s DOM id off the literal `suspend-until`
+(acknowledged and filed as `FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY`), and `3641b2f3` changed
+`upsertCredential`'s success/failure semantics — a user-visible behaviour change on a path E2E
+traverses. The specs touching `/manage/usuarios/*`, credentials and affiliations should be re-run
+before Record. This is a gate-completeness item, not a code defect, and it is why it does not change my
+verdict.
+
+---
+
+## Round-2 summary
+
+| | |
+| --- | --- |
+| **Blocking** | **none** |
+| **Minor** | R2-M1 (false consumer claim in the comment that fixed a false claim), R2-M2 (two tests still encode the impossible state), R2-M3 (no-backfill stated at half strength in the migration + test headers), R2-M4 (M7 fixed at 6 of 193 sites; error tone unescalated; per-row `role="status"` asymmetry), R2-M5 (correct fix, wrong stated mechanism) |
+| **Withdrawn** | **M6** entirely · **M11** entirely · **M9** two of four targets · **M12** the line relocation |
+| **Verified by measurement** | B1 both halves, incl. chain neutrality and `verify_audit_chain`; the class-level nature of the fix; all four of 370's ⭐ keystones falsifiable; 369 §6.4's replacement **strictly stronger** via a five-policy truth table; 369's blindness to the write half reproduced; the guard-trigger bar and the hash break as two independent facts; the org/hospital agreement invariant and its absence of a constraint |
+
+R2-M1 and R2-M3 are one-line doc edits and R2-M2 is two comment lines — cheap enough to clear before
+the Record step rather than carry. R2-M4 and R2-M5 are genuine but scoped, documented deferrals and are
+fine to carry.
+
+**APPROVED.**

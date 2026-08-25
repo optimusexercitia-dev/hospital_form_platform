@@ -378,9 +378,15 @@ describe('§3 D12 as amended by ADR 0144 — CPF is MASKED, and the raw key neve
   })
 
   it('⭐ a stored value that is not 11 digits masks to null while presence stays TRUE', async () => {
-    // The pair that justifies keeping BOTH fields. A malformed/legacy value is real data —
-    // `cpfPresent` must still say "there is something on file" — but there is no honest
-    // mask for it, and half-rendering one invites the reader to believe it.
+    // The pair that justifies keeping BOTH fields, at the UNIT level.
+    // ⛔ NOT "real data": `profiles_cpf_valid` is a VALIDATED CHECK admitting only
+    // `NULL OR app.is_valid_cpf(cpf)`, and that rejects anything but `^[0-9]{11}$` —
+    // pgTAP `359_profiles_dob_phone.sql:249` and `301_hospital_affiliation_substrate.sql:228`
+    // prove the refusal (23514). This arm therefore pins `maskCpf`'s CONTRACT against a shape
+    // the database cannot currently store, which is worth keeping — a constraint is one
+    // migration from being relaxed and the mask must not start half-rendering when it is —
+    // but it must not be cited as evidence the state is reachable. It was: QA read it that
+    // way and filed a render-branch finding for a branch nothing can enter.
     // ⛔ MUTATION-CONTROLLED: masking by slicing without the length check (which would
     // emit a short, plausible-looking string) makes this arm RED. Observed.
     rows.profiles = {

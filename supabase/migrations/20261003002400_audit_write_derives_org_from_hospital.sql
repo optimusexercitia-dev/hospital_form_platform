@@ -9,6 +9,13 @@
 --     `row_hash`, and rows chain on `prev_hash`. Rewriting `organization_id` on an existing
 --     row would invalidate its hash and break the tamper-evident chain (Architecture Rule 11)
 --     — the exact property `public.verify_audit_chain` exists to prove. Pre-existing NULL-org
+--     ⛔ AND IT IS BARRED TWICE OVER, the first bar being the one that actually fires:
+--     `app.guard_audit_immutable()` is a BEFORE DELETE OR UPDATE ... FOR EACH ROW trigger
+--     whose entire body raises `HC042` unconditionally, so the UPDATE never lands and the
+--     hash is never recomputed. The hash argument above is the SECOND, independent fact —
+--     cite the guard first, or a reader concludes a backfill is merely inadvisable.
+--     ⚠ A backfill `UPDATE ... where organization_id is null` reports SUCCESS on a clean DB
+--     because it matches zero rows: a row trigger cannot fire on a row never touched.
 --     hospital-tier rows therefore stay invisible to their org admin permanently.
 --
 --   READ side — leg 5 of `audit_log_select` gains `hospital_id IS NULL`. RETROACTIVE, because
