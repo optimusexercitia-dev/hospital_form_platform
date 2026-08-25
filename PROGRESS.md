@@ -61,7 +61,33 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   both caveats are in the ledger cell and were stated before approval. Residue closed in the same
   commit: 3 dead mutation cases in `p0b-isolation-mutation-audit.sh` firing at objects REG·KIND
   DELETED, and `docs/backend-state.md` still calling its migrations the unpushed drift.
-- **⚠ NO PHASE IS ACTIVE.** **ADR 0136** is the most recent program, and it is complete — *not* 0137,
+- **🟢 PDF·P3 (Printing Cases) — BUILD IN PROGRESS 2026-08-25; `backend` + `frontend` spawned, gate not started.**
+  ADR [0144](docs/decisions/0144-case-printing-dossier-lock-and-phi-fork.md) **accepted** (amends
+  [0104](docs/decisions/0104-pdf-document-printing-module.md)'s "never deleted" retention clause);
+  plan [case-printing-p3.md](docs/plans/case-printing-p3.md); **both open [INF] items CLOSED** and
+  six build findings measured in [case-printing-p3-substrate.md](docs/plans/case-printing-p3-substrate.md)
+  — read it before touching P3. Three change the ADR's build (⛔ `cases.revision` cannot exist;
+  the full-content predicate has **seven** masking axes; the D15 `documents` trigger must exclude
+  `printed_rendition` or every case mint self-invalidates). 🟠 **Lead ruling, PO may veto:** D7's two
+  series ride `template_key` (`case` / `case_identified`) — ADR 0144 Amendment 1 owed at Record.
+  ✅ **The one blocker is CLOSED — PO ruled 2026-08-25, ADR 0144 D15, shape (a) trigger-bump.** It
+  was found by measurement, not by review: `cases.revision` bumping only on `reopen_case` left a
+  registered dossier able to read *"autêntico e atual"* after its text drifted, because
+  `rename_case_tag` / `update_case_outcome` / `archive_case_outcome` are **commission-level and take
+  no case argument** — no case-terminality guard *could* apply. `revision` now bumps from triggers on
+  every dossier-visible content table. ⚠ **D15 couples the trigger set to the TEMPLATE**: adding a
+  section to the case template can require adding a trigger, or the new section drifts silently.
+  ⭐ **Three claims in the approved draft were measured FALSE and are corrected in the ADR** — the
+  case full-content predicate **does not exist** (must be written, and `ARM=census` is the only arm
+  that sees a brand-new gate); `dispose_case_phi` is **not** the first disposal door reaching storage
+  (it already marks `file_objects` `disposal_pending` — a two-phase idiom to reuse); and disposal
+  **guts the dossier** rather than only dropping identifiers (deletes `answers`, nulls narratives,
+  redacts events/label), so D3's "the process record survives" rationale is retired while its
+  decision stands. ⚠ **The verification itself nearly failed silently**: the first catalog query
+  returned **0 rows** because Postgres ARE uses `\y`, not `\b` — the positive control returned 10.
+- **⚠ NO PHASE IS ACTIVE.** **ADR 0144** is the most recent program and is the first that is
+  *scoped but not built* — 0136 was the most recent COMPLETE one, and this line named it until
+  2026-08-25. **A bullet's POSITION is not its recency**; 0136 and 0137 are both complete — *not* 0137,
   which this line named until 2026-08-24 because 0137's bullet outlived it in § Now while its four
   items closed. **A bullet's POSITION is not its recency**; both are complete.
   Everything else that stood here is done — the DM program, DSR + its operational remediation, the
@@ -355,6 +381,8 @@ _**Three items RESOLVED 2026-08-24 (gate-tooling round), index lines rotated** �
 - 🟡 **FUP-E2E-CREATEFRESHCASE-SILENT-NULL** — `case-narratives.spec.ts`'s `createFreshCase()` returns `null` on any setup failure with no thrown error and no reason, so a broken fixture reads as "nothing to test". ⚠ **Pre-existing, NOT caused by ADR 0137** — tester
 - 🟡 **FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT** — 2 suites generate cases from `memberships_role_check` read LIVE at import, so vitest's total tracks DB state; §292 pins a durable shrink but not the transient mid-reset one. Assert the role SET against one shared literal, exported as a FUNCTION not a `const` — backend + frontend
 - 🟡 **FUP-AFF2-DIRECTORY-SEARCH-HAS-NO-REGISTRO-LEG** — the handoff's directory search promises *"nome, e-mail ou **registro**"*; the live search matches **name and e-mail only** — `org-users.ts:401` **and** `:487`, so a one-site fix splits org-admin from hospital-admin semantics on the same screen (against D14). PO-deferred in ADR 0133 **Amdt 2** as *"a record rather than an omission"*, and measured 2026-08-24 it was in **no register at all** — unlike its sibling deferral, which was quietly BUILT. ✅ Nothing user-visibly false today: the label already reads *"Buscar por nome ou e-mail"*. ⛔ The registro leg crosses into `professional_credentials` (1→N) — a **join filter**, never another `.or()` — and must respect **D13**'s widened SELECT or the search box re-enters the *"empty never means no-permission"* trap D13 exists to remove. ⚠ **A decision is owed**: ruling it not-built is a legitimate close, drifting there is not — backend/PO
+
+- 🟡 **FUP-P3-MINT-AFFORDANCE-WIDER-THAN-ITS-DOOR** — the P3 card renders the mint/prévia affordance to everyone `canOpenCaseManagement` admits, which since ADR 0134 D3 includes **administrativos and per-case write-grantees** — but ADR 0144 D8's arm is `can_read_case ∧ the case full-content predicate`, and that predicate has **seven masking axes** ([substrate](docs/plans/case-printing-p3-substrate.md)). So a class that reaches the screen can be refused at the door, seeing a pt-BR error where an absence would be honest. ⛔ **Filed by the builder as a stated BOUND, not smuggled in as a fix**: the meetings precedent deliberately reproduces **no** visibility check (its mount-site JSDoc argues the domain's gate is not this module's to duplicate), and pre-empting the door in UI is how an affordance gate drifts away from the authority it mirrors. ⚠ Do not close it by noting the door refuses correctly — that is the premise, not the answer; the question is whether the CARD should render at all for a viewer the predicate excludes, and it needs the D8 predicate's TS-reachable shape before it can be answered — frontend/qa
 
 _**Five items RESOLVED 2026-08-24 (ADR 0136 follow-up round), index lines rotated** → [follow-ups-archive.md](docs/progress/follow-ups-archive.md): **FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT** · **FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE** · **FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE** · **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** (ADR 0079 **Amdt 9**) · **FUP-DSS-KEYBOARD-FLOW-IS-THIN**. Each body in [follow-ups.md](docs/progress/follow-ups.md) carries its resolution + evidence._
 

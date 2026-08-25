@@ -42,6 +42,18 @@ import {
   getParticipantRoleVocabularyHref,
   listCaseParticipantRoles,
 } from "@/lib/queries/participants";
+import { formatCaseNumberWithTerm } from "@/components/cases/format";
+import { PrintedDocumentsSection } from "@/components/printing/printed-documents-panel";
+import { getCasePrintContext } from "@/lib/queries/printed-documents";
+import {
+  printSourceRegisters,
+  printSourceWatermark,
+} from "@/lib/pdf/documents/print-source";
+import {
+  mintPrintedDocument,
+  revokePrintedDocument,
+} from "@/lib/pdf-mint/actions";
+import { PDF_PROVIDERS } from "@/lib/pdf-mint/providers";
 
 export const metadata: Metadata = {
   title: "Detalhe do caso",
@@ -123,6 +135,7 @@ export default async function CaseDetailPage({
     actionItemsOn,
     caseCustomFieldsOn,
     caseParticipantsOn,
+    documentPrintingOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
@@ -135,6 +148,11 @@ export default async function CaseDetailPage({
     actionItemsEnabled(),
     caseCustomFieldsEnabled(),
     featureEnabled("case_participants"),
+    // PDF·P3 (ADR 0144 D12): the printing module's platform-wide flag. ⛔ There
+    // is NO `case_printing` flag — activation is provider registration (ADR 0104
+    // D15), and ADR 0144 D12 names re-asserting a per-phase flag as a P3 trap.
+    // Joins the existing parallel batch; it is independent of every read here.
+    featureEnabled("document_printing"),
   ]);
 
   // ETH·E4 (ADR 0108) — same org-scoped roster surfaces as the staff route.
@@ -276,7 +294,35 @@ export default async function CaseDetailPage({
   // Case Correction Lifecycle surface data (ADR 0085; empty when the flag is off).
   const correctionsData = await buildCaseCorrectionsData(detail);
 
+  // ADR 0144 D3 — BOTH print axes derive from ONE state object, read once.
+  //
+  // ⚠ Sharing the FUNCTION is not enough; the ARGUMENT LISTS must be the same
+  // object. `printSourceRegisters` and `printSourceWatermark` are spelled out
+  // separately by design (ADR 0125 D8 / 0126 D7 — the coincidence is recorded,
+  // not exploited), so two call sites passing different arguments is exactly how
+  // ADR 0125 D5's forbidden fourth cell — a FINAL page carrying a prévia footer —
+  // gets reached. One object makes that impossible here.
+  //
+  // ⛔ Fails CLOSED on an absent context (`null` when the door refused, or the
+  // case is unresolvable): `caseDisposed: true` alone drops registration whatever
+  // the status is, so the screen offers a PRÉVIA rather than entering the
+  // registry on state nobody confirmed. The status fallback is the case row this
+  // page already gated on and read — a known fact, not an invented one.
+  //
+  // ⛔ Only the two fields the `case` arm reads. `correctionOpen` / `phaseVoided`
+  // / `meetingDisposed` are IGNORED for this kind (pinned by ADR 0144 D14's
+  // vectors); passing an explicit `false` for another kind's fact would read as
+  // though it mattered here.
+  const casePrintContext = documentPrintingOn
+    ? await getCasePrintContext(caseId)
+    : null;
+  const casePrintState = {
+    status: casePrintContext?.status ?? detail.case.status,
+    caseDisposed: casePrintContext?.caseDisposed ?? true,
+  };
+
   return (
+    <>
     <CaseDetailView
       org={org} slug={slug}
       detail={detail}
@@ -325,5 +371,62 @@ export default async function CaseDetailPage({
       participantPlatformUsers={participantPlatformUsers}
       participantRoleVocabularyHref={roleVocabularyHref}
     />
+
+    {/* Documentos impressos (PDF·P3; ADR 0144). A sibling of CaseDetailView, not
+        a prop: the view is SHARED with the reading route `/casos/[caseId]`, so a
+        prop would either put the mint surface on that route too or add a fourth
+        boolean to a component that already carries thirty-odd. `withHeader={false}`
+        makes the view return a bare fragment, so this card lands directly in the
+        `(detail)` layout's `flex flex-col gap-6` column, beneath the tab content.
+
+        ⛔ On the DETALHES tab only, never in the shared `(detail)` layout header.
+        The layout renders above every tab, so a card there would follow the user
+        into "Linha do tempo" and "Processo ético" — printing belongs to the
+        record, not to the chrome.
+
+        ⚠ What is deliberately ABSENT: this module reproduces NO visibility check.
+        The route already gated on `canOpenCaseManagement` AND on the case
+        belonging to this commission, and ADR 0144 D8's mint arm
+        (`can_read_case` ∧ the full-content predicate ∧, for the identified
+        variant, `app.can_read_case_patient`) re-decides at the door for mint and
+        download alike. A recused member or a phase-only respondent who reaches
+        this route is refused there, in pt-BR — that is the domain's gate doing
+        its job, not something for this card to pre-empt or compensate for. */}
+    {documentPrintingOn ? (
+      <div className="animate-rise-in flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs">
+        <PrintedDocumentsSection
+          sourceKind="case"
+          sourceId={detail.case.id}
+          registers={printSourceRegisters("case", casePrintState)}
+          watermark={printSourceWatermark("case", casePrintState)}
+          // ⛔ The case NUMBER and its type term, never `case.label`. The label is
+          // clinician-authored free text on a PHI-capable record, and the mint
+          // dialog restates the scope on a screen whose whole subject is how much
+          // patient data to print — minimum-necessary (Rule 12) says the scope
+          // line identifies the dossier, it does not sample its contents. The
+          // number does that unambiguously, and ADR 0064 D4's terminology keeps
+          // it reading as the domain does ("Denúncia 0042" on an ethics case).
+          scopeLabel={formatCaseNumberWithTerm(
+            detail.terminology.case.singular,
+            detail.case.caseNumber,
+          )}
+          // ADR 0104 D11 — revocation is `staff_admin` of the owning commission,
+          // the same expression the meetings and submissions surfaces use. ⛔ NOT
+          // `canOpenCaseManagement` and NOT `canManageLifecycle`: since ADR 0134
+          // D3 the first admits administrativos and per-case write-grantees, who
+          // may reach this route without holding the coordinator role revocation
+          // is scoped to. The server action re-checks regardless (Rule 1).
+          canRevoke={access.role === "staff_admin"}
+          // From the provider registry, never a literal `true` (ADR 0104 D9
+          // v2-readiness). `case` is the FIRST kind to declare `phiCapable` — and
+          // reading it here means the PHI control appears exactly when a provider
+          // exists that can honour it, with no second place to keep in step.
+          phiCapable={PDF_PROVIDERS.case?.phiCapable ?? false}
+          mintAction={mintPrintedDocument}
+          revokeAction={revokePrintedDocument}
+        />
+      </div>
+    ) : null}
+    </>
   );
 }

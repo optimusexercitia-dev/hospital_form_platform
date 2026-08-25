@@ -20,6 +20,7 @@ import {
   mintPrintedDocument,
   revokePrintedDocument,
 } from "@/lib/pdf-mint/actions";
+import { PDF_PROVIDERS } from "@/lib/pdf-mint/providers";
 
 export const metadata: Metadata = {
   title: "Resposta enviada",
@@ -176,6 +177,9 @@ export default async function MyResponseDetailPage({
           watermark={printSourceWatermark("form_response", printState)}
           scopeLabel={`${detail.formTitle} · versão ${detail.versionNumber}`}
           canRevoke={access.role === "staff_admin"}
+          // From the provider registry, never a literal — see the twin comment
+          // on the dashboard submissions page (ADR 0104 D9).
+          phiCapable={PDF_PROVIDERS.form_response?.phiCapable ?? false}
           mintAction={mintPrintedDocument}
           revokeAction={revokePrintedDocument}
         />

@@ -35,15 +35,16 @@ export const DOCUMENT_KIND_LABELS: Record<PrintedDocumentSourceKind, string> = {
  * emitidos ___"). BUG-PDF2-001: the printing components shipped in P1 with
  * "desta resposta" hardcoded, which read wrong the moment a second kind arrived.
  *
- * Only kinds that actually render a mint surface are listed. `case` and
- * `interview` deliberately fall through to the generic phrase rather than being
- * enumerated ahead of the phases that build them — a label written now for a
- * screen that does not exist is a claim nothing can check, and it would go stale
- * silently.
+ * Only kinds that actually render a mint surface are listed. `interview`
+ * deliberately falls through to the generic phrase rather than being enumerated
+ * ahead of the phase that builds it (P4) — a label written now for a screen that
+ * does not exist is a claim nothing can check, and it would go stale silently.
+ * `case` earns its entry in P3, when its surface actually ships.
  */
 const KIND_SOURCE_PHRASE: Partial<Record<PrintedDocumentSourceKind, string>> = {
   form_response: "desta resposta",
   meeting: "desta reunião",
+  case: "deste caso",
 };
 
 /** Kind-neutral fallback. "Registro" is the honest generic here — ADR 0104 D1's
@@ -67,10 +68,24 @@ export function printedDocumentsLoadErrorCopy(
   return `Não foi possível carregar os documentos emitidos ${documentSourcePhrase(kind)}. Atualize a página em alguns instantes.`;
 }
 
-/** The mint dialog's one-line summary of what is about to be produced. */
+/**
+ * The mint dialog's one-line summary of what is about to be produced.
+ *
+ * The `case` kind states the SCOPE outright — the print is the complete dossier,
+ * not a selection. ADR 0144 D1 rejected a "tick the sections you want" mint (it
+ * would make the artifact non-deterministic for a template key+version, which is
+ * what the fingerprint exists to pin), so there is no picker on the screen to
+ * tell the user that. Saying it here is the only place the fixed scope is
+ * announced before they commit — and it sets the expectation for a long PDF,
+ * which D1 accepts as "length is not a defect here".
+ */
 export function mintDialogDescriptionCopy(
   kind: PrintedDocumentSourceKind,
 ): string {
+  if (kind === "case") {
+    return "Gera um PDF definitivo com o dossiê completo deste caso e o registra na plataforma.";
+  }
+
   return `Gera um PDF definitivo ${documentSourcePhrase(kind)} e o registra na plataforma.`;
 }
 
@@ -81,6 +96,24 @@ export function mintDialogDescriptionCopy(
  * document final differs per kind — a form response is final once *submitted*, a
  * meeting once its ata is *signed*. Swapping only the noun would have produced
  * "A reunião já foi enviada", which is not a thing that happens to a meeting.
+ *
+ * ⚠ The `case` arms are ASYMMETRIC on purpose (ADR 0144 D3). Its condition is a
+ * CONJUNCTION — `status IN ('completed','cancelled')` **AND** patient data not
+ * discarded — so:
+ *
+ * - `final` may state both conjuncts outright: both are known to hold.
+ * - `draft` may state NEITHER, because the negation is a DISJUNCTION. A case can
+ *   fail to register because it is still open, **or** because its patient data
+ *   was disposed under LGPD Art. 18 — and a disposed case IS terminal, so the
+ *   generic "ainda não está em estado final" fallback would be a flat lie about
+ *   it. The draft arm therefore names the REQUIREMENT, never the failure. This
+ *   is the same discipline {@link PREVIA_HELPER_COPY} carries, for the same
+ *   reason.
+ *
+ * ⚠ "não foram descartados" is deliberately negative rather than "mantém os
+ * dados do paciente": the predicate is `phi_disposed_at IS NULL`, which is
+ * equally true of a case that never held patient data at all. The positive
+ * phrasing would assert PHI exists on every terminal case.
  */
 export function watermarkReasonCopy(
   kind: PrintedDocumentSourceKind,
@@ -98,6 +131,12 @@ export function watermarkReasonCopy(
     return isFinal
       ? "A ata já foi assinada, então o documento sai como via final."
       : "A ata ainda não foi assinada, então o documento sai marcado como rascunho.";
+  }
+
+  if (kind === "case") {
+    return isFinal
+      ? "O caso já está concluído ou cancelado e seus dados de paciente não foram descartados, então o documento sai como via final."
+      : "A via final exige um caso concluído ou cancelado cujos dados de paciente não tenham sido descartados. Enquanto isso não valer, o documento sai marcado como rascunho.";
   }
 
   return isFinal
@@ -142,8 +181,36 @@ export const REVOKE_REASON_CLASSES = [
 export type RevokeReasonClass = (typeof REVOKE_REASON_CLASSES)[number]["value"];
 
 /**
+ * Reason classes the SYSTEM assigns — never offered in the revoke dialog.
+ *
+ * ⛔ **Deliberately a SECOND map rather than three more entries in
+ * {@link REVOKE_REASON_CLASSES}.** That tuple is the dialog's option list: every
+ * value in it is something a human may pick as their reason for annulling a
+ * document. `phi_disposed` is not a choice anyone makes about a *document* — it
+ * is the trace left on the registry by an LGPD Art. 18 erasure of the underlying
+ * CASE (`dispose_case_phi`; ADR 0144 D10). Adding it to the tuple would put
+ * "descartar os dados do paciente" in a dropdown that does nothing of the sort,
+ * and would widen `RevokeReasonClass` — the dialog's own state type — with a
+ * value the dialog must never submit.
+ *
+ * ⚠ The wording carries D10's split and is the whole point of the entry: the
+ * registry row, its hash, its audit trail and its verification token **survive**;
+ * only the stored bytes are destroyed. A reader who reaches `/verificar` on this
+ * document is looking at one that was legitimately emptied, NOT one withdrawn as
+ * wrong — so the label says what happened to the file, never "por engano".
+ */
+const SYSTEM_REVOKE_REASON_CLASSES: Record<string, string> = {
+  phi_disposed: "Arquivo destruído — dados do paciente descartados (LGPD)",
+};
+
+/**
  * The pt-BR label for a stored reason class — the ONLY sanctioned way to render
  * one, so no surface can reintroduce the raw value.
+ *
+ * Resolves against the user-selectable vocabulary FIRST, then the
+ * system-assigned one ({@link SYSTEM_REVOKE_REASON_CLASSES}). Both are looked up
+ * here so no surface has to know which kind of class it holds — a stored value is
+ * just a value, and the panel that renders it cannot tell how it got there.
  *
  * An unknown class falls back to "Outro motivo", never to the identifier itself.
  * The vocabulary is a server-side enum that can grow before this build knows
@@ -160,10 +227,18 @@ export type RevokeReasonClass = (typeof REVOKE_REASON_CLASSES)[number]["value"];
 export function revokeReasonClassLabel(
   value: string | null | undefined,
 ): string {
-  return (
-    REVOKE_REASON_CLASSES.find((option) => option.value === value)?.label ??
-    "Outro motivo"
-  );
+  const chosen = REVOKE_REASON_CLASSES.find(
+    (option) => option.value === value,
+  )?.label;
+  if (chosen) return chosen;
+
+  // `value` may be null/undefined; an index lookup on those is a runtime error,
+  // so guard before reaching for the system map.
+  if (value && SYSTEM_REVOKE_REASON_CLASSES[value]) {
+    return SYSTEM_REVOKE_REASON_CLASSES[value];
+  }
+
+  return "Outro motivo";
 }
 
 /** pt-BR date + time, matching the submissions surfaces. Falls back to the raw
@@ -284,13 +359,105 @@ export const PREVIA_BUTTON_LABEL = "Imprimir prévia";
 export const PREVIA_HELPER_COPY =
   "A prévia não é registrada, não recebe código de verificação e não vale como via de registro. Ela sai marcada como RASCUNHO.";
 
-/** The ephemeral render route for one source (ADR 0125 D4) — streamed, never stored. */
+/**
+ * The ephemeral render route for one source (ADR 0125 D4) — streamed, never
+ * stored.
+ *
+ * ⚠ `includePhi` appends `?phi=1` **verbatim** — the canonical form agreed with
+ * the route that parses it. This is ADR 0144 D9: a prévia gets the same PHI fork
+ * a mint does, through the same door, and it emits the Rule 11 PHI-read row. It
+ * is NOT a lighter-weight path to identified content. Defaults to the
+ * de-identified variant, matching the mint's default-OFF choice.
+ */
 export function previaHref(
   kind: PrintedDocumentSourceKind,
   sourceId: string,
+  includePhi = false,
 ): string {
-  return `/api/previa/${kind}/${sourceId}`;
+  const path = `/api/previa/${kind}/${sourceId}`;
+  return includePhi ? `${path}?phi=1` : path;
 }
+
+// ---------------------------------------------------------------------------
+// The PHI fork (ADR 0104 D9 · ADR 0144 D5/D6/D9) — the per-print patient choice
+// ---------------------------------------------------------------------------
+
+/**
+ * The control's label, worded around what ticking it ADDS.
+ *
+ * ⛔ Never phrase the unchecked state as a promise ("sem identificação do
+ * paciente", "versão anônima"). Both would be FALSE: the de-identified variant
+ * still prints age, sex and unit, and — far more importantly — the free-text
+ * clinical content it carries may itself name a patient (D6). A control that
+ * promises absence is the single most dangerous string on this screen, because a
+ * user who believes it will hand the PDF to someone they would not otherwise
+ * have handed it to.
+ */
+export const PHI_CHOICE_LABEL = "Incluir identificação do paciente";
+
+/** Exactly what ticking the box adds, and what prints either way (D5). Naming
+ * both halves stops the unchecked variant from reading as "a dossier about
+ * nobody" — age/sex/unit is the de-identification floor an ONA tracer needs. */
+export const PHI_CHOICE_HINT =
+  "Acrescenta nome, número do prontuário, data de nascimento, profissional responsável e referência do atendimento. Idade, sexo e unidade saem nas duas versões.";
+
+/**
+ * ⭐ **ADR 0144 D6, stated before the user commits — the highest-value copy on
+ * this surface.**
+ *
+ * A case dossier carries narratives, deliberações and entrevistas: free text a
+ * clinician may have typed a patient's name into. `contains_phi` therefore
+ * derives from the PRESENCE of that content and is non-suppressible, so **nearly
+ * every case print carries the confidentiality band — including the
+ * de-identified one.**
+ *
+ * Without this sentence, a user who ticks nothing and then sees
+ * "DOCUMENTO CONFIDENCIAL — CONTÉM DADOS DE PACIENTE" on the page has exactly two
+ * available readings, and both are wrong and both are reasonable: that the
+ * platform ignored their choice, or that the de-identified variant leaks
+ * identifiers. The first makes the product look broken; the second could make
+ * someone withhold a document they were entitled to produce — or, inverted, make
+ * them treat an identified print as safe because they "didn't tick anything".
+ */
+export const PHI_BAND_NOTICE =
+  "A tarja “DOCUMENTO CONFIDENCIAL — CONTÉM DADOS DE PACIENTE” aparece nas duas versões. Ela é acionada pela presença de texto clínico livre no caso — narrativas, deliberações, entrevistas — e não por esta opção. Esta escolha altera apenas os campos estruturados de identificação acima.";
+
+/** The identified prévia's link label. Says "identificada" outright: the two
+ * links sit side by side and the difference between them must be legible from
+ * the label alone, not from their order. */
+export const PREVIA_PHI_BUTTON_LABEL = "Imprimir prévia identificada";
+
+/**
+ * Why the identified prévia is a second, deliberate act rather than a toggle.
+ *
+ * ⚠ States the audit consequence plainly (D9): a prévia is ephemeral but its PHI
+ * read is NOT. Reasoning "prévias are ephemeral, so they don't audit" is exactly
+ * what would turn this link into an unaudited PHI export path, and a user who
+ * assumes the same thing is being told otherwise here.
+ *
+ * ⚠ **"Como toda leitura" is load-bearing, not filler.** Both dossier variants
+ * read through the audited door — `age_years` / `sex` / `unit` live on the same
+ * Class-1 table as `name` / `mrn`, so there is no de-identified demographics
+ * source and a de-identified print by a PHI-capable minter logs a PHI read too
+ * (lead ruling, 2026-08-25). An audit sentence attached to the identified link
+ * ALONE says nothing false on its own terms, but sits opposite a de-identified
+ * link that carries no such sentence — and the contrast asserts, by implicature,
+ * that the other one is unaudited. Generalising the clause removes the
+ * implicature without putting a second audit line on a link whose helper is
+ * already about something else.
+ *
+ * ⛔ **Two words this string may not use, both nearly shipped in it.**
+ * `emissão` — the RESERVED noun for the registered act (ADR 0125 D5): a draft
+ * read "mesmo sem emissão", which denies the act but still puts the reserved word
+ * on a prévia surface, where the standing sweep looks for exactly that token.
+ * `registrado` — it sits directly beneath {@link PREVIA_HELPER_COPY}'s "não é
+ * registrada", and the two would appear to contradict each other; the subjects
+ * differ (the DOCUMENT is not registered, the ACCESS is) but nobody reads a
+ * helper line twice to work that out. "Trilha de auditoria" collides with
+ * neither.
+ */
+export const PREVIA_PHI_HELPER_COPY =
+  "Abre a mesma prévia com a identificação do paciente. Como toda leitura de dados de paciente, este acesso entra na trilha de auditoria — mesmo sem gerar documento.";
 
 /**
  * The registry panel's intro sentence — **conditional on whether the source

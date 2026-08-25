@@ -47,6 +47,7 @@ import {
   mintPrintedDocument,
   revokePrintedDocument,
 } from "@/lib/pdf-mint/actions";
+import { PDF_PROVIDERS } from "@/lib/pdf-mint/providers";
 
 export const metadata: Metadata = {
   title: "Detalhe da reunião",
@@ -315,6 +316,10 @@ export default async function MeetingDetailPage({
           watermark={printSourceWatermark("meeting", meetingPrintState)}
           scopeLabel={`${formatMeetingNumber(meeting.meetingNumber)} · ${meeting.title}`}
           canRevoke={isCoordinator}
+          // From the provider registry, never a literal (ADR 0104 D9). Meetings
+          // mint PHI-free in v1, but that is the PROVIDER's statement to make,
+          // not this page's.
+          phiCapable={PDF_PROVIDERS.meeting?.phiCapable ?? false}
           mintAction={mintPrintedDocument}
           revokeAction={revokePrintedDocument}
         />

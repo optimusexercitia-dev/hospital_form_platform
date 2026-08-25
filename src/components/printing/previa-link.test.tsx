@@ -23,7 +23,7 @@ const RESERVED_VERB = /emit|emiss/i;
 describe("PreviaLink: the ephemeral affordance", () => {
   it("renders the prévia label and links to the streaming route", () => {
     const { container } = render(
-      <PreviaLink sourceKind="form_response" sourceId={SOURCE_ID} />,
+      <PreviaLink sourceKind="form_response" sourceId={SOURCE_ID} phiCapable={false} />,
     );
     const anchor = container.querySelector("a")!;
     expect(anchor).not.toBeNull();
@@ -35,7 +35,7 @@ describe("PreviaLink: the ephemeral affordance", () => {
 
   it("⛔ never uses the RESERVED VERB — and the subject provably exists", () => {
     const { container } = render(
-      <PreviaLink sourceKind="meeting" sourceId={SOURCE_ID} />,
+      <PreviaLink sourceKind="meeting" sourceId={SOURCE_ID} phiCapable={false} />,
     );
     // POSITIVE half FIRST: the component rendered real content. Without this,
     // the negative below is satisfied by a component returning null.
@@ -47,7 +47,7 @@ describe("PreviaLink: the ephemeral affordance", () => {
 
   it("states that the prévia is unregistered and unverifiable", () => {
     const { container } = render(
-      <PreviaLink sourceKind="meeting" sourceId={SOURCE_ID} />,
+      <PreviaLink sourceKind="meeting" sourceId={SOURCE_ID} phiCapable={false} />,
     );
     expect(container.textContent).toMatch(/não é registrada/i);
     expect(container.textContent).toMatch(/código de verificação/i);
@@ -56,7 +56,7 @@ describe("PreviaLink: the ephemeral affordance", () => {
 
   it("opens in a new tab safely (target=_blank implies rel=noopener)", () => {
     const { container } = render(
-      <PreviaLink sourceKind="form_response" sourceId={SOURCE_ID} />,
+      <PreviaLink sourceKind="form_response" sourceId={SOURCE_ID} phiCapable={false} />,
     );
     const anchor = container.querySelector("a")!;
     expect(anchor.getAttribute("target")).toBe("_blank");
@@ -71,7 +71,7 @@ describe("⛔ the helper copy states the CONSEQUENCE, never the CAUSE", () => {
     // ata was cancelled, or because its minutes were disposed. Naming ONE would
     // be right for some sources and a lie for the rest — the §K class exactly.
     const { container } = render(
-      <PreviaLink sourceKind="meeting" sourceId={SOURCE_ID} />,
+      <PreviaLink sourceKind="meeting" sourceId={SOURCE_ID} phiCapable={false} />,
     );
     const text = container.textContent!;
     for (const cause of [
@@ -131,5 +131,96 @@ describe("⭐ the DERIVED choice — which affordance a source gets (ADR 0125 D1
       `/api/previa/form_response/${SOURCE_ID}`,
     );
     expect(previaHref("meeting", SOURCE_ID)).toBe(`/api/previa/meeting/${SOURCE_ID}`);
+  });
+});
+
+describe("⭐ the PHI fork on a prévia (ADR 0144 D9)", () => {
+  it("⛔ a PHI-INCAPABLE kind gets exactly ONE link — and it is the real one", () => {
+    const { container } = render(
+      <PreviaLink sourceKind="meeting" sourceId={SOURCE_ID} phiCapable={false} />,
+    );
+    const anchors = [...container.querySelectorAll("a")];
+    // POSITIVE half FIRST — a component rendering nothing would also have no
+    // identified link, which is the vacuity this file's header forbids.
+    expect(anchors).toHaveLength(1);
+    expect(anchors[0].getAttribute("href")).toBe(`/api/previa/meeting/${SOURCE_ID}`);
+    // NEGATIVE half: no query string at all, and no identified wording.
+    expect(anchors[0].getAttribute("href")).not.toContain("phi");
+    expect(container.textContent).not.toMatch(/identificad/i);
+  });
+
+  it("⭐ a PHI-CAPABLE kind gets a SECOND, separately-addressed link", () => {
+    const { container } = render(
+      <PreviaLink sourceKind="case" sourceId={SOURCE_ID} phiCapable />,
+    );
+    const hrefs = [...container.querySelectorAll("a")].map((a) =>
+      a.getAttribute("href"),
+    );
+    expect(hrefs).toHaveLength(2);
+    // The DIFFERENTIAL that matters: the de-identified link is UNCHANGED by the
+    // capability. A component that appended `?phi=1` to both — or that swapped
+    // the single link's destination instead of adding one — passes a bare
+    // "contains ?phi=1" assertion and fails this one.
+    expect(hrefs[0]).toBe(`/api/previa/case/${SOURCE_ID}`);
+    expect(hrefs[1]).toBe(`/api/previa/case/${SOURCE_ID}?phi=1`);
+  });
+
+  it("⛔ the identified link is a LINK, not a checkbox beside the first one", () => {
+    // A toggle would let a mis-click silently change what the next click
+    // produces — a prévia has no confirm step to catch it (unlike the mint).
+    const { container } = render(
+      <PreviaLink sourceKind="case" sourceId={SOURCE_ID} phiCapable />,
+    );
+    expect(container.querySelectorAll("a")).toHaveLength(2);
+    expect(container.querySelector("input")).toBeNull();
+    expect(container.querySelector('[role="checkbox"]')).toBeNull();
+  });
+
+  it("⛔ never promises ABSENCE on the de-identified link", () => {
+    // ADR 0144 D6: the confidentiality band derives from free-text presence, so
+    // the de-identified variant is NOT "sem dados do paciente". Copy that says
+    // otherwise is the most dangerous string on this surface — a user who
+    // believes it hands the PDF to someone they otherwise would not.
+    const { container } = render(
+      <PreviaLink sourceKind="case" sourceId={SOURCE_ID} phiCapable />,
+    );
+    const text = container.textContent!;
+    for (const promise of [
+      /sem dados do paciente/i,
+      /sem identificação/i,
+      /anônim/i,
+      /não contém dados/i,
+    ]) {
+      expect(promise.test(text), `copy promises absence: ${promise}`).toBe(false);
+    }
+    // ...and it DOES say something about the identified variant (the negatives
+    // above are not satisfied by an empty render).
+    expect(text).toMatch(/identificação do paciente/i);
+  });
+
+  it("⛔ states that an identified prévia is AUDITED, without the reserved verb", () => {
+    const { container } = render(
+      <PreviaLink sourceKind="case" sourceId={SOURCE_ID} phiCapable />,
+    );
+    const text = container.textContent!;
+    expect(text).toMatch(/trilha de auditoria/i);
+    // The reserved-verb rule (ADR 0125 D5) still holds with the fork rendered —
+    // "mesmo sem emissão" would deny the act while putting the reserved token on
+    // a prévia surface, which is exactly what the standing sweep looks for.
+    expect(RESERVED_VERB.test(text)).toBe(false);
+  });
+
+  it("previaHref emits EXACTLY `?phi=1`, and only when asked", () => {
+    // The literal form is a contract with the route that parses it; `phi=true`
+    // or `phi` alone would render a de-identified document from a link the user
+    // chose for the opposite reason, silently.
+    expect(previaHref("case", SOURCE_ID, true)).toBe(
+      `/api/previa/case/${SOURCE_ID}?phi=1`,
+    );
+    expect(previaHref("case", SOURCE_ID, false)).toBe(
+      `/api/previa/case/${SOURCE_ID}`,
+    );
+    // Default is the de-identified variant, mirroring the mint's default-OFF.
+    expect(previaHref("case", SOURCE_ID)).toBe(`/api/previa/case/${SOURCE_ID}`);
   });
 });

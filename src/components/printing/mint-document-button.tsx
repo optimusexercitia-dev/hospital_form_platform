@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Download, FileText } from "lucide-react";
+import { CheckCircle2, Download, FileText, ShieldAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -19,6 +20,9 @@ import { FormBanner } from "@/components/auth/form-banner";
 import {
   documentSourcePhrase,
   mintDialogDescriptionCopy,
+  PHI_BAND_NOTICE,
+  PHI_CHOICE_HINT,
+  PHI_CHOICE_LABEL,
   watermarkReasonCopy,
 } from "@/components/printing/labels";
 import type {
@@ -62,12 +66,28 @@ const WATERMARK_MARK: Record<WatermarkFlag, string> = {
  * focus on the confirm button → confirm → on success the dialog stays open and
  * focus moves to the download link, so mint→download completes without a mouse
  * and without hunting for what changed.
+ *
+ * ⚠ **`phiCapable` moves the opening focus onto the PHI choice instead.** With a
+ * consequential choice on screen, landing on the confirm button would put the
+ * commit ahead of the decision in the tab order: a keyboard user pressing Enter
+ * on the focused control would mint without the choice ever entering their path.
+ * mint→download still completes keyboard-only — it just traverses the choice
+ * first, which is the correct ordering for a decision that cannot be undone.
+ *
+ * ---
+ *
+ * ⛔ **The PHI choice renders because the PROVIDER declares the capability, never
+ * because of the kind** (ADR 0104 D9 v2-readiness). A `sourceKind === "case"`
+ * test in this component is a phase-blocking review finding: it would mean a
+ * second kind gaining PHI capability ships a working backend with no control on
+ * screen, and the mismatch is invisible to every gate.
  */
 export function MintDocumentButton({
   sourceKind,
   sourceId,
   watermark,
   scopeLabel,
+  phiCapable,
   action,
 }: {
   sourceKind: PrintedDocumentSourceKind;
@@ -78,16 +98,30 @@ export function MintDocumentButton({
    * version) — the dialog's scope confirmation. PHI-free by construction for
    * the P1 kinds. */
   scopeLabel: string;
+  /** Whether this kind's provider declares it can print patient identifiers
+   * (`PdfDataProvider.phiCapable`). DERIVED from `PDF_PROVIDERS` by the server
+   * page — never from the kind, here or anywhere upstream. */
+  phiCapable: boolean;
   action: MintDocumentAction;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [minted, setMinted] = useState<PrintedDocumentSummary | null>(null);
+  // ADR 0104 D9 — per-mint, explicit, DEFAULT OFF, and with no memory between
+  // mints. That last clause is why this is component state reset on close
+  // rather than anything persisted: a remembered "yes" would silently identify
+  // a later print that nobody chose to identify.
+  const [includePhi, setIncludePhi] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const confirmRef = useRef<HTMLButtonElement>(null);
   const downloadRef = useRef<HTMLAnchorElement>(null);
+  const phiChoiceRef = useRef<HTMLButtonElement>(null);
+
+  const phiFieldId = useId();
+  const phiHintId = `${phiFieldId}-hint`;
+  const phiNoticeId = `${phiFieldId}-notice`;
 
   // Move focus onto the download link the moment a mint succeeds. Without this
   // the keyboard user is left on a button that no longer exists and has to
@@ -100,7 +134,15 @@ export function MintDocumentButton({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await action({ sourceKind, sourceId });
+        const result = await action({
+          sourceKind,
+          sourceId,
+          // A PHI-incapable kind carries no field at all rather than an explicit
+          // `false`: there is no control on its screen, so there is no choice to
+          // report, and the action already fails closed on `includePhi` for a
+          // provider that does not declare the capability.
+          ...(phiCapable ? { includePhi } : {}),
+        });
         if (!result.ok || !result.document) {
           setError(result.error ?? "Não foi possível emitir o documento.");
           return;
@@ -130,6 +172,9 @@ export function MintDocumentButton({
         if (!next) {
           setError(null);
           setMinted(null);
+          // ADR 0104 D9's "no memory of the choice" — the box is unticked again
+          // for the next mint, whatever was chosen for this one.
+          setIncludePhi(false);
         }
       }}
     >
@@ -143,7 +188,10 @@ export function MintDocumentButton({
       <DialogContent
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          confirmRef.current?.focus();
+          // Land on the CHOICE when there is one, on the commit when there is
+          // not — see the `phiCapable` note in the component docblock.
+          if (phiCapable) phiChoiceRef.current?.focus();
+          else confirmRef.current?.focus();
         }}
       >
         <DialogHeader>
@@ -154,7 +202,11 @@ export function MintDocumentButton({
         </DialogHeader>
 
         {minted ? (
-          <MintSuccess summary={minted} downloadRef={downloadRef} />
+          <MintSuccess
+            summary={minted}
+            identified={phiCapable && includePhi}
+            downloadRef={downloadRef}
+          />
         ) : (
           <div className="flex flex-col gap-4">
             {error ? <FormBanner tone="error">{error}</FormBanner> : null}
@@ -175,6 +227,54 @@ export function MintDocumentButton({
                 {watermarkWhy}
               </p>
             </div>
+
+            {/* ADR 0104 D9 / ADR 0144 D5 — the per-mint patient-identifier
+                choice. Sits ABOVE the permanence notice on purpose: "this is
+                permanent" is the sentence that should be read LAST, with the
+                choice it makes permanent already in view. */}
+            {phiCapable ? (
+              <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4">
+                <label className="flex items-start gap-2.5 text-sm">
+                  <Checkbox
+                    ref={phiChoiceRef}
+                    checked={includePhi}
+                    onCheckedChange={(checked) =>
+                      setIncludePhi(checked === true)
+                    }
+                    disabled={isPending}
+                    aria-describedby={`${phiHintId} ${phiNoticeId}`}
+                    className="mt-0.5"
+                  />
+                  <span className="flex flex-col gap-1">
+                    <span className="font-medium text-foreground">
+                      {PHI_CHOICE_LABEL}
+                    </span>
+                    <span
+                      id={phiHintId}
+                      className="text-sm leading-relaxed text-pretty text-muted-foreground"
+                    >
+                      {PHI_CHOICE_HINT}
+                    </span>
+                  </span>
+                </label>
+
+                {/* ⭐ ADR 0144 D6. NOT collapsible, NOT conditional on the box
+                    above, and NOT smaller than the hint: the band appears on
+                    BOTH variants, so a reader who only ever sees this when the
+                    box is ticked learns the opposite of the truth. Icon + text
+                    + border, never colour alone (design system §2). */}
+                <p
+                  id={phiNoticeId}
+                  className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/12 px-3 py-2.5 text-sm leading-relaxed text-pretty text-foreground"
+                >
+                  <ShieldAlert
+                    aria-hidden="true"
+                    className="mt-0.5 size-4 shrink-0 text-warning"
+                  />
+                  <span>{PHI_BAND_NOTICE}</span>
+                </p>
+              </div>
+            ) : null}
 
             <p className="text-sm leading-relaxed text-pretty text-muted-foreground">
               O documento emitido é permanente e não pode ser apagado. Se já
@@ -215,14 +315,25 @@ export function MintDocumentButton({
  * The download goes through the serving route the registry itself hands us
  * (`downloadPath`), never a Storage URL: that route re-checks authority at
  * download time and audits the read (ADR 0104 D8/D11/D12).
+ *
+ * ⚠ `identified` is stated ONLY when true, and this asymmetry is the point. The
+ * de-identified variant gets NO reassuring counterpart line, because every
+ * available wording of one ("sem dados do paciente", "versão anônima") would be
+ * a false statement: the free-text clinical content in the document may name a
+ * patient regardless of the choice (ADR 0144 D6). The user who ticked the box
+ * needs confirmation it took effect; the user who did not must not be handed a
+ * guarantee the artifact cannot honour.
  */
 function MintSuccess({
   summary,
+  identified,
   downloadRef,
 }: {
   // Not named `document`: that would shadow the DOM global inside a client
   // component, which is exactly the kind of thing that reads fine and bites later.
   summary: PrintedDocumentSummary;
+  /** Whether this mint carried the patient identifiers (ADR 0144 D5). */
+  identified: boolean;
   downloadRef: React.RefObject<HTMLAnchorElement | null>;
 }) {
   return (
@@ -237,6 +348,15 @@ function MintSuccess({
             Código de verificação:{" "}
             <span className="font-mono">{summary.verificationShortCode}</span>
           </p>
+          {identified ? (
+            <p className="mt-1 flex items-start gap-1.5 text-sm leading-relaxed text-pretty text-foreground">
+              <ShieldAlert
+                aria-hidden="true"
+                className="mt-0.5 size-4 shrink-0 text-warning"
+              />
+              <span>Emitido com a identificação do paciente.</span>
+            </p>
+          ) : null}
         </div>
       </div>
 

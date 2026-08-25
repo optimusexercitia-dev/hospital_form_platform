@@ -46,6 +46,25 @@ interface PrintedDocumentsProps {
    * regardless, since a hidden button is not a control (Rule 1).
    */
   canRevoke: boolean;
+  /**
+   * Whether this kind's provider declares it can print patient identifiers
+   * (`PdfDataProvider.phiCapable`; ADR 0104 D9). DERIVED by the caller from
+   * `PDF_PROVIDERS` in its Server Component — ⛔ **never from `sourceKind`**,
+   * here or in either child.
+   *
+   * The kind is not the fact. What decides whether the choice may be offered is
+   * whether a provider was written that can honour it, and those two can differ:
+   * a kind can exist in the union with no provider (`case` did, for two whole
+   * phases), and a kind's provider can gain the capability later. Reading it
+   * from the registry means the control appears exactly when the backend can
+   * serve it, with no second place to update.
+   *
+   * ⚠ It gates the AFFORDANCE, not the authority. The mint door and the prévia
+   * route both re-check `app.can_read_case_patient` regardless (Rule 1) — this
+   * flag never decides who may see patient data, only whether asking is on the
+   * screen at all.
+   */
+  phiCapable: boolean;
   mintAction: MintDocumentAction;
   revokeAction: RevokeDocumentAction;
 }
@@ -84,16 +103,26 @@ export function PrintedDocumentsSection(props: PrintedDocumentsProps) {
             alternative was both buttons side by side, which would have made
             "is this a record?" a user decision — ADR 0104 D7's "no free text,
             no user-composed stamps" defeated by another route. */}
+        {/* ⚠ `phiCapable` reaches BOTH branches. ADR 0144 D9 gives the prévia
+            the same PHI fork the mint has, through the same door and with the
+            same audited read — a prévia is ephemeral, its PHI read is not. A
+            fork offered on one branch only would mean the identified variant
+            silently appeared or vanished as a case crossed its lock point. */}
         {props.registers ? (
           <MintDocumentButton
             sourceKind={props.sourceKind}
             sourceId={props.sourceId}
             watermark={props.watermark}
             scopeLabel={props.scopeLabel}
+            phiCapable={props.phiCapable}
             action={props.mintAction}
           />
         ) : (
-          <PreviaLink sourceKind={props.sourceKind} sourceId={props.sourceId} />
+          <PreviaLink
+            sourceKind={props.sourceKind}
+            sourceId={props.sourceId}
+            phiCapable={props.phiCapable}
+          />
         )}
       </header>
 

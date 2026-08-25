@@ -5399,3 +5399,47 @@ output.
 **Owner:** backend/tester.
 
 ---
+
+### 🟡 FUP-P3-MINT-AFFORDANCE-WIDER-THAN-ITS-DOOR — the P3 card renders to a class ADR 0144 D8 will refuse (owner: frontend/qa; filed 2026-08-25 by the builder, as a stated bound on F2)
+
+**The gap.** The *Documentos impressos* card mounts on the case Detalhes tab
+(`src/app/o/[org]/c/[commission]/manage/cases/[caseId]/(detail)/page.tsx`) gated on the
+`document_printing` flag and nothing else — deliberately, following the meetings precedent. The route's
+own entry predicate is `canOpenCaseManagement`, which **since ADR 0134 D3 is no longer the coordinator
+test**: it admits `staff_admin` ∨ `isAdministrativo` ∨ a per-case `canWriteContent` grantee.
+
+ADR 0144 D8's mint arm is a different, narrower expression: `can_read_case(id) AND <the case
+full-content predicate>`, applied to **mint and download alike**, plus `app.can_read_case_patient` for
+the identified variant. The full-content predicate has **seven masking axes**
+([substrate](../plans/case-printing-p3-substrate.md)), so the two sets are not the same set.
+
+**Consequence.** A viewer in the difference sees "Emitir documento" (or the prévia links), clicks, and
+gets a pt-BR refusal from the door. The refusal is correct and the bytes never move — this is not a
+leak. What it is, is an affordance that promises what its authority will not grant, which reads to the
+user as a broken product and to a reviewer as an over-grant that happens to be backstopped.
+
+**⛔ Why it was NOT "fixed" in the phase.** Reproducing the D8 predicate in the UI is the thing the
+module has consistently refused to do. The meetings mount site's JSDoc states the rule outright —
+*"that is the domain's gate doing its job — not something for this module to reproduce or compensate
+for"* — and the reason is durable: a UI copy of an authorization predicate is a second declaration of
+one rule, and it drifts silently, in whichever direction nobody is testing. Adding one here to smooth
+an error message would trade a visible rough edge for an invisible divergence.
+
+**⚠ Do not close it by observing that the door refuses correctly.** That is the premise of the finding,
+not an answer to it. The open question is narrower and is a product question: *should the card render
+at all for a viewer the full-content predicate excludes?* Answering it needs the D8 predicate exposed
+as something a Server Component can read (a capability on the case detail envelope, the way
+`viewerCapabilities.canManageLifecycle` already is) — which is a **backend** surface change, not a
+frontend one, and is why this is filed rather than built.
+
+**Two shapes when taken up:**
+- **(a)** extend the `get_case_detail` capability envelope with a `canPrintDossier` flag derived from
+  the same predicate the door uses, and gate the card on it — ONE declaration, read in both places.
+- **(b)** rule that the error message is the correct UX for a rare class and close it, having said so.
+
+⛔ Not shape (c): re-deriving the predicate's arms in TypeScript. That is the divergence the module's
+standing rule exists to prevent.
+
+**Owner:** frontend/qa (needs a backend surface change under (a)).
+
+---
