@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**143 ADRs** · next free number: **0146** · 38 carry an inbound supersedes/amends edge
+**144 ADRs** · next free number: **0147** · 38 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -167,3 +167,4 @@
 | 0143 | [A gate for double-encoded UTF-8 (mojibake) in tracked text](0143-mojibake-gate-double-encoded-utf8.md) | accepted | 2026-08-25 | – | – |
 | 0144 | [Printing Cases (ADR 0104 P3): the dossier, its lock point, and the PHI fork](0144-case-printing-dossier-lock-and-phi-fork.md) | accepted | 2026-08-25 | amends 0104 | – |
 | 0145 | [The print path's Markdown is stricter than the screen's: no `<img>` inside Gotenberg](0145-print-path-markdown-is-stricter-than-screen.md) | accepted | 2026-08-25 | amends 0014 | – |
+| 0146 | [The E2E gate harness must not report green while blind](0146-e2e-gate-harness-must-not-report-green-while-blind.md) | accepted | 2026-08-25 | – | – |
