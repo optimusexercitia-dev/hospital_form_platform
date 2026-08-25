@@ -1,29 +1,24 @@
 /**
  * Shared display helpers for the cases UI. A case is identified by its
  * per-commission minted number, shown zero-padded as "Caso 0042".
+ *
+ * ⭐ The two case-NUMBER formatters MOVED to `@/lib/cases/format` (F4) and are
+ * re-exported here so existing importers keep working. They are re-exported, NOT
+ * re-declared: the printed dossier renders the same identity and `src/lib` cannot
+ * import upward from `src/components`, which is why the dossier's header read
+ * "Caso 1" while every screen read "Caso 0001".
+ *
+ * ⛔ Do not "restore" either function here — a local copy is what the move
+ * removed. Everything BELOW is genuine UI display formatting (dates, initials,
+ * overdue arithmetic) that paper has no use for, and it stays.
  */
+
+export {
+  formatCaseNumber,
+  formatCaseNumberWithTerm,
+} from "@/lib/cases/format";
 
 import type { CasePhaseStatus } from "@/lib/queries/cases";
-
-/** "Caso 0042" — zero-padded to at least 4 digits, the per-commission counter. */
-export function formatCaseNumber(caseNumber: number): string {
-  return `Caso ${String(caseNumber).padStart(4, "0")}`;
-}
-
-/**
- * The case's display heading using its case-TYPE terminology (ETH·E3a; ADR 0064
- * D4) — e.g. "Denúncia 0042" for an ethics case, "Caso 0042" for a type-less case
- * (whose `terminology.case.singular` falls back to the platform default "Caso", so
- * this is byte-for-byte {@link formatCaseNumber} there). Used ONLY on the case
- * DETAIL surface; the board keeps the type-agnostic {@link formatCaseNumber}
- * (per-card labels unaffected — plan §2.5).
- */
-export function formatCaseNumberWithTerm(
-  caseTerm: string,
-  caseNumber: number,
-): string {
-  return `${caseTerm} ${String(caseNumber).padStart(4, "0")}`;
-}
 
 /** Format an ISO timestamp as a pt-BR short date (date only — no time noise). */
 export function formatDate(iso: string): string {
