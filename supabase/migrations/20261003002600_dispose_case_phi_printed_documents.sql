@@ -201,12 +201,30 @@ begin
   -- leaks PHI or breaks the de-identified variant, because ADR 0144 D6 makes
   -- `contains_phi` true for BOTH variants.
   --
-  -- ⚠ The provider guarantees the sets line up: `buildCasePayload` derives
-  -- `containsPhi = <masked-class free-text presence> || includePhi`, so an
-  -- IDENTIFIED mint is phi-tier by construction even on a case with no free text
-  -- at all. Without that `||`, a thin case's identified dossier would land
-  -- standard-tier, (f) would skip it, and name + MRN would survive an Art. 18
-  -- erasure in Storage. Pinned by a keystone, not by this comment.
+  -- ⚠ THE PROVIDER GUARANTEES THE SETS LINE UP, AND IT DOES SO WITHOUT DERIVING
+  -- ANYTHING. `buildCasePayload` sets `containsPhi := NOT caseDisposed` for the
+  -- case kind (ADR 0144 D6 as amended): a live case dossier CARRIES masked-class
+  -- content, constitutively, so EVERY live case mint is phi-tier and (f) reaches
+  -- every one of them. A disposed case answers false — post-redaction a band
+  -- would be a false statement about the bytes — and it never registers (D3), so
+  -- the false only ever labels an ephemeral prévia.
+  --
+  -- ⛔ **THIS PARAGRAPH IS WHERE C-1 WAS REASONED PAST, SO READ THE CORRECTION
+  -- BEFORE TRUSTING ANY DERIVATION ARGUMENT HERE.** It used to describe a
+  -- presence derivation and it was wrong twice over: the second term was
+  -- `renderedPatientField`, not `includePhi`, and — the part that mattered — the
+  -- worry it raised was scoped to the IDENTIFIED thin case, so the DE-IDENTIFIED
+  -- thin case walked straight through it. That case (no `patient_identifiers`
+  -- row, no free text, and a patient's name typed into `cases.label` — which
+  -- block (e) below REDACTS, this door's own statement that the field is
+  -- masked-class) derived false, landed standard-tier, and (f) skipped the object
+  -- while (f2) skipped the row. A dossier headed with the patient's name survived
+  -- an Art. 18 erasure. A correct conclusion reached through a hand-list is one
+  -- edit from being wrong; the constitutive rule has no list to fall behind.
+  --
+  -- Pinned by a keystone, not by this comment, and the keystone is
+  -- `src/lib/cases/pdf-payload.test.ts` — the thin de-identified case asserted
+  -- phi-banded, mutation-proven RED against the deleted derivation.
   --
   -- `status <> 'revoked'` so an existing HUMAN revocation is not overwritten —
   -- its reason class and free text are a governance record of their own.

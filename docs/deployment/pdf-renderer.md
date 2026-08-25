@@ -19,8 +19,10 @@ which is why privacy of the network path is the load-bearing property.
 > network, on **every prévia and every mint**. The claim is restated with its mechanism
 > so it can be checked rather than believed: the print sanitize policy
 > (`PDF_MARKDOWN_SANITIZE_SCHEMA` in `src/lib/markdown/sanitize-schema.ts`) **drops
-> `<img>` from the allowlist**, and no other Markdown-reachable element carries a
-> fetching attribute. ⛔ That schema is the **only** mitigation today — the dev recipe
+> `<img>` from the allowlist**, and no attribute it still permits triggers a
+> **render-time** fetch — `src/lib/markdown/sanitize-print-narrowing.test.tsx`
+> enumerates them against that predicate, so this note reds when it goes stale.
+> ⛔ That schema is the **only** mitigation today — the dev recipe
 > below is a bare `docker run` with no egress restriction and the Coolify section
 > constrains inbound only. Denying this container outbound egress is the missing
 > defence in depth, not a substitute for the schema.

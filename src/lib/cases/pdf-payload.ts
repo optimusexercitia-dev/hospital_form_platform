@@ -255,14 +255,32 @@ export async function buildCasePayload(
   // `getCasePrintContext`. Either way the mint must not proceed.
   if (!detail || !context) throw new Error(NOT_FOUND)
 
+  // ⛔ `resolvePatients` STAYS SERIALIZED HERE, AHEAD OF THE FOUR PARALLEL LEGS
+  // BELOW, and that is a decision rather than an oversight (QA R-7). It calls the
+  // AUDITED PHI door and it THROWS on the two refusal answers, so today a refused
+  // identified mint performs none of the reads below. Folding it into the same
+  // `Promise.all` would keep its own audit row — but would also start four more
+  // legs whose reads (and any Rule 11 rows they emit) never happen on that path
+  // today. Widening what a refusal touches is not a latency optimisation.
   const { patients, variant } = await resolvePatients(caseId, includePhi)
+
+  // ══ THE FOUR INDEPENDENT LEGS (QA R-7) ═══════════════════════════════════
+  // None of the four consumes another's result — each reads only from the step-1
+  // `Promise.all` above — so they are STARTED here and awaited together at the
+  // bottom. ⛔ Every leg must be created with NO `await` between the first
+  // creation and the joining `Promise.all`: the join is what attaches a rejection
+  // handler to all four, and an `await` in the gap lets one leg reject with no
+  // handler attached, which Node's default `--unhandled-rejections=throw` turns
+  // from a caught pt-BR error into a process-level crash.
+  // (Measured worst case was 1.27 s against a 30 s budget, so this buys headroom,
+  // not a fix — the ordering rules above are the load-bearing part.)
 
   // ── Phases, with their answers INLINE (D2) ────────────────────────────────
   // ⭐ Rendered by `buildResponseSections`, the SAME function the standalone
   // form print uses. Two renderers for one answer would put two versions of one
   // record on paper. A phase whose response the caller cannot read yields null
   // and contributes an answer-less phase rather than failing the whole dossier.
-  const phases: CasePhaseEntry[] = await Promise.all(
+  const phasesLeg: Promise<CasePhaseEntry[]> = Promise.all(
     detail.phases.map(async (phase) => {
       const rendered = phase.responseId
         ? await buildResponseSections(phase.responseId)
@@ -279,7 +297,7 @@ export async function buildCasePayload(
   )
 
   // ── Interviews (D2: inline; P4 then adds only the standalone KIND) ────────
-  const interviewEntries: CaseInterviewEntry[] = await Promise.all(
+  const interviewsLeg: Promise<CaseInterviewEntry[]> = Promise.all(
     interviews.map(async (i) => {
       const [full, subjects, interviewers] = await Promise.all([
         getInterviewDetail(i.id),
@@ -305,43 +323,59 @@ export async function buildCasePayload(
   // referral's target. For an outbound referral from this case the two coincide
   // — which is exactly the kind of coincidence that holds until it does not, so
   // it is passed explicitly from the case rather than defaulted or inferred.
-  const referralList = await listCaseOutboundReferrals(caseId)
-  const referrals: CaseReferralEntry[] = (
-    await Promise.all(
-      referralList.map(async (r): Promise<CaseReferralEntry | null> => {
-        const full = await getReferralDetail(r.id, detail.case.commissionId)
-        // A referral the caller cannot open contributes NOTHING rather than
-        // failing the dossier — and the A7 arm has already refused a caller who
-        // cannot read any of them (`can_read_full_case_content` axis G).
-        if (!full) return null
-        return {
-          directionDisplay: 'Encaminhamento enviado',
-          counterpartDisplay: r.targetCommissionName ?? ENUM_FALLBACK,
-          statusDisplay: r.status,
-          sentAtDisplay: r.sentAt ? formatDateTime(r.sentAt) : null,
-          question: r.subject ?? null,
-          snapshot: full.sharedItems
-            .filter((s) => s.frozenTitle !== null || s.frozenBodyMd !== null)
-            .map((s) => ({
-              label: s.frozenTitle ?? 'Item compartilhado',
-              value: s.frozenBodyMd ?? ENUM_FALLBACK,
-            })),
-          replyStatusDisplay: full.reply?.outcomeLabel ?? null,
-          replyBody: full.reply?.resultMd ?? null,
-          repliedAtDisplay: full.reply?.repliedAt
-            ? formatDateTime(full.reply.repliedAt)
-            : null,
-        }
-      }),
-    )
-  ).filter((r): r is CaseReferralEntry => r !== null)
+  // ⚠ Wrapped in an async IIFE for one reason only: this leg is TWO awaits deep
+  // (list, then detail-per-row), and the join below needs it as a SINGLE promise
+  // created synchronously alongside the others. Hoisting just the list call and
+  // awaiting it here instead would put an `await` inside the no-await gap the
+  // block comment above forbids.
+  const referralsLeg: Promise<CaseReferralEntry[]> = (async () => {
+    const referralList = await listCaseOutboundReferrals(caseId)
+    return (
+      await Promise.all(
+        referralList.map(async (r): Promise<CaseReferralEntry | null> => {
+          const full = await getReferralDetail(r.id, detail.case.commissionId)
+          // A referral the caller cannot open contributes NOTHING rather than
+          // failing the dossier — and the A7 arm has already refused a caller
+          // who cannot read any of them (`can_read_full_case_content` axis G).
+          if (!full) return null
+          return {
+            directionDisplay: 'Encaminhamento enviado',
+            counterpartDisplay: r.targetCommissionName ?? ENUM_FALLBACK,
+            statusDisplay: r.status,
+            sentAtDisplay: r.sentAt ? formatDateTime(r.sentAt) : null,
+            question: r.subject ?? null,
+            snapshot: full.sharedItems
+              .filter((s) => s.frozenTitle !== null || s.frozenBodyMd !== null)
+              .map((s) => ({
+                label: s.frozenTitle ?? 'Item compartilhado',
+                value: s.frozenBodyMd ?? ENUM_FALLBACK,
+              })),
+            replyStatusDisplay: full.reply?.outcomeLabel ?? null,
+            replyBody: full.reply?.resultMd ?? null,
+            repliedAtDisplay: full.reply?.repliedAt
+              ? formatDateTime(full.reply.repliedAt)
+              : null,
+          }
+        }),
+      )
+    ).filter((r): r is CaseReferralEntry => r !== null)
+  })()
 
   // ── The uploaded-document MANIFEST (D2) — with content hashes ─────────────
   // ⚠ `listDocumentsForResource`, NOT `listCaseDocuments`: the latter delegates
   // to the PARKED `listAttachments`, whose body is `return []`, so the manifest
   // would render EMPTY on every case forever and nothing would go red (an empty
   // array is a legal answer at every layer). See FUP-CASE-DOCS-DEAD-READER.
-  const hashes = await listCaseDocumentHashes(documents.map((d) => d.id))
+  const hashesLeg = listCaseDocumentHashes(documents.map((d) => d.id))
+
+  // ══ THE JOIN — the last statement of the no-await gap opened above ════════
+  const [phases, interviewEntries, referrals, hashes] = await Promise.all([
+    phasesLeg,
+    interviewsLeg,
+    referralsLeg,
+    hashesLeg,
+  ])
+
   const manifest: CaseDocumentManifestEntry[] = documents.map((d) => ({
     title: d.title,
     uploaderDisplay: d.createdByName,
@@ -403,43 +437,74 @@ export async function buildCasePayload(
     justification: c.reason,
   }))
 
-  // ── ADR 0144 D6 — `containsPhi`, ONE honest rule ──────────────────────────
-  // Presence-derived and NON-SUPPRESSIBLE (the A8 mirror), and it is NOT the D9
-  // per-mint choice: it is TRUE for both variants whenever the dossier carries
-  // masked-class content.
+  // ══ ADR 0144 D6, AS AMENDED — `containsPhi` IS CONSTITUTIVE ══════════════
   //
-  // ⭐ THE SECOND DISJUNCT IS LOAD-BEARING FOR ART. 18, NOT FOR THE BAND. Keyed
-  // on free text alone, a thin case (no narratives, no bodied events, no
-  // answers) minted WITH demographics or identifiers would derive false, land in
-  // `documents-standard` at `sensitivity_tier = 'standard'`, and
-  // `dispose_case_phi` block (f) — which filters `sensitivity_tier = 'phi'` —
-  // would SKIP it. Patient data would survive an Art. 18 erasure in Storage.
-  // Any field sourced from `patient_identifiers` counts, demographics included:
-  // D6's point was that free text ALONE suffices, never that identifiers do not.
+  //     A case dossier CARRIES masked-class content unless the case has been
+  //     disposed. It is not derived from what happens to be present.
   //
-  // ⚠ `includePhi` is deliberately NOT a term. With the `[]`-throws rule an
-  // identified mint always renders identifiers, so it is subsumed by the
-  // patient-field disjunct — and a term for the REQUEST rather than the RENDER
-  // is the class of mistake `variant` exists to avoid.
-  const renderedPatientField = patients.some(
-    (p) =>
-      p.ageDisplay !== null ||
-      p.sexDisplay !== null ||
-      p.unitDisplay !== null ||
-      p.name !== null ||
-      p.mrn !== null ||
-      p.dateOfBirthDisplay !== null ||
-      p.attending !== null ||
-      p.encounterRef !== null,
-  )
-  const hasMaskedFreeText =
-    narratives.some((n) => n.bodyMd !== null) ||
-    interviewEntries.some((i) => i.summaryMd !== null) ||
-    timeline.some((e) => e.body !== null) ||
-    meetingEntries.some((m) => m.summary !== null || m.decision !== null) ||
-    referrals.some((r) => r.replyBody !== null || r.snapshot.length > 0) ||
-    phases.some((p) => p.items.length > 0)
-  const containsPhi = hasMaskedFreeText || renderedPatientField
+  // ⛔ **DO NOT RESTORE A PRESENCE DERIVATION HERE. IT WAS A LIVE LGPD ART. 18
+  // EXPOSURE (C-1), NOT AN INEFFICIENCY.** What stood here was
+  // `hasMaskedFreeText || renderedPatientField` — a hand-list of six free-text
+  // terms plus the eight patient fields. It had to agree with TWO other lists,
+  // by discipline alone: the fields the template RENDERS, and the fields
+  // `dispose_case_phi` REDACTS. It did not.
+  //
+  // The three fields it missed are each printed by `src/lib/pdf/documents/case.ts`
+  // and each redacted by the disposal door — which is the platform's own
+  // statement that they are masked-class:
+  //
+  //     `cases.label`         → the `<h1>`   (`case.ts`) ← redacted, block (e)
+  //     `case_events.title`   → the timeline table       ← redacted, block (c)
+  //     `documents.title`     → the manifest table       ← redacted, block (f)
+  //
+  // ⭐ THE `cases.label` LEG IS WHAT MAKES THE DERIVATION A CONSTANT. It renders
+  // in the `<h1>` on every dossier, so *every non-disposed case dossier already
+  // contains masked-class free text*. The old code therefore computed a constant
+  // — expensively, over nine collections — and got it WRONG on the one case that
+  // matters: a `completed`/`cancelled` case with a patient's name typed into its
+  // label, NO `patient_identifiers` row, no narratives, no bodied events, no
+  // answers. Every disjunct false ⇒ `standard` tier ⇒ `dispose_case_phi` block
+  // (f) filters `'phi'` and SKIPS THE OBJECT, block (f2) revokes only
+  // `where … and contains_phi` and SKIPS THE ROW. A PDF headed with the
+  // patient's name survived the erasure, still `active`, never band-marked.
+  //
+  // ⚠ THE STRUCTURAL LESSON, WHICH IS WHY THE FIX IS A DELETION: widening the
+  // hand-list fixes the instance and preserves the mechanism. Three lists kept
+  // in agreement by care is the shape this repo has watched drift before, and
+  // adding a section to the template would silently re-open it. A constitutive
+  // rule cannot fall behind a list it does not consult.
+  //
+  // ⚠ AND THE MEASUREMENT LESSON: an E2E assertion PINNED the defect as expected
+  // behaviour (`e2e/pdf-printing-cases.spec.ts`, the bare-case corridor —
+  // "the one shape where `contains_phi` derives FALSE", recorded as a
+  // measurement). P3's 11/11 green therefore included a test that would have
+  // gone RED on correct behaviour, and three reviewers read "nothing pins false"
+  // as true because the sweep that established it covered pgTAP only. A pin can
+  // live in the layer nobody swept.
+  //
+  // ⛔ `!caseDisposed`, NOT `!body.phiDisposed` AND NOT A LOCAL DEFAULT.
+  // `context.caseDisposed` is non-nullable and comes from the DEFINER door via
+  // `getCasePrintContext`, which returns `null` — a refusal — rather than
+  // coalescing a missing `case_disposed` to `false`. That never-coalesced
+  // discipline is the whole reason this term is safe to invert: a `?? false`
+  // anywhere on this path would band a disposed dossier's absent answer as
+  // "contains PHI", or worse, un-band a live one. Do not add one.
+  //
+  // ⚠ THE DISPOSED CASE KEEPS `false`, AND THAT IS A STATEMENT, NOT AN EXEMPTION.
+  // `dispose_case_phi` deletes the identifiers and the answers and redacts the
+  // rest, so a band on the resulting prévia would be a FALSE claim about the
+  // paper in the reader's hand. A disposed case also never registers (D3), so
+  // this value only ever labels an ephemeral prévia.
+  //
+  // ⚠ `includePhi` is still deliberately NOT a term, for the unchanged reason: a
+  // term for the REQUEST rather than the RENDER is the class of mistake `variant`
+  // exists to avoid. It is now subsumed twice over.
+  //
+  // ⇒ D6's accepted consequence ("nearly every case mint lands
+  // `contains_phi = true`") becomes "every live one does". The `phi/` prefix is
+  // the only prefix a case dossier reaches, and downstream is kind-agnostic
+  // (bucket choice, band, badge, mint param) — nothing needs a case arm.
+  const containsPhi = !context.caseDisposed
 
   return {
     letterhead: {

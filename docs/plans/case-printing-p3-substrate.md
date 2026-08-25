@@ -363,7 +363,11 @@ creates one (`execute`/`format` lines containing `create … function` = 0); `cr
 without `or replace` = **0**, so both DROP+CREATEs sit inside the 27 below. ⇒ **the sweep's policy
 half is empty and the whole sweep is `prosecdef` gates.**
 
-**27 gates created or replaced; 17 brand new:**
+**27 gates created or replaced; ~~17~~ 15 brand new** (⛔ corrected 2026-08-25 against the
+catalog — [pdf-p3-reconciliation.md](../progress/pdf-p3-reconciliation.md): 15 new + 12
+same-signature body replacements, `prosecdef=t` census 810 → 825 = +15. `resolve_print_source_state`
+and `print_source_state` exist on `origin/main`, so they are rebuilds. Derived from migration text,
+a `create or replace` of an existing function reads exactly like a creation)**:**
 
 - `app.` — `case_is_terminal` · `bump_case_print_revision` · `can_read_full_case_content` ·
   `can_view_printed_document` · `resolve_print_source_state` ·

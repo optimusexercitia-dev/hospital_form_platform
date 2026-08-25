@@ -1,8 +1,28 @@
 /**
  * Gotenberg sidecar client (ADR 0104 D14): the ONLY consumer of
  * `PDF_RENDERER_URL`. The sidecar is a pinned, private-network Chromium
- * container; the HTML we send is fully self-contained (fonts, QR, CSS all
- * inline), so the renderer stays generic and fetches nothing.
+ * container, and everything the app AUTHORS is inline (fonts, QR, CSS).
+ *
+ * ⚠ **"…so the renderer fetches nothing" used to be asserted here, full stop.
+ * That was true for P1/P2 and P3 falsified it** — the dossier puts author-written
+ * Markdown (case narratives, interview summaries, referral replies) into the HTML,
+ * and `![](https://attacker/x)` is first-class Markdown. A bare assertion could not
+ * notice that; it went stale silently for the whole of P3.
+ *
+ * So the claim is stated with its MECHANISM instead, and the mechanism is CHECKED, not
+ * asserted: the print sanitize policy — `PDF_MARKDOWN_SANITIZE_SCHEMA` in
+ * `src/lib/markdown/sanitize-schema.ts` — **removes `<img>` from the allowlist**, and
+ * no attribute it still permits triggers a **render-time** fetch. (`<a href>` remains,
+ * and should: navigation is user-initiated, not a render fetch. `source`'s `srcSet` is
+ * allowed but unreachable — no Markdown syntax emits the tag and raw HTML is off.)
+ * `src/lib/markdown/sanitize-print-narrowing.test.tsx` enumerates the surviving
+ * attributes against that predicate, so this paragraph reds when it stops being true.
+ *
+ * ⚠ Nothing HERE inspects the HTML, and there is **no network-layer backstop**: this
+ * container is free to make outbound requests, so the schema is currently the ONLY
+ * thing keeping an author-chosen URL from being GET-ed by the server on every prévia
+ * and every mint. Denying the container egress is the missing defence in depth
+ * (`docs/deployment/pdf-renderer.md`). ⛔ Widen the schema and this comment is false.
  */
 
 /** The D5 render budget — the whole mint is synchronous and bounded. */

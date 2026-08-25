@@ -107,8 +107,16 @@ has not been made). Newest first:
 - `002600` — the `dispose_case_phi` registry half.
 - `002700` / `002800` — ACL repairs across 15 `app.*` functions.
 
-**27 `prosecdef` gates created or replaced, 17 brand new. Zero RLS policies touched** (re-confirmed
-against `pg_policies`, not against the diff that produced the claim).
+**27 `prosecdef` gates created or replaced, ~~17~~ **15** brand new. Zero RLS policies touched**
+(re-confirmed against `pg_policies`, not against the diff that produced the claim).
+⛔ **Corrected 2026-08-25 by the catalog reconciliation** ([pdf-p3-reconciliation.md](./pdf-p3-reconciliation.md)):
+**15 new + 12 same-signature body replacements = 27**, and the global `prosecdef=t` census moved
+810 → 825 = **+15**, so the parts sum. `app.resolve_print_source_state` and
+`public.print_source_state` are **present on `origin/main`** — rebuilds, not creations. The 27 is
+unchanged and the scope was never wrong; only the split was. ⭐ The reason it read as 17 is that
+the split was derived from **migration text**, where a `create or replace` of a pre-existing
+function is indistinguishable from a creation. Zero policies is now catalog-confirmed rather than
+diff-derived, and proven non-vacuous by a positive control.
 
 **TypeScript:** `src/lib/pdf/documents/case.ts` · `primitives/table-of-contents.ts` ·
 `src/lib/pdf/markdown.ts` · `render.ts` (`templateFor` + `documentFooterHtml`) ·

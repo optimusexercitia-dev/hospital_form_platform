@@ -493,3 +493,83 @@ the print's own `documents` row homed on the case, inside the mint transaction a
 compare-and-mint has passed — so without the exclusion **every case mint would land NOT-CURRENT the
 instant it succeeded**, and verification would report "não é mais a atual" on paper whose ink is still
 wet.
+
+## Amendment 5 — D6 is constitutive, not derived: `contains_phi := !caseDisposed` (2026-08-25)
+
+**PO ruling, 2026-08-25.** D6 derived `contains_phi` for a case dossier from the **presence** of
+masked-class free text. That rule shipped **finding C-1, a live LGPD Art. 18 exposure**, and the
+correct fix is to delete the derivation rather than widen its terms.
+
+**The chain, as measured.** `src/lib/pdf/documents/case.ts` renders `body.title` (= `cases.label`)
+**unconditionally in the `<h1>`**, and — catalog-verified 2026-08-25, `pg_get_functiondef` with
+comments stripped — `dispose_case_phi` redacts `cases.label`, `case_events.title` (and `body`) and
+`documents.title` (with `description = null`), while the `printed_documents` revocation is gated
+`... and contains_phi and status <> 'revoked'`. **The door's own redaction list treats those three
+fields as PHI-class; the classifier counted none of them.** So a `cancelled` case with a patient's
+name in its label, no `patient_identifiers` row, no narratives and no answers derived `false` → tier
+`standard` → block (f) filtered `'phi'` and skipped the storage object, block (f2) skipped the row.
+A dossier headed *"Dossiê — Caso 0042 — Queda da paciente Maria Silva, leito 302"* survived the
+erasure, still `active`, having never carried the PHI band.
+
+⇒ **For the `case` kind, `contains_phi = !caseDisposed`.** The `hasMaskedFreeText` disjunction and
+the `renderedPatientField` const are **deleted**; the identified/de-identified variant comes from
+`resolvePatients`' return value, which was always its real source. `CasePrintContext.caseDisposed`
+is non-nullable and `getCasePrintContext` returns `null` rather than defaulting when the door omits
+the field, so the invert inherits the never-coalesced discipline with no new guard.
+
+⭐ **The old rule was wrong in BOTH directions — the second one was found only by building the
+keystone.** `CaseEvent.body` is typed non-nullable `string`, so `timeline.some(e => e.body !== null)`
+was true for **any** case carrying **any** event; and disposal **redacts to a marker rather than
+nulling**. A disposed case that retained one event therefore derived `contains_phi = true`, banding a
+dossier whose every rendered field reads `[PHI removido]`. ⇒ **`CASE_DISPOSED`'s committed fingerprint
+fixture was pinning a payload the old provider could not produce**; the constitutive rule is what
+makes that fixture reachable.
+
+**What this changes downstream.** D6's stated consequence — *"nearly every case mint lands
+`contains_phi = true`"* — becomes **every**, which is the delta the PO already accepted in spirit.
+Bucket choice, band, badge and the mint parameter are all kind-agnostic, so nothing else moves. ⛔
+**No registered case document can be standard-tier any more, without exception** (a disposed case
+never registers — D3 — so it yields only an ephemeral prévia with no Storage object), which means
+blocks (f) and (f2) now reach every one of them. The band's meaning shifts from *"this document
+contains free clinical text"* to *"this is a live case dossier"* — a **risk** statement, not a
+content statement, and the user-facing pt-BR notice was corrected to match.
+
+⛔ **NOT generalised to other kinds.** `meeting` atas keep A8's presence derivation (the meeting kind
+has **no** disposal path reaching already-minted bytes — D10's named, unfixed 🔴 sibling — so
+phi-tiering every ata would relocate bytes without closing anything). `form_response` prints are
+unaffected: the mint door **refuses** `contains_phi = true` for that kind outright, because the forms
+module holds no PHI by classification.
+
+### ⭐⭐ Why this was invisible for the whole phase — the part worth carrying forward
+
+The meta-review that recommended this fix supported it with *"nothing pins `contains_phi = false` for
+a case document."* **The pgTAP half was true** (`368` contains zero `documents-standard` / `'standard'`
+/ `std_bucket` occurrences). **The E2E half was false:** `e2e/pdf-printing-cases.spec.ts` pinned
+`contains_phi === false` on the de-identified mint over a `completed`, patient-less,
+free-text-less case — **C-1's exact shape** — with a comment calling it *"the one shape where
+`contains_phi` derives FALSE"* and *"recorded as a measurement"*. **The spec had canonized the hole as
+expected behaviour, so P3's 11/11 green contained a test that would have gone RED on correct
+behaviour.** Two lessons, both general: **a test written in good faith records what the code does, and
+its comment's confidence is what makes it durable**; and **a "nothing asserts X" claim is only as wide
+as the layer it swept** — that one swept pgTAP and generalised to the class.
+
+### Where the rule is pinned now
+
+- **Provider keystone** (`src/lib/cases/pdf-payload.test.ts`), two assertions pinning the *rule*
+  rather than one outcome, each mutation-proven: restoring the disjunction reddens *"a name in
+  `cases.label` and nothing else still bands PHI"*; dropping the `!caseDisposed` term reddens *"the
+  disposed case keeps FALSE"*. A fat live case stays green under both rules — a control, not a third
+  differential.
+- **E2E** — the flipped pin, plus the derived storage coordinate (⚠ labelled honestly in-spec as
+  **constraint-implied** by the flag via `app.guard_printed_document_binding` and the
+  `file_objects_bucket_from_tier` CHECK, *not* an independent pin).
+- ⚠ **Known bound, with a mechanism:** the disposed counterpart is **not** assertable in E2E — the
+  spec's `purgeLeftoverState` finds its fixtures by `label LIKE 'Caso PDFCASE-SPEC%'`, which disposal
+  redacts, so disposing a spec-owned case strands its children in the shared local DB. That half
+  lives in the provider keystone and `CASE_DISPOSED`. This is a *different*, sharper bound than the
+  phase's accepted "disposal is irreversible against the seed" one.
+- **M-1's paragraph** in `20261003002600_…sql` now states the rule instead of re-asserting a
+  derivation, and names itself as the place C-1 was reasoned past — the old argument's worry was
+  scoped to the **identified** thin case, so the **de-identified** thin case walked straight past it.
+  ⛔ Its closing claim *"Pinned by a keystone, not by this comment"* was itself unbacked when written;
+  the keystone above is the first thing that makes it true.

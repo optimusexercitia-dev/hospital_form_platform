@@ -5,7 +5,7 @@ import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
 
-import { MARKDOWN_SANITIZE_SCHEMA } from '@/lib/markdown/sanitize-schema'
+import { PDF_MARKDOWN_SANITIZE_SCHEMA } from '@/lib/markdown/sanitize-schema'
 
 /**
  * Author-written Markdown → **sanitized** HTML string, for the print templates
@@ -31,10 +31,34 @@ import { MARKDOWN_SANITIZE_SCHEMA } from '@/lib/markdown/sanitize-schema'
  * that parses Markdown and then sanitizes the resulting tree.
  *
  * ⚠ **The plugin set and the schema are the SCREEN'S, not a second policy.**
- * `remark-gfm` + `rehype-sanitize` with {@link MARKDOWN_SANITIZE_SCHEMA} is
- * exactly what `markdown-renderer.tsx` uses. Two policies for one corpus would
- * drift, and the drift is asymmetric: paper stricter than screen loses a
- * heading, paper looser than screen renders what the platform judged unsafe.
+ * `remark-gfm` + `rehype-sanitize` is exactly what `markdown-renderer.tsx` uses,
+ * and the schema is DERIVED from the screen's, not written here. Two independent
+ * policies for one corpus would drift, and the drift is asymmetric: paper
+ * stricter than screen loses a heading, paper looser than screen renders what
+ * the platform judged unsafe.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⛔ ONE NARROWING: `<img>` IS DROPPED ON PAPER, AND THAT DIRECTION IS CORRECT
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⚠ **The guidance above is what hid a real defect for the whole of P3, so read
+ * this before "restoring symmetry".** "Don't define your own schema, paper must
+ * never be stricter" is right about *policy ownership* and wrong as an absolute
+ * about `<img src>`, because the two surfaces do not run the fetch in the same
+ * place: on screen an `<img>` is fetched by the READER'S browser (ordinary web
+ * behaviour); here it is fetched by **Gotenberg, a headless Chromium on the
+ * SERVER network**, on every prévia and every mint. So `![](https://attacker/x)`
+ * in a case narrative is SSRF reach + a per-render exfil beacon on a Rule 12
+ * document + a `content_hash` that is no longer a function of our own data.
+ *
+ * Hence {@link PDF_MARKDOWN_SANITIZE_SCHEMA}: the shared policy MINUS `img`,
+ * derived in the shared module so there is still exactly one authority and one
+ * documented narrowing. The narrowing is one-directional and deliberate; the
+ * "paper is never looser" half of the rule is untouched. Its rationale, and the
+ * dormant `srcSet` / `<picture>` sibling that `rehype-raw` would wake up, are
+ * documented at the declaration. The differential proof — same payload, `<img>`
+ * gone HERE and still present on screen — is
+ * `src/lib/markdown/sanitize-print-narrowing.test.tsx` (it is not colocated
+ * because the control renders the React screen component).
  *
  * ⛔ Never `string`-interpolate author content into a template. Call this.
  */
@@ -51,7 +75,7 @@ const PROCESSOR = unified()
   // is dropped at this boundary before the sanitizer even sees it. That is two
   // independent defences, and this one is the cheaper of the two to reason about.
   .use(remarkRehype)
-  .use(rehypeSanitize, MARKDOWN_SANITIZE_SCHEMA)
+  .use(rehypeSanitize, PDF_MARKDOWN_SANITIZE_SCHEMA)
   .use(rehypeStringify)
   .freeze()
 

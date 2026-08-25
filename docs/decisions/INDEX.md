@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**142 ADRs** · next free number: **0145** · 37 carry an inbound supersedes/amends edge
+**143 ADRs** · next free number: **0146** · 38 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -37,7 +37,7 @@
 | 0011 | [Position reorder via deferrable constraints + SQL swap RPCs](0011-position-reorder-deferrable-swap.md) | accepted | 2026-06-12 | – | – |
 | 0012 | [clone_form_version returns the existing draft (one draft per form)](0012-clone-returns-existing-draft.md) | accepted | 2026-06-12 | – | – |
 | 0013 | [Fix form_versions INSERT RLS self-reference](0013-form-versions-insert-rls-fix.md) | accepted | 2026-06-12 | – | – |
-| 0014 | [Sanitizing Markdown renderer](0014-markdown-renderer.md) | accepted | 2026-06-12 | – | – |
+| 0014 | [Sanitizing Markdown renderer](0014-markdown-renderer.md) | accepted | 2026-06-12 | – | ⚠ amended by 0145 |
 | 0015 | [Response-fill RPCs (atomic section save + get-or-resume)](0015-response-fill-rpcs.md) | accepted | 2026-06-12 | – | ⛔ superseded by 0017 |
 | 0016 | [SECURITY DEFINER read path for staff_admin sign-off](0016-signoff-definer-read-path.md) | accepted | 2026-06-13 | – | ⛔ superseded by 0017 · ⚠ amended by 0136 |
 | 0017 | [Multi-Phase Cases](0017-multi-phase-cases.md) | accepted | 2026-06-13 | supersedes 0005, 0015, 0016 | ⛔ superseded by 0043 · ⚠ amended by 0136 |
@@ -166,3 +166,4 @@
 | 0142 | [One PHI dialog layout; the Atividade composer removed; the Process rail reordered](0142-phi-dialog-layout-atividade-composer-removal-process-rail.md) | accepted | 2026-08-24 | amends 0137 | – |
 | 0143 | [A gate for double-encoded UTF-8 (mojibake) in tracked text](0143-mojibake-gate-double-encoded-utf8.md) | accepted | 2026-08-25 | – | – |
 | 0144 | [Printing Cases (ADR 0104 P3): the dossier, its lock point, and the PHI fork](0144-case-printing-dossier-lock-and-phi-fork.md) | accepted | 2026-08-25 | amends 0104 | – |
+| 0145 | [The print path's Markdown is stricter than the screen's: no `<img>` inside Gotenberg](0145-print-path-markdown-is-stricter-than-screen.md) | accepted | 2026-08-25 | amends 0014 | – |
