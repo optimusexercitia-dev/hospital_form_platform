@@ -2070,13 +2070,38 @@ export async function getParticipantPatient(
 
 /**
  * ALL patient identifiers of a case (N-per-case, ADR 0064 E0 / F1) — the audited
- * list door via `get_case_patients`. Emits one `case_patient.read` per returned row;
- * returns `[]` when entitled but no PHI on file, and `null` when out of scope.
+ * list door via `get_case_patients`. Emits one `case_patient.read` per returned row.
+ *
+ * ⭐ **THREE DISTINGUISHABLE ANSWERS, AND THE DISTINCTION IS THE CONTRACT** (ADR
+ * 0144 Amendment 2 pt 5; the substrate brief's three-answer table):
+ *
+ *   `null` — OUT OF SCOPE. The caller does not hold `app.can_read_case_patient`.
+ *            No audit row is emitted, because no read happened.
+ *   `[]`   — ENTITLED, but the case has no patient on file.
+ *   rows   — ENTITLED, with PHI.
+ *
+ * ⛔ **THIS FUNCTION USED TO COLLAPSE `null` INTO `[]`** (`if (!data) return []`),
+ * which made the two states indistinguishable to every caller and produced
+ * BUG-P3-PHI-REFUSAL-MESSAGE: the dossier told an UNENTITLED caller that the case
+ * *"não possui dados de paciente registrados"* — a false statement about a
+ * record's contents, made to precisely the person not entitled to know them, and
+ * a false diagnostic for whoever was then asked to fix the access problem. The DB
+ * door was correct throughout; the collapse was here.
+ *
+ * ⚠ An RPC error also yields `null` here, i.e. it fails CLOSED toward "no
+ * access" rather than toward "no patient". That is the safe direction: the
+ * identified print path throws on `null`, and refusing a caller who might be
+ * entitled is recoverable, while telling them a case is empty is not.
  */
-export async function getCasePatients(caseId: string): Promise<CasePatient[]> {
+export async function getCasePatients(
+  caseId: string,
+): Promise<CasePatient[] | null> {
   const supabase = await createClient()
   const { data } = await supabase.rpc('get_case_patients', { p_case_id: caseId })
-  if (!data) return []
+  // ⚠ `data === null` ONLY — never `!data`. An entitled-but-empty case returns a
+  // real `[]`, which is truthy, so `!data` was never the bug on that arm; the bug
+  // was that the `null` arm returned `[]` too.
+  if (data === null || data === undefined) return null
   return (data as unknown as CasePatientJson[]).map(mapCasePatient)
 }
 

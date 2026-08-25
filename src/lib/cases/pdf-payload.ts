@@ -132,20 +132,39 @@ const SEX_LABEL: Record<string, string> = {
   M: 'Masculino',
 }
 
-/** One row of `public.patient_identifiers`, as `get_case_patients` returns it. */
-interface RawPatientRow {
-  name?: string | null
-  mrn?: string | null
-  date_of_birth?: string | null
-  age_years?: number | null
-  sex?: string | null
-  encounter_ref?: string | null
-  unit?: string | null
-  attending?: string | null
-  // ⛔ `patient_key` / `encounter_key` are deliberately NOT declared. They are
-  // internal join keys and print in NEITHER variant (ADR 0144 D5), and absence
-  // from the type is a stronger guarantee than a field we remember not to read.
-}
+/*
+ * ⛔ THERE IS DELIBERATELY NO LOCAL ROW TYPE HERE ANY MORE.
+ *
+ * A hand-written `RawPatientRow` used to sit at this spot declaring the
+ * SNAKE_CASE table shape, and `resolvePatients` read the door's result through
+ * `as RawPatientRow[] | null`. But `getCasePatients` returns `CasePatient` —
+ * CAMEL_CASE, mapped by `mapCasePatient`. The two shapes agree on five names
+ * (`name` `mrn` `sex` `unit` `attending`) and disagree on three
+ * (`age_years`/`ageYears`, `date_of_birth`/`dateOfBirth`,
+ * `encounter_ref`/`encounterRef`), so THREE OF EIGHT PATIENT FIELDS read
+ * `undefined` and printed as nothing — including AGE, one third of ADR 0144 D5's
+ * de-identification floor, on a dossier whose justification is that *"strip it
+ * and the ONA demand gets a dossier about nobody"* (BUG-P3-PATIENT-FIELD-MAPPING).
+ *
+ * ⭐ THE `as` CAST WAS THE ENTIRE REASON `tsc` STAYED GREEN on an eight-field
+ * contract mismatch, and the optional `?` on each field is why `p.age_years ??
+ * null` compiled to a silent `null` rather than an error. The fix is therefore
+ * NOT to rename fields inside the cast — that re-arms the class the moment either
+ * shape moves. The cast is gone, `CasePatient` comes from the module that
+ * produces it, and the compiler holds the contract (verified: a snake_case read
+ * now fails with "Property 'age_years' does not exist on type 'CasePatient'").
+ *
+ * ⚠ The bug was INVISIBLE ON THE PAGE by design: ADR 0144 Amendment 2 pt 3
+ * renders a missing demographic with NO MARKER, because a "dados indisponíveis"
+ * line would print the minter's entitlement onto the page. That decision was and
+ * remains correct — and it meant a correctness bug was indistinguishable from a
+ * legitimate entitlement-driven absence to reader and reviewer alike. Which is
+ * why this is closed by a TYPE and by `pdf-payload.test.ts`, not by looking harder.
+ *
+ * ⛔ `patient_key` / `encounter_key` still print in NEITHER variant (D5). They
+ * are absent from `CasePatient` altogether, so that guarantee is now structural
+ * rather than a field we remember not to read.
+ */
 
 /**
  * Resolve the D5 patient block.
@@ -164,7 +183,10 @@ async function resolvePatients(
   // live on the same Class-1 table as the identifiers, so there is no
   // "identifier-free" read to make. Going around it is not possible and must
   // not be attempted.
-  const rows = (await getCasePatients(caseId)) as RawPatientRow[] | null
+  // ⛔ NO CAST. `getCasePatients` returns `CasePatient[] | null`, and the three
+  // answers ARE the contract: `null` = out of scope, `[]` = entitled but no PHI
+  // on file, rows = entitled with PHI.
+  const rows = await getCasePatients(caseId)
 
   if (includePhi) {
     if (rows === null) throw new Error(NO_PATIENT_ACCESS)
@@ -172,14 +194,14 @@ async function resolvePatients(
     return {
       variant: 'identified',
       patients: rows.map((p) => ({
-        ageDisplay: ageDisplay(p.age_years ?? null),
+        ageDisplay: ageDisplay(p.ageYears),
         sexDisplay: p.sex ? (SEX_LABEL[p.sex] ?? ENUM_FALLBACK) : null,
-        unitDisplay: p.unit ?? null,
-        name: p.name ?? null,
-        mrn: p.mrn ?? null,
-        dateOfBirthDisplay: p.date_of_birth ? formatDate(p.date_of_birth) : null,
-        attending: p.attending ?? null,
-        encounterRef: p.encounter_ref ?? null,
+        unitDisplay: p.unit,
+        name: p.name,
+        mrn: p.mrn,
+        dateOfBirthDisplay: p.dateOfBirth ? formatDate(p.dateOfBirth) : null,
+        attending: p.attending,
+        encounterRef: p.encounterRef,
       })),
     }
   }
@@ -191,9 +213,9 @@ async function resolvePatients(
   return {
     variant: 'deidentified',
     patients: (rows ?? []).map((p) => ({
-      ageDisplay: ageDisplay(p.age_years ?? null),
+      ageDisplay: ageDisplay(p.ageYears),
       sexDisplay: p.sex ? (SEX_LABEL[p.sex] ?? ENUM_FALLBACK) : null,
-      unitDisplay: p.unit ?? null,
+      unitDisplay: p.unit,
       // ⛔ THE FIVE IDENTIFIED FIELDS ARE NEVER COPIED ON THIS PATH. The
       // template renders what it is given, so a template edit cannot widen the
       // disclosure — the guarantee lives here, at the only place that has them.
