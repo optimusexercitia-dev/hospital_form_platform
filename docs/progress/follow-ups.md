@@ -5481,3 +5481,78 @@ the committed file; (b) it merges its verdicts into the committed file rather th
 report went. ⭐ Note the script already proves it can reason about this: its DRYRUN path prints
 *"the baseline suite was NOT run; $FINDINGS is UNTOUCHED"* (line 477). The concept exists in the
 script; it is simply not applied to the subset path.
+
+---
+
+### 🟠 FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE — the controlled-document door returns a raw 500 instead of its pt-BR refusal (owner: backend; filed 2026-08-25, found triaging a full `e2e:prod`)
+
+`public.open_document_version` raises correctly in the database and returns **HTTP 500
+`text/plain "Something went wrong"`** through PostgREST. Measured 2026-08-25:
+
+| call | psql | via PostgREST |
+|---|---|---|
+| nonexistent id | `SQLSTATE P0002`, *versão de documento não encontrada* | **500 text/plain** |
+| a real version the caller cannot serve | `SQLSTATE HC0D8`, *arquivo ainda não disponível* | **500 text/plain** |
+
+So it is **every raise**, not a P-class quirk. The function is `prosecdef`, `VOLATILE`, returns
+`jsonb`, and raises plainly (`raise exception '…' using errcode = '…'`) with no `DETAIL`/`HINT` JSON
+for PostgREST to choke on.
+
+⛔ **APP-FACING — this is not a test artefact.** `src/lib/documents/actions.ts:247` calls
+`supabase.rpc('open_document_version', …)`, and `open-controlled-version-button.tsx:32` describes it
+as "the boundary" every controlled-document byte moves through. A denied or missing open therefore
+surfaces a raw 500 where CLAUDE.md §8 requires a pt-BR message and states that raw Supabase/Postgres
+errors never reach the UI. ⚠ **Bounded honestly: the SUCCESS path was never exercised** in this
+triage — no evidence it is broken, and no evidence it works. Establish that first; it decides whether
+this is a message-quality defect or something larger.
+
+**What it is NOT** (each excluded by measurement, because three plausible theories died here first):
+- not encoding — server and client are UTF8 and the message is valid UTF-8 (`c3a3` = ã);
+- not PostgREST health or version — `verify_audit_chain` returns a correct accented `42501` JSON from
+  the same stack in the same second, and the v14.5 container started the day BEFORE a green gate;
+- not schema-cache reload — deterministic across repeated calls on a settled stack;
+- not a read-only transaction — it raises correctly inside `BEGIN READ ONLY` too;
+- not persona-specific — same result for every persona tried.
+
+⭐ **NOT caused by the AFF3/AUD1 branch, proven two structural ways rather than by argument:**
+reproducible with a **bare `curl`** (Kong → PostgREST, no Next app in the path, so no frontend change
+can reach it), and reproducible with **both migrations removed from `supabase/migrations/` followed by
+`db reset`** (pre-change catalog state confirmed) — identical failures.
+
+**Root cause NOT identified.** Best remaining lead: PostgREST's media-type handling of this function's
+`jsonb` return (the instance logs "4 Media Type Handlers"), i.e. the error response being serialised
+through a handler that cannot render it. **Costs 6 gate failures** — `ethics-e1-access-spine`,
+`dm3-wave-b-documents`, `dm4-referral-documents`, `phase-f2-attachments`,
+`process-template-versioning` — every one of them asserting the "absence ≡ denial" oracle-kill that
+this door exists to provide.
+
+---
+
+### 🟡 FUP-GATE-19-TESTS-NEVER-RAN-ON-MACOS — the failure count understates what went unexercised (owner: lead/tester; filed 2026-08-25)
+
+The 2026-08-25 full `e2e:prod` returned **1172 passed · 18 failed · 2 flaky · 19 did-not-run · 114
+batches**, accounting for **1211 of 1222** collected tests. A failure aborts the remainder of its
+spec, so 19 tests were never executed:
+
+| spec | never ran |
+|---|---|
+| `ethics-e1-access-spine` | 5 |
+| `ethics-e2-procedure` | 5 |
+| `dm4-referral-documents` | 5 |
+| `case-referral-usability-batch` | 3 |
+| `ethics-e4-participants` | 1 |
+
+⛔ **Nothing is proven for those 19 in either direction.** They are hostage to the two clusters that
+caused the reds — [[FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE]] and the macOS native-`<select>`
+`ArrowDown` no-op, which cannot pass on this OS at all — and stay unexercised until those are fixed.
+⚠ **The gate is not at fault here and must not be "fixed":** it reports the condition loudly and
+correctly (`!! 19 test(s) NEVER RAN — nothing is proven for them`) and refuses to count them as
+passes. The defect is that reds gate the coverage, not that the gate conceals it.
+
+⭐ **The lesson that outlives this run: a green gate row can be uncomparable while looking current.**
+The row cited as the baseline (`77b0a467`, 2026-08-24, GATE GREEN 1227p/0f/**21 batches**) was
+**11 commits stale** — a whole phase plus a Node 20→24 pin had landed with no gate row in between —
+and was run under a different configuration; `scripts/e2e-prod-gate.sh:38` says the gate "is primarily
+for the LOCAL **Windows** prod-standalone run". 21 batches against 114 was the visible tell, walked
+past. Before citing any gate row as a baseline, run `git log <baseline>..HEAD` and compare the batch
+count.
