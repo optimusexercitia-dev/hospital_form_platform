@@ -32,31 +32,14 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   gate-tooling bullet was rotated 2026-08-25: it is the one item in that ✅-marked bullet with an
   unfired resolution event, it exists in **no other file**, and rotating the bullet whole would have
   buried an open action under a completed heading — owner: whoever next hits it.
-- **🟡 PDF·P3 (Printing Cases) — BUILT 2026-08-25; gate 1 ✅ COMPLETE, gate 2 ⛔ RED (UNRUN) — re-run pending.**
-  ADR [0144](docs/decisions/0144-case-printing-dossier-lock-and-phi-fork.md) **+ Amendments 1–4**,
-  plan [case-printing-p3.md](docs/plans/case-printing-p3.md), measured substrate
-  [case-printing-p3-substrate.md](docs/plans/case-printing-p3-substrate.md) — **read the substrate
-  brief before touching P3.** Commits + amendments detail + the scoped-absence bound:
-  [pdf-p3.md](docs/progress/pdf-p3.md). ⛔ **NOT pushed.**
-  **✅ Gate 1 COMPLETE (re-measured on the final tree) · ✅ Gate 2 GREEN 2026-08-25 at `6394b95a` ·
-  ✅ Gate 3 APPROVED — QA pass 2, 2026-08-25 · Gate 4 NOT GIVEN · Gate 5 not started.** 7 migrations.
-  Gate evidence, pass 1's three (now closed) blocking candidates, and the amendments lesson:
-  [pdf-p3.md](docs/progress/pdf-p3.md). ⛔ **Historical there: re-measure, never quote.**
-  **🔨 2026-08-25 — all five QA findings CLOSED in code**, each mutation-proven: the catalog
-  reconciliation (gate 1's authz greens **STAND** — 27 = 15 new + 12 body-only, policies 0/0,
-  `A  B` read from the catalog, not the diff) · **C-1** the Art. 18 hole (ADR 0144 **Amdt 5**) ·
-  **C-2** the Gotenberg beacon (ADR **0145**, amends 0014) · **C-3** all four D14 cells across both
-  layers · **M-2** · **M-3** made causal. ⭐ **Four more were found by BUILDING** — all four, plus
-  **Amdt 6**, in [pdf-p3.md](docs/progress/pdf-p3.md) § "Found by building".
-  **Left: gate 4 (PO approval) → gate 5 Record.** QA's N-1…N-5 are non-blocking.
-  ⭐ **RESUME → [pdf-p3-handoff.md](docs/progress/pdf-p3-handoff.md)** · verdict
-  [phase-p3-review.md](docs/reviews/phase-p3-review.md) § Pass 2.
-  ⭐ **PO RULINGS 2026-08-25.** ⚠ **Scope, written down because an approval's bounds are what never
-  get recorded:** accepts **gate 2 at RED (UNRUN)** with its cause on record and authorises **step 3
-  only** — plus, later the same day, the agent team, the **C-1 constitutive ruling**, the print
-  placeholder, and fixing **the gate harness's own defects**. ⛔ NOT phase approval (step 4), NOT a
-  push, NOT authority to change what the gate MEASURES.
-- **⚠ ADR 0144 (PDF·P3) IS THE ACTIVE PHASE** — built, QA-APPROVED, gates 4–5 open. 0136 and 0137
+- **✅ PDF·P3 (Printing Cases) — COMPLETE 2026-08-25, all five gate steps.** Ledger row
+  **PDF·P3**; § Now bullet rotated **verbatim** → [2026-Q3.md](docs/progress/2026-Q3.md). ADR
+  [0144](docs/decisions/0144-case-printing-dossier-lock-and-phi-fork.md) **+ Amdt 1–6** ·
+  **0145** (print sanitize, amends 0014) · **0146** (gate harness). Detail:
+  [pdf-p3.md](docs/progress/pdf-p3.md). ⛔ **NOT pushed — 38+ commits ahead of `origin/main`; the
+  push is a SEPARATE PO decision and was not made.** ⚠ Five non-blocking QA findings (N-1…N-5)
+  plus four P3 follow-ups are OPEN in § Follow-ups — approval was given AROUND them, not over them.
+- **⚠ NO PHASE IS ACTIVE.** **ADR 0144 (PDF·P3)** is the most recent COMPLETE program. 0136 and 0137
   are both complete. ⭐ **A bullet's POSITION is not its recency** — this line named the wrong
   program twice (0137 until 2026-08-24, 0136 until 2026-08-25) because a concluded bullet outlived
   its work in § Now, and it said NO PHASE IS ACTIVE until 2026-08-25 while one was.
@@ -205,7 +188,7 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **PDF·P3 (Printing Cases)** | ✅ **APPROVED** — gate step 3 only; gate 2 stays RED (UNRUN) by PO ruling. 5 non-blocking N-findings. | 2026-08-25 | [phase-p3-review.md](docs/reviews/phase-p3-review.md) § Pass 2 |
+| **PDF·P3 (Printing Cases)** | ✅ **APPROVED** (pass 2) — 5 non-blocking N-findings, all filed. Gate 2 then re-ran **GREEN**, so the verdict no longer rests on the RED-accepted run. | 2026-08-25 | [phase-p3-review.md](docs/reviews/phase-p3-review.md) § Pass 2 |
 | _Four prior rotations_ (ADR 0137 · the AFF2 pair · the seven DM rows · the 2026-08-14 verbose collapse) — each rotation's own date is recorded at the destination | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | 118 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
 
@@ -215,6 +198,11 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-25 | **C-1 fixed by DELETING the classifier, not widening it** — `contains_phi := !caseDisposed` for the case kind. The hand-list had to agree with the template and the disposal door by discipline alone, and `cases.label` made it a constant | ADR 0144 **Amdt 5** |
+| 2026-08-25 | **Paper is stricter than screen for `<img src>`** — a derived print sanitize schema, because the fetch happens in the reader's browser on screen and in a server-side headless Chromium on paper. Plus a visible pt-BR placeholder: omitting content from a legal dossier silently ≠ announcing it | ADR **0145** (amends 0014) |
+| 2026-08-25 | **The gate harness may be fixed, including both measured false GREENS** — the carve-out protects against fudging a red into a green, and these only make it stricter. A gate whose green can be false is not a gate | ADR **0146** |
+| 2026-08-25 | **PDF·P3 APPROVED (gate 4) with five findings OPEN** — approval given AROUND N-1…N-5, not over them; ⛔ the **push is a separate decision and was NOT made**. Gotenberg egress denial deferred to a follow-up with the measurement owed first | [pdf-p3.md](docs/progress/pdf-p3.md) |
+
 > ↩ **3 concluded rows dated 2026-08-24 (the door-sweep predicate-arm property rule, the tracking-hardening batch, the quarterly § Now archive) rotated 2026-08-25** → **[decisions-log.md](docs/progress/decisions-log.md)**.
 
 
