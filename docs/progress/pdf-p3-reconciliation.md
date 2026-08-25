@@ -32,6 +32,19 @@ The 7-file delta is exactly `20261003002200` … `20261003002800`. Snapshot size
 Functions are keyed on **`oid::regprocedure`**, never `proname` — a name-keyed census collapses
 overloads and its parts stop summing.
 
+⚠ **Known blindness of that key, measured 2026-08-25 and recorded here rather than left implicit:
+`oid::regprocedure` renders IN arguments only, so a RESULT-contract change is invisible to it.**
+Two of the "12 same-signature replacements, only `md5(prosrc)` moved" were in fact DROP+CREATE with
+a widened result: `app.resolve_print_source_state` gained `OUT o_case_disposed boolean`, and
+`public.print_source_state` gained return columns. ⇒ **"same signature" here means same IN
+signature; read it as "not a new callable name", not as "same contract".** The verdict is
+unaffected — both were inside the 27 either way, and the `A \ B` decomposition still closes exactly
+— but a future session must not infer *"the callers were unaffected"* from this key.
+⭐ Proven **without** reading migration text, which is what makes it admissible: `git show
+origin/main:src/lib/types/database.ts` — a *catalog-derived* artifact — lists `print_source_state`
+returning four columns against the P3 side's six. That also settles that **both** `case_disposed`
+**and** `source_revision` are P3 additions.
+
 ---
 
 ## Reconciliation against the 27 scoped names

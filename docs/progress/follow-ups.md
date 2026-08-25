@@ -5989,3 +5989,52 @@ trim loses nothing):
 > fail-loud and the fill path may not — decide that explicitly rather than flipping the shared
 > function. **Owed:** make the dossier path fail loudly, with a test that a read error produces an
 > error rather than a short document.
+
+### 🟡 FUP-CASE-PRINT-REVISIONS-COMMENTS-CLAIM-ONE-WRITER — a false statement living inside the catalog (owner: backend)
+
+> **Filed 2026-08-25 while writing the PDF·P3 entry in `docs/backend-state.md`.** Two COMMENTs assert
+> a single writer for `public.case_print_revisions`:
+> `COMMENT ON FUNCTION app.bump_case_print_revision` — *"the ONE writer"* — and
+> `COMMENT ON TABLE public.case_print_revisions` — *"written ONLY by `app.bump_case_print_revision`"*.
+>
+> **Measured (regex over `pg_get_functiondef` across `app` + `public`, not over migration text): there
+> are TWO.** `app.trg_bump_case_revision_self` inlines its own upsert, keyed on `old.status`.
+> ⭐ **The code is right and the comments are wrong** — the reason the second writer exists is exact:
+> on a reopen, the central function's `case_is_terminal` guard reads the **post-update** row, so it
+> would skip the bump on the way *out* of terminal, which is the one transition ADR 0144 D4 exists
+> for. Precision recorded in ADR [0144](../decisions/0144-case-printing-dossier-lock-and-phi-fork.md)
+> Amendment 4.
+>
+> ⛔ **Why this is filed and not merely noted: a COMMENT lives IN THE CATALOG.** It is not text a
+> `grep` over `src/` or `docs/` can reach, and no lint gate reads `pg_description`. So the usual
+> witness for a stale claim — the file it sits next to — does not exist here, and this register is
+> the only one. *"The ONE writer"* is exactly the kind of sentence a later session relies on before
+> adding a third.
+>
+> **Owed:** a migration correcting both COMMENTs to name both writers and why the second exists.
+> Cheap, but it is a migration, so it wants a fresh reset and a `test:db` pass behind it. ⚠ Consider
+> at the same time whether a pgTAP assertion can pin the writer set (`pg_get_functiondef` regex over
+> the two schemas), since that is the only thing that could ever contradict the comment.
+
+### 🟠 FUP-E2E-CLEANUP-LEAVES-STORAGE-BYTES — registry rows deleted, PHI-bucket objects left behind (owner: tester + backend)
+
+> **Filed 2026-08-25, measured on a tree that had been freshly reset hours earlier:**
+> `storage.objects` held **9** `printed/<uuid>.pdf` objects in **`documents-phi`** while
+> `printed_documents` held **0** rows. Lead-verified independently, not taken from a report.
+>
+> ⇒ **An E2E run's cleanup deletes the registry row and leaves the bytes.** In the local harness that
+> is hygiene. The *mechanism* is not: an orphaned object in the PHI bucket is a file with **no
+> registry row to revoke**, so `dispose_case_phi`'s block (f) — which iterates the registry — cannot
+> reach it. That is the storage-orphan class this repo already knows, arriving through a new door,
+> and on the one bucket where it matters most.
+>
+> ⚠ **It also falsifies a baseline claim that reads as complete:** the clean-tree residue check
+> counts `documents-*` storage objects as 0, and every *catalog* dimension did reproduce byte-for-byte
+> — so "freshly reset, baseline verified" was true in every dimension anyone measured and false in
+> the one nobody did. ⛔ A reset does not clean a bucket; treat storage as its own dimension.
+>
+> **Owed:** (1) make the E2E cleanup delete bytes before (or with) the registry row, and assert the
+> object count returns to baseline — an assertion, not a comment, since the current gap is exactly a
+> cleanup nobody checks. (2) Decide whether a reset should also empty `documents-*`. (3) Check whether
+> the production disposal path can orphan the same way: if a `printed_documents` row is ever deleted
+> rather than revoked, its bytes outlive every control that reaches them by registry.

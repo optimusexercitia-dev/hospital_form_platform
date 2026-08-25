@@ -511,6 +511,17 @@ under the content freeze.
 satisfied without a second write inside that door.** Every content edit during the non-terminal window
 is bracketed by that bump.
 
+> ⚠ **Precision added 2026-08-25 from a catalog read, because two COMMENTs overstate it.**
+> The claim above is about `reopen_case` — no write inside that door — and it holds. But
+> `case_print_revisions` has **two writers**, not one: `app.bump_case_print_revision` and
+> **`app.trg_bump_case_revision_self`**, which inlines its own upsert keyed on `old.status`. The
+> reason is exact and worth keeping: on a reopen the central function's `case_is_terminal` guard reads
+> the **post-update** row, so it would skip the bump on the way *out* of terminal — the one
+> transition D4 exists for. ⛔ **`COMMENT ON FUNCTION app.bump_case_print_revision` ("the ONE
+> writer") and `COMMENT ON TABLE public.case_print_revisions` ("written ONLY by …") are therefore
+> false as written.** Filed as a follow-up rather than fixed here: a COMMENT lives **in the catalog**,
+> so no gate can contradict it and the follow-up register is its only witness.
+
 ⛔ **`documents` rows of kind `printed_rendition` are EXCLUDED from the trigger set.** The mint inserts
 the print's own `documents` row homed on the case, inside the mint transaction and *after*
 compare-and-mint has passed — so without the exclusion **every case mint would land NOT-CURRENT the
