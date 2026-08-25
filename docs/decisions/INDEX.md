@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**143 ADRs** · next free number: **0146** · 38 carry an inbound supersedes/amends edge
+**144 ADRs** · next free number: **0147** · 39 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -73,7 +73,7 @@
 | 0048 | [User Registration & Identity Management](0048-user-registration-identity.md) | accepted | 2026-07-01 | – | ⚠ amended by 0133 |
 | 0049 | [Email-verification flag & admin-set initial password](0049-email-verification-flag-admin-set-password.md) | accepted | 2026-07-02 | – | – |
 | 0050 | [Action-Items Fold, `visibility_scope`, and Case-Access Grant Expiry](0050-action-items-fold-visibility-scope-case-access-expiry.md) | accepted | 2026-07-02 | – | – |
-| 0051 | [Hospital-admin tier, 4-tier audit chain & committee member titles](0051-hospital-admin-tier-and-hospital-audit-tier.md) | accepted | 2026-07-03 | – | – |
+| 0051 | [Hospital-admin tier, 4-tier audit chain & committee member titles](0051-hospital-admin-tier-and-hospital-audit-tier.md) | accepted | 2026-07-03 | – | ⚠ amended by 0146 |
 | 0052 | [NSP-per-hospital: re-key the PQS roster + every PHI door org → hospital, add `nsp_org_a…](0052-nsp-per-hospital.md) | accepted | 2026-07-03 | supersedes 0042 | – |
 | 0053 | [Audit-access entitlement guard (C-4): dispatch to the entity's own read predicate, not…](0053-audit-access-entitlement-guard.md) | accepted | 2026-07-04 | – | – |
 | 0054 | [Tenant-hierarchy composite FK: a commission's org must match its hospital's org](0054-tenant-composite-fk.md) | accepted | 2026-07-05 | – | – |
@@ -167,3 +167,4 @@
 | 0143 | [A gate for double-encoded UTF-8 (mojibake) in tracked text](0143-mojibake-gate-double-encoded-utf8.md) | accepted | 2026-08-25 | – | – |
 | 0144 | [Masked CPF on the person detail rail](0144-masked-cpf-on-the-person-detail-rail.md) | accepted | 2026-08-25 | amends 0133 | – |
 | 0145 | [Ever-held affiliation as the person-read boundary](0145-ever-held-affiliation-read-visibility.md) | accepted | 2026-08-25 | amends 0097, 0133 | – |
+| 0146 | [An org_admin reads the hospital-tier audit chain](0146-org-admin-reads-hospital-tier-audit.md) | accepted | 2026-08-25 | amends 0051 | – |

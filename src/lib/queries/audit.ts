@@ -529,22 +529,24 @@ export async function listAudit(
  * One page of audit entries for an ORGANIZATION (multi-tenancy Phase C), for the
  * `/o/[org]/manage` org-tier audit. Filters to `organization_id = orgId`.
  *
- * ⛔ THE QUERY ASKS FOR THREE TIERS AND RLS RETURNS TWO. This comment claimed until
- * 2026-08-25 that the result "is the union of the org chain AND every commission chain
- * under the org", which is true of the FILTER and false of the ANSWER. `.eq('organization_id')`
- * also matches every HOSPITAL-tier row (they carry the derived `organization_id` too), and
- * `audit_log_select` then drops all of them: its org-tier leg is
- * `(hospital_id IS NULL) AND (commission_id IS NULL) AND is_org_admin_of(organization_id)`,
- * so an `org_admin` is admitted to the org chain and — via `is_tenancy_admin_of(commission_id)`
- * — to the commission chains, but to NO hospital-tier row. Only a `hospital_admin` of that
- * hospital reads those (verified against `pg_policies` + every `prosecdef` in the predicate
- * path; probed live 2026-08-25: `orgadmin.a` sees 16 org-tier rows and 0 of the 19 hospital-tier
- * rows in its own org).
+ * ⭐ THE QUERY ASKS FOR THREE TIERS AND SINCE ADR 0146 RLS RETURNS THREE. `.eq('organization_id')`
+ * matches the org chain, every commission chain (those rows carry the trigger-derived
+ * `organization_id`) AND every HOSPITAL-tier row of the org. All three are now readable by an
+ * `org_admin`: leg 2 `is_tenancy_admin_of(commission_id)` carries the commission chains, and the
+ * org leg — `(commission_id IS NULL) AND is_org_admin_of(organization_id)` — carries the org and
+ * hospital chains together.
  *
- * The live consequence, which is a GAP and not a design statement: on this page an org_admin
- * never sees hospital-scope membership grants (hospital_admin, nsp_coordinator,
- * technical_director…) or ANY affiliation event. Reported to the PO 2026-08-25; deliberately
- * NOT patched here, because widening it is a policy migration and this is a read module.
+ * ⛔ THIS COMMENT DOCUMENTED THE OPPOSITE UNTIL 2026-08-25, and the history matters because the
+ * bug was invisible from this file. The org leg used to carry a third conjunct,
+ * `(hospital_id IS NULL)`, so every hospital-tier row this query asked for was silently dropped:
+ * an org_admin saw NO hospital-scope membership grant (hospital_admin, nsp_coordinator,
+ * technical_director…) and NO affiliation event, ever. Measured before the fix, org A:
+ * 173/173 commission-tier, **0/19** hospital-tier, 16/16 org-tier. After: 173/19/16 visible
+ * against 173/19/16 existing — exact parity with what the table holds.
+ *
+ * The tell was that `verify_audit_chain` had ALWAYS let an org_admin attest a hospital chain it
+ * could not read. Migration 20261003002300 removed the conjunct; keystone
+ * `supabase/tests/369_audit_org_leg_hospital_tier.sql`.
  *
  * RLS-scoped: empty for a caller who is not org_admin of `orgId`. Same shape/pagination as
  * `listAudit`.
@@ -591,14 +593,16 @@ export async function listAuditForOrg(
  * (`commission_id IS NULL`) AND every commission chain under the hospital (each
  * commission-tier row carries the trigger-derived `hospital_id`).
  *
- * ⚠ THAT UNION IS WHAT A `hospital_admin` GETS. It is NOT what an `org_admin` gets, and the
- * parenthetical here used to say the opposite by implication — "empty for a caller who is
- * not a hospital_admin of `hospitalId` (nor org_admin of its org)" reads as though an
- * org_admin were shut out. Neither half was right. Probed live 2026-08-25 on the same
- * hospital: `hospitaladmin.a1` → 13 hospital-tier + 167 commission-tier; `orgadmin.a` →
- * **0** hospital-tier + 167 commission-tier. An org_admin is not shut out at all; it is the
- * HOSPITAL-CHAIN HALF that silently vanishes for them (see {@link listAuditForOrg} for the
- * policy legs and the standing gap).
+ * ⭐ SINCE ADR 0146 AN `org_admin` GETS THE SAME UNION. It reaches the hospital chain through
+ * the org leg (`commission_id IS NULL AND is_org_admin_of(organization_id)`) and the commission
+ * chains through `is_tenancy_admin_of`, so both callers see both halves.
+ *
+ * ⚠ THIS COMMENT RECORDED A GAP HERE UNTIL 2026-08-25 — measured then on the same hospital:
+ * `hospitaladmin.a1` → 13 hospital-tier + 167 commission-tier, `orgadmin.a` → **0** hospital-tier
+ * + 167 commission-tier. The hospital-chain half vanished for an org_admin. Migration
+ * 20261003002300 closed it; the two roles no longer differ on THIS function. They still differ
+ * elsewhere: a `hospital_admin` reads only its own hospital, an `org_admin` every hospital in
+ * its org (test 369 §4.2 pins that leg 3 stayed hospital-bounded).
  *
  * ⚠ NO LIVE SURFACE HITS THAT CASE TODAY: `/o/[org]/manage/audit` routes `isOrgAdmin` to
  * {@link listAuditForOrg} and only ever calls this one for a `hospital_admin`. The behaviour
@@ -834,26 +838,21 @@ function personEventTitle(action: string, roleLabel: string | null): string {
  * ⚠ RLS-SCOPED, ON THE ORDINARY COOKIE CLIENT (never the admin client): this is a read of
  * the audit log and the caller must see exactly what `audit_log_select` grants them.
  *
- * ⛔ AN `org_admin` SEES NO HOSPITAL-TIER EVENT AT ALL, and a reader of this function must
- * know it before concluding the data is missing. `audit_log_select` admits an org_admin to
- * the org chain and — via `is_tenancy_admin_of(commission_id)` — to the commission chains,
- * but its org-tier leg requires `hospital_id IS NULL`, so NO row with a `hospital_id` and no
- * `commission_id` is readable by them. Only a `hospital_admin` of that hospital reads those.
+ * ⭐ AN `org_admin` NOW SEES HOSPITAL-TIER EVENTS HERE (ADR 0146, migration 20261003002300).
+ * `audit_log_select`'s org leg is `(commission_id IS NULL) AND is_org_admin_of(organization_id)`,
+ * so the org and hospital chains both reach an org_admin, and `is_tenancy_admin_of(commission_id)`
+ * carries the commission chains.
  *
- * That is WIDER than affiliations, which is the trap: it silently removes
+ * ⛔ UNTIL 2026-08-25 THAT LEG ALSO REQUIRED `hospital_id IS NULL`, and this timeline was where
+ * it hurt most — the page IS the org-admin surface, so it was the common case, not an edge one.
+ * It silently removed:
  *   · every `affiliation.*` event (hospital-tier by construction), AND
  *   · every HOSPITAL-SCOPE membership grant — `hospital_admin`, `nsp_coordinator`,
  *     `technical_director`, and anything else seated at hospital tier.
- * Only COMMISSION-tier membership events survive for an org_admin.
- *
- * Probed live 2026-08-25: for `dr.john` (2 affiliations + 2 commission seats) `orgadmin.a`
- * sees 2 rows and `hospitaladmin.a1` sees 1 of each; for `nsp_coordinator c1`, whose only
- * event is a hospital-tier grant, the timeline is 1 row for a superuser and **0** for
- * `orgadmin.a` — an entirely empty history for a real person.
- *
- * Since this page IS the org-admin surface, that is the common case, not the edge one.
- * Reported to the PO 2026-08-25; widening it is a policy migration, deliberately not
- * attempted here. See {@link listAuditForOrg} for the same gap on the org audit page.
+ * Only COMMISSION-tier membership events survived. Measured then: for `nsp_coordinator c1`,
+ * whose only event is a hospital-tier grant, the timeline was 1 row for a superuser and **0**
+ * for `orgadmin.a` — an entirely empty history for a real person. Org A now measures at exact
+ * parity: 173/19/16 visible against 173/19/16 existing.
  *
  * ⛔ WHOLE CLASSES OF EVENT DO NOT EXIST YET, and none are synthesised: `profiles` carries
  * no audit trigger at all (only the three guard triggers), so account CREATED, DEACTIVATED,
