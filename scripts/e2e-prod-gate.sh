@@ -26,12 +26,25 @@
 #   MAX_RECOVER=0 bash scripts/e2e-prod-gate.sh  # abort on a bad stack instead of self-healing
 #   PROBE_EMAIL=... PROBE_PASS=...               # seed persona used by the auth preflight
 #
-# EXIT CODES: 0 green · 1 red (real failures) · 2 build · 3 toolchain drift ·
-#             4 stack unrecoverable (preflight) · 5 red, NOTHING PROVEN · 99 cd failed.
+# EXIT CODES: 0 green · 1 red (real failures) · 2 build · 3 toolchain drift / missing
+#             helper · 4 stack unrecoverable (preflight) · 5 red, NOTHING PROVEN ·
+#             99 cd failed.
 # Exit 4 and exit 5 are NOT test results — nothing was proven; fix the stack and re-run.
 # Exit 5 means "zero assertion failures were observed, but some tests never got to run"
 # — either INFRA (a dead server ate them) or UNRUN (their batch aborted before it
 # started; see abort_batch). Do not read it as a regression, and do not read it as green.
+#
+# ARTIFACTS, all under $GATE_LOGDIR ($TMPDIR/e2e-prod-gate) and all written BY THIS SCRIPT
+# — nothing downstream has to survive the run for the run's own evidence to exist:
+#   gate-exit                  the exit code + verdict (see `finish`)
+#   batch-N.log / -rerun /     Playwright output per batch / per INFRA re-run / per batch
+#     -unrun.log                 that never ran
+#   server-batch-N.log         the standalone server's stdout+stderr for that batch
+#     / -rerun.log               (⚠ the ONLY reading that can tell a V8 heap ceiling from
+#                                 an unhandled exception in app code — the second is a
+#                                 product DEFECT the INFRA classifier would otherwise
+#                                 absorb forever)
+#   reset-batch-N.log          `supabase db reset` output per batch
 #
 # PREREQS: local Supabase up + seeded (`supabase status`); `.env.local` -> local
 # Supabase. Prod deploys on Linux/Docker where this collapse may not occur; this gate
@@ -41,7 +54,7 @@ set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
-cd "$ROOT" || exit 99
+cd "$ROOT" || exit 99   # plain `exit`: $GATE_LOGDIR is not located yet, see `finish` below
 
 # --- config (env-overridable) ---
 BATCH_TESTS="${BATCH_TESTS:-70}" # TESTS per fresh server (0 = fall back to BATCH_SIZE files)
@@ -57,22 +70,96 @@ MAX_RECOVER="${MAX_RECOVER:-1}" # stack-recovery attempts per checkpoint before 
 GATE_LOGDIR="${TMPDIR:-/tmp}/e2e-prod-gate"
 mkdir -p "$GATE_LOGDIR"
 LOG_TS() { date '+%H:%M:%S'; }
+NOW_ISO() { date '+%Y-%m-%dT%H:%M:%S%z'; }
+
+# --- durable outcome record --------------------------------------------------
+# FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH, second finding. The gate's exit
+# code used to be captured only by a `; echo "GATE_EXIT=$?"` clause in the LAUNCHING
+# WRAPPER. The harness reaped that wrapper in BOTH full runs of 2026-08-25, so the token
+# never appeared either time and the code had to be inferred from the verdict prose — i.e.
+# the reporting contract was unsatisfiable, not strict. The script now writes it itself.
+#
+# ⚠ Traps alone are NOT sufficient, and the folklore about them is worth measuring rather
+# than repeating. Measured directly, bash 5.2.37 on this platform (MINGW64):
+#   · a TERM trap DOES fire when THIS script's own pid is signalled, and it fires promptly —
+#     it interrupts a foreground child rather than waiting for it. So (b) below is real.
+#   · a subshell does NOT inherit the parent's EXIT trap (only a `trap … EXIT` the subshell
+#     sets for itself runs), so an exit taken inside `( … )` would record nothing.
+#   · an untrapped SIGKILL runs no trap at all.
+#   · ⚠ and the case actually observed on 2026-08-25 is neither: the harness reaped the
+#     WRAPPER, not this script, leaving this script running as an orphan. Signals sent to a
+#     wrapper never reach here, which is precisely why the record cannot live in the wrapper.
+# So four layers, in order of reliability:
+#   (a) every exit point goes through `finish`, which WRITES the record and then exits;
+#   (b) INT/TERM are trapped through `finish` too, so a signalled run still records a code;
+#   (c) the file is SEEDED "RUNNING" here, so a SIGKILL — or a run still in flight — leaves
+#       "started, never reached a verdict" on disk instead of nothing; absence is unreadable;
+#   (d) the EXIT trap is a last-resort backstop for an exit that bypassed `finish`.
+GATE_EXIT_FILE="$GATE_LOGDIR/gate-exit"
+GATE_EXIT_WRITTEN=0
+printf 'GATE_EXIT=RUNNING\npid=%s\nstarted=%s\n' "$$" "$(NOW_ISO)" > "$GATE_EXIT_FILE"
+
+# finish <code> [verdict-for-the-record]
+# Callers keep their own `echo` — this writes, it does not print, so no message doubles up.
+finish() {
+  GATE_EXIT_WRITTEN=1
+  printf 'GATE_EXIT=%s\nverdict=%s\nfinished=%s\nlogdir=%s\n' \
+    "$1" "${2:-}" "$(NOW_ISO)" "$GATE_LOGDIR" > "$GATE_EXIT_FILE"
+  exit "$1"
+}
 
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WIN=1 ;; *) IS_WIN=0 ;; esac
+
+# ⚠ `free_port` MUST kill only what is LISTENING on $PORT. It used to select with
+#   netstat -ano | grep ":$PORT " | awk '{print $NF}'
+# and `grep` cannot say WHICH COLUMN matched: a client socket connected TO the port carries
+# it in the FOREIGN address column, so on a machine with live clients this returned CLIENT
+# pids and `taskkill //F` killed them. During a gate run those clients are Playwright
+# workers — the 2026-08-25 batch-13 signature (`worker process exited unexpectedly` ×53).
+# ⚠ Mechanism demonstrated, firing UNOBSERVED: a teardown-phase hazard, not a diagnosed
+# root cause of that batch.
+# The parse lives in its own file so it can be tested against captured real netstat output
+# without a gate run — `bash scripts/test-netstat-listener-pids.sh` (~1 s). Read that file's
+# header for why the State column is never matched literally (it is localized).
+NETSTAT_PIDS_AWK="$HERE/lib/netstat-listener-pids.awk"
 free_port() {
   if [ "$IS_WIN" = "1" ]; then
-    for p in $(netstat -ano 2>/dev/null | grep ":$PORT " | awk '{print $NF}' | sort -u); do
+    for p in $(netstat -ano 2>/dev/null | awk -v port="$PORT" -f "$NETSTAT_PIDS_AWK"); do
       taskkill //PID "$p" //F >/dev/null 2>&1 || true
     done
   elif command -v lsof >/dev/null 2>&1; then
-    lsof -ti tcp:"$PORT" 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+    # Same narrowing on the POSIX side: a bare `-i tcp:PORT` also matches a socket that
+    # merely CONNECTS to the port. ⚠ UNVERIFIED on this platform — the gate runs on
+    # Windows and there is no lsof here to exercise it.
+    lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null | xargs -r kill -9 2>/dev/null || true
   fi
 }
+# A missing parser would make free_port silently free NOTHING — and that fails OPEN in the
+# worst direction: the stale server keeps serving, `start_server`'s `curl /login` probe
+# succeeds against it, and the batch runs (possibly green) against a STALE BUILD. Refuse.
+if [ "$IS_WIN" = "1" ] && [ ! -f "$NETSTAT_PIDS_AWK" ]; then
+  echo "FATAL: missing $NETSTAT_PIDS_AWK — free_port cannot identify the listener on :$PORT,"
+  echo "       and a silently-unfreed port lets a batch run against a stale server."
+  finish 3 "FATAL: missing helper $NETSTAT_PIDS_AWK"
+fi
+
 SERVER_PID=""
 stop_server() { [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true; free_port; SERVER_PID=""; }
-trap 'stop_server' EXIT
 
-[ -f .env.local ] || { echo "FATAL: .env.local not found"; exit 1; }
+# See the `finish` block above for why the EXIT trap is a backstop and not the mechanism.
+on_exit() {
+  local rc=$?
+  stop_server
+  [ "$GATE_EXIT_WRITTEN" = "1" ] && return 0
+  printf 'GATE_EXIT=%s\nverdict=%s\nfinished=%s\nlogdir=%s\n' "$rc" \
+    "NO VERDICT — the gate exited without reaching one of its own exit points (killed, or an unhandled shell error). Nothing is proven for this run." \
+    "$(NOW_ISO)" "$GATE_LOGDIR" > "$GATE_EXIT_FILE"
+}
+trap 'on_exit' EXIT
+trap 'finish 130 "SIGINT — interrupted before a verdict; nothing is proven."' INT
+trap 'finish 143 "SIGTERM — terminated before a verdict; nothing is proven."' TERM
+
+[ -f .env.local ] || { echo "FATAL: .env.local not found"; finish 1 "FATAL: .env.local not found"; }
 
 set -a; . ./.env.local; set +a
 unset CI
@@ -92,7 +179,7 @@ unset CI
 #       staleness, GoTrue death and gateway 502s together — /health covers none of them.
 #   (b) analytics RestartCount delta — a leading indicator of a MID-RUN collapse.
 REF="$(docker ps -a --filter 'name=supabase_db_' --format '{{.Names}}' 2>/dev/null | head -1 | sed 's/^supabase_db_//')"
-[ -n "$REF" ] || { echo "FATAL: no supabase_db_* container — is the local stack up?"; exit 4; }
+[ -n "$REF" ] || { echo "FATAL: no supabase_db_* container — is the local stack up?"; finish 4 "FATAL: no supabase_db_* container — the local stack is not up. NOT a test result."; }
 
 dins()     { docker inspect -f "$2" "supabase_$1_$REF" 2>/dev/null; }
 restarts() { local n; n="$(dins "$1" '{{.RestartCount}}')"; echo "${n:-0}"; }
@@ -199,10 +286,10 @@ preflight() {
   return 1
 }
 
-preflight "gate start" || { echo "GATE ABORTED — stack unrecoverable before batch 1"; exit 4; }
+preflight "gate start" || { echo "GATE ABORTED — stack unrecoverable before batch 1"; finish 4 "GATE ABORTED — stack unrecoverable before batch 1. NOT a test result: nothing was proven."; }
 # SELFTEST=1 answers "is the stack fit for a gate run?" in seconds instead of 40 minutes,
 # and is how the preflight arms are fault-injection tested (docs/testing/e2e-prod-build-gate.md).
-[ -n "${SELFTEST:-}" ] && { echo "SELFTEST: stack is fit for a gate run"; exit 0; }
+[ -n "${SELFTEST:-}" ] && { echo "SELFTEST: stack is fit for a gate run"; finish 0 "SELFTEST: stack is fit for a gate run (no tests were run)"; }
 
 # --- verify the installed toolchain matches the lockfile (BUG-PROD-ACTIONS, authz-handoff.md §7.16:
 #     node_modules/next silently drifted to a stale version while package.json/lockfile were correct,
@@ -212,7 +299,7 @@ installed_next="$(node -p "require('./node_modules/next/package.json').version" 
 if [ -z "$installed_next" ] || [ "$installed_next" != "$declared_next" ]; then
   echo "FATAL: node_modules/next ($installed_next) != package.json's declared next ($declared_next)."
   echo "       Toolchain drift — run \`npm ci\` before gating."
-  exit 3
+  finish 3 "FATAL: toolchain drift — node_modules/next ($installed_next) != declared ($declared_next)"
 fi
 
 # --- build/stage standalone ONCE (server restarts reuse it; only the running server accumulates) ---
@@ -228,11 +315,11 @@ case "$REBUILD" in
 esac
 if [ "$need_build" = "1" ]; then
   echo "[$(LOG_TS)] building standalone (next build)…"
-  npm run build || { echo "FATAL: next build failed"; exit 2; }
+  npm run build || { echo "FATAL: next build failed"; finish 2 "FATAL: next build failed"; }
 else
   echo "[$(LOG_TS)] reusing existing standalone build"
 fi
-[ -f .next/standalone/server.js ] || { echo "FATAL: no standalone/server.js"; exit 2; }
+[ -f .next/standalone/server.js ] || { echo "FATAL: no standalone/server.js"; finish 2 "FATAL: no .next/standalone/server.js after build"; }
 rm -rf .next/standalone/.next/static .next/standalone/public
 cp -r .next/static .next/standalone/.next/static
 cp -r public       .next/standalone/public
@@ -240,7 +327,7 @@ cp -r public       .next/standalone/public
 # --- discover specs + split into batches ---
 if [ -n "${SPECS:-}" ]; then read -r -a ALL_SPECS <<< "$SPECS"; else ALL_SPECS=(e2e/*.spec.ts); fi
 N=${#ALL_SPECS[@]}
-[ "$N" -gt 0 ] || { echo "FATAL: no specs found"; exit 1; }
+[ "$N" -gt 0 ] || { echo "FATAL: no specs found"; finish 1 "FATAL: no specs found"; }
 
 # ---------------------------------------------------------------------------
 # Pack batches by TEST COUNT, not file count (FF-5 gate finding).
@@ -303,9 +390,27 @@ else
 fi
 
 
+# FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH. The server log used to be a FIXED
+# `server.log` opened with a TRUNCATING `>`, so every batch overwrote the last — and it was
+# surfaced at exactly one place, on `start_server` FAILURE. A server that started cleanly
+# and then died mid-batch (the `server_dead` condition the INFRA classifier exists to
+# detect) therefore left NO retained server-side artifact at all. Measured 2026-08-25:
+# batch 7's server truncated batch 6's log seconds after batch 6's server died, in both
+# full runs. Per-batch naming was never unavailable — this script already writes
+# batch-N.log, batch-N-unrun.log and reset-batch-N.log; the server log was the lone
+# exception to a convention the script itself established, for the one artifact a collapse
+# investigation needs.
+SERVER_LOG="$GATE_LOGDIR/server-batch-0.log"
+server_log_path() {   # per batch AND per attempt, so an INFRA re-run cannot clobber
+                      # attempt 1's log — the same rule $BLOG already follows below.
+  local n="${BATCH_NO:-0}" a="${attempt:-1}"
+  if [ "$a" -gt 1 ]; then echo "$GATE_LOGDIR/server-batch-$n-rerun.log"
+  else echo "$GATE_LOGDIR/server-batch-$n.log"; fi
+}
 start_server() {
   free_port
-  PORT="$PORT" HOSTNAME=0.0.0.0 node .next/standalone/server.js > "$GATE_LOGDIR/server.log" 2>&1 &
+  SERVER_LOG="$(server_log_path)"
+  PORT="$PORT" HOSTNAME=0.0.0.0 node .next/standalone/server.js > "$SERVER_LOG" 2>&1 &
   SERVER_PID=$!
   for _ in $(seq 1 45); do
     curl -sf -o /dev/null "http://localhost:$PORT/login" && return 0
@@ -407,9 +512,9 @@ for BATCH_SPECS in "${BATCHES[@]}"; do
     # NEVER "WARN … proceeding" (the old behaviour): a degraded stack yields batches of
     # net::ERR_CONNECTION_REFUSED that then need hand-triage against a folklore baseline
     # — 8 of 12 batches in one ETH-E3a run. Abort loudly instead of emitting garbage.
-    preflight "batch $BATCH_NO" || { echo "GATE ABORTED — stack unrecoverable"; exit 4; }
+    preflight "batch $BATCH_NO" || { echo "GATE ABORTED — stack unrecoverable"; finish 4 "GATE ABORTED at batch $BATCH_NO — stack unrecoverable. NOT a test result: nothing was proven."; }
     if ! start_server; then
-      echo "[$(LOG_TS)] server FAILED to start"; tail -20 "$GATE_LOGDIR/server.log"
+      echo "[$(LOG_TS)] server FAILED to start (server log: $SERVER_LOG)"; tail -20 "$SERVER_LOG"
       abort_batch server; stop_server; continue 2
     fi
     sleep 4
@@ -456,6 +561,18 @@ for BATCH_SPECS in "${BATCHES[@]}"; do
 
     if [ "$infra" = "1" ]; then
       echo "[$(LOG_TS)] batch $BATCH_NO -> $( [ "$parsed" = "0" ] && echo "CRASHED with no summary (exit ${pw_rc}), ${exp} test(s) unrun" || echo "${f} failures" ) classified INFRA, not defects (server_dead=${srv_dead}, conn_errors=${conn}, pgrst_unready=${pgrst})"
+      # FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH: surface the SERVER side here,
+      # not only on start failure. Every reading available in the two 2026-08-25 collapses
+      # was client-side (`page.goto: net::ERR` ×33, server_dead=1, conn_errors=33, zero
+      # assertion failures) — all of which say "the server was gone" and none of which says
+      # WHY. Three causes are indistinguishable from outside and prescribe opposite
+      # remedies: a V8 heap ceiling (--max-old-space-size), plain capacity (BATCH_SIZE=4),
+      # or ⛔ an unhandled exception in APP CODE — which is a product DEFECT that this
+      # classifier books as INFRA indefinitely. Only the server log separates them.
+      # ⚠ `Error: The destination stream closed early` is NOT a death signature: it appears
+      # in healthy passing batches (a client aborting a response mid-flight).
+      echo "[$(LOG_TS)]   server log RETAINED at: $SERVER_LOG"
+      tail -40 "$SERVER_LOG" 2>/dev/null | sed 's/^/[srv] /'
       if [ "$INFRA_RETRY" = "1" ] && [ "$attempt" -lt 2 ]; then
         INFRA_RERUNS=$(( INFRA_RERUNS + 1 ))
         echo "[$(LOG_TS)] re-running batch $BATCH_NO on a fresh server (INFRA_RETRY=1)"
@@ -496,7 +613,7 @@ for BATCH_SPECS in "${BATCHES[@]}"; do
   [ "$exp" != "0" ] && [ "$accounted" != "$exp" ] && reasons="$reasons,count($accounted/$exp)"
   [ -n "$reasons" ] && RED_BATCHES="$RED_BATCHES b$BATCH_NO(${reasons#,})"
 
-  echo "[$(LOG_TS)] batch $BATCH_NO -> ${p} passed, ${f} failed$( [ "$infra" = "1" ] && echo ' (INFRA)' ), ${fl} flaky, ${sk} skipped, ${dnr} did-not-run · accounted ${accounted}/${exp} · pw_exit ${pw_rc}  (log: $BLOG)"
+  echo "[$(LOG_TS)] batch $BATCH_NO -> ${p} passed, ${f} failed$( [ "$infra" = "1" ] && echo ' (INFRA)' ), ${fl} flaky, ${sk} skipped, ${dnr} did-not-run · accounted ${accounted}/${exp} · pw_exit ${pw_rc}  (log: $BLOG · server: $SERVER_LOG)"
   stop_server; sleep 1
 done
 
@@ -510,8 +627,12 @@ echo "[$(LOG_TS)] COVERAGE: accounted for ${TOTAL_SEEN} of ${TOTAL_EXPECTED} col
 # skims past — and unrun tests are the one failure mode that looks BETTER than normal.
 [ "$TOTAL_DNR" -gt 0 ] && echo "[$(LOG_TS)] !! ${TOTAL_DNR} test(s) NEVER RAN — nothing is proven for them. Re-run the batch(es) named below before declaring green."
 [ -n "$RED_BATCHES" ] && echo "  batches with failures:$RED_BATCHES  (logs in $GATE_LOGDIR)"
+# The exit code is written by THIS script, so a reader never has to depend on the launching
+# wrapper having survived the run (FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH,
+# second finding: that wrapper was reaped in both full runs of 2026-08-25).
+echo "[$(LOG_TS)] exit code + verdict recorded at: $GATE_EXIT_FILE  ·  per-batch server logs: $GATE_LOGDIR/server-batch-N.log"
 echo "=================================================================="
-if [ "$TOTAL_FAIL" = "0" ] && [ -z "$RED_BATCHES" ]; then echo "GATE GREEN"; exit 0; fi
+if [ "$TOTAL_FAIL" = "0" ] && [ -z "$RED_BATCHES" ]; then echo "GATE GREEN"; finish 0 "GATE GREEN — ${TOTAL_PASS} passed, ${TOTAL_FLAKY} flaky, accounted ${TOTAL_SEEN}/${TOTAL_EXPECTED}"; fi
 
 # Three distinct RED verdicts. Collapsing them is what made a dead server read as a
 # 53-defect regression, and (worse, over time) trains readers to shrug at real reds.
@@ -523,15 +644,15 @@ if [ "$TOTAL_FAIL" = "0" ] && [ "$TOTAL_DNR" -gt 0 ]; then
   echo "GATE RED (UNRUN) — ${TOTAL_DNR} test(s) never executed; zero assertion failures were observed."
   echo "  NOT a green run and NOT a regression signal: those tests were never given a chance"
   echo "  to fail. Re-run the batch(es) listed above before declaring the phase green."
-  exit 5
+  finish 5 "GATE RED (UNRUN) — ${TOTAL_DNR} test(s) never executed; 0 assertion failures observed. NOT green, NOT a regression signal."
 fi
 if [ "$TOTAL_FAIL" = "0" ] && [ "$TOTAL_INFRA" -gt 0 ]; then
   echo "GATE RED (INFRA) — ${TOTAL_INFRA} test(s) never got a working server, even after a re-run."
   echo "  NOT a regression signal: zero assertion failures were observed. Nothing is proven for"
   echo "  those tests either — re-run the named batch(es) before declaring the phase green."
-  exit 5
+  finish 5 "GATE RED (INFRA) — ${TOTAL_INFRA} test(s) never got a working server. NOT green, NOT a regression signal."
 fi
 echo "GATE RED — ${TOTAL_FAIL} real failure(s)$( [ "$TOTAL_INFRA" -gt 0 ] && echo " (plus ${TOTAL_INFRA} infra, already classified)" )."
 echo "  Infra noise is now classified automatically; anything counted above is an assertion"
 echo "  failure. Still worth checking the flaky baseline (memory e2e-prod-build-flaky-baseline)."
-exit 1
+finish 1 "GATE RED — ${TOTAL_FAIL} real failure(s), ${TOTAL_INFRA} infra, ${TOTAL_DNR} did-not-run, accounted ${TOTAL_SEEN}/${TOTAL_EXPECTED}"

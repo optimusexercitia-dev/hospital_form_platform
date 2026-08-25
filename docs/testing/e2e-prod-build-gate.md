@@ -110,9 +110,27 @@ SPECS="e2e/phase8-dashboard.spec.ts e2e/phi-remediation.spec.ts" npm run e2e:pro
 Requires bash (Git Bash on Windows; run `bash scripts/e2e-prod-gate.sh` directly if `npm run`
 can't find bash) + local Supabase up/seeded. The **server restart between batches** is the
 resource-buildup fix; the per-batch `db reset` (default on) is the orthogonal contamination
-fix — set `RESET=0` for just the server-restart behavior. Each batch's Playwright output lands
-in `$TMPDIR/e2e-prod-gate/batch-N.log`; the run prints an aggregate `GATE GREEN/RED` and exits
-non-zero on any hard failure. Smoke-tested 2026-07-12 (2 batches, fresh server each → 21/21).
+fix — set `RESET=0` for just the server-restart behavior. The run prints an aggregate
+`GATE GREEN/RED` and exits non-zero on any hard failure. Smoke-tested 2026-07-12 (2 batches,
+fresh server each → 21/21).
+
+### Run artifacts — all written **by the script**, all under `$TMPDIR/e2e-prod-gate/`
+
+| file | what it holds |
+|---|---|
+| `gate-exit` | the exit code + the verdict line. Seeded `GATE_EXIT=RUNNING` at startup, rewritten at every exit point. |
+| `batch-N.log` · `batch-N-rerun.log` · `batch-N-unrun.log` | Playwright output for the batch / its INFRA re-run / a batch that never ran |
+| `server-batch-N.log` · `server-batch-N-rerun.log` | the standalone server's stdout+stderr for that batch |
+| `reset-batch-N.log` (+ `-retry`) | `supabase db reset` output per batch |
+
+> ⛔ **Read `GATE_EXIT` from `$TMPDIR/e2e-prod-gate/gate-exit`, not from the launching
+> wrapper.** The old convention appended `; echo "GATE_EXIT=$?"` to the launch command; the
+> harness reaped that wrapper in **both** full runs of 2026-08-25, so the token never appeared
+> either time and the code had to be inferred from the verdict prose. A contract that requires
+> an artifact the environment reliably destroys is unsatisfiable, not strict. Measured with the
+> fix in place: when only the **wrapper** is signalled the gate is orphaned and *still writes its
+> own verdict*; when the **gate itself** gets SIGTERM it records `GATE_EXIT=143`; after SIGKILL
+> the seeded `GATE_EXIT=RUNNING` line remains, so the file is never simply absent.
 
 ## Stack preflight (added 2026-07-28) — why the gate no longer trusts `/health`
 
@@ -154,6 +172,8 @@ that only ever passes is vacuous (`docs/progress/authz-handoff.md` §7.1).
 | 3a | double `token_ok` → true | `recover_stack` stops at the **cheap** kong restart, never cycles |
 | 3b | double `token_ok` → false | escalates to the full cycle, then returns failure so the gate aborts |
 | 4 | `SPECS="e2e/home.spec.ts" RESET=0 REBUILD=0` | the gate still **runs tests** and reports GREEN |
+| 5 | `NETSTAT_AWK=<mutant> bash scripts/test-netstat-listener-pids.sh` | each mutant in the table below reds its own group; the unmutated parser is 17/17 |
+| 6 | a fake server that dies mid-batch (shell doubles, see below) | `server-batch-N.log` retained + tailed on the INFRA path; `gate-exit` matches the exit status. Re-run against a pre-fix copy: **red on 4 counts** |
 
 3a/3b are unit tests against shell doubles, so they do not reset the local DB. Two real bugs were
 caught this way and neither would have shown up in review:
@@ -256,6 +276,87 @@ controls (pure assertion failures → REAL; 2 assertions + 1 incidental connecti
 REAL). Packing was checked against the live suite (924 tests, counts matching the observed
 per-spec runs). The restructured loop was exercised with stubs across four scenarios:
 clean · infra-then-clean-on-retry · infra-twice · real failures.
+
+## Two defects in the HARNESS itself (fixed 2026-08-25, PDF·P3)
+
+Both were in `scripts/e2e-prod-gate.sh`, and neither changed what the gate *measures* —
+one is how it kills processes, the other how it retains evidence.
+
+### 1. `free_port()` selected PIDs from the wrong `netstat` column
+
+The selector was `netstat -ano | grep ":$PORT " | awk '{print $NF}'`, and **`grep` cannot say
+which column it matched**. A client socket connected *to* the port carries it in the **Foreign
+Address** column, so on a machine with live clients the selector returned **client** PIDs and
+`taskkill //F` killed them. During a gate run those clients are Playwright workers — the
+batch-13 signature of 2026-08-25 (`worker process exited unexpectedly` ×53). ⚠ **Mechanism
+demonstrated, firing UNOBSERVED**: a teardown-phase hazard, *not* a diagnosed root cause of
+that batch. It is not the same item as
+`FUP-E2E-GATE-CLASSIFIER-BLIND-TO-WORKER-CRASHES`, which is about *classifying* that signature.
+
+The parse now lives in [`scripts/lib/netstat-listener-pids.awk`](../../scripts/lib/netstat-listener-pids.awk)
+and matches **only rows whose LOCAL address is that port and which are listening**.
+
+> ⚠ **A second `grep LISTENING` would not have been a fix.** The State column is *localized*
+> (pt-BR Windows prints `ESCUTANDO`), so a literal match selects **nothing** on a localized
+> host — and that fails **open** in the worst direction: `free_port` stops killing the stale
+> server, `start_server`'s `curl /login` probe then succeeds *against that stale server*, and
+> the batch runs — possibly green — against a **stale build**. The listening state is instead
+> identified **structurally**: LISTENING is the only TCP state whose Foreign endpoint is the
+> wildcard (`0.0.0.0:0`, `[::]:0`, `*:*`). Columns are read positionally from ends that cannot
+> move — proto `$1`, local `$2`, foreign `$3`, pid `$NF` — never `$4`/`$5`, because the State
+> token is absent on UDP rows and could be multi-word in some locale.
+
+**Keystone: `bash scripts/test-netstat-listener-pids.sh`** — ~1 s, no DB, no server, no gate
+run. 17 assertions over **captured real `netstat -ano` output** (`scripts/lib/fixtures/`;
+provenance in the test's header). Both directions, and the positive control is mandatory —
+"the foreign-only fixture yields zero PIDs" is satisfied by a parser that returns nothing for
+everything, so each negative case is paired with a listener that **must** be found.
+
+Every assertion group was proven able to red, by pointing `NETSTAT_AWK` at a mutant copy:
+
+| mutant | reds |
+|---|---|
+| listening-state check removed | the foreign-only fixture (§2) |
+| local column read as `$3` | the positive controls **and** the defect (§1+§2) |
+| `index()` instead of `!=` for the port | exact-port matching (§3) |
+| `$4 != "LISTENING"` literal | locale independence (§4) |
+| emit nothing, ever | **the positive controls (§1) — the vacuity proof** |
+
+### 2. The gate deleted the evidence for the one failure mode it detects
+
+The server was redirected to a **fixed** `server.log` with a **truncating** `>`, surfaced at
+exactly one place: on `start_server` **failure**. So a server that started cleanly and then
+died **mid-batch** — the `server_dead` condition the INFRA classifier exists to detect — left
+**no retained server-side artifact at all**. Batch 7's server truncated batch 6's log seconds
+after batch 6 died, in both full runs of 2026-08-25. Per-batch naming was never unavailable:
+the same script already wrote `batch-N.log` and `reset-batch-N.log`.
+
+This matters because **three causes are indistinguishable from the client side and prescribe
+opposite remedies** — a V8 heap ceiling (`--max-old-space-size`), plain capacity
+(`BATCH_SIZE=4`), or ⛔ **an unhandled exception in app code, which is a product DEFECT the
+classifier would book as INFRA indefinitely**. Only the server log separates them. ⚠ `Error:
+The destination stream closed early` is **not** a death signature — it appears in healthy
+passing batches.
+
+Now: `server-batch-N.log` per batch and per attempt, and a `tail` on the **INFRA-classification**
+path as well as the start-failure path. Plus the durable `gate-exit` described above.
+
+**Demonstrated without a 21-batch run**, by running the *real* script (byte-compared to the
+repo copy) inside a throwaway tree against shell doubles — the same technique rows 3a/3b of the
+fault-injection checklist already use. 27 assertions: a fake server that starts, answers
+`/login`, then dies mid-batch printing a heap-limit block. Retention held across the INFRA
+re-run and the next batch (each attempt's own log intact, distinct instance ids), the death
+block was echoed into the run output, and `gate-exit` matched the process exit status.
+⭐ The same assertions were re-run against a **pre-fix** copy and **red on four counts**
+(no `server-batch-1.log`, death not surfaced, the fixed `server.log` truncated, no usable
+`gate-exit`), so they are not vacuous.
+
+> ⚠ **Two things measured rather than assumed.** (a) `bash 5.2.37` on MINGW64: a subshell does
+> **not** inherit the parent's `EXIT` trap, and an untrapped SIGKILL runs no trap — hence the
+> seeded `RUNNING` line rather than trap-only. (b) The **first** run of the SIGTERM check
+> reported "the trap did not fire", which was **wrong**: the signal had gone to a wrapper
+> subshell, not to the gate. Signalling the gate's own pid fires the trap promptly. A
+> trap-based fix must be proven firing *against the process you actually mean to signal*.
 
 ## Recommendations
 
