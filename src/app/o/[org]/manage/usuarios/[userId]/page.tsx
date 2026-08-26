@@ -7,7 +7,10 @@ import { getSessionContext } from "@/lib/queries/session";
 import { adminedHospitals } from "@/lib/auth/access";
 import { getOrgUser, listProfessionalCategories } from "@/lib/queries/org-users";
 import { formatCouncilRegistration } from "@/lib/users/types";
-import { getPersonAdminView } from "@/lib/users/person-footprint";
+import {
+  getPersonAdminView,
+  resolvePlatformFootprint,
+} from "@/lib/users/person-footprint";
 import { listPersonAccountHistory } from "@/lib/queries/audit";
 import {
   listHospitalsForOrg,
@@ -83,6 +86,17 @@ export async function generateMetadata({
  * cleanly rather than rendered as a placeholder, because a dash in a definition list
  * reads as a fact about the person ("never signed in", "no specialty") rather than as a
  * gap in the schema.
+ *
+ * ⚠ AFF4 F3 (ADR 0151 D3/D8) adds a THIRD capability, deliberately not folded into the
+ * two above: `isOrgAdmin` — computed a few lines up for the layout gate already, and
+ * reused here verbatim as `UserLifecycleActions`' `canEndOrgAffiliation` — is org_admin
+ * ONLY, with no footprint bound at all, because D8 gives void/end-org authority to
+ * org_admin (or that hospital's admin, for the hospital tier) unconditionally. It can
+ * disagree with `canManageAccountLifecycle` in either direction once a person can hold
+ * more than one org affiliation (home org demoted, AFF4 Phase 2). `resolvePlatformFootprint`
+ * is the fourth new input: a platform-wide (non-RLS-scoped), server-only read that gates
+ * the org-offboarding wizard's step-3 deactivation OFFER — never permission, which
+ * `deactivateUser` still re-derives on its own.
  */
 export default async function OrgUserDetailPage({
   params,
@@ -111,10 +125,25 @@ export default async function OrgUserDetailPage({
     ? []
     : adminedHospitals(context, organization.id);
 
-  const [user, adminView, categories, hospitals, commissions, history] =
+  const [user, adminView, footprint, categories, hospitals, commissions, history] =
     await Promise.all([
       getOrgUser(userId),
       getPersonAdminView(userId),
+      // AFF4 F3 (ADR 0151 D3/D12) — the platform-wide footprint check that gates the
+      // org-offboarding wizard's step 3 offer. Server-only, resolved once here and
+      // passed down as a plain prop, same pattern as `getPersonAdminView` on this
+      // same screen.
+      //
+      // ⛔ DELIBERATELY UNWRAPPED — do not add a try/catch here, and do not fall back
+      // to a default footprint on error. `resolvePlatformFootprint` FAILS CLOSED: a
+      // partial or failed read throws rather than returning `isEmpty: true`, because
+      // an undetermined footprint reported as "empty" is precisely what would offer
+      // to deactivate an account that still holds one. A throw here is therefore the
+      // HONEST outcome, not a defect to route around — it renders through this
+      // route's existing `usuarios/error.tsx` boundary (which already covers
+      // `[userId]`, see that file's own scope comment), never as a raw message
+      // (CLAUDE.md §8), and never as a silent "no offer" that looks like success.
+      resolvePlatformFootprint(userId),
       listProfessionalCategories(),
       isOrgAdmin
         ? listHospitalsForOrg(organization.id)
@@ -205,6 +234,10 @@ export default async function OrgUserDetailPage({
           status={user.status}
           fullName={displayName}
           canManageAccountStatus={authority.canManageAccountLifecycle}
+          canEndOrgAffiliation={isOrgAdmin}
+          organizationId={organization.id}
+          organizationName={organization.name}
+          footprint={footprint}
         />
       </section>
 
