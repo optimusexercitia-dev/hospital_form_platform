@@ -5,6 +5,7 @@ import {
   listActiveAffiliationsFor,
   listActivePrincipalIdsForHospital,
   listAffiliationsFor,
+  listOrgAffiliatedPrincipalIds,
   type HospitalAffiliation,
 } from '@/lib/queries/affiliations'
 import {
@@ -394,6 +395,25 @@ export interface ListDirectoryOptions {
    * there would be a second, weaker expression of the same scope.
    */
   hospital?: string | null
+  /**
+   * AFF4 B6b (ADR 0151 D10 / ADR 0154) — include people whose ORG affiliation has ENDED.
+   *
+   * Defaults to FALSE. The filter lives HERE, at the data-access boundary, and not on the
+   * page: if the page narrowed, every future caller would get the wide set by default and
+   * have to *remember* to narrow — a remembered step. At the boundary the safe set is the
+   * default and each widening is explicit and visible at its call site. *Narrowing can be
+   * wrong and safe; widening cannot.*
+   *
+   * ⚠ Same NAME and same DEFAULT as `list_org_people`'s `p_include_ended` and
+   * `listOrgPeople`'s `includeEnded`, deliberately: choosing differently in each layer is
+   * exactly how the two surfaces drift apart. The two runtimes have no shared unit-level
+   * home, so each is asserted in its own; the real parity gate is E2E (tester's T2).
+   *
+   * ⚠ IGNORED BY `listHospitalUsers` TODAY — see that function's note. Its roster cannot be
+   * filtered on `organization_affiliations` through the cookie client, because a
+   * `hospital_admin` cannot read that table (measured: 1 row, their own).
+   */
+  includeEnded?: boolean
   paging: Paging
 }
 
@@ -416,7 +436,7 @@ export async function listOrgUsers(
   options: ListDirectoryOptions,
 ): Promise<OrgUserPage> {
   const supabase = await createClient()
-  const { search, status, hospital, paging } = options
+  const { search, status, hospital, includeEnded = false, paging } = options
 
   // ONE instant for the page predicate AND the three counts, so they cannot straddle a
   // tick and report a suspension that expired mid-request in two different buckets.
@@ -441,12 +461,39 @@ export async function listOrgUsers(
     ? Array.from(await hospitalPeopleIds(supabase, hospital))
     : null
 
+  // AFF4 B6b (ADR 0151 D10, as amended by ADR 0154) — THE ROSTER PREDICATE. Was
+  // `.eq('home_organization_id', orgId)`. The org roster is now "holds an org affiliation
+  // to this organisation", so an offboarded person leaves the default directory while
+  // staying reachable behind `includeEnded`.
+  //
+  // ⛔ D10's Phase 2 is NOT being done here: the RLS legs and the tenant trigger STAY on
+  //    `home_organization_id`. This moves the APPLICATION QUERY's filter only.
+  //
+  // An id set + `.in()` rather than an embedded `!inner` join, following the same reasoning
+  // `hospitalPeopleIds` states: the join form duplicates rows per affiliation and corrupts
+  // the `count: 'exact'` the pills are drawn from, and an `.or()` with interpolated values
+  // is the recorded PostgREST hazard. The set is bounded by one organisation's roster.
+  const orgScope = await listOrgAffiliatedPrincipalIds(orgId, includeEnded)
+
+  // An empty `in.()` is invalid PostgREST, and this set is empty in two very different
+  // situations: an organisation with no roster, and a caller who is not its org_admin (the
+  // policy returns nothing rather than raising). Both render as an empty page with four
+  // zero counts, which is the same answer `listHospitalUsers` gives - and, as there, an
+  // empty list NEVER means "you lack permission".
+  if (orgScope.length === 0) {
+    return {
+      rows: [],
+      total: 0,
+      statusCounts: { all: 0, active: 0, attention: 0, deactivated: 0 },
+    }
+  }
+
   /** The scoped set, WITHOUT the status filter - shared by the page read and the counts. */
   const scoped = (head: boolean) => {
     let q = supabase
       .from('profiles')
       .select(head ? 'id' : PROFILE_SELECT, { count: 'exact', head })
-      .eq('home_organization_id', orgId)
+      .in('id', orgScope)
     if (hospitalScope) q = q.in('id', hospitalScope)
     if (term) {
       q = q.or(`full_name.ilike.%${escaped}%,email.ilike.%${escaped}%`)
@@ -500,6 +547,28 @@ export async function listOrgUsers(
  * visible as `profiles` RLS allows, and the `profiles` affiliation leg is a W2
  * deliverable. Until it lands, an affiliated-but-committee-less person is enumerated
  * here and then filtered out by the row policy. pgTAP `301` §5 pins that state.
+ *
+ * ⛔ AFF4 B6b: THIS SURFACE DOES **NOT** CARRY THE ORG-AFFILIATION PREDICATE, and
+ * `ListDirectoryOptions.includeEnded` is IGNORED here. Not an oversight — it is blocked by
+ * a decision. The `organization_affiliations` SELECT policy has no hospital tier by ADR
+ * 0151 D1 (pgTAP `375` §4.1 pins that absence deliberately), so filtering this roster on
+ * that table through the cookie client would return the empty set for every
+ * `hospital_admin`. Measured 2026-08-26: a `hospital_admin` reads 1 org-affiliation row —
+ * their own — and 0 belonging to anyone else, against an `org_admin`'s 29.
+ *
+ * ⚠ THE RESIDUAL GAP, stated rather than papered over. An org-offboarded person is
+ * *mostly* absent from this roster already, because `end_org_affiliation` refuses while
+ * active hospital affiliations or active memberships remain in the org (D3). But
+ * {@link hospitalPeopleIds}' membership arm applies NO `expires_at` filter while D6 rules
+ * that an EXPIRED membership does not block offboarding — so a person holding an expired
+ * commission seat can be org-offboarded and still appear here. Small, real, and NOT closed
+ * by this change.
+ *
+ * ⛔ Routing this through `list_org_people` to borrow its predicate is REJECTED (ADR 0154):
+ * that door carries its own authorization gate and emits a `person.cpf_lookup` audit row
+ * per call, so a directory page view would silently write to the audit surface (Rule 11) —
+ * and it is org-scoped where this is hospital-scoped. Three semantics conflated to remove
+ * one duplication.
  */
 export async function listHospitalUsers(
   hospitalId: string,

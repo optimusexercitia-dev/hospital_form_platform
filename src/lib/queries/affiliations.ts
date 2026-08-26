@@ -99,6 +99,13 @@ export async function listActiveAffiliationsFor(
     .select(AFFILIATION_SELECT)
     .in('principal_id', principalIds)
     .is('ended_on', null)
+    // AFF4 (ADR 0151 D7) — the SECOND site of the same class, found by sweeping the
+    // predicate rather than fixing the one site that was reported. A voided affiliation
+    // leaves `ended_on` NULL, so without this it kept feeding
+    // `OrgUserListItem.hospitalNames`: the directory would name a hospital as this
+    // person's workplace for an employment the platform has recorded as never having
+    // been true.
+    .is('voided_at', null)
     .order('started_on', { ascending: true })
 
   if (error) throw error
@@ -185,8 +192,47 @@ export async function listActivePrincipalIdsForHospital(
     .select('principal_id')
     .eq('hospital_id', hospitalId)
     .is('ended_on', null)
+    // AFF4 (ADR 0151 D7): `ended_on is null` alone is NOT an activeness test any more.
+    // A VOIDED affiliation says the employment never should have existed, and it leaves
+    // `ended_on` NULL — so without this conjunct a voided person kept counting onto the
+    // hospital roster. This is the TS mirror of the same conjunct every SQL body that
+    // tests activeness carries (verified against comment-stripped `prosrc`: each
+    // `ended_on is null` there is conjoined with `voided_at is null`).
+    .is('voided_at', null)
     .returns<{ principal_id: string }[]>()
 
+  if (error) throw error
+  return Array.from(new Set((data ?? []).map((r) => r.principal_id)))
+}
+
+/**
+ * The principal ids ORG-AFFILIATED to one organisation — the AFF4 roster predicate
+ * (ADR 0151 D10, as amended by ADR 0154), replacing `profiles.home_organization_id`.
+ *
+ * `includeEnded` defaults to FALSE (active only), the same name and the same default as
+ * `list_org_people`'s `p_include_ended` and `ListDirectoryOptions.includeEnded`. VOIDED
+ * affiliations are excluded in BOTH modes — a void is not a weaker "ended" (D7/D8).
+ *
+ * ⚠ RLS-SCOPED, AND THE SCOPE IS NARROW: the `organization_affiliations` SELECT policy is
+ * `principal_id = auth.uid() OR is_org_admin_of(organization_id)` — there is deliberately NO
+ * hospital tier (D1; pgTAP `375` §4.1 pins that absence). Measured: a `hospital_admin` reads
+ * exactly ONE row here, their own, and ZERO belonging to anyone else. So this helper is
+ * usable by an `org_admin` and is NOT a way to scope a hospital_admin's directory — using it
+ * there would blank the page for the only role that page serves.
+ */
+export async function listOrgAffiliatedPrincipalIds(
+  orgId: string,
+  includeEnded = false,
+): Promise<string[]> {
+  const supabase = await createClient()
+  let query = supabase
+    .from('organization_affiliations')
+    .select('principal_id')
+    .eq('organization_id', orgId)
+    .is('voided_at', null)
+  if (!includeEnded) query = query.is('ended_on', null)
+
+  const { data, error } = await query.returns<{ principal_id: string }[]>()
   if (error) throw error
   return Array.from(new Set((data ?? []).map((r) => r.principal_id)))
 }
@@ -238,6 +284,18 @@ export interface OrgPerson {
   isActive: boolean
   /** ACTIVE affiliations within the queried organisation only. */
   affiliations: OrgPersonAffiliation[]
+  /**
+   * AFF4 B6a (ADR 0151 D10 / ADR 0154) — the person's ORG-affiliation tense in the queried
+   * organisation. `'encerrado'` can only appear when the caller passed `includeEnded`.
+   *
+   * ⚠ This is the ORG tense, NOT the hospital one. A person may be `'ativo'` here and hold
+   * zero active hospital affiliations — that is an org employee between postings, and
+   * `affiliations` above (which is hospital-scoped and active-only) will be empty for them.
+   * Rendering the two as one status is how a between-postings employee reads as departed.
+   */
+  orgAffiliationStatus: 'ativo' | 'encerrado'
+  /** ISO `yyyy-mm-dd` when `orgAffiliationStatus` is `'encerrado'`; otherwise null. */
+  orgAffiliationEndedOn: string | null
 }
 
 /**
@@ -258,12 +316,28 @@ export async function listOrgPeople(params: {
   orgId: string
   search?: string | null
   cpf?: string | null
+  /**
+   * AFF4 B6b (ADR 0151 D10 / ADR 0154). Include people whose org affiliation has ENDED.
+   *
+   * Defaults to FALSE, matching the door's own default and `ListDirectoryOptions.includeEnded`
+   * — the two layers share a name and a default on purpose, because choosing differently in
+   * each is precisely how the surfaces drift. Narrowing can be wrong and safe; widening
+   * cannot, so the safe set is the default and every widener is visible at its call site.
+   *
+   * VOIDED affiliations are excluded in BOTH modes and there is no flag for them: a void
+   * says the employment never should have existed (D7/D8), which is not a weaker "ended".
+   */
+  includeEnded?: boolean
 }): Promise<OrgPerson[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('list_org_people', {
     p_org_id: params.orgId,
     p_search: params.search ?? undefined,
     p_cpf: params.cpf ?? undefined,
+    // Only sent when widening. The generated Args mark defaulted params optional, and
+    // omitting the key is how you take the SQL default rather than restating it here —
+    // a restated default is a second place for it to drift.
+    p_include_ended: params.includeEnded ? true : undefined,
   })
 
   if (error) throw error
@@ -277,6 +351,10 @@ export async function listOrgPeople(params: {
     // the field's doc comment on OrgPerson.
     dateOfBirth: row.date_of_birth ?? null,
     isActive: row.is_active,
+    orgAffiliationStatus: row.org_affiliation_status === 'encerrado' ? 'encerrado' : 'ativo',
+    // Same generated-type caveat as `date_of_birth`: `RETURNS TABLE` columns all type as
+    // non-nullable, and this one is NULL for everyone whose affiliation is active.
+    orgAffiliationEndedOn: row.org_affiliation_ended_on ?? null,
     affiliations: (
       (row.affiliations ?? []) as {
         hospital_id: string

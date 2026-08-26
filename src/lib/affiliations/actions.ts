@@ -287,7 +287,25 @@ export async function lookupOrgPeople(input: {
   // exact-match and full-length only: partial CPF matching is an enumeration oracle
   // over national IDs (D11) and is refused server-side, not merely unused.
   const cpf = input.cpf ? normalizeCpf(input.cpf) || null : null
-  return listOrgPeople({ orgId: input.orgId, search: input.search ?? null, cpf })
+  return listOrgPeople({
+    orgId: input.orgId,
+    search: input.search ?? null,
+    cpf,
+    // ⭐ AFF4 B6b (ADR 0151 D5 / D10, as amended by ADR 0154) — THE SINGLE EXPLICIT
+    // WIDENER, and the only place in the codebase that passes this. Every other roster
+    // read takes the active-only default.
+    //
+    // An org-offboarded person MUST stay findable here or D5's one-step rehire is
+    // impossible: a hospital admin cannot re-employ someone they cannot find, and the
+    // org-tier door is org_admin-only, so failing to find them means waiting on a ticket
+    // for someone the hospital is actively trying to hire back. The DIRECTORY defaults to
+    // active-only behind a toggle; this ADD-A-PERSON SEARCH reaches ended people. The two
+    // surfaces default differently on purpose — see `ListDirectoryOptions.includeEnded`.
+    //
+    // The result carries `orgAffiliationStatus`, so the UI can say "encerrado" rather than
+    // offering an ended person as though nothing had happened.
+    includeEnded: true,
+  })
 }
 
 /**
