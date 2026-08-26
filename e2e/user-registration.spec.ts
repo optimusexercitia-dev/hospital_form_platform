@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
 import { uniqueCpf } from "./helpers/cpf"
+import { pickDate } from './helpers/date-pickers'
+import { svcSelect } from './helpers/service-role'
 
 /**
  * User Registration & Identity Management
@@ -437,6 +439,7 @@ test.describe('AC4 — suspension: blocked while suspended_until is future; auto
 
   test('org_admin suspends a user with a past date; the user is auto-reinstated (active) and can sign in', async ({
     page,
+    request,
   }) => {
     await signInAs(page, 'orgadmin.a@test.local')
 
@@ -450,30 +453,125 @@ test.describe('AC4 — suspension: blocked while suspended_until is future; auto
     await card.click()
     await page.waitForURL(/\/usuarios\/[^/]+$/, { timeout: 10_000 })
 
-    // Suspend with a date in the past via the DatePicker. The UI's date input
-    // does not allow picking a past date via the calendar typically, so we
-    // fill the underlying date value directly to exercise the auto-reinstate
-    // path (the server enforces the derivation, not the picker).
     // Trigger stays "Suspender"; the dialog confirm is now "Confirmar
     // suspensão" (FIX-1), so /suspender/i on the trigger is unambiguous.
     await page.getByRole('button', { name: /^suspender$/i }).click()
     const dialog = page.getByRole('alertdialog')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
-    const dateInput = dialog.locator('input[type="date"], input#suspend-until')
-    if (await dateInput.count()) {
-      await dateInput.first().fill('2020-01-01')
-    }
+    // FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY: `input[type="date"],
+    // input#suspend-until` matched nothing — DatePicker never renders a
+    // native date input, its hidden input only exists when a `name` prop is
+    // passed (this call site passes none), and the id it does carry sits on
+    // the trigger <button>, not an <input>. The fill silently no-op'd, so
+    // `suspendUser` ran with an empty value against an already-active user
+    // and every downstream assertion was satisfied by a status that never
+    // changed (measured before this fix: suspended_until stayed NULL).
+    //
+    // Drive the real control via the shared structural helper instead — it
+    // locates by `button[aria-haspopup="dialog"]`, never by name, so it is
+    // unaffected by F0's accessible-name change. This DatePicker instance has
+    // no min/max, so every date is clickable including past ones (the old
+    // comment claiming otherwise was itself measured false). `monthsBack: 1`
+    // lands a full month back — unambiguously past on any run date, with
+    // enough margin that the confirmed suspended_until display-timezone
+    // defect (banner formats with no explicit timeZone) can never flip this
+    // test's past/future boundary.
+    await pickDate(dialog, page, { monthsBack: 1 })
+
     await dialog.getByRole('button', { name: /confirmar suspensão/i }).click()
+    // The dialog closes on BOTH success and failure paths (`setOpenDialog(null)`
+    // fires before the outcome is known) — not evidence of success by itself.
     await expect(dialog).not.toBeVisible({ timeout: 10_000 })
 
-    // Because suspended_until is already in the past, the derived status is
-    // ACTIVE again immediately (auto-reinstate) — never shows "Suspenso".
-    await expect(page.getByText('Ativo', { exact: true })).toBeVisible({ timeout: 10_000 })
+    // Suspension took effect: assert the WRITE on the table, not a screen
+    // string — this is exactly the fact the original bug got wrong.
+    const rows = await svcSelect<{ is_active: boolean; suspended_until: string | null }>(
+      request,
+      'profiles',
+      'email=eq.ativo.registro@test.local&select=is_active,suspended_until',
+    )
+    expect(rows, 'exactly one profiles row for ativo.registro@test.local').toHaveLength(1)
+    expect(
+      rows[0].suspended_until,
+      'suspended_until must have been written by the confirm, not left NULL',
+    ).not.toBeNull()
+    expect(new Date(rows[0].suspended_until as string).getTime()).toBeLessThanOrEqual(Date.now())
+
+    // Auto-reinstatement works: assert the suspension-specific surface, not
+    // the bare 'Ativo' text — FUP-AC4 measured that string satisfied by an
+    // unrelated element. (Correcting the FUP's own attribution: for this
+    // persona specifically it's the identity band's UserStatusBadge, not the
+    // AffiliationStatusBadge the FUP named — this persona seeds with zero
+    // hospital_affiliations rows. Same defect, different culprit component.)
+    // AccountSituationBanner's copy is specific to the derived state.
+    await expect(page.getByText(/situação:\s*ativa/i)).toBeVisible({ timeout: 10_000 })
 
     // Confirm the user can still sign in (not blocked).
     await signInAs(page, 'ativo.registro@test.local')
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 })
+  })
+
+  test('DatePicker trigger accessible name folds in label and value after a pick (F0 regression guard)', async ({
+    page,
+  }) => {
+    // F0 (commit 5e7288b5) fixed a DatePicker accessible-name defect: the
+    // trigger's name used to be JUST its label — the label-for relationship
+    // wins over the button's own contents (where the picked value renders),
+    // displacing it entirely (measured via Chromium CDP
+    // Accessibility.getPartialAXTree; FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME,
+    // independently corroborated by a parallel session's own CDP probe on a
+    // different call-site bucket).
+    //
+    // This discriminates fixed-from-broken by a BEFORE/AFTER transition
+    // WITHIN THIS RUN: before picking, the name must not contain a date;
+    // after picking the SAME control, it must contain both the label and a
+    // date. On a pre-F0 build the AFTER check fails by construction — the
+    // label mechanism displaces the value regardless of whether one was ever
+    // picked. That is observed to discriminate by this within-run
+    // transition, NOT by an actual pre-F0 build observation: date-picker.tsx
+    // is never reverted (editing application code is out of tester scope,
+    // and that file must stay byte-identical with a parallel branch that
+    // cherry-picked it).
+    //
+    // Composition, not a hardcoded string: label and value are asserted
+    // SEPARATELY, both unanchored; the value is checked as a generic
+    // dd/mm/yyyy SHAPE, never the specific day picked or the concatenated
+    // whole.
+    //
+    // Read-only: Escapes out without confirming, so it never writes
+    // suspended_until — the picked value only ever lives in unsaved dialog
+    // state.
+    await signInAs(page, 'orgadmin.a@test.local')
+    await page.goto('/o/rede-a/manage/usuarios?search=ativo.registro')
+    const card = page.locator('li').filter({ hasText: 'Ativo Registrado' })
+    await expect(card).toBeVisible({ timeout: 10_000 })
+    await card.click()
+    await page.waitForURL(/\/usuarios\/[^/]+$/, { timeout: 10_000 })
+
+    await page.getByRole('button', { name: /^suspender$/i }).click()
+    const dialog = page.getByRole('alertdialog')
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
+    const trigger = dialog.locator('button[aria-haspopup="dialog"]').first()
+
+    await expect(trigger).not.toHaveAccessibleName(/\d{1,2}\/\d{1,2}\/\d{4}/)
+
+    await pickDate(dialog, page, { monthsBack: 1 })
+
+    await expect(trigger).toHaveAccessibleName(/suspenso até/i)
+    await expect(trigger).toHaveAccessibleName(/\d{1,2}\/\d{1,2}\/\d{4}/)
+
+    // Dismiss without confirming. The calendar popover is a nested
+    // dismissable layer; an Escape pressed while it is still unmounting can
+    // be consumed by IT rather than the AlertDialog (observed flaky with a
+    // single press), so wait for it to be gone first and fall back to a
+    // second Escape if the dialog is still up.
+    await expect(page.getByRole('grid')).not.toBeVisible({ timeout: 5_000 }).catch(() => {})
+    await page.keyboard.press('Escape')
+    if (await dialog.isVisible().catch(() => false)) {
+      await page.keyboard.press('Escape')
+    }
+    await expect(dialog).not.toBeVisible({ timeout: 5_000 })
   })
 })
 
