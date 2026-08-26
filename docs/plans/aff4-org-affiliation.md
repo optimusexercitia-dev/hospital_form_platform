@@ -477,6 +477,24 @@ the gate reds.
   and **1 carries no name-bearing attribute at all** — that last is an unmeasured a11y gap,
   not a styling choice. Deliberately not guessed at during F0: extending a fix to a
   mechanism nobody measured is how a partial fix reads as a complete one.
+- **No error boundary in this codebase carries any entrance motion** — `usuarios/error.tsx`
+  and the three others predate AFF4, and F1's two matched that template. So §1's
+  micro-animation mandate is unsatisfied **app-wide and consistently**, not locally.
+  ⛔ **Deliberately NOT fixed in AFF4**: animating two boundaries while four sit still makes
+  the tree less coherent, and *"should an error screen animate at all"* is an app-wide design
+  question — there is a real argument that motion on an error reads as flippant. Wants one
+  ruling applied everywhere or a recorded exception. Filed so the gap is a **known** exception
+  rather than a silent one.
+- **`ROLE_LABELS[b.role] ?? b.role` renders the RAW role key when the dictionary lacks it** —
+  a documented, deliberate *"untranslated is better than unnamed"* trade-off predating AFF4,
+  now at **two** sites (`affiliations-panel.tsx` and F3's blocker list, which inherited it
+  rather than re-deciding it — the right call from inside a feature task). Not a §8 violation:
+  an untranslated role key is not a raw Postgres error. Filed because the day a role ships
+  without a label, two surfaces degrade together and the record should say why.
+- **QA item, not a follow-up:** `deactivateUser`'s pt-BR error text is **trusted from the
+  module header, not independently verified** — named as such by `frontend`, correctly, since
+  verifying another module's strings from inside a frontend task erodes file ownership. `qa`
+  closes it.
 - **The `claims_for` vacuity class has NO measured denominator** — and the fix count must
   never be quoted as if it did. Three real defects were found and fixed (`ff596034`), but
   the predicate that found them covered **literal-UUID two-arg calls naming a multi-role
