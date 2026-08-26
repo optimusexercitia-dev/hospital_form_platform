@@ -12,14 +12,22 @@ status: live
 
 ## ▶ RESUME HERE
 
-1. ~~`supabase db reset --local`~~ — ✅ done at `32e88b5d`, exit 0.
-2. ~~AC-7~~ — ✅ **RESOLVED, passes on a fresh DB** (see § State).
-3. ~~the owed pgTAP door-SQLSTATE half~~ — ✅ **DISCHARGED** (`b5e6f0f1`, `565234c2`). **B5 is
-   released.** Verdict in § State.
-4. **IN FLIGHT:** B5 (backfill) + B6 (widened, per ADR 0154) + ADR 0156. Then B7 → rest of
-   B8 → B9. ⛔ **B5's evidence requires a FRESH reset** — the gate work above ran five mutation
-   cycles against live function bodies (restored byte-exact, md5-verified), and *"a green
-   baseline is not evidence the DB is fit to mutate"*.
+**The BUILD is complete.** Tracks B, F and T are all done, plus a full QA round and its four
+blockers. What remains is the §6 gate.
+
+1. **A `qa` re-pass is in flight** — its first pass returned CHANGES REQUESTED and one of its own
+   findings (AC3) changed character; it is revising `docs/reviews/aff4-review.md` in place.
+2. **Then `npm run e2e:prod`, on a fresh reset with a quiet tree.** ⛔ **It has never run on this
+   branch**, and it is the **FIRST** run covering `61e23659` **and** `b953854c`. Any verdict above
+   is conditional on it.
+3. **Then §6 step 5 (Record)** — and that is where PROGRESS.md's real rotation is owed: eleven FUPs
+   discharge, the phase row moves. The file has been held under its cap by five separate rotations
+   during this build and has no structural headroom left.
+
+⛔ **The §6 order was run out of sequence** — `qa` (step 3) began before the full `e2e:prod`
+(step 2's final act). The remedy in force: QA's verdict is **conditional**, and if the gate reds,
+the failures go back to the engineers and `qa` re-reviews. Do not record the gate as passed on the
+strength of the review alone.
 
 ⛔ Re-measure before relying on anything below — see § Trust.
 Design detail, task text and the discovered-findings record: `docs/plans/aff4-org-affiliation.md`.
@@ -116,8 +124,23 @@ laundering a belief into a fact, in the file whose entire purpose is to stop tha
 
 ### Not started
 
-B5 · B6 · B7 · B9 · the rest of B8 (D13 `registerUser` start date, D15 `updateUserProfile`
-tightening) · F4 · F6's toggle · T2–T5 · `qa` · the §6 gate.
+**Only the `e2e:prod` gate and the §6 Record step.** Everything else in Tracks B, F and T has
+landed, including the QA round's four blockers.
+
+⭐ **The two defects this build introduced ITSELF, both found late and both fixed** — worth reading
+before trusting any "AFF4 is clean" summary:
+- **`BUG-D5-REHIRE-HOSPADMIN-001`** — the D4 containment backstop shipped `SECURITY INVOKER`, so its
+  `EXISTS` ran under the caller's RLS and **broke the D5 rehire for every `hospital_admin`**. Two
+  individually-correct decisions composing into a break (D1's deliberate absence of a hospital tier;
+  a backstop reading under caller RLS). Fixed `89793d43`, ADR 0159, suite `381` — whose keystone
+  varies the **ACTOR**, the axis that let it ship: `378` §1 pinned the same rehire with an
+  `org_admin`, and an org_admin-pinned mechanism is what a reader mistakes for coverage of the
+  hospital_admin case.
+- **F0's `aria-labelledby` self-reference** — fixed `b953854c`, verified in Chromium.
+
+⚠ **It was found by writing a test for a criterion a review had called "merely unasserted."** No
+gate, arm or sweep surfaced it; all four ARMs held at exit 0 throughout, because it is not an
+authorization defect — it **fails closed**.
 
 ### Tree
 
