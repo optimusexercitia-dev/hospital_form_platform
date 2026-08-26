@@ -632,23 +632,37 @@ export interface CasePhaseForFill {
  *
  *   - `canRead`            — the viewer may open the full case. Backed by
  *                            `app.can_read_case`, a thin projection of the
- *                            `read_case_content` bit of `app._case_caps` — five
+ *                            `read_case_content` bit of `app._case_caps` — SIX
  *                            arms set it: coordinator (S1), a per-case grant (S3),
  *                            phase/narrative ASSIGNMENT (S4), NSP referral-touched
  *                            (S6), quality reviewer on an oversight-visible
- *                            commission (S7).
+ *                            commission (S7), and an appointed Administrativo of
+ *                            the case's commission holding the ADR-0061
+ *                            `read_cases` capability (S8, ADR 0134 D6).
+ *                            S7 and S8 alone are bounded by `not v_eg`: both are
+ *                            fully invisible on an `explicit_grants_only` case,
+ *                            where reach rides an explicit grant (S3) or nothing.
+ *                            ⚠ S8's `read_cases` is the ADR-0061 DELEGATION
+ *                            vocabulary, NOT `app._cap_bit`'s `read_case_content`
+ *                            — two vocabularies one word apart.
  *                            ⛔ A plain committee member is NOT among them. S5
  *                            confers `read_case_deliberation` ONLY, and
  *                            `has_case_capability` is a bare bitmask test with no
  *                            lattice closure — so bare membership yields
- *                            `canRead = false`. Measured 2026-08-21 on the seed:
- *                            three CCIH `staff` with zero grants and zero
- *                            assignments (`ativo.registro`, `dr.john`,
- *                            `staff4.ccih`) return `can_read = f` while
- *                            `read_case_deliberation = t`; every seed member who
- *                            reads does so through S3 or S4. Do not restate this
- *                            arm as "members can read" — that inference was made
- *                            here once and the control refuted it.
+ *                            `canRead = false`. Re-measured 2026-08-26 on the
+ *                            seed (the 2026-08-21 run predates S8, so it could
+ *                            not have covered this arm): three CCIH `staff` with
+ *                            zero grants and zero assignments (`ativo.registro`,
+ *                            `dr.john`, `staff4.ccih`) return `can_read = f` on
+ *                            all SIX CCIH cases, and `read_case_deliberation = t`
+ *                            on five of the six — false on the locked case, which
+ *                            S5's own `not v_eg` guard excludes. None of the three
+ *                            holds `read_cases`, so S8 does not fire for them and
+ *                            the verdict is unchanged by its arrival. Every seed
+ *                            member who reads does so through S3 or S4. Do not
+ *                            restate this arm as "members can read" — that
+ *                            inference was made here once and the control refuted
+ *                            it.
  *                            On a `get_case_detail` payload the bit is hard-coded
  *                            `true` (you only hold the payload if you could read
  *                            it); `case_viewer_capabilities` evaluates it for real.
