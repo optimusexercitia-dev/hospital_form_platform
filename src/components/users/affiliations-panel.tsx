@@ -42,6 +42,10 @@ import {
   affiliationStatusOf,
 } from "@/components/users/affiliation-status-badge";
 import { ProfileDialogShell } from "@/components/users/profile-dialog-shell";
+import {
+  blockerKey,
+  blockerLabel,
+} from "@/components/users/affiliation-blocker-label";
 
 /**
  * Hospital affiliations on the per-user profile page (AFF W3/T3.3 — ADR 0097
@@ -93,36 +97,13 @@ import { ProfileDialogShell } from "@/components/users/profile-dialog-shell";
  */
 
 /**
- * pt-BR labels for the seats `end_affiliation` reports as blockers (D5 — ending is
- * refused while the person holds active memberships of ANY tier under the hospital).
- *
- * ⚠ THE AUTHORITY FOR THIS SET IS `memberships_role_check`, not this file. The blocker
- * `role` arrives from PostgreSQL as the raw enum text, so a role added to that CHECK
- * without a label here leaks an English snake_case identifier into a pt-BR `role="alert"`
- * — the exact shape of the defect QA caught on the hospital-tier arm. Verified complete
- * against the live catalog (9 roles, 2026-08-06) and pinned executably by
- * `affiliations-panel.test.ts`, because a comment asserting completeness goes stale in
- * silence.
- *
- * The `?? role` fallback below is therefore unreachable today and is kept only as a
- * fail-soft: a blocker the admin cannot name is worse than one that is untranslated.
+ * ⛔ MOVED, NOT DELETED — re-exported here so the import path every consumer already uses
+ * (`@/components/users/affiliations-panel`) keeps resolving, `affiliations-panel.test.ts`
+ * included. The definition now lives beside the blocker LABELLING it exists to serve, in
+ * `./affiliation-blocker-label`, because the two render sites needed to share that logic
+ * and a pure module importing this client component would have closed an import cycle.
  */
-export const ROLE_LABELS: Record<string, string> = {
-  staff: "Membro",
-  staff_admin: "Coordenação",
-  hospital_admin: "Administração do hospital",
-  org_admin: "Administração da organização",
-  technical_director: "Direção técnica",
-  technical_director_deputy: "Direção técnica (substituto)",
-  nsp_coordinator: "Coordenação do NSP",
-  nsp_org_admin: "Administração do NSP",
-  pqs_member: "Membro do PQS",
-  quality_reviewer: "Revisão da qualidade",
-};
-
-function roleLabel(role: string): string {
-  return ROLE_LABELS[role] ?? role;
-}
+export { ROLE_LABELS } from "@/components/users/affiliation-blocker-label";
 
 /**
  * `started_on` / `ended_on` are DATE columns. Parsing them as instants shifts them a day
@@ -414,17 +395,12 @@ function AffiliationRow({
                     seats, so the copy has to be true for either action. */}
                 Remova estas funções antes de continuar:
               </p>
+              {/* Labelling lives in `./affiliation-blocker-label`, shared with
+                  `OrgOffboardingWizard` — the two lists render the same door payloads and
+                  drifted apart into the same defect when each carried its own copy. */}
               <ul className="flex list-disc flex-col gap-1 pl-5">
                 {state.blockers.map((b, i) => (
-                  <li key={`${b.role}-${b.commission ?? "hospital"}-${i}`}>
-                    {roleLabel(b.role)}
-                    {/* A commission seat names its committee, so the admin knows where
-                        to go to remove it. A HOSPITAL-TIER seat (technical_director,
-                        nsp_coordinator, hospital_admin…) has no committee to name — it
-                        is held at the hospital itself, and saying so is what tells the
-                        admin to look outside the committee pages. */}
-                    {b.commission ? ` — ${b.commission}` : " — cargo do hospital"}
-                  </li>
+                  <li key={blockerKey(b, i)}>{blockerLabel(b)}</li>
                 ))}
               </ul>
             </>

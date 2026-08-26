@@ -10,7 +10,11 @@ import {
   type AffiliationActionState,
 } from "@/lib/affiliations/actions";
 import { deactivateUser } from "@/lib/users/actions";
-import { ROLE_LABELS } from "@/components/users/affiliations-panel";
+import {
+  ROLE_LABELS,
+  blockerKey,
+  blockerLabel,
+} from "@/components/users/affiliation-blocker-label";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -179,12 +183,16 @@ export function OrgOffboardingWizard({
                       <p className="text-destructive/90">
                         Remova estas funções e vínculos antes de desligar:
                       </p>
+                      {/* ⛔ `blockerLabel`, NOT an inline expression. HC0R6 is the door
+                          that reaches this list, and it is the ONE door emitting `kind` —
+                          its most common blocker is a `hospital_affiliation`, which has no
+                          `role` at all. The inline copy that used to be here rendered that
+                          row as a bare " — cargo do hospital": nameless, and labelled as a
+                          role it does not have. Shared with `AffiliationsPanel` so the
+                          repair cannot land on only one of the two lists. */}
                       <ul className="flex list-disc flex-col gap-1 pl-5">
                         {endState.blockers.map((b, i) => (
-                          <li key={`${b.role}-${b.commission ?? "hospital"}-${i}`}>
-                            {ROLE_LABELS[b.role] ?? b.role}
-                            {b.commission ? ` — ${b.commission}` : " — cargo do hospital"}
-                          </li>
+                          <li key={blockerKey(b, i)}>{blockerLabel(b)}</li>
                         ))}
                       </ul>
                       <p className="text-destructive/80">
