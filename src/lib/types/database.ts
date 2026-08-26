@@ -13620,13 +13620,20 @@ export type Database = {
       list_my_referral_assignments: { Args: never; Returns: Json }
       list_org_eligible_users: { Args: { p_org_id: string }; Returns: Json }
       list_org_people: {
-        Args: { p_cpf?: string; p_org_id: string; p_search?: string }
+        Args: {
+          p_cpf?: string
+          p_include_ended?: boolean
+          p_org_id: string
+          p_search?: string
+        }
         Returns: {
           affiliations: Json
           date_of_birth: string
           email: string
           full_name: string
           is_active: boolean
+          org_affiliation_ended_on: string
+          org_affiliation_status: string
           professional_category: string
           user_id: string
         }[]

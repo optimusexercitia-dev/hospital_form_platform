@@ -56,9 +56,14 @@ select is(
   (select count(*)::int from d), 1,
   '1.1 ⭐ EXACTLY ONE `list_org_people` exists. A DROP+CREATE whose CREATE used a different argument type (e.g. `extensions.citext`, which the AFF2 plan wrongly prescribed) would leave an ungranted, un-audited TWIN beside the real door that PostgREST might resolve to');
 
+-- ⭐ THE TRAP FIRED, AND IT FIRED WHERE IT WAS SUPPOSED TO (AFF4 B6a, 2026-08-26). The
+-- header above said a FUTURE arity change would red HERE, beside the explanation, instead
+-- of aborting an unrelated suite. B6a added `p_include_ended boolean` and that is exactly
+-- what happened: this assertion reds, and the one executable signature string it points at
+-- (`302_affiliation_doors.sql`) was updated in the same change.
 select is(
-  (select sig from d), 'list_org_people(uuid,text,text)',
-  '1.2 ⭐ ... at the exact signature, pinned as `oid::regprocedure::text` — the SAME string form has_function_privilege takes, so this matches the FUP-SIGNATURE-STRING-CALLERS hazard rather than approximating it. All three args are pg_catalog.text; there is no citext here');
+  (select sig from d), 'list_org_people(uuid,text,text,boolean)',
+  '1.2 ⭐ ... at the exact signature, pinned as `oid::regprocedure::text` — the SAME string form has_function_privilege takes, so this matches the FUP-SIGNATURE-STRING-CALLERS hazard rather than approximating it. The three leading args are pg_catalog.text; there is no citext here');
 
 -- ===========================================================================
 -- §2 The ACL the DROP destroyed, restored — asserted from the catalog, not from
@@ -116,8 +121,8 @@ select is(
   (select count(*)::int from information_schema.parameters
     where specific_schema = 'public'
       and specific_name = (select specific_name from d)
-      and parameter_mode = 'OUT'), 7,
-  '3.3 the payload is EXACTLY 7 columns — the 6 that existed plus date_of_birth. A count, so a THIRD column smuggled in beside DOB reds here rather than shipping');
+      and parameter_mode = 'OUT'), 9,
+  '3.3 the payload is EXACTLY 9 columns — the 6 that existed, plus date_of_birth (AFF2 B3), plus org_affiliation_status and org_affiliation_ended_on (AFF4 B6a). A count, so a column smuggled in beside them reds here rather than shipping; it went 7 -> 9 at B6a, and §3.2 is what keeps `cpf`/`phone` out of the widening');
 
 -- ===========================================================================
 -- §4 Functional: the value actually flows. §3 proves the signature; a signature

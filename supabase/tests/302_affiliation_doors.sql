@@ -76,7 +76,11 @@ select ok(
 select ok(
   has_function_privilege('authenticated', 'public.affiliate_person(uuid,uuid,text,date,text,text,text)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.end_affiliation(uuid,uuid,date)', 'EXECUTE')
-  and has_function_privilege('authenticated', 'public.list_org_people(uuid,text,text)', 'EXECUTE'),
+  -- AFF4 B6a: the arity gained `p_include_ended boolean`. This string is the executable
+  -- half of FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE — a stale one aborts this
+  -- whole suite as a bare "Bad plan" naming no function. `361` §1.2 is the detector that
+  -- points here.
+  and has_function_privilege('authenticated', 'public.list_org_people(uuid,text,text,boolean)', 'EXECUTE'),
   '1.4 the interactive doors ARE executable by authenticated');
 
 -- The standing t19 trap: a new public.* RPC that keeps PUBLIC's default EXECUTE leaks

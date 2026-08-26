@@ -170,6 +170,19 @@ begin
   update public.profiles set home_organization_id = org_b
     where id in (sa_x, st_x, st_x2, sa_y, st_y, oa_b);
 
+  -- AFF4 (ADR 0151 D10 / ADR 0154): THE SECOND ANCHOR, for the same reason as the first.
+  -- Since B6a the org roster is an ORG AFFILIATION, not `home_organization_id`, so a
+  -- bootstrap persona without one is invisible to every directory read — `316` §3 caught
+  -- exactly that. Mirrors what `seed.sql` does for the seed personas.
+  --
+  -- ⚠ IT BELONGS HERE, NOT IN EACH SUITE. A per-suite fixture row would be a hand list
+  --    that the next suite silently omits itself from; anchoring both facts in one place is
+  --    what keeps them from drifting apart one suite at a time.
+  -- ⚠ AND IT MUST STAY ABOVE any `hospital_affiliations` insert a suite makes — D4's
+  --    containment backstop (`hospital_affiliation_has_org_trg`).
+  insert into public.organization_affiliations (principal_id, organization_id)
+    select unnest(array[sa_x, st_x, st_x2, sa_y, st_y, oa_b]), org_b;
+
   insert into public.commissions (id, name, slug, created_by, hospital_id) values
     (comm_x, 'Comissão X', 'comm-x-' || substr(comm_x::text,1,8), admin_id, hosp_b),
     (comm_y, 'Comissão Y', 'comm-y-' || substr(comm_y::text,1,8), admin_id, hosp_b);
