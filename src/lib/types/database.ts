@@ -6034,9 +6034,15 @@ export type Database = {
           hospital_employee_id: string | null
           hospital_id: string
           id: string
+          job_title: string | null
           organization_id: string
           principal_id: string
           started_on: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+          work_email: string | null
+          work_phone: string | null
         }
         Insert: {
           created_at?: string
@@ -6046,9 +6052,15 @@ export type Database = {
           hospital_employee_id?: string | null
           hospital_id: string
           id?: string
+          job_title?: string | null
           organization_id: string
           principal_id: string
           started_on?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          work_email?: string | null
+          work_phone?: string | null
         }
         Update: {
           created_at?: string
@@ -6058,9 +6070,15 @@ export type Database = {
           hospital_employee_id?: string | null
           hospital_id?: string
           id?: string
+          job_title?: string | null
           organization_id?: string
           principal_id?: string
           started_on?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          work_email?: string | null
+          work_phone?: string | null
         }
         Relationships: [
           {
@@ -6094,6 +6112,13 @@ export type Database = {
           {
             foreignKeyName: "hospital_affiliations_principal_id_fkey"
             columns: ["principal_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_affiliations_voided_by_fkey"
+            columns: ["voided_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -7330,6 +7355,84 @@ export type Database = {
           {
             foreignKeyName: "notifications_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_affiliations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ended_by: string | null
+          ended_on: string | null
+          id: string
+          organization_id: string
+          principal_id: string
+          started_on: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ended_by?: string | null
+          ended_on?: string | null
+          id?: string
+          organization_id: string
+          principal_id: string
+          started_on?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ended_by?: string | null
+          ended_on?: string | null
+          id?: string
+          organization_id?: string
+          principal_id?: string
+          started_on?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_affiliations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_affiliations_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_affiliations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_affiliations_principal_id_fkey"
+            columns: ["principal_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_affiliations_voided_by_fkey"
+            columns: ["voided_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
