@@ -417,6 +417,45 @@ same reason).
 - **`preview_start` ignores worktrees** — frontend verification runs the primary
   checkout's launch config; verify on the branch's own dev server or after merge.
 
+## PRE-EXISTING defects found and FIXED during AFF4 — § Bug Log entries at Record
+
+⛔ **Each landed in its OWN commit, deliberately not absorbed into an AFF4 commit** — the
+history must say what was wrong and since when. None was introduced by this program; all
+three were found because AFF4 was editing adjacent code.
+
+- **`BUG-AUTHZ-FOOTPRINT-ASYMMETRIC-READ-LIFTS-THE-D2-LOCK`** — fixed `9175b9a5`.
+  `resolvePersonFootprint` dropped `error` on both service-role reads. A **memberships**-read
+  failure *alone* left `hospitalIds` populated (so it sailed past the explicit empty-footprint
+  guard) while clearing `hasNonCommissionTierMembership` — lifting the ADR 0133 D2 org-tier
+  lock and granting a `hospital_admin` `lifecycle` (SUBSET) **over an org admin**.
+  Pre-existing since ADR 0133 (AFF2). `getPersonAdminView` inherits the fix.
+  ⚠ **The likelihood runs the wrong way:** the memberships query joins `commissions`, so it is
+  the *heavier* read and the *more* likely to fail under pool pressure — the failure that
+  removes the lock is the more probable one, which inverts the usual unlikely-error discount.
+  ⚠ **The lead's hypothesised mechanism (empty footprint ⇒ SUBSET satisfied vacuously) was
+  WRONG and is recorded as ruled out:** `personScopeAllows` pins `if (footprintHospitals.size
+  === 0) return false` with a comment naming the vacuous-subset inversion. Recorded so nobody
+  re-derives it. Keystone `person-footprint-reads.test.ts` asserts *the consequence* — the
+  perturbed footprint GRANTS what the true one DENIES — so the throw cannot later be deleted
+  as defensive tidiness.
+- **`claims_for` vacuity — 3 tenant-isolation assertions passing for the wrong reason.**
+  `test_helpers.claims_for(user, is_admin)` derives the `active_role` claim **only** when the
+  persona holds exactly one live role. Persona `…00b2` holds two, so three cross-org DENY
+  assertions (`301:364`, `302:286`, `302:339`) passed because `b2` **assumed no role at all** —
+  not because the org anchor held. One describes itself as *the* tenant-isolation assertion.
+  Bound measured before acting: 6 multi-role personas, 41 two-arg call sites, **3 affected**.
+  ⚠ The first count reported was "2 pairs" — a **dedupe artefact in the measuring script**,
+  not in the finding; `302` has two sites. Corrected before it was quoted anywhere.
+  Fix: pass the third argument explicitly. **Then** harden the helper to *raise* on a
+  multi-role persona with no explicit role, with a positive control proving the guard fires.
+  ⛔ **If any of the three reds once actually evaluated against the org anchor, the build
+  STOPS** — that would mean cross-org isolation is broken, and the assertion is never adjusted
+  to accommodate it.
+- **`app.trg_audit_hospital_affiliations` enumerated its UPDATE arms by column name**, else
+  `return null` — so B2's six new columns would have been silently unaudited, making D7/D8's
+  "every void is audited with its reason" false. Re-emitted from the live
+  `pg_get_functiondef`. Latent, never live (no writer until B4) — which is exactly when to fix it.
+
 ## Follow-ups DISCOVERED during the build — file into the register at Record
 
 ⛔ **Collected here, not in PROGRESS.md, deliberately.** That file sat with ~300 bytes of
