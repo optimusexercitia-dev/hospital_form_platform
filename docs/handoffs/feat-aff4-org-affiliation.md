@@ -160,6 +160,18 @@ index line was compressed for cap headroom.
 
 ## Dead ends
 
+- ⭐⭐ **A claim measured TRUE in a peer's UNCOMMITTED tree goes false the moment they commit —
+  and the RELAY is where it becomes an instruction.** `backend` correctly observed a stale
+  `listOrgAffiliatedPrincipalIds` reference in `usuarios/page.tsx` while `frontend` had that file
+  modified; `frontend` rewrote the paragraph before committing `1cbaa1b7`. The lead then forwarded
+  the observation as an action item **without re-measuring**. Refuted decisively by
+  `git log -S "<symbol>" -- <file>` → **no commits**: the string never reached any commit of that
+  file. ⛔ Neither agent was wrong and neither lied — **the claim went stale in transit**, which is
+  "clean status is an INSTANT, not a lease" pointed at a peer's tree instead of your own.
+  ⭐ The durable rule: **a lead verifies a claim before RELAYING it, not only before ruling on it.**
+  Relaying is what launders an observation into an instruction, and it had already happened once
+  this session (the F6 chip's *"appears on both"*, carried from the plan into a teammate brief).
+
 - **`where pr.id = v_uid` → `where true` as a mutation proof.** Returns 36 rows, an earlier arm's
   scalar subquery raises, and the suite **aborts at test 35 of 39 — the arm under test never
   executes.** The run still reds, indistinguishable from a red that proves the arm. The working
