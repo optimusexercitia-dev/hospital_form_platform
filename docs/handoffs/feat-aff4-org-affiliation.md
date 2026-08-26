@@ -173,6 +173,19 @@ full ~5 h door sweep · `ARM=policy` · any remote/linked-project measurement.
 
 ## Open questions / blockers
 
+- ⛔ **AFF4's own regression, unfixed and needing a go before merge.** F0's
+  `aria-labelledby="{labelId} {buttonId}"` self-reference re-admits the trigger button's contents,
+  which include a **nested `role="button"` span** (`date-picker.tsx:193-197`, pre-existing) carrying
+  `aria-label="Remover data"`. Measured differential: `clearable={true}` yields
+  `"Suspenso até (opcional) 01/03/2023 Remover data"` — the trigger announces a *different action's*
+  name. **10 call sites, 9 in F0's bucket.** The nested-interactive-content half is pre-existing; the
+  **name contamination is AFF4's**, since nothing pointed the name at contents before F0.
+  ⚠ The FUP's recorded worked example is wrong for the same value-dependent reason — measured empty,
+  where the clear affordance does not render. ⚠ T1's guard does not catch it (label and date are both
+  still present). Repair is a **layout** change — clear affordance as a real sibling button;
+  ⛔ `aria-hidden` would remove a control from AT and is worse than the bug. ⛔ `date-picker.tsx` is
+  pinned byte-identical with the held branch — tell it before changing that file.
+
 - ⚠ **AC-7 — `phase17-documents.spec.ts`, "each version upload lands at a NEW storage path (Rule 6)".**
   Verdict: **unresolved as to cause, confirmed unrelated to F0.** Mechanism: `waitForVersionFile`
   times out at 30 s waiting for `file_objects.upload_state` to reach `unscanned_accepted`, receives

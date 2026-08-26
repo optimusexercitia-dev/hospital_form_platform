@@ -549,6 +549,50 @@ three were found because AFF4 was editing adjacent code.
   "every void is audited with its reason" false. Re-emitted from the live
   `pg_get_functiondef`. Latent, never live (no writer until B4) — which is exactly when to fix it.
 
+## ⛔ AFF4's OWN REGRESSION — found 2026-08-26, NOT fixed, needs a go before merge
+
+**F0's `aria-labelledby` self-reference makes the DatePicker trigger announce a DIFFERENT
+action's name.** Measured as a differential — one variable changed, otherwise identical DOM:
+
+```
+clearable={false} → "Suspenso até (opcional) 01/03/2023"
+clearable={true}  → "Suspenso até (opcional) 01/03/2023 Remover data"
+```
+
+⭐ **Causation, measured against `5e7288b5^` — TWO defects, different owners, one repair:**
+1. **PRE-EXISTING** (`date-picker.tsx:193-197`, present before F0): the clear affordance is a
+   `role="button"` `<span aria-label="Remover data">` **nested inside the trigger `<button>`**.
+   Interactive content inside a button is invalid regardless, and it is `tabIndex={-1}`, so it is
+   **not independently reachable either** — malformed *and* not doing the job the markup implies.
+2. ⛔ **INTRODUCED BY F0**: `aria-labelledby={labelId ? \`${labelId} ${buttonId}\`}` — the
+   **`buttonId` self-reference re-admits the button's own contents**, which is what pulls the
+   nested span's `aria-label` into the trigger's name. Before F0 nothing pointed the name at
+   contents, so the contamination did not exist. **This half is AFF4's regression, not inherited.**
+
+**Blast radius: 10 call sites, 9 of them in the bucket F0 fixed** — `add-version-form` ·
+`publish-document-dialog` ×2 · `publish-button` · `held-window-fields` ×2 · `personal-data-dialog` ·
+`register-person-flow` · `register-person-wizard` · `user-lifecycle-actions` · `custom-field-input`.
+
+⚠ **THE FUP'S OWN WORKED EXAMPLE IS WRONG, and by the value-dependent mechanism — third instance
+in this build.** `FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME` records the fixed name for
+`user-lifecycle-actions` as `"Suspenso até Selecionar data"`. It actually reads
+`"Suspenso até (opcional) 01/03/2023 Remover data"` **once a date is set** — the recorded
+measurement was taken **empty**, where the clear affordance does not render at all. A component
+measured from its initial state is systematically blind to defects that only exist after the user
+has done something, and the empty state is the one a fresh dialog opens in.
+
+⚠ **The T1 regression guard does NOT catch this** (it asserts label-present AND date-present, both
+of which remain true) — correctly, since it was not built for it. Do not read its green as covering
+this.
+
+⛔ **Likely repair is a LAYOUT change, not an attribute patch:** make the clear affordance a real
+sibling `<button>` **outside** the trigger. ⛔ **`aria-hidden` on it is the wrong fix** — it would
+silence the contamination and simultaneously remove a control from assistive tech entirely, which
+is worse than the bug. Wants the `frontend-design` skill.
+⛔ **`date-picker.tsx` is pinned byte-identical with `claude/angry-stonebraker-c8e637`.** Whoever
+lands this must tell that branch, or the two diverge in a file whose sameness is what makes the
+merge safe.
+
 ## ⛔ FOUND during AFF4, deliberately NOT FIXED — needs a PO ruling, then its own item
 
 **`BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY`** — user-facing, pre-existing, and **filed rather
