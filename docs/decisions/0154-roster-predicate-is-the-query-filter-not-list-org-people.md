@@ -1,0 +1,65 @@
+# 0154 — the roster predicate is the query filter, not `list_org_people`
+
+**Status:** Accepted · 2026-08-26
+**Amends:** 0151 (AFF4 — D10 names `list_org_people` as "the roster predicate"; it is not, and the
+re-predicate must cover `listOrgUsers`/`listHospitalUsers` for D10's own goal to be reachable).
+
+## Context
+
+ADR 0151 D10 rules that the org roster stops keying on `profiles.home_organization_id` and moves
+to an org-affiliation predicate, so an offboarded person leaves the default roster while staying
+reachable behind a filter. It names **`list_org_people`** as the function carrying that predicate,
+and the AFF4 plan's task B6 re-predicated exactly that function.
+
+Measured 2026-08-26, before any of B6 was built:
+
+- **`list_org_people` has exactly one caller** — `lookupOrgPeople`
+  (`src/lib/affiliations/actions.ts:203`), consumed by `register-person-flow.tsx`. That is the
+  **add-a-person CPF/name search**, not the directory.
+- **The directory roster is an application query filter**: `listOrgUsers` at
+  `src/lib/queries/org-users.ts:449` does `.eq('home_organization_id', orgId)` on `profiles`, with
+  `listHospitalUsers` as the hospital-scoped sibling that a `hospital_admin` sees *instead*.
+
+So D10's stated goal and D10's named mechanism point at different code. Re-predicating
+`list_org_people` alone changes who can be *found when adding someone*, and leaves the roster's
+permanent `home_organization_id` filter exactly as it was — the defect AFF4 exists to remove.
+AFF4 acceptance criterion 1 would have failed while every named task reported done.
+
+This is the "predicate quoted at the wrong grain" failure: a **real** filter, correctly described,
+cited for a conclusion it does not bound.
+
+## Decision
+
+**D1 — both surfaces move.** The org-affiliation predicate (ever-held, voided excluded) replaces
+`home_organization_id` in **`listOrgUsers` and `listHospitalUsers`** as well as in
+`list_org_people`. Wiring only the org-wide arm would leave a `hospital_admin`'s roster
+permanently active-only, since that role never calls the other.
+
+**D2 — the RLS legs and the tenant trigger do NOT move.** They stay on `home_organization_id`,
+unchanged, as 0151 D10's named Phase 2 follow-on. The distinction being drawn, and the reason both
+of D10's sentences remain true: **"roster predicate" is the application query's filter; "existing
+legs" are the policies.** They are different objects and only the first is in AFF4's scope.
+
+**D3 — the two surfaces default differently, deliberately.** The **roster** defaults to active-only
+behind an explicit *"incluir desligados"* toggle. The **add-a-person search** must reach ended
+people, or 0151 D5's one-step rehire is impossible — a hospital admin cannot rehire someone the
+search will not return. `p_include_ended boolean DEFAULT false` serves the roster; `lookupOrgPeople`
+passes `true` explicitly.
+
+**D4 — ever-held still excludes voided, on both surfaces.** Asserted, not assumed
+(`KEYSTONE-AFF4-VOIDED-IS-NOT-REHIREABLE-PRIOR-EMPLOYMENT`): a voided mis-entry must not resurface
+as rehireable prior employment. This is the 0151 D7 asymmetry reaching the roster.
+
+## Consequences
+
+- AFF4 task B6 splits into **B6a** (`list_org_people`) and **B6b**
+  (`listOrgUsers`/`listHospitalUsers`); F6's toggle wires to **B6b**, not to `p_include_ended`.
+- 0151 D10 stops reading as authority on a function it misidentifies. The generated back-pointer
+  in 0151 carries the correction to anyone who opens it first.
+- **`list_org_people` is one of four bodies** using `ended_on is null` as an activeness test that
+  must also gain `and voided_at is null` (measured over comment-stripped `pg_proc.prosrc`; the
+  others are `app.affiliate_person_impl` / `end_affiliation_impl` / `update_affiliation_impl`).
+- Method note worth more than the finding: the error was invisible to every text-based check —
+  the ADR, the plan and the task all agreed with each other, and only *asking which code the
+  named function actually runs in* separated them. A grep for `list_org_people` finds it; a grep
+  cannot tell you the directory never calls it.
