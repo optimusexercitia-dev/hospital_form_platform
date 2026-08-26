@@ -477,6 +477,16 @@ the gate reds.
   and **1 carries no name-bearing attribute at all** — that last is an unmeasured a11y gap,
   not a styling choice. Deliberately not guessed at during F0: extending a fix to a
   mechanism nobody measured is how a partial fix reads as a complete one.
+- **Seven pgTAP suite numbers are shared by two files each** — `60`, `61`, `110`, `188`,
+  `189`, `201`, `270`. Pre-existing, and harmless to *execution* (unlike a duplicate
+  migration version, which can silently not apply — `supabase test db` runs every file).
+  The cost is **citation**: "suite 189" names two different suites, so a gate record, a
+  review or an ADR referring to one by number is ambiguous and cannot be resolved without
+  opening both. This is the recorded parallel-branch collision pattern — two sessions each
+  take "the next free number", git merges both cleanly, and every one is wrong.
+  ✅ **Checked during AFF4, not assumed:** `374`/`375` are unique, migration versions have
+  **zero** duplicates, and the ADR next-free (`0154`) matches the highest on disk (`0153`) —
+  so nothing this program took has collided with the concurrent sessions.
 - **`professional_credentials_select` uses bare `auth.uid()`** where both `profiles`
   policies use `( SELECT auth.uid() )` — a per-row-vs-InitPlan evaluation difference.
   Correctly kept out of B3 (one conjunct, nothing else); it needs its own item so the
