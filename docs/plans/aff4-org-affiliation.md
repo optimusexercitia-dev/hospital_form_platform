@@ -733,6 +733,22 @@ the gate reds.
   against "this currently throws". The one stale assertion the first flip produced was the
   one place a status had been asserted inline. ⭐ Useful as a *predictor* of where to sweep
   after any stub goes live: grep for status claims, not for the function name.
+- **FIVE date fields have ZERO E2E coverage — two of them AFF4 surfaces.** Derived by the T6
+  breadth sweep and reported verbatim; **not** fixed in T6, and T2–T5 own writing this coverage:
+  1. `custom-field-input.tsx`'s `date` branch — no spec ever creates a `date`-type custom field.
+  2. `publish-button.tsx`'s "Data de vigência" metadata.
+  3. ⭐ **`affiliations-panel.tsx`'s "Data de início" (AFF4 surface)** — its dialog *is* opened
+     repeatedly by `aff-hospital-affiliation.spec.ts`'s `openAffiliationDialog()`, but **only
+     "Matrícula" is ever touched inside it**. A route-presence check would over-count this as covered.
+  4. `rca-timeline-panel.tsx`'s "Data e hora" — the RCA route is visited by `phase14c-rca.spec.ts`
+     R1/R16, but the "Adicionar evento" dialog is never opened in-browser; R7 exercises the RPC via
+     `request` only, with no `page` at all.
+  5. ⭐ **`register-person-flow.tsx` / `register-person-wizard.tsx`'s Nascimento / Início-do-vínculo
+     (AFF4 surface)** — zero hits in any spec.
+  ⛔ **(5) is the one that bites: D13's `registerUser` start-date change lands on a path with no
+  browser coverage**, so nothing downstream catches the value being silently dropped until T5 exists.
+  `backend` is carrying that weight deliberately in pgTAP/Vitest with an assertion that **fails if
+  the parameter is dropped**, not one that merely passes when it is present.
 - **Seven pgTAP suite numbers are shared by two files each** — `60`, `61`, `110`, `188`,
   `189`, `201`, `270`. Pre-existing, and harmless to *execution* (unlike a duplicate
   migration version, which can silently not apply — `supabase test db` runs every file).
