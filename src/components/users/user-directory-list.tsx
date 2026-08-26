@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { ChevronRight, UserRoundX } from "lucide-react";
 
-import type { OrgUserListItem, UserDirectoryStatusFilter } from "@/lib/users/types";
+import type {
+  AffiliationStatus,
+  OrgUserListItem,
+  UserDirectoryStatusFilter,
+} from "@/lib/users/types";
 import { orgHref } from "@/lib/routing";
 import { cn } from "@/lib/utils";
+import { AffiliationStatusBadge } from "@/components/users/affiliation-status-badge";
 import { UserStatusBadge } from "@/components/users/user-status-badge";
 import { PersonAvatar } from "@/components/users/person-avatar";
 import { STATUS_FILTER_LABEL } from "@/components/users/user-directory-status-pills";
@@ -145,8 +150,18 @@ export function UserDirectoryList({
                 <span className="flex min-w-0 items-center gap-3">
                   <PersonAvatar fullName={user.fullName} email={user.email} />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold">
-                      {displayName}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {/* ⛔ `truncate text-sm font-semibold` IS A CONTRACT, not styling
+                          preference: `e2e/aff2-directory.spec.ts:116` selects this node by
+                          exactly those three classes. The flex parent was added around it
+                          rather than onto it precisely so that locator keeps resolving —
+                          this repo has a recorded incident of a restyle silently
+                          re-scoping E2E locators. `block` became redundant under the flex
+                          parent and is the only class dropped. */}
+                      <span className="truncate text-sm font-semibold">
+                        {displayName}
+                      </span>
+                      <OrgTenseChip status={user.orgAffiliationStatus} />
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {user.email ?? "Sem e-mail"}
@@ -225,6 +240,47 @@ export function UserDirectoryList({
         {pagination}
       </div>
     </div>
+  );
+}
+
+/**
+ * The person's ORG-affiliation tense (AFF4 F6; ADR 0151 D10 / ADR 0154) — the other half
+ * of the "incluir desligados" toggle.
+ *
+ * ⛔ RENDERED ONLY FOR `encerrado`, AND THAT IS NOT THE BANNED EMPTY CELL. The default
+ * roster is active-only, so with the toggle OFF this never renders and adds no noise; the
+ * chip exists to mark exactly the rows the toggle brought in. It also is not a cell of its
+ * own — it sits INSIDE the Pessoa cell, which always carries the name and the e-mail — so
+ * there is no column that can read as blank-therefore-forbidden.
+ *
+ * ⛔ NOT A SECOND BADGE IN "Situação". That column holds the ACCOUNT lifecycle and is 96px
+ * wide. Two pills there would both be able to read "Ativo" while meaning different things
+ * — an account that works versus an employment that is current — which is worse than
+ * either alone. The `sr-only` prefix below is what keeps the two apart for a screen-reader
+ * user, who hears them in sequence down the row.
+ *
+ * ⛔ `null` IS A FINDING, NOT A STATE. `listOrgUsers` cannot produce one (its roster
+ * predicate IS the org affiliation) and `listHospitalUsers` always does (it never reads
+ * `organization_affiliations`). So this renders nothing for `null` — deliberately
+ * indistinguishable from `ativo`, because on the hospital directory that is the honest
+ * answer: not "they are current", but "this surface cannot know". Do NOT add a
+ * "desconhecido" rendering; it would put a scope limitation in front of users as if it
+ * were a fact about the person.
+ *
+ * ⚠ VOCABULARY: the badge says *Encerrado* (the affiliation's tense), while the toggle
+ * says *"Incluir desligados"* (the offboarding ACTION's participle). Both are the
+ * established pt-BR of this codebase — `org-offboarding-wizard.tsx` uses "Desligar da
+ * organização" for the action and "o vínculo … foi encerrado" for the resulting state —
+ * and the shared `AffiliationStatusBadge` is reused rather than forked so the three tenses
+ * read identically here and on the per-user panel.
+ */
+function OrgTenseChip({ status }: { status: AffiliationStatus | null }) {
+  if (status !== "encerrado") return null;
+  return (
+    <span className="shrink-0">
+      <span className="sr-only">Vínculo com a organização: </span>
+      <AffiliationStatusBadge status={status} />
+    </span>
   );
 }
 
