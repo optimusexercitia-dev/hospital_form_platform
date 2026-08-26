@@ -562,9 +562,13 @@ function AffiliationDialog({
   const [startedOn, setStartedOn] = useState(
     editing ? editing.startedOn.slice(0, 10) : todayIso(),
   );
-  // AFF4 (ADR 0151 D9) — per-employment staff data. `assertStaffDataWired` throws until
-  // AFF4 B4 widens the doors to accept these; that is intended (see the CONTRACT-FIRST
-  // header on `affiliate_person`/`update_affiliation`), not a defect to route around.
+  // AFF4 (ADR 0151 D9) — per-employment staff data. LIVE as of B4 (`2e040341`):
+  // `affiliatePerson`/`updateAffiliation` persist these on both write paths (the
+  // INSERT and the idempotent affiliate-again refresh). Clearing an existing value
+  // is the explicit `clear*` flag below, never a bare `null` — "leave it alone" and
+  // "clear it" cannot both be true of one argument, mirroring `clearEmployeeId`. A
+  // whitespace-only value normalises to NULL server-side, so client trimming here
+  // is good form, not load-bearing.
   const [jobTitle, setJobTitle] = useState(editing?.jobTitle ?? "");
   const [workEmail, setWorkEmail] = useState(editing?.workEmail ?? "");
   const [workPhone, setWorkPhone] = useState(editing?.workPhone ?? "");
