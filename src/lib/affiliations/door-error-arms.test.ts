@@ -35,13 +35,50 @@ import { describe, expect, it } from 'vitest'
 
 const MIGRATIONS = join(process.cwd(), 'supabase', 'migrations')
 
-/** The migrations that define the affiliation doors. */
-const DOOR_MIGRATIONS = [
-  '20260909000500_affiliation_doors.sql',
-  '20260909001000_affiliate_active_guard.sql',
-  '20260909001100_update_affiliation_door.sql',
-  '20260909001200_affiliation_door_error_codes.sql',
-]
+/**
+ * ⛔ THERE IS NO HAND-MAINTAINED MIGRATION LIST ANY MORE, and the reason is measured.
+ *
+ * This file used to carry `DOOR_MIGRATIONS`, four filenames, and it reported on ITS OWN
+ * LIST rather than on the domain — going green *because* the list was short. AFF4 added
+ * three door migrations and five SQLSTATEs (HC0R6-HC0RA); none of the files were in the
+ * list, so the test kept passing while covering none of them. A coverage test keyed on a
+ * hand-maintained list is a hand-list wearing a coverage label.
+ *
+ * The domain is now derived from the PROPERTY that actually decides it: the SQLSTATEs
+ * that can reach {@link toState} are exactly those raised by the doors THIS MODULE CALLS.
+ * So the door names come from `actions.ts`'s own `.rpc('…')` call sites, and their SQL
+ * comes from whichever migration last defined them. Add a door to `actions.ts` and it is
+ * covered on the next run, with nobody remembering anything.
+ */
+function doorRpcNames(): string[] {
+  const names = [...actionsSource().matchAll(/\.rpc\(\s*'([a-z_]+)'/g)].map((m) => m[1])
+  return [...new Set(names)].sort()
+}
+
+/**
+ * Every migration, in version order, keeping only the door blocks — so a later file
+ * overrides an earlier definition exactly as applying them does.
+ *
+ * ⚠ Scanning ALL migrations rather than a subset is deliberate: any filter over filenames
+ * reintroduces the hand-list one level up, where it is harder to see.
+ */
+function resolvedDoorBlocks(): Map<string, string> {
+  const wanted = new Set<string>()
+  for (const rpc of doorRpcNames()) {
+    wanted.add(`app.${rpc}_impl`)
+    wanted.add(`public.${rpc}`)
+  }
+
+  const resolved = new Map<string, string>()
+  for (const file of readdirSync(MIGRATIONS)
+    .filter((n) => n.endsWith('.sql'))
+    .sort()) {
+    for (const [name, block] of functionBlocks(readFileSync(join(MIGRATIONS, file), 'utf8'))) {
+      if (wanted.has(name)) resolved.set(name, block)
+    }
+  }
+  return resolved
+}
 
 /**
  * Postgres named conditions → the SQLSTATE a PostgREST caller actually receives.
@@ -87,7 +124,12 @@ export function extractRaisedCodes(sql: string): Set<string> {
  */
 function functionBlocks(sql: string): Map<string, string> {
   const withoutComments = sql.replace(/--[^\n]*/g, '')
-  const blocks = withoutComments.split(/create\s+or\s+replace\s+function/i).slice(1)
+  // ⚠ `or replace` is OPTIONAL. AFF4's new doors are bare `create function` (they are new,
+  // so there is nothing to replace), and a splitter requiring `or replace` skipped every
+  // one of them — the file would have gone green over the new doors even once its
+  // migrations were in scope. An enumeration boundary drawn on a SYNTAX cannot enforce a
+  // PROPERTY.
+  const blocks = withoutComments.split(/create\s+(?:or\s+replace\s+)?function/i).slice(1)
 
   const byName = new Map<string, string>()
   for (const block of blocks) {
@@ -128,14 +170,7 @@ function codesFromBlocks(blocks: Iterable<string>): Set<string> {
  * earlier definitions of the same function, exactly as applying them does.
  */
 function raisedCodes(): Set<string> {
-  const resolved = new Map<string, string>()
-  for (const file of DOOR_MIGRATIONS) {
-    // DOOR_MIGRATIONS is in version order; later files overwrite earlier definitions.
-    for (const [name, block] of functionBlocks(readFileSync(join(MIGRATIONS, file), 'utf8'))) {
-      resolved.set(name, block)
-    }
-  }
-  return codesFromBlocks(resolved.values())
+  return codesFromBlocks(resolvedDoorBlocks().values())
 }
 
 function actionsSource(): string {
@@ -198,17 +233,29 @@ describe('the detector itself (dry-run against a hand-classified sample)', () =>
 // The contract itself.
 // ---------------------------------------------------------------------------
 describe('affiliation doors <-> toState error arms', () => {
-  it('the door migrations still exist under the names this test reads', () => {
-    // A renamed or split migration would make the domain EMPTY, and an empty domain
-    // satisfies the main assertion vacuously — reporting success precisely when it had
-    // stopped looking.
-    // FUP-VACUOUS-AUDIT-1, and note what this is: the guard against an empty domain
-    // was ITSELF sweeping a constant that could empty. If DOOR_MIGRATIONS were ever
-    // emptied, this test would report "the migrations still exist" having looked at
-    // none of them — the exact failure it was written to prevent, one level up.
-    expect(DOOR_MIGRATIONS.length, 'DOOR_MIGRATIONS is empty — nothing was checked').toBeGreaterThan(0)
-    const present = new Set(readdirSync(MIGRATIONS))
-    for (const file of DOOR_MIGRATIONS) expect(present, file).toContain(file)
+  it('⭐ the DERIVATION finds doors, and finds SQL for every one of them', () => {
+    // The domain is derived, so the thing that can empty is the derivation. Both halves
+    // are pinned: no door names parsed, or a named door whose SQL nothing defines.
+    const rpcs = doorRpcNames()
+    expect(rpcs.length, 'no .rpc() call sites parsed from actions.ts — the regex or the path moved').toBeGreaterThan(3)
+
+    const resolved = resolvedDoorBlocks()
+    const unresolved = rpcs.filter((rpc) => !resolved.has(`app.${rpc}_impl`))
+    expect(
+      unresolved,
+      `actions.ts calls these doors but no migration defines app.<name>_impl for them — a rename, ` +
+        `or a door whose logic moved, either way the codes it raises are no longer covered: ${unresolved.join(', ')}`,
+    ).toEqual([])
+  })
+
+  it('⭐ covers the AFF4 doors specifically — the ones the old hand-list missed', () => {
+    // A regression pin, not decoration. These five SQLSTATEs existed with arms in
+    // `toState` while the domain that was supposed to demand them looked at four files
+    // that predate them by a month.
+    const codes = raisedCodes()
+    for (const code of ['HC0R6', 'HC0R7', 'HC0R8', 'HC0R9', 'HC0RA']) {
+      expect(codes, `${code} is raised by an AFF4 door but is not in the derived domain`).toContain(code)
+    }
   })
 
   it('finds a non-trivial set of raised SQLSTATEs', () => {
