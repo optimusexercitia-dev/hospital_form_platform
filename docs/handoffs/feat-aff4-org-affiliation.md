@@ -2,7 +2,7 @@
 branch: feat/aff4-org-affiliation
 task: AFF4 — org affiliation, per-hospital staff data, the voided tense
 adrs: [0151, 0154, 0079, 0098, 0133, 0148, 0153]
-base_sha: 192a95c3
+base_sha: 32e88b5d
 created: 2026-08-26
 updated: 2026-08-26
 status: live
@@ -12,12 +12,14 @@ status: live
 
 ## ▶ RESUME HERE
 
-1. `supabase db reset --local`
-2. `npx playwright test e2e/phase17-documents.spec.ts --project=chromium -g "AC-7"` — settles
-   the one open blocker (§ Open questions). Do this **before** anything else consumes the fresh DB.
-3. Write + run the **owed pgTAP door-SQLSTATE half** (catalog `==` declared set). **Report its
-   verdict before starting B5** — its absence is the agreed signal that B5 has not started.
-4. B5 (backfill) → B6 (widened, per ADR 0154) → B7 → rest of B8 → B9.
+1. ~~`supabase db reset --local`~~ — ✅ done at `32e88b5d`, exit 0.
+2. ~~AC-7~~ — ✅ **RESOLVED, passes on a fresh DB** (see § State).
+3. ~~the owed pgTAP door-SQLSTATE half~~ — ✅ **DISCHARGED** (`b5e6f0f1`, `565234c2`). **B5 is
+   released.** Verdict in § State.
+4. **IN FLIGHT:** B5 (backfill) + B6 (widened, per ADR 0154) + ADR 0156. Then B7 → rest of
+   B8 → B9. ⛔ **B5's evidence requires a FRESH reset** — the gate work above ran five mutation
+   cycles against live function bodies (restored byte-exact, md5-verified), and *"a green
+   baseline is not evidence the DB is fit to mutate"*.
 
 ⛔ Re-measure before relying on anything below — see § Trust.
 Design detail, task text and the discovered-findings record: `docs/plans/aff4-org-affiliation.md`.
@@ -29,7 +31,7 @@ maintained incrementally throughout — not reconstructed at a wall. Sections ma
 their witness **and who produced it**; the lead did not personally re-run the teammates' gate
 commands, and that attribution is stated rather than smoothed over.
 
-⚠ **Eight instruments in this build returned success while measuring nothing**, two of them
+⚠ **TEN instruments in this build returned success while measuring nothing**, two of them
 **constants** that returned `0` regardless of reality. No conclusion was wrong — the sound half of
 each pair carried it — but **any figure quoted from this branch's history should be re-measured,
 not inherited.** Full list and sound replacements: the plan's *Risks* section.
@@ -58,6 +60,37 @@ Authority: **ADR 0151 D1–D17**, amended by **ADR 0154**. Discharges Critical F
 | `authenticated` holds EXECUTE on no `_for` twin | catalog ACL read after fresh reset | backend |
 | Exactly one arity per door name after DROP+CREATE | `pg_proc` read after fresh reset | backend |
 | `get_own_person_record` has **no `_for` and no `_impl`** | `379` §1.4 | backend |
+| **AC-7 passes on a fresh DB** — the blocker was stale-DB state, **not** a regression | `supabase db reset --local` (exit 0) → `npx playwright test e2e/phase17-documents.spec.ts --project=chromium -g "AC-7"` → **1 passed, 18.7 s**, exit 0, at `32e88b5d` | **lead, own run**, 2026-08-26 |
+| The backend track has **not** advanced since `192a95c3` | `git diff --name-only 192a95c3..HEAD -- supabase/` → empty | **lead, own run**, 2026-08-26 |
+
+**✅ The door-SQLSTATE gate — DISCHARGED `565234c2`, verdict recorded.** The live door family raises
+**18 codes over 31 bodies** (`23514,42501,HC0G0–HC0G4,HC0R0–HC0RA`); AFF4's five are
+**`HC0R6`–`HC0RA`**. Both defects fixed, not one: `check_violation` has **11 live raise sites**, so
+the named-condition half was load-bearing in the real assertion. The domain is now **structural,
+keyed on no name** — owner-only VOLATILE DEFINER kernels behind client-callable wrappers — which
+matters because deriving `app.<x>_impl` from `public.<x>` would have looked identical today and
+**missed `public.appoint_technical_director`** (fronts two kernels, shares a base name with
+neither). Mutation proof: 5 mutations applied *through the threat mechanism itself*
+(`pg_get_functiondef`+`replace`+`execute`), each restored md5-exact, **`planned 44 / ran 44` in
+every run** — the abort-before-the-arm failure mode did not recur. Lead-verified independently:
+hand-list and 5-char regex survive only as comments (L207/210), plan 38→44.
+⚠ **Known cross-file tension, stated so it is not later read as a conflict:**
+`door-error-arms.test.ts` asserts its set does **NOT** contain `23514`; the live set **DOES**.
+Different domains, both correct.
+
+⭐ **The owed half was NOT a greenfield write — its shape already existed, carrying two defects with
+the same symptom.** Measured at `32e88b5d` on the fresh DB:
+`supabase/tests/304_affiliation_lifecycle.sql` **§6** ("THE LIVE HALF OF THE ERROR-ARM CONTRACT",
+~L195–215) already asserts catalog-derived SQLSTATEs `==` a declared set — but
+**(a)** its domain is a **hand-maintained list**
+(`p.proname in ('affiliate_person_impl','end_affiliation_impl','update_affiliation_impl')`), which
+excludes every AFF4 door, and **(b)** its matcher is `errcode = '([A-Z0-9]{5})'` — the **syntax**
+boundary the TS half already had to abandon, blind to named conditions (`check_violation`). Its
+expected set stops at `'42501,HC0R0…HC0R5'`, i.e. **pre-AFF4**. ⛔ Fixing only (a) — adding the new
+names — goes green and stays blind to (b), **indistinguishable from a real fix**.
+⚠ **And `door-error-arms.test.ts`'s own header asserts the opposite**, claiming §6 "asserts the
+running kernels raise exactly this set". That claim is **false for AFF4's codes** — a comment
+laundering a belief into a fact, in the file whose entire purpose is to stop that.
 
 ### Written but UNVERIFIED / BELIEVED
 
@@ -70,7 +103,10 @@ Authority: **ADR 0151 D1–D17**, amended by **ADR 0154**. Discharges Critical F
 
 ### UNKNOWN — named, not covered
 
-- Whether AC-7's failure is session-state accumulation or a real regression (§ Open questions).
+- ~~Whether AC-7's failure is session-state accumulation or a real regression.~~ **SETTLED — see
+  § State, it passes on a fresh DB.** Kept as a line rather than deleted because the *mechanism*
+  is still unknown: fresh-vs-mutated DB is now the established discriminator, but nothing measured
+  **which** residue does it.
 - Whether the `${date}T00:00:00.000Z` construction in the suspension write path exists at all, and
   if so at which line. Two readings disagree; both may be true of *different* lines.
 - The true denominator of the `claims_for` multi-role vacuity class. Three instances were found
@@ -85,10 +121,13 @@ tightening) · F4 · F6's toggle · T2–T5 · `qa` · the §6 gate.
 
 ### Tree
 
-`base_sha` **192a95c3**, 42 commits ahead of `main`. Working tree carries **no source changes** —
-two untracked non-source paths only (`.claude/skills/handoff/`, and
-`scripts/progress-cleanup-2026-08-26.mjs`, a one-shot from another session whose §-State step 3 is
-still un-run and wants freshly measured **remote** figures). Nothing is pushed.
+`base_sha` **32e88b5d**, **59** commits ahead of `main` (was 42 at `192a95c3`; the 17 new commits
+are the DatePicker merge, ADR 0155, and doc/record work — **no `supabase/` change**, verified by
+`git diff --name-only 192a95c3..HEAD -- supabase/` returning empty, so the backend track has not
+advanced and the gated resume order still stands). Working tree carries **no source changes** —
+one untracked non-source path (`scripts/progress-cleanup-2026-08-26.mjs`, a one-shot from another
+session whose §-State step 3 is still un-run and wants freshly measured **remote** figures);
+`.claude/skills/handoff/` is now committed. Nothing is pushed.
 
 ## Gates
 
@@ -162,18 +201,19 @@ index line was compressed for cap headroom.
   only `cpfMasked`, so masking is a type-level guarantee rather than a remembered step.
 - **PO** — *"suspended until D"* = until `23:59:59` of D in `America/Sao_Paulo`.
 
-- **Merge order (PO, 2026-08-26)** — **AFF4 merges FIRST**; `claude/angry-stonebraker-c8e637` (the
-  DatePicker wrapping-`<label>` bucket) is **held** and has been told so. Its 8 call-site changes have
-  had no E2E pass, so landing it first would have put unexercised accessible-name changes under
-  AFF4's `e2e:prod` and attributed any flake to AFF4. ⚠ At merge: that branch rebases onto post-AFF4
-  `main`; the two shared control files are **byte-identical** (blob hashes `cd337073…` / `0950c364…`)
-  and the call-site sets are disjoint, so a conflict in either control file means **the byte-identity
-  assumption broke** — stop, don't resolve. ⚠ `BUG-CASEPHASE-DUEDATE-001` (live data-loss on `main`:
-  a label click clears an in-dialog date, dropping an existing deadline on save — recoverable, major,
-  not a blocker) rides on the held branch. ⛔ **No cherry-pick fallback exists** — the data-loss and
-  a11y fixes are the *same edit* (un-wrapping the `<label>` does both), so cherry-picking puts one
-  file's changed names into the gate, not zero. ⭐ **The hold's premise dissolves once that branch runs
-  its own tester pass**; the local DB was released to it during AFF4's pause for that reason.
+- **Merge order — SUPERSEDED BY EVENTS 2026-08-26, and the hold is OVER.** The prior ruling
+  ("AFF4 merges first; `claude/angry-stonebraker-c8e637` is **held**") described a two-branch world
+  that no longer exists: that branch was **merged INTO this one** at `3d588673`, and
+  `git branch --list` no longer shows it. **One tree, one gate.** Consequences that follow, and that
+  the superseded text got backwards: `BUG-CASEPHASE-DUEDATE-001` (live data-loss on `main` — a label
+  click clears an in-dialog date, dropping an existing deadline on save; recoverable, major)
+  **ships WITH AFF4 instead of behind it**, and the whole rebase/byte-identity protocol
+  (blob hashes, "a conflict means the assumption broke", the no-cherry-pick finding) is **moot** —
+  ⛔ including the pin *"`date-picker.tsx` is byte-identical with the held branch, tell it before
+  changing that file"*: **there is no branch to tell.** Corroborated independently by PROGRESS.md
+  § Now. ⚠ What does **survive** is the gate consequence, and it is the load-bearing half:
+  the merged branch's own `e2e:prod` GREEN **does not cover `61e23659`**, so AFF4's `e2e:prod`
+  remains the **first** execution of the `case-access-panel` naming.
 
 **Provisional:** none outstanding — both prior provisionals are ruled.
 
@@ -192,16 +232,10 @@ index line was compressed for cap headroom.
   ⛔ `aria-hidden` would remove a control from AT and is worse than the bug. ⛔ `date-picker.tsx` is
   pinned byte-identical with the held branch — tell it before changing that file.
 
-- ⚠ **AC-7 — `phase17-documents.spec.ts`, "each version upload lands at a NEW storage path (Rule 6)".**
-  Verdict: **unresolved as to cause, confirmed unrelated to F0.** Mechanism: `waitForVersionFile`
-  times out at 30 s waiting for `file_objects.upload_state` to reach `unscanned_accepted`, receives
-  `null` (`e2e/helpers/documents.ts:243`). Fails **standalone**, so within-session ordering is ruled
-  out. Two non-conclusive corroborations: the 2026-08-25 merged-tree gate recorded this document
-  group at 0 failures, and `dm3-wave-b-documents` DM3B-8 exercises the same "new path per upload"
-  mechanism and passed the same day. **Cannot be distinguished without a fresh reset** — hence
-  resume step 2. ⛔ **If it still fails on a freshly reset DB, it is a real regression: file a bug and
-  stop treating it as flake.** Not repaired: Rule 6 is architecture, and a spec that stops asserting
-  it is worse than one that fails.
+- ~~**AC-7 blocker**~~ — ✅ **CLOSED 2026-08-26, not a regression.** Detail in § State. The
+  pre-registered decision rule ("if it still fails on a freshly reset DB it is a real regression,
+  file a bug") was written **before** the measurement and **not** met, so no bug is filed. Rule 6
+  keeps its assertion; nothing was repaired because nothing was broken.
 - **Who fixes `BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY`.** Ruled and fully specified in
   PROGRESS.md § Bug Log; not scheduled.
 

@@ -91,10 +91,10 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      **expires when the pilot loads data**.
   2. **C1 split into C1a (local) + C1b (Cloud); the pilot bound is C1b** — a green
      local rehearsal does NOT release the pilot (§ Critical FUP C1).
-- **In-flight worktrees: TWO** — re-measured 2026-08-26 after removing
-  `claude/angry-stonebraker-c8e637` (merged into AFF4): the primary checkout and
-  `chore/followup-staleness-audit`. ⛔ This line read **NONE** while three existed, and its own
-  closing words were *"re-measure it, never read it"* — **a warning measures nothing.**
+- **In-flight worktrees: ONE** — the primary checkout. Re-measured 2026-08-26
+  (`git worktree list --porcelain`): `chore/followup-staleness-audit` and
+  `claude/angry-stonebraker-c8e637` are both gone, nothing prunable. ⛔ **Third wrong value in a
+  row** (NONE while three existed → TWO while one did) — no warning has ever fixed this count.
   ⚠ Before any gate in a worktree check `.env.local` **and** a non-empty `node_modules`
   ([worktrees.md](docs/worktrees.md)); the second fails silently by borrowing the parent's packages.
 ## Phase Status — live rows only
