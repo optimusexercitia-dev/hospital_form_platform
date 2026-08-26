@@ -14,7 +14,11 @@ state go stale the moment they are written; this block records *what was done an
 never a figure to quote.
 
 **DONE and committed** — B1 · B2 · B3 · B4 (increments 1–3) · the B8 contract + the four org/void
-actions + `getOwnPersonRecord` wired live · F0 · F1 · F2 · F3 · F5 · F6's badge. All four authz
+actions + `getOwnPersonRecord` wired live · F0 · F1 · F2 · F3 · F5 · **the F2 affiliation-status
+badge COMPONENT** (`affiliation-status-badge.tsx`, `418ddd85`). ⛔ **That last item is NOT F6's
+directory chip** — this line read "F6's badge" and was bookkeeping drift: the component is
+unwired, its own header states a precondition (a per-row org-affiliation tense on the directory
+row) that was not met until B6b's follow-up field landed. **F6 has shipped nothing.** All four authz
 arms hold (`census` · `hat` · `wrapper` · `floor`). C5's keystone (`374`) was observed **RED at
 2/15 before B3** and the red is **reproducible from the migration alone**.
 
@@ -465,8 +469,23 @@ verified against the **live catalog** (`pg_policies`, `pg_proc.prosecdef`, ACLs,
   table would blank the page for the only role it serves.
 - ⛔ **THEREFORE: the toggle must be ABSENT on the hospital-scoped directory, never
   present-and-inert.** A control that silently does nothing is worse than a missing one —
-  it actively asserts a filter is being applied. The status chip is unaffected (it reads a
-  row's own tense); only the *"incluir desligados"* toggle is org-directory-only.
+  it actively asserts a filter is being applied.
+- ⛔ **CORRECTED 2026-08-26 — THE CHIP IS ORG-DIRECTORY-ONLY TOO, and this bullet used to
+  say the opposite.** It read: *"The status chip is unaffected (it reads a row's own
+  tense); only the toggle is org-directory-only."* **False, by the exact fact the bullet
+  above cites to kill the toggle.** *"Reads a row's own tense"* is true of the **F2
+  affiliations panel**, which reads `hospital_affiliations` — table-granted, visible to
+  that hospital's admin. It is **not** true of a **directory row**, whose tense is an
+  **org**-affiliation fact, and a `hospital_admin` reads zero of those belonging to anyone
+  else. One sentence carried across two tables with different visibilities. **Both the chip
+  and the toggle are scoped to the org directory.**
+- ⛔ Enforced in the TYPE, not by memory: `OrgUserListItem.orgAffiliationStatus` is
+  `'ativo' | 'encerrado' | null`, where `null` means *"not resolvable at this scope"*.
+  `listOrgUsers` never returns null (its roster predicate IS an org affiliation);
+  `listHospitalUsers` always returns null. Both directions are pinned in
+  `src/lib/queries/org-roster-predicate.test.ts` — a nullable field is a bug absorber
+  otherwise, and a null leaking from the ORG directory would be swallowed by the render
+  path's null-check with nothing able to say why the chip vanished.
 - The org-wide arm (`listOrgUsers`) honours it and is the half acceptance criterion 1
   depends on — AC1 names an **org admin**, whose default roster is `listOrgUsers`, so the
   org half alone satisfies it.
@@ -481,8 +500,18 @@ verified against the **live catalog** (`pg_policies`, `pg_proc.prosecdef`, ACLs,
   real control), assert suspension took effect AND auto-reinstatement. This spec must
   demonstrably fail against a broken suspend before it counts (prove the check can fail).
 - **T2** · Org offboarding E2E: blocked path (blockers listed) → guided completion →
-  roster shows *Desligado* behind the filter → deactivation offer: accept arm + decline
+  roster shows **_Encerrado_** behind the filter → deactivation offer: accept arm + decline
   arm. Keyboard-only flow for the wizard (the per-phase a11y requirement).
+  - ⛔ **CORRECTED 2026-08-26 — this line said *Desligado* and would have RED A SPEC AGAINST
+    CORRECT CODE.** The shared `AffiliationStatusBadge`
+    (`src/components/users/affiliation-status-badge.tsx:16`) renders **"Encerrado"**, and
+    that is the right word: this codebase's vocabulary already splits by **grammatical
+    role** — *"Desligar da organização"* for the **action** (`org-offboarding-wizard`),
+    *"o vínculo … foi encerrado"* for the **state**. A status chip renders a state.
+    ⚠ The danger is not the word. A spec written to the wrong word fails against correct
+    code, and the repair a later session reaches for is to change the **code** to match the
+    **spec** — forking the vocabulary permanently. `frontend` reused the shared badge
+    instead of forking it; the plan was what was wrong.
   - ⛔ **SCOPED TO THE ORG DIRECTORY, and the reason must travel with the scope or it
     reads as arbitrary narrowness.** T2 is the cross-runtime parity gate — the only gate
     that exercises the SQL door and the TS queries in one process, so it is what catches
@@ -639,9 +668,22 @@ clearable={true}  → "Suspenso até (opcional) 01/03/2023 Remover data"
    nested span's `aria-label` into the trigger's name. Before F0 nothing pointed the name at
    contents, so the contamination did not exist. **This half is AFF4's regression, not inherited.**
 
-**Blast radius: 10 call sites, 9 of them in the bucket F0 fixed** — `add-version-form` ·
-`publish-document-dialog` ×2 · `publish-button` · `held-window-fields` ×2 · `personal-data-dialog` ·
-`register-person-flow` · `register-person-wizard` · `user-lifecycle-actions` · `custom-field-input`.
+**Blast radius: 12 clearable call sites.** ⛔ **CORRECTED 2026-08-26 — the prose said 10 while
+its own list enumerated 11, and the measured set is 12.** A count that disagrees with the list
+printed beside it is the recorded *"a census whose parts don't sum"* shape, and it under-reported
+in the direction that reads as safer.
+
+`add-version-form` · `publish-document-dialog` ×2 · `publish-button` · `held-window-fields` ×2 ·
+`personal-data-dialog` · `register-person-flow` · `register-person-wizard` ·
+`user-lifecycle-actions` · `custom-field-input` · **`case-access-panel.tsx:472`**.
+
+⚠ **Two of the twelve reach `DatePicker` through `DateTimePicker`**, which forwards `clearable` —
+so a sweep over direct `DatePicker` call sites alone under-counts by construction.
+
+⛔ **`case-access-panel.tsx:472` HAS NO E2E COVERAGE AT ALL** — its picker renders only under
+`preset === "date"`, and no spec ever reaches that branch. Flagged here rather than left implicit:
+an uncovered site sitting inside a bucket labelled "fixed" is exactly what reads as covered later,
+and it is the one site where the repair is unverified by anything but the unit suite.
 
 ⚠ **THE FUP'S OWN WORKED EXAMPLE IS WRONG, and by the value-dependent mechanism — third instance
 in this build.** `FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME` records the fixed name for
@@ -659,6 +701,27 @@ this.
 sibling `<button>` **outside** the trigger. ⛔ **`aria-hidden` on it is the wrong fix** — it would
 silence the contamination and simultaneously remove a control from assistive tech entirely, which
 is worse than the bug. Wants the `frontend-design` skill.
+
+⚠⚠ **A REAL LIMIT ON THE REPAIR'S EVIDENCE — RECORDED 2026-08-26, AND IT IS A RELEASED OBLIGATION
+ON T2–T5, NOT A FOOTNOTE.**
+
+`frontend` probed jsdom against the **committed pre-repair** component and found that
+`toHaveAccessibleName` **would have been VACUOUS here**: `dom-accessibility-api` resolves the
+self-referencing token through the `<label for>` and never walks a descendant's `aria-label`, so
+the contaminated and the clean states produce **identical strings on both sides of the variable**.
+The obvious assertion could not have failed.
+
+The suite therefore asserts the **CONTAMINATION CHANNEL** — named/interactive descendants inside
+the trigger — which is the mechanism rather than a proxy for it, and it is demonstrated red-first:
+**6 of 9 assertions fail against the pre-repair component.**
+
+⛔ **The consequence, stated so nobody infers more than was measured:** the original defect was
+observed **in a real browser**, and **jsdom cannot reproduce it**. So the repair is verified
+**STRUCTURALLY, NOT BEHAVIOURALLY** — no browser and no assistive technology has confirmed the
+trigger's accessible name is actually clean. The unit suite's green is strong evidence about the
+**mechanism** and **no evidence at all** about the **name**. Browser-level confirmation is owed by
+T2–T5; until one of them makes it, this is *absence of a verdict*, which is not absence of
+coverage — and must not be recorded as one.
 ⛔ **`date-picker.tsx` is pinned byte-identical with `claude/angry-stonebraker-c8e637`.** Whoever
 lands this must tell that branch, or the two diverge in a file whose sameness is what makes the
 merge safe.
