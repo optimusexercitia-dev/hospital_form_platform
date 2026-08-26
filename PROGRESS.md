@@ -72,11 +72,20 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   discharge at the AFF4 Record step (list: ADR 0151 Consequences); their index lines below carry
   ⭕ SCHEDULED markers and **stay put until the work lands**. **Sequencing ruled at the go: AFF4 runs
   NOW and jumps the ▶ queue below** — that queue resumes after the AFF4 Record step.
-  **Wave 1 in flight:** `backend` on B1–B2 (the two additive migrations) + posting the B3/B4 plan for
-  lead review (ALTER POLICY + five new doors are security-sensitive, so they do not start on an ack);
-  `frontend` on F0 (DatePicker `aria-labelledby`) + F1 (both `error.tsx` boundaries) — the two
-  ride-alongs that touch no new data. `tester` and `qa` are NOT yet spawned. ⚠ **`backend` owns the
-  local DB for this wave** — announce before any `supabase db reset`.
+  **State 2026-08-26 (⛔ a bullet's POSITION is not its recency — re-measure, this line has been
+  rewritten twice):** B1·B2·B3 + B4 increments 1–2 landed; **frontend track DONE** (F0·F1·F2·F3·F5;
+  F6 = badge only, F4 + F6's toggle held on B8/B6b). **B4 increment 3 (five door triples +
+  `get_own_person_record`) is next**, then B5–B9. Midpoint gates off a **fresh reset**: pgTAP
+  226 files/7467 tests PASS · Vitest 134/1842 · lint 10/10 · typecheck — all exit-code verified.
+  ⭐ **C5's keystone (`374`) was observed RED at 2/15 before B3 and the red is REPRODUCIBLE from the
+  migration alone**, not merely attested. `tester` spawned for T1/T6 under a no-execution hold; `qa`
+  not yet. ⚠ **`backend` owns the local DB** — it announces before any reset, and a tester window is
+  handed back only after the stack is measured free.
+  ⚠ **Three PRE-EXISTING defects fixed in their own commits** (not AFF4-introduced, § Bug Log at
+  Record): the D2-lock asymmetric-read over-grant (`9175b9a5`), three tenant-isolation assertions
+  passing for the wrong reason (`ff596034`), and an audit trigger that would have left six new
+  columns unaudited. Discovered follow-ups + the full record live in
+  [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md), **not here**.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
