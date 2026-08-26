@@ -255,11 +255,15 @@ export function UserLifecycleActions({
           </AlertDialogHeader>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={suspendUntilField.controlProps.id}>
+            <Label
+              id={`${suspendUntilField.controlProps.id}-label`}
+              htmlFor={suspendUntilField.controlProps.id}
+            >
               Suspenso até (opcional)
             </Label>
             <DatePicker
               id={suspendUntilField.controlProps.id}
+              labelId={`${suspendUntilField.controlProps.id}-label`}
               value={suspendUntil}
               onChange={setSuspendUntil}
               clearable

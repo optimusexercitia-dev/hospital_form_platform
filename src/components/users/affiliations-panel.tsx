@@ -571,11 +571,15 @@ function AffiliationDialog({
         </Field>
 
         <Field>
-          <FieldLabel htmlFor={startedOnField.controlProps.id}>
+          <FieldLabel
+            id={`${startedOnField.controlProps.id}-label`}
+            htmlFor={startedOnField.controlProps.id}
+          >
             Data de início
           </FieldLabel>
           <DatePicker
             id={startedOnField.controlProps.id}
+            labelId={`${startedOnField.controlProps.id}-label`}
             value={startedOn}
             onChange={setStartedOn}
             disabled={isPending}

@@ -118,11 +118,12 @@ export function HeldWindowFields({
 
       <div className="grid grid-cols-1 gap-4">
         <div className="flex flex-col gap-1.5 text-sm">
-          <label htmlFor={startId} className="font-medium">
+          <label id={`${startId}-label`} htmlFor={startId} className="font-medium">
             Início
           </label>
           <DateTimePicker
             id={startId}
+            labelId={`${startId}-label`}
             value={start}
             onChange={onStartChange}
             clearable
@@ -132,12 +133,13 @@ export function HeldWindowFields({
         </div>
 
         <div className="flex flex-col gap-1.5 text-sm">
-          <label htmlFor={endId} className="font-medium">
+          <label id={`${endId}-label`} htmlFor={endId} className="font-medium">
             Término{" "}
             <span className="font-normal text-muted-foreground">(opcional)</span>
           </label>
           <DateTimePicker
             id={endId}
+            labelId={`${endId}-label`}
             value={end}
             onChange={onEndChange}
             clearable

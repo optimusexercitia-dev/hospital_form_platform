@@ -344,9 +344,12 @@ export function AddVersionForm({
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="expiryDate">Data de expiração (opcional)</FieldLabel>
+        <FieldLabel id="expiryDate-label" htmlFor="expiryDate">
+          Data de expiração (opcional)
+        </FieldLabel>
         <DatePicker
           id="expiryDate"
+          labelId="expiryDate-label"
           value={expiryDate}
           onChange={setExpiryDate}
           clearable

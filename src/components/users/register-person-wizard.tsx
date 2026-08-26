@@ -554,11 +554,15 @@ function StepIdentification({
           only on the admin management surface, never by a co-commission colleague. */}
       <div className="grid gap-5 sm:grid-cols-2">
         <Field>
-          <FieldLabel htmlFor={dobField.controlProps.id}>
+          <FieldLabel
+            id={`${dobField.controlProps.id}-label`}
+            htmlFor={dobField.controlProps.id}
+          >
             Nascimento (opcional)
           </FieldLabel>
           <DatePicker
             id={dobField.controlProps.id}
+            labelId={`${dobField.controlProps.id}-label`}
             value={dateOfBirth}
             onChange={setDateOfBirth}
             clearable

@@ -90,9 +90,12 @@ export function PublishDocumentDialog({
           ) : null}
 
           <Field>
-            <FieldLabel htmlFor="effectiveDate">Data de vigência</FieldLabel>
+            <FieldLabel id="effectiveDate-label" htmlFor="effectiveDate">
+              Data de vigência
+            </FieldLabel>
             <DatePicker
               id="effectiveDate"
+              labelId="effectiveDate-label"
               name="effectiveDate"
               className="w-auto"
               aria-describedby="effectiveDate-description"
@@ -105,11 +108,12 @@ export function PublishDocumentDialog({
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="reviewDueDate">
+            <FieldLabel id="reviewDueDate-label" htmlFor="reviewDueDate">
               Data de revisão (opcional)
             </FieldLabel>
             <DatePicker
               id="reviewDueDate"
+              labelId="reviewDueDate-label"
               name="reviewDueDate"
               clearable
               className="w-auto"
@@ -122,11 +126,12 @@ export function PublishDocumentDialog({
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="publishExpiryDate">
+            <FieldLabel id="publishExpiryDate-label" htmlFor="publishExpiryDate">
               Data de expiração (opcional)
             </FieldLabel>
             <DatePicker
               id="publishExpiryDate"
+              labelId="publishExpiryDate-label"
               name="expiryDate"
               clearable
               className="w-auto"
