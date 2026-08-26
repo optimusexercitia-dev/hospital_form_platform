@@ -47,34 +47,29 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   [0151](docs/decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md) · plan
   [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md) · analysis
   [org-affiliation-and-staff-data-model.md](docs/plans/org-affiliation-and-staff-data-model.md).
-  ✅ **PRE-STEP (Track P) COMPLETE + COMMITTED 2026-08-26** — ADRs
-  [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md) (a **73-door class**, own
-  index line below) + [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md);
-  narrative → [2026-Q3.md](docs/progress/2026-Q3.md).
-  ✅ **P4 DONE** — the 2026-08-25 merged-tree gate is AFF4's **named-flake baseline** →
-  [merged-tree-gate-2026-08-25.md](docs/progress/merged-tree-gate-2026-08-25.md) (⚠ its asymmetry:
-  an unlisted flake is a finding, a listed one's absence proves nothing).
+  ✅ **PRE-STEP (Track P) + P4 COMPLETE** — ADRs [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md)
+  + [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md); narratives and
+  the **named-flake baseline** → [2026-Q3.md](docs/progress/2026-Q3.md) ·
+  [merged-tree-gate-2026-08-25.md](docs/progress/merged-tree-gate-2026-08-25.md) (⚠ asymmetry: an
+  unlisted flake is a finding, a listed one's absence proves nothing).
   **Eleven FUPs discharge at the AFF4 Record step** (ADR 0151 Consequences); their ⭕ SCHEDULED
   index lines **stay put until the work lands**. **AFF4 jumps the ▶ queue below.**
-  ⏸ **PAUSED 2026-08-26 at the PO's call. ⛔ RESUME FROM the ▶ RESUME HERE block at the TOP of
-  [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md) — not from this line**, which
-  carries only what a *status* reader needs. **DONE:** B1·B2·B3·B4(×3)·B8 partial · F0·F1·F2·F3·F5 ·
-  F6 badge; all four authz arms hold. **HELD:** F4, F6's toggle. **NOT STARTED:** B5·B6·B7·B9,
-  T2–T5, `qa`. ⛔ **The resume order is GATED and its first step was already dropped once** — the
-  owed pgTAP catalog-`==`-declared verdict precedes B5, and **its absence is the signal**.
-  ⭐ **C5's keystone (`374`) was observed RED at 2/15 before B3, REPRODUCIBLE from the migration
-  alone.** ✅ **BOTH PO decisions are RULED — none outstanding:** the suspension-date semantic
-  (§ Bug Log), and **merge order — AFF4 merges FIRST, `claude/angry-stonebraker-c8e637` is HELD**
-  (its call-site changes have had no E2E pass, so landing first would attribute its flakes to AFF4;
-  ⚠ a live data-loss bug rides on that held branch). ⛔ **EIGHT instruments in this build
-  returned success while measuring nothing**, two of
-  them **constants** — the dangerous kind, because they are *usually right*. No conclusion was wrong;
-  the confidence was. **Read the plan before quoting any gate figure from this build.**
-  ⚠ **Three PRE-EXISTING defects fixed in their own commits** (not AFF4-introduced, § Bug Log at
-  Record): the D2-lock asymmetric-read over-grant (`9175b9a5`), three tenant-isolation assertions
-  passing for the wrong reason (`ff596034`), and an audit trigger that would have left six new
-  columns unaudited. Discovered follow-ups + the full record live in
-  [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md), **not here**.
+  ⏸ **PAUSED 2026-08-26. ⛔ RESUME FROM the ▶ RESUME HERE block at the TOP of
+  [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md)** — this line carries only what a
+  *status* reader needs; the plan carries the rest and is authoritative.
+  **DONE:** B1·B2·B3·B4(×3)·B8 partial · F0·F1·F2·F3·F5·F6-badge; all four authz arms hold.
+  **HELD:** F4, F6's toggle. **NOT STARTED:** B5·B6·B7·B9, T2–T5, `qa`, the §6 gate.
+  ⛔ **The resume order is GATED and its first step was already dropped once** — the owed pgTAP
+  catalog-`==`-declared verdict precedes B5, and **its absence is the signal.**
+  ⭐ **C5's keystone (`374`) was observed RED at 2/15 before B3, REPRODUCIBLE from the migration alone.**
+  ✅ **BOTH PO decisions RULED, none outstanding:** the suspension-date semantic (§ Bug Log), and
+  **merge order — `claude/angry-stonebraker-c8e637` is now MERGED INTO this branch** (one tree, one
+  gate), which moots the escalation: `BUG-CASEPHASE-DUEDATE-001` ships with AFF4 instead of behind it.
+  ⛔ **TEN instruments in this build returned success while measuring nothing**, two of them
+  **constants** — the dangerous kind, because they are *usually right*. No conclusion was wrong; the
+  confidence was. **Read the plan before quoting any gate figure from this build.**
+  ⚠ **Three PRE-EXISTING defects fixed in their own commits, plus ONE AFF4 REGRESSION not fixed.**
+  Full record + all discovered follow-ups: the plan above, **not here**.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -96,8 +91,13 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      **expires when the pilot loads data**.
   2. **C1 split into C1a (local) + C1b (Cloud); the pilot bound is C1b** — a green
      local rehearsal does NOT release the pilot (§ Critical FUP C1).
-- **In-flight worktrees: NONE** — re-measured 2026-08-24, `git worktree list` → the primary checkout
-  only. ⛔ A worktree line is a claim about an external thing: re-measure it, never read it.
+- **In-flight worktrees: THREE** — re-measured 2026-08-26: the primary checkout,
+  `claude/angry-stonebraker-c8e637` (**merged into AFF4**, so it is spent), and
+  `chore/followup-staleness-audit`. ⛔ This line read **NONE** while two existed — and its own
+  closing words are *"a worktree line is a claim about an external thing: re-measure it, never read
+  it."* A warning does not measure anything. ⚠ Before any gate in a worktree, check `.env.local`
+  **and** a non-empty `node_modules` — see [worktrees.md](docs/worktrees.md); the second fails
+  silently by borrowing the parent checkout's packages.
 ## Phase Status — live rows only
 
 > **Completed rows live in [phase-ledger.md](docs/progress/phase-ledger.md)** —
@@ -356,7 +356,7 @@ _**Three items RESOLVED 2026-08-24 (gate-tooling round), index lines rotated** �
 - 🟡 **FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE** — **six** `public` `prosecdef` bool wrappers mirror an `app.*` authorization rule that RLS calls **directly**; measured 2026-08-24, all six have **ZERO** catalog references (no policy/trigger/function body), so the second copy is enforced by nothing. ⛔ NOT redundant — `app` is not PostgREST-exposed (`config.toml:13`), so the UI needs the bridge; do not "simplify" them away. ⚠ **Not a live hole** (all six still delegate, verified) — the item is that **no gate can see them stop**: the door sweep cannot (neutralizing one leaves RLS intact — why `rca_writer_can_write` swept BLIND across 218 files) and the RLS keystones cannot (they never call the wrapper). Coverage: 2 keystoned, **4 `is_*_self` wrappers have none at all**; and neither existing keystone pins the **differential** against the predicate RLS enforces — backend + PO
 - 🟡 **FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE** — the door sweep cannot classify a gate whose opening makes a pgTAP file **ABORT**: the run shape moves and §7.15 withholds a verdict, correctly. Measured on `app.event_current_custodian` (`140_patient_safety.sql` reds its test 11, then "planned 35, ran 11"). ⚠ ERROR here means *unclassifiable*, not *unprotected* — the suite DID notice — but ⛔ ERROR is not a pass, and the newly-admitted broad gates are the likeliest to hit it — backend
 - 🟠 **FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY** — `user-registration.spec.ts:463` guards its date fill with two **dead** locator alternatives (`DatePicker` replaces the native input and emits a hidden one only when a `name` prop is passed), so the `if` body never runs and the flow calls `suspendUser(userId, null)` — a no-op. ⛔ The test named *"suspends with a past date; auto-reinstated"* never suspends anyone; measured after a run. ⚠ `lint:vacuous` structurally cannot see it. Pre-existing at `8ecf51de`. ⭕ **SCHEDULED into AFF4 2026-08-25 (ADR 0151 D17, T1 — the repaired spec must fail against a broken suspend before it counts)** — tester
-- 🟡 **FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME** — the shared `DatePicker` button announces its **label only, never its value** (measured via Chromium CDP name-sources 2026-08-25: `<label for>` IS in a button's accname chain and **outranks** `contents:`). ⛔ The inverse premise is a repeat offender — recorded measured-false once before. Fix: `aria-labelledby="{labelId} {buttonId}"`. ⚠ Needs its own diff: a shared control with **23** call sites, and it changes accessible names. ⭕ **SCHEDULED into AFF4 2026-08-25 (ADR 0151 D17: first frontend commit; affected specs RUN, never string-swept)** — frontend. ✅ **Built 2026-08-26** (`5e7288b5`); measured **26** sites, not 23; 3 affected specs run, all green. Discharges at Record
+- 🟡 **FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME** — the `DatePicker` trigger announced its **label only, never its value** (every name-source DISPLACES `contents:`). **ALL 37 sites FIXED**: `5e7288b5` (26) · `7637bc3c` (10) · `61e23659` (1). Surfaced **BUG-CASEPHASE-DUEDATE-001**. ✅ **`e2e:prod` GREEN** `f9316295` — `GATE_EXIT=0`, 1239p/0f; 2 flaky named in the body, neither attributable. ⚠ **OPEN**: `patient-mode-required.spec.ts:632`'s `$` anchor pinned the defect — dropped, **needs tester sign-off**. ⛔ **NEW, now AFF4's**: F0's `{buttonId}` self-reference re-admits button contents, so `clearable` appends *"Remover data"* to the trigger name — **10 sites**. Mechanism + the 3/16 insufficiency in the body. Discharges at AFF4 Record — frontend
 - 🟠 **FUP-P-CLASS-SQLSTATE-ANSWERS-500-ON-DENIAL** — PostgREST v14.5 maps SQLSTATE class `P0*` to **HTTP 500** (`P0001` excepted), so an authored refusal raised as `P0002` answers **5xx on an ordinary denial**. Measured 2026-08-26: status is a **pure function of the SQLSTATE** (`HC***`→400, `42501`→403, `P0002`→500), not media-type handling. ⚠ **A CLASS: 73 `public` functions with EXECUTE for `authenticated` raise a P-class code** — the document corridor is 2 of them. ⛔ **No partial fix** (ADR [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md) D3); cost is observability + the defensive `[403,404,500]` E2E oracle, **not** §8. ⭕ Own increment; 0152 D4 rules the shape. ↩ Replaces FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE, archived 2026-08-26 — backend
 - 🟡 **FUP-GATE-19-TESTS-NEVER-RAN-ON-MACOS** — the 2026-08-25 full `e2e:prod` (1172p/18f) left **19 tests NEVER RUN**: `ethics-e1`(5), `ethics-e2`(5), `dm4-referral-documents`(5), `case-referral-usability-batch`(3), `ethics-e4`(1). A failure aborts the remainder of its spec, so the 18 understates what went unexercised — real coverage was **1211 of 1222**. ⛔ Nothing is proven for those 19 either way; they are hostage to the two clusters (the `open_document_version` 500 above, and the macOS native-`<select>` `ArrowDown` no-op that cannot pass on this OS) and stay unexercised until those are fixed. ⚠ The gate itself reports this loudly and correctly — the defect is that the reds gate the coverage, not that the gate hides it — lead/tester
 - 🟡 **FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS** — the SUBSET half is closed (ADR [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)), but a **FULL** sweep still writes `docs/reviews/authz-door-audit-findings.md` through a truncating redirect — and that file is **not purely generated**: it carries hand-merged subset verdicts, a trailing `## Note — a RENAME moves a gate's verdict` section, and inline annotations on the skipped-policy bullets. A full run destroys all of them, silently. ⚠ **Same class as the closed item, different RUN MODE** — the guard that fixed the subset path deliberately does not cover it, so "the truncation is fixed" is true of one half only. Fix is the register's option **(b)**: merge verdicts rather than replace. All four sweeps now print a startup warning counting the hand-merged blocks — a hint, not a gate — backend

@@ -439,7 +439,30 @@ function GrantDialog({
             </p>
             {preset === "date" && (
               <div className="mt-1">
+                {/* ⛔ This picker needs its OWN name, and it cannot borrow the one
+                    above: `<label htmlFor="grant-expiry">Expiração</label>` names the
+                    SELECT, and reusing that text would give two controls in one group
+                    the same name. Until now it had no name-bearing attribute at all —
+                    measured accessible name was just its own contents ("Selecionar data
+                    de expiração", or the date once set), so a screen-reader user reached
+                    an unlabelled button whose purpose came only from the placeholder.
+                    `sr-only` rather than visible: the group is already captioned
+                    "Expiração (opcional)" and the select immediately above reads "Data
+                    específica", so a sighted user has the context in ink; adding a second
+                    visible caption would be redundant, and the visual design is not this
+                    change's to alter. The placeholder drops its "de expiração" suffix
+                    because the label now carries it — kept, the name would stutter as
+                    "Data de expiração Selecionar data de expiração" while empty. */}
+                <label
+                  id="grant-expiry-date-label"
+                  htmlFor="grant-expiry-date"
+                  className="sr-only"
+                >
+                  Data de expiração
+                </label>
                 <DatePicker
+                  id="grant-expiry-date"
+                  labelId="grant-expiry-date-label"
                   value={customDate}
                   onChange={(v) => {
                     setCustomDate(v);
@@ -447,7 +470,6 @@ function GrantDialog({
                   }}
                   min={isoTomorrow()}
                   clearable
-                  placeholder="Selecionar data de expiração"
                   aria-invalid={dateError ? true : undefined}
                   aria-describedby={dateError ? "grant-expiry-error" : undefined}
                 />

@@ -6200,6 +6200,155 @@ so specs that address these controls by name legitimately need updating. Folding
 accname change into a feature branch is how a reviewable diff stops being reviewable, and it would put
 spec edits on the same commit as the change that necessitated them.
 
+**✅ THE WRAPPING-`<label>` BUCKET IS NOW MEASURED AND FIXED TOO (2026-08-26).** The commit above
+deferred 8 sites that wrap the control in an implicit `<label>` instead of using `htmlFor`, on the
+correct ground that the `labelfor` mechanism "does not obviously transplant". Measured, same
+instrument (Chromium CDP name-sources, real rendered `DatePicker` DOM, empty AND filled):
+
+```
+name = "Prazo (opcional)"   sources = [relatedElement:labelwrapped, contents: (superseded)]
+```
+
+**It transplants.** `relatedElement:labelwrapped` wins and displaces `contents:` exactly as
+`labelfor` did — **15 of 16** case/state pairs dropped the control's own value. The 16th
+(`activate-phase-dialog`) was materially different and is filed separately as
+**BUG-CASEPHASE-DUEDATE-001** (silent data loss; see `bug-log-archive.md`).
+
+⭐ **The durable part is that the OBVIOUS fix was measured insufficient before it was adopted.**
+Transplanting `labelId` while KEEPING the wrapping label fails 3/16, two different ways, neither
+visible without measuring:
+- pointing `aria-labelledby` at the whole `<label>` **doubles** the value — the label's own
+  name-from-content now includes the button it wraps (`"Prazo (opcional) 01/03/2023 01/03/2023"`);
+- pointing it at the label's text `<span>` leaks any OTHER text in the label **instead of** the
+  value — because the self-referencing token resolves through `labelwrapped` (label content minus
+  the button), and only falls through to `contents:` when that comes back empty. So it looked
+  correct at the 6 sites whose label holds nothing but its own text, and silently failed at the 2
+  with a hint `<span>`. **A fix shape that was never compared against its alternative gets adopted
+  on plausibility.**
+
+Fix applied = un-wrap to the shape already shipped for the `htmlFor` bucket (`<div>` keeps the layout
+classes, the text `<span>` becomes `<label htmlFor id>`, `DatePicker` gets `id` + `labelId`): **0/16**
+failures, and it repairs the `label.control` mis-association as a side effect. Hint text moved from
+the accessible NAME to `aria-describedby`, so it is still announced but no longer displaces the value.
+
+⚠ **A fixture hazard worth keeping.** The first measurement run reported the two *controls* wrong —
+several probe cases rendered the same DOM `id`, so `getElementById` resolved every `label[for]` to
+the FIRST match: one button collected two labels (`"Suspenso até (opcional) Suspenso até
+(opcional)"`) and its twin collected none (falling through to `contents:`). **Both artefacts read
+exactly like real accname defects**, and one of them would have said the SHIPPED fix does not work.
+Namespacing ids per probe container is what made the controls reproduce the recorded measurements.
+
+⚠ **jsdom is NOT a substitute instrument here, and the divergence is narrower than it looks.**
+`dom-accessibility-api` resolves a *bare* `aria-labelledby` self-reference correctly; it diverges
+only in the shape actually shipped — when a `<label for>` ALSO points at the control, the
+self-referencing token resolves through that label again instead of the button's contents, so the
+value never enters the name. Chromium does not do this. The component test pins the divergence
+explicitly so it reds if testing-library ever aligns.
+
+**✅ THE `aria-label` BUCKET TOO (2026-08-26), which closes all 36 named call sites.** The last two
+sites named the trigger with `aria-label`, which also outranks `contents:` and so dropped the value
+identically — `safety/patient-fields.tsx` and `meetings/review/actions-review.tsx`, both measured on
+their real rendered DOM, both states. ⚠ **`patient-fields` had been recorded as "already CDP-verified
+correct"**, and that verification was honest but answered a DIFFERENT question — *does the button have
+an accessible name at all* (yes), not *does the name include the value* (no). Its own comment even
+said the `aria-label` was "redundant, not load-bearing"; that was right that a wrapping `<label>`
+names a `<button>` and wrong about the consequence, because BOTH sources outrank `contents:` and
+outranking DISPLACES.
+
+Each carried a constraint the fix had to preserve, and neither was visible from the FUP's mechanism:
+- `patient-fields` — the **"(obrigatório)" suffix must stay IN the name**, because role=button
+  supports no `aria-required`. It now comes from `mark()` inside the `<label>`, and the duplicate
+  `labelOf` helper that mirrored that text is deleted rather than left to drift.
+- `actions-review` — the `aria-label` carried the **row title**, which is what keeps many rows in one
+  review list from all being named "Prazo". Kept as an `sr-only` span inside the label (the title is
+  already visible one field away, so repeating it in ink would be noise). ⚠ NOT in tension with the
+  I6 stable-name rule beside it: that rule stops a CHECKBOX renaming itself on toggle because
+  `aria-checked` already carries the state; a date button has no such attribute.
+
+Measured after: `"Data de nascimento (obrigatório) 01/03/2023"` · `"Data de nascimento 01/03/2023"`
+(non-required — the marking stays selective) · `"Prazo — Ação com responsável identificado 01/03/2023"`.
+
+⛔ **One E2E spec genuinely needed updating, and it was measured, not guessed.**
+`e2e/patient-mode-required.spec.ts:632` anchored the name with `/^Data de nascimento \(obrigatório\)$/`
+— the trailing `$` asserts the value is ABSENT, i.e. it pinned the defect. Dropping ONLY the `$` was
+verified against the real post-fix DOM to (a) match the required variant and (b) still NOT match the
+non-required one, so the selectivity that block exists to prove is intact. **Engineer-authored spec
+edit — needs `tester` sign-off** (CLAUDE.md §6·2). The two `meeting-audio-minutes.spec.ts` locators
+were checked the same way and need no change: Playwright's default name match is case-insensitive
+SUBSTRING, so the longer name still matches — verified by running the locator, not by reasoning about it.
+
+**✅ `e2e:prod` GREEN — 2026-08-26, `7637bc3c`, `GATE_EXIT=0`.** 21/21 batches · **1239 passed, 0
+failed, 2 flaky, 11 skipped, 0 did-not-run** · every batch reconciled `accounted N/N`. ⚠ The harness
+reported the background task as "exit code 0" **twice while the gate had actually exited 3 the first
+time** — a `;` chain's status is its LAST command's, and that was an `echo`. Only the
+`echo "GATE_EXIT=$?"` written into the log distinguished a real pass from an abort that ran no tests.
+
+⭐ **The two riskiest edits are PROVEN exercised, by name, not inferred from a green total:**
+- `patient-mode-required.spec.ts:599` — *AC-R3: Novo caso marks required PHI fields (accessible name
+  + aria-required)* — **ok (1.8s)**. That test contains line 632, the anchored regex this change
+  edited, so the `$`-drop is validated against the running app and not only against a probe DOM.
+- `meeting-audio-minutes.spec.ts:222` — the happy path holding both
+  `getByRole('button', { name: 'Prazo — Ação com responsável identificado' })` locators against
+  `actions-review` — **ok (7.5s)**, confirming Playwright's default substring match still resolves the
+  now-longer name.
+
+⛔ **NAMING THE FLAKES, which the gate record structurally cannot do** — see
+`FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES`: `GATE_LOGDIR` is not run-scoped, so the next run
+overwrites these by batch number and "2 flaky" becomes undiffable. Captured before that happens:
+- `act-role-assumption.spec.ts:157` — *The switch: assuming a hat then switching…* — failed at
+  **30.0s** (timeout), passed on **retry #1 in 2.0s**.
+- `phase2-auth-shell.spec.ts:268` — *Logout › logging out via user menu…* — failed at 5.7s, passed on
+  retry #1 in 1.4s.
+Both auth/session, both timeout-then-fast-retry (a race, not a defect), and **both specs contain zero
+date-related locators** (measured) — so neither is attributable to this change. ⚠ This run's count
+coincidentally matches a prior row's "2 flaky"; **a total that matches is not a list that matches**,
+which is exactly why the identities are written here.
+
+⚠ **"Gate green" is NOT "all ten controls were driven", and the difference is real.** 11 tests
+skipped. Two skip-bearing specs sit adjacent to this change — `phi-remediation.spec.ts:421` skips a
+**CAPA** assertion and `case-access.spec.ts:1293` skips a **safety-event** UI click-through, against
+`capa-action-form.tsx` and `event-notify-form.tsx` respectively. Both skip for seed-data reasons with
+pgTAP cited as cover, not because of anything here — but a skipped test asserted nothing, and
+`accounted N/N` counts a skip as accounted. The honest claim is **no regression was detected across
+1239 tests, with the two highest-risk sites proven driven by name.**
+
+**✅ `cases/case-access-panel.tsx` NAMED (2026-08-26)** — the last unnamed site. It had no
+name-bearing attribute at all: the visible `<label htmlFor="grant-expiry">Expiração</label>` names the
+**select**, and this picker is the sub-control that appears only for the "Data específica" preset, so
+it was reaching AT as a bare button described solely by its placeholder. Given an `sr-only`
+`<label htmlFor>` + `labelId` → measured `"Data de expiração Selecionar data"` / `"Data de expiração
+01/03/2023 …"`. ⚠ `sr-only`, not visible, on purpose: the group is already captioned "Expiração
+(opcional)" and the select above it reads "Data específica", so the context is in ink for a sighted
+user and the visual design was not this change's to alter. The placeholder dropped its "de expiração"
+suffix because the label now carries it — kept, the empty-state name would stutter as *"Data de
+expiração Selecionar data de expiração"*.
+
+⛔ **NEW, and it is NOT this site's defect — `clearable` appends the CLEAR BUTTON'S name to the
+TRIGGER'S.** Measured as a differential, one variable changed on otherwise identical DOM:
+
+```
+clearable={false} → "Suspenso até (opcional) 01/03/2023"
+clearable={true}  → "Suspenso até (opcional) 01/03/2023 Remover data"
+```
+
+`date-picker.tsx` renders the clear affordance as a `role="button"` `<span aria-label="Remover data">`
+**inside** the trigger `<button>`, so name-from-content absorbs its accessible name. Two problems: the
+trigger is announced with the name of a *different action*, and interactive content nested inside a
+`<button>` is invalid to begin with (it is `tabIndex={-1}`, so it is not independently reachable
+either). ⚠ **Blast radius is 10 call sites, and 9 of them are in the `htmlFor` bucket `5e7288b5`
+already "fixed"** — `add-version-form`, `publish-document-dialog` ×2, `publish-button`,
+`held-window-fields` ×2, `personal-data-dialog`, `register-person-flow`, `register-person-wizard`,
+`user-lifecycle-actions`, `custom-field-input`. ⛔ **NOT fixed here**: the repair belongs in
+`date-picker.tsx`, which is pinned byte-identical to `5e7288b5` by agreement with the AFF4 session —
+diverging on a shared control is precisely the merge that resolves cleanly and is wrong afterwards.
+Raised with that session; it is theirs to land or to hand back.
+
+⭕ **Considered and NOT built: a class-wide invariant test** ("every `DatePicker` render is named").
+It would have caught all three buckets at once and is the right long-term shape — but it **cannot hold
+on this branch**: the 25 `htmlFor` sites here still lack `labelId` (they gain it with AFF4's merge), so
+the test would be red for a reason that is not a defect. Worth building once that merges, on the whole
+class rather than per site.
+
 ⭐ **The premise trap, which is the durable part.** This surfaced only because QA filed a finding
 (M6) asserting the OPPOSITE — that `<label for>` is *not* in the accname chain for a `button`, and that
 the three new date triggers therefore had no accessible name at all. `frontend` measured it false twice

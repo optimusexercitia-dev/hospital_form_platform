@@ -3191,3 +3191,45 @@ correct (`get_case_patients` returns literal `null` over PostgREST); the collaps
 layer. ⛔ Breaks ADR 0144 Amdt 2 pt 5's three-answer contract (`null` / `[]` / rows). A false statement
 about a record's contents, to a reader not entitled to know them — backend
 
+
+## Rotated 2026-08-26 — BUG-CASEPHASE-DUEDATE-001 (filed and RESOLVED the same session)
+
+⬛ **BUG-CASEPHASE-DUEDATE-001 — clicking the "Prazo" label CLEARS the phase due date.** Filed and
+fixed 2026-08-26 while measuring the wrapping-`<label>` half of
+`FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME`. **Severity: MAJOR — silent data loss on `main`,
+reachable by an ordinary user doing an ordinary thing.** Filed as its own bug rather than as a line
+inside the a11y follow-up, deliberately: buried under an a11y heading it would be triaged at a11y
+priority, which is the wrong priority for silent data loss.
+
+**Mechanism.** `activate-phase-dialog.tsx` wrapped its due-date field in a native `<label>` that
+contained BOTH a conditional "Remover prazo" `<button>` **and** the `DatePicker` trigger. A
+`<label>`'s control is its **first labelable descendant** — and `<button>` is labelable. "Remover
+prazo" renders before the picker and only while `dueDate` is truthy, so the association FLIPPED with
+the field's own value: empty → the label pointed at the date trigger (correct); filled → it pointed
+at "Remover prazo". Clicking the visible "Prazo (opcional)" text then fired the clear handler.
+Measured directly, not inferred — `label.control` resolved to the "Remover prazo" button, and a
+dispatched click on the label text fired that button's handler.
+
+⭐ **The lasting lesson: a label/control mis-association can be VALUE-DEPENDENT.** The same markup was
+correct while the field was empty and wrong once it had something to lose — so any check that
+exercised only the empty state (which is the state a fresh dialog opens in) would have confirmed the
+association was fine. The bug lived exactly in the state a test is least likely to construct.
+
+⚠ **It was found by measuring something else.** The task was accessible names; this is a functional
+defect that has nothing to do with them except that the accname measurement is what surfaced the
+mis-association. The a11y symptom (`name = "01/03/2023"`, label lost) and the data-loss symptom are
+the same root cause seen from two sides.
+
+**Fix** — un-wrap: the layout `<label>` becomes a `<div>` (same classes, zero visual change) and the
+field's text `<span>` becomes the `<label htmlFor={dueDateId}>`, so the association names the date
+trigger explicitly and cannot be re-stolen by a sibling. Re-measured after the fix: `label.control`
+→ the DatePicker trigger, and clicking the label opens the calendar (the normal behaviour of a label
+bound to a popover trigger) instead of clearing the value.
+
+**Regression test** — `src/components/cases/activate-phase-dialog.test.tsx`, **observed RED on the
+pre-fix code before the fix existed** (3 of 5 red: the date was cleared; the name was `"01/03/2023"`;
+the empty-state name was `"Prazo (opcional) Deixe em branco para remover o prazo."`), green after,
+and re-verified red by restoring the pre-fix file and re-running. ⛔ It carries its own **vacuity
+control** — a separate test pins that jsdom forwards a label click to its control at all, because
+without that the click test would pass identically on a build where the label activates *nothing*,
+which is indistinguishable from "fixed" — frontend

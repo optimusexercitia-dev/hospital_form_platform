@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import type { MinutesDraftActionItem } from "@/lib/minutes-jobs/types";
 import type { AssigneeOption } from "../action-item-form";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -38,6 +40,8 @@ export function ActionsReview({
   assignees: AssigneeOption[];
   agendaOptions: { ref: string; title: string }[];
 }) {
+  // Per-instance: `review-shell` renders one of these per action item.
+  const dueDateId = useId();
   return (
     <li
       className={cn(
@@ -100,14 +104,34 @@ export function ActionsReview({
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">
+          {/* ⛔ The row title stays IN the name, and the label is a real <label
+              htmlFor> rather than an `aria-label`. Two constraints meet here.
+              (1) One review list renders many of these, so a bare "Prazo" would
+              name several buttons identically — the disambiguator is why the
+              `aria-label` existed, and it has to survive; it is `sr-only` because
+              the title is already visible one field away, so repeating it in ink
+              would be noise. (2) An `aria-label` OUTRANKS `contents:` and displaces
+              it, so it silently dropped the button's own rendered date from the
+              name (FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME);
+              `aria-labelledby="{labelId} {buttonId}"` re-admits it after the label.
+              ⚠ NOT in tension with I6 above: that rule keeps a CHECKBOX from
+              renaming itself on toggle because `aria-checked` already carries the
+              state. A date button has no such attribute, so its value can only live
+              in the name — the same reason "(obrigatório)" does in patient-fields. */}
+          <label
+            id={`${dueDateId}-label`}
+            htmlFor={dueDateId}
+            className="text-xs font-medium text-muted-foreground"
+          >
             {MINUTES_UI.actionDueLabel}
-          </span>
+            <span className="sr-only"> — {item.title || "item de ação"}</span>
+          </label>
           <DatePicker
+            id={dueDateId}
+            labelId={`${dueDateId}-label`}
             value={item.due_date ?? ""}
             onChange={(v) => onChange({ ...item, due_date: v || null })}
             disabled={!item.include}
-            aria-label={`${MINUTES_UI.actionDueLabel} — ${item.title || "item de ação"}`}
           />
           {!item.due_date && item.deadline_text && (
             <span className="text-xs text-muted-foreground">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 
 import {
   SUSPECTED_HARM_LABELS,
@@ -107,6 +107,7 @@ export function EventNotifyForm({
   const [title, setTitle] = useState("");
   const [descriptionMd, setDescriptionMd] = useState("");
   const [harmLevel, setHarmLevel] = useState<SuspectedHarmLevel>("unknown");
+  const discoveredAtId = useId();
   const [discoveredAt, setDiscoveredAt] = useState("");
   const [location, setLocation] = useState("");
   const [patient, setPatient] = useState<PatientDraft>(EMPTY_PATIENT_DRAFT);
@@ -264,17 +265,23 @@ export function EventNotifyForm({
           </NativeSelect>
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">
+        <div className="flex flex-col gap-1.5 text-sm">
+          <label
+            id={`${discoveredAtId}-label`}
+            htmlFor={discoveredAtId}
+            className="font-medium"
+          >
             Data do evento{" "}
             <span className="font-normal text-muted-foreground">(opcional)</span>
-          </span>
+          </label>
           <DatePicker
+            id={discoveredAtId}
+            labelId={`${discoveredAtId}-label`}
             value={discoveredAt}
             onChange={setDiscoveredAt}
             disabled={isPending}
           />
-        </label>
+        </div>
       </div>
 
       <label className="flex flex-col gap-1.5 text-sm">

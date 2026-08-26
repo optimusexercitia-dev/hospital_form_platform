@@ -169,14 +169,22 @@ export function ReferralPatientFields({
           </NativeSelect>
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">Data de nascimento</span>
+        <div className="flex flex-col gap-1.5 text-sm">
+          <label
+            id={`${idPrefix}-dob-label`}
+            htmlFor={`${idPrefix}-dob`}
+            className="font-medium"
+          >
+            Data de nascimento
+          </label>
           <DatePicker
+            id={`${idPrefix}-dob`}
+            labelId={`${idPrefix}-dob-label`}
             value={draft.dateOfBirth}
             onChange={(v) => set("dateOfBirth", v)}
             disabled={disabled}
           />
-        </label>
+        </div>
 
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">
