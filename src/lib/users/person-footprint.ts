@@ -73,7 +73,7 @@ export async function resolvePersonFootprint(
 ): Promise<PersonFootprint> {
   const admin = createAdminClient()
 
-  const { data: affiliations } = await admin
+  const { data: affiliations, error: affiliationsError } = await admin
     .from('hospital_affiliations')
     .select('hospital_id')
     .eq('principal_id', userId)
@@ -85,7 +85,7 @@ export async function resolvePersonFootprint(
     .is('voided_at', null)
     .returns<{ hospital_id: string | null }[]>()
 
-  const { data: memberships } = await admin
+  const { data: memberships, error: membershipsError } = await admin
     .from('memberships')
     .select('commission_id, hospital_id, expires_at, commissions:commission_id(hospital_id)')
     .eq('principal_id', userId)
@@ -97,6 +97,38 @@ export async function resolvePersonFootprint(
         commissions: { hospital_id: string | null } | null
       }[]
     >()
+
+  // ⛔ BUG-AUTHZ-FOOTPRINT-ASYMMETRIC-READ-LIFTS-THE-D2-LOCK. Pre-existing since ADR 0133
+  // (AFF2); NOT introduced by AFF4.
+  //
+  // Both reads dropped `error` and consumed `?? []`. The TOTAL failure was already safe —
+  // `personScopeAllows` denies an empty footprint explicitly, and its comment names the
+  // vacuous-subset inversion — so this looked closed. It was not, because the ASYMMETRIC
+  // failure is a different bug:
+  //
+  //   memberships errors, affiliations succeeds
+  //     -> hospitalIds is NON-EMPTY, so it sails past that empty-footprint guard
+  //     -> hasNonCommissionTierMembership is FALSE when it should be TRUE
+  //     -> the D2 lock ("any org-tier or hospital-tier seat makes this person
+  //        org_admin-only for EVERY capability") silently lifts
+  //     -> a hospital_admin administering all of the target's affiliation hospitals now
+  //        satisfies the SUBSET bound and gains `lifecycle` OVER AN ORG ADMIN.
+  //
+  // ⚠ AND THE PROBABILITIES RUN THE WRONG WAY. The memberships read joins `commissions`,
+  // so it is the HEAVIER query and the more likely to time out under pool pressure — the
+  // failure that removes the lock is the MORE probable one, not the less. That inverts the
+  // usual "requires an unlikely error" discount.
+  //
+  // Throwing is the only correct answer. Returning an empty footprint on error would be a
+  // silent DENY that locks admins out of legitimate work; carrying on is a silent GRANT.
+  // Silence in either direction is the defect. Keystone: `person-footprint-reads.test.ts`.
+  if (affiliationsError || membershipsError) {
+    const which = affiliationsError ? 'hospital_affiliations' : 'memberships'
+    const detail = (affiliationsError ?? membershipsError)?.message ?? 'unknown'
+    throw new Error(
+      `resolvePersonFootprint: ${which} read failed (${detail}) — refusing to derive person-scope authority from a partial footprint`,
+    )
+  }
 
   const hospitalIds: string[] = []
   for (const a of affiliations ?? []) {
