@@ -568,59 +568,74 @@ describe('§3 the CPF gate fires on a CHANGE, not on the key being PRESENT', () 
     ).toHaveLength(0)
   })
 
-  it.each([
-    ['phone, reformatted to the same digits', { phone: '(11) 98765-4321' }, '11987654321'],
-    ['dateOfBirth, empty against a stored null', { dateOfBirth: '' }, null],
-  ])('⭐ QA R4 — %s is NOT a change, so no person-level gate is triggered', async (_l, patch, storedPhone) => {
-    // ⛔ THE FIXTURE IS THE WHOLE TEST, and my first attempt got it wrong in a way only a
-    // mutation control caught. `personLevelChanged` does not choose between allow and deny —
-    // it chooses whether the person-scope check RUNS AT ALL. So a false positive is only
-    // observable where that check would DENY while the entry gate ADMITS. On a
-    // cross-hospital target `fields` is allowed anyway, so the arm passed with the bug
-    // present and with it fixed: it was measuring a different allow path than its name
-    // claimed.
-    //
-    // The discriminating fixture is a D2-TIER target: an affiliation to HOSP_A gets the
-    // caller past the entry gate, and the hospital-tier seat makes `fields` deny. With the
-    // raw comparison, echoing an unchanged phone turned a legitimate MATRÍCULA-ONLY edit
-    // into a refused person-level write. It failed CLOSED, which is why nothing caught it.
-    rows.profiles = {
-      id: TARGET,
-      home_organization_id: ORG_A,
-      full_name: 'Chefe CCIH',
-      email: 'chefe.ccih@test.local',
-      professional_category_id: 'cat-1',
-      cpf: '11144477735',
-      date_of_birth: null,
-      phone: storedPhone,
-    }
-    footprintHospitalTier() // entry gate PASSES (affiliation), `fields` DENIES (D2)
+  // ⛔ THREE ARMS WERE RETIRED HERE BY AFF4 (ADR 0151 D15), 2026-08-26 — recorded rather
+  // than silently deleted, because a keystone that vanishes leaves nothing behind to say
+  // whether it was wrong or merely inconvenient.
+  //
+  // The two `⭐ QA R4` arms ("phone reformatted to the same digits / dateOfBirth empty
+  // against a stored null is NOT a change, so no person-level gate is triggered") and
+  // "a hospital_admin editing ONLY the matrícula is ALLOWED" all asserted the SAME
+  // property: that `updateUserProfile`'s loose entry gate admitted a caller who fails
+  // `fields`, so long as the edit changed nothing person-level. Their discriminating
+  // fixture was a D2-TIER target — the entry gate passes on the affiliation, `fields`
+  // denies on the tier — and the thing they proved was reachable was the MATRÍCULA edit
+  // sitting past that gate.
+  //
+  // ⛔ THAT PATH CANNOT OCCUR. QA R5 measured it in AFF2 and D15 acted on it: the sole
+  // caller (`PersonalDataDialog`) never sent `homeHospitalId`/`hospitalEmployeeId`, AFF2's
+  // F2 had already moved every employment fact to `AffiliationsPanel` and its own doors,
+  // and `UpdateUserProfileInput` no longer carries either key — so the arms' payloads no
+  // longer typecheck, let alone run. With the affiliation half deleted, `fields` is the
+  // ENTRY gate and "was it an actual change?" no longer decides anything.
+  //
+  // What survived is kept, in the two arms below: the write-path normalisers (still live,
+  // and QA R4's real find) and the D15 verdict itself (the flip of the retired arms).
+  it('⭐ QA R4 survives D15 — a FORMATTED phone still reaches the payload as DIGITS', async () => {
+    // The half of QA R4 that outlived its own arm. `normalizePhone` no longer feeds a
+    // change-detector, but it still coerces the WRITE, and §1's payload arm cannot see it:
+    // that one sends `11987654321`, which is already digits, so deleting the normaliser
+    // leaves it green. This arm sends formatting, so identity-instead-of-normalise reds.
+    footprintCrossHospital() // `fields` ALLOWS, which is now all that is needed to enter
     session = hospitalAdminSession
     const { updateUserProfile } = await import('./actions')
     const result = await updateUserProfile({
       userId: TARGET,
-      fullName: 'Chefe CCIH', // unchanged
-      professionalCategoryId: 'cat-1', // unchanged
-      homeHospitalId: HOSP_A,
-      hospitalEmployeeId: 'MAT-NOVA', // the edit that is legitimately theirs
-      ...patch,
-    } as never)
-    expect(result.ok, result.error).toBe(true)
-  })
-
-  it('a hospital_admin editing ONLY the matrícula is ALLOWED', async () => {
-    // The edit form always POSTS name and category, so gating on their PRESENCE would deny
-    // a hospital admin their own legitimate affiliation edit.
-    session = hospitalAdminSession
-    const { updateUserProfile } = await import('./actions')
-    const result = await updateUserProfile({
-      userId: TARGET,
-      fullName: 'Chefe CCIH', // unchanged
-      professionalCategoryId: 'cat-1', // unchanged
-      homeHospitalId: HOSP_A,
-      hospitalEmployeeId: 'MAT-NOVA',
+      fullName: 'Chefe CCIH',
+      professionalCategoryId: 'cat-1',
+      phone: '(11) 98765-4321',
     })
     expect(result.ok, result.error).toBe(true)
+    const write = writes.find((w) => w.table === 'profiles' && w.op === 'update')
+    expect(
+      (write?.payload as Record<string, unknown>)?.phone,
+      'the write path must strip formatting — a raw value here is a stored-format defect',
+    ).toBe('11987654321')
+  })
+
+  it('⛔ D15 — a D2-TIER caller is now refused an edit the OLD entry gate ADMITTED', async () => {
+    // ⭐ THE DIRECT FLIP OF THE RETIRED ARMS, and the reason retiring them is a tightening
+    // rather than a loss. This is the same fixture and the same payload minus the two
+    // deleted keys; it asserted `ok:true` until 2026-08-26 and asserts a refusal now.
+    //
+    // Under the old `authorizeForUser` entry gate this caller was ADMITTED (the affiliation
+    // intersects) and then reached the write because nothing person-level changed. D15
+    // makes `fields` the entry bound, and D2 denies a hospital_admin a tier-seat person —
+    // so the caller no longer gets in at all. ⚠ The write assertion is load-bearing: a
+    // refusal that still wrote would be the over-grant wearing a refusal.
+    footprintHospitalTier()
+    session = hospitalAdminSession
+    const { updateUserProfile } = await import('./actions')
+    const result = await updateUserProfile({
+      userId: TARGET,
+      fullName: 'Chefe CCIH', // unchanged
+      professionalCategoryId: 'cat-1', // unchanged
+    })
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(FORBIDDEN)
+    expect(
+      writes.filter((w) => w.table === 'profiles' && w.op === 'update'),
+      'a refused edit must not have written',
+    ).toHaveLength(0)
   })
 })
 
@@ -994,5 +1009,173 @@ describe('§8 registerUser — CPF is required, validated and normalized (ADR 00
     })
     expect(result.ok).toBe(false)
     expect(result.fieldErrors?.cpf).toMatch(/CPF/i)
+  })
+})
+
+// ===========================================================================
+// §9 AFF4 — registerUser gains the start date (D13) and the ORG affiliation (D1/D13).
+// ===========================================================================
+
+/**
+ * ⛔ A FIXED DATE IN THE PAST, AND NEVER `current_date`. Both doors coalesce a NULL
+ * `p_started_on` to today, so an expected value that equals today passes identically
+ * whether the parameter is threaded or silently dropped — the assertion and the bug would
+ * agree. This value can only appear in a payload by having been carried there.
+ */
+const PAST_START = '2019-03-04'
+
+describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org affiliation', () => {
+  /**
+   * ⭐ THE KEYSTONE THIS SECTION EXISTS FOR, and it is written as a PAYLOAD assertion for a
+   * measured reason: `registerUser` has ZERO browser coverage on this path — neither
+   * `register-person-wizard.tsx` nor `register-person-flow.tsx`'s date fields have a hit in
+   * any spec — so nothing downstream notices the value being dropped. A verdict assertion
+   * (`ok:true`) is satisfied by a registration that discards the date entirely, which is
+   * exactly how the DOB and phone arms in §1 were vacuous when first written.
+   *
+   * BOTH doors are asserted, not just the hospital one. They are separate pass-throughs and
+   * either can be dropped alone: the hospital date rides `affiliate_person_for`, and the org
+   * date rides `affiliate_person_to_org_for`, because D5's org-parent ensure inside
+   * `affiliate_person_impl` takes no date of its own.
+   */
+  it('⭐ the START DATE reaches BOTH doors — org and hospital', async () => {
+    session = orgAdminSession
+    rows.profiles = [null, null] // email pre-check misses, CPF pre-check misses
+    const { registerUser } = await import('./actions')
+    const result = await registerUser({
+      homeOrganizationId: ORG_A,
+      fullName: 'Novo Alguém',
+      email: 'aff4.start@test.local',
+      professionalCategoryId: 'cat-1',
+      cpf: '111.444.777-35',
+      password: 'Test1234!',
+      homeHospitalId: HOSP_A,
+      affiliationStartedOn: PAST_START,
+    })
+    expect(result.ok, result.error).toBe(true)
+
+    const orgDoor = rpcCalls.find((c) => c.fn === 'affiliate_person_to_org_for')
+    expect(orgDoor, 'the ORG door must be called on the org_admin path').toBeTruthy()
+    expect(
+      (orgDoor?.args as Record<string, unknown>)?.p_started_on,
+      'the org affiliation must carry the supplied start date, not today',
+    ).toBe(PAST_START)
+
+    const hospitalDoor = rpcCalls.find((c) => c.fn === 'affiliate_person_for')
+    expect(hospitalDoor, 'the HOSPITAL door must be called when a hospital was named').toBeTruthy()
+    expect(
+      (hospitalDoor?.args as Record<string, unknown>)?.p_started_on,
+      'the hospital affiliation must carry the supplied start date, not today',
+    ).toBe(PAST_START)
+  })
+
+  it('the ORG affiliation is created BEFORE the hospital one (D4 containment order)', async () => {
+    // The parent precedes the child. `hospital_affiliation_has_org_trg` is DEFERRABLE
+    // INITIALLY DEFERRED so either order commits, but writing the child first makes the
+    // invariant depend on deferral rather than on ordering — and the seed's own insert
+    // ordering had to be fixed for exactly this reason (plan B7).
+    session = orgAdminSession
+    rows.profiles = [null, null]
+    const { registerUser } = await import('./actions')
+    await registerUser({
+      homeOrganizationId: ORG_A,
+      fullName: 'Novo Alguém',
+      email: 'aff4.order@test.local',
+      professionalCategoryId: 'cat-1',
+      cpf: '111.444.777-35',
+      password: 'Test1234!',
+      homeHospitalId: HOSP_A,
+    })
+    const orgAt = rpcCalls.findIndex((c) => c.fn === 'affiliate_person_to_org_for')
+    const hospitalAt = rpcCalls.findIndex((c) => c.fn === 'affiliate_person_for')
+    expect(orgAt, 'the org door must have been called').toBeGreaterThanOrEqual(0)
+    expect(hospitalAt, 'the hospital door must have been called').toBeGreaterThanOrEqual(0)
+    expect(orgAt).toBeLessThan(hospitalAt)
+  })
+
+  it('⛔ a HOSPITAL-LESS registration still creates the org affiliation', async () => {
+    // B6b re-predicated the directory roster onto `organization_affiliations`. Without this
+    // call the person would exist and appear on NOBODY's roster — a state no verdict
+    // assertion anywhere would notice, because the registration itself succeeds.
+    session = orgAdminSession
+    rows.profiles = [null, null]
+    const { registerUser } = await import('./actions')
+    const result = await registerUser({
+      homeOrganizationId: ORG_A,
+      fullName: 'Sem Hospital',
+      email: 'aff4.nohosp@test.local',
+      professionalCategoryId: 'cat-1',
+      cpf: '111.444.777-35',
+      password: 'Test1234!',
+      affiliationStartedOn: PAST_START,
+    })
+    expect(result.ok, result.error).toBe(true)
+    const orgDoor = rpcCalls.find((c) => c.fn === 'affiliate_person_to_org_for')
+    expect(orgDoor, 'an unaffiliated person must still be anchored to the org').toBeTruthy()
+    expect((orgDoor?.args as Record<string, unknown>)?.p_started_on).toBe(PAST_START)
+    expect(
+      rpcCalls.some((c) => c.fn === 'affiliate_person_for'),
+      'no hospital was named, so no employment row may be created',
+    ).toBe(false)
+  })
+
+  it('⛔ a HOSPITAL_ADMIN registrar does NOT call the org door (it is org_admin-only, D2)', async () => {
+    // ⭐ THE DENY TWIN, and it is the arm that keeps the ALLOW arms honest. Calling the org
+    // door here would raise 42501 in PostgreSQL — `app.affiliate_person_to_org_impl` gates
+    // on `is_org_admin_of_for` with no hospital_admin arm — and would fail a registration
+    // the product permits. The org affiliation arrives instead through D5's org-parent
+    // ensure INSIDE `affiliate_person_impl`, which is what makes hospital onboarding one
+    // step. ⚠ The Vitest fake never raises, so this asymmetry is invisible to any verdict
+    // assertion: only counting the calls can see it.
+    session = hospitalAdminSession
+    rows.profiles = [null, null]
+    const { registerUser } = await import('./actions')
+    const result = await registerUser({
+      homeOrganizationId: ORG_A,
+      fullName: 'Contratado Local',
+      email: 'aff4.hospadmin@test.local',
+      professionalCategoryId: 'cat-1',
+      cpf: '111.444.777-35',
+      password: 'Test1234!',
+      homeHospitalId: HOSP_A,
+      affiliationStartedOn: PAST_START,
+    })
+    expect(result.ok, result.error).toBe(true)
+    expect(
+      rpcCalls.some((c) => c.fn === 'affiliate_person_to_org_for'),
+      'a hospital_admin has no authority at the organisation tier',
+    ).toBe(false)
+    const hospitalDoor = rpcCalls.find((c) => c.fn === 'affiliate_person_for')
+    expect(
+      (hospitalDoor?.args as Record<string, unknown>)?.p_started_on,
+      'the start date must still reach the hospital door on this path',
+    ).toBe(PAST_START)
+  })
+
+  it('an OMITTED start date sends no key, leaving the default to the kernel', async () => {
+    // `undefined`, not `null`. Both behave identically against today's
+    // `coalesce(p_started_on, current_date)`, but sending an explicit NULL bakes that
+    // default into this layer, and the day it is ever narrowed the two stop agreeing.
+    session = orgAdminSession
+    rows.profiles = [null, null]
+    const { registerUser } = await import('./actions')
+    await registerUser({
+      homeOrganizationId: ORG_A,
+      fullName: 'Sem Data',
+      email: 'aff4.nodate@test.local',
+      professionalCategoryId: 'cat-1',
+      cpf: '111.444.777-35',
+      password: 'Test1234!',
+      homeHospitalId: HOSP_A,
+      affiliationStartedOn: '   ', // blank is "the box was empty", not a date
+    })
+    for (const fn of ['affiliate_person_to_org_for', 'affiliate_person_for']) {
+      const call = rpcCalls.find((c) => c.fn === fn)
+      expect(call, `${fn} must have been called`).toBeTruthy()
+      expect(
+        (call?.args as Record<string, unknown>)?.p_started_on,
+        `${fn} must omit the key rather than send null`,
+      ).toBeUndefined()
+    }
   })
 })

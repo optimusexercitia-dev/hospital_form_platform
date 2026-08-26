@@ -92,6 +92,17 @@ export interface RegisterUserInput {
   homeHospitalId?: string | null
   /** Matrícula. Rides on the affiliation created above; ignored without a hospital. */
   hospitalEmployeeId?: string | null
+  /**
+   * AFF4 (ADR 0151 D13) — when the employment BEGAN. ISO `yyyy-mm-dd`; omitted/blank
+   * means today, which is the right default for someone being registered now.
+   *
+   * ⚠ It reaches BOTH affiliation rows, not just the hospital one. `affiliatePerson`
+   * (the existing-person path) has accepted a start date since AFF2 while this action
+   * did not, and the asymmetry — not the default — is what
+   * `FUP-AFF2-REGISTRATION-HAS-NO-START-DATE` was filed about: the two sibling actions
+   * disagreed about whether the fact was even expressible.
+   */
+  affiliationStartedOn?: string | null
   /** ADR 0133 D9 (AFF2 B1). Optional at registration. ISO `yyyy-mm-dd`. */
   dateOfBirth?: string | null
   /** ADR 0133 D9 (AFF2 B1). Optional at registration. Stored digits-only. */
@@ -126,21 +137,20 @@ export interface RegisterUserInput {
   password?: string
 }
 
-/** Editable profile fields on the per-user page (identity email is immutable here). */
+/**
+ * Editable PERSON-LEVEL profile fields on the per-user page (identity email is immutable
+ * here).
+ *
+ * ⛔ AFF4 (ADR 0151 D15) REMOVED `homeHospitalId` + `hospitalEmployeeId`. They described
+ * an employment write no caller ever asked for, and their presence was the entire
+ * justification for a looser entry gate than this action needs. Employment is
+ * `AffiliationsPanel`'s, through its own doors. Do not re-add them here: the point of the
+ * removal is that the shape can no longer express an employment change at all.
+ */
 export interface UpdateUserProfileInput {
   userId: string
   fullName: string
   professionalCategoryId: string | null
-  /**
-   * AFF W1 (ADR 0097 D1/D3/D4): a non-null value ENSURES an active affiliation at that
-   * hospital (creating it, or refreshing its matrícula). A NULL value changes nothing —
-   * ENDING an affiliation is a governed act with its own refusals (D5: refused while
-   * the person holds active memberships of any tier under the hospital) and belongs to
-   * the W2 `end_affiliation` door, not to a profile edit that happens to omit a field.
-   */
-  homeHospitalId?: string | null
-  /** Matrícula for the affiliation named above; ignored when it is null. */
-  hospitalEmployeeId?: string | null
   /**
    * CPF (ADR 0097 D7). ⚠ org_admin-ONLY to change (D14), enforced server-side.
    * OMIT the key to leave it untouched; `null` clears it. A hospital_admin sending an
@@ -306,6 +316,7 @@ async function ensureActiveAffiliation(params: {
   hospitalId: string
   employeeId: string | null
   actorId: string
+  startedOn?: string | null
 }): Promise<boolean> {
   const admin = createAdminClient()
   const { error } = await admin.rpc('affiliate_person_for', {
@@ -313,6 +324,15 @@ async function ensureActiveAffiliation(params: {
     p_user: params.userId,
     p_hospital: params.hospitalId,
     p_employee_id: params.employeeId ?? undefined,
+    // AFF4 (ADR 0151 D13). `undefined` omits the key so the kernel's own
+    // `coalesce(p_started_on, current_date)` decides — passing `null` explicitly would
+    // work identically today and would break the day that default is ever narrowed.
+    //
+    // ⚠ The kernel IGNORES this on its idempotent branch (an ACTIVE row already exists):
+    // `affiliate_person_impl` is the CREATE door and changing an existing employment's
+    // dates is `update_affiliation`'s job, which has the audit arm for it. That is a
+    // deliberate DB-side ruling pinned by pgTAP `304`, not a gap in this layer.
+    p_started_on: params.startedOn ?? undefined,
   })
   return !error
 }
@@ -449,6 +469,10 @@ export async function registerUser(
 ): Promise<RegisterUserState> {
   const fullName = input.fullName.trim()
   const email = input.email.trim().toLowerCase()
+  // AFF4 (ADR 0151 D13). Blank means "the box was empty", which is not a date — the
+  // same `nullif(btrim(...))` discipline the kernels apply to `p_employee_id`. `null`
+  // then rides through both doors as an omitted key and each defaults to today.
+  const affiliationStartedOn = input.affiliationStartedOn?.trim() || null
 
   // Authorize the caller as EITHER an org_admin of the target org OR (ADR 0051
   // Decision 7) a hospital_admin onboarding into ITS OWN hospital. Amendment 11:
@@ -652,18 +676,53 @@ export async function registerUser(
     }
   }
 
+  // ORG AFFILIATION (AFF4, ADR 0151 D1/D13) — created BEFORE the hospital row, because
+  // it is that row's parent under D4's containment invariant.
+  //
+  // ⚠ ONLY ON THE org_admin PATH, and that is not an oversight. The org door is
+  // org_admin-ONLY by D2 (no hospital_admin arm at the organisation tier), so calling it
+  // for a hospital_admin registrar would raise 42501 and fail a registration the product
+  // permits. The hospital_admin path gets its org affiliation from D5's org-parent ensure
+  // inside `affiliate_person_impl` instead — which is precisely what makes a hospital
+  // admin's onboarding one step rather than a wait on an org_admin ticket.
+  //
+  // ⛔ WITHOUT THIS CALL A HOSPITAL-LESS REGISTRATION CREATES NO ORG AFFILIATION AT ALL,
+  // and since B6b re-predicated the directory roster onto `organization_affiliations`,
+  // that person would exist and appear on nobody's roster. Only an org_admin can reach
+  // that state: the branch above forces a hospital_admin registrar to resolve exactly one
+  // administered hospital or refuse, so the two conditions coincide.
+  //
+  // Passing the start date HERE (and not only to the hospital door) is what keeps the two
+  // rows agreeing about when the employment began: D5's ensure inside the hospital kernel
+  // takes no date and defaults to today.
+  if (isOrgAdminCaller) {
+    const { error: orgAffiliationError } = await admin.rpc('affiliate_person_to_org_for', {
+      p_actor: context.userId,
+      p_user: userId,
+      p_organization: input.homeOrganizationId,
+      p_started_on: affiliationStartedOn ?? undefined,
+    })
+    if (orgAffiliationError) {
+      // Same reasoning as the profile write above: the account already exists, and a
+      // swallowed failure here is the roster-invisibility state described above.
+      return { ok: false, error: MESSAGES.generic }
+    }
+  }
+
   // Employment (ADR 0097 D1/D3) — the row that used to be profiles.home_hospital_id +
   // profiles.hospital_employee_id. effectiveHomeHospitalId: for a hospital_admin this
   // is the SERVER-SET administered hospital (never the raw formData value); for an
   // org_admin it is the client-supplied input (amendment 11). A registration with no
   // hospital creates no employment row — the person exists, unaffiliated, which is a
-  // legitimate state (the `novato.pendente` case D2 exists to keep visible).
+  // legitimate state (the `novato.pendente` case D2 exists to keep visible) and, since
+  // the block above, one that still carries an org affiliation.
   if (effectiveHomeHospitalId) {
     const affiliated = await ensureActiveAffiliation({
       userId,
       hospitalId: effectiveHomeHospitalId,
       employeeId: input.hospitalEmployeeId?.trim() || null,
       actorId: context.userId,
+      startedOn: affiliationStartedOn,
     })
     if (!affiliated) {
       // Same reasoning as the profile write above: the account exists, so a silent
@@ -777,14 +836,36 @@ export async function registerUser(
   }
 }
 
-/** Edit an existing user's profile fields (name / category / hospital / matrícula). */
+/**
+ * Edit an existing user's PERSON-LEVEL profile fields (name / category / CPF / date of
+ * birth / phone).
+ *
+ * ⭐ AFF4 (ADR 0151 D15) — THE ENTRY GATE IS THE PERSON-LEVEL ONE, and the affiliation
+ * half this action used to carry is gone. It previously took `authorizeForUser` — the
+ * no-tier, no-subset gate — justified in a comment that read *"a hospital_admin may still
+ * reach this action, because the AFFILIATION half of it is legitimately theirs"*. QA R5
+ * measured that no caller exercised that half: AFF2's F2 moved every employment fact to
+ * `AffiliationsPanel`, which goes through its own door, so the home-hospital validation
+ * and the `ensureActiveAffiliation` call here were reachable only by a hand-crafted
+ * server-action call. With the justification dead, the loose gate was a live over-grant
+ * surface with no purpose — the R1 class survives exactly by a permissive entry gate over
+ * a real bound sitting deeper.
+ *
+ * Everything this action can now write is person-level, so `fields` is the entry bound and
+ * `cpf_change` still escalates it. ⚠ Two consequences, stated rather than discovered:
+ *  · The "is it an ACTUAL change?" test that used to decide whether the person gate ran at
+ *    all is gone with it. It existed solely so a hospital_admin who fails `fields` could
+ *    still reach the affiliation half; nothing reaches past this gate now. The `cpf`
+ *    comparison stays, because it selects between two bounds rather than gating entry.
+ *  · A non-existent `userId` now answers the person-scope refusal instead of "user not
+ *    found" — the gate resolves the same `profiles` row and denies first. Strictly better:
+ *    it stops the action distinguishing "not yours" from "does not exist".
+ */
 export async function updateUserProfile(
   input: UpdateUserProfileInput,
 ): Promise<ActionState> {
-  // Entry authority: a hospital_admin may still reach this action, because the
-  // AFFILIATION half of it is legitimately theirs (matrícula at their own hospital).
-  const auth = await authorizeForUser(input.userId)
-  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+  const auth = await authorizePersonScopedAdmin(input.userId, 'fields')
+  if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const fullName = input.fullName.trim()
   if (!fullName) {
@@ -796,10 +877,8 @@ export async function updateUserProfile(
     return { ok: false, fieldErrors: { cpf: MESSAGES.cpfInvalid } }
   }
 
-  // D14 — the person-level gate. Compared against the CURRENT row with `distinct
-  // from` semantics, not applied blanket: the edit form always POSTS name and
-  // category, so gating on their PRESENCE would deny a hospital admin editing only a
-  // matrícula. Only an actual CHANGE is a person-level write.
+  // The CURRENT row, read to decide whether the CPF is actually changing (below) and to
+  // supply the normalisers their stored side.
   const adminClient = createAdminClient()
   const { data: current } = await adminClient
     .from('profiles')
@@ -838,50 +917,22 @@ export async function updateUserProfile(
   // form, which is precisely what makes it the "trap for the next author" Amdt 3 was ruled
   // on, one field over. The normalisers are the SAME expressions the write path uses; a
   // comparison that disagrees with its own writer is the defect, not the formatting.
+  //
+  // ⚠ AFF4 (D15) MOVED WHAT THESE GOVERN. They no longer feed a change-detector that
+  // decided whether the person gate ran — that gate is now the entry gate. They remain
+  // the WRITE path's coercions below, so the symmetry lesson is preserved where it can
+  // still be violated; the comparison arms that pinned it were retired with the
+  // detector (see this action's docstring).
   const normalizePhone = (v: string | null | undefined): string | null =>
     v ? v.replace(/\D/g, '') || null : null
   const normalizeDob = (v: string | null | undefined): string | null => v || null
 
-  const personLevelChanged =
-    current.full_name !== fullName ||
-    current.professional_category_id !== input.professionalCategoryId ||
-    cpfChanged ||
-    // D3: the B1 columns are person-level fields, so a change to either is gated. Same
-    // undefined-means-untouched discipline as `cpf`.
-    (input.dateOfBirth !== undefined &&
-      normalizeDob(current.date_of_birth) !== normalizeDob(input.dateOfBirth)) ||
-    (input.phone !== undefined &&
-      normalizePhone(current.phone) !== normalizePhone(input.phone))
-
-  if (personLevelChanged) {
+  if (cpfChanged) {
     // Amdt 1 ruling 1 — ONE action, TWO bounds. A CPF rewrite is a person-key identity
     // event other hospitals depend on, so it keeps the SUBSET bound while every other
-    // person-level field takes the widened INTERSECTION one.
-    const capability: PersonScopeCapability = cpfChanged ? 'cpf_change' : 'fields'
-    const personAuth = await authorizePersonScopedAdmin(input.userId, capability)
+    // person-level field takes the widened INTERSECTION one the entry gate applied.
+    const personAuth = await authorizePersonScopedAdmin(input.userId, 'cpf_change')
     if (!personAuth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
-  }
-
-  // Home-hospital validation (amendment 11, mirrors registerUser). For an
-  // org_admin of the target's org the client value is trusted (they legitimately
-  // choose any hospital in scope). For a hospital_admin caller the new
-  // home_hospital_id MUST be one the caller administers — never trust the client
-  // value on the service-role path (no RLS backstop).
-  const effectiveHomeHospitalId: string | null = input.homeHospitalId ?? null
-  const context = await getSessionContext()
-  if (!context || context.isInactive) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
-  const isOrgAdminCaller =
-    auth.orgId !== undefined &&
-    context.orgAdminOf.some((o) => o.organization.id === auth.orgId)
-  if (!isOrgAdminCaller && effectiveHomeHospitalId !== null) {
-    const administersRequested = context.hospitalAdminOf.some(
-      (h) => h.hospital.id === effectiveHomeHospitalId,
-    )
-    if (!administersRequested) {
-      return { ok: false, error: MESSAGES.forbidden }
-    }
   }
 
   const admin = adminClient
@@ -894,8 +945,7 @@ export async function updateUserProfile(
       // that does not carry the field can never null it out. The two B1 columns follow
       // exactly the same rule (ADR 0133 D9/D10).
       ...(cpf === undefined ? {} : { cpf }),
-      // The SAME normalisers the change-detector above uses. Two copies of one coercion is
-      // how a comparison and its writer come to disagree (QA R4).
+      // The normalisers declared above, used here and nowhere else since D15.
       ...(input.dateOfBirth === undefined
         ? {}
         : { date_of_birth: normalizeDob(input.dateOfBirth) }),
@@ -909,19 +959,12 @@ export async function updateUserProfile(
     }
   }
 
-  // Employment, when one was named (ADR 0097 D1/D3). A null hospital does NOT end an
-  // affiliation — see UpdateUserProfileInput.homeHospitalId. The org is no longer
-  // passed: the door derives it from the hospital and hard-fails on a tenant mismatch.
-  if (effectiveHomeHospitalId) {
-    const affiliated = await ensureActiveAffiliation({
-      userId: input.userId,
-      hospitalId: effectiveHomeHospitalId,
-      employeeId: input.hospitalEmployeeId?.trim() || null,
-      actorId: context.userId,
-    })
-    if (!affiliated) return { ok: false, error: MESSAGES.generic }
-  }
-
+  // ⛔ NO EMPLOYMENT WRITE HERE — AFF4 (D15) removed it, and re-adding one would restore
+  // the over-grant this action's docstring describes. Employment facts belong to
+  // `AffiliationsPanel` and its doors (`affiliate_person` / `update_affiliation` /
+  // `end_affiliation` / `void_affiliation`), each of which re-derives its own authority
+  // in PostgreSQL. `UpdateUserProfileInput` no longer carries `homeHospitalId` or
+  // `hospitalEmployeeId`, so this is a type error to reintroduce by accident.
   revalidateDirectory()
   return { ok: true, error: MESSAGES.profileUpdated }
 }
