@@ -14,14 +14,27 @@
 -- trying to re-employ. §1.1 is a DIFFERENTIAL — §0.1 proves no org affiliation exists
 -- first, or "one exists afterwards" would be satisfied by one that was always there.
 --
--- ⚠ `organization_affiliations` is EMPTY until B5 backfills and B7 seeds it. That makes
--- §0.1's control trivially true today and load-bearing later: when the seed does carry org
--- rows, an unchanged §0.1 will fail loudly rather than letting §1.1 quietly stop measuring.
+-- ⭐ THAT PREDICTION CAME TRUE, AND THIS IS THE REPAIR (AFF4 B7, 2026-08-26). The header
+-- used to say `organization_affiliations` is EMPTY until B5 backfills and B7 seeds it,
+-- which made §0.1's control trivially true and load-bearing later — "when the seed does
+-- carry org rows, an unchanged §0.1 will fail loudly rather than letting §1.1 quietly stop
+-- measuring". B7's seed now gives EVERY persona an active org affiliation, §0.1 failed
+-- exactly as designed, and the repair is to CONSTRUCT the state the differential needs
+-- rather than to relax the assertion: §0.1a ends the subject's seeded org affiliation, so
+-- §1 measures an ensure that genuinely has work to do.
 --
--- Assertion count: 15
+-- ⚠ THE FIXTURE ENDS THE ROW WITH SQL, NOT WITH THE DOOR, and that is forced rather than
+-- lazy: `end_org_affiliation` refuses while an active hospital affiliation remains in the
+-- org (D3's blocker enumeration), and the subject keeps their central-a employment because
+-- §3–§5 exercise the REFRESH path against it. The resulting state — an active hospital
+-- affiliation whose org parent is ended — is precisely the D4 violation the containment
+-- backstop exists to prevent, so no door can produce it; it lives only inside this
+-- transaction, and §0.1b asserts the fixture actually landed rather than assuming it.
+--
+-- Assertion count: 16
 
 begin;
-select plan(15);
+select plan(16);
 
 create temp table k on commit drop as select
   '00000000-0000-0000-0000-0000000000d1'::uuid as subject,      -- novato.pendente, org A
@@ -38,10 +51,32 @@ grant select on k to service_role;
 select is((select enabled from app.feature_flags where key = 'audit_trail'), true,
   '0.0 PRECONDITION: audit_trail is enabled (§1.3 reads the audit row the ensure emits)');
 
+-- §0.1a THE FIXTURE. End the subject's SEEDED org affiliation so §1's ensure has work to
+-- do. See the header for why this is SQL and not the door.
+update public.organization_affiliations
+   set ended_on = current_date - 1,
+       ended_by = (select org_admin_a from k)
+ where principal_id    = (select subject from k)
+   and organization_id = (select org_a from k)
+   and ended_on is null and voided_at is null;
+
+-- §1.3 counts the audit row the ensure emits. The seed's own inserts ALSO emit
+-- `org_affiliation.created` rows (one per persona, this subject among them), so an
+-- absolute count would silently include a row this transaction did not create. Snapshot
+-- first and count only the difference — the `302` §5 idiom, for the same reason.
+create temp table org_affil_audit_before on commit drop as
+  select id from public.audit_log where action = 'org_affiliation.created';
+
 select is(
   (select count(*)::int from public.organization_affiliations
-    where principal_id = (select subject from k)), 0,
-  '0.1 PRECONDITION (the differential''s other half): the subject has NO org affiliation yet');
+    where principal_id = (select subject from k)
+      and ended_on is null and voided_at is null), 0,
+  '0.1 PRECONDITION (the differential''s other half): the subject has NO ACTIVE org affiliation');
+
+select is(
+  (select count(*)::int from public.organization_affiliations
+    where principal_id = (select subject from k) and ended_on is not null), 1,
+  '0.1b PRECONDITION: ... because §0.1a ENDED the seeded one — asserted, so a fixture that silently matched zero rows cannot make §0.1 pass for the wrong reason');
 
 select is(
   (select count(*)::int from public.hospital_affiliations
@@ -68,17 +103,21 @@ select is(
       and ended_on is null and voided_at is null), 1,
   '1.1 ⭐ D5: an ACTIVE org affiliation now exists — created by the hospital-affiliation door, so a rehire is ONE step');
 
+-- The ACTIVE filter is load-bearing since B7: the subject now also owns an ENDED row
+-- (§0.1a), and an unfiltered scalar subquery would return two rows and abort.
 select is(
   (select created_by from public.organization_affiliations
-    where principal_id = (select subject from k) and organization_id = (select org_a from k)),
+    where principal_id = (select subject from k) and organization_id = (select org_a from k)
+      and ended_on is null and voided_at is null),
   (select org_admin_a from k),
   '1.2 ⭐ ... naming the ACTOR, not NULL — an ensure that loses the actor is an unattributable write (Rule 11)');
 
 select is(
   (select count(*)::int from public.audit_log
     where entity_type = 'organization_affiliation' and action = 'org_affiliation.created'
-      and (metadata->>'user_id')::uuid = (select subject from k)), 1,
-  '1.3 ⭐ ... and it is audited as its own org_affiliation.created row');
+      and (metadata->>'user_id')::uuid = (select subject from k)
+      and id not in (select id from org_affil_audit_before)), 1,
+  '1.3 ⭐ ... and it is audited as its own org_affiliation.created row (scoped to rows THIS transaction created — the seed emits one per persona)');
 
 -- Mutation: dropping the three columns from the INSERT column-list makes 1.4-1.6 return null.
 select is(
@@ -112,8 +151,9 @@ reset role;
 
 select is(
   (select count(*)::int from public.organization_affiliations
-    where principal_id = (select subject from k) and organization_id = (select org_a from k)), 1,
-  '2.1 a second affiliation call leaves exactly ONE org affiliation');
+    where principal_id = (select subject from k) and organization_id = (select org_a from k)
+      and ended_on is null and voided_at is null), 1,
+  '2.1 a second affiliation call leaves exactly ONE ACTIVE org affiliation (the partial unique is on active rows, and the subject also owns the ended one from §0.1a)');
 
 -- ============================================================================
 -- §3 THE REFRESH PATH also carries staff data. The subject is already affiliated at

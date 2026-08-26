@@ -8,11 +8,26 @@
 -- allowlist is only ever for an unreachable backstop.
 --
 -- ⚠ THE VACUITY TRAP THIS SUITE HAD TO AVOID, and it is not hypothetical here.
--- `organization_affiliations` holds ZERO rows until AFF4 B5 backfills and B7 seeds it. A
--- DENY assertion over an empty table passes whether the policy is enforced, neutralized,
--- or absent entirely — it would have "closed" the BLIND while measuring nothing at all.
--- Every persona below therefore reads against rows this suite INSERTS, and §0 asserts they
--- are there before any read is attempted.
+-- `organization_affiliations` held ZERO rows until AFF4 B7 seeded it. A DENY assertion over
+-- an empty table passes whether the policy is enforced, neutralized, or absent entirely —
+-- it would have "closed" the BLIND while measuring nothing at all. §0 therefore asserts
+-- rows exist in BOTH organizations before any read is attempted.
+--
+-- ⭐ REWRITTEN AT B7 (2026-08-26), AND THE SUITE GOT STRONGER, NOT WEAKER. It used to
+-- INSERT two fixture rows; B7's seed now gives every persona an active org affiliation, and
+-- the fixture insert collided with `organization_affiliations_active_uq`. Rather than move
+-- the fixture out of the way, the suite now reads the SEEDED population: each DENY is
+-- contrasted against a real multi-row org instead of a single planted row, and each ALLOW
+-- asserts the caller sees EXACTLY the rows that exist in its own org — a count captured
+-- as `postgres` before any role switch, so "sees everything it should" and "sees nothing it
+-- should not" are one assertion rather than a hardcoded number that rots with the seed.
+--
+-- ⚠ ONE PRECONDITION INVERTED, and it is recorded rather than quietly dropped: §0.2 used to
+-- assert the hospital admin had NO org affiliation of his own, so §4.1's zero could only be
+-- the org-admin arm. He now has one, like every other persona. §4 is therefore re-cut: he
+-- reads EXACTLY his own row (the SELF arm, which this policy does grant) and ZERO belonging
+-- to anyone else (the hospital-admin arm, which it does not). That is the same absence being
+-- pinned, measured against a subject that now exists.
 --
 -- ⚠ EVERY DENY IS PAIRED WITH A CONTROL. "Org admin B sees zero org-A rows" is equally
 -- consistent with "org admin B cannot read this table at all" — so §3.2 proves B *does*
@@ -39,48 +54,51 @@
 -- tier here, so no `is_hospital_admin_of` arm and no memberships-derived arm — which is
 -- exactly what §4 pins.
 --
--- Assertion count: 10
+-- Assertion count: 11
 
 begin;
-select plan(10);
+select plan(11);
 
+-- The counts are captured HERE, as `postgres`, before any `set local role` — inside a role
+-- switch the policy is what is being measured, so it cannot also be the source of the
+-- expected value. Capturing them makes each ALLOW an EXACT-SET assertion ("sees precisely
+-- its own org's rows") rather than a hardcoded number that silently rots as the seed grows.
 create temp table k on commit drop as select
   '00000000-0000-0000-0000-0000000000d1'::uuid as subject_a,      -- novato.pendente, org A
-  '00000000-0000-0000-0000-0000000000b3'::uuid as subject_b,      -- org-B person
   '00000000-0000-0000-0000-0000000000b1'::uuid as org_admin_a,
   '00000000-0000-0000-0000-0000000000b2'::uuid as org_admin_b,
   '00000000-0000-0000-0000-0000000000e1'::uuid as hosp_admin,     -- hospital_admin of central-a, NOT an org admin
   '0c000000-0000-0000-0000-00000000000a'::uuid as org_a,
   '0c000000-0000-0000-0000-00000000000b'::uuid as org_b,
-  'af000000-0000-0000-0000-00000000000a'::uuid as row_a,
-  'af000000-0000-0000-0000-00000000000b'::uuid as row_b;
+  (select count(*)::int from public.organization_affiliations
+    where organization_id = '0c000000-0000-0000-0000-00000000000a') as org_a_total,
+  (select count(*)::int from public.organization_affiliations
+    where organization_id = '0c000000-0000-0000-0000-00000000000b') as org_b_total;
 grant select on k to authenticated;
 grant select on k to service_role;
 
 -- ============================================================================
--- §0 PRECONDITIONS — the three ways this suite could go green measuring nothing.
+-- §0 PRECONDITIONS — the ways this suite could go green measuring nothing.
 -- ============================================================================
 
-select is((select enabled from app.feature_flags where key = 'audit_trail'), true,
-  '0.0 PRECONDITION: audit_trail is enabled (the org-affiliation audit trigger fires on every insert below)');
+select cmp_ok(
+  (select org_a_total from k), '>', 1,
+  '0.0 PRECONDITION (the vacuity guard): organization A holds MORE THAN ONE org affiliation — a DENY over an empty table proves nothing, and a single planted row cannot tell "reads its org" from "reads one row"');
 
-insert into public.organization_affiliations (id, principal_id, organization_id, started_on)
-values
-  ((select row_a from k), (select subject_a from k), (select org_a from k), current_date - 10),
-  ((select row_b from k), (select subject_b from k), (select org_b from k), current_date - 10);
-
-select is(
-  (select count(*)::int from public.organization_affiliations where id in ((select row_a from k), (select row_b from k))), 2,
-  '0.1 PRECONDITION (the vacuity guard): both fixture rows exist — the table is EMPTY until B5/B7, and a DENY over an empty table proves nothing');
+select cmp_ok(
+  (select org_b_total from k), '>', 0,
+  '0.1 PRECONDITION (the vacuity guard, the other side): organization B holds rows too — otherwise §2.2 and §3.1 deny access to nothing');
 
 select is(
-  (select count(*)::int from public.organization_affiliations where principal_id = (select hosp_admin from k)), 0,
-  '0.2 PRECONDITION: the hospital admin has NO org affiliation of his own, so §4.1 measures the org-admin arm and not the self arm');
+  (select count(*)::int from public.organization_affiliations
+    where principal_id = (select hosp_admin from k)
+      and ended_on is null and voided_at is null), 1,
+  '0.2 PRECONDITION: the hospital admin HAS exactly one org affiliation of his own — inverted at B7 (he used to have none), which is why §4 now separates the SELF arm from the absent hospital-admin arm instead of reading one zero');
 
 select is(
   (select count(*)::int from public.memberships
     where principal_id = (select hosp_admin from k) and role = 'org_admin'), 0,
-  '0.3 PRECONDITION: the hospital admin is not an org_admin anywhere (otherwise §4.1 would be denied for the wrong reason)');
+  '0.3 PRECONDITION: the hospital admin is not an org_admin anywhere (otherwise §4 would be allowed for the wrong reason)');
 
 -- ============================================================================
 -- §1 SELF — a person reads their own employment record.
@@ -89,7 +107,7 @@ select test_helpers.claims_for('00000000-0000-0000-0000-0000000000d1', false);
 set local role authenticated;
 select is(
   (select count(id)::int from public.organization_affiliations), 1,
-  '1.1 ALLOW (self): the subject reads their OWN org affiliation and nothing else');
+  '1.1 ALLOW (self): the subject reads their OWN org affiliation and nothing else — an unqualified count, so any leak from the other 30-odd seeded rows reds here');
 reset role;
 
 -- ============================================================================
@@ -100,8 +118,9 @@ set local role authenticated;
 
 select is(
   (select count(id)::int from public.organization_affiliations
-    where organization_id = '0c000000-0000-0000-0000-00000000000a'), 1,
-  '2.1 ALLOW (org_admin): org admin A reads the affiliation in its own organization');
+    where organization_id = '0c000000-0000-0000-0000-00000000000a'),
+  (select org_a_total from k),
+  '2.1 ALLOW (org_admin): org admin A reads EXACTLY the affiliations in its own organization — the expected count was captured as postgres, so a policy that dropped rows and one that leaked them both red here');
 
 select is(
   (select count(id)::int from public.organization_affiliations
@@ -123,8 +142,9 @@ select is(
 
 select is(
   (select count(id)::int from public.organization_affiliations
-    where organization_id = '0c000000-0000-0000-0000-00000000000b'), 1,
-  '3.2 CONTROL: ... while reading its OWN organization''s row — so §3.1 is isolation, not an inability to read the table');
+    where organization_id = '0c000000-0000-0000-0000-00000000000b'),
+  (select org_b_total from k),
+  '3.2 CONTROL: ... while reading its OWN organization''s rows in full — so §3.1 is isolation, not an inability to read the table');
 
 reset role;
 
@@ -136,9 +156,15 @@ reset role;
 -- ============================================================================
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false, 'hospital_admin');
 set local role authenticated;
+
 select is(
-  (select count(id)::int from public.organization_affiliations), 0,
-  '4.1 ⭐ DENY (no hospital-admin arm): a hospital_admin of an org-A hospital reads ZERO org affiliations — deliberately narrower than hospital_affiliations_select');
+  (select count(id)::int from public.organization_affiliations
+    where principal_id <> (select hosp_admin from k)), 0,
+  '4.1 ⭐ DENY (no hospital-admin arm): a hospital_admin of an org-A hospital reads ZERO org affiliations belonging to ANYONE ELSE — deliberately narrower than hospital_affiliations_select, which grants him four legs');
+
+select is(
+  (select count(id)::int from public.organization_affiliations), 1,
+  '4.2 CONTROL: ... while reading his OWN row through the SELF arm — so §4.1 is the missing hospital-admin arm, not an inability to read the table at all');
 reset role;
 
 select * from finish();
