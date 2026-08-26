@@ -63,15 +63,25 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   discharge at the AFF4 Record step (list: ADR 0151 Consequences); their index lines below carry
   ⭕ SCHEDULED markers and **stay put until the work lands**. **Sequencing ruled at the go: AFF4 runs
   NOW and jumps the ▶ queue below** — that queue resumes after the AFF4 Record step.
-  **State 2026-08-26 (⛔ a bullet's POSITION is not its recency — re-measure, this line has been
-  rewritten twice):** B1·B2·B3 + B4 increments 1–2 landed; **frontend track DONE** (F0·F1·F2·F3·F5;
-  F6 = badge only, F4 + F6's toggle held on B8/B6b). **B4 increment 3 (five door triples +
-  `get_own_person_record`) is next**, then B5–B9. Midpoint gates off a **fresh reset**: pgTAP
-  226 files/7467 tests PASS · Vitest 134/1842 · lint 10/10 · typecheck — all exit-code verified.
+  ⏸ **PAUSED 2026-08-26 at the PO's call — resume instructions are the ▶ RESUME HERE block at the
+  TOP of [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md), not this line.**
+  **DONE:** B1·B2·B3·**B4 (all 3 increments)**·B8's contract + the four org/void actions +
+  `getOwnPersonRecord` wired live · F0·F1·F2·F3·F5 · F6's badge. All four authz arms hold
+  (census·hat·wrapper·floor). **HELD, not forgotten:** F4 (needs B8's `registerUser`), F6's toggle
+  (needs B6b). **NOT STARTED:** B5·B6·B7·B9, T2–T5, `qa`.
+  ⛔ **The resume order is GATED, and its first obligation was already dropped once:** reset →
+  **the owed pgTAP catalog-`==`-declared half → its verdict reported** → B5 → B6 (widened, ADR
+  [0154](docs/decisions/0154-roster-predicate-is-the-query-filter-not-list-org-people.md)).
+  **Absence of that verdict is the signal B5 has not started.**
   ⭐ **C5's keystone (`374`) was observed RED at 2/15 before B3 and the red is REPRODUCIBLE from the
-  migration alone**, not merely attested. `tester` spawned for T1/T6 under a no-execution hold; `qa`
-  not yet. ⚠ **`backend` owns the local DB** — it announces before any reset, and a tester window is
-  handed back only after the stack is measured free.
+  migration alone**, not merely attested.
+  ⚠ **TWO OPEN PO DECISIONS, neither blocking:** (1) `BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY` —
+  what *"suspended until the 25th"* means (00:00 or 23:59:59, whose zone); (2) **merge order** vs
+  `claude/angry-stonebraker-c8e637`, whose call-site changes have had **no E2E pass**.
+  ⛔ **EIGHT instruments in this build returned success while measuring nothing** — two of them
+  **constants** (`tasklist /FI` under Git Bash; `grep -cE '^not ok'` on pg_prove output), which are
+  the dangerous kind because they are *usually right*. No conclusion was wrong; the confidence was
+  inflated. Full record + sound replacements in the plan — read it before quoting any gate figure.
   ⚠ **Three PRE-EXISTING defects fixed in their own commits** (not AFF4-introduced, § Bug Log at
   Record): the D2-lock asymmetric-read over-grant (`9175b9a5`), three tenant-isolation assertions
   passing for the wrong reason (`ff596034`), and an audit trigger that would have left six new
