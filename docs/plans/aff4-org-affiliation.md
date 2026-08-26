@@ -470,6 +470,37 @@ three were found because AFF4 was editing adjacent code.
   "every void is audited with its reason" false. Re-emitted from the live
   `pg_get_functiondef`. Latent, never live (no writer until B4) — which is exactly when to fix it.
 
+## ⛔ FOUND during AFF4, deliberately NOT FIXED — needs a PO ruling, then its own item
+
+**`BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY`** — user-facing, pre-existing, and **filed rather
+than fixed on purpose.** `profiles.suspended_until` is **`timestamptz`** (measured, not `date`);
+the product write path puts the dialog's bare `YYYY-MM-DD` in with no normalisation, so it lands
+at **midnight UTC**. `formatSuspensionDate`
+(`src/components/users/account-situation-banner.tsx:84-88`) then formats with
+`Intl.DateTimeFormat("pt-BR")` and **no explicit `timeZone`** — the runtime's. In
+`America/Sao_Paulo` (UTC−3), `2026-09-25 00:00:00+00` renders as **24/09**: an admin suspends
+someone until the 25th and the banner tells that user the 25th is already past. Every
+product-written value, the entire target market.
+
+⛔ **THE SEED DOES NOT REPRODUCE IT — carry this sentence or the bug dies in triage.**
+`seed.sql` writes a real timestamp (`2026-09-25 10:08:42+00`), not a date string, so the seeded
+row renders **correctly**. Anyone confirming against the seed finds it clean and closes this as
+unreproducible. That is the fixture trap **inverted**: the fixture reaches a *passing* state the
+product never produces.
+
+**Why AFF4 does not fix it.** Two independent fixes are wanted — an explicit `timeZone` on the
+formatter (mechanical) and normalising the write (**not** mechanical). The second encodes a
+semantic **nobody has ruled on**: does *"suspended until the 25th"* end at 00:00 or 23:59:59,
+and in whose zone — the hospital's, the org's, the server's? Picking one silently is how a
+defensible default becomes an undocumented rule. It also arrives fourth, after three
+pre-existing fixes this program already absorbed.
+
+⚠ **One detail is unresolved between two readings and must NOT be asserted either way in the
+fix:** `backend` measured *no normalisation at all* (`.update({ suspended_until })`); `tester`
+read the path as constructing `${date}T00:00:00.000Z`. Same outcome, different claims about the
+code. The **outcome** is measured; the exact construction is not. A bug record naming the wrong
+line sends its fixer to the wrong place.
+
 ## Follow-ups DISCOVERED during the build — file into the register at Record
 
 ⛔ **Collected here, not in PROGRESS.md, deliberately.** That file sat with ~300 bytes of
@@ -535,12 +566,43 @@ the gate reds.
   it to learn what the helper does is reading something false. ⚠ This is the
   migration-text-is-stale hazard from a direction not previously recorded: not a runtime
   `pg_get_functiondef` + `replace()`, but a **test fixture outrunning a migration**.
-- **Three instruments in one session whose success output was indistinguishable from the
-  real thing** — worth recording as a pattern, not three incidents: a `| head -10`-clipped
-  process list that read as a clean check; a reset-log grep for `error|failed` that matched
-  two migration **filenames** and read as a failing run; and an `rm -f` that silently
-  no-opped on a mistyped path, caught only by `git status`. In each case the honest
-  instrument was the exit code or a direct measurement, never the human-readable output.
+- **SIX instruments in one build whose success output was indistinguishable from the real
+  thing** — a pattern, not six incidents. In every case the human-readable output looked
+  right and the honest instrument was an exit code or a direct measurement:
+  1. `| head -10` clipped a process list to ten rows, all `chrome.exe` — read as a clean check.
+  2. A reset-log grep for `error|failed` matched two migration **filenames**
+     (`…_ff3_validation_error_surface.sql`) — a clean run read as a failing one.
+  3. `rm -f` silently no-opped on a mistyped path; only `git status` caught it.
+  4. **A gate result laundered through a pipe** — `npm run lint:progress | tail -3` returns
+     `tail`'s exit status, so a failing gate passed an `&&` chain and was committed over.
+  5. **`git status` answering a different question than the one asked.** Gate figures looked
+     unstable across passes because `git status` differed — but a commit *records* a file
+     without altering the working tree, so the bytes the gates read never changed. A correct
+     invocation of the wrong instrument. ⚠ The same instrument failed from the **opposite**
+     direction the same hour: under `core.autocrlf=true` it calls a CRLF-drifted file
+     unmodified, so the drift is invisible **and** `git checkout --` silently no-ops against it.
+  6. **`cat -A` not showing line endings** — the tool whose entire job is displaying them
+     printed `$` rather than `^M$` on a CRLF file, after a patch had already failed to match
+     LF anchors.
+- ⭐⭐ **A mutation that kills the suite before reaching the arm under test proves NOTHING
+  about that arm — and its red is indistinguishable from one that does.** The lead specified
+  `where pr.id = v_uid` → `where true` to prove a keystone discriminating. That returns 36
+  rows, an earlier arm's scalar subquery raises, and **the suite aborts at test 35 of 39 — the
+  arm under test never executes.** The run reds. Accepted in good faith it would have been
+  vacuous proof. The correct mutation returns a **fixed row**, preserving suite completion so
+  all 39 arms run and the right one fails with the right signal. ⛔ **Mutation testing needs
+  its own liveness check:** confirm the mutated run *reached and executed* the arm, not merely
+  that it went red. The pgTAP **plan count** is what made it visible (*"planned 39, ran 35"*)
+  — its fourth real catch, as a detector rather than a formality. Both mutations, including
+  why the obvious one is worthless, are recorded in the backlog entry itself.
+- **Code written against a CONTRACT does not go stale when the implementation lands; code
+  written against an implementation's current STATUS does.** Two stub→live flips happened in
+  this build. The first left a stale comment (*"`assertStaffDataWired` throws until…"*); the
+  second left nothing, and the reason is structural — the void dialog, the wizard and the
+  self-record page were all written against the contract's success/refusal shape, never
+  against "this currently throws". The one stale assertion the first flip produced was the
+  one place a status had been asserted inline. ⭐ Useful as a *predictor* of where to sweep
+  after any stub goes live: grep for status claims, not for the function name.
 - **Seven pgTAP suite numbers are shared by two files each** — `60`, `61`, `110`, `188`,
   `189`, `201`, `270`. Pre-existing, and harmless to *execution* (unlike a duplicate
   migration version, which can silently not apply — `supabase test db` runs every file).
