@@ -3233,3 +3233,23 @@ and re-verified red by restoring the pre-fix file and re-running. ⛔ It carries
 control** — a separate test pins that jsdom forwards a label click to its control at all, because
 without that the click test would pass identically on a build where the label activates *nothing*,
 which is indistinguishable from "fixed" — frontend
+
+## Rotated 2026-08-26 — BUG-REGWIZARD-NO-ORG-STARTDATE-001, CLOSED
+
+_Closed by `bcf62723` (frontend, AFF4 F4): `RegisterPersonWizard` step 2 gained "Início do vínculo (opcional)", wired through an extracted `buildRegisterUserInput` seam and pinned by a rendered keystone that severs the component→builder hand-off to prove it can fail. ⚠ The row below is the ORIGINAL text, kept verbatim including its two inaccuracies, because it was committed and may have been read: it names Step 1 (the control shipped in step 2), and it says `register-person-flow.tsx` needs mirroring when that path already had the control since AFF2 — only the CREATE path was starved._
+
+🔴 **BUG-REGWIZARD-NO-ORG-STARTDATE-001 — `registerUser`'s org-affiliation start date (D13) has
+NO UI control anywhere; every new registration silently gets `started_on = current_date`.**
+Filed 2026-08-26 (`tester`, AFF4 T5) — contradicts this ticket's own brief, which named this
+path testable. `RegisterUserInput.affiliationStartedOn` (`src/lib/users/actions.ts:105`) is
+wired to `affiliate_person_to_org_for`, but `RegisterPersonWizard`'s 3 steps (the brand-new
+"create" outcome) have no date-of-employment field, and `handleSubmit` never sets the key. Its
+own docstring (lines 53-62) is stale on this too (claims `dateOfBirth`/`phone` are also unbuilt —
+those genuinely are wired). This is Track F's **F4**, recorded HELD — this bug is that hold made
+concrete: never actually built. Distinct cause from BUG-MEUSDADOS-HOSPITAL-NAME-001. Not
+reachable by any Playwright spec (no field to drive); `e2e/aff4-registration-dates.spec.ts`
+covers the two start-date fields that ARE reachable (Nascimento; the pre-existing "Início do
+vínculo" on an existing person's hospital affiliation) and states this gap in its header.
+**Severity:** Major (plan AC5 unmet on the primary registration path). **Owner:** frontend — add
+the field to Step 1, thread into `handleSubmit`, mirroring `register-person-flow.tsx`'s
+existing field.

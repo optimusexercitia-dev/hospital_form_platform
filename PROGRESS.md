@@ -44,9 +44,9 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   needs.** ADRs shipped: 0152 · 0153 · 0156 · 0157.
   **Eleven FUPs discharge at the AFF4 Record step** (ADR 0151 Consequences); their ⭕ SCHEDULED
   index lines **stay put until the work lands**. **AFF4 jumps the ▶ queue below.**
-  **DONE:** Track P · B1–B9 · F0–F3 · F5 · F6 · the F0-regression repair · T2–T5; four authz arms
-  hold. **HELD:** F4 — and `BUG-REGWIZARD-NO-ORG-STARTDATE-001` is that hold made concrete.
-  **REMAINS:** `qa`, then the §6 gate — whose `e2e:prod` is the **FIRST** run covering `61e23659`.
+  **DONE:** Track P · B1–B9 · F0–F6 · the F0-regression repair · T2–T5 · the QA-round fixes; four
+  authz arms hold. **REMAINS:** `BUG-D5-REHIRE-HOSPADMIN-001` (an AFF4 regression, fix in flight),
+  a `qa` re-pass, then the §6 gate — whose `e2e:prod` is the **FIRST** run covering `61e23659`.
   ⛔ **TWELVE instruments in this build reported success while measuring nothing**, two of them
   **constants** — the dangerous kind, because they are *usually right*. No conclusion was wrong; the
   confidence was. **Read the plan before quoting any gate figure from this build.**
@@ -190,21 +190,21 @@ not under. **Severity:** Major. **Owner:** backend — add a self-affiliation `E
 `hospitals_select`, or resolve the name inside the self-only door rather than an RLS-gated
 embed. Regression guard: `e2e/aff4-meus-dados.spec.ts`, deliberately left red, not weakened.
 
-🔴 **BUG-REGWIZARD-NO-ORG-STARTDATE-001 — `registerUser`'s org-affiliation start date (D13) has
-NO UI control anywhere; every new registration silently gets `started_on = current_date`.**
-Filed 2026-08-26 (`tester`, AFF4 T5) — contradicts this ticket's own brief, which named this
-path testable. `RegisterUserInput.affiliationStartedOn` (`src/lib/users/actions.ts:105`) is
-wired to `affiliate_person_to_org_for`, but `RegisterPersonWizard`'s 3 steps (the brand-new
-"create" outcome) have no date-of-employment field, and `handleSubmit` never sets the key. Its
-own docstring (lines 53-62) is stale on this too (claims `dateOfBirth`/`phone` are also unbuilt —
-those genuinely are wired). This is Track F's **F4**, recorded HELD — this bug is that hold made
-concrete: never actually built. Distinct cause from BUG-MEUSDADOS-HOSPITAL-NAME-001. Not
-reachable by any Playwright spec (no field to drive); `e2e/aff4-registration-dates.spec.ts`
-covers the two start-date fields that ARE reachable (Nascimento; the pre-existing "Início do
-vínculo" on an existing person's hospital affiliation) and states this gap in its header.
-**Severity:** Major (plan AC5 unmet on the primary registration path). **Owner:** frontend — add
-the field to Step 1, thread into `handleSubmit`, mirroring `register-person-flow.tsx`'s
-existing field.
+🔴 **BUG-D5-REHIRE-HOSPADMIN-001 — the D5 one-step rehire fails for EVERY `hospital_admin`,
+unconditionally, and it is an AFF4 REGRESSION.** Filed 2026-08-26 (`tester`, writing AC3's missing
+witness; root-caused against the live catalog). **Mechanism:** `app.assert_hospital_affiliation_has_org`
+— the D4 containment backstop installed by **`f3302605` in this build** — is **SECURITY INVOKER**
+(`prosecdef = f`, measured), so its `EXISTS` against `organization_affiliations` runs under the
+**calling** hospital_admin's RLS, and that table has **no hospital tier by design** (ADR 0151 D1).
+`affiliate_person_impl` (DEFINER) correctly writes the new active org row, but the trigger **cannot
+see the row just written**, raises a false-positive `23514`, and the whole transaction rolls back.
+Reproduced through the real UI and a raw RPC alike; full evidence chain in the spec header.
+⭐ **Two individually-correct decisions composing into a break** — D1's deliberate absence of a
+hospital tier, and a backstop reading under caller RLS. ⛔ **Fails CLOSED** — no data-leakage risk.
+**Severity:** Major/blocking — AC3 is not merely unasserted, it is unmet for the actor it names.
+**Owner:** backend (fix in flight: mark the trigger `SECURITY DEFINER` — it enforces a data
+invariant and reads no caller identity). ⚠ Pinned `test.fail` in `e2e/aff4-hospital-admin-rehire.spec.ts`
+with unweakened assertions, so the annotation self-flips to "unexpectedly passing" on the fix.
 
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
@@ -348,7 +348,7 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 - 🟠 **FUP-DEV-SERVER-SERVED-STALE-CODE-FOR-HOURS** — a `next dev` started 11:20 served pre-Increment-2 code for files committed at 12:33/12:45/14:30. ⭐ One step from being filed as a **product bug**; the tester's clear-`.next`-rebuild discipline is why it wasn't. ⛔ **Mechanism NOT established** — the old console was not captured before the kill; *restarting fixed it* is a remedy, not a diagnosis. ⛔ **The suspect population is every GREEN run** — a failing spec gets investigated (that is how this surfaced), a passing one never does; size unestablished. ✅ **`e2e:prod` builds prod-standalone, so the phase gate is unaffected.** Cheap close, no mechanism needed: a **read** proof-of-life asserting something only HEAD has, before anything else — tester/lead
 - 🟡 **FUP-CS2-QA-RESIDUE** — ⭕ **12 → 6** (2026-08-22, [record](docs/progress/case-split-assertion-integrity.md)); ⛔ **remaining SIX: M-1, M-8, M-11, M-12, M-13, M-17** — full statements in the [r2 review](docs/reviews/case-surface-split-increment-2-review.md). ⭐ Four are ONE class, **an assertion that proves less than its name claims**: count-keyed door pins (a SWAP passes) · an `app`-bounded "one body" (a `public` copy passes) · a 2-item hand-list against a 16-member derived class · a 404 matcher that cannot say WHICH gate fired — backend/tester/frontend
 - 🟠 **FUP-42501-AUTHORED-MESSAGES-FLATTENED-BY-EVERY-MAPPER** — the DB authors **103 informative** `42501` refusals and the app layer flattens essentially all of them (of **63** `src/lib/**` mappers, only **2** recognise any message). ⛔ The flattening is the only safe DEFAULT — undoing it is a **decision, not a fix**. ⭐ RULED 2026-08-22 (ADR [0135](docs/decisions/0135-authored-refusals-get-their-own-sqlstate.md)): authored refusals get their own `HCxxx`, `42501` stays RESERVED; build DEFERRED. ⛔ Ruled ≠ discharged — backend/frontend
-- 🟡 **FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE** — a caller naming a function's **old arity** in a `has_function_privilege('…(uuid,text,…)')` string does not fail an assertion; it **ABORTS the suite** as a plan mismatch, in an unrelated file, naming no function (`Result: FAIL` with **zero** `# Failed test` lines — the never-ran shape wearing its opposite). Hit on the Increment-2 `DROP`+`CREATE`; the overload pin catches **ambiguity** and is structurally blind to **arity**. Swept: **9** textual hits, **1** executable — fixed, and `357` 1.6/1.7 now pin `oid::regprocedure::text`, the *same string form* the hazard uses. ⛔ Open on the **class**, not the two doors: whatever gate is built must go **RED on a deliberately stale signature** — a sweep of this shape that finds nothing is indistinguishable from one that cannot — backend
+- 🟡 **FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE** — a caller naming a function's **old arity** in a `has_function_privilege('…(uuid,text,…)')` string does not fail an assertion; it **ABORTS the suite** as a plan mismatch, in an unrelated file, naming no function — the never-ran shape wearing its opposite. ⛔ Open on the **class**, not the two doors fixed: any gate built must go **RED on a deliberately stale signature**, or it cannot be told from one that finds nothing. Sweep counts + the `regprocedure` pin → [body](docs/progress/follow-ups.md) — backend
 - 🟡 **FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED** — ⭐ RAISED 🟢→🟡 2026-08-22 (the schema it bounds now hosts a PHI writer). ⛔ **Informational, NOT a live hole; do not report it as one.** Of **467** `app` functions, **237 are `anon`-executable** — 228 by the `proacl IS NULL` default, 9 explicit, four of those authz predicates; the ONLY bound is one config line (`supabase/config.toml:13`). Needs a **decision**, not a patch; ⛔ never smuggled into a feature migration — backend/PO
 - 🟡 **FUP-AFF2-CONTA** — LGPD **titular access** for the two new person columns: a professional has no self-service view of their own `profiles.date_of_birth` / `phone`. Both are column-locked (absent from every `authenticated` column-list grant, ADR 0133 D10) and readable **only** on the admin management surface, so the data subject is the one party who cannot see their own record. ⚠ **Named a control, not a nicety** — ADR 0133 **Amdt 1 ruling 5** states the LGPD posture explicitly: professional data subjects exercise Art. 18 administratively and are **out of DSR scope by design**, which makes `/conta` the access path that discharges it. ⛔ Severable by design and **deferred at AFF2 build start (2026-08-23), not dropped** — registered here so the deferral is a record rather than an omission. ⭕ **SCHEDULED into AFF4 2026-08-25** (ADR 0151 D14: read-only "Meus dados" via `get_own_person_record`) — frontend/PO
 - 🟡 **FUP-AFF2-ACTIVE-MEANS-TWO-THINGS** — *"active membership"* is asserted by ADR 0133 D13 and the AFF2 plan, and **no policy implements it**: neither live `profiles` SELECT policy filters `expires_at`. ⚠ NARROWED 2026-08-25 by ADR 0148 (AFF3) — the intra-policy asymmetry is GONE, in the **permissive** direction. ⛔ Not this item's closure: the open question is whether the **membership** leg should ADD `expires_at`, answerable only for all **three** policies at once. ⛔ Not a live hole. ⭕ **PO-RULED 2026-08-25 (ADR 0151 D6): the membership legs do NOT gain `expires_at`** — ever-held reads make read-side expiry filtering incoherent; closes at the AFF4 Record step — backend/PO

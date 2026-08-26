@@ -4132,6 +4132,10 @@ a feature migration is how the next reader loses the reasoning.
 
 ### 🟡 FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE — a caller that names the OLD ARITY fails as a plan mismatch, pointing nowhere near signatures (owner: backend; filed 2026-08-22, found when the full suite failed in a file this increment never touched)
 
+_**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
+
+> it **ABORTS the suite** as a plan mismatch, in an unrelated file, naming no function (`Result: FAIL` with **zero** `# Failed test` lines — the never-ran shape wearing its opposite). Hit on the Increment-2 `DROP`+`CREATE`; the overload pin catches **ambiguity** and is structurally blind to **arity**. Swept: **9** textual hits, **1** executable — fixed, and `357` 1.6/1.7 now pin `oid::regprocedure::text`, the *same string form* the hazard uses. ⛔ Open on the **class**, not the two doors: whatever gate is built must go **RED on a deliberately stale signature** — a sweep of this shape that finds nothing is indistinguishable from one that cannot
+
 **What happened.** ADR 0134 Amdt 2 needed `p_patient` added to `public.create_case` and
 `public.create_case_from_template`. `CREATE OR REPLACE` **cannot add a parameter** — it creates an
 *overload*, and PostgREST 300s on an ambiguous candidate set — so both were `DROP FUNCTION` +
