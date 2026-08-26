@@ -673,6 +673,13 @@ the gate reds.
   hit `docker exec … psql -f /tmp/m3.sql` (rewritten to a Windows temp path). **That one failed
   LOUDLY** — file not found — and was fixed in minutes. The lead's failed **SILENTLY** and ran for
   a day. When auditing for this class, the loud failures are already handled; hunt the silent ones.
+  ⭐⭐ **THE RULE, and it is cheap enough that there is no excuse:** **every counting instrument in
+  a gate report must be run once against a KNOWN FAILURE before its zero is believed.** Reading the
+  command never reveals this class — both constants look correct on inspection, and #8 was found
+  *only* by scoring the pattern against a log already known to have failed. A positive control is
+  one command; a constant that agrees with you costs a day.
+  ⛔ **Hunting heuristic: skip the loud failures — they are already fixed. Hunt the CONSTANTS.**
+  Loudness, not severity, decided which of the two MSYS failures cost anything.
   ✅ **Sound replacements, no path-like args and no pipe swallowing a zero-match grep:**
   `tasklist 2>/dev/null | grep -c "^node.exe"` · `netstat -ano | grep LISTENING | grep -E ":(3000|3001)\s"` ·
   pgTAP verdict from the **exit code captured without a pipe**, corroborated by `Result: PASS|FAIL`
