@@ -4666,6 +4666,10 @@ this instance: a `waitForURL` pattern must be checked against the STARTING url, 
 
 ### 🟠 FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES — the baseline can only be diffed arithmetically, and the evidence is destroyed before anyone can check (owner: tester/lead; filed 2026-08-23, found when the AFF2 gate tried to compare flaky tests by identity)
 
+_**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
+
+> Measured 2026-08-23 — the `d885f621` row says **"2 flaky"** and names neither, its linked triage doc has **zero** occurrences of "flaky"; and `e2e-prod-gate.sh:57` sets `GATE_LOGDIR="${TMPDIR:-/tmp}/e2e-prod-gate"` with **`batch-N.log`** names — **not run-scoped**, so each run overwrites the prior run's logs by batch number. ⛔ *A total that matches is not a list that matches* — here built into the **instrument**. ⚠ A **new** flake and a **recurring** one are therefore indistinguishable in the gate record forever. Fix: name flaky tests in the summary row + make `GATE_LOGDIR` run-scoped
+
 The `e2e:prod` declare-green step works by diffing a run against a **pinned baseline**. AFF2's pin is the
 2026-08-23 run at `d885f621`: *"1185 p · 2 f · 2 flaky · 8 DNR · 20 batches"*. When AFF2's own run also
 produced **2 flaky**, the obvious reading is parity. It is not a reading anyone can justify.
@@ -6536,3 +6540,30 @@ role it serves.
 commission seat *and* is org-offboarded. That is a real production state, not a synthetic one — but
 it is narrow enough that widening a hospital admin's reach into org-tier records to close it is a
 poor trade made under gate pressure.
+
+### 🟠 FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION — a `prosecdef` flip on an existing boolean gate derives ZERO cases and reads as clean (owner: backend/lead; filed 2026-08-26, found by `backend` while fixing BUG-D5-REHIRE-HOSPADMIN-001)
+
+`scripts/door-sweep-cases.sh`'s function branch (~lines 290-292) selects a gate only when its
+**`create function` body** matches all three of: literal `security definer`, `returns boolean`, and
+the predicate-identity regex. An **`alter function … security definer`** produces no such body, so
+the deriver cannot see it **at all**.
+
+⛔ **Consequence, and it is the reason this is filed rather than noted:** flipping `prosecdef` on an
+**existing boolean gate** via `ALTER` would derive **zero cases**, and a zero-case derivation is
+reported as *exit 1 / FINDING* that a tired reader rules "no gates touched — clean". The gate would
+be newly DEFINER, newly bypassing RLS, and in **no** sweep's case list.
+
+⭐ **This is the exact analogue of ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md)
+Amendment 8 ruling 1** — *`alter policy` is not `create policy`* — which exists because the recipe
+grepped only `create policy` and was blind to alterations. **The same defect survived one level over,
+in the function branch, after the policy branch was fixed.** ⚠ That is the durable finding: a
+correction applied to one branch of a deriver is not evidence the sibling branch was swept.
+
+**Not a live hole today.** The migration that surfaced it flips a **`trigger`**-returning function,
+which is outside the door audit's predicate-arm domain by construction (bounded by `t.typname='bool'`,
+plus the one named exception `assert_not_case_excluded`), and `ARM=census` independently reports it
+outside its domain for the same reason. The blindness is **measurement-domain**, not an unguarded door.
+
+**Fix shape:** the deriver must grep `alter function … security definer` the way it now greps
+`alter policy`, and resolve the altered function's return type from the **live catalog** rather than
+from the migration text it cannot parse.

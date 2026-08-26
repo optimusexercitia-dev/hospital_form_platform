@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**156 ADRs** · next free number: **0159** · 45 carry an inbound supersedes/amends edge
+**157 ADRs** · next free number: **0160** · 45 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -172,7 +172,7 @@
 | 0148 | [Ever-held affiliation as the person-read boundary](0148-ever-held-affiliation-read-visibility.md) | accepted | 2026-08-25 | amends 0097, 0133 | ⚠ amended by 0151 |
 | 0149 | [An org_admin reads the hospital-tier audit chain](0149-org-admin-reads-hospital-tier-audit.md) | accepted | 2026-08-25 | amends 0041, 0051 | ⚠ amended by 0150 |
 | 0150 | [The audit organization is derived from the hospital, and leg 5 means the platform chain](0150-audit-org-derived-from-hospital.md) | accepted | 2026-08-25 | amends 0149 | – |
-| 0151 | [AFF4: organization affiliation, per-hospital staff data, and the voided tense](0151-aff4-organization-affiliation-staff-data-voided-tense.md) | accepted | 2026-08-25 | amends 0097, 0148 | ⚠ amended by 0152, 0154 |
+| 0151 | [AFF4: organization affiliation, per-hospital staff data, and the voided tense](0151-aff4-organization-affiliation-staff-data-voided-tense.md) | accepted | 2026-08-25 | amends 0097, 0148 | ⚠ amended by 0152, 0154, 0159 |
 | 0152 | [PostgREST maps the `P0*` SQLSTATE class to HTTP 500; the document-corridor 500 is a 73-…](0152-postgrest-p-class-sqlstate-maps-to-500.md) | accepted | 2026-08-26 | amends 0151 | – |
 | 0153 | [A subset door-sweep writes to scratch; the committed baseline is never opened for write](0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) | accepted | 2026-08-26 | amends 0079 | – |
 | 0154 | [the roster predicate is the query filter, not `list_org_people`](0154-roster-predicate-is-the-query-filter-not-list-org-people.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0158 |
@@ -180,3 +180,4 @@
 | 0156 | [the door-SQLSTATE gate's domain is a structural property, not a list of names](0156-door-sqlstate-gate-domain-is-structural.md) | accepted | 2026-08-26 | amends 0098 | – |
 | 0157 | [The dominance grid's population was bounded by SCHEMA, not by the property](0157-dominance-grid-population-bounded-by-schema.md) | accepted | 2026-08-26 | amends 0079, 0097 | – |
 | 0158 | [the hospital directory keeps its predicate: no org-affiliation filter at the hospital t…](0158-hospital-directory-keeps-its-predicate.md) | accepted | 2026-08-26 | amends 0154 | – |
+| 0159 | [an invariant backstop runs as DEFINER; two correct decisions can compose into a break](0159-invariant-backstops-run-as-definer.md) | accepted | 2026-08-26 | amends 0151 | – |
