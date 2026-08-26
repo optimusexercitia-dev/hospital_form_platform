@@ -22,7 +22,27 @@ verified against the **live catalog** (`pg_policies`, `pg_proc.prosecdef`, ACLs,
 
 ## Track P — pre-step (small fix commits on `main`, before the branch)
 
-### P1 · Fix `FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE` (backend)
+### P1 · ~~Fix~~ **DIAGNOSE** `FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE` — ✅ **CONCLUDED 2026-08-26 as DIAGNOSED + RE-SCOPED**
+
+- **Root cause identified, and the item's premise refuted.** PostgREST v14.5 maps the
+  SQLSTATE class `P0*` to HTTP 500 (`P0001` excepted); the status is a **pure function of
+  the SQLSTATE** (`HC***` → 400, `42501` → 403, `P0002` → 500). Not media-type handling.
+  Three of the register's claims were measured **false**: the `text/plain "Something went
+  wrong"` body does not reproduce under any `Accept` header; it is a **P-class quirk**, not
+  "every raise" (the door's own `HC0D8` refusal returns a correct 400); and it is **not
+  app-facing** — `mapDocumentErrorCode` already maps `P0002 → not_found` from the JSON body,
+  so **§8 is not violated**, which was the stated merit for keeping it in the pre-step.
+- **PO ruling 2026-08-26 (ADR [0152](../decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md),
+  amends ADR 0151 D16a):** no fix here. The residual defect is a **class** — 73 `public`
+  functions with EXECUTE for `authenticated` raise a P-class code — re-filed as
+  `FUP-P-CLASS-SQLSTATE-ANSWERS-500-ON-DENIAL` for its own increment. ⛔ **No partial fix:**
+  converting 2 of 73 makes denial semantics inconsistent (0152 D3).
+- The FUP is discharged (index line + body both moved to `follow-ups-archive.md`, body kept
+  verbatim so the false claims stay visible beside their correction).
+
+<details><summary>Original P1 task text, superseded</summary>
+
+#### P1 · Fix `FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE` (backend)
 
 - `public.open_document_version` returns HTTP 500 `text/plain` through PostgREST for
   **every** raise, while psql shows the correct SQLSTATE + pt-BR message. Diagnose

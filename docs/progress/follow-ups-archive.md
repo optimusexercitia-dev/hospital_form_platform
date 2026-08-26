@@ -6092,3 +6092,235 @@ and require it to RED before the helper lands.
 > ⚠ **Named residual:** nothing RUNS this differential. It is a technique, not a gate, so a NEW test can
 > state a fresh false premise tomorrow and the suite will be green. Filed as
 > `FUP-CLAIMS-SURVIVAL-DIFFERENTIAL-IS-NOT-RUN-BY-ANYTHING`.
+
+## ⬛ FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE — ✅ **RESOLVED 2026-08-26 as DIAGNOSED + RE-SCOPED, not fixed** (owner: backend/lead; PO ruling during the AFF4 pre-step)
+
+**Root cause: IDENTIFIED.** The body below says *"Root cause NOT identified"* and offers PostgREST's
+media-type handling of the `jsonb` return as the best remaining lead. That lead is wrong. Measured
+2026-08-26 with a scratch `public` function raising a parameterized `errcode` (installed, called as an
+authenticated persona, dropped): **PostgREST v14.5 maps the SQLSTATE class `P0*` to HTTP 500, with
+`P0001` the single exception.** The status is a pure function of the SQLSTATE — `HC***` → 400,
+`42501` → 403, `P0002` → 500. Full table: ADR [0152](../decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md).
+
+⛔ **Three claims in the body below are FALSE**, each refuted by measurement rather than by argument:
+
+1. **"HTTP 500 `text/plain` 'Something went wrong'"** — does not reproduce under any `Accept` header
+   (`<none>`, `*/*`, `application/json`, `application/vnd.pgrst.object+json`; `text/plain` yields 406).
+   The body is always well-formed JSON with the accented pt-BR message intact.
+2. **"So it is *every raise*, not a P-class quirk"** — inverted. It **is** a P-class quirk. Measured
+   end-to-end through the real door: the "cannot serve" row of the body's own table raises `HC0D8` and
+   returns **400** `{"code":"HC0D8","message":"arquivo ainda não disponível"}`. Only the two `P0002`
+   raises in `app.resolve_document_version_bytes` return 500.
+3. **"APP-FACING — a denied/missing open shows a raw 500 instead of pt-BR"** — the app maps on
+   `error.code`, not on status, and `mapDocumentErrorCode` (`src/lib/documents/errors.ts`) already
+   carries `P0002 → not_found` and `HC0D8 → unavailable`. No raw Postgres string reaches the UI, so
+   **§8 is not violated.** ⭐ This was the *stated merit* for keeping the item in the pre-step at the
+   2026-08-25 re-scope, and it does not hold.
+
+**What is real:** an ordinary authorization denial answers **5xx**, which costs observability and forced
+the defensive `[403, 404, 500].includes(status)` oracle in the E2E specs — an assertion that cannot tell
+a denial from a crash. Measured class size: **80 `app`/`public` functions raise a P-class code other
+than `P0001`; 73 are in `public` with EXECUTE for `authenticated`.** The document corridor is 2 of 73.
+
+**Ruling (ADR 0152 D1–D4):** the fix scheduled by ADR 0151 D16a is retired; no partial fix (converting
+2 of 73 makes denial semantics inconsistent — the recorded *"a partial fix reads as a complete one"*
+shape); the residual defect is re-filed as [[FUP-P-CLASS-SQLSTATE-ANSWERS-500-ON-DENIAL]].
+
+⚠ **Not resolved by this:** the macOS "6 gate failures" attribution. P4's merged-tree run exercised the
+seven document-touching specs on Windows prod-standalone at `3894c667` (81 tests, 0 failures) and this
+diagnosis shows the app maps the code correctly — neither is evidence about the macOS run. One
+platform's silence is not a bound on the other's defect; the class item carries the question.
+
+↩ **Its PROGRESS.md index line, VERBATIM as it stood at rotation:**
+
+> - 🟠 **FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE** — `public.open_document_version` returns **HTTP 500 `text/plain`** through PostgREST for **every** exception it raises (measured 2026-08-25; psql raises the correct SQLSTATE + pt-BR). ⛔ **APP-FACING, not test-only** — `documents/actions.ts:247` calls it, so a denied/missing open shows a raw 500 instead of pt-BR (§8). ⚠ Reproducible with bare curl and with the AFF3/AUD1 migrations REMOVED — pre-existing. Costs 6 gate failures. ⭕ **SCHEDULED into AFF4 pre-step 2026-08-25 (ADR 0151 D16a)** — backend
+
+↩ **The original body follows VERBATIM.** Kept whole rather than corrected in place: the false claims
+are the record of how the diagnosis went wrong, and that is the part worth keeping.
+
+### 🟠 FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE — the controlled-document door returns a raw 500 instead of its pt-BR refusal (owner: backend; filed 2026-08-25, found triaging a full `e2e:prod`)
+
+`public.open_document_version` raises correctly in the database and returns **HTTP 500
+`text/plain "Something went wrong"`** through PostgREST. Measured 2026-08-25:
+
+| call | psql | via PostgREST |
+|---|---|---|
+| nonexistent id | `SQLSTATE P0002`, *versão de documento não encontrada* | **500 text/plain** |
+| a real version the caller cannot serve | `SQLSTATE HC0D8`, *arquivo ainda não disponível* | **500 text/plain** |
+
+So it is **every raise**, not a P-class quirk. The function is `prosecdef`, `VOLATILE`, returns
+`jsonb`, and raises plainly (`raise exception '…' using errcode = '…'`) with no `DETAIL`/`HINT` JSON
+for PostgREST to choke on.
+
+⛔ **APP-FACING — this is not a test artefact.** `src/lib/documents/actions.ts:247` calls
+`supabase.rpc('open_document_version', …)`, and `src/components/controlled-documents/open-controlled-version-button.tsx:32` describes it
+as "the boundary" every controlled-document byte moves through. A denied or missing open therefore
+surfaces a raw 500 where CLAUDE.md §8 requires a pt-BR message and states that raw Supabase/Postgres
+errors never reach the UI. ⚠ **Bounded honestly: the SUCCESS path was never exercised** in this
+triage — no evidence it is broken, and no evidence it works. Establish that first; it decides whether
+this is a message-quality defect or something larger.
+
+**What it is NOT** (each excluded by measurement, because three plausible theories died here first):
+- not encoding — server and client are UTF8 and the message is valid UTF-8 (`c3a3` = ã);
+- not PostgREST health or version — `verify_audit_chain` returns a correct accented `42501` JSON from
+  the same stack in the same second, and the v14.5 container started the day BEFORE a green gate;
+- not schema-cache reload — deterministic across repeated calls on a settled stack;
+- not a read-only transaction — it raises correctly inside `BEGIN READ ONLY` too;
+- not persona-specific — same result for every persona tried.
+
+⭐ **NOT caused by the AFF3/AUD1 branch, proven two structural ways rather than by argument:**
+reproducible with a **bare `curl`** (Kong → PostgREST, no Next app in the path, so no frontend change
+can reach it), and reproducible with **both migrations removed from `supabase/migrations/` followed by
+`db reset`** (pre-change catalog state confirmed) — identical failures.
+
+**Root cause NOT identified.** Best remaining lead: PostgREST's media-type handling of this function's
+`jsonb` return (the instance logs "4 Media Type Handlers"), i.e. the error response being serialised
+through a handler that cannot render it. **Costs 6 gate failures** — `ethics-e1-access-spine`,
+`dm3-wave-b-documents`, `dm4-referral-documents`, `phase-f2-attachments`,
+`process-template-versioning` — every one of them asserting the "absence ≡ denial" oracle-kill that
+this door exists to provide.
+
+## ⬛ FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-ALTER-POLICY — ✅ **RESOLVED 2026-08-26** (owner: backend/lead; AFF4 pre-step P2)
+
+**The recipe is a script now**, not prose: `scripts/door-sweep-cases.sh`. ADR
+[0079](../decisions/0079-authz-door-blindness-standing-invariant.md) § *The recipe* is rewritten around
+it and Amendment 8 carries a `LANDED 2026-08-26` note. All three rulings landed, and — the item's own
+⛔ — **not by editing prose**:
+
+1. **`alter policy` alongside `create policy`.** Positive control on AFF3's own commit range
+   (`d150321b`): the old one-liner derives **0 rows**; the script derives the **exact 3** policies
+   AFF3's operator had to add by hand (`profiles_admin_select`, `profiles_select_self_or_admin`,
+   `professional_credentials_select`).
+2. **A zero-row case list REDS.** Exit **1** when the diff touched `supabase/migrations/` and nothing
+   was derived, with a **different** code (3) for *no migration in the diff at all* — so *"the recipe
+   printed nothing"* and *"the phase changed no gate"* are no longer one observation. Deliberately **no
+   acknowledgement env var**: an escape hatch for the unmeasurable also silences the measured.
+3. **An `ALTER POLICY` invalidates its verdict**, and the tooling now detects it: the script looks the
+   altered policy up in the committed findings and prints what that row currently claims. Verified on
+   Amendment 8's own named example — `professional_credentials_select` is flagged as holding a stale
+   `COVERED`, and `ARM=census` provably will not catch it.
+
+Also closed: the acknowledged-blind name filter no longer drops silently — non-matching functions go to
+a printed **review list**. Live shape: AFF4's own six gates match **none** of `^(is_|can_|has_)`, so
+AFF4 derives exit 1 with a six-name review list, which is the correct outcome rather than a tooling
+failure. The arm's domain regexes are **lifted from the audit script**, not re-typed, so the two cannot
+drift (Amendment 9 D3, one layer out).
+
+⚠ **Bounded:** the script's own failure paths were proven able to fire (domain-lift failure → exit 2;
+unresolvable findings path → *"RULING 3'S CHECK DID NOT RUN"*), and the working-tree/untracked path was
+probed with a `*.sql.probe` file no Supabase glob could apply. It is a **derivation aid, not a gate** —
+it is deliberately not wired into `npm run lint`.
+
+↩ **Original body, VERBATIM:**
+
+### 🟠 FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-ALTER-POLICY — Amendment 8 decided the fix and the recipe was never edited (owner: backend/lead; filed 2026-08-25, found while auditing a re-discovery)
+
+ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 8**
+(2026-08-23) records this hole completely and rules three changes to the phase step:
+
+1. the recipe greps `alter policy` as well as `create policy`;
+2. **a zero-row case list is a FINDING, not a pass** — *"the recipe printed nothing"* and *"the phase
+   changed no gate"* must stop being the same observation;
+3. an `ALTER POLICY` **invalidates** the altered gate's verdict; it must be re-measured, not inherited,
+   and until the tooling detects that, the operator names the altered policy in `CASES=` explicitly.
+
+**Measured 2026-08-25: none of the three reached the recipe.** The code block under § *The recipe* in
+that same ADR still ends `# + any create policy <name>` and nothing else. The decision and the artefact
+it governs sit **eleven screens apart in one file**, both authoritative, disagreeing.
+
+⭐ **What makes this worth a register line rather than a shrug: the cost was paid again, and measured.**
+During AFF3 (ADR 0148) `backend` derived the case list from the diff exactly as Amendment 1 instructs,
+got **zero rows**, recognised the shape, and hand-added an `alter policy` grep — arriving independently
+at Amendment 8's finding, two days after it was written, without knowing it existed. A second operator
+reproduced the whole diagnosis because the fix lived only in prose. That is the measurement: this hole
+now has a **demonstrated recurrence rate**, not merely a hypothetical one.
+
+⚠ **AFF3 is not itself unproven.** Its sweep ran over the three altered policies named by hand and
+returned `3 swept, 3 COVERED, 0 BLIND, 0 ERROR`, satisfying Amendment 8 ruling 3 in substance. The
+defect is that correctness depended on the operator noticing.
+
+⛔ **Do not close this by editing the ADR's prose alone** — that is the state it is already in. Ruling
+2 in particular needs somewhere that *reds*: a zero-row case list on a diff that touched
+`supabase/migrations/` must fail loudly, or the next operator to get zero rows will read it as a pass,
+which is the original defect with an extra amendment on top.
+
+## ⬛ FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE — ✅ **RESOLVED 2026-08-26** (owner: backend; AFF4 pre-step P3)
+
+Fix **(a)** from the register, bounded by the **property** rather than the filename: *writes a
+repo-tracked artefact through a truncating redirect, in a filterable run mode, that a later arm reads
+back as a baseline.* **Four** sweeps hold it and all four are fixed —
+`p0-authz-door-audit.sh`, `p0-authz-rowdoor-audit.sh`, `p0-authz-writepath-audit.sh` and
+`p0-authz-invoker-audit.sh`, the last being the one `FROMFINDINGS=1 ARM=wrapper` actually reads.
+Fixing only the named script would have been *sweeping one sibling axis and reading it as the class*.
+Authority: ADR [0153](../decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md).
+
+With `CASES=` set, report and BLIND `.tsv` resolve to scratch under `$WORK`; the committed path
+survives as `FINDINGS_COMMITTED`, is `cksum`-ed at startup and re-checked in an EXIT trap that
+escalates to exit 2 if it moved — the variable states the intent, the trap measures the outcome.
+
+⭐ **The first positive control was VACUOUS, and that is worth keeping.**
+`CASES="referral_note_types_select"` matched no gate (`ARM-DOMAIN predicate=0/111 policy=0/225`,
+exit 3 `UNPROVEN`) and the committed file survived **for the wrong reason** — by after-state alone, a
+run that measured nothing is indistinguishable from a guard that worked. Re-run on a real gate
+(`accreditation_frameworks_select`), same command, same fresh-reset DB:
+
+| | committed baseline |
+| --- | --- |
+| **pre-change** script (`git show HEAD:…`) | **DESTROYED** — 700 → 89 lines, `cksum` moved |
+| **post-change** script | **byte-identical** — `git diff --stat` empty, `cksum` unchanged |
+
+…and the fixed run really produced its subset report (89 lines at scratch, 5 verdict rows, `PARTIAL
+RUN` banner, `blinds.SUBSET.tsv` present, `blinds.tsv` absent). Both halves are required: *"nothing
+changed"* is otherwise indistinguishable from *"nothing ran."* Arms re-run green after the invariant
+edit: `census`, `hat`, `floor`, `FROMFINDINGS=1 wrapper` — all `INVARIANT HOLDS`, exit 0.
+
+**Found while in there, and also fixed:** `p0-authz-invariant.sh` never declared `CASES`, so an
+**exported** `CASES` was inherited into all four child sweeps — each would run a subset and the arm
+would compare a *narrower* BLIND set against the full allowlist and find nothing unaccounted for. Same
+silent-greening, different route. All four children now run with `CASES=` cleared explicitly.
+
+⛔ **Residual, filed not fixed:** a **full** sweep still truncates, and the committed findings file is
+**not purely generated** — hand-merged subset verdicts, a trailing `## Note — a RENAME moves a gate's
+verdict` section, inline annotations on the skipped-policy bullets.
+→ [[FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS]].
+
+↩ **Original body, VERBATIM:**
+
+### 🟠 FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE — the blindness gate silently truncates the file every later run compares against (owner: backend; filed 2026-08-25, measured during AFF3)
+
+`supabase/tests/mutation/p0-authz-door-audit.sh:565` emits its report through a **truncating
+redirect**:
+
+```bash
+} > "$FINDINGS"          # $FINDINGS = docs/reviews/authz-door-audit-findings.md (line 65)
+```
+
+`$FINDINGS` is the **committed** baseline. A diff-scoped run — the one CLAUDE.md §6 step 1 mandates
+**every phase** — sweeps only the phase's own gates, so the redirect replaces the full audit with the
+subset. Measured 2026-08-25 during AFF3: **699 lines → 90**. Restored by hand and verified
+byte-identical to `HEAD`; `ARM=wrapper` re-run, BLIND set back to 41.
+
+⛔ **The failure mode is silent and self-concealing.** `FROMFINDINGS=1 ARM=wrapper` — a phase-gate arm —
+compares the committed findings file to an allowlist and **re-measures nothing**. Against a truncated
+file it sees fewer gates, finds every one of them allowlisted, and reports **HOLDS**. The arm gets
+*greener* as the baseline gets *emptier*. Nothing in the gate can distinguish "no blind gates" from
+"almost no gates".
+
+⚠ **The only thing standing between a phase and this today is that the operator remembers.** The
+instruction exists — *"Restore the findings file after a subset run, as with the door sweep"* — but it
+lives inside the body of an unrelated `sign_section` item, reachable only by someone already reading
+that item. A convention that must be recalled at exactly the right moment, by whoever happens to run
+the gate, is the shape this file exists to convert into a check.
+
+**Fix, in preference order:** (a) a run with `CASES=` set writes to a scratch path and never touches
+the committed file; (b) it merges its verdicts into the committed file rather than replacing it;
+(c) failing both, the script **refuses to write** when `CASES=` is set and prints where the subset
+report went. ⭐ Note the script already proves it can reason about this: its DRYRUN path prints
+*"the baseline suite was NOT run; $FINDINGS is UNTOUCHED"* (line 477). The concept exists in the
+script; it is simply not applied to the subset path.
+
+## ↩ Rotated from PROGRESS.md 2026-08-26 — the two door-sweep FUP index lines, VERBATIM (links repointed for this directory; bodies are the two ⬛ sections above)
+
+- 🟠 **FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-ALTER-POLICY** — ⛔ **NOT a new hole — a DECISION THAT NEVER LANDED.** ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amdt 8** ruled the diff-scoped recipe must grep `alter policy` too, that a zero-row case list is a **FINDING, not a pass**, and that an `ALTER POLICY` invalidates the altered gate's verdict; measured 2026-08-25 the recipe block still reads only `create policy`. ⭐ Cost: `backend` re-derived the identical hole during AFF3 and swept correctly only by hand-naming three policies. ⚠ AFF3 itself IS proven (3 swept, 3 COVERED, 0 BLIND). ⭕ **SCHEDULED into AFF4 pre-step 2026-08-25 (ADR 0151 D16b — AFF4 alters three policies, the exact blind spot)** — backend/lead
+
+- 🟠 **FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE** — `p0-authz-door-audit.sh:565` writes its report with a **truncating redirect** (`} > "$FINDINGS"`), so a diff-scoped/subset run replaces the whole committed `docs/reviews/authz-door-audit-findings.md` with only the cases it swept. Measured 2026-08-25 during AFF3: **699 → 90 lines**, restored by hand. ⛔ Left unrestored, every later `FROMFINDINGS=1` arm compares against a truncated baseline and passes **vacuously** — the gate that exists to catch blindness goes blind, quietly. ⚠ The only protection today is **operator memory**: the instruction *"restore the findings file after a subset run, as with the door sweep"* already exists, buried inside an unrelated item's body, which is not a gate. Fix: a subset run writes to a scratch path or merges, never replaces; failing that the script refuses to write when `CASES=` is set. ⭕ **SCHEDULED into AFF4 pre-step 2026-08-25 (ADR 0151 D16c, guard proven by a subset run)** — backend

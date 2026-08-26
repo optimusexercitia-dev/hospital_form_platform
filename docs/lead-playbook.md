@@ -87,9 +87,14 @@ When a phase passes human approval, the lead:
    The Record step is the queue's trigger: a cadence with no trigger is the
    "standing in prose alone" failure ADR 0079 documents.
 
-**Gate step-1 note (authz sweeps):** after any diff-scoped door-sweep run,
-`git checkout -- docs/reviews/authz-door-audit-findings.md` — a subset run overwrites the
-full-sweep findings file with partial results.
+**Gate step-1 note (authz sweeps):** derive the case list with
+`scripts/door-sweep-cases.sh <phase-base>` — never by hand, and never from the old prose
+one-liner (ADR 0079 § The recipe; exit 1 means *migrations touched, zero gates derived*,
+which is an obligation to rule on, not a pass). ⛔ **Do NOT `git checkout --` the findings
+file afterwards** — that instruction is retired (ADR 0153): a subset run now writes to
+scratch under `$WORK` and never opens the committed baseline for write. Verify by
+**measurement**, which stays right whether or not the guard is ever reverted:
+`git diff --stat -- docs/reviews/authz-door-audit-findings.md` — empty means untouched.
 
 ## 5. PROGRESS.md rotation & archive discipline
 

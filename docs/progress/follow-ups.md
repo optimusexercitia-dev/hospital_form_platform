@@ -6061,115 +6061,88 @@ trim loses nothing):
 > rather than revoked, its bytes outlive every control that reaches them by registry.
 ---
 
-### 🟠 FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-ALTER-POLICY — Amendment 8 decided the fix and the recipe was never edited (owner: backend/lead; filed 2026-08-25, found while auditing a re-discovery)
+### 🟡 FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS — the subset half is fixed, the full half is not, and the file is not purely generated (owner: backend; filed 2026-08-26, found while closing the subset half)
 
-ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 8**
-(2026-08-23) records this hole completely and rules three changes to the phase step:
+Residual of [[FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE]] (closed 2026-08-26, ADR
+[0153](../decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)). That fix
+covers the **subset** run mode only, by design: with `CASES=` set the report goes to scratch. A **full**
+sweep still emits `docs/reviews/authz-door-audit-findings.md` through the same truncating redirect.
 
-1. the recipe greps `alter policy` as well as `create policy`;
-2. **a zero-row case list is a FINDING, not a pass** — *"the recipe printed nothing"* and *"the phase
-   changed no gate"* must stop being the same observation;
-3. an `ALTER POLICY` **invalidates** the altered gate's verdict; it must be re-measured, not inherited,
-   and until the tooling detects that, the operator names the altered policy in `CASES=` explicitly.
+⚠ **That would be harmless if the file were generated — and it is not.** The committed baseline carries
+material no run reproduces:
 
-**Measured 2026-08-25: none of the three reached the recipe.** The code block under § *The recipe* in
-that same ADR still ends `# + any create policy <name>` and nothing else. The decision and the artefact
-it governs sit **eleven screens apart in one file**, both authoritative, disagreeing.
+- a hand-merged `<!-- … -->` block of subset verdicts (around line 569);
+- a trailing `## Note — a RENAME moves a gate's verdict` section;
+- inline annotations on the skipped-policy bullets.
 
-⭐ **What makes this worth a register line rather than a shrug: the cost was paid again, and measured.**
-During AFF3 (ADR 0148) `backend` derived the case list from the diff exactly as Amendment 1 instructs,
-got **zero rows**, recognised the shape, and hand-added an `alter policy` grep — arriving independently
-at Amendment 8's finding, two days after it was written, without knowing it existed. A second operator
-reproduced the whole diagnosis because the fix lived only in prose. That is the measurement: this hole
-now has a **demonstrated recurrence rate**, not merely a hypothetical one.
+A full sweep destroys all three, silently, and the loss looks exactly like a clean regeneration. The
+periodic full sweep is ~5 h and rare, which is *why* this is 🟡 and also why nobody would notice for
+weeks — the annotations are read at the next audit, not at the run that erased them.
 
-⚠ **AFF3 is not itself unproven.** Its sweep ran over the three altered policies named by hand and
-returned `3 swept, 3 COVERED, 0 BLIND, 0 ERROR`, satisfying Amendment 8 ruling 3 in substance. The
-defect is that correctness depended on the operator noticing.
+**Fix: the register's option (b)** — merge verdicts into the committed file rather than replacing it,
+so generated rows update while hand-authored blocks survive. ⛔ Do **not** close this by extending the
+subset guard to full runs: a full run *should* rewrite the generated rows; the property to preserve is
+the hand-authored material, not the file.
 
-⛔ **Do not close this by editing the ADR's prose alone** — that is the state it is already in. Ruling
-2 in particular needs somewhere that *reds*: a zero-row case list on a diff that touched
-`supabase/migrations/` must fail loudly, or the next operator to get zero rows will read it as a pass,
-which is the original defect with an extra amendment on top.
+⚠ **What exists today is a hint, not a gate.** All four sweeps print a startup warning counting the
+hand-merged blocks and telling the operator to re-merge from `git show HEAD:<path>`. A warning the
+operator must read at the right moment is the same shape as the *"restore the findings file"*
+instruction whose failure produced the parent item.
 
 ---
 
-### 🟠 FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE — the blindness gate silently truncates the file every later run compares against (owner: backend; filed 2026-08-25, measured during AFF3)
+### 🟠 FUP-P-CLASS-SQLSTATE-ANSWERS-500-ON-DENIAL — an ordinary authorization denial answers 5xx, across 73 reachable doors (owner: backend; filed 2026-08-26, measured during the AFF4 pre-step)
 
-`supabase/tests/mutation/p0-authz-door-audit.sh:565` emits its report through a **truncating
-redirect**:
+Re-filed from [[FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE]] (archived the same day), whose diagnosis
+was wrong in three places. Authority: ADR
+[0152](../decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md).
 
-```bash
-} > "$FINDINGS"          # $FINDINGS = docs/reviews/authz-door-audit-findings.md (line 65)
-```
+**The mechanism, measured** — a scratch `public` function raising a parameterized `errcode`, installed,
+called as an authenticated persona through Kong, then dropped. The HTTP status is a **pure function of
+the SQLSTATE**:
 
-`$FINDINGS` is the **committed** baseline. A diff-scoped run — the one CLAUDE.md §6 step 1 mandates
-**every phase** — sweeps only the phase's own gates, so the redirect replaces the full audit with the
-subset. Measured 2026-08-25 during AFF3: **699 lines → 90**. Restored by hand and verified
-byte-identical to `HEAD`; `ARM=wrapper` re-run, BLIND set back to 41.
+| SQLSTATE | HTTP | SQLSTATE | HTTP |
+| --- | --- | --- | --- |
+| `P0001` | 400 | `42501` | 403 |
+| `P0002` / `P0003` | **500** | `28000` | 403 |
+| `HC000` / `HC0D8` / `HCDS5` | 400 | `23514` / `22023` | 400 |
+| `PT400` / `PT403` / `PT404` | 400 / 403 / 404 | `42883` | 404 |
 
-⛔ **The failure mode is silent and self-concealing.** `FROMFINDINGS=1 ARM=wrapper` — a phase-gate arm —
-compares the committed findings file to an allowlist and **re-measures nothing**. Against a truncated
-file it sees fewer gates, finds every one of them allowlisted, and reports **HOLDS**. The arm gets
-*greener* as the baseline gets *emptier*. Nothing in the gate can distinguish "no blind gates" from
-"almost no gates".
+**PostgREST v14.5 maps the `P0*` class to 500, `P0001` excepted.** Nothing about media types, `jsonb`
+returns, encoding, or the schema cache is involved — each of those was excluded by measurement.
 
-⚠ **The only thing standing between a phase and this today is that the operator remembers.** The
-instruction exists — *"Restore the findings file after a subset run, as with the door sweep"* — but it
-lives inside the body of an unrelated `sign_section` item, reachable only by someone already reading
-that item. A convention that must be recalled at exactly the right moment, by whoever happens to run
-the gate, is the shape this file exists to convert into a check.
+**Size, from the live catalog** (comments stripped before the regex — a line-filtered `prosrc` under-
+reports multiline guards): **80** `app`/`public` functions raise a P-class code other than `P0001`;
+**73** of them are in `public` and hold EXECUTE for `authenticated`. The document byte corridor
+(`open_document_version` / `open_printed_document`, both through `app.resolve_document_version_bytes`)
+is **2 of 73** — it is where the class was found, not the extent of it.
 
-**Fix, in preference order:** (a) a run with `CASES=` set writes to a scratch path and never touches
-the committed file; (b) it merges its verdicts into the committed file rather than replacing it;
-(c) failing both, the script **refuses to write** when `CASES=` is set and prints where the subset
-report went. ⭐ Note the script already proves it can reason about this: its DRYRUN path prints
-*"the baseline suite was NOT run; $FINDINGS is UNTOUCHED"* (line 477). The concept exists in the
-script; it is simply not applied to the subset path.
+**Why it matters, stated honestly.** It is **not** a §8 violation: the app maps on `error.code`, the
+JSON body arrives intact on a 500, and `mapDocumentErrorCode` already carries `P0002 → not_found`. The
+real costs are (a) **observability** — an ordinary denial is indistinguishable from a server fault in
+logs and alerts; and (b) **the oracle it forced**: E2E specs assert `[403, 404, 500].includes(status)`,
+which cannot tell a denial from a crash. Four `e2e/` comments also describe a `text/plain
+"Something went wrong"` body that does not reproduce under any `Accept` header; they should be corrected
+alongside the assertions they guard.
 
----
+⛔ **No partial fix** (ADR 0152 D3). Converting only the document corridor leaves 71 siblings answering
+500 and makes denial semantics inconsistent across the app — the recorded *a partial fix reads as a
+complete one* shape, and worse than the uniform state it would replace.
 
-### 🟠 FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE — the controlled-document door returns a raw 500 instead of its pt-BR refusal (owner: backend; filed 2026-08-25, found triaging a full `e2e:prod`)
+⛔ **Two non-fixes.** Do not widen a grant to change the status (the standing anti-pattern), and do not
+catch-and-re-raise as `P0001`: it buys a 400 while discarding the code the app maps on.
 
-`public.open_document_version` raises correctly in the database and returns **HTTP 500
-`text/plain "Something went wrong"`** through PostgREST. Measured 2026-08-25:
+**Shape when built** (ADR 0152 D4): `P0002`-as-authored-refusal is the same mistake as `42501`, one
+SQLSTATE over — ADR [0135](../decisions/0135-authored-refusals-get-their-own-sqlstate.md) reserves
+`42501` for refusals *the code did not author*. Authored not-found/denied refusals take an `HC***` code,
+and the **oracle-kill must survive**: the denial raise and the absence raise stay byte-identical to each
+other, or the conversion hands back the existence oracle those two raises exist to destroy. Sizing note
+from 0135: **the test surface is the dominant cost, not the doors** — re-derive it, do not quote it.
 
-| call | psql | via PostgREST |
-|---|---|---|
-| nonexistent id | `SQLSTATE P0002`, *versão de documento não encontrada* | **500 text/plain** |
-| a real version the caller cannot serve | `SQLSTATE HC0D8`, *arquivo ainda não disponível* | **500 text/plain** |
-
-So it is **every raise**, not a P-class quirk. The function is `prosecdef`, `VOLATILE`, returns
-`jsonb`, and raises plainly (`raise exception '…' using errcode = '…'`) with no `DETAIL`/`HINT` JSON
-for PostgREST to choke on.
-
-⛔ **APP-FACING — this is not a test artefact.** `src/lib/documents/actions.ts:247` calls
-`supabase.rpc('open_document_version', …)`, and `src/components/controlled-documents/open-controlled-version-button.tsx:32` describes it
-as "the boundary" every controlled-document byte moves through. A denied or missing open therefore
-surfaces a raw 500 where CLAUDE.md §8 requires a pt-BR message and states that raw Supabase/Postgres
-errors never reach the UI. ⚠ **Bounded honestly: the SUCCESS path was never exercised** in this
-triage — no evidence it is broken, and no evidence it works. Establish that first; it decides whether
-this is a message-quality defect or something larger.
-
-**What it is NOT** (each excluded by measurement, because three plausible theories died here first):
-- not encoding — server and client are UTF8 and the message is valid UTF-8 (`c3a3` = ã);
-- not PostgREST health or version — `verify_audit_chain` returns a correct accented `42501` JSON from
-  the same stack in the same second, and the v14.5 container started the day BEFORE a green gate;
-- not schema-cache reload — deterministic across repeated calls on a settled stack;
-- not a read-only transaction — it raises correctly inside `BEGIN READ ONLY` too;
-- not persona-specific — same result for every persona tried.
-
-⭐ **NOT caused by the AFF3/AUD1 branch, proven two structural ways rather than by argument:**
-reproducible with a **bare `curl`** (Kong → PostgREST, no Next app in the path, so no frontend change
-can reach it), and reproducible with **both migrations removed from `supabase/migrations/` followed by
-`db reset`** (pre-change catalog state confirmed) — identical failures.
-
-**Root cause NOT identified.** Best remaining lead: PostgREST's media-type handling of this function's
-`jsonb` return (the instance logs "4 Media Type Handlers"), i.e. the error response being serialised
-through a handler that cannot render it. **Costs 6 gate failures** — `ethics-e1-access-spine`,
-`dm3-wave-b-documents`, `dm4-referral-documents`, `phase-f2-attachments`,
-`process-template-versioning` — every one of them asserting the "absence ≡ denial" oracle-kill that
-this door exists to provide.
+⚠ **Open, and not answered by this item:** the macOS "6 gate failures" attribution inherited from the
+archived item. P4's merged-tree run exercised the seven document-touching specs on Windows
+prod-standalone at `3894c667` (81 tests, 0 failures), and this diagnosis shows the app maps the code
+correctly — neither is evidence about the macOS run. See [[FUP-GATE-19-TESTS-NEVER-RAN-ON-MACOS]].
 
 ---
 
