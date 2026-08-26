@@ -3951,6 +3951,10 @@ enforcement.
 
 ### 🟡 FUP-EXIT-CODE-MASKING-HAS-NO-MECHANISM — a control that rests entirely on habit, with a measured failure rate (owner: lead; **filed 2026-08-21 as an ACCEPTED RESIDUAL, not as resolved**)
 
+_**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
+
+> Measured failure rate **2 occurrences in one day**, both by an operator who knew the narrow form: `gate | tail && commit` landed **a commit on a FAILING gate**, and `cmd; echo "EXIT=$?"` reported a gate that exited **1** as green. ⛔ **Filed as an ACCEPTED RESIDUAL, not resolved** — `pipefail` cannot reach an ad-hoc command, a script cannot detect being piped, no gate can verify an exit code never captured, and a `.claude/rules/` entry fails ADR 0127 admission (POSIX semantics **cannot be shown stale**; an admissible variant would fire on *file edits* and both occurrences touched no file — **admissible and inert**). The control is a habit; recorded plainly, in the same register as the ADR 0131 training premise
+
 **A pipe erases the exit status of everything to its left, and no gate in this repo can catch it.**
 
 **Measured failure rate: two occurrences in one day**, both by an operator who already knew the
@@ -6499,3 +6503,32 @@ member from a case, put that case on a meeting they can reach, assert SELECT ret
 not apply in the meeting context"* would have applied to the **write** policies too. The 3-of-4
 split is the tell. ⚠ But that is an inference — **the PO rules it**, and the ruling is needed before
 any fix, because "add recusal to the SELECT policy" is only correct if the asymmetry is unintended.
+
+### 🟡 FUP-HOSPITAL-DIRECTORY-EXPIRED-SEAT-STALE-ROSTER — an expired seat still counts a person onto the hospital directory (owner: backend/PO; filed 2026-08-26 at the AFF4 QA round, found by `backend` while ruling the hospital roster predicate)
+
+`hospitalPeopleIds()`'s commission leg selects seats by `commission_id` with **no `expires_at`
+predicate**. ADR 0151 **D6** rules that an **expired** membership does **not** block
+`end_org_affiliation`. Those two facts compose: a person holding an expired commission seat can be
+org-offboarded and **still appear on the hospital directory**, which is exactly the case the
+*"incluir desligados"* toggle is supposed to govern.
+
+⛔ **Stale roster, NOT an authorization leak — and the distinction is load-bearing.** `app.has_role`
+**does** filter `expires_at`, so no capability is granted by the stale row; the person's data was
+already visible to that hospital admin. Conflating the two would justify precisely the
+policy-widening that ADR
+[0158](../decisions/0158-hospital-directory-keeps-its-predicate.md) refuses — and that ADR refuses
+it because `organization_affiliations` has no hospital tier **by decision** (ADR 0151 D1, pinned by
+pgTAP `375` §4.1), so filtering the hospital roster on that table would blank the page for the only
+role it serves.
+
+**Candidate fix, unscheduled and needing a PO go:** a narrow `SECURITY DEFINER` helper returning
+**principal ids only**, gated on the caller being an active `hospital_admin` of that hospital or an
+`org_admin` of its org, with **no audit emission** — so it does not repeat the per-call
+`person.cpf_lookup` behaviour that made ADR 0154 reject routing the directory through
+`list_org_people`. Being a new DEFINER read path it needs the full treatment: red-first keystone,
+`ARM=census`, wrapper arm, door-sweep entry.
+
+⚠ Why it is filed rather than fixed: the gap is reachable only when someone holds an **expired**
+commission seat *and* is org-offboarded. That is a real production state, not a synthetic one — but
+it is narrow enough that widening a hospital admin's reach into org-tier records to close it is a
+poor trade made under gate pressure.
