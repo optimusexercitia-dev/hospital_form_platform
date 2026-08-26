@@ -89,9 +89,10 @@ describe("directory row — the org-affiliation tense chip", () => {
   });
 
   it("⛔ keeps the class-keyed name node an E2E spec selects on", () => {
-    // `e2e/aff2-directory.spec.ts:116` resolves the display name by exactly
-    // `span.truncate.text-sm.font-semibold`. The chip was added in a NEW flex parent
-    // rather than onto that node so the locator keeps resolving — this repo has a
+    // `e2e/aff2-directory.spec.ts` resolves the display name by exactly
+    // `span.truncate.text-sm.font-semibold` (grep the selector; a cited line number
+    // rots, and that spec is `tester`'s to change). The chip was added in a NEW flex
+    // parent rather than onto that node so the locator keeps resolving — this repo has a
     // recorded incident of a restyle silently re-scoping E2E locators, and a spec is not
     // this component's to edit.
     const { container } = renderRow(

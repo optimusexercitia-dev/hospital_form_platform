@@ -152,12 +152,18 @@ export function UserDirectoryList({
                   <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-1.5">
                       {/* ⛔ `truncate text-sm font-semibold` IS A CONTRACT, not styling
-                          preference: `e2e/aff2-directory.spec.ts:116` selects this node by
-                          exactly those three classes. The flex parent was added around it
-                          rather than onto it precisely so that locator keeps resolving —
-                          this repo has a recorded incident of a restyle silently
-                          re-scoping E2E locators. `block` became redundant under the flex
-                          parent and is the only class dropped. */}
+                          preference: `e2e/aff2-directory.spec.ts` selects this node by
+                          exactly those three classes
+                          (`span.truncate.text-sm.font-semibold` — grep it, do not trust a
+                          line number; this repo has a recorded incident of cited lines
+                          drifting). The flex parent was added AROUND this span rather
+                          than onto it precisely so that locator keeps resolving.
+
+                          ⚠ `block` was dropped — redundant under the flex parent, and not
+                          part of the selector. But that spec's own COMMENT still spells
+                          the class list as "block truncate text-sm font-semibold", so it
+                          now mis-describes this node while its selector still matches.
+                          `tester` owns that file; flagged rather than edited. */}
                       <span className="truncate text-sm font-semibold">
                         {displayName}
                       </span>
