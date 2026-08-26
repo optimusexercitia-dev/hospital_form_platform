@@ -187,6 +187,62 @@ function raisedCodes(): Set<string> {
   return codesFromBlocks(resolvedDoorBlocks().values())
 }
 
+/**
+ * The SQLSTATEs whose raise ALSO carries a `detail =` payload — i.e. the refusals that
+ * enumerate something for the user, rather than merely refusing.
+ *
+ * ⚠ A SECOND, DIFFERENT QUESTION from {@link raisedCodes}. That one asks "does this code
+ * have a pt-BR sentence"; this asks "does the arm KEEP what the door bothered to compute".
+ * `HC0RA` had a sentence and passed every existing test in this file while silently
+ * discarding the list of hospitals it emitted — so the user was told they had blocking
+ * affiliations and never told WHICH. Found while fixing the same defect one arm over
+ * (AFF4 B2, `parseBlockers` dropping `kind`/`hospital`).
+ */
+export function codesCarryingDetail(sql: string): Set<string> {
+  const codes = new Set<string>()
+  for (const block of functionBlocks(sql).values()) {
+    for (const m of block.matchAll(/errcode\s*=\s*'([^']+)'\s*,\s*detail\s*=/g)) {
+      codes.add(CONDITION_TO_SQLSTATE[m[1]] ?? m[1])
+    }
+  }
+  return codes
+}
+
+/**
+ * The CODE of one `toState` arm — `case '<code>':` up to the next `case`/`default`, with
+ * `//` comments STRIPPED.
+ *
+ * ⚠⚠ BOTH HALVES ARE SCAR TISSUE, EARNED ON THE FIRST RUN OF THE TEST BELOW.
+ *
+ * 1. **The boundary is the next arm, not a character budget.** The first version bounded the
+ *    arm with `[\s\S]{0,300}?`; a four-line explanatory comment pushed `return` past 300
+ *    characters, the regex matched NOTHING, and the test reported the arm as defective —
+ *    a FALSE POSITIVE that survived the fix it was written for. An enumeration boundary
+ *    drawn on a SYNTAX (how many characters) cannot enforce a PROPERTY (what this arm does).
+ *    That is this file's own most-repeated lesson, landing one more time.
+ * 2. **Comments are stripped, or the check is VACUOUS.** The comment written to explain the
+ *    HC0RA fix contains the word `parseBlockers`. Searching the raw arm text would have
+ *    matched the COMMENT and passed while the arm did nothing — a green that asserts only
+ *    that someone described the fix.
+ */
+function armBody(actions: string, code: string): string {
+  const start = new RegExp(`case\\s+'${code}'\\s*:`).exec(actions)
+  if (!start) return ''
+  const rest = actions.slice(start.index + start[0].length)
+  const end = /\n\s*(?:case\s+'|default\s*:)/.exec(rest)
+  return (end ? rest.slice(0, end.index) : rest).replace(/\/\/[^\n]*/g, '')
+}
+
+function detailCodes(): Set<string> {
+  const codes = new Set<string>()
+  for (const block of resolvedDoorBlocks().values()) {
+    for (const m of block.matchAll(/errcode\s*=\s*'([^']+)'\s*,\s*detail\s*=/g)) {
+      codes.add(CONDITION_TO_SQLSTATE[m[1]] ?? m[1])
+    }
+  }
+  return codes
+}
+
 function actionsSource(): string {
   return readFileSync(join(process.cwd(), 'src', 'lib', 'affiliations', 'actions.ts'), 'utf8')
 }
@@ -298,6 +354,66 @@ describe('affiliation doors <-> toState error arms', () => {
       missing,
       `these door SQLSTATEs fall through to the generic "try again" message: ${missing.join(', ')}`,
     ).toEqual([])
+  })
+
+  it('⭐ every SQLSTATE that carries a DETAIL payload PARSES it in its arm', () => {
+    // ⛔ THE DEFECT THIS EXISTS FOR IS NOT A MISSING ARM — every code below already had a
+    // pt-BR sentence and passed every other test in this file. `HC0RA` computed a list of
+    // blocking hospitals, attached it to the raise, and `toState` never read `error.details`
+    // on that arm, so it was discarded before `parseBlockers` could be reached. A door that
+    // bothers to ENUMERATE and a UI that says only "it did not work" is the B2 defect one
+    // arm over.
+    const actions = actionsSource()
+    const codes = [...detailCodes()]
+    expect(
+      codes.length,
+      'no `errcode = .., detail = ..` raises parsed — the regex or the files moved',
+    ).toBeGreaterThan(2)
+
+    // Guard the extractor itself: an arm that resolves EMPTY is a broken boundary, not a
+    // clean arm, and it would otherwise read as a pass.
+    const unresolved = codes.filter((code) => armBody(actions, code).trim() === '')
+    expect(
+      unresolved,
+      `no arm body extracted for these — the boundary regex drifted, and an empty arm ` +
+        `silently satisfies every check below: ${unresolved.join(', ')}`,
+    ).toEqual([])
+
+    const dropped = codes.filter((code) => !/parseBlockers/.test(armBody(actions, code)))
+    expect(
+      dropped,
+      `these doors compute a DETAIL payload that toState throws away, so the refusal cannot ` +
+        `name what blocked it: ${dropped.join(', ')}`,
+    ).toEqual([])
+  })
+
+  it('the arm extractor is comment-blind and arm-bounded (it can still report a real drop)', () => {
+    // The vacuity control. A comment NAMING parseBlockers must not satisfy the check, and an
+    // arm must not absorb its neighbour's body.
+    const fake = `
+      case 'HC0AA':
+        // this comment mentions parseBlockers and must not count
+        return { ok: false, error: MESSAGES.x }
+      case 'HC0BB':
+        return { ok: false, error: MESSAGES.y, blockers: parseBlockers(error.details) }
+      default:`
+    expect(armBody(fake, 'HC0AA'), 'comment-only mention must not satisfy it').not.toMatch(
+      /parseBlockers/,
+    )
+    expect(armBody(fake, 'HC0BB'), 'a real call must still be found').toMatch(/parseBlockers/)
+    expect(armBody(fake, 'HC0AA'), 'an arm must stop at the next case').not.toMatch(/MESSAGES\.y/)
+  })
+
+  it('the detail detector can find something (dry-run, known positive)', () => {
+    // A detector that finds nothing must be proven able to find something — and the
+    // discriminator is the `, detail =` suffix, not the raise.
+    const found = codesCarryingDetail(`
+      create or replace function app.d() returns uuid language plpgsql as $$ begin
+        raise exception 'enumerates' using errcode = 'HC0R1', detail = v::text;
+        raise exception 'bare refusal' using errcode = 'HC0R2';
+      end $$;`)
+    expect(found).toContain('HC0R1')
+    expect(found, 'a raise with no detail payload is not in the domain').not.toContain('HC0R2')
   })
 
   it('every arm maps to a DISTINCT message (no arm silently duplicates the generic one)', () => {

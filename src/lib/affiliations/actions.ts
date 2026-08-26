@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { parseBlockers, type AffiliationBlocker } from '@/lib/affiliations/blockers'
 import { listOrgPeople, type OrgPerson } from '@/lib/queries/affiliations'
 import { createClient } from '@/lib/supabase/server'
 import { normalizeCpf } from '@/lib/users/cpf'
@@ -24,15 +25,27 @@ import { normalizeCpf } from '@/lib/users/cpf'
  * the UI).
  */
 
+/**
+ * Re-exported on the path the render sites already import from
+ * (`@/lib/affiliations/actions`), so consuming it costs no new import. A type re-export is
+ * erased at build time and so does not violate the `'use server'` async-exports-only rule.
+ */
+export type { AffiliationBlocker }
+
 export interface AffiliationActionState {
   ok: boolean
   error?: string
   /**
-   * Present only on HC0R1: the active seats that block ending the affiliation, so the
-   * UI can name them instead of saying "it did not work". Roles + commission (null for
-   * a hospital-tier seat).
+   * The blockers a refusal enumerated, so the UI can NAME them instead of saying "it did
+   * not work" — present on HC0R1 / HC0R6 / HC0R9.
+   *
+   * ⛔ THE SHAPE IS THE DOOR'S. This was `{ role, commission }`, which silently discarded
+   * the `kind` and `hospital` that HC0R6 emits — so a hospital-affiliation blocker, the
+   * most common kind, reached the wizard with `role: ''` and no name and rendered as a
+   * bare " — cargo do hospital". See {@link AffiliationBlocker} for the per-SQLSTATE
+   * payloads, enumerated from the live catalog.
    */
-  blockers?: { role: string; commission: string | null }[]
+  blockers?: AffiliationBlocker[]
 }
 
 /**
@@ -128,24 +141,6 @@ interface PgErrorish {
   details?: string | null
 }
 
-function parseBlockers(details: string | null | undefined) {
-  if (!details) return undefined
-  try {
-    const parsed: unknown = JSON.parse(details)
-    if (!Array.isArray(parsed)) return undefined
-    return parsed.map((b) => {
-      const row = b as { role?: unknown; commission?: unknown }
-      return {
-        role: typeof row.role === 'string' ? row.role : '',
-        commission: typeof row.commission === 'string' ? row.commission : null,
-      }
-    })
-  } catch {
-    // A malformed DETAIL must never break the action — the refusal still stands.
-    return undefined
-  }
-}
-
 function toState(error: PgErrorish): AffiliationActionState {
   switch (error.code) {
     case '42501':
@@ -186,7 +181,15 @@ function toState(error: PgErrorish): AffiliationActionState {
         blockers: parseBlockers(error.details),
       }
     case 'HC0RA':
-      return { ok: false, error: MESSAGES.orgHasHospitalLinks }
+      // ⚠ The payload here is `[{hospital}]` — NO `role`, NO `commission`, NO `kind`. It was
+      // discarded until AFF4 B2 found it: the door computes the blocking hospitals, and the
+      // arm threw them away before `parseBlockers` was reached, so the user was told they
+      // had hospital links and never told which. A sibling of the B2 defect, one arm over.
+      return {
+        ok: false,
+        error: MESSAGES.orgHasHospitalLinks,
+        blockers: parseBlockers(error.details),
+      }
     default:
       // ⚠ `default` is why an unmapped code is INVISIBLE: the switch is total, so no
       // compiler, linter or test can report one as unhandled — it just silently

@@ -22,6 +22,17 @@ row) that was not met until B6b's follow-up field landed. **F6 has shipped nothi
 arms hold (`census` · `hat` · `wrapper` · `floor`). C5's keystone (`374`) was observed **RED at
 2/15 before B3** and the red is **reproducible from the migration alone**.
 
+> ⛔ **`374` IS NEW ON THIS BRANCH — it does NOT pre-date it.** Stated positively because the
+> opposite was asserted conversationally during review ("it was not rewritten — it already
+> existed"), was never written down, and so could not be corrected by deleting anything.
+> Re-measured 2026-08-26: `git log --follow` on
+> `supabase/tests/374_c5_voided_affiliation_read_differential.sql` returns **exactly one**
+> commit — `09a2aef4` (B3), which added the test and its migration together — and `main`
+> carries `371`/`372`/`373` and stops there. **The keystone is genuinely strong and its
+> red-first evidence above stands; only the narrative was wrong.** It is recorded because
+> "it already existed" is precisely what shields a file from review — an inherited file gets
+> read as a fixed point, a branch-new one gets read as a change. (QA `aff4-review.md` R1.)
+
 **NEXT, in this exact order — `backend` gated its own start on it:**
 1. `supabase db reset` (fresh, announced)
 2. ✅ **DONE 2026-08-26 — the owed pgTAP half of the door-SQLSTATE coverage gate** (`b5e6f0f1`,

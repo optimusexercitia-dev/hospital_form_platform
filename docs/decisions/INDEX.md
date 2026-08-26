@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**155 ADRs** · next free number: **0158** · 44 carry an inbound supersedes/amends edge
+**156 ADRs** · next free number: **0159** · 45 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -175,7 +175,8 @@
 | 0151 | [AFF4: organization affiliation, per-hospital staff data, and the voided tense](0151-aff4-organization-affiliation-staff-data-voided-tense.md) | accepted | 2026-08-25 | amends 0097, 0148 | ⚠ amended by 0152, 0154 |
 | 0152 | [PostgREST maps the `P0*` SQLSTATE class to HTTP 500; the document-corridor 500 is a 73-…](0152-postgrest-p-class-sqlstate-maps-to-500.md) | accepted | 2026-08-26 | amends 0151 | – |
 | 0153 | [A subset door-sweep writes to scratch; the committed baseline is never opened for write](0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) | accepted | 2026-08-26 | amends 0079 | – |
-| 0154 | [the roster predicate is the query filter, not `list_org_people`](0154-roster-predicate-is-the-query-filter-not-list-org-people.md) | accepted | 2026-08-26 | amends 0151 | – |
+| 0154 | [the roster predicate is the query filter, not `list_org_people`](0154-roster-predicate-is-the-query-filter-not-list-org-people.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0158 |
 | 0155 | [Post-AFF4 tenancy and person-model evolution: a staged sequence, not a redesign](0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) | ⚠ proposed | 2026-08-26 | – | – |
 | 0156 | [the door-SQLSTATE gate's domain is a structural property, not a list of names](0156-door-sqlstate-gate-domain-is-structural.md) | accepted | 2026-08-26 | amends 0098 | – |
 | 0157 | [The dominance grid's population was bounded by SCHEMA, not by the property](0157-dominance-grid-population-bounded-by-schema.md) | accepted | 2026-08-26 | amends 0079, 0097 | – |
+| 0158 | [the hospital directory keeps its predicate: no org-affiliation filter at the hospital t…](0158-hospital-directory-keeps-its-predicate.md) | accepted | 2026-08-26 | amends 0154 | – |
