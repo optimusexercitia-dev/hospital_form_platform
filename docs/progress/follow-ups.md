@@ -6277,6 +6277,41 @@ edit — needs `tester` sign-off** (CLAUDE.md §6·2). The two `meeting-audio-mi
 were checked the same way and need no change: Playwright's default name match is case-insensitive
 SUBSTRING, so the longer name still matches — verified by running the locator, not by reasoning about it.
 
+**✅ `e2e:prod` GREEN — 2026-08-26, `7637bc3c`, `GATE_EXIT=0`.** 21/21 batches · **1239 passed, 0
+failed, 2 flaky, 11 skipped, 0 did-not-run** · every batch reconciled `accounted N/N`. ⚠ The harness
+reported the background task as "exit code 0" **twice while the gate had actually exited 3 the first
+time** — a `;` chain's status is its LAST command's, and that was an `echo`. Only the
+`echo "GATE_EXIT=$?"` written into the log distinguished a real pass from an abort that ran no tests.
+
+⭐ **The two riskiest edits are PROVEN exercised, by name, not inferred from a green total:**
+- `patient-mode-required.spec.ts:599` — *AC-R3: Novo caso marks required PHI fields (accessible name
+  + aria-required)* — **ok (1.8s)**. That test contains line 632, the anchored regex this change
+  edited, so the `$`-drop is validated against the running app and not only against a probe DOM.
+- `meeting-audio-minutes.spec.ts:222` — the happy path holding both
+  `getByRole('button', { name: 'Prazo — Ação com responsável identificado' })` locators against
+  `actions-review` — **ok (7.5s)**, confirming Playwright's default substring match still resolves the
+  now-longer name.
+
+⛔ **NAMING THE FLAKES, which the gate record structurally cannot do** — see
+`FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES`: `GATE_LOGDIR` is not run-scoped, so the next run
+overwrites these by batch number and "2 flaky" becomes undiffable. Captured before that happens:
+- `act-role-assumption.spec.ts:157` — *The switch: assuming a hat then switching…* — failed at
+  **30.0s** (timeout), passed on **retry #1 in 2.0s**.
+- `phase2-auth-shell.spec.ts:268` — *Logout › logging out via user menu…* — failed at 5.7s, passed on
+  retry #1 in 1.4s.
+Both auth/session, both timeout-then-fast-retry (a race, not a defect), and **both specs contain zero
+date-related locators** (measured) — so neither is attributable to this change. ⚠ This run's count
+coincidentally matches a prior row's "2 flaky"; **a total that matches is not a list that matches**,
+which is exactly why the identities are written here.
+
+⚠ **"Gate green" is NOT "all ten controls were driven", and the difference is real.** 11 tests
+skipped. Two skip-bearing specs sit adjacent to this change — `phi-remediation.spec.ts:421` skips a
+**CAPA** assertion and `case-access.spec.ts:1293` skips a **safety-event** UI click-through, against
+`capa-action-form.tsx` and `event-notify-form.tsx` respectively. Both skip for seed-data reasons with
+pgTAP cited as cover, not because of anything here — but a skipped test asserted nothing, and
+`accounted N/N` counts a skip as accounted. The honest claim is **no regression was detected across
+1239 tests, with the two highest-risk sites proven driven by name.**
+
 ⭕ **Remaining, deliberately:** `cases/case-access-panel.tsx:442` carries no name-bearing attribute at
 all (its sibling label is bound to an adjacent `NativeSelect`), so its name is only its own contents —
 a *missing label*, a different defect from this FUP's, and not fixed here.
