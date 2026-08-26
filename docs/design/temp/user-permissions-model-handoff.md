@@ -1,5 +1,12 @@
 # User Permissions Model Handoff
 
+> **⛔ NOT ephemeral resume-state — DO NOT SWEEP.** This is a **durable design/audit
+> record** (1 inbound link, ADR 0078), named "handoff" before the convention existed.
+> Under the handoff convention
+> ([.claude/skills/handoff/SKILL.md](../../../.claude/skills/handoff/SKILL.md)),
+> ephemeral resume-state lives in `docs/handoffs/`, may not be cited, and is deleted at
+> its branch's Record step — none of which applies to this file. Classified 2026-08-26.
+
 > **Status:** DESIGN APPROVED — implementation not started
 >
 > **Date:** 2026-07-14

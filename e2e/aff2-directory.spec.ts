@@ -108,11 +108,15 @@ test.describe('AFF2-DIRECTORY: status pills partition the roster and each one ac
     // ever touches its `cpf`, restored in `afterAll`) — so this bucket is never empty.
     const row = page.locator('li').filter({ hasText: 'Desativado' }).first()
     await expect(row).toBeVisible({ timeout: 10_000 })
-    // The name cell is `<span class="block truncate text-sm font-semibold">` — the
-    // full class combination, since `PersonAvatar`'s initials ALSO carry a bare
+    // The name cell is `<span class="truncate text-sm font-semibold">` — the full
+    // class combination, since `PersonAvatar`'s initials ALSO carry a bare
     // `font-semibold` and a loose selector grabs those two letters instead ("DC" for
-    // "Desativado Conta", measured). Read before navigating so the profile page's H1
-    // can be checked against the SAME row, not merely "a row went somewhere".
+    // "Desativado Conta", measured). `block` was dropped from this class list
+    // (user-directory-list.tsx) once a flex parent was added around the span rather
+    // than onto it — the selector below never included `block`, so it still matches;
+    // only this comment was describing the old markup. Read before navigating so the
+    // profile page's H1 can be checked against the SAME row, not merely "a row went
+    // somewhere".
     const rowName = await row.locator('span.truncate.text-sm.font-semibold').first().textContent()
     expect(rowName).toBeTruthy()
     await row.click()

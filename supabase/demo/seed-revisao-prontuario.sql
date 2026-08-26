@@ -213,6 +213,14 @@ begin
     );
     update public.profiles set full_name = u ->> 'name'
     where id = (u ->> 'id')::uuid;
+    -- AFF4 · B7 (ADR 0151 D1/D4): the ORG affiliation is the PARENT of the hospital
+    -- one and must be inserted FIRST — a hospital affiliation with no active org
+    -- affiliation is refused by the containment backstop. The file runs
+    -- `--single-transaction` so the deferred trigger would tolerate either order, but
+    -- the order is written correctly anyway: a fixture that relies on deferral to be
+    -- valid is a fixture that breaks the moment someone runs a statement of it alone.
+    insert into public.organization_affiliations (principal_id, organization_id)
+    values ((u ->> 'id')::uuid, v_org::uuid);
     -- AFF W1 (ADR 0097 D1/D3): "works at this hospital" is a hospital_affiliations
     -- row — `profiles.home_hospital_id` was dropped by 20260909000300. This file is
     -- applied MANUALLY (`psql --single-transaction -f`), is excluded from

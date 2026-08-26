@@ -10,10 +10,11 @@
 -- returned without raising the whole time. A door that "did not raise" is not a door
 -- that worked — §2 and §3 both assert OBSERVED STATE, never the absence of an error.
 --
--- Assertion count: 38
+-- Assertion count: 44 (§6 grew from 1 to 7 when the door-SQLSTATE registry stopped
+-- reporting on a hand-maintained list — see §6's header).
 
 begin;
-select plan(38);
+select plan(44);
 
 update app.feature_flags set enabled = true where key in ('audit_trail');
 
@@ -42,12 +43,12 @@ select is(
   '1.1 the update KERNEL is executable by neither authenticated nor service_role');
 
 select ok(
-  not has_function_privilege('authenticated', 'public.update_affiliation_for(uuid,uuid,uuid,text,date,boolean)', 'EXECUTE')
-  and has_function_privilege('service_role', 'public.update_affiliation_for(uuid,uuid,uuid,text,date,boolean)', 'EXECUTE'),
+  not has_function_privilege('authenticated', 'public.update_affiliation_for(uuid,uuid,uuid,text,date,boolean,text,text,text,boolean,boolean,boolean)', 'EXECUTE')
+  and has_function_privilege('service_role', 'public.update_affiliation_for(uuid,uuid,uuid,text,date,boolean,text,text,text,boolean,boolean,boolean)', 'EXECUTE'),
   '1.2 the _for twin is service_role ONLY — naming the actor stays a service privilege');
 
 select ok(
-  has_function_privilege('authenticated', 'public.update_affiliation(uuid,uuid,text,date,boolean)', 'EXECUTE'),
+  has_function_privilege('authenticated', 'public.update_affiliation(uuid,uuid,text,date,boolean,text,text,text,boolean,boolean,boolean)', 'EXECUTE'),
   '1.3 the interactive door IS executable by authenticated');
 
 select is(
@@ -197,22 +198,179 @@ select is(
 -- `src/lib/affiliations/door-error-arms.test.ts` derives the doors' SQLSTATEs from the
 -- MIGRATION FILES and requires a pt-BR arm for each. That is a source-to-source
 -- comparison, so it cannot see a body patched at runtime — and on this project function
--- bodies ARE rewritten at runtime (ADR 0078 A28). This assertion is the other end:
--- the RUNNING kernels must raise exactly the documented set, so a code that exists only
--- in the catalog cannot hide from both halves.
+-- bodies ARE rewritten at runtime via `pg_get_functiondef` + `replace` + `execute`
+-- (ADR 0078 A28). This section is the other end: the RUNNING doors must raise exactly the
+-- declared set, so a code that exists only in the catalog cannot hide from both halves.
 --
--- Comments stripped before the regex: a `--` line naming a code is not a raise.
+-- ⚠⚠ THIS SECTION ALREADY FAILED ONCE, THE SAME TWO WAYS ITS TS SIBLING DID, and it went
+-- green the whole time. Until AFF4 it read:
+--   * a HAND-MAINTAINED domain — `proname in ('affiliate_person_impl',
+--     'end_affiliation_impl','update_affiliation_impl')` — so it reported on its own list,
+--     not on the domain, and AFF4's four new doors were simply absent from it; and
+--   * `errcode = '([A-Z0-9]{5})'`, the SYNTAX boundary the TS half had already had to
+--     abandon, blind to every NAMED condition (11 live sites raise `check_violation`).
+-- Two defects with ONE symptom: fixing only the list would have gone green and stayed
+-- blind to names, indistinguishable from a real fix. Both are fixed below.
+--
+-- ⭐ THE DOMAIN, as a sentence. It INCLUDES every `app` function that is SECURITY DEFINER,
+-- VOLATILE, executable by neither `authenticated` nor `service_role` (an owner-only
+-- mutation kernel), and called by at least one `public` function that `authenticated` or
+-- `service_role` may execute — together with those calling wrappers. It EXCLUDES `app`
+-- helpers no client-callable wrapper reaches, the STABLE read/projection helpers behind
+-- the same split-ACL shape (they surface through read paths, not through a door's
+-- `toState` mapper), trigger functions (never client-callable), and any raise that does
+-- not name an errcode — that last exclusion is not taken on trust, §6.2 proves it empty.
+--
+-- ⛔ Nothing here keys on a NAME. Deriving `app.<x>_impl` from `public.<x>` would have
+-- looked identical today and MISSED `public.appoint_technical_director`, a real door that
+-- fronts two kernels and shares a base name with neither. §6.1 then pins the reverse
+-- direction: no `_impl` kernel escapes the structural domain.
+--
+-- ⚠ SCOPE, stated because this file is the affiliation suite: the domain is the whole
+-- door family, so it also carries the membership-role doors (`HC0G*`, and the `23514`
+-- they reach through `check_violation`). That is deliberate — a domain narrowed to
+-- "affiliations" can only be narrowed by a name — and it is why this set is WIDER than
+-- the affiliation-only set `door-error-arms.test.ts` derives from `actions.ts`. The two
+-- halves are not expected to be equal; each must equal its own declared set.
 -- ============================================================================
+
+-- Comments stripped before any match: a `--` line or a /* block */ naming a code is not a
+-- raise. Stripping (not line-filtering) is deliberate — a line filter drops multi-line
+-- disjuncts, a repo-recorded way to under-report a guard.
+create or replace function pg_temp.strip_comments(p_src text) returns text
+language sql immutable as $strip$
+  select regexp_replace(regexp_replace(p_src, '/\*.*?\*/', '', 'gs'), '--.*$', '', 'ng');
+$strip$;
+
+-- ⭐ NORMALIZATION WITHOUT A MAPPING TABLE. A caller receives `23514`, never the word
+-- `check_violation`, so a named condition must resolve to the SQLSTATE the client
+-- actually sees. Postgres itself is asked — raise it and read the state back — so there
+-- is no hand-maintained name→code list here to go stale, and no syntax boundary at all:
+-- a five-character code passes through the same path unchanged.
+--
+-- An UNRECOGNISED name FAILS rather than skipping. It cannot be told from a legitimate
+-- raise by SQLSTATE (`errcode = 'undefined_object'` and a bogus name both surface 42704),
+-- so the discriminator is the MESSAGE: our probe text survives a real raise and is
+-- replaced by "unrecognized exception condition" when the name is not one. An unknown
+-- name therefore enters the set as a loud `UNKNOWN:<name>` token that can never equal the
+-- declared set — the behaviour that stops the domain silently shrinking a third time.
+create or replace function pg_temp.door_sqlstate(p_raw text) returns text
+language plpgsql as $probe$
+declare v_state text; v_msg text;
+begin
+  begin
+    raise exception 'aff-probe' using errcode = p_raw;
+  exception when others then
+    get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text;
+  end;
+  if v_msg is distinct from 'aff-probe' then return 'UNKNOWN:' || p_raw; end if;
+  return v_state;
+end $probe$;
+
+create or replace function pg_temp.raised_codes(p_src text) returns setof text
+language sql as $codes$
+  select distinct pg_temp.door_sqlstate(m[1])
+  from regexp_matches(pg_temp.strip_comments(p_src), 'errcode\s*=\s*''([^'']+)''', 'g') m;
+$codes$;
+
+create temp table door_body on commit drop as
+with client_callable as (
+  select n.nspname || '.' || p.proname as fn, p.proname, p.prosrc as src
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  join pg_language l on l.oid = p.prolang
+  where n.nspname = 'public' and l.lanname in ('plpgsql', 'sql')
+    and (has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      or has_function_privilege('service_role', p.oid, 'EXECUTE'))
+), kernel as (
+  select n.nspname || '.' || p.proname as fn, p.proname, p.prosrc as src
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'app' and p.prosecdef and p.provolatile = 'v'
+    and not has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    and not has_function_privilege('service_role', p.oid, 'EXECUTE')
+)
+select k.fn, k.src from kernel k
+ where exists (select 1 from client_callable w
+                where pg_temp.strip_comments(w.src) ~ ('\mapp\.' || k.proname || '\s*\('))
+union all
+select w.fn, w.src from client_callable w
+ where exists (select 1 from kernel k
+                where pg_temp.strip_comments(w.src) ~ ('\mapp\.' || k.proname || '\s*\('));
+
+-- 6.1 THE DOMAIN IS NOT ALLOWED TO SHRINK. The structural property decides membership,
+-- but the project's door-kernel convention is `app.<x>_impl`; if a kernel carrying that
+-- name is NOT reached by the structural derivation, the derivation has a hole (a kernel
+-- granted to a client role, or one no client-callable wrapper reaches). Null = none.
 select is(
-  (select string_agg(distinct m[1], ',' order by m[1])
-     from (select regexp_replace(p.prosrc, '--[^
-]*', '', 'g') as src
-             from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-            where n.nspname = 'app'
-              and p.proname in ('affiliate_person_impl','end_affiliation_impl','update_affiliation_impl')) b,
-          regexp_matches(b.src, 'errcode = ''([A-Z0-9]{5})''', 'g') m),
-  '42501,HC0R0,HC0R1,HC0R2,HC0R3,HC0R4,HC0R5',
-  '6.1 the LIVE affiliation kernels raise exactly the SQLSTATE set the TS mapper has arms for (a new code reds here AND in door-error-arms.test.ts)');
+  (select string_agg(p.proname, ',' order by p.proname)
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname like '%\_impl'
+      and 'app.' || p.proname not in (select fn from door_body)),
+  null,
+  '6.1 ⭐ NO DOOR KERNEL ESCAPES THE DERIVED DOMAIN — every app.*_impl is reached structurally (a hole in the derivation reds here, naming the escapees)');
+
+-- 6.2 THE MATCHER IS NOT ALLOWED TO UNDER-COUNT. An `errcode = v_code` (computed) or a
+-- bare `raise exception` with no errcode at all is invisible to any literal match and
+-- would leave the client a code this registry never saw. Counting raises against matched
+-- literals per body is what makes "every raise is enumerated" a measurement, not a claim.
+select is(
+  (select string_agg(fn || ' (' || raises || ' raises vs ' || literals || ' literal errcodes)', '; ' order by fn)
+     from (select fn,
+             (select count(*) from regexp_matches(pg_temp.strip_comments(src), 'raise\s+exception', 'gi')) as raises,
+             (select count(*) from regexp_matches(pg_temp.strip_comments(src), 'errcode\s*=\s*''([^'']+)''', 'g')) as literals
+             from door_body) x
+    where raises <> literals),
+  null,
+  '6.2 ⭐ every raise in every door body names a LITERAL errcode — a computed errcode or a bare raise (P0001) reds here instead of vanishing from the registry');
+
+-- 6.3 THE EXTRACTOR'S OWN DRY-RUN, over a hand-classified sample carrying a known
+-- positive. A detector that finds nothing must be proven able to find something — and the
+-- thing the previous version could not find was a NAMED condition. Same code path as the
+-- live assertion, so this cannot pass while the real one uses something else.
+select is(
+  (select string_agg(t.code, ',' order by t.code)
+     from pg_temp.raised_codes($sample$
+       -- raise exception 'a comment naming HC0Z9' using errcode = 'HC0Z9';
+       /* a block comment naming errcode = 'HC0Y1' */
+       raise exception 'coded' using errcode = 'HC0R0';
+       raise exception 'named' using errcode = 'check_violation';
+     $sample$) t(code)),
+  '23514,HC0R0',
+  '6.3 ⭐ the extractor finds the NAMED condition the old regex was blind to (check_violation -> 23514), keeps five-character codes, and ignores BOTH comment forms');
+
+-- 6.4 …and an unrecognised name is a loud token, never a skip.
+select is(
+  pg_temp.door_sqlstate('bogus_condition_name'),
+  'UNKNOWN:bogus_condition_name',
+  '6.4 an unrecognised condition name FAILS into the set rather than dropping out of it silently');
+
+-- 6.5 …and no live door raises one. Split from 6.6 so the diagnosis is readable: this
+-- names the offending spelling instead of leaving it buried in a set diff.
+select is(
+  (select string_agg(distinct t.code, ',' order by t.code)
+     from door_body b, pg_temp.raised_codes(b.src) t(code)
+    where t.code like 'UNKNOWN:%'),
+  null,
+  '6.5 no LIVE door raises a condition name Postgres does not recognise');
+
+-- 6.6 THE REGISTRY. Catalog-derived == declared, both directions: a new code reds, and a
+-- code that disappeared reds too.
+select is(
+  (select string_agg(distinct t.code, ',' order by t.code)
+     from door_body b, pg_temp.raised_codes(b.src) t(code)),
+  '23514,42501,HC0G0,HC0G1,HC0G2,HC0G3,HC0G4,HC0R0,HC0R1,HC0R2,HC0R3,HC0R4,HC0R5,HC0R6,HC0R7,HC0R8,HC0R9,HC0RA',
+  '6.6 ⭐ THE RUNNING doors raise exactly the declared SQLSTATE set — the assertion a body rewritten at runtime cannot hide from');
+
+-- 6.7 THE AFF4 REGRESSION PIN. These five had arms in `toState` while BOTH halves of the
+-- contract covered none of them. Pinned by name so a domain that silently stops reaching
+-- the org-tier doors reds with a message that says which ones went missing, rather than
+-- as an anonymous set diff.
+select is(
+  (select string_agg(x.code, ',' order by x.code)
+     from (values ('HC0R6'), ('HC0R7'), ('HC0R8'), ('HC0R9'), ('HC0RA')) x(code)
+    where x.code in (select t.code from door_body b, pg_temp.raised_codes(b.src) t(code))),
+  'HC0R6,HC0R7,HC0R8,HC0R9,HC0RA',
+  '6.7 ⭐ the AFF4 codes are raised by LIVE doors inside the derived domain — the five the previous domain reported on while covering none of them');
 
 -- ============================================================================
 -- §7 (F3) RULE 11 — ALL FOUR AUDIT ARMS, not just the two the update door added.

@@ -52,13 +52,14 @@ export default async function AccountLayout({
             />
           </div>
         </div>
-        {/* Secondary nav between the two personal surfaces — only while the
-            notifications feature (which owns both) is on; both 404 when off. */}
-        {notificationsOn ? (
-          <div className="mx-auto w-full max-w-3xl px-4 pb-2 sm:px-6">
-            <ContaNav />
-          </div>
-        ) : null}
+        {/* ALWAYS rendered now (AFF4 F5 correction) — "Meus dados" is structural, not
+            flag-gated, and would be unreachable in exactly the deployments where the
+            notifications flag is off if this wrapper stayed conditional on it. The
+            notifications-owned items stay behind the flag INSIDE ContaNav; see its
+            own header for the two-group split. */}
+        <div className="mx-auto w-full max-w-3xl px-4 pb-2 sm:px-6">
+          <ContaNav notificationsEnabled={notificationsOn} />
+        </div>
       </header>
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
         {children}

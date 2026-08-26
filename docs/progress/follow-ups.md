@@ -3951,6 +3951,10 @@ enforcement.
 
 ### 🟡 FUP-EXIT-CODE-MASKING-HAS-NO-MECHANISM — a control that rests entirely on habit, with a measured failure rate (owner: lead; **filed 2026-08-21 as an ACCEPTED RESIDUAL, not as resolved**)
 
+_**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
+
+> Measured failure rate **2 occurrences in one day**, both by an operator who knew the narrow form: `gate | tail && commit` landed **a commit on a FAILING gate**, and `cmd; echo "EXIT=$?"` reported a gate that exited **1** as green. ⛔ **Filed as an ACCEPTED RESIDUAL, not resolved** — `pipefail` cannot reach an ad-hoc command, a script cannot detect being piped, no gate can verify an exit code never captured, and a `.claude/rules/` entry fails ADR 0127 admission (POSIX semantics **cannot be shown stale**; an admissible variant would fire on *file edits* and both occurrences touched no file — **admissible and inert**). The control is a habit; recorded plainly, in the same register as the ADR 0131 training premise
+
 **A pipe erases the exit status of everything to its left, and no gate in this repo can catch it.**
 
 **Measured failure rate: two occurrences in one day**, both by an operator who already knew the
@@ -4127,6 +4131,10 @@ approval scope, it is unrelated to the case surface split, and a sweeping privil
 a feature migration is how the next reader loses the reasoning.
 
 ### 🟡 FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE — a caller that names the OLD ARITY fails as a plan mismatch, pointing nowhere near signatures (owner: backend; filed 2026-08-22, found when the full suite failed in a file this increment never touched)
+
+_**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
+
+> it **ABORTS the suite** as a plan mismatch, in an unrelated file, naming no function (`Result: FAIL` with **zero** `# Failed test` lines — the never-ran shape wearing its opposite). Hit on the Increment-2 `DROP`+`CREATE`; the overload pin catches **ambiguity** and is structurally blind to **arity**. Swept: **9** textual hits, **1** executable — fixed, and `357` 1.6/1.7 now pin `oid::regprocedure::text`, the *same string form* the hazard uses. ⛔ Open on the **class**, not the two doors: whatever gate is built must go **RED on a deliberately stale signature** — a sweep of this shape that finds nothing is indistinguishable from one that cannot
 
 **What happened.** ADR 0134 Amdt 2 needed `p_patient` added to `public.create_case` and
 `public.create_case_from_template`. `CREATE OR REPLACE` **cannot add a parameter** — it creates an
@@ -4436,39 +4444,6 @@ one.
 ⭐ Class: **a repair mechanism that changes what it is repairing.** Same family as the recorded lesson
 that a positive control can contaminate its own subject.
 
-### 🟡 FUP-AFF2-CONTA — the data subject is the one party who cannot read their own record (owner: frontend/PO; filed 2026-08-23 at AFF2 build start, deferred by design in ADR 0133 D11)
-
-ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) D9 adds
-`profiles.date_of_birth` and `profiles.phone`; D10 column-locks both — excluded from every
-`authenticated` column-list grant on `profiles` (SELECT **and** UPDATE), readable only through a
-service-role read behind the D1/D4 authorizer, writable only via `registerUser` / `updateUserProfile`.
-That posture is correct against the disclosure it targets (a co-commission member reading a
-colleague's birth date and phone) and has one consequence nobody chose independently: **the person the
-row is about cannot read it either.** An admin can see a professional's DOB and phone; the professional
-cannot.
-
-⚠ **This is a named LGPD control, not a UI nicety.** ADR 0133 **Amdt 1 ruling 5** states the posture
-explicitly: the DSR lane is **patient-keyed by design** (`dsr_requests.patient_key` via `patient_xref`),
-so **professional** data subjects exercise their Art. 18 rights administratively, through their
-organization's administration — *out of DSR scope by design, not omission*. That framing only holds if
-an administrative access path actually exists. `/conta` is that path. Until it ships, the Art. 18
-access right for these two columns is discharged by nothing.
-
-**Shape when built:** a self-service read on `/conta` showing the person their own `date_of_birth` and
-`phone`. ⛔ It is **not** simply a column-grant widening — granting `authenticated` SELECT on these
-columns re-opens exactly the colleague-disclosure D10 exists to prevent. It needs the same shape as the
-B6 rail read: a server-side authorized read keyed on `auth.uid() = profiles.id`, returning only the
-caller's own row. Whether it is also **writable** by the titular (Art. 18 rectification, as distinct
-from access) is a **PO question, not an implementation detail** — the columns currently join
-`guard_profile_privileged_columns` (Amdt 1 ruling 6), so a self-service write would have to be admitted
-through that guard deliberately.
-
-**Why deferred rather than built:** severable by design (ADR 0133 D11 says so in the decision itself),
-and it touches a surface — `/conta` — that AFF2's F-track does not otherwise open. Deferring keeps the
-workstream's file ownership clean. ⛔ **Deferred is not dropped:** the deferral is recorded here so the
-next reader finds a registered item rather than an absence, which is the failure mode the ADR's own
-"not omission" wording is guarding against.
-
 ### 🟡 FUP-AFF2-ACTIVE-MEANS-TWO-THINGS — three authorities say "active membership" and no policy implements it (owner: backend/PO; filed 2026-08-23 at AFF2 build start, from a conflict `backend` measured before writing SQL)
 
 ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) D13, the AFF2
@@ -4549,78 +4524,6 @@ sweep — or whether the authorities' wording should be corrected to match the i
 ⛔ Never smuggled into a feature migration; `profiles` is a swept surface and the AFF2 plan's own risk
 list forbids widening it "while we're here".
 
-### 🟡 FUP-MANAGE-ROUTES-HAVE-NO-ERROR-BOUNDARY — a render failure in the org-admin console destroys the user's entire navigation (owner: frontend; filed 2026-08-23, found incidentally while AFF2 built `usuarios/error.tsx`)
-
-**Measured 2026-08-23 by resolving each route's NEAREST ancestor boundary** (not by checking for an
-`error.tsx` in the same directory — that method mis-reports covered children as gaps). Ten route
-segments under `o/[org]/manage` have no boundary between themselves and **`src/app/error.tsx`**, the
-root: `manage` itself, `acreditacao`, `audit`, `comissoes`, `documentos`, `hospitais`,
-`hospitais/[hospitalId]`, `indicadores`, `painel`, `tipos-de-caso`.
-
-There is **no `error.tsx` at `manage/`, at `o/[org]/`, or at `o/`** — so the root boundary is what
-catches them, and it replaces the entire tree. The user loses the sidebar, the org switcher and the
-DSR "Direitos do Titular" console entry, and is left on an error page with **no navigation at all**.
-
-⭐ **This is a gap, not a design choice, and the sibling census is what shows it:** of the 14
-`manage` segments carrying a `page.tsx`, **four** have their own boundary — `administradores`,
-`comissoes/[commissionSlug]`, `equipe-nsp`, and now `usuarios`. A convention that is followed a
-quarter of the time is an omission with survivors, not a decision.
-
-**AFF2's contribution, and its bound.** AFF2 added `usuarios/error.tsx` (`1eefc90e`), which also
-covers `usuarios/[userId]` and `usuarios/novo` — a segment boundary catches its descendants, so those
-two are **not** in the list above despite having no file of their own. ⛔ **The other ten are
-pre-existing and OUT of AFF2 scope.** Do not smuggle the fix into the workstream; it touches nine
-route groups the workstream has no business editing, and the plan's own risk list forbids exactly this
-kind of "while we're here" widening.
-
-## ⛔ AMENDED 2026-08-23, before anyone built it: **it is TWO files, and the one this FUP originally named is the LESS important one**
-
-Filed as *"cheapest fix: one `manage/error.tsx`"*. That is **wrong as a close condition** — built and closed
-as written, it would leave the highest-blast-radius case open, which is the recorded *a partial fix reads as
-a complete one* shape. Found by `frontend` while checking the scope claim of their own commit.
-
-**`manage/error.tsx` cannot catch `manage/layout.tsx`.** From **this version's** own docs — read at
-`node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/error.md:96`, not from memory, per
-CLAUDE.md's "this is NOT the Next.js you know":
-
-> `error.js` wraps `loading.js`, `not-found.js`, `page.js`, and nested `layout.js` files in a React error
-> boundary. It does **not** wrap the `layout.js` or `template.js` above it in the same segment.
-
-**Why the layout is the case that matters most.** `o/[org]/manage/layout.tsx` awaits
-`getSessionContext()` (:33) and, in one `Promise.all` (:77–82), `getRawGrants()` and
-**`listMyDsrHospitals()`**. A throw in any of them takes down **every `manage` route at once**, not one
-segment — and `listMyDsrHospitals` is the **newest** of the three (DSR shipped beside AFF2), so the
-least-exercised code sits in the widest-blast-radius position on the whole surface.
-
-**The file that closes it is `o/[org]/error.tsx`** — a boundary in a segment strictly *above* `manage`.
-✅ **Verified there is no further hidden layer** (the same partial-fix trap, one level up): the only layouts
-on the chain are `src/app/layout.tsx` and `o/[org]/manage/layout.tsx` — **`o/layout.tsx` and
-`o/[org]/layout.tsx` do not exist** — and the root layout is already covered by `global-error.tsx`. So two
-files genuinely close it; there is no third.
-
-⚠ **Bounds AFF2's own commit honestly:** `usuarios/error.tsx` (`1eefc90e`) does **not** cover
-`manage/layout.tsx` either. That is a stated limit in the file's scope comment, not coverage.
-
-⚠ **Written, not exercised.** Nobody has thrown from `manage/layout.tsx` to watch where it lands. The docs
-are unambiguous and the ancestor walk is mechanical, but this carries the same *written-not-verified* label
-as the boundary that prompted it.
-
-**Build order if only one happens: `o/[org]/error.tsx` first.**
-
-**The original (still true, but secondary): a `manage/error.tsx`** A single boundary at the `manage` segment covers all ten at
-once and leaves the four existing per-route boundaries to take precedence where they exist. ⚠ It must
-follow the constraints AFF2's own boundary established: **nothing from the `error` object reaches the
-screen** — not `message`, not `digest`, not a code, because a Postgres error string can carry table,
-column and constraint names (CLAUDE.md §8: raw errors never reach the UI); a `reset()` retry as the
-primary action; a second action that is a **different route** from the one that failed (a link back to
-the page you are already on may not navigate at all); and focus moved to the heading on mount, since
-React swaps the tree in place with no navigation and a keyboard user is otherwise left focused on a
-control that no longer exists.
-
-⚠ **Unverified is not verified.** AFF2's boundary is committed lint-green and `tsc`-clean but has
-**never been exercised by a thrown render** — the one file whose entire job happens in a state no
-static gate can reach. Whoever builds `manage/error.tsx` should verify both.
-
 ### 🟡 FUP-WAITFORURL-SATISFIED-BY-ITS-OWN-STARTING-URL — a wait that is already true does not wait, and fails somewhere else (owner: tester/lead; filed 2026-08-23, found by `tester` sweeping their own fix)
 
 `e2e/aff-hospital-affiliation.spec.ts:764` (AFF-K, the keyboard test) does:
@@ -4657,6 +4560,10 @@ correctly declined to fix it: the file is fully green and untouched by this work
 this instance: a `waitForURL` pattern must be checked against the STARTING url, not only the destination.**
 
 ### 🟠 FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES — the baseline can only be diffed arithmetically, and the evidence is destroyed before anyone can check (owner: tester/lead; filed 2026-08-23, found when the AFF2 gate tried to compare flaky tests by identity)
+
+_**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
+
+> Measured 2026-08-23 — the `d885f621` row says **"2 flaky"** and names neither, its linked triage doc has **zero** occurrences of "flaky"; and `e2e-prod-gate.sh:57` sets `GATE_LOGDIR="${TMPDIR:-/tmp}/e2e-prod-gate"` with **`batch-N.log`** names — **not run-scoped**, so each run overwrites the prior run's logs by batch number. ⛔ *A total that matches is not a list that matches* — here built into the **instrument**. ⚠ A **new** flake and a **recurring** one are therefore indistinguishable in the gate record forever. Fix: name flaky tests in the summary row + make `GATE_LOGDIR` run-scoped
 
 The `e2e:prod` declare-green step works by diffing a run against a **pinned baseline**. AFF2's pin is the
 2026-08-23 run at `d885f621`: *"1185 p · 2 f · 2 flaky · 8 DNR · 20 batches"*. When AFF2's own run also
@@ -4715,58 +4622,6 @@ closed the question and left the instrument broken.
 > — no cross-run overwrite, and no cross-run contamination of counts. Until it lands, ⛔ **never take
 > a per-run figure from that directory without scoping it by mtime and corroborating it against the
 > gate log.**
-
-### 🟡 FUP-AFF2-REGISTRATION-HAS-NO-START-DATE — a plan deliverable was dropped, and the tracker said it shipped (owner: backend then frontend; filed 2026-08-23 at the AFF2 post-Record documentation review)
-
-`registerUser` accepts **no affiliation start date**. The AFF2 plan specifies one — F3 step 2,
-`docs/plans/aff2-user-management.md`: *"Hospital …, Matrícula, **Data de início**"* — and the sibling
-action on the existing-person path, `affiliatePerson`, **does** accept one. So the asymmetry is in the
-**actions layer**, not in the UI: `RegisterUserInput` (`src/lib/users/actions.ts`) has no such field, and
-`register-person-wizard.tsx:59` still carries the comment marking the insertion point.
-
-**Behaviourally this costs nothing today.** A person registered today starts their affiliation today,
-which is the correct default. ⛔ **The defect is the RECORD, and it is the reason this item exists.**
-`docs/progress/aff2.md` § F3 enumerated three blocked deliverables — DOB/phone · **start date** · redirect
-— and the next block announced *"✅ **ALL THREE CLOSED**"* over three bullets that were DOB · phone ·
-**redirect**. Item 2 left the list while the count stayed at three. Anyone checking whether the start date
-shipped would have found a green claim.
-
-⭐ *A total that matches is not a list that matches* — this workstream's own recorded lesson, and it landed
-**in the workstream's own record**, which is what makes it worth a line rather than a shrug. Found by QA
-(R3). The closure text was corrected at the Record step; **filing the dropped deliverable is the other half
-of QA's discharge condition** (*"either build the field or file it"*), and it had not been done.
-
-**Fix:** add `affiliationStartedOn?: string | null` to `RegisterUserInput`, pass it through to the
-affiliation insert, and render a `DatePicker` in wizard step 2 defaulting to today. One field, one
-pass-through, one control. **Do not close this by deciding the default is fine** — that decision is
-already recorded and is not what is open; what is open is that `affiliatePerson` and `registerUser`
-disagree about whether a start date is expressible.
-
-### 🟡 FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD — the looser entry gate is justified by a path no caller takes (owner: backend + PO decision; filed 2026-08-23 at the AFF2 post-Record documentation review)
-
-`updateUserProfile` takes `authorizeForUser` — the **no-tier, no-subset** gate — as its entry authority,
-and the reason is written into the code: *"a hospital_admin may still reach this action, because the
-AFFILIATION half of it is legitimately theirs (matrícula at their own hospital)."*
-
-**Measured (QA R5): no caller exercises that half.** `updateUserProfile` has exactly one caller in `src/**`
-— `UserProfileEditForm` — and its payload never sets `homeHospitalId` or `hospitalEmployeeId`. AFF2's F2
-moved employment facts to `AffiliationsPanel`, which goes through its own door. So the home-hospital
-validation and `ensureActiveAffiliation` inside `updateUserProfile` are reachable only by a hand-crafted
-server-action call, and the Vitest arm *"a hospital_admin editing ONLY the matrícula is ALLOWED"* pins a
-path the product cannot produce.
-
-⛔ **Not a hole, and must not be filed as one** — `affiliate_person_for` re-derives authority in PostgreSQL,
-and the per-capability gate inside the action is what actually bounds the write. This is a **decision owed**,
-not a defect.
-
-**The decision:** with the affiliation half dead, the entry gate could tighten to
-`authorizePersonScopedAdmin('fields')`, which **shrinks the blast radius of the R1 class for free** —
-R1 was an over-grant that survived precisely because the entry gate was permissive and the real bound sat
-deeper. Against that: the affiliation half may be re-wired to a caller later, and tightening now makes that
-a two-step change. ⚠ **Whoever rules on this must also decide what happens to the Vitest arm** — a keystone
-pinning an unreachable path is the *"a keystone proves the door, a second caller proves nothing about the
-real one"* shape, and silently deleting it would remove the only assertion covering the loosening if the
-half is ever revived.
 
 ### 🟡 FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT — two suites generate their cases from the LIVE catalog; pin the role SET so a mid-reset read cannot shrink coverage silently (owner: backend + frontend)
 
@@ -5348,6 +5203,12 @@ legitimate close; **drifting into that by never deciding is not**, and was the l
 ---
 
 ### 🟡 FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE — six `public` authz wrappers mirror an `app.*` rule that RLS calls directly, and nothing pins that the two agree (owner: backend + PO; filed 2026-08-24, found while keystoning `rca_writer_can_write`)
+
+_**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to
+its declared one-line form (severity · id · title · owner) during a size rotation. Nothing was
+summarised away — the text below is the removed substring exactly as it stood:_
+
+> measured 2026-08-24, all six have **ZERO** catalog references (no policy/trigger/function body), so the second copy is enforced by nothing. ⛔ NOT redundant — `app` is not PostgREST-exposed (`config.toml:13`), so the UI needs the bridge; do not "simplify" them away. ⚠ **Not a live hole** (all six still delegate, verified) — the item is that **no gate can see them stop**: the door sweep cannot (neutralizing one leaves RLS intact — why `rca_writer_can_write` swept BLIND across 218 files) and the RLS keystones cannot (they never call the wrapper). Coverage: 2 keystoned, **4 `is_*_self` wrappers have none at all**; and neither existing keystone pins the **differential** against the predicate RLS enforces
 
 **The shape.** A handful of `public` `prosecdef` SQL bool functions exist whose entire body delegates to an
 `app.*` predicate — e.g. `public.rca_writer_can_write(p_rca_id)` is exactly
@@ -6063,6 +5924,10 @@ trim loses nothing):
 
 ### 🟡 FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS — the subset half is fixed, the full half is not, and the file is not purely generated (owner: backend; filed 2026-08-26, found while closing the subset half)
 
+_**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
+
+> and that file is **not purely generated**: it carries hand-merged subset verdicts, a trailing `## Note — a RENAME moves a gate's verdict` section, and inline annotations on the skipped-policy bullets. A full run destroys all of them, silently. ⚠ **Same class as the closed item, different RUN MODE** — the guard that fixed the subset path deliberately does not cover it, so "the truncation is fixed" is true of one half only. Fix is the register's option **(b)**: merge verdicts rather than replace. All four sweeps now print a startup warning counting the hand-merged blocks — a hint, not a gate
+
 Residual of [[FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE]] (closed 2026-08-26, ADR
 [0153](../decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)). That fix
 covers the **subset** run mode only, by design: with `CASES=` set the report goes to scratch. A **full**
@@ -6177,112 +6042,93 @@ count.
 
 ---
 
-### 🟡 FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME — the date button announces its label and drops its value (owner: frontend; filed 2026-08-25, found by `frontend` while refuting a QA finding that was itself false)
+### 🔴 FUP-MEETING-CASES-SELECT-OMITS-RECUSAL — the read policy hand-rolls a weaker predicate than its three siblings (owner: backend/PO; filed 2026-08-26 by the AFF4 lead, found by a peer session auditing `can_reach_meeting`; NOT AFF4's work and not absorbed by it)
 
-The shared `DatePicker` trigger is a `<button>` associated to a `<label for>`. Measured in Chromium
-via CDP `Accessibility.getPartialAXTree` name-sources on the real rendered page:
+`public.meeting_cases` has four policies and they **split on which denials they inherit**. Confirmed
+from `pg_policies` on 2026-08-26 (catalog, not migration text):
 
-```
-name = "Data de início"   sources = ["relatedElement:labelfor", "contents:"]
-```
+| cmd | predicate | inherits recusal? |
+| --- | --- | --- |
+| UPDATE | `app.is_staff_admin_of(app.commission_of_meeting(meeting_id)) AND app.can_read_case(case_id, auth.uid())` | **yes** — via the ADR 0078 bitmask |
+| DELETE | same as UPDATE | **yes** |
+| INSERT | `WITH CHECK` only | — |
+| SELECT | `app.can_reach_meeting(meeting_id, auth.uid()) AND NOT app.is_case_respondent(case_id, auth.uid())` | ⛔ **NO** |
 
-`relatedElement:labelfor` **wins**, so `contents:` — which is where the rendered date lives — is
-displaced, not appended. A sighted user sees `01/03/2023`; a screen-reader user hears
-*"Data de início, botão"* and has no way to learn the current value without entering the calendar.
+The write paths go through `can_read_case`, so they inherit all five of `app._case_caps`' hard
+denies **by position**. `meeting_cases_select` does not call it at all — it **re-states ONE deny by
+hand** (respondent) and **omits recusal**. Zero of the five policies consuming `can_reach_meeting`
+check recusal.
 
-**Fix:** `aria-labelledby="{labelId} {buttonId}"` — the self-reference re-admits the button's own
-contents after the label. Measured to yield `"Suspenso até Selecionar data"` on
-`user-lifecycle-actions.tsx:247`.
+⛔ **This matters because `meeting_cases` carries `summary` and `decision` — case TEXT, not just a
+link row.** Predicate-level evidence (read-only, seed user `staff1.ccih` recused from case
+`ca000000-…e1`): `is_recused_from_case` = **t**, `_case_caps` = **0**, `can_reach_meeting` = **t**,
+`is_case_respondent` = **f** — so the SELECT predicate evaluates **TRUE for a case the user is
+recused from**.
 
-⛔ **DELIBERATELY NOT FIXED IN THE PROFILE-REDESIGN BRANCH.** It needs a new prop on a shared control
-with **23 call sites**, roughly 20 of which predate that branch, and it **changes accessible names** —
-so specs that address these controls by name legitimately need updating. Folding a platform-wide
-accname change into a feature branch is how a reviewable diff stops being reviewable, and it would put
-spec edits on the same commit as the change that necessitated them.
+⚠ **NOT CONFIRMED END TO END, and the reason is the finding's own shape:** in the current seed the
+recused case is **on no meeting at all** (the only `meeting_cases` row is for case `d0000000-…c1`),
+so **the failing state does not exist in the fixture**. This is a *latent asymmetry*, not a
+demonstrated leak — and it is a textbook instance of *a green gate meaning the fixture cannot reach
+the failing state*. ⛔ Confirming it requires **constructing the state nobody constructed**: recuse a
+member from a case, put that case on a meeting they can reach, assert SELECT returns zero rows.
 
-⭐ **The premise trap, which is the durable part.** This surfaced only because QA filed a finding
-(M6) asserting the OPPOSITE — that `<label for>` is *not* in the accname chain for a `button`, and that
-the three new date triggers therefore had no accessible name at all. `frontend` measured it false twice
-(isolated CDP probe + all three real sites, each returning exactly one `getByRole('button', {name})`
-match) and correctly changed no code. ⛔ **That same false premise is already recorded as
-measured-false in this repo** — `src/components/safety/patient-fields.tsx:305-315` says so in terms,
-including that an earlier version of its own comment had stated it. Twice now, a reviewer has reasoned
-from it and reached a confident wrong conclusion; the second time it nearly produced three `aria-label`
-attributes that measurement showed would be exact no-ops. **The real defect was adjacent to the false
-one, and only visible to whoever actually ran the measurement.**
+⭐ **Why this reads as an oversight rather than a decision:** a deliberate ruling that *"recusal does
+not apply in the meeting context"* would have applied to the **write** policies too. The 3-of-4
+split is the tell. ⚠ But that is an inference — **the PO rules it**, and the ruling is needed before
+any fix, because "add recusal to the SELECT policy" is only correct if the asymmetry is unintended.
 
----
+### 🟡 FUP-HOSPITAL-DIRECTORY-EXPIRED-SEAT-STALE-ROSTER — an expired seat still counts a person onto the hospital directory (owner: backend/PO; filed 2026-08-26 at the AFF4 QA round, found by `backend` while ruling the hospital roster predicate)
 
-### 🟠 FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY — a test named for auto-reinstate never suspends anyone (owner: tester; filed 2026-08-25, found by `frontend` while moving an unrelated DOM id)
+`hospitalPeopleIds()`'s commission leg selects seats by `commission_id` with **no `expires_at`
+predicate**. ADR 0151 **D6** rules that an **expired** membership does **not** block
+`end_org_affiliation`. Those two facts compose: a person holding an expired commission seat can be
+org-offboarded and **still appear on the hospital directory**, which is exactly the case the
+*"incluir desligados"* toggle is supposed to govern.
 
-`e2e/user-registration.spec.ts:463`:
+⛔ **Stale roster, NOT an authorization leak — and the distinction is load-bearing.** `app.has_role`
+**does** filter `expires_at`, so no capability is granted by the stale row; the person's data was
+already visible to that hospital admin. Conflating the two would justify precisely the
+policy-widening that ADR
+[0158](../decisions/0158-hospital-directory-keeps-its-predicate.md) refuses — and that ADR refuses
+it because `organization_affiliations` has no hospital tier **by decision** (ADR 0151 D1, pinned by
+pgTAP `375` §4.1), so filtering the hospital roster on that table would blank the page for the only
+role it serves.
 
-```js
-const dateInput = dialog.locator('input[type="date"], input#suspend-until')
-if (await dateInput.count()) { await dateInput.first().fill('2020-01-01') }
-```
+**Candidate fix, unscheduled and needing a PO go:** a narrow `SECURITY DEFINER` helper returning
+**principal ids only**, gated on the caller being an active `hospital_admin` of that hospital or an
+`org_admin` of its org, with **no audit emission** — so it does not repeat the per-call
+`person.cpf_lookup` behaviour that made ADR 0154 reject routing the directory through
+`list_org_people`. Being a new DEFINER read path it needs the full treatment: red-first keystone,
+`ARM=census`, wrapper arm, door-sweep entry.
 
-**Both alternatives are dead, and were before the profile redesign.** `DatePicker` *replaces*
-`<input type="date">` (`src/components/ui/date-picker.tsx:55`) and emits a hidden input **only when a
-`name` prop is given** (`:139`) — `user-lifecycle-actions.tsx` does not pass one. The id it does carry
-sits on a `<button>`, so `input#suspend-until` matches nothing either. Verified at `8ecf51de`: that
-site already rendered `DatePicker id="suspend-until"`, so this predates the branch that merely made
-the second alternative textually stale as well.
+⚠ Why it is filed rather than fixed: the gap is reachable only when someone holds an **expired**
+commission seat *and* is org-offboarded. That is a real production state, not a synthetic one — but
+it is narrow enough that widening a hospital admin's reach into org-tier records to close it is a
+poor trade made under gate pressure.
 
-**The consequence is that the test asserts a state it never creates.** With the fill skipped,
-`suspendUntil` stays `""`, so the flow calls `suspendUser(userId, null)` →
-`update({ suspended_until: null })` (`src/lib/users/actions.ts:1176`) against a persona that is
-already unsuspended. Measured directly after a run: `ativo.registro@test.local | is_active=t |
-suspended_until=NULL`. It then asserts `getByText('Ativo', { exact: true })` is visible — satisfied by
-an unrelated element, the affiliation `StatusPill` — and that the persona can still sign in, which is
-trivially true because nothing was suspended.
+### 🟠 FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION — a `prosecdef` flip on an existing boolean gate derives ZERO cases and reads as clean (owner: backend/lead; filed 2026-08-26, found by `backend` while fixing BUG-D5-REHIRE-HOSPADMIN-001)
 
-⛔ **`lint:vacuous` structurally cannot catch this class**, and that is the part worth keeping. The
-gate looks for a test that can go green having asserted *nothing*; this test asserts plenty. Every
-assertion is real, unconditional, and **satisfied by something other than the behaviour under test**.
-A guard-wrapped setup step (`if (await x.count())`) is the specific shape: it degrades silently from
-"set the value" to "skip it" the moment its selector rots, and nothing downstream distinguishes the
-two. ⭐ Sweeping `e2e/` for `if (await …count())` around a *setup* action would find the rest of this
-class; nothing does today.
+`scripts/door-sweep-cases.sh`'s function branch (~lines 290-292) selects a gate only when its
+**`create function` body** matches all three of: literal `security definer`, `returns boolean`, and
+the predicate-identity regex. An **`alter function … security definer`** produces no such body, so
+the deriver cannot see it **at all**.
 
-**Fix:** address the control the way the rest of the suite now does — by its accessible name, which is
-live and measured (`getByRole('button', { name: 'Suspenso até (opcional)' })`) — then assert the
-post-condition on the DATABASE or on a suspension-specific surface, not on a bare `'Ativo'` string
-that another component also renders.
+⛔ **Consequence, and it is the reason this is filed rather than noted:** flipping `prosecdef` on an
+**existing boolean gate** via `ALTER` would derive **zero cases**, and a zero-case derivation is
+reported as *exit 1 / FINDING* that a tired reader rules "no gates touched — clean". The gate would
+be newly DEFINER, newly bypassing RLS, and in **no** sweep's case list.
 
----
+⭐ **This is the exact analogue of ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md)
+Amendment 8 ruling 1** — *`alter policy` is not `create policy`* — which exists because the recipe
+grepped only `create policy` and was blind to alterations. **The same defect survived one level over,
+in the function branch, after the policy branch was fixed.** ⚠ That is the durable finding: a
+correction applied to one branch of a deriver is not evidence the sibling branch was swept.
 
-### 🟠 FUP-AFF3-NO-REVOCATION-FOR-A-MIS-ENTERED-AFFILIATION — ever-held visibility has no correction path (owner: backend/PO; filed 2026-08-25 on PO instruction as Critical **C5**; found by `qa` reviewing AFF3)
+**Not a live hole today.** The migration that surfaced it flips a **`trigger`**-returning function,
+which is outside the door audit's predicate-arm domain by construction (bounded by `t.typname='bool'`,
+plus the one named exception `assert_not_case_excluded`), and `ARM=census` independently reports it
+outside its domain for the same reason. The blindness is **measurement-domain**, not an unguarded door.
 
-ADR [0148](../decisions/0148-ever-held-affiliation-read-visibility.md) changed person read
-visibility from *currently-held* to **ever-held** affiliation. That is correct for the defect it
-fixes — a hospital admin lost the person entirely at offboarding, and `end_affiliation` IS the
-documented offboarding action. It has a consequence D5 does not reach.
-
-**Measured (`qa`, confirmed by `backend`):** `hospital_affiliations` carries a **SELECT policy only**,
-`authenticated` holds `r` alone, and **no function anywhere deletes from it** (`pg_proc` swept for
-`delete from … hospital_affiliations` → empty). Deletion is additionally blocked by design —
-`guard_affiliation_no_delete`, ADR 0133 D4, a soft-end model.
-
-So an affiliation created against the **wrong hospital** — a data-entry error, not an employment
-fact — can only be *ended*. Before AFF3 ending it revoked that admin's read. After AFF3 **nothing ever
-does**: the admin of a hospital the person never worked at retains permanent read of their profile and,
-through the mirrored leg, their **council credentials**. ⚠ D5's "unbounded in time" is argued well for
-*legitimately departed staff*; the mis-entry case was not in view when it was written.
-
-⛔ **The blocker is semantics, not mechanism.** `backend` judges the mechanism cheap: a DEFINER
-`revoke_affiliation(affiliation_id, reason)` gated on the same footprint bound as `end_affiliation`,
-doing a real `DELETE` plus an `affiliation.revoked` audit row. But Rule 12's minimise-not-destroy
-posture (ADR 0072 §7·3) argues against row deletion in a governance record, so the honest shape is
-probably a `voided_at` column excluded from the read predicate — which introduces a **third tense**
-(active / ended / voided) onto a policy AFF3 and AUD1 just spent two migrations simplifying. That is a
-design decision with a cost either way, which is why it is a PO item and not a patch.
-
-⚠ **Trigger — why this cannot simply wait for a quiet week.** Every mis-entry made before the
-correction path exists is unrevocable, and the population only grows. The point it can no longer wait
-is **before the first real hospital roster is loaded**, because bulk onboarding is exactly when
-wrong-hospital rows get created at volume, and at that moment the platform has no way to take one back.
-
-⭐ Note what found this: a reviewer asking not "does the widening work" but "what did the widening
-remove". Every gate, keystone and probe on AFF3 measured the new visibility and none of them could
-have surfaced this, because nothing was broken — a capability quietly stopped existing.
+**Fix shape:** the deriver must grep `alter function … security definer` the way it now greps
+`alter policy`, and resolve the altered function's return type from the **live catalog** rather than
+from the migration text it cannot parse.

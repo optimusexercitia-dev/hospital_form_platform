@@ -161,11 +161,12 @@ export function PublishButton({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="publish-effective">
+                <FieldLabel id="publish-effective-label" htmlFor="publish-effective">
                   Data de vigência
                 </FieldLabel>
                 <DatePicker
                   id="publish-effective"
+                  labelId="publish-effective-label"
                   value={effectiveDate}
                   onChange={setEffectiveDate}
                   clearable

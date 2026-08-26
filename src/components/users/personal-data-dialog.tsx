@@ -192,9 +192,15 @@ export function PersonalDataDialog({
         ) : null}
 
         <Field>
-          <FieldLabel htmlFor={dobField.controlProps.id}>Nascimento</FieldLabel>
+          <FieldLabel
+            id={`${dobField.controlProps.id}-label`}
+            htmlFor={dobField.controlProps.id}
+          >
+            Nascimento
+          </FieldLabel>
           <DatePicker
             id={dobField.controlProps.id}
+            labelId={`${dobField.controlProps.id}-label`}
             value={dateOfBirth}
             onChange={setDateOfBirth}
             clearable

@@ -1,5 +1,12 @@
 # Interview Data Model — Technical Handoff
 
+> **⛔ NOT ephemeral resume-state — DO NOT SWEEP.** This is a **durable design/audit
+> record** (2 inbound links, incl. ADR 0070), named "handoff" before the convention
+> existed. Under the handoff convention
+> ([.claude/skills/handoff/SKILL.md](../../../.claude/skills/handoff/SKILL.md)),
+> ephemeral resume-state lives in `docs/handoffs/`, may not be cited, and is deleted at
+> its branch's Record step — none of which applies to this file. Classified 2026-08-26.
+
 ## Document status
 
 - **Purpose:** Engineering handoff for implementing the Interview domain in the hospital committee platform.

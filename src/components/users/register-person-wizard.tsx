@@ -50,16 +50,22 @@ import {
  * then cannot manage. For an org_admin the same skip legitimately creates an
  * unaffiliated person, who is then org_admin-only by ADR 0133 Decision 2.
  *
- * ⚠ TWO FIELDS THE HANDOFF DRAWS ARE NOT BUILT, because the action cannot accept them:
- *   · **Nascimento / Telefone** (step 1) need `registerUser` to gain `dateOfBirth` /
- *     `phone` — backend task **B4**, not started. `RegisterUserInput` has no such
- *     fields, so rendering them would take a birth date from the admin, show it
- *     accepted, and drop it on submit under a success redirect. An input whose value
- *     the backend discards is worse than an absent one. Insertion point is marked below.
- *   · **Data de início** (step 2) is the same: `registerUser` takes `homeHospitalId` and
- *     `hospitalEmployeeId` and no start date, so the affiliation begins today — which is
- *     also the right default for someone being registered today. `affiliatePerson` (the
- *     existing-person path) does accept one; this action does not.
+ * ⚠ THE "NOT BUILT" LIST THAT USED TO LIVE HERE IS GONE, and its history is the reason
+ * this note replaces it rather than simply being deleted. It named three fields the
+ * handoff draws but `RegisterUserInput` could not accept — Nascimento, Telefone, Data de
+ * início — and it stayed in the file after all three landed on the action, which is the
+ * whole failure mode: a comment saying "the backend cannot take this" reads as a decision
+ * already made, so nobody re-checks it. All three are built now (nascimento + telefone in
+ * step 1, início do vínculo in step 2). ⛔ Do not re-add a "cannot accept" list here; state
+ * a missing field as an open item somewhere a gate can contradict it.
+ *
+ * ⚠ **INÍCIO DO VÍNCULO IS DELIBERATELY UNBOUNDED, in both directions** (AFF4, ADR 0151
+ * D13). Unlike Nascimento — which carries `max={todayIso()}`, since a birth date in the
+ * future is a typo and never a fact — a future start date is a legitimate thing to record:
+ * pre-registering someone who starts next month is exactly the case an admin has. This
+ * matches the sibling control in {@link RegisterPersonFlow}'s existing-person path, which
+ * feeds `affiliatePerson` and has never constrained it either. The two controls are the
+ * same fact on two paths and must not disagree about what is expressible.
  */
 
 export interface RegisterPersonWizardProps {
@@ -100,6 +106,80 @@ function todayIso(): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
+/** Everything the three steps collect, before it becomes the action's payload. */
+export interface RegisterPersonDraft {
+  organizationId: string;
+  cpf: string;
+  fullName: string;
+  email: string;
+  professionalCategoryId: string;
+  /** ISO `yyyy-mm-dd`, or "" for "not provided". */
+  dateOfBirth: string;
+  /** Digits-only, or "" for "not provided". */
+  phone: string;
+  hospitalId: string;
+  employeeId: string;
+  /** ISO `yyyy-mm-dd`, or "" for "the admin did not say" (AFF4, ADR 0151 D13). */
+  startedOn: string;
+  password: string;
+  emailVerificationEnabled: boolean;
+  credentials: CredentialInput[];
+  committees: CommitteeAssignmentRow[];
+}
+
+/**
+ * The wizard's collected state → `registerUser`'s payload, as ONE pure function.
+ *
+ * ⛔ EXTRACTED SO THE WIRING IS ASSERTABLE, which it was not before. Every optional field
+ * here has the same failure mode: the control renders, the admin fills it, and the value
+ * is silently absent from the object the action receives — under a SUCCESS redirect, so
+ * nothing in the UI contradicts it. That is exactly how the start date came to have a
+ * documented parameter, a green backend suite, and no way for a user to supply one
+ * (`BUG-REGWIZARD-NO-ORG-STARTDATE-001`). A pure builder makes "did the typed value reach
+ * the payload" a question a test can ask directly.
+ *
+ * ⚠ ITS GREEN BAR IS NOT THE WHOLE PROOF. This function can be perfectly correct while
+ * the component stops handing it a piece of state — the seam moves, the bug survives. The
+ * keystone in `register-person-wizard-start-date.test.tsx` therefore drives the RENDERED
+ * wizard end-to-end; the builder's own cases are the cheap, deterministic half.
+ *
+ * ⚠ "" IS NOT A VALUE, for every optional field: the columns are nullable and an empty
+ * string is not a date, a phone number or a matrícula. Blank always becomes `null` (or,
+ * for the collections, `undefined`) so the action can tell "not provided" from "provided
+ * as empty" — and so the doors' `coalesce(p_started_on, current_date)` sees the NULL it
+ * is written for instead of a string it would reject.
+ */
+export function buildRegisterUserInput(draft: RegisterPersonDraft): RegisterUserInput {
+  return {
+    homeOrganizationId: draft.organizationId,
+    cpf: draft.cpf,
+    fullName: draft.fullName.trim(),
+    email: draft.email.trim(),
+    professionalCategoryId: draft.professionalCategoryId,
+    // Optional (D9). Empty means "not provided", so send null rather than "" — the
+    // column is nullable and an empty string is not a birth date or a phone number.
+    dateOfBirth: draft.dateOfBirth || null,
+    phone: draft.phone || null,
+    homeHospitalId: draft.hospitalId || null,
+    hospitalEmployeeId: draft.employeeId.trim() || null,
+    // AFF4 (ADR 0151 D13). ⚠ Reaches BOTH affiliation rows the registration writes — the
+    // org one and the hospital one — because `registerUser` declares ONE field feeding
+    // both doors. Blank stays null so each door's `coalesce(..., current_date)` applies.
+    affiliationStartedOn: draft.startedOn || null,
+    // Only carry an initial password when the invite-email flow is disabled;
+    // when verification is ON the action ignores it, so it is omitted entirely.
+    password: draft.emailVerificationEnabled ? undefined : draft.password,
+    credentials: draft.credentials.length > 0 ? draft.credentials : undefined,
+    committees:
+      draft.committees.length > 0
+        ? draft.committees.map((c) => ({
+            commissionId: c.commissionId,
+            role: c.role,
+          }))
+        : undefined,
+  };
+}
+
 export function RegisterPersonWizard({
   org,
   organizationId,
@@ -132,6 +212,9 @@ export function RegisterPersonWizard({
   // affiliation survives "Pular etapa" (D8).
   const [hospitalId, setHospitalId] = useState(lockedHospital?.id ?? "");
   const [employeeId, setEmployeeId] = useState("");
+  // AFF4 (ADR 0151 D13) — when the employment BEGAN. ISO `yyyy-mm-dd`; "" means the
+  // admin did not say, which the doors read as today.
+  const [startedOn, setStartedOn] = useState("");
   // Step 3 — committees.
   const [committees, setCommittees] = useState<CommitteeAssignmentRow[]>([]);
 
@@ -197,27 +280,22 @@ export function RegisterPersonWizard({
     setError(null);
     setFieldErrors({});
 
-    const input: RegisterUserInput = {
-      homeOrganizationId: organizationId,
+    const input: RegisterUserInput = buildRegisterUserInput({
+      organizationId,
       cpf,
-      fullName: fullName.trim(),
-      email: email.trim(),
+      fullName,
+      email,
       professionalCategoryId: categoryId,
-      // Optional (D9). Empty means "not provided", so send null rather than "" — the
-      // column is nullable and an empty string is not a birth date or a phone number.
-      dateOfBirth: dateOfBirth || null,
-      phone: phone || null,
-      homeHospitalId: hospitalId || null,
-      hospitalEmployeeId: employeeId.trim() || null,
-      // Only carry an initial password when the invite-email flow is disabled;
-      // when verification is ON the action ignores it, so it is omitted entirely.
-      password: emailVerificationEnabled ? undefined : password,
-      credentials: credentials.length > 0 ? credentials : undefined,
-      committees:
-        committees.length > 0
-          ? committees.map((c) => ({ commissionId: c.commissionId, role: c.role }))
-          : undefined,
-    };
+      dateOfBirth,
+      phone,
+      hospitalId,
+      employeeId,
+      startedOn,
+      password,
+      emailVerificationEnabled,
+      credentials,
+      committees,
+    });
 
     startTransition(async () => {
       const result = await registerUser(input);
@@ -301,7 +379,7 @@ export function RegisterPersonWizard({
               ? "Quem é esta pessoa. O CPF já foi consultado e não precisa ser digitado de novo."
               : step === 1
                 ? lockedHospital
-                  ? `A pessoa será vinculada ao ${lockedHospital.name}. Pular esta etapa deixa a matrícula em branco — o vínculo é criado de qualquer forma.`
+                  ? `A pessoa será vinculada ao ${lockedHospital.name}. Pular esta etapa deixa a matrícula em branco e o início como hoje — o vínculo é criado de qualquer forma.`
                   : "Onde a pessoa trabalha nesta organização. Você pode pular — a pessoa fica registrada sem vínculo hospitalar, e um vínculo pode ser criado depois."
                 : "Atribua a pessoa a uma ou mais comissões, com o papel de cada uma. Você pode registrar sem nenhuma e fazer isso depois, na página da pessoa."}
           </p>
@@ -338,6 +416,8 @@ export function RegisterPersonWizard({
             setHospitalId={setHospitalId}
             employeeId={employeeId}
             setEmployeeId={setEmployeeId}
+            startedOn={startedOn}
+            setStartedOn={setStartedOn}
           />
         ) : null}
 
@@ -554,11 +634,15 @@ function StepIdentification({
           only on the admin management surface, never by a co-commission colleague. */}
       <div className="grid gap-5 sm:grid-cols-2">
         <Field>
-          <FieldLabel htmlFor={dobField.controlProps.id}>
+          <FieldLabel
+            id={`${dobField.controlProps.id}-label`}
+            htmlFor={dobField.controlProps.id}
+          >
             Nascimento (opcional)
           </FieldLabel>
           <DatePicker
             id={dobField.controlProps.id}
+            labelId={`${dobField.controlProps.id}-label`}
             value={dateOfBirth}
             onChange={setDateOfBirth}
             clearable
@@ -607,6 +691,8 @@ function StepHospital({
   setHospitalId,
   employeeId,
   setEmployeeId,
+  startedOn,
+  setStartedOn,
 }: {
   affiliableHospitals: { id: string; name: string }[];
   lockedHospital?: { id: string; name: string };
@@ -614,9 +700,14 @@ function StepHospital({
   setHospitalId: (v: string) => void;
   employeeId: string;
   setEmployeeId: (v: string) => void;
+  startedOn: string;
+  setStartedOn: (v: string) => void;
 }) {
   const hospitalField = useFieldIds("homeHospitalId");
   const employeeIdField = useFieldIds("hospitalEmployeeId", {
+    hasDescription: true,
+  });
+  const startedOnField = useFieldIds("affiliationStartedOn", {
     hasDescription: true,
   });
 
@@ -669,6 +760,47 @@ function StepHospital({
         <FieldDescription id={employeeIdField.descriptionId}>
           Identificador funcional no hospital escolhido. A matrícula pertence ao
           vínculo, não à pessoa.
+        </FieldDescription>
+      </Field>
+
+      {/* AFF4 (ADR 0151 D13). The label and placeholder match the sibling control on the
+          existing-person path in `RegisterPersonFlow` — an admin meets whichever of the
+          two paths their CPF search lands them on, and the same fact worded differently
+          reads as two different fields.
+
+          ⚠ THE DESCRIPTION DELIBERATELY DOES **NOT** MATCH ITS SIBLING'S, because the
+          fact is not the same one. `affiliatePerson` writes ONE row (the hospital
+          affiliation — the person already has an org one), so over there "o vínculo"
+          is unambiguous. `registerUser` creates the person's org affiliation AND the
+          hospital affiliation from a SINGLE `affiliationStartedOn` field, so here the
+          date lands on both. Naming only the hospital under a step headed "Vínculo
+          hospitalar" would stamp an org affiliation with a date the admin was never told
+          they were setting — the same mislabelling, one layer up, that made this bug
+          worth a blocker.
+
+          `labelId` is REQUIRED here, not optional polish: with only `<label htmlFor>` the
+          trigger's accessible name is the label text alone and the SELECTED DATE is
+          dropped from it (FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME) — the field
+          then announces identically whether the admin picked a date or not. */}
+      <Field>
+        <FieldLabel
+          id={`${startedOnField.controlProps.id}-label`}
+          htmlFor={startedOnField.controlProps.id}
+        >
+          Início do vínculo (opcional)
+        </FieldLabel>
+        <DatePicker
+          id={startedOnField.controlProps.id}
+          labelId={`${startedOnField.controlProps.id}-label`}
+          value={startedOn}
+          onChange={setStartedOn}
+          clearable
+          placeholder="Hoje"
+          aria-describedby={startedOnField.descriptionId}
+        />
+        <FieldDescription id={startedOnField.descriptionId}>
+          Quando a pessoa começou — vale tanto para o vínculo com a organização
+          quanto para o vínculo hospitalar. Em branco, ambos começam hoje.
         </FieldDescription>
       </Field>
     </div>

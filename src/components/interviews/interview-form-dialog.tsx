@@ -357,22 +357,32 @@ export function InterviewFormDialog({
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="flex flex-col gap-1.5 text-sm">
-                      <label htmlFor={startId} className="font-medium">
+                      <label id={`${startId}-label`} htmlFor={startId} className="font-medium">
                         Início{" "}
                         <span className="font-normal text-muted-foreground">
                           (opcional)
                         </span>
                       </label>
-                      <DateTimePicker id={startId} value={start} onChange={setStart} />
+                      <DateTimePicker
+                        id={startId}
+                        labelId={`${startId}-label`}
+                        value={start}
+                        onChange={setStart}
+                      />
                     </div>
                     <div className="flex flex-col gap-1.5 text-sm">
-                      <label htmlFor={endId} className="font-medium">
+                      <label id={`${endId}-label`} htmlFor={endId} className="font-medium">
                         Término{" "}
                         <span className="font-normal text-muted-foreground">
                           (opcional)
                         </span>
                       </label>
-                      <DateTimePicker id={endId} value={end} onChange={setEnd} />
+                      <DateTimePicker
+                        id={endId}
+                        labelId={`${endId}-label`}
+                        value={end}
+                        onChange={setEnd}
+                      />
                     </div>
                   </div>
 

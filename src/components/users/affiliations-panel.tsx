@@ -8,10 +8,12 @@ import {
   affiliatePerson,
   endAffiliation,
   updateAffiliation,
+  voidAffiliation,
   type AffiliationActionState,
 } from "@/lib/affiliations/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -34,9 +36,18 @@ import {
   CardAddButton,
   CardTextButton,
   ProfileCard,
-  StatusPill,
 } from "@/components/users/profile-cards";
+import {
+  AffiliationStatusBadge,
+  affiliationStatusOf,
+} from "@/components/users/affiliation-status-badge";
 import { ProfileDialogShell } from "@/components/users/profile-dialog-shell";
+import {
+  blockerKey,
+  blockerLabel,
+  blockersIntro,
+  type BlockerAction,
+} from "@/components/users/affiliation-blocker-label";
 
 /**
  * Hospital affiliations on the per-user profile page (AFF W3/T3.3 — ADR 0097
@@ -71,39 +82,30 @@ import { ProfileDialogShell } from "@/components/users/profile-dialog-shell";
  * ⚠ ENDED ROWS ARE RENDERED, NOT FILTERED. `getOrgUser` returns active rows first, then
  * ended ones; a past employment is the history that ending a vínculo exists to preserve
  * (D5), so hiding it would make the destructive action look like a delete.
+ *
+ * ⚠ AFF4 (ADR 0151 D6–D9). Three additions:
+ * - `jobTitle` / `workEmail` / `workPhone` — per-EMPLOYMENT staff data, editable in the
+ *   same dialog as matrícula/start date. Same authority as the rest of this panel
+ *   (`canManage` — org_admin OR that hospital's admin), because they are hospital-owned
+ *   employment facts, not person-level identity.
+ * - **Anular** (void) — a THIRD tense, not a second spelling of Encerrar. `endAffiliation`
+ *   says "this was true and stopped"; `voidAffiliation` says "this was never true" and
+ *   revokes the read-visibility it granted (D7). Available on active AND ended rows
+ *   (an already-ended row can still have been a mistake); refused on an already-voided
+ *   one. The reason is MANDATORY, both client-side (disables submit) and server-side
+ *   (HC0R7).
+ * - `AffiliationStatusBadge` replaces the inline Ativo/Encerrado pill — voided now takes
+ *   precedence over ended (a row can be both).
  */
 
 /**
- * pt-BR labels for the seats `end_affiliation` reports as blockers (D5 — ending is
- * refused while the person holds active memberships of ANY tier under the hospital).
- *
- * ⚠ THE AUTHORITY FOR THIS SET IS `memberships_role_check`, not this file. The blocker
- * `role` arrives from PostgreSQL as the raw enum text, so a role added to that CHECK
- * without a label here leaks an English snake_case identifier into a pt-BR `role="alert"`
- * — the exact shape of the defect QA caught on the hospital-tier arm. Verified complete
- * against the live catalog (9 roles, 2026-08-06) and pinned executably by
- * `affiliations-panel.test.ts`, because a comment asserting completeness goes stale in
- * silence.
- *
- * The `?? role` fallback below is therefore unreachable today and is kept only as a
- * fail-soft: a blocker the admin cannot name is worse than one that is untranslated.
+ * ⛔ MOVED, NOT DELETED — re-exported here so the import path every consumer already uses
+ * (`@/components/users/affiliations-panel`) keeps resolving, `affiliations-panel.test.ts`
+ * included. The definition now lives beside the blocker LABELLING it exists to serve, in
+ * `./affiliation-blocker-label`, because the two render sites needed to share that logic
+ * and a pure module importing this client component would have closed an import cycle.
  */
-export const ROLE_LABELS: Record<string, string> = {
-  staff: "Membro",
-  staff_admin: "Coordenação",
-  hospital_admin: "Administração do hospital",
-  org_admin: "Administração da organização",
-  technical_director: "Direção técnica",
-  technical_director_deputy: "Direção técnica (substituto)",
-  nsp_coordinator: "Coordenação do NSP",
-  nsp_org_admin: "Administração do NSP",
-  pqs_member: "Membro do PQS",
-  quality_reviewer: "Revisão da qualidade",
-};
-
-function roleLabel(role: string): string {
-  return ROLE_LABELS[role] ?? role;
-}
+export { ROLE_LABELS } from "@/components/users/affiliation-blocker-label";
 
 /**
  * `started_on` / `ended_on` are DATE columns. Parsing them as instants shifts them a day
@@ -255,10 +257,26 @@ function AffiliationRow({
   onEdit: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [state, setState] = useState<AffiliationActionState | null>(null);
+  /**
+   * The refusal AND the action that produced it, in ONE piece of state.
+   *
+   * ⛔ Deliberately not two `useState`s. The intro sentence below is chosen by `action`
+   * while the blockers come from `result`; if those could be set independently, a refusal
+   * from one action could render under the other's sentence — and it would be an
+   * intermittent, timing-shaped bug. Storing them together makes that unrepresentable.
+   */
+  const [state, setState] = useState<{
+    action: BlockerAction;
+    result: AffiliationActionState;
+  } | null>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [voidOpen, setVoidOpen] = useState(false);
+  const [voidReason, setVoidReason] = useState("");
+  const voidReasonField = useFieldIds("voidReason", { required: true });
 
   const ended = affiliation.endedOn != null;
+  const voided = affiliation.voidedAt != null;
+  const status = affiliationStatusOf(affiliation);
   const hospitalLabel = affiliation.hospitalName ?? "Hospital não visível";
   // ⛔ NARROWED ON THE FIELD ITSELF, never through `ended` plus a `!` assertion. The
   // assertion that used to sit here silenced the compiler about precisely the one case
@@ -267,9 +285,21 @@ function AffiliationRow({
     affiliation.endedOn != null
       ? `${formatMonthYear(affiliation.startedOn)} – ${formatMonthYear(affiliation.endedOn)}`
       : `desde ${formatDate(affiliation.startedOn)}`;
-  const meta = affiliation.hospitalEmployeeId
-    ? `Matrícula ${affiliation.hospitalEmployeeId} · ${period}`
-    : period.charAt(0).toUpperCase() + period.slice(1);
+  const metaParts = [
+    affiliation.jobTitle,
+    affiliation.hospitalEmployeeId
+      ? `Matrícula ${affiliation.hospitalEmployeeId}`
+      : null,
+  ].filter((p): p is string => Boolean(p));
+  const meta =
+    metaParts.length > 0
+      ? `${metaParts.join(" · ")} · ${period}`
+      : period.charAt(0).toUpperCase() + period.slice(1);
+  // Work contact is optional and shown only when at least one part is present, so a
+  // row with neither never reserves an empty second line.
+  const contactParts = [affiliation.workEmail, affiliation.workPhone].filter(
+    (p): p is string => Boolean(p),
+  );
 
   function end() {
     setState(null);
@@ -286,7 +316,22 @@ function AffiliationRow({
       // seats also cannot be removed from inside the dialog, so staying there is
       // wrong even when the message is read.
       setConfirmEnd(false);
-      setState(result);
+      setState({ action: "end", result });
+    });
+  }
+
+  function voidRow() {
+    if (!voidReason.trim()) return;
+    setState(null);
+    startTransition(async () => {
+      const result = await voidAffiliation({
+        affiliationId: affiliation.id,
+        reason: voidReason.trim(),
+      });
+      // Same reasoning as `end()`: close either way, render the refusal in the page.
+      setVoidOpen(false);
+      setState({ action: "void", result });
+      if (result.ok) setVoidReason("");
     });
   }
 
@@ -294,7 +339,7 @@ function AffiliationRow({
     <div className="flex flex-col gap-2.5">
       <div
         className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 px-4 py-3 ${
-          ended ? "opacity-60" : ""
+          status !== "ativo" ? "opacity-60" : ""
         }`}
       >
         <div className="min-w-0">
@@ -302,56 +347,73 @@ function AffiliationRow({
             {hospitalLabel}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">{meta}</p>
+          {contactParts.length > 0 ? (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {contactParts.join(" · ")}
+            </p>
+          ) : null}
+          {voided && affiliation.voidReason ? (
+            <p className="mt-0.5 text-xs text-destructive/90">
+              Motivo da anulação: {affiliation.voidReason}
+            </p>
+          ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
-          <StatusPill tone={ended ? "muted" : "success"} uppercase>
-            {ended ? "Encerrado" : "Ativo"}
-          </StatusPill>
-          {canManage && !ended ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <AffiliationStatusBadge status={status} />
+          {canManage && !voided ? (
             <>
-              <CardTextButton
-                onClick={onEdit}
-                disabled={isPending}
-                aria-label={`Editar vínculo com ${hospitalLabel}`}
-              >
-                Editar
-              </CardTextButton>
+              {!ended ? (
+                <>
+                  <CardTextButton
+                    onClick={onEdit}
+                    disabled={isPending}
+                    aria-label={`Editar vínculo com ${hospitalLabel}`}
+                  >
+                    Editar
+                  </CardTextButton>
+                  <CardTextButton
+                    tone="destructive"
+                    onClick={() => setConfirmEnd(true)}
+                    disabled={isPending}
+                    aria-label={`Encerrar vínculo com ${hospitalLabel}`}
+                  >
+                    Encerrar
+                  </CardTextButton>
+                </>
+              ) : null}
               <CardTextButton
                 tone="destructive"
-                onClick={() => setConfirmEnd(true)}
+                onClick={() => setVoidOpen(true)}
                 disabled={isPending}
-                aria-label={`Encerrar vínculo com ${hospitalLabel}`}
+                aria-label={`Anular vínculo com ${hospitalLabel}`}
               >
-                Encerrar
+                Anular
               </CardTextButton>
             </>
           ) : null}
         </div>
       </div>
 
-      {state && !state.ok ? (
+      {state && !state.result.ok ? (
         <div
           role="alert"
           className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3.5 py-2.5 text-xs text-destructive"
         >
-          <p className="font-medium">{state.error}</p>
-          {state.blockers && state.blockers.length > 0 ? (
+          <p className="font-medium">{state.result.error}</p>
+          {state.result.blockers && state.result.blockers.length > 0 ? (
             <>
-              <p className="text-destructive/90">
-                Remova estas funções antes de encerrar o vínculo:
-              </p>
+              {/* ⛔ NOT a shared constant — see `blockersIntro`. This line was generalised
+                  to "antes de continuar" so one string could serve end and void; it broke
+                  two E2E assertions and no unit gate could see it, because inline JSX copy
+                  is invisible to all of them. It is parameterised and pinned now. */}
+              <p className="text-destructive/90">{blockersIntro(state.action)}</p>
+              {/* Labelling lives in `./affiliation-blocker-label`, shared with
+                  `OrgOffboardingWizard` — the two lists render the same door payloads and
+                  drifted apart into the same defect when each carried its own copy. */}
               <ul className="flex list-disc flex-col gap-1 pl-5">
-                {state.blockers.map((b, i) => (
-                  <li key={`${b.role}-${b.commission ?? "hospital"}-${i}`}>
-                    {roleLabel(b.role)}
-                    {/* A commission seat names its committee, so the admin knows where
-                        to go to remove it. A HOSPITAL-TIER seat (technical_director,
-                        nsp_coordinator, hospital_admin…) has no committee to name — it
-                        is held at the hospital itself, and saying so is what tells the
-                        admin to look outside the committee pages. */}
-                    {b.commission ? ` — ${b.commission}` : " — cargo do hospital"}
-                  </li>
+                {state.result.blockers.map((b, i) => (
+                  <li key={blockerKey(b, i)}>{blockerLabel(b)}</li>
                 ))}
               </ul>
             </>
@@ -359,7 +421,9 @@ function AffiliationRow({
         </div>
       ) : null}
 
-      <LiveBanner tone="success">{state?.ok ? state.error : null}</LiveBanner>
+      <LiveBanner tone="success">
+        {state?.result.ok ? state.result.error : null}
+      </LiveBanner>
 
       <AlertDialog open={confirmEnd} onOpenChange={setConfirmEnd}>
         <AlertDialogContent>
@@ -386,6 +450,59 @@ function AffiliationRow({
               onClick={end}
             >
               {isPending ? "Encerrando…" : "Encerrar vínculo"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Anular — the THIRD tense (D7). A reason is MANDATORY: the submit button stays
+          disabled until one is typed, and the door refuses without one anyway (HC0R7). */}
+      <AlertDialog
+        open={voidOpen}
+        onOpenChange={(o) => {
+          setVoidOpen(o);
+          if (!o) setVoidReason("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Anular o vínculo de {personName} com {hospitalLabel}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Use esta opção apenas para um vínculo registrado por engano — nunca para
+              encerrar um emprego que de fato existiu. A anulação revoga o acesso que o
+              vínculo concedeu à administração deste hospital e não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="flex flex-col gap-1.5">
+            <FieldLabel htmlFor={voidReasonField.controlProps.id}>
+              Motivo da anulação
+            </FieldLabel>
+            <Textarea
+              {...voidReasonField.controlProps}
+              rows={3}
+              placeholder="Ex.: vínculo cadastrado para o hospital errado."
+              value={voidReason}
+              disabled={isPending}
+              onChange={(e) => setVoidReason(e.target.value)}
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button type="button" variant="outline" disabled={isPending}>
+                Cancelar
+              </Button>
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isPending || !voidReason.trim()}
+              onClick={voidRow}
+            >
+              {isPending ? "Anulando…" : "Anular vínculo"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -436,6 +553,16 @@ function AffiliationDialog({
   const [startedOn, setStartedOn] = useState(
     editing ? editing.startedOn.slice(0, 10) : todayIso(),
   );
+  // AFF4 (ADR 0151 D9) — per-employment staff data. LIVE as of B4 (`2e040341`):
+  // `affiliatePerson`/`updateAffiliation` persist these on both write paths (the
+  // INSERT and the idempotent affiliate-again refresh). Clearing an existing value
+  // is the explicit `clear*` flag below, never a bare `null` — "leave it alone" and
+  // "clear it" cannot both be true of one argument, mirroring `clearEmployeeId`. A
+  // whitespace-only value normalises to NULL server-side, so client trimming here
+  // is good form, not load-bearing.
+  const [jobTitle, setJobTitle] = useState(editing?.jobTitle ?? "");
+  const [workEmail, setWorkEmail] = useState(editing?.workEmail ?? "");
+  const [workPhone, setWorkPhone] = useState(editing?.workPhone ?? "");
 
   const hospitalField = useFieldIds("affiliationHospital", {
     required: true,
@@ -443,6 +570,9 @@ function AffiliationDialog({
   });
   const employeeIdField = useFieldIds("affiliationEmployeeId");
   const startedOnField = useFieldIds("affiliationStartedOn");
+  const jobTitleField = useFieldIds("affiliationJobTitle");
+  const workEmailField = useFieldIds("affiliationWorkEmail");
+  const workPhoneField = useFieldIds("affiliationWorkPhone");
 
   function submit() {
     setError(null);
@@ -454,18 +584,36 @@ function AffiliationDialog({
         const employeeIdChanged =
           trimmed !== (editing.hospitalEmployeeId ?? "");
         const startedOnChanged = startedOn !== editing.startedOn.slice(0, 10);
-        if (!employeeIdChanged && !startedOnChanged) {
+        const trimmedJobTitle = jobTitle.trim();
+        const jobTitleChanged = trimmedJobTitle !== (editing.jobTitle ?? "");
+        const trimmedWorkEmail = workEmail.trim();
+        const workEmailChanged = trimmedWorkEmail !== (editing.workEmail ?? "");
+        const trimmedWorkPhone = workPhone.trim();
+        const workPhoneChanged = trimmedWorkPhone !== (editing.workPhone ?? "");
+        if (
+          !employeeIdChanged &&
+          !startedOnChanged &&
+          !jobTitleChanged &&
+          !workEmailChanged &&
+          !workPhoneChanged
+        ) {
           onClose();
           return;
         }
         result = await updateAffiliation({
           userId,
           hospitalId: editing.hospitalId,
-          // "Leave it alone" and "clear it" cannot both be `null`, so emptying the
-          // field is an explicit `clearEmployeeId`.
+          // "Leave it alone" and "clear it" cannot both be `null`, so emptying any of
+          // these fields is an explicit `clear*` flag — same rule for all four.
           employeeId: employeeIdChanged && trimmed ? trimmed : undefined,
           clearEmployeeId: employeeIdChanged && !trimmed,
           startedOn: startedOnChanged && startedOn ? startedOn : undefined,
+          jobTitle: jobTitleChanged && trimmedJobTitle ? trimmedJobTitle : undefined,
+          clearJobTitle: jobTitleChanged && !trimmedJobTitle,
+          workEmail: workEmailChanged && trimmedWorkEmail ? trimmedWorkEmail : undefined,
+          clearWorkEmail: workEmailChanged && !trimmedWorkEmail,
+          workPhone: workPhoneChanged && trimmedWorkPhone ? trimmedWorkPhone : undefined,
+          clearWorkPhone: workPhoneChanged && !trimmedWorkPhone,
         });
       } else {
         if (!hospitalId) {
@@ -477,6 +625,9 @@ function AffiliationDialog({
           hospitalId,
           employeeId: employeeId.trim() || null,
           startedOn: startedOn || null,
+          jobTitle: jobTitle.trim() || undefined,
+          workEmail: workEmail.trim() || undefined,
+          workPhone: workPhone.trim() || undefined,
         });
       }
 
@@ -571,14 +722,70 @@ function AffiliationDialog({
         </Field>
 
         <Field>
-          <FieldLabel htmlFor={startedOnField.controlProps.id}>
+          <FieldLabel
+            id={`${startedOnField.controlProps.id}-label`}
+            htmlFor={startedOnField.controlProps.id}
+          >
             Data de início
           </FieldLabel>
           <DatePicker
             id={startedOnField.controlProps.id}
+            labelId={`${startedOnField.controlProps.id}-label`}
             value={startedOn}
             onChange={setStartedOn}
             disabled={isPending}
+          />
+        </Field>
+      </div>
+
+      {/* AFF4 (ADR 0151 D9) — per-employment staff data. Hospital-owned, same authority
+          as the rest of this dialog; separate from the person-level identity fields in
+          `PersonalDataCard`. */}
+      <Field>
+        <FieldLabel htmlFor={jobTitleField.controlProps.id}>
+          Cargo <span className="font-normal text-muted-foreground">(opcional)</span>
+        </FieldLabel>
+        <Input
+          {...jobTitleField.controlProps}
+          type="text"
+          className="h-10"
+          placeholder="Ex.: Enfermeiro(a) coordenador(a)"
+          value={jobTitle}
+          disabled={isPending}
+          onChange={(e) => setJobTitle(e.target.value)}
+        />
+      </Field>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor={workEmailField.controlProps.id}>
+            E-mail de trabalho{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </FieldLabel>
+          <Input
+            {...workEmailField.controlProps}
+            type="email"
+            className="h-10"
+            placeholder="pessoa@hospital.com.br"
+            value={workEmail}
+            disabled={isPending}
+            onChange={(e) => setWorkEmail(e.target.value)}
+          />
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor={workPhoneField.controlProps.id}>
+            Telefone de trabalho{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </FieldLabel>
+          <Input
+            {...workPhoneField.controlProps}
+            type="tel"
+            className="h-10"
+            placeholder="(11) 1234-5678"
+            value={workPhone}
+            disabled={isPending}
+            onChange={(e) => setWorkPhone(e.target.value)}
           />
         </Field>
       </div>

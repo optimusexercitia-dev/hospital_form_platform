@@ -561,6 +561,7 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | app.can_manage_referral_internal_note(p_note_id uuid, p_uid uuid) | predicate | positive | COVERED | 322_referral_registros.sql |
 | referral_note_types.referral_note_types_select (SELECT) | policy | open->true | COVERED | 298_authz_p0_isolation.sql,322_referral_registros.sql |
 | referral_note_types.referral_note_types_staff_admin_write (ALL) | policy | open->true | COVERED | 298_authz_p0_isolation.sql,322_referral_registros.sql |
+| organization_affiliations.organization_affiliations_select (SELECT) | policy | open->true | COVERED | 375_organization_affiliations_policy_audience.sql |
 
 <!--
 Merged 2026-08-11 from a DIFF-SCOPED subset run (ADR 0079 Amendment 1) over the

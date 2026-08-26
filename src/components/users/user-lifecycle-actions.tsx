@@ -2,9 +2,17 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Lock, Unlock, PauseCircle, ShieldAlert } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  Unlock,
+  PauseCircle,
+  ShieldAlert,
+  LogOut,
+} from "lucide-react";
 
 import type { UserStatus } from "@/lib/users/types";
+import type { PlatformFootprint } from "@/lib/users/person-footprint";
 import {
   deactivateUser,
   reactivateUser,
@@ -25,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { OrgOffboardingWizard } from "@/components/users/org-offboarding-wizard";
 
 /**
  * Lifecycle controls in the profile's identity band (FE-3; redesign 2a): deactivate,
@@ -59,6 +68,10 @@ export function UserLifecycleActions({
   status,
   fullName,
   canManageAccountStatus,
+  canEndOrgAffiliation,
+  organizationId,
+  organizationName,
+  footprint,
 }: {
   userId: string;
   status: UserStatus;
@@ -75,12 +88,26 @@ export function UserLifecycleActions({
    * implementation of the answer, and it is the half that changes.
    */
   canManageAccountStatus: boolean;
+  /**
+   * AFF4 F3 (ADR 0151 D3/D8) — org_admin ONLY, no footprint bound at all (unlike the
+   * three above). This IS "whether the caller is an org_admin of THIS org" —
+   * literally the page's own `isOrgAdmin`, matching D8's void/end-org authority
+   * exactly. UX only; `endOrgAffiliation` re-derives this server-side.
+   */
+  canEndOrgAffiliation: boolean;
+  organizationId: string;
+  organizationName: string;
+  /**
+   * Resolved server-side ONCE by the page (`resolvePlatformFootprint`), passed down —
+   * see `OrgOffboardingWizard`'s own doc comment for why it is not re-fetched here.
+   */
+  footprint: PlatformFootprint;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [openDialog, setOpenDialog] = useState<
-    "deactivate" | "reactivate" | "suspend" | "resend" | null
+    "deactivate" | "reactivate" | "suspend" | "resend" | "endOrg" | null
   >(null);
   const [suspendUntil, setSuspendUntil] = useState("");
   // ⛔ GENERATED, never the literal `"suspend-until"` it used to be. A hardcoded DOM id
@@ -160,6 +187,25 @@ export function UserLifecycleActions({
               </ActionButton>
             )}
           </>
+        ) : null}
+
+        {/* AFF4 F3 (ADR 0151 D3/D8) — a THIRD tier, org_admin-only, no footprint
+            bound, and deliberately its own condition rather than nested inside
+            `canManageAccountStatus`: that flag answers "may I manage this
+            person's platform-wide lifecycle" (tied to their home org), this one
+            answers "am I org_admin of THE ORG THIS PAGE IS SCOPED TO" — which,
+            under AFF4, need not be the same org once a person can hold more than
+            one org affiliation. Two independent questions, two independent
+            props. */}
+        {canEndOrgAffiliation ? (
+          <ActionButton
+            tone="destructive"
+            onClick={() => setOpenDialog("endOrg")}
+            disabled={isPending}
+          >
+            <LogOut aria-hidden="true" />
+            Desligar da organização
+          </ActionButton>
         ) : null}
       </div>
 
@@ -255,11 +301,15 @@ export function UserLifecycleActions({
           </AlertDialogHeader>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={suspendUntilField.controlProps.id}>
+            <Label
+              id={`${suspendUntilField.controlProps.id}-label`}
+              htmlFor={suspendUntilField.controlProps.id}
+            >
               Suspenso até (opcional)
             </Label>
             <DatePicker
               id={suspendUntilField.controlProps.id}
+              labelId={`${suspendUntilField.controlProps.id}-label`}
               value={suspendUntil}
               onChange={setSuspendUntil}
               clearable
@@ -321,6 +371,22 @@ export function UserLifecycleActions({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Desligar da organização — its own multi-step wizard, not an AlertDialog
+          like the actions above: three steps with different footers, so it owns
+          its dialog chrome rather than forcing ProfileDialogShell's single-submit
+          shape. Mounted only while open — see the wizard's own doc comment for why
+          `footprint` needs no re-fetch on close (`router.refresh()` covers it). */}
+      {openDialog === "endOrg" ? (
+        <OrgOffboardingWizard
+          userId={userId}
+          organizationId={organizationId}
+          organizationName={organizationName}
+          fullName={fullName}
+          footprint={footprint}
+          onClose={() => setOpenDialog(null)}
+        />
+      ) : null}
     </div>
   );
 }

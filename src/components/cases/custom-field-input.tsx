@@ -132,6 +132,7 @@ export function CustomFieldInput({
         return (
           <DatePicker
             id={id}
+            labelId={`${id}-label`}
             value={typeof value === "string" ? value : ""}
             onChange={(v) => onChange(v === "" ? null : v)}
             clearable
@@ -178,7 +179,7 @@ export function CustomFieldInput({
 
   return (
     <div className="flex flex-col gap-1.5 text-sm">
-      <label htmlFor={id} className="font-medium">
+      <label id={`${id}-label`} htmlFor={id} className="font-medium">
         {field.label}
         {required && (
           <span className="ml-1 font-normal text-destructive" aria-hidden="true">

@@ -1,5 +1,12 @@
 # Membership model external-audit handoff (2026-08-04)
 
+> **⛔ NOT ephemeral resume-state — DO NOT SWEEP.** This is a **durable design/audit
+> record** (3 inbound links, incl. ADR 0094), named "handoff" before the convention
+> existed. Under the handoff convention
+> ([.claude/skills/handoff/SKILL.md](../../../.claude/skills/handoff/SKILL.md)),
+> ephemeral resume-state lives in `docs/handoffs/`, may not be cited, and is deleted at
+> its branch's Record step — none of which applies to this file. Classified 2026-08-26.
+
 > **Purpose.** Self-contained continuation note for the external review of the
 > platform's single `public.memberships` table versus separate platform,
 > organization, hospital, and commission membership tables. This handoff records

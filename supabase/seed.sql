@@ -366,6 +366,47 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
 -- Oversight classification fixture: see the DO block AFTER the commissions insert
 -- below (it must run once CCIH exists — an earlier UPDATE is a silent 0-row no-op).
 
+-- ---------------------------------------------------------------------------
+-- AFF4 · B7 — `organization_affiliations` (ADR 0151 D1/D10).
+--
+-- ⚠ THIS BLOCK MUST STAY ABOVE THE `hospital_affiliations` INSERT BELOW. D4's
+--    containment rule makes an ACTIVE org affiliation a PRECONDITION of a hospital
+--    affiliation, enforced by the deferred constraint trigger on that table. Ordered
+--    the other way, `supabase db reset` fails at seed time — which is exactly the
+--    feedback that makes this ordering self-enforcing rather than a comment.
+--
+-- ⭐ DERIVED, NOT HAND-LISTED. The set is "every non-admin profile with a
+--    `home_organization_id`" — the SAME predicate migration 20261003003900 backfills
+--    on, written once. A hand list of persona UUIDs would have to be edited every time
+--    a persona is added, and the failure mode of forgetting is a persona who is
+--    invisible in the directory for reasons no test explains. Deriving also keeps the
+--    seed honest about what D10 actually migrates off.
+--    Both filters are live at this point: `is_admin` is patched above (the vendor
+--    `platform@test.local` is the only one, and it is also the only org-less profile),
+--    so either filter alone would do — both are kept because they are the backfill's
+--    predicate, quoted rather than paraphrased.
+--
+-- `started_on` is a fixed 2023-01-01, deliberately EARLIER than the earliest seeded
+-- hospital affiliation (2023-03-01, Dr. John at central-a): an org affiliation that
+-- postdated the employment it is supposed to contain would be a fixture asserting an
+-- impossible history, and the date-ordering keystones would then be testing the seed's
+-- mistake rather than the product's rule.
+--
+-- ⚠ NO CROSS-ORG ROW IS SEEDED, and that is a correction, not an omission — see the
+--    note in `docs/plans/aff4-org-affiliation.md` § B7. The plan asks for
+--    `multi@test.local` to hold BOTH orgs on the grounds that it is "`staff` of A and
+--    B". Measured against the live seed, that persona holds two COMMISSION seats
+--    (CCIH + Farmácia) and BOTH commissions belong to Rede A; no seeded persona holds
+--    any membership or affiliation outside their home org. Inventing a second org row
+--    here would add a cross-org fixture no test asked for, to a file that is a contract
+--    with ~900 tests, and would move Rede B's roster count from 5 to 6.
+-- ---------------------------------------------------------------------------
+insert into public.organization_affiliations (principal_id, organization_id, started_on)
+select pr.id, pr.home_organization_id, '2023-01-01'::date
+  from public.profiles pr
+ where pr.home_organization_id is not null
+   and not pr.is_admin;
+
 -- Q2 hospital-scoped directory: the hospital_admin's employment link to central-a.
 -- AFF W1 (ADR 0097 D1/D3): this used to be `profiles.home_hospital_id`, which was
 -- dropped by 20260909000300 — "works at this hospital" is a `hospital_affiliations`

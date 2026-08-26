@@ -1,6 +1,13 @@
 # Supabase Authorization Handoff  
 ## Organizations, Hospitals, Committees, Administrative Roles, Quality Oversight, and Row-Level Security
 
+> **⛔ NOT ephemeral resume-state — DO NOT SWEEP.** This is a **durable design/audit
+> record** (2 inbound links, incl. ADR 0100), named "handoff" before the convention
+> existed. Under the handoff convention
+> ([.claude/skills/handoff/SKILL.md](../../../.claude/skills/handoff/SKILL.md)),
+> ephemeral resume-state lives in `docs/handoffs/`, may not be cited, and is deleted at
+> its branch's Record step — none of which applies to this file. Classified 2026-08-26.
+
 **Project:** Hospital committee management platform  
 **Database:** Supabase PostgreSQL  
 **Primary authorization mechanism:** PostgreSQL Row-Level Security (RLS)  

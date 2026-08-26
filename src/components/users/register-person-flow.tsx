@@ -497,11 +497,15 @@ export function RegisterPersonFlow({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor={startedOnField.controlProps.id}>
+              <FieldLabel
+                id={`${startedOnField.controlProps.id}-label`}
+                htmlFor={startedOnField.controlProps.id}
+              >
                 Início do vínculo (opcional)
               </FieldLabel>
               <DatePicker
                 id={startedOnField.controlProps.id}
+                labelId={`${startedOnField.controlProps.id}-label`}
                 value={startedOn}
                 onChange={setStartedOn}
                 clearable

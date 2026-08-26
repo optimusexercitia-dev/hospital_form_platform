@@ -280,11 +280,12 @@ function TimelineEntryDialog({
             <FormBanner tone="error">{state.error}</FormBanner>
           )}
           <div className="flex flex-col gap-1.5 text-sm">
-            <label htmlFor={occurredAtId} className="font-medium">
+            <label id={`${occurredAtId}-label`} htmlFor={occurredAtId} className="font-medium">
               Data e hora
             </label>
             <DateTimePicker
               id={occurredAtId}
+              labelId={`${occurredAtId}-label`}
               value={occurredAt}
               onChange={setOccurredAt}
               required

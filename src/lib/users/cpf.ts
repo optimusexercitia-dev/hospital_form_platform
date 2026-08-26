@@ -55,3 +55,33 @@ export function isValidCpf(value: string): boolean {
   dv = dv < 2 ? 0 : 11 - dv
   return dv === d[10]
 }
+
+/**
+ * ADR 0147's SINGLE CPF masking mechanism, moved here from `person-footprint.ts` so both
+ * directions of the CPF rule live in one module: `normalizeCpf` strips it for storage and
+ * comparison, `maskCpf` renders it for a human.
+ *
+ * ⛔ THERE IS EXACTLY ONE OF THESE. Masking is a shoulder-surfing and screenshot
+ * mitigation, applied at the query boundary — never a confidentiality boundary against
+ * the subject, and never duplicated in SQL. A second implementation is how the two drift
+ * into showing different digit counts on different screens.
+ *
+ * Returns null for anything that is not 11 digits: a partial CPF is not a CPF, and
+ * rendering one implies a completeness the data does not have.
+ */
+export function maskCpf(raw: string | null): string | null {
+  if (!raw) return null
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length !== 11) return null
+  const bullet = '•'
+  return (
+    digits.slice(0, 3) +
+    '.' +
+    bullet.repeat(3) +
+    '.' +
+    bullet +
+    digits.slice(7, 9) +
+    '-' +
+    digits.slice(9, 11)
+  )
+}

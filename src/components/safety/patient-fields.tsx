@@ -222,10 +222,6 @@ export function PatientFields({
     ) : null;
   const ariaRequired = (field: PatientRequiredField) =>
     isRequired(field) ? true : undefined;
-  const labelOf = (field: PatientRequiredField) =>
-    isRequired(field)
-      ? `${PATIENT_REQUIRED_FIELD_LABELS[field]} (obrigatório)`
-      : PATIENT_REQUIRED_FIELD_LABELS[field];
 
   return (
     <fieldset className="flex flex-col gap-4 rounded-xl border border-dashed border-border bg-muted/20 p-4">
@@ -298,29 +294,40 @@ export function PatientFields({
           </NativeSelect>
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">
+        {/* ⛔ A <div> + <label htmlFor>, NOT a wrapping <label>, and NO `aria-label`.
+            MEASURED (Chromium CDP name-sources, this component's real rendered DOM,
+            both states). An earlier note here called the `aria-label` "redundant,
+            not load-bearing" — correct that a wrapping <label> DOES name a <button>,
+            and WRONG about the consequence. Both of those name-sources outrank
+            `contents:`, and outranking DISPLACES rather than appends: whichever won,
+            the button's own rendered date was dropped from the name. A sighted user
+            saw `01/03/2023`; a screen-reader user heard only "Data de nascimento
+            (obrigatório), botão" with no way to learn the value short of opening the
+            calendar (FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME).
+            `aria-labelledby="{labelId} {buttonId}"` is what re-admits the contents
+            after the label, so the name is now "Data de nascimento (obrigatório)
+            01/03/2023" — measured, not assumed. ⚠ The "(obrigatório)" suffix still
+            has to live IN the name (not an `aria-required` attribute), because the
+            button role supports no `aria-required`; it comes from `mark()` inside
+            the label, which is why the separate `labelOf` helper that duplicated
+            that text is gone rather than left to drift out of sync with it. */}
+        <div className="flex flex-col gap-1.5 text-sm">
+          <label
+            id={`${idPrefix}-dob-label`}
+            htmlFor={`${idPrefix}-dob`}
+            className="font-medium"
+          >
             Data de nascimento
             {mark("date_of_birth")}
-          </span>
-          {/* MEASURED (real Chromium AX tree, same class of check that proved the
-              welded `mrn` checkbox correctly named): a wrapping <label> DOES name a
-              <button> — the premise this comment used to state was false. The
-              `aria-label` below is therefore NOT what makes this accessible; it's
-              redundant, not load-bearing. `aria-label` wins accname precedence over
-              label-wrapping when both are present, but `labelOf` was written to
-              mirror `mark`'s rendered text exactly, so the wrapping <label> alone
-              would already produce the identical name — belt-and-suspenders, kept
-              for that reason, not removed. The "(obrigatório)" suffix still has to
-              live IN the name either way (not an `aria-required` attribute),
-              because the button role supports no `aria-required`. */}
+          </label>
           <DatePicker
+            id={`${idPrefix}-dob`}
+            labelId={`${idPrefix}-dob-label`}
             value={draft.dateOfBirth}
             onChange={(v) => set("dateOfBirth", v)}
             disabled={disabled}
-            aria-label={labelOf("date_of_birth")}
           />
-        </label>
+        </div>
 
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">

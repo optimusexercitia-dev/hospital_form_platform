@@ -6034,9 +6034,15 @@ export type Database = {
           hospital_employee_id: string | null
           hospital_id: string
           id: string
+          job_title: string | null
           organization_id: string
           principal_id: string
           started_on: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+          work_email: string | null
+          work_phone: string | null
         }
         Insert: {
           created_at?: string
@@ -6046,9 +6052,15 @@ export type Database = {
           hospital_employee_id?: string | null
           hospital_id: string
           id?: string
+          job_title?: string | null
           organization_id: string
           principal_id: string
           started_on?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          work_email?: string | null
+          work_phone?: string | null
         }
         Update: {
           created_at?: string
@@ -6058,9 +6070,15 @@ export type Database = {
           hospital_employee_id?: string | null
           hospital_id?: string
           id?: string
+          job_title?: string | null
           organization_id?: string
           principal_id?: string
           started_on?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          work_email?: string | null
+          work_phone?: string | null
         }
         Relationships: [
           {
@@ -6094,6 +6112,13 @@ export type Database = {
           {
             foreignKeyName: "hospital_affiliations_principal_id_fkey"
             columns: ["principal_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_affiliations_voided_by_fkey"
+            columns: ["voided_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -7330,6 +7355,84 @@ export type Database = {
           {
             foreignKeyName: "notifications_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_affiliations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ended_by: string | null
+          ended_on: string | null
+          id: string
+          organization_id: string
+          principal_id: string
+          started_on: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ended_by?: string | null
+          ended_on?: string | null
+          id?: string
+          organization_id: string
+          principal_id: string
+          started_on?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ended_by?: string | null
+          ended_on?: string | null
+          id?: string
+          organization_id?: string
+          principal_id?: string
+          started_on?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_affiliations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_affiliations_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_affiliations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_affiliations_principal_id_fkey"
+            columns: ["principal_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_affiliations_voided_by_fkey"
+            columns: ["voided_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -10836,8 +10939,11 @@ export type Database = {
         Args: {
           p_employee_id?: string
           p_hospital: string
+          p_job_title?: string
           p_started_on?: string
           p_user: string
+          p_work_email?: string
+          p_work_phone?: string
         }
         Returns: string
       }
@@ -10846,6 +10952,22 @@ export type Database = {
           p_actor: string
           p_employee_id?: string
           p_hospital: string
+          p_job_title?: string
+          p_started_on?: string
+          p_user: string
+          p_work_email?: string
+          p_work_phone?: string
+        }
+        Returns: string
+      }
+      affiliate_person_to_org: {
+        Args: { p_organization: string; p_started_on?: string; p_user: string }
+        Returns: string
+      }
+      affiliate_person_to_org_for: {
+        Args: {
+          p_actor: string
+          p_organization: string
           p_started_on?: string
           p_user: string
         }
@@ -12989,6 +13111,19 @@ export type Database = {
         }
         Returns: string
       }
+      end_org_affiliation: {
+        Args: { p_ended_on?: string; p_organization: string; p_user: string }
+        Returns: string
+      }
+      end_org_affiliation_for: {
+        Args: {
+          p_actor: string
+          p_ended_on?: string
+          p_organization: string
+          p_user: string
+        }
+        Returns: string
+      }
       ensure_professional_participant: {
         Args: { p_profile_id: string }
         Returns: string
@@ -13092,6 +13227,18 @@ export type Database = {
         }
       }
       get_member_overview: { Args: { p_commission: string }; Returns: Json }
+      get_own_person_record: {
+        Args: never
+        Returns: {
+          cpf: string
+          date_of_birth: string
+          email: string
+          full_name: string
+          phone: string
+          professional_category: string
+          professional_category_id: string
+        }[]
+      }
       get_participant_patient: {
         Args: { p_participant_id: string }
         Returns: Json
@@ -13473,13 +13620,20 @@ export type Database = {
       list_my_referral_assignments: { Args: never; Returns: Json }
       list_org_eligible_users: { Args: { p_org_id: string }; Returns: Json }
       list_org_people: {
-        Args: { p_cpf?: string; p_org_id: string; p_search?: string }
+        Args: {
+          p_cpf?: string
+          p_include_ended?: boolean
+          p_org_id: string
+          p_search?: string
+        }
         Returns: {
           affiliations: Json
           date_of_birth: string
           email: string
           full_name: string
           is_active: boolean
+          org_affiliation_ended_on: string
+          org_affiliation_status: string
           professional_category: string
           user_id: string
         }[]
@@ -15835,10 +15989,16 @@ export type Database = {
       update_affiliation: {
         Args: {
           p_clear_employee_id?: boolean
+          p_clear_job_title?: boolean
+          p_clear_work_email?: boolean
+          p_clear_work_phone?: boolean
           p_employee_id?: string
           p_hospital: string
+          p_job_title?: string
           p_started_on?: string
           p_user: string
+          p_work_email?: string
+          p_work_phone?: string
         }
         Returns: string
       }
@@ -15846,10 +16006,16 @@ export type Database = {
         Args: {
           p_actor: string
           p_clear_employee_id?: boolean
+          p_clear_job_title?: boolean
+          p_clear_work_email?: boolean
+          p_clear_work_phone?: boolean
           p_employee_id?: string
           p_hospital: string
+          p_job_title?: string
           p_started_on?: string
           p_user: string
+          p_work_email?: string
+          p_work_phone?: string
         }
         Returns: string
       }
@@ -16633,6 +16799,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_org_affiliation: {
+        Args: { p_organization: string; p_started_on: string; p_user: string }
+        Returns: string
+      }
+      update_org_affiliation_for: {
+        Args: {
+          p_actor: string
+          p_organization: string
+          p_started_on: string
+          p_user: string
+        }
+        Returns: string
+      }
       update_phase_result: {
         Args: {
           p_color_token: string
@@ -17080,9 +17259,25 @@ export type Database = {
           ok: boolean
         }[]
       }
+      void_affiliation: {
+        Args: { p_affiliation: string; p_reason: string }
+        Returns: string
+      }
+      void_affiliation_for: {
+        Args: { p_actor: string; p_affiliation: string; p_reason: string }
+        Returns: string
+      }
       void_decision: {
         Args: { p_decision_id: string; p_reason: string }
         Returns: undefined
+      }
+      void_org_affiliation: {
+        Args: { p_org_affiliation: string; p_reason: string }
+        Returns: string
+      }
+      void_org_affiliation_for: {
+        Args: { p_actor: string; p_org_affiliation: string; p_reason: string }
+        Returns: string
       }
       withdraw_correction: {
         Args: { p_request_id: string }

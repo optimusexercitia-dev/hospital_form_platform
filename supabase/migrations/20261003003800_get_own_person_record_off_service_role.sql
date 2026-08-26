@@ -1,0 +1,25 @@
+-- AFF4 B4 — `get_own_person_record` is taken off `service_role`.
+--
+-- ⚠ WHY THIS IS ITS OWN MIGRATION RATHER THAN A LINE IN 20261003003700. That file had
+-- already been applied when the gap was measured, and an applied migration is never
+-- edited — forward-only, additive, even against a local database and even for one line.
+-- No gate can see an edit to a file that already ran: the catalog would keep matching the
+-- OLD text while the repo showed the new, with nothing able to report the disagreement.
+-- Fixing it forward costs one file and removes the judgment call entirely.
+--
+-- THE GAP. `public.get_own_person_record()` is self-only BY SHAPE — it takes no target
+-- parameter and keys on `auth.uid()`. 3700 granted EXECUTE to `authenticated` and revoked
+-- from PUBLIC, which looked complete. It was not: a new function in `public` inherits this
+-- schema's DEFAULT ACL, which grants `service_role` EXECUTE, and `revoke ... from public`
+-- does not touch a role grant. Measured, not assumed — the ACL read back as
+-- {postgres=X, service_role=X, authenticated=X}.
+--
+-- Calling it as service_role is harmless today: with no JWT `auth.uid()` is null and the
+-- function raises 42501 rather than returning anyone's record. But "self-only" must not
+-- rest on that accident. A service path has no self, so it has no business here, and the
+-- documented contract in `src/lib/queries/own-person.ts` says `authenticated` + postgres
+-- only — which the catalog contradicted until this line.
+--
+-- Proof: supabase/tests/379_org_affiliation_doors.sql §1.5.
+
+revoke execute on function public.get_own_person_record() from service_role;

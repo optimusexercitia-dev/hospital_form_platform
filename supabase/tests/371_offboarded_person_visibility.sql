@@ -10,9 +10,18 @@
 -- affiliation active => 1 profiles row; commission seat ALSO removed => still 1; the
 -- affiliation then ended => 0.
 --
+-- ⚠ CORRECTED AT AFF4 B6a (2026-08-26): the sentence below used to read "it does not filter
+-- on affiliation at all". That is no longer true and the correction matters, because the
+-- claim is what the section rests on. `list_org_people` now filters on the ORG affiliation
+-- (ADR 0151 D10 / ADR 0154). It still does not filter on the HOSPITAL affiliation, which is
+-- the one this suite ends — so the contradiction described here is unchanged in substance:
+-- a person offboarded from a HOSPITAL keeps their ORG affiliation, keeps appearing in the
+-- directory, and §2.2/§2.3 still pin that the detail page can open them. The fixture below
+-- now carries the org affiliations explicitly, and §2.1 says which tense it depends on.
+--
 -- ⭐ THE SHARPEST STATEMENT OF THE DEFECT, and the reason this is a contradiction rather
 -- than merely a tight policy: `public.list_org_people` is SECURITY DEFINER and its gate is
--- ORG-scoped — it does not filter on affiliation at all. So the departed person kept
+-- ORG-scoped — it does not filter on HOSPITAL affiliation. So the departed person kept
 -- appearing in the hospital admin's directory listing (measured: 1) while `profiles`
 -- returned 0. The platform listed a person you could not open. The DEFINER door and the
 -- RLS policy disagreed, and only the door had ever been consulted — this repo's standing
@@ -91,6 +100,26 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
   ('0aff3001-0000-0000-0000-00000000000b', '0aff3001-0000-0000-0000-000000000013', '0aff3001-0000-0000-0000-0000000000a3', 'hospital_admin');
 insert into public.memberships (organization_id, principal_id, role) values
   ('0aff3001-0000-0000-0000-00000000000a', '0aff3001-0000-0000-0000-0000000000d1', 'org_admin');
+
+-- AFF4 (ADR 0151 D10 / D4): the ORG affiliation, which since B6a is what makes a person a
+-- member of the org roster, and which D4 makes a precondition of any hospital affiliation.
+-- ⛔ ALL SEVEN ALFA PEOPLE STAY ACTIVELY ORG-AFFILIATED, INCLUDING `departed`. That is the
+--    point of this suite: they left a HOSPITAL, not the organisation. Ending the org
+--    affiliation here would remove them from the directory for a reason ADR 0148 never
+--    contemplated, and §2 would then pass by measuring the wrong absence.
+-- ⚠ Inserted BEFORE the hospital affiliations below — D4's containment backstop
+--    (`hospital_affiliation_has_org_trg`). It is DEFERRABLE INITIALLY DEFERRED and this
+--    suite rolls back, so the trigger would never fire here either way; the order is
+--    written correctly rather than relying on that.
+insert into public.organization_affiliations (principal_id, organization_id, started_on) values
+  ('0aff3001-0000-0000-0000-0000000000a1', '0aff3001-0000-0000-0000-00000000000a', '2023-01-01'),
+  ('0aff3001-0000-0000-0000-0000000000a2', '0aff3001-0000-0000-0000-00000000000a', '2023-01-01'),
+  ('0aff3001-0000-0000-0000-0000000000d1', '0aff3001-0000-0000-0000-00000000000a', '2023-01-01'),
+  ('0aff3001-0000-0000-0000-0000000000b1', '0aff3001-0000-0000-0000-00000000000a', '2023-01-01'),
+  ('0aff3001-0000-0000-0000-0000000000b2', '0aff3001-0000-0000-0000-00000000000a', '2023-01-01'),
+  ('0aff3001-0000-0000-0000-0000000000b3', '0aff3001-0000-0000-0000-00000000000a', '2023-01-01'),
+  ('0aff3001-0000-0000-0000-0000000000b4', '0aff3001-0000-0000-0000-00000000000a', '2023-01-01'),
+  ('0aff3001-0000-0000-0000-0000000000a3', '0aff3001-0000-0000-0000-00000000000b', '2023-01-01');
 
 -- ⭐ THE SUBJECTS CARRY EXACTLY ONE ROUTE EACH, ON PURPOSE. `departed` holds an ENDED H1
 -- affiliation and NOTHING else — no membership, no second affiliation — so §1 can only

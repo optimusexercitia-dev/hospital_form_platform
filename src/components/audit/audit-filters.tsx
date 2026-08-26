@@ -232,9 +232,12 @@ export function AuditFilters({
         ) : null}
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={fromId}>De</Label>
+          <Label id={`${fromId}-label`} htmlFor={fromId}>
+            De
+          </Label>
           <DatePicker
             id={fromId}
+            labelId={`${fromId}-label`}
             value={from ?? ""}
             onChange={(v) => setParam("from", v)}
             max={to ?? undefined}
@@ -244,9 +247,12 @@ export function AuditFilters({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={toId}>Até</Label>
+          <Label id={`${toId}-label`} htmlFor={toId}>
+            Até
+          </Label>
           <DatePicker
             id={toId}
+            labelId={`${toId}-label`}
             value={to ?? ""}
             onChange={(v) => setParam("to", v)}
             min={from ?? undefined}

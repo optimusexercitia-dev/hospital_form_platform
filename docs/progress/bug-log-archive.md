@@ -3191,3 +3191,111 @@ correct (`get_case_patients` returns literal `null` over PostgREST); the collaps
 layer. ⛔ Breaks ADR 0144 Amdt 2 pt 5's three-answer contract (`null` / `[]` / rows). A false statement
 about a record's contents, to a reader not entitled to know them — backend
 
+
+## Rotated 2026-08-26 — BUG-CASEPHASE-DUEDATE-001 (filed and RESOLVED the same session)
+
+⬛ **BUG-CASEPHASE-DUEDATE-001 — clicking the "Prazo" label CLEARS the phase due date.** Filed and
+fixed 2026-08-26 while measuring the wrapping-`<label>` half of
+`FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME`. **Severity: MAJOR — silent data loss on `main`,
+reachable by an ordinary user doing an ordinary thing.** Filed as its own bug rather than as a line
+inside the a11y follow-up, deliberately: buried under an a11y heading it would be triaged at a11y
+priority, which is the wrong priority for silent data loss.
+
+**Mechanism.** `activate-phase-dialog.tsx` wrapped its due-date field in a native `<label>` that
+contained BOTH a conditional "Remover prazo" `<button>` **and** the `DatePicker` trigger. A
+`<label>`'s control is its **first labelable descendant** — and `<button>` is labelable. "Remover
+prazo" renders before the picker and only while `dueDate` is truthy, so the association FLIPPED with
+the field's own value: empty → the label pointed at the date trigger (correct); filled → it pointed
+at "Remover prazo". Clicking the visible "Prazo (opcional)" text then fired the clear handler.
+Measured directly, not inferred — `label.control` resolved to the "Remover prazo" button, and a
+dispatched click on the label text fired that button's handler.
+
+⭐ **The lasting lesson: a label/control mis-association can be VALUE-DEPENDENT.** The same markup was
+correct while the field was empty and wrong once it had something to lose — so any check that
+exercised only the empty state (which is the state a fresh dialog opens in) would have confirmed the
+association was fine. The bug lived exactly in the state a test is least likely to construct.
+
+⚠ **It was found by measuring something else.** The task was accessible names; this is a functional
+defect that has nothing to do with them except that the accname measurement is what surfaced the
+mis-association. The a11y symptom (`name = "01/03/2023"`, label lost) and the data-loss symptom are
+the same root cause seen from two sides.
+
+**Fix** — un-wrap: the layout `<label>` becomes a `<div>` (same classes, zero visual change) and the
+field's text `<span>` becomes the `<label htmlFor={dueDateId}>`, so the association names the date
+trigger explicitly and cannot be re-stolen by a sibling. Re-measured after the fix: `label.control`
+→ the DatePicker trigger, and clicking the label opens the calendar (the normal behaviour of a label
+bound to a popover trigger) instead of clearing the value.
+
+**Regression test** — `src/components/cases/activate-phase-dialog.test.tsx`, **observed RED on the
+pre-fix code before the fix existed** (3 of 5 red: the date was cleared; the name was `"01/03/2023"`;
+the empty-state name was `"Prazo (opcional) Deixe em branco para remover o prazo."`), green after,
+and re-verified red by restoring the pre-fix file and re-running. ⛔ It carries its own **vacuity
+control** — a separate test pins that jsdom forwards a label click to its control at all, because
+without that the click test would pass identically on a build where the label activates *nothing*,
+which is indistinguishable from "fixed" — frontend
+
+## Rotated 2026-08-26 — BUG-REGWIZARD-NO-ORG-STARTDATE-001, CLOSED
+
+_Closed by `bcf62723` (frontend, AFF4 F4): `RegisterPersonWizard` step 2 gained "Início do vínculo (opcional)", wired through an extracted `buildRegisterUserInput` seam and pinned by a rendered keystone that severs the component→builder hand-off to prove it can fail. ⚠ The row below is the ORIGINAL text, kept verbatim including its two inaccuracies, because it was committed and may have been read: it names Step 1 (the control shipped in step 2), and it says `register-person-flow.tsx` needs mirroring when that path already had the control since AFF2 — only the CREATE path was starved._
+
+🔴 **BUG-REGWIZARD-NO-ORG-STARTDATE-001 — `registerUser`'s org-affiliation start date (D13) has
+NO UI control anywhere; every new registration silently gets `started_on = current_date`.**
+Filed 2026-08-26 (`tester`, AFF4 T5) — contradicts this ticket's own brief, which named this
+path testable. `RegisterUserInput.affiliationStartedOn` (`src/lib/users/actions.ts:105`) is
+wired to `affiliate_person_to_org_for`, but `RegisterPersonWizard`'s 3 steps (the brand-new
+"create" outcome) have no date-of-employment field, and `handleSubmit` never sets the key. Its
+own docstring (lines 53-62) is stale on this too (claims `dateOfBirth`/`phone` are also unbuilt —
+those genuinely are wired). This is Track F's **F4**, recorded HELD — this bug is that hold made
+concrete: never actually built. Distinct cause from BUG-MEUSDADOS-HOSPITAL-NAME-001. Not
+reachable by any Playwright spec (no field to drive); `e2e/aff4-registration-dates.spec.ts`
+covers the two start-date fields that ARE reachable (Nascimento; the pre-existing "Início do
+vínculo" on an existing person's hospital affiliation) and states this gap in its header.
+**Severity:** Major (plan AC5 unmet on the primary registration path). **Owner:** frontend — add
+the field to Step 1, thread into `handleSubmit`, mirroring `register-person-flow.tsx`'s
+existing field.
+
+## ⬛ Rotated from PROGRESS.md 2026-08-26 — BUG-D5-REHIRE-HOSPADMIN-001, ✅ **FIXED** at the AFF4 Record step
+
+✅ **CLOSED 2026-08-26** — fixed in **`89793d43`** (`fix(aff4): the D4 containment backstop runs as
+DEFINER (BUG-D5-REHIRE-HOSPADMIN-001)`), migration `20261003004300`, ruled by ADR
+[0159](../decisions/0159-invariant-backstops-run-as-definer.md), pinned by pgTAP `381`
+(`plan(12)`). `app.assert_hospital_affiliation_has_org` is now **SECURITY DEFINER**: it enforces a
+**data invariant**, not an authorization decision — it reads no caller identity (no `auth.uid()`, no
+`app.has_role`, no `app.active_role()`), so DEFINER grants nobody anything.
+
+⭐ **The closure evidence is the instrument flipping, not a green run.** The bug row was filed with a
+pinned `test.fail` in `e2e/aff4-hospital-admin-rehire.spec.ts` and **unweakened** assertions,
+precisely so the annotation would self-report *"unexpectedly passing"* the moment the fix landed.
+Measured at the Record step: **the spec carries no active `test.fail()` call any more**, and the
+file records the fix by commit at `:161`. The full `e2e:prod` gate then ran **GREEN, exit 0** with
+that spec inside its domain.
+
+⚠ **Rotated by the Record step, not by the ruling that opened it.** PROGRESS.md still carried this
+row as 🔴 OPEN with *"fix in flight"*, and § Now still listed it under **REMAINS** — both were
+already false when the Record step measured them. ⛔ The lesson is the ordinary one and it keeps
+recurring: *a status line describes the moment it was written, and nothing in it can notice the fix
+that landed afterwards.*
+
+⭐⭐ **The finding worth keeping is not the bug, it is the SHAPE:** *two individually-correct
+decisions composing into a break* — ADR 0151 D1's deliberate absence of a hospital tier on
+`organization_affiliations`, and a backstop that reads under **caller** RLS. Neither is wrong alone,
+**and no test that varies only the STATE can see it** — which is why ADR 0159 D4 now requires an
+invariant assertion to vary the **ACTOR**, not only the state.
+
+↩ **Original row, VERBATIM** (links repointed for this directory):
+
+🔴 **BUG-D5-REHIRE-HOSPADMIN-001 — the D5 one-step rehire fails for EVERY `hospital_admin`,
+unconditionally, and it is an AFF4 REGRESSION.** Filed 2026-08-26 (`tester`, writing AC3's missing
+witness; root-caused against the live catalog). **Mechanism:** `app.assert_hospital_affiliation_has_org`
+— the D4 containment backstop installed by **`f3302605` in this build** — is **SECURITY INVOKER**
+(`prosecdef = f`, measured), so its `EXISTS` against `organization_affiliations` runs under the
+**calling** hospital_admin's RLS, and that table has **no hospital tier by design** (ADR 0151 D1).
+`affiliate_person_impl` (DEFINER) correctly writes the new active org row, but the trigger **cannot
+see the row just written**, raises a false-positive `23514`, and the whole transaction rolls back.
+Reproduced through the real UI and a raw RPC alike; full evidence chain in the spec header.
+⭐ **Two individually-correct decisions composing into a break** — D1's deliberate absence of a
+hospital tier, and a backstop reading under caller RLS. ⛔ **Fails CLOSED** — no data-leakage risk.
+**Severity:** Major/blocking — AC3 is not merely unasserted, it is unmet for the actor it names.
+**Owner:** backend (fix in flight: mark the trigger `SECURITY DEFINER` — it enforces a data
+invariant and reads no caller identity). ⚠ Pinned `test.fail` in `e2e/aff4-hospital-admin-rehire.spec.ts`
+with unweakened assertions, so the annotation self-flips to "unexpectedly passing" on the fix.

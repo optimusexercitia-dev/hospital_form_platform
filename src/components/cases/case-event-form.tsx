@@ -66,6 +66,7 @@ export function CaseEventForm({
   >(action, undefined);
   const router = useRouter();
 
+  const occurredAtId = useId();
   const visibilityId = useId();
   const visibilityHintId = useId();
 
@@ -218,18 +219,24 @@ export function CaseEventForm({
           </Field>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">
+            <div className="flex flex-col gap-1.5 text-sm">
+              <label
+                id={`${occurredAtId}-label`}
+                htmlFor={occurredAtId}
+                className="font-medium"
+              >
                 Data{" "}
                 <span className="font-normal text-muted-foreground">
                   (opcional)
                 </span>
-              </span>
+              </label>
               <DatePicker
+                id={occurredAtId}
+                labelId={`${occurredAtId}-label`}
                 name="occurredAt"
                 defaultValue={event?.occurredAt ?? ""}
               />
-            </label>
+            </div>
 
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">

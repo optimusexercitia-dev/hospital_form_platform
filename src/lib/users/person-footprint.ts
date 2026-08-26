@@ -3,6 +3,7 @@ import 'server-only'
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+import { maskCpf } from './cpf'
 import { personScopeAllows, type PersonFootprint } from './person-scope'
 
 /**
@@ -73,14 +74,19 @@ export async function resolvePersonFootprint(
 ): Promise<PersonFootprint> {
   const admin = createAdminClient()
 
-  const { data: affiliations } = await admin
+  const { data: affiliations, error: affiliationsError } = await admin
     .from('hospital_affiliations')
     .select('hospital_id')
     .eq('principal_id', userId)
     .is('ended_on', null)
+    // AFF4 (ADR 0151 D7). A VOIDED row says the employment was never true, so it must not
+    // contribute a hospital to a footprint that feeds WRITE authority. Omitting this is
+    // AFF2 R1's exact shape one tense over: a row that no longer grants read access still
+    // granting person-level write authority.
+    .is('voided_at', null)
     .returns<{ hospital_id: string | null }[]>()
 
-  const { data: memberships } = await admin
+  const { data: memberships, error: membershipsError } = await admin
     .from('memberships')
     .select('commission_id, hospital_id, expires_at, commissions:commission_id(hospital_id)')
     .eq('principal_id', userId)
@@ -92,6 +98,38 @@ export async function resolvePersonFootprint(
         commissions: { hospital_id: string | null } | null
       }[]
     >()
+
+  // ⛔ BUG-AUTHZ-FOOTPRINT-ASYMMETRIC-READ-LIFTS-THE-D2-LOCK. Pre-existing since ADR 0133
+  // (AFF2); NOT introduced by AFF4.
+  //
+  // Both reads dropped `error` and consumed `?? []`. The TOTAL failure was already safe —
+  // `personScopeAllows` denies an empty footprint explicitly, and its comment names the
+  // vacuous-subset inversion — so this looked closed. It was not, because the ASYMMETRIC
+  // failure is a different bug:
+  //
+  //   memberships errors, affiliations succeeds
+  //     -> hospitalIds is NON-EMPTY, so it sails past that empty-footprint guard
+  //     -> hasNonCommissionTierMembership is FALSE when it should be TRUE
+  //     -> the D2 lock ("any org-tier or hospital-tier seat makes this person
+  //        org_admin-only for EVERY capability") silently lifts
+  //     -> a hospital_admin administering all of the target's affiliation hospitals now
+  //        satisfies the SUBSET bound and gains `lifecycle` OVER AN ORG ADMIN.
+  //
+  // ⚠ AND THE PROBABILITIES RUN THE WRONG WAY. The memberships read joins `commissions`,
+  // so it is the HEAVIER query and the more likely to time out under pool pressure — the
+  // failure that removes the lock is the MORE probable one, not the less. That inverts the
+  // usual "requires an unlikely error" discount.
+  //
+  // Throwing is the only correct answer. Returning an empty footprint on error would be a
+  // silent DENY that locks admins out of legitimate work; carrying on is a silent GRANT.
+  // Silence in either direction is the defect. Keystone: `person-footprint-reads.test.ts`.
+  if (affiliationsError || membershipsError) {
+    const which = affiliationsError ? 'hospital_affiliations' : 'memberships'
+    const detail = (affiliationsError ?? membershipsError)?.message ?? 'unknown'
+    throw new Error(
+      `resolvePersonFootprint: ${which} read failed (${detail}) — refusing to derive person-scope authority from a partial footprint`,
+    )
+  }
 
   const hospitalIds: string[] = []
   for (const a of affiliations ?? []) {
@@ -133,6 +171,182 @@ export async function resolvePersonFootprint(
   }
 
   return { hospitalIds, hasNonCommissionTierMembership }
+}
+
+/**
+ * One active tie holding a person to the platform — the *reason* a footprint is not
+ * empty, so the offboarding wizard can say what still holds them instead of silently
+ * declining to offer the final step.
+ */
+export interface PlatformFootprintTie {
+  kind: 'org_affiliation' | 'hospital_affiliation' | 'membership'
+  organizationId: string | null
+  hospitalId: string | null
+  commissionId: string | null
+  /** Seat role for a `membership` tie; null for the two affiliation kinds. */
+  role: string | null
+}
+
+/**
+ * "Does this person still hold anything, ANYWHERE on the platform?" (ADR 0151 D12.)
+ */
+export interface PlatformFootprint {
+  /** True iff {@link ties} is empty. Precomputed so no caller re-derives the rule. */
+  isEmpty: boolean
+  ties: PlatformFootprintTie[]
+}
+
+/**
+ * The D12 deactivation-offer signal: may the offboarding wizard OFFER account
+ * deactivation as an optional final step?
+ *
+ * ⛔ THIS ANSWERS A DIFFERENT QUESTION FROM {@link resolvePersonFootprint}, and the two
+ * must not be collapsed. That one answers "which hospitals bound person-level WRITE
+ * authority over this person" (AFF2's INTERSECTION/SUBSET); this one answers "is this
+ * person still tied to anything at all". They differ in ways that make substitution a
+ * live bug, not a style choice:
+ *   - `PersonFootprint.hospitalIds` is EMPTY for someone whose only seat is org-tier or
+ *     hospital-tier — those rows raise `hasNonCommissionTierMembership` and contribute no
+ *     hospital. Reading `hospitalIds.length === 0` as "nothing holds them" would offer to
+ *     deactivate a sitting org admin.
+ *   - That resolver deliberately IGNORES expiry when setting the tier flag (narrowing is
+ *     safe, widening is not). Here expiry MUST apply per D6, or an expired seat blocks
+ *     offboarding forever and the offer is never reached.
+ *
+ * ⚠ PLATFORM-WIDE, AND THAT IS THE WHOLE POINT. Read on the SERVICE-ROLE client, exactly
+ * as {@link resolvePersonFootprint} is and for the same reason: an RLS-scoped read returns
+ * the caller's slice, so a person with live ties in an organization the caller does not
+ * administer would come back EMPTY — and the caller has no way to notice. Deactivation is
+ * the platform-wide kill switch (ADR 0048 D4), so a false "empty" disables an account that
+ * is still active somewhere invisible. ⛔ Never reimplement this over `getOrgUser`'s
+ * `affiliations`/`committees`, which ARE RLS-scoped.
+ *
+ * ⚠ "Active" is D6, once: affiliations `ended_on IS NULL AND voided_at IS NULL`;
+ * memberships `expires_at IS NULL OR expires_at > now()`. The voided exclusion is
+ * load-bearing here — a voided row keeping a footprint non-empty means offboarding can
+ * never reach the offer.
+ *
+ * ⚠ This module must NEVER gain `'use server'` (see the file header): that would turn the
+ * footprint resolver into a client-callable authority oracle. Call it from a Server
+ * Component and pass the result down as props, the way {@link getPersonAdminView} is used.
+ *
+ * ⚠ NOT AN AUTHORIZATION CHECK. An empty footprint means deactivation may be OFFERED, not
+ * that this caller may perform it — D12 keeps the step optional and refusable, and the
+ * lifecycle SUBSET bound still applies at the door.
+ */
+export async function resolvePlatformFootprint(
+  userId: string,
+): Promise<PlatformFootprint> {
+  const admin = createAdminClient()
+
+  const [orgAffiliations, hospAffiliations, memberships] = await Promise.all([
+    admin
+      .from('organization_affiliations')
+      .select('organization_id')
+      .eq('principal_id', userId)
+      .is('ended_on', null)
+      .is('voided_at', null)
+      .returns<{ organization_id: string | null }[]>(),
+    admin
+      .from('hospital_affiliations')
+      .select('organization_id, hospital_id')
+      .eq('principal_id', userId)
+      .is('ended_on', null)
+      .is('voided_at', null)
+      .returns<{ organization_id: string | null; hospital_id: string | null }[]>(),
+    admin
+      .from('memberships')
+      .select('organization_id, hospital_id, commission_id, role, expires_at')
+      .eq('principal_id', userId)
+      .returns<
+        {
+          organization_id: string | null
+          hospital_id: string | null
+          commission_id: string | null
+          role: string | null
+          expires_at: string | null
+        }[]
+      >(),
+  ])
+
+  // ⛔ FAIL CLOSED. THIS IS THE WHOLE SAFETY ARGUMENT OF THIS FUNCTION, and it is the one
+  // property that cannot be recovered downstream.
+  //
+  // Every read below feeds a single boolean, `isEmpty`, whose TRUE branch offers to
+  // DEACTIVATE AN ACCOUNT — the platform-wide kill switch (ADR 0048 D4). A dropped error
+  // makes `data` null; `?? []` would turn that into "no ties found"; and "no ties found"
+  // is indistinguishable from "this person holds nothing". A transient PostgREST failure
+  // would therefore offer to disable an account with a full live footprint, silently, with
+  // nothing anywhere reporting a problem. An absent answer must never be reported as an
+  // empty one.
+  //
+  // ⚠ THE ASYMMETRIC FAILURE IS THE DANGEROUS ONE, not the total failure. If ONE read
+  // errors and the others succeed, the surviving ties look like the whole truth — which is
+  // exactly the state that reads most like a correct answer. Hence all three are checked,
+  // individually, before any of them is consumed.
+  //
+  // A throw is correct here rather than a degraded return: the action layer maps it to a
+  // pt-BR message (CLAUDE.md §8) and the wizard step surfaces "could not determine", which
+  // is the honest answer. ⛔ Do not reintroduce `?? []` on these reads, and do not "make it
+  // resilient" by catching this throw at the call site — a caught error renders as an empty
+  // footprint again, one layer up. Keystone: `person-footprint.test.ts`.
+  for (const [label, result] of [
+    ['organization_affiliations', orgAffiliations],
+    ['hospital_affiliations', hospAffiliations],
+    ['memberships', memberships],
+  ] as const) {
+    if (result.error) {
+      throw new Error(
+        `resolvePlatformFootprint: ${label} read failed (${result.error.message}) — refusing to report an undetermined footprint as empty`,
+      )
+    }
+  }
+
+  const ties: PlatformFootprintTie[] = []
+
+  for (const a of orgAffiliations.data ?? []) {
+    ties.push({
+      kind: 'org_affiliation',
+      organizationId: a.organization_id,
+      hospitalId: null,
+      commissionId: null,
+      role: null,
+    })
+  }
+
+  for (const a of hospAffiliations.data ?? []) {
+    ties.push({
+      kind: 'hospital_affiliation',
+      organizationId: a.organization_id,
+      hospitalId: a.hospital_id,
+      commissionId: null,
+      role: null,
+    })
+  }
+
+  // ⚠ EVERY TIER COUNTS HERE, unlike `resolvePersonFootprint` above, which pushes a
+  // hospital only for commission-tier rows. An org-tier seat holds a person to the
+  // platform just as firmly as a commission seat does — treating it as "no footprint"
+  // is what would offer to deactivate a sitting org admin.
+  //
+  // ⚠ Expiry filtered in TS rather than in the query, for the reason recorded on the
+  // resolver above: `.or('expires_at.is.null,expires_at.gt.…')` is a string PostgREST
+  // evaluates, so no unit test could observe it. Semantics match `app.has_role` and D6:
+  // null expiry, or strictly in the future.
+  const nowMs = Date.now()
+  for (const m of memberships.data ?? []) {
+    const expiresAt = m.expires_at
+    if (expiresAt !== null && new Date(expiresAt).getTime() <= nowMs) continue
+    ties.push({
+      kind: 'membership',
+      organizationId: m.organization_id,
+      hospitalId: m.hospital_id,
+      commissionId: m.commission_id,
+      role: m.role,
+    })
+  }
+
+  return { isEmpty: ties.length === 0, ties }
 }
 
 /**
@@ -196,22 +410,6 @@ export interface PersonAdminAuthority {
  * under either answer, exactly as `updateUserProfile` normalises both sides of its
  * comparison rather than trusting the stored shape.
  */
-function maskCpf(raw: string | null): string | null {
-  if (!raw) return null
-  const digits = raw.replace(/\D/g, '')
-  if (digits.length !== 11) return null
-  const bullet = '•'
-  return (
-    digits.slice(0, 3) +
-    '.' +
-    bullet.repeat(3) +
-    '.' +
-    bullet +
-    digits.slice(7, 9) +
-    '-' +
-    digits.slice(9, 11)
-  )
-}
 
 /** The column-locked rail values (ADR 0133 D9/D10/D12, D12 amended by ADR 0147). */
 export interface PersonPersonalData {

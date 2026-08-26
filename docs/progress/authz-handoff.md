@@ -1,5 +1,18 @@
 # Session Handoff — Authorization Capability Model (ADR 0078)
 
+> **⛔ NOT ephemeral resume-state — DO NOT SWEEP.** This is a **durable reference
+> document**: 28 inbound links, and CLAUDE.md §5 makes its §7 mandatory reading before
+> any authorization, RLS, or security-test work. Its name predates the handoff
+> convention ([.claude/skills/handoff/SKILL.md](../../.claude/skills/handoff/SKILL.md)),
+> under which ephemeral resume-state lives in `docs/handoffs/`, may not be cited, and is
+> deleted at its branch's Record step — none of which applies to this file.
+>
+> ⚠ **The resume-state header immediately below is HISTORICAL.** Branch
+> `feat/authorization-capability-model` no longer exists (measured 2026-08-26), so
+> "Read this first when resuming AUTHZ" names a resume that can no longer happen, and
+> "Gate-2 commits unpushed" is long false. Read this file for its **§7 lessons**, never
+> for its state. Classified 2026-08-26.
+
 **Last updated:** 2026-07-17 · **Branch:** `feat/authorization-capability-model`
 (**local ahead of origin** — Gate-2 commits unpushed) · **Author:** lead session.
 

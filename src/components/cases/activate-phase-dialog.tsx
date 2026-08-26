@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarOff } from "lucide-react";
 
@@ -81,6 +81,12 @@ export function ActivatePhaseDialog({
    */
   currentDueDate?: string | null;
 }) {
+  // ⛔ The due-date field is a <div>, NOT a wrapping <label>, and that is
+  // load-bearing. A <label>'s control is its FIRST labelable descendant, and the
+  // "Remover prazo" button below renders before the picker whenever a date is
+  // set — so wrapping made clicking the "Prazo" text activate "Remover prazo"
+  // and silently clear the user's date (BUG-CASEPHASE-DUEDATE-001).
+  const dueDateId = useId();
   const action = mode === "activate" ? activatePhase : reassignPhase;
   const fieldName = mode === "activate" ? "assignedTo" : "newAssignee";
   const [state, formAction, isPending] = useActionState<
@@ -172,14 +178,18 @@ export function ActivatePhaseDialog({
             )}
           </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
+          <div className="flex flex-col gap-1.5 text-sm">
             <span className="flex items-center justify-between gap-2">
-              <span className="font-medium">
+              <label
+                id={`${dueDateId}-label`}
+                htmlFor={dueDateId}
+                className="font-medium"
+              >
                 Prazo{" "}
                 <span className="font-normal text-muted-foreground">
                   (opcional)
                 </span>
-              </span>
+              </label>
               {dueDate && (
                 <button
                   type="button"
@@ -192,14 +202,20 @@ export function ActivatePhaseDialog({
               )}
             </span>
             <DatePicker
+              id={dueDateId}
+              labelId={`${dueDateId}-label`}
+              aria-describedby={`${dueDateId}-hint`}
               name="dueDate"
               value={dueDate}
               onChange={setDueDate}
             />
-            <span className="text-xs text-muted-foreground">
+            <span
+              id={`${dueDateId}-hint`}
+              className="text-xs text-muted-foreground"
+            >
               {dueDateHint}
             </span>
-          </label>
+          </div>
 
           <DialogFooter>
             <Button

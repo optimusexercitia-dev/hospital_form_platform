@@ -64,19 +64,23 @@ select is(
   '1.1 the actor KERNELS are executable by neither authenticated nor service_role — p_actor cannot be forged');
 
 select ok(
-  not has_function_privilege('authenticated', 'public.affiliate_person_for(uuid,uuid,uuid,text,date)', 'EXECUTE')
+  not has_function_privilege('authenticated', 'public.affiliate_person_for(uuid,uuid,uuid,text,date,text,text,text)', 'EXECUTE')
   and not has_function_privilege('authenticated', 'public.end_affiliation_for(uuid,uuid,uuid,date)', 'EXECUTE'),
   '1.2 the _for twins are NOT executable by authenticated — naming the actor is a service-role privilege');
 
 select ok(
-  has_function_privilege('service_role', 'public.affiliate_person_for(uuid,uuid,uuid,text,date)', 'EXECUTE')
+  has_function_privilege('service_role', 'public.affiliate_person_for(uuid,uuid,uuid,text,date,text,text,text)', 'EXECUTE')
   and has_function_privilege('service_role', 'public.end_affiliation_for(uuid,uuid,uuid,date)', 'EXECUTE'),
   '1.3 TWIN: service_role CAN execute them (1.2 is a split, not a blanket revoke)');
 
 select ok(
-  has_function_privilege('authenticated', 'public.affiliate_person(uuid,uuid,text,date)', 'EXECUTE')
+  has_function_privilege('authenticated', 'public.affiliate_person(uuid,uuid,text,date,text,text,text)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.end_affiliation(uuid,uuid,date)', 'EXECUTE')
-  and has_function_privilege('authenticated', 'public.list_org_people(uuid,text,text)', 'EXECUTE'),
+  -- AFF4 B6a: the arity gained `p_include_ended boolean`. This string is the executable
+  -- half of FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE — a stale one aborts this
+  -- whole suite as a bare "Bad plan" naming no function. `361` §1.2 is the detector that
+  -- points here.
+  and has_function_privilege('authenticated', 'public.list_org_people(uuid,text,text,boolean)', 'EXECUTE'),
   '1.4 the interactive doors ARE executable by authenticated');
 
 -- The standing t19 trap: a new public.* RPC that keeps PUBLIC's default EXECUTE leaks
@@ -283,7 +287,12 @@ select is(
   '4.4 NON-VACUITY: that same person IS readable by the org_admin — 4.3 is a leg boundary, not an invisible row');
 reset role;
 
-select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b2', false);
+-- ⚠ `active_role` PASSED EXPLICITLY. `claims_for`'s two-argument form derives the claim
+-- ONLY for a persona with exactly ONE live role; `orgadmin.b` holds org_admin AND a
+-- staff_admin seat, so it set NO claim and `app.is_org_admin_of` returned false. This
+-- cross-org DENY then passed because he had assumed no role at all, not because the org
+-- anchor held — a tenant-isolation assertion proving nothing.
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b2', false, 'org_admin');
 set local role authenticated;
 select is(
   (select count(*)::int from public.profiles where id = (select seatless from k)), 0,
@@ -336,7 +345,12 @@ select is(
   '5.4 DENY: a plain commission member gets EMPTY');
 reset role;
 
-select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b2', false);
+-- ⚠ `active_role` PASSED EXPLICITLY. `claims_for`'s two-argument form derives the claim
+-- ONLY for a persona with exactly ONE live role; `orgadmin.b` holds org_admin AND a
+-- staff_admin seat, so it set NO claim and `app.is_org_admin_of` returned false. This
+-- cross-org DENY then passed because he had assumed no role at all, not because the org
+-- anchor held — a tenant-isolation assertion proving nothing.
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b2', false, 'org_admin');
 set local role authenticated;
 select is(
   (select count(*)::int from public.list_org_people((select org_a from k))), 0,

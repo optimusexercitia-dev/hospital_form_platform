@@ -14,6 +14,8 @@ import { UserDirectorySearch } from "@/components/users/user-directory-search";
 import { UserDirectoryList } from "@/components/users/user-directory-list";
 import { parseUserDirectoryStatusFilter } from "@/lib/users/types";
 import { UserDirectoryStatusPills } from "@/components/users/user-directory-status-pills";
+import { UserDirectoryEndedToggle } from "@/components/users/user-directory-ended-toggle";
+import { parseIncludeEnded } from "@/components/users/user-directory-ended-filter";
 import { UserPagination } from "@/components/users/user-pagination";
 
 export const metadata: Metadata = {
@@ -56,6 +58,36 @@ const PAGE_SIZE = 20;
  * dropped row. It is passed only on the org_admin arm — `listHospitalUsers` is
  * hospital-scoped by construction, and a second expression of one scope is how the two
  * come to disagree.
+ *
+ * ⛔ AFF4 F6 — `?includeEnded=` IS THE ONE WIDENER ON THIS PAGE, AND IT IS ORG-ONLY.
+ * PO-ruled 2026-08-26. The default roster is people holding an ACTIVE org affiliation
+ * (B6b); the toggle admits the ended ones. It is parsed ONLY for an org_admin and the
+ * control renders ONLY for an org_admin — absent, never present-and-inert — because a
+ * `hospital_admin` cannot read `organization_affiliations` at all (ADR 0151 D1; pgTAP
+ * `375` §4.1 pins that absence deliberately; measured 2026-08-26: 1 row, their own,
+ * against an org_admin's 29). Filtering that roster on the table would blank the page for
+ * the only role it serves, and a control that silently does nothing is worse than a
+ * missing one — it asserts a filter is being applied.
+ *
+ * ⚠ THE TOGGLE AND THE CHIP ARE A PAIR, and neither is complete alone. Widening the
+ * roster without marking who was brought in lists departed people indistinguishably from
+ * current ones; the chip is what makes the widening legible. `OrgUserListItem` carries
+ * `orgAffiliationStatus` (B6b) and `UserDirectoryList` renders it through the shared
+ * `AffiliationStatusBadge`.
+ *
+ * ⛔ NEVER DERIVE THE TENSE FROM `OrgUserListItem.status`. That field is the ACCOUNT
+ * lifecycle (`deriveUserStatus` over `is_active` / `suspended_until` /
+ * `email_confirmed_at`); the tense is an ORG-AFFILIATION fact from a different table with
+ * a different visibility. Conflating them renders a deactivated-but-still-affiliated
+ * person as departed, and a departed-but-active-account person as present.
+ *
+ * ⛔ A `null` TENSE FROM THE ORG ARM IS A FINDING, NOT A CASE TO HANDLE. `listOrgUsers`
+ * cannot return one — its roster predicate IS an org affiliation, so a row without one
+ * cannot appear — and `listHospitalUsers` always returns null because it never reads
+ * `organization_affiliations` at all. Both directions are pinned in
+ * `src/lib/queries/org-roster-predicate.test.ts`. Do not add a fallback here that quietly
+ * absorbs a null: it would review as defensive and would silently stop the chip
+ * appearing, with nothing able to say why.
  */
 export default async function OrgUsersPage({
   params,
@@ -67,6 +99,7 @@ export default async function OrgUsersPage({
     page?: string;
     hospital?: string;
     status?: string;
+    includeEnded?: string;
   }>;
 }) {
   const [{ org }, context, sp] = await Promise.all([
@@ -97,6 +130,11 @@ export default async function OrgUsersPage({
 
   const search = sp.search?.trim() ?? "";
   const statusFilter = parseUserDirectoryStatusFilter(sp.status);
+  // ⛔ THE ORG-ONLY RULE LIVES HERE, ONCE. Gating the PARSE (rather than only the
+  // control) is what makes a hand-typed `?includeEnded=1` inert for a hospital_admin
+  // instead of half-honoured, and it means the value handed to `options` below is already
+  // correct for both arms — so no call site has to restate the condition.
+  const includeEnded = isOrgAdmin && parseIncludeEnded(sp.includeEnded);
   const pageNum = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
   // An org_admin's hospital is an OPTIONAL FILTER — `null` legitimately means "todos".
   // A hospital_admin MUST have one selected (defaults to the first): there is no
@@ -116,6 +154,11 @@ export default async function OrgUsersPage({
     // passing it there would be a second, weaker expression of the same scope — and
     // two expressions of one scope is how they come to disagree.
     hospital: isOrgAdmin ? selectedHospitalId : undefined,
+    // AFF4 F6 — THE WIDENING, SPELLED OUT AT THE CALL SITE rather than defaulted inside
+    // the query. `ListDirectoryOptions.includeEnded` defaults to false at the data-access
+    // boundary on purpose: the safe set is the default and every widener is visible where
+    // it is chosen. This is that one place on this page.
+    includeEnded,
   };
   const { rows, total, statusCounts } = isOrgAdmin
     ? await listOrgUsers(organization.id, options)
@@ -166,6 +209,12 @@ export default async function OrgUsersPage({
         />
 
         <div className="flex flex-1 flex-wrap items-center justify-end gap-2 sm:flex-none">
+          {/* ⛔ ABSENT, not hidden and not disabled, for a hospital_admin — see the
+              `?includeEnded=` note in this page's header. `isOrgAdmin` is the ONLY gate;
+              the component takes no `scope` prop so the choice cannot be made twice. */}
+          {isOrgAdmin ? (
+            <UserDirectoryEndedToggle includeEnded={includeEnded} />
+          ) : null}
           <UserDirectorySearch initialSearch={search} />
           {hospitals.length > 1 ? (
             <HospitalSwitcher

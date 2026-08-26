@@ -486,8 +486,11 @@ Single-test debug loops: `npx vitest run <file>` / `-t "<name>"`; `npx playwrigh
 (commissions CCIH + Farmácia) and **Rede B** (cross-org boundary). Password for ALL:
 `Test1234!`. Key personas (full roster in the seed header): `platform@test.local`
 (`platform_admin`), `orgadmin.a@test.local` (`org_admin` A), `chefe.ccih@test.local`
-(`staff_admin` A / CCIH), `multi@test.local` (`staff` of A **and** B — commission
-picker), `nsporg.a@test.local` (`nsp_org_admin` A).
+(`staff_admin` A / CCIH), `multi@test.local` (`staff` of **two commissions, both in
+Rede A** — commission picker), `nsporg.a@test.local` (`nsp_org_admin` A).
+⛔ **NO seeded persona holds a membership or affiliation outside its home org** — there is
+**no cross-org persona**, so a cross-org test written against `multi@test.local` passes
+while proving nothing. Measured 2026-08-26 (this line read *"of A **and** B"*).
 
 ## Loop Safety Rules
 
