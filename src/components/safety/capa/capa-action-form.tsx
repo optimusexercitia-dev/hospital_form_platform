@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -72,6 +72,7 @@ export function CapaActionForm({
   const [title, setTitle] = useState(action?.title ?? "");
   const [owner, setOwner] = useState(action?.owner ?? "");
   const [assigneeUserId, setAssigneeUserId] = useState(action?.assigneeUserId ?? "");
+  const dueDateId = useId();
   const [dueDate, setDueDate] = useState(action?.dueDate ?? "");
   const [strength, setStrength] = useState<CapaActionStrength>(
     action?.actionStrength ?? "intermediaria",
@@ -200,13 +201,21 @@ export function CapaActionForm({
                 placeholder="Ex.: Dra. Okafor"
               />
             </label>
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">Prazo</span>
+            <div className="flex flex-col gap-1.5 text-sm">
+              <label
+                id={`${dueDateId}-label`}
+                htmlFor={dueDateId}
+                className="font-medium"
+              >
+                Prazo
+              </label>
               <DatePicker
+                id={dueDateId}
+                labelId={`${dueDateId}-label`}
                 value={dueDate}
                 onChange={setDueDate}
               />
-            </label>
+            </div>
           </div>
 
           <label className="flex flex-col gap-1.5 text-sm">

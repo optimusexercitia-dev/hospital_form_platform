@@ -33,6 +33,8 @@ export interface DateTimePickerProps {
   clearable?: boolean;
   placeholder?: string; // passed to DatePicker trigger
   id?: string; // wired to the DatePicker trigger (for label htmlFor)
+  /** Forwarded to the internal DatePicker — see DatePickerProps.labelId. */
+  labelId?: string;
   className?: string;
   "aria-invalid"?: boolean | "true" | "false";
 }
@@ -57,6 +59,7 @@ export function DateTimePicker({
   clearable = false,
   placeholder = "Selecionar data e hora",
   id,
+  labelId,
   className,
   "aria-invalid": ariaInvalid,
 }: DateTimePickerProps) {
@@ -104,6 +107,7 @@ export function DateTimePicker({
         <div className="min-w-0 flex-[3]">
           <DatePicker
             id={id}
+            labelId={labelId}
             value={currentDate}
             onChange={handleDateChange}
             disabled={disabled}

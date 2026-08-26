@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Paperclip, Upload } from "lucide-react";
 
@@ -153,6 +153,7 @@ function UploadDialog({
   const levels = confidentialityOptionsForHome(homeType);
   const kinds = kindOptionsForHome(homeType);
 
+  const occurredOnId = useId();
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<{ file?: string; title?: string }>({});
   const [banner, setBanner] = useState<string | null>(null);
@@ -414,16 +415,29 @@ function UploadDialog({
             />
           </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">
+          <div className="flex flex-col gap-1.5 text-sm">
+            <label
+              id={`${occurredOnId}-label`}
+              htmlFor={occurredOnId}
+              className="font-medium"
+            >
               Data do documento{" "}
               <span className="font-normal text-muted-foreground">(opcional)</span>
-            </span>
-            <DatePicker name="occurredOn" disabled={isLocked} />
-            <span className="text-xs text-muted-foreground">
+            </label>
+            <DatePicker
+              id={occurredOnId}
+              labelId={`${occurredOnId}-label`}
+              aria-describedby={`${occurredOnId}-hint`}
+              name="occurredOn"
+              disabled={isLocked}
+            />
+            <span
+              id={`${occurredOnId}-hint`}
+              className="text-xs text-muted-foreground"
+            >
               Data real do documento, se diferente da data de envio.
             </span>
-          </label>
+          </div>
 
           <div className="flex flex-col gap-1.5 text-sm">
             <label htmlFor="document-confidentiality" className="font-medium">

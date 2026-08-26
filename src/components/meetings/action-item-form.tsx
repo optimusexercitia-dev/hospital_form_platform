@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Lock } from "lucide-react";
 
@@ -104,6 +104,7 @@ export function ActionItemForm({
   const [title, setTitle] = useState(item?.title ?? "");
   const [description, setDescription] = useState(item?.description ?? "");
   const [assignedTo, setAssignedTo] = useState(item?.assignedTo ?? "");
+  const dueDateId = useId();
   const [dueDate, setDueDate] = useState(item?.dueDate ?? "");
   const [sourceAgendaItemId, setSourceAgendaItemId] = useState(
     item?.sourceAgendaItemId ?? "",
@@ -277,15 +278,24 @@ export function ActionItemForm({
               </NativeSelect>
             </label>
 
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">
+            <div className="flex flex-col gap-1.5 text-sm">
+              <label
+                id={`${dueDateId}-label`}
+                htmlFor={dueDateId}
+                className="font-medium"
+              >
                 Prazo{" "}
                 <span className="font-normal text-muted-foreground">
                   (opcional)
                 </span>
-              </span>
-              <DatePicker value={dueDate} onChange={setDueDate} />
-            </label>
+              </label>
+              <DatePicker
+                id={dueDateId}
+                labelId={`${dueDateId}-label`}
+                value={dueDate}
+                onChange={setDueDate}
+              />
+            </div>
           </div>
 
           {ordered.length > 0 && (

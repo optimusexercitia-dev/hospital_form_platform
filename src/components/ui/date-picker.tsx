@@ -45,6 +45,21 @@ export interface DatePickerProps {
   clearable?: boolean;
   placeholder?: string;
   id?: string;
+  /**
+   * The `id` of an external `<Label>`/`<FieldLabel>` associated to this control
+   * via `htmlFor`. When set, the trigger button's accessible name is built from
+   * `aria-labelledby="{labelId} {buttonId}"` — the label's text PLUS the
+   * button's own displayed value (formatted date or placeholder).
+   *
+   * ⚠ REQUIRED to fix FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME. Without
+   * it, a `<label for={id}>` association still wins the accessible-name
+   * computation on its own (`relatedElement:labelfor` outranks `contents:`),
+   * which announces the label text only and silently drops the selected date —
+   * measured via Chromium CDP name-sources. Omit only for a site with no
+   * external label (an `aria-label` is already load-bearing there, or the
+   * caller has its own labelling strategy).
+   */
+  labelId?: string;
   className?: string;
   "aria-invalid"?: boolean | "true" | "false";
   "aria-describedby"?: string;
@@ -71,12 +86,19 @@ export function DatePicker({
   clearable = false,
   placeholder = "Selecionar data",
   id,
+  labelId,
   className,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
   "aria-label": ariaLabel,
 }: DatePickerProps) {
   const isControlled = onChange !== undefined || value !== undefined;
+
+  // The button needs a REAL id for the `aria-labelledby` self-reference below —
+  // most call sites already pass one (for `htmlFor`), but some don't. `useId()`
+  // backfills it rather than leaving the self-reference pointing at nothing.
+  const generatedId = React.useId();
+  const buttonId = id ?? generatedId;
 
   // Internal Date state — only managed in uncontrolled mode.
   // In controlled mode we derive the selected date directly from the `value` prop.
@@ -142,10 +164,11 @@ export function DatePicker({
         <PopoverTrigger asChild>
           <button
             type="button"
-            id={id}
+            id={buttonId}
             disabled={disabled}
             data-invalid={isInvalid ? "true" : undefined}
             aria-label={ariaLabel}
+            aria-labelledby={labelId ? `${labelId} ${buttonId}` : undefined}
             aria-describedby={ariaDescribedBy}
             aria-haspopup="dialog"
             aria-expanded={open}

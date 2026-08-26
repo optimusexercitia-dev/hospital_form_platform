@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useId } from "react";
 import { useRouter } from "next/navigation";
 import { Lock } from "lucide-react";
 
@@ -59,6 +59,7 @@ export function CaseActionItemForm({
   phases: PhaseOption[];
 }) {
   const action = mode === "create" ? createActionItem : updateActionItem;
+  const dueDateId = useId();
   const [state, formAction, isPending] = useActionState<
     (CreateActionItemState & ActionState) | undefined,
     FormData
@@ -167,18 +168,24 @@ export function CaseActionItemForm({
               </NativeSelect>
             </label>
 
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">
+            <div className="flex flex-col gap-1.5 text-sm">
+              <label
+                id={`${dueDateId}-label`}
+                htmlFor={dueDateId}
+                className="font-medium"
+              >
                 Prazo{" "}
                 <span className="font-normal text-muted-foreground">
                   (opcional)
                 </span>
-              </span>
+              </label>
               <DatePicker
+                id={dueDateId}
+                labelId={`${dueDateId}-label`}
                 name="dueDate"
                 defaultValue={item?.dueDate ?? ""}
               />
-            </label>
+            </div>
           </div>
 
           {mode === "create" && phases.length > 0 && (

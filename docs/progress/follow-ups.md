@@ -6200,6 +6200,51 @@ so specs that address these controls by name legitimately need updating. Folding
 accname change into a feature branch is how a reviewable diff stops being reviewable, and it would put
 spec edits on the same commit as the change that necessitated them.
 
+**✅ THE WRAPPING-`<label>` BUCKET IS NOW MEASURED AND FIXED TOO (2026-08-26).** The commit above
+deferred 8 sites that wrap the control in an implicit `<label>` instead of using `htmlFor`, on the
+correct ground that the `labelfor` mechanism "does not obviously transplant". Measured, same
+instrument (Chromium CDP name-sources, real rendered `DatePicker` DOM, empty AND filled):
+
+```
+name = "Prazo (opcional)"   sources = [relatedElement:labelwrapped, contents: (superseded)]
+```
+
+**It transplants.** `relatedElement:labelwrapped` wins and displaces `contents:` exactly as
+`labelfor` did — **15 of 16** case/state pairs dropped the control's own value. The 16th
+(`activate-phase-dialog`) was materially different and is filed separately as
+**BUG-CASEPHASE-DUEDATE-001** (silent data loss; see `bug-log-archive.md`).
+
+⭐ **The durable part is that the OBVIOUS fix was measured insufficient before it was adopted.**
+Transplanting `labelId` while KEEPING the wrapping label fails 3/16, two different ways, neither
+visible without measuring:
+- pointing `aria-labelledby` at the whole `<label>` **doubles** the value — the label's own
+  name-from-content now includes the button it wraps (`"Prazo (opcional) 01/03/2023 01/03/2023"`);
+- pointing it at the label's text `<span>` leaks any OTHER text in the label **instead of** the
+  value — because the self-referencing token resolves through `labelwrapped` (label content minus
+  the button), and only falls through to `contents:` when that comes back empty. So it looked
+  correct at the 6 sites whose label holds nothing but its own text, and silently failed at the 2
+  with a hint `<span>`. **A fix shape that was never compared against its alternative gets adopted
+  on plausibility.**
+
+Fix applied = un-wrap to the shape already shipped for the `htmlFor` bucket (`<div>` keeps the layout
+classes, the text `<span>` becomes `<label htmlFor id>`, `DatePicker` gets `id` + `labelId`): **0/16**
+failures, and it repairs the `label.control` mis-association as a side effect. Hint text moved from
+the accessible NAME to `aria-describedby`, so it is still announced but no longer displaces the value.
+
+⚠ **A fixture hazard worth keeping.** The first measurement run reported the two *controls* wrong —
+several probe cases rendered the same DOM `id`, so `getElementById` resolved every `label[for]` to
+the FIRST match: one button collected two labels (`"Suspenso até (opcional) Suspenso até
+(opcional)"`) and its twin collected none (falling through to `contents:`). **Both artefacts read
+exactly like real accname defects**, and one of them would have said the SHIPPED fix does not work.
+Namespacing ids per probe container is what made the controls reproduce the recorded measurements.
+
+⚠ **jsdom is NOT a substitute instrument here, and the divergence is narrower than it looks.**
+`dom-accessibility-api` resolves a *bare* `aria-labelledby` self-reference correctly; it diverges
+only in the shape actually shipped — when a `<label for>` ALSO points at the control, the
+self-referencing token resolves through that label again instead of the button's contents, so the
+value never enters the name. Chromium does not do this. The component test pins the divergence
+explicitly so it reds if testing-library ever aligns.
+
 ⭐ **The premise trap, which is the durable part.** This surfaced only because QA filed a finding
 (M6) asserting the OPPOSITE — that `<label for>` is *not* in the accname chain for a `button`, and that
 the three new date triggers therefore had no accessible name at all. `frontend` measured it false twice
