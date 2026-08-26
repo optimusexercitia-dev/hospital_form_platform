@@ -10939,8 +10939,11 @@ export type Database = {
         Args: {
           p_employee_id?: string
           p_hospital: string
+          p_job_title?: string
           p_started_on?: string
           p_user: string
+          p_work_email?: string
+          p_work_phone?: string
         }
         Returns: string
       }
@@ -10949,8 +10952,11 @@ export type Database = {
           p_actor: string
           p_employee_id?: string
           p_hospital: string
+          p_job_title?: string
           p_started_on?: string
           p_user: string
+          p_work_email?: string
+          p_work_phone?: string
         }
         Returns: string
       }
@@ -15938,10 +15944,16 @@ export type Database = {
       update_affiliation: {
         Args: {
           p_clear_employee_id?: boolean
+          p_clear_job_title?: boolean
+          p_clear_work_email?: boolean
+          p_clear_work_phone?: boolean
           p_employee_id?: string
           p_hospital: string
+          p_job_title?: string
           p_started_on?: string
           p_user: string
+          p_work_email?: string
+          p_work_phone?: string
         }
         Returns: string
       }
@@ -15949,10 +15961,16 @@ export type Database = {
         Args: {
           p_actor: string
           p_clear_employee_id?: boolean
+          p_clear_job_title?: boolean
+          p_clear_work_email?: boolean
+          p_clear_work_phone?: boolean
           p_employee_id?: string
           p_hospital: string
+          p_job_title?: string
           p_started_on?: string
           p_user: string
+          p_work_email?: string
+          p_work_phone?: string
         }
         Returns: string
       }

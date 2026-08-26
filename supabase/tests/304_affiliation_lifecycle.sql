@@ -42,12 +42,12 @@ select is(
   '1.1 the update KERNEL is executable by neither authenticated nor service_role');
 
 select ok(
-  not has_function_privilege('authenticated', 'public.update_affiliation_for(uuid,uuid,uuid,text,date,boolean)', 'EXECUTE')
-  and has_function_privilege('service_role', 'public.update_affiliation_for(uuid,uuid,uuid,text,date,boolean)', 'EXECUTE'),
+  not has_function_privilege('authenticated', 'public.update_affiliation_for(uuid,uuid,uuid,text,date,boolean,text,text,text,boolean,boolean,boolean)', 'EXECUTE')
+  and has_function_privilege('service_role', 'public.update_affiliation_for(uuid,uuid,uuid,text,date,boolean,text,text,text,boolean,boolean,boolean)', 'EXECUTE'),
   '1.2 the _for twin is service_role ONLY — naming the actor stays a service privilege');
 
 select ok(
-  has_function_privilege('authenticated', 'public.update_affiliation(uuid,uuid,text,date,boolean)', 'EXECUTE'),
+  has_function_privilege('authenticated', 'public.update_affiliation(uuid,uuid,text,date,boolean,text,text,text,boolean,boolean,boolean)', 'EXECUTE'),
   '1.3 the interactive door IS executable by authenticated');
 
 select is(

@@ -70,27 +70,22 @@ export interface UpdateAffiliationInput extends StaffDataInput {
 }
 
 /**
- * ⛔ TEMPORARY, REMOVED BY AFF4 B4 — and deliberately a THROW, not a silent drop.
+ * ADR 0151 D9 — the staff-data arguments, shared by both write doors.
  *
- * The staff-data fields are part of the posted contract so `frontend` builds F2–F6
- * against the final shape, but `affiliate_person` / `update_affiliation` do not accept
- * them until B4 widens those doors (arity 5→8 and 6→12, a DROP+CREATE). Forwarding is
- * therefore impossible today, and quietly ignoring the fields would ship a form whose
- * cargo/e-mail/phone boxes appear to save and do not — the single worst failure mode
- * available here, because it is invisible to the user AND to every gate.
+ * ⚠ `undefined`, NOT `null`. The generated `Args` mark defaulted parameters `?: string`,
+ * so an explicit `null` is a type error — omitting the key is how a caller takes the SQL
+ * default, which for these means "leave the stored value alone". Clearing is an explicit
+ * `clear*` flag on {@link UpdateAffiliationInput}, never a null.
  *
- * Delete this function and its two call sites in the same commit that widens the doors.
+ * A blank string collapses to `undefined` here and is normalised again in the door
+ * (`nullif(btrim(...))`), because a whitespace-only box is not a fact and the not-blank
+ * CHECKs would reject it as a raw 23514.
  */
-function assertStaffDataWired(input: StaffDataInput): void {
-  if (
-    input.jobTitle != null ||
-    input.workEmail != null ||
-    input.workPhone != null
-  ) {
-    throw new Error(
-      'not implemented: staff data (jobTitle/workEmail/workPhone) is wired in AFF4 B4 — ' +
-        'the affiliate_person/update_affiliation doors do not accept it yet',
-    )
+function staffDataArgs(input: StaffDataInput) {
+  return {
+    p_job_title: input.jobTitle?.trim() || undefined,
+    p_work_email: input.workEmail?.trim() || undefined,
+    p_work_phone: input.workPhone?.trim() || undefined,
   }
 }
 
@@ -212,7 +207,6 @@ function toState(error: PgErrorish): AffiliationActionState {
 export async function affiliatePerson(
   input: AffiliatePersonInput,
 ): Promise<AffiliationActionState> {
-  assertStaffDataWired(input)
   const supabase = await createClient()
   const { error } = await supabase.rpc('affiliate_person', {
     p_user: input.userId,
@@ -221,6 +215,7 @@ export async function affiliatePerson(
     // is a type error — omitting the key is how you take the SQL default.
     p_employee_id: input.employeeId?.trim() || undefined,
     p_started_on: input.startedOn ?? undefined,
+    ...staffDataArgs(input),
   })
 
   if (error) return toState(error)
@@ -245,7 +240,6 @@ export async function affiliatePerson(
 export async function updateAffiliation(
   input: UpdateAffiliationInput,
 ): Promise<AffiliationActionState> {
-  assertStaffDataWired(input)
   const supabase = await createClient()
   const { error } = await supabase.rpc('update_affiliation', {
     p_user: input.userId,
@@ -253,6 +247,12 @@ export async function updateAffiliation(
     p_employee_id: input.employeeId?.trim() || undefined,
     p_started_on: input.startedOn ?? undefined,
     p_clear_employee_id: input.clearEmployeeId ?? false,
+    ...staffDataArgs(input),
+    // One flag per field: a shared one would make "clear the cargo" and "clear the work
+    // phone" inseparable. Defaulted to false so an omitted flag never clears.
+    p_clear_job_title: input.clearJobTitle ?? false,
+    p_clear_work_email: input.clearWorkEmail ?? false,
+    p_clear_work_phone: input.clearWorkPhone ?? false,
   })
 
   if (error) return toState(error)

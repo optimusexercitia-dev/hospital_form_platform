@@ -64,17 +64,17 @@ select is(
   '1.1 the actor KERNELS are executable by neither authenticated nor service_role — p_actor cannot be forged');
 
 select ok(
-  not has_function_privilege('authenticated', 'public.affiliate_person_for(uuid,uuid,uuid,text,date)', 'EXECUTE')
+  not has_function_privilege('authenticated', 'public.affiliate_person_for(uuid,uuid,uuid,text,date,text,text,text)', 'EXECUTE')
   and not has_function_privilege('authenticated', 'public.end_affiliation_for(uuid,uuid,uuid,date)', 'EXECUTE'),
   '1.2 the _for twins are NOT executable by authenticated — naming the actor is a service-role privilege');
 
 select ok(
-  has_function_privilege('service_role', 'public.affiliate_person_for(uuid,uuid,uuid,text,date)', 'EXECUTE')
+  has_function_privilege('service_role', 'public.affiliate_person_for(uuid,uuid,uuid,text,date,text,text,text)', 'EXECUTE')
   and has_function_privilege('service_role', 'public.end_affiliation_for(uuid,uuid,uuid,date)', 'EXECUTE'),
   '1.3 TWIN: service_role CAN execute them (1.2 is a split, not a blanket revoke)');
 
 select ok(
-  has_function_privilege('authenticated', 'public.affiliate_person(uuid,uuid,text,date)', 'EXECUTE')
+  has_function_privilege('authenticated', 'public.affiliate_person(uuid,uuid,text,date,text,text,text)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.end_affiliation(uuid,uuid,date)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.list_org_people(uuid,text,text)', 'EXECUTE'),
   '1.4 the interactive doors ARE executable by authenticated');
