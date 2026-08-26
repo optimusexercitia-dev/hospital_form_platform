@@ -281,11 +281,14 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
    change — without that a NEW wrapper passes `ARM=wrapper` vacuously by being absent from the
    findings. **If the phase touched any RLS policy or
    `prosecdef` boolean gate**, also run the **diff-scoped** door sweep over exactly those
-   (~1 min/gate), deriving the list from the migration diff, never by hand — recipe: **ADR
-   [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 1**.
+   (~1 min/gate), deriving the list with **`scripts/door-sweep-cases.sh`**, never by hand —
+   it greps `alter policy` too, and its **exit 1** (migrations touched, ZERO gates derived)
+   is a finding to rule on, **never a pass**. ADR
+   [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md) § The recipe.
    **BLIND blocks the phase** (keystone it; allowlist only an unreachable backstop, never a
    tenant-isolation policy); **`ERROR` is not a pass** (cover it in the phase's mutation
-   audit). Sweep-run mechanics incl. the findings-file restore: lead-playbook §4. The
+   audit). ⛔ **Never `git checkout --` the findings file** — ADR 0153 retired that: a subset
+   run writes to SCRATCH. Confirm with `git diff --stat` on it. Mechanics: lead-playbook §4. The
    **full** ~5 h sweep is a periodic audit, **not** a phase step — and `ARM=wrapper`'s own
    full sweep (~100 min, 56 suite runs) is periodic for the same reason; the phase step is
    the cheap `FROMFINDINGS=1` comparison against the committed findings.
