@@ -656,8 +656,8 @@ the gate reds.
   it to learn what the helper does is reading something false. ⚠ This is the
   migration-text-is-stale hazard from a direction not previously recorded: not a runtime
   `pg_get_functiondef` + `replace()`, but a **test fixture outrunning a migration**.
-- **NINE instruments in one build whose success output was indistinguishable from the real
-  thing** — a pattern, not nine incidents. In every case the human-readable output looked
+- **TEN instruments in one build whose success output was indistinguishable from the real
+  thing** — a pattern, not ten incidents. In every case the human-readable output looked
   right and the honest instrument was an exit code or a direct measurement:
   1. `| head -10` clipped a process list to ten rows, all `chrome.exe` — read as a clean check.
   2. A reset-log grep for `error|failed` matched two migration **filenames**
@@ -707,6 +707,13 @@ the gate reds.
      honestly read, still producing a self-generated artifact. ✅ The signal that actually decides
      "is a server holding the DB" is **`pg_stat_activity`** — a client backend that is not
      PostgREST/realtime/your own `psql` — not a process count at all.
+  10. ⭐⭐ **A `;` CHAIN REPORTING ITS LAST COMMAND'S STATUS — a full gate that exited 3 was reported
+     as "exit code 0".** The run had aborted in **seconds** on a toolchain check with **zero tests
+     run**; the chain ended in `echo`, so the harness saw `echo`'s success. Only an
+     `echo "GATE_EXIT=$?"` written *into the log* caught it. ⛔ **Then the same author repeated it as
+     an author** — `npm run lint ; git commit` let a commit land while lint exited 1, pushing
+     PROGRESS.md over its cap. **`;` and `|` are the same hazard**: both discard the status of
+     everything but the last element. Use `&&`, or capture `$?` immediately.
   ⭐⭐ **THE RULE, and it is cheap enough that there is no excuse:** **every counting instrument in
   a gate report must be run once against a KNOWN FAILURE before its zero is believed.** Reading the
   command never reveals this class — both constants look correct on inspection, and #8 was found
@@ -796,6 +803,26 @@ dashboard headline count), all green on a `--workers=1` rerun. That is the known
 parallelism/cold-start collapse, and it is why AFF4's gate run must be the batched
 `npm run e2e:prod`, **never** a parallel monolith — a monolith's reds here say nothing
 about the branch.
+
+⭐ **NAMED FLAKES from the 2026-08-26 `e2e:prod` on `claude/angry-stonebraker-c8e637`**
+(`GATE_EXIT=0` · 21/21 batches · 1239 passed · 0 failed · **2 flaky** · 11 skipped · 0 did-not-run).
+⛔ **Recorded here because `GATE_LOGDIR` is NOT run-scoped** — AFF4's own gate overwrites
+`batch-1..21` **by number** and destroys these identities. Capture before running:
+- `act-role-assumption.spec.ts:157` — *"The switch: assuming a hat then switching…"* — **30.0 s
+  timeout**, passed retry #1 in 2.0 s.
+- `phase2-auth-shell.spec.ts:268` — *"Logout › logging out via user menu…"* — failed 5.7 s, passed
+  retry #1 in 1.4 s.
+
+Both auth/session, both timeout-then-fast-retry, and **both specs contain zero date-related
+locators** (measured, not assumed). ⚠ **That run's "2 flaky" coincidentally matches a prior row's
+count** — `FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES` exists for exactly this: **a total that
+matches is not a list that matches.** When AFF4's gate reports its own "2 flaky", diff the *names*.
+
+⚠ **A green gate is NOT "every control was driven."** That run **skipped 11**, and `accounted N/N`
+counts a skip as accounted. Two skip-bearing specs sit beside date controls —
+`phi-remediation.spec.ts:421` (a **CAPA** assertion) and `case-access.spec.ts:1293` (a
+**safety-event** click-through), against `capa-action-form.tsx` / `event-notify-form.tsx`. Both skip
+for seed-data reasons citing pgTAP cover. **A skipped test asserted nothing.**
 
 ## Acceptance criteria (beyond the ADR's D-list)
 

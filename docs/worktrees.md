@@ -131,6 +131,18 @@ just isolate different things (filesystem vs. within-tree coordination).
   ```
   grep NEXT_PUBLIC_SUPABASE_URL .env.local   # expect http://127.0.0.1:54321 for local
   ```
+  ⛔ **The `node_modules` half is WORSE, because it does not fail at all — it succeeds against
+  someone else's toolchain.** Node resolves by walking **UP** the directory tree, so a worktree with
+  an empty `node_modules` silently borrows the **primary checkout's** installed packages. Every
+  `lint` / `typecheck` / `vitest` run there is then measuring **another branch's** dependency tree
+  while reporting as if it measured its own. Nothing errors; the results look normal and are
+  *unattributable*. Measured 2026-08-26: a worktree ran a full gate this way, and the results were
+  salvageable **only because the lockfiles happened to be byte-identical.**
+  ✅ **Check both, and check the lockfile if you are borrowing:**
+  ```
+  ls node_modules | head -1                       # empty => you are borrowing from the parent
+  git diff --stat <other-branch> -- package-lock.json   # empty => borrowed results are comparable
+  ```
 - **Dev server ports collide by default** — every worktree's `next dev`
   defaults to `:3000`. Use the `./dev.sh` the setup script generates instead
   of `npm run dev` directly when more than one worktree might run at once.
