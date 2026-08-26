@@ -16,38 +16,29 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **✅ Six concluded programs — all § Now bullets rotated verbatim** → [2026-Q3.md](docs/progress/2026-Q3.md):
-  **ADR 0137 batch** · **ADR 0136** deferred `staff_admin` sign-off (✅ PUSHED; ⛔ re-measure § State, never
-  quote) · **gate-tooling + follow-up round** · **22-v3 REG·KIND** · **PDF·P3 (Printing Cases)** (detail
-  [pdf-p3.md](docs/progress/pdf-p3.md); ADR [0144](docs/decisions/0144-case-printing-dossier-lock-and-phi-fork.md)
-  **+ Amdt 1–6** · **0145** · **0146**) · **user-profile redesign + AFF3/AUD1/AUD2** (detail
-  [user-profile-redesign.md](docs/progress/user-profile-redesign.md); ADRs 0147 ·
-  [0148](docs/decisions/0148-ever-held-affiliation-read-visibility.md) ·
-  [0149](docs/decisions/0149-org-admin-reads-hospital-tier-audit.md) ·
-  [0150](docs/decisions/0150-audit-org-derived-from-hospital.md)). Ledger rows →
-  [phase-ledger.md](docs/progress/phase-ledger.md). ⛔ **Collapsed 2026-08-25 at the merge of
-  `feat/user-profile-redesign` into `main`; each OPEN residue below is kept VERBATIM.**
-  ⛔ **ONE WARNING SURVIVES THE COLLAPSE, because it is still live: do NOT trust any authz-gate result
-  predating 2026-08-24.** The step-1 gate suite was **not running on this platform at all**, in two
-  independent committed ways, and `ARM=census` printed `INVARIANT HOLDS` at exit 0 **having enumerated
-  ZERO gates**.
-  ✅ **PUSHED 2026-08-25** — `db:push` ran FIRST (coolify.md order), then `git push`; ⛔ re-measure `schema_migrations`, never re-read this. ⚠ Five non-blocking
-  QA findings (N-1…N-5) plus four P3 follow-ups are OPEN in § Follow-ups — approval was given AROUND
-  them, not over them.
-  ✅ **GATE STEP 2 DISCHARGED 2026-08-25 — the full `e2e:prod` ran on the MERGED tree at `3894c667`
-  and is GREEN** (§ Test Run Summary; detail
-  [merged-tree-gate-2026-08-25.md](docs/progress/merged-tree-gate-2026-08-25.md)). This closes BOTH
-  holds that stood here — the batch's PO-deferred step 2, and "no full gate has run on the MERGED
-  tree at all". The macOS run's 18 reds did not reproduce on this platform.
+- **✅ Six concluded programs — every § Now bullet ALREADY rotated verbatim** →
+  [2026-Q3.md](docs/progress/2026-Q3.md) (ADR 0137 batch · ADR 0136 · gate-tooling round ·
+  22-v3 REG·KIND · PDF·P3 · user-profile redesign + AFF3/AUD1/AUD2). Ledger rows →
+  [phase-ledger.md](docs/progress/phase-ledger.md). Per-program detail and the ADR links live at
+  those destinations. **Compressed 2026-08-26** — the bullet had become a second copy of an archive,
+  which is the drift this file is recovering from. ⛔ **Two things did NOT rotate, being still live:**
+  ⛔ **(1) Do NOT trust any authz-gate result predating 2026-08-24.** The step-1 gate suite was
+  **not running on this platform at all**, in two independent committed ways, and `ARM=census`
+  printed `INVARIANT HOLDS` at exit 0 **having enumerated ZERO gates**.
+  ⚠ **(2) Five QA findings (N-1…N-5) + four P3 follow-ups are OPEN in § Follow-ups** — that
+  approval was given AROUND them, not over them.
 - **🟠 nvm still defaults to Node 20, and `npm run lint` DIES AT GATE 8 there** (`globSync` needs 22).
   `.nvmrc` + `engines` are set; **`nvm alias default 22` is not**. ⛔ Kept live deliberately when the
   gate-tooling bullet was rotated 2026-08-25: it is the one item in that ✅-marked bullet with an
   unfired resolution event, it exists in **no other file**, and rotating the bullet whole would have
   buried an open action under a completed heading — owner: whoever next hits it.
-- **⚠ NO PHASE IS ACTIVE.** **ADR 0144 (PDF·P3)** and the **user-profile redesign + AFF3/AUD1/AUD2** batch (ADRs 0147–0150) are the two most recent COMPLETE programs. 0136 and 0137
+- **⚠ A PHASE *IS* ACTIVE — AFF4, see its bullet below.** ⛔ This line read "NO PHASE IS ACTIVE" for a **THIRD** time (corrected 2026-08-26, twelve lines above a bullet saying the opposite). **ADR 0144 (PDF·P3)** and the **user-profile redesign + AFF3/AUD1/AUD2** batch (ADRs 0147–0150) are the two most recent COMPLETE programs. 0136 and 0137
   are both complete. ⭐ **A bullet's POSITION is not its recency** — this line named the wrong
   program twice (0137 until 2026-08-24, 0136 until 2026-08-25) because a concluded bullet outlived
-  its work in § Now, and it said NO PHASE IS ACTIVE until 2026-08-25 while one was.
+  its work in § Now, and it said NO PHASE IS ACTIVE until 2026-08-25 while one was — **and again
+  through 2026-08-26 while AFF4 ran.** ⛔ The recurrence is the finding: a bullet that *records* this
+  failure does not resist it, because the correction lives in the prose while the false claim lives
+  in the opening words a reader stops at. Do not add a fourth warning here; check the AFF4 bullet.
   Everything else that stood here is done — the DM program, DSR + its operational remediation, the
   Cloud orphan probe, the `Imprimir prévia` split, AFF2 and the case-surface split. Every one of those
   bullets is rotated **verbatim** → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md),
