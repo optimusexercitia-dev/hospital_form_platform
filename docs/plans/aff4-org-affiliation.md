@@ -468,15 +468,34 @@ same reason).
   pgTAP number, only a namespaced bug id (`BUG-CASEPHASE-DUEDATE-001`), and it cherry-picked
   `date-picker.tsx` + `date-time-picker.tsx` from `5e7288b5` **byte-identical** — blob hashes
   `cd337073…` / `0950c364…`, verified on both sides, so those files cannot conflict.
-- ⚠ **MERGE ORDER IS A GATE INPUT, and it is not yet decided.** That branch's **8 call-site
-  changes have had NO E2E pass** — its own session swept for name matchers and said plainly
-  that a grep is not a run. If it merges to `main` **before** AFF4's full `e2e:prod`, that gate
-  runs over changed accessible names nobody has executed, and any flake it produces lands in
-  AFF4's numbers wearing AFF4's name. **Preference: AFF4's gate runs on a tree that excludes
-  unrun changes** — either AFF4 merges first, or that branch takes its own tester pass before
-  merging. ⛔ Do not let "the full suite happened to touch it" stand in for either: an
-  untargeted whole-suite run is not a pass aimed at a change, and "mine or pre-existing?" is
-  answered by re-running the suspect **alone**, which costs far more once the trees are mixed.
+- ⭐ **MERGE ORDER — PO-RULED 2026-08-26: AFF4 merges FIRST; the DatePicker branch is HELD.**
+  Its **8 call-site changes have had NO E2E pass** (its own session swept for name matchers and
+  said plainly that a grep is not a run). Had it landed first, AFF4's full `e2e:prod` would have
+  run over changed accessible names nobody had executed, and any flake would have arrived wearing
+  AFF4's name — and *"mine or pre-existing?"* is only answerable by re-running a suspect **alone**,
+  which costs far more once two branches are interleaved in one tree.
+  **Consequences to hold at merge time:**
+  - AFF4's gate runs on a tree **excluding** those 8 sites. Their coverage is that branch's own
+    tester pass, which the hold gives it time for — ⛔ **an untargeted whole-suite run that happens
+    to touch a change is not a pass aimed at it.**
+  - That branch rebases onto post-AFF4 `main`. `date-picker.tsx` / `date-time-picker.tsx` are
+    **byte-identical across both** (verified blob hashes `cd337073…` / `0950c364…`) and the two
+    call-site sets are disjoint, so it should rebase clean. ⚠ **A conflict in either control file
+    means the byte-identity assumption broke** — stop and re-verify rather than resolving it.
+  - ⚠ **`BUG-CASEPHASE-DUEDATE-001` rides on that held branch** — live data-loss on `main`: a label
+    click clears an in-dialog date, and saving then drops an existing phase deadline (recoverable if
+    noticed; **major, not a blocker**). The hold was ruled about **gate attribution**, not about
+    sitting on a defect — if the wait grows, re-ask the PO rather than wait longer.
+    ⛔ **There is NO cherry-pick fallback, contrary to an earlier framing here.** The data-loss fix
+    and the a11y fix are **the same edit**: the wrapping `<label>` binds to its first labelable
+    descendant, so un-wrapping is simultaneously what stops "Remover prazo" stealing the label *and*
+    what lets `aria-labelledby` re-admit the value. Cherry-picking puts **one file's** changed
+    accessible names into AFF4's gate rather than ten — a smaller blast radius, **not zero**. Do not
+    decide the exception believing the a11y change can be left behind.
+  - ⭐ **The hold's premise is dissolvable, which is cheaper than the exception.** The constraint
+    exists *because* those 8 sites are unexercised; once that branch runs its own tester pass, a flake
+    in AFF4's gate is no longer attributable to them and the ordering mostly stops mattering. The
+    local DB was released to that branch during AFF4's pause for exactly this reason.
 - **Shared local stack, one owner:** `db reset` during another session's evidence run
   lands silently in their results. Coordinate resets.
 - **Windows editing:** no `sed -i`/`>`-round-trips on UTF-8 files (mojibake compounds);

@@ -152,16 +152,24 @@ full ~5 h door sweep · `ARM=policy` · any remote/linked-project measurement.
   runtimes and has no unit-level home; cross-referencing the two unit tests is a courtesy, not a gate.
 - **`get_own_person_record` is deliberately not a triple** — a `_for(p_actor)` twin is definitionally
   "fetch any person's column-locked fields". Its absence is asserted in `379` §1.4, because prose
-  cannot defend a deliberate absence.
-- **CPF masking stays TypeScript-side**; `OwnPersonRecord` carries only `cpfMasked`, no raw field, so
-  masking is a type-level guarantee rather than a remembered step.
-- **PO ruling** — *"suspended until D"* = until `23:59:59` of D in `America/Sao_Paulo`.
+  cannot defend a deliberate absence. **CPF masking stays TypeScript-side**; `OwnPersonRecord` carries
+  only `cpfMasked`, so masking is a type-level guarantee rather than a remembered step.
+- **PO** — *"suspended until D"* = until `23:59:59` of D in `America/Sao_Paulo`.
 
-**Provisional — needs the PO:**
-- **Merge order** vs `claude/angry-stonebraker-c8e637` (the DatePicker wrapping-`<label>` bucket).
-  Its call-site changes have had **no E2E pass**; if it merges before AFF4's `e2e:prod`, any flake it
-  produces lands in AFF4's numbers. The two shared control files are byte-identical by verified blob
-  hash, so there is no *conflict* risk — only attribution.
+- **Merge order (PO, 2026-08-26)** — **AFF4 merges FIRST**; `claude/angry-stonebraker-c8e637` (the
+  DatePicker wrapping-`<label>` bucket) is **held** and has been told so. Its 8 call-site changes have
+  had no E2E pass, so landing it first would have put unexercised accessible-name changes under
+  AFF4's `e2e:prod` and attributed any flake to AFF4. ⚠ At merge: that branch rebases onto post-AFF4
+  `main`; the two shared control files are **byte-identical** (blob hashes `cd337073…` / `0950c364…`)
+  and the call-site sets are disjoint, so a conflict in either control file means **the byte-identity
+  assumption broke** — stop, don't resolve. ⚠ `BUG-CASEPHASE-DUEDATE-001` (live data-loss on `main`:
+  a label click clears an in-dialog date, dropping an existing deadline on save — recoverable, major,
+  not a blocker) rides on the held branch. ⛔ **No cherry-pick fallback exists** — the data-loss and
+  a11y fixes are the *same edit* (un-wrapping the `<label>` does both), so cherry-picking puts one
+  file's changed names into the gate, not zero. ⭐ **The hold's premise dissolves once that branch runs
+  its own tester pass**; the local DB was released to it during AFF4's pause for that reason.
+
+**Provisional:** none outstanding — both prior provisionals are ruled.
 
 ## Open questions / blockers
 

@@ -63,9 +63,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   T2–T5, `qa`. ⛔ **The resume order is GATED and its first step was already dropped once** — the
   owed pgTAP catalog-`==`-declared verdict precedes B5, and **its absence is the signal**.
   ⭐ **C5's keystone (`374`) was observed RED at 2/15 before B3, REPRODUCIBLE from the migration
-  alone.** ⚠ **OPEN PO DECISION: merge order** vs `claude/angry-stonebraker-c8e637`, whose
-  call-site changes have had **no E2E pass**. (The suspension-date semantic is **RULED** — see
-  § Bug Log.) ⛔ **EIGHT instruments in this build returned success while measuring nothing**, two of
+  alone.** ✅ **BOTH PO decisions are RULED — none outstanding:** the suspension-date semantic
+  (§ Bug Log), and **merge order — AFF4 merges FIRST, `claude/angry-stonebraker-c8e637` is HELD**
+  (its call-site changes have had no E2E pass, so landing first would attribute its flakes to AFF4;
+  ⚠ a live data-loss bug rides on that held branch). ⛔ **EIGHT instruments in this build
+  returned success while measuring nothing**, two of
   them **constants** — the dangerous kind, because they are *usually right*. No conclusion was wrong;
   the confidence was. **Read the plan before quoting any gate figure from this build.**
   ⚠ **Three PRE-EXISTING defects fixed in their own commits** (not AFF4-introduced, § Bug Log at
