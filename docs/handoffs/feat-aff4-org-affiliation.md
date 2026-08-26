@@ -209,6 +209,26 @@ index line was compressed for cap headroom.
   the org inserts first") while numbering B6 ahead of it — a plan-order defect, not an ambiguity.
   ⛔ **REJECTED: a transitional `EXISTS(…) OR home_organization_id = org` fallback.** It greens both
   surfaces while hiding the migration — precisely what D10 exists to perform.
+- **B6b's HOSPITAL half is deliberately NOT filtered on org affiliation (lead, 2026-08-26).**
+  `listHospitalUsers` runs on the cookie client, and the live policy
+  `organization_affiliations_select` = `principal_id = auth.uid() OR app.is_org_admin_of(org)`
+  has **no hospital tier** (ADR 0151 D1; pinned by `375` §4.1). Measured as `hospitaladmin.a1`:
+  **1** row readable (his own), **0** belonging to anyone else, vs **29** for `orgadmin.a`. Filtering
+  there would blank the hospital directory for the only role it serves. ⭐ **Decisive fact:
+  acceptance criterion 1 names an ORG admin**, so the org half satisfies it alone — nothing forces
+  the hospital half into this increment. ⛔ **REJECTED: widening the policy with a hospital_admin
+  leg** — it contradicts D1 (PO-ruled) and would require deleting the `375` §4.1 keystone that pins
+  it; retiring a keystone to pass is the shape we have a rule about. Two obligations follow, and
+  both are load-bearing: the *"incluir desligados"* toggle must be **ABSENT** on the hospital
+  directory (an inert control asserts a filter is applied), and **T2's parity gate must be scoped
+  to the ORG directory** or it reds on correct code — a parity test that reds on correct code gets
+  weakened by whoever meets it next.
+  ⚠ **Residual gap, filed not fixed:** `hospitalPeopleIds`' membership arm selects seats with **no
+  `expires_at` filter** while D6 rules an expired membership does not block `end_org_affiliation`,
+  so an expired-seat holder can be org-offboarded and still appear on the hospital directory.
+  **Stale roster, NOT an authorization leak** — their data was already visible to that admin.
+  Candidate fix is a narrow ids-only `SECURITY DEFINER` helper with **no audit emission** (so it
+  does not repeat the mistake ADR 0154 rejected); **unscheduled, needs a PO go.**
 - **D4 containment backstop lands after B7-seed, NOT after B5** — and `app.affiliate_person_impl`'s
   **live body says otherwise**, a stale comment sitting in `prosrc` where nothing greps and no gate
   reads. B5's backfill matches zero rows on a fresh local reset (migrations precede `seed.sql`), so
