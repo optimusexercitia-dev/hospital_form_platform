@@ -1,5 +1,12 @@
 # Authorization Database Design Audit and Implementation Handoff
 
+> **⛔ NOT ephemeral resume-state — DO NOT SWEEP.** This is a **durable design/audit
+> record** — analysis only, named "handoff" before the convention existed. It carries
+> **no inbound links** and is retained on that basis rather than swept: the handoff
+> convention ([.claude/skills/handoff/SKILL.md](../../../.claude/skills/handoff/SKILL.md))
+> governs ephemeral resume-state in `docs/handoffs/`, not design documents.
+> Classified 2026-08-26.
+
 **Date:** 2026-08-11  
 **Status:** Audit complete; recommendations only; no authorization migration implemented  
 **Audience:** Product owner, technical lead, database implementer, security reviewer, QA, and operations  

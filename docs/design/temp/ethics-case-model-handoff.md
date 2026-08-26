@@ -1,5 +1,12 @@
 # Ethics Committee Case Model — Design Handoff
 
+> **⛔ NOT ephemeral resume-state — DO NOT SWEEP.** This is a **durable design/audit
+> record** — design only, named "handoff" before the convention existed. It carries
+> **no inbound links** and is retained on that basis rather than swept: the handoff
+> convention ([.claude/skills/handoff/SKILL.md](../../../.claude/skills/handoff/SKILL.md))
+> governs ephemeral resume-state in `docs/handoffs/`, not design documents.
+> Classified 2026-08-26.
+
 **Status:** Proposed replacement design for ADR 0072 / ADR 0073 review  
 **Date:** 2026-07-14  
 **Scope:** Data model, authorization model, read interfaces, lifecycle mapping, migration order, and verification  

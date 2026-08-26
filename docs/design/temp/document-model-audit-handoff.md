@@ -1,5 +1,12 @@
 # Document model and storage substrate external-audit handoff (2026-08-11)
 
+> **⛔ NOT ephemeral resume-state — DO NOT SWEEP.** This is a **durable design/audit
+> record** (2 inbound links, incl. ADR 0114), named "handoff" before the convention
+> existed. Under the handoff convention
+> ([.claude/skills/handoff/SKILL.md](../../../.claude/skills/handoff/SKILL.md)),
+> ephemeral resume-state lives in `docs/handoffs/`, may not be cited, and is deleted at
+> its branch's Record step — none of which applies to this file. Classified 2026-08-26.
+
 > **Purpose.** Self-contained continuation note for the external audit of uploaded
 > documents, centralized attachments, Supabase Storage access, PHI classification,
 > document sharing, and future document-heavy features. It records the verified
