@@ -6069,6 +6069,10 @@ trim loses nothing):
 
 ### 🟡 FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS — the subset half is fixed, the full half is not, and the file is not purely generated (owner: backend; filed 2026-08-26, found while closing the subset half)
 
+_**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
+
+> and that file is **not purely generated**: it carries hand-merged subset verdicts, a trailing `## Note — a RENAME moves a gate's verdict` section, and inline annotations on the skipped-policy bullets. A full run destroys all of them, silently. ⚠ **Same class as the closed item, different RUN MODE** — the guard that fixed the subset path deliberately does not cover it, so "the truncation is fixed" is true of one half only. Fix is the register's option **(b)**: merge verdicts rather than replace. All four sweeps now print a startup warning counting the hand-merged blocks — a hint, not a gate
+
 Residual of [[FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE]] (closed 2026-08-26, ADR
 [0153](../decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)). That fix
 covers the **subset** run mode only, by design: with `CASES=` set the report goes to scratch. A **full**
@@ -6460,3 +6464,38 @@ wrong-hospital rows get created at volume, and at that moment the platform has n
 ⭐ Note what found this: a reviewer asking not "does the widening work" but "what did the widening
 remove". Every gate, keystone and probe on AFF3 measured the new visibility and none of them could
 have surfaced this, because nothing was broken — a capability quietly stopped existing.
+
+### 🔴 FUP-MEETING-CASES-SELECT-OMITS-RECUSAL — the read policy hand-rolls a weaker predicate than its three siblings (owner: backend/PO; filed 2026-08-26 by the AFF4 lead, found by a peer session auditing `can_reach_meeting`; NOT AFF4's work and not absorbed by it)
+
+`public.meeting_cases` has four policies and they **split on which denials they inherit**. Confirmed
+from `pg_policies` on 2026-08-26 (catalog, not migration text):
+
+| cmd | predicate | inherits recusal? |
+| --- | --- | --- |
+| UPDATE | `app.is_staff_admin_of(app.commission_of_meeting(meeting_id)) AND app.can_read_case(case_id, auth.uid())` | **yes** — via the ADR 0078 bitmask |
+| DELETE | same as UPDATE | **yes** |
+| INSERT | `WITH CHECK` only | — |
+| SELECT | `app.can_reach_meeting(meeting_id, auth.uid()) AND NOT app.is_case_respondent(case_id, auth.uid())` | ⛔ **NO** |
+
+The write paths go through `can_read_case`, so they inherit all five of `app._case_caps`' hard
+denies **by position**. `meeting_cases_select` does not call it at all — it **re-states ONE deny by
+hand** (respondent) and **omits recusal**. Zero of the five policies consuming `can_reach_meeting`
+check recusal.
+
+⛔ **This matters because `meeting_cases` carries `summary` and `decision` — case TEXT, not just a
+link row.** Predicate-level evidence (read-only, seed user `staff1.ccih` recused from case
+`ca000000-…e1`): `is_recused_from_case` = **t**, `_case_caps` = **0**, `can_reach_meeting` = **t**,
+`is_case_respondent` = **f** — so the SELECT predicate evaluates **TRUE for a case the user is
+recused from**.
+
+⚠ **NOT CONFIRMED END TO END, and the reason is the finding's own shape:** in the current seed the
+recused case is **on no meeting at all** (the only `meeting_cases` row is for case `d0000000-…c1`),
+so **the failing state does not exist in the fixture**. This is a *latent asymmetry*, not a
+demonstrated leak — and it is a textbook instance of *a green gate meaning the fixture cannot reach
+the failing state*. ⛔ Confirming it requires **constructing the state nobody constructed**: recuse a
+member from a case, put that case on a meeting they can reach, assert SELECT returns zero rows.
+
+⭐ **Why this reads as an oversight rather than a decision:** a deliberate ruling that *"recusal does
+not apply in the meeting context"* would have applied to the **write** policies too. The 3-of-4
+split is the tell. ⚠ But that is an inference — **the PO rules it**, and the ruling is needed before
+any fix, because "add recusal to the SELECT policy" is only correct if the asymmetry is unintended.
