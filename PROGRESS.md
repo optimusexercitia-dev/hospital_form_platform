@@ -224,22 +224,11 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Date | Decision | Ref |
 | --- | --- | --- |
-| 2026-08-25 | **AFF4 ruled** — `organization_affiliations`: org belonging becomes a row with a lifecycle; staff data ON `hospital_affiliations`, no parallel table; the **voided tense** closes C5 on both tables; "active" defined once (D6); `home_organization_id` demoted, Phase 2 named. Build NOT started | ADR [0151](docs/decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md) |
+| 2026-08-26 | **PostgREST maps SQLSTATE class `P0*` → HTTP 500** (`P0001` excepted), refuting AFF4 pre-step P1’s premise. P1 re-scoped *fix* → *diagnose + re-file*; the live defect is a **73-function `public` P-class class**, NOT built here | ADR [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md) — **amends 0151 D16a** |
+| 2026-08-26 | **A subset door-sweep writes to SCRATCH; the committed `authz-door-audit-findings.md` is never opened for write** — retires ADR 0079 Amdt 1’s `git checkout --` restore. Fixed in **four** sweeps, not one | ADR [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) — **amends 0079 Amdt 1** |
+| 2026-08-25 | **AFF4 ruled** — `organization_affiliations`: org belonging becomes a row with a lifecycle; staff data ON `hospital_affiliations`, no parallel table; the **voided tense** closes C5 on both tables; "active" defined once (D6); `home_organization_id` demoted, Phase 2 named | ADR [0151](docs/decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md) |
 
-> ↩ **6 concluded rows of the PDF·P3 (ADRs 0144–0146 + the gate-4 approval) and user-profile (AFF3/AUD1) batches rotated 2026-08-25** → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-25 — the PDF·P3 + user-profile rows", appended verbatim before the cut, links repointed. ⚠ The PDF·P3 row's *"push NOT made"* is superseded by § State — the push happened 2026-08-25.
-
-> ↩ **3 concluded rows dated 2026-08-24 (the door-sweep predicate-arm property rule, the tracking-hardening batch, the quarterly § Now archive) rotated 2026-08-25** → **[decisions-log.md](docs/progress/decisions-log.md)**.
-
-> ↩ **4 concluded rows of the ADR 0137 batch (3 PO rulings + the lead deploy-rationale correction) rotated 2026-08-24** → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-24". The batch is complete, PO-approved and pushed; each row is still one line, in full, there.
-
-> ↩ **6 concluded/superseded rows dated 2026-08-19 rotated 2026-08-20** (2 superseded the same day they were written; 4 shipped) → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-20 (second headroom pass)", appended verbatim before the cut and `cmp`-verified.
-
-> ↩ **36 rows dated 2026-08-17 → 2026-08-18 rotated 2026-08-20** (the DM5 docket, its eleven DM-FUP triage rulings, and the record-contract decisions — every one concluded) → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-20", appended verbatim before the cut and `cmp`-verified at the destination. ⛔ **The open work those rows reference did NOT rotate** — it lives in § Critical FUP (C1–C4) and § Follow-ups, which this cut did not touch.
-
-> ↩ **23 rows dated 2026-08-05 and older rotated 2026-08-17** → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-17", preserved verbatim before the cut (`cmp`-verified). This table is the **head** of the log, not the log.
-| _pre-2026-07_ | **35 earlier decision rows (Phases 0–14, 2026-06-11 → 2026-06-25) rotated 2026-08-04** | [decisions-log.md](docs/progress/decisions-log.md) |
-
-> ↩ **12 rows dated 2026-08-08 → 2026-08-14, and the VERBOSE form of the 32 rows that then stood above, rotated 2026-08-18** → **[decisions-log.md](docs/progress/decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-18". ⚠ *"Above" went stale on 2026-08-20: those 32 compressed heads are no longer here — they are in § "Rotated from PROGRESS.md 2026-08-20" of the same file, so the verbose and compressed forms now sit in two adjacent sections of the log rather than one here and one there.* ⛔ *The live rows are deliberately one-line — every warning they carried has a body in [follow-ups.md](docs/progress/follow-ups.md); verified before compressing.*
+> ↩ **This table is the HEAD of the log, not the log.** Eight rotations (2026-08-04 · 08-17 · 08-18 · 08-20 ×2 · 08-24 · 08-25 ×2) moved **125 concluded/superseded rows** verbatim → **[decisions-log.md](docs/progress/decisions-log.md)**, each under its own dated § heading there. The 7 per-rotation notes that stood here — **including the two corrections they carried** — were themselves rotated 2026-08-26 → § "Rotated from PROGRESS.md § Decisions 2026-08-26".
 
 ## State — the three live remote facts (measure, never quote)
 

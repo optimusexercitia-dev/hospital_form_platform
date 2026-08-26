@@ -530,3 +530,27 @@ written and is **superseded by § State**: the push happened 2026-08-25.
 | 2026-08-25 | **PDF·P3 APPROVED (gate 4) with five findings OPEN** — approval given AROUND N-1…N-5, not over them; ⛔ the **push is a separate decision and was NOT made**. Gotenberg egress denial deferred to a follow-up with the measurement owed first | [pdf-p3.md](pdf-p3.md) |
 | 2026-08-25 | **Person read visibility follows an EVER-held affiliation** (AFF3) — one conjunct dropped from the affiliation leg of all three policies carrying it. READ widens; WRITE does not, pinned by a test that reds 7/11 arms when the footprint filter is deleted | ADR [0148](../decisions/0148-ever-held-affiliation-read-visibility.md) |
 | 2026-08-25 | **An `org_admin` reads its own org's HOSPITAL-tier audit rows** (AUD1) — measured 19 exist / 0 visible, total blindness on one tier. A reconciliation: `verify_audit_chain` (prosecdef) already admitted them. Leg 5 unchanged, enforced by mutation | ADR [0149](../decisions/0149-org-admin-reads-hospital-tier-audit.md) |
+
+## Rotated from PROGRESS.md § Decisions 2026-08-26 — the rotation-NOTE block itself
+
+⛔ Verbatim; links repointed for this directory. These 7 lines were bookkeeping **about** past
+rotations — not decisions — accumulated to ~2.9 KB in a section whose contract is *one line per
+decision*. Every rotation they describe is already recorded here under its own dated § heading, so
+they are kept for their **corrections**, the only part never duplicated: the PDF·P3 row’s *"push NOT
+made"* supersession, and the 2026-08-18 note’s record that its own word *"above"* went stale on
+2026-08-20.
+
+> ↩ **6 concluded rows of the PDF·P3 (ADRs 0144–0146 + the gate-4 approval) and user-profile (AFF3/AUD1) batches rotated 2026-08-25** → **[decisions-log.md](decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-25 — the PDF·P3 + user-profile rows", appended verbatim before the cut, links repointed. ⚠ The PDF·P3 row's *"push NOT made"* is superseded by § State — the push happened 2026-08-25.
+
+> ↩ **3 concluded rows dated 2026-08-24 (the door-sweep predicate-arm property rule, the tracking-hardening batch, the quarterly § Now archive) rotated 2026-08-25** → **[decisions-log.md](decisions-log.md)**.
+
+> ↩ **4 concluded rows of the ADR 0137 batch (3 PO rulings + the lead deploy-rationale correction) rotated 2026-08-24** → **[decisions-log.md](decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-24". The batch is complete, PO-approved and pushed; each row is still one line, in full, there.
+
+> ↩ **6 concluded/superseded rows dated 2026-08-19 rotated 2026-08-20** (2 superseded the same day they were written; 4 shipped) → **[decisions-log.md](decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-20 (second headroom pass)", appended verbatim before the cut and `cmp`-verified.
+
+> ↩ **36 rows dated 2026-08-17 → 2026-08-18 rotated 2026-08-20** (the DM5 docket, its eleven DM-FUP triage rulings, and the record-contract decisions — every one concluded) → **[decisions-log.md](decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-20", appended verbatim before the cut and `cmp`-verified at the destination. ⛔ **The open work those rows reference did NOT rotate** — it lives in § Critical FUP (C1–C4) and § Follow-ups, which this cut did not touch.
+
+> ↩ **23 rows dated 2026-08-05 and older rotated 2026-08-17** → **[decisions-log.md](decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-17", preserved verbatim before the cut (`cmp`-verified). This table is the **head** of the log, not the log.
+| _pre-2026-07_ | **35 earlier decision rows (Phases 0–14, 2026-06-11 → 2026-06-25) rotated 2026-08-04** | [decisions-log.md](decisions-log.md) |
+
+> ↩ **12 rows dated 2026-08-08 → 2026-08-14, and the VERBOSE form of the 32 rows that then stood above, rotated 2026-08-18** → **[decisions-log.md](decisions-log.md)** § "Rotated from PROGRESS.md 2026-08-18". ⚠ *"Above" went stale on 2026-08-20: those 32 compressed heads are no longer here — they are in § "Rotated from PROGRESS.md 2026-08-20" of the same file, so the verbose and compressed forms now sit in two adjacent sections of the log rather than one here and one there.* ⛔ *The live rows are deliberately one-line — every warning they carried has a body in [follow-ups.md](follow-ups.md); verified before compressing.*
