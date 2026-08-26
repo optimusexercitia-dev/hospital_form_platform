@@ -1,11 +1,46 @@
 # AFF4 — implementation plan: org affiliation, staff data, the voided tense
 
-**Status: PLANNED — build NOT started.** All decisions PO-ruled 2026-08-25; **authority is
+**Status: BUILD IN PROGRESS on `feat/aff4-org-affiliation`** (PO's go 2026-08-26). **Authority is
 ADR [0151](../decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md)**
-(D1–D17) — where this plan disagrees with the ADR, the ADR wins; where either disagrees
-with the live catalog at build time, the catalog wins. Analysis + rejected alternatives:
+(D1–D17) as amended by **[0154](../decisions/0154-roster-predicate-is-the-query-filter-not-list-org-people.md)**
+(D10's roster predicate) — where this plan disagrees with an ADR, the ADR wins; where either
+disagrees with the **live catalog**, the catalog wins. Analysis + rejected alternatives:
 [org-affiliation-and-staff-data-model.md](./org-affiliation-and-staff-data-model.md).
-**Start condition:** the PO's explicit build go, after the pre-step (Track P) is green.
+
+## ▶ RESUME HERE — state at the 2026-08-26 pause
+
+⛔ **Re-measure everything below before acting on it.** Commit counts, gate figures and stack
+state go stale the moment they are written; this block records *what was done and what is next*,
+never a figure to quote.
+
+**DONE and committed** — B1 · B2 · B3 · B4 (increments 1–3) · the B8 contract + the four org/void
+actions + `getOwnPersonRecord` wired live · F0 · F1 · F2 · F3 · F5 · F6's badge. All four authz
+arms hold (`census` · `hat` · `wrapper` · `floor`). C5's keystone (`374`) was observed **RED at
+2/15 before B3** and the red is **reproducible from the migration alone**.
+
+**NEXT, in this exact order — `backend` gated its own start on it:**
+1. `supabase db reset` (fresh, announced)
+2. **The owed pgTAP half of the door-SQLSTATE coverage gate** — catalog `==` declared set, which
+   catches a code existing only after a runtime body rewrite. ⛔ **Its verdict must be reported
+   before B5 begins; the ABSENCE of that verdict is the signal B5 has not started.** This
+   obligation was already dropped once (see *"an approval is not a completed action"* below).
+3. **B5** — the backfill. 4. **B6** — the **widened** ADR 0154 form, per the ruling in B6 above.
+5. Then B7 (seed) · the rest of B8 (D13 `registerUser` start date; D15 `updateUserProfile`) · B9.
+
+**Then:** `frontend` F4 (released when B8's `registerUser` lands) and F6's toggle (released when
+B6b lands) — both **held, not forgotten**. `tester` T2–T5 after that. Then `qa`, then the §6 gate.
+
+**IN FLIGHT at the pause:** `tester` on T1 + T6 + the accessible-name composition assertion, in a
+lead-granted DB window. ⛔ **`backend` holds off the stack until it hears the literal words
+"handing back"**, which requires the tester confirmed finished **by measurement** — processes gone,
+ports free — not by its own report.
+
+**⚠ TWO OPEN PO DECISIONS, neither blocking:**
+- **`BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY`** — what does *"suspended until the 25th"* mean
+  (00:00 or 23:59:59, in whose zone)? Detail below; **found, deliberately not fixed.**
+- **Merge order** vs `claude/angry-stonebraker-c8e637` (the DatePicker bucket) — its call-site
+  changes have had **no E2E pass**, so if it merges before AFF4's `e2e:prod`, any flake it produces
+  lands in AFF4's numbers. Detail in *Risks* below.
 
 **Shape:** Track P (pre-step, lands on `main` before the feature branch forks) → one
 gated workstream on `feat/aff4-org-affiliation`, three tracks (backend `backend`,
@@ -222,6 +257,31 @@ verified against the **live catalog** (`pg_policies`, `pg_proc.prosecdef`, ACLs,
 - **B6b — `listOrgUsers` / `listHospitalUsers` (the actual directory roster).** Same
   org-affiliation predicate, off `home_organization_id`. This is the half acceptance
   criterion 1 depends on.
+- ⭐ **RULED 2026-08-26 — where the default-active filter lives, and how parity is enforced.**
+  The semantic has two possible homes (`p_include_ended` at the door; a TS option on the
+  queries), and choosing differently in each is how the surfaces drift. **Ruling:**
+  - **Filter at the DATA-ACCESS boundary in both**, never deferred to the page. If the page
+    narrows, every future caller gets the wide set by default and must *remember* to narrow —
+    a remembered step. At the boundary, the safe set is the default and widening is explicit
+    and visible at the call site (*narrowing can be wrong and safe; widening cannot*).
+  - **Same name both layers** (`p_include_ended` / `includeEnded`), **same default (active-only)**,
+    with `lookupOrgPeople` the **single explicit widener** for D5's one-step rehire.
+  - ⛔ **REJECTED: unifying the predicate by routing `listOrgUsers`/`listHospitalUsers` through
+    `list_org_people`.** It looks cleaner ("one predicate cannot drift from itself") but that door
+    carries **its own authorization gate** *and* **per-call `person.cpf_lookup` audit behaviour** —
+    the roster is not a CPF lookup, and this would emit lookup-audit rows on every directory page
+    view, silently changing the audit surface (Rule 11). `listHospitalUsers` is also hospital-scoped
+    where the door is org-scoped-with-a-hat. **Three semantics conflated to remove one duplication.**
+  - ⚠ **The parity assertion spans two runtimes and therefore has NO unit-level home**: the door is
+    pgTAP-only, the TS queries are Vitest-only, and neither can assert the two *agree*. Assert each
+    side in its own runtime (Vitest via a **recording mock proving the filter was actually requested
+    of the database** — a query-level filter is invisible to any assertion over returned shape), and
+    keep the cross-reference **as a courtesy to readers, explicitly NOT as the parity mechanism**.
+  - ✅ **The parity gate is E2E, and it is `tester`'s (T2).** That is the only gate exercising the
+    SQL door and the TS query in one process. After an offboarding: the **directory** drops the
+    person by default, the **add-person search still finds them** (D5 rehire), and the *"incluir
+    desligados"* toggle brings them back. **This reds if either surface changes its default alone** —
+    which two independently-green unit tests never would.
 - ⛔ **RLS legs and the tenant trigger STAY on `home_organization_id`** — untouched,
   still D10's named Phase 2 follow-on. The split being applied: *"roster predicate"* =
   the application query's filter; *"existing legs"* = the policies. Both of D10's
@@ -569,8 +629,8 @@ the gate reds.
   it to learn what the helper does is reading something false. ⚠ This is the
   migration-text-is-stale hazard from a direction not previously recorded: not a runtime
   `pg_get_functiondef` + `replace()`, but a **test fixture outrunning a migration**.
-- **SIX instruments in one build whose success output was indistinguishable from the real
-  thing** — a pattern, not six incidents. In every case the human-readable output looked
+- **EIGHT instruments in one build whose success output was indistinguishable from the real
+  thing** — a pattern, not eight incidents. In every case the human-readable output looked
   right and the honest instrument was an exit code or a direct measurement:
   1. `| head -10` clipped a process list to ten rows, all `chrome.exe` — read as a clean check.
   2. A reset-log grep for `error|failed` matched two migration **filenames**
@@ -587,6 +647,36 @@ the gate reds.
   6. **`cat -A` not showing line endings** — the tool whose entire job is displaying them
      printed `$` rather than `^M$` on a CRLF file, after a patch had already failed to match
      LF anchors.
+  7. ⭐⭐ **`tasklist /FI "IMAGENAME eq node.exe"` under Git Bash — a CONSTANT `0`.** MSYS path
+     conversion rewrites `/FI` into `C:/Program Files/Git/FI`; tasklist errors to **stderr**
+     (discarded by `2>/dev/null`), and `| wc -l` on empty input prints **`0`**. Verified against
+     a moment with **seven** node processes running, one holding `:3000`. **The lead used this
+     as the precondition for authorizing two `db reset`s.**
+  8. ⭐⭐ **`grep -cE '^not ok'` on `supabase test db` output — also a CONSTANT `0`.** pg_prove
+     **consumes** the raw TAP stream and emits its own summary, so **no `not ok` line is ever
+     printed**. Found by positive control: a log from a run known to have FAILED scores
+     `^not ok = 0`, identical to every passing run. It was appended to nearly every pgTAP figure
+     reported for a day.
+  ⭐⭐ **7 and 8 are a DIFFERENT SPECIES from 1–6, and the difference is what makes them
+  dangerous.** 1–6 produced *wrong* answers. **7 and 8 produce a CONSTANT** — so they agree with
+  the truth whenever the truth is "0" and disagree **silently** whenever it isn't. A constant-`0`
+  instrument is invisible *because it is usually right*: it can only be wrong on the rare failing
+  run, and **"0 failures" is the most reassuring number in any gate report, so it is the last one
+  anyone interrogates.**
+  ⛔ **The operational consequence: a broken instrument that AGREES with a sound one adds nothing
+  while making the conclusion feel more verified.** Both the lead and `backend` did exactly this
+  to each other — pairing a real measurement (exit code; `netstat` port check) with a constant and
+  presenting the pair as corroboration. **Corroboration from an instrument that always returns the
+  same answer is not corroboration.** Neither party's *conclusions* were wrong, because the sound
+  half carried them; the confidence was inflated.
+  ⚠ **Same mechanism, opposite visibility — and only one is dangerous.** MSYS path conversion also
+  hit `docker exec … psql -f /tmp/m3.sql` (rewritten to a Windows temp path). **That one failed
+  LOUDLY** — file not found — and was fixed in minutes. The lead's failed **SILENTLY** and ran for
+  a day. When auditing for this class, the loud failures are already handled; hunt the silent ones.
+  ✅ **Sound replacements, no path-like args and no pipe swallowing a zero-match grep:**
+  `tasklist 2>/dev/null | grep -c "^node.exe"` · `netstat -ano | grep LISTENING | grep -E ":(3000|3001)\s"` ·
+  pgTAP verdict from the **exit code captured without a pipe**, corroborated by `Result: PASS|FAIL`
+  and `Failed N/M subtests`, both positive-controlled against a known-failing log.
 - ⭐⭐ **AN ENUMERATION BOUNDARY DRAWN ON A *SYNTAX* CANNOT ENFORCE A *PROPERTY*** — now three
   distinct instances in this program, so it is a class, not three anecdotes:
   1. The census's domain is wider than ARM 1's neutralization reach, so it names gates no arm
