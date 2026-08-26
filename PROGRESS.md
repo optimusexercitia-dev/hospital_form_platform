@@ -91,13 +91,12 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      **expires when the pilot loads data**.
   2. **C1 split into C1a (local) + C1b (Cloud); the pilot bound is C1b** — a green
      local rehearsal does NOT release the pilot (§ Critical FUP C1).
-- **In-flight worktrees: THREE** — re-measured 2026-08-26: the primary checkout,
-  `claude/angry-stonebraker-c8e637` (**merged into AFF4**, so it is spent), and
-  `chore/followup-staleness-audit`. ⛔ This line read **NONE** while two existed — and its own
-  closing words are *"a worktree line is a claim about an external thing: re-measure it, never read
-  it."* A warning does not measure anything. ⚠ Before any gate in a worktree, check `.env.local`
-  **and** a non-empty `node_modules` — see [worktrees.md](docs/worktrees.md); the second fails
-  silently by borrowing the parent checkout's packages.
+- **In-flight worktrees: TWO** — re-measured 2026-08-26 after removing
+  `claude/angry-stonebraker-c8e637` (merged into AFF4): the primary checkout and
+  `chore/followup-staleness-audit`. ⛔ This line read **NONE** while three existed, and its own
+  closing words were *"re-measure it, never read it"* — **a warning measures nothing.**
+  ⚠ Before any gate in a worktree check `.env.local` **and** a non-empty `node_modules`
+  ([worktrees.md](docs/worktrees.md)); the second fails silently by borrowing the parent's packages.
 ## Phase Status — live rows only
 
 > **Completed rows live in [phase-ledger.md](docs/progress/phase-ledger.md)** —
