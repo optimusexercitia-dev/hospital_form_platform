@@ -438,6 +438,78 @@ their home is here because they never conclude._
   writers because each used a different bound — see the correction record at the top
   of this file (75 fns / 6 read a flag).
 
+## AFF4 — organization affiliation, per-hospital staff data, the voided tense (2026-08-26; ADR **0151** D1–D17 + **0154** / **0158** / **0159**; migrations `20261003003200`–`…004300`, **12**; pgTAP `301`–`304` · `371`–`375` · `377`–`381`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **NOT PUSHED at the Record edit; 12 migrations are LOCAL ONLY**
+
+**New table `public.organization_affiliations`** — "this person belongs to this organization" as a
+row with a lifecycle, replacing `profiles.home_organization_id` as the *roster* predicate.
+⚠ **RLS is SELECT-only and has exactly TWO legs** — `principal_id = auth.uid()` **OR**
+`app.is_org_admin_of(organization_id)`. ⛔ **There is NO hospital tier, BY DESIGN** (ADR 0151 D1,
+pinned by pgTAP `375` §4.1, reaffirmed by ADR 0158): a `hospital_admin` cannot read this table at
+all. Every write goes through a door. **Re-derive from `pg_policies`, never from this paragraph.**
+
+**Five new doors** (D2) — each a `public` `prosecdef` actor-kernel triple with a `service_role`-only
+`_for` twin: `affiliate_person_to_org` · `end_org_affiliation` · `update_org_affiliation` ·
+`void_affiliation` (hospital rows; creation-symmetric authority — org_admin of the org OR
+hospital_admin of *that* hospital) · `void_org_affiliation` (org rows; org_admin only). New authored
+SQLSTATEs **`HC0R6`–`HC0RA`**, pinned by name in pgTAP `304` §6.7.
+
+⚠ **A SIXTH new function exists and is easy to miscount as one of the five: `get_own_person_record`**
+(D14) — the self-only door behind `/conta/meus-dados`. It is self-only **by shape** (`pronargs = 0`,
+so there is no subject parameter to spoof), has **no `_for` twin**, and carries **no ARM 1 verdict**:
+a *named absence* backed by a mutation-proven keystone, not an oversight.
+
+⛔ **The D4 containment trigger is SECURITY DEFINER, and the reason is load-bearing.**
+`hospital_affiliation_has_org_trg` → `app.assert_hospital_affiliation_has_org` (installed
+`20261003004000`, `DEFERRABLE INITIALLY DEFERRED`) enforces *active hospital affiliation ⇒ active
+organization affiliation, same org*. It shipped SECURITY **INVOKER**, so its `EXISTS` against
+`organization_affiliations` ran under the **caller's** RLS — and that table has no hospital tier — so
+for a `hospital_admin` the trigger could not see the org row `affiliate_person_impl` had written one
+statement earlier, raised a false-positive `23514`, and rolled the transaction back: **D5's one-step
+rehire was broken for EVERY `hospital_admin`, unconditionally** (`BUG-D5-REHIRE-HOSPADMIN-001`).
+Corrected to **DEFINER** by `20261003004300` (ADR **0159**, pgTAP `381`). ⭐ **DEFINER grants nobody
+anything here:** the function enforces a **data invariant**, not an authorization decision — it reads
+no caller identity (no `auth.uid()`, no `app.has_role`, no `app.active_role()`).
+⭐⭐ **The standing shape, not an AFF4 fact:** *two individually-correct decisions composing into a
+break* — a deliberately narrow policy, and a backstop reading under caller RLS. **No test that varies
+only the STATE can see it**, which is why ADR 0159 D4 requires an invariant assertion to vary the
+**ACTOR**.
+
+**Per-hospital staff data lives ON `hospital_affiliations`** (D9) — `job_title` / `work_email` /
+`work_phone`. ⛔ **No new `profiles` columns, and no parallel `hospital_staff_profiles` table** — both
+were considered and declined. Reads are unaudited by decision, with the audience stated; there is no
+`department` column.
+
+**The voided tense** (D7–D8) — `voided_at` / `voided_by` / `void_reason` on **both** affiliation
+tables, reason mandatory. *End says "was true and stopped"; void says "was never true."* Voided rows
+leave every person-read leg, footprint resolver, active-unique index and roster, **while the row
+itself stays visible** to the same audience badged *Anulado*. Ended and voided can both hold; **voided
+wins**. There is **no hard DELETE** — Rule 12's minimise-not-destroy posture (ADR 0072 §7·3). A void
+is refused if any membership was ever attached under that scope, and every void is audited with its
+reason. Differential pinned by pgTAP `374` and `377`.
+
+**"Active", defined once** (D6) — affiliations are `ended_on IS NULL AND voided_at IS NULL`;
+memberships are `expires_at IS NULL OR expires_at > now()`. ⛔ **The three existing read policies
+deliberately do NOT gain an `expires_at` filter** — ever-held reads make read-side expiry filtering
+incoherent. ⚠ So a measurement finding `f` for `expires_at` on the `profiles` SELECT policies is the
+**ruled outcome**, not a defect; see `FUP-AFF2-ACTIVE-MEANS-TWO-THINGS` in PROGRESS.md, which is held
+OPEN over exactly that reading.
+
+**The tense pair on `OrgUserListItem`** (`src/lib/users/types.ts`) — `orgAffiliationStatus: 'ativo' |
+'encerrado' | null` and `orgAffiliationEndedOn: string | null`. ⛔ **The scope rule is enforced in the
+TYPE, not by memory:** `null` means *"not resolvable at this scope"* — `listOrgUsers` **never**
+returns null (its roster predicate **is** an org affiliation); `listHospitalUsers` **always** returns
+null (ADR 0158: the hospital directory keeps its predicate, and never fixes a read by granting
+access). Both directions pinned in `src/lib/queries/org-roster-predicate.test.ts`. The same pair rides
+the `lookupOrgPeople` payload in `src/lib/queries/affiliations.ts`, where the status is
+**non-nullable**.
+
+⚠ **`home_organization_id` is DEMOTED, NOT DROPPED** (D10) — the *roster predicate* (the application
+query filter in `listOrgUsers`, per ADR **0154**, which corrected D10's naming of `list_org_people`)
+moved to org affiliations, but **every existing RLS leg and the tenant trigger still read the
+column**. Migrating them is D10's named **Phase 2**, triggered *before multi-org is ever enabled*; it
+is not pilot-blocking, and it must re-answer lifecycle authority over fully offboarded persons.
+⛔ **Do not read "the roster moved" as "the column is unused" — the policies still depend on it.**
+
 ## ADR 0137 batch — MRN as erasure key; case/referral usability (2026-08-24; ADR **0137**; migrations `20261003001300`–`…001600`, **4**; pgTAP `362` `plan(58)` · `363` `plan(15)` · `364` `plan(14)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ✅ **PUSHED 2026-08-25**
 
 **The booleans are GONE.** `process_template_versions.collects_patient` and `cases.patient_enabled` are

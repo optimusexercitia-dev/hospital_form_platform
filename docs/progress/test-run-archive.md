@@ -1078,3 +1078,13 @@ recent discharging gate: § Test Run Summary retains one row.
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-25 | ⭐ **FULL `e2e:prod` GATE GREEN at `6394b95a`** — PDF·P3 gate 2. `1236 passed · 0 failed · 0 infra · 5 flaky · 0 did-not-run · 21 batches`; every batch N/N; 1241 + 11 skipped = 1252. ⚠ `0 infra` ≠ nothing collapsed — **1 INFRA re-run**. Detail: [pdf-p3.md](pdf-p3.md) | ✅ **GREEN** |
+
+## Rotated from PROGRESS.md 2026-08-25 — the merged-tree gate row, superseded by AFF4’s gate
+
+⛔ Verbatim (links repointed for this directory). Rotated at the **AFF4 §6 Record step**
+(2026-08-26), when AFF4’s own full `e2e:prod` became the most recent discharging gate:
+§ Test Run Summary retains **one row**, the most recent gate only.
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-25 | ⭐⭐ **FULL `e2e:prod`, MERGED tree at `3894c667`** — `1239p · 0f · 2 flaky · 0 DNR · 21 batches`; sums = summary; 1241 + 11 skipped = 1252. ⚠ `0 infra` is POST-RETRY — 2 collapses (b2, b4) recovered ⇒ single-run. Names + discharges: [gate](merged-tree-gate-2026-08-25.md) | ✅ **GREEN, exit 0** |

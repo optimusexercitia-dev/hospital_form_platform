@@ -3253,3 +3253,49 @@ vínculo" on an existing person's hospital affiliation) and states this gap in i
 **Severity:** Major (plan AC5 unmet on the primary registration path). **Owner:** frontend — add
 the field to Step 1, thread into `handleSubmit`, mirroring `register-person-flow.tsx`'s
 existing field.
+
+## ⬛ Rotated from PROGRESS.md 2026-08-26 — BUG-D5-REHIRE-HOSPADMIN-001, ✅ **FIXED** at the AFF4 Record step
+
+✅ **CLOSED 2026-08-26** — fixed in **`89793d43`** (`fix(aff4): the D4 containment backstop runs as
+DEFINER (BUG-D5-REHIRE-HOSPADMIN-001)`), migration `20261003004300`, ruled by ADR
+[0159](../decisions/0159-invariant-backstops-run-as-definer.md), pinned by pgTAP `381`
+(`plan(12)`). `app.assert_hospital_affiliation_has_org` is now **SECURITY DEFINER**: it enforces a
+**data invariant**, not an authorization decision — it reads no caller identity (no `auth.uid()`, no
+`app.has_role`, no `app.active_role()`), so DEFINER grants nobody anything.
+
+⭐ **The closure evidence is the instrument flipping, not a green run.** The bug row was filed with a
+pinned `test.fail` in `e2e/aff4-hospital-admin-rehire.spec.ts` and **unweakened** assertions,
+precisely so the annotation would self-report *"unexpectedly passing"* the moment the fix landed.
+Measured at the Record step: **the spec carries no active `test.fail()` call any more**, and the
+file records the fix by commit at `:161`. The full `e2e:prod` gate then ran **GREEN, exit 0** with
+that spec inside its domain.
+
+⚠ **Rotated by the Record step, not by the ruling that opened it.** PROGRESS.md still carried this
+row as 🔴 OPEN with *"fix in flight"*, and § Now still listed it under **REMAINS** — both were
+already false when the Record step measured them. ⛔ The lesson is the ordinary one and it keeps
+recurring: *a status line describes the moment it was written, and nothing in it can notice the fix
+that landed afterwards.*
+
+⭐⭐ **The finding worth keeping is not the bug, it is the SHAPE:** *two individually-correct
+decisions composing into a break* — ADR 0151 D1's deliberate absence of a hospital tier on
+`organization_affiliations`, and a backstop that reads under **caller** RLS. Neither is wrong alone,
+**and no test that varies only the STATE can see it** — which is why ADR 0159 D4 now requires an
+invariant assertion to vary the **ACTOR**, not only the state.
+
+↩ **Original row, VERBATIM** (links repointed for this directory):
+
+🔴 **BUG-D5-REHIRE-HOSPADMIN-001 — the D5 one-step rehire fails for EVERY `hospital_admin`,
+unconditionally, and it is an AFF4 REGRESSION.** Filed 2026-08-26 (`tester`, writing AC3's missing
+witness; root-caused against the live catalog). **Mechanism:** `app.assert_hospital_affiliation_has_org`
+— the D4 containment backstop installed by **`f3302605` in this build** — is **SECURITY INVOKER**
+(`prosecdef = f`, measured), so its `EXISTS` against `organization_affiliations` runs under the
+**calling** hospital_admin's RLS, and that table has **no hospital tier by design** (ADR 0151 D1).
+`affiliate_person_impl` (DEFINER) correctly writes the new active org row, but the trigger **cannot
+see the row just written**, raises a false-positive `23514`, and the whole transaction rolls back.
+Reproduced through the real UI and a raw RPC alike; full evidence chain in the spec header.
+⭐ **Two individually-correct decisions composing into a break** — D1's deliberate absence of a
+hospital tier, and a backstop reading under caller RLS. ⛔ **Fails CLOSED** — no data-leakage risk.
+**Severity:** Major/blocking — AC3 is not merely unasserted, it is unmet for the actor it names.
+**Owner:** backend (fix in flight: mark the trigger `SECURITY DEFINER` — it enforces a data
+invariant and reads no caller identity). ⚠ Pinned `test.fail` in `e2e/aff4-hospital-admin-rehire.spec.ts`
+with unweakened assertions, so the annotation self-flips to "unexpectedly passing" on the fix.
