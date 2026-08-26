@@ -477,6 +477,38 @@ the gate reds.
   and **1 carries no name-bearing attribute at all** — that last is an unmeasured a11y gap,
   not a styling choice. Deliberately not guessed at during F0: extending a fix to a
   mechanism nobody measured is how a partial fix reads as a complete one.
+- **The `claims_for` vacuity class has NO measured denominator** — and the fix count must
+  never be quoted as if it did. Three real defects were found and fixed (`ff596034`), but
+  the predicate that found them covered **literal-UUID two-arg calls naming a multi-role
+  SEED persona**. Calls passing a variable, or naming a fixture-created principal, were
+  never in its domain. ⚠ **The reported bound was 41 two-arg call sites; the true count of
+  `claims_for(` across `supabase/tests/` is 2449.** That is the difference between a
+  measured *domain* and a measured *syntax* — a half-swept class buried under evidence of
+  thoroughness.
+  ⛔ **Do NOT close this by making `claims_for` raise.** That was authorized by the lead,
+  built, and **reverted** — "2+ roles → no claim" deliberately mirrors production's
+  `custom_access_token_hook` D11 break-glass logic, so raising there would diverge the
+  harness from production *and* make the genuine **multi-role hatless caller** (a real
+  D5/D11 state) permanently untestable. Trading away a testable authorization state to
+  catch a fixture mistake is the wrong trade. The positive control the lead required is
+  what caught it — standalone it passed, in the full suite it failed `caught: no exception`.
+  Right shape instead: a **detector** that reds on two-arg calls naming a multi-role
+  persona, leaving the helper faithful to production. Needs the DB (persona role counts),
+  so it belongs with the pgTAP gates, not `lint`. Building it is also what would finally
+  give the class a real denominator.
+- **`supabase/tests/00_setup.sql` COMMITS OVER a migration's function definition.** It runs
+  `create or replace function test_helpers.claims_for(...)` as DDL **outside** its
+  `begin/rollback` block, so it overwrites migration `20260918002000`'s version — meaning
+  that migration's definition is **never in force during any test run**, and anyone reading
+  it to learn what the helper does is reading something false. ⚠ This is the
+  migration-text-is-stale hazard from a direction not previously recorded: not a runtime
+  `pg_get_functiondef` + `replace()`, but a **test fixture outrunning a migration**.
+- **Three instruments in one session whose success output was indistinguishable from the
+  real thing** — worth recording as a pattern, not three incidents: a `| head -10`-clipped
+  process list that read as a clean check; a reset-log grep for `error|failed` that matched
+  two migration **filenames** and read as a failing run; and an `rm -f` that silently
+  no-opped on a mistyped path, caught only by `git status`. In each case the honest
+  instrument was the exit code or a direct measurement, never the human-readable output.
 - **Seven pgTAP suite numbers are shared by two files each** — `60`, `61`, `110`, `188`,
   `189`, `201`, `270`. Pre-existing, and harmless to *execution* (unlike a duplicate
   migration version, which can silently not apply — `supabase test db` runs every file).
