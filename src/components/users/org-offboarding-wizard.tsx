@@ -66,6 +66,16 @@ import {
  * closes by calling `router.refresh()`, exactly like the identity-band actions above
  * it, which re-renders the whole page (banner included) with fresh server data. A
  * callback here would exist for no consumer.
+ *
+ * ⚠ EACH STEP IS WRAPPED IN `<div key={step} className="animate-fade-in">` — the
+ * design system names step cross-fades explicitly for exactly this shape (a
+ * multi-step flow inside one already-open dialog), and an instant content swap
+ * costs comprehension, not just polish: nothing else signals to the user that the
+ * step actually changed. The `key` forces a fresh mount per step so the CSS
+ * animation retriggers every transition, not just the first. `.animate-fade-in`
+ * (a plain opacity fade, `--dur-slow`) already collapses under the global
+ * `prefers-reduced-motion` rule (`globals.css:310`), so no separate guard is
+ * needed here.
  */
 export function OrgOffboardingWizard({
   userId,
@@ -134,7 +144,7 @@ export function OrgOffboardingWizard({
     <Dialog open onOpenChange={(next) => !next && !isPending && onClose()}>
       <DialogContent className="max-w-[29rem] gap-0 p-0">
         {step === "confirm" ? (
-          <>
+          <div key="confirm" className="animate-fade-in flex min-h-0 flex-col">
             <DialogHeader className="gap-1 border-b border-border/60 px-5.5 py-4.5 pr-11">
               <DialogTitle
                 ref={headingRef}
@@ -213,18 +223,20 @@ export function OrgOffboardingWizard({
                 {isPending ? "Desligando…" : "Desligar da organização"}
               </Button>
             </DialogFooter>
-          </>
+          </div>
         ) : step === "resolved" ? (
-          <ResolvedStep
-            headingRef={headingRef}
-            footprint={footprint}
-            isPending={isPending}
-            deactivateError={deactivateError}
-            onKeepActive={finish}
-            onDeactivate={deactivate}
-          />
+          <div key="resolved" className="animate-fade-in flex min-h-0 flex-col">
+            <ResolvedStep
+              headingRef={headingRef}
+              footprint={footprint}
+              isPending={isPending}
+              deactivateError={deactivateError}
+              onKeepActive={finish}
+              onDeactivate={deactivate}
+            />
+          </div>
         ) : (
-          <>
+          <div key="done" className="animate-fade-in flex min-h-0 flex-col">
             <DialogHeader className="gap-1 border-b border-border/60 px-5.5 py-4.5 pr-11">
               <DialogTitle
                 ref={headingRef}
@@ -244,7 +256,7 @@ export function OrgOffboardingWizard({
                 Concluir
               </Button>
             </DialogFooter>
-          </>
+          </div>
         )}
       </DialogContent>
     </Dialog>
