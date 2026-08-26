@@ -573,6 +573,64 @@ test.describe('AC4 — suspension: blocked while suspended_until is future; auto
     }
     await expect(dialog).not.toBeVisible({ timeout: 5_000 })
   })
+
+  test('DatePicker trigger accessible name excludes the clear button\'s own label once a date is set (AFF4 regression check)', async ({
+    page,
+  }) => {
+    // AFF4's OWN regression (found 2026-08-26, plan §"AFF4's OWN REGRESSION"): F0's
+    // `aria-labelledby={labelId} {buttonId}` self-referenced the trigger's own
+    // contents. At the time, the clear ("Remover data") affordance was a
+    // `role="button"` span NESTED INSIDE the trigger, so the self-reference
+    // re-admitted its label into the trigger's computed accessible name too —
+    // "Suspenso até (opcional) 01/03/2023 Remover data" instead of just the label
+    // + value. The recorded repair moved the clear control to a real SIBLING
+    // `<button>` OUTSIDE the trigger (`date-picker.tsx`) — structurally confirmed
+    // by reading the component (the trigger's own contents are now just its icon,
+    // hidden from the AX tree, and the value/placeholder text — the clear
+    // button's "Remover data" text lives entirely outside what the trigger's
+    // `aria-labelledby` walks).
+    //
+    // ⚠ Until this test, NO BROWSER had confirmed the COMPUTED name is actually
+    // clean — jsdom cannot reproduce the original contamination at all (a
+    // self-referencing token resolves through `<label for>` there and never
+    // walks a descendant's `aria-label`), so `frontend`'s unit suite could only
+    // assert the CONTAMINATION CHANNEL (nested interactive content), not the
+    // NAME. This is the first in-browser confirmation of the name itself.
+    //
+    // Measured WITH A VALUE PRESENT, deliberately: `showClear` (and therefore the
+    // clear button) does not exist in the DOM at all when the field is empty, so
+    // an empty-state check is systematically blind to this exact mechanism —
+    // recorded as having already happened three times in this build, including
+    // in the very FUP this test closes out.
+    await signInAs(page, 'orgadmin.a@test.local')
+    await page.goto('/o/rede-a/manage/usuarios?search=ativo.registro')
+    const card = page.locator('li').filter({ hasText: 'Ativo Registrado' })
+    await expect(card).toBeVisible({ timeout: 10_000 })
+    await card.click()
+    await page.waitForURL(/\/usuarios\/[^/]+$/, { timeout: 10_000 })
+
+    await page.getByRole('button', { name: /^suspender$/i }).click()
+    const dialog = page.getByRole('alertdialog')
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
+    const trigger = dialog.locator('button[aria-haspopup="dialog"]').first()
+
+    await pickDate(dialog, page, { monthsBack: 1 })
+
+    // The date is now set, so the clear button exists in the DOM as the
+    // trigger's sibling (not nested inside it) — this is exactly the state in
+    // which the pre-repair defect was observed.
+    await expect(trigger).toHaveAccessibleName(/suspenso até/i)
+    await expect(trigger).not.toHaveAccessibleName(/remover data/i)
+
+    // Read-only: escape out without confirming, exactly like the sibling
+    // regression guard above — this test never writes suspended_until.
+    await expect(page.getByRole('grid')).not.toBeVisible({ timeout: 5_000 }).catch(() => {})
+    await page.keyboard.press('Escape')
+    if (await dialog.isVisible().catch(() => false)) {
+      await page.keyboard.press('Escape')
+    }
+    await expect(dialog).not.toBeVisible({ timeout: 5_000 })
+  })
 })
 
 test.describe('AC5 — email collision blocks with a clear pt-BR error', () => {
