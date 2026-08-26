@@ -495,11 +495,14 @@ and in whose zone — the hospital's, the org's, the server's? Picking one silen
 defensible default becomes an undocumented rule. It also arrives fourth, after three
 pre-existing fixes this program already absorbed.
 
-⚠ **One detail is unresolved between two readings and must NOT be asserted either way in the
-fix:** `backend` measured *no normalisation at all* (`.update({ suspended_until })`); `tester`
-read the path as constructing `${date}T00:00:00.000Z`. Same outcome, different claims about the
-code. The **outcome** is measured; the exact construction is not. A bug record naming the wrong
-line sends its fixer to the wrong place.
+⚠ **THERE MAY BE TWO SITES, NOT ONE — confirm both before fixing either.** Two readings
+initially looked contradictory: `backend` measured *no normalisation at all* at the **write**
+(`src/lib/users/actions.ts:1176`, `.update({ suspended_until: suspendedUntil })`), while `tester`
+read the path as constructing `${date}T00:00:00.000Z`. They are **not** contradictory — they are
+true of **different lines**. If a `T00:00:00.000Z` is constructed it is **upstream in the dialog**,
+not at the write. So a fixer who patches only the write may leave the construction in place, or
+vice versa, and either half alone still renders the wrong day. ⛔ The **outcome** is measured; the
+**construction site** is not — locate it before changing anything.
 
 ## Follow-ups DISCOVERED during the build — file into the register at Record
 
@@ -584,6 +587,28 @@ the gate reds.
   6. **`cat -A` not showing line endings** — the tool whose entire job is displaying them
      printed `$` rather than `^M$` on a CRLF file, after a patch had already failed to match
      LF anchors.
+- ⭐⭐ **AN ENUMERATION BOUNDARY DRAWN ON A *SYNTAX* CANNOT ENFORCE A *PROPERTY*** — now three
+  distinct instances in this program, so it is a class, not three anecdotes:
+  1. The census's domain is wider than ARM 1's neutralization reach, so it names gates no arm
+     can sweep — and its own "Fix:" text sends you to a sweep that returns *NOTHING WAS MEASURED*.
+  2. `"DateTimePicker"` does not contain `"DatePicker"` — "Time" splits it — so a literal grep
+     for one silently skips 9 of 26 sites.
+  3. `door-error-arms.test.ts`'s splitter required **`create OR REPLACE function`**, and AFF4's
+     doors are bare `create function` (new — nothing to replace), so **every new door was skipped
+     regardless of which files were in scope**.
+  ⛔ **(3) was a near-miss on a FALSE FIX, and that is the durable part.** The test had *two*
+  defects — a hand-maintained file list *and* the syntax-bound splitter — with the **same
+  symptom**. Fixing only the visible one (adding three filenames) would have produced a green
+  gate, a closed item, and **zero coverage**, indistinguishable from a real fix. Backend's own
+  words: *"I would have added three filenames, watched it stay green, and reported it closed."*
+  ⭐ **Where two defects share a symptom, fixing one and re-running looks exactly like fixing
+  both.** The only defence is deriving the domain from the property that decides it — here, the
+  SQLSTATEs reachable from the doors `actions.ts` actually calls — and proving it by mutation.
+- ⚠ **An approval is not a completed action.** The lead said *"B4 carries it"*, backend agreed,
+  and **neither checked across three increments** — so the door-SQLSTATE coverage test ran green
+  while covering **none** of the five new codes. Nothing shipped broken (the arms existed), but
+  nothing was checking and the check reported success. ⭐ *Did the thing I approved actually
+  land?* is a Record-step obligation, not a memory.
 - ⭐⭐ **A mutation that kills the suite before reaching the arm under test proves NOTHING
   about that arm — and its red is indistinguishable from one that does.** The lead specified
   `where pr.id = v_uid` → `where true` to prove a keystone discriminating. That returns 36
