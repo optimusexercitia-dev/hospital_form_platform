@@ -196,14 +196,42 @@ verified against the **live catalog** (`pg_policies`, `pg_proc.prosecdef`, ACLs,
   remote push). ⛔ No top-level `SET LOCAL`; ⛔ the `lint:set-local` watermark is NOT
   bumped.
 
-### B6 · Migration: `list_org_people` re-predicate (D10)
+### B6 · Re-predicate BOTH roster surfaces (D10) — ⚠ WIDENED 2026-08-26, PO-ruled
 
-- Roster predicate moves from `profiles.home_organization_id = org` to
-  `EXISTS (org affiliation to org, voided excluded)` — **ever-held**, with new param
-  `p_include_ended boolean DEFAULT false` (active default filter). Payload gains
-  org-affiliation status (`ativo`/`encerrado`) + `ended_on`.
-- CPF-lookup audit behavior stays byte-identical (`person.cpf_lookup`, per-call,
-  never the digits). Gate predicate (org_admin OR active hospital_admin hat) unchanged.
+> ⛔ **This task's original text named the wrong function, and so does ADR 0151 D10.**
+> Measured 2026-08-26 against the live code: `list_org_people` has exactly ONE caller —
+> `lookupOrgPeople` (`src/lib/affiliations/actions.ts:203`), consumed by
+> `register-person-flow.tsx`. That is the **add-a-person CPF/name search**, not the
+> directory. The actual roster predicate is `src/lib/queries/org-users.ts:449` —
+> `.eq('home_organization_id', orgId)` on `profiles`, inside `listOrgUsers`, with
+> `listHospitalUsers` as its hospital-scoped sibling. Re-predicating `list_org_people`
+> alone could not satisfy acceptance criterion 1. **PO ruling: both surfaces move.**
+> Record obligation: **ADR 0154** amends 0151 D10 (header must carry `**Amends:** 0151` —
+> the label is the only input to the back-pointer and no gate can notice it missing).
+
+- **B6a — `list_org_people` (the add-a-person search).** Predicate moves from
+  `profiles.home_organization_id = org` to `EXISTS (org affiliation to org, voided
+  excluded)` — **ever-held**, with new param `p_include_ended boolean DEFAULT false`.
+  Payload gains org-affiliation status (`ativo`/`encerrado`) + `ended_on`.
+  CPF-lookup audit behavior stays byte-identical (`person.cpf_lookup`, per-call, never
+  the digits). Gate predicate (org_admin OR active hospital_admin hat) unchanged.
+  ⚠ This body is one of the **four** that use `ended_on is null` as an activeness test
+  and must gain `and voided_at is null` (measured over comment-stripped `prosrc`; the
+  other three are `app.affiliate_person_impl` / `end_affiliation_impl` /
+  `update_affiliation_impl`, which land in B4).
+- **B6b — `listOrgUsers` / `listHospitalUsers` (the actual directory roster).** Same
+  org-affiliation predicate, off `home_organization_id`. This is the half acceptance
+  criterion 1 depends on.
+- ⛔ **RLS legs and the tenant trigger STAY on `home_organization_id`** — untouched,
+  still D10's named Phase 2 follow-on. The split being applied: *"roster predicate"* =
+  the application query's filter; *"existing legs"* = the policies. Both of D10's
+  sentences stay true under that reading.
+- **Ruled semantic — the two surfaces default differently.** An org-offboarded person
+  must stay **findable in the add-a-person CPF search**, or D5's one-step rehire is
+  impossible (a hospital admin cannot rehire someone they cannot find). So: the
+  **roster** defaults to active-only behind an explicit toggle; the **add-person search**
+  reaches ended people. If that makes `p_include_ended`'s default awkward at the door,
+  raise it rather than bending one surface to match the other.
 
 ### B7 · Seed + demo seed
 
@@ -301,12 +329,34 @@ verified against the **live catalog** (`pg_policies`, `pg_proc.prosecdef`, ACLs,
 - New nav entry + read-only page: identity (masked CPF, DOB, phone via
   `getOwnPersonRecord`), own credentials, own affiliations with work data + org
   status. A pt-BR note: corrections are exercised administratively. No edit controls.
+- ⚠ **The nav entry has a trap, measured 2026-08-26.** `ContaNav` lives OUTSIDE the
+  route at `src/components/notifications/conta-nav.tsx`, and `conta/layout.tsx` renders
+  it **only when `notificationsEnabled()` is true** — deliberately, because both its
+  current targets 404 when that flag is off. **Meus dados is NOT flag-gated** (AFF4 is
+  structural, no feature flag — the AFF precedent), so simply appending it to `ITEMS`
+  makes the page unreachable in exactly the deployments where the flag is off, with no
+  gate able to notice. Split the nav: the always-available entries render
+  unconditionally, the notifications-dependent ones stay behind the flag. Update the
+  component's doc comment, which currently asserts "it never points at a dead route" —
+  that sentence becomes false the moment an ungated entry is added beside a gated nav.
+- The DOB column is **`date_of_birth`**, not `birth_date` (catalog-measured; the ADR's
+  D14 wording is loose). CPF arrives already masked — `getOwnPersonRecord`'s TS return
+  type carries no raw CPF field at all (lead ruling, so masking is a type-level
+  guarantee rather than a remembered step).
 
-### F6 · Directory status + filter
+### F6 · Directory status + filter — ⚠ RE-TARGETED 2026-08-26 (see B6)
 
-- Status chip (ativo/encerrado) + "incluir desligados" toggle wired to
-  `p_include_ended`. Empty states must never be ambiguous between "none" and
-  "no access" (the standing invariant).
+- Status chip (ativo/encerrado) + "incluir desligados" toggle on the directory at
+  `src/app/o/[org]/manage/usuarios/page.tsx`. ⛔ **It wires to B6b
+  (`listOrgUsers`/`listHospitalUsers`), NOT to `list_org_people`'s `p_include_ended`** —
+  the directory never calls that RPC; `list_org_people` backs the add-a-person search
+  (`register-person-flow.tsx`). The original F6 text pointed at the wrong function.
+- Both the org-wide arm (`listOrgUsers`) and the hospital-scoped arm
+  (`listHospitalUsers`) must honour the toggle — a `hospital_admin` sees only the
+  second, so wiring one arm leaves that role's roster permanently active-only.
+- Empty states must never be ambiguous between "none" and "no access" (the standing
+  invariant; `user-directory-list.tsx` already carries that reasoning in-file — follow
+  it, don't restate it).
 
 ## Track T — tester (never edits app code)
 
