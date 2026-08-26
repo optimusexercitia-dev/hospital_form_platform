@@ -193,7 +193,7 @@ export function StatusPill({
   uppercase = false,
   children,
 }: {
-  tone: "success" | "accent" | "muted";
+  tone: "success" | "accent" | "muted" | "destructive";
   uppercase?: boolean;
   children: React.ReactNode;
 }) {
@@ -207,6 +207,7 @@ export function StatusPill({
         tone === "success" && "bg-success/12 text-success",
         tone === "accent" && "bg-accent text-accent-foreground",
         tone === "muted" && "bg-muted text-muted-foreground",
+        tone === "destructive" && "bg-destructive/10 text-destructive",
       )}
     >
       {children}
