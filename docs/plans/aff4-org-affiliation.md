@@ -20,10 +20,19 @@ arms hold (`census` · `hat` · `wrapper` · `floor`). C5's keystone (`374`) was
 
 **NEXT, in this exact order — `backend` gated its own start on it:**
 1. `supabase db reset` (fresh, announced)
-2. **The owed pgTAP half of the door-SQLSTATE coverage gate** — catalog `==` declared set, which
-   catches a code existing only after a runtime body rewrite. ⛔ **Its verdict must be reported
-   before B5 begins; the ABSENCE of that verdict is the signal B5 has not started.** This
-   obligation was already dropped once (see *"an approval is not a completed action"* below).
+2. ✅ **DONE 2026-08-26 — the owed pgTAP half of the door-SQLSTATE coverage gate** (`b5e6f0f1`,
+   `backend`). **VERDICT: the live half now covers AFF4's SQLSTATEs.** Measured live set —
+   `23514,42501,HC0G0..HC0G4,HC0R0..HC0R9,HC0RA` (18 codes over 31 bodies); AFF4's five are
+   `HC0R6`–`HC0RA`, pinned by name in `304` §6.7. Both defects fixed, not one: the domain is now
+   **structural** (owner-only VOLATILE `app` kernels reachable from a client-callable `public`
+   wrapper, plus those wrappers — nothing keys on a name), and named conditions normalize by
+   asking Postgres itself, so `check_violation`'s 11 live sites resolve to `23514` and an
+   unrecognised name enters the set as a loud `UNKNOWN:<name>` rather than dropping out.
+   Proven by **five mutations, each run to completion (planned 44 / ran 44)**, each restored
+   byte-exact by md5; two of them isolate the two defects by staying **green** under the old
+   assertion. ⚠ The live half's domain is the whole door family and is therefore **WIDER** than
+   `door-error-arms.test.ts`'s `actions.ts`-derived one — the two are not each other's oracle,
+   and that file's header (which claimed they were) was corrected in the same commit.
 3. **B5** — the backfill. 4. **B6** — the **widened** ADR 0154 form, per the ruling in B6 above.
 5. Then B7 (seed) · the rest of B8 (D13 `registerUser` start date; D15 `updateUserProfile`) · B9.
 
