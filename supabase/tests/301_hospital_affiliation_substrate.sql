@@ -361,7 +361,12 @@ select is(
   '4.3 LEG 2 (org_admin): the org admin reads ALL of its org''s affiliation rows, across both hospitals');
 reset role;
 
-select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b2', false);
+-- ⚠ `active_role` PASSED EXPLICITLY. `claims_for`'s two-argument form derives the claim
+-- ONLY for a persona with exactly ONE live role; `orgadmin.b` holds org_admin AND a
+-- staff_admin seat, so it set NO claim and `app.is_org_admin_of` returned false. This
+-- cross-org DENY then passed because he had assumed no role at all, not because the org
+-- anchor held — a tenant-isolation assertion proving nothing.
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b2', false, 'org_admin');
 set local role authenticated;
 select is(
   (select count(*)::int from public.hospital_affiliations a join fx on fx.id = a.id), 0,
