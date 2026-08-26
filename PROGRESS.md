@@ -33,9 +33,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   gate-tooling bullet was rotated 2026-08-25: it is the one item in that ✅-marked bullet with an
   unfired resolution event, it exists in **no other file**, and rotating the bullet whole would have
   buried an open action under a completed heading — owner: whoever next hits it.
-- **⚠ NO PHASE IS BUILDING — and AFF4 IS COMPLETE BUT UNMERGED, which is not the same as "nothing is
-  in flight".** ⛔ **Do not compress those two clauses into one; the second is what this line has
-  destroyed four times.** State updated 2026-08-26 at the AFF4 Record step. **AFF4** is the most
+- **⚠ NO PHASE IS BUILDING — and AFF4 IS MERGED, PUSHED, AND ITS SCHEMA IS APPLIED REMOTELY**
+  (`main` @ `e8abaeec`; branch deleted; 12 migrations pushed 2026-08-26). ⛔ **Do not compress the
+  clauses into one; the second is what this line has destroyed four times, and "complete" has meant
+  four different things here — built / merged / pushed / schema-applied.** ⛔ **Re-measure, never
+  read**: `git branch --merged main` and `supabase migration list --linked`. **AFF4** is the most
   recent complete program; before it, **ADR 0144 (PDF·P3)** and the **user-profile redesign +
   AFF3/AUD1/AUD2** batch (ADRs 0147–0150). 0136 and 0137 are both complete. ⛔ This line's own
   history — it read "NO PHASE IS ACTIVE" **three times while phases ran**, and the correction that
@@ -50,8 +52,16 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   detail → [aff4.md](docs/progress/aff4.md) · authority is still the
   [plan](docs/plans/aff4-org-affiliation.md). Concluded narrative rotated →
   [2026-Q3.md](docs/progress/2026-Q3.md). ⛔ **THE THREE RESIDUES, and they exist nowhere else:**
-  **(1)** the branch is **NOT MERGED and NOT PUSHED** — 12 migrations are local only, and
-  `coolify.md` documents auto-deploy on `git push`, so the order is **schema first, then code**;
+  **(1)** ✅ **DISCHARGED 2026-08-26 — merged, pushed, branch deleted, and all 12 migrations applied
+  remotely** (`db push` exit 0; verified on the remote: `organization_affiliations` = **35 rows**,
+  matching `profiles.home_organization_id` = 35, so the backfill that matches **zero** rows locally
+  did its real work there; backstop `prosecdef` = **true**; 5 doors present).
+  ⛔ **BUT THE DOCUMENTED ORDER WAS VIOLATED AND IT MUST BE RECORDED:** this residue said
+  *"`coolify.md` documents auto-deploy on `git push`, so the order is **schema first, then code**"* —
+  and the lead pushed **code first**, leaving a window in which deployed code queried a table the
+  remote did not have. ⭐ **The residue named the hazard, was read, and was violated anyway**, because
+  it was filed under a heading about an unmerged branch rather than beside the push. A warning is
+  only as good as its position relative to the action it governs;
   **(2)** ⚠ **~16 QA-review obligations + ~20 plan-discovered follow-ups were NOT converted into
   `FUP-*` index lines at the Record step** — several say in their own words that they need one, so
   they are invisible to the register the PO reads from until they are filed (pointer list:
