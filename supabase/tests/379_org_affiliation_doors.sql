@@ -21,7 +21,7 @@
 -- assumed no role rather than because the rule held. `orgadmin.b` is such a persona.
 
 begin;
-select plan(39);
+select plan(43);
 
 create temp table k on commit drop as select
   '00000000-0000-0000-0000-0000000000d1'::uuid as subject,      -- org A, ZERO memberships
@@ -137,6 +137,48 @@ select is(
     where principal_id = (select subject from k) and organization_id = (select org_a from k)
       and ended_on is null and voided_at is null), 1,
   '2.6 ... and produced exactly ONE active row, not two');
+
+-- ============================================================================
+-- §2b update_org_affiliation — start-date corrections.
+--
+-- ⚠ THIS SECTION EXISTS BECAUSE `ARM=floor` DEMANDED IT. The door shipped with no
+-- keystone driving it, and the never-called-door floor named it: "authenticated-reachable
+-- prosecdef doors with 0 calls". The fix is a keystone, never an allowlist entry —
+-- allowlisting a door is what MAKES it blind, because the floor arm and the door arm then
+-- agree and agreement reads as coverage.
+-- ============================================================================
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false, 'hospital_admin');
+set local role authenticated;
+select throws_ok(
+  $$select public.update_org_affiliation('00000000-0000-0000-0000-0000000000d1',
+                                         '0c000000-0000-0000-0000-00000000000a',
+                                         '2024-01-15')$$,
+  '42501', null,
+  '2b.1 DENY: a hospital_admin cannot correct an ORGANISATION affiliation''s dates');
+reset role;
+
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1', false);
+set local role authenticated;
+select lives_ok(
+  $$select public.update_org_affiliation('00000000-0000-0000-0000-0000000000d1',
+                                         '0c000000-0000-0000-0000-00000000000a',
+                                         '2024-01-15')$$,
+  '2b.2 ALLOW: the org admin corrects the start date');
+
+select throws_ok(
+  $$select public.update_org_affiliation('00000000-0000-0000-0000-0000000000b3',
+                                         '0c000000-0000-0000-0000-00000000000a',
+                                         '2024-01-15')$$,
+  'HC0R2', null,
+  '2b.3 DENY: a person with no active org affiliation here is "not found" — same code as the sibling doors');
+reset role;
+
+select is(
+  (select started_on from public.organization_affiliations
+    where principal_id = (select subject from k) and organization_id = (select org_a from k)
+      and ended_on is null and voided_at is null),
+  '2024-01-15'::date,
+  '2b.4 ... and the correction actually landed — a door that returns without writing would pass 2b.2 alone');
 
 -- ============================================================================
 -- §3 end_org_affiliation — D3 blockers, and the D6 expired-seat DIFFERENTIAL

@@ -18,6 +18,25 @@
 # ⚠ UNSWEPT is NOT a synonym for BLIND. Several entries below are probably COVERED
 # already; nobody has asked.
 #
+# ── TWO CATEGORIES LIVE HERE, AND THEY MAKE DIFFERENT CLAIMS ───────────────────
+# This file began with one category. A second was added 2026-08-26 and has to be
+# LABELLED, because a reader applying the single-category assumption to an entry of the
+# second kind concludes the gate is not an authorization decision — which is false, and
+# is exactly the untrue statement this file exists to prevent.
+#
+#   (a) NEVER SWEPT — inside ARM 1's reach; nobody has run it. Probably COVERED already.
+#   (b) IN THE CENSUS'S DOMAIN, OUTSIDE ARM 1'S NEUTRALIZATION MECHANISM — the census
+#       demands a verdict the sweep CANNOT PRODUCE. ARM 1 neutralizes boolean predicates
+#       and RLS policies; a gate that is neither cannot be flipped by it, and running the
+#       sweep over one returns "UNPROVEN — NOTHING WAS MEASURED. This is NOT a pass."
+#       ⚠ A (b) entry MUST name the keystone that DOES cover it, and that keystone MUST
+#       have been proven by MUTATION. Without that proof the entry is the recorded
+#       "allowlisting a door is what MAKES it blind" shape: the floor arm and the door arm
+#       then agree, and agreement reads as coverage.
+#
+# ⛔ Every entry states its category. An UNLABELLED entry defaults to (a) — the stronger
+# claim, and the wrong one for a (b) gate.
+#
 # ⛔ WHAT ARM 3 STILL CANNOT SEE — stated here because a census that looks complete is
 # more dangerous than one that admits its edge. The domain is: `prosecdef` booleans,
 # `prosecdef` row-returning doors, and RLS policies. It does NOT cover
@@ -589,3 +608,40 @@ public.open_printed_document(p_id uuid)
 # than a classification. The `helper:` claim belongs in this comment; the line below is
 # the bare signature.
 app.case_is_terminal(p_case_id uuid)
+
+# ── CATEGORY (b) · 2026-08-26 · AFF4 B4 ───────────────────────────────────
+#
+# public.get_own_person_record() — ADR 0151 D14. The /conta self record: a prosecdef,
+# set-returning door holding EXECUTE for `authenticated`, so it IS inside ARM 3's stated
+# domain ("prosecdef set-returning + reachable") and the census rightly demands a verdict.
+#
+# ⛔ IT IS AN AUTHORIZATION GATE. Do NOT reclassify it as a helper. Its whole security
+# property is that it returns the CALLER'S record and nobody else's.
+#
+# WHY NO VERDICT EXISTS — MEASURED, NOT ASSUMED (2026-08-26):
+#   * ARM 1 over it reported `predicate=0/111 policy=0/226` — it matched no case at all.
+#   * Re-run with the census's own exact key, `CASES="get_own_person_record()"`, returned
+#     "=== RESULT: UNPROVEN — NOTHING WAS MEASURED. This is NOT a pass. ==="
+# The sweep was ATTEMPTED and could not reach; this is not "nobody tried". ARM 1
+# neutralizes a BOOLEAN predicate or an RLS policy, and this gate is a `where pr.id =
+# v_uid` row filter inside a set-returning body — there is no boolean to flip.
+#
+# WHAT DOES COVER IT, proven by mutation rather than claimed:
+#   supabase/tests/379_org_affiliation_doors.sql §6.5 — a DIFFERENT caller must get THEIR
+#   record. Mutating the gate to return a FIXED row (`where pr.id = (select id from
+#   profiles order by id limit 1)`) reds §6.5 with "have: Administradora Geral / want:
+#   Admin Rede A", plus §6.2 and §6.3. Restored → 39/39 green.
+#   ⚠ The blunter mutation the obvious reading suggests — `where pr.id = v_uid` → `where
+#   true` — does NOT prove §6.5: it returns 36 rows, so §6.2's scalar subquery raises and
+#   the suite ABORTS AT TEST 35 of 39. §6.5 never runs. A mutation that kills the suite
+#   before reaching the arm under test proves nothing about that arm, and its red looks
+#   exactly like a red that does.
+#
+# ⚠ THE FINDING IS BIGGER THAN THIS ENTRY: the census can name gates that no arm can
+# sweep, and its own remedy text points at a sweep that cannot run. Third instance of the
+# same edge, after the invoker-wrapper class and ADR 0118 §12's composite-returning doors.
+# A sweep boundary drawn on a return-type SYNTAX cannot enforce a PROPERTY.
+#
+# ⛔ FORMAT: bare signature below, per the `case_is_terminal` note — a literal category
+# prefix on the line would make it match no function and reappear as a GHOST.
+public.get_own_person_record()
