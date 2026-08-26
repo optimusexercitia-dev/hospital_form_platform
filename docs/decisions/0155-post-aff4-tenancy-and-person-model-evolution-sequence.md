@@ -132,7 +132,8 @@ If taken up, it amends ADR 0041 and must carry the `**Amends:**` label — no ga
 
 ## Why D6 differs in kind from D4 and D5
 
-Three costs that are invisible in a schema diff:
+Three costs that are invisible in a schema diff — **two serious, and a third that measurement
+downgraded from a blocker to a checklist item** (see the correction under 3):
 
 1. **RLS performance.** The role helpers run **per row**, and **119 of 283 policies** call them.
    D6 replaces a partial-index probe with a tree walk on the hot path of every case, meeting and
@@ -144,13 +145,45 @@ Three costs that are invisible in a schema diff:
    rebuilding the audit apparatus at the same time as the thing it audits, with no trustworthy
    baseline in between. This repo's own recorded trap, at program scale: *where two defects share a
    symptom, fixing one and re-running looks exactly like fixing both.*
-3. **A business rule stops being an index.** `UNIQUE (hospital_id) WHERE role = 'technical_director'`
-   has no `hospital_id` column to sit on once scope is a single `scope_id`, and falls back to a
-   trigger — later, slower, and racy under concurrency unless written carefully.
+3. **A constraint class that must be deliberately restored — but it *does* survive.**
+   ⛔ **CORRECTED 2026-08-26, and the original claim is kept here because it was committed and may
+   have been read.** This item originally said: *"`UNIQUE (hospital_id) WHERE role =
+   'technical_director'` has no `hospital_id` column to sit on once scope is a single `scope_id`, and
+   falls back to a trigger — later, slower, and racy under concurrency."* **That is false**, and it
+   was refuted by building the shape rather than reasoning about it.
 
-> ⚠ The general form, worth carrying beyond this ADR: **a more generic schema makes specific
-> constraints harder to express.** Every step toward "anything can be configured" is a step away from
-> "this particular thing is impossible."
+   With `scope_kind` denormalized onto `role_grants` and held honest by **composite** foreign keys,
+   all four rules hold as declarative constraints. Measured in a rolled-back transaction, 2026-08-26:
+
+   | Attempt | Outcome | Enforced by |
+   | --- | --- | --- |
+   | second `technical_director` at the same hospital | **rejected** | `UNIQUE (scope_id) WHERE role = 'technical_director'` |
+   | second role for one principal at the same commission | **rejected** | `UNIQUE (principal_id, scope_id) WHERE scope_kind = 'commission'` |
+   | `technical_director` granted at a *commission* | **rejected** | FK `(role, scope_kind)` → `roles(key, grantable_at_kind)` |
+   | a row claiming a `scope_kind` its scope does not have | **rejected** | FK `(scope_id, scope_kind)` → `scopes(id, kind)` |
+
+   ⭐ **The `unique (id, kind)` constraint on `scopes` pays for itself twice.** It is what makes the
+   typed FK legal (the reason it exists) *and* what lets `kind` be carried down onto `role_grants`
+   without becoming forgeable. Once the discriminating column is back, partial-index constraints come
+   back with it.
+
+   ⭐ **On the tier rule the new shape is strictly better.** Today a role's tier is one branch of a
+   ten-way `CASE` in `memberships_scope_shape`, edited for every role added. The composite FK to
+   `roles(key, grantable_at_kind)` replaces that whole `CASE` with one constraint that is never
+   edited again — and adding a role becomes an `INSERT`.
+
+   **The residual cost, which is real but small:** one extra column per grant row, and the
+   discriminator must actually be carried. ⚠ **Forget it and the constraints vanish silently** —
+   nothing errors, the rules simply stop being enforceable. That is a checklist item for any D6
+   proposal, not an argument against one.
+
+> ⚠ **The general form, corrected.** The original wording here — *"a more generic schema makes
+> specific constraints harder to express"* — is too broad, and being too broad is exactly what
+> produced the false claim above. The accurate form:
+>
+> **A generic schema loses a constraint only when the DISCRIMINATING COLUMN disappears. Carry the
+> discriminator back in, and keep it honest with a composite FK rather than a trigger, and the
+> constraint returns as an index.**
 
 ## Measured — what ancestry actually costs under RLS (2026-08-26, synthetic)
 
@@ -263,9 +296,15 @@ doors, so **every row above will be wrong by the time this ADR is re-analysed.**
 
 - **Measured on the live catalog** — every row of the *Measured figures* table (relation counts,
   policy counts, grants). Real, and stale the moment AFF4 lands.
-- **Measured synthetically** — only the ancestry timings, on a fabricated tree in a rolled-back
-  transaction. They compare *strategies against each other*; they are **not** a prediction of this
-  system's latency, and the caveats in that section are part of the claim.
+- **Measured synthetically** — two things, and they do **not** generalise equally:
+  - *the ancestry timings*, on a fabricated tree in a rolled-back transaction. They compare
+    strategies **against each other**; they are **not** a prediction of this system's latency, and
+    the caveats in that section are part of the claim.
+  - *the constraint feasibility results under cost 3*, built the same way. These are a different
+    kind of evidence — a constraint either holds or it does not, and the result is a fact about
+    PostgreSQL's semantics rather than about the fixture, so it **does** transfer. It is also the
+    one place this ADR was **measured to be wrong**, which is why the original claim is preserved
+    beside its correction rather than edited away.
 - **Inferred, not measured** — every difficulty estimate, every blast-radius consequence, and the
   whole sequencing argument. **No step was attempted.** ⛔ Do not promote an inference to a
   measurement by quoting it next to one.
