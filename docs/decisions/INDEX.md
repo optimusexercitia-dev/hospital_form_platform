@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**153 ADRs** · next free number: **0156** · 44 carry an inbound supersedes/amends edge
+**154 ADRs** · next free number: **0157** · 44 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -119,7 +119,7 @@
 | 0095 | [Process/case integrity audit: remediation scope, corrections, and deferred remodels](0095-process-case-integrity-audit-remediation.md) | accepted | 2026-08-04 | – | ⛔ superseded by 0096 |
 | 0096 | [Process-template versioning (audit M1, full remodel)](0096-process-template-versioning.md) | accepted | 2026-08-04 | supersedes 0095 | – |
 | 0097 | [Hospital affiliation, person identity (CPF) and the org-scoped people directory](0097-hospital-affiliation-person-identity.md) | accepted | 2026-08-05 | – | ⚠ amended by 0133, 0148, 0151 |
-| 0098 | [AFF substrate & doors: the shape decisions ADR 0097 left open](0098-aff-w1-substrate-shape-decisions.md) | accepted | 2026-08-06 | – | ⚠ amended by 0133 |
+| 0098 | [AFF substrate & doors: the shape decisions ADR 0097 left open](0098-aff-w1-substrate-shape-decisions.md) | accepted | 2026-08-06 | – | ⚠ amended by 0133, 0156 |
 | 0099 | [Meeting audio → generated ata (minute_generator integration)](0099-meeting-audio-minutes.md) | accepted | 2026-08-06 | – | – |
 | 0100 | [Quality-office oversight: `quality_reviewer` role, commission oversight classification,…](0100-quality-office-oversight.md) | accepted | 2026-08-06 | – | ⚠ amended by 0102, 0134 |
 | 0101 | [The role→landing guard is catalog-derived, not remembered](0101-role-landing-guard.md) | accepted | 2026-08-07 | – | – |
@@ -177,3 +177,4 @@
 | 0153 | [A subset door-sweep writes to scratch; the committed baseline is never opened for write](0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) | accepted | 2026-08-26 | amends 0079 | – |
 | 0154 | [the roster predicate is the query filter, not `list_org_people`](0154-roster-predicate-is-the-query-filter-not-list-org-people.md) | accepted | 2026-08-26 | amends 0151 | – |
 | 0155 | [Post-AFF4 tenancy and person-model evolution: a staged sequence, not a redesign](0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) | ⚠ proposed | 2026-08-26 | – | – |
+| 0156 | [the door-SQLSTATE gate's domain is a structural property, not a list of names](0156-door-sqlstate-gate-domain-is-structural.md) | accepted | 2026-08-26 | amends 0098 | – |
