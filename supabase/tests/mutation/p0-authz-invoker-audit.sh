@@ -88,6 +88,10 @@
 #
 # Run from repo root:  bash supabase/tests/mutation/p0-authz-invoker-audit.sh
 # Subset:              CASES="get_response_validation_errors submit_response" bash …
+#   ⭐ A subset run writes its report + BLIND tsv to SCRATCH under $WORK and NEVER opens
+#   the committed findings md for write (FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE) — this
+#   is the file `FROMFINDINGS=1 ARM=wrapper` reads back. There is nothing to
+#   `git checkout --` afterwards; older instructions describe the pre-2026-08-26 behaviour.
 # Dry run (no suite):  DRYRUN=1 bash …   — classifies every function's guards and
 #                      exits. Use it to prove the detector still FINDS things after any
 #                      edit: a detector that finds nothing must be proven able to find
@@ -106,14 +110,84 @@ set -u
 DB=supabase_db_azkbbhskturikxpgmafq
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK="${WORK:-$ROOT/.authz-work}"
-FINDINGS="$ROOT/docs/reviews/authz-invoker-audit-findings.md"
-BLINDS_TSV="$WORK/blinds_invoker.tsv"
 PROGRESS="$WORK/progress_invoker.tsv"
 RUNLOGS="$WORK/runlogs_invoker"
 CASES="${CASES:-}"
 DRYRUN="${DRYRUN:-0}"
+FINDINGS_COMMITTED="$ROOT/docs/reviews/authz-invoker-audit-findings.md"
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ A SUBSET RUN MUST NOT WRITE THE COMMITTED BASELINE
+#    (FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE — fix (a), 2026-08-26; identical in all
+#     four p0-authz-*-audit.sh sweeps, which share the defect by construction.)
+#
+# `emit_report` ends in a TRUNCATING redirect into the file above, which is COMMITTED.
+# With `CASES=` set — the diff-scoped run CLAUDE.md §6 step 1 mandates EVERY PHASE — that
+# redirect replaced the full audit with the subset (measured on the door sweep 2026-08-25:
+# 699 lines -> 90). ⛔ Silent AND self-concealing, and THIS file is the one
+# `FROMFINDINGS=1 ARM=wrapper` — a §6 step-1 arm — reads: it compares this committed file
+# to an allowlist and RE-MEASURES NOTHING, so against a truncated file it sees fewer
+# gates, finds every one allowlisted, and reports HOLDS. The arm gets GREENER as the
+# baseline gets EMPTIER.
+# ⚠ $BLINDS_TSV moves too: the invariant's non-FROMFINDINGS wrapper arm reads
+# `$WORK/blinds_invoker.tsv` as a FULL-sweep result. The property is "never overwrite the
+# artefact a later arm reads back as a baseline"; committed vs scratch is not part of it.
+# ─────────────────────────────────────────────────────────────────────────────────────
+if [ -n "$CASES" ]; then
+  SUBSET_RUN=1
+  FINDINGS="$WORK/authz-invoker-audit-findings.SUBSET.md"
+  BLINDS_TSV="$WORK/blinds_invoker.SUBSET.tsv"
+else
+  SUBSET_RUN=0
+  FINDINGS="$FINDINGS_COMMITTED"
+  BLINDS_TSV="$WORK/blinds_invoker.tsv"
+fi
 
 mkdir -p "$WORK" "$RUNLOGS"
+
+# THE SECOND LOCK — a different KIND from the first: repointing $FINDINGS states the
+# INTENT, this measures the OUTCOME (bytes checksummed now, re-checked on every exit).
+baseline_sum () {
+  if [ -f "$FINDINGS_COMMITTED" ]; then cksum < "$FINDINGS_COMMITTED"; else echo "ABSENT"; fi
+}
+BASELINE_SUM="$(baseline_sum)"
+verify_baseline_untouched () {   # subset runs only; a mismatch ESCALATES to ABORT (2)
+  [ "$SUBSET_RUN" = "1" ] || return 0
+  local now; now="$(baseline_sum)"
+  if [ "$now" != "$BASELINE_SUM" ]; then
+    echo "*** FATAL: the COMMITTED baseline CHANGED during a subset run:" >&2
+    echo "      $FINDINGS_COMMITTED" >&2
+    echo "    A CASES= run must never write it (FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE)." >&2
+    echo "    Restore it and re-run before reading ANY later FROMFINDINGS arm:" >&2
+    echo "      git checkout -- $FINDINGS_COMMITTED" >&2
+    return 1
+  fi
+  echo "    committed baseline VERIFIED unchanged (cksum): $FINDINGS_COMMITTED"
+  return 0
+}
+trap 'verify_baseline_untouched || exit 2' EXIT
+
+if [ "$SUBSET_RUN" = "1" ]; then
+  echo "--------------------------------------------------------------------------------"
+  echo "⚠ SUBSET RUN — CASES=\"$CASES\". This run writes to SCRATCH, never to the baseline."
+  echo "    subset report : $FINDINGS"
+  echo "    subset BLINDs : $BLINDS_TSV"
+  echo "    COMMITTED baseline is NOT opened for write and stays UNTOUCHED:"
+  echo "      $FINDINGS_COMMITTED"
+  echo "    ⛔ A FROMFINDINGS arm does NOT cover this run: it re-measures nothing and reads"
+  echo "       the COMMITTED file, which this run deliberately did not update."
+  echo "    To fold these verdicts in, MERGE them into the baseline (ADR 0079 Amendment 1)"
+  echo "    — never copy the subset file over it."
+  echo "--------------------------------------------------------------------------------"
+else
+  BASELINE_ANNOTATIONS=$(grep -cE '^(<!--|## Note)' "$FINDINGS_COMMITTED" 2>/dev/null | tr -d '[:space:]')
+  if [ "${BASELINE_ANNOTATIONS:-0}" != "0" ]; then
+    echo "⚠ FULL SWEEP — the committed baseline carries ${BASELINE_ANNOTATIONS} HAND-ADDED block(s)"
+    echo "  (\`<!-- … -->\` merge notes / \`## Note …\` sections) this generator does NOT emit."
+    echo "  The truncating redirect REPLACES the whole file, so this run drops them. Re-merge"
+    echo "  from \`git show HEAD:docs/reviews/authz-invoker-audit-findings.md\` before committing."
+  fi
+fi
 
 psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off "$@" </dev/null; }
 psql_f () {
@@ -141,7 +215,9 @@ restore_inflight () {
     psql_f "$INFLIGHT" >/dev/null 2>&1
   fi
 }
-trap restore_inflight EXIT
+# ⚠ compound: this REPLACES the baseline-guard trap installed above, so it must carry
+# that duty too, or a subset run loses its outcome check from here on.
+trap 'restore_inflight; verify_baseline_untouched || exit 2' EXIT
 
 run_suite () { ( cd "$ROOT" && supabase test db ) 2>&1; }
 
@@ -446,5 +522,14 @@ done < "$WORK/worklist_invoker.tsv"
 emit_report
 echo
 echo "=== DONE. Report: $FINDINGS   BLINDs: $BLINDS_TSV ==="
+if [ "$SUBSET_RUN" = "1" ]; then
+  # ⚠ Print the SIZE, not just the path: an "untouched baseline" is indistinguishable
+  # from "this run wrote nothing at all" unless the subset report is shown to exist with
+  # real content somewhere.
+  echo "    ⚠ SUBSET RUN (CASES=\"$CASES\") — that report is a SCRATCH file, $(wc -l < "$FINDINGS" | tr -d '[:space:]') line(s),"
+  echo "      covering ONLY the selected cases. The committed baseline was never opened"
+  echo "      for write: $FINDINGS_COMMITTED"
+  echo "    ⛔ Do NOT read a FROMFINDINGS arm as covering this run."
+fi
 awk -F'\t' '{c[$4]++} END{for(k in c) printf "%s: %d   ", k, c[k]; print ""}' "$PROGRESS"
 echo "swept (suite-run): $SUPPORTED   unsupported (static): $UNSUP"

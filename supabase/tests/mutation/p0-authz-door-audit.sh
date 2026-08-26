@@ -37,6 +37,10 @@
 # Run from repo root:  bash supabase/tests/mutation/p0-authz-door-audit.sh
 # Subset:              CASES="can_read_case is_case_respondent" bash .../p0-authz-door-audit.sh
 #   (CASES matches predicate proname OR policy name; space-separated.)
+#   ⭐ A subset run writes its report + BLIND tsv to SCRATCH under $WORK and NEVER opens
+#   the committed findings md for write (FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE; see
+#   the config block below). There is nothing to `git checkout --` afterwards, and older
+#   instructions saying otherwise describe the pre-2026-08-26 behaviour.
 #
 # ── EXIT CODES — three-way, NOT boolean (§7.17) ─────────────────────────────────────
 #   0  CLEAN     a NON-EMPTY selection was swept and every case came back COVERED
@@ -62,11 +66,43 @@ DB=supabase_db_azkbbhskturikxpgmafq
 # Repo root = three levels up from supabase/tests/mutation/.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK="${WORK:-${TMPDIR:-/tmp}/authz-audit}"
-FINDINGS="$ROOT/docs/reviews/authz-door-audit-findings.md"
-BLINDS_TSV="$WORK/blinds.tsv"
 PROGRESS="$WORK/progress.tsv"          # per-case log, written AS WE GO (§ mid-run kill)
 RUNLOGS="$WORK/runlogs"                # full suite output per case, for forensics
 CASES="${CASES:-}"                     # optional subset filter
+FINDINGS_COMMITTED="$ROOT/docs/reviews/authz-door-audit-findings.md"
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ A SUBSET RUN MUST NOT WRITE THE COMMITTED BASELINE
+#    (FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE — fix (a), 2026-08-26)
+#
+# `emit_report` ends in a TRUNCATING redirect into the file above, which is COMMITTED.
+# With `CASES=` set — the diff-scoped run CLAUDE.md §6 step 1 mandates EVERY PHASE — that
+# redirect used to replace the full audit with the subset. Measured 2026-08-25 during
+# AFF3: 699 lines -> 90.
+#
+# ⛔ The failure was silent AND self-concealing. `FROMFINDINGS=1 ARM=policy/wrapper` — a
+# phase-gate arm — compares this committed file to an allowlist and RE-MEASURES NOTHING.
+# Against a truncated file it sees fewer gates, finds every one of them allowlisted, and
+# reports HOLDS: the arm gets GREENER as the baseline gets EMPTIER. The only thing
+# standing between a phase and that was the operator remembering to `git checkout --` it.
+#
+# So a subset run writes to SCRATCH and never opens the committed file for write. The
+# committed path stays in $FINDINGS_COMMITTED, because the messages that promise it is
+# untouched must be able to NAME it (the same vocabulary the §7.17 UNPROVEN exit uses).
+# ⚠ $BLINDS_TSV moves too: p0-authz-invariant.sh's non-FROMFINDINGS arm reads
+# `$WORK/blinds.tsv` as a FULL-sweep result, so a subset run must not occupy that name
+# either. "Never overwrite the artefact a later arm reads back as a baseline" is the
+# property; whether the artefact is committed or scratch is not part of it.
+# ─────────────────────────────────────────────────────────────────────────────────────
+if [ -n "$CASES" ]; then
+  SUBSET_RUN=1
+  FINDINGS="$WORK/authz-door-audit-findings.SUBSET.md"
+  BLINDS_TSV="$WORK/blinds.SUBSET.tsv"
+else
+  SUBSET_RUN=0
+  FINDINGS="$FINDINGS_COMMITTED"
+  BLINDS_TSV="$WORK/blinds.tsv"
+fi
 
 
 # ⛔ WORKSPACE PRECONDITION — a hard failure, never a warning.
@@ -86,6 +122,57 @@ if ! mkdir -p "$WORK" 2>/dev/null || ! : > "$WORK/.writable" 2>/dev/null; then
 fi
 rm -f "$WORK/.writable"
 mkdir -p "$RUNLOGS"
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# THE SECOND LOCK — deliberately a DIFFERENT KIND from the first.
+# Repointing $FINDINGS above states the INTENT ("a subset run writes to scratch"). This
+# measures the OUTCOME: the committed file's bytes are checksummed NOW and re-checked on
+# EVERY exit path, so "the baseline is untouched" is a MEASUREMENT, not a claim. (memory:
+# "a door can have two locks" — where the second lock turned out to be the same predicate
+# twice. §7.5 already applies this discipline to gate restores: byte-compare, never assume.)
+# ─────────────────────────────────────────────────────────────────────────────────────
+baseline_sum () {
+  if [ -f "$FINDINGS_COMMITTED" ]; then cksum < "$FINDINGS_COMMITTED"; else echo "ABSENT"; fi
+}
+BASELINE_SUM="$(baseline_sum)"
+verify_baseline_untouched () {   # subset runs only; a mismatch ESCALATES to ABORT (2)
+  [ "$SUBSET_RUN" = "1" ] || return 0
+  local now; now="$(baseline_sum)"
+  if [ "$now" != "$BASELINE_SUM" ]; then
+    echo "*** FATAL: the COMMITTED baseline CHANGED during a subset run:" >&2
+    echo "      $FINDINGS_COMMITTED" >&2
+    echo "    A CASES= run must never write it (FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE)." >&2
+    echo "    Every later FROMFINDINGS arm compares against this file and re-measures" >&2
+    echo "    nothing, so restore it and re-run before reading ANY of them:" >&2
+    echo "      git checkout -- $FINDINGS_COMMITTED" >&2
+    return 1
+  fi
+  echo "    committed baseline VERIFIED unchanged (cksum): $FINDINGS_COMMITTED"
+  return 0
+}
+trap 'verify_baseline_untouched || exit 2' EXIT
+
+if [ "$SUBSET_RUN" = "1" ]; then
+  echo "--------------------------------------------------------------------------------"
+  echo "⚠ SUBSET RUN — CASES=\"$CASES\". This run writes to SCRATCH, never to the baseline."
+  echo "    subset report : $FINDINGS"
+  echo "    subset BLINDs : $BLINDS_TSV"
+  echo "    COMMITTED baseline is NOT opened for write and stays UNTOUCHED:"
+  echo "      $FINDINGS_COMMITTED"
+  echo "    ⛔ A FROMFINDINGS arm does NOT cover this run: it re-measures nothing and reads"
+  echo "       the COMMITTED file, which this run deliberately did not update."
+  echo "    To fold these verdicts in, MERGE them into the baseline (ADR 0079 Amendment 1)"
+  echo "    — never copy the subset file over it."
+  echo "--------------------------------------------------------------------------------"
+else
+  BASELINE_ANNOTATIONS=$(grep -cE '^(<!--|## Note)' "$FINDINGS_COMMITTED" 2>/dev/null | tr -d '[:space:]')
+  if [ "${BASELINE_ANNOTATIONS:-0}" != "0" ]; then
+    echo "⚠ FULL SWEEP — the committed baseline carries ${BASELINE_ANNOTATIONS} HAND-ADDED block(s)"
+    echo "  (\`<!-- … -->\` merge notes / \`## Note …\` sections) this generator does NOT emit."
+    echo "  The truncating redirect REPLACES the whole file, so this run drops them. Re-merge"
+    echo "  from \`git show HEAD:docs/reviews/authz-door-audit-findings.md\` before committing."
+  fi
+fi
 
 psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off "$@"; }
 # Run an SQL file inside the container (avoids all shell-quoting of quals/bodies).
@@ -109,7 +196,9 @@ restore_inflight () {
     psql_f "$INFLIGHT" >/dev/null 2>&1
   fi
 }
-trap restore_inflight EXIT
+# ⚠ compound: this REPLACES the baseline-guard trap installed above, so it must carry
+# that duty too, or a subset run loses its outcome check from here on.
+trap 'restore_inflight; verify_baseline_untouched || exit 2' EXIT
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # The neutralizer — an ANONYMOUS `DO` block, baked per case (oid + newbody spliced in by
@@ -474,7 +563,8 @@ if [ "$SEL_TOTAL" -eq 0 ]; then
   echo "    Selected cases: 0 (predicate=$PRED_SEL, policy=$POL_SEL)${CASES:+ from CASES=\"$CASES\"}."
   echo "    A sweep of zero gates cannot distinguish 'no blind door' from 'no door looked at',"
   echo "    so this run deliberately does NOT print a BLIND/ERROR count."
-  echo "    Nothing was neutralized; the baseline suite was NOT run; $FINDINGS is UNTOUCHED."
+  echo "    Nothing was neutralized; the baseline suite was NOT run; the COMMITTED baseline"
+  echo "    $FINDINGS_COMMITTED is UNTOUCHED."
   echo "    Fix the SELECTION (or widen/annotate the arm's domain) and re-run."
   exit 3
 fi
@@ -694,6 +784,15 @@ done < "$WORK/worklist_pol.tsv"
 
 echo
 echo "=== DONE. Report: $FINDINGS   BLINDs: $BLINDS_TSV ==="
+if [ "$SUBSET_RUN" = "1" ]; then
+  # ⚠ Print the SIZE, not just the path: an "untouched baseline" is indistinguishable
+  # from "this run wrote nothing at all" unless the subset report is shown to exist with
+  # real content somewhere.
+  echo "    ⚠ SUBSET RUN (CASES=\"$CASES\") — that report is a SCRATCH file, $(wc -l < "$FINDINGS" | tr -d '[:space:]') line(s),"
+  echo "      covering ONLY the selected cases. The committed baseline was never opened"
+  echo "      for write: $FINDINGS_COMMITTED"
+  echo "    ⛔ Do NOT read a FROMFINDINGS arm as covering this run."
+fi
 blind_ct=$(awk -F'\t' '$4=="BLIND"' "$PROGRESS" | wc -l | tr -d '[:space:]')
 err_ct=$(awk -F'\t' '$4=="ERROR"' "$PROGRESS" | wc -l | tr -d '[:space:]')
 swept_ct=$(grep -c . "$PROGRESS" | tr -d '[:space:]')

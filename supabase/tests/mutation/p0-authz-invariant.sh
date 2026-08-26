@@ -234,9 +234,16 @@ run_arm_policy () {
       blind_from_findings "$ROW_FINDINGS"; } | sort -u > "$blinds"
   else
     echo "  mode: FULL SWEEP (door + writepath + rowdoor) — ~105 min"
-    ( cd "$ROOT" && bash "$HERE/p0-authz-door-audit.sh" )      || { echo "  *** door sweep failed"; RC=1; }
-    ( cd "$ROOT" && bash "$HERE/p0-authz-writepath-audit.sh" ) || { echo "  *** writepath sweep failed"; RC=1; }
-    ( cd "$ROOT" && bash "$HERE/p0-authz-rowdoor-audit.sh" )   || { echo "  *** rowdoor sweep failed"; RC=1; }
+    # ⛔ CASES= is cleared EXPLICITLY for the children. This script never sets it, so an
+    # EXPORTED CASES in the operator's environment used to be inherited straight into the
+    # sweeps: each would silently run a subset, and this arm would then compare a SUBSET
+    # BLIND set against the full allowlist and find nothing unaccounted for — a narrower
+    # domain reading as a clean pass, which is FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE's
+    # sibling on the scratch side. "FULL SWEEP" is now a fact about the child, not a hope.
+    [ -n "${CASES:-}" ] && echo "  ⚠ CASES=\"$CASES\" is set in the environment — IGNORED here; this mode is a FULL sweep."
+    ( cd "$ROOT" && CASES= bash "$HERE/p0-authz-door-audit.sh" )      || { echo "  *** door sweep failed"; RC=1; }
+    ( cd "$ROOT" && CASES= bash "$HERE/p0-authz-writepath-audit.sh" ) || { echo "  *** writepath sweep failed"; RC=1; }
+    ( cd "$ROOT" && CASES= bash "$HERE/p0-authz-rowdoor-audit.sh" )   || { echo "  *** rowdoor sweep failed"; RC=1; }
     # All three sweeps write a machine-readable BLIND tsv (col2 = gate) into $WORK.
     { awk -F'\t' 'NR>1{print $2}' "$WORK/blinds.tsv" 2>/dev/null;
       awk -F'\t' 'NR>1{print $2}' "$WORK/blinds_writepath.tsv" 2>/dev/null;
@@ -432,7 +439,11 @@ run_arm_census () {
     echo "  notices when they open. Fix: run the diff-scoped ARM 1 over exactly these"
     echo "  (ADR 0079 Amendment 1 recipe), then keystone what comes back BLIND:"
     echo "      WORK=<scratch> CASES=\"<polnames/pronames>\" bash $HERE/p0-authz-door-audit.sh"
-    echo "      git checkout -- $DOOR_FINDINGS   # a subset run OVERWRITES the report"
+    echo "      # ⭐ Since 2026-08-26 a CASES= run writes its report + BLIND tsv to SCRATCH"
+    echo "      # and never opens $DOOR_FINDINGS for write, so there is NOTHING to restore."
+    echo "      # (The old 'git checkout --' step was operator memory standing in for a check:"
+    echo "      #  FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE. To fold subset verdicts into the"
+    echo "      #  baseline, MERGE them — never copy the subset file over it.)"
     echo "  If a gate is genuinely not an authorization decision, classify it in"
     echo "  $UNSWEPT under 'helper:' WITH the reason."
     RC=1
@@ -554,7 +565,10 @@ run_arm_wrapper () {
     blind_from_findings "$INV_FINDINGS" | sort -u > "$blinds"
   else
     echo "  mode: FULL SWEEP (invoker) — ~25 min"
-    ( cd "$ROOT" && bash "$HERE/p0-authz-invoker-audit.sh" ) || { echo "  *** invoker sweep failed"; RC=1; }
+    # ⛔ CASES= cleared explicitly — see the same guard in ARM 1: an exported CASES would
+    # make the child sweep a SUBSET whose narrower BLIND set reads here as a clean pass.
+    [ -n "${CASES:-}" ] && echo "  ⚠ CASES=\"$CASES\" is set in the environment — IGNORED here; this mode is a FULL sweep."
+    ( cd "$ROOT" && CASES= bash "$HERE/p0-authz-invoker-audit.sh" ) || { echo "  *** invoker sweep failed"; RC=1; }
     awk -F'\t' 'NR>1{print $2}' "$WORK/blinds_invoker.tsv" 2>/dev/null | sort -u > "$blinds"
   fi
 
