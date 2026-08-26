@@ -319,10 +319,11 @@ export async function endAffiliation(input: {
 /* ══════════════════════════════════════════════════════════════════════════════════════
  * AFF4 (ADR 0151) — CONTRACT-FIRST STUBS.
  *
- * Signatures are FINAL and `frontend` builds F2–F6 against them; the bodies land in B4
- * with the doors they call. Every stub throws rather than returning a plausible
- * `{ ok: true }`, because a stub that reports success is indistinguishable from a working
- * feature right up until production.
+ * Signatures are FINAL and `frontend` builds F2–F6 against them. ⛔ THESE ARE NO LONGER
+ * STUBS — all four are wired to their doors as of AFF4 B4 increment 3, so a caller reaches
+ * the database rather than an exception. The banner is corrected here rather than left
+ * behind: a comment claiming a live path throws is worse than no comment at all, because a
+ * teammate who believes a working path is a stub will not test it.
  *
  * ⚠ NO AUTHORIZATION IS ADDED IN THIS LAYER, here as above. Authority, the D3 blocker
  * enumeration, the D8 never-employed precondition and the mandatory void reason all live
@@ -345,12 +346,22 @@ export async function endAffiliation(input: {
  * ⚠ Ending the last HOSPITAL affiliation never auto-ends this one. Org offboarding is
  * always a deliberate act.
  */
-export async function endOrgAffiliation(_input: {
+export async function endOrgAffiliation(input: {
   userId: string
   organizationId: string
   endedOn?: string | null
 }): Promise<AffiliationActionState> {
-  throw new Error('not implemented: AFF4 B4 (end_org_affiliation)')
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('end_org_affiliation', {
+    p_user: input.userId,
+    p_organization: input.organizationId,
+    p_ended_on: input.endedOn ?? undefined,
+  })
+
+  if (error) return toState(error)
+
+  revalidateAffiliationSurfaces()
+  return { ok: true, error: MESSAGES.orgEnded }
 }
 
 /**
@@ -360,12 +371,22 @@ export async function endOrgAffiliation(_input: {
  * {@link updateAffiliation} is separate from {@link affiliatePerson}: a door that
  * quietly acquires a date-mutation capability is how doors grow undeclared powers.
  */
-export async function updateOrgAffiliation(_input: {
+export async function updateOrgAffiliation(input: {
   userId: string
   organizationId: string
   startedOn: string
 }): Promise<AffiliationActionState> {
-  throw new Error('not implemented: AFF4 B4 (update_org_affiliation)')
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_org_affiliation', {
+    p_user: input.userId,
+    p_organization: input.organizationId,
+    p_started_on: input.startedOn,
+  })
+
+  if (error) return toState(error)
+
+  revalidateAffiliationSurfaces()
+  return { ok: true, error: MESSAGES.orgUpdated }
 }
 
 /**
@@ -387,11 +408,23 @@ export async function updateOrgAffiliation(_input: {
  * An already-ENDED row is still voidable; an already-VOIDED row is refused rather than
  * re-voided, so the original reason and actor cannot be overwritten.
  */
-export async function voidAffiliation(_input: {
+export async function voidAffiliation(input: {
   affiliationId: string
   reason: string
 }): Promise<AffiliationActionState> {
-  throw new Error('not implemented: AFF4 B4 (void_affiliation)')
+  const supabase = await createClient()
+  // The reason is sent AS TYPED. Blank-normalisation and the mandatory-reason refusal
+  // (HC0R7) both live in the door; a guard here would be a second, weaker copy of a rule
+  // already enforced where it counts, and the two would diverge the moment one is edited.
+  const { error } = await supabase.rpc('void_affiliation', {
+    p_affiliation: input.affiliationId,
+    p_reason: input.reason,
+  })
+
+  if (error) return toState(error)
+
+  revalidateAffiliationSurfaces()
+  return { ok: true, error: MESSAGES.voided }
 }
 
 /**
@@ -403,9 +436,18 @@ export async function voidAffiliation(_input: {
  * Additionally refuses when the principal has any non-voided hospital affiliation, or any
  * membership ever scoped, inside that organization.
  */
-export async function voidOrgAffiliation(_input: {
+export async function voidOrgAffiliation(input: {
   orgAffiliationId: string
   reason: string
 }): Promise<AffiliationActionState> {
-  throw new Error('not implemented: AFF4 B4 (void_org_affiliation)')
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('void_org_affiliation', {
+    p_org_affiliation: input.orgAffiliationId,
+    p_reason: input.reason,
+  })
+
+  if (error) return toState(error)
+
+  revalidateAffiliationSurfaces()
+  return { ok: true, error: MESSAGES.voided }
 }

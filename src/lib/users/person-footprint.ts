@@ -3,6 +3,7 @@ import 'server-only'
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+import { maskCpf } from './cpf'
 import { personScopeAllows, type PersonFootprint } from './person-scope'
 
 /**
@@ -409,22 +410,6 @@ export interface PersonAdminAuthority {
  * under either answer, exactly as `updateUserProfile` normalises both sides of its
  * comparison rather than trusting the stored shape.
  */
-function maskCpf(raw: string | null): string | null {
-  if (!raw) return null
-  const digits = raw.replace(/\D/g, '')
-  if (digits.length !== 11) return null
-  const bullet = '•'
-  return (
-    digits.slice(0, 3) +
-    '.' +
-    bullet.repeat(3) +
-    '.' +
-    bullet +
-    digits.slice(7, 9) +
-    '-' +
-    digits.slice(9, 11)
-  )
-}
 
 /** The column-locked rail values (ADR 0133 D9/D10/D12, D12 amended by ADR 0147). */
 export interface PersonPersonalData {
