@@ -16,17 +16,12 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **✅ Six concluded programs — every § Now bullet ALREADY rotated verbatim** →
-  [2026-Q3.md](docs/progress/2026-Q3.md) (ADR 0137 batch · ADR 0136 · gate-tooling round ·
-  22-v3 REG·KIND · PDF·P3 · user-profile redesign + AFF3/AUD1/AUD2). Ledger rows →
-  [phase-ledger.md](docs/progress/phase-ledger.md). Per-program detail and the ADR links live at
-  those destinations. **Compressed 2026-08-26** — the bullet had become a second copy of an archive,
-  which is the drift this file is recovering from. ⛔ **Two things did NOT rotate, being still live:**
-  ⛔ **(1) Do NOT trust any authz-gate result predating 2026-08-24.** The step-1 gate suite was
-  **not running on this platform at all**, in two independent committed ways, and `ARM=census`
-  printed `INVARIANT HOLDS` at exit 0 **having enumerated ZERO gates**.
-  ⚠ **(2) Five QA findings (N-1…N-5) + four P3 follow-ups are OPEN in § Follow-ups** — that
-  approval was given AROUND them, not over them.
+- **✅ Six concluded programs — fully rotated** → [2026-Q3.md](docs/progress/2026-Q3.md) +
+  [phase-ledger.md](docs/progress/phase-ledger.md). ⛔ **Only the two LIVE residues stay here:**
+  **(1) Do NOT trust any authz-gate result predating 2026-08-24** — the step-1 suite was **not
+  running on this platform at all**, in two independent committed ways, and `ARM=census` printed
+  `INVARIANT HOLDS` at exit 0 **having enumerated ZERO gates**. **(2) Five QA findings (N-1…N-5) +
+  four P3 follow-ups are OPEN in § Follow-ups** — approval was given AROUND them, not over them.
 - **🟠 nvm still defaults to Node 20, and `npm run lint` DIES AT GATE 8 there** (`globSync` needs 22).
   `.nvmrc` + `engines` are set; **`nvm alias default 22` is not**. ⛔ Kept live deliberately when the
   gate-tooling bullet was rotated 2026-08-25: it is the one item in that ✅-marked bullet with an
@@ -52,36 +47,27 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   [0151](docs/decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md) · plan
   [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md) · analysis
   [org-affiliation-and-staff-data-model.md](docs/plans/org-affiliation-and-staff-data-model.md).
-  ✅ **PRE-STEP (Track P) COMPLETE + COMMITTED 2026-08-26** — P1 diagnosed-and-re-filed (ADR
-  [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md), a **73-door class** now
-  carrying its own index line below), P2 the `alter policy` recipe, P3 the baseline truncation (ADR
-  [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)).
-  Narrative rotated verbatim → [2026-Q3.md](docs/progress/2026-Q3.md).
-  ✅ **P4 — the full `e2e:prod` discharge run —
-  is DONE**: the 2026-08-25 merged-tree gate (GREEN, flake baseline kept **by name**) is also
-  AFF4's baseline → [merged-tree-gate-2026-08-25.md](docs/progress/merged-tree-gate-2026-08-25.md). Eleven FUPs
-  discharge at the AFF4 Record step (list: ADR 0151 Consequences); their index lines below carry
-  ⭕ SCHEDULED markers and **stay put until the work lands**. **Sequencing ruled at the go: AFF4 runs
-  NOW and jumps the ▶ queue below** — that queue resumes after the AFF4 Record step.
-  ⏸ **PAUSED 2026-08-26 at the PO's call — resume instructions are the ▶ RESUME HERE block at the
-  TOP of [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md), not this line.**
-  **DONE:** B1·B2·B3·**B4 (all 3 increments)**·B8's contract + the four org/void actions +
-  `getOwnPersonRecord` wired live · F0·F1·F2·F3·F5 · F6's badge. All four authz arms hold
-  (census·hat·wrapper·floor). **HELD, not forgotten:** F4 (needs B8's `registerUser`), F6's toggle
-  (needs B6b). **NOT STARTED:** B5·B6·B7·B9, T2–T5, `qa`.
-  ⛔ **The resume order is GATED, and its first obligation was already dropped once:** reset →
-  **the owed pgTAP catalog-`==`-declared half → its verdict reported** → B5 → B6 (widened, ADR
-  [0154](docs/decisions/0154-roster-predicate-is-the-query-filter-not-list-org-people.md)).
-  **Absence of that verdict is the signal B5 has not started.**
-  ⭐ **C5's keystone (`374`) was observed RED at 2/15 before B3 and the red is REPRODUCIBLE from the
-  migration alone**, not merely attested.
-  ⚠ **TWO OPEN PO DECISIONS, neither blocking:** (1) `BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY` —
-  what *"suspended until the 25th"* means (00:00 or 23:59:59, whose zone); (2) **merge order** vs
-  `claude/angry-stonebraker-c8e637`, whose call-site changes have had **no E2E pass**.
-  ⛔ **EIGHT instruments in this build returned success while measuring nothing** — two of them
-  **constants** (`tasklist /FI` under Git Bash; `grep -cE '^not ok'` on pg_prove output), which are
-  the dangerous kind because they are *usually right*. No conclusion was wrong; the confidence was
-  inflated. Full record + sound replacements in the plan — read it before quoting any gate figure.
+  ✅ **PRE-STEP (Track P) COMPLETE + COMMITTED 2026-08-26** — ADRs
+  [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md) (a **73-door class**, own
+  index line below) + [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md);
+  narrative → [2026-Q3.md](docs/progress/2026-Q3.md).
+  ✅ **P4 DONE** — the 2026-08-25 merged-tree gate is AFF4's **named-flake baseline** →
+  [merged-tree-gate-2026-08-25.md](docs/progress/merged-tree-gate-2026-08-25.md) (⚠ its asymmetry:
+  an unlisted flake is a finding, a listed one's absence proves nothing).
+  **Eleven FUPs discharge at the AFF4 Record step** (ADR 0151 Consequences); their ⭕ SCHEDULED
+  index lines **stay put until the work lands**. **AFF4 jumps the ▶ queue below.**
+  ⏸ **PAUSED 2026-08-26 at the PO's call. ⛔ RESUME FROM the ▶ RESUME HERE block at the TOP of
+  [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md) — not from this line**, which
+  carries only what a *status* reader needs. **DONE:** B1·B2·B3·B4(×3)·B8 partial · F0·F1·F2·F3·F5 ·
+  F6 badge; all four authz arms hold. **HELD:** F4, F6's toggle. **NOT STARTED:** B5·B6·B7·B9,
+  T2–T5, `qa`. ⛔ **The resume order is GATED and its first step was already dropped once** — the
+  owed pgTAP catalog-`==`-declared verdict precedes B5, and **its absence is the signal**.
+  ⭐ **C5's keystone (`374`) was observed RED at 2/15 before B3, REPRODUCIBLE from the migration
+  alone.** ⚠ **OPEN PO DECISION: merge order** vs `claude/angry-stonebraker-c8e637`, whose
+  call-site changes have had **no E2E pass**. (The suspension-date semantic is **RULED** — see
+  § Bug Log.) ⛔ **EIGHT instruments in this build returned success while measuring nothing**, two of
+  them **constants** — the dangerous kind, because they are *usually right*. No conclusion was wrong;
+  the confidence was. **Read the plan before quoting any gate figure from this build.**
   ⚠ **Three PRE-EXISTING defects fixed in their own commits** (not AFF4-introduced, § Bug Log at
   Record): the D2-lock asymmetric-read over-grant (`9175b9a5`), three tenant-isolation assertions
   passing for the wrong reason (`ff596034`), and an audit trigger that would have left six new
@@ -143,9 +129,23 @@ exists because without it an open production blocker (BUG-BOOTSTRAP-001) read as
 a single day — first the heading, then a note saying "back to three" — in the one paragraph of this
 file whose whole subject is that a count is wrong the moment after it is right. Count the rows below.
 
-✅ **BUG-P3-PATIENT-FIELD-MAPPING** + **BUG-P3-PHI-REFUSAL-MESSAGE** — both FIXED (`0c472b54`)
-and VERIFIED CLOSED at the rendered page 2026-08-25; rows rotated verbatim →
-[bug-log-archive.md](docs/progress/bug-log-archive.md) § "Rotated 2026-08-25".
+🔴 **BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY — the banner tells a suspended user their suspension
+already ended; every product-written value, the whole target market.** Filed 2026-08-26 (lead);
+**pre-existing, not AFF4-introduced, deliberately not fixed there.** `profiles.suspended_until` is
+**`timestamptz`** (catalog-measured); the write path stores the dialog's bare `YYYY-MM-DD` unnormalised
+→ **midnight UTC**, and `formatSuspensionDate` (`account-situation-banner.tsx:84-88`) formats with
+`Intl.DateTimeFormat("pt-BR")` and **no `timeZone`** → in `America/Sao_Paulo` `2026-09-25 00:00:00+00`
+renders **24/09**.
+⭐ **PO RULING 2026-08-26 — "suspended until D" = until `23:59:59` of D in `America/Sao_Paulo`.**
+Both fixes are now mechanical: explicit `timeZone` on the formatter, **and** normalise the write to
+end-of-day in that zone. ⚠ Stated, not hidden: this pins one zone app-wide and Brazil spans four —
+a hospital outside UTC−3 makes it a per-tenant setting.
+⛔ **THE SEED DOES NOT REPRODUCE IT — carry this or triage kills the bug.** `seed.sql` writes a real
+timestamp (`…10:08:42+00`), not a date string, so the seeded row renders **correctly**: the fixture
+reaches a *passing* state the product never produces.
+⚠ **POSSIBLY TWO SITES:** `backend` measured *no normalisation* at the write (`users/actions.ts:1176`);
+`tester` read a `${date}T00:00:00.000Z` construction — both can be true of **different lines**, the
+construction being upstream in the dialog. Patching one alone still renders the wrong day.
 
 🔴 **BUG-CASEEVT-KIND-001 — a case writer can DELETE, or silently RE-KIND, a procedural `case_events`
 row: the UPDATE/DELETE policies carry no `kind` gate.** Filed 2026-08-23 (lead). Surfaced by ADR 0137

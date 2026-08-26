@@ -548,12 +548,20 @@ row renders **correctly**. Anyone confirming against the seed finds it clean and
 unreproducible. That is the fixture trap **inverted**: the fixture reaches a *passing* state the
 product never produces.
 
-**Why AFF4 does not fix it.** Two independent fixes are wanted — an explicit `timeZone` on the
-formatter (mechanical) and normalising the write (**not** mechanical). The second encodes a
-semantic **nobody has ruled on**: does *"suspended until the 25th"* end at 00:00 or 23:59:59,
-and in whose zone — the hospital's, the org's, the server's? Picking one silently is how a
-defensible default becomes an undocumented rule. It also arrives fourth, after three
-pre-existing fixes this program already absorbed.
+⭐ **PO RULING 2026-08-26 — the blocking semantic is DECIDED: *"suspended until D"* means until
+`23:59:59` of D in `America/Sao_Paulo`.** Both fixes are therefore mechanical and both are wanted:
+1. An explicit **`timeZone: 'America/Sao_Paulo'`** on `formatSuspensionDate`.
+2. **Normalise the write to end-of-day in that zone**, rather than start-of-day in UTC.
+
+⚠ **One assumption is being pinned, stated rather than hidden:** this fixes a single zone
+app-wide. Brazil spans four (`America/Sao_Paulo` · `Manaus` · `Rio_Branco` · `Noronha`), so the
+first hospital onboarded outside UTC−3 turns this into a **per-tenant setting**, not a constant.
+Recorded so that day is a known follow-on rather than a rediscovery.
+
+**Why AFF4 still does not fix it.** The ruling makes it *implementable*, not *in scope*: it is
+pre-existing, it arrives fourth after three pre-existing fixes this program already absorbed, and
+AFF4 is paused. It goes to whoever picks it up with everything they need — mechanism, ruling, seed
+caveat, and the two-site warning below.
 
 ⚠ **THERE MAY BE TWO SITES, NOT ONE — confirm both before fixing either.** Two readings
 initially looked contradictory: `backend` measured *no normalisation at all* at the **write**
