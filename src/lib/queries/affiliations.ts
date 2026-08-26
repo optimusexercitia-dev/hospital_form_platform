@@ -40,6 +40,11 @@ interface AffiliationRow {
   hospital_employee_id: string | null
   started_on: string
   ended_on: string | null
+  voided_at: string | null
+  void_reason: string | null
+  job_title: string | null
+  work_email: string | null
+  work_phone: string | null
   hospital: { name: string } | null
 }
 
@@ -49,8 +54,14 @@ interface AffiliationRow {
  * is the PGRST201 shape the moment a second path appears — the recorded lesson from the
  * `profiles↔hospitals` ambiguity that crashed the user directory.
  */
+// ⚠ AFF4 (ADR 0151 D7/D9). `voided_at`/`void_reason` and the three `work*`/`job_title`
+// columns are selected because `hospital_affiliations` carries a TABLE-level SELECT grant
+// to `authenticated` (measured: relacl `authenticated=r`, zero column-list grants), so
+// every column of a visible row is already readable by this policy audience — the D9
+// audience, stated as decided. Omitting them here would hide data the caller may see, not
+// protect data they may not.
 const AFFILIATION_SELECT =
-  'id, principal_id, organization_id, hospital_id, hospital_employee_id, started_on, ended_on, hospital:hospitals!hospital_affiliations_hospital_id_fkey(name)'
+  'id, principal_id, organization_id, hospital_id, hospital_employee_id, started_on, ended_on, voided_at, void_reason, job_title, work_email, work_phone, hospital:hospitals!hospital_affiliations_hospital_id_fkey(name)'
 
 function toAffiliation(row: AffiliationRow): HospitalAffiliation {
   return {
@@ -62,6 +73,11 @@ function toAffiliation(row: AffiliationRow): HospitalAffiliation {
     hospitalEmployeeId: row.hospital_employee_id,
     startedOn: row.started_on,
     endedOn: row.ended_on,
+    voidedAt: row.voided_at,
+    voidReason: row.void_reason,
+    jobTitle: row.job_title,
+    workEmail: row.work_email,
+    workPhone: row.work_phone,
   }
 }
 

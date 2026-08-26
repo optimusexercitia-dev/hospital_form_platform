@@ -667,6 +667,11 @@ export async function getOrgUser(userId: string): Promise<OrgUserDetail | null> 
     fullName: profile.full_name,
     email: profile.email,
     homeOrganizationId: profile.home_organization_id ?? '',
+    // ⚠ This projection strips `principalId`/`organizationId` (the scope ids the UI has
+    // no use for) and must otherwise carry EVERY `UserAffiliation` field. It is a
+    // hand-list, so it rots — but it rots LOUDLY: the fields are required on the type, so
+    // omitting one is a compile error, which is how AFF4's five new fields were caught
+    // here rather than silently rendering as `undefined`.
     affiliations: affiliations.map((a) => ({
       id: a.id,
       hospitalId: a.hospitalId,
@@ -674,6 +679,11 @@ export async function getOrgUser(userId: string): Promise<OrgUserDetail | null> 
       hospitalEmployeeId: a.hospitalEmployeeId,
       startedOn: a.startedOn,
       endedOn: a.endedOn,
+      voidedAt: a.voidedAt,
+      voidReason: a.voidReason,
+      jobTitle: a.jobTitle,
+      workEmail: a.workEmail,
+      workPhone: a.workPhone,
     })),
     professionalCategoryId: profile.professional_category_id,
     categoryLabel: profile.category?.label_pt ?? null,

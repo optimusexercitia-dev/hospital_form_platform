@@ -301,6 +301,80 @@ export interface UserAffiliation {
    * never infer activity from mere membership of the array.
    */
   endedOn: string | null
+  /**
+   * ADR 0151 D7 — the VOIDED tense, and it is NOT a third value of {@link endedOn}.
+   *
+   * `endedOn` says "this employment was true and stopped". `voidedAt` says "this row was
+   * never true" — a mis-entry, revoked. A row may carry BOTH, and voided takes
+   * precedence when rendering.
+   *
+   * ⛔ A voided row is excluded from the active-unique index, the footprint resolver and
+   * every person-read leg — but the ROW ITSELF STAYS VISIBLE to this table's audience, by
+   * design (the ADR 0148 D6 record-vs-contribution asymmetry). So a list CAN contain
+   * voided rows and the UI must badge them *Anulado* rather than assume they were
+   * filtered out. "Active" is `endedOn === null && voidedAt === null` — never `endedOn`
+   * alone.
+   */
+  voidedAt: string | null
+  /** Mandatory justification captured with the void (D7/D8); null iff not voided. */
+  voidReason: string | null
+  /**
+   * ADR 0151 D9 — per-EMPLOYMENT staff data, deliberately not on `profiles`. Cargo is
+   * per-job; profession (`professionalCategory`) stays person-level. `work*` contrasts
+   * with the personal, column-locked `profiles.phone`.
+   */
+  jobTitle: string | null
+  workEmail: string | null
+  workPhone: string | null
+}
+
+/**
+ * One person↔organization employment edge (ADR 0151 D1) — the tier above
+ * {@link UserAffiliation}, and the thing org-level offboarding acts on.
+ *
+ * ⚠ A VISIBILITY input, never a capability input. Holding this grants nothing;
+ * `memberships` remains the sole role store. Do not render it as a permission.
+ */
+export interface OrgAffiliation {
+  id: string
+  organizationId: string
+  /** Resolved name, or null when the organization row is not visible to the caller. */
+  organizationName: string | null
+  startedOn: string
+  /** `null` = not ended. See {@link UserAffiliation.endedOn} for the soft-end rule. */
+  endedOn: string | null
+  /** See {@link UserAffiliation.voidedAt} — same three-tense model, same precedence. */
+  voidedAt: string | null
+  voidReason: string | null
+}
+
+/** Rendered status of an affiliation, resolved once so no consumer re-derives it. */
+export type AffiliationStatus = 'ativo' | 'encerrado' | 'anulado'
+
+/**
+ * The `/conta` → "Meus dados" self record (ADR 0151 D14), read through the self-only
+ * DEFINER door `get_own_person_record`.
+ *
+ * ⚠ THERE IS NO RAW `cpf` FIELD ON THIS TYPE, DELIBERATELY. The door returns the digits
+ * (they are the caller's own), and the query boundary masks them per ADR 0147's single
+ * `maskCpf` mechanism before the value ever reaches a caller. Carrying a raw `cpf` here
+ * would be a standing invitation for the next consumer to render it, and would make
+ * "we remembered to mask" a convention instead of a type-level guarantee.
+ *
+ * Corrections are ADMINISTRATIVE (ADR 0133 Amdt 1 r5's Art. 18 posture) — this record is
+ * read-only, there is no self-edit path, and none should be added here.
+ */
+export interface OwnPersonRecord {
+  fullName: string | null
+  email: string | null
+  professionalCategory: ProfessionalCategory | null
+  /** Masked at the query boundary — e.g. `***.456.789-**`. Never the full digits. */
+  cpfMasked: string | null
+  dateOfBirth: string | null
+  phone: string | null
+  credentials: ProfessionalCredential[]
+  affiliations: UserAffiliation[]
+  orgAffiliations: OrgAffiliation[]
 }
 
 /**
