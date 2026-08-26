@@ -200,6 +200,21 @@ index line was compressed for cap headroom.
   cannot defend a deliberate absence. **CPF masking stays TypeScript-side**; `OwnPersonRecord` carries
   only `cpfMasked`, so masking is a type-level guarantee rather than a remembered step.
 - **PO** — *"suspended until D"* = until `23:59:59` of D in `America/Sao_Paulo`.
+- **Task order amended (lead, 2026-08-26): B5 → B7-seed → B6**, not the plan's B5 → B6 → B7.
+  Measured on a fresh reset: `organization_affiliations` = **0** (the seed supplies none),
+  `profiles` with `home_organization_id` = **35**, `hospital_affiliations` = **5**. So B6's
+  predicate has no data to stand on until the seed carries org rows, and six live assertions
+  (`302` §5.1/§5.2/§5.7/§5.12, `304`:186, `316`:70,77) would flip RED. ⭐ **The plan's own B7 text
+  already stated the dependency** ("the containment backstop makes org rows a precondition … order
+  the org inserts first") while numbering B6 ahead of it — a plan-order defect, not an ambiguity.
+  ⛔ **REJECTED: a transitional `EXISTS(…) OR home_organization_id = org` fallback.** It greens both
+  surfaces while hiding the migration — precisely what D10 exists to perform.
+- **D4 containment backstop lands after B7-seed, NOT after B5** — and `app.affiliate_person_impl`'s
+  **live body says otherwise**, a stale comment sitting in `prosrc` where nothing greps and no gate
+  reads. B5's backfill matches zero rows on a fresh local reset (migrations precede `seed.sql`), so
+  it can never be what makes the seed's 5 parentless hospital affiliations safe: necessary, not
+  sufficient. Installing the backstop *before* B6 makes `db reset` itself the test of the seed
+  ordering.
 
 - **Merge order — SUPERSEDED BY EVENTS 2026-08-26, and the hold is OVER.** The prior ruling
   ("AFF4 merges first; `claude/angry-stonebraker-c8e637` is **held**") described a two-branch world
