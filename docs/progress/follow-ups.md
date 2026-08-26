@@ -5349,6 +5349,12 @@ legitimate close; **drifting into that by never deciding is not**, and was the l
 
 ### 🟡 FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE — six `public` authz wrappers mirror an `app.*` rule that RLS calls directly, and nothing pins that the two agree (owner: backend + PO; filed 2026-08-24, found while keystoning `rca_writer_can_write`)
 
+_**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to
+its declared one-line form (severity · id · title · owner) during a size rotation. Nothing was
+summarised away — the text below is the removed substring exactly as it stood:_
+
+> measured 2026-08-24, all six have **ZERO** catalog references (no policy/trigger/function body), so the second copy is enforced by nothing. ⛔ NOT redundant — `app` is not PostgREST-exposed (`config.toml:13`), so the UI needs the bridge; do not "simplify" them away. ⚠ **Not a live hole** (all six still delegate, verified) — the item is that **no gate can see them stop**: the door sweep cannot (neutralizing one leaves RLS intact — why `rca_writer_can_write` swept BLIND across 218 files) and the RLS keystones cannot (they never call the wrapper). Coverage: 2 keystoned, **4 `is_*_self` wrappers have none at all**; and neither existing keystone pins the **differential** against the predicate RLS enforces
+
 **The shape.** A handful of `public` `prosecdef` SQL bool functions exist whose entire body delegates to an
 `app.*` predicate — e.g. `public.rca_writer_can_write(p_rca_id)` is exactly
 `select app.can_write_rca(p_rca_id, auth.uid())`.

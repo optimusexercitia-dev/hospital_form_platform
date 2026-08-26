@@ -28,50 +28,28 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   unfired resolution event, it exists in **no other file**, and rotating the bullet whole would have
   buried an open action under a completed heading — owner: whoever next hits it.
 - **⚠ A PHASE *IS* ACTIVE — AFF4, see its bullet below.** ⛔ This line read "NO PHASE IS ACTIVE" for a **THIRD** time (corrected 2026-08-26, twelve lines above a bullet saying the opposite). **ADR 0144 (PDF·P3)** and the **user-profile redesign + AFF3/AUD1/AUD2** batch (ADRs 0147–0150) are the two most recent COMPLETE programs. 0136 and 0137
-  are both complete. ⭐ **A bullet's POSITION is not its recency** — this line named the wrong
-  program twice (0137 until 2026-08-24, 0136 until 2026-08-25) because a concluded bullet outlived
-  its work in § Now, and it said NO PHASE IS ACTIVE until 2026-08-25 while one was — **and again
-  through 2026-08-26 while AFF4 ran.** ⛔ The recurrence is the finding: a bullet that *records* this
-  failure does not resist it, because the correction lives in the prose while the false claim lives
-  in the opening words a reader stops at. Do not add a fourth warning here; check the AFF4 bullet.
-  Everything else that stood here is done — the DM program, DSR + its operational remediation, the
-  Cloud orphan probe, the `Imprimir prévia` split, AFF2 and the case-surface split. Every one of those
-  bullets is rotated **verbatim** → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md),
-  and in each cut the **open residue stayed here**, verified by name against § Follow-ups / § Bug Log.
-  ⛔ **One thing there must not be read as closure, and it has no other live line:** the ethics lane is
+  are both complete. ⛔ This line's own history — it read "NO PHASE IS ACTIVE" three times while
+  phases ran — is rotated **verbatim** →
+  [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md). **Do not add a fourth
+  warning here; check the AFF4 bullet.**
+  ⛔ **One thing must not be read as closure, and it has no other live line:** the ethics lane is
   *non-erasable by decision with two known open removal paths* — a worse state than "no path exists".
-  (DSR's never-re-run `e2e:prod` is DISCHARGED by the 2026-08-25 merged-tree gate; the stale
-  `dsr-slice3-adjudication` assertion it was hiding had already been corrected on `main`.)
 - **🔨 AFF4 BUILD IN PROGRESS — the PO's go was given 2026-08-26; branch `feat/aff4-org-affiliation`
   has forked from `main`.** Org affiliations + per-hospital staff data + the **voided tense** (closes C5): ADR
   [0151](docs/decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md) · plan
   [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md) · analysis
   [org-affiliation-and-staff-data-model.md](docs/plans/org-affiliation-and-staff-data-model.md).
-  ✅ **PRE-STEP (Track P) + P4 COMPLETE** — ADRs [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md)
-  + [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md); narratives and
-  the **named-flake baseline** → [2026-Q3.md](docs/progress/2026-Q3.md) ·
-  [merged-tree-gate-2026-08-25.md](docs/progress/merged-tree-gate-2026-08-25.md) (⚠ asymmetry: an
-  unlisted flake is a finding, a listed one's absence proves nothing).
+  ⛔ **The plan is AUTHORITATIVE and carries the full build record — the pre-step narrative, the
+  ruled PO decisions, the discovered follow-ups. This line carries only what a *status* reader
+  needs.** ADRs shipped: 0152 · 0153 · 0156 · 0157.
   **Eleven FUPs discharge at the AFF4 Record step** (ADR 0151 Consequences); their ⭕ SCHEDULED
   index lines **stay put until the work lands**. **AFF4 jumps the ▶ queue below.**
-  ⏸ **PAUSED 2026-08-26. ⛔ RESUME FROM the ▶ RESUME HERE block at the TOP of
-  [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md)** — this line carries only what a
-  *status* reader needs; the plan carries the rest and is authoritative.
-  **DONE:** B1–B7 · D4 backstop · ADR 0156 · F0–F3 · F5 · F6 · the F0-regression repair; four
-  authz arms hold. **IN FLIGHT:** B8's rest + B9. **HELD:** F4. **NOT STARTED:** T2–T5, `qa`,
-  §6 gate. ⛔ DatePicker: MECHANISM measured red-first on the real pre-repair component; the
-  computed NAME never read in a browser — T2–T5 owe that one assertion.
-  ⛔ **The resume order is GATED and its first step was already dropped once** — the owed pgTAP
-  catalog-`==`-declared verdict precedes B5, and **its absence is the signal.**
-  ⭐ **C5's keystone (`374`) was observed RED at 2/15 before B3, REPRODUCIBLE from the migration alone.**
-  ✅ **BOTH PO decisions RULED, none outstanding:** the suspension-date semantic (§ Bug Log), and
-  **merge order — `claude/angry-stonebraker-c8e637` is now MERGED INTO this branch** (one tree, one
-  gate), which moots the escalation: `BUG-CASEPHASE-DUEDATE-001` ships with AFF4 instead of behind it.
-  ⛔ **TEN instruments in this build returned success while measuring nothing**, two of them
+  **DONE:** Track P · B1–B9 · F0–F3 · F5 · F6 · the F0-regression repair · T2–T5; four authz arms
+  hold. **HELD:** F4 — and `BUG-REGWIZARD-NO-ORG-STARTDATE-001` is that hold made concrete.
+  **REMAINS:** `qa`, then the §6 gate — whose `e2e:prod` is the **FIRST** run covering `61e23659`.
+  ⛔ **TWELVE instruments in this build reported success while measuring nothing**, two of them
   **constants** — the dangerous kind, because they are *usually right*. No conclusion was wrong; the
   confidence was. **Read the plan before quoting any gate figure from this build.**
-  ⚠ **Three PRE-EXISTING defects fixed in their own commits, plus ONE AFF4 REGRESSION not fixed.**
-  Full record + all discovered follow-ups: the plan above, **not here**.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -116,12 +94,10 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
 ## Bug Log
 
-<!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
-     owning phase's record) at each §6 Record step. -->
-
 ### 🔴 OPEN — the live bugs
 
-⛔ **Derive a rotation boundary by the PROPERTY (is this CLOSED?), never by markup.** Open bugs here
+⛔ **OPEN bugs only — closed rows rotate to the archive (or the owning phase's record) at each §6
+Record step, and you derive that boundary by the PROPERTY (is this CLOSED?), never by markup.** Open bugs here
 carry bold markers, not headings, so a sweep bounded by heading syntax archives them; this heading
 exists because without it an open production blocker (BUG-BOOTSTRAP-001) read as filed under
 *Closed*. Its provenance, and the three closed rows that were still listed here after the
@@ -238,11 +214,9 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 ## Test Run Summary
 
-<!-- Most recent gate only, ONE ROW each. The narrative — triage, dispositions, mutation proofs —
-     rotates to docs/progress/test-run-archive.md at each §6 Record (full history, Phases 0 →
-     ACT, already there). -->
-> **Retention: the most recent gate only.** Prior gate rows and their triage narratives →
-> [test-run-archive.md](docs/progress/test-run-archive.md) (each rotation recorded there).
+> **Retention: the most recent gate only, ONE ROW each.** Prior gate rows and their triage
+> narratives (dispositions, mutation proofs; full history Phases 0 → ACT) rotate at each §6 Record
+> → [test-run-archive.md](docs/progress/test-run-archive.md) (each rotation recorded there).
 
 | Date | Run | Result |
 | --- | --- | --- |
@@ -316,10 +290,7 @@ this section exists). Full bodies stay in
 
 ## Follow-ups / Deferred Items
 
-<!-- ONE-LINE INDEX ONLY (severity · id · claim · owner). Full bodies of OPEN items live in
-     docs/progress/follow-ups.md; resolved items in follow-ups-archive.md. Compressed
-     2026-08-18 at the size rotation — every entry was verified to HAVE a body first. -->
-_Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progress/follow-ups.md)** — update BOTH (the body there, the line here) when an item changes state. Resolved items → [follow-ups-archive.md](docs/progress/follow-ups-archive.md). One line per item: severity · id · title · owner._
+_**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progress/follow-ups.md)** — update BOTH (the body there, the line here) when an item changes state. Resolved items → [follow-ups-archive.md](docs/progress/follow-ups-archive.md). Compressed 2026-08-18 at the size rotation; every entry was verified to HAVE a body first._
 
 ⭐ **FOUR items also carry a [§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list) entry** — `FUP-DM5-DISPOSAL-JOB` (C1), `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2), and — **promoted by the PO 2026-08-19** — `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (C3) + `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (C4). Their lines below stay put; the Critical entry adds a **trigger and a deadline**, it does not replace the index line.
 
@@ -385,10 +356,10 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟡 **FUP-AFF2-REGISTRATION-HAS-NO-START-DATE** — `registerUser` takes no affiliation start date though the plan specifies it and sibling `affiliatePerson` accepts one (actions-layer asymmetry). ⚠ Behaviourally free; ⛔ **the defect is the RECORD** — `aff2.md` announced *"ALL THREE CLOSED"* over a **different** three. QA R3's other discharge half (*"build the field or file it"*), undone until now. ⭕ **SCHEDULED into AFF4 2026-08-25 (ADR 0151 D13)** — backend then frontend
 - 🟡 **FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD** — `updateUserProfile` keeps the loose `authorizeForUser` entry gate to serve an affiliation half **no caller exercises**; a Vitest arm pins a path the product cannot produce. ⛔ Not a hole (`affiliate_person_for` re-derives in SQL) — a **decision owed**: tightening to `…ScopedAdmin('fields')` shrinks R1's blast radius but pre-commits a future re-wire. QA R5. ⭕ **PO-RULED 2026-08-25 (ADR 0151 D15): tighten to `…ScopedAdmin('fields')`, built in AFF4** — backend + PO
 _**Three items RESOLVED 2026-08-24 (gate-tooling round), index lines rotated** → [follow-ups-archive.md](docs/progress/follow-ups-archive.md): **FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG** (shipped with THREE states, not the two it asked for. ⛔ The first closure claimed the two-state run had exposed a RENAMED live PHI door and re-pointed the backlog — **that was false and is corrected**: the run was against a DB that had not been reset and was missing six functions the backlog names; all six are present on a fresh reset, the entry is restored) · **FUP-VACUOUS-DETECTOR-FALSE-POSITIVE** (root-caused in the code, fixed red-first, self-test 44/44) · **FUP-42501-CONFLATES-GRANT-WITH-RLS** (closed on measurement — the fix predated the filing by ONE DAY and the item stayed open six days; the class-level mechanical check is a NAMED residual, not built). ⛔ **Found in the same round and fixed, but read this before trusting any pre-2026-08-24 authz gate record produced on macOS:** all three `p0-authz-*.sh` scripts hardcoded a foreign Windows scratchpad as the `WORK` default, so `mkdir` failed, every arm read empty files, and `ARM=census` printed `INVARIANT HOLDS` **at exit 0 having enumerated zero gates**; and `act-hat-blind-sweep.sh` could not be PARSED by bash 3.2 (the `/bin/bash` macOS ships), so `ARM=hat` could not run at all. Both fixed and all four step-1 arms now hold — census 546 gates, hat 6/6 self-tests, wrapper, floor 0 unallowlisted. ⚠ `ARM=floor` reads 35 unallowlisted doors on a stale DB and **0 on a fresh reset** — never run it without one._
-- 🟡 **FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE** — **six** `public` `prosecdef` bool wrappers mirror an `app.*` authorization rule that RLS calls **directly**; measured 2026-08-24, all six have **ZERO** catalog references (no policy/trigger/function body), so the second copy is enforced by nothing. ⛔ NOT redundant — `app` is not PostgREST-exposed (`config.toml:13`), so the UI needs the bridge; do not "simplify" them away. ⚠ **Not a live hole** (all six still delegate, verified) — the item is that **no gate can see them stop**: the door sweep cannot (neutralizing one leaves RLS intact — why `rca_writer_can_write` swept BLIND across 218 files) and the RLS keystones cannot (they never call the wrapper). Coverage: 2 keystoned, **4 `is_*_self` wrappers have none at all**; and neither existing keystone pins the **differential** against the predicate RLS enforces — backend + PO
+- 🟡 **FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE** — **six** `public` `prosecdef` bool wrappers mirror an `app.*` authorization rule that RLS calls **directly**, and **no gate can see them stop**. ⛔ NOT redundant (`app` is not PostgREST-exposed) — do not "simplify" them away. ⚠ Not a live hole. Measurement, coverage breakdown and why both gate families are blind → [body](docs/progress/follow-ups.md) — backend + PO
 - 🟡 **FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE** — the door sweep cannot classify a gate whose opening makes a pgTAP file **ABORT**: the run shape moves and §7.15 withholds a verdict, correctly. Measured on `app.event_current_custodian` (`140_patient_safety.sql` reds its test 11, then "planned 35, ran 11"). ⚠ ERROR here means *unclassifiable*, not *unprotected* — the suite DID notice — but ⛔ ERROR is not a pass, and the newly-admitted broad gates are the likeliest to hit it — backend
 - 🟠 **FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY** — `user-registration.spec.ts:463` guards its date fill with two **dead** locator alternatives (`DatePicker` replaces the native input and emits a hidden one only when a `name` prop is passed), so the `if` body never runs and the flow calls `suspendUser(userId, null)` — a no-op. ⛔ The test named *"suspends with a past date; auto-reinstated"* never suspends anyone; measured after a run. ⚠ `lint:vacuous` structurally cannot see it. Pre-existing at `8ecf51de`. ⭕ **SCHEDULED into AFF4 2026-08-25 (ADR 0151 D17, T1 — the repaired spec must fail against a broken suspend before it counts)** — tester
-- 🟡 **FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME** — the `DatePicker` trigger announced its **label only, never its value** (every name-source DISPLACES `contents:`). **ALL 37 sites FIXED**: `5e7288b5` (26) · `7637bc3c` (10) · `61e23659` (1). Surfaced **BUG-CASEPHASE-DUEDATE-001**. ✅ **`e2e:prod` GREEN** `f9316295` — `GATE_EXIT=0`, 1239p/0f; 2 flaky named in the body, neither attributable. ⚠ **OPEN**: `patient-mode-required.spec.ts:632`'s `$` anchor pinned the defect — dropped, **needs tester sign-off**. ⛔ **NEW, now AFF4's**: F0's `{buttonId}` self-reference re-admits button contents, so `clearable` appends *"Remover data"* to the trigger name — **10 sites**. Mechanism + the 3/16 insufficiency in the body. Discharges at AFF4 Record — frontend
+- 🟡 **FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME** — the `DatePicker` trigger announced its **label only, never its value** (every name-source DISPLACES `contents:`). **ALL 37 sites FIXED**: `5e7288b5` (26) · `7637bc3c` (10) · `61e23659` (1). Surfaced **BUG-CASEPHASE-DUEDATE-001**. ✅ **`e2e:prod` GREEN** `f9316295` — `GATE_EXIT=0`, 1239p/0f; 2 flaky named in the body, neither attributable. ⚠ **OPEN**: `patient-mode-required.spec.ts:632`'s `$` anchor pinned the defect — dropped, **needs tester sign-off**. ✅ **AFF4's own regression FIXED** `b953854c` — **12** sites, not the 10 first recorded; clear affordance is now a real sibling button, and the trigger's name is verified clean **in Chromium** (`"Suspenso até (opcional) 15/07/2026"`), not merely in jsdom. Discharges at AFF4 Record — frontend
 - 🟠 **FUP-P-CLASS-SQLSTATE-ANSWERS-500-ON-DENIAL** — PostgREST v14.5 maps SQLSTATE class `P0*` to **HTTP 500** (`P0001` excepted), so an authored refusal raised as `P0002` answers **5xx on an ordinary denial**. Measured 2026-08-26: status is a **pure function of the SQLSTATE** (`HC***`→400, `42501`→403, `P0002`→500), not media-type handling. ⚠ **A CLASS: 73 `public` functions with EXECUTE for `authenticated` raise a P-class code** — the document corridor is 2 of them. ⛔ **No partial fix** (ADR [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md) D3); cost is observability + the defensive `[403,404,500]` E2E oracle, **not** §8. ⭕ Own increment; 0152 D4 rules the shape. ↩ Replaces FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE, archived 2026-08-26 — backend
 - 🟡 **FUP-GATE-19-TESTS-NEVER-RAN-ON-MACOS** — the 2026-08-25 full `e2e:prod` (1172p/18f) left **19 tests NEVER RUN**: `ethics-e1`(5), `ethics-e2`(5), `dm4-referral-documents`(5), `case-referral-usability-batch`(3), `ethics-e4`(1). A failure aborts the remainder of its spec, so the 18 understates what went unexercised — real coverage was **1211 of 1222**. ⛔ Nothing is proven for those 19 either way; they are hostage to the two clusters (the `open_document_version` 500 above, and the macOS native-`<select>` `ArrowDown` no-op that cannot pass on this OS) and stay unexercised until those are fixed. ⚠ The gate itself reports this loudly and correctly — the defect is that the reds gate the coverage, not that the gate hides it — lead/tester
 - 🟡 **FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS** — the SUBSET half is closed (ADR [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)), but a **FULL** sweep still writes `docs/reviews/authz-door-audit-findings.md` through a truncating redirect — and that file is **not purely generated**: it carries hand-merged subset verdicts, a trailing `## Note — a RENAME moves a gate's verdict` section, and inline annotations on the skipped-policy bullets. A full run destroys all of them, silently. ⚠ **Same class as the closed item, different RUN MODE** — the guard that fixed the subset path deliberately does not cover it, so "the truncation is fixed" is true of one half only. Fix is the register's option **(b)**: merge verdicts rather than replace. All four sweeps now print a startup warning counting the hand-merged blocks — a hint, not a gate — backend

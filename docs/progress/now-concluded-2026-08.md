@@ -306,3 +306,24 @@ _The status line itself stays live in § Now; what moved is the record of which 
 _A pointer to a pointer: the narrative rotated here 2026-08-21, and this line was what remained in § Now._
 
 - **✅ SHIPPED 2026-08-19 — the documentation-stability refactor** (ADR [0127](../decisions/0127-standing-rules-home-and-staleness-gate.md); ADR [0124](../decisions/0124-progress-live-state-contract.md) Amdt 1): standing rules moved to `.claude/rules/`, `lint:rules` is gate 8, and rules were **measured to fire**. Bullet rotated verbatim 2026-08-21 → [now-concluded-2026-08.md](now-concluded-2026-08.md), which keeps the four filed-not-built items and the ⛔ premise-was-false note.
+
+### The "NO PHASE IS ACTIVE" recurrence
+
+_Rotated **verbatim** from § Now 2026-08-26, during a size rotation forced by the file reaching
+81919 of its 81920-byte cap. Three LIVE residues stayed in PROGRESS.md and were verified by name
+before the cut: that a phase **is** active (AFF4), the two most recent COMPLETE programs, and the
+ethics-lane non-erasability note — which the bullet itself flagged as having **no other live line**._
+
+⛔ This line read "NO PHASE IS ACTIVE" for a **THIRD** time (corrected 2026-08-26, twelve lines above a bullet saying the opposite). ⭐ **A bullet's POSITION is not its recency** — this line named the wrong
+program twice (0137 until 2026-08-24, 0136 until 2026-08-25) because a concluded bullet outlived
+its work in § Now, and it said NO PHASE IS ACTIVE until 2026-08-25 while one was — **and again
+through 2026-08-26 while AFF4 ran.** ⛔ The recurrence is the finding: a bullet that *records* this
+failure does not resist it, because the correction lives in the prose while the false claim lives
+in the opening words a reader stops at. Do not add a fourth warning here; check the AFF4 bullet.
+
+Everything else that stood in that bullet is done — the DM program, DSR + its operational remediation, the
+Cloud orphan probe, the `Imprimir prévia` split, AFF2 and the case-surface split. Every one of those
+bullets is rotated **verbatim** → this file, and in each cut the **open residue stayed** in § Now,
+verified by name against § Follow-ups / § Bug Log.
+(DSR's never-re-run `e2e:prod` is DISCHARGED by the 2026-08-25 merged-tree gate; the stale
+`dsr-slice3-adjudication` assertion it was hiding had already been corrected on `main`.)
