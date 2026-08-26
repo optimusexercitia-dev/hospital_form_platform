@@ -403,6 +403,20 @@ same reason).
 
 - **Parallel numbering:** no second feature branch during AFF4; if one appears, the
   incoming side renumbers (ADR + migrations + pgTAP), citations included.
+  ⚠ **A second branch DID appear — `claude/angry-stonebraker-c8e637`** (the DatePicker
+  wrapping-`<label>` bucket F0 deferred). Numbering held: it took **no** ADR, migration or
+  pgTAP number, only a namespaced bug id (`BUG-CASEPHASE-DUEDATE-001`), and it cherry-picked
+  `date-picker.tsx` + `date-time-picker.tsx` from `5e7288b5` **byte-identical** — blob hashes
+  `cd337073…` / `0950c364…`, verified on both sides, so those files cannot conflict.
+- ⚠ **MERGE ORDER IS A GATE INPUT, and it is not yet decided.** That branch's **8 call-site
+  changes have had NO E2E pass** — its own session swept for name matchers and said plainly
+  that a grep is not a run. If it merges to `main` **before** AFF4's full `e2e:prod`, that gate
+  runs over changed accessible names nobody has executed, and any flake it produces lands in
+  AFF4's numbers wearing AFF4's name. **Preference: AFF4's gate runs on a tree that excludes
+  unrun changes** — either AFF4 merges first, or that branch takes its own tester pass before
+  merging. ⛔ Do not let "the full suite happened to touch it" stand in for either: an
+  untargeted whole-suite run is not a pass aimed at a change, and "mine or pre-existing?" is
+  answered by re-running the suspect **alone**, which costs far more once the trees are mixed.
 - **Shared local stack, one owner:** `db reset` during another session's evidence run
   lands silently in their results. Coordinate resets.
 - **Windows editing:** no `sed -i`/`>`-round-trips on UTF-8 files (mojibake compounds);
