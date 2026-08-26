@@ -862,6 +862,14 @@ locators** (measured, not assumed). ⚠ **That run's "2 flaky" coincidentally ma
 count** — `FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES` exists for exactly this: **a total that
 matches is not a list that matches.** When AFF4's gate reports its own "2 flaky", diff the *names*.
 
+⛔ **ONE MERGED-IN CHANGE IS UNEXERCISED BY THAT GREEN RUN: `61e23659`** (the `case-access-panel`
+naming — the 37th and last site). It **landed after** the `e2e:prod` above, so the 1239-pass result
+says nothing about it. **AFF4's own gate will be its first execution**, and `e2e/case-access.spec.ts`
+is the spec that reaches it. ⚠ Recorded here because it was **lost once already**: it survived only
+in a coordination message, and shortening the FUP index line to buy cap headroom deleted the last
+trace of it. The incoming session repeated it unprompted for exactly that reason — *a caveat gets
+lost precisely when the line carrying it is compressed.*
+
 ⚠ **A green gate is NOT "every control was driven."** That run **skipped 11**, and `accounted N/N`
 counts a skip as accounted. Two skip-bearing specs sit beside date controls —
 `phi-remediation.spec.ts:421` (a **CAPA** assertion) and `case-access.spec.ts:1293` (a

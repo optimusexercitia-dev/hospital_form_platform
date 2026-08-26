@@ -113,6 +113,12 @@ allowlisting makes the floor arm and the door arm agree, and agreement reads as 
 **Did NOT run:** `npm run e2e:prod` (the full batched gate — §6 step 2, still owed) · the periodic
 full ~5 h door sweep · `ARM=policy` · any remote/linked-project measurement.
 
+⚠ **The merged-in DatePicker branch brought its own `e2e:prod` GREEN** (`GATE_EXIT=0`, 1239p/0f,
+2 flaky **named** in the plan because `GATE_LOGDIR` is not run-scoped). ⛔ **It does NOT cover
+`61e23659`** — the `case-access-panel` naming landed *after* that run, so **AFF4's gate is its first
+execution**; `e2e/case-access.spec.ts` reaches it. That caveat was lost once already when the FUP
+index line was compressed for cap headroom.
+
 ## Dead ends
 
 - **`where pr.id = v_uid` → `where true` as a mutation proof.** Returns 36 rows, an earlier arm's
