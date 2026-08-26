@@ -645,3 +645,71 @@ app.case_is_terminal(p_case_id uuid)
 # ⛔ FORMAT: bare signature below, per the `case_is_terminal` note — a literal category
 # prefix on the line would make it match no function and reappear as a GHOST.
 public.get_own_person_record()
+
+# ── CATEGORY (b) · 2026-08-26 · AFF4 B6a ──────────────────────────────────
+#
+# public.list_org_people(p_org_id uuid, p_search text, p_cpf text, p_include_ended boolean)
+# — ADR 0151 D10 as amended by ADR 0154. The org people directory behind the add-a-person
+# search: prosecdef, set-returning, EXECUTE held by `authenticated` and `service_role`, so
+# it is squarely inside ARM 3's domain and the census rightly demands a verdict.
+#
+# ⛔ IT IS AN AUTHORIZATION GATE. Do NOT reclassify it as a helper. Its inline gate
+# REPLACES RLS for everything it returns (`prosecdef` beside `pg_policies`, once more).
+#
+# ⚠ WHY IT APPEARED AS *UNKNOWN* RATHER THAN AS A CHANGED VERDICT, and this is the
+# generalisable half: B6a added `p_include_ended boolean`, so the DROP+CREATE changed the
+# signature — and the census keys on the full signature. The old three-argument key's
+# verdict did not move, it was ORPHANED: a rename orphans a name-keyed verdict, and the
+# orphan reads as a brand-new ungated door. ⛔ The GATE ITSELF WAS NOT TOUCHED by B6a
+# (verified by substring match against the pre-change body); only the roster predicate and
+# the payload moved. Recording that here so the next reader does not go looking for a gate
+# change that never happened.
+#
+# WHY NO ARM-1 VERDICT EXISTS — MEASURED, NOT ASSUMED (2026-08-26):
+#   * `CASES="list_org_people" bash p0-authz-door-audit.sh` on a fresh reset returned
+#     "=== RESULT: UNPROVEN — NOTHING WAS MEASURED. This is NOT a pass. ===",
+#     reporting `predicate=0/111 policy=0/226` and naming the door explicitly:
+#     "public.list_org_people -> record [SECURITY DEFINER]".
+# ARM 1 neutralizes a BOOLEAN predicate or an RLS policy. This gate is an inline
+# `if not (…) then return; end if;` inside a set-returning body — there is no boolean to
+# flip and no policy to open. The sweep was ATTEMPTED and could not reach.
+#
+# WHAT DOES COVER IT, proven by MUTATION rather than claimed (2026-08-26):
+#   Neutralization: the guard still evaluates, but `return;   -- empty, never raises`
+#   became `null;`, so it no longer stops execution and an unauthorized caller receives the
+#   whole roster. Applied through the exact runtime-patch threat mechanism
+#   (`pg_get_functiondef` + `replace` + `execute`); md5 moved
+#   02a8b3e085a681c7148fe51bd6399bff -> 3abeafcaac504b5d0738437ef94845c5, so the mutation
+#   is known to have LANDED rather than assumed.
+#   SIX assertions across THREE suites went red, each with a real diff (have 29 / want 0):
+#     * 302 §5.3, §5.4, §5.5 — nsp_org_admin / plain member / another org's admin
+#     * 316 §D12 DISTINGUISHING — a quality_reviewer-hatted caller reads NOTHING
+#     * 361 §6.1, §6.2 — the same absence, pinned beside the re-emission
+#   ⭐ EVERY ONE OF THOSE SUITES RAN ITS FULL PLAN under the mutant (51/51, 12/12, 24/24).
+#   That is the check the `get_own_person_record` entry above had to learn the hard way: a
+#   mutation that ABORTS a suite before the arm under test proves nothing about that arm,
+#   and its red looks exactly like a red that does.
+#   Restored, and the restore VERIFIED byte-exact by md5 back to the pre-mutation value.
+#
+# ⚠ INSTRUMENT NOTE, because it cost a wrong reading first: a SINGLE-file
+# `supabase test db <one suite>` run straight after `supabase db reset` fails with
+# "schema test_helpers does not exist" — `00_setup.sql` has not run — and that red is about
+# the harness, not the subject. Run the whole suite when judging a mutation.
+#
+# ⛔ FORMAT: bare signature below.
+public.list_org_people(p_org_id uuid, p_search text, p_cpf text, p_include_ended boolean)
+
+# ── NOT AN AUTHORIZATION DECISION · 2026-08-26 · AFF4 D4 ──────────────────
+# helper: app.assert_hospital_affiliation_has_org() — flagged by
+# `scripts/door-sweep-cases.sh` on the AFF4 diff as EXCLUDED-BY-NAME, i.e. "the filter
+# cannot tell", which is a review item and not a drop. RULED: it is a DATA-INTEGRITY
+# constraint trigger, not an authorization gate. It consults no caller identity at all —
+# no `auth.uid()`, no `app.has_role`, no membership read — and decides only whether an
+# ACTIVE hospital affiliation has its required ACTIVE org parent (ADR 0151 D4). Neutralizing
+# it could not widen anyone's access to anything; it could only permit an inconsistent row.
+# It is also a trigger function, which ADR 0156 excludes from the door domain by
+# construction.
+# ⚠ It is NOT thereby untested: its coverage obligation is B9's containment arm, which must
+# use `set constraints all immediate` — the trigger is DEFERRABLE INITIALLY DEFERRED and
+# every pgTAP suite ends in `rollback`, so the check otherwise never fires and the arm would
+# pass while asserting nothing.

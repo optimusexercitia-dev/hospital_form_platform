@@ -33,8 +33,23 @@ arms hold (`census` · `hat` · `wrapper` · `floor`). C5's keystone (`374`) was
    assertion. ⚠ The live half's domain is the whole door family and is therefore **WIDER** than
    `door-error-arms.test.ts`'s `actions.ts`-derived one — the two are not each other's oracle,
    and that file's header (which claimed they were) was corrected in the same commit.
-3. **B5** — the backfill. 4. **B6** — the **widened** ADR 0154 form, per the ruling in B6 above.
-5. Then B7 (seed) · the rest of B8 (D13 `registerUser` start date; D15 `updateUserProfile`) · B9.
+3. ✅ **B5** — the backfill. 4. ✅ **B7-seed + the D4 containment backstop.** 5. ✅ **B6a + B6b.**
+   6. ✅ **ADR 0156** (the door-SQLSTATE domain). **NEXT: the rest of B8** (D13 `registerUser`
+   start date; D15 `updateUserProfile`) **· B7's remaining non-seed items · B9.**
+
+⛔ **THE TASK ORDER IN THIS PLAN WAS WRONG AND IS AMENDED: B5 → B7-seed → D4 backstop → B6.**
+Not a preference — a measured dependency, PO-ruled 2026-08-26. B6 re-predicates the roster
+onto `organization_affiliations`, and on a fresh reset that table held **0 rows** while 35
+non-admin profiles carried a `home_organization_id` (`seed.sql` had zero
+`organization_affiliations` references). Landing B6 first would have returned an EMPTY
+directory for everyone and reded six live assertions — `302` §5.1/§5.2/§5.7/§5.12,
+`304`:186, `316`:70/77. The plan's own B7 text already encoded the constraint its numbering
+violated ("order the org inserts first").
+⚠ And the backstop's precondition is **B7-seed, not B5**: B5 matches **zero rows on a fresh
+local reset** (migrations run before `seed.sql`, against an empty `profiles`), so it can
+never be what makes the seed's hospital affiliations legal. `app.affiliate_person_impl`'s
+body claimed otherwise; that sentence was corrected **in `prosrc`** by migration
+`20261003004000`.
 
 **Then:** `frontend` F4 (released when B8's `registerUser` lands) and F6's toggle (released when
 B6b lands) — both **held, not forgotten**. `tester` T2–T5 after that. Then `qa`, then the §6 gate.
@@ -349,6 +364,25 @@ verified against the **live catalog** (`pg_policies`, `pg_proc.prosecdef`, ACLs,
 - Fixture discipline: self-contained fixed-id fixtures, never seed-random ids; flags:
   verify no feature-flag enable is needed (AFF precedent: structural, no flag) so no
   silent keystone skip.
+- ⛔⛔ **THE CONTAINMENT ARM MUST FORCE THE CONSTRAINT IMMEDIATE, OR IT ASSERTS NOTHING.**
+  `hospital_affiliation_has_org_trg` (migration `20261003004000`) is `DEFERRABLE INITIALLY
+  DEFERRED`, so its check runs at **COMMIT** — and **every pgTAP suite ends in `rollback`,
+  so the trigger never fires in any of them.** An arm written the obvious way ("insert a
+  hospital affiliation with no org parent, expect a refusal") therefore observes the insert
+  SUCCEED and, if it wraps that in an exception handler, reports **PASS while proving
+  nothing**. The remedy is one statement: `set constraints all immediate;` after the insert
+  and before the assertion.
+  ⚠ This is measured, not predicted: `backend` wrote exactly that arm on 2026-08-26 and it
+  **passed wrongly** on the first attempt, for exactly this reason. Pair the arm with its
+  three siblings, all confirmed on seeded data: an **ended** orphan row is accepted (the
+  scope carve-out is real), **child-before-parent inside one transaction** is accepted
+  (deferral works), and in the **autocommit** shape the refusal escapes uncatchably at
+  statement commit — which is what makes `supabase db reset` itself the test of the seed's
+  insert ordering.
+- The two org-affiliation predicate suites already moved and are green; B9 extends rather
+  than re-derives them: `375` now reads the SEEDED population (each ALLOW is an exact-set
+  assertion against a count captured as `postgres` before any role switch) and `378`
+  constructs the ended-affiliation state its D5 differential needs.
 - Vitest keystones (service-role paths, no RLS backstop — 0098 §W3.2): wizard authority
   (org_admin only), deactivation offer appears only on empty platform-wide footprint,
   footprint resolver's voided exclusion, `updateUserProfile` tightened gate (both
@@ -420,9 +454,22 @@ verified against the **live catalog** (`pg_policies`, `pg_proc.prosecdef`, ACLs,
   (`listOrgUsers`/`listHospitalUsers`), NOT to `list_org_people`'s `p_include_ended`** —
   the directory never calls that RPC; `list_org_people` backs the add-a-person search
   (`register-person-flow.tsx`). The original F6 text pointed at the wrong function.
-- Both the org-wide arm (`listOrgUsers`) and the hospital-scoped arm
-  (`listHospitalUsers`) must honour the toggle — a `hospital_admin` sees only the
-  second, so wiring one arm leaves that role's roster permanently active-only.
+- ⛔ **RETRACTED 2026-08-26, PO-ruled (option A) — the bullet below was wrong and the
+  correction is a RELEASED REQUIREMENT, not a discovery for `frontend` to make.** It read:
+  *"Both the org-wide arm (`listOrgUsers`) and the hospital-scoped arm
+  (`listHospitalUsers`) must honour the toggle."* **`listHospitalUsers` cannot.** A
+  `hospital_admin` cannot read `organization_affiliations` at all — the SELECT policy has
+  no hospital tier (ADR 0151 D1; pgTAP `375` §4.1 pins that absence deliberately). Measured
+  2026-08-26: a `hospital_admin` reads **1** org-affiliation row (their own) and **0**
+  belonging to anyone else, against an `org_admin`'s **29**. Filtering that roster on the
+  table would blank the page for the only role it serves.
+- ⛔ **THEREFORE: the toggle must be ABSENT on the hospital-scoped directory, never
+  present-and-inert.** A control that silently does nothing is worse than a missing one —
+  it actively asserts a filter is being applied. The status chip is unaffected (it reads a
+  row's own tense); only the *"incluir desligados"* toggle is org-directory-only.
+- The org-wide arm (`listOrgUsers`) honours it and is the half acceptance criterion 1
+  depends on — AC1 names an **org admin**, whose default roster is `listOrgUsers`, so the
+  org half alone satisfies it.
 - Empty states must never be ambiguous between "none" and "no access" (the standing
   invariant; `user-directory-list.tsx` already carries that reasoning in-file — follow
   it, don't restate it).
@@ -436,6 +483,20 @@ verified against the **live catalog** (`pg_policies`, `pg_proc.prosecdef`, ACLs,
 - **T2** · Org offboarding E2E: blocked path (blockers listed) → guided completion →
   roster shows *Desligado* behind the filter → deactivation offer: accept arm + decline
   arm. Keyboard-only flow for the wizard (the per-phase a11y requirement).
+  - ⛔ **SCOPED TO THE ORG DIRECTORY, and the reason must travel with the scope or it
+    reads as arbitrary narrowness.** T2 is the cross-runtime parity gate — the only gate
+    that exercises the SQL door and the TS queries in one process, so it is what catches
+    either surface changing its default alone (two independently-green unit tests never
+    would). But it must assert parity **only for `listOrgUsers`**. `listHospitalUsers`
+    deliberately does NOT carry the org-affiliation predicate (PO-ruled option A, 2026-08-26
+    — see F6), so a parity gate spanning both surfaces would **red on correct code** — and a
+    gate that reds on correct code gets weakened by whoever meets it next, which converts a
+    real gate into a fake one.
+  - The shape to assert, after an offboarding: the **org directory** drops the person by
+    default; the **add-a-person CPF search still finds them** (D5 rehire); the *"incluir
+    desligados"* toggle brings them back. ⚠ The add-person search is the SINGLE explicit
+    widener in the codebase (`lookupOrgPeople`), so its arm is the one that fails if
+    someone "tidies" the defaults into agreement.
 - **T3** · Void E2E: create mis-entry → void with reason → badge renders; roster/panel
   reflect it. (The read-revocation differential is pgTAP's job — the browser asserts UI.)
 - **T4** · `/conta` Meus dados spec: masked CPF rendering, read-only-ness, self data.
@@ -652,6 +713,26 @@ discovered item that lives only in a chat message is invisible work. Each of the
 one-line index entry **and** a `follow-ups.md` body at the Record step — both halves, or
 the gate reds.
 
+- **The hospital directory keeps an org-offboarded person with an EXPIRED commission seat.**
+  ⛔ **NOT an authorization leak — say so first, because a future reader will otherwise
+  escalate it as one.** It is a STALE-ROSTER defect: the person's data was already visible
+  to that hospital admin, and nothing they could not read before becomes readable.
+  Mechanism: `hospitalPeopleIds` (`src/lib/queries/org-users.ts`) unions active hospital
+  affiliations with commission seats, and its **membership arm applies no `expires_at`
+  filter**, while D6 rules that an **expired** membership does **not** block
+  `end_org_affiliation`. So the one state that slips through is *org-offboarded* **and**
+  *holding an expired seat*. Every other org-offboarded person is already absent, because
+  D3's blocker enumeration refuses while active affiliations or active memberships remain.
+  **Candidate fix: a narrow `SECURITY DEFINER` helper** — `app.org_affiliated_principals
+  (hospital, include_ended)` returning principal ids only, gated on an active
+  `hospital_admin` of that hospital or an `org_admin` of its org, emitting **no** audit row
+  (so it does not repeat the reason ADR 0154 rejected routing the directory through
+  `list_org_people`). ⛔ **UNSCHEDULED — needs a PO go.** A new DEFINER read path costs the
+  full treatment (red-first keystone, `ARM=census`, wrapper arm, door-sweep entry) to close
+  a two-condition gap, and widening a hospital admin's reach into org-tier records to fix a
+  directory filter is a poor trade. Widening the RLS policy instead is **rejected**: it
+  contradicts ADR 0151 D1 and would require deleting the `375` §4.1 keystone that exists to
+  pin that decision.
 - **`door-error-arms.test.ts` reports on its own list, not on the domain.** The test whose
   job is "every SQLSTATE the doors raise has an arm in `toState`" reads a hardcoded
   `DOOR_MIGRATIONS` file list and parses migration **text**. Two defects: (a) blind to any
@@ -709,9 +790,12 @@ the gate reds.
   it to learn what the helper does is reading something false. ⚠ This is the
   migration-text-is-stale hazard from a direction not previously recorded: not a runtime
   `pg_get_functiondef` + `replace()`, but a **test fixture outrunning a migration**.
-- **TEN instruments in one build whose success output was indistinguishable from the real
-  thing** — a pattern, not ten incidents. In every case the human-readable output looked
-  right and the honest instrument was an exit code or a direct measurement:
+- **TWELVE instruments in one build whose success output was indistinguishable from the real
+  thing** — a pattern, not twelve incidents. In every case the human-readable output looked
+  right and the honest instrument was an exit code or a direct measurement.
+  ⚠ The count is only useful if it is COMPLETE, and #11 and #12 were both found by the
+  author of the instrument rather than by a reviewer — the case most likely to go
+  unrecorded, because nobody else would ever have known:
   1. `| head -10` clipped a process list to ten rows, all `chrome.exe` — read as a clean check.
   2. A reset-log grep for `error|failed` matched two migration **filenames**
      (`…_ff3_validation_error_surface.sql`) — a clean run read as a failing one.
@@ -767,6 +851,22 @@ the gate reds.
      an author** — `npm run lint ; git commit` let a commit land while lint exited 1, pushing
      PROGRESS.md over its cap. **`;` and `|` are the same hazard**: both discard the status of
      everything but the last element. Use `&&`, or capture `$?` immediately.
+  11. ⭐⭐ **A TEST OF A DEFERRED CONSTRAINT THAT PASSED WHILE PROVING NOTHING — and it was
+     found by the person who wrote it, which is the easiest kind to quietly not record.**
+     The D4 containment arm inserted an orphan hospital affiliation inside a `do $$` block
+     with `exception when check_violation`, and reported **PASS**. It could not have failed:
+     `hospital_affiliation_has_org_trg` is `DEFERRABLE INITIALLY DEFERRED`, so the check runs
+     at **commit** — after the block, and after the probe's own handler is out of scope. The
+     fixture **could not reach the failing state**. `set constraints all immediate` made it
+     red correctly. ⛔ **The general shape: a DEFERRED constraint is invisible to any test
+     that rolls back**, which is every pgTAP suite in this repo — recorded against B9, where
+     it bites.
+  12. ⭐ **A SINGLE-FILE `supabase test db <suite>` straight after `supabase db reset` reds on
+     the HARNESS, not the subject** — `00_setup.sql` has not run, so `test_helpers` does not
+     exist and the suite aborts with a plan mismatch. Read as a mutation verdict this looks
+     exactly like a keystone catching the mutant; it is the same red whether the mutation
+     worked, failed, or was never applied. Judge a mutation on the **whole suite**, and check
+     that each suite **ran its full plan** before believing its reds.
   ⭐⭐ **THE RULE, and it is cheap enough that there is no excuse:** **every counting instrument in
   a gate report must be run once against a KNOWN FAILURE before its zero is believed.** Reading the
   command never reveals this class — both constants look correct on inspection, and #8 was found
