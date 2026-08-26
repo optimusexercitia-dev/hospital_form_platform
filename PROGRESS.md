@@ -59,8 +59,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   *status* reader needs; the plan carries the rest and is authoritative.
   **DONE:** B1–B7 · D4 backstop · ADR 0156 · F0–F3 · F5 · F6 · the F0-regression repair; four
   authz arms hold. **IN FLIGHT:** B8's rest + B9. **HELD:** F4. **NOT STARTED:** T2–T5, `qa`,
-  §6 gate. ⛔ DatePicker repair verified STRUCTURALLY, never in a browser (jsdom cannot
-  reproduce it) — T2–T5 owe that.
+  §6 gate. ⛔ DatePicker: MECHANISM measured red-first on the real pre-repair component; the
+  computed NAME never read in a browser — T2–T5 owe that one assertion.
   ⛔ **The resume order is GATED and its first step was already dropped once** — the owed pgTAP
   catalog-`==`-declared verdict precedes B5, and **its absence is the signal.**
   ⭐ **C5's keystone (`374`) was observed RED at 2/15 before B3, REPRODUCIBLE from the migration alone.**
