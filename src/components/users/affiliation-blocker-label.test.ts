@@ -35,6 +35,7 @@ import {
   ROLE_LABELS,
   blockerKey,
   blockerLabel,
+  blockersIntro,
 } from '@/components/users/affiliation-blocker-label'
 
 function blocker(overrides: Partial<AffiliationBlocker> = {}): AffiliationBlocker {
@@ -167,6 +168,55 @@ describe('blockerLabel — HC0RA, a blocker that is ONLY a hospital name', () =>
     expect(
       blockerLabel(blocker({ role: 'hospital_admin', hospital: 'Hospital Central' })),
     ).toBe('Administração do hospital — cargo no Hospital Central')
+  })
+})
+
+/**
+ * ⛔ THE SENTENCE AROUND THE LIST, pinned because it MOVED WHILE NOTHING WATCHED.
+ *
+ * The label expression and the sentence it sits inside are SIBLING AXES of the same
+ * rendered alert. This file's original severance covered the label and proved HC0R1/HC0R9
+ * byte-identical there — which was true, and which is exactly why it read as coverage of
+ * the alert. AFF4 F2 had already generalised the intro from "antes de encerrar o vínculo"
+ * to "antes de continuar" so one constant could serve end and void; two E2E assertions
+ * broke, and NO unit gate in this repo could see it, because the string was inline JSX.
+ *
+ * ⚠ These assertions are EXACT (`toBe`), never `toContain`. A substring check would pass
+ * on "Remova estas funções antes de continuar" for the `end` case if the verb clause were
+ * dropped again — the precise failure being pinned.
+ */
+describe('blockersIntro — the sentence introducing the list', () => {
+  it('⭐ REGRESSION PIN: ending names ENCERRAR, the verb the E2E gate asserts', () => {
+    expect(blockersIntro('end')).toBe(
+      'Remova estas funções antes de encerrar o vínculo:',
+    )
+  })
+
+  it('⭐ voiding names ANULAR — the generic wording is wrong here, not merely vaguer', () => {
+    // The void refusal's own message ends "Use o encerramento", redirecting the admin TO
+    // encerrar. "antes de encerrar o vínculo" under that sentence would name the wrong
+    // action, and "antes de continuar" withholds the only word that distinguishes them.
+    expect(blockersIntro('void')).toBe('Remova estas funções antes de anular o vínculo:')
+  })
+
+  it('org offboarding says "e vínculos" — HC0R6 blocks on more than seats', () => {
+    expect(blockersIntro('org_offboard')).toBe(
+      'Remova estas funções e vínculos antes de desligar:',
+    )
+  })
+
+  it('⭐ every action gets a DISTINCT sentence, so none can collapse into another', () => {
+    // The differential. Re-generalising any two of these to one shared constant — the
+    // exact change that caused the breakage — reds here even if each string still reads
+    // like plausible pt-BR on its own.
+    const all = (['end', 'void', 'org_offboard'] as const).map(blockersIntro)
+    expect(new Set(all).size).toBe(all.length)
+  })
+
+  it('names an action in every case — none degrades to a generic "continuar"', () => {
+    for (const action of ['end', 'void', 'org_offboard'] as const) {
+      expect(blockersIntro(action)).not.toContain('continuar')
+    }
   })
 })
 

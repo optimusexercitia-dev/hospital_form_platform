@@ -45,6 +45,8 @@ import { ProfileDialogShell } from "@/components/users/profile-dialog-shell";
 import {
   blockerKey,
   blockerLabel,
+  blockersIntro,
+  type BlockerAction,
 } from "@/components/users/affiliation-blocker-label";
 
 /**
@@ -255,7 +257,18 @@ function AffiliationRow({
   onEdit: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [state, setState] = useState<AffiliationActionState | null>(null);
+  /**
+   * The refusal AND the action that produced it, in ONE piece of state.
+   *
+   * ⛔ Deliberately not two `useState`s. The intro sentence below is chosen by `action`
+   * while the blockers come from `result`; if those could be set independently, a refusal
+   * from one action could render under the other's sentence — and it would be an
+   * intermittent, timing-shaped bug. Storing them together makes that unrepresentable.
+   */
+  const [state, setState] = useState<{
+    action: BlockerAction;
+    result: AffiliationActionState;
+  } | null>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [voidOpen, setVoidOpen] = useState(false);
   const [voidReason, setVoidReason] = useState("");
@@ -303,7 +316,7 @@ function AffiliationRow({
       // seats also cannot be removed from inside the dialog, so staying there is
       // wrong even when the message is read.
       setConfirmEnd(false);
-      setState(result);
+      setState({ action: "end", result });
     });
   }
 
@@ -317,7 +330,7 @@ function AffiliationRow({
       });
       // Same reasoning as `end()`: close either way, render the refusal in the page.
       setVoidOpen(false);
-      setState(result);
+      setState({ action: "void", result });
       if (result.ok) setVoidReason("");
     });
   }
@@ -382,24 +395,24 @@ function AffiliationRow({
         </div>
       </div>
 
-      {state && !state.ok ? (
+      {state && !state.result.ok ? (
         <div
           role="alert"
           className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3.5 py-2.5 text-xs text-destructive"
         >
-          <p className="font-medium">{state.error}</p>
-          {state.blockers && state.blockers.length > 0 ? (
+          <p className="font-medium">{state.result.error}</p>
+          {state.result.blockers && state.result.blockers.length > 0 ? (
             <>
-              <p className="text-destructive/90">
-                {/* Shared by end (HC0R1) and void (HC0R9) — both refusals list active
-                    seats, so the copy has to be true for either action. */}
-                Remova estas funções antes de continuar:
-              </p>
+              {/* ⛔ NOT a shared constant — see `blockersIntro`. This line was generalised
+                  to "antes de continuar" so one string could serve end and void; it broke
+                  two E2E assertions and no unit gate could see it, because inline JSX copy
+                  is invisible to all of them. It is parameterised and pinned now. */}
+              <p className="text-destructive/90">{blockersIntro(state.action)}</p>
               {/* Labelling lives in `./affiliation-blocker-label`, shared with
                   `OrgOffboardingWizard` — the two lists render the same door payloads and
                   drifted apart into the same defect when each carried its own copy. */}
               <ul className="flex list-disc flex-col gap-1 pl-5">
-                {state.blockers.map((b, i) => (
+                {state.result.blockers.map((b, i) => (
                   <li key={blockerKey(b, i)}>{blockerLabel(b)}</li>
                 ))}
               </ul>
@@ -408,7 +421,9 @@ function AffiliationRow({
         </div>
       ) : null}
 
-      <LiveBanner tone="success">{state?.ok ? state.error : null}</LiveBanner>
+      <LiveBanner tone="success">
+        {state?.result.ok ? state.result.error : null}
+      </LiveBanner>
 
       <AlertDialog open={confirmEnd} onOpenChange={setConfirmEnd}>
         <AlertDialogContent>

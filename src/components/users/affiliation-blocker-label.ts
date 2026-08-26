@@ -124,6 +124,49 @@ function blockerScope(b: AffiliationBlocker): string | null {
   return 'cargo do hospital'
 }
 
+/**
+ * Which refusal a blocker list is explaining. The intro sentence names the action the
+ * admin was refused, so it cannot be one shared constant.
+ */
+export type BlockerAction = 'end' | 'void' | 'org_offboard'
+
+/**
+ * The sentence introducing a blocker list.
+ *
+ * ⛔ THIS LIVES HERE — beside the labels, in a module a unit test can reach — BECAUSE IT
+ * MOVED ONCE WITHOUT ANYTHING NOTICING. AFF4 F2 added the void action to
+ * `AffiliationsPanel` and generalised this line from "antes de encerrar o vínculo" to
+ * "antes de continuar" so one string could serve both refusals. That is a reasonable
+ * instinct and it was wrong: it silently broke two E2E assertions, and the only gate that
+ * could see it was the full `e2e:prod` run. Inline JSX copy is invisible to every unit
+ * gate in the repo.
+ *
+ * ⛔ AND "ONE GENERIC STRING" IS NOT AVAILABLE HERE, which is the substantive reason to
+ * parameterise rather than to restore a constant. The void refusal's own message ends
+ * "Use o encerramento" — telling that admin "remova estas funções antes de continuar"
+ * directly under it withholds the one word that says which of the two actions they should
+ * now take, and "antes de encerrar o vínculo" would be actively wrong there, since
+ * encerrar is what they are being redirected TO. The action is a real input, not
+ * incidental phrasing.
+ *
+ * ⚠ THE INTRO AND THE MESSAGE ABOVE IT ARE TWO ELEMENTS, NOT ONE SENTENCE. The opening
+ * clause is `state.error` — already per-SQLSTATE, from the actions' `MESSAGES` map — so
+ * there is no "half-specific sentence" to make consistent; both halves vary by action and
+ * always did.
+ */
+export function blockersIntro(action: BlockerAction): string {
+  switch (action) {
+    case 'void':
+      return 'Remova estas funções antes de anular o vínculo:'
+    case 'org_offboard':
+      // Widest scope of the three: HC0R6 blocks on hospital affiliations as well as
+      // seats, so this one says "e vínculos" where the other two cannot.
+      return 'Remova estas funções e vínculos antes de desligar:'
+    case 'end':
+      return 'Remova estas funções antes de encerrar o vínculo:'
+  }
+}
+
 /** One blocker as a single pt-BR line: what it is, and where it is held. */
 export function blockerLabel(b: AffiliationBlocker): string {
   const scope = blockerScope(b)

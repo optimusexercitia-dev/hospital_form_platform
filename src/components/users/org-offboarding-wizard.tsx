@@ -14,6 +14,7 @@ import {
   ROLE_LABELS,
   blockerKey,
   blockerLabel,
+  blockersIntro,
 } from "@/components/users/affiliation-blocker-label";
 import { Button } from "@/components/ui/button";
 import {
@@ -180,8 +181,12 @@ export function OrgOffboardingWizard({
                   </p>
                   {endState.blockers && endState.blockers.length > 0 ? (
                     <>
+                      {/* Same source as `AffiliationsPanel`'s intro. This surface's
+                          wording was already correct; it is routed through
+                          `blockersIntro` so the three refusal sentences sit in one module
+                          a unit gate can read, rather than as inline JSX no gate can. */}
                       <p className="text-destructive/90">
-                        Remova estas funções e vínculos antes de desligar:
+                        {blockersIntro("org_offboard")}
                       </p>
                       {/* ⛔ `blockerLabel`, NOT an inline expression. HC0R6 is the door
                           that reaches this list, and it is the ONE door emitting `kind` —
