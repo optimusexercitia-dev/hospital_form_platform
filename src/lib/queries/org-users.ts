@@ -5,8 +5,9 @@ import {
   listActiveAffiliationsFor,
   listActivePrincipalIdsForHospital,
   listAffiliationsFor,
-  listOrgAffiliatedPrincipalIds,
+  listOrgAffiliationTenses,
   type HospitalAffiliation,
+  type OrgAffiliationTense,
 } from '@/lib/queries/affiliations'
 import {
   deriveUserStatus,
@@ -370,17 +371,29 @@ function toListItems(
     credentials: Map<string, DirectoryCredentialRow[]>
     committees: Map<string, UserCommitteeMembership[]>
   },
+  /**
+   * AFF4 B6b — the org-affiliation tense per principal, or `null` for a surface that
+   * cannot resolve it. ⛔ A REQUIRED PARAMETER, not an optional one with a null default:
+   * a default would let a future caller omit it and silently ship a directory whose chip
+   * never renders. Each caller must state which of the two it is.
+   */
+  orgTenses: Map<string, OrgAffiliationTense> | null,
 ): OrgUserListItem[] {
-  return rows.map((r) => ({
-    id: r.id,
-    fullName: r.full_name,
-    email: r.email,
-    categoryLabel: r.category?.label_pt ?? null,
-    status: deriveUserStatus(r.is_active, r.suspended_until, r.email_confirmed_at),
-    hospitalNames: affiliationNames(affiliations.get(r.id) ?? []),
-    committees: extras.committees.get(r.id) ?? [],
-    councilRegistration: pickCouncilRegistration(extras.credentials.get(r.id) ?? []),
-  }))
+  return rows.map((r) => {
+    const tense = orgTenses?.get(r.id) ?? null
+    return {
+      id: r.id,
+      fullName: r.full_name,
+      email: r.email,
+      categoryLabel: r.category?.label_pt ?? null,
+      status: deriveUserStatus(r.is_active, r.suspended_until, r.email_confirmed_at),
+      orgAffiliationStatus: tense?.status ?? null,
+      orgAffiliationEndedOn: tense?.endedOn ?? null,
+      hospitalNames: affiliationNames(affiliations.get(r.id) ?? []),
+      committees: extras.committees.get(r.id) ?? [],
+      councilRegistration: pickCouncilRegistration(extras.credentials.get(r.id) ?? []),
+    }
+  })
 }
 
 /** Options for the two directory list reads (AFF2 B7). */
@@ -473,7 +486,12 @@ export async function listOrgUsers(
   // `hospitalPeopleIds` states: the join form duplicates rows per affiliation and corrupts
   // the `count: 'exact'` the pills are drawn from, and an `.or()` with interpolated values
   // is the recorded PostgREST hazard. The set is bounded by one organisation's roster.
-  const orgScope = await listOrgAffiliatedPrincipalIds(orgId, includeEnded)
+  //
+  // The same ONE read carries the per-row TENSE the directory chip renders — see
+  // `listOrgAffiliationTenses`. Membership of the roster and the tense are one fact from
+  // one row; reading them separately would be two expressions of one predicate.
+  const orgTenses = await listOrgAffiliationTenses(orgId, includeEnded)
+  const orgScope = Array.from(orgTenses.keys())
 
   // An empty `in.()` is invalid PostgREST, and this set is empty in two very different
   // situations: an organisation with no roster, and a caller who is not its org_admin (the
@@ -523,7 +541,7 @@ export async function listOrgUsers(
     loadPageExtras(supabase, ids),
   ])
 
-  const items = toListItems(rows, affiliations, extras)
+  const items = toListItems(rows, affiliations, extras, orgTenses)
   return {
     rows: items,
     total: pageRes.count ?? items.length,
@@ -631,7 +649,12 @@ export async function listHospitalUsers(
     loadPageExtras(supabase, ids),
   ])
 
-  const items = toListItems(rows, affiliations, extras)
+  // ⛔ NULL, NOT AN EMPTY MAP, AND NOT A LOOKUP. A hospital_admin reads ZERO
+  //    org-affiliation rows belonging to anyone else (ADR 0151 D1 — no hospital tier;
+  //    measured 2026-08-26: 1 own row, 0 others'), so this surface CANNOT resolve the
+  //    tense. An empty map would render every row as "no chip" — indistinguishable from a
+  //    broken org directory; `null` says "not knowable here", which is the truth.
+  const items = toListItems(rows, affiliations, extras, null)
   return {
     rows: items,
     total: pageRes.count ?? items.length,

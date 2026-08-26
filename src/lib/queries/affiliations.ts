@@ -206,8 +206,25 @@ export async function listActivePrincipalIdsForHospital(
 }
 
 /**
- * The principal ids ORG-AFFILIATED to one organisation — the AFF4 roster predicate
- * (ADR 0151 D10, as amended by ADR 0154), replacing `profiles.home_organization_id`.
+ * One person's ORG-affiliation TENSE inside one organisation — the per-row fact the
+ * directory's status chip renders (AFF4, ADR 0151 D7/D10).
+ *
+ * ⚠ NOT the account lifecycle. `OrgUserListItem.status` is `UserStatus` (active /
+ * suspended / deactivated), a fact about the ACCOUNT; this is a fact about the
+ * EMPLOYMENT RELATIONSHIP. A person can be `'encerrado'` here with a perfectly active
+ * account, and vice versa. Rendering either as the other is how an offboarded person
+ * reads as suspended.
+ */
+export interface OrgAffiliationTense {
+  status: 'ativo' | 'encerrado'
+  /** ISO `yyyy-mm-dd` when `status` is `'encerrado'`; otherwise null. */
+  endedOn: string | null
+}
+
+/**
+ * Who is ORG-AFFILIATED to one organisation, and in which tense — the AFF4 roster
+ * predicate (ADR 0151 D10, as amended by ADR 0154), replacing
+ * `profiles.home_organization_id`.
  *
  * `includeEnded` defaults to FALSE (active only), the same name and the same default as
  * `list_org_people`'s `p_include_ended` and `ListDirectoryOptions.includeEnded`. VOIDED
@@ -219,22 +236,47 @@ export async function listActivePrincipalIdsForHospital(
  * exactly ONE row here, their own, and ZERO belonging to anyone else. So this helper is
  * usable by an `org_admin` and is NOT a way to scope a hospital_admin's directory — using it
  * there would blank the page for the only role that page serves.
+ *
+ * ⚠ RETURNS A MAP, AND IT IS THE SAME ONE ROUND TRIP the id list used to be. The tense and
+ * the membership of the roster are ONE fact read from ONE row; splitting them into two
+ * helpers would mean two queries over the same predicate, which is precisely how two
+ * expressions of one predicate come to disagree.
  */
-export async function listOrgAffiliatedPrincipalIds(
+export async function listOrgAffiliationTenses(
   orgId: string,
   includeEnded = false,
-): Promise<string[]> {
+): Promise<Map<string, OrgAffiliationTense>> {
   const supabase = await createClient()
   let query = supabase
     .from('organization_affiliations')
-    .select('principal_id')
+    .select('principal_id, ended_on')
     .eq('organization_id', orgId)
     .is('voided_at', null)
   if (!includeEnded) query = query.is('ended_on', null)
 
-  const { data, error } = await query.returns<{ principal_id: string }[]>()
+  const { data, error } = await query.returns<
+    { principal_id: string; ended_on: string | null }[]
+  >()
   if (error) throw error
-  return Array.from(new Set((data ?? []).map((r) => r.principal_id)))
+
+  // ⛔ ACTIVE WINS OVER ENDED, and this is not defensive coding — it is a state D5's
+  // one-step rehire CREATES. Under `includeEnded` a rehired person legitimately has BOTH
+  // an ended row and an active one, and the partial unique index only forbids two ACTIVE
+  // ones. Taking whichever row PostgREST happened to return first would badge a currently
+  // employed person `Anulado`-adjacent — "encerrado" — at random, on a stable dataset,
+  // which reads as a flaky UI rather than as a bug in an ordering nobody declared.
+  const tenses = new Map<string, OrgAffiliationTense>()
+  for (const row of data ?? []) {
+    const existing = tenses.get(row.principal_id)
+    if (existing?.status === 'ativo') continue
+    tenses.set(
+      row.principal_id,
+      row.ended_on === null
+        ? { status: 'ativo', endedOn: null }
+        : { status: 'encerrado', endedOn: row.ended_on },
+    )
+  }
+  return tenses
 }
 
 // ---------------------------------------------------------------------------

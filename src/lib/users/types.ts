@@ -239,6 +239,32 @@ export interface OrgUserListItem {
   categoryLabel: string | null
   status: UserStatus
   /**
+   * AFF4 B6b (ADR 0151 D7/D10) — the person's ORG-AFFILIATION TENSE, which is what the
+   * directory's status chip renders. `'encerrado'` can only appear when the caller passed
+   * `includeEnded`.
+   *
+   * ⛔ NOT `status` ABOVE, AND THE TWO MUST NEVER BE CONFLATED. `status` is `UserStatus`,
+   * the ACCOUNT lifecycle (active / suspended / deactivated); this is the EMPLOYMENT
+   * relationship. An org-offboarded person keeps a perfectly active account — D3 refuses
+   * offboarding while seats remain and deactivation is a separate, platform-wide act
+   * (ADR 0048 D4) the wizard only ever OFFERS (D12).
+   *
+   * ⭐ NULLABLE, DELIBERATELY, AND UNLIKE `OrgPerson`'s NON-NULLABLE TWIN. `null` means
+   * "not resolvable at this scope", and it exists to make *"the hospital directory cannot
+   * know this"* a TYPE-LEVEL fact instead of a remembered step:
+   *   · `listOrgUsers` MUST never return null — its roster predicate IS an org affiliation,
+   *     so a row cannot appear without one (a null there is a real gap, not an absence).
+   *   · `listHospitalUsers` MUST always return null — a `hospital_admin` reads ZERO
+   *     org-affiliation rows belonging to anyone else (D1: no hospital tier; pgTAP `375`
+   *     §4.1 pins that absence), so that surface cannot populate it and must not fake it.
+   * Both directions are pinned in `src/lib/queries/org-roster-predicate.test.ts` — without
+   * that, a null from the ORG directory gets absorbed by a null-check in the render path
+   * and the chip silently stops appearing with nothing able to say why.
+   */
+  orgAffiliationStatus: 'ativo' | 'encerrado' | null
+  /** ISO `yyyy-mm-dd` when `orgAffiliationStatus` is `'encerrado'`; otherwise null. */
+  orgAffiliationEndedOn: string | null
+  /**
    * The hospitals this person ACTIVELY works at (AFF2 B7). One entry per active
    * `hospital_affiliations` row visible to the caller; `[]` is legitimate and renders
    * "Sem vínculo hospitalar", never an empty cell.

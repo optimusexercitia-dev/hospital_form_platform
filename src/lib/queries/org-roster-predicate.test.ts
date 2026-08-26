@@ -133,10 +133,10 @@ describe('listActivePrincipalIdsForHospital: a VOIDED affiliation is not an acti
   })
 })
 
-describe('listOrgAffiliatedPrincipalIds: the roster predicate, and its one default', () => {
+describe('listOrgAffiliationTenses: the roster predicate, and its one default', () => {
   it('defaults to ACTIVE-ONLY — it asks for both `voided_at is null` and `ended_on is null`', async () => {
-    const { listOrgAffiliatedPrincipalIds } = await import('./affiliations')
-    await listOrgAffiliatedPrincipalIds(ORG)
+    const { listOrgAffiliationTenses } = await import('./affiliations')
+    await listOrgAffiliationTenses(ORG)
 
     expect(asked('organization_affiliations', 'eq', 'organization_id', ORG)).toBe(true)
     expect(asked('organization_affiliations', 'is', 'voided_at', null)).toBe(true)
@@ -144,8 +144,8 @@ describe('listOrgAffiliatedPrincipalIds: the roster predicate, and its one defau
   })
 
   it('⭐ `includeEnded` DROPS the ended filter — and drops ONLY that one', async () => {
-    const { listOrgAffiliatedPrincipalIds } = await import('./affiliations')
-    await listOrgAffiliatedPrincipalIds(ORG, true)
+    const { listOrgAffiliationTenses } = await import('./affiliations')
+    await listOrgAffiliationTenses(ORG, true)
 
     // The differential: this is the assertion that fails if `includeEnded` is ignored, and
     // the pair below is what stops "widening" from becoming "removing every filter".
@@ -155,10 +155,10 @@ describe('listOrgAffiliatedPrincipalIds: the roster predicate, and its one defau
   })
 
   it('⛔ VOIDED is excluded in BOTH modes — there is no flag that reaches a voided row', async () => {
-    const { listOrgAffiliatedPrincipalIds } = await import('./affiliations')
+    const { listOrgAffiliationTenses } = await import('./affiliations')
     for (const includeEnded of [false, true]) {
       calls = []
-      await listOrgAffiliatedPrincipalIds(ORG, includeEnded)
+      await listOrgAffiliationTenses(ORG, includeEnded)
       expect(asked('organization_affiliations', 'is', 'voided_at', null)).toBe(true)
     }
   })
@@ -204,7 +204,7 @@ describe('listOrgUsers: the directory roster is the ORG AFFILIATION, not home_or
     // this comment claimed the test also pins that the org-affiliation read GATES the
     // roster — "revert the predicate and `profiles` is queried anyway". IT DOES NOT.
     // Measured: reverting `.in('id', orgScope)` to `.eq('home_organization_id', orgId)`
-    // leaves this test GREEN, because `listOrgAffiliatedPrincipalIds` is still called and
+    // leaves this test GREEN, because `listOrgAffiliationTenses` is still called and
     // still short-circuits on the empty set. This test covers the empty-`in.()` hazard and
     // the "empty never means forbidden" contract, and nothing else. The predicate
     // differential is the first test in this block, which the same mutation reds.
@@ -215,5 +215,139 @@ describe('listOrgUsers: the directory roster is the ORG AFFILIATION, not home_or
     expect(calls.some((c) => c.table === 'profiles')).toBe(false)
     expect(page.rows).toEqual([])
     expect(page.statusCounts).toEqual({ all: 0, active: 0, attention: 0, deactivated: 0 })
+  })
+})
+
+// ===========================================================================
+// AFF4 B6b — the per-row ORG-AFFILIATION TENSE, and the nullability invariant.
+// ===========================================================================
+
+/**
+ * ⛔ WHY THESE ARMS EXIST AT ALL, and why the field being nullable is what makes them
+ * mandatory. `OrgUserListItem.orgAffiliationStatus` is `'ativo' | 'encerrado' | null`,
+ * where `null` means "not resolvable at this scope". That nullability is deliberate — it
+ * makes *"the hospital directory cannot know this"* a type-level fact — but a nullable
+ * field is also a BUG ABSORBER: a null arriving from the ORG directory is a real gap, and
+ * the render path's null-check would swallow it, so the chip would just stop appearing
+ * with nothing anywhere able to say why.
+ *
+ * So the invariant has to be pinned from BOTH sides, and neither side is evidence alone:
+ *   · `listOrgUsers` must NEVER return null (its roster predicate IS an org affiliation —
+ *     a row cannot appear on that page without one).
+ *   · `listHospitalUsers` must ALWAYS return null (a `hospital_admin` reads ZERO
+ *     org-affiliation rows belonging to anyone else — ADR 0151 D1, pgTAP `375` §4.1).
+ *
+ * ⚠ THESE ASSERT OVER THE RETURNED SHAPE, unlike every arm above, and that is correct
+ * here rather than a lapse: the property under test IS the mapping from row to item. The
+ * recording-mock discipline still applies where it can — the tense VALUES below are driven
+ * by `ended_on` in the supplied rows, so a mapping that hardcodes `'ativo'` reds.
+ */
+describe('the org-affiliation TENSE reaches the directory row (AFF4 B6b)', () => {
+  const options = {
+    search: '',
+    status: null,
+    paging: { page: 0, pageSize: 20 },
+  } as const
+
+  /** Two people: one active, one ended. Both rows visible only under `includeEnded`. */
+  function seedMixedRoster(): void {
+    rows = {
+      organization_affiliations: [
+        { principal_id: 'p-active', ended_on: null },
+        { principal_id: 'p-ended', ended_on: '2025-06-30' },
+      ],
+      profiles: [
+        {
+          id: 'p-active',
+          full_name: 'Ativa',
+          email: 'a@test.local',
+          home_organization_id: ORG,
+          professional_category_id: null,
+          is_active: true,
+          suspended_until: null,
+          email_confirmed_at: '2025-01-01T00:00:00Z',
+          created_at: '2025-01-01T00:00:00Z',
+          category: null,
+        },
+        {
+          id: 'p-ended',
+          full_name: 'Encerrado',
+          email: 'e@test.local',
+          home_organization_id: ORG,
+          professional_category_id: null,
+          is_active: true,
+          suspended_until: null,
+          email_confirmed_at: '2025-01-01T00:00:00Z',
+          created_at: '2025-01-01T00:00:00Z',
+          category: null,
+        },
+      ],
+    }
+  }
+
+  it('⭐ the tense TRACKS `ended_on` per row — not one value for the whole page', async () => {
+    // The differential. A mapping that hardcodes `'ativo'`, or that reads the first row's
+    // tense for every row, passes a "not null" check and fails this one.
+    seedMixedRoster()
+    const { listOrgUsers } = await import('./org-users')
+    const page = await listOrgUsers(ORG, { ...options, includeEnded: true })
+
+    const byId = new Map(page.rows.map((r) => [r.id, r]))
+    expect(byId.get('p-active')?.orgAffiliationStatus).toBe('ativo')
+    expect(byId.get('p-active')?.orgAffiliationEndedOn).toBeNull()
+    expect(byId.get('p-ended')?.orgAffiliationStatus).toBe('encerrado')
+    expect(byId.get('p-ended')?.orgAffiliationEndedOn).toBe('2025-06-30')
+  })
+
+  it('⛔ `listOrgUsers` NEVER returns a null tense — a null there is a real gap', async () => {
+    seedMixedRoster()
+    const { listOrgUsers } = await import('./org-users')
+    const page = await listOrgUsers(ORG, { ...options, includeEnded: true })
+
+    expect(page.rows.length, 'the fixture must produce rows, or this asserts nothing').toBe(2)
+    expect(
+      page.rows.filter((r) => r.orgAffiliationStatus === null).map((r) => r.id),
+      'every org-directory row is on that page BECAUSE it holds an org affiliation',
+    ).toEqual([])
+  })
+
+  it('⛔ `listHospitalUsers` ALWAYS returns a null tense — it cannot read that table', async () => {
+    // ⭐ THE OTHER DIRECTION, and it is not the same test. Wiring the org tense into this
+    // surface would look correct in review and return an EMPTY map at runtime for every
+    // real hospital_admin (D1 grants them no org-tier read), so every row would silently
+    // carry `null` anyway — but a future author "fixing" that by falling back to the
+    // caller's own row, or by routing through the service client, would breach D1. This
+    // arm makes the absence deliberate rather than incidental.
+    rows = {
+      hospital_affiliations: [{ principal_id: 'p-active' }],
+      memberships: [],
+      commissions: [],
+      profiles: [
+        {
+          id: 'p-active',
+          full_name: 'Ativa',
+          email: 'a@test.local',
+          home_organization_id: ORG,
+          professional_category_id: null,
+          is_active: true,
+          suspended_until: null,
+          email_confirmed_at: '2025-01-01T00:00:00Z',
+          created_at: '2025-01-01T00:00:00Z',
+          category: null,
+        },
+      ],
+    }
+    const { listHospitalUsers } = await import('./org-users')
+    const page = await listHospitalUsers(HOSP, { ...options })
+
+    expect(page.rows.length, 'the fixture must produce rows, or this asserts nothing').toBeGreaterThan(0)
+    for (const row of page.rows) {
+      expect(row.orgAffiliationStatus, `${row.id} must carry no tense at hospital scope`).toBeNull()
+      expect(row.orgAffiliationEndedOn).toBeNull()
+    }
+    expect(
+      calls.some((c) => c.table === 'organization_affiliations'),
+      'the hospital directory must not even ASK for org affiliations (ADR 0151 D1)',
+    ).toBe(false)
   })
 })
