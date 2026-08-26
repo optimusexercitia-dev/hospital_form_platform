@@ -1,7 +1,18 @@
 # AFF4 — QA review (§6 step 3)
 
-**Branch:** `feat/aff4-org-affiliation` (88 commits ahead of `main` at review start)
-**Reviewed:** 2026-08-26 · `qa`
+> ## Revision 2 · 2026-08-26 — verdict changed to **APPROVED**
+>
+> Round 1 returned **CHANGES REQUESTED** on B1–B4. All four are fixed and re-verified below.
+> This is a revision **in place**, not an append: the sections for AC3, AC5, AC6 and § 4 are
+> rewritten, and § 2's security findings stand unchanged from round 1.
+>
+> ⛔ **One round-1 disposition of mine was WRONG, not merely incomplete.** I recorded AC3 as
+> *"mechanism met, criterion unasserted, non-blocking"*. The mechanism was **broken** — D5's
+> one-step rehire failed for **every** `hospital_admin`, 100% reproducible. § AC3 now carries
+> my own three-arm differential and, more usefully, **why I got it wrong**.
+
+**Branch:** `feat/aff4-org-affiliation` (88 commits ahead of `main` at round 1; 97 at round 2)
+**Reviewed:** 2026-08-26 · `qa` · rounds 1 and 2
 **Authority:** ADR 0151 (D1–D17), amended by 0154 (roster predicate) and 0152 (P1 re-scope);
 plus 0153, 0156, 0157. Plan: `docs/plans/aff4-org-affiliation.md` § Acceptance criteria.
 **Method:** every schema / RLS / RPC / SQLSTATE claim below is measured against the **live
@@ -10,16 +21,30 @@ local catalog** (`pg_proc.prosecdef`, `pg_get_functiondef`, `pg_policies`, `pg_c
 
 ---
 
-# VERDICT: CHANGES REQUESTED
+# VERDICT: APPROVED
 
-Four blocking items. One is an outright acceptance-criterion failure (**AC5**), one makes a
-decision-of-record sentence false at the only layer a user sees (**D3**), one leaves an
-accepted ADR reading as current law while the build contradicts it (**0154 D1**), and one
-mechanically prevents §6 step 2 from declaring green.
+**Conditional on `npm run e2e:prod`, which has not run.** It is §6 step 2 and it follows this
+pass. Nothing in this review is evidence about a suite outcome, and this approval does not
+anticipate one. ⚠ It remains the **first** run covering `61e23659` **and** `b953854c`.
 
-The security half of this program is **strong** and I found nothing to change in it. The
-five new doors, the policy audience, the audit coverage and the PHI posture all hold under
-direct catalog measurement. The blocking items are in the TS/UI layer and in the record.
+All four round-1 blockers are fixed, each verified by measurement rather than by reading the
+fix's own claim:
+
+| | round 1 | round 2 |
+| --- | --- | --- |
+| **B1** ADR 0154 D1 contradicted, no ADR | blocking | **CLOSED** — ADR 0158, `Amends: 0154`, back-pointer generated into 0154 |
+| **B2** D3 blockers destroyed in TS | blocking | **CLOSED** — `blockers.ts`, union preserved, root cause named, sibling arm found |
+| **B3** unannotated red spec blocks the gate | blocking | **CLOSED** — `test.fail(true, …)`, assertions unweakened |
+| **B4** AC5 fails, no start-date control | blocking | **CLOSED** — F4 built, seam covered on both sides |
+| **AC3** *(my error)* | "mechanism met" | **was BROKEN**; fixed `89793d43` / ADR 0159 / suite `381`, re-verified by my own differential |
+
+The security half was strong in round 1 and is stronger now: the AC3 fix closed a real,
+100%-reproducible break, and it was closed **without** widening a policy — which is the part
+worth recording, because widening was the easy fix and it was explicitly refused.
+
+Nothing is blocking. § 5 carries **eleven live Record obligations** (R1 and R10 are closed and
+R3 superseded, all three kept struck-through to show what changed). ⛔ **R13 first**: a spec
+header that now tells the next reader a control does not exist, when it does.
 
 ---
 
@@ -102,39 +127,111 @@ neutralization of the affiliation conjunct reds exactly §2.1/§2.2 and leaves �
 
 ## AC3 — rehire at a same-org hospital is one action by that hospital's admin
 
-**Verdict: the MECHANISM is met; the CRITERION AS WORDED has no witness. Non-blocking, but
-it must be recorded as a named absence, not carried as covered.**
+**Round 1 verdict: "MECHANISM MET; criterion unasserted." That was WRONG.**
+**Round 2 verdict: MET — the mechanism was broken, is fixed, and I re-verified it myself.**
 
-The mechanism is correct, measured live in `app.affiliate_person_impl`:
+### What was actually broken
 
-```
-if not (app.is_org_admin_of_for(v_org, p_actor)
-        or app.is_hospital_admin_of_for(p_hospital, p_actor)) then
-  raise exception 'sem permissão' using errcode = '42501';
-...
-select id into v_org_aff from public.organization_affiliations
- where principal_id = p_user and organization_id = v_org
-   and ended_on is null and voided_at is null;
-if v_org_aff is null then
-  insert into public.organization_affiliations
-    (principal_id, organization_id, started_on, created_by)
-  values (p_user, v_org, coalesce(p_started_on, current_date), p_actor);
-end if;
-```
+`app.assert_hospital_affiliation_has_org` — the D4 containment backstop **this build
+installed** — was created `SECURITY INVOKER`. Its `EXISTS` against
+`public.organization_affiliations` therefore ran under the **calling user's RLS**, and that
+table has no hospital tier *by design* (D1, pinned by `375` §4.1). So:
 
-D5 satisfied: one door call, the org parent auto-ensured, `created_by = p_actor`, and the
-audit row emitted by `trg_audit_organization_affiliations` as its own
-`org_affiliation.created` naming the actor.
+1. `app.affiliate_person_impl` (DEFINER) correctly creates the active org parent;
+2. it inserts the hospital affiliation;
+3. the deferred trigger fires, reading as the `hospital_admin`, and **cannot see the parent
+   row created one statement earlier**;
+4. false-positive `23514`, whole transaction rolls back.
 
-**But the actor in the assertion is the wrong one.** `378` §1 — the real D5 test — drives
-the rehire with `…b1` = **`org_admin_a`**. `302` §2.1 has a `hospital_admin` calling
-`affiliate_person`, but on a person who is *not* org-offboarded, and asserts nothing about
-the org parent. No `e2e/aff4-*.spec.ts` signs in as a `hospital_admin` at all. So the exact
-sentence — *"one action by **that hospital's admin**"* — is asserted nowhere. The authority
-arm above makes it very likely to work; that is **inference, not verification**.
+D5's one-step rehire was broken for **every** `hospital_admin`, unconditionally — through the
+UI and a raw `affiliate_person` RPC alike. Fixed at `89793d43` (ADR 0159, suite `381`).
 
-Cheapest close: add a `hospital_admin` actor arm to `378` §1. This is a one-persona change,
-not new machinery.
+### My own re-verification — three arms, run against the live catalog, all rolled back
+
+I did not take the fix's word for it. I reproduced the break and the repair myself, varying
+one thing at a time, neutralizing the fix inside a transaction:
+
+| arm | actor | backstop | result |
+| --- | --- | --- | --- |
+| **A1** current build | `hospital_admin` (`…00e1`, central-a only) | `prosecdef = t` | **rehire SUCCEEDS** → `c44f6683…` |
+| **A2** neutralized (`alter function … security invoker`) | same `hospital_admin` | `prosecdef = f` | **RAISES** — *"active hospital affiliation requires an active organization affiliation (ADR 0151 D4)"*, at `set constraints all immediate` |
+| **A3** control | `org_admin` (`…00b1`) | `prosecdef = f` | **rehire SUCCEEDS** |
+
+A3 is the arm that matters methodologically: under the *identical* broken backstop, an
+`org_admin` passes. So the failure was purely an **ACTOR** result, never a state one.
+
+And the two controls that pin **which** fix is in place — because a hospital tier added to
+`organization_affiliations_select` would also have turned A1 green:
+
+- as the `hospital_admin`, org-affiliation rows visible for the subject: **0**
+- the same row measured without RLS: **1**
+
+That 1-vs-0 gap **is** the blindness. It survives the fix, which proves the repair was a
+trigger-context change and **not** a privilege grant. ADR 0159 D3 refuses the widening
+explicitly; the catalog agrees with the ADR.
+
+⛔ `prosecdef` measured `true` again after my neutralization rolled back — the DB is as I
+found it.
+
+### ⭐ Why I characterised a broken mechanism as merely unasserted
+
+This is the part worth carrying past this review.
+
+I read `app.affiliate_person_impl`'s authority arm — `is_org_admin_of_for(v_org, p_actor) or
+is_hospital_admin_of_for(p_hospital, p_actor)` — confirmed the org-parent ensure, confirmed
+the audit row, and then found `378` §1 pinning the whole rehire green. Every link I inspected
+was correct. I noticed the actor in `378` §1 was an `org_admin` and correctly flagged that the
+`hospital_admin` case was unasserted — **and then drew the wrong conclusion from my own
+observation.** I treated the missing witness as a *documentation* gap over a mechanism I had
+satisfied myself worked, and filed it non-blocking as R3.
+
+Three named failure shapes composed here, and it is worth separating them:
+
+1. **Sweeping one sibling axis reads as sweeping the class.** `380` §6 covers D4 containment
+   *thoroughly* across the **state** dimension and never varies the **actor**. Its
+   thoroughness on one axis is exactly what made the other axis invisible — a half-swept class
+   buried under real evidence. `378` §1 did the same thing one level up.
+2. **A predicate quoted at the wrong grain.** The authority arm I quoted is real, correct, and
+   genuinely admits a `hospital_admin`. It bounds *who may call the door*. It says nothing
+   about *what happens after the door writes* — and the defect lived entirely in step 3, past
+   every predicate I had read.
+3. **`prosecdef` belongs beside `pg_policies` — and I applied that rule to doors only.** I
+   checked `prosecdef` on all six new doors and on the audit triggers. I read
+   `pg_trigger` for the D4 backstop, confirmed it was a deferrable constraint trigger, and
+   recorded that as satisfying D4 — **without reading its `prosecdef`**. It was in my query's
+   output shape and not in my question. The standing corollary is not "check doors"; it is
+   check the security context of anything that reads data on another party's behalf.
+
+The correction is cheap and general: **a containment or invariant assertion must be exercised
+across the actor dimension, not only the state dimension** — which is now ADR 0159 D4 and
+suite `381`. And for a reviewer specifically: when I observe that a test pins a property with
+one actor, that is a finding about the *property*, not only about the test.
+
+### The witness now exists
+
+`supabase/tests/381_containment_actor_dimension.sql`, `plan(12)`, is the right shape:
+
+- **§0.2 is the vacuity guard that matters** — it asserts the actor is `hospital_admin` of
+  central-a **and `org_admin` nowhere**, so §2 cannot pass through the org arm of the policy.
+- §0.1 pins the deferral trap; §0.5 flushes so a later refusal is about *this file's* write.
+- §1 control (`org_admin`, green before and after) · §2.1 keystone (`23514` before, green after).
+- §2.2 pins that the hospital admin **still** reads zero rows — the anti-widening control.
+- §2.3 measures the same row without RLS as 1 — the gap, asserted rather than described.
+- §3.1 pins `prosecdef = true` so the property cannot revert silently.
+- **Two distinct subjects**, not one reused across control and keystone.
+
+### Class check — instance or class?
+
+I swept every constraint trigger in the database rather than trusting the fix's scope. There
+are **three**: `assert_hospital_affiliation_has_org` (now DEFINER),
+`guard_case_patient_required` (already DEFINER), and `assert_profile_tenant_has_org`
+(**still INVOKER**).
+
+The remaining INVOKER one is **correct, and for a stated reason**: its body inspects only
+`NEW` and reads no other row, so there is nothing for caller RLS to blind. That is exactly
+ADR 0159 D2's discriminator — *"does it read caller identity / other rows?"*, not *"is it a
+trigger?"*. **The class is closed by a rule, not by an enumeration**, which is the stronger
+form and the one my round-1 note on the audit-trigger class asked for.
 
 ## AC4 — `/conta` shows the titular their own record, read-only, masked CPF
 
@@ -190,15 +287,38 @@ absent, which is a D14 completeness gap rather than an AC4 failure.
 
 ## AC5 — registration writes the start date the user typed
 
-**Verdict: FAILS. This is a blocking item, and the defect is BROADER than filed.**
+**Round 1 verdict: FAILS. Round 2 verdict: MET**, with the end-to-end composition recorded
+as a named absence (§ 6 item 11) and one stale artefact to fix (R13).
 
-**AC5 cannot be called met with the backend half only, and I want that stated plainly
-because it is the judgement the gate needs.** The criterion is not "the parameter is wired";
-it is *"registration writes the start date **the user typed**"*. There is no control anywhere
-in the registration wizard through which a user can type one. A parameter no browser path can
-supply is, from the criterion's point of view, indistinguishable from an absent parameter —
-and it is *worse* than absent, because `d14-person-level.test.ts:1044-1175` is green over it,
-so the surface reads as delivered.
+### Round 2 — what closed it
+
+F4 is built (`bcf62723`). The control exists at `register-person-wizard.tsx:790` —
+*"Início do vínculo (opcional)"* on step 2 — and maps at `:168` via
+`affiliationStartedOn: draft.startedOn || null`.
+
+**My round-1 framing correction was adopted and it mattered.** `RegisterUserInput` declares
+**one** field feeding **both** doors, so the missing control starved the hospital row too; a
+fixer working from the bug's original "org-tier parameter" wording would have wired half of it.
+
+I checked each link of the chain separately, because AC5 is a composition claim:
+
+| link | witness |
+| --- | --- |
+| user can type a date | `register-person-wizard.tsx:790`, unbounded in both directions (a future start date is legitimate — deliberate, and contrasted in-file with `Nascimento`'s `max={todayIso()}`) |
+| typed value → `registerUser` input | `register-person-wizard-start-date.test.tsx` — **severance-proved twice**: cutting the component→builder hand-off reds the keystone while all three builder cases stay green (the seam a builder-only test cannot see); dropping the field from the builder reds five of six |
+| input → **both** doors | `d14-person-level.test.ts:1053-1170`, including `'   '` → blank means "the box was empty", not a date |
+| doors → persisted rows | **live catalog**, both bodies: `coalesce(p_started_on, current_date)` in `app.affiliate_person_to_org_impl` and `app.affiliate_person_impl` |
+
+The severance proof on link 2 is the one that earns this verdict. A component test that only
+asserted the builder's output would be exactly the shape that let the original defect ship —
+the builder was always correct; the component never called it.
+
+⛔ **What is still not witnessed: the composition in one process.** No E2E drives the wizard's
+start-date field and reads back `organization_affiliations.started_on`. See § 6 item 11 and
+R13 — this is a narrow, named gap, materially different from round 1, where the *first* link
+did not exist at all.
+
+### Round 1 record — retained, because it is the diagnosis the fix was built from
 
 **The bug's framing understates it.** `BUG-REGWIZARD-NO-ORG-STARTDATE-001` describes a
 *"D13 org-tier start-date parameter"*. There is no tier-split parameter. `RegisterUserInput`
@@ -243,16 +363,23 @@ start date"*. True before `e6b76885`; false now.
 **Consequence for AC6:** `FUP-AFF2-REGISTRATION-HAS-NO-START-DATE` cannot be discharged, so
 AC6 (all eleven, index line and body) cannot be met either.
 
+> **Round 2 — both round-1 tails are closed.** The stale component header is rewritten
+> (`register-person-wizard.tsx:57-66`) and does the right thing: it states all three fields are
+> now built and adds *"⛔ Do not re-add a 'cannot accept' list here; state a missing field as an
+> open item somewhere a gate can contradict it."* That is the durable form — it names why the
+> comment was dangerous, not just that it was wrong. And #4 becomes dischargeable.
+
 ## AC6 — all eleven FUPs from ADR 0151's Consequences discharge at Record
 
-**Verdict: NOT MET. Three blockers, plus a framing defect in the criterion itself.**
+**Round 1 verdict: NOT MET. Round 2 verdict: MET at Record**, subject to the two register
+mechanics below (#7, #8) and the criterion's own framing defect for #6/#10/#11.
 
 | # | FUP | index live? | body? | verdict |
 | --- | --- | --- | --- | --- |
 | 1 | `FUP-AFF3-…-MIS-ENTERED-AFFILIATION` (C5) | **§ Critical FUP row only** (`:289`) — no general index line | `follow-ups.md:6433` | **DONE** — migrations `…003200`–`…003700`, `voidAffiliation`/`voidOrgAffiliation`, `affiliations-panel.tsx:333`, pgTAP 374/377/379/380, `e2e/aff4-void-affiliation.spec.ts` |
 | 2 | `FUP-AFF2-ACTIVE-MEANS-TWO-THINGS` | `:353` | `:4472` | **DONE** — the deliverable was *"ruling + the build recording it"*, and the build records it in SQL (`…003400:34-36`), not only in the ADR |
 | 3 | `FUP-AFF2-CONTA` | `:352` | `:4439` | **DONE for its literal subject** (`date_of_birth`, `phone` both render) — but the D14 surface it discharges *through* is broken for the exact audience it names (B3 + D14-GAP) |
-| 4 | `FUP-AFF2-REGISTRATION-HAS-NO-START-DATE` | `:357` | `:4719` | ⛔ **PARTIAL — MUST NOT BE DISCHARGED** |
+| 4 | `FUP-AFF2-REGISTRATION-HAS-NO-START-DATE` | `:357` | `:4719` | ~~⛔ PARTIAL — MUST NOT BE DISCHARGED~~ → **round 2: DONE, dischargeable** — F4 built (`bcf62723`), control at `register-person-wizard.tsx:790`, seam severance-proved |
 | 5 | `FUP-AFF2-UPDATE-PROFILE-…-DEAD` | `:358` | `:4745` | **DONE** — `actions.ts:867` now `authorizePersonScopedAdmin(…, 'fields')` |
 | 6 | `FUP-OPEN-DOCUMENT-VERSION-500-…` | already archived (on `main`) | archive `:6096` | **RULED-ONLY, correctly recorded as such** |
 | 7 | `FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY` | `:362`, **no ✅** | `:6394` | **DONE (code)**, register not updated, body's prescription now wrong |
@@ -569,7 +696,77 @@ The bug itself does not block AC4 (§ AC4 above). **Its regression guard does bl
 
 ---
 
-# 4. Blocking items (CHANGES REQUESTED)
+# 4. Round-1 blocking items — all CLOSED, each re-verified
+
+> **How each was checked in round 2.** I did not accept a fix's own account of itself. Every
+> closure below rests on a measurement I took: the catalog for B1's ADR wiring is the generated
+> back-pointer, B2's is the module's exported shape, B3's is the annotation in the spec file,
+> B4's is the rendered control plus the severance proof.
+
+### ✅ B1 — CLOSED
+
+**ADR 0158** — *"the hospital directory keeps its predicate: no org-affiliation filter at the
+hospital tier"*, `**Status:** Accepted · 2026-08-26`, `**Amends:** 0154`. The label is
+well-formed (colon present — the malformed `**Amends**` variant is invisible to the parser),
+and the **generated** back-pointer has landed in 0154's header:
+
+> ⬅ **A later ADR changes this one** — it is **amended by** [0158](0158-hospital-directory-keeps-its-predicate.md).
+
+That is the inverse edge no ADR can record about itself, and it is what makes 0154 stop
+reading as unqualified law. The ADR carries the measurement (a `hospital_admin` reads 1
+org-affiliation row against an `org_admin`'s 29), both consequences (toggle structurally
+absent; the parity gate scoped to the org directory), and the expired-seat residual explicitly
+labelled **stale-roster, not a leak** — which was my round-1 concern about how a future reader
+would escalate it.
+
+⭐ **ADR 0158 D2 then earned its keep within hours**: it is the rule (*never fix a read by
+granting access*) that ADR 0159 D3 cites to refuse the easy fix for the AC3 break. A
+principle written down on Tuesday stopped a wrong fix on Tuesday.
+
+### ✅ B2 — CLOSED, and it found a sibling
+
+`parseBlockers` now lives in `src/lib/affiliations/blockers.ts` (+ `blockers.test.ts`) and
+preserves the **union** of the doors' payloads — `kind`, `role`, `hospital`, `commission`,
+each explicitly nullable with the reason documented per field.
+
+**The root cause is named, and it is the durable part.** The module header records *why* the
+parser was untested and therefore free to lose two fields: `actions.ts` is `'use server'`, and
+**every runtime export of a `'use server'` module must be an async function**, so a synchronous
+parser could not be exported or unit-tested from there at all. The fix is not "add a test" but
+"move the sync helper somewhere a test can reach it" — a structural answer to a structural
+cause. The header also carries the per-SQLSTATE payload matrix, so the next door added cannot
+silently widen the union unnoticed.
+
+⭐ **The sibling arm is the better find.** `toState`'s `HC0RA` case discarded `error.details`
+entirely (`actions.ts:183-191`), so a user blocked by hospital links was told *that* they had
+them and never *which*. Same defect class, one arm over, and it would not have been found by
+fixing the reported instance alone. Frontend now renders
+`"Vínculo hospitalar — Hospital Central"`, with HC0R1/HC0R9 measured byte-identical.
+
+### ✅ B3 — CLOSED
+
+`e2e/aff4-meus-dados.spec.ts:41` — `test.fail(true, 'BUG-MEUSDADOS-HOSPITAL-NAME-001 — pending
+PO ruling, see comment above')`. The four assertions are **unweakened**; the in-file comment
+explains that the failure is deterministic rather than a flake, and that the alternative
+(bending the assertion to the defect) was refused. PO ruled: annotate and ship, fix
+`hospitals_select` separately. Correct call — the fix is an RLS policy change and would re-arm
+the diff-scoped door sweep, which does not belong inside this gate.
+
+Playwright will now report *"failed as expected"*, and a later fix flips it to *"unexpectedly
+passing"* — so the annotation cannot rot into permanent silence.
+
+### ✅ B4 — CLOSED
+
+See § AC5. F4 built at `bcf62723`; control at `register-person-wizard.tsx:790`; the
+component→builder seam severance-proved twice; the stale header rewritten with a standing
+instruction not to reintroduce it.
+
+---
+
+<details>
+<summary><strong>Round-1 text of B1–B4, retained verbatim for the record</strong></summary>
+
+# 4a. Blocking items as filed in round 1 (CHANGES REQUESTED)
 
 Each keyed to the requirement it violates.
 
@@ -688,21 +885,27 @@ rendered on `/conta/meus-dados`** although D14 enumerates them and the payload c
 
 ---
 
+</details>
+
+---
+
 # 5. Record-step obligations (not blocking, but each must land)
 
 | # | Obligation |
 | --- | --- |
-| R1 | **Correct 374's provenance in the AFF4 record.** It was *not* pre-existing: `git log --follow` → one commit, `09a2aef4`, on this branch; absent from `main`, which stops at 373. The keystone is strong and its red-first evidence stands — only the narrative is wrong. |
+| ~~R1~~ ✅ | **CLOSED, and I verified the sweep rather than accepting it.** `backend` reports the false "pre-dates the branch" wording never entered the record. Confirmed: `git grep` for that wording across `docs/` + `supabase/` returns **one** hit — line 96 of *this* review, quoting it to rebut it. The plan now states the truth **positively** (`:25`, *"⛔ `374` IS NEW ON THIS BRANCH — it does NOT pre-date it"*) rather than deleting the claim, which is the stronger form: a deletion leaves nothing to contradict a future re-derivation. ~~Original: correct 374's provenance.~~ It was *not* pre-existing: `git log --follow` → one commit, `09a2aef4`, on this branch; absent from `main`, which stops at 373. The keystone is strong and its red-first evidence stands — only the narrative is wrong. |
 | R2 | **File the actor-attribution residue as a FUP** (index line **and** body). It is currently stated only in `7816bd8a`'s message and a migration header — and migration text is stale by design here. Measured: 1 of 50 `trg_audit_*` triggers carries `actor_user_id`. |
-| R3 | **Record AC3 as a named absence**, not as covered: no E2E signs in as a `hospital_admin`; `378` §1 pins the rehire with an **org_admin** actor and `302` §2.1 pins a `hospital_admin` on a **non-rehire**. Cheapest close is a second actor arm on `378` §1. |
+| ~~R3~~ ⛔ | **SUPERSEDED — this obligation was founded on my wrong disposition.** AC3 was not an unasserted mechanism; it was a broken one. Closed by `89793d43` + ADR 0159 + suite `381`, re-verified by my own three-arm differential (§ AC3). ~~Original: record AC3 as a named absence~~, not as covered: no E2E signs in as a `hospital_admin`; `378` §1 pins the rehire with an **org_admin** actor and `302` §2.1 pins a `hospital_admin` on a **non-rehire**. Cheapest close is a second actor arm on `378` §1. |
 | R4 | Tighten `303` — name `grant_role`/`revoke_role` in a `1.8`-style assertion. §1.7's slack is exactly the size of that family. |
 | R5 | File the audit-trigger **class** gap: `trg_audit_hospital_affiliations` still enumerates UPDATE arms by column name. The instance was fixed; the mechanism that nearly cost D7/D8 their truth is unchanged. |
 | R6 | Fix `379` §1.1's missing existence guard and `378` §5.1's already-NULL pre-state (§ 3.2). |
 | R7 | **The plan's Risks section is now materially stale and would misdirect gate attribution.** It states the DatePicker branch is HELD and that *"AFF4's gate runs on a tree **excluding** those 8 sites."* Both are false: `3d588673` merged it into AFF4, legitimately, under the plan's own dissolution clause (`f9316295` gave that branch its own `e2e:prod` pass first). The RESUME block likewise still lists merge order as an open PO decision and F6 as held, while `1cbaa1b7` shipped F6. |
 | R8 | The eleven-FUP disposition (AC6) — see § 6. At minimum `FUP-AFF2-REGISTRATION-HAS-NO-START-DATE` is undischargeable until B4 lands. |
 | R9 | Add the QA Verdicts row (text supplied to the lead separately — **PROGRESS.md has 322 bytes of headroom under the 81920 cap; `qa` did not write to it**). |
-| **R10** | **A live PROGRESS.md line cites an evidence string that exists nowhere.** `:363` reads *"the trigger's name is verified clean **in Chromium** (`"Suspenso até (opcional) 15/07/2026"`)"*. `git grep "15/07/2026"` over `docs src e2e scripts supabase` returns **zero hits**. The real assertion is two regexes (`/suspenso até/i` present, `/remover data/i` absent). The claim is **substantively true** — the browser assertion exists and runs in the state the bug requires — but the quoted artifact was produced by no measurement. Worse, its direction: `c2d8f149` existed *specifically to sharpen* that evidence limit, and the later rotation `dab8be34` rewrote the line into a stronger claim with a fabricated-looking citation. **A compression pass UPGRADED an evidence claim.** This branch already carries one commit re-recording a caveat a compression deleted; this is the same mechanism running the other way, and it is the more dangerous direction because the result reads as more rigorous. Replace the quoted string with the two regexes and the spec's `file:line`. |
+| ~~R10~~ ✅ | **CLOSED — and I checked the correction rather than trusting it.** PROGRESS.md `:365` now cites `user-registration.spec.ts:622` and describes it as *"matches `/suspenso até/i`, NOT `/remover data/i`, with a date set"*. Verified: `:622` is `toHaveAccessibleName(/suspenso até/i)`, `:623` is the negative, and `pickDate` runs at `:617` so the "with a date set" clause is true. `git grep "15/07/2026"` still returns **zero hits** and the string is gone. ⭐ The line goes further than I asked, recording *that* a false claim stood there — so the correction cannot itself be compressed away as noise. One nit: the citation names `:622` while the evidence is the **pair** `:622`+`:623` (the negative alone would be vacuous on an empty name); the prose does describe both matchers, so it is a pointer, not a claim about one line. ~~Original: a live PROGRESS.md line cites an evidence string that exists nowhere.~~ `:363` reads *"the trigger's name is verified clean **in Chromium** (`"Suspenso até (opcional) 15/07/2026"`)"*. `git grep "15/07/2026"` over `docs src e2e scripts supabase` returns **zero hits**. The real assertion is two regexes (`/suspenso até/i` present, `/remover data/i` absent). The claim is **substantively true** — the browser assertion exists and runs in the state the bug requires — but the quoted artifact was produced by no measurement. Worse, its direction: `c2d8f149` existed *specifically to sharpen* that evidence limit, and the later rotation `dab8be34` rewrote the line into a stronger claim with a fabricated-looking citation. **A compression pass UPGRADED an evidence claim.** This branch already carries one commit re-recording a caveat a compression deleted; this is the same mechanism running the other way, and it is the more dangerous direction because the result reads as more rigorous. Replace the quoted string with the two regexes and the spec's `file:line`. |
 | R11 | `FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY`'s **body prescribes a fix the landed repair deliberately did not take** — it ends *"address the control … by its accessible name … `getByRole('button', { name: 'Suspenso até (opcional)' })`"*, while `192a95c3` drives `button[aria-haspopup="dialog"]` *"never by name, so it is unaffected by F0's accessible-name change."* Rotated verbatim as-is, the archive would preserve a prescription contradicting the code that discharged it. Also: `:362` still carries no ✅ although the repair landed. |
+| **R13** | ⛔ **TOP PRIORITY — `e2e/aff4-registration-dates.spec.ts`'s header now asserts a falsehood, and it is the trapping kind.** Lines 12-24 state that D13's `affiliationStartedOn` *"has **no UI control anywhere**"*, that `RegisterPersonWizard`'s `handleSubmit` never sets it *"(confirmed against the live component — no start-date field exists on any of its 3 steps)"*, and that it *"CANNOT be exercised here — there is no field to fill."* All true when written; **all false since `bcf62723`**. This is not cosmetic: the header's specific effect is to tell the next person not to write the E2E arm that is actually missing (§ 6 item 11), and it reads as a careful, measured scope note — the most believable form of a stale claim. It is the same failure mode the component header it describes was just fixed for, one file over. Rewrite it to state that the control now exists and that the org-tier round-trip is the remaining uncovered arm. |
+| R14 | **Add the missing D13 E2E arm** (or file it): drive the wizard's *"Início do vínculo"* and assert the persisted `organization_affiliations.started_on` **and** `hospital_affiliations.started_on` — one field, two rows, which is the whole point of the round-1 framing correction. The existing spec covers the wizard for a *different field* (Nascimento) and the start date on a *different flow* (`register-person-flow`'s existing-person path, which its own header labels "not D13"). |
 | R12 | **PROGRESS.md has no AFF4 row in § Phase Status, § Test Run Summary, or § QA Verdicts** — AFF4 is tracked entirely from the § Now bullet (`:37-52`). Record must add all three **plus** the bug-log rotation into **322 bytes**. ⛔ Per the standing rule, make room by rotating, never by compressing — see R10 for what the last compression pass cost. |
 
 ---
@@ -736,7 +939,13 @@ A reviewer's *"could not verify"* list is a work item, not a disclaimer. This is
    What genuinely remains unverified is narrower: **`case-access-panel.tsx:472`**, whose picker
    renders only under `preset === "date"` and which **no spec reaches**. It is also the single
    site touched by `61e23659`. That one is absence of a verdict, not absence of coverage.
-3. **I did not re-run any authz arm, the pgTAP suite, Vitest, or the lint gates.** I reviewed
+3. **The AC3 fix's blast radius beyond the rehire path.** I proved the D4 backstop now sees
+   the data it asserts over, and that the hospital admin's read is unchanged. I did **not**
+   re-derive whether any *other* caller relied on the trigger's former INVOKER blindness — an
+   INVOKER→DEFINER change makes a check **stricter** for callers who previously could not see
+   a conflicting row, so a write that used to slip past may now refuse. `380` §6 covers the
+   state dimension and `381` the actor dimension for the rehire path specifically.
+4. **I did not re-run any authz arm, the pgTAP suite, Vitest, or the lint gates.** I reviewed
    the census/floor/sweep *disposition* (`ac638174`, `e6cad0f3`) and independently confirmed
    only the findings-baseline blast radius (1 insertion). Per the plan's own Risks section,
    **no gate figure from this branch is quoted anywhere in this review.**
@@ -758,34 +967,68 @@ A reviewer's *"could not verify"* list is a work item, not a disclaimer. This is
    relations, read from the remote catalog, never from `db push`'s report) is the Record step's.
 9. **Anything a peer session changed mid-review.** Two commits landed while I worked (§ Scope
    excluded). I did not re-audit against the new tip.
-10. **`deriveUserStatus` / the directory's status pills** under the new roster predicate. The
+11. **`deriveUserStatus` / the directory's status pills** under the new roster predicate. The
     scope set changed from a `profiles` column to an id list; I checked the predicate and the
     `count: 'exact'` reasoning in-file but did not verify the three pill counts still sum
     correctly against a live query.
+12. ⛔ **AC5's composition in one process — the named absence this approval carries.** Each of
+    the four links is witnessed (§ AC5), but no single test drives the wizard's start-date
+    control and reads back `organization_affiliations.started_on`. The two runtimes have no
+    shared home — the same structural problem the roster parity gate solved by going to E2E,
+    and the same answer applies. R13/R14. This is *absence of a verdict on the composition*,
+    not absence of coverage on the parts, and it must not be recorded as either extreme.
+13. **My round-1 pass itself.** It returned a wrong disposition on AC3 (§ AC3). I have said why,
+    but a reviewer who was wrong once about a mechanism they inspected is evidence that the
+    inspection method has a blind spot, not that this particular one is now clean. The specific
+    residual risk: I audit **gates** (`prosecdef`, policies, ACLs) thoroughly and audit **what
+    happens after a gate admits you** far less systematically.
 
 ---
 
 # 7. Summary
 
-| Criterion | Verdict |
-| --- | --- |
-| AC1 — offboard end-to-end, audited, roster + filter | **MET**, blocked by B2 (blocker enumeration) |
-| AC2 — C5 differential in pgTAP | **MET** (record correction R1) |
-| AC3 — rehire is one action by that hospital's admin | **MECHANISM MET; criterion unasserted** (R3) |
-| AC4 — `/conta` self record, read-only, masked CPF | **MET**; D14 field list incomplete (D14-GAP) |
-| AC5 — registration writes the typed start date | **FAILS** (B4) |
-| AC6 — eleven FUPs discharge at Record | **NOT MET** — #4 must not discharge; #8 has a live `⚠ OPEN`; #7's body contradicts its repair. #6/#10/#11 discharged on `main` before the branch, so the criterion's wording is itself defective |
-| Security / RLS / doors / audit / PHI | **NO FINDINGS.** Strongest part of the program. |
+| Criterion | Round 1 | Round 2 |
+| --- | --- | --- |
+| AC1 — offboard end-to-end, audited, roster + filter | MET, blocked by B2 | **MET** |
+| AC2 — C5 differential in pgTAP | MET | **MET** |
+| AC3 — rehire is one action by that hospital's admin | *"mechanism met"* — **wrong** | **MET** — was broken for every `hospital_admin`; fixed, and re-verified by my own three-arm differential |
+| AC4 — `/conta` self record, read-only, masked CPF | MET; D14 list incomplete | **MET**; D14-GAP (dates) + the `hospitals_select` bug remain, both filed |
+| AC5 — registration writes the typed start date | **FAILS** | **MET** — composition unwitnessed in one process (§ 6 item 12) |
+| AC6 — eleven FUPs discharge at Record | NOT MET | **MET at Record**, subject to #7/#8 register mechanics |
+| Security / RLS / doors / audit / PHI | no findings | **no findings** — and one real break closed without widening a policy |
 
-**CHANGES REQUESTED** — blocking set: **B1, B2, B3, B4**.
+# VERDICT: APPROVED — conditional on `npm run e2e:prod`
 
-B4 is the substantive one. B2 is a small fix with a disproportionate effect on the feature's
-usability. B1 and B3 are cheap and both are the kind of omission this repo has a recorded
-scar for — a decision of record left reading as law after the build contradicted it, and a
-gate figure carrying an exception in prose.
+Nothing blocking. **Eleven live Record obligations** in § 5 (R1/R10 closed, R3 superseded).
+**R13 first**: a spec header that now tells the next reader a control does not exist, when it
+does — the trapping kind, because its effect is to stop someone writing the arm R14 asks for.
 
-I want to close by saying what the record should say about the security work: the doors, the
-policy audience, the oracle-kills, the D8 asymmetry, the constraint-trigger backstop, the
-audit verb/actor pairing, and the census disposition are all correct under direct catalog
-measurement, and several of them are correct in ways that only show up when you try to break
-them. Nothing in § 2 needs to change.
+## What I would put in the record about this program
+
+The security engineering is the best I have reviewed in this repo. The doors, the
+oracle-kills, the D8 `expires_at` asymmetry, the anti-widening controls — several are correct
+in ways that only surface when you try to break them, and I tried.
+
+But the durable lesson is **AC3, and it is mine as much as the build's.** A deliberately narrow
+policy (D1) and a backstop enforcing a data invariant (D4) were each correct. The defect existed
+only in their **composition**, and it lived in a **security context** — a property invisible in
+either decision's own text. `380` §6 was *thorough* on the state dimension, and that
+thoroughness is precisely what hid the actor dimension: a half-swept class is hardest to see
+when it is buried under real evidence.
+
+I read the door's authority arm, saw it admit a `hospital_admin`, saw `378` §1 green, noticed
+the actor was an `org_admin` — **and filed my own correct observation as a documentation gap.**
+The predicate I quoted was real and correctly described; it simply bounded *who may call the
+door* and said nothing about what happens after the door writes. That is why the corrective
+now in ADR 0159 D4 is worth more than the fix: **a containment or invariant assertion must vary
+the ACTOR, not only the state.**
+
+And the counterpart for a reviewer, which I am writing down because it would have saved this
+round: **when a test pins a property with one actor, that is a finding about the property, not
+only about the test.** I had the observation and drew the wrong conclusion from it.
+
+Two smaller things worth keeping: ADR 0158 D2 (*never fix a read by granting access*) was
+written and then immediately stopped a wrong fix for an unrelated bug the same day; and B2's
+real cause was not a missing test but a **module boundary that made the test impossible** —
+`'use server'` forbids synchronous exports — which is why moving the parser, not adding
+coverage, was the fix.

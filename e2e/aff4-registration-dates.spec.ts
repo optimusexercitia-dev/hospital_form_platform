@@ -10,17 +10,28 @@ import { svcSelect } from './helpers/service-role'
  * (brand-new person) and `register-person-flow.tsx`'s "Início do vínculo"
  * (existing person, new hospital affiliation).
  *
- * ⚠ SCOPE CORRECTION, discovered while writing this file (reported to the lead —
- * see the test-run report): D13's OWN new parameter,
- * `RegisterUserInput.affiliationStartedOn` (the ORG-tier start date for a
- * BRAND-NEW registration, `src/lib/users/actions.ts:105`), has **no UI control
- * anywhere**. `RegisterPersonWizard`'s `handleSubmit` never sets that key
- * (confirmed against the live component — no start-date field exists on any of
- * its 3 steps), so it is unreachable from the browser: every brand-new
- * registration silently gets `organization_affiliations.started_on =
- * current_date`, with no admin override. That specific parameter therefore
- * CANNOT be exercised here — there is no field to fill. Filed as a bug (see the
- * PROGRESS.md Bug Log), not worked around.
+ * ⚠ THIS BLOCK ASSERTED A FALSEHOOD BETWEEN 2026-08-26 AND `bcf62723`, AND THE
+ * ORIGINAL WORDING IS KEPT BELOW BECAUSE IT WAS COMMITTED AND MAY HAVE BEEN READ.
+ * It said `RegisterUserInput.affiliationStartedOn` had "no UI control anywhere"
+ * and that "no start-date field exists on any of its 3 steps", so the parameter
+ * "CANNOT be exercised here — there is no field to fill". That was true when
+ * written and false from `bcf62723` (F4), which added "Início do vínculo
+ * (opcional)" to `RegisterPersonWizard` step 2.
+ *
+ * ⛔ It is the TRAPPING kind of stale comment, which is why it is corrected
+ * rather than deleted: its specific effect was to tell the next reader NOT to
+ * write the arm that is genuinely missing. That arm is still missing — see the
+ * named absence below. `BUG-REGWIZARD-NO-ORG-STARTDATE-001` is CLOSED.
+ *
+ * ⭕ NAMED ABSENCE, not coverage: no single test drives the wizard's start-date
+ * control and reads back BOTH persisted rows. One field feeds two doors
+ * (`affiliate_person_for` and `affiliate_person_to_org_for`), each
+ * `coalesce(p_started_on, current_date)`, so a composition arm is what would
+ * catch one row silently defaulting while the other takes the typed value.
+ * The four links are each witnessed — including a severance-proved component
+ * seam in `register-person-wizard-start-date.test.tsx` — but the composition is
+ * not. ⚠ Any such arm must use a fixed PAST date: an expected value equal to
+ * today passes identically whether the wiring works or not.
  *
  * What IS reachable, real, and previously uncovered, and is what this file
  * asserts:
