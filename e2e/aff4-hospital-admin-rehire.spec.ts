@@ -33,25 +33,37 @@ import { svcSelect } from './helpers/service-role'
  * fixed) cannot be explained by "the same hospital_admin happened to already have a
  * relationship with this person."
  *
- * ⛔ THIS TEST IS `test.fail()`-PINNED — running it is exactly how AC3's missing
- * witness earns its keep. First run reproduced a NEW, 100%-deterministic (not flaky)
- * defect: `BUG-D5-REHIRE-HOSPADMIN-001`. See the comment at the `test.fail()` call
- * below for the full root-cause chain (confirmed against the live catalog, not
- * inferred). Summary: the click fails with "Não foi possível concluir. Tente
- * novamente." — `app.affiliate_person_impl` DOES correctly auto-ensure the org
- * parent (confirmed live: a superuser-level call inserts the new
- * `organization_affiliations` row, `created_by` = the hospital_admin, exactly as
- * D5 specifies), but the DEFERRED constraint trigger that then verifies D4
- * (`app.assert_hospital_affiliation_has_org`) is `SECURITY INVOKER`
- * (`pg_proc.prosecdef = false`, live-measured) — so its own existence check runs
+ * ⭐ HISTORY (kept in the past tense deliberately — this build has now hit the
+ * trap of a bug comment left in the present tense THREE times; do not make this
+ * the fourth). This test's FIRST run, before any fix existed, reproduced a NEW,
+ * 100%-deterministic (not flaky) defect, filed as `BUG-D5-REHIRE-HOSPADMIN-001`.
+ * The click failed with "Não foi possível concluir. Tente novamente." —
+ * `app.affiliate_person_impl` DID correctly auto-ensure the org parent (confirmed
+ * live at the time: a superuser-level call inserted the new
+ * `organization_affiliations` row, `created_by` = the hospital_admin, exactly as D5
+ * specifies), but the DEFERRED constraint trigger that then verified D4
+ * (`app.assert_hospital_affiliation_has_org`) WAS `SECURITY INVOKER`
+ * (`pg_proc.prosecdef = false`, live-measured) — so its own existence check ran
  * under the CALLING SESSION's RLS. `organization_affiliations_select` has no
  * hospital_admin arm (by design, D1) — confirmed live via two REAL password-granted
- * JWTs hitting PostgREST directly: `hospitaladmin.a1` reads `[]` for the very row
- * `orgadmin.a` reads fine. So the trigger cannot see the row the SECURITY DEFINER
- * door just correctly wrote, raises a false-positive `23514`, and the WHOLE
- * transaction rolls back — for every hospital_admin, unconditionally. This is why
- * the org_admin-pinned pgTAP `378` §1 has always passed while the mechanism was
+ * JWTs hitting PostgREST directly: `hospitaladmin.a1` read `[]` for the very row
+ * `orgadmin.a` read fine. So the trigger could not see the row the SECURITY DEFINER
+ * door had just correctly written, raised a false-positive `23514`, and the WHOLE
+ * transaction rolled back — for every hospital_admin, unconditionally. That is why
+ * the org_admin-pinned pgTAP `378` §1 had always passed while the mechanism was
  * broken for the one actor AC3 is actually about.
+ *
+ * FIXED in `89793d43` ("fix(aff4): the D4 containment backstop runs as DEFINER"),
+ * ADR 0159 (`docs/decisions/0159-invariant-backstops-run-as-definer.md`): the
+ * trigger function now runs `SECURITY DEFINER`, so it no longer evaluates the D4
+ * invariant through the caller's own RLS lens. pgTAP `381` pins the fix across the
+ * ACTOR dimension specifically — org_admin passes before and after; hospital_admin
+ * got `23514` before, passes after; identical state, identical door, different
+ * caller only — plus a `prosecdef` control so the DEFINER-ness cannot regress
+ * silently. This file's `test.fail()` pin self-flipped to "unexpectedly passing"
+ * once the fix landed (exactly the signal it was built to give) and has since been
+ * removed: every assertion below is now a live, green AC3 witness, not a pinned
+ * expectation.
  *
  * Fixtures are additive-only (a freshly registered person, never a seeded persona) —
  * `seed.sql` is a contract with ~900 tests and this file never mutates it.
@@ -146,24 +158,16 @@ test.describe('AC3: a hospital_admin rehires an org-offboarded person at a hospi
     page,
     request,
   }) => {
-    // BUG-D5-REHIRE-HOSPADMIN-001 (filed by `tester`, AFF4 AC3 — report this to the
-    // lead for the Bug Log; PROGRESS.md is out of `tester`'s scope in this task).
-    // Root cause, live-catalog-confirmed (see the file header for the full chain):
-    // the DEFERRED constraint trigger enforcing D4
-    // (`app.assert_hospital_affiliation_has_org`) is SECURITY INVOKER, so it checks
-    // `organization_affiliations` under the CALLING hospital_admin's own RLS —
-    // which has no hospital-tier read arm on that table BY DESIGN (D1). The trigger
-    // therefore cannot see the row `affiliate_person_impl` (SECURITY DEFINER) just
-    // correctly auto-ensured, raises a false-positive `23514`, and the transaction
-    // rolls back. 100% reproducible: identical failure via the real UI (this test)
-    // AND via a raw `affiliate_person` RPC call with a real hospitaladmin.a1 JWT —
-    // not a flake, not a fixture mistake.
-    // ⛔ Pinned `test.fail()`, NOT weakened: every assertion below states what AC3
-    // actually requires. Do not remove this annotation without re-verifying the fix
-    // (that is `tester`'s call to make, once `backend` marks the door
-    // SECURITY DEFINER — or applies whatever fix is ruled — and the rehire
-    // succeeds end to end). Once fixed, this file IS AC3's E2E witness.
-    test.fail(true, 'BUG-D5-REHIRE-HOSPADMIN-001 — see comment above and file header')
+    // BUG-D5-REHIRE-HOSPADMIN-001 — FIXED in `89793d43` (ADR 0159): the D4
+    // containment trigger (`app.assert_hospital_affiliation_has_org`) was SECURITY
+    // INVOKER, so it evaluated its invariant through the calling hospital_admin's
+    // own RLS and could not see the `organization_affiliations` row the rehire had
+    // just correctly written (no hospital-tier read arm on that table, by design —
+    // D1). It now runs SECURITY DEFINER; pgTAP `381` pins the fix across the actor
+    // dimension. See the file header for the full pre-fix root-cause chain. This
+    // test's `test.fail()` pin self-flipped to "unexpectedly passing" once the fix
+    // landed and has been removed — the rehire genuinely succeeds below, so every
+    // assertion is a live AC3 witness, not a pinned expectation.
 
     // --- Setup: org_admin registers a bare-org person, then org-offboards them ---
     await signInAs(page, 'orgadmin.a@test.local')
