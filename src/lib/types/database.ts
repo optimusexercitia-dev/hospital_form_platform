@@ -10960,6 +10960,19 @@ export type Database = {
         }
         Returns: string
       }
+      affiliate_person_to_org: {
+        Args: { p_organization: string; p_started_on?: string; p_user: string }
+        Returns: string
+      }
+      affiliate_person_to_org_for: {
+        Args: {
+          p_actor: string
+          p_organization: string
+          p_started_on?: string
+          p_user: string
+        }
+        Returns: string
+      }
       apply_minutes_review: { Args: { p_job_id: string }; Returns: Json }
       appoint_administrativo: {
         Args: { p_commission_id: string; p_user_id: string }
@@ -13098,6 +13111,19 @@ export type Database = {
         }
         Returns: string
       }
+      end_org_affiliation: {
+        Args: { p_ended_on?: string; p_organization: string; p_user: string }
+        Returns: string
+      }
+      end_org_affiliation_for: {
+        Args: {
+          p_actor: string
+          p_ended_on?: string
+          p_organization: string
+          p_user: string
+        }
+        Returns: string
+      }
       ensure_professional_participant: {
         Args: { p_profile_id: string }
         Returns: string
@@ -13201,6 +13227,18 @@ export type Database = {
         }
       }
       get_member_overview: { Args: { p_commission: string }; Returns: Json }
+      get_own_person_record: {
+        Args: never
+        Returns: {
+          cpf: string
+          date_of_birth: string
+          email: string
+          full_name: string
+          phone: string
+          professional_category: string
+          professional_category_id: string
+        }[]
+      }
       get_participant_patient: {
         Args: { p_participant_id: string }
         Returns: Json
@@ -16754,6 +16792,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_org_affiliation: {
+        Args: { p_organization: string; p_started_on: string; p_user: string }
+        Returns: string
+      }
+      update_org_affiliation_for: {
+        Args: {
+          p_actor: string
+          p_organization: string
+          p_started_on: string
+          p_user: string
+        }
+        Returns: string
+      }
       update_phase_result: {
         Args: {
           p_color_token: string
@@ -17201,9 +17252,25 @@ export type Database = {
           ok: boolean
         }[]
       }
+      void_affiliation: {
+        Args: { p_affiliation: string; p_reason: string }
+        Returns: string
+      }
+      void_affiliation_for: {
+        Args: { p_actor: string; p_affiliation: string; p_reason: string }
+        Returns: string
+      }
       void_decision: {
         Args: { p_decision_id: string; p_reason: string }
         Returns: undefined
+      }
+      void_org_affiliation: {
+        Args: { p_org_affiliation: string; p_reason: string }
+        Returns: string
+      }
+      void_org_affiliation_for: {
+        Args: { p_actor: string; p_org_affiliation: string; p_reason: string }
+        Returns: string
       }
       withdraw_correction: {
         Args: { p_request_id: string }
