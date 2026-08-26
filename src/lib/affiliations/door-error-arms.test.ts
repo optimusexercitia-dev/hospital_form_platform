@@ -29,8 +29,22 @@ import { describe, expect, it } from 'vitest'
  *
  * ⚠ ON "MIGRATION TEXT IS STALE BY DESIGN": that rule governs believing a FILE about the
  * LIVE CATALOG. This compares two SOURCE artifacts — the migration that defines the door
- * and the TS that maps it. The live half is pinned separately: pgTAP `304` §6 asserts the
- * running kernels raise exactly this set, so a runtime-patched code cannot hide from both.
+ * and the TS that maps it. The live half is pinned separately, in pgTAP `304` §6, which
+ * derives its domain from the CATALOG — owner-only VOLATILE `app` kernels reachable from a
+ * client-callable `public` wrapper, plus those wrappers — and asserts they raise exactly a
+ * declared set. So a code that exists only after a runtime body rewrite cannot hide from
+ * both halves.
+ *
+ * ⛔ THE TWO HALVES DO NOT PRODUCE THE SAME SET, and this comment used to say they did:
+ * "pgTAP 304 §6 asserts the running kernels raise exactly this set". That was false the
+ * whole time it was here — §6 was reporting on a hand-maintained list of three pre-AFF4
+ * kernels and its regex could not see a named condition at all, so it covered none of
+ * AFF4's five codes while this sentence vouched that it did. A comment is an assertion
+ * that goes stale silently, in the file whose entire purpose is to stop exactly that.
+ * §6's domain is the whole DOOR FAMILY, so its set is strictly WIDER than the
+ * `actions.ts`-derived one here: it also carries the membership-role doors' `HC0G*` and
+ * the `23514` they reach through `check_violation`. Each half must equal ITS OWN declared
+ * set. Neither is the other's oracle.
  */
 
 const MIGRATIONS = join(process.cwd(), 'supabase', 'migrations')
