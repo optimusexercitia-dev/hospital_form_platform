@@ -6245,6 +6245,42 @@ self-referencing token resolves through that label again instead of the button's
 value never enters the name. Chromium does not do this. The component test pins the divergence
 explicitly so it reds if testing-library ever aligns.
 
+**✅ THE `aria-label` BUCKET TOO (2026-08-26), which closes all 36 named call sites.** The last two
+sites named the trigger with `aria-label`, which also outranks `contents:` and so dropped the value
+identically — `safety/patient-fields.tsx` and `meetings/review/actions-review.tsx`, both measured on
+their real rendered DOM, both states. ⚠ **`patient-fields` had been recorded as "already CDP-verified
+correct"**, and that verification was honest but answered a DIFFERENT question — *does the button have
+an accessible name at all* (yes), not *does the name include the value* (no). Its own comment even
+said the `aria-label` was "redundant, not load-bearing"; that was right that a wrapping `<label>`
+names a `<button>` and wrong about the consequence, because BOTH sources outrank `contents:` and
+outranking DISPLACES.
+
+Each carried a constraint the fix had to preserve, and neither was visible from the FUP's mechanism:
+- `patient-fields` — the **"(obrigatório)" suffix must stay IN the name**, because role=button
+  supports no `aria-required`. It now comes from `mark()` inside the `<label>`, and the duplicate
+  `labelOf` helper that mirrored that text is deleted rather than left to drift.
+- `actions-review` — the `aria-label` carried the **row title**, which is what keeps many rows in one
+  review list from all being named "Prazo". Kept as an `sr-only` span inside the label (the title is
+  already visible one field away, so repeating it in ink would be noise). ⚠ NOT in tension with the
+  I6 stable-name rule beside it: that rule stops a CHECKBOX renaming itself on toggle because
+  `aria-checked` already carries the state; a date button has no such attribute.
+
+Measured after: `"Data de nascimento (obrigatório) 01/03/2023"` · `"Data de nascimento 01/03/2023"`
+(non-required — the marking stays selective) · `"Prazo — Ação com responsável identificado 01/03/2023"`.
+
+⛔ **One E2E spec genuinely needed updating, and it was measured, not guessed.**
+`e2e/patient-mode-required.spec.ts:632` anchored the name with `/^Data de nascimento \(obrigatório\)$/`
+— the trailing `$` asserts the value is ABSENT, i.e. it pinned the defect. Dropping ONLY the `$` was
+verified against the real post-fix DOM to (a) match the required variant and (b) still NOT match the
+non-required one, so the selectivity that block exists to prove is intact. **Engineer-authored spec
+edit — needs `tester` sign-off** (CLAUDE.md §6·2). The two `meeting-audio-minutes.spec.ts` locators
+were checked the same way and need no change: Playwright's default name match is case-insensitive
+SUBSTRING, so the longer name still matches — verified by running the locator, not by reasoning about it.
+
+⭕ **Remaining, deliberately:** `cases/case-access-panel.tsx:442` carries no name-bearing attribute at
+all (its sibling label is bound to an adjacent `NativeSelect`), so its name is only its own contents —
+a *missing label*, a different defect from this FUP's, and not fixed here.
+
 ⭐ **The premise trap, which is the durable part.** This surfaced only because QA filed a finding
 (M6) asserting the OPPOSITE — that `<label for>` is *not* in the accname chain for a `button`, and that
 the three new date triggers therefore had no accessible name at all. `frontend` measured it false twice

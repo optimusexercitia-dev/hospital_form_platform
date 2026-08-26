@@ -629,7 +629,18 @@ test('AC-R3: Novo caso marks required PHI fields (accessible name + aria-require
   await expect(mrnInput).toBeVisible()
   await expect(mrnInput).toHaveAttribute('aria-required', 'true')
 
-  const dobTrigger = dialog.getByRole('button', { name: /^Data de nascimento \(obrigatório\)$/ })
+  // ⚠ NO trailing `$`, unlike the two textboxes above, and the difference is real
+  // rather than sloppy. This control is a DatePicker trigger, whose accessible name
+  // now carries its own displayed value after the label ("Data de nascimento
+  // (obrigatório) 01/03/2023", or "… Selecionar data" while empty) — the fix for
+  // FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME, without which a screen-reader
+  // user could not learn the selected date at all. Anchoring the END would assert
+  // the value is ABSENT, i.e. pin the defect.
+  // ⛔ The `^…\(obrigatório\)` prefix still carries this assertion's whole point:
+  // measured against the real rendered DOM, it matches the required variant and
+  // does NOT match the non-required one, so the selectivity this block exists to
+  // prove is intact.
+  const dobTrigger = dialog.getByRole('button', { name: /^Data de nascimento \(obrigatório\)/ })
   await expect(dobTrigger).toBeVisible()
 
   const sexSelect = dialog.locator('#create-case-patient-sex')
