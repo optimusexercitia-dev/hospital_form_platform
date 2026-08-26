@@ -364,3 +364,10 @@ _Verbatim apart from the link repoint. The batch was PO-approved on 2026-08-24 a
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
 | **ADR 0136 — deferred `staff_admin` sign-off** | ✅ **APPROVED** — D1–D7 all audited; MINOR-1 (a migration header contradicting its own code) fixed in the pass; INFO-1 recorded. ⛔ **SELF-REVIEW for `1069711c`** — the reviewing session wrote it; independent only for `d899ceb3` + `20261003002000` | 2026-08-24 | [review](../reviews/adr-0136-deferred-signoff-review.md) |
+
+PDF·P3 + the user-profile redesign concluded 2026-08-25 (both approved; gate step 2 discharged by the merged-tree run); AFF4 is the next milestone (ruled, not started). Rotated 2026-08-25, verbatim apart from the link repoint.
+
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- | --- |
+| **PDF·P3 (Printing Cases)** | ✅ **APPROVED** (pass 2) — 5 non-blocking N-findings, all filed. Gate 2 then re-ran **GREEN**, so the verdict no longer rests on the RED-accepted run. | 2026-08-25 | [phase-p3-review.md](../reviews/phase-p3-review.md) § Pass 2 |
+| **User-profile redesign + AFF3/AUD1** | ✅ **APPROVED (r2)** — looped: r1 **CHANGES REQUESTED** on B1, a hospital-tier audit writer passing no org (real, and wider than filed — it also let platform_admin read tenant rows). Fixed as a class + leg 5 bounded; r2 re-verified by construction, 5 mutations. r1's M6/M11 withdrawn as measured-false | 2026-08-25 | [review](../reviews/user-profile-redesign-review.md) |

@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**148 ADRs** · next free number: **0151** · 42 carry an inbound supersedes/amends edge
+**149 ADRs** · next free number: **0152** · 43 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -118,7 +118,7 @@
 | 0094 | [Membership-model hardening + Diretor Técnico (technical director) backend](0094-membership-hardening-and-technical-director.md) | ⚠ proposed | 2026-08-04 | – | – |
 | 0095 | [Process/case integrity audit: remediation scope, corrections, and deferred remodels](0095-process-case-integrity-audit-remediation.md) | accepted | 2026-08-04 | – | ⛔ superseded by 0096 |
 | 0096 | [Process-template versioning (audit M1, full remodel)](0096-process-template-versioning.md) | accepted | 2026-08-04 | supersedes 0095 | – |
-| 0097 | [Hospital affiliation, person identity (CPF) and the org-scoped people directory](0097-hospital-affiliation-person-identity.md) | accepted | 2026-08-05 | – | ⚠ amended by 0133, 0148 |
+| 0097 | [Hospital affiliation, person identity (CPF) and the org-scoped people directory](0097-hospital-affiliation-person-identity.md) | accepted | 2026-08-05 | – | ⚠ amended by 0133, 0148, 0151 |
 | 0098 | [AFF substrate & doors: the shape decisions ADR 0097 left open](0098-aff-w1-substrate-shape-decisions.md) | accepted | 2026-08-06 | – | ⚠ amended by 0133 |
 | 0099 | [Meeting audio → generated ata (minute_generator integration)](0099-meeting-audio-minutes.md) | accepted | 2026-08-06 | – | – |
 | 0100 | [Quality-office oversight: `quality_reviewer` role, commission oversight classification,…](0100-quality-office-oversight.md) | accepted | 2026-08-06 | – | ⚠ amended by 0102, 0134 |
@@ -169,6 +169,7 @@
 | 0145 | [The print path's Markdown is stricter than the screen's: no `<img>` inside Gotenberg](0145-print-path-markdown-is-stricter-than-screen.md) | accepted | 2026-08-25 | amends 0014 | – |
 | 0146 | [The E2E gate harness must not report green while blind](0146-e2e-gate-harness-must-not-report-green-while-blind.md) | accepted | 2026-08-25 | – | – |
 | 0147 | [Masked CPF on the person detail rail](0147-masked-cpf-on-the-person-detail-rail.md) | accepted | 2026-08-25 | amends 0133 | – |
-| 0148 | [Ever-held affiliation as the person-read boundary](0148-ever-held-affiliation-read-visibility.md) | accepted | 2026-08-25 | amends 0097, 0133 | – |
+| 0148 | [Ever-held affiliation as the person-read boundary](0148-ever-held-affiliation-read-visibility.md) | accepted | 2026-08-25 | amends 0097, 0133 | ⚠ amended by 0151 |
 | 0149 | [An org_admin reads the hospital-tier audit chain](0149-org-admin-reads-hospital-tier-audit.md) | accepted | 2026-08-25 | amends 0041, 0051 | ⚠ amended by 0150 |
 | 0150 | [The audit organization is derived from the hospital, and leg 5 means the platform chain](0150-audit-org-derived-from-hospital.md) | accepted | 2026-08-25 | amends 0149 | – |
+| 0151 | [AFF4: organization affiliation, per-hospital staff data, and the voided tense](0151-aff4-organization-affiliation-staff-data-voided-tense.md) | accepted | 2026-08-25 | amends 0097, 0148 | – |

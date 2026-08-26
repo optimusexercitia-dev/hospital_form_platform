@@ -514,3 +514,19 @@ Record step. Rationale stays in the ADRs these reference, never here.
 | 2026-08-24 | **The door sweep's predicate arm admits by PROPERTY, not only by NAME** — a `prosecdef` boolean whose BODY reaches identity is in scope; the 2 side-effecting writers are held out by name, with the reason at the exclusion. Domain 102→110; 8 gates swept → 6 COVERED · 1 BLIND · 1 ERROR | ADR [0079 Amdt 9](../decisions/0079-authz-door-blindness-standing-invariant.md) |
 | 2026-08-24 | **Tracking hardening batch** — colon-less ADR-edge labels a HARD gate-9 finding (4 live fixed); CLAUDE.md capped 40 KB; FUP body-residue check, 47 bodies rotated (2 orphans reconstructed); proposed-ADR review stamped, 30-day cadence; docs/progress link sweep registry-free (133→0) | [ADR 0140](../decisions/0140-tracking-apparatus-hardening-batch.md) |
 | 2026-08-24 | **Concluded § Now bullets rotate to a QUARTERLY archive** — `docs/progress/<YYYY>-Q<n>.md`, keyed to **rotation date**; `lint:progress` link-checks quarterly files by pattern (zero-match control) + the frozen `now-concluded-2026-08.md`; other categories keep their homes | [ADR 0139](../decisions/0139-quarterly-home-for-concluded-now-rotations.md) |
+
+## Rotated from PROGRESS.md 2026-08-25 — the PDF·P3 + user-profile rows
+
+⛔ Verbatim; links repointed for this directory. Six concluded rows of two complete batches
+(PDF·P3, ADRs 0144–0146; user-profile redesign, ADRs 0147–0150), rotated at the AFF4 ruling to
+stay under the size cap. ⚠ The PDF·P3 approval row's *"push … was NOT made"* was true when
+written and is **superseded by § State**: the push happened 2026-08-25.
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-25 | **C-1 fixed by DELETING the classifier, not widening it** — `contains_phi := !caseDisposed` for the case kind. The hand-list had to agree with the template and the disposal door by discipline alone, and `cases.label` made it a constant | ADR 0144 **Amdt 5** |
+| 2026-08-25 | **Paper is stricter than screen for `<img src>`** — a derived print sanitize schema, because the fetch happens in the reader's browser on screen and in a server-side headless Chromium on paper. Plus a visible pt-BR placeholder: omitting content from a legal dossier silently ≠ announcing it | ADR **0145** (amends 0014) |
+| 2026-08-25 | **The gate harness may be fixed, including both measured false GREENS** — the carve-out protects against fudging a red into a green, and these only make it stricter. A gate whose green can be false is not a gate | ADR **0146** |
+| 2026-08-25 | **PDF·P3 APPROVED (gate 4) with five findings OPEN** — approval given AROUND N-1…N-5, not over them; ⛔ the **push is a separate decision and was NOT made**. Gotenberg egress denial deferred to a follow-up with the measurement owed first | [pdf-p3.md](pdf-p3.md) |
+| 2026-08-25 | **Person read visibility follows an EVER-held affiliation** (AFF3) — one conjunct dropped from the affiliation leg of all three policies carrying it. READ widens; WRITE does not, pinned by a test that reds 7/11 arms when the footprint filter is deleted | ADR [0148](../decisions/0148-ever-held-affiliation-read-visibility.md) |
+| 2026-08-25 | **An `org_admin` reads its own org's HOSPITAL-tier audit rows** (AUD1) — measured 19 exist / 0 visible, total blindness on one tier. A reconciliation: `verify_audit_chain` (prosecdef) already admitted them. Leg 5 unchanged, enforced by mutation | ADR [0149](../decisions/0149-org-admin-reads-hospital-tier-audit.md) |

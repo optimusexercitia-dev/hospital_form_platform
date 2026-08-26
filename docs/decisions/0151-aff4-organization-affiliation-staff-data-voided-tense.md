@@ -1,0 +1,172 @@
+# 0151 — AFF4: organization affiliation, per-hospital staff data, and the voided tense
+
+**Status:** Accepted · 2026-08-25
+**Supersedes:** nothing. **Amends:** 0097 (AFF — D10's org-roster predicate moves off `home_organization_id`; D2's visibility-input catalogue gains the org tier), 0148 (AFF3 — the ever-held read leg gains a voided exclusion).
+
+## Context
+
+Org-level offboarding was *unrepresentable*, not un-built: the only person↔org edge is
+`profiles.home_organization_id` — single-valued, trigger-enforced NOT NULL for non-admin
+profiles, no lifecycle. After ending every hospital affiliation and revoking every
+membership, the person still matches the roster predicate forever; the column can be
+neither nulled nor reassigned, and deactivation is the platform-wide kill switch
+(ADR 0048 D4), the wrong tool by design. Separately, hospitals need editable employment
+data for their own people, and Critical FUP **C5**
+(`FUP-AFF3-NO-REVOCATION-FOR-A-MIS-ENTERED-AFFILIATION`) records that a mis-entered
+affiliation is permanently unrevocable since ADR 0148 made read visibility ever-held.
+Analysis: [docs/plans/org-affiliation-and-staff-data-model.md](../plans/org-affiliation-and-staff-data-model.md).
+All decisions below were PO-ruled 2026-08-25 after a three-round design grilling.
+
+Program code **AFF4** (continuing AFF/AFF2/AFF3). **No feature flag** — structural, the
+AFF precedent. One gated workstream; implementation plan:
+[docs/plans/aff4-org-affiliation.md](../plans/aff4-org-affiliation.md).
+
+## Decisions
+
+**D1 — `organization_affiliations`.** New table mirroring `hospital_affiliations`:
+`(id, principal_id → profiles, organization_id → organizations, started_on, ended_on,
+created_by/created_at/ended_by, voided_at/voided_by/void_reason)`; partial unique
+`(principal_id, organization_id) WHERE ended_on IS NULL AND voided_at IS NULL`; no-delete
+guard trigger; audit trigger. RLS SELECT only (self OR `app.is_org_admin_of`);
+`authenticated` gets SELECT, all writes through doors. Affiliation remains a
+**visibility input, never a capability input** (0097 D2 extended to the org tier);
+`memberships` stays the sole role store.
+
+**D2 — doors.** Actor-kernel triples (ADR 0098 §W2.1 shape) for
+`affiliate_person_to_org`, `end_org_affiliation`, `update_org_affiliation`,
+`void_affiliation`, `void_org_affiliation`, plus self-only `get_own_person_record`
+(D14). Org-tier authority is `org_admin` of that org only — no platform-admin arm
+(mirrors `affiliate_person`), no hospital-admin arm. All new gates enter the
+`ARM=census` domain **in the same change** (ADR 0079 Amdt 3).
+
+**D3 — offboarding semantics.** `end_org_affiliation` **refuses** while the person
+holds, in that org: any active hospital affiliation, or any active membership at any
+tier (org-tier; hospital-tier of the org's hospitals; commission-tier via
+commission → hospital → org). Blockers are enumerated to the caller. No cascade — the
+UI composes the steps (D12). Ending the last *hospital* affiliation never auto-ends the
+org affiliation: org offboarding is always a deliberate act.
+
+**D4 — containment invariant.** Active hospital affiliation ⇒ active org affiliation in
+the same org. Enforced in the doors, with a deferred constraint-trigger backstop
+(`profiles_tenant_has_org_trg` style). No structural parent FK.
+
+**D5 — rehire is one-step.** `affiliate_person` auto-ensures the active org affiliation
+(creates one if absent), audited as its own `org_affiliation.created` row naming the
+actor. A hospital admin's rehire never requires a prior org_admin ticket.
+
+**D6 — "active", defined once.** Affiliations: `ended_on IS NULL AND voided_at IS NULL`.
+Memberships: `expires_at IS NULL OR expires_at > now()`. Offboarding blockers use
+active-only (an expired seat never blocks). Read-visibility legs stay **ever-held**
+(0148) minus voided (D7). The three existing read policies do **not** gain an
+`expires_at` filter — ever-held reads make read-side expiry filtering incoherent. This
+ruling closes `FUP-AFF2-ACTIVE-MEANS-TWO-THINGS`.
+
+**D7 — the voided tense (closes C5).** Both affiliation tables carry
+`voided_at/voided_by/void_reason` (reason mandatory). **Void ≠ end**: end says "was true
+and stopped"; void says "was never true". A voided row is excluded from every
+person-read leg (the ever-held legs gain `voided_at IS NULL`), the footprint resolver,
+the active-unique index, and the roster — but the **row itself stays visible** to the
+same policy audience, badged *Anulado* (the 0148 D6 asymmetry applied to the third
+tense: visibility of the record, revocation of what the record granted). Rows may be
+both ended and voided; voided takes precedence. No hard DELETE — Rule 12's
+minimise-not-destroy posture stands; the no-delete guards stay.
+
+**D8 — void authority.** Creation-symmetric: hospital rows — `org_admin` of the org or
+`hospital_admin` of *that* hospital; org rows — `org_admin` only. Precondition: void
+**refuses if any membership was ever attached** under that scope for that principal —
+a record with seats is not consistent with "never employed"; the honest verb there is
+`end`. Every void is audited with its reason.
+
+**D9 — per-hospital staff data lives ON the affiliation.** No `hospital_staff_profiles`
+table. `hospital_affiliations` gains `job_title text`, `work_email citext`,
+`work_phone text` (naming `work_*` to contrast with the personal, column-locked
+`profiles.phone`). Read audience = the existing affiliation-policy audience (self +
+org admin + that hospital's admins) — **stated as decided, not inherited**. Reads are
+**unaudited** (ordinary personal data, not Class-2 — stated, so silence is not the next
+0148 gap). Writes via the existing extended doors; authority stays the doors' bound
+(strictly tighter than AFF2's INTERSECTION — no new footprint semantics). No
+`department` column yet. **Zero new `profiles` columns anywhere in this program.**
+Profession (`professional_category_id`) stays person-level; cargo is per-employment.
+
+**D10 — `home_organization_id`: demoted, not dropped.** Backfill one active org
+affiliation per non-admin profile (`started_on ≈ profiles.created_at`, documented as an
+approximation). `list_org_people`'s roster predicate moves to org affiliations —
+ever-held, default-filtered to active with an explicit status chip (ended people
+visible behind a filter). Every existing RLS leg stays on `home_organization_id`.
+**Phase 2** (migrating those legs + the tenant trigger off the column) is a **named
+follow-on** — trigger: before multi-org is ever enabled; not pilot-blocking — and it
+must explicitly re-answer lifecycle authority over fully offboarded persons, which
+until then resolves through `home_organization_id`.
+
+**D11 — cross-org stays blocked.** `affiliate_person_to_org` refuses cross-tenant
+exactly as `affiliate_person` does (conflated with not-found; no CPF existence oracle).
+Recorded for the future: the day multi-org enables, account lifecycle must gain the
+org-level SUBSET bound (an org_admin may deactivate only a person whose entire org
+footprint is inside their org) — the AFF2 lesson one tier up.
+
+**D12 — offboarding UI.** Incremental: *"Desligar da organização"* is a new
+org_admin-only action in the lifecycle card; per-row `end_affiliation` stays in the
+affiliations panel; the situation banner explains the three paths. The wizard
+enumerates blockers (seats → hospital affiliations → org affiliation) and, when the
+platform-wide footprint is empty, **offers** account deactivation as an optional,
+refusable final step — never automatic.
+
+**D13 — registration.** `registerUser` gains the affiliation start date (closes
+`FUP-AFF2-REGISTRATION-HAS-NO-START-DATE`) and creates the org affiliation alongside
+the hospital one (service path threads the actor through metadata — `app.audit_write`
+is NULL-actor on service paths).
+
+**D14 — `/conta` "Meus dados" (closes `FUP-AFF2-CONTA`).** New read-only self section:
+name, e-mail, professional category, CPF (masked per ADR 0147's convention), date of
+birth, phone, own council credentials, own affiliations (hospital, job title, work
+contact, matrícula, dates) with org-affiliation status. Corrections stay administrative
+(ADR 0133 Amdt 1 r5's Art. 18 posture) — no self-edit. Reached via the self-only
+DEFINER door `get_own_person_record` (the three columns are column-locked even for
+self).
+
+**D15 — `updateUserProfile` tightened** to `authorizePersonScopedAdmin('fields')`,
+retiring the dead affiliation half (closes
+`FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD`).
+
+**D16 — pre-step, before the feature branch.** (a) fix
+`FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE`; (b) the diff-scoped door-sweep recipe
+learns `alter policy` (landing ADR 0079 Amdt 8 — this program alters three policies,
+the exact blind spot); (c) the sweep script stops truncating its committed findings
+baseline on subset runs; (d) a full `e2e:prod` discharge run on Windows establishes the
+clean baseline (the macOS `<select>` cluster stays a registered environment
+limitation).
+
+**D17 — ride-alongs, and what is out.** In: the suspend-spec repair
+(`FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY` — extending a lifecycle surface guarded by a
+vacuous spec is not acceptable), the DatePicker `aria-labelledby` fix as its own early
+frontend commit (`FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME`; affected specs
+run, not string-swept), and the two `manage` error boundaries
+(`FUP-MANAGE-ROUTES-HAVE-NO-ERROR-BOUNDARY`: `manage/error.tsx` **and**
+`o/[org]/error.tsx`). Out, explicitly: the registro search leg
+(`FUP-AFF2-DIRECTORY-SEARCH-HAS-NO-REGISTRO-LEG` — its own D13/D14 semantics work),
+`department`, and any `professional_profiles` change (Class-2 case-subject registry —
+untouched; FUP-ETH-1 linking stays deferred).
+
+## Consequences
+
+- Org-level offboarding becomes a representable, auditable, refusable lifecycle — and
+  the roster finally has a lifecycle-bearing predicate instead of a permanent column.
+- C5 is discharged at the last cheap moment: the voided tense is co-designed with the
+  policies it must thread, on both tables at once.
+- The rejected alternatives are recorded in the analysis doc: a parallel
+  `hospital_staff_profiles` (drift, rehire ambiguity, duplicated security surface), a
+  single multi-scope affiliations table, an operational-only offboarding fix.
+- New surface for the standing machinery: every new door enters census + the
+  diff-scoped sweep derives its list from the migration diff (`alter policy` included,
+  per D16b); the dominance grid gains the void door; TS-only bounds get Vitest
+  keystones (no RLS backstop on service paths — 0098 §W3.2).
+- FUPs discharged **by the build, not by this ADR**: C5,
+  `FUP-AFF2-ACTIVE-MEANS-TWO-THINGS` (D6 ruling + the build recording it),
+  `FUP-AFF2-CONTA`, `FUP-AFF2-REGISTRATION-HAS-NO-START-DATE`,
+  `FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD`,
+  `FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE`,
+  `FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY`,
+  `FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME`,
+  `FUP-MANAGE-ROUTES-HAVE-NO-ERROR-BOUNDARY`,
+  `FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-ALTER-POLICY`,
+  `FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE`.

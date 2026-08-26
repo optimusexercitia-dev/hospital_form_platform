@@ -1069,3 +1069,12 @@ records gate step 2 as DEFERRED, NOT DISCHARGED (RED at 18, 19 never run).
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-25 | **FULL `e2e:prod` at `d1ea9574`** — macOS, first gate since `77b0a467` (11 commits: a phase + Node 20→24) · `test:db` 7267/7267 | 🔴 **RED, exit 1** — 1172p · 18f · 2 flaky · **19 DNR** · 114 batches (1211/1222). All 18 proven NOT from the branch — bare `curl`, and migrations removed + reset. Deterministic on re-run | [FUP-OPEN-DOCUMENT-VERSION-500](../progress/follow-ups.md) + macOS `<select>` |
+
+## Rotated from PROGRESS.md 2026-08-25 — the PDF·P3 gate-2 row
+
+⛔ Verbatim. Rotated when the **merged-tree** gate at `3894c667` replaced it as the most
+recent discharging gate: § Test Run Summary retains one row.
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-25 | ⭐ **FULL `e2e:prod` GATE GREEN at `6394b95a`** — PDF·P3 gate 2. `1236 passed · 0 failed · 0 infra · 5 flaky · 0 did-not-run · 21 batches`; every batch N/N; 1241 + 11 skipped = 1252. ⚠ `0 infra` ≠ nothing collapsed — **1 INFRA re-run**. Detail: [pdf-p3.md](pdf-p3.md) | ✅ **GREEN** |
