@@ -6191,8 +6191,27 @@ displaced, not appended. A sighted user sees `01/03/2023`; a screen-reader user 
 *"Data de início, botão"* and has no way to learn the current value without entering the calendar.
 
 **Fix:** `aria-labelledby="{labelId} {buttonId}"` — the self-reference re-admits the button's own
-contents after the label. Measured to yield `"Suspenso até Selecionar data"` on
-`user-lifecycle-actions.tsx:247`.
+contents after the label.
+
+⛔ **THE WORKED EXAMPLE BELOW WAS WRONG, AND CORRECTING IT IS THE POINT — the wrong one teaches
+the wrong MEASUREMENT to whoever reads it next.** This line recorded the fixed name on
+`user-lifecycle-actions.tsx` as `"Suspenso até Selecionar data"`. That is the **EMPTY-state** name:
+`Selecionar data` is the placeholder, so the measurement was taken on a freshly-opened dialog,
+before any date was picked. With a date set — the state the fix exists for — it actually reads:
+
+```
+"Suspenso até (opcional) 01/03/2023 Remover data"
+```
+
+**Two things the empty measurement was blind to.** The **value** (`01/03/2023`), which is the whole
+subject of this follow-up and can only appear once there IS one; and the **contamination**
+(`Remover data`), because the clear affordance does not render at all while the field is empty.
+A component measured from its initial state is systematically blind to any defect that only exists
+after the user has done something — and the empty state is the one a fresh dialog opens in, so it
+is also the state every casual check lands in. **Measure this control WITH A VALUE SET, always.**
+(Corrected 2026-08-26 during the AFF4 repair; third instance of the value-dependent mechanism in
+that build. The trailing `Remover data` is gone as of that repair — see the AFF4 regression note
+below — so the name now reads `"Suspenso até (opcional) 01/03/2023"`.)
 
 ⛔ **DELIBERATELY NOT FIXED IN THE PROFILE-REDESIGN BRANCH.** It needs a new prop on a shared control
 with **23 call sites**, roughly 20 of which predate that branch, and it **changes accessible names** —
