@@ -6312,9 +6312,42 @@ pgTAP cited as cover, not because of anything here — but a skipped test assert
 `accounted N/N` counts a skip as accounted. The honest claim is **no regression was detected across
 1239 tests, with the two highest-risk sites proven driven by name.**
 
-⭕ **Remaining, deliberately:** `cases/case-access-panel.tsx:442` carries no name-bearing attribute at
-all (its sibling label is bound to an adjacent `NativeSelect`), so its name is only its own contents —
-a *missing label*, a different defect from this FUP's, and not fixed here.
+**✅ `cases/case-access-panel.tsx` NAMED (2026-08-26)** — the last unnamed site. It had no
+name-bearing attribute at all: the visible `<label htmlFor="grant-expiry">Expiração</label>` names the
+**select**, and this picker is the sub-control that appears only for the "Data específica" preset, so
+it was reaching AT as a bare button described solely by its placeholder. Given an `sr-only`
+`<label htmlFor>` + `labelId` → measured `"Data de expiração Selecionar data"` / `"Data de expiração
+01/03/2023 …"`. ⚠ `sr-only`, not visible, on purpose: the group is already captioned "Expiração
+(opcional)" and the select above it reads "Data específica", so the context is in ink for a sighted
+user and the visual design was not this change's to alter. The placeholder dropped its "de expiração"
+suffix because the label now carries it — kept, the empty-state name would stutter as *"Data de
+expiração Selecionar data de expiração"*.
+
+⛔ **NEW, and it is NOT this site's defect — `clearable` appends the CLEAR BUTTON'S name to the
+TRIGGER'S.** Measured as a differential, one variable changed on otherwise identical DOM:
+
+```
+clearable={false} → "Suspenso até (opcional) 01/03/2023"
+clearable={true}  → "Suspenso até (opcional) 01/03/2023 Remover data"
+```
+
+`date-picker.tsx` renders the clear affordance as a `role="button"` `<span aria-label="Remover data">`
+**inside** the trigger `<button>`, so name-from-content absorbs its accessible name. Two problems: the
+trigger is announced with the name of a *different action*, and interactive content nested inside a
+`<button>` is invalid to begin with (it is `tabIndex={-1}`, so it is not independently reachable
+either). ⚠ **Blast radius is 10 call sites, and 9 of them are in the `htmlFor` bucket `5e7288b5`
+already "fixed"** — `add-version-form`, `publish-document-dialog` ×2, `publish-button`,
+`held-window-fields` ×2, `personal-data-dialog`, `register-person-flow`, `register-person-wizard`,
+`user-lifecycle-actions`, `custom-field-input`. ⛔ **NOT fixed here**: the repair belongs in
+`date-picker.tsx`, which is pinned byte-identical to `5e7288b5` by agreement with the AFF4 session —
+diverging on a shared control is precisely the merge that resolves cleanly and is wrong afterwards.
+Raised with that session; it is theirs to land or to hand back.
+
+⭕ **Considered and NOT built: a class-wide invariant test** ("every `DatePicker` render is named").
+It would have caught all three buckets at once and is the right long-term shape — but it **cannot hold
+on this branch**: the 25 `htmlFor` sites here still lack `labelId` (they gain it with AFF4's merge), so
+the test would be red for a reason that is not a defect. Worth building once that merges, on the whole
+class rather than per site.
 
 ⭐ **The premise trap, which is the durable part.** This surfaced only because QA filed a finding
 (M6) asserting the OPPOSITE — that `<label for>` is *not* in the accname chain for a `button`, and that
