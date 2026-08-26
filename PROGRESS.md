@@ -56,26 +56,27 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   *non-erasable by decision with two known open removal paths* — a worse state than "no path exists".
   (DSR's never-re-run `e2e:prod` is DISCHARGED by the 2026-08-25 merged-tree gate; the stale
   `dsr-slice3-adjudication` assertion it was hiding had already been corrected on `main`.)
-- **📐 AFF4 RULED + PLANNED 2026-08-25 — build NOT started; needs the PO's explicit go after the
-  pre-step.** Org affiliations + per-hospital staff data + the **voided tense** (closes C5): ADR
+- **🔨 AFF4 BUILD IN PROGRESS — the PO's go was given 2026-08-26; branch `feat/aff4-org-affiliation`
+  has forked from `main`.** Org affiliations + per-hospital staff data + the **voided tense** (closes C5): ADR
   [0151](docs/decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md) · plan
   [aff4-org-affiliation.md](docs/plans/aff4-org-affiliation.md) · analysis
   [org-affiliation-and-staff-data-model.md](docs/plans/org-affiliation-and-staff-data-model.md).
-  ✅ **PRE-STEP (Track P) COMPLETE 2026-08-26, uncommitted on `main`** — the PO's build go is the
-  only thing left before the branch forks. **P1** did NOT fix: its premise was refuted by measurement
-  (PostgREST maps SQLSTATE class `P0*`→500; the `text/plain` body, the "every raise" claim and the
-  §8/app-facing claim are all false — the app maps on `error.code`). PO-ruled *diagnose + re-file*:
-  ADR [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md) amends 0151 D16a, and the
-  real defect is a **73-door class** now carrying its own index line below. **P2** turned the recipe
-  into `scripts/door-sweep-cases.sh` (all three Amdt 8 rulings, zero-row now **reds**). **P3** fixed
-  the baseline truncation in **four** sweeps, not one, proven by a differential whose *first control
-  was vacuous* — ADR [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md).
+  ✅ **PRE-STEP (Track P) COMPLETE + COMMITTED 2026-08-26** — P1 diagnosed-and-re-filed (ADR
+  [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md), a **73-door class** now
+  carrying its own index line below), P2 the `alter policy` recipe, P3 the baseline truncation (ADR
+  [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)).
+  Narrative rotated verbatim → [2026-Q3.md](docs/progress/2026-Q3.md).
   ✅ **P4 — the full `e2e:prod` discharge run —
   is DONE**: the 2026-08-25 merged-tree gate (GREEN, flake baseline kept **by name**) is also
   AFF4's baseline → [merged-tree-gate-2026-08-25.md](docs/progress/merged-tree-gate-2026-08-25.md). Eleven FUPs
   discharge at the AFF4 Record step (list: ADR 0151 Consequences); their index lines below carry
-  ⭕ SCHEDULED markers and **stay put until the work lands**. Sequencing against the ▶ queue below is
-  the PO's call at the build go.
+  ⭕ SCHEDULED markers and **stay put until the work lands**. **Sequencing ruled at the go: AFF4 runs
+  NOW and jumps the ▶ queue below** — that queue resumes after the AFF4 Record step.
+  **Wave 1 in flight:** `backend` on B1–B2 (the two additive migrations) + posting the B3/B4 plan for
+  lead review (ALTER POLICY + five new doors are security-sensitive, so they do not start on an ack);
+  `frontend` on F0 (DatePicker `aria-labelledby`) + F1 (both `error.tsx` boundaries) — the two
+  ride-alongs that touch no new data. `tester` and `qa` are NOT yet spawned. ⚠ **`backend` owns the
+  local DB for this wave** — announce before any `supabase db reset`.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
