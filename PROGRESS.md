@@ -199,6 +199,37 @@ seed/CLI-driven bootstrap that mints the first admin idempotently. **Blocks noth
 E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is invisible to every
 gate), but it is on the critical path of the **first production deploy**.
 
+🔴 **BUG-MEUSDADOS-HOSPITAL-NAME-001 — a non-admin's own `/conta/meus-dados` cannot name the
+hospital in "Vínculos hospitalares"; every row reads "Hospital não identificado".** Filed
+2026-08-26 (`tester`, AFF4 T4). Repro: sign in as a plain-`staff` persona with a hospital
+affiliation (e.g. `dr.john@test.local`) and open `/conta/meus-dados`. Expected: the hospital
+name renders (F5's own acceptance, "own affiliations with work data"; plan AC4). Actual:
+matrícula/dates/status all render; only the name is missing. **Cause, measured against the live
+catalog:** `listAffiliationsFor` (`src/lib/queries/affiliations.ts:64,72`, feeds
+`getOwnPersonRecord`) embeds `hospital:hospitals!...(name)`, RLS-gated by `hospitals_select` —
+which admits only admin/reviewer tiers (`pg_policies`, live), no clause for a plain affiliate
+reading their OWN hospital. The embed silently nulls for any such caller — F5's primary
+audience; an admin viewing SOMEONE ELSE's profile is unaffected. Not a leak — over-restrictive,
+not under. **Severity:** Major. **Owner:** backend — add a self-affiliation `EXISTS` arm to
+`hospitals_select`, or resolve the name inside the self-only door rather than an RLS-gated
+embed. Regression guard: `e2e/aff4-meus-dados.spec.ts`, deliberately left red, not weakened.
+
+🔴 **BUG-REGWIZARD-NO-ORG-STARTDATE-001 — `registerUser`'s org-affiliation start date (D13) has
+NO UI control anywhere; every new registration silently gets `started_on = current_date`.**
+Filed 2026-08-26 (`tester`, AFF4 T5) — contradicts this ticket's own brief, which named this
+path testable. `RegisterUserInput.affiliationStartedOn` (`src/lib/users/actions.ts:105`) is
+wired to `affiliate_person_to_org_for`, but `RegisterPersonWizard`'s 3 steps (the brand-new
+"create" outcome) have no date-of-employment field, and `handleSubmit` never sets the key. Its
+own docstring (lines 53-62) is stale on this too (claims `dateOfBirth`/`phone` are also unbuilt —
+those genuinely are wired). This is Track F's **F4**, recorded HELD — this bug is that hold made
+concrete: never actually built. Distinct cause from BUG-MEUSDADOS-HOSPITAL-NAME-001. Not
+reachable by any Playwright spec (no field to drive); `e2e/aff4-registration-dates.spec.ts`
+covers the two start-date fields that ARE reachable (Nascimento; the pre-existing "Início do
+vínculo" on an existing person's hospital affiliation) and states this gap in its header.
+**Severity:** Major (plan AC5 unmet on the primary registration path). **Owner:** frontend — add
+the field to Step 1, thread into `handleSubmit`, mirroring `register-person-flow.tsx`'s
+existing field.
+
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
 Closed rows, their closure narratives, and the 2026-08-19 record of where this section's old
