@@ -417,6 +417,39 @@ same reason).
 - **`preview_start` ignores worktrees** — frontend verification runs the primary
   checkout's launch config; verify on the branch's own dev server or after merge.
 
+## Follow-ups DISCOVERED during the build — file into the register at Record
+
+⛔ **Collected here, not in PROGRESS.md, deliberately.** That file sat with ~300 bytes of
+headroom under its 81920-byte cap while three writers shared one checkout, and a
+discovered item that lives only in a chat message is invisible work. Each of these gets a
+one-line index entry **and** a `follow-ups.md` body at the Record step — both halves, or
+the gate reds.
+
+- **`door-error-arms.test.ts` reports on its own list, not on the domain.** The test whose
+  job is "every SQLSTATE the doors raise has an arm in `toState`" reads a hardcoded
+  `DOOR_MIGRATIONS` file list and parses migration **text**. Two defects: (a) blind to any
+  body rewritten at runtime via `pg_get_functiondef` + `replace` + `execute`, which this
+  repo has already ruled is the normal case; (b) **silently non-covering for every new
+  door** until someone edits the list — it passes 9/9 today and keeps passing whether or
+  not anyone remembers. Passing-while-covering-nothing is indistinguishable from working.
+  Instrument that cannot go stale: `pg_proc.prosrc`, comments stripped.
+- **12 DatePicker renders sit outside F0's measured mechanism** (of 38 total; 26 were
+  in-mechanism and fixed). 7 wrap the control in an implicit `<label>`, 2 use `aria-label`,
+  and **1 carries no name-bearing attribute at all** — that last is an unmeasured a11y gap,
+  not a styling choice. Deliberately not guessed at during F0: extending a fix to a
+  mechanism nobody measured is how a partial fix reads as a complete one.
+- **`professional_credentials_select` uses bare `auth.uid()`** where both `profiles`
+  policies use `( SELECT auth.uid() )` — a per-row-vs-InitPlan evaluation difference.
+  Correctly kept out of B3 (one conjunct, nothing else); it needs its own item so the
+  mechanism is recorded rather than rediscovered.
+
+**Flake-baseline data point (not a follow-up, a gate input).** F0's first full-parallel
+spec run threw 28/34 failures on *unrelated* ACs (login/navigation timeouts, e.g. a plain
+dashboard headline count), all green on a `--workers=1` rerun. That is the known Windows
+parallelism/cold-start collapse, and it is why AFF4's gate run must be the batched
+`npm run e2e:prod`, **never** a parallel monolith — a monolith's reds here say nothing
+about the branch.
+
 ## Acceptance criteria (beyond the ADR's D-list)
 
 1. An org admin can fully offboard a person end-to-end in the wizard, every step
