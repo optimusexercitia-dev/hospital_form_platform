@@ -121,6 +121,16 @@ just isolate different things (filesystem vs. within-tree coordination).
 - **`.env.local` and `node_modules` never carry over automatically** — only
   committed history is shared across worktrees. `scripts/worktree-setup.sh`
   handles both; a plain `git worktree add` will not.
+  ⛔ **The `.env.local` half fails SILENTLY and expensively, so check it before any gate.**
+  `next build` **bakes `NEXT_PUBLIC_SUPABASE_URL` into the client bundle**, so a worktree
+  created without the setup script builds and runs a full `e2e:prod` against a broken
+  config and spends 18–40 minutes producing a **meaningless red** — one that looks like a
+  real failure and will be triaged as one. Nothing surfaces the missing file: it is
+  gitignored, so `git status` is clean and the build does not complain.
+  ✅ **One command, before any gate run in a worktree** (hit for real 2026-08-26):
+  ```
+  grep NEXT_PUBLIC_SUPABASE_URL .env.local   # expect http://127.0.0.1:54321 for local
+  ```
 - **Dev server ports collide by default** — every worktree's `next dev`
   defaults to `:3000`. Use the `./dev.sh` the setup script generates instead
   of `npm run dev` directly when more than one worktree might run at once.

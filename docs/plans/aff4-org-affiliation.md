@@ -656,8 +656,8 @@ the gate reds.
   it to learn what the helper does is reading something false. ⚠ This is the
   migration-text-is-stale hazard from a direction not previously recorded: not a runtime
   `pg_get_functiondef` + `replace()`, but a **test fixture outrunning a migration**.
-- **EIGHT instruments in one build whose success output was indistinguishable from the real
-  thing** — a pattern, not eight incidents. In every case the human-readable output looked
+- **NINE instruments in one build whose success output was indistinguishable from the real
+  thing** — a pattern, not nine incidents. In every case the human-readable output looked
   right and the honest instrument was an exit code or a direct measurement:
   1. `| head -10` clipped a process list to ten rows, all `chrome.exe` — read as a clean check.
   2. A reset-log grep for `error|failed` matched two migration **filenames**
@@ -700,6 +700,13 @@ the gate reds.
   hit `docker exec … psql -f /tmp/m3.sql` (rewritten to a Windows temp path). **That one failed
   LOUDLY** — file not found — and was fixed in minutes. The lead's failed **SILENTLY** and ran for
   a day. When auditing for this class, the loud failures are already handled; hunt the silent ones.
+  9. ⭐ **A process count that COUNTS ITSELF.** The sound replacement for #7
+     (`tasklist | grep -c "^node.exe"`) returned **2** where the broken `/FI` form returned 0 — but
+     re-sampling gave `0, 0, 0`: **the two node processes were spawned by the measuring command's
+     own `$(...)` substitution.** The instrument created what it counted. A *correct* instrument,
+     honestly read, still producing a self-generated artifact. ✅ The signal that actually decides
+     "is a server holding the DB" is **`pg_stat_activity`** — a client backend that is not
+     PostgREST/realtime/your own `psql` — not a process count at all.
   ⭐⭐ **THE RULE, and it is cheap enough that there is no excuse:** **every counting instrument in
   a gate report must be run once against a KNOWN FAILURE before its zero is believed.** Reading the
   command never reveals this class — both constants look correct on inspection, and #8 was found
