@@ -1283,3 +1283,100 @@ prints the deciding edges. `?` means UNRESOLVED — **never revoke on a `?`**.
 | 750 | `public.void_org_affiliation(p_org_affiliation uuid, p_reason text)` | command door + internal helper | **y** | .rpc() @ src/lib/affiliations/actions.ts:465; 1 fn caller(s), 0 DEFINER; 1 caller runs as the INVOKER |
 | 751 | `public.withdraw_correction(p_request_id uuid)` | command door | **y** | .rpc() @ src/lib/corrections/actions.ts:298 |
 | 752 | `public.withdraw_referral(p_referral_id uuid)` | command door | **y** | .rpc() @ src/lib/referrals/actions.ts:336 |
+
+---
+
+# LEAD RULINGS on the revoke set — 2026-08-27
+
+The classification above is **accepted**. Population 752 was re-derived independently by the
+lead against the catalog and matched exactly. What follows governs the **revoke** step, which
+is a separate, lead-authorized task and has **not** been executed.
+
+## RV0 — the governing property: ⛔ a revoke may not create sweep blindness
+
+**This is the ruling; everything else is an application of it.**
+
+`ARM=floor`'s domain is exactly `nspname = 'public'` **and** `prosecdef` **and**
+`has_function_privilege('authenticated', …, 'EXECUTE')`. **Revoking that EXECUTE removes the
+function from floor's domain.** If the function also returns something other than `bool`/`setof`,
+it is simultaneously outside `census`, outside `policy`, and outside `wrapper` (`prosecdef = t`)
+— the **F-F blind shape** that AE1.3 §10 was restructured to avoid.
+
+So AE1.2's hardening and plan rule 4 **pull against each other**, and the conflict is real rather
+than notional. Verified by the lead, on the door the classification flags as highest-risk:
+`public.set_participant_patient` is DEFINER, returns **`uuid`**, and holds EXECUTE for **both**
+`authenticated` and `service_role` — a Rule 12 PHI door that a single revoke would move from
+"swept by floor" to "swept by nothing".
+
+**Binding procedure for every batch, before any `REVOKE` is written:**
+
+1. **Partition the batch by post-revoke domain membership**: for each target, state which arm's
+   domain still contains it *after* the revoke. This is a **property**, derived per function —
+   ⛔ never a hand-list, and never inferred from the batch's label.
+2. **Targets that remain in ≥ 1 arm's domain → proceed.**
+3. **Targets that would fall out of every arm → HOLD.** They are released only by (a) receiving
+   the AE1.3 treatment — the authority decision moved into a swept `bool` `can_`-named predicate
+   with an `app.*_impl` kernel under the ADR 0156 gate — or (b) a **named ruling accepting the
+   blindness, with its reason recorded in the gate record**. ⛔ Never by an allowlist entry: an
+   entry resolves against `pg_proc`, so it would not trip ALLOWLIST-ROT and would read as *"swept
+   and excused"*.
+4. **Record the arm-domain delta as a measured before/after**, per batch. The classification
+   already measured `ARM=floor` 432 → 412 and that the 43 `app` boolean helpers **stay** in
+   `census`/`policy` (`rettype = 'bool'` carries no EXECUTE term). That is the right shape —
+   continue it. ⛔ A batch whose arm delta is not measured does not ship.
+
+⚠ **Scale, and a predicate difference worth stating rather than reconciling away.** The
+classification reports *132 of the 384 public command doors* one revoke from the blind shape; the
+lead measured **149** `public` DEFINER functions returning `void`/`uuid` that hold `authenticated`
+EXECUTE (control: the same probe returns **22** for `boolean`, so it discriminates by return type
+rather than matching everything). **Both are honest** — the bases differ (all `public` DEFINER vs
+command-door-classified only). Neither number is usable without its predicate attached, which is
+this program's standing rule.
+
+## RV1 — batch 4 stays HELD. Correctly identified; the hold is upheld
+
+The four held functions are not released by this ruling. They are exactly the RV0 step-3 class.
+
+## RV2 — `public.set_participant_patient` is not revoked in AE1
+
+Rule 12 PHI door, and the clearest instance of RV0. It is revoked only after it has the AE1.3
+door treatment, and **not** in this phase. Attempting privilege hygiene on a PHI door at the cost
+of making it unobservable is a bad trade in the direction that matters least.
+
+## RV3 — the 5 constraint-referenced functions are excluded from every batch until the question is answered
+
+Whether Postgres re-checks EXECUTE on a function inside a stored CHECK expression at write time
+(5 functions, 8 constraints) is **unsettled**, and the classification was right not to settle it
+by assumption — it needs a constructed negative write, which was outside its authorization.
+
+⛔ **Excluded from all four batches until answered by construction.** The answer is cheap (a
+negative write inside a rolled-back transaction) and belongs to the revoke task, where it becomes
+load-bearing. ⚠ It changes no verdict in this file — all five carry independent
+"needs EXECUTE" evidence — so this is a precondition, not a defect.
+
+## RV4 — the 11 unreachable `public` doors are a finding to file, not to revoke here
+
+Eleven `public` DEFINER doors that `authenticated` can call and **nothing in `src/` calls**
+(suite-only), plus 3 `app` functions with no reference by any instrument and 15 whose only `src/`
+occurrence is a comment — including 10 superseded per-flag `*_enabled()` readers, one of whose
+JSDoc still claims a call its body no longer makes.
+
+This is floor-arm-adjacent and genuinely useful, but it is **not** AE1.2's remit and revoking on
+reachability grounds would conflate two different questions. **File it as a `FUP-*` index line
+with a body.** ⛔ Not a gate-record sentence — that is precisely the class of obligation AFF4 left
+unfiled (§ Now residue (2)).
+
+## RV5 — the `anon` residue stays untouched
+
+138 of the revoke targets also hold `anon` EXECUTE. That remains
+`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` — a **PO decision, not a patch** — and it is not
+smuggled into a batch. ⚠ And per ADR 0160 the residue's old framing is refuted: there was no
+`167 → 237` growth; those are two predicates at one instant, and `anon` holds no USAGE on `app`.
+
+## RV6 — execution shape
+
+Batches ship **one at a time**, each with a full pgTAP + `e2e:prod` run, because an over-revoke
+surfaces as a user-facing `42501` rather than a test failure unless a suite exercises the path.
+⚠ **A `REVOKE` you are not entitled to make is a silent no-op** — assert the ACL actually changed,
+positively, after each batch. And a revoke verified locally must be **re-verified on the remote
+after push**: grants drift independently.
