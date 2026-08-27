@@ -39,6 +39,57 @@ const SCAN_DIRS = ['src']
 const EXTENSIONS = ['.ts', '.tsx']
 const DML_VERBS = ['insert', 'upsert', 'update', 'delete']
 
+/**
+ * AE1.4 SWITCH (ADR 0155 Phase AE1; docs/plans/authz-evolution.md § AE1.3/AE1.4).
+ * `profiles` + `professional_credentials` are BECOMING door-only tables — AE1.3 converts
+ * the person-authority raw DML in `src/lib/users/actions.ts` (+ the one self-scoped write
+ * in `src/lib/auth/actions.ts`) to six service-role doors: `finalize_invited_person_for`,
+ * `update_person_fields_for` (incl. its `cpf_change` capability arm), `set_person_active_for`,
+ * `suspend_person_for`, `upsert_credential_for`, `delete_credential_for`.
+ *
+ * ⛔ STATUS as of this write: AE1.3 has NOT landed on this branch — verify before
+ * touching this switch: `grep -rl "finalize_invited_person_for" supabase/migrations/`
+ * finds nothing (re-check the live catalog, not this comment, if in doubt — migration
+ * text is stale by design, but "zero migrations named it" is a file-existence fact this
+ * grep can answer honestly). Flipping `ENFORCE_PERSON_AUTHORITY_DOORS` to `true` before
+ * those doors exist reds `npm run lint` for every session on this branch, because the
+ * TEN pre-AE1.3 raw-DML sites on these two tables (measured: AE0.4 census, family
+ * `from-verb`) are exactly the writes the doors are meant to replace — the gate would
+ * have nothing to allow them through.
+ *
+ * Flip to `true` in the SAME change that lands AE1.3's door migrations (or immediately
+ * after, same phase) — never speculatively, and never as an isolated edit to this file.
+ */
+const ENFORCE_PERSON_AUTHORITY_DOORS = false // AE1.4 — flip only once AE1.3's six doors exist
+
+/** AE1.3's target shape for `profiles` / `professional_credentials` (see switch above). */
+const PERSON_AUTHORITY_TABLES = [
+  [
+    'profiles',
+    {
+      cookie:
+        '(none — a write to another person’s profile is always an admin action issued ' +
+        'via the service-role client; a self-scoped write, e.g. clearing ' +
+        'must_change_password on the caller’s OWN row, is exempted via ALLOWLIST below ' +
+        'instead of doored — AE1.3 deliberately excludes it, "converting it adds a door ' +
+        'with no second principal")',
+      service:
+        "admin.rpc('finalize_invited_person_for' | 'update_person_fields_for' | " +
+        "'set_person_active_for' | 'suspend_person_for', { p_actor, ... })",
+      adr: 'AE1.3, ADR 0155 Phase AE1 (docs/plans/authz-evolution.md)',
+    },
+  ],
+  [
+    'professional_credentials',
+    {
+      cookie: '(none — same posture as profiles above; no self-scoped exception exists here)',
+      service:
+        "admin.rpc('upsert_credential_for' | 'delete_credential_for', { p_actor, ... })",
+      adr: 'AE1.3, ADR 0155 Phase AE1 (docs/plans/authz-evolution.md)',
+    },
+  ],
+]
+
 /** Door-only tables: table -> the doors that own its writes (used in the error copy). */
 const GATED_TABLES = new Map([
   [
@@ -58,11 +109,23 @@ const GATED_TABLES = new Map([
       adr: 'ADR 0097 D13 / ADR 0098 W2.1',
     },
   ],
+  // ENFORCE_PERSON_AUTHORITY_DOORS gates whether the two lines below are active — see
+  // the switch comment above. OFF today: AE1.3's doors do not exist yet.
+  ...(ENFORCE_PERSON_AUTHORITY_DOORS ? PERSON_AUTHORITY_TABLES : []),
 ])
 
 /** Files permitted to hold raw DML, each with a recorded reason. */
 const ALLOWLIST = new Map([
-  // (empty — every application writer goes through the door as of W3/T3.3)
+  [
+    'src/lib/auth/actions.ts',
+    'updatePassword clears profiles.must_change_password on the CALLER’S OWN row ' +
+      "(`.eq('id', user.id)` where user.id comes from `supabase.auth.getUser()` on the " +
+      'SAME request) — self-scoped by construction, not an admin-on-another-person write. ' +
+      'AE1.3 (ADR 0155 Phase AE1) deliberately excludes this site from door conversion: ' +
+      '"converting it adds a door with no second principal." Only takes effect once ' +
+      'ENFORCE_PERSON_AUTHORITY_DOORS above is flipped true and `profiles` enters ' +
+      'GATED_TABLES — inert allowlisting of an already-ungated table today.',
+  ],
 ])
 
 function walk(dir, out = []) {

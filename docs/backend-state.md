@@ -486,6 +486,179 @@ widening this pin exists to catch.
   "everything is denied" file would be unfalsifiable — this makes a red here trustworthy as
   a real regression.
 
+## Service-role DML registry (AE1.4; ADR 0155 Phase AE1; measured 2026-08-27)
+
+_Every call site in `src/` that issues a write (or a write-adjacent authorization act) through
+a `createAdminClient()`-constructed (service-role) Supabase client — one row per site. Like
+"Zero-policy tables" above, this is a **standing registry, never a phase narrative**: it never
+concludes, it is re-derived. **Owner** = the domain module responsible for the call site.
+**Reason** = why the write legitimately bypasses RLS. **Revalidation mechanism** = what
+re-establishes the caller's authority before the write fires (a door name, "self-scoped by
+construction", "system actor: `<invariant>`", or `UNDECIDED`). **Audit event** = an audit-log
+emission **visible from the TS call site only** — an explicit audit helper call, or an RPC whose
+name signals logging (e.g. `log_cpf_probe_for`). ⚠ **"None found in TS" is not "unaudited"** — it
+does not verify whether the target table itself carries a DB-side audit trigger (Rule 11); that
+is a `pg_trigger` catalog question this registry does not attempt to answer (out of this task's
+scope — see CLAUDE.md's "catalog is truth" exception). **Test** = the test that would go red if
+this mechanism were removed. A blank read as passing would defeat the point of this column, so
+every row states one explicitly, including "**none**" where that is the honest answer.
+
+**Deriving instrument, re-derivation, and the diff:** `scripts/service-role-dml-census.mjs` is
+the deriver (AE0.4). Reproduce with `node scripts/service-role-dml-census.mjs` (human-readable)
+or `--json` (sorted, diffable); `--self-test` proves the detector can both find a known site and
+be made to miss one. **Re-run it and diff the `IN_SCOPE` site list against the 45 rows below —
+by file+symbol+family+target (not line number, which is volatile) — before trusting this table;
+a delta is a red.** This registry has **no automated CI gate** performing that diff as of AE1.4
+(scope was the `check-memberships-door.mjs` extension below, not a new lint gate) — the
+comparison is manual today, run at minimum at every AE-phase gate and whenever a PR touches one
+of the 13 files below. Re-derived 2026-08-27 at commit `e7c26068`: **45 `IN_SCOPE` sites, exactly
+matching AE0.4 — no delta** (12 `from-verb` + 19 `rpc` + 6 `storage` + 4 `storage-sign` + 4
+`auth-admin`; self-test PASS, baseline 45, working tree unmodified by the run).
+
+⛔ **AE1.3 has NOT landed as of this measurement** — `grep -rl` for any of the six door names
+below across `supabase/migrations/` finds nothing (git log confirms: `e7c26068 docs(progress):
+AE1 live state -- design and classification done, builds not started`). Group A's "revalidation
+mechanism" column therefore states **today's actual mechanism** (a TS-side call into
+`authorizePersonScopedAdmin` → `personScopeAllows`, per capability) alongside the **planned**
+AE1.3 door it will become — the two are not the same thing yet, and this table will need
+re-measuring once AE1.3 lands (door name promotes from "planned" to actual; the TS guard is kept
+per the plan, defense-in-depth, but stops being the authority).
+
+### Group A — person-authority `profiles` / `professional_credentials` (9 sites; AE1.3-planned doors, not yet built)
+
+`personScopeAllows(capability, footprint, administeredHospitalIds)` (`src/lib/users/person-scope.ts`)
+is the shared TS predicate behind every row below via `authorizePersonScopedAdmin(userId, capability)`
+in `src/lib/users/actions.ts`; capabilities are `'fields' | 'credentials' | 'cpf_change' | 'lifecycle'`.
+
+| Site | Owner | Reason (service-role need) | Revalidation mechanism (today → AE1.3-planned) | Audit event | Test that would notice the guard vanish |
+| --- | --- | --- | --- | --- | --- |
+| `users/actions.ts:deactivateUser` → update `profiles.is_active` | users | admin deactivates another person's account; RLS has no cross-person write path | TS: `authorizePersonScopedAdmin(userId,'lifecycle')` (SUBSET) → planned: `set_person_active_for` | none found in TS | **YES** — `d14-person-level.test.ts` §1 (allowed, sole footprint), §2 (**denied**, cross-hospital), §4, §6 (org_admin twin) + `e2e/hospital-admin-tier.spec.ts` (Desativar) |
+| `users/actions.ts:reactivateUser` → update `profiles.is_active`/`suspended_until` | users | same as above, reverse direction | TS: same call, `'lifecycle'` → planned: `set_person_active_for` | none found in TS | **YES, with a caveat** — §1 (allowed) + §6 cited explicitly; the DENY arm is not separately named for `reactivateUser` in the reported coverage, but it is the **identical** `authorizePersonScopedAdmin(id,'lifecycle')` call that `deactivateUser`'s §2 deny-arm exercises — an incidental guard closing a hole the definition predicts, not an independently-proven one. Flag for a dedicated reactivate-deny arm. |
+| `users/actions.ts:suspendUser` → update `profiles.suspended_until` | users | same predicate family, suspension arm | TS: same call, `'lifecycle'` → planned: `suspend_person_for` | none found in TS | **YES** — §1, §2 (denied), §6 + `e2e/user-registration.spec.ts` (Suspender/"Confirmar suspensão") + `e2e/hospital-admin-tier.spec.ts` |
+| `users/actions.ts:updateUserProfile` → update `profiles` (fields; `cpf_change` capability arm on CPF change) | users | admin edits another person's profile fields; CPF change escalates to a tighter bound | TS: `'fields'` always (INTERSECTION); `'cpf_change'` additionally when `normalizeCpf(current)!==normalizeCpf(new)` (SUBSET) → planned: `update_person_fields_for` (both capability arms, same door) | none found in TS | **YES, thorough** — §1–§6 (sole/cross-hospital/whole-footprint/tier/sibling, CPF-presence-vs-change semantics) + `person-scope.test.ts` (predicate directly) + `e2e/hospital-admin-tier.spec.ts`, `e2e/aff2-scope-rule.spec.ts` |
+| `users/actions.ts:upsertCredential` → update `professional_credentials` | users | admin edits another person's existing credential row | TS: `'credentials'` (INTERSECTION) → planned: `upsert_credential_for` | none found in TS | **YES** — §1, §2, §4 (denied, expired-seat fixture) |
+| `users/actions.ts:upsertCredential` → insert `professional_credentials` | users | admin adds a new credential row for another person | TS: same guard, same call (one check covers both branches) → planned: `upsert_credential_for` | none found in TS | **YES** — same suite, same guard |
+| `users/actions.ts:removeCredential` → delete `professional_credentials` | users | admin deletes another person's credential row | TS: `'credentials'` → planned: `delete_credential_for` | none found in TS | **YES** — §1, §6 ("`removeCredential` must carry its OWN arm" — reported verbatim) |
+| `users/actions.ts:registerUser` → update `profiles` (invite-flow patch) | users | sets initial profile fields for a newly invited/registered person | TS: entry gate only — session + `isOrgAdminCaller`/hospital-resolution check (**not** `personScopeAllows`) → planned: `finalize_invited_person_for` | none found in TS | **UNCONFIRMED** — extensive d14 coverage of payload/routing correctness for authorized callers; no explicit assertion surfaced that an unauthenticated/non-admin caller is REJECTED at this entry gate specifically |
+| `users/actions.ts:registerUser` → insert `professional_credentials` | users | seeds the new person's initial credential at registration time | TS: same shared entry gate as above (not `'credentials'`/`personScopeAllows` — registration-time insert is a different code path from `upsertCredential`) → planned: folds into `finalize_invited_person_for` | none found in TS | **UNCONFIRMED** — same caveat as the row above |
+
+### Group B — self-scoped by construction (1 site)
+
+| Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- |
+| `auth/actions.ts:updatePassword` → update `profiles.must_change_password` | auth | clears the caller's OWN forced-change flag; needs service-role because the column is service-role-only writable (`guard_profile_privileged_columns`) | **self-scoped by construction** — `.eq('id', user.id)` where `user.id` comes from `supabase.auth.getUser()` on the SAME request, after `supabase.auth.updateUser({password})` succeeded. AE1.3 deliberately excludes this site ("converting it adds a door with no second principal") | none found in TS | **NONE, effectively** — `page.test.tsx` only stubs `updatePassword: vi.fn()` (doesn't exercise the real function); the one e2e round-trip (`e2e/user-registration.spec.ts`, invite-mode) is `test.skip`'d by default (needs `AUTH_EMAIL_VERIFICATION=on`) |
+
+### Group C — system actor: `meeting_minutes_jobs` lifecycle (4 sites)
+
+| Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- |
+| `minutes-jobs/reconcile.ts:deleteAudio` → storage-remove (`MEETING_AUDIO_BUCKET`) | minutes-jobs | cleans up audio after job reconciliation; reached only after an RLS-scoped read (`app.is_staff_admin_of`) in `queries.ts` already gated the caller | **system actor: reconciliation runs only for a job the caller could already read under RLS** — no in-function check | none found in TS | **NONE** — no `reconcile.test.ts`; symbol not in any `*.test.ts` |
+| `minutes-jobs/reconcile.ts:deleteAudio` → update `meeting_minutes_jobs` | minutes-jobs | same reconciliation, status flip | same as above | none found in TS | **NONE** — same absence |
+| `minutes-jobs/sweep.ts:sweepStaleAudio` → storage-remove (`MEETING_AUDIO_BUCKET`) | minutes-jobs | TTL-based stale-audio sweep; explicitly "row-agnostic on purpose" | **system actor: cron/webhook-invoked, no end-user session; the only self-protection is an in-process throttle (`SWEEP_THROTTLE_MS`), a rate-limit not an authz guard** | none found in TS | **YES** — `sweep.test.ts` asserts the exact `list_stale_meeting_audio` call args, the single batched `remove()`, and that `audio_deleted_at` is stamped only for storage-confirmed removals |
+| `minutes-jobs/sweep.ts:sweepStaleAudio` → update `meeting_minutes_jobs` | minutes-jobs | same sweep, status flip | same as above | none found in TS | **YES** — same test |
+
+### Group D — pre-existing doors (`.rpc()`, decided; 8 sites)
+
+Pre-existing `memberships`/`hospital_affiliations` `_for` doors (ADR 0094/0097/0098), outside
+AE1.3's *person*-authority scope. `actorValidating` is recorded `UNRESOLVED (SQL body not read)`
+by the census for every row here — the JS-side `_for`-suffix + explicit-`p_actor` heuristic is
+evidence the call site passes an actor, never a verdict that the SQL predicate re-derives
+authority rather than trusting it; that verification is a `pg_proc`/`prosrc` read this registry
+does not perform.
+
+| Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- |
+| `platform/actions.ts:assignOrgAdmin` → rpc `grant_role_for` (org-tier grant) | platform | grants `org_admin` for a caller who isn't the target's own session | door: `grant_role_for` (pre-existing); TS gate: `requireAdmin()` via `getSessionContext()?.isAdmin` | none found in TS (relies on the door's DB-side trigger, unverified here) | **YES** — `e2e/platform-org-admin-provisioning.spec.ts` (MEM2-1/2/3; asserts `granted_by` attribution, idempotency, platform-only access) |
+| `platform/actions.ts:assignOrgAdmin` → rpc `grant_role_for` (single-hospital auto-seat of `hospital_admin`) | platform | auto-seats `hospital_admin` when the new org has exactly one hospital | door: `grant_role_for`; TS gate: same `requireAdmin()`, no additional check | none found in TS | **NONE** — no test asserts the auto-seat branch; no `src/lib/platform/**/*.test.ts` exists |
+| `users/actions.ts:assignCommitteeRole` → rpc `grant_role_for` | users | grants a per-commission committee role | door: `grant_role_for`; TS gate: `authorizeForUser(userId)` AND `authorizeForCommission(commissionId)` (not `personScopeAllows`) | none found in TS | **NONE dedicated** — incidental-only `e2e/user-registration.spec.ts` ("Adicionar comissão") exercises the UI path, not a guard keystone |
+| `users/actions.ts:ensureActiveAffiliation` → rpc `affiliate_person_for` | users | affiliates a person to a hospital during registration | door: `affiliate_person_for`; TS gate: none in this (unexported, private) helper — `registerUser` authorizes before calling it | none found in TS | **YES, indirect** — `d14-person-level.test.ts` §9 asserts the RPC call + `p_started_on` payload + `e2e/aff4-registration-dates.spec.ts`, `e2e/aff-hospital-affiliation.spec.ts` |
+| `users/actions.ts:registerUser` → rpc `affiliate_person_to_org_for` | users | affiliates a person at the ORG tier (org_admin registrants only) | door: `affiliate_person_to_org_for`; TS gate: entry gate **plus** `if (isOrgAdminCaller)` — a hospital_admin registrant must never reach this door | none found in TS | **YES** — §9 explicitly: "hospital_admin registrar NOT calling the org door" — a genuine guard-removal keystone |
+| `users/actions.ts:registerUser` → rpc `log_cpf_probe_for` | users | records a CPF-collision probe as a compensating control for the CPF-uniqueness oracle | door: `log_cpf_probe_for`; TS gate: entry gate only, fires unconditionally on match/no-match | **YES — the one explicit audit mechanism in this whole registry**, doc'd as "the compensating control for the [CPF] oracle" | **YES** — §9 asserts the probe call fires and never carries raw CPF digits |
+| `users/actions.ts:registerUser` → rpc `grant_role_for` (committee grants, looped) | users | seats the new person on 0+ committees at registration | door: `grant_role_for`; TS gate: entry gate + per-committee `allWithinHospital` (non-org-admin callers) | none found in TS | **NONE** — reported explicitly: "No arm directly exercises site 7 (`grant_role_for` for committees) inside `registerUser`" |
+| `users/actions.ts:removeCommittee` → rpc `revoke_role_for` | users | removes a per-commission committee role | door: `revoke_role_for`; TS gate: `authorizeForUser` + `authorizeForCommission` (same pair as `assignCommitteeRole`) | none found in TS | **NONE dedicated** — incidental-only `e2e/user-registration.spec.ts` ("Remover de Comissão...") |
+
+### Group E — `UNDECIDED` (11 `.rpc()` sites; PO decision, not a patch)
+
+No actor argument at the call site, no self-scoped or system-actor justification recorded, not a
+pre-existing door. **Not invented here** — an escape hatch for the unmeasurable would also
+silence the measured.
+
+| Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- |
+| `documents/actions.ts:finalizeDocumentUpload` → rpc `complete_evidence_upload_verification` | documents | finalizes an evidence upload after client-side hash verification | **UNDECIDED** — only the preceding user-session RPC `finalize_document_upload`'s own success gates this; no actor re-check here | none found in TS | **YES (behavioral, not authz)** — `actions.test.ts` (MAJOR-3) pins terminal-state/ordering; no authorization check exists here to lose |
+| `documents/actions.ts:finalizeDocumentUpload` → rpc `complete_document_upload_verification` | documents | same finalize step, non-evidence path | **UNDECIDED** — same shape | none found in TS | **YES (behavioral, not authz)** — same test, same caveat |
+| `documents/actions.ts:reclassifyDocument` → rpc `complete_document_reclassification` | documents | records a completed reclassification after the storage copy | **UNDECIDED** — only the preceding `reclassify_document` RPC gates this | none found in TS | **NONE** — `disposal-gap.test.ts` is a static caller-census, not behavioral; explicitly would NOT fail if the authorization here were removed |
+| `documents/actions.ts:reclassifyDocument` → rpc `complete_document_disposal` | documents | records a disposal after the old file is removed | **UNDECIDED** — same shape | none found in TS | **NONE** — same caveat |
+| `minutes-jobs/actions.ts:failAndCleanUp` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed during internal cleanup | **UNDECIDED** — no actor arg; called from `submitMinutesJob` after its own RLS-scoped setup, but not itself gated | none found in TS | **NONE** — not exported, not in any test, no e2e reference by name |
+| `minutes-jobs/reconcile.ts:failJob` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed during page-load reconciliation | **UNDECIDED** — reached post-RLS-read (see Group C) but the RPC itself carries no actor | none found in TS | **NONE** |
+| `minutes-jobs/sweep.ts:sweepStaleAudio` → rpc `list_stale_meeting_audio` | minutes-jobs | lists TTL-expired jobs to sweep | **UNDECIDED** — read-like by name, cron/webhook-invoked, no actor arg | none found in TS | **YES (behavioral, not authz)** — `sweep.test.ts` pins the exact call args; there is no guard here to "vanish" beyond this call happening at all |
+| `minutes-jobs/webhook.ts:failJob` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed on a provider callback | **UNDECIDED** — invocation is HMAC-gated (`verifyCallbackSignature` in the route), but the RPC itself carries no actor and that route-level gate is a different layer than this registry's per-call mechanism | none found in TS ("the code goes to the audit row" comment implies SQL-side recording, unverified) | **NONE** — `route.test.ts` mocks `handleMeetingMinutesCallback` out entirely |
+| `minutes-jobs/webhook.ts:handleMeetingMinutesCallback` → rpc `complete_minutes_job` | minutes-jobs | completes a job on a provider callback | **UNDECIDED** — same HMAC-at-the-route caveat | none found in TS | **NONE** — same mock-out |
+| `queries/feature-flags.ts:getFeatureFlagsServerOnly` → rpc `get_feature_flags` | queries | reads flags for session-less server surfaces (`/verificar`, the audio-jobs webhook) | **UNDECIDED** — read-like by name; relies entirely on the RPC's own grants, unverified here | none found in TS | **NONE** — `route.test.ts` mocks this reader wholesale; its own comment notes mocking the wrong reader here previously let a production bug slip through |
+| `queries/printed-documents.ts:lookupPrintedDocumentVerification` → rpc `lookup_printed_document` | queries | public verification-code lookup (ADR 0104 D10, deliberately anonymous-callable) | **UNDECIDED as a door**, but a real guard exists: `consumeLookupBudget(credential)` rate-limits per-credential and globally BEFORE the RPC fires | none found in TS (the DB's `verification_lookups` table is the durable record, SQL-side) | **YES** — `printed-documents.test.ts` pins "rate-limits per credential BEFORE the RPC fires" |
+
+### Group F — Storage writes, RPC-preceded (4 sites)
+
+| Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- |
+| `documents/actions.ts:reclassifyDocument` → storage-upload (new file, dynamic bucket) | documents | copies the object to its new classification's path (Rule 6: never overwrite, new path per upload) | authority established by the preceding `reclassify_document` RPC succeeding; no separate check at the storage call | none found in TS | **NONE** — no test references `reclassifyDocument`'s storage ops at all |
+| `documents/actions.ts:reclassifyDocument` → storage-remove (old file) | documents | removes the superseded object after the copy | same as above | none found in TS | **NONE** — same absence |
+| `pdf-mint/actions.ts:mintPrintedDocument` → storage-upload | pdf-mint | writes the minted PDF bytes; authority is "anyone who can VIEW the source artifact," enforced by the `mint_printed_document` door called AFTER this upload | upload happens BEFORE the door call; on door failure the object is deleted (compensating cleanup, not a pre-write guard) | none found in TS | **NONE** — `compare-and-mint.test.ts` covers the ADR 0126 revision contract, not authorization/ordering of the storage ops |
+| `pdf-mint/actions.ts:mintPrintedDocument` → storage-remove (compensating cleanup on RPC failure) | pdf-mint | undoes the upload above if minting fails | same as above | none found in TS | **NONE** — same caveat |
+
+### Group G — Storage sign-upload, `createSignedUploadUrl` (4 sites; the family AE0.4 found unnamed)
+
+Mints upload *capability* rather than writing bytes. All four share one shape: a user-session RPC
+(`begin_document_upload` / `create_minutes_job`) runs first and is the real gate; only on success
+does the admin client mint a signed URL. None has a TS-side authorization check of its own to lose.
+
+| Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- |
+| `documents/actions.ts:beginDocumentUpload` → `<dynamic:file.storage_bucket>` | documents | mints a signed PUT target after `begin_document_upload` establishes the caller may write this resource | RPC-preceded; no in-function check | none found in TS | **NONE dedicated** — `e2e/phase-f2-attachments.spec.ts` drives the real corridor (happy path), not a guard/deny keystone |
+| `minutes-jobs/actions.ts:startMinutesJob` → `MEETING_AUDIO_BUCKET` | minutes-jobs | mints a signed PUT target after `create_minutes_job` succeeds; comment: "the RPC runs FIRST so an unauthorized caller never causes a storage object to be signed for" | RPC-preceded; no in-function check (client-side size/type ceilings are "a courtesy, never the control") | none found in TS | **NONE dedicated** — `e2e/meeting-audio-minutes.spec.ts` drives the real signed-PUT flow (happy path) |
+| `safety/capa-actions.ts:beginCapaEvidenceUpload` → `<dynamic:file.storage_bucket>` | safety (CAPA) | mints a signed PUT for CAPA evidence after `begin_document_upload(p_resource_type:'capa_action')` resolves via `app.can_write_capa` | RPC-preceded; no in-function check | none found in TS | **NONE for the TS wrapper** — `e2e/dm5-nsp-evidence.spec.ts` has its own helper calling the RPC directly (exercises the door, not this wrapper) |
+| `safety/rca-actions.ts:beginRcaEvidenceUpload` → `<dynamic:file.storage_bucket>` | safety (RCA) | same shape, `app.can_write_rca` | RPC-preceded; no in-function check | none found in TS | **NONE for the TS wrapper** — `e2e/phase14c-rca.spec.ts` has its own like-named helper calling the RPC directly, not this wrapper |
+
+### Group H — Auth-admin (4 sites)
+
+| Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- |
+| `users/actions.ts:registerUser` → `auth.admin.createUser` | users | creates the auth identity when email verification is off | shared `registerUser` entry gate only (see Group A) | none found in TS | **UNCONFIRMED** — same entry-gate caveat as Group A |
+| `users/actions.ts:registerUser` → `auth.admin.inviteUserByEmail` | users | invites the new user when email verification is on | shared entry gate only | none found in TS | **UNCONFIRMED** — same caveat |
+| `members/invite.ts:resolveOrInviteUser` → `auth.admin.inviteUserByEmail` `[INDIRECT — Tier 2]` | members | resolves-or-invites during org/platform admin flows; doc'd as performing "NO authorization of its own — the calling action is the authority" | the one check present is a tenant-anchor guard, not caller authorization: `if (existing.home_organization_id !== homeOrganizationId) throw` | none found in TS | **YES** — `invite.test.ts` ("the D13 tenant check"), 4 arms incl. cross-org refuse, null-anchor refuse |
+| `users/actions.ts:resendInvite` → `auth.admin.inviteUserByEmail` | users | re-sends an invite email | TS: `authorizeForUser(userId)` — deliberately NOT `personScopeAllows` (doc'd: would wrongly import the D2 tier bound) | none found in TS | **YES** — `d14-person-level.test.ts` §7, 4 arms incl. "sibling hospital_admin refused" |
+
+### Summary
+
+**45/45 re-derived, zero delta from AE0.4.** Family totals: 12 `from-verb` (9 Group A + 1 Group B
++ 2 Group C) + 19 `rpc` (8 Group D + 11 Group E) + 6 `storage` (2 Group C + 4 Group F) + 4
+`storage-sign` (Group G) + 4 `auth-admin` (Group H) = 45.
+
+⚠ **26 of 45 rows (58%) have no test that would notice their mechanism vanish** — 22 marked
+`NONE` outright plus 4 marked `UNCONFIRMED` (an entry-gate denial path not found in the reported
+coverage, not proven absent — `registerUser`'s shared entry gate, 4 sites split across Group A and
+Group H). 19 rows are marked `YES` (a real test exists), 3 of those explicitly caveated
+**behavioral, not authorization** (`finalizeDocumentUpload` ×2, `sweepStaleAudio`'s
+`list_stale_meeting_audio` call) because no authorization guard exists at those sites to lose in
+the first place. This is a measured property of the platform today, not a gap in this review
+pass. **Split by AE0.4's own 12-vs-33 line**: the 12 Family-A raw-DML sites (Groups A + B + Group
+C's 2 `from-verb` rows) score 8 YES / 2 NONE / 2 UNCONFIRMED — mostly protected, because AE1.3's
+person-scope test suite already exists even though the SQL door does not yet; the other 33 sites
+(`.rpc()` + Storage + Storage-sign + Auth-admin — Group D onward, plus Group C's 2 `storage`
+rows) score only **11 YES / 20 NONE / 2 UNCONFIRMED** — the 33-site delta AE0.4 found unaccounted
+for in AE1.3's door table is also where the test coverage is thinnest.
+
+**The 11 `UNDECIDED` sites, for the PO** (Group E in full): `complete_evidence_upload_verification`
+and `complete_document_upload_verification` (`documents/actions.ts:finalizeDocumentUpload`),
+`complete_document_reclassification` and `complete_document_disposal`
+(`documents/actions.ts:reclassifyDocument`), `fail_minutes_job` ×3 call sites
+(`minutes-jobs/actions.ts:failAndCleanUp`, `minutes-jobs/reconcile.ts:failJob`,
+`minutes-jobs/webhook.ts:failJob`), `complete_minutes_job`
+(`minutes-jobs/webhook.ts:handleMeetingMinutesCallback`), `list_stale_meeting_audio`
+(`minutes-jobs/sweep.ts:sweepStaleAudio`), `get_feature_flags`
+(`queries/feature-flags.ts:getFeatureFlagsServerOnly`), `lookup_printed_document`
+(`queries/printed-documents.ts:lookupPrintedDocumentVerification`).
+
 ## AFF4 — organization affiliation, per-hospital staff data, the voided tense (2026-08-26; ADR **0151** D1–D17 + **0154** / **0158** / **0159**; migrations `20261003003200`–`…004300`, **12**; pgTAP `301`–`304` · `371`–`375` · `377`–`381`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **NOT PUSHED at the Record edit; 12 migrations are LOCAL ONLY**
 
 **New table `public.organization_affiliations`** — "this person belongs to this organization" as a
