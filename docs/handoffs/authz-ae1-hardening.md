@@ -21,10 +21,9 @@ status: live
 
 ## Trust
 
-**Written as a single compaction near the end of a long session, NOT incrementally.**
-Treat the VERIFIED table as the reliable part and everything else as recollection. Four
-background agents were mid-flight at writing time, so the working tree described below
-is a moving target by construction.
+**Written as one compaction near the end of a long session, NOT incrementally** — treat the
+VERIFIED table as reliable and the rest as recollection. Four agents were mid-flight, so the
+tree described below is a moving target by construction.
 
 ## Goal and scope boundary
 
@@ -33,39 +32,35 @@ oracle later runs against a clean floor. Six tasks: FKs (AE1.1), DEFINER classif
 (AE1.2), the person-authority doors (AE1.3), the service-role registry (AE1.4), RLS
 initplan triage (AE1.5), zero-policy tables (AE1.6).
 
-**Explicitly NOT in scope:**
-
-- ⛔ **Executing any REVOKE.** AE1.2 classified; all **233** proposed revokes are HELD.
-- ⛔ The `anon` residue (`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`) — PO decision.
-- ⛔ Fixing the platform-wide `actor_id = null` audit gap — these doors are new instances.
-- ⛔ `commissions` / `commission_meeting_types` duplicate-arm dedup — ruled out, see § Dead ends.
-- ⛔ Anything in AE2+ (`home_organization_id` demotion, `profile_private_details`, the catalog).
+⛔ **Explicitly NOT in scope:** executing any REVOKE (all **233** are HELD) · the `anon`
+residue (PO decision) · fixing the platform-wide `actor_id = null` gap · `commissions` /
+`commission_meeting_types` dedup (ruled out — § Dead ends) · anything in AE2+.
 
 ## State
 
 ### Done — VERIFIED
 
-| What | Witness | When |
-| --- | --- | --- |
-| AE0 complete, recorded, row in ledger | commit `0b499417`; `docs/progress/authz-ae0.md` | 08-26 |
-| AE1.1 FKs, both `ON DELETE CASCADE` | `pg_constraint` / `pg_get_constraintdef`: `confdeltype='c'` on both, `appointed_by` still `'a'`; commit `14ad668d` | 08-27 |
-| AE1.6 seven zero-policy tables | pgTAP 382, 68 assertions; `test:db` 230 files/7631 PASS exit 0; commit `91455fbd` | 08-27 |
-| AE1.4 registry, 45 sites | `docs/backend-state.md` § Service-role DML registry, 45 rows counted; commit `800ffe2a` | 08-27 |
-| AE1.2 classification, 752 functions | `docs/design/authz-definer-classification-ae1.md`; population re-derived by lead = 752 exactly; commit `f4df4f5f` | 08-27 |
-| DB head + registry closure | `max(version)=20261003004710`, **480 registered == 480 `.sql` on disk** | 08-27 |
-| `lint` 10/10 | exit **0** at `ecd297b1` over a dirty tree (agents' in-flight files included) | 08-27 |
-| ADR 0160 + back-pointer on 0155 | `npm run adr:index` byte-compare; 159 ADRs, next free **0162** | 08-27 |
+All 08-27 unless noted. Commits are on this branch.
+
+| What | Witness |
+| --- | --- |
+| AE0 complete + recorded | `0b499417`; `docs/progress/authz-ae0.md` (08-26) |
+| AE1.1 FKs, both `ON DELETE CASCADE` | `pg_get_constraintdef`: `confdeltype='c'` both, `appointed_by` still `'a'`; `14ad668d` |
+| AE1.6 seven zero-policy tables | pgTAP 382 (68); `test:db` 230f/7631 PASS exit 0; `91455fbd` |
+| AE1.4 registry, 45 sites | `backend-state.md` § Service-role DML registry, 45 rows counted; `800ffe2a` |
+| AE1.2 classification, 752 fns | population re-derived by lead = 752 exactly; `f4df4f5f` |
+| DB head + registry closure | `max(version)=20261003004710`, **480 registered == 480 on disk** |
+| `lint` 10/10 | exit **0** at `ecd297b1`, dirty tree (agents' in-flight files included) |
+| ADR 0160 + 0155 back-pointer | `adr:index` byte-compare; 159 ADRs, next free **0162** |
 
 ### Written but UNVERIFIED
 
-- **AE1.3's six doors + predicate + 8 `_impl` kernels** — migrations `…004600/004610/004620`
-  applied; author reports pgTAP 384 (55) / 385 (49) / 386 (24) / 304 (44) all `ok`, all 13
-  objects re-read from the post-reset catalog, and `ARM=census` **RC=1 naming exactly
-  `app.can_administer_person_for`** — R0's positive control satisfied. **Not independently
-  re-measured by the lead.** Still owed, all window-blocked: the 15-case mutation audit, the
-  1-case sweep + its verdict, the follow-up `ARM=census` **green**, and a real `test:db`.
-  ⚠ Its 15 mutation needles were pre-resolved against live `pg_get_functiondef` (a
-  `replace()` that misses rewrites the body unchanged and reports GREEN).
+- **AE1.3's six doors + predicate + 8 `_impl` kernels** (`…004600/004610/004620`, applied).
+  Author reports pgTAP 384 (55) / 385 (49) / 386 (24) / 304 (44) `ok`, 13 objects re-read from
+  the post-reset catalog, and `ARM=census` **RC=1 naming exactly `app.can_administer_person_for`**
+  — R0's control satisfied. **Not independently re-measured by the lead.** Window-blocked and
+  still owed: the 15-case mutation audit, the 1-case sweep + verdict, the follow-up `ARM=census`
+  **green**, a real `test:db`.
 - **AE1.5's `…004710`** (52-policy `auth.uid()` wrap) — applied; author reports 39 inlined
   per-row expansions → 0. AFTER capture and sweeps incomplete.
 - **ADR 0161**, `.claude/rules/profiles-guard-never-widened.md`, the shared TS/SQL vectors,
@@ -127,8 +122,8 @@ parallel agent's revert, not a defect. Re-run on a quiet stack.
   carrying an unwrapped `auth.uid()`"). BEFORE picked 29 tables, AFTER picked **0**, and
   diffing a full file against an empty one reads as a clean sweep. Caught only because zero
   InitPlans made no sense.
-- **`pg_stat_user_tables` as a read-frequency instrument** — `n_live_tup = 0` on every public
-  table and the top entries were the querying session's own queries.
+- **`pg_stat_user_tables` as a read-frequency instrument** — `n_live_tup = 0` everywhere and
+  the top entries were the querying session's own queries.
 - **Three specification errors in the approved door design**, all found by keystones rather
   than review: CPF normalised for the *comparison* but stored verbatim; `cpf` assumed to raise
   `check_violation` from the guard when it actually raises **`42501` from the column grant**
@@ -136,54 +131,47 @@ parallel agent's revert, not a defect. Re-run on a quiet stack.
   reached; `suspended_until` *is* granted and is what reaches the guard's identity arm); and
   the unknown-capability raise placed at the dispatch, where an `org_admin` returns `true`
   before reaching it.
-- **The design doc's `search_path` spec was wrong, not the build.** Measured: **803** of the
-  DEFINER population use `app, public, pg_catalog` and **zero** include `pg_temp` — the spec
-  said `public, app, pg_temp`. Wrong order, and it would have introduced `pg_temp` where no
-  DEFINER has it.
+- **The design doc's `search_path` spec was wrong, not the build.** Measured: **803** DEFINERs
+  use `app, public, pg_catalog`; **zero** include `pg_temp`. The spec said `public, app,
+  pg_temp` — wrong order, and introducing `pg_temp` where no DEFINER has it.
 - ⛔ **`door-sweep-cases.sh` derives read AND write policies but its paste-able command names
-  only the READ harness** (`p0-authz-door-audit.sh`). An operator following its own output
-  sweeps half the case list; the write half (`p0-authz-writepath-audit.sh`) goes silently
-  unmeasured. Surfaced because the read harness refuses to end CLEAN with unmatched cases —
-  22 of 52. **This is a gap in the CLAUDE.md §6 step-1 recipe itself.**
+  only the READ harness** (`p0-authz-door-audit.sh`), so the write half
+  (`p0-authz-writepath-audit.sh`) goes silently unmeasured — 22 of 52 cases. Surfaced only
+  because the read harness refuses to end CLEAN with unmatched cases. **A gap in the CLAUDE.md
+  §6 step-1 recipe itself.**
 
 ## Decisions made in flight
 
-**Ruled** (all recorded in-repo, not only here):
+**Ruled — recorded in-repo; read there, not here:**
 
-- **R0–R6** → `docs/plans/authz-ae1-person-doors.md` §12. Key: the door shape is restructured
-  because a `public` DEFINER returning `void`/`uuid` granted to `service_role` only is in
-  **no ARM's domain**; authority moves into a `bool` `can_`-named predicate. `finalize` uses
-  the ordinary predicate via a `registerUser` reorder (Option A) — Option B would have
-  **widened** `hospital_admin` authority.
-- **RV0–RV6** → `docs/design/authz-definer-classification-ae1.md` § LEAD RULINGS. Key:
-  **a revoke may not create sweep blindness** — revoking `authenticated` EXECUTE removes a
-  function from `ARM=floor`'s domain. Partition is **delta-authoritative**, four buckets, with
+- **R0–R6** → `docs/plans/authz-ae1-person-doors.md` §12 (door shape, `registerUser` reorder,
+  ADR 0161, audit, vectors, the rules admission).
+- **RV0–RV6** → `docs/design/authz-definer-classification-ae1.md` § LEAD RULINGS. Load-bearing
+  one: **a revoke may not create sweep blindness** — revoking `authenticated` EXECUTE removes
+  a function from `ARM=floor`'s domain. Partition is **delta-authoritative**, four buckets,
   `UNCHANGED (never swept)` kept separate from `PROCEED` because PROCEED asserts safety.
-- **F-AE0-6 withdrawn** → `docs/design/authz-evolution-ae0-findings.md` §H. Three corrections
-  to one finding, **all overstating**; every remaining quantitative claim there is marked
-  unverified until re-measured.
+- **F-AE0-6 withdrawn** → `docs/design/authz-evolution-ae0-findings.md` §H.
 - **Forward-only, operative form:** an **uncommitted** migration may be edited provided a full
   `db reset` rebuilds from files. Once committed or pushed, never.
 
 **Provisional — needs the PO:**
 
-- **PROGRESS.md is at ~40 bytes of headroom** against its 80 KB cap and AE1 owes ~6 more FUP
-  index lines (~1800 bytes). Rotation has stopped working: OPEN index lines are protected, no
-  resolved lines exist to archive, and each compressed narrative is replaced by an index line
-  of near-equal length. Measured: `docs/progress/deferred-backlog.md` **is** a live register
-  for the orphan check (`scripts/check-progress-doc.mjs:246`), so bodies indexed there need no
-  PROGRESS.md line. **Options put to the PO: route AE1's remaining obligations to
-  deferred-backlog, or raise the cap by ADR (ADR 0140 — a PO decision, never a lead's).**
-  ⛔ Unanswered at handoff.
+- **PROGRESS.md is at ~40 bytes of headroom** against its 80 KB cap, with ~6 FUP index lines
+  still owed. Rotation no longer helps: OPEN index lines are protected, nothing resolved is
+  left to archive, and each compressed narrative is replaced by an index line of near-equal
+  length. Measured escape: `docs/progress/deferred-backlog.md` **is** a live register for the
+  orphan check (`scripts/check-progress-doc.mjs:246`), so an item carried there in full needs
+  no PROGRESS.md line — one obligation is already filed that way. **PO options: route the rest
+  there, or raise the cap by ADR (0140 — a PO decision, never a lead's).** ⛔ Unanswered.
 
 ## Open questions / blockers
 
 | Question | Who/what answers it |
 | --- | --- |
-| **30 gates carry a STALE `COVERED` verdict** after AE1.5's `ALTER POLICY` wrap — the name persists, the predicate changed, and `ARM=census` does **not** backstop it (ADR 0079 Amdt 8 ruling 3) | assigned to the AE1.5 owner: sweep the 30, report before/after **per gate** |
-| Does Postgres re-check EXECUTE on a function inside a stored CHECK expression at write time? (5 functions, 8 constraints) | RV3 experiment — one rolled-back txn, `BYPASSRLS` throwaway role, residue-check `pg_roles` + ACLs. ⛔ Gates any future revoke touching a constraint-referenced function. **Does not** bind the current 233 — those five are absent from the set |
-| PROGRESS.md cap | PO — see above |
-| Are the 11 `UNDECIDED` `.rpc()` sites system-actor, self-scoped, or unprotected? | PO; listed in `docs/backend-state.md` § Service-role DML registry |
+| **30 gates carry a STALE `COVERED` verdict** after the `ALTER POLICY` wrap — name persists, predicate changed, and `ARM=census` does **not** backstop it (ADR 0079 Amdt 8 r3) | AE1.5 owner: sweep the 30, report before/after **per gate** |
+| Does Postgres re-check EXECUTE inside a stored CHECK expression at write time? (5 fns, 8 constraints) | RV3 — one rolled-back txn, `BYPASSRLS` throwaway role, residue-check. Gates future revokes; **does not** bind the current 233 (those five are absent from it) |
+| PROGRESS.md cap | PO — above |
+| Are the 11 `UNDECIDED` `.rpc()` sites system-actor, self-scoped, or unprotected? | PO; listed in `backend-state.md` § Service-role DML registry |
 
 ## Next task
 
@@ -223,8 +211,6 @@ bash scripts/door-sweep-cases.sh <phase-base>
 git diff --stat -- docs/reviews/authz-door-audit-findings.md   # must be empty
 ```
 
-⛔ **The catalog is truth** for every schema/RLS/RPC claim above — `pg_proc` (incl.
-`prosecdef`), `pg_policies`, ACLs. Never a migration file, never graphify.
-⛔ **Never `ANALYZE`** before comparing against the AE0 EXPLAIN baselines: this DB has **no
-planner statistics** by design (`reltuples = -1`), and a cost-only diff is autovacuum noise,
-not a finding.
+⛔ **Catalog is truth** for every schema/RLS/RPC claim above — never a migration file, never
+graphify. ⛔ **Never `ANALYZE`** before comparing against the AE0 baselines: this DB has **no
+planner statistics** (`reltuples = -1`), so a cost-only diff is autovacuum, not a finding.
