@@ -2,7 +2,7 @@
 branch: authz-ae1-hardening
 task: AE1 — integrity and privilege hardening (authz evolution)
 adrs: [0155, 0160, 0161, 0162, 0079, 0133, 0152, 0156]
-base_sha: f121c031
+base_sha: 63230a84
 created: 2026-08-27
 updated: 2026-08-27
 status: live
@@ -15,7 +15,7 @@ status: live
 1. `git log --oneline f121c031..HEAD && git status --short`
 2. `docker exec supabase_db_azkbbhskturikxpgmafq psql -U postgres -d postgres -tAc "select max(version), count(*) from supabase_migrations.schema_migrations;"` — expect `20261003005000 | 481` unless someone migrated after this update.
 3. Read **PROGRESS.md § Now**, then **[authz-ae1.md](../progress/authz-ae1.md)** — that file, not this one, is AE1's live record: the task table, the **AMENDED close conditions** (plan audit → ADR 0162), and the FUP obligations.
-4. `npm run typecheck` — **expected: FAIL with exactly the 11 TS2322 errors named in § State**. Anything else is new.
+4. `npm run typecheck` — **expected: exit 0.** (It failed with 11 TS2322 until `63230a84`; see § State. Anything non-zero now is new.)
 
 ⛔ Re-measure before relying on anything below — see § Trust.
 
@@ -80,12 +80,14 @@ All 08-27 unless noted. Commits are on this branch.
 
 ### Not started
 
-- ⛔ **The 11 surviving `typecheck` errors — the doors owner's first task.** All TS2322
-  `string | null` vs generated `string | undefined`/`string`, in `src/lib/users/actions.ts` at
-  748, 749, 788, 793, 999, 1001, 1006, 1009, 1065, 1070, 1297 (measured at `f121c031`). The six
-  old TS2345 door-name errors are **gone** (`gen:types` done); these are the real payload-shape
-  mismatches the lead predicted would "belong to the door call sites". Fix at the call sites
-  (null→undefined coercion) or by revisiting the door arg declarations — the owner's call.
+- ✅ **DONE at `63230a84` — the 11 TS2322 are fixed and AE1.3 is committed.** ⭐ The
+  fix was NEITHER option this handoff offered, and the reason is recorded in
+  [authz-ae1.md](../progress/authz-ae1.md) § "The 11 typecheck errors were TWO classes":
+  8 sites pass `null` to an arg declared `DEFAULT NULL` (`?? undefined` equivalent today),
+  3 pass `null` to an arg with **no default**, where omitting the key leaves PostgREST unable
+  to resolve the overload — **PGRST202 at runtime with `tsc` green**. Ruled (R7): fix the
+  generator's blind spot once at the type seam (`src/lib/types/rpc-args.ts`), keep explicit
+  `null` at every site, leave `database.ts` generated.
 - RV0 revoke partition (`ae1-fk-build`, SQL ready) — the DB is now quiet for it.
 - The RV3 experiment (§ Open questions).
 - AE1.5's findings **merge** (the 43 measured verdicts, changed rows only, no rows for the
@@ -119,7 +121,10 @@ resets in the live record, one owner at a time.
 | `test:db` (post-reset, fresh) | `2448a655` tree | **236 files / 7,855 — PASS** | **0** |
 | `lint` (10 gates) | `f121c031` tree | OK | **0** |
 | vitest (full) | `f121c031` tree | 144 / 1,964 pass | **0** |
-| `typecheck` | `f121c031` tree | **FAIL — the 11 named TS2322** | 2 |
+| `typecheck` | `63230a84` | OK | **0** |
+| `lint` (10 gates) | `63230a84` | OK | **0** |
+| vitest (full) | `63230a84` | 144 / 1,964 pass | **0** |
+| `test:db` (fresh reset, quiet stack) | `63230a84` | **236 files / 7,855 — PASS** | **0** |
 | `ARM=census`/`hat`/`floor`/`wrapper` | AE0 baseline | 564 gates/600 verdicts · 6/6 · 72 · BLIND 41 | 0 |
 
 **AE1.5's diff-scoped sweep — RULED CLOSED at 43 of 52, PARTIAL** (lead, `545fa56e`; detail +
@@ -197,21 +202,24 @@ agent's revert, zero assertion failures; superseded by the quiet-stack **236/7,8
 | Question | Who/what answers it |
 | --- | --- |
 | Does Postgres re-check EXECUTE inside a stored CHECK expression at write time? (5 fns, 8 constraints) | RV3 — one rolled-back txn, throwaway `BYPASSRLS` role. Gates future revokes; does **not** bind the current 233 |
-| The 11 TS2322 fixes: coerce at call sites or change door arg declarations? | AE1.3 owner (small, but touches the approved door surface — note in the live record either way) |
+| ✅ **ANSWERED (R7, `63230a84`)** — neither: both options were wrong. See § State. | — |
 
 ## Next task
 
 **In order:**
 
-1. **AE1.3 owner:** fix the 11 named TS2322 in `users/actions.ts` → `typecheck` exit 0; commit
-   the doors set (migrations + tests + vectors + rules file + ADR-0161 companions), **flipping
-   `ENFORCE_PERSON_AUTHORITY_DOORS` in `scripts/check-memberships-door.mjs` in the SAME
-   change** (gate obligation — the doors are now in the catalog on every reset). Then the
-   **contiguous window**: `reset → 384–388 green → 15-case mutation audit → door sweep →
-   ARM=census green`. ⚠ The door sweep MUTATES; one owner, announce resets. ⛔ **Never kill
-   a running sweep** (`.claude/rules/mutation-harnesses-are-not-killable.md` — a TaskStop
-   left a gate wide open this phase), and **freeze the TREE during one**: adding a file
-   under `supabase/tests/**` invalidates a run as surely as touching the DB.
+1. ✅ **AE1.3 committed at `63230a84`** — typecheck 0, gate flipped in the same change,
+   `reset` + `test:db` **236/7,855 PASS exit 0** on a quiet stack. **The window is OPEN and its
+   remaining steps are the immediate next work**: 15-case mutation audit → 1-case door sweep
+   → `ARM=census` green. Derive the sweep case list with
+   `bash scripts/door-sweep-cases.sh ad6120b1` (`ad6120b1` = `63230a84`'s parent), **never by
+   hand**; its exit 1 is a finding. ⚠ The deriver's paste-able command names only the READ
+   harness — run `p0-authz-writepath-audit.sh` over the same `CASES=` too, or the write half
+   goes silently unmeasured. ⛔ **Never kill a running sweep**
+   (`.claude/rules/mutation-harnesses-are-not-killable.md`), and **freeze the TREE**: adding a
+   file under `supabase/tests/**` invalidates a run as surely as touching the DB. The open
+   window is announced at the top of [authz-ae1.md](../progress/authz-ae1.md) — remove that
+   heading when it closes.
 2. **AE1.5 owner:** merge the **43 measured verdicts** into the findings file (changed rows
    only, **no rows for the 9** — § Gates) + finish the AFTER capture; report in words,
    never as an exit code.

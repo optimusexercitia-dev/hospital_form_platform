@@ -16,7 +16,7 @@ list below is the countermeasure, and it is maintained **as work happens**, not 
 | **AE1.1** FKs | ✅ **built + committed** (`14ad668d`) — both FKs `ON DELETE CASCADE`, pgTAP 383 |
 | **AE1.2** DEFINER classification | ✅ classified (752 functions); ⛔ **all 233 revokes HELD** under RV0 |
 | — RV0 partition | ▶ in flight (`ae1-fk-build`) |
-| **AE1.3** person doors | ▶ built — 6 doors + predicate in the catalog; call sites on `callDoor` (R7); `typecheck` **exit 0**; `ENFORCE_PERSON_AUTHORITY_DOORS` **ON**. Owed: mutation audit, 1-case sweep, `ARM=census` green |
+| **AE1.3** person doors | ✅ **built + gated** (`63230a84`) — 6 doors + predicate; `callDoor` seam (R7); 16/16 KEYSTONE HOLDS; sweep ERROR **ruled**; all four ARM arms exit 0. Owed at phase close: QA, `e2e:prod`, Record |
 | **AE1.4** service-role registry | ✅ **built + committed** (`800ffe2a`) — 45 sites, gate extension **OFF** |
 | **AE1.5** initplan triage | ▶ in flight — red-first observed, BEFORE captured, in its reset window |
 | **AE1.6** zero-policy tables | ✅ **built + committed** (`91455fbd`) — pgTAP 382, 68 assertions |
@@ -257,6 +257,68 @@ Three, all caught by the agents' own controls rather than by review:
   AFTER INSERT audit trigger's own FK catches the same bad value downstream. Only pinning
   the constraint name makes the assertion test the FK under review.
 
+## AE1.3 gate record — 2026-08-27, quiet stack, fresh reset
+
+Tree `63230a84` plus the one merged findings row. Every exit code below was read **directly**,
+never through a pipe.
+
+**Suite baseline:** `db reset` → `test:db` **Files=236, Tests=7855, PASS, exit 0.** Every
+mutation run below compares against that shape.
+
+**Targeted mutation audit** (`ae13-person-doors-mutation-audit.sh`): **16 cases declared, 16
+`KEYSTONE HOLDS`, FINDINGS: 0**, exit 0. Each case asserts the edit LANDED (md5 moved), reds
+under mutation, greens after restore, and restores to the baseline hash EXACTLY. G2 (the guard —
+not an AE1.3 object) came back byte-identical; its header calls a mismatch a stack-level incident.
+⚠ The handoff said "15-case"; the harness declares **16** (15 + G2). Measured, not inherited.
+
+**Diff-scoped door sweep** — case list derived with `scripts/door-sweep-cases.sh ad6120b1`,
+never by hand. ⚠ **The deriver returned 53 cases, not 1.** It includes UNTRACKED migrations, so
+it swept up AE1.5's `…004710` (52 policies) alongside AE1.3's single new gate. Those 52 are
+AE1.5's already-ruled sweep (43/52 PARTIAL, merge pending) — re-running them here would
+re-measure another increment's work and destroy this one's attributability. **AE1.3's own case
+is exactly one: `app.can_administer_person_for`.**
+
+- **READ arm** (`p0-authz-door-audit.sh`), `CASES="can_administer_person_for"`: exit **1 —
+  DIRTY: 0 BLIND, 1 ERROR**, `ARM-DOMAIN predicate=1/112 policy=0/226`. ⚠ The POLICY arm
+  reported **EMPTY DOMAIN — it did not hold, it did not run.** Counted as nothing.
+- **WRITE arm** (`p0-authz-writepath-audit.sh`), same `CASES=`: exit **0, and that exit code
+  means NOTHING here.** It printed `BLIND: 0 ERROR: 0 SKIPPED: 0 (COVERED = the rest)` with
+  **no selection count** — a predicate matches no write-layer case, so the residual was computed
+  over an EMPTY SET. This is the same defect recorded above under "A MANDATED GATE HARNESS
+  REPORTED SUCCESS AT EXIT 0"; it is reported here in words and never as an exit code.
+- **Baseline integrity:** `git diff --stat` on the findings file was empty during the run and
+  the harness cksum-verified it unchanged. The ERROR verdict was merged afterwards as **one
+  changed row (+1/−0)**, never a copy of the subset file (ADR 0079 Amdt 1).
+
+**The ERROR, ruled.** Cause measured, not assumed: neutralizing the whole function to
+`select true` yielded `Files=236 Tests=7848` against the 7855 baseline — **7 assertions stopped
+RUNNING**, a suite aborting rather than failing. 384's plan is a static `plan(55)`, so this is
+not a conditional skip. CLAUDE.md §6 step 1's own remedy for ERROR is *"cover it in the phase's
+mutation audit"*, and cases 10–14 do exactly that by neutralizing this predicate's **individual
+conjuncts** (empty-footprint pin · `ended_on is null` · `voided_at is null` · the D2 tier check ·
+the INTERSECTION↔SUBSET swap) instead of the whole body. Precedent, same cause and class:
+`app.event_current_custodian` → `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE`. ⛔ The harness is
+**not** changed mid-phase — it is a gate component in flight for other phases.
+
+**The deriver's 12-name review list, ruled.** It excluded the six `*_for` doors and six `*_impl`
+kernels as *"the filter cannot tell"* and demanded a ruling on each. Measured in the catalog: the
+six `public.*_for` wrappers are **pure delegators** — 2–4 lines each, every one calls its `_impl`,
+**none** carries an authority call, **none** raises. Authority lives entirely in the six
+`app.*_impl` kernels, and the audit mutates exactly those seven `app` functions (6 kernels + the
+predicate). So all 12 are dispositioned: 6 kernels directly mutation-proven, 6 wrappers hold no
+gate to mutate. ⚠ **Standing consequence:** if an authority check is ever MOVED into a wrapper,
+nothing in this apparatus would mutation-test it.
+
+**The four ARM arms**, post-merge tree: `ARM=census` **0** (INVARIANT HOLDS; **565 live gates
+enumerated** — so not the vacuous zero-gate shape — verdicts 600→601, the differential being
+exactly the merged row) · `ARM=hat` **0** (self-test 6/6; 3 findings, all reasoned-allowlisted) ·
+`ARM=floor` **0** · `FROMFINDINGS=1 ARM=wrapper` **0** (BLIND set 41, every one allowlisted).
+
+⛔ **Domain qualifier, stated (plan rule 2):** the reachable command doors of
+`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2) sit outside **every** arm's domain until that FUP closes.
+"All arms green" here means green *over these arms' domains*, not over the command-door surface —
+and C2's counts are re-derived at the Record step, never quoted from memory.
+
 ## FUP obligations this phase owes — ⛔ file every one at the Record step
 
 ⚠ **A gate-record sentence is not a register entry.** Each of these needs an index line in
@@ -272,6 +334,8 @@ PROGRESS.md **and** a body in `follow-ups.md`.
 | 6 | A dedicated **`reactivateUser` deny arm** — today it shares `authorizePersonScopedAdmin(id,'lifecycle')` with `deactivateUser`, whose deny arm is the only one tested | AE1.4 |
 | 7 | ✅ **RULED 2026-08-27, approved as-is** — registry flipped; obs #1 fixed (`…005000` atomic latches + pgTAP `388`); 3 FUPs **filed same day, index + body** (`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` · `FUP-DOC-RECLASS-OPERATION-ID` · `FUP-DOC-DISPOSAL-PROVENANCE-SPLIT`) — no Record-step debt | AE1.4 |
 | 8 | Shared TS/SQL vectors (R4) **if deferred** — deferral recorded as a line, never a sentence | AE1.3 |
+| 9 | The mutation audit targets the six `app.*_impl` **kernels**; the six `public.*_for` wrappers are pure delegators today (catalog-measured), so **an authority check later MOVED into a wrapper would be mutation-tested by nothing** | AE1.3 gate record |
+| 10 | `scripts/door-sweep-cases.sh` derives over **untracked** migrations too, so in a tree holding two in-flight increments a diff-scoped sweep for one silently selects the other's cases — **53 derived where AE1.3 owned 1**. Correct behaviour, unattributable result; the deriver cannot distinguish 'this increment' from 'this working tree' | AE1.3 gate record |
 
 ## Gate obligations still outstanding
 
