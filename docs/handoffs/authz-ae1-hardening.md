@@ -81,10 +81,16 @@ All 08-27 unless noted. Commits are on this branch.
 
 ### Tree
 
-`base_sha` **`ecd297b1`**, **2 commits unpushed**, working tree **dirty** with four agents'
-in-flight work: 7 modified files, ~17 untracked. `docs/learning/` and
+Re-measured at update: HEAD **`5f0af8b3`**, **2 unpushed**, tree **dirty** — 6 modified,
+19 untracked (agents' in-flight work). `docs/learning/` and
 `scripts/progress-cleanup-2026-08-26.mjs` are **pre-existing untracked and not this
 program's** — leave them.
+
+⚠ **ANOTHER SESSION IS COMMITTING TO THIS BRANCH.** `6c91bfa9` (cap restructure) and
+`5f0af8b3` (plan-audit fold-in + ADR 0162) were not written by the session that authored this
+handoff, and one of them **edited this file**. ⛔ Do not assume you are the only writer:
+`git log` before editing shared docs, and re-measure rather than trusting a clean `git status`
+from a minute ago — a clean status is an instant, not a lease.
 
 ## Gates
 
@@ -95,8 +101,22 @@ program's** — leave them.
 | `test:db` | `14ad668d` | 231 files / 7638 | **0** |
 | `typecheck` | `ecd297b1` | **FAIL** — expected, see § Not started | 2 |
 
+**AE1.5's diff-scoped sweep, 2026-08-27 — ⛔ report it as UNPROVEN, not as a pass:**
+`ARM=policy` measured **30 gates, 30 COVERED, BLIND 0, ERROR 0** — every one re-measured
+against its post-`ALTER` predicate, none inherited. **But the run's verdict is exit 3,
+UNPROVEN (PARTIAL)**: the other **22** cases are INSERT/UPDATE/DELETE policies that matched no
+gate in the read arm. `p0-authz-writepath-audit.sh` is running on the same list. The 52 split
+**31 `USING`-only / 8 `WITH CHECK`-only / 13 both**, which is exactly the 30/22.
+⚠ `case_correction_requests_select` moved **BLIND → COVERED** — a verdict flip that must be
+called out individually at merge, never folded into a count.
+⚠ `ARM=predicate` reported **EMPTY DOMAIN — it did not hold, it did not run**; counted as
+nothing. `out-of-domain-bool=35` is the unclassified-set size, **not** a defect count.
+⛔ **Nothing merged into `docs/reviews/authz-door-audit-findings.md`** — `git diff --stat`
+empty, plus the harness's own cksum confirmation. **Merge only once the combined run is
+not-PARTIAL**, and then changed rows only, never a copy (ADR 0079 Amdt 1).
+
 **Did NOT run:** `e2e:prod` (never, this phase) · QA review · the full ~5 h door sweep ·
-`ARM=policy` diff-scoped over AE1.5's 52 · AE1.3's mutation audit.
+the write-path arm over AE1.5's 22 · AE1.3's mutation audit and its 1-case sweep.
 
 ⛔ **One figure to disregard if you find it:** `test:db` `Files=235, Tests=7444, FAIL`. Eight
 files aborted at `test_helpers.bootstrap()` on `deadlock detected` over
@@ -124,6 +144,13 @@ parallel agent's revert, not a defect. Re-run on a quiet stack.
   InitPlans made no sense.
 - **`pg_stat_user_tables` as a read-frequency instrument** — `n_live_tup = 0` everywhere and
   the top entries were the querying session's own queries.
+- ⚠ **PA-F15 ("AE1.1's two FKs lack supporting indexes") is HALF right — the remedy is ONE
+  index, not two.** Measured: `commission_administrativos` carries exactly one index, the PK on
+  **`(commission_id, user_id)`**. `commission_id` is its **leading** column, so that FK **is**
+  supported and needs nothing. `user_id` is **trailing**, and a btree on a composite does not
+  support lookup by a trailing column alone — so only the `profiles` cascade would seq-scan.
+  (Sibling `memberships` carries both `memberships_principal_idx` and `memberships_commission_idx`,
+  which is the convention.) ⛔ Do not let "two missing indexes" propagate uncorrected.
 - **Three specification errors in the approved door design**, all found by keystones rather
   than review: CPF normalised for the *comparison* but stored verbatim; `cpf` assumed to raise
   `check_violation` from the guard when it actually raises **`42501` from the column grant**
