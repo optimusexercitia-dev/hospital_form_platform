@@ -15,10 +15,10 @@ list below is the countermeasure, and it is maintained **as work happens**, not 
 | --- | --- |
 | **AE1.1** FKs | ✅ **built + committed** (`14ad668d`) — both FKs `ON DELETE CASCADE`, pgTAP 383 |
 | **AE1.2** DEFINER classification | ✅ classified (752 functions); ✅ **tiered threat review DONE** (close #3 — 523 Tier-1 rows, 325 decided mechanically, 198 by class, 4 findings); ⛔ **all 233 revokes HELD** under RV0 |
-| — RV0 partition | ▶ in flight (`ae1-fk-build`) |
+| — RV0 partition | ✅ **DONE 2026-08-27** — 44 property-rescued · 5 name-rescued · **23 HOLD** · 161 UNCHANGED = 233 ✓; batches reproduce 134/43/52/4; GUARD_KEYS 11/11 live; **RV3 answered YES**. ⚠ New: **137 of 233 revokes are a silent no-op as scoped** |
 | **AE1.3** person doors | ✅ **built + gated** (`63230a84`) — 6 doors + predicate; `callDoor` seam (R7); 16/16 KEYSTONE HOLDS; sweep ERROR **ruled**; all four ARM arms exit 0. Owed at phase close: QA, `e2e:prod`, Record |
 | **AE1.4** service-role registry | ✅ **built + committed** (`800ffe2a`) — 45 sites, gate extension **OFF** |
-| **AE1.5** initplan triage | ▶ in flight — red-first observed, BEFORE captured, in its reset window |
+| **AE1.5** initplan triage | ✅ **built + committed** (`40e5c893`) — increment landed, harness snapshot verified (33/33 worklist rows match the catalog, tripwire proven still able to fire); BEFORE `…004620` / AFTER `…004710` both captured (triage doc §6.2). ⚠ Nobody has ruled whether that capture stays representative at `…005300` |
 | **AE1.6** zero-policy tables | ✅ **built + committed** (`91455fbd`) — pgTAP 382, 68 assertions |
 
 ## ⚠ AE1 close conditions AMENDED 2026-08-27 (plan audit → ADR 0162)
@@ -746,3 +746,80 @@ PROGRESS.md **and** a body in `follow-ups.md`.
   1065, 1070, 1297): `string | null` at the door call sites vs the generated
   `string | undefined`. **AE1.3 owner fixes before committing the doors set** — coerce at
   the call sites or revisit the door arg declarations, and record which in this file.
+
+### ✅ RV0 partition + RV3 — DONE 2026-08-27, and the revoke plan does not survive contact with the ACLs
+
+Head `20261003005300`, read-only (⛔ **no revoke was executed; all 233 stay HELD**). Record:
+[authz-ae1-revoke-partition.md](../design/authz-ae1-revoke-partition.md) — §4 now carries the
+executed SQL verbatim, §5 the measured verdicts, §6 RV3's answer with its transcript.
+
+| verdict | n | |
+| --- | ---: | --- |
+| PROCEED (property-rescued) | 44 | rescue survives a rename |
+| PROCEED (name-rescued) | 5 | rescued **only** by `GUARD_KEYS`' 11-name hand list — a rename silently evicts them |
+| **HOLD (blindness created)** | **23** | RV0's target: in ≥1 arm's domain before, in zero after |
+| UNCHANGED (never swept) | 161 | ⛔ **not a clean bill** — zero arms looked at them before or after |
+
+44 + 5 + 23 + 161 = **233 ✓**. Batch sizes re-derived from catalog shape reproduce
+**134/43/52/4** exactly; GUARD_KEYS **11/11 live**, no dead rescue; the 233-row input re-extracted
+with Bash and count-checked three independent ways (the recorded 232-line loss did not reach it).
+
+**The 23 HOLD**: 3 `app` set-returning (`case_phase_option_aggregates`, `eligible_voters`,
+`submitted_form_responses` — they leave `census` clause 1 *and* `policy` rowdoor) + 20 `public`
+leaving `floor`, being 19 trigger bodies and **`set_participant_patient`** (Rule 12 PHI).
+
+⛔ **Batch 1's "lowest-consequence" framing conflates runtime with observability.** True: EXECUTE
+on a trigger function is checked at `CREATE TRIGGER`, not at fire time. False: `ARM=floor` applies
+**no return-type filter**, so 19 trigger bodies are in its domain *today* and the revoke evicts
+every one. A class can be harmless to run and load-bearing to watch.
+
+#### ⛔⛔ 137 of the 233 revokes would report success and change nothing
+
+The premise check found **138** of the 233 reach `authenticated` **via `PUBLIC`**, 137 of them
+with no direct grant at all (`proacl IS NULL` = 137). `has_function_privilege` is true if the
+privilege arrives by **any** route, so `revoke execute … from authenticated` leaves it **true**
+and nothing observable moves — and **no arm would notice**, because the arms would return
+identical verdicts for the honest reason that the privilege never changed.
+
+⛔ **That figure was derived by reading grant routes, which is the exact evidence grade close
+condition #2 of this phase was burned by** — there, `pg_default_acl` "listed no PUBLIC" and read
+as closed while the effective state was open. Re-run by the lead as an **effective probe** inside
+a rolled-back `do $$` block, with a positive control:
+
+| subject | `proacl` | before | after `revoke … from authenticated` |
+| --- | --- | :---: | :---: |
+| `app.can_read_event_patient` | **NULL** | `true` | ⛔ **`true`** |
+| `app.commission_of_case` (control) | explicit | `true` | ✅ `false` |
+
+The control is what makes the first row evidence rather than a stuck-true probe. The ACL the
+revoke *materialised* on the NULL row is the tell — `=X/postgres,postgres=X/postgres`, whose
+**leading `=X/` with an empty grantee IS the surviving PUBLIC grant**. ⚠ And the probe landed on
+`app.can_read_event_patient`, a **Rule 12 PHI read predicate** — the no-op class is not confined
+to inert helpers. Fifth sighting of *a NULL `proacl` includes PUBLIC*.
+
+✅ **All 23 HOLD rows carry a direct grant and no PUBLIC grant, so the revoke is fully effective
+on exactly the rows the verdict is about.** The no-ops concentrate in UNCHANGED (130 of 137).
+
+#### RV3: **YES** — Postgres re-checks EXECUTE at write time inside a stored CHECK
+
+A role lacking EXECUTE on a function referenced in a CHECK expression **cannot write the table at
+all**: `42501 permission denied for function`, not the constraint's `23514`. Proven on both
+language classes (4 of the 5 are `LANGUAGE sql` and could plausibly have differed under
+inlining — they do not), with a **one-variable differential**: deny → `GRANT EXECUTE` → the same
+insert **succeeds** → an invalid value still `23514`, so the CHECK is genuinely evaluated rather
+than skipped. ⚠ §6 states plainly that RV3's exclusion filter **bound nothing here** — its 5
+functions were already absent from the 233, so it was a correct precaution over an empty set, not
+a filter that ran and found nothing.
+
+⭐ **RV3's first attempt produced output at every step and proved nothing**: `postgres` is
+**not superuser** on this stack, so every `SET ROLE` was denied — and the residue checks still
+passed, because a probe that never ran leaves no residue. The same `rolsuper = false` fact that
+the tier-1 threat review found falsifying the classification's "a DEFINER runs as a superuser"
+premise, arriving independently from the other side the same afternoon.
+
+⚠ **Four of eight `file:line` citations in §2 had drifted** (worst: `act-hat-blind-sweep.sh`
+`:189` → `:181-183`, now pointing into an unrelated clause). **Every predicate was unchanged**, so
+no verdict moved — but a citation is an instrument and it rots silently. The `wrapper` row's cited
+line does not contain its cited predicate at all (`run_arm_wrapper()` delegates to
+`p0-authz-invoker-audit.sh`); its conclusion now rests on **measuring** `prosecdef` 233/233 rather
+than on "by construction".

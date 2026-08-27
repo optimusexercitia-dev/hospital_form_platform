@@ -85,11 +85,16 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   **10/10** · `typecheck` **0** · vitest **144/1,964** · all four ARM arms **0** · the 63-case
   diff-scoped sweep re-run and merged (**BLIND 74⇒69, COVERED 296⇒316**; 54 of 63 measured, the 9
   named in the live record) · **`e2e:prod` GATE GREEN** (1249 passed, 0 failed, 3 flaky, 11 skipped;
-  accounted 1263/1263 on the final batch lines). ⛔ **Still owed before Record:** **RV0 partition**
-  (⚠ **PARTIAL, not "not started"** — §§1–4 + 6–7 are built and load-bearing, but **every §5 result is
-  `TBD`**: the SQL has never been run, its text lives only in another session's scratchpad, and the
-  file's own header forbids reusing its `…004400` framing now that 8 migrations have landed) · **QA
-  review** · the Record step itself (⚠ rotate this file — it is over the 82 KB target). ✅ **#3's
+  accounted 1263/1263 on the final batch lines). ⛔ **Still owed before Record: only the QA review**
+  and the Record step itself (⚠ rotate this file — it is over the 82 KB target). ✅ **RV0 + RV3 DONE**
+  2026-08-27 at head `…005300`, read-only, **no revoke executed — all 233 stay HELD**: 44
+  property-rescued · 5 name-rescued · **23 HOLD** · 161 UNCHANGED = 233 ✓; batches reproduce
+  134/43/52/4; GUARD_KEYS 11/11 live; **RV3 = YES**, Postgres re-checks EXECUTE at write time inside
+  a stored CHECK (`42501`, not `23514`), proven on both languages with a one-variable differential.
+  ⛔ **New, and it binds execution: 137 of the 233 revokes are a SILENT NO-OP as scoped** — they reach
+  `authenticated` only via `PUBLIC`, so `revoke … from authenticated` leaves the predicate true and
+  **no arm would notice**; lead re-proved it as an effective probe with a positive control
+  (`FUP-AE1-REVOKE-SET-EXECUTION`). ✅ **#3's
   review DONE** (2026-08-27). ✅ **R2's HMAC deny test DONE** — and the FUP's *inference* was measured
   **false**: `route.test.ts` DOES notice the gate vanish (7/20 red); the gap was **grain**, no
   assertion at the RPC boundary (correction archived with the closed item). ✅ **AE1.5's AFTER capture
@@ -340,6 +345,7 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 ⭐ **FOUR items also carry a [§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list) entry** — `FUP-DM5-DISPOSAL-JOB` (C1), `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2), and — **promoted by the PO 2026-08-19** — `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (C3) + `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (C4). Their lines below stay put; the Critical entry adds a **trigger and a deadline**, it does not replace the index line.
 
 - 🟡 **FUP-E2E-PROF-CREATE-ROSTER-FLAKE** — `ethics-e4-participants.spec.ts:765` PROF-CREATE roster row absent after inline create (:787, 10 s); ONE observation, AE1's `e2e:prod` 2026-08-27, passed on retry. ⛔ NOT admitted to `FUP-E2E-REPEAT-FLAKY` — a different mechanism, and one occurrence is not a pattern; disposition undecided → [body](docs/progress/follow-ups.md) — lead/tester
+- 🟠 **FUP-AE1-REVOKE-SET-EXECUTION** — AE1 classified 233 revokes and executed **none**; the partition is the deliverable (44 property-rescued · 5 name-rescued · **23 HOLD** · 161 UNCHANGED, and ⛔ UNCHANGED is *unexamined*, not cleared). ⛔⛔ **137 of the 233 are a SILENT NO-OP as written** — reachable only via `PUBLIC`, so `revoke … from authenticated` leaves the predicate true and **no arm would notice**; probe `has_function_privilege` after every batch and treat an unmoved predicate as failure. ✅ RV3 = YES: revoking EXECUTE on a **constraint-referenced** function breaks writes to the constrained table (`42501`) → [body](docs/progress/follow-ups.md) — backend/PO
 - 🟡 **FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY** — 31 Tier-1 DEFINER doors raise a distinguishable not-found error BEFORE checking authority; the read bypasses RLS, so it confirms an object exists to a caller with no access (5 are case-module doors). Low severity — a confirmation oracle, not enumeration — but it is the standard AE1.3's doors were held to. Set = BLOCK 6 of `scripts/authz-tier1-threat-review-ae1.sql`, ⛔ never a hand-list. PO-ruled 2026-08-27 out of AE1 → [body](docs/progress/follow-ups.md) — backend/PO
 - 🟠 **FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED** — 62 of 270 mutating Tier-1 DEFINER doors write ~25 child/vocabulary tables that emit NO audit row by either mechanism (no `audit_write` in closure, no `trg_audit_*` on the table) — an Architecture Rule 11 gap. ⭐ The parents are audited, the children are not, and coverage does not flow downward. ⛔ Needs a PO reading of Rule 11's grain (every row, or every aggregate?) BEFORE any trigger is written → [body](docs/progress/follow-ups.md) — backend/PO
 - 🟡 **FUP-DOC-RECLASS-OPERATION-ID** — bind reclassification completion to a DB-minted single-use operation id carrying the (version, new, old, sha) tuple; four loose params today — relational checks bound abuse but don't prove one-invocation provenance (PO obs #2 at the rulings, 2026-08-27) → [body](docs/progress/follow-ups.md) — backend
