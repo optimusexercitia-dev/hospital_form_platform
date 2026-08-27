@@ -187,6 +187,24 @@ production code does**, because production grants get reviewed and a test helper
 own migration header predicted the consequence and understated it (it named only service_role on
 new `app` functions); the header was corrected from the measurement, not the prediction.
 
+### ✅ The writepath worklist update did NOT silence its tripwire — proven, both halves
+
+The phase ruled that regenerating the 13 drifted snapshot lines *"must **prove the tripwire can
+still fire** — otherwise 'update the snapshot' is 'silence the tripwire' wearing maintenance
+clothes."* Discharged 2026-08-27, in two independent directions:
+
+1. **The transformation is correct, not merely its source.** *"Regenerated from the catalog"*
+   describes where the bytes came from, not whether the rewrite was right — this phase's own
+   `⭐ One lesson, not three`. So all **33** worklist entries were diffed against
+   `pg_policies` (whitespace-normalized, exact line match): **0 mismatches**.
+2. **The tripwire still detects drift.** One worklist line (`profiles|profiles_update_self`) was
+   reverted to its pre-wrap spelling, the edit asserted to have LANDED, and a 1-case run made:
+   `ERROR profiles.profiles_update_self (qual drift)`. Harness restored byte-identical
+   (`cmp` clean).
+
+⚠ **And the run confirmed the exit-code defect independently:** the harness printed that ERROR
+and still exited **0**. A second sighting, from a different direction than the one that found it.
+
 ### PA-F15 was wrong twice, and the handoff's correction was right by accident
 
 **2026-08-27 — plan close condition #4, discharged** (`20261003005100`, pgTAP 383 §3, plan 7→10).

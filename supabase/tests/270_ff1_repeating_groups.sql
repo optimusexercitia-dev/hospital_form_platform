@@ -17,7 +17,7 @@
 
 begin;
 
-select plan(53);
+select plan(55);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -671,6 +671,31 @@ select set_config('request.jwt.claims', null, true);
 -- mutation audit's fup_qob1_drop_created_by case, which also shows J1b staying
 -- green under the same deletion — the vacuity claim, demonstrated); dropping or
 -- renaming the policy fails the count closed, no mutation needed.
+-- ⚠ WIDENED 2026-08-27 (AE1.5) — REPRESENTATION ONLY, NOT INTENT.
+-- Migration 20261003004710 hoists `auth.uid()` to an InitPlan across 52 policies,
+-- so this policy's catalog text is now `created_by = ( SELECT auth.uid() AS uid)`.
+-- Same predicate, same value, same behaviour -- `auth.uid()` is STABLE and Var-free,
+-- so the wrapped form is an uncorrelated subquery evaluated once per statement
+-- instead of once per row.  The pin's INTENT ("the created_by term is present in
+-- both halves") is untouched; only its spelling moved, so the matcher accepts both
+-- spellings rather than the pin being weakened or dropped.
+--
+-- ⛔ THE HAZARD OF THIS EDIT, and why the control below is not optional: "accept
+-- both forms" degrades into "accept anything" one careless alternation at a time.
+-- The matcher is defined ONCE, here, and J1c-vac1/vac2 exercise THAT SAME function
+-- against strings it must REJECT.  A pin that cannot fail is worse than the pin it
+-- replaced.
+--
+-- ⚠ Blast radius, measured not guessed: AE1.5's wrap touched 52 policies, and a full
+-- pgTAP run found exactly TWO text pins broken by it -- this one and
+-- 371_offboarded_person_visibility.sql §5.1.
+create or replace function pg_temp.qob1_has_created_by_term(p_expr text)
+returns boolean
+language sql immutable as $$
+  select coalesce(p_expr, '')
+         ~ 'created_by = (auth\.uid\(\)|\( SELECT auth\.uid\(\) AS uid\))';
+$$;
+
 select is(
   (select count(*)::int from pg_policies
     where schemaname = 'public'
@@ -678,10 +703,26 @@ select is(
       and policyname = 'response_group_instances_write_own_draft'
       and cmd = 'ALL'
       and 'authenticated' = any(roles)
-      and coalesce(qual, '')       ~ 'created_by = auth\.uid\(\)'
-      and coalesce(with_check, '') ~ 'created_by = auth\.uid\(\)'),
+      and pg_temp.qob1_has_created_by_term(qual)
+      and pg_temp.qob1_has_created_by_term(with_check)),
   1,
-  'J1c. [FUP-QOB-1 STRUCTURAL PIN — PROVISIONAL] write_own_draft still exists, FOR ALL to authenticated, and carries created_by = auth.uid() in BOTH qual and with_check'
+  'J1c. [FUP-QOB-1 STRUCTURAL PIN — PROVISIONAL] write_own_draft still exists, FOR ALL to authenticated, and carries the created_by = auth.uid() term (either spelling) in BOTH qual and with_check'
+);
+
+-- J1c-vac1/vac2 — the widened matcher is PROVEN able to fail, in both the ways the
+-- original mutation case cared about: the term DELETED (the fup_qob1_drop_created_by
+-- mutation) and the term PRESENT BUT WRONG (a different column, which a lazier
+-- alternation like `~ 'auth\.uid'` would happily accept).
+select ok(
+  not pg_temp.qob1_has_created_by_term(
+        '((app.can_access_targeted_response(response_id, ( SELECT auth.uid() AS uid))))'),
+  'J1c-vac1 ⭐ VACUITY CONTROL: with the created_by term DELETED -- the exact fup_qob1_drop_created_by mutation, in its hoisted spelling -- the matcher REJECTS, so J1c still reds on that mutation'
+);
+
+select ok(
+  not pg_temp.qob1_has_created_by_term(
+        '((updated_by = ( SELECT auth.uid() AS uid)) AND (status = ''in_progress''::text))'),
+  'J1c-vac2 ⭐ VACUITY CONTROL: the term present but on the WRONG COLUMN is REJECTED -- the widening accepts a second spelling of one predicate, not any predicate mentioning auth.uid()'
 );
 
 select test_helpers.claims_for((select st_x2 from k), false);
