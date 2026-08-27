@@ -85,9 +85,17 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   **10/10** · `typecheck` **0** · vitest **144/1,964** · all four ARM arms **0** · the 63-case
   diff-scoped sweep re-run and merged (**BLIND 74⇒69, COVERED 296⇒316**; 54 of 63 measured, the 9
   named in the live record) · **`e2e:prod` GATE GREEN** (1249 passed, 0 failed, 3 flaky, 11 skipped;
-  accounted 1263/1263 on the final batch lines). ⛔ **Still owed before Record:** #3's review · RV0
-  partition · `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` · AE1.5's AFTER capture · **QA review** · the
-  Record step itself (⚠ rotate this file — it is over the 82 KB target).
+  accounted 1263/1263 on the final batch lines). ⛔ **Still owed before Record:** **RV0 partition**
+  (⚠ **PARTIAL, not "not started"** — §§1–4 + 6–7 are built and load-bearing, but **every §5 result is
+  `TBD`**: the SQL has never been run, its text lives only in another session's scratchpad, and the
+  file's own header forbids reusing its `…004400` framing now that 8 migrations have landed) · **QA
+  review** · the Record step itself (⚠ rotate this file — it is over the 82 KB target). ✅ **#3's
+  review DONE** (2026-08-27). ✅ **R2's HMAC deny test DONE** — and the FUP's *inference* was measured
+  **false**: `route.test.ts` DOES notice the gate vanish (7/20 red); the gap was **grain**, no
+  assertion at the RPC boundary (correction archived with the closed item). ✅ **AE1.5's AFTER capture
+  was already DONE** at head `…004710` — the handoff listed it as owed while quoting its results as
+  fact; ⚠ what nobody has ruled is whether it stays representative at `…005300` (3 later migrations,
+  one of them 11 policies) — **not owed by any document, a new decision if wanted**.
   ⛔ **AE1's live record — task state, operational facts, fixture traps, and the FUP obligations it
   owes — is [authz-ae1.md](docs/progress/authz-ae1.md); read it before touching this phase.** Two
   AE0 results still bind: this DB has **NO planner statistics** (⛔ never `ANALYZE` before comparing
@@ -334,7 +342,6 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 - 🟡 **FUP-E2E-PROF-CREATE-ROSTER-FLAKE** — `ethics-e4-participants.spec.ts:765` PROF-CREATE roster row absent after inline create (:787, 10 s); ONE observation, AE1's `e2e:prod` 2026-08-27, passed on retry. ⛔ NOT admitted to `FUP-E2E-REPEAT-FLAKY` — a different mechanism, and one occurrence is not a pattern; disposition undecided → [body](docs/progress/follow-ups.md) — lead/tester
 - 🟡 **FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY** — 31 Tier-1 DEFINER doors raise a distinguishable not-found error BEFORE checking authority; the read bypasses RLS, so it confirms an object exists to a caller with no access (5 are case-module doors). Low severity — a confirmation oracle, not enumeration — but it is the standard AE1.3's doors were held to. Set = BLOCK 6 of `scripts/authz-tier1-threat-review-ae1.sql`, ⛔ never a hand-list. PO-ruled 2026-08-27 out of AE1 → [body](docs/progress/follow-ups.md) — backend/PO
 - 🟠 **FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED** — 62 of 270 mutating Tier-1 DEFINER doors write ~25 child/vocabulary tables that emit NO audit row by either mechanism (no `audit_write` in closure, no `trg_audit_*` on the table) — an Architecture Rule 11 gap. ⭐ The parents are audited, the children are not, and coverage does not flow downward. ⛔ Needs a PO reading of Rule 11's grain (every row, or every aggregate?) BEFORE any trigger is written → [body](docs/progress/follow-ups.md) — backend/PO
-- 🟠 **FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST** — rider R2 of the AE1.4 rpc rulings, a **condition** of the `complete_minutes_job` ruling: `verifyCallbackSignature` at the route is the sole gate and `route.test.ts` mocks the handler out, so no test notices the HMAC vanish. Both directions needed (deny without reaching the RPC; allow reaches it) → [body](docs/progress/follow-ups.md) — backend/tester
 - 🟡 **FUP-DOC-RECLASS-OPERATION-ID** — bind reclassification completion to a DB-minted single-use operation id carrying the (version, new, old, sha) tuple; four loose params today — relational checks bound abuse but don't prove one-invocation provenance (PO obs #2 at the rulings, 2026-08-27) → [body](docs/progress/follow-ups.md) — backend
 - 🟡 **FUP-DOC-DISPOSAL-PROVENANCE-SPLIT** — `complete_document_disposal` serves automated duplicate retirement AND human DSR/manual disposal through one generic door, erasing their different authz/evidence/audit requirements; lane (b) should name the human authority (PO obs #3, 2026-08-27) → [body](docs/progress/follow-ups.md) — backend/PO
 - 🟠 **FUP-AFF4-HOMEORG-PHASE2** — 0151 D10's named Phase 2 (RLS legs + tenant trigger off `home_organization_id`; lifecycle authority over fully-offboarded persons) had **no register line anywhere** — filed 2026-08-26 at ADR 0155's acceptance, which also **promotes it to PRE-PILOT** (was "before multi-org, not pilot-blocking") as implementation Phase 2 → [body](docs/progress/follow-ups.md) — backend/PO

@@ -73,22 +73,6 @@ in [deferred-backlog.md](./deferred-backlog.md).
 > answer decides whether this is ~25 audit triggers plus entity-type and diff decisions, or a
 > documented boundary. Do not write triggers before it is answered.
 
-### 🟠 FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST — rider R2 of the AE1.4 rpc rulings, a CONDITION of the `complete_minutes_job` ruling (owner: backend/tester)
-
-> Filed 2026-08-27 at the [rulings](../design/authz-ae1-rpc-rulings.md) approval. The sole
-> gate in front of `complete_minutes_job` and the webhook's `fail_minutes_job` call is
-> `verifyCallbackSignature` at the route layer — and `route.test.ts` mocks
-> `handleMeetingMinutesCallback` out entirely, so **no test would notice the HMAC check
-> vanish**. A forged callback would plant a fabricated ata draft (content injection), which
-> is why the ruling made this test a condition, not a suggestion.
->
-> Needed, both directions: a route-level test asserting (a) a bad or absent signature is
-> rejected **without** reaching either RPC, and (b) a good signature does reach it — the
-> deny half alone can go green with the route broken open. The RPC-side latch is already
-> pinned (pgTAP 388 §2–3, atomic since migration `20261003005000`); this item is the
-> route half. Until it exists, the ruling's invariant ("sole caller is the HMAC-verified
-> route") is guarded by nothing.
-
 ### 🟡 FUP-DOC-RECLASS-OPERATION-ID — bind reclassification completion to a DB-minted, single-use operation id (owner: backend)
 
 > PO observation #2 at the 2026-08-27 [rulings](../design/authz-ae1-rpc-rulings.md)
