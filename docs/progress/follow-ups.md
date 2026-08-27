@@ -6708,3 +6708,180 @@ register cannot detect, because the register is what they would check.
 > ⚠ **Operational note for whoever maintains the worklist:** it embeds exact predicate text, so
 > **any** future predicate rewrite — even a provably identity one — drifts it. Regenerate those
 > rows **from the live catalog**, never by hand.
+
+### 🟡 FUP-AE1-UNREACHABLE-PUBLIC-DOORS — 11 `public` DEFINER doors `authenticated` can call that nothing in `src/` calls, + 3 no instrument references, + 15 comment-only (owner: backend/PO)
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 2), from **RV4** of
+> [authz-definer-classification-ae1.md](../design/authz-definer-classification-ae1.md), which ruled
+> it *"a finding to file, not to revoke here"* — reachability and privilege are different questions
+> and AE1.2 answered only the second. Full set: that document's **§8, three named buckets**.
+>
+> - **Bucket B (16), of which 11 are `public` doors live to `authenticated`** — pgTAP / E2E /
+>   `scripts` name them; no production path does: `affiliate_person_to_org` · `appoint_hospital_dpo` ·
+>   `archive_ethics_sanction_type` · `assign_ethics_remediation` · `assign_org_admin` ·
+>   `create_ethics_sanction_type` · `open_ethics_external_referral` · `revoke_hospital_dpo` ·
+>   `set_case_narrative_assignment_role` · `set_interview_interviewer_participant` ·
+>   `set_interview_subject_participant`. The other 5 are `app` predicates of the same shape.
+> - **Bucket A (3)** — referenced by **no instrument at all** (`app.case_capabilities`,
+>   `app.commission_of_session`, `app.hospital_of_referral`): the *correct-door-that-nothing-can-reach*
+>   shape.
+> - **Bucket C (15)** — every `src/` occurrence is inside a comment, including 10 superseded per-flag
+>   `*_enabled()` readers, one of whose JSDoc still claims a call its body no longer makes.
+>
+> ⚠ **Unreachable is not over-granted.** Each door's own gate may be correct; what is measured is
+> that the product does not call it. Several bucket-B doors are **tenancy/identity administration**
+> (`assign_org_admin`, `revoke_hospital_dpo`, `affiliate_person_to_org`), so the open question is a
+> **product** one, stated at the classification's §11: *is this an intended surface with no UI yet, or
+> is it dead?* ⛔ Filing it as a revoke candidate would conflate the two questions — RV4's whole point.
+>
+> ⛔ **Do not re-derive the set by hand.** It comes from §4's catalog SQL plus §5's four-tier `src/**`
+> sweep (`rpc` / `code-literal` / `code-word` / `comment-only`, with `src/lib/types/database.ts`
+> excluded because it names every `public` function, which would make everything look called). The
+> comment tier exists because the TypeScript twin of the `prosrc` comment trap **fired here**.
+>
+> **Discharged when** every bucket-B door carries a recorded product verdict — *intended surface
+> (AE4/AE5 owns the caller)* or *dead (drop it, or revoke it and record the arm-domain delta under
+> `FUP-AE1-REVOKE-SET-EXECUTION`'s RV0 rule)* — and buckets A and C are ruled the same way. ⚠ A
+> re-derivation at the then-current head is a precondition: these lists are as-of-2026-08-27 and the
+> file's own header forbids reusing its numbers.
+
+### 🟡 FUP-AUDIT-ACTOR-ID-NULL-ON-SERVICE-DOORS — `actor_id` is NULL on every audit row a service-role door emits (owner: backend/PO)
+
+> Indexed 2026-08-27 at the AE1 Record step (obligation 3). ⛔ **The full record is the backlog entry**
+> — [deferred-backlog.md](./deferred-backlog.md), filed 2026-08-27 under AE1.3 / ADR 0155 R3. This body
+> exists because a backlog item with no index line is invisible to the register the PO reads from (QA
+> finding R3, and QA M3 measured this one as backlog-only). ⚠ Keep it a **pointer**, not a second
+> account: detail belongs in the backlog entry, and the two must not be allowed to drift into two
+> stories.
+>
+> `app.audit_write` derives its actor from `auth.uid()`, which is **NULL on every service-role path**.
+> AE1.3 adds 8 new instances (`person.registered`, `person.fields_updated`, `person.deactivated`,
+> `person.reactivated`, `person.suspended`, `credential.created`, `credential.updated`,
+> `credential.deleted`) to a platform-wide set that already includes `membership.granted`,
+> `form.created` and `affiliation.created`.
+>
+> ⚠ **This is a queryability gap, NOT a Rule 11 attribution loss** — the actor rides in
+> `metadata.actor_user_id`, following the `public.log_cpf_probe_for` precedent, and pgTAP `385` §1.11
+> asserts the null **positively** so it cannot later be misread as lost attribution.
+>
+> ⛔ **Ruled R3: do NOT fix it for these doors only.** A partially-populated `actor_id` is worse for a
+> reader than a uniformly null one, because a query filtering on it silently misses everything else.
+> **Discharged when** the whole-platform shape lands — `app.audit_write_as(p_actor, …)` as an internal
+> helper with no EXECUTE grant — and every service-role emitter routes through it, with pgTAP `385`
+> §1.11 flipped from asserting the null to asserting the actor.
+
+### 🟠 FUP-SERVICE-ROLE-WRITE-SITES-NO-GUARD-VANISH-TEST — 19 of 44 service-role write sites have no test that would notice their guard vanish (owner: backend/tester)
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 4, AE1.4). ⛔ **The obligation table's
+> "26 of 45" is retired here — it does not reproduce.** The registry is **44** rows post-AE1.3, and 26
+> is not derivable from them in either direction.
+>
+> **Re-derived from [`../backend-state.md`](../backend-state.md) § "Service-role DML registry"** by
+> classifying each row's **Test** cell on its LEADING verdict token — the rule the registry's own
+> Summary states — over all 44 `Key`-bearing rows in Groups A–H:
+> **20 `YES` · 5 `PARTIAL` · 15 `NONE` · 4 `UNCONFIRMED` = 44**, which reproduces that Summary exactly.
+>
+> - **19 of 44 (43%) have no test at all** that would notice the mechanism vanish = 15 `NONE` + 4
+>   `UNCONFIRMED`.
+> - **24 of 44 (55%) are not fully covered** once the 5 `PARTIAL` half-gaps are counted.
+> - ⚠ **The live not-fully-covered figure is 22, not 24.** Two of the five `PARTIAL` rows are the
+>   `minutes-jobs/webhook.ts` pair, whose cells now record the route half **LANDED 2026-08-27**
+>   (`src/app/api/webhooks/audio-jobs/route.rpc-boundary.test.ts`, red-first proven) with
+>   `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` closed. They stay `PARTIAL` under the leading-token rule while
+>   being covered in fact, so the Summary prose still reading *"route half `NONE` until … lands"* is
+>   stale against its own rows.
+>
+> ⛔ **`PARTIAL` must never be collapsed into `NONE`.** The registry's own correction paragraph records
+> that doing so silently is what made AE1.4's first tally (`19 / 22 / 4` over 45 rows) irreproducible.
+> A later re-count that reported "20 no-test" repeated exactly that collapse (15 `NONE` + 5 `PARTIAL`),
+> and 20 happens to equal the `YES` count, so the error reads as a coincidence rather than a mistake.
+> State all four tokens, or state none.
+>
+> **Where the 15 `NONE` sit:** 4 Group E role grant/revoke sites (`assignOrgAdmin`,
+> `assignCommitteeRole`, `registerUser` → `grant_role_for`; `removeCommittee` → `revoke_role_for`) · 4
+> Group F storage sites (`documents.reclassifyDocument` ×2, `pdf-mint.mintPrintedDocument` ×2) · 4
+> Group G sign-upload wrappers · 2 Group C `minutes-jobs/reconcile.ts` · 1 Group B `updatePassword`.
+> The 4 `UNCONFIRMED` are one shape — `registerUser`'s shared entry gate, whose denial path was not
+> found in the reported coverage and is **not proven absent**.
+>
+> **Discharged when** every `NONE` and `UNCONFIRMED` row either gains a named test that goes red when
+> its stated mechanism is removed, or carries a recorded ruling that it does not need one — and the
+> tally paragraph is **re-derived from the rows**. ⛔ Never adjust these numbers arithmetically; that
+> is how a direction gets fixed while the magnitude stays wrong.
+
+### 🟡 FUP-REACTIVATE-USER-HAS-NO-DENY-ARM — the reactivate path's authority is proven only by its sibling's deny test (owner: backend/tester)
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 6, AE1.4). `src/lib/users/actions.ts`'s
+> `reactivateUser` calls `authorizePersonScopedAdmin(userId, 'lifecycle')` and then the
+> `set_person_active_for` door — **the identical call** `deactivateUser` makes. The reported coverage
+> names `d14-person-level.test.ts` §1 (allowed) and §6 (org_admin twin) for reactivate; the only
+> exercised **deny** arm is §2, and §2 is written against `deactivateUser`.
+>
+> The registry states the shape in its own words: *"an incidental guard closing a hole the definition
+> predicts, not an independently-proven one"* — the single row of 44 whose leading token is `YES` with
+> a stated caveat.
+>
+> ⚠ **The guard genuinely covers both today**, because they share one call. The gap is that **nothing
+> would notice if they stopped sharing it**: an edit giving `reactivateUser` its own path, or dropping
+> the `personScopeAllows` call from it, is red nowhere.
+>
+> ⛔ **Do not discharge this by asserting the two call sites are identical** — that is the premise, not
+> the test. **Discharged when** `d14-person-level.test.ts` carries a `reactivateUser` deny arm proven
+> by a **differential**: neutralize `reactivateUser`'s own `authorizePersonScopedAdmin` call and the
+> new arm must go red **while §2 stays green in the same run**. An arm that reds only when the shared
+> call is removed is measuring the sibling, not this site.
+
+### 🟡 FUP-MUTATION-AUDIT-BLIND-TO-THE-DOOR-WRAPPERS — the AE1.3 audit mutates the six `app.*_impl` kernels and nothing mutates a `public.*_for` body (owner: backend)
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 9, AE1.3 gate record).
+> `supabase/tests/mutation/ae13-person-doors-mutation-audit.sh` targets **kernels only** —
+> `app.update_person_fields_impl` · `set_person_active_impl` · `suspend_person_impl` ·
+> `finalize_invited_person_impl` · `upsert_credential_impl` · `delete_credential_impl`. The one wrapper
+> it touches at all, `public.set_person_active_for`, it touches by **`proacl`** (the G1 ACL guard),
+> never by body.
+>
+> Measured 2026-08-27: `supabase/tests/385_person_doors_authority_and_audit.sql` and
+> `386_person_doors_acl_and_guard.sql` contain **zero** occurrences of `prosrc`, `pg_get_functiondef`
+> or `md5(` — neither pins any function body, wrapper or kernel — and no mutation case anywhere mutates
+> a `*_for` body.
+>
+> ⚠ **The wrappers are pure delegators TODAY** (catalog-measured at AE1.3), and while that holds the
+> blind spot costs nothing. It goes live the moment a wrapper stops delegating: an authority check
+> **moved into** a wrapper is mutation-tested by nothing, and so is a wrapper that grows its own
+> duplicate check or reimplements equivalent behaviour inline. A kernel-only audit stays green through
+> all three.
+>
+> ⛔ **A body-text pin alone is the wrong fix** — it reds on every harmless rewrite and gets deleted.
+> **Discharged when** either (a) a pgTAP assertion pins the *delegation property* — each
+> `public.*_for` body makes exactly one call and it is its kernel — so a wrapper that grows logic reds,
+> or (b) the mutation harness gains a wrapper arm per door, red-first proven. Whichever lands must fail
+> when a check is **MOVED** from kernel to wrapper, not merely when text changes.
+
+### 🟠 FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE — a diff-scoped sweep for one increment silently selects another increment's cases (owner: backend/lead)
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 10, AE1.3 gate record).
+>
+> ⛔ **Not covered by `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED`.** That item shares the number **53** but
+> its four parts are different findings (the deriver names one arm for a two-arm list · arm 2 exits 0
+> over an empty set · 9 policies fall in neither arm's domain · a killed run leaves a policy wide open).
+> Distinct too from `FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION`, which is about what the deriver
+> **matches**; this is about what it **selects over**.
+>
+> `scripts/door-sweep-cases.sh` builds its file set from three sources: the committed range
+> `git diff --name-only "$BASE".."$TIP"`, the **working tree** `git diff --name-only HEAD`, and
+> **untracked** `git ls-files --others --exclude-standard`. ⚠ The last two are deliberate and
+> **correct** — the migration under review is normally uncommitted or untracked or both, so a
+> committed-range-only recipe sees nothing during the phase it exists to gate; the script's own header
+> carries that ⛔ note.
+>
+> ⚠ **The defect is unattributability, not incorrectness.** In a tree holding two in-flight increments
+> the deriver cannot distinguish *"this increment"* from *"this working tree"*, and reports the union
+> as the diff. Measured at AE1.3: **53 cases derived where AE1.3 owned 1** — a figure that reads as
+> broad coverage of AE1.3 and is nothing of the sort. The Phase Gate records the sweep **against the
+> phase**, an attribution the deriver cannot support.
+>
+> ⛔ **Removing the working-tree and untracked sources is NOT the fix** — that reintroduces exactly the
+> blindness the header's note was written to prevent. **Discharged when** the deriver either takes an
+> explicit scope (a migration-id floor or path prefix, so a run states *which* increment it swept) or
+> prints per-file provenance — committed-range vs working-tree vs untracked — so a 53-case derivation
+> can never again be recorded as one increment's coverage.

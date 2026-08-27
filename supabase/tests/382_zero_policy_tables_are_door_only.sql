@@ -65,7 +65,7 @@
 -- positionally).
 
 begin;
-select plan(71);
+select plan(72);
 
 -- ============================================================================
 -- SS A - RLS layer: relrowsecurity = true AND zero pg_policies rows, all 7 tables.
@@ -333,6 +333,29 @@ select is(
   0,
   '5.3: all 11 normalized policies on the 6 affected tables are exactly {authenticated} — '
   'not merely "no longer public", which a TO anon policy would also satisfy');
+
+-- ============================================================================
+-- SS A0 - SET CLOSURE. Everything above pins SEVEN NAMED tables. Nothing asserted
+-- that those seven ARE the zero-policy set, so an EIGHTH such table could enter
+-- silently while all 71 assertions stayed green - which is the exact shape AE1.6
+-- claims to prevent ("an accidental future policy or grant reds a test instead of
+-- silently widening") and the 'hand list wearing a label' shape ADR 0156 was written
+-- about. Added 2026-08-27, QA finding m1.
+--
+-- Derived as a PROPERTY, compared against the declared list. A new zero-policy table
+-- reds here; so does a table LEAVING the set (it would gain a policy, which A/B also
+-- catch, but this pins the membership itself).
+-- ============================================================================
+
+select is(
+  (select string_agg(c.relname, ',' order by c.relname)
+     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity
+      and not exists (select 1 from pg_policy p where p.polrelid = c.oid)),
+  'case_print_revisions,meeting_closed_session_item_readers,meeting_closed_session_items,'
+  'patient_identifiers,patient_participants,referral_patient,verification_lookups',
+  'A0: the DERIVED zero-policy set equals the seven this file declares - an eighth such '
+  'table must red here rather than enter unasserted');
 
 select * from finish();
 rollback;

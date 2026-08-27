@@ -767,7 +767,7 @@ arm — both require `proretset` **and** `authenticated` EXECUTE):
 
 | function | class | returns |
 | --- | --- | --- |
-| `app.case_phase_option_aggregates(p_case_phase_id uuid)` | internal helper | `SETOF record` |
+| `app.case_phase_option_aggregates(p_case_phase_id uuid)` | internal helper | `TABLE(total_score numeric, flagged_options integer)` ⚠ recorded as `SETOF record` until 2026-08-27 (QA m6); `proretset = t` either way, so the HOLD verdict is unaffected — but a cell citing the catalog must say what the catalog says |
 | `app.eligible_voters(p_case_id uuid)` | internal helper | `SETOF uuid` |
 | `app.submitted_form_responses(p_form_id uuid)` | internal helper | `SETOF responses` |
 
@@ -970,12 +970,21 @@ should not have been left at reading grade. Executed by the lead **2026-08-27**,
 `20261003005300`, inside a `do $$` block **rolled back by a deliberate raise** (residue
 re-measured after: 320 `app` DEFINERs still `authenticated`-executable, unchanged):
 
-| subject | `proacl` | before | after `revoke execute … from authenticated` |
-| --- | --- | :---: | :---: |
-| `app.can_read_event_patient` | **NULL** (built-in default) | `true` | ⛔ **`true`** — the revoke did nothing |
-| `app.commission_of_case` (**positive control**) | explicit | `true` | ✅ `false` |
+| subject | in the 233? | `proacl` | before | after `revoke execute … from authenticated` |
+| --- | --- | --- | :---: | :---: |
+| **`app.guard_case_tag_assignment`** (trigger body, class `n`) | ✅ **YES** | **NULL** | `true` | ⛔ **`true`** — the revoke did nothing |
+| `app.can_read_event_patient` | ⛔ **no** — classification row 53, verdict **`y`** | **NULL** | `true` | ⛔ **`true`** |
+| `app.commission_of_case` (**positive control**) | ⛔ no | explicit | `true` | ✅ `false` |
 
-The control is what makes the first row evidence: without it, a `true` after the revoke is
+⛔ **The first version of this table had only the middle row, and that was a real gap** (QA finding
+m6): `app.can_read_event_patient` is classified **`y` — EXECUTE needed — so it is NOT one of the
+233**. It demonstrates the *mechanism* and says nothing about the *population*, which is precisely
+the grain error this document exists to avoid elsewhere. Re-run 2026-08-27 on
+`app.guard_case_tag_assignment`, which **is** a member (it appears in this file's own HOLD/UNCHANGED
+derivation and at classification §12 with verdict `n`): same result. The finding now rests on a
+member.
+
+The control is what makes those rows evidence: without it, a `true` after the revoke is
 equally consistent with a probe that is stuck-true. And the ACL the revoke *materialised* on the
 NULL-proacl function is the tell — `=X/postgres,postgres=X/postgres`, where **the leading `=X/`
 with an empty grantee IS the surviving `PUBLIC` grant**. Postgres wrote the default out

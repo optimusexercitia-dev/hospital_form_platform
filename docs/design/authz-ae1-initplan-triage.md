@@ -614,6 +614,30 @@ nothing after the fix, and the emptiness reads as success.**
 established practice in this codebase, which is corroboration for the identity argument rather
 than a novelty introduced here.)*
 
+### 6.2.2 Does the AFTER capture stay representative at `…005300`? Yes — and the overlap is one policy
+
+**Answered 2026-08-27** (QA finding m5), because "nobody has ruled either way" was itself the gap:
+the capture is at head `…004710` and three migrations have landed since, so the question is real.
+
+Measured rather than assumed: of `…005100` (an index on `commission_administrativos`), `…005200`
+(the `TO public` normalization) and `…005300` (`ALTER DEFAULT PRIVILEGES`), **only `…005200` touches
+any of the 29 captured tables** — and it touches **`case_referral`**, which is not merely one of the
+29 but carries **`case_referral_delete_draft_source`, one of the 52 policies `…004710` wrapped**. So
+the overlap is at the *same policy*, not merely the same table.
+
+Two facts bound it, both catalog-measured:
+
+1. `ALTER POLICY … TO authenticated` changes `polroles` and **cannot change `qual`** — and the
+   policy still carries AE1.5's wrap today (`qual ~ '\( SELECT auth.uid\(\)'` → **true**,
+   `roles = {authenticated}`, `cmd = DELETE`).
+2. It is a **DELETE** policy, so it was already in §6.3's no-read-plan class: there is no read plan
+   for it to move.
+
+⇒ **No plan-shape movement is expected, and the other 28 tables are untouched by `…005200`/`…005300`.**
+⚠ Stated as what it is: an **inference from two measured facts**, not a re-capture. Plan §AE1.5
+step 3 makes the plan diff *"the acceptance evidence"*, so if a re-capture is ever wanted this is the
+one table that would need it.
+
 ### 6.3 Hot-subset tables — shape capture
 
 `explain (costs off)` over all **29** hot-subset tables under one fixed persona

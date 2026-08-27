@@ -713,19 +713,21 @@ PROGRESS.md **and** a body in `follow-ups.md`.
 | 1 | ✅ **FILED** — `FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY`; measured census says the `ALL`-is-also-a-read-policy class is **26 tables, not 2** | AE1.5 |
 | 2 | The **11 unreachable `public` doors** `authenticated` can call that nothing in `src/` calls, + 3 `app` functions no instrument references, + 15 whose only `src/` occurrence is a comment | RV4 |
 | 3 | The platform-wide **`actor_id` = null** audit gap; these doors are new instances, not the cause | R3 |
-| 4 | **26 of 45** service-role write sites have **no test that would notice their guard vanish** — concentrated in the 33 sites outside the plan's "12 raw-DML" framing | AE1.4 |
+| 4 | ✅ **FILED** — `FUP-SERVICE-ROLE-WRITE-SITES-NO-GUARD-VANISH-TEST`. ⛔ **The figure was wrong and so was QA's correction of it.** Recorded here as *"26 of 45"*; QA said 24 (*"20 no-test + 4 UNCONFIRMED"*). Re-derived over the registry's 44 rows by the leading-verdict-token rule the registry itself declares: **20 `YES` · 5 `PARTIAL` · 15 `NONE` · 4 `UNCONFIRMED` = 44** — so **19** have no test at all, **24** are not fully covered, and **22** is the live figure (two `PARTIAL` rows are the webhook pair, now covered in fact). ⭐ QA's split collapsed `PARTIAL` into `NONE`, which is **exactly the error the registry's own correction paragraph records AE1.4 making**, and it reads as coincidence because 20 is also the `YES` count | AE1.4 |
 | 5 | **`app.is_admin()` hoisting** for `organizations` (evaluated **twice per row**) + 24 further tables, from the 26-table census | AE1.5 |
 | 6 | A dedicated **`reactivateUser` deny arm** — today it shares `authorizePersonScopedAdmin(id,'lifecycle')` with `deactivateUser`, whose deny arm is the only one tested | AE1.4 |
-| 7 | ✅ **RULED 2026-08-27, approved as-is** — registry flipped; obs #1 fixed (`…005000` atomic latches + pgTAP `388`); 3 FUPs **filed same day, index + body** (`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` · `FUP-DOC-RECLASS-OPERATION-ID` · `FUP-DOC-DISPOSAL-PROVENANCE-SPLIT`) — no Record-step debt | AE1.4 |
-| 8 | Shared TS/SQL vectors (R4) **if deferred** — deferral recorded as a line, never a sentence | AE1.3 |
+| 7 | ✅ **RULED 2026-08-27, approved as-is** — registry flipped; obs #1 fixed (`…005000` atomic latches + pgTAP `388`); **3 FUPs filed the same day**, of which **2 are live with index + body** (`FUP-DOC-RECLASS-OPERATION-ID` · `FUP-DOC-DISPOSAL-PROVENANCE-SPLIT`) and **1 was filed AND resolved the same day** (`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` → `follow-ups-archive.md`; route half landed). ⚠ So *"index + body"* is **not** verifiable for all three from the live register — by design, not by omission. No Record-step debt | AE1.4 |
+| 8 | ✅ **NOT OWED — discharged by delivery, not deferred.** R4's shared vectors landed: `person-scope-vectors.json` → `scripts/gen-person-scope-vectors.mjs` → `supabase/tests/vectors/person_scope_vectors.psql`, drift-blocked by a `sourceSha256` over the JSON's exact bytes (asserted in `person-scope-vectors.test.ts`), consumed by pgTAP `384` §9 which `\ir`s the vectors under a cardinality control (≥ 32 rows, all 4 capabilities) so an empty list cannot pass having asserted nothing. ⚠ Stated positively because **a conditional obligation left ambiguous reads as unfiled** | AE1.3 |
 | 9 | The mutation audit targets the six `app.*_impl` **kernels**; the six `public.*_for` wrappers are pure delegators today (catalog-measured), so **an authority check later MOVED into a wrapper would be mutation-tested by nothing** | AE1.3 gate record |
 | 10 | `scripts/door-sweep-cases.sh` derives over **untracked** migrations too, so in a tree holding two in-flight increments a diff-scoped sweep for one silently selects the other's cases — **53 derived where AE1.3 owned 1**. Correct behaviour, unattributable result; the deriver cannot distinguish 'this increment' from 'this working tree' | AE1.3 gate record |
 
 ## Gate obligations still outstanding
 
-- `ENFORCE_PERSON_AUTHORITY_DOORS` in `scripts/check-memberships-door.mjs` is **`false`**.
-  ⛔ Flip it **in the same change that lands AE1.3's six doors**, never before — the doors
-  must exist in the catalog or `npm run lint` reds for everyone.
+- ✅ **DONE — `ENFORCE_PERSON_AUTHORITY_DOORS` is `true`** (`check-memberships-door.mjs:61`),
+  flipped in the same change that landed the six doors, and `lint:memberships-door` is green with
+  `profiles` + `professional_credentials` in `GATED_TABLES`. ⛔ **This bullet still read
+  "is `false`" on 2026-08-27, after the flag had been flipped** (QA finding M2) — an obligation
+  list is exactly where a discharged item hides, because nothing reds when it goes stale.
 - **Re-derive** `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`'s counts at the Record step. ⛔ Never
   increment them by hand.
 - Name the **ARM**, never the script, in the gate record (§6 step 5).
@@ -740,12 +742,12 @@ PROGRESS.md **and** a body in `follow-ups.md`.
 - The gate's diff-scoped sweep derivation will see `…005000` touching two `prosecdef`
   **non-boolean** command doors: `door-sweep-cases.sh` likely derives ZERO boolean gates
   from it and **exits 1 — a finding to rule on, never a pass** (plan rule 1).
-- ✅ **`gen:types` DONE 2026-08-27** (`f121c031`, fresh-reset catalog, zero pgtap
-  pollution) — the six TS2345 door-name errors are gone. ⛔ **11 real TS2322 errors
-  remain** in `src/lib/users/actions.ts` (748, 749, 788, 793, 999, 1001, 1006, 1009,
-  1065, 1070, 1297): `string | null` at the door call sites vs the generated
-  `string | undefined`. **AE1.3 owner fixes before committing the doors set** — coerce at
-  the call sites or revisit the door arg declarations, and record which in this file.
+- ✅ **`gen:types` DONE 2026-08-27** (`f121c031`, fresh-reset catalog, zero pgtap pollution) —
+  the six TS2345 door-name errors are gone. ✅ **And the 11 TS2322 errors are RESOLVED**, by the
+  R7 ruling: `callDoor()` in `src/lib/types/rpc-args.ts` widens the generated arg type to admit an
+  explicit `null` at the type seam, so `database.ts` stays generated (Rule 8) and no call site
+  coerces. `npm run typecheck` is **exit 0**, re-verified 2026-08-27. ⛔ **This bullet still listed
+  all 11 line numbers as outstanding** after they were fixed (QA finding M2).
 
 ### ✅ RV0 partition + RV3 — DONE 2026-08-27, and the revoke plan does not survive contact with the ACLs
 
@@ -835,7 +837,7 @@ verdicts nor the suite-shape baseline the mutation harnesses key on can have gon
 
 | gate | question it answers | result | exit |
 | --- | --- | --- | ---: |
-| `npm run test:db` (on a fresh `db reset`) | — | **237 files / 7,870 — PASS** | **0** |
+| `npm run test:db` (on a fresh `db reset`) | — | **237 files / 7,871 — PASS** | **0** | ⚠ was 7,870; +1 from m1's set-closure assertion, see below
 | `npm run lint` (ten gates) | — | OK | **0** |
 | `npm run typecheck` | — | OK | **0** |
 | `npm run test` (vitest) | — | **145 files / 1,974 passed** | **0** |
@@ -988,6 +990,34 @@ lead call**, because it changes what Gate AE1 asserts. ⚠ Whichever way it goes
 "each door enters every ARM domain" is **unachievable as stated for a non-client-reachable door**
 and should say so, or the next phase inherits an item nothing can satisfy.
 
+**⚖ PO-RULED 2026-08-27 — option (a), reworded.** Gate AE1 item 3 and plan rule 4 both rewritten in
+`docs/plans/authz-evolution.md` (rules block item 4; the AE1.3 bullet restating it; the Gate AE1
+clause). What changed, and why each clause is there:
+
+- **Rule 4 no longer asserts a universal.** It now reads "every sibling arm **whose domain its own
+  shape puts it in**", derived per function from the catalog, and states the C2 shape's exclusion
+  from `floor`/`wrapper`/`census`/`policy` as a **construction fact** — while keeping ⛔ *absence of
+  a verdict here IS absence of coverage*, so the exclusion cannot be re-read as an all-clear. It
+  had been contradicting **rule 2**, which already carried the C2 carve-out; the two now agree.
+- **The discharge is named, not left implied**: authority decision into a `bool` `can_`-named `app`
+  predicate (census/policy sweep it), door as thin `*_for` wrapper over an `app.*_impl` VOLATILE
+  kernel (ADR 0156 gate sweeps both), `ARM=hat` over all of them, compensating controls **per
+  door**, and any `ERROR` ruled against a control **that itself carries verdicts** — which is the
+  precise clause the old ruling failed: the census ERROR leaned on the mutation audit while the
+  audit was losing two verdicts to the same abort-vs-fail defect.
+- **The `REVOKE` interaction is now in the rule** (`…classification-ae1.md` §RV0): dropping
+  `authenticated` EXECUTE moves a door *out* of `floor`'s domain into the F-F blind shape, so
+  AE1.2-style hardening must partition by **post-revoke** domain membership first.
+- **Gate AE1 item 3** now requires the coverage this door class can actually have, and names the
+  count correction (F-D: nine **conversions** across **six** doors). ⚠ It is **still not met** —
+  deliberately: it now turns on the AE1.3 mutation audit reaching **16/16 with run shapes**, which
+  is **B1**'s open work. The item went from *unsatisfiable* to *unsatisfied*, which is the point.
+
+⛔ **Not done here, and not claimable:** no arm, sweep, or audit was re-run for this ruling — it is a
+wording change against the already-measured catalog at head `20261003005300`. `docs/reviews/authz-ae1-review.md`
+is the QA teammate's artifact and was **not** edited; B3 closes when the Record step cites this
+ruling. The residue B3 named — census ERROR unproven, audit at 14/16 — is unchanged by it.
+
 ### The CLAUDE.md rotation — what the eleventh gate cost, and what the scoping gave up
 
 **2026-08-27, PO-approved.** `lint:service-role-registry` made CLAUDE.md §8's *"`npm run lint` is
@@ -1023,3 +1053,26 @@ plausible-looking citation and a permanently dead one.
 ⛔ **And I piped `npm run lint` through `tail` and read `$?`** — the pipe's status, not the gate's —
 printing `LINT EXIT=0` beside two `✗` findings. **Fourth sighting of that class today**, this one
 self-inflicted while writing up the other three.
+
+### ⚠ The suite shape moved to 7,871 — what that does and does not invalidate
+
+**2026-08-27, closing out QA's minor findings.** m1 added one assertion to pgTAP `382` (the
+zero-policy set-closure check), taking the suite from **237 files / 7,870** to **237 / 7,871**.
+Recorded explicitly because a suite-shape change is the thing this phase learned to treat as a
+baseline event:
+
+- ⛔ **It does NOT retroactively change the 63-case sweep verdicts.** Those were earned in one
+  contiguous run whose harness captured its own baseline (`Files=237, Tests=7870`) before mutating.
+  A verdict earned against a baseline stays valid *for that run*.
+- ⛔ **It DOES mean the next sweep re-baselines at 7,871**, and that pre- and post-change verdicts
+  must never be merged into one table — the exact error this phase already made once ("AE1.5's 43
+  measured verdicts were earned on a baseline that no longer exists").
+- ⚠ **It also invalidates QA's stated re-review shortcut.** The review says *"I do not need the
+  full gate re-run — no migration, policy or pgTAP file needs to move for any of the above"*; m1 is
+  QA's own finding and moving a pgTAP file is exactly what it asks for. `test:db` was re-run:
+  **237 / 7,871, PASS, exit 0.** No migration or policy moved, so the sweep's other premise holds.
+
+⭐ **A0 was proven able to fail before its green was accepted**, which is the whole reason to add
+it: create an eighth RLS-enabled zero-policy table → `Result: FAIL`; drop it → `Result: PASS`. And
+it **failed rather than aborted** (72 tests in both runs), which is the kind of red that means an
+assertion evaluated and disagreed.

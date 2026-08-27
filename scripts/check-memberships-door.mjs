@@ -113,18 +113,37 @@ const GATED_TABLES = new Map([
 ])
 
 /** Files permitted to hold raw DML, each with a recorded reason. */
-const ALLOWLIST = new Map([
-  [
-    'src/lib/auth/actions.ts',
-    'updatePassword clears profiles.must_change_password on the CALLER’S OWN row ' +
+// SITE-scoped, never FILE-scoped. The earlier shape was `Map<relPath, reason>` checked as
+// `if (ALLOWLIST.has(rel)) continue`, which skipped the WHOLE FILE - so any future raw
+// `profiles` / `professional_credentials` DML anywhere in `src/lib/auth/actions.ts` would have
+// passed silently. This script's own docstring argues against exactly that ("allowlisting the
+// file would grant it blanket permission for REAL raw DML, which is strictly more than the
+// problem asks for") and then did it; corrected 2026-08-27 (QA finding m2). The plan asked for
+// a "named allowlist entry for the self-scoped must_change_password SITE" - a site.
+//
+// A site is (file, table, verb) PLUS a marker that must appear in the statement window. The
+// marker is what makes it a site: a different raw write to the same table in the same file does
+// not carry it, and reds.
+const ALLOWLIST = [
+  {
+    rel: 'src/lib/auth/actions.ts',
+    table: 'profiles',
+    verb: 'update',
+    marker: 'must_change_password',
+    reason:
+      'updatePassword clears profiles.must_change_password on the CALLER OWN row ' +
       "(`.eq('id', user.id)` where user.id comes from `supabase.auth.getUser()` on the " +
-      'SAME request) — self-scoped by construction, not an admin-on-another-person write. ' +
+      'SAME request) - self-scoped by construction, not an admin-on-another-person write. ' +
       'AE1.3 (ADR 0155 Phase AE1) deliberately excludes this site from door conversion: ' +
-      '"converting it adds a door with no second principal." Only takes effect once ' +
-      'ENFORCE_PERSON_AUTHORITY_DOORS above is flipped true and `profiles` enters ' +
-      'GATED_TABLES — inert allowlisting of an already-ungated table today.',
-  ],
-])
+      '"converting it adds a door with no second principal." LIVE, not inert: ' +
+      'ENFORCE_PERSON_AUTHORITY_DOORS is now true and `profiles` is in GATED_TABLES, so this ' +
+      'entry is the only thing keeping the site green.',
+  },
+]
+
+/** Window a marker must appear in: the `.from(` match onward. Bounded on purpose - a
+ *  whole-file search would re-create the file scope this replaced. */
+const SITE_WINDOW = 400
 
 function walk(dir, out = []) {
   for (const entry of readdirSync(dir)) {
@@ -215,7 +234,6 @@ const violations = []
 for (const dir of SCAN_DIRS) {
   for (const file of walk(join(ROOT, dir))) {
     const rel = relative(ROOT, file).replace(/\\/g, '/')
-    if (ALLOWLIST.has(rel)) continue
     // Comments blanked first — see `blankComments`: the gate must not match prose
     // about the very code it gates.
     const src = blankComments(readFileSync(file, 'utf8'))
@@ -238,6 +256,16 @@ for (const dir of SCAN_DIRS) {
       if (!DML_VERBS.includes(next[1])) continue
 
       const line = src.slice(0, m.index).split('\n').length
+      // Site-scoped exemption: the marker must appear in THIS statement's window.
+      const win = src.slice(m.index, m.index + SITE_WINDOW)
+      if (
+        ALLOWLIST.some(
+          (a) =>
+            a.rel === rel && a.table === m[1] && a.verb === next[1] && win.includes(a.marker),
+        )
+      )
+        continue
+
       violations.push({ rel, line, table: m[1], verb: next[1] })
     }
   }
