@@ -70,6 +70,18 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   them **constants** — the dangerous kind, because they are *usually right*. No conclusion was wrong;
   the confidence was. **Read the plan before quoting any gate figure from this build**, and never
   believe a counting instrument's zero until it has been run once against a known failure.
+- **📐 ADR 0155 ACCEPTED (as amended) 2026-08-26 — the post-AFF4 authorization-evolution program is
+  the plan of record; ⛔ NOTHING IS BUILDING under it.** Role/permission catalog adopted via
+  role-by-role **direct substitution** (`staff_admin` first — reverses the draft's own rejection);
+  **pilot gate = implementation Phases 0–4**, Phase 5 (remaining roles) post-pilot; D4 →
+  `profile_private_details`, single-shot pre-live; D5 demoted; D6 stays deferred with broadened
+  triggers; 0151 D10's Phase 2 promoted to pre-pilot and **finally registered**
+  (`FUP-AFF4-HOMEORG-PHASE2`). Eleven PO decisions recorded as G1–G11 in the ADR — the approval's
+  scope is written there, not remembered. Authority: ADR
+  [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) (decisions) +
+  the [audit](docs/design/authorization-model-evolution-audit-2026-08-26.md) (phase detail).
+  ⚠ **C1a keeps its queue position (G10)** — Phases 0–1 may run in parallel with the ▶ queue below
+  but do not preempt it.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -247,6 +259,7 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-26 | **ADR 0155 ACCEPTED as amended — authz evolution is a staged program**: role/permission catalog by role-by-role direct substitution (`staff_admin` first); D4 = `profile_private_details` single-shot pre-live; D5 demoted; D6 stays deferred; pilot gate = Phases 0–4; PO decisions G1–G11 in the ADR | ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) — **amends 0151 D10** |
 | 2026-08-26 | **An invariant backstop runs as DEFINER** — the discriminator is *does it read caller identity?*, not *is it a trigger?* Closes `BUG-D5-REHIRE-HOSPADMIN-001` | ADR [0159](docs/decisions/0159-invariant-backstops-run-as-definer.md) — **amends 0151 D4** |
 | 2026-08-26 | **The hospital directory keeps its predicate** — `listHospitalUsers` does NOT move; filtering it would blank the page for the only role it serves. Toggle absent there; T2 org-scoped | ADR [0158](docs/decisions/0158-hospital-directory-keeps-its-predicate.md) — **amends 0154 D1** |
 | 2026-08-26 | **The dominance grid's population was bounded by SCHEMA, not the property** — 19 doors, incl. `grant_role`/`revoke_role`, adjudicated by nothing for three weeks. Blind, not vulnerable | ADR [0157](docs/decisions/0157-dominance-grid-population-bounded-by-schema.md) — **amends 0079** |
@@ -302,6 +315,7 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 
 ⭐ **FOUR items also carry a [§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list) entry** — `FUP-DM5-DISPOSAL-JOB` (C1), `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2), and — **promoted by the PO 2026-08-19** — `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (C3) + `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (C4). Their lines below stay put; the Critical entry adds a **trigger and a deadline**, it does not replace the index line.
 
+- 🟠 **FUP-AFF4-HOMEORG-PHASE2** — 0151 D10's named Phase 2 (RLS legs + tenant trigger off `home_organization_id`; lifecycle authority over fully-offboarded persons) had **no register line anywhere** — filed 2026-08-26 at ADR 0155's acceptance, which also **promotes it to PRE-PILOT** (was "before multi-org, not pilot-blocking") as implementation Phase 2 → [body](docs/progress/follow-ups.md) — backend/PO
 - 🔴 **FUP-MEETING-CASES-SELECT-OMITS-RECUSAL** — the SELECT policy hand-rolls a weaker predicate than its three siblings and inherits **no recusal deny**; the table carries case `summary`/`decision`. Predicate measured TRUE for a recused user, but the seed cannot reach the state — **latent, not demonstrated**. PO rules it before any fix → [body](docs/progress/follow-ups.md) — backend/PO
 - 🔴 **FUP-ETHICS-CASE-DELETE-CASCADE** — a commission `staff_admin` can `DELETE /rest/v1/cases` an **in-flight** ethics case, cascading all **7** `ethics_*` tables; the lane's deliberate SELECT-only lockdown (9 tables, 14 DEFINER writers, **no DELETE in any**) is defeated by a parent that was never locked down — same JWT gets **403** on `ethics_case_details`, **200** on `cases`. `guard_case_status` bars DELETE only for `completed`/`cancelled`. ⛔ **3** audit rows emitted, **0** naming any ethics entity (no `ethics_*` table has an audit trigger). Confirmed by execution, rolled back. **PO-ruled RECORD-ONLY 2026-08-21** — accepted and OPEN — backend/PO
 - 🟠 **FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE** — `redact_professional_profile` erases the accused doctor from an **undecided** ethics case: the `HC0J7` bar needs an `issued` decision and `trg_pin_respondent_retention` fires only on the transition **into** `issued`, so both halves are false all through intake/findings/hearings. Executed by a plain commission `staff_admin`. ⚠ **No UI calls it — that is not the control**; the RPC is `EXECUTE`-granted to `authenticated` and answers over PostgREST. Existing pgTAP `257` + E2E pin only the **pinned** case, so nothing is red. **PO-ruled RECORD-ONLY 2026-08-21** — backend/PO

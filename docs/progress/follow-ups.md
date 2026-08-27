@@ -6132,3 +6132,29 @@ outside its domain for the same reason. The blindness is **measurement-domain**,
 **Fix shape:** the deriver must grep `alter function … security definer` the way it now greps
 `alter policy`, and resolve the altered function's return type from the **live catalog** rather than
 from the migration text it cannot parse.
+
+### 🟠 FUP-AFF4-HOMEORG-PHASE2 — 0151 D10's named Phase 2 had **no register line anywhere**; filed and promoted to PRE-PILOT at ADR 0155's acceptance (owner: backend/PO)
+
+**Filed 2026-08-26.** AFF4 separated affiliation from authorization, but ADR 0151 **D10** kept every
+existing RLS leg and the tenant containment trigger on `profiles.home_organization_id` — demoted,
+not dropped — and named "Phase 2" (migrating those legs + the trigger off the column) as a
+follow-on. Measured at ADR 0155's re-analysis: that follow-on existed **only as ADR prose plus
+echoes** (0154 D2, the AFF4 plan §"B4 boundary", `aff4.md`) — no `FUP-*` id, no index line,
+invisible to the register the PO reads from. This item is that line.
+
+**What must happen** (ADR
+[0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) **D8** —
+implementation Phase 2, **pre-pilot**; the promotion from 0151 D10's *"before multi-org, not
+pilot-blocking"* is the one clause 0155 amends):
+
+1. Migrate every remaining visibility/containment decision (the RLS legs + the tenant trigger) off
+   `home_organization_id` onto the affiliation substrate.
+2. **Explicitly re-answer lifecycle authority over fully-offboarded persons** — 0151 D10's open
+   question, unchanged by 0155; until answered it resolves through `home_organization_id`.
+3. Shadow old/new person-visibility decisions and **block every unexplained WIDENING** (the 0154
+   boundary-filter rule: narrowing can be wrong and safe; widening cannot).
+4. Demote or remove the column only after a caller inventory.
+
+**Why pre-pilot:** 0155 D7's catalog work must not seed permission matrices against a containment
+anchor scheduled to disappear. Exit gate: affiliations are the only employment/belonging source,
+and they still grant no capabilities (D3's ARCHITECTURE.md rule lands in the same increment).
