@@ -148,7 +148,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 | 18 | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
 | 19 | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) ([plan](docs/plans/deliberations.md)) | ADR PROPOSED — NOT ratified; nothing built and nothing may start | – | – | – | ⛔ **not ratified** | – | taken |
-| AE1 | **Authz evolution — integrity & privilege hardening** ([plan](docs/plans/authz-evolution.md) · ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D9) | 🔵 building 2026-08-26 — first AE phase that writes migrations; branch `authz-ae1-hardening` | AE1.6 ✅ (382) · AE1.1 ✅ **BUILT** (both FKs CASCADE + 383) · AE1.2 classified 752 fns, **233 revokes HELD** (RV0: a revoke may not create sweep blindness) · AE1.3 **approved R0–R6**. ⛔ In flight: AE1.3, AE1.4 (**45 sites, not 12**), AE1.5 | – | – | – | – | – |
+| AE1 | **Authz evolution — integrity & privilege hardening** ([plan](docs/plans/authz-evolution.md) · ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D9) | 🔵 building 2026-08-26 — **all 6 tasks + all 6 close conditions BUILT**; only QA review + Record remain; branch `authz-ae1-hardening` | AE1.1–.6 all ✅ · **233 revokes HELD**, partitioned (**23 HOLD**) · detail + every figure: [authz-ae1.md](docs/progress/authz-ae1.md) | – | – | – | – | – |
 
 ## Bug Log
 
