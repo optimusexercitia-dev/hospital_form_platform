@@ -41,8 +41,9 @@ mergeable increments but **does not close** until:
 3. the DEFINER review runs **tiered** (Tier 1 threat columns for the remotely reachable
    surface; Tier 2 classification + grants for `app`-schema) and the budget gains a
    ceiling + merge rule [PA-F11] — this binds RV0's held revokes too;
-4. supporting indexes for AE1.1's two FKs verified via `pg_index` and asserted (follow-up
-   migration — AE1.1 already shipped at `14ad668d`) [PA-F15];
+4. ✅ **DONE** — ONE index (`user_id`), `20261003005100` + pgTAP 383 §3; PA-F15's cascade
+   premise measured FALSE and the third FK (`appointed_by`) ruled out. See § "PA-F15 was
+   wrong twice";
 5. named-flake baseline entries carry **error fingerprints** + owner/expiry [PA-F16];
 6. the six `TO public` process-template policies (AE0 F-AE0-4) normalized or explicitly
    ruled.
@@ -92,6 +93,44 @@ So handing it 52 cases and receiving `13 COVERED, exit 0` reads as coverage of 5
 reason the gap was ever visible is that the **sibling** arm prints
 `REQUESTED CASES THAT MATCHED NO GATE` and refuses to end CLEAN.
 
+### PA-F15 was wrong twice, and the handoff's correction was right by accident
+
+**2026-08-27 — plan close condition #4, discharged** (`20261003005100`, pgTAP 383 §3, plan 7→10).
+
+PA-F15: *"AE1.1's two FKs lack supporting indexes"* → a `profiles` cascade full-scans the table.
+The handoff halved it: *"the remedy is ONE index, not two"* — `commission_id` leads the PK
+`(commission_id, user_id)` and is supported; `user_id` is trailing and is not.
+
+⛔ **Measured, and the cascade premise does not hold for EITHER column.** A `profiles` row can
+never be deleted, by two independent barriers: `guard_profile_no_delete_trg` (BEFORE DELETE,
+`tgenabled='O'`, raising *"profiles are never deleted; deactivate via is_active"*) and
+`profiles_id_fkey -> auth.users(id) ON DELETE RESTRICT`, which refuses the upstream delete rather
+than cascading in. So the `user_id` CASCADE cannot fire, and neither can the RI check behind the
+**third** FK, `appointed_by` — which both PA-F15 and the handoff missed, having counted only the
+two FKs AE1.1 added.
+
+✅ **The `user_id` index is still warranted, on completely different evidence:**
+`commission_administrativos_select`'s qual ends `... OR (user_id = ( SELECT auth.uid() ))` — a
+self-read filtering by `user_id` with no `commission_id`, exactly what a trailing PK column
+cannot serve, evaluated on every non-admin read.
+
+⛔ **`appointed_by` gets NO index**: nothing filters by it (swept `pg_policies`, comment-stripped
+`prosrc` over app/public, and `src/`), and its RI check is unreachable. ⚠ The sibling convention
+`memberships_granted_by_idx` argues for one and was **not** followed — a convention is evidence
+about habits, not about this table's access paths.
+
+⭐ **The shape worth keeping.** The handoff reached the right column through a premise that is
+false; had `commission_id` been the trailing one, the same reasoning would have produced the
+wrong index and every later reader would have inherited a confident, measured-sounding sentence.
+*A conclusion that survives its premise being wrong has not been verified — it has been lucky.*
+This is why pgTAP 383 §3.3 pins the delete guard **next to** the conclusion depending on it: drop
+the guard and the cascade premise becomes live again, and the suite says so instead of the index
+comment quietly going stale.
+
+**Red-first, both directions:** with the index absent, 383 §3.1/§3.2 FAILED (8–9 of 10) while
+§3.3 passed on a real fact; after the migration, **10/10 PASS**. ⚠ Suite shape is now
+**236 files / 7,858 tests** — any sweep baseline captured before this is one more world out of date.
+
 ### ⚖ RULING 2026-08-27 — AE1.5's sweep closes at 43 of 52, recorded as PARTIAL
 
 The **9** unmeasured policies sit outside **both** arms' domains — a **pre-existing apparatus
@@ -107,6 +146,10 @@ would have said 52.
 
 ⚠ **The lead's earlier merge condition was UNMEETABLE and is corrected:** "merge only once the
 combined run is not-PARTIAL" cannot be satisfied while the 9 are unmeasurable by either arm.
+⛔ **AND SEE § "43 measured verdicts, ready to merge" BELOW BEFORE ACTING ON THIS**: those
+measurements were taken against `Files=235, Tests=7793`, a baseline superseded by the
+normalizing reset. The merge contract here is sound; the *inputs* to it are not yet.
+
 **Revised: merge the verdicts actually MEASURED — changed rows only, never a copy (ADR 0079
 Amdt 1). The 9 gain NO rows**, not even a placeholder; a findings file with no row for a case is
 the honest representation of "not measured".

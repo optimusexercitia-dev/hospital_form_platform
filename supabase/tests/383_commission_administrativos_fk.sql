@@ -23,7 +23,7 @@
 --      correctly-formed appointment.
 
 begin;
-select plan(7);
+select plan(10);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -109,6 +109,39 @@ select throws_ok(
   '23503',
   'insert or update on table "commission_administrativos" violates foreign key constraint "commission_administrativos_user_id_fkey"',
   '2.3: an orphaned user_id is rejected — 23503 AND the user_id FK by name');
+
+
+-- ── §3 SUPPORTING INDEX (plan close condition #4 / PA-F15) ────────────────────
+-- ⚠ §3.3 is not decoration. The index below is justified by the RLS self-read leg,
+-- NOT by cascade support, and the reason cascade support is moot is that a `profiles`
+-- row can never be deleted. If that guard is ever dropped, the cascade premise becomes
+-- live again and this table's index story must be re-derived — so the guard is pinned
+-- HERE, next to the conclusion that depends on it, rather than left implicit.
+
+select ok(
+  exists (select 1 from pg_index x
+            join pg_class i on i.oid = x.indexrelid
+           where i.relname = 'commission_administrativos_user_idx'),
+  '3.1: commission_administrativos_user_idx exists');
+
+select is(
+  (select a.attname
+     from pg_index x
+     join pg_class i on i.oid = x.indexrelid
+     join pg_attribute a on a.attrelid = x.indrelid and a.attnum = x.indkey[0]
+    where i.relname = 'commission_administrativos_user_idx'),
+  'user_id',
+  '3.2: its LEADING column is user_id — a composite starting elsewhere would not serve '
+  'the policy''s user_id-only self-read, so presence alone is not the property');
+
+select ok(
+  exists (select 1 from pg_trigger t
+           where t.tgrelid = 'public.profiles'::regclass
+             and t.tgname = 'guard_profile_no_delete_trg'
+             and not t.tgisinternal
+             and (t.tgtype::int & 8) > 0),
+  '3.3: profiles still carries its BEFORE DELETE guard — the fact that makes the '
+  'user_id CASCADE unreachable and the cascade-support argument moot');
 
 select * from finish();
 rollback;
