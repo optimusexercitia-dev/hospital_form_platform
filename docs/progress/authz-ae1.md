@@ -278,6 +278,59 @@ comment quietly going stale.
 §3.3 passed on a real fact; after the migration, **10/10 PASS**. ⚠ Suite shape is now
 **236 files / 7,858 tests** — any sweep baseline captured before this is one more world out of date.
 
+### ✅ RESOLVED — the 63-case re-run replaced the stale verdicts, and coverage IMPROVED
+
+**2026-08-27, quiet stack, one contiguous window (15:49 → 17:02 UTC).** The stale-baseline
+problem recorded below is closed by re-measurement, not by a ruling accepting inheritance.
+
+**Scope.** Cases derived by `scripts/door-sweep-cases.sh f99cdd5d` (AE1's migration base) — never
+by hand — over all **9** AE1 migrations: **63 cases**, up from AE1.5's 52 because AE1.3's
+predicate and close condition #6's 11 normalized policies are in the same phase.
+
+| arm | domain | result | exit |
+| --- | --- | --- | ---: |
+| read (`p0-authz-door-audit.sh`) | `predicate=1/112 policy=40/226` | **SWEPT 41 · COVERED 40 · BLIND 0 · ERROR 1** | 1 |
+| write (`p0-authz-writepath-audit.sh`) | — | **COVERED 13 · BLIND 0 · ERROR 0 · SKIPPED 0** | 0 |
+
+⛔ **The write arm's exit 0 still means nothing by itself** — same `(COVERED = the rest)` summary
+with no selection count. What makes this run different from the one that measured NOTHING is that
+it *emitted 13 verdicts*; the count of verdicts, never the exit code, is the discriminator.
+
+**Baseline integrity:** `git diff --stat` empty during the run and cksum-verified by the harness;
+`degenerate_NON_SELECT = 0` afterwards, so no gate was left open.
+
+#### 54 of 63 measured — and the 9 are NAMED, not counted
+
+`answers_insert_targeted` · `answers_update_targeted` · `case_events_staff_admin_delete` ·
+`case_events_staff_admin_insert` · `case_events_staff_admin_update` · `case_events_writer_delete` ·
+`case_events_writer_insert` · `case_events_writer_update` · `responses_update_targeted`
+
+⭐ **These are the SAME 9 the earlier ruling named, arrived at independently on a fresh baseline
+and a wider case set.** That is the useful part: it confirms the gap is **structural** (the C2
+apparatus family — outside *both* arms' domains) rather than an artefact of one run.
+
+#### The merge — changed rows only, and the differential was predicted before it was written
+
+37 updated in place · 15 added · 2 unchanged. Predicted BLIND −5 / COVERED +20; measured
+**BLIND 74 → 69** and **COVERED 296 → 316**. ⛔ Never a copy of the subset file over the baseline
+(ADR 0079 Amdt 1).
+
+**FIVE verdicts flipped BLIND → COVERED — individually, never as a count:**
+`case_correction_requests_select` · `case_reopenings_select` · `case_tag_assignments_select` ·
+`commission_administrativo_capabilities_select` · `professional_participants_select`.
+
+⭐ All five are held by **`387_initplan_wrap_and_profiles_arm_identity.sql`** — AE1.5's own new
+suite. So this phase did not merely re-measure existing coverage, it **created** it: five gates
+that no keystone noticed opening now have one. The handoff anticipated exactly one of these.
+
+⚠ **Two of them are held by 387 ALONE** (`case_tag_assignments_select`,
+`commission_administrativo_capabilities_select`) — their COVERED status has a single point of
+failure, and editing 387 reverts them to BLIND with nothing else to catch it.
+
+**All four arms after the merge:** `ARM=census` **0** (565 live gates, 601 verdicts) ·
+`FROMFINDINGS=1 ARM=wrapper` **0** (BLIND 41, all allowlisted) · `ARM=hat` **0** · `ARM=floor`
+**0**. ⛔ Domain qualifier unchanged: C2's command doors remain outside every arm.
+
 ### ⚖ RULING 2026-08-27 — AE1.5's sweep closes at 43 of 52, recorded as PARTIAL
 
 The **9** unmeasured policies sit outside **both** arms' domains — a **pre-existing apparatus
