@@ -79,7 +79,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   (`FUP-AFF4-HOMEORG-PHASE2`). Eleven PO decisions recorded as G1–G11 in the ADR — the approval's
   scope is written there, not remembered. Authority: ADR
   [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) (decisions) +
-  the [audit](docs/design/authorization-model-evolution-audit-2026-08-26.md) (phase detail).
+  the [plan](docs/plans/authz-evolution.md) (execution — phases **AE0–AE7**, gates, PO decision
+  points) + the [audit](docs/design/authorization-model-evolution-audit-2026-08-26.md) (analysis).
   ⚠ **C1a keeps its queue position (G10)** — Phases 0–1 may run in parallel with the ▶ queue below
   but do not preempt it.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
