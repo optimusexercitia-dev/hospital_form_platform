@@ -486,6 +486,34 @@ widening this pin exists to catch.
   "everything is denied" file would be unfalsifiable — this makes a red here trustworthy as
   a real regression.
 
+## Privilege budget — `authenticated`-executable DEFINER count (AE1.2; ADR 0155 D9; PA-F11)
+
+**A recorded number with neither a ceiling nor a merge rule is inventory, not a budget** — so
+both are stated here, not left to the gate record to imply.
+
+| line | value | derived |
+| --- | ---: | --- |
+| DEFINER functions in `app` + `public` | **843** | ADR 0160 D3 — quote 843, never the audit's 842 |
+| …of which **`authenticated` may EXECUTE** — **the budget** | **752** | `public` **432** + `app` **320** |
+| **Tier 1** — remotely reachable (PostgREST-exposed schema) | **432** | `config.toml` `schemas = ["public","graphql_public"]`; `app` is NOT exposed |
+| **Tier 2** — `app` schema (`anon` holds no USAGE) | **320** | boundary = `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` |
+| proposed revoke set | **233** | ⛔ **all HELD** under RV0; AE1 executes none |
+
+**CEILING: 752.** **MERGE RULE:** no increment may raise the count without a **named justification
+in its own gate record**, and **the ceiling moves only by PO ruling**.
+
+⚠ **Re-derive, never quote.** The figures above were catalog-measured 2026-08-27 at head
+`20261003004300` and are re-derived at each Record step. Two changes since are believed not to
+move the count and must be **confirmed** rather than assumed: AE1.3's six doors grant
+`service_role` only (so they should not enter the `authenticated` population), and
+`20261003005300`'s default-privilege revoke governs **future** objects only.
+
+⭐ **Why the ceiling is the interesting half.** The count falls only by a revoke, and every revoke
+is currently HELD; it rises silently, one convenient `grant execute … to authenticated` at a time,
+each individually defensible. The ceiling is what makes the aggregate a decision instead of a
+by-product. ⛔ And a revoke may not create sweep blindness — revoking `authenticated` EXECUTE
+removes a function from `ARM=floor`'s domain (RV0's load-bearing ruling).
+
 ## Service-role DML registry (AE1.4; ADR 0155 Phase AE1; measured 2026-08-27)
 
 _Every call site in `src/` that issues a write (or a write-adjacent authorization act) through

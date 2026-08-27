@@ -39,9 +39,11 @@ mergeable increments but **does not close** until:
    AE1.2's `ALTER DEFAULT PRIVILEGES` uses the **global `FOR ROLE <creator>` form** with
    positive effective-ACL probes (`has_function_privilege` + `pg_default_acl`) — the
    `IN SCHEMA` form is a documented no-op against the built-in PUBLIC default [PA-F4];
-3. the DEFINER review runs **tiered** (Tier 1 threat columns for the remotely reachable
-   surface; Tier 2 classification + grants for `app`-schema) and the budget gains a
-   ceiling + merge rule [PA-F11] — this binds RV0's held revokes too;
+3. ◐ **HALF DONE, and the other half is NOT a small item — see § "close condition #3 is an
+   order of magnitude larger"**. ✅ The budget's **ceiling (752) + merge rule** are written
+   (`backend-state.md` § Privilege budget). ⛔ The **tiered threat review** is outstanding:
+   Tier 1 is **432** functions, and PA-F11 asks 10 threat columns per row plus individual
+   justification for each public command door (**384** in the population);
 4. ✅ **DONE** — ONE index (`user_id`), `20261003005100` + pgTAP 383 §3; PA-F15's cascade
    premise measured FALSE and the third FK (`appointed_by`) ruled out. See § "PA-F15 was
    wrong twice";
@@ -207,6 +209,36 @@ clothes."* Discharged 2026-08-27, in two independent directions:
 
 ⚠ **And the run confirmed the exit-code defect independently:** the harness printed that ERROR
 and still exited **0**. A second sighting, from a different direction than the one that found it.
+
+### ⛔ Close condition #3 is an order of magnitude larger than the list it was filed in
+
+**2026-08-27, measured before starting it.** The handoff groups #3 with genuinely small items:
+*"the ONE `user_id` index (+pgTAP) · ADP global-form + probes · tiered-review columns over the
+752 classification · flake fingerprints · the `TO public` ruling · R2 HMAC deny test."* Five of
+those are a session's work between them. This one is not, and the sizing is checkable:
+
+| | | source |
+| --- | ---: | --- |
+| Tier 1 — remotely reachable | **432** | `config.toml` exposes `["public","graphql_public"]`; `app` is not exposed |
+| Tier 2 — `app` schema | **320** | same boundary |
+| command doors in the population | **384** | classification §6.1 (372 + 12 multi-class) |
+
+PA-F11 asks Tier 1 for **ten** threat columns per row — owning role + `BYPASSRLS` effect ·
+PostgREST exposure · caller-identity binding · arbitrary-principal parameters ·
+authority-before-existence ordering · overload/default-argument reach · dynamic SQL +
+`search_path` · output minimization & enumeration · audit emission · exact grants — **and that
+public command doors be individually justified**. That is a security review over ~432 rows, not a
+documentation pass.
+
+✅ **What was completed instead, because it is bounded and was the half that actually bites:** the
+budget's **ceiling and merge rule**. A count without them is inventory; the count falls only by a
+revoke (all 233 HELD) and rises silently one defensible `grant execute` at a time, so the ceiling
+is what makes the aggregate a decision rather than a by-product.
+
+⚠ **Stated rather than absorbed.** The honest failure mode here is a shallow pass that fills 432
+rows thinly and reports #3 as met — after which the phase record says a threat review happened.
+AE1 does not close on this item until it is scoped and run, or the PO narrows it (e.g. to the
+command-door subset, or to the doors an increment actually touches).
 
 ### PA-F15 was wrong twice, and the handoff's correction was right by accident
 
