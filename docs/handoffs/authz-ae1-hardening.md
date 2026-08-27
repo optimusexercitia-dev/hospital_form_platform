@@ -13,7 +13,7 @@ status: live
 ## ▶ RESUME HERE
 
 1. `git log --oneline f121c031..HEAD && git status --short`
-2. `docker exec supabase_db_azkbbhskturikxpgmafq psql -U postgres -d postgres -tAc "select max(version), count(*) from supabase_migrations.schema_migrations;"` — expect `20261003005000 | 481` unless someone migrated after this update.
+2. `docker exec supabase_db_azkbbhskturikxpgmafq psql -U postgres -d postgres -tAc "select max(version), count(*) from supabase_migrations.schema_migrations;"` — expect `20261003005300 | 484` unless someone migrated after this update, and `ls supabase/migrations/*.sql | wc -l` must equal that count (registry closure).
 3. Read **PROGRESS.md § Now**, then **[authz-ae1.md](../progress/authz-ae1.md)** — that file, not this one, is AE1's live record: the task table, the **AMENDED close conditions** (plan audit → ADR 0162), and the FUP obligations.
 4. `npm run typecheck` and `npm run lint` — **both expected exit 0** at `120478bf`. Anything else is new.
 
@@ -62,32 +62,66 @@ Everything below was measured on **this** tree by the session that wrote it, on 
 | **`e2e:prod` GATE GREEN** — 1249 passed · 0 failed · 3 flaky · 11 skipped · 21 batches; accounted **1263/1263** on the final batch lines | `120478bf`; 17:28→18:37 UTC |
 | `test:db` · `lint` · `typecheck` · vitest | **237 files / 7,870 PASS exit 0** · **10/10 exit 0** · **0** · 144 / 1,964 exit 0 |
 | Registry closure | `max(version)=20261003005300`, **484 registered == 484 on disk** |
+| **Close #3 — the tiered threat review**: instrument + review, 523 Tier-1 rows (⛔ **not 432**), 325 decided mechanically / 198 by class, 4 findings, 2 FUPs filed | `scripts/authz-tier1-threat-review-ae1.sql` re-run clean, exit 0, 0 errors; the C3×C4 result re-derived by two independent edge instruments agreeing exactly |
+| **R2 HMAC deny test** — 10 tests at the RPC boundary, both directions | red-first re-verified by the lead, not inherited: gate neutralized → **7 failed / 3 passed** (3 = the positive controls), restored → **30 passed** across both files, `route.ts` diff empty |
 
 ### Not started / still owed
 
-- ⛔ **Close condition #3's TIERED THREAT REVIEW — sized, not done, and it is NOT a small item.**
-  Tier 1 = **432** functions (`config.toml` exposes `public`+`graphql_public`; `app` is not),
-  Tier 2 = 320, and the population holds **384** command doors. PA-F11 asks ten threat columns
-  per Tier 1 row **plus individual justification for every public command door**. Its bounded
-  half (budget ceiling + merge rule) IS done. ⚠ The failure mode to avoid is a shallow pass that
-  fills 432 rows thinly and reports #3 as met. Needs a scoped run or a PO narrowing.
-- **RV0 revoke partition** (`docs/design/authz-ae1-revoke-partition.md`, uncommitted). All **233**
-  revokes remain HELD; AE1 executes none.
-- **`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`** (R2, a condition of the `complete_minutes_job` ruling).
-- AE1.5's **AFTER capture** (the `EXPLAIN` re-baseline for the wrapped tables).
-- The RV3 experiment (§ Open questions).
+⛔ **This section was WRONG on two of its five items on 2026-08-27, and wrong in the direction
+that costs a session** — it listed as "not started" work that was finished, while quoting that
+same work's results as established fact elsewhere in this file. Both were caught by checking the
+documents instead of this list. Re-derive before believing any line below.
+
+- **RV0 revoke partition** (`docs/design/authz-ae1-revoke-partition.md`, still **untracked**).
+  ⚠ **PARTIAL, not "not started"** — §§1–3 (bucket definitions, arm-domain predicates verified
+  against the harness scripts by file:line, batch derivation), §6's method and §7 are complete
+  and load-bearing. But **§4 is a `PASTE-SQL-MARKER` and every §5 result is `TBD`: the SQL has
+  never been run.** Its text lives only in *another session's* scratchpad (`7ccbaac1…`), which is
+  a single point of loss, and the file's own header forbids reusing its `…004400` framing now
+  that 8 migrations have landed. All **233** revokes remain HELD; AE1 executes none.
+- The **RV3** experiment (§ Open questions) — §6's `Answer:` is `TBD`. Gates *future* revokes;
+  §6 already establishes it filtered nothing in the current 233, so do not report it as having.
 - **QA review · Record step** — the only §6 gate steps left. (`e2e:prod` is DONE and GREEN;
   see § Gates. ⚠ It surfaced a THIRD flake, filed as `FUP-E2E-PROF-CREATE-ROSTER-FLAKE` and
   deliberately not admitted to the named baseline — disposition undecided.)
+
+**✅ Cleared 2026-08-27, and each is a correction to what this section used to say:**
+
+- **Close condition #3's tiered threat review — DONE**, scoped by PO ruling rather than
+  narrowed: `scripts/authz-tier1-threat-review-ae1.sql` +
+  [tier-1 threat review](../design/authz-ae1-tier1-threat-review.md). ⛔ **Tier 1 is 523, not
+  the 432 this section quoted** — the 432 was its DEFINER subset and dropped the 90 `public`
+  INVOKER functions, i.e. the ADR 0079 Amendment 7 class. 325/523 decided mechanically,
+  198 reviewed by class; 4 findings, 2 filed as FUPs, 4 columns measured to zero.
+- **`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` — DONE and closed** (`route.rpc-boundary.test.ts`,
+  red-first proven and independently re-verified). ⛔ And the FUP's *inference* was measured
+  **false**: `route.test.ts` DOES notice the gate vanish (7/20 red). The gap was **grain** — no
+  assertion at the RPC boundary the ruling's invariant is stated over. Correction archived
+  with the closed item.
+- **AE1.5's AFTER capture — was ALREADY DONE** at head `…004710`
+  (`docs/design/authz-ae1-initplan-triage.md` §6.2, with populated BEFORE/AFTER tables). This
+  section listed it as owed while § Dead ends **quoted its results** ("652 → 650 buffers") and
+  recorded a defect only discoverable by having run it. ⚠ What no document rules either way:
+  whether that capture stays representative at `…005300`, three migrations later, one of them
+  touching 11 policies. **Not owed — a new decision if anyone wants it.**
 - ⚠ At Record: rotate PROGRESS.md (85 KB vs the 82 KB target), re-derive
   `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`'s counts (never increment by hand), re-check C1a still heads
   the ▶ queue (rule G10), and file the FUP obligations table in `authz-ae1.md`.
 
 ### Tree
 
-HEAD **`120478bf`**, **13 unpushed**, working tree otherwise clean except three untracked items:
-`docs/design/authz-ae1-revoke-partition.md` (RV0's, not started) and — pre-existing, **not this
-program's, leave them** — `docs/learning/` and `scripts/progress-cleanup-2026-08-26.mjs`.
+⛔ **The head sha and the unpushed count are deliberately NOT written here** — a figure written
+inside the commit that contains it is off by one by construction, and this file's previous pair
+was stale within the hour (`.claude/rules/live-facts-measure-dont-quote.md`). Measure:
+
+```bash
+git rev-parse --short HEAD; git rev-list --count origin/authz-ae1-hardening..HEAD; git status --short
+```
+
+**Branch is unpushed as of 2026-08-27** and the working tree carries three untracked items:
+`docs/design/authz-ae1-revoke-partition.md` (RV0's — **PARTIAL**, see § Not started) and —
+pre-existing, **not this program's, leave them** — `docs/learning/` and
+`scripts/progress-cleanup-2026-08-26.mjs`.
 
 ⚠ Other sessions have committed to this branch historically; they were paused for this stretch and
 the DB was owned throughout. **The successor inherits DB ownership.**
@@ -126,8 +160,10 @@ closes. Counts re-derived at Record, never quoted.
    `app.can_administer_person_for` neutralization limit, ruled and merged. **0 BLIND is the number
    that matters.**
 
-**Did NOT run:** QA review · the full ~5 h door sweep · the RV3
-experiment · AE1.5's AFTER capture.
+**Did NOT run:** QA review · the full ~5 h door sweep · the RV3 experiment. ⛔ This line read
+*"· AE1.5's AFTER capture"* until 2026-08-27 — **it had run**, at head `…004710`, and § Dead ends
+quotes its numbers three paragraphs later. A "did not run" list is exactly where an already-done
+item hides, because nothing in a gate can contradict it.
 
 ## Dead ends
 
@@ -188,18 +224,18 @@ experiment · AE1.5's AFTER capture.
 
 ## Next task
 
-AE1.3 and AE1.5 are both closed out; the sweep is re-measured and merged. What remains, in order:
+**All six close conditions are DONE (2026-08-27).** AE1.3 and AE1.5 are closed out; the sweep is
+re-measured and merged. What remains, in order:
 
-1. **Close condition #3's tiered threat review** — ⛔ **scope it or have the PO narrow it FIRST.**
-   It is a security review over **432** Tier 1 functions with ten threat columns each, plus
-   individual justification for **384** command doors. Filing a thin pass would make the phase
-   record claim a threat review happened. Its bounded half is already done.
-2. **RV0 revoke partition** — SQL is ready in `docs/design/authz-ae1-revoke-partition.md`
-   (uncommitted); the catalog is quiet. ⛔ AE1 executes **no** revoke: all 233 stay HELD. Binding
-   ruling: *a revoke may not create sweep blindness* — revoking `authenticated` EXECUTE removes a
-   function from `ARM=floor`'s domain.
-3. **`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`** (R2) and **AE1.5's AFTER capture**.
-4. ✅ **`e2e:prod` DONE — GATE GREEN** (1249 passed, 0 failed, 3 flaky, 11 skipped; accounted
+1. **RV0 revoke partition** — ⛔ the SQL is **not** "ready in the doc": §4 is a paste marker and
+   the text lives in another session's scratchpad. Verify every predicate against the harness
+   scripts (§2 cites them by file:line and those may have moved), re-extract the 233-row input
+   with Bash `grep` and count-check it independently (a prior extraction silently lost one row
+   and every total would still have summed), then run it at the **current** head. ⛔ AE1 executes
+   **no** revoke: all 233 stay HELD. Binding ruling: *a revoke may not create sweep blindness* —
+   revoking `authenticated` EXECUTE removes a function from `ARM=floor`'s domain.
+2. **RV3** (§ Open questions) — same DB window as RV0.
+3. ✅ **`e2e:prod` DONE — GATE GREEN** (1249 passed, 0 failed, 3 flaky, 11 skipped; accounted
    1263/1263 on the final batch lines). ⭐ It is also what proved the six AE1.3 doors over the
    **wire** — pgTAP calls them in SQL and the vitest fixture mocks the client, so nothing had
    exercised `callDoor`'s explicit `null`s through supabase-js until this run.
