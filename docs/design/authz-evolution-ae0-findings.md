@@ -263,7 +263,40 @@ claims GUC genuinely reaches `app.active_role()`. The last row is what a `postgr
 baseline would have recorded, and it **matches no real principal** — that is the shape a
 vacuous baseline takes here.
 
-### F-AE0-6 — verbatim-duplicated permissive policy arms, costing ~4× today
+### F-AE0-6 — verbatim-duplicated permissive policy arms ~~costing ~4× today~~
+
+> ⛔⛔ **THIRD CORRECTION, 2026-08-27, and this one withdraws the finding's conclusion.**
+> The heading read *"costing ~4× today"*. **The 4× is real; the attribution was wrong.**
+> Measured by AE1.5 across an applied before/after: the three duplicate SubPlans
+> (`28`/`36`/`44`) read **`never executed`** in the BEFORE plan — earlier arms
+> short-circuit them. Executed work is **identical** on both sides: **652 → 650 buffers**,
+> execution time inside noise. The 4× gap is **`SubPlan 3` at `loops=14`** — **arm 3, not
+> a duplicate** — which survives the edit either way.
+> ⭐ **This document's own figure said so and the lead read past it:** "SubPlan 3 = 457 of
+> 533 buffers" appears above, and was quoted while approving an edit that does not touch
+> SubPlan 3.
+>
+> ⛔ **And the duplication turned out to be LOAD-BEARING — for detection, not for
+> authorization.** pgTAP `371` §5.1 checks each `profiles` policy **by name**, because (its
+> own header) both are permissive and OR'd, so widening either alone makes every ALLOW arm
+> pass — §5 is *"the only thing that can tell a fully-applied migration from a half-applied
+> one"*. Removing the duplicate leg makes that tripwire structurally unsatisfiable.
+> ⭐⭐ **That is this finding's own premise pointed the other way.** "Permissive policies OR
+> together" was used here to argue the arms are redundant; a prior author used the same
+> fact to argue a per-policy detector is *necessary*, and built one. Both true. An edit can
+> be perfectly behaviour-preserving — the per-persona md5s were bit-identical — and still
+> destroy the instrument that proves behaviour was preserved.
+>
+> **Ruled 2026-08-27: the `profiles` edit is WITHDRAWN**, migration deleted rather than
+> compensated (it was never committed). The `app.is_admin()` hoist reverts with it, since
+> it was approved only *because* the policy collapsed to that single arm. What survives
+> from AE1.5 is the **52-policy `auth.uid()` wrap**, which is measured, real and breaks
+> nothing: **39 inlined per-row expansions → 0**.
+>
+> ⚠ **Three corrections to one finding, all overstating** — five repeats that were four, a
+> "same class" that was two different shapes, and a cost attribution that measurement
+> refuted. Treat every remaining quantitative claim in this section as **unverified until
+> re-measured**.
 
 `profiles` carries an **11-arm OR from two permissive SELECT policies whose arms are
 duplicated verbatim** — ⛔ **FOUR** arms are literal repeats (`SubPlan 3`≡`28`, `16`≡`36`,
