@@ -6,6 +6,53 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
+### 🟠 FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST — rider R2 of the AE1.4 rpc rulings, a CONDITION of the `complete_minutes_job` ruling (owner: backend/tester)
+
+> Filed 2026-08-27 at the [rulings](../design/authz-ae1-rpc-rulings.md) approval. The sole
+> gate in front of `complete_minutes_job` and the webhook's `fail_minutes_job` call is
+> `verifyCallbackSignature` at the route layer — and `route.test.ts` mocks
+> `handleMeetingMinutesCallback` out entirely, so **no test would notice the HMAC check
+> vanish**. A forged callback would plant a fabricated ata draft (content injection), which
+> is why the ruling made this test a condition, not a suggestion.
+>
+> Needed, both directions: a route-level test asserting (a) a bad or absent signature is
+> rejected **without** reaching either RPC, and (b) a good signature does reach it — the
+> deny half alone can go green with the route broken open. The RPC-side latch is already
+> pinned (pgTAP 388 §2–3, atomic since migration `20261003005000`); this item is the
+> route half. Until it exists, the ruling's invariant ("sole caller is the HMAC-verified
+> route") is guarded by nothing.
+
+### 🟡 FUP-DOC-RECLASS-OPERATION-ID — bind reclassification completion to a DB-minted, single-use operation id (owner: backend)
+
+> PO observation #2 at the 2026-08-27 [rulings](../design/authz-ae1-rpc-rulings.md)
+> approval. `reclassify_document` (begin; user-session, the real authorizer) and
+> `complete_document_reclassification` (completion; service-role) communicate through four
+> loose parameters — version, new file, old file, digest. The completion's relational
+> checks (new file `reserved`, version empty, old file same-document, sha match, storage
+> presence) bound abuse but **do not prove the tuple came from one begin invocation**.
+>
+> Fix shape: begin mints a `reclassification_operation_id` carrying the complete tuple;
+> completion takes only that id and consumes it **exactly once** (single-use, expiring);
+> the four parameters retire. A schema + both-doors + TS-call-site change — its own
+> increment, not a rider. The ruled system-actor mechanism (rulings §3) stands meanwhile.
+
+### 🟡 FUP-DOC-DISPOSAL-PROVENANCE-SPLIT — split `complete_document_disposal` by provenance (owner: backend/PO)
+
+> PO observation #3 at the 2026-08-27 [rulings](../design/authz-ae1-rpc-rulings.md)
+> approval. One generic service-role completion door serves two provenances with different
+> authorization, evidence, and audit requirements: **(a)** automated duplicate retirement
+> (the reclassify lane sets `disposal_reason_category = 'duplicate'` system-side) and
+> **(b)** a human performing a DSR/manual disposal. The generic door erases the
+> distinction — the audit row cannot say which kind of act it records beyond
+> `reason_category`, and lane (b) should name the human authority in the DSR record
+> (LGPD).
+>
+> Fix shape: split by provenance — two doors, or a provenance argument validated against
+> the pending row's `reason_category` — with per-lane evidence contracts and audit verbs.
+> Interim: the ruled mechanism (rulings §4 — a recorder of an already-performed deletion,
+> retention blocks + absence verification in-function) stands; the app call site remains
+> system-owned (`documents/actions.ts:reclassifyDocument`).
+
 ### ⬛ FUP-DM5-NO-ANSWER-VS-NOTHING — ✅ **ALL SIX INSTANCES CLOSED 2026-08-19** — *"I could not look"* is not distinguished from *"I looked and found nothing"* (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
 
 > ## ✅ CLOSED 2026-08-19 — the last open instance is fixed, and the class statement is KEPT
@@ -6314,8 +6361,10 @@ them.**
 itself a claim that needs measuring* — and it is the one kind of register error that a reader of the
 register cannot detect, because the register is what they would check.
 
-### 🟠 FUP-DOOR-SWEEP-DERIVER-POINTS-AT-ONE-ARM — the deriver selects cases for TWO harnesses and prints the command for ONE (owner: backend/lead; filed 2026-08-27 by `backend`, measured during AE1.5's diff-scoped sweep)
+### 🔴 FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED — the mandated per-phase sweep has a FOUR-part hole: the deriver names ONE arm for a TWO-arm list; arm 2 reports success at exit 0 having measured nothing; 9 policies fall outside both arms; and a killed run leaves an RLS policy WIDE OPEN with nothing reporting it (owner: backend/lead; filed 2026-08-27 by `backend`, all four measured during AE1.5)
 
+> ## PART 1 — the deriver names one arm for a two-arm list
+>
 > **Measured 2026-08-27.** `scripts/door-sweep-cases.sh` derived **53** cases from AE1.5's
 > migration. Handed to the command the deriver itself prints
 > (`supabase/tests/mutation/p0-authz-door-audit.sh`), **22 of them matched no gate**:
@@ -6344,9 +6393,11 @@ register cannot detect, because the register is what they would check.
 > **refuses to end CLEAN** (exit 3, `UNPROVEN (PARTIAL)`) — which is the only reason AE1.5 saw it
 > at all. A phase whose migration happened to alter only SELECT policies would derive a
 > fully-matching list and never notice the recipe is half-aimed.
-
-### 🔴 FUP-WRITEPATH-AUDIT-EXITS-CLEAN-HAVING-MEASURED-NOTHING — a gate that reports success over an empty measured set (owner: backend/lead; filed 2026-08-27 by `backend`, measured during AE1.5's write-path sweep)
-
+>
+> ---
+>
+> ## ⛔ PART 2 — arm 2 reports SUCCESS at exit 0 having measured NOTHING
+>
 > **Measured 2026-08-27.** `supabase/tests/mutation/p0-authz-writepath-audit.sh`, run with
 > `CASES=` over AE1.5's 52 altered policies, printed:
 >
@@ -6376,11 +6427,72 @@ register cannot detect, because the register is what they would check.
 > audit's PARTIAL/UNPROVEN accounting into the write-path audit rather than inventing a second
 > scheme.
 >
-> **Third, separable item — the 9.** `answers_{insert,update}_targeted`, the six
-> `case_events_{staff_admin,writer}_{insert,update,delete}`, and `responses_update_targeted` sit
-> in **neither arm's domain**. Pre-existing, not caused by AE1.5, and invisible until a phase
-> happened to alter them. Bound any fix by the **property** (write-command policies absent from
-> the embedded worklist), never by this hand-list.
+> ## PART 3 — the harness lies about its own domain, and 9 policies fall in the hole
+>
+> ⭐⭐ **`p0-authz-writepath-audit.sh` cannot distinguish "I swept your case" from "your case
+> is not in my worklist", and reports the second as the first.**
+>
+> That is worse than Part 2. Exit-0-on-nothing is a bad summary line; **silently dropping
+> requested cases and reporting the remainder as the whole** is an instrument that lies about
+> its own domain — every consumer of its output inherits a coverage claim it never made.
+>
+> ⛔ **MEASURED ABSENCE, not an assumption.** The harness was grepped for `never swept`,
+> `matched no gate` and `requested but`: **zero hits.** There is no "requested but never
+> swept" reporting of any kind.
+> A `CASES=` entry that is absent from its embedded 33-policy worklist is **silently ignored**:
+> no ERROR, no warning, no mention in the summary. So handing it 52 cases and receiving
+> `13 COVERED, exit 0` reads as coverage of **52**.
+>
+> ⭐ **The harness cannot distinguish "I swept your case" from "your case is not in my
+> worklist", and reports the second as though it were the first.** Its sibling
+> `p0-authz-door-audit.sh` prints `REQUESTED CASES THAT MATCHED NO GATE IN EITHER ARM` and
+> **refuses to end CLEAN** — which is the only reason AE1.5 ever learned these 9 exist.
+> Porting that accounting across is the same fix as Part 2 and should land with it.
+>
+> **THE 9, NAMED INDIVIDUALLY — never as a count, and never in brace shorthand.** A count is
+> what let them hide, and brace shorthand is not greppable: someone searching for one of these
+> policy names must land on this item.
+>
+> 1. `answers_insert_targeted` (`answers`, INSERT)
+> 2. `answers_update_targeted` (`answers`, UPDATE)
+> 3. `case_events_staff_admin_insert` (`case_events`, INSERT)
+> 4. `case_events_staff_admin_update` (`case_events`, UPDATE)
+> 5. `case_events_staff_admin_delete` (`case_events`, DELETE)
+> 6. `case_events_writer_insert` (`case_events`, INSERT)
+> 7. `case_events_writer_update` (`case_events`, UPDATE)
+> 8. `case_events_writer_delete` (`case_events`, DELETE)
+> 9. `responses_update_targeted` (`responses`, UPDATE)
+>
+> All nine sit in **neither arm's domain**. Pre-existing, **not caused by AE1.5** — it
+> **revealed** them by altering policies that happen to fall in the hole. Same family as
+> `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2): an apparatus gap, not a defect in the policies.
+> ⚠ Bound any fix by the **property** (write-command policies absent from the embedded
+> worklist), never by this list — the list is here so a grep lands, not so it can be swept.
+>
+> ## ⛔ PART 4 — the harness is NOT SAFE TO KILL, and a killed run leaves a gate OPEN
+>
+> **Measured the hard way, 2026-08-27.** `p0-authz-writepath-audit.sh` (and its door-audit
+> sibling) mutate LIVE policies and rely on a `trap … EXIT` to restore them. A run killed
+> between "open the gate" and "restore it" does **not** run the trap. AE1.5 killed a
+> contaminated run and left **`meeting_cases.meeting_cases_staff_admin_update` at
+> `qual=true wc=true`** — a `FOR UPDATE` policy fully open to `authenticated` on the shared
+> local stack, with **nothing anywhere reporting it**. Recovered by `supabase db reset`.
+>
+> ⭐ **It was nearly missed by a count.** The degenerate-policy check returned **11**, of which
+> **ten are `qual = true` BY DESIGN** (vocabulary `SELECT` policies: `action_item_statuses`,
+> `referral_types`, `reply_outcomes`, `professional_categories`, `pqs_*`, `document_retention`).
+> "Is it zero?" returns 11 and reads as a pre-existing baseline. Only ENUMERATING them showed
+> the eleventh was an `UPDATE` policy with `wc=true`, which no lookup table has.
+>
+> **Owed:** either a documented recovery step ("if you kill a run, do X"), or a restore that
+> does not depend on a signal-catchable trap. Until then the operational rule is: **a
+> contaminated run must be allowed to FINISH and its verdicts discarded — never killed.**
+>
+> ⛔ **And the contamination surface is the WORKING TREE, not the database.** The baseline is
+> the suite's SHAPE (`Files=`/`Tests=`), so **adding a test file invalidates a sweep exactly as
+> effectively as touching the DB** — and nothing about doing so looks like DB activity to the
+> person doing it. AE1.5 asked its siblings for "DB silence"; that request was insufficient.
+> A sibling added one pgTAP file mid-run (+1 file, +62 tests) and every gate after it ERRORed.
 >
 > ⚠ **Operational note for whoever maintains the worklist:** it embeds exact predicate text, so
 > **any** future predicate rewrite — even a provably identity one — drifts it. Regenerate those

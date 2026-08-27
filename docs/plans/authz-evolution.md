@@ -748,7 +748,7 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 | --- | --- | --- |
 | AE0.5 | matrix axes approval | lead |
 | AE1.2/4 | the `anon`-residue sweep ruling (`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`) | backend |
-| AE1.4 | the **11 undecidable `.rpc()` sites'** revalidation mechanism — blocks AE1 close [PA-F10] | backend |
+| AE1.4 | ✅ **RULED 2026-08-27** — the 11 `.rpc()` sites (1 in-function door, 10 system-actor; riders R1–R3; 4 observations → 1 fix + 3 FUPs) → [rulings](../design/authz-ae1-rpc-rulings.md) [PA-F10] | backend |
 | **AE2.0** | **offboarded-person lifecycle authority (blocks AE2.3; its own ADR)** | lead |
 | AE3 branch-cut | confirm pilot has not loaded data (else dual-write re-plan) | lead |
 | AE4.3 | the `staff_admin` matrix (becomes the oracle) | lead + backend |

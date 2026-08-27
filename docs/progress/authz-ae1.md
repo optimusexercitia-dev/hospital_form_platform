@@ -29,10 +29,12 @@ tags and ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md)
 amendments. **Nothing already built here is invalidated**; AE1 continues as independently
 mergeable increments but **does not close** until:
 
-1. registry dispositions complete — the **11 undecidable `.rpc()` sites** PO-ruled; zero
-   `undecided` rows at gate [PA-F10]. **Ruling prep ready 2026-08-27, awaiting PO →
-   [authz-ae1-rpc-rulings.md](../design/authz-ae1-rpc-rulings.md)** (catalog-measured; riders
-   R1 ACL-pinning pgTAP, R2 HMAC deny test, R3 re-measure before recording);
+1. ✅ **RULED + RECORDED 2026-08-27** — the 11 `.rpc()` sites approved as-is (+ 4 PO
+   observations) → [authz-ae1-rpc-rulings.md](../design/authz-ae1-rpc-rulings.md); registry
+   Group E flipped, **zero `undecided` rows** [PA-F10]; R3 discharged (local↔remote body-md5
+   parity; 0 refs in the unregistered migrations). Residue: R2 =
+   `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`; migration `…005000` + pgTAP `388` verify in the
+   next owned stack window (see gate obligations below);
 2. AE1.2's `ALTER DEFAULT PRIVILEGES` uses the **global `FOR ROLE <creator>` form** with
    positive effective-ACL probes (`has_function_privilege` + `pg_default_acl`) — the
    `IN SCHEMA` form is a documented no-op against the built-in PUBLIC default [PA-F4];
@@ -211,7 +213,7 @@ PROGRESS.md **and** a body in `follow-ups.md`.
 | 4 | **26 of 45** service-role write sites have **no test that would notice their guard vanish** — concentrated in the 33 sites outside the plan's "12 raw-DML" framing | AE1.4 |
 | 5 | **`app.is_admin()` hoisting** for `organizations` (evaluated **twice per row**) + 24 further tables, from the 26-table census | AE1.5 |
 | 6 | A dedicated **`reactivateUser` deny arm** — today it shares `authorizePersonScopedAdmin(id,'lifecycle')` with `deactivateUser`, whose deny arm is the only one tested | AE1.4 |
-| 7 | The **11 `UNDECIDED` `.rpc()` sites** whose revalidation mechanism is undecidable from the call site — a PO decision, not a gap to fill | AE1.4 |
+| 7 | ✅ **RULED 2026-08-27, approved as-is** — registry flipped; obs #1 fixed (`…005000` atomic latches + pgTAP `388`); 3 FUPs **filed same day, index + body** (`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` · `FUP-DOC-RECLASS-OPERATION-ID` · `FUP-DOC-DISPOSAL-PROVENANCE-SPLIT`) — no Record-step debt | AE1.4 |
 | 8 | Shared TS/SQL vectors (R4) **if deferred** — deferral recorded as a line, never a sentence | AE1.3 |
 
 ## Gate obligations still outstanding
@@ -222,3 +224,11 @@ PROGRESS.md **and** a body in `follow-ups.md`.
 - **Re-derive** `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`'s counts at the Record step. ⛔ Never
   increment them by hand.
 - Name the **ARM**, never the script, in the gate record (§6 step 5).
+- **Migration `20261003005000` (atomic minutes latches) + pgTAP `388` are validated ONLY by
+  a rolled-back apply** (probes green; post-rollback `md5(prosrc)` restored to the pre-apply
+  values; `388` §3's pins proven RED on the old bodies). Full verification = the next owned
+  stack window: fresh reset → `npm run test:db`. ⚠ **Until that reset, `388` §3 REDS against
+  the live stack's old bodies BY DESIGN** — that is the pin working, not a defect to file.
+- The gate's diff-scoped sweep derivation will see `…005000` touching two `prosecdef`
+  **non-boolean** command doors: `door-sweep-cases.sh` likely derives ZERO boolean gates
+  from it and **exits 1 — a finding to rule on, never a pass** (plan rule 1).

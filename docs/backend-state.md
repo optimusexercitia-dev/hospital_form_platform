@@ -577,25 +577,32 @@ does not perform.
 | `users/actions.ts:registerUser` → rpc `grant_role_for` (committee grants, looped) | users | seats the new person on 0+ committees at registration | door: `grant_role_for`; TS gate: entry gate + per-committee `allWithinHospital` (non-org-admin callers) | none found in TS | **NONE** — reported explicitly: "No arm directly exercises site 7 (`grant_role_for` for committees) inside `registerUser`" |
 | `users/actions.ts:removeCommittee` → rpc `revoke_role_for` | users | removes a per-commission committee role | door: `revoke_role_for`; TS gate: `authorizeForUser` + `authorizeForCommission` (same pair as `assignCommitteeRole`) | none found in TS | **NONE dedicated** — incidental-only `e2e/user-registration.spec.ts` ("Remover de Comissão...") |
 
-### Group E — `UNDECIDED` (11 `.rpc()` sites; PO decision, not a patch)
+### Group E — RULED 2026-08-27 (11 `.rpc()` sites; formerly `UNDECIDED`)
 
-No actor argument at the call site, no self-scoped or system-actor justification recorded, not a
-pre-existing door. **Not invented here** — an escape hatch for the unmeasurable would also
-silence the measured.
+PO-ruled 2026-08-27, approved as-is with four observations →
+[authz-ae1-rpc-rulings.md](design/authz-ae1-rpc-rulings.md) (evidence: live-catalog bodies +
+ACLs; local↔remote **body-md5 parity, exact**; zero references to these functions in the
+unregistered migrations — the R3 discharge). One site re-classified as an **in-function
+door**, ten as **system actor**. Riders: **R1** ACL pins = pgTAP `388` §1; **R2** HMAC deny
+test = `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` (a *condition* of the `complete_minutes_job`
+ruling); **R3** discharged at recording. History, kept because it was the honest state for a
+day: these rows were `UNDECIDED` because no actor argument, self-scoped shape, or
+system-actor justification was visible **from the call site** — the rulings derive each
+mechanism from the function bodies instead, and record what guards each premise.
 
 | Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
 | --- | --- | --- | --- | --- | --- |
-| `documents/actions.ts:finalizeDocumentUpload` → rpc `complete_evidence_upload_verification` | documents | finalizes an evidence upload after client-side hash verification | **UNDECIDED** — only the preceding user-session RPC `finalize_document_upload`'s own success gates this; no actor re-check here | none found in TS | **YES (behavioral, not authz)** — `actions.test.ts` (MAJOR-3) pins terminal-state/ordering; no authorization check exists here to lose |
-| `documents/actions.ts:finalizeDocumentUpload` → rpc `complete_document_upload_verification` | documents | same finalize step, non-evidence path | **UNDECIDED** — same shape | none found in TS | **YES (behavioral, not authz)** — same test, same caveat |
-| `documents/actions.ts:reclassifyDocument` → rpc `complete_document_reclassification` | documents | records a completed reclassification after the storage copy | **UNDECIDED** — only the preceding `reclassify_document` RPC gates this | none found in TS | **NONE** — `disposal-gap.test.ts` is a static caller-census, not behavioral; explicitly would NOT fail if the authorization here were removed |
-| `documents/actions.ts:reclassifyDocument` → rpc `complete_document_disposal` | documents | records a disposal after the old file is removed | **UNDECIDED** — same shape | none found in TS | **NONE** — same caveat |
-| `minutes-jobs/actions.ts:failAndCleanUp` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed during internal cleanup | **UNDECIDED** — no actor arg; called from `submitMinutesJob` after its own RLS-scoped setup, but not itself gated | none found in TS | **NONE** — not exported, not in any test, no e2e reference by name |
-| `minutes-jobs/reconcile.ts:failJob` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed during page-load reconciliation | **UNDECIDED** — reached post-RLS-read (see Group C) but the RPC itself carries no actor | none found in TS | **NONE** |
-| `minutes-jobs/sweep.ts:sweepStaleAudio` → rpc `list_stale_meeting_audio` | minutes-jobs | lists TTL-expired jobs to sweep | **UNDECIDED** — read-like by name, cron/webhook-invoked, no actor arg | none found in TS | **YES (behavioral, not authz)** — `sweep.test.ts` pins the exact call args; there is no guard here to "vanish" beyond this call happening at all |
-| `minutes-jobs/webhook.ts:failJob` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed on a provider callback | **UNDECIDED** — invocation is HMAC-gated (`verifyCallbackSignature` in the route), but the RPC itself carries no actor and that route-level gate is a different layer than this registry's per-call mechanism | none found in TS ("the code goes to the audit row" comment implies SQL-side recording, unverified) | **NONE** — `route.test.ts` mocks `handleMeetingMinutesCallback` out entirely |
-| `minutes-jobs/webhook.ts:handleMeetingMinutesCallback` → rpc `complete_minutes_job` | minutes-jobs | completes a job on a provider callback | **UNDECIDED** — same HMAC-at-the-route caveat | none found in TS | **NONE** — same mock-out |
-| `queries/feature-flags.ts:getFeatureFlagsServerOnly` → rpc `get_feature_flags` | queries | reads flags for session-less server surfaces (`/verificar`, the audio-jobs webhook) | **UNDECIDED** — read-like by name; relies entirely on the RPC's own grants, unverified here | none found in TS | **NONE** — `route.test.ts` mocks this reader wholesale; its own comment notes mocking the wrong reader here previously let a production bug slip through |
-| `queries/printed-documents.ts:lookupPrintedDocumentVerification` → rpc `lookup_printed_document` | queries | public verification-code lookup (ADR 0104 D10, deliberately anonymous-callable) | **UNDECIDED as a door**, but a real guard exists: `consumeLookupBudget(credential)` rate-limits per-credential and globally BEFORE the RPC fires | none found in TS (the DB's `verification_lookups` table is the durable record, SQL-side) | **YES** — `printed-documents.test.ts` pins "rate-limits per credential BEFORE the RPC fires" |
+| `documents/actions.ts:finalizeDocumentUpload` → rpc `complete_evidence_upload_verification` | documents | finalizes an evidence upload after client-side hash verification | **door (in-function)** — actor re-derived from `upload_sessions.reserved_by` (NULL refused) → `app.can_write_rca`/`can_write_capa` **before any write**; ruled 2026-08-27 → [rulings §1](design/authz-ae1-rpc-rulings.md) | none in TS; **in-function, catalog-measured 2026-08-27:** `document.uploaded`/`document.upload_failed` (via the delegated verifier) | **YES** — `actions.test.ts` (MAJOR-3) terminal-state/ordering + pgTAP `388` §1 (ACL pin: service_role-only) |
+| `documents/actions.ts:finalizeDocumentUpload` → rpc `complete_document_upload_verification` | documents | same finalize step, non-evidence path | **system actor:** completion of a `consumed` upload session — single-transition state machine keyed by session id; authority spent at the user-session door `finalize_document_upload`; ruled → [rulings §2](design/authz-ae1-rpc-rulings.md) | none in TS; **in-function, catalog-measured 2026-08-27:** `document.uploaded`/`document.upload_failed` | **YES** — same test + pgTAP `388` §1 |
+| `documents/actions.ts:reclassifyDocument` → rpc `complete_document_reclassification` | documents | records a completed reclassification after the storage copy | **system actor:** completion keyed to a `reserved` file object minted by the user-session door `reclassify_document`; sha + same-document + storage-presence preconditions in-function; ruled → [rulings §3](design/authz-ae1-rpc-rulings.md); op-id binding = `FUP-DOC-RECLASS-OPERATION-ID` | none in TS; **in-function, catalog-measured 2026-08-27:** `document.reclassified` | pgTAP `388` §1 (ACL pin); behavioral coverage still **NONE** — unchanged by the ruling |
+| `documents/actions.ts:reclassifyDocument` → rpc `complete_document_disposal` | documents | records a disposal after the old file is removed | **system actor:** records an **already-performed** storage deletion for a file already `disposal_pending`; closed byte-proof vocabulary + retention block + absence verification in-function; ruled → [rulings §4](design/authz-ae1-rpc-rulings.md); provenance split = `FUP-DOC-DISPOSAL-PROVENANCE-SPLIT` | none in TS; **in-function, catalog-measured 2026-08-27:** `document.disposed` (+ `document.retention_override` on exemption lanes) | pgTAP `388` §1 (ACL pin); behavioral coverage still **NONE** — unchanged by the ruling |
+| `minutes-jobs/actions.ts:failAndCleanUp` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed during internal cleanup | **system actor:** terminal transition (`uploading`/`processing` → `failed`), latch **atomic in the UPDATE** since `20261003005000`; this path's gate = the caller's own RLS-scoped setup in `submitMinutesJob`; ruled → [rulings §5–7](design/authz-ae1-rpc-rulings.md) | none in TS; in-function (catalog-measured): `minutes_job.failed` | **YES** — pgTAP `388` §2–3 (latch behavior + atomicity pins) |
+| `minutes-jobs/reconcile.ts:failJob` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed during page-load reconciliation | **system actor:** same atomic terminal transition; this path's gate = the `staff_admin`-gated RLS read (Group C); ruled → [rulings §5–7](design/authz-ae1-rpc-rulings.md) | none in TS; in-function (catalog-measured): `minutes_job.failed` | **YES** — pgTAP `388` §2–3 |
+| `minutes-jobs/sweep.ts:sweepStaleAudio` → rpc `list_stale_meeting_audio` | minutes-jobs | lists TTL-expired jobs to sweep | **system actor:** cron sweep input; read-only, bounded (limit ≤ 1000, age ≥ 1 h); ruled → [rulings §9](design/authz-ae1-rpc-rulings.md) | none found in TS (read-only) | **YES** — `sweep.test.ts` pins the exact call args + pgTAP `388` §1 (ACL pin) |
+| `minutes-jobs/webhook.ts:failJob` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed on a provider callback | **system actor:** same atomic terminal transition; this path's gate = the HMAC-verified route (`verifyCallbackSignature`) — **R2 condition:** `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`; ruled → [rulings §5–7](design/authz-ae1-rpc-rulings.md) | none in TS; in-function (catalog-measured): `minutes_job.failed` | pgTAP `388` §2–3 for the RPC half; route half **NONE** until the R2 FUP lands |
+| `minutes-jobs/webhook.ts:handleMeetingMinutesCallback` → rpc `complete_minutes_job` | minutes-jobs | completes a job on a provider callback | **system actor:** provider-callback completion; sole caller = the HMAC-verified route (**R2 condition:** `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`); `processing` → `done` latch **atomic** since `20261003005000`; ruled → [rulings §8](design/authz-ae1-rpc-rulings.md) | none in TS; in-function (catalog-measured): `minutes_job.completed` | pgTAP `388` §2–3 for the RPC half; route half **NONE** until the R2 FUP lands |
+| `queries/feature-flags.ts:getFeatureFlagsServerOnly` → rpc `get_feature_flags` | queries | reads flags for session-less server surfaces (`/verificar`, the audio-jobs webhook) | **system actor:** read-only global flag projection; the grant layer is the control (`authenticated` + `service_role`, `anon` excluded — pinned pgTAP `388` §1); ruled → [rulings §10](design/authz-ae1-rpc-rulings.md) | none found in TS (read-only) | pgTAP `388` §1 (grant pin); `route.test.ts` still mocks this reader wholesale — unchanged by the ruling |
+| `queries/printed-documents.ts:lookupPrintedDocumentVerification` → rpc `lookup_printed_document` | queries | public verification-code lookup (ADR 0104 D10, deliberately anonymous *at the surface* — `anon` has NO EXECUTE; the server mediates) | **system actor (designed public surface):** `consumeLookupBudget` precedes every call; ⚠ **WRITE-BEARING** — every call inserts a `verification_lookups` row (hash-only; **audit-retention owner: the documents/printing domain**); invariant: `p_viewer` is always session-derived; ruled → [rulings §11](design/authz-ae1-rpc-rulings.md) | none in TS; in-function (catalog-measured): `verification_lookups` insert on every call, matched or not | **YES** — `printed-documents.test.ts` (budget-before-RPC) + `printed-documents-caller-census.test.ts` (exactly-one-caller + budget-precedes-RPC pins) + pgTAP `388` §1 |
 
 ### Group F — Storage writes, RPC-preceded (4 sites)
 
@@ -648,16 +655,14 @@ person-scope test suite already exists even though the SQL door does not yet; th
 rows) score only **11 YES / 20 NONE / 2 UNCONFIRMED** — the 33-site delta AE0.4 found unaccounted
 for in AE1.3's door table is also where the test coverage is thinnest.
 
-**The 11 `UNDECIDED` sites, for the PO** (Group E in full): `complete_evidence_upload_verification`
-and `complete_document_upload_verification` (`documents/actions.ts:finalizeDocumentUpload`),
-`complete_document_reclassification` and `complete_document_disposal`
-(`documents/actions.ts:reclassifyDocument`), `fail_minutes_job` ×3 call sites
-(`minutes-jobs/actions.ts:failAndCleanUp`, `minutes-jobs/reconcile.ts:failJob`,
-`minutes-jobs/webhook.ts:failJob`), `complete_minutes_job`
-(`minutes-jobs/webhook.ts:handleMeetingMinutesCallback`), `list_stale_meeting_audio`
-(`minutes-jobs/sweep.ts:sweepStaleAudio`), `get_feature_flags`
-(`queries/feature-flags.ts:getFeatureFlagsServerOnly`), `lookup_printed_document`
-(`queries/printed-documents.ts:lookupPrintedDocumentVerification`).
+**The 11 formerly-`UNDECIDED` sites were RULED 2026-08-27** — approved as-is with four PO
+observations → [authz-ae1-rpc-rulings.md](design/authz-ae1-rpc-rulings.md) (Group E carries
+the ruled mechanism strings). Zero `undecided` dispositions remain; the Gate AE1 condition
+`[PA-F10]` is satisfiable. The observations produced: migration `20261003005000` (atomic
+minutes-job latches) + pgTAP `388` (R1 ACL pins, latch behavior, atomicity text-pins) +
+`printed-documents-caller-census.test.ts` (obs #4), and three filed FUPs
+(`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` = R2 · `FUP-DOC-RECLASS-OPERATION-ID` ·
+`FUP-DOC-DISPOSAL-PROVENANCE-SPLIT`).
 
 ## AFF4 — organization affiliation, per-hospital staff data, the voided tense (2026-08-26; ADR **0151** D1–D17 + **0154** / **0158** / **0159**; migrations `20261003003200`–`…004300`, **12**; pgTAP `301`–`304` · `371`–`375` · `377`–`381`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **NOT PUSHED at the Record edit; 12 migrations are LOCAL ONLY**
 
