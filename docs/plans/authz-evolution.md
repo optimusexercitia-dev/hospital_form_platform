@@ -161,6 +161,17 @@ gate subset; the phase gate closes over the last increment. AE1's sizing was dra
    where `anon` holds no USAGE (boundary = `config.toml`'s exposed-schema line, the
    `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` boundary) — keeps the four-way
    classification plus exact grants only.
+   ⛔ **RUN 2026-08-27, and the tiering does NOT inherit step 1's population — that trap fired
+   once already.** Step 1 enumerates `authenticated`-executable **DEFINERs**; PA-F11's Tier 1
+   says *remotely reachable*, which says nothing about DEFINER. Taking the intersection gives
+   **432** and drops **91** — 90 `public` INVOKER functions plus `graphql_public.graphql` —
+   i.e. exactly the class ADR 0079 **Amendment 7** exists for: a `public` INVOKER wrapper whose
+   own probe is the only gate in front of an `app` DEFINER body, in no arm's domain at all.
+   **Tier 1 is 523.** Instrument: `scripts/authz-tier1-threat-review-ae1.sql`; review +
+   findings: [authz-ae1-tier1-threat-review.md](../design/authz-ae1-tier1-threat-review.md).
+   ⚠ **And the columns are computed over the CALL CLOSURE, never per body** — per body, the
+   arbitrary-principal column reads 27 findings that are all two-line delegators; over the
+   closure it reads zero. A per-row hand pass would have written those 27 down.
 2. Revoke EXECUTE where the classification says so — **in batches with a full pgTAP + e2e:prod
    run per batch**, because a REVOKE you are not entitled to make is a silent no-op and an
    over-revoke surfaces as user-facing 42501s, not test failures, unless the suites exercise the
