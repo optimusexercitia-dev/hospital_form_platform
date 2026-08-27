@@ -541,9 +541,32 @@ AFTER   Filter: app.can_read_case_committee(case_id, (InitPlan 1).col1)
         InitPlan 1
 ```
 
-**The `profiles` arm removal — the plan got simpler, and the runtime did not move:**
+⛔⛔ **THE TABLE BELOW IS NOT PART OF AE1.5's AFTER EVIDENCE, AND ITS COLUMN HEADERS SAID IT WAS.**
+Corrected 2026-08-27 at the QA gate (finding B4). It is §4.3's table, unchanged, and §4.3 measures
+migration `20261003004700` — **the `profiles` duplicate-arm removal that was written, applied,
+measured, and then WITHDRAWN and DELETED. It is not in the tree.** Under the heading *"AFTER —
+head `20261003004710`"*, with columns relabelled `BEFORE | AFTER`, the same numbers read as the
+measured effect of a migration that shipped. **The right-hand column describes a state that has
+never existed.**
 
-| `hospital_admin` arm (AE0.2 P5b) | BEFORE | AFTER |
+Measured against the live catalog at head `20261003005300`: `profiles_admin_select`'s `qual` is
+**771 characters with 4 top-level OR arms** — the left-hand column's shape, not the right's.
+
+⭐ **Nothing here was fabricated and no number is wrong.** §4.3's honest headers are *"with
+duplicates | with them removed"* — a **counterfactual**, correctly labelled where it sits. Copying
+the table under a BEFORE/AFTER heading converted a counterfactual into a claim about the tree, by
+relabelling alone. *A measurement's meaning is carried by its column headers, and a table survives
+being moved while its headers stop being true* — the same voice inversion the ADR index gate
+exists for (`**Amends:**` vs `**Amended:**`).
+
+⚠ **It propagated before it was caught**: the session handoff's § Dead ends quoted *"652 → 650
+buffers"* from this table as established fact about the landed increment, and the lead repeated it.
+
+**Retained below as §4.3's counterfactual, which is what it is** — the withdrawn migration's
+`hospital_admin` arm, and the evidence for **why it was withdrawn** (removing the duplicates buys
+~0, because the three duplicate SubPlans read `never executed`):
+
+| `hospital_admin` arm (AE0.2 P5b) — ⛔ WITHDRAWN migration `…004700`, counterfactual | with duplicates (= the live tree) | with them removed (never shipped) |
 | --- | ---: | ---: |
 | top-level filter arms | **11** | **7** |
 | SubPlans in the plan | **9** | **5** |

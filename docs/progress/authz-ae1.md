@@ -16,7 +16,7 @@ list below is the countermeasure, and it is maintained **as work happens**, not 
 | **AE1.1** FKs | ✅ **built + committed** (`14ad668d`) — both FKs `ON DELETE CASCADE`, pgTAP 383 |
 | **AE1.2** DEFINER classification | ✅ classified (752 functions); ✅ **tiered threat review DONE** (close #3 — 523 Tier-1 rows, 325 decided mechanically, 198 by class, 4 findings); ⛔ **all 233 revokes HELD** under RV0 |
 | — RV0 partition | ✅ **DONE 2026-08-27** — 44 property-rescued · 5 name-rescued · **23 HOLD** · 161 UNCHANGED = 233 ✓; batches reproduce 134/43/52/4; GUARD_KEYS 11/11 live; **RV3 answered YES**. ⚠ New: **137 of 233 revokes are a silent no-op as scoped** |
-| **AE1.3** person doors | ✅ **built + gated** (`63230a84`) — 6 doors + predicate; `callDoor` seam (R7); 16/16 KEYSTONE HOLDS; sweep ERROR **ruled**; all four ARM arms exit 0. Owed at phase close: QA, `e2e:prod`, Record |
+| **AE1.3** person doors | ✅ built + gated (`63230a84`) — 6 doors + predicate; `callDoor` seam (R7); sweep ERROR **ruled**; all four ARM arms exit 0. ⛔ **"16/16 KEYSTONE HOLDS" CORRECTED 2026-08-27 at the QA gate → 14 HOLDS + 2 ERROR**: the harness read only `Result:` and could not tell a suite that FAILED from one that ABORTED. Re-measured with shape capture — cases **2** and **7** ran **11/49** and **42/49** assertions. See § "the keystone count was 14, not 16" |
 | **AE1.4** service-role registry | ✅ **built + committed** (`800ffe2a`) — 45 sites, gate extension **OFF** |
 | **AE1.5** initplan triage | ✅ **built + committed** (`40e5c893`) — increment landed, harness snapshot verified (33/33 worklist rows match the catalog, tripwire proven still able to fire); BEFORE `…004620` / AFTER `…004710` both captured (triage doc §6.2). ⚠ Nobody has ruled whether that capture stays representative at `…005300` |
 | **AE1.6** zero-policy tables | ✅ **built + committed** (`91455fbd`) — pgTAP 382, 68 assertions |
@@ -846,6 +846,14 @@ verdicts nor the suite-shape baseline the mutation harnesses key on can have gon
 | 63-case diff-scoped sweep (read / write) | does anything **notice** when a gate is opened? | SWEPT 41 · COVERED 40 · **BLIND 0** · 1 ERROR (ruled) / COVERED 13 · BLIND 0 | 1 / 0 |
 | `npm run e2e:prod` | — | **GATE GREEN** — 1249 passed · 0 failed · 3 flaky · 11 skipped | **0** |
 
+⭐ **The census delta is exactly the one predicate this phase added.** The trusted AE0 baseline
+(`.claude/rules/authz-gate-results-need-a-current-baseline.md`) is **564 gates / 600 verdicts** at
+head `20261003004300`; this run reads **565 / 601** at `…005300`. **+1 / +1**, and the +1 is
+`app.can_administer_person_for` — a new `prosecdef` **boolean** in `app`, which is precisely the
+shape census's first clause enumerates. A census that had moved by anything else, in either
+direction, would be the finding. ⚠ That the arm *holds* is the weaker claim; that its population
+moved by exactly the object we added is the one worth recording.
+
 ⛔ **Domain qualifier, stated beside "all arms green" as plan rule 2 requires:** the reachable
 command doors of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2) are outside **every** arm's domain until
 that FUP closes. Counts re-derived at Record, never quoted. ⚠ And the tier-1 threat review adds a
@@ -878,3 +886,49 @@ The other three arms were timestamp-checked the same way (17:07) before being re
 outlives the run that made it. `> file` only truncates when the command runs. **Check the
 timestamp, or write to a path that cannot pre-exist** — and never let a summary line outrank an
 exit code.
+
+### ⛔ The keystone count was 14, not 16 — and QA found the right defect through the wrong mechanism
+
+**2026-08-27, QA gate finding B1, verified and re-measured by the lead.** The AE1.3 mutation
+audit's runner was `run_test() { npx supabase test db "$1" 2>&1 | grep -E '^Result:'; }` — it
+captured the verdict line and **discarded `Files=`/`Tests=`**. A pgTAP file that **ABORTS**
+(assertions stop running) and one that **FAILS** (assertions run and report failures) both print
+`Result: FAIL`, so the harness called both a clean red.
+
+Re-run with shape capture, baselines recorded per file (384=55, 385=49, 386=24):
+
+| | verdict | measured |
+| --- | --- | --- |
+| 14 cases | **KEYSTONE HOLDS** | red under mutation at **full shape**, green restored, rollback exact |
+| **CASE 2** — `update_person_fields`, SWAP always-arm `'fields'`→`'cpf_change'` (385 §1.1) | ⛔ **ERROR** | **Tests=11 vs 49** — *38 assertions never ran* |
+| **CASE 7** — `upsert_credential`, SWAP `'credentials'`→`'lifecycle'` (385 §5.1) | ⛔ **ERROR** | **Tests=42 vs 49** — 7 never ran |
+
+Both are **capability-SWAP** mutations, not neutralizations: swapping the capability makes the
+door deny where the fixture expects allow, which raises inside fixture setup and takes the rest of
+the file down with it. The 14 neutralize-style cases are unaffected. **Those two cases prove
+nothing about whether their assertions noticed** — the suite may have died before ever reaching
+them. Not a pass, not a keystone-holds; they need re-expressing so the suite completes.
+
+⭐⭐ **QA's finding was real and BOTH halves of its mechanism were wrong** — which is the part
+worth keeping. It named *"cases 10–14, which mutate `app.can_administer_person_for`"*, reasoning
+from the phase's own record that neutralizing that function aborts 384. Measured, the ambiguous
+cases are **2 and 7**, which do not mutate that function at all — they swap capability *strings*
+inside door bodies, and they abort **385**, not 384. The predicate QA proposed was **both too wide
+(5 vs 2) and blind (missed both real ones)** — the recorded *a-follow-up's-named-mechanism-decides-the-sweep*
+shape. ⛔ **Had the fix been applied to QA's case list instead of to the instrument, it would have
+re-verified five sound cases and left both broken ones counted as holds.** The instrument, not the
+hypothesis, is what produced the right answer.
+
+⭐ **And the fix reintroduced the defect inside itself, once.** The first patch set globals
+(`R_TESTS=…`) inside `run_test` — which every caller invokes as `r="$(run_test x)"`, i.e. **in a
+subshell**, so the assignments were discarded and the parent read an empty count. An empty
+baseline makes `[ "$mut" -lt "$base" ]` never fire: **every case would have passed the new shape
+check vacuously**, and the audit would have reported 16/16 again, now with a shape column that
+proved nothing. It was caught only because the same patch made the baseline loop **refuse to
+continue when no count is captured**. The guard, not the feature, is what made the fix real.
+
+⚠ **Sibling asymmetry, again.** `p0-authz-door-audit.sh` already handles this exact situation —
+it is what recorded `ERROR run-shape!=baseline (Files=237 Tests=7863)` against
+`app.can_administer_person_for` in the door findings, i.e. the sweep saw the abort and refused to
+call it a verdict. Two harnesses in one phase, same situation, opposite handling; the third
+sighting of that pattern here after the writepath arm's exit-0-over-an-empty-set.

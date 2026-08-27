@@ -55,7 +55,33 @@ end \$mut\$;
 SQL
 }
 
-run_test() { npx supabase test db "supabase/tests/$1" 2>&1 | grep -E '^Result:' | tr -d '\r'; }
+# ⛔ CAPTURE THE RUN SHAPE, NOT ONLY THE VERDICT LINE. A pgTAP file that ABORTS (assertions
+# stop running) and one that FAILS (assertions run and report failures) both print
+# `Result: FAIL`. Neutralizing `app.can_administer_person_for` was MEASURED to ABORT 384
+# (7,870 -> 7,863 tests) — which is exactly why the sibling door sweep records `ERROR
+# run-shape!=baseline` for that same function rather than a verdict. A harness that greps
+# only `^Result:` calls both of those a clean red, and "the suite went red" is not the same
+# claim as "the assertion noticed". Idiom lifted from `p0-authz-writepath-audit.sh` classify().
+BASE_SHAPE="$(mktemp)"
+LAST_SHAPE="$(mktemp)"     # ⛔ a FILE, not a global — see below
+run_test() {
+  local out ft
+  out="$(npx supabase test db "supabase/tests/$1" 2>&1)"
+  ft="$(echo "$out" | tr -d '\r' | grep -oE 'Files=[0-9]+, Tests=[0-9]+' | tail -1)"
+  # ⛔ WHY A TEMP FILE AND NOT `R_TESTS=...`. Every caller invokes this as `r="$(run_test x)"`,
+  # which runs the function in a SUBSHELL — global assignments made here are discarded when it
+  # exits, so the parent would read an EMPTY test count and the shape comparison below would
+  # compare against nothing and pass for every case. That is the very defect this block was
+  # added to remove, reintroduced inside its own fix. It was caught only because the baseline
+  # loop refuses to continue when no count is captured; keep that check.
+  { echo "${ft:+$(echo "$ft" | grep -oE 'Files=[0-9]+' | grep -oE '[0-9]+')}"
+    echo "${ft:+$(echo "$ft" | grep -oE 'Tests=[0-9]+' | grep -oE '[0-9]+')}"; } > "$LAST_SHAPE"
+  echo "$out" | grep -E '^Result:' | tr -d '\r' | tail -1 | tr -d '\n'
+}
+last_files() { sed -n 1p "$LAST_SHAPE"; }
+last_tests() { sed -n 2p "$LAST_SHAPE"; }
+# baseline test-count for one suite file, recorded during the BASELINE pass
+base_tests_of() { awk -v f="$1" '$1==f {print $2}' "$BASE_SHAPE" | tail -1; }
 restore_migration() { $DB -v ON_ERROR_STOP=1 -q -f - < "supabase/migrations/$1" >/dev/null; }
 
 case_no=0
@@ -74,15 +100,27 @@ one_case() { # label schema fn old new testfile migration
     FINDINGS=$((FINDINGS+1)); return
   fi
   echo "  edit landed   : $h0 -> $h1"
-  r_mut="$(run_test "$tf")"
+  local mut_tests base_tests shape_note=""
+  r_mut="$(run_test "$tf")"; mut_tests="$(last_tests)"
   restore_migration "$mig"
   h2="$(hash_of "$sch" "$fn")"
   r_res="$(run_test "$tf")"
-  echo "  under mutation: $tf -> $r_mut"
+  base_tests="$(base_tests_of "$tf")"
+  echo "  under mutation: $tf -> $r_mut  (Tests=${mut_tests:-?} vs baseline ${base_tests:-?})"
   echo "  restored hash : $h2 $( [ "$h2" = "$h0" ] && echo '(== baseline)' || echo '(!= baseline ⛔)' )"
-  echo "  after restore : $tf -> $r_res"
-  if [ "$r_mut" = "Result: FAIL" ] && [ "$r_res" = "Result: PASS" ] && [ "$h2" = "$h0" ]; then
-    echo "  VERDICT: KEYSTONE HOLDS — red under mutation, green restored, rollback exact"
+  echo "  after restore : $tf -> $r_res  (Tests=$(last_tests))"
+  # A SHAPE DROP means assertions stopped running. That is NOT a keystone holding: the
+  # suite may have aborted before ever evaluating the assertion the mutation targets.
+  if [ -n "$base_tests" ] && [ -n "$mut_tests" ] && [ "$mut_tests" -lt "$base_tests" ]; then
+    shape_note="run-shape!=baseline (Tests=$mut_tests vs $base_tests)"
+  fi
+  if [ -n "$shape_note" ]; then
+    echo "  VERDICT: ⛔ ERROR — $shape_note. The suite ABORTED rather than failed, so this"
+    echo "           case proves nothing about whether the assertion noticed. NOT a pass,"
+    echo "           and NOT a keystone-holds. Cover it with a case whose suite completes."
+    FINDINGS=$((FINDINGS+1))
+  elif [ "$r_mut" = "Result: FAIL" ] && [ "$r_res" = "Result: PASS" ] && [ "$h2" = "$h0" ]; then
+    echo "  VERDICT: KEYSTONE HOLDS — red under mutation (full shape), green restored, rollback exact"
   else
     echo "  VERDICT: ⛔ FINDING — see the three lines above"
     FINDINGS=$((FINDINGS+1))
@@ -101,8 +139,13 @@ echo "    (a dirty baseline makes every verdict below unreadable: a keystone tha
 echo "     ALREADY red cannot be shown to have gone red because of the mutation)"
 BASE_OK=1
 for f in "$T384" "$T385" "$T386"; do
-  r="$(run_test "$f")"; echo "  $f -> $r"
+  r="$(run_test "$f")"; bt="$(last_tests)"
+  echo "  $f -> $r  (Files=$(last_files) Tests=${bt:-?})"
+  # Record the shape, not just the verdict: every later case is compared against it, and a
+  # baseline with no recorded test count silently disables that comparison.
+  [ -n "$bt" ] && echo "$f $bt" >> "$BASE_SHAPE"
   [ "$r" = "Result: PASS" ] || BASE_OK=0
+  [ -n "$bt" ] || { echo "  ⛔ no Tests= captured for $f — the shape check would be vacuous"; BASE_OK=0; }
 done
 if [ "$BASE_OK" -ne 1 ]; then
   echo "⛔ ABORTING: baseline is not green. Fix that first."; exit 2
