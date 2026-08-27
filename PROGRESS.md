@@ -106,12 +106,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      **expires when the pilot loads data**.
   2. **C1 split into C1a (local) + C1b (Cloud); the pilot bound is C1b** — a green
      local rehearsal does NOT release the pilot (§ Critical FUP C1).
-- **In-flight worktrees: ONE** — the primary checkout. Re-measured 2026-08-26
-  (`git worktree list --porcelain`): `chore/followup-staleness-audit` and
-  `claude/angry-stonebraker-c8e637` are both gone, nothing prunable. ⛔ **Third wrong value in a
-  row** (NONE while three existed → TWO while one did) — no warning has ever fixed this count.
-  ⚠ Before any gate in a worktree check `.env.local` **and** a non-empty `node_modules`
-  ([worktrees.md](docs/worktrees.md)); the second fails silently by borrowing the parent's packages.
+- **Worktrees — ⛔ NEVER read a count from this file.** It has been wrong **three times running**
+  (NONE while three existed → TWO while one did), and no warning ever fixed that; the count is
+  gone rather than re-stated. `git worktree list --porcelain` is the only source.
+  ⚠ In a worktree, check `.env.local` **and** a **non-empty** `node_modules` before any gate
+  ([worktrees.md](docs/worktrees.md)) — the second fails silently by borrowing the parent's.
 ## Phase Status — live rows only
 
 > **Completed rows live in [phase-ledger.md](docs/progress/phase-ledger.md)** —
@@ -126,7 +125,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 | 18 | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
 | 19 | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) ([plan](docs/plans/deliberations.md)) | ADR PROPOSED — NOT ratified; nothing built and nothing may start | – | – | – | ⛔ **not ratified** | – | taken |
-| AE1 | **Authz evolution — integrity & privilege hardening** ([plan](docs/plans/authz-evolution.md) · ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D9) | 🔵 building 2026-08-26 — first AE phase that writes migrations; branch `authz-ae1-hardening` | AE1.6 ✅ (pgTAP 382) · AE1.2 classified, 752 fns, **233 revokes HELD** (RV0: a revoke may not create sweep blindness) · AE1.3 designed + **approved R0–R6** · AE1.1 preflight ✅. ⛔ Builds NOT started: AE1.1, AE1.3, AE1.4 (**45 sites, not 12**), AE1.5 | – | – | – | – | – |
+| AE1 | **Authz evolution — integrity & privilege hardening** ([plan](docs/plans/authz-evolution.md) · ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D9) | 🔵 building 2026-08-26 — first AE phase that writes migrations; branch `authz-ae1-hardening` | AE1.6 ✅ (382) · AE1.1 ✅ **BUILT** (both FKs CASCADE + 383) · AE1.2 classified 752 fns, **233 revokes HELD** (RV0: a revoke may not create sweep blindness) · AE1.3 **approved R0–R6**. ⛔ In flight: AE1.3, AE1.4 (**45 sites, not 12**), AE1.5 | – | – | – | – | – |
 
 ## Bug Log
 
@@ -321,6 +320,7 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 
 - 🟠 **FUP-AFF4-HOMEORG-PHASE2** — 0151 D10's named Phase 2 (RLS legs + tenant trigger off `home_organization_id`; lifecycle authority over fully-offboarded persons) had **no register line anywhere** — filed 2026-08-26 at ADR 0155's acceptance, which also **promotes it to PRE-PILOT** (was "before multi-org, not pilot-blocking") as implementation Phase 2 → [body](docs/progress/follow-ups.md) — backend/PO
 - 🔴 **FUP-MEETING-CASES-SELECT-OMITS-RECUSAL** — the SELECT policy hand-rolls a weaker predicate than its three siblings and inherits **no recusal deny**; the table carries case `summary`/`decision`. Predicate measured TRUE for a recused user, but the seed cannot reach the state — **latent, not demonstrated**. PO rules it before any fix → [body](docs/progress/follow-ups.md) — backend/PO
+- 🟡 **FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY** — `commissions` + `commission_meeting_types` grant tenancy-admin **reads** from `…_write` policies (a `FOR ALL` policy **is** a read policy), so the only identity-preserving dedup would make read depend on a write policy surviving. Lead-ruled 2026-08-27: leave both; restructure is its own decision. ⚠ Wider than these 2 — derive as a **property** → [body](docs/progress/follow-ups.md) — backend/PO
 - 🔴 **FUP-ETHICS-CASE-DELETE-CASCADE** — a commission `staff_admin` can `DELETE /rest/v1/cases` an **in-flight** ethics case, cascading all **7** `ethics_*` tables; the lane's deliberate SELECT-only lockdown (9 tables, 14 DEFINER writers, **no DELETE in any**) is defeated by a parent that was never locked down — same JWT gets **403** on `ethics_case_details`, **200** on `cases`. `guard_case_status` bars DELETE only for `completed`/`cancelled`. ⛔ **3** audit rows emitted, **0** naming any ethics entity (no `ethics_*` table has an audit trigger). Confirmed by execution, rolled back. **PO-ruled RECORD-ONLY 2026-08-21** — accepted and OPEN — backend/PO
 - 🟠 **FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE** — `redact_professional_profile` erases the accused doctor from an **undecided** ethics case: the `HC0J7` bar needs an `issued` decision and `trg_pin_respondent_retention` fires only on the transition **into** `issued`, so both halves are false all through intake/findings/hearings. Executed by a plain commission `staff_admin`. ⚠ **No UI calls it — that is not the control**; the RPC is `EXECUTE`-granted to `authenticated` and answers over PostgREST. Existing pgTAP `257` + E2E pin only the **pinned** case, so nothing is red. **PO-ruled RECORD-ONLY 2026-08-21** — backend/PO
 - 🟠 **FUP-DM5-SUPERSEDE-SERVING-COLLISION** — ✅ **PO-RULED 2026-08-18 as option (b): supersession no longer marks bytes; the trigger moves to RETENTION EXPIRY** — backend
