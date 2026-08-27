@@ -33,7 +33,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   gate-tooling bullet was rotated 2026-08-25: it is the one item in that ✅-marked bullet with an
   unfired resolution event, it exists in **no other file**, and rotating the bullet whole would have
   buried an open action under a completed heading — owner: whoever next hits it.
-- **⚠ NO PHASE IS BUILDING — and AFF4 IS MERGED, PUSHED, AND ITS SCHEMA IS APPLIED REMOTELY**
+- **⚠ AE0 IS BUILDING (flipped 2026-08-26 at the AE0 branch cut — see the ADR 0155 bullet) — and
+  AFF4 IS MERGED, PUSHED, AND ITS SCHEMA IS APPLIED REMOTELY**
   (`main` @ `e8abaeec`; branch deleted; 12 migrations pushed 2026-08-26). ⛔ **Do not compress the
   clauses into one; the second is what this line has destroyed four times, and "complete" has meant
   four different things here — built / merged / pushed / schema-applied.** ⛔ **Re-measure, never
@@ -52,16 +53,13 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   detail → [aff4.md](docs/progress/aff4.md) · authority is still the
   [plan](docs/plans/aff4-org-affiliation.md). Concluded narrative rotated →
   [2026-Q3.md](docs/progress/2026-Q3.md). ⛔ **THE THREE RESIDUES, and they exist nowhere else:**
-  **(1)** ✅ **DISCHARGED 2026-08-26 — merged, pushed, branch deleted, and all 12 migrations applied
-  remotely** (`db push` exit 0; verified on the remote: `organization_affiliations` = **35 rows**,
-  matching `profiles.home_organization_id` = 35, so the backfill that matches **zero** rows locally
-  did its real work there; backstop `prosecdef` = **true**; 5 doors present).
-  ⛔ **BUT THE DOCUMENTED ORDER WAS VIOLATED AND IT MUST BE RECORDED:** this residue said
-  *"`coolify.md` documents auto-deploy on `git push`, so the order is **schema first, then code**"* —
-  and the lead pushed **code first**, leaving a window in which deployed code queried a table the
-  remote did not have. ⭐ **The residue named the hazard, was read, and was violated anyway**, because
-  it was filed under a heading about an unmerged branch rather than beside the push. A warning is
-  only as good as its position relative to the action it governs;
+  **(1)** ✅ **DISCHARGED — merged, pushed, branch deleted, 12 migrations applied remotely 2026-08-26.**
+  ⛔ **The one thing that stays live is the standing rule it broke: push SCHEMA (`db push`) BEFORE
+  CODE (`git push`)** — Coolify auto-deploys on the git push, and the lead pushed code first,
+  leaving a window where deployed code queried a table the remote did not have. ⭐ The warning
+  existed, was read, and was violated anyway **because it sat under a heading about an unmerged
+  branch instead of beside the push**. Full record rotated verbatim →
+  [2026-Q3.md](docs/progress/2026-Q3.md) § "AFF4 residue (1)";
   **(2)** ⚠ **~16 QA-review obligations + ~20 plan-discovered follow-ups were NOT converted into
   `FUP-*` index lines at the Record step** — several say in their own words that they need one, so
   they are invisible to the register the PO reads from until they are filed (pointer list:
@@ -71,7 +69,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   the confidence was. **Read the plan before quoting any gate figure from this build**, and never
   believe a counting instrument's zero until it has been run once against a known failure.
 - **📐 ADR 0155 ACCEPTED (as amended) 2026-08-26 — the post-AFF4 authorization-evolution program is
-  the plan of record; ⛔ NOTHING IS BUILDING under it.** Role/permission catalog adopted via
+  the plan of record; ▶ AE0 IS BUILDING since 2026-08-26 (branch `authz-ae0-baseline`).**
+  Role/permission catalog adopted via
   role-by-role **direct substitution** (`staff_admin` first — reverses the draft's own rejection);
   **pilot gate = implementation Phases 0–4**, Phase 5 (remaining roles) post-pilot; D4 →
   `profile_private_details`, single-shot pre-live; D5 demoted; D6 stays deferred with broadened
@@ -82,7 +81,12 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   the [plan](docs/plans/authz-evolution.md) (execution — phases **AE0–AE7**, gates, PO decision
   points) + the [audit](docs/design/authorization-model-evolution-audit-2026-08-26.md) (analysis).
   ⚠ **C1a keeps its queue position (G10)** — Phases 0–1 may run in parallel with the ▶ queue below
-  but do not preempt it.
+  but do not preempt it; re-checked 2026-08-26, C1a still heads the queue and AE0 did not displace it.
+  ⛔ **AE0 is MEASUREMENT-ONLY — no schema change, no migration.** A fresh `db reset --local` ran at
+  the branch cut and **the local stack is AE0's measurement subject until AE0 closes**: do not reset
+  it, run E2E on it, or start a dev server against it without editing this line first (rule 7).
+  Post-reset: 475 migrations, head `20261003004300`, `auth.users` 36, `organization_affiliations` 35.
+  Artifacts → `docs/design/authz-evolution-{census,baselines,parity,service-role-dml}-ae0.md`.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -124,6 +128,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 | 18 | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
 | 19 | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) ([plan](docs/plans/deliberations.md)) | ADR PROPOSED — NOT ratified; nothing built and nothing may start | – | – | – | ⛔ **not ratified** | – | taken |
+| AE0 | **Authz evolution — baseline & attributable measurement** ([plan](docs/plans/authz-evolution.md) · ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md)) | 🔵 building 2026-08-26 — **measurement only, no schema change**; branch `authz-ae0-baseline` | AE0.1–AE0.4 running; AE0.5 axes with lead | n/a — no behaviour changes | n/a | – | – | – |
 
 ## Bug Log
 
