@@ -1076,3 +1076,39 @@ baseline event:
 it: create an eighth RLS-enabled zero-policy table → `Result: FAIL`; drop it → `Result: PASS`. And
 it **failed rather than aborted** (72 tests in both runs), which is the kind of red that means an
 assertion evaluated and disagreed.
+
+### ⚖ PO rulings 2026-08-27 on QA's M1 and M4 — both taken, both recorded as what they are
+
+**M1 — the "individually justified public command doors" clause.** Ruled: **derive it**, not
+narrow it away and not write 384 paragraphs. The instrument gained **BLOCK 9**, which isolates the
+population *as a property* and emits per-door threat columns; the "why does this need EXECUTE"
+half is the classification's per-row `src/` call-site evidence. **The justification is the JOIN of
+those two.**
+
+⛔ **Three populations were in play and the review's one domain sentence cited a fourth:** catalog
+upper bound **413** (`public` + `prosecdef` + auth-exec + non-trigger) · classification's command-door
+class **384** (the subset actually reached from `src/`) · **87** `public` INVOKER functions that are
+client-callable and in neither · and the sentence said **407**, which is C2's `public` + `app`
+figure. ⭐ 413 and 384 are not a discrepancy — the catalog says what is *invocable*, only the `src/`
+sweep says what is *invoked*.
+
+⚠ **Recorded as a narrowing of PA-F11's literal wording**, because it is one: "individually
+justified" now means *every door carries a derivable per-row justification*, not *a human wrote a
+sentence about each*. Stated so nobody later reads the clause as having been met in its original
+sense.
+
+**M4 — the acceptance evidence for AE1.5.** Ruled: the 29-table **`explain (costs off)` shape diff
+IS the acceptance evidence**, recorded as a substitution rather than back-filled with
+`ANALYZE/BUFFERS` numbers after the fact. The reason is that the mandated instrument cannot mean
+here what its name suggests: this DB has **no planner statistics** (`reltuples = -1`) and AE0.2's
+own header says the baselines detect **plan-shape** regressions, not latency. A shape diff detects
+exactly that, without printing cost figures a later reader would take for performance evidence.
+⚠ What it gives up is stated: buffers, rows-removed, loop counts. The advisor warning count is
+**demoted from the headline** — the plan names it as explicitly *not* the acceptance evidence.
+
+⭐ **And the carve-out was under-scoped, which QA caught and my first check nearly refuted wrongly.**
+`meeting_cases` and `profiles` have no *edited* SELECT policy, so no read plan shows AE1.5's change
+there. The catalog says the opposite at first glance — both SELECT policies **do** carry
+`( SELECT auth.uid() )` today — but they were already written that way; `…004710` names only the
+two UPDATE policies. *The catalog tells you the current state, never who caused it*, and attributing
+a change is the one question for which the phase's own migration file is the right instrument.

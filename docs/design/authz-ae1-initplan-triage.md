@@ -512,6 +512,30 @@ the difference as an AE1.5 regression.
 
 **BEFORE shape — the 11-arm filter, with the four duplicates marked:** quoted in § 4.1.
 
+### 6.0a ⚖ RULED 2026-08-27 (PO) — the `costs off` SHAPE DIFF **is** AE1.5's acceptance evidence
+
+Plan §AE1.5 step 3 mandates re-running **AE0.2's** baselines, and AE0.2 is defined as
+`EXPLAIN (ANALYZE, BUFFERS)`, three repetitions. **That was not what AE1.5 produced** (QA finding
+M4), and rather than manufacture it after the fact the PO ruled the substitution explicitly:
+
+✅ **The 29-table `explain (costs off)` shape diff is the acceptance evidence.** The reason is not
+convenience — it is that the mandated instrument cannot mean here what its name suggests. This
+database has **no planner statistics** (`reltuples = -1`), and AE0.2's own header says the
+baselines detect **plan-shape regressions** (index → seq scan, InitPlan → per-row), **not**
+production latency, because the data is seed-sized. A `costs off` diff detects exactly that class,
+and it does so *without* printing cost and buffer numbers that a later reader would inevitably
+read as performance evidence they cannot be.
+
+⚠ **What the substitution gives up, stated:** buffers, rows-removed and loop counts, which can
+catch a regression that leaves plan shape intact. Nothing here covers that class. If it is ever
+wanted, the re-run must be on a **statistics-free** reset to match AE0's condition — ⛔ and never
+by `ANALYZE`-ing the AE0 comparison DB, which would destroy the baseline it is being compared to.
+
+⛔ **And one headline metric is withdrawn.** §6.2 led with *"advisor-flagged policies 113 → 61"*.
+The plan names the advisor's warning count as **explicitly not** the acceptance evidence, so it is
+demoted to a corroborating observation. The surviving headline is the plan-text count — inlined
+`current_setting` expansions **39 → 0** — which is a property of the plans themselves.
+
 ### 6.2 AFTER — and ⭐ a correction to F-AE0-6's MAGNITUDE
 
 Captured in the reset window, head `20261003004710`, stack verified
@@ -528,7 +552,7 @@ command.
 | metric, over the 29 captured tables | BEFORE | AFTER |
 | --- | ---: | ---: |
 | inlined per-row `current_setting('request.jwt.claim.sub'…)` expansions | **39** | **0** |
-| advisor-flagged policies, whole schema | 113 | **61** |
+| advisor-flagged policies, whole schema — ⚠ **corroborating only, NOT acceptance evidence** (§6.0a) | 113 | 61 |
 
 Per table, the transform is visible directly — e.g. `case_decisions`:
 
@@ -652,6 +676,28 @@ against a proposed row on write; capturing it would mean executing writes agains
 stack. For those, the acceptance evidence is the catalog identity assertion (test 387 § C) plus
 the red-first fix detector — **not** a plan diff. A missing baseline is honest; a mislabelled one
 poisons every later comparison.
+
+⚠ **AND THE CARVE-OUT WAS UNDER-SCOPED — extended 2026-08-27 (QA finding M4).** The clause above
+names only the `with_check`-only INSERT class. There is a second class with no read plan to diff:
+a table whose **edited** policies are all non-SELECT, even though the table itself has a SELECT
+policy. Two of the 29:
+
+| table | what `…004710` actually edited | why no read plan shows it |
+| --- | --- | --- |
+| `meeting_cases` | `meeting_cases_staff_admin_update` (UPDATE, `USING` + `WITH CHECK`) | its `meeting_cases_select` was **not** edited |
+| `profiles` | `profiles_update_self` (UPDATE, `USING` + `WITH CHECK`) | its `profiles_select_self_or_admin` was **not** edited |
+
+⛔ **The catalog alone gets this WRONG, and did on the first pass.** Both SELECT policies *do*
+carry `( SELECT auth.uid() )` today — so a catalog read says "the SELECT policy is wrapped, a read
+plan will show the change". It will not: those two were **already written that way** before AE1.5.
+Attribution needs the phase's own change list, and `20261003004710_ae15_initplan_wrap_hot_subset.sql`
+names `meeting_cases_staff_admin_update` and `profiles_update_self` and **not** the two SELECT
+policies. ⭐ *The catalog tells you the current state, never who caused it* — the one question for
+which the migration file is the right instrument, because "what did this phase intend to edit" is
+exactly what it records.
+
+⇒ So §6.2's `profiles` material was never going to be a plan diff of AE1.5's own change, which is
+the vacuum B4's withdrawn-migration table had filled.
 
 ---
 

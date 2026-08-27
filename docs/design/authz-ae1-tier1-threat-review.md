@@ -99,10 +99,10 @@ is a measured non-issue, not a caveat.
 | C2 | PostgREST exposure | 501 callable · 22 return `trigger` and are not callable at all | 0 |
 | C3 | caller-identity binding | 465 bound somewhere in the closure (241 in their own body) | **58** |
 | C4 | arbitrary-principal parameters | 52 take one; **0** take one without binding identity | **0** |
-| C5 | authority before existence | 338 authority-first · 110 N/A · 41 read-first with a uniform deny | **31** |
+| C5 | authority before existence | 338 authority-first · 110 N/A · 41 read-first, uniform deny · **3 INVOKER read-first** (RLS-filtered, so not-found already means not-authorized) | **31** |
 | C6 | overload / default-argument reach | **0 overloaded names**; 180 with default arguments | 0 |
-| C7 | dynamic SQL + `search_path` | 521 pin `search_path`; **0 use dynamic SQL** (§5) | **2** |
-| C8 | output minimization / enumeration | 47 DEFINER set-returning surfaces, all reviewed (§4.4) | **0** |
+| C7 | dynamic SQL + `search_path` | 521 pin `search_path`; **0 use dynamic SQL** after disposition (§5) | **5 flagged → 0 findings** |
+| C8 | output minimization / enumeration | 47 DEFINER set-returning surfaces, all reviewed (§4.4); the 41/6 gate-token split is **BLOCK 10** | **0** |
 | C9 | audit emission | 270 mutating doors: 108 call audit, 100 audited by table trigger | **62** |
 | C10 | exact grants | `proacl` never NULL; 1 PUBLIC/`anon`-executable row | **1** |
 
@@ -121,12 +121,20 @@ three days ago.*
 
 ### 4.1 C3 — 58 with no identity binding anywhere in the closure
 
+⛔ **The first version of this table summed to 60 against a bucket of 58** (QA finding M1), in a
+document whose own instrument contract says *"Every bucket is a PARTITION whose parts sum to the
+population"*. Cause: `graphql_public.graphql` and `list_audit_filter_actors` were given their own
+"individually reviewed" row while already sitting in the INVOKER class — **double-counted** — and
+the trigger class was overstated by two. Re-derived as a true partition (BLOCK 3 + BLOCK 4):
+
 | class | n | verdict |
 | --- | ---: | --- |
-| **trigger-returning bodies** (`guard_*`, `sync_profile_email*`, `form_item*_sync_version`, `handle_new_user`, `snap_referral_commission_names`, `reject_*`, `commission_derive_organization_id`, `assert_profile_tenant_has_org`) | 22 | ✅ **Correct by construction.** PostgREST cannot call a `trigger`-returning function, and EXECUTE is checked at `CREATE TRIGGER`, not at fire time. The body runs inside a DML statement whose own authorization already happened; binding identity here would authorize nothing. |
-| **feature-flag readers** (`*_enabled` ×12 + `get_feature_flags`) | 13 | ✅ **Deliberately identity-free.** A flag is deployment configuration, not tenant data, and must read identically for every caller. Verified: no flag value is tenant-scoped. |
-| **INVOKER helpers and process-template doors** (`draft_version_of_template`, `reorder_item`, `reorder_section`, `reconcile_item_options`, `delete_section_moving_items`, `get_response_validation_errors`, `reference_candidates`, `publish_form_version`, `submit_response`, the `*_template_*` family) | 22 | ✅ **RLS is the boundary** (Architecture Rule 1). `prosecdef = false`, so the caller's own policies apply to every row the body touches; identity binding is supplied by the policy layer, which is where this platform puts it. |
-| **individually reviewed** — `graphql_public.graphql` (§4.5) · `list_audit_filter_actors` (INVOKER, RLS-bounded) · `validate_visible_when` (§5) | 3 | ✅ see the cited sections |
+| **trigger-returning bodies** (`guard_*`, `sync_profile_email*`, `form_item*_sync_version`, `handle_new_user`, `snap_referral_commission_names`, `reject_*`, `commission_derive_organization_id`, `assert_profile_tenant_has_org`) | **20** | ✅ **Correct by construction.** PostgREST cannot call a `trigger`-returning function, and EXECUTE is checked at `CREATE TRIGGER`, not at fire time. The body runs inside a DML statement whose own authorization already happened; binding identity here would authorize nothing. |
+| **feature-flag readers** (`*_enabled` ×12 + `get_feature_flags`) | **13** | ✅ **Deliberately identity-free.** A flag is deployment configuration, not tenant data, and must read identically for every caller. Verified: no flag value is tenant-scoped. |
+| **INVOKER — RLS is the boundary** (Architecture Rule 1): the process-template family, `reorder_item`, `reorder_section`, `reconcile_item_options`, `delete_section_moving_items`, `get_response_validation_errors`, `reference_candidates`, `publish_form_version`, `submit_response`, **and** `graphql_public.graphql` (§4.5) and `list_audit_filter_actors` | **24** | ✅ `prosecdef = false`, so the caller's own policies apply to every row the body touches; identity binding is supplied by the policy layer, which is where this platform puts it. |
+| **DEFINER remainder — individually reviewed** | **1** | `public.validate_visible_when` — §5 |
+
+**20 + 13 + 24 + 1 = 58** ✓
 
 ### 4.2 C5 — 31 DEFINER doors that confirm existence before checking authority → **FUP**
 
@@ -257,6 +265,46 @@ re-run against a known positive.**
 
 ---
 
+## 5a. The public command doors — justified by derivation, not by 384 paragraphs
+
+**PO-ruled 2026-08-27** (QA finding M1). PA-F11 asks that public command doors be
+**individually justified**; the first version of this review had **no notion of a command door
+at all** — they were dissolved into the 523 with everything else — and declared the clause met.
+
+⛔ **Three populations were in play and one sentence cited a fourth.**
+
+| population | n | what it is |
+| --- | ---: | --- |
+| catalog upper bound (**BLOCK 9**): `public` + `prosecdef` + `authenticated`-executable + `rettype <> 'trigger'` | **413** | every function PostgREST can invoke that runs as its owner |
+| the classification's **command door** class | **384** | the subset of those actually reached from `src/` at tier `rpc`/`code-literal` (372 + 12 multi-class) |
+| `public` **INVOKER**, auth-exec, non-trigger | **87** | also client-callable, in **neither** figure above — the ADR 0079 A7 class again |
+| the figure the old §7 sentence cited | 407 | ⛔ **C2's `public` + `app` count**, a different population from the one that sentence bounds |
+
+⭐ **413 and 384 are not a discrepancy — they answer different questions.** The catalog can say
+what is *invocable*; only the `src/` sweep can say what is *invoked*. Neither number is wrong, and
+quoting one where the other belongs is what produced the 407.
+
+**What the justification IS, and why it is derived.** Per door it has two halves, and both already
+exist as measured facts:
+
+- **why it needs EXECUTE** → the classification's per-row evidence (`authz-definer-classification-ae1.md`
+  §12): the `src/` call site that reaches it, at tier `rpc` or `code-literal`. A door with no such
+  row is not a command door — that is the class definition, not an exception to it.
+- **what its risk is** → the threat columns of this review, emitted per door by **BLOCK 9**:
+  identity binding over the closure · takes-a-principal · returns-rows · default args · pinned
+  `search_path`.
+
+The justification is the **join** of those two, which is why it is a query and not 384 paragraphs.
+⚠ **This is a narrowing of PA-F11's literal wording and is recorded as one**: "individually
+justified" here means *every door carries a derivable per-row justification*, not *a human wrote a
+sentence about each*. The PO took that trade knowingly; the alternative — a 384-row hand list —
+is the shallow-pass failure this phase named before starting, and it would go stale on the next
+door added.
+
+⛔ **What this does NOT do:** it does not sweep them. The command doors remain outside every ARM
+arm's domain (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, C2), and BLOCK 9 characterizes them without
+changing that. The C2 subset closes before Gate AE4 per the pilot cutline, not here.
+
 ## 6. Findings, collected
 
 | # | finding | disposition |
@@ -273,7 +321,7 @@ re-run against a known positive.**
   PA-F11. That is the *declared* bound: `anon` holds no USAGE on `app` and `app` is not a
   PostgREST-exposed schema, so no `app` function is client-invocable. If either fact changes,
   Tier 2 becomes Tier 1 and this review is incomplete by exactly 320 rows.
-- **The 407 reachable command doors of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2)** remain outside
+- **The reachable command doors of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2)** remain outside
   every ARM arm's domain. This review characterizes them; it does not sweep them.
 - **`ARM=policy`, `ARM=floor`, `ARM=census`, `ARM=hat` and `ARM=wrapper` are unaffected** by
   this document. It adds no gate and no test — it is a review, and its findings are carried by
@@ -281,3 +329,36 @@ re-run against a known positive.**
 - Column C5's positional pass is a **heuristic over body text**, refined by two semantic splits.
   It can miss a body whose disclosure runs through a path the position of the first token does
   not represent. The 31 are a floor.
+
+### 7a. The instrument's OWN domain — added 2026-08-27 (QA finding M1)
+
+§7 above bounds the *subject*. It said nothing about the *instrument*, which is the half a reader
+needs in order to know what a green column is worth. Each of these is a real limit, not a
+disclaimer:
+
+- **The call closure is depth-bounded at 8.** A binding reachable only at depth 9+ reads as absent.
+  Nothing measures how close the real graph comes to that bound.
+- **The closure spans `app`, `public`, `graphql_public` only.** A binding that arrives through a
+  function in any other schema is invisible to it.
+- ⛔ **The comment-strip does NOT strip string literals, and BLOCK 3 reads the same `prosrc`.**
+  §5 applies that lesson to the dynamic-SQL detector and **not** to the edge builder — where the
+  consequence is worse: a function name appearing inside a pt-BR string manufactures a **phantom
+  edge**, which can *create* an identity binding that does not exist. That is the unsafe
+  direction, and the two-instrument agreement test does not cover it: qualified-vs-bare measures
+  over-joining across schemas, not literals. ⚠ So *"the over-join concern is a measured non-issue"*
+  is true **only of the mode it tested**.
+- **BLOCK 3's schema pattern has no left word boundary** (`(app|public)\.` matches inside
+  `v_app.foo(`), and it joins on `proname` with arity ignored, where the sibling `sig` regex uses
+  `\y`.
+- **C4 relies on a parameter-NAME regex.** "52 take a principal uuid" is a **floor**: a principal
+  parameter named something the regex does not anticipate is not counted, and C4's headline zero
+  is conditioned on that floor.
+- **C2's exposure test is `rettype <> 'trigger'` against a hand-typed schema literal** — the
+  exposed-schema list is copied from `config.toml`, not read from it, so a change there does not
+  reach this instrument.
+- **C9 filters to DEFINER mutators**, which excludes the 90 `public` INVOKER functions F-T1-1 was
+  added to catch — `publish_form_version` and `submit_response` among them. Architecture Rule 11
+  asks its question of *every* mutation, so C9's 62 is a floor over a subset.
+- ⚠ **"325 decided mechanically" means "tripped none of six residue predicates"** — an absence of
+  flags, not a positive certification across ten columns. C1, C2, C4 and C6 contribute no residue
+  bucket at all, so they are "decided" for all 523 rows by construction.

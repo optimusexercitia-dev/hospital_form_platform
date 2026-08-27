@@ -387,3 +387,50 @@ select t1.sch || '.' || t1.proname as fn, t1.prosecdef as definer, t1.rettype,
        string_agg(r.bucket, ' | ' order by r.bucket) as buckets
   from review r join t1 on t1.oid = r.oid
  group by 1, 2, 3 order by 1;
+
+-- -------------------------------------------------------------------------------------
+-- BLOCK 9 -- THE PUBLIC COMMAND DOORS, isolated as a POPULATION.
+--
+-- PA-F11 asks that public command doors be INDIVIDUALLY JUSTIFIED. Until 2026-08-27 this
+-- instrument had no notion of a command door at all -- they were dissolved into the 523
+-- with everything else, and the review's domain sentence cited 407, which is C2's
+-- public+app figure, while the classification's public command-door class is 384. Three
+-- populations, one sentence (QA finding M1).
+--
+-- Derived here as a PROPERTY, so the count moves with the catalog instead of with a list:
+--   public + prosecdef + authenticated-executable + rettype <> 'trigger'
+-- That is the UPPER BOUND. The classification's 384 is its subset actually reached from
+-- src/ at tier rpc|code-literal -- a fact only the app sweep can establish, so the two
+-- numbers are different questions and neither is wrong. Print both bounds, never one.
+--
+-- WHY EACH NEEDS EXECUTE is the classification's per-row src/ evidence (that file's SS12);
+-- WHAT ITS RISK IS is the threat columns above, per row. The justification is the JOIN of
+-- those two, which is why it is derived and not written out 384 times.
+-- -------------------------------------------------------------------------------------
+select 'command doors -- catalog upper bound (public, DEFINER, auth-exec, non-trigger)' as figure,
+       count(*)::text as value
+  from t1 where sch = 'public' and prosecdef and x_auth and rettype <> 'trigger'
+union all
+select '  ...also client-callable but NOT in that class: public INVOKER, auth-exec, non-trigger',
+       count(*)::text from t1 where sch = 'public' and not prosecdef and x_auth and rettype <> 'trigger';
+
+-- per-door risk row: the threat columns that apply to a command door, one line each
+select t1.sch || '.' || t1.proname as door,
+       t1.rettype,
+       (q.id_reach)                                  as identity_bound_in_closure,
+       (t1.args ~* '(actor|user_id|principal|profile_id|member_id|target_user|p_user|_uid)[^,]*\yuuid\y') as takes_principal,
+       t1.proretset                                  as returns_rows,
+       (t1.pronargdefaults > 0)                      as has_default_args,
+       coalesce(array_to_string(t1.proconfig, ','), 'UNPINNED') as search_path
+  from t1 join reach_q q on q.root = t1.oid
+ where t1.sch = 'public' and t1.prosecdef and t1.x_auth and t1.rettype <> 'trigger'
+ order by 1;
+
+-- -------------------------------------------------------------------------------------
+-- BLOCK 10 -- C8's gate-token split, which the review stated as '41 of 47' with no block
+-- behind it (QA finding M1). Derived here so the figure has a deriver.
+-- -------------------------------------------------------------------------------------
+select case when src ~* '\yhas_role\y|\yis_[a-z_]+_of\y|\ycan_[a-z_]+\y|\yassert_[a-z_]+\y|\yauthoriz[a-z_]*\y'
+            then 'gate token in body' else 'NO gate token in body -- read the body' end as split,
+       count(*)
+  from t1 where prosecdef and proretset and rettype <> 'trigger' group by 1 order by 2 desc;
