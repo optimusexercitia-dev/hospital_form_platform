@@ -2959,6 +2959,52 @@ owners kept live here).
 > ⚠ **Do not close this FUP on EVID-KBD-1's fix** — one member's root cause is evidence about the
 > class, not a closure of the other two.
 
+> ### ✅ 2026-08-27 — FINGERPRINTS, OWNER AND EXPIRY ADDED (AE1 close condition #5 / PA-F16)
+>
+> PA-F16: *"a name-matched failure with a novel fingerprint is a red, not a flake."* Until now
+> these two entries carried a NAME and an owner and nothing else, so any failure of either test
+> — for any reason — could be waved through as "the known flake".
+>
+> ⚠ **What these fingerprints ARE, stated so they are not over-trusted:** the failing **step**,
+> derived from the spec source. The **message pattern** half is deliberately left OWED, because
+> `e2e:prod` has not run this phase and inventing an error string nobody observed would be the
+> exact defect this condition exists to close. Fill it in at the next observed occurrence.
+> Even step-only, the discriminator already works: a failure at a different step is a red.
+>
+> **M1 — `act-role-assumption.spec.ts:157`** *"The switch: assuming a hat then switching changes
+> the landing route AND real authorization"* · owner **tester** · expiry **2026-10-31**
+> - FLAKE fingerprint: a Playwright **timeout** on the landing-route assertion
+>   `expect(page).toHaveURL(/\/o\/rede-a\/manage$/)` (:160), the first assertion after
+>   `cachedSignIn(… 'dualhat.a@test.local', … 'org_admin')` — navigation not settled.
+> - ⛔ RED, not a flake: a URL **mismatch** rather than a timeout (that is a routing defect, not
+>   timing) · a failure at any later assertion in the test · any auth/permission error.
+>
+> **M2 — `phase2-auth-shell.spec.ts:268`** *"logging out via user menu redirects to /login and
+> clears session"* · owner **tester** · expiry **2026-10-31**
+> - FLAKE fingerprint: a **timeout** inside `signOutViaMenu` (:51–62) at either
+>   `expect(sairButton).toBeVisible({ timeout: 5_000 })` (:58) or
+>   `page.waitForURL('**/login', { timeout: 15_000 })` (:61).
+> - ⛔ RED, not a flake: a failure at the post-logout re-visit assertion (:274+) — that is
+>   session clearing, a different claim · any non-timeout error.
+>
+> ⛔ **At expiry an entry is root-caused or re-justified in writing, never silently renewed** —
+> a baseline that only ever grows is how "two pre-existing flakes" became a floor rather than a
+> count.
+>
+> ### ⛔ 2026-08-27 — THE "CONCRETE UNVERIFIED LEAD" ABOVE IS WRONG AT THE GRAIN THAT MATTERS
+>
+> It reads: *"`phase2-auth-shell.spec.ts` calls a bare `.focus()` shortly after a navigation —
+> the same anti-pattern, **in one of the two survivors**."* Measured: the file does contain a bare
+> `.focus()`, at **:375** — but that line is inside
+> `test('user can sign in and log out using only the keyboard')` (**:341**), which is **NOT** the
+> flaking test. The survivor is `'logging out via user menu…'` at **:268**, and neither it nor
+> its `signOutViaMenu` helper calls `.focus()` at all.
+>
+> ⭐ A true fact about the FILE was cited for a conclusion about the TEST. The lead was correctly
+> labelled unverified; what made it durable is that the sentence reads as though it had been
+> checked at the grain it is used at. ⚠ The `.focus()`-races-RSC-streaming class may still explain
+> M1 or M2 — this removes the only *evidence* offered for it, not the hypothesis.
+
 ### 🟡 FUP-GATE-PDFP1-FLAKE — `pdf-printing.spec.ts:38` pre-mint empty-state flake, mechanism UNPROVEN (owner: lead + tester)
 
 - 🟡 **FUP-GATE-PDFP1-FLAKE** — `e2e/pdf-printing.spec.ts:38` failed its **pre-mint** empty-state assertion once in the DM2 re-gate's `e2e:prod` run 1, then passed **three** independent ways at `RETRIES=0` (isolation 9/9 · identical-batch re-run 60/61 · full-suite run 2, batch 8 60/0). **Not phase-attributable** — the printing module is outside the DM2 diff and the expected string is intact in source (QA r2). ⚠ **The mechanism is UNPROVEN**: no infra signal (`server_dead=0`, no conn errors), unlike DM1's proven `server_dead` flake. QA narrowed it further — the gate resets the DB **before each batch** and batch 8 ran **1 worker**, and the failing test is the *first* in its file (pool index 0), which near-refutes the shared-fixture-pool hypothesis and leaves an ordinary `toBeVisible` timing flake. ⚠ **Both evidence artifacts are gone**: `test-results/` AND `/tmp/e2e-prod-gate/batch-8.log` were overwritten by the re-runs. **Discharge = catch it once with artifacts preserved, or pin the timing.** Related and arguably the real fix: `scripts/e2e-prod-gate.sh` resolves "re-run to see if it recurs" vs "preserve the evidence" the **wrong way** — a failing batch's log and `test-results/` should be archived before any re-run (QA r2 carry-forward) — lead/tester

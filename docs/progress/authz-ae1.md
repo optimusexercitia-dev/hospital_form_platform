@@ -45,7 +45,10 @@ mergeable increments but **does not close** until:
 4. ✅ **DONE** — ONE index (`user_id`), `20261003005100` + pgTAP 383 §3; PA-F15's cascade
    premise measured FALSE and the third FK (`appointed_by`) ruled out. See § "PA-F15 was
    wrong twice";
-5. named-flake baseline entries carry **error fingerprints** + owner/expiry [PA-F16];
+5. ✅ **DONE** — both `FUP-E2E-REPEAT-FLAKY` members carry a step fingerprint, owner and
+   expiry (2026-10-31). ⚠ The **message-pattern** half is deliberately OWED, not invented:
+   `e2e:prod` has not run this phase. Also corrected the FUP's "concrete unverified lead" —
+   the bare `.focus()` is in a DIFFERENT test (:375, inside :341) than the flaking one (:268);
 6. ✅ **DONE** — `20261003005200` + pgTAP 382 §5: **11** policies over **6** tables normalized
    to `TO authenticated`, 0 remaining. ⛔ Not "six": F-AE0-4's counts were wrong in both
    halves and it missed a `case_referral` DELETE policy on a PHI table entirely.
