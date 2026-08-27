@@ -30,7 +30,9 @@ amendments. **Nothing already built here is invalidated**; AE1 continues as inde
 mergeable increments but **does not close** until:
 
 1. registry dispositions complete — the **11 undecidable `.rpc()` sites** PO-ruled; zero
-   `undecided` rows at gate [PA-F10];
+   `undecided` rows at gate [PA-F10]. **Ruling prep ready 2026-08-27, awaiting PO →
+   [authz-ae1-rpc-rulings.md](../design/authz-ae1-rpc-rulings.md)** (catalog-measured; riders
+   R1 ACL-pinning pgTAP, R2 HMAC deny test, R3 re-measure before recording);
 2. AE1.2's `ALTER DEFAULT PRIVILEGES` uses the **global `FOR ROLE <creator>` form** with
    positive effective-ACL probes (`has_function_privilege` + `pg_default_acl`) — the
    `IN SCHEMA` form is a documented no-op against the built-in PUBLIC default [PA-F4];
@@ -44,6 +46,50 @@ mergeable increments but **does not close** until:
    ruled.
 
 ## ⚠ Operational facts this phase established the hard way
+
+### ⛔⛔ A MANDATED GATE HARNESS REPORTED SUCCESS AT EXIT 0 HAVING MEASURED NOTHING
+
+**2026-08-27, `p0-authz-writepath-audit.sh`, found by AE1.5.** Of its 22 write-layer cases:
+**13 ERRORed** on the §7.2 drift tripwire (AE1.5's wrap changed their `qual`/`with_check`
+text, so the harness's embedded 33-policy worklist no longer matched the live catalog and it
+correctly refused to neutralize), and **9 were absent from that worklist entirely** — never
+selected, and outside **both** arms' domains.
+
+⛔ **So its `(COVERED = the rest)` computed a residual over an EMPTY SET, and it printed
+`WRITEPATH EXITCODE=0`.** Zero cases measured, positive-sounding summary, clean exit.
+
+⭐ **This is a second instance of the failure that produced this repo's standing rule.**
+`ARM=census` once printed `INVARIANT HOLDS` at exit 0 **having enumerated ZERO gates** — which
+is why no authz-gate result predating 2026-08-24 is trusted
+(`.claude/rules/authz-gate-results-need-a-current-baseline.md`). It has now recurred in a
+different harness, in the *other half of the same gate*: `p0-authz-door-audit.sh` handles the
+identical situation as **exit 3 UNPROVEN (PARTIAL)**, with *"a clean verdict over a subset of
+what was asked for is the finding this gate exists to prevent. NOT a pass."* **Same class,
+opposite handling, two halves of one gate CLAUDE.md §6 step 1 mandates every phase.**
+
+✅ **The tripwire itself did its job** — it detected drift and refused to sweep against a stale
+worklist. Had it swept anyway it would have neutralized 13 policies using predicates that no
+longer existed. The defect is the **exit code and the residual**, not the detection.
+
+**Ruled:** the 13 drifted snapshot lines are regenerated **from the live catalog, never
+hand-typed**, and the update must **prove the tripwire can still fire** — otherwise "update the
+snapshot" is "silence the tripwire" wearing maintenance clothes. ⛔ The harness's exit semantics
+are **not** changed mid-phase (it is a gate component, in flight for other phases); filed and
+raised to the PO instead.
+
+⚠ **AE1.5's gate line, binding, in words and never as an exit code:** *52 policies altered · 30
+measured, all COVERED, BLIND 0 · 22 UNMEASURED · **PROVEN on the read half, UNPROVEN on the
+write half**.*
+
+### A blast-radius claim inherits the domain of the instrument that produced it
+
+AE1.5 reported the wrap's text-pin blast radius as *"exactly two, measured"* (`270`, `371`).
+**It is three.** The third is the write-path harness's embedded worklist — invisible to
+`npm run test:db` because it lives in a **mutation harness, not a suite**.
+
+⭐ *"The full pgTAP suite found exactly two"* sounded exhaustive **because the suite is
+exhaustive — over suites.** Pins also live in harnesses, in scripts, and in allowlists. Bound
+every "measured" claim by the instrument's own domain, and say what that domain excludes.
 
 ### The diff-scoped door sweep MUTATES the shared stack — it is not a read
 
