@@ -77,9 +77,20 @@ update app.feature_flags set enabled = false where key = 'audit_trail';
 
 select test_helpers.reset_role_and_claims();
 set local role service_role;
-select public.update_person_fields_for(
-  (select admin_h1 from k), (select sole from k), 'Controle Flag OFF',
-  (select cat_physician from k));
+-- ⛔ WRAPPED, not bare. This call's SUCCESS is presupposed by the assertion
+-- immediately below, and a bare `select` that RAISES kills the rest of the file:
+-- pgTAP reports an abort and a failure identically (`Result: FAIL`), so the
+-- assertion is never reached and never evaluated. Measured 2026-08-27: a mutation
+-- narrowing this door's capability took this file from 49 assertions to 11.
+-- Swallowing is safe HERE precisely because the next assertion checks the EFFECT:
+-- if the door raises, the write does not happen and that assertion fails CLEANLY.
+-- ⚠ Never wrap a call with no following assertion this way -- that hides it.
+do $seed$ begin
+  perform public.update_person_fields_for(
+    (select admin_h1 from k), (select sole from k), 'Controle Flag OFF',
+    (select cat_physician from k));
+exception when others then null;
+end $seed$;
 reset role;
 
 select is(
@@ -90,9 +101,20 @@ select is(
 update app.feature_flags set enabled = true where key = 'audit_trail';
 
 set local role service_role;
-select public.update_person_fields_for(
-  (select admin_h1 from k), (select sole from k), 'Controle Flag ON',
-  (select cat_physician from k));
+-- ⛔ WRAPPED, not bare. This call's SUCCESS is presupposed by the assertion
+-- immediately below, and a bare `select` that RAISES kills the rest of the file:
+-- pgTAP reports an abort and a failure identically (`Result: FAIL`), so the
+-- assertion is never reached and never evaluated. Measured 2026-08-27: a mutation
+-- narrowing this door's capability took this file from 49 assertions to 11.
+-- Swallowing is safe HERE precisely because the next assertion checks the EFFECT:
+-- if the door raises, the write does not happen and that assertion fails CLEANLY.
+-- ⚠ Never wrap a call with no following assertion this way -- that hides it.
+do $seed$ begin
+  perform public.update_person_fields_for(
+    (select admin_h1 from k), (select sole from k), 'Controle Flag ON',
+    (select cat_physician from k));
+exception when others then null;
+end $seed$;
 reset role;
 
 select is(
@@ -174,9 +196,20 @@ select is(
   '1.6 PRECONDITION for 1.7: the spanning person still holds their original CPF after 1.4/1.5 — those calls changed nothing');
 
 set local role service_role;
-select public.update_person_fields_for(
-  (select admin_h1 from k), (select spanning from k), (select phi_name from k),
-  (select cat_physician from k), false, null, false, null, false, null);
+-- ⛔ WRAPPED, not bare. This call's SUCCESS is presupposed by the assertion
+-- immediately below, and a bare `select` that RAISES kills the rest of the file:
+-- pgTAP reports an abort and a failure identically (`Result: FAIL`), so the
+-- assertion is never reached and never evaluated. Measured 2026-08-27: a mutation
+-- narrowing this door's capability took this file from 49 assertions to 11.
+-- Swallowing is safe HERE precisely because the next assertion checks the EFFECT:
+-- if the door raises, the write does not happen and that assertion fails CLEANLY.
+-- ⚠ Never wrap a call with no following assertion this way -- that hides it.
+do $seed$ begin
+  perform public.update_person_fields_for(
+    (select admin_h1 from k), (select spanning from k), (select phi_name from k),
+    (select cat_physician from k), false, null, false, null, false, null);
+exception when others then null;
+end $seed$;
 reset role;
 
 select is(
@@ -185,9 +218,20 @@ select is(
   '1.7 ⭐ `p_set_cpf => false, p_cpf => null` leaves the stored CPF UNTOUCHED, and the same for phone — the booleans carry the absent-key/explicit-null distinction a nullable parameter cannot, and collapsing them would let a form that omits a field NULL IT OUT');
 
 set local role service_role;
-select public.update_person_fields_for(
-  (select admin_h1 from k), (select spanning from k), (select phi_name from k),
-  (select cat_physician from k), false, null, false, null, true, null);
+-- ⛔ WRAPPED, not bare. This call's SUCCESS is presupposed by the assertion
+-- immediately below, and a bare `select` that RAISES kills the rest of the file:
+-- pgTAP reports an abort and a failure identically (`Result: FAIL`), so the
+-- assertion is never reached and never evaluated. Measured 2026-08-27: a mutation
+-- narrowing this door's capability took this file from 49 assertions to 11.
+-- Swallowing is safe HERE precisely because the next assertion checks the EFFECT:
+-- if the door raises, the write does not happen and that assertion fails CLEANLY.
+-- ⚠ Never wrap a call with no following assertion this way -- that hides it.
+do $seed$ begin
+  perform public.update_person_fields_for(
+    (select admin_h1 from k), (select spanning from k), (select phi_name from k),
+    (select cat_physician from k), false, null, false, null, true, null);
+exception when others then null;
+end $seed$;
 reset role;
 
 select is(
@@ -255,7 +299,13 @@ select is(
 update public.profiles set suspended_until = now() + interval '5 days' where id = (select sole from k);
 
 set local role service_role;
-select public.set_person_active_for((select admin_h1 from k), (select sole from k), true);
+-- ⛔ WRAPPED, not bare -- same reason as the earlier `do $seed$` blocks: this
+-- call's SUCCESS is presupposed by the assertion below, and a bare `select` that
+-- RAISES kills the rest of the file, so that assertion is never evaluated.
+do $seed$ begin
+  perform public.set_person_active_for((select admin_h1 from k), (select sole from k), true);
+exception when others then null;
+end $seed$;
 reset role;
 
 select is(
@@ -274,7 +324,13 @@ select is(
 -- §3 suspend_person — a separate door, writing a DISJOINT column (design §4.5).
 -- ============================================================================
 set local role service_role;
-select public.suspend_person_for((select admin_h1 from k), (select sole from k), now() + interval '3 days');
+-- ⛔ WRAPPED, not bare -- same reason as the earlier `do $seed$` blocks: this
+-- call's SUCCESS is presupposed by the assertion below, and a bare `select` that
+-- RAISES kills the rest of the file, so that assertion is never evaluated.
+do $seed$ begin
+  perform public.suspend_person_for((select admin_h1 from k), (select sole from k), now() + interval '3 days');
+exception when others then null;
+end $seed$;
 reset role;
 
 select ok(
@@ -359,10 +415,16 @@ update public.professional_credentials
  where user_id = (select cred_owner from k);
 
 set local role service_role;
-select public.upsert_credential_for(
-  (select admin_h1 from k), (select cred_owner from k),
-  (select id from public.professional_credentials where user_id = (select cred_owner from k)),
-  'BR', 'SP', 'CRM', '123456-SP', null);
+-- ⛔ WRAPPED, not bare -- same reason as the earlier `do $seed$` blocks: this
+-- call's SUCCESS is presupposed by the assertion below, and a bare `select` that
+-- RAISES kills the rest of the file, so that assertion is never evaluated.
+do $seed$ begin
+  perform public.upsert_credential_for(
+    (select admin_h1 from k), (select cred_owner from k),
+    (select id from public.professional_credentials where user_id = (select cred_owner from k)),
+    'BR', 'SP', 'CRM', '123456-SP', null);
+exception when others then null;
+end $seed$;
 reset role;
 
 select ok(
@@ -406,9 +468,15 @@ select is((select unauth_valid_id from e), (select auth_bogus_id from e),
   '6.3 ⭐ …and the two are BYTE-IDENTICAL, SQLSTATE and message — asserted as one comparison, not as two assertions that happen to agree. Giving the unknown-id branch its own code would red here');
 
 set local role service_role;
-select public.delete_credential_for(
-  (select admin_h1 from k),
-  (select id from public.professional_credentials where user_id = (select spanning from k)));
+-- ⛔ WRAPPED, not bare -- same reason as the earlier `do $seed$` blocks: this
+-- call's SUCCESS is presupposed by the assertion below, and a bare `select` that
+-- RAISES kills the rest of the file, so that assertion is never evaluated.
+do $seed$ begin
+  perform public.delete_credential_for(
+    (select admin_h1 from k),
+    (select id from public.professional_credentials where user_id = (select spanning from k)));
+exception when others then null;
+end $seed$;
 reset role;
 
 select is(

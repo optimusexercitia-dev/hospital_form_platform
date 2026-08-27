@@ -1163,3 +1163,32 @@ allow, so the raise lands in fixture *setup* and takes the rest of `385` down (1
 setup and fails cleanly, which is why 14 of 16 are unaffected. Re-expressing them so the suite
 completes means touching pgTAP fixtures, which moves suite shape again (`382`'s §A0 already took
 it from 7,870 → 7,871). **PO decision, not a lead call.**
+
+### ✅ 16/16 — cases 2 and 7 closed by fixing the FIXTURE, not the mutation
+
+**2026-08-27.** QA round 2's single blocking item is discharged. Diagnosis, confirmed at line
+numbers before any edit: `385` built part of its world by calling **the very doors under test** —
+bare `select public.<door>(…)` statements whose success a later assertion presupposes. Narrow a
+door's capability and that call is refused, the raise is uncaught, and pgTAP kills the rest of the
+file. Case 2 ran **11 of 49**; case 7 ran **42 of 49**.
+
+**Fix:** the eight such calls are wrapped in `do $seed$ … exception when others then null; end`.
+Swallowing is safe *here* for a stated reason — every one is immediately followed by an assertion
+about its **effect**, so a refused call makes that assertion fail **cleanly** instead of taking the
+file down. ⚠ The comment at each site says never to wrap a call with no following assertion that
+way, because there it would hide a real failure.
+
+⭐ **It cost nothing in coverage: 49 assertions before, 49 after.** Changing *how* a fixture
+reaches a state does not change what is asserted about it — which is why this was the right fix
+rather than re-expressing the mutations, and why the suite stays at 237 / 7,871.
+
+**Result:** `16 KEYSTONE HOLDS · 0 ERROR · 0 FINDING`, **every case at full shape** (55/55, 49/49,
+24/24), declared-vs-ran reconciliation green.
+
+⛔ **And I found four of the eight on the first pass, which is the same error twice in one day.**
+The first sweep keyed on the door NAME (`update_person_fields_for`) and closed case 2 while leaving
+case 7 aborting at 42/49. The property is *"a bare door call whose success a later assertion
+presupposes"* — not *"a call to this function"*. Identical in shape to N1, where the allowlist
+marker named the statement's **subject** instead of the property that **justified** it. ⚠ *Both
+times the wrong predicate produced a green that looked like the right one*, and only re-running the
+instrument — not re-reading the fix — showed the gap.
