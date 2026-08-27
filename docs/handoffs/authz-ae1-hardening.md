@@ -69,7 +69,8 @@ All 08-27 unless noted. Commits are on this branch.
   15-case mutation audit, the 1-case door sweep + verdict, a follow-up `ARM=census` **green**
   (its RC=1 naming `app.can_administer_person_for` was R0's control, pre-normalization).
 - **AE1.5's `…004710`** (52-policy `auth.uid()` wrap) — applied + suite-green post-reset;
-  AFTER-capture and the 30 stale-verdict sweeps incomplete (§ Open questions).
+  the sweep itself is **ruled closed 43/52 PARTIAL** (§ Gates); AFTER-capture and the
+  findings **merge** (measured rows only) are what remain.
 - `.claude/rules/profiles-guard-never-widened.md`, the shared TS/SQL vectors
   (`scripts/gen-person-scope-vectors.mjs` + fixtures + `vectors/person_scope_vectors.psql`),
   `ae13-person-doors-mutation-audit.sh`, `docs/design/authz-ae1-{initplan-triage,revoke-partition}.md`
@@ -87,7 +88,8 @@ All 08-27 unless noted. Commits are on this branch.
   (null→undefined coercion) or by revisiting the door arg declarations — the owner's call.
 - RV0 revoke partition (`ae1-fk-build`, SQL ready) — the DB is now quiet for it.
 - The RV3 experiment (§ Open questions).
-- AE1.5's 30 stale-verdict sweeps + the write-path arm's 22 cases (§ Gates).
+- AE1.5's findings **merge** (the 43 measured verdicts, changed rows only, no rows for the
+  9 — § Gates) + the AFTER-capture completion.
 - Amended close conditions still open: **#2** ADP global-`FOR ROLE` form + positive ACL probes ·
   **#3** the tiered DEFINER review over the classification (binds RV0's held revokes) ·
   **#4** ⚠ ONE supporting index (`user_id` — see § Dead ends, PA-F15 is half-right) ·
@@ -120,13 +122,17 @@ resets in the live record, one owner at a time.
 | `typecheck` | `f121c031` tree | **FAIL — the 11 named TS2322** | 2 |
 | `ARM=census`/`hat`/`floor`/`wrapper` | AE0 baseline | 564 gates/600 verdicts · 6/6 · 72 · BLIND 41 | 0 |
 
-**AE1.5's diff-scoped sweep — ⛔ still UNPROVEN, not a pass:** `ARM=policy` measured **30
-COVERED, BLIND 0** but exited **3 UNPROVEN (PARTIAL)** — the other **22** cases are write
-policies outside the read arm's domain; the write-path harness's own defect is filed
-(`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED`: it computed a residual over an empty set and exited 0).
-⚠ `case_correction_requests_select` moved BLIND → COVERED — call out individually at merge.
-⛔ Nothing merged into `docs/reviews/authz-door-audit-findings.md` (`git diff --stat` empty);
-merge only once the combined run is not-PARTIAL, changed rows only.
+**AE1.5's diff-scoped sweep — RULED CLOSED at 43 of 52, PARTIAL** (lead, `545fa56e`; detail +
+the 9 named policies in [authz-ae1.md](../progress/authz-ae1.md)): 30 read-arm COVERED (each
+re-measured post-`ALTER`) + 13 write-arm; the **9 unmeasured sit outside BOTH arms' domains** —
+a pre-existing apparatus gap (C2 family) AE1.5 *revealed*, not created. The 43 was derived by
+worklist cross-check, never from the harness's own report (the write harness silently ignores
+cases absent from its worklist and reports that as coverage). ⚠ The earlier *"merge only once
+not-PARTIAL"* instruction was **corrected as unmeetable**: merge the verdicts actually
+**measured**, changed rows only; **the 9 gain NO rows** — a findings file with no row is the
+honest form of "not measured". ⚠ `case_correction_requests_select` moved BLIND → COVERED —
+call out individually at merge. ⛔ Nothing merged yet into
+`docs/reviews/authz-door-audit-findings.md` (`git diff --stat` empty at this update).
 
 **Did NOT run (deliberate):** `e2e:prod` (never, this phase) · QA review · the full ~5 h door
 sweep · AE1.3's mutation audit + 1-case sweep · **the ARM arms post-reset** — the doors are
@@ -190,7 +196,6 @@ agent's revert, zero assertion failures; superseded by the quiet-stack **236/7,8
 
 | Question | Who/what answers it |
 | --- | --- |
-| **30 gates carry a STALE `COVERED` verdict** after the `ALTER POLICY` wrap — name persists, predicate changed; `ARM=census` does **not** backstop it | AE1.5 owner: sweep the 30, before/after **per gate** |
 | Does Postgres re-check EXECUTE inside a stored CHECK expression at write time? (5 fns, 8 constraints) | RV3 — one rolled-back txn, throwaway `BYPASSRLS` role. Gates future revokes; does **not** bind the current 233 |
 | The 11 TS2322 fixes: coerce at call sites or change door arg declarations? | AE1.3 owner (small, but touches the approved door surface — note in the live record either way) |
 
@@ -203,9 +208,13 @@ agent's revert, zero assertion failures; superseded by the quiet-stack **236/7,8
    `ENFORCE_PERSON_AUTHORITY_DOORS` in `scripts/check-memberships-door.mjs` in the SAME
    change** (gate obligation — the doors are now in the catalog on every reset). Then the
    **contiguous window**: `reset → 384–388 green → 15-case mutation audit → door sweep →
-   ARM=census green`. ⚠ The door sweep MUTATES; one owner, announce resets.
-2. **AE1.5 owner:** the 30 stale-verdict sweeps + the write-path arm over the 22 cases (its
-   exit-0-over-empty-set defect is filed; report in words, never as an exit code).
+   ARM=census green`. ⚠ The door sweep MUTATES; one owner, announce resets. ⛔ **Never kill
+   a running sweep** (`.claude/rules/mutation-harnesses-are-not-killable.md` — a TaskStop
+   left a gate wide open this phase), and **freeze the TREE during one**: adding a file
+   under `supabase/tests/**` invalidates a run as surely as touching the DB.
+2. **AE1.5 owner:** merge the **43 measured verdicts** into the findings file (changed rows
+   only, **no rows for the 9** — § Gates) + finish the AFTER capture; report in words,
+   never as an exit code.
 3. **RV0 partition owner:** the catalog is quiet — run it.
 4. The small amended close conditions: the ONE `user_id` index (+pgTAP) · ADP global-form +
    probes · tiered-review columns over the 752 classification · flake fingerprints · the
