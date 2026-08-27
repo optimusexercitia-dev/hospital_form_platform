@@ -13,6 +13,7 @@ import { personScopeAllows, type PersonScopeCapability } from './person-scope'
 import { authorizeOrgOps, resolvePersonFootprint } from './person-footprint'
 import { isEmailVerificationEnabled } from '@/lib/config/auth'
 import { isValidCpf, normalizeCpf } from '@/lib/users/cpf'
+import { callDoor } from '@/lib/types/rpc-args'
 
 /**
  * User Registration & Identity Management — server actions.
@@ -20,11 +21,17 @@ import { isValidCpf, normalizeCpf } from '@/lib/users/cpf'
  * All writes run on the SERVICE-ROLE client (`createAdminClient()`), because
  * registering a user (invite + cross-user profile/credential/committee write) and
  * managing another user's lifecycle inherently require bypassing RLS. Each action
- * therefore re-verifies, server-side and ORG-SCOPED, that the caller is an
- * `org_admin` of the target's `home_organization_id` BEFORE any write — the
- * service-role path has no RLS backstop, so this TS check is the only authority
- * (mirrors `@/lib/members/actions`). The platform_admin (`isAdmin`) is NOT
- * authorized here — it is walled off from tenant data (ADR 0041).
+ * therefore re-verifies, server-side and ORG-SCOPED, that the caller may act on the
+ * target BEFORE any write. The platform_admin (`isAdmin`) is NOT authorized here — it is
+ * walled off from tenant data (ADR 0041).
+ *
+ * ⭐ AE1.3 (ADR 0161): the TS check is NO LONGER THE ONLY AUTHORITY. All nine person-level
+ * writes — five on `profiles`, four on `professional_credentials` — now run through
+ * `public.*_for` doors that re-derive their own authority in PostgreSQL, so a forgotten
+ * gate on a future call path, a wrong `capability` argument, or a new raw `.from()` write
+ * no longer means an unguarded write. ⛔ There are ZERO raw `insert/update/delete` calls on
+ * `profiles` or `professional_credentials` left in this file; the remaining `.from()` uses
+ * are all `.select(` reads and are deliberately unchanged. Do not add one back.
  *
  * All user-facing strings are pt-BR; raw Supabase/Postgres errors NEVER reach the
  * UI (CLAUDE.md §8). Mutations are audit-logged by the DB triggers (Rule 11).
@@ -344,12 +351,19 @@ async function ensureActiveAffiliation(params: {
  * for two of the four capability classes. The org_admin arm is unchanged and is NOT
  * footprint-bounded; the new hospital_admin arm is.
  *
- * ⚠ THIS IS THE ONLY AUTHORITY ON THESE PATHS. They run on the service-role client, which
- * has no RLS backstop, and the `profiles` column grants that lock `cpf`/`date_of_birth`/
- * `phone` govern PostgREST only — the service client walks straight around them. A SQL
- * twin is deliberately NOT built (D4): no policy would consume it and a dead DB predicate
- * is a census liability forever. Keystoned in `d14-person-level.test.ts` (wiring, through
- * the real actions) and `person-scope.test.ts` (the decision).
+ * ⭐ NO LONGER THE ONLY AUTHORITY ON THESE PATHS — AE1.3 changed that, and the change is
+ * the point of this gate's continued existence rather than a reason to delete it. Every
+ * person-level write now goes through a `public.*_for` door that re-derives the SAME rule
+ * in PostgreSQL via `app.can_administer_person_for` (ADR 0161, retiring D4's "no SQL twin";
+ * the twin's own header in `person-scope.ts` carries the mirroring obligation).
+ *
+ * This gate STAYS as defense in depth and for the pt-BR message: a door refusal surfaces
+ * as a bare `42501` that the UI must render generically, whereas this one can say
+ * `MESSAGES.orgAdminOnly`. ⚠ A `42501` reaching a call site therefore means TS and SQL
+ * DISAGREE — a drift event, not a legitimate deny.
+ *
+ * Keystoned in `d14-person-level.test.ts` (wiring, through the real actions),
+ * `person-scope.test.ts` (the decision) and `person-scope-vectors.test.ts` (the mirror).
  *
  * ⚠ THE CAPABILITY ARGUMENT IS LOAD-BEARING — it selects between an INTERSECTION bound and
  * a SUBSET one. Passing the wrong one at a call site is invisible to `person-scope.test.ts`
@@ -646,35 +660,22 @@ export async function registerUser(
     userId = created.user.id
   }
 
-  // Patch the profile fields the trigger did not set (category). full_name +
-  // home_organization_id already landed via metadata.
-  const { error: profileError } = await admin
-    .from('profiles')
-    .update({
-      full_name: fullName,
-      professional_category_id: input.professionalCategoryId,
-      cpf,
-      // ADR 0133 D9 — optional at registration; `null` when not supplied. Written here on
-      // the SERVICE path, which is the only path that may set them at all (D10: the
-      // privileged-column guard refuses every signed-in caller).
-      date_of_birth: input.dateOfBirth || null,
-      phone: input.phone ? input.phone.replace(/\D/g, '') || null : null,
-      // Flag-OFF path only: the admin set the initial password, so force the user
-      // to rotate it at /primeiro-acesso before using the app (ADR 0049). The
-      // flag-ON invite path leaves it false (the user sets their own at /convite).
-      must_change_password: !emailVerification,
-    })
-    .eq('id', userId)
-  if (profileError) {
-    // Do NOT swallow: the invite happened, but the profile write failed. Surface
-    // it so the operator retries (the pending profile exists and is anchored).
-    return {
-      ok: false,
-      ...(profileError.code === '23505'
-        ? { fieldErrors: { cpf: MESSAGES.cpfCollision } }
-        : { error: MESSAGES.generic }),
-    }
-  }
+  // ⭐⭐ THE AFFILIATIONS ARE WRITTEN **BEFORE** THE PROFILE PATCH, AND THE ORDER IS NOW
+  // LOAD-BEARING AUTHORITY, NOT TASTE (AE1.3, ADR 0161; design F-A, ruled Option A).
+  //
+  // The profile patch is no longer raw DML — it is `finalize_invited_person_for`, which
+  // re-derives the registrar's authority in PostgreSQL through
+  // `app.can_administer_person_for('cpf_change', …)`. That predicate is FOOTPRINT-BOUNDED,
+  // and a person who has just been created has NO affiliation and NO membership, i.e. an
+  // EMPTY footprint — which it denies for every capability, deliberately (an unaffiliated
+  // person belongs to no hospital, so no hospital admin has a claim on them).
+  //
+  // ⛔ SO PATCHING THE PROFILE FIRST WOULD 42501 EVERY hospital_admin REGISTRATION — a
+  // total outage of a supported product path, presenting as TS↔SQL drift. Do not "restore
+  // the original order" for tidiness. Its failure state was strictly worse too: a failure
+  // between createUser and the affiliation left a person on NOBODY'S ROSTER (the state the
+  // comment below names as the one to avoid), whereas under this order the same failure
+  // leaves them roster-visible and correctable through the ordinary person-edit UI.
 
   // ORG AFFILIATION (AFF4, ADR 0151 D1/D13) — created BEFORE the hospital row, because
   // it is that row's parent under D4's containment invariant.
@@ -731,23 +732,67 @@ export async function registerUser(
     }
   }
 
+  // THE PROFILE PATCH — now `finalize_invited_person_for`, and it runs HERE, after the
+  // affiliations, for the reason stated at the top of this block. Column list unchanged
+  // from the `.update({…})` it replaces. ⛔ `home_organization_id` is deliberately NOT in
+  // it: it is seeded by `handle_new_user` from user metadata, and writing it would fire
+  // the deferred constraint trigger `profiles_tenant_has_org_trg`.
+  const { error: profileError } = await callDoor(admin, 'finalize_invited_person_for', {
+    p_actor: context.userId,
+    p_user: userId,
+    p_full_name: fullName,
+    p_professional_category_id: input.professionalCategoryId,
+    p_cpf: cpf,
+    // ADR 0133 D9 — optional at registration; `null` when not supplied. The door writes
+    // them on the SERVICE path, the only path that may set them at all (D10: the
+    // privileged-column guard refuses every signed-in caller).
+    p_date_of_birth: input.dateOfBirth || null,
+    p_phone: input.phone ? input.phone.replace(/\D/g, '') || null : null,
+    // Flag-OFF path only: the admin set the initial password, so force the user to rotate
+    // it at /primeiro-acesso before using the app (ADR 0049). The flag-ON invite path
+    // leaves it false (the user sets their own at /convite).
+    p_must_change_password: !emailVerification,
+  })
+  if (profileError) {
+    // Do NOT swallow: the invite happened, but the profile write failed. Surface it so
+    // the operator retries (the pending profile exists, is anchored, and — since the
+    // reorder — is on the roster).
+    //
+    // ⚠ A `42501` ON THIS PATH IS NOT A LEGITIMATE DENY. The caller already cleared this
+    // action's TS entry gate, so a door refusal here means the TS and SQL halves DISAGREE.
+    // Reporting "sem permissão" to an operator who was just allowed to reach the form
+    // would be a lie about what happened, so it takes the generic message — surfaced,
+    // never swallowed.
+    return {
+      ok: false,
+      ...(profileError.code === '23505'
+        ? { fieldErrors: { cpf: MESSAGES.cpfCollision } }
+        : { error: MESSAGES.generic }),
+    }
+  }
+
   // Credentials (optional). A duplicate 4-tuple (23505) is reported, not hidden.
+  //
+  // ⚠ ONE DOOR CALL PER CREDENTIAL, replacing a single bulk `.insert([…])`. The door takes
+  // one row, so the batch is no longer one statement: a failure on the third credential
+  // leaves the first two written. That is the same partial-state model the rest of this
+  // action already has (the account, affiliations and profile are all committed by now)
+  // and every failure is still surfaced rather than swallowed — but it is a real change
+  // and is stated rather than left to be discovered.
   const credentials = (input.credentials ?? []).filter(
     (c) => c.registrationNumber.trim() !== '',
   )
-  if (credentials.length > 0) {
-    const { error: credError } = await admin
-      .from('professional_credentials')
-      .insert(
-        credentials.map((c) => ({
-          user_id: userId,
-          issuing_country: c.issuingCountry.trim(),
-          issuing_state: c.issuingState.trim(),
-          issuing_authority: c.issuingAuthority.trim(),
-          registration_number: c.registrationNumber.trim(),
-          expires_on: c.expiresOn ?? null,
-        })),
-      )
+  for (const c of credentials) {
+    const { error: credError } = await callDoor(admin, 'upsert_credential_for', {
+      p_actor: context.userId,
+      p_user: userId,
+      p_id: null,
+      p_issuing_country: c.issuingCountry.trim(),
+      p_issuing_state: c.issuingState.trim(),
+      p_issuing_authority: c.issuingAuthority.trim(),
+      p_registration_number: c.registrationNumber.trim(),
+      p_expires_on: c.expiresOn ?? null,
+    })
     if (credError) {
       return {
         ok: false,
@@ -935,23 +980,35 @@ export async function updateUserProfile(
     if (!personAuth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
   }
 
+  const actorId = (await getSessionContext())?.userId
+  if (!actorId) return { ok: false, error: MESSAGES.forbidden }
+
   const admin = adminClient
-  const { error } = await admin
-    .from('profiles')
-    .update({
-      full_name: fullName,
-      professional_category_id: input.professionalCategoryId,
-      // `cpf` is written ONLY when the caller supplied the key at all, so an edit form
-      // that does not carry the field can never null it out. The two B1 columns follow
-      // exactly the same rule (ADR 0133 D9/D10).
-      ...(cpf === undefined ? {} : { cpf }),
-      // The normalisers declared above, used here and nowhere else since D15.
-      ...(input.dateOfBirth === undefined
-        ? {}
-        : { date_of_birth: normalizeDob(input.dateOfBirth) }),
-      ...(input.phone === undefined ? {} : { phone: normalizePhone(input.phone) }),
-    })
-    .eq('id', input.userId)
+  // AE1.3 — through the door, not raw DML. The door re-derives BOTH bounds in PostgreSQL
+  // (`fields` INTERSECTION always, `cpf_change` SUBSET only when the CPF actually
+  // changes), so the TS gates above are now defense in depth and a friendlier pt-BR
+  // message rather than the only authority on a service-role path.
+  //
+  // ⚠ THE `p_set_*` BOOLEANS CARRY THE ABSENT-KEY / EXPLICIT-NULL DISTINCTION that the
+  // spread form (`...(cpf === undefined ? {} : { cpf })`) carried before. A nullable
+  // parameter alone cannot express it, and collapsing the pair would let an edit form
+  // that does not carry the field NULL IT OUT (ADR 0133 D9/D10). Pinned by pgTAP 385 §1.7.
+  const { error } = await callDoor(admin, 'update_person_fields_for', {
+    p_actor: actorId,
+    p_user: input.userId,
+    p_full_name: fullName,
+    p_professional_category_id: input.professionalCategoryId,
+    p_set_cpf: cpf !== undefined,
+    p_cpf: cpf ?? null,
+    // The normalisers declared above. The door normalises again on its own side — not
+    // redundancy but the mirror: a writer that disagrees with its own comparison is the
+    // defect (pgTAP 385 §1.5 caught exactly that).
+    p_set_date_of_birth: input.dateOfBirth !== undefined,
+    p_date_of_birth:
+      input.dateOfBirth === undefined ? null : normalizeDob(input.dateOfBirth),
+    p_set_phone: input.phone !== undefined,
+    p_phone: input.phone === undefined ? null : normalizePhone(input.phone),
+  })
   if (error) {
     return {
       ok: false,
@@ -990,45 +1047,36 @@ export async function upsertCredential(
     return { ok: false, error: MESSAGES.generic }
   }
 
+  const actorId = (await getSessionContext())?.userId
+  if (!actorId) return { ok: false, error: MESSAGES.forbidden }
+
+  // AE1.3 — ONE door for both branches; `p_id` null means insert. The door clears
+  // `verified_at` and stamps `updated_at` on the update branch (tamper-visible), and
+  // re-derives `credentials` (INTERSECTION) authority in PostgreSQL.
+  //
+  // ⭐ THE ZERO-ROW FAILURE MODE IS GONE, not merely still handled. The cross-person guard
+  // used to be `.eq('user_id', …)`, whose whole purpose was to match ZERO rows for a
+  // forged id — and a zero-row UPDATE is not an error, so the UI once reported "Registro
+  // profissional salvo." for a write that never happened. The door RAISES `HC0T6` instead,
+  // so there is no silent-success shape left to forget to check.
   const admin = createAdminClient()
-  if (input.id) {
-    // Editing clears verified_at (tamper-visible) + stamps updated_at.
-    const { data: updated, error } = await admin
-      .from('professional_credentials')
-      .update({ ...row, verified_at: null, updated_at: new Date().toISOString() })
-      .eq('id', input.id)
-      .eq('user_id', input.userId)
-      .select('id')
-    if (error) {
-      return {
-        ok: false,
-        error:
-          error.code === '23505'
-            ? MESSAGES.credentialCollision
-            : MESSAGES.generic,
-      }
-    }
-    // A zero-row UPDATE is NOT an error, so without this the UI reported
-    // "Registro profissional salvo." for a write that never happened. The
-    // `.eq('user_id', …)` conjunct above is the cross-person guard and its whole
-    // purpose is to match zero rows for a forged id — reporting that as success
-    // told the caller their edit landed on another person's row. `removeCredential`
-    // treats the same not-found case as `generic`; this matches it.
-    if (!updated || updated.length === 0) {
-      return { ok: false, error: MESSAGES.generic }
-    }
-  } else {
-    const { error } = await admin
-      .from('professional_credentials')
-      .insert(row)
-    if (error) {
-      return {
-        ok: false,
-        error:
-          error.code === '23505'
-            ? MESSAGES.credentialCollision
-            : MESSAGES.generic,
-      }
+  const { error } = await callDoor(admin, 'upsert_credential_for', {
+    p_actor: actorId,
+    p_user: input.userId,
+    p_id: input.id ?? null,
+    p_issuing_country: row.issuing_country,
+    p_issuing_state: row.issuing_state,
+    p_issuing_authority: row.issuing_authority,
+    p_registration_number: row.registration_number,
+    p_expires_on: row.expires_on,
+  })
+  if (error) {
+    return {
+      ok: false,
+      error:
+        error.code === '23505'
+          ? MESSAGES.credentialCollision
+          : MESSAGES.generic,
     }
   }
 
@@ -1054,10 +1102,19 @@ export async function removeCredential(
   const auth = await authorizePersonScopedAdmin(cred.user_id, 'credentials')
   if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
-  const { error } = await admin
-    .from('professional_credentials')
-    .delete()
-    .eq('id', credentialId)
+  const actorId = (await getSessionContext())?.userId
+  if (!actorId) return { ok: false, error: MESSAGES.forbidden }
+
+  // AE1.3 — through the door. ⚠ The door takes the CREDENTIAL id and resolves the person
+  // itself, and it answers an unknown id with the SAME `42501` and the SAME message as a
+  // denial. That is deliberate and is the OPPOSITE of `upsert_credential_for`'s update
+  // branch, where authority over `p_user` is proven first so `HC0T6` gives away nothing:
+  // here the id IS the input, so a distinguishable not-found would be a credential-id
+  // ORACLE. Pinned by pgTAP 385 §6.3, which compares the two errors byte for byte.
+  const { error } = await admin.rpc('delete_credential_for', {
+    p_actor: actorId,
+    p_credential: credentialId,
+  })
   if (error) return { ok: false, error: MESSAGES.generic }
 
   revalidateDirectory()
@@ -1170,11 +1227,16 @@ export async function deactivateUser(userId: string): Promise<ActionState> {
   const auth = await authorizePersonScopedAdmin(userId, 'lifecycle')
   if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
+  const actorId = (await getSessionContext())?.userId
+  if (!actorId) return { ok: false, error: MESSAGES.forbidden }
+
+  // AE1.3 — ONE door serves both directions; see `reactivateUser`.
   const admin = createAdminClient()
-  const { error } = await admin
-    .from('profiles')
-    .update({ is_active: false })
-    .eq('id', userId)
+  const { error } = await admin.rpc('set_person_active_for', {
+    p_actor: actorId,
+    p_user: userId,
+    p_active: false,
+  })
   if (error) return { ok: false, error: MESSAGES.generic }
 
   revalidateDirectory()
@@ -1188,11 +1250,18 @@ export async function reactivateUser(userId: string): Promise<ActionState> {
   const auth = await authorizePersonScopedAdmin(userId, 'lifecycle')
   if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
+  const actorId = (await getSessionContext())?.userId
+  if (!actorId) return { ok: false, error: MESSAGES.forbidden }
+
+  // AE1.3 — the SAME door as `deactivateUser`, which is why the residual-suspension clear
+  // cannot drift between the two: `set_person_active_for` nulls `suspended_until` on the
+  // reactivating direction only, in one place. Two doors would be two places to forget it.
   const admin = createAdminClient()
-  const { error } = await admin
-    .from('profiles')
-    .update({ is_active: true, suspended_until: null })
-    .eq('id', userId)
+  const { error } = await admin.rpc('set_person_active_for', {
+    p_actor: actorId,
+    p_user: userId,
+    p_active: true,
+  })
   if (error) return { ok: false, error: MESSAGES.generic }
 
   revalidateDirectory()
@@ -1213,11 +1282,21 @@ export async function suspendUser(
   const auth = await authorizePersonScopedAdmin(userId, 'lifecycle')
   if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
+  const actorId = (await getSessionContext())?.userId
+  if (!actorId) return { ok: false, error: MESSAGES.forbidden }
+
+  // AE1.3 — a SEPARATE door from `set_person_active_for`, deliberately: the two write
+  // DISJOINT columns, and merging them into one `p_active` + `p_until` door would create a
+  // call shape where the wrong combination silently REACTIVATES a suspended person. This
+  // door writes `suspended_until` and nothing else — pgTAP 385 §3.2 asserts `is_active` is
+  // untouched, because a door that "helpfully" also flipped it would silently widen what
+  // suspension MEANS.
   const admin = createAdminClient()
-  const { error } = await admin
-    .from('profiles')
-    .update({ suspended_until: suspendedUntil })
-    .eq('id', userId)
+  const { error } = await callDoor(admin, 'suspend_person_for', {
+    p_actor: actorId,
+    p_user: userId,
+    p_suspended_until: suspendedUntil,
+  })
   if (error) return { ok: false, error: MESSAGES.generic }
 
   revalidateDirectory()

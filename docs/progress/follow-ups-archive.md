@@ -6972,3 +6972,41 @@ live items' bodies*, which are load-bearing cross-references, not residue.
 
 - **`FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-ALTER-POLICY`** — measured: PROGRESS.md **0** · follow-ups.md
   **0** · archive **3**. Fully archived, zero residue, **verified and unchanged**.
+
+### ✅ RESOLVED 2026-08-27 — FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST — rider R2 of the AE1.4 rpc rulings (owner was: backend/tester; filed 2026-08-27 at the rulings approval, closed the same day in AE1)
+
+> **Closed by** `src/app/api/webhooks/audio-jobs/route.rpc-boundary.test.ts` — 10 tests, both
+> directions, red-first proven and **independently re-verified by the lead** before this entry
+> was written (neutralize the gate to `const verdict = { ok: true as const }` → **7 failed / 3
+> passed**, the 3 survivors being the positive controls, which is what makes the other 7
+> evidence about the signature rather than about everything being refused; restore → **30
+> passed** across both files, `git diff` on `route.ts` empty).
+>
+> The failure it now pins, in the harness's own words: `expected [ 'fail_minutes_job' ] to
+> deeply equal []` — with the gate open, a forged `status: 'error'` callback **reaches
+> `fail_minutes_job`**.
+>
+> ⛔ **CORRECTION, and the reason this entry is not just a tick.** The filed body said: *"no
+> test would notice the HMAC check vanish."* **Measured false.** The same neutralization run
+> against the pre-existing `route.test.ts` gives **7 failed / 13 passed of 20** — it notices
+> perfectly well. The body's *premise* was true (that file mocks `handleMeetingMinutesCallback`
+> out); the *inference* drawn from it was not.
+>
+> ⭐ **The real gap was GRAIN, not absence** — and the distinction matters because the wrong
+> diagnosis would have justified the wrong fix. Coverage existed at the **handler** boundary
+> (`handleMeetingMinutesCallback` not called); the ruling's invariant is stated over the **RPC**
+> boundary (`complete_minutes_job` / `fail_minutes_job` not called), and *that* edge existed in
+> no test. The new file keeps the real handler and stubs one layer lower, at
+> `createAdminClient`, so `expect(rpc).not.toHaveBeenCalled()` is a literal assertion about the
+> RPC rather than a proxy for it.
+>
+> ⚠ Two method notes worth keeping, both from the run rather than the design:
+> 1. The deny tests originally asserted `res.status === 401` **before** the RPC assertion, so on
+>    the neutralized run they tripped on the status line and the file's actual subject — the RPC
+>    call — was **never observed failing**. A red-first proof that reds for the wrong reason
+>    proves nothing about the assertion you care about; the ordering was fixed and re-run.
+> 2. A second mutation (an RPC call inserted *before* the gate) does turn `route.test.ts` red —
+>    but 19 of 20 fail with `Error: supabaseUrl is required`, an unstubbed client crashing. It
+>    notices *that something moved*, not that an authorization property broke, and it would go
+>    green again the moment the env var is present. **"The suite went red" is not the same claim
+>    as "the suite noticed the defect."**

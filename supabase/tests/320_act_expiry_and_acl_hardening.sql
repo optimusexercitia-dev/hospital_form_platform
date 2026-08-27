@@ -231,13 +231,25 @@ select is(
 create function app.zz_acl_population_control() returns boolean
   language sql immutable as $ctl$ select true $ctl$;
 
+-- ⚠ THE DEFAULT NO LONGER SUPPLIES THE GRANT, SO THE CONTROL STATES IT.
+-- `20261003005300` (AE1 close condition #2 / PA-F4) revoked the built-in PUBLIC EXECUTE
+-- default globally for the `postgres` creator role, so a newly created app function no
+-- longer joins the anon-executable population on its own and this control stopped moving
+-- the count — correctly, and it FAILED, which is the control doing its job.
+-- ⛔ The fix is NOT to expect 237 instead of 238: that would make a detector-vacuity
+-- control pass by asserting the detector finds nothing, which is precisely what it exists
+-- to rule out. The control now CONSTRUCTS the condition it is probing for instead of
+-- borrowing it from an ambient default — strictly stronger, because it no longer depends
+-- on a database-wide setting this suite does not own.
+grant execute on function app.zz_acl_population_control() to public;
+
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app'
       and (p.proacl is null
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))),
   238,
-  'ACL population U2 ⭐ CONTROL: creating ONE app function with the default ACL moves the count 237 → 238 — the detector demonstrably finds what it claims to look for');
+  'ACL population U2 ⭐ CONTROL: creating ONE app function AND GRANTING IT TO PUBLIC moves the count 237 → 238 — the detector demonstrably finds what it claims to look for. The grant is explicit since 20261003005300 revoked the PUBLIC EXECUTE default; the control constructs the condition rather than inheriting it');
 
 drop function app.zz_acl_population_control();
 

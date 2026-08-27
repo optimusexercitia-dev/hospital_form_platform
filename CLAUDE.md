@@ -345,11 +345,11 @@ whose **claim** went false has no gate at all, so that queue is its only witness
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` is **TEN gates chained**; ALL must pass (verify against
+- **Lint gate** — `npm run lint` is **ELEVEN gates chained**; ALL must pass (verify against
   `package.json`, not this list): `eslint --max-warnings=0` **&&** `lint:css-vars` **&&**
   `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous` **&&**
   `lint:set-local` **&&** `lint:progress` **&&** `lint:rules` **&&** `lint:adr-index` **&&**
-  `lint:mojibake`. Each was added after the class it gates shipped a live defect:
+  `lint:mojibake` **&&** `lint:service-role-registry`. Each was added after the class it gates shipped a live defect:
   - `lint:css-vars` (`check-tailwind-css-vars.mjs`) — the Tailwind-v4 bare `[--var]` form, which
     compiles to dead CSS; added after it shipped nine dead motion utilities.
   - `lint:memberships-door` (`check-memberships-door.mjs`) — direct `memberships` reads that
@@ -410,25 +410,21 @@ whose **claim** went false has no gate at all, so that queue is its only witness
     `src/components`); the discriminator is that real mojibake **decodes back**. On Windows the
     vector is a shell round-trip (`sed -i`, `>` through a cp1252 console) — edit these files with
     explicit UTF-8. ADR 0143.
+  - `lint:service-role-registry` (`check-service-role-registry.mjs`) — the AE1.4 service-role DML
+    registry drifting from what the census actually derives. ⚠ **The census alone is not the
+    truth**: it detects *member* calls (`client.rpc(…)`), so the free function `callDoor(admin,
+    'name', …)` is invisible to it — one placeholder row stood in for **five** real service-role
+    door calls, and a registry written to match that number would have greened over all five. The
+    gate re-derives those from the TS AST and compares as a **multiset** (one door legitimately
+    appears twice), so a deleted duplicate reds even though the count still matches.
   eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
   `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
-- ⛔ **Prettier does not govern the tracker docs** (`.prettierignore`: `PROGRESS.md`,
-  `CLAUDE.md`, `docs/progress/`). Prettier pads every Markdown table cell to its column's
-  widest — reformatting the live PROGRESS.md (60 KB, measured 2026-08-20) pads it to
-  **~75 KB, inside 5 KB of the 80 KB cap `lint:progress` hard-fails on** (raised from 60 KB
-  the same day, ADR 0124 Amdt 2): formatting the file *erodes* the headroom the gate
-  exists to protect, and the margin only shrinks as the live file grows toward the cap.
-  The same padding on CLAUDE.md is context tax on every session + teammate spawn, and
-  `docs/progress/` is excluded so PROGRESS.md's **verbatim** rotations stay byte-identical
-  to their destination. Never add a "check these against Prettier" rule — obeying it is
-  the defect. `npm run format:check` is manual: no hook, no CI, **not** one of the ten gates.
-  ⚠ **A SECOND trap, and this one is NOT in `.prettierignore`: `src/`.** That tree is written
-  shadcn-style (double quotes, semicolons) while `.prettierrc.json` is `semi:false,
-  singleQuote:true`, so `prettier --write` on one component rewrites the WHOLE file away from its
-  neighbourhood and buries the real change in noise — hit for real 2026-08-25, restored by hand.
-  Nothing ignores it and no gate catches it, because the formatter is not wrong, it simply
-  disagrees with the tree. **Never run Prettier on `src/`.**
+- ⛔ **Prettier does not govern this tree, in two directions** — the tracker docs are in
+  `.prettierignore` (padding table cells erodes the very headroom `lint:progress` protects),
+  and `src/` is **not**, which is the trap: `prettier --write` rewrites a whole component away
+  from its shadcn-style neighbourhood and no gate catches it. Full rule, rotated verbatim
+  2026-08-27: `.claude/rules/prettier-does-not-govern-this-tree.md`.
 - Conventional commits: `feat(scope):`, `fix:`, `test:`, `chore:`, `phase(N):`.
 - Server Components by default; `"use client"` only where interaction requires it.
 - Every form input accessible: labels, keyboard navigation, visible focus. The tester

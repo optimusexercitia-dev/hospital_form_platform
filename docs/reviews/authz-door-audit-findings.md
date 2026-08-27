@@ -133,15 +133,11 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | capa_measure.capa_measure_select (SELECT) | policy | open->true | BLIND |  |
 | capa_measure_result.capa_measure_result_select (SELECT) | policy | open->true | BLIND |  |
 | case_assignment_roles.case_assignment_roles_select (SELECT) | policy | open->true | BLIND |  |
-| case_correction_requests.case_correction_requests_select (SELECT) | policy | open->true | BLIND |  |
 | case_narrative_revisions.case_narrative_revisions_select (SELECT) | policy | open->true | BLIND |  |
 | case_phase_allowed_results.case_phase_allowed_results_select (SELECT) | policy | open->true | BLIND |  |
 | case_phase_offered_results.case_phase_offered_results_select (SELECT) | policy | open->true | BLIND |  |
-| case_reopenings.case_reopenings_select (SELECT) | policy | open->true | BLIND |  |
-| case_tag_assignments.case_tag_assignments_select (SELECT) | policy | open->true | BLIND |  |
 | case_type_terminology.case_type_terminology_admin_write (ALL) | policy | open->true | BLIND |  |
 | case_type_terminology.case_type_terminology_select (SELECT) | policy | open->true | BLIND |  |
-| commission_administrativo_capabilities.commission_administrativo_capabilities_select (SELECT) | policy | open->true | BLIND |  |
 | commission_meeting_settings.meeting_settings_select (SELECT) | policy | open->true | BLIND |  |
 | commission_meeting_settings.meeting_settings_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | commission_meeting_types.meeting_types_select (SELECT) | policy | open->true | BLIND |  |
@@ -169,7 +165,6 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | process_templates.process_templates_select (SELECT) | policy | open->true | BLIND |  |
 | process_templates.process_templates_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | professional_categories.professional_categories_admin_write (ALL) | policy | open->true | BLIND |  |
-| professional_participants.professional_participants_select (SELECT) | policy | open->true | BLIND |  |
 | rca_evidence.rca_evidence_select (SELECT) | policy | open->true | BLIND |  |
 | rca_factors.rca_factors_select (SELECT) | policy | open->true | BLIND |  |
 | rca_members.rca_members_select (SELECT) | policy | open->true | BLIND |  |
@@ -266,6 +261,26 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 ## COVERED (asserted-through) + ERROR (harness bug)
 
 | gate / policy | arm | direction | verdict | failing files / note |
+| case_correction_requests.case_correction_requests_select (SELECT) | policy | open->true | COVERED | 298_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_reopenings.case_reopenings_select (SELECT) | policy | open->true | COVERED | 298_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_tag_assignments.case_tag_assignments_select (SELECT) | policy | open->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql |
+| commission_administrativo_capabilities.commission_administrativo_capabilities_select (SELECT) | policy | open->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql |
+| professional_participants.professional_participants_select (SELECT) | policy | open->true | COVERED | 311_oversight_readonly_perimeter.sql,321_eth_e4_participant_seating.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| responses.responses_delete_own_draft (DELETE) | policy | open->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql |
+| response_section_signoffs.signoffs_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| profiles.profiles_update_self (UPDATE) | policy | open->true | COVERED | 188_hospital_user_mgmt.sql,371_offboarded_person_visibility.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| meeting_signatures.meeting_signatures_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| meeting_cases.meeting_cases_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| meeting_cases.meeting_cases_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| meeting_cases.meeting_cases_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_referral.case_referral_update_coord (UPDATE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_referral.case_referral_insert_source_coord (INSERT) | policy | open->true | COVERED | 250_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_referral.case_referral_delete_draft_source (DELETE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_interviews.case_interviews_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_interviews.case_interviews_insert (INSERT) | policy | open->true | COVERED | 236_authz_exclusion_perimeter_u1.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_interviews.case_interviews_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| process_template_versions.process_template_versions_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql |
+| process_template_versions.process_template_versions_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql |
 |---|---|---|---|---|
 | public.rca_writer_can_write(p_rca_id uuid) | predicate | positive | COVERED | 142_rca.sql (tests 10–11). ⭐ **WAS BLIND; keystoned and re-swept 2026-08-24** — `142_rca.sql` §K asserts the wrapper AS each of four principals (PQS operator + assigned SME true; observer + non-team false), where the pre-existing assertions called the INNER `app.can_write_rca(rca, uid)` uid-purely and so could never reach it. Single-case run, baseline `Files=218, Tests=7232, PASS`, `ARM-DOMAIN predicate=1/110`, exit 0 unpiped; hand-merged per the note above the BLIND table. ⚠ A **UI capability probe** — no policy and no routine calls it (measured); its consumer is `src/lib/queries/rca.ts` `viewerCanWrite`. `FUP-RCA-WRITER-CAN-WRITE-IS-BLIND`. |
 | app._audit_access_authorized(p_action text, p_entity_id uuid, p_commission uuid) | predicate | positive | COVERED | 191_grant_hardening.sql,305_audio_minutes.sql,356_case_caps_s8_administrativo_read.sql. ⭐ **ARM WIDENED (ADR 0079 Amendment 9 / `FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`).** This gate entered the predicate arm on 2026-08-24, when the arm stopped bounding its domain by NAME alone and began admitting a `prosecdef` boolean whose BODY references an identity primitive. It had never been swept in any direction before; it was in `authz-unswept-backlog.txt`. Measured by a subset run on a FRESH `supabase db reset`, baseline `Files=218, Tests=7223, PASS`, `ARM-DOMAIN predicate=8/110`; transcribed here because a subset run overwrites this file and is then reverted. ⚠ This is the PHI-read audit gate. |
@@ -332,6 +347,7 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | app.can_access_targeted_response(p_response_id uuid, p_uid uuid) | predicate | positive | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,255_ethics_e2_targeted.sql,264_correction_requests.sql,270_ff1_repeating_groups.sql,272_ff2_door_parity.sql,273_eth_targeted_choice_lane.sql,274_ff3_validations.sql,276_ff5_references.sql,31_discard_response.sql,40_rls.sql,61_answer_model_v2.sql,70_response_fill.sql |
 | app.can_access_targeted_version(p_form_version_id uuid, p_uid uuid) | predicate | positive | COVERED | 171_cross_org_isolation.sql,255_ethics_e2_targeted.sql,272_ff2_door_parity.sql,60_builder.sql |
 | app.can_amend_referral_phi_snapshot(p_referral_id uuid, p_uid uuid) | predicate | positive | COVERED | 246_authz_f1_referral_split.sql |
+| app.can_administer_person_for(p_capability text, p_user uuid, p_actor uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=237 Tests=7863) |
 | app.can_curate_pqs_vocab(p_hospital_id uuid) | predicate | positive | COVERED | 141_event_triage.sql,195_pqs_vocab_dual_scope.sql |
 | public.can_dispose_referral_phi(p_referral_id uuid) | predicate | positive | COVERED | 189_nsp_per_hospital_isolation.sql,295_technical_director_referrals.sql |
 | app.can_manage_professional(p_org uuid, p_uid uuid) | predicate | positive | COVERED | 228_ethics_e1.sql,257_ethics_e2_retention.sql,290_authz_never_called_door_floor.sql |
@@ -420,7 +436,7 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | answer_selected_options.answer_selected_options_select (SELECT) | policy | open->true | COVERED | 198_perf_hardening.sql |
 | answer_selected_options.answer_selected_options_write_own_draft (ALL) | policy | open->true | COVERED | 198_perf_hardening.sql |
 | answers.answers_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,198_perf_hardening.sql,40_rls.sql |
-| answers.answers_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,40_rls.sql |
+| answers.answers_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,387_initplan_wrap_and_profiles_arm_identity.sql,40_rls.sql |
 | answers.answers_write_own_draft (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,198_perf_hardening.sql,40_rls.sql |
 | attachments.attachments_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,171_cross_org_isolation.sql,228_ethics_e1.sql |
 | audit_log.audit_log_select (SELECT) | policy | open->true | COVERED | 130_audit.sql,171_cross_org_isolation.sql,185_audit_4tier.sql,199_perf_sweep_wave2.sql |
@@ -433,18 +449,18 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | capa_measure_result.capa_measure_result_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | capa_plan.capa_plan_select (SELECT) | policy | open->true | COVERED | 143_capa.sql,171_cross_org_isolation.sql |
 | case_access_grants.case_access_grants_select_own (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,228_ethics_e1.sql,238_authz_b_case_access_grants.sql |
-| case_conflict_declarations.case_conflict_declarations_select (SELECT) | policy | open->true | COVERED | 228_ethics_e1.sql |
+| case_conflict_declarations.case_conflict_declarations_select (SELECT) | policy | open->true | COVERED | 228_ethics_e1.sql,311_oversight_readonly_perimeter.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | case_custom_field_values.case_custom_field_values_select (SELECT) | policy | open->true | COVERED | 188_case_custom_fields.sql |
 | case_custom_field_values.case_custom_field_values_staff_admin_write (ALL) | policy | open->true | COVERED | 188_case_custom_fields.sql |
-| case_decisions.case_decisions_select (SELECT) | policy | open->true | COVERED | 254_ethics_e2_votes.sql,255_ethics_e2_targeted.sql |
-| case_events.case_events_select (SELECT) | policy | open->true | COVERED | 111_case_docs_events.sql,144_case_access.sql,171_cross_org_isolation.sql,266_ethics_e3a_surfacing.sql,267_ethics_e3a_autoderive.sql |
-| case_interview_interviewers.case_interview_interviewers_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql |
-| case_interview_interviewers.case_interview_interviewers_write (ALL) | policy | open->true | COVERED | 144_case_access.sql |
-| case_interview_links.case_interview_links_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql |
-| case_interview_links.case_interview_links_write (ALL) | policy | open->true | COVERED | 144_case_access.sql |
-| case_interview_subjects.case_interview_subjects_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,235_authz_a4_org_admin_not_case_source.sql |
-| case_interview_subjects.case_interview_subjects_write (ALL) | policy | open->true | COVERED | 144_case_access.sql,235_authz_a4_org_admin_not_case_source.sql |
-| case_interviews.case_interviews_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,171_cross_org_isolation.sql,228_ethics_e1.sql,235_authz_a4_org_admin_not_case_source.sql |
+| case_decisions.case_decisions_select (SELECT) | policy | open->true | COVERED | 254_ethics_e2_votes.sql,255_ethics_e2_targeted.sql,311_oversight_readonly_perimeter.sql,356_case_caps_s8_administrativo_read.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_events.case_events_select (SELECT) | policy | open->true | COVERED | 111_case_docs_events.sql,144_case_access.sql,171_cross_org_isolation.sql,266_ethics_e3a_surfacing.sql,267_ethics_e3a_autoderive.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_interview_interviewers.case_interview_interviewers_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_interview_interviewers.case_interview_interviewers_write (ALL) | policy | open->true | COVERED | 144_case_access.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_interview_links.case_interview_links_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,311_oversight_readonly_perimeter.sql,356_case_caps_s8_administrativo_read.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_interview_links.case_interview_links_write (ALL) | policy | open->true | COVERED | 144_case_access.sql,311_oversight_readonly_perimeter.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_interview_subjects.case_interview_subjects_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,235_authz_a4_org_admin_not_case_source.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_interview_subjects.case_interview_subjects_write (ALL) | policy | open->true | COVERED | 144_case_access.sql,235_authz_a4_org_admin_not_case_source.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_interviews.case_interviews_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,171_cross_org_isolation.sql,228_ethics_e1.sql,235_authz_a4_org_admin_not_case_source.sql,311_oversight_readonly_perimeter.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | case_narrative_types.case_narrative_types_select (SELECT) | policy | open->true | COVERED | 116_case_narratives.sql |
 | case_narrative_types.case_narrative_types_staff_admin_write (ALL) | policy | open->true | COVERED | 116_case_narratives.sql |
 | case_narratives.case_narratives_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,171_cross_org_isolation.sql,234_authz_a2_resolver.sql |
@@ -455,22 +471,22 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | case_outcomes.case_outcomes_staff_admin_write (ALL) | policy | open->true | COVERED | 115_case_outcomes.sql |
 | case_participant_roles.case_participant_roles_admin_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | case_participant_roles.case_participant_roles_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
-| case_participants.case_participants_select (SELECT) | policy | open->true | COVERED | 207_case_participants_e0.sql,228_ethics_e1.sql,234_authz_a2_resolver.sql,255_ethics_e2_targeted.sql |
+| case_participants.case_participants_select (SELECT) | policy | open->true | COVERED | 207_case_participants_e0.sql,228_ethics_e1.sql,234_authz_a2_resolver.sql,255_ethics_e2_targeted.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | case_phase_allowed_results.case_phase_allowed_results_staff_admin_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | case_phase_offered_results.case_phase_offered_results_staff_admin_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | case_phases.case_phases_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,171_cross_org_isolation.sql,228_ethics_e1.sql |
 | case_phases.case_phases_staff_admin_write (ALL) | policy | open->true | COVERED | 144_case_access.sql,171_cross_org_isolation.sql,228_ethics_e1.sql |
-| case_recusals.case_recusals_select (SELECT) | policy | open->true | COVERED | 228_ethics_e1.sql |
-| case_referral.case_referral_select_readable (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
-| case_tag_assignments.case_tag_assignments_staff_admin_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| case_recusals.case_recusals_select (SELECT) | policy | open->true | COVERED | 228_ethics_e1.sql,311_oversight_readonly_perimeter.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_referral.case_referral_select_readable (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| case_tag_assignments.case_tag_assignments_staff_admin_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | case_tags.case_tags_select (SELECT) | policy | open->true | COVERED | 112_case_tags.sql |
 | case_tags.case_tags_staff_admin_write (ALL) | policy | open->true | COVERED | 112_case_tags.sql |
 | case_types.case_types_admin_write (ALL) | policy | open->true | COVERED | 207_case_participants_e0.sql |
 | case_types.case_types_select (SELECT) | policy | open->true | COVERED | 207_case_participants_e0.sql |
-| case_votes.case_votes_select (SELECT) | policy | open->true | COVERED | 254_ethics_e2_votes.sql,255_ethics_e2_targeted.sql |
+| case_votes.case_votes_select (SELECT) | policy | open->true | COVERED | 254_ethics_e2_votes.sql,255_ethics_e2_targeted.sql,311_oversight_readonly_perimeter.sql,356_case_caps_s8_administrativo_read.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | cases.cases_select (SELECT) | policy | open->true | COVERED | 110_case_status.sql,144_case_access.sql,171_cross_org_isolation.sql,184_hospital_admin_isolation.sql,198_perf_hardening.sql,228_ethics_e1.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,249_authz_g_retire_can_read_case_or_admin.sql,255_ethics_e2_targeted.sql,90_cases.sql |
 | cases.cases_staff_admin_write (ALL) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4789) |
-| commission_administrativos.commission_administrativos_select (SELECT) | policy | open->true | COVERED | 205_administrativo.sql |
+| commission_administrativos.commission_administrativos_select (SELECT) | policy | open->true | COVERED | 205_administrativo.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | commission_charters.commission_charters_select (SELECT) | policy | open->true | COVERED | 260_charters.sql |
 | commission_member_titles.member_titles_select (SELECT) | policy | open->true | COVERED | 184_hospital_admin_isolation.sql |
 | commission_member_titles.member_titles_staff_admin_write (ALL) | policy | open->true | COVERED | 184_hospital_admin_isolation.sql |
@@ -495,13 +511,13 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | form_item_validations.form_item_validations_select_targeted (SELECT) | policy | open->true | COVERED | 272_ff2_door_parity.sql,274_ff3_validations.sql |
 | form_item_validations.form_item_validations_staff_admin_write (ALL) | policy | open->true | COVERED | 272_ff2_door_parity.sql,274_ff3_validations.sql |
 | form_items.form_items_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
-| form_items.form_items_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
+| form_items.form_items_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | form_items.form_items_staff_admin_write (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
 | form_sections.form_sections_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
-| form_sections.form_sections_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
+| form_sections.form_sections_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | form_sections.form_sections_staff_admin_write (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
 | form_versions.form_versions_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,255_ethics_e2_targeted.sql,60_builder.sql |
-| form_versions.form_versions_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,255_ethics_e2_targeted.sql,60_builder.sql |
+| form_versions.form_versions_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,255_ethics_e2_targeted.sql,387_initplan_wrap_and_profiles_arm_identity.sql,60_builder.sql |
 | form_versions.form_versions_staff_admin_write (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql,255_ethics_e2_targeted.sql,60_builder.sql |
 | forms.forms_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,186_member_titles.sql,40_rls.sql |
 | forms.forms_staff_admin_write (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,186_member_titles.sql,40_rls.sql |
@@ -527,14 +543,14 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | phase_results.phase_results_staff_admin_write (ALL) | policy | open->true | COVERED | 160_phase_results.sql |
 | process_template_custom_fields.process_template_custom_fields_select (SELECT) | policy | open->true | COVERED | 188_case_custom_fields.sql |
 | process_template_custom_fields.process_template_custom_fields_staff_admin_write (ALL) | policy | open->true | COVERED | 188_case_custom_fields.sql |
-| process_template_narratives.process_template_narratives_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
-| process_template_narratives.process_template_narratives_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
-| process_template_outcomes.process_template_outcomes_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
-| process_template_outcomes.process_template_outcomes_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
-| process_template_phases.process_template_phases_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
-| process_template_phases.process_template_phases_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
-| professional_credentials.professional_credentials_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql |
-| professional_profiles.professional_profiles_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| process_template_narratives.process_template_narratives_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql |
+| process_template_narratives.process_template_narratives_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql |
+| process_template_outcomes.process_template_outcomes_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql |
+| process_template_outcomes.process_template_outcomes_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql |
+| process_template_phases.process_template_phases_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql |
+| process_template_phases.process_template_phases_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql |
+| professional_credentials.professional_credentials_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,360_credentials_hospital_admin_read.sql,371_offboarded_person_visibility.sql,374_c5_voided_affiliation_read_differential.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| professional_profiles.professional_profiles_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql,311_oversight_readonly_perimeter.sql,321_eth_e4_participant_seating.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | profiles.profiles_admin_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,188_hospital_user_mgmt.sql,45_email_denorm.sql |
 | profiles.profiles_select_self_or_admin (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,188_hospital_user_mgmt.sql,45_email_denorm.sql |
 | rca.rca_select (SELECT) | policy | open->true | COVERED | 142_rca.sql,171_cross_org_isolation.sql |
@@ -547,14 +563,14 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | referral_messages.referral_messages_select_phi (SELECT) | policy | open->true | COVERED | 150_referrals.sql |
 | referral_reply.referral_reply_select_phi (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
 | referral_shared_item.referral_shared_item_select_phi (SELECT) | policy | open->true | COVERED | 150_referrals.sql,171_cross_org_isolation.sql,246_authz_f1_referral_split.sql |
-| response_group_instances.response_group_instances_select (SELECT) | policy | open->true | COVERED | 273_eth_targeted_choice_lane.sql,61_answer_model_v2.sql |
+| response_group_instances.response_group_instances_select (SELECT) | policy | open->true | COVERED | 270_ff1_repeating_groups.sql,273_eth_targeted_choice_lane.sql,387_initplan_wrap_and_profiles_arm_identity.sql,61_answer_model_v2.sql |
 | response_group_instances.response_group_instances_select_targeted (SELECT) | policy | open->true | COVERED | 273_eth_targeted_choice_lane.sql,61_answer_model_v2.sql |
-| response_group_instances.response_group_instances_write_own_draft (ALL) | policy | open->true | COVERED | 270_ff1_repeating_groups.sql,273_eth_targeted_choice_lane.sql,61_answer_model_v2.sql |
+| response_group_instances.response_group_instances_write_own_draft (ALL) | policy | open->true | COVERED | 270_ff1_repeating_groups.sql,273_eth_targeted_choice_lane.sql,387_initplan_wrap_and_profiles_arm_identity.sql,61_answer_model_v2.sql |
 | response_group_instances.response_group_instances_write_targeted (ALL) | policy | open->true | COVERED | 270_ff1_repeating_groups.sql,273_eth_targeted_choice_lane.sql,61_answer_model_v2.sql |
 | response_section_signoffs.signoffs_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
 | responses.responses_admin_all (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,255_ethics_e2_targeted.sql,264_correction_requests.sql,270_ff1_repeating_groups.sql,272_ff2_door_parity.sql,273_eth_targeted_choice_lane.sql,274_ff3_validations.sql,31_discard_response.sql,40_rls.sql,70_response_fill.sql |
 | responses.responses_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,198_perf_hardening.sql,255_ethics_e2_targeted.sql,264_correction_requests.sql,270_ff1_repeating_groups.sql,272_ff2_door_parity.sql,273_eth_targeted_choice_lane.sql,274_ff3_validations.sql,31_discard_response.sql,40_rls.sql,70_response_fill.sql |
-| responses.responses_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,255_ethics_e2_targeted.sql,264_correction_requests.sql,270_ff1_repeating_groups.sql,272_ff2_door_parity.sql,273_eth_targeted_choice_lane.sql,274_ff3_validations.sql,31_discard_response.sql,40_rls.sql,70_response_fill.sql |
+| responses.responses_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,255_ethics_e2_targeted.sql,264_correction_requests.sql,270_ff1_repeating_groups.sql,272_ff2_door_parity.sql,273_eth_targeted_choice_lane.sql,274_ff3_validations.sql,314_qob_org_admin_content_wall.sql,31_discard_response.sql,387_initplan_wrap_and_profiles_arm_identity.sql,40_rls.sql,70_response_fill.sql |
 | standard_assessments.standard_assessments_select (SELECT) | policy | open->true | COVERED | 278_accreditation_schema.sql |
 | standard_ownerships.standard_ownerships_select (SELECT) | policy | open->true | COVERED | 278_accreditation_schema.sql |
 | app.can_edit_referral_internal_note(p_note_id uuid, p_uid uuid) | predicate | positive | COVERED | 322_referral_registros.sql |

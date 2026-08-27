@@ -3705,6 +3705,20 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "commission_administrativos_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_administrativos_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       commission_charters: {
@@ -12995,6 +13009,10 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      delete_credential_for: {
+        Args: { p_actor: string; p_credential: string }
+        Returns: undefined
+      }
       delete_meeting_agenda_item: {
         Args: { p_agenda_item_id: string }
         Returns: undefined
@@ -13158,6 +13176,19 @@ export type Database = {
       finalize_document_upload: {
         Args: { p_upload_session_id: string }
         Returns: Json
+      }
+      finalize_invited_person_for: {
+        Args: {
+          p_actor: string
+          p_cpf: string
+          p_date_of_birth?: string
+          p_full_name: string
+          p_must_change_password?: boolean
+          p_phone?: string
+          p_professional_category_id: string
+          p_user: string
+        }
+        Returns: undefined
       }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_meeting_links: {
@@ -15391,6 +15422,10 @@ export type Database = {
         }
         Returns: string
       }
+      set_person_active_for: {
+        Args: { p_active: boolean; p_actor: string; p_user: string }
+        Returns: undefined
+      }
       set_pqs_rca_due_window: {
         Args: { p_days: number; p_hospital_id: string }
         Returns: number
@@ -15885,6 +15920,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      suspend_person_for: {
+        Args: { p_actor: string; p_suspended_until?: string; p_user: string }
+        Returns: undefined
       }
       target_case_response: {
         Args: { p_case_participant_id: string; p_response_id: string }
@@ -16812,6 +16851,21 @@ export type Database = {
         }
         Returns: string
       }
+      update_person_fields_for: {
+        Args: {
+          p_actor: string
+          p_cpf?: string
+          p_date_of_birth?: string
+          p_full_name: string
+          p_phone?: string
+          p_professional_category_id: string
+          p_set_cpf?: boolean
+          p_set_date_of_birth?: boolean
+          p_set_phone?: boolean
+          p_user: string
+        }
+        Returns: undefined
+      }
       update_phase_result: {
         Args: {
           p_color_token: string
@@ -17183,6 +17237,19 @@ export type Database = {
           p_meeting_frequency: string
         }
         Returns: Json
+      }
+      upsert_credential_for: {
+        Args: {
+          p_actor: string
+          p_expires_on?: string
+          p_id: string
+          p_issuing_authority: string
+          p_issuing_country: string
+          p_issuing_state: string
+          p_registration_number: string
+          p_user: string
+        }
+        Returns: string
       }
       upsert_ethics_case_details: {
         Args: {

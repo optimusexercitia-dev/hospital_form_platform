@@ -6,6 +6,151 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
+### 🟠 FUP-AE1-REVOKE-SET-EXECUTION — 233 classified revokes are HELD, partitioned, and 137 of them are a silent no-op as written (owner: backend/PO)
+
+> Filed 2026-08-27 at AE1's RV0 completion. Full decision record:
+> [authz-ae1-revoke-partition.md](../design/authz-ae1-revoke-partition.md). ⛔ **AE1 executed
+> none of these** — the phase produced the partition, not the revokes.
+>
+> **The partition** (head `20261003005300`, read-only, verdicts are a DELTA in arm-domain
+> membership, not an absolute): PROCEED property-rescued **44** · PROCEED name-rescued **5**
+> · **HOLD 23** · UNCHANGED **161** = 233 ✓.
+>
+> - **HOLD = 23** is the set a revoke would make sweep-blind: 3 `app` set-returning
+>   (`case_phase_option_aggregates`, `eligible_voters`, `submitted_form_responses`) + 20 `public`
+>   leaving `ARM=floor`, being 19 trigger bodies and **`set_participant_patient`** (Rule 12 PHI).
+> - **The 5 name-rescued** are rescued *only* by `p0-authz-writepath-audit.sh`'s 11-name
+>   `GUARD_KEYS` hand list. A rename silently evicts them from the sweep — the
+>   *a-rename-orphans-a-name-keyed-verdict* shape. Never merge them into property-rescued.
+> - **UNCHANGED = 161 is NOT a clean bill.** Those were in zero arms' domains before the revoke
+>   and stay at zero after; they are unexamined, not cleared.
+>
+> ⛔⛔ **Whoever executes these batches must probe, not trust the exit code.** **137 of the 233**
+> reach `authenticated` **only via `PUBLIC`** (`proacl IS NULL`), so `revoke execute … from
+> authenticated` leaves `has_function_privilege` **true** and nothing observable changes — and
+> **no arm would notice**, because every arm returns an identical verdict for the honest reason
+> that the privilege never moved. Re-proved by the lead as an *effective* probe rather than an ACL
+> reading (rolled back, with a positive control): `app.can_read_event_patient` (`proacl` NULL)
+> stayed `true` after the revoke while `app.commission_of_case` (explicit ACL) went `false`. The
+> materialised ACL is the tell — `=X/postgres,…`, whose **leading `=X/` with an empty grantee IS
+> the surviving PUBLIC grant**. ⚠ The probe landed on a **Rule 12 PHI read predicate**, so the
+> no-op class is not confined to inert helpers. Fifth sighting of *a NULL `proacl` includes PUBLIC*.
+> ✅ All **23 HOLD** rows carry a direct grant and no PUBLIC grant, so the revoke is fully
+> effective on exactly the rows the verdict is about; the no-ops concentrate in UNCHANGED (130/137).
+>
+> ⚠ **Batch 1's "lowest-consequence" framing is half false.** True at runtime (EXECUTE on a
+> trigger function is checked at `CREATE TRIGGER`, never at fire time); false for observability —
+> `ARM=floor` applies no return-type filter, so those 19 trigger bodies are in its domain **today**
+> and the revoke evicts all 19.
+>
+> ✅ **RV3 is answered and is a hard input to any future revoke**: PostgreSQL **does** re-check
+> EXECUTE at write time on a function referenced inside a stored CHECK expression — `42501`, not
+> the constraint's `23514` — on both `plpgsql` and inlinable `sql`. Revoking EXECUTE on a
+> constraint-referenced function therefore **breaks writes to the constrained table**.
+>
+> **Before any batch runs:** re-derive the partition at the then-current head (⛔ never reuse these
+> numbers — the file's own header forbids it), scope each revoke to the route that actually holds
+> the privilege, and assert `has_function_privilege` **moved** after each batch. An unmoved
+> predicate is a failure, not idempotence.
+
+### 🟡 FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY — 31 Tier-1 DEFINER doors confirm an object exists before checking authority (owner: backend/PO)
+
+> Filed 2026-08-27 by AE1 close condition #3, the [tier-1 threat review](../design/authz-ae1-tier1-threat-review.md)
+> §4.2 (finding F-T1-2). **PO-ruled the same day: fixed OUTSIDE AE1.**
+>
+> Each of the 31 reads a table to resolve its target, raises a *distinguishable* not-found
+> error, and only then checks authority. They are `SECURITY DEFINER`, so the read **bypasses
+> RLS** — the error therefore tells a caller with no access that the object exists. Shape,
+> measured:
+>
+> ```
+> public.assign_member_title(p_member_id, p_title_id)
+>   select commission_id into v_commission from public.memberships where id = p_member_id;
+>   if v_commission is null then raise exception 'membro inexistente' ...   -- ← before authority
+>   if not (app.is_staff_admin_of(v_commission) or ...) then raise exception 'sem permissão' ...
+> ```
+>
+> ⚠ **Severity is low and must stay stated that way:** uuids are not enumerable, so this is a
+> *confirmation oracle* — it validates an identifier the caller already holds — not an
+> enumeration sweep. What makes it worth fixing is consistency: it is exactly the standard
+> AE1.3's six new doors were held to (*"authority checked before existence so a probe cannot
+> enumerate"*), and **five of the 31 are case-module doors** (`get_case_detail`,
+> `grant_case_access`, `list_case_access`, `revoke_case_access`, `set_case_visibility`).
+>
+> ⛔ **Do not re-derive the set by hand.** It is BLOCK 6 of
+> `scripts/authz-tier1-threat-review-ae1.sql`; the count moves as doors are added, and a
+> hand-list would be stale the first time it is read. The fix is a migration reordering the
+> bodies (authority first, uniform deny) plus a diff-scoped door sweep and a mutation-proof
+> per door — its own increment, which is why it is not in AE1.
+>
+> ⚠ Two of the 31 are INVOKER-adjacent in appearance only; the split that produced this set
+> already removed the 3 INVOKER cases (their pre-authority read is RLS-filtered, so
+> "not found" already means "not visible to you") and the 41 whose deny is silent.
+
+### 🟠 FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED — ~25 child/vocabulary tables emit no audit row on any mutation (owner: backend/PO)
+
+> Filed 2026-08-27 by AE1 close condition #3, the [tier-1 threat review](../design/authz-ae1-tier1-threat-review.md)
+> §4.3 (finding F-T1-3). **Architecture Rule 11 says every mutation emits a row.**
+>
+> **62** of the 270 mutating Tier-1 DEFINER doors write tables that emit nothing by **either**
+> audit mechanism — neither a call reaching `audit_write` anywhere in the door's closure, nor a
+> `trg_audit_*` trigger on the table itself (108 doors take the first path, 100 the second; 54
+> tables carry an audit trigger).
+>
+> The affected tables are a coherent class — **child entities and vocabulary**: `rca_factors` ·
+> `rca_members` · `rca_root_causes` · `rca_timeline_entries` · `rca_evidence` · `rca_why_chains` ·
+> `capa_action` · `capa_action_task` · `capa_action_evidence` · `capa_measure` ·
+> `capa_measure_result` · `case_interview_interviewers` · `case_interview_subjects` ·
+> `case_tag_assignments` · `case_assignment_roles` · `referral_shared_item` ·
+> `referral_requested_actions` · `pqs_event_types` · `pqs_sentinel_criteria` ·
+> `ethics_allegation_categories` · `ethics_sanction_types` · `hospital_departments` ·
+> `case_correction_requests` · `interview_session_attendance` · `upload_sessions`/`file_objects`.
+>
+> ⭐ **The parents are audited and the children are not.** `app.trg_audit_rca` exists;
+> `rca_factors` carries only `guard_rca_child_lock`. A child insert never touches the parent
+> row, so no parent audit row is emitted for it either — the coverage does not flow downward.
+>
+> **Evidence hierarchy, so it is not re-litigated:** the catalog is decisive (no audit trigger,
+> no `audit_write` in closure). `audit_log` corroborates — `entity_type` holds `rca`,
+> `capa_plan`, `interview` but no child type — and is **only** corroboration, because on a
+> seeded database an absent row can mean "the path was never exercised".
+>
+> ⛔ **This needs a PO reading before it needs a migration:** does Rule 11's *"every mutation"*
+> mean every row in every table, or every **aggregate** (the parent RCA / CAPA / interview)? The
+> answer decides whether this is ~25 audit triggers plus entity-type and diff decisions, or a
+> documented boundary. Do not write triggers before it is answered.
+
+### 🟡 FUP-DOC-RECLASS-OPERATION-ID — bind reclassification completion to a DB-minted, single-use operation id (owner: backend)
+
+> PO observation #2 at the 2026-08-27 [rulings](../design/authz-ae1-rpc-rulings.md)
+> approval. `reclassify_document` (begin; user-session, the real authorizer) and
+> `complete_document_reclassification` (completion; service-role) communicate through four
+> loose parameters — version, new file, old file, digest. The completion's relational
+> checks (new file `reserved`, version empty, old file same-document, sha match, storage
+> presence) bound abuse but **do not prove the tuple came from one begin invocation**.
+>
+> Fix shape: begin mints a `reclassification_operation_id` carrying the complete tuple;
+> completion takes only that id and consumes it **exactly once** (single-use, expiring);
+> the four parameters retire. A schema + both-doors + TS-call-site change — its own
+> increment, not a rider. The ruled system-actor mechanism (rulings §3) stands meanwhile.
+
+### 🟡 FUP-DOC-DISPOSAL-PROVENANCE-SPLIT — split `complete_document_disposal` by provenance (owner: backend/PO)
+
+> PO observation #3 at the 2026-08-27 [rulings](../design/authz-ae1-rpc-rulings.md)
+> approval. One generic service-role completion door serves two provenances with different
+> authorization, evidence, and audit requirements: **(a)** automated duplicate retirement
+> (the reclassify lane sets `disposal_reason_category = 'duplicate'` system-side) and
+> **(b)** a human performing a DSR/manual disposal. The generic door erases the
+> distinction — the audit row cannot say which kind of act it records beyond
+> `reason_category`, and lane (b) should name the human authority in the DSR record
+> (LGPD).
+>
+> Fix shape: split by provenance — two doors, or a provenance argument validated against
+> the pending row's `reason_category` — with per-lane evidence contracts and audit verbs.
+> Interim: the ruled mechanism (rulings §4 — a recorder of an already-performed deletion,
+> retention blocks + absence verification in-function) stands; the app call site remains
+> system-owned (`documents/actions.ts:reclassifyDocument`).
+
 ### ⬛ FUP-DM5-NO-ANSWER-VS-NOTHING — ✅ **ALL SIX INSTANCES CLOSED 2026-08-19** — *"I could not look"* is not distinguished from *"I looked and found nothing"* (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
 
 > ## ✅ CLOSED 2026-08-19 — the last open instance is fixed, and the class statement is KEPT
@@ -982,7 +1127,7 @@ radius was one join away and no assertion in the slice looked there.
 **When a change writes a new value into an existing state column, sweep every READER of that
 column before believing the keystone.**
 
-### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one, and the class is COVERED-BUT-UNPINNED, not blind** — ⭐ **Critical FUP C2** (owner: lead + backend)
+### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one (⭕ **re-derived 426 at the AE1 Record step 2026-08-27**), and the class is COVERED-BUT-UNPINNED, not blind** — ⭐ **Critical FUP C2** (owner: lead + backend)
 
 > ### ✅ PO RULING 2026-08-18 — **TWO TIERS. Sweep the PHI / tenancy-crossing subset first; DEFER the remainder to after the pilot ships.**
 >
@@ -2911,6 +3056,119 @@ owners kept live here).
 > whether that route even has a `loading.tsx` boundary). *A lead, not a finding.*
 > ⚠ **Do not close this FUP on EVID-KBD-1's fix** — one member's root cause is evidence about the
 > class, not a closure of the other two.
+
+> ### ✅ 2026-08-27 — FINGERPRINTS, OWNER AND EXPIRY ADDED (AE1 close condition #5 / PA-F16)
+>
+> PA-F16: *"a name-matched failure with a novel fingerprint is a red, not a flake."* Until now
+> these two entries carried a NAME and an owner and nothing else, so any failure of either test
+> — for any reason — could be waved through as "the known flake".
+>
+> ⚠ **What these fingerprints ARE, stated so they are not over-trusted:** the failing **step**,
+> derived from the spec source. The **message pattern** half is deliberately left OWED, because
+> `e2e:prod` has not run this phase and inventing an error string nobody observed would be the
+> exact defect this condition exists to close. Fill it in at the next observed occurrence.
+> Even step-only, the discriminator already works: a failure at a different step is a red.
+>
+> **M1 — `act-role-assumption.spec.ts:157`** *"The switch: assuming a hat then switching changes
+> the landing route AND real authorization"* · owner **tester** · expiry **2026-10-31**
+> - FLAKE fingerprint: a Playwright **timeout** on the landing-route assertion
+>   `expect(page).toHaveURL(/\/o\/rede-a\/manage$/)` (:160), the first assertion after
+>   `cachedSignIn(… 'dualhat.a@test.local', … 'org_admin')` — navigation not settled.
+> - ⛔ RED, not a flake: a URL **mismatch** rather than a timeout (that is a routing defect, not
+>   timing) · a failure at any later assertion in the test · any auth/permission error.
+>
+> **M2 — `phase2-auth-shell.spec.ts:268`** *"logging out via user menu redirects to /login and
+> clears session"* · owner **tester** · expiry **2026-10-31**
+> - FLAKE fingerprint: a **timeout** inside `signOutViaMenu` (:51–62) at either
+>   `expect(sairButton).toBeVisible({ timeout: 5_000 })` (:58) or
+>   `page.waitForURL('**/login', { timeout: 15_000 })` (:61).
+> - ⛔ RED, not a flake: a failure at the post-logout re-visit assertion (:274+) — that is
+>   session clearing, a different claim · any non-timeout error.
+>
+> ⛔ **At expiry an entry is root-caused or re-justified in writing, never silently renewed** —
+> a baseline that only ever grows is how "two pre-existing flakes" became a floor rather than a
+> count.
+>
+> ### ⛔ 2026-08-27 — THE "CONCRETE UNVERIFIED LEAD" ABOVE IS WRONG AT THE GRAIN THAT MATTERS
+>
+> It reads: *"`phase2-auth-shell.spec.ts` calls a bare `.focus()` shortly after a navigation —
+> the same anti-pattern, **in one of the two survivors**."* Measured: the file does contain a bare
+> `.focus()`, at **:375** — but that line is inside
+> `test('user can sign in and log out using only the keyboard')` (**:341**), which is **NOT** the
+> flaking test. The survivor is `'logging out via user menu…'` at **:268**, and neither it nor
+> its `signOutViaMenu` helper calls `.focus()` at all.
+>
+> ⭐ A true fact about the FILE was cited for a conclusion about the TEST. The lead was correctly
+> labelled unverified; what made it durable is that the sentence reads as though it had been
+> checked at the grain it is used at. ⚠ The `.focus()`-races-RSC-streaming class may still explain
+> M1 or M2 — this removes the only *evidence* offered for it, not the hypothesis.
+
+> ### ⭐ 2026-08-27, SAME DAY — THE FINGERPRINTS MET THEIR FIRST RUN, AND SPLIT 1 FOR 2
+>
+> `e2e:prod` on `120478bf`: **GATE GREEN**, 1249 passed · 0 failed · 0 did-not-run · **3 flaky**
+> · 11 skipped · 21 batches; accounted **1263/1263** on the final batch lines (the summary's
+> "1252 of 1263" excludes the 11 skips — the arithmetic closes, nothing went unrun).
+>
+> **M2 — EXACT MATCH.** `phase2-auth-shell.spec.ts:268` failed at
+> `expect(sairButton).toBeVisible({ timeout: 5_000 })` — **line 58**, one of the two steps the
+> fingerprint named hours earlier from reading the spec. The method works.
+>
+> **M1 — MISMATCH, and the fingerprint is CORRECTED FROM THE MEASUREMENT.**
+> `act-role-assumption.spec.ts:157` was fingerprinted as a `toHaveURL` timeout at **:160**. It
+> actually failed at **:168** — `getByRole('menuitem', { name: /revisor\(a\) da qualidade/i })
+> .click()`, `locator.click: Test timeout of 30000ms exceeded`.
+> - New M1 fingerprint: **a timeout clicking a `menuitem` inside the "abrir menu da conta"
+>   dropdown at :168**, after the trigger click at :167.
+> - ⛔ **Why this is a correction and not the baseline absorbing a defect** — the distinction
+>   matters, because "the fingerprint did not match, so widen it" is exactly how a baseline eats a
+>   real failure. The :160 step was an explicitly-labelled **guess** with no evidential basis (the
+>   entry said so: *"the message pattern half is deliberately left OWED"*). Replacing a placeholder
+>   with the first observation is not the same act as widening a fingerprint that was ever
+>   measured. ⚠ It cost something real: M1's fingerprint provided **zero discrimination** on the
+>   one run it existed for. From here it is measured, and a further move is a red.
+>
+> ### ⭐⭐ ONE ROOT CAUSE — BUT NOT THE ONE THIS FUP HAS HYPOTHESISED FOR MONTHS
+>
+> M1 fails clicking `menuitem` *"revisor(a) da qualidade"*; M2 fails on `menuitem` *"sair"* not
+> visible. **Both are Radix dropdown items inside the SAME `"abrir menu da conta"` menu, and both
+> fail because the item is absent after the trigger was clicked.** That is one shared, concrete
+> mechanism across both survivors — which is the "one root cause rather than two flaky tests"
+> this FUP has predicted all along.
+>
+> ⛔ **It is not the `.focus()`-races-RSC-streaming class.** Neither failing step calls `.focus()`;
+> the earlier note in this FUP pointing at a bare `.focus()` in `phase2-auth-shell.spec.ts` was
+> already corrected today (it is at **:375**, inside a *different* test). The hypothesis now has no
+> supporting evidence and a positive alternative: **the account dropdown's items are not reliably
+> present after its trigger click**. ⚠ Still a mechanism, not a fix — nobody has established
+> *why* the menu is empty (Radix portal mount vs. RSC hydration vs. the trigger's own readiness).
+>
+> ### ⛔ A THIRD FLAKE APPEARED, AND IT IS **NOT** ADMITTED TO THIS BASELINE
+>
+> `ethics-e4-participants.spec.ts:765` (PROF-CREATE) flaked in batch 6, failing at **:787**:
+> `getByRole('region', { name: 'Participantes' }).locator('li').filter({ hasText: 'Dr. Novo
+> Respondente (E4)' })` not visible within 10s — a **roster row after an inline create**, a
+> different mechanism from the dropdown class above.
+>
+> ⛔ **Not added as a member here, deliberately.** *"The two pre-existing flakes are a floor, not
+> a guarantee"* is a warning about the count, not permission to grow it: a baseline that absorbs
+> every new name on sight is how a defect becomes furniture. It needs an owner, an expiry and a
+> disposition (flake vs. defect) **decided**, not assumed — filed as
+> `FUP-E2E-PROF-CREATE-ROSTER-FLAKE` for the lead/PO, with this run as its first and only
+> observation.
+
+### 🟡 FUP-E2E-PROF-CREATE-ROSTER-FLAKE — `ethics-e4-participants.spec.ts:765` PROF-CREATE roster row, ONE observation, disposition UNDECIDED (owner: lead + tester)
+
+- 🟡 **FUP-E2E-PROF-CREATE-ROSTER-FLAKE** — flaked in `e2e:prod` batch 6 on `120478bf`
+  (2026-08-27, the first full-suite run of phase AE1), passing on retry. Failing step **:787**:
+  `getByRole('region', { name: 'Participantes' }).locator('li').filter({ hasText: 'Dr. Novo
+  Respondente (E4)' })` not visible within 10 s — the roster row after an **inline professional
+  create** (`possui conta`). ⛔ **Deliberately NOT admitted to `FUP-E2E-REPEAT-FLAKY`'s baseline.**
+  That baseline's *"two pre-existing flakes are a floor, not a guarantee"* is a warning about the
+  count, not permission to grow it — a baseline that absorbs each new name on sight is how a
+  defect becomes furniture. ⚠ **One observation is not a pattern**, and it is a *different*
+  mechanism from the two survivors (which both fail on an absent Radix `menuitem` inside the
+  account dropdown). Needs a disposition — flake or defect — decided rather than assumed;
+  entry criteria if it is ever promoted: a second occurrence with a matching fingerprint — lead/tester
 
 ### 🟡 FUP-GATE-PDFP1-FLAKE — `pdf-printing.spec.ts:38` pre-mint empty-state flake, mechanism UNPROVEN (owner: lead + tester)
 
@@ -6132,3 +6390,498 @@ outside its domain for the same reason. The blindness is **measurement-domain**,
 **Fix shape:** the deriver must grep `alter function … security definer` the way it now greps
 `alter policy`, and resolve the altered function's return type from the **live catalog** rather than
 from the migration text it cannot parse.
+
+### 🟠 FUP-AFF4-HOMEORG-PHASE2 — 0151 D10's named Phase 2 had **no register line anywhere**; filed and promoted to PRE-PILOT at ADR 0155's acceptance (owner: backend/PO)
+
+**Filed 2026-08-26.** AFF4 separated affiliation from authorization, but ADR 0151 **D10** kept every
+existing RLS leg and the tenant containment trigger on `profiles.home_organization_id` — demoted,
+not dropped — and named "Phase 2" (migrating those legs + the trigger off the column) as a
+follow-on. Measured at ADR 0155's re-analysis: that follow-on existed **only as ADR prose plus
+echoes** (0154 D2, the AFF4 plan §"B4 boundary", `aff4.md`) — no `FUP-*` id, no index line,
+invisible to the register the PO reads from. This item is that line.
+
+**What must happen** (ADR
+[0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) **D8** —
+implementation Phase 2, **pre-pilot**; the promotion from 0151 D10's *"before multi-org, not
+pilot-blocking"* is the one clause 0155 amends):
+
+1. Migrate every remaining visibility/containment decision (the RLS legs + the tenant trigger) off
+   `home_organization_id` onto the affiliation substrate.
+2. **Explicitly re-answer lifecycle authority over fully-offboarded persons** — 0151 D10's open
+   question, unchanged by 0155; until answered it resolves through `home_organization_id`.
+3. Shadow old/new person-visibility decisions and **block every unexplained WIDENING** (the 0154
+   boundary-filter rule: narrowing can be wrong and safe; widening cannot).
+4. Demote or remove the column only after a caller inventory.
+
+**Why pre-pilot:** 0155 D7's catalog work must not seed permission matrices against a containment
+anchor scheduled to disappear. Exit gate: affiliations are the only employment/belonging source,
+and they still grant no capabilities (D3's ARCHITECTURE.md rule lands in the same increment).
+
+### 🟡 FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY — `commissions` and `commission_meeting_types` grant tenancy-admin READS from a policy named `…_write` (owner: backend/PO; filed 2026-08-27 by `backend` at the AE1.5 triage, PO-ruled the same day)
+
+> **The measurement** (catalog, local stack, `pg_policies`):
+>
+> | table | policy | cmd | the duplicated arms |
+> | --- | --- | --- | --- |
+> | `commissions` | `commissions_admin_write` | **ALL** | `app.is_org_admin_of(organization_id)`, `app.is_hospital_admin_of(hospital_id)` |
+> | `commissions` | `commissions_select_member_or_admin` | SELECT | the same two, verbatim |
+> | `commission_meeting_types` | `meeting_types_staff_admin_write` | **ALL** | `app.is_tenancy_admin_of(commission_id)` |
+> | `commission_meeting_types` | `meeting_types_select` | SELECT | the same one, verbatim |
+>
+> A `FOR ALL` permissive policy **is a read policy too** (the F-AE0-8 shape). So for `SELECT` the
+> effective predicate is the nine-term / three-term disjunction of both policies, and each named
+> arm is evaluated **twice per row** — a live per-row cost, today.
+>
+> ⛔ **Why AE1.5 did NOT remove the duplicates, though removing them is provably identity.** The
+> only identity-preserving direction is to strip the arms from the **SELECT** policy — stripping
+> them from the `ALL` policy would break INSERT/UPDATE/DELETE. That leaves `org_admin` /
+> `hospital_admin` / tenancy-admin **read** access depending on a policy named `…_write`
+> continuing to exist, so a later, entirely reasonable narrowing of a *write* policy silently
+> revokes *reads* with no test naming the link. That is the *"a write lockdown is defeated by its
+> parent"* shape run in reverse, and AE1 is a hardening phase: introducing authz fragility to save
+> a plan node is the wrong trade. **PO-ruled 2026-08-27: leave both, record the reason.**
+>
+> ⚠ **This is NOT the same class as the `profiles` edit AE1.5 did make**, and the AE0 findings doc
+> called them "same class" — corrected at the same ruling. `profiles`' two policies are **both
+> `SELECT`**, so their disjunction is closed within one command and narrowing one of them cannot
+> reach another command. These two straddle `ALL` and `SELECT`. Same *symptom* (a verbatim
+> duplicated arm), different *shape*, and the difference is the whole decision.
+>
+> **What this item asks for — its own decision, not a repeat of the AE1.5 triage:** restructure so
+> that reads live only in the `SELECT` policy and the `ALL` policy is narrowed to the write
+> commands it is named for (`FOR INSERT` / `FOR UPDATE` / `FOR DELETE`, or an equivalent split).
+> That is an **authorization change**, not a performance edit: it changes which policy answers for
+> a read, and it must carry its own before/after per-persona visible-row proof plus a
+> diff-scoped door sweep. ⛔ Do not treat it as bookkeeping because the *net* predicate is
+> intended to be unchanged — the intent being "unchanged" is exactly the claim that needs proving.
+>
+> ⛔ **Not an AE2 item.** AE2 is the affiliation / person-tenancy split; this has no home there and
+> was filed here rather than parked in a plan sentence, because a sentence in a document is not a
+> register entry.
+>
+> **Sizing — MEASURED 2026-08-27, not estimated.** This item was filed saying the shape was
+> "almost certainly wider than these two tables, ~40 pairs from the advisor list". That was an
+> estimate off a warning list; it has since been **replaced by a census bounded by the property**,
+> which is what the item itself demanded:
+>
+> ```sql
+> -- Tables where a PERMISSIVE cmd='ALL' policy and a PERMISSIVE cmd='SELECT' policy
+> -- on the same table share at least one VERBATIM top-level OR arm.
+> with arms as (
+>   select tablename, policyname, cmd,
+>          btrim(unnest(string_to_array(
+>            regexp_replace(coalesce(qual,''), '^\((.*)\)$', '\1'), ' OR '))) as arm
+>     from pg_policies
+>    where schemaname = 'public' and permissive = 'PERMISSIVE' and qual is not null
+> )
+> select a.tablename, count(distinct a.arm) as duplicated_arms
+>   from arms a
+>   join arms b on b.tablename = a.tablename and b.arm = a.arm
+>              and b.cmd = 'SELECT' and a.cmd = 'ALL'
+>  group by a.tablename order by 2 desc, 1;
+> ```
+>
+> **Result: 26 tables, not 2.** Three carry **two** duplicated arms each — `commissions`
+> (`is_org_admin_of`, `is_hospital_admin_of`), **`hospital_departments`** (`is_hospital_admin_of`,
+> `is_org_admin_of(app.org_of_hospital(...))`) and **`hospitals`** (`is_admin`,
+> `is_org_admin_of`) — and 23 carry one, overwhelmingly `app.is_tenancy_admin_of(...)` on the
+> commission-scoped vocabulary tables (`case_tags`, `case_outcomes`, `forms`, `form_items`,
+> `form_sections`, `form_item_options`, the seven `process_template_*` tables, …) plus
+> `app.is_admin()` on `organizations`, `hospitals`, `case_types` and `case_participant_roles`.
+>
+> ⚠ **`organizations` and `hospitals` are the ones to look at first** — they sit at the top of the
+> tenancy tree, every tenant-scoped read touches them, and on `organizations` the duplicated arm is
+> `app.is_admin()`, a `SECURITY DEFINER` call evaluated **twice per row** inside an eight-term OR.
+>
+> ⚠ **`form_items` and `form_sections` appear in BOTH this census and AE1.5's hot subset. AE1.5
+> did NOT touch their duplicated arm** — it only wrapped `auth.uid()` on those tables. Do not read
+> AE1.5's hot-subset list as coverage of this item.
+>
+> ⚠ **Sister item:** `FUP-ZERO-ARG-APP-PREDICATES-NOT-HOISTED` covers a *different* fix on an
+> overlapping population (hoisting, not de-duplication). `organizations` needs both and they are
+> independent — de-duplicating leaves one per-row call, hoisting leaves two hoisted calls.
+
+### 🟡 FUP-ZERO-ARG-APP-PREDICATES-NOT-HOISTED — the advisor's initplan rule is blind to `app.*()`, so zero-argument RLS predicates are still evaluated per row (owner: backend; filed 2026-08-27 by `backend` at the AE1.5 triage, PO-scoped the same day)
+
+> **What the advisor does not see.** Supabase's `auth_rls_initplan` rule flags **only**
+> `auth.uid()` / `auth.jwt()` / `auth.role()` / `auth.email()`. AE1.5 fixed all 113 of those it
+> was scoped to. But this codebase's RLS predicates are mostly `app.*()` helpers, and the
+> **zero-argument** ones are hoistable on exactly the same argument the advisor's rule rests on —
+> yet nothing flags them, so they are invisible to every gate and every advisor run.
+>
+> **The criterion, stated so the sweep is a property and not a taste:** a call is hoistable iff it
+> is `STABLE` (or `IMMUTABLE`), takes **no arguments**, and references **no `Var`**. Then
+> `( select app.f() )` is an *uncorrelated* subquery and the planner evaluates it **once per
+> statement** instead of once per row. ⛔ A call taking a row column — `app.is_member_of(commission_id)`
+> — is **not** in this class: wrapping it produces a *correlated* `SubPlan`, still once per row,
+> no gain and a plan-shape change for nothing.
+>
+> **Measured 2026-08-27** (`explain` under a real `authenticated` context, local stack):
+> unwrapped `app.is_admin()` renders as a per-call `One-Time Filter: app.is_admin()`; wrapped it
+> becomes `One-Time Filter: (InitPlan 1).col1` with an `InitPlan 1 -> Result`. **Inside an `OR`
+> it is worse than the top-level case** — it sits in a per-row disjunction with no one-time
+> treatment at all.
+>
+> ⚠ **`organizations` is the strongest single entry and should be prioritised.** Its read filter is
+> an **eight-term OR** containing `app.is_admin()` **TWICE**:
+> `app.is_admin() OR app.is_org_admin_of(id) OR app.is_org_member(id) OR app.is_pqs_operator_in_org(id) OR app.is_nsp_org_admin_of(id) OR app.is_org_level_admin_within(id) OR app.is_quality_reviewer_in_org(id) OR app.is_admin()`
+> — so a `SECURITY DEFINER` plpgsql function that reads the claims GUC and, on its fallback branch,
+> **queries `public.profiles`**, is evaluated **twice per row** on the table at the top of the
+> tenancy tree that every tenant-scoped read touches. `hospitals`, `case_types` and
+> `case_participant_roles` carry the same doubled `app.is_admin()`.
+>
+> **Population.** Derive it, never hand-list it: `pg_policies` joined to `pg_proc` on the helper
+> names appearing in `qual`/`with_check`, keeping those with `pronargs = 0` and
+> `provolatile in ('s','i')`. The duplicated-arm census in
+> `FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY` (26 tables) is a **starting point, not the
+> population** — the two items overlap but neither contains the other.
+>
+> ⛔ **Why AE1.5 did not do it.** Out of the advisor's 113 and out of AE1.5's approved 52, and
+> AE1.5's binding acceptance rule is a **before/after plan diff per touched table** — riding these
+> along on another phase's diff would mean claiming evidence that was never captured for them.
+> PO-ruled 2026-08-27: file separately.
+>
+> ⚠ **Set expectations from AE1.5's own result before sizing this.** AE1.5 measured a
+> **structurally** smaller plan (11 filter arms → 7, 9 SubPlans → 5, cost estimate halved) with
+> **no measurable runtime change** at seed size — because the arms it removed read `never
+> executed`. *A plan node that exists is not a plan node that runs.* Whoever takes this item must
+> measure `loops=` / `never executed`, not arm counts, and must be prepared for the honest answer
+> that the win is small until the tables are large.
+
+### 🟡 FUP-QA-FINDINGS-N3-N4-UNACCOUNTED — two QA findings have ZERO hits in the live register (owner: lead; rotated from PROGRESS.md § Now 2026-08-27, measured 2026-08-26)
+
+A PROGRESS.md § Now line asserted: *"Five QA findings (N-1…N-5) + four P3 follow-ups are OPEN in
+§ Follow-ups"*.
+
+**Measured 2026-08-26 at the AFF4 Record step, against the live file:** findable are **N-1, N-2,
+N-5** and **TWO** `FUP-P3-*` lines. ⛔ **N-3 and N-4 have ZERO hits anywhere in PROGRESS.md.**
+
+Either they were resolved and the claim was never updated, or they were **lost**.
+
+**What must happen:** ⛔ **recover N-3 and N-4 from the originating review** before anyone quotes
+the old claim, then either file them as follow-ups with bodies or record them as resolved with the
+event that resolved them. Until that is done, neither disposition is known.
+
+⚠ **Direction matters, and it is why this one is worth the recovery cost.** This error ran **WIDER
+than reality** — the opposite of the usual tighter-so-it-reads-as-care drift. It **concealed two
+items by asserting they were already indexed**, which is strictly worse than omitting them: a
+reader checking "are these tracked?" got a yes. **Approval was given AROUND these two, not over
+them.**
+
+⭐ The general shape, which is not specific to N-3/N-4: *a claim that work is already registered is
+itself a claim that needs measuring* — and it is the one kind of register error that a reader of the
+register cannot detect, because the register is what they would check.
+
+### 🔴 FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED — the mandated per-phase sweep has a FOUR-part hole: the deriver names ONE arm for a TWO-arm list; arm 2 reports success at exit 0 having measured nothing; 9 policies fall outside both arms; and a killed run leaves an RLS policy WIDE OPEN with nothing reporting it (owner: backend/lead; filed 2026-08-27 by `backend`, all four measured during AE1.5)
+
+> ## PART 1 — the deriver names one arm for a two-arm list
+>
+> **Measured 2026-08-27.** `scripts/door-sweep-cases.sh` derived **53** cases from AE1.5's
+> migration. Handed to the command the deriver itself prints
+> (`supabase/tests/mutation/p0-authz-door-audit.sh`), **22 of them matched no gate**:
+> *"REQUESTED CASES THAT MATCHED NO GATE IN EITHER ARM"*. They were exactly the **non-SELECT**
+> policies.
+>
+> **Cause, from the harness headers rather than inferred:**
+> - `p0-authz-door-audit.sh` audits **the READ layer** — *"boolean predicates + SELECT/ALL read
+>   policies"*.
+> - `p0-authz-writepath-audit.sh` audits **the WRITE layer** — *"the value-returning authz
+>   RAISE-GUARDS **and the INSERT/UPDATE/DELETE policies**"* — and its own header states that a
+>   `CASES=` run is *"the diff-scoped run CLAUDE.md §6 step 1 mandates EVERY PHASE"*.
+>
+> ⛔ **The deriver greps `create policy` / `alter policy` without regard to command, so its case
+> list spans both arms — but the paste-able command it prints names only the READ harness.** An
+> operator who follows the deriver's own output sweeps the read half; the write half goes
+> unmeasured. AE1.5's clause census of its own 52: **31 `USING`-only, 8 `WITH CHECK`-only, 13
+> both** — the 30/22 split falls straight out of it.
+>
+> **The fix is PRINT-ONLY and that is what makes it safe:** emit both commands, or split stdout
+> by arm. It cannot change *what* is derived, only *what an operator is told to run*. ⚠ Keep
+> stdout a bare token list for `CASES=$(...)` composability — if the output is split by arm, the
+> arms need separate invocations or a documented key, not two lists concatenated into one.
+>
+> ⚠ **Why this survived so long:** the read harness *does* report its unmatched cases and
+> **refuses to end CLEAN** (exit 3, `UNPROVEN (PARTIAL)`) — which is the only reason AE1.5 saw it
+> at all. A phase whose migration happened to alter only SELECT policies would derive a
+> fully-matching list and never notice the recipe is half-aimed.
+>
+> ---
+>
+> ## ⛔ PART 2 — arm 2 reports SUCCESS at exit 0 having measured NOTHING
+>
+> **Measured 2026-08-27.** `supabase/tests/mutation/p0-authz-writepath-audit.sh`, run with
+> `CASES=` over AE1.5's 52 altered policies, printed:
+>
+> ```
+> BLIND: 0   ERROR(harness): 13   SKIPPED(vacuous): 0   (COVERED = the rest)
+> ```
+> **and exited 0.**
+>
+> **It measured ZERO of the requested cases.** Of AE1.5's 22 write-layer cases: **13** were in the
+> harness's embedded 33-policy worklist and every one hit the **§7.2 drift tripwire** (the wrap
+> changed their `qual`/`with_check` text, so the embedded snapshot no longer matched and the
+> harness correctly refused to neutralize); the other **9** are absent from the worklist entirely.
+> **COVERED: 0.**
+>
+> ⛔ **Two defects, and the tripwire is NOT one of them** — refusing to neutralize against a stale
+> snapshot is exactly right:
+> 1. **The exit code.** 13 `ERROR`s and nothing measured yields **exit 0**. CLAUDE.md §6 says in
+>    terms that *"`ERROR` is not a pass"*, and here the exit code says pass. This is the
+>    *"a gate that never SETS a non-zero exit"* mechanism.
+> 2. **`(COVERED = the rest)`** computes a positive-sounding residual against a set that, on a
+>    fully-ERRORed subset run, is **empty** — so the summary line reads like coverage.
+>
+> ⭐ **The sharpest fact: its sibling already does this correctly.** `p0-authz-door-audit.sh`, in
+> the identical situation, exits **3 `UNPROVEN (PARTIAL)`** with *"A clean verdict over a subset of
+> what was asked for is the finding this gate exists to prevent. NOT a pass."* **Two harnesses
+> meant to be halves of one gate, the same class of shortfall, opposite handling.** Port the door
+> audit's PARTIAL/UNPROVEN accounting into the write-path audit rather than inventing a second
+> scheme.
+>
+> ## PART 3 — the harness lies about its own domain, and 9 policies fall in the hole
+>
+> ⭐⭐ **`p0-authz-writepath-audit.sh` cannot distinguish "I swept your case" from "your case
+> is not in my worklist", and reports the second as the first.**
+>
+> That is worse than Part 2. Exit-0-on-nothing is a bad summary line; **silently dropping
+> requested cases and reporting the remainder as the whole** is an instrument that lies about
+> its own domain — every consumer of its output inherits a coverage claim it never made.
+>
+> ⛔ **MEASURED ABSENCE, not an assumption.** The harness was grepped for `never swept`,
+> `matched no gate` and `requested but`: **zero hits.** There is no "requested but never
+> swept" reporting of any kind.
+> A `CASES=` entry that is absent from its embedded 33-policy worklist is **silently ignored**:
+> no ERROR, no warning, no mention in the summary. So handing it 52 cases and receiving
+> `13 COVERED, exit 0` reads as coverage of **52**.
+>
+> ⭐ **The harness cannot distinguish "I swept your case" from "your case is not in my
+> worklist", and reports the second as though it were the first.** Its sibling
+> `p0-authz-door-audit.sh` prints `REQUESTED CASES THAT MATCHED NO GATE IN EITHER ARM` and
+> **refuses to end CLEAN** — which is the only reason AE1.5 ever learned these 9 exist.
+> Porting that accounting across is the same fix as Part 2 and should land with it.
+>
+> **THE 9, NAMED INDIVIDUALLY — never as a count, and never in brace shorthand.** A count is
+> what let them hide, and brace shorthand is not greppable: someone searching for one of these
+> policy names must land on this item.
+>
+> 1. `answers_insert_targeted` (`answers`, INSERT)
+> 2. `answers_update_targeted` (`answers`, UPDATE)
+> 3. `case_events_staff_admin_insert` (`case_events`, INSERT)
+> 4. `case_events_staff_admin_update` (`case_events`, UPDATE)
+> 5. `case_events_staff_admin_delete` (`case_events`, DELETE)
+> 6. `case_events_writer_insert` (`case_events`, INSERT)
+> 7. `case_events_writer_update` (`case_events`, UPDATE)
+> 8. `case_events_writer_delete` (`case_events`, DELETE)
+> 9. `responses_update_targeted` (`responses`, UPDATE)
+>
+> All nine sit in **neither arm's domain**. Pre-existing, **not caused by AE1.5** — it
+> **revealed** them by altering policies that happen to fall in the hole. Same family as
+> `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2): an apparatus gap, not a defect in the policies.
+> ⚠ Bound any fix by the **property** (write-command policies absent from the embedded
+> worklist), never by this list — the list is here so a grep lands, not so it can be swept.
+>
+> ## ⛔ PART 4 — the harness is NOT SAFE TO KILL, and a killed run leaves a gate OPEN
+>
+> **Measured the hard way, 2026-08-27.** `p0-authz-writepath-audit.sh` (and its door-audit
+> sibling) mutate LIVE policies and rely on a `trap … EXIT` to restore them. A run killed
+> between "open the gate" and "restore it" does **not** run the trap. AE1.5 killed a
+> contaminated run and left **`meeting_cases.meeting_cases_staff_admin_update` at
+> `qual=true wc=true`** — a `FOR UPDATE` policy fully open to `authenticated` on the shared
+> local stack, with **nothing anywhere reporting it**. Recovered by `supabase db reset`.
+>
+> ⭐ **It was nearly missed by a count.** The degenerate-policy check returned **11**, of which
+> **ten are `qual = true` BY DESIGN** (vocabulary `SELECT` policies: `action_item_statuses`,
+> `referral_types`, `reply_outcomes`, `professional_categories`, `pqs_*`, `document_retention`).
+> "Is it zero?" returns 11 and reads as a pre-existing baseline. Only ENUMERATING them showed
+> the eleventh was an `UPDATE` policy with `wc=true`, which no lookup table has.
+>
+> **Owed:** either a documented recovery step ("if you kill a run, do X"), or a restore that
+> does not depend on a signal-catchable trap. Until then the operational rule is: **a
+> contaminated run must be allowed to FINISH and its verdicts discarded — never killed.**
+>
+> ⛔ **And the contamination surface is the WORKING TREE, not the database.** The baseline is
+> the suite's SHAPE (`Files=`/`Tests=`), so **adding a test file invalidates a sweep exactly as
+> effectively as touching the DB** — and nothing about doing so looks like DB activity to the
+> person doing it. AE1.5 asked its siblings for "DB silence"; that request was insufficient.
+> A sibling added one pgTAP file mid-run (+1 file, +62 tests) and every gate after it ERRORed.
+>
+> ⚠ **Operational note for whoever maintains the worklist:** it embeds exact predicate text, so
+> **any** future predicate rewrite — even a provably identity one — drifts it. Regenerate those
+> rows **from the live catalog**, never by hand.
+
+### 🟡 FUP-AE1-UNREACHABLE-PUBLIC-DOORS — 11 `public` DEFINER doors `authenticated` can call that nothing in `src/` calls, + 3 no instrument references, + 15 comment-only (owner: backend/PO)
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 2), from **RV4** of
+> [authz-definer-classification-ae1.md](../design/authz-definer-classification-ae1.md), which ruled
+> it *"a finding to file, not to revoke here"* — reachability and privilege are different questions
+> and AE1.2 answered only the second. Full set: that document's **§8, three named buckets**.
+>
+> - **Bucket B (16), of which 11 are `public` doors live to `authenticated`** — pgTAP / E2E /
+>   `scripts` name them; no production path does: `affiliate_person_to_org` · `appoint_hospital_dpo` ·
+>   `archive_ethics_sanction_type` · `assign_ethics_remediation` · `assign_org_admin` ·
+>   `create_ethics_sanction_type` · `open_ethics_external_referral` · `revoke_hospital_dpo` ·
+>   `set_case_narrative_assignment_role` · `set_interview_interviewer_participant` ·
+>   `set_interview_subject_participant`. The other 5 are `app` predicates of the same shape.
+> - **Bucket A (3)** — referenced by **no instrument at all** (`app.case_capabilities`,
+>   `app.commission_of_session`, `app.hospital_of_referral`): the *correct-door-that-nothing-can-reach*
+>   shape.
+> - **Bucket C (15)** — every `src/` occurrence is inside a comment, including 10 superseded per-flag
+>   `*_enabled()` readers, one of whose JSDoc still claims a call its body no longer makes.
+>
+> ⚠ **Unreachable is not over-granted.** Each door's own gate may be correct; what is measured is
+> that the product does not call it. Several bucket-B doors are **tenancy/identity administration**
+> (`assign_org_admin`, `revoke_hospital_dpo`, `affiliate_person_to_org`), so the open question is a
+> **product** one, stated at the classification's §11: *is this an intended surface with no UI yet, or
+> is it dead?* ⛔ Filing it as a revoke candidate would conflate the two questions — RV4's whole point.
+>
+> ⛔ **Do not re-derive the set by hand.** It comes from §4's catalog SQL plus §5's four-tier `src/**`
+> sweep (`rpc` / `code-literal` / `code-word` / `comment-only`, with `src/lib/types/database.ts`
+> excluded because it names every `public` function, which would make everything look called). The
+> comment tier exists because the TypeScript twin of the `prosrc` comment trap **fired here**.
+>
+> **Discharged when** every bucket-B door carries a recorded product verdict — *intended surface
+> (AE4/AE5 owns the caller)* or *dead (drop it, or revoke it and record the arm-domain delta under
+> `FUP-AE1-REVOKE-SET-EXECUTION`'s RV0 rule)* — and buckets A and C are ruled the same way. ⚠ A
+> re-derivation at the then-current head is a precondition: these lists are as-of-2026-08-27 and the
+> file's own header forbids reusing its numbers.
+
+### 🟡 FUP-AUDIT-ACTOR-ID-NULL-ON-SERVICE-DOORS — `actor_id` is NULL on every audit row a service-role door emits (owner: backend/PO)
+
+> Indexed 2026-08-27 at the AE1 Record step (obligation 3). ⛔ **The full record is the backlog entry**
+> — [deferred-backlog.md](./deferred-backlog.md), filed 2026-08-27 under AE1.3 / ADR 0155 R3. This body
+> exists because a backlog item with no index line is invisible to the register the PO reads from (QA
+> finding R3, and QA M3 measured this one as backlog-only). ⚠ Keep it a **pointer**, not a second
+> account: detail belongs in the backlog entry, and the two must not be allowed to drift into two
+> stories.
+>
+> `app.audit_write` derives its actor from `auth.uid()`, which is **NULL on every service-role path**.
+> AE1.3 adds 8 new instances (`person.registered`, `person.fields_updated`, `person.deactivated`,
+> `person.reactivated`, `person.suspended`, `credential.created`, `credential.updated`,
+> `credential.deleted`) to a platform-wide set that already includes `membership.granted`,
+> `form.created` and `affiliation.created`.
+>
+> ⚠ **This is a queryability gap, NOT a Rule 11 attribution loss** — the actor rides in
+> `metadata.actor_user_id`, following the `public.log_cpf_probe_for` precedent, and pgTAP `385` §1.11
+> asserts the null **positively** so it cannot later be misread as lost attribution.
+>
+> ⛔ **Ruled R3: do NOT fix it for these doors only.** A partially-populated `actor_id` is worse for a
+> reader than a uniformly null one, because a query filtering on it silently misses everything else.
+> **Discharged when** the whole-platform shape lands — `app.audit_write_as(p_actor, …)` as an internal
+> helper with no EXECUTE grant — and every service-role emitter routes through it, with pgTAP `385`
+> §1.11 flipped from asserting the null to asserting the actor.
+
+### 🟠 FUP-SERVICE-ROLE-WRITE-SITES-NO-GUARD-VANISH-TEST — 19 of 44 service-role write sites have no test that would notice their guard vanish (owner: backend/tester)
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 4, AE1.4). ⛔ **The obligation table's
+> "26 of 45" is retired here — it does not reproduce.** The registry is **44** rows post-AE1.3, and 26
+> is not derivable from them in either direction.
+>
+> **Re-derived from [`../backend-state.md`](../backend-state.md) § "Service-role DML registry"** by
+> classifying each row's **Test** cell on its LEADING verdict token — the rule the registry's own
+> Summary states — over all 44 `Key`-bearing rows in Groups A–H:
+> **20 `YES` · 5 `PARTIAL` · 15 `NONE` · 4 `UNCONFIRMED` = 44**, which reproduces that Summary exactly.
+>
+> - **19 of 44 (43%) have no test at all** that would notice the mechanism vanish = 15 `NONE` + 4
+>   `UNCONFIRMED`.
+> - **24 of 44 (55%) are not fully covered** once the 5 `PARTIAL` half-gaps are counted.
+> - ⚠ **The live not-fully-covered figure is 22, not 24.** Two of the five `PARTIAL` rows are the
+>   `minutes-jobs/webhook.ts` pair, whose cells now record the route half **LANDED 2026-08-27**
+>   (`src/app/api/webhooks/audio-jobs/route.rpc-boundary.test.ts`, red-first proven) with
+>   `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` closed. They stay `PARTIAL` under the leading-token rule while
+>   being covered in fact, so the Summary prose still reading *"route half `NONE` until … lands"* is
+>   stale against its own rows.
+>
+> ⛔ **`PARTIAL` must never be collapsed into `NONE`.** The registry's own correction paragraph records
+> that doing so silently is what made AE1.4's first tally (`19 / 22 / 4` over 45 rows) irreproducible.
+> A later re-count that reported "20 no-test" repeated exactly that collapse (15 `NONE` + 5 `PARTIAL`),
+> and 20 happens to equal the `YES` count, so the error reads as a coincidence rather than a mistake.
+> State all four tokens, or state none.
+>
+> **Where the 15 `NONE` sit:** 4 Group E role grant/revoke sites (`assignOrgAdmin`,
+> `assignCommitteeRole`, `registerUser` → `grant_role_for`; `removeCommittee` → `revoke_role_for`) · 4
+> Group F storage sites (`documents.reclassifyDocument` ×2, `pdf-mint.mintPrintedDocument` ×2) · 4
+> Group G sign-upload wrappers · 2 Group C `minutes-jobs/reconcile.ts` · 1 Group B `updatePassword`.
+> The 4 `UNCONFIRMED` are one shape — `registerUser`'s shared entry gate, whose denial path was not
+> found in the reported coverage and is **not proven absent**.
+>
+> **Discharged when** every `NONE` and `UNCONFIRMED` row either gains a named test that goes red when
+> its stated mechanism is removed, or carries a recorded ruling that it does not need one — and the
+> tally paragraph is **re-derived from the rows**. ⛔ Never adjust these numbers arithmetically; that
+> is how a direction gets fixed while the magnitude stays wrong.
+
+### 🟡 FUP-REACTIVATE-USER-HAS-NO-DENY-ARM — the reactivate path's authority is proven only by its sibling's deny test (owner: backend/tester)
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 6, AE1.4). `src/lib/users/actions.ts`'s
+> `reactivateUser` calls `authorizePersonScopedAdmin(userId, 'lifecycle')` and then the
+> `set_person_active_for` door — **the identical call** `deactivateUser` makes. The reported coverage
+> names `d14-person-level.test.ts` §1 (allowed) and §6 (org_admin twin) for reactivate; the only
+> exercised **deny** arm is §2, and §2 is written against `deactivateUser`.
+>
+> The registry states the shape in its own words: *"an incidental guard closing a hole the definition
+> predicts, not an independently-proven one"* — the single row of 44 whose leading token is `YES` with
+> a stated caveat.
+>
+> ⚠ **The guard genuinely covers both today**, because they share one call. The gap is that **nothing
+> would notice if they stopped sharing it**: an edit giving `reactivateUser` its own path, or dropping
+> the `personScopeAllows` call from it, is red nowhere.
+>
+> ⛔ **Do not discharge this by asserting the two call sites are identical** — that is the premise, not
+> the test. **Discharged when** `d14-person-level.test.ts` carries a `reactivateUser` deny arm proven
+> by a **differential**: neutralize `reactivateUser`'s own `authorizePersonScopedAdmin` call and the
+> new arm must go red **while §2 stays green in the same run**. An arm that reds only when the shared
+> call is removed is measuring the sibling, not this site.
+
+### 🟡 FUP-MUTATION-AUDIT-BLIND-TO-THE-DOOR-WRAPPERS — the AE1.3 audit mutates the six `app.*_impl` kernels and nothing mutates a `public.*_for` body (owner: backend)
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 9, AE1.3 gate record).
+> `supabase/tests/mutation/ae13-person-doors-mutation-audit.sh` targets **kernels only** —
+> `app.update_person_fields_impl` · `set_person_active_impl` · `suspend_person_impl` ·
+> `finalize_invited_person_impl` · `upsert_credential_impl` · `delete_credential_impl`. The one wrapper
+> it touches at all, `public.set_person_active_for`, it touches by **`proacl`** (the G1 ACL guard),
+> never by body.
+>
+> Measured 2026-08-27: `supabase/tests/385_person_doors_authority_and_audit.sql` and
+> `386_person_doors_acl_and_guard.sql` contain **zero** occurrences of `prosrc`, `pg_get_functiondef`
+> or `md5(` — neither pins any function body, wrapper or kernel — and no mutation case anywhere mutates
+> a `*_for` body.
+>
+> ⚠ **The wrappers are pure delegators TODAY** (catalog-measured at AE1.3), and while that holds the
+> blind spot costs nothing. It goes live the moment a wrapper stops delegating: an authority check
+> **moved into** a wrapper is mutation-tested by nothing, and so is a wrapper that grows its own
+> duplicate check or reimplements equivalent behaviour inline. A kernel-only audit stays green through
+> all three.
+>
+> ⛔ **A body-text pin alone is the wrong fix** — it reds on every harmless rewrite and gets deleted.
+> **Discharged when** either (a) a pgTAP assertion pins the *delegation property* — each
+> `public.*_for` body makes exactly one call and it is its kernel — so a wrapper that grows logic reds,
+> or (b) the mutation harness gains a wrapper arm per door, red-first proven. Whichever lands must fail
+> when a check is **MOVED** from kernel to wrapper, not merely when text changes.
+
+### 🟠 FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE — a diff-scoped sweep for one increment silently selects another increment's cases (owner: backend/lead)
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 10, AE1.3 gate record).
+>
+> ⛔ **Not covered by `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED`.** That item shares the number **53** but
+> its four parts are different findings (the deriver names one arm for a two-arm list · arm 2 exits 0
+> over an empty set · 9 policies fall in neither arm's domain · a killed run leaves a policy wide open).
+> Distinct too from `FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION`, which is about what the deriver
+> **matches**; this is about what it **selects over**.
+>
+> `scripts/door-sweep-cases.sh` builds its file set from three sources: the committed range
+> `git diff --name-only "$BASE".."$TIP"`, the **working tree** `git diff --name-only HEAD`, and
+> **untracked** `git ls-files --others --exclude-standard`. ⚠ The last two are deliberate and
+> **correct** — the migration under review is normally uncommitted or untracked or both, so a
+> committed-range-only recipe sees nothing during the phase it exists to gate; the script's own header
+> carries that ⛔ note.
+>
+> ⚠ **The defect is unattributability, not incorrectness.** In a tree holding two in-flight increments
+> the deriver cannot distinguish *"this increment"* from *"this working tree"*, and reports the union
+> as the diff. Measured at AE1.3: **53 cases derived where AE1.3 owned 1** — a figure that reads as
+> broad coverage of AE1.3 and is nothing of the sort. The Phase Gate records the sweep **against the
+> phase**, an attribution the deriver cannot support.
+>
+> ⛔ **Removing the working-tree and untracked sources is NOT the fix** — that reintroduces exactly the
+> blindness the header's note was written to prevent. **Discharged when** the deriver either takes an
+> explicit scope (a migration-id floor or path prefix, so a run states *which* increment it swept) or
+> prints per-file provenance — committed-range vs working-tree vs untracked — so a 53-case derivation
+> can never again be recorded as one increment's coverage.

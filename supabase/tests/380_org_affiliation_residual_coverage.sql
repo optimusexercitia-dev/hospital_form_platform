@@ -319,6 +319,14 @@ exception when others then
 end;
 $fn$;
 
+-- ⚠ EXPLICIT GRANT REQUIRED SINCE `20261003005300` (AE1 close condition #2 / PA-F4).
+-- This helper is invoked below as a NON-OWNER role. It used to be executable only because
+-- a newly created function inherited the built-in PUBLIC EXECUTE default; that default is
+-- now revoked globally for the `postgres` creator role, so the grant must be STATED.
+-- ⛔ `to public` reproduces the PRIOR semantics exactly — this is not a widening, and
+-- narrowing it to one role would quietly change what this suite exercises.
+grant execute on function pg_temp.blocker_detail(uuid, uuid) to public;
+
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1', false);
 set local role authenticated;
 select is(

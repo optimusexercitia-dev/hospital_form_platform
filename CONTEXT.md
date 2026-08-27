@@ -36,6 +36,12 @@ The link between a person and the Hospital they work at. Distinct from Membershi
 describes where someone is, not what they may do.
 _Avoid_: attachment, posting, assignment
 
+**Restricted personal details**:
+The person fields withheld from ordinary reads even where the person themselves is
+visible: CPF, date of birth, personal phone. Narrower than "personal data" — a person's
+name and e-mail are personal data yet ordinarily readable.
+_Avoid_: the PII columns, sensitive columns
+
 ### Roles
 
 **Staff**:

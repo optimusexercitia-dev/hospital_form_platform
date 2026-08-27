@@ -438,6 +438,305 @@ their home is here because they never conclude._
   writers because each used a different bound — see the correction record at the top
   of this file (75 fns / 6 read a flag).
 
+## Zero-policy tables — door-only by design (AE1.6; ADR 0155 D9; measured 2026-08-27)
+
+_The security advisor's RLS-enabled / zero-policy findings, recorded here so they read as
+the deliberate pattern ARCHITECTURE.md Rule 1 already names ("audited single door with
+ZERO policies" / the PHI posture) rather than as missing coverage. Pinned by
+`supabase/tests/382_zero_policy_tables_are_door_only.sql` (`plan(72)`, PASS — close #6 added §5; QA m1 added §A0's set-closure assertion). Like
+"Testing the schema" and "Remote discipline" above, this never concludes — it is a
+standing registry, re-checked by the pgTAP file, not a phase narrative._
+
+**MEASURED, not the plan's assumed shape** — on all seven tables below,
+`has_table_privilege('authenticated', …)` is **false** for all four DML verbs (checked
+positively; `relacl` is NOT null on any of the seven, so this is not the "NULL proacl
+includes PUBLIC" trap — there was simply no grant to `authenticated` or `anon` to find,
+table- or column-level). So **two independent layers deny access** on these seven: the
+GRANT layer (no ACL entry for `authenticated` at all) and the RLS layer (RLS enabled, 0
+policies). Recording both matters because either could widen independently — but only the
+GRANT layer is what a live query actually hits: Postgres checks table privilege before RLS
+is ever evaluated, so the observed runtime error on every one of these seven (42501,
+"permission denied for table") is the GRANT layer, not RLS. RLS's 0-policy state is a
+backstop, not currently the operative denial mechanism — it becomes operative only the day
+a future grant is added without a matching policy, which is exactly the accidental
+widening this pin exists to catch.
+
+| table | why no policy | door(s) — the only access path | pgTAP |
+| --- | --- | --- | --- |
+| `case_print_revisions` | monotonic print-currency counter (PDF·P3, ADR 0144 D4/D15); kept off `cases` because `app.guard_case_status` freezes that table in states this counter must still move in | write: `app.bump_case_print_revision` · read: `app.print_source_revision` / `app.print_source_head` — all three `app`-schema DEFINER, **no `authenticated` EXECUTE at all** (internal-helper class, measured; called only from other DEFINER bodies) | `382` §A1–A2, §B1–B4, §C13 |
+| `meeting_closed_session_items` | restricted-visibility closed-session meeting content (ADR 0078 Gate-2 reserved-child-lock pattern) | write: `public.add_reserved_item` · read: `public.get_reserved_session_items` · disposal: `public.dispose_meeting_minutes` · guard: `app.guard_reserved_child_lock` (trigger) — the three `public` doors are `authenticated`-EXECUTE, all DEFINER | `382` §A3–A4, §B5–B8, §C14 |
+| `meeting_closed_session_item_readers` | the closed-session item's reader roster (who may see it) — same posture as its parent | same doors as `meeting_closed_session_items` (`add_reserved_item` / `get_reserved_session_items`), except `dispose_meeting_minutes` (items only, not readers) | `382` §A5–A6, §B9–B12, §C15 |
+| `patient_identifiers` | **Rule 12 Class-1 patient PHI** — isolated case-module identifier set (ADR 0038, re-keyed by F1/ADR 0064+0066, gated by ADR 0078) | write: `public.set_participant_patient` (coordinator-gated wrapper over `app._set_participant_patient_unchecked`, `prosecdef=f` deliberately — ADR 0134 Amdt 2's two-gate shape) + the three creation RPCs (ARCHITECTURE.md Rule 12) · read: `public.get_case_patient` / `public.get_case_patients` / `public.get_participant_patient` | `382` §A7–A8, §B13–B16, §C1–C4 |
+| `patient_participants` | **Rule 12 Class-1 patient PHI** — the type-gated patient-participant chain `patient_identifiers` keys off (Appendix A dialect 3) | **no standalone reader** — reached only as a JOIN through the `patient_identifiers` doors above; gated by the read predicate `app.can_read_case_patient` and the trigger `app.guard_case_patient_required` | `382` §A9–A10, §B17–B20, §C5–C8 |
+| `referral_patient` | **Rule 12 Class-1 patient PHI** — inter-committee referral module (ADR 0037), modeled on `event_patient` | write: `public.save_referral_patient` (`public.set_referral_patient` **left the public API**, ADR 0078 D7/F1 — measured: `authenticated` has NO EXECUTE on it) · read: `public.get_referral_patient` | `382` §A11–A12, §B21–B24, §C9–C12 |
+| `verification_lookups` | minimal verification-scan log (ADR 0104 D12) — kind + credential-hash + timestamp + matched only, never the raw token, never an actor, never `audit_log` | `public.lookup_printed_document` — the ONLY consumer, and **not even `authenticated`-EXECUTE**: measured `service_role`-only (M2) | `382` §A13–A14, §B25–B28, §C16 |
+
+**Mechanism, stated once so a future reader doesn't conflate the two claims:**
+- **GRANT layer** (`382` §B statically, §C at runtime) — `has_table_privilege` catalog
+  checks + a live 42501 for every verb attempted as `authenticated`. This is what an actual
+  PostgREST or SQL call hits FIRST, and it is the layer actually enforcing the denial today.
+- **RLS layer** (`382` §A) — `relrowsecurity = true` + zero `pg_policies` rows. Structural
+  only; not independently observable at runtime today because the grant layer already
+  blocks before RLS is evaluated. Recorded anyway — it is the layer that matters the day
+  someone grants a verb here without adding a policy to go with it.
+- **Positive control** (`382` §D) — the same `has_table_privilege` / `pg_policies` /
+  live-query shapes shown PASSING (reporting "granted"/"has a policy") on `public.commissions`
+  (a genuinely granted, policied table) and walked through grant→revoke / policy-add→drop
+  live on one ephemeral table, both directions moving the detector. Without this, a green
+  "everything is denied" file would be unfalsifiable — this makes a red here trustworthy as
+  a real regression.
+
+## Privilege budget — `authenticated`-executable DEFINER count (AE1.2; ADR 0155 D9; PA-F11)
+
+**A recorded number with neither a ceiling nor a merge rule is inventory, not a budget** — so
+both are stated here, not left to the gate record to imply.
+
+| line | value | derived |
+| --- | ---: | --- |
+| DEFINER functions in `app` + `public` | **856** | re-derived 2026-08-27 at head `20261003005300`: `public` **460** + `app` **396**. ⛔ **Was 843** (ADR 0160 D3) — moved by exactly the **13** AE1.3 objects (6 doors + 6 kernels + the predicate). Re-measure; ADR 0160's *"quote 843, never 842"* settled a dispute between two instruments at one instant and is not a licence to quote it later |
+| …of which **`authenticated` may EXECUTE** — **the budget** | **752** | `public` **432** + `app` **320**. ⭐ **Unmoved by AE1.3, and that is a result, not a coincidence**: the row below predicted the 13 new objects would stay out of this population because they grant `service_role` only. Confirmed at head `…005300` |
+| **Tier 1** — remotely reachable (exposed schema + effective EXECUTE) | **523** | ⛔ **Was recorded as 432, which is the DEFINER SUBSET, not Tier 1.** Corrected 2026-08-27 (tier-1 threat review F-T1-1): `public` DEFINER **432** + `public` INVOKER **90** + `graphql_public.graphql` **1**. The 90 are exactly the class ADR 0079 Amendment 7 exists for — a `public` INVOKER wrapper in front of an `app` DEFINER body, in no arm's domain at all. ⚠ **This row was the falsified figure standing in the file every session is told to read instead of measuring** |
+| **Tier 2** — `app` schema (`anon` holds no USAGE) | **320** | boundary = `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`. Unchanged; `app` is not PostgREST-exposed |
+| proposed revoke set | **233** | ⛔ **NONE EXECUTED — a scheduling fact, not an RV0 verdict.** RV0's partition (`docs/design/authz-ae1-revoke-partition.md` §5.1) **held 23**: 44 PROCEED property-rescued · 5 PROCEED name-rescued · **23 HOLD** · 161 UNCHANGED. The only rulings holding anything are RV1 (batch 4, **4**) + RV2 (`set_participant_patient`, **1**). ⚠ **Was *"all HELD under RV0"***, which reads as RV0 blocking the whole set when it cleared 49. ⛔ And UNCHANGED is **unexamined, not cleared** |
+
+**CEILING: 752.** **MERGE RULE:** no increment may raise the count without a **named justification
+in its own gate record**, and **the ceiling moves only by PO ruling**.
+
+⚠ **Re-derive, never quote.** The figures above were catalog-measured 2026-08-27 at head
+`20261003004300` and are re-derived at each Record step. Two changes since are believed not to
+move the count and must be **confirmed** rather than assumed: AE1.3's six doors grant
+`service_role` only (so they should not enter the `authenticated` population), and
+`20261003005300`'s default-privilege revoke governs **future** objects only.
+
+⭐ **Why the ceiling is the interesting half.** The count falls only by a revoke, and **no revoke has
+been executed**; it rises silently, one convenient `grant execute … to authenticated` at a time,
+each individually defensible. The ceiling is what makes the aggregate a decision instead of a
+by-product. ⛔ And a revoke may not create sweep blindness — revoking `authenticated` EXECUTE
+removes a function from `ARM=floor`'s domain (RV0's load-bearing ruling).
+
+## Service-role DML registry (AE1.4; ADR 0155 Phase AE1; measured 2026-08-27)
+
+_Every call site in `src/` that issues a write (or a write-adjacent authorization act) through
+a `createAdminClient()`-constructed (service-role) Supabase client — one row per site. Like
+"Zero-policy tables" above, this is a **standing registry, never a phase narrative**: it never
+concludes, it is re-derived. **Owner** = the domain module responsible for the call site.
+**Reason** = why the write legitimately bypasses RLS. **Revalidation mechanism** = what
+re-establishes the caller's authority before the write fires (a door name, "self-scoped by
+construction", "system actor: `<invariant>`", or `UNDECIDED`). **Audit event** = an audit-log
+emission **visible from the TS call site only** — an explicit audit helper call, or an RPC whose
+name signals logging (e.g. `log_cpf_probe_for`). ⚠ **"None found in TS" is not "unaudited"** — it
+does not verify whether the target table itself carries a DB-side audit trigger (Rule 11); that
+is a `pg_trigger` catalog question this registry does not attempt to answer (out of this task's
+scope — see CLAUDE.md's "catalog is truth" exception). **Test** = the test that would go red if
+this mechanism were removed. A blank read as passing would defeat the point of this column, so
+every row states one explicitly, including "**none**" where that is the honest answer.
+
+**Deriving instrument, re-derivation, and the diff:** `scripts/service-role-dml-census.mjs` is
+the deriver (AE0.4). Reproduce with `node scripts/service-role-dml-census.mjs` (human-readable)
+or `--json` (sorted, diffable); `--self-test` proves the detector can both find a known site and
+be made to miss one. The diff against this table is **no longer a human comparison**: gate 11,
+`npm run lint:service-role-registry` (`scripts/check-service-role-registry.mjs`), runs the census
+and multiset-diffs it against the **`Key` cell of every row below**, exiting non-zero on any
+delta. ⚠ **The `Key` column is the machine-readable registry** — `path::symbol::writeKind::target`,
+never the line number, which is volatile. It lives in the same row as the prose so the two cannot
+drift into separate copies; edit a row's key only because the *site* changed. A table added
+without a `Key` header column, a row whose key will not parse, and a parse yielding **zero** keys
+are each their own red — an empty parse must never read as a clean diff.
+
+⚠ **Comparison is a MULTISET, not a set.** Two rows may legitimately share one identity —
+`assignOrgAdmin` calls `grant_role_for` twice (org tier, single-hospital auto-seat) — and a set
+comparison would let one of them be deleted without a red.
+
+⛔ **The census under-counts by design, and the gate corrects for it — do not read its
+`IN_SCOPE` total as the site count.** The census detects *member* calls (`client.rpc('name')`).
+AE1.3 introduced **`callDoor(client, 'name', args)`** (`src/lib/types/rpc-args.ts`), a *free*
+function that widens the generated arg types to admit an explicit NULL — so five real
+service-role door calls became invisible to it. What it reports instead is **one** row for the
+wrapper's own inner `client.rpc(fn, …)`, target `<dynamic:fn>`, naming only the first
+service-role caller it happens to find. That single row stands in for N call sites. The gate
+therefore **drops the placeholder and derives the five real sites from source**, and asserts the
+substitution in *both* directions (placeholder with no derived site, or derived sites with no
+placeholder, are each a red), so the expansion rule cannot go stale silently. A `callDoor` whose
+client or function-name argument cannot be resolved is a hard failure, never a silent skip.
+
+Re-derived 2026-08-27 at commit `599920e0` (**post-AE1.3**): **44 sites** = census `IN_SCOPE` 40
+− 1 wrapper placeholder + 5 `callDoor` expansions. Composition: 3 `from-verb` + 27 `rpc` + 6
+`storage` + 4 `storage-sign` + 4 `auth-admin` = 44 — census self-test PASS, gate self-test PASS.
+
+✅ **AE1.3 HAS LANDED** (it had not at the previous measurement, commit `e7c26068`). All six
+person-authority doors exist and Group A's nine raw-DML rows are gone: seven converted to door
+calls, and `upsertCredential`'s update+insert **pair consolidated into one** `upsert_credential_for`
+call — 9 rows out, 8 in. The doors are now the authority; the TS `authorizePersonScopedAdmin` →
+`personScopeAllows` guards are kept as defense-in-depth and a friendlier pt-BR message, per plan.
+⚠ Five of the eight are reached through `callDoor`, i.e. **invisible to the raw census** — the
+paragraph above is what keeps them in this table.
+
+### Group A — person-authority `profiles` / `professional_credentials` (8 sites; AE1.3 doors, LANDED)
+
+`personScopeAllows(capability, footprint, administeredHospitalIds)` (`src/lib/users/person-scope.ts`)
+is the shared TS predicate still invoked ahead of every row below via
+`authorizePersonScopedAdmin(userId, capability)` in `src/lib/users/actions.ts`; capabilities are
+`'fields' | 'credentials' | 'cpf_change' | 'lifecycle'`. Since AE1.3 those calls are
+**defense-in-depth and the pt-BR message**, not the authority — the door is.
+
+⚠ **What "door: `X`" is evidence of here.** The door NAME is measured from the TS call site (and
+`src/lib/types/database.ts`, which only exists because the function does). That each body
+*re-derives* the caller's authority rather than trusting the `p_actor` it is handed is a
+`pg_proc`/`prosrc` question this registry **does not answer** — the same standing caveat Group D
+carries. Do not quote a row here as proof the SQL predicate is correct.
+
+⛔ **Five of these eight are reached through `callDoor(...)` and are therefore INVISIBLE to a raw
+census run** — marked `[via callDoor]`. See the expansion paragraph above; gate 11 derives them.
+
+| Key | Site | Owner | Reason (service-role need) | Revalidation mechanism | Audit event | Test that would notice the guard vanish |
+| --- | --- | --- | --- | --- | --- | --- |
+| `src/lib/users/actions.ts::deactivateUser::rpc::set_person_active_for` | `users/actions.ts:deactivateUser` → rpc `set_person_active_for` | users | admin deactivates another person's account; RLS has no cross-person write path | **door: `set_person_active_for`**; TS defense-in-depth: `authorizePersonScopedAdmin(userId,'lifecycle')` (SUBSET) | none found in TS | **YES** — `d14-person-level.test.ts` §1 (allowed, sole footprint), §2 (**denied**, cross-hospital), §4, §6 (org_admin twin) + `e2e/hospital-admin-tier.spec.ts` (Desativar) |
+| `src/lib/users/actions.ts::reactivateUser::rpc::set_person_active_for` | `users/actions.ts:reactivateUser` → rpc `set_person_active_for` | users | same as above, reverse direction; the SAME door serves both so `is_active` and `suspended_until` cannot drift apart | **door: `set_person_active_for`**; TS d-i-d: same call, `'lifecycle'` | none found in TS | **YES, with a caveat** — §1 (allowed) + §6 cited explicitly; the DENY arm is not separately named for `reactivateUser` in the reported coverage, but it is the **identical** `authorizePersonScopedAdmin(id,'lifecycle')` call that `deactivateUser`'s §2 deny-arm exercises — an incidental guard closing a hole the definition predicts, not an independently-proven one. Flag for a dedicated reactivate-deny arm. |
+| `src/lib/users/actions.ts::suspendUser::rpc::suspend_person_for` | `users/actions.ts:suspendUser` → rpc `suspend_person_for` `[via callDoor]` | users | same predicate family, suspension arm | **door: `suspend_person_for`** — deliberately a SEPARATE door from `set_person_active_for`, so suspension cannot silently widen into deactivation; TS d-i-d: `'lifecycle'` | none found in TS | **YES** — §1, §2 (denied), §6 + `e2e/user-registration.spec.ts` (Suspender/"Confirmar suspensão") + `e2e/hospital-admin-tier.spec.ts` |
+| `src/lib/users/actions.ts::updateUserProfile::rpc::update_person_fields_for` | `users/actions.ts:updateUserProfile` → rpc `update_person_fields_for` (fields + `cpf_change` arm, one door) `[via callDoor]` | users | admin edits another person's profile fields; CPF change escalates to a tighter bound | **door: `update_person_fields_for`** — carries BOTH bounds (`fields` INTERSECTION always, `cpf_change` SUBSET only when the CPF actually changes). ⚠ The `p_set_*` booleans carry the absent-key-vs-explicit-NULL distinction the old spread form carried; collapsing the pair would let an edit form that omits a field NULL IT OUT (ADR 0133 D9/D10, pinned pgTAP `385` §1.7). TS d-i-d: `'fields'` + `'cpf_change'` | none found in TS | **YES, thorough** — §1–§6 (sole/cross-hospital/whole-footprint/tier/sibling, CPF-presence-vs-change semantics) + `person-scope.test.ts` (predicate directly) + `e2e/hospital-admin-tier.spec.ts`, `e2e/aff2-scope-rule.spec.ts` |
+| `src/lib/users/actions.ts::upsertCredential::rpc::upsert_credential_for` | `users/actions.ts:upsertCredential` → rpc `upsert_credential_for` — **ONE call; the pre-AE1.3 update-row + insert-row pair consolidated into it** `[via callDoor]` | users | admin edits an existing credential row for another person, or adds a new one | **door: `upsert_credential_for`**; TS d-i-d: `'credentials'` (INTERSECTION). The door RAISES `HC0T6` on a write that matched nothing rather than returning silent success, so there is no "salvo" message for a write that never happened | none found in TS | **YES** — `d14-person-level.test.ts` §1, §2, §4 (denied, expired-seat fixture). The former separate insert row shared this guard and this suite; one call site now, one row |
+| `src/lib/users/actions.ts::removeCredential::rpc::delete_credential_for` | `users/actions.ts:removeCredential` → rpc `delete_credential_for` | users | admin deletes another person's credential row | **door: `delete_credential_for`**; TS d-i-d: `'credentials'`. ⚠ Deliberately the OPPOSITE no-match shape from `upsert_credential_for`'s update arm | none found in TS | **YES** — §1, §6 ("`removeCredential` must carry its OWN arm" — reported verbatim) |
+| `src/lib/users/actions.ts::registerUser::rpc::finalize_invited_person_for` | `users/actions.ts:registerUser` → rpc `finalize_invited_person_for` (invite-flow profile patch) `[via callDoor]` | users | sets initial profile fields for a newly invited/registered person | **door: `finalize_invited_person_for`**; TS: entry gate only — session + `isOrgAdminCaller`/hospital-resolution check (**not** `personScopeAllows`). ⛔ `home_organization_id` is deliberately NOT in the column list: `handle_new_user` seeds it, and writing it would fire the deferred `profiles_tenant_has_org_trg` | none found in TS | **UNCONFIRMED** — extensive d14 coverage of payload/routing correctness for authorized callers; no explicit assertion surfaced that an unauthenticated/non-admin caller is REJECTED at this entry gate specifically, and none names the door's own deny arm either |
+| `src/lib/users/actions.ts::registerUser::rpc::upsert_credential_for` | `users/actions.ts:registerUser` → rpc `upsert_credential_for` (looped over the initial credentials) `[via callDoor]` | users | seeds the new person's initial credential(s) at registration time | **door: `upsert_credential_for`** — the same door `upsertCredential` uses, reached from the registration path under the shared entry gate (not `'credentials'`/`personScopeAllows`; registration is a different code path) | none found in TS | **UNCONFIRMED** — same caveat as the row above |
+
+### Group B — self-scoped by construction (1 site)
+
+| Key | Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- | --- |
+| `src/lib/auth/actions.ts::updatePassword::update::profiles` | `auth/actions.ts:updatePassword` → update `profiles.must_change_password` | auth | clears the caller's OWN forced-change flag; needs service-role because the column is service-role-only writable (`guard_profile_privileged_columns`) | **self-scoped by construction** — `.eq('id', user.id)` where `user.id` comes from `supabase.auth.getUser()` on the SAME request, after `supabase.auth.updateUser({password})` succeeded. AE1.3 deliberately excludes this site ("converting it adds a door with no second principal") | none found in TS | **NONE, effectively** — `page.test.tsx` only stubs `updatePassword: vi.fn()` (doesn't exercise the real function); the one e2e round-trip (`e2e/user-registration.spec.ts`, invite-mode) is `test.skip`'d by default (needs `AUTH_EMAIL_VERIFICATION=on`) |
+
+### Group C — system actor: `meeting_minutes_jobs` lifecycle (4 sites)
+
+| Key | Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- | --- |
+| `src/lib/minutes-jobs/reconcile.ts::deleteAudio::storage-remove::<dynamic:MEETING_AUDIO_BUCKET>` | `minutes-jobs/reconcile.ts:deleteAudio` → storage-remove (`MEETING_AUDIO_BUCKET`) | minutes-jobs | cleans up audio after job reconciliation; reached only after an RLS-scoped read (`app.is_staff_admin_of`) in `queries.ts` already gated the caller | **system actor: reconciliation runs only for a job the caller could already read under RLS** — no in-function check | none found in TS | **NONE** — no `reconcile.test.ts`; symbol not in any `*.test.ts` |
+| `src/lib/minutes-jobs/reconcile.ts::deleteAudio::update::meeting_minutes_jobs` | `minutes-jobs/reconcile.ts:deleteAudio` → update `meeting_minutes_jobs` | minutes-jobs | same reconciliation, status flip | same as above | none found in TS | **NONE** — same absence |
+| `src/lib/minutes-jobs/sweep.ts::sweepStaleAudio::storage-remove::<dynamic:MEETING_AUDIO_BUCKET>` | `minutes-jobs/sweep.ts:sweepStaleAudio` → storage-remove (`MEETING_AUDIO_BUCKET`) | minutes-jobs | TTL-based stale-audio sweep; explicitly "row-agnostic on purpose" | **system actor: cron/webhook-invoked, no end-user session; the only self-protection is an in-process throttle (`SWEEP_THROTTLE_MS`), a rate-limit not an authz guard** | none found in TS | **YES** — `sweep.test.ts` asserts the exact `list_stale_meeting_audio` call args, the single batched `remove()`, and that `audio_deleted_at` is stamped only for storage-confirmed removals |
+| `src/lib/minutes-jobs/sweep.ts::sweepStaleAudio::update::meeting_minutes_jobs` | `minutes-jobs/sweep.ts:sweepStaleAudio` → update `meeting_minutes_jobs` | minutes-jobs | same sweep, status flip | same as above | none found in TS | **YES** — same test |
+
+### Group D — pre-existing doors (`.rpc()`, decided; 8 sites)
+
+Pre-existing `memberships`/`hospital_affiliations` `_for` doors (ADR 0094/0097/0098), outside
+AE1.3's *person*-authority scope. `actorValidating` is recorded `UNRESOLVED (SQL body not read)`
+by the census for every row here — the JS-side `_for`-suffix + explicit-`p_actor` heuristic is
+evidence the call site passes an actor, never a verdict that the SQL predicate re-derives
+authority rather than trusting it; that verification is a `pg_proc`/`prosrc` read this registry
+does not perform.
+
+| Key | Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- | --- |
+| `src/lib/platform/actions.ts::assignOrgAdmin::rpc::grant_role_for` | `platform/actions.ts:assignOrgAdmin` → rpc `grant_role_for` (org-tier grant) | platform | grants `org_admin` for a caller who isn't the target's own session | door: `grant_role_for` (pre-existing); TS gate: `requireAdmin()` via `getSessionContext()?.isAdmin` | none found in TS (relies on the door's DB-side trigger, unverified here) | **YES** — `e2e/platform-org-admin-provisioning.spec.ts` (MEM2-1/2/3; asserts `granted_by` attribution, idempotency, platform-only access) |
+| `src/lib/platform/actions.ts::assignOrgAdmin::rpc::grant_role_for` | `platform/actions.ts:assignOrgAdmin` → rpc `grant_role_for` (single-hospital auto-seat of `hospital_admin`) | platform | auto-seats `hospital_admin` when the new org has exactly one hospital | door: `grant_role_for`; TS gate: same `requireAdmin()`, no additional check | none found in TS | **NONE** — no test asserts the auto-seat branch; no `src/lib/platform/**/*.test.ts` exists |
+| `src/lib/users/actions.ts::assignCommitteeRole::rpc::grant_role_for` | `users/actions.ts:assignCommitteeRole` → rpc `grant_role_for` | users | grants a per-commission committee role | door: `grant_role_for`; TS gate: `authorizeForUser(userId)` AND `authorizeForCommission(commissionId)` (not `personScopeAllows`) | none found in TS | **NONE dedicated** — incidental-only `e2e/user-registration.spec.ts` ("Adicionar comissão") exercises the UI path, not a guard keystone |
+| `src/lib/users/actions.ts::ensureActiveAffiliation::rpc::affiliate_person_for` | `users/actions.ts:ensureActiveAffiliation` → rpc `affiliate_person_for` | users | affiliates a person to a hospital during registration | door: `affiliate_person_for`; TS gate: none in this (unexported, private) helper — `registerUser` authorizes before calling it | none found in TS | **YES, indirect** — `d14-person-level.test.ts` §9 asserts the RPC call + `p_started_on` payload + `e2e/aff4-registration-dates.spec.ts`, `e2e/aff-hospital-affiliation.spec.ts` |
+| `src/lib/users/actions.ts::registerUser::rpc::affiliate_person_to_org_for` | `users/actions.ts:registerUser` → rpc `affiliate_person_to_org_for` | users | affiliates a person at the ORG tier (org_admin registrants only) | door: `affiliate_person_to_org_for`; TS gate: entry gate **plus** `if (isOrgAdminCaller)` — a hospital_admin registrant must never reach this door | none found in TS | **YES** — §9 explicitly: "hospital_admin registrar NOT calling the org door" — a genuine guard-removal keystone |
+| `src/lib/users/actions.ts::registerUser::rpc::log_cpf_probe_for` | `users/actions.ts:registerUser` → rpc `log_cpf_probe_for` | users | records a CPF-collision probe as a compensating control for the CPF-uniqueness oracle | door: `log_cpf_probe_for`; TS gate: entry gate only, fires unconditionally on match/no-match | **YES — the one explicit audit mechanism in this whole registry**, doc'd as "the compensating control for the [CPF] oracle" | **YES** — §9 asserts the probe call fires and never carries raw CPF digits |
+| `src/lib/users/actions.ts::registerUser::rpc::grant_role_for` | `users/actions.ts:registerUser` → rpc `grant_role_for` (committee grants, looped) | users | seats the new person on 0+ committees at registration | door: `grant_role_for`; TS gate: entry gate + per-committee `allWithinHospital` (non-org-admin callers) | none found in TS | **NONE** — reported explicitly: "No arm directly exercises site 7 (`grant_role_for` for committees) inside `registerUser`" |
+| `src/lib/users/actions.ts::removeCommittee::rpc::revoke_role_for` | `users/actions.ts:removeCommittee` → rpc `revoke_role_for` | users | removes a per-commission committee role | door: `revoke_role_for`; TS gate: `authorizeForUser` + `authorizeForCommission` (same pair as `assignCommitteeRole`) | none found in TS | **NONE dedicated** — incidental-only `e2e/user-registration.spec.ts` ("Remover de Comissão...") |
+
+### Group E — RULED 2026-08-27 (11 `.rpc()` sites; formerly `UNDECIDED`)
+
+PO-ruled 2026-08-27, approved as-is with four observations →
+[authz-ae1-rpc-rulings.md](design/authz-ae1-rpc-rulings.md) (evidence: live-catalog bodies +
+ACLs; local↔remote **body-md5 parity, exact**; zero references to these functions in the
+unregistered migrations — the R3 discharge). One site re-classified as an **in-function
+door**, ten as **system actor**. Riders: **R1** ACL pins = pgTAP `388` §1; **R2** HMAC deny
+test = `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` (a *condition* of the `complete_minutes_job`
+ruling); **R3** discharged at recording. History, kept because it was the honest state for a
+day: these rows were `UNDECIDED` because no actor argument, self-scoped shape, or
+system-actor justification was visible **from the call site** — the rulings derive each
+mechanism from the function bodies instead, and record what guards each premise.
+
+| Key | Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- | --- |
+| `src/lib/documents/actions.ts::finalizeDocumentUpload::rpc::complete_evidence_upload_verification` | `documents/actions.ts:finalizeDocumentUpload` → rpc `complete_evidence_upload_verification` | documents | finalizes an evidence upload after client-side hash verification | **door (in-function)** — actor re-derived from `upload_sessions.reserved_by` (NULL refused) → `app.can_write_rca`/`can_write_capa` **before any write**; ruled 2026-08-27 → [rulings §1](design/authz-ae1-rpc-rulings.md) | none in TS; **in-function, catalog-measured 2026-08-27:** `document.uploaded`/`document.upload_failed` (via the delegated verifier) | **YES** — `actions.test.ts` (MAJOR-3) terminal-state/ordering + pgTAP `388` §1 (ACL pin: service_role-only) |
+| `src/lib/documents/actions.ts::finalizeDocumentUpload::rpc::complete_document_upload_verification` | `documents/actions.ts:finalizeDocumentUpload` → rpc `complete_document_upload_verification` | documents | same finalize step, non-evidence path | **system actor:** completion of a `consumed` upload session — single-transition state machine keyed by session id; authority spent at the user-session door `finalize_document_upload`; ruled → [rulings §2](design/authz-ae1-rpc-rulings.md) | none in TS; **in-function, catalog-measured 2026-08-27:** `document.uploaded`/`document.upload_failed` | **YES** — same test + pgTAP `388` §1 |
+| `src/lib/documents/actions.ts::reclassifyDocument::rpc::complete_document_reclassification` | `documents/actions.ts:reclassifyDocument` → rpc `complete_document_reclassification` | documents | records a completed reclassification after the storage copy | **system actor:** completion keyed to a `reserved` file object minted by the user-session door `reclassify_document`; sha + same-document + storage-presence preconditions in-function; ruled → [rulings §3](design/authz-ae1-rpc-rulings.md); op-id binding = `FUP-DOC-RECLASS-OPERATION-ID` | none in TS; **in-function, catalog-measured 2026-08-27:** `document.reclassified` | pgTAP `388` §1 (ACL pin); behavioral coverage still **NONE** — unchanged by the ruling |
+| `src/lib/documents/actions.ts::reclassifyDocument::rpc::complete_document_disposal` | `documents/actions.ts:reclassifyDocument` → rpc `complete_document_disposal` | documents | records a disposal after the old file is removed | **system actor:** records an **already-performed** storage deletion for a file already `disposal_pending`; closed byte-proof vocabulary + retention block + absence verification in-function; ruled → [rulings §4](design/authz-ae1-rpc-rulings.md); provenance split = `FUP-DOC-DISPOSAL-PROVENANCE-SPLIT` | none in TS; **in-function, catalog-measured 2026-08-27:** `document.disposed` (+ `document.retention_override` on exemption lanes) | pgTAP `388` §1 (ACL pin); behavioral coverage still **NONE** — unchanged by the ruling |
+| `src/lib/minutes-jobs/actions.ts::failAndCleanUp::rpc::fail_minutes_job` | `minutes-jobs/actions.ts:failAndCleanUp` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed during internal cleanup | **system actor:** terminal transition (`uploading`/`processing` → `failed`), latch **atomic in the UPDATE** since `20261003005000`; this path's gate = the caller's own RLS-scoped setup in `submitMinutesJob`; ruled → [rulings §5–7](design/authz-ae1-rpc-rulings.md) | none in TS; in-function (catalog-measured): `minutes_job.failed` | **YES** — pgTAP `388` §2–3 (latch behavior + atomicity pins) |
+| `src/lib/minutes-jobs/reconcile.ts::failJob::rpc::fail_minutes_job` | `minutes-jobs/reconcile.ts:failJob` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed during page-load reconciliation | **system actor:** same atomic terminal transition; this path's gate = the `staff_admin`-gated RLS read (Group C); ruled → [rulings §5–7](design/authz-ae1-rpc-rulings.md) | none in TS; in-function (catalog-measured): `minutes_job.failed` | **YES** — pgTAP `388` §2–3 |
+| `src/lib/minutes-jobs/sweep.ts::sweepStaleAudio::rpc::list_stale_meeting_audio` | `minutes-jobs/sweep.ts:sweepStaleAudio` → rpc `list_stale_meeting_audio` | minutes-jobs | lists TTL-expired jobs to sweep | **system actor:** cron sweep input; read-only, bounded (limit ≤ 1000, age ≥ 1 h); ruled → [rulings §9](design/authz-ae1-rpc-rulings.md) | none found in TS (read-only) | **YES** — `sweep.test.ts` pins the exact call args + pgTAP `388` §1 (ACL pin) |
+| `src/lib/minutes-jobs/webhook.ts::failJob::rpc::fail_minutes_job` | `minutes-jobs/webhook.ts:failJob` → rpc `fail_minutes_job` | minutes-jobs | marks a job failed on a provider callback | **system actor:** same atomic terminal transition; this path's gate = the HMAC-verified route (`verifyCallbackSignature`) — **R2 condition:** `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`; ruled → [rulings §5–7](design/authz-ae1-rpc-rulings.md) | none in TS; in-function (catalog-measured): `minutes_job.failed` | pgTAP `388` §2–3 for the RPC half; ✅ **route half LANDED 2026-08-27** — `src/app/api/webhooks/audio-jobs/route.rpc-boundary.test.ts` asserts the RPC is **not called** on a bad/absent signature and *is* called on a good one, red-first proven (gate neutralized → 7 failed / 3 passed, the 3 being the positive controls). `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` is RESOLVED → `follow-ups-archive.md` |
+| `src/lib/minutes-jobs/webhook.ts::handleMeetingMinutesCallback::rpc::complete_minutes_job` | `minutes-jobs/webhook.ts:handleMeetingMinutesCallback` → rpc `complete_minutes_job` | minutes-jobs | completes a job on a provider callback | **system actor:** provider-callback completion; sole caller = the HMAC-verified route (**R2 condition:** `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`); `processing` → `done` latch **atomic** since `20261003005000`; ruled → [rulings §8](design/authz-ae1-rpc-rulings.md) | none in TS; in-function (catalog-measured): `minutes_job.completed` | pgTAP `388` §2–3 for the RPC half; ✅ **route half LANDED 2026-08-27** — `src/app/api/webhooks/audio-jobs/route.rpc-boundary.test.ts` asserts the RPC is **not called** on a bad/absent signature and *is* called on a good one, red-first proven (gate neutralized → 7 failed / 3 passed, the 3 being the positive controls). `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` is RESOLVED → `follow-ups-archive.md` |
+| `src/lib/queries/feature-flags.ts::<anonymous function>::rpc::get_feature_flags` | `queries/feature-flags.ts:getFeatureFlagsServerOnly` → rpc `get_feature_flags` | queries | reads flags for session-less server surfaces (`/verificar`, the audio-jobs webhook) | **system actor:** read-only global flag projection; the grant layer is the control (`authenticated` + `service_role`, `anon` excluded — pinned pgTAP `388` §1); ruled → [rulings §10](design/authz-ae1-rpc-rulings.md) | none found in TS (read-only) | pgTAP `388` §1 (grant pin); `route.test.ts` still mocks this reader wholesale — unchanged by the ruling |
+| `src/lib/queries/printed-documents.ts::lookupPrintedDocumentVerification::rpc::lookup_printed_document` | `queries/printed-documents.ts:lookupPrintedDocumentVerification` → rpc `lookup_printed_document` | queries | public verification-code lookup (ADR 0104 D10, deliberately anonymous *at the surface* — `anon` has NO EXECUTE; the server mediates) | **system actor (designed public surface):** `consumeLookupBudget` precedes every call; ⚠ **WRITE-BEARING** — every call inserts a `verification_lookups` row (hash-only; **audit-retention owner: the documents/printing domain**); invariant: `p_viewer` is always session-derived; ruled → [rulings §11](design/authz-ae1-rpc-rulings.md) | none in TS; in-function (catalog-measured): `verification_lookups` insert on every call, matched or not | **YES** — `printed-documents.test.ts` (budget-before-RPC) + `printed-documents-caller-census.test.ts` (exactly-one-caller + budget-precedes-RPC pins) + pgTAP `388` §1 |
+
+### Group F — Storage writes, RPC-preceded (4 sites)
+
+| Key | Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- | --- |
+| `src/lib/documents/actions.ts::reclassifyDocument::storage-upload::<dynamic:newFile.storage_bucket>` | `documents/actions.ts:reclassifyDocument` → storage-upload (new file, dynamic bucket) | documents | copies the object to its new classification's path (Rule 6: never overwrite, new path per upload) | authority established by the preceding `reclassify_document` RPC succeeding; no separate check at the storage call | none found in TS | **NONE** — no test references `reclassifyDocument`'s storage ops at all |
+| `src/lib/documents/actions.ts::reclassifyDocument::storage-remove::<dynamic:oldFile.storage_bucket>` | `documents/actions.ts:reclassifyDocument` → storage-remove (old file) | documents | removes the superseded object after the copy | same as above | none found in TS | **NONE** — same absence |
+| `src/lib/pdf-mint/actions.ts::mintPrintedDocument::storage-upload::<dynamic:bucket>` | `pdf-mint/actions.ts:mintPrintedDocument` → storage-upload | pdf-mint | writes the minted PDF bytes; authority is "anyone who can VIEW the source artifact," enforced by the `mint_printed_document` door called AFTER this upload | upload happens BEFORE the door call; on door failure the object is deleted (compensating cleanup, not a pre-write guard) | none found in TS | **NONE** — `compare-and-mint.test.ts` covers the ADR 0126 revision contract, not authorization/ordering of the storage ops |
+| `src/lib/pdf-mint/actions.ts::mintPrintedDocument::storage-remove::<dynamic:bucket>` | `pdf-mint/actions.ts:mintPrintedDocument` → storage-remove (compensating cleanup on RPC failure) | pdf-mint | undoes the upload above if minting fails | same as above | none found in TS | **NONE** — same caveat |
+
+### Group G — Storage sign-upload, `createSignedUploadUrl` (4 sites; the family AE0.4 found unnamed)
+
+Mints upload *capability* rather than writing bytes. All four share one shape: a user-session RPC
+(`begin_document_upload` / `create_minutes_job`) runs first and is the real gate; only on success
+does the admin client mint a signed URL. None has a TS-side authorization check of its own to lose.
+
+| Key | Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- | --- |
+| `src/lib/documents/actions.ts::beginDocumentUpload::storage-sign-upload::<dynamic:file.storage_bucket>` | `documents/actions.ts:beginDocumentUpload` → `<dynamic:file.storage_bucket>` | documents | mints a signed PUT target after `begin_document_upload` establishes the caller may write this resource | RPC-preceded; no in-function check | none found in TS | **NONE dedicated** — `e2e/phase-f2-attachments.spec.ts` drives the real corridor (happy path), not a guard/deny keystone |
+| `src/lib/minutes-jobs/actions.ts::startMinutesJob::storage-sign-upload::<dynamic:MEETING_AUDIO_BUCKET>` | `minutes-jobs/actions.ts:startMinutesJob` → `MEETING_AUDIO_BUCKET` | minutes-jobs | mints a signed PUT target after `create_minutes_job` succeeds; comment: "the RPC runs FIRST so an unauthorized caller never causes a storage object to be signed for" | RPC-preceded; no in-function check (client-side size/type ceilings are "a courtesy, never the control") | none found in TS | **NONE dedicated** — `e2e/meeting-audio-minutes.spec.ts` drives the real signed-PUT flow (happy path) |
+| `src/lib/safety/capa-actions.ts::beginCapaEvidenceUpload::storage-sign-upload::<dynamic:file.storage_bucket>` | `safety/capa-actions.ts:beginCapaEvidenceUpload` → `<dynamic:file.storage_bucket>` | safety (CAPA) | mints a signed PUT for CAPA evidence after `begin_document_upload(p_resource_type:'capa_action')` resolves via `app.can_write_capa` | RPC-preceded; no in-function check | none found in TS | **NONE for the TS wrapper** — `e2e/dm5-nsp-evidence.spec.ts` has its own helper calling the RPC directly (exercises the door, not this wrapper) |
+| `src/lib/safety/rca-actions.ts::beginRcaEvidenceUpload::storage-sign-upload::<dynamic:file.storage_bucket>` | `safety/rca-actions.ts:beginRcaEvidenceUpload` → `<dynamic:file.storage_bucket>` | safety (RCA) | same shape, `app.can_write_rca` | RPC-preceded; no in-function check | none found in TS | **NONE for the TS wrapper** — `e2e/phase14c-rca.spec.ts` has its own like-named helper calling the RPC directly, not this wrapper |
+
+### Group H — Auth-admin (4 sites)
+
+| Key | Site | Owner | Reason | Revalidation mechanism | Audit event | Test |
+| --- | --- | --- | --- | --- | --- | --- |
+| `src/lib/users/actions.ts::registerUser::auth-admin-createUser::createUser` | `users/actions.ts:registerUser` → `auth.admin.createUser` | users | creates the auth identity when email verification is off | shared `registerUser` entry gate only (see Group A) | none found in TS | **UNCONFIRMED** — same entry-gate caveat as Group A |
+| `src/lib/users/actions.ts::registerUser::auth-admin-inviteUserByEmail::inviteUserByEmail` | `users/actions.ts:registerUser` → `auth.admin.inviteUserByEmail` | users | invites the new user when email verification is on | shared entry gate only | none found in TS | **UNCONFIRMED** — same caveat |
+| `src/lib/members/invite.ts::resolveOrInviteUser::auth-admin-inviteUserByEmail::inviteUserByEmail` | `members/invite.ts:resolveOrInviteUser` → `auth.admin.inviteUserByEmail` `[INDIRECT — Tier 2]` | members | resolves-or-invites during org/platform admin flows; doc'd as performing "NO authorization of its own — the calling action is the authority" | the one check present is a tenant-anchor guard, not caller authorization: `if (existing.home_organization_id !== homeOrganizationId) throw` | none found in TS | **YES** — `invite.test.ts` ("the D13 tenant check"), 4 arms incl. cross-org refuse, null-anchor refuse |
+| `src/lib/users/actions.ts::resendInvite::auth-admin-inviteUserByEmail::inviteUserByEmail` | `users/actions.ts:resendInvite` → `auth.admin.inviteUserByEmail` | users | re-sends an invite email | TS: `authorizeForUser(userId)` — deliberately NOT `personScopeAllows` (doc'd: would wrongly import the D2 tier bound) | none found in TS | **YES** — `d14-person-level.test.ts` §7, 4 arms incl. "sibling hospital_admin refused" |
+
+### Summary
+
+**44/44 re-derived post-AE1.3, machine-checked by gate 11.** Family totals: 3 `from-verb`
+(1 Group B + 2 Group C) + 27 `rpc` (8 Group A + 8 Group D + 11 Group E) + 6 `storage` (2 Group C
++ 4 Group F) + 4 `storage-sign` (Group G) + 4 `auth-admin` (Group H) = 44.
+
+⚠ **Raw DML is now only 3 of 44 sites.** AE1.3 took the whole of Group A behind doors, so the
+service-role surface is overwhelmingly `.rpc()`: the only remaining raw table writes are
+`updatePassword` (Group B, self-scoped) and the two `meeting_minutes_jobs` status flips
+(Group C). AE0.4's "12 raw-DML vs 33 other" split no longer describes this registry and is
+retired rather than re-fitted.
+
+⚠ **Test coverage, re-derived row by row** — classified by each row's LEADING verdict token, so
+the rule is stated rather than assumed: **20 `YES`** · **5 `PARTIAL`** · **15 `NONE`** ·
+**4 `UNCONFIRMED`** = 44. So **19 rows (43%) have no test at all** that would notice their
+mechanism vanish, and **24 (55%)** are not fully covered once the `PARTIAL` half-gaps are counted.
+The 5 `PARTIAL` rows all sit in Group E and share one shape — a pgTAP `388` ACL/latch pin exists,
+the behavioral or route half does not: `reclassifyDocument` ×2 (ACL pinned, behavioral `NONE`),
+the two webhook rows (RPC half pinned; ✅ **route half LANDED 2026-08-27**, `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` RESOLVED — ⚠ this sentence read *"route half `NONE` until the FUP lands"* while the rows it summarises already said otherwise: **prose stale against its own table**, the same shape as the figures above
+lands), and `get_feature_flags` (grant pinned, reader still mocked wholesale). The 4 `UNCONFIRMED`
+are one shape too — `registerUser`'s shared entry gate, whose denial path was not found in the
+reported coverage and is **not proven absent** (2 in Group A, 2 in Group H). This is a measured
+property of the platform, not a gap in this review pass.
+
+⛔ **This tally corrects the previous one, which did not reconcile.** AE1.4 recorded
+`19 YES / 22 NONE / 4 UNCONFIRMED` over 45 rows; re-derived under the rule above, that same 45-row
+table was `21 YES / 20 NONE / 4 UNCONFIRMED` — two rows leading with **YES** had been tallied as
+`NONE`, and the `PARTIAL` shape was collapsed into `NONE` unstated. Only the AGGREGATE was wrong;
+every per-row verdict cell was and is correct. ⛔ Re-derive this paragraph from the rows whenever
+the table changes — never adjust the numbers arithmetically, which is how a direction gets fixed
+while the magnitude stays wrong.
+
+**The 11 formerly-`UNDECIDED` sites were RULED 2026-08-27** — approved as-is with four PO
+observations → [authz-ae1-rpc-rulings.md](design/authz-ae1-rpc-rulings.md) (Group E carries
+the ruled mechanism strings). Zero `undecided` dispositions remain — **still zero after the
+post-AE1.3 re-derivation**: the eight rows Group A gained are all decided (doors), and no row
+anywhere in this registry carries `UNDECIDED`. Gate AE1 condition `[PA-F10]` now has both halves —
+the registry is re-derived, and the derivation-vs-registry diff is a **machine** check
+(`npm run lint:service-role-registry`), not the human comparison AE1.4 shipped with. The
+observations produced: migration `20261003005000` (atomic
+minutes-job latches) + pgTAP `388` (R1 ACL pins, latch behavior, atomicity text-pins) +
+`printed-documents-caller-census.test.ts` (obs #4), and three filed FUPs
+(`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` = R2 · `FUP-DOC-RECLASS-OPERATION-ID` ·
+`FUP-DOC-DISPOSAL-PROVENANCE-SPLIT`).
+
 ## AFF4 — organization affiliation, per-hospital staff data, the voided tense (2026-08-26; ADR **0151** D1–D17 + **0154** / **0158** / **0159**; migrations `20261003003200`–`…004300`, **12**; pgTAP `301`–`304` · `371`–`375` · `377`–`381`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **NOT PUSHED at the Record edit; 12 migrations are LOCAL ONLY**
 
 **New table `public.organization_affiliations`** — "this person belongs to this organization" as a
@@ -910,7 +1209,27 @@ systematically the state *before* the lifecycle locks — i.e. the state the gua
 including `storage.protect_delete`. Verify a grant sweep by re-deriving the set from the catalog —
 never by a clean exit code. `service_role` keeps TRUNCATE deliberately.
 
-## REMOTE CENSUS 2026-08-18 (read-only, linked `azkbbhskturikxpgmafq`) — **the production DB is EMPTY, and it was emptied by TRUNCATE/reset semantics, not by deletes**
+## REMOTE CENSUS 2026-08-18 (read-only, linked `azkbbhskturikxpgmafq`) — ⛔ **its "EMPTY" claim is FALSE; see the banner below**
+
+> ⛔ **CORRECTED 2026-08-26 (AE0.1, ADR 0155 / `docs/plans/authz-evolution.md`). This heading
+> read *"the production DB is EMPTY, and it was emptied by TRUNCATE/reset semantics, not by
+> deletes"*. It is false and has been since 2026-08-19.** The remote carries the **E2E seed
+> fixture** — and more than the seed alone, so something has exercised it since. The
+> *conclusion* people drew from the old heading (no real customer data ⇒ safe to touch)
+> **survives**; the *premise* (it holds nothing) does not, and the premise is what other
+> decisions rested on. PROGRESS.md § State has carried this correction since 2026-08-21 while
+> this heading kept asserting the opposite — the two records disagreed for five days and
+> nothing could report it.
+>
+> ⛔ **The data rows below — "every application table: 0 rows" and "`auth.users`: 0 live" — are
+> SUPERSEDED in exactly the way the migration rows above them already are.** They are kept, not
+> deleted, so the census stays readable as a dated artifact.
+>
+> ⛔ **Re-measure, never quote — this is the sixth time a claim about the remote has gone stale
+> in this repo.** Recipes: § "Remote discipline — standing rules", and
+> `.claude/rules/live-facts-measure-dont-quote.md`. The one figure that still decides anything
+> is **`count(*) from auth.users where email not like '%@test.local'`** — it gates ADR 0155's
+> **G2** single-shot authorization for AE3, and G2 is void the moment it is non-zero.
 
 Run under DM-FUP TRIAGE #6 step 1 (read-only census; PRODROW's `⛔ do not query` bar lifted when the
 push ran). **Nothing was mutated.** Every figure below carries its deriving query.
@@ -920,8 +1239,8 @@ push ran). **Nothing was mutated.** Every figure below carries its deriving quer
 | migration head | ⛔ **SUPERSEDED — re-measured 2026-08-18 (later): `20260928000900`.** The `…000500` below was true only at census time | `select max(version) from supabase_migrations.schema_migrations` |
 | migrations registered | ⛔ **SUPERSEDED — 415** (was 411 at census) | `count(*)` same table |
 | local migrations *not* on remote | ⛔ **SUPERSEDED — 0.** `…000600`/`…000700` were pushed between the census and 2026-08-18 (the "HELD" record was stale); `…000800`/`…000900` pushed 2026-08-18 | re-measure, never re-read |
-| every application table | **0 rows** | `organizations · hospitals · commissions · profiles · memberships · forms · responses · cases · documents · document_versions · audit_log` |
-| `auth.users` | **0 live** | `count(*) from auth.users` |
+| every application table | ⛔ **SUPERSEDED — NOT 0.** The remote holds the E2E seed fixture and rows beyond it | `organizations · hospitals · commissions · profiles · memberships · forms · responses · cases · documents · document_versions · audit_log` |
+| `auth.users` | ⛔ **SUPERSEDED — NOT 0 live.** Re-measure; the deciding figure is the **non-`@test.local`** count (ADR 0155 G2) | `count(*) from auth.users` |
 | storage buckets | **4** (`documents-phi`, `documents-standard`, `form-assets`, `meeting-audio`) | `storage.buckets` |
 | storage objects | **0**, 0 bytes, in every bucket | `left join storage.objects … group by bucket` |
 | `document_version_files` | **0 rows / 0 duplicate `file_object_id` groups** | `group by file_object_id having count(*) > 1` |

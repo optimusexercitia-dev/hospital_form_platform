@@ -1,0 +1,51 @@
+-- GENERATED FILE — DO NOT EDIT BY HAND.
+-- Source:    src/lib/users/__fixtures__/person-scope-vectors.json
+-- Generator: scripts/gen-person-scope-vectors.mjs
+-- sourceSha256: eebb7011928ad845b387d0f70e8335a7e5b4cebc6e34563954f4aac1f0f54095
+--
+-- The ADR 0133 person-authority decision (D1-D4 + Amendment 1 ruling 1), as ONE case list
+-- driving BOTH halves of the mirror ADR 0161 sanctioned:
+--   TS  -> personScopeAllows                (src/lib/users/person-scope.ts)
+--   SQL -> app.can_administer_person_for    (20261003004600)
+--
+-- ⚠ The shape that matters is S4: footprint {H1,H2} against a caller administering {H1}.
+-- A sole-footprint person satisfies BOTH bounds, so every sole-footprint vector passes
+-- under either one and can never detect an INTERSECTION/SUBSET swap. Only a footprint
+-- that EXCEEDS the caller's coverage separates them.
+--
+-- Editing this file by hand REDS src/lib/users/person-scope-vectors.test.ts.
+create temp table person_scope_vectors on commit drop as
+  select * from (values
+    ('S1', 'fields', array[]::text[], false, array['H1'], false),
+    ('S1', 'credentials', array[]::text[], false, array['H1'], false),
+    ('S1', 'cpf_change', array[]::text[], false, array['H1'], false),
+    ('S1', 'lifecycle', array[]::text[], false, array['H1'], false),
+    ('S2', 'fields', array['H1'], false, array['H1'], true),
+    ('S2', 'credentials', array['H1'], false, array['H1'], true),
+    ('S2', 'cpf_change', array['H1'], false, array['H1'], true),
+    ('S2', 'lifecycle', array['H1'], false, array['H1'], true),
+    ('S3', 'fields', array['H1'], false, array['H2'], false),
+    ('S3', 'credentials', array['H1'], false, array['H2'], false),
+    ('S3', 'cpf_change', array['H1'], false, array['H2'], false),
+    ('S3', 'lifecycle', array['H1'], false, array['H2'], false),
+    ('S4', 'fields', array['H1', 'H2'], false, array['H1'], true),
+    ('S4', 'credentials', array['H1', 'H2'], false, array['H1'], true),
+    ('S4', 'cpf_change', array['H1', 'H2'], false, array['H1'], false),
+    ('S4', 'lifecycle', array['H1', 'H2'], false, array['H1'], false),
+    ('S5', 'fields', array['H1', 'H2'], false, array['H1', 'H2'], true),
+    ('S5', 'credentials', array['H1', 'H2'], false, array['H1', 'H2'], true),
+    ('S5', 'cpf_change', array['H1', 'H2'], false, array['H1', 'H2'], true),
+    ('S5', 'lifecycle', array['H1', 'H2'], false, array['H1', 'H2'], true),
+    ('S6', 'fields', array['H1'], false, array[]::text[], false),
+    ('S6', 'credentials', array['H1'], false, array[]::text[], false),
+    ('S6', 'cpf_change', array['H1'], false, array[]::text[], false),
+    ('S6', 'lifecycle', array['H1'], false, array[]::text[], false),
+    ('S7', 'fields', array['H1'], true, array['H1'], false),
+    ('S7', 'credentials', array['H1'], true, array['H1'], false),
+    ('S7', 'cpf_change', array['H1'], true, array['H1'], false),
+    ('S7', 'lifecycle', array['H1'], true, array['H1'], false),
+    ('S8', 'fields', array['H1', 'H2'], true, array['H1', 'H2'], false),
+    ('S8', 'credentials', array['H1', 'H2'], true, array['H1', 'H2'], false),
+    ('S8', 'cpf_change', array['H1', 'H2'], true, array['H1', 'H2'], false),
+    ('S8', 'lifecycle', array['H1', 'H2'], true, array['H1', 'H2'], false)
+  ) as t(shape, capability, footprint, tier, administered, expect);

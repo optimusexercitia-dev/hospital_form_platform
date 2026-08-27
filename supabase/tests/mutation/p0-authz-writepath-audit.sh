@@ -478,22 +478,22 @@ write_worklist_pol () {
   cat > "$POLWL" <<'TSV'
 capa_plan|capa_plan_delete|DELETE|app.can_write_capa(id, auth.uid())|-
 capa_plan|capa_plan_update|UPDATE|app.can_write_capa(id, auth.uid())|app.can_write_capa(id, auth.uid())
-case_interviews|case_interviews_delete|DELETE|app.can_write_interview(id, auth.uid())|-
-case_interviews|case_interviews_insert|INSERT|-|(app.is_staff_admin_of(commission_id) AND (NOT app.is_case_excluded(case_id, auth.uid())))
-case_interviews|case_interviews_update|UPDATE|app.can_write_interview(id, auth.uid())|app.can_write_interview(id, auth.uid())
-case_referral|case_referral_delete_draft_source|DELETE|((status = 'draft'::text) AND app.can_manage_referral_source(id, auth.uid()))|-
-case_referral|case_referral_insert_source_coord|INSERT|-|app.is_staff_admin_of_for(source_commission_id, auth.uid())
-case_referral|case_referral_update_coord|UPDATE|(app.can_manage_referral_source(id, auth.uid()) OR app.can_manage_referral_target(id, auth.uid()))|(app.can_manage_referral_source(id, auth.uid()) OR app.can_manage_referral_target(id, auth.uid()))
+case_interviews|case_interviews_delete|DELETE|app.can_write_interview(id, ( SELECT auth.uid() AS uid))|-
+case_interviews|case_interviews_insert|INSERT|-|(app.is_staff_admin_of(commission_id) AND (NOT app.is_case_excluded(case_id, ( SELECT auth.uid() AS uid))))
+case_interviews|case_interviews_update|UPDATE|app.can_write_interview(id, ( SELECT auth.uid() AS uid))|app.can_write_interview(id, ( SELECT auth.uid() AS uid))
+case_referral|case_referral_delete_draft_source|DELETE|((status = 'draft'::text) AND app.can_manage_referral_source(id, ( SELECT auth.uid() AS uid)))|-
+case_referral|case_referral_insert_source_coord|INSERT|-|app.is_staff_admin_of_for(source_commission_id, ( SELECT auth.uid() AS uid))
+case_referral|case_referral_update_coord|UPDATE|(app.can_manage_referral_source(id, ( SELECT auth.uid() AS uid)) OR app.can_manage_referral_target(id, ( SELECT auth.uid() AS uid)))|(app.can_manage_referral_source(id, ( SELECT auth.uid() AS uid)) OR app.can_manage_referral_target(id, ( SELECT auth.uid() AS uid)))
 meeting_agenda_items|meeting_agenda_items_staff_admin_delete|DELETE|app.is_staff_admin_of(app.commission_of_meeting(meeting_id))|-
 meeting_agenda_items|meeting_agenda_items_staff_admin_insert|INSERT|-|app.is_staff_admin_of(app.commission_of_meeting(meeting_id))
 meeting_agenda_items|meeting_agenda_items_staff_admin_update|UPDATE|app.is_staff_admin_of(app.commission_of_meeting(meeting_id))|app.is_staff_admin_of(app.commission_of_meeting(meeting_id))
 meeting_attendees|meeting_attendees_staff_admin_delete|DELETE|app.is_staff_admin_of(app.commission_of_meeting(meeting_id))|-
 meeting_attendees|meeting_attendees_staff_admin_insert|INSERT|-|app.is_staff_admin_of(app.commission_of_meeting(meeting_id))
 meeting_attendees|meeting_attendees_staff_admin_update|UPDATE|app.is_staff_admin_of(app.commission_of_meeting(meeting_id))|app.is_staff_admin_of(app.commission_of_meeting(meeting_id))
-meeting_cases|meeting_cases_staff_admin_delete|DELETE|(app.is_staff_admin_of(app.commission_of_meeting(meeting_id)) AND app.can_read_case(case_id, auth.uid()))|-
-meeting_cases|meeting_cases_staff_admin_insert|INSERT|-|(app.is_staff_admin_of(app.commission_of_meeting(meeting_id)) AND app.can_read_case(case_id, auth.uid()))
-meeting_cases|meeting_cases_staff_admin_update|UPDATE|(app.is_staff_admin_of(app.commission_of_meeting(meeting_id)) AND app.can_read_case(case_id, auth.uid()))|(app.is_staff_admin_of(app.commission_of_meeting(meeting_id)) AND app.can_read_case(case_id, auth.uid()))
-meeting_signatures|meeting_signatures_insert|INSERT|-|((signer_id = auth.uid()) AND app.can_sign_meeting(attendee_id, auth.uid()))
+meeting_cases|meeting_cases_staff_admin_delete|DELETE|(app.is_staff_admin_of(app.commission_of_meeting(meeting_id)) AND app.can_read_case(case_id, ( SELECT auth.uid() AS uid)))|-
+meeting_cases|meeting_cases_staff_admin_insert|INSERT|-|(app.is_staff_admin_of(app.commission_of_meeting(meeting_id)) AND app.can_read_case(case_id, ( SELECT auth.uid() AS uid)))
+meeting_cases|meeting_cases_staff_admin_update|UPDATE|(app.is_staff_admin_of(app.commission_of_meeting(meeting_id)) AND app.can_read_case(case_id, ( SELECT auth.uid() AS uid)))|(app.is_staff_admin_of(app.commission_of_meeting(meeting_id)) AND app.can_read_case(case_id, ( SELECT auth.uid() AS uid)))
+meeting_signatures|meeting_signatures_insert|INSERT|-|((signer_id = ( SELECT auth.uid() AS uid)) AND app.can_sign_meeting(attendee_id, ( SELECT auth.uid() AS uid)))
 meetings|meetings_staff_admin_delete|DELETE|(app.is_staff_admin_of(commission_id) OR app.member_can(commission_id, 'schedule_meetings'::text))|-
 meetings|meetings_staff_admin_insert|INSERT|-|(app.is_staff_admin_of(commission_id) OR app.member_can(commission_id, 'schedule_meetings'::text))
 meetings|meetings_staff_admin_update|UPDATE|(app.is_staff_admin_of(commission_id) OR app.member_can(commission_id, 'schedule_meetings'::text))|(app.is_staff_admin_of(commission_id) OR app.member_can(commission_id, 'schedule_meetings'::text))
@@ -502,11 +502,11 @@ notification_preferences|notification_preferences_update_own|UPDATE|(user_id = (
 notifications|notifications_update_own|UPDATE|(user_id = ( SELECT auth.uid() AS uid))|(user_id = ( SELECT auth.uid() AS uid))
 profiles|profiles_admin_insert|INSERT|-|app.is_admin()
 profiles|profiles_admin_update|UPDATE|app.is_admin()|app.is_admin()
-profiles|profiles_update_self|UPDATE|(id = auth.uid())|(id = auth.uid())
+profiles|profiles_update_self|UPDATE|(id = ( SELECT auth.uid() AS uid))|(id = ( SELECT auth.uid() AS uid))
 rca|rca_delete|DELETE|app.can_write_rca(id, auth.uid())|-
 rca|rca_update|UPDATE|app.can_write_rca(id, auth.uid())|app.can_write_rca(id, auth.uid())
-response_section_signoffs|signoffs_insert|INSERT|-|((signed_by = auth.uid()) AND app.can_sign_section(response_id, section_id, auth.uid()))
-responses|responses_delete_own_draft|DELETE|((created_by = auth.uid()) AND (status = 'in_progress'::text))|-
+response_section_signoffs|signoffs_insert|INSERT|-|((signed_by = ( SELECT auth.uid() AS uid)) AND app.can_sign_section(response_id, section_id, ( SELECT auth.uid() AS uid)))
+responses|responses_delete_own_draft|DELETE|((created_by = ( SELECT auth.uid() AS uid)) AND (status = 'in_progress'::text))|-
 responses|responses_insert_own|INSERT|-|((created_by = ( SELECT auth.uid() AS uid)) AND app.is_member_of(commission_id))
 responses|responses_update_own_draft|UPDATE|((created_by = ( SELECT auth.uid() AS uid)) AND (status = 'in_progress'::text))|(created_by = ( SELECT auth.uid() AS uid))
 TSV

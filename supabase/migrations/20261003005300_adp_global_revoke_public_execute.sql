@@ -1,0 +1,60 @@
+-- AE1.2 / AE1 close condition #2 (plan-audit finding PA-F4) — make the ABSENCE of PUBLIC
+-- EXECUTE a DECLARED property of function creation, using the GLOBAL `FOR ROLE` form.
+--
+-- ⛔ WHY NOT THE `IN SCHEMA` FORM, measured rather than quoted. PostgreSQL documents that a
+-- schema-scoped default-privilege change cannot remove the built-in global PUBLIC EXECUTE
+-- default; the command succeeds and changes nothing. This database shows exactly that, and
+-- shows it in a way that reads like the opposite:
+--
+--   pg_default_acl already carries  (defaclrole=postgres, nsp=public, objtype=f)
+--                                    acl={postgres=X/postgres,service_role=X/postgres}
+--
+-- which lists no PUBLIC and so LOOKS as though `public` were already closed. It is not —
+-- that row is ADDITIVE to the built-in default, not a replacement for it. Probed 2026-08-27
+-- by creating a throwaway function in each schema:
+--   app._adp_probe     proacl = NULL                                    anon EXECUTE = true
+--   public._adp_probe  proacl = {=X/postgres,postgres=X/...,service_role=X/...}
+--                                     ^^^ the empty grantee IS PUBLIC   anon EXECUTE = true
+-- Both schemas were open. ⚠ This is the "a guard that reads right but fails open" shape:
+-- a NULL or implicit `proacl` INCLUDES PUBLIC, and reading the rule instead of probing the
+-- effective privilege is what makes it invisible.
+--
+-- ✅ EFFECT, measured in a rolled-back transaction before this migration was written:
+--   app._adp_probe2     proacl={postgres=X}              anon=false authenticated=false
+--   public._adp_probe2  proacl={postgres=X,service_role=X} anon=false authenticated=false
+-- with service_role still supplied in `public` by the pre-existing schema-scoped rule.
+--
+-- ⚠ SCOPE, stated: `postgres` is the ONLY creator role for `public` + `app` (measured:
+-- 550 + 507 functions, all proowner=postgres), so one command covers both, and it will cover
+-- `authz` too when AE4 creates it — before any object exists, at zero cost, which is the
+-- point of doing it now.
+--
+-- ⛔ THIS IS NOT THE `anon`-RESIDUE SWEEP. Existing functions are untouched by design —
+-- positive control at the same instant: `app.is_admin()` still returns anon EXECUTE = true.
+-- The historical residue is `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`, a PO
+-- decision, and folding it into a feature migration is explicitly barred by the plan.
+--
+-- ⚠ BLAST RADIUS, MEASURED RATHER THAN PREDICTED. The first draft of this header said only
+-- that new `app` functions would lose their default service_role EXECUTE. That understated
+-- it: the full pgTAP suite went from PASS to FAIL across FOUR files, and none of them was a
+-- production door.
+--   * 277 / 292 / 380 -- `permission denied for function <helper>`. Each creates a helper
+--     (two in `pg_temp`, one in `app`) and calls it as a NON-OWNER role. They worked only
+--     because a new function inherited the built-in PUBLIC EXECUTE default. Fixed by
+--     stating the grant, which is the whole point of this change.
+--   * 320 -- an ACL-population VACUITY CONTROL asserting that creating one app function
+--     moves the anon-executable count 237 -> 238. After this migration a new function no
+--     longer joins that population, so the count stopped moving and the control FAILED --
+--     which is the control working. It now grants PUBLIC explicitly, CONSTRUCTING the
+--     condition it probes for instead of borrowing it from an ambient default.
+--     The tempting fix -- expect 237 -- would have made a detector-vacuity control pass by
+--     asserting the detector finds nothing, i.e. exactly what it exists to rule out.
+--
+-- The generalisable part: a change to a DEFAULT has a blast radius covering everything that
+-- silently relied on that default, and test scaffolding relies on defaults far more than
+-- production code does -- production grants get reviewed, a test helper's do not. So the
+-- intended move from implicit to declared applies to migrations creating app-schema doors
+-- (as AE1.3's already do) AND to any suite that creates a function and calls it as another
+-- role.
+
+alter default privileges for role postgres revoke execute on functions from public;
