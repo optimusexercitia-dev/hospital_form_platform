@@ -77,9 +77,56 @@ snapshot" is "silence the tripwire" wearing maintenance clothes. ⛔ The harness
 are **not** changed mid-phase (it is a gate component, in flight for other phases); filed and
 raised to the PO instead.
 
-⚠ **AE1.5's gate line, binding, in words and never as an exit code:** *52 policies altered · 30
-measured, all COVERED, BLIND 0 · 22 UNMEASURED · **PROVEN on the read half, UNPROVEN on the
+### ⛔ And worse than the exit code: the harness cannot tell "swept" from "not in my worklist"
+
+Established 2026-08-27 by grepping the write-path harness for any *"requested but never
+swept"* reporting — **there is none.** A `CASES=` entry absent from its embedded worklist is
+**silently ignored**: no ERROR, no warning, no mention in the summary.
+
+> **The harness cannot distinguish "I swept your case" from "your case is not in my worklist",
+> and reports the second as the first.**
+
+So handing it 52 cases and receiving `13 COVERED, exit 0` reads as coverage of 52. ⚠ The only
+reason the gap was ever visible is that the **sibling** arm prints
+`REQUESTED CASES THAT MATCHED NO GATE` and refuses to end CLEAN.
+
+### ⚖ RULING 2026-08-27 — AE1.5's sweep closes at 43 of 52, recorded as PARTIAL
+
+The **9** unmeasured policies sit outside **both** arms' domains — a **pre-existing apparatus
+gap**, same family as `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2). AE1.5 did not create it; it
+**revealed** it by altering policies that fall in the hole. ⛔ Blocking the task until the 9 are
+measured would block on machinery that does not exist, for a defect the task **found rather than
+caused** — which would make surfacing an apparatus gap more expensive than not looking.
+
+**Conditions, binding:** the 9 are **named individually**, never counted (a count is what let
+them hide) · the gate line is **in words**, never an exit code · and the record states **how the
+43 was derived — by the worklist cross-check, not by the harness's report**, because the harness
+would have said 52.
+
+⚠ **The lead's earlier merge condition was UNMEETABLE and is corrected:** "merge only once the
+combined run is not-PARTIAL" cannot be satisfied while the 9 are unmeasurable by either arm.
+**Revised: merge the verdicts actually MEASURED — changed rows only, never a copy (ADR 0079
+Amdt 1). The 9 gain NO rows**, not even a placeholder; a findings file with no row for a case is
+the honest representation of "not measured".
+
+⚠ **AE1.5's gate line, binding, in words and never as an exit code:** *52 policies altered ·
+**43 measured** · **9 UNMEASURED BY EITHER ARM** · **PROVEN on the read half, PARTIAL on the
 write half**.*
+
+### ⭐ One lesson, not three: a correct source does not make a correct derivation
+
+*"Regenerated from the catalog" describes the **source**, not the **transformation**.* A
+generator can read a correct catalog and still emit a wrong row. Any mechanical rewrite of a
+pinned artefact needs **a differential against what it replaces, with the permitted delta stated
+in advance**.
+
+⭐ This phase produced **three** instances that look unrelated and are the same shape — all three
+derived correctly from a real source and still wrong, because the derivation's **domain or
+mapping** went unexamined: the `polcmd` mapping (`a → ALL` instead of `a → INSERT`, which would
+have relabelled five INSERT policies as `ALL` — and an `ALL` policy **is** a read policy); the
+self-erasing AFTER selector (its subject test was the property the migration removed); and the
+"exactly two text pins" claim (bounded to *suites*, while the third pin lived in a *harness*).
+Measured anchor: `polcmd` in `public` is `a`=14 · `r`=174 · `w`=17 · `d`=11 · `*`=62.
 
 ### A blast-radius claim inherits the domain of the instrument that produced it
 
