@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1787640116.615211,
-    "ast_hash": "91ddf5121771f50a3c25e4627715d38e",
+    "mtime": 1787874857.7165172,
+    "ast_hash": "c9184a1e77048b2d6f4c56ba9a897906",
     "semantic_hash": ""
   },
   "playwright.config.ts": {
@@ -3115,7 +3115,7 @@
     "semantic_hash": ""
   },
   "src/lib/auth/actions.ts": {
-    "mtime": 1786398447.661124,
+    "mtime": 1787870166.0296125,
     "ast_hash": "91282e8033e4c5ee543da90fdc71cff5",
     "semantic_hash": ""
   },
@@ -3635,8 +3635,8 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1787787128.3982382,
-    "ast_hash": "acc63d442a60b41eb188bf5bc89c0a84",
+    "mtime": 1787874857.7245455,
+    "ast_hash": "f5978a22dbec2f6cf8ee1236d03f2463",
     "semantic_hash": ""
   },
   "src/lib/types/pagination.test.ts": {
@@ -3655,8 +3655,8 @@
     "semantic_hash": ""
   },
   "src/lib/users/actions.ts": {
-    "mtime": 1787787128.3992817,
-    "ast_hash": "91c048bf9e0fbe54b33676b6a8f33e79",
+    "mtime": 1787874857.7245455,
+    "ast_hash": "cec4fded5c06a8e0d7c8fb905cf8495e",
     "semantic_hash": ""
   },
   "src/lib/users/status-vectors.test.ts": {
@@ -4360,8 +4360,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1787787128.298217,
-    "ast_hash": "b3db9a5add671362e6c27f34a0bd2ac5",
+    "mtime": 1787874857.6748087,
+    "ast_hash": "3ba686037111769b152daaa9dacce42d",
     "semantic_hash": ""
   },
   "PHASES.md": {
@@ -4370,8 +4370,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1787787128.2992575,
-    "ast_hash": "71ad2f19708b5a724683b4767422ad87",
+    "mtime": 1787874857.6771963,
+    "ast_hash": "88d573ccd1ce6fd1686e755b3d2049bc",
     "semantic_hash": ""
   },
   "README.md": {
@@ -4380,8 +4380,8 @@
     "semantic_hash": ""
   },
   "docs/backend-state.md": {
-    "mtime": 1787787128.3033764,
-    "ast_hash": "ec70851c4ce11632451357b8afc8acb9",
+    "mtime": 1787874857.6771963,
+    "ast_hash": "2b84dccfb2574ff857edc36e21054d81",
     "semantic_hash": ""
   },
   "docs/decisions/0001-scaffolding-and-toolchain.md": {
@@ -4580,7 +4580,7 @@
     "semantic_hash": ""
   },
   "docs/decisions/0041-multi-tenancy-organizations-hospitals.md": {
-    "mtime": 1787697945.7516463,
+    "mtime": 1787790861.9859588,
     "ast_hash": "4db9a93c474c970e575cc3145a998b7d",
     "semantic_hash": ""
   },
@@ -4830,13 +4830,13 @@
     "semantic_hash": ""
   },
   "docs/progress/decisions-log.md": {
-    "mtime": 1787787128.32759,
-    "ast_hash": "05fb410af92d612d11fac7d84b79f4ab",
+    "mtime": 1787874857.6964712,
+    "ast_hash": "231706c954a74f795b9ab1650743dd5b",
     "semantic_hash": ""
   },
   "docs/progress/follow-ups-archive.md": {
-    "mtime": 1787787128.3317263,
-    "ast_hash": "71e8661ec5352383762a70180ed530bf",
+    "mtime": 1787874857.707872,
+    "ast_hash": "9fd804d50b08b1f3b57f42d9600ed088",
     "semantic_hash": ""
   },
   "docs/progress/form-builder-enhancements.md": {
@@ -5000,8 +5000,8 @@
     "semantic_hash": ""
   },
   "docs/progress/qa-verdicts-archive.md": {
-    "mtime": 1787708679.8843045,
-    "ast_hash": "c0c9a6574487da68a44adc1af17544e2",
+    "mtime": 1787874857.7149684,
+    "ast_hash": "523f70bd63646f4c5e8b128063211010",
     "semantic_hash": ""
   },
   "docs/progress/result-rec.md": {
@@ -5625,8 +5625,8 @@
     "semantic_hash": ""
   },
   "docs/lead-playbook.md": {
-    "mtime": 1787730065.389456,
-    "ast_hash": "6d0173392ef6d799d0afc054ef4064df",
+    "mtime": 1787874857.6964712,
+    "ast_hash": "8ef4783eceaed65f83eb904ceafc43d6",
     "semantic_hash": ""
   },
   "docs/progress/ui-batch-2026-07.md": {
@@ -7015,8 +7015,8 @@
     "semantic_hash": ""
   },
   "docs/progress/deferred-backlog.md": {
-    "mtime": 1787566383.5093756,
-    "ast_hash": "40517dbeb0c04fbd666611a71cba531c",
+    "mtime": 1787874857.6964712,
+    "ast_hash": "4003ef0cd15949677683356a9fa032c2",
     "semantic_hash": ""
   },
   "docs/reviews/authz-gate-2-review.md": {
@@ -7060,8 +7060,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/mutation/p0-authz-writepath-audit.sh": {
-    "mtime": 1787728839.031809,
-    "ast_hash": "2973b9aca295fcf58569705c38ea3786",
+    "mtime": 1787874857.747904,
+    "ast_hash": "4a04fae88b6fb0e2bcf227b7d11b36b6",
     "semantic_hash": ""
   },
   "supabase/tests/mutation/p0b-isolation-mutation-audit.sh": {
@@ -7080,8 +7080,8 @@
     "semantic_hash": ""
   },
   "docs/reviews/authz-door-audit-findings.md": {
-    "mtime": 1787787128.3415086,
-    "ast_hash": "7507fb3e17d8d6d086cb32b15bcef8cb",
+    "mtime": 1787874857.7165172,
+    "ast_hash": "54d00b709e9b04d93f86be3909a58b64",
     "semantic_hash": ""
   },
   "docs/reviews/authz-door-audit-p0-review.md": {
@@ -8190,8 +8190,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/270_ff1_repeating_groups.sql": {
-    "mtime": 1786325577.837083,
-    "ast_hash": "4feec897a2cc028a9b3b5fc16a2f5410",
+    "mtime": 1787874857.7245455,
+    "ast_hash": "918d9dfce007247c02484defe710a959",
     "semantic_hash": ""
   },
   "docs/decisions/0086-flexible-forms-pre-pilot.md": {
@@ -9230,8 +9230,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/277_ff4_power_authoring.sql": {
-    "mtime": 1785747247.1508236,
-    "ast_hash": "e22ef049e7891452b03ac5422b3f64b9",
+    "mtime": 1787874857.7245455,
+    "ast_hash": "4fa9f33595da3d34ed0cf4761c877356",
     "semantic_hash": ""
   },
   "docs/decisions/0092-ff4-power-authoring.md": {
@@ -9280,8 +9280,8 @@
     "semantic_hash": ""
   },
   "scripts/check-memberships-door.mjs": {
-    "mtime": 1785987906.673633,
-    "ast_hash": "bbb1bcfd6dc9aab0d8a6eca93ace0b2b",
+    "mtime": 1787874857.7217393,
+    "ast_hash": "203940014330f53e61ac72e72fda5fa3",
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/manage/acreditacao/[framework]/layout.tsx": {
@@ -9595,8 +9595,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/292_session_context.sql": {
-    "mtime": 1787629036.1574767,
-    "ast_hash": "2a4cc2846c26f9274b0f635de82c870f",
+    "mtime": 1787874857.7245455,
+    "ast_hash": "0ec23e9b8f1a798dbdb8471e213992ca",
     "semantic_hash": ""
   },
   "supabase/tests/293_membership_door_kernel.sql": {
@@ -10120,8 +10120,8 @@
     "semantic_hash": ""
   },
   "src/lib/users/d14-person-level.test.ts": {
-    "mtime": 1787787128.4008393,
-    "ast_hash": "f4e3f958b67515ecec6a395f55b91802",
+    "mtime": 1787874857.7245455,
+    "ast_hash": "4e1f11d244f1665de77ffc606dda7e68",
     "semantic_hash": ""
   },
   "supabase/migrations/20260909000100_hospital_affiliations.sql": {
@@ -10205,8 +10205,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/304_affiliation_lifecycle.sql": {
-    "mtime": 1787787128.4180126,
-    "ast_hash": "1e968e4143815872528d4e0b259ebd6b",
+    "mtime": 1787874857.7396605,
+    "ast_hash": "bd41e53c192bfdcf2d86eb7eac97ef6d",
     "semantic_hash": ""
   },
   "docs/decisions/0098-aff-w1-substrate-shape-decisions.md": {
@@ -10250,7 +10250,7 @@
     "semantic_hash": ""
   },
   "src/app/api/webhooks/audio-jobs/route.ts": {
-    "mtime": 1786398447.1729631,
+    "mtime": 1787859640.879097,
     "ast_hash": "76bc6b1ef2d1eb35952a7af9e7e29579",
     "semantic_hash": ""
   },
@@ -11180,8 +11180,8 @@
     "semantic_hash": ""
   },
   "docs/progress/follow-ups.md": {
-    "mtime": 1787787128.3348153,
-    "ast_hash": "6955fd58c6239a92aa4051b9f9ac28e3",
+    "mtime": 1787874857.707872,
+    "ast_hash": "e7ff6694398c1bfe804d3970b74ba081",
     "semantic_hash": ""
   },
   "docs/progress/quality-office-oversight-phase-b.md": {
@@ -11515,8 +11515,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/320_act_expiry_and_acl_hardening.sql": {
-    "mtime": 1786984119.0994792,
-    "ast_hash": "9270947882cbe9920dafa7577a43a638",
+    "mtime": 1787874857.7404573,
+    "ast_hash": "99758019e72addb398be74cf2225420e",
     "semantic_hash": ""
   },
   "supabase/tests/321_eth_e4_participant_seating.sql": {
@@ -12600,8 +12600,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/proposed-review.json": {
-    "mtime": 1787787128.311943,
-    "ast_hash": "242efe2872d68b2709a2339e2f43b983",
+    "mtime": 1787874857.6771963,
+    "ast_hash": "5d83d4918d595b2271b9647514c8350f",
     "semantic_hash": ""
   },
   "docs/design/temp/action_item_design/ai-detail-app.jsx": {
@@ -12810,8 +12810,8 @@
     "semantic_hash": ""
   },
   "scripts/check-progress-doc.mjs": {
-    "mtime": 1787575073.8623848,
-    "ast_hash": "43d36e76414db3cab53d156cadd6b3bc",
+    "mtime": 1787874857.7217393,
+    "ast_hash": "839b83defb498799a1a2c1b321879ab8",
     "semantic_hash": ""
   },
   "scripts/check-rules-staleness.mjs": {
@@ -13415,8 +13415,8 @@
     "semantic_hash": ""
   },
   "src/lib/users/person-scope.ts": {
-    "mtime": 1787697945.841291,
-    "ast_hash": "f31c8d6ac4b02d1298eb4fded51640df",
+    "mtime": 1787874857.7245455,
+    "ast_hash": "c1cfe635d5f28af7fb8a74175e7aab4e",
     "semantic_hash": ""
   },
   "src/lib/users/status-filter-vectors.test.ts": {
@@ -13865,8 +13865,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1787143178.14325,
-    "ast_hash": "6430315a99a964e45fa8d3d678732120",
+    "mtime": 1787874857.67519,
+    "ast_hash": "24fe2c6da80b9185791d492e694ea2f7",
     "semantic_hash": ""
   },
   "docs/decisions/0123-discarding-a-draft-that-has-emitted-documents.md": {
@@ -13875,8 +13875,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/0124-progress-live-state-contract.md": {
-    "mtime": 1787575224.047678,
-    "ast_hash": "a757e4a696b10efacbfae3a9f9b11d3c",
+    "mtime": 1787874857.6771963,
+    "ast_hash": "24c9b9eff3607c4b62b692a9ea60bb7a",
     "semantic_hash": ""
   },
   "docs/decisions/0125-previa-ephemeral-and-emission-registered.md": {
@@ -13920,8 +13920,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md": {
-    "mtime": 1787697945.7677658,
-    "ast_hash": "582bd1aa950d6363e1f74a14adf6b2e9",
+    "mtime": 1787874857.6771963,
+    "ast_hash": "5f70896a743aa08d6e43cffb9f0c56cc",
     "semantic_hash": ""
   },
   "docs/decisions/0134-case-surface-split-and-administrativo-case-read.md": {
@@ -13990,8 +13990,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/INDEX.md": {
-    "mtime": 1787787128.3109367,
-    "ast_hash": "b6dbf7f2450ae6926577a103b71ff466",
+    "mtime": 1787874924.2659585,
+    "ast_hash": "814063c259a6d4fa8d186938948a8184",
     "semantic_hash": ""
   },
   "docs/deployment/phi-backup-run-log.md": {
@@ -14085,8 +14085,8 @@
     "semantic_hash": ""
   },
   "docs/progress/2026-Q3.md": {
-    "mtime": 1787787128.3204,
-    "ast_hash": "909c4c5ad5c204e437d7dfc8a2ffd305",
+    "mtime": 1787874857.6964712,
+    "ast_hash": "9934ab73bfee2cec9ac28aaf2f03c7e4",
     "semantic_hash": ""
   },
   "docs/progress/adr-0137-batch.md": {
@@ -14165,8 +14165,8 @@
     "semantic_hash": ""
   },
   "docs/progress/phase-ledger.md": {
-    "mtime": 1787787128.3368905,
-    "ast_hash": "b6769935cb8663368b932a58fda7315a",
+    "mtime": 1787874857.707872,
+    "ast_hash": "ec786bda8780bf895dcebbfdc31f7405",
     "semantic_hash": ""
   },
   "docs/progress/previa-split-2026-08-19.md": {
@@ -14565,8 +14565,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/380_org_affiliation_residual_coverage.sql": {
-    "mtime": 1787787128.4231923,
-    "ast_hash": "eb1c6badb9c02755ca19aa78c27ead17",
+    "mtime": 1787874857.7416315,
+    "ast_hash": "3875f7228c98002e6bee67939a2273da",
     "semantic_hash": ""
   },
   "supabase/tests/381_containment_actor_dimension.sql": {
@@ -14575,8 +14575,8 @@
     "semantic_hash": ""
   },
   ".claude/skills/handoff/SKILL.md": {
-    "mtime": 1787787128.297181,
-    "ast_hash": "042326033d6db27c59c4ef6382e1df02",
+    "mtime": 1787874857.6738093,
+    "ast_hash": "cad37a97dfbeceb8c9c2c94d2d05532b",
     "semantic_hash": ""
   },
   "docs/decisions/0147-masked-cpf-on-the-person-detail-rail.md": {
@@ -14600,8 +14600,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md": {
-    "mtime": 1787787128.307058,
-    "ast_hash": "664a4ea64876ddd8b91eaa9f1a502e58",
+    "mtime": 1787874924.2862117,
+    "ast_hash": "71249c812671c4aa809bb3eff3e6d814",
     "semantic_hash": ""
   },
   "docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md": {
@@ -14620,8 +14620,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md": {
-    "mtime": 1787787128.3081484,
-    "ast_hash": "17a1d695be5f873687c1efd6159366a9",
+    "mtime": 1787874857.6771963,
+    "ast_hash": "fd0d7c91148bbfe8eab1f7afc8bbeb3e",
     "semantic_hash": ""
   },
   "docs/decisions/0156-door-sqlstate-gate-domain-is-structural.md": {
@@ -14642,11 +14642,6 @@
   "docs/decisions/0159-invariant-backstops-run-as-definer.md": {
     "mtime": 1787787128.3101807,
     "ast_hash": "57e431f3178e2f187e77bd2207e10cce",
-    "semantic_hash": ""
-  },
-  "docs/design/temp/authorization-model-evolution-audit-2026-08-26.md": {
-    "mtime": 1787758093.6941102,
-    "ast_hash": "1b9c5d269df5dca4ec11970cfdfda6c1",
     "semantic_hash": ""
   },
   "docs/design/temp/user_profile_redesign/Gest\u00e3o de Usu\u00e1rios.dc.html": {
@@ -14697,6 +14692,296 @@
   "docs/learning/postgres-patterns-from-this-codebase.pdf": {
     "mtime": 1787772853.0008008,
     "ast_hash": "e8a7d3aa72b124318fe78efa7672d983",
+    "semantic_hash": ""
+  },
+  "scripts/authz-census-ae0.sql": {
+    "mtime": 1787874857.7165172,
+    "ast_hash": "9681e2ee9abc4d9c52236b00e7effb0f",
+    "semantic_hash": ""
+  },
+  "scripts/authz-explain-baselines-ae0.sql": {
+    "mtime": 1787874857.7165172,
+    "ast_hash": "bb7ef4613080467997448e1781143589",
+    "semantic_hash": ""
+  },
+  "scripts/authz-tier1-threat-review-ae1.sql": {
+    "mtime": 1787874857.7165172,
+    "ast_hash": "41196d6f74d25615f54e8944c9044fcc",
+    "semantic_hash": ""
+  },
+  "scripts/check-service-role-registry.mjs": {
+    "mtime": 1787874857.722979,
+    "ast_hash": "b089d997349db603b51835f4232b9297",
+    "semantic_hash": ""
+  },
+  "scripts/gen-person-scope-vectors.mjs": {
+    "mtime": 1787874857.7235372,
+    "ast_hash": "75882167c67b89c9dd343c6fd19aefec",
+    "semantic_hash": ""
+  },
+  "scripts/service-role-dml-census.mjs": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "b94cd922afa169c00e5b785f07efaafb",
+    "semantic_hash": ""
+  },
+  "src/app/api/webhooks/audio-jobs/route.rpc-boundary.test.ts": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "db8a94a12ad54d8a3862b7984d9e9679",
+    "semantic_hash": ""
+  },
+  "src/lib/queries/printed-documents-caller-census.test.ts": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "bb8c5003bac4244827994becf7c798ed",
+    "semantic_hash": ""
+  },
+  "src/lib/types/rpc-args.ts": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "fe3cbb342d5c6a3b58bd0fa200460f32",
+    "semantic_hash": ""
+  },
+  "src/lib/users/__fixtures__/person-scope-vectors.json": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "4bdd5232e086ab96eda65af9abd95c94",
+    "semantic_hash": ""
+  },
+  "src/lib/users/person-scope-vectors.test.ts": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "1c52a2bdfcd0755360580a2fd0b1b09a",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20261003004400_commission_administrativos_fk.sql": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "2cb136b483c733e757366d2cb5890acd",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20261003004600_person_authority_predicate.sql": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "31bb5e52188946e874cf027765e47d4f",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20261003004610_person_profile_doors.sql": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "3879f3f4898755e129f247bd04ac3a12",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20261003004620_person_credential_doors.sql": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "2ba3511dba0512d29c8259bea1686399",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20261003004710_ae15_initplan_wrap_hot_subset.sql": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "fbd5f8440f841286e523c0290b8309d0",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20261003005000_minutes_job_terminal_latch_atomic.sql": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "4eba2b794faf034012bdb8b62025dbb0",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20261003005100_commission_administrativos_user_idx.sql": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "cebe863d50096888f965f69f414df7f4",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20261003005200_normalize_to_public_policies.sql": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "59fad6284a72b8ee106ff67516adb033",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20261003005300_adp_global_revoke_public_execute.sql": {
+    "mtime": 1787874857.7245455,
+    "ast_hash": "4de90409b7e32aad5c3a34a621a4fe8c",
+    "semantic_hash": ""
+  },
+  "supabase/tests/382_zero_policy_tables_are_door_only.sql": {
+    "mtime": 1787874857.7426674,
+    "ast_hash": "070c7e763189baab37903ab156598a23",
+    "semantic_hash": ""
+  },
+  "supabase/tests/383_commission_administrativos_fk.sql": {
+    "mtime": 1787874857.7431946,
+    "ast_hash": "1656a04a9e696f8ba88f01b939666163",
+    "semantic_hash": ""
+  },
+  "supabase/tests/384_person_scope_sql_predicate.sql": {
+    "mtime": 1787874857.7437205,
+    "ast_hash": "3ddbbbf833eee5400de821fb6bab92a0",
+    "semantic_hash": ""
+  },
+  "supabase/tests/385_person_doors_authority_and_audit.sql": {
+    "mtime": 1787874857.744243,
+    "ast_hash": "c0fe04923139a87d0033363d26c20da4",
+    "semantic_hash": ""
+  },
+  "supabase/tests/386_person_doors_acl_and_guard.sql": {
+    "mtime": 1787874857.744872,
+    "ast_hash": "93844b84c2e8124beebac41c455e702d",
+    "semantic_hash": ""
+  },
+  "supabase/tests/387_initplan_wrap_and_profiles_arm_identity.sql": {
+    "mtime": 1787874857.7453842,
+    "ast_hash": "55a73ff45b0554abc7ef56c80419d848",
+    "semantic_hash": ""
+  },
+  "supabase/tests/388_service_rpc_acls_and_minutes_latch.sql": {
+    "mtime": 1787874857.7459075,
+    "ast_hash": "53c9a025a647babd0a94ff031a9cf399",
+    "semantic_hash": ""
+  },
+  "supabase/tests/389_default_privileges_no_public_execute.sql": {
+    "mtime": 1787874857.746421,
+    "ast_hash": "d34429e5c8068d80a33d6ad50fdeb1f0",
+    "semantic_hash": ""
+  },
+  "supabase/tests/mutation/ae13-person-doors-mutation-audit.sh": {
+    "mtime": 1787874857.7468367,
+    "ast_hash": "45cab2b15897082a8b2c82204c7e1bd1",
+    "semantic_hash": ""
+  },
+  ".claude/rules/authz-gate-results-need-a-current-baseline.md": {
+    "mtime": 1787874857.668803,
+    "ast_hash": "0f824fdc18716e6031019d48c19cd91d",
+    "semantic_hash": ""
+  },
+  ".claude/rules/mutation-harnesses-are-not-killable.md": {
+    "mtime": 1787874857.6698086,
+    "ast_hash": "d95063e51fb141b1c749d261bb7d01fe",
+    "semantic_hash": ""
+  },
+  ".claude/rules/prettier-does-not-govern-this-tree.md": {
+    "mtime": 1787874857.6708105,
+    "ast_hash": "767ee07e8148b2e410f4a35002bcfbb5",
+    "semantic_hash": ""
+  },
+  ".claude/rules/profiles-guard-never-widened.md": {
+    "mtime": 1787874857.6718087,
+    "ast_hash": "1ec1c5e8af4e5d90cae3d9b3eb3d8f1e",
+    "semantic_hash": ""
+  },
+  ".claude/rules/push-schema-before-code.md": {
+    "mtime": 1787874857.6718087,
+    "ast_hash": "1a7c1cb95845c90d4f9395b9cdeccdcf",
+    "semantic_hash": ""
+  },
+  "docs/decisions/0160-ae0-corrections-to-adr-0155-measured-figures.md": {
+    "mtime": 1787874857.6771963,
+    "ast_hash": "44d65bfe028f279abdf7dcde20b9d67e",
+    "semantic_hash": ""
+  },
+  "docs/decisions/0161-person-authority-sql-twin-retires-no-twin-prohibition.md": {
+    "mtime": 1787874857.6771963,
+    "ast_hash": "1396da498d11c1c7039f516ba7f28a06",
+    "semantic_hash": ""
+  },
+  "docs/decisions/0162-authz-evolution-plan-audit-corrections.md": {
+    "mtime": 1787874857.6771963,
+    "ast_hash": "27a558a77fe2d0887c29b3b497e5e753",
+    "semantic_hash": ""
+  },
+  "docs/design/authorization-model-evolution-audit-2026-08-26.md": {
+    "mtime": 1787874857.6771963,
+    "ast_hash": "1b9c5d269df5dca4ec11970cfdfda6c1",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-ae1-fk-preflight.md": {
+    "mtime": 1787874857.6771963,
+    "ast_hash": "a814ffab4826a73cbd7475356fd318a4",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-ae1-initplan-triage.md": {
+    "mtime": 1787874857.689697,
+    "ast_hash": "7fec7cc6e939bfa9f49e961ae6eba489",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-ae1-revoke-partition.md": {
+    "mtime": 1787874857.6907039,
+    "ast_hash": "2758b0289f0a0f1156a27959aa058916",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-ae1-rpc-rulings.md": {
+    "mtime": 1787874857.6907039,
+    "ast_hash": "b2afede40151a3be33e62afb32d990ae",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-ae1-tier1-threat-review.md": {
+    "mtime": 1787874857.6916087,
+    "ast_hash": "53e3350a2efdc6582bb2e767e3966046",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-definer-classification-ae1.md": {
+    "mtime": 1787874857.6916087,
+    "ast_hash": "c4a02df7d2640fcaacfb443e650b6e05",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-evolution-ae0-findings.md": {
+    "mtime": 1787874857.694466,
+    "ast_hash": "70804fd69d7199d59b8745fb913cddfc",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-evolution-arm-baseline-ae0.md": {
+    "mtime": 1787874857.694466,
+    "ast_hash": "bcd93931ba607cf43254cfcd5a012306",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-evolution-baselines-ae0.md": {
+    "mtime": 1787874857.694466,
+    "ast_hash": "6a8a7c4b53c2fc07a0f356732c59e24e",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-evolution-census-ae0.md": {
+    "mtime": 1787874857.694466,
+    "ast_hash": "5c714f32c92a68c9b32c8e412505ce9d",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-evolution-parity-ae0.md": {
+    "mtime": 1787874857.6964712,
+    "ast_hash": "dc4bdad31924e6c5bbae74e3466df2bf",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-evolution-service-role-dml-ae0.md": {
+    "mtime": 1787874857.6964712,
+    "ast_hash": "53409ab3ebd2d30207ab2327b1d7f51c",
+    "semantic_hash": ""
+  },
+  "docs/design/authz-persona-matrix-axes-ae0.md": {
+    "mtime": 1787874857.6964712,
+    "ast_hash": "cfa29629e9f108017fa301898bd1e2c8",
+    "semantic_hash": ""
+  },
+  "docs/handoffs/authz-ae1-hardening.md": {
+    "mtime": 1787874857.6964712,
+    "ast_hash": "f1728bec3155f13ca8699a6b11020370",
+    "semantic_hash": ""
+  },
+  "docs/plans/authz-ae1-person-doors.md": {
+    "mtime": 1787874857.6964712,
+    "ast_hash": "384e5a507f43c04fe9f9ef4baaf1dd0d",
+    "semantic_hash": ""
+  },
+  "docs/plans/authz-evolution.md": {
+    "mtime": 1787874857.6964712,
+    "ast_hash": "7fe4841b59bb001595d59325cc338868",
+    "semantic_hash": ""
+  },
+  "docs/progress/authz-ae0.md": {
+    "mtime": 1787874857.6964712,
+    "ast_hash": "186cb7be4d0b61d702cd641256abf5f8",
+    "semantic_hash": ""
+  },
+  "docs/progress/authz-ae1.md": {
+    "mtime": 1787874857.6964712,
+    "ast_hash": "224f9add12898c190e9789882aab4701",
+    "semantic_hash": ""
+  },
+  "docs/reviews/authz-ae1-review.md": {
+    "mtime": 1787874857.7165172,
+    "ast_hash": "8fd63d0caaa58eda40b3d6d552255352",
+    "semantic_hash": ""
+  },
+  "docs/reviews/authz-evolution-plan-audit-2026-08-27.md": {
+    "mtime": 1787874857.7165172,
+    "ast_hash": "fdb70b19f0ee0688c374a629afe0b8a4",
     "semantic_hash": ""
   }
 }
