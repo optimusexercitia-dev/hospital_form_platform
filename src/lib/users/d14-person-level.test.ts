@@ -106,6 +106,88 @@ let writes: { table: string; op: string; payload: unknown }[] = []
 /** Every RPC the actions issue — the F4 arm asserts the audit probe is among them. */
 let rpcCalls: { fn: string; args: unknown }[] = []
 
+/**
+ * ⭐ AE1.3 (ADR 0161) — THE PERSON DOORS, MODELLED AS THE WRITES THEY PERFORM.
+ *
+ * All nine person-level writes moved from raw `.from('profiles').update({…})` to
+ * `public.*_for` doors, so the fake's write recorder stopped seeing them and fourteen
+ * assertions in this file went red at once. ⛔ NOT ONE ASSERTION WAS REWRITTEN TO PASS:
+ * every matcher, expected value and message below is unchanged. What moved is the
+ * OBSERVATION POINT — a fake models the effect of the thing it stands in for, and the
+ * effect of `update_person_fields_for` is a `profiles` update. Restoring that is the
+ * fixture's job, not the assertions'.
+ *
+ * ⛔ THE `p_set_*` BOOLEANS ARE HONOURED HERE, NOT FLATTENED, and that is the whole
+ * difference between a faithful fake and one that hides the defect. A door call that does
+ * not set a column must not put it in the modelled payload — otherwise a caller that
+ * wrongly passed `p_set_cpf: false` would still look like it wrote the CPF, and the
+ * absent-key/explicit-null distinction those booleans exist to carry would be untestable
+ * from here.
+ *
+ * ⚠ The negative assertions keep their full power without any help: a DENIED action is
+ * refused by the TS gate before any RPC is issued, so no call reaches this map and no
+ * write is recorded.
+ */
+const PERSON_DOOR_WRITES: Record<
+  string,
+  (a: Record<string, unknown>) => { table: string; op: string; payload: Record<string, unknown> }
+> = {
+  finalize_invited_person_for: (a) => ({
+    table: 'profiles',
+    op: 'update',
+    payload: {
+      full_name: a.p_full_name,
+      professional_category_id: a.p_professional_category_id,
+      cpf: a.p_cpf,
+      date_of_birth: a.p_date_of_birth,
+      phone: a.p_phone,
+      must_change_password: a.p_must_change_password,
+    },
+  }),
+  update_person_fields_for: (a) => ({
+    table: 'profiles',
+    op: 'update',
+    payload: {
+      full_name: a.p_full_name,
+      professional_category_id: a.p_professional_category_id,
+      ...(a.p_set_cpf ? { cpf: a.p_cpf } : {}),
+      ...(a.p_set_date_of_birth ? { date_of_birth: a.p_date_of_birth } : {}),
+      ...(a.p_set_phone ? { phone: a.p_phone } : {}),
+    },
+  }),
+  set_person_active_for: (a) => ({
+    table: 'profiles',
+    op: 'update',
+    // The door clears a residual suspension on the REACTIVATING direction only.
+    payload: { is_active: a.p_active, ...(a.p_active ? { suspended_until: null } : {}) },
+  }),
+  suspend_person_for: (a) => ({
+    table: 'profiles',
+    op: 'update',
+    // ⛔ `suspended_until` ONLY — the door does not touch `is_active`, and a fake that
+    // added it here would make a widened door look correct.
+    payload: { suspended_until: a.p_suspended_until },
+  }),
+  upsert_credential_for: (a) => ({
+    table: 'professional_credentials',
+    op: a.p_id ? 'update' : 'insert',
+    payload: {
+      user_id: a.p_user,
+      issuing_country: a.p_issuing_country,
+      issuing_state: a.p_issuing_state,
+      issuing_authority: a.p_issuing_authority,
+      registration_number: a.p_registration_number,
+      expires_on: a.p_expires_on,
+      ...(a.p_id ? { verified_at: null } : {}),
+    },
+  }),
+  delete_credential_for: (a) => ({
+    table: 'professional_credentials',
+    op: 'delete',
+    payload: { id: a.p_credential },
+  }),
+}
+
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
 vi.mock('next/headers', () => ({ headers: async () => new Map() }))
 vi.mock('@/lib/queries/session', () => ({
@@ -157,6 +239,8 @@ function makeAdmin() {
     from: (table: string) => builder(table),
     rpc: async (fn: string, args: unknown) => {
       rpcCalls.push({ fn, args })
+      const model = PERSON_DOOR_WRITES[fn]
+      if (model) writes.push(model((args ?? {}) as Record<string, unknown>))
       return { data: null, error: null }
     },
     // `resendInvite` reaches GoTrue, not PostgREST. Modelled because §7 is a REGRESSION

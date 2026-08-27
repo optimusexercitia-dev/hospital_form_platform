@@ -358,7 +358,16 @@ select is(
 select is(
   (select string_agg(distinct t.code, ',' order by t.code)
      from door_body b, pg_temp.raised_codes(b.src) t(code)),
-  '23514,42501,HC0G0,HC0G1,HC0G2,HC0G3,HC0G4,HC0R0,HC0R1,HC0R2,HC0R3,HC0R4,HC0R5,HC0R6,HC0R7,HC0R8,HC0R9,HC0RA',
+  -- AE1.3 added `HC0T6` (`registro profissional não encontrado para esta pessoa`,
+  -- raised by `app.upsert_credential_impl`'s update branch). It is the ONLY new code:
+  -- the six person doors' denials all reuse `42501`, and `23505` propagates from a
+  -- constraint rather than being raised by a body, so neither enters this set.
+  -- ⛔ `HC0T7` (the person-scope capability tripwire) deliberately does NOT belong here.
+  -- It is raised by `app.can_administer_person_for`, which is STABLE and therefore
+  -- outside this gate's kernel clause (`provolatile = 'v'`). Declaring it would fail
+  -- §6.6 in the OTHER direction — a declared code no in-domain body raises. It is
+  -- keystoned directly in pgTAP 384 §7 instead (design §10.3, lead ruling R0).
+  '23514,42501,HC0G0,HC0G1,HC0G2,HC0G3,HC0G4,HC0R0,HC0R1,HC0R2,HC0R3,HC0R4,HC0R5,HC0R6,HC0R7,HC0R8,HC0R9,HC0RA,HC0T6',
   '6.6 ⭐ THE RUNNING doors raise exactly the declared SQLSTATE set — the assertion a body rewritten at runtime cannot hide from');
 
 -- 6.7 THE AFF4 REGRESSION PIN. These five had arms in `toState` while BOTH halves of the

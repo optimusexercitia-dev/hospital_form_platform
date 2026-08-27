@@ -2,18 +2,34 @@
  * ADR 0133 D1–D4, as amended by Amendment 1 ruling 1 — the affiliation-scoped person
  * authority rule, expressed as a PURE predicate.
  *
- * ⚠ WHY THIS IS A SEPARATE, I/O-FREE MODULE. The rule it encodes is the only thing
- * standing between a hospital_admin and another hospital's people, and it runs on the
- * SERVICE-ROLE path where there is no RLS backstop (D4). A predicate that can only be
- * exercised by mocking a Supabase client is a predicate whose corner cases never get
- * tested — so the resolution (which needs the admin client) lives in `actions.ts` and the
- * DECISION lives here, where a keystone can drive it directly with a literal footprint.
+ * ⚠ WHY THIS IS A SEPARATE, I/O-FREE MODULE. The rule it encodes stands between a
+ * hospital_admin and another hospital's people. A predicate that can only be exercised by
+ * mocking a Supabase client is a predicate whose corner cases never get tested — so the
+ * resolution (which needs the admin client) lives in `actions.ts` and the DECISION lives
+ * here, where a keystone can drive it directly with a literal footprint.
  *
- * ⛔ A SQL TWIN IS DELIBERATELY NOT BUILT (ADR 0133 D4, and its Alternatives table). No RLS
- * policy consumes this rule — every affected path is service-role — and a dead DB
- * predicate is a standing census/sweep liability forever. Do not "mirror it for
- * consistency": the mirroring obligation in Architecture Rule 3 attaches to predicates
- * that genuinely exist on both sides, and this one must not.
+ * ⭐⭐ THE SQL TWIN NOW EXISTS: `app.can_administer_person_for(capability, user, actor)`
+ * (migration 20261003004600). ADR 0133 D4's "a SQL twin is deliberately NOT built" is
+ * RETIRED by ADR 0155 G11, recorded in ADR 0161. D4's premise was "no consumer exists —
+ * every affected path is service-role, and a dead DB predicate is a standing census/sweep
+ * liability forever". That premise became FALSE the moment the six `public.*_for` person
+ * doors landed: they are the consumer, they run on exactly that service-role path, and the
+ * predicate is swept (it is `app` + prosecdef + boolean, so `ARM=census` sees it, and its
+ * `can_` prefix keeps it permanently inside the `policy` arm's predicate domain).
+ *
+ * ⛔ SO THE OBLIGATION HAS INVERTED, AND THIS IS THE PARAGRAPH THAT MATTERS. Architecture
+ * Rule 3's mirroring duty now genuinely attaches to this pair: the two halves BOTH exist
+ * and MUST NOT DRIFT. This function is no longer the only authority on the write path —
+ * the SQL half is, and this one is defense in depth plus a friendlier pt-BR message.
+ * Changing a branch here without changing `app.can_administer_person_for` (or the reverse)
+ * is a defect even when every test in this file still passes.
+ *
+ * ⭐ THE DRIFT CONTROL IS A SHARED CASE LIST, not vigilance:
+ *   src/lib/users/__fixtures__/person-scope-vectors.json   — the one source of truth
+ *   src/lib/users/person-scope-vectors.test.ts             — drives THIS function
+ *   supabase/tests/vectors/person_scope_vectors.psql       — GENERATED, sha-pinned
+ *   supabase/tests/384_person_scope_sql_predicate.sql §9   — drives the SQL twin
+ * Add a branch here and it owes a vector; the vector then reds whichever half lacks it.
  *
  * ⚠ THE FOUR CAPABILITIES DO NOT SHARE ONE BOUND. Amendment 1 ruling 1 split them, and
  * collapsing them back into a single "may this admin manage this person?" boolean is the

@@ -47,20 +47,18 @@ const DML_VERBS = ['insert', 'upsert', 'update', 'delete']
  * `update_person_fields_for` (incl. its `cpf_change` capability arm), `set_person_active_for`,
  * `suspend_person_for`, `upsert_credential_for`, `delete_credential_for`.
  *
- * ⛔ STATUS as of this write: AE1.3 has NOT landed on this branch — verify before
- * touching this switch: `grep -rl "finalize_invited_person_for" supabase/migrations/`
- * finds nothing (re-check the live catalog, not this comment, if in doubt — migration
- * text is stale by design, but "zero migrations named it" is a file-existence fact this
- * grep can answer honestly). Flipping `ENFORCE_PERSON_AUTHORITY_DOORS` to `true` before
- * those doors exist reds `npm run lint` for every session on this branch, because the
- * TEN pre-AE1.3 raw-DML sites on these two tables (measured: AE0.4 census, family
- * `from-verb`) are exactly the writes the doors are meant to replace — the gate would
- * have nothing to allow them through.
+ * ✅ STATUS: AE1.3 HAS landed on this branch, so the switch is ON. Verified two
+ * ways before the flip, because either alone is weak: `grep -rl
+ * "finalize_invited_person_for" supabase/migrations/` names
+ * `20261003004610_person_profile_doors.sql`, AND the live catalog carries all six
+ * doors (`pg_proc` count = 6). The catalog is the authority — migration text is stale
+ * by design, and the grep only answers the file-existence half.
  *
- * Flip to `true` in the SAME change that lands AE1.3's door migrations (or immediately
- * after, same phase) — never speculatively, and never as an isolated edit to this file.
+ * ⛔ Turning this back OFF is not a rollback, it is a hole: the ten pre-AE1.3 raw-DML
+ * sites it used to permit are gone, so OFF now buys nothing and merely stops the gate
+ * from noticing if one comes back.
  */
-const ENFORCE_PERSON_AUTHORITY_DOORS = false // AE1.4 — flip only once AE1.3's six doors exist
+const ENFORCE_PERSON_AUTHORITY_DOORS = true // AE1.3's six doors exist (catalog-verified)
 
 /** AE1.3's target shape for `profiles` / `professional_credentials` (see switch above). */
 const PERSON_AUTHORITY_TABLES = [
@@ -110,7 +108,7 @@ const GATED_TABLES = new Map([
     },
   ],
   // ENFORCE_PERSON_AUTHORITY_DOORS gates whether the two lines below are active — see
-  // the switch comment above. OFF today: AE1.3's doors do not exist yet.
+  // the switch comment above. ON since AE1.3's doors landed.
   ...(ENFORCE_PERSON_AUTHORITY_DOORS ? PERSON_AUTHORITY_TABLES : []),
 ])
 
@@ -141,13 +139,86 @@ function walk(dir, out = []) {
   return out
 }
 
+/**
+ * Replace COMMENT CONTENT with spaces, preserving every newline and the total character
+ * count so `m.index`-derived line numbers stay exact.
+ *
+ * ⛔ Without this the gate matches PROSE ABOUT the code it gates. It flagged
+ * `d14-person-level.test.ts`, whose docstring says the person writes "moved from raw
+ * `.from('profiles').update({…})` to `public.*_for` doors" — the sentence documenting the
+ * very migration that removed the raw DML. That is the `ui-copy-forbidden-strings` class:
+ * source cannot separate live code from prose about it, so the matcher must.
+ *
+ * The alternatives were worse. Rewording the docstring to dodge a text matcher makes the
+ * documentation serve the tool; allowlisting the file would grant it blanket permission
+ * for REAL raw DML, which is strictly more than the problem asks for.
+ *
+ * String-aware on purpose: a naive stripper treats the `//` in a URL literal as a comment
+ * start and blanks the rest of that line, which would SILENCE a finding rather than
+ * surface one. Regex literals need no special case — `//` is an empty regex (invalid) and
+ * a `/*` opener is a quantifier with nothing to repeat (invalid), so neither can start a
+ * comment.
+ */
+function blankComments(src) {
+  const NL = '\n'
+  let out = ''
+  let i = 0
+  const n = src.length
+  while (i < n) {
+    const c = src[i]
+    const d = src[i + 1]
+    if (c === '/' && d === '/') {
+      while (i < n && src[i] !== NL) {
+        out += ' '
+        i++
+      }
+      continue
+    }
+    if (c === '/' && d === '*') {
+      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) {
+        out += src[i] === NL ? NL : ' '
+        i++
+      }
+      if (i < n) out += '  '
+      i += 2
+      continue
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      const quote = c
+      out += c
+      i++
+      while (i < n) {
+        // 92 = backslash. Written numerically because a literal escape does not
+        // survive every shell round-trip on Windows (it silently collapses).
+        if (src.charCodeAt(i) === 92) {
+          out += src.slice(i, i + 2)
+          i += 2
+          continue
+        }
+        out += src[i]
+        if (src[i] === quote) {
+          i++
+          break
+        }
+        i++
+      }
+      continue
+    }
+    out += c
+    i++
+  }
+  return out
+}
+
 const violations = []
 
 for (const dir of SCAN_DIRS) {
   for (const file of walk(join(ROOT, dir))) {
     const rel = relative(ROOT, file).replace(/\\/g, '/')
     if (ALLOWLIST.has(rel)) continue
-    const src = readFileSync(file, 'utf8')
+    // Comments blanked first — see `blankComments`: the gate must not match prose
+    // about the very code it gates.
+    const src = blankComments(readFileSync(file, 'utf8'))
 
     // Every `.from('<gated table>')` / `.from("<gated table>")` occurrence. The table
     // name is captured so a new gated table needs only a GATED_TABLES entry.

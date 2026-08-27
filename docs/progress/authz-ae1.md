@@ -16,7 +16,7 @@ list below is the countermeasure, and it is maintained **as work happens**, not 
 | **AE1.1** FKs | ✅ **built + committed** (`14ad668d`) — both FKs `ON DELETE CASCADE`, pgTAP 383 |
 | **AE1.2** DEFINER classification | ✅ classified (752 functions); ⛔ **all 233 revokes HELD** under RV0 |
 | — RV0 partition | ▶ in flight (`ae1-fk-build`) |
-| **AE1.3** person doors | ▶ in flight — design approved (R0–R6); migrations `…004600/004610/004620` written |
+| **AE1.3** person doors | ▶ built — 6 doors + predicate in the catalog; call sites on `callDoor` (R7); `typecheck` **exit 0**; `ENFORCE_PERSON_AUTHORITY_DOORS` **ON**. Owed: mutation audit, 1-case sweep, `ARM=census` green |
 | **AE1.4** service-role registry | ✅ **built + committed** (`800ffe2a`) — 45 sites, gate extension **OFF** |
 | **AE1.5** initplan triage | ▶ in flight — red-first observed, BEFORE captured, in its reset window |
 | **AE1.6** zero-policy tables | ✅ **built + committed** (`91455fbd`) — pgTAP 382, 68 assertions |
@@ -129,6 +129,63 @@ have relabelled five INSERT policies as `ALL` — and an `ALL` policy **is** a r
 self-erasing AFTER selector (its subject test was the property the migration removed); and the
 "exactly two text pins" claim (bounded to *suites*, while the third pin lived in a *harness*).
 Measured anchor: `polcmd` in `public` is `a`=14 · `r`=174 · `w`=17 · `d`=11 · `*`=62.
+
+### The 11 typecheck errors were TWO classes, and the handoff's framing admitted neither
+
+**2026-08-27, AE1.3.** The handoff carried the open question as *"coerce at call sites or
+change door arg declarations?"* — measured, **both options are wrong**, and the reason is
+that the 11 `TS2322` errors are not one population:
+
+- **8 sites** pass a `null` to an argument whose SQL declaration carries `DEFAULT NULL`
+  (`p_cpf`, `p_date_of_birth`, `p_phone`, `p_expires_on`, `p_suspended_until`). `gen:types`
+  emits these as `p_x?: string`. Omitting the key falls through to the SQL default, so
+  `?? undefined` is equivalent — **today**.
+- **3 sites** pass a `null` to an argument with **no default** (`p_id` ×2,
+  `p_professional_category_id`), emitted as `p_x: string`. Omitting the key leaves PostgREST
+  unable to resolve the overload: **PGRST202 at runtime, `tsc` green.**
+
+⭐ **Nothing at a call site distinguishes the two.** A blanket `?? undefined` is correct at
+8 of 11 and ships a runtime break at the other 3 — the *a-fix-correct-at-MOST-sites* shape.
+
+The second option is worse than merely wrong. Giving `p_professional_category_id` a
+`DEFAULT NULL` so the generator marks it optional would mean an edit form that omits the
+field **silently nulls the person's category** — the exact hazard `update_person_fields_for`
+built its `p_set_*` tri-state to prevent, stated in `users/actions.ts`'s own comment.
+
+**Ruled (R7):** neither. The defect is that `supabase gen types` **never** emits `| null` for
+a function argument although every SQL argument accepts NULL. Fixed once at the type seam —
+`src/lib/types/rpc-args.ts`, `callDoor(client, fn, args)` — so `database.ts` stays generated
+(Rule 8; hand-patching it would be reverted by the next `gen:types`, silently). Every call
+site keeps passing explicit `null`, which is what the SQL means.
+
+**Proven able to fail** (a widened type that admits anything passes just as quietly):
+misspelled argument name → `TS2561`; wrong value type → `TS2322`; **omitting a required
+no-default argument → `TS2345`**. The third is the PGRST202 shape, now statically
+unreachable. ⚠ The first attempt at these controls printed nothing and read as three clean
+passes — inserting the import had shifted every line below it by one, so the `sed` addresses
+matched nothing and **the mutations never applied**. Assert the edit LANDED before reading a
+control's silence as a result.
+
+### A gate matched the PROSE THAT DOCUMENTS the code it gates
+
+Flipping `ENFORCE_PERSON_AUTHORITY_DOORS` reded `lint:memberships-door` on exactly one site:
+`d14-person-level.test.ts:112` — a **docstring** reading *"moved from raw
+`.from('profiles').update({…})` to `public.*_for` doors"*, the sentence describing the very
+migration that removed the raw DML. The scanner regex-matched raw source with no comment
+handling.
+
+This is the `ui-copy-forbidden-strings` class: **source cannot separate live code from prose
+about it, so the matcher must.** Rewording the docstring would make the documentation serve
+the tool; allowlisting the file would grant it blanket permission for real raw DML. Fixed at
+the matcher — `blankComments()` replaces comment content with spaces, preserving newlines and
+character count so reported line numbers stay exact, and is **string-aware** because a naive
+stripper reads the `//` in a URL literal as a comment start and blanks the rest of that line,
+which SILENCES a finding rather than surfacing one.
+
+⚠ **A gate whose matcher you just changed must be re-proven, not re-run.** Three positive
+controls fired at exact line numbers, including one placing real DML on the same line as a
+`https://` literal. ⛔ Note the direction of risk: every failure mode of this edit is
+*silence*, which is why the controls matter more than the green.
 
 ### A blast-radius claim inherits the domain of the instrument that produced it
 
