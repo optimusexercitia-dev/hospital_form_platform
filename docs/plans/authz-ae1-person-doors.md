@@ -1072,3 +1072,124 @@ rather than incrementing them by hand.
 6. **§6.3 — admit the standing rule to `.claude/rules/`** (the guard's trusted-caller arm is never
    widened)? It is within the 12-rule bound only if something else retires; the lead owns that
    budget.
+
+---
+
+## 12. LEAD RULINGS — 2026-08-27 (these answer §11; the design is APPROVED to build)
+
+All seven §11 questions are ruled below. **§0's findings are accepted** — the design correctly
+reports that the plan's own AE1.3 table does not survive contact with the code, so the plan is
+**corrected** by these rulings rather than silently obeyed.
+
+### R0 — F-F restructure: **APPROVED**, including both "no entry" rulings
+
+Adopted exactly as §10.1 states: the authority decision moves into
+`app.can_administer_person_for` (`boolean`, `can_`-prefixed, DEFINER, STABLE, owner-only); each
+door becomes `public.<name>_for` over `app.<name>_impl` (DEFINER, **VOLATILE**, granted to
+nobody); `app.person_footprint_for` is **not** minted as a separate helper.
+
+- ⭐ **The `can_` prefix is approved as a domain-entry decision, not a style one.** §10.1's
+  argument is the load-bearing one: the identity-body escape hatch would admit the predicate
+  today, but that is a **body property** a future refactor can evict silently. A name prefix
+  cannot be refactored away.
+- ✅ **No floor-allowlist entry for the six `public` doors.** An entry resolves against `pg_proc`,
+  so it would not trip ALLOWLIST-ROT, and it would read as *"swept and excused"* — fabricating
+  coverage for a door the arm never examined. That is the recorded
+  *allowlisting-a-door-is-what-makes-it-blind* shape. **The correct record is the sentence in the
+  gate record, not the entry.**
+- ✅ **`HC0T7` does NOT enter 304 §6.6's literal.** §10.3 is right in both directions: making the
+  predicate `VOLATILE` to enter the gate would shape a volatility marker to game a domain (and
+  block planner hoisting), while declaring a code that no in-domain body raises fails §6.6 the
+  *other* way. Keystone it directly in pgTAP 384.
+- ⛔ **§10.4's rejection stands.** Shaping a return type to enter a sweep is the sweep's failure
+  mode, not its use. Do not revisit it.
+- ⛔ **Binding — this is a positive control on the restructure itself (§10.2 item 1):** run
+  `ARM=census` **after** the migration and **before** editing the findings md, and confirm it
+  **REDS naming exactly `app.can_administer_person_for`**. A green census at that moment is not
+  success — it means the predicate never entered the domain (not `bool`, or not `prosecdef`) and
+  change (a) failed **silently**. Record the red, then the verdict, then the green.
+- The AE1 Record step **re-derives** `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`'s counts. ⛔ Never increment
+  them by hand.
+
+### R1 — F-A: **Option A** (reorder `registerUser`; no special inviter predicate)
+
+Three grounds, in order of weight:
+
+1. **Option B widens `hospital_admin` authority** over the hospital-less `novato.pendente` class.
+   Widening cannot be accepted silently (ADR 0154), and a widening adopted to avoid a reorder is
+   the worst available reason to take one.
+2. **Option A yields ONE authority rule instead of two.** This program exists to collapse
+   duplicated authority knowledge; minting a second, invite-only authority predicate in its first
+   building phase would be the program contradicting its own thesis.
+3. **Option A's failure state is strictly better than today's.** Per §7 a finalize failure leaves
+   a roster-visible, field-incomplete person correctable through the ordinary edit UI — instead of
+   the roster-invisible person the existing code comment names as the state to avoid.
+
+§7's `42501` handling is approved as written: on the finalize path it means TS and SQL
+**disagree**, not a legitimate deny, so it maps to `MESSAGES.generic` and is surfaced, never
+swallowed. ⚠ **Tester obligation, binding:** the invite E2E spec asserts the **partial-failure**
+path, not only success.
+
+### R2 — F-C: **APPROVED — ADR 0161 `Amends: 0133`, plus the header rewrite, same increment**
+
+`0161` confirmed free against `docs/decisions/INDEX.md`, not by eyeballing the directory. Both
+halves ship together: leaving *"a SQL twin is deliberately not built"* in `person-scope.ts` while
+building the SQL twin is the *only-the-amending-document-knows-about-the-amendment* failure, sited
+in the file most likely to be read by the next author of this rule. Run `npm run adr:index` after.
+
+### R3 — Audit: **follow the platform precedent (`actor_id` null, actor in metadata) — AND file a FUP**
+
+Verified in the catalog before ruling: `app.audit_write` **is** feature-gated on `audit_trail`
+(so §5's vacuity warning is real — 385 must enable the flag **and** positive-control that the flag
+being off is observable), and `profiles` carries **0** audit triggers against a control showing
+`memberships` carries **1**. So these doors genuinely introduce the **first** audit coverage of
+person-record mutation.
+
+Do **not** mint `app.audit_write_as` here. The actor is not lost — it rides in metadata — so this
+is a queryability gap, not a Rule 11 loss. Fixing it only here would leave `actor_id` **partially**
+populated, which is worse for a reader than uniformly null: a query filtering on it would silently
+miss everything else.
+
+⛔ **But "say it out loud in the gate record" is not sufficient** — that is exactly the class of
+obligation AFF4 left unfiled (§ Now residue (2), ~16 of them). **File a `FUP-*` index line with a
+body** for the platform-wide `actor_id` gap, naming these conversions as new instances. An
+obligation with no register line is invisible work.
+
+### R4 — §3.7 shared TS/SQL vectors: **land them in AE1.3**
+
+F-C's whole point is that this repo previously refused the mirror *because a mirror is a drift
+liability*. Creating the mirror without the drift control accepts precisely the liability the
+original prohibition warned about, and Architecture Rule 3 now genuinely attaches to
+`personScopeAllows` ↔ `app.can_administer_person_for`.
+
+⚠ **Bounded:** if shared vectors would require restructuring `person-scope.ts`'s exported API,
+**stop and defer** — with the deferral recorded as a `FUP-*` line, not as a sentence.
+
+### R5 — pgTAP numbering: **384–386 confirmed, no collision**
+
+Settled by measurement, not by agreement: **382 is TAKEN** — AE1.6 has landed and is committed
+(`382_zero_policy_tables_are_door_only.sql`, 68 assertions, suite now 230 files / 7631 tests).
+**383** is reserved for AE1.1 per [`authz-ae1-fk-preflight.md`](../design/authz-ae1-fk-preflight.md).
+AE1.3 takes **384–386**. `376` remains a genuine numbering gap, not a missing file.
+
+⚠ **§10.2 item 6's cross-suite coupling is real, and serializing it is the lead's job:** AE1.3
+must edit `supabase/tests/304_affiliation_lifecycle.sql` §6.6 to add `HC0T6`. **No sibling AE1 task
+may touch 304** — AE1.1 owns 383 only, and AE1.2 writes no test file.
+
+### R6 — §6.3 standing rule: **admit it, in the same increment as the doors — not before**
+
+⛔ **Correction to §11 item 6's premise:** `.claude/rules/` currently holds **8** rules against a
+cap of **12** (measured — gate 8 prints the count on every run). Nothing needs to retire; 8 → 9 is
+inside the bound.
+
+Admit it **with** the doors, not ahead of them: a rule must declare **checkable anchors**, and
+anchors naming `app.can_administer_person_for` or the doors cannot resolve until those objects
+exist — gate 8 would red. Path-scope to `supabase/migrations/**` (the moment the tempting "fix"
+gets written), keep it under 2 KB, and state the prohibition as §6.3 derives it: **the guard's
+trusted-caller arm is never widened, and granting any of these doors to `authenticated` is not a
+fix — it is a self-elevation vulnerability.**
+
+---
+
+**Status: APPROVED TO BUILD** under R0–R6. The build is a separate, lead-dispatched task; this
+document is the contract it is built from.
