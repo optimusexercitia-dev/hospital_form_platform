@@ -910,7 +910,27 @@ systematically the state *before* the lifecycle locks — i.e. the state the gua
 including `storage.protect_delete`. Verify a grant sweep by re-deriving the set from the catalog —
 never by a clean exit code. `service_role` keeps TRUNCATE deliberately.
 
-## REMOTE CENSUS 2026-08-18 (read-only, linked `azkbbhskturikxpgmafq`) — **the production DB is EMPTY, and it was emptied by TRUNCATE/reset semantics, not by deletes**
+## REMOTE CENSUS 2026-08-18 (read-only, linked `azkbbhskturikxpgmafq`) — ⛔ **its "EMPTY" claim is FALSE; see the banner below**
+
+> ⛔ **CORRECTED 2026-08-26 (AE0.1, ADR 0155 / `docs/plans/authz-evolution.md`). This heading
+> read *"the production DB is EMPTY, and it was emptied by TRUNCATE/reset semantics, not by
+> deletes"*. It is false and has been since 2026-08-19.** The remote carries the **E2E seed
+> fixture** — and more than the seed alone, so something has exercised it since. The
+> *conclusion* people drew from the old heading (no real customer data ⇒ safe to touch)
+> **survives**; the *premise* (it holds nothing) does not, and the premise is what other
+> decisions rested on. PROGRESS.md § State has carried this correction since 2026-08-21 while
+> this heading kept asserting the opposite — the two records disagreed for five days and
+> nothing could report it.
+>
+> ⛔ **The data rows below — "every application table: 0 rows" and "`auth.users`: 0 live" — are
+> SUPERSEDED in exactly the way the migration rows above them already are.** They are kept, not
+> deleted, so the census stays readable as a dated artifact.
+>
+> ⛔ **Re-measure, never quote — this is the sixth time a claim about the remote has gone stale
+> in this repo.** Recipes: § "Remote discipline — standing rules", and
+> `.claude/rules/live-facts-measure-dont-quote.md`. The one figure that still decides anything
+> is **`count(*) from auth.users where email not like '%@test.local'`** — it gates ADR 0155's
+> **G2** single-shot authorization for AE3, and G2 is void the moment it is non-zero.
 
 Run under DM-FUP TRIAGE #6 step 1 (read-only census; PRODROW's `⛔ do not query` bar lifted when the
 push ran). **Nothing was mutated.** Every figure below carries its deriving query.
@@ -920,8 +940,8 @@ push ran). **Nothing was mutated.** Every figure below carries its deriving quer
 | migration head | ⛔ **SUPERSEDED — re-measured 2026-08-18 (later): `20260928000900`.** The `…000500` below was true only at census time | `select max(version) from supabase_migrations.schema_migrations` |
 | migrations registered | ⛔ **SUPERSEDED — 415** (was 411 at census) | `count(*)` same table |
 | local migrations *not* on remote | ⛔ **SUPERSEDED — 0.** `…000600`/`…000700` were pushed between the census and 2026-08-18 (the "HELD" record was stale); `…000800`/`…000900` pushed 2026-08-18 | re-measure, never re-read |
-| every application table | **0 rows** | `organizations · hospitals · commissions · profiles · memberships · forms · responses · cases · documents · document_versions · audit_log` |
-| `auth.users` | **0 live** | `count(*) from auth.users` |
+| every application table | ⛔ **SUPERSEDED — NOT 0.** The remote holds the E2E seed fixture and rows beyond it | `organizations · hospitals · commissions · profiles · memberships · forms · responses · cases · documents · document_versions · audit_log` |
+| `auth.users` | ⛔ **SUPERSEDED — NOT 0 live.** Re-measure; the deciding figure is the **non-`@test.local`** count (ADR 0155 G2) | `count(*) from auth.users` |
 | storage buckets | **4** (`documents-phi`, `documents-standard`, `form-assets`, `meeting-audio`) | `storage.buckets` |
 | storage objects | **0**, 0 bytes, in every bucket | `left join storage.objects … group by bucket` |
 | `document_version_files` | **0 rows / 0 duplicate `file_object_id` groups** | `group by file_object_id having count(*) > 1` |

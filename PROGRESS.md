@@ -128,7 +128,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 | 18 | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
 | 19 | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) ([plan](docs/plans/deliberations.md)) | ADR PROPOSED — NOT ratified; nothing built and nothing may start | – | – | – | ⛔ **not ratified** | – | taken |
-| AE0 | **Authz evolution — baseline & attributable measurement** ([plan](docs/plans/authz-evolution.md) · ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md)) | 🔵 building 2026-08-26 — **measurement only, no schema change**; branch `authz-ae0-baseline` | AE0.1–AE0.4 running; AE0.5 axes with lead | n/a — no behaviour changes | n/a | – | – | – |
+| AE0 | **Authz evolution — baseline & attributable measurement** ([plan](docs/plans/authz-evolution.md) · ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md)) | 🔵 building 2026-08-26 — **measurement only, no schema change**; branch `authz-ae0-baseline` | AE0.1/.3/.4/.5 done, AE0.2 running; 4 ARM arms green. ⛔ **2 corrections land on ADR 0155 itself** + 3 findings → [ae0-findings](docs/design/authz-evolution-ae0-findings.md) | n/a — no behaviour changes | n/a | – | – | – |
 
 ## Bug Log
 
