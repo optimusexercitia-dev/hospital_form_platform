@@ -235,3 +235,9 @@ PROGRESS.md **and** a body in `follow-ups.md`.
 - The gate's diff-scoped sweep derivation will see `…005000` touching two `prosecdef`
   **non-boolean** command doors: `door-sweep-cases.sh` likely derives ZERO boolean gates
   from it and **exits 1 — a finding to rule on, never a pass** (plan rule 1).
+- ✅ **`gen:types` DONE 2026-08-27** (`f121c031`, fresh-reset catalog, zero pgtap
+  pollution) — the six TS2345 door-name errors are gone. ⛔ **11 real TS2322 errors
+  remain** in `src/lib/users/actions.ts` (748, 749, 788, 793, 999, 1001, 1006, 1009,
+  1065, 1070, 1297): `string | null` at the door call sites vs the generated
+  `string | undefined`. **AE1.3 owner fixes before committing the doors set** — coerce at
+  the call sites or revisit the door arg declarations, and record which in this file.
