@@ -33,7 +33,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   gate-tooling bullet was rotated 2026-08-25: it is the one item in that ✅-marked bullet with an
   unfired resolution event, it exists in **no other file**, and rotating the bullet whole would have
   buried an open action under a completed heading — owner: whoever next hits it.
-- **⚠ AE0 IS BUILDING (flipped 2026-08-26 at the AE0 branch cut — see the ADR 0155 bullet) — and
+- **⚠ AE1 IS BUILDING (AE0 closed 2026-08-26; see the ADR 0155 bullet) — and
   AFF4 IS MERGED, PUSHED, AND ITS SCHEMA IS APPLIED REMOTELY**
   (`main` @ `e8abaeec`; branch deleted; 12 migrations pushed 2026-08-26). ⛔ **Do not compress the
   clauses into one; the second is what this line has destroyed four times, and "complete" has meant
@@ -69,7 +69,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   the confidence was. **Read the plan before quoting any gate figure from this build**, and never
   believe a counting instrument's zero until it has been run once against a known failure.
 - **📐 ADR 0155 ACCEPTED (as amended) 2026-08-26 — the post-AFF4 authorization-evolution program is
-  the plan of record; ▶ AE0 IS BUILDING since 2026-08-26 (branch `authz-ae0-baseline`).**
+  the plan of record; ▶ **AE0 ✅ COMPLETE + human-approved 2026-08-26** (row → ledger, detail →
+  [authz-ae0.md](docs/progress/authz-ae0.md)); **AE1 IS BUILDING** on `authz-ae1-hardening`.**
   Role/permission catalog adopted via
   role-by-role **direct substitution** (`staff_admin` first — reverses the draft's own rejection);
   **pilot gate = implementation Phases 0–4**, Phase 5 (remaining roles) post-pilot; D4 →
@@ -82,11 +83,13 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   points) + the [audit](docs/design/authorization-model-evolution-audit-2026-08-26.md) (analysis).
   ⚠ **C1a keeps its queue position (G10)** — Phases 0–1 may run in parallel with the ▶ queue below
   but do not preempt it; re-checked 2026-08-26, C1a still heads the queue and AE0 did not displace it.
-  ⛔ **AE0 is MEASUREMENT-ONLY — no schema change, no migration.** A fresh `db reset --local` ran at
-  the branch cut and **the local stack is AE0's measurement subject until AE0 closes**: do not reset
-  it, run E2E on it, or start a dev server against it without editing this line first (rule 7).
-  Post-reset: 475 migrations, head `20261003004300`, `auth.users` 36, `organization_affiliations` 35.
-  Artifacts → `docs/design/authz-evolution-{census,baselines,parity,service-role-dml}-ae0.md`.
+  ⛔ **Two AE0 results that bind AE1 and are live state, not history:** **(1)** the service-role
+  surface is **45 sites, not 12** — size AE1.4's registry off 45, and **11 of 19 `.rpc()` sites have
+  an UNDECIDABLE revalidation mechanism** (PO-open); **(2)** this DB has **NO planner statistics** —
+  ⛔ never `ANALYZE` before comparing against the AE0 baselines, and a **cost-only** diff is
+  autovacuum, not a finding. Two refuted ADR-0155 figures → ADR
+  [0160](docs/decisions/0160-ae0-corrections-to-adr-0155-measured-figures.md) (PROPOSED; 0155 carries
+  the back-pointer). Decision surface → [ae0-findings](docs/design/authz-evolution-ae0-findings.md).
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -128,7 +131,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 | 18 | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
 | 19 | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) ([plan](docs/plans/deliberations.md)) | ADR PROPOSED — NOT ratified; nothing built and nothing may start | – | – | – | ⛔ **not ratified** | – | taken |
-| AE0 | **Authz evolution — baseline & attributable measurement** ([plan](docs/plans/authz-evolution.md) · ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md)) | 🔵 building 2026-08-26 — **measurement only, no schema change**; branch `authz-ae0-baseline` | AE0.1/.3/.4/.5 done, AE0.2 running; 4 ARM arms green. ⛔ **2 corrections land on ADR 0155 itself** + 3 findings → [ae0-findings](docs/design/authz-evolution-ae0-findings.md) | n/a — no behaviour changes | n/a | – | – | – |
+| AE1 | **Authz evolution — integrity & privilege hardening** ([plan](docs/plans/authz-evolution.md) · ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D9) | 🔵 building 2026-08-26 — first AE phase that writes migrations; branch `authz-ae1-hardening` | AE1.1 FKs · AE1.2 DEFINER classification · AE1.3 the nine doors · AE1.4 registry (⚠ **45 sites, not 12** — AE0.4) · AE1.5 initplan triage · AE1.6 zero-policy tables | – | – | – | – | – |
 
 ## Bug Log
 
