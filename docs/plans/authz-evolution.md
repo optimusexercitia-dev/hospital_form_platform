@@ -51,9 +51,24 @@ sections only add what is specific.
    `pg_policies`, ACLs. Never graphify it, never grep migration files and believe them. Strip
    `--` comments before any `prosrc` regex; probe helper names **unanchored** (`X` / `X_for`
    pairs: policies call the bare form, functions call `_for` — no single regex finds both).
-4. **Every new door inherits every sibling arm** in the same increment it lands — census domain,
-   hat, floor allowlist ruling, wrapper, door-SQLSTATE gate (ADR 0156: the domain is structural,
-   not a name list). A door absent from the findings passes `ARM=wrapper` vacuously.
+4. **Every new door inherits every sibling arm whose domain its own shape puts it in** — derived
+   per function from the catalog, ⛔ never a hand-list, never inferred from the batch's label. The
+   arms bound on **client-reachability**, so the shape decides. A `public` DEFINER door holding
+   `authenticated` EXECUTE takes the full set: census domain, hat, floor allowlist ruling, wrapper,
+   door-SQLSTATE gate (ADR 0156: the domain is structural, not a name list). A `service_role`-only
+   command door returning `void`/`uuid` — rule 2's C2 / `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` class —
+   is **outside `floor`, `wrapper`, `census` and `policy` by construction**, which is neither a gap
+   to fix in the arms nor coverage: ⛔ absence of a verdict here IS absence of coverage. That shape
+   obliges a different discharge (AE1.3 §10.1, shipped): the **authority decision** moves into a
+   swept object — a `bool`, `can_`-named `app` predicate census/policy do contain — the door stays a
+   thin `public.*_for` wrapper over an `app.*_impl` VOLATILE kernel so the ADR 0156 gate sweeps
+   both, `ARM=hat` covers all of them (its domain carries no privilege term), and the compensating
+   controls are **named per door**, with any `ERROR` ruled against a control that itself carries
+   verdicts — never against an assumption. ⚠ **A `REVOKE` moves a door between domains:** dropping
+   `authenticated` EXECUTE can push one out of `floor` into exactly that blind shape, so partition
+   every revoke batch by **post-revoke** domain membership before writing it
+   (`docs/design/authz-definer-classification-ae1.md` §RV0). A door absent from the findings passes
+   `ARM=wrapper` vacuously. Measured instance: `docs/plans/authz-ae1-person-doors.md` §10 F-F.
 5. **Fresh reset before verdicts.** `ARM=floor` reads 35 phantom doors on a stale DB and 0 on a
    fresh one; pgTAP commission counts red spuriously after E2E. A green baseline on a mutated DB
    is not fit to mutate.
@@ -233,8 +248,12 @@ Requirements per door:
 - Keystones **mutation-proven**: neutralize the door's authority check → the test must go red;
   assert the edit landed before trusting the rerun (a mutation that did not fully apply reports
   green). Prove the rollback moves the hash back.
-- **Rule 4 above**: each door enters every ARM domain + the door-SQLSTATE gate in the same
-  migration set.
+- **Rule 4 above, in its C2 form** — these doors are `service_role`-only, so they sit **outside
+  `floor`, `wrapper`, `census` and `policy` by construction**; what lands in the same migration set
+  is the coverage they *can* carry: the door-SQLSTATE gate over every `*_for` wrapper and
+  `*_impl` kernel, `ARM=hat` over both, and `ARM=census`/`policy` over the `bool` authority
+  predicate they delegate to. ⛔ "no arm reds" is not a verdict here (§10 F-F of
+  `docs/plans/authz-ae1-person-doors.md`).
 - App side: `users/actions.ts` call sites switch from raw `.from(...)` DML to `.rpc(...)`; the
   TS guard **stays** (defense in depth + friendlier pt-BR errors) but is no longer the
   authority. Tester re-runs the person-admin E2E specs; expected diff: none user-visible.
@@ -291,8 +310,14 @@ default-deny by design** in `docs/backend-state.md`, each with an exact-ACL pgTA
 (SELECT/INSERT/UPDATE/DELETE all refused for `authenticated`), so an accidental future policy
 or grant reds a test instead of silently widening.
 
-**Gate AE1:** full §6 gate; diff-scoped door sweep over every touched policy/gate; the nine new
-doors present in all ARM domains with recorded verdicts; registry derivation clean **with zero
+**Gate AE1:** full §6 gate; diff-scoped door sweep over every touched policy/gate; **each new door
+recorded against the arms its own shape puts it in, with the excluded arms named and no `ERROR`
+left standing as a verdict** (rule 4) — for AE1.3's **six** `service_role`-only command doors (the
+"nine" is nine *conversions*, not nine doors) that is `ARM=hat` plus the ADR 0156 door-SQLSTATE
+gate over every `*_for` wrapper and `*_impl` kernel; `ARM=census` over `app.can_administer_person_for`
+with its `ERROR run-shape!=baseline` ruled against a compensating control that itself carries
+verdicts; and that control — the targeted AE1.3 mutation audit — at **16/16 with run shapes
+captured**, not 14/16; registry derivation clean **with zero
 `undecided` dispositions — the 11 `.rpc()` sites PO-ruled [PA-F10]**; the tiered DEFINER
 review complete with the budget's ceiling recorded [PA-F11]; the default-privilege positive
 controls green [PA-F4]; FK supporting indexes asserted [PA-F15]; the six `TO public`

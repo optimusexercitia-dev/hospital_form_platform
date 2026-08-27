@@ -16,98 +16,11 @@ _Lead-owned. This section replaces the old "Current Phase Tasks" + "🛑 START H
 banners; the full DM-FUP triage narrative those banners carried is preserved verbatim
 in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
-- **✅ Six concluded programs — fully rotated** → [2026-Q3.md](docs/progress/2026-Q3.md) +
-  [phase-ledger.md](docs/progress/phase-ledger.md). ⛔ **Only the two LIVE residues stay here:**
-  **(1)** ⭕ **ROTATED 2026-08-27 → `.claude/rules/authz-gate-results-need-a-current-baseline.md`**
-  (path-scoped, gate-verified; it also now carries AE0's trusted baseline).
-  **(2)** ⭕ **CONVERTED 2026-08-27 to `FUP-QA-FINDINGS-N3-N4-UNACCOUNTED`** (indexed below) — it
-  was an actionable item wearing a narrative, which the contract's three-way test says is a body
-  plus one index line. ⛔ N-3 and N-4 still have **ZERO hits**; the recovery is owed, not done.
 - **🟠 nvm still defaults to Node 20, and `npm run lint` DIES AT GATE 8 there** (`globSync` needs 22).
   `.nvmrc` + `engines` are set; **`nvm alias default 22` is not**. ⛔ Kept live deliberately when the
   gate-tooling bullet was rotated 2026-08-25: it is the one item in that ✅-marked bullet with an
   unfired resolution event, it exists in **no other file**, and rotating the bullet whole would have
   buried an open action under a completed heading — owner: whoever next hits it.
-- **⚠ AE1 IS BUILDING (AE0 closed 2026-08-26; see the ADR 0155 bullet) — and
-  AFF4 IS MERGED, PUSHED, AND ITS SCHEMA IS APPLIED REMOTELY**
-  (`main` @ `e8abaeec`; branch deleted; 12 migrations pushed 2026-08-26). ⛔ **Do not compress the
-  clauses into one; the second is what this line has destroyed four times, and "complete" has meant
-  four different things here — built / merged / pushed / schema-applied.** ⛔ **Re-measure, never
-  read**: `git branch --merged main` and `supabase migration list --linked`. **AFF4** is the most
-  recent complete program; before it, **ADR 0144 (PDF·P3)** and the **user-profile redesign +
-  AFF3/AUD1/AUD2** batch (ADRs 0147–0150). 0136 and 0137 are both complete. ⛔ This line's own
-  history — it read "NO PHASE IS ACTIVE" **three times while phases ran**, and the correction that
-  replaced it is rotated **verbatim** → [now-concluded-2026-08.md](docs/progress/now-concluded-2026-08.md)
-  and [2026-Q3.md](docs/progress/2026-Q3.md). ⛔ **Do not add a fifth warning here.** The durable
-  fix is not another warning: **re-measure** — `git branch --merged main` and § Phase Status — rather
-  than reading this line.
-  ⛔ **One thing must not be read as closure, and it has no other live line:** the ethics lane is
-  *non-erasable by decision with two known open removal paths* — a worse state than "no path exists".
-- **✅ AFF4 COMPLETE — §6 gate GREEN, QA APPROVED, human-approved 2026-08-26; Critical FUP C5 is
-  closed and has left § Critical FUP.** Row → [phase-ledger.md](docs/progress/phase-ledger.md) ·
-  detail → [aff4.md](docs/progress/aff4.md) · authority is still the
-  [plan](docs/plans/aff4-org-affiliation.md). Concluded narrative rotated →
-  [2026-Q3.md](docs/progress/2026-Q3.md). ⛔ **THE THREE RESIDUES — only (2) is still live here:**
-  **(1)** ✅ **DISCHARGED — merged, pushed, schema applied remotely 2026-08-26.** The standing rule
-  it broke — **push SCHEMA before CODE** — is now path-scoped so it fires while you write the
-  migration: `.claude/rules/push-schema-before-code.md`. Record → [2026-Q3.md](docs/progress/2026-Q3.md);
-  **(2)** ⚠ **~16 QA-review obligations + ~20 plan-discovered follow-ups were NOT converted into
-  `FUP-*` index lines at the Record step** — several say in their own words that they need one, so
-  they are invisible to the register the PO reads from until they are filed (pointer list:
-  [aff4.md](docs/progress/aff4.md) § "Residue this Record step did NOT file");
-  **(3)** ⛔ **TWELVE instruments in this build reported success while measuring nothing**, two of them
-  **constants** — never believe a counting instrument’s zero until it has been run once against a
-  known failure. Record → [2026-Q3.md](docs/progress/2026-Q3.md).
-- **📐 ADR 0155 ACCEPTED (as amended) 2026-08-26 — the post-AFF4 authorization-evolution program is
-  the plan of record; ▶ **AE0 ✅ COMPLETE + human-approved 2026-08-26** (row → ledger, detail →
-  [authz-ae0.md](docs/progress/authz-ae0.md)); **AE1 IS BUILDING** on `authz-ae1-hardening`.**
-  Role/permission catalog adopted via
-  role-by-role **direct substitution** (`staff_admin` first — reverses the draft's own rejection);
-  **pilot gate = implementation Phases 0–4**, Phase 5 (remaining roles) post-pilot; D4 →
-  `profile_private_details`, single-shot pre-live; D5 demoted; D6 stays deferred with broadened
-  triggers; 0151 D10's Phase 2 promoted to pre-pilot and **finally registered**
-  (`FUP-AFF4-HOMEORG-PHASE2`). Eleven PO decisions recorded as G1–G11 in the ADR — the approval's
-  scope is written there, not remembered. Authority: ADR
-  [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) (decisions) +
-  the [plan](docs/plans/authz-evolution.md) (execution — phases **AE0–AE7**, gates, PO decision
-  points) + the [audit](docs/design/authorization-model-evolution-audit-2026-08-26.md) (analysis).
-  ⚠ **C1a keeps its queue position (G10)** — Phases 0–1 may run in parallel with the ▶ queue below
-  but do not preempt it; re-checked 2026-08-26, C1a still heads the queue and AE0 did not displace it.
-  ▶ **AE1 STATUS 2026-08-27 (16 unpushed on `authz-ae1-hardening`; NOT merged, NOT pushed):**
-  **AE1.1/.2/.3/.4/.5/.6 all built**; close conditions **#1–#6 ALL DONE** — **#3 closed 2026-08-27**
-  by instrument + review (`scripts/authz-tier1-threat-review-ae1.sql` +
-  [tier-1 threat review](docs/design/authz-ae1-tier1-threat-review.md)), scoped by PO ruling, not
-  narrowed: ⛔ **Tier 1 is 523, not the sized 432** (the 432 was its DEFINER subset, dropping the 90
-  `public` INVOKER fns — the ADR 0079 A7 class); **325/523 decided mechanically, 198 reviewed by
-  class**; 4 findings, 2 filed as FUPs (`FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY` ·
-  `FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED`), 4 columns measured to **zero**.
-  Gates on that tree, all measured, exit codes read directly: `test:db` **237/7,871 PASS** · `lint`
-  **11/11** (gate 11 = `lint:service-role-registry`, added by AE1) · `typecheck` **0** · vitest **145/1,974** · all four ARM arms **0** — ⛔ **domain qualifier, always** (plan rule 2): C2's reachable command doors, **and** the six `service_role`-only person doors, are outside every arm's domain · the 63-case
-  diff-scoped sweep re-run and merged (**BLIND 74⇒69, COVERED 296⇒316**; 54 of 63 measured, the 9
-  named in the live record) · **`e2e:prod` GATE GREEN** (1249 passed, 0 failed, 3 flaky, 11 skipped;
-  accounted 1263/1263 on the final batch lines). ⛔ **Still owed before Record: only the QA review**
-  and the Record step itself (⚠ rotate this file — it is over the 82 KB target). ✅ **RV0 + RV3 DONE**
-  2026-08-27 at head `…005300`, read-only, **no revoke executed — all 233 stay HELD**: 44
-  property-rescued · 5 name-rescued · **23 HOLD** · 161 UNCHANGED = 233 ✓; batches reproduce
-  134/43/52/4; GUARD_KEYS 11/11 live; **RV3 = YES**, Postgres re-checks EXECUTE at write time inside
-  a stored CHECK (`42501`, not `23514`), proven on both languages with a one-variable differential.
-  ⛔ **New, and it binds execution: 137 of the 233 revokes are a SILENT NO-OP as scoped** — they reach
-  `authenticated` only via `PUBLIC`, so `revoke … from authenticated` leaves the predicate true and
-  **no arm would notice**; lead re-proved it as an effective probe with a positive control
-  (`FUP-AE1-REVOKE-SET-EXECUTION`). ✅ **#3's
-  review DONE** (2026-08-27). ✅ **R2's HMAC deny test DONE** — and the FUP's *inference* was measured
-  **false**: `route.test.ts` DOES notice the gate vanish (7/20 red); the gap was **grain**, no
-  assertion at the RPC boundary (correction archived with the closed item). ✅ **AE1.5's AFTER capture
-  was already DONE** at head `…004710` — the handoff listed it as owed while quoting its results as
-  fact; ⚠ what nobody has ruled is whether it stays representative at `…005300` (3 later migrations,
-  one of them 11 policies) — **not owed by any document, a new decision if wanted**.
-  ⛔ **AE1's live record — task state, operational facts, fixture traps, and the FUP obligations it
-  owes — is [authz-ae1.md](docs/progress/authz-ae1.md); read it before touching this phase.** Two
-  AE0 results still bind: this DB has **NO planner statistics** (⛔ never `ANALYZE` before comparing
-  against the AE0 baselines; a **cost-only** diff is autovacuum, not a finding), and the service-role
-  surface is **45 sites, not 12**. ADR
-  [0160](docs/decisions/0160-ae0-corrections-to-adr-0155-measured-figures.md) corrects two refuted
-  0155 figures.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -134,6 +47,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   gone rather than re-stated. `git worktree list --porcelain` is the only source.
   ⚠ In a worktree, check `.env.local` **and** a **non-empty** `node_modules` before any gate
   ([worktrees.md](docs/worktrees.md)) — the second fails silently by borrowing the parent's.
+- **📐 ADR 0155 — the authz-evolution program is the plan of record.** ▶ **AE0 ✅ complete 2026-08-26 · AE1 ✅ COMPLETE 2026-08-27** (row → [phase-ledger.md](docs/progress/phase-ledger.md) · detail → [authz-ae1.md](docs/progress/authz-ae1.md) · QA rounds 1+2 → [review](docs/reviews/authz-ae1-review.md)). **AE2 is next** and is gated on a PO ruling first (AE2.0, offboarded-person lifecycle authority — its own ADR; no migration before it). Authority: ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) + the [plan](docs/plans/authz-evolution.md). ⚠ **C1a keeps its queue position (G10)** — re-checked at AE1's Record step 2026-08-27, C1a still heads the ▶ queue and AE1 did not displace it. ⛔ **Two AE0 results still bind:** this DB has **NO planner statistics** (never `ANALYZE` before comparing against the AE0 baselines), and the service-role surface is **44 sites** — ⚠ the census alone under-counts it, which is what `lint:service-role-registry` exists for. Concluded narrative → [2026-Q3.md](docs/progress/2026-Q3.md).
+- ⚠ **AFF4's unfiled residue is still live** — ~16 QA-review obligations + ~20 plan-discovered follow-ups were never converted into `FUP-*` index lines at its Record step, so they are invisible to the register the PO reads from (pointer list: [aff4.md](docs/progress/aff4.md) § "Residue this Record step did NOT file"). ⛔ The one AFF4 item that has NOT concluded.
 ## Phase Status — live rows only
 
 > **Completed rows live in [phase-ledger.md](docs/progress/phase-ledger.md)** —
@@ -148,7 +63,6 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 | 18 | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
 | 19 | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) ([plan](docs/plans/deliberations.md)) | ADR PROPOSED — NOT ratified; nothing built and nothing may start | – | – | – | ⛔ **not ratified** | – | taken |
-| AE1 | **Authz evolution — integrity & privilege hardening** ([plan](docs/plans/authz-evolution.md) · ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D9) | 🔵 building 2026-08-26 — **all 6 tasks + all 6 close conditions BUILT**; only QA review + Record remain; branch `authz-ae1-hardening` | AE1.1–.6 all ✅ · **233 revokes HELD**, partitioned (**23 HOLD**) · detail + every figure: [authz-ae1.md](docs/progress/authz-ae1.md) | – | – | – | – | – |
 
 ## Bug Log
 
@@ -275,8 +189,7 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| ~~AE1 — authz integrity & privilege hardening (round 1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-27 | [review §1–13](docs/reviews/authz-ae1-review.md) |
-| AE1 — authz integrity & privilege hardening (round 2) | CHANGES REQUESTED — narrowed to ONE blocker: mutation audit at 14/16 (cases 2, 7 ERROR) vs the reworded Gate item 3's 16/16; plus commit the uncommitted plan ruling. B2/B3/B4 + M1–M4 + m1–m6 closed | 2026-08-27 | [review § ROUND 2](docs/reviews/authz-ae1-review.md) |
+| **AE1 — authz integrity & privilege hardening (round 2)** | **CHANGES REQUESTED → ✅ ALL DISCHARGED 2026-08-27** — the one blocker closed by fixing the FIXTURE, not the mutation; re-run **16/16 · 0 ERROR**, 49 assertions before and after. Detail → [authz-ae1.md](docs/progress/authz-ae1.md) | 2026-08-27 | [review](docs/reviews/authz-ae1-review.md) |
 | AFF4 — org affiliation, staff data, voided tense | APPROVED | 2026-08-26 | [review](docs/reviews/aff4-review.md) |
 | _Six prior rotations_ (the 2026-08-25 pair: PDF·P3 + user-profile · ADR 0136 · ADR 0137 · the AFF2 pair · the seven DM rows · the 2026-08-14 verbose collapse) — each rotation's own date is recorded at the destination | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | 118 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
@@ -290,15 +203,6 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 | 2026-08-27 | **The 11 `.rpc()` UNDECIDED sites RULED** (approved as-is + 4 observations): 1 in-function door, 10 system-actor; R1 ACL pins = pgTAP 388, R2 HMAC deny test = FUP, R3 re-measure **discharged** (local+remote body-md5 parity, 0 refs in unregistered migrations); minutes latch made atomic (`…005000`) | [rulings](docs/design/authz-ae1-rpc-rulings.md) |
 | 2026-08-27 | **Plan-audit rulings, authz evolution** — F1–F18 dispositioned (`[PA-F#]` plan tags): rollback = runbook, never a migration; catalog **authority-elect** + FK binding; **C2 subset joins the pilot gate**; `home_organization_id` **drops** in AE2; tiered DEFINER review; AE1 close amended | ADR [0162](docs/decisions/0162-authz-evolution-plan-audit-corrections.md) — **amends 0155** |
 | 2026-08-27 | **PROGRESS.md size is now TWO thresholds** (PO): 80 KB **target** — non-fatal warning, printed every run, rotate here — and a 100 KB **hard cap**. 2nd raise; Amdt 2 refused to be a precedent, so the pressure MOVED to the target rather than being deleted. Handoff cap 12→24 KB in the same instruction | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) **Amdt 3** |
-| 2026-08-26 | **ADR 0155 ACCEPTED as amended — authz evolution is a staged program**: role/permission catalog by role-by-role direct substitution (`staff_admin` first); D4 = `profile_private_details` single-shot pre-live; D5 demoted; D6 stays deferred; pilot gate = Phases 0–4; PO decisions G1–G11 in the ADR | ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) — **amends 0151 D10** |
-| 2026-08-26 | **An invariant backstop runs as DEFINER** — the discriminator is *does it read caller identity?*, not *is it a trigger?* Closes `BUG-D5-REHIRE-HOSPADMIN-001` | ADR [0159](docs/decisions/0159-invariant-backstops-run-as-definer.md) — **amends 0151 D4** |
-| 2026-08-26 | **The hospital directory keeps its predicate** — `listHospitalUsers` does NOT move; filtering it would blank the page for the only role it serves. Toggle absent there; T2 org-scoped | ADR [0158](docs/decisions/0158-hospital-directory-keeps-its-predicate.md) — **amends 0154 D1** |
-| 2026-08-26 | **The dominance grid's population was bounded by SCHEMA, not the property** — 19 doors, incl. `grant_role`/`revoke_role`, adjudicated by nothing for three weeks. Blind, not vulnerable | ADR [0157](docs/decisions/0157-dominance-grid-population-bounded-by-schema.md) — **amends 0079** |
-| 2026-08-26 | **The door-SQLSTATE gate's domain is a structural property, not a list of names** — a name-derived domain would have missed `public.appoint_technical_director` | ADR [0156](docs/decisions/0156-door-sqlstate-gate-domain-is-structural.md) — **amends 0098 W3.5** |
-| 2026-08-26 | **The org roster predicate is the application query filter (`listOrgUsers`/`listHospitalUsers`), NOT `list_org_people`** — which has one caller, the add-a-person CPF search. Both surfaces move to the org-affiliation predicate; the RLS legs stay on `home_organization_id` (0151 D10's Phase 2) | ADR [0154](docs/decisions/0154-roster-predicate-is-the-query-filter-not-list-org-people.md) — **amends 0151 D10** |
-| 2026-08-26 | **PostgREST maps SQLSTATE class `P0*` → HTTP 500** (`P0001` excepted), refuting AFF4 pre-step P1’s premise. P1 re-scoped *fix* → *diagnose + re-file*; the live defect is a **73-function `public` P-class class**, NOT built here | ADR [0152](docs/decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md) — **amends 0151 D16a** |
-| 2026-08-26 | **A subset door-sweep writes to SCRATCH; the committed `authz-door-audit-findings.md` is never opened for write** — retires ADR 0079 Amdt 1’s `git checkout --` restore. Fixed in **four** sweeps, not one | ADR [0153](docs/decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) — **amends 0079 Amdt 1** |
-| 2026-08-25 | **AFF4 ruled** — `organization_affiliations`: org belonging becomes a row with a lifecycle; staff data ON `hospital_affiliations`, no parallel table; the **voided tense** closes C5 on both tables; "active" defined once (D6); `home_organization_id` demoted, Phase 2 named | ADR [0151](docs/decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md) |
 
 > ↩ **This table is the HEAD of the log, not the log.** Eight rotations (2026-08-04 · 08-17 · 08-18 · 08-20 ×2 · 08-24 · 08-25 ×2) moved **125 concluded/superseded rows** verbatim → **[decisions-log.md](docs/progress/decisions-log.md)**, each under its own dated § heading there. The 7 per-rotation notes that stood here — **including the two corrections they carried** — were themselves rotated 2026-08-26 → § "Rotated from PROGRESS.md § Decisions 2026-08-26".
 
@@ -336,7 +240,7 @@ this section exists). Full bodies stay in
 | # | item | what must happen | trigger — the point it can no longer wait | owner |
 |---|---|---|---|---|
 | **C1** | 🔒 **`FUP-DM5-DISPOSAL-JOB`** — the PHI-disposal path is **manual and UNREHEARSED**. `disposal_state` records an **intent, not a destruction guarantee**: **4 SET-form writers** put rows into `disposal_pending` — 3 `authenticated`-reachable (`request_document_disposition`, `dispose_case_phi`, `dispose_referral_phi`) **plus `complete_document_reclassification`, service-role-only** — against **exactly ONE** outflow door, and **nothing automated calls it** (no `pg_cron`, no cron schema, single-process Dockerfile). ⚠ *Corrected 2026-08-18: this said "three inflow doors", which is right only bounded to JWT-reachable doors — **the queue is fed wider than the item said**.* | ⭕ **SPLIT IN TWO 2026-08-18 (DM-FUP TRIAGE #3) — and C1 does NOT close on C1a.** **C1a (local)** — execute [`phi-disposal-runbook.md`](docs/deployment/phi-disposal-runbook.md) end-to-end against local test data, once, and record the run. ⭕ **PARTIAL 2026-08-19: the § 6b BACKUP half is DONE** — executed, verified, destroyed, recorded in [`phi-backup-run-log.md`](docs/deployment/phi-backup-run-log.md), which discharged `FUP-DM5-BACKUP-IS-PHI-EXPORT`'s destination path. ⛔ **The § 3 DISPOSAL half — which is what C1a is FOR — has still not run.** ⭐ **CORRECTED 2026-08-19:** it was recorded as blocked by `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`; **it never was** — the runbook is the `file_objects`/Storage path and `dispose_meeting_minutes` is disjoint from it in the catalog (writes no `file_objects` row, never sets `disposal_pending`; the runbook says "meeting" zero times). That FUP is resolved anyway (ADR 0129), but § 3 is un-run for its own reasons, not newly released. The two halves are independently executable; do not read the backup run as C1a. **C1b (Cloud)** — the same run against the linked project; ⚠ it **cannot inherit** the backup half, which has no Cloud form at all (`FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM`). ⛔ **Why the split is not bookkeeping:** the runbook itself says a local rehearsal *"runs against a local stack by construction, so it cannot exercise the Cloud paths"* (§6) — so a local-only run discharges this row's **wording** while leaving its **purpose** undischarged, which is [[a-predicate-quoted-at-the-wrong-grain]] in the highest-severity item in the register. | ⛔ **BEFORE ANY REAL PATIENT RECORD IS LOADED.** PO-accepted 2026-08-18 as a pilot risk **bounded by this rehearsal** (ADR 0121 **Amdt 3**) — the acceptance is not open-ended, and the pilot may not admit real PHI ahead of it. ⭐ **The bound is C1b, not C1a**: the pilot runs on Cloud, so a green local rehearsal does **not** release it. | PO (executor = whoever holds service-role reach — an ACL fact, not a choice) |
-| **C2** | 🟠 **`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`** — **407** reachable command doors sit outside **every** authz arm's domain (`ARM=census` is bounded to `bool`/set-returning; these return `jsonb`/`void`). ⚠ **Covered-but-UNPINNED, not blind** — a 3-door neutralization sample found all three COVERED. ⛔ **The sample may NOT be used to close it.** | **Tier 1 — sweep the subset that touches PHI or crosses a tenant boundary**, derived as a property over the catalog, never hand-listed ([[enumeration-boundary-is-a-syntax-not-a-property]]). **Tier 2 — the remainder is DEFERRED.** Each swept door gets a recorded verdict, so a regression reds and a **new** door cannot pass by absence. ⭕ **Tier 1 ABSORBED TWO ITEMS 2026-08-18** — `FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN` (successor named: `app.resolve_document_version_bytes`) and `FUP-DM5-SIBLING-GUARD-DIFF`. All three want the same door-mutation machinery over `prosecdef` gates; building it three times was declined. ⚠ **Absorption is not closure** — each keeps its own index line and its own verdict. | **Tier 1: next, as its own scoped workstream** — sizing is step one and is not yet done. **Tier 2: after the pilot ships, once there are real customers.** | lead + backend |
+| **C2** | 🟠 **`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`** — **426** reachable command doors sit outside `ARM=census`'s domain (⛔ **re-derived by property at the AE1 Record step, 2026-08-27, never incremented**; was 407 — AE1's own 13 new objects are part of the move). ⭐ **Decomposed, because the halves differ**: **344** are `public` and therefore still inside `ARM=floor`'s domain (which carries no return-type filter); **82** are `app` and sit in **no** arm bounded on client-reachability (`ARM=census` is bounded to `bool`/set-returning; these return `jsonb`/`void`). ⚠ **Covered-but-UNPINNED, not blind** — a 3-door neutralization sample found all three COVERED. ⛔ **The sample may NOT be used to close it.** | **Tier 1 — sweep the subset that touches PHI or crosses a tenant boundary**, derived as a property over the catalog, never hand-listed ([[enumeration-boundary-is-a-syntax-not-a-property]]). **Tier 2 — the remainder is DEFERRED.** Each swept door gets a recorded verdict, so a regression reds and a **new** door cannot pass by absence. ⭕ **Tier 1 ABSORBED TWO ITEMS 2026-08-18** — `FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN` (successor named: `app.resolve_document_version_bytes`) and `FUP-DM5-SIBLING-GUARD-DIFF`. All three want the same door-mutation machinery over `prosecdef` gates; building it three times was declined. ⚠ **Absorption is not closure** — each keeps its own index line and its own verdict. | **Tier 1: next, as its own scoped workstream** — sizing is step one and is not yet done. **Tier 2: after the pilot ships, once there are real customers.** | lead + backend |
 | **C3** | 🔴 **`FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM`** — § 6b's backup mechanism is `docker exec … tar`, **local-only by construction**. On Cloud: managed backups + PITR **exclude Storage objects by documented design**, *"Restore to a new project"* does not copy them, and `supabase storage cp -r` has **no streaming form** ⇒ **the pilot platform has NO Storage recovery point at all**, and § 6b's *"encrypted AT CREATION"* is **unsatisfiable** there. ⭐ **It INVERTS its parent**: `FUP-DM5-BACKUP-IS-PHI-EXPORT` graded an over-wide copy **existing**; this grades **no copy existing** — opposite failure, opposite remedy, which is why it is a separate item and not absorbed into that close. | **PO decision, two shapes:** (a) accept no Storage recovery point pre-pilot and say so **where the pilot decision is made**, not only here; or (b) **name a mechanism** — ⭐ only one shape can satisfy "encrypted at creation": the **S3 protocol endpoint** streamed into a client-side encryptor (`rclone crypt` and peers), which makes this **the same measurement as `FUP-DM5-CLOUD-ORPHAN-SURFACE`** (that endpoint is **UNPROBED**). ⛔ **Any destination inherits the SOURCE's blindness** — changing the bucket cannot change what the endpoint can enumerate, and a source-count ↔ destination-count check compares **metadata to metadata**. Then rehearse it **restore included**, and prove the restore recreates `storage.objects` rows and not merely bytes. Also owed for any new processor: **BAA posture + LGPD cross-border basis**. | ⛔ **BEFORE ANY REAL PATIENT RECORD IS LOADED.** From the moment the pilot holds data with no recovery point, every day is unrecoverable-loss exposure. ⚠ **Distinct from C1's trigger, and they are easy to conflate:** C1 is about **destroying** bytes on request; this is about **not being able to get them back**. | PO decision, then backend + lead |
 | **C4** | 🟠 **`FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED`** — § 6b's five values are scoped **literally** to *"a Storage backup" / "the archive"*, yet the same section requires a `supabase db dump` restored into a **scratch database** to earn the words *"verified good"*. **Neither artifact has a location, reader-set, retention or destruction rule**, and nothing tells the operator to drop the scratch DB — which this same page calls *"a data leak wearing one"* (**90 of 274** RLS policies restored). ⭐ The parent item's own sting one level down, **inside the section that resolved it**. | **PO extends the five values explicitly to both artifacts, OR rules the restore test out of the procedure.** ⚠ The interim mitigation already written into the runbook — apply the values by analogy, **drop the scratch DB as soon as the comparison is recorded**, record both in the run log — is a stopgap and **is not the decision**. | **The first time anyone runs `supabase db dump --linked`** — ⚠ **reachable on Cloud TODAY** (it needs only the DB password, unlike C3), and it is the natural next step of a C1b rehearsal. ⛔ Do not let a C1b run be the first execution of an ungoverned procedure. | PO decision, then backend |
 

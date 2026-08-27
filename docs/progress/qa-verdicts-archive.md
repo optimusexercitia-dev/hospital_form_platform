@@ -371,3 +371,10 @@ PDF·P3 + the user-profile redesign concluded 2026-08-25 (both approved; gate st
 | --- | --- | --- | --- |
 | **PDF·P3 (Printing Cases)** | ✅ **APPROVED** (pass 2) — 5 non-blocking N-findings, all filed. Gate 2 then re-ran **GREEN**, so the verdict no longer rests on the RED-accepted run. | 2026-08-25 | [phase-p3-review.md](../reviews/phase-p3-review.md) § Pass 2 |
 | **User-profile redesign + AFF3/AUD1** | ✅ **APPROVED (r2)** — looped: r1 **CHANGES REQUESTED** on B1, a hospital-tier audit writer passing no org (real, and wider than filed — it also let platform_admin read tenant rows). Fixed as a class + leg 5 bounded; r2 re-verified by construction, 5 mutations. r1's M6/M11 withdrawn as measured-false | 2026-08-25 | [review](../reviews/user-profile-redesign-review.md) |
+
+## Rotated at AE1's Record step, 2026-08-27
+
+> AE1 round 1, superseded by round 2 (same report file, § ROUND 2). Kept because the round-1
+> verdict and its three later-refuted specifics are part of the record.
+
+| ~~AE1 — authz integrity & privilege hardening (round 1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-27 | [review §1–13](../reviews/authz-ae1-review.md) |
