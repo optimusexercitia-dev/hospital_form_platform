@@ -21,6 +21,28 @@ list below is the countermeasure, and it is maintained **as work happens**, not 
 | **AE1.5** initplan triage | ▶ in flight — red-first observed, BEFORE captured, in its reset window |
 | **AE1.6** zero-policy tables | ✅ **built + committed** (`91455fbd`) — pgTAP 382, 68 assertions |
 
+## ⚠ AE1 close conditions AMENDED 2026-08-27 (plan audit → ADR 0162)
+
+The [plan audit](../reviews/authz-evolution-plan-audit-2026-08-27.md) (CHANGES REQUESTED)
+was PO-ruled; the [plan](../plans/authz-evolution.md) carries the corrections as `[PA-F#]`
+tags and ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) the 0155
+amendments. **Nothing already built here is invalidated**; AE1 continues as independently
+mergeable increments but **does not close** until:
+
+1. registry dispositions complete — the **11 undecidable `.rpc()` sites** PO-ruled; zero
+   `undecided` rows at gate [PA-F10];
+2. AE1.2's `ALTER DEFAULT PRIVILEGES` uses the **global `FOR ROLE <creator>` form** with
+   positive effective-ACL probes (`has_function_privilege` + `pg_default_acl`) — the
+   `IN SCHEMA` form is a documented no-op against the built-in PUBLIC default [PA-F4];
+3. the DEFINER review runs **tiered** (Tier 1 threat columns for the remotely reachable
+   surface; Tier 2 classification + grants for `app`-schema) and the budget gains a
+   ceiling + merge rule [PA-F11] — this binds RV0's held revokes too;
+4. supporting indexes for AE1.1's two FKs verified via `pg_index` and asserted (follow-up
+   migration — AE1.1 already shipped at `14ad668d`) [PA-F15];
+5. named-flake baseline entries carry **error fingerprints** + owner/expiry [PA-F16];
+6. the six `TO public` process-template policies (AE0 F-AE0-4) normalized or explicitly
+   ruled.
+
 ## ⚠ Operational facts this phase established the hard way
 
 ### The diff-scoped door sweep MUTATES the shared stack — it is not a read

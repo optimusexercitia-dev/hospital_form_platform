@@ -2,6 +2,12 @@
 
 - **Written:** 2026-08-26, at ADR 0155's acceptance. **Nothing in this plan is building**;
   live state is PROGRESS.md § Now, never this file.
+- **Amended:** 2026-08-27 — the [plan audit](../reviews/authz-evolution-plan-audit-2026-08-27.md)
+  (CHANGES REQUESTED, findings F1–F18) was PO-ruled and folded in; ADR
+  [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) carries the three 0155
+  amendments (rollback artifact, catalog binding / authority-elect, pilot-cutline addition)
+  and the four rulings. Corrections are tagged **`[PA-F#]`** in place (`PA-` because the
+  original audit's F-numbers are already cited here bare).
 - **Authorities, in precedence order:**
   1. **ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md)**
      — the decisions (D0–D10) and the eleven PO rulings (G1–G11). Where this plan conflicts with
@@ -9,10 +15,16 @@
   2. **This plan** — execution detail: tasks, order, gates, traps.
   3. The **[audit](../design/authorization-model-evolution-audit-2026-08-26.md)** — the analysis
      input (findings F1–F9, §7 phase sketches, §8 decision/test matrix). Analysis, not authority.
+  4. The **[plan audit](../reviews/authz-evolution-plan-audit-2026-08-27.md)** (2026-08-27) —
+     execution-plan review, CHANGES REQUESTED; cited here as `[PA-F#]`. Analysis, not
+     authority — its dispositions bind through ADR 0162 and this plan's amended text.
 - **Phase naming:** this plan's **AE0–AE7** map 1:1 to the ADR's "implementation Phases 0–7".
   The AE prefix exists so gate records and FUP lines never collide with AFF4's P/B/F/T tracks.
-- **Pilot cutline (G1):** **AE0–AE4 gate the pilot. AE5 is post-pilot. AE6 is decided
-  (record-only). AE7 is deferred (= D6).**
+- **Pilot cutline (G1, amended by ADR 0162):** **AE0–AE4 gate the pilot. AE5 is post-pilot.
+  AE6 is decided (record-only). AE7 is deferred (= D6).** One addition [PA-F12, PO
+  2026-08-27]: **the tenant-boundary/PHI subset of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2)
+  closes before Gate AE4's PO approval** — its own increment, never folded into AE1's or
+  AE4's branch; the subset definition lives in the FUP.
 - **Queue rule (G10):** AE0–AE1 may run in parallel with the standing pre-pilot queue;
   **C1a keeps its queue position** and this program never preempts it. If a session must choose
   between advancing this plan and running C1a, C1a wins.
@@ -31,7 +43,10 @@ sections only add what is specific.
    **diff-scoped door sweep** derived by `scripts/door-sweep-cases.sh`, never by hand. Its exit 1
    is a finding to rule on, never a pass. `ARM=census` is the arm that catches a gate you just
    added; a brand-new gate passes `ARM=policy` vacuously.
-2. **Name the ARM, never the script**, in every gate record (§6 step 5).
+2. **Name the ARM, never the script**, in every gate record (§6 step 5) — and state the
+   **structurally uncovered population beside the covered one** [PA-F12]: the 407 reachable
+   command doors of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2) are outside every arm's domain
+   until that FUP closes, so "all arms green" never appears without its domain qualifier.
 3. **Catalog is truth** for any schema/RLS/RPC question — `pg_proc` (incl. `prosecdef`),
    `pg_policies`, ACLs. Never graphify it, never grep migration files and believe them. Strip
    `--` comments before any `prosrc` regex; probe helper names **unanchored** (`X` / `X_for`
@@ -64,7 +79,11 @@ sections only add what is specific.
 11. **E2E gate:** full suite green means **`npm run e2e:prod`** (batched, server-restart per
     batch), compared against the **named-flake** baseline (`FUP-E2E-REPEAT-FLAKY` names), not a
     count — a total that matches is not a list that matches. The two pre-existing flakes are a
-    floor, not a guarantee.
+    floor, not a guarantee. ⚠ **A name match is not a cause match [PA-F16]:** each baseline
+    entry carries an **error fingerprint** (message/step pattern) plus an owner and an expiry;
+    a name-matched failure with a novel fingerprint is a red, not a flake. An authorization
+    phase never calls a run green while a relevant covered spec failed for an unverified
+    reason.
 
 ---
 
@@ -99,6 +118,11 @@ shell spawning the processes/connections you then measure) — re-sample before 
 against a clean floor. Backend-owned; frontend untouched; tester adds E2E only where behavior
 changes (AE1.3).
 
+**Slicing [PA-F18]:** AE1 lands as **independently mergeable increments** (FKs · DEFINER
+review/revokes · doors · registry · initplan · zero-policy), each attributable under its own
+gate subset; the phase gate closes over the last increment. AE1's sizing was drawn from the
+12-site raw-DML census and is **resized against 45 sites** (AE0 F-AE0-3) [PA-F10].
+
 ### AE1.1 — `commission_administrativos` FKs (F7)
 
 1. Orphan preflight (read-only, both stacks): rows whose `commission_id` has no `commissions`
@@ -112,6 +136,12 @@ changes (AE1.3).
    sibling appointment table behaves, do not guess** — and remember the cascade-closure lesson: a
    write lockdown is defeated by its parent, so check what these FKs newly make deletable).
 4. pgTAP: FK presence by name + a rejected-orphan insert each.
+5. **Supporting indexes [PA-F15]:** PostgreSQL does not index referencing columns; a cascade
+   from `profiles(id)` full-scans this table if `user_id` has no supporting index. Inspect
+   `pg_index` for prefix-compatible indexes on **both** referencing paths, add only what is
+   missing, assert presence in pgTAP, and keep parent-delete cascade plan evidence. ⚠ AE1.1
+   shipped before this amendment (committed `14ad668d`): the index verification lands as a
+   **follow-up increment inside AE1**, not a rewrite of the landed migration.
 
 ### AE1.2 — DEFINER classification and the privilege budget (F5)
 
@@ -120,13 +150,32 @@ changes (AE1.3).
    RLS evaluates as the caller), **trigger body** (needs none), **internal helper** (needs none).
    The classification lands as a committed artifact (table: function → class → verdict), because
    it is also AE4's wrapper inventory input.
+   ⚠ **Classification is not security review — the review is TIERED [PA-F11; PO 2026-08-27,
+   ADR 0162]. Tier 1** — remotely reachable functions (exposed schema per `config.toml` +
+   `authenticated`/`anon` effective EXECUTE) — gets full threat-review columns: owning role +
+   `BYPASSRLS` effect · PostgREST exposure · caller-identity binding · arbitrary-principal
+   parameters · authority-before-existence ordering · overload/default-argument reach ·
+   dynamic SQL + `search_path`/qualified references · output minimization & enumeration
+   behavior · audit emission · exact grants (`PUBLIC`/`anon`/`authenticated`/`service_role`).
+   Public command doors are **individually justified**. **Tier 2** — `app`-schema functions,
+   where `anon` holds no USAGE (boundary = `config.toml`'s exposed-schema line, the
+   `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` boundary) — keeps the four-way
+   classification plus exact grants only.
 2. Revoke EXECUTE where the classification says so — **in batches with a full pgTAP + e2e:prod
    run per batch**, because a REVOKE you are not entitled to make is a silent no-op and an
    over-revoke surfaces as user-facing 42501s, not test failures, unless the suites exercise the
    path. ⚠ A revoke that "worked" locally must be re-verified on the remote after push (grants
    drift independently).
-3. Explicit `ALTER DEFAULT PRIVILEGES` for every migration owner in `public` and `app` (and
-   `authz` when AE4 creates it): revoke PUBLIC EXECUTE on functions by default.
+3. Explicit `ALTER DEFAULT PRIVILEGES` — ⛔ **the GLOBAL form, per actual creator role, never
+   the `IN SCHEMA` form [PA-F4]:** `alter default privileges for role <creator> revoke execute
+   on functions from public;`. PostgreSQL documents that a schema-scoped revoke **cannot
+   remove the built-in global PUBLIC EXECUTE default** — the `IN SCHEMA` command succeeds and
+   changes nothing. Enumerate the actual creator roles from the catalog (function owners),
+   one command each; this covers `public`, `app`, and `authz` when AE4 creates it.
+   **Positive control, mandatory:** after the change, create a probe function per creator
+   role and assert effective EXECUTE via `has_function_privilege` (false for `PUBLIC`/`anon`,
+   true only for intended roles) and inspect `pg_default_acl` — never infer success from
+   command exit status.
    ⛔ **Step KEPT, justification REPLACED — ADR [0160](../decisions/0160-ae0-corrections-to-adr-0155-measured-figures.md).**
    This read *"This stops the 167→237 `anon`-residue growth at its source"*. Measured 2026-08-26
    on both stacks at head `20261003004300`: **there was no growth.** 167 (DEFINER-only) + 70
@@ -142,7 +191,9 @@ changes (AE1.3).
    stop; the historical-residue revoke sweep executes only under that FUP's ruling. Do not
    smuggle it into a feature migration.
 5. Track the reachable-definer count as a budget line in `docs/backend-state.md`; the AE1 Record
-   step writes the starting value.
+   step writes the starting value **plus a ceiling and a merge rule [PA-F11]: no increment may
+   raise the count without a named justification in its gate record, and the ceiling moves
+   only by PO ruling.** A recorded number with neither is inventory, not a budget.
 
 ### AE1.3 — The nine person-authority door conversions (G11)
 
@@ -192,6 +243,14 @@ retrofit here.
    construction", or "system actor: <invariant>") · audit event · the test that would notice its
    guard vanish. AE0.4's census script is the deriver; the registry is re-derived, and a diff
    between derivation and registry is a red.
+   **Sized at 45 sites [PA-F10]** (AE0 F-AE0-3: 12 raw DML + 19 `.rpc()` + 6 Storage + 4
+   `createSignedUploadUrl` capability mints + 4 Auth-admin), **machine-readable and diffed
+   against the census script's output by a check, not by hand**. Census *completeness* and
+   authorization *disposition* are separate columns: a row may carry `undecided` during the
+   phase, but AE1 does not close with one — the **11 undecidable `.rpc()` sites** (4
+   document-workflow, 4 minutes-job lifecycle, `list_stale_meeting_audio`,
+   `get_feature_flags`, `lookup_printed_document`) are a **PO ruling** (row in the decision
+   table below). An `undecided` registry row documents a bypass; it does not close one.
 2. Extend `scripts/check-memberships-door.mjs`'s `GATED_TABLES` with `profiles` and
    `professional_credentials` **after** AE1.3 lands, with a named allowlist entry for the
    self-scoped `must_change_password` site (the gate's empty allowlist gains its first, reasoned
@@ -222,9 +281,13 @@ default-deny by design** in `docs/backend-state.md`, each with an exact-ACL pgTA
 or grant reds a test instead of silently widening.
 
 **Gate AE1:** full §6 gate; diff-scoped door sweep over every touched policy/gate; the nine new
-doors present in all ARM domains with recorded verdicts; registry derivation clean;
-`e2e:prod` green against the named-flake baseline; QA review (`docs/reviews/`); PO approval;
-Record step (rotation + backend-state.md update + budget line).
+doors present in all ARM domains with recorded verdicts; registry derivation clean **with zero
+`undecided` dispositions — the 11 `.rpc()` sites PO-ruled [PA-F10]**; the tiered DEFINER
+review complete with the budget's ceiling recorded [PA-F11]; the default-privilege positive
+controls green [PA-F4]; FK supporting indexes asserted [PA-F15]; the six `TO public`
+process-template policies normalized or explicitly ruled (AE0 F-AE0-4); `e2e:prod` green
+against the named-flake baseline **with fingerprints [PA-F16]**; QA review (`docs/reviews/`);
+PO approval; Record step (rotation + backend-state.md update + budget line).
 
 **Traps:** the invite flow writes `auth` + `profiles` + `professional_credentials` in sequence —
 converting its middle write changes failure-ordering; the E2E invite spec must assert the
@@ -284,20 +347,31 @@ roster **plus** constructed fixtures for the states the seed cannot reach (cross
 rule 10; fully-offboarded person; voided-only person; ended-but-not-voided person — construct
 the state nobody constructed):
 
-- **Any pair newly visible under the new legs = unexplained widening = red.** (0154's rule:
-  narrowing can be wrong and safe; widening cannot.)
+- **Every widening must be enumerated and approved [PA-F13]:** intended widenings exist by
+  design (a person with active affiliations in two organizations becomes legitimately visible
+  to both) and are **pre-declared as expected cells** in the differential; any widening not
+  pre-declared = red. (0154's rule stands: narrowing can be wrong and safe; *unapproved*
+  widening cannot.)
+- **The differential covers writes and transitions, not only SELECT [PA-F13]:** per pair
+  where applicable — SELECT · INSERT `WITH CHECK` · UPDATE old-row `USING` **and** new-row
+  `WITH CHECK` · containment-trigger accept **and** reject · affiliation lifecycle
+  transitions (end, void, last-affiliation termination racing an admin mutation, and AE2.0's
+  chosen retention shape). The phase changes write containment; a read-only differential
+  proves the wrong half.
 - Newly *hidden* pairs are reviewed and either accepted (with the acceptance written) or fixed.
 - The differential is a pgTAP suite that runs both predicates in one transaction — not two runs
   of the app — so it cannot be skewed by stack state; and it must be **proven able to fail**
   (temporarily widen one new leg → the suite must red) before its green is accepted.
 
-### AE2.4 — Demote the column
+### AE2.4 — Drop the column [PA-F14; PO 2026-08-27, ADR 0162 — demote-then-drop RETIRED]
 
-After AE2.1's census reads zero live consumers: drop the trigger-forced NOT NULL, stop writing
-it on person creation, and **demote rather than drop** this phase (`comment on column` marks it
-legacy; the drop is a later cleanup once a full release cycle shows zero readers — cheap
-caution even pre-live, since generated types and old branches read it). `npm run gen:types`
-after every migration (Rule 8).
+After AE2.1's census reads zero live consumers: stop writing it on person creation, drop the
+trigger-forced NOT NULL, and **drop the column in this same gated phase**. The retired
+caution's premises did not survive review: old branches are not runtime consumers, generated
+types regenerate, and a live stale tenancy column is *more* dangerous than a clean break —
+future code can silently revive it as an authority source while every current test stays
+green. Rollback SQL is retained **outside** the live migration chain (ADR 0162 §1's runbook
+pattern). `npm run gen:types` after every migration (Rule 8).
 
 ### AE2.5 — D3: the binding text
 
@@ -355,12 +429,28 @@ Close the set of everything touching the three columns:
    `getPersonAdminView`'s door path (admin), written via AE1.3's doors (`update_person_fields_for`
    with the `cpf_change` arm). AE1.3 landing first is what makes AE3 small.
 3. Backfill in the same set (`insert … select` from `profiles`), then in-migration verification
-   `do $$` block: row-count parity, null-count parity per column, CPF uniqueness — **raise** on
-   mismatch (a backfill masks the broken write path only if nothing asserts it).
+   `do $$` block — **primary proof: keyed per-row equality [PA-F2 — restores 0155 G2's
+   row-hash requirement, which this step had dropped]:** join `profiles` ↔
+   `profile_private_details` on `profile_id` and assert `IS NOT DISTINCT FROM` for all three
+   columns, **raise on the first mismatch**. Counts and uniqueness pass value swaps, moved
+   phones, and permutations among rows; keyed equality does not. A keyed hash is acceptable
+   only if it includes `profile_id`, uses a stable canonical representation, and the raise
+   message **never emits raw values** (no CPF in an error). Row-count parity, per-column null
+   parity, and CPF uniqueness stay as secondary controls (a backfill masks the broken write
+   path only if nothing asserts it).
 4. Re-point every SQL consumer from AE3.1's census; drop the three columns; drop the identity
    half of `guard_profile_privileged_columns` (the lifecycle half stays).
 5. `npm run gen:types`; app consumers re-pointed (Rule 9 — through `src/lib/queries/`, no
    inline supabase-js).
+6. **Deployment shape [PA-F3] — an explicit maintenance-window cutover, written, not
+   assumed:** stop the app (Coolify) → apply the migration set → deploy the re-pointed
+   application → restart → smoke. Once the columns drop, the still-deployed old application
+   fails on every `profiles.cpf`/`date_of_birth`/`phone` read or write — "pre-live" shrinks
+   the audience, it does not make two deployment systems atomic, and G2 authorized a
+   single-shot *data* migration, not an unplanned outage. The step names its rollback
+   trigger: if the code deploy fails after the migration succeeded, apply the retained
+   rollback SQL (ADR 0162 §1 pattern) or roll forward with a fixed build — decided in the
+   runbook, not improvised.
 
 ### AE3.3 — Tests
 
@@ -398,6 +488,12 @@ types, proves the re-pointed reads.
 runs on it, with the differential oracle and the re-pointed gate arms proving the mechanism.
 This is the pilot gate's last phase (G1).
 
+**Slicing [PA-F18]:** the non-runtime catalog substrate (AE4.1 + AE4.2, plus AE4.5's
+generator tooling) lands and is tested as its **own mergeable increment before the cutover
+increment** — it is inert until the wrappers delegate, and a failure inside a change set
+that broad is otherwise unattributable. AE4.8 stays a parallel track inside the phase under
+file ownership.
+
 ### AE4.1 — Schema (backend)
 
 - `create schema authz` — **not** in `config.toml`'s exposed schemas; explicit default
@@ -406,6 +502,26 @@ This is the pilot gate's last phase (G1).
   `authz.permissions(code pk, resource_kind, risk_class, sensitivity_ceiling, assignable)` ·
   `authz.role_permissions(role_code fk, permission_code fk, applies_to_descendants)` ·
   `authz.permission_implications(implying fk, implied fk)`.
+- **Integrity contract [PA-F5]:** `PRIMARY KEY (role_code, permission_code)` and
+  `PRIMARY KEY (implying, implied)` on the two join tables; `CHECK (implying <> implied)`;
+  `UNIQUE (code, allowed_scope_kind)` on `authz.roles` (the binding target below); the
+  reverse-direction indexes the resolver's queries need; every state/classification column
+  an enum/domain/CHECK, never free text. Acyclicity stays **migration-gate law** (the pgTAP
+  recursive check), stated as such — not a trigger. ⚠ A column whose semantics are deferred
+  to the §8-residue row (`sensitivity_ceiling` ordering, `applies_to_descendants`
+  inheritance, `assignable`'s acting party) is either **not created yet** or created
+  **CHECK-pinned to its single legal value** — a column only reports read is a label, not a
+  control, and must not be able to hold undefined states.
+- **Assignment binding [PA-F1, ADR 0162 §2]:** the catalog replaces the legacy role/scope
+  authorities only when something binds assignment storage to it — a CHECK cannot query
+  another table, so `allowed_scope_kind` alone constrains nothing about a `memberships` row.
+  In AE4, once AE4.2 seeds every role: `memberships` gains a carried `scope_kind`
+  discriminator (consistent with the scope-exclusivity CHECK) plus the composite FK
+  `(role, scope_kind) → authz.roles(code, allowed_scope_kind)`; the actual scope-column
+  shape stays enforced independently of the role name. The legacy `memberships_role_check` +
+  scope-shape CHECKs retire **only at AE5-complete**, when every role is `authoritative`.
+  ⛔ Until that retirement the catalog is **authority-elect** — "the catalog is the
+  authority" may not appear in a gate record before then.
 - pgTAP: referential integrity; **implication acyclicity** (recursive check as a test, not a
   trigger); the PHI/write separation invariants as data tests — `…phi…` codes never implied by
   content-read codes, write codes never implied by read codes (the `_case_caps` separations,
@@ -443,22 +559,57 @@ approves this matrix; from cutover it is the regression oracle** (not a retained
 - Read adapter projecting live `memberships` rows (and `profiles.is_admin`, and active-role
   context) into assignment facts — internal, `authz` schema.
 - `authz.has_direct_permission(principal, scope_kind, scope_id, permission_code)` +
-  `authz.explain_direct_permission(…)`. The explanation returns **codes and ids only** — a
-  pgTAP test feeds it a PHI-bearing case fixture and asserts no name/title/narrative string in
-  the output (prove the check can fail: point it at a deliberately chatty debug variant first).
-- Resolver reads are `STABLE`, no per-row invocation pattern introduced — the wrappers keep
-  their current call shape so AE0.2's plan baselines stay comparable.
+  `authz.explain_direct_permission(…)`. The explanation returns a **fixed composite type
+  with an allowlisted set of typed fields — codes and ids only, never open-ended JSON
+  [PA-F17]**: pgTAP asserts the **exact key/type set** (schema-positive), and the
+  PHI-fixture string-negative check is a secondary control only (prove it can fail: point it
+  at a deliberately chatty debug variant first — a denylist of fixture strings cannot see a
+  newly added field or a transformed value). Direct EXECUTE restricted; AE4.3 decides
+  whether explanation calls are themselves access-audited — under LGPD, codes and ids can be
+  personal data even when they are not PHI.
+- **Resolver shape [PA-F6]:** `STABLE` is a volatility promise, **not** a per-statement
+  cache — a function whose arguments vary by protected row runs per row regardless. So:
+  **implication closure is materialized at migration time** (rows are migration-managed; the
+  same migration that edits `permission_implications` rebuilds the closure), making the
+  runtime resolver non-recursive indexed lookups; the exact resolver SQL is written into the
+  phase doc before cutover. The plan that rules out per-row recursive scope ancestry in AE7
+  does not get to introduce per-row recursive permission implication here.
+- **Performance evidence [PA-F6]:** AE0.2's seed-sized, statistics-free baselines cannot see
+  this regression class. Before cutover: a **scaled, ANALYZEd fixture** (realistic
+  membership / permission / resource cardinalities) with its **own** baseline — ⛔ never
+  `ANALYZE` the AE0 comparison DB (the standing AE0 residue in § Now) — capturing **nested
+  plans** for the protected query bodies, not only the outer RPC (AE0 §H: DEFINER paths show
+  only an outer Function Scan otherwise), comparing loops / buffers / rows-removed / plan
+  shape, with explicit per-hot-path regression thresholds. The wrappers keep their current
+  call shape so AE0.2's plan-shape baselines stay comparable on the unscaled side.
 
 ### AE4.5 — The differential oracle (tester + backend)
 
-One pgTAP suite, both evaluators, identical fixtures, every matrix row × persona × scope ×
-deny-class (wrong-scope, cross-org constructed persona, inactive, suspended, expired seat,
-wrong active context, recusal-class hard denies where staff_admin meets cases):
+One pgTAP suite, both evaluators, identical fixtures, every required cell:
 `is(legacy(…), catalog(…))` per cell **plus** `is(catalog(…), <approved matrix value>)` — the
 second half is what makes the matrix the oracle rather than "whatever legacy did".
-**Zero unexplained differences.** The suite must be shown able to fail (flip one seeded
-`role_permissions` row → reds). It is a **pre-cutover artifact**; after cutover it collapses to
-the catalog-vs-matrix half.
+
+- **The cell set is GENERATED, not hand-authored [PA-F7]:** the AE1.3 vector pattern
+  (`scripts/gen-person-scope-vectors.mjs` → JSON vectors → pgTAP + vitest twins) applied to
+  the seven PO-approved axes — a generator whose constraint rules **exclude impossible
+  combinations as code**, stable cell IDs, generated/validated pgTAP vectors, a mapping from
+  each permission to its current enforcement sites, and a coverage report
+  (expected/executed/skipped) that **fails when any catalog permission, role, wrapper, or
+  approved cell has no test mapping**. Deny classes (wrong-scope, cross-org constructed
+  persona — rule 10, inactive, suspended, expired seat, wrong active context, recusal-class
+  hard denies where staff_admin meets cases) are axis values in the generator, not prose —
+  "exhaustive" is an output of the artifact, never a review adjective.
+- **The diff rule, precise [PA-F8] — "zero-diff" language retired:** every observed
+  legacy ≠ matrix difference is (a) **fixed in a preceding, independently gated increment**,
+  (b) a **named compatibility exception** — first-class in the matrix, with owner and
+  expiry, mutation-tested like any other cell — or (c) **blocks the cutover**. ⛔ The trap
+  this replaces: with "catalog = legacy" and "catalog = approved matrix" both required, the
+  cheapest green is to approve a legacy defect *into* the matrix — a known bug becomes the
+  new system's regression oracle. Concretely: the open meeting-case recusal omission is
+  dispositioned (a/b/c) **before** the `staff_admin` matrix is approved.
+
+The suite must be shown able to fail (flip one seeded `role_permissions` row → reds). It is a
+**pre-cutover artifact**; after cutover it collapses to the catalog-vs-matrix half.
 
 ### AE4.6 — Atomic cutover
 
@@ -468,9 +619,15 @@ the catalog-vs-matrix half.
 - Direct-call census: every `has_role(…, 'staff_admin')` / literal-`'staff_admin'` site outside
   the wrappers (SQL: comment-stripped; TS: the AE4.3 inventory) — each **replaced or
   allowlisted with a reason**, the census committed so a new bypass reds.
-- `authz.roles.staff_admin` → `authoritative`; the legacy decision branch removed (a forward
-  rollback migration retained that re-points the wrappers to the adapter **without deleting
-  catalog data**). ⛔ Never `legacy OR new`; no caller-selectable evaluator — asserted by a
+- `authz.roles.staff_admin` → `authoritative`; the legacy decision branch removed.
+  **Rollback is a reviewed runbook + SQL template kept OUTSIDE `supabase/migrations`
+  [PA-F9, ADR 0162 §1]** — a committed migration file is part of the ordered applied chain,
+  so a "retained rollback migration" either undoes the cutover on the next apply or is not a
+  repository artifact. Invoking rollback mints a **new** timestamped migration through the
+  normal command, revalidates wrapper names/signatures/`prosecdef`/ACLs first, re-points the
+  wrappers to the adapter **without deleting catalog data**, and records the event;
+  code/database compatibility is stated in both directions. ⛔ Never `legacy OR new`; no
+  caller-selectable evaluator — asserted by a
   pgTAP test that greps the *catalog* (comment-stripped `prosrc` of the wrapper family) for the
   legacy predicate's absence.
 
@@ -492,6 +649,10 @@ The F1 payoff on the app side, mechanical and behavior-preserving:
   chain are re-derived from one ordered manifest (one array, two consumers) so a future role
   crosses **one** seam, not two;
 - the session partition keys off the same manifest's scope declarations;
+- **the TS manifest is BOUND to the DB catalog [PA-F1]:** the manifest's role codes and
+  scope declarations are **generated from — or gate-checked against** — `authz.roles`
+  (`code` / `allowed_scope_kind` / `session_selectable`), so the two cannot drift silently;
+  the check runs in the lint/vitest gate, not in review;
 - G4's selection-vocabulary move: `assume_role`'s validity check reads
   `authz.roles.session_selectable` (via a typed query) instead of the TS enum list — the
   `platform_role` **DB enum stays** for now (its retirement is AE5-complete territory, ADR
@@ -500,10 +661,16 @@ The F1 payoff on the app side, mechanical and behavior-preserving:
   scope-kind asserting a freshly-granted role lands somewhere — the regression class that
   motivated F1.
 
-**Gate AE4:** differential zero-diff **before** cutover; single-evaluator assertion after; all
-re-pointed arms green; full §6 + e2e:prod; QA review; **PO approval = the pilot-gate authz
-milestone**; Record step (backend-state.md gains the catalog section; the matrix and census
-artifacts land under `docs/design/` or `docs/reviews/` and are linked).
+**Gate AE4 [language per PA-F7/F8/F12, ADR 0162]:** before cutover, every required
+decision-table cell has a stable ID, an approved expected result, and an executed test
+result, and every legacy/catalog difference is fixed in a preceding gated increment or is a
+named compatibility exception with owner and expiry; single-evaluator assertion after; every
+assignment referentially valid against the catalog [PA-F1]; all re-pointed arms green **with
+the domain qualifier stated** (rule 2) and the C2 subset closed (pilot cutline);
+performance acceptance via nested plans over the scaled ANALYZEd fixture [PA-F6]; full §6 +
+e2e:prod; QA review; **PO approval = the pilot-gate authz milestone**; Record step
+(backend-state.md gains the catalog section; the matrix and census artifacts land under
+`docs/design/` or `docs/reviews/` and are linked).
 
 **Traps:** `create or replace` on the wrappers is not DROP+CREATE — but if any signature *must*
 change, sweep `has_function_privilege('…(old arity)')` strings first (a stale signature string
@@ -537,15 +704,19 @@ template. **Post-pilot by G1** — an unmigrated role runs the current, tested e
    `authoritative`.
 
 **Per-role checklist (the AE4 template, abbreviated):** matrix derived from all planes (both
-helper-name forms swept) → PO approves → seed → `test_validation` differential (zero
-unexplained) → atomic wrapper cutover → direct-call census → arms re-pointed (G8) → legacy
-branch removed + rollback migration retained → Record.
+helper-name forms swept) → PO approves → seed → generated-cell differential under the
+[PA-F8] diff rule → atomic wrapper cutover → direct-call census → arms re-pointed (G8) →
+legacy branch removed + rollback runbook/template updated ([PA-F9] — never a committed
+migration) → Record.
 
 **AE5-complete (the ADR's re-analysis trigger 4):** retire the legacy adapter, the
 `platform_role` enum's remaining consumers (token hook included — its claim value becomes a
-catalog code; prove revocation/suspension/rotation behavior unchanged), and the role-name grep
-gates that the catalog arms have superseded — each retirement its own reviewed change, with
-whatever remains filed as named debt.
+catalog code; prove revocation/suspension/rotation behavior unchanged; `assume_role`'s input
+becomes a validated catalog code at the same moment [PA-F1]), the legacy
+`memberships_role_check` + scope-shape CHECKs (superseded by AE4's composite-FK binding —
+this retirement is what ends the catalog's **authority-elect** status, ADR 0162 §2), and the
+role-name grep gates that the catalog arms have superseded — each retirement its own
+reviewed change, with whatever remains filed as named debt.
 
 ---
 
@@ -577,6 +748,7 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 | --- | --- | --- |
 | AE0.5 | matrix axes approval | lead |
 | AE1.2/4 | the `anon`-residue sweep ruling (`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`) | backend |
+| AE1.4 | the **11 undecidable `.rpc()` sites'** revalidation mechanism — blocks AE1 close [PA-F10] | backend |
 | **AE2.0** | **offboarded-person lifecycle authority (blocks AE2.3; its own ADR)** | lead |
 | AE3 branch-cut | confirm pilot has not loaded data (else dual-write re-plan) | lead |
 | AE4.3 | the `staff_admin` matrix (becomes the oracle) | lead + backend |
@@ -602,6 +774,9 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 
 ## Sizing (inferred, not measured — do not quote as commitments)
 
-AE0 ~2–3 sessions · AE1 ~4–6 (AE1.2 classification is the long pole) · AE2 ~3–5 (+ the AE2.0
-ruling latency) · AE3 ~3–4 · AE4 ~6–10 (matrix + oracle + arms dominate; AE4.8 ∥ inside it) ·
-AE5 ~2–4 per role. Pre-pilot total: roughly 18–28 working sessions.
+AE0 ~2–3 sessions · AE1 ~4–6 **as originally drawn from the 12-site census — resized upward
+2026-08-27 against 45 sites + the tiered DEFINER review [PA-F10/F11]; treat the old upper
+bound as a floor** · AE2 ~3–5 (+ the AE2.0 ruling latency) · AE3 ~3–4 · AE4 ~6–10 (matrix +
+oracle + arms dominate; AE4.8 ∥ inside it; the generated cell artifact [PA-F7] front-loads
+AE4.5) · AE5 ~2–4 per role · the C2 subset closure (pilot cutline, ADR 0162 §3) is its own
+unsized increment. Pre-pilot total: roughly 18–28 working sessions, now itself a floor.
