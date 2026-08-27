@@ -6313,3 +6313,75 @@ them.**
 ⭐ The general shape, which is not specific to N-3/N-4: *a claim that work is already registered is
 itself a claim that needs measuring* — and it is the one kind of register error that a reader of the
 register cannot detect, because the register is what they would check.
+
+### 🟠 FUP-DOOR-SWEEP-DERIVER-POINTS-AT-ONE-ARM — the deriver selects cases for TWO harnesses and prints the command for ONE (owner: backend/lead; filed 2026-08-27 by `backend`, measured during AE1.5's diff-scoped sweep)
+
+> **Measured 2026-08-27.** `scripts/door-sweep-cases.sh` derived **53** cases from AE1.5's
+> migration. Handed to the command the deriver itself prints
+> (`supabase/tests/mutation/p0-authz-door-audit.sh`), **22 of them matched no gate**:
+> *"REQUESTED CASES THAT MATCHED NO GATE IN EITHER ARM"*. They were exactly the **non-SELECT**
+> policies.
+>
+> **Cause, from the harness headers rather than inferred:**
+> - `p0-authz-door-audit.sh` audits **the READ layer** — *"boolean predicates + SELECT/ALL read
+>   policies"*.
+> - `p0-authz-writepath-audit.sh` audits **the WRITE layer** — *"the value-returning authz
+>   RAISE-GUARDS **and the INSERT/UPDATE/DELETE policies**"* — and its own header states that a
+>   `CASES=` run is *"the diff-scoped run CLAUDE.md §6 step 1 mandates EVERY PHASE"*.
+>
+> ⛔ **The deriver greps `create policy` / `alter policy` without regard to command, so its case
+> list spans both arms — but the paste-able command it prints names only the READ harness.** An
+> operator who follows the deriver's own output sweeps the read half; the write half goes
+> unmeasured. AE1.5's clause census of its own 52: **31 `USING`-only, 8 `WITH CHECK`-only, 13
+> both** — the 30/22 split falls straight out of it.
+>
+> **The fix is PRINT-ONLY and that is what makes it safe:** emit both commands, or split stdout
+> by arm. It cannot change *what* is derived, only *what an operator is told to run*. ⚠ Keep
+> stdout a bare token list for `CASES=$(...)` composability — if the output is split by arm, the
+> arms need separate invocations or a documented key, not two lists concatenated into one.
+>
+> ⚠ **Why this survived so long:** the read harness *does* report its unmatched cases and
+> **refuses to end CLEAN** (exit 3, `UNPROVEN (PARTIAL)`) — which is the only reason AE1.5 saw it
+> at all. A phase whose migration happened to alter only SELECT policies would derive a
+> fully-matching list and never notice the recipe is half-aimed.
+
+### 🔴 FUP-WRITEPATH-AUDIT-EXITS-CLEAN-HAVING-MEASURED-NOTHING — a gate that reports success over an empty measured set (owner: backend/lead; filed 2026-08-27 by `backend`, measured during AE1.5's write-path sweep)
+
+> **Measured 2026-08-27.** `supabase/tests/mutation/p0-authz-writepath-audit.sh`, run with
+> `CASES=` over AE1.5's 52 altered policies, printed:
+>
+> ```
+> BLIND: 0   ERROR(harness): 13   SKIPPED(vacuous): 0   (COVERED = the rest)
+> ```
+> **and exited 0.**
+>
+> **It measured ZERO of the requested cases.** Of AE1.5's 22 write-layer cases: **13** were in the
+> harness's embedded 33-policy worklist and every one hit the **§7.2 drift tripwire** (the wrap
+> changed their `qual`/`with_check` text, so the embedded snapshot no longer matched and the
+> harness correctly refused to neutralize); the other **9** are absent from the worklist entirely.
+> **COVERED: 0.**
+>
+> ⛔ **Two defects, and the tripwire is NOT one of them** — refusing to neutralize against a stale
+> snapshot is exactly right:
+> 1. **The exit code.** 13 `ERROR`s and nothing measured yields **exit 0**. CLAUDE.md §6 says in
+>    terms that *"`ERROR` is not a pass"*, and here the exit code says pass. This is the
+>    *"a gate that never SETS a non-zero exit"* mechanism.
+> 2. **`(COVERED = the rest)`** computes a positive-sounding residual against a set that, on a
+>    fully-ERRORed subset run, is **empty** — so the summary line reads like coverage.
+>
+> ⭐ **The sharpest fact: its sibling already does this correctly.** `p0-authz-door-audit.sh`, in
+> the identical situation, exits **3 `UNPROVEN (PARTIAL)`** with *"A clean verdict over a subset of
+> what was asked for is the finding this gate exists to prevent. NOT a pass."* **Two harnesses
+> meant to be halves of one gate, the same class of shortfall, opposite handling.** Port the door
+> audit's PARTIAL/UNPROVEN accounting into the write-path audit rather than inventing a second
+> scheme.
+>
+> **Third, separable item — the 9.** `answers_{insert,update}_targeted`, the six
+> `case_events_{staff_admin,writer}_{insert,update,delete}`, and `responses_update_targeted` sit
+> in **neither arm's domain**. Pre-existing, not caused by AE1.5, and invisible until a phase
+> happened to alter them. Bound any fix by the **property** (write-command policies absent from
+> the embedded worklist), never by this hand-list.
+>
+> ⚠ **Operational note for whoever maintains the worklist:** it embeds exact predicate text, so
+> **any** future predicate rewrite — even a provably identity one — drifts it. Regenerate those
+> rows **from the live catalog**, never by hand.
