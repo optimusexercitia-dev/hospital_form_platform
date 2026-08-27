@@ -823,3 +823,58 @@ no verdict moved — but a citation is an instrument and it rots silently. The `
 line does not contain its cited predicate at all (`run_arm_wrapper()` delegates to
 `p0-authz-invoker-audit.sh`); its conclusion now rests on **measuring** `prosecdef` 233/233 rather
 than on "by construction".
+
+## AE1 phase gate — re-measured 2026-08-27 on the closing tree, fresh reset
+
+⛔ **Named by ARM, never by script** (§6 step 5). The previous full measurement was taken at
+`120478bf`; since then **only docs, one `scripts/*.sql` instrument and one vitest spec changed** —
+`git diff --name-only 120478bf..HEAD -- supabase/` returns **zero files**. That is *why* the
+63-case diff-scoped sweep is not re-run here, and it is a measurement rather than an assumption:
+no migration, no policy, no `prosecdef` gate and no pgTAP file moved, so neither the sweep's
+verdicts nor the suite-shape baseline the mutation harnesses key on can have gone stale.
+
+| gate | question it answers | result | exit |
+| --- | --- | --- | ---: |
+| `npm run test:db` (on a fresh `db reset`) | — | **237 files / 7,870 — PASS** | **0** |
+| `npm run lint` (ten gates) | — | OK | **0** |
+| `npm run typecheck` | — | OK | **0** |
+| `npm run test` (vitest) | — | **145 files / 1,974 passed** | **0** |
+| `ARM=census` | has anything **ever asked** about this gate? | INVARIANT HOLDS — **565 live gates, 601 verdicts** | **0** |
+| `ARM=hat` | does any door read `memberships` without the caller's hat? | INVARIANT HOLDS | **0** |
+| `ARM=floor` | is every door actually **called**? | INVARIANT HOLDS — **72** never-called doors, all allowlisted | **0** |
+| `FROMFINDINGS=1 ARM=wrapper` | the `prosecdef = f` half | INVARIANT HOLDS | **0** |
+| 63-case diff-scoped sweep (read / write) | does anything **notice** when a gate is opened? | SWEPT 41 · COVERED 40 · **BLIND 0** · 1 ERROR (ruled) / COVERED 13 · BLIND 0 | 1 / 0 |
+| `npm run e2e:prod` | — | **GATE GREEN** — 1249 passed · 0 failed · 3 flaky · 11 skipped | **0** |
+
+⛔ **Domain qualifier, stated beside "all arms green" as plan rule 2 requires:** the reachable
+command doors of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2) are outside **every** arm's domain until
+that FUP closes. Counts re-derived at Record, never quoted. ⚠ And the tier-1 threat review adds a
+second uncovered population to state: **Tier 2's 320 `app` DEFINERs** keep classification + grants
+only, bounded by `config.toml`'s exposed-schema line — if that line changes, they become Tier 1.
+
+### ⛔ A DAY-OLD LOG FILE WAS READ AS THIS RUN'S VERDICT, AND IT SAID "INVARIANT HOLDS"
+
+**2026-08-27, running `ARM=floor` at the closing gate.** The command was
+`cd supabase/tests/mutation && ARM=floor bash p0-authz-invariant.sh > /tmp/arm_floor.log 2>&1`.
+The shell's working directory had **persisted from the previous call** into that same directory,
+so the relative `cd` failed, `&&` short-circuited, and **the arm never ran**. `$?` then carried the
+failed `cd`'s status.
+
+⛔ **And `tail` printed `=== INVARIANT HOLDS ===` anyway** — from `/tmp/arm_floor.log` dated
+**Aug 26 13:12**, a *previous session's* file that the redirection never truncated because the
+command that owned the redirection never executed.
+
+⭐ **What made it survivable was the exit code disagreeing with the log**, not the log looking
+wrong: the stale file is **byte-identical** (490 bytes) to the real verdict, because the arm's
+output is genuinely stable across a day in which nothing it measures changed. A reader who
+believed the summary would have been *right about the invariant* and *wrong about having tested
+it* — the same separation this phase already recorded twice (a harness exiting 0 over an empty
+set; `ARM=census` once printing `INVARIANT HOLDS` having enumerated zero gates).
+
+**Re-run with an absolute path: `EXIT=0`, log dated 17:08, 72 never-called doors, all allowlisted.**
+The other three arms were timestamp-checked the same way (17:07) before being recorded.
+
+⚠ **Generalisable, and it is not about `cd`:** a gate's log file is an *artifact*, and an artifact
+outlives the run that made it. `> file` only truncates when the command runs. **Check the
+timestamp, or write to a path that cannot pre-exist** — and never let a summary line outrank an
+exit code.
