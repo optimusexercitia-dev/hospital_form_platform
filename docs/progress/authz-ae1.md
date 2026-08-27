@@ -932,3 +932,58 @@ it is what recorded `ERROR run-shape!=baseline (Files=237 Tests=7863)` against
 `app.can_administer_person_for` in the door findings, i.e. the sweep saw the abort and refused to
 call it a verdict. Two harnesses in one phase, same situation, opposite handling; the third
 sighting of that pattern here after the writepath arm's exit-0-over-an-empty-set.
+
+### ⚖ Gate AE1's "doors present in all ARM domains" — measured, and the honest answer is NO
+
+**2026-08-27, QA gate finding B3, re-measured by the lead** (QA's headline was partly wrong; the
+corrected picture is *worse*, not better). Gate AE1 asks for *"the nine new doors present in all
+ARM domains with recorded verdicts"*, and plan rule 4 says *"each door enters every ARM domain +
+the door-SQLSTATE gate in the same migration set."* Catalog, at head `20261003005300`:
+
+| object | rettype | `prosecdef` | `authenticated` EXECUTE | `service_role` |
+| --- | --- | :---: | :---: | :---: |
+| the 6 `public.*_for` doors | `void` ×5, `uuid` ×1 | t | **false** | true |
+| the 6 `app.*_impl` kernels | `void` ×5, `uuid` ×1 | t | **false** | **false** |
+| `app.can_administer_person_for` | **`boolean`** | t | false | false |
+
+Against each arm's domain predicate, read from the scripts:
+
+- **`ARM=floor`** (`nspname='public' AND prosecdef AND authenticated-executable`) — the 6 doors
+  hold **no** `authenticated` EXECUTE, so they are **out of domain**.
+- **`ARM=wrapper`** (`nspname='public' AND NOT prosecdef`) — all are `prosecdef=t`: **out**.
+- **`ARM=census`** (`prosecdef AND (rettype='bool' OR (proretset AND authenticated-executable))`) —
+  the 12 door/kernel bodies return `void`/`uuid` and are not set-returning: **out**. ⭐ But
+  `app.can_administer_person_for` **IS** `bool` + `prosecdef`, so it **is in domain** — QA's claim
+  that none of them is was wrong on this one object, which is the one that matters, because the
+  authority decision lives in it.
+- **`ARM=hat`** (`nspname IN ('app','public') AND prokind='f'`, no privilege term) — all 13 **in**.
+
+⛔ **And the in-domain one's recorded verdict is not a pass.** `docs/reviews/authz-door-audit-findings.md`
+carries exactly one row for it:
+
+```
+| app.can_administer_person_for(p_capability text, p_user uuid, p_actor uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=237 Tests=7863) |
+```
+
+**ERROR**, because neutralizing it makes pgTAP **abort** (7,870 → 7,863). That is the 63-case
+sweep's single ERROR, already ruled — but "ruled" meant *covered by the targeted mutation audit*,
+and § "the keystone count was 14, not 16" has just taken two verdicts off that audit.
+
+**So the composition, stated plainly rather than as two green halves:**
+
+| leg | state |
+| --- | --- |
+| three of four ARM arms | **out of domain by construction** — those arms bound on client-reachability and these doors are `service_role`-only. Not a gap to fix in the arms; a fact the gate line must stop implying otherwise |
+| `ARM=census` | in domain, verdict **ERROR (unproven)**, not COVERED |
+| `ARM=hat` | in domain, holds |
+| door-SQLSTATE gate (ADR 0156) | inherited, holds |
+| the targeted AE1.3 mutation audit | **14/16**, two cases ERROR |
+
+⭐ **The two legs that were supposed to cover each other both weakened on the same day**, and each
+was recorded as green while the other was assumed to carry it. ⛔ **Gate AE1's checklist item is
+NOT met as written.** It is either (a) reworded to describe the coverage these doors can actually
+have — a `service_role`-only door is *correctly* outside three arms — with the census ERROR and
+the two audit ERRORs named as the open residue, or (b) left unmet. **That is a PO call, not a
+lead call**, because it changes what Gate AE1 asserts. ⚠ Whichever way it goes, plan rule 4's
+"each door enters every ARM domain" is **unachievable as stated for a non-client-reachable door**
+and should say so, or the next phase inherits an item nothing can satisfy.
