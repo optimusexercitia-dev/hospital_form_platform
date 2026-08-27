@@ -240,6 +240,44 @@ rows thinly and reports #3 as met — after which the phase record says a threat
 AE1 does not close on this item until it is scoped and run, or the PO narrows it (e.g. to the
 command-door subset, or to the doors an increment actually touches).
 
+### ✅ `e2e:prod` — GATE GREEN, and the flake fingerprints earned their keep on day one
+
+**2026-08-27, tree `120478bf`, 17:28→18:37 UTC.** The §6 step-2 gate, never run this phase before.
+
+`GATE GREEN`, exit **0** — **1249 passed · 0 failed · 0 infra · 3 flaky · 11 skipped · 21 batches**,
+2 INFRA re-runs (batches 3 and 16: `server_dead=1`, connection errors — the known Windows
+server-death class, re-run and green).
+
+⚠ **The summary line reads `accounted for 1252 of 1263`, and that gap is NOT unrun tests.** Summing
+the **final** batch lines gives **accounted 1263/1263** with **11 skipped**; 1249 + 3 + 11 = 1263.
+⭐ Checked because a gate summary is exactly where unrun tests hide — here the arithmetic closes.
+
+⭐⭐ **This run is what proved the six AE1.3 doors over the WIRE.** pgTAP calls them in SQL and the
+vitest fixture mocks the client, so until now nothing had exercised `callDoor`'s explicit `null`s
+through supabase-js serialization. The person-admin flows (`user-registration.spec.ts` AC2–AC7 +
+the security-boundary arms) all pass.
+
+#### The three flakes, named — and the fingerprints written that morning split 1 for 2
+
+| test | baseline? | fingerprint |
+| --- | --- | --- |
+| `phase2-auth-shell.spec.ts:268` | M2 | ✅ **EXACT** — failed at `:58`, a step the fingerprint named |
+| `act-role-assumption.spec.ts:157` | M1 | ⛔ **MISMATCH** — predicted `:160`, observed `:168` |
+| `ethics-e4-participants.spec.ts:765` | **NO** | new; NOT admitted → `FUP-E2E-PROF-CREATE-ROSTER-FLAKE` |
+
+M1's fingerprint is **corrected from the measurement**, and the distinction is load-bearing:
+`:160` was an explicitly-labelled **guess** with no evidential basis, so replacing it with the
+first observation is not the same act as widening a fingerprint that was ever measured. ⚠ It cost
+something real — M1's fingerprint gave **zero discrimination** on the one run it existed for.
+
+⭐⭐ **And the run found the shared mechanism this FUP has hypothesised for months.** M1 fails
+clicking `menuitem` *"revisor(a) da qualidade"* (:168); M2 fails on `menuitem` *"sair"* not visible
+(:58). **Both are Radix items inside the SAME `"abrir menu da conta"` dropdown, absent after the
+trigger click.** One root cause across both survivors — ⛔ but **not** the
+`.focus()`-races-RSC-streaming class the FUP named: neither failing step calls `.focus()`, and that
+hypothesis's only cited evidence was withdrawn the same morning (the bare `.focus()` is at `:375`,
+in a *different* test). A mechanism, not yet a fix — nobody has established *why* the menu is empty.
+
 ### PA-F15 was wrong twice, and the handoff's correction was right by accident
 
 **2026-08-27 — plan close condition #4, discharged** (`20261003005100`, pgTAP 383 §3, plan 7→10).

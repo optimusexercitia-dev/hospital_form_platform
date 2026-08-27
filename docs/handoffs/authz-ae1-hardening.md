@@ -59,6 +59,7 @@ Everything below was measured on **this** tree by the session that wrote it, on 
 | **Privilege budget** — ceiling **752** + merge rule | `5be4c9c8`; `backend-state.md` § Privilege budget |
 | **THE 63-CASE SWEEP RE-RUN + MERGE** — read 41 swept / 40 COVERED / **0 BLIND** / 1 ERROR; write 13 COVERED. 54 of 63 measured; **BLIND 74→69, COVERED 296→316** | `120478bf` |
 | Four ARM arms, post-merge, exit codes read directly | census **0** (565 gates / 601 verdicts) · wrapper **0** (BLIND 41) · hat **0** · floor **0** |
+| **`e2e:prod` GATE GREEN** — 1249 passed · 0 failed · 3 flaky · 11 skipped · 21 batches; accounted **1263/1263** on the final batch lines | `120478bf`; 17:28→18:37 UTC |
 | `test:db` · `lint` · `typecheck` · vitest | **237 files / 7,870 PASS exit 0** · **10/10 exit 0** · **0** · 144 / 1,964 exit 0 |
 | Registry closure | `max(version)=20261003005300`, **484 registered == 484 on disk** |
 
@@ -75,7 +76,9 @@ Everything below was measured on **this** tree by the session that wrote it, on 
 - **`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`** (R2, a condition of the `complete_minutes_job` ruling).
 - AE1.5's **AFTER capture** (the `EXPLAIN` re-baseline for the wrapped tables).
 - The RV3 experiment (§ Open questions).
-- **`e2e:prod` — never run this phase** · QA review · Record step.
+- **QA review · Record step** — the only §6 gate steps left. (`e2e:prod` is DONE and GREEN;
+  see § Gates. ⚠ It surfaced a THIRD flake, filed as `FUP-E2E-PROF-CREATE-ROSTER-FLAKE` and
+  deliberately not admitted to the named baseline — disposition undecided.)
 - ⚠ At Record: rotate PROGRESS.md (85 KB vs the 82 KB target), re-derive
   `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`'s counts (never increment by hand), re-check C1a still heads
   the ▶ queue (rule G10), and file the FUP obligations table in `authz-ae1.md`.
@@ -103,6 +106,7 @@ All measured on the `120478bf` tree, quiet stack, fresh reset. Exit codes read *
 | `FROMFINDINGS=1 ARM=wrapper` | INVARIANT HOLDS — BLIND 41, all allowlisted | **0** |
 | `ARM=hat` | INVARIANT HOLDS — self-test 6/6, 3 reasoned-allowlisted | **0** |
 | `ARM=floor` | INVARIANT HOLDS | **0** |
+| `e2e:prod` (full, batched, reset per batch) | **GATE GREEN** — 1249 passed, 0 failed, 3 flaky, 11 skipped | **0** |
 | diff-scoped sweep, **read** arm, 63 cases | SWEPT 41 · COVERED 40 · **BLIND 0** · ERROR 1 | 1 |
 | diff-scoped sweep, **write** arm | COVERED 13 · BLIND 0 · ERROR 0 · SKIPPED 0 | 0 |
 
@@ -122,7 +126,7 @@ closes. Counts re-derived at Record, never quoted.
    `app.can_administer_person_for` neutralization limit, ruled and merged. **0 BLIND is the number
    that matters.**
 
-**Did NOT run:** `e2e:prod` (never, this phase) · QA review · the full ~5 h door sweep · the RV3
+**Did NOT run:** QA review · the full ~5 h door sweep · the RV3
 experiment · AE1.5's AFTER capture.
 
 ## Dead ends
@@ -195,11 +199,21 @@ AE1.3 and AE1.5 are both closed out; the sweep is re-measured and merged. What r
    ruling: *a revoke may not create sweep blindness* — revoking `authenticated` EXECUTE removes a
    function from `ARM=floor`'s domain.
 3. **`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`** (R2) and **AE1.5's AFTER capture**.
-4. **`e2e:prod`** — never run this phase. Compare against the **named-flake baseline WITH the new
-   fingerprints** (`FUP-E2E-REPEAT-FLAKY`): a name match at a different step is a **red**, not a
-   flake. ⚠ The message-pattern half of each fingerprint is deliberately still OWED — fill it in
-   from the first observed failure rather than inventing one.
-5. **QA review → Record step.** At Record: rotate PROGRESS.md (85 KB vs the 82 KB target),
+4. ✅ **`e2e:prod` DONE — GATE GREEN** (1249 passed, 0 failed, 3 flaky, 11 skipped; accounted
+   1263/1263 on the final batch lines). ⭐ It is also what proved the six AE1.3 doors over the
+   **wire** — pgTAP calls them in SQL and the vitest fixture mocks the client, so nothing had
+   exercised `callDoor`'s explicit `null`s through supabase-js until this run.
+   ⚠ **Three flakes, and the composition matters:** M2 matched its fingerprint exactly; M1's was a
+   labelled GUESS and is now corrected from measurement (`:168`, not `:160`); a **third**
+   (`ethics-e4-participants.spec.ts:765`) is NEW and was deliberately **not** admitted to the
+   baseline → `FUP-E2E-PROF-CREATE-ROSTER-FLAKE` (filed: body + index line).
+   ⭐⭐ Both survivors fail on the **same** mechanism — a Radix `menuitem` absent inside the
+   `"abrir menu da conta"` dropdown — which is the one-root-cause the FUP predicted but **not**
+   the `.focus()` class it named.
+5. **QA review → Record step — the only gate steps left.** ⚠ At Record, FIRST: **rotate
+   PROGRESS.md — now 86,778 bytes vs the 81,920 target** (hard cap 102,400, ~15.6 KB left).
+   This session deliberately did NOT rotate: rotation is a Record-step activity needing full
+   context, and a botched one at handoff time is worse than being over target. Also:
    re-derive C2's counts, re-check C1a still heads the ▶ queue, file `authz-ae1.md`'s FUP
    obligations table as real index lines + bodies, and **delete this handoff in the Record commit**.
 

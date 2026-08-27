@@ -3005,6 +3005,73 @@ owners kept live here).
 > checked at the grain it is used at. ⚠ The `.focus()`-races-RSC-streaming class may still explain
 > M1 or M2 — this removes the only *evidence* offered for it, not the hypothesis.
 
+> ### ⭐ 2026-08-27, SAME DAY — THE FINGERPRINTS MET THEIR FIRST RUN, AND SPLIT 1 FOR 2
+>
+> `e2e:prod` on `120478bf`: **GATE GREEN**, 1249 passed · 0 failed · 0 did-not-run · **3 flaky**
+> · 11 skipped · 21 batches; accounted **1263/1263** on the final batch lines (the summary's
+> "1252 of 1263" excludes the 11 skips — the arithmetic closes, nothing went unrun).
+>
+> **M2 — EXACT MATCH.** `phase2-auth-shell.spec.ts:268` failed at
+> `expect(sairButton).toBeVisible({ timeout: 5_000 })` — **line 58**, one of the two steps the
+> fingerprint named hours earlier from reading the spec. The method works.
+>
+> **M1 — MISMATCH, and the fingerprint is CORRECTED FROM THE MEASUREMENT.**
+> `act-role-assumption.spec.ts:157` was fingerprinted as a `toHaveURL` timeout at **:160**. It
+> actually failed at **:168** — `getByRole('menuitem', { name: /revisor\(a\) da qualidade/i })
+> .click()`, `locator.click: Test timeout of 30000ms exceeded`.
+> - New M1 fingerprint: **a timeout clicking a `menuitem` inside the "abrir menu da conta"
+>   dropdown at :168**, after the trigger click at :167.
+> - ⛔ **Why this is a correction and not the baseline absorbing a defect** — the distinction
+>   matters, because "the fingerprint did not match, so widen it" is exactly how a baseline eats a
+>   real failure. The :160 step was an explicitly-labelled **guess** with no evidential basis (the
+>   entry said so: *"the message pattern half is deliberately left OWED"*). Replacing a placeholder
+>   with the first observation is not the same act as widening a fingerprint that was ever
+>   measured. ⚠ It cost something real: M1's fingerprint provided **zero discrimination** on the
+>   one run it existed for. From here it is measured, and a further move is a red.
+>
+> ### ⭐⭐ ONE ROOT CAUSE — BUT NOT THE ONE THIS FUP HAS HYPOTHESISED FOR MONTHS
+>
+> M1 fails clicking `menuitem` *"revisor(a) da qualidade"*; M2 fails on `menuitem` *"sair"* not
+> visible. **Both are Radix dropdown items inside the SAME `"abrir menu da conta"` menu, and both
+> fail because the item is absent after the trigger was clicked.** That is one shared, concrete
+> mechanism across both survivors — which is the "one root cause rather than two flaky tests"
+> this FUP has predicted all along.
+>
+> ⛔ **It is not the `.focus()`-races-RSC-streaming class.** Neither failing step calls `.focus()`;
+> the earlier note in this FUP pointing at a bare `.focus()` in `phase2-auth-shell.spec.ts` was
+> already corrected today (it is at **:375**, inside a *different* test). The hypothesis now has no
+> supporting evidence and a positive alternative: **the account dropdown's items are not reliably
+> present after its trigger click**. ⚠ Still a mechanism, not a fix — nobody has established
+> *why* the menu is empty (Radix portal mount vs. RSC hydration vs. the trigger's own readiness).
+>
+> ### ⛔ A THIRD FLAKE APPEARED, AND IT IS **NOT** ADMITTED TO THIS BASELINE
+>
+> `ethics-e4-participants.spec.ts:765` (PROF-CREATE) flaked in batch 6, failing at **:787**:
+> `getByRole('region', { name: 'Participantes' }).locator('li').filter({ hasText: 'Dr. Novo
+> Respondente (E4)' })` not visible within 10s — a **roster row after an inline create**, a
+> different mechanism from the dropdown class above.
+>
+> ⛔ **Not added as a member here, deliberately.** *"The two pre-existing flakes are a floor, not
+> a guarantee"* is a warning about the count, not permission to grow it: a baseline that absorbs
+> every new name on sight is how a defect becomes furniture. It needs an owner, an expiry and a
+> disposition (flake vs. defect) **decided**, not assumed — filed as
+> `FUP-E2E-PROF-CREATE-ROSTER-FLAKE` for the lead/PO, with this run as its first and only
+> observation.
+
+### 🟡 FUP-E2E-PROF-CREATE-ROSTER-FLAKE — `ethics-e4-participants.spec.ts:765` PROF-CREATE roster row, ONE observation, disposition UNDECIDED (owner: lead + tester)
+
+- 🟡 **FUP-E2E-PROF-CREATE-ROSTER-FLAKE** — flaked in `e2e:prod` batch 6 on `120478bf`
+  (2026-08-27, the first full-suite run of phase AE1), passing on retry. Failing step **:787**:
+  `getByRole('region', { name: 'Participantes' }).locator('li').filter({ hasText: 'Dr. Novo
+  Respondente (E4)' })` not visible within 10 s — the roster row after an **inline professional
+  create** (`possui conta`). ⛔ **Deliberately NOT admitted to `FUP-E2E-REPEAT-FLAKY`'s baseline.**
+  That baseline's *"two pre-existing flakes are a floor, not a guarantee"* is a warning about the
+  count, not permission to grow it — a baseline that absorbs each new name on sight is how a
+  defect becomes furniture. ⚠ **One observation is not a pattern**, and it is a *different*
+  mechanism from the two survivors (which both fail on an absent Radix `menuitem` inside the
+  account dropdown). Needs a disposition — flake or defect — decided rather than assumed;
+  entry criteria if it is ever promoted: a second occurrence with a matching fingerprint — lead/tester
+
 ### 🟡 FUP-GATE-PDFP1-FLAKE — `pdf-printing.spec.ts:38` pre-mint empty-state flake, mechanism UNPROVEN (owner: lead + tester)
 
 - 🟡 **FUP-GATE-PDFP1-FLAKE** — `e2e/pdf-printing.spec.ts:38` failed its **pre-mint** empty-state assertion once in the DM2 re-gate's `e2e:prod` run 1, then passed **three** independent ways at `RETRIES=0` (isolation 9/9 · identical-batch re-run 60/61 · full-suite run 2, batch 8 60/0). **Not phase-attributable** — the printing module is outside the DM2 diff and the expected string is intact in source (QA r2). ⚠ **The mechanism is UNPROVEN**: no infra signal (`server_dead=0`, no conn errors), unlike DM1's proven `server_dead` flake. QA narrowed it further — the gate resets the DB **before each batch** and batch 8 ran **1 worker**, and the failing test is the *first* in its file (pool index 0), which near-refutes the shared-fixture-pool hypothesis and leaves an ordinary `toBeVisible` timing flake. ⚠ **Both evidence artifacts are gone**: `test-results/` AND `/tmp/e2e-prod-gate/batch-8.log` were overwritten by the re-runs. **Discharge = catch it once with artifacts preserved, or pin the timing.** Related and arguably the real fix: `scripts/e2e-prod-gate.sh` resolves "re-run to see if it recurs" vs "preserve the evidence" the **wrong way** — a failing batch's log and `test-results/` should be archived before any re-run (QA r2 carry-forward) — lead/tester

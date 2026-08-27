@@ -73,6 +73,17 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   points) + the [audit](docs/design/authorization-model-evolution-audit-2026-08-26.md) (analysis).
   ⚠ **C1a keeps its queue position (G10)** — Phases 0–1 may run in parallel with the ▶ queue below
   but do not preempt it; re-checked 2026-08-26, C1a still heads the queue and AE0 did not displace it.
+  ▶ **AE1 STATUS 2026-08-27 (16 unpushed on `authz-ae1-hardening`; NOT merged, NOT pushed):**
+  **AE1.1/.2/.3/.4/.5/.6 all built**; close conditions **#1 #2 #4 #5 #6 done**, **#3 HALF** (budget
+  ceiling 752 + merge rule written; its **tiered threat review is SIZED, NOT DONE** — 432 Tier 1
+  functions × 10 columns + 384 command doors, and it is **not** the small item the list implies).
+  Gates on that tree, all measured, exit codes read directly: `test:db` **237/7,870 PASS** · `lint`
+  **10/10** · `typecheck` **0** · vitest **144/1,964** · all four ARM arms **0** · the 63-case
+  diff-scoped sweep re-run and merged (**BLIND 74⇒69, COVERED 296⇒316**; 54 of 63 measured, the 9
+  named in the live record) · **`e2e:prod` GATE GREEN** (1249 passed, 0 failed, 3 flaky, 11 skipped;
+  accounted 1263/1263 on the final batch lines). ⛔ **Still owed before Record:** #3's review · RV0
+  partition · `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` · AE1.5's AFTER capture · **QA review** · the
+  Record step itself (⚠ rotate this file — it is over the 82 KB target).
   ⛔ **AE1's live record — task state, operational facts, fixture traps, and the FUP obligations it
   owes — is [authz-ae1.md](docs/progress/authz-ae1.md); read it before touching this phase.** Two
   AE0 results still bind: this DB has **NO planner statistics** (⛔ never `ANALYZE` before comparing
@@ -316,6 +327,7 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 
 ⭐ **FOUR items also carry a [§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list) entry** — `FUP-DM5-DISPOSAL-JOB` (C1), `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2), and — **promoted by the PO 2026-08-19** — `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (C3) + `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (C4). Their lines below stay put; the Critical entry adds a **trigger and a deadline**, it does not replace the index line.
 
+- 🟡 **FUP-E2E-PROF-CREATE-ROSTER-FLAKE** — `ethics-e4-participants.spec.ts:765` PROF-CREATE roster row absent after inline create (:787, 10 s); ONE observation, AE1's `e2e:prod` 2026-08-27, passed on retry. ⛔ NOT admitted to `FUP-E2E-REPEAT-FLAKY` — a different mechanism, and one occurrence is not a pattern; disposition undecided → [body](docs/progress/follow-ups.md) — lead/tester
 - 🟠 **FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST** — rider R2 of the AE1.4 rpc rulings, a **condition** of the `complete_minutes_job` ruling: `verifyCallbackSignature` at the route is the sole gate and `route.test.ts` mocks the handler out, so no test notices the HMAC vanish. Both directions needed (deny without reaching the RPC; allow reaches it) → [body](docs/progress/follow-ups.md) — backend/tester
 - 🟡 **FUP-DOC-RECLASS-OPERATION-ID** — bind reclassification completion to a DB-minted single-use operation id carrying the (version, new, old, sha) tuple; four loose params today — relational checks bound abuse but don't prove one-invocation provenance (PO obs #2 at the rulings, 2026-08-27) → [body](docs/progress/follow-ups.md) — backend
 - 🟡 **FUP-DOC-DISPOSAL-PROVENANCE-SPLIT** — `complete_document_disposal` serves automated duplicate retirement AND human DSR/manual disposal through one generic door, erasing their different authz/evidence/audit requirements; lane (b) should name the human authority (PO obs #3, 2026-08-27) → [body](docs/progress/follow-ups.md) — backend/PO
