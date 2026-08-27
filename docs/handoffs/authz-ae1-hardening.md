@@ -2,7 +2,7 @@
 branch: authz-ae1-hardening
 task: AE1 — integrity and privilege hardening (authz evolution)
 adrs: [0155, 0160, 0161, 0162, 0079, 0133, 0152, 0156]
-base_sha: 63230a84
+base_sha: 120478bf
 created: 2026-08-27
 updated: 2026-08-27
 status: live
@@ -15,7 +15,7 @@ status: live
 1. `git log --oneline f121c031..HEAD && git status --short`
 2. `docker exec supabase_db_azkbbhskturikxpgmafq psql -U postgres -d postgres -tAc "select max(version), count(*) from supabase_migrations.schema_migrations;"` — expect `20261003005000 | 481` unless someone migrated after this update.
 3. Read **PROGRESS.md § Now**, then **[authz-ae1.md](../progress/authz-ae1.md)** — that file, not this one, is AE1's live record: the task table, the **AMENDED close conditions** (plan audit → ADR 0162), and the FUP obligations.
-4. `npm run typecheck` — **expected: exit 0.** (It failed with 11 TS2322 until `63230a84`; see § State. Anything non-zero now is new.)
+4. `npm run typecheck` and `npm run lint` — **both expected exit 0** at `120478bf`. Anything else is new.
 
 ⛔ Re-measure before relying on anything below — see § Trust.
 
@@ -44,108 +44,86 @@ residue (PO decision) · fixing the platform-wide `actor_id = null` gap · `comm
 
 ### Done — VERIFIED
 
-All 08-27 unless noted. Commits are on this branch.
+Everything below was measured on **this** tree by the session that wrote it, on a quiet stack.
 
 | What | Witness |
 | --- | --- |
-| AE0 complete + recorded | `0b499417`; `docs/progress/authz-ae0.md` (08-26) |
-| AE1.1 FKs, both `ON DELETE CASCADE` | `pg_get_constraintdef`: `confdeltype='c'` both; `14ad668d` |
-| AE1.6 seven zero-policy tables | pgTAP 382 (68 asserts); `91455fbd` |
-| AE1.4 registry, 45 sites | `backend-state.md` § Service-role DML registry; `800ffe2a` |
-| AE1.2 classification, 752 fns | population re-derived by lead = 752 exactly; `f4df4f5f` |
-| Plan audit folded in + **ADR 0162** (amends 0155) | `5f0af8b3`; `docs/reviews/authz-evolution-plan-audit-2026-08-27.md` |
-| **The 11 `.rpc()` rulings — APPROVED + RECORDED** | `90b188fd`; `docs/design/authz-ae1-rpc-rulings.md` (R3 discharged: local↔remote body-md5 parity, all 9 fns); registry Group E has **zero `undecided`** |
-| **Minutes-latch fix `…005000` + pgTAP 388 VERIFIED** | `90b188fd`/`2448a655`; fresh reset → `test:db` **236 files / 7,855 tests PASS, exit 0**; 388 `ok` by name in the log |
-| **Stack NORMALIZED by that reset** | `…004600–004710` now registry-applied; `max(version)=20261003005000`, **481 registered == 481 on disk** |
-| `gen:types` at head `…005000` | `f121c031`; +67 lines, six door RPC signatures present, **zero pgtap pollution** |
-| `lint` 10/10 | exit **0** at the `f121c031` tree (measured directly, no pipe) |
-| vitest full | **144 files / 1,964 tests, exit 0** at the `f121c031` tree (includes the doors owner's updated d14 fixture + the new caller-census test) |
+| AE0 · AE1.1 FKs · AE1.6 zero-policy · AE1.4 registry · AE1.2 classification | unchanged from earlier: `0b499417` · `14ad668d` · `91455fbd` · `800ffe2a` · `f4df4f5f` |
+| The 11 `.rpc()` rulings; minutes latch `…005000` + pgTAP 388 | `90b188fd` / `2448a655` |
+| **AE1.3 COMPLETE** — 6 doors + predicate, `callDoor` type seam (R7), gate flipped ON | `63230a84`; `typecheck` **0** (was 11 TS2322) |
+| **AE1.3 gate record** — 16 cases / 16 `KEYSTONE HOLDS` / FINDINGS 0; sweep ERROR ruled | `7793142b` |
+| **Close #4** — the ONE `user_id` index; PA-F15's cascade premise measured FALSE | `2d8b7c24`; pgTAP 383 `plan(10)` |
+| **Close #2 + #6** — ADP global `FOR ROLE`; all 11 `TO public` policies normalized | `9bd06670`; pgTAP 389 `plan(9)`, 382 `plan(71)` |
+| **AE1.5 increment landed + its harness snapshot verified** (33/33 worklist rows match the catalog; tripwire proven still able to fire) | `40e5c893` |
+| **Close #5** — flake fingerprints, owner, expiry; the FUP's `.focus()` lead corrected | `4915cd3a` |
+| **Privilege budget** — ceiling **752** + merge rule | `5be4c9c8`; `backend-state.md` § Privilege budget |
+| **THE 63-CASE SWEEP RE-RUN + MERGE** — read 41 swept / 40 COVERED / **0 BLIND** / 1 ERROR; write 13 COVERED. 54 of 63 measured; **BLIND 74→69, COVERED 296→316** | `120478bf` |
+| Four ARM arms, post-merge, exit codes read directly | census **0** (565 gates / 601 verdicts) · wrapper **0** (BLIND 41) · hat **0** · floor **0** |
+| `test:db` · `lint` · `typecheck` · vitest | **237 files / 7,870 PASS exit 0** · **10/10 exit 0** · **0** · 144 / 1,964 exit 0 |
+| Registry closure | `max(version)=20261003005300`, **484 registered == 484 on disk** |
 
-### Written but UNVERIFIED
+### Not started / still owed
 
-- **AE1.3's six doors + predicate + 8 `_impl` kernels** (`…004600/004610/004620`). ⭐ Upgraded
-  by the post-reset run: pgTAP **384/385/386/387 ran GREEN inside the full 236-file suite** on a
-  fresh, registry-applied stack — no longer only the author's report. **Still owed:** the
-  15-case mutation audit, the 1-case door sweep + verdict, a follow-up `ARM=census` **green**
-  (its RC=1 naming `app.can_administer_person_for` was R0's control, pre-normalization).
-- **AE1.5's `…004710`** (52-policy `auth.uid()` wrap) — applied + suite-green post-reset;
-  the sweep itself is **ruled closed 43/52 PARTIAL** (§ Gates); AFTER-capture and the
-  findings **merge** (measured rows only) are what remain.
-- `.claude/rules/profiles-guard-never-widened.md`, the shared TS/SQL vectors
-  (`scripts/gen-person-scope-vectors.mjs` + fixtures + `vectors/person_scope_vectors.psql`),
-  `ae13-person-doors-mutation-audit.sh`, `docs/design/authz-ae1-{initplan-triage,revoke-partition}.md`
-  — present, **uncommitted** (ADR 0161 itself was committed in `5f0af8b3`).
-- `src/lib/users/actions.ts` converted to `.rpc()` call sites — uncommitted, and **carries the
-  11 named type errors below**.
-
-### Not started
-
-- ✅ **DONE at `63230a84` — the 11 TS2322 are fixed and AE1.3 is committed.** ⭐ The
-  fix was NEITHER option this handoff offered, and the reason is recorded in
-  [authz-ae1.md](../progress/authz-ae1.md) § "The 11 typecheck errors were TWO classes":
-  8 sites pass `null` to an arg declared `DEFAULT NULL` (`?? undefined` equivalent today),
-  3 pass `null` to an arg with **no default**, where omitting the key leaves PostgREST unable
-  to resolve the overload — **PGRST202 at runtime with `tsc` green**. Ruled (R7): fix the
-  generator's blind spot once at the type seam (`src/lib/types/rpc-args.ts`), keep explicit
-  `null` at every site, leave `database.ts` generated.
-- RV0 revoke partition (`ae1-fk-build`, SQL ready) — the DB is now quiet for it.
+- ⛔ **Close condition #3's TIERED THREAT REVIEW — sized, not done, and it is NOT a small item.**
+  Tier 1 = **432** functions (`config.toml` exposes `public`+`graphql_public`; `app` is not),
+  Tier 2 = 320, and the population holds **384** command doors. PA-F11 asks ten threat columns
+  per Tier 1 row **plus individual justification for every public command door**. Its bounded
+  half (budget ceiling + merge rule) IS done. ⚠ The failure mode to avoid is a shallow pass that
+  fills 432 rows thinly and reports #3 as met. Needs a scoped run or a PO narrowing.
+- **RV0 revoke partition** (`docs/design/authz-ae1-revoke-partition.md`, uncommitted). All **233**
+  revokes remain HELD; AE1 executes none.
+- **`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`** (R2, a condition of the `complete_minutes_job` ruling).
+- AE1.5's **AFTER capture** (the `EXPLAIN` re-baseline for the wrapped tables).
 - The RV3 experiment (§ Open questions).
-- AE1.5's findings **merge** (the 43 measured verdicts, changed rows only, no rows for the
-  9 — § Gates) + the AFTER-capture completion.
-- Amended close conditions still open: **#2** ADP global-`FOR ROLE` form + positive ACL probes ·
-  **#3** the tiered DEFINER review over the classification (binds RV0's held revokes) ·
-  **#4** ⚠ ONE supporting index (`user_id` — see § Dead ends, PA-F15 is half-right) ·
-  **#5** flake fingerprints · **#6** the six `TO public` process-template policies ruling.
-- `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` (R2 — a condition of the `complete_minutes_job` ruling).
-- QA review, `e2e:prod`, Record step (⚠ PROGRESS.md is ~85 KB vs the 82 KB rotation target —
-  rotate at Record; and re-check C1a still heads the ▶ queue, rule G10).
+- **`e2e:prod` — never run this phase** · QA review · Record step.
+- ⚠ At Record: rotate PROGRESS.md (85 KB vs the 82 KB target), re-derive
+  `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`'s counts (never increment by hand), re-check C1a still heads
+  the ▶ queue (rule G10), and file the FUP obligations table in `authz-ae1.md`.
 
 ### Tree
 
-Measured at update: HEAD **`f121c031`**, **4 unpushed** (`5f0af8b3` plan-audit/0162 ·
-`90b188fd` rulings+latch · `2448a655` verification record · `f121c031` types), tree **dirty**:
-5 modified (`users/actions.ts`, `person-scope.ts`, `d14-person-level.test.ts`,
-`270_ff1_repeating_groups.sql`, `304_affiliation_lifecycle.sql` — all the doors owner's) +
-untracked in-flight files listed in § UNVERIFIED. `docs/learning/` and
-`scripts/progress-cleanup-2026-08-26.mjs` are **pre-existing and not this program's** — leave them.
+HEAD **`120478bf`**, **13 unpushed**, working tree otherwise clean except three untracked items:
+`docs/design/authz-ae1-revoke-partition.md` (RV0's, not started) and — pre-existing, **not this
+program's, leave them** — `docs/learning/` and `scripts/progress-cleanup-2026-08-26.mjs`.
 
-⚠ **Multiple sessions have committed to this branch.** As of this update the others are
-**PAUSED** and the DB was owned by the updating session — freshly reset, quiet, nothing holding
-connections beyond the stack's own services. **The successor inherits DB ownership**; announce
-resets in the live record, one owner at a time.
+⚠ Other sessions have committed to this branch historically; they were paused for this stretch and
+the DB was owned throughout. **The successor inherits DB ownership.**
 
 ## Gates
 
-| Arm / suite | Tree | Result | Exit |
-| --- | --- | --- | --- |
-| `test:db` (post-reset, fresh) | `2448a655` tree | **236 files / 7,855 — PASS** | **0** |
-| `lint` (10 gates) | `f121c031` tree | OK | **0** |
-| vitest (full) | `f121c031` tree | 144 / 1,964 pass | **0** |
-| `typecheck` | `63230a84` | OK | **0** |
-| `lint` (10 gates) | `63230a84` | OK | **0** |
-| vitest (full) | `63230a84` | 144 / 1,964 pass | **0** |
-| `test:db` (fresh reset, quiet stack) | `63230a84` | **236 files / 7,855 — PASS** | **0** |
-| `ARM=census`/`hat`/`floor`/`wrapper` | AE0 baseline | 564 gates/600 verdicts · 6/6 · 72 · BLIND 41 | 0 |
+All measured on the `120478bf` tree, quiet stack, fresh reset. Exit codes read **directly**.
 
-**AE1.5's diff-scoped sweep — RULED CLOSED at 43 of 52, PARTIAL** (lead, `545fa56e`; detail +
-the 9 named policies in [authz-ae1.md](../progress/authz-ae1.md)): 30 read-arm COVERED (each
-re-measured post-`ALTER`) + 13 write-arm; the **9 unmeasured sit outside BOTH arms' domains** —
-a pre-existing apparatus gap (C2 family) AE1.5 *revealed*, not created. The 43 was derived by
-worklist cross-check, never from the harness's own report (the write harness silently ignores
-cases absent from its worklist and reports that as coverage). ⚠ The earlier *"merge only once
-not-PARTIAL"* instruction was **corrected as unmeetable**: merge the verdicts actually
-**measured**, changed rows only; **the 9 gain NO rows** — a findings file with no row is the
-honest form of "not measured". ⚠ `case_correction_requests_select` moved BLIND → COVERED —
-call out individually at merge. ⛔ Nothing merged yet into
-`docs/reviews/authz-door-audit-findings.md` (`git diff --stat` empty at this update).
+| Arm / suite | Result | Exit |
+| --- | --- | ---: |
+| `test:db` | **237 files / 7,870 — PASS** | **0** |
+| `lint` (10 gates) | OK (⚠ PROGRESS.md 85 KB > 82 KB target — rotate at Record) | **0** |
+| `typecheck` | OK | **0** |
+| vitest | 144 files / 1,964 | **0** |
+| `ARM=census` | INVARIANT HOLDS — **565 live gates enumerated**, 601 verdicts | **0** |
+| `FROMFINDINGS=1 ARM=wrapper` | INVARIANT HOLDS — BLIND 41, all allowlisted | **0** |
+| `ARM=hat` | INVARIANT HOLDS — self-test 6/6, 3 reasoned-allowlisted | **0** |
+| `ARM=floor` | INVARIANT HOLDS | **0** |
+| diff-scoped sweep, **read** arm, 63 cases | SWEPT 41 · COVERED 40 · **BLIND 0** · ERROR 1 | 1 |
+| diff-scoped sweep, **write** arm | COVERED 13 · BLIND 0 · ERROR 0 · SKIPPED 0 | 0 |
 
-**Did NOT run (deliberate):** `e2e:prod` (never, this phase) · QA review · the full ~5 h door
-sweep · AE1.3's mutation audit + 1-case sweep · **the ARM arms post-reset** — the doors are
-mid-flight, so a census run now reds expectedly on their not-yet-inherited arms; that run
-belongs to the AE1.3 owner's contiguous window, not to a bystander.
+**AE1's gate line, in words and never as an exit code:** *63 cases derived over 9 migrations · **54
+measured** · **9 UNMEASURED BY EITHER ARM**, named in `authz-ae1.md` · 0 BLIND among everything
+measured · 1 ERROR, ruled and covered by the targeted mutation audit.*
 
-⛔ Stale figure to disregard if found: a `test:db` `235/7444 FAIL` — deadlocks from a parallel
-agent's revert, zero assertion failures; superseded by the quiet-stack **236/7,855 PASS** above.
+⛔ **Domain qualifier, always stated beside "all arms green" (plan rule 2):** the reachable command
+doors of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2) are outside **every** arm's domain until that FUP
+closes. Counts re-derived at Record, never quoted.
+
+⛔ **Two exit codes that must not be read as coverage.**
+1. The **write arm exits 0 even having measured nothing** — its summary is `(COVERED = the rest)`
+   with no selection count. What told this run apart from the one that measured NOTHING is that it
+   emitted **13 verdicts**. Count verdicts, never the exit code.
+2. The read arm's **exit 1** here is `DIRTY — 0 BLIND, 1 ERROR`, and the ERROR is the known
+   `app.can_administer_person_for` neutralization limit, ruled and merged. **0 BLIND is the number
+   that matters.**
+
+**Did NOT run:** `e2e:prod` (never, this phase) · QA review · the full ~5 h door sweep · the RV3
+experiment · AE1.5's AFTER capture.
 
 ## Dead ends
 
@@ -206,29 +184,33 @@ agent's revert, zero assertion failures; superseded by the quiet-stack **236/7,8
 
 ## Next task
 
-**In order:**
+AE1.3 and AE1.5 are both closed out; the sweep is re-measured and merged. What remains, in order:
 
-1. ✅ **AE1.3 committed at `63230a84`** — typecheck 0, gate flipped in the same change,
-   `reset` + `test:db` **236/7,855 PASS exit 0** on a quiet stack. **The window is OPEN and its
-   remaining steps are the immediate next work**: 15-case mutation audit → 1-case door sweep
-   → `ARM=census` green. Derive the sweep case list with
-   `bash scripts/door-sweep-cases.sh ad6120b1` (`ad6120b1` = `63230a84`'s parent), **never by
-   hand**; its exit 1 is a finding. ⚠ The deriver's paste-able command names only the READ
-   harness — run `p0-authz-writepath-audit.sh` over the same `CASES=` too, or the write half
-   goes silently unmeasured. ⛔ **Never kill a running sweep**
-   (`.claude/rules/mutation-harnesses-are-not-killable.md`), and **freeze the TREE**: adding a
-   file under `supabase/tests/**` invalidates a run as surely as touching the DB. The open
-   window is announced at the top of [authz-ae1.md](../progress/authz-ae1.md) — remove that
-   heading when it closes.
-2. **AE1.5 owner:** merge the **43 measured verdicts** into the findings file (changed rows
-   only, **no rows for the 9** — § Gates) + finish the AFTER capture; report in words,
-   never as an exit code.
-3. **RV0 partition owner:** the catalog is quiet — run it.
-4. The small amended close conditions: the ONE `user_id` index (+pgTAP) · ADP global-form +
-   probes · tiered-review columns over the 752 classification · flake fingerprints · the
-   `TO public` ruling · R2 HMAC deny test.
-5. Then: full `test:db` re-confirm, `e2e:prod`, QA review, Record step (rotation + budget
-   line + C1a queue re-check + delete this handoff in the Record commit).
+1. **Close condition #3's tiered threat review** — ⛔ **scope it or have the PO narrow it FIRST.**
+   It is a security review over **432** Tier 1 functions with ten threat columns each, plus
+   individual justification for **384** command doors. Filing a thin pass would make the phase
+   record claim a threat review happened. Its bounded half is already done.
+2. **RV0 revoke partition** — SQL is ready in `docs/design/authz-ae1-revoke-partition.md`
+   (uncommitted); the catalog is quiet. ⛔ AE1 executes **no** revoke: all 233 stay HELD. Binding
+   ruling: *a revoke may not create sweep blindness* — revoking `authenticated` EXECUTE removes a
+   function from `ARM=floor`'s domain.
+3. **`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`** (R2) and **AE1.5's AFTER capture**.
+4. **`e2e:prod`** — never run this phase. Compare against the **named-flake baseline WITH the new
+   fingerprints** (`FUP-E2E-REPEAT-FLAKY`): a name match at a different step is a **red**, not a
+   flake. ⚠ The message-pattern half of each fingerprint is deliberately still OWED — fill it in
+   from the first observed failure rather than inventing one.
+5. **QA review → Record step.** At Record: rotate PROGRESS.md (85 KB vs the 82 KB target),
+   re-derive C2's counts, re-check C1a still heads the ▶ queue, file `authz-ae1.md`'s FUP
+   obligations table as real index lines + bodies, and **delete this handoff in the Record commit**.
+
+⛔ **If you run any mutation harness:** one owner, announce it, freeze the tree under
+`supabase/tests/**` (the sweep's baseline is the suite SHAPE, so a new file invalidates a run as
+surely as touching the DB), and **never kill it** — a killed sweep skips its EXIT-trap restore and
+leaves a gate wide open (`.claude/rules/mutation-harnesses-are-not-killable.md`).
+
+⚠ **Land suite-shape changes BEFORE sweeping, not after.** This session sequenced close conditions
+#2/#6 ahead of the 63-case run for exactly that reason; doing it the other way stales the verdicts
+you just paid an hour for.
 
 ## Re-derivation appendix
 
