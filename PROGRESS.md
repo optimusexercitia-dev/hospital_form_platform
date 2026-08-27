@@ -18,16 +18,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
 - **✅ Six concluded programs — fully rotated** → [2026-Q3.md](docs/progress/2026-Q3.md) +
   [phase-ledger.md](docs/progress/phase-ledger.md). ⛔ **Only the two LIVE residues stay here:**
-  **(1) Do NOT trust any authz-gate result predating 2026-08-24** — the step-1 suite was **not
-  running on this platform at all**, in two independent committed ways, and `ARM=census` printed
-  `INVARIANT HOLDS` at exit 0 **having enumerated ZERO gates**. **(2) ⛔ THAT SECOND CLAIM WAS FALSE
-  IN BOTH HALVES** — it read *"Five QA findings (N-1…N-5) + four P3 follow-ups are OPEN in
-  § Follow-ups"*. Measured 2026-08-26 at the AFF4 Record step: findable are **N-1, N-2, N-5** and
-  **TWO** `FUP-P3-*` lines; **N-3 and N-4 have ZERO hits anywhere in this file.** Either they were
-  resolved and this line never updated, or they were lost — ⛔ **recover them from the originating
-  review before quoting this bullet.** ⚠ Direction matters: this error ran **WIDER** than reality,
-  the opposite of the usual tighter-so-it-reads-as-care drift, and it concealed two items by
-  asserting they were already indexed. Approval was given AROUND these, not over them.
+  **(1)** ⭕ **ROTATED 2026-08-27 → `.claude/rules/authz-gate-results-need-a-current-baseline.md`**
+  (path-scoped, gate-verified; it also now carries AE0's trusted baseline).
+  **(2)** ⭕ **CONVERTED 2026-08-27 to `FUP-QA-FINDINGS-N3-N4-UNACCOUNTED`** (indexed below) — it
+  was an actionable item wearing a narrative, which the contract's three-way test says is a body
+  plus one index line. ⛔ N-3 and N-4 still have **ZERO hits**; the recovery is owed, not done.
 - **🟠 nvm still defaults to Node 20, and `npm run lint` DIES AT GATE 8 there** (`globSync` needs 22).
   `.nvmrc` + `engines` are set; **`nvm alias default 22` is not**. ⛔ Kept live deliberately when the
   gate-tooling bullet was rotated 2026-08-25: it is the one item in that ✅-marked bullet with an
@@ -78,13 +73,13 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   points) + the [audit](docs/design/authorization-model-evolution-audit-2026-08-26.md) (analysis).
   ⚠ **C1a keeps its queue position (G10)** — Phases 0–1 may run in parallel with the ▶ queue below
   but do not preempt it; re-checked 2026-08-26, C1a still heads the queue and AE0 did not displace it.
-  ⛔ **Two AE0 results that bind AE1 and are live state, not history:** **(1)** the service-role
-  surface is **45 sites, not 12** — size AE1.4's registry off 45, and **11 of 19 `.rpc()` sites have
-  an UNDECIDABLE revalidation mechanism** (PO-open); **(2)** this DB has **NO planner statistics** —
-  ⛔ never `ANALYZE` before comparing against the AE0 baselines, and a **cost-only** diff is
-  autovacuum, not a finding. Two refuted ADR-0155 figures → ADR
-  [0160](docs/decisions/0160-ae0-corrections-to-adr-0155-measured-figures.md) (PROPOSED; 0155 carries
-  the back-pointer). Decision surface → [ae0-findings](docs/design/authz-evolution-ae0-findings.md).
+  ⛔ **AE1's live record — task state, operational facts, fixture traps, and the FUP obligations it
+  owes — is [authz-ae1.md](docs/progress/authz-ae1.md); read it before touching this phase.** Two
+  AE0 results still bind: this DB has **NO planner statistics** (⛔ never `ANALYZE` before comparing
+  against the AE0 baselines; a **cost-only** diff is autovacuum, not a finding), and the service-role
+  surface is **45 sites, not 12**. ADR
+  [0160](docs/decisions/0160-ae0-corrections-to-adr-0155-measured-figures.md) corrects two refuted
+  0155 figures.
 - **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
   has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
@@ -320,6 +315,8 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 
 - 🟠 **FUP-AFF4-HOMEORG-PHASE2** — 0151 D10's named Phase 2 (RLS legs + tenant trigger off `home_organization_id`; lifecycle authority over fully-offboarded persons) had **no register line anywhere** — filed 2026-08-26 at ADR 0155's acceptance, which also **promotes it to PRE-PILOT** (was "before multi-org, not pilot-blocking") as implementation Phase 2 → [body](docs/progress/follow-ups.md) — backend/PO
 - 🔴 **FUP-MEETING-CASES-SELECT-OMITS-RECUSAL** — the SELECT policy hand-rolls a weaker predicate than its three siblings and inherits **no recusal deny**; the table carries case `summary`/`decision`. Predicate measured TRUE for a recused user, but the seed cannot reach the state — **latent, not demonstrated**. PO rules it before any fix → [body](docs/progress/follow-ups.md) — backend/PO
+- 🟡 **FUP-QA-FINDINGS-N3-N4-UNACCOUNTED** — a § Now line claimed five QA findings + four P3 follow-ups were indexed; measured, only **N-1/N-2/N-5** and **two** `FUP-P3-*` are findable. ⛔ **N-3 and N-4 have ZERO hits** — recover from the originating review. ⚠ The error ran **wider** than reality, concealing two items by asserting they were tracked → [body](docs/progress/follow-ups.md) — lead
+- 🟡 **FUP-ZERO-ARG-APP-PREDICATES-NOT-HOISTED** — the advisor's initplan rule is blind to `app.*()`, so zero-arg RLS predicates still evaluate **per row** (`organizations` twice per row); 26-table census → [body](docs/progress/follow-ups.md) — backend
 - 🟡 **FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY** — `commissions` + `commission_meeting_types` grant tenancy-admin **reads** from `…_write` policies (a `FOR ALL` policy **is** a read policy), so the only identity-preserving dedup would make read depend on a write policy surviving. Lead-ruled 2026-08-27: leave both; restructure is its own decision. ⚠ Wider than these 2 — derive as a **property** → [body](docs/progress/follow-ups.md) — backend/PO
 - 🔴 **FUP-ETHICS-CASE-DELETE-CASCADE** — a commission `staff_admin` can `DELETE /rest/v1/cases` an **in-flight** ethics case, cascading all **7** `ethics_*` tables; the lane's deliberate SELECT-only lockdown (9 tables, 14 DEFINER writers, **no DELETE in any**) is defeated by a parent that was never locked down — same JWT gets **403** on `ethics_case_details`, **200** on `cases`. `guard_case_status` bars DELETE only for `completed`/`cancelled`. ⛔ **3** audit rows emitted, **0** naming any ethics entity (no `ethics_*` table has an audit trigger). Confirmed by execution, rolled back. **PO-ruled RECORD-ONLY 2026-08-21** — accepted and OPEN — backend/PO
 - 🟠 **FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE** — `redact_professional_profile` erases the accused doctor from an **undecided** ethics case: the `HC0J7` bar needs an `issued` decision and `trg_pin_respondent_retention` fires only on the transition **into** `issued`, so both halves are false all through intake/findings/hearings. Executed by a plain commission `staff_admin`. ⚠ **No UI calls it — that is not the control**; the RPC is `EXECUTE`-granted to `authenticated` and answers over PostgREST. Existing pgTAP `257` + E2E pin only the **pinned** case, so nothing is red. **PO-ruled RECORD-ONLY 2026-08-21** — backend/PO
