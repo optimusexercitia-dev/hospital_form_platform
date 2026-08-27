@@ -306,6 +306,14 @@ exception when others then
   return sqlstate;
 end; $p$;
 
+-- ⚠ EXPLICIT GRANT REQUIRED SINCE `20261003005300` (AE1 close condition #2 / PA-F4).
+-- This helper is invoked below as a NON-OWNER role. It used to be executable only because
+-- a newly created function inherited the built-in PUBLIC EXECUTE default; that default is
+-- now revoked globally for the `postgres` creator role, so the grant must be STATED.
+-- ⛔ `to public` reproduces the PRIOR semantics exactly — this is not a widening, and
+-- narrowing it to one role would quietly change what this suite exercises.
+grant execute on function app._t292_probe_arm(text, text, text) to public;
+
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 

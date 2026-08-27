@@ -65,7 +65,7 @@
 -- positionally).
 
 begin;
-select plan(68);
+select plan(71);
 
 -- ============================================================================
 -- SS A - RLS layer: relrowsecurity = true AND zero pg_policies rows, all 7 tables.
@@ -291,6 +291,48 @@ select is(
   0, 'D10: CONTROL -- dropping it returns the count to 0 (both directions move)');
 
 drop table public._zpt_control;
+
+
+-- ── §5 NO POLICY IN `public` IS `TO public` (AE1 close condition #6 / AE0 F-AE0-4) ──
+-- Migration: 20261003005200_normalize_to_public_policies.sql, which normalized 11 policies
+-- over 6 tables. ⚠ The unit is the PROPERTY ("roles contains public"), not the feature:
+-- F-AE0-4 scoped itself to `process_template_*` and so could not see the eleventh, a DELETE
+-- policy on the Rule 12 PHI table `case_referral`. Asserting the property is what makes the
+-- next one visible too.
+
+select is(
+  (select count(*)::int from pg_policies where schemaname = 'public' and 'public' = any(roles)),
+  0,
+  '5.1: no policy in schema public is TO public — the role bound is DECLARED by every '
+  'policy, not left to the grant layer to supply');
+
+-- 5.2 VACUITY CONTROL. §5.1 is a count-is-zero assertion, and a zero can mean "clean" or
+-- "the query cannot see anything". Build a policy that SHOULD trip it and confirm it does.
+create table public._topub_control (id int);
+alter table public._topub_control enable row level security;
+create policy _topub_control_p on public._topub_control for select to public using (true);
+
+select ok(
+  exists (select 1 from pg_policies
+           where schemaname = 'public' and 'public' = any(roles)
+             and tablename = '_topub_control'),
+  '5.2 [VACUITY CONTROL]: a deliberately TO public policy IS matched by 5.1''s exact '
+  'predicate — so 5.1''s zero is an observation about the catalog, not a query that '
+  'cannot match. Asserts the probe is FOUND rather than that the total equals a number, '
+  'so the control does not silently depend on 5.1''s own baseline being zero');
+
+drop table public._topub_control;
+
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public'
+      and tablename in ('process_template_custom_fields','process_template_narratives',
+                        'process_template_outcomes','process_template_phases',
+                        'process_template_versions','case_referral')
+      and roles <> '{authenticated}'),
+  0,
+  '5.3: all 11 normalized policies on the 6 affected tables are exactly {authenticated} — '
+  'not merely "no longer public", which a TO anon policy would also satisfy');
 
 select * from finish();
 rollback;

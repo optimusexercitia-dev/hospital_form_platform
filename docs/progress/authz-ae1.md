@@ -35,7 +35,8 @@ mergeable increments but **does not close** until:
    parity; 0 refs in the unregistered migrations). Residue: R2 =
    `FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST`; migration `…005000` + pgTAP `388` verify in the
    next owned stack window (see gate obligations below);
-2. AE1.2's `ALTER DEFAULT PRIVILEGES` uses the **global `FOR ROLE <creator>` form** with
+2. ✅ **DONE** — `20261003005300` + pgTAP 389 (global `FOR ROLE` form, probe-verified). Was:
+   AE1.2's `ALTER DEFAULT PRIVILEGES` uses the **global `FOR ROLE <creator>` form** with
    positive effective-ACL probes (`has_function_privilege` + `pg_default_acl`) — the
    `IN SCHEMA` form is a documented no-op against the built-in PUBLIC default [PA-F4];
 3. the DEFINER review runs **tiered** (Tier 1 threat columns for the remotely reachable
@@ -45,8 +46,9 @@ mergeable increments but **does not close** until:
    premise measured FALSE and the third FK (`appointed_by`) ruled out. See § "PA-F15 was
    wrong twice";
 5. named-flake baseline entries carry **error fingerprints** + owner/expiry [PA-F16];
-6. the six `TO public` process-template policies (AE0 F-AE0-4) normalized or explicitly
-   ruled.
+6. ✅ **DONE** — `20261003005200` + pgTAP 382 §5: **11** policies over **6** tables normalized
+   to `TO authenticated`, 0 remaining. ⛔ Not "six": F-AE0-4's counts were wrong in both
+   halves and it missed a `case_referral` DELETE policy on a PHI table entirely.
 
 ## ⚠ Operational facts this phase established the hard way
 
@@ -92,6 +94,98 @@ swept"* reporting — **there is none.** A `CASES=` entry absent from its embedd
 So handing it 52 cases and receiving `13 COVERED, exit 0` reads as coverage of 52. ⚠ The only
 reason the gap was ever visible is that the **sibling** arm prints
 `REQUESTED CASES THAT MATCHED NO GATE` and refuses to end CLEAN.
+
+### ⭐ Close conditions #2 and #6: a DECLARED rule read as closed while the EFFECTIVE state was open
+
+**2026-08-27.** Both discharged the same day and they are the same shape, which is worth stating
+once rather than twice: in each, the artefact that describes the policy — a `pg_default_acl` row,
+a finding's own scope sentence — was **read** and gave the wrong answer, and only probing the
+**effective** state gave the right one.
+
+#### #2 — `ALTER DEFAULT PRIVILEGES`, the global `FOR ROLE` form (PA-F4) → `20261003005300` + pgTAP 389
+
+PA-F4 says the `IN SCHEMA` form is a documented no-op against the built-in PUBLIC EXECUTE
+default. ⛔ **It is, and this database disguises that convincingly.** `pg_default_acl` already
+carried `(defaclrole=postgres, nsp=public, objtype=f) acl={postgres=X,service_role=X}` — a rule
+listing **no PUBLIC**, which reads as "`public` is already closed". Probed instead, by creating a
+throwaway function in each schema:
+
+| probe | `proacl` | anon EXECUTE |
+| --- | --- | --- |
+| `app._adp_probe` | **NULL** — the built-in default | **true** |
+| `public._adp_probe` | `{=X/postgres, postgres=X/…, service_role=X/…}` | **true** |
+
+Both open. The `public` row is additive to the built-in default, not a replacement, and the
+**leading `=X/` with an empty grantee IS the PUBLIC grant**. ⭐ This is the *guards that read
+right but fail open* family — an implicit or NULL `proacl` **includes PUBLIC** — and it was one
+inference away from being recorded as "already safe".
+
+Creator roles enumerated, not assumed: **`postgres` is the only one** (550 `public` + 507 `app`
+functions, all `proowner=postgres`), so one global command covers both — and `authz` too when AE4
+creates it, before any object exists. Effect measured in a rolled-back transaction *before* the
+migration was written: new functions in both schemas grant anon and authenticated nothing.
+⛔ Existing functions untouched, with a positive control asserting it (`app.is_admin()` still
+anon-executable): the historical residue stays `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`,
+a PO decision, and pgTAP 389 §3.1 makes folding it in silently impossible.
+
+#### #6 — every `TO public` policy normalized (AE0 F-AE0-4) → `20261003005200` + pgTAP 382 §5
+
+⛔ **F-AE0-4's counts are wrong in BOTH halves while its total is right, which is why nobody
+noticed.** It reads *"six `process_template_*` tables gate on `TO public`"* and *"the other 2
+tables … use `TO authenticated`"*. Measured: the family is 8 tables, split **5 / 3**, and the
+unit is **policies** — those 5 tables carry **10** (a `_select` and a `_staff_admin_write` each).
+The plan then compressed this to *"the six `TO public` process-template policies"*, a third
+figure matching neither.
+
+⛔ **And there is an eleventh, outside the feature the finding scoped itself to:**
+`case_referral.case_referral_delete_draft_source` — a **DELETE** policy, `TO public`, on a
+**Rule 12 PHI-module table**. ⭐ *A finding that names a feature bounds its own sweep to that
+feature; the PROPERTY does not stop at the feature edge.* Swept by the property here: 11
+policies, 6 tables, **0 remaining**.
+
+F-AE0-4's "not an exposure today" claim **holds** and was re-measured across all six tables
+(`anon`: no SELECT/INSERT/UPDATE/DELETE anywhere; positive control — `authenticated` returns
+true, so the probe is not stuck-false). Normalization is behaviour-preserving, measured not
+assumed: only `authenticated`, `postgres` and `service_role` hold any grant, and the latter two
+carry **`rolbypassrls = true`**, so RLS never applied to them; `anon` and `authenticator` hold no
+grant and cannot reach the tables at all. So `authenticated` is the only role these policies ever
+gated. What changes is that the bound is now **declared by the policy** instead of supplied by
+the grant layer — Architecture Rule 1 puts the boundary in RLS, and one future
+`grant … to anon` was all that stood between the two readings.
+
+**Both red-first proven.** 382: §5.1/§5.3 failed pre-migration while the §5.2 vacuity control
+passed on a real fact (a deliberately `TO public` probe policy IS matched) → **71/71** after.
+389: **7 of 9** failed pre-migration → **9/9** after. ⚠ 389 §2.2 is the sharp one: pre-migration,
+revoking anon's *explicit* grant still left it privileged **through PUBLIC**, which is the defect
+stated as a test.
+
+#### ⛔ The ADP change's blast radius landed on TEST SCAFFOLDING, and one victim was a CONTROL
+
+Applying `20261003005300` took the full pgTAP suite from PASS to **FAIL across four files**, and
+**not one was a production door** — `test:db` read `Files=237, Tests=7814, FAIL` where the shape
+predicted ~7,870, the shortfall being three suites ABORTING mid-file.
+
+- **277 / 292 / 380** — `permission denied for function <helper>`. Each creates a helper (two in
+  `pg_temp`, one in `app`) and calls it as a **non-owner** role. They worked only because a new
+  function inherited the built-in PUBLIC EXECUTE default. Fixed by stating the grant, which is
+  the change's whole point.
+- **320** — an ACL-population **vacuity control** asserting *"creating ONE app function with the
+  default ACL moves the count 237 → 238"*. After the migration a new function no longer joins
+  that population, so the count stopped moving and the control **failed — which is the control
+  working.**
+
+⭐ **The near-miss worth keeping.** 320's cheapest green was to expect **237**. That edit would
+have made a *detector-vacuity control pass by asserting the detector finds nothing* — precisely
+what the control exists to rule out — and it would have looked like a one-character baseline
+refresh. It now **grants PUBLIC explicitly**, constructing the condition it probes for instead of
+borrowing it from an ambient default, which is strictly stronger: the control no longer depends
+on a database-wide setting the suite does not own.
+
+⭐ **Generalisable:** a change to a **default** has a blast radius covering everything that
+silently relied on that default — and **test scaffolding relies on defaults far more than
+production code does**, because production grants get reviewed and a test helper's do not. ⚠ My
+own migration header predicted the consequence and understated it (it named only service_role on
+new `app` functions); the header was corrected from the measurement, not the prediction.
 
 ### PA-F15 was wrong twice, and the handoff's correction was right by accident
 
