@@ -266,8 +266,18 @@ vacuous baseline takes here.
 ### F-AE0-6 — verbatim-duplicated permissive policy arms, costing ~4× today
 
 `profiles` carries an **11-arm OR from two permissive SELECT policies whose arms are
-duplicated verbatim** — five arms are literal repeats (`SubPlan 3`≡`28`, `16`≡`36`,
+duplicated verbatim** — ⛔ **FOUR** arms are literal repeats (`SubPlan 3`≡`28`, `16`≡`36`,
 `24`≡`44`, and `app.is_org_admin_of(home_organization_id)` twice).
+
+> ⛔ **CORRECTED 2026-08-27 by AE1.5, measured against the catalog.** This read *"five arms
+> are literal repeats"* **while its own parenthetical enumerated four** — the number and the
+> list disagreed, and the number was the wrong half. Measured:
+> `profiles_admin_select` **5** arms, `profiles_select_self_or_admin` **6**, **4** of the
+> first are also in the second, exactly **1** is not (`app.is_admin()`), union distinct
+> **7**. ⭐ The correction matters beyond the digit: because the first policy's arms are a
+> subset of the second's **plus one**, narrowing it to just `app.is_admin()` preserves the
+> union **bit-for-bit** — which is what makes the edit provably identity rather than merely
+> plausible.
 
 - For `org_admin`, arm A short-circuits and every SubPlan reads `never executed`.
 - For **`hospital_admin` it falls through**: `SubPlan 3` runs at `loops=14`, its inner
@@ -275,9 +285,22 @@ duplicated verbatim** — five arms are literal repeats (`SubPlan 3`≡`28`, `16
 - Measured: **16.5 ms / 533 buffers for 15 rows (`hospital_admin`)** vs **3.9 ms / 135
   buffers for 20 rows (`org_admin`)**. Live per-row invocation, **~4× cost, today**.
 
-Same class on `commissions` (a nine-term OR with `is_org_admin_of` and
-`is_hospital_admin_of` each appearing **twice**) and `commission_meeting_types`
-(`is_tenancy_admin_of` twice).
+`commissions` (a nine-term OR with `is_org_admin_of` and `is_hospital_admin_of` each
+appearing **twice**) and `commission_meeting_types` (`is_tenancy_admin_of` twice) show
+duplicated arms too.
+
+> ⛔ **CORRECTED 2026-08-27 by AE1.5: these are NOT "the same class", and calling them that
+> was this document's overreach.** Measured: on both tables the duplicated arms span a
+> **`FOR ALL`** policy and a **`FOR SELECT`** policy (`commissions_admin_write` ALL +
+> `commissions_select_member_or_admin` SELECT; `meeting_types_staff_admin_write` ALL +
+> `meeting_types_select` SELECT). `profiles`' two policies are **both SELECT**, so its
+> disjunction is closed within one command and the edit is pure identity. Here it is not:
+> the only identity-preserving direction is to strip the arms from the **SELECT** policy
+> (stripping the `ALL` policy would break INSERT/UPDATE/DELETE), which makes `org_admin` /
+> `hospital_admin` **read** access depend on a policy named `…_write` continuing to exist.
+> Anyone later narrowing that write policy would **silently revoke read**. That is an
+> authz-fragility trade, not a performance edit. **Ruled: left alone in AE1** — see the
+> AE1.5 triage doc.
 
 ⭐ **This is the one shape that clears AE1.5's own bar without argument.** AE1.5 warns that
 permissive policies OR together, so consolidation is semantically neutral **only** if the
