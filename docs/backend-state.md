@@ -438,6 +438,54 @@ their home is here because they never conclude._
   writers because each used a different bound — see the correction record at the top
   of this file (75 fns / 6 read a flag).
 
+## Zero-policy tables — door-only by design (AE1.6; ADR 0155 D9; measured 2026-08-27)
+
+_The security advisor's RLS-enabled / zero-policy findings, recorded here so they read as
+the deliberate pattern ARCHITECTURE.md Rule 1 already names ("audited single door with
+ZERO policies" / the PHI posture) rather than as missing coverage. Pinned by
+`supabase/tests/382_zero_policy_tables_are_door_only.sql` (`plan(68)`, PASS). Like
+"Testing the schema" and "Remote discipline" above, this never concludes — it is a
+standing registry, re-checked by the pgTAP file, not a phase narrative._
+
+**MEASURED, not the plan's assumed shape** — on all seven tables below,
+`has_table_privilege('authenticated', …)` is **false** for all four DML verbs (checked
+positively; `relacl` is NOT null on any of the seven, so this is not the "NULL proacl
+includes PUBLIC" trap — there was simply no grant to `authenticated` or `anon` to find,
+table- or column-level). So **two independent layers deny access** on these seven: the
+GRANT layer (no ACL entry for `authenticated` at all) and the RLS layer (RLS enabled, 0
+policies). Recording both matters because either could widen independently — but only the
+GRANT layer is what a live query actually hits: Postgres checks table privilege before RLS
+is ever evaluated, so the observed runtime error on every one of these seven (42501,
+"permission denied for table") is the GRANT layer, not RLS. RLS's 0-policy state is a
+backstop, not currently the operative denial mechanism — it becomes operative only the day
+a future grant is added without a matching policy, which is exactly the accidental
+widening this pin exists to catch.
+
+| table | why no policy | door(s) — the only access path | pgTAP |
+| --- | --- | --- | --- |
+| `case_print_revisions` | monotonic print-currency counter (PDF·P3, ADR 0144 D4/D15); kept off `cases` because `app.guard_case_status` freezes that table in states this counter must still move in | write: `app.bump_case_print_revision` · read: `app.print_source_revision` / `app.print_source_head` — all three `app`-schema DEFINER, **no `authenticated` EXECUTE at all** (internal-helper class, measured; called only from other DEFINER bodies) | `382` §A1–A2, §B1–B4, §C13 |
+| `meeting_closed_session_items` | restricted-visibility closed-session meeting content (ADR 0078 Gate-2 reserved-child-lock pattern) | write: `public.add_reserved_item` · read: `public.get_reserved_session_items` · disposal: `public.dispose_meeting_minutes` · guard: `app.guard_reserved_child_lock` (trigger) — the three `public` doors are `authenticated`-EXECUTE, all DEFINER | `382` §A3–A4, §B5–B8, §C14 |
+| `meeting_closed_session_item_readers` | the closed-session item's reader roster (who may see it) — same posture as its parent | same doors as `meeting_closed_session_items` (`add_reserved_item` / `get_reserved_session_items`), except `dispose_meeting_minutes` (items only, not readers) | `382` §A5–A6, §B9–B12, §C15 |
+| `patient_identifiers` | **Rule 12 Class-1 patient PHI** — isolated case-module identifier set (ADR 0038, re-keyed by F1/ADR 0064+0066, gated by ADR 0078) | write: `public.set_participant_patient` (coordinator-gated wrapper over `app._set_participant_patient_unchecked`, `prosecdef=f` deliberately — ADR 0134 Amdt 2's two-gate shape) + the three creation RPCs (ARCHITECTURE.md Rule 12) · read: `public.get_case_patient` / `public.get_case_patients` / `public.get_participant_patient` | `382` §A7–A8, §B13–B16, §C1–C4 |
+| `patient_participants` | **Rule 12 Class-1 patient PHI** — the type-gated patient-participant chain `patient_identifiers` keys off (Appendix A dialect 3) | **no standalone reader** — reached only as a JOIN through the `patient_identifiers` doors above; gated by the read predicate `app.can_read_case_patient` and the trigger `app.guard_case_patient_required` | `382` §A9–A10, §B17–B20, §C5–C8 |
+| `referral_patient` | **Rule 12 Class-1 patient PHI** — inter-committee referral module (ADR 0037), modeled on `event_patient` | write: `public.save_referral_patient` (`public.set_referral_patient` **left the public API**, ADR 0078 D7/F1 — measured: `authenticated` has NO EXECUTE on it) · read: `public.get_referral_patient` | `382` §A11–A12, §B21–B24, §C9–C12 |
+| `verification_lookups` | minimal verification-scan log (ADR 0104 D12) — kind + credential-hash + timestamp + matched only, never the raw token, never an actor, never `audit_log` | `public.lookup_printed_document` — the ONLY consumer, and **not even `authenticated`-EXECUTE**: measured `service_role`-only (M2) | `382` §A13–A14, §B25–B28, §C16 |
+
+**Mechanism, stated once so a future reader doesn't conflate the two claims:**
+- **GRANT layer** (`382` §B statically, §C at runtime) — `has_table_privilege` catalog
+  checks + a live 42501 for every verb attempted as `authenticated`. This is what an actual
+  PostgREST or SQL call hits FIRST, and it is the layer actually enforcing the denial today.
+- **RLS layer** (`382` §A) — `relrowsecurity = true` + zero `pg_policies` rows. Structural
+  only; not independently observable at runtime today because the grant layer already
+  blocks before RLS is evaluated. Recorded anyway — it is the layer that matters the day
+  someone grants a verb here without adding a policy to go with it.
+- **Positive control** (`382` §D) — the same `has_table_privilege` / `pg_policies` /
+  live-query shapes shown PASSING (reporting "granted"/"has a policy") on `public.commissions`
+  (a genuinely granted, policied table) and walked through grant→revoke / policy-add→drop
+  live on one ephemeral table, both directions moving the detector. Without this, a green
+  "everything is denied" file would be unfalsifiable — this makes a red here trustworthy as
+  a real regression.
+
 ## AFF4 — organization affiliation, per-hospital staff data, the voided tense (2026-08-26; ADR **0151** D1–D17 + **0154** / **0158** / **0159**; migrations `20261003003200`–`…004300`, **12**; pgTAP `301`–`304` · `371`–`375` · `377`–`381`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **NOT PUSHED at the Record edit; 12 migrations are LOCAL ONLY**
 
 **New table `public.organization_affiliations`** — "this person belongs to this organization" as a
