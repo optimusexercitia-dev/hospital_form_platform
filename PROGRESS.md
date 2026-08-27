@@ -257,6 +257,7 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-27 | **PROGRESS.md size is now TWO thresholds** (PO): 80 KB **target** — non-fatal warning, printed every run, rotate here — and a 100 KB **hard cap**. 2nd raise; Amdt 2 refused to be a precedent, so the pressure MOVED to the target rather than being deleted. Handoff cap 12→24 KB in the same instruction | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) **Amdt 3** |
 | 2026-08-26 | **ADR 0155 ACCEPTED as amended — authz evolution is a staged program**: role/permission catalog by role-by-role direct substitution (`staff_admin` first); D4 = `profile_private_details` single-shot pre-live; D5 demoted; D6 stays deferred; pilot gate = Phases 0–4; PO decisions G1–G11 in the ADR | ADR [0155](docs/decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) — **amends 0151 D10** |
 | 2026-08-26 | **An invariant backstop runs as DEFINER** — the discriminator is *does it read caller identity?*, not *is it a trigger?* Closes `BUG-D5-REHIRE-HOSPADMIN-001` | ADR [0159](docs/decisions/0159-invariant-backstops-run-as-definer.md) — **amends 0151 D4** |
 | 2026-08-26 | **The hospital directory keeps its predicate** — `listHospitalUsers` does NOT move; filtering it would blank the page for the only role it serves. Toggle absent there; T2 org-scoped | ADR [0158](docs/decisions/0158-hospital-directory-keeps-its-predicate.md) — **amends 0154 D1** |

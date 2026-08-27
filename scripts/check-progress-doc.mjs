@@ -11,9 +11,23 @@
  * August. None of those had a gate that could contradict them — this is that gate.
  *
  * THE CONTRACT it enforces (PROGRESS.md header + CLAUDE.md §7):
- *   1. SIZE      — PROGRESS.md is at most 80 KB. Hard fail, no warn band: a warn band
- *                  is a figure someone has to notice, and figures nobody must act on
- *                  go stale (the banner's own history).
+ *   1. SIZE      — PROGRESS.md TARGETS 80 KB and HARD-FAILS at 100 KB (PO instruction
+ *                  2026-08-27, ADR 0124 Amdt 3). The band between them WARNS on every
+ *                  run. This reverses the original "hard fail, no warn band" rule,
+ *                  whose stated fear was that "a warn band is a figure someone has to
+ *                  notice, and figures nobody must act on go stale". That fear is
+ *                  answered by CONSTRUCTION, not by trust: the warning is emitted by
+ *                  this script on every `npm run lint`, into the same stream as a
+ *                  finding, and it names the byte count and the target. It is not a
+ *                  figure in prose that someone must remember to check — the failure
+ *                  mode the old rule was written against. What the single hard cap
+ *                  actually produced was the OPPOSITE defect: at 40 bytes of headroom
+ *                  (measured 2026-08-27) every status write became a rotation
+ *                  emergency, and compression under that pressure cuts QUALIFIERS
+ *                  first — the bound on a fact is its shortest clause and reads as
+ *                  hedging. The target keeps the rotation pressure; the cap stops the
+ *                  file from becoming a hostage to it.
+ *                  ⛔ The band is NOT permission to sit at 99 KB. Rotate at 80 KB.
  *   2. SECTIONS  — the required live sections exist (matched on their stable noun, so
  *                  emoji/decoration drift does not red the gate).
  *   3. PHASES    — no row in § Phase Status has "complet…" in its Status cell. A
@@ -57,7 +71,8 @@ import { join, dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const ROOT = process.cwd()
-const SIZE_CAP = 80 * 1024
+const SIZE_TARGET = 80 * 1024
+const SIZE_CAP = 100 * 1024
 const CLAUDE_SIZE_CAP = 40 * 1024
 const MAX_CELL = 300
 const MAX_BULLET = 400
@@ -130,16 +145,39 @@ export function sectionBody(text, headingRe) {
   return { startLine: start + 1, lines: lines.slice(start + 1, end) }
 }
 
+const ROTATION_ADVICE =
+  `Rotate at the property level: completed rows -> phase-ledger.md, resolved FUP lines ` +
+  `-> follow-ups-archive.md, concluded S-Now bullets -> the current quarter's ` +
+  `docs/progress/<YYYY>-Q<n>.md (ADR 0139), concluded gate/QA/decision rows -> their ` +
+  `archives. Never trim Critical FUP or OPEN index lines.`
+
 export function checkSize(bytes) {
   return bytes <= SIZE_CAP
     ? []
     : [
-        `PROGRESS.md is ${bytes} bytes (cap ${SIZE_CAP}). Rotate at the property level: ` +
-          `completed rows -> phase-ledger.md, resolved FUP lines -> follow-ups-archive.md, ` +
-          `concluded S-Now bullets -> the current quarter's docs/progress/<YYYY>-Q<n>.md ` +
-          `(ADR 0139), concluded gate/QA/decision rows -> their archives. Never trim ` +
-          `Critical FUP or OPEN index lines.`,
+        `PROGRESS.md is ${bytes} bytes — OVER the ${SIZE_CAP}-byte HARD CAP. ` +
+          ROTATION_ADVICE,
       ]
+}
+
+/**
+ * The soft target (ADR 0124 Amdt 3). Non-fatal BY DESIGN and loud by construction —
+ * main() prints it on every run, green or red, so it is never a figure someone has to
+ * remember to go and look up. ⛔ Do NOT promote this to a finding to "be safe": the
+ * whole point of the band is that a status write at 81 KB is not an emergency. And
+ * ⛔ do NOT raise SIZE_TARGET to silence it — that is the lint:set-local watermark
+ * lesson (bumping the watermark grandfathers the growth you just wrote and flips the
+ * rot direction from stricter to weaker). Rotate instead.
+ */
+export function warnSize(bytes) {
+  return bytes > SIZE_TARGET && bytes <= SIZE_CAP
+    ? [
+        `PROGRESS.md is ${bytes} bytes — over the ${SIZE_TARGET}-byte TARGET ` +
+          `(hard cap ${SIZE_CAP}, ${SIZE_CAP - bytes} bytes left). Rotate NOW, while it ` +
+          `is still a choice: compression under cap pressure cuts qualifiers first. ` +
+          ROTATION_ADVICE,
+      ]
+    : []
 }
 
 /**
@@ -377,6 +415,23 @@ function selfTest() {
   expectRed('size', checkSize(SIZE_CAP + 1))
   expectGreen('size-green', checkSize(SIZE_CAP))
 
+  // ADR 0124 Amdt 3 — the soft target. Three properties, because a two-threshold size
+  // check has three failure modes a one-threshold check did not have:
+  //   (a) the band is NON-EMPTY. If SIZE_TARGET ever reaches SIZE_CAP the warn can
+  //       never fire for any input, and a warner that cannot warn is the vacuous-gate
+  //       class this whole self-test exists to prevent — it would pass (b) and (c)
+  //       below by being silent, which is exactly what "green" looks like.
+  //   (b) the warn FIRES inside the band and is SILENT below the target.
+  //   (c) the warn stops at the cap and the HARD FAIL takes over — proven at the
+  //       boundary, not at a comfortable midpoint, since off-by-one at SIZE_CAP is the
+  //       one place the two checkers could both go quiet and leave a gap.
+  if (SIZE_TARGET >= SIZE_CAP) fails.push('size-band-empty')
+  expectRed('size-warn', warnSize(SIZE_TARGET + 1))
+  expectRed('size-warn-at-cap', warnSize(SIZE_CAP))
+  expectGreen('size-warn-under-target-green', warnSize(SIZE_TARGET))
+  expectGreen('size-warn-over-cap-green', warnSize(SIZE_CAP + 1))
+  expectGreen('size-in-band-not-a-finding', checkSize(SIZE_TARGET + 1))
+
   expectRed('claude-size', checkClaudeSize(CLAUDE_SIZE_CAP + 1))
   expectGreen('claude-size-green', checkClaudeSize(CLAUDE_SIZE_CAP))
 
@@ -465,10 +520,13 @@ function main() {
   }
 
   const findings = []
+  const warnings = []
   const progressPath = join(ROOT, 'PROGRESS.md')
   const progress = readFileSync(progressPath, 'utf8')
 
-  findings.push(...checkSize(statSync(progressPath).size))
+  const progressBytes = statSync(progressPath).size
+  findings.push(...checkSize(progressBytes))
+  warnings.push(...warnSize(progressBytes))
   findings.push(...checkClaudeSize(statSync(join(ROOT, 'CLAUDE.md')).size))
   findings.push(...checkSections(progress))
   findings.push(...checkPhaseRows(progress))
@@ -504,12 +562,20 @@ function main() {
     findings.push(...checkEol(f, readFileSync(join(ROOT, f), 'utf8')))
   }
 
+  // Warnings print FIRST and on BOTH paths — a soft target that only surfaces when
+  // something else already failed is a figure nobody sees, which is the objection the
+  // original no-warn-band rule raised and the reason this block is unconditional.
+  for (const w of warnings) console.error(`  ⚠ ${w}`)
+
   if (findings.length) {
     console.error(`check-progress-doc: ${findings.length} finding(s)\n`)
     for (const f of findings) console.error(`  ✗ ${f}`)
     process.exit(1)
   }
-  console.log('check-progress-doc: OK (self-test + live-state contract hold)')
+  console.log(
+    `check-progress-doc: OK (self-test + live-state contract hold)` +
+      (warnings.length ? ` — with ${warnings.length} size warning(s) above` : ''),
+  )
 }
 
 // Run only as the entry point, so sibling tooling can `import` the checkers instead of

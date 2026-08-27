@@ -416,8 +416,8 @@ whose **claim** went false has no gate at all, so that queue is its only witness
 - ⛔ **Prettier does not govern the tracker docs** (`.prettierignore`: `PROGRESS.md`,
   `CLAUDE.md`, `docs/progress/`). Prettier pads every Markdown table cell to its column's
   widest — reformatting the live PROGRESS.md (60 KB, measured 2026-08-20) pads it to
-  **~75 KB, inside 5 KB of the 80 KB cap `lint:progress` hard-fails on** (raised from 60 KB
-  the same day, ADR 0124 Amdt 2): formatting the file *erodes* the headroom the gate
+  **~75 KB, inside 5 KB of the 80 KB target `lint:progress` warns at** (hard cap 100 KB;
+  ADR 0124 Amdt 3): formatting the file *erodes* the headroom the gate
   exists to protect, and the margin only shrinks as the live file grows toward the cap.
   The same padding on CLAUDE.md is context tax on every session + teammate spawn, and
   `docs/progress/` is excluded so PROGRESS.md's **verbatim** rotations stay byte-identical

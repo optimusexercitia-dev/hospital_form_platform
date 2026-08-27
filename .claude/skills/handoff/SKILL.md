@@ -166,8 +166,19 @@ than trusts.
 - ⛔ **No status.** Status is PROGRESS.md's, and a second copy will drift from it.
 - ⛔ **No pronouns pointing at the conversation** — no "as discussed", "the approach we
   chose", "that bug". The reader was not there.
-- **Hard cap ~400 lines / 12 KB.** It is read into a fresh context; a 3,000-line handoff
+- **Hard cap 24 KB (~420 lines).** It is read into a fresh context; a 3,000-line handoff
   is a design document that escaped, and it re-creates the problem it was meant to solve.
+  Raised from 12 KB on 2026-08-27 — the old figure forced a *"trim to the size cap"* pass
+  on a handoff that had not yet said everything a successor needs, and **compression to
+  fit a cap selects against qualifiers**: the bound on a fact is its shortest clause, so
+  it is what gets cut, and what survives reads *more* confident than what was measured.
+  ⚠ **Bytes bind, not lines.** The old pairing was internally inconsistent — at this
+  corpus's observed ~58 B/line, "400 lines" is ~23 KB, so the line figure was ~2× looser
+  than the byte figure and could never bind; a handoff hit 12 KB at **216 lines** and
+  read as though it had half its line budget left. The line number above is *derived*
+  from the byte cap at that density and is an orientation aid only. If you have to
+  choose what leaves, cut **narration and restatement** (the ⛔ items above) — never a
+  qualifier, a measurement's date, or the VERIFIED/BELIEVED label on a claim.
 
 ---
 

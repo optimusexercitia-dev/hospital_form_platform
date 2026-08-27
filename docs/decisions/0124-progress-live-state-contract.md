@@ -92,3 +92,46 @@
   not load cost (PROGRESS.md is read on demand, never `@`-imported). The monotonic-ratchet
   rejection stands too: this is a one-time resize against measured pressure, not a
   precedent for raising the cap whenever rotation is deferred.
+
+## Amendment 3 — soft target at 80 KB, hard cap at 100 KB (2026-08-27)
+
+- **Status:** **accepted — PO instruction, 2026-08-27**, given verbatim as: *"Instead of a
+  hard limit at 80 KB, recommend strongly that it try to keep the document less than 80 KB,
+  but a hard cap only at 100 KB."* ⛔ **Scope of that instruction, written down because the
+  receiver is the only one who remembers it:** it covers `scripts/check-progress-doc.mjs`,
+  this ADR, and the restatements that would otherwise go stale (`docs/lead-playbook.md` §5,
+  the live handoff's open item). It did **not** mention CLAUDE.md; that edit is proposed
+  separately under the "always ask before changing CLAUDE.md" rule.
+- ⚠ **This is the SECOND raise, and Amendment 2 explicitly refused to be a precedent for
+  one** ("not a precedent for raising the cap whenever rotation is deferred"). Recorded
+  plainly rather than glossed: the ratchet objection was correct then and is not repealed
+  now. What answers it is the **structure**, not the number — the pressure Amdt 2 relied on
+  moved to the 80 KB target instead of being deleted. A bare 60→80→100 ratchet would have
+  removed it.
+- **Context.** The live file reached **~40 bytes of headroom** against the 80 KB cap with
+  ~6 owed follow-up index lines still unwritten — and the carve-outs (§ Critical FUP, OPEN
+  index lines) forbid trimming exactly the material that was growing. At that margin every
+  status write became a rotation emergency, and **compression under cap pressure selects
+  against qualifiers**: a bound on a fact is its shortest clause, so it is what gets cut,
+  and the surviving sentence reads *more* confident than what was measured. The cap had
+  begun to degrade the file's truthfulness, which is the property it exists to protect.
+- **Decision.** `scripts/check-progress-doc.mjs` gets two thresholds: `SIZE_TARGET`
+  **80 KB** (non-fatal warning, printed on every run) and `SIZE_CAP` **100 KB** (hard fail,
+  exit 1). Rotation discipline is unchanged and is owed at the **target**, not the cap.
+- ⛔ **Reverses Amendment 0's "hard fail, no warn band"**, whose stated fear was that *"a
+  warn band is a figure someone has to notice, and figures nobody must act on go stale."*
+  That fear is answered by **construction, not trust**: the warning is emitted by the gate
+  on every `npm run lint`, into the same stream as a finding, naming the live byte count —
+  it is not a figure in prose someone must remember to look up, which was the actual failure
+  mode (the banner's own history). The warn path is proven able to fire by the script's
+  self-test (band-non-empty, fires in band, silent below target, silent above cap where the
+  hard fail takes over) **and** by an end-to-end positive control: PROGRESS.md padded 200 B
+  into the band emitted `⚠` at exit 0, then was restored byte-exact (`cmp` + empty
+  `git diff --stat`).
+- **Unchanged.** Live-state-only, the three-way test, the rotation destinations, the
+  verbatim-move rule, and the protected sections. `.claude/rules/progress-contract.md` again
+  needed no edit — it deliberately does not restate the number (Amendment 1's lesson).
+- ⛔ **Not a licence to sit at 99 KB.** The target is the working limit; the cap is a
+  backstop. `SIZE_TARGET` must never be raised to silence its own warning — that is the
+  `lint:set-local` watermark lesson, where bumping the threshold grandfathers the growth
+  just written and flips the rot direction from stricter to weaker.

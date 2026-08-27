@@ -156,13 +156,14 @@ parallel agent's revert, not a defect. Re-run on a quiet stack.
 
 **Provisional — needs the PO:**
 
-- **PROGRESS.md is at ~40 bytes of headroom** against its 80 KB cap, with ~6 FUP index lines
-  still owed. Rotation no longer helps: OPEN index lines are protected, nothing resolved is
-  left to archive, and each compressed narrative is replaced by an index line of near-equal
-  length. Measured escape: `docs/progress/deferred-backlog.md` **is** a live register for the
-  orphan check (`scripts/check-progress-doc.mjs:246`), so an item carried there in full needs
-  no PROGRESS.md line — one obligation is already filed that way. **PO options: route the rest
-  there, or raise the cap by ADR (0140 — a PO decision, never a lead's).** ⛔ Unanswered.
+- ✅ **ANSWERED by the PO 2026-08-27 — the cap was raised.** PROGRESS.md now **targets**
+  80 KB (a non-fatal warning) and **hard-fails at 100 KB** (ADR 0124 Amdt 3;
+  `scripts/check-progress-doc.mjs`). The ~6 owed FUP index lines fit: measured headroom went
+  from **~40 bytes to ~20.5 KB**. ⚠ The *other* option in this item stays valid and is still
+  the better move for anything nobody can act on next session —
+  `docs/progress/deferred-backlog.md` **is** a live register for the orphan check, so an item
+  carried there in full needs no PROGRESS.md line. The raised cap buys room; it does not
+  retire the three-way test, and the 80 KB warning is the signal to rotate.
 
 ## Open questions / blockers
 
