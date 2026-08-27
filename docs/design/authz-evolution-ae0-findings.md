@@ -239,3 +239,96 @@ vs local **8**, `audit_log` **538** vs **264**, while orgs/hospitals/commissions
 affiliations match exactly. Reading: the remote was seeded with the E2E fixture and then
 exercised. **G2's premise still holds** — `auth.users` 36/36, **zero** non-`@test.local`
 — but it is **re-measured at each branch-cut, never quoted from this file**.
+
+---
+
+## H. AE0.2 EXPLAIN baselines — AE1.5's primary input, already measured
+
+All seven named paths **BASELINED**, none substituted. Full plans:
+[authz-evolution-baselines-ae0.md](authz-evolution-baselines-ae0.md).
+
+**The control that makes the rest admissible.** Five arms, five distinct readings, with a
+`raise exception` if fewer than four differ:
+
+| arm | cases | meetings | profiles | memberships | `is_member_of(CCIH)` |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `chefe.ccih`, hat `staff_admin` | 6 | 1 | 10 | 10 | t |
+| `orgadmin.b` (foreign org) | 1 | 0 | 5 | 7 | f |
+| **same user, `active_role` claim removed** | **2** | **0** | **1** | **1** | **f** |
+| `authenticated`, no claims | 0 | 0 | 0 | 0 | f |
+| ⛔ **`postgres`, RLS bypassed — the trap** | **8** | **3** | **36** | **43** | — |
+
+The third row is the sharp one: same `sub`, hat removed, everything collapses — so the
+claims GUC genuinely reaches `app.active_role()`. The last row is what a `postgres`
+baseline would have recorded, and it **matches no real principal** — that is the shape a
+vacuous baseline takes here.
+
+### F-AE0-6 — verbatim-duplicated permissive policy arms, costing ~4× today
+
+`profiles` carries an **11-arm OR from two permissive SELECT policies whose arms are
+duplicated verbatim** — five arms are literal repeats (`SubPlan 3`≡`28`, `16`≡`36`,
+`24`≡`44`, and `app.is_org_admin_of(home_organization_id)` twice).
+
+- For `org_admin`, arm A short-circuits and every SubPlan reads `never executed`.
+- For **`hospital_admin` it falls through**: `SubPlan 3` runs at `loops=14`, its inner
+  `commissions_pkey` scan at `loops=13` — **457 of 533 buffers**.
+- Measured: **16.5 ms / 533 buffers for 15 rows (`hospital_admin`)** vs **3.9 ms / 135
+  buffers for 20 rows (`org_admin`)**. Live per-row invocation, **~4× cost, today**.
+
+Same class on `commissions` (a nine-term OR with `is_org_admin_of` and
+`is_hospital_admin_of` each appearing **twice**) and `commission_meeting_types`
+(`is_tenancy_admin_of` twice).
+
+⭐ **This is the one shape that clears AE1.5's own bar without argument.** AE1.5 warns that
+permissive policies OR together, so consolidation is semantically neutral **only** if the
+merged predicate is the exact disjunction — and it says *"expect to consolidate few"*.
+**Verbatim-duplicate arms in a disjunction are exactly that case**: removing a literal
+repeat from an OR is provably identity. AE1.5 should take these first and separately from
+any judgement-call merge, and the acceptance evidence is the before/after **plan diff**,
+not the advisor's warning count.
+
+### F-AE0-7 ⛔ — this database has NO planner statistics, which bounds every later comparison
+
+`reltuples = -1` on `cases`, `commissions`, `meetings` and both affiliation tables;
+`last_analyze` **null everywhere**. Estimates are fiction (`rows=72` on an 8-row `cases`;
+`rows=384` on a 6-row `commissions`).
+
+⛔ **Three consequences, binding on every AE phase that compares against these baselines:**
+
+1. **Never `ANALYZE` before a comparison run.** Doing so re-plans against real statistics
+   and every shape verdict becomes incomparable to this baseline — a self-inflicted
+   false regression across the board.
+2. **Production may legitimately choose different shapes.** These plans detect
+   *plan-shape regressions*, never production latency.
+3. **A diff confined to `memberships` / `profiles` cost estimates may be nothing at all** —
+   non-deterministic autovacuum, not a change anyone made. Cost-only diffs are not
+   findings; shape diffs are.
+
+### F-AE0-8 — `cases` comparisons must be arm-matched, or they fabricate a delta
+
+`cases` is a **Seq Scan whose filter is entirely function calls** — no index-usable term at
+any table size. The member arm measures 10.3 ms against the coordinator's 5.9 ms **for more
+rows**, because `cases_staff_admin_write` — `FOR ALL`, permissive, and therefore **a read
+policy too** — short-circuits the coordinator before `_case_caps` is ever reached
+(`InitPlan 1 → never executed` for the member). ⛔ **Any later comparison must compare
+member-against-member**; comparing across arms reads as a regression that no change caused.
+
+### Method limit, stated rather than worked around
+
+DEFINER functions are never inlined, so `EXPLAIN` of the session-context RPC, the case-list
+product surface, the dashboard aggregates and the grant/revoke doors yields a bare
+`Result` / `Function Scan`. The harness carries an opt-in Pass B (`-v NESTED=1`,
+`auto_explain` with nested statements) that prints the bodies — tractable for everything
+except `list_cases_board` (~4 200 log lines). **`list_cases_board` is therefore comparable
+on cost only**, and the artifact says so instead of substituting a neighbouring query under
+the named path's label.
+
+### The stack was proven unmutated, and the proof is the right shape
+
+`EXPLAIN ANALYZE` **executes**, so grant and revoke ran for real, in per-rep transactions,
+each rolled back. ⭐ The harness first proves the writes **landed** (`P6 landed (expect 1) |
+1`, `P7 landed (expect 0) | 0`) — because a silent no-op would `EXPLAIN` just as cheaply and
+report green. Before/after census, 10 tables, all equal, `raise exception` on mismatch.
+Pass A was run twice end to end plus once with Pass B; all three exit 0 and the two Pass A
+runs **agree on all 17 shape verdicts**. The shape comparator was itself proven able to
+fail (seq-scan vs index-scan → DIFFERS; same shape, different numbers → IDENTICAL).

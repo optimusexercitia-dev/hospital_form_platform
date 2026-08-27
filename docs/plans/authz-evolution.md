@@ -80,7 +80,7 @@ preflight reads.
 | AE0.2 | **`EXPLAIN (ANALYZE, BUFFERS)` baselines** | backend | The named hot paths: session-context RPC; case list (`cases` under `_case_caps`); meeting list; commission dashboard aggregates; person roster (`listOrgUsers` / `listHospitalUsers` predicates); one grant + one revoke door. Run on a fresh reset, three repetitions, keep the plans (not just timings) in `docs/design/authz-evolution-baselines-ae0.md`. ⚠ Local, seed-sized data — these baselines detect **plan-shape regressions** (index → seq scan, InitPlan → per-row), not production latency; say so in the file header. |
 | AE0.3 | **Local/remote parity check** | backend | `supabase migration list --linked` vs local head; both advisors (security + performance) on the linked project; any local-only or remote-only finding is explained in writing or the phase does not close. |
 | AE0.4 | **Service-role DML sweep re-run** | backend | Re-derive the 12-site raw-DML census (measured 2026-08-26: five `profiles` + four `professional_credentials` writes in `src/lib/users/actions.ts`, one self-scoped `profiles` write in `src/lib/auth/actions.ts`, two `meeting_minutes_jobs` writes in `src/lib/minutes-jobs/{sweep,reconcile}.ts`) — line numbers drift; the **census query is the artifact**, committed as a script or documented grep so AE1.4's registry can be re-derived, never hand-maintained. Include `.rpc()` sites split actor-validating vs not, Storage writes, Auth-admin writes. |
-| AE0.5 | **Persona/authorization matrix skeleton** | lead + PO | The persona × role × active-context × scope × operation grid the audit's Phase 0 asks for, seeded from `supabase/seed.sql`'s roster. This is the *shape* AE4.3 fills per role; AE0 only builds and PO-approves the axes, so per-role matrices are comparable. |
+| AE0.5 | **Persona/authorization matrix skeleton** | lead + PO | ✅ **DONE + PO-APPROVED 2026-08-26 → [axes](../design/authz-persona-matrix-axes-ae0.md).** ⛔ **This row read "persona × role × active-context × scope × operation" — FIVE axes — while attributing the grid to the audit's Phase 0, which asks for SEVEN.** Corrected: the grid is persona × role × active-context × scope × operation × **resource lifecycle** × **sensitivity**, seeded from `supabase/seed.sql`'s roster. The two dropped axes are load-bearing — AE4.1's `authz.permissions` carries `risk_class` **and** `sensitivity_ceiling`, and the audit's §8 requires a lifecycle/sensitivity-ceiling test per permission. This is the *shape* AE4.3 fills per role; AE0 only builds and PO-approves the axes, so per-role matrices are comparable. |
 
 **Gate AE0:** all four ARM arms green on a fresh reset (this is also the "do not trust pre-2026-08-24
 authz results" residue being re-established on current main); no unexplained local/remote drift;
@@ -126,8 +126,16 @@ changes (AE1.3).
    path. ⚠ A revoke that "worked" locally must be re-verified on the remote after push (grants
    drift independently).
 3. Explicit `ALTER DEFAULT PRIVILEGES` for every migration owner in `public` and `app` (and
-   `authz` when AE4 creates it): revoke PUBLIC EXECUTE on functions by default. This stops the
-   167→237 `anon`-residue growth at its source.
+   `authz` when AE4 creates it): revoke PUBLIC EXECUTE on functions by default.
+   ⛔ **Step KEPT, justification REPLACED — ADR [0160](../decisions/0160-ae0-corrections-to-adr-0155-measured-figures.md).**
+   This read *"This stops the 167→237 `anon`-residue growth at its source"*. Measured 2026-08-26
+   on both stacks at head `20261003004300`: **there was no growth.** 167 (DEFINER-only) + 70
+   (INVOKER-only) = **237** (all `app` functions `anon` may EXECUTE) — two *predicates* at one
+   instant, not a before/after; and `anon` holds **no USAGE on `app`**, so the residue is inert at
+   the schema level anyway. The step stays on its own merits: it makes the absence of PUBLIC
+   EXECUTE a **declared property** of the schema instead of a fact that happens to hold, and AE4's
+   new `authz` schema can set it once, before any object exists, at zero cost. ⚠ It is **not**
+   remediation of a trend — do not re-import that framing.
 4. ⚠ **The `anon` residue itself** (237 `app` functions, bounded only by
    `config.toml`'s exposed-schema line) is `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` and
    is a **PO decision, not a patch** — AE1 prepares the enumeration and the default-privilege

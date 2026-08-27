@@ -2,8 +2,15 @@
 
 **Phase:** AE0 · **plan:** `docs/plans/authz-evolution.md` · **authority:** ADR
 [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) ·
-**owner:** lead · **status:** ⛔ **AWAITING PO APPROVAL** · **derived:** 2026-08-26 ·
-**stack:** local, fresh reset, head `20261003004300`.
+**owner:** lead · **status:** ✅ **PO-APPROVED 2026-08-26 — SEVEN axes** · **derived:**
+2026-08-26 · **stack:** local, fresh reset, head `20261003004300`.
+
+> ✅ **PO ruling, 2026-08-26.** The **seven-axis** set below is approved as the template.
+> The plan's AE0.5 row names five; the audit's Phase 0 asks for seven, and AE4.1's
+> `authz.permissions` carries `risk_class` + `sensitivity_ceiling`. Seven stands, and
+> `docs/plans/authz-evolution.md`'s AE0.5 row is corrected to match rather than the
+> deviation being carried silently. This is the template AE4.3 instantiates for
+> `staff_admin` and each AE5 role fills thereafter.
 
 AE0 builds and gets the **axes** approved; it does **not** fill any cell. AE4.3 fills the
 first matrix (`staff_admin`) and AE5 fills one per role. Approving the axes here is what
@@ -17,7 +24,11 @@ AE4.8's collapse targets and F1's whole subject.
 
 ---
 
-## Axis count: this file carries SEVEN, the plan's AE0.5 row names FIVE
+## Axis count: SEVEN (approved) — the plan's AE0.5 row named FIVE
+
+✅ **Resolved by PO ruling 2026-08-26: seven.** The reasoning is kept below because the
+plan's row is the thing that has to be corrected, and a ruling whose reason is not written
+down is one the next reader re-litigates.
 
 ⚠ **A deviation from the plan, stated rather than silently taken.** The plan's AE0.5 row
 asks for *"persona × role × active-context × scope × operation"* and says it is the grid

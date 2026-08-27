@@ -12,13 +12,13 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**157 ADRs** · next free number: **0160** · 45 carry an inbound supersedes/amends edge
+**158 ADRs** · next free number: **0161** · 46 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
 - **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (7):** 0022, 0031, 0033, 0058, 0094, 0108, 0115 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -176,8 +176,9 @@
 | 0152 | [PostgREST maps the `P0*` SQLSTATE class to HTTP 500; the document-corridor 500 is a 73-…](0152-postgrest-p-class-sqlstate-maps-to-500.md) | accepted | 2026-08-26 | amends 0151 | – |
 | 0153 | [A subset door-sweep writes to scratch; the committed baseline is never opened for write](0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) | accepted | 2026-08-26 | amends 0079 | – |
 | 0154 | [the roster predicate is the query filter, not `list_org_people`](0154-roster-predicate-is-the-query-filter-not-list-org-people.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0158 |
-| 0155 | [Post-AFF4 tenancy and person-model evolution: a staged sequence, not a redesign](0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) | accepted | 2026-08-26 | amends 0151 | – |
+| 0155 | [Post-AFF4 tenancy and person-model evolution: a staged sequence, not a redesign](0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0160 |
 | 0156 | [the door-SQLSTATE gate's domain is a structural property, not a list of names](0156-door-sqlstate-gate-domain-is-structural.md) | accepted | 2026-08-26 | amends 0098 | – |
 | 0157 | [The dominance grid's population was bounded by SCHEMA, not by the property](0157-dominance-grid-population-bounded-by-schema.md) | accepted | 2026-08-26 | amends 0079, 0097 | – |
 | 0158 | [the hospital directory keeps its predicate: no org-affiliation filter at the hospital t…](0158-hospital-directory-keeps-its-predicate.md) | accepted | 2026-08-26 | amends 0154 | – |
 | 0159 | [an invariant backstop runs as DEFINER; two correct decisions can compose into a break](0159-invariant-backstops-run-as-definer.md) | accepted | 2026-08-26 | amends 0151 | – |
+| 0160 | [AE0 corrections to ADR 0155's measured figures: the `anon` residue never grew, and the…](0160-ae0-corrections-to-adr-0155-measured-figures.md) | ⚠ proposed | 2026-08-26 | amends 0155 | – |
