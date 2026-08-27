@@ -14,7 +14,7 @@ list below is the countermeasure, and it is maintained **as work happens**, not 
 | task | state |
 | --- | --- |
 | **AE1.1** FKs | ✅ **built + committed** (`14ad668d`) — both FKs `ON DELETE CASCADE`, pgTAP 383 |
-| **AE1.2** DEFINER classification | ✅ classified (752 functions); ✅ **tiered threat review DONE** (close #3 — 523 Tier-1 rows, 325 decided mechanically, 198 by class, 4 findings); ⛔ **all 233 revokes HELD** under RV0 |
+| **AE1.2** DEFINER classification | ✅ classified (752 functions); ✅ **tiered threat review DONE** (close #3 — 523 Tier-1 rows, 325 decided mechanically, 198 by class, 4 findings); ⛔ **233 revokes classified, NONE EXECUTED** — a scheduling fact. RV0's partition **held 23**, cleared 49 (44 property- + 5 name-rescued), left 161 UNCHANGED-because-unexamined |
 | — RV0 partition | ✅ **DONE 2026-08-27** — 44 property-rescued · 5 name-rescued · **23 HOLD** · 161 UNCHANGED = 233 ✓; batches reproduce 134/43/52/4; GUARD_KEYS 11/11 live; **RV3 answered YES**. ⚠ New: **137 of 233 revokes are a silent no-op as scoped** |
 | **AE1.3** person doors | ✅ built + gated (`63230a84`) — 6 doors + predicate; `callDoor` seam (R7); sweep ERROR **ruled**; all four ARM arms exit 0. ⛔ **"16/16 KEYSTONE HOLDS" CORRECTED 2026-08-27 at the QA gate → 14 HOLDS + 2 ERROR**: the harness read only `Result:` and could not tell a suite that FAILED from one that ABORTED. Re-measured with shape capture — cases **2** and **7** ran **11/49** and **42/49** assertions. See § "the keystone count was 14, not 16" |
 | **AE1.4** service-role registry | ✅ **built + committed** (`800ffe2a`) — 45 sites, gate extension **OFF** |
@@ -751,7 +751,7 @@ PROGRESS.md **and** a body in `follow-ups.md`.
 
 ### ✅ RV0 partition + RV3 — DONE 2026-08-27, and the revoke plan does not survive contact with the ACLs
 
-Head `20261003005300`, read-only (⛔ **no revoke was executed; all 233 stay HELD**). Record:
+Head `20261003005300`, read-only (⛔ **no revoke was executed** — which is scheduling, not RV0's verdict: RV0 held **23**). Record:
 [authz-ae1-revoke-partition.md](../design/authz-ae1-revoke-partition.md) — §4 now carries the
 executed SQL verbatim, §5 the measured verdicts, §6 RV3's answer with its transcript.
 
@@ -1112,3 +1112,54 @@ there. The catalog says the opposite at first glance — both SELECT policies **
 `( SELECT auth.uid() )` today — but they were already written that way; `…004710` names only the
 two UPDATE policies. *The catalog tells you the current state, never who caused it*, and attributing
 a change is the one question for which the phase's own migration file is the right instrument.
+
+### ⚖ QA round 2 (Fable, PO-assigned) — CHANGES REQUESTED, narrowed to one item
+
+**2026-08-27.** All three corrections this phase made to round 1's own findings were **confirmed
+by re-measurement**, including that round 1's two "dangling FUP ids" existed in **no file** — they
+were reconstructed and reported as a citation. B2, B4, M1, M3, M4 and m1/m3–m6 closed; M2 and B3
+closed with qualification; B1 still open.
+
+#### ⛔ N1 — the site-scoped allowlist pinned the SUBJECT, not the JUSTIFICATION
+
+The m2 fix replaced a file-scoped allowlist with a site-scoped one keyed on
+`marker: 'must_change_password'`. Round 2 proved on a scratch tree that
+`update({ must_change_password: true }).eq('id', targetId)` — **the same column on another
+person's row** — passed the gate silently. Reproduced here, then fixed by compounding the marker
+with `.eq('id', user.id)` and re-proving three cases:
+
+| probe | before | after |
+| --- | :---: | :---: |
+| same column, **another user's row** | exit 0 ⛔ | **exit 1** |
+| genuinely self-scoped write | exit 0 | exit 0 |
+| unrelated raw `profiles` write | exit 1 | exit 1 |
+
+⭐ **The shape, which is the part worth keeping.** The exemption's own `reason` field argues
+*self-scope* — `.eq('id', user.id)` where the id comes from `getUser()` on the same request — and
+the marker tested **none of that**. A marker must test the property that justifies the exemption,
+not the statement's subject; the wrong marker still greens the real site, so nothing reveals it.
+⚠ Residual, stated: the exemption is now **property-scoped**, not one-line-scoped — a genuine
+self-scoped `must_change_password` write elsewhere in that file would also be exempt. Narrower
+than the file, wider than the site.
+
+#### ✅ The two round-1 harness items that had not been added
+
+- **G1's landed-check.** It was the only case of 16 without one. A silently-failed `GRANT` still
+  produced a FINDING — but **misattributed as a keystone failure rather than an unapplied
+  mutation**, the one distinction every other case makes. Now asserted: run shows
+  `acl baseline {postgres,service_role}` → `acl mutated {…,authenticated=X/postgres}`.
+- **Declared-vs-ran reconciliation.** `16` appeared nowhere in the script, `case_no` was
+  display-only, and G1/G2 do not increment it — so commenting out a `one_case` line would have
+  exited 0 having measured 13. Now prints `cases declared: 16 (14 via one_case + G1 + G2) |
+  one_case ran: 14` and counts a mismatch as a FINDING.
+
+Re-run after both additions: **14 KEYSTONE HOLDS · 2 ERROR · 0 FINDING**, verdicts unchanged.
+
+#### ⛔ STILL OPEN — cases 2 and 7, and it is a design question, not a patch
+
+Both are **narrowing** capability swaps: the door starts denying where the fixture expects an
+allow, so the raise lands in fixture *setup* and takes the rest of `385` down (11/49 and 42/49).
+⭐ Round 2's mechanism reading is coherent and checkable — case 4's **widening** swap survives
+setup and fails cleanly, which is why 14 of 16 are unaffected. Re-expressing them so the suite
+completes means touching pgTAP fixtures, which moves suite shape again (`382`'s §A0 already took
+it from 7,870 → 7,871). **PO decision, not a lead call.**

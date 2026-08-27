@@ -241,7 +241,16 @@ echo "CASE G1 — ACL: grant \`authenticated\` EXECUTE on one door. 386 §1.3 mu
 G1_BEFORE="$($Q "select proacl::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='set_person_active_for';" | tr -d '\r')"
 $Q "grant execute on function public.set_person_active_for(uuid,uuid,boolean) to authenticated;" >/dev/null
 echo "  acl baseline  : $G1_BEFORE"
-echo "  acl mutated   : $($Q "select proacl::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='set_person_active_for';" | tr -d '\r')"
+G1_MUTACL="$($Q "select proacl::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='set_person_active_for';" | tr -d '\r')"
+echo "  acl mutated   : $G1_MUTACL"
+# G1 was the ONLY case of 16 with no landed-check (QA round 1). Without it a
+# silently failed GRANT still reports a FINDING - but MISATTRIBUTED as a keystone
+# failure rather than an unapplied mutation, the one distinction every other
+# case makes.
+if [ "$G1_MUTACL" = "$G1_BEFORE" ]; then
+  echo "  ⛔ ABORT - THE GRANT DID NOT LAND (acl unchanged). No verdict from this case."
+  FINDINGS=$((FINDINGS+1))
+fi
 G1_MUT="$(run_test "$T386")"
 $Q "revoke execute on function public.set_person_active_for(uuid,uuid,boolean) from authenticated;" >/dev/null
 G1_AFTER="$($Q "select proacl::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='set_person_active_for';" | tr -d '\r')"
@@ -293,5 +302,16 @@ echo "FINAL STATE — all three files green again, and nothing left mutated"
 for f in "$T384" "$T385" "$T386"; do echo "  $f -> $(run_test "$f")"; done
 echo "  guard hash now: $(hash_of public guard_profile_privileged_columns) (baseline was $GH0)"
 echo
+# Declared-vs-run reconciliation (QA round 1): `16` appeared nowhere in this script,
+# `case_no` is display-only, and G1/G2 do not increment it - so commenting out a
+# `one_case` line would have exited 0 having measured 13, silently.
+DECLARED_ONE_CASE=14   # one_case invocations; G1 + G2 are separate blocks
+DECLARED_TOTAL=16
+echo "cases declared: $DECLARED_TOTAL ($DECLARED_ONE_CASE via one_case + G1 + G2)  |  one_case ran: $case_no"
+if [ "$case_no" -ne "$DECLARED_ONE_CASE" ]; then
+  echo "  ⛔ DECLARED/RAN MISMATCH - $case_no of $DECLARED_ONE_CASE one_case blocks ran."
+  echo "     A partial run is not a pass. Verdicts below cover only what ran."
+  FINDINGS=$((FINDINGS+1))
+fi
 echo "FINDINGS: $FINDINGS"
 [ "$FINDINGS" -eq 0 ] || exit 1

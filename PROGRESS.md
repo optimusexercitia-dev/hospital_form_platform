@@ -82,7 +82,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   class**; 4 findings, 2 filed as FUPs (`FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY` ·
   `FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED`), 4 columns measured to **zero**.
   Gates on that tree, all measured, exit codes read directly: `test:db` **237/7,871 PASS** · `lint`
-  **10/10** · `typecheck` **0** · vitest **145/1,974** · all four ARM arms **0** — ⛔ **domain qualifier, always** (plan rule 2): C2's reachable command doors, **and** the six `service_role`-only person doors, are outside every arm's domain · the 63-case
+  **11/11** (gate 11 = `lint:service-role-registry`, added by AE1) · `typecheck` **0** · vitest **145/1,974** · all four ARM arms **0** — ⛔ **domain qualifier, always** (plan rule 2): C2's reachable command doors, **and** the six `service_role`-only person doors, are outside every arm's domain · the 63-case
   diff-scoped sweep re-run and merged (**BLIND 74⇒69, COVERED 296⇒316**; 54 of 63 measured, the 9
   named in the live record) · **`e2e:prod` GATE GREEN** (1249 passed, 0 failed, 3 flaky, 11 skipped;
   accounted 1263/1263 on the final batch lines). ⛔ **Still owed before Record: only the QA review**
@@ -275,6 +275,8 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| ~~AE1 — authz integrity & privilege hardening (round 1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-27 | [review §1–13](docs/reviews/authz-ae1-review.md) |
+| AE1 — authz integrity & privilege hardening (round 2) | CHANGES REQUESTED — narrowed to ONE blocker: mutation audit at 14/16 (cases 2, 7 ERROR) vs the reworded Gate item 3's 16/16; plus commit the uncommitted plan ruling. B2/B3/B4 + M1–M4 + m1–m6 closed | 2026-08-27 | [review § ROUND 2](docs/reviews/authz-ae1-review.md) |
 | AFF4 — org affiliation, staff data, voided tense | APPROVED | 2026-08-26 | [review](docs/reviews/aff4-review.md) |
 | _Six prior rotations_ (the 2026-08-25 pair: PDF·P3 + user-profile · ADR 0136 · ADR 0137 · the AFF2 pair · the seven DM rows · the 2026-08-14 verbose collapse) — each rotation's own date is recorded at the destination | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
 | 118 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |

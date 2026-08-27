@@ -129,7 +129,13 @@ const ALLOWLIST = [
     rel: 'src/lib/auth/actions.ts',
     table: 'profiles',
     verb: 'update',
-    marker: 'must_change_password',
+    // Two markers, BOTH required. The first names the column; the second names the property
+    // that makes the site safe. ⛔ The first version carried only the column, and a scratch-tree
+    // probe showed `update({ must_change_password: true }).eq('id', targetId)` — the SAME column
+    // on ANOTHER PERSON'S ROW — passing silently (QA round 2, finding N1). A marker must test the
+    // JUSTIFICATION, not the subject: the reason below argues self-scope, so the marker checks
+    // self-scope. Cheap to get wrong, because the wrong marker still greens the real site.
+    markers: ['must_change_password', ".eq('id', user.id)"],
     reason:
       'updatePassword clears profiles.must_change_password on the CALLER OWN row ' +
       "(`.eq('id', user.id)` where user.id comes from `supabase.auth.getUser()` on the " +
@@ -261,7 +267,10 @@ for (const dir of SCAN_DIRS) {
       if (
         ALLOWLIST.some(
           (a) =>
-            a.rel === rel && a.table === m[1] && a.verb === next[1] && win.includes(a.marker),
+            a.rel === rel &&
+          a.table === m[1] &&
+          a.verb === next[1] &&
+          a.markers.every((k) => win.includes(k)),
         )
       )
         continue

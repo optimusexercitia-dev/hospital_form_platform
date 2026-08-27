@@ -784,3 +784,202 @@ sentence), m6 (two partition cells).
 registry and its delta; the B3 ruling; and a diff of `backend-state.md`. I do not need the full gate
 re-run — no migration, policy or pgTAP file needs to move for any of the above, and if none does,
 §0's measurements and the 63-case sweep verdicts carry forward unchanged.
+
+---
+---
+
+# ROUND 2 — re-review, 2026-08-27
+
+**Commit range:** `e9df56c7..HEAD` (7 commits, round-1 review commit included), **plus one
+uncommitted working-tree edit to `docs/plans/authz-evolution.md`** (the B3 ruling), reviewed as it
+stands and flagged as uncommitted below. Round 1's text above is left untouched, its errors
+included — three of them are adjudicated in §R2.2.
+
+**My round-1 re-review scope carried a premise that broke, and honestly.** §13 said no pgTAP file
+needs to move; closing my own m1 required exactly that (`382` gained §A0, suite 7,870 → 7,871). So
+the shortcut I offered was not available, and I re-ran what the premise was standing in for:
+`test:db` on this tree is **237 files / 7,871 PASS, exit 0** (re-measured myself, exit captured
+directly). No migration and no policy moved — `git diff --name-only 120478bf..HEAD --
+supabase/migrations` is empty, re-verified, and `docs/reviews/authz-door-audit-findings.md` is
+byte-clean against HEAD. The 63-case sweep verdicts were earned against their own captured
+baseline (7,870) in one contiguous run; the phase record correctly states the next sweep
+re-baselines at 7,871 and never merges pre-/post-change verdicts. I accept that reasoning — it is
+the same monotonicity discipline the phase applied to AE1.5's stale-baseline catch.
+
+# ROUND 2 VERDICT: CHANGES REQUESTED — narrowed to ONE blocking item
+
+Round 1's four blockers are three closed and one **narrowed but still open**. The open one is not
+a recording defect any more — it is the measured, honestly-recorded fact that **the AE1.3 mutation
+audit stands at 14/16**, with cases 2 and 7 `ERROR` (suite aborted, assertion never evaluated),
+while the PO's own reworded Gate AE1 item 3 — taken in this round, and the right ruling — makes
+that item turn on **16/16 with run shapes**. The PO deliberately moved the item from
+*unsatisfiable* to *unsatisfied*; approving now would contradict that ruling's recorded intent,
+and plan §AE1.3's "Keystones **mutation-proven**" is unmet for two named authority arms
+(385 §1.1's always-arm capability binding; §5.1's capability binding). One unmet blocking gate
+item is CHANGES REQUESTED regardless of how much else is right — and almost everything else is
+now right.
+
+## R2.0 What I re-measured myself this round
+
+| check | claimed | mine | verdict |
+| --- | --- | --- | ---: |
+| `npm run test:db` (this tree, no reset) | 237 / 7,871 PASS | ✅ **237 / 7,871 PASS, exit 0** (exit captured directly, not through a pipe) | matches |
+| `npm run lint` — now **eleven** gates | exit 0 | ✅ **exit 0**; gate 11 reports `44 derived == 44 registry (census 39 + callDoor() 5)` | matches |
+| `npm run typecheck` / vitest | 0 / 145 files 1,974 | ✅ **exit 0** / **145 / 1,974, exit 0** | matches |
+| AE1.3 audit re-run | 14 HOLDS + 2 ERROR (cases 2, 7) | ✅ read the run log (`ae13_v2_173508.log`, **mtime 17:37 today** — fresh, timestamp checked per the stale-log lesson): CASE 2 `Tests=11 vs 49`, CASE 7 `Tests=42 vs 49`, cases 10–14 **all full-shape 55/55**, `FINDINGS: 2`, FINAL STATE all three files PASS | matches |
+| `app.can_administer_person_for` | `boolean`, `prosecdef=t`, STABLE, no `authenticated` EXECUTE | ✅ catalog: `boolean / t / s / f` | matches |
+| its door-findings row | `ERROR run-shape!=baseline` | ✅ `authz-door-audit-findings.md:350`, exactly that, file unchanged at HEAD | matches |
+| BLOCK 9's two bounds | 413 / 87 | ✅ **413** (`public`+DEFINER+auth-exec+non-trigger) / **87** (INVOKER twin) — re-derived on the catalog | matches |
+| DEFINER total / budget | 856 = 460+396 / 752 = 432+320 | ✅ both, re-derived | matches |
+| pgTAP 382 §A0's derived set | equals the declared seven | ✅ ran §A0's own query on the catalog: byte-identical to the declared string | matches |
+| registry verdict tokens (obligation 4) | 20 YES · 5 PARTIAL · 15 NONE · 4 UNCONFIRMED = 44 | ✅ **20 / 15 / 4 by leading token over the 44 rows, plus exactly 5 residue rows, all partial-shaped** — see the qualification in R2.1 M3 | matches |
+| the "dangling FUP ids" | exist nowhere but my own sentence | ✅ `git grep` at the round-1 tree (`e9df56c7`): **zero hits in any .md** — they never existed outside my review | round 1 refuted |
+| site-scoped allowlist, both ways | must_change_password site green; a different raw update reds | ✅ **reproduced against a scratch tree** (never touching `src/`): probe A (marker site) exit 0, probe B (different column) **exit 1** | matches — and see N1 |
+
+⚠ Not re-run by me, per scope: any ARM arm, the door sweep, `e2e:prod`. The census 565/601 claim
+(+1 gate = the predicate, the exact shape census's first clause enumerates) is accepted on the
+phase record plus two corroborations I did take: the census artifacts are fresh (mtime 17:07
+today) and the predicate appears in `census_names.txt`.
+
+## R2.1 Disposition of the round-1 findings
+
+| # | disposition | basis |
+| --- | --- | --- |
+| **B1** | ⛔ **STILL OPEN — narrowed.** | The **instrument** is fixed and fixed well: `run_test` captures `Files=/Tests=` per run, baselines per file, classifies a shape drop as `ERROR` distinct from both HOLDS and FINDING, and the baseline loop **refuses to run** if a shape wasn't captured — the guard that caught the fix's own subshell regression. The **claim** is now honest (14/16, corrected everywhere I could find except the plan's forward-looking gate wording, which correctly states 16/16 as the *target*). What remains: **(a)** cases 2 and 7 prove nothing — the two capability-swap keystones (385 §1.1, §5.1) are unverified by mutation, and Gate AE1 item 3 as reworded turns on them; **(b)** two of the four harness gaps from round 1 §4 were not addressed — there is still **no declared-case reconciliation** (comment out a `one_case` line and the run exits 0 having measured 13) and **G1 still never asserts its ACL mutation landed** (it echoes before/after and compares neither; a silently-failed grant is misattributed as a keystone failure). Neither (b) item blocks on its own now that the count is honest; both should land with (a). |
+| **B2** | ✅ **CLOSED.** | True surface **44** (census 39 + callDoor 5), machine-diffed by `lint:service-role-registry` — the eleventh gate, which I ran green. The gate is the right shape: **multiset** comparison (two legitimate duplicate identities survive), a **per-run self-test** proving the differ can report MISSING and EXTRA before any verdict is issued, `FATAL` on an empty census or an empty registry parse (never a clean bill), and the callDoor expansion asserted **bidirectionally** (placeholder-without-sites and sites-without-placeholder both red). My round-1 "deriver returns 40" was itself standing on the census's `<dynamic:fn>` collapse — the corrected 44 is better-derived than my figure was. Residual, stated not blocking: a **second** free-function wrapper in a new module would likely surface as an unmatched `<dynamic:*>` derived key (red), but that path is inferred, not proven — worth a line in the gate's header someday. |
+| **B3** | ✅ **CLOSED-WITH-QUALIFICATION.** | The ruling is taken, recorded, and is the *right* ruling: plan rule 4 now derives arm membership from the door's own shape (no universal that a `service_role`-only door cannot meet), keeps "absence of a verdict IS absence of coverage", names the per-door discharge, adds the REVOKE-moves-domains interaction, and Gate item 3 now demands the coverage this class can actually carry — **and is explicitly still unmet**, honestly, because it turns on B1's residue. Two qualifications: **(1) the edit is uncommitted** — the authoritative wording of a gate item currently exists only in a working tree (finding N4); **(2)** the corrected composition is *worse* than my round-1 framing and the record says so plainly: the one in-domain object's census verdict is `ERROR`, and the compensating control it was ruled against has itself lost two verdicts. That is the honest statement round 1 asked for. |
+| **B4** | ✅ **CLOSED.** | §6.2's table re-headed as §4.3's counterfactual with truthful column headers (`with duplicates (= the live tree) | with them removed (never shipped)`), the live-catalog measurement (771-char qual, 4 OR arms) recorded beside it, and the propagation into the handoff acknowledged rather than hidden. The generalization drawn ("a table survives being moved while its headers stop being true") is the correct one. |
+| **M1** | ✅ **CLOSED** (as a PO-ruled, recorded narrowing of PA-F11). | BLOCK 9 isolates the command-door population **as a property** and emits per-door threat columns; BLOCK 10 gives the "41 of 47" a deriver; the three arithmetics re-derived (C3 partition **20+13+24+1=58** ✓, printed); §7a states the instrument's own domain including the BLOCK-3 phantom-literal mode and the unsafe direction it errs in; the 407 removed. I re-derived 413 and 87 on the catalog. The narrowing ("derivable per-row justification", not "a human wrote a sentence") is recorded as a narrowing, which is what round 1 required. |
+| **M2** | ✅ **CLOSED-WITH-QUALIFICATION.** | `backend-state.md` corrected and correct: Tier 1 **523** (with the falsification history stated in the row), **856** = 460+396 (✓ re-derived), revoke row now *"NONE EXECUTED — a scheduling fact, not an RV0 verdict"* with the true partition, `plan(72)`, both registry cells and the Summary prose updated. Qualification = two survivors, filed as **N2/N3** below: `authz-ae1.md:17` (the AE1.2 status row) **still says "all 233 revokes HELD under RV0"** — the exact phrasing the same commit corrected in the durable map — and `PROGRESS.md:85` still says `lint **10/10**` in a line whose `test:db` figure was re-measured to 7,871 in the same edit, while lint is now eleven gates. |
+| **M3** | ✅ **CLOSED.** | All six obligations filed — index line **and** `### FUP-…` body verified for every id, including `FUP-E2E-REPEAT-FLAKY`'s own index line and `FUP-AUDIT-ACTOR-ID-NULL-ON-SERVICE-DOORS`'s pointer body; obligation 7's claim corrected to what the register can verify; obligation 8 marked discharged-by-delivery. My round-1 obligation-4 split and my dangling-ids claim were both wrong — adjudicated in R2.2. One qualification on the re-derivation's own wording: the "leading-verdict-token rule" literally reproduces only 39 of the 44 rows (20 YES · 15 NONE · 4 UNCONFIRMED); the **5 PARTIAL rows carry no leading token at all** — they open with `pgTAP \`388\`…` prose and are classifiable only by reading. The split is correct (I checked all five are partial-shaped), but "re-derive from the rows, never arithmetically" is not yet a mechanical instruction; if PARTIAL is to be a bucket the rows should carry its token. |
+| **M4** | ✅ **CLOSED.** | §6.0a records the substitution as a substitution, with the *reason* the mandated instrument cannot mean what its name suggests here (`reltuples = -1`, AE0.2's own shape-not-latency charter) and **what the substitution gives up stated** (buffers, rows-removed, loops). Advisor count demoted to corroboration in both the ruling and the §6.2 table. The carve-out extended to the `USING`-on-non-SELECT class with the `meeting_cases`/`profiles` attribution insight — including the correct observation that the catalog alone gets attribution wrong and the migration file is the right instrument for exactly that one question. |
+| m1 | ✅ **CLOSED.** | §A0 lands the set-closure assertion; I ran its derived query — byte-identical to the declared seven. Proven able to fail, and it **fails rather than aborts** (72/72 both ways). The hard-coded expected string is the *declared* half of a derived-vs-declared comparison — that is the closure pattern working, not a hand list regressing; it must be edited when the set legitimately changes, which is the point. (Trivial note: the derivation binds `relkind = 'r'`; a partitioned zero-policy table would sit outside it. None exists.) |
+| m2 | ✅ **CLOSED**, with **N1** filed on the residue. | Site-scoped on (file, table, verb, marker); allowlist iteration is per-match, the whole-file `continue` removed; the stale "inert" sentence replaced with the live truth. I reproduced the both-ways proof myself against a scratch tree. But see N1: the marker pins the **column**, not the **self-scope**. |
+| m3 | ✅ **CLOSED** (domain qualifier now beside the arms claim, and it names the person-door population too; vitest figures corrected and match my measurement) — modulo the `10/10` residue filed as N3. |
+| m4 | ✅ **CLOSED.** Both stale bullets in the phase record rewritten to record the staleness itself, which is better than deletion. |
+| m5 | ✅ **CLOSED.** §6.2.2 answers the question with a measured two-fact bound, states it as an inference, and names the one table a re-capture would target. |
+| m6 | ✅ **CLOSED, and exceeded.** The rettype cell now says what the catalog says (with the correction dated), and the 137-no-op probe was **re-run on an actual member of the 233** (`app.guard_case_tag_assignment`, NULL `proacl`, revoke-did-nothing) with the positive control retained — upgrading the finding from mechanism-proven to population-proven. |
+
+## R2.2 The three corrections to my own round-1 findings — adjudicated on the evidence
+
+Round 1 was asked to be checked as adversarially as the phase. All three corrections **hold**; two
+refute me outright, one refutes my headline while my own §6 text contained the contrary fact.
+
+1. **B1's case list (round 1: "cases 10–14, which mutate `app.can_administer_person_for`").
+   REFUTED — the correction holds.** The case list itself decides it: cases 10–14 are the five
+   predicate mutations targeting `384`, and the fresh re-run log shows **all five red at full shape
+   (55/55)**; the two ambiguous cases are **2 and 7** — capability-**swap** mutations inside door
+   bodies, aborting **385** (11/49 and 42/49). My mechanism transplanted the sweep's measured abort
+   (whole-body neutralization to `select true`) onto targeted logic mutations — a different
+   mutation class, which is a lesson this repo had already written down (*a neutralization is valid
+   only for its class*) and I did not apply. The predicate I offered was both too wide (5 for 2)
+   and blind (0 of the 2). The phase record's sharper point is also right: had the fix been aimed
+   at my case list instead of at the instrument, both broken cases would still be counted as holds.
+   The instrument-first fix is what made my finding useful despite its mechanism being wrong.
+   ⭐ Worth noting the *mechanism coherence* of the measured result, since nobody wrote it down:
+   the two aborting swaps are the two **narrowing** swaps (`fields→cpf_change`,
+   `credentials→lifecycle` — INTERSECTION→SUBSET), which turn fixture-setup allows into raises;
+   case 4's swap **widens** (`lifecycle→fields`) so setup survives and the deny assertion fails
+   cleanly at full shape. The 14/2 split is exactly where a raise-in-setup model predicts it.
+2. **B3's "in no ARM domain" (round 1 headline). REFUTED on one object — the correction holds,
+   with one nuance.** `app.can_administer_person_for` returns `boolean` with `prosecdef = t`
+   (re-verified on the catalog), so it sits squarely in `ARM=census`'s first domain clause, and its
+   recorded verdict is `ERROR run-shape!=baseline` — not COVERED, and not absent. The nuance: my
+   round-1 §6 body did state both facts explicitly ("Only `app.can_administer_person_for` appears,
+   once — and its verdict is an ERROR, ruled"), so the review contained the truth its own headline
+   excluded — the finding-line's set ("the six new doors") was drawn to exclude the one object that
+   mattered most. My `ARM=hat` row ("not reported for any of them") was also wrong in emphasis:
+   hat's domain carries no privilege term and contains all 13 objects, and holds. The corrected
+   composition — three arms out **by construction**, census in-domain with an ERROR, hat holds,
+   ADR 0156 inherited, the compensating audit itself at 14/16 — is both more precise and *worse*
+   than my version, which is exactly what a correction should be allowed to be.
+3. **M3's obligation-4 split (round 1: "20 no-test + 4 UNCONFIRMED = 24"). REFUTED — the
+   correction holds.** Re-derived on the registry's 44 rows myself: leading tokens give
+   **20 YES · 15 NONE · 4 UNCONFIRMED**, and the 5 token-less residue rows are all partial-shaped
+   (pgTAP half covered, behavioral/route half not). My "20 no-test" was 15 NONE + 5 PARTIAL —
+   I collapsed PARTIAL into NONE, the precise error the registry's correction paragraph records
+   AE1.4 making, and it read plausibly because 20 is also the YES count. And the **dangling-ids
+   claim was wholly mine**: `git grep` at the round-1 tree finds
+   `FUP-DOOR-SWEEP-DERIVER-POINTS-AT-ONE-ARM` and
+   `FUP-WRITEPATH-AUDIT-EXITS-CLEAN-HAVING-MEASURED-NOTHING` in **no file** — the phase record
+   never cited them; I appear to have reconstructed plausible ids from the folded parts of
+   `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` and then reported my reconstruction as a citation. That is
+   the same title-reconstruction failure the lead caught in themselves this round with the ADR-0124
+   anchor, and it is recorded here so it counts against my round-1 accuracy, not against the record.
+
+## R2.3 New findings this round
+
+- **N1 (minor, instrument) — the allowlist marker pins the COLUMN, not the SITE's exempting
+  property.** Probed against a scratch tree (never `src/`): a raw
+  `.from('profiles').update({ must_change_password: true }).eq('id', targetId)` — an **admin write
+  of the same column to ANOTHER user's row** — in the same file passes the gate silently, because
+  (file=`src/lib/auth/actions.ts`, table=`profiles`, verb=`update`, marker=`must_change_password`)
+  all match. The property that justifies the exemption is *self-scoping* (`.eq('id', user.id)` from
+  the same request's `getUser()`), and it is not in the marker — and `guard_profile_privileged_columns`
+  will not catch this variant either, since the column is service-role-writable by design. The
+  `SITE_WINDOW=400` bound itself is fail-closed (a marker pushed past the window reds, the right
+  direction), and today the file holds exactly one `profiles` DML site, so this is a latent gap,
+  not a live one. Fix is one line: compound the marker (require `.eq('id', user.id)` in the same
+  window, or a named sentinel comment).
+- **N2 (record) — `authz-ae1.md:17` still reads "⛔ all 233 revokes HELD under RV0"** — the exact
+  sentence M2's fix corrected in `backend-state.md:500`, surviving in the phase's own live status
+  table. The durable map and the live record now disagree; the live record is the wrong one.
+- **N3 (record) — `PROGRESS.md:85` says `lint **10/10**`** inside a gate line whose `test:db`
+  figure was re-measured to 7,871 in this round's own edit. Lint is **eleven** gates (I measured
+  all eleven green). A gate line that mixes a re-measured figure with a stale arity reads as one
+  measurement and is two.
+- **N4 (process) — the B3 ruling is uncommitted.** The rewritten plan rule 4 and Gate AE1 item 3 —
+  now the authoritative wording of a phase-gate item — exist only in the working tree. The phase
+  record's ruling section says B3 closes when the Record step cites the ruling; a ruling that can
+  be lost to a `checkout` cannot be cited. Commit it before anything else cites it.
+- *(Checked and NOT filed:* the audit patch's per-case fall-through when no `Tests=` line is
+  captured — analyzed: a missing shape line implies a missing `Result:` line, which lands in
+  FINDING, not HOLDS, so the asymmetry with the baseline loop's hard stop is acceptable; and the
+  382 §A0 expected string — that is the declared half of a closure comparison, working as
+  intended.)*
+
+## R2.4 Gate AE1, item by item, as it stands now
+
+Unchanged from round 1: items 1, 2, 5, 6, 7, 8, 9 ✅ (item 1 gains the re-measured 7,871 suite and
+the eleven-gate lint; item 5's review now carries §7a and BLOCK 9/10). Changed:
+
+| # | item | round 1 | now |
+| --- | --- | --- | --- |
+| 3 | doors vs ARM domains (as PO-reworded, uncommitted) | ⛔ NOT MET, unrecorded | ⛔ **NOT MET, and now says so itself** — turns on the mutation audit at 16/16 with shapes; it stands at **14/16** (cases 2, 7 ERROR). This is the one substantive blocker. |
+| 4 | registry derivation clean, zero `undecided` | ⛔ NOT MET on "clean" | ✅ **MET** — 44 == 44, machine-diffed by a self-testing gate on every `npm run lint` |
+| 10 | QA review | round 1 | this round |
+| 11 | PO approval | pending | pending — blocked on item 3 |
+| 12 | Record step | pending | pending — N2, N3, N4 and the PROGRESS.md rotation land here |
+
+## R2.5 Required changes (round 2)
+
+**Blocking:**
+
+1. **Re-express mutation-audit cases 2 and 7 so their suites COMPLETE** — e.g. the swap cases run
+   against a fixture path that survives a narrowing swap (or the setup calls are wrapped so a
+   denial is asserted, not raised through) — and re-run the audit to **16/16 KEYSTONE HOLDS at
+   full shape**. While in the file, add the two round-1 leftovers: a declared-case constant
+   reconciled against cases actually run, and G1's landed-check (compare the ACL before/after the
+   grant, like every other case). That single item satisfies Gate AE1 item 3 as reworded and
+   discharges plan §AE1.3's "mutation-proven" for the two capability bindings.
+2. **Commit the plan edit** (N4) — the B3 ruling must exist in history before Record cites it.
+
+**Record-step (non-blocking now, must not survive Record):** N2 (`authz-ae1.md:17`), N3
+(`PROGRESS.md:85` lint arity), N1's one-line marker compound (or a recorded decision that the
+column-marker is accepted), and the M3 qualification (give the 5 PARTIAL rows a leading token if
+PARTIAL is to be a mechanical bucket).
+
+**On resubmission I need:** the audit's re-run log at 16/16 with shapes (timestamp-checked), and
+the plan-edit commit hash. Nothing else — no migration, policy, or pgTAP file should move for
+either, and this time that premise is stated as a *prediction to re-verify*, not an assumption:
+if anything else moves, say so and I re-measure accordingly.
+
+---
+
+**What round 2 should record as done unusually well, because it was:** the harness fix documented
+its own reintroduced defect (the subshell) and credits the guard rather than the feature; the B1
+correction was aimed at the instrument, not at my (wrong) case list, which is the only reason the
+real two cases were found; the B3 ruling turned an unsatisfiable universal into an unsatisfied,
+satisfiable requirement and refused to call the residue covered; and every correction of a QA
+error was made by measurement, recorded with the mechanism of my mistake — which is what made
+this round's adjudication of my own round-1 findings possible at all.
