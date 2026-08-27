@@ -52,22 +52,17 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   closed and has left § Critical FUP.** Row → [phase-ledger.md](docs/progress/phase-ledger.md) ·
   detail → [aff4.md](docs/progress/aff4.md) · authority is still the
   [plan](docs/plans/aff4-org-affiliation.md). Concluded narrative rotated →
-  [2026-Q3.md](docs/progress/2026-Q3.md). ⛔ **THE THREE RESIDUES, and they exist nowhere else:**
-  **(1)** ✅ **DISCHARGED — merged, pushed, branch deleted, 12 migrations applied remotely 2026-08-26.**
-  ⛔ **The one thing that stays live is the standing rule it broke: push SCHEMA (`db push`) BEFORE
-  CODE (`git push`)** — Coolify auto-deploys on the git push, and the lead pushed code first,
-  leaving a window where deployed code queried a table the remote did not have. ⭐ The warning
-  existed, was read, and was violated anyway **because it sat under a heading about an unmerged
-  branch instead of beside the push**. Full record rotated verbatim →
-  [2026-Q3.md](docs/progress/2026-Q3.md) § "AFF4 residue (1)";
+  [2026-Q3.md](docs/progress/2026-Q3.md). ⛔ **THE THREE RESIDUES — only (2) is still live here:**
+  **(1)** ✅ **DISCHARGED — merged, pushed, schema applied remotely 2026-08-26.** The standing rule
+  it broke — **push SCHEMA before CODE** — is now path-scoped so it fires while you write the
+  migration: `.claude/rules/push-schema-before-code.md`. Record → [2026-Q3.md](docs/progress/2026-Q3.md);
   **(2)** ⚠ **~16 QA-review obligations + ~20 plan-discovered follow-ups were NOT converted into
   `FUP-*` index lines at the Record step** — several say in their own words that they need one, so
   they are invisible to the register the PO reads from until they are filed (pointer list:
   [aff4.md](docs/progress/aff4.md) § "Residue this Record step did NOT file");
-  **(3)** ⛔ **TWELVE instruments in this build reported success while measuring nothing**, two of
-  them **constants** — the dangerous kind, because they are *usually right*. No conclusion was wrong;
-  the confidence was. **Read the plan before quoting any gate figure from this build**, and never
-  believe a counting instrument's zero until it has been run once against a known failure.
+  **(3)** ⛔ **TWELVE instruments in this build reported success while measuring nothing**, two of them
+  **constants** — never believe a counting instrument’s zero until it has been run once against a
+  known failure. Record → [2026-Q3.md](docs/progress/2026-Q3.md).
 - **📐 ADR 0155 ACCEPTED (as amended) 2026-08-26 — the post-AFF4 authorization-evolution program is
   the plan of record; ▶ **AE0 ✅ COMPLETE + human-approved 2026-08-26** (row → ledger, detail →
   [authz-ae0.md](docs/progress/authz-ae0.md)); **AE1 IS BUILDING** on `authz-ae1-hardening`.**
