@@ -257,6 +257,47 @@ Three, all caught by the agents' own controls rather than by review:
   AFTER INSERT audit trigger's own FK catches the same bad value downstream. Only pinning
   the constraint name makes the assertion test the FK under review.
 
+### ⛔ AE1.5's "43 measured verdicts, ready to merge" were earned on a BASELINE THAT NO LONGER EXISTS
+
+**2026-08-27, found by the AE1.3 owner while starting the merge the handoff listed as next.**
+The merge was not performed. Measured, from the surviving scratch reports' own header lines:
+
+| run | scratch dir | declares | mtime (UTC) |
+| --- | --- | --- | --- |
+| read arm — **30 COVERED, 0 BLIND** | `authz-audit-ae15-r2-1787835211` | `Baseline: Files=235, Tests=7793` | 13:35 |
+| write arm — **13 ERROR** | `authz-wp-ae15-1787837865` | `Baseline: Files=235, Tests=7793` | 13:39 |
+| write "final" — **6 COVERED, 2 ERROR** | `authz-wp-final-1787838457` | `Baseline: Files=235, Tests=7793` | 13:59 |
+| **the normalizing `db reset`** (`2448a655`) | — | establishes **236 / 7,855** | **14:20** |
+| AE1.3's sweep, for contrast | `authz-audit-ae13-1787843281` | `Baseline: Files=236, Tests=7855` | 15:11 |
+
+**Every AE1.5 sweep ran BEFORE the reset that normalized the hand-applied-migration divergence** —
+the same divergence this file already records as having voided "every sibling measurement".
+Nobody re-ran them afterwards; the handoff carried them forward as a finished asset.
+
+⭐ **The handoff's arithmetic also does not survive contact with the reports.** It reads
+*"43 of 52 — 30 read-arm COVERED + 13 write-arm"*, which invites the reading that 43 verdicts
+exist. The write arm's 13 are **ERROR**, not verdicts: `run shape != baseline`, the harness
+explicitly withholding a judgement. So the merge as specified would have written 30 COVERED plus
+13 non-verdicts into the committed baseline.
+
+⚠ **What is and is not implied.** The 30 COVERED are *probably* still true, because COVERED is
+**monotone under a superset suite**: it means "the suite FAILed when this gate was opened", and
+236/7,855 appears to be 235/7,793 plus file `388` and `270`'s two new assertions — adding tests
+cannot stop an existing keystone from noticing. ⛔ **But "probably still true" is not a
+measurement**, and the direction of the risk is what matters: this is precisely
+`green-baseline-is-not-fit-to-mutate` (6 of 8 verdicts flipped without a fresh reset, mechanism
+never established). ⭐ Note the asymmetry that makes the monotonicity argument narrower than it
+looks: it rescues COVERED only. A **BLIND** earned on the smaller suite could be COVERED now,
+since the added tests might be exactly the ones that notice. This run happens to have 0 BLIND —
+which is luck about this run, not a property of the argument.
+
+**Not merged, and no rows written.** The options are (a) re-run AE1.5's 52 cases on the current
+clean stack, which also discharges the 30 stale-verdict warnings `door-sweep-cases.sh` raises
+under ADR 0079 Amdt 8 ruling 3, or (b) a PO ruling to accept the 30 COVERED on the monotonicity
+argument, recorded as an accepted inheritance rather than a measurement. ⛔ What must NOT happen
+is the third thing, which is the cheap one: merging them silently, after which the baseline says
+"measured" and nothing in it can contradict that.
+
 ## AE1.3 gate record — 2026-08-27, quiet stack, fresh reset
 
 Tree `63230a84` plus the one merged findings row. Every exit code below was read **directly**,
