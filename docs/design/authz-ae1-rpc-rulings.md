@@ -233,7 +233,10 @@ what was done and where the rest lives.
    identical to the pre-apply hashes (rollback proven to move the hash back); and pgTAP
    `388` §3's atomicity text-pins were proven **RED against the old bodies** before landing.
    Full suite verification runs in the next owned stack window (fresh reset — the stack
-   belonged to AE1.5's evidence window at recording time).
+   belonged to AE1.5's evidence window at recording time). ✅ **Verified the same day**: the
+   PO granted stack ownership; fresh reset (all migrations registry-applied, the
+   hand-applied divergence normalized) → full pgTAP suite **236 files / 7,855 tests,
+   PASS**, `388` green by name.
 2. **Reclassification completion should consume a DB-minted operation id.** Correct — the
    four loose parameters bound abuse relationally but do not prove one-invocation
    provenance. **FILED** as `FUP-DOC-RECLASS-OPERATION-ID` (index + body, 2026-08-27): its

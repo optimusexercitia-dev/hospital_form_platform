@@ -224,11 +224,14 @@ PROGRESS.md **and** a body in `follow-ups.md`.
 - **Re-derive** `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`'s counts at the Record step. ⛔ Never
   increment them by hand.
 - Name the **ARM**, never the script, in the gate record (§6 step 5).
-- **Migration `20261003005000` (atomic minutes latches) + pgTAP `388` are validated ONLY by
-  a rolled-back apply** (probes green; post-rollback `md5(prosrc)` restored to the pre-apply
-  values; `388` §3's pins proven RED on the old bodies). Full verification = the next owned
-  stack window: fresh reset → `npm run test:db`. ⚠ **Until that reset, `388` §3 REDS against
-  the live stack's old bodies BY DESIGN** — that is the pin working, not a defect to file.
+- ✅ **Migration `20261003005000` + pgTAP `388` VERIFIED 2026-08-27** — the PO granted
+  stack ownership (other sessions paused); fresh `db reset` → `npm run test:db`: **236
+  files, 7,855 tests, PASS**, `388` green by name. ⚠ **This reset also NORMALIZED the
+  hand-applied divergence**: `…004600`/`…004610`/`…004620`/`…004710` are now
+  registry-applied like everything else. Every measurement taken BEFORE this reset against
+  the hand-mutated stack is the provisional kind the standing rule names — re-derive it,
+  don't reuse it. (Rolled-back-apply validation record: probes green, post-rollback
+  `md5(prosrc)` restored, `388` §3 pins proven RED on the old bodies.)
 - The gate's diff-scoped sweep derivation will see `…005000` touching two `prosecdef`
   **non-boolean** command doors: `door-sweep-cases.sh` likely derives ZERO boolean gates
   from it and **exits 1 — a finding to rule on, never a pass** (plan rule 1).
