@@ -987,3 +987,39 @@ the two audit ERRORs named as the open residue, or (b) left unmet. **That is a P
 lead call**, because it changes what Gate AE1 asserts. ⚠ Whichever way it goes, plan rule 4's
 "each door enters every ARM domain" is **unachievable as stated for a non-client-reachable door**
 and should say so, or the next phase inherits an item nothing can satisfy.
+
+### The CLAUDE.md rotation — what the eleventh gate cost, and what the scoping gave up
+
+**2026-08-27, PO-approved.** `lint:service-role-registry` made CLAUDE.md §8's *"`npm run lint` is
+**TEN** gates chained"* false. That file is loaded into **every** session and every teammate spawn,
+so a stale line there is the most expensive kind — and it sat at **40,541 bytes against a 40 KB
+cap** `lint:progress` enforces and that is never raised to pass. The PO chose the full fix: the
+new gate gets a rationale bullet in the same shape as the other ten, and room is made by rotating.
+
+⛔ **Rotating under cap pressure selects against qualifiers** — the fact survives, the *bound* on
+it is cut, because a caveat is the shortest clause and reads as hedging. So a whole unit moved,
+not a trim: the 1,391-byte **Prettier** block → `.claude/rules/prettier-does-not-govern-this-tree.md`.
+That is not an arbitrary pick. It is a standing prohibition with **no resolution event**, which is
+exactly what §8's own last bullet says belongs in `.claude/rules/`, path-scoped — the file's rule
+applied to itself.
+
+**Result:** CLAUDE.md 40,541 → **40,290** with the new bullet included; rule file 1,988 bytes
+(cap 2,048); 11 rule files (cap 12); all eleven lint gates exit 0.
+
+⚠ **What the scoping gave up, stated because the rule's `source:` points here for it.** In
+CLAUDE.md that text loaded in every session. Path-scoped it loads only when `src/**`, the tracker
+docs, or `docs/progress/**` are being edited — and ADR 0127 Amdt 4 records that rules fire in a
+fresh session but **not every session type**. A session that runs `prettier --write` without first
+editing one of those paths will not see it, and **no gate can catch that**, because the formatter
+is not wrong; it disagrees with the tree. Better *targeted*, strictly weaker in *coverage*.
+
+⭐ **Two of my own gates caught me while doing this**, both on the first attempt: the rule file was
+**2,914 bytes** against the 2 KB cap (I had written the rationale the cap exists to keep out), and
+its `anchors:` named `docs/decisions/0124-progress-md-size-and-rotation.md` — **a file that does
+not exist**; the real one is `0124-progress-live-state-contract.md`, a title I reconstructed from
+memory of what the ADR is *about*. The anchor check is the only thing standing between a
+plausible-looking citation and a permanently dead one.
+
+⛔ **And I piped `npm run lint` through `tail` and read `$?`** — the pipe's status, not the gate's —
+printing `LINT EXIT=0` beside two `✗` findings. **Fourth sighting of that class today**, this one
+self-inflicted while writing up the other three.
