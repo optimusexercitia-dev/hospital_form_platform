@@ -6,6 +6,73 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
+### 🟡 FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY — 31 Tier-1 DEFINER doors confirm an object exists before checking authority (owner: backend/PO)
+
+> Filed 2026-08-27 by AE1 close condition #3, the [tier-1 threat review](../design/authz-ae1-tier1-threat-review.md)
+> §4.2 (finding F-T1-2). **PO-ruled the same day: fixed OUTSIDE AE1.**
+>
+> Each of the 31 reads a table to resolve its target, raises a *distinguishable* not-found
+> error, and only then checks authority. They are `SECURITY DEFINER`, so the read **bypasses
+> RLS** — the error therefore tells a caller with no access that the object exists. Shape,
+> measured:
+>
+> ```
+> public.assign_member_title(p_member_id, p_title_id)
+>   select commission_id into v_commission from public.memberships where id = p_member_id;
+>   if v_commission is null then raise exception 'membro inexistente' ...   -- ← before authority
+>   if not (app.is_staff_admin_of(v_commission) or ...) then raise exception 'sem permissão' ...
+> ```
+>
+> ⚠ **Severity is low and must stay stated that way:** uuids are not enumerable, so this is a
+> *confirmation oracle* — it validates an identifier the caller already holds — not an
+> enumeration sweep. What makes it worth fixing is consistency: it is exactly the standard
+> AE1.3's six new doors were held to (*"authority checked before existence so a probe cannot
+> enumerate"*), and **five of the 31 are case-module doors** (`get_case_detail`,
+> `grant_case_access`, `list_case_access`, `revoke_case_access`, `set_case_visibility`).
+>
+> ⛔ **Do not re-derive the set by hand.** It is BLOCK 6 of
+> `scripts/authz-tier1-threat-review-ae1.sql`; the count moves as doors are added, and a
+> hand-list would be stale the first time it is read. The fix is a migration reordering the
+> bodies (authority first, uniform deny) plus a diff-scoped door sweep and a mutation-proof
+> per door — its own increment, which is why it is not in AE1.
+>
+> ⚠ Two of the 31 are INVOKER-adjacent in appearance only; the split that produced this set
+> already removed the 3 INVOKER cases (their pre-authority read is RLS-filtered, so
+> "not found" already means "not visible to you") and the 41 whose deny is silent.
+
+### 🟠 FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED — ~25 child/vocabulary tables emit no audit row on any mutation (owner: backend/PO)
+
+> Filed 2026-08-27 by AE1 close condition #3, the [tier-1 threat review](../design/authz-ae1-tier1-threat-review.md)
+> §4.3 (finding F-T1-3). **Architecture Rule 11 says every mutation emits a row.**
+>
+> **62** of the 270 mutating Tier-1 DEFINER doors write tables that emit nothing by **either**
+> audit mechanism — neither a call reaching `audit_write` anywhere in the door's closure, nor a
+> `trg_audit_*` trigger on the table itself (108 doors take the first path, 100 the second; 54
+> tables carry an audit trigger).
+>
+> The affected tables are a coherent class — **child entities and vocabulary**: `rca_factors` ·
+> `rca_members` · `rca_root_causes` · `rca_timeline_entries` · `rca_evidence` · `rca_why_chains` ·
+> `capa_action` · `capa_action_task` · `capa_action_evidence` · `capa_measure` ·
+> `capa_measure_result` · `case_interview_interviewers` · `case_interview_subjects` ·
+> `case_tag_assignments` · `case_assignment_roles` · `referral_shared_item` ·
+> `referral_requested_actions` · `pqs_event_types` · `pqs_sentinel_criteria` ·
+> `ethics_allegation_categories` · `ethics_sanction_types` · `hospital_departments` ·
+> `case_correction_requests` · `interview_session_attendance` · `upload_sessions`/`file_objects`.
+>
+> ⭐ **The parents are audited and the children are not.** `app.trg_audit_rca` exists;
+> `rca_factors` carries only `guard_rca_child_lock`. A child insert never touches the parent
+> row, so no parent audit row is emitted for it either — the coverage does not flow downward.
+>
+> **Evidence hierarchy, so it is not re-litigated:** the catalog is decisive (no audit trigger,
+> no `audit_write` in closure). `audit_log` corroborates — `entity_type` holds `rca`,
+> `capa_plan`, `interview` but no child type — and is **only** corroboration, because on a
+> seeded database an absent row can mean "the path was never exercised".
+>
+> ⛔ **This needs a PO reading before it needs a migration:** does Rule 11's *"every mutation"*
+> mean every row in every table, or every **aggregate** (the parent RCA / CAPA / interview)? The
+> answer decides whether this is ~25 audit triggers plus entity-type and diff decisions, or a
+> documented boundary. Do not write triggers before it is answered.
+
 ### 🟠 FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST — rider R2 of the AE1.4 rpc rulings, a CONDITION of the `complete_minutes_job` ruling (owner: backend/tester)
 
 > Filed 2026-08-27 at the [rulings](../design/authz-ae1-rpc-rulings.md) approval. The sole

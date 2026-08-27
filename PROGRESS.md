@@ -74,9 +74,13 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ⚠ **C1a keeps its queue position (G10)** — Phases 0–1 may run in parallel with the ▶ queue below
   but do not preempt it; re-checked 2026-08-26, C1a still heads the queue and AE0 did not displace it.
   ▶ **AE1 STATUS 2026-08-27 (16 unpushed on `authz-ae1-hardening`; NOT merged, NOT pushed):**
-  **AE1.1/.2/.3/.4/.5/.6 all built**; close conditions **#1 #2 #4 #5 #6 done**, **#3 HALF** (budget
-  ceiling 752 + merge rule written; its **tiered threat review is SIZED, NOT DONE** — 432 Tier 1
-  functions × 10 columns + 384 command doors, and it is **not** the small item the list implies).
+  **AE1.1/.2/.3/.4/.5/.6 all built**; close conditions **#1–#6 ALL DONE** — **#3 closed 2026-08-27**
+  by instrument + review (`scripts/authz-tier1-threat-review-ae1.sql` +
+  [tier-1 threat review](docs/design/authz-ae1-tier1-threat-review.md)), scoped by PO ruling, not
+  narrowed: ⛔ **Tier 1 is 523, not the sized 432** (the 432 was its DEFINER subset, dropping the 90
+  `public` INVOKER fns — the ADR 0079 A7 class); **325/523 decided mechanically, 198 reviewed by
+  class**; 4 findings, 2 filed as FUPs (`FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY` ·
+  `FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED`), 4 columns measured to **zero**.
   Gates on that tree, all measured, exit codes read directly: `test:db` **237/7,870 PASS** · `lint`
   **10/10** · `typecheck` **0** · vitest **144/1,964** · all four ARM arms **0** · the 63-case
   diff-scoped sweep re-run and merged (**BLIND 74⇒69, COVERED 296⇒316**; 54 of 63 measured, the 9
@@ -328,6 +332,8 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 ⭐ **FOUR items also carry a [§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list) entry** — `FUP-DM5-DISPOSAL-JOB` (C1), `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2), and — **promoted by the PO 2026-08-19** — `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (C3) + `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (C4). Their lines below stay put; the Critical entry adds a **trigger and a deadline**, it does not replace the index line.
 
 - 🟡 **FUP-E2E-PROF-CREATE-ROSTER-FLAKE** — `ethics-e4-participants.spec.ts:765` PROF-CREATE roster row absent after inline create (:787, 10 s); ONE observation, AE1's `e2e:prod` 2026-08-27, passed on retry. ⛔ NOT admitted to `FUP-E2E-REPEAT-FLAKY` — a different mechanism, and one occurrence is not a pattern; disposition undecided → [body](docs/progress/follow-ups.md) — lead/tester
+- 🟡 **FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY** — 31 Tier-1 DEFINER doors raise a distinguishable not-found error BEFORE checking authority; the read bypasses RLS, so it confirms an object exists to a caller with no access (5 are case-module doors). Low severity — a confirmation oracle, not enumeration — but it is the standard AE1.3's doors were held to. Set = BLOCK 6 of `scripts/authz-tier1-threat-review-ae1.sql`, ⛔ never a hand-list. PO-ruled 2026-08-27 out of AE1 → [body](docs/progress/follow-ups.md) — backend/PO
+- 🟠 **FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED** — 62 of 270 mutating Tier-1 DEFINER doors write ~25 child/vocabulary tables that emit NO audit row by either mechanism (no `audit_write` in closure, no `trg_audit_*` on the table) — an Architecture Rule 11 gap. ⭐ The parents are audited, the children are not, and coverage does not flow downward. ⛔ Needs a PO reading of Rule 11's grain (every row, or every aggregate?) BEFORE any trigger is written → [body](docs/progress/follow-ups.md) — backend/PO
 - 🟠 **FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST** — rider R2 of the AE1.4 rpc rulings, a **condition** of the `complete_minutes_job` ruling: `verifyCallbackSignature` at the route is the sole gate and `route.test.ts` mocks the handler out, so no test notices the HMAC vanish. Both directions needed (deny without reaching the RPC; allow reaches it) → [body](docs/progress/follow-ups.md) — backend/tester
 - 🟡 **FUP-DOC-RECLASS-OPERATION-ID** — bind reclassification completion to a DB-minted single-use operation id carrying the (version, new, old, sha) tuple; four loose params today — relational checks bound abuse but don't prove one-invocation provenance (PO obs #2 at the rulings, 2026-08-27) → [body](docs/progress/follow-ups.md) — backend
 - 🟡 **FUP-DOC-DISPOSAL-PROVENANCE-SPLIT** — `complete_document_disposal` serves automated duplicate retirement AND human DSR/manual disposal through one generic door, erasing their different authz/evidence/audit requirements; lane (b) should name the human authority (PO obs #3, 2026-08-27) → [body](docs/progress/follow-ups.md) — backend/PO

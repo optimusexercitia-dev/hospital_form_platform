@@ -37,7 +37,7 @@ Four catalog facts the whole classification rests on, each measured, none assume
 
 | fact | value | why it decides classes |
 | --- | --- | --- |
-| every `app`/`public` function is owned by **`postgres`** | 0 exceptions | a `SECURITY DEFINER` runs as a superuser, so **its callees need no `authenticated` EXECUTE** — a DEFINER terminates the privilege chain |
+| every `app`/`public` function is owned by **`postgres`** | 0 exceptions | a `SECURITY DEFINER` runs as its **owner**, and the owner holds EXECUTE on everything it owns, so **its callees need no `authenticated` EXECUTE** — a DEFINER terminates the privilege chain. ⛔ **CORRECTED 2026-08-27** ([tier-1 threat review](./authz-ae1-tier1-threat-review.md) F-T1-4): this read *"runs as a superuser"*. Measured: `postgres` is **`rolsuper = false`** here (Supabase de-superusers it) and `rolbypassrls = true`. Every verdict in this file survives — the chain terminates by **ownership** — but the mechanism was misnamed, and `BYPASSRLS`, not superuser, is the half that matters for authorization |
 | PostgREST exposed schemas | `["public", "graphql_public"]` (`supabase/config.toml`) | **no `app` function is client-invocable.** An `app` DEFINER's `authenticated` EXECUTE can only be needed by a policy, a catalog expression, or an INVOKER-context caller |
 | overloaded names inside the population | **0** | a name-keyed join is unambiguous; there is exactly **one** cross-schema collision, `draft_version_of_template` (`app` + `public`), named so it is not silently over-joined |
 | functions with an empty `prosrc` (SQL-standard `BEGIN ATOMIC`) | **0** | the `prosrc` regex is a **complete** instrument for function→function edges; nothing hides in a parse-tree-only body |

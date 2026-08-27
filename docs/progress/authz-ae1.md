@@ -14,7 +14,7 @@ list below is the countermeasure, and it is maintained **as work happens**, not 
 | task | state |
 | --- | --- |
 | **AE1.1** FKs | ✅ **built + committed** (`14ad668d`) — both FKs `ON DELETE CASCADE`, pgTAP 383 |
-| **AE1.2** DEFINER classification | ✅ classified (752 functions); ⛔ **all 233 revokes HELD** under RV0 |
+| **AE1.2** DEFINER classification | ✅ classified (752 functions); ✅ **tiered threat review DONE** (close #3 — 523 Tier-1 rows, 325 decided mechanically, 198 by class, 4 findings); ⛔ **all 233 revokes HELD** under RV0 |
 | — RV0 partition | ▶ in flight (`ae1-fk-build`) |
 | **AE1.3** person doors | ✅ **built + gated** (`63230a84`) — 6 doors + predicate; `callDoor` seam (R7); 16/16 KEYSTONE HOLDS; sweep ERROR **ruled**; all four ARM arms exit 0. Owed at phase close: QA, `e2e:prod`, Record |
 | **AE1.4** service-role registry | ✅ **built + committed** (`800ffe2a`) — 45 sites, gate extension **OFF** |
@@ -39,11 +39,15 @@ mergeable increments but **does not close** until:
    AE1.2's `ALTER DEFAULT PRIVILEGES` uses the **global `FOR ROLE <creator>` form** with
    positive effective-ACL probes (`has_function_privilege` + `pg_default_acl`) — the
    `IN SCHEMA` form is a documented no-op against the built-in PUBLIC default [PA-F4];
-3. ◐ **HALF DONE, and the other half is NOT a small item — see § "close condition #3 is an
-   order of magnitude larger"**. ✅ The budget's **ceiling (752) + merge rule** are written
-   (`backend-state.md` § Privilege budget). ⛔ The **tiered threat review** is outstanding:
-   Tier 1 is **432** functions, and PA-F11 asks 10 threat columns per row plus individual
-   justification for each public command door (**384** in the population);
+3. ✅ **DONE 2026-08-27** — instrument `scripts/authz-tier1-threat-review-ae1.sql` + review
+   [authz-ae1-tier1-threat-review.md](../design/authz-ae1-tier1-threat-review.md); 2 PO
+   rulings taken first (scope = instrument-then-residue-by-class inside AE1; the C5 set
+   fixed outside AE1). ⛔ **Tier 1 is 523, not 432** — the sized figure was its DEFINER
+   subset and dropped the 90 `public` INVOKER functions + `graphql_public.graphql`, i.e.
+   exactly the ADR 0079 Amendment 7 class. **325 of 523 decided mechanically; 198 reviewed
+   by class.** 4 findings (F-T1-1…4), 2 filed as FUPs, 4 columns measured to **zero**. Its
+   bounded half (ceiling 752 + merge rule, `backend-state.md` § Privilege budget) was
+   already done. See § "close condition #3, and what the instrument was worth";
 4. ✅ **DONE** — ONE index (`user_id`), `20261003005100` + pgTAP 383 §3; PA-F15's cascade
    premise measured FALSE and the third FK (`appointed_by`) ruled out. See § "PA-F15 was
    wrong twice";
@@ -239,6 +243,64 @@ is what makes the aggregate a decision rather than a by-product.
 rows thinly and reports #3 as met — after which the phase record says a threat review happened.
 AE1 does not close on this item until it is scoped and run, or the PO narrows it (e.g. to the
 command-door subset, or to the doors an increment actually touches).
+
+### ✅ Close condition #3, and what the instrument was worth
+
+**2026-08-27, same stack, head `20261003005300`.** Scoped and run — not narrowed. Two PO
+rulings were taken **before** the work, with the sizing measured rather than estimated:
+scope = *instrument first, then review the residue by class, inside AE1*; and the C5 finding
+set = *filed as a follow-up, fixed outside AE1*.
+
+Artifacts: [`scripts/authz-tier1-threat-review-ae1.sql`](../../scripts/authz-tier1-threat-review-ae1.sql)
+(the deriving instrument) + [authz-ae1-tier1-threat-review.md](../design/authz-ae1-tier1-threat-review.md)
+(the review). **325 of 523 rows decided mechanically; 198 reviewed by class.**
+
+⛔ **The sizing above is wrong in its first row, and the correction is the point.** Tier 1 is
+**523**, not 432. PA-F11 says *"remotely reachable functions (exposed schema + `authenticated`/
+`anon` effective EXECUTE)"* — nothing in that says DEFINER. The 432 inherited AE1.2's
+DEFINER-only population and dropped **90 `public` INVOKER functions + `graphql_public.graphql`**
+— which is *exactly* the class ADR 0079 **Amendment 7** was written for: a `public` INVOKER
+wrapper whose own probe is the only gate in front of an `app` DEFINER body, in **no** arm's
+domain at all. A threat review that inherits its population from a DEFINER census reproduces
+the blind spot in a new instrument. ⚠ The `[PA-F11]` text in the plan carries the same 432.
+
+⭐⭐ **The grain lesson, which is why the instrument was worth building at all.** Computed
+**per body**, the arbitrary-principal column reads **27 doors that take a principal uuid with
+nothing binding it to the session** — `assign_org_admin`, `assign_hospital_admin`,
+`revoke_nsp_org_admin`, all DEFINER and `authenticated`-executable. Read them and every one is
+a two-line delegator: `assign_org_admin → grant_role → grant_role_impl((select auth.uid()), …)`.
+Computed over the **call closure** the same column reads **zero**. ⛔ Had the ten columns been
+filled in by hand, those 27 rows would have been written down as findings — or, worse,
+dismissed as "probably delegating" without anyone checking which. The closure was then measured
+by **two edge instruments** (qualified-only vs qualified+bare, the second able to over-join,
+which is the *unsafe* direction here): they differ by 4 edges and **not one row changes bucket**.
+
+**Four findings, and four columns that measured to zero:**
+
+| | |
+| --- | --- |
+| F-T1-1 | Tier 1 = 523, not 432 (above) |
+| F-T1-2 | **31** DEFINER doors confirm existence before authority → `FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY` |
+| F-T1-3 | **62** mutating DEFINER doors write ~25 child/vocabulary tables with **no audit path at all** — a Rule 11 gap → `FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED` |
+| F-T1-4 | the classification's *"a DEFINER runs as a superuser"* is **false** here (`postgres` is `rolsuper = f`, `rolbypassrls = t`); conclusion survives via **ownership** — corrected in place |
+| zero | arbitrary-principal binding · dynamic SQL · enumeration surfaces · overload reach |
+
+⭐ **F-T1-3's shape is worth keeping: the parents are audited and the children are not.**
+`app.trg_audit_rca` exists; `rca_factors` carries only `guard_rca_child_lock`. A child insert
+never touches the parent row, so no parent audit row is emitted for it either — **audit
+coverage does not flow downward**, and a table-level census that stops at the aggregate reads
+as complete.
+
+⛔ **Two instruments of my own were wrong in the reassuring direction, in one afternoon.**
+(1) The dynamic-SQL detector's 3 hits are all false positives on **string literals** — the
+comment-strip removes comments, not literals, and this codebase's literals are pt-BR prose:
+`complete_dsr_task` matched `\yexecute\y` inside *"execute o descarte antes de concluir a
+tarefa"*, where `execute` is a Portuguese verb. Every `prosrc` sweep in this repo inherits that.
+(2) The probe that printed the match context read **`m[0]`** — `regexp_matches` returns captures
+at index **1**, so it was NULL for every match and reported *"no matches"* on bodies full of
+them. It **agreed with what I already believed** and would have closed all three candidates as
+dispositioned-by-nothing. What caught it was a `true` boolean sitting next to an empty match
+list. *A probe that confirms your prior is the one to re-run against a known positive.*
 
 ### ✅ `e2e:prod` — GATE GREEN, and the flake fingerprints earned their keep on day one
 
