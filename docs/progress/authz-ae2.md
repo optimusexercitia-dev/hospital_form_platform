@@ -2394,7 +2394,10 @@ measurement of an open question rather than a defect pinned as expected.
    1 the `staff_admin` halves agree; the `staff` halves do not. The note was retired as instructed
    **and replaced by a narrowed one** scoped to the surviving asymmetry, citing the ADR's own
    scope bound and the pending PO ruling. Deleting it flat would have left a real, undocumented
-   asymmetry that a future reader would "fix". **The lead confirmed and is amending ADR 0167.**
+   asymmetry that a future reader would "fix". ✅ **Ratified: ADR 0167 Amendment 1** (commit
+   `7a30e835`), which also records that the surviving `staff` door is owed its own PO ruling and
+   that its grid is **not** the same grid — the `staff` arm has a third participant
+   (`is_staff_admin_of_for`) the `staff_admin` arm does not.
 2. **The ADR does not mention that it makes ADR 0166's `'comissão inexistente'` guard
    unreachable.** Ruled option (a): keep the guard, re-cut `396 § 5.6`, record the cross-reference
    here. ⛔ Neither ADR was amended by this increment.
