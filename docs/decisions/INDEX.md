@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**165 ADRs** · next free number: **0168** · 48 carry an inbound supersedes/amends edge
+**166 ADRs** · next free number: **0169** · 49 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -154,7 +154,7 @@
 | 0130 | [DSR workflow: data-subject requests as adjudicated cases, not an erase button](0130-dsr-subject-request-workflow.md) | accepted | 2026-08-19 | – | – |
 | 0131 | [PHI erasure reach is bounded to DESIGNATED PHI fields; free text is out of scope for th…](0131-phi-erasure-reach-bounded-to-designated-fields.md) | accepted | 2026-08-20 | – | – |
 | 0132 | [An ethics proceeding carries NO erasure entitlement; the absent door is a DECISION, not…](0132-ethics-proceedings-carry-no-erasure-entitlement.md) | accepted | 2026-08-21 | – | – |
-| 0133 | [AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-manageme…](0133-aff2-affiliation-scoped-administration-um-redesign.md) | accepted | 2026-08-20 | amends 0048, 0097, 0098 | ⚠ amended by 0147, 0148, 0161 |
+| 0133 | [AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-manageme…](0133-aff2-affiliation-scoped-administration-um-redesign.md) | accepted | 2026-08-20 | amends 0048, 0097, 0098 | ⚠ amended by 0147, 0148, 0161, 0168 |
 | 0134 | [The case split is read vs manage: one management surface, and administrativo can read t…](0134-case-surface-split-and-administrativo-case-read.md) | accepted | 2026-08-21 | amends 0033, 0061, 0078, 0079, 0100 | ⚠ amended by 0137 |
 | 0135 | [Authored refusals get their own SQLSTATE; `42501` stays reserved](0135-authored-refusals-get-their-own-sqlstate.md) | accepted | 2026-08-22 | – | – |
 | 0136 | [Deferred `staff_admin` sign-off: attest a FROZEN response, block the PHASE not the SUBM…](0136-deferred-staff-admin-signoff-attests-frozen-content.md) | accepted | 2026-08-23 | amends 0004, 0016, 0017 | – |
@@ -185,7 +185,8 @@
 | 0161 | [The person-authority SQL twin: ADR 0133 D4's "no SQL twin" is retired](0161-person-authority-sql-twin-retires-no-twin-prohibition.md) | accepted | 2026-08-27 | amends 0133 | – |
 | 0162 | [Plan-audit corrections to the authorization-evolution program: rollback artifact, catal…](0162-authz-evolution-plan-audit-corrections.md) | accepted | 2026-08-27 | amends 0155 | – |
 | 0163 | [lifecycle authority over a fully-offboarded person: last-org retention](0163-offboarded-person-lifecycle-authority.md) | accepted | 2026-08-27 | amends 0151 | ⚠ amended by 0164 |
-| 0164 | [tenant containment moves from creation time to the destructive event](0164-tenant-containment-moves-from-creation-time-to-the-destructive-event.md) | accepted | 2026-08-28 | amends 0151, 0163 | ⚠ amended by 0165, 0166 |
-| 0165 | [the affiliation-derived tenant gate, what it widens, and the alternative rejected for n…](0165-affiliation-derived-tenant-gate-and-its-widening.md) | accepted | 2026-08-28 | amends 0151, 0164 | – |
+| 0164 | [tenant containment moves from creation time to the destructive event](0164-tenant-containment-moves-from-creation-time-to-the-destructive-event.md) | accepted | 2026-08-28 | amends 0151, 0163 | ⚠ amended by 0165, 0166, 0168 |
+| 0165 | [the affiliation-derived tenant gate, what it widens, and the alternative rejected for n…](0165-affiliation-derived-tenant-gate-and-its-widening.md) | accepted | 2026-08-28 | amends 0151, 0164 | ⚠ amended by 0168 |
 | 0166 | [governance-role provisioning implies an organization affiliation](0166-governance-role-provisioning-implies-organization-affiliation.md) | accepted | 2026-08-28 | amends 0151, 0164 | – |
 | 0167 | [commission `staff_admin` has ONE authority, on both sides](0167-commission-staff-admin-has-one-authority-on-both-sides.md) | accepted | 2026-08-28 | amends 0051, 0078 | – |
+| 0168 | [orphan recovery is its own door: split the branch, do not lock the door](0168-orphan-recovery-is-its-own-door.md) | accepted | 2026-08-28 | amends 0133, 0164, 0165 | – |
