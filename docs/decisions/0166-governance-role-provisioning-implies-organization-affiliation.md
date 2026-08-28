@@ -153,23 +153,35 @@ foreign **inactive** person and would break this door family's documented enumer
 measured by the PO on that date. A `db reset --linked` therefore rebuilds the remote from the
 migration chain and re-seeds it, leaving no historical population to repair.
 
-Conditions, all binding:
+Conditions, all binding — ⛔ **and the first two are NOT costs of the reset**, corrected
+2026-08-28 after the PO observed the comparison read as lopsided:
 
-1. ⛔ **The reset runs AFTER this ADR's kernel invariant and the column drop are in the chain**, not
-   before. Resetting earlier clears a population the kernel has not yet stopped creating, and would
-   need repeating.
-2. ⛔ **`seed.sql` must be re-predicated first.** It currently derives affiliations **from
-   `home_organization_id`** (`insert … select pr.id, pr.home_organization_id … where
-   pr.home_organization_id is not null and not pr.is_admin`) — 6 lines still name the column, and
-   **no AE2 commit has touched that file.** It was counted in the AE2.1 census as a fixture consumer
-   and never assigned to an increment. ⚠ That statement is precisely **why the seed yields zero
-   orphans today**, which is the property that makes a reset safe; pgTAP `393 § 1.2` is green because
-   of it.
+1. **The kernel invariant must be in the chain first.** ⚠ **Symmetric, not a reset cost** — a
+   backfill equally must run after the kernel, or it repairs a population still being created.
+2. **`seed.sql` must be re-predicated.** ⛔ **This belongs to the DROP, not to the reset.** It
+   derives affiliations **from `home_organization_id`** (`insert … select pr.id,
+   pr.home_organization_id … where pr.home_organization_id is not null and not pr.is_admin`) — 6
+   lines still name the column and **no AE2 commit has touched that file**; it was counted in the
+   AE2.1 census as a fixture consumer and never assigned to an increment. The statement **fails the
+   moment the column is dropped**, so the rewrite is owed under either option. ⚠ Its relevance
+   *here* is only that the same statement is **why the seed yields zero orphans today** — the
+   property that makes a reset safe, and why pgTAP `393 § 1.2` is currently green.
 3. The reset is **destructive and outward-facing** and requires its own explicit authorization at
    execution time. This decision authorizes the *approach*, not the act.
 4. ⚠ **This option expires the moment the pilot loads data.** A backfill is a repeatable, auditable
    repair; a reset is a one-time convenience valid only while `non_test = 0`. If real data lands
    first, §5's backfill returns in full.
+
+**Why the reset is the cheaper path, stated so the comparison is not re-litigated.** §5's backfill
+requires a property-derived candidate query, classification into seven buckets, a PO ruling on the
+multi-org bucket, `started_on`/`created_by` attribution rules, and pre-/post-image assertions — and
+it is a **data-dependent migration**, which this repo has a recorded trap for: it **matches zero
+rows on a fresh local reset by design**, so a local green proves nothing about it and the remote is
+where it first does real work. Against a remote holding only fixture data, all of that machinery
+would be built and reviewed to repair rows whose only purpose is to be discarded. The reset's own
+residuals are two and both are small: it applies the **whole 489-migration chain** to a wiped remote
+rather than pushing 13 — the same chain a local reset runs cleanly every time, but a larger
+operation — and it needs authorization at the moment it runs.
 
 ⭐ Done in that order the single reset discharges **three** things at once: the historical repair,
 the **13-migration schema gap** to the remote, and the seed's column dependency.
