@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**164 ADRs** · next free number: **0167** · 48 carry an inbound supersedes/amends edge
+**165 ADRs** · next free number: **0168** · 48 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -73,7 +73,7 @@
 | 0048 | [User Registration & Identity Management](0048-user-registration-identity.md) | accepted | 2026-07-01 | – | ⚠ amended by 0133 |
 | 0049 | [Email-verification flag & admin-set initial password](0049-email-verification-flag-admin-set-password.md) | accepted | 2026-07-02 | – | – |
 | 0050 | [Action-Items Fold, `visibility_scope`, and Case-Access Grant Expiry](0050-action-items-fold-visibility-scope-case-access-expiry.md) | accepted | 2026-07-02 | – | – |
-| 0051 | [Hospital-admin tier, 4-tier audit chain & committee member titles](0051-hospital-admin-tier-and-hospital-audit-tier.md) | accepted | 2026-07-03 | – | ⚠ amended by 0149 |
+| 0051 | [Hospital-admin tier, 4-tier audit chain & committee member titles](0051-hospital-admin-tier-and-hospital-audit-tier.md) | accepted | 2026-07-03 | – | ⚠ amended by 0149, 0167 |
 | 0052 | [NSP-per-hospital: re-key the PQS roster + every PHI door org → hospital, add `nsp_org_a…](0052-nsp-per-hospital.md) | accepted | 2026-07-03 | supersedes 0042 | – |
 | 0053 | [Audit-access entitlement guard (C-4): dispatch to the entity's own read predicate, not…](0053-audit-access-entitlement-guard.md) | accepted | 2026-07-04 | – | – |
 | 0054 | [Tenant-hierarchy composite FK: a commission's org must match its hospital's org](0054-tenant-composite-fk.md) | accepted | 2026-07-05 | – | – |
@@ -99,7 +99,7 @@
 | 0074 | [Supersession correction model (contract + UX finalization)](0074-supersession-correction-model.md) | accepted | 2026-07-13 | – | – |
 | 0075 | [Memberships collapse: service-role vs RLS-scoped write-path split](0075-memberships-collapse-write-path-split.md) | accepted | 2026-07-13 | – | – |
 | 0076 | [Notifications (S1·N): pilot scope — prove one vertical deep](0076-notifications-pilot-scope.md) | accepted | 2026-07-13 | – | – |
-| 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134 |
+| 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134, 0167 |
 | 0079 | [AUTHZ door-blindness: the standing invariant + the write-policy keystone-isolation rule](0079-authz-door-blindness-standing-invariant.md) | accepted | 2026-07-18 | supersedes 0078 | ⚠ amended by 0134, 0153, 0157 |
 | 0080 | [Committee Charters & Cadence (S4·CH): delegate the regimento to the controlled-doc life…](0080-committee-charters-cadence-model.md) | accepted | 2026-07-20 | – | – |
 | 0081 | [Controlled-Document Redesign + Reviewer Notifications](0081-controlled-document-redesign.md) | accepted | 2026-07-21 | – | ⚠ amended by 0082 |
@@ -188,3 +188,4 @@
 | 0164 | [tenant containment moves from creation time to the destructive event](0164-tenant-containment-moves-from-creation-time-to-the-destructive-event.md) | accepted | 2026-08-28 | amends 0151, 0163 | ⚠ amended by 0165, 0166 |
 | 0165 | [the affiliation-derived tenant gate, what it widens, and the alternative rejected for n…](0165-affiliation-derived-tenant-gate-and-its-widening.md) | accepted | 2026-08-28 | amends 0151, 0164 | – |
 | 0166 | [governance-role provisioning implies an organization affiliation](0166-governance-role-provisioning-implies-organization-affiliation.md) | accepted | 2026-08-28 | amends 0151, 0164 | – |
+| 0167 | [commission `staff_admin` has ONE authority, on both sides](0167-commission-staff-admin-has-one-authority-on-both-sides.md) | accepted | 2026-08-28 | amends 0051, 0078 | – |
