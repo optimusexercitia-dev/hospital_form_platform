@@ -41,13 +41,13 @@ create or replace function app._mut_w4(p_what text) returns void
 declare d text;
 begin
   if p_what = 'remove_flag_check' then
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl'::regproc);
     d := app._mut_w4_sub(d, 'perform app.assert_technical_director_enabled();', 'null;');
     execute d;
 
   elsif p_what = 'admit_platform_admin' then
     -- The tidy-up a future reader is most likely to make.
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl'::regproc);
     d := app._mut_w4_sub(d,
       'if not (app.is_org_admin_of_for(v_org, p_actor)
             or app.is_hospital_admin_of_for(p_scope_id, p_actor)) then
@@ -59,17 +59,17 @@ begin
     execute d;
 
   elsif p_what = 'remove_physician_check' then
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl'::regproc);
     d := app._mut_w4_sub(d, 'and pc.key = ''physician''', 'and true');
     execute d;
 
   elsif p_what = 'ignore_category_is_active' then
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl'::regproc);
     d := app._mut_w4_sub(d, 'and pc.is_active', 'and true');
     execute d;
 
   elsif p_what = 'remove_titular_door_check' then
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl'::regproc);
     d := app._mut_w4_sub(d, 'if p_role = ''technical_director''
        and exists (', 'if false
        and exists (');

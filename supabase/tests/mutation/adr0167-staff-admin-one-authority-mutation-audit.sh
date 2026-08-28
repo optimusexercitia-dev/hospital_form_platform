@@ -40,7 +40,7 @@ end; $s$;
 create or replace function app._mut_a167(p_what text) returns void
   language plpgsql as $m$
 declare
-  g constant text := 'app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)';
+  g constant text := 'app.grant_role_impl';
   r constant text := 'app.revoke_role_impl(uuid,text,uuid,text,uuid)';
   t constant text := 'app.is_tenancy_admin_of_for(uuid,uuid)';
   d text;
@@ -48,7 +48,7 @@ begin
   -- ---- SITE (a): the commission `staff_admin` grant arm --------------------
   if p_what = 'restore_is_admin_site_a' then
     -- The defect ADR 0167 clause 1 removes, put back exactly.
-    d := pg_get_functiondef(g::regprocedure);
+    d := pg_get_functiondef(g::regproc);
     d := app._mut_a167_sub(d,
       'if not app.is_tenancy_admin_of_for(p_scope_id, p_actor) then',
       'if not (app.is_admin_for(p_actor)
@@ -58,7 +58,7 @@ begin
   elsif p_what = 'deny_all_site_a' then
     -- OPPOSITE POLARITY. An over-eager narrowing that refuses EVERYONE looks
     -- exactly like a fix to any assertion that only checks the platform admin.
-    d := pg_get_functiondef(g::regprocedure);
+    d := pg_get_functiondef(g::regproc);
     d := app._mut_a167_sub(d,
       'if not app.is_tenancy_admin_of_for(p_scope_id, p_actor) then',
       'if true then');
@@ -67,7 +67,7 @@ begin
   -- ---- SITE (b): the T1.0 outgoing-role guard ------------------------------
   elsif p_what = 'restore_is_admin_site_b' then
     -- The half a fix that reads "the commission arm" as ONE place leaves behind.
-    d := pg_get_functiondef(g::regprocedure);
+    d := pg_get_functiondef(g::regproc);
     d := app._mut_a167_sub(d,
       'and not app.is_tenancy_admin_of_for(p_scope_id, p_actor) then',
       'and not (app.is_admin_for(p_actor)
@@ -77,7 +77,7 @@ begin
   elsif p_what = 'deny_all_site_b' then
     -- OPPOSITE POLARITY: a blanket ban on changing a coordinator's role. It
     -- satisfies every deny cell; only the positive twins can see it.
-    d := pg_get_functiondef(g::regprocedure);
+    d := pg_get_functiondef(g::regproc);
     d := app._mut_a167_sub(d,
       'and not app.is_tenancy_admin_of_for(p_scope_id, p_actor) then',
       'then');
@@ -87,7 +87,7 @@ begin
     -- THE DISCRIMINATOR'S OWN MUTANT. Site (b) keeps its authority but loses its
     -- distinct message, so the refusal becomes indistinguishable from the
     -- 'staff' sub-arm's. Every SQLSTATE-only assertion stays green.
-    d := pg_get_functiondef(g::regprocedure);
+    d := pg_get_functiondef(g::regproc);
     d := app._mut_a167_sub(d,
       'sem permissão para alterar a função de um administrador da comissão',
       'sem permissão');
@@ -152,25 +152,42 @@ begin
       'select true and exists (');
     execute d;
 
-  -- ---- THE THREE PRESERVED `is_admin_for` SITES ----------------------------
-  elsif p_what = 'remove_staff_arm_is_admin' then
-    d := pg_get_functiondef(g::regprocedure);
+  -- ---- SITE (c): the commission `staff` sub-arm (ADR 0167 AMENDMENT 2) ------
+  elsif p_what = 'restore_is_admin_staff_subarm' then
+    -- ⭐ THE DEFECT AMENDMENT 2 REMOVES, PUT BACK EXACTLY. This replaces the old
+    -- `remove_staff_arm_is_admin` mutant, whose needle ceased to exist the moment
+    -- the arm was dropped — a mutation NO-OP reports "NOT PROVEN", but a mutant
+    -- kept in the list for a site that moved reads as coverage until someone runs it.
+    d := pg_get_functiondef(g::regproc);
     d := app._mut_a167_sub(d,
-      'app.is_admin_for(p_actor)
-              or app.is_staff_admin_of_for',
-      'false
-              or app.is_staff_admin_of_for');
+      'if not (app.is_staff_admin_of_for(p_scope_id, p_actor)
+              or app.is_tenancy_admin_of_for(p_scope_id, p_actor)) then',
+      'if not (app.is_admin_for(p_actor)
+              or app.is_staff_admin_of_for(p_scope_id, p_actor)
+              or app.is_tenancy_admin_of_for(p_scope_id, p_actor)) then');
     execute d;
 
+  elsif p_what = 'deny_all_staff_subarm' then
+    -- OPPOSITE POLARITY. Amendment 2 removed ONE disjunct; a narrowing that took
+    -- the whole arm satisfies every deny cell, § 2.7 included, and would read as
+    -- the same fix. Only the third participant's admission cells can see it.
+    d := pg_get_functiondef(g::regproc);
+    d := app._mut_a167_sub(d,
+      'if not (app.is_staff_admin_of_for(p_scope_id, p_actor)
+              or app.is_tenancy_admin_of_for(p_scope_id, p_actor)) then',
+      'if true then');
+    execute d;
+
+  -- ---- THE TWO PRESERVED `is_admin_for` SITES ------------------------------
   elsif p_what = 'remove_org_arm_is_admin' then
-    d := pg_get_functiondef(g::regprocedure);
+    d := pg_get_functiondef(g::regproc);
     d := app._mut_a167_sub(d,
       'if not (app.is_admin_for(p_actor) or app.is_org_admin_of_for(p_scope_id, p_actor)) then',
       'if not app.is_org_admin_of_for(p_scope_id, p_actor) then');
     execute d;
 
   elsif p_what = 'remove_hospital_arm_is_admin' then
-    d := pg_get_functiondef(g::regprocedure);
+    d := pg_get_functiondef(g::regproc);
     d := app._mut_a167_sub(d,
       'if not (app.is_admin_for(p_actor) or app.is_org_admin_of_for(v_org, p_actor)) then',
       'if not app.is_org_admin_of_for(v_org, p_actor) then');
@@ -188,6 +205,19 @@ begin
   elsif p_what = 'strip_adr0167_citation' then
     d := pg_get_functiondef(r::regprocedure);
     d := app._mut_a167_sub(d, 'ADR 0167', 'ADR 0000');
+    execute d;
+
+  elsif p_what = 'restore_staff_gap_note' then
+    -- AMENDMENT 2's OWN COMMENT MUTANT. Clause 1 left a NARROWED replacement note
+    -- here, recording that the same one-way door survived on the `staff` sub-arm.
+    -- Amendment 2 closed that door and retires the note outright, because a note
+    -- about an asymmetry that no longer exists is how the original m1 note misled.
+    -- Without this mutant, § 0.5's new term is a claim nothing can contradict.
+    d := pg_get_functiondef(r::regprocedure);
+    d := app._mut_a167_sub(d,
+      '-- ⭐ ADR 0167. THE QA m1 NOTE',
+      '-- ⚠ the same one-way door SURVIVES ONE ROLE OVER, on the staff sub-arm.
+    -- ⭐ ADR 0167. THE QA m1 NOTE');
     execute d;
 
   -- ---- RESIDUAL-CLOSING MUTANTS (added after the first residual bound) -----
@@ -211,11 +241,13 @@ begin
      where role in ('org_admin', 'hospital_admin')
        and organization_id = '0c000000-0000-0000-0000-00000000000b'::uuid;
 
-  elsif p_what = 'close_the_staff_gap' then
-    -- ⭐ CLOSING THE KNOWN GAP § 6 PINS. `revoke_role_impl`'s 'staff' sub-arm
-    -- gains the `is_admin_for` its grant counterpart has, so the surviving
-    -- one-way door disappears. § 6.2 MUST red — that is what makes § 6 a
-    -- measurement of an open question rather than a defect pinned as expected.
+  elsif p_what = 'revoke_staff_admits_platform' then
+    -- ⭐ WAS `close_the_staff_gap`, AND THE RENAME IS THE RECORD OF A REVERSAL.
+    -- While the gap was open this mutant CLOSED it and § 6.2 had to red, which is
+    -- what made § 6 a measurement rather than a defect pinned as expected.
+    -- Amendment 2 closed the gap in the OTHER direction — by narrowing grant — so
+    -- the same edit now re-opens the door from the revoke end: revoke becomes
+    -- WIDER than grant on the `staff` sub-arm. § 4.1 must not be direction-blind.
     d := pg_get_functiondef(r::regprocedure);
     d := app._mut_a167_sub(d,
       'if not (app.is_staff_admin_of_for(p_scope_id, p_actor)
@@ -289,17 +321,24 @@ run_case "  deny_all_site_a           (narrow)" \
 
 echo
 echo "-- SUBJECT: site (b), the T1.0 outgoing-role guard"
+# ⛔ RE-RECORDED FOR ADR 0167 AMENDMENT 2. Both mutants below DEGRADED when the
+#    `staff` sub-arm narrowed: the plain platform admin is refused one statement
+#    earlier and never reaches site (b), so `restore_is_admin_site_b` kept only its
+#    two STRUCTURAL reds and `site_b_generic_message` became NOT RED-PROVEN — a
+#    mutant still listed while measuring nothing reads as coverage. 397 gained
+#    actor 8 (`staff_admin` of the commission who is ALSO `is_admin_for`) for
+#    exactly this: it is now the only actor whose verdict site (b) decides.
 run_case "  restore_is_admin_site_b   (widen)" \
   "select app._mut_a167('restore_is_admin_site_b');" \
   "5\.2 .*DEMOTION|5\.3 .*THE SITE DISCRIMINATOR|0\.2 SITE \(b\)|0\.3 "
 
 run_case "  deny_all_site_b           (narrow)" \
   "select app._mut_a167('deny_all_site_b');" \
-  "5\.5 POSITIVE TWIN|5\.6 SECOND POSITIVE TWIN"
+  "5\.2 .*DEMOTION|5\.5 POSITIVE TWIN|5\.6 SECOND POSITIVE TWIN"
 
 run_case "  site_b_generic_message    (message only)" \
   "select app._mut_a167('site_b_generic_message');" \
-  "5\.3 .*THE SITE DISCRIMINATOR"
+  "5\.2 .*DEMOTION|5\.3 .*THE SITE DISCRIMINATOR"
 
 echo
 echo "-- SUBJECT: the revoke side, and the grant/revoke agreement property"
@@ -330,11 +369,17 @@ run_case "  drop_is_active_conjunct" \
   "2\.6 a DEACTIVATED|3\.6 a DEACTIVATED"
 
 echo
-echo "-- SUBJECT: the THREE preserved is_admin_for sites (the out-of-scope arms)"
-run_case "  remove_staff_arm_is_admin" \
-  "select app._mut_a167('remove_staff_arm_is_admin');" \
-  "0\.3 |6\.1 KNOWN GAP"
+echo "-- SUBJECT: site (c), the commission staff sub-arm (ADR 0167 Amendment 2)"
+run_case "  restore_is_admin_staff_subarm (widen)" \
+  "select app._mut_a167('restore_is_admin_staff_subarm');" \
+  "0\.3 |2\.7 |4\.1 |5\.2 .*DEMOTION"
 
+run_case "  deny_all_staff_subarm     (narrow)" \
+  "select app._mut_a167('deny_all_staff_subarm');" \
+  "2\.8 |4\.2 |5\.5 POSITIVE TWIN"
+
+echo
+echo "-- SUBJECT: the TWO preserved is_admin_for sites (the out-of-scope arms)"
 run_case "  remove_org_arm_is_admin" \
   "select app._mut_a167('remove_org_arm_is_admin');" \
   "0\.3 |7\.1 BOOTSTRAP STEP 1|7\.2 BOOTSTRAP STEP 2"
@@ -353,6 +398,10 @@ run_case "  strip_adr0167_citation    (ruling unnamed)" \
   "select app._mut_a167('strip_adr0167_citation');" \
   "0\.5 "
 
+run_case "  restore_staff_gap_note    (Amdt 2 sentence back)" \
+  "select app._mut_a167('restore_staff_gap_note');" \
+  "0\.5 "
+
 echo
 echo "-- SUBJECT: the assertions the first residual bound left unmoved"
 run_case "  cross_org_leak            (tenant isolation)" \
@@ -363,9 +412,9 @@ run_case "  orphan_a_commission       (data, not code)" \
   "select app._mut_a167('orphan_a_commission');" \
   "7\.4 "
 
-run_case "  close_the_staff_gap       (gap CLOSED -> must red)" \
-  "select app._mut_a167('close_the_staff_gap');" \
-  "6\.2 "
+run_case "  revoke_staff_admits_platform (door re-opened)" \
+  "select app._mut_a167('revoke_staff_admits_platform');" \
+  "0\.4 PRESERVATION|3\.7 |4\.1 "
 
 run_case "  revoke_door_from_authenticated" \
   "select app._mut_a167('revoke_door_from_authenticated');" \
@@ -382,3 +431,41 @@ else
   ok=$(echo "$control" | grep -cE "^ok")
   echo "CONTROL: all green ($ok ok, 0 not ok)"
 fi
+
+# ============================================================================
+# ⛔ THE FULL BLAST RADII — measured 2026-08-28, ADR 0167 Amendment 2.
+#
+# The `expect` argument of each run_case above is a SUBSET, not the radius:
+# run_case checks only that its named patterns are `not ok`, and never that they
+# are the ONLY reds. A mutant can therefore stop reaching most of what it used to
+# move and still print RED-PROVEN — which is exactly what Amendment 2 did to
+# `restore_is_admin_site_b` (fell to its two STRUCTURAL reds) and to
+# `site_b_generic_message` (moved nothing at all) before the compensation landed.
+# Recompute these rather than reading the column; a shrinking radius is the signal.
+#
+#   restore_is_admin_site_a        0.1 0.3 2.1 4.1 4.3 5.1 8.1
+#   deny_all_site_a                0.1 2.2 2.3 4.1 4.2 4.3 5.1 7.2 8.2 8.3
+#   restore_is_admin_site_b        0.2 0.3 5.2 5.3
+#   deny_all_site_b                0.2 5.2 5.5 5.6
+#   site_b_generic_message         5.2 5.3
+#   revoke_admits_platform         0.4 3.1 4.1
+#   revoke_drops_hospital_tier     3.3 4.1
+#   drop_org_disjunct              1.2 2.2 3.2 4.3 5.1 5.2 5.5 7.2
+#   drop_hospital_disjunct         1.2 2.3 3.3 4.3 5.1 5.2 5.6 8.2 8.3
+#   widen_hospital_to_whole_org    1.2 2.4 3.4 4.3 5.1 5.2
+#   drop_is_active_conjunct        1.2 2.6 3.6 4.3 5.1 5.2
+#   restore_is_admin_staff_subarm  0.3 2.7 4.1 4.3 5.2
+#   deny_all_staff_subarm          0.3 2.8 4.1 4.2 4.3 5.2 5.3 5.5 5.6
+#   remove_org_arm_is_admin        0.3 7.1 7.2
+#   remove_hospital_arm_is_admin   0.3 7.3
+#   restore_qa_m1_note             0.5
+#   strip_adr0167_citation         0.5
+#   restore_staff_gap_note         0.5
+#   cross_org_leak                 1.2 2.5 3.5 4.3 5.1 5.2
+#   orphan_a_commission            7.4
+#   revoke_staff_admits_platform   0.4 3.7 4.1
+#   revoke_door_from_authenticated 1.4 8.1 8.2 8.3
+#
+# UNION = 37 of 41. UNMOVED = 1.1, 1.3, 4.4, 5.4 — the published residual bound
+# at the head of pgTAP 397, where each is named with why no mutant CAN move it.
+# ============================================================================

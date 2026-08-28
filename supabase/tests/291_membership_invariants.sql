@@ -337,13 +337,24 @@ select is(
 -- arm admits a plain is_staff_admin_of. Without an outgoing-role check, sa_x (a plain
 -- staff_admin, whom the 'staff_admin' arm deliberately excludes) could DEMOTE a peer
 -- staff_admin by "granting" them 'staff'. st_x is now staff_admin of comm_x.
+--
+-- ⭐ THE MESSAGE ARGUMENT WAS ADDED BY ADR 0167 AMENDMENT 2, AND IT IS NOT
+--    DECORATION. Amendment 2 narrowed the 'staff' sub-arm, and the class that
+--    still reaches the T1.0 outgoing-role guard — ADR 0167 clause 1's "site (b)"
+--    — collapsed to exactly `is_staff_admin_of_for AND NOT is_tenancy_admin_of_for`.
+--    sa_x IS that class, and with `null` here this cell was the only assertion in
+--    the repository on that path while proving nothing about WHICH statement
+--    refused: the sub-arm in front of site (b) raises the generic
+--    'sem permissão' with the identical 42501. Site (b)'s own message is what
+--    separates them. 397 § 5.3 carries the other half of the witness (an actor
+--    who is ALSO `is_admin_for`, the only one for whom site (b) DECIDES).
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$select public.grant_role('commission', %L, 'staff', %L)$$,
          (select comm_x from k), (select st_x from k)),
-  '42501', null,
-  '4.10 T1.0: a plain staff_admin CANNOT demote a peer staff_admin (role-pin is symmetric)');
+  '42501', 'sem permissão para alterar a função de um administrador da comissão',
+  '4.10 T1.0: a plain staff_admin CANNOT demote a peer staff_admin (role-pin is symmetric) — and is refused BY THE OUTGOING-ROLE GUARD, asserted by message, not by the authority arm one statement earlier');
 reset role;
 
 select is(

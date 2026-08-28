@@ -97,7 +97,7 @@ begin
   elsif p_what = 'grant_arm_admits_platform' then
     -- The tidy-up a future reader is most likely to make (w4's admit_platform_admin,
     -- on the quality arm — disambiguated from the DT arm by the raise message).
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl'::regproc);
     d := app._mut_q1_sub(d,
       'if not (app.is_org_admin_of_for(v_org, p_actor)
             or app.is_hospital_admin_of_for(p_scope_id, p_actor)) then

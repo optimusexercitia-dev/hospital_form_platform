@@ -41,7 +41,7 @@ begin
     execute 'grant execute on function public.grant_role_for(uuid,text,uuid,text,uuid,uuid,timestamptz) to authenticated';
 
   elsif p_what = 'authenticated_gets_kernel' then
-    execute 'grant execute on function app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz) to authenticated';
+    execute 'grant execute on function app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz,boolean) to authenticated';
 
   elsif p_what = 'drift_session_wrapper' then
     -- ONE path breaks: the session wrapper loses the actor. The kernel and the
@@ -61,7 +61,7 @@ begin
     --   that cannot fail, reported as a harness that cannot run. The mutant's
     --   SEMANTICS are unchanged: widen the role pin so a plain staff_admin is
     --   admitted.
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl'::regproc);
     d := app._mut_w3_sub(d,
       'if not app.is_tenancy_admin_of_for(p_scope_id, p_actor) then',
       'if not (app.is_staff_admin_of_for(p_scope_id, p_actor)
@@ -69,7 +69,7 @@ begin
     execute d;
 
   elsif p_what = 'remove_self_grant_check' then
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl'::regproc);
     d := app._mut_w3_sub(d, 'if p_user = p_actor then', 'if false then');
     execute d;
 
@@ -78,7 +78,7 @@ begin
     -- app._deny_self_grant looks correct and IS correct on the session path, but that
     -- helper compares against auth.uid(), which is null on the service path — so the
     -- guard silently evaporates exactly where it is newly needed.
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl'::regproc);
     d := app._mut_w3_sub(d,
       'if p_user = p_actor then
     raise exception ''não é permitido conceder acesso a si mesmo'' using errcode = ''42501'';

@@ -18,8 +18,8 @@
 -- =============================================================================
 
 begin;
--- 7 ACL/structure + 8 equivalence grid + 6 narrowings + 3 service-door reachability = 24.
-select plan(27);
+-- 7 ACL/structure + 9 equivalence grid + 6 narrowings + 3 service-door reachability = 25.
+select plan(28);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -54,11 +54,33 @@ select ok(
 
 -- The kernels are internal: not even service_role calls them directly, so a future
 -- caller cannot skip the wrappers and, with them, the ACL boundary.
+--
+-- ⭐ RE-CUT BY ADR 0168 Amdt 3, AND THE REASON IS THE POINT.  This cell used to name
+--    the kernel by a HARD-CODED SIGNATURE, `app.grant_role_impl(uuid,text,uuid,text,
+--    uuid,uuid,timestamptz)`.  Amdt 3 appends `p_allow_anchorless boolean`, and
+--    `has_function_privilege` on a signature that no longer resolves RAISES — which
+--    aborted this whole 27-assertion file after 3 cells.  Loud, not silent, so nothing
+--    passed vacuously; but the arity is not what this cell is about, and it had already
+--    been re-typed once before (the `timestamptz` arm, migration …0911000200).
+--
+--    The replacement resolves the oid BY NAME from `pg_proc` and asserts the DOMAIN
+--    SIZE in the same string.  ⛔ The `|1` half is not decoration: without it, a kernel
+--    that had been dropped or renamed would leave the privilege count at 0 and this
+--    cell would go GREEN having measured an empty set — the "a detector that finds
+--    nothing must be proven able to find something" shape.  It also reds on a stale
+--    OVERLOAD, which is the failure a signature literal cannot see: an added arity
+--    leaves the old signature resolving perfectly while a second, ungoverned kernel
+--    sits beside it.  `399 § 0.2` carries the same claim from the other direction.
 select is(
-  (select count(*)::int from unnest(array['authenticated','anon','public','service_role']) as r(who)
-    where has_function_privilege(r.who, 'app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)', 'EXECUTE')),
-  0,
-  '1.4 app.grant_role_impl is owner-only (the kernel is not a public entry point)');
+  (select count(*)::int
+     from unnest(array['authenticated','anon','public','service_role']) as r(who)
+     cross join (select p.oid from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                  where n.nspname = 'app' and p.proname = 'grant_role_impl') f
+    where has_function_privilege(r.who, f.oid, 'EXECUTE'))::text || '|' ||
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'grant_role_impl')::text,
+  '0|1',
+  '1.4 app.grant_role_impl is owner-only (the kernel is not a public entry point) — resolved BY NAME, with the domain size asserted beside the verdict so neither a vanished kernel nor an added overload can make this cell green');
 
 -- The incumbent doors must still be reachable by ordinary users, or every
 -- cookie-authenticated caller breaks.
@@ -223,13 +245,19 @@ select is(
   '2.9 ⛔ ADR 0167: a platform_admin CANNOT grant commission `staff_admin`. The commission tier is committee CONTENT (noun rule, ADR 0078 A35), and the grant side now reads the same `is_tenancy_admin_of_for` the revoke side always did');
 
 select is(
+  (select verdict from verdicts v join cells c on c.id = v.cell
+    where v.entry='service' and c.actor_label='platform_admin' and c.role='staff'),
+  '42501',
+  '2.9b ⛔ ADR 0167 AMENDMENT 2: …and a platform_admin cannot grant commission `staff` either. This cell read ALLOWED until 2026-08-28 and 2.10 pinned it as a KNOWN GAP — the same one-way door one role over, left open because ADR 0167 bounded itself to `staff_admin`. The PO ruled it closed by NARROWING grant down to revoke, and it gets its own sentence for the reason 2.9 does: a policy deserves to be readable as one, not only as a row in a serialized blob');
+
+select is(
   (select string_agg(c.actor_label || '/' || c.scope || '/' || c.role || '=' || v.verdict,
                      ' ; ' order by c.actor_label, c.scope, c.role)
      from verdicts v join cells c on c.id = v.cell where v.entry='service'),
   'plain staff(comm_x)/commission/staff=42501 ; '
   'plain staff(comm_x)/commission/staff_admin=42501 ; '
   'plain staff(comm_x)/organization/org_admin=42501 ; '
-  'platform_admin/commission/staff=ALLOWED ; '
+  'platform_admin/commission/staff=42501 ; '
   'platform_admin/commission/staff_admin=42501 ; '
   'platform_admin/organization/org_admin=ALLOWED ; '
   'staff_admin(comm_x)/commission/staff=ALLOWED ; '
@@ -238,7 +266,7 @@ select is(
   'staff_admin(comm_y)/commission/staff=42501 ; '
   'staff_admin(comm_y)/commission/staff_admin=42501 ; '
   'staff_admin(comm_y)/organization/org_admin=42501',
-  '2.10 ⭐ THE WHOLE MAP, so no cell can flip in silence again. ⚠ `platform_admin/commission/staff=ALLOWED` is a KNOWN GAP, not an endorsement: the `staff` sub-arm keeps its `is_admin_for` while the revoke side has none, so the one-way door ADR 0167 closed for `staff_admin` survives one role over. It awaits its own PO ruling and is measured by pgTAP 397 § 6');
+  '2.10 ⭐ THE WHOLE MAP, so no cell can flip in silence again — AND IT WORKED. `platform_admin/commission/staff` was `ALLOWED` here until 2026-08-28, annotated as a KNOWN GAP awaiting a PO ruling; ADR 0167 Amendment 2 ruled it closed by narrowing, and this literal RED on the flip while 2.1–2.8 all stayed green, which is the exact silence this cell was added to break (see the block above). ⛔ Update this literal only from a RULING: a flip with an ADR behind it is a record, a flip without one is the defect');
 
 -- =============================================================================
 -- §3 — THE TWO NARROWINGS THE SERVICE PATH GAINS
@@ -248,18 +276,36 @@ select is(
 -- ⚠ app._deny_self_grant reads auth.uid(), so delegating to it would have been a
 -- SILENT NO-OP on the service path (no session => auth.uid() is null => never equal).
 -- The kernel inlines the comparison against p_actor instead; that is what this pins.
+--
+-- ⛔⛔ RE-CUT TWICE BY ADR 0167 AMENDMENT 2, AND NEITHER HALF WAS OPTIONAL.
+--
+--   (1) THE ACTOR. This pair drove the PLATFORM ADMIN granting commission
+--       `staff`. Amendment 2 dropped `is_admin_for` from that sub-arm, so the
+--       platform admin is now refused ONE STATEMENT EARLIER — at the authority
+--       arm, never reaching the self-grant guard at all. 3.2 red on that
+--       (correctly: it is a reachability finding). ⚠ 3.1 did NOT, because it
+--       compared SQLSTATE only and both refusals are 42501: re-homing 3.2 alone
+--       to clear the red would have left 3.1 permanently VACUOUS — green, and
+--       measuring the authority arm instead of the guard it names. Both are
+--       re-homed to `sa_x`, a commission `staff_admin`, which is now the class
+--       that passes the sub-arm and reaches the guard.
+--
+--   (2) THE ASSERTION. 3.1 now compares the MESSAGE, not just the SQLSTATE, so
+--       a refusal that moves to a DIFFERENT STATEMENT can never again satisfy
+--       the cell that names this one. That is the general lesson: a cell keyed
+--       on a shared error code cannot tell which guard produced it.
 select test_helpers.claims_for(null, false);
-select is(
-  app._t293_verdict('service', (select admin from k), 'commission', (select comm_x from k),
-                    'staff', (select admin from k)),
-  '42501',
-  '3.1 SELF-GRANT is denied on the SERVICE path (actor compared to p_actor, not auth.uid())');
+select throws_ok(
+  format($$select public.grant_role_for(%L, 'commission', %L, 'staff', %L)$$,
+         (select sa_x from k), (select comm_x from k), (select sa_x from k)),
+  '42501', 'não é permitido conceder acesso a si mesmo',
+  '3.1 SELF-GRANT is denied on the SERVICE path by the INLINED comparison against p_actor, not by auth.uid() — asserted by MESSAGE so a refusal raised by an earlier authority arm cannot stand in for it');
 
 select is(
-  app._t293_verdict('service', (select admin from k), 'commission', (select comm_x from k),
+  app._t293_verdict('service', (select sa_x from k), 'commission', (select comm_x from k),
                     'staff', (select st_x2 from k)),
   'ALLOWED',
-  '3.2 POSITIVE TWIN: the same actor granting SOMEONE ELSE is allowed');
+  '3.2 POSITIVE TWIN: the same actor granting SOMEONE ELSE is allowed — so 3.1 is the self-grant guard firing, not this actor being unable to grant `staff` at all');
 
 -- Anti-lockout, now binding on the service path. org_b has exactly one org_admin
 -- after this grant, so revoking it must raise HC0G1.

@@ -39,7 +39,7 @@ read -r -d '' PRELUDE <<'EOF'
 create or replace function app._mut_f1(p_what text) returns void
   language plpgsql as $m$
 declare
-  d text := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
+  d text := pg_get_functiondef('app.grant_role_impl'::regproc);
   t text := pg_get_functiondef('app.trg_audit_memberships()'::regprocedure);
 begin
   if p_what = 'revert_do_nothing' then
