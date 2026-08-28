@@ -7028,6 +7028,10 @@ live items' bodies*, which are load-bearing cross-references, not residue.
 > ⚠ The third note of that group, **FUP-DM5-NO-ANSWER-VS-NOTHING**, deliberately did NOT rotate
 > — its body stays in follow-ups.md as a review lens (this file's own 2026-08-19 rotation note
 > records that), so its PROGRESS.md note stays live as the register entry that keeps it there.
+> ⛔ **PO-RULED 2026-08-28: that stands.** The note is not residue and must not be rotated; the
+> two alternatives were put and declined — archiving the body (reverses the 2026-08-19 decision
+> and staleness the note recording it) and distilling it into a `.claude/rules/` entry (a
+> rewrite, not a move: the body is ~10x the 2 KB per-rule cap, and 11 of 12 slots are used).
 
 ### FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT
 
