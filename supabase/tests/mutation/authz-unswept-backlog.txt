@@ -729,3 +729,25 @@ public.list_org_people(p_org_id uuid, p_search text, p_cpf text, p_include_ended
 # use `set constraints all immediate` — the trigger is DEFERRABLE INITIALLY DEFERRED and
 # every pgTAP suite ends in `rollback`, so the check otherwise never fires and the arm would
 # pass while asserting nothing.
+
+# ---------------------------------------------------------------------------
+# AE2.4 increment 4 — ruled by the lead 2026-08-28.
+# ---------------------------------------------------------------------------
+# helper: public.list_linkable_org_users(p_organization uuid)
+#   NOT an authorization gate, and every clause below is catalog-measured.
+#   1. prosecdef = f (INVOKER) over RLS-protected public.profiles, so it CANNOT
+#      WIDEN: the caller's own RLS bounds the rows and every added term
+#      (is_active, not is_admin, the affiliation filter) is narrowing-only.
+#      An INVOKER wrapper can only return what its caller could already select.
+#   2. It is NOT the ADR 0079 Amendment 7 shape. That amendment exists for a
+#      public INVOKER wrapper whose own probe is the ONLY gate in front of an
+#      app DEFINER body. Here the DEFINER body it calls,
+#      app.person_has_active_org_affiliation, is itself authenticated-executable
+#      -- necessarily, because an INVOKER wrapper can only call what its caller
+#      can call -- so the wrapper gates nothing the caller could not reach.
+#      pgTAP 395 SS0.5 asserts that ACL as a required property with that reason.
+#   3. The DEFINER helper carries its OWN verdict: COVERED, swept 2026-08-28.
+#   4. Residual, declared not discovered: a one-bit existence oracle for a
+#      caller who already holds a (person, org) pair. 395 SS5.1 asserts it
+#      POSITIVELY -- a recorded decision, not an unmeasured leak.
+public.list_linkable_org_users(p_organization uuid)
