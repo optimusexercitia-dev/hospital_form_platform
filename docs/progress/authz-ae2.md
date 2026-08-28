@@ -3391,3 +3391,40 @@ removed, so removing it changed nothing.
   truth** — `398 §1.4` does anchor the locator's `prosecdef` and both ACLs, so only §A3 (STABLE) and
   §A4 (pinned `search_path`) were unique. Overstated uniqueness makes an audit read as more alarming
   than it is; the labels now say exactly what is unique.
+
+---
+
+## ✅ `npm run e2e:prod` — GATE GREEN at the post-drop head
+
+`GATE_EXIT=0` · **1248 passed · 0 failed · 0 infra · 4 flaky · 0 did-not-run · 21 batches** ·
+`RESET=1` (fresh `db reset` per batch, so this is the first full exercise of the **rewritten seed**
+through the real app) · `REBUILD=auto` · `BATCH_SIZE=6`.
+
+### ⚠ The summary line that had to be chased down, and what it turned out to be
+
+`COVERAGE: accounted for 1252 of 1263` reads like **11 tests never ran** — and the script's own
+header records a run that printed *"accounted for 860 of 865"*, "which READS LIKE 99% COVERAGE while
+**66 tests had never executed**". So it was chased rather than accepted.
+
+**Benign, and now reconciled:** `TOTAL_SEEN = pass+fail+infra+flaky+dnr` **excludes skipped by
+construction**. This run had exactly **11 skipped**. `1263 − 11 = 1252 = 1248 + 4`. ✓
+
+**The four `N did not run` lines are in SUPERSEDED first attempts.** Batches 1/4/6/17 aborted partway
+and were each re-run to completion (67 / 63 / 69 / 69 passed). `TOTAL_DNR = 0` counts the re-runs,
+which is correct.
+
+### ⛔ A measurement hazard found while verifying — worth more than the verdict
+
+**`/tmp/e2e-prod-gate/` IS NOT CLEANED BETWEEN RUNS.** It held three rerun logs from *earlier* runs,
+one of them **two days old** (`batch-9-rerun.log`, 2026-08-26). A `batch-*.log` glob therefore mixes
+runs silently.
+
+- That is how "7 rerun logs" appeared against a reported 4. Bounding by mtime gives **exactly 4** for
+  this run — batches 1, 4, 6, 17 — matching the counter.
+- ⚠ **My first skipped-sum globbed those stale files.** It returned 11, which is also the correct
+  answer — the stale logs happen to contain no skip lines. **A figure that is right by luck is not a
+  measurement**; it was re-derived bounded to this run before being believed.
+- ⭐ Second instrument error in the same check: the FIRST sum was taken from the harness's captured
+  stdout, which is **truncated to the tail** (43 lines of a 21-batch run). It reported "2 skipped"
+  and "1 batch". **The artefact was wrong, not the gate.** The gate's own `gate-exit` file and
+  per-batch logs are the authoritative record — read those, never the console capture.
