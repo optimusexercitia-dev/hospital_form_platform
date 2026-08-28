@@ -55,8 +55,16 @@ held by the administrators of the organization of that person's **most recent en
 Bounds, stated so the implementation cannot widen by reading:
 
 1. **Void is not end.** A `voided_at` row is "was never true" and is **excluded from the
-   derivation entirely** — a person whose only org affiliation was voided has no retaining org and
-   is `platform_admin`-only. This preserves the voided tense's whole point (ADR 0151).
+   derivation entirely** — a person whose only org affiliation was voided has no retaining org.
+   ⛔ **CORRECTED 2026-08-28 (QA B5): this read "and is `platform_admin`-only". That is FALSE.**
+   `platform_admin` is **deliberately not an arm** of `app.can_administer_person_for` (ADR 0041's
+   noun rule — person records are not `platform_admin`'s), and pgTAP `384 § 6` **asserts a
+   platform_admin is refused**. With no retaining org the predicate returns false for **everyone**:
+   the answer is **NOBODY**. The only recovery is ADR 0165 D1's widening — an org_admin or
+   hospital_admin who **already holds the person's uuid** may claim them through the affiliate
+   door; they cannot be *found* first, because no roster lists them. ⚠ The false version was the
+   reassurance that made the accepted orphan window read as tolerable. This preserves the voided
+   tense's whole point (ADR 0151).
 2. **Most recent by `ended_on`; ties resolve to ALL tied organizations.** Two affiliations ending
    the same day yield two retaining orgs, not an arbitrary winner. ⚠ A tie-break that silently
    picks one would be a **narrowing** no test would notice, since the differential only pre-declares
@@ -197,6 +205,20 @@ and `src/lib/queries/members.ts:243` still filters `.eq('home_organization_id', 
 the exact predicate `listOrgUsers` was moved off in AFF4 B6a, whose regression test pins it only
 **for that one function**. ⭐ One axis was swept; its sibling was not.
 
-Both are AE2.1 census members and must be re-predicated in AE2.2. Their current behavior — an
-offboarded person is *still listed as addable to a commission* — is **not** authorized by this ADR
-and is a differential cell AE2.3 must carry explicitly, in whichever direction it moves.
+⛔ **RE-TENSED 2026-08-28 (QA M4) — this paragraph read *"Both are AE2.1 census members and must be
+re-predicated in AE2.2"*, and neither half is true any more.** `list_addable_commission_members`
+moved in **AE2.2** (`20261003005500`), where the direction below was measured rather than assumed:
+the seed roster held at 104 unchanged, offboarded and voided-only people correctly dropped off, and
+one widening (column says org A, active affiliation in org B) was pre-declared. The **write twin**
+`src/lib/queries/members.ts:243` was reassigned by **ADR 0164 D4 to increment 4** and is still open
+as of this edit.
+
+⚠ **Why this correction is recorded rather than silently applied:** the *sibling* section of this
+same ADR — the implementation status at the top — was carefully re-tensed on 2026-08-28, and
+Amendment 1 even preserves a superseded quote with a note about the rewrite. **One section was
+audited for staleness and its neighbour was not**, which is precisely the sibling-axis failure this
+phase has now paid for five times, occurring inside the phase's own governing ADR. ⛔ *An audit
+bounded by where you happened to look is not an audit.*
+
+Their behaviour is **not** authorized by this ADR either way; each is a differential cell its
+increment must carry explicitly, in whichever direction it moves.

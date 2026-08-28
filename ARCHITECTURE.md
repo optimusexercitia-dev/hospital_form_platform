@@ -670,10 +670,14 @@ may extend the schema but never contradict it. Cross-references elsewhere to
       authority over a fully-offboarded person from an ended affiliation row; the authority itself
       is still the caller's `org_admin` membership in that organization. The row answers **where**,
       never **whether**.
-    - **Assert it, do not review for it.** pgTAP `392` carries the collapse cell: a caller who
-      **shares an affiliation** with the target but holds **no `org_admin` membership** in the
-      resolved organization must be **denied for every capability**. A rule with no failing test is
-      a convention.
+    - **Assert it, do not review for it.** Two cells, on **two different axes**, because the rule
+      binds on both and one suite cannot carry it: pgTAP `392 § 4.3` is the **target** axis (a
+      caller who shares an affiliation with the target but holds no `org_admin` membership in the
+      resolved organization is denied for **every target**) and pgTAP `394 § 9.2` is the
+      **capability** axis (the same caller denied for **every capability**). ⚠ `392`'s predicate
+      `app.can_administer_person_via_affiliation(uuid)` takes **no capability argument**, so citing
+      it alone points a reader at the wrong axis — corrected 2026-08-28, QA M12. A rule with no
+      failing test is a convention.
 
 ## Appendix A — Polymorphism dialects (three sanctioned; closes hardening D12; ADR 0065)
 

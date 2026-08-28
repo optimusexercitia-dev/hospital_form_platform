@@ -1346,3 +1346,34 @@ unreachable. **33 of 42 are proven able to fail.**
 | `scripts/door-sweep-cases.sh` | **DERIVED (0) — 1 case: `can_administer_person_for`** | **0** |
 
 ⛔ Not run here, by instruction: the ARM sweep and `e2e:prod` — the lead's.
+
+#### ⛔ B6 discharged — increment 3's ARM evidence, recorded here with its provenance (lead, 2026-08-28)
+
+QA B6 was right that this record did not carry it: increment 3's own gate table says *"Not run
+here… the lead's"*, and `PROGRESS.md` quoted figures the phase doc could not source. **The arms
+were run.** They are written here so the evidence lives where a reader looks, rather than in a
+session transcript.
+
+**Run by the lead on a FRESH `supabase db reset`**, from the repo root with absolute paths, exit
+codes captured directly (never through a pipe), at branch head `2664081c`:
+
+- `ARM=census` — exit **0**, INVARIANT HOLDS, **565** live gates / **601** verdicts.
+- `ARM=hat` — exit **0**, self-test 6/6, 3 findings all reasoned-allowlisted.
+- `ARM=floor` — exit **0**, **72** `authenticated`-reachable `prosecdef` doors with 0 calls, all
+  allowlisted; every allowlist entry resolves to a live door.
+- `FROMFINDINGS=1 ARM=wrapper` — exit **0**, BLIND set **41**, all allowlisted.
+- Diff-scoped sweep, `CASES="can_administer_person_for"` (derived, never hand-listed):
+  `ARM-DOMAIN predicate=1/113 policy=0/226 out-of-domain-bool=35` · **SWEPT 1 · COVERED 1 · BLIND 0
+  · ERROR 0**, exit **0 (CLEAN)**, baseline `Files=242, Tests=8065`.
+- ⭐ `census` and `wrapper` were **re-run AFTER** the findings-baseline merge — 565/601 and BLIND 41
+  unchanged — rather than assumed unaffected by it.
+
+⚠ **QA's sharper half stands and is the reason this section exists.** The figures are
+**digit-for-digit identical** to increment 1's census and AE2.2's floor/wrapper, and a reader cannot
+distinguish *"re-measured and identical"* from *"copied forward"*. They are identical for a derivable
+reason: increment 3 added **`app.person_audit_organization`**, which returns `uuid` and is
+`postgres`-only and therefore **enters no arm's domain**, and modified `can_administer_person_for`,
+which was **already counted**. No `public` `authenticated`-reachable DEFINER door was added (floor
+unchanged) and no `prosecdef = f` function (wrapper unchanged). ⛔ **That reason is the evidence, not
+the equality** — a matching number is not a matching measurement, and this paragraph exists so the
+next reader does not have to take the coincidence on trust.

@@ -62,8 +62,15 @@ app.is_org_admin_of(organization_id)`, **no hospital tier, by design**) reproduc
 
 - ⚠ **Creation-time containment is genuinely lost.** A half-failed person creation leaves a profile
   with no affiliation: in **no** roster (`list_org_people` filters on affiliations since AFF4 D10,
-  even under `p_include_ended`), administrable by `platform_admin` alone, and not reachable by
-  one-step rehire, which needs finding the person first. ⛔ **This window is inherent to dropping
+  even under `p_include_ended`), and — ⛔ **CORRECTED 2026-08-28 (QA B5), this said "administrable
+  by `platform_admin` alone"** — administrable by **NOBODY**. `platform_admin` is deliberately not
+  an arm of `app.can_administer_person_for` (ADR 0041's noun rule), pinned by pgTAP `384 § 6`
+  asserting a platform_admin is **refused**, and the predicate returns false on an empty org set for
+  every caller. The **actual** recovery is ADR 0165 D1's widening: an org_admin or hospital_admin
+  **already holding the uuid** may claim the person through the affiliate door — they cannot be
+  found first, so recovery requires knowing the identifier out of band. ⚠ **The false claim was
+  load-bearing**: it is what made this accepted window read as tolerable when the PO ruled on it,
+  and it stood in four documents. ⛔ **This window is inherent to dropping
   the column, not introduced by this decision** — closing it at creation requires having
   `handle_new_user` create the affiliation, which is **rejected**: `affiliate_person_to_org_impl`
   is idempotent on an existing active row, so it returns early and silently discards the caller's
