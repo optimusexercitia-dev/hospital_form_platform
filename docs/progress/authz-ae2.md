@@ -428,3 +428,56 @@ keeps paying for.
 null)` arm in `list_addable_commission_members` (widen it to `true`), confirm `391` **reds**, assert
 **the edit actually landed** before trusting the rerun (*a mutation that did not fully apply reports
 green*), and prove the rollback restores the original body.
+
+#### ✅ DISCHARGED 2026-08-27 — the targeted mutation case, run twice
+
+Run on a **fresh `supabase db reset --local`** (exit **0**). Baseline catalog state, captured
+before anything was touched: `md5(prosrc) = 3e52be46c21ef60f5776b4a3edba5932`, `length = 1451`,
+`prosecdef = t`. The body was dumped via `pg_get_functiondef()` to a scratch file and every
+restore executed **that file**, so the rollback is a replay of the captured definition rather
+than a re-derivation of it.
+
+⚠ **The run shape had to be established before any verdict, and the first attempt proved why.**
+Running `391` **alone** aborts: `ERROR: schema "test_helpers" does not exist` (that schema is
+created by `00_setup.sql`, which persists outside the suite's transaction), giving
+`Files=1, Tests=4` and `Result: FAIL` — a **FAIL-shaped abort that ran 4 of 15 assertions**.
+Read as a keystone verdict it is indistinguishable from a hold, which is exactly the confusion
+AE1's audit could not resolve. **The correct invocation is `00_setup.sql` + `391`, and its shape
+is `Files=2, Tests=16`.** Every run below is reported with its shape, and a shape below 16 would
+have been recorded as `ERROR`, never as a hold.
+
+| # | mutation (applied in-DB via `pg_get_functiondef` + `regexp_replace` + `execute`) | edit landed? | run shape | exit | failures |
+| --- | --- | --- | --- | ---: | --- |
+| baseline | none | md5 `3e52be46…`, len 1451 | `Files=2, Tests=16` | **0** | PASS |
+| **M1** | the affiliation **tense** conjuncts only — `oa.ended_on is null` **and** `oa.voided_at is null` → `true` | ✅ md5 → `991fdb07…`, len 1441, marker `MUT-M1` present, `ended_on\|voided_at` **absent**, still reads `organization_affiliations`, `prosecdef` still `t` | `Files=2, Tests=16` | **1** | **§2.1, §2.2** |
+| restore | replay of the captured definition | ✅ md5 back to `3e52be46…`, len 1451, marker gone | `Files=2, Tests=16` | **0** | PASS |
+| **M2** | the whole predicate — `exists (… organization_affiliations …)` → `true` | ✅ md5 → `a7c6f98e…`, len 1202, marker `MUT-M2` present, `organization_affiliations` **absent**, caller gate `is_staff_admin_of` **still present**, `prosecdef` still `t` | `Files=2, Tests=16` | **1** | **§2.1, §2.2, §3.1, §4.2** |
+| restore | replay of the captured definition | ✅ md5 back to `3e52be46…`, byte-identical, no markers | `Files=2, Tests=16` | **0** | PASS |
+
+**Both mutations were asserted to have LANDED from the catalog, never from the command's exit
+status** — the `do $$` block raises if either `regexp_replace` is a no-op, and the post-state md5,
+length and marker presence were read back out of `pg_proc`. Restores were verified the same way:
+**byte-identical `prosrc`**, not "the command succeeded".
+
+**Why two mutations rather than one.** M2 is the door sweep's own shape (neutralize the boolean
+predicate to `true`) and is the case the ruling asked for. M1 is strictly finer and answers a
+question M2 cannot: with M2 the person needs **no affiliation row at all**, so §3.1's
+cross-anchored person is admitted for a reason (`true`) that has nothing to do with tense. M1
+leaves the org scoping intact and neutralizes **only** `ended_on`/`voided_at` — and `391` still
+reds at §2.1 and §2.2, which is the assertion that the suite notices the **ADR 0163 bound 1
+(void ≠ end) and the offboarding narrowing specifically**, not merely that some predicate exists.
+⭐ Under M1, §3.1 correctly stays **green**, and that green is informative rather than vacuous:
+it localises which assertion covers which conjunct.
+
+**What this adds over the red-first observation, stated precisely.** Red-first proved `391` was
+sensitive to *the change that was made*. This proves it is sensitive to the predicate being
+**neutralized later** — and, via M1, to each half of that predicate independently. The
+"391's redness came only from the affiliation predicate" step that AE2.2 recorded as *plausible,
+unmeasured* is now **measured**: §4.2 moves only under M2 (the table reference disappearing),
+§2.1/§2.2 move under both, and §1.1/§1.2/§3.2/§3.3/§4.1/§4.3/§4.4 move under neither — so the
+migration's caller gate, its tenancy gate and its DEFINER context are pinned by assertions that
+are **independent** of the arm under test.
+
+⚠ **Residue: none.** The final state is byte-identical to the migration's, and the fresh
+`supabase db reset` that precedes the AE2.3a verdicts re-derives the body from the migration
+chain regardless.
