@@ -106,3 +106,70 @@ never edited in place.
 - **ADR 0165's M11 capability gain** — an actor who already knows an orphan uuid claiming it through
   the ordinary affiliate door — is **recorded but not accepted**, and its PO ruling remains a hard
   pre-drop condition independent of this decision.
+
+## Amendment 1 — clauses 5 and 6 are NARROWINGS, and the historical repair is discharged by a remote reset (2026-08-28)
+
+### 1. ⛔ Clause 5 says "remains refused". Measured, nothing refused it before.
+
+Clause 5 reads *"A person whose non-voided affiliations are entirely in another organization
+**remains** refused"*, and clause 6 likewise implies a standing prohibition. Measured at
+implementation: **`app.grant_role_impl` had no tenancy check on the target at all** — no historical
+`grant_role` migration references `organization_affiliations` in any form.
+
+So both clauses **introduce** a refusal rather than preserve one. They are **narrowings**, and this
+phase's own rule is that a narrowing is reviewed and accepted in writing, never assumed benign:
+
+- **Clause 5** — a foreign-org identity could previously be granted `org_admin`/`staff_admin` in an
+  organization it had no relationship with. That is now refused (`HC0R0`).
+- **Clause 6** — a `platform_admin` identity could previously be granted a tenant governance role.
+  That is now refused.
+
+⚖ **Both are accepted as intended**, with their populations enumerated in the increment's
+differential. The wording *"remains refused"* was inherited from the ruling text and was wrong about
+the starting state; the **decision** is unchanged, its **premise** was not. ⚠ Recorded rather than
+silently reworded, because "this preserves existing behaviour" and "this introduces a refusal" carry
+different review obligations, and only the second one was actually owed.
+
+### 2. Three defects in the ruling's own verification design, found by building it
+
+Stated because the design was detailed enough to be trusted verbatim, and three parts of it would
+have passed while proving nothing:
+
+- The prescribed mutation *"narrow the non-voided collision to active-only"* **moved no cell** until a
+  new case (ended-non-voided in a foreign org) was added — **the specified suite could not have
+  failed that mutation.**
+- A prescribed rollback cell was **green on its first run**, i.e. vacuous, until its differential was
+  added.
+- *"Invalid organization"* yields a raw `23503`, not an authored SQLSTATE — only the commission path
+  can author one. Disclosed rather than papered over.
+
+⚠ Also: the check order was deliberately changed to foreign-before-inactive, mirroring
+`affiliate_person_to_org_impl`, because the ruling's order answers a distinguishable error for a
+foreign **inactive** person and would break this door family's documented enumeration-oracle kill.
+
+### 3. The historical backfill (§5) is discharged by a REMOTE RESET, not by a migration
+
+⚖ **PO decision 2026-08-28.** The remote holds **no real data** — `non_test = 0` on `auth.users`,
+measured by the PO on that date. A `db reset --linked` therefore rebuilds the remote from the
+migration chain and re-seeds it, leaving no historical population to repair.
+
+Conditions, all binding:
+
+1. ⛔ **The reset runs AFTER this ADR's kernel invariant and the column drop are in the chain**, not
+   before. Resetting earlier clears a population the kernel has not yet stopped creating, and would
+   need repeating.
+2. ⛔ **`seed.sql` must be re-predicated first.** It currently derives affiliations **from
+   `home_organization_id`** (`insert … select pr.id, pr.home_organization_id … where
+   pr.home_organization_id is not null and not pr.is_admin`) — 6 lines still name the column, and
+   **no AE2 commit has touched that file.** It was counted in the AE2.1 census as a fixture consumer
+   and never assigned to an increment. ⚠ That statement is precisely **why the seed yields zero
+   orphans today**, which is the property that makes a reset safe; pgTAP `393 § 1.2` is green because
+   of it.
+3. The reset is **destructive and outward-facing** and requires its own explicit authorization at
+   execution time. This decision authorizes the *approach*, not the act.
+4. ⚠ **This option expires the moment the pilot loads data.** A backfill is a repeatable, auditable
+   repair; a reset is a one-time convenience valid only while `non_test = 0`. If real data lands
+   first, §5's backfill returns in full.
+
+⭐ Done in that order the single reset discharges **three** things at once: the historical repair,
+the **13-migration schema gap** to the remote, and the seed's column dependency.
