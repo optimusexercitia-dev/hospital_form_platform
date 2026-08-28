@@ -549,10 +549,11 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | process_template_outcomes.process_template_outcomes_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql |
 | process_template_phases.process_template_phases_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql |
 | process_template_phases.process_template_phases_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql |
-| professional_credentials.professional_credentials_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,360_credentials_hospital_admin_read.sql,371_offboarded_person_visibility.sql,374_c5_voided_affiliation_read_differential.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
+| professional_credentials.professional_credentials_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,360_credentials_hospital_admin_read.sql,371_offboarded_person_visibility.sql,374_c5_voided_affiliation_read_differential.sql,387_initplan_wrap_and_profiles_arm_identity.sql,390_ae22_person_authority_via_affiliation.sql |
 | professional_profiles.professional_profiles_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql,311_oversight_readonly_perimeter.sql,321_eth_e4_participant_seating.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
-| profiles.profiles_admin_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,188_hospital_user_mgmt.sql,45_email_denorm.sql |
-| profiles.profiles_select_self_or_admin (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,188_hospital_user_mgmt.sql,45_email_denorm.sql |
+| profiles.profiles_admin_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,188_hospital_user_mgmt.sql,302_affiliation_doors.sql,371_offboarded_person_visibility.sql,374_c5_voided_affiliation_read_differential.sql,387_initplan_wrap_and_profiles_arm_identity.sql,390_ae22_person_authority_via_affiliation.sql,45_email_denorm.sql |
+| profiles.profiles_select_self_or_admin (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,188_hospital_user_mgmt.sql,302_affiliation_doors.sql,371_offboarded_person_visibility.sql,374_c5_voided_affiliation_read_differential.sql,387_initplan_wrap_and_profiles_arm_identity.sql,390_ae22_person_authority_via_affiliation.sql,45_email_denorm.sql |
+| app.can_administer_person_via_affiliation(p_person uuid) | predicate | positive | COVERED | 180_user_registration.sql,188_hospital_user_mgmt.sql,302_affiliation_doors.sql,303_dominance_grid.sql,360_credentials_hospital_admin_read.sql,371_offboarded_person_visibility.sql,374_c5_voided_affiliation_read_differential.sql,387_initplan_wrap_and_profiles_arm_identity.sql,390_ae22_person_authority_via_affiliation.sql,45_email_denorm.sql |
 | rca.rca_select (SELECT) | policy | open->true | COVERED | 142_rca.sql,171_cross_org_isolation.sql |
 | rca_evidence.rca_evidence_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | rca_factors.rca_factors_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
@@ -715,3 +716,38 @@ census domain (549) despite returning SETOF, and `ARM=census` FAILED naming exac
 the required-fail working as designed, catching the author's own domain misprediction.
 Its verdict row (COVERED via targeted mutation; the ARM-1 matcher cannot run it) is in
 the COVERED table above. The ten COMMAND doors remain outside the domain as stated.
+
+## Note — AE2.2 re-predication: three verdicts RE-MEASURED, not inherited (2026-08-27)
+
+`20261003005400` re-predicated three SELECT policies off `profiles.home_organization_id` onto
+`app.can_administer_person_via_affiliation` (ADR 0163 / plan AE2.2). All three **already carried
+`COVERED`**, and those rows had been earned against the **PRE-ALTER** predicate.
+
+⛔ **No arm would have caught that.** `ARM=census` backstops *newcomers*; an `ALTER POLICY` keeps
+the gate's **name**, so a stale verdict transfers silently to a predicate it was never measured
+against. The gate is not new — which is exactly what makes it silent. This is ADR 0079
+Amendment 8 ruling 3, and it was surfaced here by `scripts/door-sweep-cases.sh`, not by a person
+remembering it.
+
+Diff-scoped subset run, `CASES="can_administer_person_via_affiliation professional_credentials_select
+profiles_admin_select profiles_select_self_or_admin"`, on a **fresh reset**, baseline
+`Result: PASS, Files=239, Tests=7941`:
+
+- `ARM-DOMAIN predicate=1/113 policy=3/226 out-of-domain-bool=35`
+- **SWEPT 4 · COVERED 4 · BLIND 0 · ERROR 0**, exit **0 (CLEAN)**.
+- The three policy rows above are **replaced**, not appended; each gained holders because the new
+  predicate is exercised by suites the old column-based leg never reached (`302`, `303`, `360`,
+  `371`, `374`, `390`).
+- `app.can_administer_person_via_affiliation` is the **new** row. It is what discharged
+  `ARM=census`'s `INVARIANT VIOLATED` on this branch — census correctly reported it as **UNKNOWN**
+  (*"nothing has asked whether a keystone notices when it opens"*), which is the arm working, not a
+  defect.
+- The committed baseline was **never opened for write** by the subset run and was verified
+  unchanged by cksum before this manual merge; these four rows are a **merge of the changed rows**,
+  never a copy of the subset file (ADR 0079 Amendment 1, hazard 1).
+
+⚠ **Two AE2.2 objects are OUTSIDE this sweep's domain and carry NO row here.** Absence of a verdict
+is absence of coverage, not coverage — both are ruled in `docs/progress/authz-ae2.md`:
+`app.person_authority_orgs` (set-returning, `postgres`-only, **no caller term in its body** — not a
+gate; bounds keystoned directly by `390 §C`) and `public.list_addable_commission_members` (**is** a
+gate; set-returning so the sweep cannot neutralize it — owes a targeted mutation case).

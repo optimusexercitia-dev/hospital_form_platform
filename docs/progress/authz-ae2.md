@@ -330,3 +330,101 @@ half is now wrong.
 
 ⛔ Not run here, by instruction: the ARM sweep and `e2e:prod` — those are the phase gate, run by
 the lead.
+
+### AE2.2 gate subset — run by the lead, on a fresh reset
+
+⚠ Per [PA-F18] this is the **increment's** gate subset, not Gate AE2. The phase gate closes over
+the last increment; AE2.3–AE2.5 are unbuilt.
+
+**The four ARM arms — recorded as what each ENUMERATED, never as exit 0** (plan rule 2):
+
+| arm | asks | enumerated | exit |
+| --- | --- | --- | ---: |
+| `ARM=census` | has anything **ever asked** about this gate? | **566** live gates / **602** verdicts · INVARIANT HOLDS | **0** |
+| `ARM=hat` | does any door read `memberships` without the caller's hat? | self-test **6/6 OK** · 3 findings, all reasoned-allowlisted | 0 |
+| `ARM=floor` | is every door actually **called**? | **72** never-called doors, all allowlisted; every allowlist entry resolves to a live door | 0 |
+| `FROMFINDINGS=1 ARM=wrapper` | the `prosecdef = f` half | BLIND set **41**, all allowlisted | 0 |
+| diff-scoped door sweep (4 cases) | does anything **notice** when a gate is opened? | `ARM-DOMAIN predicate=1/113 policy=3/226 out-of-domain-bool=35` · **SWEPT 4 · COVERED 4 · BLIND 0 · ERROR 0** | 0 (CLEAN) |
+
+⛔ **The domain qualifier, stated beside the green** (plan rule 2): the **426** reachable command
+doors of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2) are outside every arm's domain until that FUP closes.
+"All arms green" here means *within those domains*.
+
+#### `ARM=census` failed first, and that is the arm working
+
+The first run exited **1** — `INVARIANT VIOLATED`, naming
+`app.can_administer_person_via_affiliation` as **UNKNOWN**: *"nothing has asked whether a keystone
+notices when they open."* That is exactly what `ARM=census` exists for — it is the arm that catches
+a gate you just added, and a brand-new gate passes `ARM=policy` **vacuously**. The diff-scoped
+sweep measured it **COVERED**, the verdict was merged into the committed baseline, and census
+re-run holds at **602** verdicts (601 → 602). ⛔ `person_authority_orgs` was **correctly not**
+flagged — it is not `authenticated`-reachable, so it is outside census's domain, which is an
+absence of coverage and not a clean bill (ruled below).
+
+#### ⛔ What `ARM=census` structurally could NOT have caught — and the deriver did
+
+All three altered policies **already carried `COVERED`**, earned against the **PRE-ALTER**
+predicate. `ALTER POLICY` keeps the gate's **name**, and census backstops only *newcomers* — so a
+stale verdict would have transferred silently to a predicate it was never measured against. ⚠ The
+gate not being new is precisely what makes this silent. Surfaced by
+`scripts/door-sweep-cases.sh` (ADR 0079 Amendment 8 ruling 3), **not** by anyone remembering it —
+which is the entire reason that ruling lives in a script that can red rather than in a paragraph.
+All three were **re-measured and replaced**, not inherited; each gained holders (`302`, `303`,
+`360`, `371`, `374`, `390`) because the new predicate is exercised by suites the old column leg
+never reached. Record: `docs/reviews/authz-door-audit-findings.md` § Note 2026-08-27.
+
+**Hazards handled, measured not remembered:** the subset run wrote to `$WORK` and the committed
+baseline was **verified unchanged by cksum** before the manual merge; the four rows were folded in
+as a **merge of changed rows**, never a copy of the subset file (ADR 0079 Amendment 1, hazard 1).
+`FROMFINDINGS=1 ARM=wrapper` was **re-run after** the merge — BLIND set unchanged at 41 — rather
+than assumed unaffected.
+## The two name-excluded functions — RULED (lead, 2026-08-27)
+
+`door-sweep-cases.sh` excluded both by its name filter
+(`^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)`, minus `^is_valid_`) and
+printed them as **a review list, not a drop**: *"A function here is not 'not a gate' — it is 'the
+filter cannot tell'."* Both rulings below, per the deriver's own instruction that the ruling belongs
+in the gate record.
+
+### `app.person_authority_orgs` — NOT a gate; helper, with the reason
+
+**Ruling: classify `helper:` in `authz-unswept-backlog.txt`.** It is **authority-relevant but not
+an authorization gate**: its body contains **no caller term at all** — it cannot know who is asking,
+so it cannot decide allow/deny. It answers *which organizations confer authority over this person*;
+the allow/deny decision is `app.can_administer_person_via_affiliation`, which **is** in CASES and
+**is** swept. That separation is not incidental — it is ADR 0155 D3's LOCATE/GRANT split, built
+deliberately so the grant is a swept object.
+
+Two further bounds, both catalog-measured:
+- `has_function_privilege` is **false for `anon`, `authenticated` AND `service_role`** — it is
+  `postgres`-only, so no client role can reach it at all.
+- It returns `TABLE(organization_id uuid)`. The door sweep can only neutralize a **boolean**
+  predicate; there is no mutation of this shape the harness can express.
+
+⛔ **Absence of a sweep verdict here is absence of coverage, not coverage** — so the compensating
+control is named, and it is one that **itself carries verdicts**: pgTAP `390 §C` asserts ADR 0163's
+three bounds directly, including the two cases that would otherwise fail silently —
+**§C5/§D9** (an `ended_on` tie must yield **all** tied orgs, because an arbitrary tie-break is a
+*narrowing* and AE2.3's differential only pre-declares *widenings*) and **§C7** (a voided row
+ending later than the real one: filtering voided **after** `max()` yields EMPTY — a total, silent
+loss of authority).
+
+### `public.list_addable_commission_members` — IS a gate; owes a TARGETED mutation case
+
+**Ruling: it is an authorization gate.** It is `prosecdef = t` and it decides **who is listed as
+addable to a commission** — increment 2 changed exactly that decision. The name filter cannot see
+it and the sweep cannot neutralize it (set-returning, not boolean), so per the deriver it **owes a
+targeted mutation case**, in the shape AE1.3 used for its `service_role`-only doors.
+
+⚠ **Red-first observation is NOT that case, and must not be recorded as if it were.** Suite `391`
+was written first and observed red at §2.1/§2.2/§3.1/§4.1/§4.2, which proves the suite is sensitive
+to *the change that was made*. A mutation case proves something different and strictly stronger:
+that the suite still notices when the predicate is **neutralized later**. The two coincide only if
+391's redness came from the affiliation predicate and nothing else in the migration — plausible,
+**unmeasured**, and exactly the kind of "both premises true, conclusion unchecked" step this repo
+keeps paying for.
+
+**Owed before Gate AE2 closes:** neutralize the `exists (… oa.ended_on is null and oa.voided_at is
+null)` arm in `list_addable_commission_members` (widen it to `true`), confirm `391` **reds**, assert
+**the edit actually landed** before trusting the rerun (*a mutation that did not fully apply reports
+green*), and prove the rollback restores the original body.
