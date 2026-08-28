@@ -4,6 +4,17 @@
 -- ADR 0159 D1/D2.  Re-expression + rejected alternative: ADR 0165.  Phase record:
 -- docs/progress/authz-ae2.md § AE2.4 increment 1.
 --
+-- ⛔⛔ RE-CUT FOR ADR 0168 (+ Amendment 1, PO-ruled 2026-08-28) — THE THREE-DOOR SPLIT.
+--     The anchorless disjunct that made W3/W5/W6/W7/H1/H4/H6 and § 5.5's F1 write pass
+--     is GONE from the two ORDINARY doors and now lives, unchanged, behind two
+--     `service_role` CREATION doors.  Those eight cells therefore flip to REFUSED
+--     through the ordinary door.  ⭐ THE DIFFERENTIAL IS KEPT ALIVE RATHER THAN
+--     REPLACED BY THE REFUSALS: every one of them is re-run through the CREATION door
+--     in the same file and measured as *refused by the ordinary door AND admitted by
+--     the creation door*.  A suite that recorded only the refusals would have deleted
+--     the half that says the split works, and the eight cells would then be evidence
+--     for "person creation is broken" and for "person creation moved" alike.
+--
 -- ============================================================================
 -- ⛔⛔ WHY THE SECURITY CONTEXT IS THE SUBJECT OF THIS FILE
 -- ============================================================================
@@ -56,9 +67,9 @@
 --    cannot reach the object under test.
 --
 -- ============================================================================
--- THE TWO PREDICATES, OLD → NEW, REPRODUCED FROM THE CATALOG BEFORE THE CHANGE
+-- THE PREDICATES, REPRODUCED FROM THE CATALOG BEFORE EACH CHANGE
 -- ============================================================================
--- CONTAINMENT (`public.assert_profile_tenant_has_org`)
+-- CONTAINMENT (`public.assert_profile_tenant_has_org`) — UNCHANGED by ADR 0168
 --   OLD  on `profiles`, AFTER INSERT OR UPDATE OF home_organization_id, is_admin:
 --        `new.home_organization_id is null and not new.is_admin` → raise
 --   NEW  on `organization_affiliations`, AFTER UPDATE OF voided_at OR DELETE:
@@ -68,37 +79,55 @@
 --     differ in exactly that one column, which is what makes § 2.3 a statement
 --     about `voided_at` rather than about "some row exists".
 --
--- TENANT GATE (`app.affiliate_person_to_org_impl` AND `app.affiliate_person_impl`)
---   OLD  `v_person_org is null or v_person_org is distinct from <org>` → HC0R0
---   NEW  the person has ≥ 1 non-voided affiliation AND none is in <org> → HC0R0
---   ⚠ "not found" and "wrong organisation" stay DELIBERATELY the same error —
---     splitting them makes the door a cross-tenant existence oracle over
---     `profiles.id`.  § 3.6 / § 3.7 pin the code and the pt-BR message.
---   ⭐ BOTH SIBLINGS MOVE TOGETHER.  Lifted from the catalog and diffed, the two
---     gates were byte-identical apart from how the organisation is obtained.
---     § 5.7 re-derives that identity from `pg_proc` so it cannot drift.
+-- TENANT GATE — THREE GENERATIONS, and this file measures all three at once
+--   GEN 0  the COLUMN gate (pre-AE2.4):
+--          `v_person_org is null or v_person_org is distinct from <org>` → HC0R0
+--          Reproduced here from an RLS-free snapshot of `profiles.home_organization_id`
+--          as `measured_old`.
+--   GEN 1  AE2.4 increment 1 (ADR 0164): "known HERE, or known NOWHERE".
+--          ⛔ NOT MEASURED AS A COLUMN IN THIS FILE ANY MORE — it no longer exists as
+--          a live predicate anywhere.  ⭐ It survives INTACT inside the CREATION doors,
+--          which is why `measured_creation` below IS gen 1: ADR 0168 did not delete
+--          those semantics, it moved them behind an ACL.
+--   GEN 2  ADR 0168 D1, the ORDINARY doors: `app.person_known_to_org(<person>, <org>)`
+--          and nothing else.  Measured as `measured_new`.
+--
+--   ⚠ "not found" and "wrong organisation" stay DELIBERATELY the same error across
+--     ALL THREE doors — splitting them makes the door a cross-tenant existence oracle
+--     over `profiles.id`.  § 3.6 / § 3.6b / § 3.7 pin the code and the pt-BR message
+--     on the ordinary AND the creation door alike.
+--   ⭐ BOTH SIBLINGS MOVE TOGETHER, IN BOTH FAMILIES.  § 5.7 re-derives that from
+--     `pg_proc` by the NAMES of the two predicate functions, so it cannot drift.
 --
 -- ---------------------------------------------------------------------------
 -- THE PRE-DECLARED DELTA.  An undeclared widening is a RED.
+-- Two doors are now differenced against gen 0, and the two delta sets are DIFFERENT
+-- — which is the whole content of the three-door split.
 -- ---------------------------------------------------------------------------
---   ORG TIER (§ 3)                         HOSPITAL TIER (§ 5)
---   W5 column B, NO affiliation  WIDENING  H4 column B, NO affiliation, taken
---   W6 column B, only a VOIDED row            through the HOSPITAL_ADMIN arm  WIDENING
---   W7 column NULL, a true ORPHAN          H6 the SAME state through the
---   W9 only ENDED in B          NARROWING     ORG_ADMIN arm                   WIDENING
---                                          H5 only ENDED in B          NARROWING
+--   ORDINARY DOOR vs gen 0            CREATION DOOR vs gen 0
+--     W3 narrowing (person creation)    W5/W6/W7 widening (org tier)
+--     W9 narrowing (substrate truth)    H4/H6     widening (hospital tier)
+--     H1 narrowing (person creation)    W9        narrowing
+--     H5 narrowing (substrate truth)    H5        narrowing
+--     NO WIDENINGS AT ALL               (i.e. gen 1's deltas, preserved verbatim)
 --
---   The three widenings share ONE reason: after the column drops there is NO FACT
---   anchoring such a person to any organisation, so refusing every organisation
---   would make them permanently unreachable.  It is also the only recovery path
---   for the creation-time window ADR 0164 accepts.  Measured 2026-08-28 (ADR
---   0165): no non-`platform_admin` caller can ENUMERATE such a person — § 1.8 and
---   § 1.9 re-measure the two roster paths here rather than citing that.
---   The narrowing's reason: the substrate is the truth (392 CA×T8).
+--   ⭐⭐ "NO WIDENINGS AT ALL" IS THE ADR 0168 CLAIM, and an empty aggregate is
+--   exactly the shape that passes while proving nothing.  § 3.2 / § 5.2 therefore
+--   assert the empty ordinary set and the NON-EMPTY creation set IN ONE STRING, so
+--   the emptiness cannot be a query that finds nothing anywhere.
 --
--- ⭐ W8 (active in A **and** B) is `=`, NOT a narrowing, and that is a DELIBERATE
---    refinement of the predicate.  A naive "no affiliation outside <org>" gate
---    would have broken the door's own IDEMPOTENT path for every multi-org person.
+--   The four ORDINARY narrowings split into two reasons, and conflating them would
+--   lose the increment:
+--     • W9/H5 — the substrate is the truth (392 CA×T8).  Unchanged since gen 1.
+--     • W3/H1 — PERSON CREATION.  ⛔ These are NOT a capability being removed: they
+--       are a capability being MOVED to `app.affiliate_new_person_*_impl`.  § 3.11
+--       is the assertion that says so, and without it this file would read as
+--       "ADR 0168 broke person creation" — which is what ADR 0168 Amdt 1 records the
+--       two-door form as actually doing.
+--
+-- ⭐ W8 (active in A **and** B) is `=` on every generation, and that is a DELIBERATE
+--    refinement.  A naive "no affiliation outside <org>" gate would have broken the
+--    door's own IDEMPOTENT path for every multi-org person.
 --
 -- ============================================================================
 -- ⭐⭐ THE ACTOR AXIS — WHY § 5 CARRIES ONE AND § 3 DOES NOT
@@ -114,6 +143,10 @@
 --    actor column, so NO mutation of `is_hospital_admin_of_for` could move any
 --    cell in this file, and the arm's absence was indistinguishable from its
 --    presence.  QA finding B2.
+-- ⚠ THE AXIS SURVIVES ADR 0168 INTACT, and it had to: the creation doors' authority
+--   arms are IDENTICAL to their ordinary siblings' by construction, so H4 (hospital
+--   arm) and H6 (org arm) must stay a PAIR through the creation door too, or the
+--   creation door's hospital arm is unmeasured exactly as the ordinary door's was.
 --
 -- `ae24_gate.actor` is that axis, and the two seed principals are COMPLEMENTARY
 -- over this door — MEASURED in § 5.0, never assumed:
@@ -128,29 +161,30 @@
 -- ============================================================================
 -- A door that returns early WITHOUT INSERTING — a `return null` ahead of the
 -- insert, an idempotency branch matching too broadly — satisfies every
--- `measured_new` cell in this file.  That is the "accepts and silently does
--- nothing" regression, and on the orphan-claiming widenings it is the one that
--- matters: those are the cells where the new gate admits a state the column gate
--- refused, so nothing else in the estate would notice the write never landed.
--- QA finding B3.  The door's RETURN VALUE is therefore captured into
--- `ae24_gate.new_aff_id`, and the four declared widenings assert that the id
--- NAMES A LIVE ROW of the right kind, anchored to that cell's person and to the
--- target organisation/hospital — {W5,W6,W7} in § 3.10, {H4,H6} in § 5.8, exactly
--- the standard § 3.8 already held W3 to.
+-- `measured_*` cell in this file.  That is the "accepts and silently does
+-- nothing" regression, and on the orphan-claiming cells it is the one that
+-- matters.  QA finding B3.  Each door's RETURN VALUE is therefore captured, and
+-- the declared admits assert that the id NAMES A LIVE ROW of the right kind,
+-- anchored to that cell's person and to the target organisation/hospital —
+-- {W3,W5,W6,W7} in § 3.10, {H1,H4,H6} in § 5.8.
 -- ⚠ `coalesce(v_id::text,'')` in `try_gate` is deliberate: `'ok|' || null` is NULL
 --   in plpgsql, which would red § 3.1/§ 5.1 and attribute the regression to the
 --   wrong assertion.  The write-through cells must be the ONLY thing that moves.
+-- ⭐ AND THE NEGATIVE HALF IS ASSERTED TOO (§ 3.12 / § 5.9), from a SNAPSHOT taken
+--   BETWEEN the two loops: the ordinary door must have written NOTHING for the split
+--   cells.  A refusal is a claim about an absence, and this file's own history is
+--   that absences get asserted by not looking.
 --
 -- ============================================================================
 -- ⚠ RUN SHAPE.  This suite cannot be run alone — `schema "test_helpers" does not
 --   exist` gives a FAIL-SHAPED ABORT indistinguishable from a hold.  Correct
---   invocation: `00_setup.sql` + this file.  Expected shape `Files=2, Tests=49`.
---   A shape below 49 is an ERROR, never a hold.
+--   invocation: `00_setup.sql` + this file.  Expected shape `Files=2, Tests=56`
+--   (55 here + `00_setup.sql`'s own one).  A shape below 56 is an ERROR, never a hold.
 --
--- Assertion count: 48
+-- Assertion count: 55
 -- ============================================================================
 begin;
-select plan(48);
+select plan(55);
 
 -- ---------------------------------------------------------------------------
 -- Constants.  Seed ids only; every constructed id lives in a `0ae24…` namespace
@@ -215,12 +249,23 @@ select is(
       and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'home_organization_id'), 0,
   '0.6 the containment body no longer names `home_organization_id` — measured with `--` comments STRIPPED, because the replacement comment deliberately QUOTES the predicate it replaced and a raw grep cannot tell a live read from a historical quote');
 
+-- ⭐ ADR 0168 WIDENS THIS CELL'S DOMAIN FROM TWO DOORS TO FIVE, and the COUNT half is
+--   why: with an `in (…)` list and an aggregate over matches only, a door that is
+--   RENAMED or MISSING drops silently out of the domain and the cell stays green on
+--   "(none)".  "A new door must inherit EVERY sibling arm" — the count is what makes
+--   the inheritance checkable rather than aspirational.
 select is(
-  (select coalesce(string_agg(p.proname, ',' order by p.proname), '(none)')
+  (select count(*)::text || '|' ||
+          coalesce(string_agg(p.proname, ',' order by p.proname)
+                     filter (where regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'home_organization_id'),
+                   '(none)')
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'app' and p.proname in ('affiliate_person_to_org_impl', 'affiliate_person_impl')
-      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'home_organization_id'), '(none)',
-  '0.7 ⭐ NEITHER affiliation-creating door names the column — the other half of the circular pair, and BOTH SIBLINGS, because splitting identical siblings across increments is exactly how this phase produced "one axis was swept, its sibling was not" three times');
+    where n.nspname = 'app'
+      and p.proname in ('affiliate_person_to_org_impl', 'affiliate_person_impl',
+                        'affiliate_new_person_to_org_impl', 'affiliate_new_person_impl',
+                        'recover_orphan_person_to_org_impl')),
+  '5|(none)',
+  '0.7 ⭐ ALL FIVE affiliation-creating doors exist AND none names the column — the other half of the circular pair, over the whole post-ADR-0168 family. The COUNT is the anti-vacuity half: an `in (…)` domain silently shrinks when a door is renamed, and the aggregate alone would read "(none)" for a door that had vanished');
 
 -- ---------------------------------------------------------------------------
 -- ⭐ THE SEED ORPHAN SNAPSHOT IS TAKEN **BEFORE** THE FIXTURES EXIST.  This file
@@ -240,16 +285,20 @@ create temp table ae24_seed_orphans as
 --        That is why ADR 0164 makes a mitigation REQUIRED rather than advised.
 --
 --     ⛔ THIS COMMENT SAID "administrable by `platform_admin` alone" AND THAT WAS
---        FALSE (QA finding B5).  Measured: all six person doors gate solely on
---        `app.can_administer_person_for`, which has NO `platform_admin` arm by
---        deliberate design (the ADR 0041 noun rule; `384 § 6` asserts a platform
---        admin is REFUSED) and returns false outright on an empty located-org
---        set.  The claim was wrong in the NARROWING direction, which is exactly
---        why it read as care and survived four documents.  The actual recovery
---        path is ADR 0165 D1's widening: any `org_admin` — or, through the
---        hospital sibling, any `hospital_admin` — WHO HOLDS THE PERSON'S UUID may
---        claim them.  ⚠ The window is not "only the most privileged actor can
---        reach them"; it is "nobody can, until somebody with the id takes them".
+--        FALSE (QA finding B5) — and ⭐ ADR 0168 HAS NOW MADE IT TRUE, which is
+--        exactly the kind of reversal that would otherwise leave a corrected
+--        comment reading as a live correction of something that no longer holds.
+--        The history, kept because it is the reason the cell exists: all six person
+--        doors gate solely on `app.can_administer_person_for`, which has NO
+--        `platform_admin` arm by deliberate design (the ADR 0041 noun rule;
+--        `384 § 6` asserts a platform admin is REFUSED). Under ADR 0164/0165 the
+--        recovery path was ADR 0165 D1's widening: ANY org_admin — or, through the
+--        hospital sibling, any hospital_admin — WHO HELD THE PERSON'S UUID could
+--        claim them. ADR 0168 REMOVES that: the ordinary doors now require
+--        `person_known_to_org`, and orphan recovery is
+--        `app.recover_orphan_person_to_org_impl`, platform_admin-only, asserted in
+--        `398`. ⚠ The window is therefore now "nobody but a platform_admin can reach
+--        them, through one named door that says so in the audit trail".
 --
 --     ⭐ AND WHY IT IS REQUIRED IS THE INTERESTING PART: AN ORPHAN IS
 --        SHAPE-IDENTICAL TO A LEGITIMATE ROW.  Exactly one profile has no
@@ -259,6 +308,10 @@ create temp table ae24_seed_orphans as
 --        ignore "no affiliation at all" would ignore exactly the shape it hunts.
 --        `is_admin` is ORTHOGONAL to affiliation presence, which is what lets it
 --        exclude the legitimate row without excluding a mechanism.
+--        ⚠ That `is_admin` arm is ALSO why `app.tenant_orphan_profiles()` keeps its
+--        own inline anchorless expression rather than calling
+--        `app.person_is_anchorless`: the detector and the doors ask different
+--        questions and must not be "unified".
 -- ============================================================================
 select is(
   (select p.prosecdef::text || '|' ||
@@ -309,56 +362,89 @@ insert into ae24_people values
 --    varies (H1-H5 on the hospital_admin, H6 on the org_admin) precisely so that
 --    each arm of the door's authority disjunction is separately observable.  A
 --    column holding one value everywhere would restate the defect B2 names.
+-- ⭐ ADR 0168 adds `expected_creation` / `measured_creation` and their companions.
+--    The SAME row, the SAME actor, the SAME target — only the DOOR changes — which
+--    is what makes § 3.11 a statement about the split rather than about two
+--    unrelated populations.
 create temp table ae24_gate (
-  label         text primary key,
-  tier          text,
-  person        uuid,
-  actor         uuid,
-  note          text,
-  expected_old  boolean,
-  expected_new  boolean,
-  measured_old  boolean,
-  measured_new  boolean,
-  new_aff_id    uuid,
-  code_seen     text,
-  msg_seen      text
+  label             text primary key,
+  tier              text,
+  person            uuid,
+  actor             uuid,
+  note              text,
+  expected_old      boolean,
+  expected_new      boolean,
+  expected_creation boolean,
+  measured_old      boolean,
+  measured_new      boolean,
+  measured_creation boolean,
+  new_aff_id        uuid,
+  creation_aff_id   uuid,
+  code_seen         text,
+  msg_seen          text,
+  creation_code     text,
+  creation_msg      text
 );
-insert into ae24_gate (label, tier, person, actor, note, expected_old, expected_new) values
-  ('W1',  'org', '00000000-0000-0000-0000-0ae2403a0001', '00000000-0000-0000-0000-0000000000b1', 'column A, ACTIVE in A',                        true,  true),
-  ('W2',  'org', '00000000-0000-0000-0000-0ae2403a0002', '00000000-0000-0000-0000-0000000000b1', 'column A, ENDED non-voided in A (REHIRE)',     true,  true),
-  ('W3',  'org', '00000000-0000-0000-0000-0ae2403a0003', '00000000-0000-0000-0000-0000000000b1', 'column A, NO affiliation (PERSON CREATION)',   true,  true),
-  ('W4',  'org', '00000000-0000-0000-0000-0ae2403a0004', '00000000-0000-0000-0000-0000000000b1', 'column B, ACTIVE in B',                        false, false),
-  ('W5',  'org', '00000000-0000-0000-0000-0ae2403a0005', '00000000-0000-0000-0000-0000000000b1', 'column B, NO affiliation',                     false, true),
-  ('W6',  'org', '00000000-0000-0000-0000-0ae2403a0006', '00000000-0000-0000-0000-0000000000b1', 'column B, only a VOIDED row in B',             false, true),
-  ('W7',  'org', '00000000-0000-0000-0000-0ae2403a0007', '00000000-0000-0000-0000-0000000000b1', 'column NULL, true ORPHAN',                     false, true),
-  ('W8',  'org', '00000000-0000-0000-0000-0ae2403a0008', '00000000-0000-0000-0000-0000000000b1', 'column A, ACTIVE in A and B (IDEMPOTENT)',     true,  true),
-  ('W9',  'org', '00000000-0000-0000-0000-0ae2403a0009', '00000000-0000-0000-0000-0000000000b1', 'column A, only ENDED non-voided in B',         true,  false),
-  ('W10', 'org', '00000000-0000-0000-0000-0ae2403a000f', '00000000-0000-0000-0000-0000000000b1', 'no profile at all (existence conflation)',     false, false),
+insert into ae24_gate (label, tier, person, actor, note, expected_old, expected_new, expected_creation) values
+  ('W1',  'org', '00000000-0000-0000-0000-0ae2403a0001', '00000000-0000-0000-0000-0000000000b1', 'column A, ACTIVE in A',                        true,  true,  true),
+  ('W2',  'org', '00000000-0000-0000-0000-0ae2403a0002', '00000000-0000-0000-0000-0000000000b1', 'column A, ENDED non-voided in A (REHIRE)',     true,  true,  true),
+  ('W3',  'org', '00000000-0000-0000-0000-0ae2403a0003', '00000000-0000-0000-0000-0000000000b1', 'column A, NO affiliation (PERSON CREATION)',   true,  false, true),
+  ('W4',  'org', '00000000-0000-0000-0000-0ae2403a0004', '00000000-0000-0000-0000-0000000000b1', 'column B, ACTIVE in B',                        false, false, false),
+  ('W5',  'org', '00000000-0000-0000-0000-0ae2403a0005', '00000000-0000-0000-0000-0000000000b1', 'column B, NO affiliation',                     false, false, true),
+  ('W6',  'org', '00000000-0000-0000-0000-0ae2403a0006', '00000000-0000-0000-0000-0000000000b1', 'column B, only a VOIDED row in B',             false, false, true),
+  ('W7',  'org', '00000000-0000-0000-0000-0ae2403a0007', '00000000-0000-0000-0000-0000000000b1', 'column NULL, true ORPHAN',                     false, false, true),
+  ('W8',  'org', '00000000-0000-0000-0000-0ae2403a0008', '00000000-0000-0000-0000-0000000000b1', 'column A, ACTIVE in A and B (IDEMPOTENT)',     true,  true,  true),
+  ('W9',  'org', '00000000-0000-0000-0000-0ae2403a0009', '00000000-0000-0000-0000-0000000000b1', 'column A, only ENDED non-voided in B',         true,  false, false),
+  ('W10', 'org', '00000000-0000-0000-0000-0ae2403a000f', '00000000-0000-0000-0000-0000000000b1', 'no profile at all (existence conflation)',     false, false, false),
   -- HOSPITAL TIER on `hospitaladmin.a1` — org_admin of A = FALSE (§ 5.0), so the
   -- door's first arm CANNOT admit and the hospital arm is the one being taken.
-  ('H1',  'hosp','00000000-0000-0000-0000-0ae2405b0001', '00000000-0000-0000-0000-0000000000e1', 'column A, NO affiliation (CREATION), hospital_admin arm',         true,  true),
-  ('H2',  'hosp','00000000-0000-0000-0000-0ae2405b0002', '00000000-0000-0000-0000-0000000000e1', 'column A, ENDED non-voided in A (D5 REHIRE), hospital_admin arm', true,  true),
-  ('H3',  'hosp','00000000-0000-0000-0000-0ae2405b0003', '00000000-0000-0000-0000-0000000000e1', 'column B, ACTIVE in B, hospital_admin arm',                        false, false),
-  ('H4',  'hosp','00000000-0000-0000-0000-0ae2405b0004', '00000000-0000-0000-0000-0000000000e1', 'column B, NO affiliation, hospital_admin arm — ADR 0165''s cell',  false, true),
-  ('H5',  'hosp','00000000-0000-0000-0000-0ae2405b0005', '00000000-0000-0000-0000-0000000000e1', 'column A, only ENDED non-voided in B, hospital_admin arm',         true,  false),
+  ('H1',  'hosp','00000000-0000-0000-0000-0ae2405b0001', '00000000-0000-0000-0000-0000000000e1', 'column A, NO affiliation (CREATION), hospital_admin arm',         true,  false, true),
+  ('H2',  'hosp','00000000-0000-0000-0000-0ae2405b0002', '00000000-0000-0000-0000-0000000000e1', 'column A, ENDED non-voided in A (D5 REHIRE), hospital_admin arm', true,  true,  true),
+  ('H3',  'hosp','00000000-0000-0000-0000-0ae2405b0003', '00000000-0000-0000-0000-0000000000e1', 'column B, ACTIVE in B, hospital_admin arm',                        false, false, false),
+  ('H4',  'hosp','00000000-0000-0000-0000-0ae2405b0004', '00000000-0000-0000-0000-0000000000e1', 'column B, NO affiliation, hospital_admin arm — ADR 0165''s cell',  false, false, true),
+  ('H5',  'hosp','00000000-0000-0000-0000-0ae2405b0005', '00000000-0000-0000-0000-0000000000e1', 'column A, only ENDED non-voided in B, hospital_admin arm',         true,  false, false),
   -- …and H4's state re-run through the OTHER arm.  Keeping both is what makes the
   -- actor an axis: drop H6 and the org_admin path through this door is unmeasured;
-  -- drop H4 and ADR 0165's declared widening is unmeasured.
-  ('H6',  'hosp','00000000-0000-0000-0000-0ae2405b0006', '00000000-0000-0000-0000-0000000000b1', 'column B, NO affiliation, ORG_ADMIN arm (H4''s state, other arm)', false, true);
+  -- drop H4 and ADR 0165''s declared widening is unmeasured.
+  ('H6',  'hosp','00000000-0000-0000-0000-0ae2405b0006', '00000000-0000-0000-0000-0000000000b1', 'column B, NO affiliation, ORG_ADMIN arm (H4''s state, other arm)', false, false, true);
 
--- ⭐ The delta lists are written HERE, from ADR 0164/0165, INDEPENDENTLY of the
+-- ⭐ The delta lists are written HERE, from ADR 0164/0165/0168, INDEPENDENTLY of the
 --    expectation table above.  Deriving them from it would make § 3.2/§ 3.3 and
 --    § 5.2/§ 5.3 restatements — green whenever the table is green.  § 3.4 is the
 --    cross-check that reds if the two hand artefacts ever disagree.
-create temp table ae24_declared (label text primary key, tier text, direction text, reason text);
+-- ⭐ `door` is the ADR 0168 axis: BOTH doors are differenced against the SAME gen-0
+--    column gate, and the difference between the two delta sets IS the split.
+create temp table ae24_declared (door text, label text, tier text, direction text, reason text,
+                                 primary key (door, label));
 insert into ae24_declared values
-  ('W5', 'org',  'widening',  'no fact anchors a person with zero non-voided rows to any organisation'),
-  ('W6', 'org',  'widening',  'a voided row is "was never true" — ADR 0163 bound 1'),
-  ('W7', 'org',  'widening',  'the orphan recovery path ADR 0164 accepts the creation window for'),
-  ('W9', 'org',  'narrowing', 'the substrate is the truth — retention lives in B, not in the column'),
-  ('H4', 'hosp', 'widening',  'ADR 0165''s materially-wider cell: a HOSPITAL_ADMIN holding no org_admin membership claims an orphan through the hospital door'),
-  ('H6', 'hosp', 'widening',  'the same state through the door''s OTHER authority arm — an org_admin, which is what the H-cells previously measured'),
-  ('H5', 'hosp', 'narrowing', 'the substrate is the truth, hospital tier');
+  -- ORDINARY door (ADR 0168 D1) vs the gen-0 column gate.  ⛔ NO WIDENINGS.
+  ('ordinary', 'W3', 'org',  'narrowing', 'PERSON CREATION MOVED, not removed — app.affiliate_new_person_to_org_impl, service_role only (ADR 0168 Amdt 1 door 3)'),
+  ('ordinary', 'W9', 'org',  'narrowing', 'the substrate is the truth — retention lives in B, not in the column'),
+  ('ordinary', 'H1', 'hosp', 'narrowing', 'PERSON CREATION MOVED, hospital tier — app.affiliate_new_person_impl'),
+  ('ordinary', 'H5', 'hosp', 'narrowing', 'the substrate is the truth, hospital tier'),
+  -- CREATION door vs the gen-0 column gate.  These are gen 1''s deltas, PRESERVED:
+  -- ADR 0168 did not delete those semantics, it moved them behind an ACL.
+  ('creation', 'W5', 'org',  'widening',  'no fact anchors a person with zero non-voided rows to any organisation'),
+  ('creation', 'W6', 'org',  'widening',  'a voided row is "was never true" — ADR 0163 bound 1'),
+  ('creation', 'W7', 'org',  'widening',  'the orphan/creation state ADR 0164 accepts the window for — now reachable ONLY through a service_role door'),
+  ('creation', 'W9', 'org',  'narrowing', 'the substrate is the truth — unchanged by the split'),
+  ('creation', 'H4', 'hosp', 'widening',  'ADR 0165''s materially-wider cell, now behind the service_role creation door and its own audit verb'),
+  ('creation', 'H6', 'hosp', 'widening',  'the same state through the door''s OTHER authority arm — an org_admin'),
+  ('creation', 'H5', 'hosp', 'narrowing', 'the substrate is the truth, hospital tier — unchanged by the split');
+
+-- ⭐⭐ THE SPLIT ITSELF, HAND-WRITTEN.  These are the cells ADR 0168 Amdt 1 enumerates
+--     as "the eight cells that depend on the anchorless branch", minus F1 (which is
+--     not a `ae24_gate` row — it is § 5.5's own subject and is measured there).
+--     § 3.11 asserts the MEASURED split equals this list, over BOTH tiers at once.
+create temp table ae24_split (label text primary key, tier text, reason text);
+insert into ae24_split values
+  ('W3', 'org',  'PERSON CREATION, org tier — labelled (PERSON CREATION) since AE2.4 inc 1'),
+  ('W5', 'org',  'anchorless with the column pointing elsewhere'),
+  ('W6', 'org',  'anchorless because the only row is VOIDED'),
+  ('W7', 'org',  'the true orphan — column NULL, no row'),
+  ('H1', 'hosp', 'PERSON CREATION, hospital tier — H1 is W3''s sibling and differs only in the column under drop'),
+  ('H4', 'hosp', 'anchorless through the HOSPITAL_ADMIN arm'),
+  ('H6', 'hosp', 'the same state through the ORG_ADMIN arm');
 
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
 select '00000000-0000-0000-0000-000000000000', x.id, 'authenticated', 'authenticated',
@@ -436,11 +522,14 @@ select is(
 
 -- ---------------------------------------------------------------------------
 -- § 1.8 / § 1.9 — THE REACHABILITY BOUND, MEASURED RATHER THAN ASSERTED.
---   The § 3/§ 5 widening lets any org (or hospital) admin affiliate an orphan.
---   That is only tolerable because an orphan is in NO roster, so claiming one
---   requires already knowing them from outside the system.  Both roster paths
---   are re-measured here, each with a positive control, because a zero from a
---   door that returns nothing at all would prove the opposite of what it reads.
+--   Under ADR 0164/0165 this bound carried the whole widening: any org (or
+--   hospital) admin could affiliate an orphan, and that was only tolerable because
+--   an orphan is in NO roster.  ⭐ ADR 0168 REMOVES the widening, so these two cells
+--   are no longer load-bearing for a widening — they are now the measurement that
+--   says the RECOVERY door is genuinely the only route to such a person, because
+--   nothing else can even NAME them.  Both roster paths are re-measured here, each
+--   with a positive control, because a zero from a door that returns nothing at all
+--   would prove the opposite of what it reads.
 -- ---------------------------------------------------------------------------
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1', false, 'org_admin');
 set local role authenticated;
@@ -461,7 +550,7 @@ reset role;
 
 -- ============================================================================
 -- § 2 THE CONTAINMENT TRIGGER — accept AND reject, on the STATE axis (§ 2.1-2.4,
---     § 2.8) and on the ACTOR axis (§ 2.5-2.7).
+--     § 2.8) and on the ACTOR axis (§ 2.5-2.7).  UNTOUCHED by ADR 0168.
 --
 --     ⚠ THE DEFERRAL TRAP, inherited from 380 § 6 / 381 and restated because it
 --       is load-bearing: the trigger is DEFERRABLE INITIALLY DEFERRED and every
@@ -562,10 +651,11 @@ select throws_ok(
 set constraints all deferred;
 
 -- ============================================================================
--- § 3 THE TENANT GATE, ORG TIER — AE2.3b's write/containment differential for
---     this increment.  Both predicates are evaluated in ONE transaction, per case.
+-- § 3 THE TENANT GATE, ORG TIER — the write/containment differential, now over
+--     THREE generations (gen 0 column, ORDINARY door, CREATION door).  All three
+--     are evaluated per case, in ONE transaction.
 --
---     ⛔ The OLD gate is REPRODUCED from an RLS-FREE snapshot of the column,
+--     ⛔ The gen-0 gate is REPRODUCED from an RLS-FREE snapshot of the column,
 --        because it was a read inside a DEFINER door against the row already in
 --        hand — never a re-read under the caller's RLS.  Re-reading it through
 --        the caller would compare the new predicate with itself.
@@ -578,25 +668,41 @@ create temp table ae24_snapshot as
 --    is what made the hospital tier's authority arm unobservable (B2): every
 --    H-cell short-circuited on `is_org_admin_of_for` and the hospital arm was
 --    never evaluated, so no mutation of it could move any cell.
+-- ⭐ The DOOR is a parameter for the same reason the actor is: the ordinary and the
+--    creation door differ ONLY in their containment predicate, so routing both
+--    through one helper with one fixture is what makes § 3.11 a controlled
+--    comparison rather than two loosely-related runs.
 -- ⭐ The door's RETURN VALUE is captured, not discarded by `perform` (B3): 'ok|'
 --    alone means only "did not raise", which a door that returns early WITHOUT
 --    INSERTING also satisfies.  ⚠ `coalesce(…,'')` keeps such a door reporting
---    `measured_new = true` on purpose, so § 3.10 / § 5.8 are the ONLY assertions
+--    `measured_* = true` on purpose, so § 3.10 / § 5.8 are the ONLY assertions
 --    that move — `'ok|' || null` is NULL and would red § 3.1/§ 5.1 instead,
 --    pinning the regression on the wrong cell.
-create or replace function pg_temp.try_gate(p_label text)
+create or replace function pg_temp.try_gate(p_label text, p_door text)
 returns text language plpgsql as $$
 declare v_msg text; v_row record; v_id uuid;
 begin
   select g.tier, g.person, g.actor into v_row from ae24_gate g where g.label = p_label;
-  if v_row.tier = 'org' then
-    select app.affiliate_person_to_org_impl(
-      v_row.actor, v_row.person,
-      '0c000000-0000-0000-0000-00000000000a'::uuid, null) into v_id;
+  if p_door = 'ordinary' then
+    if v_row.tier = 'org' then
+      select app.affiliate_person_to_org_impl(
+        v_row.actor, v_row.person,
+        '0c000000-0000-0000-0000-00000000000a'::uuid, null) into v_id;
+    else
+      select app.affiliate_person_impl(
+        v_row.actor, v_row.person,
+        '05000000-0000-0000-0000-00000000000a'::uuid, null, null, null, null, null) into v_id;
+    end if;
   else
-    select app.affiliate_person_impl(
-      v_row.actor, v_row.person,
-      '05000000-0000-0000-0000-00000000000a'::uuid, null, null, null, null, null) into v_id;
+    if v_row.tier = 'org' then
+      select app.affiliate_new_person_to_org_impl(
+        v_row.actor, v_row.person,
+        '0c000000-0000-0000-0000-00000000000a'::uuid, null) into v_id;
+    else
+      select app.affiliate_new_person_impl(
+        v_row.actor, v_row.person,
+        '05000000-0000-0000-0000-00000000000a'::uuid, null, null, null, null, null) into v_id;
+    end if;
   end if;
   return 'ok|' || coalesce(v_id::text, '');
 exception when others then
@@ -610,11 +716,12 @@ update ae24_gate g
          (select s.home_organization_id = (select org_a from pg_temp.k())
             from ae24_snapshot s where s.person_id = g.person), false);
 
+-- PASS 1 — the ORDINARY doors.
 do $$
 declare r record; v text;
 begin
   for r in select label from ae24_gate order by tier desc, label loop
-    v := pg_temp.try_gate(r.label);
+    v := pg_temp.try_gate(r.label, 'ordinary');
     update ae24_gate
        set measured_new = (v like 'ok|%'),
            -- guarded cast: on a refusal the second field is the pt-BR message
@@ -626,64 +733,147 @@ begin
   end loop;
 end $$;
 
+-- ⛔ THE SNAPSHOT BETWEEN THE PASSES IS THE NEGATIVE HALF OF THE DIFFERENTIAL.
+--   § 3.12 / § 5.9 assert that the ORDINARY door wrote NOTHING for the split cells,
+--   and they cannot be asserted after pass 2 because pass 2 is what writes those
+--   rows.  Taking the measurement here — rather than trusting the refusal — is the
+--   same discipline § 3.10 applies to the accepts: a refusal is a claim about an
+--   absence, and absences in this file's history have been asserted by not looking.
+create temp table ae24_after_ordinary as
+  select g.label,
+         (select count(*)::int from public.organization_affiliations oa
+           where oa.principal_id = g.person
+             and oa.organization_id = (select org_a from pg_temp.k())
+             and oa.voided_at is null) as org_a_rows,
+         (select count(*)::int from public.hospital_affiliations ha
+           where ha.principal_id = g.person
+             and ha.hospital_id = (select central_a from pg_temp.k())
+             and ha.voided_at is null) as central_a_rows
+    from ae24_gate g;
+
+-- PASS 2 — the CREATION doors.  Same rows, same actors, same targets.
+do $$
+declare r record; v text;
+begin
+  for r in select label from ae24_gate order by tier desc, label loop
+    v := pg_temp.try_gate(r.label, 'creation');
+    update ae24_gate
+       set measured_creation = (v like 'ok|%'),
+           creation_aff_id   = case when v like 'ok|%'
+                                    then nullif(split_part(v, '|', 2), '')::uuid end,
+           creation_code     = split_part(v, '|', 1),
+           creation_msg      = split_part(v, '|', 2)
+     where label = r.label;
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- § 3.0 DRAIN THE QUEUE THE TWO PASSES FILLED, AS AN ASSERTION.
+--   Two reasons, and the second is the one that bites:
+--     • it is a real claim — ADR 0151 D4's deferred `hospital_affiliation_has_org_trg`
+--       holds for every hospital row the two passes wrote, including the ones the
+--       CREATION door wrote for an anchorless person, where the org parent has to
+--       have been ensured inside the same door; and
+--     • § 5.5 is this file's flush non-vacuity cell, and QA finding M8 was precisely
+--       that its verdict had been decided by an unrelated statement draining the
+--       queue first.  Draining HERE, loudly, leaves § 5.5's queue holding F1 alone.
+-- ---------------------------------------------------------------------------
+select lives_ok(
+  $$set constraints all immediate;$$,
+  '3.0 ⭐ the deferred queue from BOTH passes flushes clean: every hospital affiliation either pass created has an active org parent (ADR 0151 D4). ⚠ This also leaves the queue EMPTY, which is what makes § 5.5''s later flush a statement about F1 and nothing else — QA finding M8''s repair, kept working after the split doubled the number of writes');
+set constraints all deferred;
+
 select is(
   (select coalesce(string_agg(label || ':old=' || measured_old::text || '/' || expected_old::text ||
                               ',new=' || measured_new::text || '/' || expected_new::text, ' ' order by label), '')
      from ae24_gate
     where tier = 'org'
       and (measured_old is distinct from expected_old or measured_new is distinct from expected_new)), '',
-  '3.1 ⭐ every one of the ten ORG-TIER cells matches its PRE-DECLARED old/new expectation — the table was written from ADR 0164 before the first behavioural run, so a match is a measurement and not a fit');
+  '3.1 ⭐ every one of the ten ORG-TIER cells matches its PRE-DECLARED old/ORDINARY expectation — the table was written from ADR 0164 and re-declared from ADR 0168 before the first behavioural run, so a match is a measurement and not a fit');
 
 select is(
-  (select coalesce(string_agg(label, ',' order by label), '')
-     from ae24_gate where tier = 'org' and measured_new and not measured_old),
-  (select coalesce(string_agg(label, ',' order by label), '')
-     from ae24_declared where tier = 'org' and direction = 'widening'),
-  '3.2 ⭐⭐ the measured WIDENINGS equal the hand-written declaration {W5,W6,W7} — an undeclared widening is a RED. Narrowing can be wrong and safe; unapproved widening cannot');
+  (select coalesce(string_agg(label || ':creation=' || measured_creation::text || '/' || expected_creation::text, ' ' order by label), '')
+     from ae24_gate
+    where tier = 'org' and measured_creation is distinct from expected_creation), '',
+  '3.1b ⭐ …and every ORG-TIER cell matches its pre-declared CREATION-door expectation. ⛔ This is the half a refusal-only re-cut would have dropped: without it, "the ordinary door refuses W3" is equally consistent with "person creation moved" and with "person creation is broken", which is the two-door form ADR 0168 Amdt 1 rejects');
 
 select is(
-  (select coalesce(string_agg(label, ',' order by label), '')
-     from ae24_gate where tier = 'org' and measured_old and not measured_new),
-  (select coalesce(string_agg(label, ',' order by label), '')
-     from ae24_declared where tier = 'org' and direction = 'narrowing'),
-  '3.3 the measured NARROWINGS equal the declared {W9} — carried explicitly because a differential that only pre-declares widenings would let a silent narrowing through, which is exactly how an arbitrary tie-break would have shipped in 390');
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_gate where tier = 'org' and measured_new and not measured_old)
+  || ' // creation:' ||
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_gate where tier = 'org' and measured_creation and not measured_old),
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_declared where tier = 'org' and door = 'ordinary' and direction = 'widening')
+  || ' // creation:' ||
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_declared where tier = 'org' and door = 'creation' and direction = 'widening'),
+  '3.2 ⭐⭐ ORG-TIER WIDENINGS, BOTH DOORS IN ONE STRING. The ordinary door widens NOTHING — that is ADR 0168''s claim — and the creation door widens the declared {W5,W6,W7}. ⛔ The two halves are in ONE assertion deliberately: an empty aggregate is the classic pass-proving-nothing, and pairing it with a NON-EMPTY aggregate from the SAME query shape over the SAME table is what shows the emptiness is discrimination and not a broken probe');
 
 select is(
-  (select coalesce(string_agg(label || '=' || direction, ',' order by label), '')
-     from (select label,
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_gate where tier = 'org' and measured_old and not measured_new)
+  || ' // creation:' ||
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_gate where tier = 'org' and measured_old and not measured_creation),
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_declared where tier = 'org' and door = 'ordinary' and direction = 'narrowing')
+  || ' // creation:' ||
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_declared where tier = 'org' and door = 'creation' and direction = 'narrowing'),
+  '3.3 …and the ORG-TIER NARROWINGS: the ordinary door narrows {W3,W9}, the creation door only {W9}. Carried explicitly because a differential that only pre-declares widenings would let a silent narrowing through — and here the narrowing set is the ENTIRE behavioural content of ADR 0168 on this door');
+
+select is(
+  (select coalesce(string_agg(door || ':' || label || '=' || direction, ',' order by door, label), '')
+     from (select 'ordinary' as door, label,
                   case when expected_new and not expected_old then 'widening'
                        when expected_old and not expected_new then 'narrowing' end as direction
+             from ae24_gate
+           union all
+           select 'creation', label,
+                  case when expected_creation and not expected_old then 'widening'
+                       when expected_old and not expected_creation then 'narrowing' end
              from ae24_gate) t
     where direction is not null),
-  (select coalesce(string_agg(label || '=' || direction, ',' order by label), '') from ae24_declared),
-  '3.4 CROSS-CHECK over BOTH tiers: the deltas IMPLIED by the expectation table equal the independently-written declaration list. 3.2/3.3 compare MEASURED against DECLARED; this compares EXPECTED against DECLARED, so the two hand artefacts cannot quietly drift into agreement with each other');
+  (select coalesce(string_agg(door || ':' || label || '=' || direction, ',' order by door, label), '')
+     from ae24_declared),
+  '3.4 CROSS-CHECK over BOTH tiers AND BOTH doors: the deltas IMPLIED by the expectation table equal the independently-written declaration list. 3.2/3.3 compare MEASURED against DECLARED; this compares EXPECTED against DECLARED, so the two hand artefacts cannot quietly drift into agreement with each other');
 
 select is(
   (select count(*) filter (where measured_old)::text || '|' ||
           count(*) filter (where not measured_old)::text || '|' ||
           count(*) filter (where measured_new)::text || '|' ||
-          count(*) filter (where not measured_new)::text
+          count(*) filter (where not measured_new)::text || '|' ||
+          count(*) filter (where measured_creation)::text || '|' ||
+          count(*) filter (where not measured_creation)::text
      from ae24_gate where tier = 'org'),
-  '5|5|7|3',
-  '3.5 THE FLOOR: both predicates are genuinely mixed over the population (5/5 old, 7/3 new). Without this, 3.1-3.3 could be agreement between two silently-CONSTANT predicates rather than between two live ones');
+  '5|5|3|7|7|3',
+  '3.5 THE FLOOR: all THREE predicates are genuinely mixed over the population (5/5 gen-0, 3/7 ordinary, 7/3 creation). Without this, 3.1-3.3 could be agreement between silently-CONSTANT predicates rather than between live ones — and note the creation door''s 7/3 is gen 1''s old floor exactly, which is the numeric form of "those semantics were moved, not deleted"');
 
 select is(
   (select coalesce(string_agg(distinct code_seen, ',' order by code_seen), '(none)')
      from ae24_gate where not measured_new), 'HC0R0',
-  '3.6 ⭐ across BOTH tiers, every refusal is EXACTLY the documented HC0R0 — a door that stops raising a documented error is an API change, and a refusal arriving as another code surfaces in the UI as an unmapped raw Postgres error');
+  '3.6 ⭐ across BOTH tiers, every ORDINARY-door refusal is EXACTLY the documented HC0R0 — a door that stops raising a documented error is an API change, and a refusal arriving as another code surfaces in the UI as an unmapped raw Postgres error');
 
 select is(
-  (select coalesce(string_agg(distinct msg_seen, ' / ' order by msg_seen), '(none)')
-     from ae24_gate where not measured_new),
+  (select coalesce(string_agg(distinct creation_code, ',' order by creation_code), '(none)')
+     from ae24_gate where not measured_creation), 'HC0R0',
+  '3.6b ⭐ …and so is every CREATION-door refusal. The new doors are copies of their siblings apart from one predicate, so the refusal SHAPE has to be copied too — a service_role door raising an undocumented code is a raw Postgres error surfacing in a registration flow');
+
+select is(
+  (select coalesce(string_agg(distinct m, ' / ' order by m), '(none)') from (
+     select msg_seen as m from ae24_gate where not measured_new
+     union
+     select creation_msg from ae24_gate where not measured_creation) s),
   'pessoa não pertence a esta organização',
-  '3.7 …with the pt-BR message preserved verbatim, INCLUDING for W10 (no profile row at all): "not found" and "wrong organisation" stay deliberately indistinguishable, or the door becomes a cross-tenant existence oracle over profiles.id');
+  '3.7 …with the pt-BR message preserved verbatim across BOTH doors and BOTH tiers, INCLUDING for W10 (no profile row at all): "not found" and "wrong organisation" stay deliberately indistinguishable, or the door becomes a cross-tenant existence oracle over profiles.id');
 
 select is(
   (select count(*)::int from public.organization_affiliations
     where principal_id = '00000000-0000-0000-0000-0ae2403a0003'
       and organization_id = (select org_a from pg_temp.k())
       and ended_on is null and voided_at is null), 1,
-  '3.8 ⭐⭐ NON-VACUITY OF THE PERSON-CREATION CELL: W3 — a person with NO affiliation row at all — was actually AFFILIATED, not merely "not refused". This is the cell the circularity was about: the old gate could only pass it because `handle_new_user` had already written the column');
+  '3.8 ⭐⭐ NON-VACUITY OF THE PERSON-CREATION CELL: W3 — a person with NO affiliation row at all — was actually AFFILIATED, not merely "not refused". ⚠ THE WRITE IS NOW THE CREATION DOOR''S: under ADR 0168 the ordinary door refuses W3 (§ 3.3), and this cell is what distinguishes "creation moved" from "creation broke". It stays a LIVE WRITE, which is the whole point of the section title');
 
 select is(
   (select count(*) filter (where ended_on is null and voided_at is null)::text || '|' ||
@@ -692,30 +882,67 @@ select is(
     where principal_id = '00000000-0000-0000-0000-0ae2403a0002'
       and organization_id = (select org_a from pg_temp.k())),
   '1|1',
-  '3.9 …and ONE-STEP REHIRE works through the new gate: W2''s ended row is untouched and a NEW active row sits beside it (ADR 0151 D5 — no prior org_admin ticket)');
+  '3.9 …and ONE-STEP REHIRE still works through the ORDINARY gate: W2''s ended row is untouched and a NEW active row sits beside it (ADR 0151 D5 — no prior org_admin ticket). ⭐ This is the cell that shows the ADR 0168 narrowing did NOT collapse "known here" into "active here": a non-voided ENDED row is still known');
 
 -- ---------------------------------------------------------------------------
--- § 3.10 WRITE-THROUGH FOR THE ORG-TIER WIDENINGS.  {W5,W6,W7} are the cells
---   where the new gate admits a state the column gate REFUSED — so if the door
---   accepted and silently wrote nothing, no other fact in the estate contradicts
---   it.  ⭐ The expectation NAMES ALL THREE LABELS.  An `= ''` over a
---   "rows that failed" filter would be satisfied by a renamed label, a dropped
---   cell or an empty table exactly as it is by success: absence would look
---   identical to not-listed.
+-- § 3.10 WRITE-THROUGH FOR THE ORG-TIER CREATION-DOOR ADMITS.  {W3,W5,W6,W7} are
+--   the cells where the CREATION door admits a state the ORDINARY door refuses — so
+--   if it accepted and silently wrote nothing, no other fact in the estate
+--   contradicts it, and the split would read as working while person creation was
+--   dead.  ⭐ The expectation NAMES ALL FOUR LABELS.  An `= ''` over a "rows that
+--   failed" filter would be satisfied by a renamed label, a dropped cell or an empty
+--   table exactly as it is by success: absence would look identical to not-listed.
 -- ---------------------------------------------------------------------------
 select is(
   (select coalesce(string_agg(label || '=' || v, ' ' order by label), '(NO CELLS)')
      from (select g.label,
-                  case when g.new_aff_id is null then 'NO-ID-RETURNED'
+                  case when g.creation_aff_id is null then 'NO-ID-RETURNED'
                        when exists (select 1 from public.organization_affiliations oa
-                                     where oa.id = g.new_aff_id
+                                     where oa.id = g.creation_aff_id
                                        and oa.principal_id = g.person
                                        and oa.organization_id = (select org_a from pg_temp.k())
                                        and oa.ended_on is null and oa.voided_at is null)
                        then 'live-org-row' else 'NO-LIVE-ROW' end as v
-             from ae24_gate g where g.label in ('W5','W6','W7')) t),
-  'W5=live-org-row W6=live-org-row W7=live-org-row',
-  '3.10 ⭐⭐ WRITE-THROUGH, org tier: each declared widening returned an id that NAMES a live, non-ended, non-voided affiliation of THAT person to org A — not merely "the door did not raise". A `return null` ahead of the insert, or an idempotency branch matching too broadly, leaves every `measured_new` cell green and reds only here');
+             from ae24_gate g where g.label in ('W3','W5','W6','W7')) t),
+  'W3=live-org-row W5=live-org-row W6=live-org-row W7=live-org-row',
+  '3.10 ⭐⭐ WRITE-THROUGH, org tier, CREATION door: each admit returned an id that NAMES a live, non-ended, non-voided affiliation of THAT person to org A — not merely "the door did not raise". A `return null` ahead of the insert, or an idempotency branch matching too broadly, leaves every `measured_creation` cell green and reds only here');
+
+-- ---------------------------------------------------------------------------
+-- ⭐⭐ § 3.11 THE SPLIT DIFFERENTIAL — THE ASSERTION ADR 0168 EXISTS FOR.
+--   Every other cell in this file measures ONE door against the gen-0 column. This
+--   one measures the two live doors against EACH OTHER, on the same rows, the same
+--   actors and the same targets, and asserts the difference is EXACTLY the seven
+--   `ae24_gate` cells ADR 0168 Amdt 1 enumerates (the eighth, F1, is § 5.5's).
+--   ⛔ Both directions are asserted, not just one: a cell the ORDINARY door admits
+--   and the CREATION door refuses would be a door that is NARROWER than the door it
+--   is meant to be the permissive twin of, which no ADR declares and which would
+--   silently break the registrars. That set must be EMPTY, and its emptiness is
+--   anchored by the non-empty set beside it.
+-- ---------------------------------------------------------------------------
+select is(
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_gate where measured_creation and not measured_new)
+  || ' // reverse:' ||
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_gate where measured_new and not measured_creation),
+  (select coalesce(string_agg(label, ',' order by label), '(none)') from ae24_split)
+  || ' // reverse:(none)',
+  '3.11 ⭐⭐ THE SPLIT, MEASURED: exactly {H1,H4,H6,W3,W5,W6,W7} are refused by the ORDINARY door and admitted by the CREATION door — the seven `ae24_gate` cells ADR 0168 Amdt 1 names as depending on the anchorless branch (F1, the eighth, is § 5.5''s subject). And the REVERSE set is empty: the creation door is a strict superset of its ordinary sibling, never a different door wearing the name');
+
+-- ---------------------------------------------------------------------------
+-- ⛔ § 3.12 THE NEGATIVE HALF, FROM THE BETWEEN-PASSES SNAPSHOT.  A refusal is a
+--   claim about an ABSENCE, and this file's own history (QA finding B3) is that the
+--   presence side got asserted and the absence side got assumed. `measured_new =
+--   false` says the door RAISED; it says nothing about what it had already written
+--   before raising — an insert placed above the gate would leave the refusal intact
+--   and the row behind.
+-- ---------------------------------------------------------------------------
+select is(
+  (select coalesce(string_agg(a.label || '=' || a.org_a_rows::text, ' ' order by a.label), '(NO CELLS)')
+     from ae24_after_ordinary a join ae24_split s on s.label = a.label
+    where s.tier = 'org'),
+  'W3=0 W5=0 W6=0 W7=0',
+  '3.12 ⛔ THE ORDINARY DOOR WROTE NOTHING for the org-tier split cells — measured from a snapshot taken BETWEEN the two passes, because pass 2 is what creates these rows. Labels are NAMED, so a dropped cell reds instead of shrinking the aggregate into agreement');
 
 -- ============================================================================
 -- § 4 REGRESSION CONTROLS — the hospital tier's own containment trigger, and the
@@ -731,7 +958,7 @@ select lives_ok(
       '05000000-0000-0000-0000-00000000000a'::uuid,
       null, '2019-03-04'::date, null, null, null);
     set constraints all immediate;$$,
-  '4.1 REGRESSION CONTROL: a `hospital_admin` still performs ADR 0151 D5''s one-step rehire of an org-offboarded person — the flow BUG-D5-REHIRE-HOSPADMIN-001 broke. ⚠ This exercises the HOSPITAL-tier containment trigger (DEFINER since ADR 0159), NOT the trigger this increment adds; it is a control, never this suite''s keystone');
+  '4.1 REGRESSION CONTROL: a `hospital_admin` still performs ADR 0151 D5''s one-step rehire of an org-offboarded person THROUGH THE ORDINARY DOOR — the flow BUG-D5-REHIRE-HOSPADMIN-001 broke, and the flow ADR 0168 must NOT break (R1 has an ENDED, non-voided org-A row, so `person_known_to_org` is true). ⚠ This exercises the HOSPITAL-tier containment trigger (DEFINER since ADR 0159), NOT the trigger this increment adds; it is a control, never this suite''s keystone');
 set constraints all deferred;
 reset role;
 
@@ -750,12 +977,12 @@ select is(
       and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'organization_affiliations'
       and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'set voided_at'),
   'app.void_org_affiliation_impl:false',
-  '4.3 ⛔ THE MEASUREMENT THAT LICENSES § 2.5''s ACTOR: exactly ONE function writes `voided_at` on organization_affiliations and it carries NO hospital-admin arm. `authenticated` holds SELECT only on that table, so no hospital_admin can fire the new trigger by any path — the brief''s "hospital_admin containment-accept cell" HAS NO SUBJECT, and § 2.5 uses a cross-org-blind org_admin instead');
+  '4.3 ⛔ THE MEASUREMENT THAT LICENSES § 2.5''s ACTOR: exactly ONE function writes `voided_at` on organization_affiliations and it carries NO hospital-admin arm. `authenticated` holds SELECT only on that table, so no hospital_admin can fire the new trigger by any path — the brief''s "hospital_admin containment-accept cell" HAS NO SUBJECT, and § 2.5 uses a cross-org-blind org_admin instead. ⚠ Re-derived every run over ALL of app+public, so the three doors ADR 0168 adds are inside its domain by construction rather than by an updated list');
 
 -- ============================================================================
 -- § 5 THE TENANT GATE, HOSPITAL TIER — the sibling axis, swept in the SAME
---     increment.  Measured in § 3's loop; asserted separately so a hospital-tier
---     regression cannot hide inside an org-tier aggregate.
+--     increment.  Measured in § 3's two passes; asserted separately so a
+--     hospital-tier regression cannot hide inside an org-tier aggregate.
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -771,6 +998,8 @@ select is(
 --       scoped, not org-scoped.  ⭐ This third component is what makes the pin
 --       two-directional: a helper mutated to return TRUE unconditionally leaves
 --       the first two components intact and reds only here.
+--   ⚠ It covers the CREATION door too, whose authority arms are identical by
+--     construction — which is exactly why § 5.1b and § 5.2 must keep H4/H6 paired.
 -- ---------------------------------------------------------------------------
 select is(
   (select 'org_a=' || app.is_org_admin_of_for((select org_a from pg_temp.k()), (select hosp_admin from pg_temp.k()))::text ||
@@ -785,30 +1014,50 @@ select is(
      from ae24_gate
     where tier = 'hosp'
       and (measured_old is distinct from expected_old or measured_new is distinct from expected_new)), '',
-  '5.1 ⭐ every HOSPITAL-TIER cell matches its pre-declared expectation. The gate is the same predicate, but the door''s authority arm is wider (org_admin OR hospital_admin), so the delta had to be measured through this door and not inferred from § 3');
+  '5.1 ⭐ every HOSPITAL-TIER cell matches its pre-declared old/ORDINARY expectation. The gate is the same predicate, but the door''s authority arm is wider (org_admin OR hospital_admin), so the delta had to be measured through this door and not inferred from § 3');
 
 select is(
-  (select coalesce(string_agg(label, ',' order by label), '')
-     from ae24_gate where tier = 'hosp' and measured_new and not measured_old),
-  (select coalesce(string_agg(label, ',' order by label), '')
-     from ae24_declared where tier = 'hosp' and direction = 'widening'),
-  '5.2 ⭐⭐ the hospital-tier WIDENINGS are the declared {H4,H6} — the SAME state through the door''s two authority arms. H4 carries ADR 0165''s "materially wider" claim and is the only cell in this file that measures it: its actor holds hospital_admin on this hospital and NO org_admin anywhere (§ 5.0), so the orphan-claiming capability really is in a hospital admin''s hands and not an org admin''s borrowed through this door. H6 keeps the org_admin arm measured rather than traded away');
+  (select coalesce(string_agg(label || ':creation=' || measured_creation::text || '/' || expected_creation::text, ' ' order by label), '')
+     from ae24_gate
+    where tier = 'hosp' and measured_creation is distinct from expected_creation), '',
+  '5.1b ⭐ …and every HOSPITAL-TIER cell matches its pre-declared CREATION-door expectation. ⛔ H1 is the cell that matters most here: it is W3''s sibling — `(PERSON CREATION)` at the hospital tier — and it is the one `ensureActiveAffiliation`, the hospital_admin registrar, depends on. Without this cell the hospital registrar''s replacement path is UNMEASURED and only the org one is proven');
 
 select is(
-  (select coalesce(string_agg(label, ',' order by label), '')
-     from ae24_gate where tier = 'hosp' and measured_old and not measured_new),
-  (select coalesce(string_agg(label, ',' order by label), '')
-     from ae24_declared where tier = 'hosp' and direction = 'narrowing'),
-  '5.3 …and the hospital-tier NARROWING is the declared {H5}');
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_gate where tier = 'hosp' and measured_new and not measured_old)
+  || ' // creation:' ||
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_gate where tier = 'hosp' and measured_creation and not measured_old),
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_declared where tier = 'hosp' and door = 'ordinary' and direction = 'widening')
+  || ' // creation:' ||
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_declared where tier = 'hosp' and door = 'creation' and direction = 'widening'),
+  '5.2 ⭐⭐ HOSPITAL-TIER WIDENINGS, BOTH DOORS. The ordinary door widens NOTHING — ADR 0168 Amdt 1''s TypeScript closure found the hospital tier''s single client-supplied call site to be THE entire exposure, and this is the cell that says it is closed. The creation door keeps the declared {H4,H6}: the SAME state through the door''s two authority arms, so the orphan-admitting capability is measured in a hospital admin''s hands (H4) and an org admin''s (H6) alike, now behind a service_role ACL');
+
+select is(
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_gate where tier = 'hosp' and measured_old and not measured_new)
+  || ' // creation:' ||
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_gate where tier = 'hosp' and measured_old and not measured_creation),
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_declared where tier = 'hosp' and door = 'ordinary' and direction = 'narrowing')
+  || ' // creation:' ||
+  (select coalesce(string_agg(label, ',' order by label), '(none)')
+     from ae24_declared where tier = 'hosp' and door = 'creation' and direction = 'narrowing'),
+  '5.3 …and the HOSPITAL-TIER NARROWINGS: the ordinary door narrows {H1,H5}, the creation door only {H5}');
 
 select is(
   (select count(*) filter (where measured_old)::text || '|' ||
           count(*) filter (where not measured_old)::text || '|' ||
           count(*) filter (where measured_new)::text || '|' ||
-          count(*) filter (where not measured_new)::text
+          count(*) filter (where not measured_new)::text || '|' ||
+          count(*) filter (where measured_creation)::text || '|' ||
+          count(*) filter (where not measured_creation)::text
      from ae24_gate where tier = 'hosp'),
-  '3|3|4|2',
-  '5.4 the hospital-tier floor: both predicates are mixed here too, so 5.1-5.3 are agreement between two live predicates');
+  '3|3|1|5|4|2',
+  '5.4 the hospital-tier floor over all three predicates, so 5.1-5.3 are agreement between live predicates. ⚠ The ordinary door''s 1/5 is deliberately lopsided and is NOT a degenerate constant: H2 accepts and five refuse, and 5.1 pins which is which');
 
 -- ---------------------------------------------------------------------------
 -- ⛔ § 5.5 CARRIES ITS OWN WRITE, AND THAT IS THE WHOLE FIX (QA finding M8).
@@ -816,23 +1065,28 @@ select is(
 --   § 4.1's flush, with NO DML in between.  § 4.1 had already drained the queue,
 --   so § 5.5's flush had nothing to fire and succeeded unconditionally: its
 --   verdict was decided by an unrelated regression control, never by its own
---   stated subject.  The file's own rule at § 2's header — "every arm forces
---   `set constraints all immediate` in the SAME statement block" — exists for
---   exactly this, and § 5.5 was the one arm that broke it.
+--   stated subject.  § 3.0 now drains the two passes explicitly and § 4.1 drains
+--   its own, so the queue reaching this line is empty and this write refills it.
 --   ⭐ F1 is a FRESH person with no affiliation, so the org-parent ensure and the
 --     deferred `hospital_affiliation_has_org_trg` both genuinely run; and because
 --     no other cell touches F1, a mutation aimed at F1 alone moves § 5.5 alone.
+--   ⚠ ADR 0168 MOVES THIS WRITE TO THE CREATION DOOR, and it had to: F1 is
+--     anchorless by construction, which is precisely the state the ordinary door
+--     now refuses. Rewriting F1's fixture to give it an affiliation would have kept
+--     the cell green while destroying its subject — the org-parent ensure would
+--     become a no-op and the deferred trigger would fire on a row whose parent
+--     already existed.
 --   ⚠ A `lives_ok` cannot see that its own write happened, which is the very
 --     vacuity being repaired — § 5.5b is that half and the two are one assertion
 --     split in two, not a control and a duplicate.
 -- ---------------------------------------------------------------------------
 select lives_ok(
-  $$select app.affiliate_person_impl(
+  $$select app.affiliate_new_person_impl(
       '00000000-0000-0000-0000-0000000000e1'::uuid,
       '00000000-0000-0000-0000-0ae2405f0001'::uuid,
       '05000000-0000-0000-0000-00000000000a'::uuid, null, null, null, null, null);
     set constraints all immediate;$$,
-  '5.5 ⭐ ADR 0151 D4: a hospital affiliation created through the hospital door has an active org parent, and the DEFERRED containment trigger says so at the flush in this same statement block. The write is F1''s and nothing else touches F1, so this cell''s verdict is now decided by its own subject rather than by whether § 4.1 happened to drain the queue first');
+  '5.5 ⭐ ADR 0151 D4 THROUGH THE CREATION DOOR: a hospital affiliation created for an ANCHORLESS person has an active org parent, and the DEFERRED containment trigger says so at the flush in this same statement block. ⚠ The door changed (ADR 0168) but the subject did NOT: F1 is still the only cell that constructs the fresh-person state, which is the state where the org-parent ensure is the ONLY thing standing between the write and a 23514');
 set constraints all deferred;
 
 select is(
@@ -857,35 +1111,56 @@ select is(
               and hospital_id = (select central_a from pg_temp.k())
               and ended_on is null and voided_at is null)),
   '1|1',
-  '5.6 non-vacuity: H2''s D5 one-step rehire actually created BOTH rows — the org parent the hospital door ensures, and the hospital affiliation itself. Without this, 5.1''s "new=true" could be a refusal that merely failed to raise');
-
-select is(
-  (select count(distinct pred)::text || '|' || count(*)::text from (
-     select regexp_replace(
-              substring(regexp_replace(regexp_replace(p.prosrc, '--[^\n]*', '', 'g'), '\s+', ' ', 'g')
-                        from 'if exists \(select 1 from public\.organization_affiliations.*?HC0R0'''),
-              'p_organization|v_org', '<ORG>', 'g') as pred
-       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'app'
-        and p.proname in ('affiliate_person_to_org_impl', 'affiliate_person_impl')) s
-    where pred is not null),
-  '1|2',
-  '5.7 ⭐⭐ THE SIBLING PIN, DERIVED FROM THE CATALOG: both doors carry the SAME containment predicate once the organisation expression is normalised (2 doors, 1 distinct predicate). "Identical" was verified by diffing the live bodies rather than transplanted — and this re-derives it every run, so a fix applied to one sibling and not the other reds here instead of shipping');
+  '5.6 non-vacuity: H2''s D5 one-step rehire actually created BOTH rows through the ORDINARY door — the org parent the hospital door ensures, and the hospital affiliation itself. Without this, 5.1''s "new=true" could be a refusal that merely failed to raise');
 
 -- ---------------------------------------------------------------------------
--- § 5.8 WRITE-THROUGH FOR THE HOSPITAL-TIER WIDENINGS.  Asserted apart from
---   § 3.10 for § 5's standing reason: a hospital-tier regression must not be able
---   to hide inside an org-tier aggregate.  ⭐ The hospital door returns the
+-- ⭐⭐ § 5.7 THE SIBLING PIN, RE-CUT FOR ADR 0168 AND STRICTLY STRONGER.
+--   The old pin normalised the SQL TEXT of an inline `if exists (…) … HC0R0` and
+--   asserted "2 doors, 1 distinct predicate".  Its needle was the predicate's SHAPE,
+--   so ADR 0168's rewrite makes it stop matching and collapse to `0|0`.  ⛔ IT IS
+--   RE-CUT, NEVER MADE TO MATCH: a needle edited to fit is a pin that has stopped
+--   pinning.
+--   The replacement keys on the two predicates' NAMES — which is why ADR 0168
+--   extracted them as named functions rather than inlining the new expressions —
+--   and it states the whole family in one exact string over FIVE doors:
+--     • the two ORDINARY doors call `person_known_to_org` and NOT `person_is_anchorless`;
+--     • the two CREATION doors call BOTH (ordinary ⊂ creation, visible in the literal);
+--     • the RECOVERY door calls `person_is_anchorless` ALONE — its strictness bound,
+--       expressed structurally rather than only behaviourally (`398` has the behaviour).
+--   A fix applied to one sibling and not the other reds here instead of shipping, and
+--   so does a sixth door added to the family without a predicate.
+-- ---------------------------------------------------------------------------
+select is(
+  (select coalesce(string_agg(p.proname || '=' ||
+            case when regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'app\.person_known_to_org'
+                 then 'known' else '-' end || '+' ||
+            case when regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'app\.person_is_anchorless'
+                 then 'anchorless' else '-' end,
+          ' ' order by p.proname), '(NO DOORS)')
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and p.proname in ('affiliate_person_to_org_impl', 'affiliate_person_impl',
+                        'affiliate_new_person_to_org_impl', 'affiliate_new_person_impl',
+                        'recover_orphan_person_to_org_impl')),
+  'affiliate_new_person_impl=known+anchorless affiliate_new_person_to_org_impl=known+anchorless '
+  || 'affiliate_person_impl=known+- affiliate_person_to_org_impl=known+- '
+  || 'recover_orphan_person_to_org_impl=-+anchorless',
+  '5.7 ⭐⭐ THE SIBLING PIN, DERIVED FROM THE CATALOG BY PREDICATE NAME: the two ORDINARY doors carry `person_known_to_org` alone, the two CREATION doors carry both predicates (ordinary ⊂ creation), and the RECOVERY door carries `person_is_anchorless` alone. Measured with `--` comments STRIPPED, because every one of these bodies names the other doors in its own header. Re-derived every run, so a fix applied to one sibling and not the other reds here instead of shipping');
+
+-- ---------------------------------------------------------------------------
+-- § 5.8 WRITE-THROUGH FOR THE HOSPITAL-TIER CREATION-DOOR ADMITS.  Asserted apart
+--   from § 3.10 for § 5's standing reason: a hospital-tier regression must not be
+--   able to hide inside an org-tier aggregate.  ⭐ The hospital door returns the
 --   HOSPITAL affiliation id, so the org PARENT it also creates is checked by
---   existence — for an orphan-claiming cell that parent IS the effect under
---   discussion, since it is what stops the person being an orphan.
+--   existence — for a person-creation cell that parent IS the effect under
+--   discussion, since it is what stops them being an orphan.
 -- ---------------------------------------------------------------------------
 select is(
   (select coalesce(string_agg(label || '=' || v, ' ' order by label), '(NO CELLS)')
      from (select g.label,
-                  case when g.new_aff_id is null then 'NO-ID-RETURNED'
+                  case when g.creation_aff_id is null then 'NO-ID-RETURNED'
                        when not exists (select 1 from public.hospital_affiliations ha
-                                         where ha.id = g.new_aff_id
+                                         where ha.id = g.creation_aff_id
                                            and ha.principal_id = g.person
                                            and ha.hospital_id = (select central_a from pg_temp.k())
                                            and ha.ended_on is null and ha.voided_at is null)
@@ -896,9 +1171,16 @@ select is(
                                            and oa.ended_on is null and oa.voided_at is null)
                        then 'NO-ORG-PARENT'
                        else 'live-hospital-row+org-parent' end as v
-             from ae24_gate g where g.label in ('H4','H6')) t),
-  'H4=live-hospital-row+org-parent H6=live-hospital-row+org-parent',
-  '5.8 ⭐⭐ WRITE-THROUGH, hospital tier: BOTH declared widenings returned an id naming a live hospital affiliation of that person to Hospital Central A, AND the person now has the active org-A parent — the orphan really was claimed, through the hospital_admin arm (H4) and the org_admin arm (H6) alike, rather than merely "not refused"');
+             from ae24_gate g where g.label in ('H1','H4','H6')) t),
+  'H1=live-hospital-row+org-parent H4=live-hospital-row+org-parent H6=live-hospital-row+org-parent',
+  '5.8 ⭐⭐ WRITE-THROUGH, hospital tier, CREATION door: all three admits returned an id naming a live hospital affiliation of that person to Hospital Central A, AND the person now has the active org-A parent — the anchorless person really was affiliated, through the hospital_admin arm (H1, H4) and the org_admin arm (H6) alike, rather than merely "not refused"');
+
+select is(
+  (select coalesce(string_agg(a.label || '=' || a.central_a_rows::text || '/' || a.org_a_rows::text, ' ' order by a.label), '(NO CELLS)')
+     from ae24_after_ordinary a join ae24_split s on s.label = a.label
+    where s.tier = 'hosp'),
+  'H1=0/0 H4=0/0 H6=0/0',
+  '5.9 ⛔ THE ORDINARY DOOR WROTE NOTHING for the hospital-tier split cells — neither the hospital row NOR the org parent, measured from the between-passes snapshot. ⭐ The ORG-PARENT half is the one worth having: the hospital door''s D5 ensure sits ABOVE the hospital insert, so a gate accidentally placed after it would refuse the hospital row while still anchoring the person — a partial write that every refusal-code assertion in this file would report as a clean refusal');
 
 select * from finish();
 rollback;
