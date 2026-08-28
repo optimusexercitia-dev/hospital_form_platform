@@ -432,6 +432,49 @@ future code can silently revive it as an authority source while every current te
 green. Rollback SQL is retained **outside** the live migration chain (ADR 0162 §1's runbook
 pattern). `npm run gen:types` after every migration (Rule 8).
 
+⛔ **CORRECTED 2026-08-27 — "drop the trigger-forced NOT NULL" describes a constraint that does
+not exist.** Catalog-measured: `profiles.home_organization_id` has **`attnotnull = f`** and **no
+CHECK**. Enforcement is entirely `profiles_tenant_has_org_trg`, a **DEFERRABLE INITIALLY DEFERRED
+constraint trigger**, and its rule is **conditional**: `if new.home_organization_id is null and
+not new.is_admin then raise`. Admins may hold NULL, and one live row does. There is no NOT NULL to
+drop; there is a trigger to re-predicate or retire.
+
+⚖ **PO-RULED 2026-08-27 (T3) — the containment trigger is AE2.4's, not AE2.2's.** Measured by
+backend at AE2.2 design time, the plan's AE2.2 instruction *"re-derive containment from an active
+org affiliation"* is **not implementable in that step**, for two independent reasons:
+
+1. **Two transactions, so deferral buys nothing.** `handle_new_user` inserts the `profiles` row
+   inside GoTrue's `auth.users` transaction; the org affiliation is created only later, by
+   `affiliate_person_impl` / `affiliate_person_to_org_impl`, in a **separate PostgREST
+   transaction**. `DEFERRABLE INITIALLY DEFERRED` defers to the COMMIT of *that* transaction, not
+   across both — so an active-affiliation predicate raises on **every signup, unconditionally**.
+2. ⛔ **A circular dependency the AE2.1 census did not draw out.**
+   `app.affiliate_person_to_org_impl` — the door that **creates** the org affiliation — is itself
+   gated on the column (`if v_person_org is null or is distinct from p_organization then raise`,
+   `HC0R0`). Containment cannot move onto affiliations while the affiliation-creating door
+   requires the column. **Both halves must break in one move**, and that move is here.
+
+The decisive reason it belongs to AE2.4 rather than being deferred to it: the trigger's body reads
+`new.home_organization_id` **directly**, so dropping the column *forces* a rewrite of that function
+regardless. Doing it in AE2.2 would rewrite the same function twice in one phase.
+
+⛔ **Rejected outright, do not revisit (T1):** having `handle_new_user` also insert the org
+affiliation so both are born in one transaction. `affiliate_person_to_org_impl` is idempotent on an
+existing active row, so it returns early and **silently discards the caller's backdated
+`p_started_on` and the `created_by` actor attribution** — a real product regression, and it
+redesigns person creation inside a re-predication migration.
+
+▶ **Candidate shape for this step (T2) — NOT yet ruled; it is a PO decision at AE2.4's design.**
+Re-predicate containment to *"≥1 **non-voided** org affiliation"* (exactly ADR 0163's own
+derivation domain — the persons who have a retaining org), drop the unsatisfiable `profiles`-INSERT
+arm, and move enforcement to the only post-creation event that can destroy the invariant: a
+deferred constraint trigger on `organization_affiliations` void/delete. It makes the invariant mean
+*"this person is reachable by someone"*, which is what it is for.
+⚠ **Its cost, stated:** creation-time containment is genuinely lost — a half-failed `createPerson`
+leaves an **anchorless profile**, a window the column closes today. ⛔ That window is **inherent
+once the column goes**, not something T2 introduces; enforcing it at creation instead requires T1,
+which is rejected. The PO decides whether to accept the window or to design a third option.
+
 ### AE2.5 — D3: the binding text
 
 - ARCHITECTURE.md gains the rule (verbatim direction from the ADR): **"Affiliations
@@ -809,6 +852,7 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 | AE1.2/4 | the `anon`-residue sweep ruling (`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`) | backend |
 | AE1.4 | ✅ **RULED 2026-08-27** — the 11 `.rpc()` sites (1 in-function door, 10 system-actor; riders R1–R3; 4 observations → 1 fix + 3 FUPs) → [rulings](../design/authz-ae1-rpc-rulings.md) [PA-F10] | backend |
 | **AE2.0** | ✅ **RULED 2026-08-27** — offboarded-person lifecycle authority: **(a) last-org retention**, SUBSET capabilities, four bounds → [ADR 0163](../decisions/0163-offboarded-person-lifecycle-authority.md) | lead |
+| **AE2.4** | **containment-trigger disposition (T2 or a third option): accept the anchorless-profile window that opens once the column goes, or design around it. ⛔ T1 rejected; the window is inherent, not T2-introduced** | backend + PO |
 | AE3 branch-cut | confirm pilot has not loaded data (else dual-write re-plan) | lead |
 | AE4.3 | the `staff_admin` matrix (becomes the oracle) | lead + backend |
 | AE5, per role | each role's matrix; the substitution order | lead |
