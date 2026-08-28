@@ -342,6 +342,8 @@ affiliation ≠ authorization rule becomes binding text. **This phase closes
 
 ### AE2.0 — PO decision first: lifecycle authority over fully-offboarded persons
 
+✅ **RULED 2026-08-27 — option (a), last-org retention → ADR [0163](../decisions/0163-offboarded-person-lifecycle-authority.md).** AE2 migrations are unblocked. ⛔ **The question was the other way round from how this section states it:** not *should* offboarded persons be administrable, but **what replaces the authority AE2 deletes** — `authorizePersonScopedAdmin` (`src/lib/users/actions.ts:379-389`) resolves `home_organization_id` first and its org_admin arm grants with **no affiliation term at all**, so doing nothing is a **silent narrowing**, not a no-op. (b) and (c) were rejected as *premature, not wrong* — each owes a prior decision; see the ADR § Consequences.
+
 0151 D10's open question, unchanged by 0155, and **it blocks AE2.3's design**: once a person's
 last affiliation ends, *who may still administer them* (reactivate, correct CPF, see them in any
 roster)? Options the lead prepares for ruling (with the AFF2 SUBSET bound as the frame):
@@ -371,10 +373,31 @@ the tenant trigger stay" names *classes*, not a count — the census is the coun
 
 For each RLS leg: its replacement predicate on `organization_affiliations` (active rows; voided
 excluded by definition; ended rows per AE2.0's ruling). For the containment trigger: re-derive
-containment from an **active org affiliation** instead of the column (the AFF4 D4 backstop is
-already SECURITY DEFINER per ADR 0159 — extend, don't fork). Each leg's change is written as
+containment from an **active org affiliation** instead of the column. Each leg's change is written as
 **old predicate → new predicate** in the migration's header comment so the differential (AE2.3)
 has its per-leg contract.
+
+⛔ **CORRECTED 2026-08-27 — this step named the WRONG FUNCTION, and read literally it was a
+trap.** It said *"(the AFF4 D4 backstop is already SECURITY DEFINER per ADR 0159 — extend, don't
+fork)"*. That sentence is **true, of a function this step does not touch**:
+`app.assert_hospital_affiliation_has_org` is indeed `prosecdef = t`. **The trigger AE2.2 actually
+re-predicates is `assert_profile_tenant_has_org`, and it is `prosecdef = f` — SECURITY INVOKER**
+(catalog-measured). It is harmless *today* only because its body reads **no table at all** — a pure
+NULL check on `new`. Giving it an `organization_affiliations` read makes it evaluate under the
+caller's RLS against a policy that is
+`principal_id = auth.uid() OR app.is_org_admin_of(organization_id)` — **no hospital tier, by
+design** (ADR 0151 D1) — which is precisely the shape that shipped `BUG-D5-REHIRE-HOSPADMIN-001`,
+breaking one-step rehire for **every** `hospital_admin` unconditionally (ADR 0159).
+**Binding: the security context changes in the SAME migration that gives the trigger a table
+read**, never as a follow-up, and AE2.3 must carry a `hospital_admin` containment-accept cell.
+Census: [authz-ae2-home-org-consumer-census.md](../design/authz-ae2-home-org-consumer-census.md).
+
+⚠ **Two sibling axes, one swept** (same census): `src/lib/queries/members.ts:243` still filters
+`.eq('home_organization_id', organizationId)` — the predicate AFF4 B6a moved `listOrgUsers` off,
+pinned by a regression test **for that one function only** — and its sibling door
+`list_addable_commission_members` keys the same way with **no affiliation filter at all**, so a
+fully-offboarded person is still listed as addable to a commission. Both are re-predication targets
+here and differential cells in AE2.3; neither is authorized by ADR 0163.
 
 ### AE2.3 — The widening differential (the phase keystone)
 
@@ -785,7 +808,7 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 | AE0.5 | matrix axes approval | lead |
 | AE1.2/4 | the `anon`-residue sweep ruling (`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`) | backend |
 | AE1.4 | ✅ **RULED 2026-08-27** — the 11 `.rpc()` sites (1 in-function door, 10 system-actor; riders R1–R3; 4 observations → 1 fix + 3 FUPs) → [rulings](../design/authz-ae1-rpc-rulings.md) [PA-F10] | backend |
-| **AE2.0** | **offboarded-person lifecycle authority (blocks AE2.3; its own ADR)** | lead |
+| **AE2.0** | ✅ **RULED 2026-08-27** — offboarded-person lifecycle authority: **(a) last-org retention**, SUBSET capabilities, four bounds → [ADR 0163](../decisions/0163-offboarded-person-lifecycle-authority.md) | lead |
 | AE3 branch-cut | confirm pilot has not loaded data (else dual-write re-plan) | lead |
 | AE4.3 | the `staff_admin` matrix (becomes the oracle) | lead + backend |
 | AE5, per role | each role's matrix; the substitution order | lead |
