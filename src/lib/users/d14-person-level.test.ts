@@ -455,9 +455,14 @@ beforeEach(() => {
     // as pgTAP `360 § 5.2`: the fixture had built its world out of the column under test,
     // so every arm here went red for a FIXTURE reason while wearing the label of the
     // authority rule it exists to pin.
-    // ⚠ `home_organization_id` is kept on the profiles row above ONLY because
-    // `registerUser`'s email/CPF pre-checks still read it on a different path; it no longer
-    // feeds any authority decision in this file.
+    // ⚠ `home_organization_id` on the profiles row above is LOAD-BEARING FOR NOTHING, and
+    // this comment used to claim otherwise: it said the field was kept "ONLY because
+    // `registerUser`'s email/CPF pre-checks still read it on a different path". Measured
+    // 2026-08-28 and FALSE — both pre-checks are `.select('id')` (`actions.ts:691,713`) and
+    // no path in this file reads the column at all. It survives only as fixture inertia and
+    // goes with the column in the drop increment. ⭐ A comment is an assertion, and this one
+    // would have justified keeping a field nothing needs, in the increment whose whole job
+    // is removing it.
     organization_affiliations: [
       { principal_id: TARGET, organization_id: ORG_A, ended_on: null, voided_at: null },
     ],
@@ -1196,9 +1201,15 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
    * exactly how the DOB and phone arms in §1 were vacuous when first written.
    *
    * BOTH doors are asserted, not just the hospital one. They are separate pass-throughs and
-   * either can be dropped alone: the hospital date rides `affiliate_person_for`, and the org
-   * date rides `affiliate_person_to_org_for`, because D5's org-parent ensure inside
-   * `affiliate_person_impl` takes no date of its own.
+   * either can be dropped alone: the hospital date rides `affiliate_new_person_for`, and the org
+   * date rides `affiliate_new_person_to_org_for`, because D5's org-parent ensure inside
+   * `app.affiliate_new_person_impl` takes no date of its own.
+   *
+   * ⭐ THESE ARE THE **CREATION** DOORS (ADR 0168 Amdt 1/2), not the ordinary
+   * `affiliate_person_for` / `affiliate_person_to_org_for`. Those narrowed to "already known
+   * to this organisation", which a person `registerUser` has just created fails by
+   * construction — so calling them here would 42501 every registration. The creation doors
+   * keep the old predicate and are bounded by their ACL (`service_role` only) instead.
    */
   it('⭐ the START DATE reaches BOTH doors — org and hospital', async () => {
     session = orgAdminSession
@@ -1216,14 +1227,14 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
     })
     expect(result.ok, result.error).toBe(true)
 
-    const orgDoor = rpcCalls.find((c) => c.fn === 'affiliate_person_to_org_for')
+    const orgDoor = rpcCalls.find((c) => c.fn === 'affiliate_new_person_to_org_for')
     expect(orgDoor, 'the ORG door must be called on the org_admin path').toBeTruthy()
     expect(
       (orgDoor?.args as Record<string, unknown>)?.p_started_on,
       'the org affiliation must carry the supplied start date, not today',
     ).toBe(PAST_START)
 
-    const hospitalDoor = rpcCalls.find((c) => c.fn === 'affiliate_person_for')
+    const hospitalDoor = rpcCalls.find((c) => c.fn === 'affiliate_new_person_for')
     expect(hospitalDoor, 'the HOSPITAL door must be called when a hospital was named').toBeTruthy()
     expect(
       (hospitalDoor?.args as Record<string, unknown>)?.p_started_on,
@@ -1248,8 +1259,8 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
       password: 'Test1234!',
       homeHospitalId: HOSP_A,
     })
-    const orgAt = rpcCalls.findIndex((c) => c.fn === 'affiliate_person_to_org_for')
-    const hospitalAt = rpcCalls.findIndex((c) => c.fn === 'affiliate_person_for')
+    const orgAt = rpcCalls.findIndex((c) => c.fn === 'affiliate_new_person_to_org_for')
+    const hospitalAt = rpcCalls.findIndex((c) => c.fn === 'affiliate_new_person_for')
     expect(orgAt, 'the org door must have been called').toBeGreaterThanOrEqual(0)
     expect(hospitalAt, 'the hospital door must have been called').toBeGreaterThanOrEqual(0)
     expect(orgAt).toBeLessThan(hospitalAt)
@@ -1272,21 +1283,23 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
       affiliationStartedOn: PAST_START,
     })
     expect(result.ok, result.error).toBe(true)
-    const orgDoor = rpcCalls.find((c) => c.fn === 'affiliate_person_to_org_for')
+    const orgDoor = rpcCalls.find((c) => c.fn === 'affiliate_new_person_to_org_for')
     expect(orgDoor, 'an unaffiliated person must still be anchored to the org').toBeTruthy()
     expect((orgDoor?.args as Record<string, unknown>)?.p_started_on).toBe(PAST_START)
     expect(
-      rpcCalls.some((c) => c.fn === 'affiliate_person_for'),
+      rpcCalls.some((c) => c.fn === 'affiliate_new_person_for'),
       'no hospital was named, so no employment row may be created',
     ).toBe(false)
   })
 
   it('⛔ a HOSPITAL_ADMIN registrar does NOT call the org door (it is org_admin-only, D2)', async () => {
     // ⭐ THE DENY TWIN, and it is the arm that keeps the ALLOW arms honest. Calling the org
-    // door here would raise 42501 in PostgreSQL — `app.affiliate_person_to_org_impl` gates
-    // on `is_org_admin_of_for` with no hospital_admin arm — and would fail a registration
-    // the product permits. The org affiliation arrives instead through D5's org-parent
-    // ensure INSIDE `affiliate_person_impl`, which is what makes hospital onboarding one
+    // door here would raise 42501 in PostgreSQL — `app.affiliate_new_person_to_org_impl`
+    // gates on `is_org_admin_of_for` with no hospital_admin arm (ADR 0168 Amdt 2 § 1: the
+    // creation door carries EXACTLY its ordinary sibling's actor-authority predicate, and
+    // differs only in containment and audit verb) — and would fail a registration the
+    // product permits. The org affiliation arrives instead through D5's org-parent ensure
+    // INSIDE `app.affiliate_new_person_impl`, which is what makes hospital onboarding one
     // step. ⚠ The Vitest fake never raises, so this asymmetry is invisible to any verdict
     // assertion: only counting the calls can see it.
     session = hospitalAdminSession
@@ -1304,10 +1317,10 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
     })
     expect(result.ok, result.error).toBe(true)
     expect(
-      rpcCalls.some((c) => c.fn === 'affiliate_person_to_org_for'),
+      rpcCalls.some((c) => c.fn === 'affiliate_new_person_to_org_for'),
       'a hospital_admin has no authority at the organisation tier',
     ).toBe(false)
-    const hospitalDoor = rpcCalls.find((c) => c.fn === 'affiliate_person_for')
+    const hospitalDoor = rpcCalls.find((c) => c.fn === 'affiliate_new_person_for')
     expect(
       (hospitalDoor?.args as Record<string, unknown>)?.p_started_on,
       'the start date must still reach the hospital door on this path',
@@ -1331,7 +1344,7 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
       homeHospitalId: HOSP_A,
       affiliationStartedOn: '   ', // blank is "the box was empty", not a date
     })
-    for (const fn of ['affiliate_person_to_org_for', 'affiliate_person_for']) {
+    for (const fn of ['affiliate_new_person_to_org_for', 'affiliate_new_person_for']) {
       const call = rpcCalls.find((c) => c.fn === fn)
       expect(call, `${fn} must have been called`).toBeTruthy()
       expect(
@@ -1339,5 +1352,46 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
         `${fn} must omit the key rather than send null`,
       ).toBeUndefined()
     }
+  })
+
+  /**
+   * ⭐⭐ ANTI-VACUITY INSURANCE FOR THE ADR 0168 RENAME ITSELF, and it is here because of how
+   * this section nearly failed silently. Every `find`/`findIndex`/`some` above was re-pointed
+   * from the ordinary doors to the creation doors in one change — and a RENAME is precisely
+   * the shape that turns a NEGATIVE assertion vacuous rather than red:
+   * `rpcCalls.some((c) => c.fn === '<old name>')` stays `false` FOREVER once nothing can emit
+   * that name again, whether the code is right or wrong. Two such sites exist above; they
+   * survived only because a POSITIVE assertion earlier in the same `it()` failed first and
+   * masked them.
+   *
+   * ⛔ So this cell does not probe names one at a time. It asserts the EXACT ARRAY of
+   * affiliation-door RPCs the registration issues — sorted, and NOT de-duplicated, so a
+   * doubled call is a failure too. An empty `rpcCalls`, a regression back to an ordinary
+   * door, and a future rename all red here. Filtered on the `affiliate_` prefix so it stays
+   * silent about the unrelated RPCs on this path.
+   */
+  it('⭐ registerUser calls EXACTLY the two creation doors — never the ordinary ones', async () => {
+    session = orgAdminSession
+    rows.profiles = [null, null]
+    const { registerUser } = await import('./actions')
+    const result = await registerUser({
+      homeOrganizationId: ORG_A,
+      fullName: 'Portas Corretas',
+      email: 'aff4.doorset@test.local',
+      professionalCategoryId: 'cat-1',
+      cpf: '111.444.777-35',
+      password: 'Test1234!',
+      homeHospitalId: HOSP_A,
+    })
+    expect(result.ok, result.error).toBe(true)
+
+    const doorNames = rpcCalls
+      .filter((c) => c.fn.startsWith('affiliate_'))
+      .map((c) => c.fn)
+      .sort()
+    expect(
+      doorNames,
+      'must be EXACTLY the two CREATION doors (ADR 0168 Amdt 1/2), each called once — never the ordinary affiliate_person_for / affiliate_person_to_org_for, which now narrow to "already known here"',
+    ).toEqual(['affiliate_new_person_for', 'affiliate_new_person_to_org_for'])
   })
 })

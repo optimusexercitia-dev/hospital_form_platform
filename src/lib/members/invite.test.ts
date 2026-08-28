@@ -23,16 +23,30 @@ import type { Database } from '@/lib/types/database'
  * `home_organization_id` is going away, so the tenant check has to come from
  * `organization_affiliations`. The obvious move — "must hold an ACTIVE affiliation in
  * this org", mirroring `list_addable_commission_members` — BREAKS RE-PROVISIONING, and
- * the reason is measurable rather than stylistic: neither caller of this function creates
- * an org affiliation for the user it invites (`handle_new_user` writes none, and neither
- * `assignStaffAdmin` nor `assignOrgAdmin` calls `affiliate_person_to_org_for`). So a
- * person THIS FUNCTION invited has zero affiliations, and an active-only predicate
- * refuses the second call for the same e-mail. § "an invited-but-unaffiliated person" is
- * that cell, and it would be RED under the obvious predicate.
+ * the reason is measurable rather than stylistic: `resolveOrInviteUser` itself creates no
+ * org affiliation for the user it invites, and `handle_new_user` writes none either. So a
+ * person THIS FUNCTION invited has zero affiliations until a later grant lands, and an
+ * active-only predicate refuses the second call for the same e-mail in that window.
+ * § "an invited-but-unaffiliated person" is that cell, and it would be RED under the
+ * obvious predicate.
  *
- * The predicate that holds is `app.affiliate_person_to_org_impl`'s — already PO-ruled and
- * shipped in `20261003005600`: refuse only when the person HAS non-voided affiliations
- * and NONE of them is in this organisation.
+ * ⛔ THE OLD REASON STOPPED ONE CLAUSE TOO LATE AND WAS FALSE. It read "…and neither
+ * `assignStaffAdmin` nor `assignOrgAdmin` calls `affiliate_person_to_org_for`" — true of
+ * the TYPESCRIPT CALL SITES and false of the OUTCOME: ADR 0166 moved that write one layer
+ * down, into `app.grant_role_impl`, which calls `app.ensure_provisioned_org_affiliation`
+ * for `(organization, org_admin)` and `(commission, staff_admin)` (catalog-verified). A
+ * comment naming a call-site absence read as an outcome, and no gate could contradict it.
+ *
+ * ⭐ THE REASON THAT SURVIVES is a failure state, not a happy path: if the invite succeeds
+ * and the role grant then fails, the profile exists with ZERO affiliations, and a
+ * narrowed predicate would make that e-mail PERMANENTLY unprovisionable —
+ * `guard_profile_no_delete` forbids deleting the profile, so nothing can clear it.
+ *
+ * The predicate that holds is the **CREATION** door's — `app.affiliate_new_person_to_org_impl`
+ * (ADR 0168 Amdt 1/2), which kept the predicate shipped in `20261003005600`: refuse only
+ * when the person HAS non-voided affiliations and NONE of them is in this organisation.
+ * ⚠ NOT `app.affiliate_person_to_org_impl`, which narrowed to "already known here" in the
+ * same increment. This is a provisioning path, so the creation door is the right mirror.
  *
  * ⛔ AND THAT PREDICATE ADMITS THE PLATFORM ADMIN, WHICH THE COLUMN USED TO REFUSE BY
  * ACCIDENT. Under `home_organization_id` a platform admin was refused because their
@@ -186,14 +200,19 @@ describe('resolveOrInviteUser — the D13 tenant check, re-predicated onto affil
   })
 
   it('⭐⭐ resolves an INVITED-BUT-UNAFFILIATED person — the cell the obvious predicate breaks', async () => {
-    // Neither caller of this function creates an org affiliation for the user it invites,
-    // so this is the state a SECOND `assignStaffAdmin` / `assignOrgAdmin` for the same
-    // e-mail lands in — the one `e2e/platform-org-admin-provisioning.spec.ts:85` depends
-    // on by name. An "ACTIVE affiliation in this org" predicate refuses here.
+    // `resolveOrInviteUser` creates no org affiliation for the user it invites — but NOT
+    // because neither caller ever does: ADR 0166 moved that write into
+    // `app.grant_role_impl` (`app.ensure_provisioned_org_affiliation`), one layer below
+    // this function. So this is the state a SECOND `assignStaffAdmin` / `assignOrgAdmin`
+    // for the same e-mail lands in during the window BEFORE that later grant — the one
+    // `e2e/platform-org-admin-provisioning.spec.ts:85` depends on by name. An "ACTIVE
+    // affiliation in this org" predicate refuses here.
     //
-    // ⚠ It is also the ADR 0164 orphan window's shape, and admitting it is deliberate:
-    // ADR 0165 D1 makes re-affiliation the recovery path, and a person nobody can bind is
-    // a person nobody can recover.
+    // ⚠ ADMITTING IT IS DELIBERATE, BUT NO LONGER FOR THE REASON THIS COMMENT GAVE. It
+    // cited ADR 0165 D1's "re-affiliation is the recovery path"; ADR 0168 REPLACED that
+    // with `public.recover_orphan_person_to_org` (platform_admin-only, own audit verb).
+    // What keeps this cell wide is the aborted-grant wedge: invite succeeds, grant fails,
+    // and `guard_profile_no_delete` means nothing can ever clear that e-mail again.
     const { client } = fakeAdmin({ profile: { id: 'invited-earlier', is_admin: false }, affiliations: [] })
 
     await expect(

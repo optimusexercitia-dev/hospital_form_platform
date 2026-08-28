@@ -312,14 +312,37 @@ export async function assignStaffAdmin(
     // admin client above is still needed for `resolveOrInviteUser`, which provisions
     // accounts; it no longer touches `memberships`.)
     //
-    // Unlike `addStaff`, this action's whole purpose IS the role change, so
-    // `grant_role`'s T1.0 replacement semantic is exactly what is wanted: promoting
-    // an existing 'staff' member updates the row in place, preserving its identity
-    // and the member's per-commission title and emitting one
-    // `membership.role_changed` audit event. Re-assigning an existing staff_admin is
-    // idempotent inside the door.
-    const supabase = await createClient()
-    const { error } = await supabase.rpc('grant_role', {
+    // Unlike `addStaff`, this action's whole purpose IS the role change, so the
+    // door's T1.0 replacement semantic is exactly what is wanted: promoting an
+    // existing 'staff' member updates the row in place, preserving its identity and
+    // the member's per-commission title and emitting one `membership.role_changed`
+    // audit event. Re-assigning an existing staff_admin is idempotent inside the door.
+    //
+    // ⭐⭐ THE `_for` TWIN, NOT THE SESSION DOOR — ADR 0168 Amdt 3, and the reason is a
+    // MEASURED hole rather than a style preference. `app.grant_role_impl` calls
+    // `app.ensure_provisioned_org_affiliation`, which anchors the granted person to the
+    // commission's organisation (ADR 0166). That kernel admitted an ANCHORLESS person,
+    // so through the SESSION door an `org_admin` holding nothing but an orphan's uuid
+    // could anchor them AND hand them a role — live-probed, accepted, both rows written.
+    // Amdt 3 splits the two twins on exactly that predicate: `public.grant_role`
+    // (authenticated) now refuses an anchorless target; `public.grant_role_for`
+    // (service_role) still admits one, because THIS path legitimately provisions people
+    // `resolveOrInviteUser` may have just invited.
+    //
+    // ⛔ NO AUTHORITY IS TRADED BY THE MOVE. The `_for` twin takes the actor explicitly
+    // and re-derives the SAME authority in PostgreSQL from `p_actor` — the shape every
+    // other service-role path here already uses (`affiliate_new_person_for`,
+    // `finalize_invited_person_for`, `assignOrgAdmin`). What changes is which tenancy
+    // predicate the kernel applies to the TARGET.
+    //
+    // ⚠ The two twins are now deliberately ASYMMETRIC, for the first time. Do not
+    // "restore symmetry" — a pgTAP assertion pins the asymmetry in both directions.
+    const actorId = (await getSessionContext())?.userId
+    if (!actorId) {
+      return { ok: false, error: MESSAGES.forbidden }
+    }
+    const { error } = await admin.rpc('grant_role_for', {
+      p_actor: actorId,
       p_scope_type: 'commission',
       p_scope_id: commissionId,
       p_role: 'staff_admin',

@@ -44,21 +44,41 @@ export interface ResolvedUser {
  * question and irrelevant to the COLUMN-DROP question — which is how it fell between
  * both. It is an AUTHORITY consumer of the column and it is re-predicated here.
  *
- * ⛔ THE PREDICATE IS `app.affiliate_person_to_org_impl`'S, NOT THE PICKER'S, AND THAT
- * CHOICE IS THE WHOLE FINDING OF THIS CHANGE. The obvious re-predication — "must hold an
- * ACTIVE affiliation in this organisation", mirroring `list_addable_commission_members` —
- * is MEASURED AND WRONG HERE: neither `assignStaffAdmin` nor `assignOrgAdmin` creates an
- * org affiliation for the user it invites (verified: `handle_new_user` writes no
- * affiliation row, and neither caller calls `affiliate_person_to_org_for`). So a person
- * this very function invited has ZERO affiliations, and an active-only predicate would
- * REFUSE the second call for the same email — breaking re-provisioning, which
- * `e2e/platform-org-admin-provisioning.spec.ts:85` depends on by name.
+ * ⛔ THE PREDICATE IS THE **CREATION** DOOR'S — `app.affiliate_new_person_to_org_impl`,
+ * NOT `app.affiliate_person_to_org_impl` AND NOT THE PICKER'S. ADR 0168 Amdt 1/2 split
+ * that one door into three, and this path is a PROVISIONING path: it invites people. So
+ * the door it mirrors is the one that admits a person with no tenancy yet, and mirroring
+ * is preserved by leaving the predicate alone and re-pointing the name. The ORDINARY door
+ * narrowed to "known here" in the same increment; this did not, deliberately.
  *
- * The predicate that holds is increment 1's, already PO-ruled and shipped in
- * `20261003005600`: refuse only when the person HAS non-voided affiliations and NONE of
- * them is in this organisation. It admits the two legitimate zero-affiliation states (a
- * freshly invited account; an ADR 0164 orphan) and refuses exactly the foreign-tenant
- * bind AFF W2 / ADR 0097 D13 exists to stop.
+ * The obvious re-predication — "must hold an ACTIVE affiliation in this organisation",
+ * mirroring `list_addable_commission_members` — stays MEASURED AND WRONG HERE, for a
+ * reason that has itself changed and is restated rather than inherited:
+ *  · ⛔ THE OLD REASON IS NOW FALSE. It read "neither `assignStaffAdmin` nor
+ *    `assignOrgAdmin` creates an org affiliation for the user it invites … neither caller
+ *    calls `affiliate_person_to_org_for`". That is true of the TYPESCRIPT CALL SITES and
+ *    false of the OUTCOME: ADR 0166 moved the write one layer down, into
+ *    `app.grant_role_impl`, which calls `app.ensure_provisioned_org_affiliation` for
+ *    `(organization, org_admin)` and `(commission, staff_admin)` — catalog-verified. A
+ *    comment naming a call-site absence read as an outcome, and no gate could contradict
+ *    it.
+ *  · ⭐ THE REASON THAT SURVIVES is a failure state, not a happy path: if the invite
+ *    succeeds and the role grant then fails, the profile exists with ZERO affiliations and
+ *    an ACTIVE-only (or "known here"-only) predicate makes that e-mail PERMANENTLY
+ *    unprovisionable — `guard_profile_no_delete` forbids deleting the profile, so nothing
+ *    can clear it. Today's predicate self-heals from that state. Narrowing here would buy
+ *    symmetry and sell a wedge.
+ *
+ * The predicate itself is unchanged from increment 1 (`20261003005600`): refuse only when
+ * the person HAS non-voided affiliations and NONE of them is in this organisation. It
+ * admits the two legitimate zero-affiliation states — a freshly invited account, and the
+ * aborted-grant wedge above — and refuses exactly the foreign-tenant bind AFF W2 / ADR
+ * 0097 D13 exists to stop.
+ *
+ * ⚠ AN ADR 0164 ORPHAN IS NO LONGER ONE OF THOSE STATES' JUSTIFICATIONS. ADR 0165 D1 made
+ * re-affiliation the orphan recovery path; ADR 0168 REPLACED that with a door of its own,
+ * `public.recover_orphan_person_to_org` (platform_admin, own audit verb). Recovery is not
+ * a side effect of this function, and citing it here would re-open what that ADR closed.
  *
  * ⚠ NON-VOIDED, not ACTIVE — deliberately, and it is the mirror of the SQL door: this is
  * a TENANCY question ("may this identity be bound here"), not a STAFFING question ("may

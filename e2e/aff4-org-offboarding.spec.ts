@@ -9,8 +9,11 @@ import { svcSelect } from './helpers/service-role'
  * cross-runtime parity gate ADR 0151 D10 (as amended by ADR 0154) depends on.
  *
  * ⛔ SCOPED TO THE ORG DIRECTORY (`listOrgUsers`), DELIBERATELY. This is the only
- * gate that exercises the SQL door (`app.affiliate_person_to_org_for` /
- * `end_org_affiliation` / `list_org_people`) and the TS queries
+ * gate that exercises the SQL door (`app.affiliate_new_person_to_org_for` —
+ * the CREATION door, ADR 0168 Amdt 1/2; `registerBareOrgPerson` below goes
+ * through `registerUser`, which calls the creation door, never the ordinary
+ * `affiliate_person_to_org_for` — / `end_org_affiliation` / `list_org_people`)
+ * and the TS queries
  * (`listOrgUsers`/`lookupOrgPeople`) in ONE process, so it is what catches either
  * surface changing its default alone — two independently-green unit tests never
  * would (plan §Track T, T2). `listHospitalUsers` deliberately does NOT carry the

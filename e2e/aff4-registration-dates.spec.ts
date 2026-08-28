@@ -25,7 +25,9 @@ import { svcSelect } from './helpers/service-role'
  *
  * ⭕ NAMED ABSENCE, not coverage: no single test drives the wizard's start-date
  * control and reads back BOTH persisted rows. One field feeds two doors
- * (`affiliate_person_for` and `affiliate_person_to_org_for`), each
+ * (`affiliate_new_person_for` and `affiliate_new_person_to_org_for` — the
+ * CREATION doors `registerUser` calls, ADR 0168 Amdt 1/2, not the ordinary
+ * `affiliate_person_for` / `affiliate_person_to_org_for`), each
  * `coalesce(p_started_on, current_date)`, so a composition arm is what would
  * catch one row silently defaulting while the other takes the typed value.
  * The four links are each witnessed — including a severance-proved component

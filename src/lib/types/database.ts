@@ -10949,6 +10949,28 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      affiliate_new_person_for: {
+        Args: {
+          p_actor: string
+          p_employee_id?: string
+          p_hospital: string
+          p_job_title?: string
+          p_started_on?: string
+          p_user: string
+          p_work_email?: string
+          p_work_phone?: string
+        }
+        Returns: string
+      }
+      affiliate_new_person_to_org_for: {
+        Args: {
+          p_actor: string
+          p_organization: string
+          p_started_on?: string
+          p_user: string
+        }
+        Returns: string
+      }
       affiliate_person: {
         Args: {
           p_employee_id?: string
@@ -14400,6 +14422,10 @@ export type Database = {
           p_role_at_session?: string
           p_session_id: string
         }
+        Returns: string
+      }
+      recover_orphan_person_to_org: {
+        Args: { p_organization: string; p_started_on?: string; p_user: string }
         Returns: string
       }
       redact_professional_profile: {

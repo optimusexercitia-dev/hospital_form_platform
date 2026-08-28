@@ -30,11 +30,15 @@ import {
  * `src/lib/queries/`). Backs the org_admin user directory + per-user management
  * page under `/o/[org]/manage/usuarios`.
  *
- * RLS is the authority: `profiles` SELECT has an `is_org_admin_of(home_organization_id)`
- * path so an org_admin reads EVERY user anchored to their org — including a
- * freshly-registered `pending` user with no committee yet (which the existing
- * shared-commission / member-join paths would miss). These reads therefore run on
- * the ordinary cookie-wired (RLS-scoped) client; a foreign caller gets empty.
+ * RLS is the authority: `profiles` SELECT admits an org_admin to EVERY person their
+ * organisation can reach — including a freshly-registered `pending` user with no committee
+ * yet (which the shared-commission / member-join paths would miss). These reads therefore
+ * run on the ordinary cookie-wired (RLS-scoped) client; a foreign caller gets empty.
+ *
+ * ⚠ This paragraph used to say that path was `is_org_admin_of(home_organization_id)`. AE2.2
+ * re-predicated it onto `organization_affiliations` and the sentence was never updated — it
+ * described a policy leg that no longer existed, in the file whose whole job is knowing what
+ * `profiles` SELECT admits. Corrected in the drop increment; the catalog is the authority.
  */
 
 /**
@@ -51,14 +55,18 @@ import {
  * COLUMN-LIST grants on `profiles` since `20260909000200` and `cpf` is not among them,
  * so naming it here would 42501 the whole directory (ADR 0097 D7 / audit HIGH-1).
  */
+// ⛔ `home_organization_id` REMOVED (AE2 drop increment). It was a PROJECTION, not a
+// predicate — which is exactly why nothing caught it: `org-roster-predicate.test.ts`'s
+// module property is bounded to predicate usage and its own self-test at `:517-520`
+// asserts it does NOT match a `select('…')` string. So this column would have survived
+// every gate and failed at RUNTIME with PostgREST 42703 once the column was dropped.
 const PROFILE_SELECT =
-  'id, full_name, email, home_organization_id, professional_category_id, is_active, suspended_until, email_confirmed_at, created_at, category:professional_categories(label_pt)'
+  'id, full_name, email, professional_category_id, is_active, suspended_until, email_confirmed_at, created_at, category:professional_categories(label_pt)'
 
 interface ProfileRow {
   id: string
   full_name: string | null
   email: string | null
-  home_organization_id: string | null
   professional_category_id: string | null
   is_active: boolean
   suspended_until: string | null
@@ -479,8 +487,11 @@ export async function listOrgUsers(
   // to this organisation", so an offboarded person leaves the default directory while
   // staying reachable behind `includeEnded`.
   //
-  // ⛔ D10's Phase 2 is NOT being done here: the RLS legs and the tenant trigger STAY on
-  //    `home_organization_id`. This moves the APPLICATION QUERY's filter only.
+  // ⛔ WHEN WRITTEN, this said D10's Phase 2 was "NOT being done here: the RLS legs and the
+  //    tenant trigger STAY on `home_organization_id`". Both halves are now HISTORY: AE2.2
+  //    re-predicated the RLS legs and ADR 0164 moved containment to the destructive event.
+  //    Kept as a record of what this line USED to filter on, because the reason it is an id
+  //    set rather than a join (below) is independent of the predicate and still stands.
   //
   // An id set + `.in()` rather than an embedded `!inner` join, following the same reasoning
   // `hospitalPeopleIds` states: the join form duplicates rows per affiliation and corrupts
@@ -758,7 +769,6 @@ export async function getOrgUser(userId: string): Promise<OrgUserDetail | null> 
     id: profile.id,
     fullName: profile.full_name,
     email: profile.email,
-    homeOrganizationId: profile.home_organization_id ?? '',
     // ⚠ This projection strips `principalId`/`organizationId` (the scope ids the UI has
     // no use for) and must otherwise carry EVERY `UserAffiliation` field. It is a
     // hand-list, so it rots — but it rots LOUDLY: the fields are required on the type, so

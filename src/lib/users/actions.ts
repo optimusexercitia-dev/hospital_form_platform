@@ -238,17 +238,35 @@ async function isTenantOrphan(
 ): Promise<boolean> {
   try {
     const orphans = await listTenantOrphans(admin)
-    if (orphans.length > 0) {
-      // The whole set, not just this person: one call answers both "did I just make one"
-      // and "are there others nobody has noticed", which is the assertion half of
-      // ADR 0164's choice between compensation and detection.
+    const self = orphans.find((o) => o.profileId === userId)
+    if (self) {
+      // ⛔ THIS PERSON ONLY — never the platform-wide set (ADR 0164 detector logging,
+      // round-2 finding R2-m4). The previous line enumerated EVERY orphan's uuid and
+      // reason on every failed registration, and `registerUser` runs only under
+      // `/o/[org]/manage`, driven by an `org_admin` or `hospital_admin`. So a
+      // single tenant's request log received the platform-wide orphan roster —
+      // precisely the id set that `app.tenant_orphan_profiles()` is `postgres`-only to
+      // withhold, because it "enumerates people no tenant admin can reach". The RPC
+      // still returns the whole set (it is the detector's contract, and the
+      // `is_admin` discrimination lives inside it); what changed is what leaves this
+      // process.
+      //
+      // ⚠ The "are there others nobody has noticed?" question was real and is NOT
+      // answered here any more. It belongs on a platform-admin surface, where the
+      // audience matches the data — not smuggled into a tenant's request path as a
+      // side effect of an unrelated failure. Until that surface exists the answer is
+      // one query away for whoever is entitled to ask it.
+      //
+      // ⭐ It also stops the wolf-crying: invite-provisioned admins report as
+      // `never_affiliated`, so the old line fired on EVERY registration in EVERY org
+      // regardless of outcome — training operators to ignore the one signal ADR 0164's
+      // mitigation exists to give. Now it fires only when THIS registration is the
+      // thing that went wrong.
       console.error(
-        `[tenant-orphan] ${orphans.length} profile(s) with no non-voided organization affiliation: ${orphans
-          .map((o) => `${o.profileId}(${o.reason})`)
-          .join(', ')}`,
+        `[tenant-orphan] ${userId} has no non-voided organization affiliation (${self.reason})`,
       )
     }
-    return orphans.some((o) => o.profileId === userId)
+    return self !== undefined
   } catch (cause) {
     console.error(`[tenant-orphan] detector unavailable: ${(cause as Error).message}`)
     return false
@@ -401,8 +419,15 @@ async function ensureActiveAffiliation(params: {
   actorId: string
   startedOn?: string | null
 }): Promise<boolean> {
+  // ⭐ ADR 0168 Amdt 1/2 — THE **CREATION** DOOR, and the choice of door is the
+  // authorization. The ordinary `affiliate_person_for` narrowed to "the person is already
+  // known to this organisation", which every person `registerUser` has just created fails
+  // by construction. The creation door carries the same predicate this one used to, and is
+  // bounded instead by its ACL: `service_role` ONLY, unreachable from PostgREST by any
+  // tenant user. ⛔ Do not "simplify" back to the ordinary door — that is a total outage of
+  // hospital_admin registration, and it presents as TS↔SQL drift rather than as a rename.
   const admin = createAdminClient()
-  const { error } = await admin.rpc('affiliate_person_for', {
+  const { error } = await admin.rpc('affiliate_new_person_for', {
     p_actor: params.actorId,
     p_user: params.userId,
     p_hospital: params.hospitalId,
@@ -792,8 +817,13 @@ export async function registerUser(
   // Passing the start date HERE (and not only to the hospital door) is what keeps the two
   // rows agreeing about when the employment began: D5's ensure inside the hospital kernel
   // takes no date and defaults to today.
+  //
+  // ⭐ ADR 0168 Amdt 1/2 — THE **CREATION** DOOR (see `ensureActiveAffiliation` for the
+  // full reasoning). Once `home_organization_id` is dropped, a just-created person and an
+  // orphan are the SAME DB STATE, so no predicate over state can tell them apart; the
+  // door's ACL is the discriminator, and this one is `service_role`-only.
   if (isOrgAdminCaller) {
-    const { error: orgAffiliationError } = await admin.rpc('affiliate_person_to_org_for', {
+    const { error: orgAffiliationError } = await admin.rpc('affiliate_new_person_to_org_for', {
       p_actor: context.userId,
       p_user: userId,
       p_organization: input.homeOrganizationId,

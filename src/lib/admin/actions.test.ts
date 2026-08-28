@@ -84,11 +84,20 @@ function hospitalRef(id: string, organizationId: string) {
 }
 
 /** A session context carrying exactly the two grant lists the gate reads. */
+/** The signed-in actor every `contextWith()` session belongs to. */
+const ACTOR = '00000000-0000-0000-0000-0000000000ac'
+
 function contextWith(opts: {
   orgAdminOf?: string[]
   hospitalAdminOf?: [string, string][]
 }) {
   return {
+    // ⚠ ADDED BY ADR 0168 Amdt 3, and the omission was a fixture that did not model
+    // reality: the real `getSessionContext()` has always returned `userId` (see
+    // `platform/actions.ts:assignOrgAdmin`). Nothing needed it here until
+    // `assignStaffAdmin` moved to the `_for` twin, which passes the actor explicitly —
+    // so an incomplete fixture sat harmless for as long as no cell read the field.
+    userId: ACTOR,
     isAdmin: false,
     orgAdminOf: (opts.orgAdminOf ?? []).map((id) => ({ organization: orgRef(id) })),
     hospitalAdminOf: (opts.hospitalAdminOf ?? []).map(([h, o]) => ({
@@ -210,7 +219,15 @@ describe('both coordinator actions consult the same gate', () => {
     const result = await assignStaffAdmin(undefined, assignForm())
 
     expect(result.ok).toBe(true)
-    expect(rpc).toHaveBeenCalledWith('grant_role', {
+    // ⭐ THE `_for` TWIN, NOT THE SESSION DOOR — ADR 0168 Amdt 3. The move is what
+    // stops an `org_admin` anchoring an ANCHORLESS person (and granting them a role)
+    // through `public.grant_role`, whose kernel now refuses that target. `p_actor` is
+    // asserted explicitly: the whole point of the `_for` twin is that PostgreSQL
+    // re-derives authority from THIS id, so a call that forgot it — or passed the
+    // TARGET instead of the caller — would be an authority bypass that `result.ok`
+    // alone cannot see.
+    expect(rpc).toHaveBeenCalledWith('grant_role_for', {
+      p_actor: ACTOR,
       p_scope_type: 'commission',
       p_scope_id: COMMISSION,
       p_role: 'staff_admin',

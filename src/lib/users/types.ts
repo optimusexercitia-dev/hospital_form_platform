@@ -418,7 +418,11 @@ export interface OrgUserDetail {
   id: string
   fullName: string | null
   email: string | null
-  homeOrganizationId: string
+  // ⛔ `homeOrganizationId` REMOVED (AE2 drop increment): it was produced from
+  // `profiles.home_organization_id` and read by NOTHING — measured, no `.homeOrganizationId`
+  // access anywhere resolves to this type (every hit is `RegisterUserInput`'s same-named
+  // but DIFFERENT field, the org the registrar picked). A produced-and-never-read field
+  // keeps a dropped column alive through a type.
   /**
    * The employment HISTORY: ACTIVE **and** ENDED affiliations — active first (earliest
    * `startedOn` first), then ended most-recently-ended first. Distinguish them by
