@@ -771,6 +771,48 @@ therefore **not** been shown able to fire.
 | `FROMFINDINGS=1 ARM=wrapper` | the `prosecdef = f` half | BLIND set **41**, unchanged, all allowlisted | **0** |
 
 ⚠ Not run here: `ARM=floor`, `ARM=hat`, the diff-scoped policy sweep and `e2e:prod` — the lead's.
+
+#### ⛔ `scripts/door-sweep-cases.sh` exits **1 — FINDING**: migrations touched, ZERO cases derived
+
+Per ADR 0079 Amendment 8 ruling 2 and CLAUDE.md § 6 that is **never a pass**. The four functions it
+lists as EXCLUDED-BY-NAME are ruled individually below; the deriver's own options do not apply, and
+both halves of why are measured rather than argued:
+
+- **Option (a) — "widen `CASES=` and sweep them" — is unavailable BY CONSTRUCTION for all four.**
+  The sweep can neutralize only a **boolean** predicate. Catalog-measured return types:
+  `assert_profile_tenant_has_org` → `trigger`; `tenant_orphan_profiles` → set-returning `record`;
+  `affiliate_person_to_org_impl` and `affiliate_person_impl` → `uuid`. None is `bool`.
+- **Option (b) as literally worded — "these migrations contain no policy and no `prosecdef` gate" —
+  is FALSE.** All four are `prosecdef = t`, and **two of them are authorization decisions**:
+  `affiliate_person_{to_org_,}impl` read caller identity and raise `42501` *'sem permissão'*
+  (measured over comment-stripped `prosrc`, not inferred from their names).
+- **So the ruling is the third form, the one AE2.2 used for `list_addable_commission_members`:** the
+  compensating control is the targeted mutation audit, **named per function** — see the subject
+  column below — and it carries verdicts of its own.
+
+**Classification of the four** (ADR 0159 D2's discriminator: *does it read caller identity?*):
+
+- `public.assert_profile_tenant_has_org` — reads caller identity **false**, raises no `42501`, not
+  `authenticated`-executable. **An invariant backstop, NOT an access decision.** ⚠ Its fail-open mode
+  is not abstractly "security-relevant" — it is **coupled to this increment's own widening**: an
+  orphan produced by a fail-open void is exactly the shape the re-expressed tenant gate now lets any
+  org **or hospital** admin claim. That coupling is why it owes a case despite not being a gate.
+- `app.tenant_orphan_profiles` — no caller term at all, `postgres`-only, STABLE, set-returning.
+  **Not a gate** → `helper:`, the `app.person_authority_orgs` disposition. M7/M8/M13/M14 are firing
+  proofs of a **required mitigation**, not keystones of an access decision.
+- `app.affiliate_person_to_org_impl` / `app.affiliate_person_impl` — **are** gates, measured.
+
+**Two domain qualifiers that must travel with any "arms green" sentence about this increment:**
+
+1. ⚠ **M5/M6/M10/M11/M12/M15 cover the doors' TENANT conjunct — NOT their AUTHORITY arms.**
+   `app.is_org_admin_of_for` / `is_hospital_admin_of_for` are unchanged by this increment and carry
+   pre-existing `42501` cells in `302` and `379`. **That is not a gap**, but "the mutation audit
+   covers the doors" must not be read as covering their authority arms. Both halves stated.
+2. ⚠ **The reachable surface is the `public` wrappers** — `affiliate_person`,
+   `affiliate_person_to_org` (DEFINER, `uuid`, `authenticated`-executable) — which sit in the
+   **`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2)** class: outside every arm's domain by construction,
+   before and after this increment. The `impl` bodies the mutations target are `postgres`-only.
+
 ⚠ This increment adds **no** RLS policy and **no** `prosecdef` boolean gate, so
 `scripts/door-sweep-cases.sh` has nothing of that shape to derive; the two new objects are a trigger
 function and a set-returning helper, neither neutralizable by ARM 1.
@@ -811,7 +853,7 @@ non-voided affiliation outside `p_organization`"* — refuses every person activ
 organisations, **including on the door's own idempotent early-return path**. Caught by writing the
 cell, not by reading the body.
 
-### ⛔ THE VACUITY PROOF — nine mutations, and one found a live defect in MY OWN keystone
+### ⛔ THE VACUITY PROOF — sixteen mutations, and one found a live defect in MY OWN keystone
 
 Every mutation applied in-DB via `pg_get_functiondef()` + `replace` + `execute`, with the `do` block
 raising if the replacement was a no-op; every one **asserted to have LANDED from `pg_proc`** (md5,
@@ -819,21 +861,62 @@ length, `prosecdef`, marker presence) and **never** from a command's exit status
 replayed from the captured definition and verified **byte-identical** by md5. **Run shape captured
 for every run: `Files=2, Tests=45` throughout** — no run aborted, so no `ERROR` was counted as a hold.
 
-| # | mutation | assertions that RED | exit |
-| --- | --- | --- | ---: |
-| **M1** | containment predicate → never raises | § 2.1, § 2.4 | 1 |
-| **M2** | ⭐⭐ `alter function … security invoker` | **§ 0.3, § 2.5** | 1 |
-| **M3** | the `is_admin` exemption removed | § 2.8 | 1 |
-| **M4** | non-voided narrowed to ACTIVE (`ended_on is null and …`) | § 2.3 | 1 |
-| **M5** | the ORG-tier tenant gate → never raises | § 3.1, § 3.2, § 3.3, § 3.5, § 5.7 | 1 |
-| **M6** | ⭐ the HOSPITAL-tier gate **only** | § 5.1, § 5.2, § 5.3, § 5.4, § 5.7 | 1 |
-| **M7** | detector: `not p.is_admin` removed | § 1.2, § 1.4 | 1 |
-| **M8** | detector: made blind | § 1.5, § 1.6 | 1 |
-| **M9** | `grant execute … to authenticated` | § 0.5 | 1 |
+⛔ **The table carries the SUBJECT, not just the change.** A mutation list keyed only by what it
+edits reads as a per-function verdict without being one; the lead's zero-case ruling needs
+*"which mutation is THIS function's targeted case"*, and that question is unanswerable from a
+subject-less table. Rounds 2 and 3 exist because producing this column exposed four assertions
+no mutation had ever moved.
+
+| # | subject | mutation | assertions that RED | exit |
+| --- | --- | --- | --- | ---: |
+| **M1** | `assert_profile_tenant_has_org` | containment predicate → never raises | § 2.1, § 2.4 | 1 |
+| **M2** | `assert_profile_tenant_has_org` | ⭐⭐ `alter function … security invoker` (context only; body md5 unchanged) | **§ 0.3, § 2.5** | 1 |
+| **M3** | `assert_profile_tenant_has_org` | the `is_admin` exemption removed | § 2.8 | 1 |
+| **M4** | `assert_profile_tenant_has_org` | non-voided narrowed to ACTIVE | § 2.3 | 1 |
+| **M9** | `assert_profile_tenant_has_org` (**ACL**) | `grant execute … to authenticated` | § 0.5 | 1 |
+| **M16** | `assert_profile_tenant_has_org` | containment **always** raises | **§ 2.2**, § 2.3, § 2.5 | 1 |
+| **M5** | `affiliate_person_to_org_impl` | the whole compound tenant gate → never raises | § 3.1, § 3.2, § 3.3, § 3.5, § 5.7 | 1 |
+| **M10** | `affiliate_person_to_org_impl` | the `if not found` raise's **message** only | **§ 3.7** | 1 |
+| **M11** | `affiliate_person_to_org_impl` | ⭐ conjunct **1** only (*has ≥ 1 non-voided anywhere*) | § 3.1, § 3.2, § 3.3, § 3.5, **§ 3.8**, § 5.7 | 1 |
+| **M12** | `affiliate_person_to_org_impl` | ⭐ conjunct **2** only (*none in `p_organization`*) | § 3.1, § 3.3, § 3.5, **§ 3.9**, § 5.7 | 1 |
+| **M15** | `affiliate_person_to_org_impl` | the containment raise's **SQLSTATE** only (`HC0R0`→`HC0RZ`) | **§ 3.6**, § 5.7 | 1 |
+| **M6** | `affiliate_person_impl` | ⭐ the same compound gate, **sibling only** | § 5.1, § 5.2, § 5.3, § 5.4, § 5.7 | 1 |
+| **M7** | `tenant_orphan_profiles` | `not p.is_admin` removed | § 1.2, § 1.4 | 1 |
+| **M8** | `tenant_orphan_profiles` | made blind (flags nobody) | § 1.5, § 1.6 | 1 |
+| **M13** | `tenant_orphan_profiles` | non-voided narrowed to ACTIVE | **§ 1.7** | 1 |
+| **M14** | `tenant_orphan_profiles` (**ACL**) | `grant execute … to authenticated` | **§ 1.1** | 1 |
+
+**Targeted cases per function, which is the form the zero-case ruling needs:**
+`assert_profile_tenant_has_org` → M1, M2, M3, M4, M9, M16 · `affiliate_person_to_org_impl` → M5,
+M10, M11, M12, M15 · `affiliate_person_impl` → M6 · `tenant_orphan_profiles` → M7, M8, M13, M14.
+**All four have targeted cases; none is uncovered.**
 
 ⭐ **M6 exists because M5 could not have proven § 5 non-vacuous.** Mutating the org door moves § 3
 *and* § 5.7; only mutating the sibling **alone** shows that the hospital-tier cells are held by the
 hospital-tier predicate and not riding on the org one. Same reasoning as 392's V6/V7.
+
+⭐⭐ **M11/M12 PARTITION THE COMPOUND GATE, and that partition is a result.** M5 proves the gate
+matters; it can never show *which arm* does — the lesson AE2.2 paid for with
+`list_addable_commission_members`. Measured, the two arms are cleanly separable:
+
+- **conjunct 1** (*has ≥ 1 non-voided affiliation anywhere*) holds **person creation** (§ 3.8 reds
+  under M11, not under M12) **and all three declared widenings** (§ 3.2 reds under M11, **not**
+  under M12). It is the load-bearing half of this increment's widening, and now measurably so.
+- **conjunct 2** (*none of them is in `p_organization`*) holds **one-step rehire** (§ 3.9 reds under
+  M12, not under M11).
+- **both** hold the narrowing and the floor (§ 3.3 / § 3.5 red under either).
+
+⭐ **M10/M15 are deliberately complementary**, so § 3.6 and § 3.7 are each shown able to fail
+*independently*: M10 moves the not-found **message** and leaves the code (reds § 3.7 alone, proving
+the not-found / wrong-organisation **conflation** — the security property, since splitting them
+makes the door a cross-tenant existence oracle); M15 moves the containment raise's **SQLSTATE** and
+leaves the message (reds § 3.6 alone).
+
+⭐ **M16 is the ACCEPT side's proof.** Every § 2 accept cell is a `lives_ok`, and M1 (*never raises*)
+cannot move one — so before M16 the entire accept side had never been shown able to fail. ⚠ § 2.8
+does **not** red under M16, and that is informative rather than a miss: the `is_admin` exemption
+returns before the containment check, so § 2.8 is held by the exemption arm (M3) and § 2.2/2.3/2.5
+by the containment arm.
 
 #### ⛔⛔ M2's FIRST RUN REDDED ONLY § 0.3 — my keystone could not fail, and the reason inverts ADR 0159
 
@@ -858,11 +941,19 @@ which is what makes fail-closed free here rather than a trade. After the fix M2 
 § 2.5**. ⛔ Recorded because it is the exact shape this increment refused to accept from its own
 brief, found in this file, by mutation and not by reading.
 
-⚠ **Not shown able to fail, stated rather than glossed:** § 0.1, § 0.2, § 0.4, § 0.6, § 0.7, § 1.1,
-§ 1.3, § 1.7, § 1.8, § 1.9, § 2.2, § 2.6, § 2.7, § 2.9, § 3.4, § 3.8, § 3.9, § 4.1, § 4.2, § 4.3,
-§ 5.5, § 5.6. Every one is a structural pin, precondition, floor, control, cross-check or
-reachability measurement — their job is to red when the *surface or the fixture* changes, not when a
-predicate does. A stated bound on the audit, not a claim of full coverage.
+⚠ **Not shown able to fail — 17 of 44, stated rather than glossed:** § 0.1, § 0.2, § 0.4, § 0.6,
+§ 0.7, § 1.3, § 1.8, § 1.9, § 2.6, § 2.7, § 2.9, § 3.4, § 4.1, § 4.2, § 4.3, § 5.5, § 5.6. Every one
+is a structural pin, precondition, non-vacuity floor, RLS control, cross-check between two hand
+artefacts, catalog measurement, or a declared-unreachable arm — their job is to red when the
+*surface or the fixture* changes, not when a predicate does, and no predicate mutation can exercise
+them. **27 of 44 are proven able to fail.** A stated bound on the audit, not a claim of full
+coverage.
+
+⛔ **This list shrank from 22 to 17 because it was AUDITED, not because more tests were written.**
+Five of the original 22 (§ 1.1, § 1.7, § 3.7, § 3.8, § 3.9) were assertions the report's prose
+implied were covered and no mutation had ever moved; § 3.6 and § 2.2 were two more found while
+compiling the list. ⭐ The instrument that found them was the **subject column** above: an
+assertion-keyed mutation list cannot show that a *cell* is unexercised, only that a *mutation* ran.
 
 ### ⛔ Where reality disagreed with the brief, ADR 0164, and the phase record
 
