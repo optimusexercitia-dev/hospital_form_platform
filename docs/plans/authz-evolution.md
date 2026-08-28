@@ -497,6 +497,42 @@ Plus **AE2.3b**, the write/containment half of the differential, which T3 moved 
 warning *"the phase changes write containment; a read-only differential proves the wrong half"*
 binds **AE2.4**, not AE2.2 — AE2.2 changed no write containment, so writing those cells there
 would have asserted nothing.
+⚖ **Increment status and two items ASSIGNED, 2026-08-28** (ADR
+[0164](../decisions/0164-tenant-containment-moves-from-creation-time-to-the-destructive-event.md)):
+
+- **Increment 1 ✅ landed** (`20261003005600`, suite `393`): containment re-predicated and moved to
+  the destructive event; `assert_profile_tenant_has_org` flipped INVOKER→DEFINER with EXECUTE
+  narrowed to owner, **in the same migration that gave it a table read**; **both** affiliate doors'
+  `HC0R0` column gates re-expressed (the sibling was pulled in by lead ruling and its identity to
+  the org-tier gate was **verified by diffing the live bodies**, not assumed); orphan detector with
+  a three-way firing proof.
+  ⛔ **The finding that changed a safety property.** The INVOKER keystone **survived** the first
+  mutation, and the mechanism — measured, not theorised — is that **AE2.2 made profile visibility
+  itself affiliation-derived**, so the trigger's blindness and the profile's blindness are
+  **correlated**: it never reached the containment check, and an `if not found then return null`
+  turned the whole regression into a **silent ACCEPT**. That is **fail-open**, the *opposite* of
+  ADR 0159's predicted false-positive, and **invisible to an accept cell**. Fixed by making the
+  trigger fail-closed. ⚠ Generalisable: a change that re-predicates one gate can invert the
+  **failure mode** of another that reads through it.
+- **Increment 2** — folded into 1 (the circular pair could not move separately).
+- ▶ **Increment 3** — the write-authority path (`app.can_administer_person_for` + the six AE1.3
+  person-door kernels) with the capability-level differential. **Hard gate on the drop.**
+  **ASSIGNED HERE:** `users/actions.ts:739`'s stale assertion (its file).
+- ▶ **Increment 4** — `listLinkableOrgUsers`, shape C-b′ (C-a rejected).
+  ⛔ **ASSIGNED HERE, previously in NO increment's target list:** **`resolveOrInviteUser`**
+  (`src/lib/members/invite.ts:51`) resolves email→id, gates on `home_organization_id` with **no
+  affiliation predicate**, and **auto-grants `staff_admin`**. It was in AE2.1's census but
+  classified *service-role, structurally immune* — true for the **RLS-audience** question and
+  **irrelevant to the column-drop question**, which is how it fell between both. ⚠ Two different
+  properties were being tracked in one column.
+- ▶ **Then the drop.** Its checklist (in `docs/progress/authz-ae2.md`) carries the stale assertions
+  no gate can see: `handle_new_user`'s body comment, `invite.ts:35`, `e2e/phase13-audit.spec.ts:139`,
+  and `docs/backend-state.md` 396 / 599 / 5674.
+
+⚠ **Owed, not scheduled — a raw SQLSTATE now reaches a user.** Voiding a person's last non-voided
+affiliation raises bare **`23514`**, and unlike ADR 0156's precedent **no path refuses earlier**.
+It needs a mapped `HC0R*` in `void_org_affiliation`. Assign it before the drop.
+
 
 
 ### AE2.5 — D3: the binding text
