@@ -1088,3 +1088,14 @@ recent discharging gate: § Test Run Summary retains one row.
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-25 | ⭐⭐ **FULL `e2e:prod`, MERGED tree at `3894c667`** — `1239p · 0f · 2 flaky · 0 DNR · 21 batches`; sums = summary; 1241 + 11 skipped = 1252. ⚠ `0 infra` is POST-RETRY — 2 collapses (b2, b4) recovered ⇒ single-run. Names + discharges: [gate](merged-tree-gate-2026-08-25.md) | ✅ **GREEN, exit 0** |
+
+## Rotated from PROGRESS.md § Test Run Summary 2026-08-27 — the AFF4 gate row
+
+⛔ Verbatim (links repointed for this directory). Rotated after the **AE1 §6 Record step**:
+§ Test Run Summary retains the most recent gate only, and AFF4's is no longer it — AE1
+concluded and merged, AE2 has not gated yet. ⚠ The live table is therefore left with **no
+row at all**, which is the correct state; do not invent a placeholder row to fill it.
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-26 | **AFF4 `e2e:prod`** — `1250p · 0f · 0 infra · 2 flaky · 0 DNR · 21 batches`; 1252/1263, 11 skip. ⚠ Flaky NAMED + both pre-existing: `act-role-assumption:157` · `phase2-auth-shell:268` ⇒ **0 new**. ⛔ `0 infra` is POST-RERUN: batch 9 died, 21 unrun, rerun 67/67. [aff4.md](aff4.md) | ✅ **GREEN, exit 0** |

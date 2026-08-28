@@ -378,3 +378,18 @@ PDF·P3 + the user-profile redesign concluded 2026-08-25 (both approved; gate st
 > verdict and its three later-refuted specifics are part of the record.
 
 | ~~AE1 — authz integrity & privilege hardening (round 1)~~ | ~~CHANGES REQUESTED~~ | 2026-08-27 | [review §1–13](../reviews/authz-ae1-review.md) |
+
+## Rotated from PROGRESS.md § QA Verdicts 2026-08-27 — the AE1 round-2 and AFF4 rows
+
+> Retention: the live table keeps the current milestone only. AE1 concluded (PO-approved and
+> merged 2026-08-27), which concluded AFF4's row with it. ⚠ Both are **compressed to this
+> index's shape** — feature name → verdict → date → review file. The AE1 row's rationale (the
+> round-2 blocker was discharged by fixing the FIXTURE, not the mutation; re-run 16/16 · 0
+> ERROR, 49 assertions before and after) is deliberately **not** restated here: it lives in
+> [authz-ae1.md](authz-ae1.md) and in the linked review. Round 1 is the struck row in the
+> section above, same report file.
+
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- | --- |
+| **AE1 — authz integrity & privilege hardening (round 2)** | ⛔ **CHANGES REQUESTED → ✅ ALL DISCHARGED** | 2026-08-27 | [review](../reviews/authz-ae1-review.md) |
+| AFF4 — org affiliation, staff data, voided tense | APPROVED | 2026-08-26 | [review](../reviews/aff4-review.md) |

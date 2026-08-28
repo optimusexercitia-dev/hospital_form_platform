@@ -176,7 +176,6 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-26 | **AFF4 `e2e:prod`** — `1250p · 0f · 0 infra · 2 flaky · 0 DNR · 21 batches`; 1252/1263, 11 skip. ⚠ Flaky NAMED + both pre-existing: `act-role-assumption:157` · `phase2-auth-shell:268` ⇒ **0 new**. ⛔ `0 infra` is POST-RERUN: batch 9 died, 21 unrun, rerun 67/67. [aff4.md](docs/progress/aff4.md) | ✅ **GREEN, exit 0** |
 
 ## QA Verdicts
 
@@ -189,10 +188,8 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25".
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **AE1 — authz integrity & privilege hardening (round 2)** | **CHANGES REQUESTED → ✅ ALL DISCHARGED 2026-08-27** — the one blocker closed by fixing the FIXTURE, not the mutation; re-run **16/16 · 0 ERROR**, 49 assertions before and after. Detail → [authz-ae1.md](docs/progress/authz-ae1.md) | 2026-08-27 | [review](docs/reviews/authz-ae1-review.md) |
-| AFF4 — org affiliation, staff data, voided tense | APPROVED | 2026-08-26 | [review](docs/reviews/aff4-review.md) |
 | _Six prior rotations_ (the 2026-08-25 pair: PDF·P3 + user-profile · ADR 0136 · ADR 0137 · the AFF2 pair · the seven DM rows · the 2026-08-14 verbose collapse) — each rotation's own date is recorded at the destination | — | — | [archive](docs/progress/qa-verdicts-archive.md) |
-| 118 concluded rows | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
+| **147** concluded rows — ⛔ re-derived by counting 2026-08-27, never incremented (the hand-maintained **118** had drifted **27** low) | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
 
 ## Decisions
 
@@ -220,7 +217,6 @@ still awaiting a concluding event stay here:_
 | --- | --- |
 | ⚠ **Remote storage byte-loss is UNQUANTIFIED — the "~49 vanished" figure is WITHDRAWN 2026-08-18.** `n_tup_ins − n_tup_del` compares two units: 5 uploads move `ins` by **+6**, 5 deletes move `del` by **+5** (measured). And by the probe below, any surviving bytes are **unobservable** anyway | a magnitude re-derived from something other than the `pg_stat` counters — or PO ruling that it cannot be ([FUP-DM4-PRODROW](docs/progress/follow-ups.md)) |
 | ⛔ **CORRECTED 2026-08-21 — the remote holds the E2E SEED FIXTURE, not nothing.** This row said *"it holds no data and no users"* (census 2026-08-18). **Measured 2026-08-21 against the linked project: `auth.users` = 36, all `@test.local`, created 2026-08-19 — i.e. AFTER that census; 0 non-test accounts; 1 pre-promoted `platform_admin`; `cases` 10, `responses` 17; synthetic PHI `patient_identifiers` 2 / `event_patient` 3 / `referral_patient` 3.** ⭐ **No real customer data** — so the *conclusion* (safe to touch) survives; the *premise* did not, and the premise is what other decisions were resting on. ⚠ This is the **fifth** time a claim about the remote has gone stale in this file. ⛔ **Re-measure `auth.users` and `schema_migrations` before citing this row — never quote it.** | **expires at pilot data-load**, when it must be REPLACED by the rehearsed C1b disposal bound (§ Critical FUP C1), never just deleted |
-| ✅ **REMOTE IS CURRENT — the PDF·P3 + user-profile merge PUSHED 2026-08-25** (`db:push` FIRST per coolify.md's order, then `git push`; `main` == `origin/main` == `7c09e8ce`). ⭐ **Measured in the REMOTE CATALOG, never from `db push`'s report** (2026-08-25): `schema_migrations` = **463**, head **`20261003003100`**; registry closure holds — **463** registered == **463** files. The ten versions above `20261003002100` are P3's `…002200`–`…002800` then the user-profile batch's `…002900`–`…003100`. ⚠ **Data, same measurement:** `auth.users` = **36**, **0** non-`@test.local` — still the E2E seed fixture, no real customer data. `app.feature_flags` enabled = **42**. ✅ Production runs the **node 24** toolchain (PO-confirmed 2026-08-25) — ⛔ testimony, not a measurement; no gate can read Coolify. ⛔ **Coolify auto-deploys on the `git push` and its outcome is NOT measured here** — check Coolify, never this row. ⛔ Superseded by the next remote-affecting change — **re-measure, do not quote.** The superseded 2026-08-24 row was rotated verbatim → [2026-Q3.md](docs/progress/2026-Q3.md) § "Rotated from PROGRESS.md § State 2026-08-25". |
 
 
 ## ⭐⭐ Critical FUP — the must-not-be-forgotten list
