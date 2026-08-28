@@ -347,7 +347,7 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | app.can_access_targeted_response(p_response_id uuid, p_uid uuid) | predicate | positive | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,255_ethics_e2_targeted.sql,264_correction_requests.sql,270_ff1_repeating_groups.sql,272_ff2_door_parity.sql,273_eth_targeted_choice_lane.sql,274_ff3_validations.sql,276_ff5_references.sql,31_discard_response.sql,40_rls.sql,61_answer_model_v2.sql,70_response_fill.sql |
 | app.can_access_targeted_version(p_form_version_id uuid, p_uid uuid) | predicate | positive | COVERED | 171_cross_org_isolation.sql,255_ethics_e2_targeted.sql,272_ff2_door_parity.sql,60_builder.sql |
 | app.can_amend_referral_phi_snapshot(p_referral_id uuid, p_uid uuid) | predicate | positive | COVERED | 246_authz_f1_referral_split.sql |
-| app.can_administer_person_for(p_capability text, p_user uuid, p_actor uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=237 Tests=7863) |
+| app.can_administer_person_for(p_capability text, p_user uuid, p_actor uuid) | predicate | positive | COVERED | 384_person_scope_sql_predicate.sql,385_person_doors_authority_and_audit.sql,394_ae24_inc3_write_authority_capability_differential.sql |
 | app.can_curate_pqs_vocab(p_hospital_id uuid) | predicate | positive | COVERED | 141_event_triage.sql,195_pqs_vocab_dual_scope.sql |
 | public.can_dispose_referral_phi(p_referral_id uuid) | predicate | positive | COVERED | 189_nsp_per_hospital_isolation.sql,295_technical_director_referrals.sql |
 | app.can_manage_professional(p_org uuid, p_uid uuid) | predicate | positive | COVERED | 228_ethics_e1.sql,257_ethics_e2_retention.sql,290_authz_never_called_door_floor.sql |
@@ -797,3 +797,41 @@ cannot see the subject's `profiles` row either — the two blindnesses are **cor
 draft's `if not found then return null` turned that into a **silent accept**, orphaning the person.
 § 2.5 was green under `security invoker` until the trigger was made **fail-closed**. Detail:
 `docs/progress/authz-ae2.md` § AE2.4 increment 1.
+
+## Note — AE2.4 increment 3: an AE1 `ERROR` discharged, and a name-keyed verdict re-earned (2026-08-28)
+
+`20261003005700` re-predicated `app.can_administer_person_for` off `profiles.home_organization_id`
+onto `app.person_authority_orgs`, putting ADR 0163's retention in force on the **write** side.
+
+**Its standing row was `ERROR — run-shape!=baseline (Files=237 Tests=7863)`**, carried from AE1,
+where Gate AE1 item 3 ruled it against a compensating control rather than a verdict. It is now
+**`COVERED`**, held by `384`, `385` and `394`, measured on a fresh reset at baseline
+`Files=242, Tests=8065`. ⭐ **That closes an AE1 residue**: the gate now carries a verdict of its
+own instead of an ERROR ruled against something else.
+
+⛔ **It needed re-measuring for a second, independent reason — the AE2.2 hazard repeating.** The
+function kept its **name** and changed its **body**, so `ARM=census` — which backstops only
+*newcomers* — could not have noticed. A standing verdict transfers silently to a predicate it was
+never measured against; here the old verdict was an ERROR, so the silence would have preserved a
+non-verdict rather than a wrong one, but the mechanism is identical. Surfaced by
+`scripts/door-sweep-cases.sh`, not by recall.
+
+Subset run, `CASES="can_administer_person_for"`, fresh reset: `ARM-DOMAIN predicate=1/113
+policy=0/226 out-of-domain-bool=35` · **SWEPT 1 · COVERED 1 · BLIND 0 · ERROR 0**, exit **0
+(CLEAN)**. The committed baseline was never opened for write and was verified unchanged before this
+manual merge; the row below is a **merge of the changed row**, never a copy of the subset file.
+
+⚠ **Objects this increment touched that carry NO row here, each ruled in
+`docs/progress/authz-ae2.md` — absence of a verdict is absence of coverage, not coverage:**
+`app.person_audit_organization` is an **authorization input**, not a helper — `audit_log_select`
+gates commission-less rows on `app.is_org_admin_of(organization_id)` and this function supplies that
+column — but it returns `uuid` and is `postgres`-only, so it is outside all four arm domains; its
+compensating control is the targeted mutation set M8–M11/M16/M17. The six `*_impl` kernels are
+**unchanged as gates** (their column read was audit attribution, not authority) and were outside
+every domain before and after. ⛔ Same domain, **different reasons** — they must not be recorded as
+one class.
+
+⚠ **No pipe-table appears in this note, deliberately.** `verdicts_from_findings()` counts every
+`| `-prefixed line in this file as a gate verdict, so a table in a prose section manufactures
+verdicts and **inflates** the census — which *masks* a real newcomer.
+`FUP-FINDINGS-MD-PIPE-TABLE-MANUFACTURES-VERDICTS`.
