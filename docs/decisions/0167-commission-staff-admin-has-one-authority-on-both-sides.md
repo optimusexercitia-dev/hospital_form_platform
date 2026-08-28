@@ -75,3 +75,60 @@ unseatable.
   `scripts/door-sweep-cases.sh` (never by hand).
 - ⛔ **This ADR settles the commission `staff_admin` arm only.** The other `grant_role_impl` arms
   keep their own actor grids; nothing here rules on them.
+
+## Amendment 1 — the retired note had a narrower subject, and a SECOND one-way door survives (2026-08-28)
+
+§ Consequences said the QA m1 *"INTENTIONAL asymmetry"* note is retired because *"both sides now read
+the same predicate, so the note has no subject."* ⛔ **Measured on a fresh reset, that is half true,
+and the missing half is a live defect.**
+
+The note sits above the whole `commission` arm of `revoke_role_impl`, which has **two** sub-arms.
+Catalog-measured:
+
+- `grant` / `staff` → `is_admin_for OR is_staff_admin_of_for OR is_tenancy_admin_of_for`
+- `revoke` / `staff` → `is_staff_admin_of_for OR is_tenancy_admin_of_for` — **no `is_admin_for`**
+- `grant` / `staff_admin` → `is_admin_for OR is_tenancy_admin_of_for` *(clause 1 removes the first)*
+- `revoke` / `staff_admin` → `is_tenancy_admin_of_for` alone
+
+So clause 1 makes the **`staff_admin`** halves agree and leaves the **`staff`** halves disagreeing.
+⛔ **The one-way door survives one role over: a `platform_admin` may seat a commission `staff` and may
+not remove one** — the same escalation-without-de-escalation shape this ADR calls unacceptable,
+against a role this ADR deliberately bounded itself out of.
+
+**Consequences of the correction:**
+
+1. **The QA m1 note is retired and REPLACED**, not deleted — a narrowed note scoped to the surviving
+   `staff` asymmetry, citing this ADR's scope bound and the pending ruling. ⚠ Deleting it flat would
+   leave a real, undocumented asymmetry that a future reader would "fix" in whichever direction they
+   happened to prefer.
+2. **The suite's grant/revoke agreement property is scoped to `staff_admin`**, explicitly. An
+   unscoped property would red on a defect this increment is not authorized to close.
+3. ▶ **The `staff` one-way door is owed its own PO ruling** and is NOT closed here. ⚠ It is the same
+   class, so the direction argument likely transfers — but *likely* is not a ruling, and the `staff`
+   arm has a third participant (`is_staff_admin_of_for`) that the `staff_admin` arm does not, so the
+   grid is not the same grid.
+
+⭐ **How this was caught, because the mechanism generalises:** the implementer was told to derive the
+site set from `pg_proc` rather than trust line numbers, and derived **5** `is_admin_for` sites in
+`grant_role_impl` where the ADR's prose implied one region. The extra sites are what exposed that the
+retirement clause was written about a *region* while the fix operates on a *sub-arm*. ⛔ A prose
+claim about "the commission arm" is not a claim about either sub-arm, and this ADR made that
+conflation twice.
+
+## Amendment 1a — what the narrowing actually removes (2026-08-28)
+
+⚠ The implementer's narrowing search found the capability **unreachable through the application** —
+no `isAdmin` arm in `authorizeStaffAdminOps`, the manage layout 404s a platform admin, and the
+`/admin/comissoes/[slug]` route does not exist. That is true and was verified.
+
+⛔ **It does not mean the change is cosmetic.** `public.grant_role` is `authenticated`-executable, so
+a signed-in `platform_admin` can call it **directly over PostgREST** today and seat a commission
+coordinator. That capability is real, and this increment removes it. ⭐ **The door and the gate
+disagreed, and the door was wider — which is the entire reason this ADR exists.**
+
+Five test sites depended on it, **all as fixture ergonomics** rather than product behaviour (the
+bootstrap platform admin is `00_setup.sql`'s only org-less do-anything principal, so suites reached
+for it). One of the five is recorded here because its failure mode is the dangerous one:
+`291 § 4.13` — *"an authorized admin CAN demote"* — would have gone **VACUOUS rather than red**, a
+no-op that passes trivially, and `291:353` is the **only** place in the repo where a platform admin
+demotes a commission `staff_admin`.
