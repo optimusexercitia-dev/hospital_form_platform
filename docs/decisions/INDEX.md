@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**166 ADRs** · next free number: **0169** · 49 carry an inbound supersedes/amends edge
+**166 ADRs** · next free number: **0169** · 50 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -187,6 +187,6 @@
 | 0163 | [lifecycle authority over a fully-offboarded person: last-org retention](0163-offboarded-person-lifecycle-authority.md) | accepted | 2026-08-27 | amends 0151 | ⚠ amended by 0164 |
 | 0164 | [tenant containment moves from creation time to the destructive event](0164-tenant-containment-moves-from-creation-time-to-the-destructive-event.md) | accepted | 2026-08-28 | amends 0151, 0163 | ⚠ amended by 0165, 0166, 0168 |
 | 0165 | [the affiliation-derived tenant gate, what it widens, and the alternative rejected for n…](0165-affiliation-derived-tenant-gate-and-its-widening.md) | accepted | 2026-08-28 | amends 0151, 0164 | ⚠ amended by 0168 |
-| 0166 | [governance-role provisioning implies an organization affiliation](0166-governance-role-provisioning-implies-organization-affiliation.md) | accepted | 2026-08-28 | amends 0151, 0164 | – |
+| 0166 | [governance-role provisioning implies an organization affiliation](0166-governance-role-provisioning-implies-organization-affiliation.md) | accepted | 2026-08-28 | amends 0151, 0164 | ⚠ amended by 0168 |
 | 0167 | [commission `staff_admin` has ONE authority, on both sides](0167-commission-staff-admin-has-one-authority-on-both-sides.md) | accepted | 2026-08-28 | amends 0051, 0078 | – |
-| 0168 | [orphan recovery is its own door: split the branch, do not lock the door](0168-orphan-recovery-is-its-own-door.md) | accepted | 2026-08-28 | amends 0133, 0164, 0165 | – |
+| 0168 | [orphan recovery is its own door: split the branch, do not lock the door](0168-orphan-recovery-is-its-own-door.md) | accepted | 2026-08-28 | amends 0133, 0164, 0165, 0166 | – |

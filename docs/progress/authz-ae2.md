@@ -2583,3 +2583,692 @@ built knowing that. Three specifics worth keeping:
    while proving nothing: an **all-deny** grid satisfies *grant = revoke*; so does a grid that
    **agrees on the wrong answer**; so does a `where` matching **zero rows**. ⭐ That is the
    discipline applied to the *fix*, which is the step this repo has twice shipped without.
+
+---
+
+## Increment B (NOT BUILT) — the `grant_role` split, ADR 0168 Amdt 3
+
+**PO-ruled 2026-08-28.** Pre-measured here so the blast radius is a *finding on record* rather than
+something the build discovers.
+
+### Why it exists
+
+A live probe (fresh reset, rolled back) found a **third tenant-reachable door** carrying the
+anchorless-admitting predicate ADR 0168 closed on the other two:
+
+| Probe | Result |
+| --- | --- |
+| `org_admin` of Rede A → `public.grant_role('organization', A, 'org_admin', <orphan uuid>)` | **ACCEPTED** — orphan gained an active org-A affiliation **and** an `org_admin` membership |
+| commission `staff_admin` → `grant_role('commission', …, 'staff_admin', <orphan uuid>)` | REFUSED `42501` |
+
+Exposure bounded to the **`(organization, org_admin)`** arm. ⭐ The census that missed it was bounded
+by the **name** `affiliate_person%`; this door does not carry that name. **Bound a door census by the
+CAPABILITY — what writes `organization_affiliations` — never by a name family.**
+
+### The shape to build
+
+`app.ensure_provisioned_org_affiliation` gains `p_allow_anchorless boolean default false`; its
+containment becomes, using the SAME named helpers increment A introduced:
+
+```sql
+if not (app.person_known_to_org(p_user, p_organization)
+        or (p_allow_anchorless and app.person_is_anchorless(p_user))) then
+  raise exception 'pessoa não pertence a esta organização' using errcode = 'HC0R0';
+end if;
+```
+
+`public.grant_role` (authenticated) passes **false**; `public.grant_role_for` (service_role) passes
+**true**. ⛔ Depends on increment A — do not start before its helpers land.
+
+### ⚠ Blast radius, MEASURED not guessed
+
+- **`396` is almost entirely SAFE.** Its harness `pg_temp.try_grant` (`:288-299`) drives
+  `public.grant_role_for`, which keeps the wide predicate. `§ 0.5` (`grant_role` still reachable by
+  `authenticated`) also survives — this narrows the target-tenancy **predicate**, not the door's
+  **audience**.
+- ⛔ **EXACTLY ONE cell flips, and it is a real product path:** `396 § 2.1` (`:401-406`) —
+  *"an org_admin seats a commission coordinator through the SESSION door — **assignStaffAdmin's
+  shape**, actor bound from `auth.uid()`"* — over P2, whose `§ 2.0` precondition is *"P2 is
+  unaffiliated and reported by the detector"*. That is precisely the state the narrowing refuses, and
+  it is why the PO ruling moves `assignStaffAdmin` to `grant_role_for`.
+- ⚠ **THE CELL'S SUBJECT CHANGES, NOT JUST ITS CALL.** Re-pointing `§ 2.1` at `grant_role_for` leaves
+  `§ 2.2/2.3/2.4` green while its own description — *"the SESSION door … assignStaffAdmin's shape"* —
+  becomes **false**. ⛔ Re-cut the description with the call, or this is the "a comment is an
+  assertion that goes stale silently" shape with four green cells sitting on top of it.
+- ⚠ **Then ask the question the re-cut raises:** with `assignStaffAdmin` moved off it, does any
+  production caller still reach `public.grant_role`'s commission arm? If none does, `§ 0.5` is
+  pinning an `authenticated` door nothing can reach — a **finding to rule on**, not a cell to keep
+  green. Derive the answer from the TS call sites, not from this note.
+
+---
+
+## Increment C (NOT BUILT) — ADR 0167 Amdt 2, and ⛔ the compensation it must carry
+
+**Swept file-only 2026-08-28, before any edit.** The headline is not the reds.
+
+> ⛔ **Amendment 2 is a narrowing that, UNCOMPENSATED, WEAKENS THE PROOF OF AMENDMENT-0 CLAUSE 1.**
+> Building it as written trades a closed gap for a keystone that no longer has a behavioural
+> witness. The compensation below is part of the increment, not a follow-up.
+
+### ⚠ The ADR's own prediction was measured FALSE, in the reassuring direction
+
+Amdt 2 says *"the `staff` population is larger than `staff_admin`, so expect MORE fixture reliance."*
+Measured: **the opposite** — 7 sites, in two files. Every other commission-`staff` grant in pgTAP
+already uses a non-platform actor (`224`, `291`, `293:344`, `306`, `396`). ⭐ A prediction that
+over-states the blast radius is *not* harmless: it invites the builder to treat a small red set as
+"as expected" and stop looking — which is exactly where the quiet damage is.
+
+### The 5 REDs — all real reachability findings, two meant to be DELETED
+
+`293:232` (§ 2.10 whole-map literal) · `293:258-262` (§ 3.2) · `397:164-173` (§ 0.3, count **and**
+regex move) · `397:474-478` (§ 5.3) · `397:513-517` (§ 6.1). ⛔ `397 § 6` and `397:42-54` carry their
+own exit instruction — *"IF EITHER CELL BELOW REDS … DELETE this section rather than 'repairing'
+it."* Obey it.
+
+⭐ **Clause 1's own fix works:** `293 § 2.10` pins the WHOLE 12-cell map, so the `staff` flip **reds**
+instead of passing silently — the precise failure clause 1 was written about. Residual risk is human:
+2.1–2.8 stay green, so a reader who edits the `293:232` literal without reading `293:200-241`
+reproduces it anyway.
+
+### ⛔ The quiet damage — bigger than clause 1's was, and none of it reds
+
+1. **`293:251-256` (§ 3.1) goes VACUOUS while green.** Today the platform admin passes the arm and
+   is refused by the self-grant guard with `'não é permitido conceder acesso a si mesmo'`. After the
+   narrowing it is refused **one statement earlier** with the generic `'sem permissão'`. **The cell
+   compares SQLSTATE only**, so it stays green measuring the wrong thing — and `293:247-250` says
+   this cell exists *specifically* to pin the inlined `p_actor` comparison that a delegation would
+   have made a silent no-op. ⚠ **The trap:** its positive twin § 3.2 reds, so re-homing § 3.2's actor
+   to clear the red leaves § 3.1 permanently vacuous.
+2. **`397:465-472` (§ 5.2) goes VACUOUS while green.** SQLSTATE-only over six actors; platform stays
+   `42501`, now sourced from the sub-arm. Its docstring — *"only true because site (b) was fixed"* —
+   becomes false: the cell is `42501` **with or without** site (b).
+3. ⛔⛔ **Site (b) — clause 1's KEYSTONE — loses EVERY behavioural assertion in the repository.**
+   Walk 397's six actors: four are refused at the narrowed sub-arm, two pass site (b); **no actor in
+   the file reaches site (b)'s raise.** The only class that can is
+   `is_staff_admin_of_for ∧ ¬is_tenancy_admin_of_for` — `291 § 4.10` (actor `sa_x`), which asserts
+   `'42501', null`, **no message**. Confirmed against the mutation audit: `restore_is_admin_site_b`
+   keeps only its two **structural** reds, and `site_b_generic_message` becomes **NOT RED-PROVEN**.
+   ⚠ `run_case` only checks the named patterns are `not ok` — it never asserts they are the *only*
+   reds, so a recorded red-set is a **subset**, not the blast radius.
+
+### The compensation the increment MUST carry
+
+- **Give site (b) a behavioural witness back**: add the message assertion to `291 § 4.10` (or a new
+  cell on that actor class) — it is the only actor class that still reaches the raise.
+- **Re-cut `293 § 3.1` and `397 § 5.2` to discriminate by MESSAGE, not SQLSTATE** — a refusal that
+  moves to a different statement must be visible.
+- **Unscope § 4's agreement property** to span both sub-arms: `397:339-343`/`:345-349` hard-code
+  `'staff_admin'`; the caveats at `397:52-54`, `:420-423`, `:523` all lose their subject. Floor
+  `397:445-449` moves **`6|12` → `6|24`** — the anti-vacuity floor doubles, which is the point.
+- **Re-run and re-record the mutation audit's expected red sets** — two mutants degrade, and a
+  degraded mutant that is still listed reads as coverage.
+
+### Not affected — confirmed, not assumed
+
+`seed.sql` never calls the door (`grep -c grant_role` → **0**; 13 `'staff'` rows are raw DML), has no
+`set role`, and its three `request.jwt.claims` blocks carry **no `is_admin` key**. Playwright: **zero**
+sites — both commission-`staff` grants use `admin@test.local` (`…001`, an `org_admin`), and the only
+spec signing in as `platform@test.local` grants `organization`/`org_admin` only. `291` is entirely
+unaffected — clause 1 already re-homed it to `oa_b`, with its own ⛔ *"Do NOT restore the platform
+admin here to make a future red go away."*
+
+---
+
+## Increment A ✅ BUILT — ADR 0168 Amdt 1/2, the three doors
+
+`20261003006100_adr0168_three_doors_orphan_recovery.sql` · `393` re-cut (48 → 55 assertions) ·
+`398` new (25) · `database.ts` regen.
+
+### The shape that shipped
+
+**ORDINARY** (`app.affiliate_person_to_org_impl`, `app.affiliate_person_impl`) narrowed to
+`app.person_known_to_org` · **CREATION** (`…affiliate_new_person…`, `service_role`-only wrappers)
+keeps gen-1's predicate, bounded by ACL + its own audit verb · **RECOVERY**
+(`public.recover_orphan_person_to_org`, `authenticated`, `app.is_admin_for`) requires
+`app.person_is_anchorless`.
+
+⭐ **`393`'s differential gained a DOOR dimension** — `ae24_declared` is now keyed
+`(door, label, tier, direction)`. The ordinary door declares **NO WIDENINGS** (that is the security
+claim, stated as data); the creation door carries gen-1's widenings **preserved**, which records
+that ADR 0168 *moved* those semantics rather than deleting them.
+
+### Gates — exit codes captured directly
+
+| Gate | Result | Exit |
+| --- | --- | ---: |
+| `ARM=census` (lead-verified, post-merge) | 569 gates / **605** verdicts (was 603) · INVARIANT HOLDS | 0 |
+| `scripts/door-sweep-cases.sh fa3fe93f` | `CASES=[person_is_anchorless person_known_to_org]` | 0 |
+| diff-scoped sweep over those two | `SWEPT 2 · COVERED 2 · BLIND 0 · ERROR 0 — CLEAN` | 0 |
+| `ARM=hat` · `FROMFINDINGS=1 ARM=wrapper` | INVARIANT HOLDS (run unasked — new gates) | 0 |
+| `npm run lint` (lead-verified) | **11/11** | 0 |
+| `npm run test` · `typecheck` | 146 files / 2003 tests · 0 errors | 0 |
+| vitest `d14` + `invite` (lead-verified) | 55/55 + 9/9 | 0 |
+
+⭐ **`ARM=census` VIOLATED first, exactly as designed** — it named the two brand-new predicates,
+which is the arm's whole purpose (a new gate is in no BLIND set, so `ARM=policy` passes it
+vacuously). Fixed by **merging** the two rows into `docs/reviews/authz-door-audit-findings.md`; the
+subset run wrote to SCRATCH and the committed baseline was verified unchanged by cksum + empty
+`git diff --stat` (ADR 0153 — ⛔ never `git checkout --` that file).
+
+### ⭐ The vacuity hunt — measured, not inspected
+
+Both suites were **green on their first run**, which this repo treats as a finding. Five mutation
+controls, each asserting the edit landed first: restoring the anchorless disjunct to **one** sibling
+reds `393 § 5.7` in **both** directions; an ACL flip reds `398 § 1.2` (the ruling pin); a misspelled
+verb reds `§ 4.1/4.7/4.8`; a widened recovery predicate reds `§ 3.3`.
+
+⛔ **"Did anything go vacuous rather than red?" was answered by INSTRUMENTATION, not by reading.**
+Both narrowed doors were made to `raise warning` on every call whose behaviour the narrowing flipped,
+and all 246 files were run: **exactly 7 flipped calls in the whole suite** — W3, W5, W6, W7, H1, H4,
+H6, every one of them `393`'s own cells. F1 correctly absent (it routes through the creation door).
+**No other suite ever reached the anchorless branch**, so nothing else *could* have gone vacuous.
+The instrument's own only casualty was `§ 5.7` noticing the instrument — then removed, and its
+absence re-measured from `pg_proc`.
+
+### Two defects the run caught in the first draft — both from this repo's known families
+
+- ⛔ **A door called inside a query's `WHERE` cannot see its own audit rows** (snapshot isolation) and
+  reported `(none)` — a *fabricated* "this door emits no verb". The snapshot rule is now written into
+  `398 § 4`'s header so the next author does not re-derive it.
+- An assertion's actor hit the **authority** arm before the **containment** arm, so the cell was
+  measuring the wrong refusal.
+
+### Rulings taken during the build, recorded because no gate would carry them
+
+1. **The recovery door needed an org-existence guard** (`HC0R5`). `is_org_admin_of_for` gives the
+   ordinary door one for free; `is_admin_for` is org-independent, so a typo'd org uuid would have
+   surfaced as a raw `23503` in the UI. No oracle concern — a platform_admin already enumerates orgs
+   under the noun rule. Pinned as `398 § 3.5`.
+2. **The recovery door has no idempotent branch, and that is a consequence, not an omission** — an
+   anchorless person has zero non-voided rows of any tense, so the siblings' probe cannot match.
+   Documented so nobody "restores" dead code.
+3. ⛔ **The deriver's exit-0 carried an 8-item EXCLUDED-BY-NAME list** (both ordinary impls, both
+   creation impls, both creation wrappers, the recovery impl + wrapper). The name filter is
+   acknowledged blind, and **for an ALTERED gate `ARM=census` does not backstop it**. **Ruled: all
+   eight are authorization gates; none is a boolean predicate, so the door sweep structurally cannot
+   neutralize them; each therefore owes a targeted mutation case — and each now has one with a
+   recorded red** (M1/M2 · A + `398 § 2.1/2.2/2.5` · C + `398 § 3.3`).
+
+### Increment A — lead-verified gate numbers (re-run independently, fresh reset)
+
+`supabase db reset --local` exit **0** → `npm run test:db`: **`Files=246, Tests=8256, Result: PASS`,
+exit 0** (baseline `245/8224`; +1 file = `398`, +32 tests). Re-run by the lead rather than carried
+from the builder's report, because a census run mutates and restores in between and *a green
+baseline is not evidence the DB is fit to measure from*. The full door-family ACL matrix was also
+re-derived from `pg_proc` by the lead: all 5 impls + 2 helpers owner-only; both creation wrappers
+`service_role`-ONLY; recovery `authenticated`-only; `anon` false everywhere.
+
+---
+
+## Increment B — TS half ✅ DONE (SQL half in flight)
+
+`assignStaffAdmin` (`src/lib/admin/actions.ts`) moved from `public.grant_role` (session door) to
+`public.grant_role_for` (service_role twin, explicit `p_actor` from `getSessionContext()`).
+⛔ No authority traded — the `_for` twin re-derives the SAME authority in PostgreSQL from `p_actor`.
+
+- **`lint:service-role-registry` reds on this by design** — the move creates a NEW service-role call
+  site. Registry row added; gate back to **45 == 45**.
+- ⭐ **The change SURFACED A FIXTURE THAT DID NOT MODEL REALITY.** `actions.test.ts`'s `contextWith()`
+  returned **no `userId`**, though the real `getSessionContext()` has always had one
+  (`platform/actions.ts:assignOrgAdmin` reads it). It sat harmless for as long as no cell read the
+  field — an incomplete fixture is invisible until something needs the missing part. Fixed the
+  **fixture**, not the guard.
+- ⚠ **Checked rather than assumed, and it could easily have gone the other way:** the deny cells use
+  `expect(rpc).not.toHaveBeenCalled()`, and moving from the cookie client to the admin client would
+  make those **vacuous** if the two mocks were distinct spies. Measured — `vi.mock` returns the SAME
+  `supabaseMock` for both `createClient` and `createAdminClient`, so the single `rpc` spy still sees
+  the call. The deny cells stay live.
+- **Red-proven, both halves:** a wrong `p_actor` reds, and reverting production to the session door
+  reds. `p_actor` is asserted explicitly because the twin's whole point is that PostgreSQL derives
+  authority from THAT id — a call passing the TARGET instead of the caller is an authority bypass
+  `result.ok` cannot see. 9/9 after restore.
+
+### Increment B ✅ BUILT — SQL half
+
+`20261003006200_adr0168_amdt3_grant_role_split.sql` · `399` new (16) · `396 § 2` re-cut
+(`plan(63)`→`plan(64)`) · `293` re-cut (unplanned — see below).
+
+**Gates:** `test:db` **247 files / 8273 tests PASS** · lint **11/11** · `ARM=census` 0 (569/605) ·
+deriver 0 · diff-scoped sweep **CLEAN (2/2 COVERED, 0 BLIND)** · typecheck 0. Findings baseline
+`md5sum -c` **OK** — untouched by the builder; the 2-line diff on it is increment A's merge.
+
+**The asymmetry pin (`399 § 1.1`)** derives BOTH literals from `pg_proc` in ONE cell
+(`grant_role=false grant_role_for=true`), anchored on the preceding parameter *name* so a reordered
+call reds rather than matching the wrong literal, and yielding `NO-MATCH` rather than an empty string
+if the body's shape changes. ⭐ One cell for both, so "restore symmetry" cannot land as one red and
+one green — and M1/M2 move it from **opposite sides**, which is the one-directional-mutation trap
+closed rather than merely avoided.
+
+**Red-first:** `399` was run against the **un-migrated** DB — **7 of 16 red**, and `§ 2.1`'s
+pre-migration failure *is* the lead's live probe reproduced as a test.
+
+### ⭐⭐ The finding that outlives this increment: a CAPABILITY-bounded sibling census
+
+`399 § 3.1` replaces the name-bounded sibling census with one derived every run: **every function
+whose comment-stripped body inserts into `public.organization_affiliations`**, with its predicate
+profile. Measured **pre-migration**, `app.ensure_provisioned_org_affiliation` sat in that set
+carrying `-+-` — **neither named predicate while writing the table**, and *nothing in the estate was
+asking*. That is exactly the hole ADR 0168 Amdt 3 was written about, now a live gate instead of a
+lesson. ⛔ This is the shape every future door census in this repo should take.
+
+### ⛔ Three honesty notes that must not be lost
+
+1. **`ARM=census` gives this door NO coverage and never did.** `ensure_provisioned_org_affiliation`
+   is `prosecdef` returning **uuid** — a scalar non-bool command door, explicitly outside the census
+   domain (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`). No regression, but **"census clean" is not evidence
+   about this function**; `399` is. Absence of a verdict is absence of coverage.
+2. **`293` was a FIFTH flip the lead's blast-radius estimate missed** — and it failed **loudly**
+   (`Bad plan. You planned 27 tests but ran 3`), because `has_function_privilege` on a
+   no-longer-resolving signature *raises*. Re-cut to resolve the oid **by name** and assert the
+   domain size in the same string (`'0|1'`) — strictly stronger, since the old literal could not see
+   an added overload and the `|1` stops it going green on an empty set.
+3. **Two harness defects the builder hit and reported rather than hid:** a mutation that **did not
+   land** (un-doubled quotes) — caught only because the harness asserts the edit landed first; and a
+   restore that was a **silent no-op**, because the REVOKE named an 8-arg signature where the
+   function is 7-arg. ⛔ *A REVOKE against a signature that does not match is a silent no-op*, so the
+   "baseline re-run" afterwards was dirty.
+
+### Regression this increment introduced, found and fixed by the lead
+
+Adding `p_allow_anchorless` changed `app.grant_role_impl`'s signature, and **five mutation harnesses
+hard-coded the old 7-arg literal** (`adr0167-…`, `f1-expiry-seam`, `q1-quality`, `w3-door-kernel`,
+`w4-technical-director`). Measured, not assumed: the stale cast **raises**
+(`function … does not exist`). Fixed to `'app.grant_role_impl'::regproc` — resolves by name and
+errors on a stale overload, which is the property actually wanted — and the one **DDL** site to the
+real 8-arg signature, since `execute` on a non-existent signature raises and *a mutation that does
+not apply reports GREEN*. Verified by executing all three constructs; encoding and LF endings intact.
+
+---
+
+## ⚖ M11 / ADR 0164's HARD PRE-CONDITION ON THE DROP — DISCHARGED, measured 2026-08-28
+
+Not inferred from "the migrations landed". Re-run with **the same instrument that found the defect
+open**, through the **public wrappers as a real signed-in user**, on a fresh reset, rolled back.
+
+| Door | Actor | Before | After |
+| --- | --- | --- | --- |
+| `public.affiliate_person` — ADR 0168 Amdt 1 calls this *"the entire exposure"* | `hospital_admin` of Central A | accepted | **REFUSED `HC0R0`** |
+| `public.affiliate_person_to_org` | `org_admin` of A | accepted | **REFUSED `HC0R0`** |
+| `public.grant_role` → `ensure_provisioned_org_affiliation` (the door the name-bounded census missed) | `org_admin` of A | **accepted — anchor + `org_admin` membership both written** | **REFUSED `HC0R0`** |
+| `public.recover_orphan_person_to_org` — ⭐ POSITIVE CONTROL | `platform_admin` | n/a | **ACCEPTED, row written (1 org affiliation)** |
+
+⛔ **The preconditions were asserted in the same transaction, so a refusal cannot be a fixture that
+stopped constructing the state:** the orphan is still flagged by `app.tenant_orphan_profiles()`, and
+the hospital_admin genuinely still holds `is_hospital_admin_of_for(Central A)`. Without those two
+lines every "REFUSED" above would be satisfied by a subject that no longer exists.
+
+⭐ **The positive control is the half that makes this a discharge rather than a lockout.** ADR 0168
+refused to lock the door precisely because an orphan is in no roster and reachable only by uuid;
+"all three doors refuse" on its own would have been the *stranding* outcome the ADR rejected. Three
+tenant doors closed, one platform door open, orphan recoverable — that is the ruled shape, measured.
+
+---
+
+## Increment F (NOT BUILT) — the drop: the `seed.sql` half, measured
+
+`supabase/seed.sql` carries **6** references to `home_organization_id` (`:77`, `:111`, `:257`,
+`:379`, `:405`, `:407`). Two are load-bearing:
+
+- **`:257`** — the persona loop writes `user_metadata.home_organization_id` from `u ->> 'org'`, which
+  is what `handle_new_user` reads to populate the column. The drop owns `handle_new_user`
+  (`src/lib/members/invite.ts` already says so: *"that metadata key outlives this increment on
+  purpose"*).
+- **`:405-407`** — the org-affiliation seed **derives from the column**:
+  `select pr.id, pr.home_organization_id … where pr.home_organization_id is not null and not pr.is_admin`.
+
+⛔ **THE WRINKLE, and it is structural rather than a rename.** That block's own header argues
+*"⭐ DERIVED, NOT HAND-LISTED … a hand list of persona UUIDs would have to be edited every time a
+persona is added, and the failure mode of forgetting is a persona who is invisible in the directory
+for reasons no test explains."* After the drop that predicate **has no subject**, and the obvious
+replacement — a literal persona list — is exactly what the header forbids.
+
+The honest source is the same one the loop already uses: `u ->> 'org'` from the persona JSON array.
+But that array is scoped to a `do $$ … $$` block (the `auth.users` loop) and **the affiliation insert
+at `:405` is a top-level statement outside it**. So the rewrite must either materialise
+`(id, org)` from the loop into a temp table and derive from that, or move the insert inside the
+block. ⭐ Either keeps "derived, not hand-listed" true; a literal list silently breaks the property
+the comment exists to protect, and no gate would notice.
+
+⚠ Ordering is load-bearing and self-enforcing (`:374-376`): the org affiliation must precede the
+hospital one or `supabase db reset` fails at seed time on the deferred containment trigger. Any
+restructuring must preserve that, and the failure is loud, which is the good case.
+
+### Increment F — the FULL break map, measured file-only 2026-08-28
+
+⚠ SQL claims below are from migration text and are **INDICATIVE ONLY** — verify in the catalog.
+
+| Kind | Where |
+| --- | --- |
+| ⛔ live SQL read in a function body | `public.handle_new_user` · `public.guard_profile_privileged_columns` · `test_helpers.bootstrap` (`00_setup.sql:173`) — **CNV-3's closed set of 3** |
+| ⛔ live PostgREST projection | `src/lib/queries/org-users.ts:55` (`PROFILE_SELECT`) → 42703 |
+| ⛔ live raw-SQL read in a spec | `e2e/platform-org-admin-provisioning.spec.ts:142-144` (selects the column **and asserts its value**) |
+| ⛔ seed derivation | `seed.sql:405-408` (+ the "derived, not hand-listed" wrinkle above) |
+| ⛔ baseline script | `scripts/authz-explain-baselines-ae0.sql` ×6 |
+| ⛔ pgTAP | **171 refs / 45 files.** Three classes: fixture `update … set home_organization_id` (~40 files, mechanical) · **AE2 differential suites that reproduce the OLD predicate ON PURPOSE** (`390`–`395` — rewritten or retired, never "fixed") · schema assertions red **by design** (`180:47` `has_column`, `:98`, `:103`) |
+| ⚠ metadata writers to delete | `src/lib/users/actions.ts:723` · `src/lib/members/invite.ts:147` · `e2e/mem-memberships-collapse.spec.ts:106` · `e2e/phase13-audit.spec.ts:161` · `seed.sql:257` · `demo/seed-revisao-prontuario.sql:203` |
+| ✅ already-green negative pins | `person-admin-view.test.ts:557` · `org-roster-predicate.test.ts:204,422,504-529` |
+
+### ⛔⛔ THE GATE CANNOT SEE THE METADATA WRITERS — and it says so on purpose
+
+`src/lib/queries/org-roster-predicate.test.ts:517-520` is a **self-test** asserting that the
+module-property regex does **NOT** match `data: { home_organization_id: organizationId }` (nor a
+`select('…')` projection). That is correct for what the property is about — *predicates* — and it
+means **the repo's own drop gate is deliberately blind to both metadata writers and to
+`PROFILE_SELECT`**.
+
+⭐ So the two loudest classes at the drop are the two nothing will report: a projection that fails at
+**runtime** (42703, not build), and metadata keys that simply become inert with **no error at all**.
+⛔ The metadata writers must be removed **by hand, in the same increment**, and their removal
+verified by something other than that property test.
+
+### ⚠ One inherited claim to verify, not carry
+
+`src/lib/users/d14-person-level.test.ts:451,458-460` says the column *"is kept on the profiles row
+above ONLY because `registerUser`'s email/CPF pre-checks still read it on a different path."*
+**Unverified, and the sweep found no such read.** If false, that fixture line is load-bearing for
+nothing and the comment is a stale assertion of exactly the kind that has cost this phase repeatedly.
+Measure the pre-checks before trusting either the comment or its removal.
+
+### ⚠ Already-stale comments the drop will walk past
+
+`e2e/phase13-audit.spec.ts:139` and `20260702000000:369,377` still describe
+`profiles_tenant_has_org_trg` as live; `…005600:83` **dropped** it. `src/lib/queries/org-users.ts:33`
+still describes an `is_org_admin_of(home_organization_id)` leg on the `profiles` SELECT policy that
+AE2.2 removed, and `:483` describes D10 Phase 2 as not-yet-done. None reds anything.
+
+---
+
+## Increment C ✅ BUILT — ADR 0167 Amdt 2, `staff` sub-arm narrowed WITH its compensation
+
+`20261003006300_adr0167_amdt2_commission_staff_subarm.sql` — ⭐ both bodies generated from live
+`pg_get_functiondef` by a script that **aborts on any needle miss**, so they are byte-for-byte the
+catalog apart from one predicate and three comment blocks. Site re-derived from `pg_proc`: 3 live
+`is_admin_for(` sites in `grant_role_impl`; one removed; now 2 grant / 1 revoke, re-verified after
+reset.
+
+**Red-first:** the three suites were run **unmodified** against the narrowed door — exactly the
+predicted set reds (`293 § 2.10`, `§ 3.2`; `397 § 0.3`, `§ 5.3`, `§ 6.1`), and `291` had **zero**,
+confirming it was behaviourally unaffected as the sweep claimed.
+
+### ⛔⛔ THE LEAD'S PRESCRIBED COMPENSATION WAS WRONG, and the correction is the lesson
+
+The brief said: give site (b) a witness by adding the message assertion to `291 § 4.10`, whose actor
+class is `is_staff_admin_of_for ∧ ¬is_tenancy_admin_of_for`. **Measured, that does not restore the
+witness.**
+
+> Both `291 § 4.10`'s actor and 397's actor 7 are `is_admin_for = **false**`. So restoring site (b)'s
+> dropped `is_admin_for` leaves the raise **firing anyway** — `restore_is_admin_site_b` stays
+> degraded to structural reds, which is the exact degradation the compensation existed to fix.
+> **Only an actor that is BOTH `is_admin_for` AND a commission `staff_admin` makes site (b) DECIDE
+> anything.**
+
+⭐ **Generalises: a witness that proves a guard FIRES is not a witness that the guard DECIDES.** To
+red-prove a mutation you need an actor for whom the *mutated predicate changes the outcome* — not
+merely one who reaches the line. 397 gained `pa_sa` (ord 8, both hats); § 5.3 was re-homed onto it,
+actor 7 kept as its control, and `291 § 4.10` done as well.
+
+### The agreement-property floor is `8|32`, not the lead's `6|24`
+
+Unscoping over the original **6** actors would have been *its own vacuity*: none of them satisfies
+`is_staff_admin_of_for`, so the `staff` sub-arm's **third disjunct** — the one Amdt 2 argues is
+"symmetric and untouched" — would have been asserted by **nothing**, and the two sub-arms' grids
+would have come out identical row-for-row. Actors 7/8 are `42501` on `staff_admin` and `ALLOWED` on
+`staff`, which forced `expected` to split into `exp_sa` / `exp_st` / `exp_demote`.
+
+### Mutation audit: 20 → 22 mutants, and a THIRD needed work
+
+- `restore_is_admin_site_b` — re-armed **behaviourally** via actor 8 (was structural-only).
+- `site_b_generic_message` — was moving **nothing**; now reds `5.2 5.3`.
+- ⛔ **`remove_staff_arm_is_admin` — not named in the brief: its NEEDLE CEASED TO EXIST**, so it would
+  have reported `NOT PROVEN → MUTATION NO-OP`. Replaced by `restore_is_admin_staff_subarm` plus the
+  opposite polarity `deny_all_staff_subarm` — both directions, per the one-directional-mutation trap.
+- `close_the_staff_gap` → `revoke_staff_admits_platform` (its expected red lived in the deleted § 6).
+
+**22/22 RED-PROVEN**, CONTROL 41 ok / 0 not ok. ⭐ The **full blast radius of all 22** is now recorded
+at the foot of the audit script, because `run_case` only checks its named patterns are `not ok` and
+never that they are the ONLY reds. Union = **37 of 41**; unmoved = `1.1, 1.3, 4.4, 5.4` — harness
+precondition, fixture precondition, population floor, atomicity pin, each already named in 397's
+published residual bound.
+
+### Vacuity, answered by instrumentation over all 247 files
+
+`293` flipped=2 reds=0 · `397` flipped=2 reds=1. **Two files, four calls, in the whole estate.** The
+three vacuous-not-red cells the sweep predicted are all now discriminating by **message**:
+`293 § 3.1` re-homed to `sa_x` and re-cut to `throws_ok` with the message (⚠ **its twin § 3.2 was
+re-homed in the same edit — re-homing § 3.2 alone was the trap the sweep named**) · `397 § 5.2`
+re-cut to full-verdict over all 8 actors · `397 § 6` **deleted** per its own written exit
+instruction, its subject re-homed to § 2.7 + § 3.7 as assertions of the *closed* policy.
+
+Two comments that went false were corrected and are now pinned in **both directions** by `397 § 0.5`:
+`grant_role_impl`'s site-(b) note ("the 'staff' sub-arm above ADMITS a platform admin") and
+`revoke_role_impl`'s QA m1 replacement note, retired outright per Amdt 2 § Consequences 1.
+
+### Ruling recorded: the deriver's EXCLUDED-BY-NAME list
+
+It now contains `grant_role`, `grant_role_for`, `grant_role_impl`, `revoke_role_impl` because this
+increment **altered** them, and ⛔ for an altered gate `ARM=census` does not backstop the name filter.
+**Ruled:** all four are authorization gates; none is a boolean predicate (the impls return `void`), so
+the door sweep structurally cannot neutralize them; each owes a **targeted** mutation case and each
+has one — the 22-mutant audit attacks both impls in both polarities, and
+`revoke_door_from_authenticated` + `397 § 1.4 / § 8` + `293 § 1.1–1.7` cover the two wrappers.
+
+---
+
+## Increment E ✅ DONE — detector logging (round-2 finding R2-m4)
+
+`isTenantOrphan` (`src/lib/users/actions.ts`) logged the **entire platform-wide orphan set** — every
+`profileId` and `reason` — on `registerUser`'s failure branches. That action has **one** entry point,
+`/o/[org]/manage/usuarios/novo`, driven by an `org_admin` or `hospital_admin`. So a single tenant's
+request log received the **cross-tenant orphan roster**: precisely the id set
+`app.tenant_orphan_profiles()` is `postgres`-only in order to withhold, because it *"enumerates
+people no tenant admin can reach"*.
+
+Now logs **this person only**. ⛔ The RPC still returns the whole set — that is its contract, and the
+`is_admin` discrimination lives inside it; what changed is **what leaves the process**. Return value
+is semantically identical (`orphans.find(...) !== undefined` for `orphans.some(...)`).
+
+⭐ **It also stops the wolf-crying.** Invite-provisioned admins report as `never_affiliated`, so the
+old line fired on **every** registration in **every** org regardless of outcome — training operators
+to ignore the one signal ADR 0164's mitigation exists to give. It now fires only when *this*
+registration is what went wrong.
+
+⚠ **The "are there others nobody has noticed?" question was real and is deliberately NOT answered
+here any more.** It belongs on a platform-admin surface where the audience matches the data, not
+smuggled into a tenant's request path as a side effect of an unrelated failure. Stated in the code
+rather than dropped silently.
+
+### The witness — and why it is a MODULE PROPERTY
+
+⛔ **Measured: NOTHING tested the detector log, in any suite.** A privacy fix with no witness is what
+silently regresses. But the behavioural route was closed: `isTenantOrphan` is not exported, and
+`d14-person-level.test.ts`'s shared `rpc` mock returns `{ error: null }` unconditionally, so the
+logging branch is unreachable without changing a fixture **55 other tests** depend on. Exporting a
+private helper, or widening that mock, to buy a witness is a larger change than the fix.
+
+So `src/lib/users/tenant-orphan-logging.test.ts` uses the repo's existing idiom
+(`org-roster-predicate.test.ts`): a positive source-text pattern for the spill shape, plus
+- a **self-test that the pattern matches the expression that actually shipped** (without it the
+  assertion is satisfied by a regex that can never match again — the dominant failure family here);
+- a **self-test that it does NOT match** the replacement or the two legitimate collection uses
+  (`.find`, `.some`), so the fix is not written around the test;
+- a **non-vacuity-of-subject** cell — the file still calls the detector at all, or the property goes
+  green the day `isTenantOrphan` is deleted and absence reads identically to compliance.
+
+**Red-proven against the real thing:** reintroducing the shipped enumeration into
+`src/lib/users/actions.ts` reds the main assertion; restore clean, 4/4. ⚠ Bound stated in the file:
+it reads source text, cannot see an indirectly-built enumeration, and says nothing about whether the
+log is *correct* — only that the plural set is not spilled.
+
+---
+
+## Increment D ✅ BUILT — the `is_admin` demotion backstop (CNV-5 / R2-m3)
+
+`20261003006400_adr0166_demotion_tenant_anchor_backstop.sql` · `400_…` new suite (30 cells) ·
+`cnv5-demotion-backstop-mutation-audit.sh`.
+
+**The finding was REPRODUCED before it was fixed**, both paths: a signed-in `platform_admin`
+demoting itself, and demoting a second anchorless admin — `UPDATE 1`, orphans **0 → 1**,
+`never_affiliated`. The catching arm genuinely existed once (`profiles_tenant_has_org_trg`, whose
+event list named `is_admin`) and `…005600:83` dropped it, re-attaching the re-predicated function to
+`organization_affiliations` **only**.
+
+**Host: `public.guard_profile_privileged_columns()`** — and the decisive fact is stronger than
+"a DEFINER is available": `app.person_is_anchorless` is `postgres=X/postgres` and **not granted to
+`authenticated`** (measured — as `authenticated` it raises `permission denied`). It is callable only
+from inside a postgres-owned DEFINER, so ⭐ **the ADR 0159 prohibited shape is not merely wrong here,
+it is impossible.**
+
+**`is_active`: NO ARM, and it is a RULING not an omission.** A 2×2 differential (anchored/anchorless
+× active/inactive, plus an anchorless admin both ways) moved orphan membership in **zero** cells —
+`tenant_orphan_profiles()` carries no `is_active` term. Deactivation cannot manufacture an orphan;
+an arm there would refuse legitimate deactivations while preventing nothing.
+
+**Errcode `HC0RB` minted, and the argument is about the TEST:** the guard already raises `23514`
+twice, so a deny cell asserting `23514` **could be satisfied by the wrong arm** — wrong-arm vacuity
+in its own suite. ADR 0156:42-43 excludes trigger functions from the gate's domain (lead-verified,
+not taken on the builder's reading), and :49 gives the reason — those are sites no `toState` mapper
+is responsible for. So the mapper-lessness is the anticipated cost, not an oversight.
+
+### ⭐⭐ M4 — a NEW lesson: a mutation can LAND and still be vacuous
+
+The first attempt at M4 replaced only one conjunct of the polarity gate. **Its md5 moved — the
+"assert the edit landed" check passed — and the suite came back GREEN**, which reads as "this cell is
+robust". It was not: the surviving `coalesce(old.is_admin, false)` still gated the arm, so the
+promotion never reached it and **the labelled defect was never constructed**.
+
+> ⛔ **A landed-but-vacuous mutation is indistinguishable from a robust assertion.** Asserting the
+> edit landed is NECESSARY AND NOT SUFFICIENT — the mutation must also be shown to construct the
+> state it is named for.
+
+This extends the existing rule (`a mutation that did not fully apply reports GREEN`) one level down.
+Recorded in the audit script.
+
+**Mutation table, both polarities, each asserted landed and restored:** M1 arm removed · M2 predicate
+→ constant-TRUE (moves the **accept** cells) · M3 → constant-FALSE (moves the **deny** cells, a
+disjoint set — the opposite-polarity pair) · M4 polarity gate dropped · M5 schema-qualification
+dropped (`42883` cascade — the lead's addition A) · M6 `new.id` → `old.id`. Final md5 back to
+baseline.
+
+**Vacuity hunt by full-suite run:** `test:db` under M1 reds **only `400`** — so the header's "400 is
+the sole drift protection on this arm" is **measured**, and nothing elsewhere went vacuous.
+
+### Rulings and honesty notes
+
+1. ⛔ **`ARM=census` does not cover this arm — structurally.** Its domain is `prosecdef` **bool**
+   gates, set-returning gates, public INVOKER plpgsql, and RLS policies; this arm lives in a
+   `trigger`-returning DEFINER. No violation named it because it is **out of domain, not swept**.
+   That is precisely why the M1 full-suite run above is the evidence.
+2. **Door-sweep attribution was incomplete** — the appended row credited `393,398` only, though `400`
+   is measurably sensitive (neutralizing the helper reds `400 § 1.2, 1.4, 2.4, 2.5, 2.7, 2.8`).
+   Verdict COVERED was right; the witness list was not. ⚠ Corrected by hand by the lead from that
+   measurement — a full sweep would re-derive it.
+3. ✅ **Addition B settled by MEASUREMENT, so no follow-up is filed:** **no TypeScript path writes
+   `profiles.is_admin`.** The only `src/` touch of that column is a SELECT (`invite.ts:118`,
+   `.select('id, is_admin')`). The sole producer of `HC0RB` is a direct PostgREST UPDATE. **No mapper
+   is owed** — an owed follow-up nobody can act on is indistinguishable from a real one.
+4. ⚠ **`database.ts` was found STALE** (three ADR 0168 doors missing from an earlier increment's
+   regen). Lead re-verified: a fresh `gen:types` now produces **no diff**, and all three doors are
+   present. `person_known_to_org`'s absence is correct — it is `app.*`, owner-only, invisible to
+   PostgREST.
+5. **R2-m3 adjacent fact, recorded not fixed:** `app.is_admin()` prefers the JWT claim over the table
+   read, so a demotion does not revoke the actor's own hat until the token refreshes.
+
+---
+
+## Increment F — part 1 ✅ DONE (TS, ahead of the migration)
+
+The pieces that are safe **before** the column drops, done first to shrink the atomic step.
+
+- **`org-users.ts` `PROFILE_SELECT`** — `home_organization_id` removed. ⭐ **This was the single
+  most dangerous reference in `src/`**, and the reason is worth keeping: it is a **PROJECTION, not a
+  predicate**, and `org-roster-predicate.test.ts`'s module property is bounded to predicate usage —
+  its own self-test at `:517-520` asserts it does **NOT** match a `select('…')` string. So this
+  column would have passed **every gate** and failed at **runtime** with PostgREST `42703`.
+- **`ProfileRow.home_organization_id`** and **`OrgUserDetail.homeOrganizationId`** removed, with the
+  producer at `org-users.ts:761`.
+  ⚠ **Proved dead before removing, and the distinction is a trap:** every `.homeOrganizationId`
+  access in the tree resolves to `RegisterUserInput`'s **same-named but different** field (the org
+  the registrar picked, `actions.ts:98`) — which STAYS. Only the `OrgUserDetail` field was
+  write-only. A careless rename-sweep here breaks registration.
+- **Three stale comments corrected**, each a false assertion no gate could contradict:
+  `org-users.ts:33` claimed `profiles` SELECT still had an `is_org_admin_of(home_organization_id)`
+  leg (AE2.2 removed it) · `:486` claimed D10 Phase 2 was not done · and
+  ⛔ **`d14-person-level.test.ts:458` claimed the fixture kept the column "ONLY because
+  `registerUser`'s email/CPF pre-checks still read it".** **Measured FALSE** — both pre-checks are
+  `.select('id')` (`actions.ts:691,713`). That comment would have justified keeping a field nothing
+  needs, in the very increment whose job is removing it.
+
+**Gates:** `typecheck` 0 · `vitest` 32 files / **611 tests** pass · `npm run lint` 11/11.
+
+⚠ **Deliberately NOT done yet** — these must land WITH the migration or they red something now:
+the six metadata writers (`actions.ts:723`, `invite.ts:147`, two e2e specs, `seed.sql:257`,
+`demo/…:203`) and `e2e/platform-org-admin-provisioning.spec.ts:142-144`, which **asserts the column's
+value** and is fed by `invite.ts:147`. Removing the writer without the assertion reds a real spec.
+
+---
+
+## ⚖ Increment F — the retirement audit. VERDICT: RETIRE NOTHING, RE-CUT ALL SIX
+
+Measured per-assertion across `390`–`395` (**255 assertions**, every `plan(N)` matching its real
+count). Coverage decided by **SUBJECT** — which function/policy/predicate a cell exercises and in
+which direction — never by description text.
+
+### The headline: not one of the six is a pure differential suite
+
+| file | dies with the column | hybrid | ⭐ MUST SURVIVE | infra |
+| --- | ---: | ---: | ---: | ---: |
+| 390 | 5 | 3 | **41** | 8 |
+| 391 | 2 | 2 | **8** | 4 |
+| 392 | 9 | 1 | **21** | 7 |
+| 393 | 2 | 9 | **36** | 8 |
+| 394 | 8 | 11 | **20** | 6 |
+| 395 | 8 | 0 | **30** | 6 |
+
+⛔ **`395` is barely a differential suite at all — 8 column cells out of 44.** `393` is 2 of 55.
+Retiring "the AE2 differential suites" would have deleted **156 live assertions** to remove 34.
+
+### ⛔⛔ The three findings that would have been silent losses
+
+1. **`app.can_administer_person_via_affiliation` — the predicate ALL THREE re-predicated `SELECT`
+   legs call — is asserted ONLY in `390` and `392`.** Repo-wide, every other occurrence is a
+   *comment* (`360:98`, `387:298`) or `docs/`. Retire both and the **entire org-tier person-read
+   predicate becomes unasserted**: no existence, no DEFINER, no STABLE, no pinned `search_path`, no
+   ACL, no behaviour, and nothing asserting any policy calls it.
+2. **`person_audit_organization` occurs in exactly ONE test file in the tree** (`394`, 13 refs).
+   `394 §10.1` is also the only assertion anywhere that the six person-door kernels attribute their
+   audit row to the **located** org — `385`/`386` assert `action`, `actor_id`, `metadata` and
+   **never** `organization_id`.
+3. **ADR 0163's four retention bounds on `app.person_authority_orgs` live only in `390 §C1–C8` and
+   `394 §0.6`.** Outside the six the locator is touched by two cells, neither of which measures
+   retention, ties, void-ordering, or the honest empty.
+
+### ⭐ Two gates that stay GREEN while the drop breaks something
+
+- ⛔ **`test_helpers.bootstrap` names the column and is OUTSIDE the domain of both "remaining set"
+  enumerations.** `394 §1.5` and `395 §7.2` both scope `nspname in ('app','public')`; `test_helpers`
+  is neither. So the two cells whose entire job is "these are the functions still naming the column"
+  **stay green while the third one breaks.** It is the same shape as `PROFILE_SELECT`: the bound is
+  a domain nobody re-derived.
+- **`180_user_registration.sql` carries three column assertions that are in none of the six** —
+  `:47` `has_column`, `:97-101`, `:102-106` — plus `profiles_home_organization_id_fkey` is the only
+  remaining non-function catalog reference.
+
+### The plan, per file
+
+- **`393` — RE-CUT, DO NOT RETIRE.** Delete `ae24_snapshot`, `measured_old`/`expected_old`, the two
+  `update … home_organization_id` fixtures (`:457-461`), and the gen-0 halves of §3.1–§3.5 / §5.1–§5.4.
+  ⭐ **§5.7 may be dropped outright — `399 §3.1` supersedes it** with a capability-bounded domain
+  instead of a five-name hand list.
+- **`395` — re-cut** (8 cells): §1.1–§1.5, §2.8, §7.1, §7.2.
+- **`390` — heaviest cargo.** Only 5+3 go; §A7–§A12 and all of §C must MOVE or the predicate above
+  loses every assertion.
+- **`392`** — §3.1/§3.2 are the only assertions in the estate that the **policies actually call** the
+  predicate (not merely that the predicate is correct). §5.1/§5.2 are the only measurement of the
+  implicit `profiles`-RLS gate the DEFINER call removed.
+- **`391`** — §3.3 (the noun rule through `list_addable_commission_members`) and §4.4 (that door is
+  still `SECURITY DEFINER`) are UNIQUE; §4.2 is superseded by `395 §8.1`.
+- **`394`** — §0.6, §1.4, §6.1–§6.4, §7.1–§7.5, §9.2, §10.1–§10.3 must survive.
+
+⚠ **Rule 13's LOCATE-vs-GRANT split is asserted by exactly three cells — `390 §D10`, `392 §4.3`,
+`394 §9.2` — and ALL THREE are inside the six.** `394 §9.2` is the only one on the *write* predicate.
+At least one must survive any re-cut.

@@ -5,6 +5,8 @@
 ruling that ADR 0164 makes a hard pre-condition on the column drop. The widening is **not**
 accepted — it is **split**.)
 **Amends:** 0133 (its SUBSET bound is restored for the one population where it silently dissolved.)
+**Amends:** 0166 (Amendment 3 — its clause 5/6 tenancy gate is narrowed for the anchorless
+population, on the `authenticated` half of its reachability only.)
 
 ## Context — the widening, and why it is not merely "an admin who knows a uuid"
 
@@ -150,3 +152,154 @@ and re-introduces it behind an ACL and an audit verb that **are** the record.
   pinning.
 - ⚠ **`public.affiliate_person_to_org` has ZERO TypeScript call sites** yet holds `authenticated`
   EXECUTE. Reachable and uncalled; rule on it in the increment rather than leaving it as found.
+
+## Amendment 2 — the implementation shape, measured before it was written (2026-08-28)
+
+**Amends:** this ADR's own Amendment 1, by fixing the four things its "three doors" left open.
+Every claim here was derived from `pg_proc` / `pg_trigger` on a fresh reset, not from migration
+text.
+
+### 1. The creation doors keep TODAY's predicate. Their bound is the ACL, not the state.
+
+⛔ **A creation door that REQUIRED anchorless would break org_admin registration.** `registerUser`
+calls the ORG creation door first and the HOSPITAL creation door second, so by the second call the
+person **is already known to that organisation** — the org door just made them so. A strict
+`anchorless`-only creation door refuses its own sibling's output.
+
+So each creation door carries `person_is_anchorless(p_user) OR person_known_to_org(p_user, <org>)`
+— **exactly the predicate both doors carry today** — and what makes it a *creation* door is that it
+is reachable **only by `service_role`** and emits its own audit verb. That is this ADR's own
+diagnosis applied honestly: *the door's ACL is the only durable discriminator left.* The widening
+is not deleted; it is moved behind an ACL and a verb that **are** the record.
+
+⭐ Keeping BOTH creation doors on ONE shared predicate is also what keeps the sibling pin
+expressible: **four doors, two predicate-sets, ordinary ⊂ creation.**
+
+### 2. Recovery is ORG TIER ONLY, and that is a measured bound rather than a scope cut.
+
+Recovering an orphan gives them an **org anchor**; from that moment `person_known_to_org` is true
+for that organisation, so the **ordinary** hospital door admits them by its normal rule. A
+hospital-tier recovery door would be a second way to do what the ordinary hospital door already
+does one step later. `393`'s H4 — a hospital_admin claiming an orphan — therefore becomes a
+refusal with a named remedy, not a capability that moved.
+
+### 3. The audit verb is an ADDITIONAL `app.audit_write`, because the trigger cannot know the door.
+
+Measured: `app.trg_audit_organization_affiliations` derives its verb from `tg_op`
+(`INSERT → org_affiliation.created`) and has **no channel** telling it which door inserted. So each
+new door emits its own `app.audit_write` **in addition to** the trigger's row. The trail carries the
+**row fact** and the **act** separately, which is what "distinguishable in the trail" requires.
+`audit_log.action` carries only a shape CHECK (`position('.' in action) > 1`), so new verbs need no
+enum migration.
+
+### 4. ⚖ RULED — `public.affiliate_person_to_org` KEEPS its `authenticated` grant.
+
+Amendment 1's third cost said to rule on it rather than leave it as found. **Ruled: keep it**, and
+the reason is the point:
+
+- it is the org-tier **ordinary** door, symmetric with `public.affiliate_person`, which *is* called;
+- after this increment it carries the **narrow** predicate, so the exposure Amendment 1 named is
+  closed **by the narrowing**, not by the grant;
+- pgTAP `379 § 2` / `§ 5.1` and `380` **do** exercise it as `authenticated`. Revoking would delete
+  real, exercised coverage of the org-tier authority arm to buy a surface reduction on a door that
+  is no longer wide.
+
+⛔ The grant is now **pinned by an assertion**, so it is a decision and not an accident. "Zero
+production callers" stays true and stays recorded; it is a reason to watch the door, not a reason to
+revoke a tested one.
+
+### 5. ⭐ The TypeScript mirror does NOT narrow — and its comment was ALREADY false.
+
+Amendment 1 required `resolveOrInviteUser` (`src/lib/members/invite.ts`) to be re-cut in the same
+increment or drift. Measured, the re-cut is a **comment** change, not a behavioural one:
+`resolveOrInviteUser` is a **provisioning** path, so the door it mirrors is the **creation** door —
+whose predicate is unchanged. Mirroring is preserved by leaving the predicate alone and **renaming
+what it points at**.
+
+⛔ Two of its stated facts were false **before this increment**, and neither had a gate:
+
+- *"neither `assignStaffAdmin` nor `assignOrgAdmin` creates an org affiliation for the user it
+  invites"* — true of the **TypeScript callers**, false of the **outcome** since ADR 0166 moved that
+  write into `app.grant_role_impl` (catalog-verified: `grant_role_impl` calls
+  `app.ensure_provisioned_org_affiliation` for `(organization, org_admin)` and
+  `(commission, staff_admin)`). The comment names a call-site absence and reads as an outcome.
+- *"re-affiliation is the recovery path"* (ADR 0165 D1) — **this ADR replaces it** with
+  `public.recover_orphan_person_to_org`.
+
+⚠ Measured while ruling this: narrowing the mirror would have introduced an **aborted-run wedge** —
+invite succeeds, `grant_role_for` fails, and that e-mail becomes permanently unprovisionable because
+`guard_profile_no_delete` forbids deleting the profile. Today's wider predicate self-heals from that
+state. That is a second, independent reason the mirror stays wide, and it is why "narrow everything
+for symmetry" would have been wrong.
+
+## Amendment 3 — there is a FOURTH tenant-reachable door, and the split applies to it too (2026-08-28)
+
+**Amends:** 0166 (its clause 5/6 tenancy gate is narrowed for the anchorless population, on the
+`authenticated` half of its reachability only).
+
+### The finding, measured live rather than read
+
+This ADR's Decision and Amendment 1 both enumerate **two** doors. A live probe on a fresh reset
+found a **third tenant-reachable** one carrying the same anchorless-admitting predicate:
+
+```
+public.grant_role  (authenticated)  →  app.grant_role_impl  →  app.ensure_provisioned_org_affiliation
+```
+
+| Probe (fresh reset, 2026-08-28, rolled back) | Result |
+| --- | --- |
+| `org_admin` of Rede A → `grant_role('organization', A, 'org_admin', <orphan uuid>)` | **ACCEPTED** — orphan gained **1 active org-A affiliation AND 1 `org_admin` membership** |
+| commission `staff_admin` → `grant_role('commission', …, 'staff_admin', <orphan uuid>)` | REFUSED `42501` |
+
+So the exposure is bounded to the **`(organization, org_admin)`** arm — `org_admin` or
+`platform_admin` — and it delivers **strictly more** than the two doors this ADR closed: the anchor
+*plus* a governance role on top of it.
+
+⛔ **The predicate is a VERBATIM COPY, and that door's own header forbids exactly what nearly
+happened here:** *"THE TENANT GATE IS LIFTED FROM `app.affiliate_person_to_org_impl` AND KEPT
+IDENTICAL, DELIBERATELY … Splitting identical siblings across increments is how this phase produced
+'one axis was swept, its sibling was not' three times."* Narrowing the two `affiliate_person*` impls
+and leaving this one **is** that split — and `393 § 5.7`'s sibling pin ranges over only the two
+`affiliate_person*` impls, so **no gate would have noticed**.
+
+### ⭐ Why the obvious fix is wrong, and what the case teaches
+
+`ensure_provisioned_org_affiliation` exists to anchor a **just-invited** person: `resolveOrInviteUser`
+invites, then the role grant anchors. Narrowing it to *"known here"* would refuse **every first-time
+provisioning** — ADR 0166's entire purpose.
+
+> **This door is CREATION-BY-FUNCTION but ORDINARY-BY-ACL — the one case Amendment 1's
+> "the door's ACL is the only durable discriminator left" does not resolve.**
+
+The diagnosis holds only where a door's ACL already matches its job. Where it does not, **the ACL has
+to be made to match** — which is the decision below, not an exception to it.
+
+### ⚖ Decision (PO-ruled 2026-08-28): split `grant_role` the same way
+
+1. `public.grant_role` (**`authenticated`**) routes to the **narrowed** ensure — *known here* only.
+   An org_admin can no longer anchor an anchorless uuid by granting it a role.
+2. `public.grant_role_for` (**`service_role`**) keeps the **wide** ensure — it is the provisioning
+   path, and its ACL is now what says so.
+3. `assignStaffAdmin` (`src/lib/admin/actions.ts`) moves from `grant_role` to `grant_role_for`.
+   ⭐ **No security is traded:** the `_for` twin takes the actor explicitly and **re-derives the same
+   authority in PostgreSQL**, which is the pattern every other service-role path in this repo already
+   uses (`affiliate_person_for`, `finalize_invited_person_for`, …). `assignOrgAdmin` already uses
+   `_for`.
+4. Orphan recovery keeps its own door (`public.recover_orphan_person_to_org`) — unchanged.
+
+### Consequences
+
+- ⚠ **`public.grant_role` is now NARROWER than `public.grant_role_for` on the target-tenancy axis.**
+  The two twins have been deliberately identical everywhere else; this is the first asymmetry and it
+  must be **pinned by an assertion**, or the next reader "restores symmetry" and silently re-opens
+  this. The asymmetry IS the control.
+- ⚠ **This is a NARROWING.** Expect fixture reds in pgTAP `396` (ADR 0166's suite) and in any e2e
+  provisioning spec that seats a role on a person with no org affiliation. ⛔ A red there is a
+  **reachability finding, not a test to patch** — and per ADR 0167 clause 1's precedent, watch for
+  the more dangerous shape: a cell that goes **vacuous rather than red**.
+- ⭐ **The enumeration lesson, stated so it is not re-learned:** this ADR's door census was derived
+  from the `affiliate_person%` name family, and the fourth door does not carry that name. **A door
+  census bounded by a NAME cannot see a door that does the same thing under another name** — the
+  bound has to be the *capability* (what writes `organization_affiliations`), which is a catalog
+  question, not a grep. That is how the sweep should have been cut, and `4.3` in `393` already
+  demonstrates the correct shape for the void half.
