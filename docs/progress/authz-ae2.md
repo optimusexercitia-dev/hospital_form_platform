@@ -16,9 +16,9 @@ plan [authz-evolution.md](../plans/authz-evolution.md) §AE2). Branch
 | **AE2.1** — close the consumer set | ✅ **DONE 2026-08-27** | [census](../design/authz-ae2-home-org-consumer-census.md) |
 | **AE2.2** — migration design: per-leg re-predication | ✅ **DONE 2026-08-27** | migrations `20261003005400` + `20261003005500`; suites `390`, `391` |
 | **AE2.3a** — the widening differential, **read/visibility half** (phase keystone) | ✅ **DONE 2026-08-27** | suite `392` (38 assertions); 50-cell matrix, 5 pre-declared widenings, 5 accepted narrowings, 8-mutation vacuity proof |
-| **AE2.3b** — the widening differential, **write/containment half** | 🟡 **PARTIAL** | increment 1's half is **DONE** — suite `393` § 3 (org tier, 10 cells) + § 5 (hospital tier, 5 cells). Still owed: the picker, and the **capability-level** differential for `app.can_administer_person_for` (increment 3) |
+| **AE2.3b** — the widening differential, **write/containment half** | 🟡 **PARTIAL** | increment 1's half **DONE** (`393` § 3 + § 5); increment 3's **capability-level** differential **DONE** (`394`, 396 cells). Still owed: the picker (increment 4) |
 | **AE2.4 inc 1** — the circular pair | ✅ **DONE 2026-08-28** | migration `20261003005600`; suite `393` (44 assertions); ADR [0165](../decisions/0165-affiliation-derived-tenant-gate-and-its-widening.md); 9-mutation vacuity proof |
-| **AE2.4 inc 3** — the write-authority path (hard gate on the drop) | 🔜 | `app.can_administer_person_for` + the six AE1.3 person-door kernels |
+| **AE2.4 inc 3** — the write-authority path (hard gate on the drop) | ✅ **DONE 2026-08-28** | migration `20261003005700`; suite `394` (42 assertions); ADR 0163 now FULLY LIVE; 18-mutation vacuity proof |
 | **AE2.4 inc 4** — `listLinkableOrgUsers` (shape C-b′) | 🔜 | — |
 | **AE2.4** — drop the column | 🔜 | after all four increments |
 | **AE2.5** — D3 binding text in ARCHITECTURE.md | 🔜 | — |
@@ -1029,3 +1029,320 @@ migration existed. `Files=2, Tests=8` — § 0.1/0.2/0.3/0.5/0.6/0.7 **RED**, th
 detector snapshot (`function app.tenant_orphan_profiles() does not exist`). ⚠ § 0.4 (pinned
 `search_path`) passed pre-migration and could not have failed on that axis: the outgoing function
 already carried the same `search_path`. Said rather than counted as a red.
+
+## AE2.4 increment 3 — the write-authority path (migration `20261003005700`, suite `394`)
+
+Rulings ADR [0163](../decisions/0163-offboarded-person-lifecycle-authority.md) (last-org
+retention) and [0164](../decisions/0164-tenant-containment-moves-from-creation-time-to-the-destructive-event.md)
+(this increment is the **hard gate on the column drop**); shape ADR 0155 D3 / **Architecture
+Rule 13**.
+
+### The per-object contract (old → new), reproduced from the catalog BEFORE the change
+
+| object | old | new |
+| --- | --- | --- |
+| `app.can_administer_person_for(text, uuid, uuid)` (**name kept** — a rename orphans every name-keyed verdict) | `v_org uuid` ← `select pr.home_organization_id … where pr.id = p_user`; three uses: (a) `v_org is null` ⇒ false, (b) `is_org_admin_of_for(v_org, p_actor)` ⇒ true, (c) `h.organization_id = v_org` scopes the hospital arm | `v_orgs uuid[]` ← `array(select organization_id from app.person_authority_orgs(p_user))`; (a) `cardinality = 0` ⇒ false, (b) `exists(unnest(v_orgs) o where is_org_admin_of_for(o, p_actor))` ⇒ true, (c) `h.organization_id = any (v_orgs)`. **Everything from D2 down byte-identical.** DEFINER, STABLE, pinned `search_path`, `postgres`-only EXECUTE — all four unchanged |
+| `app.person_audit_organization(uuid, uuid)` **(new)** | — | DEFINER, STABLE, pinned, **`postgres`-only**; the located organisation **through which the actor's authority resolved**, `order by organization_id limit 1` among those the actor administers; NULL ⇒ fail-closed |
+| the six kernels — `set_person_active_impl` · `suspend_person_impl` · `update_person_fields_impl` · `upsert_credential_impl` · `delete_credential_impl` · `finalize_invited_person_impl` | `select pr.home_organization_id into v_org …` | `v_org := app.person_audit_organization(p_actor, p_user)` (`delete_credential_impl` passes `v_user`; `update_person_fields_impl` drops the column from its `v_cur` record). **No other statement in any of the six changed** |
+| TS twin — `authorizePersonScopedAdmin`, `authorizeForUser`, `getPersonAdminView` | three verbatim copies of the same resolution | all three on `personAuthorityOrgs(userId)`, the TS mirror of `app.person_authority_orgs`; `administeredHospitalsIn(orgIds)` shared by the two that are identical end to end |
+
+Both `can_administer_person_for` and the six kernels were generated from `pg_get_functiondef()`
+dumps at head `20261003005600` with guarded replacements, so nothing outside the changed
+statements could drift.
+
+### ⛔ THE ADR IS TRUE OF THE STRING AND FALSE OF THE GRAIN — the six kernels are not six gates
+
+ADR 0163 records that "all six AE1.3 person-door kernels" also resolve the column. Measured: in
+every one of the six the value feeds **only** `app.audit_write(p_organization => v_org)`.
+Authority in all six is `app.can_administer_person_for`, which is why re-predicating that one
+function is the whole authority change.
+
+⛔ **And it is still an authorization decision, in the other direction.** `audit_log_select`
+carries `((commission_id IS NULL) AND app.is_org_admin_of(organization_id))` and all six write
+`p_commission => null` — so `v_org` decides **who may READ the audit row**. Lead ruled it a
+read-authority differential and it is measured as one (`394 § 7`, `§ 10`).
+
+⚠ **The tie-break is BOUNDED-BUT-ARBITRARY and is pre-declared as such** (`§ 7.4`, and stated in
+the function's own body comment). Where an actor administers two located organisations, the lower
+uuid wins and the **losing** organisation's other admins lose readership of that row. Any candidate
+is a defensible attribution; *which* one is arbitrary, chosen for determinism. Two alternatives
+rejected with reasons: `min()` over the person's organisations regardless of the actor can
+attribute a row to an organisation that had nothing to do with the act; NULL-on-ambiguity hides the
+row from the very admin who caused it.
+
+### ⭐ THE CAPABILITY AXIS IS VACUOUS ON THE ORG TIER — measured, then fixed
+
+The obvious "capability-level differential" is AE2.3a's ten targets times four capabilities. That
+produces **four identical copies** and nothing else: the org_admin arm returns `true` **before** the
+capability dispatch, and the INTERSECTION/SUBSET split lives on the `hospital_admin` arm, which is
+reached only when the target has a **non-empty footprint** — which AE2.3a's population deliberately
+lacks. **An axis that cannot vary is not an axis.** `394 § 2.2` measures the inertness on the org
+tier rather than assuming it, and `§ 3.2` floors the liveness on the hospital tier so `§ 3.1` cannot
+pass over a second inert matrix.
+
+So the suite carries **two** populations: **P1–P10**, the ten AE2.3a shapes (org tier, zero
+footprint), and **Q1–Q7**, built so INTERSECTION and SUBSET genuinely disagree.
+
+### What the seed cannot reach — measured before a cell was written
+
+- ⭐ **The seed has NO `hospital_admin` in org B.** Org B carries `orgadmin.b`, `nspcoord.b`,
+  `pqs.b`, `quality.b` and no hospital admin. Every hospital-tier **widening** needs an actor
+  administering a hospital in the *new* organisation, so `HB1` is **constructed**. A cell written
+  against `hospitaladmin.a1` would have passed proving nothing.
+- ⭐ **An ACTIVE hospital affiliation cannot strand itself in the OLD organisation.**
+  `assert_hospital_affiliation_has_org` (AFF4 D4 / ADR 0151 D4) requires an active org affiliation
+  in the SAME organisation, so "footprint in org A while the org affiliation is in B" is unreachable
+  through that leg. It **is** reachable through the footprint's other leg — a commission membership
+  that outlives the org affiliation, exactly the state the shipped comment describes. Q2 and Q5 are
+  built that way. ⛔ Not "constructed inside a rollback where the deferred trigger never fires" —
+  that would be measuring a cell for a state the database forbids.
+- No seeded persona holds a membership or affiliation outside its home org; the cross-org actor is
+  `solo.c@test.local`, as `392` established. Ids live in a `0ae24c…` namespace disjoint from
+  390/391/392/393, and every deletion is by identity.
+
+### The capability differential — 396 cells, 48 widenings, 44 narrowings
+
+5 callers × 10 P-targets + 7 callers × 7 Q-targets, × 4 capabilities, both predicates in one
+transaction. The OLD predicate is reproduced as `pg_temp.can_admin_with_orgs(cap, user, actor,
+orgs[])` fed an **RLS-free snapshot** of the column.
+
+⭐ **The reproduction's faithfulness is CONTROLLED, not assumed** (`§ 9.1`): the same reproduction
+fed `app.person_authority_orgs(target)` must equal the **shipped** function on all 396 cells. That
+isolates the difference between the two sides to the **organisation list alone** — any drift in the
+reproduced D2 / footprint / INTERSECTION / SUBSET logic reds there instead of masquerading as a
+finding in § 4 or § 5. `§ 8.2` is the second control, over the seed roster.
+
+**Org tier (P) — reproduces AE2.3a's read-side matrix EXACTLY** (`§ 2.3`): the same five widenings
+`{CB×P4, CB×P5, CB×P7, CB×P8, CC×P10}` and five narrowings `{CA×P3, CA×P4, CA×P8, CA×P9, CA×P10}`,
+now on the WRITE path. Two independently written predicates agreeing cell for cell is the
+cross-check that the write path did not drift from the read path.
+
+**Hospital tier (Q) — where the capability axis is live.** Masks are (fields, credentials,
+cpf_change, lifecycle):
+
+| | Q1 active A, fp A+A2 | Q2 ended A + active B, fp STRANDED in A | Q3 active B, fp HCB+HSA | Q4 ended-B only, fp EMPTY | Q5 ended-A only, fp A+A2 | Q6 active A **and** B, fp HCA+HCB | Q7 active B, fp HCB only |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **CA** org_admin A | = | **↓×4** | **↓×4** | **↓×4** | = | = | **↓×4** |
+| **CB** org_admin B | = | **↑×4** | **↑×4** | **↑×4** | = | **↑×4** | **↑×4** |
+| **HA1** hosp_admin HCA | = TTFF | **↓ fields+credentials** | = | = | = TTFF | = TTFF | = |
+| **HAD** hosp_admin HCA+HSA | = TTTT | **↓×4** | **↓ fields+credentials** | = | = TTTT | = TTFF | = |
+| **HB1** hosp_admin HCB *(constructed)* | = | = | **↑ fields+credentials** | = | = | **↑ fields+credentials** | **↑×4** |
+| **CC**, **CS** | = | = | = | = | = | = | = |
+
+⭐ **`394 § 3.3` is the keystone cell — HB1×Q3.** A `hospital_admin` of ONE hospital in the newly
+located organisation gains `fields` and `credentials` (INTERSECTION) over a two-hospital footprint
+and is **still refused** `cpf_change` and `lifecycle` (SUBSET). Under the column this actor reached
+**nothing**. ⛔ This is the cell the drop would have moved silently, and no seeded persona can
+construct it. **HB1×Q7 is its control**: a SINGLE-hospital footprint makes INTERSECTION and SUBSET
+coincide, which is what shows Q3's split is a property of the FOOTPRINT and not of the predicate.
+
+⭐ **ADR 0163 bound 4 survives STRUCTURALLY, not incidentally** (`§ 3.4`): Q4's retaining
+organisation is B and HB1 administers a hospital there, yet all four capabilities refuse — the
+empty-footprint rule does it, so retention adds no hospital-tier reach by construction rather than
+by the locator happening to be narrow.
+
+**Widenings** (48 cells) are pre-declared against a hand list written independently of the
+expectation table; `§ 4.1` and `§ 4.2` together make the two sets EQUAL, and `§ 4.3` floors both
+predicates as genuinely mixed so a match between two constants cannot satisfy them.
+**Narrowings** (44 cells) each carry a written disposition (`§ 5.1`/`§ 5.2`). The one with real
+product consequence is **CA×P9** — a person with no affiliation row at all becomes administrable by
+nobody, for all four capabilities. Accepted with its blast radius named: recovery is one affiliation
+away, because increment 1 deliberately left an orphan claimable by any org admin (ADR 0165
+W5/W6/W7), and that path does not route through this predicate. ⛔ Accepted, not "cannot happen".
+
+⭐ The other narrowings worth reading are **HA1×Q2 / HAD×Q2 / HAD×Q3**: a `hospital_admin` of the
+OLD organisation loses a person whose employment moved. The footprint is stranded in org A by a
+commission membership that outlived the org affiliation; the person is org B's now, and org A's
+hospital admins keeping edit rights over them is the defect, not the loss.
+
+### ⭐ § 6 — THE RULING THAT WAS NOT TAKEN, MEASURED BESIDE THE ONE THAT WAS
+
+ADR 0163's Decision paragraph says retention is "bounded to the **SUBSET** capabilities". Read
+literally that denies an `org_admin` of the retaining organisation `fields` and `credentials` over a
+fully-offboarded person — a **narrowing against today**, since the org arm holds all four.
+
+**PO ruling 2026-08-28: the ADR is wrong, not the reading.** INTERSECTION/SUBSET (ADR 0133 Amdt 1
+r1) bounds the `hospital_admin` arm and has never applied to `org_admin`; the Decision paragraph
+borrowed a hospital-tier label and pinned it to an org-tier rule. ⛔ The tell is that the ADR
+contradicts itself — bound 3 says retention "grants nothing beyond what an `org_admin` of an ACTIVE
+affiliation would hold", and such an admin holds all four. Implementation is **capability-blind**;
+ADR 0163's implementation-status section is updated here and the Decision-paragraph amendment is
+the lead's.
+
+Measured anyway, because a ruling that a reading was *not* intended is worth more with the
+alternative beside it: retention fires on exactly `{P2, P5, P6, Q4, Q5}` (`§ 6.1`); the
+counterfactual would move **16 of 396 cells** (`§ 6.2`), creating **12 new narrowings** and
+cancelling **4 declared widenings** (`§ 6.3`). `§ 6.4` reds if anyone later "restores" the SUBSET
+wording without re-opening the ruling.
+
+### § 10 — the six kernels end to end, and why it exists
+
+⛔ **A measured gap, not completeness.** `385` and `386` are the person-door suites and they assert
+the audit row's `action`, `actor_id` and `metadata` — and **never** its `organization_id`
+(grep-measured over both files before § 10 was written). That value is exactly what this increment
+moves, and it is a read-authority value. Without § 10 the kernels' half of the change would have
+shipped with no assertion anywhere.
+
+⭐ **The § 10.2 floor caught an instrument defect that would otherwise have passed gloriously.** The
+fixture's first draft watermarked new audit rows with `select max(seq)`. **`audit_log.seq` is
+PER-CHAIN, not global** — `app.audit_write` derives it from the max within the row's own chain,
+which is what makes `verify_audit_chain` work — so `where seq > that` matched **nothing**: six rows
+were written and the instrument reported zero. An assertion of the form *"zero rows carry the old
+value"* would have been true of an empty set. The watermark is now an id snapshot.
+
+⛔ **And the § 10 fixture is exception-guarded, which is not defensive tidiness.** An unguarded
+fixture that DRIVES the subject under test turns any mutation of that subject into a suite ABORT —
+a FAIL-shaped abort that runs a prefix of the plan and is indistinguishable from a hold. Measured:
+the first mutation run reported `Files=2, Tests=40` for **M1 and M4**, so § 10 never executed and
+its coverage under them was UNKNOWN rather than green. Guarded, those mutations now RED § 10.1 and
+§ 10.2 instead of erasing them, and every run in the table below has the same shape.
+
+### Arm domains — derived per function from the catalog, with the harness's own domain SQL
+
+| object | census c1 (bool / set-returning DEFINER) | census c2 (`public` INVOKER plpgsql) | ARM=policy predicate domain | ARM=floor | ARM=wrapper |
+| --- | --- | --- | --- | --- | --- |
+| `app.can_administer_person_for` → `bool`, DEFINER, `postgres`-only | ✅ **in** | ❌ out | ✅ **in** | ❌ out | ❌ out |
+| `app.person_audit_organization` → `uuid`, DEFINER, `postgres`-only | ❌ out | ❌ out | ❌ out | ❌ out | ❌ out |
+| the six `*_impl` kernels → `void`/`uuid`, DEFINER, `postgres`-only | ❌ out | ❌ out | ❌ out | ❌ out | ❌ out |
+| `app.person_authority_orgs` (unchanged, AE2.2's) | ❌ out | ❌ out | ❌ out | ❌ out | ❌ out |
+
+⚠ **`can_administer_person_for` is in two domains and already carried a verdict — which is the
+danger, not the comfort.** It keeps its NAME and changed its BODY, and census backstops only
+*newcomers*; the standing `COVERED` verdict was earned against the OLD predicate. This is AE2.2's
+`ALTER POLICY` hazard repeating on a function. `scripts/door-sweep-cases.sh` exits **0** and derives
+exactly **1 case — `can_administer_person_for`** — re-measured by the lead rather than inherited.
+⚠ Note the census clause admits it on `prosecdef AND typname='bool'` alone; `authenticated`
+reachability is **not** part of that clause, which is why a `postgres`-only predicate is in it.
+
+⛔ **Absence of a verdict is absence of coverage.** `person_audit_organization` and the six kernels
+are in **no** arm's domain. Named compensating controls, each verdict-carrying: `394 § 7` (5
+assertions) and `§ 10` (3), with targeted mutations **M8/M9/M10/M11/M16/M17** for the attribution
+locator and **M12/M13/M14** for the kernels. The deriver's 7-name review list is ruled the way
+increment 1 ruled its four: option (a) — widen `CASES=` — is **unavailable by construction**,
+because the sweep can neutralize only a **boolean** predicate and all seven return `void` or `uuid`.
+
+⚠ **`person_audit_organization` is an authorization INPUT, not a helper, and that is a different
+disposition from `app.person_authority_orgs` even though both are `postgres`-only and out of every
+arm's domain** (lead sharpening, 2026-08-28). It supplies the column `audit_log_select` gates
+commission-less rows on, so it participates in an access decision; `person_authority_orgs` contains
+no caller term at all and genuinely cannot. **Same domain, different reason — and the reason is
+what a later reader needs.** It is excluded from the sweep by its RETURN TYPE, not by being inert.
+
+### ⛔ THE VACUITY PROOF — eighteen mutations, keyed by SUBJECT
+
+Every mutation applied in-DB via `pg_get_functiondef()` + `replace` + `execute`, the `do` block
+raising if the replacement was a no-op; every one **asserted to have LANDED from `pg_proc`** (md5
+moved, marker present) and **never** from a command's exit status; every restore replayed from the
+captured definition and verified **byte-identical** by md5. **Run shape captured for every run:
+`Files=2, Tests=43` throughout** — no run aborted, so no `ERROR` was counted as a hold. Final
+catalog state equals baseline for all six objects and the final suite run is PASS.
+
+⛔ **The table carries the SUBJECT, not just the change.** An assertion-keyed list proves mutations
+ran; it cannot show a cell nothing targets, because absence looks identical to not-listed.
+
+| # | subject | mutation | assertions that RED | exit |
+| --- | --- | --- | --- | ---: |
+| **M1** | `can_administer_person_for` | ⭐ the LOCATE step reverted to the column — the whole-increment mutation | § 1.2, § 1.5, § 2.1, § 2.3, § 3.1, § 3.3, § 4.2, § 4.3, § 5.2, § 6.2, § 6.3, § 6.4, § 7.1, § 7.3, § 9.1, § 10.1, § 10.2, § 10.3 | 1 |
+| **M2** | `can_administer_person_for` | the empty-locate deny → `return true` (the composition trap) | § 2.1, § 2.3, **§ 4.1**, § 4.3, § 5.2, § 6.2, § 6.3, § 7.1, § 8.2, § 9.1 | 1 |
+| **M3** | `can_administer_person_for` | ⭐ the org arm's membership conjunct → `true` (Rule 13's forbidden collapse) | § 2.1, § 2.3, § 3.1, § 3.2, § 3.3, § 3.4, § 4.1, § 4.3, § 5.2, § 6.2, § 6.3, § 7.1, § 7.2, § 7.3, § 8.2, § 9.1, **§ 9.2**, § 10.3 | 1 |
+| **M4** | `can_administer_person_for` | ⭐ the org arm removed entirely — the ACCEPT-side mover | § 2.1, § 2.3, § 3.1, § 4.2, § 4.3, **§ 5.1**, § 6.2, § 6.3, § 6.4, § 7.3, § 8.2, **§ 8.3**, § 9.1, § 10.1, § 10.2 | 1 |
+| **M5** | `can_administer_person_for` | the hospital arm's **organisation** conjunct dropped | § 3.1, § 4.3, § 5.2, § 6.2, § 6.3, § 7.1, § 9.1 | 1 |
+| **M18** | `can_administer_person_for` | the hospital arm's **membership** conjunct dropped (M5's other half) | § 3.1, § 4.1, § 4.3, § 5.2, § 6.2, § 6.3, § 7.1, § 7.2, § 8.2, § 9.1, **§ 9.2**, § 10.3 | 1 |
+| **M6** | `can_administer_person_for` | ⭐ ADR 0163's literal SUBSET reading made live | § 2.1, **§ 2.2**, § 2.3, § 3.1, § 4.2, § 4.3, § 5.1, § 6.2, § 6.3, **§ 6.4**, § 9.1 | 1 |
+| **M7** | `can_administer_person_for` (**context**) | `alter function … security invoker` (body md5 unchanged) | **§ 1.1** | 1 |
+| **M8** | `person_audit_organization` | the actor filter dropped entirely — the DENY-side mover | § 7.1, § 7.3, **§ 7.5** | 1 |
+| **M16** | `person_audit_organization` | ⭐ the **hospital** disjunct alone | § 7.1, § 7.2, § 7.3 | 1 |
+| **M17** | `person_audit_organization` | ⭐ the **org_admin** disjunct alone | § 7.1, § 7.2, § 7.3, § 7.4, § 10.1 | 1 |
+| **M9** | `person_audit_organization` | the tie-break direction reversed (`desc`) | **§ 7.4** | 1 |
+| **M10** | `person_audit_organization` | returns NULL always — the ACCEPT-side mover | § 7.1, § 7.2, § 7.3, § 7.4, § 10.1 | 1 |
+| **M11** | `person_audit_organization` (**ACL**) | `grant execute … to authenticated` | **§ 1.4** | 1 |
+| **M12** | `set_person_active_impl` | its attribution reverted to the column | § 1.3, § 1.5, § 10.1, § 10.2 | 1 |
+| **M13** | `finalize_invited_person_impl` | ⭐ the same, **sibling only** | § 1.3, § 1.5, § 10.1, § 10.2 | 1 |
+| **M14** | `upsert_credential_impl` | its authority call neutralized — the DENY-side mover for § 10 | **§ 10.3** | 1 |
+| **M15** | `person_authority_orgs` (**ACL**) | `grant execute … to authenticated` | **§ 1.6** | 1 |
+
+**Targeted cases per subject, which is the form the zero-case ruling needs:**
+`can_administer_person_for` → M1, M2, M3, M4, M5, M6, M7, M18 · `person_audit_organization` → M8,
+M9, M10, M11, M16, M17 · the six kernels → M12, M13, M14 · `person_authority_orgs` (AE2.2's,
+asserted here) → M15. **No subject is uncovered.**
+
+⭐ **BOTH POLARITIES, PER SUBJECT — the increment-1 lesson applied rather than cited.** A "never
+denies" mutation cannot move an accept cell.
+
+- `can_administer_person_for`: accept-movers **M4** (§ 5.1, § 8.3, and § 10.1/10.2 lose their rows)
+  and **M6**; deny-movers **M2** — which produces an **undeclared widening**, the only class § 4.1
+  exists for — plus **M3**, **M5**, **M18**.
+- `person_audit_organization`: accept-movers **M10**, **M9**, **M17**; deny-mover **M8**, the only
+  one that reds **§ 7.5** (the "returns NULL for an unauthorized actor" cell).
+- the six kernels: accept-movers **M12**, **M13**; deny-mover **M14**.
+
+⭐ **M13 exists because M12 could not have proven § 10 per-kernel.** Mutating one kernel's
+attribution shows § 10.1 notices *a* kernel; mutating a different one alone shows it notices *each*.
+Same reasoning as `393`'s M6 and `392`'s V6/V7.
+
+⭐ **M5/M18 and M16/M17 partition the two compound predicates**, so no arm is proven only as part of
+a whole-`if` neutralization. M16 reds § 7.1/7.2/7.3 but **not** § 7.4 — informative rather than a
+miss: § 7.4's actor is an `org_admin` of both organisations, so the disjunct M16 removes is not the
+one that answers it.
+
+⚠ **Not shown able to fail — 9 of 42, stated rather than glossed:** § 0.1, § 0.2, § 0.3, § 0.4,
+§ 0.5, § 0.6, § 0.7, § 6.1, § 8.1. Every one is a precondition, a fixture-shape measurement or a
+population floor — their job is to red when the **fixture or the substrate** changes, not when a
+predicate does, and no mutation of this increment's objects can exercise them. ⚠ § 0.6 measures
+`app.person_authority_orgs`' output and **would** move under a mutation of that function; it is
+listed here because that function is AE2.2's and unchanged by this increment, not because it is
+unreachable. **33 of 42 are proven able to fail.**
+
+### ⛔ Where reality disagreed with the brief, the ADRs and the phase record
+
+1. ⭐⭐ **ADR 0163's "so do all six kernels" is true of the string and false of the grain** — their
+   column read is audit attribution, not authority. Corrected in the ADR. The lead ruled the second
+   half the important one: it is a **read-authority** value because `audit_log_select` gates on it.
+2. ⭐⭐ **ADR 0163's Decision paragraph contradicts its own bound 3** and is being amended (§ 6).
+3. ⛔ **`authorizeForUser` and `getPersonAdminView` were named by NO increment's target list** and
+   are the second and third copies of the same preamble. Lead assigned both here; the enumerating
+   property is *"an authorization preamble that resolves the column"*, never a list. Filed as
+   `FUP-AE2-PERSON-PREAMBLE-THREE-COPIES`, whose durable half is that **no gate can see a fourth
+   copy appear** — a TS authorization preamble is in no arm's domain.
+4. ⛔ **A defect in my own new helper, caught by a sibling's stated principle.** `personAuthorityOrgs`
+   first returned `[]` on a read error. That LOOKS safe — it denies — and it is
+   `BUG-AUTHZ-FOOTPRINT-ASYMMETRIC-READ-LIFTS-THE-D2-LOCK` one leg over: a silent DENY
+   indistinguishable from a real one. Worse, sitting IN FRONT of `resolvePersonFootprint` it
+   short-circuits that function's deliberate throw and re-hides a closed bug class behind a newer
+   function. It now throws; keystone `person-footprint-reads.test.ts § 4`, with a positive control.
+5. ⛔ **`audit_log.seq` is PER-CHAIN, not global** — see § 10 above. Caught by a floor, not by
+   reading.
+6. ⛔ **An unguarded fixture that drives the subject under test converts a mutation into a suite
+   ABORT.** Measured as `Files=2, Tests=40` on two mutations before the guard. A shape drop is
+   **ERROR**, never a hold.
+7. ⚠ **Three vitest fixtures had built their world out of the column under test** — the pgTAP
+   `360 § 5.2` shape, in TypeScript. `d14-person-level`, `person-admin-view` and
+   `person-footprint-reads` anchored their targets with `profiles.home_organization_id` and never
+   seeded an `organization_affiliations` row, so **42 arms** went red for a FIXTURE reason while
+   wearing the label of the authority rule they exist to pin. **Fixed by mirroring the real
+   substrate**, never by relaxing an assertion.
+8. ⚠ **`394` was GREEN ON ITS FIRST POST-MIGRATION RUN**, every hand-computed cell matching. That is
+   only trustworthy because it was **observed RED first** against the un-migrated catalog
+   (`Files=2, Tests=30`; 14 assertions failing, then an abort at § 7.1 on *"function
+   app.person_audit_organization does not exist"*) **and** because § 4.1 / § 5.1 were measured to
+   pass **vacuously** in that red run — nothing moved, so "every widening is pre-declared" was true
+   of an empty set. § 4.2 / § 4.3 are what give them teeth.
+9. ⚠ **`§ 2.2` also passed pre-migration** and could not have failed on that axis then: the old
+   predicate is capability-inert on the org tier for the same structural reason. Said rather than
+   counted as a red. It is proven able to fail by **M6**.
+10. ⚠ **`gen:types` produced no diff**, expected: no table changed and both new/changed functions
+    live in `app`.
+
+### Gates — exit codes captured DIRECTLY, never through a pipe, on a fresh `supabase db reset`
+
+| gate | result | exit |
+| --- | --- | ---: |
+| `supabase db reset --local` | clean | **0** |
+| `npm run gen:types` | run after the migration; **no diff** | **0** |
+| `npm run test:db` | **242** files, **8065** tests, PASS (241/8023 → +1 file, +42 assertions: exactly suite `394`, nothing else moved) | **0** |
+| `npm run typecheck` | pass | **0** |
+| `npm run test` (vitest) | 145 files, **1978** tests (1974 → +4: three new `§ 4` arms and one `§ 5` arm) | **0** |
+| `npm run lint` (11 gates) | pass — gate 7 needed the new FUP's index line in PROGRESS.md, which is outside this task's write scope and was added by the lead | **0** |
+| `scripts/door-sweep-cases.sh` | **DERIVED (0) — 1 case: `can_administer_person_for`** | **0** |
+
+⛔ Not run here, by instruction: the ARM sweep and `e2e:prod` — the lead's.

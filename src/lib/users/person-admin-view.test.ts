@@ -125,11 +125,17 @@ beforeEach(() => {
   selects = []
   rows = {
     profiles: {
-      home_organization_id: ORG_A,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: CPF_DIGITS,
     },
+    // ⭐ AE2.4 inc 3 — THE ANCHOR MOVED. `getPersonAdminView` no longer selects
+    // `home_organization_id`; it locates the person's organizations from
+    // `organization_affiliations` (ADR 0163 last-org retention, ADR 0164). ⛔ Fixed by
+    // MIRRORING the real substrate — an ACTIVE, non-voided org affiliation — rather than by
+    // relaxing an assertion, exactly as pgTAP `360 § 5.2` was. The § 5 column-list arms
+    // below re-measure what is actually selected, so this is not a claim, it is pinned.
+    organization_affiliations: [{ organization_id: ORG_A, ended_on: null }],
   }
   footprintSoleHospital()
 })
@@ -256,7 +262,6 @@ describe('§2 ⭐ WITHHELD and NOT-INFORMED are separately observable', () => {
     // The other side of the pair. Same shape of "nothing to show", opposite meaning, and
     // F2 renders them differently: "Não informado" here, the scope note above.
     rows.profiles = {
-      home_organization_id: ORG_A,
       date_of_birth: null,
       phone: null,
       cpf: null,
@@ -284,7 +289,6 @@ describe('§2 ⭐ WITHHELD and NOT-INFORMED are separately observable', () => {
     const withheld = await view()
 
     rows.profiles = {
-      home_organization_id: ORG_A,
       date_of_birth: null,
       phone: null,
       cpf: null,
@@ -366,7 +370,6 @@ describe('§3 D12 as amended by ADR 0147 — CPF is MASKED, and the raw key neve
 
   it('reports cpfPresent false and a null mask when the column is null', async () => {
     rows.profiles = {
-      home_organization_id: ORG_A,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: null,
@@ -390,7 +393,6 @@ describe('§3 D12 as amended by ADR 0147 — CPF is MASKED, and the raw key neve
     // ⛔ MUTATION-CONTROLLED: masking by slicing without the length check (which would
     // emit a short, plausible-looking string) makes this arm RED. Observed.
     rows.profiles = {
-      home_organization_id: ORG_A,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: '1114447',
@@ -404,7 +406,6 @@ describe('§3 D12 as amended by ADR 0147 — CPF is MASKED, and the raw key neve
 
   it('tolerates stored punctuation — the mask is computed from the digits', async () => {
     rows.profiles = {
-      home_organization_id: ORG_A,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: '111.444.777-35',
@@ -469,5 +470,24 @@ describe('§5 one footprint resolution per call (the TOCTOU bound ADR 0133 D4 ac
     session = orgAdminSession
     await view()
     expect(selects.filter((s) => s.table === 'hospital_affiliations')).toHaveLength(0)
+  })
+
+  it('⭐ AE2.4 inc 3 — the ORGANIZATION LOCATOR is read once, and the column is not read at all', async () => {
+    // Two arms in one place because they pin the two halves of the same move.
+    //  · The locator must not become one read per capability — the TOCTOU bound above is
+    //    about a single resolution, and a second one could disagree with the first.
+    //  · `home_organization_id` must be GONE from the profiles select list. Asserting the
+    //    behaviour alone would stay green if the column were re-added and quietly consulted
+    //    again, which is precisely how the column outlived its own removal elsewhere.
+    footprintCrossHospital()
+    session = hospitalAdminSession
+    await view()
+    expect(
+      selects.filter((s) => s.table === 'organization_affiliations').length,
+      'the locator must be resolved once, not once per capability',
+    ).toBe(1)
+    const profileSelects = selects.filter((s) => s.table === 'profiles')
+    expect(profileSelects).toHaveLength(1)
+    expect(profileSelects[0].columns).not.toContain('home_organization_id')
   })
 })

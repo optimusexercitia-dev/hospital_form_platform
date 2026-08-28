@@ -385,6 +385,19 @@ beforeEach(() => {
       date_of_birth: null,
       phone: null,
     },
+    // ⭐ AE2.4 inc 3 — THE ANCHOR MOVED, so the fixture moved with it.
+    // `authorizePersonScopedAdmin` and `authorizeForUser` no longer read
+    // `profiles.home_organization_id`; both locate the target's organizations from
+    // `organization_affiliations` (ADR 0163 last-org retention, ADR 0164). ⛔ Fixed by
+    // MIRRORING how the real substrate anchors a person — an ACTIVE, non-voided org
+    // affiliation, exactly as `seed.sql` does — never by relaxing an assertion. Same lesson
+    // as pgTAP `360 § 5.2`: the fixture had built its world out of the column under test,
+    // so every arm here went red for a FIXTURE reason while wearing the label of the
+    // authority rule it exists to pin.
+    // ⚠ `home_organization_id` is kept on the profiles row above ONLY because
+    // `registerUser`'s email/CPF pre-checks still read it on a different path; it no longer
+    // feeds any authority decision in this file.
+    organization_affiliations: [{ organization_id: ORG_A, ended_on: null }],
     professional_credentials: { user_id: TARGET },
   }
   footprintSoleHospital()

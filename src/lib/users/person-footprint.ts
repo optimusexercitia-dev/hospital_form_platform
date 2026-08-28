@@ -350,6 +350,106 @@ export async function resolvePlatformFootprint(
 }
 
 /**
+ * AE2.4 increment 3 — THE TS MIRROR OF `app.person_authority_orgs`.
+ *
+ * ⛔ THE LOCATE HALF OF ARCHITECTURE RULE 13, AND ONLY THAT HALF. This answers *which
+ * organizations confer authority over this person*; it takes NO caller argument, so it
+ * cannot grant. The grant is `authorizeOrgOps` / the `hospitalAdminOf` scoping below,
+ * applied to the organizations this resolves — kept as two visibly separate steps because
+ * the collapsed one-join form type-checks identically.
+ *
+ * The SQL half is `app.person_authority_orgs`; the two are deliberately mirrored (ADR 0161)
+ * and must move together. pgTAP `394` measures both halves of the predicate they feed.
+ *
+ * ADR 0163's four bounds, each implemented and each with the reason it is not obvious:
+ *  1. VOID IS NOT END — `voided_at is null` filters the WHOLE query, so it applies BEFORE
+ *     the max below. ⛔ Filtering voided rows AFTER taking the max yields EMPTY for a
+ *     person whose voided row happens to end later than their real one: a silent, total
+ *     loss of authority. pgTAP 390 § C7 constructs exactly that pair.
+ *  2. MOST RECENT BY `ended_on`, TIES YIELD **ALL** TIED ORGS — an arbitrary tie-break is
+ *     a NARROWING, and a differential that only pre-declares widenings would never notice
+ *     one. Do not "simplify" this to a sort-and-take-first.
+ *  3. RETENTION ONLY WHEN NOTHING IS ACTIVE — an ended row must not add reach on top of an
+ *     active one.
+ *  4. No hospital tier is added here; the empty-footprint rule in `personScopeAllows` is
+ *     what keeps `hospital_admin` unaffected, and it is untouched.
+ *
+ * ⚠ `ended_on` is a `date`, serialized as `YYYY-MM-DD`, so lexicographic max IS
+ * chronological max. Stated because it is the kind of coincidence that stops being true
+ * the day the column type changes.
+ *
+ * Read on the service-role client: `organization_affiliations`' SELECT policy is
+ * `principal_id = auth.uid() OR is_org_admin_of(organization_id)` — no hospital tier, by
+ * design (ADR 0151 D1) — so an RLS-bound read here would collapse to the caller's own row
+ * and return an empty list that reads as "nobody may administer this person".
+ *
+ * ⛔ IT THROWS ON A READ ERROR, AND THE FIRST DRAFT DID NOT. Returning `[]` looks like the
+ * safe choice — it denies — and it is the exact defect
+ * `BUG-AUTHZ-FOOTPRINT-ASYMMETRIC-READ-LIFTS-THE-D2-LOCK` names one leg over: a silent
+ * DENY that is indistinguishable from a real one, locking admins out of legitimate work
+ * with no signal anywhere. `resolvePersonFootprint` throws for the same reason and states
+ * it as *"silence in either direction is the defect"*; this read now sits IN FRONT of it,
+ * so a fail-closed `[]` here would have short-circuited that throw and re-hidden the class
+ * behind a newer function. Keystone: `person-footprint-reads.test.ts` § 4.
+ */
+export async function personAuthorityOrgs(userId: string): Promise<string[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('organization_affiliations')
+    .select('organization_id, ended_on')
+    .eq('principal_id', userId)
+    .is('voided_at', null)
+  if (error) {
+    throw new Error(
+      `personAuthorityOrgs: organization_affiliations read failed (${error.message}) — refusing to derive person-scope authority from a partial affiliation set`,
+    )
+  }
+  if (!data) return []
+
+  const active = data.filter((row) => row.ended_on === null)
+  if (active.length > 0) {
+    return Array.from(new Set(active.map((row) => row.organization_id)))
+  }
+
+  const ended = data.filter((row): row is typeof row & { ended_on: string } =>
+    row.ended_on !== null,
+  )
+  if (ended.length === 0) return []
+  const mostRecent = ended.reduce(
+    (acc, row) => (row.ended_on > acc ? row.ended_on : acc),
+    ended[0].ended_on,
+  )
+  return Array.from(
+    new Set(
+      ended.filter((row) => row.ended_on === mostRecent).map((row) => row.organization_id),
+    ),
+  )
+}
+
+/**
+ * The GRANT half's hospital arm: the hospitals the CALLER administers inside the
+ * organizations that locate the target.
+ *
+ * ⭐ Extracted in AE2.4 increment 3 because it was the third verbatim copy of the same
+ * five lines (`authorizePersonScopedAdmin`, `getPersonAdminView`, and the SQL twin), and
+ * that duplication is the mechanism by which "one axis swept, its sibling not" kept
+ * recurring in this phase. ⚠ `authorizeForUser` deliberately does NOT use it — its
+ * hospital arm is ADR 0051's, a different rule with no footprint bound.
+ *
+ * `null` means "no usable session", which is not the same answer as "administers no
+ * hospital here" and must not be collapsed into it.
+ */
+export async function administeredHospitalsIn(
+  orgIds: string[],
+): Promise<string[] | null> {
+  const context = await getSessionContext()
+  if (!context || context.isInactive) return null
+  return context.hospitalAdminOf
+    .filter((h) => orgIds.includes(h.organization.id))
+    .map((h) => h.hospital.id)
+}
+
+/**
  * Is the caller an `org_admin` of `orgId`? Moved here from `actions.ts` for the same
  * reason as the resolver — B6 needs it, and re-implementing a five-line authority check
  * beside the live one is how two copies of an authorization rule start disagreeing.
@@ -496,47 +596,56 @@ export async function getPersonAdminView(
   const admin = createAdminClient()
   const { data: profile } = await admin
     .from('profiles')
-    .select('home_organization_id, date_of_birth, phone, cpf')
+    .select('date_of_birth, phone, cpf')
     .eq('id', userId)
     .maybeSingle<{
-      home_organization_id: string | null
       date_of_birth: string | null
       phone: string | null
       cpf: string | null
     }>()
 
-  const orgId = profile?.home_organization_id ?? undefined
-  if (!profile || !orgId) return denied
+  // ⭐ AE2.4 INCREMENT 3 — this preamble was the THIRD verbatim copy of the same
+  // organization resolution (`authorizePersonScopedAdmin`, `authorizeForUser`, here), and
+  // it produces the UI's authority booleans. ⛔ IT HAD TO MOVE IN THE SAME COMMIT: leaving
+  // it on the column while the server action moved would make the affordances and the
+  // action disagree — buttons shown that refuse, buttons hidden that would have worked —
+  // which is "one axis swept, its sibling not" with a user-visible failure mode.
+  const orgIds = await personAuthorityOrgs(userId)
+  if (!profile || orgIds.length === 0) return denied
 
   let canEditPerson = false
   let canManageAccountLifecycle = false
 
-  if (await authorizeOrgOps(orgId)) {
+  let isOrgAdmin = false
+  for (const orgId of orgIds) {
+    if (await authorizeOrgOps(orgId)) {
+      isOrgAdmin = true
+      break
+    }
+  }
+
+  if (isOrgAdmin) {
     // The org_admin arm is NOT footprint-bounded — it holds both capabilities outright.
     canEditPerson = true
     canManageAccountLifecycle = true
   } else {
-    // The hospital_admin arm (D1(a)): the caller must hold hospital_admin in the TARGET'S
-    // home org. A hospital administered in some other org is not a claim on this person.
-    const context = await getSessionContext()
-    if (context && !context.isInactive) {
-      const administeredHospitalIds = context.hospitalAdminOf
-        .filter((h) => h.organization.id === orgId)
-        .map((h) => h.hospital.id)
+    // The hospital_admin arm (D1(a)): the caller must hold hospital_admin in an
+    // organization that LOCATES this person. A hospital administered in some other
+    // organization is not a claim on them.
+    const administeredHospitalIds = await administeredHospitalsIn(orgIds)
 
-      if (administeredHospitalIds.length > 0) {
-        const footprint = await resolvePersonFootprint(userId)
-        canEditPerson = personScopeAllows(
-          'fields',
-          footprint,
-          administeredHospitalIds,
-        )
-        canManageAccountLifecycle = personScopeAllows(
-          'lifecycle',
-          footprint,
-          administeredHospitalIds,
-        )
-      }
+    if (administeredHospitalIds !== null && administeredHospitalIds.length > 0) {
+      const footprint = await resolvePersonFootprint(userId)
+      canEditPerson = personScopeAllows(
+        'fields',
+        footprint,
+        administeredHospitalIds,
+      )
+      canManageAccountLifecycle = personScopeAllows(
+        'lifecycle',
+        footprint,
+        administeredHospitalIds,
+      )
     }
   }
 

@@ -74,7 +74,14 @@ beforeEach(() => {
     hospitalAdminOf: [{ hospital: { id: HOSP_A }, organization: { id: ORG_A } }],
   }
   rows = {
-    profiles: { home_organization_id: ORG_A, date_of_birth: null, phone: null, cpf: null },
+    profiles: { date_of_birth: null, phone: null, cpf: null },
+    // ⭐ AE2.4 inc 3 — THE ANCHOR MOVED, so the fixture had to move with it. This used to
+    // be `profiles.home_organization_id: ORG_A`; `getPersonAdminView` now locates the
+    // person's organizations from `organization_affiliations` (ADR 0163 / 0164). ⛔ Fixed
+    // by MIRRORING how the real substrate anchors a person — an ACTIVE, non-voided org
+    // affiliation — not by relaxing an assertion. Same lesson as pgTAP `360 § 5.2`: a
+    // fixture that built its world out of the column under test.
+    organization_affiliations: [{ organization_id: ORG_A, ended_on: null }],
     hospital_affiliations: [{ hospital_id: HOSP_A }],
     // An ORG-TIER seat: `commission_id === null` raises the D2 flag, which makes this
     // person org_admin-only for every capability.
@@ -155,5 +162,42 @@ describe('§3 getPersonAdminView inherits the fix — same root, quieter coat', 
     errorTable = 'memberships'
     const { getPersonAdminView } = await import('./person-footprint')
     await expect(getPersonAdminView(TARGET)).rejects.toThrow(/partial footprint/)
+  })
+})
+
+// ===========================================================================
+/**
+ * ⭐ AE2.4 INCREMENT 3 — THE SAME CLASS, ON THE READ THAT NOW RUNS FIRST.
+ *
+ * `personAuthorityOrgs` was introduced in front of the footprint resolution, and its first
+ * draft returned `[]` on a read error. That LOOKS safe — it denies — and it is precisely
+ * the defect §2 names, one leg over: a silent DENY indistinguishable from a real one,
+ * which locks administrators out of legitimate work with no signal anywhere. Worse, sitting
+ * in FRONT of `resolvePersonFootprint` it would have short-circuited §3's throw entirely,
+ * re-hiding a closed bug class behind a newer function.
+ *
+ * ⚠ § 4.2 is the arm that makes § 4.1 non-vacuous: without a positive control, "it throws"
+ * passes against a function that throws unconditionally.
+ */
+describe('§4 the organization locator refuses to answer from a failed read', () => {
+  it('§4.1 throws rather than returning an empty organization list', async () => {
+    errorTable = 'organization_affiliations'
+    const { personAuthorityOrgs } = await import('./person-footprint')
+    await expect(personAuthorityOrgs(TARGET)).rejects.toThrow(
+      /partial affiliation set/,
+    )
+  })
+
+  it('§4.2 positive control: with the read healthy it resolves the anchor', async () => {
+    const { personAuthorityOrgs } = await import('./person-footprint')
+    await expect(personAuthorityOrgs(TARGET)).resolves.toEqual([ORG_A])
+  })
+
+  it('§4.3 and getPersonAdminView propagates it rather than rendering "no authority"', async () => {
+    errorTable = 'organization_affiliations'
+    const { getPersonAdminView } = await import('./person-footprint')
+    await expect(getPersonAdminView(TARGET)).rejects.toThrow(
+      /partial affiliation set/,
+    )
   })
 })

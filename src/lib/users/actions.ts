@@ -10,7 +10,12 @@ import { personScopeAllows, type PersonScopeCapability } from './person-scope'
 // and the reason is structural: this file is `'use server'`, so every export of it becomes a
 // callable endpoint. Exporting the resolver to share it with the B6 detail read would have
 // published a person's hospital footprint as an RPC. Keep them there; import, never copy.
-import { authorizeOrgOps, resolvePersonFootprint } from './person-footprint'
+import {
+  administeredHospitalsIn,
+  authorizeOrgOps,
+  personAuthorityOrgs,
+  resolvePersonFootprint,
+} from './person-footprint'
 import { isEmailVerificationEnabled } from '@/lib/config/auth'
 import { isValidCpf, normalizeCpf } from '@/lib/users/cpf'
 import { callDoor } from '@/lib/types/rpc-args'
@@ -371,62 +376,82 @@ async function ensureActiveAffiliation(params: {
  *
  * Deliberately NOT platform_admin either: `authorizeOrgOps` excludes it (ADR 0041 / the
  * noun rule — commission content and person records are not platform_admin's).
+ *
+ * ⭐ AE2.4 INCREMENT 3 — THE ORGANIZATION IS NO LONGER `profiles.home_organization_id`.
+ * It is now LOCATED from `organization_affiliations` via {@link personAuthorityOrgs}, the
+ * TS mirror of `app.person_authority_orgs`, which implements ADR 0163's last-org
+ * retention. Until this change the ADR was live on the READ side only — and the four
+ * capabilities this gate decides are exactly what the six person doors enforce, so the
+ * ruling was not in force where its own subject matter is enforced (ADR 0164).
+ *
+ * ⛔ THE RETURNED `orgId` WAS REMOVED, MEASURED RATHER THAN ASSUMED: no caller read it.
+ * Keeping it would have meant picking one of several located organizations and handing a
+ * future reader an arbitrary value that looks authoritative.
  */
 async function authorizePersonScopedAdmin(
   userId: string,
   capability: PersonScopeCapability,
-): Promise<{ ok: boolean; orgId?: string }> {
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('profiles')
-    .select('home_organization_id')
-    .eq('id', userId)
-    .maybeSingle()
-  const orgId = data?.home_organization_id ?? undefined
-  if (!orgId) return { ok: false }
+): Promise<{ ok: boolean }> {
+  // LOCATE (Architecture Rule 13) — no caller term; this cannot grant.
+  const orgIds = await personAuthorityOrgs(userId)
+  // ⚠ COMPOSITION CHECK: the empty result must land on the RESTRICTIVE answer, exactly as
+  // the NULL column did. A person with no non-voided affiliation becomes administrable by
+  // nobody — an accepted narrowing (pgTAP 394 § 5, cells CA×P9 / CA×P3), never a fail-open.
+  // Their recovery path is re-affiliation, which increment 1 deliberately left open to any
+  // org admin (ADR 0165 W5/W6/W7) and which does not route through this gate.
+  if (orgIds.length === 0) return { ok: false }
 
-  // The org_admin arm, exactly as before this ADR.
-  if (await authorizeOrgOps(orgId)) return { ok: true, orgId }
+  // GRANT, arm 1 — the org_admin arm, NOT footprint-bounded. It returns before the
+  // capability is ever consulted, which is why the capability axis is inert here.
+  for (const orgId of orgIds) {
+    if (await authorizeOrgOps(orgId)) return { ok: true }
+  }
 
-  // The hospital_admin arm (D1). (a) the caller must hold hospital_admin in the TARGET'S
-  // home org — a hospital administered in some other org is not a claim on this person.
-  const context = await getSessionContext()
-  if (!context || context.isInactive) return { ok: false, orgId }
-  const administeredHospitalIds = context.hospitalAdminOf
-    .filter((h) => h.organization.id === orgId)
-    .map((h) => h.hospital.id)
-  if (administeredHospitalIds.length === 0) return { ok: false, orgId }
+  // GRANT, arm 2 — the hospital_admin arm (ADR 0133 D1(a)): the caller must hold
+  // hospital_admin in an organization that LOCATES this person. A hospital administered
+  // in some other organization is not a claim on them.
+  const administeredHospitalIds = await administeredHospitalsIn(orgIds)
+  if (administeredHospitalIds === null) return { ok: false }
+  if (administeredHospitalIds.length === 0) return { ok: false }
 
   const footprint = await resolvePersonFootprint(userId)
-  return {
-    ok: personScopeAllows(capability, footprint, administeredHospitalIds),
-    orgId,
-  }
+  return { ok: personScopeAllows(capability, footprint, administeredHospitalIds) }
 }
 
 /**
- * Resolve the target user's home org, then authorize the caller — as an
- * `org_admin` of that org OR (ADR 0051) as a `hospital_admin` who may manage the
+ * Locate the target user's organizations, then authorize the caller — as an
+ * `org_admin` of one of them OR (ADR 0051) as a `hospital_admin` who may manage the
  * user (its home hospital / a commission of that hospital). Used by the per-user
- * lifecycle/credential/committee actions, which take a `userId` rather than an
- * org id. Reads the profile on the service-role client so a foreign caller (who
- * could not SELECT the row) still gets a correct deny.
+ * committee-assignment, invite-resend and password-reset actions, which take a `userId`
+ * rather than an org id. Every read runs on the service-role client so a foreign caller
+ * (who could not SELECT the rows) still gets a correct deny rather than an empty result
+ * that reads as "no organization".
+ *
+ * ⭐ AE2.4 INCREMENT 3 — moved off `profiles.home_organization_id` onto
+ * {@link personAuthorityOrgs}, in the SAME commit as `authorizePersonScopedAdmin` and
+ * `getPersonAdminView`. ⛔ THE THREE MOVE TOGETHER OR THEY DISAGREE: they carried three
+ * verbatim copies of the same resolution, and that duplication is the mechanism by which
+ * "one axis swept, its sibling not" kept recurring in this phase. This function was named
+ * by no increment's target list and would have fallen through exactly as
+ * `resolveOrInviteUser` did; lead ruling 2026-08-28 assigned it here, and the enumerating
+ * property is *"an authorization preamble that resolves the column"*, never a list.
+ *
+ * ⚠ ONLY THE ORGANIZATION RESOLUTION MOVED. The hospital arm below is ADR 0051's — ANY
+ * intersection with the caller's administered hospitals, no tier rule, no subset bound,
+ * and NO organization scoping either before or after this change. It is deliberately NOT
+ * `personScopeAllows` (see the note on {@link sendPasswordResetForUser}), so this function
+ * does not use `administeredHospitalsIn` and must not be "unified" with the person-scoped
+ * gate: the two answer different questions.
  */
-async function authorizeForUser(
-  userId: string,
-): Promise<{ ok: boolean; orgId?: string }> {
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('profiles')
-    .select('home_organization_id')
-    .eq('id', userId)
-    .maybeSingle()
-  const orgId = data?.home_organization_id ?? undefined
-  if (!orgId) return { ok: false }
-  if (await authorizeOrgOps(orgId)) return { ok: true, orgId }
+async function authorizeForUser(userId: string): Promise<{ ok: boolean }> {
+  const orgIds = await personAuthorityOrgs(userId)
+  if (orgIds.length === 0) return { ok: false }
+  for (const orgId of orgIds) {
+    if (await authorizeOrgOps(orgId)) return { ok: true }
+  }
   // ADR 0051 hospital arm: a hospital_admin may manage its own hospital's users.
-  if (await callerHospitalAdminMayManageUser(userId)) return { ok: true, orgId }
-  return { ok: false, orgId }
+  if (await callerHospitalAdminMayManageUser(userId)) return { ok: true }
+  return { ok: false }
 }
 
 /**
@@ -735,8 +760,17 @@ export async function registerUser(
   // THE PROFILE PATCH — now `finalize_invited_person_for`, and it runs HERE, after the
   // affiliations, for the reason stated at the top of this block. Column list unchanged
   // from the `.update({…})` it replaces. ⛔ `home_organization_id` is deliberately NOT in
-  // it: it is seeded by `handle_new_user` from user metadata, and writing it would fire
-  // the deferred constraint trigger `profiles_tenant_has_org_trg`.
+  // it: it is seeded by `handle_new_user` from user metadata, and the door has no business
+  // rewriting a person's tenancy anchor.
+  //
+  // ⚠ CORRECTED IN AE2.4 INCREMENT 3. This comment used to say the omission was because
+  // writing the column "would fire the deferred constraint trigger
+  // `profiles_tenant_has_org_trg`". ⛔ THAT TRIGGER NO LONGER EXISTS: increment 1 (ADR
+  // 0164) moved tenant containment off `profiles` INSERT entirely and onto
+  // `org_affiliation_tenant_containment_trg`, which fires on organization-affiliation
+  // void/delete. Nothing fires on a `profiles` write now. The omission is still correct;
+  // the REASON given for it had gone false, which is how a stale comment ships a bug —
+  // the next reader adds the column back on the strength of a guard that is gone.
   const { error: profileError } = await callDoor(admin, 'finalize_invited_person_for', {
     p_actor: context.userId,
     p_user: userId,
