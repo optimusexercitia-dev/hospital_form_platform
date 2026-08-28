@@ -647,6 +647,33 @@ may extend the schema but never contradict it. Cross-references elsewhere to
     - **Operational prerequisites** (Phase 9 deployment gates) — an executed
       Supabase BAA, a HIPAA-eligible project tier, and a breach-response posture.
     Modules that don't need patient identity hold none by design.
+13. **Affiliations are visibility and lifecycle inputs — they NEVER grant capabilities.**
+    (Established in AE2; ADR 0155 D3, ADR [0163](./docs/decisions/0163-offboarded-person-lifecycle-authority.md).)
+
+    > **Affiliations (`hospital_affiliations`, `organization_affiliations`) are visibility and
+    > lifecycle inputs. They NEVER grant capabilities; no policy or door may treat an affiliation
+    > row as a positive authorization source.**
+
+    - **The shape this forces: an affiliation LOCATES, a membership GRANTS.** A predicate may use
+      affiliation rows to resolve *which* scope is in play, and must then take the authorization
+      decision from the caller's **`memberships`** row in that scope. The two steps stay
+      **separately visible** — the reference implementation puts them in two functions,
+      `app.person_authority_orgs` (locate; ⛔ **its body contains no caller term at all**, so it
+      *cannot* grant) and `app.can_administer_person_via_affiliation` (grant, via
+      `app.is_org_admin_of`).
+    - ⛔ **The forbidden shape type-checks just as well**, which is why this is a rule and not a
+      convention: any predicate whose truth follows from the **existence or properties of an
+      affiliation row alone** — "caller and target share an affiliation", or the caller's own
+      affiliation folded into the grant — violates it. Collapsing the two steps into one join is
+      cheaper and is the failure mode.
+    - **ADR 0163 is not an exception.** Last-org retention derives *which organization* retains
+      authority over a fully-offboarded person from an ended affiliation row; the authority itself
+      is still the caller's `org_admin` membership in that organization. The row answers **where**,
+      never **whether**.
+    - **Assert it, do not review for it.** pgTAP `392` carries the collapse cell: a caller who
+      **shares an affiliation** with the target but holds **no `org_admin` membership** in the
+      resolved organization must be **denied for every capability**. A rule with no failing test is
+      a convention.
 
 ## Appendix A — Polymorphism dialects (three sanctioned; closes hardening D12; ADR 0065)
 
