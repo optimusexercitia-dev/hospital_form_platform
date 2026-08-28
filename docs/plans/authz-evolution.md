@@ -515,6 +515,26 @@ would have asserted nothing.
   trigger fail-closed. ⚠ Generalisable: a change that re-predicates one gate can invert the
   **failure mode** of another that reads through it.
 - **Increment 2** — folded into 1 (the circular pair could not move separately).
+- **Increment 3 ✅ landed** (`20261003005700`, suite `394`): `app.can_administer_person_for`
+  re-predicated onto `app.person_authority_orgs` — **ADR 0163 is FULLY LIVE**, read *and* write.
+  Its TS twin moved with **two sibling copies no increment's target list had named**
+  (`authorizeForUser`, `getPersonAdminView` → `FUP-AE2-PERSON-PREAMBLE-THREE-COPIES`). Capability
+  differential: **396 cells, 48 widenings all pre-declared, 44 narrowings each accepted**; 18
+  subject-keyed mutations, both polarities, residual bound 9/42 declared in-suite. Gate: sweep
+  **SWEPT 1 · COVERED 1 · BLIND 0**, four arms **0**, `test:db` **242f/8065**, lint 11/11.
+  ⭐ **Closed an AE1 residue:** `can_administer_person_for`'s standing **`ERROR run-shape!=baseline`**
+  — which Gate AE1 ruled against a *compensating control* rather than a verdict — re-measured
+  **COVERED**. ⛔ It needed re-measuring anyway: **name unchanged, body changed**, so `ARM=census`
+  (newcomers only) could not have noticed.
+  ⚠ **Two corrections to ADR 0163 came out of building it**, both now in its Amendment 1: the
+  SUBSET bound was a **hospital-tier label pinned to an org-tier rule** (retention is
+  capability-**blind**; the ADR contradicted its own bound 3), and *"so do all six kernels"* was
+  **true of the string, false of the grain** — their column read feeds `audit_write`'s
+  `p_organization`, not authority. ⭐ Not cosmetic: `audit_log_select` gates commission-less rows on
+  `is_org_admin_of(organization_id)`, so that value decides **audit-row readership** — a
+  read-authority differential, handled by `app.person_audit_organization`.
+  ⭐ **Generalisable:** *"function X names column Y" is a **census** result, not an **authority**
+  claim.* This ADR promoted one to the other and it survived being written, reviewed and cited.
 - ▶ **Increment 3** — the write-authority path (`app.can_administer_person_for` + the six AE1.3
   person-door kernels) with the capability-level differential. **Hard gate on the drop.**
   **ASSIGNED HERE:** `users/actions.ts:739`'s stale assertion (its file).
