@@ -751,3 +751,49 @@ is absence of coverage, not coverage — both are ruled in `docs/progress/authz-
 `app.person_authority_orgs` (set-returning, `postgres`-only, **no caller term in its body** — not a
 gate; bounds keystoned directly by `390 §C`) and `public.list_addable_commission_members` (**is** a
 gate; set-returning so the sweep cannot neutralize it — owes a targeted mutation case).
+## Note 2026-08-28 — AE2.4 increment 1: a gate that MIGRATED OUT of two domains
+
+Migration `20261003005600` (ADR 0164, security context per ADR 0159 D2) changed
+`public.assert_profile_tenant_has_org` from `prosecdef = f` / `authenticated`-executable to
+**SECURITY DEFINER with owner-only EXECUTE**, in the same change that first gave its body a table
+read. Domain membership was **re-derived per function from the catalog** using this harness's own
+domain SQL, never a hand list:
+
+⛔ **Deliberately NOT a table, and the reason is a finding of its own.** The first draft of this
+note carried the domain matrix as a Markdown table and `ARM=census` promptly reported **607**
+verdicts instead of 601: `verdicts_from_findings` takes column 1 of *every* `| ` line in this file,
+so six rows of documentation became six manufactured verdicts. An instrument that creates what it
+counts — caught only because the delta was re-derived rather than read off the "INVARIANT HOLDS".
+**Never add a pipe-table to a findings md.** Domain membership, as a list:
+
+- `public.assert_profile_tenant_has_org()` **before**: census c2 (`public` INVOKER plpgsql,
+  `authenticated`-reachable) ✅ **in** · ARM 5 wrapper (`prosecdef = f`) ✅ **in** · census c1 ❌ ·
+  ARM 1 predicate ❌.
+- `public.assert_profile_tenant_has_org()` **after**: ❌ **out of all four** — returns `trigger`
+  (so never c1 or ARM 1), no longer INVOKER and no longer `authenticated`-reachable (so out of c2),
+  no longer `prosecdef = f` (so out of ARM 5).
+- `app.tenant_orphan_profiles()` (new): ❌ out of all four — set-returning but **not**
+  `authenticated`-reachable, which is exactly the `app.person_authority_orgs` disposition.
+- `app.affiliate_person_to_org_impl` / `app.affiliate_person_impl` (bodies changed, security
+  context unchanged): ❌ out of all four, before and after — `postgres`-only scalar `uuid` doors.
+
+⚠ **The trigger left TWO domains at once** — plan rule 4's *"a REVOKE moves a door between
+domains"*, firing on a `prosecdef` flip and an ACL narrowing together. It is now in **no arm's
+finding domain**, so nothing in the harness will ever ask about it again. Its
+`authz-unswept-backlog.txt` line was removed rather than left to assert a classification that is no
+longer true (the removal is recorded in place, as a comment).
+
+⛔ **Absence of a verdict is absence of coverage, not coverage.** The compensating control is named
+and it carries verdicts of its own — pgTAP `393 § 2`, in the shape `390 §C` used for
+`app.person_authority_orgs`: accept **and** reject on the state axis (§ 2.1–2.4, § 2.8) and on the
+**actor** axis (§ 2.5–2.7), plus § 2.9 stating explicitly that the DELETE arm is unreachable and
+therefore NOT shown able to fire. Mutation-proven: `alter function … security invoker` reds § 2.5
+and § 0.3; the restore is verified byte-identical from `pg_proc`.
+
+⭐ **And the mutation found something reading could not.** ADR 0159 predicts an INVOKER backstop
+raises a **false positive**. Measured here, the first draft failed the *other* way: profile
+visibility is itself affiliation-derived since AE2.2, so the caller who cannot see the affiliations
+cannot see the subject's `profiles` row either — the two blindnesses are **correlated** — and the
+draft's `if not found then return null` turned that into a **silent accept**, orphaning the person.
+§ 2.5 was green under `security invoker` until the trigger was made **fail-closed**. Detail:
+`docs/progress/authz-ae2.md` § AE2.4 increment 1.

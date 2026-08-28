@@ -72,22 +72,32 @@ select has_table('public', 'professional_credentials', 'professional_credentials
 -- catalog + the raw trigger-function logic + the SEED's living proof, rather than
 -- fight deferred semantics with SET CONSTRAINTS mid-transaction.
 
--- (a) The constraint trigger exists and is DEFERRABLE INITIALLY DEFERRED.
+-- (a) ⚠ REWRITTEN 2026-08-28 (AE2.4 increment 1, migration 20261003005600, ADR 0164).
+-- This asserted `profiles_tenant_has_org_trg` on `public.profiles`. THAT TRIGGER IS GONE:
+-- containment could not be re-predicated at CREATION time (the profile is written in
+-- GoTrue's `auth.users` transaction and the affiliation in a separate PostgREST one, so
+-- DEFERRABLE defers only to its OWN commit), and it moved to the only post-creation event
+-- that can destroy it. The assertion follows the invariant instead of being deleted.
 select is(
   (select tgdeferrable and tginitdeferred
    from pg_trigger
-   where tgname = 'profiles_tenant_has_org_trg'
-     and tgrelid = 'public.profiles'::regclass),
+   where tgname = 'org_affiliation_tenant_containment_trg'
+     and tgrelid = 'public.organization_affiliations'::regclass),
   true,
-  'profiles_tenant_has_org_trg is a DEFERRABLE INITIALLY DEFERRED constraint trigger'
+  'the tenant-anchor invariant is a DEFERRABLE INITIALLY DEFERRED constraint trigger on organization_affiliations void/delete (ADR 0164); behaviour is keystoned by 393 § 2'
 );
 
--- (b) Living proof from the seed: every non-admin profile is anchored; the only
--- org-less profile is the admin (vendor). This is exactly the invariant.
+-- (b) ⛔ THIS IS NOW A STATEMENT ABOUT THE SEED, NOT ABOUT AN ENFORCED INVARIANT, and the
+-- description says so. Until 2026-08-28 the column was the anchor and this count was
+-- enforced at write time. It no longer is — the enforced invariant is "≥ 1 NON-VOIDED
+-- organization affiliation", carried by `393 § 1.2` (zero tenant orphans in the seed) and
+-- by `app.tenant_orphan_profiles()`. Kept because the column still exists and the seed
+-- still populates it, so a drift here is worth seeing; ⚠ do NOT cite it as proof that
+-- anything prevents an org-less profile.
 select is(
   (select count(*) from public.profiles where home_organization_id is null and not is_admin)::int,
   0,
-  'no non-admin profile is org-less (seed-wide anchor invariant holds)'
+  'no non-admin profile is org-less in the SEED (a data fact since ADR 0164 — no longer an enforced invariant; enforcement is 393 § 1.2)'
 );
 select cmp_ok(
   (select count(*) from public.profiles where home_organization_id is null and is_admin)::int,

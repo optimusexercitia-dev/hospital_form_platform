@@ -368,7 +368,7 @@ select is(
 select is(
   (select home_organization_id from public.profiles where id = (select sole from k)),
   (select org_a from k),
-  '4.3 ⛔ …and `home_organization_id` is UNTOUCHED — writing it would fire the deferred `profiles_tenant_has_org_trg`, which is why it is deliberately absent from the door''s column list');
+  '4.3 ⛔ …and `home_organization_id` is UNTOUCHED — it is deliberately absent from the door''s column list. ⚠ CORRECTED 2026-08-28 (AE2.4 inc 1, migration 20261003005600): the ORIGINAL REASON was that writing it would fire the deferred `profiles_tenant_has_org_trg`, and THAT TRIGGER NO LONGER EXISTS (ADR 0164 moved containment onto `organization_affiliations` void/delete). The assertion still holds and is still worth keeping — the door must not silently re-anchor a person — but do NOT cite the trigger as the mechanism; nothing enforces this at write time any more');
 
 select is(
   pg_temp.door_err(format($$select public.finalize_invited_person_for(%L::uuid, %L::uuid, %L, %L::uuid, %L)$$,

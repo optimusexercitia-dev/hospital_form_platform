@@ -16,8 +16,11 @@ plan [authz-evolution.md](../plans/authz-evolution.md) §AE2). Branch
 | **AE2.1** — close the consumer set | ✅ **DONE 2026-08-27** | [census](../design/authz-ae2-home-org-consumer-census.md) |
 | **AE2.2** — migration design: per-leg re-predication | ✅ **DONE 2026-08-27** | migrations `20261003005400` + `20261003005500`; suites `390`, `391` |
 | **AE2.3a** — the widening differential, **read/visibility half** (phase keystone) | ✅ **DONE 2026-08-27** | suite `392` (38 assertions); 50-cell matrix, 5 pre-declared widenings, 5 accepted narrowings, 8-mutation vacuity proof |
-| **AE2.3b** — the widening differential, **write/containment half** | 🔜 | owed at AE2.4 — the containment trigger, `affiliate_person_to_org_impl`, the picker, **plus** a capability-level differential for `app.can_administer_person_for`, which still reads the column |
-| **AE2.4** — drop the column | 🔜 | — |
+| **AE2.3b** — the widening differential, **write/containment half** | 🟡 **PARTIAL** | increment 1's half is **DONE** — suite `393` § 3 (org tier, 10 cells) + § 5 (hospital tier, 5 cells). Still owed: the picker, and the **capability-level** differential for `app.can_administer_person_for` (increment 3) |
+| **AE2.4 inc 1** — the circular pair | ✅ **DONE 2026-08-28** | migration `20261003005600`; suite `393` (44 assertions); ADR [0165](../decisions/0165-affiliation-derived-tenant-gate-and-its-widening.md); 9-mutation vacuity proof |
+| **AE2.4 inc 3** — the write-authority path (hard gate on the drop) | 🔜 | `app.can_administer_person_for` + the six AE1.3 person-door kernels |
+| **AE2.4 inc 4** — `listLinkableOrgUsers` (shape C-b′) | 🔜 | — |
+| **AE2.4** — drop the column | 🔜 | after all four increments |
 | **AE2.5** — D3 binding text in ARCHITECTURE.md | 🔜 | — |
 
 ## AE2.0 — the ruling, and why the question was the other way round
@@ -692,3 +695,246 @@ fresh `supabase db reset` before any gate figure was taken.
 ⛔ Not run here, by instruction: the ARM sweep and `e2e:prod` — those are the phase gate, run by
 the lead. ⚠ `392` adds **no** new gate or `prosecdef` boolean, so it introduces nothing for
 `ARM=census` to find; the AE2.2 gate subset stands unchanged.
+
+## AE2.4 increment 1 — the circular pair (migration `20261003005600`, suite `393`)
+
+Ruling ADR [0164](../decisions/0164-tenant-containment-moves-from-creation-time-to-the-destructive-event.md);
+re-expression + rejected alternative ADR
+[0165](../decisions/0165-affiliation-derived-tenant-gate-and-its-widening.md); security context ADR
+[0159](../decisions/0159-invariant-backstops-run-as-definer.md) D1/D2.
+
+### The per-object contract (old → new), reproduced from the catalog BEFORE the change
+
+| object | old | new |
+| --- | --- | --- |
+| `public.assert_profile_tenant_has_org` (**name kept** — a rename orphans every name-keyed verdict) | trigger on `profiles` AFTER INSERT OR UPDATE OF `home_organization_id, is_admin`; body `new.home_organization_id is null and not new.is_admin` → raise. `prosecdef = f`, EXECUTE `{postgres, authenticated, service_role}` | constraint trigger `org_affiliation_tenant_containment_trg` on `organization_affiliations` AFTER **UPDATE OF `voided_at` OR DELETE**, DEFERRABLE INITIALLY DEFERRED; body: `old.principal_id` must keep ≥ 1 **NON-VOIDED** org affiliation unless `is_admin`. **`prosecdef = t`**, pinned `search_path`, EXECUTE **owner-only** |
+| `app.affiliate_person_to_org_impl` | `v_person_org is null or v_person_org is distinct from p_organization` → `HC0R0` | `if not found` → `HC0R0`; then ≥ 1 non-voided affiliation **and none in `p_organization`** → `HC0R0`. Same SQLSTATE, same pt-BR message, conflation preserved |
+| `app.affiliate_person_impl` (**pulled into this increment by lead ruling**) | identical, against `v_org := app.org_of_hospital(p_hospital)` | identical, against `v_org` |
+| `app.tenant_orphan_profiles()` **(new)** | — | DEFINER, STABLE, pinned, **`postgres`-only** EXECUTE; returns `(profile_id, reason ∈ {never_affiliated, all_voided})` |
+
+Everything outside the gate in both doors — authority arms, the `HC0R4` deactivated check, the
+idempotency, the org-parent ensure, every comment — is reproduced **byte-for-byte** from
+`pg_get_functiondef()` at head `20261003005500`; the migration is generated from that dump with a
+guarded replacement, so nothing else could drift.
+
+⭐ **`affiliate_person_impl` was verified identical, not transplanted.** Both gates were lifted from
+`pg_proc` and diffed: byte-identical apart from the organisation expression. `393 § 5.7` re-derives
+that identity every run (2 doors, 1 distinct normalised predicate), so a fix applied to one sibling
+and not the other reds. This reverses the increment's original scope — the lead ruled it in because
+*"one axis was swept, its sibling was not"* has already happened three times in this phase.
+
+### The mitigation, and the proof it can fire
+
+ADR 0164 requires app-side compensation **or** an orphan-detection assertion. Chosen: the detector,
+because app-side compensation lives in `src/lib/users/actions.ts`, which increment 3 owns.
+
+**The discriminator is `is_admin`, and that choice is the whole point.** `393 § 1.3` re-measures
+that the `platform_admin` genuinely has zero non-voided org affiliations — so an orphan is
+**shape-identical to a legitimate row**. A detector keyed on absence alone flags the platform admin
+forever; one tuned to ignore "no affiliation at all" ignores exactly the shape it hunts. `is_admin`
+is orthogonal to affiliation-presence.
+
+- `§ 1.2` seed population = **0** orphans (snapshotted **before** this file constructs any).
+- `§ 1.3` + `§ 1.4` = the discrimination claim: same shape, different verdict.
+- `§ 1.5` a **constructed** never-affiliated orphan **is** flagged; `§ 1.6` an all-voided one is
+  flagged with the other `reason`; `§ 1.7` an ENDED, non-voided person is **not**.
+- **Mutation M8** (detector made blind) reds § 1.5/§ 1.6; **M7** (discriminator removed) reds
+  § 1.2/§ 1.4. Neither assertion is vacuous.
+
+**The reachability bound is measured, not asserted** (`§ 1.8`/`§ 1.9`, each with a positive control):
+the orphan appears in `list_org_people` neither under `p_include_ended` nor by exact-match CPF,
+while an ENDED non-voided person with a CPF **is** returned. Full path sweep in ADR 0165.
+
+### Arm domains — derived per function from the catalog, with the harness's own domain SQL
+
+⛔ **The containment trigger MIGRATED OUT of two domains at once.** Before: `prosecdef = f`, `public`,
+plpgsql, `authenticated`-executable → **in** census clause 2 **and in `ARM=wrapper`**. After: DEFINER
++ owner-only EXECUTE → **out of all four** (census c1/c2, ARM 1 predicate, ARM 5 wrapper). That is
+plan rule 4's *"a REVOKE moves a door between domains"* firing on a `prosecdef` flip and an ACL
+narrowing together. `app.tenant_orphan_profiles()` is out of all four too (set-returning but not
+`authenticated`-reachable — the `app.person_authority_orgs` disposition). Both doors: unchanged,
+out of all four. Reasoning + the per-object list: `docs/reviews/authz-door-audit-findings.md`
+§ Note 2026-08-28. Its `authz-unswept-backlog.txt` line was **removed in place with the reason**,
+because its stated basis ("INVOKER wrapper, no openable guard") is now false.
+
+⛔ **Absence of a verdict is absence of coverage.** Named compensating control, itself
+verdict-carrying: `393 § 2` — accept **and** reject on the state axis (§ 2.1–2.4, § 2.8) and the
+**actor** axis (§ 2.5–2.7), plus `§ 2.9` stating that the DELETE arm is **unreachable** (the refusal
+comes from `guard_org_affiliation_no_delete`, matched on its message since both raise 23514) and has
+therefore **not** been shown able to fire.
+
+**Arms re-run after the change, exit codes captured directly:**
+
+| arm | asks | enumerated | exit |
+| --- | --- | --- | ---: |
+| `ARM=census` | has anything **ever asked** about this gate? | **565** live gates (566 → 565: exactly the one that left the domain) / **601** verdicts (602 → 601: exactly the removed backlog line) · INVARIANT HOLDS | **0** |
+| `FROMFINDINGS=1 ARM=wrapper` | the `prosecdef = f` half | BLIND set **41**, unchanged, all allowlisted | **0** |
+
+⚠ Not run here: `ARM=floor`, `ARM=hat`, the diff-scoped policy sweep and `e2e:prod` — the lead's.
+⚠ This increment adds **no** RLS policy and **no** `prosecdef` boolean gate, so
+`scripts/door-sweep-cases.sh` has nothing of that shape to derive; the two new objects are a trigger
+function and a set-returning helper, neither neutralizable by ARM 1.
+
+⛔ **A hazard caught by re-deriving the delta instead of reading "INVARIANT HOLDS".** The first draft
+of the findings note carried the domain matrix as a **Markdown table**, and `ARM=census` reported
+**607** verdicts instead of 601 — `verdicts_from_findings` takes column 1 of *every* `| ` line in
+that file, so six rows of documentation became six manufactured verdicts. An instrument that creates
+what it counts, and it would have masked a real newcomer. The note now carries a list, not a table.
+
+### AE2.3b cells for this increment — the write/containment differential
+
+Both predicates evaluated in one transaction, per case; the OLD gate reproduced from an **RLS-free**
+snapshot of the column (it was a read inside a DEFINER door against the row in hand, never a re-read
+under the caller's RLS).
+
+| tier | cell | state | old | new |
+| --- | --- | --- | --- | --- |
+| org | W1 / W2 / W3 | active A · ended-non-voided A (rehire) · **no affiliation (person creation)** | pass | pass |
+| org | W4 | column B, active B | HC0R0 | HC0R0 |
+| org | **W5 / W6 / W7** | column B + no row · voided-only · **true orphan** | HC0R0 | **pass — WIDENING** |
+| org | W8 | active in A **and** B (idempotent path) | pass | pass |
+| org | **W9** | column A, only ended-non-voided in B | pass | **HC0R0 — NARROWING** |
+| org | W10 | no profile at all | HC0R0 | HC0R0 |
+| hosp | H1 / H2 | no affiliation (creation) · ended-non-voided A (**D5 one-step rehire**) | pass | pass |
+| hosp | H3 | column B, active B | HC0R0 | HC0R0 |
+| hosp | **H4** | column B, no affiliation | HC0R0 | **pass — WIDENING** |
+| hosp | **H5** | column A, only ended-non-voided in B | pass | **HC0R0 — NARROWING** |
+
+The widening list is written **independently** of the expectation table (`§ 3.2`/`§ 5.2` compare
+MEASURED against DECLARED; `§ 3.4` compares EXPECTED against DECLARED, so the two hand artefacts
+cannot drift into agreement). `§ 3.5`/`§ 5.4` floor both predicates as genuinely mixed (5/5 and 7/3;
+3/2 and 3/2), so a match is agreement between two live predicates and not between two constants.
+`§ 3.6`/`§ 3.7` pin **HC0R0** and the verbatim pt-BR message across both tiers, W10 included.
+
+⭐ **W8 is `=`, not a narrowing, and that is a deliberate refinement.** The obvious predicate — *"no
+non-voided affiliation outside `p_organization`"* — refuses every person active in two
+organisations, **including on the door's own idempotent early-return path**. Caught by writing the
+cell, not by reading the body.
+
+### ⛔ THE VACUITY PROOF — nine mutations, and one found a live defect in MY OWN keystone
+
+Every mutation applied in-DB via `pg_get_functiondef()` + `replace` + `execute`, with the `do` block
+raising if the replacement was a no-op; every one **asserted to have LANDED from `pg_proc`** (md5,
+length, `prosecdef`, marker presence) and **never** from a command's exit status; every restore
+replayed from the captured definition and verified **byte-identical** by md5. **Run shape captured
+for every run: `Files=2, Tests=45` throughout** — no run aborted, so no `ERROR` was counted as a hold.
+
+| # | mutation | assertions that RED | exit |
+| --- | --- | --- | ---: |
+| **M1** | containment predicate → never raises | § 2.1, § 2.4 | 1 |
+| **M2** | ⭐⭐ `alter function … security invoker` | **§ 0.3, § 2.5** | 1 |
+| **M3** | the `is_admin` exemption removed | § 2.8 | 1 |
+| **M4** | non-voided narrowed to ACTIVE (`ended_on is null and …`) | § 2.3 | 1 |
+| **M5** | the ORG-tier tenant gate → never raises | § 3.1, § 3.2, § 3.3, § 3.5, § 5.7 | 1 |
+| **M6** | ⭐ the HOSPITAL-tier gate **only** | § 5.1, § 5.2, § 5.3, § 5.4, § 5.7 | 1 |
+| **M7** | detector: `not p.is_admin` removed | § 1.2, § 1.4 | 1 |
+| **M8** | detector: made blind | § 1.5, § 1.6 | 1 |
+| **M9** | `grant execute … to authenticated` | § 0.5 | 1 |
+
+⭐ **M6 exists because M5 could not have proven § 5 non-vacuous.** Mutating the org door moves § 3
+*and* § 5.7; only mutating the sibling **alone** shows that the hospital-tier cells are held by the
+hospital-tier predicate and not riding on the org one. Same reasoning as 392's V6/V7.
+
+#### ⛔⛔ M2's FIRST RUN REDDED ONLY § 0.3 — my keystone could not fail, and the reason inverts ADR 0159
+
+The first draft of the trigger contained `if not found then return null` after the `profiles` read
+("no profile, nothing to contain"). Under `security invoker`, § 2.5 stayed **green**. Measured
+directly rather than reasoned about, with a `raise notice` build: `current_user = authenticated`,
+`session_user = postgres`, **visible non-voided rows = 0** — so the trigger *was* running under the
+caller's RLS, but it never reached its containment check, because **profile visibility is itself
+affiliation-derived since AE2.2** (`profiles_select_self_or_admin` →
+`app.can_administer_person_via_affiliation`). A caller blind to the affiliations is blind to the
+subject's `profiles` row as well.
+
+⭐ **The two blindnesses are CORRELATED, and the escape hatch converted the whole regression into a
+SILENT ACCEPT** — a fail-OPEN that orphans the person, strictly worse than the false-positive
+refusal ADR 0159 predicts, and **invisible to an accept cell**. ADR 0159's hospital-tier case fails
+the other way because *its* subject row is the one being written.
+
+**Fix:** the trigger now **fails closed** — a subject that cannot be resolved is treated as
+non-admin and falls through to the containment check. Under DEFINER that branch is unreachable
+anyway (`guard_profile_no_delete` blocks profile deletes; `profiles_id_fkey` is ON DELETE RESTRICT),
+which is what makes fail-closed free here rather than a trade. After the fix M2 reds **§ 0.3 and
+§ 2.5**. ⛔ Recorded because it is the exact shape this increment refused to accept from its own
+brief, found in this file, by mutation and not by reading.
+
+⚠ **Not shown able to fail, stated rather than glossed:** § 0.1, § 0.2, § 0.4, § 0.6, § 0.7, § 1.1,
+§ 1.3, § 1.7, § 1.8, § 1.9, § 2.2, § 2.6, § 2.7, § 2.9, § 3.4, § 3.8, § 3.9, § 4.1, § 4.2, § 4.3,
+§ 5.5, § 5.6. Every one is a structural pin, precondition, floor, control, cross-check or
+reachability measurement — their job is to red when the *surface or the fixture* changes, not when a
+predicate does. A stated bound on the audit, not a claim of full coverage.
+
+### ⛔ Where reality disagreed with the brief, ADR 0164, and the phase record
+
+1. ⭐⭐ **THE `hospital_admin` CONTAINMENT-ACCEPT CELL HAS NO SUBJECT.** The brief (and the AE2.2
+   record, three times) says the INVOKER trap must be caught by a `hospital_admin` accept cell.
+   Measured (`§ 4.3` asserts it from the catalog rather than stating it): `authenticated` holds only
+   `r` on `organization_affiliations` and the table carries no non-SELECT policy, so every write is
+   a DEFINER door; **exactly one** door writes `voided_at` (`app.void_org_affiliation_impl`) and its
+   authority arm is `app.is_org_admin_of_for` **only** — no hospital arm (ADR 0151 D8).
+   `app.affiliate_person_impl` only INSERTs org affiliations, which cannot fire a void/delete
+   trigger. **No `hospital_admin` can fire the new trigger by any path.** The keystone is therefore a
+   **cross-org-blind `org_admin`** (§ 2.5), and the `hospital_admin` rehire survives as § 4.1,
+   explicitly labelled a hospital-tier **regression control** and not this trigger's keystone —
+   labelling it otherwise would have been the keystone-that-could-not-fail shape. Lead independently
+   re-derived and accepted, 2026-08-28.
+2. **ADR 0159's predicted failure mode is wrong for this trigger** — fail-OPEN, not false positive.
+   See the M2 subsection above. Recorded in ADR 0165 § Consequences.
+3. **The widening is wider than "orphan recovery" makes it sound**: the hospital door's authority arm
+   includes `hospital_admin`, so a hospital admin can claim an orphan too (cell H4).
+4. ⚠ **Voiding a person's last non-voided affiliation now raises a raw `23514`** from the trigger.
+   Unlike its hospital-tier precedent (ADR 0156, where "every reachable path refuses earlier"), this
+   raise **is** reachable by a user action, so it can surface unmapped in the UI. Owed: a mapped
+   `HC0R*` refusal inside `void_org_affiliation`, with its own `toState` mapping — a separate change.
+5. ⚠ **`gen:types` produced NO diff**, and that is expected rather than a skipped step: no table
+   changed and both new/changed functions live in `app` or return `trigger`, so PostgREST's schema
+   is untouched.
+
+### ⛔ STALE ASSERTIONS THIS INCREMENT CREATED — the drop increment's checklist
+
+Every one of these says an invariant is enforced by a trigger that no longer exists. The two inside
+this increment's own scope are **fixed**; the rest are listed because a stale assertion recorded only
+in prose is how these survive:
+
+- ✅ **fixed** `supabase/tests/180_user_registration.sql` § (a) — it *asserted* the dropped trigger's
+  existence and was **RED** in the full suite. Rewritten onto the new trigger. Its § (b) was
+  **re-labelled**: the count is now a statement about the SEED, not about an enforced invariant.
+- ✅ **fixed** `supabase/tests/00_setup.sql:168` and `supabase/tests/385_…:371` — comments citing the
+  trigger as the mechanism.
+- ⛔ **owed** `public.handle_new_user` body comment: *"the `profiles_tenant_has_org` CHECK then
+  rejects a non-admin insert"* — **nothing does now**. Not edited here: that function must be
+  rewritten at the column drop anyway, and rewriting it twice in one phase is what AE2.2 avoided.
+- ⛔ **owed** `src/lib/members/invite.ts:35` and `src/lib/users/actions.ts:739` — same false claim.
+  `users/actions.ts` is increment 3's file; not touched, to keep file ownership clean.
+- ⛔ **owed, and NOT ours** `e2e/phase13-audit.spec.ts:139` — tester's scope.
+- ⛔ **owed** `docs/backend-state.md` lines **396**, **599**, **5674** — the backend surface map names
+  `profiles_tenant_has_org_trg` as a live anchor invariant, and line 599 gives it as the *reason*
+  `finalize_invited_person_for` omits the column from its write list.
+- ⛔ **owed, and it is a CONSUMER not just a comment**: `resolveOrInviteUser`
+  (`src/lib/members/invite.ts:51`) resolves an **email** to a person id with no affiliation
+  predicate and gates on `home_organization_id`. It is not named in any increment's target list and
+  the drop must handle it (ADR 0165 § Consequences).
+
+⚠ **A method note, because the miss was in the instrument.** The blast-radius sweep for
+`profiles_tenant_has_org` was piped through `head -40` and silently stopped at `e2e/` — the
+`supabase/tests/` hits, including the one that was **RED**, were below the cut. The truncated output
+read as a complete sweep. Re-run unbounded, there were 59 references.
+
+### Gates — exit codes captured DIRECTLY, never through a pipe, on a fresh `supabase db reset`
+
+| gate | result | exit |
+| --- | --- | ---: |
+| `supabase db reset --local` | clean | **0** |
+| `npm run test:db` | **241** files, **8023** tests, PASS (240/7979 → +1 file, +44 assertions: exactly suite `393`, nothing else moved) | **0** |
+| `npm run lint` (11 gates) | pass (adr-index: **163** ADRs, next free 0166; mojibake 2991 files clean) | **0** |
+| `npm run typecheck` | pass | **0** |
+| `npm run test` (vitest) | 145 files, **1974** tests | **0** |
+| `npm run gen:types` | run after the migration; **no diff** (see disagreement 5) | **0** |
+| `ARM=census` | 565 live / 601 verdicts · INVARIANT HOLDS | **0** |
+| `FROMFINDINGS=1 ARM=wrapper` | BLIND 41, unchanged | **0** |
+
+**Red-first, recorded with its shape:** `393` was run against the **un-migrated** catalog before the
+migration existed. `Files=2, Tests=8` — § 0.1/0.2/0.3/0.5/0.6/0.7 **RED**, then an abort at the
+detector snapshot (`function app.tenant_orphan_profiles() does not exist`). ⚠ § 0.4 (pinned
+`search_path`) passed pre-migration and could not have failed on that axis: the outgoing function
+already carried the same `search_path`. Said rather than counted as a red.

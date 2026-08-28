@@ -448,7 +448,23 @@ public.remind_document_approver(p_version_id uuid, p_approver_id uuid)
 public.add_group_instance(p_response_id uuid, p_group_item_id uuid)
 public.add_meeting_attendee(p_meeting_id uuid, p_user_id uuid, p_external_name text, p_external_org text, p_role text, p_attendance text, p_note text)
 public.add_template_narrative(p_template_version_id uuid, p_narrative_type_id uuid, p_title text, p_instructions text, p_is_expected boolean)
-public.assert_profile_tenant_has_org()
+# ⛔ REMOVED 2026-08-28 (AE2.4 increment 1, migration 20261003005600):
+#    public.assert_profile_tenant_has_org()
+#    It was listed here as a `prosecdef = f` INVOKER wrapper with no openable guard. That
+#    BASIS IS NOW FALSE: ADR 0159 D2 / ADR 0164 flipped it to SECURITY DEFINER and revoked
+#    `authenticated` + `service_role` EXECUTE in the same migration that gave it a table
+#    read. Re-derived from the catalog with THIS harness's own domain SQL, it is now
+#    OUTSIDE every arm: census clause 1 (prosecdef bool | prosecdef set-returning +
+#    authenticated-reachable) = false — it returns `trigger`; census clause 2 (public
+#    INVOKER plpgsql, authenticated-reachable) = false — no longer INVOKER and no longer
+#    reachable; ARM 1 predicate domain = false (not bool); ARM 5 wrapper domain = false
+#    (not prosecdef = f). ⚠ A REVOKE moves a door between domains, and this one moved OUT
+#    of two at once, so leaving the line would assert a classification nothing can check.
+#    ⛔ ABSENCE OF A VERDICT IS ABSENCE OF COVERAGE, so the compensating control is NAMED
+#    and it carries verdicts of its own: pgTAP 393 § 2 (accept AND reject, on the state
+#    axis AND the actor axis), mutation-proven — `alter function … security invoker` reds
+#    § 2.5 and `alter function … security definer` restores it. Disposition recorded in
+#    docs/reviews/authz-door-audit-findings.md § Note 2026-08-28.
 public.clone_form_version(p_source_version_id uuid)
 public.clone_template_version(p_source_version_id uuid)
 public.create_form(p_commission_id uuid, p_title text, p_description text)
