@@ -19,7 +19,7 @@
 
 begin;
 -- 7 ACL/structure + 8 equivalence grid + 6 narrowings + 3 service-door reachability = 24.
-select plan(25);
+select plan(27);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -196,6 +196,49 @@ select is(
     where v.entry='service' and c.actor_label='plain staff(comm_x)' and c.role='staff'),
   '42501',
   '2.8 a plain staff member cannot grant anything');
+
+-- ---------------------------------------------------------------------------
+-- ⭐ ADDED BY ADR 0167, AFTER A SILENT VERDICT FLIP THIS SECTION COULD NOT SEE.
+--
+--    Dropping `app.is_admin_for` from `grant_role_impl`'s commission
+--    `staff_admin` arm flipped the (platform_admin, commission, staff_admin)
+--    cell from ALLOWED to 42501 on BOTH entry points — and § 2 STAYED GREEN.
+--    2.1 (equivalence) is satisfied because both paths moved together; 2.2/2.3
+--    (there exists an ALLOW / there exists a DENY) are satisfied by surviving
+--    cells; 2.4 (same set of distinct outcomes) likewise. None of 2.5–2.8 names
+--    a `platform_admin` cell. So a deliberate authorization change would have
+--    become an UNRECORDED one, and a suite that stays green while losing the
+--    only assertion of a policy is strictly worse than one that reds.
+--
+-- ⚠ THE PATTERN, STATED RATHER THAN FIXED ONE CELL AT A TIME: the grid holds
+--   4 actors × 3 (scope, role) = 12 cells, and only FOUR were named. Adding a
+--   fifth named cell would leave SEVEN cells with the same blind spot, so 2.10
+--   pins the WHOLE MAP. 2.9 stays as well because a policy deserves to be
+--   readable as a sentence, not only as a row in a serialized blob.
+-- ---------------------------------------------------------------------------
+select is(
+  (select verdict from verdicts v join cells c on c.id = v.cell
+    where v.entry='service' and c.actor_label='platform_admin' and c.role='staff_admin'),
+  '42501',
+  '2.9 ⛔ ADR 0167: a platform_admin CANNOT grant commission `staff_admin`. The commission tier is committee CONTENT (noun rule, ADR 0078 A35), and the grant side now reads the same `is_tenancy_admin_of_for` the revoke side always did');
+
+select is(
+  (select string_agg(c.actor_label || '/' || c.scope || '/' || c.role || '=' || v.verdict,
+                     ' ; ' order by c.actor_label, c.scope, c.role)
+     from verdicts v join cells c on c.id = v.cell where v.entry='service'),
+  'plain staff(comm_x)/commission/staff=42501 ; '
+  'plain staff(comm_x)/commission/staff_admin=42501 ; '
+  'plain staff(comm_x)/organization/org_admin=42501 ; '
+  'platform_admin/commission/staff=ALLOWED ; '
+  'platform_admin/commission/staff_admin=42501 ; '
+  'platform_admin/organization/org_admin=ALLOWED ; '
+  'staff_admin(comm_x)/commission/staff=ALLOWED ; '
+  'staff_admin(comm_x)/commission/staff_admin=42501 ; '
+  'staff_admin(comm_x)/organization/org_admin=42501 ; '
+  'staff_admin(comm_y)/commission/staff=42501 ; '
+  'staff_admin(comm_y)/commission/staff_admin=42501 ; '
+  'staff_admin(comm_y)/organization/org_admin=42501',
+  '2.10 ⭐ THE WHOLE MAP, so no cell can flip in silence again. ⚠ `platform_admin/commission/staff=ALLOWED` is a KNOWN GAP, not an endorsement: the `staff` sub-arm keeps its `is_admin_for` while the revoke side has none, so the one-way door ADR 0167 closed for `staff_admin` survives one role over. It awaits its own PO ruling and is measured by pgTAP 397 § 6');
 
 -- =============================================================================
 -- §3 — THE TWO NARROWINGS THE SERVICE PATH GAINS

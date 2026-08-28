@@ -637,6 +637,26 @@ select is(
   'HC0R0',
   '5.5b …and the shared answer is HC0R0 specifically — § 5.5 alone would be green if BOTH sides raised the same UNRELATED error');
 
+-- ⭐ RE-CUT BY ADR 0167, AND THE REASON MATTERS MORE THAN THE NEW EXPECTATION.
+--    This cell used to assert `23514` — the kernel's `'comissão inexistente'`
+--    guard, annotated "reachable only for a platform admin". ADR 0167 removed the
+--    `app.is_admin_for` arm from the commission `staff_admin` branch, so NO actor
+--    reaches that guard any more: every surviving arm is already false for an id
+--    that names no commission, and the authority refusal now fires first.
+--
+-- ⛔ THE GUARD IS NOT DEAD CODE TO DELETE, AND ITS UNREACHABILITY IS THE FEATURE.
+--    Authority-before-existence is exactly what "a probe cannot enumerate" means:
+--    if the existence check could be reached by someone the authority check
+--    refuses, `public.grant_role` would answer a DIFFERENT error for a real
+--    commission id than for a fabricated one, and any signed-in caller could
+--    enumerate `commissions.id` a uuid at a time. The guard stays as
+--    defence-in-depth for any arm added later; deleting it as unreachable would
+--    silently restore that oracle the moment one is. See the ⚠ block in migration
+--    20261003006000, which carries the same warning at the guard itself.
+--
+-- What survives here unchanged is the half that was never about the SQLSTATE:
+-- neither row lands. ADR 0166 clause 2 is "both rows, or neither", and a refusal
+-- that left an affiliation behind would satisfy any code-only assertion.
 do $$ begin perform set_config('t396.g56', pg_temp.try_grant(
   (select platform from pg_temp.k()), 'commission',
   '00000000-0000-0000-0000-0ae24600bad1'::uuid, 'staff_admin', (select p10 from pg_temp.p())), true); end $$;
@@ -644,8 +664,8 @@ select is(
   split_part(current_setting('t396.g56'), '|', 1) || '|' ||
   (select count(*)::int from public.memberships where principal_id = (select p10 from pg_temp.p()))::text || '|' ||
   (select count(*)::int from public.organization_affiliations where principal_id = (select p10 from pg_temp.p()))::text,
-  '23514|0|0',
-  '5.6 a NON-EXISTENT commission is refused with the sibling branches'' `check_violation` shape (`hospital inexistente`), not with a raw FK violation from the membership insert, and neither row lands. ⚠ Reachable only for a platform admin — every tenant arm is already false for an id that names nothing');
+  '42501|0|0',
+  '5.6 a NON-EXISTENT commission is refused by AUTHORITY (42501) before existence is ever consulted — the enumeration-oracle kill, not an accident — and neither row lands. ⚠ The `check_violation` this cell asserted until ADR 0167 is now unreachable BY DESIGN; read the block above before "fixing" either side');
 
 do $$ begin perform set_config('t396.g56b', pg_temp.try_grant(
   (select platform from pg_temp.k()), 'organization',

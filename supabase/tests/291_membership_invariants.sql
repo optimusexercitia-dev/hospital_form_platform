@@ -34,7 +34,12 @@ create temp table k on commit drop as
   select (v->>'admin')::uuid  as admin,  (v->>'sa_x')::uuid  as sa_x,
          (v->>'st_x')::uuid   as st_x,   (v->>'st_x2')::uuid as st_x2,
          (v->>'comm_x')::uuid as comm_x, (v->>'comm_y')::uuid as comm_y,
-         (v->>'org_b')::uuid  as org_b,  (v->>'hosp_b')::uuid as hosp_b
+         (v->>'org_b')::uuid  as org_b,  (v->>'hosp_b')::uuid as hosp_b,
+         -- ADR 0167: §4's door calls need an actor the commission tier still
+         -- admits. `oa_b` is the bootstrap's org_admin of `org_b`, which owns
+         -- comm_x — so `app.is_tenancy_admin_of_for(comm_x, oa_b)` is true
+         -- through its ORG leg, with no commission membership at all.
+         (v->>'oa_b')::uuid   as oa_b
   from ctx;
 grant select on k to authenticated;
 
@@ -250,7 +255,18 @@ begin
 end $$;
 
 -- The promotion itself, through the door, as a real principal.
-select test_helpers.claims_for((select admin from k), true);
+--
+-- ⚠ ACTOR CHANGED BY ADR 0167, AND THE CHANGE IS THE POINT OF THE RULING. This
+--   section used the bootstrap PLATFORM ADMIN — the only org-less "can do
+--   anything" principal the hermetic fixture has, which is why suites reached for
+--   it. ADR 0167 dropped `app.is_admin_for` from `grant_role_impl`'s commission
+--   `staff_admin` arm AND from its outgoing-role guard, so a platform admin can no
+--   longer seat or re-role a commission coordinator. The dependency was FIXTURE
+--   ERGONOMICS, not a product capability: nothing in `src/`, `e2e/`, `seed.sql` or
+--   `demo/` relied on it. `oa_b` (org_admin of the org that owns comm_x) is the
+--   authority the T1.0 semantic was always about. ⛔ Do NOT restore the platform
+--   admin here to make a future red go away — pgTAP 397 § 2.1 asserts the refusal.
+select test_helpers.claims_for((select oa_b from k), false);
 set local role authenticated;
 select lives_ok(
   format($$select public.grant_role('commission', %L, 'staff_admin', %L)$$,
@@ -301,7 +317,7 @@ select is(
   '4.7 T1.0: ...and NO membership.revoked (a delete+insert implementation would emit one)');
 
 -- Idempotence: re-granting the role already held is a no-op, not a second event.
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select oa_b from k), false);
 set local role authenticated;
 select lives_ok(
   format($$select public.grant_role('commission', %L, 'staff_admin', %L)$$,
@@ -346,8 +362,17 @@ select lives_ok(
   '4.12 POSITIVE TWIN: a plain staff_admin can still grant plain staff');
 reset role;
 
--- A commission-admin (here: is_admin) MAY perform the demotion the staff_admin cannot.
-select test_helpers.claims_for((select admin from k), true);
+-- A commission-admin (here: the ORG_ADMIN of the owning org) MAY perform the
+-- demotion the staff_admin cannot.
+--
+-- ⭐ THIS IS THE CELL ADR 0167 WOULD HAVE MADE VACUOUS RATHER THAN RED, AND THAT
+--    IS WHY IT IS CALLED OUT. With the platform admin as actor, 4.1 above would
+--    have been refused, `st_x` would still be plain `staff`, and "an authorized
+--    admin CAN demote" would degrade into a demotion to the role the target
+--    already held — a no-op that passes. The assertion would have sat in the
+--    green column while asserting nothing. `291:353` was, measured, the ONLY site
+--    in the repository where a platform admin demoted a commission `staff_admin`.
+select test_helpers.claims_for((select oa_b from k), false);
 set local role authenticated;
 select lives_ok(
   format($$select public.grant_role('commission', %L, 'staff', %L)$$,

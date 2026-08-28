@@ -5,6 +5,7 @@ import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
+import { isCommissionAdmin } from '@/lib/auth/access'
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -17,12 +18,19 @@ import type { Database, TablesInsert } from '@/lib/types/database'
  * (`(prevState, formData) => ActionState`). All user-facing strings are pt-BR;
  * raw Supabase/Postgres errors NEVER reach the UI (CLAUDE.md §8).
  *
- * SECURITY: every action re-verifies `getSessionContext().isAdmin` server-side
- * BEFORE any write — the client is never trusted. The target role is hard-coded
- * per action (`assignStaffAdmin` always writes 'staff_admin'); it is never read
- * from formData, so a tampered form cannot change which role is granted. The
- * service-role client (used for cross-user lookup/invite + membership writes)
- * bypasses RLS, so this explicit check is the authority, not RLS.
+ * SECURITY: every action re-authorizes server-side BEFORE any write — the client
+ * is never trusted. The commission CRUD actions check
+ * `getSessionContext().isAdmin`; the coordinator actions use
+ * {@link authorizeStaffAdminOps}, which is the tenancy tier, not `isAdmin`. The
+ * target role is hard-coded per action (`assignStaffAdmin` always writes
+ * 'staff_admin'); it is never read from formData, so a tampered form cannot
+ * change which role is granted.
+ *
+ * ⚠ The membership writes go through `grant_role`/`revoke_role` on the COOKIE
+ * client (ADR 0094 W3/T3.3), so PostgreSQL re-derives authority for the real
+ * actor and the DB door — not this file — is the authority. The service-role
+ * client survives only for `resolveOrInviteUser` (cross-user lookup + invite),
+ * which never touches `memberships`. This paragraph used to say the opposite.
  */
 
 export interface ActionState {
@@ -62,32 +70,53 @@ async function requireAdmin(): Promise<boolean> {
 }
 
 /**
- * Authorize a staff_admin-management action for a commission: an org_admin of the
- * commission's ORGANIZATION (multi-tenancy Phase C — the org_admin owns
- * staff_admin assignment within their org). Resolves the commission's
- * `organization_id` and checks the caller's `orgAdminOf`.
+ * Authorize a staff_admin-management action for a commission: an `org_admin` of
+ * the commission's ORGANIZATION **or** a `hospital_admin` of its HOSPITAL (ADR
+ * 0167 clause 2). Resolves the commission's `organization_id` + `hospital_id`
+ * (both NOT NULL) and delegates to {@link isCommissionAdmin}.
  *
- * SECURITY: the platform_admin `isAdmin` short-circuit is DELIBERATELY ABSENT.
- * `assignStaffAdmin` runs on the SERVICE-ROLE client (which BYPASSES RLS), so this
- * TS check is the ONLY control on that path — the Phase-B `commission_members`
- * RLS never sees it. A platform admin is walled off from tenant data and must NOT
- * seat/remove a staff_admin in any commission; it provisions org/hospital/org_admin
- * only (`@/lib/platform/actions`), where it then seats an org_admin who does this.
+ * ⛔ THE PREDICATE IS NOT RE-DERIVED HERE. `isCommissionAdmin` already IS
+ * "org_admin of the org OR hospital_admin of the hospital" — the TS mirror of
+ * `app.is_tenancy_admin_of_for`, the DB door these actions call. A third copy is
+ * how this repo's sibling-axis defects keep recurring, and the copy is what lets
+ * one arm be widened while its twin is forgotten.
+ *
+ * The hospital tier was previously ABSENT here while the manage layout admitted
+ * it by design (ADR 0051) and the DB door admitted it too — so a hospital admin
+ * saw the coordinator form and was refused on every click. This closes that gap;
+ * it opens no new authority.
+ *
+ * SECURITY: the platform_admin `isAdmin` short-circuit is DELIBERATELY ABSENT,
+ * and it now agrees with the door rather than being stricter than it. ADR 0167
+ * dropped `app.is_admin_for` from `grant_role_impl`'s commission/`staff_admin`
+ * arm AND from its outgoing-role guard, so **the kernel is the control**: the
+ * membership write goes through `grant_role`/`revoke_role` over the COOKIE
+ * client (ADR 0094 W3/T3.3) and PostgreSQL re-derives authority for the real
+ * actor. ⚠ The old reason given here — "assignStaffAdmin runs on the
+ * service-role client, so this TS check is the ONLY control on that path" — was
+ * false from W3/T3.3 onward: the admin client survives only for
+ * `resolveOrInviteUser`, which provisions accounts and never touches
+ * `memberships`. The conclusion held; the argument for it did not.
+ *
+ * A platform admin still provisions org/hospital/org_admin
+ * (`@/lib/platform/actions`) and seats an org_admin who does this.
  */
 async function authorizeStaffAdminOps(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
-  if (context.orgAdminOf.length === 0) return false
 
   const supabase = await createClient()
   const { data } = await supabase
     .from('commissions')
-    .select('organization_id')
+    .select('organization_id, hospital_id')
     .eq('id', commissionId)
     .maybeSingle()
-  const orgId = data?.organization_id
-  if (!orgId) return false
-  return context.orgAdminOf.some((o) => o.organization.id === orgId)
+  if (!data?.organization_id || !data.hospital_id) return false
+
+  return isCommissionAdmin(context, {
+    organizationId: data.organization_id,
+    hospitalId: data.hospital_id,
+  })
 }
 
 async function appOrigin(): Promise<string> {
@@ -100,11 +129,17 @@ async function appOrigin(): Promise<string> {
 }
 
 /**
- * Revalidate both pages a commission's staff_admin roster appears on: the
- * `/admin` list and the `/admin/comissoes/[slug]` detail (where StaffAdminManager
- * lives). The slug is resolved from `commissionId` via the given client (any
- * client that can read the commission — admin reads all via RLS / the service
- * role bypasses it). A missing slug still revalidates the list.
+ * Revalidate the legacy `/admin` list and `/admin/comissoes/[slug]` detail. The
+ * slug is resolved from `commissionId` via the given client (any client that can
+ * read the commission — admin reads all via RLS / the service role bypasses it).
+ * A missing slug still revalidates the list.
+ *
+ * ⚠ STALE TARGETS, LEFT AS-IS DELIBERATELY (ADR 0167 corrected the prose, not the
+ * behaviour): this docstring used to claim `StaffAdminManager` lives at
+ * `/admin/comissoes/[slug]`. It does not — it is mounted only at
+ * `/o/[org]/manage/comissoes/[commissionSlug]`, and `src/app/admin/comissoes/`
+ * does not exist, so the second `revalidatePath` below matches no route. Fixing
+ * which paths are revalidated is a behaviour change and is filed separately.
  */
 async function revalidateCommissionPages(
   client: SupabaseClient<Database>,
@@ -235,7 +270,9 @@ export async function assignStaffAdmin(
   if (!commissionId) {
     return { ok: false, error: MESSAGES.missingCommission }
   }
-  // platform_admin OR org_admin of the commission's org (Phase C).
+  // org_admin of the commission's org OR hospital_admin of its hospital (ADR
+  // 0167 clause 2). ⚠ NOT platform_admin — this comment claimed it was, and the
+  // gate has always refused one.
   if (!(await authorizeStaffAdminOps(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
@@ -295,16 +332,20 @@ export async function assignStaffAdmin(
     return { ok: false, error: MESSAGES.generic }
   }
 
-  // Revalidate the list AND the detail page these actions are invoked from
-  // (StaffAdminManager lives on /admin/comissoes/[slug]) so the roster is fresh
-  // without a navigation. The slug read reuses the elevated client we hold.
+  // Revalidate the legacy /admin surfaces. ⚠ See revalidateCommissionPages: the
+  // route StaffAdminManager actually lives on is
+  // /o/[org]/manage/comissoes/[commissionSlug], which these calls do NOT reach.
+  // The slug read reuses the elevated client we hold.
   await revalidateCommissionPages(admin, commissionId)
   return { ok: true, error: MESSAGES.staffAdminAssigned }
 }
 
 /**
  * Remove a staff_admin from a commission (deletes the membership row).
- * platform_admin OR org_admin of the commission's org (Phase C).
+ * `org_admin` of the commission's org OR `hospital_admin` of its hospital (ADR
+ * 0167 clause 2). ⚠ NOT platform_admin — this docstring claimed it was, and the
+ * gate has always refused one; since ADR 0167 the `revoke_role` door refuses one
+ * too, on the same predicate.
  */
 export async function removeStaffAdmin(
   _prev: ActionState | undefined,

@@ -53,12 +53,18 @@ begin
   elsif p_what = 'widen_role_pin' then
     -- BOTH paths widen equally: a plain staff_admin may grant staff_admin. The grid's
     -- equality check cannot see this; the named cell must.
+    --
+    -- ⚠ NEEDLE RE-POINTED BY ADR 0167. The arm used to read
+    --   `if not (app.is_admin_for(p_actor) or app.is_tenancy_admin_of_for(...))`;
+    --   clause 1 dropped the platform arm, so the old needle matches NOTHING and
+    --   `app._mut_w3_sub` would abort this case with `MUTATION NO-OP` — a harness
+    --   that cannot fail, reported as a harness that cannot run. The mutant's
+    --   SEMANTICS are unchanged: widen the role pin so a plain staff_admin is
+    --   admitted.
     d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w3_sub(d,
-      'if not (app.is_admin_for(p_actor)
-              or app.is_tenancy_admin_of_for(p_scope_id, p_actor)) then',
-      'if not (app.is_admin_for(p_actor)
-              or app.is_staff_admin_of_for(p_scope_id, p_actor)
+      'if not app.is_tenancy_admin_of_for(p_scope_id, p_actor) then',
+      'if not (app.is_staff_admin_of_for(p_scope_id, p_actor)
               or app.is_tenancy_admin_of_for(p_scope_id, p_actor)) then');
     execute d;
 

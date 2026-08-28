@@ -21,6 +21,7 @@ plan [authz-evolution.md](../plans/authz-evolution.md) §AE2). Branch
 | **AE2.4 inc 3** — the write-authority path (hard gate on the drop) | ✅ **DONE 2026-08-28** | migration `20261003005700`; suite `394` (42 assertions); ADR 0163 now FULLY LIVE; 18-mutation vacuity proof |
 | **AE2.4 inc 4** — the coordinator picker **and** the last preambles: `listLinkableOrgUsers` (shape C-b′) · `resolveOrInviteUser` (QA M14) · `addStaff` (QA B1) · ADR 0164's required mitigation given a caller (QA M3) | ✅ **DONE 2026-08-28** | migration `20261003005800`; suite `395` (43 assertions); vitest `invite.test.ts` (9) + `org-roster-predicate.test.ts` (16). ⚠ The scope is **three** column consumers, not one — the row named only the picker, which is how the other two fell between increments |
 | **AE2 · QA R2-B1** — the kernel invariant (ADR 0166) **+ the B5 forward comment correction (R2-M1)** | ✅ **DONE 2026-08-28** | migration `20261003005900`; suite `396` (**63** assertions, observed RED-FIRST 32/59 at the previous head); **23**-mutation vacuity proof, keyed by subject, 50/63 proven able to fail. ⛔ Scope was the kernel + the comment + the matrix ONLY — the existing-data backfill, the `is_admin` demotion backstop and the detector's logging are **NOT** started |
+| **ADR 0167** — commission `staff_admin` has ONE authority, on both sides (its own gated increment, before the drop) | ✅ **DONE 2026-08-28** | migration `20261003006000`; suite `397` (40 assertions, observed RED-FIRST **11/39** at the previous head); **20**-mutant vacuity proof, keyed by subject, 36/40 proven able to fail; vitest `admin/actions.test.ts` (9). ⛔ Five fixture reachability findings ruled by the lead first — one of them a **silent** verdict flip in `293 § 2` that reds nothing. ⚠ The `staff` sub-arm's one-way door SURVIVES and awaits its own PO ruling |
 | **AE2.4** — drop the column | 🔜 | after all four increments **and** R2-B1's still-owed items |
 | **AE2.5** — D3 binding text in ARCHITECTURE.md | ✅ **DONE** (commit `7654110c`) | Architecture **Rule 13**, `ARCHITECTURE.md:650-676`. ⚠ This cell read `🔜` while `PROGRESS.md` already said `2.5 ✅` (QA M5) |
 
@@ -2274,3 +2275,259 @@ the reset that precedes the table above is what makes these numbers chain-derive
 - ⚠ **`ARM=hat`'s population now sees a longer `app.grant_role_impl` body.** The added block reads
   `public.commissions`, never `memberships`, so it introduces no new caller-bound memberships chunk
   — but the arm is the lead's and the function is in its population.
+
+## ADR 0167 — commission `staff_admin` has ONE authority, on both sides
+
+Its **own separately-gated increment**, before the column drop: migration `20261003006000`,
+pgTAP suite **`397`** (40 assertions, observed **RED-FIRST 11/39** at head `20261003005900`),
+mutation harness
+`supabase/tests/mutation/adr0167-staff-admin-one-authority-mutation-audit.sh` (**20 mutants,
+20 RED-PROVEN**), vitest `src/lib/admin/actions.test.ts` (9). Ruling: ADR
+[0167](../decisions/0167-commission-staff-admin-has-one-authority-on-both-sides.md).
+⛔ Nothing here touches `home_organization_id`, the column drop, or `seed.sql`.
+
+### The measured grid, before and after
+
+Both rows re-derived on a fresh `supabase db reset`, never read from migration text.
+
+| actor | grant `staff_admin` BEFORE | grant AFTER | revoke BEFORE | revoke AFTER | TS gate BEFORE | TS gate AFTER |
+| --- | --- | --- | --- | --- | --- | --- |
+| `platform_admin` | ✅ ALLOWED | ⛔ **42501** | ⛔ 42501 | ⛔ 42501 | ⛔ refused | ⛔ refused |
+| `org_admin` of the org | ✅ ALLOWED | ✅ ALLOWED | ✅ ALLOWED | ✅ ALLOWED | ✅ admitted | ✅ admitted |
+| `hospital_admin` of THE hospital | ✅ ALLOWED | ✅ ALLOWED | ✅ ALLOWED | ✅ ALLOWED | ⛔ refused | ✅ **admitted** |
+| `hospital_admin` of ANOTHER hospital, same org | ⛔ 42501 | ⛔ 42501 | ⛔ 42501 | ⛔ 42501 | ⛔ refused | ⛔ refused |
+| `org_admin` of ANOTHER org | ⛔ 42501 | ⛔ 42501 | ⛔ 42501 | ⛔ 42501 | ⛔ refused | ⛔ refused |
+| `org_admin` of the org, INACTIVE | ⛔ 42501 | ⛔ 42501 | ⛔ 42501 | ⛔ 42501 | n/a | n/a |
+
+**Grant and revoke now agree for every actor.** They disagreed for exactly one row before, and
+that row is the one-way door: escalation with no matching de-escalation by the same actor.
+
+### The site set, derived from `pg_proc` — TWO changed of FIVE
+
+Comment-stripped `prosrc`, occurrences of `is_admin_for(`: `app.grant_role_impl` = **5**,
+`app.revoke_role_impl` = **1**. ⛔ Derived by counting the live body, never by trusting the line
+numbers in the brief.
+
+| # | site | ruling |
+| --- | --- | --- |
+| 1 | `organization` / `org_admin` | **KEPT** — the bootstrap ADR 0167 checked. `397 § 7.1/§ 7.2` prove the chain platform_admin → org_admin → staff_admin is unbroken |
+| 2 | `hospital` / `hospital_admin` | **KEPT** — out of scope; cites AFF T2.5 / ADR 0097 D17 / audit BLOCKER-1 by name. `397 § 7.3` pins it behaviourally |
+| 3 | `commission` / **`staff`** sub-arm | **KEPT — RULED OUT OF SCOPE, not overlooked.** A different (scope, role) pair; ADR 0167 § Consequences: "the other `grant_role_impl` arms keep their own actor grids". It also admits `is_staff_admin_of_for`, which the `staff_admin` arm does not — a different authority set entirely |
+| 4 | `commission` / `staff_admin` sub-arm — **SITE (a)** | ⛔ **CHANGED** |
+| 5 | T1.0 outgoing-role guard (`v_existing_role = 'staff_admin'`) — **SITE (b)** | ⛔ **CHANGED** |
+| — | `revoke_role_impl`'s `organization` / `org_admin` | **KEPT** — the ruling aligns grant DOWN to revoke; `397 § 0.4` pins that revoke was not moved UP |
+
+The re-emitted bodies were diffed against the pre-migration `pg_get_functiondef` with comments
+filtered out: **the code delta is exactly those two predicates and nothing else**, and
+`revoke_role_impl`'s code is byte-identical (only its comment changed). `prosecdef`, ACLs and
+`search_path` all unchanged after the `create or replace`.
+
+### The narrowing search — and why "removes nothing reachable" is the WRONG summary
+
+⭐ **The capability removed is real.** `public.grant_role` is EXECUTE-able by `authenticated`
+(`397 § 1.4` pins that, and a `revoke` mutant proves the cell binds), so a signed-in platform
+admin could call this door **directly over PostgREST**. That the TypeScript gate refused them and
+`/o/[org]/manage` 404s them is exactly the ADR's subject: **the door and the gate disagreed and
+the door was wider.** ⛔ Do not record this change as cosmetic.
+
+Clean negatives, auditable: `seed.sql` and `supabase/demo/` contain **zero**
+`grant_role`/`grant_role_impl` calls — every commission `staff_admin` there is a direct `INSERT`
+into `public.memberships` and is unaffected. `e2e/**` has three `grant_role` RPC sites, **none**
+platform-admin × commission × `staff_admin`, and **no** spec asserts a platform admin may seat a
+coordinator; `/admin/comissoes/[slug]` does not exist as a route. In `src/**` the only additional
+`staff_admin`-capable commission callers are `registerUser` and `assignCommitteeRole`
+(`src/lib/users/actions.ts`), both gated by `authorizeForCommission` → org-or-hospital, neither
+with a platform arm.
+
+**Five things broke, and four of them were reds.** All five were ruled by the lead before any
+fixture was touched.
+
+| # | subject | what it was | disposition |
+| --- | --- | --- | --- |
+| 1 | `291_membership_invariants.sql` § 4 | Every T1.0 door call ran as the bootstrap platform admin (org-less, `is_admin`) | **Re-actored onto `oa_b`** (the bootstrap's `org_admin`, added to 291's `k`). ⭐ The important half was not the four reds: **4.13 "an authorized admin CAN demote" would have gone VACUOUS, not red** — with 4.1 refused, `st_x` stays plain `staff` and the demotion becomes a no-op that trivially passes. `291:353` was, measured, the **only** site in the repository where a platform admin demoted a commission `staff_admin` |
+| 2 | `396 § 5.6` | Asserted `23514` from the ADR 0166 `'comissão inexistente'` guard, "reachable only for a platform admin" | **Re-cut to `42501`.** The guard is now unreachable **by design**: authority-before-existence is the enumeration-oracle kill, and a guard reachable by someone authority refuses would make `grant_role` answer differently for a real commission id than a fabricated one. ⛔ **The guard is KEPT** as defence-in-depth; both the migration and 396 carry the warning against deleting it as dead code |
+| 3 | `293 § 2` | The (`platform_admin`, commission, `staff_admin`) cell flipped ALLOWED → 42501 on **both** entry points and **nothing went red** — 2.1/2.2/2.3/2.4 are aggregates and none of 2.5–2.8 names a `platform_admin` cell | **Two assertions added.** `2.9` names the ADR 0167 policy; `2.10` pins the **whole 12-cell map**, because the pattern was "only 4 of 12 cells named" and a fifth named cell would have left seven with the same blind spot. ⚠ Verified independently: the **committed** 293 still runs green at 25/25 against the new migration — the flip really was silent |
+| 4 | `w3-door-kernel-mutation-audit.sh` `widen_role_pin` | Its needle **was site (a) verbatim**, so `_mut_w3_sub` would abort the case with `MUTATION NO-OP` | **Needle re-pointed** to the post-narrowing spelling; the mutant's semantics are unchanged. Re-run: `widen_role_pin` **RED-PROVEN** |
+| 5 | `w1-membership-mutation-audit.sh` CONTROL | `SRC=291`; the control hard-aborts on any unmutated red, so finding 1 stopped the harness before it scored a single mutant | **Re-run after the 291 repair: `CONTROL: all green (35 ok, 0 not ok)`** |
+
+### Two pre-existing findings surfaced by this work — NOT fixed here
+
+- ⛔ **`w1`'s three `grant_role` mutants cannot fail.** `revert_replacement_arm`,
+  `revert_outgoing_authority` and `naive_delete_insert` all call
+  `pg_get_functiondef('public.grant_role(text,uuid,text,uuid,uuid)')` — a **5-arg signature that
+  does not exist** (the live one is 6-arg), so the cast throws and the file aborts:
+  `ABSENT(aborted)`, three of nine mutants. They also needle the **pre-`_for` spelling**
+  (`app.is_admin()`, `app.is_tenancy_admin_of(p_scope_id)`, `granted_by = (select auth.uid())`),
+  superseded when ADR 0094 W3/T3.3 moved the logic into `app.grant_role_impl` with an explicit
+  `p_actor`. A mutant pinned to a signature that no longer exists is **a harness that cannot fail
+  reported as a harness that cannot run**. FUP text handed to the lead.
+- ⛔ **`w3`'s `authenticated_gets_service_door` is NOT PROVEN**, and it is pre-existing: verified
+  by running `w3` with `SRC` pointed at the **committed** 293 — same verdict, and its control is
+  green at 25. Granting `authenticated` EXECUTE on `grant_role_for` leaves `293 § 4.1` green, so
+  the ACL keystone is defended by something other than the ACL. The
+  *incidental-guard-closes-a-hole* shape. FUP text handed to the lead.
+
+### The grant/revoke agreement property, and why it is SCOPED
+
+`397 § 4.1` is a **property over the actor set**, not five hand-paired cells: one temp table
+`actors` drives BOTH grids, and the assertion counts rows where the grant verdict and the revoke
+verdict differ, expecting **0**. An actor added later is covered without anyone remembering to
+pair it. Three cells stop it being vacuous: `§ 4.2` (each column holds BOTH outcomes — an
+all-deny grid satisfies § 4.1, and an over-eager narrowing looks exactly like a fix), `§ 4.3`
+(the shared verdict is the DECLARED one per actor — § 4.1 + § 4.2 are both satisfied by a grid
+that agreed on the WRONG answer), and `§ 4.4` (six actors, twelve probes — a `where` clause
+matching nothing satisfies § 4.1 over zero rows).
+
+⛔ **It is scoped to `staff_admin` deliberately, and the reason is a live finding.** The
+commission **`staff`** sub-arm keeps its `is_admin_for` on the grant side and has never had one on
+revoke, so **the same one-way door survives one role over**: a platform admin may SEAT a
+commission `staff` and may not REMOVE one. ADR 0167 bounds itself to the `staff_admin` arm, so
+closing it here would be an unruled authorization change. Widening § 4.1 to the whole commission
+branch would red on that gap. `397 § 6` **measures** it instead — with a mutant
+(`close_the_staff_gap`) proving § 6.2 reds the moment the gap is closed, which is what keeps § 6 a
+measurement of an open question rather than a defect pinned as expected.
+
+### ⚠ Three disagreements with ADR 0167, all recorded rather than silently absorbed
+
+1. **§ Consequences says the QA m1 note "has no subject". Measured, that is half true.** The note
+   sat above the WHOLE commission arm of `revoke_role_impl`, covering both sub-arms. After clause
+   1 the `staff_admin` halves agree; the `staff` halves do not. The note was retired as instructed
+   **and replaced by a narrowed one** scoped to the surviving asymmetry, citing the ADR's own
+   scope bound and the pending PO ruling. Deleting it flat would have left a real, undocumented
+   asymmetry that a future reader would "fix". **The lead confirmed and is amending ADR 0167.**
+2. **The ADR does not mention that it makes ADR 0166's `'comissão inexistente'` guard
+   unreachable.** Ruled option (a): keep the guard, re-cut `396 § 5.6`, record the cross-reference
+   here. ⛔ Neither ADR was amended by this increment.
+3. **The `staff`-vs-`staff_admin` split was ruled OUT of scope** (site 3 above) rather than
+   treated as part of "the commission arm" — on the ADR's own § Consequences bound.
+
+### Prose corrected (ADR 0167 clause 3), and one stale claim left as-is
+
+`src/lib/admin/actions.ts`: the two false "platform_admin OR org_admin" comments at
+`assignStaffAdmin` and `removeStaffAdmin` (measured: the gate has always refused a platform
+admin); the `authorizeStaffAdminOps` docstring's **reason** ("this TS check is the ONLY control on
+that path" — false since ADR 0094 W3/T3.3 moved the membership write to the cookie client; the
+admin client survives only for `resolveOrInviteUser`), replaced by **the kernel is the control**;
+and the module docstring's matching service-role claim.
+
+⚠ **Beyond the brief, and reported:** the same stale route appears twice more, in
+`revalidateCommissionPages`'s docstring and its caller's comment. Corrected as PROSE ONLY — and
+they exposed a real defect left untouched: **`revalidatePath('/admin/comissoes/<slug>')` matches
+no route** (`src/app/admin/comissoes/` does not exist), so the page `StaffAdminManager` actually
+lives on, `/o/[org]/manage/comissoes/[commissionSlug]`, is never revalidated. Changing which paths
+are revalidated is a behaviour change and was **not** made here.
+
+### The TypeScript widening, and the copy that was not made
+
+`authorizeStaffAdminOps` now reads `organization_id` **and** `hospital_id` and delegates to
+`isCommissionAdmin` (`src/lib/auth/access.ts`), which already is "org_admin of the org OR
+hospital_admin of the hospital". ⛔ **The predicate was not re-derived** — a third copy is the
+sibling-axis defect this repo keeps paying for. The early `orgAdminOf.length === 0` short-circuit
+was deleted: it alone would have refused every hospital admin regardless of the delegation.
+
+Reachability checked, not assumed: `commissions_select_member_or_admin` carries
+`app.is_hospital_admin_of(hospital_id)`, so a hospital admin CAN read the row the gate needs —
+otherwise this would have been a correct door nothing can reach.
+
+### Mutation audit — 20 mutants, keyed by SUBJECT, both polarities per gate
+
+Restores are **byte-identical by construction**: the mutation is injected inside 397's own
+transaction, so the suite's closing `rollback` undoes the DDL. `_mut_a167_sub` raises
+`MUTATION NO-OP` on any needle that matches nothing, so a silent no-op cannot pass as GREEN.
+
+| subject | mutant | polarity | verdict |
+| --- | --- | --- | --- |
+| site (a), the commission `staff_admin` grant arm | `restore_is_admin_site_a` | widen | RED-PROVEN |
+| site (a) | `deny_all_site_a` | narrow | RED-PROVEN |
+| site (b), the T1.0 outgoing-role guard | `restore_is_admin_site_b` | widen | RED-PROVEN |
+| site (b) | `deny_all_site_b` | narrow | RED-PROVEN |
+| site (b)'s MESSAGE (the site discriminator) | `site_b_generic_message` | lateral | RED-PROVEN |
+| the revoke side / the agreement property | `revoke_admits_platform` | widen | RED-PROVEN |
+| the revoke side / the agreement property | `revoke_drops_hospital_tier` | narrow | RED-PROVEN |
+| `is_tenancy_admin_of_for` — org disjunct | `drop_org_disjunct` | narrow | RED-PROVEN |
+| `is_tenancy_admin_of_for` — hospital disjunct | `drop_hospital_disjunct` | narrow | RED-PROVEN |
+| `is_tenancy_admin_of_for` — the hospital disjunct's SCOPE | `widen_hospital_to_whole_org` | widen | RED-PROVEN |
+| `is_tenancy_admin_of_for` — the `is_active` conjunct | `drop_is_active_conjunct` | widen | RED-PROVEN |
+| preserved site 3 (`staff` sub-arm) | `remove_staff_arm_is_admin` | narrow | RED-PROVEN |
+| preserved site 1 (org bootstrap) | `remove_org_arm_is_admin` | narrow | RED-PROVEN |
+| preserved site 2 (hospital bootstrap) | `remove_hospital_arm_is_admin` | narrow | RED-PROVEN |
+| the retired QA m1 sentence | `restore_qa_m1_note` | re-add | RED-PROVEN |
+| the ADR 0167 citation that replaced it | `strip_adr0167_citation` | remove | RED-PROVEN |
+| tenant isolation (cross-org) | `cross_org_leak` | widen | RED-PROVEN |
+| the anti-lockout property over ALL commissions | `orphan_a_commission` (**data, not code**) | narrow | RED-PROVEN |
+| the surviving `staff` gap § 6 pins | `close_the_staff_gap` | closes the gap | RED-PROVEN |
+| the PostgREST reachability § 1.4 claims | `revoke_door_from_authenticated` | narrow | RED-PROVEN |
+| the TS widening | `ts_narrow_to_org_only` | narrow | RED (2/9) |
+| the TS widening's HOSPITAL SCOPING | `ts_widen_to_any_hospital` | widen | RED (2/9) |
+
+⚠ **One mutant first reported `NOT PROVEN -> ABSENT(aborted)` and it was MY GREP PATTERN, not the
+assertion** — `widen_hospital_to_whole_org`'s expected-red pattern omitted the closing backtick in
+"a `hospital_admin` of another hospital". A wrong matcher reads exactly like a live defect. Fixed
+and re-run; the run shapes below are from the corrected run.
+
+**Run shapes, per run:** the suite is `Files=2, Tests=41` under
+`supabase test db 00_setup.sql 397….sql` (40 assertions + `00_setup`'s 1). Every mutant run
+returned a full TAP stream — **no run dropped its shape** — and the CONTROL closes at
+`all green (40 ok, 0 not ok)`. ⛔ An `ABSENT(aborted)` is treated as an ERROR to rule on, never as
+a hold. Both TS mutants restored **byte-identical** (`cmp` clean).
+
+### The residual bound — 4 of 40, each named
+
+Computed by re-running all 20 SQL mutants and taking the union of assertions moved: **36 of 40**
+were moved by at least one. The four that were not are floors, not guarantees:
+
+- **§ 1.1** no session claims in force — a property of the HARNESS; only a mutation of the test
+  file could move it.
+- **§ 1.3** the four targets are in the states their cells assume — a fixture precondition, and
+  the thing the other cells are measured against.
+- **§ 4.4** six actors probed on both sides — the anti-vacuity population floor over this file's
+  own temp tables, which the subject cannot reach.
+- **§ 5.4** the target actually KEPT its role — an **atomicity** pin. A mutant that refuses AND
+  writes cannot make it red: the raise unwinds its own subtransaction. Its failure mode needs a
+  non-transactional writer, which this door cannot become.
+
+⛔ Four unproven assertions is a **bound on this audit**, not a claim of coverage elsewhere. The
+bound is also published in 397's own header, so a reader of the suite does not have to find this
+file.
+
+### Arm domains, derived per function from the catalog
+
+Derived by running the harnesses' own domain SQL against `pg_proc` — never a hand list.
+
+| object | census | policy | hat | floor | wrapper |
+| --- | --- | --- | --- | --- | --- |
+| `app.grant_role_impl` — DEFINER, returns `void`, EXECUTE owner-only | ❌ **out** | ✅ in | ❌ out of the FINDING domain | ❌ out | ❌ out (`prosecdef = t`) |
+| `app.revoke_role_impl` — same | ❌ **out** | ✅ in | ❌ out of the FINDING domain | ❌ out | ❌ out |
+| `app.is_tenancy_admin_of_for` — DEFINER `bool`, `authenticated` | ✅ in | ✅ in | ❌ out (reads no `memberships` itself) | ❌ out (`app` schema) | ❌ out |
+| `public.grant_role` / `public.revoke_role` — DEFINER `void`, `authenticated` | ❌ out | ✅ in | ❌ out | ✅ **in** | ❌ out |
+
+⚠ **`grant_role_impl` and `revoke_role_impl` are OUT of the census domain — stated, not hidden.**
+Census admits `prosecdef` functions that are boolean OR set-returning-and-reachable; these return
+`void`, so **neither clause can see them**. Absence of a verdict is absence of coverage. Their
+compensating control is named rather than assumed: 397's behavioural grid + the 20-mutant audit,
+and 293's equivalence grid now carrying the whole-map pin.
+
+For the hat arm the population predicate is a `memberships` chunk whose `principal_id` is bound to
+a caller-derived value. Measured: both kernels read `memberships` with `principal_id = p_user` — a
+**parameter**, with no `:= auth.uid()` variable anywhere in either body — so neither has a
+caller-bound chunk and neither can produce a hat finding. The hat evidence for this family lives
+in `app.has_role`, untouched here.
+
+⛔ **The ARM sweep itself and `e2e:prod` were NOT run by this increment** — they are the lead's.
+
+### Gate figures, re-measured (exit codes captured directly, never through a pipe)
+
+| gate | result |
+| --- | --- |
+| `npm run test:db` on a fresh `supabase db reset` | **`Files=245, Tests=8224` — `Result: PASS`, exit `0`** |
+| `npm run lint` (11 gates) | exit `0` |
+| `npm run typecheck` | exit `0` |
+| `npm run test` (vitest) | `Test Files 146 passed`, `Tests 2002 passed`, exit `0` |
+| `npm run gen:types` | exit `0`, **zero diff** in `src/lib/types/database.ts` (function bodies only; no signature changed) |
+| ADR 0167 mutation audit | **20/20 RED-PROVEN**, CONTROL `all green (40 ok, 0 not ok)` |
+| `w1` mutation audit CONTROL | `all green (35 ok, 0 not ok)` — restored by the 291 repair |
+| `w3` mutation audit | `widen_role_pin` RED-PROVEN; CONTROL `all green (27 ok, 0 not ok)` |
+
+⚠ Every figure was re-measured on a fresh reset for this increment. The previously-recorded
+`244/8182` was **not** carried forward; the delta is `+1` file (397) and `+42` tests (40 from 397,
+2 from 293).
