@@ -2534,3 +2534,52 @@ in `app.has_role`, untouched here.
 ⚠ Every figure was re-measured on a fresh reset for this increment. The previously-recorded
 `244/8182` was **not** carried forward; the delta is `+1` file (397) and `+42` tests (40 from 397,
 2 from 293).
+
+### ADR 0167 gate — run by the lead on a fresh reset (2026-08-28)
+
+**The four ARM arms, recorded as what each ENUMERATED** (plan rule 2):
+
+- `ARM=census` — exit **0**, **567** live gates / **603** verdicts, and its own words:
+  *"no unswept newcomer WITHIN THIS ARM'S DOMAIN"*.
+- `ARM=hat` — exit **0**. · `ARM=floor` — exit **0**, **72** never-called doors, all allowlisted.
+- `FROMFINDINGS=1 ARM=wrapper` — exit **0**, BLIND set **41**.
+
+⛔ **Domain qualifier, and here it is the whole story:** `app.grant_role_impl` and
+`app.revoke_role_impl` both return **`void`** (catalog-measured), so **no census clause admits
+them.** `ARM=census` exiting 0 is **not a verdict about the two functions this increment changed.**
+The **426** reachable command doors of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2) remain outside every
+arm's domain as always.
+
+#### ⛔ `scripts/door-sweep-cases.sh` exits **1 — FINDING**: migrations touched, ZERO cases derived
+
+Per ADR 0079 Amendment 8 ruling 2 and CLAUDE.md § 6 this is **never a pass**. Its EXCLUDED-BY-NAME
+review list is `grant_role_impl` and `revoke_role_impl`, ruled here individually — and **neither of
+the deriver's two options applies**, both halves measured rather than argued:
+
+- **Option (a) — "widen `CASES=` and sweep them" — is UNAVAILABLE BY CONSTRUCTION.** The sweep can
+  neutralize only a **boolean** predicate; both functions return **`void`**.
+- **Option (b) as literally worded — "these migrations contain no policy and no `prosecdef` gate" —
+  is FALSE.** Both are `prosecdef = t`, and both are unambiguously **authorization decisions**:
+  comment-stripped `prosrc` raises `42501` **12** times in `grant_role_impl` and **10** times in
+  `revoke_role_impl`.
+- **So the ruling is the third form** — the one AE2.2 used for `list_addable_commission_members` and
+  AE2.4 increment 1 used for its quartet: the compensating control is the **targeted mutation
+  audit**, and it must carry verdicts of its own. It does: **20 SQL + 2 TS mutants, all RED-PROVEN**,
+  residual **4 of 40** published in `397`'s header, plus `397`'s behavioural grid and `293`'s
+  whole-map pin.
+
+⭐ **Why this increment's evidence is unusually strong where the arms are unusually weak.** The arms
+cannot see either function, so a green here proves nothing about them — and the mutation audit was
+built knowing that. Three specifics worth keeping:
+
+1. **The silent flip was MEASURED, not argued.** `w3` was re-run with `SRC` pointed at the
+   **committed** `293` against the new migration: green at **25/25**. The authorization change
+   genuinely produced no red. ⛔ That is the finding — a suite staying green while losing the only
+   assertion of a policy converts a deliberate change into an unrecorded one.
+2. **The fix was scoped by the PROPERTY, not the instance.** The pattern was **4 of 12** grid cells
+   named, so a single named cell would have left **seven** with the same blind spot. The whole
+   12-cell map is pinned instead.
+3. **The agreement property carries three anti-vacuity cells**, each closing a way it could pass
+   while proving nothing: an **all-deny** grid satisfies *grant = revoke*; so does a grid that
+   **agrees on the wrong answer**; so does a `where` matching **zero rows**. ⭐ That is the
+   discipline applied to the *fix*, which is the step this repo has twice shipped without.
