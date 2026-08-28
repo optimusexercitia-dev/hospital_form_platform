@@ -72,3 +72,81 @@ be a routine path wearing an exceptional door's name.
   assertion that REDS while the orphan-claim path is still tenant-reachable.** ⚠ **A dated
   "revisit before pilot" note will rot** — this repo has the receipts, and a bound that cannot fail
   is not a bound.
+
+## Amendment 1 — the split is THREE doors, not two, and the two-door form closed person creation (2026-08-28)
+
+⛔ **The Decision above, taken literally, closes the product's person-creation path for both tiers.**
+Found by the implementer reading the impl bodies out of the catalog **before writing any SQL**, and
+verified by the lead.
+
+### The mechanism
+
+*"Known nowhere"* is not one population. **Once `home_organization_id` is dropped, an anchorless
+person and a just-created person are the SAME DB STATE** — a profile with zero affiliation rows of
+any tense. Live probe on a virgin profile (rolled back): the current gate admits **TRUE**; *"known
+here"* alone admits **FALSE**. The broken callers are `registerUser`
+(`src/lib/users/actions.ts:796`, org_admin registrar) and `ensureActiveAffiliation` (`:405`, the
+hospital_admin registrar path) — both affiliate an id they **just created**.
+
+⛔ **pgTAP `393` already said so, and the ADR named a quarter of it.** Eight cells depend on the
+anchorless branch — **W3, W5, W6, W7, H1, H4, H6, F1** — across five sections, not the four this ADR
+listed. **W3 is labelled `(PERSON CREATION)` and differs from W5 only in the column under drop**;
+`§ 3.8` is titled *"NON-VACUITY OF THE PERSON-CREATION CELL"*. **H6** is a fifth flip-cell (H4's state
+through the org_admin arm). ⚠ **After the drop no predicate over DB state can separate a creation
+from an orphan claim.**
+
+⛔ **ADR 0165 predicted this and this ADR adopted the alternative 0165 had rejected, for the reason
+0165 gave** (`0165:129-131` — out of scope *"because it would leave person **creation** with no
+admissible path until that door exists"*). The lead amended 0165 without reading its own
+rejected-alternative reasoning. Recorded as the lead's defect.
+
+### The correct diagnosis, which this ADR should have contained
+
+> **The split cannot be a predicate over state; it has to be a split over DOORS, because the door's
+> ACL is the only durable discriminator left.**
+
+That is a real architectural consequence of dropping the column, not a workaround: *who is calling,
+and through what* is the only thing left that distinguishes the two populations.
+
+### ⚖ Decision, amended (PO-ruled 2026-08-28): THREE doors
+
+1. **Ordinary affiliation** — the tenant tier, *"known here"* only.
+2. **Recovery** — `platform_admin`-only, own audit verb (unchanged from the original decision).
+3. **Creation** — **`service_role`-only, own audit verb**, called by the two registrars, admitting the
+   anchorless state.
+
+**The third door is a real bound, measured, not assumed.** Catalog closure over `pg_proc` (comments
+stripped first, because both impls cite themselves in their own headers) **terminates at depth 1**:
+exactly four PostgREST-reachable wrappers over two owner-only bodies, no second predicate anywhere.
+TypeScript closure: **3** production call sites — two `service_role` with `p_user` created in the same
+request, and **one** client-supplied: `affiliate_person`
+(`src/lib/affiliations/actions.ts:214`), on the `authenticated` client, **with zero TypeScript
+authorization by explicit design** (*"NO AUTHORIZATION LIVES HERE"*), at the **hospital** tier. ⭐
+**That single site is the entire exposure and it is the door the narrowing closes.**
+
+⚠ **Residual, graded rather than collapsed to "safe":** the channel that could steer `userId` to a
+pre-existing orphan is a `createUser`/`invite` call returning an existing id, closed by a
+`profiles.email` collision guard that is **currently total** (0 NULL of 36 live rows, two sync
+triggers) over a column that is **nullable by schema**. A live-closed hole with a schema-level
+residual — **not** an impossibility.
+
+**Why three rather than narrowing only the two `authenticated` doors:** both close the same hole,
+since site 1 is the whole exposure. They differ in what they **leave**. The two-door form keeps the
+anchorless branch alive inside the shared `_impl`, so **the next caller added to a `_for` twin
+silently inherits the widening and no gate can notice** — the exact inheritance shape that has
+produced five sibling-axis defects in this phase. Three doors removes the branch from the shared body
+and re-introduces it behind an ACL and an audit verb that **are** the record.
+
+### Three costs the implementation must price in, none obvious from the original text
+
+- ⛔ **A TypeScript MIRROR that no call-site sweep would surface.** `resolveOrInviteUser`
+  (`src/lib/members/invite.ts:105-121`) re-implements this gate — `listNonVoidedOrgAffiliationsFor`
+  plus an `is_admin` arm — on a path where **no SQL door ever runs**, and its own comment names
+  `app.affiliate_person_to_org_impl` as what it mirrors. Narrowing the SQL alone **drifts it, and no
+  gate would red.** It is re-cut in the same increment.
+- ⛔ **`393 § 5.7` is a catalog-derived sibling pin whose needle is the predicate's SHAPE**
+  (`if exists (…) … HC0R0`, asserting `1|2`). The rewrite makes it stop matching → `0|0` → red. It is
+  **re-cut as a real pin, never made to match** — a needle edited to fit is a pin that has stopped
+  pinning.
+- ⚠ **`public.affiliate_person_to_org` has ZERO TypeScript call sites** yet holds `authenticated`
+  EXECUTE. Reachable and uncalled; rule on it in the increment rather than leaving it as found.
