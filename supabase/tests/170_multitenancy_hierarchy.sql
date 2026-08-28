@@ -48,6 +48,18 @@ insert into public.memberships (organization_id, principal_id, role)
   union all
   select org_b, sa_y, 'org_admin' from h;
 
+-- ⛔ ADR 0166 (AE2 · QA R2-B1) — A FIXTURE PRECONDITION, NOT A WEAKENED ASSERTION.
+-- `app.grant_role_impl` now refuses to seat `org_admin` / `staff_admin` on a person
+-- whose non-voided affiliations are ENTIRELY in another organisation (clause 5), and
+-- `test_helpers.bootstrap()` affiliates every persona to ITS OWN org — so § 33's
+-- `st_x` was a cross-org seat, which the ruling makes illegitimate. This file's
+-- subject is the Phase-A hierarchy predicates and the `assign_org_admin` authority
+-- check, NOT the tenancy gate; anchoring `st_x` to org A restores the state § 33
+-- means to exercise and leaves both its assertion and § 34's cross-org refusal
+-- (denied at AUTHORITY, before the gate) exactly as they were.
+insert into public.organization_affiliations (principal_id, organization_id)
+  select st_x, org_a from h;
+
 -- Re-home the bootstrap commissions under the hospitals so the derive trigger
 -- fills organization_id and is_tenancy_admin_of has data.
 update public.commissions set hospital_id = (select hosp_a from h) where id = (select comm_x from h);

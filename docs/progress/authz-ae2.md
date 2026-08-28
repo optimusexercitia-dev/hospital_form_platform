@@ -20,7 +20,8 @@ plan [authz-evolution.md](../plans/authz-evolution.md) §AE2). Branch
 | **AE2.4 inc 1** — the circular pair | ✅ **DONE 2026-08-28** | migration `20261003005600`; suite `393` (44 assertions); ADR [0165](../decisions/0165-affiliation-derived-tenant-gate-and-its-widening.md); **16**-mutation vacuity proof. ⚠ This cell said `9` — the round-1 figure, never re-derived after rounds 2–3 (QA M5). ⭐ The class worth naming: a quoted figure that **flatters** gets caught; one that **self-deprecates** does not |
 | **AE2.4 inc 3** — the write-authority path (hard gate on the drop) | ✅ **DONE 2026-08-28** | migration `20261003005700`; suite `394` (42 assertions); ADR 0163 now FULLY LIVE; 18-mutation vacuity proof |
 | **AE2.4 inc 4** — the coordinator picker **and** the last preambles: `listLinkableOrgUsers` (shape C-b′) · `resolveOrInviteUser` (QA M14) · `addStaff` (QA B1) · ADR 0164's required mitigation given a caller (QA M3) | ✅ **DONE 2026-08-28** | migration `20261003005800`; suite `395` (43 assertions); vitest `invite.test.ts` (9) + `org-roster-predicate.test.ts` (16). ⚠ The scope is **three** column consumers, not one — the row named only the picker, which is how the other two fell between increments |
-| **AE2.4** — drop the column | 🔜 | after all four increments |
+| **AE2 · QA R2-B1** — the kernel invariant (ADR 0166) **+ the B5 forward comment correction (R2-M1)** | ✅ **DONE 2026-08-28** | migration `20261003005900`; suite `396` (**63** assertions, observed RED-FIRST 32/59 at the previous head); **23**-mutation vacuity proof, keyed by subject, 50/63 proven able to fail. ⛔ Scope was the kernel + the comment + the matrix ONLY — the existing-data backfill, the `is_admin` demotion backstop and the detector's logging are **NOT** started |
+| **AE2.4** — drop the column | 🔜 | after all four increments **and** R2-B1's still-owed items |
 | **AE2.5** — D3 binding text in ARCHITECTURE.md | ✅ **DONE** (commit `7654110c`) | Architecture **Rule 13**, `ARCHITECTURE.md:650-676`. ⚠ This cell read `🔜` while `PROGRESS.md` already said `2.5 ✅` (QA M5) |
 
 ## AE2.0 — the ruling, and why the question was the other way round
@@ -1869,3 +1870,407 @@ that is indistinguishable from a failure unless the run shape is read.
 Each remaining one is a signature pin, a fixture-isolation measurement or a catalog re-sweep — they
 red when the *surface, the fixture or the schema* changes, not when a predicate does. **40 of 44 are
 proven able to fail.**
+
+## AE2 · QA R2-B1 — the kernel invariant (migration `20261003005900`, suite `396`)
+
+Ruling: ADR [0166](../decisions/0166-governance-role-provisioning-implies-organization-affiliation.md)
+— eight binding clauses plus the QA-B5 grain correction it carries. Discharges QA round 2's
+**R2-B1** (blocking) and **R2-M1** (the B5 residue that was live in the catalog).
+
+⛔ **Deliberately NOT started, by instruction, and each still owed before the drop:** R2-B1's
+existing-data backfill · the `is_admin` true→false demotion backstop (round-2 CNV-5/R2-m3) ·
+the detector's platform-wide logging (R2-m4) · the column drop itself. Nothing below claims any
+of them.
+
+### The seam — the shared kernel, and the two shapes rejected before it
+
+`assignStaffAdmin` and `assignOrgAdmin` provision through `resolveOrInviteUser`, grant a
+membership through the sanctioned role doors, and create no affiliation. The fix lands in
+`app.grant_role_impl` and NOT in the two TypeScript callers, for the reason ADR 0166 states and
+this increment re-measured:
+
+- a TypeScript-only fix leaves the kernel able to recreate the state, and every OTHER caller of
+  `grant_role`/`grant_role_for` with these two role shapes keeps producing it — measured, there
+  are **two more** (`src/lib/users/actions.ts:978` `registerUser`'s committee loop and
+  `:1287`'s commission role change, both passing `p_role` from input, both able to carry
+  `staff_admin`);
+- a second `affiliate_person_to_org_for` call from TypeScript is a **SECOND TRANSACTION**, which
+  recreates the membership-without-affiliation partial write it is meant to remove. `396 § 5.9`
+  is the assertion that shape cannot satisfy, and MUT-F1 measures it failing.
+
+⛔ **And it is not a platform-admin arm on `app.affiliate_person_to_org_impl`.** That door is
+`is_org_admin_of_for`-only by design (the noun rule), and widening it would broaden
+employment/affiliation authority far beyond the ruling. The behaviour lives in an **owner-only
+internal module that is not a door at all**. `396 § 0.8` re-derives from `pg_proc` every run that
+the ordinary door still carries no `is_admin_for` arm, with `--` comments stripped, because that
+door's own comment quotes the arm it deliberately does not have.
+
+### The per-object contract (old → new), reproduced from the catalog BEFORE the change
+
+| object | before (head `20261003005800`) | after |
+| --- | --- | --- |
+| `app.ensure_provisioned_org_affiliation(uuid,uuid,uuid,date) → uuid` | did not exist | **NEW.** DEFINER, `search_path=app, public, pg_catalog`, owner `postgres`, ACL **`postgres=X/postgres`** — measured, and `authenticated`/`anon`/`service_role` all `false` by `has_function_privilege`. No authority check of its own; the actor is an argument, so **reachability IS the vulnerability** and that is why `service_role` is revoked too |
+| `app.grant_role_impl(...)` | 227 lines, no tenancy check on the TARGET on any arm | +55 lines: one declaration (`v_aff_org`) and one guarded block. **Diff of `pg_get_functiondef()` before → after: 55 added, 0 removed, 0 changed** — "byte-for-byte apart from the insertion" is a measurement here, not a claim |
+| `public.grant_role` / `public.grant_role_for` | `{postgres, service_role, authenticated}` / `{postgres, service_role}` | **unchanged, and asserted so** (`396 § 0.4/§ 0.5`) — preserved, not merely untouched |
+| `comment on function app.tenant_orphan_profiles()` | *"administrable by platform_admin alone"*, live in the catalog | ADR 0166's grain, re-emitted by a **forward** migration. `396 § 8.1/§ 8.2` pin it in both directions |
+
+### ⛔ THE KEYSTONE IS THE PROMOTION, NOT THE INSERT
+
+`grant_role_impl`'s commission tier has a T1.0 atomic-replacement branch that **`return`s early**
+after updating an existing membership row. A helper call placed beside the final `insert into
+public.memberships` is therefore **dead code for every `staff` → `staff_admin` promotion** — which
+is precisely what `assignStaffAdmin` documents as its purpose ("promoting an existing 'staff'
+member updates the row in place"). The block sits **above** the T1.0 block, so one call site covers
+both paths.
+
+`396 § 3` is the proof, and it is built so it cannot pass for the wrong reason: **P3's `staff`
+membership is inserted DIRECTLY in owner context, never through `grant_role`** — seating it through
+the door under test would have created the affiliation § 3.3 is about to measure. § 3.2 asserts the
+replacement branch was genuinely taken (one row, role replaced in place) so § 3.3 is measuring the
+early-return path and not the INSERT path. **MUT-C3 moves the block below the `return` and reds
+exactly § 0.7 and § 3.3, and nothing else** — the whole rest of the suite stays green, which is the
+measurement that the ordering is load-bearing and invisible everywhere else.
+
+### RED-FIRST — and two defects the run found in MY OWN suite
+
+`396` was written first and **observed RED at head `20261003005800`: 32 of 59 failing** (the suite
+was 59 assertions at that point; two coverage gaps and two more cells were added afterwards — see
+below — so the shipped shape is 63). The run also produced two findings against the suite itself:
+
+1. ⛔⛔ **A cell that calls a mutating function and counts rows in ONE `select` measures the state
+   BEFORE the call.** § 6.1–§ 6.3 came back `ok|0|0` with the membership demonstrably landed: a
+   single SQL statement reads one snapshot, taken before the volatile call inside it wrote
+   anything. Sixteen cells were affected. Fixed by parking the call's result in a GUC and
+   asserting from a **separate statement**. An assertion that silently measures the wrong instant
+   is exactly the class this phase keeps paying for.
+2. ⛔ **The parking statement had to be a `do` block, not a bare `select`.** `select
+   set_config(...)` PRINTS the value it stored, and when that value is the string `ok`, psql emits
+   a line pg_prove's TAP parser reads **as a test result**. Measured: 59 assertions reported as
+   **69** with *"Tests out of sequence"* — **green under a direct `psql` run and mis-parsed under
+   the real runner**. Only running the actual gate found it.
+3. ⛔ **`§ 5.9` was GREEN ON ITS FIRST RUN, which is a finding and not a pass.** "A forced
+   membership failure leaves no affiliation" is trivially true on a database where nothing ever
+   writes an affiliation. **§ 5.9b** is the differential that repairs it: the identical call with
+   the forced failure dropped writes BOTH rows.
+
+Two coverage gaps were then found by deriving the mutation list *before* running it, and closed
+before the audit started (so every row below is against ONE artifact):
+
+- **§ 5.4b** — the design's mutation *"narrow the non-voided collision to active-only"* moved **no
+  cell**: every foreign-affiliated fixture was ACTIVE elsewhere. P13 (an **ended, non-voided** row
+  in B and nothing else) is the state that separates the two, and it is the whole point of the
+  clause — an identity KNOWN to another organisation, holding no active tenancy anywhere.
+- **§ 5.1b** — "the ensure runs after authority" was not observable: § 5.1's target is
+  affiliation-clean, so moving the ensure above the authority check changes nothing a rollback does
+  not hide. An unauthorized actor naming a **foreign** target answers `42501` and not `HC0R0`, and
+  that difference is measurable.
+
+### ⛔ TWO DECLARED NARROWINGS OF AN EXPOSED DOOR — measured, not inherited from the ADR's wording
+
+ADR 0166 clause 5 says a person affiliated entirely elsewhere *"remains refused"*. ⚠ **Measured at
+head `20261003005800`, they were NOT refused.** `grant_role_impl`'s org_admin and staff_admin arms
+carried **no tenancy check on the target at all**: an org_admin of A could seat ANY profile on the
+platform as A's administrator, org C's own administrator included. Clause 6's platform-administrator
+case succeeded the same way. Both are refusals now, and they are **narrowings of an exposed door**,
+enumerated with their population rather than quoted from the ADR:
+
+| cell | narrowed from | narrowed to | population |
+| --- | --- | --- | --- |
+| `§ 5.2` | any profile could be seated as `org_admin`/`staff_admin`, a `platform_admin` included | refused, `HC0R0`, neither row | targets with `profiles.is_admin` — one row in the seed |
+| `§ 5.4` / `§ 5.4b` | a person whose non-voided affiliations are entirely in another organisation could be seated | refused, `HC0R0`, neither row | cross-org seats. **Reached one existing suite** — see `170` below |
+| `§ 5.3` | a DEACTIVATED account could be granted these two roles | refused, `HC0R4`, no membership | `desativado.conta` in the seed; no live caller reaches it |
+| `§ 5.6` | a non-existent commission produced a raw `23503` from the membership insert | `23514` `comissão inexistente`, the sibling branches' shape | platform-admin-only; every tenant arm is already false for an id naming nothing |
+
+⚠ **Reachability through the two named actions is near-empty, and that is worth stating rather than
+letting the narrowing read as bigger than it is:** `resolveOrInviteUser` already applies the same
+known-here-or-known-nowhere predicate with `is_admin` as a stated separate arm (increment 4), so
+`assignOrgAdmin`/`assignStaffAdmin` refuse those targets *before* reaching the kernel. The narrowing
+bites on **direct `grant_role` / `grant_role_for` calls** and on the two `users/actions.ts` callers.
+
+⚠ **And the pt-BR surface does not distinguish them:** both actions map every RPC error to
+`MESSAGES.generic`, so a refusal from these arms reads as a generic failure. Not fixed here (UI copy
+is `frontend`'s and the actions were out of scope); named so it is not discovered later as a defect.
+
+### ⚠ ONE DELIBERATE DEVIATION FROM THE SUPPLIED DESIGN — the check ordering
+
+The design ordered the module's checks **inactive-before-foreign**. This implementation orders them
+**foreign-before-inactive**, mirroring `app.affiliate_person_to_org_impl` byte-for-byte. The single
+differing cell is a target who is **both** inactive and foreign-affiliated: the supplied order
+answers `HC0R4`, which tells a caller that an unknown uuid names a real, deactivated person in
+another tenant; the sibling's order answers `HC0R0`, conflated with "not found".
+
+**⛔ ORACLE-KILL is a documented, load-bearing property of this door family** (`20261003003700`'s
+header: *"the refusals read as redundant precisely because they must not be distinguishable"*), and
+"both siblings move together" is the lesson this phase has now paid for three times. So the
+sibling's order wins. **`396 § 5.5` makes the difference visible instead of arguing it**: it asserts
+that a uuid with NO profile and a real-but-foreign-and-deactivated person return the
+**byte-identical** sqlstate and message, with § 5.5b pinning that the shared answer is `HC0R0`
+specifically (§ 5.5 alone would be green if both sides raised the same unrelated error). **One `if`
+block and one expectation flip if the PO rules the other way.**
+
+### `170` — the narrowing reached an existing suite, and what changed there
+
+`170_multitenancy_hierarchy.sql § 33` went red: `test_helpers.bootstrap()` affiliates every persona
+to its OWN org, and § 33 then seats `st_x` as `org_admin` of a **different**, file-local org — a
+cross-org seat, which clause 5 makes illegitimate. The fixture gained one
+`organization_affiliations` row anchoring `st_x` to that org.
+
+⛔ **That is a fixture PRECONDITION change, not a weakened assertion**, and the distinction is the
+whole point: § 33's subject is the Phase-A hierarchy predicates and `assign_org_admin`'s authority
+check, not the tenancy gate; both § 33's claim and § 34's cross-org refusal (denied at AUTHORITY,
+before the gate ever runs) are unchanged, and the suite's assertion count did not move.
+
+### Arm domains — derived per object from the catalog, with the harnesses' own domain SQL
+
+Evaluated by running `p0-authz-invariant.sh` ARM 3's two census clauses, `p0-authz-door-audit.sh`'s
+`PRED_DOMAIN`, ARM 2's floor predicate, `act-hat-blind-sweep.sh`'s population and ARM 5's wrapper
+clause **against `pg_proc`** — never a hand list, never inferred from the object's name:
+
+| object | census c1 | census c2 | ARM=policy | ARM=floor | ARM=wrapper | ARM=hat |
+| --- | --- | --- | --- | --- | --- | --- |
+| `app.ensure_provisioned_org_affiliation(uuid,uuid,uuid,date) → uuid`, DEFINER, owner-only | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `app.grant_role_impl(...) → void`, DEFINER, owner-only | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ **in** |
+| `public.grant_role(...) → void`, DEFINER, `{authenticated, service_role}` | ❌ | ❌ | ❌ | ✅ **in** | ❌ | ❌ |
+| `public.grant_role_for(...) → void`, DEFINER, `service_role` only | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+⛔ **THE NEW MODULE IS IN NO ARM'S DOMAIN, AND ABSENCE OF A VERDICT IS ABSENCE OF COVERAGE.** Every
+clause that could have admitted it is bounded away: census c1 wants `bool` or a *reachable*
+set-returning DEFINER (this returns `uuid` and is owner-only); c2 and ARM=wrapper want
+`prosecdef = f`; `ARM=policy`'s `PRED_DOMAIN` is bounded by `t.typname='bool'`; ARM=floor is
+`nspname='public'` and `authenticated`-reachable; ARM=hat's population is bodies naming
+`memberships`, and this body names none. It sits in the census's OWN stated exclusion —
+*"prosecdef scalar non-bool command doors — FUP-AUTHZ-COMMAND-DOOR-UNSWEPT"* — narrowed further by
+being unreachable.
+
+⚠ **So `ARM=census` will NOT exit 1 for this increment, and that is not the arm passing.** Unlike
+increment 4, whose two newcomers were a boolean and a public INVOKER, nothing here enters any arm's
+enumeration. The compensating control is named and carries verdicts of its own: `396 § 0.1–§ 0.3`
+(context, pinned `search_path`, and EXECUTE asserted **positively per role**, `service_role`
+included), `§ 5.10/§ 5.11` (behavioural unreachability from `authenticated` AND from
+`service_role`), and **fourteen targeted mutations** — A1–A10 on the body, B1–B4 on ACL/context.
+
+#### ⛔ `scripts/door-sweep-cases.sh` exits **1 — FINDING**, and here is the ruling it demands
+
+    RESULT: FINDING (1) — the diff TOUCHED supabase/migrations and ZERO cases were derived.
+    EXCLUDED BY NAME — A REVIEW LIST, NOT A DROP:
+      - ensure_provisioned_org_affiliation
+      - grant_role_impl
+
+Exit code captured **directly** (a first read through `| tail` reported 0 — the pipe erases it). The
+deriver asks for one of two things; this is the ruling, as a claim someone can check:
+
+1. **The migration contains ZERO RLS policy statements** — measured, `create|alter|drop policy`
+   count is **0**. So the `alter policy` half of the finding is empty by measurement, not by silence.
+2. **It adds one `prosecdef` function, and that function is not a gate the sweep could neutralize.**
+   `app.ensure_provisioned_org_affiliation` returns `uuid`, so the door sweep — which works by
+   neutralizing a **boolean predicate** — has no predicate to flip. And it decides the **TENANCY of
+   the TARGET**, not the **AUTHORITY of the ACTOR**: it contains no caller term, no identity
+   primitive, and no `memberships` read. Its authority comes entirely from its ACL and its single
+   owner-controlled caller.
+3. **`app.grant_role_impl` IS an authorization kernel, and this increment added no authority arm to
+   it.** The 55 added lines contain no `is_*` / `can_*` / `has_*` call and no `memberships` read;
+   the authority dispatch is byte-identical, which the 55-added / **0-removed / 0-changed**
+   `pg_get_functiondef()` diff is the proof of.
+4. **Both therefore owe the TARGETED mutation case the deriver names, and both have one** — 10 body
+   + 4 ACL/context mutations on the module, 7 on the kernel, each observed red below.
+
+### ⛔ THE VACUITY PROOF — keyed by SUBJECT
+
+Every body mutation applied in-DB from a baseline held **inside the database** (`mut396.baseline`),
+so no definition ever made a round trip through a Windows console. Every one **raises on a no-op**,
+so a needle that stopped matching is an ERROR and never a silent green; every one is **asserted to
+have LANDED from `pg_proc`** (md5 MOVED *and* a unique marker present), never from a command's exit
+status; every restore is verified **byte-identical by md5**. ACL, security-context and comment
+mutations do not move `prosrc`, so they are verified through `has_function_privilege` / `prosecdef` /
+`proconfig` / `obj_description` instead. **The FULL suite ran for every row** and `Files=`/`Tests=`
+is recorded per row: a shape drop is an **ERROR**, not a hold.
+
+⛔ **AND THE EXTRACTOR ITSELF WAS WRONG FIRST.** pg_prove's `Failed tests:` list **wraps at ~78
+columns**, and the continuation lines carry more test numbers with no marker of their own. The first
+pass read only the first line and silently under-reported: C1's `§ 7.2` and A2's `§ 5.8`, `§ 5.9`,
+`§ 5.9b`, `§ 7.1`, `§ 7.2` were all missing. Every row below is from the corrected parser. A
+mutation table is an instrument, and an instrument that quietly drops findings reads exactly like a
+narrow blast radius.
+
+Run shape `Files=244, Tests=8182` on every row unless marked. Cells named by their `396` label.
+
+| # | subject | mutation | assertions that RED | exit |
+| --- | --- | --- | --- | ---: |
+| baseline | — | none | *(none)* | **0** |
+| **A1** | the module (body) | ⭐ **the NEVER-REFUSES mover** — all four refusal arms neutralised at once | § 5.2, 5.3, 5.4, 5.4b, 5.5, 5.5b | 1 |
+| **A2** | the module (body) | ⭐ **the ALWAYS-REFUSES mover** — an unconditional raise at the top | § 1.1, 1.2, 1.3, 1.4, 1.6, 1.7, 1.8, 1.9, 1.10, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 4.5, 5.3, 5.6b, 5.8, 5.9, 5.9b, 7.1, 7.2 · **+ `170` § 33 · `190` §§ 16, 18–19 · `224` §§ 13–15 · `291` §§ 22–23, 27, 29–32 · `306` §§ 39–43, 45 · `293` ABORTED** | 1 |
+| **A3** | the module (body) | ⭐ conjunct: the target-`is_admin` refusal → `false` | **§ 5.2** | 1 |
+| **A4** | the module (body) | ⭐ conjunct: the collision check narrowed to **ACTIVE-only** | **§ 5.4b** | 1 |
+| **A5** | the module (body) | the whole foreign-org refusal removed | § 5.4, **5.4b**, 5.5 | 1 |
+| **A6** | the module (body) | ⭐ conjunct: the inactive-account refusal → `false` | **§ 5.3** | 1 |
+| **A7** | the module (body) | ⭐ conjunct: the profile-not-found refusal → `false` | **§ 5.5, 5.5b** | 1 |
+| **A8** | the module (body) | the idempotency check removed (clause 3) | § 4.1, 4.2 · + the six suites A2 moves | 1 |
+| **A9** | the module (body) | ⛔ `created_by := p_user` — **clause 7's forbidden shortcut** | **§ 1.3**, 2.3 | 1 |
+| **A10** | the module (body) | `started_on := date '2020-01-01'` (clause 8) | **§ 1.3** | 1 |
+| **B1** | the module (**ACL**) | `grant execute … to authenticated` | **§ 0.3, 5.10**, 6.1 | 1 |
+| **B2** | the module (**ACL**) | ⭐ `grant execute … to service_role` | **§ 0.3, 5.11**, 6.1 | 1 |
+| **B3** | the module (**context**) | ⭐⭐ `alter function … security invoker` (body md5 **unchanged**) | **§ 0.1** | 1 |
+| **B4** | the module (**context**) | `alter function … reset search_path` (body md5 **unchanged**) | **§ 0.2** | 1 |
+| **C1** | the kernel | the ensure removed from the **org-admin** branch | § 1.3, 1.4, 1.6, 1.7, 1.8, 1.9, 1.10, 4.1, 4.3, 4.5, 5.2, 5.3, 5.4, 5.4b, 5.5, 5.5b, 5.8, 5.9b, **7.2** | 1 |
+| **C2** | the kernel | the ensure removed from the **staff-admin** branch | § 2.3, 2.4, 2.5, 2.6, 3.3, 3.4, **5.6** | 1 |
+| **C3** | the kernel | ⭐⭐ the ensure block **MOVED BELOW the T1.0 early return** | **§ 0.7, 3.3, 3.4 — and nothing else** | 1 |
+| **C4** | the kernel | the commission org written into **`v_org`** as well (the trap the comment names) | § 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 4.2 · + `291` § 29 · `306` § 41 | 1 |
+| **C5** | the kernel | the guard widened to **any commission role** | **§ 6.1** | 1 |
+| **C6** | the kernel | the guard widened to **any organization role** | **§ 6.2** | 1 |
+| **C7** | the kernel | the ensure block **MOVED ABOVE the authority dispatch** | **§ 5.1b** · + `170` § 34 | 1 |
+| **D1** | `app.tenant_orphan_profiles` | ⛔ **Option 3 — the detector made to ignore membership holders** | **§ 3.0, 9.2** · + `395` § 41 | 1 |
+| **E1** | the catalog **comment** | the retired B5 sentence restored verbatim | **§ 8.1, 8.2** | 1 |
+| **F1** | ⭐ **the CALLER FIXTURE** | affiliation and membership split into **SEPARATE transactions** | **§ 5.1, 5.9**, 6.1 | 1 |
+
+**Targeted cases per subject:** module body → A1–A10 · module ACL/context → B1–B4 · kernel → C1–C7 ·
+detector → D1 · catalog comment → E1 · caller → F1. **No subject is uncovered.**
+
+⭐⭐ **BOTH POLARITIES, AND FOR THIS MODULE THE PAIR IS THE WHOLE RESULT.** A1 (*never refuses*)
+moves only the six refusal cells — with every refusal off, the seed's provisioning still produces
+exactly the right rows, because on this fixture the accept path and the correct path coincide. A2
+(*never accepts*) is what moves the thirty positive cells **and six other suites**, which is the
+measurement of how much of the platform now depends on this module succeeding. Neither alone is a
+proof; the pair is.
+
+⭐⭐ **C3 IS THE KEYSTONE PROOF AND IT LOCALISES PERFECTLY.** Moving the block below the T1.0
+`return` reds **§ 0.7, § 3.3 and § 3.4, and NOTHING ELSE** — 60 of 63 cells, all six other role
+suites, and the entire rest of the tree stay green. That is the whole argument for why the
+placement had to be measured rather than reviewed: it is invisible everywhere except on the
+promotion, and the promotion is `assignStaffAdmin`'s documented purpose.
+
+⭐ **A3/A4/A6/A7 partition the module's refusal predicate cleanly** — each reds its own cell and
+nothing else, so no arm is proven only as part of a whole-predicate neutralization. **A4 is the one
+that would not have existed without deriving the mutation list first:** narrowing the collision
+check to ACTIVE-only moved **no cell at all** until § 5.4b was written, because every foreign-
+affiliated fixture in the file was active elsewhere. The design named that mutation; the suite could
+not have failed it.
+
+⭐ **B3 is the mechanism with `md5(prosrc)` identical on both sides.** Flipping ONLY the security
+context reds § 0.1 and nothing behavioural — correctly, and the null result is the informative half:
+the module is called exclusively from a DEFINER kernel running as `postgres`, so INVOKER changes
+nothing a test can see. **Its danger is entirely in the ACL**, which is what B1/B2 measure. An
+audit that only checked behaviour would have called the context flag cosmetic.
+
+⭐ **C4 confirms the comment rather than trusting it.** Writing the commission's org into `v_org`
+re-shapes every commission-tier membership row and violates `memberships_scope_shape` — it reds
+seven cells here **plus `291` § 29 and `306` § 41**, two suites that have nothing to do with this
+increment. The `⚠ NOT v_org` comment in the migration is therefore a measured claim.
+
+⭐ **F1 is the shape ADR 0166 § Consequences rules out, and it does more damage than atomicity.**
+`§ 5.9` reds as designed (`HC0RM|1|0` — the affiliation survives the failed grant). But `§ 5.1`
+reds too, with **`42501|0|1`**: a caller-side affiliate call writes an organisation affiliation for
+a target the door then **refuses on authority**. A second transaction is not merely non-atomic; it
+lets an unauthorized actor leave a tenancy fact behind.
+
+#### ⛔ TWO ROWS ARE **ERROR**, NOT HOLDS — A2 AND A8 DROPPED THE RUN SHAPE
+
+Both report `Files=244, **Tests=8175**` (−7) and both show `293_membership_door_kernel.sql
+(Wstat: 768 (exited 3) Tests: 18 Failed: 0)` — that suite **aborted after 18 of its assertions**,
+a hard error rather than a failure. Neither mutation is subtle: A2 refuses every governance grant
+in the tree and A8 turns a repeat grant into a `23505`, so several suites cannot build their
+fixtures. The rows are reported as ERROR-shaped and their red lists are read as a lower bound —
+`Failed: 0` on an aborted file means *"nothing got far enough to fail"*, not *"nothing broke"*.
+⛔ Recorded rather than held, because a shape drop compared against a full-shape baseline is not a
+comparison.
+
+### The residual bound
+
+**13 of 63 were moved by no mutation: § 0.4, § 0.5, § 0.6, § 0.8, § 1.0, § 1.5, § 2.0, § 4.4,
+§ 5.7, § 5.12, § 6.3, § 9.1, § 9.3.** **50 of 63 are proven able to fail.** A stated bound on this
+audit, not a claim of full coverage. Each residual is a preservation pin, a precondition, an
+absence pin or a control, and the reason it cannot move is named:
+
+- **§ 0.4 / § 0.5 / § 0.6 / § 5.12** — the three ACLs this increment must PRESERVE. A mutation that
+  moved them would be a mutation of an object this increment does not change; they red when a later
+  increment widens a door, which is what they are for.
+- **§ 0.8** — the forbidden-shortcut gate on `app.affiliate_person_to_org_impl`, a function this
+  increment deliberately does not touch. It reds the day someone implements this invariant the way
+  ADR 0166 forbids.
+- **§ 1.0 / § 2.0** — preconditions. They exist so the § 1 and § 2 cells cannot pass over a person
+  who was already fine; nothing in the subject can move them.
+- **§ 1.5** (no `hospital_affiliations` row invented) and **§ 6.3** (the hospital tier untouched) —
+  **absence pins for clause 1**. Their mutations would be *"make the module also write a hospital
+  affiliation"* and *"widen the guard to the hospital tier"*; neither was written. ⚠ Named as a
+  gap rather than as coverage: C5/C6 widen the commission and organization tiers and are measured,
+  the hospital tier is not.
+- **§ 4.4** (the retained ended row keeps its ORIGINAL end date) — its mutation is *"reactivate by
+  UPDATE instead of INSERT"*, a rewrite rather than a substitution, and it was not written. ⚠ Its
+  twin **§ 4.3** covers clause 4 from the count side and IS moved (A2, C1), so the clause is not
+  unmeasured — only this strengthening of it is.
+- **§ 5.7** — the self-grant guard is a **pre-existing deny**. Moving the ensure across it changes
+  nothing observable, because the guard raises either way and the transaction rolls back. § 5.1b
+  exists precisely because the *authority* ordering had the same problem and could be made
+  observable; the self-grant ordering could not.
+- **§ 9.1 / § 9.3** — the detector's positive control and its seed floor. Their job is to stay
+  green so that every *"absent from the detector"* cell above means something; **§ 9.2**, the one
+  that must red under symptom suppression, is moved by D1.
+
+### The actor-grid discrepancy — MEASURED, REPORTED, and CHANGED NOTHING
+
+Asked for as a separate measurement, and it is real. Three sources describe who may seat a
+commission coordinator and they do not agree:
+
+- `src/lib/admin/actions.ts:77-91` — `authorizeStaffAdminOps`'s **body** requires
+  `context.orgAdminOf.length > 0` and the commission's org in that list. There is **no `isAdmin`
+  short-circuit**, so a platform admin is refused.
+- `:70-76` — its own SECURITY docstring says the short-circuit is *"DELIBERATELY ABSENT"* and
+  explains why (the action runs on the service-role client, so this TS check is the only control).
+  **Agrees with the body.**
+- `:238` (`assignStaffAdmin`) and `:307` (`removeStaffAdmin`) — both say *"platform_admin OR
+  org_admin of the commission's org (Phase C)"*. **Both are FALSE about the code they sit on.**
+- `app.grant_role_impl`'s commission arm (read from `pg_proc`) is
+  `app.is_admin_for(p_actor) or app.is_tenancy_admin_of_for(p_scope_id, p_actor)` — the **kernel
+  DOES admit a platform admin**. So the two inline comments describe the SQL grid, not the TS one.
+
+Net: `assignStaffAdmin` is unreachable by a platform administrator, while `public.grant_role` called
+directly by one at commission/`staff_admin` scope succeeds. ⛔ **R2-B1 does not settle that, and
+nothing here changed it** — no arm was added or removed. It is a separate ruling: either the two
+comments are corrected, or the TS check is aligned with the kernel. Recorded, not decided.
+
+### Gates — exit codes captured DIRECTLY, never through a pipe, on a fresh `supabase db reset`
+
+| gate | result | exit |
+| --- | --- | ---: |
+| `supabase db reset --local` | clean; head **`20261003005900`** confirmed in `schema_migrations` | **0** |
+| `npm run gen:types` | ⭐ **EMPTY diff.** The module lives in `app` (never PostgREST-reachable) and both `public` door signatures are unchanged, so there is nothing to commit and nothing unexplained — the opposite of increment 4, where a diff was the expected sign of a new reachable surface | **0** |
+| `npm run test:db` | **Files=244, Tests=8182, PASS** (243/8119 → **+1 file, +63 assertions**: `396` +63, `170` +0 — the sum is exact, nothing else moved) | **0** |
+| `npm run lint` (11 gates) | pass — mojibake **3001** tracked files clean · vacuous **265** spec files / 0 findings · set-local watermark **UNCHANGED** (this migration uses none) · service-role registry 44 == 44 | **0** |
+| `npm run typecheck` | pass | **0** |
+| `npx vitest run` | **145** files / **1993** tests, pass — unchanged, this increment touches no TypeScript | **0** |
+| `scripts/door-sweep-cases.sh` | ⛔ **FINDING (1)** — migrations touched, ZERO cases derived. **Ruled above, not silenced** | **1** |
+
+⛔ Not run here, by instruction: `ARM=census` / `hat` / `floor` / `wrapper`, the diff-scoped door
+sweep, and `npm run e2e:prod` — the lead's. ⚠ And see the arm-domain section: **`ARM=census` cannot
+flag this increment's newcomer**, so its green must not be read as a verdict on it.
+
+⚠ **Every figure above is from a fresh `supabase db reset`** — `FUP-AE2-CATALOG-SUPERSET-OF-CHAIN`
+makes an un-reset figure inadmissible, and this increment did the mutation audit against
+`create or replace` in-place edits, which is exactly the superset-producing shape. The audit's own
+baselines were held **inside the database** and every restore was verified byte-identical by md5;
+the reset that precedes the table above is what makes these numbers chain-derived anyway.
+
+### Residuals this increment leaves behind, named
+
+- ⚠ **`assignOrgAdmin` is still not atomic AS A WHOLE, and this increment does not claim it is.**
+  Its org_admin grant and its single-hospital `hospital_admin` bootstrap are **two RPCs**, so a
+  failure of the second still leaves the first. The bootstrap is not authorized to be removed and
+  was not touched; `396 § 7.1/§ 7.2` pin that both calls still succeed and that the pair leaves
+  exactly ONE affiliation for TWO memberships. What R2-B1 makes atomic is *membership ∧
+  affiliation within one grant*, which is what clause 2 asks for.
+- ⚠ **`audit_log.actor_id` is NULL for the implied affiliation on the service path**, because the
+  audit trigger reads `auth.uid()` and `grant_role_for` carries no session. Pre-existing, not
+  introduced here; the REAL actor is on the affiliation row (`created_by`), which `§ 1.3` asserts.
+  `§ 1.10` pins that the row is audited at all (Rule 11) — a fact created as a side effect of
+  another operation is exactly the kind that gets written without a trail.
+- ⚠ **E2E teardown, for the tester and the lead:**
+  `e2e/platform-org-admin-provisioning.spec.ts`'s `purgeInvitee()` deletes only the membership. The
+  invitee now also acquires an `organization_affiliations` row, and
+  `guard_org_affiliation_no_delete` refuses DELETE **unconditionally — there is no GUC escape**, so
+  the teardown cannot simply extend. On the gate (which resets per batch) this is invisible; on a
+  **repeat local run without a reset** the invitee stays visible in ORG_B's roster and both pickers.
+  The fix is `void_org_affiliation`, and it belongs to the spec's owner. ⛔ Not edited here.
+  ⓘ The spec always seats into the same constant `ORG_B`, so the repeat run is **idempotent**, not
+  refused — the leftover row is a visibility residue, not a breakage.
+- ⚠ **`ARM=hat`'s population now sees a longer `app.grant_role_impl` body.** The added block reads
+  `public.commissions`, never `memberships`, so it introduces no new caller-bound memberships chunk
+  — but the arm is the lead's and the function is in its population.
