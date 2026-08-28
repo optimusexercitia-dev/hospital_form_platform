@@ -132,3 +132,44 @@ for it). One of the five is recorded here because its failure mode is the danger
 `291 § 4.13` — *"an authorized admin CAN demote"* — would have gone **VACUOUS rather than red**, a
 no-op that passes trivially, and `291:353` is the **only** place in the repo where a platform admin
 demotes a commission `staff_admin`.
+
+## Amendment 2 — the `staff` sub-arm closes the same way: narrow it (PO-ruled 2026-08-28)
+
+Amendment 1 recorded that clause 1 left a **second one-way door** one role over: `grant`/`staff`
+kept `app.is_admin_for(p_actor)` while `revoke`/`staff` never had it, so a `platform_admin` could
+**seat** a commission `staff` and not **remove** one. It was left for its own ruling because the
+`staff` arm admits a third participant (`is_staff_admin_of_for`) that the `staff_admin` arm does not,
+so it is not the same grid.
+
+⚖ **PO ruling: close it by NARROWING — delete `app.is_admin_for(p_actor)` from
+`app.grant_role_impl`'s `staff` sub-arm, so grant matches revoke. A `platform_admin` can now do
+neither.**
+
+**The third participant is symmetric and is untouched.** `is_staff_admin_of_for` appears on **both**
+sides of the `staff` sub-arm already, so removing `is_admin_for` leaves the two predicates
+**identical**:
+
+- `grant`/`staff` → `is_staff_admin_of_for OR is_tenancy_admin_of_for`
+- `revoke`/`staff` → `is_staff_admin_of_for OR is_tenancy_admin_of_for`
+
+⭐ **Two consequences worth stating, because they are improvements rather than side effects:**
+
+1. **The narrowed QA m1 note now genuinely has no subject and is retired outright.** Amendment 1
+   required a *replacement* note scoped to the surviving `staff` asymmetry; with both sub-arms
+   agreeing, that replacement's subject is gone too. ⛔ Retire it — and do not leave a note about an
+   asymmetry that no longer exists, which is how the original m1 note misled in the first place.
+2. **The agreement property can be UNSCOPED.** Amendment 1 required it bounded to `staff_admin` so it
+   would not red on a defect the increment could not close. That bound is now unnecessary: the
+   property should span **both** commission sub-arms, which makes it strictly stronger and removes a
+   caveat a future reader would have to re-derive.
+
+⚠ **This is a NARROWING and carries the same obligation as clause 1**: search pgTAP and `e2e/` for any
+fixture that seats a commission **`staff`** as a platform admin. ⛔ **A red there is a real
+reachability finding, not a test to patch.** The `staff` population is larger than `staff_admin`, so
+expect more fixture reliance, not less.
+
+⛔ **Re-derive the site from `pg_proc` on a fresh reset before editing.** ADR 0167's implementer found
+**five** `is_admin_for` sites in `grant_role_impl` where the prose implied one region, and ruled the
+`staff` sub-arm KEPT at that time — that ruling is what this amendment reverses. Do not trust a line
+number, and do not assume the two remaining KEPT sites (organization/`org_admin` bootstrap,
+hospital/`hospital_admin`) are in scope: **they are not.**
