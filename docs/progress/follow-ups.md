@@ -6649,3 +6649,40 @@ see it clean. A detector that finds nothing must be proven able to find somethin
 **Sibling, same family, same day:** a blast-radius sweep was truncated by `head -40` and its output
 **read as complete** — the `supabase/tests/` hits, including a RED one, were below the cut. Any
 sweep whose output is bounded must print what it dropped (CLAUDE.md §8's *no silent caps*).
+
+### 🟠 FUP-AE2-CATALOG-SUPERSET-OF-CHAIN — a hand-applied migration makes the live catalog a SUPERSET of the migration chain, and no gate can see it (owner: backend)
+
+- 🟠 **FUP-AE2-CATALOG-SUPERSET-OF-CHAIN** — filed 2026-08-28, from a hazard the author created,
+  hit, and reported against themselves during AE2.4 increment 4.
+
+**Mechanism.** Applying a migration by hand (`psql -f`) instead of through
+`supabase db reset` leaves its objects in the catalog **without** the chain having produced them.
+Combined with `create or replace`, the live catalog becomes a **superset** of what the chain
+builds: a statement **removed** from the migration file — the measured case was a `grant` line —
+**survives in the catalog**, because nothing revokes it and nothing re-derives the object from
+scratch.
+
+⛔ **Every gate figure read from such a stack is against a schema a fresh reset would not
+reproduce**, and every one of them is green. The measured instance: pgTAP `393 § 1.1` was **RED on
+the stack and GREEN in the chain** — the disagreement is what exposed it, and it was caught by a
+*second* agent running the suite, not by the author.
+
+⛔ **No gate can detect this, and the reason is structural**: `lint`, the ARM arms, pgTAP and the
+door sweep all read the **live catalog**, which is exactly the artefact that has drifted. There is
+nothing to compare it against without rebuilding. **Only a reset can.** ⚠ This is the sharper twin
+of the standing *"catalog is truth"* rule — the catalog is truth about **what is**, and says
+nothing about **whether the chain produces it**. `supabase migration list` compares *versions*, not
+*contents*, so it is green here too.
+
+**Owed:** (a) decide whether any cheap positive control exists — e.g. a gate-time assertion that a
+freshly reset catalog and the working stack agree on a hash of `pg_proc` + `pg_policies` + ACLs for
+the objects a phase touched; (b) if no such control is affordable, make the **prohibition** explicit
+where the action is taken (a `.claude/rules/` entry scoped to `supabase/migrations/**`, alongside
+`push-schema-before-code`), because a warning is only as good as its position relative to the
+action it governs; (c) either way, **any gate figure quoted from a stack that was not freshly reset
+is inadmissible** — say so in the record rather than assuming a reset happened.
+
+⚠ **Related, and the reason this is not merely hygiene:** AE2's own standing residue already says a
+green baseline on a mutated DB is not fit to mutate, and that 6 of 8 verdicts flipped without a
+fresh reset. This is the same family with a *quieter* signature — there, the DB was mutated by
+tests; here, by the author's own convenience.
