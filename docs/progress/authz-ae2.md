@@ -15,7 +15,8 @@ plan [authz-evolution.md](../plans/authz-evolution.md) §AE2). Branch
 | **AE2.0** — PO ruling: offboarded-person lifecycle authority | ✅ **RULED 2026-08-27** | ADR [0163](../decisions/0163-offboarded-person-lifecycle-authority.md) — **last-org retention**, SUBSET capabilities, four bounds |
 | **AE2.1** — close the consumer set | ✅ **DONE 2026-08-27** | [census](../design/authz-ae2-home-org-consumer-census.md) |
 | **AE2.2** — migration design: per-leg re-predication | ✅ **DONE 2026-08-27** | migrations `20261003005400` + `20261003005500`; suites `390`, `391` |
-| **AE2.3** — the widening differential (phase keystone) | 🔜 | — |
+| **AE2.3a** — the widening differential, **read/visibility half** (phase keystone) | ✅ **DONE 2026-08-27** | suite `392` (38 assertions); 50-cell matrix, 5 pre-declared widenings, 5 accepted narrowings, 8-mutation vacuity proof |
+| **AE2.3b** — the widening differential, **write/containment half** | 🔜 | owed at AE2.4 — the containment trigger, `affiliate_person_to_org_impl`, the picker, **plus** a capability-level differential for `app.can_administer_person_for`, which still reads the column |
 | **AE2.4** — drop the column | 🔜 | — |
 | **AE2.5** — D3 binding text in ARCHITECTURE.md | 🔜 | — |
 
@@ -481,3 +482,213 @@ are **independent** of the arm under test.
 ⚠ **Residue: none.** The final state is byte-identical to the migration's, and the fresh
 `supabase db reset` that precedes the AE2.3a verdicts re-derives the body from the migration
 chain regardless.
+
+## AE2.3a — the widening differential, read/visibility half (`392`)
+
+Suite `supabase/tests/392_ae23a_widening_differential.sql`, **38 assertions**, one transaction,
+both predicates evaluated per (caller, target) pair so no stack state can skew one side against
+the other. Run on a fresh `supabase db reset --local`.
+
+### ⛔ AE2.3 is SPLIT — and half of what the plan asks for has no subject yet
+
+The plan's AE2.3 demands the differential cover *"containment-trigger accept **and** reject ·
+affiliation lifecycle transitions"* and *"INSERT `WITH CHECK` · UPDATE new-row `WITH CHECK`"*.
+Both were **re-measured**, not assumed:
+
+- The containment trigger was ruled **T3** — AE2.4's, not AE2.2's.
+  `public.assert_profile_tenant_has_org` is **unchanged** by this phase's migrations.
+- `392 §1.2` re-measures the census claim from `pg_policies` rather than citing it: all three
+  re-predicated legs are **`cmd = SELECT` with `with_check IS NULL`**. There is no INSERT arm and
+  no UPDATE new-row arm to differentiate.
+
+⛔ Writing those cells anyway would have produced a suite **green having asserted nothing**. So:
+
+| | scope | owner |
+| --- | --- | --- |
+| **AE2.3a** | the READ/VISIBILITY half — the 3 SELECT legs, `list_addable_commission_members`, and every door consuming the changed predicate | ✅ **DONE, this task** |
+| **AE2.3b** | the WRITE/CONTAINMENT half — the containment trigger, `app.affiliate_person_to_org_impl`, the picker | **owed at AE2.4** |
+
+⚠ The plan's warning *"the phase changes write containment; a read-only differential proves the
+wrong half"* is **true of AE2.4**. AE2.2 changed no write containment at all, so for AE2.2 the
+read half is the whole half. ⛔ `392` must not be read as discharging AE2.4's differential.
+
+### The consumer set, closed from the catalog rather than from the census
+
+`pg_policies` + `pg_proc` at head: the changed predicate
+`app.can_administer_person_via_affiliation` is consumed by **exactly three policies and nothing
+else** — no function anywhere calls it; `app.person_authority_orgs` is called only by it. The
+RLS-bound (INVOKER) readers of the two re-predicated tables are **three**, each dispositioned:
+
+| door | disposition |
+| --- | --- |
+| `app.resolve_default_source` | reads **the actor's own** profile (`p.id = p_actor`) — carried by the `id = auth.uid()` self arm, which this phase did not touch. Not a differential surface. |
+| `public.list_audit_filter_actors` | `LEFT JOIN profiles` — a visibility change nulls a `full_name`, it cannot change the row set. Not a differential surface. |
+| `public.reference_candidates` (`v_kind='user'`) | **is** a consumer, but its own conjunct requires a non-expired **commission membership in the response's org**. `392 §0.2` measures that every constructed target holds **zero** memberships, so its result set is empty under *both* predicates — its differential over this population is provably empty, and over the seed population `§8.2` measures zero movement. ⚠ Recorded as a bounded measurement, not an all-clear. |
+
+### The cell matrix — 5 callers × 10 targets = 50 pre-declared cells
+
+All ten targets carry `home_organization_id = org A`, including the ones whose only affiliation
+is elsewhere. That is what makes it a differential and not a snapshot: under the old predicate
+`orgadmin.a` administered **all ten**, so every narrowing is attributable to the new predicate
+alone (`§0.1`). Ids live in a `0ae23a…` namespace disjoint from 390's and 391's; nothing is
+shared across cases and nothing is deleted positionally.
+
+| | T1 active A | T2 ended A | T3 voided-only | T4 ended A + active B | T5 `ended_on` TIE A/B | T6 voided ends LATER | T7 active A+B | T8 col A, active B | T9 no row | T10 col A, active C |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **CA** `orgadmin.a` | = | = | **↓** | **↓** | = | = | = | **↓** | **↓** | **↓** |
+| **CB** `orgadmin.b` | = | = | = | **↑** | **↑** | = | **↑** | **↑** | = | = |
+| **CC** `solo.c` (cross-org) | = | = | = | = | = | = | = | = | = | **↑** |
+| **CH** `hospitaladmin.a1` | = | = | = | = | = | = | = | = | = | = |
+| **CS** `staff1.ccih` (D3) | = | = | = | = | = | = | = | = | = | = |
+
+`=` unchanged (40) · `↑` widening (5) · `↓` newly hidden (5). ⭐ CA×T2 is **`=`**, not `↓` — ADR
+0163's retention is what holds it, and it is the cell that would flip if retention were ever
+dropped as a "simplification".
+
+**The five pre-declared widenings, each with its reason** (`§2.3`, compared against a hand list
+written **independently** of the expectation table — deriving it from `§2.2` would make it a
+restatement, green whenever `§2.2` is green; `§2.5` cross-checks the two):
+
+| pair | reason |
+| --- | --- |
+| CB×T4 | ended in A but **ACTIVE in B** — arm 2 must not fire while arm 1 is non-empty (bound 3) |
+| CB×T5 | the `ended_on` **TIE** — bound 2 yields ALL tied orgs. ⭐ This cell exists *because* an arbitrary tie-break is a **NARROWING**, and a differential that only pre-declares widenings would never notice one |
+| CB×T7 | active in **both** orgs — the plan's own named legitimate widening |
+| CB×T8 | column says A, active only in B — the substrate is the truth |
+| CC×T10 | the same class measured through a **cross-org actor** (org C), so it is not an artefact of the A/B pair |
+
+**The five newly-hidden pairs, each accepted in writing** (`§2.4`): CA×T3 (bound 1 — void is
+"was never true"), CA×T4 (authority follows the ACTIVE org), CA×T8 and CA×T10 (the intended
+mechanism change), and **CA×T9** — a person with **no affiliation row at all** becomes
+`platform_admin`-only. ⚠ CA×T9 is the one with real product consequence and it is accepted with
+its blast radius named: the state is **constructed**, every person is created through an
+affiliation-creating door, and the seed's only affiliation-less profile is `platform@test.local`
+(`is_admin`, already reached by `app.is_admin()`). ⛔ Recorded as an accepted narrowing, not as
+"cannot happen" — *"not reachable" is not "protected"*.
+
+### What the seed cannot reach, and what was built instead
+
+⛔ **No seeded persona holds a membership or affiliation outside its home org, and there is no
+cross-org persona.** The cross-org axis is therefore built from `solo.c@test.local` — org C, a
+one-person organisation — as the **actor**, with T10 as the only subject it can ever reach. A
+cross-org claim written against `multi@test.local` would have passed while proving nothing.
+
+### Why the policy-level numbers are not absorbed by permissive siblings
+
+All three policies are permissive and OR'd, so a table-level read test normally proves nothing
+about one leg. `§0.2`/`§0.3`/`§0.5` buy the isolation — every fixture person holds **zero**
+memberships and **zero** hospital affiliations and no caller is a platform admin — which is what
+licenses `§3.1`/`§3.2` to assert that policy-level visibility **equals** the leg, pair for pair,
+on both re-predicated tables.
+
+### The `professional_credentials` widening candidate — MEASURED, not inherited
+
+AE2.2 handed this over as *"believed set-identical, but that is an argument, not a measurement"*.
+Measured over all 50 pairs: **`§5.1`** credentials-visible ⇒ profiles-visible, **0 violations**;
+**`§5.2`** the two are equal in **both** directions, **0 mismatches**; **`§5.3`** at least 5 pairs
+actually read a credential, so neither is a true statement about an all-false matrix. **The
+implicit `profiles`-RLS gate the migration removed binds on ZERO pairs.**
+
+⚠ Stated so neither half is oversold: the removed gate could only ever **bind** if the credentials
+leg's inner condition were not itself a disjunct of the `profiles` SELECT policy — and it was, and
+its replacement still is (`§1.2` pins exactly that, so a future divergence reds and forces the
+measurement to be redone). Given that, the old leg reduces to its inner condition **under both
+readings** of how Postgres applies RLS to tables referenced inside a policy expression, so the
+conclusion does not depend on resolving that question. The behavioural half — that the gate is
+non-binding **in fact, on every pair** — is measured, not reduced.
+
+### The roster door's divergence, measured rather than argued
+
+`§6.2` reproduces the **whole** old row filter (`home_organization_id = v_org_id and is_active and
+not is_admin and not exists(memberships)`), not just its changed conjunct: all ten were addable to
+CCIH. `§6.3` measures exactly **{T1, T7}** under the new one — 10 → 2. `§6.6` measures the roster
+**widening** at org B: **{T4, T7, T8}** are addable there although their column says org A, while
+**T5**, whose org-B row is ENDED, is not.
+
+⭐ **`§6.4` is the assertion that turns AE2.2's stated intention into a measurement:** T2, T5 and
+T6 **are** retained for org A by the authority predicate and are **not** addable to org A's
+commission. The two doors answer different questions — *"who may ADMINISTER"* vs *"who may be
+STAFFED"* — and if anyone ever unifies them, `§6.3` and `§6.4` disagree.
+
+### Seed population — a floor, not an exact count
+
+`§8.1` floors the seed snapshot at ≥ 30 persons (catalog-driven counts drift); `§8.2` measures
+**zero movement** across the whole seed roster for all three `org_admin` callers; `§8.3` floors
+the both-true pairs at ≥ 25 so that zero delta is agreement between two live predicates rather
+than two silent falses. This is the near-zero movement ADR 0163 predicted, and it is what makes
+"every widening is pre-declared or it is a red" affordable rather than a rubber stamp.
+
+### ⛔ THE VACUITY PROOF — `392` was GREEN ON ITS FIRST RUN, which is a finding
+
+A differential written against an **already-landed** migration cannot be red-first, so its green
+proves nothing on its own. Eight mutations, each applied in-DB, each **asserted to have LANDED
+from `pg_proc` / `pg_policies` (never from a command's exit status)**, each rolled back and the
+rollback verified byte-identical. **Run shape was captured for every run: `Files=2, Tests=39`
+throughout** — no run ever aborted, so no `ERROR` was ever counted as a hold.
+
+| # | mutation | assertions that RED | exit |
+| --- | --- | --- | ---: |
+| **V1** | `person_authority_orgs` arm 2: drop the `not exists (… active …)` guard | §2.2, §2.4 | 1 |
+| **V2** | filter voided **after** `max()` (the ordering bug) | §2.2, §2.4, §2.6, **§3.3**, §6.4 | 1 |
+| **V3** | bound 1 removed entirely (voided rows count) | §2.2, **§2.3**, §2.4, §2.6, §3.3, §6.4 | 1 |
+| **V4** | `list_addable_commission_members`: drop the `ended_on` conjunct | **§6.3**, **§6.6** | 1 |
+| **V5** | `can_administer_person_via_affiliation` → `select true` | §2.2, §2.3, §2.4, §2.6, **§4.3, §4.4**, **§8.2** | 1 |
+| **V6** | drop the leg from `professional_credentials_select` **only** | §1.2, **§3.2**, **§5.2, §5.3** | 1 |
+| **V7** | drop the leg from **both** `profiles` SELECT policies | §1.2, **§3.1**, §3.3, §3.4, **§5.1, §5.2** | 1 |
+| **V8** | `grant execute on app.person_authority_orgs to authenticated` | **§7.1** | 1 |
+
+⭐ **V6/V7 exist because V1–V5 could not have proven `§3.1`/`§3.2`/`§5.x` non-vacuous.** Those
+mutate the **predicate**, and policy-level visibility moves *with* it — the equality holds on both
+sides of the mutation and the assertions stay green while asserting nothing. V6/V7 break the
+**coupling** instead, leaving the predicate intact and removing the leg from the policies. That is
+the class this repo has paid for repeatedly: *an assertion that moves with its subject has not been
+shown able to fail.*
+
+⭐ **Only V3 reds `§2.3`** — the undeclared-widening rule. V1/V2 move cells that were *already*
+`old = true` for CA, so they lose a **narrowing** rather than gain a widening. V3 makes T6's voided
+org-B row the `max()`, which hands `orgadmin.b` a person they never had: an **undeclared widening**,
+and the only mutation of the eight that produces one.
+
+⚠ **Not shown able to fail, stated rather than glossed:** §0.1–§0.8, §1.1, §2.1, §2.5, §4.1, §4.2,
+§6.1, §6.2, §6.5, §7.2, §8.1, §8.3. Every one is a **precondition, floor, control, cross-check or
+shape pin** — their job is to red when the *fixture or the surface* changes, not when the predicate
+does, and no predicate mutation can exercise them. That is a stated bound on the mutation audit,
+not a claim of full coverage.
+
+Policy quals were verified **byte-identical after V6/V7** (`md5(qual)` per policy, all three
+unchanged), so `387 §C1`'s pinned qual-text md5 did not move; and the whole run was followed by a
+fresh `supabase db reset` before any gate figure was taken.
+
+### ⛔ Where reality disagreed with AE2.2's expectations
+
+1. **`app.can_administer_person_for` still reads `profiles.home_organization_id`** — measured: 12
+   functions still name the column after AE2.2, and that one is the **capability** predicate
+   (`fields` / `credentials` / `cpf_change` / `lifecycle`). So ADR 0163's ruling is today
+   implemented **only on the read side**: the SUBSET-capability retention it grants is still being
+   delivered by the column, and re-predicating it is **AE2.4's**, not a gap in AE2.2. Behaviour is
+   unchanged today because a person's home org and their retaining org coincide everywhere in the
+   seed; they diverge exactly on the constructed cells T4/T5/T6/T8/T10. ⛔ **AE2.3b must carry a
+   capability-level differential for those five, or the column drop will silently move write
+   authority.**
+2. **`391` cannot be run alone.** It aborts with `schema "test_helpers" does not exist`
+   (`Files=1, Tests=4`, `Result: FAIL`) — a FAIL-shaped abort that ran 4 of 15 assertions. The same
+   is true of `392`. The correct single-suite invocation is `00_setup.sql` + the suite, and every
+   verdict above records its run shape so an abort cannot be counted as a hold.
+3. **Everything else matched.** The 50-cell expectation table was written from the catalog before
+   the first behavioural run and matched it exactly — all five widenings, all five narrowings, and
+   the seed's zero movement.
+
+### Gates — exit codes captured DIRECTLY, never through a pipe, on a fresh `supabase db reset`
+
+| gate | result | exit |
+| --- | --- | ---: |
+| `supabase db reset --local` | clean | **0** |
+| `npm run test:db` | **240** files, **7979** tests, PASS (239/7941 → +1 file, +38 assertions: exactly this suite, nothing else moved) | **0** |
+| `npm run lint` (11 gates) | pass (adr-index: 161 ADRs, next free 0164; service-role registry 44==44; mojibake 2989 files clean) | **0** |
+| `npm run typecheck` | pass | **0** |
+| `npm run test` (vitest) | 145 files, **1974** tests | **0** |
+| `npm run gen:types` | not run — **no migration in this task**; `392` is a test file and the catalog is byte-identical to the AE2.2 head (all three mutated bodies restored and md5-verified) | n/a |
+
+⛔ Not run here, by instruction: the ARM sweep and `e2e:prod` — those are the phase gate, run by
+the lead. ⚠ `392` adds **no** new gate or `prosecdef` boolean, so it introduces nothing for
+`ARM=census` to find; the AE2.2 gate subset stands unchanged.
