@@ -80,6 +80,38 @@ Bounds, stated so the implementation cannot widen by reading:
   warrant to take. **If that decoupling is ever ruled, (b) becomes reachable and this ADR should be
   revisited rather than worked around.**
 
+## ⛔ Implementation status — this ADR is HALF LIVE (recorded 2026-08-27, AE2.3a)
+
+**Read side: LIVE.** AE2.2 (`20261003005400`) re-predicated the three person-visibility SELECT
+legs onto `app.can_administer_person_via_affiliation` → `app.person_authority_orgs`, which
+implements all four bounds above. Zero policies now reference `profiles.home_organization_id`.
+
+⛔ **Write side: NOT LIVE. `app.can_administer_person_for` still resolves
+`profiles.home_organization_id`** (catalog-measured 2026-08-27, `prosrc` line 26:
+`select pr.home_organization_id into v_org from public.profiles pr where pr.id = p_user`) — the
+same shape as its TS twin `authorizePersonScopedAdmin`. So do all six AE1.3 person-door kernels
+(`set_person_active_impl` · `suspend_person_impl` · `update_person_fields_impl` ·
+`upsert_credential_impl` · `delete_credential_impl` · `finalize_invited_person_impl`), plus
+`affiliate_person_impl` / `affiliate_person_to_org_impl` / `handle_new_user` /
+`guard_profile_privileged_columns` / `assert_profile_tenant_has_org` — **12 functions in total.**
+
+⚠ **This is scheduled work, not a defect** — the plan's AE2.2 scope was the three RLS legs, and
+every remaining consumer always belonged to AE2.4, which is where the column drops. It is recorded
+**here**, in the ADR, because the Decision section above reads as though it describes live
+behaviour and **for the SUBSET capabilities it does not**: `lifecycle` and `cpf_change` — the two
+capabilities this ADR's bound 1 explicitly scopes it to — are precisely what those doors gate.
+
+⛔ **Why no test would have told you.** In `supabase/seed.sql` a person's `home_organization_id`
+and their retaining organization **always coincide**, so every seeded assertion is true under both
+predicates. They diverge only for a person anchored to org A whose active — or last non-voided
+ended — affiliation is in org B, a state the seed never constructs (pgTAP `392` constructs it; the
+divergence lands on 5 of its 10 targets).
+
+**Owed at AE2.4, and it is a hard gate on the column drop:** re-predicate the write-authority path
+onto `app.person_authority_orgs`, and carry a **capability-level** differential over the diverging
+targets. Without it the column drop **silently moves write authority** rather than preserving it —
+the one outcome AE2's whole differential discipline exists to prevent.
+
 ## An inconsistency this decision does not create, and must not be read as blessing
 
 `list_addable_commission_members` gates on `pr.home_organization_id = v_org_id and pr.is_active`

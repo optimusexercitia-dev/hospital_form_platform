@@ -474,6 +474,30 @@ deferred constraint trigger on `organization_affiliations` void/delete. It makes
 leaves an **anchorless profile**, a window the column closes today. ⛔ That window is **inherent
 once the column goes**, not something T2 introduces; enforcing it at creation instead requires T1,
 which is rejected. The PO decides whether to accept the window or to design a third option.
+⛔ **AE2.4's scope is FOUR items, not one — measured at AE2.3a, 2026-08-27.** The column has
+**12 remaining function consumers** (catalog, comment-stripped) and dropping it forces every one:
+
+1. **The containment trigger** — `assert_profile_tenant_has_org` (T2 candidate above; PO decision).
+2. **`app.affiliate_person_to_org_impl`'s column gate** (`HC0R0`) — circular with (1), so both
+   break in one move.
+3. ⛔ **The WRITE-AUTHORITY path, and ADR [0163](../decisions/0163-offboarded-person-lifecycle-authority.md)
+   IS HALF LIVE UNTIL IT LANDS.** `app.can_administer_person_for` still resolves
+   `home_organization_id` (`prosrc` line 26), as do all six AE1.3 person-door kernels. AE2.2 moved
+   the **read** side only, so 0163's retention — which its bound 1 scopes to exactly the **SUBSET**
+   capabilities `lifecycle` and `cpf_change` — is **not in force where those capabilities are
+   actually gated**. ⚠ **No seeded test can show this**: in `seed.sql` a person's home org and
+   retaining org always coincide, so every seeded assertion is true under both predicates. They
+   diverge only for a person anchored to org A whose active (or last non-voided ended) affiliation
+   is in org B — constructed by pgTAP `392`, where it lands on **5 of 10** targets. **A
+   capability-level differential over those diverging targets is a hard gate on the drop**;
+   without it the drop silently *moves* write authority instead of preserving it.
+4. **`listLinkableOrgUsers`** (C-a rejected, C-b′ recommended) — see `docs/progress/authz-ae2.md`.
+
+Plus **AE2.3b**, the write/containment half of the differential, which T3 moved here: the plan's
+warning *"the phase changes write containment; a read-only differential proves the wrong half"*
+binds **AE2.4**, not AE2.2 — AE2.2 changed no write containment, so writing those cells there
+would have asserted nothing.
+
 
 ### AE2.5 — D3: the binding text
 
