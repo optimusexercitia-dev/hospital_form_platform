@@ -51,6 +51,13 @@ grant select on k to service_role;
 -- The tenant anchor is `profiles.home_organization_id`, NOT an active org affiliation, so
 -- an org-offboarded person REMAINS rehireable — that is exactly what D5 promises and what
 -- this file exercises.
+-- ⚠ AE2.2 (2026-08-27) split that sentence in two, and only the WRITE half above is still
+-- true. Containment/rehire still anchors on the column (AE2.2 was ruled T3: the trigger is
+-- NOT re-predicated, because the door that creates an org affiliation is itself gated on
+-- the column). But READ visibility no longer anchors on it at all — it now derives from
+-- `organization_affiliations` via ADR 0163's last-org retention, which is precisely what
+-- keeps an org-offboarded person visible to the retaining org's admin. Do not cite this
+-- comment for a read claim.
 update public.organization_affiliations
    set ended_on = current_date, ended_by = (select org_admin_a from k)
  where principal_id in ((select subject_ctl from k), (select subject_key from k))

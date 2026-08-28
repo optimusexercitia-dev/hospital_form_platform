@@ -92,6 +92,22 @@ update public.profiles set home_organization_id = '0aff2002-0000-0000-0000-00000
 update public.profiles set home_organization_id = '0aff2002-0000-0000-0000-00000000000b'
  where id = '0aff2002-0000-0000-0000-0000000000a3';
 
+-- ⭐ AE2.2 — THE FIXTURE HAD BUILT ITS WORLD OUT OF THE COLUMN UNDER TEST.
+-- Org-tier person visibility is no longer derived from
+-- `profiles.home_organization_id` but from `public.organization_affiliations`
+-- (ADR 0163 via `app.can_administer_person_via_affiliation`).  The two writes
+-- above are now a tenant-anchor satisfier and nothing more, so without the row
+-- below § 5.2's org_admin reads 0 of 5 — not because leg 3 regressed, but
+-- because this fixture never gave its personas the substrate production gives
+-- every person.  Mirrors `seed.sql:404-408`, which derives exactly this from the
+-- same column for every seeded persona; the fixture now builds its world the way
+-- production does.
+insert into public.organization_affiliations (principal_id, organization_id, started_on)
+select pr.id, pr.home_organization_id, date '2023-01-01'
+  from public.profiles pr
+ where pr.id::text like '0aff2002-%'
+   and pr.home_organization_id is not null;
+
 -- The three admins. Exactly one membership each (see the header).
 insert into public.memberships (organization_id, hospital_id, principal_id, role) values
   ('0aff2002-0000-0000-0000-00000000000a', '0aff2002-0000-0000-0000-000000000011', '0aff2002-0000-0000-0000-0000000000a1', 'hospital_admin'),
@@ -266,6 +282,11 @@ values ('00000000-0000-0000-0000-000000000000', '0aff2002-0000-0000-0000-0000000
         'authenticated', 'authenticated', 'aff2.orgadmin@test.local', now(), now());
 update public.profiles set home_organization_id = '0aff2002-0000-0000-0000-00000000000a'
  where id = '0aff2002-0000-0000-0000-0000000000d1';
+-- ⚠ AE2.2: this admin deliberately gets NO `organization_affiliations` row. Its
+-- authority comes from the org_admin MEMBERSHIP below, and § 5.2 passing without
+-- one is the evidence for that — the affiliation LOCATES the subject's orgs, the
+-- membership GRANTS (ADR 0155 D3). A row here would prove nothing and would
+-- blur exactly the distinction the new predicate is built around.
 insert into public.memberships (organization_id, principal_id, role)
 values ('0aff2002-0000-0000-0000-00000000000a', '0aff2002-0000-0000-0000-0000000000d1', 'org_admin');
 

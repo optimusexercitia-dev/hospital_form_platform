@@ -412,7 +412,7 @@ select is(
   (select count(*)::int from public.profiles
     where id in ('0aff3001-0000-0000-0000-0000000000b1','0aff3001-0000-0000-0000-0000000000b2',
                  '0aff3001-0000-0000-0000-0000000000b3','0aff3001-0000-0000-0000-0000000000b4')), 4,
-  '6.2 REGRESSION (org_admin-of-home-org leg): an org_admin still reads ALL FOUR subjects, departed and active alike — this leg is why the defect was hospital-admin-only');
+  '6.2 REGRESSION (org-tier admin leg — keyed on organization_affiliations since AE2.2, not home_organization_id): an org_admin still reads ALL FOUR subjects, departed and active alike — this leg is why the defect was hospital-admin-only');
 select test_helpers.reset_role_and_claims();
 
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b0', true);

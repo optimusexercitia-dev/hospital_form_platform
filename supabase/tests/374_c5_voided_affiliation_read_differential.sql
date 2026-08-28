@@ -77,7 +77,7 @@ select is(
   (select count(*)::int from public.memberships
     where principal_id = (select hosp_admin from k)
       and role = 'org_admin' and organization_id = (select org_a from k)), 0,
-  '0.3 PRECONDITION: the admin is NOT an org_admin of the subject''s organization (that leg keys on home_organization_id and is untouched by B3)');
+  '0.3 PRECONDITION: the admin is NOT an org_admin of the subject''s organization (the org-tier leg is a separate OR arm, untouched by B3; since AE2.2 it keys on organization_affiliations, not home_organization_id)');
 
 -- The subject has no council credential in the seed, so one is created here. Without it,
 -- "the admin can no longer read the credentials" would be trivially true in BOTH
@@ -177,8 +177,17 @@ reset role;
 
 -- ============================================================================
 -- §3 SCOPE CONTROL. Without this, §2 is equally consistent with having broken person
---    reads for everyone. The org admin reaches the subject through
---    `home_organization_id`, a leg B3 does not touch.
+--    reads for everyone. The org admin reaches the subject through the ORG-tier leg,
+--    which B3 does not touch.
+--    ⚠ WEAKENED BY AE2.2 (2026-08-27), stated rather than left to rot. This section
+--    used to isolate two DIFFERENT mechanisms: the hospital-affiliation leg (B3's
+--    subject) versus `profiles.home_organization_id` (the org leg). AE2.2 moved the
+--    org leg onto `organization_affiliations` too, so BOTH legs are now
+--    affiliation-derived and §3 no longer separates "the void narrowed the affiliation
+--    leg" from "person reads still work at all". It remains a real control — the
+--    subject's ORG affiliation is untouched by §2's hospital void, so 3.1/3.2 still
+--    distinguish a targeted narrowing from a blanket one — but it is no longer a
+--    control across mechanisms. Do not cite it as one.
 -- ============================================================================
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1', false);
 set local role authenticated;

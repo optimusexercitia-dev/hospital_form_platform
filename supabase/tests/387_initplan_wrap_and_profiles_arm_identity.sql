@@ -289,8 +289,24 @@ select is(
                 pg_temp.ae15_unwrap(qual) || '|' ||
                 pg_temp.ae15_unwrap(with_check)) as h
        from pg_temp.ae15_hot_subset()) s),
-  '7522eb73b2d4a6c257d3d7934711deec',
-  'C1 un-wrapping every policy on the hot tables reproduces the pre-AE1.5 predicate set exactly -- so the substitution was the only edit: no arm added, dropped or reordered, across the 52 rewritten policies and the 47 untouched ones beside them');
+  -- ⭐ RE-CAPTURED 2026-08-27 by AE2.2 (migration 20261003005400), from
+  --    7522eb73b2d4a6c257d3d7934711deec.  This pin is an IDENTITY assertion over
+  --    predicate TEXT, and AE2.2 deliberately changed the text of three of these
+  --    99 policies: the org-admin leg of `profiles_admin_select`,
+  --    `profiles_select_self_or_admin` and `professional_credentials_select`
+  --    moved off `profiles.home_organization_id` onto
+  --    `app.can_administer_person_via_affiliation(...)` (ADR 0163 / 0155 D3).
+  --    A deliberate predicate change is the ONE thing this pin cannot absorb, so
+  --    the constant moves with it.
+  --    ⚠ WHAT MAKES THAT SAFE IS NOT THIS COMMENT.  § B's per-persona
+  --    BEHAVIOUR md5s (B1-B6) were re-run against the migration and did NOT
+  --    move -- including B2/B6, the two org_admin personas whose visibility is
+  --    dominated by the leg that changed.  Identical rows, different text, which
+  --    is exactly the claim AE2.2 makes.  ⛔ Never re-capture this constant
+  --    without that check: on its own it degenerates into a snapshot of whatever
+  --    the last migration produced.
+  'a115005b6106573c70d98a6aceb8a4fe',
+  'C1 un-wrapping every policy on the hot tables reproduces the pinned predicate set exactly -- no arm added, dropped or reordered beyond the three legs AE2.2 re-predicated on purpose');
 
 select is(
   (select count(*)::int from pg_temp.ae15_hot_subset()),
