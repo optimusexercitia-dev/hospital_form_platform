@@ -48,16 +48,16 @@ grant select on k to authenticated;
 grant select on k to service_role;
 
 -- ── SETUP: put both subjects into the D5 "org-offboarded but still anchored" state. ──
--- The tenant anchor is `profiles.home_organization_id`, NOT an active org affiliation, so
--- an org-offboarded person REMAINS rehireable — that is exactly what D5 promises and what
+-- An org-offboarded person REMAINS rehireable — that is exactly what D5 promises and what
 -- this file exercises.
--- ⚠ AE2.2 (2026-08-27) split that sentence in two, and only the WRITE half above is still
--- true. Containment/rehire still anchors on the column (AE2.2 was ruled T3: the trigger is
--- NOT re-predicated, because the door that creates an org affiliation is itself gated on
--- the column). But READ visibility no longer anchors on it at all — it now derives from
--- `organization_affiliations` via ADR 0163's last-org retention, which is precisely what
--- keeps an org-offboarded person visible to the retaining org's admin. Do not cite this
--- comment for a read claim.
+-- ⚠ AE2.4 (2026-08-28) REPLACED THE MECHANISM, not the behaviour. This comment used to
+-- say the tenant anchor was `profiles.home_organization_id`; that column is now DROPPED.
+-- The anchor is a NON-VOIDED `organization_affiliations` row, and the containment trigger
+-- (`org_affiliation_tenant_containment_trg`) fires on DELETE OR UPDATE OF `voided_at`
+-- — NOT on `ended_on`. That is why the setup below ENDS the affiliations without voiding
+-- them: an ended-but-not-voided row still anchors, so the subjects land in the D5 state
+-- exactly as before. READ visibility derives from the same table via ADR 0163's last-org
+-- retention, which keeps an org-offboarded person visible to the retaining org's admin.
 update public.organization_affiliations
    set ended_on = current_date, ended_by = (select org_admin_a from k)
  where principal_id in ((select subject_ctl from k), (select subject_key from k))

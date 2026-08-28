@@ -1,12 +1,25 @@
--- AE2.4 INCREMENT 4 — THE COORDINATOR PICKER MOVES OFF THE COLUMN WITHOUT
--- MOVING ITS AUDIENCE.  Ruling: ADR 0164 § Decision item 4 (shape C-b', option
--- C-a REJECTED).  Phase record: docs/progress/authz-ae2.md § AE2.4 increment 4.
+-- AE2.4 INCREMENT 4 — THE COORDINATOR PICKER: AN INVOKER WRAPPER OVER A DEFINER
+-- AFFILIATION HELPER.  Ruling: ADR 0164 § Decision item 4 (shape C-b', option C-a
+-- REJECTED).  Phase record: docs/progress/authz-ae2.md § AE2.4 increment 4.
+--
+-- ⛔ RE-CUT FOR THE `profiles.home_organization_id` DROP — A SMALL RE-CUT, BECAUSE
+--    ONLY 8 OF THE 44 CELLS EVER TOUCHED THE COLUMN.  Deleted: the five `old_set`
+--    perimeter-preservation cells (old § 1.1–§ 1.5), the `'6->2'` differential
+--    anchor (old § 2.8) and the two column re-sweep cells (old § 7.1 / § 7.2).
+--    ⭐ The other 36 are live coverage of the picker, the helper, the INVOKER
+--    perimeter, the option-C-a gate, the sibling pin and the orphan wrapper, and
+--    almost all of them are UNIQUE — this file is barely a differential suite and
+--    never mostly was one.
+--    ⚠ § 1.6 SURVIVES and is the reason § 1 still exists: the REJECTED naive shape,
+--    measured in-transaction. It is column-free (`new_set` + `naive`) and it is the
+--    only place in the tree where the collapse to one candidate is a RESULT rather
+--    than a remembered sentence.
 --
 -- ============================================================================
 -- ⛔⛔ WHY THE SECURITY CONTEXT OF THE WRAPPER IS THE SUBJECT OF THIS FILE
 -- ============================================================================
--- `listLinkableOrgUsers` was a PLAIN RLS READ on `profiles`, filtered
--- `home_organization_id = <org>`.  Its docstring calls that "the coordinator's
+-- `listLinkableOrgUsers` was a PLAIN RLS READ on `profiles`, filtered on the
+-- person's home organisation.  Its docstring calls that "the coordinator's
 -- OWN read perimeter, intersected with the org" — the perimeter comes from
 -- `profiles_select_self_or_admin`'s CO-MEMBERSHIP arm, which is what lets a
 -- `staff_admin` coordinator see the people they might seat on an ethics case.
@@ -69,19 +82,22 @@
 --    six-arm RLS policy inside a function, and the second copy is what drifts.
 --
 -- ============================================================================
--- THE CONTRACT, OLD → NEW, REPRODUCED FROM THE CATALOG BEFORE THE CHANGE
+-- THE SHIPPED CONTRACT, REPRODUCED FROM THE CATALOG
 -- ============================================================================
---   OLD  supabase.from('profiles').select('id, full_name, email')
---          .eq('home_organization_id', org).eq('is_active', true)
---          .eq('is_admin', false).order('full_name', asc, nullsFirst:false)
---          .limit(500)
---   NEW  supabase.rpc('list_linkable_org_users', { p_organization: org })
---          → public.list_linkable_org_users(uuid)
---              returns table(user_id uuid, full_name text, email text)
---            where p.is_active and not p.is_admin
---              and app.person_has_active_org_affiliation(p.id, p_organization)
---            order by p.full_name asc nulls last, p.id
---            limit 500
+--   supabase.rpc('list_linkable_org_users', { p_organization: org })
+--     → public.list_linkable_org_users(uuid)
+--         returns table(user_id uuid, full_name text, email text)
+--       where p.is_active and not p.is_admin
+--         and app.person_has_active_org_affiliation(p.id, p_organization)
+--       order by p.full_name asc nulls last, p.id
+--       limit 500
+--
+--   ⚠ The shape it replaced — a client-side `profiles` read filtered on the person's
+--     home organisation, `is_active`, `is_admin`, ordered by `full_name`, limited to
+--     500 — is recorded here as HISTORY. Its two surviving conjuncts are pinned as
+--     live properties by § 2.6 (`is_active`) and § 2.7 (`is_admin`), its order by
+--     § 6.1 and its cap by § 6.2; the org conjunct is now the affiliation helper's,
+--     pinned by § 2.4 and § 3.4.
 --
 -- ⚠ ACTIVE, not NON-VOIDED — and the divergence from ADR 0163's retention is
 --   deliberate, with AE2.2's own reason of record.  This door answers *"who may
@@ -100,12 +116,20 @@
 -- ============================================================================
 -- WHAT THE SEED CANNOT REACH, AND WHAT WAS BUILT INSTEAD
 -- ============================================================================
--- ⛔ In `seed.sql` a person's home org and their active affiliation org ALWAYS
---    coincide, so the seed CANNOT distinguish the old predicate from the new one.
---    § 1 measures that agreement across five callers (it is the perimeter-
---    preservation claim, and it is worth measuring) — but on its own it is an
---    agreement between two predicates over a population where they cannot
---    disagree.  § 2 constructs the eight shapes where they DO disagree.
+-- ⛔ EVERY SEEDED PERSON IS ACTIVELY AFFILIATED TO EXACTLY THE ORGANISATION THEY
+--    WORK IN, so the seed cannot construct any of the interesting states: an ended
+--    affiliation, a voided-only one, an orphan, or a person whose only affiliation
+--    is in another organisation.  § 2 constructs all eight.
+-- ⚠ § 1 USED TO CARRY FIVE PERIMETER-PRESERVATION CELLS, one per caller class —
+--    `old_set = new_set` for a staff_admin, a staff, a two-commission member, a
+--    hospital_admin and an org_admin.  All five were `old_set`, built from the
+--    dropped column, and all five are deleted.  ⛔ THAT IS A REAL COVERAGE LOSS AND
+--    IT IS NAMED HERE RATHER THAN PAPERED OVER: the picker's population is now
+--    ASSERTED for `chefe.ccih` alone (§ 1.6, § 1.7).  The loop still MEASURES all
+--    five callers — the fixture is intact and the rows are there — but four of them
+--    carry no verdict.  Restoring them means a floor per caller class written
+--    against a live database, which is a new assertion someone must specify and
+--    verify, not something this re-cut could invent.
 --
 -- ⭐ THE ISOLATION § 2 HAD TO BUY.  The picker is an INTERSECTION of two gates:
 --    the caller's `profiles` perimeter AND the affiliation predicate.  A target
@@ -127,7 +151,7 @@
 -- ============================================================================
 
 begin;
-select plan(44);
+select plan(36);
 
 -- Constants, resolved once so no assertion re-derives them differently.
 create function pg_temp.k4()
@@ -231,21 +255,30 @@ select is(
   '0.8 the wrapper returns EXACTLY the three fields `AddableUser` carries — not `setof profiles`, which under INVOKER cannot even run (`authenticated` holds no column grant on cpf / date_of_birth / phone) and under DEFINER would disclose all three');
 
 -- ============================================================================
--- § 1 THE SEED DIFFERENTIAL — the perimeter is PRESERVED, measured per caller,
---     as SETS rather than counts, and measured BEFORE any fixture exists.
+-- § 1 THE PICKER ON THE SEED POPULATION, AND THE SHAPE THAT WAS REJECTED.
 --
--- ⚠ WHAT THIS SECTION IS AND IS NOT.  On the seed the two predicates cannot
---   disagree (home org and active affiliation always coincide), so § 1 is a
---   PRESERVATION claim, never a differential.  § 1.6 is what makes it load-
---   bearing: the naive shape, evaluated on the SAME caller in the SAME
---   transaction, collapses to one row.  § 2 carries the differential.
+-- ⛔ THE FIVE PERIMETER-PRESERVATION CELLS ARE DELETED WITH THE COLUMN.  Each was
+--   `old_set = new_set` for one caller class, and `old_set` was a `profiles` read
+--   filtered on `home_organization_id`.  There is no old set.
+--
+-- ⭐ THE LOOP IS KEPT AT FIVE CALLERS ON PURPOSE, and what it now measures is
+--   stated plainly: only `chefe.ccih` carries a verdict (§ 1.6, § 1.7).  The other
+--   four rows are MEASURED AND UNASSERTED — kept because they are the fixture the
+--   restored floors would need and because deleting them would delete the only
+--   place `dr.john`, `multi` and `hospitaladmin.a1` appear in this file, not
+--   because four unasserted rows are coverage.  ⛔ Do not read this loop as five
+--   callers being checked.
+--
+-- ⚠ § 1.6 is why § 1 still exists: the naive re-predication, evaluated on the SAME
+--   caller in the SAME transaction, collapses the coordinator's picker to ONE
+--   candidate.  § 2 carries the constructed states.
 -- ============================================================================
 
-create temp table seed_perim (caller text, old_set uuid[], new_set uuid[], naive int);
+create temp table seed_perim (caller text, new_set uuid[], naive int);
 grant all on seed_perim to authenticated;
 
 do $$
-declare r record; v_old uuid[]; v_new uuid[]; v_naive int; v_org uuid;
+declare r record; v_new uuid[]; v_naive int; v_org uuid;
 begin
   select org_a into v_org from pg_temp.k4();
   for r in select * from (values
@@ -259,10 +292,6 @@ begin
     perform test_helpers.claims_for(r.uid, false, r.arole);
     set local role authenticated;
 
-    select array_agg(p.id order by p.id) into v_old
-      from public.profiles p
-     where p.home_organization_id = v_org and p.is_active and not p.is_admin;
-
     select array_agg(u.user_id order by u.user_id) into v_new
       from public.list_linkable_org_users(v_org) u;
 
@@ -274,32 +303,22 @@ begin
                       and oa.ended_on is null and oa.voided_at is null);
 
     perform test_helpers.reset_role_and_claims();
-    insert into seed_perim values (r.label, coalesce(v_old,'{}'), coalesce(v_new,'{}'), v_naive);
+    insert into seed_perim values (r.label, coalesce(v_new,'{}'), v_naive);
   end loop;
 end $$;
-
-select is((select old_set = new_set from seed_perim where caller = 'chefe.ccih')::text, 'true',
-  '1.1 ⭐⭐ THE COORDINATOR''S PERIMETER IS PRESERVED EXACTLY — same SET, not merely the same count. This is the C-b'' verification the brief demanded, run in-suite so it cannot rot into a remembered number');
-select is((select old_set = new_set from seed_perim where caller = 'dr.john')::text, 'true',
-  '1.2 a plain `staff` on the ethics commission — the second real caller class of the two case pages');
-select is((select old_set = new_set from seed_perim where caller = 'multi')::text, 'true',
-  '1.3 a member of two commissions: the co-membership arm''s union is preserved too');
-select is((select old_set = new_set from seed_perim where caller = 'hospitaladmin.a1')::text, 'true',
-  '1.4 the hospital tier — which reads `organization_affiliations` no better than a coordinator does (ADR 0151 D1) and would have collapsed identically under the naive shape');
-select is((select old_set = new_set from seed_perim where caller = 'orgadmin.a')::text, 'true',
-  '1.5 the org tier — the ONE caller for whom the naive shape happens to work, which is exactly why measuring only this caller would have proven nothing');
 
 select is(
   (select (new_set is not null and array_length(new_set,1) > naive)::text || '|' || naive::text
      from seed_perim where caller = 'chefe.ccih'),
   'true|1',
-  '1.6 ⭐⭐ THE REJECTED SHAPE, MEASURED IN THIS TRANSACTION: re-pointing the read at `organization_affiliations` under the caller''s own RLS leaves the coordinator ONE candidate — themselves. That number is what makes § 1.1 a result rather than a tautology');
+  '1.6 ⭐⭐ THE REJECTED SHAPE, MEASURED IN THIS TRANSACTION: re-pointing the read at `organization_affiliations` under the caller''s own RLS leaves the coordinator ONE candidate — themselves — because that table''s SELECT policy has no staff_admin arm and no hospital tier, BY DESIGN (ADR 0151 D1). The shipped door returns strictly more on the same caller in the same transaction. ⛔ This is the whole reason shape C-b'' exists, and it is a RESULT here rather than a sentence someone remembered');
 
 select cmp_ok((select array_length(new_set,1) from seed_perim where caller = 'chefe.ccih'), '>=', 5,
-  '1.7 NON-VACUITY FLOOR — the coordinator''s picker is genuinely populated, so § 1.1''s set equality is not an agreement between two empty sets');
+  '1.7 NON-VACUITY FLOOR — the coordinator''s picker is genuinely populated, so § 1.6''s `>` is not an empty set beating a smaller one, and § 2''s absences are absences from a real listing');
 
 -- ============================================================================
--- § 2 THE CONSTRUCTED DIVERGENCE — the eight shapes the seed cannot reach.
+-- § 2 THE CONSTRUCTED STATES — the eight affiliation shapes the seed cannot reach,
+--     each measured THROUGH the wrapper (§ 3 measures the helper alone).
 -- ============================================================================
 
 create temp table d_targets (label text primary key, target uuid, note text);
@@ -308,7 +327,7 @@ insert into d_targets values
   ('D1', '00000000-0000-0000-0000-0ae24d000001', 'ACTIVE affiliation in A'),
   ('D2', '00000000-0000-0000-0000-0ae24d000002', 'ENDED (non-voided) in A — the retention divergence'),
   ('D3', '00000000-0000-0000-0000-0ae24d000003', 'VOIDED-only in A — bound 1, void is not end'),
-  ('D4', '00000000-0000-0000-0000-0ae24d000004', 'column A, ACTIVE only in B'),
+  ('D4', '00000000-0000-0000-0000-0ae24d000004', 'ACTIVE only in B — the org conjunct'),
   ('D5', '00000000-0000-0000-0000-0ae24d000005', 'no affiliation row at all — the orphan'),
   ('D6', '00000000-0000-0000-0000-0ae24d000006', 'ACTIVE in A but is_active = false'),
   ('D7', '00000000-0000-0000-0000-0ae24d000007', 'ACTIVE in A but is_admin = true — the noun rule'),
@@ -319,11 +338,14 @@ select '00000000-0000-0000-0000-000000000000'::uuid, t.target, 'authenticated', 
        t.target::text || '@ae24d.test', now(), now()
 from d_targets t;
 
--- ALL EIGHT carry `home_organization_id = ORG A`, the divergent ones included:
--- that is what makes § 2.8 attributable to the new predicate and nothing else.
+-- ⛔ ALL EIGHT USED TO CARRY `home_organization_id = ORG A`, the divergent ones
+--   included, which is what made old § 2.8's `6->2` attributable to the affiliation
+--   predicate alone.  That write is gone with the column; `full_name` and
+--   `is_active` were set by the same statement and are KEPT (D6 flips `is_active`
+--   below, and § 2.6 is the cell that pins it).  Isolation for § 2's absences now
+--   comes entirely from the CCIH membership below, which § 2.0 MEASURES.
 update public.profiles
-   set home_organization_id = (select org_a from pg_temp.k4()),
-       full_name = 'AE24d ' || (select label from d_targets d where d.target = profiles.id),
+   set full_name = 'AE24d ' || (select label from d_targets d where d.target = profiles.id),
        is_active = true
  where id in (select target from d_targets);
 
@@ -348,7 +370,9 @@ values
   ('00000000-0000-0000-0000-0ae24d000008', (select org_a from pg_temp.k4()), date '2025-01-01', null, null, null, null, null, (select oadm_a from pg_temp.k4())),
   ('00000000-0000-0000-0000-0ae24d000008', (select org_b from pg_temp.k4()), date '2025-01-01', null, null, null, null, null, (select oadm_b from pg_temp.k4()));
 
-create temp table d_seen (caller text, target uuid, in_picker boolean, visible boolean, old_pred boolean);
+-- ⛔ `old_pred` — the column-based predicate, evaluated per (caller, target) — is
+--   dropped with the column, together with its only consumer (old § 2.8).
+create temp table d_seen (caller text, target uuid, in_picker boolean, visible boolean);
 grant all on d_seen to authenticated;
 
 do $$
@@ -364,10 +388,7 @@ begin
     insert into d_seen
     select r.label, d.target,
            exists (select 1 from public.list_linkable_org_users(r.org) u where u.user_id = d.target),
-           exists (select 1 from public.profiles p where p.id = d.target),
-           exists (select 1 from public.profiles p
-                    where p.id = d.target and p.home_organization_id = r.org
-                      and p.is_active and not p.is_admin)
+           exists (select 1 from public.profiles p where p.id = d.target)
       from d_targets d;
     perform test_helpers.reset_role_and_claims();
   end loop;
@@ -383,7 +404,7 @@ select is((select in_picker from d_seen where caller='chefe.ccih' and target='00
 select is((select in_picker from d_seen where caller='chefe.ccih' and target='00000000-0000-0000-0000-0ae24d000003')::text, 'false',
   '2.3 D3 VOIDED-only is OUT — bound 1, a void says the employment never should have existed. Separated from § 2.2 so the two conjuncts of the tense predicate are pinned independently');
 select is((select in_picker from d_seen where caller='chefe.ccih' and target='00000000-0000-0000-0000-0ae24d000004')::text, 'false',
-  '2.4 D4 column says A, ACTIVE only in B — OUT of A''s picker. THE SUBSTRATE IS THE TRUTH, and this is the cell the seed can never construct');
+  '2.4 D4 ACTIVE only in ORG B is OUT of ORG A''s picker — the `organization_id` conjunct, measured THROUGH the wrapper and the caller''s RLS rather than on the helper alone (§ 3.4 is the helper''s own arm). ⭐ § 2.9 is its other half: the SAME person IS in org B''s picker, so this is discrimination and not a person who is simply invisible');
 select is((select in_picker from d_seen where caller='chefe.ccih' and target='00000000-0000-0000-0000-0ae24d000005')::text, 'false',
   '2.5 D5 the ORPHAN (no affiliation row at all) is OUT — an accepted narrowing, recorded rather than discovered: the state is constructed, and ADR 0164 accepted the window it comes from');
 select is((select in_picker from d_seen where caller='chefe.ccih' and target='00000000-0000-0000-0000-0ae24d000006')::text, 'false',
@@ -391,14 +412,16 @@ select is((select in_picker from d_seen where caller='chefe.ccih' and target='00
 select is((select in_picker from d_seen where caller='chefe.ccih' and target='00000000-0000-0000-0000-0ae24d000007')::text, 'false',
   '2.7 D7 the NOUN RULE survives: a platform_admin is not a tenant person and never belongs on a tenant roster (ADR 0078 A35)');
 
-select is(
-  (select count(*) filter (where old_pred)::text || '->' || count(*) filter (where in_picker)::text
-     from d_seen where caller = 'chefe.ccih'),
-  '6->2',
-  '2.8 ⭐⭐ THE DIFFERENTIAL''S ANCHOR: under the OLD column predicate this caller saw SIX of the eight (D6/D7 were already excluded by is_active / is_admin, not by either org predicate); under the new one, TWO — D1 and D8, the only targets ACTIVELY affiliated to org A. Every removal is attributable to the affiliation predicate because all eight carry `home_organization_id = A`. ⚠ The hand-computed value here was 6->1 and the RUN CORRECTED IT: D8 (active in BOTH orgs) is legitimately in A''s picker as well as B''s, which is exactly the cell § 2.10 exists for. Recorded rather than quietly fixed');
+-- ⛔ § 2.8 — `'6->2'`, the count under the OLD column predicate against the count
+--   under the new one — IS DELETED WITH THE COLUMN.  It was the file's one true
+--   differential anchor.  ⚠ WHAT IT CARRIED THAT THE PER-TARGET CELLS DO NOT: an
+--   AGGREGATE over all eight, so a target silently dropped from `d_targets` would
+--   move the number even if no § 2.x cell noticed.  That property is genuinely lost
+--   — § 2.0's `'8'` is the nearest survivor and it counts VISIBILITY, not
+--   membership of the picker.  Named rather than glossed.
 
 select is((select in_picker from d_seen where caller='orgadmin.b' and target='00000000-0000-0000-0000-0ae24d000004')::text, 'true',
-  '2.9 ⭐ THE PRE-DECLARED WIDENING: D4 IS in ORG B''s picker although the column says A. Measured through a different caller and a different organisation, so it is not an artefact of the A-side arithmetic');
+  '2.9 ⭐ D4 IS in ORG B''s picker — the organisation their only active affiliation names. Measured through a different caller and a different organisation, so § 2.4''s absence is the org conjunct discriminating and not an artefact of the A-side arithmetic');
 select is((select in_picker from d_seen where caller='orgadmin.b' and target='00000000-0000-0000-0000-0ae24d000008')::text, 'true',
   '2.10 D8, active in BOTH orgs, appears in BOTH pickers — the arm that stops § 2.9 being satisfiable by a predicate that simply moved everyone to B');
 
@@ -504,23 +527,24 @@ select ok(
   '6.2 the 500-row cap survives the move. ⚠ A TEXT pin, deliberately: no fixture this repo can build reaches 500 rows, so the alternative is not a better assertion but NO assertion — and a silently dropped cap on a picker is unbounded disclosure work per page load. ⛔ THE `\y` IS THE WHOLE ASSERTION AND THE MUTATION RUN IS WHY IT IS THERE: without the word boundary this pin matched `limit 5000` too, so mutation M12 passed GREEN while the cap had been widened tenfold — a substring match wearing the label of a bound');
 
 -- ============================================================================
--- § 7 THE COLUMN RE-SWEEP — a floor handed to the drop increment.
+-- ⛔ § 7 — THE COLUMN RE-SWEEP — IS DELETED IN FULL.  It was "a floor handed to the
+--    drop increment", and the drop increment has now happened.
+--
+--    § 7.1 asserted ZERO RLS policies reference `home_organization_id`. After the
+--    drop that is not merely true, it is STRUCTURALLY UNFALSIFIABLE: policies are
+--    dependency-tracked, so a `drop column` either fails or takes the policy with
+--    it. A cell that cannot fail is not a gate.
+--
+--    § 7.2 pinned the remaining function set as a LIST — `guard_profile_privileged
+--    _columns` and `handle_new_user`. ⚠ IT CARRIED THE SAME DOMAIN BUG AS `394
+--    § 1.5`: scoped `nspname in ('app','public')`, it could never see
+--    `test_helpers.bootstrap`, the THIRD body that named the column and the one
+--    every suite in this tree runs through `00_setup.sql`. Rather than invert it
+--    here AND in `394`, the inversion lives in `394 § 1.5` ALONE, over the whole
+--    catalog and anchored to a `pg_attribute` check that the column is really gone.
+--    ⛔ One sweep, in one place, with a fixed domain — two copies of a
+--    catalog-absence claim is how one of them goes stale unnoticed.
 -- ============================================================================
-
-select is(
-  (select count(*)::text from pg_policies
-    where schemaname = 'public'
-      and (coalesce(qual,'') || coalesce(with_check,'')) ~ 'home_organization_id'),
-  '0',
-  '7.1 ZERO RLS policies still reference `home_organization_id` — re-derived unanchored over qual AND with_check, never inherited from AE2.2''s record');
-
-select is(
-  (select string_agg(n.nspname || '.' || p.proname, ',' order by n.nspname, p.proname)
-     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname in ('app','public')
-      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'home_organization_id'),
-  'public.guard_profile_privileged_columns,public.handle_new_user',
-  '7.2 ⭐ THE DROP INCREMENT''S REMAINING SET, PINNED AS A LIST AND NOT A COUNT: exactly two functions still read the column, both on the person-CREATION path. A count would let one leave and another arrive with the gate still green');
 
 -- ============================================================================
 -- § 8 THE SIBLING PIN — the read door and the picker must move TOGETHER.

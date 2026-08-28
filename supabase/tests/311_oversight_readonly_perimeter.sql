@@ -46,7 +46,6 @@ grant select on p to authenticated;
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
 select '00000000-0000-0000-0000-000000000000', qr, 'authenticated', 'authenticated', qr||'@test', now(), now() from p;
 select test_helpers.claims_for(null, false);
-update public.profiles pr set home_organization_id = (select org_b from k) where pr.id = (select qr from p);
 insert into public.memberships (organization_id, hospital_id, principal_id, role)
 select k.org_b, k.hosp_b, p.qr, 'quality_reviewer' from k, p;
 
@@ -310,8 +309,6 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
 select '00000000-0000-0000-0000-000000000000', u, 'authenticated', 'authenticated', u || '@test', now(), now()
 from (select u_assignee as u from lat union all select u_grantee from lat) q;
 select test_helpers.claims_for(null, false);
-update public.profiles set home_organization_id = (select org_b from k)
- where id in (select u_assignee from lat union all select u_grantee from lat);
 -- ⚠⚠ THESE TWO ARE DELIBERATELY **NOT** MEMBERS of comm_x (QA r3 MINOR).
 -- They used to be seeded as staff, which meant the S5 committee-member arm
 -- supplied read_case_deliberation and 6.2/6.3 could NOT isolate S4/S3 at all —

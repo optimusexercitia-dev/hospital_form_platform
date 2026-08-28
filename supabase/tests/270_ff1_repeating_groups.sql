@@ -596,7 +596,7 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
   values ('00000000-0000-0000-0000-000000000000', 'ff100000-0000-0000-0000-0000000000a1',
           'authenticated', 'authenticated', 'ff1-orgadmin@test', now(), now());
 update public.profiles
-  set full_name = 'OrgAdmin FF1', home_organization_id = (select org_b from k)
+  set full_name = 'OrgAdmin FF1'
   where id = 'ff100000-0000-0000-0000-0000000000a1';
 insert into public.memberships (organization_id, principal_id, role)
   values ((select org_b from k), 'ff100000-0000-0000-0000-0000000000a1', 'org_admin');

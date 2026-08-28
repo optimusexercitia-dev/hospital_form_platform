@@ -43,7 +43,7 @@ create temp table ha on commit drop as
 grant select on ha to authenticated;
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
 select '00000000-0000-0000-0000-000000000000', ha_b, 'authenticated', 'authenticated', ha_b || '@test', now(), now() from ha;
-update public.profiles set full_name = 'HospAdmin B', home_organization_id = (select org_b from k)
+update public.profiles set full_name = 'HospAdmin B'
   where id = (select ha_b from ha);
 insert into public.memberships (organization_id, hospital_id, principal_id, role)
 select k.org_b, k.hosp_b, ha.ha_b, 'hospital_admin' from k, ha;

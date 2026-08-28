@@ -48,11 +48,6 @@ select org2, 'Org QO5 Foreign', 'org-qo5-' || substr(org2::text, 1, 8) from p;
 insert into public.hospitals (id, organization_id, name, slug)
 select hosp3, org2, 'Hosp QO5 Foreign', 'hosp-qo5-' || substr(hosp3::text, 1, 8) from p;
 
-update public.profiles pr set home_organization_id = (select org_b from k)
-  where pr.id = (select qr from p);
-update public.profiles pr set home_organization_id = (select org2 from p)
-  where pr.id = (select qr_f from p);
-
 insert into public.memberships (organization_id, hospital_id, principal_id, role)
 select k.org_b, k.hosp_b, p.qr,   'quality_reviewer' from k, p union all
 select p.org2,  p.hosp3,  p.qr_f, 'quality_reviewer' from p;

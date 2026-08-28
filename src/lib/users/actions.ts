@@ -732,13 +732,18 @@ export async function registerUser(
     return { ok: false, fieldErrors: { cpf: MESSAGES.cpfCollision } }
   }
 
-  // metadata seeds full_name + the org anchor (service-role-set-once;
-  // handle_new_user reads both keys identically for createUser and
-  // inviteUserByEmail — NOT an authz input). A duplicate-email race surfaces
-  // from either admin call; treat "already"/"registered" as a collision.
+  // metadata seeds full_name only. A duplicate-email race surfaces from either admin
+  // call; treat "already"/"registered" as a collision.
+  //
+  // ⛔ `home_organization_id` REMOVED WITH THE COLUMN (AE2 drop). It was read by
+  // `handle_new_user` to populate `profiles.home_organization_id`, which no longer
+  // exists — the org association now comes from the `organization_affiliations` row the
+  // creation door writes a few lines below. ⚠ Leaving the key would have been SILENT:
+  // `handle_new_user` stops reading it, nothing errors, and the metadata rots into a
+  // field that looks authoritative and is read by nobody. That is why it goes in the
+  // same increment rather than "later, it's harmless".
   const metadata = {
     full_name: fullName,
-    home_organization_id: input.homeOrganizationId,
   }
 
   let userId: string

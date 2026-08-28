@@ -240,11 +240,10 @@ grant select on qr270 to authenticated;
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
 select '00000000-0000-0000-0000-000000000000', qr, 'authenticated', 'authenticated',
        qr || '@test', now(), now() from qr270;
--- Clear the t5/t6 claims: the identity-column guard refuses this patch from a
--- non-service SESSION; the superuser fixture path needs auth.uid() null.
+-- Clear the t5/t6 claims: the superuser fixture path below needs auth.uid() null.
+-- (⚠ AE2.4: this used to also guard a `home_organization_id` patch, now dropped; the
+--  membership insert below is the persona's whole tenancy.)
 select test_helpers.claims_for(null, false);
-update public.profiles set home_organization_id = '00000000-0000-0000-0000-0000000a0001'
-  where id = (select qr from qr270);
 insert into public.memberships (organization_id, hospital_id, principal_id, role)
 select '00000000-0000-0000-0000-0000000a0001', '00000000-0000-0000-0000-0000000b0001',
        qr, 'quality_reviewer' from qr270;

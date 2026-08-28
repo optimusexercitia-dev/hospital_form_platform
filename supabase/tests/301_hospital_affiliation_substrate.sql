@@ -445,7 +445,7 @@ select throws_ok(
   '42501', null,
   '6.2 DENY ARM: `select *` is refused too — the lock is a column privilege, not a client-side omission');
 select lives_ok(
-  $$select id, full_name, email, home_organization_id from public.profiles limit 1$$,
+  $$select id, full_name, email from public.profiles limit 1$$,
   '6.3 ALLOW ARM: the GRANTED columns still read — the conversion did not overshoot');
 select cmp_ok(
   (select count(*)::int from public.profiles), '>', 0,

@@ -55,8 +55,7 @@ values ('00000000-0000-0000-0000-000000000000',
         'aff2.b1.subject@test.local', now(), now());
 
 update public.profiles
-   set full_name = 'Sujeito B1',
-       home_organization_id = '0c000000-0000-0000-0000-00000000000a'
+   set full_name = 'Sujeito B1'
  where id = '0aff2001-0000-0000-0000-000000000001';
 
 -- ===========================================================================

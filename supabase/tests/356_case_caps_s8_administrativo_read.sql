@@ -114,11 +114,9 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
 select '00000000-0000-0000-0000-000000000000', u, 'authenticated', 'authenticated',
        u || '@test', now(), now()
 from (select adm2 as u from p union all select qr from p) s;
-update public.profiles set full_name = 'Administrativo 2',
-       home_organization_id = (select organization_id from public.hospitals h, k where h.id = k.hosp_b)
+update public.profiles set full_name = 'Administrativo 2'
   where id = (select adm2 from p);
-update public.profiles set full_name = 'Quality Reviewer',
-       home_organization_id = (select organization_id from public.hospitals h, k where h.id = k.hosp_b)
+update public.profiles set full_name = 'Quality Reviewer'
   where id = (select qr from p);
 insert into public.memberships (commission_id, principal_id, role)
   values ((select comm_x from k), (select adm2 from p), 'staff');

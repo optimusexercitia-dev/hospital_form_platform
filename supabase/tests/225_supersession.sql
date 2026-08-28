@@ -233,7 +233,7 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
 select '00000000-0000-0000-0000-000000000000', oa.org_admin_id, 'authenticated', 'authenticated',
        oa.org_admin_id || '@test', now(), now()
 from oa;
-update public.profiles set full_name = 'Org Admin', home_organization_id = (select (v->>'org_b')::uuid from ctx)
+update public.profiles set full_name = 'Org Admin'
   where id = (select org_admin_id from oa);
 insert into public.memberships (organization_id, principal_id, role)
 select (c.v->>'org_b')::uuid, oa.org_admin_id, 'org_admin' from oa, ctx c;
@@ -251,7 +251,7 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
 select '00000000-0000-0000-0000-000000000000', sa2.sa_x2, 'authenticated', 'authenticated',
        sa2.sa_x2 || '@test', now(), now()
 from sa2;
-update public.profiles set full_name = 'Coordenadora 2', home_organization_id = (select (v->>'org_b')::uuid from ctx)
+update public.profiles set full_name = 'Coordenadora 2'
   where id = (select sa_x2 from sa2);
 insert into public.memberships (commission_id, principal_id, role)
 select (c.v->>'comm_x')::uuid, sa2.sa_x2, 'staff_admin' from sa2, ctx c;

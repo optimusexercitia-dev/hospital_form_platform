@@ -23,9 +23,6 @@ create temp table u on commit drop as
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
   select '00000000-0000-0000-0000-000000000000', x, 'authenticated', 'authenticated', x || '@test', now(), now()
   from (select admin_a as x from u union all select admin_b from u union all select plain_c from u) s;
-update public.profiles set home_organization_id = (select org_b from k)
-  where id in (select admin_a from u union all select admin_b from u union all select plain_c from u);
-
 -- Three commissions: over (em_atraso), ok (em_dia), off (em_atraso, tested flag-off).
 create temp table cc on commit drop as
   select gen_random_uuid() as over_c, gen_random_uuid() as ok_c, gen_random_uuid() as off_c;

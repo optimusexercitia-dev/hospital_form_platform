@@ -1,26 +1,44 @@
--- AE2.4 INCREMENT 3 — THE WRITE-AUTHORITY PATH, AND ITS CAPABILITY-LEVEL DIFFERENTIAL.
+-- AE2.4 INCREMENT 3 — THE PERSON-LEVEL WRITE-AUTHORITY PREDICATE, AT CAPABILITY GRAIN.
 --
--- Rulings ADR 0163 (last-org retention) · ADR 0164 (which makes this differential a HARD
--- GATE on the column drop) · ADR 0155 D3 / Architecture Rule 13 (locate vs grant).
--- Phase record docs/progress/authz-ae2.md § AE2.4 increment 3.
+-- Rulings ADR 0163 (last-org retention, as amended 2026-08-28) · ADR 0133 Amdt 1 r1
+-- (the INTERSECTION / SUBSET split) · ADR 0155 D3 / Architecture Rule 13 (locate vs
+-- grant).  Phase record docs/progress/authz-ae2.md § AE2.4 increment 3.
+--
+-- ⛔⛔ RE-CUT FOR THE `profiles.home_organization_id` DROP.  THIS SUITE WAS BUILT AS A
+--     DIFFERENTIAL AGAINST THAT COLUMN AND IT IS NO LONGER ONE.  Deleted with it: the
+--     RLS-free column snapshot, the `old_v` / `old_mask` side of every matrix cell, the
+--     pre-declared widening and narrowing hand lists and the four cells that compared
+--     them (old § 4.1/§ 4.2/§ 5.1/§ 5.2), the movement floor (old § 4.3), the read-side
+--     cross-check (old § 2.3), the counterfactual's direction split (old § 6.3), the
+--     seed zero-movement cell (old § 8.2), the two audit cells keyed on the column
+--     (old § 7.2 / § 7.3), the seventeen-targets anchor (old § 0.1) and the two
+--     "no body names the column" cells (old § 1.2 / § 1.3).  ⭐ Old § 1.5 is INVERTED
+--     rather than deleted, and its blind domain is fixed in the same edit — see it.
+--
+--     ⭐ 20 of the 45 cells were ORTHOGONAL to the column and several are UNIQUE
+--     ESTATE-WIDE.  `person_audit_organization` occurs in exactly one test file in the
+--     whole tree — this one — so § 1.4, § 7.1, § 7.4, § 7.5 and § 10.1–§ 10.3 are the
+--     only assertions anywhere that the six person-door kernels attribute their audit
+--     row to the LOCATED organisation (`385` / `386` assert `action`, `actor_id` and
+--     `metadata`, and never `organization_id`).  § 0.6 is the last measurement of
+--     `person_authority_orgs`' semantics with all four ADR 0163 bounds in one string.
+--     § 9.2 is one of only three Rule-13 cells estate-wide.
 --
 -- ============================================================================
--- WHAT THIS SUITE IS FOR
+-- WHAT THIS SUITE IS FOR, AFTER THE RE-CUT
 -- ============================================================================
 -- `app.can_administer_person_for` is THE person-level capability predicate: it
 -- decides `fields` / `credentials` / `cpf_change` / `lifecycle` for every one of
--- the six AE1.3 person-door kernels.  Until this increment it resolved the
--- target's organisation from `profiles.home_organization_id`.  ADR 0163's
--- last-org retention was therefore live on the READ side only — and the two
--- capabilities its Decision paragraph named are exactly the ones those doors
--- gate.  This increment re-predicates the resolution onto
--- `app.person_authority_orgs`, and this suite measures what that moves.
+-- the six AE1.3 person-door kernels.  It resolves the target's organisations from
+-- `app.person_authority_orgs` — ADR 0163's last-org retention, whose four bounds
+-- § 0.6 measures — and then dispatches on capability through the hospital arm.
+-- This suite states what that predicate DOES, per (caller × target × capability),
+-- against an expectation table written by hand before the first run.
 --
--- ⛔ WITHOUT THIS MEASUREMENT THE COLUMN DROP SILENTLY MOVES WRITE AUTHORITY.
---    That is not a figure of speech: home org and retaining/active org COINCIDE
---    for every person in `seed.sql`, so the entire seeded suite is true under
---    both predicates and would stay green through the change.  § 8 measures that
---    coincidence rather than citing it.
+-- ⛔ IT IS STILL THE ONLY PLACE THE HOSPITAL ARM IS MEASURED AT CAPABILITY GRAIN.
+--    The INTERSECTION / SUBSET split cannot be reached from any seeded persona
+--    (§ "WHAT THE SEED CANNOT REACH" below), so without § 3.3 the split is asserted
+--    nowhere.
 --
 -- ============================================================================
 -- ⭐ THE CAPABILITY AXIS IS VACUOUS ON THE ORG TIER — MEASURED, THEN FIXED
@@ -37,8 +55,10 @@
 --
 --   P1..P10  the ORG-TIER substrate — the same ten shapes as `392`, zero
 --            footprint.  § 2.2 MEASURES that the capability axis is inert here
---            rather than assuming it, and § 2.3 cross-checks that the movement
---            reproduces 392's read-side matrix exactly.
+--            rather than assuming it.  ⚠ Old § 2.3 cross-checked that this file's
+--            MOVEMENT reproduced 392's read-side movement matrix exactly; both
+--            movements were against the column, so it is deleted rather than
+--            re-pointed — there is no second read-side matrix to agree with.
 --   Q1..Q7   the HOSPITAL-TIER substrate — non-empty footprints, built so
 --            INTERSECTION and SUBSET genuinely disagree.  § 3.2 floors that.
 --
@@ -67,96 +87,53 @@
 --     fires" — that would be measuring a cell for a state the DB forbids.
 --
 -- ============================================================================
--- THE DIFFERENTIAL, AND WHY THE OLD SIDE IS TRUSTWORTHY
+-- THE MATRIX, AND WHAT IS STILL DIFFERENCED AGAINST WHAT
 -- ============================================================================
--- OLD and NEW are evaluated per (caller × target × capability) IN ONE
--- TRANSACTION.  The OLD predicate no longer exists in the catalog after this
--- increment's migration, so it is REPRODUCED as `pg_temp.can_admin_with_orgs`,
--- parameterised on the located organisations:
+-- Each (caller × target × capability) cell is evaluated three ways in ONE
+-- TRANSACTION:
 --
---   OLD = can_admin_with_orgs(cap, u, a, array[<RLS-free snapshot of the column>])
---   NEW = app.can_administer_person_for(cap, u, a)
+--   new_v = app.can_administer_person_for(cap, u, a)          the shipped predicate
+--   ctl_v = can_admin_with_orgs(cap, u, a, person_authority_orgs(u))   § 9.1
+--   alt_v = can_admin_with_orgs(cap, u, a, orgs_bounded(u, cap))       § 6
 --
--- ⛔ A reproduction is a liability in BOTH directions: if it drifts from the
---    shipped body, the differential is wrong on the old side AND reads as a real
---    movement.  § 9.1 is the control that removes the liability — the SAME
---    reproduction, fed `app.person_authority_orgs(u)`, must equal the shipped
---    function on EVERY cell.  That isolates the difference between the two sides
---    to the ORGANISATION LIST ALONE; any drift in the reproduced D2 / footprint /
---    INTERSECTION / SUBSET logic reds there instead of masquerading as a finding.
---    § 8.2 is the second control, over the seed population.
+-- ⛔ THE `old_v` COLUMN — the same reproduction fed an RLS-free snapshot of
+--    `profiles.home_organization_id` — IS GONE, and with it every cell whose
+--    predicate was `new_v AND NOT old_v` or `old_v AND NOT new_v`.  A dropped
+--    column cannot be snapshotted, and a "widening" has no meaning without a
+--    second side to widen from.  ⚠ THE HAND LISTS WENT WITH IT: the 48 pre-declared
+--    widenings and 44 accepted narrowings this header used to enumerate were, every
+--    one of them, of the form "the column said X and the affiliations say Y".  They
+--    are NOT re-pointed at some other baseline — a re-pointed list is a hand list
+--    wearing its old label — and the classes they named survive as ordinary rows of
+--    the expectation table instead.
 --
--- The old side reads the column from an RLS-FREE SNAPSHOT: it was a read inside
--- a DEFINER door against the row in hand, never a re-read under a caller's RLS.
---
--- ============================================================================
--- THE RULE (ADR 0154; plan PA-F13): EVERY WIDENING IS PRE-DECLARED OR IT IS A RED
--- ============================================================================
--- § 4.1 compares the MEASURED widening set against a hand list carrying a reason
--- per class; § 4.2 cross-checks that hand list against the expectation table.
--- ⚠ The two are written INDEPENDENTLY on purpose — deriving one from the other
---   makes it a restatement, green whenever its source is green.
+-- ⭐ `can_admin_with_orgs` SURVIVES, and its purpose is now singular: it is the
+--    HAND-REPRODUCED capability logic (actor-active, the D2 org arm, the footprint
+--    build, INTERSECTION vs SUBSET), parameterised ONLY on the organisation list.
+--    § 9.1 asserts it equals the shipped predicate on all 396 cells when fed
+--    `person_authority_orgs`, which decomposes the shipped function into
+--    "organisation list" + "capability logic" and pins the second half.  § 6 then
+--    feeds it a DIFFERENT organisation list to measure the counterfactual ruling.
 --
 -- ---------------------------------------------------------------------------
--- PRE-DECLARED WIDENINGS (48 cells), BY CLASS
+-- WHERE THE DELETED HAND LISTS' CONTENT LIVES NOW
 -- ---------------------------------------------------------------------------
---  ORG TIER, all four capabilities (the org arm short-circuits the dispatch):
---   CB×P4  ended in A, ACTIVE in B          arm 2 must not fire while arm 1 is
---                                           non-empty (ADR 0163 bound 3)
---   CB×P5  the `ended_on` TIE               bound 2 — ties yield ALL tied orgs
---   CB×P7  ACTIVE in both A and B           the plan's own named widening
---   CB×P8  column A, ACTIVE only in B       the substrate is the truth
---   CC×P10 same, through a CROSS-ORG actor  not an artefact of the A/B pair
---   CB×Q2  as P8 but with a real footprint  the org arm is footprint-blind
---   CB×Q3  as Q2, footprint spans two orgs
---   CB×Q4  RETENTION to B                   ⭐ ADR 0163's actual subject on the
---                                           WRITE side, and the cell that
---                                           discriminates ruling (i) from (ii)
---   CB×Q6  ACTIVE in both, cross-org fp
---   CB×Q7  column A, ACTIVE B, single-hospital footprint
---
---  HOSPITAL TIER — ⭐ CAPABILITY-DIFFERENTIATED, which is the whole point of
---  this suite existing separately from `392`:
---   HB1×Q3  {fields, credentials} ONLY      the actor administers ONE hospital of
---                                           a two-hospital footprint: INTERSECTION
---                                           admits, SUBSET refuses.  Under the old
---                                           predicate the actor reached NOTHING in
---                                           the target's home org, so this is a
---                                           widening on exactly two capabilities.
---   HB1×Q6  {fields, credentials} ONLY      same class, via a cross-org footprint
---   HB1×Q7  all four                        SINGLE-hospital footprint, so
---                                           INTERSECTION and SUBSET coincide.
---                                           ⭐ This cell is the control that makes
---                                           Q3/Q6's split a property of the
---                                           FOOTPRINT and not of the predicate.
---
--- ---------------------------------------------------------------------------
--- NEWLY-HIDDEN CELLS (44), EACH ACCEPTED IN WRITING
--- ---------------------------------------------------------------------------
---   CA×P3   voided-only          ACCEPT — bound 1: a voided row is "was never
---                                true" and is excluded from the derivation.
---   CA×P4   ended A, active B    ACCEPT — authority follows the ACTIVE org.
---   CA×P8 / CA×P10               ACCEPT — the intended mechanism change.
---   CA×P9   NO affiliation row   ACCEPT, BLAST RADIUS NAMED.  A true orphan
---                                becomes administrable by NOBODY, for all four
---                                capabilities.  ⛔ This is the WRITE half of the
---                                narrowing `392` accepted on the read side, and
---                                increment 1 deliberately made orphans claimable:
---                                `affiliate_person_to_org_impl` now admits any
---                                org admin over an orphan (ADR 0165 cells W5/W6/W7),
---                                so recovery is one affiliation away and does not
---                                need this predicate.  Recorded as an accepted
---                                narrowing, NOT as "cannot happen".
---   CA×Q2 / CA×Q3 / CA×Q4 / CA×Q7   ACCEPT — the same mechanism change, now with
---                                a footprint present, including retention moving
---                                the authority to org B (Q4).
---   HA1×Q2 {fields, credentials}    ACCEPT — ⭐ a hospital_admin of the OLD org
---   HAD×Q2 all four                 loses a person whose employment moved.  The
---   HAD×Q3 {fields, credentials}    footprint is STRANDED in org A by a commission
---                                   membership that outlived the org affiliation;
---                                   the person is org B's now, and org A's
---                                   hospital admins keeping edit rights over them
---                                   is the defect, not the loss.
+--   the ORG-TIER classes (CB×P4 bound 3, CB×P5 the `ended_on` tie, CB×P7 active in
+--     both, CB×P8 / CC×P10 the substrate is the truth, CB×Q2/Q3/Q6/Q7 the org arm is
+--     footprint-blind, CB×Q4 retention)  → x_expect rows + § 0.6, which measures the
+--     located organisations for all seventeen targets with all four ADR 0163 bounds
+--     visible in one string;
+--   the HOSPITAL-TIER split (HB1×Q3 and HB1×Q6 admit {fields, credentials} only;
+--     HB1×Q7's SINGLE-hospital footprint makes INTERSECTION and SUBSET coincide, and
+--     is the control that makes Q3/Q6 a property of the FOOTPRINT rather than of the
+--     predicate)  → § 3.3, the keystone cell, plus its Q7 control in x_expect;
+--   the accepted NARROWINGS (CA×P3 void-only, CA×P4/P8/P10 the mechanism change,
+--     CA×P9 the orphan, HA1×Q2 and HAD×Q2/Q3 the stranded footprint)  → x_expect rows.
+--     ⚠ CA×P9 stays worth reading rather than merely being an FFFF row: a true orphan
+--     is administrable by NOBODY, for all four capabilities.  Under ADR 0168 the
+--     recovery path is `app.recover_orphan_person_to_org_impl` — platform_admin only,
+--     asserted in `398` — and NOT, as this header used to say, any org admin who holds
+--     the person's uuid.
 --
 -- ============================================================================
 -- ⭐ § 6 — THE RULING THAT WAS *NOT* TAKEN, MEASURED BESIDE THE ONE THAT WAS
@@ -177,14 +154,25 @@
 --    and states exactly how many cells it would move, and in which direction.
 --
 -- ============================================================================
--- § 7 — THE AUDIT-ORGANISATION DIFFERENTIAL, WHICH IS A READ-AUTHORITY ONE
+-- § 7 — AUDIT-ROW ATTRIBUTION, WHICH IS A READ-AUTHORITY QUESTION
 -- ============================================================================
--- All six kernels read the column for ONE purpose: `audit_write(p_organization
--- => v_org)`.  That is not attribution housekeeping.  `audit_log_select` carries
+-- All six kernels resolve ONE organisation for ONE purpose: `audit_write(
+-- p_organization => v_org)`.  That is not attribution housekeeping.
+-- `audit_log_select` carries
 --   ((commission_id IS NULL) AND app.is_org_admin_of(organization_id))
 -- and all six write `p_commission => null`, so `v_org` decides WHO MAY READ THE
--- AUDIT ROW.  `app.person_audit_organization(actor, user)` replaces the column
--- read; § 7 measures the readership movement, including the tie-break.
+-- AUDIT ROW.  `app.person_audit_organization(actor, user)` is that resolution, and
+-- § 7 measures its properties: soundness (§ 7.1), the tie-break (§ 7.4) and the
+-- fail-closed NULL (§ 7.5).
+--
+-- ⛔ THE TWO MOVEMENT CELLS ARE DELETED WITH THE COLUMN.  Old § 7.2 asserted that
+--    where the located organisation and the column COINCIDE the attribution is
+--    byte-identical, and old § 7.3 enumerated the thirteen cells where readership
+--    moved OFF the column.  Both are `is distinct from sn.home_organization_id` —
+--    unstatable once there is no column and no snapshot.  § 7.1 keeps the property
+--    that actually protects the trail: for EVERY authorized cell the attributed
+--    organisation is one the target's affiliations locate AND one the actor
+--    administers, so the acting admin can always read the row they caused.
 --
 -- ⚠ THE TIE-BREAK IS BOUNDED-BUT-ARBITRARY AND IS PRE-DECLARED AS SUCH (§ 7.4).
 --   Where an actor administers TWO locating organisations, `order by
@@ -204,7 +192,7 @@
 -- ============================================================================
 
 begin;
-select plan(45);
+select plan(32);
 
 -- ---------------------------------------------------------------------------
 -- Constants — seeded ids, measured from the catalog, never guessed.
@@ -240,11 +228,14 @@ language sql immutable as $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- ⭐ THE SEED SNAPSHOT IS TAKEN BEFORE THE FIXTURES EXIST, so § 8's zero-movement
---    claim is about the seed population and cannot be diluted by them.
+-- ⭐ THE SEED SNAPSHOT IS TAKEN BEFORE THE FIXTURES EXIST, so § 8's claims are about
+--    the SEED population and cannot be diluted by this file's seventeen targets and
+--    three constructed callers.  (It used to hold `home_organization_id` as well;
+--    that column is gone, and with it old § 8.2, but the isolation still matters —
+--    § 8.3's floor over the seed would otherwise be satisfiable by the fixtures.)
 -- ---------------------------------------------------------------------------
 create temp table x_seed as
-  select p.id as person_id, p.home_organization_id from public.profiles p;
+  select p.id as person_id from public.profiles p;
 
 create temp table x_caps (ord int primary key, cap text not null unique);
 insert into x_caps values (1,'fields'), (2,'credentials'), (3,'cpf_change'), (4,'lifecycle');
@@ -280,12 +271,14 @@ insert into x_targets values
   ('Q7',  '00000000-0000-0000-0000-0ae24c000017', 'Q', 'active B; SINGLE-hospital footprint HCB');
 
 -- ---------------------------------------------------------------------------
--- Fixture principals.  `handle_new_user` mints each profile from `auth.users`;
--- `home_organization_id` is then set to ORG A for ALL SEVENTEEN targets — the
--- ones whose only affiliation is elsewhere included.  That is what makes this a
--- DIFFERENTIAL and not a snapshot: under the OLD predicate `orgadmin.a`
--- administered all seventeen, so every removal is attributable to the new
--- predicate and to nothing else.
+-- Fixture principals.  `handle_new_user` mints each profile from `auth.users`.
+-- ⛔ THE `home_organization_id = ORG A` WRITE OVER ALL SEVENTEEN TARGETS IS GONE
+--   WITH THE COLUMN, and nothing replaces it: it existed ONLY to give the deleted
+--   `old_v` side a uniform baseline, and no surviving cell needs a target to be
+--   "associated with an organisation" by any means other than the
+--   `organization_affiliations` rows built below.  ⚠ `full_name` and `is_active`
+--   were set by the SAME statements and are KEPT — the kernels in § 10 write to a
+--   named person and § 0.4's actor-active gate is a real precondition.
 -- ---------------------------------------------------------------------------
 create temp table x_principals (id uuid primary key);
 insert into x_principals
@@ -301,14 +294,12 @@ select '00000000-0000-0000-0000-000000000000'::uuid, p.id, 'authenticated', 'aut
 from x_principals p;
 
 update public.profiles
-   set home_organization_id = (select org_a from pg_temp.k()),
-       full_name = 'AE24c target ' || (select label from x_targets t where t.target = profiles.id),
+   set full_name = 'AE24c target ' || (select label from x_targets t where t.target = profiles.id),
        is_active = true
  where id in (select target from x_targets);
 
 update public.profiles
-   set home_organization_id = (select org_b from pg_temp.k()),
-       full_name = 'AE24c constructed caller',
+   set full_name = 'AE24c constructed caller',
        is_active = true
  where id in ((select hb1 from pg_temp.k()),
               (select cab from pg_temp.k()),
@@ -407,20 +398,16 @@ values
   ('00000000-0000-0000-0000-0ae24c000015', null, null, (select etica from pg_temp.k()), 'staff');
 
 -- ---------------------------------------------------------------------------
--- THE RLS-FREE SNAPSHOT OF THE COLUMN.  ⛔ The OLD resolution was a read inside a
--- DEFINER door against the row in hand; re-reading it under a caller's RLS would
--- evaluate it under the NEW policies and make the differential compare the new
--- predicate with itself.
--- ---------------------------------------------------------------------------
-create temp table x_snapshot as
-  select p.id as person_id, p.home_organization_id
-    from public.profiles p
-   where p.id in (select target from x_targets);
-
--- ---------------------------------------------------------------------------
--- THE OLD PREDICATE, REPRODUCED AND PARAMETERISED ON THE LOCATED ORGANISATIONS.
+-- ⛔ `x_snapshot` — the RLS-free snapshot of `profiles.home_organization_id` — IS
+--   DELETED WITH THE COLUMN.  Its four consumers (the `old_v` matrix expression,
+--   old § 0.1, old § 7.2 and old § 7.3) are deleted too.
+--
+-- THE CAPABILITY LOGIC, REPRODUCED AND PARAMETERISED ON THE ORGANISATION LIST.
 -- Everything from the actor-active check down is a faithful copy of the shipped
--- body at head 20261003005600; § 9.1 is the control that proves it faithful.
+-- body at head 20261003005600; § 9.1 is the control that proves it faithful, and
+-- what it buys is a DECOMPOSITION: the shipped predicate is "resolve organisations"
+-- ∘ "this logic", and § 9.1 pins the second half so § 6's counterfactual can vary
+-- the first half alone.
 -- ---------------------------------------------------------------------------
 create or replace function pg_temp.can_admin_with_orgs(
   p_capability text, p_user uuid, p_actor uuid, p_orgs uuid[]
@@ -438,8 +425,10 @@ begin
 
   if p_actor is null or p_user is null then return false; end if;
 
-  -- The ONLY parameterised step: where the old body did
-  -- `select pr.home_organization_id into v_org … ; if v_org is null then return false`.
+  -- THE ONLY PARAMETERISED STEP.  The shipped body resolves this list itself, from
+  -- `app.person_authority_orgs(p_user)`; here it arrives as an argument, which is
+  -- the whole point of the reproduction.  An empty list denies, as the shipped body
+  -- does — a person no organisation locates is administrable by nobody.
   if p_orgs is null or cardinality(p_orgs) = 0 then return false; end if;
 
   if not app.is_active(p_actor) then return false; end if;
@@ -503,17 +492,13 @@ $fn$;
 -- ---------------------------------------------------------------------------
 create temp table x_matrix (
   caller_label text, target_label text, cap text,
-  old_v bool, new_v bool, ctl_v bool, alt_v bool
+  new_v bool, ctl_v bool, alt_v bool
 );
 
 insert into x_matrix
 select cl.label, tg.label, cp.cap,
-       pg_temp.can_admin_with_orgs(
-         cp.cap, tg.target, cl.caller,
-         case when sn.home_organization_id is null then '{}'::uuid[]
-              else array[sn.home_organization_id] end),
        app.can_administer_person_for(cp.cap, tg.target, cl.caller),
-       -- the FAITHFULNESS control (§ 9.1): the same reproduction fed the NEW
+       -- the FAITHFULNESS control (§ 9.1): the reproduction fed the SHIPPED
        -- organisation list must equal the shipped function on every cell.
        pg_temp.can_admin_with_orgs(
          cp.cap, tg.target, cl.caller,
@@ -523,13 +508,11 @@ select cl.label, tg.label, cp.cap,
          cp.cap, tg.target, cl.caller, pg_temp.orgs_bounded(tg.target, cp.cap))
   from x_callers cl
   join x_targets tg on (tg.pop = 'Q' or cl.label in ('CA','CB','CC','HA1','CS'))
-  join x_caps cp on true
-  left join x_snapshot sn on sn.person_id = tg.target;
+  join x_caps cp on true;
 
 -- Measured masks, in capability order, for comparison with the expectation table.
 create temp table x_measured as
   select caller_label, target_label,
-         string_agg(case when old_v then 'T' else 'F' end, '' order by c.ord) as old_mask,
          string_agg(case when new_v then 'T' else 'F' end, '' order by c.ord) as new_mask
     from x_matrix m join x_caps c on c.cap = m.cap
    group by caller_label, target_label;
@@ -537,115 +520,81 @@ create temp table x_measured as
 -- ---------------------------------------------------------------------------
 -- THE EXPECTATION TABLE — hand-written from the design, BEFORE the first run.
 -- Masks are (fields, credentials, cpf_change, lifecycle).
+-- ⛔ The `old_mask` column is deleted with the column it described.  Every mask
+--   below is a claim about the SHIPPED predicate and nothing else.
 -- ---------------------------------------------------------------------------
-create temp table x_expect (caller_label text, target_label text, old_mask text, new_mask text);
+create temp table x_expect (caller_label text, target_label text, new_mask text);
 insert into x_expect values
-  -- CA — org_admin A.  OLD: the column says A for all seventeen, so all TTTT.
-  ('CA','P1','TTTT','TTTT'), ('CA','P2','TTTT','TTTT'), ('CA','P3','TTTT','FFFF'),
-  ('CA','P4','TTTT','FFFF'), ('CA','P5','TTTT','TTTT'), ('CA','P6','TTTT','TTTT'),
-  ('CA','P7','TTTT','TTTT'), ('CA','P8','TTTT','FFFF'), ('CA','P9','TTTT','FFFF'),
-  ('CA','P10','TTTT','FFFF'),
-  ('CA','Q1','TTTT','TTTT'), ('CA','Q2','TTTT','FFFF'), ('CA','Q3','TTTT','FFFF'),
-  ('CA','Q4','TTTT','FFFF'), ('CA','Q5','TTTT','TTTT'), ('CA','Q6','TTTT','TTTT'),
-  ('CA','Q7','TTTT','FFFF'),
-  -- CB — org_admin B.  OLD: never, the column says A and CB holds nothing there.
-  ('CB','P1','FFFF','FFFF'), ('CB','P2','FFFF','FFFF'), ('CB','P3','FFFF','FFFF'),
-  ('CB','P4','FFFF','TTTT'), ('CB','P5','FFFF','TTTT'), ('CB','P6','FFFF','FFFF'),
-  ('CB','P7','FFFF','TTTT'), ('CB','P8','FFFF','TTTT'), ('CB','P9','FFFF','FFFF'),
-  ('CB','P10','FFFF','FFFF'),
-  ('CB','Q1','FFFF','FFFF'), ('CB','Q2','FFFF','TTTT'), ('CB','Q3','FFFF','TTTT'),
-  ('CB','Q4','FFFF','TTTT'), ('CB','Q5','FFFF','FFFF'), ('CB','Q6','FFFF','TTTT'),
-  ('CB','Q7','FFFF','TTTT'),
-  -- CC — the cross-org actor.  Only P10 ever resolves to org C.
-  ('CC','P1','FFFF','FFFF'), ('CC','P2','FFFF','FFFF'), ('CC','P3','FFFF','FFFF'),
-  ('CC','P4','FFFF','FFFF'), ('CC','P5','FFFF','FFFF'), ('CC','P6','FFFF','FFFF'),
-  ('CC','P7','FFFF','FFFF'), ('CC','P8','FFFF','FFFF'), ('CC','P9','FFFF','FFFF'),
-  ('CC','P10','FFFF','TTTT'),
-  ('CC','Q1','FFFF','FFFF'), ('CC','Q2','FFFF','FFFF'), ('CC','Q3','FFFF','FFFF'),
-  ('CC','Q4','FFFF','FFFF'), ('CC','Q5','FFFF','FFFF'), ('CC','Q6','FFFF','FFFF'),
-  ('CC','Q7','FFFF','FFFF'),
+  -- CA — org_admin A.  Admits exactly where the target's affiliations still locate A.
+  ('CA','P1','TTTT'), ('CA','P2','TTTT'), ('CA','P3','FFFF'),
+  ('CA','P4','FFFF'), ('CA','P5','TTTT'), ('CA','P6','TTTT'),
+  ('CA','P7','TTTT'), ('CA','P8','FFFF'), ('CA','P9','FFFF'),
+  ('CA','P10','FFFF'),
+  ('CA','Q1','TTTT'), ('CA','Q2','FFFF'), ('CA','Q3','FFFF'),
+  ('CA','Q4','FFFF'), ('CA','Q5','TTTT'), ('CA','Q6','TTTT'),
+  ('CA','Q7','FFFF'),
+  -- CB — org_admin B.  The org arm is footprint-blind, so its cells are TTTT or FFFF.
+  ('CB','P1','FFFF'), ('CB','P2','FFFF'), ('CB','P3','FFFF'),
+  ('CB','P4','TTTT'), ('CB','P5','TTTT'), ('CB','P6','FFFF'),
+  ('CB','P7','TTTT'), ('CB','P8','TTTT'), ('CB','P9','FFFF'),
+  ('CB','P10','FFFF'),
+  ('CB','Q1','FFFF'), ('CB','Q2','TTTT'), ('CB','Q3','TTTT'),
+  ('CB','Q4','TTTT'), ('CB','Q5','FFFF'), ('CB','Q6','TTTT'),
+  ('CB','Q7','TTTT'),
+  -- CC — the cross-org actor.  Only P10 resolves to org C.
+  ('CC','P1','FFFF'), ('CC','P2','FFFF'), ('CC','P3','FFFF'),
+  ('CC','P4','FFFF'), ('CC','P5','FFFF'), ('CC','P6','FFFF'),
+  ('CC','P7','FFFF'), ('CC','P8','FFFF'), ('CC','P9','FFFF'),
+  ('CC','P10','TTTT'),
+  ('CC','Q1','FFFF'), ('CC','Q2','FFFF'), ('CC','Q3','FFFF'),
+  ('CC','Q4','FFFF'), ('CC','Q5','FFFF'), ('CC','Q6','FFFF'),
+  ('CC','Q7','FFFF'),
   -- HA1 — hospital_admin of HCA only.  On population P the footprint is EMPTY, so
-  -- the empty-footprint deny answers every cell on both sides.
-  ('HA1','P1','FFFF','FFFF'), ('HA1','P2','FFFF','FFFF'), ('HA1','P3','FFFF','FFFF'),
-  ('HA1','P4','FFFF','FFFF'), ('HA1','P5','FFFF','FFFF'), ('HA1','P6','FFFF','FFFF'),
-  ('HA1','P7','FFFF','FFFF'), ('HA1','P8','FFFF','FFFF'), ('HA1','P9','FFFF','FFFF'),
-  ('HA1','P10','FFFF','FFFF'),
-  ('HA1','Q1','TTFF','TTFF'), ('HA1','Q2','TTFF','FFFF'), ('HA1','Q3','FFFF','FFFF'),
-  ('HA1','Q4','FFFF','FFFF'), ('HA1','Q5','TTFF','TTFF'), ('HA1','Q6','TTFF','TTFF'),
-  ('HA1','Q7','FFFF','FFFF'),
+  -- the empty-footprint deny answers every cell.
+  ('HA1','P1','FFFF'), ('HA1','P2','FFFF'), ('HA1','P3','FFFF'),
+  ('HA1','P4','FFFF'), ('HA1','P5','FFFF'), ('HA1','P6','FFFF'),
+  ('HA1','P7','FFFF'), ('HA1','P8','FFFF'), ('HA1','P9','FFFF'),
+  ('HA1','P10','FFFF'),
+  ('HA1','Q1','TTFF'), ('HA1','Q2','FFFF'), ('HA1','Q3','FFFF'),
+  ('HA1','Q4','FFFF'), ('HA1','Q5','TTFF'), ('HA1','Q6','TTFF'),
+  ('HA1','Q7','FFFF'),
   -- HAD — hospital_admin of HCA AND HSA, so SUBSET can succeed for it.
-  ('HAD','Q1','TTTT','TTTT'), ('HAD','Q2','TTTT','FFFF'), ('HAD','Q3','TTFF','FFFF'),
-  ('HAD','Q4','FFFF','FFFF'), ('HAD','Q5','TTTT','TTTT'), ('HAD','Q6','TTFF','TTFF'),
-  ('HAD','Q7','FFFF','FFFF'),
-  -- HB1 — CONSTRUCTED hospital_admin of HCB.  OLD: nothing in org A, so never.
-  ('HB1','Q1','FFFF','FFFF'), ('HB1','Q2','FFFF','FFFF'), ('HB1','Q3','FFFF','TTFF'),
-  ('HB1','Q4','FFFF','FFFF'), ('HB1','Q5','FFFF','FFFF'), ('HB1','Q6','FFFF','TTFF'),
-  ('HB1','Q7','FFFF','TTTT'),
-  -- CS — staff.  The pure negative, on both sides, everywhere.
-  ('CS','P1','FFFF','FFFF'), ('CS','P2','FFFF','FFFF'), ('CS','P3','FFFF','FFFF'),
-  ('CS','P4','FFFF','FFFF'), ('CS','P5','FFFF','FFFF'), ('CS','P6','FFFF','FFFF'),
-  ('CS','P7','FFFF','FFFF'), ('CS','P8','FFFF','FFFF'), ('CS','P9','FFFF','FFFF'),
-  ('CS','P10','FFFF','FFFF'),
-  ('CS','Q1','FFFF','FFFF'), ('CS','Q2','FFFF','FFFF'), ('CS','Q3','FFFF','FFFF'),
-  ('CS','Q4','FFFF','FFFF'), ('CS','Q5','FFFF','FFFF'), ('CS','Q6','FFFF','FFFF'),
-  ('CS','Q7','FFFF','FFFF');
+  ('HAD','Q1','TTTT'), ('HAD','Q2','FFFF'), ('HAD','Q3','FFFF'),
+  ('HAD','Q4','FFFF'), ('HAD','Q5','TTTT'), ('HAD','Q6','TTFF'),
+  ('HAD','Q7','FFFF'),
+  -- HB1 — CONSTRUCTED hospital_admin of HCB.  Q3/Q6 are the INTERSECTION/SUBSET
+  -- split; Q7's single-hospital footprint is the control where the two coincide.
+  ('HB1','Q1','FFFF'), ('HB1','Q2','FFFF'), ('HB1','Q3','TTFF'),
+  ('HB1','Q4','FFFF'), ('HB1','Q5','FFFF'), ('HB1','Q6','TTFF'),
+  ('HB1','Q7','TTTT'),
+  -- CS — staff.  The pure negative, everywhere.
+  ('CS','P1','FFFF'), ('CS','P2','FFFF'), ('CS','P3','FFFF'),
+  ('CS','P4','FFFF'), ('CS','P5','FFFF'), ('CS','P6','FFFF'),
+  ('CS','P7','FFFF'), ('CS','P8','FFFF'), ('CS','P9','FFFF'),
+  ('CS','P10','FFFF'),
+  ('CS','Q1','FFFF'), ('CS','Q2','FFFF'), ('CS','Q3','FFFF'),
+  ('CS','Q4','FFFF'), ('CS','Q5','FFFF'), ('CS','Q6','FFFF'),
+  ('CS','Q7','FFFF');
 
 -- ---------------------------------------------------------------------------
--- THE HAND LISTS — written INDEPENDENTLY of the expectation table above.
+-- ⛔ `x_declared_widening` AND `x_declared_narrowing` ARE DELETED WITH THE COLUMN,
+--   together with the four cells that consumed them (old § 4.1 / § 4.2 / § 5.1 /
+--   § 5.2) and the movement floor (old § 4.3).  Every row in both lists was a
+--   statement of the form "this cell moves when the ORGANISATION LIST stops coming
+--   from `home_organization_id`"; with no column there is no movement to declare.
+--   ⚠ They are NOT re-pointed at the counterfactual or at 392's read-side matrix.
+--   A hand list re-aimed at a new baseline keeps its old label and its old reasons
+--   while measuring something else, which is the shape that reads as coverage.
+--   The classes they enumerated survive as expectation rows above and in § 3.3.
 -- ---------------------------------------------------------------------------
-create temp table x_declared_widening (caller_label text, target_label text, cap text, reason text);
-insert into x_declared_widening
-select v.c, v.t, cp.cap, v.r from (values
-  ('CB','P4','ended in A, ACTIVE in B — arm 2 must not fire while arm 1 is non-empty (bound 3)'),
-  ('CB','P5','the ended_on TIE — bound 2 yields ALL tied orgs'),
-  ('CB','P7','ACTIVE in both organisations'),
-  ('CB','P8','column A, ACTIVE only in B — the substrate is the truth'),
-  ('CC','P10','the same class through a CROSS-ORG actor'),
-  ('CB','Q2','as P8, with a footprint present — the org arm is footprint-blind'),
-  ('CB','Q3','as Q2, footprint spanning two organisations'),
-  ('CB','Q4','RETENTION to B — ADR 0163 on the WRITE side'),
-  ('CB','Q6','ACTIVE in both, cross-org footprint'),
-  ('CB','Q7','column A, ACTIVE B, single-hospital footprint')
-) as v(c,t,r) cross join x_caps cp
-union all
-select v.c, v.t, cp.cap, v.r from (values
-  ('HB1','Q3','⭐ INTERSECTION admits one administered hospital of a two-hospital footprint; SUBSET refuses'),
-  ('HB1','Q6','the same, reached through a cross-org footprint')
-) as v(c,t,r) cross join x_caps cp where cp.cap in ('fields','credentials')
-union all
-select 'HB1','Q7', cp.cap,
-       'SINGLE-hospital footprint, so INTERSECTION and SUBSET coincide — the control that makes Q3/Q6 a property of the FOOTPRINT'
-  from x_caps cp;
-
-create temp table x_declared_narrowing (caller_label text, target_label text, cap text, disposition text);
-insert into x_declared_narrowing
-select v.c, v.t, cp.cap, v.d from (values
-  ('CA','P3','ACCEPT — bound 1: a voided row is "was never true"'),
-  ('CA','P4','ACCEPT — authority follows the ACTIVE organisation'),
-  ('CA','P8','ACCEPT — the intended mechanism change'),
-  ('CA','P9','ACCEPT WITH BLAST RADIUS NAMED — a true orphan is administrable by nobody; recovery is one affiliation away (ADR 0165 W5/W6/W7)'),
-  ('CA','P10','ACCEPT — the same class, cross-org'),
-  ('CA','Q2','ACCEPT — the mechanism change with a footprint present'),
-  ('CA','Q3','ACCEPT — same'),
-  ('CA','Q4','ACCEPT — retention moved the authority to org B'),
-  ('CA','Q7','ACCEPT — same'),
-  ('HAD','Q2','ACCEPT — the footprint is stranded in org A; the person is org B''s now')
-) as v(c,t,d) cross join x_caps cp
-union all
-select v.c, v.t, cp.cap, v.d from (values
-  ('HA1','Q2','ACCEPT — INTERSECTION-only loss, the SUBSET half was already denied'),
-  ('HAD','Q3','ACCEPT — same class, the administered hospital was the stranded one')
-) as v(c,t,d) cross join x_caps cp where cp.cap in ('fields','credentials');
 
 -- ===========================================================================
 -- § 0 — PRECONDITIONS.  Each one licenses a later claim; none is decorative.
 -- ===========================================================================
-select is(
-  (select count(*)::int from x_snapshot s
-    where s.home_organization_id = (select org_a from pg_temp.k())),
-  17,
-  '§ 0.1 all seventeen targets are anchored to org A by the column, so every '
-  'movement is attributable to the new predicate and to nothing else');
+-- ⛔ § 0.1 — "all seventeen targets are anchored to org A by the column" — is
+--   deleted with the column.  It licensed the deleted `old_v` baseline and licensed
+--   nothing else; § 0.6 is the precondition the surviving cells actually rest on,
+--   and it measures the located organisations the shipped predicate consumes.
 
 select is(
   (select count(*)::int from public.memberships m
@@ -709,8 +658,9 @@ select is(
 select ok(
   (select count(*) from x_seed) >= 30
   and not exists (select 1 from x_seed s join x_targets t on t.target = s.person_id),
-  '§ 0.7 the seed snapshot was taken BEFORE the fixtures existed, so § 8''s '
-  'zero-movement claim cannot be diluted by them');
+  '§ 0.7 the seed snapshot was taken BEFORE the fixtures existed and contains NONE '
+  'of this file''s targets, so § 8''s floor over the seed population cannot be '
+  'satisfied by the fixtures this file builds');
 
 -- ===========================================================================
 -- § 1 — THE CATALOG CONTRACT.  Measured from pg_proc, never from a migration file.
@@ -725,23 +675,11 @@ select is(
   '§ 1.1 can_administer_person_for keeps its DEFINER context, STABLE volatility, '
   'pinned search_path and postgres-only EXECUTE across the re-predication');
 
-select is(
-  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'app' and p.proname = 'can_administer_person_for'
-      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'home_organization_id'),
-  0,
-  '§ 1.2 the capability predicate no longer resolves the column (comment-stripped, '
-  'because a comment mentioning it is not a read)');
-
-select is(
-  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'app'
-      and p.proname in ('set_person_active_impl','suspend_person_impl',
-                        'update_person_fields_impl','upsert_credential_impl',
-                        'delete_credential_impl','finalize_invited_person_impl')
-      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'home_organization_id'),
-  0,
-  '§ 1.3 none of the six AE1.3 person-door kernels resolves the column');
+-- ⛔ § 1.2 (the capability predicate no longer names the column) and § 1.3 (nor do
+--   the six kernels) are deleted: their subject is scoped to two named function
+--   families, and the inverted § 1.5 below covers the SAME claim over the whole
+--   catalog with no name list to fall out of.  Keeping both would leave the narrower
+--   pair reading as coverage of a domain the wider one already contains.
 
 select is(
   (select p.prosecdef::text || '|' || p.provolatile::text || '|'
@@ -753,15 +691,42 @@ select is(
   '§ 1.4 person_audit_organization is DEFINER, STABLE, pinned and postgres-only — '
   'it decides audit-row readership, so it is not client-reachable');
 
+-- ---------------------------------------------------------------------------
+-- ⭐⭐ § 1.5 IS INVERTED, NOT DELETED — AND ITS DOMAIN IS FIXED IN THE SAME EDIT.
+--   It used to assert "exactly TWO functions still name the column"
+--   (`public.guard_profile_privileged_columns`, `public.handle_new_user`) over
+--   `nspname in ('app','public')`.  After the drop that expected set is EMPTY, so
+--   the cell had to be inverted or deleted.
+--   ⛔ INVERTING IT WITH THE OLD DOMAIN WOULD HAVE BEEN A FALSE ALL-CLEAR.  A THIRD
+--   body named the column and was never in the domain: `test_helpers.bootstrap`, in
+--   NEITHER schema.  It is the function `00_setup.sql` runs before EVERY suite in
+--   this tree, so an inverted cell scoped to app+public would have gone green while
+--   the one body whose failure aborts the entire pgTAP estate still named a column
+--   that no longer exists.  The domain is therefore the WHOLE CATALOG.
+--   ⭐ THE ZERO IS ANCHORED BY A DEFINITE FACT IN THE SAME STRING: `(none)` alone is
+--   an empty aggregate, and an empty aggregate is satisfied by a broken probe as
+--   readily as by a clean estate.  `column_present=false` is measured from
+--   `pg_attribute` by the same cell, so the pair says "the column is gone AND
+--   nothing still names it" rather than "my query found nothing".
+-- ---------------------------------------------------------------------------
 select is(
-  (select string_agg(n.nspname || '.' || p.proname, ' ' order by n.nspname, p.proname)
-     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname in ('app','public')
-      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'home_organization_id'),
-  'public.guard_profile_privileged_columns public.handle_new_user',
-  '§ 1.5 exactly TWO functions still name the column, and both are the column-drop '
-  'increment''s — they WRITE or GUARD it rather than deriving authority from it. '
-  '⚠ An enumeration, not a count: a newcomer reds by name');
+  (select 'column_present=' ||
+          (exists (select 1 from pg_attribute a
+                    where a.attrelid = 'public.profiles'::regclass
+                      and a.attname = 'home_organization_id'
+                      and not a.attisdropped))::text
+          || '|' ||
+          coalesce((select string_agg(n.nspname || '.' || p.proname, ' ' order by n.nspname, p.proname)
+                      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                     where regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'home_organization_id'),
+                   '(none)')),
+  'column_present=false|(none)',
+  '§ 1.5 ⭐⭐ THE COLUMN IS GONE AND NO FUNCTION BODY ANYWHERE STILL NAMES IT — over '
+  'the WHOLE catalog, not `app` + `public`, because the third body that named it '
+  '(`test_helpers.bootstrap`) was in neither schema and would have kept an inverted '
+  'app/public cell green while breaking every suite in the tree. Comment-stripped, '
+  'because a comment mentioning the dropped column is not a read. ⚠ An ENUMERATION, '
+  'not a count: a surviving body reds BY NAME');
 
 select ok(
   not has_function_privilege('anon', 'app.person_authority_orgs(uuid)', 'execute')
@@ -776,30 +741,25 @@ select ok(
 select is(
   (select count(*)::int from x_measured m join x_expect e using (caller_label, target_label)
      join x_targets t on t.label = m.target_label
-    where t.pop = 'P' and (m.old_mask, m.new_mask) is distinct from (e.old_mask, e.new_mask)),
+    where t.pop = 'P' and m.new_mask is distinct from e.new_mask),
   0,
-  '§ 2.1 all 200 org-tier cells match the expectation table written before the run');
+  '§ 2.1 all 200 org-tier cells (50 caller×target pairs × 4 capabilities) match the '
+  'expectation table written before the run');
 
 select ok(
-  (select bool_and(old_mask in ('TTTT','FFFF') and new_mask in ('TTTT','FFFF'))
+  (select bool_and(new_mask in ('TTTT','FFFF'))
      from x_measured m join x_targets t on t.label = m.target_label where t.pop = 'P'),
   '§ 2.2 ⭐ THE CAPABILITY AXIS IS INERT ON THE ORG TIER — MEASURED, NOT ASSUMED. '
-  'Every P cell agrees across all four capabilities on BOTH sides, because the org '
-  'arm returns before the dispatch and the footprint is empty. This is why a '
-  '"capability differential" built on 392''s population alone would be four '
-  'identical copies of a read-side result');
+  'Every P cell agrees across all four capabilities, because the org arm returns '
+  'before the dispatch and the footprint is empty. This is why a "capability '
+  'differential" built on 392''s population alone would be four identical copies of '
+  'a read-side result, and it is why population Q had to be constructed');
 
-select is(
-  (select string_agg(m.caller_label || '×' || m.target_label || ':'
-                     || case when m.old_mask = 'FFFF' then '↑' else '↓' end, ' '
-                     order by m.caller_label, m.target_label)
-     from x_measured m join x_targets t on t.label = m.target_label
-    where t.pop = 'P' and m.old_mask is distinct from m.new_mask),
-  'CA×P10:↓ CA×P3:↓ CA×P4:↓ CA×P8:↓ CA×P9:↓ CB×P4:↑ CB×P5:↑ CB×P7:↑ CB×P8:↑ CC×P10:↑',
-  '§ 2.3 the org-tier movement reproduces AE2.3a''s read-side matrix EXACTLY — the '
-  'same five widenings and five narrowings, now on the WRITE path. ⭐ Two '
-  'independently written predicates agreeing cell-for-cell is the cross-check; if '
-  'the write path had drifted from the read path, this is where it shows');
+-- ⛔ § 2.3 — "the org-tier MOVEMENT reproduces AE2.3a's read-side matrix exactly,
+--   the same five widenings and five narrowings" — is deleted with the column. Both
+--   matrices were movements OFF `home_organization_id`; there is no second movement
+--   left for this one to agree with, and re-pointing it at anything else would be a
+--   different claim wearing the cross-check's label.
 
 -- ===========================================================================
 -- § 3 — THE HOSPITAL-TIER / CAPABILITY DIFFERENTIAL (population Q).
@@ -807,18 +767,17 @@ select is(
 select is(
   (select count(*)::int from x_measured m join x_expect e using (caller_label, target_label)
      join x_targets t on t.label = m.target_label
-    where t.pop = 'Q' and (m.old_mask, m.new_mask) is distinct from (e.old_mask, e.new_mask)),
+    where t.pop = 'Q' and m.new_mask is distinct from e.new_mask),
   0,
   '§ 3.1 all 196 hospital-tier cells match the expectation table');
 
 select ok(
   (select count(*) from x_measured m join x_targets t on t.label = m.target_label
-    where t.pop = 'Q' and m.old_mask not in ('TTTT','FFFF')) >= 3
-  and (select count(*) from x_measured m join x_targets t on t.label = m.target_label
-        where t.pop = 'Q' and m.new_mask not in ('TTTT','FFFF')) >= 3,
+    where t.pop = 'Q' and m.new_mask not in ('TTTT','FFFF')) >= 3,
   '§ 3.2 THE FLOOR THAT STOPS § 3.1 BEING VACUOUS ON THE CAPABILITY AXIS: at least '
-  'three Q cells disagree across capabilities on EACH side. Without this, § 3.1 '
-  'could pass over a matrix where the axis is as inert as it is on P');
+  'three Q cells disagree ACROSS CAPABILITIES. Without this, § 3.1 could pass over a '
+  'matrix where the axis is as inert as it is on P, and § 3.3''s split would be the '
+  'only evidence that the INTERSECTION/SUBSET branch is reached at all');
 
 select is(
   (select string_agg(m.cap || '=' || m.new_v::text, ' ' order by c.ord)
@@ -828,8 +787,9 @@ select is(
   '§ 3.3 ⭐⭐ THE KEYSTONE CELL. A hospital_admin of ONE hospital in the newly '
   'located organisation gains `fields` and `credentials` (INTERSECTION) over a '
   'two-hospital footprint and is still refused `cpf_change` and `lifecycle` '
-  '(SUBSET). Under the column this actor reached NOTHING. ⛔ This is the cell the '
-  'drop would have moved silently, and no seeded persona can construct it');
+  '(SUBSET). ⛔ No seeded persona can construct this cell — org B carries no '
+  'hospital_admin, which is why HB1 is CONSTRUCTED — so ADR 0133 Amdt 1 r1''s split '
+  'is asserted HERE or nowhere');
 
 -- ---------------------------------------------------------------------------
 -- ⛔ § 3.4 WAS SPLIT (QA finding M10).  It asserted `count = 0` over
@@ -845,7 +805,7 @@ select is(
 select is(
   (select count(*)::int from x_matrix
     where target_label = 'Q4' and caller_label = 'HB1'
-      and (old_v or new_v)),
+      and new_v),
   0,
   '§ 3.4 ADR 0163 BOUND 4, MEASURED WHERE IT BINDS: HB1 administers a hospital in '
   'Q4''s retaining organisation, so the LOCATOR admits and the ORGANISATION scope '
@@ -856,7 +816,7 @@ select is(
 select is(
   (select count(*)::int from x_matrix
     where target_label = 'Q4' and caller_label in ('HA1','HAD')
-      and (old_v or new_v)),
+      and new_v),
   0,
   '§ 3.4b CONTROL — DENIED EARLIER, FOR A DIFFERENT REASON. HA1 and HAD administer '
   'hospitals in org A while Q4 locates to org B, so the shipped body returns false '
@@ -866,59 +826,21 @@ select is(
   'folding them into one aggregate made them look like');
 
 -- ===========================================================================
--- § 4 — WIDENINGS.  Pre-declared or it is a red.
+-- ⛔ § 4 (WIDENINGS) AND § 5 (NARROWINGS) ARE DELETED IN FULL WITH THE COLUMN.
+--
+--   All five cells were quantified over `new_v AND NOT old_v` or `old_v AND NOT
+--   new_v`, and old § 4.3 pinned the exact movement counts (48 / 44). None of it is
+--   statable once there is no `old_v`.
+--
+--   ⚠ WHAT IS GENUINELY LOST, STATED RATHER THAN GLOSSED: the ADR 0154 / PA-F13
+--   discipline — "every widening is pre-declared or it is a red" — was an assertion
+--   ABOUT THIS MIGRATION, and it has now served its purpose; the migration it gated
+--   is the one being completed. What replaces it for the shipped predicate's ongoing
+--   behaviour is the expectation table (§ 2.1 / § 3.1), which pins EVERY cell rather
+--   than only the moving ones, and whose non-vacuity floor is § 3.2. A pinned matrix
+--   is the stronger instrument for a predicate that is no longer moving; it was the
+--   weaker one while it was.
 -- ===========================================================================
-select is(
-  (select count(*)::int from x_matrix m
-    where m.new_v and not m.old_v
-      and not exists (select 1 from x_declared_widening d
-                       where (d.caller_label, d.target_label, d.cap)
-                           = (m.caller_label, m.target_label, m.cap))),
-  0,
-  '§ 4.1 EVERY MEASURED WIDENING IS PRE-DECLARED. An undeclared widening is a red, '
-  'per ADR 0154 / plan PA-F13');
-
-select is(
-  (select count(*)::int from x_declared_widening d
-    where not exists (select 1 from x_matrix m
-                       where (m.caller_label, m.target_label, m.cap)
-                           = (d.caller_label, d.target_label, d.cap)
-                         and m.new_v and not m.old_v)),
-  0,
-  '§ 4.2 and the hand list carries NO cell that does not actually widen — the '
-  'cross-check between two independently written artefacts, so they cannot drift '
-  'into agreement. Combined with § 4.1 the two sets are EQUAL (48 cells)');
-
-select ok(
-  (select count(*) from x_matrix where old_v) between 60 and 200
-  and (select count(*) from x_matrix where new_v) between 60 and 200
-  and (select count(*) from x_matrix where new_v and not old_v) = 48
-  and (select count(*) from x_matrix where old_v and not new_v) = 44,
-  '§ 4.3 THE NON-VACUITY FLOOR: both predicates are genuinely mixed over the 396 '
-  'cells, and the movement is 48 widenings / 44 narrowings. A match between two '
-  'CONSTANTS would satisfy § 4.1 and § 5.1 and prove nothing');
-
--- ===========================================================================
--- § 5 — NARROWINGS.  Each one accepted in writing.
--- ===========================================================================
-select is(
-  (select count(*)::int from x_matrix m
-    where m.old_v and not m.new_v
-      and not exists (select 1 from x_declared_narrowing d
-                       where (d.caller_label, d.target_label, d.cap)
-                           = (m.caller_label, m.target_label, m.cap))),
-  0,
-  '§ 5.1 every measured narrowing carries a written disposition — narrowing can be '
-  'wrong and safe, but it may not be SILENT');
-
-select is(
-  (select count(*)::int from x_declared_narrowing d
-    where not exists (select 1 from x_matrix m
-                       where (m.caller_label, m.target_label, m.cap)
-                           = (d.caller_label, d.target_label, d.cap)
-                         and m.old_v and not m.new_v)),
-  0,
-  '§ 5.2 and no accepted-narrowing line describes a cell that does not narrow');
 
 -- ===========================================================================
 -- § 6 — THE RULING THAT WAS NOT TAKEN, MEASURED BESIDE THE ONE THAT WAS.
@@ -944,15 +866,11 @@ select is(
   'SUBSET wording a borrowed hospital-tier label and amended the ADR, and a ruling '
   'that a reading was NOT intended is worth more with the alternative measured');
 
-select is(
-  (select count(*)::int from x_matrix where old_v and not alt_v and new_v)::text
-    || '/' || (select count(*)::int from x_matrix where not old_v and new_v and not alt_v)::text,
-  '12/4',
-  '§ 6.3 and the direction is stated: the counterfactual would create 12 NEW '
-  'narrowings (an org_admin unable to correct an ex-employee''s name) and would '
-  'cancel 4 already-declared widenings. Bound 3 of the same ADR — "grants nothing '
-  'beyond what an org_admin of an ACTIVE affiliation would hold" — contradicts it, '
-  'and such an admin holds all four');
+-- ⛔ § 6.3 — the DIRECTION split of § 6.2's sixteen cells ("12 new narrowings, 4
+--   cancelled widenings") — is deleted: both halves were partitioned by `old_v`, and
+--   "cancels an already-declared widening" refers to a hand list that no longer
+--   exists. § 6.2's magnitude and § 6.4's polarity survive, and between them they
+--   still say what the counterfactual would do and which reading shipped.
 
 select ok(
   (select new_v from x_matrix where caller_label='CA' and target_label='P2' and cap='fields')
@@ -985,39 +903,13 @@ select is(
   'can always read the audit row they caused (audit_log_select''s '
   'commission_id-IS-NULL arm gates exactly on this)');
 
-select is(
-  (select count(*)::int from x_matrix m
-     join x_callers cl on cl.label = m.caller_label
-     join x_targets tg on tg.label = m.target_label
-     join x_snapshot sn on sn.person_id = tg.target
-    where m.new_v and tg.label in ('P1','P2','P6','Q1','Q5')
-      and app.person_audit_organization(cl.caller, tg.target)
-          is distinct from sn.home_organization_id),
-  0,
-  '§ 7.2 where the located organisation and the column COINCIDE — which is the whole '
-  'of seed.sql — the attributed organisation is byte-identical to what the column '
-  'produced. The audit trail''s readership does not move for anybody real');
-
-select is(
-  (select string_agg(m.caller_label || '×' || m.target_label || '→' || og.name, ' '
-                     order by m.caller_label, m.target_label)
-     from (select distinct caller_label, target_label from x_matrix where new_v) m
-     join x_callers cl on cl.label = m.caller_label
-     join x_targets tg on tg.label = m.target_label
-     join x_snapshot sn on sn.person_id = tg.target
-     join public.organizations og
-       on og.id = app.person_audit_organization(cl.caller, tg.target)
-    where app.person_audit_organization(cl.caller, tg.target)
-          is distinct from sn.home_organization_id),
-  'CB×P4→Rede Hospitalar B CB×P5→Rede Hospitalar B CB×P7→Rede Hospitalar B '
-  'CB×P8→Rede Hospitalar B CB×Q2→Rede Hospitalar B CB×Q3→Rede Hospitalar B '
-  'CB×Q4→Rede Hospitalar B CB×Q6→Rede Hospitalar B CB×Q7→Rede Hospitalar B '
-  'CC×P10→Rede Hospitalar C HB1×Q3→Rede Hospitalar B HB1×Q6→Rede Hospitalar B '
-  'HB1×Q7→Rede Hospitalar B',
-  '§ 7.3 the thirteen cells where audit-row READERSHIP moves off the column, '
-  'pre-declared by enumeration. Each is a cell where the person''s employment is '
-  'genuinely elsewhere, so the row becomes readable by the admins who can act on '
-  'the person and stops being readable by the ones who cannot');
+-- ⛔ § 7.2 (attribution byte-identical to the column where the two coincide) and
+--   § 7.3 (the thirteen cells where audit-row readership moved OFF the column) are
+--   deleted: both are `is distinct from sn.home_organization_id`, and both the
+--   column and its snapshot are gone. ⚠ Their subject was the MOVE; § 7.1 above
+--   carries the property that outlives it — the attributed organisation is always
+--   one the target's affiliations locate AND one the actor administers — and it
+--   quantifies over every authorized cell rather than over thirteen named ones.
 
 select is(
   (select og.name from public.organizations og
@@ -1043,40 +935,31 @@ select ok(
   'to the platform-admin-only arm rather than to an organisation nobody vetted');
 
 -- ===========================================================================
--- § 8 — THE SEED POPULATION.  The reason this change is a mechanism change.
+-- § 8 — THE SEED POPULATION.
 -- ===========================================================================
 select ok((select count(*) from x_seed) >= 30,
   '§ 8.1 the seed snapshot is floored at 30 persons rather than pinned to an exact '
   'count, because catalog-driven seed counts drift and a pinned one reds for the '
   'wrong reason');
 
-select is(
-  (select count(*)::int
-     from x_seed s
-     cross join (values ((select ca from pg_temp.k())),
-                        ((select cb from pg_temp.k())),
-                        ((select cc from pg_temp.k())),
-                        ((select ha1 from pg_temp.k())),
-                        ((select had from pg_temp.k()))) as a(actor)
-     cross join x_caps cp
-    where pg_temp.can_admin_with_orgs(
-            cp.cap, s.person_id, a.actor,
-            case when s.home_organization_id is null then '{}'::uuid[]
-                 else array[s.home_organization_id] end)
-          is distinct from app.can_administer_person_for(cp.cap, s.person_id, a.actor)),
-  0,
-  '§ 8.2 ZERO MOVEMENT across the entire seed roster, for five callers and all four '
-  'capabilities. ⛔ This is what makes the change a mechanism change AND what makes '
-  'every other seeded suite blind to it: home org and located org coincide for every '
-  'seeded person, so nothing outside this file could have noticed');
+-- ⛔ § 8.2 — "ZERO MOVEMENT across the entire seed roster" — is deleted with the
+--   column. It was the cell that explained why every OTHER seeded suite was blind to
+--   this change: home org and located org coincided for every seeded person, so the
+--   two predicates agreed everywhere the seed could reach. That sentence is now
+--   history, not a measurement: there is one predicate. § 8.3 survives as the floor
+--   that keeps the seed population a live subject rather than a silent zero.
 
 select ok(
   (select count(*)
      from x_seed s
      cross join x_caps cp
     where app.can_administer_person_for(cp.cap, s.person_id, (select ca from pg_temp.k()))) >= 25,
-  '§ 8.3 and the floor that stops § 8.2 being agreement between two silent falses: '
-  'org_admin A holds at least 25 (person, capability) cells over the seed');
+  '§ 8.3 THE SEED FLOOR: org_admin A holds at least 25 (person, capability) cells '
+  'over the seed roster. ⚠ It used to be the floor under old § 8.2''s zero-movement '
+  'claim; with that cell gone it stands alone as the assertion that the shipped '
+  'predicate ADMITS over real seeded people — every other cell in this file is '
+  'measured over CONSTRUCTED fixtures, so without it a predicate that only ever '
+  'admitted inside this transaction would go unnoticed');
 
 -- ===========================================================================
 -- § 9 — THE FAITHFULNESS CONTROL, AND ARCHITECTURE RULE 13.
@@ -1084,11 +967,14 @@ select ok(
 select is(
   (select count(*)::int from x_matrix where ctl_v is distinct from new_v),
   0,
-  '§ 9.1 ⭐ THE CONTROL THAT MAKES THE OLD SIDE TRUSTWORTHY. The reproduction, fed '
+  '§ 9.1 ⭐ THE DECOMPOSITION CONTROL. The hand reproduction, fed '
   'app.person_authority_orgs(target), equals the SHIPPED predicate on all 396 cells '
-  '— so the only difference between the two sides of this differential is the '
-  'ORGANISATION LIST. Any drift in the reproduced D2 / footprint / INTERSECTION / '
-  'SUBSET logic reds HERE instead of masquerading as a finding in § 4 or § 5');
+  '— so the shipped function factorises into "resolve the organisations" ∘ "this '
+  'capability logic", and this cell pins the SECOND half. ⚠ It used to be the cell '
+  'that made the deleted `old_v` side trustworthy; it is load-bearing for a '
+  'different reason now, and a bigger one: § 6 varies the FIRST half alone to measure '
+  'the counterfactual ruling, which is only a statement about the organisation list '
+  'because the logic beside it is pinned here');
 
 -- ---------------------------------------------------------------------------
 -- ⛔ § 9.2'S TWO PRECONDITIONS (QA finding B4).  Without them § 9.2 is
@@ -1152,14 +1038,16 @@ select is(
 -- ⛔ THIS SECTION EXISTS BECAUSE OF A MEASURED GAP, NOT FOR COMPLETENESS. `385` and `386`
 --    are the person-door suites and they assert the audit row's `action`, `actor_id` and
 --    `metadata` — and NEVER its `organization_id` (grep-measured over both files before
---    this section was written). That value is precisely what this increment moves, and it
---    is a READ-AUTHORITY value: `audit_log_select` admits a commission-less row to
---    `app.is_org_admin_of(organization_id)`. Without § 10 the six kernels' half of the
---    change would ship with no assertion anywhere.
+--    this section was written). That value is a READ-AUTHORITY value: `audit_log_select`
+--    admits a commission-less row to `app.is_org_admin_of(organization_id)`. Without § 10
+--    the six kernels' attribution is asserted NOWHERE IN THE TREE — and after this
+--    re-cut § 10.1 is, with § 7.1, the only place `person_audit_organization`'s output is
+--    checked against anything at all.
 --
--- The actor is `orgadmin.b` over Q7 — an actor whose authority exists ONLY under the new
--- predicate (old = FFFF, new = TTTT), so every row here is attributed by a path that did
--- not exist before this migration.
+-- The actor is `orgadmin.b` over Q7 — a person ACTIVELY affiliated to org B and to no
+-- other organisation, administered by B's org_admin and by nobody in org A. § 10.3 is
+-- the deny half on the same six doors with `orgadmin.a` as the actor, so the six rows
+-- § 10.1 counts are attributed by an authority that is measured in both polarities.
 -- ===========================================================================
 create temp table x_kernel_audit (action text, organization_id uuid);
 create temp table x_kernel_cred (id uuid);
@@ -1261,10 +1149,12 @@ select is(
   (select count(*)::int from x_kernel_audit
     where organization_id = (select org_a from pg_temp.k()))::text,
   '6/0',
-  '§ 10.2 THE DIFFERENTIAL STATEMENT, with its own floor: exactly SIX rows were written '
-  '(so § 10.1 is not true of an empty set) and ZERO carry the column''s value. Under the '
-  'old predicate every one of these six would have been attributed to org A — readable by '
-  'admins with no authority over this person, and NOT readable by the admin who acted');
+  '§ 10.2 THE FLOOR UNDER § 10.1, plus the negative half: exactly SIX rows were written '
+  '(so § 10.1 is not true of an empty set) and ZERO are attributed to org A — the '
+  'organisation that locates NOTHING about Q7 and whose admins § 10.3 shows refused. An '
+  'audit row attributed to org A would be readable by admins with no authority over this '
+  'person and unreadable by the admin who acted, which is the failure `audit_log_select`''s '
+  'commission_id-IS-NULL arm makes possible');
 
 select is(
   pg_temp.kernel_sqlstates(
@@ -1272,10 +1162,11 @@ select is(
     (select target from x_targets where label = 'Q7'),
     (select id from x_kernel_cred)),
   'finalize=42501 fields=42501 upsert=42501 delete=42501 suspend=42501 active=42501',
-  '§ 10.3 THE DENY POLARITY, on the same six doors: `orgadmin.a` — who administered this '
-  'person under the column and does not under the affiliations — is refused by every one '
-  'of them. ⭐ Its positive control is § 10.1 itself: the identical six calls SUCCEEDED for '
-  '`orgadmin.b`, so this is not six doors that refuse everybody');
+  '§ 10.3 THE DENY POLARITY, on the same six doors: `orgadmin.a` — whom Q7''s affiliations '
+  'locate nothing for, and whom § 3.1 records as holding FFFF on the CA×Q7 row — is '
+  'refused by every one of them, with the SAME 42501. ⭐ Its positive control is § 10.1 '
+  'itself: the identical six calls SUCCEEDED for `orgadmin.b`, so this is not six doors '
+  'that refuse everybody');
 
 select * from finish();
 rollback;

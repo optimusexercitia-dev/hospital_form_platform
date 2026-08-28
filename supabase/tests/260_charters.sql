@@ -37,7 +37,7 @@ grant select on o to authenticated;
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
   select '00000000-0000-0000-0000-000000000000', (select outsider from o),
          'authenticated', 'authenticated', (select outsider from o) || '@test', now(), now();
-update public.profiles set full_name = 'Outsider', home_organization_id = (select org_b from k)
+update public.profiles set full_name = 'Outsider'
   where id = (select outsider from o);
 
 -- Seed one charter per commission as the owner role (RLS bypassed → set up the world).

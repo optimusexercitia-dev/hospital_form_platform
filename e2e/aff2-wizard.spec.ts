@@ -31,10 +31,12 @@ import { uniqueCpf } from './helpers/cpf'
  *     (outcome B).
  *   - Invite email lands (Mailpit): the same env-gated skip as above.
  *
- * Fixture for the foreign-org case: `solo.c@test.local`, home_organization_id
+ * Fixture for the foreign-org case: `solo.c@test.local`, affiliated to
  * `0c000000-0000-0000-0000-00000000000c` — a THIRD, unrelated org, CPF `52998224725`
  * (seed.sql). Chosen by querying the live catalog for a seeded CPF whose owner's
- * `home_organization_id` is NOT Rede A, rather than assuming a name.
+ * organisation is NOT Rede A, rather than assuming a name.
+ * ⚠ Said `home_organization_id` until the AE2 drop; the fixture's org is unchanged, the
+ * substrate that expresses it is now `organization_affiliations`.
  */
 
 const FOREIGN_ORG_CPF = '52998224725'

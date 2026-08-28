@@ -82,14 +82,6 @@ from (values
   ('0aff3001-0000-0000-0000-0000000000b4'::uuid, 'aff3.active@test.local')    -- ACTIVE H1 affiliation (control)
 ) as s(u, e);
 
-update public.profiles set home_organization_id = '0aff3001-0000-0000-0000-00000000000a'
- where id in ('0aff3001-0000-0000-0000-0000000000a1','0aff3001-0000-0000-0000-0000000000a2',
-              '0aff3001-0000-0000-0000-0000000000d1','0aff3001-0000-0000-0000-0000000000b1',
-              '0aff3001-0000-0000-0000-0000000000b2','0aff3001-0000-0000-0000-0000000000b3',
-              '0aff3001-0000-0000-0000-0000000000b4');
-update public.profiles set home_organization_id = '0aff3001-0000-0000-0000-00000000000b'
- where id = '0aff3001-0000-0000-0000-0000000000a3';
-
 update public.profiles set full_name = 'AFF3 Pessoa Desligada'
  where id = '0aff3001-0000-0000-0000-0000000000b1';
 

@@ -56,7 +56,7 @@ insert into public.hospitals (id, organization_id, name, slug)
 values ('00000000-0000-0000-0000-00000000f003', '00000000-0000-0000-0000-00000000f002',
         'Hosp Foreign', 'hosp-foreign-f003');
 update public.profiles
-   set full_name = 'StaffAdmin F', home_organization_id = '00000000-0000-0000-0000-00000000f002'
+   set full_name = 'StaffAdmin F'
  where id = '00000000-0000-0000-0000-00000000f001';
 insert into public.commissions (id, name, slug, created_by, hospital_id)
 values ('00000000-0000-0000-0000-00000000f004', 'Comissão F', 'comm-f-f004',

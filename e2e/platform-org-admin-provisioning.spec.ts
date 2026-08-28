@@ -136,12 +136,24 @@ test('MEM2-1: the platform admin seats an org_admin by e-mail, through the door,
   // the platform admin's uid iff the action forwarded the authorized session's actor.
   expect(row).toBe(`${PLATFORM_UID}|<null>`)
 
-  // The action's other claim: a tenant user needs a home organisation, so the
-  // invited profile is anchored to the org it was seated on.
-  const homeOrg = sql(
-    `select coalesce(home_organization_id::text,'<null>') from public.profiles where email = '${INVITEE}';`,
+  // The action's other claim: a tenant user must end up BELONGING to the org it was
+  // seated on. ⭐ THE SUBSTRATE CHANGED AND THE ASSERTION GOT STRONGER, not weaker.
+  // This read `profiles.home_organization_id` until the AE2 drop — a column
+  // `handle_new_user` copied out of invite metadata, so it asserted that the INVITE
+  // carried the right org, and would have stayed green even if the seating produced no
+  // tenancy at all. The org association now comes from `app.grant_role_impl` →
+  // `app.ensure_provisioned_org_affiliation` (ADR 0166), so the honest question is
+  // whether a LIVE affiliation exists — which is also what the directory, the pickers
+  // and every authority predicate actually read.
+  //
+  // ⚠ Asserted as an exact `1|<tense>` rather than a bare count: a row that exists but
+  // is ended-or-voided is not a tenancy, and `count >= 1` would not know the difference.
+  const orgTenancy = sql(
+    `select count(*)::text || '|' || coalesce(bool_or(oa.ended_on is null and oa.voided_at is null)::text,'none') ` +
+      `from public.organization_affiliations oa join public.profiles p on p.id = oa.principal_id ` +
+      `where p.email = '${INVITEE}' and oa.organization_id = '${ORG_B}';`,
   )
-  expect(homeOrg).toBe(ORG_B)
+  expect(orgTenancy).toBe('1|true')
 })
 
 test('MEM2-2: re-provisioning the same person on the same organisation stays at ONE row', async ({

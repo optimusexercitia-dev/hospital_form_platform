@@ -74,12 +74,17 @@ $seed_select$;
 
 -- ---------------------------------------------------------------------------
 -- User-registration: organizations + hospitals are created FIRST (before the
--- auth.users loop) so each tenant user's profiles.home_organization_id FK is
--- satisfiable at handle_new_user trigger time (the trigger reads the org from
--- user_metadata, mirroring the real invite path). created_by is set to NULL here
--- and patched to the vendor after it exists (breaks the users<->orgs FK cycle;
--- organizations.created_by is nullable + cosmetic). commissions/memberships stay
--- below (they depend on the users). Org/hospital ids are UNCHANGED.
+-- auth.users loop) so that every org a persona is anchored to already exists by the
+-- time the anchor is written.
+-- ⚠ CORRECTED at the AE2 drop (20261003006500): this said the orgs must exist so
+--   `profiles.home_organization_id`'s FK "is satisfiable at handle_new_user trigger
+--   time". That column is gone and the trigger no longer writes any org at all. The
+--   ordering still holds, for a different reason — `organization_affiliations`
+--   carries the FK now — so the rule survived while its stated cause did not.
+-- created_by is set to NULL here and patched to the vendor after it exists (breaks
+-- the users<->orgs FK cycle; organizations.created_by is nullable + cosmetic).
+-- commissions/memberships stay below (they depend on the users). Org/hospital ids
+-- are UNCHANGED.
 -- ---------------------------------------------------------------------------
 insert into public.organizations (id, name, slug, created_by) values
   ('0c000000-0000-0000-0000-00000000000a', 'Rede Hospitalar A', 'rede-a', null),
@@ -102,16 +107,49 @@ insert into public.hospitals (id, organization_id, name, slug) values
   ('05000000-0000-0000-0000-00000000000c', '0c000000-0000-0000-0000-00000000000c', 'Hospital Unico C', 'unico-c');
 
 -- ---------------------------------------------------------------------------
+-- ⭐ THE PERSONA→ORG CARRIER (AE2 drop, 20261003006500).
+--
+-- The org-affiliation seed further down USED TO derive its rows from
+-- `profiles.home_organization_id`. That column is gone, and its honest replacement
+-- is the SAME `u ->> 'org'` the persona array already carries — but the array is a
+-- plpgsql variable inside the `do $$` block below, invisible to the top-level
+-- statement that needs it. This table carries the pairing across that boundary.
+--
+-- ⛔ WHY NOT A LITERAL PERSONA LIST. That is the one replacement the affiliation
+--    block's own header forbids, and it forbids it for a reason that outlived the
+--    column: a hand list must be edited every time a persona is added, and the
+--    failure mode of forgetting is a persona who is invisible in the directory for
+--    reasons no test explains. Deriving keeps that property exactly as it was.
+--    ⚠ If you are here to "simplify" this into an `insert … values (…)` list: that
+--      is the regression, not the cleanup.
+--
+-- A temp table rather than moving the insert into the `do $$` block, because the
+-- affiliation insert must stay VISIBLY ADJACENT to the `hospital_affiliations`
+-- insert it has to precede (see that block's ordering warning). Relocating it ~250
+-- lines up would leave that ordering rule with its subject off-screen.
+-- ---------------------------------------------------------------------------
+create temporary table seed_persona_org (
+  principal_id    uuid primary key,
+  organization_id uuid not null
+);
+
+-- ---------------------------------------------------------------------------
 -- Auth users. We insert directly into auth.users; the on_auth_user_created
 -- trigger creates the matching profiles row. We then patch full_name/is_admin.
 -- A confirmed email + bcrypt password lets these users log in locally.
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  -- User-registration: `org` anchors each TENANT user's profiles.home_organization_id
-  -- (threaded into user_metadata → set by handle_new_user, exactly like the real
-  -- invite path). The vendor carries `admin=true` (→ app_metadata bootstrap_admin,
-  -- the service-role-only channel) and NO org — it is legitimately org-less.
+  -- `org` names the organization each TENANT persona is anchored to. It is recorded
+  -- into `seed_persona_org` by the loop below and becomes an `organization_affiliations`
+  -- row further down.
+  -- ⚠ CORRECTED at the AE2 drop: `org` used to be threaded into user_metadata and
+  --   written to `profiles.home_organization_id` by handle_new_user. That column is
+  --   dropped and the metadata key is no longer read by anything, so the key is no
+  --   longer written here — the affiliation is now the ONLY anchor, not the second of two.
+  -- The vendor carries `admin=true` (→ app_metadata bootstrap_admin, the
+  -- service-role-only channel) and NO org — it is legitimately org-less, and that
+  -- absence is what keeps it out of the affiliation derivation.
   --   org-a = 0c000000-…-00a  (CCIH + Farmácia)   org-b = 0c000000-…-00b
   v_org_a_lit text := '0c000000-0000-0000-0000-00000000000a';
   v_org_b_lit text := '0c000000-0000-0000-0000-00000000000b';
@@ -251,10 +289,11 @@ begin
         then '{"provider":"email","providers":["email"],"bootstrap_admin":true}'::jsonb
         else '{"provider":"email","providers":["email"]}'::jsonb
       end,
-      -- user_metadata carries full_name + (for tenant users) the home org anchor.
+      -- user_metadata carries full_name. The `home_organization_id` key left this
+      -- object at the AE2 drop (20261003006500): handle_new_user no longer reads it,
+      -- and nothing else in the database ever did (measured over `pg_proc.prosrc`).
       jsonb_strip_nulls(jsonb_build_object(
-        'full_name', u ->> 'name',
-        'home_organization_id', u ->> 'org'
+        'full_name', u ->> 'name'
       )),
       now(), now(), '', '', '', ''
     );
@@ -276,6 +315,17 @@ begin
     update public.profiles
     set full_name = u ->> 'name'
     where id = (u ->> 'id')::uuid;
+
+    -- Record the persona→org pairing for the affiliation seed further down. Both
+    -- filters are transcribed from the predicate this replaced (`home_organization_id
+    -- is not null and not is_admin`), read off the persona JSON rather than off
+    -- `profiles`: no `org` key ⇒ no anchor, and `admin` ⇒ excluded. Today only the
+    -- vendor satisfies either, and it satisfies both; keeping the pair means an
+    -- admin persona that DID carry an org would still be excluded, exactly as before.
+    if (u ->> 'org') is not null and not coalesce((u ->> 'admin')::boolean, false) then
+      insert into seed_persona_org (principal_id, organization_id)
+      values ((u ->> 'id')::uuid, (u ->> 'org')::uuid);
+    end if;
   end loop;
 
   -- Multi-tenancy (Phase C): the VENDOR platform_admin is platform@test.local —
@@ -375,16 +425,22 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
 --    the other way, `supabase db reset` fails at seed time — which is exactly the
 --    feedback that makes this ordering self-enforcing rather than a comment.
 --
--- ⭐ DERIVED, NOT HAND-LISTED. The set is "every non-admin profile with a
---    `home_organization_id`" — the SAME predicate migration 20261003003900 backfills
---    on, written once. A hand list of persona UUIDs would have to be edited every time
---    a persona is added, and the failure mode of forgetting is a persona who is
---    invisible in the directory for reasons no test explains. Deriving also keeps the
---    seed honest about what D10 actually migrates off.
---    Both filters are live at this point: `is_admin` is patched above (the vendor
---    `platform@test.local` is the only one, and it is also the only org-less profile),
---    so either filter alone would do — both are kept because they are the backfill's
---    predicate, quoted rather than paraphrased.
+-- ⭐ DERIVED, NOT HAND-LISTED. A hand list of persona UUIDs would have to be edited
+--    every time a persona is added, and the failure mode of forgetting is a persona who
+--    is invisible in the directory for reasons no test explains.
+--
+--    ⚠ THE SOURCE CHANGED AT THE AE2 DROP (20261003006500); THE PROPERTY DID NOT.
+--      This used to read "every non-admin profile with a `home_organization_id`",
+--      quoting the predicate that migration 20261003003900 backfilled on. That column
+--      is dropped, so the predicate has no subject — and the obvious replacement, a
+--      literal list of persona ids, is precisely what the paragraph above forbids.
+--      The set is now derived from `seed_persona_org`, materialised by the auth.users
+--      loop from the SAME `u ->> 'org'` that names each persona's organization. That
+--      is the honest source: it is where the org was coming from all along, one hop
+--      earlier, before the dropped column ever held it.
+--
+--    ⛔ DO NOT "SIMPLIFY" THIS INTO A VALUES LIST. See the carrier's own header,
+--       above the auth.users loop.
 --
 -- `started_on` is a fixed 2023-01-01, deliberately EARLIER than the earliest seeded
 -- hospital affiliation (2023-03-01, Dr. John at central-a): an org affiliation that
@@ -402,10 +458,51 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
 --    with ~900 tests, and would move Rede B's roster count from 5 to 6.
 -- ---------------------------------------------------------------------------
 insert into public.organization_affiliations (principal_id, organization_id, started_on)
-select pr.id, pr.home_organization_id, '2023-01-01'::date
-  from public.profiles pr
- where pr.home_organization_id is not null
-   and not pr.is_admin;
+select spo.principal_id, spo.organization_id, '2023-01-01'::date
+  from seed_persona_org spo;
+
+-- ⭐ THE DERIVATION IS SELF-CHECKING, IN TWO WAYS THAT CAN BOTH ACTUALLY FAIL.
+--
+-- A carrier that silently arrived EMPTY would seed zero affiliations and leave every
+-- persona invisible to every directory read — a failure that surfaces ~900 tests later
+-- as an unexplained roster count. A MISSING carrier already fails loudly (relation does
+-- not exist); the first check below covers the empty case.
+--
+-- ⛔ THE SECOND CHECK IS DELIBERATELY SOURCED FROM `profiles`, NOT FROM THE CARRIER.
+--    The obvious "every carrier row got an affiliation row" check is VACUOUS: it
+--    restates the insert immediately above it and cannot fail. Counting the profiles
+--    that ended up with NO affiliation compares the outcome against an INDEPENDENT
+--    source, and is falsifiable in both directions — a new persona whose JSON forgot
+--    its `org` key makes it 2, and accidentally anchoring the org-less vendor makes
+--    it 0. Both are exactly the mistakes this seed cannot afford to make quietly.
+--
+-- ⚠ The literal 1 is the org-less VENDOR (`platform@test.local`), the only profile
+--   that legitimately holds no organization affiliation. If a second genuinely
+--   org-less persona is ever added, bump it — deliberately, having decided that it is
+--   org-less on purpose. That prompt is the point of the constant.
+do $$
+declare
+  v_personas   int;
+  v_unanchored int;
+begin
+  select count(*) into v_personas from seed_persona_org;
+  if v_personas = 0 then
+    raise exception 'seed: seed_persona_org is empty — the auth.users loop recorded no persona/org pairing';
+  end if;
+
+  select count(*) into v_unanchored
+    from public.profiles pr
+   where not exists (
+     select 1 from public.organization_affiliations oa
+      where oa.principal_id = pr.id);
+  if v_unanchored <> 1 then
+    raise exception
+      'seed: % profiles hold no organization affiliation (expected exactly 1, the org-less vendor); % personas were carried',
+      v_unanchored, v_personas;
+  end if;
+end $$;
+
+drop table seed_persona_org;
 
 -- Q2 hospital-scoped directory: the hospital_admin's employment link to central-a.
 -- AFF W1 (ADR 0097 D1/D3): this used to be `profiles.home_hospital_id`, which was

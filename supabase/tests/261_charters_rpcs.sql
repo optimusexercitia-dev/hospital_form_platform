@@ -51,9 +51,6 @@ grant select on u to authenticated;
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
   select '00000000-0000-0000-0000-000000000000', x, 'authenticated', 'authenticated', x || '@test', now(), now()
   from (select cad as x from u union all select assignee from u union all select outsider from u) s;
-update public.profiles set home_organization_id = (select org_b from k)
-  where id in (select cad from u union all select assignee from u union all select outsider from u);
-
 -- Controlled documents in comm_x for the upsert link-validation tests: a valid
 -- regimento (doc_type='bylaws' after the ADR-0081 B0 anglicization) + a wrong-type
 -- (sop) doc. Code is trigger-minted.
@@ -359,8 +356,6 @@ insert into public.organizations (id, name, slug)
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
   select '00000000-0000-0000-0000-000000000000', admin, 'authenticated', 'authenticated',
          admin || '@test', now(), now() from xorg;
-update public.profiles set home_organization_id = (select org from xorg)
-  where id = (select admin from xorg);
 insert into public.memberships (principal_id, organization_id, role)
   select admin, org, 'org_admin' from xorg;
 
@@ -371,8 +366,6 @@ grant select on hadm to authenticated;
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
   select '00000000-0000-0000-0000-000000000000', ha, 'authenticated', 'authenticated',
          ha || '@test', now(), now() from hadm;
-update public.profiles set home_organization_id = (select org_b from k)
-  where id = (select ha from hadm);
 insert into public.memberships (principal_id, organization_id, hospital_id, role)
   select (select ha from hadm), (select org_b from k), (select hosp_b from k), 'hospital_admin';
 

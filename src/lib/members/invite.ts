@@ -31,12 +31,14 @@ export interface ResolvedUser {
  * app's `/auth/confirm` route so the invitee lands on the existing
  * `/auth/confirm` → `/convite` first-password flow.
  *
- * `organizationId` is the organisation the caller is binding the identity into. On the
- * NEW-user branch it is also seeded as `user_metadata.home_organization_id`, which
- * `handle_new_user` reads to anchor the profile — a descriptive anchor only, NOT an
- * authorization input (authz flows through memberships + RLS). ⛔ That metadata key
- * outlives this increment on purpose: the column drop owns `handle_new_user`, and
- * rewriting one function twice in one phase is what AE2.2 avoided.
+ * `organizationId` is the organisation the caller is binding the identity into. It is
+ * used ONLY by the tenant check below.
+ *
+ * ⛔ IT IS NO LONGER SEEDED INTO `user_metadata` (AE2 drop). This doc used to say the
+ * `home_organization_id` key "outlives this increment on purpose: the column drop owns
+ * `handle_new_user`" — that increment is THIS one, so the key goes with it. ⚠ Leaving it
+ * would have been SILENT: `handle_new_user` simply stops reading it, nothing errors, and
+ * a metadata field that looks authoritative is read by nobody.
  *
  * ⭐ AE2.4 INCREMENT 4 — THE TENANT CHECK NO LONGER READS `home_organization_id`.
  * QA finding M14 / ADR 0165 § Consequences: this function was classified in AE2.1's
@@ -142,10 +144,7 @@ export async function resolveOrInviteUser(
   }
 
   const { data: invite, error: inviteError } =
-    await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: { home_organization_id: organizationId },
-    })
+    await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
 
   if (inviteError || !invite?.user) {
     throw inviteError ?? new Error('invite did not return a user')

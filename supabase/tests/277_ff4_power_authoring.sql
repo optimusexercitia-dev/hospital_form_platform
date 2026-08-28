@@ -210,7 +210,7 @@ insert into public.commissions (id, name, slug, created_by, hospital_id)
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
   values ('00000000-0000-0000-0000-000000000000', 'ff4f0000-0000-0000-0000-000000000004',
           'authenticated', 'authenticated', 'ff4f0000-0000-0000-0000-000000000004@test', now(), now());
-update public.profiles set full_name = 'SA Estrangeira', home_organization_id = 'ff4f0000-0000-0000-0000-000000000001'
+update public.profiles set full_name = 'SA Estrangeira'
   where id = 'ff4f0000-0000-0000-0000-000000000004';
 insert into public.memberships (commission_id, principal_id, role)
   values ('ff4f0000-0000-0000-0000-000000000003', 'ff4f0000-0000-0000-0000-000000000004', 'staff_admin');

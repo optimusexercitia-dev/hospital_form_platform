@@ -45,7 +45,6 @@ if (!SUPABASE_SERVICE_KEY) {
   )
 }
 
-const ORG_A = '0c000000-0000-0000-0000-00000000000a'
 const COMMISSION_A = 'a0000000-0000-0000-0000-0000000000a1' // CCIH
 
 // ---------------------------------------------------------------------------
@@ -103,7 +102,6 @@ async function makeProbeUser(
       email,
       password: 'Test1234!',
       email_confirm: true,
-      user_metadata: { home_organization_id: ORG_A },
     },
   })
   expect(resp.status()).toBe(200)

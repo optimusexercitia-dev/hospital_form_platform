@@ -23,7 +23,7 @@
 -- The two intentionally differ on the email_confirmed_at dimension.
 
 begin;
-select plan(41);
+select plan(40);
 
 -- Seed persona ids (see supabase/seed.sql).
 create temp table ids on commit drop as select
@@ -44,7 +44,7 @@ grant select on ids to authenticated;
 -- ---------------------------------------------------------------------------
 -- Schema shape.
 -- ---------------------------------------------------------------------------
-select has_column('public', 'profiles', 'home_organization_id', 'profiles.home_organization_id exists');
+select hasnt_column('public', 'profiles', 'home_organization_id', 'profiles.home_organization_id is GONE (AE2.4 / ADR 0164 — the tenant anchor is a non-voided organization_affiliations row; re-introducing the column reds HERE, and this is the only guard against that anywhere)');
 -- AFF W1 (ADR 0097 D3): both hospital columns were DROPPED by 20260909000300 —
 -- "works at this hospital" is a hospital_affiliations row, and matricula is a property
 -- of the employment, not of the person. Asserted as absences (same count) so a
@@ -87,23 +87,36 @@ select is(
   'the tenant-anchor invariant is a DEFERRABLE INITIALLY DEFERRED constraint trigger on organization_affiliations void/delete (ADR 0164); behaviour is keystoned by 393 § 2'
 );
 
--- (b) ⛔ THIS IS NOW A STATEMENT ABOUT THE SEED, NOT ABOUT AN ENFORCED INVARIANT, and the
--- description says so. Until 2026-08-28 the column was the anchor and this count was
--- enforced at write time. It no longer is — the enforced invariant is "≥ 1 NON-VOIDED
--- organization affiliation", carried by `393 § 1.2` (zero tenant orphans in the seed) and
--- by `app.tenant_orphan_profiles()`. Kept because the column still exists and the seed
--- still populates it, so a drift here is worth seeing; ⚠ do NOT cite it as proof that
--- anything prevents an org-less profile.
+-- (b) ⛔ DELETED 2026-08-28 (AE2.4). Two cells counted org-less profiles via
+-- `home_organization_id`; the column is gone, so they die with it. They were already
+-- statements about the SEED rather than about an enforced invariant — the enforced
+-- invariant is "≥ 1 NON-VOIDED organization affiliation", carried by `393 § 1.2` (zero
+-- tenant orphans in the seed) and by `app.tenant_orphan_profiles()`. ⚠ The org-less
+-- VENDOR (is_admin) persona had no other cell asserting its existence; see the AE2.4
+-- report.
+
+-- ⭐ (b') THE VENDOR WITNESS, RESTORED BY THE LEAD over the substrate that replaced the
+-- column. The two deleted cells were about the SEED, but one of them was also the ONLY
+-- direct assertion that the org-less platform_admin persona exists at all.
+--
+-- ⚠ IT IS NOT COVERED INCIDENTALLY, AND THAT WAS CHECKED RATHER THAN ASSUMED: the only
+--    other cell naming `…b0` uses it as an ACTOR (`328 § …`), so it would red if the
+--    persona vanished -- but incidentally, and an incidental guard is not coverage of the
+--    property it happens to protect.
+--
+-- ⛔ BOTH HALVES IN ONE STRING, deliberately. `exists` alone would go green if the vendor
+--    acquired an affiliation (the noun rule says a platform_admin is not a tenant
+--    person); `has no affiliation` alone is satisfied by the persona not existing at all.
+--    Neither half is the claim; the pair is.
 select is(
-  (select count(*) from public.profiles where home_organization_id is null and not is_admin)::int,
-  0,
-  'no non-admin profile is org-less in the SEED (a data fact since ADR 0164 — no longer an enforced invariant; enforcement is 393 § 1.2)'
-);
-select cmp_ok(
-  (select count(*) from public.profiles where home_organization_id is null and is_admin)::int,
-  '>=', 1,
-  'the org-less vendor (is_admin) profile exists'
-);
+  (select coalesce((select 'exists=' || p.is_admin::text from public.profiles p
+                     where p.email = 'platform@test.local'), 'MISSING')
+          || '|affiliations=' ||
+          (select count(*)::text from public.organization_affiliations oa
+            join public.profiles p2 on p2.id = oa.principal_id
+           where p2.email = 'platform@test.local' and oa.voided_at is null)),
+  'exists=true|affiliations=0',
+  '1.9 ⭐ the org-less VENDOR persona exists, is `is_admin`, and holds ZERO non-voided organization affiliations -- the noun rule (ADR 0078 A35) in the seed, and the shape `app.tenant_orphan_profiles()` must NOT flag. Restores the witness the dropped-column cells carried');
 
 -- professional_credentials uniqueness (4-tuple).
 select throws_ok(

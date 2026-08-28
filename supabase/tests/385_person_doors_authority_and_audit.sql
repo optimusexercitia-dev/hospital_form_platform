@@ -365,10 +365,35 @@ select is(
   (select phi_cpf || '|' || phi_dob::text || '|' || phi_phone || '|true' from k),
   '4.2 …and every column in the door''s list landed, `must_change_password` included');
 
+-- ⭐ 4.3 RESTORED BY THE LEAD, RE-EXPRESSED OVER THE NEW SUBSTRATE.
+-- The deleted 4.3 asserted this door leaves `home_organization_id` UNTOUCHED. That
+-- property was "the door must not silently re-anchor a person", and it did NOT die with
+-- the column -- only its old expression did. Tenancy now lives in
+-- `organization_affiliations`, so the same property is: this door does not touch that
+-- table at all.
+--
+-- ⛔ DERIVED FROM THE CATALOG, NOT BEHAVIOURAL, AND DELIBERATELY SO. A behavioural cell
+--    ("call the door, then count affiliation rows") passes for two different reasons --
+--    the door abstained, or the door ran a path that happened not to write one. The body
+--    not naming the table cannot be satisfied the second way. Comments are stripped
+--    first: six functions in this estate mention the column ONLY in a comment recording
+--    that it already left them, and an un-stripped grep reports those as live readers.
+--
+-- ⚠ The sweep that deleted 4.3 correctly DECLINED to invent this replacement. A
+--    substitute written by the same pass that removed the original is a guess wearing
+--    the original's label; it is restored here as a separate, ruled act.
 select is(
-  (select home_organization_id from public.profiles where id = (select sole from k)),
-  (select org_a from k),
-  '4.3 ⛔ …and `home_organization_id` is UNTOUCHED — it is deliberately absent from the door''s column list. ⚠ CORRECTED 2026-08-28 (AE2.4 inc 1, migration 20261003005600): the ORIGINAL REASON was that writing it would fire the deferred `profiles_tenant_has_org_trg`, and THAT TRIGGER NO LONGER EXISTS (ADR 0164 moved containment onto `organization_affiliations` void/delete). The assertion still holds and is still worth keeping — the door must not silently re-anchor a person — but do NOT cite the trigger as the mechanism; nothing enforces this at write time any more');
+  (select regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~ 'organization_affiliations'
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'finalize_invited_person_impl'), false,
+  '4.3 ⭐ the invite-finalisation door does NOT touch `organization_affiliations` -- it writes person-level profile fields and MUST NOT re-anchor tenancy. Replaces the pre-drop cell that asserted it left `home_organization_id` untouched: same property, new substrate');
+
+-- ⛔ 4.3 DELETED 2026-08-28 (AE2.4): it asserted that the door leaves
+-- `home_organization_id` UNTOUCHED. The column is dropped, so "the door must not
+-- silently re-anchor a person" is no longer expressible over profile state. ⚠ THIS IS A
+-- REAL COVERAGE LOSS, not a tidy-up: nothing now asserts the door abstains from
+-- re-anchoring, and the modern equivalent would be an assertion that it writes no
+-- `organization_affiliations` row. Flagged in the AE2.4 report; the door's owner rules.
 
 select is(
   pg_temp.door_err(format($$select public.finalize_invited_person_for(%L::uuid, %L::uuid, %L, %L::uuid, %L)$$,

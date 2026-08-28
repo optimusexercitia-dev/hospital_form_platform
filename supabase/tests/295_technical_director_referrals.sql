@@ -75,8 +75,7 @@ begin
         union all select other_hosp_dt from dt) s;
 
   update public.profiles
-     set home_organization_id = (select org_b from k),
-         professional_category_id = v_phys,
+     set professional_category_id = v_phys,
          full_name = 'DT ' || left(id::text, 8)
    where id in (select titular from dt union all select deputy from dt
                 union all select other_hosp_dt from dt);
@@ -599,8 +598,7 @@ begin
   values ('00000000-0000-0000-0000-000000000000', (select operator from pqs),
           'authenticated', 'authenticated', (select operator from pqs) || '@test', now(), now());
   update public.profiles
-     set home_organization_id = (select org_b from k),
-         professional_category_id = (select id from public.professional_categories where key = 'physician'),
+     set professional_category_id = (select id from public.professional_categories where key = 'physician'),
          full_name = 'NSP Operador'
    where id = (select operator from pqs);
 end $$;
@@ -660,8 +658,7 @@ begin
   values ('00000000-0000-0000-0000-000000000000', (select successor from hand),
           'authenticated', 'authenticated', (select successor from hand) || '@test', now(), now());
   update public.profiles
-     set home_organization_id = (select org_b from k),
-         professional_category_id = (select id from public.professional_categories where key = 'physician'),
+     set professional_category_id = (select id from public.professional_categories where key = 'physician'),
          full_name = 'DT Sucessor'
    where id = (select successor from hand);
 end $$;

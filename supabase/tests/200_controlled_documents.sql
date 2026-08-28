@@ -72,7 +72,7 @@ select '00000000-0000-0000-0000-000000000000', (select user_z from k2),
 insert into public.hospitals (id, organization_id, name, slug)
 select (select hosp2 from k2), (select org_id from k), 'Hosp 2', 'hosp2-' || substr((select hosp2 from k2)::text,1,8);
 
-update public.profiles set full_name = 'User Z', home_organization_id = (select org_id from k)
+update public.profiles set full_name = 'User Z'
   where id = (select user_z from k2);
 
 insert into public.commissions (id, name, slug, created_by, hospital_id)
@@ -88,8 +88,7 @@ grant select on k3 to authenticated;
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
 select '00000000-0000-0000-0000-000000000000', (select user_inactive from k3),
        'authenticated', 'authenticated', (select user_inactive from k3) || '@test', now(), now();
-update public.profiles set full_name = 'User Inactive', is_active = false,
-       home_organization_id = (select org_id from k)
+update public.profiles set full_name = 'User Inactive', is_active = false
   where id = (select user_inactive from k3);
 insert into public.memberships (commission_id, principal_id, role)
 select (select comm_y from k), (select user_inactive from k3), 'staff';

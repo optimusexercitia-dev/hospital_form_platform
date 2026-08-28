@@ -94,10 +94,10 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
 select '00000000-0000-0000-0000-000000000000', u, 'authenticated',
        'authenticated', u || '@test', now(), now()
 from (select sa_x2 as u from p union all select adm2 from p) s;
-update public.profiles set full_name = 'StaffAdmin X2',
-       home_organization_id = (select org_b from k) where id = (select sa_x2 from p);
-update public.profiles set full_name = 'Administrativo 2',
-       home_organization_id = (select org_b from k) where id = (select adm2 from p);
+update public.profiles set full_name = 'StaffAdmin X2'
+  where id = (select sa_x2 from p);
+update public.profiles set full_name = 'Administrativo 2'
+  where id = (select adm2 from p);
 insert into public.memberships (commission_id, principal_id, role) values
   ((select comm_x from k), (select sa_x2 from p), 'staff_admin'),
   ((select comm_x from k), (select adm2 from p), 'staff');

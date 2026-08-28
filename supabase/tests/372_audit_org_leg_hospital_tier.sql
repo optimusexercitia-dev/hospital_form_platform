@@ -77,12 +77,6 @@ from (values
   ('0ad00146-0000-0000-0000-0000000000a4'::uuid, 'aud1.staff@test.local')       -- plain staff of C1
 ) as s(u, e);
 
-update public.profiles set home_organization_id = '0ad00146-0000-0000-0000-00000000000a'
- where id in ('0ad00146-0000-0000-0000-0000000000a1','0ad00146-0000-0000-0000-0000000000a3',
-              '0ad00146-0000-0000-0000-0000000000a4');
-update public.profiles set home_organization_id = '0ad00146-0000-0000-0000-00000000000b'
- where id = '0ad00146-0000-0000-0000-0000000000a2';
-
 -- Exactly ONE membership per persona (see the header).
 insert into public.memberships (organization_id, principal_id, role) values
   ('0ad00146-0000-0000-0000-00000000000a', '0ad00146-0000-0000-0000-0000000000a1', 'org_admin'),

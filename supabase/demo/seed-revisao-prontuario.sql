@@ -154,8 +154,13 @@ end;
 $fill_r2$;
 
 -- ---------------------------------------------------------------------------
--- Organization + hospital (created before the users so home_organization_id is
--- satisfiable at handle_new_user trigger time — mirrors supabase/seed.sql).
+-- Organization + hospital (created before the users so the org exists by the time
+-- each persona's `organization_affiliations` row references it — mirrors
+-- supabase/seed.sql).
+-- ⚠ CORRECTED at the AE2 drop (20261003006500): this said the ordering existed so
+--   `home_organization_id` "is satisfiable at handle_new_user trigger time". That
+--   column is dropped and the trigger writes no org at all; the ordering still holds,
+--   but because of the affiliation FK below, not the column.
 -- ---------------------------------------------------------------------------
 insert into public.organizations (id, name, slug, created_by) values
   ('d5000000-0000-0000-0000-000000000001', 'Rede São Rafael de Saúde', 'rede-sao-rafael', null);
@@ -200,7 +205,10 @@ begin
       crypt('Demo1234!', gen_salt('bf')),
       now(), now(), now(),
       '{"provider":"email","providers":["email"]}'::jsonb,
-      jsonb_build_object('full_name', u ->> 'name', 'home_organization_id', v_org),
+      -- The `home_organization_id` key left this object at the AE2 drop
+      -- (20261003006500): nothing reads it. The org anchor for these personas is the
+      -- `organization_affiliations` insert below, which was already the real one.
+      jsonb_build_object('full_name', u ->> 'name'),
       now(), now(), '', '', '', ''
     );
     insert into auth.identities (

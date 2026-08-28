@@ -121,9 +121,6 @@ async function rpc(
   })
 }
 
-// rede-a — the org every probe commission below is attached to (see
-// makeProbeCommission). A tenant user must be anchored to it.
-const ORG_A = '0c000000-0000-0000-0000-00000000000a'
 
 /**
  * Create a fresh throwaway auth user via the Supabase admin API. The profile
@@ -135,13 +132,15 @@ const ORG_A = '0c000000-0000-0000-0000-00000000000a'
  * break the moment a seeded user is added to ANY extra commission. Throwaway
  * users have no such assertions, so adding them to probe commissions is safe.
  *
- * TENANT-ANCHOR (user-registration migration): a non-admin profile must carry a
- * `home_organization_id` — the deferred `profiles_tenant_has_org_trg` invariant
- * rejects a null anchor at commit (`23514`, "a non-admin profile must have
- * home_organization_id"). `handle_new_user` reads it from `user_metadata`, so we
- * thread the org here exactly like the real invite/registration path. Probe
- * users are all members of rede-a probe commissions, so rede-a is the correct
- * anchor. Without this, `POST /auth/v1/admin/users` returns 500.
+ * ⛔ THE TENANT-ANCHOR PARAGRAPH THAT LIVED HERE WAS ALREADY FALSE BEFORE IT WAS
+ * DELETED, and it is worth recording why. It said a non-admin profile must carry a
+ * `home_organization_id` because the deferred `profiles_tenant_has_org_trg` rejects a
+ * null anchor, "without this, POST /auth/v1/admin/users returns 500". That trigger was
+ * dropped by `20261003005600` (ADR 0164 moved containment to the destructive event), so
+ * the metadata key had been inert ever since — and the AE2 drop removed the column it
+ * fed. ⚠ A fixture comment explaining WHY a line is required outlives the requirement
+ * silently: nothing reds when the reason evaporates, and the line reads as load-bearing
+ * to everyone after.
  */
 async function makeProbeUser(
   req: APIRequestContext,
@@ -158,7 +157,6 @@ async function makeProbeUser(
       email,
       password: 'Test1234!',
       email_confirm: true,
-      user_metadata: { home_organization_id: ORG_A },
     },
   })
   expect(resp.status()).toBe(200)

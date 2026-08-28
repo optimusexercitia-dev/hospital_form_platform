@@ -143,7 +143,7 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
 select '00000000-0000-0000-0000-000000000000', (select oa from ivt), 'authenticated',
        'authenticated', (select oa from ivt) || '@test', now(), now();
 update public.profiles
-   set full_name = 'Org Admin', home_organization_id = (select (v->>'org_b')::uuid from ctx)
+   set full_name = 'Org Admin'
  where id = (select oa from ivt);
 insert into public.memberships (organization_id, principal_id, role)
   values ((select (v->>'org_b')::uuid from ctx), (select oa from ivt), 'org_admin');

@@ -8619,7 +8619,6 @@ export type Database = {
           email: string | null
           email_confirmed_at: string | null
           full_name: string
-          home_organization_id: string | null
           id: string
           is_active: boolean
           is_admin: boolean
@@ -8635,7 +8634,6 @@ export type Database = {
           email?: string | null
           email_confirmed_at?: string | null
           full_name?: string
-          home_organization_id?: string | null
           id: string
           is_active?: boolean
           is_admin?: boolean
@@ -8651,7 +8649,6 @@ export type Database = {
           email?: string | null
           email_confirmed_at?: string | null
           full_name?: string
-          home_organization_id?: string | null
           id?: string
           is_active?: boolean
           is_admin?: boolean
@@ -8661,13 +8658,6 @@ export type Database = {
           suspended_until?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "profiles_home_organization_id_fkey"
-            columns: ["home_organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "profiles_professional_category_id_fkey"
             columns: ["professional_category_id"]

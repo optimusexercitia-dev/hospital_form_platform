@@ -164,19 +164,28 @@ begin
   insert into public.hospitals (id, organization_id, name, slug)
     values (hosp_b, org_b, 'Hosp Bootstrap', 'hosp-' || substr(hosp_b::text,1,8));
 
-  -- User-registration: anchor the bootstrap's tenant users to this fixture org now that
-  -- it exists; the admin stays org-less.
-  -- ⚠ CORRECTED 2026-08-28 (AE2.4 inc 1, ADR 0164): this said the deferred
-  -- `profiles_tenant_has_org_trg` checks it at COMMIT. That trigger no longer exists —
-  -- containment moved onto `organization_affiliations` void/delete. Nothing enforces the
-  -- column now, so this write is fixture hygiene rather than constraint satisfaction.
-  update public.profiles set home_organization_id = org_b
-    where id in (sa_x, st_x, st_x2, sa_y, st_y, oa_b);
-
-  -- AFF4 (ADR 0151 D10 / ADR 0154): THE SECOND ANCHOR, for the same reason as the first.
-  -- Since B6a the org roster is an ORG AFFILIATION, not `home_organization_id`, so a
-  -- bootstrap persona without one is invisible to every directory read — `316` §3 caught
-  -- exactly that. Mirrors what `seed.sql` does for the seed personas.
+  -- AFF4 (ADR 0151 D10 / ADR 0154) — THE ORG ANCHOR for the bootstrap's tenant users;
+  -- the admin stays org-less. The org roster is an ORG AFFILIATION, so a bootstrap
+  -- persona without one is invisible to every directory read — `316` §3 caught exactly
+  -- that. Mirrors what `seed.sql` does for the seed personas.
+  --
+  -- ⚠ THIS WAS THE SECOND OF TWO ANCHORS UNTIL THE AE2 DROP. An
+  --   `update public.profiles set home_organization_id = org_b` stood immediately above,
+  --   over the IDENTICAL six principals; 20261003006500 dropped the column and this
+  --   insert absorbed its whole job. Nothing was lost, because by then every predicate
+  --   that once read the column already read `organization_affiliations` — and by then
+  --   nothing enforced the column at all (the deferred `profiles_tenant_has_org_trg`
+  --   had been dropped by 20261003005600), so the write was fixture hygiene, not
+  --   constraint satisfaction.
+  --
+  -- ⚠ NOTHING PINNED THAT REMOVAL. The two "which functions still name the column"
+  --   keystones (394 § 1.5, 395 § 7.2) scope `nspname in ('app','public')`, and this
+  --   function is `test_helpers` — they stayed GREEN whether or not this file was
+  --   updated.
+  -- ⭐ THAT GAP IS NOW CLOSED, in the same increment as the drop: 394 § 1.5 was inverted
+  --   and its domain widened to the WHOLE CATALOG, so a future column removal that
+  --   touches this helper DOES red there. 395 § 7.2 was deleted rather than inverted —
+  --   two copies of a catalog-absence claim is how one goes stale unnoticed.
   --
   -- ⚠ IT BELONGS HERE, NOT IN EACH SUITE. A per-suite fixture row would be a hand list
   --    that the next suite silently omits itself from; anchoring both facts in one place is

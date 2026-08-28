@@ -89,9 +89,9 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
   select '00000000-0000-0000-0000-000000000000'::uuid, org_admin_uid,
          'authenticated', 'authenticated', org_admin_uid || '@test', now(), now()
   from personas;
-update public.profiles set full_name = '281 Hosp Admin', home_organization_id = (select org_b from k)
+update public.profiles set full_name = '281 Hosp Admin'
   where id = (select hosp_admin_uid from personas);
-update public.profiles set full_name = '281 Org Admin', home_organization_id = (select org_b from k)
+update public.profiles set full_name = '281 Org Admin'
   where id = (select org_admin_uid from personas);
 insert into public.memberships (principal_id, organization_id, hospital_id, role)
   select hosp_admin_uid, org_b, hosp_b, 'hospital_admin' from personas, k;

@@ -1,131 +1,81 @@
--- AE2.3a — THE WIDENING DIFFERENTIAL, READ/VISIBILITY HALF (the phase keystone).
+-- AE2 — THE ORG-TIER PERSON-READ TRUTH TABLE (the phase keystone).
 -- Plan docs/plans/authz-evolution.md § AE2.3; ruling ADR 0163; phase record
 -- docs/progress/authz-ae2.md § AE2.2.
 --
 -- ============================================================================
--- ⛔ SCOPE — AE2.3 IS SPLIT, AND THE SPLIT IS NOT A CONVENIENCE
+-- ⛔ RE-CUT 2026-08-28 — THE DIFFERENTIAL HALF RETIRED WITH THE COLUMN
 -- ============================================================================
--- The plan's AE2.3 demands the differential cover "containment-trigger accept
--- AND reject · affiliation lifecycle transitions" and "INSERT `WITH CHECK` ·
--- UPDATE new-row `WITH CHECK`".  Neither has a subject in AE2.2:
+-- This file was built as a WIDENING DIFFERENTIAL: every (caller, target) cell was
+-- measured under BOTH the OLD predicate — `home_organization_id IS NOT NULL AND
+-- app.is_org_admin_of(home_organization_id)`, reproduced here from an RLS-free
+-- snapshot — and the new one, and the movement was compared against hand-written
+-- pre-declarations of the five widenings and five narrowings (ADR 0154 / plan PA-F13).
 --
---   • The containment trigger was ruled **T3** — it belongs to AE2.4, because
---     the door that CREATES an org affiliation is itself gated on the column,
---     so both halves must break in one move (docs/progress/authz-ae2.md).
---     `public.assert_profile_tenant_has_org` is UNCHANGED by AE2.2.
---   • The AE2.1 census measured all three re-predicated legs as `SELECT` only,
---     with **ZERO** `with_check`.  § 1.1 re-measures that here rather than
---     citing it.
+-- Migration `20261003006500_ae2_drop_home_organization_id.sql` dropped the column.
+-- The old predicate can no longer be reproduced, so § 1.1, § 2.3, § 2.4, § 2.5, § 2.6
+-- and § 8.2 — every cell whose subject was the MOVEMENT — were removed rather than
+-- rewritten into cells that cannot fail.  The pre-declarations, their reasons and
+-- their ACCEPT dispositions are recorded in docs/progress/authz-ae2.md and in
+-- docs/reviews/authz-ae2-review*.md; they are history, and history does not belong in
+-- an assertion.  ⛔ Do not reintroduce them here in a form that reads as measured.
 --
--- ⛔ Writing those cells anyway would produce a suite that is GREEN HAVING
---    ASSERTED NOTHING — the exact vacuity family this repo keeps paying for
---    (docs/reviews/vacuous-assertion-audit.md).  So:
---
---   AE2.3a  (THIS SUITE)  the READ/VISIBILITY half — the 3 SELECT legs,
---                         `list_addable_commission_members`, and every door
---                         consuming the changed predicate.
---   AE2.3b  (AE2.4)       the WRITE/CONTAINMENT half — the containment trigger,
---                         `app.affiliate_person_to_org_impl`, the picker.
---
--- ⚠ The plan's warning "the phase changes write containment; a read-only
---   differential proves the wrong half" is TRUE — **of AE2.4**.  AE2.2 changed
---   no write containment at all, so for AE2.2 the read half is the whole half.
---   ⛔ Do not read this suite as discharging AE2.4's differential.
---
--- ============================================================================
--- WHAT "DIFFERENTIAL" MEANS HERE, AND WHY IT IS ONE TRANSACTION
--- ============================================================================
--- Both predicates are evaluated in ONE transaction, per (caller, target) pair,
--- so no stack state can skew one side against the other:
---
---   OLD (verbatim from the AE2.2 per-leg contract table, docs/progress/authz-ae2.md,
---        which reproduced it from the live catalog BEFORE migration 20261003005400):
---          (home_organization_id IS NOT NULL) AND app.is_org_admin_of(home_organization_id)
---   NEW:   app.can_administer_person_via_affiliation(person)
---
--- The OLD predicate no longer exists in the catalog, so it is REPRODUCED here.
--- ⚠ That reproduction is honest only because of two things asserted below and
---   not assumed: § 1.1 (no policy anywhere still names the column, so there is
---   no second, unreproduced copy) and § 6.2 (the roster door's old row filter
---   reproduced in full, not just its changed conjunct).
---
--- The OLD leg is evaluated against an **RLS-free snapshot** of
--- `home_organization_id`, because it was a POLICY predicate applied to the row
--- already in hand — never a re-read under the caller's RLS.  Re-reading it
--- through `public.profiles` would evaluate it under the NEW policy and silently
--- make the differential compare the new predicate with itself.
+-- ⭐ WHAT REMAINS IS THE KEYSTONE, AND SEVERAL OF ITS CELLS ARE THE ONLY ONES OF
+--    THEIR KIND IN THE ESTATE:
+--      § 3.1/§ 3.2  the only assertions that the POLICIES ACTUALLY CALL
+--                   `app.can_administer_person_via_affiliation` — 390 proves the
+--                   predicate correct in isolation, which is evidence about nothing
+--                   downstream.  These two are the wiring.
+--      § 5.1/§ 5.2  the only measurement of the implicit `profiles`-RLS gate that the
+--                   old credentials leg carried and the DEFINER call removed.
+--      § 6.4        the only cell measuring "who may ADMINISTER" ≠ "who may be
+--                   STAFFED".
+--      § 6.3/§ 6.6  the roster SET statements, in both orgs.
+--      § 4.3        one of exactly THREE cells estate-wide asserting Architecture
+--                   Rule 13's LOCATE-vs-GRANT split (with 390 § D10 and 394 § 9.2).
 --
 -- ============================================================================
--- THE RULE THIS SUITE ENFORCES (ADR 0154; plan PA-F13)
+-- WHAT IS MEASURED, AND HOW
 -- ============================================================================
--- Every intended WIDENING is PRE-DECLARED as an expected cell.  A widening that
--- is not pre-declared is a RED.  Narrowing can be wrong and safe; unapproved
--- widening cannot.  § 2.3 compares the measured widenings against a hand-written
--- list carrying a REASON per pair; § 2.4 does the same for newly-hidden pairs,
--- each carrying a written disposition.  ⚠ Those two lists are written
--- INDEPENDENTLY of § 2.2's expectation table on purpose: deriving them from it
--- would make them restatements, green whenever § 2.2 is green.  § 2.5 is the
--- cross-check that reds if the two hand artefacts ever disagree.
+-- § 2 builds a 5 × 10 matrix — five real callers against ten constructed persons —
+-- evaluating, in ONE transaction per caller so no stack state can skew a row:
+--   • `app.can_administer_person_via_affiliation(target)`  (the predicate)
+--   • whether the caller can SELECT the target's `profiles` row  (the policy)
+--   • whether the caller can SELECT the target's `professional_credentials` row
+-- § 2.2 pins all fifty predicate cells against a truth table written out in full.
+-- Explicitness IS the specification: a cell that is not in the table cannot arrive
+-- silently, and a cell that moves for any reason reds there.
 --
--- ---------------------------------------------------------------------------
--- THE FIVE PRE-DECLARED WIDENINGS, WITH REASONS
--- ---------------------------------------------------------------------------
---   CB×T4  ended in A, ACTIVE in B          → B is the current employer; ADR 0163
---                                             arm 2 must not fire while arm 1 is
---                                             non-empty (bound 3).
---   CB×T5  the ended_on TIE (A and B same    → ADR 0163 bound 2: ties yield ALL tied
---          day, nothing active)                orgs.  ⭐ THIS CELL EXISTS BECAUSE AN
---                                               ARBITRARY TIE-BREAK IS A *NARROWING*,
---                                               and a differential that only
---                                               pre-declares widenings would never
---                                               notice one.
---   CB×T7  ACTIVE in BOTH A and B            → the plan's own named example: a person
---                                             affiliated to two organisations becomes
---                                             legitimately visible to both.
---   CB×T8  column says A, ACTIVE only in B   → the substrate is the truth; the column
---                                             stopped deciding.  This is the whole
---                                             point of AE2.
---   CC×T10 column says A, ACTIVE only in C   → same class as CB×T8, measured through a
---                                             CROSS-ORG actor (org C) so the widening
---                                             is not an artefact of the A/B pair.
+-- ⭐ THE VACUITY PROOF, AND IT STILL HOLDS AFTER THE RE-CUT.  A keystone green on its
+--    first run is vacuous.  This suite's ability to fail was proven by MUTATION:
+--    `app.person_authority_orgs` arm 2's `not exists (… active …)` guard was removed
+--    in the catalog, which makes T4 (ended in A, ACTIVE in B) resolve to {A,B} instead
+--    of {B} and flips CA×T4 from FALSE to TRUE — § 2.2 reds.  The edit was asserted to
+--    have LANDED from `pg_proc` (never from a command exit status) and rolled back
+--    byte-identically.  Recorded in docs/progress/authz-ae2.md.
 --
--- ---------------------------------------------------------------------------
--- THE FIVE NEWLY-HIDDEN PAIRS, EACH ACCEPTED IN WRITING
--- ---------------------------------------------------------------------------
---   CA×T3  voided-only person        ACCEPT — ADR 0163 bound 1: a voided row is "was
---                                    never true" and is excluded from the derivation
---                                    ENTIRELY.  Hiding it is the bound working.
---   CA×T4  ended in A, active in B   ACCEPT — authority follows the ACTIVE org; an
---                                    ended row must not add reach on top of it.
---   CA×T8  column A, active B        ACCEPT — the intended mechanism change.
---   CA×T10 column A, active C        ACCEPT — same class as CA×T8.
---   CA×T9  NO affiliation row at all ACCEPT, WITH ITS BLAST RADIUS NAMED.  Under the
---                                    column an org_admin of the anchor org could read
---                                    such a person; under ADR 0163 they have no
---                                    retaining org and become platform_admin-only.
---                                    ⚠ The state is CONSTRUCTED, not normally
---                                    reachable: every person is created through an
---                                    affiliation-creating door, and the seed has
---                                    exactly one profile with no affiliation row —
---                                    `platform@test.local`, who is `is_admin` and
---                                    already reached by `app.is_admin()`.  Recorded
---                                    as an accepted narrowing rather than as "cannot
---                                    happen", because ⛔ "not reachable" is not
---                                    "protected".
+-- ============================================================================
+-- WHY THE POLICY-LEVEL NUMBERS ARE NOT ABSORBED BY SIBLING ARMS
+-- ============================================================================
+-- All three re-predicated policies are PERMISSIVE and OR'd with siblings, so a
+-- table-level read test normally proves nothing about one leg.  § 0.2/§ 0.3/§ 0.5 buy
+-- the isolation: every fixture person holds ZERO memberships and ZERO hospital
+-- affiliations, and no caller is a platform admin — so the changed leg is the ONLY
+-- route into them.  That is what licenses § 3.1/§ 3.2 to assert that policy-level
+-- visibility EQUALS the leg, pair for pair.
 --
 -- ============================================================================
 -- THE CELLS THE SEED CANNOT REACH — CONSTRUCTED, WITH DISTINCT IDS
 -- ============================================================================
--- ⛔ NO seeded persona holds a membership or affiliation outside its home org,
---    and there is NO cross-org persona — a cross-org test written against
+-- ⛔ NO seeded persona holds a membership or affiliation outside its home org, and
+--    there is NO cross-org persona — a cross-org test written against
 --    `multi@test.local` passes while proving nothing (CLAUDE.md § 9).  So the
 --    cross-org axis is built here: `solo.c@test.local` is the actor (org C, a
 --    one-person organisation) and T10 is the only subject it can ever reach.
 --
--- ⚠ Every fixture person gets its OWN id in the `0ae23a…` namespace — disjoint
---   from 390's `0000ae22…` and 391's `0000ae23…`.  Fixtures that SHARE ids
---   across cases fabricate both defects and all-clears, and every deletion in
---   this suite is by identity, never positional (the rollback does it all).
+-- ⚠ Every fixture person gets its OWN id in the `0ae23a…` namespace — disjoint from
+--   390's `0000ae22…` and 391's `0000ae23…`.  Fixtures that SHARE ids across cases
+--   fabricate both defects and all-clears, and every deletion in this suite is by
+--   identity, never positional (the rollback does it all).
 --
 --   T1  active in A                              the ordinary case
 --   T2  ended in A, non-voided, nothing else     ADR 0163's actual subject
@@ -133,70 +83,69 @@
 --   T4  ended in A + ACTIVE in B                 arm 2 must not fire
 --   T5  ended in A and B ON THE SAME DAY         bound 2 — ALL tied orgs
 --   T6  non-voided ends EARLY (A); VOIDED ends   ⭐ the voided-ordering trap:
---       LATE (B)                                 filtering voided AFTER max()
---                                                yields EMPTY — a total, silent
---                                                loss of authority.  390 § C7
---                                                covers the predicate; § 3.3
---                                                asserts it at the POLICY level.
---   T7  ACTIVE in BOTH A and B                   the pre-declared widening
---   T8  column A, ACTIVE only in B               the column stopped deciding
---   T9  NO affiliation row at all                the honest empty
---   T10 column A, ACTIVE only in C               the cross-org cell
+--       LATE (B)                                 filtering voided AFTER max() yields
+--                                                EMPTY — a total, silent loss of
+--                                                authority.  390 § C7 covers the
+--                                                predicate; § 3.3 asserts it at the
+--                                                POLICY level.
+--   T7  ACTIVE in BOTH A and B                   affiliated twice, visible to both
+--   T8  ACTIVE only in B                         the substrate decides the org
+--   T9  NO affiliation row at all                the honest empty.  ⚠ ACCEPTED, WITH
+--                                                ITS BLAST RADIUS NAMED: such a person
+--                                                has no retaining org and is
+--                                                platform_admin-only.  The state is
+--                                                CONSTRUCTED — every person is created
+--                                                through an affiliation-creating door,
+--                                                and the seed has exactly one profile
+--                                                with no affiliation row
+--                                                (`platform@test.local`, who is
+--                                                `is_admin` and already reached by
+--                                                `app.is_admin()`).  Asserted rather
+--                                                than waved away, because ⛔ "not
+--                                                reachable" is not "protected".
+--   T10 ACTIVE only in C                         the cross-org cell
 --
 -- ============================================================================
--- WHY THE POLICY-LEVEL NUMBERS ARE NOT ABSORBED BY SIBLING ARMS
+-- § 5 — THE `professional_credentials` GATE THAT WAS REMOVED
 -- ============================================================================
--- All three re-predicated policies are PERMISSIVE and OR'd with siblings, so a
--- table-level read test normally proves nothing about one leg.  § 0.2/§ 0.3/
--- § 0.5 buy the isolation: every fixture person holds ZERO memberships and ZERO
--- hospital affiliations, and no caller is a platform admin — so the changed leg
--- is the ONLY route into them.  That is what licenses § 3.1/§ 3.2 to assert
--- policy-level visibility EQUALS the leg, pair for pair.
+-- AE2.2 handed this over as "believed set-identical, but that is AN ARGUMENT, NOT A
+-- MEASUREMENT".  The old leg ran its `profiles` sub-select under the CALLER's RLS; the
+-- DEFINER call removes that implicit second gate.
 --
--- ============================================================================
--- § 5 — THE `professional_credentials` PRE-DECLARED WIDENING CANDIDATE
--- ============================================================================
--- AE2.2 handed this over as "believed set-identical, but that is AN ARGUMENT,
--- NOT A MEASUREMENT".  The old leg ran its `profiles` sub-select under the
--- CALLER's RLS; the new DEFINER call removes that implicit second gate.
+-- Measured here over all 50 pairs: § 5.1 (credentials visible ⇒ profiles row visible)
+-- and § 5.2 (the two are equal in BOTH directions), with § 5.3 as the floor that stops
+-- both from being vacuously true over an all-false matrix.
 --
--- Measured here, over all 50 pairs including every constructed cell: § 5.1
--- (credentials visible ⇒ profiles row visible) and § 5.2 (the two are equal in
--- BOTH directions), with § 5.3 as the floor that stops both from being
--- vacuously true over an all-false matrix.
---
--- ⚠ WHAT IS MEASURED AND WHAT IS REDUCED, STATED SO NEITHER IS OVERSOLD.  The
---   removed gate could only ever BIND if the credentials leg's inner condition
---   were not itself a disjunct of the `profiles` SELECT policy — and it was, and
---   its replacement still is (§ 1.2 pins exactly that, so a future divergence
---   reds here and forces this measurement to be redone).  Given that, the old
---   leg reduces to its inner condition under BOTH readings of how Postgres
---   applies RLS to tables referenced inside a policy expression, so the
---   conclusion does not depend on resolving that question.  The behavioural
---   half — that the gate is non-binding IN FACT, on every pair — is measured.
+-- ⚠ WHAT IS MEASURED AND WHAT IS REDUCED, STATED SO NEITHER IS OVERSOLD.  The removed
+--   gate could only ever BIND if the credentials leg's inner condition were not itself
+--   a disjunct of the `profiles` SELECT policy — and it was, and its replacement still
+--   is (§ 1.2 pins exactly that, so a future divergence reds here and forces this
+--   measurement to be redone).  Given that, the old leg reduces to its inner condition
+--   under BOTH readings of how Postgres applies RLS to tables referenced inside a
+--   policy expression, so the conclusion does not depend on resolving that question.
+--   The behavioural half — that the gate is non-binding IN FACT, on every pair — is
+--   what is measured.
 --
 -- ============================================================================
 -- § 6 — THE ROSTER DOOR, AND A DIVERGENCE THAT IS MEASURED RATHER THAN ARGUED
 -- ============================================================================
 -- `list_addable_commission_members` deliberately uses ACTIVE affiliation, NOT
--- `app.person_authority_orgs`: the two doors answer different questions
--- ("who may ADMINISTER this person" vs "who may be STAFFED here"), and ADR 0163's
--- retention was never an input to the second.  § 6.4 turns that from a stated
--- intention into a measurement: T2, T5 and T6 ARE retained for org A by the
--- authority predicate and are NOT addable to org A's commission.  If anyone ever
--- "unifies" the two predicates, § 6.3 and § 6.4 disagree.
+-- `app.person_authority_orgs`: the two doors answer different questions ("who may
+-- ADMINISTER this person" vs "who may be STAFFED here"), and ADR 0163's retention was
+-- never an input to the second.  § 6.4 turns that from a stated intention into a
+-- measurement: T2, T5 and T6 ARE retained for org A by the authority predicate and are
+-- NOT addable to org A's commission.  If anyone ever "unifies" the two predicates,
+-- § 6.3 and § 6.4 disagree.
 --
--- ⭐ RED-FIRST / VACUITY PROOF.  A keystone green on its first run is vacuous.
---    This suite's ability to fail was proven by MUTATION rather than by writing
---    it before a change it does not make: `app.person_authority_orgs` arm 2's
---    `not exists (… active …)` guard was removed in the catalog, which widens
---    CA×T4 — an UNDECLARED widening — and § 2.2/§ 2.3 red.  The edit was
---    asserted to have LANDED from `pg_proc` (never from a command exit status)
---    and rolled back byte-identically.  Recorded in docs/progress/authz-ae2.md.
+-- ⛔ SCOPE, UNCHANGED BY THE RE-CUT: this suite is the READ/VISIBILITY half.  The
+--    WRITE/CONTAINMENT half — the containment trigger (now firing `AFTER DELETE OR
+--    UPDATE OF voided_at ON organization_affiliations`),
+--    `app.affiliate_person_to_org_impl`, the linkable picker — belongs to AE2.4 and its
+--    own suites.  Do not read this file as discharging them.
 -- ============================================================================
 
 begin;
-select plan(38);
+select plan(32);
 
 -- ---------------------------------------------------------------------------
 -- Constants.
@@ -216,18 +165,18 @@ language sql immutable as $$
          '00000000-0000-0000-0000-0000000000b2'::uuid,  -- orgadmin.b
          '00000000-0000-0000-0000-0000000000c0'::uuid,  -- solo.c  (CROSS-ORG actor)
          '00000000-0000-0000-0000-0000000000e1'::uuid,  -- hospitaladmin.a1
-         '00000000-0000-0000-0000-000000000003'::uuid,  -- staff1.ccih (D3 collapse)
+         '00000000-0000-0000-0000-000000000003'::uuid,  -- staff1.ccih (Rule 13 collapse)
          '00000000-0000-0000-0000-000000000002'::uuid;  -- chefe.ccih  (roster caller)
 $$;
 grant execute on function pg_temp.k() to authenticated;
 
 -- ---------------------------------------------------------------------------
--- ⭐ THE SEED SNAPSHOT IS TAKEN **BEFORE** THE FIXTURES EXIST, so § 8's
---    zero-movement claim is about the seed population and cannot be diluted (or
---    inflated) by the ten constructed persons.
+-- ⭐ THE SEED SNAPSHOT IS TAKEN **BEFORE** THE FIXTURES EXIST, so § 8's claim is
+--    about the seed population and cannot be diluted (or inflated) by the ten
+--    constructed persons.
 -- ---------------------------------------------------------------------------
 create temp table ae23_seed as
-  select p.id as person_id, p.home_organization_id from public.profiles p;
+  select p.id as person_id from public.profiles p;
 grant select on ae23_seed to authenticated;
 
 create temp table ae23_callers (label text primary key, caller uuid, role_hint text);
@@ -248,18 +197,16 @@ insert into ae23_targets values
   ('T5',  '00000000-0000-0000-0000-0ae23a000005', 'ended_on TIE across A and B'),
   ('T6',  '00000000-0000-0000-0000-0ae23a000006', 'voided-ordering trap: voided row ends LATER'),
   ('T7',  '00000000-0000-0000-0000-0ae23a000007', 'ACTIVE in both A and B'),
-  ('T8',  '00000000-0000-0000-0000-0ae23a000008', 'column A, ACTIVE only in B'),
+  ('T8',  '00000000-0000-0000-0000-0ae23a000008', 'ACTIVE only in B'),
   ('T9',  '00000000-0000-0000-0000-0ae23a000009', 'no affiliation row at all'),
-  ('T10', '00000000-0000-0000-0000-0ae23a00000a', 'column A, ACTIVE only in C (cross-org)');
+  ('T10', '00000000-0000-0000-0000-0ae23a00000a', 'ACTIVE only in C (cross-org)');
 grant select on ae23_targets to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Fixture principals.  `handle_new_user` mints the profile from auth.users;
--- `home_organization_id` is then set EXPLICITLY to org A for ALL TEN — including
--- the ones whose only affiliation is elsewhere.  That is what makes this a
--- differential rather than a snapshot: under the OLD predicate orgadmin.a
--- administered all ten, so every removal is attributable to the new predicate
--- and to nothing else.
+-- Fixture principals.  `handle_new_user` mints the profile from auth.users.  The
+-- only profile columns this suite sets are the two the ROSTER DOOR filters on
+-- (`is_active`, and `is_admin` by leaving it false) plus a legible `full_name`;
+-- every authority fact under test comes from `public.organization_affiliations`.
 -- ---------------------------------------------------------------------------
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
 select '00000000-0000-0000-0000-000000000000', t.target, 'authenticated', 'authenticated',
@@ -267,8 +214,7 @@ select '00000000-0000-0000-0000-000000000000', t.target, 'authenticated', 'authe
 from pg_temp.ae23_targets t;
 
 update public.profiles
-   set home_organization_id = (select org_a from pg_temp.k()),
-       full_name = 'AE23a fixture ' || (select label from pg_temp.ae23_targets t where t.target = profiles.id),
+   set full_name = 'AE23a fixture ' || (select label from pg_temp.ae23_targets t where t.target = profiles.id),
        is_active = true
  where id in (select target from pg_temp.ae23_targets);
 
@@ -295,12 +241,12 @@ values
   --      filter returns EMPTY.
   ('00000000-0000-0000-0000-0ae23a000006', (select org_a from pg_temp.k()), date '2025-01-01', date '2026-01-10', (select ca from pg_temp.k()), null, null, null, (select ca from pg_temp.k())),
   ('00000000-0000-0000-0000-0ae23a000006', (select org_b from pg_temp.k()), date '2025-01-01', date '2026-06-10', (select cb from pg_temp.k()), now(), (select cb from pg_temp.k()), 'lançamento equivocado', (select cb from pg_temp.k())),
-  -- T7 — active in BOTH.  The pre-declared widening.
+  -- T7 — active in BOTH.
   ('00000000-0000-0000-0000-0ae23a000007', (select org_a from pg_temp.k()), date '2025-01-01', null, null, null, null, null, (select ca from pg_temp.k())),
   ('00000000-0000-0000-0000-0ae23a000007', (select org_b from pg_temp.k()), date '2025-01-01', null, null, null, null, null, (select cb from pg_temp.k())),
-  -- T8 — the column says A; the only affiliation is an ACTIVE one in B.
+  -- T8 — the only affiliation is an ACTIVE one in B.
   ('00000000-0000-0000-0000-0ae23a000008', (select org_b from pg_temp.k()), date '2025-01-01', null, null, null, null, null, (select cb from pg_temp.k())),
-  -- T10 — the CROSS-ORG cell: column A, active affiliation in C.
+  -- T10 — the CROSS-ORG cell: an active affiliation in C and nothing else.
   ('00000000-0000-0000-0000-0ae23a00000a', (select org_c from pg_temp.k()), date '2025-01-01', null, null, null, null, null, (select cc from pg_temp.k()));
 -- T9 deliberately gets no row at all.
 
@@ -310,120 +256,89 @@ insert into public.professional_credentials
   (user_id, issuing_country, issuing_state, issuing_authority, registration_number)
 select t.target, 'BR', 'SP', 'COREN', 'AE23A-' || t.label from pg_temp.ae23_targets t;
 
--- ---------------------------------------------------------------------------
--- The RLS-FREE snapshot of the column, taken as postgres.  ⛔ The OLD leg was a
--- POLICY predicate applied to the row already in hand; re-reading the column
--- through `public.profiles` under the caller would evaluate it under the NEW
--- policy and make the differential compare the new predicate with itself.
--- ---------------------------------------------------------------------------
-create temp table ae23_snapshot as
-  select p.id as person_id, p.home_organization_id
-    from public.profiles p
-   where p.id in (select target from pg_temp.ae23_targets);
-grant select on ae23_snapshot to authenticated;
-
 create temp table ae23_matrix (
-  caller uuid, target uuid, old_leg bool, new_leg bool, prof_visible bool, cred_visible bool);
+  caller uuid, target uuid, new_leg bool, prof_visible bool, cred_visible bool);
 grant select, insert on ae23_matrix to authenticated;
 
-create temp table ae23_seed_matrix (caller uuid, person_id uuid, old_leg bool, new_leg bool);
+create temp table ae23_seed_matrix (caller uuid, person_id uuid, new_leg bool);
 grant select, insert on ae23_seed_matrix to authenticated;
 
 create temp table ae23_roster (commission uuid, caller uuid, user_id uuid);
 grant select, insert on ae23_roster to authenticated;
 
 -- ---------------------------------------------------------------------------
--- THE PRE-DECLARATION.  All 50 cells, written out.  Explicitness IS the
--- pre-declaration: a cell that is not here cannot arrive silently.
+-- THE TRUTH TABLE.  All 50 cells, written out.  Explicitness IS the
+-- specification: a cell that is not here cannot arrive silently, and a cell that
+-- moves in either direction fails § 2.2.
 -- ---------------------------------------------------------------------------
-create temp table ae23_expected (caller_label text, target_label text, old_leg bool, new_leg bool, verdict text);
+create temp table ae23_expected (caller_label text, target_label text, new_leg bool);
 insert into ae23_expected values
-  -- CA = orgadmin.a.  The column anchored ALL TEN to org A, so old is TRUE for
-  -- every one of them, and every FALSE below is a narrowing this suite owns.
-  ('CA','T1', true,  true,  'unchanged'),
-  ('CA','T2', true,  true,  'unchanged'),   -- ADR 0163 retention keeps it TRUE
-  ('CA','T3', true,  false, 'NARROWING'),
-  ('CA','T4', true,  false, 'NARROWING'),
-  ('CA','T5', true,  true,  'unchanged'),   -- tie → A is one of the retaining orgs
-  ('CA','T6', true,  true,  'unchanged'),   -- void excluded BEFORE max() → A
-  ('CA','T7', true,  true,  'unchanged'),
-  ('CA','T8', true,  false, 'NARROWING'),
-  ('CA','T9', true,  false, 'NARROWING'),
-  ('CA','T10',true,  false, 'NARROWING'),
-  -- CB = orgadmin.b.  Old is FALSE throughout (no target's column says B), so
-  -- every TRUE below is a widening and must appear in ae23_widenings.
-  ('CB','T1', false, false, 'unchanged'),
-  ('CB','T2', false, false, 'unchanged'),
-  ('CB','T3', false, false, 'unchanged'),
-  ('CB','T4', false, true,  'WIDENING'),
-  ('CB','T5', false, true,  'WIDENING'),
-  ('CB','T6', false, false, 'unchanged'),   -- B's row is VOIDED → excluded entirely
-  ('CB','T7', false, true,  'WIDENING'),
-  ('CB','T8', false, true,  'WIDENING'),
-  ('CB','T9', false, false, 'unchanged'),
-  ('CB','T10',false, false, 'unchanged'),
+  -- CA = orgadmin.a.
+  ('CA','T1', true),
+  ('CA','T2', true),   -- ADR 0163 retention: A is the last non-voided org
+  ('CA','T3', false),  -- bound 1: the only row is voided → no retaining org
+  ('CA','T4', false),  -- arm 2 must not fire while an ACTIVE affiliation exists
+  ('CA','T5', true),   -- bound 2: the tie yields BOTH orgs, and A is one of them
+  ('CA','T6', true),   -- voided excluded BEFORE max() → A
+  ('CA','T7', true),
+  ('CA','T8', false),
+  ('CA','T9', false),  -- no affiliation row → no retaining org → platform_admin-only
+  ('CA','T10',false),
+  -- CB = orgadmin.b.
+  ('CB','T1', false),
+  ('CB','T2', false),
+  ('CB','T3', false),
+  ('CB','T4', true),   -- B is the current employer
+  ('CB','T5', true),   -- bound 2: B is the other tied org
+  ('CB','T6', false),  -- B's row is VOIDED → excluded entirely
+  ('CB','T7', true),
+  ('CB','T8', true),
+  ('CB','T9', false),
+  ('CB','T10',false),
   -- CC = solo.c, the CROSS-ORG actor.  Reaches exactly one person, ever.
-  ('CC','T1', false, false, 'unchanged'),
-  ('CC','T2', false, false, 'unchanged'),
-  ('CC','T3', false, false, 'unchanged'),
-  ('CC','T4', false, false, 'unchanged'),
-  ('CC','T5', false, false, 'unchanged'),
-  ('CC','T6', false, false, 'unchanged'),
-  ('CC','T7', false, false, 'unchanged'),
-  ('CC','T8', false, false, 'unchanged'),
-  ('CC','T9', false, false, 'unchanged'),
-  ('CC','T10',false, true,  'WIDENING'),
-  -- CH = hospitaladmin.a1.  ADR 0163 bound 4: this ADR adds NO hospital-tier
-  -- reach.  All false, both sides.
-  ('CH','T1', false, false, 'unchanged'),
-  ('CH','T2', false, false, 'unchanged'),
-  ('CH','T3', false, false, 'unchanged'),
-  ('CH','T4', false, false, 'unchanged'),
-  ('CH','T5', false, false, 'unchanged'),
-  ('CH','T6', false, false, 'unchanged'),
-  ('CH','T7', false, false, 'unchanged'),
-  ('CH','T8', false, false, 'unchanged'),
-  ('CH','T9', false, false, 'unchanged'),
-  ('CH','T10',false, false, 'unchanged'),
-  -- CS = staff1.ccih.  THE D3 COLLAPSE CELL: shares an ACTIVE org-A affiliation
-  -- with T1/T7 and holds NO org_admin membership.  All false, both sides.  This
-  -- is what reds if LOCATE and GRANT are ever collapsed into one join.
-  ('CS','T1', false, false, 'unchanged'),
-  ('CS','T2', false, false, 'unchanged'),
-  ('CS','T3', false, false, 'unchanged'),
-  ('CS','T4', false, false, 'unchanged'),
-  ('CS','T5', false, false, 'unchanged'),
-  ('CS','T6', false, false, 'unchanged'),
-  ('CS','T7', false, false, 'unchanged'),
-  ('CS','T8', false, false, 'unchanged'),
-  ('CS','T9', false, false, 'unchanged'),
-  ('CS','T10',false, false, 'unchanged');
-
--- ⚠ WRITTEN INDEPENDENTLY of ae23_expected, on purpose.  Derived from it these
---   would be restatements — green whenever § 2.2 is green.  § 2.5 cross-checks.
-create temp table ae23_widenings (caller_label text, target_label text, reason text);
-insert into ae23_widenings values
-  ('CB','T4',  'ended in A but ACTIVE in B — arm 2 must not fire while arm 1 is non-empty (ADR 0163 bound 3)'),
-  ('CB','T5',  'the ended_on TIE — bound 2 yields ALL tied orgs; an arbitrary tie-break would be a silent NARROWING'),
-  ('CB','T7',  'ACTIVE in both A and B — the plan''s own named legitimate widening'),
-  ('CB','T8',  'column says A, ACTIVE only in B — the substrate is the truth'),
-  ('CC','T10', 'CROSS-ORG actor: column says A, ACTIVE only in C');
-
-create temp table ae23_narrowings (caller_label text, target_label text, disposition text);
-insert into ae23_narrowings values
-  ('CA','T3',  'ACCEPT — bound 1, a voided row is "was never true" and is excluded from the derivation entirely'),
-  ('CA','T4',  'ACCEPT — authority follows the ACTIVE org; an ended row adds no reach on top of it'),
-  ('CA','T8',  'ACCEPT — the intended mechanism change: the column stopped deciding'),
-  ('CA','T9',  'ACCEPT — no affiliation row, so no retaining org; platform_admin-only. Blast radius named in the header; the state is CONSTRUCTED, and "not reachable" is not "protected"'),
-  ('CA','T10', 'ACCEPT — same class as CA×T8, measured across the org-C boundary');
+  ('CC','T1', false),
+  ('CC','T2', false),
+  ('CC','T3', false),
+  ('CC','T4', false),
+  ('CC','T5', false),
+  ('CC','T6', false),
+  ('CC','T7', false),
+  ('CC','T8', false),
+  ('CC','T9', false),
+  ('CC','T10',true),
+  -- CH = hospitaladmin.a1.  ADR 0163 bound 4: this predicate adds NO hospital-tier
+  -- reach.  All false.
+  ('CH','T1', false),
+  ('CH','T2', false),
+  ('CH','T3', false),
+  ('CH','T4', false),
+  ('CH','T5', false),
+  ('CH','T6', false),
+  ('CH','T7', false),
+  ('CH','T8', false),
+  ('CH','T9', false),
+  ('CH','T10',false),
+  -- CS = staff1.ccih.  THE RULE 13 COLLAPSE CELL: shares an ACTIVE org-A affiliation
+  -- with T1/T7 and holds NO org_admin membership.  All false.  This is what reds if
+  -- LOCATE and GRANT are ever collapsed into one join.
+  ('CS','T1', false),
+  ('CS','T2', false),
+  ('CS','T3', false),
+  ('CS','T4', false),
+  ('CS','T5', false),
+  ('CS','T6', false),
+  ('CS','T7', false),
+  ('CS','T8', false),
+  ('CS','T9', false),
+  ('CS','T10',false);
 
 -- ============================================================================
 -- § 0  PRECONDITIONS AND VACUITY GUARDS
 -- ============================================================================
 select is(
   (select count(*)::int from public.profiles p join pg_temp.ae23_targets t on t.target = p.id
-    where p.home_organization_id = (select org_a from pg_temp.k()) and p.is_active and not p.is_admin), 10,
-  '0.1 ⭐ THE DIFFERENTIAL GUARD: all ten fixture persons are ACTIVE, non-admin and anchored by the COLUMN to org A — so the OLD predicate admitted all ten for orgadmin.a, and every narrowing below is attributable to the new predicate alone');
+    where p.is_active and not p.is_admin), 10,
+  '0.1 PRECONDITION: all ten fixture persons HAVE a profiles row and are ACTIVE and non-admin. Without the existence half, a FALSE prof_visible in § 3.1 could mean "no row" rather than "denied" — the two read identically');
 
 select is(
   (select count(*)::int from public.memberships m where m.principal_id in (select target from pg_temp.ae23_targets)), 0,
@@ -459,36 +374,29 @@ select is(
   '0.8 PRECONDITION: T9 genuinely has zero affiliation rows — the honest empty, distinct from T3''s voided-only one');
 
 -- ============================================================================
--- § 1  THE OLD PREDICATE IS GONE, AND THE NEW ONE IS THE SAME CALL EVERYWHERE
+-- § 1  THE SAME CALL, ON ALL THREE LEGS
 -- ============================================================================
-select is(
-  (select count(*)::int from pg_policies
-    where coalesce(qual, '') || coalesce(with_check, '') like '%home_organization_id%'), 0,
-  '1.1 ⭐ NO POLICY ANYWHERE still names home_organization_id (unanchored, over qual AND with_check) — so the OLD predicate reproduced in this suite is the only copy of it, and there is no second, unreproduced leg the differential is blind to');
-
 select is(
   (select count(*)::int from pg_policies
     where policyname in ('profiles_admin_select', 'profiles_select_self_or_admin', 'professional_credentials_select')
       and cmd = 'SELECT' and with_check is null
       and coalesce(qual, '') like '%app.can_administer_person_via_affiliation(%'), 3,
-  '1.2 ⭐ all three re-predicated legs are SELECT-only with NULL with_check and carry the IDENTICAL call. This is what licenses § 5''s reduction (the removed implicit gate could only bind if the credentials leg were not also a profiles disjunct) AND what makes the plan''s "INSERT/UPDATE WITH CHECK" cells subjectless rather than skipped');
+  '1.2 ⭐ all three person-read legs are SELECT-only with NULL with_check and carry the IDENTICAL call. This is what licenses § 5''s reduction (the removed implicit gate could only bind if the credentials leg were not also a profiles disjunct) AND what makes the plan''s "INSERT/UPDATE WITH CHECK" cells subjectless rather than skipped');
 
 -- ============================================================================
--- § 2  THE DIFFERENTIAL — measured per (caller, target), both predicates in ONE
---      transaction, against a pre-declaration written before the run
+-- § 2  THE MATRIX — measured per (caller, target), in ONE transaction per caller,
+--      against a truth table written before the run
 -- ============================================================================
 select test_helpers.claims_for((select ca from pg_temp.k()), false, 'org_admin');
 set local role authenticated;
 insert into pg_temp.ae23_matrix
 select (select ca from pg_temp.k()), t.target,
-       (s.home_organization_id is not null and app.is_org_admin_of(s.home_organization_id)),
        app.can_administer_person_via_affiliation(t.target),
        exists (select 1 from public.profiles pr where pr.id = t.target),
        exists (select 1 from public.professional_credentials pc where pc.user_id = t.target)
-  from pg_temp.ae23_targets t join pg_temp.ae23_snapshot s on s.person_id = t.target;
+  from pg_temp.ae23_targets t;
 insert into pg_temp.ae23_seed_matrix
 select (select ca from pg_temp.k()), sd.person_id,
-       (sd.home_organization_id is not null and app.is_org_admin_of(sd.home_organization_id)),
        app.can_administer_person_via_affiliation(sd.person_id)
   from pg_temp.ae23_seed sd;
 reset role;
@@ -497,14 +405,12 @@ select test_helpers.claims_for((select cb from pg_temp.k()), false, 'org_admin')
 set local role authenticated;
 insert into pg_temp.ae23_matrix
 select (select cb from pg_temp.k()), t.target,
-       (s.home_organization_id is not null and app.is_org_admin_of(s.home_organization_id)),
        app.can_administer_person_via_affiliation(t.target),
        exists (select 1 from public.profiles pr where pr.id = t.target),
        exists (select 1 from public.professional_credentials pc where pc.user_id = t.target)
-  from pg_temp.ae23_targets t join pg_temp.ae23_snapshot s on s.person_id = t.target;
+  from pg_temp.ae23_targets t;
 insert into pg_temp.ae23_seed_matrix
 select (select cb from pg_temp.k()), sd.person_id,
-       (sd.home_organization_id is not null and app.is_org_admin_of(sd.home_organization_id)),
        app.can_administer_person_via_affiliation(sd.person_id)
   from pg_temp.ae23_seed sd;
 reset role;
@@ -513,14 +419,12 @@ select test_helpers.claims_for((select cc from pg_temp.k()), false, 'org_admin')
 set local role authenticated;
 insert into pg_temp.ae23_matrix
 select (select cc from pg_temp.k()), t.target,
-       (s.home_organization_id is not null and app.is_org_admin_of(s.home_organization_id)),
        app.can_administer_person_via_affiliation(t.target),
        exists (select 1 from public.profiles pr where pr.id = t.target),
        exists (select 1 from public.professional_credentials pc where pc.user_id = t.target)
-  from pg_temp.ae23_targets t join pg_temp.ae23_snapshot s on s.person_id = t.target;
+  from pg_temp.ae23_targets t;
 insert into pg_temp.ae23_seed_matrix
 select (select cc from pg_temp.k()), sd.person_id,
-       (sd.home_organization_id is not null and app.is_org_admin_of(sd.home_organization_id)),
        app.can_administer_person_via_affiliation(sd.person_id)
   from pg_temp.ae23_seed sd;
 reset role;
@@ -529,72 +433,32 @@ select test_helpers.claims_for((select ch from pg_temp.k()), false, 'hospital_ad
 set local role authenticated;
 insert into pg_temp.ae23_matrix
 select (select ch from pg_temp.k()), t.target,
-       (s.home_organization_id is not null and app.is_org_admin_of(s.home_organization_id)),
        app.can_administer_person_via_affiliation(t.target),
        exists (select 1 from public.profiles pr where pr.id = t.target),
        exists (select 1 from public.professional_credentials pc where pc.user_id = t.target)
-  from pg_temp.ae23_targets t join pg_temp.ae23_snapshot s on s.person_id = t.target;
+  from pg_temp.ae23_targets t;
 reset role;
 
 select test_helpers.claims_for((select cs from pg_temp.k()), false, 'staff');
 set local role authenticated;
 insert into pg_temp.ae23_matrix
 select (select cs from pg_temp.k()), t.target,
-       (s.home_organization_id is not null and app.is_org_admin_of(s.home_organization_id)),
        app.can_administer_person_via_affiliation(t.target),
        exists (select 1 from public.profiles pr where pr.id = t.target),
        exists (select 1 from public.professional_credentials pc where pc.user_id = t.target)
-  from pg_temp.ae23_targets t join pg_temp.ae23_snapshot s on s.person_id = t.target;
+  from pg_temp.ae23_targets t;
 reset role;
 
 select cmp_ok((select count(*)::int from pg_temp.ae23_matrix), '>=', 50,
-  '2.1 FLOOR: the differential measured at least 5 callers × 10 targets. A zero-delta verdict over an empty matrix is the classic vacuous green');
+  '2.1 FLOOR: the matrix measured at least 5 callers × 10 targets. A verdict over an empty matrix is the classic vacuous green, and every § 3/§ 4/§ 5 cell below is a count over this table');
 
 select set_eq(
-  $q$select c.label as caller_label, t.label as target_label, m.old_leg, m.new_leg
+  $q$select c.label as caller_label, t.label as target_label, m.new_leg
        from pg_temp.ae23_matrix m
        join pg_temp.ae23_callers c on c.caller = m.caller
        join pg_temp.ae23_targets t on t.target = m.target$q$,
-  $q$select caller_label, target_label, old_leg, new_leg from pg_temp.ae23_expected$q$,
-  '2.2 ⭐ THE DIFFERENTIAL: every (caller, target) cell matches its pre-declaration, OLD and NEW. A cell that moved in either direction without being written down first fails HERE');
-
-select set_eq(
-  $q$select c.label as caller_label, t.label as target_label
-       from pg_temp.ae23_matrix m
-       join pg_temp.ae23_callers c on c.caller = m.caller
-       join pg_temp.ae23_targets t on t.target = m.target
-      where m.new_leg and not m.old_leg$q$,
-  $q$select caller_label, target_label from pg_temp.ae23_widenings$q$,
-  '2.3 ⛔ THE 0154 RULE: the measured WIDENINGS are exactly the five pre-declared ones, each carrying a written reason. An unapproved widening cannot be safe, so any extra pair reds here');
-
-select set_eq(
-  $q$select c.label as caller_label, t.label as target_label
-       from pg_temp.ae23_matrix m
-       join pg_temp.ae23_callers c on c.caller = m.caller
-       join pg_temp.ae23_targets t on t.target = m.target
-      where m.old_leg and not m.new_leg$q$,
-  $q$select caller_label, target_label from pg_temp.ae23_narrowings$q$,
-  '2.4 the newly HIDDEN pairs are exactly the five reviewed ones, each carrying a written ACCEPT disposition. A narrowing can be wrong and safe — but it may not be silent');
-
-select is(
-  (select count(*)::int from pg_temp.ae23_expected e
-    where e.verdict is distinct from
-          (case when e.new_leg and not e.old_leg then 'WIDENING'
-                when e.old_leg and not e.new_leg then 'NARROWING'
-                else 'unchanged' end))
-  + (select count(*)::int from pg_temp.ae23_widenings w
-      where not exists (select 1 from pg_temp.ae23_expected e
-                         where e.caller_label = w.caller_label and e.target_label = w.target_label
-                           and e.verdict = 'WIDENING'))
-  + (select count(*)::int from pg_temp.ae23_narrowings n
-      where not exists (select 1 from pg_temp.ae23_expected e
-                         where e.caller_label = n.caller_label and e.target_label = n.target_label
-                           and e.verdict = 'NARROWING')), 0,
-  '2.5 CROSS-CHECK of the hand artefacts against each other: every verdict label is derivable from its own old/new pair, and every declared widening/narrowing has a matching verdict row. § 2.3 and § 2.4 are only independent evidence while these three lists agree');
-
-select cmp_ok(
-  (select count(*)::int from pg_temp.ae23_matrix where old_leg is not distinct from new_leg), '>=', 40,
-  '2.6 FLOOR: at least 40 of the 50 cells did not move at all — AE2 is a MECHANISM change (ADR 0163 § Consequences predicted near-zero movement), and a differential that moved everything would mean the reproduction of the old predicate is wrong');
+  $q$select caller_label, target_label, new_leg from pg_temp.ae23_expected$q$,
+  '2.2 ⭐⭐ THE TRUTH TABLE: all fifty (caller, target) predicate cells match their written specification. This is the cell the arm-2 guard mutation reds — removing `not exists (… active …)` from app.person_authority_orgs flips CA×T4 from FALSE to TRUE');
 
 -- ============================================================================
 -- § 3  POLICY LEVEL — the leg IS the visibility, because § 0 removed every
@@ -602,24 +466,24 @@ select cmp_ok(
 -- ============================================================================
 select is(
   (select count(*)::int from pg_temp.ae23_matrix where prof_visible is distinct from new_leg), 0,
-  '3.1 on all 50 pairs, the profiles row is visible EXACTLY when the new leg is true — the predicate is not merely correct in isolation, the policy actually calls it (and § 0.2/§ 0.3/§ 0.5 are what stop a permissive sibling from carrying the read)');
+  '3.1 ⭐ UNIQUE: on all 50 pairs the profiles row is visible EXACTLY when the predicate is true — the policy ACTUALLY CALLS it. 390 proves the predicate correct in isolation, which is evidence about nothing downstream; this is the wiring (and § 0.2/§ 0.3/§ 0.5 are what stop a permissive sibling from carrying the read)');
 
 select is(
   (select count(*)::int from pg_temp.ae23_matrix where cred_visible is distinct from new_leg), 0,
-  '3.2 …and the same holds on professional_credentials, measured independently rather than inferred from § 3.1');
+  '3.2 ⭐ UNIQUE: …and the same holds on professional_credentials, measured independently rather than inferred from § 3.1');
 
 select is(
   (select prof_visible from pg_temp.ae23_matrix m
     where m.caller = (select ca from pg_temp.k()) and m.target = '00000000-0000-0000-0000-0ae23a000006'), true,
-  '3.3 ⭐ THE VOIDED-ORDERING TRAP AT POLICY LEVEL: orgadmin.a can still read T6, whose VOIDED row ends LATER than the real one. An implementation computing max(ended_on) before filtering voided returns EMPTY here — a total, silent loss of authority that no widening rule would ever catch');
+  '3.3 ⭐ THE VOIDED-ORDERING TRAP AT POLICY LEVEL: orgadmin.a can still read T6, whose VOIDED row ends LATER than the real one. An implementation computing max(ended_on) before filtering voided returns EMPTY here — a total, silent loss of authority');
 
 select is(
   (select prof_visible from pg_temp.ae23_matrix m
     where m.caller = (select cb from pg_temp.k()) and m.target = '00000000-0000-0000-0000-0ae23a000005'), true,
-  '3.4 ⭐ THE TIE AT POLICY LEVEL: orgadmin.b can read T5, tied with org A on ended_on. An arbitrary tie-break picks one org and is a NARROWING — and this differential only pre-declares widenings, so § 2 alone would never notice it');
+  '3.4 ⭐ THE TIE AT POLICY LEVEL: orgadmin.b can read T5, tied with org A on ended_on. An arbitrary tie-break picks ONE org and silently drops the other — this and 390 § C5 are what notice it');
 
 -- ============================================================================
--- § 4  THE D3 COLLAPSE — LOCATE and GRANT are two steps, and must stay two
+-- § 4  THE RULE 13 COLLAPSE — LOCATE and GRANT are two steps, and must stay two
 -- ============================================================================
 select is(
   (select count(*)::int from public.organization_affiliations oa
@@ -635,7 +499,7 @@ select is(
 
 select is(
   (select count(*)::int from pg_temp.ae23_matrix where caller = (select cs from pg_temp.k()) and new_leg), 0,
-  '4.3 ⭐ ADR 0155 D3: a caller who SHARES an active affiliation with the target but holds no org_admin membership in the resolved org is denied for EVERY target. This is what reds if LOCATE and GRANT are ever collapsed into one join');
+  '4.3 ⭐⭐ ARCHITECTURE RULE 13 / ADR 0155 D3: a caller who SHARES an active affiliation with the target but holds no org_admin membership in the resolved org is denied for EVERY target. One of exactly THREE cells estate-wide asserting the LOCATE-vs-GRANT split (with 390 § D10 and 394 § 9.2), and what reds if the two steps are ever collapsed into one join');
 
 select is(
   (select count(*)::int from pg_temp.ae23_matrix
@@ -643,15 +507,15 @@ select is(
   '4.4 …and the denial holds end-to-end through RLS on BOTH re-predicated tables. § 4.3 is truth about the predicate and evidence about nothing downstream');
 
 -- ============================================================================
--- § 5  THE professional_credentials WIDENING CANDIDATE — MEASURED, not inherited
+-- § 5  THE professional_credentials GATE THAT WAS REMOVED — MEASURED, not inherited
 -- ============================================================================
 select is(
   (select count(*)::int from pg_temp.ae23_matrix where cred_visible and not prof_visible), 0,
-  '5.1 ⭐ MEASURED, NOT ARGUED: on all 50 pairs there is no case where the credential is readable but the person''s profiles row is not — the implicit profiles-RLS gate the old leg carried, and the new DEFINER call removes, binds on ZERO pairs');
+  '5.1 ⭐ UNIQUE, AND MEASURED RATHER THAN ARGUED: on all 50 pairs there is no case where the credential is readable but the person''s profiles row is not — the implicit profiles-RLS gate the old leg carried, and the DEFINER call removes, binds on ZERO pairs');
 
 select is(
   (select count(*)::int from pg_temp.ae23_matrix where cred_visible is distinct from prof_visible), 0,
-  '5.2 …and the equality holds in BOTH directions, so the removal did not narrow either. AE2.2 recorded this as an argument and explicitly refused to assert it away; this is the measurement it owed');
+  '5.2 ⭐ UNIQUE: …and the equality holds in BOTH directions, so the removal did not narrow either. AE2.2 recorded this as an argument and explicitly refused to assert it away; this is the measurement it owed');
 
 select cmp_ok(
   (select count(*)::int from pg_temp.ae23_matrix where cred_visible), '>=', 5,
@@ -681,23 +545,22 @@ select isnt_empty(
 
 select is(
   (select count(*)::int from pg_temp.ae23_targets t join public.profiles pr on pr.id = t.target
-    where pr.home_organization_id = (select org_a from pg_temp.k())
-      and pr.is_active and not pr.is_admin
+    where pr.is_active and not pr.is_admin
       and not exists (select 1 from public.memberships m
                        where m.commission_id = (select ccih from pg_temp.k()) and m.principal_id = pr.id)), 10,
-  '6.2 THE OLD ROSTER PREDICATE, REPRODUCED IN FULL (not just its changed conjunct): under `pr.home_organization_id = v_org_id and pr.is_active and not pr.is_admin and not exists(memberships)` all TEN were addable to CCIH. Every absence in § 6.3 is attributable to the affiliation conjunct alone');
+  '6.2 ⭐ THE DOOR''S OTHER THREE ROW FILTERS ALL PASS FOR ALL TEN, reproduced from the live body: `pr.is_active and not pr.is_admin and not exists(memberships for this commission)`. So every absence in § 6.3 is attributable to the affiliation conjunct alone, and never to a fixture person who was ineligible for some other reason');
 
 select set_eq(
   $q$select t.label from pg_temp.ae23_targets t
       where t.target in (select r.user_id from pg_temp.ae23_roster r
                           where r.commission = 'a0000000-0000-0000-0000-0000000000a1')$q$,
   $q$select unnest(array['T1','T7'])$q$,
-  '6.3 under the NEW predicate exactly the two ACTIVELY affiliated persons are addable to org A''s commission — 10 → 2, a pre-declared NARROWING that breaks no flow (rehire is affiliate-first, one step, ADR 0151 D5)');
+  '6.3 ⭐ exactly the two persons ACTIVELY affiliated to org A are addable to org A''s commission — eight of the ten are not, and § 6.2 is what makes those eight absences the affiliation conjunct''s doing. Breaks no flow: rehire is affiliate-first, one step (ADR 0151 D5)');
 
 select is(
   (select count(*)::int from pg_temp.ae23_matrix m join pg_temp.ae23_targets t on t.target = m.target
     where m.caller = (select ca from pg_temp.k()) and t.label in ('T2','T5','T6') and m.new_leg), 3,
-  '6.4 ⭐ THE DIVERGENCE, MEASURED: T2, T5 and T6 ARE retained for org A by the AUTHORITY predicate (§ 6.3 shows none of them is addable). The two doors answer different questions — "who may ADMINISTER" vs "who may be STAFFED" — and ADR 0163''s retention was never an input to the second. If anyone unifies them, § 6.3 and § 6.4 disagree');
+  '6.4 ⭐ UNIQUE — THE DIVERGENCE, MEASURED: T2, T5 and T6 ARE retained for org A by the AUTHORITY predicate, while § 6.3 shows none of them is addable. The two doors answer different questions — "who may ADMINISTER" vs "who may be STAFFED" — and ADR 0163''s retention was never an input to the second. If anyone unifies them, § 6.3 and § 6.4 disagree');
 
 select isnt_empty(
   $q$select 1 from pg_temp.ae23_roster where commission = 'c0000000-0000-0000-0000-0000000000c1'$q$,
@@ -708,7 +571,7 @@ select set_eq(
       where t.target in (select r.user_id from pg_temp.ae23_roster r
                           where r.commission = 'c0000000-0000-0000-0000-0000000000c1')$q$,
   $q$select unnest(array['T4','T7','T8'])$q$,
-  '6.6 ⭐ THE ROSTER WIDENING, PRE-DECLARED: the three persons ACTIVELY affiliated to org B are addable to org B''s commission even though their column says org A — while T5, whose org-B row is ENDED, is not. The substrate decides, and retention does not leak into staffing eligibility');
+  '6.6 ⭐ THE ROSTER SET FOR ORG B: exactly the three persons ACTIVELY affiliated to org B are addable to org B''s commission — while T5, whose org-B row is ENDED, is not, even though § 2.2 has CB×T5 TRUE. The substrate decides staffing eligibility, and retention does not leak into it');
 
 -- ============================================================================
 -- § 7  SHAPE — the two properties whose loss would make everything above lie
@@ -723,18 +586,14 @@ select is(
   '7.2 the authority predicate is STILL SECURITY DEFINER — a create-or-replace that dropped it would subject its organization_affiliations read to the caller''s RLS, whose SELECT policy has no hospital tier by design (ADR 0151 D1), and every § 3 number would silently change meaning');
 
 -- ============================================================================
--- § 8  THE SEED POPULATION — zero movement, on a FLOORED population
+-- § 8  THE SEED POPULATION — the predicate still resolves the real roster
 -- ============================================================================
 select cmp_ok((select count(*)::int from pg_temp.ae23_seed), '>=', 30,
-  '8.1 FLOOR, not an exact count: the seed snapshot holds at least 30 persons. Catalog-driven counts drift with every seed change; a floor is what survives that without going vacuous');
-
-select is(
-  (select count(*)::int from pg_temp.ae23_seed_matrix where old_leg is distinct from new_leg), 0,
-  '8.2 ⭐ ZERO MOVEMENT across the whole seed roster for all three org_admin callers — the delta ADR 0163 predicted, and the reason "every widening is pre-declared or it is a red" is an affordable rule here rather than a rubber stamp');
+  '8.1 FLOOR, not an exact count: the seed snapshot holds at least 30 persons. Catalog-driven counts drift with every seed change; a floor is what survives that without going vacuous. § 8.3 is what consumes it');
 
 select cmp_ok(
-  (select count(*)::int from pg_temp.ae23_seed_matrix where old_leg and new_leg), '>=', 25,
-  '8.3 FLOOR: at least 25 of those seed pairs are TRUE under BOTH predicates, so § 8.2''s zero delta is agreement between two live predicates and not two silent falses');
+  (select count(*)::int from pg_temp.ae23_seed_matrix where new_leg), '>=', 25,
+  '8.3 ⭐ NO-REGRESSION FLOOR OVER THE REAL SEED ROSTER: across the three org_admin callers, the predicate resolves TRUE for at least 25 (caller, seed person) pairs (measured 2026-08-28: 35). The rest of this suite runs on ten CONSTRUCTED persons; this is the only cell measuring the predicate against the population the app actually ships with, and it reds if the predicate ever starts denying broadly');
 
 select * from finish();
 rollback;

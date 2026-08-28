@@ -3272,3 +3272,122 @@ Retiring "the AE2 differential suites" would have deleted **156 live assertions*
 ⚠ **Rule 13's LOCATE-vs-GRANT split is asserted by exactly three cells — `390 §D10`, `392 §4.3`,
 `394 §9.2` — and ALL THREE are inside the six.** `394 §9.2` is the only one on the *write* predicate.
 At least one must survive any re-cut.
+
+### Increment F — the mechanical fixture sweep (35 files, +96/−171)
+
+**The measurement that made classification cheap, taken before any edit:** nothing in the database
+reads the column any more. **Zero RLS policies** reference it; zero views/indexes/rules; of the 8
+functions whose `prosrc` matches, **6 match only inside a comment** recording that the column already
+left them. The only real readers are `guard_profile_privileged_columns` (which guards *writes* to it)
+and `handle_new_user`. ⭐ So a fixture assignment **could not** have been carrying an authorization
+association — that was already dead weight after AE2.2 — which made "pure inertia" the default and
+narrowed the hunt to the two real exceptions.
+
+- **`360` was the class-2 exception**: its fixture *derived* `organization_affiliations` **from the
+  column** (`select pr.id, pr.home_organization_id … where pr.id::text like '0aff2002-%'`). Replaced
+  with the explicit 9-row `VALUES` the select produced.
+- ⭐ **`180:47` inverted `has_column` → `hasnt_column`.** It is now **the only guard anywhere against
+  the column being re-added**, and it is RED until the migration applies — the intended red-first
+  shape, not a defect.
+- **`381`'s comment claim had gone false** ("containment/rehire still anchors on the column") and was
+  rewritten: the anchor is a non-voided affiliation, and the trigger fires on `voided_at`, **not**
+  `ended_on` — which is why that setup's `ended_on` write still lands its subjects in the D5 state.
+- Plan counts **recounted with a validated counter**: it was first made to reproduce the pre-edit
+  `plan(41)`/`plan(49)` exactly, then run on the new files. Assertion-delta equals plan-delta in all
+  39 touched files.
+
+### ⚠ Two coverage losses the sweep declared rather than papered over — LEAD RULING OWED
+
+1. ⛔ **`385` cell 4.3 deleted = a REAL loss, not a tidy-up.** It asserted `finalize_invited_person_for`
+   leaves the column UNTOUCHED. **Nothing now asserts that door abstains from re-anchoring a person.**
+   The modern equivalent — "the door writes no `organization_affiliations` row" — is a *different*
+   property, and the sweep correctly **declined to invent it**. ⭐ Declining is right: a replacement
+   assertion written by the same pass that deleted the original is not coverage, it is a guess
+   wearing the original's label.
+2. **`180`: the org-less vendor persona lost its only witness.** The deleted
+   `cmp_ok(… is_admin …, '>=', 1)` was the sole cell asserting that persona exists. ⚠ Check whether
+   `393 § 1.3` / `395 § 9.x` (platform admin has no non-voided affiliation) already cover it before
+   re-adding — they assert the *shape*, which may not be the same claim as *existence*.
+
+⚠ Also declared, not resolved: `372`/`373` hold **zero** `organization_affiliations` rows — the shape
+the brief said to shout about. The sweep ruled class-1 (their subject is that the audit derives org
+from the HOSPITAL) but asked for a second opinion. And `301 § 6.3` narrows from 4 granted columns to 3.
+
+⛔ **An error in the lead's own brief, corrected by the sweep:** it named
+`303_dominance_grid.sql` as carrying a reference. It carries **none** — the premise was wrong, taken
+from an earlier report rather than re-grepped. A brief is an assertion too.
+
+---
+
+## ✅ Increment F COMPLETE — `profiles.home_organization_id` is DROPPED
+
+### Integration gates — lead-run, exit codes captured directly
+
+| Gate | Result | Exit |
+| --- | --- | ---: |
+| `supabase db reset --local` (applies the drop + rewritten seed) | Reset local database | **0** |
+| column present in `information_schema.columns` | **0** | — |
+| bodies naming it, comments stripped, **WHOLE catalog** | **(none)** | — |
+| `npm run gen:types` → refs in `database.ts` | **0** | 0 |
+| `npm run test:db` | **`Files=248, Tests=8262, Result: PASS`** — ⭐ **first run, zero failures** | **0** |
+| `npm run typecheck` · `npx vitest run` | 0 errors · **147 files / 2007 tests** | 0 |
+| `npm run lint` | 11/11 | **0** |
+| `ARM=census` · `hat` · `floor` · `FROMFINDINGS=1 wrapper` | ALL **INVARIANT HOLDS** (census 569/605) | **0** |
+
+⭐ **The test count reconciles exactly**: 8305 → 8262 = **−43**, being the 42 column cells the six
+re-cuts removed (390 −5, 391 −2, 392 −6, 393 −8, 394 −13, 395 −8) plus `180`'s net −1. A count that
+reconciles is the difference between "the suites passed" and "the suites passed for the reason
+claimed".
+
+**Only fallout:** two `ORG_A` constants orphaned by removing the metadata writers (eslint, 2
+warnings). Removed — and in `phase13-audit` the constant's own rationale was the retired
+tenant-anchor invariant, so it went with it.
+
+### ⚖ RULING — `scripts/door-sweep-cases.sh` exited **1** with ZERO cases
+
+⛔ Per CLAUDE.md §6 that is **a finding to rule on, never a pass**, and the deriver's own message
+demands the ruling be *"a claim someone can check, not a silence"*. Measured from the catalog:
+
+- The migration contains **zero** `create/alter/drop policy` statements.
+- It rewrites exactly two functions, and **both return `trigger`, not `boolean`** —
+  `public.handle_new_user` and `public.guard_profile_privileged_columns` (both `prosecdef=t`). The
+  door sweep neutralizes **boolean predicates**; a `trigger`-returning body is **structurally
+  outside its domain**, exactly as `ARM=census` was for increment D's arm.
+
+**Ruled:** no gate in this migration is sweepable, and the compensating controls are named rather
+than assumed — `handle_new_user` is a signup trigger, not an authorization gate (behaviourally
+covered by `180`); `guard_profile_privileged_columns` **hosts increment D's demotion backstop**, and
+the rewrite was verified not to have disturbed it: catalog reads
+`calls_person_is_anchorless=true | raises_HC0RB=true`, and `400` passed inside the green `test:db`.
+⭐ That was the real risk in this migration — a column-removal rewrite silently dropping an
+authorization arm added four commits earlier — and it is measured, not argued.
+
+### ⭐ M11 re-verified AFTER the drop, same probes, same preconditions
+
+| Door | Actor | Post-drop |
+| --- | --- | --- |
+| `public.affiliate_person` | hospital_admin | **REFUSED `HC0R0`** |
+| `public.affiliate_person_to_org` | org_admin | **REFUSED `HC0R0`** |
+| `public.grant_role` → `ensure_provisioned_org_affiliation` | org_admin | **REFUSED `HC0R0`** |
+| `public.recover_orphan_person_to_org` (positive control) | platform_admin | **ACCEPTED, row written** |
+
+Preconditions asserted in the same transaction and still live (orphan flagged by the detector;
+hospital_admin genuinely holds `is_hospital_admin_of_for`). Behaviour is **identical to pre-drop** —
+which is the claim ADR 0164 needed: the doors were re-predicated off the column *before* it was
+removed, so removing it changed nothing.
+
+### Owed, and deliberately not done in the integration window
+
+- ⚠ **`392`'s FILENAME is now a false assertion** — `392_ae23a_widening_differential.sql` contains no
+  differential. ⛔ **NOT renamed deliberately:** `docs/reviews/authz-door-audit-findings.md` keys its
+  witness lists on **full filenames**, so a rename orphans name-keyed verdicts, and doing it inside
+  the integration window adds a deletion to a 50-file change. Its header states what the file now is.
+- Three coverage losses the `393`–`395` re-cut **named rather than glossed**: `395 §1.2–§1.5` (the
+  picker's population is now asserted for one caller class, with an explicit ⛔ in the file so the
+  five-row loop is not misread as five checks), `395 §2.8` (the only aggregate over all eight
+  D-targets), and `394 §4/§5` (the "every widening is pre-declared" discipline, whose subject was
+  this migration).
+- ⭐ A lead-brief error, corrected by an agent: my `390` uniqueness claim was **wider than the
+  truth** — `398 §1.4` does anchor the locator's `prosecdef` and both ACLs, so only §A3 (STABLE) and
+  §A4 (pinned `search_path`) were unique. Overstated uniqueness makes an audit read as more alarming
+  than it is; the labels now say exactly what is unique.

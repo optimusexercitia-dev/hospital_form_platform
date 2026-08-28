@@ -291,9 +291,10 @@ select is(
 -- Clear the JWT claim left by the last claims_for() call above (K7): it is a
 -- transaction-local GUC (set_config(..., true)), so it survives `reset role` and
 -- would otherwise make auth.uid() resolve to a stale persona for the privileged
--- profile writes below, tripping guard_profile_privileged_columns' service-role-only
--- check on home_organization_id. Matches the established 61_answer_model_v2.sql
--- pattern.
+-- profile writes below. ⚠ AE2.4 (2026-08-28): those writes now set only `full_name`,
+-- which is NOT one of guard_profile_privileged_columns' guarded columns
+-- (`home_organization_id` was, and has been dropped), so this clear is now defensive
+-- rather than load-bearing. Matches the established 61_answer_model_v2.sql pattern.
 select set_config('request.jwt.claims', null, true);
 
 -- A foreign-org reader (K6's org2 has no commission/user yet — mint a user anchored
@@ -306,8 +307,7 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
   values ('00000000-0000-0000-0000-000000000000', (select u_foreign from foreign_org),
           'authenticated', 'authenticated',
           (select u_foreign from foreign_org) || '@test', now(), now());
-update public.profiles set full_name = 'Foreign Org User',
-       home_organization_id = (select org2 from other)
+update public.profiles set full_name = 'Foreign Org User'
   where id = (select u_foreign from foreign_org);
 
 -- An org_admin persona in org_b (bootstrap has none) to prove the catalog write
@@ -318,8 +318,7 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
   values ('00000000-0000-0000-0000-000000000000', (select u_oa from org_admin_p),
           'authenticated', 'authenticated',
           (select u_oa from org_admin_p) || '@test', now(), now());
-update public.profiles set full_name = 'Org Admin B',
-       home_organization_id = (select org_b from k)
+update public.profiles set full_name = 'Org Admin B'
   where id = (select u_oa from org_admin_p);
 insert into public.memberships (organization_id, principal_id, role)
   values ((select org_b from k), (select u_oa from org_admin_p), 'org_admin');

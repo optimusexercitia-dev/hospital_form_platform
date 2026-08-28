@@ -492,7 +492,7 @@ begin;
 
 \echo '--- P5a step (ii) profiles page read — rep 1 ---'
   explain (analyze, buffers)
-  select pr.id, pr.full_name, pr.email, pr.home_organization_id,
+  select pr.id, pr.full_name, pr.email,
          pr.professional_category_id, pr.is_active, pr.suspended_until,
          pr.email_confirmed_at, pr.created_at, pc.label_pt
     from public.profiles pr
@@ -502,7 +502,7 @@ begin;
    offset 0 limit 20;
 \echo '--- P5a step (ii) rep 2 ---'
   explain (analyze, buffers)
-  select pr.id, pr.full_name, pr.email, pr.home_organization_id,
+  select pr.id, pr.full_name, pr.email,
          pr.professional_category_id, pr.is_active, pr.suspended_until,
          pr.email_confirmed_at, pr.created_at, pc.label_pt
     from public.profiles pr
@@ -512,7 +512,7 @@ begin;
    offset 0 limit 20;
 \echo '--- P5a step (ii) rep 3 ---'
   explain (analyze, buffers)
-  select pr.id, pr.full_name, pr.email, pr.home_organization_id,
+  select pr.id, pr.full_name, pr.email,
          pr.professional_category_id, pr.is_active, pr.suspended_until,
          pr.email_confirmed_at, pr.created_at, pc.label_pt
     from public.profiles pr
@@ -608,7 +608,7 @@ begin;
 
 \echo '--- P5b step (iv) profiles page read — rep 1 ---'
   explain (analyze, buffers)
-  select pr.id, pr.full_name, pr.email, pr.home_organization_id,
+  select pr.id, pr.full_name, pr.email,
          pr.professional_category_id, pr.is_active, pr.suspended_until,
          pr.email_confirmed_at, pr.created_at, pc.label_pt
     from public.profiles pr
@@ -618,7 +618,7 @@ begin;
    offset 0 limit 20;
 \echo '--- P5b step (iv) rep 2 ---'
   explain (analyze, buffers)
-  select pr.id, pr.full_name, pr.email, pr.home_organization_id,
+  select pr.id, pr.full_name, pr.email,
          pr.professional_category_id, pr.is_active, pr.suspended_until,
          pr.email_confirmed_at, pr.created_at, pc.label_pt
     from public.profiles pr
@@ -628,7 +628,7 @@ begin;
    offset 0 limit 20;
 \echo '--- P5b step (iv) rep 3 ---'
   explain (analyze, buffers)
-  select pr.id, pr.full_name, pr.email, pr.home_organization_id,
+  select pr.id, pr.full_name, pr.email,
          pr.professional_category_id, pr.is_active, pr.suspended_until,
          pr.email_confirmed_at, pr.created_at, pc.label_pt
     from public.profiles pr

@@ -31,16 +31,18 @@
 --        comment-stripped).
 --   §H — SELECT-list census: no `note` column, ever.
 --
--- ⚠ Fixture ordering note: ALL fixture setup (incl. every
--- `update public.profiles set ... home_organization_id ...`) happens BELOW,
--- BEFORE the first `test_helpers.claims_for` call. `set_config('request.
--- jwt.claims', ..., true)` is TRANSACTION-local, not role-local — `reset
--- role` reverts the ROLE but leaves auth.uid() resolving to the last
--- claimed principal for the rest of this transaction. Since
--- home_organization_id is one of profiles' guarded identity/lifecycle
--- columns (service-role-only once auth.uid() is non-null — found via the
--- first red run, not assumed), any post-claims_for profile update in this
--- file would hit `guard_profile_privileged_columns`'s check_violation.
+-- ⚠ Fixture ordering note: ALL fixture setup happens BELOW, BEFORE the first
+-- `test_helpers.claims_for` call. `set_config('request.jwt.claims', ..., true)` is
+-- TRANSACTION-local, not role-local — `reset role` reverts the ROLE but leaves
+-- auth.uid() resolving to the last claimed principal for the rest of this
+-- transaction, and profiles' guarded identity/lifecycle columns are service-role-only
+-- once auth.uid() is non-null (found via the first red run, not assumed), so a
+-- post-claims_for profile update would hit `guard_profile_privileged_columns`'s
+-- check_violation.
+-- ⚠ AE2.4 (2026-08-28): the column that USED to make this file's own updates guarded
+-- was `home_organization_id`, now dropped. The updates below set only `full_name`,
+-- which is not guarded, so the ordering is no longer load-bearing HERE — keep it
+-- anyway: it is the correct shape and the next guarded column added would need it.
 --
 -- MUTATION DISCIPLINE: every keystone marked (verified) was broken by hand,
 -- the SAME assertion re-run and confirmed RED, then restored. §A's
@@ -134,7 +136,7 @@ grant select on personas to authenticated;
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
   select '00000000-0000-0000-0000-000000000000'::uuid, u, 'authenticated', 'authenticated', u || '@test', now(), now()
   from personas, lateral (values (hosp_admin_uid),(org_admin_uid),(foreign_hosp_admin_uid),(crossorg_hosp_admin_uid)) as x(u);
-update public.profiles set full_name = '284 Persona', home_organization_id = (select org_b from k)
+update public.profiles set full_name = '284 Persona'
   where id in (select hosp_admin_uid from personas union select org_admin_uid from personas union select foreign_hosp_admin_uid from personas);
 
 insert into public.memberships (principal_id, organization_id, hospital_id, role)
@@ -151,7 +153,7 @@ insert into public.organizations (id, name, slug)
   values ('28400000-0000-0000-0000-0000000000a1', '284 Cross Org', '284-cross-org');
 insert into public.hospitals (id, organization_id, name, slug)
   values ('28400000-0000-0000-0000-0000000000b1', '28400000-0000-0000-0000-0000000000a1', '284 Cross Hosp', '284-cross-hosp');
-update public.profiles set full_name = '284 CrossOrg', home_organization_id = '28400000-0000-0000-0000-0000000000a1'
+update public.profiles set full_name = '284 CrossOrg'
   where id = (select crossorg_hosp_admin_uid from personas);
 insert into public.memberships (principal_id, organization_id, hospital_id, role)
   select crossorg_hosp_admin_uid, '28400000-0000-0000-0000-0000000000a1', '28400000-0000-0000-0000-0000000000b1', 'hospital_admin'

@@ -84,29 +84,29 @@ from (values
   ('0aff2002-0000-0000-0000-0000000000c1'::uuid, 'aff2.colleague@test.local') -- plain staff, same commission
 ) as s(u, e);
 
-update public.profiles set home_organization_id = '0aff2002-0000-0000-0000-00000000000a'
- where id in ('0aff2002-0000-0000-0000-0000000000a1','0aff2002-0000-0000-0000-0000000000a2',
-              '0aff2002-0000-0000-0000-0000000000b1','0aff2002-0000-0000-0000-0000000000b2',
-              '0aff2002-0000-0000-0000-0000000000b3','0aff2002-0000-0000-0000-0000000000b4',
-              '0aff2002-0000-0000-0000-0000000000b5','0aff2002-0000-0000-0000-0000000000c1');
-update public.profiles set home_organization_id = '0aff2002-0000-0000-0000-00000000000b'
- where id = '0aff2002-0000-0000-0000-0000000000a3';
-
 -- ⭐ AE2.2 — THE FIXTURE HAD BUILT ITS WORLD OUT OF THE COLUMN UNDER TEST.
--- Org-tier person visibility is no longer derived from
--- `profiles.home_organization_id` but from `public.organization_affiliations`
--- (ADR 0163 via `app.can_administer_person_via_affiliation`).  The two writes
--- above are now a tenant-anchor satisfier and nothing more, so without the row
--- below § 5.2's org_admin reads 0 of 5 — not because leg 3 regressed, but
--- because this fixture never gave its personas the substrate production gives
--- every person.  Mirrors `seed.sql:404-408`, which derives exactly this from the
--- same column for every seeded persona; the fixture now builds its world the way
--- production does.
-insert into public.organization_affiliations (principal_id, organization_id, started_on)
-select pr.id, pr.home_organization_id, date '2023-01-01'
-  from public.profiles pr
- where pr.id::text like '0aff2002-%'
-   and pr.home_organization_id is not null;
+-- Org-tier person visibility is derived from `public.organization_affiliations`
+-- (ADR 0163 via `app.can_administer_person_via_affiliation`), so without these rows
+-- § 5.2's org_admin reads 0 of 5 — not because leg 3 regressed, but because this
+-- fixture would never have given its personas the substrate production gives every
+-- person.
+-- ⚠ AE2.4 (2026-08-28): these rows used to be DERIVED, with a `select ... from
+-- public.profiles`, from `profiles.home_organization_id` — the column has now been
+-- dropped, so the pairs are spelled out. They are EXACTLY what that select produced:
+-- the eight org-A personas plus a3 in org B. `d1` is still absent on purpose — it is
+-- created ~170 lines below and so was never in the derived set either; § 5.2 passing
+-- without an affiliation row for it is the evidence that its authority comes from the
+-- org_admin MEMBERSHIP.
+insert into public.organization_affiliations (principal_id, organization_id, started_on) values
+  ('0aff2002-0000-0000-0000-0000000000a1', '0aff2002-0000-0000-0000-00000000000a', date '2023-01-01'),
+  ('0aff2002-0000-0000-0000-0000000000a2', '0aff2002-0000-0000-0000-00000000000a', date '2023-01-01'),
+  ('0aff2002-0000-0000-0000-0000000000b1', '0aff2002-0000-0000-0000-00000000000a', date '2023-01-01'),
+  ('0aff2002-0000-0000-0000-0000000000b2', '0aff2002-0000-0000-0000-00000000000a', date '2023-01-01'),
+  ('0aff2002-0000-0000-0000-0000000000b3', '0aff2002-0000-0000-0000-00000000000a', date '2023-01-01'),
+  ('0aff2002-0000-0000-0000-0000000000b4', '0aff2002-0000-0000-0000-00000000000a', date '2023-01-01'),
+  ('0aff2002-0000-0000-0000-0000000000b5', '0aff2002-0000-0000-0000-00000000000a', date '2023-01-01'),
+  ('0aff2002-0000-0000-0000-0000000000c1', '0aff2002-0000-0000-0000-00000000000a', date '2023-01-01'),
+  ('0aff2002-0000-0000-0000-0000000000a3', '0aff2002-0000-0000-0000-00000000000b', date '2023-01-01');
 
 -- The three admins. Exactly one membership each (see the header).
 insert into public.memberships (organization_id, hospital_id, principal_id, role) values
@@ -280,8 +280,6 @@ select test_helpers.reset_role_and_claims();
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000', '0aff2002-0000-0000-0000-0000000000d1',
         'authenticated', 'authenticated', 'aff2.orgadmin@test.local', now(), now());
-update public.profiles set home_organization_id = '0aff2002-0000-0000-0000-00000000000a'
- where id = '0aff2002-0000-0000-0000-0000000000d1';
 -- ⚠ AE2.2: this admin deliberately gets NO `organization_affiliations` row. Its
 -- authority comes from the org_admin MEMBERSHIP below, and § 5.2 passing without
 -- one is the evidence for that — the affiliation LOCATES the subject's orgs, the

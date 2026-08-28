@@ -74,11 +74,6 @@ from (values
   ('0be00147-0000-0000-0000-0000000000a3'::uuid, 'a147.orgadmin.p@test.local')  -- org_admin of P
 ) as s(u, e);
 
-update public.profiles set home_organization_id = '0be00147-0000-0000-0000-00000000000a'
- where id in ('0be00147-0000-0000-0000-0000000000a1','0be00147-0000-0000-0000-0000000000a2');
-update public.profiles set home_organization_id = '0be00147-0000-0000-0000-00000000000b'
- where id = '0be00147-0000-0000-0000-0000000000a3';
-
 -- Exactly ONE membership per persona (see the header).
 insert into public.memberships (organization_id, principal_id, role) values
   ('0be00147-0000-0000-0000-00000000000a', '0be00147-0000-0000-0000-0000000000a1', 'org_admin'),

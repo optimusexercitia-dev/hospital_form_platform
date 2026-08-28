@@ -506,8 +506,7 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
   values ('00000000-0000-0000-0000-000000000000', 'ff5f0000-0000-0000-0000-000000000005',
           'authenticated', 'authenticated', 'ff5-estrangeiro@test.local', now(), now());
 update public.profiles
-   set full_name = 'Estrangeiro',
-       home_organization_id = 'ff5f0000-0000-0000-0000-000000000001'
+   set full_name = 'Estrangeiro'
  where id = 'ff5f0000-0000-0000-0000-000000000005';
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
