@@ -122,6 +122,58 @@ onto `app.person_authority_orgs`, and carry a **capability-level** differential 
 targets. Without it the column drop **silently moves write authority** rather than preserving it —
 the one outcome AE2's whole differential discipline exists to prevent.
 
+## Amendment 1 — the SUBSET bound was a category error, and the kernel claim was at the wrong grain (2026-08-28)
+
+Both corrections were found by AE2.4 increment 3 measuring against this ADR before implementing it.
+
+### 1. ⛔ Retention is capability-BLIND. The Decision paragraph's "SUBSET" wording is RETIRED.
+
+The Decision above said retention is *"bounded to the **SUBSET** capabilities (`lifecycle`,
+`cpf_change`) exactly as ADR 0133 Amendment 1 r1 bounds them today."* **That is wrong, and the
+ADR contradicts itself, which is the tell.**
+
+ADR 0133's **INTERSECTION / SUBSET** split is a bound on the **`hospital_admin`** arm — INTERSECTION
+(`fields`, `credentials`) needs *any* administered hospital in the person's footprint, SUBSET
+(`cpf_change`, `lifecycle`) needs the *entire* footprint. It has **never** applied to `org_admin`,
+because `authorizeOrgOps` returns true and **short-circuits before the capability dispatch**. The
+original sentence borrowed a hospital-tier label and pinned it to an org-tier rule where the split
+does not exist.
+
+**Bound 3 was already the correct statement of intent** — retention *"grants nothing beyond what an
+`org_admin` of an **active** affiliation would hold over the same person"* — and such an admin holds
+**all four** capabilities. Taken literally, the retired wording would have **narrowed** `fields` and
+`credentials` on every fully-offboarded person (an `org_admin` unable to correct an ex-employee's
+name or credential row), a restriction **nothing in this decision's rationale motivates** and which
+bound 3 forbids.
+
+⚖ **Ruled 2026-08-28: retention is capability-blind — all four capabilities, exactly as bound 3
+says.** The read side (`app.person_authority_orgs`, AE2.2) already implements it this way, so this
+amendment makes the text match the mechanism rather than changing either. ⭐ The rejected literal
+reading is carried as **explicit cells** in increment 3's differential, so "not intended" is a
+measurement and not an assertion.
+
+### 2. The "so do all six person-door kernels" claim was true of the string, false of the grain
+
+The implementation-status section says the six AE1.3 kernels *"still resolve
+`home_organization_id`"*. They contain the string, but measured over their bodies, that read feeds
+**only** `app.audit_write(p_organization => v_org)`. **Authority in every one of them is
+`app.can_administer_person_for(...)`** — they are not six authority gates, and re-predicating them
+is not what puts this ADR's write side in force. **`can_administer_person_for` alone is.**
+
+⛔ **It is still not cosmetic, for a reason the original claim did not name.** `audit_log_select`
+carries `((commission_id IS NULL) AND app.is_org_admin_of(organization_id))`, and all six kernels
+write `p_commission => null` — so `v_org` decides **who may READ the resulting audit row**. Moving it
+is a **read-authority** differential, not attribution housekeeping, and increment 3 measures it as
+one via `app.person_audit_organization` (the org through which the actor's authority resolved;
+fail-closed to NULL ⇒ `platform_admin`-only readership). ⚠ Its tie-break among several administered
+locating orgs is **bounded but arbitrary** — deterministic by design, not meaningful — and the
+multi-org-actor case is a pre-declared narrowing cell, because the losing org's other admins lose
+read access to that row.
+
+⚠ **The generalisable half:** *"function X names column Y"* is a **census** result, not an
+**authority** claim. This ADR promoted one to the other, and the error survived being written,
+reviewed and cited until someone read the bodies.
+
 ## An inconsistency this decision does not create, and must not be read as blessing
 
 `list_addable_commission_members` gates on `pr.home_organization_id = v_org_id and pr.is_active`
