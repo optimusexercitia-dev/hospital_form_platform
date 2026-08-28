@@ -82,10 +82,10 @@
 -- THE PRE-DECLARED DELTA.  An undeclared widening is a RED.
 -- ---------------------------------------------------------------------------
 --   ORG TIER (§ 3)                         HOSPITAL TIER (§ 5)
---   W5 column B, NO affiliation  WIDENING  H4 column B, NO affiliation  WIDENING
---   W6 column B, only a VOIDED row        (the same class, reached through the
---   W7 column NULL, a true ORPHAN          hospital door, so a hospital_admin
---   W9 only ENDED in B          NARROWING  can claim an orphan too)
+--   W5 column B, NO affiliation  WIDENING  H4 column B, NO affiliation, taken
+--   W6 column B, only a VOIDED row            through the HOSPITAL_ADMIN arm  WIDENING
+--   W7 column NULL, a true ORPHAN          H6 the SAME state through the
+--   W9 only ENDED in B          NARROWING     ORG_ADMIN arm                   WIDENING
 --                                          H5 only ENDED in B          NARROWING
 --
 --   The three widenings share ONE reason: after the column drops there is NO FACT
@@ -101,15 +101,56 @@
 --    would have broken the door's own IDEMPOTENT path for every multi-org person.
 --
 -- ============================================================================
+-- ⭐⭐ THE ACTOR AXIS — WHY § 5 CARRIES ONE AND § 3 DOES NOT
+-- ============================================================================
+-- The hospital door's authority check is a DISJUNCTION —
+-- `is_org_admin_of_for(org_of(hospital), actor) OR is_hospital_admin_of_for(hospital, actor)`
+-- — and Hospital Central A is in org A.  Driving § 5 with `orgadmin.a` therefore
+-- SHORT-CIRCUITS on the FIRST arm, and `is_hospital_admin_of_for` is never
+-- evaluated on any H-cell.  Such a cell cannot distinguish "a hospital_admin can
+-- claim an orphan" from "an org_admin can, through the hospital door", and only
+-- the first is the widening ADR 0165 declares as the materially wider one.
+-- ⛔ THE AXIS WAS STRUCTURALLY ABSENT, NOT MERELY UNPOPULATED: `ae24_gate` had no
+--    actor column, so NO mutation of `is_hospital_admin_of_for` could move any
+--    cell in this file, and the arm's absence was indistinguishable from its
+--    presence.  QA finding B2.
+--
+-- `ae24_gate.actor` is that axis, and the two seed principals are COMPLEMENTARY
+-- over this door — MEASURED in § 5.0, never assumed:
+--     orgadmin.a       …00b1   org_admin of A = TRUE,  hospital_admin of Central A = FALSE
+--     hospitaladmin.a1 …00e1   org_admin of A = FALSE, hospital_admin of Central A = TRUE
+-- so each takes EXACTLY ONE arm and neither can stand in for the other.  H1-H5 run
+-- on …00e1; H6 re-runs H4's state on …00b1, so the pair measures the SAME state
+-- through BOTH arms instead of replacing one measurement with the other.
+--
+-- ============================================================================
+-- ⛔ 'ok|' IS NOT A SUCCESS SIGNAL — IT IS "THE DOOR DID NOT RAISE"
+-- ============================================================================
+-- A door that returns early WITHOUT INSERTING — a `return null` ahead of the
+-- insert, an idempotency branch matching too broadly — satisfies every
+-- `measured_new` cell in this file.  That is the "accepts and silently does
+-- nothing" regression, and on the orphan-claiming widenings it is the one that
+-- matters: those are the cells where the new gate admits a state the column gate
+-- refused, so nothing else in the estate would notice the write never landed.
+-- QA finding B3.  The door's RETURN VALUE is therefore captured into
+-- `ae24_gate.new_aff_id`, and the four declared widenings assert that the id
+-- NAMES A LIVE ROW of the right kind, anchored to that cell's person and to the
+-- target organisation/hospital — {W5,W6,W7} in § 3.10, {H4,H6} in § 5.8, exactly
+-- the standard § 3.8 already held W3 to.
+-- ⚠ `coalesce(v_id::text,'')` in `try_gate` is deliberate: `'ok|' || null` is NULL
+--   in plpgsql, which would red § 3.1/§ 5.1 and attribute the regression to the
+--   wrong assertion.  The write-through cells must be the ONLY thing that moves.
+--
+-- ============================================================================
 -- ⚠ RUN SHAPE.  This suite cannot be run alone — `schema "test_helpers" does not
 --   exist` gives a FAIL-SHAPED ABORT indistinguishable from a hold.  Correct
---   invocation: `00_setup.sql` + this file.  Expected shape `Files=2, Tests=45`.
---   A shape below 45 is an ERROR, never a hold.
+--   invocation: `00_setup.sql` + this file.  Expected shape `Files=2, Tests=49`.
+--   A shape below 49 is an ERROR, never a hold.
 --
--- Assertion count: 44
+-- Assertion count: 48
 -- ============================================================================
 begin;
-select plan(44);
+select plan(48);
 
 -- ---------------------------------------------------------------------------
 -- Constants.  Seed ids only; every constructed id lives in a `0ae24…` namespace
@@ -118,7 +159,7 @@ select plan(44);
 -- ---------------------------------------------------------------------------
 create or replace function pg_temp.k()
 returns table (org_a uuid, org_b uuid, ca uuid, cb uuid, hosp_admin uuid,
-               central_a uuid, platform uuid)
+               central_a uuid, secundario_a uuid, platform uuid)
 language sql immutable as $$
   select '0c000000-0000-0000-0000-00000000000a'::uuid,  -- Rede Hospitalar A
          '0c000000-0000-0000-0000-00000000000b'::uuid,  -- Rede Hospitalar B
@@ -126,6 +167,7 @@ language sql immutable as $$
          '00000000-0000-0000-0000-0000000000b2'::uuid,  -- orgadmin.b
          '00000000-0000-0000-0000-0000000000e1'::uuid,  -- hospitaladmin.a1 (central-a ONLY)
          '05000000-0000-0000-0000-00000000000a'::uuid,  -- Hospital Central A
+         '05000000-0000-0000-0000-0000000000a2'::uuid,  -- Hospital Secundário A (SAME org, NOT e1's)
          '00000000-0000-0000-0000-0000000000b0'::uuid;  -- platform@test.local
 $$;
 grant execute on function pg_temp.k() to authenticated;
@@ -194,8 +236,20 @@ create temp table ae24_seed_orphans as
 --
 --     ⛔ Creation-time containment is genuinely lost (ADR 0164 § Consequences):
 --        a half-failed person creation leaves a profile with no affiliation, in
---        NO roster, administrable by `platform_admin` alone.  That is why ADR
---        0164 makes a mitigation REQUIRED rather than advised.
+--        NO roster, and administrable through the six person doors by NOBODY.
+--        That is why ADR 0164 makes a mitigation REQUIRED rather than advised.
+--
+--     ⛔ THIS COMMENT SAID "administrable by `platform_admin` alone" AND THAT WAS
+--        FALSE (QA finding B5).  Measured: all six person doors gate solely on
+--        `app.can_administer_person_for`, which has NO `platform_admin` arm by
+--        deliberate design (the ADR 0041 noun rule; `384 § 6` asserts a platform
+--        admin is REFUSED) and returns false outright on an empty located-org
+--        set.  The claim was wrong in the NARROWING direction, which is exactly
+--        why it read as care and survived four documents.  The actual recovery
+--        path is ADR 0165 D1's widening: any `org_admin` — or, through the
+--        hospital sibling, any `hospital_admin` — WHO HOLDS THE PERSON'S UUID may
+--        claim them.  ⚠ The window is not "only the most privileged actor can
+--        reach them"; it is "nobody can, until somebody with the id takes them".
 --
 --     ⭐ AND WHY IT IS REQUIRED IS THE INTERESTING PART: AN ORPHAN IS
 --        SHAPE-IDENTICAL TO A LEGITIMATE ROW.  Exactly one profile has no
@@ -248,36 +302,49 @@ insert into ae24_people values
   ('00000000-0000-0000-0000-0ae2402c0005', 'K5 ACTOR KEYSTONE: ACTIVE in A and B'),
   ('00000000-0000-0000-0000-0ae2402c0006', 'K6 is_admin, one ACTIVE row in A'),
   ('00000000-0000-0000-0000-0ae2402c0007', 'K7 DELETE probe, one ACTIVE row in A'),
-  ('00000000-0000-0000-0000-0ae2404b0001', 'R1 § 4 hospital rehire subject: ENDED non-voided in A');
+  ('00000000-0000-0000-0000-0ae2404b0001', 'R1 § 4 hospital rehire subject: ENDED non-voided in A'),
+  ('00000000-0000-0000-0000-0ae2405f0001', 'F1 § 5.5 flush subject: NO affiliation, written by § 5.5 ITSELF');
 
+-- ⭐ `actor` is a REAL axis, not a constant column: within the hospital tier it
+--    varies (H1-H5 on the hospital_admin, H6 on the org_admin) precisely so that
+--    each arm of the door's authority disjunction is separately observable.  A
+--    column holding one value everywhere would restate the defect B2 names.
 create temp table ae24_gate (
   label         text primary key,
   tier          text,
   person        uuid,
+  actor         uuid,
   note          text,
   expected_old  boolean,
   expected_new  boolean,
   measured_old  boolean,
   measured_new  boolean,
+  new_aff_id    uuid,
   code_seen     text,
   msg_seen      text
 );
-insert into ae24_gate (label, tier, person, note, expected_old, expected_new) values
-  ('W1',  'org', '00000000-0000-0000-0000-0ae2403a0001', 'column A, ACTIVE in A',                        true,  true),
-  ('W2',  'org', '00000000-0000-0000-0000-0ae2403a0002', 'column A, ENDED non-voided in A (REHIRE)',     true,  true),
-  ('W3',  'org', '00000000-0000-0000-0000-0ae2403a0003', 'column A, NO affiliation (PERSON CREATION)',   true,  true),
-  ('W4',  'org', '00000000-0000-0000-0000-0ae2403a0004', 'column B, ACTIVE in B',                        false, false),
-  ('W5',  'org', '00000000-0000-0000-0000-0ae2403a0005', 'column B, NO affiliation',                     false, true),
-  ('W6',  'org', '00000000-0000-0000-0000-0ae2403a0006', 'column B, only a VOIDED row in B',             false, true),
-  ('W7',  'org', '00000000-0000-0000-0000-0ae2403a0007', 'column NULL, true ORPHAN',                     false, true),
-  ('W8',  'org', '00000000-0000-0000-0000-0ae2403a0008', 'column A, ACTIVE in A and B (IDEMPOTENT)',     true,  true),
-  ('W9',  'org', '00000000-0000-0000-0000-0ae2403a0009', 'column A, only ENDED non-voided in B',         true,  false),
-  ('W10', 'org', '00000000-0000-0000-0000-0ae2403a000f', 'no profile at all (existence conflation)',     false, false),
-  ('H1',  'hosp','00000000-0000-0000-0000-0ae2405b0001', 'column A, NO affiliation (CREATION)',          true,  true),
-  ('H2',  'hosp','00000000-0000-0000-0000-0ae2405b0002', 'column A, ENDED non-voided in A (D5 REHIRE)',  true,  true),
-  ('H3',  'hosp','00000000-0000-0000-0000-0ae2405b0003', 'column B, ACTIVE in B',                        false, false),
-  ('H4',  'hosp','00000000-0000-0000-0000-0ae2405b0004', 'column B, NO affiliation',                     false, true),
-  ('H5',  'hosp','00000000-0000-0000-0000-0ae2405b0005', 'column A, only ENDED non-voided in B',         true,  false);
+insert into ae24_gate (label, tier, person, actor, note, expected_old, expected_new) values
+  ('W1',  'org', '00000000-0000-0000-0000-0ae2403a0001', '00000000-0000-0000-0000-0000000000b1', 'column A, ACTIVE in A',                        true,  true),
+  ('W2',  'org', '00000000-0000-0000-0000-0ae2403a0002', '00000000-0000-0000-0000-0000000000b1', 'column A, ENDED non-voided in A (REHIRE)',     true,  true),
+  ('W3',  'org', '00000000-0000-0000-0000-0ae2403a0003', '00000000-0000-0000-0000-0000000000b1', 'column A, NO affiliation (PERSON CREATION)',   true,  true),
+  ('W4',  'org', '00000000-0000-0000-0000-0ae2403a0004', '00000000-0000-0000-0000-0000000000b1', 'column B, ACTIVE in B',                        false, false),
+  ('W5',  'org', '00000000-0000-0000-0000-0ae2403a0005', '00000000-0000-0000-0000-0000000000b1', 'column B, NO affiliation',                     false, true),
+  ('W6',  'org', '00000000-0000-0000-0000-0ae2403a0006', '00000000-0000-0000-0000-0000000000b1', 'column B, only a VOIDED row in B',             false, true),
+  ('W7',  'org', '00000000-0000-0000-0000-0ae2403a0007', '00000000-0000-0000-0000-0000000000b1', 'column NULL, true ORPHAN',                     false, true),
+  ('W8',  'org', '00000000-0000-0000-0000-0ae2403a0008', '00000000-0000-0000-0000-0000000000b1', 'column A, ACTIVE in A and B (IDEMPOTENT)',     true,  true),
+  ('W9',  'org', '00000000-0000-0000-0000-0ae2403a0009', '00000000-0000-0000-0000-0000000000b1', 'column A, only ENDED non-voided in B',         true,  false),
+  ('W10', 'org', '00000000-0000-0000-0000-0ae2403a000f', '00000000-0000-0000-0000-0000000000b1', 'no profile at all (existence conflation)',     false, false),
+  -- HOSPITAL TIER on `hospitaladmin.a1` — org_admin of A = FALSE (§ 5.0), so the
+  -- door's first arm CANNOT admit and the hospital arm is the one being taken.
+  ('H1',  'hosp','00000000-0000-0000-0000-0ae2405b0001', '00000000-0000-0000-0000-0000000000e1', 'column A, NO affiliation (CREATION), hospital_admin arm',         true,  true),
+  ('H2',  'hosp','00000000-0000-0000-0000-0ae2405b0002', '00000000-0000-0000-0000-0000000000e1', 'column A, ENDED non-voided in A (D5 REHIRE), hospital_admin arm', true,  true),
+  ('H3',  'hosp','00000000-0000-0000-0000-0ae2405b0003', '00000000-0000-0000-0000-0000000000e1', 'column B, ACTIVE in B, hospital_admin arm',                        false, false),
+  ('H4',  'hosp','00000000-0000-0000-0000-0ae2405b0004', '00000000-0000-0000-0000-0000000000e1', 'column B, NO affiliation, hospital_admin arm — ADR 0165''s cell',  false, true),
+  ('H5',  'hosp','00000000-0000-0000-0000-0ae2405b0005', '00000000-0000-0000-0000-0000000000e1', 'column A, only ENDED non-voided in B, hospital_admin arm',         true,  false),
+  -- …and H4's state re-run through the OTHER arm.  Keeping both is what makes the
+  -- actor an axis: drop H6 and the org_admin path through this door is unmeasured;
+  -- drop H4 and ADR 0165's declared widening is unmeasured.
+  ('H6',  'hosp','00000000-0000-0000-0000-0ae2405b0006', '00000000-0000-0000-0000-0000000000b1', 'column B, NO affiliation, ORG_ADMIN arm (H4''s state, other arm)', false, true);
 
 -- ⭐ The delta lists are written HERE, from ADR 0164/0165, INDEPENDENTLY of the
 --    expectation table above.  Deriving them from it would make § 3.2/§ 3.3 and
@@ -289,7 +356,8 @@ insert into ae24_declared values
   ('W6', 'org',  'widening',  'a voided row is "was never true" — ADR 0163 bound 1'),
   ('W7', 'org',  'widening',  'the orphan recovery path ADR 0164 accepts the creation window for'),
   ('W9', 'org',  'narrowing', 'the substrate is the truth — retention lives in B, not in the column'),
-  ('H4', 'hosp', 'widening',  'the same class through the hospital door, so a hospital_admin can claim an orphan too'),
+  ('H4', 'hosp', 'widening',  'ADR 0165''s materially-wider cell: a HOSPITAL_ADMIN holding no org_admin membership claims an orphan through the hospital door'),
+  ('H6', 'hosp', 'widening',  'the same state through the door''s OTHER authority arm — an org_admin, which is what the H-cells previously measured'),
   ('H5', 'hosp', 'narrowing', 'the substrate is the truth, hospital tier');
 
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
@@ -304,7 +372,7 @@ update public.profiles set home_organization_id = (select org_a from pg_temp.k()
  where id in (select person from ae24_gate where label in ('W1','W2','W3','W8','W9','H1','H2','H5'))
     or id in (select id from ae24_people where id <> '00000000-0000-0000-0000-0ae2401d0001');
 update public.profiles set home_organization_id = (select org_b from pg_temp.k())
- where id in (select person from ae24_gate where label in ('W4','W5','W6','H3','H4'));
+ where id in (select person from ae24_gate where label in ('W4','W5','W6','H3','H4','H6'));
 -- W7 and D1 keep `home_organization_id IS NULL` — the state the dropped trigger made
 -- UNCONSTRUCTIBLE, and precisely the state the detector exists to find.
 
@@ -347,7 +415,7 @@ values
   ('0aff0000-0000-0000-0000-00000000b202', '00000000-0000-0000-0000-0ae2405b0002', (select org_a from pg_temp.k()), date '2025-01-01', date '2026-01-10', (select ca from pg_temp.k()), null, null, null, (select ca from pg_temp.k())),
   ('0aff0000-0000-0000-0000-00000000b203', '00000000-0000-0000-0000-0ae2405b0003', (select org_b from pg_temp.k()), date '2025-01-01', null, null, null, null, null, (select cb from pg_temp.k())),
   ('0aff0000-0000-0000-0000-00000000b205', '00000000-0000-0000-0000-0ae2405b0005', (select org_b from pg_temp.k()), date '2025-01-01', date '2026-01-10', (select cb from pg_temp.k()), null, null, null, (select cb from pg_temp.k()));
--- W3, W5, W7, H1, H4 and D1 deliberately get no affiliation row at all.
+-- W3, W5, W7, H1, H4, H6, D1 and F1 deliberately get no affiliation row at all.
 
 select is(
   (select profile_id::text || '|' || reason from app.tenant_orphan_profiles()
@@ -506,21 +574,31 @@ create temp table ae24_snapshot as
   select p.id as person_id, p.home_organization_id from public.profiles p
    where p.id in (select person from ae24_gate);
 
+-- ⭐ The ACTOR comes from the ROW, not from a literal.  Hard-coding `…00b1` here
+--    is what made the hospital tier's authority arm unobservable (B2): every
+--    H-cell short-circuited on `is_org_admin_of_for` and the hospital arm was
+--    never evaluated, so no mutation of it could move any cell.
+-- ⭐ The door's RETURN VALUE is captured, not discarded by `perform` (B3): 'ok|'
+--    alone means only "did not raise", which a door that returns early WITHOUT
+--    INSERTING also satisfies.  ⚠ `coalesce(…,'')` keeps such a door reporting
+--    `measured_new = true` on purpose, so § 3.10 / § 5.8 are the ONLY assertions
+--    that move — `'ok|' || null` is NULL and would red § 3.1/§ 5.1 instead,
+--    pinning the regression on the wrong cell.
 create or replace function pg_temp.try_gate(p_label text)
 returns text language plpgsql as $$
-declare v_msg text; v_row record;
+declare v_msg text; v_row record; v_id uuid;
 begin
-  select g.tier, g.person into v_row from ae24_gate g where g.label = p_label;
+  select g.tier, g.person, g.actor into v_row from ae24_gate g where g.label = p_label;
   if v_row.tier = 'org' then
-    perform app.affiliate_person_to_org_impl(
-      '00000000-0000-0000-0000-0000000000b1'::uuid, v_row.person,
-      '0c000000-0000-0000-0000-00000000000a'::uuid, null);
+    select app.affiliate_person_to_org_impl(
+      v_row.actor, v_row.person,
+      '0c000000-0000-0000-0000-00000000000a'::uuid, null) into v_id;
   else
-    perform app.affiliate_person_impl(
-      '00000000-0000-0000-0000-0000000000b1'::uuid, v_row.person,
-      '05000000-0000-0000-0000-00000000000a'::uuid, null, null, null, null, null);
+    select app.affiliate_person_impl(
+      v_row.actor, v_row.person,
+      '05000000-0000-0000-0000-00000000000a'::uuid, null, null, null, null, null) into v_id;
   end if;
-  return 'ok|';
+  return 'ok|' || coalesce(v_id::text, '');
 exception when others then
   get stacked diagnostics v_msg = message_text;
   return sqlstate || '|' || v_msg;
@@ -539,6 +617,9 @@ begin
     v := pg_temp.try_gate(r.label);
     update ae24_gate
        set measured_new = (v like 'ok|%'),
+           -- guarded cast: on a refusal the second field is the pt-BR message
+           new_aff_id   = case when v like 'ok|%'
+                               then nullif(split_part(v, '|', 2), '')::uuid end,
            code_seen    = split_part(v, '|', 1),
            msg_seen     = split_part(v, '|', 2)
      where label = r.label;
@@ -613,6 +694,29 @@ select is(
   '1|1',
   '3.9 …and ONE-STEP REHIRE works through the new gate: W2''s ended row is untouched and a NEW active row sits beside it (ADR 0151 D5 — no prior org_admin ticket)');
 
+-- ---------------------------------------------------------------------------
+-- § 3.10 WRITE-THROUGH FOR THE ORG-TIER WIDENINGS.  {W5,W6,W7} are the cells
+--   where the new gate admits a state the column gate REFUSED — so if the door
+--   accepted and silently wrote nothing, no other fact in the estate contradicts
+--   it.  ⭐ The expectation NAMES ALL THREE LABELS.  An `= ''` over a
+--   "rows that failed" filter would be satisfied by a renamed label, a dropped
+--   cell or an empty table exactly as it is by success: absence would look
+--   identical to not-listed.
+-- ---------------------------------------------------------------------------
+select is(
+  (select coalesce(string_agg(label || '=' || v, ' ' order by label), '(NO CELLS)')
+     from (select g.label,
+                  case when g.new_aff_id is null then 'NO-ID-RETURNED'
+                       when exists (select 1 from public.organization_affiliations oa
+                                     where oa.id = g.new_aff_id
+                                       and oa.principal_id = g.person
+                                       and oa.organization_id = (select org_a from pg_temp.k())
+                                       and oa.ended_on is null and oa.voided_at is null)
+                       then 'live-org-row' else 'NO-LIVE-ROW' end as v
+             from ae24_gate g where g.label in ('W5','W6','W7')) t),
+  'W5=live-org-row W6=live-org-row W7=live-org-row',
+  '3.10 ⭐⭐ WRITE-THROUGH, org tier: each declared widening returned an id that NAMES a live, non-ended, non-voided affiliation of THAT person to org A — not merely "the door did not raise". A `return null` ahead of the insert, or an idempotency branch matching too broadly, leaves every `measured_new` cell green and reds only here');
+
 -- ============================================================================
 -- § 4 REGRESSION CONTROLS — the hospital tier's own containment trigger, and the
 --     measurement that licenses § 2.5's substitution of an org_admin for the
@@ -653,6 +757,28 @@ select is(
 --     increment.  Measured in § 3's loop; asserted separately so a hospital-tier
 --     regression cannot hide inside an org-tier aggregate.
 -- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- ⭐⭐ § 5.0 THE ACTOR PIN — WITHOUT IT EVERY H-CELL BELOW IS AMBIGUOUS.
+--   The door admits on `is_org_admin_of_for(org_of(hospital)) OR
+--   is_hospital_admin_of_for(hospital)`.  H1-H5 green tells us the disjunction
+--   was true; it does not say WHICH arm made it true.  This cell removes the
+--   ambiguity by pinning the actor's authority in BOTH directions:
+--     • org_admin of A = FALSE  → the FIRST arm cannot have admitted, so an
+--       H-cell that lives, lived through the hospital arm;
+--     • hospital_admin of Central A = TRUE → the arm exists to be taken;
+--     • hospital_admin of Hospital SECUNDÁRIO A = FALSE → and it is HOSPITAL-
+--       scoped, not org-scoped.  ⭐ This third component is what makes the pin
+--       two-directional: a helper mutated to return TRUE unconditionally leaves
+--       the first two components intact and reds only here.
+-- ---------------------------------------------------------------------------
+select is(
+  (select 'org_a=' || app.is_org_admin_of_for((select org_a from pg_temp.k()), (select hosp_admin from pg_temp.k()))::text ||
+          '|central_a=' || app.is_hospital_admin_of_for((select central_a from pg_temp.k()), (select hosp_admin from pg_temp.k()))::text ||
+          '|secundario_a=' || app.is_hospital_admin_of_for((select secundario_a from pg_temp.k()), (select hosp_admin from pg_temp.k()))::text),
+  'org_a=false|central_a=true|secundario_a=false',
+  '5.0 ⭐⭐ THE ACTOR PIN: the H1-H5 actor holds hospital_admin on Hospital Central A, holds NO org_admin on org A, and is NOT an admin of the OTHER hospital in that same org. The door''s authority disjunction therefore can only have admitted through the HOSPITAL arm — the arm the previous fixture short-circuited past by driving both tiers with `orgadmin.a`, which made every H-cell a statement about the org arm wearing a hospital label');
+
 select is(
   (select coalesce(string_agg(label || ':old=' || measured_old::text || '/' || expected_old::text ||
                               ',new=' || measured_new::text || '/' || expected_new::text, ' ' order by label), '')
@@ -666,7 +792,7 @@ select is(
      from ae24_gate where tier = 'hosp' and measured_new and not measured_old),
   (select coalesce(string_agg(label, ',' order by label), '')
      from ae24_declared where tier = 'hosp' and direction = 'widening'),
-  '5.2 ⭐ the hospital-tier WIDENING is the declared {H4} — and it is materially wider than § 3''s, because it hands the orphan-claiming capability to `hospital_admin` as well. Declared, not discovered');
+  '5.2 ⭐⭐ the hospital-tier WIDENINGS are the declared {H4,H6} — the SAME state through the door''s two authority arms. H4 carries ADR 0165''s "materially wider" claim and is the only cell in this file that measures it: its actor holds hospital_admin on this hospital and NO org_admin anywhere (§ 5.0), so the orphan-claiming capability really is in a hospital admin''s hands and not an org admin''s borrowed through this door. H6 keeps the org_admin arm measured rather than traded away');
 
 select is(
   (select coalesce(string_agg(label, ',' order by label), '')
@@ -681,13 +807,45 @@ select is(
           count(*) filter (where measured_new)::text || '|' ||
           count(*) filter (where not measured_new)::text
      from ae24_gate where tier = 'hosp'),
-  '3|2|3|2',
+  '3|3|4|2',
   '5.4 the hospital-tier floor: both predicates are mixed here too, so 5.1-5.3 are agreement between two live predicates');
 
+-- ---------------------------------------------------------------------------
+-- ⛔ § 5.5 CARRIES ITS OWN WRITE, AND THAT IS THE WHOLE FIX (QA finding M8).
+--   It used to be a bare `set constraints all immediate` sitting 50 lines after
+--   § 4.1's flush, with NO DML in between.  § 4.1 had already drained the queue,
+--   so § 5.5's flush had nothing to fire and succeeded unconditionally: its
+--   verdict was decided by an unrelated regression control, never by its own
+--   stated subject.  The file's own rule at § 2's header — "every arm forces
+--   `set constraints all immediate` in the SAME statement block" — exists for
+--   exactly this, and § 5.5 was the one arm that broke it.
+--   ⭐ F1 is a FRESH person with no affiliation, so the org-parent ensure and the
+--     deferred `hospital_affiliation_has_org_trg` both genuinely run; and because
+--     no other cell touches F1, a mutation aimed at F1 alone moves § 5.5 alone.
+--   ⚠ A `lives_ok` cannot see that its own write happened, which is the very
+--     vacuity being repaired — § 5.5b is that half and the two are one assertion
+--     split in two, not a control and a duplicate.
+-- ---------------------------------------------------------------------------
 select lives_ok(
-  $$set constraints all immediate$$,
-  '5.5 ⭐ ADR 0151 D4 still holds over everything § 5 just wrote: every hospital affiliation created above has an active org parent. This flush is the assertion — without it the deferred hospital-containment trigger never fires in a suite that ends in rollback');
+  $$select app.affiliate_person_impl(
+      '00000000-0000-0000-0000-0000000000e1'::uuid,
+      '00000000-0000-0000-0000-0ae2405f0001'::uuid,
+      '05000000-0000-0000-0000-00000000000a'::uuid, null, null, null, null, null);
+    set constraints all immediate;$$,
+  '5.5 ⭐ ADR 0151 D4: a hospital affiliation created through the hospital door has an active org parent, and the DEFERRED containment trigger says so at the flush in this same statement block. The write is F1''s and nothing else touches F1, so this cell''s verdict is now decided by its own subject rather than by whether § 4.1 happened to drain the queue first');
 set constraints all deferred;
+
+select is(
+  (select (select count(*)::int from public.hospital_affiliations
+            where principal_id = '00000000-0000-0000-0000-0ae2405f0001'
+              and hospital_id = (select central_a from pg_temp.k())
+              and ended_on is null and voided_at is null) || '|' ||
+          (select count(*)::int from public.organization_affiliations
+            where principal_id = '00000000-0000-0000-0000-0ae2405f0001'
+              and organization_id = (select org_a from pg_temp.k())
+              and ended_on is null and voided_at is null)),
+  '1|1',
+  '5.5b ⛔ NON-VACUITY OF 5.5''s FLUSH: F1''s hospital row AND its org parent both exist, so the flush above had a real deferred event to fire. Without this, a door that accepted and wrote nothing would leave 5.5 flushing an empty queue — which is precisely the defect 5.5 was rewritten to escape, reintroduced one level down');
 
 select is(
   (select (select count(*)::int from public.organization_affiliations
@@ -713,6 +871,34 @@ select is(
     where pred is not null),
   '1|2',
   '5.7 ⭐⭐ THE SIBLING PIN, DERIVED FROM THE CATALOG: both doors carry the SAME containment predicate once the organisation expression is normalised (2 doors, 1 distinct predicate). "Identical" was verified by diffing the live bodies rather than transplanted — and this re-derives it every run, so a fix applied to one sibling and not the other reds here instead of shipping');
+
+-- ---------------------------------------------------------------------------
+-- § 5.8 WRITE-THROUGH FOR THE HOSPITAL-TIER WIDENINGS.  Asserted apart from
+--   § 3.10 for § 5's standing reason: a hospital-tier regression must not be able
+--   to hide inside an org-tier aggregate.  ⭐ The hospital door returns the
+--   HOSPITAL affiliation id, so the org PARENT it also creates is checked by
+--   existence — for an orphan-claiming cell that parent IS the effect under
+--   discussion, since it is what stops the person being an orphan.
+-- ---------------------------------------------------------------------------
+select is(
+  (select coalesce(string_agg(label || '=' || v, ' ' order by label), '(NO CELLS)')
+     from (select g.label,
+                  case when g.new_aff_id is null then 'NO-ID-RETURNED'
+                       when not exists (select 1 from public.hospital_affiliations ha
+                                         where ha.id = g.new_aff_id
+                                           and ha.principal_id = g.person
+                                           and ha.hospital_id = (select central_a from pg_temp.k())
+                                           and ha.ended_on is null and ha.voided_at is null)
+                       then 'NO-LIVE-HOSPITAL-ROW'
+                       when not exists (select 1 from public.organization_affiliations oa
+                                         where oa.principal_id = g.person
+                                           and oa.organization_id = (select org_a from pg_temp.k())
+                                           and oa.ended_on is null and oa.voided_at is null)
+                       then 'NO-ORG-PARENT'
+                       else 'live-hospital-row+org-parent' end as v
+             from ae24_gate g where g.label in ('H4','H6')) t),
+  'H4=live-hospital-row+org-parent H6=live-hospital-row+org-parent',
+  '5.8 ⭐⭐ WRITE-THROUGH, hospital tier: BOTH declared widenings returned an id naming a live hospital affiliation of that person to Hospital Central A, AND the person now has the active org-A parent — the orphan really was claimed, through the hospital_admin arm (H4) and the org_admin arm (H6) alike, rather than merely "not refused"');
 
 select * from finish();
 rollback;

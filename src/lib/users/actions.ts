@@ -3,8 +3,12 @@
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+import { listTenantOrphans } from '@/lib/queries/affiliations'
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Database } from '@/lib/types/database'
 import { personScopeAllows, type PersonScopeCapability } from './person-scope'
 // ⛔ `resolvePersonFootprint` and `authorizeOrgOps` live in `person-footprint.ts`, NOT here,
 // and the reason is structural: this file is `'use server'`, so every export of it becomes a
@@ -193,6 +197,64 @@ export interface UpsertCredentialInput extends CredentialInput {
 // pt-BR copy + shared helpers.
 // ---------------------------------------------------------------------------
 
+/**
+ * ADR 0164's REQUIRED MITIGATION, given a caller (QA finding M3).
+ *
+ * ⛔ WHY A LAZY, REQUEST-TRIGGERED CHECK AND NOT A JOB. This deployment has no
+ * scheduler — `pg_cron` is not installed, the `cron` schema does not exist, there is no
+ * `.github/workflows/`, and the Dockerfile runs one process
+ * (`FUP-DM5-DISPOSAL-JOB`, measured). The one mechanism this repo has actually shipped
+ * and reviewed for "maintenance work with no cron" is ADR 0099 D10 / Amendment 1: a
+ * bounded, idempotent check invoked from EXISTING TRAFFIC. This is that shape, hooked to
+ * the traffic that CREATES the state — which is strictly better than D10's case, because
+ * the trigger is not "somebody eventually opens a page" but "the very request that could
+ * have produced an orphan".
+ *
+ * ⚠ WHAT IT DOES NOT COVER, STATED PLAINLY RATHER THAN IMPLIED BY ITS ABSENCE:
+ *   · a process crash BETWEEN the account write and this line — no in-process
+ *     compensation can catch that, by construction;
+ *   · orphans produced by any path other than `createPerson` (a void that races the
+ *     containment trigger's window);
+ *   · it warns the human in front of the form; it does not alert, page, or persist a
+ *     work item. Nothing polls.
+ * ⛔ A decorative mitigation is worse than a declared gap, so the residual is named here
+ *    and in the phase record rather than left for a reader to infer.
+ *
+ * ⚠ It asks the DETECTOR, never a hand-rolled "count this person's affiliations". The
+ * discriminator that makes an orphan distinguishable from the `platform_admin` — who
+ * legitimately has none — is `is_admin`, and it lives inside
+ * `app.tenant_orphan_profiles()` where pgTAP `393` § 1.3/§ 1.4 prove it works. A second
+ * copy of that judgement here is the drift this phase has paid for repeatedly.
+ *
+ * ⛔ FAILS OPEN, ON PURPOSE AND NARROWLY. If the detector itself errors this returns
+ * `false`, i.e. the caller keeps its ordinary message. That is the one place in this
+ * change where silence is right: the function is a WARNING channel layered on top of a
+ * result that has already been decided, so turning its outage into a refusal would break
+ * a registration that otherwise succeeded. It is never an authorization input.
+ */
+async function isTenantOrphan(
+  admin: SupabaseClient<Database>,
+  userId: string,
+): Promise<boolean> {
+  try {
+    const orphans = await listTenantOrphans(admin)
+    if (orphans.length > 0) {
+      // The whole set, not just this person: one call answers both "did I just make one"
+      // and "are there others nobody has noticed", which is the assertion half of
+      // ADR 0164's choice between compensation and detection.
+      console.error(
+        `[tenant-orphan] ${orphans.length} profile(s) with no non-voided organization affiliation: ${orphans
+          .map((o) => `${o.profileId}(${o.reason})`)
+          .join(', ')}`,
+      )
+    }
+    return orphans.some((o) => o.profileId === userId)
+  } catch (cause) {
+    console.error(`[tenant-orphan] detector unavailable: ${(cause as Error).message}`)
+    return false
+  }
+}
+
 const MESSAGES = {
   forbidden: 'Você não tem permissão para esta ação.',
   generic: 'Não foi possível concluir. Tente novamente.',
@@ -203,6 +265,15 @@ const MESSAGES = {
   passwordRequired: 'Informe a senha inicial.',
   passwordTooShort: 'A senha deve ter pelo menos 8 caracteres.',
   emailCollision: 'Este e-mail já está cadastrado na plataforma.',
+  // ⛔ AE2.4 / ADR 0164 — THE REQUIRED MITIGATION'S ONLY PRODUCTION VOICE.
+  // Tenant containment moved from creation time to the destructive event, which
+  // genuinely loses the creation-time guarantee: a half-failed registration leaves a
+  // profile no organization can reach — in no roster, and (measured) administrable
+  // through the six person doors by NOBODY, since `app.can_administer_person_for`
+  // returns false on an empty located-org set and has no `platform_admin` arm.
+  // The only recovery is re-affiliation (ADR 0165 D1), so the copy names that action.
+  tenantOrphan:
+    'A pessoa foi criada, mas ficou sem vínculo com nenhuma organização. Vincule-a a uma organização para que ela apareça nas listas e possa ser administrada.',
   // ADR 0097 D7/D8: the CPF collision copy reuses the email-collision FORM verbatim
   // and names neither the holder nor their tenant — the identifier is globally unique,
   // so a message that distinguished "exists elsewhere" would be a cross-tenant oracle.
@@ -731,7 +802,14 @@ export async function registerUser(
     if (orgAffiliationError) {
       // Same reasoning as the profile write above: the account already exists, and a
       // swallowed failure here is the roster-invisibility state described above.
-      return { ok: false, error: MESSAGES.generic }
+      // ⛔ THIS IS THE ORPHAN-PRODUCING BRANCH, so it asks the detector (ADR 0164's
+      // required mitigation) and names the state instead of returning the generic copy.
+      return {
+        ok: false,
+        error: (await isTenantOrphan(admin, userId))
+          ? MESSAGES.tenantOrphan
+          : MESSAGES.generic,
+      }
     }
   }
 
@@ -752,8 +830,15 @@ export async function registerUser(
     })
     if (!affiliated) {
       // Same reasoning as the profile write above: the account exists, so a silent
-      // failure would leave a person nobody's roster shows.
-      return { ok: false, error: MESSAGES.generic }
+      // failure would leave a person nobody's roster shows. On the hospital_admin path
+      // this door is ALSO what would have created the org parent (D5's ensure), so its
+      // failure is orphan-producing too — hence the same detector call.
+      return {
+        ok: false,
+        error: (await isTenantOrphan(admin, userId))
+          ? MESSAGES.tenantOrphan
+          : MESSAGES.generic,
+      }
     }
   }
 
@@ -903,15 +988,26 @@ export async function registerUser(
     }
   }
 
+  // ⛔ ADR 0164'S REQUIRED MITIGATION, WIRED (QA finding M3). `app.tenant_orphan_profiles()`
+  // shipped with NO caller outside pgTAP, and pgTAP does not run in production — so the
+  // detector existed and nothing ever asked it. This is the ask, on the success path as
+  // well as the two post-account failure paths below, because the orphan-producing case
+  // is NOT only a crash: a hospital_admin registering a person with no hospital takes
+  // neither the org-door branch above nor D5's org-parent ensure, and lands here having
+  // created an account with no organization affiliation at all.
+  const orphaned = await isTenantOrphan(admin, userId)
+
   revalidateDirectory()
   return {
     ok: true,
     // ADR 0133 F3 — the wizard redirects to the new person's profile. Returned only on
     // success, which is why `RegisterUserState.userId` is optional rather than required.
     userId,
-    error: emailVerification
-      ? MESSAGES.registeredInvited
-      : MESSAGES.registeredActive,
+    error: orphaned
+      ? MESSAGES.tenantOrphan
+      : emailVerification
+        ? MESSAGES.registeredInvited
+        : MESSAGES.registeredActive,
   }
 }
 

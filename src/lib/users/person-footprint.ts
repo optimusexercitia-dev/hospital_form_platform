@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { listNonVoidedOrgAffiliationsFor } from '@/lib/queries/affiliations'
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -383,6 +384,15 @@ export async function resolvePlatformFootprint(
  * design (ADR 0151 D1) — so an RLS-bound read here would collapse to the caller's own row
  * and return an empty list that reads as "nobody may administer this person".
  *
+ * ⭐ THE READ ITSELF LIVES IN `src/lib/queries/affiliations.ts` (Architecture Rule 9, QA
+ * finding M7). What stays here is the four BOUNDS — the part that mirrors
+ * `app.person_authority_orgs` and that ADR 0161 obliges to track it. The file header's
+ * Rule 9 exception is bounded by "a column-locked field has no RLS path by construction",
+ * and `organization_affiliations` is NOT column-locked, so this read never fell under it:
+ * the justification is the different one stated above, and a different justification does
+ * not license a different LOCATION. One read, one predicate, one set of filters a
+ * recording mock can witness.
+ *
  * ⛔ IT THROWS ON A READ ERROR, AND THE FIRST DRAFT DID NOT. Returning `[]` looks like the
  * safe choice — it denies — and it is the exact defect
  * `BUG-AUTHZ-FOOTPRINT-ASYMMETRIC-READ-LIFTS-THE-D2-LOCK` names one leg over: a silent
@@ -390,21 +400,24 @@ export async function resolvePlatformFootprint(
  * with no signal anywhere. `resolvePersonFootprint` throws for the same reason and states
  * it as *"silence in either direction is the defect"*; this read now sits IN FRONT of it,
  * so a fail-closed `[]` here would have short-circuited that throw and re-hidden the class
- * behind a newer function. Keystone: `person-footprint-reads.test.ts` § 4.
+ * behind a newer function. Keystone: `person-footprint-reads.test.ts` § 4. ⚠ The throw is
+ * re-wrapped rather than delegated so that message — which the keystone matches on —
+ * stays owned by this function.
  */
 export async function personAuthorityOrgs(userId: string): Promise<string[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('organization_affiliations')
-    .select('organization_id, ended_on')
-    .eq('principal_id', userId)
-    .is('voided_at', null)
-  if (error) {
+  let rows: { organizationId: string; endedOn: string | null }[]
+  try {
+    rows = await listNonVoidedOrgAffiliationsFor(admin, userId)
+  } catch (cause) {
     throw new Error(
-      `personAuthorityOrgs: organization_affiliations read failed (${error.message}) — refusing to derive person-scope authority from a partial affiliation set`,
+      `personAuthorityOrgs: organization_affiliations read failed (${(cause as Error).message}) — refusing to derive person-scope authority from a partial affiliation set`,
     )
   }
-  if (!data) return []
+  const data = rows.map((row) => ({
+    organization_id: row.organizationId,
+    ended_on: row.endedOn,
+  }))
 
   const active = data.filter((row) => row.ended_on === null)
   if (active.length > 0) {

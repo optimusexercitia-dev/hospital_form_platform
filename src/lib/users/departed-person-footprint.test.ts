@@ -54,9 +54,18 @@ vi.mock('@/lib/supabase/admin', () => ({
 /**
  * A query-builder double that HONOURS `.eq` and `.is` rather than returning `self` for
  * every method. This is the entire point of the file — see the header. A passthrough mock
- * (the shape used elsewhere in this directory, which is correct for what those files test)
  * cannot distinguish a filtered query from an unfiltered one, so it cannot hold the
  * property this file exists to hold.
+ *
+ * ⚠ CORRECTED 2026-08-28 (QA finding M6). This comment used to add "(the shape used
+ * elsewhere in this directory, which is correct for what those files test)". Both halves
+ * went false at once: `person-admin-view`, `person-footprint-reads` and `d14-person-level`
+ * now filter, and the passthrough was NOT correct for what they tested — under it
+ * `.is('voided_at', null)` was a no-op, so ADR 0163's bounds 1–3 had zero TypeScript
+ * coverage, and not one fixture row carried `principal_id`, so every row belonged to
+ * every user at once (re-keying revealed 13 and 28 arms respectively that had been
+ * passing for the wrong reason). ⛔ A comment that BLESSES a weaker sibling is worse than
+ * one that merely describes it: it tells the next reader not to look.
  */
 function makeFilteringAdmin() {
   const builder = (table: string) => {

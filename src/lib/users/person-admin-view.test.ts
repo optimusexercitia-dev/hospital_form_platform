@@ -85,46 +85,101 @@ vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => makeAdmin(),
 }))
 
+/**
+ * ⛔ THE FILTERS ARE HONOURED — QA AE2 M6. `.eq` and `.is` used to return `self`, which made
+ * every `.eq('principal_id', userId)` and `.is('voided_at', null)` on this path a NO-OP: the
+ * fixtures below answered for ANY user id, and a VOIDED affiliation was indistinguishable
+ * from a live one. The D1(a) org-scoping arm in §1 in particular could not have failed for
+ * the reason its label claims. Shape borrowed from `departed-person-footprint.test.ts`'s
+ * `makeFilteringAdmin`, which exists for exactly this reason.
+ *
+ * ⚠ `.is(col, null)` treats an ABSENT column as null — SQL semantics against a fixture that
+ * does not model the column. Every fixture whose assertion depends on `ended_on`/`voided_at`
+ * seeds them explicitly rather than leaning on that.
+ *
+ * ⚠ A single configured OBJECT is one row, an ARRAY is a row set; `maybeSingle` takes the
+ * first row that SURVIVED the filters, so `.eq('id', userId)` now actually decides whether
+ * the profile is found (§4's unknown-person arm no longer depends on the fixture being
+ * blanked). `.in`/`.not` stay identity: nothing here uses them.
+ */
 function makeAdmin() {
   const builder = (table: string) => {
+    const configured = rows[table]
+    let matched: Record<string, unknown>[] =
+      configured == null
+        ? []
+        : Array.isArray(configured)
+          ? [...(configured as Record<string, unknown>[])]
+          : [configured as Record<string, unknown>]
     const self: Record<string, unknown> = {}
     self.select = (columns: string) => {
       selects.push({ table, columns })
       return self
     }
-    for (const m of ['eq', 'is', 'in', 'not', 'order', 'limit', 'returns']) {
+    for (const m of ['in', 'not', 'order', 'limit', 'returns']) {
       self[m] = () => self
     }
-    self.maybeSingle = async () => ({ data: rows[table] ?? null, error: null })
+    self.eq = (column: string, value: unknown) => {
+      matched = matched.filter((r) => r[column] === value)
+      return self
+    }
+    // SQL `IS NULL` semantics: keeps only rows whose column is null/absent.
+    self.is = (column: string, value: unknown) => {
+      if (value === null) matched = matched.filter((r) => r[column] == null)
+      return self
+    }
+    self.maybeSingle = async () => ({ data: matched[0] ?? null, error: null })
     self.then = (resolve: (v: { data: unknown; error: null }) => unknown) =>
-      resolve({ data: rows[table] ?? [], error: null })
+      resolve({ data: matched, error: null })
     return self
   }
   return { from: (table: string) => builder(table) }
 }
 
+/**
+ * ⛔ EVERY FIXTURE ROW CARRIES `principal_id` — QA AE2 M6. Both footprint reads filter
+ * `.eq('principal_id', userId)`, and while the mock swallowed that these rows belonged to
+ * everyone at once. An unkeyed row now belongs to nobody, which is what the substrate says.
+ */
 /** Sole footprint at HOSP_A, commission-tier only. */
 function footprintSoleHospital(): void {
-  rows.hospital_affiliations = [{ hospital_id: HOSP_A }]
+  rows.hospital_affiliations = [
+    { principal_id: TARGET, hospital_id: HOSP_A, ended_on: null, voided_at: null },
+  ]
   rows.memberships = [
-    { commission_id: 'c-a', hospital_id: null, commissions: { hospital_id: HOSP_A } },
+    {
+      principal_id: TARGET,
+      commission_id: 'c-a',
+      hospital_id: null,
+      commissions: { hospital_id: HOSP_A },
+    },
   ]
 }
 /** Serves HOSP_A and HOSP_B — intersection yes, subset no (for a HOSP_A-only admin). */
 function footprintCrossHospital(): void {
-  rows.hospital_affiliations = [{ hospital_id: HOSP_A }, { hospital_id: HOSP_B }]
+  rows.hospital_affiliations = [
+    { principal_id: TARGET, hospital_id: HOSP_A, ended_on: null, voided_at: null },
+    { principal_id: TARGET, hospital_id: HOSP_B, ended_on: null, voided_at: null },
+  ]
   rows.memberships = []
 }
 /** A hospital-tier seat ⇒ org_admin-only for every capability (D2). */
 function footprintHospitalTier(): void {
-  rows.hospital_affiliations = [{ hospital_id: HOSP_A }]
-  rows.memberships = [{ commission_id: null, hospital_id: HOSP_A, commissions: null }]
+  rows.hospital_affiliations = [
+    { principal_id: TARGET, hospital_id: HOSP_A, ended_on: null, voided_at: null },
+  ]
+  rows.memberships = [
+    { principal_id: TARGET, commission_id: null, hospital_id: HOSP_A, commissions: null },
+  ]
 }
 
 beforeEach(() => {
   selects = []
   rows = {
     profiles: {
+      // ⛔ QA AE2 M6 — `id` is the key `getPersonAdminView` filters on (`.eq('id', userId)`).
+      // Without it the profile row answered for every id the test could ask about.
+      id: TARGET,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: CPF_DIGITS,
@@ -135,7 +190,9 @@ beforeEach(() => {
     // MIRRORING the real substrate — an ACTIVE, non-voided org affiliation — rather than by
     // relaxing an assertion, exactly as pgTAP `360 § 5.2` was. The § 5 column-list arms
     // below re-measure what is actually selected, so this is not a claim, it is pinned.
-    organization_affiliations: [{ organization_id: ORG_A, ended_on: null }],
+    organization_affiliations: [
+      { principal_id: TARGET, organization_id: ORG_A, ended_on: null, voided_at: null },
+    ],
   }
   footprintSoleHospital()
 })
@@ -201,6 +258,7 @@ describe('§1 the two authority booleans — per CAPABILITY, not per person', ()
     rows.hospital_affiliations = []
     rows.memberships = [
       {
+        principal_id: TARGET,
         commission_id: 'c-a',
         hospital_id: null,
         commissions: { hospital_id: HOSP_A },
@@ -223,9 +281,12 @@ describe('§1 the two authority booleans — per CAPABILITY, not per person', ()
     // longer tiered" would WIDEN authority on a path with no RLS backstop — the person
     // becomes manageable by a hospital_admin — so the fix for R1 is narrowing-only in both
     // directions. If that should change, it is an ADR decision, not a bug fix.
-    rows.hospital_affiliations = [{ hospital_id: HOSP_A }]
+    rows.hospital_affiliations = [
+      { principal_id: TARGET, hospital_id: HOSP_A, ended_on: null, voided_at: null },
+    ]
     rows.memberships = [
       {
+        principal_id: TARGET,
         commission_id: null,
         hospital_id: null,
         commissions: null,
@@ -262,6 +323,7 @@ describe('§2 ⭐ WITHHELD and NOT-INFORMED are separately observable', () => {
     // The other side of the pair. Same shape of "nothing to show", opposite meaning, and
     // F2 renders them differently: "Não informado" here, the scope note above.
     rows.profiles = {
+      id: TARGET,
       date_of_birth: null,
       phone: null,
       cpf: null,
@@ -289,6 +351,7 @@ describe('§2 ⭐ WITHHELD and NOT-INFORMED are separately observable', () => {
     const withheld = await view()
 
     rows.profiles = {
+      id: TARGET,
       date_of_birth: null,
       phone: null,
       cpf: null,
@@ -370,6 +433,7 @@ describe('§3 D12 as amended by ADR 0147 — CPF is MASKED, and the raw key neve
 
   it('reports cpfPresent false and a null mask when the column is null', async () => {
     rows.profiles = {
+      id: TARGET,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: null,
@@ -393,6 +457,7 @@ describe('§3 D12 as amended by ADR 0147 — CPF is MASKED, and the raw key neve
     // ⛔ MUTATION-CONTROLLED: masking by slicing without the length check (which would
     // emit a short, plausible-looking string) makes this arm RED. Observed.
     rows.profiles = {
+      id: TARGET,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: '1114447',
@@ -406,6 +471,7 @@ describe('§3 D12 as amended by ADR 0147 — CPF is MASKED, and the raw key neve
 
   it('tolerates stored punctuation — the mask is computed from the digits', async () => {
     rows.profiles = {
+      id: TARGET,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: '111.444.777-35',

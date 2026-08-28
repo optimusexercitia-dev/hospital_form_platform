@@ -1,6 +1,9 @@
 import 'server-only'
 
+import type { SupabaseClient } from '@supabase/supabase-js'
+
 import { createClient } from '@/lib/supabase/server'
+import type { Database } from '@/lib/types/database'
 import type { UserAffiliation } from '@/lib/users/types'
 
 /**
@@ -408,5 +411,148 @@ export async function listOrgPeople(params: {
       hospitalName: a.hospital_name,
       startedOn: a.started_on,
     })),
+  }))
+}
+
+// ---------------------------------------------------------------------------
+// AE2.4 increment 4 — ORG-AFFILIATION READS ON AN INJECTED (SERVICE-ROLE) CLIENT.
+//
+// ⛔ WHY THESE TAKE A CLIENT INSTEAD OF CALLING `createClient()` LIKE EVERYTHING
+//    ABOVE, AND WHY THEY LIVE HERE ANYWAY (Architecture Rule 9, QA finding M7).
+//    `organization_affiliations_select` is `principal_id = auth.uid() OR
+//    app.is_org_admin_of(organization_id)` — no hospital tier, no staff_admin arm,
+//    by design (ADR 0151 D1). Every caller below is a SERVICE-ROLE authorization
+//    preamble that must see the TRUE affiliation set: an RLS-bound read would
+//    collapse to the caller's own row and return an empty list that reads as
+//    "this person belongs nowhere", which is a silent DENY indistinguishable from
+//    a real one.
+//
+//    That is a genuine Rule 9 exception, and the rule's answer to an exception is
+//    that the READ still lives in this directory — one place, one predicate, one
+//    set of filters a recording mock can witness. The three sites that used to
+//    hand-roll this (`person-footprint.ts`, `members/actions.ts`, `members/invite.ts`)
+//    are exactly the "three verbatim copies of one preamble" shape this phase has
+//    now paid for twice.
+// ---------------------------------------------------------------------------
+
+/** A single non-voided org affiliation, reduced to the two fields authority cares about. */
+export interface NonVoidedOrgAffiliation {
+  organizationId: string
+  /** `null` while the employment is current; a `YYYY-MM-DD` date once it ended. */
+  endedOn: string | null
+}
+
+/**
+ * Every NON-VOIDED organization affiliation of one person, on an injected client.
+ *
+ * ⚠ NON-VOIDED, not ACTIVE, and the caller decides what to do with the tense. A void
+ * says the employment never should have existed (ADR 0151 D7/D8) and is excluded here
+ * for everyone; an ENDED row is a real historical fact and is RETURNED, because
+ * `personAuthorityOrgs`' bound 2 needs it. A helper that pre-filtered to active rows
+ * would make ADR 0163's last-org retention unimplementable on top of it.
+ *
+ * ⛔ THROWS. Returning `[]` on a read error looks safe — it denies — and it is
+ * `BUG-AUTHZ-FOOTPRINT-ASYMMETRIC-READ-LIFTS-THE-D2-LOCK` one leg over: a silent DENY
+ * indistinguishable from a real one. Every caller is an authorization preamble, so
+ * silence in either direction is the defect.
+ */
+export async function listNonVoidedOrgAffiliationsFor(
+  client: SupabaseClient<Database>,
+  principalId: string,
+): Promise<NonVoidedOrgAffiliation[]> {
+  const { data, error } = await client
+    .from('organization_affiliations')
+    .select('organization_id, ended_on')
+    .eq('principal_id', principalId)
+    .is('voided_at', null)
+  if (error) {
+    throw new Error(
+      `listNonVoidedOrgAffiliationsFor: organization_affiliations read failed (${error.message})`,
+    )
+  }
+  return (data ?? []).map((row) => ({
+    organizationId: row.organization_id,
+    endedOn: row.ended_on,
+  }))
+}
+
+/**
+ * Does this person hold an ACTIVE (non-ended, non-voided) affiliation to this
+ * organization? The TypeScript twin of `app.person_has_active_org_affiliation`, and the
+ * STAFFING predicate — *"who may be seated here"* — which is a different question from
+ * `personAuthorityOrgs`' *"who may be administered"* (ADR 0163 bound 3: retention "never
+ * makes the person a member of anything").
+ *
+ * ⛔ Do not "unify" it with {@link listNonVoidedOrgAffiliationsFor}'s tense. pgTAP `395`
+ * § 8.1 re-derives from the catalog that this predicate and
+ * `list_addable_commission_members`' still agree, and `395` § 2.2 is the cell that flips
+ * if anyone collapses staffing into retention.
+ *
+ * ⛔ THROWS, for the reason above: an `addStaff` re-verify that swallowed a read error
+ * would refuse a legitimate seat with no signal anywhere.
+ */
+export async function personHasActiveOrgAffiliation(
+  client: SupabaseClient<Database>,
+  principalId: string,
+  organizationId: string,
+): Promise<boolean> {
+  const { data, error } = await client
+    .from('organization_affiliations')
+    .select('id')
+    .eq('principal_id', principalId)
+    .eq('organization_id', organizationId)
+    .is('ended_on', null)
+    .is('voided_at', null)
+    .limit(1)
+  if (error) {
+    throw new Error(
+      `personHasActiveOrgAffiliation: organization_affiliations read failed (${error.message})`,
+    )
+  }
+  return (data ?? []).length > 0
+}
+
+/** One profile that no organization can reach, as `app.tenant_orphan_profiles()` reports it. */
+export interface TenantOrphan {
+  profileId: string
+  /** `never_affiliated` — no row was ever created; `all_voided` — every row was voided. */
+  reason: 'never_affiliated' | 'all_voided'
+}
+
+/**
+ * The tenant orphans: non-admin profiles with ZERO non-voided organization affiliations.
+ *
+ * ⛔ WHY THIS EXISTS AT ALL (ADR 0164 § Decision, QA finding M3). AE2.4 moved tenant
+ * containment from creation time to the destructive event, which genuinely loses the
+ * creation-time guarantee: a half-failed person creation leaves a profile no
+ * organization can reach. ADR 0164 makes a mitigation REQUIRED rather than advised —
+ * "having neither is not [an implementation choice]" — and `app.tenant_orphan_profiles()`
+ * shipped in `…005600` with NO caller outside pgTAP, which does not run in production.
+ * This is that caller.
+ *
+ * ⚠ WHAT IT DOES NOT COVER, STATED PLAINLY. It is a READ on a surface someone must open;
+ * there is no scheduler in this deployment (no `pg_cron`, single-process Dockerfile —
+ * `FUP-DM5-DISPOSAL-JOB`), so nothing polls it and nobody is paged. It turns an
+ * invisible state into a visible one for whoever looks; it does not turn it into an alert.
+ *
+ * ⚠ The discriminator is `is_admin`, and that is the whole difficulty: an orphan is
+ * SHAPE-IDENTICAL to the `platform_admin`, who legitimately has no org affiliation. The
+ * DEFINER function owns that discrimination (pgTAP `393` § 1.3/§ 1.4 prove it); this
+ * function must not second-guess it.
+ *
+ * Service-role only: `app.tenant_orphan_profiles()` is granted to `service_role` and to
+ * nothing else — never `authenticated`, because a row-returning DEFINER is a gate you can
+ * walk through and this one enumerates people no tenant admin can reach.
+ */
+export async function listTenantOrphans(
+  client: SupabaseClient<Database>,
+): Promise<TenantOrphan[]> {
+  const { data, error } = await client.rpc('tenant_orphan_profiles')
+  if (error) {
+    throw new Error(`listTenantOrphans: tenant_orphan_profiles failed (${error.message})`)
+  }
+  return (data ?? []).map((row) => ({
+    profileId: row.profile_id,
+    reason: row.reason === 'all_voided' ? 'all_voided' : 'never_affiliated',
   }))
 }

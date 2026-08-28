@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { personHasActiveOrgAffiliation } from '@/lib/queries/affiliations'
 import { getSessionContext } from '@/lib/queries/session'
 import type { MemberCapability } from '@/lib/queries/members'
 import { isOneCommissionRoleViolation } from '@/lib/members/membership-conflict'
@@ -168,9 +169,9 @@ async function authorizeStaffOps(commissionId: string): Promise<boolean> {
  *
  * SECURITY: after authorizing the caller, RE-VERIFY server-side (service role,
  * exact — not the capped picker list) that `userId` is an ADDABLE user of this
- * commission's org: active, anchored to the commission's organization. The
- * client's userId is never trusted, so a tampered form cannot attach a foreign-
- * org or deactivated account.
+ * commission's org: active, and holding an ACTIVE org affiliation to the
+ * commission's organization. The client's userId is never trusted, so a tampered
+ * form cannot attach a foreign-org, offboarded, or deactivated account.
  */
 export async function addStaff(
   _prev: ActionState | undefined,
@@ -203,18 +204,55 @@ export async function addStaff(
     return { ok: false, error: MESSAGES.missingCommission }
   }
 
-  // Defense in depth: the target must be a registered, ACTIVE user anchored to
-  // THIS organization. Mirrors the picker's addable-set gate, exactly (no cap).
+  // Defense in depth: the target must be a registered, ACTIVE user who is ACTIVELY
+  // AFFILIATED to THIS organization. This mirrors the picker's addable-set gate
+  // (`public.list_addable_commission_members`) without its 500-row cap.
+  //
+  // ⛔ IT DID NOT MIRROR IT UNTIL NOW, AND THE COMMENT SAYING IT DID IS HOW THAT
+  // SURVIVED (QA finding B1). AE2.2's `20261003005500` re-predicated the READ door
+  // onto an active `organization_affiliations` row; this WRITE twin kept
+  // `home_organization_id`, a column nothing maintains after signup. The gap was
+  // live and it ran BOTH ways:
+  //   · an offboarded person — ended affiliation, column still naming this org — was
+  //     REFUSED BY THE PICKER AND SEATED BY THIS ACTION, because the form is a POST
+  //     and this re-verify is exactly what a tampered form is checked against. A
+  //     membership granted from a stale column is ADR 0163 bound 3 ("retention never
+  //     makes the person a member of anything") and Architecture Rule 13's second
+  //     half defeated at once;
+  //   · and a person actively affiliated here whose column names another org was
+  //     OFFERED BY THE PICKER AND REFUSED HERE with `userNotAddable`.
+  //
+  // ⚠ ACTIVE, not non-voided: this is the STAFFING question. `personAuthorityOrgs`'
+  // last-org retention answers "who may be ADMINISTERED" and is deliberately NOT an
+  // input here. pgTAP `395` § 8.1 re-derives from the catalog that the SQL door and
+  // the picker's helper still carry the same tense predicate, and
+  // `org-roster-predicate.test.ts` witnesses the filters this call actually asks for,
+  // so a fix applied to one sibling and not the other reds instead of shipping.
   const { data: profile } = await admin
     .from('profiles')
-    .select('id, home_organization_id, is_active')
+    .select('id, is_active')
     .eq('id', userId)
     .maybeSingle()
-  if (
-    !profile ||
-    profile.home_organization_id !== orgId ||
-    !profile.is_active
-  ) {
+  if (!profile || !profile.is_active) {
+    return { ok: false, fieldErrors: { user: MESSAGES.userNotAddable } }
+  }
+  // ⛔ A READ ERROR IS NOT A REFUSAL, and the two must not collapse into one message.
+  // `personHasActiveOrgAffiliation` throws rather than returning `false`, so an outage
+  // cannot present as "this person is not available" — that is the silent-DENY shape
+  // (`BUG-AUTHZ-FOOTPRINT-ASYMMETRIC-READ-LIFTS-THE-D2-LOCK`) which is indistinguishable
+  // from a real tenancy denial and leaves nobody a signal.
+  //
+  // ⚠ But it is CAUGHT here, not left to propagate: CLAUDE.md § 8 says raw Supabase
+  // errors never reach the UI, and this action has no other boundary. `generic`
+  // ("try again") vs `userNotAddable` ("this person is not available") is exactly the
+  // distinction the throw exists to preserve, carried into pt-BR.
+  let affiliated: boolean
+  try {
+    affiliated = await personHasActiveOrgAffiliation(admin, userId, orgId)
+  } catch {
+    return { ok: false, error: MESSAGES.generic }
+  }
+  if (!affiliated) {
     return { ok: false, fieldErrors: { user: MESSAGES.userNotAddable } }
   }
 

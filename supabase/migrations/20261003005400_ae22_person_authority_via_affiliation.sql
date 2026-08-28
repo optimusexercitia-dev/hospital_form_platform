@@ -3,7 +3,12 @@
 --         onto the `organization_affiliations` substrate.
 --
 -- Plan: docs/plans/authz-evolution.md § AE2.2 (ADR 0155 D8/D3)
--- Ruling implemented: ADR 0163 — last-org retention, SUBSET-bounded, four bounds
+-- Ruling implemented: ADR 0163 — last-org retention, four bounds
+--                     ⚠ This line read "SUBSET-bounded" until 2026-08-28. ADR 0163
+--                     Amendment 1 § 1 RETIRED that wording: retention is CAPABILITY-BLIND
+--                     — `app.person_authority_orgs` takes no capability argument and
+--                     cannot be capability-bounded. The label outlived the decision it
+--                     named (QA finding M5).
 -- Census consumed:   docs/design/authz-ae2-home-org-consumer-census.md (3 RLS legs)
 -- Keystone:          supabase/tests/390_ae22_person_authority_via_affiliation.sql
 --                    (written first; observed RED — §A could not resolve the

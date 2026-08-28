@@ -204,7 +204,7 @@
 -- ============================================================================
 
 begin;
-select plan(42);
+select plan(45);
 
 -- ---------------------------------------------------------------------------
 -- Constants — seeded ids, measured from the catalog, never guessed.
@@ -831,15 +831,39 @@ select is(
   '(SUBSET). Under the column this actor reached NOTHING. ⛔ This is the cell the '
   'drop would have moved silently, and no seeded persona can construct it');
 
+-- ---------------------------------------------------------------------------
+-- ⛔ § 3.4 WAS SPLIT (QA finding M10).  It asserted `count = 0` over
+-- Q4 × {HA1, HAD, HB1} × 4 capabilities and rested that zero on the claim
+-- "the empty footprint refuses all four capabilities".  Measured against the
+-- shipped body (`…005700:230-232`), 8 of those 12 cells return false at
+-- `cardinality(v_administered) = 0` — HA1 and HAD administer hospitals in org A
+-- and Q4 locates to org B (§ 0.6 pins that) — i.e. they never reach the footprint
+-- rule at all.  ⭐ The aggregate hid the difference: 4 cells measured the claimed
+-- mechanism and 8 corroborated it by arithmetic.  Split, HB1 carries the claim and
+-- the A-tier cells become a separately-labelled control that says why they are zero.
+-- ---------------------------------------------------------------------------
 select is(
   (select count(*)::int from x_matrix
-    where target_label = 'Q4' and caller_label in ('HA1','HAD','HB1')
+    where target_label = 'Q4' and caller_label = 'HB1'
       and (old_v or new_v)),
   0,
-  '§ 3.4 ADR 0163 BOUND 4 SURVIVES STRUCTURALLY: retention adds no hospital-tier '
-  'reach. Q4''s retaining org is B and HB1 administers a hospital there, yet the '
-  'empty footprint refuses all four capabilities — the bound is enforced by the '
-  'footprint rule, not by the locator');
+  '§ 3.4 ADR 0163 BOUND 4, MEASURED WHERE IT BINDS: HB1 administers a hospital in '
+  'Q4''s retaining organisation, so the LOCATOR admits and the ORGANISATION scope '
+  'admits — and all four capabilities are still refused, by the EMPTY-FOOTPRINT '
+  'rule and nothing else. This is the only caller of the three for which that '
+  'sentence is what the cell measures');
+
+select is(
+  (select count(*)::int from x_matrix
+    where target_label = 'Q4' and caller_label in ('HA1','HAD')
+      and (old_v or new_v)),
+  0,
+  '§ 3.4b CONTROL — DENIED EARLIER, FOR A DIFFERENT REASON. HA1 and HAD administer '
+  'hospitals in org A while Q4 locates to org B, so the shipped body returns false '
+  'at `cardinality(v_administered) = 0`, BEFORE the footprint rule is consulted. '
+  '⚠ Kept, and labelled, rather than deleted: these cells are real coverage of the '
+  'organisation scope — they were only wrong as EVIDENCE FOR BOUND 4, which is what '
+  'folding them into one aggregate made them look like');
 
 -- ===========================================================================
 -- § 4 — WIDENINGS.  Pre-declared or it is a red.
@@ -1066,6 +1090,49 @@ select is(
   'ORGANISATION LIST. Any drift in the reproduced D2 / footprint / INTERSECTION / '
   'SUBSET logic reds HERE instead of masquerading as a finding in § 4 or § 5');
 
+-- ---------------------------------------------------------------------------
+-- ⛔ § 9.2'S TWO PRECONDITIONS (QA finding B4).  Without them § 9.2 is
+-- `392` § 4.3 WITH BOTH PREMISES DELETED.  The shipped predicate returns false at
+-- FOUR points before any membership is consulted — `p_actor is null`,
+-- `cardinality(v_orgs) = 0`, `not app.is_active(p_actor)`,
+-- `cardinality(v_administered) = 0` — so a `0` from § 9.2 is equally consistent
+-- with "sharing an affiliation grants nothing" (the rule) and with "there was
+-- nothing to share" (a broken fixture).  ⚠ CSH is deliberately EXCLUDED from
+-- `x_callers`, so § 0.3 and § 0.4 — the two guards written for exactly this — do
+-- NOT cover it.  A seed change, or drift in CSH's construction, would make the one
+-- shape Rule 13 exists to forbid UNDETECTABLE while the assertion stayed green.
+-- ⚠ `reset role` first — `app.person_authority_orgs` is `postgres`-only EXECUTE.
+-- ---------------------------------------------------------------------------
+reset role;
+
+select is(
+  (select (count(*) filter (where tg.label = 'Q3'))::text || '|' ||
+          (count(*) filter (where tg.label = 'Q7'))::text || '|' ||
+          bool_and(app.is_active((select csh from pg_temp.k())))::text
+     from (values ('Q3'), ('Q7')) as v(label)
+     join x_targets tg on tg.label = v.label
+    where exists (
+      select 1
+        from app.person_authority_orgs(tg.target) t
+        join app.person_authority_orgs((select csh from pg_temp.k())) c
+          on c.organization_id = t.organization_id)),
+  '1|1|true',
+  '§ 9.1a PRECONDITION — CSH and BOTH targets share an active organization '
+  'affiliation, and CSH is `app.is_active`. So § 9.2''s denial is "sharing an '
+  'affiliation grants nothing", not "there was nothing to share" and not "the '
+  'caller was inactive". ⭐ Derived through `app.person_authority_orgs` — the '
+  'LOCATE half itself — so it measures the same fact the predicate under test '
+  'consumes, rather than a fixture row that merely looks like it');
+
+select is(
+  (select count(*)::text from public.memberships m
+    where m.principal_id = (select csh from pg_temp.k())),
+  '0',
+  '§ 9.1b PRECONDITION — CSH holds NO membership at ANY scope: organisation, '
+  'hospital or commission. The GRANT half is genuinely absent, which is what makes '
+  '§ 9.2 a statement about the LOCATE/GRANT split rather than about a caller who '
+  'happened to be denied for some other reason');
+
 select is(
   (select count(*)::int from x_caps cp
      cross join (values ('Q3'), ('Q7')) as v(label)
@@ -1076,7 +1143,8 @@ select is(
   'affiliation with the target but holds NO membership anywhere is denied for every '
   'capability. The affiliation LOCATES; only a memberships row GRANTS. ⛔ The '
   'collapsed one-join form type-checks identically, which is why this is asserted '
-  'rather than reviewed for');
+  'rather than reviewed for. ⚠ Load-bearing only because § 9.1a/§ 9.1b hold — read '
+  'this cell WITHOUT them and it is a zero of unknown cause');
 
 -- ===========================================================================
 -- § 10 — THE SIX KERNELS, END TO END.

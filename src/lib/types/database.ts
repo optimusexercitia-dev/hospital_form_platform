@@ -13623,6 +13623,14 @@ export type Database = {
         Args: { p_hospital_id: string }
         Returns: Json
       }
+      list_linkable_org_users: {
+        Args: { p_organization: string }
+        Returns: {
+          email: string
+          full_name: string
+          user_id: string
+        }[]
+      }
       list_my_action_items: { Args: { p_commission: string }; Returns: Json }
       list_my_assigned_capa_actions: {
         Args: never
@@ -15928,6 +15936,13 @@ export type Database = {
       target_case_response: {
         Args: { p_case_participant_id: string; p_response_id: string }
         Returns: undefined
+      }
+      tenant_orphan_profiles: {
+        Args: never
+        Returns: {
+          profile_id: string
+          reason: string
+        }[]
       }
       toggle_committee_action_item_checklist: {
         Args: { p_id: string; p_is_done: boolean }

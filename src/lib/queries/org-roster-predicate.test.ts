@@ -66,10 +66,27 @@ function makeBuilder(table: string) {
   return chain
 }
 
+/**
+ * ⭐ `rpc` RECORDS TOO. AE2.4 increment 4 moved `listLinkableOrgUsers` from a `.from()`
+ * chain to an RPC, and a mock whose `rpc` is an anonymous `vi.fn()` can witness neither
+ * WHICH door was called nor with WHAT argument — which is the same blind spot, one API
+ * over, that this file's header says returned-shape assertions have.
+ */
+function makeRpc(rows: Record<string, unknown[]>) {
+  return async (name: string, args: unknown) => {
+    calls.push({ table: `rpc:${name}`, method: 'rpc', args: [args] })
+    if (rpcError) return { data: null, error: rpcError }
+    return { data: rows[`rpc:${name}`] ?? [], error: null }
+  }
+}
+
+/** Set to make the next RPC fail — the only way to witness a swallow-vs-throw contract. */
+let rpcError: { message: string } | null = null
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     from: (table: string) => makeBuilder(table),
-    rpc: vi.fn(async () => ({ data: [], error: null })),
+    rpc: makeRpc(rows),
   })),
 }))
 
@@ -88,6 +105,7 @@ const HOSP = '05000000-0000-0000-0000-00000000000a'
 beforeEach(() => {
   calls = []
   rows = {}
+  rpcError = null
   vi.resetModules()
 })
 
@@ -349,5 +367,165 @@ describe('the org-affiliation TENSE reaches the directory row (AFF4 B6b)', () =>
       calls.some((c) => c.table === 'organization_affiliations'),
       'the hospital directory must not even ASK for org affiliations (ADR 0151 D1)',
     ).toBe(false)
+  })
+})
+
+// ===========================================================================
+// AE2.4 increment 4 — THE SIBLING AXES, AND THE PROPERTY THAT COVERS THE ONES
+// NOBODY HAS WRITTEN A TEST FOR YET.
+// ===========================================================================
+
+/**
+ * ⛔ WHY THIS SECTION EXISTS, AND WHAT WAS WRONG WITH THE PIN ABOVE IT.
+ *
+ * The `listOrgUsers` block's second assertion —
+ * `expect(calls.some((c) => c.args[0] === 'home_organization_id')).toBe(false)` — is a
+ * real, mutation-proven pin, and it is pinned AT THE WRONG GRAIN. It runs inside a test
+ * that invokes exactly one function, so it says *"`listOrgUsers` does not filter on the
+ * column"*. It has never been able to say anything about a SIBLING.
+ *
+ * That grain has now cost this phase FIVE separate findings, all the same shape:
+ * `listOrgUsers` moved and `listLinkableOrgUsers` did not (AE2.2 § "two sibling axes,
+ * one swept"); `list_addable_commission_members` moved and `addStaff` did not (QA B1);
+ * `can_administer_person_for` moved and `authorizeForUser` / `getPersonAdminView` were
+ * named by no increment (inc 3, `FUP-AE2-PERSON-PREAMBLE-THREE-COPIES`);
+ * `resolveOrInviteUser` fell between two increments (QA M14).
+ *
+ * ⭐ A PER-FUNCTION ASSERTION CANNOT CLOSE THAT CLASS, BY CONSTRUCTION: it is a
+ * statement about a name, and the defect is always a name nobody listed. So this file
+ * now carries BOTH, deliberately, and they answer different questions:
+ *
+ *   · the per-function arms below say WHAT each door asks the database for — the only
+ *     thing that can witness a FILTER, since the mock supplies the rows;
+ *   · the module property says NO source file in `src/lib` compares or filters on
+ *     `home_organization_id` AT ALL — which is the only thing that can notice a SIXTH
+ *     copy appearing in a function nobody has written a test for.
+ *
+ * ⚠ The property's bound, stated rather than implied: it reads SOURCE TEXT, so it cannot
+ * see a dynamically-built column name (`.eq(someVar, …)`), and it is not a substitute
+ * for the runtime arms. It is a floor, and it is the half that scales.
+ */
+
+/** Strip line and block comments, so a comment ABOUT the old predicate is not a hit. */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+}
+
+/**
+ * Filter usage (`.eq('home_organization_id', …)`) OR comparison usage
+ * (`profile.home_organization_id !== orgId`). Both are positive patterns, so this needs
+ * no exception list: a PROJECTION inside a `.select('id, home_organization_id, …')`
+ * string and an object-literal key (`{ home_organization_id: orgId }` in user metadata)
+ * are legitimately still present and are not matched.
+ */
+const COLUMN_AS_PREDICATE =
+  /\.(?:eq|neq|in|is|not|or|filter|match|gt|lt|gte|lte)\(\s*['"`]home_organization_id['"`]|home_organization_id\s*(?:!==|===|==[^=]|!=[^=])/
+
+describe('AE2.4 inc 4 — listLinkableOrgUsers asks the DOOR, not the column', () => {
+  it('⭐⭐ calls `list_linkable_org_users` with the org, and filters `profiles` on nothing', async () => {
+    // ⛔ THE ASSERTION THAT FAILS IF THE PREDICATE IS REVERTED. Restoring
+    // `.from('profiles').eq('home_organization_id', orgId)` reds both arms, and neither
+    // could have been written against the returned rows: the mock supplies those, so a
+    // result-shape test passes identically before and after the move.
+    rows = { 'rpc:list_linkable_org_users': [{ user_id: 'p-1', full_name: 'A', email: 'a@x' }] }
+    const { listLinkableOrgUsers } = await import('./members')
+    const out = await listLinkableOrgUsers(ORG)
+
+    expect(asked('rpc:list_linkable_org_users', 'rpc', { p_organization: ORG })).toBe(true)
+    expect(calls.some((c) => c.table === 'profiles')).toBe(false)
+    // The shape contract the two case pages consume, unchanged across the move.
+    expect(out).toEqual([{ userId: 'p-1', fullName: 'A', email: 'a@x' }])
+  })
+
+  it('⛔ THROWS on a door error — it must never render as an empty picker', async () => {
+    // ADR 0108 D6: an empty "possui conta" list is indistinguishable from "this
+    // professional has no account", which walks the coordinator to `não possui conta` —
+    // an audited human assertion that makes the case exclusion VACUOUSLY SATISFIED. The
+    // two neighbours in `members.ts` (`listAdministrativos`, `listMemberCapabilities`)
+    // both `return []` on error and `listAddableMembers` ignores `error` entirely, so
+    // "make it consistent with its neighbours" is a live and plausible future edit. This
+    // is the arm that notices.
+    rpcError = { message: '42501: permission denied' }
+    const { listLinkableOrgUsers } = await import('./members')
+    await expect(listLinkableOrgUsers(ORG)).rejects.toBeTruthy()
+  })
+})
+
+describe('AE2.4 inc 4 — the two injected-client affiliation reads (B1 / M14 write twins)', () => {
+  /** A recording stand-in for the service-role client these two take by injection. */
+  function makeAdmin(payload: unknown[]) {
+    const chain: Record<string, unknown> = {
+      then: (resolve: (v: unknown) => unknown) =>
+        Promise.resolve({ data: payload, error: null }).then(resolve),
+    }
+    for (const method of ['select', 'eq', 'is', 'limit', 'returns']) {
+      chain[method] = (...args: unknown[]) => {
+        calls.push({ table: 'organization_affiliations', method, args })
+        return chain
+      }
+    }
+    // Only the surface under test is modelled; anything else throwing is the point.
+    return { from: () => chain } as never
+  }
+
+  it('⭐ personHasActiveOrgAffiliation — the STAFFING predicate: org + ended + voided', async () => {
+    // `addStaff`'s re-verify (QA B1). Before this increment it read
+    // `profiles.home_organization_id !== orgId` through the SERVICE-ROLE client with RLS
+    // bypassed, under a comment claiming it "mirrors the picker's addable-set gate,
+    // exactly" — a mirror that stopped existing when `20261003005500` moved the picker.
+    // An offboarded person was refused by the picker and SEATED by the action.
+    const { personHasActiveOrgAffiliation } = await import('./affiliations')
+    await personHasActiveOrgAffiliation(makeAdmin([{ id: 'a1' }]), 'p-1', ORG)
+
+    expect(asked('organization_affiliations', 'eq', 'principal_id', 'p-1')).toBe(true)
+    expect(asked('organization_affiliations', 'eq', 'organization_id', ORG)).toBe(true)
+    expect(asked('organization_affiliations', 'is', 'ended_on', null)).toBe(true)
+    expect(asked('organization_affiliations', 'is', 'voided_at', null)).toBe(true)
+  })
+
+  it('⭐ listNonVoidedOrgAffiliationsFor — the TENANCY predicate: voided only, NEVER ended', async () => {
+    // The deliberate divergence, pinned in the one direction that can rot. Retention
+    // (ADR 0163) and one-step rehire (ADR 0151 D5) both depend on an ENDED row still
+    // counting here; adding `.is('ended_on', null)` "for consistency" with the arm above
+    // would break `personAuthorityOrgs`' bounds 2 and 3 and `resolveOrInviteUser`'s
+    // offboarded cell at once, and every returned-shape test would stay green.
+    const { listNonVoidedOrgAffiliationsFor } = await import('./affiliations')
+    await listNonVoidedOrgAffiliationsFor(
+      makeAdmin([{ organization_id: ORG, ended_on: null }]),
+      'p-1',
+    )
+
+    expect(asked('organization_affiliations', 'is', 'voided_at', null)).toBe(true)
+    expect(asked('organization_affiliations', 'is', 'ended_on', null)).toBe(false)
+  })
+})
+
+describe('⭐⭐ THE MODULE PROPERTY — no data access in `src/lib` predicates on the column', () => {
+  it('finds ZERO filter-or-compare uses of `home_organization_id` across src/lib', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { execFileSync } = await import('node:child_process')
+    // Enumerate by PROPERTY (every non-test TypeScript source under src/lib), never by a
+    // hand list — a hand list is exactly the instrument that produced the five findings.
+    const files = execFileSync('git', ['ls-files', 'src/lib'], { encoding: 'utf8' })
+      .split('\n')
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && !f.endsWith('database.ts'))
+
+    // ⛔ THE DETECTOR MUST BE PROVEN ABLE TO FIND SOMETHING. Both shapes it must catch,
+    // and the two legitimate shapes it must NOT match, are checked against the regex
+    // itself before it is trusted over hundreds of files — a sweep that finds nothing is
+    // indistinguishable from a sweep whose pattern is broken.
+    expect(COLUMN_AS_PREDICATE.test(".eq('home_organization_id', orgId)")).toBe(true)
+    expect(COLUMN_AS_PREDICATE.test('profile.home_organization_id !== orgId')).toBe(true)
+    expect(COLUMN_AS_PREDICATE.test("select('id, home_organization_id, email')")).toBe(false)
+    expect(COLUMN_AS_PREDICATE.test('data: { home_organization_id: organizationId }')).toBe(false)
+    expect(files.length).toBeGreaterThan(50)
+
+    const offenders = files.filter((f) =>
+      COLUMN_AS_PREDICATE.test(stripComments(readFileSync(f, 'utf8'))),
+    )
+    expect(
+      offenders,
+      `these still predicate on home_organization_id: ${offenders.join(', ')}`,
+    ).toEqual([])
   })
 })

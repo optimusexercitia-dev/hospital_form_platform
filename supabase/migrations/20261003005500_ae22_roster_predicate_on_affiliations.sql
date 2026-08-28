@@ -76,7 +76,12 @@
 --   green. AE2.3 carries it as a declared cell.
 --
 -- ⚠ The application-side twin (`listLinkableOrgUsers`,
---   src/lib/queries/members.ts) moves in the same increment. Its sibling
+--   src/lib/queries/members.ts) moves in AE2.4 INCREMENT 4 (ADR 0164 D4, ADR 0165
+--   § Consequences) — NOT in this increment. ⛔ This line read "moves in the same
+--   increment" and was false from the day it shipped (QA finding M2), eight lines
+--   below a header explaining that a sibling left behind is the whole reason this
+--   increment exists. Its own write twin `addStaff` (src/lib/members/actions.ts) was
+--   left behind by this very migration and moved in increment 4 too. Its sibling
 --   `listOrgUsers` was moved off this column by AFF4 B6a and pinned by a
 --   regression test written for that ONE function — one axis swept, its sibling
 --   left behind. That is the whole reason this increment exists.

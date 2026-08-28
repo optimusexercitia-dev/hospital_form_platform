@@ -209,12 +209,11 @@ export async function listAddableMembers(
  * SATISFIED. The automatic impedimento would silently stop working, recorded as a
  * deliberate assertion that was really a UI dead end.
  *
- * ⚠ WHY A PLAIN RLS READ AND NOT A NEW DOOR — and what it does NOT do. Verified from
- * the catalog, then measured live: `profiles_select_self_or_admin` carries a
- * CO-MEMBERSHIP arm — `app.is_active(auth.uid()) and exists (select 1 from memberships
- * them where them.commission_id is not null and them.principal_id = profiles.id and
- * app.is_member_of(them.commission_id))` — so a coordinator already reads the profiles
- * of everyone sharing a commission with them. No widening, no new RPC, no migration.
+ * ⚠ WHY THE PERIMETER IS STILL THE CALLER'S OWN — and what this does NOT do.
+ * `profiles_select_self_or_admin` carries a CO-MEMBERSHIP arm — `app.is_active(auth.uid())
+ * and exists (select 1 from memberships them where them.commission_id is not null and
+ * them.principal_id = profiles.id and app.is_member_of(them.commission_id))` — so a
+ * coordinator already reads the profiles of everyone sharing a commission with them.
  *
  * So this is NOT "every active user in the organization": for a staff_admin it is
  * their OWN existing read perimeter, intersected with the org. An org_admin (or a
@@ -231,31 +230,45 @@ export async function listAddableMembers(
  *
  * `is_admin` is excluded: a platform_admin is not a tenant person and never belongs on
  * a tenant roster (the noun rule, ADR 0078 A35) — mirroring `list_org_people`.
+ *
+ * ⭐ AE2.4 INCREMENT 4 — THE ORG FILTER IS NO LONGER `home_organization_id`. It is
+ * `public.list_linkable_org_users`, a **SECURITY INVOKER** RPC, so this is still the
+ * caller's own `profiles` perimeter and every sentence above still holds: the ONLY
+ * thing the door replaces is the org predicate, which is now an ACTIVE
+ * `organization_affiliations` row (ADR 0164 § Decision item 4, shape C-b').
+ *
+ * ⛔ WHY A DOOR AND NOT JUST A DIFFERENT `.eq()`. Measured 2026-08-28: re-pointing
+ * this read at `organization_affiliations` under the caller's own RLS collapses a
+ * coordinator's picker from TEN candidates to ONE — themselves — because that table's
+ * SELECT policy is `principal_id = auth.uid() OR app.is_org_admin_of(organization_id)`,
+ * with no staff_admin arm and no hospital tier, BY DESIGN (ADR 0151 D1). An embedded
+ * `!inner` join collapses identically; the embed is RLS-filtered too. The door's body
+ * evaluates the affiliation through an `app` DEFINER predicate so that ONE lookup
+ * escapes RLS while the audience decision stays with `profiles`.
+ *
+ * ⛔ Widening `organization_affiliations_select` to fix this read (option C-a) is
+ * REJECTED and must not be re-proposed — a policy widened for a picker stays widened
+ * for everything else it gates. pgTAP `395` § 0.7 is that prohibition as a gate.
  */
 export async function listLinkableOrgUsers(
   organizationId: string,
 ): Promise<AddableUser[]> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, full_name, email')
-    .eq('home_organization_id', organizationId)
-    .eq('is_active', true)
-    .eq('is_admin', false)
-    .order('full_name', { ascending: true, nullsFirst: false })
-    .limit(500)
+  const { data, error } = await supabase.rpc('list_linkable_org_users', {
+    p_organization: organizationId,
+  })
 
   // ⚠ THROW. This feeds the "possui conta" picker, so a swallowed error renders as
   // an empty user list — indistinguishable from "this professional has no account",
   // which walks the coordinator straight to `não possui conta` and makes the case
-  // exclusion vacuously satisfied (ADR 0108 D6). `profiles` is on COLUMN-LIST grants,
-  // so a future column added to the select without its own GRANT fails 42501 here —
-  // exactly the error that must not be silent.
+  // exclusion vacuously satisfied (ADR 0108 D6). The two neighbours in this module
+  // (`listAdministrativos`, `listMemberCapabilities`) return `[]` on error and that
+  // idiom must NOT be copied here.
   if (error) throw error
 
   return (data ?? []).map((row) => ({
-    userId: row.id,
+    userId: row.user_id,
     fullName: row.full_name || null,
     email: row.email,
   }))

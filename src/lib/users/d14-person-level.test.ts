@@ -198,35 +198,65 @@ vi.mock('@/lib/supabase/admin', () => ({
 }))
 
 /**
- * A chainable supabase-js stand-in. Every filter returns the builder; the terminal
- * forms resolve. Only the surface these actions touch is modelled — a fuller fake would
- * hide which surface they actually depend on.
+ * A chainable supabase-js stand-in. Only the surface these actions touch is modelled — a
+ * fuller fake would hide which surface they actually depend on.
  *
- * ⚠ FILTERS ARE NOT APPLIED. `.eq`/`.is`/`.not` are identity, so a fixture must contain
- * only rows that genuinely belong to the target. This is why the footprint helpers below
- * SET the arrays outright rather than appending: a leftover row from another describe
- * would silently widen the footprint and turn a subset DENY into an ALLOW.
+ * ⛔ THE LIST READS APPLY `.eq` AND `.is` — QA AE2 M6, and this comment used to say the
+ * opposite ("FILTERS ARE NOT APPLIED"). Under a passthrough, `.eq('principal_id', userId)`
+ * and `.is('voided_at', null)` on the three authority reads were NO-OPS: the footprint
+ * fixtures answered for any user id, and a VOIDED affiliation was indistinguishable from a
+ * live one, so the whole file's world was built out of a filter that did nothing. Shape
+ * borrowed from `departed-person-footprint.test.ts`'s `makeFilteringAdmin`.
+ *
+ * ⚠ `.is(col, null)` treats an ABSENT column as null — SQL semantics against a fixture that
+ * does not model the column. `.in`/`.not` stay identity; the only `.in` here is the
+ * `commissions` lookup in `addStaff`, which no arm in this file exercises.
+ *
+ * ⛔ `maybeSingle` IS DELIBERATELY *NOT* FILTERED, and the boundary is worth stating rather
+ * than quietly drawing. Every `maybeSingle` on these paths is a primary-key read
+ * (`profiles.id`, `professional_credentials.id`, a `memberships` seat) whose fixture is a
+ * single stub row standing for "the record exists" — not the class M6 names. What it IS is
+ * a QUEUE: `registerUser` reads `profiles` twice, the email pre-check then the CPF
+ * pre-check, and §8/§9's collision arms depend on those two reads answering DIFFERENTLY.
+ * Filtering would collapse the queue and silently rewrite what those arms test. The
+ * footprint helpers below therefore keep their standing rule — SET the arrays, never
+ * append — because a leftover row is still a widened footprint.
  */
 function makeAdmin() {
   const builder = (table: string) => {
+    const configured = rows[table]
+    let matched: Record<string, unknown>[] =
+      configured == null
+        ? []
+        : Array.isArray(configured)
+          ? [...(configured as Record<string, unknown>[])]
+          : [configured as Record<string, unknown>]
     const self: Record<string, unknown> = {}
     const chain = () => self
-    for (const m of ['select', 'eq', 'is', 'in', 'not', 'order', 'limit', 'returns']) {
+    for (const m of ['select', 'in', 'not', 'order', 'limit', 'returns']) {
       self[m] = chain
+    }
+    self.eq = (column: string, value: unknown) => {
+      matched = matched.filter((r) => r && r[column] === value)
+      return self
+    }
+    self.is = (column: string, value: unknown) => {
+      if (value === null) matched = matched.filter((r) => r && r[column] == null)
+      return self
     }
     // A table's configured value may be an ARRAY, in which case it is a QUEUE consumed one
     // read at a time. registerUser reads `profiles` TWICE — the email pre-check, then the
     // CPF pre-check — and a single fixed row makes the first read answer for both, so the
     // email collision returns before the CPF path is ever reached.
     self.maybeSingle = async () => {
-      const configured = rows[table]
-      if (Array.isArray(configured)) {
-        return { data: (configured.shift() as unknown) ?? null, error: null }
+      const current = rows[table]
+      if (Array.isArray(current)) {
+        return { data: (current.shift() as unknown) ?? null, error: null }
       }
-      return { data: configured ?? null, error: null }
+      return { data: current ?? null, error: null }
     }
     self.then = (resolve: (v: { data: unknown; error: null }) => unknown) =>
-      resolve({ data: rows[table] ?? [], error: null })
+      resolve({ data: matched, error: null })
     for (const op of ['update', 'insert', 'upsert', 'delete']) {
       self[op] = (payload: unknown) => {
         writes.push({ table, op, payload })
@@ -278,34 +308,60 @@ const ANY_REFUSAL = /administrador da organiza|não tem permiss/i
 // `hospital_id`, and the embedded `commissions.hospital_id`. The TIER is derived
 // structurally from `commission_id IS NULL`, matching `memberships_scope_shape` —
 // never from a role name, because that vocabulary has been widened four times.
+//
+// ⛔ QA AE2 M6 — EVERY ROW CARRIES `principal_id`, `ended_on` AND `voided_at`, and that is
+// not bookkeeping. All three authority reads filter `.eq('principal_id', userId)`; while
+// the fake swallowed filters these rows belonged to EVERY user at once, so the fixtures
+// were building their world out of a filter that did nothing. Measured when the filters
+// were switched on: dropping `principal_id` from the org-affiliation row alone reds 28 of
+// this file's 54 arms — i.e. more than half the file was resting on the no-op.
 // ---------------------------------------------------------------------------
 
 /** Sole footprint at HOSP_A, commission-tier only. The founding scenario (D3). */
 function footprintSoleHospital(): void {
-  rows.hospital_affiliations = [{ hospital_id: HOSP_A }]
+  rows.hospital_affiliations = [
+    { principal_id: TARGET, hospital_id: HOSP_A, ended_on: null, voided_at: null },
+  ]
   rows.memberships = [
-    { commission_id: 'comm-a', hospital_id: null, commissions: { hospital_id: HOSP_A } },
+    {
+      principal_id: TARGET,
+      commission_id: 'comm-a',
+      hospital_id: null,
+      commissions: { hospital_id: HOSP_A },
+    },
   ]
 }
 
 /** Serves at HOSP_A **and** HOSP_B. The Amendment-1 split target. */
 function footprintCrossHospital(): void {
-  rows.hospital_affiliations = [{ hospital_id: HOSP_A }, { hospital_id: HOSP_B }]
+  rows.hospital_affiliations = [
+    { principal_id: TARGET, hospital_id: HOSP_A, ended_on: null, voided_at: null },
+    { principal_id: TARGET, hospital_id: HOSP_B, ended_on: null, voided_at: null },
+  ]
   rows.memberships = [
-    { commission_id: 'comm-a', hospital_id: null, commissions: { hospital_id: HOSP_A } },
+    {
+      principal_id: TARGET,
+      commission_id: 'comm-a',
+      hospital_id: null,
+      commissions: { hospital_id: HOSP_A },
+    },
   ]
 }
 
 /** Holds an ORG-tier seat (commission_id null, hospital_id null) ⇒ org_admin-only (D2). */
 function footprintOrgTier(): void {
-  rows.hospital_affiliations = [{ hospital_id: HOSP_A }]
-  rows.memberships = [{ commission_id: null, hospital_id: null, commissions: null }]
+  rows.hospital_affiliations = [
+    { principal_id: TARGET, hospital_id: HOSP_A, ended_on: null, voided_at: null },
+  ]
+  rows.memberships = [{ principal_id: TARGET, commission_id: null, hospital_id: null, commissions: null }]
 }
 
 /** Holds a HOSPITAL-tier seat at the CALLER'S OWN hospital ⇒ still org_admin-only (D2). */
 function footprintHospitalTier(): void {
-  rows.hospital_affiliations = [{ hospital_id: HOSP_A }]
-  rows.memberships = [{ commission_id: null, hospital_id: HOSP_A, commissions: null }]
+  rows.hospital_affiliations = [
+    { principal_id: TARGET, hospital_id: HOSP_A, ended_on: null, voided_at: null },
+  ]
+  rows.memberships = [{ principal_id: TARGET, commission_id: null, hospital_id: HOSP_A, commissions: null }]
 }
 
 /**
@@ -317,6 +373,7 @@ function footprintExpiredSeatOnly(): void {
   rows.hospital_affiliations = []
   rows.memberships = [
     {
+      principal_id: TARGET,
       commission_id: 'comm-a',
       hospital_id: null,
       commissions: { hospital_id: HOSP_A },
@@ -335,9 +392,12 @@ function footprintExpiredSeatOnly(): void {
  * direction would go unnoticed.
  */
 function footprintActiveElsewherePlusExpiredHere(): void {
-  rows.hospital_affiliations = [{ hospital_id: HOSP_B }]
+  rows.hospital_affiliations = [
+    { principal_id: TARGET, hospital_id: HOSP_B, ended_on: null, voided_at: null },
+  ]
   rows.memberships = [
     {
+      principal_id: TARGET,
       commission_id: 'comm-a',
       hospital_id: null,
       commissions: { hospital_id: HOSP_A },
@@ -351,6 +411,7 @@ function footprintFutureExpirySeatOnly(): void {
   rows.hospital_affiliations = []
   rows.memberships = [
     {
+      principal_id: TARGET,
       commission_id: 'comm-a',
       hospital_id: null,
       commissions: { hospital_id: HOSP_A },
@@ -397,7 +458,9 @@ beforeEach(() => {
     // ⚠ `home_organization_id` is kept on the profiles row above ONLY because
     // `registerUser`'s email/CPF pre-checks still read it on a different path; it no longer
     // feeds any authority decision in this file.
-    organization_affiliations: [{ organization_id: ORG_A, ended_on: null }],
+    organization_affiliations: [
+      { principal_id: TARGET, organization_id: ORG_A, ended_on: null, voided_at: null },
+    ],
     professional_credentials: { user_id: TARGET },
   }
   footprintSoleHospital()
@@ -894,7 +957,9 @@ describe('§5 a SIBLING hospital admin holds nothing over this person', () => {
 
   it('CONTROL: the SAME session CAN edit a person whose footprint it does administer', async () => {
     // Without this, §5's deny is indistinguishable from a broken session fixture.
-    rows.hospital_affiliations = [{ hospital_id: HOSP_B }]
+    rows.hospital_affiliations = [
+    { principal_id: TARGET, hospital_id: HOSP_B, ended_on: null, voided_at: null },
+  ]
     rows.memberships = []
     session = siblingHospitalAdminSession
     const { updateUserProfile } = await import('./actions')

@@ -5,6 +5,13 @@
 organisation they are anchored to"*, evaluated against `profiles.home_organization_id` — is
 re-expressed against `organization_affiliations`. The SQLSTATE, the message and the
 not-found/wrong-org conflation are preserved; the admitted set is not.)
+**Amends:** 0164 (D3 here **reverses ADR 0164 § Decision's scope for increment 1**. 0164
+enumerates that increment as *"this trigger **and** `affiliate_person_to_org_impl`'s column
+gate"* — the ORG door only; D3 pulls `app.affiliate_person_impl`, the hospital sibling, into
+the same increment, on the ground that one axis swept and its sibling left behind had already
+happened three times in this phase. Declared 2026-08-28 after QA finding M1: the label was
+missing, `docs/decisions/INDEX.md` therefore showed 0164 with **no inbound edge**, and a
+missing `Amends:` is the one class **no gate can detect** — it leaves no trace.)
 
 ## Context
 
@@ -70,6 +77,37 @@ that "one axis was swept, its sibling was not" has already happened three times 
   `listLinkableOrgUsers` (`src/lib/queries/members.ts:235`) is a 500-row `profiles` listing keyed on
   the column and held closed by `profiles` RLS **alone**; increment 4 must not repair it by adding
   an anchor-org leg to a `profiles` policy, or the enumeration surface opens in the same commit.
+  ✅ **Both were handled in increment 4** (`20261003005800`): the picker moved to a `public`
+  INVOKER RPC over an `app` DEFINER predicate — `profiles` RLS unchanged, no policy widened, pinned
+  by `395 § 0.7` — and `resolveOrInviteUser` was re-predicated onto **this ADR's own gate**
+  (non-voided, "known here or known nowhere") plus a **separate, stated `is_admin` arm**. That arm
+  is not decoration: under the column a `platform_admin` was refused because their anchor is NULL,
+  and under affiliations they have zero non-voided rows and this gate would have **admitted** them.
+- ⛔ **WHAT AN ACTOR WHO ALREADY HOLDS THE UUID GAINS — stated, because "not enumerable" is a
+  REACHABILITY claim doing a CONTAINMENT claim's work** (QA finding M11, and this repo's standing
+  lesson that *not reachable ≠ protected*). The bullet above bounds who can FIND an anchorless
+  person; it says nothing about what follows for someone who already has the id. The answer is
+  large, and it is a **self-service** shape: the affiliate door's only person-side gate is now
+  *"known here, or known nowhere"*, and its authority arm checks only that the caller administers
+  the TARGET organisation — nothing about the person. So any `org_admin` of any organisation, or
+  (through the hospital sibling, arm `org_admin OR hospital_admin`) any `hospital_admin`, may
+  affiliate an anchorless person and thereby acquire, in one step:
+  1. read of that person's `profiles` row and their `professional_credentials` — **Class-2
+     professional identity** — through the three AE2.2-re-predicated SELECT legs, because
+     `app.person_authority_orgs` now locates them in the claiming org;
+  2. `app.can_administer_person_for` for `fields` and `credentials` (the INTERSECTION bound);
+  3. **and `cpf_change` and `lifecycle` as well** (the SUBSET bound) — because a freshly claimed
+     person's footprint is entirely inside the claiming hospital, so SUBSET and INTERSECTION
+     coincide. That is CPF rewrite and the platform-wide deactivation kill switch.
+  ⚠ **Architecture Rule 13 is NOT violated** and saying so is part of the finding: the caller's
+  MEMBERSHIP grants, the affiliation they create only LOCATES, and the two steps stay separate
+  functions. The property worth naming is different — **the locating fact is now self-servable by
+  the same actor who exercises the grant**, for a population that did not previously exist. Rule 13
+  keeps locate and grant apart; it does not say who may manufacture the locating fact.
+  ⛔ **This is a PO decision, not an engineering one, and it is recorded here unaccepted.** The
+  alternative that removes it entirely is the one already drafted below (a `platform_admin`-only
+  orphan-recovery door with its own audit verb); the cells that would flip are already written —
+  `393` W5/W6/W7 and H4.
 - ⚠ **The transition asymmetry, said plainly:** until the column actually drops, the first widened
   state — column says B, no affiliation rows — is one where **a fact still exists and the new gate
   ignores it**. Local to this branch and bounded by it, but it is the honest description, not

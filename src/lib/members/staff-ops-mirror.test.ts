@@ -76,12 +76,31 @@ vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
 vi.mock('next/headers', () => ({ headers: async () => new Map() }))
 vi.mock('@/lib/queries/session', () => ({ getSessionContext: async () => session }))
 
-/** The RLS-scoped read `authorizeStaffOps` makes; also serves the action's own reads. */
+/**
+ * The RLS-scoped read `authorizeStaffOps` makes; also serves the action's own reads.
+ *
+ * ⭐⭐ THE TARGET'S TENANCY IS AN `organization_affiliations` ROW, NOT A COLUMN — and the
+ * `profiles` fixture DELIBERATELY NO LONGER CARRIES `home_organization_id`. AE2.4
+ * increment 4 re-predicated `addStaff`'s re-verify (QA finding B1), and when it did, all
+ * three ALLOW arms in this file went RED: the fixture had built its world out of the
+ * column under test — it anchored the target with `home_organization_id` and never
+ * seeded an affiliation row. That is pgTAP `360` § 5.2's shape, in TypeScript, for the
+ * third time in this phase.
+ *
+ * ⛔ Fixed by mirroring the REAL SUBSTRATE, never by relaxing an assertion. And the
+ * column is REMOVED rather than left beside the new row: with both present the arms
+ * would pass whichever fact the action read, so the fixture would have stopped being
+ * evidence that it moved. This is the state the database will hold after the drop.
+ */
 function table(name: string) {
   const rows: Record<string, unknown> = {
     commissions: { organization_id: ORG_A, hospital_id: CENTRAL_A },
-    profiles: { id: TARGET_USER, home_organization_id: ORG_A, is_active: true },
+    profiles: { id: TARGET_USER, is_active: true },
     memberships: null,
+  }
+  /** List-shaped reads. The target holds ONE active org affiliation in ORG_A. */
+  const lists: Record<string, unknown[]> = {
+    organization_affiliations: [{ id: 'aff-1' }],
   }
   const self: Record<string, unknown> = {}
   for (const m of ['select', 'eq', 'is', 'in', 'not', 'order', 'limit', 'returns']) {
@@ -89,7 +108,7 @@ function table(name: string) {
   }
   self.maybeSingle = async () => ({ data: rows[name] ?? null, error: null })
   self.then = (resolve: (v: { data: unknown; error: null }) => unknown) =>
-    resolve({ data: [], error: null })
+    resolve({ data: lists[name] ?? [], error: null })
   for (const op of ['insert', 'update', 'upsert', 'delete']) self[op] = () => self
   return self
 }

@@ -398,7 +398,7 @@ in `src/` (Class 3a), the column is effectively **write-once at signup**.
 |---|---|---|
 | Column definitions | `information_schema.columns.column_name = 'home_organization_id'` | 1 |
 | RLS policies | `pg_policies` `qual` OR `with_check` `~ 'home_organization_id'`, unanchored | **3** (all SELECT; 0 in `with_check`) |
-| Functions | `pg_proc.prosrc` in `public`+`app`, `--`-stripped, `~ 'home_organization_id'` | **13** (14 raw − 1 comment-only) |
+| Functions ⚠ **schema-bounded** | `pg_proc.prosrc` **in `public`+`app`** (see the note below), `--`-stripped, `~ 'home_organization_id'` | **13** (14 raw − 1 comment-only) |
 | — of which `prosecdef = t` | same, `and p.prosecdef` | 12 |
 | — of which `prosecdef = f` | same, `and not p.prosecdef` | 1 (`assert_profile_tenant_has_org`) |
 | Views | `pg_views.definition ~ …` | **0** |
@@ -415,5 +415,30 @@ in `src/` (Class 3a), the column is effectively **write-once at signup**.
 | `supabase/snippets/**`, `supabase/templates/**` | `grep -rn` | **0** |
 
 ⚠ The AFF4-era framing *"the RLS legs and the tenant trigger stay"* names **classes**.
-This census is the **count**: 3 policy legs, 13 function bodies, 1 trigger, 1 FK,
-28 production TS lines, 73 fixture lines. That framing is not inherited here.
+This census is the **count**: 3 policy legs, 13 function bodies (**in `public`+`app`** — see
+the bound below), 1 trigger, 1 FK, 28 production TS lines, 73 fixture lines. That framing is
+not inherited here.
+
+### ⛔ THE FUNCTION CLASS IS SCHEMA-BOUNDED WHILE EVERY OTHER CLASS IS DATABASE-WIDE
+
+QA finding M13. Class 0, Class 1 (`pg_policies`), views, matviews, constraints and indexes
+are all derived database-wide; Class 2 alone carries `where n.nspname in ('public','app')`.
+The query was always shown, so the bound was visible — but the **summary row and the closing
+tally** were quoted downstream as "the consumer count", and a namespace list is a **syntax
+boundary, not a property**. The bound now travels with the number, in both places.
+
+**Re-derived without the schema filter, 2026-08-28, at head `20261003005800`** (measured, not
+argued):
+
+- database-wide, `--`-stripped: **3** — `public.guard_profile_privileged_columns`,
+  `public.handle_new_user`, `test_helpers.bootstrap`
+- `public`+`app` only: **2** — the same two `public` ones
+
+**The delta is exactly one, and it is `test_helpers.bootstrap`** — a pgTAP fixture created by
+`supabase/tests/00_setup.sql`, which is **not in the migration chain and does not exist on a
+fresh `supabase db reset`**. So the filter has never hidden a production consumer.
+⚠ Recorded as a MEASUREMENT, not as an all-clear: the reason it hid nothing is that no
+extension, no `storage`/`auth` function and no view outside `public`/`app` happens to name the
+column *today*. That is a fact about the current database, not a property of the predicate, and
+it is the difference between "the bound is safe" and "the bound was checked". **CNV-3 (re-derive
+at the drop) stands, and this is its first data point rather than its answer.**

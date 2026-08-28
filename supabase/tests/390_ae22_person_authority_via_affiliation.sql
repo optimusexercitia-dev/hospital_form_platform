@@ -89,7 +89,7 @@
 -- ============================================================================
 
 begin;
-select plan(55);
+select plan(57);
 
 -- ---------------------------------------------------------------------------
 -- Constants.  Fixture principals live in the `0000ae22….` uuid namespace so a
@@ -391,12 +391,44 @@ select is(app.can_administer_person_via_affiliation((select p_column_lies from p
 select is(app.can_administer_person_via_affiliation((select p_tie from pg_temp.k())), true,
   'D9 ⭐ BOUND 2: the OTHER tied org also administers. An arbitrary tie-break reds here and nowhere else');
 
+-- ----------------------------------------------------------------------------
+-- ⛔ D10'S TWO PRECONDITIONS (QA finding B4).  D10 says *"a principal who SHARES
+-- an active Rede A affiliation with the subject, but holds no org_admin
+-- MEMBERSHIP, gets FALSE"* — a sentence with TWO premises, and until now this
+-- suite asserted NEITHER.  §0.5 guards memberships for the FIXTURE PERSONS, not
+-- for the caller.  The sharing premise held only because `seed.sql:404-408`
+-- affiliates every non-admin profile to its home org: inherited, unasserted, and
+-- a shared fixture is a contract with ~900 tests, not a stable premise.
+-- ⛔ With either premise false, D10 goes green BECAUSE THERE WAS NOTHING TO SHARE
+-- — and the LOCATE/GRANT collapse, the one shape Rule 13 forbids and the one that
+-- "type-checks identically", becomes undetectable.  Ported from `392` §4.1/§4.2,
+-- which had them from the start.
+-- ⚠ `reset role` FIRST: `app.person_authority_orgs` is `postgres`-only EXECUTE (D-§A
+-- asserts that positively), so these two must run in owner context, before the
+-- persona switch below.
+-- ----------------------------------------------------------------------------
+reset role;
+
+select is(
+  (select count(*)::text from app.person_authority_orgs((select plain_staff from pg_temp.k())) c
+     join app.person_authority_orgs((select p_active_a from pg_temp.k())) t
+       on t.organization_id = c.organization_id),
+  '1',
+  'D9a PRECONDITION — `plain_staff` and the subject SHARE exactly one authority organisation. Derived through `app.person_authority_orgs` itself, so it measures the same fact D10''s predicate consumes rather than a fixture row that merely resembles it');
+
+select is(
+  (select count(*)::text from public.memberships m
+    where m.principal_id = (select plain_staff from pg_temp.k())
+      and m.role in ('org_admin', 'nsp_org_admin')),
+  '0',
+  'D9b PRECONDITION — `plain_staff` holds NO org-admin membership at any scope, so the GRANT half is genuinely absent. Without this, D10''s FALSE is a zero of unknown cause');
+
 reset role;
 select test_helpers.claims_for((select plain_staff from pg_temp.k()), false, 'staff');
 set local role authenticated;
 
 select is(app.can_administer_person_via_affiliation((select p_active_a from pg_temp.k())), false,
-  'D10 ⭐⭐ ADR 0155 D3: a principal who SHARES an active Rede A affiliation with the subject, but holds no org_admin MEMBERSHIP, gets FALSE. The affiliation LOCATES; the membership GRANTS. This is the assertion that reds if the two steps are ever collapsed into one join');
+  'D10 ⭐⭐ ADR 0155 D3: a principal who SHARES an active Rede A affiliation with the subject, but holds no org_admin MEMBERSHIP, gets FALSE. The affiliation LOCATES; the membership GRANTS. This is the assertion that reds if the two steps are ever collapsed into one join. ⚠ Load-bearing only because D9a/D9b hold');
 
 -- ============================================================================
 -- §E  END TO END THROUGH RLS

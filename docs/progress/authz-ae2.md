@@ -12,16 +12,16 @@ plan [authz-evolution.md](../plans/authz-evolution.md) §AE2). Branch
 
 | Task | State | Artifact |
 | --- | --- | --- |
-| **AE2.0** — PO ruling: offboarded-person lifecycle authority | ✅ **RULED 2026-08-27** | ADR [0163](../decisions/0163-offboarded-person-lifecycle-authority.md) — **last-org retention**, SUBSET capabilities, four bounds |
+| **AE2.0** — PO ruling: offboarded-person lifecycle authority | ✅ **RULED 2026-08-27** | ADR [0163](../decisions/0163-offboarded-person-lifecycle-authority.md) — **last-org retention**, **capability-blind**, four bounds. ⚠ This cell read "SUBSET capabilities" until 2026-08-28; ADR 0163 Amendment 1 § 1 **RETIRED** that wording (QA M5) |
 | **AE2.1** — close the consumer set | ✅ **DONE 2026-08-27** | [census](../design/authz-ae2-home-org-consumer-census.md) |
 | **AE2.2** — migration design: per-leg re-predication | ✅ **DONE 2026-08-27** | migrations `20261003005400` + `20261003005500`; suites `390`, `391` |
 | **AE2.3a** — the widening differential, **read/visibility half** (phase keystone) | ✅ **DONE 2026-08-27** | suite `392` (38 assertions); 50-cell matrix, 5 pre-declared widenings, 5 accepted narrowings, 8-mutation vacuity proof |
 | **AE2.3b** — the widening differential, **write/containment half** | 🟡 **PARTIAL** | increment 1's half **DONE** (`393` § 3 + § 5); increment 3's **capability-level** differential **DONE** (`394`, 396 cells). Still owed: the picker (increment 4) |
-| **AE2.4 inc 1** — the circular pair | ✅ **DONE 2026-08-28** | migration `20261003005600`; suite `393` (44 assertions); ADR [0165](../decisions/0165-affiliation-derived-tenant-gate-and-its-widening.md); 9-mutation vacuity proof |
+| **AE2.4 inc 1** — the circular pair | ✅ **DONE 2026-08-28** | migration `20261003005600`; suite `393` (44 assertions); ADR [0165](../decisions/0165-affiliation-derived-tenant-gate-and-its-widening.md); **16**-mutation vacuity proof. ⚠ This cell said `9` — the round-1 figure, never re-derived after rounds 2–3 (QA M5). ⭐ The class worth naming: a quoted figure that **flatters** gets caught; one that **self-deprecates** does not |
 | **AE2.4 inc 3** — the write-authority path (hard gate on the drop) | ✅ **DONE 2026-08-28** | migration `20261003005700`; suite `394` (42 assertions); ADR 0163 now FULLY LIVE; 18-mutation vacuity proof |
-| **AE2.4 inc 4** — `listLinkableOrgUsers` (shape C-b′) | 🔜 | — |
+| **AE2.4 inc 4** — the coordinator picker **and** the last preambles: `listLinkableOrgUsers` (shape C-b′) · `resolveOrInviteUser` (QA M14) · `addStaff` (QA B1) · ADR 0164's required mitigation given a caller (QA M3) | ✅ **DONE 2026-08-28** | migration `20261003005800`; suite `395` (43 assertions); vitest `invite.test.ts` (9) + `org-roster-predicate.test.ts` (16). ⚠ The scope is **three** column consumers, not one — the row named only the picker, which is how the other two fell between increments |
 | **AE2.4** — drop the column | 🔜 | after all four increments |
-| **AE2.5** — D3 binding text in ARCHITECTURE.md | 🔜 | — |
+| **AE2.5** — D3 binding text in ARCHITECTURE.md | ✅ **DONE** (commit `7654110c`) | Architecture **Rule 13**, `ARCHITECTURE.md:650-676`. ⚠ This cell read `🔜` while `PROGRESS.md` already said `2.5 ✅` (QA M5) |
 
 ## AE2.0 — the ruling, and why the question was the other way round
 
@@ -1377,3 +1377,495 @@ which was **already counted**. No `public` `authenticated`-reachable DEFINER doo
 unchanged) and no `prosecdef = f` function (wrapper unchanged). ⛔ **That reason is the evidence, not
 the equality** — a matching number is not a matching measurement, and this paragraph exists so the
 next reader does not have to take the coincidence on trust.
+
+## AE2.4 increment 4 — the coordinator picker and the last preambles (migration `20261003005800`, suite `395`)
+
+Ruling ADR [0164](../decisions/0164-tenant-containment-moves-from-creation-time-to-the-destructive-event.md)
+§ Decision item 4 (shape **C-b′**; option **C-a REJECTED**); consumer set ADR
+[0165](../decisions/0165-affiliation-derived-tenant-gate-and-its-widening.md) § Consequences.
+⚠ **This increment is three column consumers, not one.** The plan and the task table named
+`listLinkableOrgUsers`; `resolveOrInviteUser` was added by ADR 0165 and QA M14, and `addStaff` by QA
+B1. The enumerating property is *"a predicate that resolves the person's tenancy from the column"*,
+never a list — which is why this increment also ships a **module-level** property that can see the
+fourth copy nobody has listed yet.
+
+### Part A — the picker: C-b′ VERIFIED against the real callers, with the numbers
+
+The brief required verification before commitment, and the answer is **C-b′ holds**. Measured live
+on a fresh `supabase db reset` at head `20261003005700`, all three variants evaluated for the same
+caller in the same transaction (`395 § 1` re-measures it every run):
+
+| caller (role) | OLD `home_organization_id` | **NAIVE** RLS-bound affiliation | **C-b′** DEFINER bool | visible `organization_affiliations` rows |
+| --- | ---: | ---: | ---: | ---: |
+| `chefe.ccih` (staff_admin — the dominant caller) | **10** | **1** | **10** | 1 |
+| `dr.john` (staff, Ética) | 10 | 1 | **10** | 1 |
+| `multi` (staff ×2) | 13 | 1 | **13** | 1 |
+| `hospitaladmin.a1` | 23 | 1 | **23** | 1 |
+| `orgadmin.a` | 28 | 28 | **28** | 29 |
+
+**The coordinator's ten are preserved; the naive re-predication collapses them to one — themselves.**
+⭐ `orgadmin.a` is the row that matters for method: the naive shape works *for them*, so a
+verification written against an org admin would have passed and proved nothing. `395 § 1.1–§ 1.5`
+assert **set equality**, not counts, per caller; `§ 1.6` measures the naive collapse in the same
+transaction so the `1` is a result rather than a remembered sentence; `§ 1.7` floors the picker at
+≥ 5 rows so § 1.1 is not an agreement between two empty sets.
+
+⛔ **No caller depends on a shape the RPC cannot return.** The two call sites are the commission case
+pages (`…/casos/[caseId]/page.tsx:137`, `…/manage/cases/[caseId]/(detail)/page.tsx:169`); the value
+reaches `PlatformUserField`, which reads exactly `userId`, `fullName`, `email` — `AddableUser`'s
+three fields and nothing else. No caller sorts, counts, indexes positionally, passes a search term,
+or catches. The `throw`-on-error contract is preserved and now pinned
+(`org-roster-predicate.test.ts`), because the two neighbours in `members.ts` return `[]` on error and
+"make it consistent with its neighbours" is a plausible future edit that would reintroduce ADR 0108
+D6's vacuous exclusion.
+
+### ⛔ Three places where the brief's own C-b′ description does not survive contact
+
+1. **`setof profiles` is wrong in BOTH directions, and the return type was never what preserved the
+   perimeter.** Under INVOKER the composite cannot even be produced: `authenticated` holds
+   COLUMN-LIST SELECT grants on `profiles` and **no grant at all on `cpf`, `date_of_birth`,
+   `phone`** (measured from `information_schema.column_privileges`), so `select p.*` raises 42501.
+   Under DEFINER it would disclose all three. What preserves the perimeter is `prosecdef = f`. The
+   door returns `table(user_id uuid, full_name text, email text)` — `AddableUser` exactly, and the
+   same shape as its sibling `list_addable_commission_members`. `395 § 0.8` pins it.
+2. **The `bool` helper does NOT land in `ARM=hat`.** Derived by running the harness's own domain SQL
+   rather than inheriting the brief's list: `act-hat-blind-sweep.sh`'s population is functions whose
+   body references `memberships`, and this one contains no caller term at all. It IS in census
+   clause 1 and in `ARM=policy`'s `PRED_DOMAIN` — the latter **by its body, not its name**: the
+   door filter is `^(is_|can_|has_|…)` and `person_has_active_org_affiliation` matches none of it;
+   it is admitted by `principal_id` in `prosrc`. `395 § 0.6` evaluates that expression verbatim, so
+   a rewrite that drops the word and silently leaves the swept domain reds.
+3. **C-b′ carries a disclosure the brief does not mention, and it is inherent rather than
+   incidental.** An INVOKER wrapper may only call functions ITS CALLER may execute, so the DEFINER
+   helper must be granted to `authenticated` — which makes it a one-bit existence oracle over a
+   (person, org) uuid pair. ⭐ It is **pre-declared and asserted positively** (`§ 5.1`) rather than
+   left for a later reader: `solo.c`, who can read no org-A profile at all, gets `true` for an
+   org-A person. Bounded, and the bounds are measured too: one bit about opaque uuids, not
+   enumerable, nothing a caller who can already see the person does not learn from the picker
+   itself — and it does **not** become a roster (`§ 4.1` zero rows, `§ 5.2` zero policy rows).
+   ⛔ The alternative that removes it — a DEFINER wrapper re-imposing the `profiles` perimeter in
+   its own body — was rejected: it duplicates a six-arm RLS policy inside a function, and the
+   second copy is what drifts.
+
+### The per-object contract (old → new), reproduced from the catalog BEFORE the change
+
+| object | old | new |
+| --- | --- | --- |
+| `listLinkableOrgUsers` (`src/lib/queries/members.ts`) | `.from('profiles').select('id, full_name, email').eq('home_organization_id', org).eq('is_active', true).eq('is_admin', false).order('full_name', asc, nullsFirst:false).limit(500)` | `.rpc('list_linkable_org_users', { p_organization })`. **Signature and return type unchanged** (`(organizationId: string) => Promise<AddableUser[]>`) |
+| `public.list_linkable_org_users(uuid)` **(new)** | — | INVOKER, STABLE, plpgsql, pinned `search_path`, EXECUTE `{authenticated, service_role}`; `where p.is_active and not p.is_admin and app.person_has_active_org_affiliation(p.id, p_organization) order by p.full_name asc nulls last, p.id limit 500` |
+| `app.person_has_active_org_affiliation(uuid,uuid)` **(new)** | — | DEFINER, STABLE, pinned, EXECUTE `{authenticated, service_role}`; `exists(organization_affiliations where principal_id = … and organization_id = … and ended_on is null and voided_at is null)` |
+| `resolveOrInviteUser` (`src/lib/members/invite.ts`) | `select id, home_organization_id … ; if (existing.home_organization_id !== homeOrganizationId) throw` | `select id, is_admin …`; **arm 1** `if (existing.is_admin) throw`; **arm 2** ≥ 1 non-voided affiliation **and none in `organizationId`** → throw. Same message on both arms |
+| `addStaff` (`src/lib/members/actions.ts`) | `select id, home_organization_id, is_active …; if (!profile ‖ profile.home_organization_id !== orgId ‖ !profile.is_active)` | `select id, is_active …` + `personHasActiveOrgAffiliation(admin, userId, orgId)` |
+| `public.tenant_orphan_profiles()` **(new)** | — | DEFINER, STABLE, pinned, **`service_role`-only**; pure delegation to `app.tenant_orphan_profiles()` |
+| `personAuthorityOrgs` (`src/lib/users/person-footprint.ts`) | inline `createAdminClient().from('organization_affiliations')…` | `listNonVoidedOrgAffiliationsFor(admin, userId)` — the **read** moves to `src/lib/queries/`, the four bounds stay |
+
+⚠ **Two deliberate divergences between predicates that look like they should match**, both with
+AE2.2's own reason of record — *the two doors answer different questions*:
+
+- the **picker** and `addStaff` use **ACTIVE** (ended and voided both excluded): *"who may be SEATED
+  here"*, the `list_addable_commission_members` question;
+- `resolveOrInviteUser` uses **NON-VOIDED, known-here-or-known-nowhere**: *"may this identity be
+  BOUND here"*, the `affiliate_person_to_org_impl` question.
+
+⭐ **The second is not a preference — the obvious predicate is measurably wrong.** Neither
+`assignStaffAdmin` nor `assignOrgAdmin` creates an org affiliation for the user it invites
+(`handle_new_user` writes none, and neither caller calls `affiliate_person_to_org_for` — verified),
+so a person **this very function invited** has zero affiliations. An active-only predicate refuses
+the second call for the same e-mail, breaking re-provisioning — which
+`e2e/platform-org-admin-provisioning.spec.ts:85` depends on **by name**. Mirroring increment 1's
+already-ruled gate is what makes the invited state and the ADR 0164 orphan admissible.
+
+⛔ **AND THAT MIRROR ADMITS THE PLATFORM ADMIN, WHICH THE COLUMN REFUSED BY ACCIDENT.** Under
+`home_organization_id` a platform admin was refused because their anchor is NULL — a refusal falling
+out of the anchor, not out of a rule. Under affiliations they have zero non-voided rows and the gate
+**admits** them. The noun rule (ADR 0078 A35) is now a **separate, stated arm**, and it is the same
+discriminator `app.tenant_orphan_profiles()` uses for the same reason: an orphan is shape-identical
+to the platform admin, and `is_admin` is the one property orthogonal to affiliation-presence.
+⚠ Both arms raise the **same message** on purpose (a distinguishable one is a platform-admin
+oracle), so the message cannot tell a test which arm fired — the keystone therefore asserts that the
+affiliation read is **never issued** on the `is_admin` path, and seeds a perfectly valid ORG_A
+affiliation so that deleting the arm makes the test fail as *resolved*, not as *thrown*.
+
+### The constructed divergence — what the seed cannot reach
+
+⛔ In `seed.sql` a person's home org and their active affiliation org **always coincide**, so the
+seed cannot distinguish the old predicate from the new one at all. § 1 is therefore a
+**preservation** claim, not a differential. § 2 constructs the eight shapes where they disagree
+(`0ae24d…` namespace, disjoint from 390/391/392/393/394; every deletion by identity):
+
+| | D1 active A | D2 ended A | D3 voided-only | D4 col A / active B | D5 no row | D6 inactive | D7 `is_admin` | D8 active A+B |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| org A picker (`chefe.ccih`) | **in** | out | out | out | out | out | out | **in** |
+| old column predicate | in | in | in | in | in | out | out | in |
+| org B picker (`orgadmin.b`) | — | — | — | **in** | — | — | — | **in** |
+
+**6 → 2** for the same caller (`§ 2.8`). ⚠ **The hand-computed value was `6 → 1` and the run
+corrected it**: D8, active in both orgs, is legitimately in A's picker as well as B's. Recorded
+rather than quietly fixed — it is the cell `§ 2.10` exists for.
+
+⭐ **The isolation § 2 had to buy, and it is the difference between a measurement and a coincidence.**
+The picker is an INTERSECTION of two gates — the caller's `profiles` perimeter AND the affiliation
+predicate — so an absent target is absent for one of two reasons and the two are indistinguishable.
+Every constructed target therefore holds a **CCIH commission membership**, which puts it inside
+`chefe.ccih`'s co-membership arm unconditionally, and `§ 2.0` MEASURES that all eight are visible.
+Without that cell every § 2 deny has two possible causes and proves neither. ⛔ The membership is
+not a fixture convenience: the people most likely to be seated on an ethics case ARE the
+commission's own members, which is the entire reason this door is not `listAddableMembers`.
+
+⛔ **The fixture does not build its world out of the subject under test.** Every affiliation is
+inserted DIRECTLY, never through `affiliate_person_to_org_for` — whose own tenant gate is increment
+1's subject and would have silently refused exactly the divergent shapes § 2 needs.
+
+### QA Gate AE2 — the six blocking findings, and what each now measures
+
+| id | what it now measures — as a sentence | evidence |
+| --- | --- | --- |
+| **B1** | `addStaff` refuses a target with no **ACTIVE org affiliation** to the commission's organisation, and the claim that it mirrors the picker is re-derived from the catalog every run instead of asserted in a comment | `src/lib/members/actions.ts` re-predicated; `395 § 8.1` normalises the tense predicate out of `list_addable_commission_members` **and** the picker's helper and asserts **2 functions, 1 distinct predicate**; `org-roster-predicate.test.ts` witnesses the four filters the TS twin asks for |
+| **B2** | see the `393` section — the H-cells now carry an ACTOR axis | (in `393`) |
+| **B3** | see the `393` section — the four declared widenings assert a ROW EXISTS, not that the door stayed quiet | (in `393`) |
+| **B4** | `394 § 9.2` and `390 § D10` are statements about the LOCATE/GRANT split, because the caller is measured to **share an affiliation** and to **hold no membership** — both derived through `app.person_authority_orgs` itself, so they measure the same fact the predicate under test consumes | `394 § 9.1a/§ 9.1b`, `390 § D9a/§ D9b`, ported from `392 § 4.1/§ 4.2` |
+| **B5** (comment half) | the orphan window says **nobody** can administer such a person through the six doors, and names ADR 0165 D1's re-affiliation as the actual recovery path | `20261003005600` header, `393 § 1` banner |
+| **B6** | lead's — arm evidence | — |
+
+⭐ **B1's failure mode ran BOTH ways, which is why "it is only defence in depth" was not a defence.**
+An offboarded person — ended affiliation, column still naming the org — was **refused by the picker
+and seated by `addStaff`**, since the form is a POST and this re-verify is exactly what a tampered
+form meets; and a person actively affiliated here whose column named another org was **offered by
+the picker and refused at submit**.
+
+### The majors this increment closed
+
+| id | what it now measures / says | evidence |
+| --- | --- | --- |
+| **M1** | ADR 0165 declares `**Amends:** 0164` with the scope reversal as its reason; `INDEX.md` carries the inbound edge | `npm run adr:index` regenerated; gate 9 green |
+| **M2** | `…005500`'s comment says the picker moves in **AE2.4 increment 4**, and names `addStaff` as the twin this migration itself left behind | migration header |
+| **M3** | the detector has a production caller — and could not have had one as it stood | see below |
+| **M5** | three task-table cells corrected (**AE2.5 shipped**, inc 1 = **16** mutations, AE2.0 **capability-blind**) + `…005400:6`'s retired "SUBSET-bounded" label | task table above |
+| **M6** | ADR 0163's bounds 1–3 have TypeScript coverage, and the three mocks actually filter | `person-footprint-reads.test.ts § 5` (5 new arms, each mutation-proven) |
+| **M7** | the `organization_affiliations` read lives in `src/lib/queries/affiliations.ts`; the bounds stay in `person-footprint.ts` | `listNonVoidedOrgAffiliationsFor` |
+| **M8/M9/M10** | see the `393`, `391` and `394` sections | — |
+| **M11** | ADR 0165 states the **gained-capability set** an actor holding the uuid acquires, and marks it a PO decision recorded unaccepted | ADR 0165 § Consequences |
+| **M13** | the census's function class carries its schema bound in the **summary row**, and the database-wide re-derivation is recorded with its delta | census § "the function class is schema-bounded" |
+| **M14** | the increment-4 task row names all three consumers | task table above |
+
+#### M3 — the mitigation gets a caller, and the honest bound on what that buys
+
+⛔ **It could not have acquired one as it stood, and the TYPECHECKER found that, not a review.**
+`app.tenant_orphan_profiles()` lives in `app`; PostgREST exposes only `public`, so
+`client.rpc('tenant_orphan_profiles')` is a 404 by construction — the *correct door nothing can
+reach* shape. A grant on the `app` function, which is the obvious fix, would have changed nothing.
+`20261003005800` adds `public.tenant_orphan_profiles()`, a pure delegation, **`service_role`-only**
+(never `authenticated`: a row-returning DEFINER is a gate you walk THROUGH, not one you neutralize,
+and this one enumerates exactly the people no tenant admin can reach). The `app` function's
+`postgres`-only ACL is **untouched**, so `393 § 1.1`'s three role bits are unchanged.
+
+**Where it is called: `createPerson`'s success path AND its two post-account failure branches**
+(`isTenantOrphan`, `src/lib/users/actions.ts`). That is ADR 0164's own first option — *app-side
+compensation in the person-creation path* — in the only mechanism this repo has actually shipped and
+reviewed for maintenance work without a scheduler: **ADR 0099 D10 / Amendment 1's lazy,
+request-triggered check invoked from existing traffic**. ⭐ It is strictly better than D10's case,
+because the trigger is not "somebody eventually opens a page" but *the very request that could have
+produced the state*. ⛔ **Not a scheduler, and none was invented** — `pg_cron` is not installed, the
+`cron` schema does not exist, there is no `.github/workflows/`, and the Dockerfile runs one process
+(`FUP-DM5-DISPOSAL-JOB`, measured). ADR 0121 D2's `pg_cron → pg_net → route` design stays
+ratified-but-unbuilt and this does not pre-empt it.
+
+⚠ **The success path is covered, not only the failures, and that is a finding rather than caution.**
+`createPerson` creates the org affiliation only `if (isOrgAdminCaller)`; a **`hospital_admin`
+registering a person with no hospital** takes neither that branch nor D5's org-parent ensure, and
+reaches the success return having created an account with no organisation affiliation at all.
+
+⛔ **What it does not cover, stated plainly rather than implied by its absence:** a process crash
+BETWEEN the account write and the check (no in-process compensation can catch that, by
+construction); orphans produced by any path other than `createPerson`; and it **warns the human in
+front of the form** — it does not alert, page, or persist a work item, and nothing polls. A
+decorative mitigation is worse than a declared gap, so the residual is named here and in the
+function's own docstring. ⚠ It **fails open** on a detector outage — deliberately and narrowly: it
+is a warning channel layered on a result already decided, and it is never an authorization input.
+
+### Part C — the wrong-grain pin: BOTH, and why
+
+`org-roster-predicate.test.ts:186` pinned the old predicate's absence for `listOrgUsers` **only**,
+and its own comment conceded the over-claim. The fix is **not** "give the sibling its own pin",
+because that is the same instrument one name wider — and this phase has now paid for that grain
+**five times**: `listOrgUsers`/`listLinkableOrgUsers` (AE2.2), the roster door/`addStaff` (B1),
+`can_administer_person_for`/`authorizeForUser`/`getPersonAdminView` (inc 3), and
+`resolveOrInviteUser` falling between two increments (M14). **A per-function assertion is a
+statement about a NAME, and the defect is always a name nobody listed.**
+
+So the file now carries both, answering different questions:
+
+- **per-function arms** — what each door asks the database for. The only thing that can witness a
+  FILTER, since the mock supplies the rows. New: the picker calls `rpc('list_linkable_org_users')`
+  and touches `profiles` never; `personHasActiveOrgAffiliation` asks all four conjuncts;
+  `listNonVoidedOrgAffiliationsFor` asks for `voided_at is null` and **must not** ask for
+  `ended_on is null` (the tenancy/staffing divergence, pinned in the direction that can rot).
+- **a module property** — enumerating every non-test `.ts` under `src/lib` **by property, from
+  `git ls-files`**, and asserting that none *filters on* or *compares* `home_organization_id`.
+  ⭐ This is the half that can notice a sixth copy in a function nobody has written a test for.
+
+⛔ **The detector is proven able to find something, twice over:** four in-test controls fix its
+discrimination (it must match `.eq('home_organization_id', …)` and `profile.home_organization_id
+!== org`, and must NOT match a `select()` projection or an object-literal metadata key), and a
+**planted offender in a real file** (`src/lib/queries/commissions.ts`) was measured to red it —
+`expected [ 'src/lib/queries/commissions.ts' ] to deeply equal []` — then restored byte-identical.
+⚠ Its bound, stated: it reads SOURCE TEXT, so a dynamically-built column name (`.eq(someVar, …)`)
+is invisible to it. It is a floor, and it is the half that scales.
+
+### ⛔ A fixture that had built its world out of the column under test — the third this phase
+
+`src/lib/members/staff-ops-mirror.test.ts` went **RED on all three ALLOW arms** the moment
+`addStaff` was re-predicated: it anchored its target with `home_organization_id: ORG_A` and never
+seeded an `organization_affiliations` row. That is pgTAP `360 § 5.2`'s shape, in TypeScript, after
+increment 3 found three more of them. **Fixed by mirroring the real substrate, never by relaxing an
+assertion** — and the column was **removed** from the fixture rather than left beside the new row,
+because with both present the arms would pass whichever fact the action read and the fixture would
+have stopped being evidence that it moved.
+
+### ⛔ THE VACUITY PROOF — nineteen mutations, keyed by SUBJECT
+
+`395` was **observed RED first** (`Files=2, Tests=9`: § 0.1–0.6 and § 0.8 failed, then an abort on
+*"function public.list_linkable_org_users(uuid) does not exist"*). ⚠ **§ 0.7 PASSED pre-migration
+and could not have failed on that axis** — it pins that `organization_affiliations_select` is
+UNCHANGED, which is true by construction before the change. Said rather than counted as a red.
+
+Every mutation applied in-DB via `pg_get_functiondef()` + `regexp_replace` + `execute`, with the
+`do` block **raising on a no-op**; every one **asserted to have LANDED from `pg_proc`** (md5 moved,
+length, `prosecdef`, marker) — never from a command's exit status; every restore replayed from the
+captured definition and verified **byte-identical by md5**. ACL and security-context mutations are
+verified through `has_function_privilege` / `prosecdef` instead, since neither moves `prosrc`.
+
+⛔ **Run shape captured for every run, and every row below is against the SAME artifact.** The suite
+gained § 9.0 mid-audit (see the finding after the table), so the eleven rows measured before it
+were **re-run** rather than reported at their old shape: a mutation table whose rows were taken
+against two different suites is a table nobody can compare. Final shape `Files=2, Tests=45`
+throughout (44 assertions + `00_setup`).
+
+| # | subject | mutation | assertions that RED | exit |
+| --- | --- | --- | --- | ---: |
+| baseline | — | none | *(none)* | **0** |
+| **M1** | `person_has_active_org_affiliation` | whole predicate → `select true` — **the DENY-side mover** | § 0.6, 2.2, 2.3, 2.4, 2.5, 2.8, 3.2, 3.3, 3.4, **3.5**, **4.1**, 8.1 | 1 |
+| **M5** | `person_has_active_org_affiliation` | whole predicate → `select false` — ⭐ **the ACCEPT-side mover** | § 0.6, **1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7**, 2.1, 2.8, 2.9, 2.10, 3.1, **4.2**, **5.1**, 8.1 | 1 |
+| **M2** | `person_has_active_org_affiliation` | ⭐ conjunct: `ended_on is null` → `true` | § 2.2, 2.8, **3.2**, 8.1 | 1 |
+| **M3** | `person_has_active_org_affiliation` | ⭐ conjunct: `voided_at is null` → `true` | § 2.3, 2.8, **3.3**, 8.1 | 1 |
+| **M4** | `person_has_active_org_affiliation` | ⭐ conjunct: `organization_id = p_organization` → `true` | § 2.4, 2.8, **3.4**, 4.1, 8.1 | 1 |
+| **M19** | `person_has_active_org_affiliation` (**context**) | ⭐⭐ `alter function … security invoker` (body md5 **unchanged**) | **§ 0.4**, 0.6, **1.1, 1.2, 1.3, 1.4**, 1.6, 1.7, 2.1, 2.8, 5.1 | 1 |
+| **M6** | `person_has_active_org_affiliation` (**ACL**) | `grant execute … to anon` | **§ 0.5** | 1 |
+| **M7** | `list_linkable_org_users` (**context**) | ⭐⭐ `alter function … security definer` (body md5 **unchanged**) | **§ 0.1, 0.2**, **1.1, 1.2, 1.3, 1.4**, **4.1** | 1 |
+| **M8** | `list_linkable_org_users` | the `not p.is_admin` conjunct → `true` | **§ 2.7**, 2.8 | 1 |
+| **M9** | `list_linkable_org_users` | the `p.is_active` conjunct → `true` | § 1.5, **2.6**, 2.8 | 1 |
+| **M10** | `list_linkable_org_users` | the helper call → `true` (the whole org predicate) | § 2.2, 2.3, 2.4, 2.5, 2.8, 4.1 | 1 |
+| **M12** | `list_linkable_org_users` | `limit 500` → `limit 5000` — ⛔ **found a defect in § 6.2** | **§ 6.2** *(only after the pin was fixed — see below)* | 1 |
+| **M12b** | `list_linkable_org_users` | the `limit` removed entirely | **§ 6.2** | 1 |
+| **M13** | `list_linkable_org_users` | `order by … asc nulls last` → `desc nulls first` | **§ 6.1** | 1 |
+| **M11** | `list_linkable_org_users` (**ACL**) | `grant execute … to anon` | **§ 0.3** | 1 |
+| **M14** | `public.tenant_orphan_profiles` | the delegation filtered to `reason = 'never_affiliated'` | **§ 9.0, 9.2** | 1 |
+| **M15** | `public.tenant_orphan_profiles` | ⭐ delegation replaced by an inline re-implementation **without the `is_admin` discriminator** | § 9.0, 9.2, **9.3** | 1 |
+| **M16** | `public.tenant_orphan_profiles` (**ACL**) | `grant execute … to authenticated` | **§ 9.1** | 1 |
+| **M17** | `list_addable_commission_members` (**the SIBLING**) | ⭐ its tense conjuncts → `true`, the picker untouched | **§ 8.1** | 1 |
+
+**Targeted cases per subject:** `person_has_active_org_affiliation` → M1, M2, M3, M4, M5, M6, M19 ·
+`list_linkable_org_users` → M7, M8, M9, M10, M11, M12, M12b, M13 · `public.tenant_orphan_profiles`
+→ M14, M15, M16 · `list_addable_commission_members` → M17. **No subject is uncovered.**
+
+⭐⭐ **BOTH POLARITIES, PER SUBJECT — and for the helper the pair is the whole result.** M1 (*never
+denies*) cannot move a single § 1 cell: with the predicate always true the picker still equals the
+old column set for every seed caller, because on the seed the two facts coincide. M5 (*never
+accepts*) is what moves § 1.1–§ 1.7, § 2.1, § 2.9, § 2.10, § 3.1, § 4.2 and § 5.1 — **fifteen
+assertions that had not been shown able to fail by any deny-side mutation.** For the picker the
+pair is M10/M8-M9 (deny) against M7/M13 (accept-and-shape); for the orphan wrapper, M14/M15 (it
+reports too little / the wrong set) against M16 (its audience widens).
+
+⭐⭐ **M19 IS THE MECHANISM, MEASURED — AND IT LOCALISES.** Flipping ONLY the helper's security
+context, with `md5(prosrc)` identical on both sides, reproduces **exactly the collapse the rejected
+naive re-predication would have caused**: § 1.1–§ 1.4 red — `chefe.ccih`, `dr.john`, `multi`,
+`hospitaladmin.a1` all lose their perimeter — while **§ 1.5 (`orgadmin.a`) stays GREEN**, because an
+org admin can read `organization_affiliations` and never needed the DEFINER context at all. That
+green is the informative half: it is the measurement showing why a verification written against an
+org admin proves nothing, and it is the same shape as M7's § 1.5, which also does not move.
+
+⭐ **M2/M3/M4 partition the helper's compound predicate cleanly**, so no arm is proven only as part
+of a whole-predicate neutralization: each reds its own § 3 cell and its own § 2 cell and nothing
+else. ⚠ M3 matters more than it looks: D3's voided row has `ended_on IS NULL`, so a helper filtering
+only on tense returns TRUE for it — § 3.3 is the cell that separates "void" from "end".
+
+⭐ **M17 exists because M1–M13 could not have proven § 8.1 non-vacuous.** Every mutation of the
+picker's own helper moves § 8.1 *along with* the thing it is comparing against — an assertion that
+moves with its subject has not been shown able to fail. M17 mutates the **sibling alone**, leaving
+the helper intact, which is the direction QA finding B1 actually travelled: the read door moved and
+its twin did not.
+
+#### ⛔⛔ M12 FOUND A DEFECT IN MY OWN ASSERTION — a substring match wearing the label of a bound
+
+§ 6.2 pinned the 500-row cap as `prosrc ~ 'limit\s+500'`. **`limit 5000` matches that**, so M12 —
+widening the cap tenfold — ran **GREEN**. The assertion named a bound and measured a prefix. Fixed
+with a word boundary (`'limit\s+500\y'`), after which M12 reds § 6.2 alone, and M12b (the cap
+removed entirely) reds it from the other direction. ⛔ Recorded because it is precisely the class
+this increment was told to watch for in its own fixes — *an assertion that passes for a reason other
+than the property it names* — and because **only re-running the instrument found it**; the pin reads
+correct.
+
+#### ⛔ A SECOND SELF-AUDIT FINDING — § 9.2/§ 9.3 WOULD HAVE BEEN VACUOUS ON THE SEED
+
+The seed contains **zero** tenant orphans: its only affiliation-less profile is the `platform_admin`,
+whom the detector correctly excludes. So § 9.2 (wrapper rows == `app` rows, full join, both
+directions) compared **two empty sets**, and § 9.3 (no `is_admin` profile is reported) counted inside
+one. Both green having asserted nothing. § 9.0 was added to close it, and it is not a floor alone —
+it pins **membership AND reason**: this suite's own § 2 fixture supplies exactly two orphan shapes,
+`D5 = never_affiliated` (no row was ever created) and `D3 = all_voided` (every row voided), and
+§ 9.0 asserts `'D3=all_voided,D5=never_affiliated'`. M14 and M15 both red it.
+
+### The residual bound — assertions no mutation of this increment's objects can reach
+
+**7 of 44 at this point in the audit: § 0.7, § 0.8, § 2.0, § 5.2, § 7.1, § 7.2** — ⚠ § 0.7 and
+§ 5.2 left the residual when M18/M18b ran (see the gates section below), so the FINAL figure is
+**4 of 44**.
+Each is a **precondition, a shape pin, a fixture-isolation measurement or a catalog re-sweep**;
+their job is to red when the *surface, the fixture or the schema* changes, not when a predicate
+does, and no mutation of the four subjects above can exercise them:
+
+- **§ 0.8** (the door returns exactly `user_id, full_name, email`) — a signature change, not a
+  predicate change; no body mutation moves it.
+- **§ 2.0** (the isolation buy: `chefe.ccih` can see all eight constructed targets) — a statement
+  about the FIXTURE and about `profiles` RLS, which this increment does not touch. ⚠ It is the cell
+  that would red if a seed or policy change silently removed the isolation § 2 rests on, which is
+  exactly what it is for.
+- **§ 7.1 / § 7.2** (zero policies and exactly two functions still name `home_organization_id`) — a
+  floor handed to the drop increment; only a migration moves them.
+
+**37 of 44 are proven able to fail.** A stated bound on this audit, not a claim of full coverage.
+
+#### The policy prohibition, proven able to fail — and what M18 revealed about it
+
+| # | subject | mutation | assertions that RED | exit |
+| --- | --- | --- | --- | ---: |
+| **M18** | `organization_affiliations_select` (**policy**) | ⭐ **option C-a's LITERAL shape** — a co-membership arm added to the tenancy policy | **§ 0.7**, § 1.6 | 1 |
+| **M18b** | `organization_affiliations_select` (**policy**) | the policy opened entirely (`using (true)`) | **§ 0.7**, § 1.6, **§ 5.2** | 1 |
+
+Restore verified by `md5` of the normalised qual back to `9b622d17779c5f06b2b51a641225f6be`, and the
+suite green after it.
+
+⭐⭐ **M18 measured something the ADRs argue rather than measure: under C-a the picker's own numbers
+DO NOT MOVE.** § 1.1–§ 1.5 stay green either way, and § 1.6 — the naive-collapse control — reds,
+because with a co-membership arm the naive re-predication would have *worked*. **C-a would have
+repaired the read.** So the harm C-a does is invisible in this suite's behaviour: it is a widened
+audience for everything else the policy gates, not a wrong picker. ⛔ That is precisely why the
+prohibition had to become a **policy-text gate** (§ 0.7) rather than a behavioural one — a
+behavioural assertion could never have caught it, and "a policy widened for a picker stays widened"
+is a sentence no cell in this suite can otherwise contradict.
+
+### Arm domains — derived per object from the catalog, with the harness's own domain SQL
+
+Evaluated by running `p0-authz-invariant.sh` ARM 3's two census clauses, `p0-authz-door-audit.sh`'s
+`PRED_DOMAIN`, ARM 2's floor predicate, `p0-authz-invoker-audit.sh`'s worklist and
+`act-hat-blind-sweep.sh`'s population **against `pg_proc`** — never a hand list, never inferred from
+the object's name:
+
+| object | census c1 | census c2 | ARM=policy | ARM=floor | ARM=wrapper | ARM=hat |
+| --- | --- | --- | --- | --- | --- | --- |
+| `app.person_has_active_org_affiliation(uuid,uuid) → bool`, DEFINER, `{authenticated, service_role}` | ✅ **in** | ❌ | ✅ **in** | ❌ | ❌ | ❌ |
+| `public.list_linkable_org_users(uuid)`, **INVOKER**, plpgsql, `{authenticated, service_role}` | ❌ | ✅ **in** | ❌ | ❌ | ✅ **in** | ❌ |
+| `public.tenant_orphan_profiles()`, DEFINER, set-returning, **`service_role` only** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+⚠ **The brief's claim that the `bool` helper lands in `ARM=hat` is FALSE, measured.** The hat
+population is functions whose comment-stripped body references `memberships`; this one contains no
+caller term at all. Corrected rather than repeated.
+
+⚠ **`ARM=policy` admits the helper by its BODY, not its name.** The door filter is
+`^(is_|can_|has_|…)` and `person_has_active_org_affiliation` matches none of it; it is admitted by
+`principal_id` in `prosrc`. `395 § 0.6` evaluates that expression verbatim every run, so a rewrite
+dropping the word silently leaves the swept domain — and reds.
+
+⚠ **The wrapper being `plpgsql` is a DECISION, not a default.** Written as `language sql` it would
+have been in **no** arm's domain at all (census clause 2 and ARM=wrapper both require
+`lanname = 'plpgsql'`), and escaping the enumeration through a language choice nobody would notice
+is the escape-hatch shape this repo keeps paying for. `395 § 0.2` pins it inside the domain.
+
+⛔ **`public.tenant_orphan_profiles` is in NO arm's domain** — set-returning (so neither boolean
+clause admits it), DEFINER (so not ARM=wrapper's), and **not `authenticated`-reachable** (so
+neither census c1's row-returning clause nor ARM=floor). **Absence of a verdict is absence of
+coverage**, so the compensating control is named and it carries verdicts of its own: `395 § 9.0`
+(both orphan shapes and their reasons), `§ 9.1` (ACL, positively, per role), `§ 9.2` (delegation is
+pure, both directions), `§ 9.3` (the `is_admin` discriminator survives), with targeted mutations
+M14/M15/M16.
+
+### Gates — exit codes captured DIRECTLY, never through a pipe, on a fresh `supabase db reset`
+
+| gate | result | exit |
+| --- | --- | ---: |
+| `supabase db reset --local` | clean | **0** |
+| `npm run gen:types` | run after the migration; **+15 lines** — the two new `public` RPCs. ⚠ Unlike increments 1 and 3 this DOES diff, and that is the expected sign of a PostgREST-reachable surface | **0** |
+| `npm run test:db` | **243** files, **8119** tests, PASS (242/8065 → +1 file, +54 assertions: `395` +44, `390` +2, `391` +1, `393` +4, `394` +3 — the sum is exact, nothing else moved) | **0** |
+| `npm run typecheck` | pass | **0** |
+| `npm run lint` (11 gates) | pass (adr-index 163 ADRs; vacuous 265 spec files / 0 findings; mojibake 2996 files clean; service-role registry 44 == 44) | **0** |
+| `npm run test` (vitest) | 145 files, **1993** tests (1978 → +15: `invite.test.ts` +5, `org-roster-predicate.test.ts` +5, `person-footprint-reads.test.ts` +5) | **0** |
+| `scripts/door-sweep-cases.sh` | **DERIVED (0) — 5 cases** | 0 |
+| `ARM=census` | **567** live gates / **601** verdicts · ⛔ **INVARIANT VIOLATED** — see below | **1** |
+| `FROMFINDINGS=1 ARM=wrapper` | BLIND set **41**, unchanged, all allowlisted. ⚠ **VACUOUS for this increment's wrapper** — see below | **0** |
+
+⛔ Not run here, by instruction: the diff-scoped door sweep, `ARM=floor`, `ARM=hat` and `e2e:prod` —
+the lead's.
+
+#### ⛔ `ARM=census` EXITS 1, AND THAT IS THE ARM WORKING — it is handed over, not discharged
+
+565 → **567** live gates; the two newcomers are exactly this increment's:
+
+```
+app.person_has_active_org_affiliation(p_person uuid, p_organization uuid)
+public.list_linkable_org_users(p_organization uuid)
+```
+
+*"These are not BLIND — they are UNKNOWN. Nothing has asked whether a keystone notices when they
+open."* A brand-new gate passes `ARM=policy` **vacuously**, which is what census exists to stop.
+**The discharge is the diff-scoped sweep, and it is the lead's step** (increment 1's split). The
+deriver produced the exact command:
+
+    WORK=<scratch> CASES="can_administer_person_via_affiliation person_has_active_org_affiliation professional_credentials_select profiles_admin_select profiles_select_self_or_admin" bash supabase/tests/mutation/p0-authz-door-audit.sh
+
+⚠ **Three of those five are not this increment's, and why they are in the list is worth knowing:**
+`can_administer_person_via_affiliation`, `profiles_admin_select`, `profiles_select_self_or_admin`
+and `professional_credentials_select` were pulled in because this increment edited migrations
+`…005400`, `…005500` and `…005600` — **comment-only edits** for QA M2 and M5, all in file headers
+OUTSIDE any function body, so `prosrc` and every policy qual are byte-identical. The deriver cannot
+tell a comment from a predicate and **should not try**; it greps `alter policy` and flags. ⛔ Their
+STALE-verdict warning is nevertheless real for a different reason — those verdicts were earned
+against the PRE-AE2.2 predicates and `ALTER POLICY` keeps a gate's NAME, which is the hazard ADR
+0079 Amendment 8 ruling 3 put in a script rather than a paragraph. AE2.2 re-measured all three; this
+increment did not change them again.
+
+#### ⚠ `FROMFINDINGS=1 ARM=wrapper` IS GREEN AND THAT GREEN IS VACUOUS HERE
+
+`public.list_linkable_org_users` **is** in ARM=wrapper's domain (measured above) and **is absent
+from the committed findings**, so it is in no BLIND set and the arm passes by not knowing about it.
+That is exactly the hazard ADR 0079 Amendment 7 names — *"a NEW wrapper passes `ARM=wrapper`
+vacuously by being absent from the findings"* — and it is the reason census's domain was widened in
+the same change. ⛔ **Census caught it; the wrapper arm could not have.** Recorded so "all arms
+green" is never written about this increment without its qualifier.
+
+#### ⛔ A HAZARD THIS INCREMENT CREATED IN THE SHARED STACK, CAUGHT BY A PEER AND NOT BY ME
+
+While `395` was being built, `20261003005800` was applied to the local stack **directly via `psql`**
+rather than through `supabase db reset`, so the live catalog carried DDL that
+`supabase_migrations.schema_migrations` had no row for. Two consequences, both measured by the agent
+working on `393` rather than by me:
+
+1. an **early draft** of the migration granted `app.tenant_orphan_profiles()` to `service_role`; the
+   committed file does not (the reachable half is the `public` wrapper instead). The grant survived
+   the file edit, and `393 § 1.1` — which pins that function's three role bits — was **RED on the
+   live stack while green in the migration chain**;
+2. every gate figure any agent read from that stack was against schema a reset would not reproduce.
+
+⭐ **The generalisable half: `create or replace` + a hand-applied migration make the catalog a
+SUPERSET of the chain, and nothing reds.** A dropped `grant` line leaves the grant behind. The
+`supabase db reset` that precedes every figure in the table above is what makes them chain-derived;
+after it, `app.tenant_orphan_profiles`' ACL reads `postgres=X/postgres`, `…005800` is recorded, and
+`393 § 1.1` is green. ⚠ It is also a live instance of *shared local stack = one owner*: three agents
+shared this database, and one concurrent run produced an ERROR-shaped `Files=2, Tests=8` verdict
+that is indistinguishable from a failure unless the run shape is read.
+
+### Residual bound — updated after M18/M18b
+
+**4 of 44: § 0.8, § 2.0, § 7.1, § 7.2.** § 0.7 and § 5.2 left the residual when M18/M18b moved them.
+Each remaining one is a signature pin, a fixture-isolation measurement or a catalog re-sweep — they
+red when the *surface, the fixture or the schema* changes, not when a predicate does. **40 of 44 are
+proven able to fail.**

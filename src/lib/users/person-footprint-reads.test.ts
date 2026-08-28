@@ -27,12 +27,13 @@ import { personScopeAllows } from './person-scope'
  */
 
 const ORG_A = '0c000000-0000-0000-0000-00000000000a'
+const ORG_B = '0c000000-0000-0000-0000-00000000000b'
 const HOSP_A = '05000000-0000-0000-0000-00000000000a'
 const TARGET = '00000000-0000-0000-0000-000000000002'
 
 type Row = Record<string, unknown>
 
-let rows: Record<string, Row[] | Row>
+let rows: Record<string, Row[] | Row | null>
 let errorTable: string | null
 let session: unknown
 
@@ -44,21 +45,47 @@ vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => makeAdmin(),
 }))
 
+/**
+ * ⛔ THE FILTERS ARE HONOURED, AND THEY HAVE TO BE — QA AE2 M6.
+ *
+ * This mock used to return `self` from `.eq` and `.is`, which made
+ * `.is('voided_at', null)` in `listNonVoidedOrgAffiliationsFor` a NO-OP inside every arm of
+ * this file. §5's bounds cannot be stated at all against a passthrough: a fixture whose
+ * only row is VOIDED would come back exactly like a fixture whose row is live, so "a voided
+ * row confers no authority" would be green with the filter deleted. The shape is
+ * `departed-person-footprint.test.ts`'s `makeFilteringAdmin`, reused here for the same
+ * reason it exists there.
+ *
+ * ⚠ `.is(col, null)` treats an ABSENT column as null, matching SQL against a fixture that
+ * simply does not model the column. The fixtures below still seed `voided_at` / `ended_on`
+ * explicitly wherever an assertion depends on them, so no arm rests on that leniency.
+ *
+ * ⚠ `.in` / `.not` stay identity: nothing on these paths uses them, and a fake that models
+ * a surface the code does not touch hides which surface it actually depends on.
+ */
 function makeAdmin() {
   const builder = (table: string) => {
+    const configured = rows[table]
+    let matched: Row[] =
+      configured == null ? [] : Array.isArray(configured) ? [...configured] : [configured]
     const self: Record<string, unknown> = {}
-    for (const m of ['select', 'eq', 'is', 'in', 'not', 'order', 'limit', 'returns']) {
+    for (const m of ['select', 'in', 'not', 'order', 'limit', 'returns']) {
       self[m] = () => self
     }
-    const result = () =>
-      table === errorTable
-        ? { data: null, error: { message: 'simulated read failure' } }
-        : { data: rows[table] ?? [], error: null }
-    self.maybeSingle = async () => ({
-      data: (rows[table] as Row) ?? null,
-      error: table === errorTable ? { message: 'simulated read failure' } : null,
-    })
-    self.then = (resolve: (v: unknown) => unknown) => resolve(result())
+    self.eq = (column: string, value: unknown) => {
+      matched = matched.filter((r) => r[column] === value)
+      return self
+    }
+    // SQL `IS NULL` semantics: keeps only rows whose column is null/absent.
+    self.is = (column: string, value: unknown) => {
+      if (value === null) matched = matched.filter((r) => r[column] == null)
+      return self
+    }
+    const failure = { data: null, error: { message: 'simulated read failure' } }
+    self.maybeSingle = async () =>
+      table === errorTable ? failure : { data: matched[0] ?? null, error: null }
+    self.then = (resolve: (v: unknown) => unknown) =>
+      resolve(table === errorTable ? failure : { data: matched, error: null })
     return self
   }
   return { from: (table: string) => builder(table) }
@@ -74,18 +101,29 @@ beforeEach(() => {
     hospitalAdminOf: [{ hospital: { id: HOSP_A }, organization: { id: ORG_A } }],
   }
   rows = {
-    profiles: { date_of_birth: null, phone: null, cpf: null },
+    profiles: { id: TARGET, date_of_birth: null, phone: null, cpf: null },
     // ⭐ AE2.4 inc 3 — THE ANCHOR MOVED, so the fixture had to move with it. This used to
     // be `profiles.home_organization_id: ORG_A`; `getPersonAdminView` now locates the
     // person's organizations from `organization_affiliations` (ADR 0163 / 0164). ⛔ Fixed
     // by MIRRORING how the real substrate anchors a person — an ACTIVE, non-voided org
     // affiliation — not by relaxing an assertion. Same lesson as pgTAP `360 § 5.2`: a
     // fixture that built its world out of the column under test.
-    organization_affiliations: [{ organization_id: ORG_A, ended_on: null }],
-    hospital_affiliations: [{ hospital_id: HOSP_A }],
+    //
+    // ⛔ QA AE2 M6 — EVERY ROW NOW CARRIES `principal_id`, AND THAT WAS A REAL GAP, not
+    // bookkeeping. All three reads filter `.eq('principal_id', userId)`; while the mock
+    // swallowed filters these rows answered for ANY user id, so the whole file's world was
+    // built out of a no-op filter. With filtering on, an unkeyed row belongs to nobody.
+    organization_affiliations: [
+      { principal_id: TARGET, organization_id: ORG_A, ended_on: null, voided_at: null },
+    ],
+    hospital_affiliations: [
+      { principal_id: TARGET, hospital_id: HOSP_A, ended_on: null, voided_at: null },
+    ],
     // An ORG-TIER seat: `commission_id === null` raises the D2 flag, which makes this
     // person org_admin-only for every capability.
-    memberships: [{ commission_id: null, hospital_id: null, commissions: null }],
+    memberships: [
+      { principal_id: TARGET, commission_id: null, hospital_id: null, commissions: null },
+    ],
   }
 })
 
@@ -199,5 +237,139 @@ describe('§4 the organization locator refuses to answer from a failed read', ()
     await expect(getPersonAdminView(TARGET)).rejects.toThrow(
       /partial affiliation set/,
     )
+  })
+})
+
+// ===========================================================================
+/**
+ * ⭐ AE2 QA M6 — ADR 0163'S RETENTION BOUNDS, IN TYPESCRIPT.
+ *
+ * `personAuthorityOrgs` is the TS twin of `app.person_authority_orgs` (ADR 0161's mirroring
+ * obligation). The SQL half is pinned by pgTAP `390`/`394`; the TS half was ASSERTED and
+ * not measured. § 4.2 above is a positive control and nothing more: it resolves through the
+ * trivial `active.length > 0` branch and stays green if the entire retention block is
+ * deleted. Bounds 1–3 had no TypeScript arm at all, and could not have had one — the mock
+ * swallowed `.is('voided_at', null)`, so a VOIDED fixture and a LIVE one were the same
+ * fixture. That is the one-half-measured shape the mirroring obligation exists to prevent.
+ *
+ * ⛔ EVERY ARM BELOW IS MUTATION-VERIFIED against `src/lib/users/person-footprint.ts`, and
+ * each names its own mutation and the red it produced. A bound asserted without one is a
+ * bound that could be satisfied by the fixture rather than by the code.
+ *
+ * ⚠ `ended_on` is a `date` (`YYYY-MM-DD`), so lexicographic max IS chronological max — the
+ * fixtures use that shape deliberately, since a differently-formatted value would test a
+ * comparison the production column can never produce.
+ */
+describe('§5 ⭐ ADR 0163 bounds 1-3 — last-org retention, measured not asserted', () => {
+  /** Replaces the whole affiliation set. Never appends: a leftover row widens authority. */
+  function orgAffiliations(...rowsIn: Row[]): void {
+    rows.organization_affiliations = rowsIn.map((r) => ({ principal_id: TARGET, ...r }))
+  }
+
+  async function authorityOrgs() {
+    const { personAuthorityOrgs } = await import('./person-footprint')
+    return personAuthorityOrgs(TARGET)
+  }
+
+  it('§5.1 BOUND 1 — a VOIDED row confers nothing, even with `ended_on` still NULL', async () => {
+    // ⛔ THE ROW IS VOIDED AND NOT ENDED, and that is the entire point of the arm. A void
+    // says the employment was never true (ADR 0151 D7); an END says it was true and is
+    // over. If this fixture also carried an `ended_on` it would be testing the ENDED
+    // branch — which §5.4 and §5.5 exercise — and would stay green with the void filter
+    // deleted, since an ended-and-voided row is dropped by either half.
+    //
+    // ⛔ MUTATION-VERIFIED. `personAuthorityOrgs` (`person-footprint.ts:411` as written)
+    // delegates to `listNonVoidedOrgAffiliationsFor`, which carries the
+    // `.is('voided_at', null)` half of bound 1. Replacing that ONE call with an inline
+    // `organization_affiliations` read WITHOUT the void filter makes this arm RED:
+    //   AssertionError: expected [ Array(1) ] to deeply equal []
+    //     + [ "0c000000-0000-0000-0000-00000000000a" ]
+    // The voided row survives, is seen as ACTIVE (`ended_on` is null), and hands authority
+    // over this person to an organization that never employed them.
+    orgAffiliations({
+      organization_id: ORG_A,
+      ended_on: null,
+      voided_at: '2026-01-05T00:00:00.000Z',
+    })
+    await expect(authorityOrgs()).resolves.toEqual([])
+  })
+
+  it('§5.2 BOUND 2 — a TIE on `ended_on` yields ALL tied orgs, never one of them', async () => {
+    // ⛔ AN ARBITRARY TIE-BREAK IS A NARROWING, and a differential that only pre-declares
+    // WIDENINGS would never notice one: the person simply becomes unadministrable from the
+    // org that lost the coin-toss, with every gate still reporting green.
+    //
+    // ⛔ MUTATION-VERIFIED. Collapsing the final tie-preserving filter (`person-footprint.ts`
+    // :435-439 as written) to a sort-and-take-first — `return [ended.sort((a, b) =>
+    // (a.ended_on < b.ended_on ? 1 : -1))[0].organization_id]`, which is the "do not
+    // simplify this to a sort-and-take-first" edit the doc comment warns against — makes
+    // this arm, and ONLY this arm, RED:
+    //   AssertionError: expected [ Array(1) ] to deeply equal [ …(2) ]
+    //     - "0c000000-0000-0000-0000-00000000000a"
+    //       "0c000000-0000-0000-0000-00000000000b"
+    orgAffiliations(
+      { organization_id: ORG_A, ended_on: '2025-06-30', voided_at: null },
+      { organization_id: ORG_B, ended_on: '2025-06-30', voided_at: null },
+    )
+    expect([...(await authorityOrgs())].sort()).toEqual([ORG_A, ORG_B].sort())
+  })
+
+  it('§5.3 BOUND 2 ORDERING — a VOIDED row that ended LATER must not win the max()', async () => {
+    // ⛔ THE ORDER OF TWO CORRECT OPERATIONS IS ITSELF A BOUND. Filtering voided rows AFTER
+    // taking the max is the natural way to write this and is WRONG: the voided row wins the
+    // max, and the person's real last organization is lost. pgTAP `390 § C7` constructs the
+    // same pair in SQL; this is its TypeScript twin, and until now the TS half had none.
+    //
+    // ⛔ MUTATION-VERIFIED, same mutation as §5.1 (drop the void filter from the read) —
+    // kept as a SEPARATE arm because the red is a different failure, and it is the worse
+    // one: §5.1 gains authority for a phantom org, this one hands it to the WRONG org
+    // while looking like a perfectly ordinary answer.
+    //   AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+    //     - "0c000000-0000-0000-0000-00000000000a"
+    //     + "0c000000-0000-0000-0000-00000000000b"
+    orgAffiliations(
+      { organization_id: ORG_A, ended_on: '2025-01-31', voided_at: null },
+      { organization_id: ORG_B, ended_on: '2025-12-31', voided_at: '2026-02-01T00:00:00.000Z' },
+    )
+    await expect(authorityOrgs()).resolves.toEqual([ORG_A])
+  })
+
+  it('§5.4 BOUND 3 — retention applies ONLY when nothing is active', async () => {
+    // An ended row must not ADD reach on top of a live one. ADR 0163's retention exists so
+    // a departed person stays administrable by SOMEBODY; it is not a second organization
+    // stapled onto a current employment.
+    //
+    // ⛔ MUTATION-VERIFIED. Deleting the early return (`if (active.length > 0) return …`,
+    // `person-footprint.ts:422-425` as written) so execution always falls through to the
+    // retention block makes this arm RED:
+    //   AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+    //     - "0c000000-0000-0000-0000-00000000000a"
+    //     + "0c000000-0000-0000-0000-00000000000b"
+    // — the ENDED org REPLACES the ACTIVE one outright, which is worse than merely adding
+    // to it, and no other arm in this file or § 4 would have noticed.
+    orgAffiliations(
+      { organization_id: ORG_A, ended_on: null, voided_at: null },
+      { organization_id: ORG_B, ended_on: '2025-12-31', voided_at: null },
+    )
+    await expect(authorityOrgs()).resolves.toEqual([ORG_A])
+  })
+
+  it('§5.5 CONTROL — the retention block IS reached: a wholly-ended person keeps their last org', async () => {
+    // ⛔ §5.1 EXPECTS `[]`, SO IT IS SATISFIED BY DELETING RETENTION ALTOGETHER — the very
+    // thing ADR 0163 added. This is the arm that says the block runs and answers.
+    //
+    // ⛔ MUTATION-VERIFIED, and the measurement corrected a first draft of this comment
+    // which claimed §5.1/§5.3/§5.4 were all satisfiable by a retention-free implementation.
+    // Prefixing `return []` to the retention block reds §5.2, §5.3 and §5.5 — and leaves
+    // §5.1 and §5.4 GREEN, because §5.1 expects the empty answer and §5.4 resolves through
+    // the ACTIVE branch, which the mutation does not touch. §5.1 alone therefore proves
+    // nothing about retention existing; this arm is what does.
+    //   AssertionError: expected [] to deeply equal [ Array(1) ]
+    //     - "0c000000-0000-0000-0000-00000000000b"
+    orgAffiliations(
+      { organization_id: ORG_A, ended_on: '2024-02-29', voided_at: null },
+      { organization_id: ORG_B, ended_on: '2025-12-31', voided_at: null },
+    )
+    await expect(authorityOrgs()).resolves.toEqual([ORG_B])
   })
 })

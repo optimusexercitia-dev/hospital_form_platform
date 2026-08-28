@@ -42,7 +42,19 @@
 --
 -- ⚠ WHAT THIS MIGRATION GIVES UP, STATED RATHER THAN GLOSSED (ADR 0164 § Consequences).
 --   Creation-time containment is GENUINELY LOST.  A half-failed person creation leaves a
---   profile with no affiliation: in no roster, administrable by `platform_admin` alone.
+--   profile with no affiliation: in no roster, and administrable through the six person
+--   doors by NOBODY.
+--   ⛔ THIS SENTENCE SAID "administrable by `platform_admin` alone" AND THAT WAS FALSE
+--     (QA finding B5).  Measured against the shipped doors: all six gate solely on
+--     `app.can_administer_person_for`, that predicate has NO `platform_admin` arm BY
+--     DELIBERATE DESIGN (the ADR 0041 noun rule — `…005700:207-210`, asserted by pgTAP
+--     `384 § 6`), and it returns false outright on `cardinality(v_orgs) = 0`.  The claim
+--     was wrong in the NARROWING direction, which is why it read as care and survived.
+--   The ACTUAL recovery path is ADR 0165 D1's widening: any `org_admin` — or, through the
+--   hospital sibling, any `hospital_admin` — WHO HOLDS THE PERSON'S UUID may claim them by
+--   affiliating them.  ⚠ Note the posture that implies, stated rather than buried: the
+--   window is not "only the most privileged actor can reach them", it is "nobody can
+--   reach them until somebody with the id takes them".
 --   ⛔ That window is inherent to dropping the column, not introduced here — closing it at
 --   creation requires `handle_new_user` to create the affiliation, which silently discards
 --   the caller's backdated `p_started_on` and `created_by` attribution.  ADR 0164 therefore
