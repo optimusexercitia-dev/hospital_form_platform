@@ -90,37 +90,53 @@ Bounds, stated so the implementation cannot widen by reading:
   warrant to take. **If that decoupling is ever ruled, (b) becomes reachable and this ADR should be
   revisited rather than worked around.**
 
-## ⛔ Implementation status — this ADR is HALF LIVE (recorded 2026-08-27, AE2.3a)
+## ✅ Implementation status — FULLY LIVE since AE2.4 increment 3 (2026-08-28)
 
-**Read side: LIVE.** AE2.2 (`20261003005400`) re-predicated the three person-visibility SELECT
-legs onto `app.can_administer_person_via_affiliation` → `app.person_authority_orgs`, which
-implements all four bounds above. Zero policies now reference `profiles.home_organization_id`.
+*(This section read "⛔ this ADR is HALF LIVE" from 2026-08-27 to 2026-08-28. The history is kept
+below rather than deleted, because the reason no test could have caught the gap is reusable.)*
 
-⛔ **Write side: NOT LIVE. `app.can_administer_person_for` still resolves
-`profiles.home_organization_id`** (catalog-measured 2026-08-27, `prosrc` line 26:
-`select pr.home_organization_id into v_org from public.profiles pr where pr.id = p_user`) — the
-same shape as its TS twin `authorizePersonScopedAdmin`. So do all six AE1.3 person-door kernels
-(`set_person_active_impl` · `suspend_person_impl` · `update_person_fields_impl` ·
-`upsert_credential_impl` · `delete_credential_impl` · `finalize_invited_person_impl`), plus
-`affiliate_person_impl` / `affiliate_person_to_org_impl` / `handle_new_user` /
-`guard_profile_privileged_columns` / `assert_profile_tenant_has_org` — **12 functions in total.**
+**Read side: LIVE since AE2.2** (`20261003005400`) — the three person-visibility SELECT legs run on
+`app.can_administer_person_via_affiliation` → `app.person_authority_orgs`, which implements all four
+bounds above. Zero policies reference `profiles.home_organization_id`.
 
-⚠ **This is scheduled work, not a defect** — the plan's AE2.2 scope was the three RLS legs, and
-every remaining consumer always belonged to AE2.4, which is where the column drops. It is recorded
-**here**, in the ADR, because the Decision section above reads as though it describes live
-behaviour and **for the SUBSET capabilities it does not**: `lifecycle` and `cpf_change` — the two
-capabilities this ADR's bound 1 explicitly scopes it to — are precisely what those doors gate.
+**✅ Write side: LIVE since AE2.4 increment 3** (`20261003005700`; keystone pgTAP `394`, 42
+assertions). `app.can_administer_person_for` — the capability predicate for `fields` /
+`credentials` / `cpf_change` / `lifecycle`, i.e. what all six AE1.3 person doors gate — now LOCATES
+through `app.person_authority_orgs` and GRANTS through the caller's `memberships` row, as two
+visibly separate steps (Architecture Rule 13). Its TS twin `authorizePersonScopedAdmin` moved in the
+same commit, together with **two sibling copies of the identical preamble** that no increment's
+target list had named: `authorizeForUser` and `getPersonAdminView`
+(`FUP-AE2-PERSON-PREAMBLE-THREE-COPIES`).
 
-⛔ **Why no test would have told you.** In `supabase/seed.sql` a person's `home_organization_id`
-and their retaining organization **always coincide**, so every seeded assertion is true under both
-predicates. They diverge only for a person anchored to org A whose active — or last non-voided
-ended — affiliation is in org B, a state the seed never constructs (pgTAP `392` constructs it; the
-divergence lands on 5 of its 10 targets).
+⚠ **A GRAIN CORRECTION TO THIS SECTION'S OWN EARLIER TEXT.** It said "so do all six AE1.3 person-door
+kernels", which was true of the *string* and false of the *grain*: in every one of the six the column
+fed **only** `app.audit_write(p_organization => v_org)`, never an authority decision. That is not
+housekeeping either — `audit_log_select` admits a commission-less row on
+`app.is_org_admin_of(organization_id)` and all six write `p_commission => null`, so the value decides
+**who may read the audit row**. It is now `app.person_audit_organization(actor, user)`, and `394 § 7`
+and `§ 10` measure the readership movement as the read-authority differential it is.
 
-**Owed at AE2.4, and it is a hard gate on the column drop:** re-predicate the write-authority path
-onto `app.person_authority_orgs`, and carry a **capability-level** differential over the diverging
-targets. Without it the column drop **silently moves write authority** rather than preserving it —
-the one outcome AE2's whole differential discipline exists to prevent.
+**Still on the column, and correctly so:** `public.handle_new_user` and
+`public.guard_profile_privileged_columns` — they WRITE and GUARD it rather than deriving authority
+from it, and they belong to the drop increment. `394 § 1.5` pins that residue **by name**, so a
+newcomer reds. (`affiliate_person_impl` / `affiliate_person_to_org_impl` /
+`assert_profile_tenant_has_org` moved in AE2.4 increment 1, ADR 0164/0165.)
+
+⛔ **Why no test would have told you, and why that is worth keeping.** In `supabase/seed.sql` a
+person's `home_organization_id` and their retaining organization **always coincide**, so every
+seeded assertion is true under both predicates — `394 § 8.2` measures exactly that, five callers ×
+four capabilities × the whole seed roster, **zero movement**. They diverge only for a person
+anchored to org A whose active (or last non-voided ended) affiliation is in org B, a state the seed
+never constructs. `394` builds seventeen such targets and the capability-level differential moves
+**48 cells widening / 44 narrowing** of 396.
+
+⚠ **A second thing no seeded test could reach, found while building that differential:** the
+capability axis is **inert on the org tier by construction** — the org arm returns `true` before the
+capability dispatch — so a "capability-level" differential over an org-tier-only population is four
+identical copies of a read-side result. The split between INTERSECTION (`fields`, `credentials`) and
+SUBSET (`cpf_change`, `lifecycle`) lives on the `hospital_admin` arm alone and needs a **non-empty
+footprint**, which AE2.3a's population deliberately lacks. `394 § 2.2` measures the inertness and
+`§ 3.2` floors the liveness rather than either being assumed.
 
 ## Amendment 1 — the SUBSET bound was a category error, and the kernel claim was at the wrong grain (2026-08-28)
 
@@ -154,8 +170,7 @@ measurement and not an assertion.
 
 ### 2. The "so do all six person-door kernels" claim was true of the string, false of the grain
 
-The implementation-status section says the six AE1.3 kernels *"still resolve
-`home_organization_id`"*. They contain the string, but measured over their bodies, that read feeds
+The implementation-status section, **in its 2026-08-27 HALF-LIVE form**, said the six AE1.3 kernels *"still resolve `home_organization_id`"* (it was rewritten to FULLY LIVE on 2026-08-28; the quote is preserved here because the **correction** is what is reusable, not the superseded claim).. They contain the string, but measured over their bodies, that read feeds
 **only** `app.audit_write(p_organization => v_org)`. **Authority in every one of them is
 `app.can_administer_person_for(...)`** — they are not six authority gates, and re-predicating them
 is not what puts this ADR's write side in force. **`can_administer_person_for` alone is.**
