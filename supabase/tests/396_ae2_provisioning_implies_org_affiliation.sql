@@ -80,7 +80,7 @@
 -- ============================================================================
 
 begin;
-select plan(63);
+select plan(64);  -- 63 + § 2.0b (ADR 0168 Amdt 3)
 
 -- ---------------------------------------------------------------------------
 -- Constants.  Seed ids only.  Every constructed id lives in a `0ae2460…`
@@ -298,6 +298,25 @@ exception when others then
 end;
 $$;
 
+-- The SESSION-door twin of the trapper above, added by ADR 0168 Amdt 3 for § 2.0b.
+-- ⛔ It has to be a SEPARATE helper rather than a parameter on `try_grant`: the two
+--    doors differ in ACL, so this one is only callable while the caller is wearing
+--    the `authenticated` role with real claims, and `pg_temp.try_grant`'s callers
+--    run as postgres.
+create or replace function pg_temp.try_grant_session(
+  p_scope_type text, p_scope_id uuid, p_role text, p_user uuid)
+returns text language plpgsql as $$
+declare v_msg text;
+begin
+  perform public.grant_role(p_scope_type, p_scope_id, p_role, p_user);
+  return 'ok';
+exception when others then
+  get stacked diagnostics v_msg = message_text;
+  return sqlstate || '|' || v_msg;
+end;
+$$;
+grant execute on function pg_temp.try_grant_session(text, uuid, text, uuid) to authenticated;
+
 -- ============================================================================
 -- § 1 THE ORGANIZATION / ORG_ADMIN LEG — `assignOrgAdmin`'s exact shape:
 --     a platform admin, through the SERVICE door, naming itself as actor.
@@ -387,7 +406,26 @@ select is(
 
 -- ============================================================================
 -- § 2 THE COMMISSION / STAFF_ADMIN LEG — `assignStaffAdmin`'s exact shape:
---     an org_admin, through the SESSION door, actor bound from auth.uid().
+--     an org_admin, through the SERVICE door, naming itself as actor.
+--
+-- ⭐⭐ RE-CUT BY ADR 0168 Amdt 3, AND THE SUBJECT CHANGED — NOT ONLY THE CALL.
+--     This section used to drive `public.grant_role` (the SESSION door) and was
+--     annotated "assignStaffAdmin's shape, actor bound from auth.uid()".  Amdt 3
+--     narrows the SESSION door's target-tenancy predicate to "known here", and P2 is
+--     unaffiliated by § 2.0's precondition — exactly the state the narrowing refuses.
+--     The PO ruling moves `assignStaffAdmin` (src/lib/admin/actions.ts) to
+--     `grant_role_for`, so the product shape this section mirrors is now the SERVICE
+--     door and the header above says so.
+--
+-- ⛔ RE-POINTING THE CALL WITHOUT REWRITING THE DESCRIPTION WOULD HAVE LEFT
+--    § 2.2/§ 2.3/§ 2.4 GREEN ON TOP OF A FALSE CLAIM — this repo's "a comment is an
+--    assertion that goes stale silently" family, four cells deep.  The old sentence
+--    is not merely reworded: the refusal it used to describe is now asserted, in the
+--    SAME section, over the SAME person, as § 2.0b.  ⭐ That pairing is what makes the
+--    section a differential rather than a relocation: one subject, two doors, opposite
+--    answers.  No security is traded — `grant_role_for` takes the actor explicitly and
+--    re-derives the same authority in PostgreSQL (`assignOrgAdmin` already does this,
+--    which is what § 1 measures).
 -- ============================================================================
 
 select is(
@@ -400,11 +438,24 @@ select is(
 
 select test_helpers.claims_for((select oa_a from pg_temp.k()), false, 'org_admin');
 set local role authenticated;
-select lives_ok(
-  format($$select public.grant_role('commission', %L, 'staff_admin', %L)$$,
-         (select ccih from pg_temp.k()), (select p2 from pg_temp.p())),
-  '2.1 an org_admin seats a commission coordinator through the SESSION door — assignStaffAdmin''s shape, actor bound from auth.uid()');
+do $$ begin perform set_config('t396.g20b', pg_temp.try_grant_session(
+  'commission', (select ccih from pg_temp.k()), 'staff_admin', (select p2 from pg_temp.p())), true); end $$;
 reset role;
+
+select is(
+  current_setting('t396.g20b') || '|' ||
+  (select count(*)::int from public.memberships
+    where principal_id = (select p2 from pg_temp.p()))::text || '|' ||
+  (select count(*)::int from public.organization_affiliations
+    where principal_id = (select p2 from pg_temp.p()))::text,
+  'HC0R0|pessoa não pertence a esta organização|0|0',
+  '2.0b ⭐⭐ ADR 0168 Amdt 3, THE POSITIVE WITNESS FOR THE NARROWING: the SAME org_admin, the SAME unaffiliated person, through the SESSION door — REFUSED, and NEITHER row lands. Until Amdt 3 this exact call SUCCEEDED and was § 2.1 of this file; a live probe found it handed a bare orphan uuid an active org affiliation AND a governance role. ⚠ The MESSAGE is asserted beside the code because 42501 and HC0R0 are both refusals and only one of them is the tenancy predicate. ⭐ § 2.1 immediately below is this cell''s POSITIVE CONTROL: same actor, same subject, same (scope, role), other door — accepted');
+
+select is(
+  pg_temp.try_grant((select oa_a from pg_temp.k()), 'commission',
+                    (select ccih from pg_temp.k()), 'staff_admin', (select p2 from pg_temp.p())),
+  'ok',
+  '2.1 an org_admin seats a commission coordinator through the SERVICE door — assignStaffAdmin''s shape since ADR 0168 Amdt 3, with the actor passed explicitly and re-derived in PostgreSQL. ⭐ Paired with § 2.0b this is the whole asymmetry in two cells: ONE subject, TWO doors, opposite answers — so § 2.2–§ 2.4 below measure a write that the session door would have refused, and neither cell can go green for the other one''s reason');
 
 select is(
   (select m.role || '|' || (m.commission_id = (select ccih from pg_temp.k()))::text
