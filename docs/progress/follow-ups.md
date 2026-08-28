@@ -6686,3 +6686,56 @@ is inadmissible** — say so in the record rather than assuming a reset happened
 green baseline on a mutated DB is not fit to mutate, and that 6 of 8 verdicts flipped without a
 fresh reset. This is the same family with a *quieter* signature — there, the DB was mutated by
 tests; here, by the author's own convenience.
+
+### 🟠 FUP-W1-STALE-GRANTROLE-MUTANTS — three mutants pinned to a signature that no longer exists: a harness that CANNOT FAIL, reported as one that cannot run (owner: backend)
+
+- 🟠 **FUP-W1-STALE-GRANTROLE-MUTANTS** — filed 2026-08-28, found while repairing `w1`'s control for
+  ADR 0167 and **verified pre-existing** (reproduced independently of that change).
+
+`supabase/tests/mutation/w1-membership-mutation-audit.sh`'s mutants `revert_replacement_arm`,
+`revert_outgoing_authority` and `naive_delete_insert` call
+`pg_get_functiondef('public.grant_role(text,uuid,text,uuid,uuid)')` — **a 5-argument signature that
+does not exist** (live is 6-arg). The cast throws and the file aborts: **`ABSENT(aborted)`, 3 of 9
+mutants.** They also needle the **pre-`_for` spelling** (`app.is_admin()`,
+`app.is_tenancy_admin_of(p_scope_id)`, `granted_by = (select auth.uid())`), superseded when ADR 0094
+W3/T3.3 moved the logic into `app.grant_role_impl` with an explicit `p_actor`.
+
+⛔ **The failure mode is the dangerous one and is why this is filed rather than fixed in passing:**
+a mutant pinned to a signature that no longer exists is **a harness that cannot fail, reported as a
+harness that cannot run.** `ABSENT` reads like an infrastructure note; it is an **unproven
+keystone**. Three of nine keystones in this file have been proving nothing, and nothing reds.
+
+**Owed:** re-point all three at `app.grant_role_impl` and the current spelling, then **prove each RED**
+before accepting the file's verdict again. ⚠ Do not merely make them run — a mutant that runs and
+holds is exactly what the current state already claims.
+
+### 🟡 FUP-W3-ACL-KEYSTONE-NOT-PROVEN — an ACL keystone defended by something other than its ACL (owner: backend)
+
+- 🟡 **FUP-W3-ACL-KEYSTONE-NOT-PROVEN** — filed 2026-08-28, **verified pre-existing** by re-running
+  `w3` with `SRC` pointed at the committed `293` (same verdict; control green at 25).
+
+`w3`'s `authenticated_gets_service_door` reads **NOT PROVEN**: granting `authenticated` EXECUTE on
+`public.grant_role_for` leaves `293 § 4.1` **GREEN**. So that ACL keystone is held up by something
+other than the ACL — the *incidental-guard* shape, where a control appears verified because a
+different mechanism happens to refuse.
+
+⚠ ⛔ **"Not reachable" is not "protected", and here it is worse: the assertion names the ACL and
+measures something else.** Either the assertion needs an actor who would otherwise be **admitted**
+(so the ACL is the only thing standing between them and the door), or the ACL needs a different
+witness entirely.
+
+### 🟡 FUP-REVALIDATE-PATH-NAMES-A-ROUTE-THAT-DOES-NOT-EXIST — the coordinator page is never revalidated (owner: frontend)
+
+- 🟡 **FUP-REVALIDATE-PATH-NAMES-A-ROUTE-THAT-DOES-NOT-EXIST** — filed 2026-08-28, found in passing
+  during ADR 0167; **prose corrected, behaviour deliberately untouched.**
+
+`revalidateCommissionPages` (`src/lib/admin/actions.ts`) calls
+`revalidatePath('/admin/comissoes/<slug>')`, but **`src/app/admin/comissoes/` does not exist.** The
+page `StaffAdminManager` actually renders on is
+`/o/[org]/manage/comissoes/[commissionSlug]` — so it is **never revalidated after a coordinator is
+seated or removed**, and a stale roster can survive the mutation that changed it.
+
+⛔ **Left unfixed on purpose:** changing which paths are revalidated is a **behaviour** change and
+does not belong inside an authorization increment. ⚠ It is also the *second* stale reference to that
+retired route found in one increment — the other was in a security docstring — so the sweep should be
+for **the route**, not for this one call site.
