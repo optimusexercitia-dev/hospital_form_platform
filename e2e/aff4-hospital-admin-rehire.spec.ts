@@ -264,6 +264,14 @@ test.describe('AC3: a hospital_admin rehires an org-offboarded person at a hospi
       'the old ended row must survive AND a new active row must be auto-ensured',
     ).toHaveLength(2)
     const stillEnded = orgAffAfter.find((r) => r.id === orgAffBefore[0].id)
+    // ⛔ FUP-E2E-ABSENT-ROW-ASSERTIONS: `.find()` yields `undefined` when the original row
+    // is GONE, and `undefined` satisfies `.not.toBeNull()` — so without this guard the
+    // assertion below reports "the row was not reopened" precisely when it no longer
+    // exists. `.toBeDefined()` throws on `undefined`, which is what makes it a guard.
+    expect(
+      stillEnded,
+      'the ORIGINAL org-offboard row must still EXIST — a vanished row must not read as "not reopened"',
+    ).toBeDefined()
     expect(
       stillEnded?.ended_on,
       'the ORIGINAL org-offboard row must not be reopened by the rehire',

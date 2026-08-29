@@ -678,9 +678,14 @@ test('D5-2/D6/D7/D4: pick two narratives, un-pick one, save + resume the draft, 
         request,
         `case_referral?id=eq.${referralId}&select=sent_at`,
       )
-      return rows[0]?.sent_at
+      // ⛔ FUP-E2E-ABSENT-ROW-ASSERTIONS. Returning `rows[0]?.sent_at` was worse than
+      // vacuous inside a poll: on an ABSENT row it yields `undefined`, `.not.toBeNull()`
+      // ACCEPTS `undefined`, so the poll SUCCEEDS ON ITS FIRST TICK and the 15 s wait it
+      // was written to perform never happens. Collapse both facts into one boolean and
+      // match with `.toBe(true)`, which throws on `undefined` as well as on `false`.
+      return rows.length === 1 && rows[0].sent_at !== null
     }, { timeout: 15_000 })
-    .not.toBeNull()
+    .toBe(true)
 
   const itemsAfterSend = await restGet<{ source_narrative_id: string | null }>(
     request,
@@ -766,9 +771,11 @@ test('D13/D14: "Trabalho do processo" shell renders; "Tipo de caso" is editable 
         request,
         `process_template_versions?id=eq.${draft.versionId}&select=case_type_id`,
       )
-      return rows[0]?.case_type_id
+      // ⛔ Same shape as the `sent_at` poll above (FUP-E2E-ABSENT-ROW-ASSERTIONS): an
+      // absent row made this poll succeed immediately instead of waiting.
+      return rows.length === 1 && rows[0].case_type_id !== null
     }, { timeout: 10_000 })
-    .not.toBeNull()
+    .toBe(true)
 
   // Publish needs ≥1 phase.
   const [form] = await restGet<{ id: string }>(

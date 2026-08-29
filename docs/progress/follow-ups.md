@@ -3896,7 +3896,11 @@ as its own third category: neither pass nor defect, and REQUIRING a re-run befor
 **Related in kind, same session:** `FUP-AUTHZ-HARNESS-PRECONDITIONS` — a verdict emitted about a
 substrate that was not in the state the instrument assumed. This is the same family in the E2E gate.
 
-### 🔴 FUP-E2E-ABSENT-ROW-ASSERTIONS — `expect(row?.field).not.toBeNull()` passes when the row is ABSENT, and it is live on PHI-erasure assertions (owner: tester/lead; **the number was wrong in BOTH directions before anyone measured it**)
+### 🟠 FUP-E2E-ABSENT-ROW-ASSERTIONS — `expect(row?.field).not.toBeNull()` passes when the row is ABSENT, and it is live on PHI-erasure assertions (owner: tester/lead; **the number was wrong in BOTH directions before anyone measured it**)
+
+> ⭕ **DOWNGRADED 🔴→🟠 2026-08-29.** The population is measured and re-derivable, both named
+> PHI instances turn out to have been fixed already, and the named live ones are guarded.
+> Full measurement and the two corrections to THIS ITEM's own text: § MEASUREMENT below.
 
 **2026-08-20, found by QA r2 while falsifying a count the lead had relayed.** B2 fixed this shape inside
 the DSR specs. It is **not** confined to them.
@@ -3959,6 +3963,108 @@ its own pass, with each conversion's red triaged.
 ⭐ **The lesson that outranks the fix:** *"exactly one other"* closed a question that was open. It is the
 partial-fix-reads-as-complete family **retiring the very lesson B2 had just taught** — and it took a
 reviewer measuring, not a reporter reporting, to catch it.
+
+---
+
+## § MEASUREMENT 2026-08-29 — the property, derived; and two corrections to THIS ITEM
+
+⛔ **Everything below was measured against the live runtime.** This item's own history is four
+wrong counts and a fifth wrong claim (below), all produced by reasoning about matcher semantics
+instead of running them.
+
+### ⭐⭐ Correction 1 — the accepts-`undefined` set is TEN, not one
+
+The fourth correction's table lists **four** matchers and concludes `.not.toBeNull()` is
+*"the vacuity, and it is the ONLY one"*. Sound for the four it tested; it reads as general.
+Measured across 18 matchers on vitest 4.1.11, **ten** accept `undefined`, and they split by what
+the assertion was TRYING to say:
+
+- **claims the field HAS a value** — `.not.toBeNull()` · `.not.toBe(null)` · `.not.toEqual(null)`
+  · `.not.toStrictEqual(null)` · `.not.toBe(<literal>)` · `.not.toEqual(expect.any(...))`
+- **claims the field is ERASED** — `.toBeUndefined()` · `.toBeFalsy()` · `.not.toBeDefined()` ·
+  `.not.toBeTruthy()`
+
+⭐⭐ **The erasure half is a family this item never looked for, and it is the WORSE one for
+Rule 12.** `expect(row?.purged_at).toBeFalsy()` on a row that was **never created** passes, and
+the conclusion drawn is *"the PHI was erased"* — a fixture that failed to build its subject
+reports a successful purge. ⚠ `.toBeNull()` **throws** on `undefined`, so it is the safe way to
+assert erasure; `.toBeFalsy()`/`.toBeUndefined()` are not.
+
+The set lives in **`scripts/absent-subject-matchers.json`** and is re-proved on every
+`npm run test` by `src/lib/matcher-vacuity-truth-table.test.ts`, which MEASURES each matcher and
+reds if the runtime ever disagrees. ⛔ It is a file rather than a constant so the detector and its
+proof cannot drift apart. Proven able to fail (a plausible wrong belief — `.toBeFalsy()` moved to
+the safe set — reds it, then restores).
+
+### ⭐⭐ Correction 2 — `rows[0].field` THROWS, so it is SAFE
+
+Measured: `[][0]` → `undefined`; `[][0].field` → **TypeError**; `[][0]?.field` → `undefined`.
+So the swallowed-read family reaches vacuity ONLY through `?.`, or when `rows[0]` **is** the
+subject (`expect(rows[0]).not.toBeNull()`). A plain dot after an index fails **loudly** — noisy on
+an empty read, never silent.
+
+⛔ **This is a finding against my own detector, not against the item.** Its first version flagged
+an index anywhere in the subject and reported **19 sound assertions** as defects — and its
+self-test did **not** catch it, because the fixture asserting that shape had been HAND-CLASSIFIED
+to match the same wrong belief. *A hand-classified fixture is a belief wearing the label of a
+control.* The subject shapes are now measured in the truth-table test, and a regression pin holds
+the corrected classification.
+
+### ⭐⭐ Correction 3 — the item's own evidence is STALE, in both directions
+
+- **Both named PHI instances were ALREADY FIXED**, and nothing told the register. Live today:
+  `pdf-printing-meetings.spec.ts:340-342` and `case-patient.spec.ts:1247-1250` both assert
+  `toHaveLength(1)` with a message naming the failure mode, then read the field through a **plain**
+  access — and both cite the same canonical shape at `dsr-subject-requests.spec.ts:255-264`. This
+  item carried 🔴 for nine days on remediated evidence.
+- **The three `meeting-held-time.spec.ts:296/373/566` instances are GUARDED**, by the line
+  immediately above each: `expect(row?.status).toBe('held')`. `.toBe(<literal>)` **throws** on
+  `undefined`, so the row cannot be absent when the next line runs. They are sound. ⛔ Had the
+  detector shipped without a guard rule, the obvious next step — "fix the three the FUP names" —
+  would have churned three correct assertions in a file nobody had reason to open.
+
+### The detector — `scripts/check-absent-subject-assertions.mjs`
+
+Keyed on the **composition** this item defines (*possibly-absent subject × accepts-`undefined`
+matcher*), never on a `?.` grep. TypeScript AST. Its rule set is derived from the measured JSON,
+and **both** its vacuous set and its guard rule come from the same file, so they cannot disagree.
+26 self-test fixtures, both polarities, run before every scan — a report is refused if they fail.
+
+**Guard rule, and it is the general one:** any preceding assertion **on the same root** whose
+matcher is in the measured `throwsOnUndefined` set proves the subject was present. It subsumes
+`toHaveLength(n>0)` and friends.
+
+⚠ **Bounded, stated:** shape at the assertion site only. A guard in a helper or a parent block is
+not seen (so GUARDED is a floor), and a subject made absent one call frame away leaves no syntax
+here at all (so UNGUARDED is a floor too). ⛔ **Neither number is "the population"** —
+[[enumeration-boundary-is-a-syntax-not-a-property]]. The counting has now gone
+17 → 38 → 20 → 16 → 10, every step a measured correction.
+
+**Measured 2026-08-29 (re-run it; do not quote):** **10 unguarded / 10 guarded**, then **7 / 11**
+after the fixes below. ⛔ Not wired into `npm run lint` — a gate change is not a mid-phase edit.
+
+### Fixed and TRIAGED — 3 real defects
+
+- `case-referral-usability-batch.spec.ts:675` and `:763` — ⭐ **worse than vacuous inside a
+  `expect.poll`**: the callback returned `rows[0]?.sent_at`, `.not.toBeNull()` accepts `undefined`,
+  so the poll **succeeded on its first tick** and the 15 s / 10 s wait it was written to perform
+  never happened. Both now return `rows.length === 1 && rows[0].<field> !== null` matched with
+  `.toBe(true)`, which throws on `undefined` as well as on `false`.
+- `aff4-hospital-admin-rehire.spec.ts` — `.find()` yields `undefined` when the original row is
+  gone, so the assertion reported *"the row was not reopened"* precisely when it no longer existed.
+  Guarded with `.toBeDefined()`.
+
+✅ **Triaged, not assumed:** both specs re-run — **11 passed, exit 0**. The item warns that
+converting a swallowed read can surface a hidden failure in an unanalysed spec; here it did not.
+
+### What stays open
+
+The **7 unguarded** findings (none PHI, none in an erasure claim on a DB row), and the two bounds
+above. The matcher-independent helper mechanism remains its own item —
+`FUP-E2E-HELPERS-SWALLOW-FAILED-READS`. ⚠ **Relevant to AE3:** it moves `cpf`/`date_of_birth`/
+`phone` into a per-profile row, and a row the backfill never created is exactly the state these
+matchers report as success. AE3's assertions on `profile_private_details` must be guarded, and
+its erasure claims must use `.toBeNull()`, never `.toBeFalsy()`.
 
 ### ⬛ INCIDENT (recorded 2026-08-20) — a process tree is not dead because the child you named is
 

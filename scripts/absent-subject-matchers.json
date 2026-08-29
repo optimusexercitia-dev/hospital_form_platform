@@ -1,0 +1,62 @@
+{
+  "_comment": [
+    "MEASURED, NOT REASONED. Which Vitest/Playwright matchers does `undefined` SATISFY?",
+    "That is the whole question behind FUP-E2E-ABSENT-ROW-ASSERTIONS: `row?.field` on an",
+    "ABSENT row is `undefined`, so any matcher in `acceptsUndefined` turns a missing row",
+    "into a passing assertion.",
+    "",
+    "PROVENANCE: measured 2026-08-29 on vitest 4.1.11 by running every matcher against",
+    "`undefined` and recording which threw. Re-proved on every `npm run test` by",
+    "src/lib/matcher-vacuity-truth-table.test.ts, which reads THIS FILE and fails if the",
+    "runtime ever disagrees with it. Do not hand-edit either side: change the test, run it,",
+    "and let it tell you what the truth is.",
+    "",
+    "WHY IT IS A FILE AND NOT A CONSTANT IN THE DETECTOR: the detector and the test must",
+    "share ONE definition, or the gate can drift away from the thing that proves it.",
+    "",
+    "⛔ THE FUP'S OWN TABLE LISTED FOUR MATCHERS AND CONCLUDED `.not.toBeNull()` WAS `the",
+    "ONLY one`. It is one of TEN. The conclusion was sound for the four it tested and reads",
+    "as general -- the fifth wrong claim about this item, in the reassuring direction."
+  ],
+  "measuredOn": "vitest 4.1.11",
+  "measuredDate": "2026-08-29",
+
+  "acceptsUndefined": {
+    "_comment": "PASS when handed `undefined`. Split by what the assertion was TRYING to say -- the same matcher is fine for one intent and vacuous for the other.",
+    "claimsFieldHasAValue": [
+      ".not.toBeNull()",
+      ".not.toBe(null)",
+      ".not.toEqual(null)",
+      ".not.toStrictEqual(null)",
+      ".not.toBe(<literal>)",
+      ".not.toEqual(expect.any(...))"
+    ],
+    "claimsFieldIsErasedOrAbsent": [
+      ".toBeUndefined()",
+      ".toBeFalsy()",
+      ".not.toBeDefined()",
+      ".not.toBeTruthy()"
+    ]
+  },
+
+  "throwsOnUndefined": [
+    ".toBeNull()",
+    ".toBeDefined()",
+    ".toBeTruthy()",
+    ".toBe(false)",
+    ".toBe(<literal>)",
+    ".toEqual(expect.any(...))",
+    ".not.toContain(...)",
+    ".not.toMatch(...)"
+  ],
+
+  "theSecondFamily": [
+    "⭐ The FUP hunts assertions that a field HAS a value. The `claimsFieldIsErasedOrAbsent`",
+    "half above is the one it did not look for, and it is the WORSE half for Rule 12:",
+    "`expect(row?.purged_at).toBeFalsy()` on a row that was NEVER CREATED passes, and the",
+    "conclusion drawn is `the PHI was erased`. A fixture that failed to build its subject",
+    "reports a successful purge.",
+    "⚠ `.toBeNull()` is SAFE (it throws on undefined) -- so the safe way to assert erasure",
+    "is `.toBeNull()`, never `.toBeFalsy()`/`.toBeUndefined()`."
+  ]
+}
