@@ -6062,32 +6062,6 @@ outside its domain for the same reason. The blindness is **measurement-domain**,
 `alter policy`, and resolve the altered function's return type from the **live catalog** rather than
 from the migration text it cannot parse.
 
-### 🟠 FUP-AFF4-HOMEORG-PHASE2 — 0151 D10's named Phase 2 had **no register line anywhere**; filed and promoted to PRE-PILOT at ADR 0155's acceptance (owner: backend/PO)
-
-**Filed 2026-08-26.** AFF4 separated affiliation from authorization, but ADR 0151 **D10** kept every
-existing RLS leg and the tenant containment trigger on `profiles.home_organization_id` — demoted,
-not dropped — and named "Phase 2" (migrating those legs + the trigger off the column) as a
-follow-on. Measured at ADR 0155's re-analysis: that follow-on existed **only as ADR prose plus
-echoes** (0154 D2, the AFF4 plan §"B4 boundary", `aff4.md`) — no `FUP-*` id, no index line,
-invisible to the register the PO reads from. This item is that line.
-
-**What must happen** (ADR
-[0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) **D8** —
-implementation Phase 2, **pre-pilot**; the promotion from 0151 D10's *"before multi-org, not
-pilot-blocking"* is the one clause 0155 amends):
-
-1. Migrate every remaining visibility/containment decision (the RLS legs + the tenant trigger) off
-   `home_organization_id` onto the affiliation substrate.
-2. **Explicitly re-answer lifecycle authority over fully-offboarded persons** — 0151 D10's open
-   question, unchanged by 0155; until answered it resolves through `home_organization_id`.
-3. Shadow old/new person-visibility decisions and **block every unexplained WIDENING** (the 0154
-   boundary-filter rule: narrowing can be wrong and safe; widening cannot).
-4. Demote or remove the column only after a caller inventory.
-
-**Why pre-pilot:** 0155 D7's catalog work must not seed permission matrices against a containment
-anchor scheduled to disappear. Exit gate: affiliations are the only employment/belonging source,
-and they still grant no capabilities (D3's ARCHITECTURE.md rule lands in the same increment).
-
 ### 🟡 FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY — `commissions` and `commission_meeting_types` grant tenancy-admin READS from a policy named `…_write` (owner: backend/PO; filed 2026-08-27 by `backend` at the AE1.5 triage, PO-ruled the same day)
 
 > **The measurement** (catalog, local stack, `pg_policies`):
@@ -6739,3 +6713,52 @@ seated or removed**, and a stale roster can survive the mutation that changed it
 does not belong inside an authorization increment. ⚠ It is also the *second* stale reference to that
 retired route found in one increment — the other was in a security docstring — so the sweep should be
 for **the route**, not for this one call site.
+
+### 🟠 FUP-AE2-397-DENY-CELLS-SQLSTATE-ONLY — `397 §§ 2/3`'s ten deny cells assert SQLSTATE only, in the suite that documents having been bitten by exactly that (owner: backend; filed 2026-08-28 by QA r3 F1)
+
+**Measured.** `app.grant_role_impl` carries **12** `42501` raise sites over **7 distinct messages**,
+and `397 §§ 2/3`'s ten deny cells assert the SQLSTATE alone. So a refusal arriving from a *different
+arm* — the shape ADR 0167 Amdt 2 created by moving the platform admin's refusal one statement earlier
+— satisfies them.
+
+⛔ **The suite documents this exact hazard about itself.** `§ 5.2` was repaired for it during AE2's
+increment C; `§§ 2/3` were not, so the file now contains both the lesson and the unrepaired instance.
+
+⚠ **The obvious fix is only PARTIAL, and that is the finding:** adding the message narrows 12 → **6**,
+because six sites share the string `sem permissão`. Distinguishing those six needs an actor axis, not
+a message assertion — do not record "add the message" as a closure.
+
+**Not blocking:** `§ 0.3` / `§ 0.4` are strong structural pins (QA r3 re-derived their subject: 2
+`is_admin_for` sites in grant, 1 in revoke, sub-arms identical), so a *deleted* arm still reds.
+
+### 🟠 FUP-AE2-393-ABSENCE-CELLS-NO-CONTROL — `393 § 3.12`/`§ 5.9` are all-zero absence claims nothing can prove able to fail (owner: backend; filed 2026-08-28 by QA r3 F2)
+
+Both cells assert the ORDINARY door wrote **nothing** for the split cells — an all-zero expectation.
+Their source, `ae24_after_ordinary`, is consumed by **exactly these two cells and nowhere else**, so a
+wrong literal in the snapshot's `where` makes every label read `0` and **both stay green while
+measuring an empty set**.
+
+⭐ This is the repo's dominant family in its purest form: an absence claim with no positive control.
+Two-token fix — the anchoring data is already in the table; assert the population is non-empty in the
+same string.
+
+### 🟡 FUP-AE2-TEST-HARDENING-R3 — two small anti-vacuity gaps QA r3 found (owner: backend; filed 2026-08-28, QA r3 F3+F4)
+
+1. `400 § 4.2` asserts `23514` with `errmsg = null`, and that code has **two arms** in the guard — so
+   the cell cannot say which raised.
+2. Several `lives_ok` accept cells lack the **write-through twin their own files mandate**. Bounded
+   rather than open-ended: QA r3 checked that `393`'s fixture ids currently all match, so no cell is
+   silently passing today.
+
+### 🟡 FUP-AE2-392-FILENAME-CLAIMS-A-DIFFERENTIAL — `392_ae23a_widening_differential.sql` contains no differential (owner: backend/lead; filed 2026-08-28 by QA r3 F6)
+
+After the AE2 re-cut the file is a suite about the NEW person-read predicate; its **name still asserts
+a differential**. Deliberately **not** renamed during the drop increment, and QA r3 verified the
+reason holds: `docs/reviews/authz-door-audit-findings.md` keys its witness lists on **full
+filenames** (confirmed live, 4 occurrences), so a rename **orphans name-keyed verdicts** — and doing
+it inside a 50-file integration window adds a deletion to an already-large change.
+
+⛔ **This line exists because the deferral's only record was the phase document, which the Record step
+rotates away.** A deferral whose reasoning survives only in rotated narrative is indistinguishable
+from an oversight — QA r3 F6 raised exactly that. **Rename and re-point the findings witnesses in the
+same commit, or not at all.**

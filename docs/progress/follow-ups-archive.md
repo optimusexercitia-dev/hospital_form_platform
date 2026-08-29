@@ -7417,3 +7417,48 @@ call, each denial with its non-vacuity twin.
 _**Five items RESOLVED 2026-08-24 (ADR 0136 follow-up round), index lines rotated** → [follow-ups-archive.md](follow-ups-archive.md): **FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT** · **FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE** · **FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE** · **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** (ADR 0079 **Amdt 9**) · **FUP-DSS-KEYBOARD-FLOW-IS-THIN**. Each body in [follow-ups.md](follow-ups.md) carries its resolution + evidence._
 
 _**FUP-RCA-WRITER-CAN-WRITE-IS-BLIND RESOLVED 2026-08-24 (keystone `142_rca.sql` §K, re-swept COVERED), index line + evidence rotated** → [follow-ups-archive.md](follow-ups-archive.md); body in [follow-ups.md](follow-ups.md). ⛔ Its sibling **FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE stays OPEN** above — filed together, only one closed._
+
+### ✅ FUP-AFF4-HOMEORG-PHASE2 — 0151 D10's named Phase 2 had **no register line anywhere**; filed and promoted to PRE-PILOT at ADR 0155's acceptance (owner: backend/PO) — **RESOLVED 2026-08-28**
+
+> **Resolved by AE2** (branch `authz-ae2-affiliation-tenancy`, QA r3 APPROVED). All FOUR numbered
+> requirements below were satisfied, and ⚠ **the title names only one of them** — it reads as a
+> column-drop item, which is how it could have been closed on the drop alone:
+>
+> 1. **Legs + trigger off the column** — AE2.2 re-predicated the three SELECT legs; ADR 0164 moved
+>    containment to the destructive event. Catalog-verified: **zero** policies and **zero** function
+>    bodies name the column, and the column itself is gone (`20261003006500`).
+> 2. **Lifecycle authority over fully-offboarded persons, explicitly re-answered** — ADR **0163**
+>    (last-org retention), as amended by 0164. ⭐ This is the half the title does not mention.
+> 3. **Shadow old/new and block every unexplained WIDENING** — the differential suites `390`–`395`
+>    carried pre-declared widening lists for exactly this, throughout the migration. Their
+>    pre-declarations were retired in the drop increment **because their subject was the migration**,
+>    which had completed; the per-cell expectation tables remain.
+> 4. **Remove the column only after a caller inventory** — the full break map (3 function bodies,
+>    `PROFILE_SELECT`, 171 pgTAP refs / 45 files, 6 metadata writers, `seed.sql`) preceded the drop.
+>
+> Detail: [authz-ae2.md](authz-ae2.md) · verdict: [authz-ae2-review-r3.md](../reviews/authz-ae2-review-r3.md).
+
+**Filed 2026-08-26.** AFF4 separated affiliation from authorization, but ADR 0151 **D10** kept every
+existing RLS leg and the tenant containment trigger on `profiles.home_organization_id` — demoted,
+not dropped — and named "Phase 2" (migrating those legs + the trigger off the column) as a
+follow-on. Measured at ADR 0155's re-analysis: that follow-on existed **only as ADR prose plus
+echoes** (0154 D2, the AFF4 plan §"B4 boundary", `aff4.md`) — no `FUP-*` id, no index line,
+invisible to the register the PO reads from. This item is that line.
+
+**What must happen** (ADR
+[0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) **D8** —
+implementation Phase 2, **pre-pilot**; the promotion from 0151 D10's *"before multi-org, not
+pilot-blocking"* is the one clause 0155 amends):
+
+1. Migrate every remaining visibility/containment decision (the RLS legs + the tenant trigger) off
+   `home_organization_id` onto the affiliation substrate.
+2. **Explicitly re-answer lifecycle authority over fully-offboarded persons** — 0151 D10's open
+   question, unchanged by 0155; until answered it resolves through `home_organization_id`.
+3. Shadow old/new person-visibility decisions and **block every unexplained WIDENING** (the 0154
+   boundary-filter rule: narrowing can be wrong and safe; widening cannot).
+4. Demote or remove the column only after a caller inventory.
+
+**Why pre-pilot:** 0155 D7's catalog work must not seed permission matrices against a containment
+anchor scheduled to disappear. Exit gate: affiliations are the only employment/belonging source,
+and they still grant no capabilities (D3's ARCHITECTURE.md rule lands in the same increment).
+

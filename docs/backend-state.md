@@ -405,8 +405,10 @@ in a phase's task text where they would be rotated out with it._
   That red is indistinguishable from a keystone catching a mutant. **Judge any mutation on
   the WHOLE suite, and check each suite RAN ITS FULL PLAN before believing its reds.**
 - ⚠ **`00_setup.sql` also mints tenant users AFTER `seed.sql`**, so any anchor the seed
-  applies to personas (`home_organization_id`, and since AFF4 the `organization_affiliations`
-  row) must be applied in the bootstrap too, or bootstrap personas are invisible to every
+  applies to personas (**since AE2 the `organization_affiliations` row is the ONLY one** — this
+  read *"`home_organization_id`, and since AFF4 the `organization_affiliations` row"* until the
+  column was dropped, so a bootstrap still setting the column now errors rather than under-anchors)
+  must be applied in the bootstrap too, or bootstrap personas are invisible to every
   query predicated on it. Anchor both in the bootstrap, never per-suite: a per-suite fixture
   is a hand list the next suite omits itself from.
 
@@ -596,7 +598,7 @@ census run** — marked `[via callDoor]`. See the expansion paragraph above; gat
 | `src/lib/users/actions.ts::updateUserProfile::rpc::update_person_fields_for` | `users/actions.ts:updateUserProfile` → rpc `update_person_fields_for` (fields + `cpf_change` arm, one door) `[via callDoor]` | users | admin edits another person's profile fields; CPF change escalates to a tighter bound | **door: `update_person_fields_for`** — carries BOTH bounds (`fields` INTERSECTION always, `cpf_change` SUBSET only when the CPF actually changes). ⚠ The `p_set_*` booleans carry the absent-key-vs-explicit-NULL distinction the old spread form carried; collapsing the pair would let an edit form that omits a field NULL IT OUT (ADR 0133 D9/D10, pinned pgTAP `385` §1.7). TS d-i-d: `'fields'` + `'cpf_change'` | none found in TS | **YES, thorough** — §1–§6 (sole/cross-hospital/whole-footprint/tier/sibling, CPF-presence-vs-change semantics) + `person-scope.test.ts` (predicate directly) + `e2e/hospital-admin-tier.spec.ts`, `e2e/aff2-scope-rule.spec.ts` |
 | `src/lib/users/actions.ts::upsertCredential::rpc::upsert_credential_for` | `users/actions.ts:upsertCredential` → rpc `upsert_credential_for` — **ONE call; the pre-AE1.3 update-row + insert-row pair consolidated into it** `[via callDoor]` | users | admin edits an existing credential row for another person, or adds a new one | **door: `upsert_credential_for`**; TS d-i-d: `'credentials'` (INTERSECTION). The door RAISES `HC0T6` on a write that matched nothing rather than returning silent success, so there is no "salvo" message for a write that never happened | none found in TS | **YES** — `d14-person-level.test.ts` §1, §2, §4 (denied, expired-seat fixture). The former separate insert row shared this guard and this suite; one call site now, one row |
 | `src/lib/users/actions.ts::removeCredential::rpc::delete_credential_for` | `users/actions.ts:removeCredential` → rpc `delete_credential_for` | users | admin deletes another person's credential row | **door: `delete_credential_for`**; TS d-i-d: `'credentials'`. ⚠ Deliberately the OPPOSITE no-match shape from `upsert_credential_for`'s update arm | none found in TS | **YES** — §1, §6 ("`removeCredential` must carry its OWN arm" — reported verbatim) |
-| `src/lib/users/actions.ts::registerUser::rpc::finalize_invited_person_for` | `users/actions.ts:registerUser` → rpc `finalize_invited_person_for` (invite-flow profile patch) `[via callDoor]` | users | sets initial profile fields for a newly invited/registered person | **door: `finalize_invited_person_for`**; TS: entry gate only — session + `isOrgAdminCaller`/hospital-resolution check (**not** `personScopeAllows`). ⛔ `home_organization_id` is deliberately NOT in the column list: `handle_new_user` seeds it, and writing it would fire the deferred `profiles_tenant_has_org_trg` | none found in TS | **UNCONFIRMED** — extensive d14 coverage of payload/routing correctness for authorized callers; no explicit assertion surfaced that an unauthenticated/non-admin caller is REJECTED at this entry gate specifically, and none names the door's own deny arm either |
+| `src/lib/users/actions.ts::registerUser::rpc::finalize_invited_person_for` | `users/actions.ts:registerUser` → rpc `finalize_invited_person_for` (invite-flow profile patch) `[via callDoor]` | users | sets initial profile fields for a newly invited/registered person | **door: `finalize_invited_person_for`**; TS: entry gate only — session + `isOrgAdminCaller`/hospital-resolution check (**not** `personScopeAllows`). ⚠ **This cell read, until AE2:** *"`home_organization_id` is deliberately NOT in the column list: `handle_new_user` seeds it, and writing it would fire the deferred `profiles_tenant_has_org_trg`"* — **both halves are now false and the reason the column is absent has changed**: the column is DROPPED, `handle_new_user` seeds nothing, and `profiles_tenant_has_org_trg` no longer exists (`20261003005600`). The kernel's measured column list is `full_name` · `professional_category_id` · `cpf` · `date_of_birth` · `phone` · `must_change_password`; the org association is now written by the **creation door** (`affiliate_new_person_to_org_for`), a separate registry row. Its own gate is `app.can_administer_person_for('cpf_change', …)` — the SUBSET bound, not the intersection one | none found in TS | **UNCONFIRMED** — extensive d14 coverage of payload/routing correctness for authorized callers; no explicit assertion surfaced that an unauthenticated/non-admin caller is REJECTED at this entry gate specifically, and none names the door's own deny arm either |
 | `src/lib/users/actions.ts::registerUser::rpc::upsert_credential_for` | `users/actions.ts:registerUser` → rpc `upsert_credential_for` (looped over the initial credentials) `[via callDoor]` | users | seeds the new person's initial credential(s) at registration time | **door: `upsert_credential_for`** — the same door `upsertCredential` uses, reached from the registration path under the shared entry gate (not `'credentials'`/`personScopeAllows`; registration is a different code path) | none found in TS | **UNCONFIRMED** — same caveat as the row above |
 
 ### Group B — self-scoped by construction (1 site)
@@ -690,7 +692,7 @@ does the admin client mint a signed URL. None has a TS-side authorization check 
 | --- | --- | --- | --- | --- | --- | --- |
 | `src/lib/users/actions.ts::registerUser::auth-admin-createUser::createUser` | `users/actions.ts:registerUser` → `auth.admin.createUser` | users | creates the auth identity when email verification is off | shared `registerUser` entry gate only (see Group A) | none found in TS | **UNCONFIRMED** — same entry-gate caveat as Group A |
 | `src/lib/users/actions.ts::registerUser::auth-admin-inviteUserByEmail::inviteUserByEmail` | `users/actions.ts:registerUser` → `auth.admin.inviteUserByEmail` | users | invites the new user when email verification is on | shared entry gate only | none found in TS | **UNCONFIRMED** — same caveat |
-| `src/lib/members/invite.ts::resolveOrInviteUser::auth-admin-inviteUserByEmail::inviteUserByEmail` | `members/invite.ts:resolveOrInviteUser` → `auth.admin.inviteUserByEmail` `[INDIRECT — Tier 2]` | members | resolves-or-invites during org/platform admin flows; doc'd as performing "NO authorization of its own — the calling action is the authority" | the one check present is a tenant-anchor guard, not caller authorization: `if (existing.home_organization_id !== homeOrganizationId) throw` | none found in TS | **YES** — `invite.test.ts` ("the D13 tenant check"), 4 arms incl. cross-org refuse, null-anchor refuse |
+| `src/lib/members/invite.ts::resolveOrInviteUser::auth-admin-inviteUserByEmail::inviteUserByEmail` | `members/invite.ts:resolveOrInviteUser` → `auth.admin.inviteUserByEmail` `[INDIRECT — Tier 2]` | members | resolves-or-invites during org/platform admin flows; doc'd as performing "NO authorization of its own — the calling action is the authority" | the one check present is a tenant-anchor guard, not caller authorization. ⚠ **Re-derived at AE2 — this cell described `if (existing.home_organization_id !== homeOrganizationId) throw`, which is no longer the code.** The parameter is now `organizationId` (used ONLY by this check) and the guard is **two arms**, mirroring the *creation* door's predicate rather than a column compare: refuse if `existing.is_admin`, then refuse if the person holds non-voided org affiliations and **none** is `organizationId`. ⛔ **NON-VOIDED, not ACTIVE** — matching `app.person_known_to_org`, so a rehire is not refused. An anchorless person (zero affiliations) now **passes**, which is the deliberate widening: under the old column a `platform_admin` was refused because their anchor was NULL. `organizationId` is **no longer seeded into `user_metadata`** | none found in TS | **YES** — `invite.test.ts` ("the D13 tenant check"), 4 arms incl. cross-org refuse, and the anchorless arm re-polarised at AE2.4 |
 | `src/lib/users/actions.ts::resendInvite::auth-admin-inviteUserByEmail::inviteUserByEmail` | `users/actions.ts:resendInvite` → `auth.admin.inviteUserByEmail` | users | re-sends an invite email | TS: `authorizeForUser(userId)` — deliberately NOT `personScopeAllows` (doc'd: would wrongly import the D2 tier bound) | none found in TS | **YES** — `d14-person-level.test.ts` §7, 4 arms incl. "sibling hospital_admin refused" |
 
 ### Summary
@@ -737,6 +739,119 @@ minutes-job latches) + pgTAP `388` (R1 ACL pins, latch behavior, atomicity text-
 `printed-documents-caller-census.test.ts` (obs #4), and three filed FUPs
 (`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` = R2 · `FUP-DOC-RECLASS-OPERATION-ID` ·
 `FUP-DOC-DISPOSAL-PROVENANCE-SPLIT`).
+
+## AE2 — affiliation tenancy: the anchor column is GONE (2026-08-28; ADR **0161** / **0163** / **0164** / **0165** / **0166** / **0167** +Amdt 2 / **0168** +Amdt 1–3; migrations `20261003005400`–`…006500`, **12**; pgTAP `390`–`400`, **11**; **NO flag — the migrations ARE the cutover**; QA APPROVED r3 → [authz-ae2-review-r3.md](reviews/authz-ae2-review-r3.md))
+
+⛔ **`profiles.home_organization_id` IS DROPPED** (`20261003006500`). This executes AFF4 D10's named
+**Phase 2** — the paragraph in the AFF4 section below that read *"DEMOTED, NOT DROPPED … the policies
+still depend on it"* was true when written and is now false in both halves; it is corrected in place.
+Measured on the post-drop head, and the queries are given so they are re-run rather than quoted:
+
+| fact | measured | query |
+| --- | --- | --- |
+| the column, anywhere in the DB | **0** | `select count(*) from information_schema.columns where column_name='home_organization_id'` |
+| policies naming it | **0** | `pg_policies`, `qual`/`with_check` LIKE `%home_organization%` |
+| function bodies naming it, **comments stripped** | **0** | `pg_proc`, `regexp_replace(prosrc,'--[^\n]*','','g')` LIKE `%home_organization%` |
+| function bodies naming it **including comments** | **5** — `app.affiliate_person_to_org_impl` · `public.list_org_people` · `app.can_administer_person_for` · `app.update_person_fields_impl` · `public.list_addable_commission_members` | same, without the strip |
+| deferred trigger `profiles_tenant_has_org_trg` | **0** — dropped by `…005600` | `select count(*) from pg_trigger where tgname='profiles_tenant_has_org_trg'` |
+| migration registry | **496 == 496** (DB == files on disk) | `supabase_migrations.schema_migrations` vs `ls supabase/migrations/*.sql \| wc -l` |
+| RLS on `public` tables | **170 / 170** | see ARCHITECTURE.md Rule 1 |
+
+⚠ **The 5-vs-0 gap is the point, not a discrepancy.** Every surviving mention is a *comment* saying
+what the body used to read (e.g. `list_addable_commission_members`: "was `pr.home_organization_id =
+v_org_id`"). Those are deliberate and must stay — they are the only thing that tells the next reader
+why the predicate looks the way it does. ⛔ **A `prosrc` sweep that does not strip `--` comments
+reports this surface as live and is wrong**; strip first, then judge.
+
+**The replacement predicate, everywhere:** a `public.organization_affiliations` row. Which *tense* of
+that row is the load-bearing choice and it differs per site — see the two named predicates below.
+
+### The two named predicates (`app`, DEFINER, owner-only `proacl`, pinned `search_path`)
+
+Both are `postgres=X/postgres` only — no `authenticated`, no `service_role`; they are callable solely
+from the DEFINER bodies below, never from PostgREST.
+
+- **`app.person_known_to_org(p_user, p_organization)`** → `exists` a row for the pair with
+  `voided_at is null`. ⚠ **NON-VOIDED, not ACTIVE** — an *ended* row still answers TRUE. That is
+  deliberate (ADR 0163 bound 1: "void is not end") and is what lets ADR 0151 D5's one-step rehire
+  work through the ordinary door without an `org_admin` ticket first.
+- **`app.person_is_anchorless(p_user)`** → `not exists` **any** non-voided org affiliation, of any
+  tense. ⛔ **No `is_admin` arm, by design**: a `platform_admin`'s own profile answers TRUE here and
+  that is correct — the doors are what treat the vendor specially, not the state predicate.
+
+### ADR 0168 — affiliation is THREE doors, not one
+
+The split exists because one door cannot both *refuse a foreign tenant* and *create the first
+affiliation a person ever has*. Each door is a `prosecdef` `app.*_impl` kernel; the ACL on its
+`public` wrapper is the entire bound on the widening it carries, so it is recorded as such.
+
+| door | wrapper + `proacl` | tenant gate (beyond the authority gate) | audit verb |
+| --- | --- | --- | --- |
+| **ordinary** `app.affiliate_person_impl` / `app.affiliate_person_to_org_impl` | existing `public` wrappers | **narrowed to `app.person_known_to_org`** — a person unknown to the org is refused `HC0R0` | (unchanged) |
+| **creation** `app.affiliate_new_person_impl` / `app.affiliate_new_person_to_org_impl` | `public.affiliate_new_person_for` / `public.affiliate_new_person_to_org_for` — ⛔ **`service_role` ONLY** (`postgres=X ; service_role=X`; **no `authenticated`**) | `person_is_anchorless` **OR** `person_known_to_org` — the `is_anchorless` disjunct **is** the widening | `affiliation.created_on_registration` / `org_affiliation.created_on_registration` |
+| **recovery** `app.recover_orphan_person_to_org_impl` | `public.recover_orphan_person_to_org` — `postgres=X ; **authenticated**=X` | `app.is_admin_for(p_actor)` (platform admin **only**) **AND** `person_is_anchorless` — a non-orphan is refused `HC0R0` (`pessoa não é órfã`), a missing org `HC0R5` | `org_affiliation.recovered` |
+
+⚠ **The `service_role`-only ACL on the two `_new_` wrappers is the whole bound on their widening.**
+They admit an anchorless person that the ordinary door refuses; nothing but the missing
+`authenticated` grant stops a signed-in caller from reaching that. ⛔ **Granting `authenticated` on
+either would open tenant creation to any session** — re-derive the ACL from `proacl` before believing
+this line, and never "fix" a caller by widening it.
+
+⚠ **`public.recover_orphan_person_to_org` has NO TypeScript caller today** (measured across `src/`;
+the only non-generated mentions are prose in `src/lib/members/invite.ts` + its test). It is a built
+door awaiting a UI, deliberately — not dead code, and not evidence the path is unreachable.
+
+### ADR 0168 Amdt 3 — the FIRST deliberate asymmetry between a door and its `_for` twin
+
+`app.ensure_provisioned_org_affiliation` and `app.grant_role_impl` both gained
+**`p_allow_anchorless boolean DEFAULT false`**, and the two `public` wrappers pass **different**
+values — verified from the bodies, not the migration:
+
+- `public.grant_role(...)` → `app.grant_role_impl(auth.uid(), …, **false**)` — *"the SESSION door
+  passes `p_allow_anchorless => FALSE`"*.
+- `public.grant_role_for(p_actor, …)` → `app.grant_role_impl(p_actor, …, **true**)` — *"the SERVICE
+  door passes `p_allow_anchorless => TRUE`"*.
+
+⛔ **Everywhere else in this backend the actor-kernel twin pair is behaviourally identical** and the
+only difference is where the actor comes from. This is the first pair where it is not. Record it as
+intentional: a reader who notices the divergence and "restores symmetry" removes the registration
+path's ability to seat a role on a person who has no affiliation yet.
+
+### ADR 0167 Amdt 2 — the commission `staff` sub-arm
+
+`app.is_admin_for(p_actor)` was **removed** from `grant_role_impl`'s commission **`staff`** sub-arm,
+which now requires `is_staff_admin_of_for` **or** `is_tenancy_admin_of_for`. This closes the second
+one-way door Amdt 1 found: `revoke_role_impl`'s `staff` sub-arm never carried an `is_admin_for`, so a
+platform admin could **seat** a commission `staff` and could not **remove** one. ⚠ **It moves the
+platform admin's refusal one statement earlier** — a *measurement* hazard, not a behaviour change: a
+SQLSTATE-only assertion downstream keeps its `42501` while its subject silently changes. pgTAP `293`
+§3.1 and `397` §5.2 discriminate **by message** for exactly that reason.
+
+### ADR 0166 — the demotion backstop, `HC0RB`
+
+`public.guard_profile_privileged_columns` gained a final arm: an `is_admin` **true→false** change on a
+person who `app.person_is_anchorless` raises **`HC0RB`** (pt-BR: *"não é possível remover a condição de
+administrador de plataforma sem antes registrar um vínculo organizacional para esta pessoa"*).
+Three properties are deliberate and are in the body's own comments:
+
+- **Placed LAST**, behind the actor check — a non-admin caller still gets the cheaper
+  `check_violation` and never reaches this read (pinned by pgTAP `400` §4.2).
+- **Gated on true→false ONLY.** An arm keyed on *"`is_admin` changed"* would refuse legitimate
+  **promotions** of anchorless people, and would pass every other cell in `400` (§2.9 is the
+  opposite-polarity cell that catches it).
+- **`coalesce` is fail-closed, not decorative** — if either column ever became nullable, a NULL
+  `new.is_admin` reads as "no longer an admin" and is checked, rather than silently skipping the guard.
+
+### New audit verbs
+
+Three, all measured from `prosrc` (`org_affiliation.*` / `affiliation.*` now number **13** together):
+**`affiliation.created_on_registration`** · **`org_affiliation.created_on_registration`** ·
+**`org_affiliation.recovered`**. ⚠ **The ordinary doors call `app.audit_write` ZERO times** (measured
+on `prosrc`), yet their creates ARE audited — the row-level trigger
+**`trg_audit_organization_affiliations`** emits `org_affiliation.created` for them. ⛔ **So a
+door-body sweep for `audit_write` under-reports this table's audit coverage**: the three new verbs
+above are door-emitted *because they carry actor/reason context a trigger cannot see*, not because
+the ordinary path is unaudited. Judge coverage from `pg_trigger` **and** `prosrc`, never one alone.
 
 ## AFF4 — organization affiliation, per-hospital staff data, the voided tense (2026-08-26; ADR **0151** D1–D17 + **0154** / **0158** / **0159**; migrations `20261003003200`–`…004300`, **12**; pgTAP `301`–`304` · `371`–`375` · `377`–`381`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ⛔ **NOT PUSHED at the Record edit; 12 migrations are LOCAL ONLY**
 
@@ -803,12 +918,17 @@ access). Both directions pinned in `src/lib/queries/org-roster-predicate.test.ts
 the `lookupOrgPeople` payload in `src/lib/queries/affiliations.ts`, where the status is
 **non-nullable**.
 
-⚠ **`home_organization_id` is DEMOTED, NOT DROPPED** (D10) — the *roster predicate* (the application
-query filter in `listOrgUsers`, per ADR **0154**, which corrected D10's naming of `list_org_people`)
-moved to org affiliations, but **every existing RLS leg and the tenant trigger still read the
-column**. Migrating them is D10's named **Phase 2**, triggered *before multi-org is ever enabled*; it
-is not pilot-blocking, and it must re-answer lifecycle authority over fully offboarded persons.
-⛔ **Do not read "the roster moved" as "the column is unused" — the policies still depend on it.**
+⚠ **`home_organization_id` was DEMOTED HERE, and is now DROPPED** — D10's named **Phase 2** was
+executed by **AE2** (`20261003006500`, 2026-08-28; see the AE2 section above). At AFF4 only the
+*roster predicate* (the application query filter in `listOrgUsers`, per ADR **0154**, which corrected
+D10's naming of `list_org_people`) had moved to org affiliations, while **every RLS leg and the
+deferred tenant trigger still read the column** — which is why this paragraph then warned ⛔ *"do not
+read 'the roster moved' as 'the column is unused' — the policies still depend on it."* That warning
+is **retired**: the column, its policies and `profiles_tenant_has_org_trg` are all gone, and the
+lifecycle question over fully offboarded persons D10 deferred was answered by ADR **0163** (an ended
+row decides *where*, never *whether*). ⛔ **The inverse warning now applies** — do not read a
+surviving `home_organization_id` in a function *comment* as a live dependency; the comments-stripped
+count is **0**.
 
 ## ADR 0137 batch — MRN as erasure key; case/referral usability (2026-08-24; ADR **0137**; migrations `20261003001300`–`…001600`, **4**; pgTAP `362` `plan(58)` · `363` `plan(15)` · `364` `plan(14)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ✅ **PUSHED 2026-08-25**
 
@@ -910,7 +1030,7 @@ a name-search caller**, by decision — do not revert it as dead code.
 - `src/lib/users/person-scope.ts` — the **pure** predicate `personScopeAllows(capability, footprint, administered)`. Capabilities: `fields` / `credentials` → **intersection**; `cpf_change` / `lifecycle` → **subset** (Amdt 1 r1).
 - `src/lib/users/person-footprint.ts` — ⛔ **deliberately carries NO `'use server'`**, and that is the load-bearing property of the file: `actions.ts` has the directive, so every export there is a callable endpoint, and exporting the resolver from it would publish an authority oracle. Holds `resolvePersonFootprint` (**filters `ended_on` AND `expires_at`** — QA R1) and `getPersonAdminView`, which returns `{ personalData: {...} | null, authority: { canEditPerson, canManageAccountLifecycle } }`. ⚠ **The OUTER null means WITHHELD, not "nothing informed"** — the nesting is what forces the caller to distinguish them. ⚠ `canManageAccountLifecycle` is **unrelated** to the cases domain's `caps.canManageLifecycle`.
 - `src/lib/users/actions.ts` — `authorizePersonScopedAdmin` replaces `authorizeOrgAdminForUser` at **six** sites. ⚠ `updateUserProfile` applies the **tighter** bound on a CPF **change**, compared **normalised on both sides** — **change-based, not presence-based** (Amdt 3): the literal reading would deny a hospital_admin editing the *name* of a cross-hospital person, the exact case Amdt 1 r1 exists to allow. `registerUser` returns the created id (`RegisterUserState`).
-- `src/lib/queries/org-users.ts` — directory widening: `hospitalNames[]`, `committees[]`, pre-formatted `councilRegistration`, `statusCounts` from the **unfiltered** scoped set, and `hospital?: string | null` on `ListDirectoryOptions` (**NARROW** — `home_organization_id = orgId` AND at H; it falls out of an intersection, so the rule has one definition).
+- `src/lib/queries/org-users.ts` — directory widening: `hospitalNames[]`, `committees[]`, pre-formatted `councilRegistration`, `statusCounts` from the **unfiltered** scoped set, and `hospital?: string | null` on `ListDirectoryOptions` (**NARROW** — the org roster AND at H; it falls out of an intersection, so the rule has one definition). ⚠ **The left half of that intersection was re-predicated at AFF4/AE2 and this line read `home_organization_id = orgId` until then**: it is now *"holds a non-ended, non-voided `organization_affiliations` row to `orgId`"*, applied as `.in('id', orgScope)` with a second `.in('id', hospitalScope)` for H. The **narrowing** property is unchanged — `?hospital=` can never widen the org roster. A sibling option `includeEnded?: boolean` (default `false`) relaxes only the *tense* of the left half, and is **ignored by `listHospitalUsers`** (ADR 0158).
 
 ⚠ **`expires_at` semantics, stated because the direction is counter-intuitive:** filtering it **narrows** the intersection capabilities and **WIDENS** the subset ones — a smaller footprint is easier to be a subset of. Both directions are pinned; the widening arm is the only one that reaches the subset path (the others deny via the zero-footprint rule).
 
@@ -2285,9 +2405,15 @@ widened the read together.
   remedy would have been a regression.
 - `src/lib/vocabulary/actions.ts` — T5 org vocabulary admin (`case_participant_roles`,
   `case_type_terminology`). Already followed the same error rule.
-- `src/lib/queries/members.ts` `listLinkableOrgUsers` — anchors on `profiles.home_organization_id`,
-  which **ADR 0097 (AFF) made insufficient**; hospital affiliation is a visibility input and this
-  query does not consult it. Tracked, not fixed.
+- ✅ **CLOSED at AE2.4** — `src/lib/queries/members.ts` `listLinkableOrgUsers`. This read *"anchors
+  on `profiles.home_organization_id`, which **ADR 0097 (AFF) made insufficient** … Tracked, not
+  fixed."* The org predicate is now `public.list_linkable_org_users`, a **SECURITY INVOKER** RPC
+  whose org filter is an **ACTIVE `organization_affiliations`** row (ADR 0164 D4, shape C-b'); the
+  column is gone. ⚠ **Being INVOKER is the load-bearing part** — the door replaces *only* the org
+  predicate, so a `staff_admin` still reads through their own RLS perimeter (the
+  `profiles_select_self_or_admin` co-membership arm), intersected with the org. That residual
+  narrowness is **deliberate, not the old gap**: ⛔ widening `organization_affiliations_select` to
+  fix this read (option C-a) is **REJECTED and must not be re-proposed** (pinned by pgTAP `395` §0.7).
 
 ### Known-open at hand-off
 
@@ -2869,8 +2995,13 @@ instead of surprising someone a year later. The residual `REFERENCES (cpf)` is i
 which PostgreSQL will not accept as an FK target.
 
 **DROPPED: `profiles.home_hospital_id` and `profiles.hospital_employee_id`.** Matrícula is a
-property of the *employment*, not the person. ⚠ `home_organization_id` is **untouched** — it is the
-tenancy anchor and the filter of every org-scoped read. `guard_profile_privileged_columns` was
+property of the *employment*, not the person. ⚠ **At AFF `home_organization_id` was untouched** —
+it was then the tenancy anchor and the filter of every org-scoped read, and this sentence existed to
+stop a reader inferring that the third `home_*` column went with the other two. **It has since gone
+the same way**: dropped at AE2 (`20261003006500`), its roster role taken by
+`organization_affiliations`. The AFF-era claim is kept because the *distinction it drew* still holds
+— employment-vs-person is why `home_hospital_id` and `hospital_employee_id` left first.
+`guard_profile_privileged_columns` was
 rewritten in the **same** migration (plpgsql is late-bound: the DROP succeeds and then every later
 `profiles` UPDATE fails 42703 at runtime) and `cpf` joined its service-role-locked identity set.
 
@@ -5134,7 +5265,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `list_my_action_items(commission)` → jsonb | **DEFINER** | Self-scoped (`assigned_to = auth.uid()`) union of the caller's `case_action_items` (flag `cases_extras`) + `meeting_action_items` (flag `meetings`) for one commission; ALL statuses; a flag-OFF source is OMITTED (no error); joins parent case/meeting for PHI-FREE label cols + `created_by` name; default order due_date asc nulls last, created_at desc. No audit row (own items). |
 | `get_member_overview(commission)` → jsonb | **DEFINER** | Self-scoped "Visão Geral": 5 counts + 2 hints in one round-trip — cases-not-concluded (PERSONAL rule; attribution counts regardless of a `case_access_grants` grant — the grant leg is always evaluated now the `case_access` flag is retired), pending action items (+overdue), meetings-not-concluded (attendee-scoped, +next start), pending signatures (mirrors `my_pending_meeting_signatures`), own `in_progress` responses. Flag-dependent counts → 0/null when off (never raise). No audit row (own aggregates). |
 | **Layout batch — coordinator "add existing member" (migration `20260705000000`):** | | |
-| `list_addable_commission_members(commission, search?)` → table(user_id, full_name, email) | **DEFINER** | Coordinator-gated (`is_staff_admin_of(commission)` OR `is_org_admin_of_commission(commission)`; anyone else → empty set, never an org-roster leak). Returns ACTIVE profiles anchored to the commission's ORGANIZATION (`home_organization_id`) who are NOT already members, excluding platform (vendor) `is_admin` accounts; optional `search` ILIKEs name/email; ordered name-then-email, `limit 500`. The ONLY path a staff_admin reads the org roster (no blanket `profiles` SELECT under RLS) — minimum-necessary + DB-side gated. The invite-brand-new-user-by-email path was removed from the coordinator flow (new people are registered by an org_admin via `registerUser`). Grants: `authenticated` + `service_role`; owner `postgres`. |
+| `list_addable_commission_members(commission, search?)` → table(user_id, full_name, email) | **DEFINER** | Coordinator-gated (`is_staff_admin_of(commission)` OR `is_org_admin_of_commission(commission)`; anyone else → empty set, never an org-roster leak). Returns ACTIVE profiles anchored to the commission's ORGANIZATION who are NOT already members, excluding platform (vendor) `is_admin` accounts. ⚠ **The anchor was `pr.home_organization_id = v_org_id` until AE2.2; it is now an `exists` on `organization_affiliations` with `ended_on is null AND voided_at is null`** — the old form carried **no affiliation filter of any kind** and so listed a fully offboarded person as addable. ⛔ **ACTIVE here, deliberately unlike `app.person_known_to_org`'s non-voided**: an ended row retains administrative authority (ADR 0163) but never membership eligibility (bound 3); optional `search` ILIKEs name/email; ordered name-then-email, `limit 500`. The ONLY path a staff_admin reads the org roster (no blanket `profiles` SELECT under RLS) — minimum-necessary + DB-side gated. The invite-brand-new-user-by-email path was removed from the coordinator flow (new people are registered by an org_admin via `registerUser`). Grants: `authenticated` + `service_role`; owner `postgres`. |
 
 | **Phase 15 — quality indicators (all gate `quality_indicators`; all **DEFINER**; ADR 0057/0058):** | | |
 | `create_indicator` / `update_indicator` / `archive_indicator` | **DEFINER** | Authoring gate `is_staff_admin_of OR is_tenancy_admin_of` (RLS posture-(b): no direct write); per-commission `IND-%04d` mint; `derived_config` validated à la `version_has_option_code`; **manual `taxa` allowed**. → **HC084** (config)/**HC085** (is-manual)/**HC086** (is-derived). |
@@ -5659,8 +5790,10 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
   (`listOrgUsers(orgId, search, {page,pageSize})` → `{rows,total}` with derived status +
   committee count + home hospital; `getOrgUser(userId)` → profile + `credentials[]` +
   `committees[]` w/ role; `listProfessionalCategories()` — all RLS-scoped cookie client, the
-  `profiles` `is_org_admin_of(home_organization_id)` SELECT path admits a committee-less pending
-  user). Actions `src/lib/users/actions.ts` (**service-role**, each `app.is_org_admin_of()`-gated
+  `profiles` SELECT path admits a committee-less pending user — ⚠ **that path was
+  `is_org_admin_of(home_organization_id)` until AE2.2, which re-predicated it onto
+  `organization_affiliations`; re-derive the current legs from `pg_policies`, not from here**).
+  Actions `src/lib/users/actions.ts` (**service-role**, each `app.is_org_admin_of()`-gated
   BEFORE any write — the platform_admin is NOT admitted): `registerUser` (atomic invite +
   profile/credential/committee write, **email-collision block**, never swallows a write failure),
   `updateUserProfile`, `upsertCredential` (edit clears `verified_at`), `removeCredential`,
@@ -5672,11 +5805,19 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
   folded into every membership SD-helper** (deactivation/suspension enforce platform-wide via RLS;
   NOT into `app.is_admin*` — vendor must not be lockable). **`signIn` gate + `getSessionContext`
   `isInactive` → `/conta-inativa`** (loop-free; the residual ADR-0009 ≤~1h self-data window is
-  accepted). **Anchor invariant:** deferred `profiles_tenant_has_org_trg` (non-admin ⇒
+  accepted). ⛔ **Anchor invariant — RETIRED AT AE2, and the mechanism is worth keeping because its
+  replacement inverts it.** It read: *"deferred `profiles_tenant_has_org_trg` (non-admin ⇒
   `home_organization_id` set), populated via invite `user_metadata` (service-role-set-once, NOT
-  authz); org-less vendor via `bootstrap_admin` (`app_metadata`). The shared `resolveOrInviteUser`
-  (`src/lib/members/invite.ts`) now takes a **required** `homeOrganizationId` (BUG-UREG-003) — every
-  new-invite caller (`inviteStaff`, assign-staff_admin, `assignOrgAdmin`) threads the target org.
+  authz); org-less vendor via `bootstrap_admin` (`app_metadata`)."* The trigger is **dropped**
+  (`…005600`), `user_metadata` now seeds **`full_name` only**, and the invariant is no longer a
+  *column-presence* CHECK at all — anchoring is an `organization_affiliations` row written by the
+  **creation door**, and the "must be anchored" rule survives only as ADR 0166's `HC0RB` demotion
+  backstop (see the AE2 section). ⚠ The vendor carve-out **inverted**: `bootstrap_admin` no longer
+  needs one, because `app.person_is_anchorless` deliberately has no `is_admin` arm. The shared
+  `resolveOrInviteUser` (`src/lib/members/invite.ts`) took a **required** `homeOrganizationId`
+  (BUG-UREG-003); the parameter still exists and is still threaded by every new-invite caller
+  (`inviteStaff`, assign-staff_admin, `assignOrgAdmin`), but it is renamed **`organizationId`** and
+  is used **only** by the tenant check — it is no longer written anywhere.
   **PROD DEPLOY DEPENDENCY (Phase 9):** the pt-BR `token_hash` invite + recovery email templates
   (`supabase/templates/{invite,recovery}.html`, wired via `config.toml [auth.email.template.*]`) are
   NOT applied to Supabase Cloud — upload them to Dashboard → Auth → Email Templates (keeping the
@@ -5754,7 +5895,7 @@ Architecture Rule 11). ·
 0039 **patient identity & cross-committee linkage** (Phase 23; extends Rules 11/12 — a non-identifying HMAC `patient_key`/`encounter_key` derived by **always-on** BEFORE/AFTER triggers on all three PHI tables [`event_patient`/`referral_patient`/`case_patient`], conservative normalization, `extensions.hmac` + pepper in locked-down **`app.app_secrets`** [not Vault/GUC — both infeasible on Supabase; hard-fail if absent]; QPS-only key-only **`patient_xref`** [REVOKE authenticated, `is_pqs_member` SELECT, partial indexes]; DEFINER doors `search_patient_xref`/`get_patient_trajectory_for_entity`/`patient_access_audit`/`patient_xref_count`/`patient_index_enabled` [flag-asserted, PQS- or `can_read_referral_phi`-gated, PHI-free]; `patient.searched`/`patient.viewed` audit on the GLOBAL chain via `audit_write` [key-only, never raw MRN; `patient_key_to_uuid` for the NOT-NULL `entity_id`]; additive referral key transmission + count-only hint; disposal retain-marked-disposed via `app.phi_dispose_reason` GUC, referrals cascade-only [`dispose_referral_phi` follow-up]; helpers `normalize_identifier`/`derive_patient_key`/`backfill_patient_keys` [repair-tool]; flag `patient_index` OFF gates RPCs+UI only). ·
 0041 **multi-tenancy** (organizations → hospitals above commissions; pooled single-DB + silo-by-exception; vendor `platform_admin` provisioning-only/walled-off vs customer `org_admin`; org membership a live DB read not a JWT claim; the ~60 `is_admin` tenant/PHI OR-terms → `is_org_admin_of_commission` with `is_admin` surviving only on the platform-management surface; `commission_overview` + 6 dashboard DEFINER RPCs re-scoped; commission slug uniqueness global → per-org; **audit 3-tier** platform/org/commission hash chains; routes `/c/[slug]` → `/o/[org]/c/[commission]`; **§Implementation amendments** — the global-PQS/QPS roster goes inert in multi-org [`is_multi_org()` at the `is_pqs_member` chokepoint] making the entire NSP + referral PHI surface absent until **NSP-per-org** ships; `platform_admin` claim never an authorization grant [commission-shell wall + service-role escalation fixes]; `is_org_member` lets a member read their own org row). ·
 0047 **ad-hoc case narratives** (coordinator adds a narrative to an OPEN case via DEFINER `add_ad_hoc_narrative` + `case_narratives.is_ad_hoc`, mirroring `add_ad_hoc_phase`; type from the vocabulary or atomic inline create-or-reuse [un-archives]; **partially reverses 0032 D7's** "no per-case add" for open cases only [remove/reorder stay template-authored]; gated by the existing `case_narratives` flag; HC020/HC021/HC054). ·
-0048 **user registration & identity** (`org_admin` registers per-org, vendor stays isolated; combined verify+activate reusing invite→`/auth/confirm`→`/convite`; status DERIVED via `deriveUserStatus` [`email_confirmed_at`+`is_active`+`suspended_until`, parity-tested SQL↔TS]; **`app.is_active()` folded into every membership SD-helper** [EXCLUDING `is_admin*`] + `signIn` gate + `getSessionContext.isInactive`→`/conta-inativa` [loop-free; ADR-0009 residual accepted]; `professional_credentials` [multi, global-unique] + `professional_categories` lookup; **`home_organization_id` anchor via a DEFERRED constraint trigger** [not a CHECK — breaks the multi-step `handle_new_user` insert], populated by invite `user_metadata` [NOT authz], vendor org-less via `bootstrap_admin`/`app_metadata`; nullable descriptive `home_hospital_id`+matrícula; 0..N committees w/ per-committee role; **email collision blocked**; no `date_of_birth` [LGPD]; widened `guard_profile_privileged_columns` self-mutation lock; **BUG-UREG-002** `token_hash` pt-BR invite+recovery templates [**Phase-9 prod dep:** upload to Dashboard email templates + SMTP]; **BUG-UREG-003** shared `resolveOrInviteUser` now requires `homeOrganizationId`; migration `20260702000000`). ·
+0048 **user registration & identity** (`org_admin` registers per-org, vendor stays isolated; combined verify+activate reusing invite→`/auth/confirm`→`/convite`; status DERIVED via `deriveUserStatus` [`email_confirmed_at`+`is_active`+`suspended_until`, parity-tested SQL↔TS]; **`app.is_active()` folded into every membership SD-helper** [EXCLUDING `is_admin*`] + `signIn` gate + `getSessionContext.isInactive`→`/conta-inativa` [loop-free; ADR-0009 residual accepted]; `professional_credentials` [multi, global-unique] + `professional_categories` lookup; **`home_organization_id` anchor via a DEFERRED constraint trigger** [not a CHECK — breaks the multi-step `handle_new_user` insert], populated by invite `user_metadata` [NOT authz], vendor org-less via `bootstrap_admin`/`app_metadata` — ⛔ **all three of those are GONE as of AE2 (0163–0168): column dropped, trigger dropped, `user_metadata` seeds `full_name` only, and the vendor carve-out is unnecessary because `app.person_is_anchorless` has no `is_admin` arm; this entry records what 0048 DECIDED, not the current surface**; nullable descriptive `home_hospital_id`+matrícula [also dropped, at AFF]; 0..N committees w/ per-committee role; **email collision blocked**; no `date_of_birth` [LGPD]; widened `guard_profile_privileged_columns` self-mutation lock; **BUG-UREG-002** `token_hash` pt-BR invite+recovery templates [**Phase-9 prod dep:** upload to Dashboard email templates + SMTP]; **BUG-UREG-003** shared `resolveOrInviteUser` now requires `homeOrganizationId`; migration `20260702000000`). ·
 0050 **action-items fold + `visibility_scope` + case-access expiry** (fold `case_action_items` into the shared hub as `source_type='case'`; scope-aware read via `app.can_read_action_item` on the hub + 2 satellites; guard force-restricts case rows [coordinator override on meeting/manual cross-links via the RPC]; ADR-0033-D4 write-grantee preserved; `case_access` grant `expires_at`+`reason` filtered across all 6 consulters incl. the referral-PHI arm [Rule 12]; drops the old case table + 4 RPCs; **BUG-AIF-001** — pre-existing prod-build layout-scope revalidation, diagnosed + deferred to a systemic task). ·
 0076 **notifications pilot scope (S1·N)** (in-app centre for CAPA + sign-off + meeting, actionable-to-me, event- **and** time-driven, reminder-only, in-app only — email/escalation/other-scan-arms deferred; kind-agnostic engine + schema so deferred items are additive; `notifications`/`notification_preferences` own-row RLS with a **DEFINER-only write door** `app.enqueue_notification` [no authenticated INSERT — BUG-SUP-002 posture]; idempotent `(user_id, dedup_key)`; `compute_due_notifications` DEFINER scan [service_role-only, pg_cron at deploy]; auto-resolve reminders on task completion [assignments persist]; **PHI-free bodies by construction — config-level snapshots only, Rule 12**; sits OUTSIDE the Rule-11 audit trail [own-data]; **HC0C0**/**HC0C1**; flag `notifications` [21st]; **BUG-N-001** non-PQS assignee gets the static `/conta/itens-de-acao` page + `list_my_assigned_capa_actions`; **BUG-N-002** `listNotifications`/`getUnreadCount` filter `resolved_at IS NULL`).
 

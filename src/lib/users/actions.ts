@@ -596,8 +596,15 @@ function revalidateDirectory(): void {
  *     trigger propagates email_confirmed_at → status `active`).
  *   - ON — the historical `inviteUserByEmail` path (user sets their own password
  *     via the emailed link).
- * Both paths seed `full_name` + `home_organization_id` in user_metadata, which
- * `handle_new_user` reads identically to anchor the profile at creation.
+ * Both paths seed `full_name` in user_metadata, which `handle_new_user` reads
+ * identically on either path.
+ *
+ * ⚠ This said `full_name` + `home_organization_id` until the AE2 drop, and the metadata
+ * key was removed at `:745` in the SAME increment — leaving this sentence contradicting the
+ * code twenty lines below it. Caught in review, not by a gate: a doc comment describing a
+ * removed write is invisible to typecheck, lint and every test. The profile's organisation
+ * now comes from the creation door (`affiliate_new_person_to_org_for`), not from an anchor
+ * copied out of metadata at signup.
  */
 export async function registerUser(
   input: RegisterUserInput,
@@ -824,8 +831,8 @@ export async function registerUser(
   // takes no date and defaults to today.
   //
   // ⭐ ADR 0168 Amdt 1/2 — THE **CREATION** DOOR (see `ensureActiveAffiliation` for the
-  // full reasoning). Once `home_organization_id` is dropped, a just-created person and an
-  // orphan are the SAME DB STATE, so no predicate over state can tell them apart; the
+  // full reasoning). Now that `home_organization_id` is DROPPED, a just-created person and
+  // an orphan ARE the same DB state, so no predicate over state can tell them apart; the
   // door's ACL is the discriminator, and this one is `service_role`-only.
   if (isOrgAdminCaller) {
     const { error: orgAffiliationError } = await admin.rpc('affiliate_new_person_to_org_for', {
@@ -879,9 +886,15 @@ export async function registerUser(
 
   // THE PROFILE PATCH — now `finalize_invited_person_for`, and it runs HERE, after the
   // affiliations, for the reason stated at the top of this block. Column list unchanged
-  // from the `.update({…})` it replaces. ⛔ `home_organization_id` is deliberately NOT in
-  // it: it is seeded by `handle_new_user` from user metadata, and the door has no business
-  // rewriting a person's tenancy anchor.
+  // from the `.update({…})` it replaces.
+  //
+  // ⚠ THIS PARAGRAPH USED TO EXPLAIN WHY `home_organization_id` WAS EXCLUDED FROM THE COLUMN
+  // LIST ("seeded by `handle_new_user`… the door has no business rewriting a person's tenancy
+  // anchor"). The column is GONE (AE2 drop), so the exclusion is now vacuous — but the RULE
+  // behind it is not, and it is the half worth keeping: **this door writes person-level profile
+  // fields and must never write tenancy.** That is now asserted rather than explained —
+  // pgTAP `385 § 4.3` derives from `pg_proc` that `app.finalize_invited_person_impl` does not
+  // name `organization_affiliations` at all.
   //
   // ⚠ CORRECTED IN AE2.4 INCREMENT 3. This comment used to say the omission was because
   // writing the column "would fire the deferred constraint trigger

@@ -3296,7 +3296,18 @@ narrowed the hunt to the two real exceptions.
   `plan(41)`/`plan(49)` exactly, then run on the new files. Assertion-delta equals plan-delta in all
   39 touched files.
 
-### ⚠ Two coverage losses the sweep declared rather than papered over — LEAD RULING OWED
+### ✅ Two coverage losses the sweep declared — BOTH RESTORED (ruling taken, then acted on)
+
+⚠ This heading read **"LEAD RULING OWED"** until QA r3 pointed out it was stale — the ruling was
+taken and both cells restored the same day, but the heading was never updated, so the record
+understated its own coverage. ⭐ **A record that is wrong in the CONSERVATIVE direction is still
+wrong**, and it is the harder kind to catch: nobody re-checks a claim that something is missing.
+
+- `385 § 4.3` → restored at `385:385-389` as a comment-stripped `prosrc` assertion that
+  `app.finalize_invited_person_impl` does **not** name `organization_affiliations`.
+- `180` vendor existence → restored at `180:110-119`, with a `MISSING` sentinel and an
+  `|affiliations=0` half so it fails closed in **both** directions.
+
 
 1. ⛔ **`385` cell 4.3 deleted = a REAL loss, not a tidy-up.** It asserted `finalize_invited_person_for`
    leaves the column UNTOUCHED. **Nothing now asserts that door abstains from re-anchoring a person.**
