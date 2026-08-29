@@ -6,6 +6,40 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
+### 🟡 FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT — 70 of 108 OPEN index lines are paragraphs, and the two rules governing them are in tension (owner: lead)
+
+> Filed 2026-08-29 at the Record step, from a size warning that could not be discharged by
+> rotating concluded material — because nothing concluded was left.
+>
+> **Measured** (`PROGRESS.md`, 2026-08-29, re-derive rather than quote): **108** OPEN index
+> lines holding **53,419 bytes** — mean **494**, median **512**, max **1,699**. **70** exceed
+> 400 bytes, and those 70 alone carry **~15.5 KB** above a 400-byte form. The file is **88,209**
+> bytes against an **81,920** target (hard cap 102,400), so the surplus is entirely inside a
+> population that rotation cannot touch.
+>
+> ⛔ **THE TENSION, STATED PLAINLY.** The lead-playbook §5 says PROGRESS.md carries a *"one-line
+> index only (severity · id · title · owner)"*. It ALSO says *"NEVER compress or drop an OPEN
+> index line at any file size"*. Most lines have drifted into the first rule's violation, and the
+> second rule forbids the obvious remedy. Both rules are right: the second exists because
+> compressing under cap pressure cuts qualifiers first, and the qualifier is the half that
+> carries the bound.
+>
+> ⭐ **The resolution is DE-DUPLICATION, which is not compression.** Where an index line's detail
+> is *already in its body*, moving it out loses nothing — the body is where the contract puts
+> detail. Three lines were done this way at this Record step (`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED`,
+> `FUP-E2E-ABSENT-ROW-ASSERTIONS`, `FUP-AE2-CATALOG-SUPERSET-OF-CHAIN`), recovering **4,214 bytes**
+> with every fact verified present in the body first.
+>
+> ⛔ **AND THAT VERIFICATION IS THE WORK — it cannot be skipped or batched.** On those same three,
+> a first pass flagged two facts as missing from the body; both were false alarms from a
+> case-sensitive matcher. ⚠ Had the check been trusted in the other direction — assumed present
+> without looking — a bound would have been deleted from the only place it existed. So: **70
+> items × one verification each**, not a regex sweep.
+>
+> **Owed:** a dedicated pass (not a Record-step side effect), item by item, cutting from the index
+> ONLY what the body demonstrably carries. ⚠ A line whose detail exists NOWHERE else is not a
+> candidate — it is a body that was never written, and the fix there is to write the body.
+
 ### 🟡 FUP-AE2-PERSON-PREAMBLE-THREE-COPIES — the person-authorization preamble exists in three independent TS copies, and that duplication is the mechanism behind this phase's recurring sibling-axis misses (owner: backend)
 
 > Filed 2026-08-28 at AE2.4 increment 3, on the lead's ruling that assigned the third and
