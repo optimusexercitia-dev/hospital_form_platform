@@ -6217,7 +6217,13 @@ them.**
 itself a claim that needs measuring* — and it is the one kind of register error that a reader of the
 register cannot detect, because the register is what they would check.
 
-### 🔴 FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED — the mandated per-phase sweep has a FOUR-part hole: the deriver names ONE arm for a TWO-arm list; arm 2 reports success at exit 0 having measured nothing; 9 policies fall outside both arms; and a killed run leaves an RLS policy WIDE OPEN with nothing reporting it (owner: backend/lead; filed 2026-08-27 by `backend`, all four measured during AE1.5)
+### 🟠 FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED — the mandated per-phase sweep had a FOUR-part hole: the deriver names ONE arm for a TWO-arm list; arm 2 reports success at exit 0 having measured nothing; 9 policies fall outside both arms; and a killed run leaves an RLS policy WIDE OPEN with nothing reporting it (owner: backend/lead; filed 2026-08-27 by `backend`, all four measured during AE1.5)
+
+> ⭕ **DOWNGRADED 🔴→🟠 2026-08-29 — all four instrument defects FIXED, each fix PROVEN able
+> to fire. See § REPAIR at the end of this item.** ⛔ **Deliberately not closed:** Parts 1–4
+> were about the apparatus *lying about its own domain*; the nine write policies outside the
+> embedded worklist are still **unswept**. The harness now says so out loud, and being told
+> is not being covered — that is precisely the distinction this item exists to defend.
 
 > ## PART 1 — the deriver names one arm for a two-arm list
 >
@@ -6353,6 +6359,78 @@ register cannot detect, because the register is what they would check.
 > ⚠ **Operational note for whoever maintains the worklist:** it embeds exact predicate text, so
 > **any** future predicate rewrite — even a provably identity one — drifts it. Regenerate those
 > rows **from the live catalog**, never by hand.
+>
+> ---
+>
+> ## § REPAIR 2026-08-29 — all four parts, each proven able to fire
+>
+> ⛔ **Every claim below was measured, not inspected.** A repair to a detector that is only read
+> is the same class of artefact as the defect it repairs.
+>
+> **PART 1 — the arm split (`scripts/door-sweep-cases.sh`, "ruling 4").** The deriver now
+> classifies each case by POLICY COMMAND and prints **both** paste-able commands:
+> `FOR SELECT` → read arm · `INSERT/UPDATE/DELETE` → write arm · `FOR ALL` or no `FOR` → **both**
+> (an ALL policy genuinely IS in both domains — correct, not merely conservative).
+> ⭐ **An `ALTER POLICY` does not carry its command in the diff text**, and without help the split
+> degenerated to everything-in-both: measured 52/52 on AE1.5, doubling the sweep. `ALTER` cannot
+> change a policy's command, so it is resolved from **`pg_policies`** — the one catalog read in a
+> script that otherwise derives selection from diff text, legitimate under its own stated rule
+> (selection from the diff, CLAIMS from the catalog). It is **optional**: no DB reachable → fall
+> back to both arms, announced. ⚠ For a HISTORICAL range the catalog describes HEAD, which is
+> stated in the output rather than assumed away.
+> ✅ **Cross-check that makes this more than a plausible refactor:** re-run on AE1.5's own
+> migration it derives **read 30 / write 27** with **5 in both**. This item independently measured
+> **30** read and **22** that matched no read gate. 25 read-only + 22 write-only + 5 both = 52. ✓
+> ⛔ **Stated bound: a RAISE-GUARD the phase touched is in NEITHER derived list** — the function
+> filter demands `returns boolean` and the write harness's arm 1 is value-returning. The split
+> stops the recipe being aimed at one half; it does not make the derivation complete, and the
+> output now says so.
+> ⚠ STDOUT is unchanged by default (the union), so every existing `CASES=$(...)` caller keeps
+> working; `ARM=read` / `ARM=write` is the documented key this item asked for.
+>
+> **PARTS 2 + 3 — the write harness's accounting.** Ported from the sibling, not re-invented (as
+> this item requires): the §7.17 domain gate, the `REQUESTED CASES THAT MATCHED NO GATE` block
+> with a per-token catalog diagnostic, the ARM-DOMAIN line, an explicit **COVERED count** in place
+> of `(COVERED = the rest)`, and **an exit code where the file previously just ended on an echo**.
+> The worklist is now materialised **before** the preflight so an UNPROVEN run costs seconds
+> instead of a full suite run.
+> ✅ **All four exit paths proven, on the live stack:**
+> - `CASES="answers_insert_targeted case_events_writer_delete"` (two of this item's own nine) →
+>   **exit 3**, both named, each diagnosed from the catalog as `POLICY public.<t> FOR INSERT|DELETE`.
+>   ⭐ **The same input previously exited 0 and mentioned neither.**
+> - one real case + one unmatched → **exit 3 UNPROVEN (PARTIAL)**, `SWEPT: 1 COVERED: 1`.
+> - one real COVERED case alone → **exit 0 CLEAN**.
+> - a known-BLIND policy (`notifications_update_own`) → **exit 1 DIRTY**, reproducing its
+>   committed verdict.
+>
+> **PART 4 — kill safety, in BOTH harnesses.** ⛔ Ported to the door-audit sibling too: this item
+> names both, and repairing one of two reads as repairing the class.
+> Two layers, because neither alone suffices: (i) `INT`/`TERM`/`HUP` traps, covering Ctrl-C and an
+> ordinary `kill`; (ii) a **crash sentinel** holding the restore SQL, written before each gate
+> opens and removed only once its restore verifies — it survives SIGKILL, a power cut and a killed
+> container, which no trap does. The next run **REFUSES to start (exit 2)** and prints the SQL;
+> `RECOVER=1` applies it.
+> ⚠ **The sentinel path is FIXED and deliberately NOT under `$WORK`** — the recipe hands out a
+> fresh `WORK=…/authz-audit-$(date +%s)` per run, so a `$WORK`-relative sentinel would be invisible
+> to the very next run and the check would pass **vacuously**.
+> ⛔ **A defect found in this repair, by its own author, before it shipped:** the first version
+> cleared the sentinel in the `INFLIGHT=""` **initializer**, which runs *before* the startup check
+> — a control deleting its own witness. The sentinel is now dropped at exactly one kind of moment:
+> after a restore has been applied.
+> ✅ **Proven end-to-end without killing anything** (the standing rule forbids it and it was not
+> necessary): a real run was polled and the sentinel **observed mid-run** holding the actual
+> restore SQL, then **gone after a clean exit**. Then a policy was genuinely opened to `true` with
+> a matching sentinel — the next run **ABORTed exit 2** naming it, `RECOVER=1` **restored** it, and
+> the catalog was re-read to confirm: predicate back, `degenerate_NON_SELECT` = **0**.
+> ⚠ Verified with this repo's own discriminator, not a count: 10 policies are `qual = true` BY
+> DESIGN, so "is it zero?" returns 11 and walks past an open gate.
+>
+> **Record updated with it:** `.claude/rules/mutation-harnesses-are-not-killable.md` — its
+> mechanism sentence ("restores gates from an EXIT trap") had gone false, and no gate can catch a
+> rule whose claim goes false. ⚠ It was 2038 bytes against a 2048 cap, so this was a rewrite; the
+> volume gate red twice during it. Every qualifier was preserved — the enumerate-never-count
+> discriminator, the ~10-by-design figure, "verify, the message is not proof", and the DB-silence
+> section — because compressing a record to fit a cap selects against exactly those.
 
 ### 🟡 FUP-AE1-UNREACHABLE-PUBLIC-DOORS — 11 `public` DEFINER doors `authenticated` can call that nothing in `src/` calls, + 3 no instrument references, + 15 comment-only (owner: backend/PO)
 

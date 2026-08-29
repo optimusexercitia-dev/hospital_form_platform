@@ -34,6 +34,18 @@
 #   BASE=<ref> TIP=<ref> bash scripts/door-sweep-cases.sh   # audit a historical range
 #
 #   CASES="$(bash scripts/door-sweep-cases.sh "$BASE")" || <handle the exit code>
+#   ARM=read  bash scripts/door-sweep-cases.sh <base>   # stdout = the READ arm's list only
+#   ARM=write bash scripts/door-sweep-cases.sh <base>   # stdout = the WRITE arm's list only
+#
+# ⛔ RULING 4 (2026-08-29, FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 1) — THE DERIVATION
+#   SPANS TWO HARNESSES AND THIS SCRIPT USED TO NAME ONLY ONE. It greps `create policy` /
+#   `alter policy` without regard to COMMAND, so the list covers the read harness
+#   (SELECT/ALL) AND the write harness (INSERT/UPDATE/DELETE) — but the paste-able command
+#   printed at the end named only p0-authz-door-audit.sh. An operator following this
+#   script's own output swept the read half; the write half went unmeasured. Measured on
+#   AE1.5: 53 cases derived, 22 matched no gate in the read harness — precisely the
+#   non-SELECT policies. BOTH commands are printed now, each with its own arm's subset.
+#   ⚠ STDOUT is unchanged by default (the union), so existing callers keep working.
 #
 # ⚠ STDOUT is the case list and NOTHING else — a bare, space-separated token list, so
 #   `CASES=$(...)` composes. Every heading, warning and finding goes to STDERR. The
@@ -88,6 +100,14 @@ cd "$ROOT" || { echo "FATAL: cannot cd to repo root: $ROOT" >&2; exit 2; }
 # script to watch the domain lift ABORT and ruling 3's check announce that it did not run.
 # ⛔ Never set it for a real derivation: it is the source of truth for the arm's domain.
 AUDIT="${AUDIT_SRC:-supabase/tests/mutation/p0-authz-door-audit.sh}"
+# The WRITE-layer half of the same gate (ruling 4). The derivation spans both harnesses;
+# naming only the read one is what made this script half-aimed for as long as it existed.
+WRITE_AUDIT="${WRITE_AUDIT_SRC:-supabase/tests/mutation/p0-authz-writepath-audit.sh}"
+ARM="${ARM:-}"        # '', read, or write — narrows STDOUT only (see ruling 4)
+# ⚠ `say` is defined below this line, so this validation uses echo directly rather than
+# looking like it works and silently invoking a not-yet-defined function.
+case "$ARM" in ''|read|write) ;; *)
+  echo "FATAL: ARM must be unset, 'read' or 'write' (got: $ARM)" >&2; exit 2;; esac
 MIGDIR="supabase/migrations"
 FINDINGS=""   # resolved out of $AUDIT below, never hardcoded here
 
@@ -301,11 +321,117 @@ comm -23 "$TMP/fn_excl" <(cat "$TMP/fn_sel_name" "$TMP/fn_sel_prop" | sort -u) >
 mv "$TMP/fn_excl.f" "$TMP/fn_excl"
 
 # ─────────────────────────────────────────────────────────────────────────────────────
-# 5. THE CASE LIST.
+# 5. THE CASE LIST — AND RULING 4 (2026-08-29): THE ARM SPLIT.
+#
+# ⛔ WHY. FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 1, measured 2026-08-27: this script
+# greps `create policy` / `alter policy` WITHOUT REGARD TO COMMAND, so its case list spans
+# BOTH harnesses — but the paste-able command it printed named only the READ one
+# (p0-authz-door-audit.sh). An operator following this script's own output swept the read
+# half and left the write half unmeasured. On AE1.5's 53 derived cases, 22 matched no gate
+# in the read harness: exactly the non-SELECT policies. The clause census of its 52 —
+# 31 `USING`-only, 8 `WITH CHECK`-only, 13 both — is where the 30/22 split comes from.
+#
+# ⚠ It survived because the READ harness reports unmatched cases and refuses to end CLEAN
+# (exit 3). A phase whose migration happened to alter only SELECT policies would derive a
+# fully-matching list and never learn the recipe is half-aimed.
+#
+# ── THE SPLIT RULE, and it is the POLICY COMMAND, not a name ─────────────────────────
+#   FOR SELECT                      -> read arm
+#   FOR INSERT | UPDATE | DELETE    -> write arm
+#   FOR ALL, or no FOR clause       -> BOTH (Postgres defaults a policy to ALL, and an
+#                                     ALL policy genuinely IS in both domains — this is
+#                                     correct, not merely conservative)
+#   ALTER POLICY                    -> BOTH. `ALTER POLICY` cannot change a policy's
+#                                     command, so the command is simply not in the diff
+#                                     text. Assigning it to both errs toward
+#                                     over-selection, which is this script's stated
+#                                     asymmetry: over-selection costs ~1 min of sweep,
+#                                     under-selection is a gate nobody looked at.
+#   FUNCTIONS                       -> read arm. The function filter demands
+#                                     `returns boolean`, and the write harness's arm 1 is
+#                                     value-returning RAISE-GUARDS, which that filter
+#                                     cannot select. ⛔ So a raise-guard this phase
+#                                     touched is in NEITHER derived list — say it out
+#                                     loud rather than let the split imply completeness.
+#
+# ⚠ STDOUT IS UNCHANGED: still the bare, space-separated UNION, so every existing
+# `CASES=$(...)` caller keeps working. The per-arm lists go to stderr WITH their own
+# paste-able command. `ARM=read` / `ARM=write` narrows stdout for scripted use — the
+# FUP's "separate invocations or a documented key, not two lists concatenated into one".
 # ─────────────────────────────────────────────────────────────────────────────────────
 cat <(cut -f1 "$TMP/pol_create") <(cut -f1 "$TMP/pol_alter") "$TMP/fn_sel_name" "$TMP/fn_sel_prop" \
   | awk 'NF' | sort -u > "$TMP/cases"
 CASES_LIST="$(tr '\n' ' ' < "$TMP/cases" | sed 's/ *$//')"
+
+# Per-statement command extraction. $TMP/flat is already comment-stripped and newline-
+# folded, so splitting on ';' yields one statement per record.
+awk 'BEGIN{RS=";"}
+  {
+    s = tolower($0); gsub(/[ \t]+/, " ", s)
+    if (s !~ /create policy/) next
+    if (!match(s, /create policy "?[a-z0-9_]+"?/)) next
+    nm = substr(s, RSTART, RLENGTH); sub(/create policy /, "", nm); gsub(/"/, "", nm)
+    cmd = "ALL"                       # Postgres default when no FOR clause is present
+    if (match(s, / for (all|select|insert|update|delete)([ ,(]|$)/)) {
+      c = substr(s, RSTART, RLENGTH); gsub(/[ ,(]/, "", c); sub(/^for/, "", c)
+      cmd = toupper(c)
+    }
+    print nm "\t" cmd
+  }' "$TMP/flat" | sort -u > "$TMP/pol_cmd"
+
+# ── RESOLVING AN `ALTER POLICY`'S COMMAND FROM THE LIVE CATALOG ──────────────────────
+# ⛔ Without this the split degenerates: a re-predication phase alters policies and never
+# creates them, so EVERY case lands in "both" and the sweep doubles (measured on AE1.5:
+# 52/52 instead of the true 30/22). The command is knowable — `ALTER POLICY` cannot change
+# a policy's command, so the live catalog holds it.
+#
+# This is the ONE catalog read in a script that otherwise derives selection from diff text,
+# and it is legitimate under the same rule the header states: selection may come from the
+# diff, but a CLAIM about what a gate IS comes from the catalog. It is strictly OPTIONAL —
+# no DB, no failure, just the safe over-selection this replaces.
+# ⚠ For a HISTORICAL range the catalog describes HEAD, not that range. A policy dropped and
+# recreated under a different command since then would resolve wrongly; this is announced
+# rather than assumed, and the fallback is over-selection, never under-selection.
+DB="${DOOR_SWEEP_DB:-supabase_db_azkbbhskturikxpgmafq}"
+CATALOG_CMD=0
+if [ -s "$TMP/pol_alter" ] && command -v docker >/dev/null 2>&1 \
+   && docker exec "$DB" psql -U postgres -d postgres -tAc 'select 1' >/dev/null 2>&1; then
+  if docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off \
+       -c "select policyname||E'\t'||cmd from pg_policies;" 2>/dev/null \
+       | awk 'NF' | sort -u > "$TMP/pol_cmd_live" && [ -s "$TMP/pol_cmd_live" ]; then
+    CATALOG_CMD=1
+  fi
+fi
+
+: > "$TMP/cases_read"; : > "$TMP/cases_write"; : > "$TMP/cases_bothnote"
+while IFS= read -r nm; do
+  [ -n "$nm" ] || continue
+  # a function selected by this script is a boolean predicate -> read arm only
+  if grep -qxF "$nm" "$TMP/fn_sel_name" || grep -qxF "$nm" "$TMP/fn_sel_prop"; then
+    printf '%s\n' "$nm" >> "$TMP/cases_read"; continue
+  fi
+  c="$(awk -F'\t' -v n="$nm" '$1==n {print $2; exit}' "$TMP/pol_cmd")"
+  src="diff text"
+  if [ -z "$c" ] && [ "$CATALOG_CMD" = 1 ]; then
+    c="$(awk -F'\t' -v n="$nm" '$1==n {print toupper($2); exit}' "$TMP/pol_cmd_live")"
+    [ -n "$c" ] && src="live catalog"
+  fi
+  case "${c:-UNKNOWN}" in
+    SELECT)                 printf '%s\n' "$nm" >> "$TMP/cases_read" ;;
+    INSERT|UPDATE|DELETE)   printf '%s\n' "$nm" >> "$TMP/cases_write" ;;
+    ALL)  # genuinely in both domains — this is correct, not merely conservative
+        printf '%s\n' "$nm" >> "$TMP/cases_read"
+        printf '%s\n' "$nm" >> "$TMP/cases_write"
+        printf '%s\tALL (%s) — an ALL policy IS a read policy and a write policy\n' "$nm" "$src" >> "$TMP/cases_bothnote" ;;
+    *)  # command unresolved: over-select. ⛔ Never the reverse.
+        printf '%s\n' "$nm" >> "$TMP/cases_read"
+        printf '%s\n' "$nm" >> "$TMP/cases_write"
+        printf '%s\tUNRESOLVED — altered, and no live catalog to ask; sweeping BOTH arms\n' "$nm" >> "$TMP/cases_bothnote" ;;
+  esac
+done < "$TMP/cases"
+for x in cases_read cases_write; do sort -u "$TMP/$x" -o "$TMP/$x"; done
+CASES_READ="$(tr '\n' ' ' < "$TMP/cases_read" | sed 's/ *$//')"
+CASES_WRITE="$(tr '\n' ' ' < "$TMP/cases_write" | sed 's/ *$//')"
 
 show () {  # $1 = file (name<TAB>table or bare name), $2 = heading
   [ -s "$1" ] || return 0
@@ -410,11 +536,53 @@ NCASES="$(wc -l < "$TMP/cases" | tr -d ' ')"
 say "=== RESULT: DERIVED (0) — $NCASES case(s). This is a SELECTION, not a verdict. ==="
 [ "$STALE" -gt 0 ] && say "    ⚠ $STALE of them carry a STALE verdict in ${FINDINGS:-the findings file} (see ruling 3 above)."
 say
-say "    Run the diff-scoped sweep (~1 min per gate) with:"
+say "    ⛔ RULING 4 — THIS LIST SPANS TWO HARNESSES. Run BOTH; neither is the sweep."
+say "       read arm : $(wc -l < "$TMP/cases_read" | tr -d ' ') case(s)   write arm: $(wc -l < "$TMP/cases_write" | tr -d ' ') case(s)"
+if [ "$CATALOG_CMD" = 1 ]; then
+  say "       (an ALTERed policy's command was resolved from the LIVE CATALOG — ALTER cannot"
+  say "        change it. ⚠ For a historical range the catalog describes HEAD, not that range.)"
+elif [ -s "$TMP/pol_alter" ]; then
+  say "       ⚠ NO LIVE CATALOG REACHABLE (container '$DB'), so every ALTERed policy is sent"
+  say "         to BOTH arms. That is over-selection by design — ~1 min per extra gate, versus"
+  say "         a gate nobody looked at. Start the local stack to halve the sweep."
+fi
+if [ -s "$TMP/cases_bothnote" ]; then
+  say "       ⚠ IN BOTH (an ALL policy is genuinely in both domains; an ALTER does not"
+  say "         carry its command in the diff text, so it is sent to both deliberately):"
+  while IFS="$(printf '\t')" read -r n c; do [ -n "$n" ] && say "           - $n   [$c]"; done < "$TMP/cases_bothnote"
+fi
 say
-say "      WORK=\"\${TMPDIR:-/tmp}/authz-audit-\$(date +%s)\" \\"
-say "      CASES=\"$CASES_LIST\" \\"
-say "      bash $AUDIT"
+if [ -n "$CASES_READ" ]; then
+  say "    1of2 — READ layer (boolean predicates + SELECT/ALL policies), ~1 min per gate:"
+  say
+  say "      WORK=\"\${TMPDIR:-/tmp}/authz-audit-\$(date +%s)\" \\"
+  say "      CASES=\"$CASES_READ\" \\"
+  say "      bash $AUDIT"
+else
+  say "    1of2 — READ layer: NO CASES. ⛔ That is a claim to check, not a silence: it means"
+  say "         this migration created no SELECT/ALL policy and selected no boolean gate."
+fi
+say
+if [ -n "$CASES_WRITE" ]; then
+  say "    2of2 — WRITE layer (INSERT/UPDATE/DELETE policies + raise-guards), ~1 min per gate:"
+  say
+  say "      WORK=\"\${TMPDIR:-/tmp}/authz-audit-\$(date +%s)\" \\"
+  say "      CASES=\"$CASES_WRITE\" \\"
+  say "      bash $WRITE_AUDIT"
+  say
+  say "      ⚠ Its policy arm's domain is an EMBEDDED SNAPSHOT, not the live catalog, so a"
+  say "        real write policy can be OUTSIDE it. Since 2026-08-29 that is reported and"
+  say "        exits 3 UNPROVEN instead of being silently dropped at exit 0 — read the"
+  say "        code DIRECTLY (0 CLEAN / 1 DIRTY / 2 ABORT / 3 UNPROVEN), same as the read arm."
+else
+  say "    2of2 — WRITE layer: NO CASES. ⛔ Same standing: a claim to check, not a silence."
+fi
+say
+say "    ⛔ A RAISE-GUARD THIS PHASE TOUCHED IS IN NEITHER LIST. The function filter above"
+say "       demands 'returns boolean'; the write harness's arm 1 is VALUE-returning"
+say "       (assert_*_writable / assert_referral_*). If this migration touched one, name it"
+say "       in the write arm's CASES= by hand — the split does not make the derivation"
+say "       complete, it only stops it from being aimed at one half."
 say
 say "    ⚠ Two hazards that have both bitten, attached here so they travel with the command:"
 say "      1. A subset run has OVERWRITTEN the committed findings baseline with only its"
@@ -434,5 +602,9 @@ say "    ⚠ Read the sweep's exit code DIRECTLY: 0 CLEAN / 1 DIRTY / 2 ABORT / 
 say "      A pipe erases it. Quote the ARM-DOMAIN line, not just the verdict."
 rule
 
-printf '%s\n' "$CASES_LIST"
+case "$ARM" in
+  read)  printf '%s\n' "$CASES_READ" ;;
+  write) printf '%s\n' "$CASES_WRITE" ;;
+  *)     printf '%s\n' "$CASES_LIST" ;;   # default: the UNION, unchanged for old callers
+esac
 exit 0

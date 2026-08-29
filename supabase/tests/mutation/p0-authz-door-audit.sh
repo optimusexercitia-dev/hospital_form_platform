@@ -67,6 +67,11 @@ DB=supabase_db_azkbbhskturikxpgmafq
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK="${WORK:-${TMPDIR:-/tmp}/authz-audit}"
 PROGRESS="$WORK/progress.tsv"          # per-case log, written AS WE GO (§ mid-run kill)
+# ⛔ FIXED path, deliberately NOT under $WORK -- the recipe hands out a fresh
+# WORK=.../authz-audit-$(date +%s) per run, so a $WORK-relative sentinel is invisible to
+# the next run and its check would pass vacuously. Distinct filename from the write-path
+# sibling so the two harnesses never consume each other's evidence.
+SENTINEL="${AUTHZ_DOOR_SENTINEL:-${TMPDIR:-/tmp}/authz-door-INFLIGHT.sql}"
 RUNLOGS="$WORK/runlogs"                # full suite output per case, for forensics
 CASES="${CASES:-}"                     # optional subset filter
 FINDINGS_COMMITTED="$ROOT/docs/reviews/authz-door-audit-findings.md"
@@ -194,11 +199,13 @@ restore_inflight () {
   if [ -n "${INFLIGHT:-}" ] && [ -f "$INFLIGHT" ]; then
     echo "  (EXIT trap: restoring in-flight gate from $INFLIGHT)"
     psql_f "$INFLIGHT" >/dev/null 2>&1
+    rm -f "$SENTINEL" 2>/dev/null || true
   fi
 }
 # ⚠ compound: this REPLACES the baseline-guard trap installed above, so it must carry
 # that duty too, or a subset run loses its outcome check from here on.
 trap 'restore_inflight; verify_baseline_untouched || exit 2' EXIT
+trap 'echo; echo "*** SIGNAL — restoring the in-flight gate before exiting (Part 4)."; restore_inflight; exit 2' INT TERM HUP
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # The neutralizer — an ANONYMOUS `DO` block, baked per case (oid + newbody spliced in by
@@ -251,6 +258,43 @@ classify () {
 
 echo "=== P0 AUTHZ DOOR AUDIT — neutralize each gate, ask the WHOLE SUITE if anyone noticed ==="
 echo "Repo: $ROOT"
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ PART 4 (FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED) — THE CRASH-SENTINEL CHECK. Identical
+# mechanism to the write-path sibling, ported here because the FUP names BOTH harnesses:
+# they mutate live gates and restore from a trap, and a SIGKILL runs no trap at all.
+# Fixing one of two would read as fixing the class.
+#
+# Measured 2026-08-27: a killed run left an UPDATE policy at `qual=true wc=true`, open to
+# `authenticated`, with nothing anywhere reporting it. Refusing to start is the point --
+# sweeping on top of a contaminated catalog yields verdicts that look perfectly ordinary.
+# ─────────────────────────────────────────────────────────────────────────────────────
+if [ -s "$SENTINEL" ]; then
+  if [ "${RECOVER:-0}" = "1" ]; then
+    echo "--- RECOVER=1: applying the abandoned restore from $SENTINEL ---"
+    sed -n '1,40p' "$SENTINEL"
+    if psql_f "$SENTINEL"; then
+      mv -f "$SENTINEL" "$SENTINEL.recovered" 2>/dev/null || rm -f "$SENTINEL"
+      echo "*** RESTORE APPLIED. ⚠ VERIFY IT -- this message is not proof. Re-read the gate"
+      echo "    from the catalog; if in any doubt run 'supabase db reset'."
+      echo "    ⛔ Every verdict from the killed run is void: re-run the sweep from scratch."
+      exit 2
+    fi
+    echo "*** RESTORE FAILED. The gate is STILL OPEN. Run 'supabase db reset' now." >&2
+    exit 2
+  fi
+  echo "*** ABORT — A PREVIOUS RUN DIED WITH A GATE STILL OPEN." >&2
+  echo "    Sentinel: $SENTINEL   (it holds the SQL that restores it)" >&2
+  sed -n '1,12p' "$SENTINEL" | sed 's/^/      | /' >&2
+  echo "    Do ONE of:" >&2
+  echo "      RECOVER=1 bash $0        # apply that restore, then VERIFY it in the catalog" >&2
+  echo "      supabase db reset        # the blunt, certain option" >&2
+  echo "    ⛔ Do not delete the sentinel to get past this: it restores nothing and is the" >&2
+  echo "       only record that a gate is open." >&2
+  echo "    ⚠ Do not hunt the open policy with a COUNT -- ~10 are 'true' BY DESIGN" >&2
+  echo "      (vocabulary SELECT policies). The discriminator is cmd <> 'SELECT'." >&2
+  exit 2
+fi
 
 # ────────────────────────────────────────────────────────────────────────────────
 # §7.16  PREFLIGHT: NO GATE IS ALREADY SITTING DEGENERATE  (FUP-AUTHZ-HARNESS-TRANSACTIONAL)
@@ -703,6 +747,7 @@ while IFS=$'\t' read -r oid label proname direction lang; do
   # capture ORIGINAL def (exact bytes) for restore + restore-verification
   psql_c -c "select pg_get_functiondef($oid)" > "$orig"
   INFLIGHT="$orig"   # arm the EXIT trap before we open the gate
+  cp -f "$orig" "$SENTINEL"   # Part 4: survives SIGKILL, which no trap does
 
   # neutralize via an anonymous DO block (no persistent catalog residue; see header note)
   sed -e "s/__OID__/$oid/g" -e "s|__NEWBODY__|$local_nb|g" "$WORK/_neut_template.sql" > "$WORK/_mut.sql"
@@ -711,7 +756,7 @@ while IFS=$'\t' read -r oid label proname direction lang; do
     record "predicate" "$label" "$direction" "ERROR" "neutralize failed: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
     # attempt restore anyway
     psql_f "$orig" >/dev/null 2>&1
-    INFLIGHT=""; echo "  ERROR  $label (neutralize failed)"; continue
+    INFLIGHT=""; rm -f "$SENTINEL" 2>/dev/null; echo "  ERROR  $label (neutralize failed)"; continue
   fi
 
   out=$(run_suite); echo "$out" > "$RUNLOGS/pred_$s.log"
@@ -724,7 +769,7 @@ while IFS=$'\t' read -r oid label proname direction lang; do
     echo "*** CONTAMINATION: restore of $label did NOT round-trip. Every later case is"
     echo "    suspect. Aborting the sweep (§7.5)."; exit 2
   fi
-  INFLIGHT=""   # restore verified — disarm the trap
+  INFLIGHT=""; rm -f "$SENTINEL" 2>/dev/null   # restore verified — disarm the trap
 
   note="$FAILING"
   [ "$VERDICT" = "ERROR" ] && note="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)"
@@ -756,13 +801,14 @@ while IFS=$'\t' read -r tbl polname cmd has_wc; do
     printf ';\n'
   } > "$restore"
   INFLIGHT="$restore"
+  cp -f "$restore" "$SENTINEL"   # Part 4: survives SIGKILL, which no trap does
 
   # OPEN the policy: using(true) [+ with check(true)]
   { echo "alter policy \"$polname\" on public.\"$tbl\" using (true)$([ "$has_wc" = "t" ] && echo ' with check (true)');" ; } > "$WORK/_mut.sql"
   mout=$(psql_f "$WORK/_mut.sql")
   if echo "$mout" | grep -qiE 'ERROR'; then
     record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" "open failed: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
-    INFLIGHT=""; echo "  ERROR  $tbl.$polname"; continue
+    INFLIGHT=""; rm -f "$SENTINEL" 2>/dev/null; echo "  ERROR  $tbl.$polname"; continue
   fi
 
   out=$(run_suite); echo "$out" > "$RUNLOGS/pol_$s.log"
@@ -774,7 +820,7 @@ while IFS=$'\t' read -r tbl polname cmd has_wc; do
   if [ "$nowq" != "$(cat "$qfile")" ]; then
     echo "*** CONTAMINATION: restore of policy $tbl.$polname did NOT round-trip. Aborting (§7.5)."; exit 2
   fi
-  INFLIGHT=""   # restore verified — disarm the trap
+  INFLIGHT=""; rm -f "$SENTINEL" 2>/dev/null   # restore verified — disarm the trap
 
   note="$FAILING"
   [ "$VERDICT" = "ERROR" ] && note="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)"
