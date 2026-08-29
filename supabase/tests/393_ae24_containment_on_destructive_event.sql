@@ -878,9 +878,26 @@ select is(
 select is(
   (select coalesce(string_agg(a.label || '=' || a.org_a_rows::text, ' ' order by a.label), '(NO CELLS)')
      from ae24_after_ordinary a join ae24_split s on s.label = a.label
-    where s.tier = 'org'),
-  'W3=0 W5=0 W6=0 W7=0',
-  '3.12 ⛔ THE ORDINARY DOOR WROTE NOTHING for the org-tier split cells — measured from a snapshot taken BETWEEN the two passes, because pass 2 is what creates these rows. Labels are NAMED, so a dropped cell reds instead of shrinking the aggregate into agreement');
+    where s.tier = 'org')
+  || ' | INSTRUMENT ' ||
+  -- ⭐ THE POSITIVE CONTROL, IN THE SAME STRING SO IT CANNOT BE DROPPED SEPARATELY
+  --   (FUP-AE2-393-ABSENCE-CELLS-NO-CONTROL, QA r3 F2). The claim above is ALL-ZERO, and
+  --   all-zero is exactly what a MISAIMED COUNTER returns: `ae24_after_ordinary`'s counting
+  --   subqueries are correlated on `g.person` and `pg_temp.k()`'s org, and a wrong literal
+  --   in either makes every label read 0 while the cell stays green. `(NO CELLS)` does not
+  --   catch it — the join still yields all four labels, each honestly reporting a count of
+  --   nothing, taken from the wrong place.
+  --   The anchor was already in this table and unused: the ordinary door ACCEPTED cells too,
+  --   and their rows must be NON-zero. § 3.5 pins that population at 3 for this tier
+  --   (`3|7|7|3`), so the magnitude below is derived from an assertion in this file rather
+  --   than read off a passing run.
+  --   ⛔ Ratio, not a bare count: `3/3` reds both if the counter goes blind (`0/3`) AND if
+  --   a control cell is dropped (`2/2`).
+  (select count(*) filter (where a.org_a_rows > 0)::text || '/' || count(*)::text
+     from ae24_after_ordinary a join ae24_gate g on g.label = a.label
+    where g.tier = 'org' and g.measured_new),
+  'W3=0 W5=0 W6=0 W7=0 | INSTRUMENT 3/3',
+  '3.12 ⛔ THE ORDINARY DOOR WROTE NOTHING for the org-tier split cells — measured from a snapshot taken BETWEEN the two passes, because pass 2 is what creates these rows. Labels are NAMED, so a dropped cell reds instead of shrinking the aggregate into agreement. ⭐ INSTRUMENT is the positive control this cell lacked: the same snapshot, read over the cells the ordinary door ACCEPTED, must be NON-zero — so a counter aimed at the wrong person or org reds here instead of confirming the absence it can no longer see');
 
 -- ============================================================================
 -- § 4 REGRESSION CONTROLS — the hospital tier's own containment trigger, and the
@@ -1073,9 +1090,17 @@ select is(
 select is(
   (select coalesce(string_agg(a.label || '=' || a.central_a_rows::text || '/' || a.org_a_rows::text, ' ' order by a.label), '(NO CELLS)')
      from ae24_after_ordinary a join ae24_split s on s.label = a.label
-    where s.tier = 'hosp'),
-  'H1=0/0 H4=0/0 H6=0/0',
-  '5.9 ⛔ THE ORDINARY DOOR WROTE NOTHING for the hospital-tier split cells — neither the hospital row NOR the org parent, measured from the between-passes snapshot. ⭐ The ORG-PARENT half is the one worth having: the hospital door''s D5 ensure sits ABOVE the hospital insert, so a gate accidentally placed after it would refuse the hospital row while still anchoring the person — a partial write that every refusal-code assertion in this file would report as a clean refusal');
+    where s.tier = 'hosp')
+  || ' | INSTRUMENT ' ||
+  -- ⭐ THE POSITIVE CONTROL — § 3.12's, one tier up (FUP-AE2-393-ABSENCE-CELLS-NO-CONTROL).
+  --   ⚠ Anchored on `central_a_rows`, the HOSPITAL counter, because that is the one this
+  --   cell's left half reads first and the one a wrong `central_a` literal would blind.
+  --   § 5.4 pins the accepted population at 1 for this tier (`1|5|4|2`).
+  (select count(*) filter (where a.central_a_rows > 0)::text || '/' || count(*)::text
+     from ae24_after_ordinary a join ae24_gate g on g.label = a.label
+    where g.tier = 'hosp' and g.measured_new),
+  'H1=0/0 H4=0/0 H6=0/0 | INSTRUMENT 1/1',
+  '5.9 ⛔ THE ORDINARY DOOR WROTE NOTHING for the hospital-tier split cells — neither the hospital row NOR the org parent, measured from the between-passes snapshot. ⭐ The ORG-PARENT half is the one worth having: the hospital door''s D5 ensure sits ABOVE the hospital insert, so a gate accidentally placed after it would refuse the hospital row while still anchoring the person — a partial write that every refusal-code assertion in this file would report as a clean refusal. ⭐ INSTRUMENT is the positive control this cell lacked: the same snapshot over the cell the ordinary door ACCEPTED must be NON-zero, so a counter aimed at the wrong hospital reds here rather than reporting an absence it can no longer see');
 
 select * from finish();
 rollback;

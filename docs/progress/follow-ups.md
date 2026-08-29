@@ -6966,17 +6966,6 @@ a message assertion — do not record "add the message" as a closure.
 **Not blocking:** `§ 0.3` / `§ 0.4` are strong structural pins (QA r3 re-derived their subject: 2
 `is_admin_for` sites in grant, 1 in revoke, sub-arms identical), so a *deleted* arm still reds.
 
-### 🟠 FUP-AE2-393-ABSENCE-CELLS-NO-CONTROL — `393 § 3.12`/`§ 5.9` are all-zero absence claims nothing can prove able to fail (owner: backend; filed 2026-08-28 by QA r3 F2)
-
-Both cells assert the ORDINARY door wrote **nothing** for the split cells — an all-zero expectation.
-Their source, `ae24_after_ordinary`, is consumed by **exactly these two cells and nowhere else**, so a
-wrong literal in the snapshot's `where` makes every label read `0` and **both stay green while
-measuring an empty set**.
-
-⭐ This is the repo's dominant family in its purest form: an absence claim with no positive control.
-Two-token fix — the anchoring data is already in the table; assert the population is non-empty in the
-same string.
-
 ### 🟡 FUP-AE2-TEST-HARDENING-R3 — two small anti-vacuity gaps QA r3 found (owner: backend; filed 2026-08-28, QA r3 F3+F4)
 
 1. `400 § 4.2` asserts `23514` with `errmsg = null`, and that code has **two arms** in the guard — so

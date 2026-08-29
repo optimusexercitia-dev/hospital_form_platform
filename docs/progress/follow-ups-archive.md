@@ -7462,3 +7462,51 @@ pilot-blocking"* is the one clause 0155 amends):
 anchor scheduled to disappear. Exit gate: affiliations are the only employment/belonging source,
 and they still grant no capabilities (D3's ARCHITECTURE.md rule lands in the same increment).
 
+### ✅ FUP-AE2-393-ABSENCE-CELLS-NO-CONTROL — `393 § 3.12`/`§ 5.9` are all-zero absence claims nothing can prove able to fail (owner: backend; filed 2026-08-28 by QA r3 F2)
+
+Both cells assert the ORDINARY door wrote **nothing** for the split cells — an all-zero expectation.
+Their source, `ae24_after_ordinary`, is consumed by **exactly these two cells and nowhere else**, so a
+wrong literal in the snapshot's `where` makes every label read `0` and **both stay green while
+measuring an empty set**.
+
+⭐ This is the repo's dominant family in its purest form: an absence claim with no positive control.
+Two-token fix — the anchoring data is already in the table; assert the population is non-empty in the
+same string.
+
+> ## ✅ RESOLVED 2026-08-29 — both cells now carry a positive control, PROVEN able to fail
+>
+> **The fix, exactly as this item prescribed:** the control lives INSIDE the same assertion
+> string, so it cannot be dropped separately from the claim it protects. Each cell's absence
+> half is now followed by `| INSTRUMENT <n>/<n>` — the SAME snapshot read over the cells the
+> ordinary door **ACCEPTED**, which must be NON-zero.
+>
+> ⭐ **The magnitudes are derived from assertions already in the file, not read off a passing
+> run:** § 3.5 pins the org tier's accepted population at 3 (`3|7|7|3`) and § 5.4 pins the
+> hospital tier's at 1 (`1|5|4|2`). Writing a test to match its own output is how a control
+> becomes decoration.
+> ⛔ **Ratio, not a bare count** (`3/3`, not `3`): it reds both when the counter goes blind
+> (`0/3`) and when a control cell is dropped (`2/2`).
+>
+> ### The mutation proof — the old form's vacuity, demonstrated rather than argued
+>
+> The item's named mechanism (a wrong literal in the snapshot's `where`) was applied to each
+> counter in turn. Both times **47/47 tests RAN** (`Wstat: 0`) and **exactly 1 failed**, so the
+> mutation landed and did not abort the file:
+>
+> | mutation | `have` | `want` |
+> |---|---|---|
+> | org counter → decoy org | `W3=0 W5=0 W6=0 W7=0 \| INSTRUMENT **0/3**` | `… \| INSTRUMENT 3/3` |
+> | hospital counter → decoy hospital | `H1=0/0 H4=0/0 H6=0/0 \| INSTRUMENT **0/1**` | `… \| INSTRUMENT 1/1` |
+>
+> ⭐⭐ **Read the left half of each `have`: it is BYTE-IDENTICAL to the expectation.** Under a
+> counter aimed at an org and a hospital that do not exist, the pre-fix assertion was **GREEN** —
+> reporting an absence it could no longer see. That is the vacuity, measured.
+>
+> ⚠ **A first attempt did not count:** the decoy uuid `…0000000decoy` is not valid hex, so the
+> file ABORTED at the snapshot and the run reported red for the wrong reason — an ERROR wearing
+> a mutation's clothes. Re-run with a valid uuid, and only then was the differential real.
+>
+> **Gates:** `393` alone 47/47 PASS · full `npm run test:db` on a fresh reset **248 files /
+> 8262 tests PASS** — the same shape as AE2's completion figures, so no mutation harness's
+> Files/Tests baseline moved.
+
