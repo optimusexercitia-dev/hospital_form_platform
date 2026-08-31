@@ -261,15 +261,54 @@ export function checkFupBodies(text, bodiesText) {
 }
 
 /**
- * INVERSE of checkFupBodies (ADR 0140): a body in follow-ups.md whose id NO live
- * register indexes is residue — resolved (its body belongs in follow-ups-archive.md) or
+ * A REAL register entry for `id`, as opposed to a mention of it: a line whose OWN LEADING
+ * BOLD TOKEN is that id. `[^*\n]*` before the bold is what carries the distinction — it
+ * forbids an earlier bold span, so `- 🟠 **FUP-A** — … compare **FUP-B**` registers
+ * **A only**, and a backticked mention with no bold at all (`see 🟠 \`FUP-C\``) registers
+ * nothing.
+ *
+ * ⛔ The property is deliberately "the line is ABOUT this item from its first word", NOT
+ * "the line is a list item" — a narrower shape rule would have rejected the retention note
+ * for FUP-DM5-NO-ANSWER-VS-NOTHING, which the **PO ruled on 2026-08-28 IS that body's
+ * register entry** (follow-ups-archive.md § the six-note block). It is an italic note, not
+ * a bullet. Leading markers are therefore optional and cover the four live shapes: `- `
+ * bullets, `- [ ]` checkboxes (the parked backlog), `_` italic notes, `> ` quotes.
+ * Backticks inside the bold are optional — the parked backlog writes one entry as
+ * ``**`FUP-X`**``.
+ */
+const indexEntryRe = (id) =>
+  new RegExp(`^[-_>]?\\s*(?:\\[[ x]\\]\\s*)?[^*\\n]*\\*\\*\`?${id}\`?\\*\\*`, 'mu')
+
+/**
+ * § Critical FUP is a TABLE, not a list, and it is PO-curated (CLAUDE.md §7 protects it
+ * from rotation). A row there is a register entry in its own right.
+ */
+const criticalRowRe = (id) => new RegExp(`^\\|[^|\\n]*\\|[^*\\n]*\\*\\*\`?${id}\`?\\*\\*`, 'mu')
+
+/**
+ * INVERSE of checkFupBodies (ADR 0140): a body in follow-ups.md that no live register
+ * ENTRY indexes is residue — resolved (its body belongs in follow-ups-archive.md) or
  * worse, an ORPHAN whose index line was deleted instead of moved. Two orphans were found
  * at the 2026-08-24 sweep (FUP-DM5-MANIFEST-FLAG, FUP-DM5-REMOTE-STATE-MEASURED — both
- * resolved, indexed NOWHERE). A session that greps follow-ups.md and lands on such a
- * body has no way to see the item is not open. LIVE = the id appears anywhere in
- * PROGRESS.md or deferred-backlog.md — deliberately over-inclusive (a prose mention
- * keeps a body alive), because the safe failure direction for this detector is
- * under-flagging: it must never pressure an OPEN body out of the file.
+ * resolved, indexed NOWHERE). A session that greps follow-ups.md and lands on such a body
+ * has no way to see the item is not open.
+ *
+ * ⛔ **LIVE used to mean `progressText.includes(id)` — a substring hit anywhere in the
+ * file — and that is the hole this check was built to close.** An id named in ordinary
+ * prose kept its body "indexed": FUP-DISPOSE-DIALOG-OVERCLAIM closed 2026-08-20 and rode a
+ * ⛔ note *about its closure instrument* for eleven days, invisible to this gate, and
+ * surfaced only when the 2026-08-31 cleanup cut the note for unrelated reasons. The old
+ * docstring called the width "deliberately over-inclusive… the safe failure direction is
+ * under-flagging"; that reasoning was sound about the REMEDY and wrong about the TEST —
+ * the way to keep an open body safe is to make the finding's prescribed action safe, not
+ * to make the detector blind.
+ *
+ * So the width moved into the VERDICT instead. Two kinds, and the difference is which
+ * action is correct:
+ *   • MENTION-ONLY — the id is in a live register file but not as an entry. The item may
+ *     well be open, so the prescribed action is **restore the index line**, and the
+ *     finding says in terms that deleting the body is the wrong repair.
+ *   • ABSENT — indexed nowhere at all. The original orphan case, unchanged.
  */
 export function checkFupBodyResidue(bodiesText, progressText, backlogText) {
   const out = []
@@ -278,14 +317,28 @@ export function checkFupBodyResidue(bodiesText, progressText, backlogText) {
     const id = m[1]
     if (seen.has(id)) continue
     seen.add(id)
-    if (!progressText.includes(id) && !backlogText.includes(id)) {
-      out.push(
-        `docs/progress/follow-ups.md — body for ${id}, but NO live register indexes it ` +
-          `(not in PROGRESS.md, not in deferred-backlog.md). If it is resolved, move the ` +
-          `body VERBATIM to follow-ups-archive.md; if it is open, its index line was ` +
-          `LOST — restore it (QA finding R3: a follow-up with no index line is invisible work).`,
-      )
-    }
+
+    const entry =
+      indexEntryRe(id).test(progressText) ||
+      criticalRowRe(id).test(progressText) ||
+      indexEntryRe(id).test(backlogText)
+    if (entry) continue
+
+    const mentioned = progressText.includes(id) || backlogText.includes(id)
+    out.push(
+      mentioned
+        ? `docs/progress/follow-ups.md — body for ${id} is MENTIONED in a live register but ` +
+            `has no index ENTRY (no line, and no § Critical FUP row, whose own LEADING BOLD ` +
+            `TOKEN is ${id}). A mention is not an index line: it keeps the body ` +
+            `reachable by grep while the register the PO reads from does not carry the item. ` +
+            `⛔ If it is OPEN, restore its index line — do NOT resolve this finding by ` +
+            `deleting the body. If it is RESOLVED, move the body VERBATIM to ` +
+            `follow-ups-archive.md and cut the mention with it.`
+        : `docs/progress/follow-ups.md — body for ${id}, but NO live register indexes it ` +
+            `(not in PROGRESS.md, not in deferred-backlog.md). If it is resolved, move the ` +
+            `body VERBATIM to follow-ups-archive.md; if it is open, its index line was ` +
+            `LOST — restore it (QA finding R3: a follow-up with no index line is invisible work).`,
+    )
   }
   return out
 }
@@ -444,7 +497,44 @@ function selfTest() {
   )
   expectGreen(
     'fup-residue-backlog-green',
-    checkFupBodyResidue('### FUP-BACK-1 — x\n', '', 'FUP-BACK-1 parked in backlog'),
+    checkFupBodyResidue('### FUP-BACK-1 — x\n', '', '- 🟡 **FUP-BACK-1** — parked'),
+  )
+
+  // ── The mention-vs-entry distinction, pinned in BOTH directions ──────────────────
+  // The regression specimen, verbatim in shape: a body kept "indexed" by a ⛔ note ABOUT
+  // it. This passed the old `includes(id)` test for eleven days, which is why it is the
+  // first assertion here and not the last.
+  const mentionOnly = '- ⛔ **`FUP-MENTION-1`’s closure instrument was SWAPPED** — prose'
+  expectRed(
+    'fup-residue-mention-only',
+    checkFupBodyResidue('## ⬛ FUP-MENTION-1 — x\n', mentionOnly, ''),
+  )
+  // …and it must name the RIGHT repair. A mention-only finding that reads like the orphan
+  // finding would send a session to delete an open body — the failure the old width was
+  // (correctly) afraid of, now handled in the verdict instead of by going blind.
+  if (!/restore its index line/.test(checkFupBodyResidue('## FUP-M2 — x\n', 'see FUP-M2', '')[0] ?? ''))
+    fails.push('fup-residue-mention-wrong-remedy')
+  // A prose mention in the MIDDLE of another item's line is the same hole, one step in.
+  expectRed(
+    'fup-residue-mention-mid-line',
+    checkFupBodyResidue('## FUP-MID-1 — x\n', '- 🟠 **FUP-OTHER** — compare **FUP-MID-1**', ''),
+  )
+  // ⛔ VACUITY CONTROL: the tightened matcher must still accept every real entry shape, or
+  // it would red the whole live register and read as "the tracker is broken".
+  for (const [name, entry] of [
+    ['emoji', '- 🟡 **FUP-SHAPE-1** — open'],
+    ['checkbox', '- [ ] **`FUP-SHAPE-1`** — parked'],
+    ['critical-row', '| **C9** | 🔒 **`FUP-SHAPE-1`** — the PO list | do the thing |'],
+    // The PO-ruled retention note (2026-08-28) is an ITALIC note, not a bullet. A
+    // list-item-only rule would have red-flagged the one entry a human explicitly ruled on.
+    ['italic-note', '_**FUP-SHAPE-1** — ✅ resolved; body deliberately STAYS as a review lens._'],
+  ])
+    expectGreen(`fup-residue-entry-${name}-green`, checkFupBodyResidue('## FUP-SHAPE-1 — x\n', entry, ''))
+  // ⛔ The loosened leading marker must NOT re-open the hole: a backticked mention with no
+  // bold, and a bold mention that is not the line's first, both still register nothing.
+  expectRed(
+    'fup-residue-backticked-mention',
+    checkFupBodyResidue('## FUP-TICK-1 — x\n', '  not covered at all — see 🟠 `FUP-TICK-1`.', ''),
   )
 
   expectRed('sections', checkSections('# empty file\n'))
