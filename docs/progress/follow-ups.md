@@ -3095,6 +3095,25 @@ owners kept live here).
   The two established `FUP-E2E-REPEAT-FLAKY` members — `act-role-assumption:157` and
   `phase2-auth-shell:268` — flaked in BOTH runs, exactly to fingerprint.
 
+- ⭐⭐ **THIRD RUN, 2026-08-31 (pre-AE4 clearance batch, a DIFFERENT tree): the pattern held a
+  FOURTH time, and the one-shot set churned AGAIN with zero overlap.** 5 flaky = the same two
+  stable members (`act-role-assumption:157`, `phase2-auth-shell:268`) + **three novel names**:
+  `case-corrections:403`, `documents-redesign:518`, `dsr-subject-requests:91`. None overlaps
+  AE3's novel set (`case-patient:433`, `ff3-validations:2079`, `phase7-cases:539`).
+  ⚠ **The environment reading strengthened**: this run took **4 INFRA re-runs** and
+  **6 × `server_dead=1`** (conn_errors 3–48), and ended `GATE_EXIT=5` RED (UNRUN) with 18 tests
+  never executed — while recording **0 assertion failures anywhere**. The host was carrying two
+  Supabase stacks plus Gotenberg throughout.
+  ⭐ **One of the three novel names is an AUTHORIZATION assertion** — `dsr-subject-requests:91`
+  (*"a plain member and a platform admin both get 404 on the console"*). Plan rule 11 forbids an
+  authorization phase calling a run green while a relevant covered spec failed for an unverified
+  reason, so it was **not** waved through on the environment story: all three novel specs were
+  in the b2+b5 re-run and came back **0 flaky, 0 failed**. That re-run is the verification;
+  the environment reading is the explanation, and they are not the same claim.
+  ⛔ **Still NOT admitted to `FUP-E2E-REPEAT-FLAKY`'s baseline** — one observation each, and the
+  entry criteria above are unchanged. Recorded because *the churn itself* is now a four-run
+  property, which is what the instrument cannot represent.
+
 - ⭐⭐ **THAT PATTERN IS THE ACTUAL FINDING, and it is bigger than these five names.** Across two
   full runs hours apart on the same tree: **2 names are stable and 5 are one-shot**, with zero
   overlap between the two one-shot sets. A churning population is evidence of an

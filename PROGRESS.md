@@ -50,6 +50,7 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   ⚠ In a worktree, check `.env.local` **and** a **non-empty** `node_modules` before any gate
   ([worktrees.md](docs/worktrees.md)) — the second fails silently by borrowing the parent's.
 - **📐 ADR 0155 — the authz-evolution program.** ▶ **AE0 ✅ · AE1 ✅ · AE2 ✅ · AE3 ✅ COMPLETE 2026-08-31** — QA APPROVED (r4, 4 rounds) + PO-approved; `profiles.{cpf,date_of_birth,phone}` are DROPPED and live in door-only `public.profile_private_details`. Concluded narrative → [2026-Q3.md](docs/progress/2026-Q3.md); increment detail + every figure → [authz-ae3.md](docs/progress/authz-ae3.md); verdict → [r1–r4](docs/reviews/authz-ae3-review.md); cutover → [ae3-cutover-runbook.md](docs/deployment/ae3-cutover-runbook.md). ⛔ **NOT PUSHED — the 3 migrations are LOCAL ONLY**, and the schema-first order ([rule](.claude/rules/push-schema-before-code.md)) is **owed, not discharged**. ⛔ **Re-measure `main` vs `origin/main` and the remote head, never quote them.** ▶ **AE4 is next** ([plan](docs/plans/authz-evolution.md)) — ⚠ **PO-RULED 2026-08-31: C1a runs BEFORE AE4's branch-cut** — G10 re-affirmed, not superseded (§ Decisions). ⛔ **Three things are owed first:** the AE3 **merge + `db push` → verify in the remote catalog → `git push`** (schema-first, [rule](.claude/rules/push-schema-before-code.md)); C1a § 3; and the ADR [0170](docs/decisions/0170-case-deletion-is-not-a-client-capability.md) revoke increment (PA-F8 **a**, must precede the AE4.3 matrix). ⛔ AE3's G2 authorization was single-use and **expires when the pilot loads data**; AE4 does not inherit it.
+- **✅ PRE-AE4 CLEARANCE BATCH — merged to `main` 2026-08-31, still UNPUSHED.** Three increments, gated together in ONE `e2e:prod` rather than one run each: ADR [0170](docs/decisions/0170-case-deletion-is-not-a-client-capability.md) `revoke delete on public.cases` (`d9f9a510`), BUG-SUSPENSION-DATE (`d38493db`), BUG-MEUSDADOS remedy A (`843329f5`). Figures + the flake split → § Test Run Summary; closures → [bug-log-archive.md](docs/progress/bug-log-archive.md). ⛔ **BUG-CASEEVT-KIND-001 was NOT in the batch** — two RLS policy pairs, two keystones, its own sweep. ⚠ **The E2E gate needed a re-run to reach green** (`GATE_EXIT=5`, 18 tests never executed after 4 infra re-runs, 6 × `server_dead=1`); the machine ran two Supabase stacks + Gotenberg throughout, so read that as host pressure, not a phase signal — `FUP-E2E-GATE-CLASSIFIER-BLIND-TO-WORKER-CRASHES` is exactly this class.
 - ⚠ **AFF4's unfiled residue is still live** — ~16 QA-review obligations + ~20 plan-discovered follow-ups were never converted into `FUP-*` index lines at its Record step, so they are invisible to the register the PO reads from (pointer list: [aff4.md](docs/progress/aff4.md) § "Residue this Record step did NOT file"). ⛔ The one AFF4 item that has NOT concluded.
 ## Phase Status — live rows only
 
@@ -82,24 +83,6 @@ exists because without it an open production blocker (BUG-BOOTSTRAP-001, since *
 a single day — first the heading, then a note saying "back to three" — in the one paragraph of this
 file whose whole subject is that a count is wrong the moment after it is right. Count the rows below.
 
-🔴 **BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY — the banner tells a suspended user their suspension
-already ended; every product-written value, the whole target market.** Filed 2026-08-26 (lead);
-**pre-existing, not AFF4-introduced, deliberately not fixed there.** `profiles.suspended_until` is
-**`timestamptz`** (catalog-measured); the write path stores the dialog's bare `YYYY-MM-DD` unnormalised
-→ **midnight UTC**, and `formatSuspensionDate` (`account-situation-banner.tsx:84-88`) formats with
-`Intl.DateTimeFormat("pt-BR")` and **no `timeZone`** → in `America/Sao_Paulo` `2026-09-25 00:00:00+00`
-renders **24/09**.
-⭐ **PO RULING 2026-08-26 — "suspended until D" = until `23:59:59` of D in `America/Sao_Paulo`.**
-Both fixes are now mechanical: explicit `timeZone` on the formatter, **and** normalise the write to
-end-of-day in that zone. ⚠ Stated, not hidden: this pins one zone app-wide and Brazil spans four —
-a hospital outside UTC−3 makes it a per-tenant setting.
-⛔ **THE SEED DOES NOT REPRODUCE IT — carry this or triage kills the bug.** `seed.sql` writes a real
-timestamp (`…10:08:42+00`), not a date string, so the seeded row renders **correctly**: the fixture
-reaches a *passing* state the product never produces.
-⚠ **POSSIBLY TWO SITES:** `backend` measured *no normalisation* at the write (`users/actions.ts:1176`);
-`tester` read a `${date}T00:00:00.000Z` construction — both can be true of **different lines**, the
-construction being upstream in the dialog. Patching one alone still renders the wrong day.
-
 🔴 **BUG-CASEEVT-KIND-001 — a case writer can DELETE, or silently RE-KIND, a procedural `case_events`
 row: the UPDATE/DELETE policies carry no `kind` gate.** Filed 2026-08-23 (lead). Surfaced by ADR 0137
 D12's `CaseEvent.kind` widening, **not caused by it. Measured from the live catalog:**
@@ -130,26 +113,6 @@ variants at least carry `NOT app.is_case_excluded(…)`; the writer pair carries
 ⛔ This is a **distinct property from the `kind` gate** — fixing `kind` alone leaves it standing, so
 the eventual fix owes **two** keystones, not one.
 
-🔴 **BUG-MEUSDADOS-HOSPITAL-NAME-001 — a non-admin's own `/conta/meus-dados` cannot name the
-hospital in "Vínculos hospitalares"; every row reads "Hospital não identificado".** Filed
-2026-08-26 (`tester`, AFF4 T4). Repro: sign in as a plain-`staff` persona with a hospital
-affiliation (e.g. `dr.john@test.local`) and open `/conta/meus-dados`. Expected: the hospital
-name renders (F5's own acceptance, "own affiliations with work data"; plan AC4). Actual:
-matrícula/dates/status all render; only the name is missing. **Cause, measured against the live
-catalog:** `listAffiliationsFor` (`src/lib/queries/affiliations.ts:64,72`, feeds
-`getOwnPersonRecord`) embeds `hospital:hospitals!...(name)`, RLS-gated by `hospitals_select` —
-which admits only admin/reviewer tiers (`pg_policies`, live), no clause for a plain affiliate
-reading their OWN hospital. The embed silently nulls for any such caller — F5's primary
-audience; an admin viewing SOMEONE ELSE's profile is unaffected. Not a leak — over-restrictive,
-not under. **Severity:** Major. **Owner:** backend — add a self-affiliation `EXISTS` arm to
-`hospitals_select`, or resolve the name inside the self-only door rather than an RLS-gated
-embed. Regression guard: `e2e/aff4-meus-dados.spec.ts` — ⛔ **CORRECTED 2026-08-31: it is NOT "left
-red". It is `test.fail()`-pinned** (`:41`), so Playwright reports *failed as expected* and the suite
-stays green — which is why AE2's `e2e:prod` read **0 failed** with this bug live. ⭐ The **assertions
-are not weakened**: the test still asserts `Hospital Central A` / `Hospital Secundário A`, and flips to
-*unexpectedly passing* the moment the RLS is fixed. The pin is **conditional on a PO ruling**, and the
-fix is an RLS policy change → re-arms §6 step 1's diff-scoped door sweep over `hospitals_select`.
-
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
 Closed rows, their closure narratives, and the 2026-08-19 record of where this section's old
@@ -158,6 +121,8 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25". **BUG-BO
 2026-08-31 on PO disposition (a) → § "Rotated from PROGRESS.md 2026-08-31", which records that its
 *"appears in no runbook"* impact statement had been false for **19 days** — the runbook step
 ([coolify.md](docs/deployment/coolify.md) § 2.5) named the bug while the bug knew nothing of it.
+**BUG-SUSPENSION-DATE** + **BUG-MEUSDADOS-HOSPITAL-NAME-001** both closed 2026-08-31 in one
+batched pre-AE4 increment → § "Rotated from PROGRESS.md 2026-08-31 — two bugs CLOSED".
 
 ## Test Run Summary
 
@@ -167,7 +132,7 @@ verifiable anchor) all live in the archive → § "Rotated 2026-08-25". **BUG-BO
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-31 | **AE3 gate — phase COMPLETE** | pgTAP **248f/8285** fresh reset · lint 11/11 · tsc 0 · vitest 2016 · 4 ARMs **HOLD** (census **569/605** · hat 6/6 · floor 72 · wrapper 41) · sweep **exit 1 = ruled FINDING**; 2 cases **COVERED** · `e2e:prod` **GREEN** 1251p/0f, 5 flaky (2 base/3 novel) → [detail](docs/progress/authz-ae3.md) |
+| 2026-08-31 | **Pre-AE4 clearance batch** (⛔ not a phase gate) | pgTAP 248f/**8289** fresh reset · lint 11/11 · tsc 0 · vitest 2021 · 4 ARMs HOLD (census **571/607**) · sweeps: 0170 exit 1 FINDING, MEUSDADOS **exit 0 CLEAN** 3/3 COVERED · `e2e:prod` **RED (UNRUN)** `GATE_EXIT=5`, **0 assertion failures**; b2+b5 re-run **GREEN** 127p/0f → all executed |
 
 ## QA Verdicts
 

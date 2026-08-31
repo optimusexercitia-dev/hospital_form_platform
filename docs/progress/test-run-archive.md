@@ -1109,3 +1109,12 @@ gate row replaced it._
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-29 | Pre-AE3 clearance (⛔ **not** a phase gate — no phase completed) | `test:db` fresh reset **248f/8262 PASS** (same shape as AE2's completion figures) · `lint` 11/11 · `typecheck` 0 · `vitest` 2016. ⚠ `e2e:prod` **NOT re-run**; 2 specs re-run targeted, 11 passed |
+
+## Rotated from PROGRESS.md 2026-08-31 — AE3's gate row, replaced by the pre-AE4 clearance batch
+
+_Left `PROGRESS.md` when the pre-AE4 clearance row replaced it. AE3's own increment detail —
+every figure with its deriving command — stays in [authz-ae3.md](./authz-ae3.md)._
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-31 | **AE3 gate — phase COMPLETE** | pgTAP **248f/8285** fresh reset · lint 11/11 · tsc 0 · vitest 2016 · 4 ARMs **HOLD** (census **569/605** · hat 6/6 · floor 72 · wrapper 41) · sweep **exit 1 = ruled FINDING**; 2 cases **COVERED** · `e2e:prod` **GREEN** 1251p/0f, 5 flaky (2 base/3 novel) → [detail](./authz-ae3.md) |

@@ -3346,3 +3346,82 @@ new work.
 > seed/CLI-driven bootstrap that mints the first admin idempotently. **Blocks nothing today** (local +
 > E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is invisible to every
 > gate), but it is on the critical path of the **first production deploy**.
+
+## ⬛ Rotated from PROGRESS.md 2026-08-31 — two bugs CLOSED in one batched increment
+
+Both fixed on `main` in the pre-AE4 clearance session, gated together in one `e2e:prod` run
+rather than one run each. Neither is AE4 work; both were cleared so AE4.3's `staff_admin`
+matrix derives from a tree without them.
+
+### 🔴 BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY — ✅ **FIXED** (`d38493db`)
+
+The banner told a suspended user their suspension had already ended. PO ruled 2026-08-26:
+*"suspenso até D" = through 23:59:59 of D in `America/Sao_Paulo`.*
+
+⭐ **The row's "POSSIBLY TWO SITES" hedge was right, and both halves were individually
+defensible** — which is why it survived review:
+- `src/components/users/user-lifecycle-actions.tsx:332` wrote `` `${suspendUntil}T00:00:00.000Z` ``
+  — **midnight UTC**, i.e. 21:00 of the PREVIOUS day in São Paulo;
+- `account-situation-banner.tsx:82` formatted with `Intl.DateTimeFormat("pt-BR")` and **no
+  `timeZone`**, rendering whatever zone the runtime happened to be in.
+
+Both now live in `src/lib/users/suspension-date.ts`, so the read and the write cannot drift
+about what the stored value MEANS. The offset is derived through `Intl`, not hard-coded to
+−03:00: Brazil abolished DST in 2019, so a constant is right today and would fail silently
+the day that is reversed.
+
+⛔ **THE GUARD HAD TO BE A UNIT TEST, and the row's own warning is why.** `seed.sql` writes a
+real timestamp, so the seeded row rendered CORRECTLY — *the fixture reaches a passing state the
+product never produced*. And `e2e/user-registration.spec.ts:475-479` had deliberately chosen a
+`monthsBack: 1` margin **so this very defect could not flip its past/future boundary**. Neither
+the seed nor any existing E2E could fail on this bug.
+
+⭐ The test earned its keep immediately: it caught a real defect in the FIRST implementation.
+`formatToParts` has no millisecond part, so the derived offset carried up to 999 ms of pure
+artifact and was applied twice — it returned `…T03:00:00.997Z` instead of `…T02:59:59.999Z`.
+Now rounded to the minute, which cannot discard signal because every real UTC offset is a whole
+number of minutes.
+
+⚠ **Stated, not hidden (carried forward from the PO ruling):** this pins ONE zone app-wide and
+Brazil spans four. A hospital outside UTC−3 makes it a per-tenant setting;
+`SUSPENSION_TIME_ZONE` is the single place that changes.
+
+### 🔴 BUG-MEUSDADOS-HOSPITAL-NAME-001 — ✅ **FIXED** (`843329f5`), PO ruled remedy A
+
+`hospitals_select` gained a **sixth arm**, `app.is_affiliated_with_hospital(id)` (migration
+`20261003007000`), so a plain affiliate reads the NAME of a hospital whose affiliation row they
+could already SELECT. PO ruled 2026-08-31: fix, **remedy A (the RLS arm)** rather than resolving
+the name inside the self-only door.
+
+⚠ **The tracker's cost line had presumed remedy A while the row offered two remedies as
+backend's choice.** Recorded because the cheaper option (query-side, no door sweep) was the one
+the cost sentence ignored — a reader pricing this bug from the row would have priced only one of
+its two shapes.
+
+⚠ **NO `app.is_active` GUARD, DELIBERATELY.** Every sibling arm composes it; this one does not.
+`app.is_active` returns FALSE for a **suspended** user, and `hospital_affiliations_select`'s
+first arm is a bare `principal_id = auth.uid()` with no activity filter. Composing it here would
+have rendered "Hospital não identificado" for exactly the audience most likely to be checking
+their own record — re-creating this bug for a subset instead of closing it. **The invariant
+chosen: the name is visible exactly when the row is.** Any future activity gate belongs on both
+or neither.
+
+Ended and voided affiliations are included, because `listAffiliationsFor` returns them and the
+row policy shows them. An arm narrower than the row's own visibility is the same defect at a
+smaller radius.
+
+**Mutation proof, both directions, executed:** dropping the arm reds `301` § 8.1 and **only**
+8.1 (precisely attributable); over-widening it to `true` reds 8.2 **plus six existing
+tenancy-isolation assertions** across `170`/`184`/`310` — so the over-widen direction already had
+a net this fix did not build. A positive-only assertion would have been satisfied by
+`using (true)`.
+
+⭐ **`ARM=census` caught the two new predicates as UNKNOWN on the first run** — the arm doing
+exactly what CLAUDE.md says it exists for, since a brand-new gate passes `ARM=policy` vacuously.
+Swept diff-scoped: 3 gates (predicate 2/118, policy 1/226), all **COVERED**, 0 BLIND, exit 0
+CLEAN. Committed baseline verified untouched (cksum + `git diff`), then the three changed rows
+**MERGED** into it, never copied over. Census closed at 571 live gates / 607 verdicts (was 605).
+
+`e2e/aff4-meus-dados.spec.ts`'s `test.fail()` pin is deleted — exactly as its own comment
+promised: one line, nothing else in the test changed, and its assertions were never weakened
+while pinned.
