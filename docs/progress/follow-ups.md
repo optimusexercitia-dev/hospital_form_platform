@@ -6,16 +6,23 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
-### 🟡 FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT — 70 of 108 OPEN index lines are paragraphs, and the two rules governing them are in tension (owner: lead)
+### 🟡 FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT — 76 of 116 OPEN index lines are paragraphs, and the two rules governing them are in tension (owner: lead)
 
 > Filed 2026-08-29 at the Record step, from a size warning that could not be discharged by
 > rotating concluded material — because nothing concluded was left.
 >
-> **Measured** (`PROGRESS.md`, 2026-08-29, re-derive rather than quote): **108** OPEN index
-> lines holding **53,419 bytes** — mean **494**, median **512**, max **1,699**. **70** exceed
-> 400 bytes, and those 70 alone carry **~15.5 KB** above a 400-byte form. The file is **88,209**
+> **Measured** (`PROGRESS.md`, **re-derived 2026-08-31**, re-derive rather than quote): **116** OPEN
+> index lines holding **59,501 bytes** — mean **513**, median **521**, max **1,699**. **76** exceed
+> 400 bytes, and those 76 alone carry **~18.4 KB** above a 400-byte form. The file is **~89,000**
 > bytes against an **81,920** target (hard cap 102,400), so the surplus is entirely inside a
 > population that rotation cannot touch.
+>
+> ⛔ **The 2026-08-29 filing read 108 lines / 53,419 bytes / 70 over / ~15.5 KB / 88,209-byte file.**
+> Every term moved in **two days** and the item's own headline carried the stale pair; the median
+> and max did not move at all, so the growth is **new lines**, not existing ones fattening. ⚠ The
+> file-size term is the trap the rest of this repo already names: a byte count written inside the
+> commit that changes the file is off by construction, which is why it is given to the nearest
+> thousand here and the **share** (~65% of the file) is the figure to argue from.
 >
 > ⛔ **THE TENSION, STATED PLAINLY.** The lead-playbook §5 says PROGRESS.md carries a *"one-line
 > index only (severity · id · title · owner)"*. It ALSO says *"NEVER compress or drop an OPEN
@@ -3440,118 +3447,6 @@ owners kept live here).
 ### 🔴 FUP-ETH-ROLES-1 — no production bootstrap of `case_participant_roles` (owner: product + backend)
 
 - 🔴 **FUP-ETH-ROLES-1** — **no production bootstrap of `case_participant_roles`.** The ethics role bundle lives ONLY in `supabase/seed.sql`; the sole role-insert in any migration is the lazy `affected_patient` mint inside the patient path. A real org therefore starts with **zero** roles, and since `case_participants.role_id` is NOT NULL, EVERY participant type is a dead end until an org admin authors the vocabulary in T5 — the three role-less external types ratified on 2026-08-11 are one visible instance, not the shape. Decide before the pilot onboards a second org: bootstrap-on-org-create vs. a first-run prompt vs. accept-and-document (found 2026-08-11 while ratifying the PO items; the add-dialog empty state now at least names the remedy) — product + backend
-
-### ⬛ FUP-DISPOSE-DIALOG-OVERCLAIM — ✅ **CLOSED 2026-08-20 (DSR Slice 4 item 3)** — the shipped referral-dispose copy is the exact "tudo apagado" over-claim ADR 0056 (b) forbade — and it offers an Art. 18 reason counsel may have closed (owner: frontend; vehicle: DSR plan Slice 4)
-
-> ## ✅ CLOSED 2026-08-20 — both over-claiming strings REPLACED, not supplemented
->
-> `src/components/referrals/referral-dispose-dialog.tsx` now renders the shared
-> `DSR_RESIDUE_NOTICE` verbatim (no fifth line, no paraphrase — the language is decided
-> once, centrally), and the two over-claims are gone rather than qualified. Eight lint gates
-> + tsc green.
->
-> ⛔ **The verification scope is REPO-WIDE over `src/`, not file-local (corrected at QA r1).**
-> The closing evidence first recorded a grep over the one rewritten file — but the rule the
-> code comments state is repo-wide, so closure passed under one stated scope and would have
-> failed under the other. That mattered — the file-scoped grep was green while **two** more
-> copies of the same defect pair were live in `dsr-task-inbox.tsx` and, worst of all, in the
-> docblock of `DSR_RESIDUE_NOTICE` itself, where it is the first thing anyone reads before
-> reusing the constant. All now carry the history in English with an explicit note that the
-> pt-BR strings are never quoted.
->
-> ⛔ **CORRECTED AGAIN (QA r2). This paragraph previously asserted that the widened grep
-> "exits **1**". IT EXITED 0 WHEN THAT SENTENCE WAS WRITTEN** — and the file matching it was
-> `referral-dispose-dialog.test.tsx`, *the very file the next paragraph of this record
-> introduces as the closure's evidence*. The record certified its own falsifier.
->
-> ⭐⭐ **This is the FOURTH recurrence in a single day, and the fourth author had personally
-> fixed the previous three.** That is the finding, not the four instances: ***the prohibition
-> is not holdable by discipline.*** Documenting a defect by quoting it is the natural way to
-> write the comment, so the rule asks every future author to suppress the obvious phrasing
-> forever, with nothing able to contradict them. A grep-verified follow-up whose own evidence
-> is prose is self-defeating by construction. Raised to the PO as a **gate** proposal —
-> ⚠ per CLAUDE.md §8 every existing gate was added after exactly this pattern: a class that
-> shipped a live defect and kept recurring under discipline alone.
->
-> ✅ **Executable coverage now exists** — `referral-dispose-dialog.test.tsx`, 15 tests,
-> every one **mutation-proven** to fail (11 mutations, all red under an anchor-uniqueness
-> guard). This closes a real gap: **no E2E reaches this dialog at all** (AC-7 POSTs the RPC
-> directly; `FUP-ACT-DISPOSE-UI`'s referral lane is undischarged), which is the likeliest
-> reason the over-claim survived unnoticed from the day it shipped.
-> The Art.18-reason half was already narrowed on 2026-08-19 by counsel's Q14 return (ADR
-> 0035 Amdt 1) and the dialog now carries a `subject_request`-only note that such a
-> disposal presupposes an adjudicated DSR (ADR 0130).
->
-> ⚠ **Two facts worth carrying forward.**
-> **(a) ⭕ INSTRUMENT SWAPPED 2026-08-20 — the closure evidence is the rendered-output
-> assertion, and the grep is RETIRED for this item.** The original instrument was a grep
-> over `src/` for the shipped pt-BR literal, which made the fix able to defeat its own
-> check: a docblock quoting the removed strings as "do not reintroduce" hits **forever**,
-> on a comment rather than on live copy, and reads as an unfixed defect. That happened
-> four times in one day — `FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING` — and the grep's
-> measured record is **0 true positives / 4 false positives**: every string it ever
-> matched was prose *about* the defect. The one real over-claim was found by re-reading
-> the component, not by the grep.
-> The instrument is now **claim 2 of
-> `referral-dispose-dialog.test.tsx` (**REMOVED 2026-08-21** with its component; the shared over-claim property survives in [`dsr-disposal-overclaim.test.tsx`](../../src/components/dsr/dsr-disposal-overclaim.test.tsx), and the residue-CLASS pin was RELOCATED there rather than deleted)**
-> — `TOTALITY_QUANTIFIER` matched against **rendered DOM text**, and exactly co-scoped with
-> this item (which is about the *referral* dialog's copy): it keys on the quantifier
-> **family**, so a paraphrase one word off still reds where the literal grep would have
-> passed it; and comments are **not present in rendered output at all**, so the
-> false-positive class is structurally impossible rather than merely discouraged.
->
-> ⛔ **CORRECTED 2026-08-20 (later the same day). This paragraph said "strictly stronger in
-> both directions" and that was FALSE AS WRITTEN — an over-claim, in the note that exists to
-> record an over-claim.** The assertion read `dialog.textContent`, which concatenates sibling
-> text with no separator, so a ``-anchored pattern is blind at every element edge; the grep
-> it replaced read SOURCE, where the string is contiguous, and had no such hole. The swap was
-> stronger on the axis being discussed (paraphrase, and false positives on prose) and
-> **weaker on one nobody had looked at**. Closed by `renderedText()` (join text NODES with a
-> space) under `FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY`, found only by mutating the
-> instrument — so the claim is true now, and was not on the day it was written.
-> ⭐ *"Strictly stronger" is a claim over ALL axes, and it is almost never measured over
-> all of them.*
-> ⛔ **Do not re-run the grep to re-verify this item** — a hit means a comment. QA's r2
-> record ([review](../reviews/dsr-slice-4-review.md), "the verification instrument … **is**
-> this grep") predates this swap and is left as written; it is a record, not an instruction.
-> ⭐ **The prohibition dissolves with the instrument.** *"Nothing in that file, comments
-> included, may ever contain those strings"* was downstream of the grep and had no other
-> ground. With the grep retired, quoting the defect in a comment is harmless — and keeping
-> an unenforceable standing rule after removing its only enforcer is precisely what ADR
-> 0127 refuses to admit. The fifth recurrence the PO's record-only ruling expected is now
-> a non-event rather than a suppressed instinct.
-> **(b) Left deliberately, flagged not fixed:** the confirm-field helper ("exclusão
-> **definitiva**") and the destructive button ("Apagar **definitivamente**"). These assert
-> *finality*, not the *completeness* ADR 0056 (b) forbids, `DSR_RESIDUE_NOTICE` now
-> qualifies them two blocks above in the same dialog, and relabelling the button
-> re-scopes any future E2E locator. A deliberate decision, not a drive-by — but if the
-> PO wants strict alignment with the PITR line, that is the remaining string pair.
-
-Filed 2026-08-19 (lead) — found by the disposal-touching-ADR sweep as an ADR 0056 Consequence that
-was logged there and never entered this register; then verified against the shipped component.
-
-**The defect, verbatim from the tree.** ADR 0056 Consequence (b) required the disposal-confirmation
-copy to reflect the **narrowed claim** — *"no 'tudo apagado' over-claim; it should say DB PHI is
-erased and attachments are retained encrypted under retention."*
-`src/components/referrals/referral-dispose-dialog.tsx` ships: *"Remove **permanentemente** a
-identificação do paciente e **todos os campos com dados sensíveis** … Esta ação é irreversível"* and
-*"apaga **permanentemente** … Não é possível desfazer"* — no mention of retained bytes, PITR, or
-distributed copies. This is pt-BR compliance copy shown to the operator at the moment they discharge
-a legal obligation, asserting more than the mechanism delivers (ADR 0056 §4 narrowed the claim
-precisely because Storage blobs survive).
-
-**Aggravated 2026-08-19, then NARROWED the same day:** the dialog offers *"Solicitação do titular
-(LGPD Art. 18)"* as a selectable reason, which was contingently invalid while counsel's blanket
-override stood — but the Q14 return (ADR
-[0035](../decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1**, resolved) rules removal
-requests **case-by-case with legal consultation**, so the lane is live and the reason option is
-valid. The over-claim is the whole remaining defect. ⚠ Slice 4's rewrite should still note that a
-`subject_request` disposal presupposes an adjudicated DSR (ADR 0130) once that workflow exists.
-
-**Fix (decided, Q12a):** rewrite with the shared fixed residue-language constant —
-[dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 4**, which also owes the same copy to
-every disposal surface the DSR inbox adds. Not a one-line patch: the residue language is decided
-once in the plan, never per-dialog.
 
 ### 🟠 FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED — ✅ **ALL SEVEN LANES MEASURED 2026-08-20.** One lane is fully covered, six have a permanently-frozen state, and the meeting gate bound generalises to only two of six — while the *erasure* fallback turns out to be BROKEN on two lanes (owner: backend + PO; filed 2026-08-20 when the PO asked whether minutes-adjustment mechanisms already existed)
 

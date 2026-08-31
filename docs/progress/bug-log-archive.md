@@ -3299,3 +3299,50 @@ hospital tier, and a backstop reading under caller RLS. ⛔ **Fails CLOSED** —
 **Owner:** backend (fix in flight: mark the trigger `SECURITY DEFINER` — it enforces a data
 invariant and reads no caller identity). ⚠ Pinned `test.fail` in `e2e/aff4-hospital-admin-rehire.spec.ts`
 with unweakened assertions, so the annotation self-flips to "unexpectedly passing" on the fix.
+
+## ⬛ Rotated from PROGRESS.md 2026-08-31 — BUG-BOOTSTRAP-001, ✅ **CLOSED on disposition (a)**
+
+⭐ **PO RULING 2026-08-31: this closes on disposition (a)** — the manual bootstrap is documented
+as an explicit step in the pilot-deploy runbook, which the row itself called *"cheapest, and
+sufficient for one pilot tenant"*. Disposition (b) — a seed/CLI-driven idempotent bootstrap — is
+**not** owed and was not deferred; it was declined.
+
+⛔ **The row below is VERBATIM as it stood, and two of its sentences were already FALSE when it
+was cut.** It said the manual `update profiles set is_admin = true …` *"appears in no runbook —
+not in `docs/deployment/`, and not in any pre-pilot checklist"*, and it offered (a) as an **open**
+PO choice. (a) had in fact been **executed on 2026-08-12** in `4f575126`
+(*"fix(fup-batch): close 7 follow-ups/bugs behind one E2E gate pass"*), which added
+[coolify.md](../deployment/coolify.md) **§ 2.5 — Bootstrap the FIRST `platform_admin` (manual SQL —
+there is no in-app path)**: the `update` statement, the one-row confirmation query, the sign-out /
+sign-in step (`is_admin` rides the access-token claim), the ⛔ *do not weaken the promote guard*
+warning the row demanded, a Step 6.3 troubleshooting entry distinguishing "hook not enabled" from
+"never bootstrapped", and a closing note reading *"Why this is written down: tracked as
+**BUG-BOOTSTRAP-001**"*. ⭐ **The runbook knew about the bug; the bug did not know about the
+runbook** — the fix pointed back at the row and nothing pointed the row at the fix. It read as an
+open production blocker for **19 days**, and the staleness ran in the ALARMING direction, which is
+why nothing ever contradicted it: an over-stated blocker is never challenged by a gate.
+
+⚠ **What did NOT close with it.** [dm5-po-decisions.md](./dm5-po-decisions.md) § "Open items from
+closed work" still lists `BUG-BOOTSTRAP-001` among items *"still live"*; that line is now stale in
+its own right. And the bootstrap remains **manual** — the closure records that the gap is
+*documented*, never that it is *automated*. A later decision to build (b) reopens nothing; it is
+new work.
+
+> 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
+> onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
+> narrative was rotated — **this was the one open item in it that existed in no other tracked place**,
+> which is why it is here rather than in Follow-ups. Surfaced during AFF, **not caused by it**.
+> **Mechanism:** `is_admin` is set only by direct SQL, and the promote guard requires an **existing**
+> admin to promote another — so the set is closed under the product. On a fresh production database it
+> starts empty and nothing in the app can open it. **Impact:** the first production `platform_admin` is
+> a manual `update profiles set is_admin = true …` that **appears in no runbook** — not in
+> `docs/deployment/`, and not in any pre-pilot checklist. Whoever runs the pilot deploy hits this
+> with no written instruction.
+> ⚠ **Not a security defect — the closure is deliberate** (it is what stops self-promotion, and the
+> guard is correct). The defect is that the bootstrap is undocumented and unautomated, so do **not**
+> "fix" it by weakening the guard.
+> **Status:** OPEN, unassigned. Two candidate dispositions, PO's call: (a) document it as an explicit
+> step in the pilot-deploy runbook — cheapest, and sufficient for one pilot tenant; (b) a
+> seed/CLI-driven bootstrap that mints the first admin idempotently. **Blocks nothing today** (local +
+> E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is invisible to every
+> gate), but it is on the critical path of the **first production deploy**.

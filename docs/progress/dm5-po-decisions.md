@@ -131,7 +131,9 @@
 >
 > ⚠ **Open items from closed work do NOT close with the work.** Still live, and tracked in
 > § Follow-ups rather than in the rotated cells: **BUG-QOB-004** · **FUP-QOB-1/2** ·
-> **BUG-BOOTSTRAP-001** · **FUP-QO-6/9** · **FUP-PDF-2..4** · **FUP-MIN-CUTOVER** ·
+> ~~**BUG-BOOTSTRAP-001**~~ (✅ **CLOSED 2026-08-31** on PO disposition (a) — documented as
+> [coolify.md](../deployment/coolify.md) § 2.5; body → [bug-log-archive.md](./bug-log-archive.md)
+> § "Rotated from PROGRESS.md 2026-08-31") · **FUP-QO-6/9** · **FUP-PDF-2..4** · **FUP-MIN-CUTOVER** ·
 > **FUP-AFF-1…4** · **FUP-PCITV-1** · **FUP-ETH-A11Y-1** · **FUP-ETH-ROLES-1** ·
 > **FUP-E2E-SERVER-DEAD-1** · **FUP-ACT-DISPOSE-UI** · **FUP-ACT-CAPA-ASSIGN** ·
 > **FUP-ACT-HATLESS-AUDIT**.

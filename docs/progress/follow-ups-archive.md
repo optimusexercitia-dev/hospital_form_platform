@@ -7510,3 +7510,153 @@ same string.
 > 8262 tests PASS** — the same shape as AE2's completion figures, so no mutation harness's
 > Files/Tests baseline moved.
 
+
+## ↩ Rotated from PROGRESS.md § Follow-ups 2026-08-31 — three concluded notes, VERBATIM apart from the link repoint
+
+These three carried no open action. Each described work that had already finished, and each named
+items whose bodies are elsewhere in this file. Verbatim below, save for the mechanical
+root-relative → `docs/progress/`-relative link transform this directory's convention sanctions.
+
+⛔ **The third one's standing half was ALREADY re-homed, and the PROGRESS.md copy had already
+drifted.** Its two durable warnings — *"do not trust any authz-gate result predating 2026-08-24"*
+and *"never run `ARM=floor` without a fresh reset"* — live in
+[`.claude/rules/authz-gate-results-need-a-current-baseline.md`](../../.claude/rules/authz-gate-results-need-a-current-baseline.md),
+whose frontmatter names `PROGRESS.md § Now residue, rotated here at the AE0 Record step 2026-08-26`
+as its source. So the block cut here was the **second copy** — and it had already gone stale in the
+way the second copy always does: it says `census 546 gates`, where the rule file's AE0 baseline
+(fresh reset, head `20261003004300`) says **564** gates / **600** verdicts. Nothing was lost by
+cutting it; something wrong was.
+
+### The two ⛔ notes that stood above the index tail
+
+- ⛔ **The three lines above were ADDED 2026-08-20**: each had a live 🟡 body in [follow-ups.md](./follow-ups.md) and **no index line here** — invisible to the register the PO reads from. `lint:progress` checks index→body and **never body→index**, so nothing could contradict it — lead
+- ⛔ **`FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument was SWAPPED 2026-08-20** — grep over `src/` → a rendered-output assertion (`referral-dispose-dialog.test.tsx` claim 2, property now shared from [`disposal-copy-property.ts`](../../src/components/dsr/disposal-copy-property.ts)). The grep's measured record was **0 true positives / 4 false positives** (every match was prose *about* the defect — `FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING`, **closed 2026-08-20 by dissolution**, body in [follow-ups-archive.md](./follow-ups-archive.md); its instrument lesson is now `.claude/rules/ui-copy-forbidden-strings.md`); its "nothing, comments included, may contain those strings" prohibition **dissolves with it**. Do not re-run it to re-verify that item — lead
+
+### The 2026-08-24 gate-tooling rotation note
+
+_**Three items RESOLVED 2026-08-24 (gate-tooling round), index lines rotated** → [follow-ups-archive.md](./follow-ups-archive.md): **FUP-AUTHZ-CENSUS-PRUNE-NOTE-IS-WRONG** (shipped with THREE states, not the two it asked for. ⛔ The first closure claimed the two-state run had exposed a RENAMED live PHI door and re-pointed the backlog — **that was false and is corrected**: the run was against a DB that had not been reset and was missing six functions the backlog names; all six are present on a fresh reset, the entry is restored) · **FUP-VACUOUS-DETECTOR-FALSE-POSITIVE** (root-caused in the code, fixed red-first, self-test 44/44) · **FUP-42501-CONFLATES-GRANT-WITH-RLS** (closed on measurement — the fix predated the filing by ONE DAY and the item stayed open six days; the class-level mechanical check is a NAMED residual, not built). ⛔ **Found in the same round and fixed, but read this before trusting any pre-2026-08-24 authz gate record produced on macOS:** all three `p0-authz-*.sh` scripts hardcoded a foreign Windows scratchpad as the `WORK` default, so `mkdir` failed, every arm read empty files, and `ARM=census` printed `INVARIANT HOLDS` **at exit 0 having enumerated zero gates**; and `act-hat-blind-sweep.sh` could not be PARSED by bash 3.2 (the `/bin/bash` macOS ships), so `ARM=hat` could not run at all. Both fixed and all four step-1 arms now hold — census 546 gates, hat 6/6 self-tests, wrapper, floor 0 unallowlisted. ⚠ `ARM=floor` reads 35 unallowlisted doors on a stale DB and **0 on a fresh reset** — never run it without one._
+
+## ↩ Rotated from follow-ups.md 2026-08-31 — FUP-DISPOSE-DIALOG-OVERCLAIM's body, VERBATIM (no repoint needed: same directory)
+
+⛔ **Surfaced BY gate 7, not by a sweep.** The item closed **2026-08-20**; its body was never
+rotated, and it stayed indexed only through a ⛔ note in PROGRESS.md *about its closure instrument*
+— itself concluded residue. Cutting that note at the 2026-08-31 cleanup dropped the last live-register
+reference, and `lint:progress` immediately reported the orphaned body. ⭐ **The note was load-bearing
+in a way nothing recorded** — the register's index→body check passes on a *mention*, so a closed body
+can ride an unrelated note for eleven days and read as indexed. Its sibling
+`FUP-DM5-NO-ANSWER-VS-NOTHING` keeps exactly such a note **by explicit PO ruling 2026-08-28**; this
+one had no such ruling, so the body follows the closure here.
+
+All four links were already `docs/progress/`-relative and are unchanged.
+
+### ⬛ FUP-DISPOSE-DIALOG-OVERCLAIM — ✅ **CLOSED 2026-08-20 (DSR Slice 4 item 3)** — the shipped referral-dispose copy is the exact "tudo apagado" over-claim ADR 0056 (b) forbade — and it offers an Art. 18 reason counsel may have closed (owner: frontend; vehicle: DSR plan Slice 4)
+
+> ## ✅ CLOSED 2026-08-20 — both over-claiming strings REPLACED, not supplemented
+>
+> `src/components/referrals/referral-dispose-dialog.tsx` now renders the shared
+> `DSR_RESIDUE_NOTICE` verbatim (no fifth line, no paraphrase — the language is decided
+> once, centrally), and the two over-claims are gone rather than qualified. Eight lint gates
+> + tsc green.
+>
+> ⛔ **The verification scope is REPO-WIDE over `src/`, not file-local (corrected at QA r1).**
+> The closing evidence first recorded a grep over the one rewritten file — but the rule the
+> code comments state is repo-wide, so closure passed under one stated scope and would have
+> failed under the other. That mattered — the file-scoped grep was green while **two** more
+> copies of the same defect pair were live in `dsr-task-inbox.tsx` and, worst of all, in the
+> docblock of `DSR_RESIDUE_NOTICE` itself, where it is the first thing anyone reads before
+> reusing the constant. All now carry the history in English with an explicit note that the
+> pt-BR strings are never quoted.
+>
+> ⛔ **CORRECTED AGAIN (QA r2). This paragraph previously asserted that the widened grep
+> "exits **1**". IT EXITED 0 WHEN THAT SENTENCE WAS WRITTEN** — and the file matching it was
+> `referral-dispose-dialog.test.tsx`, *the very file the next paragraph of this record
+> introduces as the closure's evidence*. The record certified its own falsifier.
+>
+> ⭐⭐ **This is the FOURTH recurrence in a single day, and the fourth author had personally
+> fixed the previous three.** That is the finding, not the four instances: ***the prohibition
+> is not holdable by discipline.*** Documenting a defect by quoting it is the natural way to
+> write the comment, so the rule asks every future author to suppress the obvious phrasing
+> forever, with nothing able to contradict them. A grep-verified follow-up whose own evidence
+> is prose is self-defeating by construction. Raised to the PO as a **gate** proposal —
+> ⚠ per CLAUDE.md §8 every existing gate was added after exactly this pattern: a class that
+> shipped a live defect and kept recurring under discipline alone.
+>
+> ✅ **Executable coverage now exists** — `referral-dispose-dialog.test.tsx`, 15 tests,
+> every one **mutation-proven** to fail (11 mutations, all red under an anchor-uniqueness
+> guard). This closes a real gap: **no E2E reaches this dialog at all** (AC-7 POSTs the RPC
+> directly; `FUP-ACT-DISPOSE-UI`'s referral lane is undischarged), which is the likeliest
+> reason the over-claim survived unnoticed from the day it shipped.
+> The Art.18-reason half was already narrowed on 2026-08-19 by counsel's Q14 return (ADR
+> 0035 Amdt 1) and the dialog now carries a `subject_request`-only note that such a
+> disposal presupposes an adjudicated DSR (ADR 0130).
+>
+> ⚠ **Two facts worth carrying forward.**
+> **(a) ⭕ INSTRUMENT SWAPPED 2026-08-20 — the closure evidence is the rendered-output
+> assertion, and the grep is RETIRED for this item.** The original instrument was a grep
+> over `src/` for the shipped pt-BR literal, which made the fix able to defeat its own
+> check: a docblock quoting the removed strings as "do not reintroduce" hits **forever**,
+> on a comment rather than on live copy, and reads as an unfixed defect. That happened
+> four times in one day — `FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING` — and the grep's
+> measured record is **0 true positives / 4 false positives**: every string it ever
+> matched was prose *about* the defect. The one real over-claim was found by re-reading
+> the component, not by the grep.
+> The instrument is now **claim 2 of
+> `referral-dispose-dialog.test.tsx` (**REMOVED 2026-08-21** with its component; the shared over-claim property survives in [`dsr-disposal-overclaim.test.tsx`](../../src/components/dsr/dsr-disposal-overclaim.test.tsx), and the residue-CLASS pin was RELOCATED there rather than deleted)**
+> — `TOTALITY_QUANTIFIER` matched against **rendered DOM text**, and exactly co-scoped with
+> this item (which is about the *referral* dialog's copy): it keys on the quantifier
+> **family**, so a paraphrase one word off still reds where the literal grep would have
+> passed it; and comments are **not present in rendered output at all**, so the
+> false-positive class is structurally impossible rather than merely discouraged.
+>
+> ⛔ **CORRECTED 2026-08-20 (later the same day). This paragraph said "strictly stronger in
+> both directions" and that was FALSE AS WRITTEN — an over-claim, in the note that exists to
+> record an over-claim.** The assertion read `dialog.textContent`, which concatenates sibling
+> text with no separator, so a ``-anchored pattern is blind at every element edge; the grep
+> it replaced read SOURCE, where the string is contiguous, and had no such hole. The swap was
+> stronger on the axis being discussed (paraphrase, and false positives on prose) and
+> **weaker on one nobody had looked at**. Closed by `renderedText()` (join text NODES with a
+> space) under `FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY`, found only by mutating the
+> instrument — so the claim is true now, and was not on the day it was written.
+> ⭐ *"Strictly stronger" is a claim over ALL axes, and it is almost never measured over
+> all of them.*
+> ⛔ **Do not re-run the grep to re-verify this item** — a hit means a comment. QA's r2
+> record ([review](../reviews/dsr-slice-4-review.md), "the verification instrument … **is**
+> this grep") predates this swap and is left as written; it is a record, not an instruction.
+> ⭐ **The prohibition dissolves with the instrument.** *"Nothing in that file, comments
+> included, may ever contain those strings"* was downstream of the grep and had no other
+> ground. With the grep retired, quoting the defect in a comment is harmless — and keeping
+> an unenforceable standing rule after removing its only enforcer is precisely what ADR
+> 0127 refuses to admit. The fifth recurrence the PO's record-only ruling expected is now
+> a non-event rather than a suppressed instinct.
+> **(b) Left deliberately, flagged not fixed:** the confirm-field helper ("exclusão
+> **definitiva**") and the destructive button ("Apagar **definitivamente**"). These assert
+> *finality*, not the *completeness* ADR 0056 (b) forbids, `DSR_RESIDUE_NOTICE` now
+> qualifies them two blocks above in the same dialog, and relabelling the button
+> re-scopes any future E2E locator. A deliberate decision, not a drive-by — but if the
+> PO wants strict alignment with the PITR line, that is the remaining string pair.
+
+Filed 2026-08-19 (lead) — found by the disposal-touching-ADR sweep as an ADR 0056 Consequence that
+was logged there and never entered this register; then verified against the shipped component.
+
+**The defect, verbatim from the tree.** ADR 0056 Consequence (b) required the disposal-confirmation
+copy to reflect the **narrowed claim** — *"no 'tudo apagado' over-claim; it should say DB PHI is
+erased and attachments are retained encrypted under retention."*
+`src/components/referrals/referral-dispose-dialog.tsx` ships: *"Remove **permanentemente** a
+identificação do paciente e **todos os campos com dados sensíveis** … Esta ação é irreversível"* and
+*"apaga **permanentemente** … Não é possível desfazer"* — no mention of retained bytes, PITR, or
+distributed copies. This is pt-BR compliance copy shown to the operator at the moment they discharge
+a legal obligation, asserting more than the mechanism delivers (ADR 0056 §4 narrowed the claim
+precisely because Storage blobs survive).
+
+**Aggravated 2026-08-19, then NARROWED the same day:** the dialog offers *"Solicitação do titular
+(LGPD Art. 18)"* as a selectable reason, which was contingently invalid while counsel's blanket
+override stood — but the Q14 return (ADR
+[0035](../decisions/0035-lgpd-anvisa-regulatory-posture.md) **Amdt 1**, resolved) rules removal
+requests **case-by-case with legal consultation**, so the lane is live and the reason option is
+valid. The over-claim is the whole remaining defect. ⚠ Slice 4's rewrite should still note that a
+`subject_request` disposal presupposes an adjudicated DSR (ADR 0130) once that workflow exists.
+
+**Fix (decided, Q12a):** rewrite with the shared fixed residue-language constant —
+[dsr-workflow-plan.md](../plans/dsr-workflow-plan.md) **Slice 4**, which also owes the same copy to
+every disposal surface the DSR inbox adds. Not a one-line patch: the residue language is decided
+once in the plan, never per-dialog.

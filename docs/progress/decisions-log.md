@@ -568,3 +568,16 @@ made"* supersession, and the 2026-08-18 note’s record that its own word *"abov
 | 2026-08-26 | **PostgREST maps SQLSTATE class `P0*` → HTTP 500** (`P0001` excepted), refuting AFF4 pre-step P1’s premise. P1 re-scoped *fix* → *diagnose + re-file*; the live defect is a **73-function `public` P-class class**, NOT built here | ADR [0152](../decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md) — **amends 0151 D16a** |
 | 2026-08-26 | **A subset door-sweep writes to SCRATCH; the committed `authz-door-audit-findings.md` is never opened for write** — retires ADR 0079 Amdt 1’s `git checkout --` restore. Fixed in **four** sweeps, not one | ADR [0153](../decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) — **amends 0079 Amdt 1** |
 | 2026-08-25 | **AFF4 ruled** — `organization_affiliations`: org belonging becomes a row with a lifecycle; staff data ON `hospital_affiliations`, no parallel table; the **voided tense** closes C5 on both tables; "active" defined once (D6); `home_organization_id` demoted, Phase 2 named | ADR [0151](../decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md) |
+
+## Rotated from PROGRESS.md § Decisions 2026-08-31 — the two concluded 2026-08-27 rulings
+
+Both concluded: the rulings are made, their detail lives in the linked ADR and rulings doc, and what
+survives each as live work is already carried elsewhere — R2's HMAC deny test as a follow-up, C2's
+subset as § Critical FUP C2. ⛔ The third 2026-08-27 row (ADR 0124 **Amdt 3**, the 80 KB target /
+100 KB hard cap) **stays in PROGRESS.md**: it governs that file's own size discipline and is
+operative every time the gate runs. Verbatim apart from the link repoint.
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-27 | **The 11 `.rpc()` UNDECIDED sites RULED** (approved as-is + 4 observations): 1 in-function door, 10 system-actor; R1 ACL pins = pgTAP 388, R2 HMAC deny test = FUP, R3 re-measure **discharged** (local+remote body-md5 parity, 0 refs in unregistered migrations); minutes latch made atomic (`…005000`) | [rulings](../design/authz-ae1-rpc-rulings.md) |
+| 2026-08-27 | **Plan-audit rulings, authz evolution** — F1–F18 dispositioned (`[PA-F#]` plan tags): rollback = runbook, never a migration; catalog **authority-elect** + FK binding; **C2 subset joins the pilot gate**; `home_organization_id` **drops** in AE2; tiered DEFINER review; AE1 close amended | ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) — **amends 0155** |

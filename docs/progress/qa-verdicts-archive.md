@@ -393,3 +393,13 @@ PDF·P3 + the user-profile redesign concluded 2026-08-25 (both approved; gate st
 | --- | --- | --- | --- |
 | **AE1 — authz integrity & privilege hardening (round 2)** | ⛔ **CHANGES REQUESTED → ✅ ALL DISCHARGED** | 2026-08-27 | [review](../reviews/authz-ae1-review.md) |
 | AFF4 — org affiliation, staff data, voided tense | APPROVED | 2026-08-26 | [review](../reviews/aff4-review.md) |
+
+## ↩ Rotated from PROGRESS.md § QA Verdicts 2026-08-31 at the AE3 cleanup — retention (current milestone only)
+
+AE3 concluded 2026-08-31, so AE2's row is no longer the current milestone. Verbatim apart from the
+link repoint. ⚠ The row deliberately omits a head sha — *measure, never quote* — and that omission
+is preserved, not repaired.
+
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- | --- |
+| **AE2** — affiliation/person tenancy, r3 (reviewed post-drop; ⛔ head sha deliberately omitted — measure, never quote) | **APPROVED** | 2026-08-28 | [r3](../reviews/authz-ae2-review-r3.md) |
