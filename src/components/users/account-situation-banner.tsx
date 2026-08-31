@@ -1,5 +1,6 @@
 import { Info } from "lucide-react";
 
+import { formatSuspensionDate } from "@/lib/users/suspension-date";
 import type { UserStatus } from "@/lib/users/types";
 
 /**
@@ -76,13 +77,8 @@ function situationCopy(
   }
 }
 
-/**
- * A suspension end is a TIMESTAMP, not a bare date, so it is safe to parse as an
- * instant — unlike `started_on` / `date_of_birth`, which are DATE columns and shift a
- * day west of UTC when read that way.
- */
-function formatSuspensionDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat("pt-BR").format(date);
-}
+// BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY: `formatSuspensionDate` moved to
+// `@/lib/users/suspension-date`, beside `endOfSuspensionDay`, so the render and
+// the write cannot drift about what "suspenso até D" means. It formerly lived
+// here with no `timeZone`, which rendered a midnight-UTC value as the PREVIOUS
+// day in America/Sao_Paulo.

@@ -13,6 +13,7 @@ import {
 
 import type { UserStatus } from "@/lib/users/types";
 import type { PlatformFootprint } from "@/lib/users/person-footprint";
+import { endOfSuspensionDay } from "@/lib/users/suspension-date";
 import {
   deactivateUser,
   reactivateUser,
@@ -331,7 +332,13 @@ export function UserLifecycleActions({
                 run(() =>
                   suspendUser(
                     userId,
-                    suspendUntil ? `${suspendUntil}T00:00:00.000Z` : null,
+                    // BUG-SUSPENSION-DATE-RENDERS-A-DAY-EARLY. This was
+                    // `${suspendUntil}T00:00:00.000Z` — midnight UTC, which is
+                    // 21:00 of the PREVIOUS day in America/Sao_Paulo, so the
+                    // banner told a suspended user their suspension had already
+                    // ended. PO ruling 2026-08-26: "suspenso até D" means
+                    // through 23:59:59 of D, in that zone.
+                    suspendUntil ? endOfSuspensionDay(suspendUntil) : null,
                   ),
                 )
               }
