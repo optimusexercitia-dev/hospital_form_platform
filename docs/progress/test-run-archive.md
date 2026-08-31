@@ -1099,3 +1099,13 @@ row at all**, which is the correct state; do not invent a placeholder row to fil
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-26 | **AFF4 `e2e:prod`** — `1250p · 0f · 0 infra · 2 flaky · 0 DNR · 21 batches`; 1252/1263, 11 skip. ⚠ Flaky NAMED + both pre-existing: `act-role-assumption:157` · `phase2-auth-shell:268` ⇒ **0 new**. ⛔ `0 infra` is POST-RERUN: batch 9 died, 21 unrun, rerun 67/67. [aff4.md](aff4.md) | ✅ **GREEN, exit 0** |
+
+
+## Rotated 2026-08-31 (AE3 Record step)
+
+_The §6 Test Run Summary keeps the most recent gate only. This row left `PROGRESS.md` when AE3's
+gate row replaced it._
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-29 | Pre-AE3 clearance (⛔ **not** a phase gate — no phase completed) | `test:db` fresh reset **248f/8262 PASS** (same shape as AE2's completion figures) · `lint` 11/11 · `typecheck` 0 · `vitest` 2016. ⚠ `e2e:prod` **NOT re-run**; 2 specs re-run targeted, 11 passed |
