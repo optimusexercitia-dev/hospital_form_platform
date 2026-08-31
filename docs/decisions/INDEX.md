@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**166 ADRs** · next free number: **0169** · 50 carry an inbound supersedes/amends edge
+**168 ADRs** · next free number: **0171** · 51 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -99,7 +99,7 @@
 | 0074 | [Supersession correction model (contract + UX finalization)](0074-supersession-correction-model.md) | accepted | 2026-07-13 | – | – |
 | 0075 | [Memberships collapse: service-role vs RLS-scoped write-path split](0075-memberships-collapse-write-path-split.md) | accepted | 2026-07-13 | – | – |
 | 0076 | [Notifications (S1·N): pilot scope — prove one vertical deep](0076-notifications-pilot-scope.md) | accepted | 2026-07-13 | – | – |
-| 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134, 0167 |
+| 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134, 0167, 0169 |
 | 0079 | [AUTHZ door-blindness: the standing invariant + the write-policy keystone-isolation rule](0079-authz-door-blindness-standing-invariant.md) | accepted | 2026-07-18 | supersedes 0078 | ⚠ amended by 0134, 0153, 0157 |
 | 0080 | [Committee Charters & Cadence (S4·CH): delegate the regimento to the controlled-doc life…](0080-committee-charters-cadence-model.md) | accepted | 2026-07-20 | – | – |
 | 0081 | [Controlled-Document Redesign + Reviewer Notifications](0081-controlled-document-redesign.md) | accepted | 2026-07-21 | – | ⚠ amended by 0082 |
@@ -153,7 +153,7 @@
 | 0129 | [A narrow disposal flag through the meeting child lock](0129-meeting-child-lock-disposal-flag.md) | accepted | 2026-08-19 | – | – |
 | 0130 | [DSR workflow: data-subject requests as adjudicated cases, not an erase button](0130-dsr-subject-request-workflow.md) | accepted | 2026-08-19 | – | – |
 | 0131 | [PHI erasure reach is bounded to DESIGNATED PHI fields; free text is out of scope for th…](0131-phi-erasure-reach-bounded-to-designated-fields.md) | accepted | 2026-08-20 | – | – |
-| 0132 | [An ethics proceeding carries NO erasure entitlement; the absent door is a DECISION, not…](0132-ethics-proceedings-carry-no-erasure-entitlement.md) | accepted | 2026-08-21 | – | – |
+| 0132 | [An ethics proceeding carries NO erasure entitlement; the absent door is a DECISION, not…](0132-ethics-proceedings-carry-no-erasure-entitlement.md) | accepted | 2026-08-21 | – | ⚠ amended by 0170 |
 | 0133 | [AFF2: affiliation-scoped administration, mandatory-CPF registration & the user-manageme…](0133-aff2-affiliation-scoped-administration-um-redesign.md) | accepted | 2026-08-20 | amends 0048, 0097, 0098 | ⚠ amended by 0147, 0148, 0161, 0168 |
 | 0134 | [The case split is read vs manage: one management surface, and administrativo can read t…](0134-case-surface-split-and-administrativo-case-read.md) | accepted | 2026-08-21 | amends 0033, 0061, 0078, 0079, 0100 | ⚠ amended by 0137 |
 | 0135 | [Authored refusals get their own SQLSTATE; `42501` stays reserved](0135-authored-refusals-get-their-own-sqlstate.md) | accepted | 2026-08-22 | – | – |
@@ -190,3 +190,5 @@
 | 0166 | [governance-role provisioning implies an organization affiliation](0166-governance-role-provisioning-implies-organization-affiliation.md) | accepted | 2026-08-28 | amends 0151, 0164 | ⚠ amended by 0168 |
 | 0167 | [commission `staff_admin` has ONE authority, on both sides](0167-commission-staff-admin-has-one-authority-on-both-sides.md) | accepted | 2026-08-28 | amends 0051, 0078 | – |
 | 0168 | [orphan recovery is its own door: split the branch, do not lock the door](0168-orphan-recovery-is-its-own-door.md) | accepted | 2026-08-28 | amends 0133, 0164, 0165, 0166 | – |
+| 0169 | [the meeting-content recusal divergence is a time-boxed EXCEPTION, not a new rule](0169-meeting-content-recusal-divergence-is-a-time-boxed-exception.md) | accepted | 2026-08-31 | amends 0078 | – |
+| 0170 | [case deletion is not a client capability: DELETE on `public.cases` is revoked from `aut…](0170-case-deletion-is-not-a-client-capability.md) | accepted | 2026-08-31 | amends 0132 | – |

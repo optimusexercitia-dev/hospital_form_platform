@@ -4206,10 +4206,44 @@ addendum, and the framing is theirs.
 
 ### 🔴 FUP-ETHICS-CASE-DELETE-CASCADE — a commission `staff_admin` can `DELETE` an in-flight ethics case over PostgREST, cascading all SEVEN `ethics_*` tables, with ZERO audit rows naming any ethics entity (owner: backend + PO; found 2026-08-21 answering the PO's "were any doors opened?", ADR 0132)
 
-**⛔ PO-ruled RECORD-ONLY 2026-08-21 (ADR
+~~**⛔ PO-ruled RECORD-ONLY 2026-08-21 (ADR
 [0132](../decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md)) — accepted and OPEN,
-not fixed and not absent.** Closing it is an RLS/gate change owing migrations, pgTAP keystones and
+not fixed and not absent.**~~ Closing it is an RLS/gate change owing migrations, pgTAP keystones and
 an ADR 0079 diff-scoped door sweep; it was deliberately not slipped into a documentation change.
+
+### ⭕ RECORD-ONLY **LIFTED** 2026-08-31 (PO) → ADR [0170](../decisions/0170-case-deletion-is-not-a-client-capability.md)
+
+**Remedy: `revoke delete on public.cases from authenticated`.** All four measurements above were
+re-confirmed against the live catalog at head `20261003006800` and stand unchanged. Two new ones
+decided the shape:
+
+- ⭐ **Nothing deletes a case row.** No client `.delete()` on `cases` in `src/` or `e2e/`, and
+  **zero** DB functions whose comment-stripped `prosrc` matches `delete\s+from\s+(public\.)?cases`.
+  The capability is unused, so a total revoke costs no product regression.
+- ⭐ **The grant was never a decision** — one of **158** identical `GRANT ALL ON TABLE … TO
+  "authenticated"` lines emitted alphabetically by the squashed baseline
+  (`20260620000000_baseline.sql:23322`); no `grant delete on public.cases` and no revoke exists in
+  any of the 499 migrations. ADRs 0036/0037/0038/0064 each **explicitly** revoke DML on PHI tables;
+  `cases` was simply never in that set.
+
+**Its own gated increment, landing BEFORE AE4.3's `staff_admin` matrix** (PA-F8 **a**) — otherwise
+AE4 derives a `staff_admin` case-delete permission from current behaviour and makes a capability an
+accepted ADR forbids into the new system's regression oracle.
+
+⛔ **Two traps the increment must carry:**
+1. The revoke **pre-empts** `cases_staff_admin_write`'s DELETE arm — the
+   `FUP-EVENT-PATIENT-POLICY-PREEMPTED` shape, where a `FOR ALL` policy still *reads* as the control
+   while an absent grant is doing the work. **Pin the absence executably** so a future `grant`
+   cannot silently re-arm a predicate nobody has re-evaluated.
+2. pgTAP `110` §9 asserts `23514` as `authenticated`; post-revoke the refusal is `42501` **from a
+   different arm** (`FUP-AE2-397-DENY-CELLS-SQLSTATE-ONLY`). **Re-base, do not retune:** keep the
+   terminal-state guard under test at a privileged role **and** add a separate grant-absence
+   assertion. One assertion may not carry both claims. (`296` and `328` delete as `postgres` and are
+   unaffected.)
+
+⚠ **Narrowed, not discharged:** the *"zero audit rows naming any ethics entity"* half. The general
+case-deletion audit gap on privileged paths, and the absence of audit triggers on the `ethics_*`
+tables, both stay open.
 
 **Measured against the live catalog at head `20261003000300`, 2026-08-21, and confirmed BY
 EXECUTION in a transaction — rolled back, pre-state re-verified byte-for-byte.**
@@ -5964,10 +5998,48 @@ demonstrated leak — and it is a textbook instance of *a green gate meaning the
 the failing state*. ⛔ Confirming it requires **constructing the state nobody constructed**: recuse a
 member from a case, put that case on a meeting they can reach, assert SELECT returns zero rows.
 
-⭐ **Why this reads as an oversight rather than a decision:** a deliberate ruling that *"recusal does
+~~⭐ **Why this reads as an oversight rather than a decision:** a deliberate ruling that *"recusal does
 not apply in the meeting context"* would have applied to the **write** policies too. The 3-of-4
-split is the tell. ⚠ But that is an inference — **the PO rules it**, and the ruling is needed before
+split is the tell.~~ ⚠ But that is an inference — **the PO rules it**, and the ruling is needed before
 any fix, because "add recusal to the SELECT policy" is only correct if the asymmetry is unintended.
+
+---
+
+### ⛔ RULED 2026-08-31 (PO) — and the inference above measured **FALSE**. → ADR [0169](../decisions/0169-meeting-content-recusal-divergence-is-a-time-boxed-exception.md)
+
+**It was already ruled, twice, and in the opposite direction.** ADR 0078 Amendment 1 **O6**:
+*"the **recused still sees the number**"* — the propriety tier gates on `is_case_respondent`
+**alone**, which is exactly what this policy implements. ADR 0078 **A5** then sets three tiers:
+*procedural shell* (item exists, process number, who withdrew and why, times) → **all members,
+including the recused**, because *"the shell must be visible — it is the proof of propriety"*;
+*substance* → case authority; *decision* → **member AND NOT excluded**.
+
+⛔ **So the remedy this item proposed would have tripped a guard built to prevent it.**
+`20260816000300_authz_gate2_228_meeting_cases_respondent.sql` raises if the row-layer qual ever
+contains `is_case_excluded`, because that *"blinds every RECUSED member to her own recusal
+(keystone 10)"*. ⭐ This item cites neither O6 nor A5 — the contradiction stood unnoticed for five
+days, and the inference read as care because it argued for the **tighter** rule.
+
+**The defect, re-characterised** (live catalog, head `20261003006800`): `meeting_cases` has seven
+columns. Row visibility is **correct**. `summary` (substance tier) and `decision` (decision tier)
+are **over-granted** — `is_case_excluded = is_case_respondent OR is_recused_from_case`, and the
+policy carries only the respondent half.
+
+**Disposition: NAMED COMPATIBILITY EXCEPTION** (ADR 0162 / PA-F8 **b**) — first-class in AE4.3's
+`staff_admin` matrix, mutation-tested like any other cell. Owner `backend`; ⚠ **expiry date owed
+from the PO** (the trigger is post-pilot, at the first increment touching meeting content, and a
+trigger-only expiry is the shape that never fires).
+
+⛔ **Stays OPEN — an accepted exception is an acceptance, not a fix.** ⛔ And the matrix cell must
+record the **corrected** characterisation: a cell authored from this item's original text would
+encode the wrong fix and make it the regression oracle. Fix shape when the exception expires:
+`summary` on case authority, `decision` on `NOT is_case_excluded`, shell untouched — RLS cannot
+deny per-column, so it needs a view or column-grant split, plus a keystone that constructs the
+state the seed cannot reach.
+
+⚠ **NOT dispositioned:** the *"zero of the five `can_reach_meeting` consumers check recusal"*
+observation below. A5 governs meeting content generally, so the same under-implementation may stand
+at other meeting tables — **derive that population as a property**, never from this one table.
 
 ### 🟡 FUP-HOSPITAL-DIRECTORY-EXPIRED-SEAT-STALE-ROSTER — an expired seat still counts a person onto the hospital directory (owner: backend/PO; filed 2026-08-26 at the AFF4 QA round, found by `backend` while ruling the hospital roster predicate)
 
