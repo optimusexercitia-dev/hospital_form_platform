@@ -23,22 +23,13 @@ test.describe('AFF4-MEUSDADOS: read-only self-record page', () => {
   test('dr.john sees exactly his own masked CPF, blank DOB/phone, zero credentials, both hospital affiliations with their real matrículas, and one active org affiliation', async ({
     page,
   }) => {
-    // QA review item B3 (`docs/reviews/aff4-review.md`) — BUG-MEUSDADOS-HOSPITAL-NAME-001
-    // (see the comment at the `toContainText('Hospital Central A')` assertion below)
-    // makes this test fail every run, deterministically, not a flake. Left as a bare
-    // red this blocks §6 step 2 ("the full E2E suite runs once to declare green"), and
-    // a bare red is indistinguishable from a regression to whoever reads the run.
-    // Pinned `test.fail()` instead: Playwright reports "failed as expected" while the
-    // bug is open, and flips to "unexpectedly passing" — a loud signal, not a silent
-    // one — the moment it is fixed.
-    // ⚠ CONDITIONAL, NOT a permanent acceptance of the defect. A PO decision is
-    // pending on whether to fix `hospitals_select` instead of shipping the known
-    // defect (add a self-affiliation `EXISTS` arm — see the Bug Log row and review
-    // item B3). ⛔ If that lands, it is an RLS policy change and re-arms §6 step 1's
-    // diff-scoped door sweep over `hospitals_select`. Either way, this annotation is
-    // the ONLY thing that then needs to go: delete the next line and nothing else in
-    // this test changes.
-    test.fail(true, 'BUG-MEUSDADOS-HOSPITAL-NAME-001 — pending PO ruling, see comment above')
+    // BUG-MEUSDADOS-HOSPITAL-NAME-001 is CLOSED (PO ruled 2026-08-31: fix, remedy A).
+    // `hospitals_select` gained a sixth arm, `app.is_affiliated_with_hospital(id)`,
+    // so a plain affiliate now reads the NAME of a hospital whose affiliation row they
+    // could already SELECT — migration 20261003007000. The `test.fail()` pin that stood
+    // here is gone, exactly as its own comment promised: one line, nothing else in this
+    // test changed, and the `Hospital Central A` / `Hospital Secundário A` assertions
+    // below were never weakened while it was pinned.
 
     await signInAs(page, 'dr.john@test.local')
     await page.goto('/conta/meus-dados')

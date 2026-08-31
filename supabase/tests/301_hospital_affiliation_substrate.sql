@@ -24,10 +24,10 @@
 --  * **A narrowing passes its negative keystone by construction (§7.7).** Every deny
 --    arm here has a positive twin on the same table and the same reader.
 --
--- Assertion count: 41
+-- Assertion count: 46
 
 begin;
-select plan(44);
+select plan(46);
 
 -- Personas + scopes (deterministic seed ids — never gen_random_uuid()).
 create temp table k on commit drop as select
@@ -537,6 +537,38 @@ select throws_ok(
      where id = '00000000-0000-0000-0000-000000000003'$$,
   '23514', null,
   '7.4 the guard was not WEAKENED by the rewrite: a signed-in caller still cannot edit an identity column');
+reset role;
+
+-- ============================================================================
+-- § SELF-NAME — BUG-MEUSDADOS-HOSPITAL-NAME-001 / migration 20261003007000.
+--
+-- `hospitals_select` gained a SIXTH arm, `app.is_affiliated_with_hospital(id)`,
+-- so a plain affiliate can read the NAME of a hospital whose affiliation row
+-- they could already SELECT. Without it, /conta/meus-dados rendered
+-- "Hospital não identificado" for every row — the embed nulled silently.
+--
+-- ⛔ BOTH DIRECTIONS, deliberately. A positive-only assertion proves an arm was
+-- ADDED, never that it was bounded: a `using (true)` would satisfy it just as
+-- well. 8.2 is what fails on an over-widening.
+-- ⚠ These are the ONLY assertions covering the arm. 170 § plain-staff still
+-- expects 0 hospitals and still passes, because `st_y` holds no affiliation —
+-- that test is a negative for the OTHER five arms and cannot see this one.
+-- ============================================================================
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000d1', false);
+set local role authenticated;
+
+-- d1 is affiliated with central-a (…000a) via the § 4 fixture above.
+select is(
+  (select count(*)::int from public.hospitals
+    where id = (select central_a from k)), 1,
+  '8.1 SELF-NAME (+): an affiliate READS the hospital they are affiliated with — the name /conta/meus-dados needs');
+
+-- …0a2 exists and d1 holds no affiliation to it. If this returns 1 the arm is
+-- not scoped to the caller's own affiliations and the fix over-widened.
+select is(
+  (select count(*)::int from public.hospitals
+    where id = (select secundario_a from k)), 0,
+  '8.2 SELF-NAME (−): the same affiliate reads NOTHING of a hospital they hold no affiliation to (the arm is scoped, not `true`)');
 reset role;
 
 select * from finish();
