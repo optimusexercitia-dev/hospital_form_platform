@@ -1,0 +1,95 @@
+-- ADR 0170 — case deletion is not a client capability: DELETE on public.cases
+-- is revoked from `authenticated`. Lifts ADR 0132 DOOR-1's RECORD ONLY.
+--
+-- ── WHY ──────────────────────────────────────────────────────────────────────
+-- ADR 0132 rules that an ethics proceeding record carries NO erasure
+-- entitlement at any stage, and names the seven case-scoped `ethics_*` tables
+-- as non-erasable. The catalog said otherwise. Measured live at head
+-- 20261003006800, and confirmed by execution in a rolled-back transaction when
+-- DOOR-1 was filed 2026-08-21:
+--
+--   * has_table_privilege('authenticated','public.cases','DELETE') = true;
+--   * cases_staff_admin_write is FOR ALL on
+--       app.is_staff_admin_of(commission_id)
+--       AND NOT app.is_case_excluded(id, auth.uid());
+--   * app.guard_case_status' DELETE arm raises only for
+--       old.status in ('completed','cancelled')
+--     — so three of five statuses, i.e. EVERY IN-FLIGHT proceeding, are
+--     deletable;
+--   * all seven ethics_* FKs to cases carry confdeltype = 'c' (CASCADE).
+--
+-- So a commission staff_admin could DELETE /rest/v1/cases an in-flight ethics
+-- case and cascade the whole evaluation away, while the same JWT got 403 on
+-- ethics_case_details directly. The lane's deliberate SELECT-only lockdown
+-- (nine tables, fourteen DEFINER writers, no DELETE in any) was defeated by a
+-- parent that was never locked down.
+--
+-- ── WHY A REVOKE, AND NOT A WIDER GUARD ──────────────────────────────────────
+-- Because nothing uses the capability. Measured 2026-08-31:
+--   * src/  — zero `.from('cases')…delete()`. The 13 `.from('cases')` sites are
+--             select/update. The only nearby `.delete()` is on case_events.
+--   * DB    — zero functions whose comment-stripped prosrc matches
+--             `delete\s+from\s+(public\.)?cases`.
+--   * seed  — zero. scripts/ — zero.
+--   * e2e   — 9 specs DELETE FROM cases, all inside purgeLeftoverState()
+--             teardowns that shell out to `docker exec … psql -U postgres`.
+--             Superuser, not `authenticated`, not even PostgREST. Unaffected.
+--
+-- ── PROVENANCE: THE GRANT WAS NEVER A DECISION ───────────────────────────────
+-- It is one of 158 identical `GRANT ALL ON TABLE … TO "authenticated"` lines
+-- emitted alphabetically by the squashed baseline
+-- (20260620000000_baseline.sql:23322). No `grant delete on public.cases` and no
+-- revoke exists in any prior migration. ADRs 0036/0037/0038/0064 each
+-- EXPLICITLY revoke DML from `authenticated` on PHI tables; `cases` was simply
+-- never in that set.
+--
+-- ── MEASURED BEFORE / AFTER ──────────────────────────────────────────────────
+--   before: information_schema.role_table_grants for grantee 'authenticated'
+--           on public.cases = {SELECT, INSERT, UPDATE, DELETE}
+--   after : {SELECT, INSERT, UPDATE}
+-- ⚠ Read as a DELTA in one privilege, not as a statement about the policy:
+-- cases_staff_admin_write is untouched and still FOR ALL.
+--
+-- ── SCOPE, STATED HONESTLY ───────────────────────────────────────────────────
+-- This migration does ONE thing: it removes one table privilege from one role.
+-- It is NOT:
+--   * a fix for the audit gap. DOOR-1's "zero audit rows naming any ethics
+--     entity" half is NARROWED, not discharged — the ethics_* tables still
+--     carry no audit trigger, and case deletion on privileged paths is still
+--     unaudited. Both stay open.
+--   * a change to app.guard_case_status. Its DELETE arm stays as
+--     defence-in-depth for privileged paths; it simply becomes unreachable for
+--     `authenticated`.
+--   * a change to any policy. cases_staff_admin_write keeps its FOR ALL shape,
+--     and its DELETE arm is now PRE-EMPTED by an absent grant — the
+--     FUP-EVENT-PATIENT-POLICY-PREEMPTED shape, where a policy still READS as
+--     the control while the grant's absence does the work. That is precisely
+--     why the pin below is mandatory and not decorative.
+--
+-- ── MUTATION PROOF ───────────────────────────────────────────────────────────
+-- supabase/tests/110_case_status.sql § 9 reds if this revoke is dropped or
+-- over-applied, in three independent directions:
+--   9a  authenticated DELETE on cases raises 42501    -> reds if the grant returns
+--   9b  the guard's terminal-state arm raises 23514   -> reds if guard_case_status
+--       under a role the ACL admits                      loses its DELETE arm
+--   9c  table_privs_are(... {SELECT,INSERT,UPDATE})   -> reds on an OVER-revoke
+--       that strands the live readers/writers
+-- ⛔ 9a and 9b are deliberately SEPARATE assertions. Before ADR 0170 this
+-- section carried one assertion expecting 23514 under `authenticated`; retuning
+-- that SQLSTATE to 42501 in place would have stayed green while deleting the
+-- only witness of the guard's DELETE arm — a refusal arriving from a different
+-- arm satisfies a SQLSTATE-only deny (FUP-AE2-397-DENY-CELLS-SQLSTATE-ONLY).
+--
+-- ⚠ ALTER DEFAULT PRIVILEGES still hands `arwdDxtm` to `authenticated` on new
+-- tables, and a re-dumped baseline would restore the original GRANT ALL line.
+-- Nothing prevents that; 9c is what NOTICES it.
+--
+-- ── DOOR SWEEP ───────────────────────────────────────────────────────────────
+-- This migration contains no policy and no `prosecdef` gate, so
+-- scripts/door-sweep-cases.sh derives ZERO cases and exits 1 by construction
+-- (the diff touched supabase/migrations/). That exit is an obligation to state,
+-- not a failure to fix — recorded in this increment's gate record.
+--
+-- SQLSTATE: allocates none.
+
+revoke delete on table public.cases from authenticated;

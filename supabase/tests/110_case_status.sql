@@ -17,7 +17,7 @@
 -- the terminal DELETE block. cases_multi_phase is flipped ON for the txn.
 
 begin;
-select plan(15);
+select plan(17);
 
 update app.feature_flags set enabled = true where key in ('cases_multi_phase', 'cases_extras');
 
@@ -222,17 +222,59 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- 9) TERMINAL DELETE BLOCK: a concluido case cannot be deleted (guard fires)
+-- 9) TERMINAL DELETE BLOCK — SPLIT INTO THREE CLAIMS by ADR 0170.
+--
+-- Until 2026-08-31 this section carried ONE assertion: `authenticated` deleting
+-- a terminal case raises 23514, read as "the guard fires on DELETE too". ADR
+-- 0170 revoked DELETE on public.cases from `authenticated`, which moves that
+-- refusal to 42501 — arriving from a DIFFERENT ARM (the table ACL, before RLS
+-- and before any trigger).
+--
+-- ⛔ Retuning the expected SQLSTATE in place would have stayed green while
+-- silently deleting the ONLY witness of app.guard_case_status' DELETE arm: a
+-- SQLSTATE-only deny is satisfied by the wrong arm
+-- (FUP-AE2-397-DENY-CELLS-SQLSTATE-ONLY). One assertion may not carry both
+-- claims, so the ACL refusal, the guard behaviour, and the privilege set are
+-- asserted separately.
 -- =========================================================================
+
+-- 9a · the ACL refuses FIRST, for `authenticated` (ADR 0170).
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ delete from public.cases where id = %L $$, (select cid from cse)),
-  '23514',
+  '42501',
   null,
-  'DELETE is blocked on a terminal (concluido) case (guard fires on DELETE too)'
+  '9a (ADR 0170): authenticated holds no DELETE on cases — refused before RLS and before the guard'
 );
 reset role;
+
+-- 9b · the guard's DELETE arm STILL FIRES, witnessed under a role the ACL
+--      admits. Without this, 0170's revoke would leave guard_case_status'
+--      terminal-state branch with no coverage at all — the assertion would
+--      prove the grant and nothing about the guard.
+select throws_ok(
+  format($$ delete from public.cases where id = %L $$, (select cid from cse)),
+  '23514',
+  null,
+  '9b: the guard still blocks DELETE on a terminal case, for a caller the ACL admits'
+);
+
+-- 9c · the grant-absence pin, COMPLETE-SET form (house style: 341 § H1). A
+--      `not has_table_privilege(…,'DELETE')` pair fails in ONE direction only;
+--      this also reds on an OVER-revoke that strands SELECT/INSERT/UPDATE,
+--      which public.cases has many live consumers for through
+--      cases_staff_admin_write (FOR ALL).
+--      ⚠ ALTER DEFAULT PRIVILEGES still hands `arwdDxtm` to `authenticated` on
+--      NEW tables, and a re-dumped baseline would restore the original
+--      `GRANT ALL ON TABLE public.cases` line. Nothing prevents that; this pin
+--      is what notices.
+--      ⚠ Not covered by 296 § M5 t15 — that over-revoke control targets
+--      case_phases, not cases.
+select table_privs_are(
+  'public', 'cases', 'authenticated', array['SELECT','INSERT','UPDATE'],
+  '9c (ADR 0170): authenticated holds SELECT/INSERT/UPDATE on cases and NOTHING else'
+);
 
 -- =========================================================================
 -- 10) CANCEL ANYTIME  =>  cancelado, even from a NON-settled case
