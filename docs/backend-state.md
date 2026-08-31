@@ -740,6 +740,60 @@ minutes-job latches) + pgTAP `388` (R1 ACL pins, latch behavior, atomicity text-
 (`FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST` = R2 · `FUP-DOC-RECLASS-OPERATION-ID` ·
 `FUP-DOC-DISPOSAL-PROVENANCE-SPLIT`).
 
+## AE3 — restricted personal details leave `profiles` (2026-08-31; ADR **0155** D4; migrations `20261003006600`–`…006800`, **3**; pgTAP `301` `plan(44)` · `359` `plan(30)` · `361` · `379` · `382` `plan(83)` · `385` · `386` · `393`; **NO flag — the migrations ARE the cutover**; QA r1 CHANGES REQUESTED → addressed, re-review owed) — ⛔ **NOT PUSHED: local only**
+
+⛔ **Re-measure before quoting** — `origin/main..main` and the remote head are facts about a moment.
+Cutover procedure: [`deployment/ae3-cutover-runbook.md`](deployment/ae3-cutover-runbook.md).
+
+**New table — `public.profile_private_details`.** `profile_id uuid` PK, FK → `profiles(id)`
+`ON DELETE CASCADE`; `cpf text`, `date_of_birth date`, `phone text`, `updated_at timestamptz NOT NULL
+DEFAULT now()`. Constraint `profile_private_details_cpf_valid` (`cpf IS NULL OR app.is_valid_cpf(cpf)`)
+and index `profile_private_details_cpf_key` (**partial**, `WHERE cpf IS NOT NULL`) were **MOVED as the
+same statements** from `profiles`, not re-typed — a plain `unique` would coincide on NULLs by accident
+and differ in shape, name and plan.
+
+⚠ **ROW EXISTENCE IS A FACT, NOT AN IMPLEMENTATION DETAIL.** Only people with at least one of the three
+have a row. That is the "has restricted details on file" predicate, and it is what an LGPD/DSR deletion
+discharge must remove — nulling the columns leaves the assertion standing. Pointer:
+[`plans/dsr-workflow-plan.md`](plans/dsr-workflow-plan.md) § 3.
+
+**Reach — the AE1.6 door-only class** (RLS on, **0 policies**, `authenticated` **and** `anon` hold
+nothing; `service_role` holds all four verbs). It is the **first non-PHI member** of the zero-policy
+class, whose membership is pinned by `382` § A0 — now **8** tables, derived, not hand-listed.
+
+| consumer | direction | note |
+| --- | --- | --- |
+| `public.get_own_person_record()` | read (self) | LEFT join — a person with no row must render empty fields, **not** "not found" |
+| `public.list_org_people(...)` | read | payload DOB via LEFT join; the exact-CPF probe via **INNER** join; `person.cpf_lookup` audit **unchanged** |
+| `app.update_person_fields_impl` | write | UPSERT; `p_set_*` false keeps the stored value, never nulls it |
+| `app.finalize_invited_person_impl` | write | UPSERT; a person invited pre-AE3 has no row, so UPDATE alone would write nothing |
+| `getPersonAdminView` (`src/lib/users/person-footprint.ts`) | read (service-role) | ⛔ existence now checked on `profiles` **separately** — see below |
+| `updateUserProfile` / `registerUser` (`src/lib/users/actions.ts`) | read (service-role) | the `cpf_change` change-detector, and the registration collision probe (`.eq('cpf', …)`) |
+
+⛔ **THE SPLIT CREATED A DENY-BY-ACCIDENT SHAPE, CAUGHT AND FIXED — do not re-merge these reads.**
+Before AE3 one query answered *"does this person exist"* **and** *"what are their values"*, because
+both lived on `profiles`. After the split a null private-details row means only "nothing on file", a
+legitimate state — so `getPersonAdminView` reads `profiles` for existence and
+`profile_private_details` for values. Merged back, every person who never had a CPF/DOB/phone recorded
+gets `personalData: null` plus both authority booleans false, which is **indistinguishable to the
+caller from "you may not administer this person"**.
+
+⚠ **`guard_profile_privileged_columns` lost three arms and kept the rest.** `cpf`/`date_of_birth`/
+`phone` left `v_identity_changed` in `006700`, one migration **before** the columns dropped in `006800`
+(plpgsql is late-bound). The refusal moved from **23514** (trigger) to **42501** (absent grant) — one
+layer earlier, and visible to the standing arms in a way a trigger arm never was. `359` § 3 asserts
+retire **and** replace; `386` § 3.4 pins the new SQLSTATE.
+
+⛔ **CPF IS NOT CONSOLIDATED.** `professional_profiles.cpf` (Class-2, ADR 0064/0065) was **not** moved
+and keeps its own column-list withholding. Two relations carry a CPF under different regimes.
+
+**Out-of-arm coverage note.** The door-sweep deriver returned **zero** cases for this migration set and
+exited **1** — a finding, ruled per-function (four of the five changed functions are not gates; they
+call `app.can_administer_person_for`, which is unchanged). The fifth,
+`guard_profile_privileged_columns`, returns `trigger` and no arm can neutralize it, so it owes a
+targeted case: `supabase/tests/mutation/ae3-targeted-cases.sh`, **both cases COVERED**, rollback
+fingerprint-proven.
+
 ## AE2 — affiliation tenancy: the anchor column is GONE (2026-08-28; ADR **0161** / **0163** / **0164** / **0165** / **0166** / **0167** +Amdt 2 / **0168** +Amdt 1–3; migrations `20261003005400`–`…006500`, **12**; pgTAP `390`–`400`, **11**; **NO flag — the migrations ARE the cutover**; QA APPROVED r3 → [authz-ae2-review-r3.md](reviews/authz-ae2-review-r3.md))
 
 ⛔ **`profiles.home_organization_id` IS DROPPED** (`20261003006500`). This executes AFF4 D10's named
@@ -987,6 +1041,19 @@ both legs, and the column-lock holds as a **differential** — both new columns 
 only, identical to `cpf`, against `full_name`'s full set; no `anon` grant. ⛔ **Re-measure before quoting**
 — superseded by the next remote-affecting change.
 
+> ⛔ **SUPERSEDED AS TO LOCATION BY AE3 (2026-08-31, ADR 0155 D4) — the paragraph below is a DATED
+> record of 2026-08-23 and its present tense is no longer true.** `date_of_birth` and `phone` are
+> **no longer columns of `profiles`**; they moved, with `cpf`, to **`public.profile_private_details`**
+> (migrations `20261003006600`–`006800`). The *mechanism* changed with them: they are no longer
+> "column-locked" on a mostly-granted table — the new table grants `authenticated` and `anon`
+> **nothing at all**, has RLS on and **zero policies**. ⛔ Their two arms also LEFT
+> `guard_profile_privileged_columns`' `v_identity_changed` limb, because the columns they named no
+> longer exist (plpgsql is late-bound: leaving them would 42703 on every later `profiles` UPDATE).
+> ⚠ **The TRIGGER was not dropped and its other arms were not edited** — that is what "untouched"
+> means here, and the body itself obviously WAS rewritten one sentence ago. `359` §3 asserts the
+> retire-and-replace in both directions: §3.2 that the body no longer names the three, §3.3 that a
+> REMAINING arm still bites (so the guard was edited, not gutted). See § *`profile_private_details`* below.
+
 **Schema.** `profiles.date_of_birth date null` + `profiles.phone text null` (digits-only, **no CHECK** by
 decision — Amdt 1 r6; formatting is display-side). ⛔ **Column-locked exactly like `cpf`**: absent from every
 `authenticated` column-list grant, so they carry **only** `REFERENCES` (the table-level grant) — verified
@@ -1017,6 +1084,14 @@ exists to remove). ⚠ **No `expires_at` filter, deliberately** (Amdt 2 r3).
 > capabilities; ⚠ a surviving **commission-tier** seat at that hospital keeps the footprint non-empty and the
 > person writable (the resolver unions two sources — ADR 0148 D6). Keystone:
 > `supabase/tests/368_offboarded_person_visibility.sql`.
+
+> ⛔ **AE3 (2026-08-31) CHANGED WHERE THIS PAYLOAD'S `date_of_birth` COMES FROM, and nothing else
+> about this door.** It is now LEFT-joined from `public.profile_private_details`, not read off
+> `profiles`. The **signature, ACL, `prosecdef`, overload count and the `person.cpf_lookup` audit
+> semantics are all unchanged** — so no `DROP`+`CREATE` was needed this time, and the paragraph
+> below stays true of everything except the source relation. ⚠ The CPF probe's join is INNER (a
+> person with no CPF on file cannot match an exact CPF) while the payload's is LEFT (a person with
+> no details on file stays ON the roster with a null DOB) — pgTAP `361`.
 
 **Door.** `list_org_people(uuid, text, text)` payload gains `date_of_birth` (phone stays out). Return-type
 change forced **`DROP` + `CREATE`**, so the ACL, `prosecdef`, `SET search_path` and the COMMENT were all
@@ -2368,6 +2443,14 @@ FUP-AFF-1). Their coverage is the neutralization oracle, now standing in
 
 ### ⚠ `professional_profiles` is on a COLUMN-LIST grant — 12 of 17
 
+⛔ **THIS IS A DIFFERENT `cpf` FROM THE PERSON KEY, AND AE3 DID NOT TOUCH IT.**
+`professional_profiles.cpf` is the **Class-2 professional-identity** column (ADR 0064/0065); the
+person key moved to `profile_private_details` in AE3. After AE3, *"CPF lives in one place"* is
+**false** — two relations carry one, under different regimes, and a sweep or a data-subject
+request that assumes otherwise under-discharges. Re-verified unchanged 2026-08-31:
+`has_column_privilege('authenticated', …, 'cpf', 'SELECT')` is still **false** here, and this
+table keeps its column-list withholding (which `profiles` no longer has).
+
 There is **no table-level SELECT for `authenticated`**. Revoked: **`cpf`, `redacted_by`,
 `retention_pin_reason`, `retention_pinned_at`, `user_id`**.
 
@@ -2981,18 +3064,30 @@ OR `is_hospital_admin_of(hospital_id)` OR a membership leg resolving the hospita
 on T reading T = **42P17 infinite recursion**; the reach it would have added is served by
 `list_org_people` instead. `app.is_admin()` is deliberately **NOT** a leg.
 
-**`profiles.cpf` is the person key** — nullable column, partial unique `WHERE cpf IS NOT NULL`,
-digits-only, check digits validated in **both** SQL (`app.is_valid_cpf`) and TS
-(`src/lib/users/cpf.ts`), parity pinned by `src/lib/users/__fixtures__/cpf-vectors.json`.
+**The person key is `profile_private_details.cpf`** (⛔ **it was `profiles.cpf` until AE3,
+2026-08-31 — ADR 0155 D4**) — nullable, partial unique `WHERE cpf IS NOT NULL`, digits-only, check
+digits validated in **both** SQL (`app.is_valid_cpf`) and TS (`src/lib/users/cpf.ts`), parity
+pinned by `src/lib/users/__fixtures__/cpf-vectors.json`. The CHECK and the partial unique index
+**moved as the same statements** calling the same validator — they were not re-typed, which is why
+a formatted CPF is still refused at rest (`301` §2.2, `359` §6.1).
 
-⚠⚠ **`profiles` IS NOW ON COLUMN-LIST GRANTS.** `authenticated` holds SELECT/INSERT/UPDATE on
-**11 named columns**, `cpf` excluded; table-level `DELETE/TRUNCATE/REFERENCES/TRIGGER` remain.
-**EVERY NEW `profiles` COLUMN NEEDS ITS OWN GRANT OR READS 42501** — the standing `case_referral`
-lesson now applies to `profiles`. Pinned executably by `301` §0.10 (the set of columns with no
-`authenticated` SELECT grant must be exactly `{cpf}`), so adding a column without its GRANT reds
-instead of surprising someone a year later. The residual `REFERENCES (cpf)` is inert **two** ways:
-`authenticated` holds no CREATE on `public`, and `profiles_cpf_key` is a *partial* unique index,
-which PostgreSQL will not accept as an FK target.
+⚠⚠ **`profiles` IS ON COLUMN-LIST GRANTS, AND SINCE AE3 NOTHING IS WITHHELD BY THEM.**
+`authenticated` holds SELECT/INSERT/UPDATE on **all 10** of its columns; table-level
+`DELETE/TRUNCATE/REFERENCES/TRIGGER` remain, and table-level SELECT/INSERT/UPDATE are still
+**revoked**. **EVERY NEW `profiles` COLUMN STILL NEEDS ITS OWN GRANT OR READS 42501** — that half
+is unchanged and is why the column-list mechanism was kept rather than collapsed back into a table
+grant, which would auto-publish every future column.
+
+⛔ **What AE3 retired is the WITHHOLDING, not the mechanism.** The old rule — *"the set of columns
+with no `authenticated` SELECT grant must be exactly `{cpf}`"* — is **false now**: that set is
+**EMPTY**. `301` § 0.10 was split to say so executably: **§ 0.10a** asserts the withheld set on
+`profiles` is empty (it reds if anyone re-locks a column there without deciding to), and
+**§ 0.10b** is the successor hand-list tripwire, asserting that **every** column of
+`profile_private_details` is withheld. ⚠ The shape INVERTED: the old list named what was withheld
+from a mostly-granted table; the new one names the whole table, because nothing on it is granted.
+
+The residual `REFERENCES` on `profiles` is inert **two** ways: `authenticated` holds no CREATE on
+`public`, and the CPF partial unique index is not a legal FK target.
 
 **DROPPED: `profiles.home_hospital_id` and `profiles.hospital_employee_id`.** Matrícula is a
 property of the *employment*, not the person. ⚠ **At AFF `home_organization_id` was untouched** —
@@ -3004,6 +3099,11 @@ the same way**: dropped at AE2 (`20261003006500`), its roster role taken by
 `guard_profile_privileged_columns` was
 rewritten in the **same** migration (plpgsql is late-bound: the DROP succeeds and then every later
 `profiles` UPDATE fails 42703 at runtime) and `cpf` joined its service-role-locked identity set.
+⛔ **AE3 then reversed that last clause and re-ran the same lesson**: `cpf`, `date_of_birth` and
+`phone` **LEFT** `v_identity_changed` in `20261003006700`, one migration **before** the columns were
+dropped in `006800` — same late-binding reason, opposite direction. Their protection did not lapse;
+it moved from a trigger arm a signed-in caller reached and was refused by, to an **absent grant**
+that stops the caller one layer earlier (42501, not 23514).
 
 ### Doors (verified against `pg_proc`, not the migrations)
 

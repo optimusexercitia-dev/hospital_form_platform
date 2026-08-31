@@ -36,7 +36,9 @@
 These are restated once here because every AE phase touches authorization surfaces; per-phase
 sections only add what is specific.
 
-1. **One phase at a time, through the full §6 gate** (CLAUDE.md §6): lint (all ten), typecheck,
+1. **One phase at a time, through the full §6 gate** (CLAUDE.md §6): lint (the whole chain —
+   ⛔ **verify its membership against `package.json`, never a count written here** [QA-AE3-r3 B8];
+   this said "all ten" while the chain had grown to eleven), typecheck,
    vitest, pgTAP on a **fresh `supabase db reset`**, the ARM gates — `ARM=census`, `ARM=hat`,
    `ARM=floor`, `FROMFINDINGS=1 ARM=wrapper` — and, **whenever a phase touches any RLS policy or
    `prosecdef` gate** (that is: every phase of this program except pure-docs steps), the
@@ -44,9 +46,15 @@ sections only add what is specific.
    is a finding to rule on, never a pass. `ARM=census` is the arm that catches a gate you just
    added; a brand-new gate passes `ARM=policy` vacuously.
 2. **Name the ARM, never the script**, in every gate record (§6 step 5) — and state the
-   **structurally uncovered population beside the covered one** [PA-F12]: the 407 reachable
+   **structurally uncovered population beside the covered one** [PA-F12]: the reachable
    command doors of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2) are outside every arm's domain
    until that FUP closes, so "all arms green" never appears without its domain qualifier.
+   ⛔ **This rule states no FIGURE for that population, deliberately** [QA-AE3-r3 B8]. It read
+   *"the 407 reachable command doors"* from 2026-08-27 until 2026-08-31, by which point the live
+   count was **427** — a rule *about* stating an uncovered population, teaching from a stale
+   number, in the document that governs the phases doing the stating. `ARM=census`'s banner now
+   **derives** the count each run from the predicate that defines the class; cite the banner or
+   the FUP, never a figure typed here.
 3. **Catalog is truth** for any schema/RLS/RPC question — `pg_proc` (incl. `prosecdef`),
    `pg_policies`, ACLs. Never graphify it, never grep migration files and believe them. Strip
    `--` comments before any `prosrc` regex; probe helper names **unanchored** (`X` / `X_for`

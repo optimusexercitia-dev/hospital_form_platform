@@ -180,6 +180,17 @@ beforeEach(() => {
       // ⛔ QA AE2 M6 — `id` is the key `getPersonAdminView` filters on (`.eq('id', userId)`).
       // Without it the profile row answered for every id the test could ask about.
       id: TARGET,
+    },
+    // ⭐ AE3 (ADR 0155 D4) — THE THREE VALUES MOVED TO THEIR OWN RELATION, and the fixture
+    // splits with them. `getPersonAdminView` now issues TWO reads: `profiles` decides
+    // whether the PERSON EXISTS, `profile_private_details` supplies the values.
+    //
+    // ⛔ The split is not cosmetic here: before AE3 one absent row meant "no such person",
+    // and after it an absent private-details row means "this person has nothing on file" —
+    // a legitimate state. §4's arms below exercise both, and they can only tell them apart
+    // because the mock keys the two tables separately, exactly as the database does.
+    profile_private_details: {
+      profile_id: TARGET,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: CPF_DIGITS,
@@ -322,8 +333,8 @@ describe('§2 ⭐ WITHHELD and NOT-INFORMED are separately observable', () => {
   it('NOT INFORMED: authorized, but the columns are empty ⇒ an OBJECT of nulls', async () => {
     // The other side of the pair. Same shape of "nothing to show", opposite meaning, and
     // F2 renders them differently: "Não informado" here, the scope note above.
-    rows.profiles = {
-      id: TARGET,
+    rows.profile_private_details = {
+      profile_id: TARGET,
       date_of_birth: null,
       phone: null,
       cpf: null,
@@ -350,8 +361,8 @@ describe('§2 ⭐ WITHHELD and NOT-INFORMED are separately observable', () => {
     session = hospitalAdminSession
     const withheld = await view()
 
-    rows.profiles = {
-      id: TARGET,
+    rows.profile_private_details = {
+      profile_id: TARGET,
       date_of_birth: null,
       phone: null,
       cpf: null,
@@ -432,8 +443,8 @@ describe('§3 D12 as amended by ADR 0147 — CPF is MASKED, and the raw key neve
   })
 
   it('reports cpfPresent false and a null mask when the column is null', async () => {
-    rows.profiles = {
-      id: TARGET,
+    rows.profile_private_details = {
+      profile_id: TARGET,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: null,
@@ -456,8 +467,8 @@ describe('§3 D12 as amended by ADR 0147 — CPF is MASKED, and the raw key neve
     // way and filed a render-branch finding for a branch nothing can enter.
     // ⛔ MUTATION-CONTROLLED: masking by slicing without the length check (which would
     // emit a short, plausible-looking string) makes this arm RED. Observed.
-    rows.profiles = {
-      id: TARGET,
+    rows.profile_private_details = {
+      profile_id: TARGET,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: '1114447',
@@ -470,8 +481,8 @@ describe('§3 D12 as amended by ADR 0147 — CPF is MASKED, and the raw key neve
   })
 
   it('tolerates stored punctuation — the mask is computed from the digits', async () => {
-    rows.profiles = {
-      id: TARGET,
+    rows.profile_private_details = {
+      profile_id: TARGET,
       date_of_birth: DOB,
       phone: PHONE,
       cpf: '111.444.777-35',
@@ -555,5 +566,21 @@ describe('§5 one footprint resolution per call (the TOCTOU bound ADR 0133 D4 ac
     const profileSelects = selects.filter((s) => s.table === 'profiles')
     expect(profileSelects).toHaveLength(1)
     expect(profileSelects[0].columns).not.toContain('home_organization_id')
+
+    // ⭐ AE3 — THE SAME NARROWNESS ARGUMENT, NOW ACROSS TWO RELATIONS. The reason the
+    // arm above exists is that asserting behaviour alone stays green when a column is
+    // re-added and quietly consulted again. That argument does not survive the split on
+    // its own: after AE3 the `profiles` read is only `full_name, professional_category_id`
+    // -> here, only `id` -> so it would pass while the OTHER read widened without limit.
+    //
+    // ⛔ The restricted values must be read from `profile_private_details` and from
+    // NOWHERE ELSE, exactly once, and the projection must stay hand-picked. `select *`
+    // would satisfy every behavioural assertion in this file and publish every column the
+    // table ever gains.
+    const privateSelects = selects.filter((s) => s.table === 'profile_private_details')
+    expect(privateSelects).toHaveLength(1)
+    expect(privateSelects[0].columns).not.toContain('*')
+    expect(privateSelects[0].columns).toContain('cpf')
+    expect(profileSelects[0].columns).not.toContain('cpf')
   })
 })

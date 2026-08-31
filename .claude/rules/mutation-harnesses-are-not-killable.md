@@ -1,6 +1,6 @@
 ---
 paths:
-  - "supabase/tests/mutation/**"
+  - "supabase/tests/mutation/*.sh"
 anchors:
   - supabase/tests/mutation/p0-authz-door-audit.sh
   - supabase/tests/mutation/p0-authz-writepath-audit.sh

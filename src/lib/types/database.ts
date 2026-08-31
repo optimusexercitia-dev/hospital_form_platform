@@ -8611,11 +8611,41 @@ export type Database = {
           },
         ]
       }
-      profiles: {
+      profile_private_details: {
         Row: {
           cpf: string | null
-          created_at: string
           date_of_birth: string | null
+          phone: string | null
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          cpf?: string | null
+          date_of_birth?: string | null
+          phone?: string | null
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          cpf?: string | null
+          date_of_birth?: string | null
+          phone?: string | null
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_private_details_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
           email: string | null
           email_confirmed_at: string | null
           full_name: string
@@ -8623,14 +8653,11 @@ export type Database = {
           is_active: boolean
           is_admin: boolean
           must_change_password: boolean
-          phone: string | null
           professional_category_id: string | null
           suspended_until: string | null
         }
         Insert: {
-          cpf?: string | null
           created_at?: string
-          date_of_birth?: string | null
           email?: string | null
           email_confirmed_at?: string | null
           full_name?: string
@@ -8638,14 +8665,11 @@ export type Database = {
           is_active?: boolean
           is_admin?: boolean
           must_change_password?: boolean
-          phone?: string | null
           professional_category_id?: string | null
           suspended_until?: string | null
         }
         Update: {
-          cpf?: string | null
           created_at?: string
-          date_of_birth?: string | null
           email?: string | null
           email_confirmed_at?: string | null
           full_name?: string
@@ -8653,7 +8677,6 @@ export type Database = {
           is_active?: boolean
           is_admin?: boolean
           must_change_password?: boolean
-          phone?: string | null
           professional_category_id?: string | null
           suspended_until?: string | null
         }

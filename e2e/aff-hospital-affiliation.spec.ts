@@ -565,27 +565,32 @@ test.describe('AFF-3: the negative — a hospital admin cannot see a person affi
 
 test.describe('AFF-4: a deactivated account cannot be affiliated (HC0R4)', () => {
   // `desativado.conta@test.local` carries NO seeded CPF (it predates the AFF
-  // requirement). Set one via the service role for this test only, and clear it back
-  // to null afterwards — mirrors the established pattern in this file for reversible
+  // requirement). Set one via the service role for this test only, and remove it
+  // afterwards — mirrors the established pattern in this file for reversible
   // service-role fixture setup (hospital-admin-tier.spec.ts's HA-2 leak cleanup).
+  //
+  // ⛔ AE3 (ADR 0155 D4) MADE THIS A POST-UPSERT, NOT A PATCH, AND THAT IS THE WHOLE
+  // POINT OF THE EDIT. The CPF moved to `profile_private_details`, and this persona has
+  // no row there — the comment directly above says so. A re-pointed PATCH matches ZERO
+  // rows, writes nothing, and PostgREST answers 204: `res.ok()` stays true, the fixture
+  // reports success, and the test then fails downstream looking like a product defect.
+  // `Prefer: resolution=merge-duplicates` makes it an upsert, which is correct whether or
+  // not a row exists.
   const HC0R4_CPF = uniqueCpf()
 
   test.beforeAll(async ({ playwright }) => {
     const ctx = await playwright.request.newContext()
     try {
-      const res = await ctx.patch(
-        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${DESATIVADO_UID}`,
-        {
-          headers: {
-            apikey: SUPABASE_SERVICE_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-            'Content-Type': 'application/json',
-            Prefer: 'return=minimal',
-          },
-          data: { cpf: HC0R4_CPF },
+      const res = await ctx.post(`${SUPABASE_URL}/rest/v1/profile_private_details`, {
+        headers: {
+          apikey: SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal,resolution=merge-duplicates',
         },
-      )
-      expect(res.ok()).toBeTruthy()
+        data: { profile_id: DESATIVADO_UID, cpf: HC0R4_CPF },
+      })
+      expect(res.ok(), `seeding the HC0R4 CPF failed: ${await res.text()}`).toBeTruthy()
     } finally {
       await ctx.dispose()
     }
@@ -594,15 +599,21 @@ test.describe('AFF-4: a deactivated account cannot be affiliated (HC0R4)', () =>
   test.afterAll(async ({ playwright }) => {
     const ctx = await playwright.request.newContext()
     try {
-      await ctx.patch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${DESATIVADO_UID}`, {
-        headers: {
-          apikey: SUPABASE_SERVICE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
+      // ⭐ DELETE the row rather than nulling its `cpf`. The persona had NO row here
+      // before this block ran, so deleting restores the exact prior state; leaving an
+      // all-null row behind would newly assert "this person HAS restricted details on
+      // file", which is what a row in this table means for a data-subject request.
+      // ⚠ Deleted BY IDENTITY (`profile_id=eq.…`), never positionally.
+      await ctx.delete(
+        `${SUPABASE_URL}/rest/v1/profile_private_details?profile_id=eq.${DESATIVADO_UID}`,
+        {
+          headers: {
+            apikey: SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+            Prefer: 'return=minimal',
+          },
         },
-        data: { cpf: null },
-      })
+      )
     } finally {
       await ctx.dispose()
     }

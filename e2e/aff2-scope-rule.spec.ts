@@ -111,7 +111,8 @@ async function readProfileCpf(
   const ctx = await apiRequest.newContext()
   try {
     const res = await ctx.get(
-      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=cpf`,
+      // AE3 (ADR 0155 D4): the CPF moved to `profile_private_details` (key `profile_id`).
+      `${SUPABASE_URL}/rest/v1/profile_private_details?profile_id=eq.${userId}&select=cpf`,
       {
         headers: {
           apikey: SUPABASE_SERVICE_KEY,

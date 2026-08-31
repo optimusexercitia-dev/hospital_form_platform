@@ -138,8 +138,9 @@ select cmp_ok(
 -- fabricates a defect: the first run of this file died in §4.1 on a 23505 that read as a
 -- broken finalize door and was in fact `solo.c@test.local` already holding that CPF.
 select ok(
-  not exists (select 1 from public.profiles p, k where p.cpf = k.phi_cpf)
-  and not exists (select 1 from public.profiles p, k where p.phone = k.phi_phone)
+  -- AE3 (ADR 0155 D4): cpf / phone left `profiles` for `profile_private_details`.
+  not exists (select 1 from public.profile_private_details p, k where p.cpf = k.phi_cpf)
+  and not exists (select 1 from public.profile_private_details p, k where p.phone = k.phi_phone)
   and not exists (select 1 from public.professional_credentials c, k where c.registration_number = k.phi_reg)
   and (select app.is_valid_cpf((select phi_cpf from k))),
   '0.5 ⭐ every PHI sentinel is a VALID but UNUSED value — a sentinel shared with the seed fabricates both a defect (a spurious 23505) and, in §8, a false all-clear');
@@ -156,7 +157,7 @@ select lives_ok(
   format($$select public.update_person_fields_for(%L::uuid, %L::uuid, %L, %L::uuid,
                  true, %L, true, %L::date, true, %L)$$,
          (select admin_h1 from k), (select spanning from k), (select phi_name from k),
-         (select cat_physician from k), (select cpf from public.profiles where id = (select spanning from k)),
+         (select cat_physician from k), (select cpf from public.profile_private_details where profile_id = (select spanning from k)),
          (select phi_dob from k), (select phi_phone from k)),
   '1.1 ⭐ INTERSECTION: an admin of {central_a} edits a {central_a, sec_a} person''s fields — allowed');
 reset role;
@@ -177,7 +178,7 @@ set local role service_role;
 select lives_ok(
   format($$select public.update_person_fields_for(%L::uuid, %L::uuid, %L, %L::uuid, true, %L)$$,
     (select admin_h1 from k), (select spanning from k), (select phi_name from k),
-    (select cat_physician from k), (select cpf from public.profiles where id = (select spanning from k))),
+    (select cat_physician from k), (select cpf from public.profile_private_details where profile_id = (select spanning from k))),
   '1.4 ⭐ THE GRAIN IS "ACTUALLY CHANGES", NOT "THE KEY IS PRESENT" — passing the person''s EXISTING cpf is allowed. Gating on presence would deny exactly the cross-hospital edit ADR 0133 Amdt 1 r1 exists to permit');
 
 select lives_ok(
@@ -185,13 +186,13 @@ select lives_ok(
     (select admin_h1 from k), (select spanning from k), (select phi_name from k),
     (select cat_physician from k),
     (select regexp_replace(cpf, '^(...)(...)(...)(..)$', '\1.\2.\3-\4')
-       from public.profiles where id = (select spanning from k))),
+       from public.profile_private_details where profile_id = (select spanning from k))),
   '1.5 ⭐ …and a FORMATTED spelling of that same cpf is allowed too — both sides are normalised to digits, because a comparison that disagrees with its own writer is the defect');
 reset role;
 
 -- The absent-key / explicit-null distinction the `p_set_*` booleans carry.
 select is(
-  (select cpf from public.profiles where id = (select spanning from k)),
+  (select cpf from public.profile_private_details where profile_id = (select spanning from k)),
   '11144477735',
   '1.6 PRECONDITION for 1.7: the spanning person still holds their original CPF after 1.4/1.5 — those calls changed nothing');
 
@@ -213,7 +214,7 @@ end $seed$;
 reset role;
 
 select is(
-  (select cpf || '|' || coalesce(phone, 'NULL') from public.profiles where id = (select spanning from k)),
+  (select cpf || '|' || coalesce(phone, 'NULL') from public.profile_private_details where profile_id = (select spanning from k)),
   '11144477735|' || (select phi_phone from k),
   '1.7 ⭐ `p_set_cpf => false, p_cpf => null` leaves the stored CPF UNTOUCHED, and the same for phone — the booleans carry the absent-key/explicit-null distinction a nullable parameter cannot, and collapsing them would let a form that omits a field NULL IT OUT');
 
@@ -235,7 +236,7 @@ end $seed$;
 reset role;
 
 select is(
-  (select phone from public.profiles where id = (select spanning from k)), null,
+  (select phone from public.profile_private_details where profile_id = (select spanning from k)), null,
   '1.8 …while `p_set_phone => true, p_phone => null` DOES clear it — 1.7 is the distinction, not an inability to write nulls');
 
 select is(
@@ -266,7 +267,7 @@ select is(
 select is(
   substring(pg_temp.door_err(format($$select public.update_person_fields_for(%L::uuid, %L::uuid, %L, %L::uuid, true, %L)$$,
     (select admin_h1 from k), (select sole from k), 'Colisao', (select cat_physician from k),
-    (select cpf from public.profiles where id = (select spanning from k)))) from 1 for 5),
+    (select cpf from public.profile_private_details where profile_id = (select spanning from k)))) from 1 for 5),
   '23505',
   '1.13 a CPF collision still surfaces as 23505 through the door — the mapping to MESSAGES.cpfCollision at the call site keeps working unchanged');
 
@@ -360,8 +361,15 @@ select lives_ok(
 reset role;
 
 select is(
-  (select cpf || '|' || coalesce(date_of_birth::text,'-') || '|' || coalesce(phone,'-') || '|' || must_change_password::text
-     from public.profiles where id = (select sole from k)),
+  -- ⛔ AE3: this assertion now SPANS TWO RELATIONS, and that is why it stays ONE string.
+  -- `must_change_password` stayed on `profiles`; the other three moved. The door writes
+  -- both in a single call, so asserting them together is what proves the split did not
+  -- turn one write into two that can disagree. LEFT JOIN so a missing private-details row
+  -- yields NULLs and REDS, instead of yielding no row and comparing null to null.
+  (select d.cpf || '|' || coalesce(d.date_of_birth::text,'-') || '|' || coalesce(d.phone,'-') || '|' || pr.must_change_password::text
+     from public.profiles pr
+     left join public.profile_private_details d on d.profile_id = pr.id
+    where pr.id = (select sole from k)),
   (select phi_cpf || '|' || phi_dob::text || '|' || phi_phone || '|true' from k),
   '4.2 …and every column in the door''s list landed, `must_change_password` included');
 

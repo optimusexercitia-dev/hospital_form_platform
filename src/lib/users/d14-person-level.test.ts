@@ -439,9 +439,16 @@ beforeEach(() => {
       // regression it exists to detect — the same class as the missing GoTrue mock above.
       email: 'chefe.ccih@test.local',
       professional_category_id: 'cat-1',
-      // ⚠ DIGITS-ONLY AT REST IS A CONSTRAINT, NOT A CONVENTION: `profiles_cpf_valid`
-      // CHECKs `app.is_valid_cpf`, which requires `^[0-9]{11}$`. A formatted value is
-      // unstorable, so no fixture may seed one.
+    },
+    // ⭐ AE3 (ADR 0155 D4) — THE THREE VALUES MOVED OFF `profiles`, so the fixture moved
+    // with them, for the same reason the AE2.4 note below gives: mirror the substrate,
+    // never relax an assertion.
+    //
+    // ⚠ DIGITS-ONLY AT REST IS A CONSTRAINT, NOT A CONVENTION: the CPF CHECK calls
+    // `app.is_valid_cpf`, which requires `^[0-9]{11}$`. A formatted value is unstorable,
+    // so no fixture may seed one. The CHECK moved with the column; the rule did not change.
+    profile_private_details: {
+      profile_id: TARGET,
       cpf: '11144477735',
       date_of_birth: null,
       phone: null,
@@ -1097,9 +1104,12 @@ describe('§8 registerUser — CPF is required, validated and normalized (ADR 00
     // F4: the registration block is the OTHER half of the CPF existence oracle, and D11's
     // audit row is the compensating control for the oracle as a whole. It emitted nothing.
     session = orgAdminSession
-    // Queue: the EMAIL pre-check must miss (null) so execution reaches the CPF pre-check,
-    // which then hits an existing holder.
-    rows.profiles = [null, { id: 'someone-else', home_organization_id: ORG_A, is_active: true }]
+    // ⛔ AE3 SPLIT THIS QUEUE ACROSS TWO TABLES. Before, `registerUser` read `profiles`
+    // TWICE — the email pre-check then the CPF pre-check — so the fixture was a
+    // two-element QUEUE on one table. The CPF probe now reads `profile_private_details`,
+    // so each table is read ONCE and the queue on `profiles` collapses to a single miss.
+    rows.profiles = [null]
+    rows.profile_private_details = { profile_id: 'someone-else' }
     const { registerUser } = await import('./actions')
     const result = await registerUser({
       homeOrganizationId: ORG_A,
@@ -1124,7 +1134,13 @@ describe('§8 registerUser — CPF is required, validated and normalized (ADR 00
     // can quietly stop being set with nothing to notice — the wizard would just fall back
     // to the directory and nobody would call it a bug.
     session = orgAdminSession
-    rows.profiles = [null, null] // email pre-check misses, CPF pre-check misses
+    // AE3: the two registerUser pre-checks now read DIFFERENT tables (see the collision
+    // arm above), so each of these is one miss EACH rather than a two-element queue on
+    // `profiles`. ⛔ Left as `[null, null]` the second element would be consumed by
+    // nothing and the CPF probe would read the base fixture, which HOLDS a CPF — turning
+    // every one of these arms into a silent collision.
+    rows.profiles = [null]
+    rows.profile_private_details = null
     const { registerUser } = await import('./actions')
     const result = await registerUser({
       homeOrganizationId: ORG_A,
@@ -1145,7 +1161,8 @@ describe('§8 registerUser — CPF is required, validated and normalized (ADR 00
     // The registration half of the pair asserted for updateUserProfile in §1. Payload
     // assertion, not a verdict: `ok:true` says nothing about a dropped column.
     session = orgAdminSession
-    rows.profiles = [null, null]
+    rows.profiles = [null]
+    rows.profile_private_details = null
     const { registerUser } = await import('./actions')
     await registerUser({
       homeOrganizationId: ORG_A,
@@ -1213,7 +1230,8 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
    */
   it('⭐ the START DATE reaches BOTH doors — org and hospital', async () => {
     session = orgAdminSession
-    rows.profiles = [null, null] // email pre-check misses, CPF pre-check misses
+    rows.profiles = [null]
+    rows.profile_private_details = null
     const { registerUser } = await import('./actions')
     const result = await registerUser({
       homeOrganizationId: ORG_A,
@@ -1248,7 +1266,8 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
     // invariant depend on deferral rather than on ordering — and the seed's own insert
     // ordering had to be fixed for exactly this reason (plan B7).
     session = orgAdminSession
-    rows.profiles = [null, null]
+    rows.profiles = [null]
+    rows.profile_private_details = null
     const { registerUser } = await import('./actions')
     await registerUser({
       homeOrganizationId: ORG_A,
@@ -1271,7 +1290,8 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
     // call the person would exist and appear on NOBODY's roster — a state no verdict
     // assertion anywhere would notice, because the registration itself succeeds.
     session = orgAdminSession
-    rows.profiles = [null, null]
+    rows.profiles = [null]
+    rows.profile_private_details = null
     const { registerUser } = await import('./actions')
     const result = await registerUser({
       homeOrganizationId: ORG_A,
@@ -1303,7 +1323,8 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
     // step. ⚠ The Vitest fake never raises, so this asymmetry is invisible to any verdict
     // assertion: only counting the calls can see it.
     session = hospitalAdminSession
-    rows.profiles = [null, null]
+    rows.profiles = [null]
+    rows.profile_private_details = null
     const { registerUser } = await import('./actions')
     const result = await registerUser({
       homeOrganizationId: ORG_A,
@@ -1332,7 +1353,8 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
     // `coalesce(p_started_on, current_date)`, but sending an explicit NULL bakes that
     // default into this layer, and the day it is ever narrowed the two stop agreeing.
     session = orgAdminSession
-    rows.profiles = [null, null]
+    rows.profiles = [null]
+    rows.profile_private_details = null
     const { registerUser } = await import('./actions')
     await registerUser({
       homeOrganizationId: ORG_A,
@@ -1372,7 +1394,8 @@ describe('§9 AFF4 (ADR 0151 D13) — the affiliation start date and the org aff
    */
   it('⭐ registerUser calls EXACTLY the two creation doors — never the ordinary ones', async () => {
     session = orgAdminSession
-    rows.profiles = [null, null]
+    rows.profiles = [null]
+    rows.profile_private_details = null
     const { registerUser } = await import('./actions')
     const result = await registerUser({
       homeOrganizationId: ORG_A,

@@ -28,10 +28,27 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      `case_access_grants`, `audit_log`, the K9 answer tables, …) grant `authenticated`
      **SELECT only** and take every write through an audited DEFINER RPC. "No write
      policy" on these means writes are *impossible*, not *unguarded*.
-   - **Audited single doors with ZERO policies.** The PHI stores
-     (`patient_identifiers`/`patient_participants`, `event_patient`, `referral_patient`)
-     have RLS on, **no `authenticated` ACL, and 0 policies** — a policy there would be
-     unreachable code. Their predicates look dead to a policy-only sweep and are not.
+   - **Audited single doors with ZERO policies.** These have RLS on, **no `authenticated`
+     ACL, and 0 policies** — a policy there would be unreachable code. Their predicates look
+     dead to a policy-only sweep and are not. ⛔ **This class is NOT PHI-only, and reading it
+     that way is how a non-PHI member gets built without the class's safeguards.** The **eight**
+     members, as pgTAP `382` § A0 derives them: `patient_identifiers`, `patient_participants`
+     and `referral_patient` (Class-1 PHI, Rule 12); **`public.profile_private_details`** —
+     professional `cpf`/`date_of_birth`/`phone`, AE3/ADR 0155 D4 — the first
+     **restricted-personal-data** member; and `case_print_revisions`,
+     `meeting_closed_session_items`, `meeting_closed_session_item_readers`,
+     `verification_lookups`.
+     ⛔ **`event_patient` is NOT in this class, though it is a PHI store** — it carries a live
+     `event_patient_select` policy, so it is not a zero-policy table. ⚠ **Nor does it belong to
+     the DEFINER-write-door bullet above**, whose property is *`authenticated` holds SELECT only* —
+     `event_patient` holds **nothing at all**. It is its own shape: a policy plus no grant. This
+     prose listed it here anyway until 2026-08-31 (QA AE3 r2 B6; bullet-assignment corrected r3). ⚠ That
+     policy is currently **pre-empted dead code**: `authenticated` holds no table grant, so the
+     policy never runs — a future `grant select` would silently arm it
+     (`FUP-EVENT-PATIENT-POLICY-PREEMPTED`).
+     ⛔ **Never trust this list to be current — it is prose, and it has been wrong.** The
+     membership is DERIVED and pinned by `382` § A0, which reds when an unlisted table joins or
+     a member leaves; that assertion, not this sentence, is the authority.
    - **Capability resolution (ADR 0078).** Case-content authorization is not written
      inline per policy; policies delegate to the DEFINER resolver
      `app._case_caps` → `app.case_capabilities` → `app.has_case_capability` over a

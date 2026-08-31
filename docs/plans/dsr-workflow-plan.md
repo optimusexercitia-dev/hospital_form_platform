@@ -348,6 +348,35 @@ bounds future extension only. Census, retained as the record of what is knowingl
   slice (ADR 0121 Amdt 2).
 - `FUP-XREF-PEPPER-ROTATION-ORPHANS` — filed, related (disposal makes pepper rotation
   irreversible for disposed rows), not this program's to fix.
+- ⭐ **PROFESSIONAL-SUBJECT requests (the platform's own users), which this program does not
+  cover — but which now have a single table to point at.** Added 2026-08-31 by AE3 (ADR
+  [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D4);
+  QA finding B1. This program's subject is the **patient**, reached through `patient_xref`. A
+  request from a *professional* under LGPD Art. 18 (access / rectification / deletion of their
+  own CPF, date of birth, phone) is a different subject class with a different discharge path,
+  and until AE3 those three values were columns of `profiles` with no single name to cite.
+
+  - **They now live in `public.profile_private_details`** — `profile_id` (PK, FK to
+    `profiles.id`, `on delete cascade`) → `cpf`, `date_of_birth`, `phone`, `updated_at`.
+  - ⛔ **ROW EXISTENCE IS ITSELF THE "HAS DATA ON FILE" FACT.** Only people with at least one
+    of the three have a row. Consequences the operator must not get backwards: an **access**
+    request for a person with no row is answered *"nothing on file"*, not *"person not found"*;
+    a **deletion** discharge is a `DELETE` of the row, **not** nulling its columns, because an
+    all-null row still asserts that this person has restricted details recorded.
+  - ⛔ **CPF IS NOT CONSOLIDATED, AND ASSUMING IT IS WILL UNDER-DISCHARGE A REQUEST.**
+    `public.professional_profiles.cpf` is a **separate** Class-2 professional-identity column
+    (ADR 0064/0065) that AE3 did **not** move. Any professional-subject request touching CPF
+    must consider **both** relations. `redact_professional_profile` is that table's own
+    redaction door.
+  - **Reach:** the table is door-only — RLS enabled, **zero policies**, no grant to
+    `authenticated`/`anon` (pgTAP `382`, `359`). Read via `get_own_person_record` (self) and
+    `list_org_people` / `getPersonAdminView` (administrative); written via
+    `update_person_fields_for` and `finalize_invited_person_for`.
+  - ⚠ **AE3 moved storage, not authority.** The administrative (non-DSR-workflow) discharge
+    path for professional data is **unchanged** — no gate, capability arm or audit action was
+    altered, and the `person.cpf_lookup` probe still emits exactly one row per CPF-parameterised
+    directory call. ⛔ This bullet is a POINTER, not a decision: whether professional-subject
+    requests should enter this program's inbox at all is undecided and out of scope here.
 
 ## 4 · Risks & watch-items for the implementing session
 

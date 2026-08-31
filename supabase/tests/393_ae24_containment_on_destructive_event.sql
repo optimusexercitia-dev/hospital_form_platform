@@ -446,8 +446,14 @@ update public.profiles set is_admin = true where id = '00000000-0000-0000-0000-0
 
 -- CPFs for § 1.9's identifier-first probe.  D1 is the orphan; D3 is the POSITIVE
 -- CONTROL, so a zero for D1 cannot be the CPF path simply not working.
-update public.profiles set cpf = '39053344705' where id = '00000000-0000-0000-0000-0ae2401d0001';
-update public.profiles set cpf = '16899535009' where id = '00000000-0000-0000-0000-0ae2401d0003';
+-- ⛔ AE3 (ADR 0155 D4): cpf left `profiles` for `profile_private_details`, and these are
+-- INSERTs because these two personas are created by this file — they have no row there.
+-- A re-pointed UPDATE would write nothing, raise nothing, and § 1.9's probe would return
+-- zero for BOTH the orphan and its positive control — the control would stop controlling.
+insert into public.profile_private_details (profile_id, cpf) values
+  ('00000000-0000-0000-0000-0ae2401d0001', '39053344705'),
+  ('00000000-0000-0000-0000-0ae2401d0003', '16899535009')
+on conflict (profile_id) do update set cpf = excluded.cpf;
 
 insert into public.organization_affiliations
   (id, principal_id, organization_id, started_on, ended_on, ended_by, voided_at, voided_by, void_reason, created_by)

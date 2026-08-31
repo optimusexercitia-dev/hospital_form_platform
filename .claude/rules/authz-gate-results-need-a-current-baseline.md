@@ -1,6 +1,6 @@
 ---
 paths:
-  - "supabase/tests/mutation/**"
+  - "supabase/tests/mutation/*.sh"
 anchors:
   - supabase/tests/mutation/p0-authz-invariant.sh#ARM 3: census closure
   - docs/design/authz-evolution-arm-baseline-ae0.md#564
@@ -34,6 +34,6 @@ printed `INVARIANT HOLDS` **at exit 0 having enumerated ZERO gates**.
 
 - **No gate enforces this.** An arm cannot report that it measured nothing — that IS the
   failure mode. This rule is the only witness.
-- **Green arms bound their own domain.** 407 reachable `prosecdef` non-`bool` command doors
+- **Green arms bound their own domain.** Reachable `prosecdef` non-`bool` command doors
   sit outside every arm (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, C2) — green is no claim about
   them, and no evidence against them. Detail: the AE0 baseline anchored above.

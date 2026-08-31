@@ -422,15 +422,21 @@ select is(
   (select full_name from public.profiles where id = '00000000-0000-0000-0000-0000000000d1'),
   '6.2 ... and it is the CALLER''s record');
 
--- ⭐ The column-locked triple. `authenticated` holds no grant on these columns even for
--- self, so a direct select raises 42501 — the door is the only path, which is the whole
--- reason D14 needs one.
+-- ⭐ The locked triple. `authenticated` holds no grant on these values even for self, so a
+-- direct select raises 42501 — the door is the only path, which is the whole reason D14
+-- needs one.
+--
+-- ⛔ AE3 (ADR 0155 D4): the triple moved from COLUMNS of `profiles` to the door-only table
+-- `public.profile_private_details`. 6.4 moved with it. Left pointing at `profiles` it would
+-- have caught 42703 (undefined column) — and because it pins the SQLSTATE rather than
+-- merely "it raised", it reddened instead of quietly measuring nothing. 6.3 is unchanged:
+-- the door's signature and its returned values did not move.
 select isnt(
   (select r.cpf from public.get_own_person_record() r), null,
-  '6.3 ⭐ the CPF is returned — a column `authenticated` cannot select even for itself');
+  '6.3 ⭐ the CPF is returned — a value `authenticated` cannot select even for itself');
 
 select throws_ok(
-  $$select cpf from public.profiles where id = '00000000-0000-0000-0000-0000000000d1'$$,
+  $$select cpf from public.profile_private_details where profile_id = '00000000-0000-0000-0000-0000000000d1'$$,
   '42501', null,
   '6.4 ⭐ ... and the direct select is still refused, so 6.3 measures the DOOR and not a widened grant');
 reset role;

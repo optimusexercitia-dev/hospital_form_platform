@@ -123,10 +123,14 @@ test.describe('AFF4-REGDATES: "Nascimento" on the brand-new-person wizard round-
     const userId = page.url().match(/\/usuarios\/([0-9a-f-]{36})$/i)?.[1] ?? ''
     expect(userId).toBeTruthy()
 
+    // ⭐ AE3 (ADR 0155 D4): `date_of_birth` left `profiles` for `profile_private_details`,
+    // keyed on `profile_id`. The assertion below is unchanged — it is the WIZARD's
+    // round-trip that is under test, not the storage location — but the read had to move
+    // or it 42703s and the round-trip goes unmeasured.
     const rows = await svcSelect<{ date_of_birth: string | null }>(
       request,
-      'profiles',
-      `id=eq.${userId}&select=date_of_birth`,
+      'profile_private_details',
+      `profile_id=eq.${userId}&select=date_of_birth`,
     )
     expect(rows).toHaveLength(1)
     // The value, exactly — not merely "not null". A silently-dropped date would

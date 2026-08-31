@@ -36,14 +36,22 @@ import { personScopeAllows, type PersonFootprint } from './person-scope'
  * coordinates in order to sign document bytes*. **This is not that**, and must not be
  * filed under it or counted toward that list's exhaustive-by-intent limit of two.
  *
- * The reason here is different and narrower: **a column-locked field has no RLS path by
- * construction.** `profiles.date_of_birth`, `.phone` and `.cpf` are excluded from every
- * `authenticated` column-list grant (ADR 0133 D10), so a cookie-client query in
- * `src/lib/queries/` cannot read them at all — it fails with 42501. There is no
- * RLS-scoped implementation of this read to prefer; the authorization is the TS predicate
- * below (D4 declines a SQL twin deliberately), and the read must therefore be an
- * authorized SERVICE read or nothing. Putting it in `src/lib/queries/` would either fail
- * outright or push a service-role client into the shared query layer.
+ * The reason here is different and narrower: **a field with no `authenticated` reach has no
+ * RLS path by construction.** A cookie-client query in `src/lib/queries/` cannot read
+ * `date_of_birth`, `phone` or `cpf` at all — it fails with 42501. There is no RLS-scoped
+ * implementation of this read to prefer; the authorization is the TS predicate below (D4
+ * declines a SQL twin deliberately), and the read must therefore be an authorized SERVICE
+ * read or nothing. Putting it in `src/lib/queries/` would either fail outright or push a
+ * service-role client into the shared query layer.
+ *
+ * ⚠ AE3 (ADR 0155 D4) CHANGED THE MECHANISM UNDER THAT SENTENCE, AND IT NOW HOLDS MORE
+ * STRONGLY, NOT LESS. The three fields are no longer COLUMNS of `profiles` withheld from a
+ * column-list grant (ADR 0133 D10); they are `public.profile_private_details`, a door-only
+ * table with RLS enabled, ZERO policies, and no grant to `authenticated` or `anon` at all.
+ * The old form rested on a CONJUNCTION — table-level SELECT revoked *and* these columns
+ * absent from the per-column grants — so a single stray `grant select on public.profiles to
+ * authenticated` would have republished all three. The exception is unchanged in shape; the
+ * boundary it rests on is now a relation rather than a pair of ACL facts.
  */
 
 /**
@@ -606,11 +614,30 @@ export async function getPersonAdminView(
     authority: { canEditPerson: false, canManageAccountLifecycle: false },
   }
 
+  // ⛔ AE3 (ADR 0155 D4): these three left `profiles` for `profile_private_details`, a
+  // door-only table (RLS on, ZERO policies, no grant to `authenticated`). The read is still
+  // `service_role` and still actor-validated downstream — the storage moved, the authority
+  // model did not.
+  //
+  // ⛔ THE EXISTENCE CHECK HAD TO BE SPLIT OUT, and this is the trap the move creates.
+  // Before AE3 one query answered TWO questions — "does this person exist" and "what are
+  // their restricted values" — because both lived on `profiles`, so `!profile` meant a
+  // missing person. After the split a null private-details row means only "no restricted
+  // details ON FILE", which is a legitimate state for a real person. Leaving the guard on
+  // that read would deny the admin view to every person who has never had a CPF, date of
+  // birth or phone recorded: `personalData: null` plus both authority booleans false —
+  // indistinguishable, to the caller, from "you may not administer this person".
   const admin = createAdminClient()
-  const { data: profile } = await admin
+  const { data: person } = await admin
     .from('profiles')
-    .select('date_of_birth, phone, cpf')
+    .select('id')
     .eq('id', userId)
+    .maybeSingle<{ id: string }>()
+
+  const { data: profile } = await admin
+    .from('profile_private_details')
+    .select('date_of_birth, phone, cpf')
+    .eq('profile_id', userId)
     .maybeSingle<{
       date_of_birth: string | null
       phone: string | null
@@ -624,7 +651,7 @@ export async function getPersonAdminView(
   // action disagree — buttons shown that refuse, buttons hidden that would have worked —
   // which is "one axis swept, its sibling not" with a user-visible failure mode.
   const orgIds = await personAuthorityOrgs(userId)
-  if (!profile || orgIds.length === 0) return denied
+  if (!person || orgIds.length === 0) return denied
 
   let canEditPerson = false
   let canManageAccountLifecycle = false
@@ -667,13 +694,13 @@ export async function getPersonAdminView(
     // OUTER null; see the type's doc comment for why that is not a stylistic choice.
     personalData: canEditPerson
       ? {
-          dateOfBirth: profile.date_of_birth ?? null,
-          phone: profile.phone ?? null,
+          dateOfBirth: profile?.date_of_birth ?? null,
+          phone: profile?.phone ?? null,
           // D12 as amended by ADR 0147: BOTH derived values are computed HERE and the raw
           // column is never returned. The masked form carries digits 1-3 and 8-11 by
           // design; digits 4-7 do not leave this function under any branch.
-          cpfPresent: Boolean(profile.cpf),
-          cpfMasked: maskCpf(profile.cpf),
+          cpfPresent: Boolean(profile?.cpf),
+          cpfMasked: maskCpf(profile?.cpf ?? null),
         }
       : null,
     authority: { canEditPerson, canManageAccountLifecycle },

@@ -65,10 +65,10 @@
 -- positionally).
 
 begin;
-select plan(72);
+select plan(83);
 
 -- ============================================================================
--- SS A - RLS layer: relrowsecurity = true AND zero pg_policies rows, all 7 tables.
+-- SS A - RLS layer: relrowsecurity = true AND zero pg_policies rows, all 8 tables.
 -- Structural / catalog-only. This is the layer a lone "no policy => safe" reading
 -- would stop at; §B proves it is not doing the work alone here.
 -- ============================================================================
@@ -129,9 +129,24 @@ select is(
   (select count(*)::int from pg_policies where schemaname = 'public' and tablename = 'verification_lookups'),
   0, 'A14: verification_lookups carries ZERO policies');
 
+-- AE3 (ADR 0155 D4). profile_private_details is the EIGHTH member. It is not PHI, but it
+-- is the platform's restricted personal-detail store (cpf / date_of_birth / phone), and
+-- it is the first member that ARRIVED here by replacing a different mechanism: those
+-- three used to be columns of `profiles` protected by a CONJUNCTION (table-level SELECT
+-- revoked from authenticated AND the columns absent from the per-column grants). No
+-- single assertion stated that pair, and one `grant select on public.profiles to
+-- authenticated` would have republished all three. Here the boundary is the relation.
+select ok(
+  (select c.relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'profile_private_details'),
+  'A15: profile_private_details has RLS ENABLED');
+select is(
+  (select count(*)::int from pg_policies where schemaname = 'public' and tablename = 'profile_private_details'),
+  0, 'A16: profile_private_details carries ZERO policies');
+
 -- ============================================================================
 -- SS B - GRANT layer: has_table_privilege('authenticated', ..., verb) = false,
--- all four DML verbs, all 7 tables. Positive assertion (has_table_privilege),
+-- all four DML verbs, all 8 tables. Positive assertion (has_table_privilege),
 -- never an inference from an empty-looking relacl (NULL proacl includes PUBLIC;
 -- these relacls are NOT null -- see the report -- but the discipline holds
 -- regardless of which shape a table happens to have).
@@ -171,6 +186,19 @@ select ok(not has_table_privilege('authenticated', 'public.verification_lookups'
 select ok(not has_table_privilege('authenticated', 'public.verification_lookups', 'INSERT'), 'B26: authenticated has NO INSERT on verification_lookups');
 select ok(not has_table_privilege('authenticated', 'public.verification_lookups', 'UPDATE'), 'B27: authenticated has NO UPDATE on verification_lookups');
 select ok(not has_table_privilege('authenticated', 'public.verification_lookups', 'DELETE'), 'B28: authenticated has NO DELETE on verification_lookups');
+
+select ok(not has_table_privilege('authenticated', 'public.profile_private_details', 'SELECT'), 'B29: authenticated has NO SELECT on profile_private_details (restricted PII)');
+select ok(not has_table_privilege('authenticated', 'public.profile_private_details', 'INSERT'), 'B30: authenticated has NO INSERT on profile_private_details (restricted PII)');
+select ok(not has_table_privilege('authenticated', 'public.profile_private_details', 'UPDATE'), 'B31: authenticated has NO UPDATE on profile_private_details (restricted PII)');
+select ok(not has_table_privilege('authenticated', 'public.profile_private_details', 'DELETE'), 'B32: authenticated has NO DELETE on profile_private_details (restricted PII)');
+
+-- ⛔ THE SAME QUESTION ASKED OF `anon`, FOR THIS TABLE ONLY. Every other member of this
+-- set is reached through a door that already requires a session, and §B's `authenticated`
+-- bound implies the `anon` one for them by inheritance. This table is different in ONE
+-- way that matters: `anon` is the role a request carries BEFORE login, and a CPF store is
+-- the one relation here whose exposure would be an enumeration oracle over national IDs
+-- rather than a leak of tenant content (ADR 0097 D7 / LOW-3).
+select ok(not has_table_privilege('anon', 'public.profile_private_details', 'SELECT'), 'B33: anon has NO SELECT on profile_private_details');
 
 -- ============================================================================
 -- SS C - RUNTIME proof: a live query AS `authenticated` raises 42501 (permission
@@ -236,6 +264,22 @@ select throws_ok($$ select count(*) from public.meeting_closed_session_item_read
   'C15: SELECT on meeting_closed_session_item_readers raises 42501 as authenticated');
 select throws_ok($$ select count(*) from public.verification_lookups $$, '42501', null,
   'C16: SELECT on verification_lookups raises 42501 as authenticated');
+reset role;
+
+-- --- profile_private_details (restricted PII) --- FULL four-verb coverage, deliberately
+-- matching the Class-1 PHI tables above rather than the one-representative-verb group.
+-- The three columns it holds were reachable by a signed-in caller for exactly as long as
+-- someone got the `profiles` grant conjunction wrong, so the runtime proof is worth its
+-- four assertions here.
+set local role authenticated;
+select throws_ok($$ select count(*) from public.profile_private_details $$, '42501', null,
+  'C17: SELECT on profile_private_details raises 42501 as authenticated');
+select throws_ok($$ insert into public.profile_private_details default values $$, '42501', null,
+  'C18: INSERT into profile_private_details raises 42501 as authenticated');
+select throws_ok($$ update public.profile_private_details set updated_at = updated_at $$, '42501', null,
+  'C19: UPDATE on profile_private_details raises 42501 as authenticated');
+select throws_ok($$ delete from public.profile_private_details $$, '42501', null,
+  'C20: DELETE on profile_private_details raises 42501 as authenticated');
 reset role;
 
 -- ============================================================================
@@ -335,8 +379,8 @@ select is(
   'not merely "no longer public", which a TO anon policy would also satisfy');
 
 -- ============================================================================
--- SS A0 - SET CLOSURE. Everything above pins SEVEN NAMED tables. Nothing asserted
--- that those seven ARE the zero-policy set, so an EIGHTH such table could enter
+-- SS A0 - SET CLOSURE. Everything above pins EIGHT NAMED tables. Nothing asserted
+-- that those eight ARE the zero-policy set, so a NINTH such table could enter
 -- silently while all 71 assertions stayed green - which is the exact shape AE1.6
 -- claims to prevent ("an accidental future policy or grant reds a test instead of
 -- silently widening") and the 'hand list wearing a label' shape ADR 0156 was written
@@ -353,8 +397,9 @@ select is(
     where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity
       and not exists (select 1 from pg_policy p where p.polrelid = c.oid)),
   'case_print_revisions,meeting_closed_session_item_readers,meeting_closed_session_items,'
-  'patient_identifiers,patient_participants,referral_patient,verification_lookups',
-  'A0: the DERIVED zero-policy set equals the seven this file declares - an eighth such '
+  'patient_identifiers,patient_participants,profile_private_details,referral_patient,'
+  'verification_lookups',
+  'A0: the DERIVED zero-policy set equals the eight this file declares - a ninth such '
   'table must red here rather than enter unasserted');
 
 select * from finish();

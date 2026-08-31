@@ -940,7 +940,7 @@ true as the runbook is actually executed.
 > not a document path. The gate is a **`prosecdef = t` door whose check replaces RLS**, so the arm's
 > class changes from policy-mutation to **door-mutation**. → *`prosecdef` belongs beside `pg_policies`*
 >
-> ⛔ **Therefore it is built inside C2 Tier 1, not as a one-off.** Tier 1's 407-door sweep needs exactly
+> ⛔ **Therefore it is built inside C2 Tier 1, not as a one-off.** Tier 1's door sweep needs exactly
 > this machinery, as does `FUP-DM5-SIBLING-GUARD-DIFF`; building it three times was declined. ⚠ **Being
 > absorbed is not being closed** — this item keeps its own line and needs its own recorded verdict.
 
@@ -1208,13 +1208,13 @@ radius was one join away and no assertion in the slice looked there.
 **When a change writes a new value into an existing state column, sweep every READER of that
 column before believing the keystone.**
 
-### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one (⭕ **re-derived 426 at the AE1 Record step 2026-08-27**), and the class is COVERED-BUT-UNPINNED, not blind** — ⭐ **Critical FUP C2** (owner: lead + backend)
+### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one (⭕ **re-derived 426 at the AE1 Record step 2026-08-27, then **427** (345 `public` + 82 `app`) on 2026-08-31 — and the figure is now DERIVED by `ARM=census`'s own banner each run, so this chain ends here rather than needing a next link**), and the class is COVERED-BUT-UNPINNED, not blind** — ⭐ **Critical FUP C2** (owner: lead + backend)
 
 > ### ✅ PO RULING 2026-08-18 — **TWO TIERS. Sweep the PHI / tenancy-crossing subset first; DEFER the remainder to after the pilot ships.**
 >
 > Recorded as **Critical FUP C2**. The decision that was owed was the **sizing**, and it is taken:
 >
-> **Tier 1 — sweep now, as its own scoped workstream.** The subset of the 407 that **touches PHI or
+> **Tier 1 — sweep now, as its own scoped workstream.** The subset of the population that **touches PHI or
 > crosses a tenant boundary**. Each swept door gets a **recorded verdict**, so a regression reds and —
 > the actual point — **a NEW door cannot pass by absence.**
 > **Tier 2 — the remainder is DEFERRED** until after the pilot ships and there are real customers.
@@ -1230,7 +1230,7 @@ column before believing the keystone.**
 > Tier 2, and it does not let the 3-door sample stand in for either tier. ⛔ **The sample may not be
 > used to close anything** — it establishes that the class is *covered*, which is why this is 🟠 and
 > not 🔴, and nothing more. ⭐ *Absence of a verdict is not absence of coverage* — and the inverse
-> holds too: **presence of coverage is not a verdict.** Nothing today records *why* any of the 407 is
+> holds too: **presence of coverage is not a verdict.** Nothing today records *why* any of them is
 > safe, so nothing notices when one stops being safe.
 >
 > ⚠ **`assume_role` is still ERROR-shaped, not COVERED**, and it is in Tier 1 by construction
@@ -1273,6 +1273,14 @@ does so where no scraper reads. → [[a-predicate-quoted-at-the-wrong-grain]].
 | ↳ `authenticated`-reachable, `prokind='f'`, non-trigger = **real command doors** | **407** |
 | ↳↳ of which in `public` (PostgREST RPC-callable) | **326** |
 
+⛔ **THE TABLE ABOVE IS A DATED SNAPSHOT (2026-08-17) AND IS KEPT AS ONE — do not quote its
+figures as current.** Every number in it has moved: the command-door row measured **426** at the
+AE1 Record step and **427** (345 `public` + 82 `app`) on 2026-08-31. It is preserved because the
+*decomposition it demonstrates* is the point — most `prosecdef` functions are outside every arm's
+domain — not because any cell is still true. ⭐ **The live figure is DERIVED by `ARM=census`'s own
+banner each run** (QA AE3 r3/r4); cite the banner, never this table. The prose below was rewritten
+2026-08-31 to stop restating these cells.
+
 `create_case`, `assume_role` and `add_referral_shared_item` appear in **no** findings file, **no**
 allowlist and **not** in `authz-unswept-backlog.txt`. Each is a DEFINER, so by CLAUDE.md's own
 standing rule its internal gate *replaces* RLS — it **is** the boundary.
@@ -1300,7 +1308,7 @@ for exactly this) — it went RED, proving the harness can find something
 **⭐ Calibration, corrected in BOTH directions.** Not a vulnerability — but also **not a
 coverage hole**, which is what "unswept" implied. The coverage is real; what is missing is the
 **verdict**. Consequences, which are the actual finding:
-1. **The coverage is unpinned.** Nothing records that these 407 doors are covered, so nothing
+1. **The coverage is unpinned.** Nothing records that these doors are covered, so nothing
    detects if that coverage regresses. A keystone deleted tomorrow reds nothing.
 2. **A NEW door in this class inherits no arm at all** — it is absent from every findings file,
    so it passes every arm *by absence*. Precisely the ADR 0079 Amendment 7 shape.
@@ -1309,11 +1317,12 @@ coverage hole**, which is what "unswept" implied. The coverage is real; what is 
    → [[enumeration-boundary-is-a-syntax-not-a-property]], [[a-census-whose-parts-dont-sum-is-wrong]].
 
 **Fix (unchanged in shape, re-sized).** Widen the census's DEFINER clause to admit reachable
-non-trigger command doors, re-run, expect **RED with ~407 entries**, and triage — as ADR 0079
-Amendment 7 did for `ARM=wrapper`. ⚠ **407 is too many to classify honestly in one pass**, and a
+non-trigger command doors, re-run, expect **one RED entry per door in the class** — the count is
+whatever `ARM=census`'s banner derives that run — and triage, as ADR 0079 Amendment 7 did for
+`ARM=wrapper`. ⚠ **That population is far too many to classify honestly in one pass**, and a
 backlog filled with generic reasons is itself a vacuous act; sizing that triage is a **PO
 decision**, not an implementer's. ⛔ **Do not close this on the 3-door sample** — three COVERED
-results are evidence about three doors, not about 407 ([[a-detector-that-finds-a-lot-needs-proving-too]]).
+results are evidence about three doors, not about the population ([[a-detector-that-finds-a-lot-needs-proving-too]]).
 
 **Harness safety, for whoever runs the full triage.** The suite runs in a **separate
 connection**, so an in-transaction neutralization is invisible to it and cannot be used
@@ -1409,7 +1418,7 @@ retain EXECUTE) or a fix that over-reaches will pass the security half while bre
 
 > ## ⭕ FOLDED INTO CRITICAL FUP C2 TIER 1 — 2026-08-18 (DM-FUP TRIAGE #5)
 >
-> This wants a transitive catalog guard-set diff over `prosecdef` doors. So does C2's 407-door Tier 1
+> This wants a transitive catalog guard-set diff over `prosecdef` doors. So does C2's Tier-1 door sweep
 > sweep, and so does `FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN`'s re-pointed arm
 > (`app.resolve_document_version_bytes`). **One piece of door-mutation machinery, three consumers** —
 > building it three times was declined.
@@ -3236,6 +3245,114 @@ owners kept live here).
 > disposition (flake vs. defect) **decided**, not assumed — filed as
 > `FUP-E2E-PROF-CREATE-ROSTER-FLAKE` for the lead/PO, with this run as its first and only
 > observation.
+
+### 🟡 FUP-EVENT-PATIENT-POLICY-PREEMPTED — a PHI policy that never runs, and would arm silently (owner: backend + lead)
+
+- 🟡 **FUP-EVENT-PATIENT-POLICY-PREEMPTED** — surfaced 2026-08-31 by QA's AE3 round-2 review
+  (finding B6, an out-of-scope observation), while correcting ARCHITECTURE.md's zero-policy class
+  list. Measured on the live catalog, not read off a migration:
+
+  - `public.event_patient` carries **one live policy**, `event_patient_select` (`SELECT`, `TO
+    authenticated`);
+  - `has_table_privilege('authenticated', 'public.event_patient', 'SELECT')` is **false**.
+
+- ⭐ **The policy is therefore PRE-EMPTED DEAD CODE.** Table privilege is checked *before* RLS, so
+  the gate never executes: the confidentiality of this Class-1 PHI store rests entirely on the
+  **absent grant**, and the policy contributes nothing today. ⛔ **This is not a defect and nothing
+  is exposed** — the current posture is strictly closed. It is filed because of what a single
+  future statement does to it.
+
+- ⛔ **THE FAILURE MODE IS A SILENT ARMING.** A `grant select on public.event_patient to
+  authenticated` — the kind of line added to "fix a 42501" — does not merely open the table; it
+  **activates a predicate nobody has evaluated against current requirements**, written when the
+  surrounding model was different. The result is not an obvious hole (which review catches) but a
+  gate whose correctness was never the thing being reviewed. ⚠ The reviewer of that grant would be
+  looking at a table that *has* a policy, which reads as protected.
+
+- ⚠ **It sits in a blind spot between two instruments, which is why nothing has reported it.**
+  `382` § A0 derives the ZERO-policy set, so `event_patient` is correctly outside it and A0 stays
+  green. The door/ACL arms bound on reachability, and an unreachable table is out of their domain.
+  **No arm asks "is this policy pre-empted by its own table grant?"** — the question falls between
+  the policy census and the grant census, both of which are individually correct.
+
+- **Owed:** a ruling — (a) drop the policy as dead, making the absent grant the single stated
+  control; (b) keep it and pin the pre-emption executably (assert the grant is absent, so a future
+  `grant` reds *here* with the reason attached); or (c) re-derive the predicate against current
+  requirements and keep it as a live belt beside the braces. ⛔ **Do not close this by observing
+  that nothing is currently exposed** — that is the premise, not the disposition. ⚠ Also worth
+  deriving the general property once: **how many other policies are pre-empted by an absent
+  table grant?** This one was found by eye, which is not a method — backend + lead
+
+### 🟡 FUP-E2E-AE3-TWO-NOVEL-FLAKES — two names outside the baseline, ONE observation each, disposition UNDECIDED (owner: lead + tester)
+
+- 🟡 **FUP-E2E-AE3-TWO-NOVEL-FLAKES** — AE3's first full `e2e:prod` (2026-08-31, branch
+  `authz-ae3-private-details`) ended `1240 passed · 4 failed · 4 flaky`. **Three of the four
+  failures were AE3's own** and were fixed (E2E specs still reading `profiles.cpf` /
+  `.date_of_birth` after the columns moved). This item is about the rest, which were **not**
+  AE3's and are **not** in `FUP-E2E-REPEAT-FLAKY`'s named baseline:
+
+  **(a) `ethics-e4-participants.spec.ts:1247` — KBD-2, keyboard-only professional lane.**
+  Failed BOTH attempts in batch 6: `tabTo: target never received focus via keyboard Tab`
+  (helper at `:701`, which throws after its own bounded Tab loop). It then **passed cleanly**
+  in a targeted re-run of the same spec minutes later, on the same build.
+
+  **(b) `phase14a-safety-events.spec.ts:543` — AC-8a.**
+  `worker process exited unexpectedly (code=3221226505)` — Windows
+  `STATUS_STACK_BUFFER_OVERRUN`, i.e. **the browser worker died**, not an assertion failing.
+  Passed on retry, so the run counted it flaky rather than failed.
+
+- ⛔ **DELIBERATELY NOT ADMITTED TO `FUP-E2E-REPEAT-FLAKY`.** That baseline has exactly TWO
+  members (`act-role-assumption:157`, `phase2-auth-shell:268`), each carrying a step
+  fingerprint, an owner and an expiry, and both behaved exactly to fingerprint in this run.
+  Plan rule 11 (PA-F16 / ADR 0162) makes the comparison **name + fingerprint**, never a count —
+  and the same rule that refuses to call a novel failure a flake also refuses to grow the
+  baseline on one sighting. A baseline that absorbs each new name on sight is how a defect
+  becomes furniture (the `FUP-E2E-PROF-CREATE-ROSTER-FLAKE` reasoning, applied again).
+
+- ⚠ **(a) is the same SHAPE as both established members** — focus/navigation timing — which is
+  a reason to **watch** it, not to merge it. ⛔ It is also a *different* shape from
+  `FUP-E2E-PROF-CREATE-ROSTER-FLAKE`, which is a roster-row-after-inline-create in the same
+  file: three separate observations in `ethics-e4-participants.spec.ts` do not make one item.
+
+- ⚠ **(b) may not be a test problem at all.** A worker segfault is infrastructure, and this
+  suite already carries an `infra` bucket the gate counts separately; that this one landed in
+  `flaky` instead of `infra` is itself worth checking before any disposition is written.
+
+- **Entry criteria, stated in advance so the next run can decide without re-litigating:** a
+  **second** occurrence of either, with a matching fingerprint, promotes it into
+  `FUP-E2E-REPEAT-FLAKY` with its own fingerprint/owner/expiry. Silence across the next two
+  full runs closes this item as noise. ⛔ Neither disposition may be taken on the strength of
+  this single run — lead + tester
+
+- ⭐⭐ **SECOND RUN, SAME DAY (2026-08-31, after AE3's three real E2E failures were fixed):
+  `1251 passed · 0 failed · 0 infra · 5 flaky`. NEITHER (a) NOR (b) RECURRED — and THREE
+  DIFFERENT novel names flaked instead**, none of them AE3-relevant:
+  `case-patient.spec.ts:433` (builder `collects_patient` toggle) · `ff3-validations.spec.ts:2079`
+  (regex rule, submit-time enforcement) · `phase7-cases.spec.ts:539` (AC-HappyPath board).
+  The two established `FUP-E2E-REPEAT-FLAKY` members — `act-role-assumption:157` and
+  `phase2-auth-shell:268` — flaked in BOTH runs, exactly to fingerprint.
+
+- ⭐⭐ **THAT PATTERN IS THE ACTUAL FINDING, and it is bigger than these five names.** Across two
+  full runs hours apart on the same tree: **2 names are stable and 5 are one-shot**, with zero
+  overlap between the two one-shot sets. A churning population is evidence of an
+  ENVIRONMENT-level cause (worker scheduling, server restart timing, connection pressure —
+  batch 2's own first attempt was classified `server_dead=1, conn_errors=33` and re-run), not of
+  five independent per-spec defects. ⛔ **Consequence for the instrument:** plan rule 11 keys the
+  comparison on NAME + fingerprint, and a name-keyed baseline cannot represent "any one of ~1250
+  tests may flake once per run". Promoting each one-shot name would grow the baseline without
+  bound and make it mean nothing; refusing to promote any leaves rule 11 with nothing to say
+  about them. **Neither branch of the rule fits, which is a gap in the rule, not a verdict on
+  these tests.**
+
+- ⛔ **What this does NOT license.** It is not a reason to call novel flakes acceptable, and it is
+  not a reason to widen the baseline. A run with `0 failed` is still green by the gate's own
+  definition; the caveat is recorded so the next reader is not told a clean number and left to
+  discover the churn themselves. ⚠ **The environment hypothesis is UNTESTED** — it is the shape
+  the two samples suggest, not a measured cause, and it must not be cited as one.
+
+- **Owed next:** a third full run's flaky list, to test the churn hypothesis against a third
+  sample; and a PO/lead decision on whether rule 11 needs a per-run flake BUDGET (a count-based
+  arm) beside its name-based one — lead + tester + PO
 
 ### 🟡 FUP-E2E-PROF-CREATE-ROSTER-FLAKE — `ethics-e4-participants.spec.ts:765` PROF-CREATE roster row, ONE observation, disposition UNDECIDED (owner: lead + tester)
 

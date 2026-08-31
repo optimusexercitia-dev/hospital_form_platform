@@ -536,11 +536,20 @@ values
 -- CPF, so the seed models people registered under that rule. Digits-only, check-digit
 -- valid -- a wrong digit fails the reset loudly via app.is_valid_cpf's CHECK rather
 -- than seeding a value the product itself could never have created.
-update public.profiles set cpf = '11144477735' where id = '00000000-0000-0000-0000-0000000000a1';
-update public.profiles set cpf = '52998224725' where id = '00000000-0000-0000-0000-0000000000c0';
-update public.profiles set cpf = '12345678909' where id = '00000000-0000-0000-0000-0000000000d1';
-update public.profiles set cpf = '98765432100' where id = '00000000-0000-0000-0000-0000000000e1';
-update public.profiles set cpf = '00000000191' where id = '00000000-0000-0000-0000-0000000000b1';
+--
+-- AE3 (ADR 0155 D4): these were five `update public.profiles set cpf = …` statements.
+-- The column now lives in public.profile_private_details, so they are INSERTs -- and
+-- INSERT is why the change is not cosmetic: an UPDATE against a missing row writes
+-- nothing and reports success, so had these stayed updates re-pointed at the new table,
+-- `db reset` would seed ZERO CPFs and every CPF-lookup keystone would go quietly vacuous.
+-- The CHECK still fires on a wrong digit, from the moved constraint.
+insert into public.profile_private_details (profile_id, cpf) values
+  ('00000000-0000-0000-0000-0000000000a1', '11144477735'),
+  ('00000000-0000-0000-0000-0000000000c0', '52998224725'),
+  ('00000000-0000-0000-0000-0000000000d1', '12345678909'),
+  ('00000000-0000-0000-0000-0000000000e1', '98765432100'),
+  ('00000000-0000-0000-0000-0000000000b1', '00000000191')
+on conflict (profile_id) do update set cpf = excluded.cpf, updated_at = now();
 
 -- ---------------------------------------------------------------------------
 -- Commissions + memberships. CCIH + Farmácia under org-a's hospital (ids kept);

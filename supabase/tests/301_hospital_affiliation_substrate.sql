@@ -27,7 +27,7 @@
 -- Assertion count: 41
 
 begin;
-select plan(41);
+select plan(44);
 
 -- Personas + scopes (deterministic seed ids — never gen_random_uuid()).
 create temp table k on commit drop as select
@@ -82,7 +82,13 @@ select is(
       and contype = 'f' and confrelid = 'public.hospitals'::regclass), 1,
   '0.6 exactly ONE foreign key from hospital_affiliations to hospitals (the composite; a second is the PGRST201 shape)');
 
-select has_column('public', 'profiles', 'cpf', '0.7 profiles.cpf exists (ADR 0097 D7)');
+-- AE3 (ADR 0155 D4): the person CPF moved to `public.profile_private_details`. Both halves
+-- asserted, so "moved" is proven rather than "absent" -- a DROP with no destination would
+-- satisfy the second alone.
+select has_column('public', 'profile_private_details', 'cpf',
+  '0.7 profile_private_details.cpf exists (ADR 0097 D7, relocated by AE3 D4)');
+select hasnt_column('public', 'profiles', 'cpf',
+  '0.7b ... and it is GONE from profiles: the pair is what makes 0.7 a move rather than an absence');
 select has_column('public', 'professional_profiles', 'cpf', '0.8 professional_profiles.cpf exists (D15 — column only)');
 
 -- 20260909000200 leaves REFERENCES table-level, so it still covers `cpf`. That is
@@ -117,6 +123,14 @@ select ok(
 -- ⚠ SELECT is the right privilege to test and REFERENCES is correctly ignored: `profiles`
 -- carries a TABLE-level REFERENCES grant, so every column shows a REFERENCES row including
 -- the locked ones. 0.9 above is what makes that residual inert.
+-- CORRECTED BY AE3 (ADR 0155 D4): THE RULE THIS ASSERTION ENCODED IS RETIRED, and the
+-- retirement is asserted in TWO halves rather than by deleting the test. The
+-- withheld-column mechanism is gone from `profiles`: there is nothing left to withhold
+-- there, because the three values moved to a table that grants `authenticated` nothing.
+--
+-- 0.10a is the RETIREMENT, executable. It reds if anyone re-locks a `profiles` column
+-- without deciding to, which after AE3 would mean a second, undocumented mechanism has
+-- reappeared beside the relation boundary that replaced it.
 select is(
   (select coalesce(string_agg(c.column_name, ',' order by c.column_name), '')
      from information_schema.columns c
@@ -126,8 +140,35 @@ select is(
          where g.table_schema = 'public' and g.table_name = 'profiles'
            and g.grantee = 'authenticated' and g.privilege_type = 'SELECT'
            and g.column_name = c.column_name)),
-  'cpf,date_of_birth,phone',
-  '0.10 F7: the profiles columns with NO authenticated SELECT grant are exactly {cpf, date_of_birth, phone} — the column-grant rule, executable');
+  '',
+  '0.10a F7 AS RETIRED BY AE3: NO profiles column is withheld from authenticated any more, because the withheld-column mechanism has no members left: its subjects moved');
+
+-- 0.10b is the SUCCESSOR TRIPWIRE, and it stays a HAND-LIST for the original reason: it
+-- guards a security-relevant set, so every change to it should cost an explicit edit and a
+-- reviewer's attention. Deriving it from the catalog would make it self-satisfying.
+-- Each member needs a decision behind it:
+--   * `cpf`           -- ADR 0097 D7 / HIGH-1: write-only on every admin surface,
+--                        presence-only on the profile rail (ADR 0133 D12).
+--   * `date_of_birth` -- ADR 0133 D9/D10 (AFF2 B1), via the person-scope authorizer and the
+--                        audited `list_org_people` door (Amdt 1 ruling 4).
+--   * `phone`         -- ADR 0133 D9/D10 (AFF2 B1). One read path only.
+--   * `profile_id`    -- the key; it identifies a person who HAS restricted details, which
+--                        is itself a disclosure on a table that exists to hold them.
+--   * `updated_at`    -- when a person's restricted details last changed. Housekeeping, but
+--                        granting it would be granting a change oracle over the other three.
+-- NOTE the shape INVERTED with the move: the old list named what was WITHHELD from a
+-- mostly-granted table; this names the whole table, because nothing on it is granted.
+select is(
+  (select coalesce(string_agg(c.column_name, ',' order by c.column_name), '')
+     from information_schema.columns c
+    where c.table_schema = 'public' and c.table_name = 'profile_private_details'
+      and not exists (
+        select 1 from information_schema.column_privileges g
+         where g.table_schema = 'public' and g.table_name = 'profile_private_details'
+           and g.grantee = 'authenticated' and g.privilege_type = 'SELECT'
+           and g.column_name = c.column_name)),
+  'cpf,date_of_birth,phone,profile_id,updated_at',
+  '0.10b F7 SUCCESSOR: EVERY column of profile_private_details is withheld from authenticated: the hand-list tripwire, moved to the relation that now carries the boundary');
 
 -- ============================================================================
 -- §1 THE CPF PAIR. app.is_valid_cpf <-> isValidCpf (src/lib/users/cpf.ts) is a
@@ -216,27 +257,35 @@ select is(app.is_valid_cpf(null), false,
 -- dr.john, solo.c, novato.pendente, hospitaladmin.a1 and orgadmin.a). Both literals
 -- below were seeded values until T3.5 and this file went red on a UNIQUE violation —
 -- correctly, which is the seed contract working as designed.
+-- AE3: UPSERT, not UPDATE. `d1` has a seeded private-details row but `d4` (used by 2.2-2.4)
+-- does NOT: seed.sql gives CPFs to five personas and d4 is not among them. A bare UPDATE
+-- against a missing row writes nothing AND RAISES NOTHING, so 2.4's `lives_ok` would pass
+-- while storing no CPF, and 2.3's uniqueness arm would have nothing to collide with.
 select lives_ok(
-  $$update public.profiles set cpf = '23456789092'
-     where id = '00000000-0000-0000-0000-0000000000d1'$$,
+  $$insert into public.profile_private_details (profile_id, cpf)
+    values ('00000000-0000-0000-0000-0000000000d1', '23456789092')
+    on conflict (profile_id) do update set cpf = excluded.cpf$$,
   '2.1 a valid CPF stores (overwriting the one seed.sql assigned)');
 
 select throws_ok(
-  $$update public.profiles set cpf = '11144477736'
-     where id = '00000000-0000-0000-0000-0000000000d4'$$,
+  $$insert into public.profile_private_details (profile_id, cpf)
+    values ('00000000-0000-0000-0000-0000000000d4', '11144477736')
+    on conflict (profile_id) do update set cpf = excluded.cpf$$,
   '23514', null,
-  '2.2 a bad check digit is REFUSED by profiles_cpf_valid (23514)');
+  '2.2 a bad check digit is REFUSED by profile_private_details_cpf_valid (23514): the CHECK moved with the column, calling the same app.is_valid_cpf');
 
 select throws_ok(
-  $$update public.profiles set cpf = '23456789092'
-     where id = '00000000-0000-0000-0000-0000000000d4'$$,
+  $$insert into public.profile_private_details (profile_id, cpf)
+    values ('00000000-0000-0000-0000-0000000000d4', '23456789092')
+    on conflict (profile_id) do update set cpf = excluded.cpf$$,
   '23505', null,
   '2.3 CPF is unique platform-wide — a duplicate of 2.1''s value is REFUSED (23505)');
 
 -- The twin: 2.3 must not be passing because "no second CPF may be stored at all".
 select lives_ok(
-  $$update public.profiles set cpf = '34567890175'
-     where id = '00000000-0000-0000-0000-0000000000d4'$$,
+  $$insert into public.profile_private_details (profile_id, cpf)
+    values ('00000000-0000-0000-0000-0000000000d4', '34567890175')
+    on conflict (profile_id) do update set cpf = excluded.cpf$$,
   '2.4 TWIN: a DIFFERENT valid CPF on the same person still stores (2.3 is uniqueness, not a blanket refusal)');
 
 select throws_ok(
@@ -437,13 +486,22 @@ reset role;
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000003', false);
 set local role authenticated;
 select throws_ok(
-  $$select cpf from public.profiles limit 1$$,
+  $$select cpf from public.profile_private_details limit 1$$,
   '42501', null,
-  '6.1 DENY ARM: authenticated selecting `cpf` on profiles is refused (42501) — a national ID must not ride along on a colleague''s row read');
+  '6.1 DENY ARM: authenticated selecting `cpf` from profile_private_details is refused (42501) — a national ID must not ride along on a colleague''s row read');
 select throws_ok(
-  $$select * from public.profiles limit 1$$,
+  $$select * from public.profile_private_details limit 1$$,
   '42501', null,
-  '6.2 DENY ARM: `select *` is refused too — the lock is a column privilege, not a client-side omission');
+  '6.2 DENY ARM: `select *` on profile_private_details is refused too — post-AE3 the lock is a TABLE-level absence of grant, not a column privilege (6.2b is the twin that pins the difference)');
+-- AE3 (ADR 0155 D4) INVERTED 6.2's CLAIM ABOUT `profiles`. Before, the lock was a COLUMN
+-- privilege there, so `select *` on that table was itself refused. After the move
+-- `profiles` has no withheld column, so `select * from public.profiles` SUCCEEDS. That is
+-- NOT a widening: it returns the same ten columns `authenticated` could always read one at
+-- a time. Pinned rather than assumed, so a future re-lock of a profiles column reds HERE
+-- with its reason attached instead of surfacing as a mystery 42501 somewhere downstream.
+select lives_ok(
+  $$select * from public.profiles limit 1$$,
+  '6.2b THE INVERTED TWIN: `select *` on `profiles` now SUCCEEDS, which is the visible consequence of the move');
 select lives_ok(
   $$select id, full_name, email from public.profiles limit 1$$,
   '6.3 ALLOW ARM: the GRANTED columns still read — the conversion did not overshoot');

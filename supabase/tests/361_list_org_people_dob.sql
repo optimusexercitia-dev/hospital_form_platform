@@ -128,10 +128,20 @@ select is(
 -- §4 Functional: the value actually flows. §3 proves the signature; a signature
 -- is not a value, and the SELECT list could still omit the column.
 -- ===========================================================================
--- Written on the service path (auth.uid() null), which is the only way to set this column
--- at all — the B1 guard refuses every signed-in caller.
-update public.profiles set date_of_birth = '1979-04-11'
- where id = '00000000-0000-0000-0000-0000000000d1';
+-- Written on the service path (auth.uid() null), which is the only way to set this value
+-- at all. ⚠ AE3 (ADR 0155 D4) MOVED IT: the column left `profiles` for
+-- `profile_private_details`, and the refusal is now the ABSENT GRANT on that table rather
+-- than the B1 guard arm (which retired with the column). 359 asserts that swap; this file
+-- only needs the value on the service path, which is unchanged.
+--
+-- ⛔ UPSERT, NOT UPDATE. The seed gives this persona a `profile_private_details` row (it
+-- has a CPF), but that is a fact about the seed, not about this file. A bare UPDATE against
+-- a missing row writes nothing AND RAISES NOTHING, so 4.1 would fail with a null and read
+-- as "the door stopped returning the column" — a fixture gap wearing the costume of a
+-- product defect.
+insert into public.profile_private_details (profile_id, date_of_birth)
+values ('00000000-0000-0000-0000-0000000000d1', '1979-04-11')
+on conflict (profile_id) do update set date_of_birth = excluded.date_of_birth;
 
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1');
 set local role authenticated;

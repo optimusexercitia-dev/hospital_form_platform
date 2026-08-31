@@ -362,7 +362,16 @@ run_arm_floor () {
 run_arm_census () {
   echo "=== ARM 3: census closure — every gate IN THIS ARM'S DOMAIN carries a verdict ==="
   echo "    domain: prosecdef bool | prosecdef set-returning+reachable | public INVOKER plpgsql | all RLS policies"
-  echo "    NOT in domain: prosecdef scalar non-bool command doors (407 reachable) — FUP-AUTHZ-COMMAND-DOOR-UNSWEPT"
+  # ⚠ DERIVED, NEVER FROZEN. This line read "(407 reachable)" as a LITERAL from
+  # 2026-08-17 until 2026-08-31, when a live re-derivation returned 427 (345 public + 82
+  # app) — the banner had drifted by 20 while printing beside four green arms, and the
+  # register's own re-derivation (426, AE1 Record step) had drifted by one. A number a
+  # banner states about a population NOTHING re-derives is a claim with no owner, and
+  # this arm exists to stop exactly that shape. The predicate below IS the definition of
+  # the out-of-domain class, so the figure and the class can never disagree again.
+  local uncovered
+  uncovered="$(psql_c -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public','app') and p.prosecdef and p.prorettype <> 'pg_catalog.trigger'::regtype and not p.proretset and p.prorettype <> 'pg_catalog.bool'::regtype and (has_function_privilege('authenticated', p.oid, 'EXECUTE') or has_function_privilege('anon', p.oid, 'EXECUTE'));")"
+  echo "    NOT in domain: prosecdef scalar non-bool command doors (${uncovered:-?} reachable, DERIVED this run) — FUP-AUTHZ-COMMAND-DOOR-UNSWEPT"
   local live="$WORK/census_live.txt" accounted="$WORK/census_accounted.txt"
 
   # LIVE domain, from the catalog and nothing else (never migration text). Deliberately
@@ -450,9 +459,11 @@ run_arm_census () {
   else
     # ⚠ Scoped deliberately (2026-08-17, FUP-AUTHZ-COMMAND-DOOR-UNSWEPT). This USED to read
     # "every live authz gate carries a verdict", which is wider than what was checked: the
-    # DEFINER clause above admits `bool` and set-returning returns only, so 407 reachable
-    # non-trigger COMMAND doors (326 of them public/RPC-callable — create_case, assume_role,
-    # add_referral_shared_item …) are in no arm's domain at all. A 3-door neutralization
+    # DEFINER clause above admits `bool` and set-returning returns only, so the reachable
+    # non-trigger COMMAND doors (create_case, assume_role, add_referral_shared_item …) are in
+    # no arm's domain at all. ⛔ The count is DERIVED in this arm's banner, never written here:
+    # this comment carried "407 … (326 of them public)" from 2026-08-17 to 2026-08-31, by which
+    # point the live figure was 427 (345 public + 82 app). A 3-door neutralization
     # sample found all three COVERED by real keystones, so the class is covered-but-UNPINNED,
     # not blind — but nothing here records that, and a NEW door in the class passes by absence.
     echo "  OK: no unswept newcomer WITHIN THIS ARM'S DOMAIN (see the domain lines above)."

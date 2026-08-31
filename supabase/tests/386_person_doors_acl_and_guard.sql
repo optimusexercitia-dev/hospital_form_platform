@@ -163,16 +163,24 @@ select throws_ok(
   '3.3 ⭐ …nor set their own `suspended_until` — `authenticated` DOES hold that column grant, so the guard''s identity arm is what answers; this is the very column `suspend_person_for` writes');
 
 -- ⚠ MEASURED, NOT ASSUMED — and the first red run corrected this assertion. `cpf` is
--- refused at `42501` (the COLUMN GRANT), never reaching the guard: `authenticated` holds
--- UPDATE on eleven `profiles` columns and `cpf` / `date_of_birth` / `phone` are not among
--- them. WHICH LAYER ANSWERS MATTERS: someone who "fixed" the column grant would hand the
--- question to the guard (3.3's arm), not open the door — the two layers are independent
--- and both must hold. An assertion that expected 23514 here would have read as a live
--- defect while the surface was in fact doubly protected.
+-- refused at `42501`, never reaching the guard. WHICH LAYER ANSWERS MATTERS: someone who
+-- "fixed" the grant would hand the question to the guard, not open the door.
+--
+-- ⛔ AE3 (ADR 0155 D4) RE-BASED THIS ASSERTION, AND THE SQLSTATE IS UNCHANGED FOR A
+-- DIFFERENT REASON — which is exactly why the statement had to move rather than the
+-- expectation being left alone. BEFORE: `cpf` was a COLUMN of `profiles` absent from the
+-- eleven-column UPDATE grant, so the refusal was a column-ACL refusal. AFTER: `cpf` is a
+-- column of `public.profile_private_details`, which grants `authenticated` nothing at all,
+-- so the refusal is a TABLE-ACL refusal. Same 42501, different mechanism.
+--
+-- ⛔ HAD THIS BEEN LEFT POINTING AT `profiles`, IT WOULD HAVE CAUGHT 42703 (undefined
+-- column) — and a `throws_ok` that pinned only "it raised" would have gone on passing,
+-- reporting an access control that no longer had a subject. It pins the SQLSTATE, so it
+-- reddened instead. That is the control working, not a test being annoying.
 select throws_ok(
-  $$update public.profiles set cpf = '11144477735' where id = auth.uid()$$,
+  $$update public.profile_private_details set cpf = '11144477735' where profile_id = auth.uid()$$,
   '42501', null,
-  '3.4 ⭐ …and `cpf` is refused one layer EARLIER, by the column grant — the identity columns are protected twice over, and the door is what legitimately reaches past both');
+  '3.4 ⭐ …and `cpf` is refused one layer EARLIER, by the ABSENT TABLE GRANT on profile_private_details (AE3; it was the column grant on `profiles` before the move) — the identity columns are protected twice over, and the door is what legitimately reaches past both');
 
 reset role;
 select test_helpers.reset_role_and_claims();

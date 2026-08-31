@@ -715,9 +715,14 @@ export async function registerUser(
   // "exists in another organisation" would turn this into a cross-tenant existence
   // oracle over national IDs — the enumeration surface D7/LOW-3 already flags as the
   // widest one this platform has.
+  // AE3 (ADR 0155 D4): the CPF moved to `profile_private_details`, so this collision probe
+  // reads that table and returns the holder as `profile_id`. The uniqueness it relies on
+  // moved with it — the same PARTIAL unique index (`… where cpf is not null`), not a
+  // re-typed equivalent — so the 23505 race backstop below still fires on the same
+  // constraint class.
   const { data: cpfHolder, error: cpfLookupError } = await admin
-    .from('profiles')
-    .select('id')
+    .from('profile_private_details')
+    .select('profile_id')
     .eq('cpf', cpf)
     .maybeSingle()
   if (cpfLookupError) {
@@ -732,7 +737,9 @@ export async function registerUser(
   await admin.rpc('log_cpf_probe_for', {
     p_actor: context.userId,
     p_org_id: input.homeOrganizationId,
-    p_matched: cpfHolder?.id ?? undefined,
+    // AE3: the probe now reads `profile_private_details`, whose key column is
+    // `profile_id`. It is the SAME uuid the audit row carried before the move.
+    p_matched: cpfHolder?.profile_id ?? undefined,
   })
 
   if (cpfHolder) {
@@ -1102,13 +1109,37 @@ export async function updateUserProfile(
 
   // The CURRENT row, read to decide whether the CPF is actually changing (below) and to
   // supply the normalisers their stored side.
+  //
+  // ⛔ AE3 (ADR 0155 D4) SPLIT THIS READ ACROSS TWO RELATIONS. `cpf`, `date_of_birth` and
+  // `phone` moved to `profile_private_details`; `full_name` and `professional_category_id`
+  // stayed on `profiles`.
+  //
+  // ⛔ TWO EXPLICIT QUERIES, NOT A POSTGREST EMBED. An embed would be one round trip, but
+  // its shape depends on PostgREST DETECTING the relationship as one-to-one from
+  // `profile_id` being both PK and FK. When that detection goes the other way it returns an
+  // ARRAY — and `row.profile_private_details.cpf` is then `undefined`, not an error. That
+  // reads as "the CPF did not change", silently skipping the `cpf_change` authority arm.
+  // A separate query has no heuristic in it and cannot fail that way.
   const adminClient = createAdminClient()
   const { data: current } = await adminClient
     .from('profiles')
-    .select('full_name, professional_category_id, cpf, date_of_birth, phone')
+    .select('full_name, professional_category_id')
     .eq('id', input.userId)
     .maybeSingle()
   if (!current) return { ok: false, error: MESSAGES.missingUser }
+
+  // Absent (not merely empty) for a person with no restricted details on file — which is a
+  // legitimate state, not a missing person. `missingUser` is decided by `profiles` above.
+  const { data: currentPrivateRow } = await adminClient
+    .from('profile_private_details')
+    .select('cpf, date_of_birth, phone')
+    .eq('profile_id', input.userId)
+    .maybeSingle()
+  const currentPrivate = currentPrivateRow ?? {
+    cpf: null as string | null,
+    date_of_birth: null as string | null,
+    phone: null as string | null,
+  }
 
   // ⛔ THE CPF GRAIN IS "A REAL CHANGE", NOT "THE KEY IS PRESENT" — ruled 2026-08-23,
   // recorded as ADR 0133 Amendment 3. Amdt 1's own wording says "whenever the input
@@ -1125,8 +1156,12 @@ export async function updateUserProfile(
   //
   // Clearing (`null` / `''`) against a stored value IS a change and correctly hits the
   // tighter bound: erasing a person-key is a person-key identity event like rewriting one.
+  // AE3: the stored side now comes from `profile_private_details` (`currentPrivate`), not
+  // from the `profiles` row. The comparison itself is unchanged — and it must stay
+  // symmetric with the writer, which is `app.update_person_fields_impl`'s own
+  // `nullif(regexp_replace(…,'\D','','g'),'')`.
   const cpfChanged =
-    cpf !== undefined && normalizeCpf(current.cpf ?? '') !== normalizeCpf(cpf ?? '')
+    cpf !== undefined && normalizeCpf(currentPrivate.cpf ?? '') !== normalizeCpf(cpf ?? '')
 
   // QA R4 — NORMALISE BOTH SIDES FOR THE B1 COLUMNS TOO, exactly as `cpf` does above.
   //
