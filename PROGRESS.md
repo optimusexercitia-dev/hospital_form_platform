@@ -47,9 +47,19 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      disjunct is DROPPED, not re-grained** — a **domain tautology** (92.5 → 81.0 → 74.5 % across
      every grain and exclusion tried, driven by `cases`/`memberships`/`meetings`). Those doors are
      **Tier 2 = deferred, NOT cleared**; tenant isolation still rides on `ARM=hat`/`floor`/`policy`.
-     Instrument `scripts/authz-c2-tier1-sizing.sql`; worklist (derived, 237 lines, never edited)
+     Instrument `scripts/authz-c2-tier1-sizing.sql`; worklist (derived, **255** lines — ⚠ this said
+     *237*; re-measured 2026-09-01, and the file was last written by the re-grain commit itself)
      `supabase/tests/mutation/c2-tier1-doors.txt`; record + rejected variants →
      [authz-c2-tier1-sizing.md](docs/design/authz-c2-tier1-sizing.md) §8b.
+     ⭐ **CROSS-REFERENCE, not a new finding (ADR [0173](docs/decisions/0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md)):**
+     AE4 reached this same population from a different direction. Of 29 doors touched by
+     runtime-rewrite migrations and **absent** from the door-audit findings, **not one** is
+     `prosecdef` + `authenticated`-reachable + `returns bool` — they are absent because
+     `PRED_DOMAIN` requires `bool`, which is C2's bound. `create_case`, `cast_case_vote`,
+     `issue_decision`, `add_ethics_allegation` are already on this worklist. ⛔ **Not a second
+     exposure and not a second population** — new evidence *about* C2: its doors are also what a
+     diff-scoped lookup cannot reach. Filing it twice would double the register and halve the
+     chance either copy closes.
      ⭐ **THE LONG POLE IS BUILT — `supabase/tests/mutation/c2-command-door-neutralizer.sh`**
      ([design](docs/design/authz-c2-command-door-neutralizer.md)). It rewrites an authz `raise` to
      `null;` — **guard gone, EFFECT intact**; stubbing a delegating body instead removes the work

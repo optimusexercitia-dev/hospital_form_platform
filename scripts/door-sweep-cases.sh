@@ -321,6 +321,103 @@ comm -23 "$TMP/fn_excl" <(cat "$TMP/fn_sel_name" "$TMP/fn_sel_prop" | sort -u) >
 mv "$TMP/fn_excl.f" "$TMP/fn_excl"
 
 # ─────────────────────────────────────────────────────────────────────────────────────
+# 4b. RUNTIME-REWRITE MIGRATIONS — ADR 0173.
+#
+# ⛔ THE BLINDNESS THIS CLOSES. Everything above selects on the diff TEXT: section 4 chunks
+# on `create [or replace] function (app|public).`. A migration that edits a body it did not
+# author uses this repo's HOUSE PATTERN instead —
+# `pg_get_functiondef()` + `replace()` + `execute` — and therefore contains no
+# create-function line at all. Measured 2026-09-01: `20261003007180` rewrote FOUR bodies,
+# two of them `prosecdef` with `authenticated` EXECUTE, and this script derived ZERO cases.
+# ⭐ The deriver was blind to exactly the pattern CLAUDE.md documents as making migration
+# text stale-by-design — and any future gate keyed on migration text inherits that.
+#
+# ⚠ HISTORICAL CEILING, MEASURED, SO THE AMENDMENT IS NOT OVERSOLD: of the 33 migrations
+# that use the pattern, only 8 name their targets in the text at all. The other 25 select
+# targets by CATALOG QUERY at apply time (`where ... pg_get_functiondef(p.oid) ~ '...'`),
+# whose predicate typically matches what the migration then REMOVED — so re-running it today
+# returns zero and the door list is unrecoverable without a historical snapshot. ⛔ No
+# text-based deriver can ever reach those 25. The ceiling is HISTORICAL, not structural: the
+# convention below makes forward coverage complete.
+#
+# ⛔ AND `PRED_DOMAIN` IS A SEPARATE, UNCLOSED BOUND — do not read this block as fixing it.
+# The read arm requires `t.typname='bool'`; D2's four return int4/int4/int4/responses, so
+# even once SELECTED here they yield zero cases and the sweep is correctly UNPROVEN.
+# SELECTION is this block's success criterion, never a passing sweep. That bound is owned by
+# FUP-AUTHZ-COMMAND-DOOR-UNSWEPT (C2), which has its own instrument
+# (supabase/tests/mutation/c2-command-door-neutralizer.sh) and its own cutline.
+# ─────────────────────────────────────────────────────────────────────────────────────
+: > "$TMP/fn_rewrite"
+REWRITE_PRESENT=0
+if sed 's/--.*$//' "$TMP/content" | grep -qiE 'pg_get_functiondef'; then
+  REWRITE_PRESENT=1
+
+  # (a) THE CONVENTION — an explicit, unambiguous target list the deriver can read.
+  #     A rewrite migration declares:  -- door-sweep-targets: app.foo(), public.bar(uuid)
+  #     Read from the RAW content (it is a comment, so it must survive comment-stripping).
+  grep -ohiE '^[[:space:]]*--[[:space:]]*door-sweep-targets:.*' "$TMP/content" 2>/dev/null \
+    | sed -E 's/.*[Dd]oor-[Ss]weep-[Tt]argets:[[:space:]]*//' \
+    | grep -ohE '(app|public)\.[a-z0-9_]+' \
+    | sed -E 's/^(app|public)\.//' >> "$TMP/fn_rewrite" || true
+
+  # (b) FALLBACK, and it is deliberately NARROW — only when the file builds an ARRAY LITERAL.
+  #     ⛔ WHY THE ARRAY GATE, MEASURED RATHER THAN ASSUMED. A first draft extracted every
+  #     quoted schema-qualified callable and OVER-SELECTED: on
+  #     20260903000700_authz_dashboard_gate_uniformity.sql it returned `is_admin` and
+  #     `is_commission_admin_of`, which are the `replace()` OPERANDS — the callee being
+  #     swapped — not the rewrite targets. Naming the WRONG door is worse than naming none,
+  #     and a widened regex that over-selects turns every phase gate into noise.
+  #     ⚠ Excluding `~` lines was NOT enough: a replacement literal sits on a line with no
+  #     `~`. The sound discriminator is that a TARGET LIST is built as an array, while a
+  #     replace() operand is not. Measured on the three shapes:
+  #       20261003007180 (targets in array)     array[=1 callables=4 -> selects 4   ✅
+  #       20260903000700 (replace() operands)   array[=0 callables=2 -> selects 0   ✅
+  #       20260816000500 (catalog-query)        array[=1 callables=0 -> FINDING (1) ✅
+  #     ⚠ BOUND, STATED: a migration that BOTH builds an array AND uses quoted callables as
+  #     replace() operands would still over-select. The (a) marker exists precisely so that
+  #     case has an exact answer available, and it takes precedence.
+  if sed 's/--.*$//' "$TMP/content" | grep -qiE 'array[[:space:]]*\['; then
+    sed 's/--.*$//' "$TMP/content" \
+      | grep -vE '~' \
+      | grep -ohE "'(app|public)\.[a-z0-9_]+\(" \
+      | sed -E "s/^'//; s/\($//; s/^(app|public)\.//" >> "$TMP/fn_rewrite" || true
+  fi
+
+  sort -u "$TMP/fn_rewrite" -o "$TMP/fn_rewrite"
+  # A rewrite target already selected by name/property is not listed twice.
+  comm -23 "$TMP/fn_rewrite" <(cat "$TMP/fn_sel_name" "$TMP/fn_sel_prop" | sort -u) > "$TMP/fn_rewrite.f"
+  mv "$TMP/fn_rewrite.f" "$TMP/fn_rewrite"
+fi
+
+# ⭐ THE CONVENTION HAS TEETH. A rewrite migration whose targets cannot be resolved is a
+# COMPLETELY DIFFERENT STATE from one the deriver reads as empty, and until now those were
+# indistinguishable. This is the detection that separates them, and it is why the convention
+# is enforceable rather than a hint that needs a human.
+if [ "$REWRITE_PRESENT" = 1 ] && [ ! -s "$TMP/fn_rewrite" ]; then
+  rule
+  say "=== RESULT: FINDING (1) — a RUNTIME-REWRITE migration whose TARGETS CANNOT BE READ. ==="
+  say "    The diff uses pg_get_functiondef() + replace() + execute — the house pattern for"
+  say "    editing a body this repo did not author — but names no target this script can"
+  say "    resolve. ⛔ That is NOT the same observation as 'the migration changed no gate':"
+  say "    the migration demonstrably rewrote at least one function body and the deriver"
+  say "    cannot say which. Reading this as empty is how 33 migrations went unswept."
+  say
+  say "    FIX IT AT THE SOURCE — declare the targets in the migration:"
+  say "        -- door-sweep-targets: app.some_fn(), public.other_fn(uuid, jsonb)"
+  say "    That line is read from the comments deliberately, so it survives nothing and"
+  say "    costs nothing at apply time."
+  say
+  say "    ⚠ IF THE TARGETS ARE GENUINELY NOT KNOWABLE — a catalog-query rewrite whose"
+  say "      predicate matches what it then removed — say SO in the gate record as a claim"
+  say "      someone can check, and name the doors from the migration's own review. Do not"
+  say "      record silence. ⛔ There is no ACK env var; an escape hatch for the unmeasurable"
+  say "      also silences the measured."
+  rule
+  exit 1
+fi
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────
 # 5. THE CASE LIST — AND RULING 4 (2026-08-29): THE ARM SPLIT.
 #
 # ⛔ WHY. FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 1, measured 2026-08-27: this script
@@ -360,6 +457,7 @@ mv "$TMP/fn_excl.f" "$TMP/fn_excl"
 # FUP's "separate invocations or a documented key, not two lists concatenated into one".
 # ─────────────────────────────────────────────────────────────────────────────────────
 cat <(cut -f1 "$TMP/pol_create") <(cut -f1 "$TMP/pol_alter") "$TMP/fn_sel_name" "$TMP/fn_sel_prop" \
+  "$TMP/fn_rewrite" \
   | awk 'NF' | sort -u > "$TMP/cases"
 CASES_LIST="$(tr '\n' ' ' < "$TMP/cases" | sed 's/ *$//')"
 

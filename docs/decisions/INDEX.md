@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**170 ADRs** · next free number: **0173** · 52 carry an inbound supersedes/amends edge
+**171 ADRs** · next free number: **0174** · 52 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -100,7 +100,7 @@
 | 0075 | [Memberships collapse: service-role vs RLS-scoped write-path split](0075-memberships-collapse-write-path-split.md) | accepted | 2026-07-13 | – | – |
 | 0076 | [Notifications (S1·N): pilot scope — prove one vertical deep](0076-notifications-pilot-scope.md) | accepted | 2026-07-13 | – | – |
 | 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134, 0167, 0169 |
-| 0079 | [AUTHZ door-blindness: the standing invariant + the write-policy keystone-isolation rule](0079-authz-door-blindness-standing-invariant.md) | accepted | 2026-07-18 | supersedes 0078 | ⚠ amended by 0134, 0153, 0157 |
+| 0079 | [AUTHZ door-blindness: the standing invariant + the write-policy keystone-isolation rule](0079-authz-door-blindness-standing-invariant.md) | accepted | 2026-07-18 | supersedes 0078 | ⚠ amended by 0134, 0153, 0157, 0173 |
 | 0080 | [Committee Charters & Cadence (S4·CH): delegate the regimento to the controlled-doc life…](0080-committee-charters-cadence-model.md) | accepted | 2026-07-20 | – | – |
 | 0081 | [Controlled-Document Redesign + Reviewer Notifications](0081-controlled-document-redesign.md) | accepted | 2026-07-21 | – | ⚠ amended by 0082 |
 | 0082 | [Controlled-Document `changes_requested` Status + In-Place Revision](0082-document-changes-requested-status.md) | accepted | 2026-07-22 | amends 0081 | – |
@@ -194,3 +194,4 @@
 | 0170 | [case deletion is not a client capability: DELETE on `public.cases` is revoked from `aut…](0170-case-deletion-is-not-a-client-capability.md) | accepted | 2026-08-31 | amends 0132 | – |
 | 0171 | [C2's Tier-1 predicate is re-grained, the tenancy disjunct is dropped, and the command-d…](0171-c2-tier1-regrain-and-the-command-door-neutralizer.md) | accepted | 2026-08-31 | – | – |
 | 0172 | [AE4's catalog substrate: MATCH FULL is the assignment binding, unreachable scope kinds…](0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md) | accepted | 2026-09-01 | amends 0162 | – |
+| 0173 | [the door-sweep deriver is blind to runtime-rewrite migrations; a target-declaration con…](0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md) | accepted | 2026-09-01 | amends 0079 | – |
