@@ -581,3 +581,40 @@ operative every time the gate runs. Verbatim apart from the link repoint.
 | --- | --- | --- |
 | 2026-08-27 | **The 11 `.rpc()` UNDECIDED sites RULED** (approved as-is + 4 observations): 1 in-function door, 10 system-actor; R1 ACL pins = pgTAP 388, R2 HMAC deny test = FUP, R3 re-measure **discharged** (local+remote body-md5 parity, 0 refs in unregistered migrations); minutes latch made atomic (`…005000`) | [rulings](../design/authz-ae1-rpc-rulings.md) |
 | 2026-08-27 | **Plan-audit rulings, authz evolution** — F1–F18 dispositioned (`[PA-F#]` plan tags): rollback = runbook, never a migration; catalog **authority-elect** + FK binding; **C2 subset joins the pilot gate**; `home_organization_id` **drops** in AE2; tiered DEFINER review; AE1 close amended | ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) — **amends 0155** |
+
+---
+
+## Rotated from PROGRESS.md § Decisions 2026-09-01 — the AE4.7c ruling arc, all ten rows
+
+⚠ **Rotated MID-PHASE, before AE4.8.** PROGRESS.md had reached 98 KB against an 82 KB target
+with 4.4 KB before the hard cap, and *compression under cap pressure cuts qualifiers first*.
+
+**Every row below has had its resolution event.** The `can_manage_professional` split shipped
+on 2026-09-01 (migrations `20261003007220` + `20261003007230`); the build is recorded in
+[authz-ae4.md](authz-ae4.md) § AE4.7c and the ruling's home is matrix § 12.8.5
+([authz-ae43-staff-admin-permission-matrix.md](../design/authz-ae43-staff-admin-permission-matrix.md))
+— ⛔ **no ADR, by PO ruling.**
+
+⛔ **ONE OF THESE ROWS WAS ACTIVELY MISLEADING WHERE IT STOOD, which is why the cut is also a
+repair.** *"THE REVOKE IS BLOCKED — org-admin-only is NOT IMPLEMENTABLE"* is **ruling 1**,
+overturned twice: § 12.8.5 records the trail (1 → measured false: door ∩ surface = ∅; 2 →
+case-reach, a per-RESOURCE condition a role→permission→scope catalog cannot express; 3 →
+split by OPERATION, which shipped). A superseded ruling sitting in a *live* decisions table
+reads as current, and this one said a capability was blocked that is now built.
+
+⚠ The arc is preserved in full rather than collapsed to its outcome: the two reversals are
+the part worth keeping, and each was forced by a **measurement**, not a preference.
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-09-01 | **`staff_admin` LOSES `org.professionals.manage`** (PO) — **split the gate first**; it also gates external-participant minting + case vocabularies, which `staff_admin` **KEEPS**. ⛔ **The stated timing *before AE4.6* WAS NOT HONOURED** — AE4.6 shipped without it | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
+| 2026-09-01 | ⭐ **RE-TIMED (PO): the gate split runs AFTER AE4.7b, as AE4.7c, inside AE4.** Reason: AE4.7b re-points this same family (`can_manage_professional` → `is_staff_admin_of_for` → `holds_role`), so splitting first rewrites overlapping bodies twice. Resolves QA **F2**'s record conflict | [authz-ae4.md](authz-ae4.md) |
+| 2026-09-01 | ⛔⛔ **THE REVOKE IS BLOCKED — *org-admin-only* is NOT IMPLEMENTABLE.** The only UI reaching those doors is gated on **`staff_admin`**; `org_admin` is **denied that surface by design** (ADR 0100 D12). Intersection **EMPTY** — the revoke strands the feature. ✅ **RESOLVED by the row below** | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
+| 2026-09-01 | ⭐⭐ **RULED (PO), 3rd and final: SPLIT ROW 30 BY OPERATION.** A `staff_admin` only ever **ADDS** a professional — never modifies, never deletes. He keeps add/seat/complete-linkage and **LOSES** `update`+`redact`. ⭐ Beats case reach: *add vs modify* is a CAPABILITY, so the catalog can express it | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
+| 2026-09-01 | ✅ **43rd MATRIX ROW APPROVED (PO)** — first amendment to the 42-row approval, under its own rule. New `org.professionals.create` (org-scoped, class2) to `staff_admin`+`org_admin`; row 30 `org.professionals.manage` **revoked from `staff_admin`** | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
+| 2026-09-01 | ⭐ **The two doors he loses have ZERO product callers** (`updateProfessionalProfile`, `redactProfessionalProfile` — exported, never called). ⛔ A reason it is cheap, never a reason to skip the tests: no caller *today* is not no caller | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
+| 2026-09-01 | ⚠ **`set_professional_link_state` KEPT but BOUNDED** — `staff_admin` only from `link_state='unknown'` (the UI's own affordance). The door accepts transitions the UI never offers: it would move an established `linked` profile to `no_account`. *No UI ≠ not reachable* | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
+| 2026-09-01 | ⛔ **ORDER IS LOAD-BEARING**: §12.3 FAMILY split → operation split → grant change. Dropping the `staff_admin` arm while `can_manage_professional` still gates rows 31/32 strips external-participant minting + vocabularies, which he **KEEPS** | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
+| 2026-09-01 | ⚠ **The 403 differential needs a NEW REP** — its `can_manage_professional` class is represented by `org.professionals.manage`; once `staff_admin` loses it every cell becomes a denial and the class goes single-polarity. Re-point to `org.professionals.create` | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
+| 2026-09-01 | ⚠ **F2 re-measured — the CATALOG split SHIPPED, the GATE split did not.** All four codes exist and are granted (rows 30/31/32/33), but `app.can_manage_professional` is still ONE function over **13** doors | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
+

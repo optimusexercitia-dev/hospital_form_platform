@@ -1118,3 +1118,31 @@ every figure with its deriving command — stays in [authz-ae3.md](./authz-ae3.m
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-31 | **AE3 gate — phase COMPLETE** | pgTAP **248f/8285** fresh reset · lint 11/11 · tsc 0 · vitest 2016 · 4 ARMs **HOLD** (census **569/605** · hat 6/6 · floor 72 · wrapper 41) · sweep **exit 1 = ruled FINDING**; 2 cases **COVERED** · `e2e:prod` **GREEN** 1251p/0f, 5 flaky (2 base/3 novel) → [detail](./authz-ae3.md) |
+
+---
+
+## Rotated from PROGRESS.md § Test Run Summary 2026-09-01 — six AE4 build rows
+
+⚠ **Rotated MID-PHASE, before AE4.8, not at the §6 Record step.** PROGRESS.md had reached
+98 KB against an 82 KB target with 4.4 KB before the hard cap. The section's own retention
+rule is *"the most recent gate only, ONE ROW each"* and it was holding **eight**.
+
+**Kept in § Now's table, deliberately, and neither is history:** the **AE4.7c** row (the most
+recent build state) and the **AE4 Inc 1 `e2e:prod`** row — ⛔ that gate is OWED and **not
+green as-run**, so its arithmetic (*11 tests unaccounted*) is live evidence a successor needs
+before declaring anything green, not a concluded figure.
+
+⚠ **These are BUILD-GATE rows, not Gate AE4 rows.** Every one is marked *(⛔ NOT Gate AE4)* or
+*(own gated increment)*: AE4 has not reached its Phase Gate, and nothing here may be cited as
+though it had. The AE4.6 row records a **RED that was real** — two orphaned mutation twins —
+and AE4.7b repaired it; that arc is in [authz-ae4.md](authz-ae4.md).
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-09-01 | **AE4.7b — the chokepoint** (⛔ NOT Gate AE4) | pgTAP **253f/8467 GREEN** (8452→8467; both orphaned twins CLOSED) · lint 12/12 · tsc 0 · vitest 2021 · **6 ARMs HOLD**, exits read DIRECTLY (census·hat 7/7·floor·wrapper·**catalog**·**sites**) · sweeps **DIRTY(1)** 0B/3E + **COVERED**/**UNPROVEN(3)** — [authz-ae4.md](authz-ae4.md) |
+| 2026-09-01 | **AE4.7a — evidence repair** (⛔ NOT Gate AE4) | pgTAP **253f/8452** fresh reset — **same 2 orphaned twins RED, no new red**; +1f/+18t = 405+403 · lint 12/12 · tsc 0 · vitest 2021 · 4 ARMs HOLD, exits read DIRECTLY — ⚠ **`authz` outside EVERY arm's domain** (F7), as are C2's doors · sweep **NOT-APPLICABLE (3), 0 migrations** — a claim, not a pass |
+| 2026-09-01 | **AE4.6 — staff_admin cutover** (⛔ NOT Gate AE4) | ⛔ **RED, not "expected"** — `315_act_stage3_hat_condition` + `319_act_case_caps_arm_divergence`, both **ORPHANED** (keyed to `has_role`, a chokepoint this cutover moved). Re-point owed to **AE4.7**, without which this is not green · lint 12/12 · 401 112/112 · 402/403/404 green |
+| 2026-09-01 | **D2 — notification seat-expiry** (own gated increment) | pgTAP **250f/8408** fresh reset · lint **12/12** · tsc 0 · vitest 2021 · 4 ARMs HOLD · ⛔ **sweep UNPROVEN** (exit 3, BOTH arms, 0 cases selected) — **discharged behaviourally** under rule 4's compensating-controls clause; iterate-vs-branch test named in 402's header. ⛔ Not green, not N/A |
+| 2026-09-01 | **AE4 Inc 1 — catalog substrate** (⛔ build gates, NOT Gate AE4) | pgTAP **249f/8347** fresh reset (= 8289 + 401's 58) · lint **12/12** · tsc 0 · vitest 2021 · 4 ARMs HOLD — ⚠ **C2 doors outside every arm's domain** · sweep **exit 1 FINDING, 0 cases, BOTH arms** ruled ADR 0079 A8 **(b)** (0 fn/0 policies, catalog-corroborated) · ADR 0172 |
+| 2026-08-31 | **Pre-AE4 clearance batch** (⛔ not a phase gate) | pgTAP 248f/**8289** fresh reset · lint 11/11 · tsc 0 · vitest 2021 · 4 ARMs HOLD (census **571/607**) · sweeps: 0170 exit 1 FINDING, MEUSDADOS **exit 0 CLEAN** 3/3 COVERED · `e2e:prod` **RED (UNRUN)** `GATE_EXIT=5`, **0 assertion failures**; b2+b5 re-run **GREEN** 127p/0f → all executed |
+
