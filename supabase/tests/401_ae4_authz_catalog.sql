@@ -28,10 +28,10 @@
 -- would destroy. Every fixture it creates is deleted BY IDENTITY (codes prefixed
 -- `zzfix.`), and the whole file rolls back regardless.
 --
--- RUN SHAPE: `Files=2, Tests=69` (68 here + 00_setup.sql's one).
+-- RUN SHAPE: `Files=2, Tests=80` (79 here + 00_setup.sql's one).
 
 begin;
-select plan(68);
+select plan(79);
 
 -- ============================================================================
 -- §1 — the schema, the four tables, and the deny-all RLS posture.
@@ -243,13 +243,13 @@ select ok(
 -- NOT NULL with NO DEFAULT, deliberately: `none` is the permissive value, so a default would
 -- let a forgotten column classify a PHI permission as unclassified. That design choice is
 -- what obliges these fixtures to state it — which is the control working, not friction.
-insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling) values
-  ('zzfix.read.content',  'commission_content', 'read',  'none'),
-  ('zzfix.read.phi',      'phi',                'read',  'phi'),
-  ('zzfix.write.content', 'commission_content', 'write', 'none'),
-  ('zzfix.a', 'commission_content', 'read', 'none'),
-  ('zzfix.b', 'commission_content', 'read', 'none'),
-  ('zzfix.c', 'commission_content', 'read', 'none');
+insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind) values
+  ('zzfix.read.content',  'commission_content', 'read',  'none', 'commission'),
+  ('zzfix.read.phi',      'phi',                'read',  'phi', 'commission'),
+  ('zzfix.write.content', 'commission_content', 'write', 'none', 'commission'),
+  ('zzfix.a', 'commission_content', 'read', 'none', 'commission'),
+  ('zzfix.b', 'commission_content', 'read', 'none', 'commission'),
+  ('zzfix.c', 'commission_content', 'read', 'none', 'commission');
 
 select throws_ok(
   $$insert into authz.role_permissions (role_code, permission_code)
@@ -548,20 +548,20 @@ select is(
 -- ============================================================================
 
 select throws_ok(
-  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling)
-    values ('zzfix.bad', 'commission_content', 'catastrophic', 'none')$$,
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind)
+    values ('zzfix.bad', 'commission_content', 'catastrophic', 'none', 'commission')$$,
   '23514',
   null,
   '11.1 risk_class rejects an out-of-domain value');
 
 select lives_ok(
-  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling)
-    values ('zzfix.ok', 'commission_content', 'write', 'none')$$,
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind)
+    values ('zzfix.ok', 'commission_content', 'write', 'none', 'commission')$$,
   '11.2 POSITIVE TWIN: an in-domain risk_class is accepted');
 
 select throws_ok(
-  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling)
-    values ('zzfix.bad2', 'not_a_noun', 'read', 'none')$$,
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind)
+    values ('zzfix.bad2', 'not_a_noun', 'read', 'none', 'commission')$$,
   '23514',
   null,
   '11.3 resource_kind rejects an out-of-domain value');
@@ -640,15 +640,15 @@ select is(
   'adding a default here; declare the value at the insert site.');
 
 select throws_ok(
-  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling)
-    values ('zzfix.s1', 'commission_content', 'read', 'top_secret')$$,
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind)
+    values ('zzfix.s1', 'commission_content', 'read', 'top_secret', 'commission')$$,
   '23514',
   null,
   '13.4 the domain rejects an out-of-domain sensitivity value');
 
 select lives_ok(
-  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling)
-    values ('zzfix.s2', 'phi', 'read', 'class2_professional_identity')$$,
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind)
+    values ('zzfix.s2', 'phi', 'read', 'class2_professional_identity', 'commission')$$,
   '13.5 POSITIVE TWIN: an in-domain value is accepted — so 13.4 is not a constraint that '
   'rejects everything. Uses `class2_professional_identity`, the value that only exists '
   'because the column''s subjects were checked before it was pinned: staff_admin reaches '
@@ -706,6 +706,87 @@ select is(
   'independently declared, so this cross-check catches a row that names one and not the '
   'other. ⭐ It is what upgrades AE4.1''s PHI-separation invariant from a substring test on '
   'a permission CODE (which a rename defeats silently) to a join on a COLUMN.');
+
+delete from authz.permissions where code like 'zzfix.%';
+
+-- ============================================================================
+-- §14 - AE4.4a: the seeded catalog, and `resolution_scope_kind`.
+--
+-- The catalog stops being empty here. 42 permission codes + 42 `staff_admin` grants,
+-- mechanically extracted from the PO-approved matrix rather than transcribed.
+-- ============================================================================
+
+select has_column('authz', 'permissions', 'resolution_scope_kind',
+  '14.1 authz.permissions.resolution_scope_kind exists');
+
+select col_not_null('authz', 'permissions', 'resolution_scope_kind',
+  '14.2 ...and is NOT NULL');
+
+select is(
+  (select count(*)::int from pg_attrdef d
+     join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+    where d.adrelid = 'authz.permissions'::regclass and a.attname = 'resolution_scope_kind'),
+  0,
+  '14.3 ...and has NO DEFAULT. `commission` is the common value, so a default would be the '
+  'permissive-looking one and a forgotten column would silently declare an ORG-scoped '
+  'permission commission-scoped while the row looked complete. Same ruling as §13.3.');
+
+select throws_ok(
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind)
+    values ('zzfix.r1', 'commission_content', 'read', 'none', 'galaxy')$$,
+  '23514', null,
+  '14.4 the resolution_scope_kind domain rejects an out-of-domain value');
+
+select throws_ok(
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind)
+    values ('zzfix.r2', 'commission_content', 'read', 'none', 'capability_plane')$$,
+  '23514', null,
+  '14.5 ...and rejects `capability_plane` specifically. ⛔ THIS IS THE POINT OF THE SEPARATE '
+  'DOMAIN: `authz.scope_kind` admits it, and a permission RESOLVING at an unreachable scope '
+  'is a state nothing should be able to write. Reusing scope_kind would have allowed it.');
+
+select is((select count(*)::int from authz.permissions), 42,
+  '14.6 exactly 42 permission codes - the PO-approved matrix count (2026-09-01)');
+
+select is(
+  (select count(*)::int from authz.role_permissions where role_code = 'staff_admin'), 42,
+  '14.7 staff_admin holds all 42');
+
+select is(
+  (select count(*)::int from authz.role_permissions where role_code <> 'staff_admin'), 0,
+  '14.8 ...and NO other role has a grant. AE4.2: "zero role_permissions rows except '
+  'staff_admin''s". AE5 substitutes the remaining ten, one at a time.');
+
+select is(
+  (select count(*)::int from authz.permissions
+    where (code like 'org.%') <> (resolution_scope_kind = 'organization')),
+  0,
+  '14.9 ⚠ WEAK CROSS-CHECK, AND ITS BOUND IS STATED RATHER THAN IMPLIED. Every `org.*` code '
+  'declares resolution_scope_kind = organization and no other does. ⛔ This checks the '
+  'control against its own LABEL, so it catches DIVERGENCE (a rename, a wrong column) but '
+  'NEVER JOINT INCORRECTNESS: if a permission truly resolves at commission scope while both '
+  'its name and its column say organization, this passes. §11.1 rejected the code-name '
+  'prefix as a control for exactly this reason. The STRONG form derives the scope from what '
+  'the enforcement door takes as an argument (`can_manage_professional(p_org uuid, ...)`), '
+  'which needs the permission->enforcement-site mapping that AE4.5 is specced to build - it '
+  'is not built here rather than being duplicated. Until then this is divergence-detection '
+  'only.');
+
+select ok(
+  (select count(*) from authz.permissions where sensitivity_ceiling = 'phi') > 0
+  and (select count(*) from authz.permissions where sensitivity_ceiling <> 'phi') > 0,
+  '14.10 ⭐ CARDINALITY CONTROL FOR §13.8 - which was VACUOUS until this migration and is now '
+  'LIVE. §13.8 asserts sensitivity and resource_kind agree on the PHI rows; over zero rows it '
+  'proved nothing. The catalog now holds PHI rows AND non-PHI rows, so §13.8 has a subject '
+  'and discriminates. ⛔ If this ever returns false again, §13.8 has silently gone vacuous.');
+
+select is((select count(*)::int from authz.permission_implications), 0,
+  '14.11 ⚠ PREDICTED, NOT DISCOVERED: implications are STILL EMPTY after 4.4a. §§6.4/7.4/7.5 '
+  'range over implication EDGES, so seeding permissions and grants does NOT give them a '
+  'subject - they remain vacuous-by-construction, borrowing all their value from the '
+  'constructed controls in §§6.1-6.3/7.1-7.3, until AE4.4b introduces the closure. This '
+  'assertion exists so that state is PINNED rather than assumed: when 4.4b adds edges this '
+  'test reds, and changing it is the deliberate act of saying the invariants went live.');
 
 delete from authz.permissions where code like 'zzfix.%';
 
