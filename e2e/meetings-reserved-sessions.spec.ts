@@ -378,10 +378,11 @@ test.describe('Deliverable 1: reserved-session authoring', () => {
     await expect(dialog).toBeVisible({ timeout: 8_000 })
 
     await dialog.getByLabel(/Sem caso \(lista de leitores\)/i).check()
-    // Reader list gates case-less content (BUG-STAGEC-READER below: there is no
-    // separate coordinator bypass — the author must add herself explicitly to
-    // read her own item back), so include BOTH chefe.ccih and multi to prove
-    // the mechanism for two independent readers in one write.
+    // Reader list gates case-less content — there is no separate coordinator
+    // bypass (reserved-item-form.tsx:246-249: "A coordenação não tem acesso
+    // automático"; see the deny/positive-control test below for the full
+    // citation and proof), so include BOTH chefe.ccih and multi to prove the
+    // mechanism for two independent readers in one write.
     await dialog.getByRole('checkbox', { name: 'Chefe CCIH' }).check()
     await dialog.getByRole('checkbox', { name: MULTI_NAME }).check()
     await dialog.getByLabel(/^Substância/i).fill(SUBSTANCE)
@@ -412,18 +413,42 @@ test.describe('Deliverable 1: reserved-session authoring', () => {
     await expect(readerRow.getByText(SUBSTANCE)).toBeVisible()
   })
 
-  test('BUG-STAGEC-READER repro: a case-less item is hidden even from the coordinator who authored it, when she omits herself from the reader list', async ({
+  test('a case-less item is visible (shell) but its content is masked from a non-reader — including the coordinator who authored it', async ({
     page,
   }) => {
-    // Filed as BUG-STAGEC-READER in PROGRESS.md — a real, reproducible product
-    // discrepancy (see the comment below), not a test bug. `test.fail()` marks
-    // this as an EXPECTED failure: the suite reports it as passing precisely
-    // because the assertion fails as documented, and (unlike a skip) Playwright
-    // flips it to a hard failure the moment the underlying bug is fixed and this
-    // test starts passing unexpectedly — so it can't silently go stale. It does
-    // not gate the rest of this `serial` file (a `test.fail()` test that fails
-    // as expected does not abort the describe/file the way a bare failure does).
-    test.fail()
+    // Formerly filed as BUG-STAGEC-READER and pinned here with `test.fail()` as an
+    // expected-failure repro. Re-verified 2026-09-01 and WITHDRAWN — NOT a defect
+    // (PROGRESS.md § Decisions 2026-09-01; docs/design/authz-ae43-staff-admin-permission-matrix.md
+    // §7.3). The `test.fail()` pin itself was the error: it recorded a CLAIM, not
+    // evidence, and building the "fix" it implied would have been a real over-grant.
+    //
+    // The panel's own copy (reserved-sessions-panel.tsx:207) reads, verbatim:
+    // "itens sem caso, apenas os leitores indicados. Os demais veem que houve
+    // deliberação reservada, sem seu conteúdo." — READERS ONLY; no "e a
+    // coordenação" clause exists anywhere in that string (the previous version of
+    // this comment fabricated one, and the second sentence there — "os demais
+    // veem que houve deliberação reservada, sem seu conteúdo" — describes exactly
+    // the behaviour this test used to call a bug). The authoring form
+    // (reserved-item-form.tsx:246-249), shown to the coordinator at the exact
+    // moment she builds the reader list, says so even more directly: "A
+    // coordenação não tem acesso automático — adicione seu próprio nome à lista
+    // para manter o acesso." A coordinator who omits herself from a case-less
+    // item's reader list is not an implicit reader — by design, not by omission.
+    // (There is also no `created_by` column on `meeting_closed_session_items` —
+    // live-catalog-verified — to found an "it's her own item" exception on:
+    // per-item authorship isn't modelled at all, so that exception isn't even
+    // expressible, let alone granted.)
+    //
+    // This test now pins the boundary in the RIGHT direction — the guard the old
+    // (wrongly-pinned) test's mere existence had been standing in for: a
+    // non-reader, INCLUDING the coordinator who authored the item, sees the row
+    // EXIST (the shell — "Item reservado", the quorum badge — is deliberate: it
+    // is the proof-of-propriety that a reserved deliberation happened, without
+    // leaking what was said) but does NOT see its substance/decision. A positive
+    // control below (multi, the item's actual reader) runs the identical locators
+    // against the identical row and confirms they resolve to VISIBLE — proving
+    // the deny-assertions are a real signal, not a locator that would read empty
+    // regardless of state.
     test.setTimeout(90_000)
 
     const SUBSTANCE = `Substância sem leitor E2E ${Date.now()}`
@@ -443,29 +468,43 @@ test.describe('Deliverable 1: reserved-session authoring', () => {
     await dialog.getByLabel(/^Substância/i).fill(SUBSTANCE)
     await dialog.getByLabel(/^Decisão/i).fill(DECISION)
 
-    // Neither substance nor decision is a unique anchor here (that's the point
-    // under test — they may render as nothing), so capture the row via a
-    // COUNT increase, not `.last()` + `toBeVisible()` (which would be satisfied
-    // trivially by an already-visible OLDER "Item reservado" row before this
-    // one renders — the exact race `openFreshReservedSession` guards against).
+    // Neither substance nor decision is a safe anchor for chefe.ccih's own view
+    // of this row (they must NOT render for her — that's the property under
+    // test), so capture the row via a COUNT increase, not `.last()` +
+    // `toBeVisible()` (which would be satisfied trivially by an already-visible
+    // OLDER "Item reservado" row before this one renders — the exact race
+    // `openFreshReservedSession` guards against).
     const items = page.locator('li').filter({ hasText: 'Item reservado' })
     const countBefore = await items.count()
     await dialog.getByRole('button', { name: 'Adicionar item' }).click()
-    // 20-25s so this test's failure mode stays precise: it must fail at the
-    // CONTENT check below (the documented bug), never at a spurious dialog-close
-    // timeout that would masquerade as the same red for the wrong reason.
     await expect(dialog).not.toBeVisible({ timeout: 20_000 })
     await expect(items).toHaveCount(countBefore + 1, { timeout: 25_000 })
-    const row = items.last()
+    const authorRow = items.last()
 
-    // The panel's own copy (reserved-sessions-panel.tsx) promises: "itens sem
-    // caso, apenas os leitores indicados e a coordenação" — readers AND the
-    // coordination. The coordinator who just authored this item is neither a
-    // participant on a case (there is none) nor in the reader list, so per that
-    // promise she should still see it. She does not — the RPC projects null for
-    // both fields to her, same as any other non-reader.
-    await expect(row.getByText(SUBSTANCE)).toBeVisible()
-    await expect(row.getByText(DECISION)).toBeVisible()
+    // The shell IS visible to the author — proof-of-propriety, not a hidden row.
+    await expect(authorRow.getByText('Item reservado')).toBeVisible()
+
+    // The deny half: chefe.ccih authored this item but is not on its reader
+    // list, so its content is masked from her exactly as from any other
+    // non-reader.
+    await expect(authorRow.getByText(SUBSTANCE)).toHaveCount(0)
+    await expect(authorRow.getByText(DECISION)).toHaveCount(0)
+
+    // Positive control: the SAME locators, against a row where the field
+    // genuinely IS present, for the item's ACTUAL reader (multi). This is what
+    // proves the deny-assertions above are a real signal rather than a fluke: if
+    // `getByText(SUBSTANCE)` could never match anything (a broken locator), THIS
+    // block would fail here instead of the deny block passing vacuously above;
+    // if the product over-granted and leaked content to non-readers, the
+    // deny-assertions above would fail instead. Either defect flips at least one
+    // of these two blocks — both passing together is the only clean state.
+    await signOut(page)
+    await signInAs(page, 'multi@test.local')
+    await gotoMeeting(page)
+    const readerRow = page.locator('li').filter({ hasText: DECISION })
+    await expect(readerRow).toBeVisible({ timeout: 20_000 })
+    await expect(readerRow.getByText(SUBSTANCE)).toBeVisible()
+    await expect(readerRow.getByText(DECISION)).toBeVisible()
   })
 
   test('multi (non-coordinator) sees no authoring controls, but keeps read access to the reserved-sessions panel', async ({
@@ -718,9 +757,11 @@ test.describe('Keyboard-only: reserved-session authoring', () => {
     await expect(readersRadio).toBeChecked()
 
     // Check the readers via keyboard (Radix checkbox: focus + Space toggles it).
-    // Include chefe.ccih herself — per BUG-STAGEC-READER (filed in PROGRESS.md),
-    // a case-less item's substance/decision follows the reader list with NO
-    // separate coordinator bypass, so the author must add herself to read her
+    // Include chefe.ccih herself — a case-less item's substance/decision follows
+    // the reader list with NO separate coordinator bypass. Documented, intended
+    // behaviour, not a bug (reserved-item-form.tsx:246-249: "A coordenação não
+    // tem acesso automático"; see the Deliverable-1 deny/positive-control test
+    // above for the full citation), so the author must add herself to read her
     // own item back in the assertion below.
     const readerCheckbox = dialog.getByRole('checkbox', { name: MULTI_NAME })
     await readerCheckbox.focus()
