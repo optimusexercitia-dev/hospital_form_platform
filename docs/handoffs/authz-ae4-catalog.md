@@ -151,8 +151,10 @@ qualifier beside any "all arms green" claim (plan rule 2).
   amendment needing its own approval. ⛔ Recorded as *what was approved*, never a current count.
 - Deny-class effect table approved (9 rows). `pending` denies at the **auth** layer, not the
   resolver — the axes file is cross-referenced, not contradicted.
-- `staff_admin` **loses `org.professionals.manage`** — its own gated increment **before**
-  AE4.6's successor work. ⛔ The gate must be **split first** (rows 30/31/32); a naive
+- `staff_admin` **loses `org.professionals.manage`**. ⛔ **THIS SENTENCE WAS WRONG** — it read
+  "before AE4.6's successor work"; PROGRESS.md § Decisions said **before AE4.6**, and PROGRESS.md is
+  status truth. AE4.6 shipped without it. **RULED 2026-09-01: re-timed to AE4.7c, after AE4.7b**,
+  and the **revoke half is BLOCKED** — *org-admin-only* is not implementable (matrix § 12.8). ⛔ The gate must be **split first** (rows 30/31/32); a naive
   one-arm removal also strips external-participant minting and case vocabularies.
 - Whole phase merges once, at Gate AE4. Hold everything on the branch.
 - BUG-PROF-INACTIVE-001 → fix first, then finish 403.
@@ -603,14 +605,25 @@ green.
 
 ### What AE4.7a did NOT do
 
-- **F2** — the `can_manage_professional` split-before-AE4.6 record conflict. **PO, and it is the
-  blocking one.** PROGRESS.md § Decisions says *"own gated increment **before AE4.6**"*; AE4.6
-  shipped without it; this handoff's § Decisions softened it to *"before AE4.6's **successor
-  work**"*. One record is wrong, and PROGRESS.md is status truth. Both files still carry their
-  original wording — ⛔ **not silently reconciled, because choosing which one to change *is* the
-  ruling.** Re-verified live this session: 007150 / 007160 do seed and grant
-  `org.professionals.manage` to `staff_admin`, so the oracle pins as expected the capability the PO
-  removed.
+- **F2** — ✅ **RULED 2026-09-01, and the ruling changed shape on measurement.** Recorded in
+  PROGRESS.md § Decisions (5 rows) and matrix § 12.8.
+  - **Timing:** the gate split runs **after AE4.7b, as AE4.7c**, inside AE4 — AE4.7b re-points this
+    same family onto `holds_role`, so splitting first rewrites overlapping bodies twice.
+  - **The record conflict is closed:** the original ruling said *before AE4.6*, AE4.6 shipped
+    without it, so that instruction is **spent, not pending**. Both records now say so.
+  - ⛔⛔ **The REVOKE is BLOCKED, and this is new.** *"It becomes org-admin-only"* is **not
+    implementable**: `canOpenCaseManagement` (`src/lib/queries/cases.ts:791`) admits only commission
+    `staff_admin` / `administrativo` / a per-case write grant — ADR 0100 D12 deleted the
+    tenancy-admin coercion **on purpose** — and `case-manage-entry-gate.spec.ts` asserts
+    `assertManageDenied` for `orgadmin.a` and `hospitaladmin.a1`, each with a positive control.
+    There is no professionals surface under `/o/[org]/manage/` at all. **Door ∩ surface = ∅**: the
+    revoke strands the feature for everyone rather than moving it to `org_admin`. **PO owes: who
+    holds the capability afterwards.** Three candidate answers, materially different work — build an
+    org-admin surface; **narrow** instead of revoking (bound the gate to the caller's own commission
+    reach, which closes the measured harm and strands nothing); or reverse the ADR 0100 D12 wall.
+  - ⚠ **And the split is NOT the no-op I first called it.** `320:112` pins **exactly 12** RPCs on
+    this gate with an explicit *"do not just bump the number"* instruction, so the split reds it
+    **by design**. Answer-preserving, not test-neutral — re-derive that census, never bump.
 - **F3** — the third legacy-equivalence class calls `can_manage_professional`, not the real
   `can_read_professional_profile` door. PO batch: its arm-3 divergence is new matrix surface.
 - **F7** and the whole `authz.holds_role` chokepoint — **AE4.7b**, unchanged from the QA plan.
