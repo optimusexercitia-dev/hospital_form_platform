@@ -172,6 +172,10 @@ RLS, so a DEFINER door is the only control on its own path):
 
 ## 4. The matrix
 
+**33 rows** — 29 commission-scoped (1–29) + 4 org-scoped (30–33, § 11). ⚠ The org-scoped four were
+**two** until § 12 re-derived row 30 into three codes; any figure quoting 31 rows, or "rows 30–31",
+predates that and is stale.
+
 *(Planes 4 and 5 — the TS enforcement surface and the E2E behavioural surface — are folded into
 the site column below. Codes are derived from the existing Axis-5 vocabulary and the resource
 families above; none is invented.)*
@@ -565,7 +569,21 @@ item.
 
 ---
 
-## 9. ⛔ PO DECISION REQUIRED — `sensitivity_ceiling`, and the argument that turned around
+## 9. `sensitivity_ceiling` — ✅ RULED 2026-09-01, and the argument that turned around
+
+> ✅ **RESOLVED — the PO ruled option (i), CREATE IT NOW**, with the ordering/comparison rule still
+> deferred. Shipped as migration `20261003007130`; ADR 0172 § 4 amended. ⛔ **This section is
+> retained as the REASONING that carried the decision, not as an open question** — it read
+> "PO DECISION REQUIRED" until 2026-09-01, which is the shape where only the amending document
+> knows about the amendment.
+>
+> ⚠ **And the option as WRITTEN below was superseded in the ruling.** (i) proposes a **binary**
+> phi/non-phi domain. The shipped domain is **three-valued** —
+> `none | class2_professional_identity | phi` — because checking the column's subjects before
+> pinning it surfaced a Class-2 professional-identity capability that a binary would classify as
+> `none`, dropping a real sensitivity (§ 12; ADR 0078 §B7). The binary framing below was written
+> from an incomplete matrix; the table is left unedited so the correction is legible, but **do not
+> implement from it.**
 
 **Not a work item, and it must not ship as option (ii) by default.** A deferral that nobody
 re-rules becomes a decision nobody made.
@@ -637,7 +655,7 @@ not a patient-data incident.
 
 ## 11. ⛔ PROPOSAL, NOT BUILT — where a permission's RESOLUTION SCOPE lives
 
-**The finding.** Rows 30–31 are **org-scoped permissions held via a commission-scoped role**.
+**The finding.** Rows 30–33 are **org-scoped permissions held via a commission-scoped role**.
 `app.can_manage_professional(p_org, p_uid)` returns true when the caller holds `staff_admin` at
 **any** commission in the org, so `chefe.ccih` — `staff_admin` of **one** commission — reaches
 professional identity across all **four** commissions of Rede A. ⚠ **The reach itself is not new
@@ -664,7 +682,7 @@ not descent.** It is also a deferred residue column, so it is unavailable regard
 | --- | --- | --- | --- |
 | **A — `resolution_scope_kind` on `authz.permissions`** | one column: the scope kind this permission resolves at, independent of the holder's role scope | simplest; a permission's resolution scope is genuinely a property *of the permission* (professional identity is org-wide **for everyone**, not just for `staff_admin`); one value per code, no combinatorics; the adapter reads it directly | asserts resolution scope is invariant across roles — true for every subject we have, unproven in general |
 | **B — a column on `authz.role_permissions`** | resolution scope per (role, permission) pair | maximum fidelity; different roles could resolve the same permission at different scopes | ⛔ **no subject demands it** — this is a generality bought before its first use, and the join table is empty; it also multiplies the cells AE4.5 must enumerate by the scope-kind count |
-| **C — encode it in the code name** (`org.professionals.manage` vs `commission.*`) | convention only | zero schema change; already visible in rows 30–31 | ⛔ **a label, not a control** — a string prefix no gate reads, defeated silently by a rename. Precisely the failure § 9 just closed for `sensitivity_ceiling` |
+| **C — encode it in the code name** (`org.professionals.manage` vs `commission.*`) | convention only | zero schema change; already visible in rows 30–33 | ⛔ **a label, not a control** — a string prefix no gate reads, defeated silently by a rename. Precisely the failure § 9 just closed for `sensitivity_ceiling` |
 
 **Recommendation: A**, with the ascent made explicit rather than implied — the column states the
 scope the permission resolves at, and the adapter's job is to walk from the holder's assignment
@@ -685,7 +703,8 @@ is AE4.4's regardless.**
 **AE4.4 may not assume a permission resolves at its holder's role scope.** At least **four** permissions
 (rows 30–33) resolve at the **organization** while being held via a **commission**-scoped role. An
 adapter that derives the resolution scope from `authz.roles.allowed_scope_kind` will silently deny
-both — an under-grant that looks like correct tenant isolation and will therefore read as a pass.
+**all four** — an under-grant that looks like correct tenant isolation and will therefore read as a
+pass.
 
 ⚠ **AE4.5 must cover it too**: the cell set needs a case where the holder's assignment scope and
 the permission's resolution scope **differ**, or the generator emits only same-scope cells and the
