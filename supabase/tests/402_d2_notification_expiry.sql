@@ -10,6 +10,40 @@
 -- ⚠ § 1's catalog-positive assertions are the DURABLE half: a future `create or replace` that
 -- silently drops the term reds there, and no diff review would catch that.
 --
+--
+-- ============================================================================
+-- ⛔ WHY THIS SUITE IS D2'S PRIMARY EVIDENCE: THE DOOR SWEEP CANNOT MEASURE THESE FOUR.
+-- Both arms returned exit 3 (UNPROVEN — "nothing was measured: no case selected"), even
+-- with an EXPLICIT case list. That is UNPROVEN, not green, and it is not recorded as a pass.
+--
+-- TWO INDEPENDENT BLINDNESSES, both measured:
+--
+--   1. THE DERIVER cannot see the migration. `scripts/door-sweep-cases.sh` selects on the
+--      diff TEXT — `/create[ 	]+(or[ 	]+replace[ 	]+)?function[ 	]+(app|public)\./`.
+--      20261003007180 contains ZERO matches for that or for `create policy` / `alter policy`
+--      / `security definer`, because it uses the house `pg_get_functiondef` + `replace` +
+--      `execute` pattern. ⭐ A text-based deriver is blind, BY CONSTRUCTION, to exactly the
+--      pattern CLAUDE.md documents as making migration text stale — and any future gate keyed
+--      on migration text inherits the same blindness.
+--
+--   2. THE HARNESSES cannot see the FUNCTIONS, and this one is more fundamental — even a
+--      perfect deriver would have selected zero. `PRED_DOMAIN` requires `t.typname='bool'`.
+--      Measured return types: int4, int4, int4, `responses`. None is a boolean gate, none is
+--      referenced by any policy, so the neutralization model ("swap the gate body for
+--      `select true`") has NO GATE TO SWAP: the authorization decision is a WHERE-clause term
+--      inside a larger query, not a separable predicate.
+--
+-- ⭐ That second shape is exactly the one authz-evolution plan rule 4 names — the authority
+-- decision belongs in "a `bool`, `can_`-named `app` predicate census/policy do contain".
+-- These four embed it inline, so no arm can reach them, and rule 4 says that shape obliges a
+-- DIFFERENT DISCHARGE. This suite is that discharge: it measures the RESOLVED SET
+-- behaviourally (who actually gets notified), which for this shape is stronger evidence than
+-- neutralizing a gate that does not exist.
+--
+-- ⚠ BOUND, STATED SO IT IS NOT OVERCLAIMED: "unswept by the diff-scoped sweep" is NOT
+-- "unprotected". Whether the periodic full sweep holds verdicts for these is a SEPARATE
+-- question, to be measured and not assumed.
+-- ============================================================================
 -- RUN SHAPE: `Files=2, Tests=14` (13 here + 00_setup.sql's one).
 
 begin;
