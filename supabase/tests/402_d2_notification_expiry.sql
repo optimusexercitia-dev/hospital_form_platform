@@ -44,6 +44,39 @@
 -- "unprotected". Whether the periodic full sweep holds verdicts for these is a SEPARATE
 -- question, to be measured and not assumed.
 -- ============================================================================
+--
+-- ============================================================================
+-- THE EXEMPTION IS TESTABLE, NOT A JUDGEMENT -- PO ruling 2026-09-01.
+--
+-- Rule 4's discharge has TWO parts: the authority decision moves into a SWEPT OBJECT (a
+-- `bool`, `can_`-named `app` predicate), AND compensating controls are named per door.
+-- Only the SECOND applies here -- because D2's four functions make no authority decision
+-- at all. They compute a RECIPIENT SET: `role = 'staff_admin'` selects who RECEIVES a
+-- notification, never who may call. There is no authority decision to move.
+--
+-- ⛔ BUT "it isn't an authority decision" is exactly the claim that, applied loosely,
+-- exempts real doors. So the boundary is a TEST, not a judgement:
+--
+--     A membership-derived role term is RECIPIENT COMPUTATION, not an authority decision,
+--     ONLY IF the resolved set is ITERATED and never BRANCHED ON.
+--         iterate -> recipients.        branch -> authority.
+--     If any control flow depends on whether the caller is in the set, rule 4's REFACTOR
+--     half applies and this exemption does not.
+--
+-- ALL FOUR PASS IT. Verified from the catalog -- every occurrence of the resolved variable:
+--   app.compute_due_charter_notifications          v_admin  declared; `for v_admin in`;
+--                                                  passed to enqueue_notification. No branch.
+--   app.compute_due_document_review_notifications  v_signer declared; `foreach v_signer in
+--                                                  array`; 2 enqueue calls. No branch.
+--   public.compute_due_notifications               v_signer declared; `foreach v_signer in
+--                                                  array`; 2 enqueue calls. No branch.
+--   public.save_section_answers                    v_signer declared; `for v_signer in`;
+--                                                  1 enqueue call. No branch.
+-- Not one `if v_admin` / `if v_signer` exists in any of the four.
+--
+-- ⛔ RE-CHECK THE EXEMPTION AGAINST THE TEST RATHER THAN INHERITING IT. That is the whole
+-- point of writing the test down instead of the conclusion.
+-- ============================================================================
 -- RUN SHAPE: `Files=2, Tests=14` (13 here + 00_setup.sql's one).
 
 begin;
