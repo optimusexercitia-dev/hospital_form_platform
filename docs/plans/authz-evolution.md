@@ -759,6 +759,15 @@ Derive the complete current behavior from **all planes**, each row sourced:
 - the `memberships` CHECK + scope-shape row;
 - every policy calling `is_staff_admin_of` (bare) and every function calling
   `is_staff_admin_of_for` (rule 3's pair trap — sweep both, unanchored);
+  ⭐ **CORRECTED 2026-09-01 from the measured sweep (ADR 0172 increment; matrix
+  [doc](../design/authz-ae43-staff-admin-permission-matrix.md) § 0) — the trap is real but this
+  line's DIRECTION is false in BOTH halves.** Policies: **63 bare / 2 `_for`**. Functions:
+  **151 bare / 27 `_for`**. Both planes are dominated by the **bare** form; functions do not
+  "call `_for`" as a rule. ⛔ Keep the method lesson, which is the durable part: match the name
+  **UNANCHORED ONCE** (the bare name is a prefix of `_for`, so one pass finds both) and then
+  **classify** each hit — two anchored greps whose union is trusted yield correct totals and a
+  **wrong classification**, and the classification is what says whether a site checks the caller
+  or a third party.
 - mutation doors whose bodies branch on the role;
 - session partition (`session-grants.ts`), landing route (`page.tsx` + the `role-catalog.ts`
   mirror), action guards;
@@ -767,6 +776,14 @@ Derive the complete current behavior from **all planes**, each row sourced:
 Output: permission codes (`commission.forms.manage`, `commission.staff.manage`,
 `commission.dashboard.read`, …) with the mapping row ↔ current enforcement site. **The PO
 approves this matrix; from cutover it is the regression oracle** (not a retained shadow path).
+⛔ **CORRECTED 2026-09-01 — `commission.forms.manage` is NOT VIABLE as a single code, so do not
+generate cells against this line's worked example.** `authz.permissions.risk_class` is a
+per-permission column, so **a code may not span a reversibility boundary**, and `.manage` bundles
+reversible draft edits with the **irreversible** publish (`guard_published_version_trg`,
+Architecture Rule 5). Codes split at that boundary — `commission.forms.edit` (`write`) +
+`commission.forms.publish` (`irreversible`). The constraint is general: every `.manage` shorthand
+in this plan needs the same check before AE4.5 enumerates it. Matrix
+[doc](../design/authz-ae43-staff-admin-permission-matrix.md) § 8.
 
 ### AE4.4 — Adapter + resolver
 
