@@ -189,7 +189,7 @@ RLS, so a DEFINER door is the only control on its own path):
 
 ## 4. The matrix
 
-**33 rows** — 29 commission-scoped (1–29) + 4 org-scoped (30–33, § 11). ⚠ The org-scoped four were
+**34 rows** — 30 commission-scoped (1–29, 34) + 4 org-scoped (30–33, § 11). ⚠ **The PO approved this matrix at 33 rows (`e3297dad`); row 34 is OUTSIDE that approval** and was found by the § 7.4 verification — it needs the PO's eye before Gate AE4. ⚠ The org-scoped four were
 **two** until § 12 re-derived row 30 into three codes; any figure quoting 31 rows, or "rows 30–31",
 predates that and is stale.
 
@@ -259,6 +259,7 @@ signal is UI text rather than a status or RPC error (§ 7.1).
 | 27 | `commission.referrals.phi.read` | **phi** | read | **phi** | **D** `app.can_read_referral_phi` · **E2E** `nsp-per-hospital.spec.ts:834-850` — a **sanctioned cross-hospital** read, not a leak |
 | 28 | `commission.safety_events.report` | commission_content | write | none | **D** safety-event door from case detail · **E2E** `phase14a-safety-events.spec.ts:188-233` |
 | 29 | `commission.audit.read` | audit | read | none | **R** `audit_log_select` (**SELECT only**) |
+| **34** | `commission.charter.manage` | commission_content | write | none | ⭐ **ADDED 2026-09-01 by the § 7.4 verification — this row was MISSING.** **D** `upsert_commission_charter` (`is_staff_admin_of` + re-raises `HC0K0`) · **T** `manage/charter/page.tsx:80` · ⚠ **write-only**: `commission_charters_select` is member-level, not `staff_admin` |
 | **30** | `org.professionals.manage` | identity | **authority** | **class2_professional_identity** | ⚠ **ORG-SCOPED — § 11.** **D** `create/update/redact_professional_profile`, `set_professional_link_state`, **`ensure_professional_participant`**. Reach: **ADR 0078 §B7** ("any org `staff_admin`", the respondent twin's precondition, closed by the `HC0F2` linkage freeze) |
 | **31** | `org.participants.external.manage` | identity | write | none | ⚠ **ORG-SCOPED.** **D** `create_external_participant` — writes `public.participants` with `sensitivity_class` hardcoded `non_sensitive`; **structurally bounded** (§ 12.2) |
 | **32** | `org.case_vocabulary.manage` | vocabulary | write | none | ⚠ **ORG-SCOPED.** **D** `create/archive_ethics_allegation_category`, `create/archive_ethics_sanction_type`, `create/archive_case_assignment_role` |
@@ -448,23 +449,36 @@ footnote elsewhere — because a reader who sees "the approval does not cover §
 reasonably concludes everything outside § 7 **is** covered. § 7.7 was travelling in a carry-forward
 list for exactly that reason and has been relocated here.
 
-⚠⚠ **THE CARVE-OUT'S FIGURE IS NOW STALE AND THE PO'S RECORD NEEDS RE-STATING.** The approval was
-recorded as covering-all-but *"§ 7's **two** open evidence gaps"* — written **before** this index
-existed and before § 7.7 was relocated in. The population is **three**. ⛔ The figure, not the
-carve-out, is what moved; re-record it as three, or drop the number and cite this index, which is
-the form that cannot go stale.
+✅ **AS OF 2026-09-01 THIS POPULATION IS EMPTY — § 7 HAS ZERO OPEN EVIDENCE GAPS**, so the matrix's
+evidence base is closed. ⛔ **That changes what the PO's carve-out excludes**: it was recorded as
+covering-all-but *"§ 7's two open evidence gaps"*, and there are now none. Re-record it — the
+carve-out no longer subtracts anything.
+⚠ **But the closure surfaced something the approval does not cover: row 34** (§ 7.4), a
+`staff_admin` permission with no code. The matrix is now **34 rows**, approved at **33**.
 
 | § | status |
 | --- | --- |
-| **7.1** five cross-commission denials pinned by UI text | 🔴 **OPEN** — `tester` building |
-| **7.4** three identically-worded sibling gates, not individually re-verified | 🔴 **OPEN** — `tester` building |
-| **7.7** self-lift of one's own recusal — no *session-level* witness | 🔴 **OPEN** — `tester` building |
+| 7.1 five cross-commission denials pinned by UI text | ✅ **CLOSED 2026-09-01** — `tester` built all four sites (`1068e9fc`) |
+| 7.4 three identically-worded sibling gates | ✅ **CLOSED 2026-09-01** — verified individually; ⭐ **yielded missing row 34** |
+| 7.7 self-lift of one's own recusal | ✅ **CLOSED 2026-09-01** — closed on the **differential**, not the deny |
 | 7.2 `signoffs.sign` "unpinned" | ✅ resolved — the **citation** was the defect, not the coverage |
 | 7.3 `BUG-STAGEC-READER` | ✅ not a difference — premise measured false |
 | 7.5 `CorrectionCaps.canApprove` | ✅ resolved — wired all along |
 | 7.6 no column expresses PHI sensitivity | ✅ resolved — shipped as `20261003007130` |
 
-### 7.1 Five denials are pinned by UI TEXT, not by a status or an RPC error
+### 7.1 ✅ CLOSED — five denials were pinned by UI TEXT, not by a status or an RPC error
+
+> ✅ **CLOSED 2026-09-01.** `tester` built all four sites (`1068e9fc`), **non-uniformly, as scoped**
+> — real `.toBe(404)` at the two layout-level denials; a **data-layer PostgREST assertion** at
+> `phase8-dashboard.spec.ts`, where a status check would have been actively *wrong* (a page-level
+> denial under a streamed layout returns **200**, so the live-checked shape is HTTP 200 + empty
+> array, not 403); and the one missing sibling assertion in `act-role-assumption.spec.ts`. Each was
+> proven able to fail by a wrong-direction flip with the received value recorded, and two got live
+> positive controls. ⭐ Every site carries the **"same-org, cross-commission — none is cross-org"**
+> classification, which is what stops a future reader "strengthening" one into a cross-org test
+> that would pass while proving nothing (§ 6.1, and there is no seeded cross-org persona).
+
+**The original finding, retained:**
 
 `chefe.ccih`'s cross-commission denials assert the pt-BR not-found copy (`getByText(/não
 encontr/i)`) with **no HTTP status checked**: `phase6-signoffs.spec.ts:647-671`,
@@ -565,8 +579,39 @@ Where a capability's only evidence was a comment citing a DB predicate, the pred
 in the catalog before it became a row. The three identically-worded strict gates
 (`manage/documentos/layout.tsx:30`, `manage/charter/page.tsx:80`,
 `manage/acreditacao/layout.tsx:33`) carry the same staleness risk **without** the blatant
-contradiction; they are **not yet individually re-verified** and are listed here as an open check,
-not as a clean bill.
+contradiction; they were **not individually re-verified** when this was written. **They now have been — see
+§ 7.4.1.**
+
+### 7.4.1 ✅ The three sibling gates, verified INDIVIDUALLY — and they are not uniform
+
+⛔ **Verified one at a time, never one-and-generalise** — "they share a pattern" is what produced
+the near-miss above, and the dashboard family had already proved uniformity is the wrong
+assumption (3 of its 9 functions omit the tenancy arm). The three **do** differ, and one of them
+exposed a missing row.
+
+**All three route gates are textually identical and all three are CORRECT:**
+`if (!access || access.role !== "staff_admin") notFound();`
+
+| gate | its own claim | verdict |
+| --- | --- | --- |
+| `manage/documentos/layout.tsx:30` | authoring surface is `staff_admin`; the approval queue is ORG-level "because an approver may be OUTSIDE this commission" | ✅ **verifies** — authoring writes (`create_controlled_document`, `publish_document`, `mark_document_obsolete`, `attach_controlled_document_version_file`) are `is_staff_admin_of`-gated, and `approve_document` is deliberately **not**, exactly as its own comment explains. ⚠ carries the stale coercion claim |
+| `manage/charter/page.tsx:80` | flag + role gate the route; "the write RPC re-enforces `HC0K0`" | ✅ **verifies completely, including its catalog claim** — `upsert_commission_charter` is `is_staff_admin_of`-gated **and** raises `HC0K0`. ⭐ **And it does NOT carry the stale coercion claim** — so the "identically-worded" premise was itself imprecise |
+| `manage/acreditacao/layout.tsx:33` | route is `staff_admin` "even though the underlying RLS is broader — any commission member may READ …; only WRITES are `staff_admin`-only" | ⚠ **read half VERIFIES, write half is IMPRECISE.** All four SELECT policies (`accreditation_frameworks`, `accreditation_standards`, `evidence_links`, `standard_assessments`) gate on `is_member_of`, not `staff_admin` — claim true. But `set_standard_ownership` is an accreditation **write** gated on `is_hospital_admin_of OR is_org_admin_of`, so "only writes are staff_admin-only" overstates it. Also carries the stale coercion claim |
+
+**Conclusion on the rows they support: all correct.** No matrix row changes. `set_standard_ownership`
+is a hospital/org-admin capability and correctly has **no** `staff_admin` row — assigning which
+commission owns a standard is a tenancy decision, not a coordinator one.
+
+⭐ **What the verification DID find: `commission.charter.manage` had no row at all.**
+`upsert_commission_charter` is a `staff_admin`-gated DEFINER door with its own route surface, and
+the matrix had no code for it — **now row 34**. ⛔ This is why "verify each separately" was the
+right instruction: the charter gate is the one whose comment was *clean*, so a reader
+spot-checking the two suspicious siblings would have skipped precisely the one hiding the gap.
+
+⚠ **Documentation defect carried by two of the three** (`documentos`, `acreditacao`, not
+`charter`): the same stale *"or an org/hospital-admin resolved to that role"* coercion claim as
+§ 7.4's dashboard comment — removed in `4dd5cfa2`. Behaviour is correct in all three; the comments
+need correcting.
 
 ### 7.5 `CorrectionCaps.canApprove` — RESOLVED, not a gap
 
@@ -587,7 +632,7 @@ permission code. ⛔ The **ordering / comparison rule** remains deferred, and pg
 gates that abstinence with a constructed detector.
 
 
-### 7.7 🔴 OPEN — self-lift of one's own recusal has no SESSION-LEVEL witness
+### 7.7 ✅ CLOSED — self-lift of one's own recusal now has a SESSION-LEVEL witness
 
 Relocated into § 7 on 2026-09-01. It had been travelling in a carry-forward list, i.e. outside the
 register the PO's approval carves out from — the precise inverse-inference this index exists to
@@ -611,10 +656,17 @@ through a logged-in session.** The pgTAP acts as `authenticated` via `set local 
 the app's own path refuses it. That distinction matters here because this is the least-covered
 corner of the § 5 exception the PO dated to 2026-12-01.
 
-⛔ **`tester` is building the witness. This entry stays 🔴 OPEN until that spec exists and runs
-green, and the lead confirms it measured.** Closing a register entry on the strength of someone
-building it is the same shape as the four premises in § 0 — an expectation wearing the clothes of
-a result.
+> ✅ **CLOSED 2026-09-01, and closed on the DIFFERENTIAL rather than the deny.** Measured by the
+> lead: `SB-6` (`case-access.spec.ts:1622`) — **1 passed, `PW_EXIT=0`**, `--workers=1`. ⭐ **And the
+> positive control**, which is what makes the closure mean anything: the **same RPC, same actor**
+> (`chefe.ccih`) at `ethics-e1-access-spine.spec.ts:427`, where `lift_recusal` **restores** access —
+> **1 passed, `PW_EXIT=0`**. Without that second run, SB-6 passing would have been equally
+> consistent with *"she can never lift anything"* — a green deny that proves nothing. The refusal is
+> now attributable to the **self-exclusion**, not to a broken RPC or a powerless actor.
+
+⛔ **This entry was held 🔴 OPEN while `tester` built the witness, and closed only on the lead's
+measurement.** Closing it on the strength of someone building it would have been the same shape as
+the four premises in § 0 — an expectation wearing the clothes of a result.
 ---
 
 ## 8. Did `risk_class`'s proposed value set survive contact with real subjects?
