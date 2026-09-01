@@ -27,7 +27,7 @@
 -- =============================================================================
 
 begin;
-select plan(85);
+select plan(86);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'case_participants', 'audit_trail');
@@ -184,7 +184,8 @@ select is(app.is_case_respondent('00000000-0000-0000-0000-0000000f0001', (select
 
 -- ⭐ B7's OWN trap: adding a user_id write path creates a SIXTH self-serving
 -- mutator unless the linkage freezes once load-bearing. st_x2 is now a
--- respondent AND (below) a staff_admin ⇒ can_manage_professional admits him.
+-- respondent AND (below) a staff_admin ⇒ can_create_professional admits him
+-- (can_manage_professional did, until AE4.7c split the gate by operation).
 -- ADR 0094 W1: promotion, not a second row (see the st_x block above).
 insert into public.memberships (principal_id, commission_id, role)
 values ((select st_x2 from k), (select comm_x from k), 'staff_admin')
@@ -195,8 +196,28 @@ select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select throws_ok(
   $$ select public.set_professional_link_state('00000000-0000-0000-0000-0000000f0202', 'unknown', null) $$,
+  '42501', null,
+  'M1·1 OVER-GRANT TWIN ⭐: a load-bearing respondent CANNOT unlink his own profile to dissolve the deny — AE4.7c stops him at AUTHORITY (42501): the linkage is already `linked`, and a staff_admin may only complete an add');
+reset role;
+
+-- ⛔⛔ AND THE FREEZE ITSELF NOW NEEDS ITS OWN CALLER, OR IT GOES UNTESTED.
+-- Matrix § 12.8.5 predicted exactly this: *"under the `unknown` bound that over-grant twin may
+-- go VACUOUS — the failure mode to watch, not the red."* It did. The assertion above used to
+-- reach `HC0F2`, B7's freeze trigger; AE4.7c's authority bound now refuses the same call one
+-- layer EARLIER, with `42501`. Re-coding the expectation and stopping there would have left the
+-- freeze — the actual subject of this twin — asserted by NOTHING, while the line kept its name.
+--
+-- ⭐ So the twin SPLITS, and the split is worth more than the original: authority and freeze
+-- were conflated in one assertion and are now separated. A platform_admin passes the AE4.7c
+-- bound (org authority is unrestricted there), reaches the trigger, and is refused by it. The
+-- freeze is thereby shown to be independent of who is asking, which is its whole claim: it
+-- binds direct DML too.
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
+set local role authenticated;
+select throws_ok(
+  $$ select public.set_professional_link_state('00000000-0000-0000-0000-0000000f0202', 'unknown', null) $$,
   'HC0F2', null,
-  'M1·1 OVER-GRANT TWIN ⭐: a load-bearing respondent CANNOT unlink his own profile to dissolve the deny');
+  'M1·1 FREEZE TWIN ⭐⭐: org authority PASSES the AE4.7c bound and is still refused by the B7 FREEZE (HC0F2) — the linkage of a load-bearing respondent survives even a platform_admin. ⛔ This is the assertion the 42501 above no longer makes');
 reset role;
 
 select is(app.is_case_respondent('00000000-0000-0000-0000-0000000f0001', (select st_x2 from k)), true,

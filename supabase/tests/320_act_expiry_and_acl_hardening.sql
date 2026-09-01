@@ -18,7 +18,7 @@
 begin;
 -- U (+4, FUP-ACL-APP-POPULATION, 2026-08-17): 3 `is` + 1 `ok` = 4 call sites,
 -- against tags U1 · U2 · U2b · U3 = 4.
-select plan(14);
+select plan(18);
 
 -- `create_case_assignment_role` (one of the 10 gated doors) opens with
 -- `app.assert_ethics_enabled()`. Without this the RPC raises on the FLAG, not the
@@ -98,23 +98,69 @@ reset role;
 -- Comments are STRIPPED before matching: prose in a function body has matched a
 -- `prosrc` regex on this codebase before and produced a confidently wrong reading.
 -- This is exactly how the Stage 2 derivation was done, and for the same reason.
-select ok(
-  regexp_replace(
-    (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'app' and p.proname = 'can_manage_professional'),
-    '--[^\n]*', '', 'g') !~ 'public\.memberships',
-  'can_manage_professional ⭐ reads NO raw public.memberships (comment-stripped body) — has_role is the single membership path');
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and p.proname in ('can_manage_professional', 'can_create_professional',
+                        'can_manage_external_participant', 'can_manage_case_vocabulary',
+                        'is_org_commission_staff_admin')
+      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'public\.memberships'),
+  0,
+  'the professional/vocabulary gate FAMILY ⭐ reads NO raw public.memberships '
+  '(comment-stripped bodies) — has_role, through is_staff_admin_of_for, is the single '
+  'membership path. ⚠ WIDENED BY AE4.7c FROM ONE NAME TO FIVE, and the widening is the '
+  'assertion: the split moved the membership-touching arm OUT of can_manage_professional '
+  'into is_org_commission_staff_admin, so the original single-name check would have kept '
+  'passing about a body that can no longer reach memberships even in principle — green, '
+  'trivial, and blind to the four gates that now can.');
 
--- TRIPWIRE on the door population. If this reds, a door was ADDED to or REMOVED from
--- this gate: re-derive the list from the catalog and update the count here and in
--- both migrations'' headers. Do not just bump the number — the point is that someone
--- looks at the new door and confirms it wants this gate''s semantics.
+-- TRIPWIRE on the door population. If any of these reds, a door was ADDED to or REMOVED
+-- from one of these gates: re-derive the list from the catalog and update the count here
+-- and in the migrations'' headers. Do not just bump the number — the point is that someone
+-- looks at the new door and confirms it wants that gate''s semantics.
+--
+-- ⭐ AE4.7c TURNED ONE COUNT INTO FIVE, and it reds by design when it does. Before the
+-- split, ONE gate fronted 12 RPCs spanning three unrelated capabilities — professional
+-- identity (Class-2), the non-sensitive participant registry, and three case/ethics
+-- vocabularies. The split gave each its own gate and then removed staff_admin from the
+-- professional MODIFY half. ⛔ The instruction above is exactly what was followed: each
+-- door was re-read from the catalog and assigned by what it WRITES and at what SENSITIVITY
+-- (matrix § 12.3), not by its name or its table — which is how `ensure_professional_participant`
+-- and `create_external_participant`, both writing `participants`, land on opposite sides.
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
       and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') like '%can_manage_professional%'),
+  3,
+  'door population: exactly 3 public RPCs name can_manage_professional — update_professional_profile, redact_professional_profile (matrix row 30, MODIFY) and set_professional_link_state (which names BOTH gates)');
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') like '%can_create_professional%'),
+  3,
+  'door population: exactly 3 public RPCs name can_create_professional — create_professional_profile, ensure_professional_participant, set_professional_link_state (matrix row 43, ADD)');
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') like '%can_manage_external_participant%'),
+  1,
+  'door population: exactly 1 public RPC names can_manage_external_participant — create_external_participant (matrix row 31)');
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') like '%can_manage_case_vocabulary%'),
+  6,
+  'door population: exactly 6 public RPCs name can_manage_case_vocabulary — the three create/archive vocabulary pairs (matrix row 32)');
+
+select is(
+  (select count(distinct p.proname)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'can_(manage_professional|create_professional|manage_external_participant|manage_case_vocabulary)'),
   12,
-  'door population: exactly 12 public RPCs gate on can_manage_professional (the Class-2 professional-identity / ethics-vocabulary write set)');
+  'door population ⭐⭐ THE PARTS SUM TO THE WHOLE: 12 DISTINCT public RPCs across the four gates. 3+3+1+6 = 13 counts set_professional_link_state twice BY DESIGN (it names two gates); the distinct count is 12, the same 12 this tripwire watched before the split. ⛔ Without this line the four counts above are four numbers with no relationship, and a door that fell out of the family entirely would leave every one of them green');
 -- 10 → 12 (ETH·E4, ADR 0108 D1/D8). The list was RE-DERIVED FROM THE CATALOG, not
 -- guessed, and each new door was looked at rather than counted:
 --   + public.ensure_professional_participant — mints the participants +
@@ -175,11 +221,20 @@ select is(
       and p.proname in ('can_manage_professional', 'is_entitled_document_approver',
                         'is_hospital_member_of', 'is_org_level_admin_within',
                         'is_org_member', 'is_pqs_member_of_any',
-                        'is_pqs_operator_in_org_for', 'is_quality_reviewer_in_org')
+                        'is_pqs_operator_in_org_for', 'is_quality_reviewer_in_org',
+                        -- AE4.7c's four: three capability gates + the shared ascent.
+                        'can_create_professional', 'can_manage_external_participant',
+                        'can_manage_case_vocabulary', 'is_org_commission_staff_admin')
       and (p.proacl is null
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))),
   0,
-  'ACL uniformity: NONE of the 8 Stage-2 rebased gates carries a default/PUBLIC EXECUTE ACL');
+  'ACL uniformity: NONE of the 12 named gates carries a default/PUBLIC EXECUTE ACL. '
+  '⚠ 8 -> 12: AE4.7c''s four new `app` gates are added HERE ON PURPOSE rather than left to '
+  'U1''s population check. U1 is the schema-wide ratchet and would catch them; this list is '
+  'the one a reader consults to see WHICH gates were argued about, and a new sibling absent '
+  'from it reads as one nobody looked at. ⛔ They are created AFTER 20261003005300 revoked '
+  'the PUBLIC EXECUTE default, so they carry no PUBLIC grant by construction — which is '
+  'exactly the kind of by-construction claim that stops being true after one DROP+CREATE.');
 
 -- ---------------------------------------------------------------------------
 -- U — FUP-ACL-APP-POPULATION: the `app` schema's POPULATION, not an allowlist.

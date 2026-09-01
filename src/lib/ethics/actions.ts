@@ -25,7 +25,8 @@ import type {
  * REVOKEs PUBLIC then GRANTs `authenticated, service_role` (t19), asserts the `ethics`
  * flag (HC000), and authorizes per ADR 0073 — case procedure RPCs are coordinator-gated
  * via `app.assert_ethics_coordinator` (HC0J1, authority-first + distinct from every
- * exclusion code); org-catalog CRUD gates on `can_manage_professional` (42501); a few are
+ * exclusion code); org-catalog CRUD gates on `can_manage_case_vocabulary` (42501 — matrix
+ * row 32; it was `can_manage_professional` until AE4.7c split that gate by family); a few are
  * self-service (D13/D4). SQLSTATEs are the `HC0J0–HC0J9` block (D11). Raw Postgres errors
  * never reach the UI (CLAUDE.md §8) — {@link mapEthicsError} maps to pt-BR (preferring the
  * RPC's own message, the `mapNarrativeError` / `mapCoordinatorError` precedent).

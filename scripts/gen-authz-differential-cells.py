@@ -36,7 +36,13 @@ spec = json.loads(raw.decode('utf-8'))
 REPS = [
     # code, legacy class, resolution scope
     ('commission.forms.edit',      'is_staff_admin_of_for',        'commission'),
-    ('org.professionals.manage',   'can_manage_professional',      'organization'),
+    # ⭐ AE4.7c RE-POINTED THIS REP, and the reason is a coverage loss no arm names.
+    # `staff_admin` LOST org.professionals.manage (matrix § 12.8.5 — it may ADD a professional,
+    # never MODIFY one). A rep the subject role does not hold makes EVERY cell of its class a
+    # denial: the class stops exercising the granted polarity at all, and arm2 does not catch it
+    # because arm2 is satisfied GLOBALLY by the other two reps. org.professionals.create is the
+    # code staff_admin does hold, on the same gate family and the same org resolution scope.
+    ('org.professionals.create',   'can_create_professional',      'organization'),
     ('org.professionals.read',     'can_read_professional_profile','organization'),
 ]
 
@@ -109,7 +115,8 @@ SUBJECT_ROLE = subject_roles[0]
 
 def expected(persona, ctx, scope, state, selfcheck, res_scope):
     """EXPECTED VALUES COME FROM EXACTLY TWO HAND-ENCODED SOURCES — never resolver logic.
-       (1) the approved matrix row: staff_admin holds all three representatives;
+       (1) the approved matrix row: staff_admin holds all three representatives — after AE4.7c
+           that is org.professionals.create, NOT .manage, which staff_admin lost;
        (2) the approved deny-class effect table, transcribed in its stated precedence.
        No scope-reaching join, no closure lookup, no role_permissions read."""
     if persona == 'anonymous':   return False, 'deny-class:unauthenticated'
@@ -265,7 +272,11 @@ if '--self-test' in sys.argv:
     checks = [
         ('arm1 empty cell set',          [],                                                      base_skipped, REPS, None, None, None),
         ('arm2 single polarity',         [c[:9] + (True,) + c[10:] for c in base_cells],          base_skipped, REPS, None, None, None),
-        ('arm3 a class dropped',         [c for c in base_cells if c[5] != 'can_manage_professional'], base_skipped, REPS, None, None, None),
+        # ⛔ THE KEY MOVED WITH THE REP. arm3 filters by legacy-class NAME; left at
+        # 'can_manage_professional' after AE4.7c it would match NOTHING, drop no class, and
+        # report NOT CAUGHT — a rename orphaning a name-keyed control, which is the failure
+        # this whole file exists to make loud.
+        ('arm3 a class dropped',         [c for c in base_cells if c[5] != 'can_create_professional'], base_skipped, REPS, None, None, None),
         ('arm4 self-check only',         [c for c in base_cells if c[8]],                          base_skipped, REPS, None, None, None),
         ('arm5 differing-scope dropped', [c for c in base_cells if not (c[6]=='organization' and c[3]=='sibling_commission')], base_skipped, REPS, None, None, None),
         ('arm6 expectedSource blanked',  [c[:10] + ('',) for c in base_cells],                     base_skipped, REPS, None, None, None),

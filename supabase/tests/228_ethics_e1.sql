@@ -23,7 +23,7 @@ begin;
 -- Amendment 1, D15).
 -- 131 → 135: DM2·S2 adds the OPEN-level ceiling pins (40/40b/41/41b — S1-O1
 -- discharged on open_document_version).
-select plan(135);
+select plan(136);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -612,9 +612,26 @@ create temp table prof on commit drop as
 grant select on prof to authenticated;
 select ok((select pid from prof) is not null,
   'create_professional_profile: a coordinator creates a profile');
+-- ⭐⭐ AE4.7c: THE ADD/MODIFY LINE, AS A PAIR, ON ONE PRINCIPAL AND ONE PROFILE.
+-- The `create` two lines above still LIVES for sa_x (matrix row 43); the `update` below now
+-- THROWS for the same caller on the profile they just created (row 30, revoked). ⛔ The
+-- polarity flip is the change, and keeping both halves adjacent is what stops the pair
+-- degenerating: a lone denial is satisfied by a door that refuses everyone, and a lone
+-- creation says nothing about what a coordinator may do next.
+select throws_ok(
+  format($$ select public.update_professional_profile(%L, 'Dr. Teste Corrigido') $$, (select pid from prof)),
+  '42501', null,
+  'update_professional_profile ⭐ AE4.7c: a coordinator may NOT correct a profile — a staff_admin ADDS a professional, never MODIFIES one (matrix row 30 revoked, row 43 kept)');
+reset role;
+
+-- POSITIVE TWIN, and it is not optional: without it the assertion above is equally well
+-- explained by a door that is broken shut, and matrix row 30 would be enforced by nothing
+-- anyone can observe. A platform_admin still holds row 30, so the door must still open.
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
+set local role authenticated;
 select lives_ok(
   format($$ select public.update_professional_profile(%L, 'Dr. Teste Corrigido') $$, (select pid from prof)),
-  'update_professional_profile: a coordinator corrects a profile');
+  'update_professional_profile POSITIVE TWIN ⭐: org authority (platform_admin) still corrects the profile — row 30 moved to a narrower population, it was not deleted');
 reset role;
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;

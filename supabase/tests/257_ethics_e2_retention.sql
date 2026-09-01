@@ -14,7 +14,7 @@
 -- =============================================================================
 
 begin;
-select plan(18);
+select plan(19);
 
 update app.feature_flags set enabled = true where key in ('ethics', 'audit_trail', 'case_participants');
 
@@ -115,17 +115,27 @@ select is((select count(*)::int from public.audit_log
 -- ===========================================================================
 -- Block C — the HC0J7 redaction bar.
 -- ===========================================================================
+-- ⛔⛔ THE CALLER MOVED FROM sa_x TO admin, AND THAT IS WHAT KEEPS BLOCK C ALIVE.
+-- Matrix § 12.8.5 warned that these HC0J7 expectations "drift to 42501 and COLLIDE with the
+-- negative twin at Block D" — a bar test whose error code slides onto its own authority
+-- control's code, so both go green and NEITHER measures what it names. AE4.7c revoked row 30
+-- from staff_admin, so sa_x is now refused by AUTHORITY before the redaction bar is ever
+-- evaluated. Re-coding HC0J7 to 42501 would have deleted this block's entire subject.
+--
+-- ⭐ `admin` (platform_admin) still holds row 30, so the call reaches the bar and is refused
+-- BY THE BAR. Block D's authority test keeps its own caller and its own 42501, so the two
+-- codes stay attached to two different claims.
 reset role;
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
 set local role authenticated;
 select throws_ok(
   $$ select public.redact_professional_profile('00000000-0000-0000-0000-0000000e2102', 'pedido do titular') $$,
   'HC0J7', null,
-  'redaction bar: a retention-pinned respondent cannot be redacted (HC0J7)');
+  'redaction bar: a retention-pinned respondent cannot be redacted (HC0J7) — asked by ORG AUTHORITY, so the refusal is the bar and not the AE4.7c authority bound');
 reset role;
 -- Belt: clear the pin column; the respondent-in-issued-decision check still bars it.
 update public.professional_profiles set retention_pinned_at = null where id = '00000000-0000-0000-0000-0000000e2102';
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
 set local role authenticated;
 select throws_ok(
   $$ select public.redact_professional_profile('00000000-0000-0000-0000-0000000e2102', 'pedido') $$,
@@ -144,12 +154,25 @@ select throws_ok(
   '42501', null,
   'redaction authority: a non-manager (plain member) is denied (42501)');
 reset role;
--- Success: the coordinator redacts the eligible (non-respondent, unpinned) profile.
+-- ⭐ AE4.7c: THE SECOND AUTHORITY DENIAL, and it is the new one. The plain member above was
+-- always refused; a staff_admin was always ADMITTED. Row 30 is revoked, so a COORDINATOR is
+-- now refused too — the assertion that says the revoke actually reaches the redaction door
+-- rather than only the catalog.
 select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.redact_professional_profile('00000000-0000-0000-0000-0000000e2122', 'x') $$,
+  '42501', null,
+  'redaction authority ⭐ AE4.7c: a COORDINATOR (staff_admin) is denied — a staff_admin adds a professional, never redacts one (matrix row 30 revoked)');
+reset role;
+-- Success: ORG AUTHORITY redacts the eligible (non-respondent, unpinned) profile. ⛔ Without
+-- this the three denials above are equally explained by a door that refuses everyone, and
+-- every "minimise-not-destroy" assertion below would never run.
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
 set local role authenticated;
 select lives_ok(
   $$ select public.redact_professional_profile('00000000-0000-0000-0000-0000000e2122', 'pedido do titular') $$,
-  'redaction: a coordinator redacts an eligible profile');
+  'redaction: org authority redacts an eligible profile');
 reset role;
 -- Preservation: the row + linkage + audit survive; identity is nulled.
 select is((select count(*)::int from public.professional_profiles where id = '00000000-0000-0000-0000-0000000e2122'), 1,
@@ -175,8 +198,12 @@ select ok(not exists (
 -- ===========================================================================
 -- Block E — flag-OFF.
 -- ===========================================================================
+-- ⚠ CALLER MOVED FOR THE SAME REASON AS BLOCK C: the flag guard runs FIRST in this door, so
+-- HC000 would still be reached under sa_x today — but that is an ORDERING accident, not a
+-- property this suite owns. Asking as org authority makes the assertion depend on the flag
+-- alone, which is what it claims to measure.
 update app.feature_flags set enabled = false where key = 'ethics';
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
 set local role authenticated;
 select throws_ok(
   $$ select public.redact_professional_profile('00000000-0000-0000-0000-0000000e2122', 'x') $$,

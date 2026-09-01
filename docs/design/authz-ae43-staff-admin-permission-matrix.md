@@ -3,7 +3,7 @@
 **Phase:** AE4 · **plan:** [`docs/plans/authz-evolution.md`](../plans/authz-evolution.md) § AE4.3 ·
 **authority:** ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D7,
 ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) §2 (PA-F8) ·
-**owner:** backend · **status:** ✅ **PO-APPROVED 2026-09-01 — AT 42 ROWS**; the REGRESSION ORACLE from cutover. ⚠ **AMENDED 2026-09-01: row 30 splits by operation, +1 row (43) — § 12.8** ·
+**owner:** backend · **status:** ✅ **PO-APPROVED 2026-09-01 — AT 42 ROWS**; the REGRESSION ORACLE from cutover. ⚠ **AMENDED 2026-09-01: row 30 splits by operation, +1 row (43) — § 12.8**, ✅ **BUILT in AE4.7c (§ 12.8.1)**; the live catalog holds **43** permissions and `staff_admin` holds **42 of 43** ·
 **derived:** 2026-09-01 · **stack:** local, fresh reset, head `20261003007120`.
 
 > ⛔ **On approval this matrix becomes the REGRESSION ORACLE** — from cutover, AE4.5 asserts
@@ -1042,7 +1042,7 @@ regardless of what happens to row 30.
 **Ruled 2026-09-01, after TWO reversals, each forced by a measurement — the trail is in
 § 12.8.5 and is worth reading before re-opening this.** Final: row 30 **splits by OPERATION**.
 `staff_admin` keeps a new **row 43 `org.professionals.create`** (add / seat / complete linkage) and
-**loses row 30** (`update`, `redact`). Timing: **AE4.7c, after AE4.7b**. Row 30 above was approved
+**loses row 30** (`update`, `redact`). Timing: **AE4.7c, after AE4.7b** — ✅ **BUILT 2026-09-01**, § 12.8.1. Row 30 above was approved
 *as today only*, and this is the change it was waiting for.
 
 ⛔ **This subsection exists because the approval's scope lived in exactly one place, and it was the
@@ -1059,17 +1059,39 @@ commission-scoped role. Whatever § 12.8.5 rules, that anomaly outlives it.
 
 #### 12.8.1 What is actually built — live catalog, 2026-09-01
 
-| | state |
-| --- | --- |
-| **Catalog codes** (§ 12.3's cut) | ✅ **SHIPPED.** All four exist and are granted to `staff_admin`: `org.professionals.manage` (30), `org.participants.external.manage` (31), `org.case_vocabulary.manage` (32), `org.professionals.read` (33) |
-| **Gate split** | ⛔ **NOT BUILT.** `app.can_manage_professional` is still **one function gating all 13 doors**; no external-participant gate and no vocabulary gate exist in `app` or `public` |
-| **The revoke** | ⚠ **NARROWED IN SCOPE, not cancelled.** `staff_admin` loses row 30 (`update`/`redact`) but gains row 43 for the ADD doors — § 12.8.5 |
+✅ **ALL THREE ROWS ARE NOW BUILT — AE4.7c, 2026-09-01** (migrations `20261003007220` +
+`20261003007230`). The table below is kept as the state it was ruled *from*, with each row's
+closure beside it, because the "two-thirds catalog / zero enforcement" state is the one that makes
+the split-first rule legible.
 
-⭐ **Two-thirds done in the CATALOG, zero done in ENFORCEMENT** — precisely the state in which a
-naive revoke is most tempting and most wrong. Deleting the grant today removes `staff_admin` from
-**all 13 doors**, including external-participant minting (row 31) and the case/ethics vocabularies
-(row 32), both of which `staff_admin` **KEEPS**. That is what the *split-first* rule protects, and
-why it is stated as an order rather than a preference.
+| | state as ruled | closure |
+| --- | --- | --- |
+| **Catalog codes** (§ 12.3's cut) | ✅ **SHIPPED.** All four exist and are granted to `staff_admin`: `org.professionals.manage` (30), `org.participants.external.manage` (31), `org.case_vocabulary.manage` (32), `org.professionals.read` (33) | ✅ + **row 43** `org.professionals.create`, granted; **row 30 REVOKED** from `staff_admin`. 43 permissions / 42 grants |
+| **Gate split** | ⛔ **NOT BUILT.** `app.can_manage_professional` is still **one function gating all 13 doors**; no external-participant gate and no vocabulary gate exist in `app` or `public` | ✅ **BUILT.** `app.can_manage_external_participant` (31), `app.can_manage_case_vocabulary` (32), `app.can_create_professional` (43), and `app.is_org_commission_staff_admin` — **the ascent, isolated to ONE site** so the three widened gates share it rather than hand-copying it |
+| **The revoke** | ⚠ **NARROWED IN SCOPE, not cancelled.** `staff_admin` loses row 30 (`update`/`redact`) but gains row 43 for the ADD doors — § 12.8.5 | ✅ **LANDED**, in the same migration as the gate change (403 § 4.1 asserts `legacy == catalog`, so a split transition would red the oracle) |
+
+⭐ **Two-thirds done in the CATALOG, zero done in ENFORCEMENT** — that was precisely the state in
+which a naive revoke is most tempting and most wrong. Deleting the grant then would have removed
+`staff_admin` from **all 13 doors**, including external-participant minting (row 31) and the
+case/ethics vocabularies (row 32), both of which `staff_admin` **KEEPS**. That is what the
+*split-first* rule protects, and why it is stated as an order rather than a preference.
+
+⚠ **What the build measured that this ruling did not predict**, recorded because each was found by
+a red rather than by reading:
+- **`app.can_read_professional_profile` had to move too.** Row 33 `org.professionals.read` is a
+  code `staff_admin` KEEPS, and its only enforcement site is that function's arm 1 — which was
+  `can_manage_professional`. Leaving it would have denied every `staff_admin` the org-wide read the
+  matrix grants them, and 403 § 4.1 would have red on a divergence the split never intended. It now
+  follows the POPULATION (`can_create_professional`), not the gate name.
+- **The differential's row-33 substitution had to move with it** (403's `else` branch). That branch
+  stands in for the real door under QA finding F3 — still open — so the substituted gate must be
+  the ARM it stands for, or the red is a substitution artifact.
+- **pgTAP 229's over-grant twin went vacuous exactly as § 12.8.5 predicted**, and 257's `HC0J7`
+  expectations collided with their own `42501` control exactly as predicted. Both were split rather
+  than re-coded: authority and freeze are now separate assertions with separate callers.
+- **The three new gates carry NO `authenticated` EXECUTE**, because they post-date AE1.2's default
+  revoke — a tightening the split delivered for free, and the reason pgTAP 318's PART 2 no longer
+  switches database role.
 
 #### 12.8.2 The over-grant being closed, stated plainly
 

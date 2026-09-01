@@ -40,7 +40,7 @@
 -- =============================================================================
 
 begin;
-select plan(75);
+select plan(77);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'case_participants', 'audit_trail');
@@ -107,10 +107,19 @@ select is((select count(*)::int from public.professional_participants
            where professional_profile_id in ('00000000-0000-0000-0000-0000000e4201',
                                              '00000000-0000-0000-0000-0000000e4202')), 0,
   'PRE: neither profile has a registry identity yet — the mint door has real work to do');
-select is(app.can_manage_professional((select org_x from k), (select sa_x from k)), true,
-  'PRE: sa_x may manage professionals in org_x (the mint gate has something to admit)');
-select is(app.can_manage_professional((select org_x from k), (select st_x from k)), false,
+-- ⚠ AE4.7c: the MINT gate is `can_create_professional` (matrix row 43), not
+-- `can_manage_professional` (row 30). The pre-flight must name the gate the door under test
+-- actually calls, or a green here says nothing about whether the mint can admit anyone.
+select is(app.can_create_professional((select org_x from k), (select sa_x from k)), true,
+  'PRE: sa_x may CREATE professionals in org_x (the mint gate has something to admit)');
+select is(app.can_create_professional((select org_x from k), (select st_x from k)), false,
   'PRE ⭐: st_x may NOT — the HC0E4 twins below deny for the RIGHT reason');
+select is(app.can_manage_professional((select org_x from k), (select sa_x from k)), false,
+  'PRE ⭐⭐ THE SPLIT, ON THE SAME PRINCIPAL, IN ADJACENT LINES: sa_x may CREATE a professional '
+  'and may NOT MODIFY one. ⛔ This is the whole of AE4.7c stated as a differential — same '
+  'caller, same org, same instant, two gates, two answers. Without it the re-point above reads '
+  'as a rename, and a rename is exactly what it is not: `staff_admin` LOST row 30 '
+  '(org.professionals.manage) and KEPT row 43 (org.professionals.create).');
 
 -- ===========================================================================
 -- KEYSTONE 1 — the full professional seating path succeeds for a coordinator.
@@ -187,11 +196,25 @@ select is((select count(*)::int from public.professional_participants
 -- arm (RED on revert), K3b is the containment.
 --
 -- sa_y is staff_admin of comm_y, which shares org_x with comm_x. She is therefore
--- an ORG MANAGER (can_manage_professional true) but NOT a reader of comm_x's case,
--- so before the widening `can_read_professional_profile` resolved FALSE for her.
+-- an ORG MANAGER FOR ADDS (can_create_professional true since AE4.7c; it was
+-- can_manage_professional before the split) but NOT a reader of comm_x's case, so
+-- before the widening `can_read_professional_profile` resolved FALSE for her.
+-- ⚠ The read gate's arm 1 follows the CREATE population now, which is what keeps K3a
+-- true across AE4.7c: row 33 `org.professionals.read` is a code staff_admin KEEPS.
 -- ===========================================================================
-select is(app.can_manage_professional((select org_x from k), (select sa_y from k)), true,
-  'K3 PRE: sa_y IS an org manager (staff_admin of a sibling commission in the same org)');
+-- ⭐⭐ SPLIT, NOT RE-CODED. Matrix § 12.8.5 names this assertion as "the sharpest statement of
+-- the arm in the whole suite", and it is: a staff_admin of a SIBLING commission, with no reach
+-- into this case at all, acting org-wide on Class-2 professional identity. AE4.7c does not
+-- delete that reach — it BOUNDS it by operation. So the one assertion becomes two, and the pair
+-- is worth more than the original: it says exactly where the new line falls.
+select is(app.can_create_professional((select org_x from k), (select sa_y from k)), true,
+  'K3 PRE: sa_y IS an org manager FOR ADDS (staff_admin of a sibling commission in the same org) '
+  '— row 43 keeps the ascent, so the reach that makes K3a''s widening meaningful still exists');
+select is(app.can_manage_professional((select org_x from k), (select sa_y from k)), false,
+  'K3 PRE ⭐⭐ AND THE ASCENT NOW STOPS AT MODIFY: the same sibling-commission staff_admin may '
+  'NOT update or redact that identity record. ⛔ Deleting the original assertion instead of '
+  'splitting it would have removed the only place this over-broad reach is stated at all, and '
+  'the bound would then be enforced by a migration nothing describes.');
 select is(app.can_read_case_committee('00000000-0000-0000-0000-0000000e4001', (select sa_y from k)),
   false,
   'K3 PRE ⭐: …and is NOT a reader of the case — so ONLY the new arm can admit her');
@@ -210,8 +233,11 @@ reset role;
 -- st_y: a plain member of comm_y. Same org, so `participants_select` already shows
 -- him the registry NAME — but he is not a manager and not a case reader, so the
 -- Class-2 identity columns must stay shut.
-select is(app.can_manage_professional((select org_x from k), (select st_y from k)), false,
-  'K3b PRE: st_y is a plain member — NOT an org manager');
+select is(app.can_create_professional((select org_x from k), (select st_y from k)), false,
+  'K3b PRE: st_y is a plain member — NOT an org manager under EITHER half of the split. '
+  '⚠ Asserted on the CREATE gate because that is the wider of the two: a principal denied by '
+  'the wider gate is denied by the narrower one, so this is the containment claim at its '
+  'strongest, and it is also the arm can_read_professional_profile now consults.');
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select is((select count(*)::int from public.professional_profiles

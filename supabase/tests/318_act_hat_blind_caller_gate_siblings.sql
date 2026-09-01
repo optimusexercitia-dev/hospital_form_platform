@@ -14,7 +14,7 @@
 -- token hook derives its lone hat implicitly and the two implementations agree.
 
 begin;
-select plan(12);
+select plan(13);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -107,7 +107,20 @@ select lives_ok(
   'grant_role(hospital_admin) D11: still SUCCEEDS under the platform_admin hat (break-glass intact)');
 reset role;
 
--- ── PART 2 — app.can_manage_professional (QA MAJOR-1) ───────────────────────────
+-- ── PART 2 — the staff_admin ORG ASCENT (QA MAJOR-1) ────────────────────────────
+--
+-- ⚠ SUBJECT RE-POINTED BY AE4.7c, AND THE CLAIM IS UNCHANGED. This part was written
+-- against `app.can_manage_professional`, which then carried the commission-staff_admin
+-- org ascent. AE4.7c split that gate by OPERATION (matrix § 12.8.5) and the ascent moved
+-- to `app.can_create_professional`. All three assertions below measure THAT ARM — expiry
+-- and the hat — so they follow it.
+-- ⛔ LEAVING THEM WOULD HAVE BEEN WORSE THAN A RED, TWO OF THREE TIMES. The two negative
+-- assertions expect a REFUSAL, and a gate that no longer admits staff_admins at all
+-- refuses for a reason that has nothing to do with expiry or with the hat: they would
+-- have stayed GREEN while measuring nothing. Only the CONTROL — which expects an
+-- ADMISSION — would have failed, and it is the one assertion whose red is easiest to
+-- read as "the split did that, expected" and re-code away. The control is the reason
+-- this block was noticed at all.
 --
 -- ⚠ UPDATED BY BUG-ACT-EXPIRY-1 (`20260918003000`), which is the change this block
 -- anticipated in writing: "If the expiry quirk is ever closed, THIS assertion is
@@ -162,11 +175,25 @@ reset role;
 -- staff_admin somewhere, and is asking about an org where its staff_admin has
 -- EXPIRED. Post-fix the only membership path is `has_role`, which filters expiry —
 -- hence FALSE.
+-- ⛔ NO `set local role authenticated` FOR THE THREE ASSERTIONS BELOW, AND THAT IS A
+-- MEASUREMENT, NOT A SHORTCUT. `app.can_create_professional` carries NO `authenticated`
+-- EXECUTE grant — measured: `{postgres=X/postgres}` and nothing else — because it was created
+-- AFTER 20261003005300 revoked the PUBLIC EXECUTE default, and nothing has granted it since.
+-- That is CORRECT and it is a tightening the split delivered for free: the gate it was carved
+-- out of, `can_manage_professional`, does carry the grant (it predates that revoke), while the
+-- new one is reachable only as an internal callee of the DEFINER doors, which execute as their
+-- owner. Zero RLS policies call it (catalog-measured), so no client path needs the grant.
+-- ⚠ THIS COST A RED TO LEARN: switching role here raised `permission denied for function
+-- can_create_professional` and ABORTED the file mid-run — a Bad plan, not a failed assertion.
+-- The house pattern is 401 §16's: the gate reads auth.uid() and app.active_role() from
+-- request.jwt.claims, which `claims_for` sets INDEPENDENTLY of the database role, so these
+-- assertions exercise the predicate exactly as its real callers (the DEFINER doors) will.
+-- ⛔ Do NOT "fix" this by granting the gate to `authenticated`. The grant would be a real
+-- widening of the reachable surface, bought to make a test's role switch work.
 select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
 select ok(
-  not app.can_manage_professional((select org from o2), (select sa_x from k)),
-  'can_manage_professional ⭐ BUG-ACT-EXPIRY-1: an EXPIRED staff_admin is REFUSED even under a correctly-derived staff_admin hat (was TRUE pre-fix — the cross-org reach)');
+  not app.can_create_professional((select org from o2), (select sa_x from k)),
+  'can_create_professional ⭐ BUG-ACT-EXPIRY-1: an EXPIRED staff_admin is REFUSED even under a correctly-derived staff_admin hat (was TRUE pre-fix — the cross-org reach)');
 
 -- CONTROL, and it is load-bearing: without it the assertion above passes for free if
 -- anyone breaks the function closed (or deletes the membership arm outright), and a
@@ -174,9 +201,8 @@ select ok(
 -- not a detector. Same principal, same hat, same session — only the org differs, and
 -- there sa_x's staff_admin is LIVE. This is the boundary the fix must NOT cross.
 select ok(
-  app.can_manage_professional((select org_b from k), (select sa_x from k)),
-  'can_manage_professional CONTROL: the LIVE staff_admin in the other org is still ADMITTED (proves the assertion above is not a broken-closed pass)');
-reset role;
+  app.can_create_professional((select org_b from k), (select sa_x from k)),
+  'can_create_professional CONTROL: the LIVE staff_admin in the other org is still ADMITTED (proves the assertion above is not a broken-closed pass)');
 
 -- ⭐ DISTINGUISHING for D5 (the hat dimension), RE-ANCHORED ONTO THE LIVE ARM.
 -- At Stage 3 this twin measured the EXPIRED arm under a non-staff_admin hat. That
@@ -196,10 +222,18 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
 values ((select org_b from k), (select hosp_b from k), (select sa_x from k), 'quality_reviewer');
 
 select test_helpers.claims_for((select sa_x from k), false, 'quality_reviewer');
-set local role authenticated;
 select ok(
-  not app.can_manage_professional((select org_b from k), (select sa_x from k)),
-  'can_manage_professional D5 ⭐ DISTINGUISHING: the LIVE staff_admin arm does NOT fire under the quality_reviewer hat (the same principal was ADMITTED one assertion ago under the staff_admin hat)');
+  not app.can_create_professional((select org_b from k), (select sa_x from k)),
+  'can_create_professional D5 ⭐ DISTINGUISHING: the LIVE staff_admin arm does NOT fire under the quality_reviewer hat (the same principal was ADMITTED one assertion ago under the staff_admin hat)');
+
+select ok(
+  not has_function_privilege('authenticated', 'app.can_create_professional(uuid, uuid)'::regprocedure, 'EXECUTE')
+  and not has_function_privilege('anon', 'app.can_create_professional(uuid, uuid)'::regprocedure, 'EXECUTE'),
+  'can_create_professional ACL ⭐ THE REASON THE THREE ASSERTIONS ABOVE RUN AS postgres, pinned '
+  'so the next reader meets the fact instead of the workaround: NO application role holds '
+  'EXECUTE on this gate. ⛔ If someone grants it to make a role switch work, this reds — which '
+  'is the point: the grant would widen the reachable surface to buy a test convenience, and the '
+  'gate it was split from carries that grant only because it predates AE1.2''s default revoke.');
 reset role;
 
 select * from finish();

@@ -21,9 +21,11 @@
 -- (sa_f) — never a principal who simply cannot find the row.
 --
 -- NOTE ON THE FIXTURE: bootstrap() homes comm_x AND comm_y under ONE org, so `sa_y`
--- is NOT cross-tenant for the org-scoped catalogs (app.can_manage_professional would
+-- is NOT cross-tenant for the org-scoped catalogs (app.can_manage_case_vocabulary would
 -- return TRUE for it). This suite builds a genuinely foreign org (org_f/sa_f) for the
--- tenancy arms.
+-- tenancy arms. ⚠ The gate was `can_manage_professional` until AE4.7c gave rows 31/32
+-- their own gates (matrix § 12.3); the POPULATION is unchanged, which is why every
+-- assertion in this file is too.
 -- =============================================================================
 
 begin;
@@ -90,7 +92,9 @@ values ('00000000-0000-0000-0000-0000000f0101', '00000000-0000-0000-0000-0000000
 
 -- =============================================================================
 -- GROUP A — the org-scoped vocabulary catalogs (6 doors)
--- Gate: app.can_manage_professional(org, auth.uid()) → 42501.
+-- Gate: app.can_manage_case_vocabulary(org, auth.uid()) → 42501 (matrix row 32).
+-- ⚠ Was can_manage_professional until AE4.7c's family split. `staff_admin` KEEPS this
+-- capability — the split exists precisely so the row-30 revoke could not take it.
 -- create_* trusts a CALLER-SUPPLIED p_org; archive_* derives the org FROM THE ROW.
 -- Both directions are pinned: an attacker must not be able to pick the org, and
 -- must not be able to reach a row whose org they cannot manage.

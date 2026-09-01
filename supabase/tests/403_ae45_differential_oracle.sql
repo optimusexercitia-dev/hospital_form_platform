@@ -210,10 +210,22 @@ begin
     perform test_helpers.claims_for(f.nobody, false, 'quality_reviewer');
   end if;
 
+  -- ⭐ AE4.7c MOVED BOTH ORG BRANCHES, and neither move is a widening of what is measured.
+  --  * The REP for the org write class is now `org.professionals.create` (matrix § 12.8.5):
+  --    staff_admin LOST org.professionals.manage, so a rep on the old code would make every
+  --    cell of the class a denial — single polarity, invisible to arm2 because arm2 is
+  --    satisfied globally by the other reps.
+  --  * ⛔ ROW 33's `else` BRANCH HAD TO MOVE TOO, or 403 § 4.1 would red on a divergence the
+  --    split never intended. That branch SUBSTITUTES a gate for `can_read_professional_profile`
+  --    (QA finding F3 — still open, still routed to the PO batch, deliberately not fixed here).
+  --    The substituted gate must be the ARM the substitution stands for: the real door's arm 1
+  --    is the org-manager arm, which AE4.7c re-pointed to `can_create_professional`. Leaving
+  --    `can_manage_professional` here would report staff_admin as DENIED row 33 — a code it
+  --    KEEPS — and the red would be a SUBSTITUTION ARTIFACT, not a finding.
   legacy := case p_class
     when 'is_staff_admin_of_for'         then app.is_staff_admin_of_for(v_scope_id, v_principal)
-    when 'can_manage_professional'       then app.can_manage_professional(v_scope_id, v_principal)
-    else app.can_manage_professional(v_scope_id, v_principal)   -- row 33 delegates to it
+    when 'can_create_professional'       then app.can_create_professional(v_scope_id, v_principal)
+    else app.can_create_professional(v_scope_id, v_principal)   -- row 33: arm 1's population (F3)
   end;
   catalog := authz.has_direct_permission(v_principal, v_res, v_scope_id, p_code);
   return next;

@@ -31,7 +31,7 @@
 -- RUN SHAPE: `Files=2, Tests=113` (112 here + 00_setup.sql's one).
 
 begin;
-select plan(112);
+select plan(114);
 
 -- ============================================================================
 -- §1 — the schema, the four tables, and the deny-all RLS posture.
@@ -772,12 +772,28 @@ select throws_ok(
   'DOMAIN: `authz.scope_kind` admits it, and a permission RESOLVING at an unreachable scope '
   'is a state nothing should be able to write. Reusing scope_kind would have allowed it.');
 
-select is((select count(*)::int from authz.permissions), 42,
-  '14.6 exactly 42 permission codes - the PO-approved matrix count (2026-09-01)');
+select is((select count(*)::int from authz.permissions), 43,
+  '14.6 exactly 43 permission codes - the PO-approved matrix count, 42 (2026-09-01) plus row 43 '
+  '`org.professionals.create`, approved the same day as the FIRST amendment to that approval '
+  'under its own rule that "a 43rd row needs its own approval" (matrix § 12.8.5)');
 
 select is(
   (select count(*)::int from authz.role_permissions where role_code = 'staff_admin'), 42,
-  '14.7 staff_admin holds all 42');
+  '14.7 ⭐ staff_admin holds 42 OF 43 - and the ONE it does not hold is the whole of AE4.7c. '
+  'Row 30 `org.professionals.manage` was REVOKED from it: a staff_admin may ADD a professional '
+  '(row 43) and never MODIFY one. ⛔ The count is unchanged at 42 while the catalog grew to 43, '
+  'so a reader checking only this number sees nothing move — 14.7b is what names the gap.');
+
+select is(
+  (select string_agg(pm.code, ', ' order by pm.code) from authz.permissions pm
+    where not exists (select 1 from authz.role_permissions rp
+                       where rp.role_code = 'staff_admin' and rp.permission_code = pm.code)),
+  'org.professionals.manage',
+  '14.7b ⭐⭐ AND IT NAMES WHICH ONE — the assertion 14.7 cannot make. A bare count of 42 is '
+  'satisfied by ANY 42 of the 43 codes: had AE4.7c revoked the wrong row, or revoked the right '
+  'one and re-granted it while dropping another, 14.7 would still read 42 and say nothing. '
+  '⛔ `org.professionals.manage` is the ONLY code staff_admin does not hold, and this is the '
+  'assertion that would red if that ever stops being true in either direction.');
 
 select is(
   (select count(*)::int from authz.role_permissions where role_code <> 'staff_admin'), 0,
@@ -787,10 +803,13 @@ select is(
 select is(
   (select count(*)::int
      from authz.permissions pm
-     join pg_proc p on p.proname = case
-            when pm.code like 'org.%' and pm.code like '%.read' then 'can_read_professional_profile'
-            when pm.code like 'org.%'                            then 'can_manage_professional'
-            else                                                      'is_staff_admin_of_for' end
+     join pg_proc p on p.proname = case pm.code
+            when 'org.professionals.read'            then 'can_read_professional_profile'
+            when 'org.professionals.manage'          then 'can_manage_professional'
+            when 'org.professionals.create'          then 'can_create_professional'
+            when 'org.participants.external.manage'  then 'can_manage_external_participant'
+            when 'org.case_vocabulary.manage'        then 'can_manage_case_vocabulary'
+            else                                          'is_staff_admin_of_for' end
      join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'app'
     where (p.proargnames)[1] <> 'p_profile_id'          -- row 33's exception, § 19.3
       and pm.resolution_scope_kind::text <> case
@@ -943,7 +962,7 @@ select ok(not authz.has_direct_permission((select uid from t401_p), 'commission'
 
 select ok(authz.has_direct_permission((select uid from t401_p), 'organization',
     (select h.organization_id from public.commissions c join public.hospitals h on h.id = c.hospital_id
-      where c.id = (select cid from t401_p)), 'org.professionals.manage'),
+      where c.id = (select cid from t401_p)), 'org.professionals.create'),
   '16.6 ⭐⭐ §11.3 THE ASCENT: an ORG-scoped permission resolves through a COMMISSION-scoped '
   'assignment. An adapter deriving resolution scope from authz.roles.allowed_scope_kind would '
   'deny this - an under-grant that looks like correct tenant isolation and therefore reads as '
@@ -955,6 +974,15 @@ select ok(not authz.has_direct_permission((select uid from t401_p), 'organizatio
   '16.7 ...and DESCENT is FALSE: a commission-scoped permission is not reached by asking at '
   'org scope. That is applies_to_descendants, deferred (ADR 0172 §4). ⛔ CONSEQUENCE FOR AE5: '
   'org_admin/hospital_admin substitution needs that column ruled FIRST.');
+
+-- ⚠ AE4.7c MOVED §16's ORG PROBE from org.professionals.manage to org.professionals.create.
+-- The probe's requirement is "an ORG-scoped code the SUBJECT ROLE HOLDS" — it is exercising
+-- the resolver's ascent and hat gates, not that permission's meaning. staff_admin lost
+-- .manage (matrix § 12.8.5: it may ADD a professional, never MODIFY one), so a probe left on
+-- it would have gone FALSE everywhere and 16.6/16.8/16.10 would red on a fixture fact rather
+-- than on the resolver. ⛔ Worse in the one place it matters most: 16.9 asserts a DENIAL, and
+-- a denial is exactly what a no-longer-granted code produces — that assertion would have kept
+-- passing, for the wrong reason, while the hat gate underneath it went untested.
 
 -- ---- GATE 4: the active-role filter, and its MANY-TO-MANY translation ----
 -- app.has_role compares ONE role to ONE active role. Permissions are MANY-TO-MANY with
@@ -993,12 +1021,12 @@ insert into public.memberships (principal_id, commission_id, role)
   values ((select uid from t401_p), (select cid from t401_sib), 'staff');
 
 select test_helpers.claims_for((select uid from t401_p), false, 'staff_admin');
-select ok(authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.manage'),
+select ok(authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
   '16.8 GATE 4 POSITIVE (self-check, matching hat): active_role = staff_admin, which grants '
   'this permission -> TRUE');
 
 select test_helpers.claims_for((select uid from t401_p), false, 'staff');
-select ok(not authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.manage'),
+select ok(not authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
   '16.9 ⭐ GATE 4 NEGATIVE: active_role = staff, and `staff` grants NOTHING here. She still '
   'holds the permission via staff_admin, but that hat is not on -> FALSE. ⛔ An implementation '
   'that ignores WHICH role granted the permission passes 16.8 and REDS HERE; this is the '
@@ -1007,9 +1035,9 @@ select ok(not authz.has_direct_permission((select uid from t401_p), 'organizatio
 -- ⭐⭐ THE DIFFERENTIAL. Exactly ONE fact changes between 16.9 and 16.10: whether `staff`
 -- grants this permission. Same principal, same scope, same active_role, same everything else.
 -- So 16.10's TRUE is attributable to the many-to-many path and to nothing else.
-insert into authz.role_permissions (role_code, permission_code) values ('staff', 'org.professionals.manage');
+insert into authz.role_permissions (role_code, permission_code) values ('staff', 'org.professionals.create');
 select test_helpers.claims_for((select uid from t401_p), false, 'staff');
-select ok(authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.manage'),
+select ok(authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
   '16.10 ⭐⭐ THE MANY-TO-MANY CASE, as a DIFFERENTIAL against 16.9. She now holds this '
   'permission through BOTH staff_admin (hat off) and staff (hat on). Answer must be TRUE - '
   'held through AT LEAST ONE ACTIVE role. ⛔ An implementation requiring EVERY granting role '
@@ -1134,28 +1162,55 @@ select ok(not has_function_privilege('anon', 'authz.has_direct_permission(uuid,t
 
 select is(
   (select count(*)::int from authz.permissions pm
-    where case
-            when pm.code like 'org.%' and pm.code like '%.read' then 'can_read_professional_profile'
-            when pm.code like 'org.%'                            then 'can_manage_professional'
-            else                                                      'is_staff_admin_of_for' end
+    where case pm.code
+            when 'org.professionals.read'            then 'can_read_professional_profile'
+            when 'org.professionals.manage'          then 'can_manage_professional'
+            when 'org.professionals.create'          then 'can_create_professional'
+            when 'org.participants.external.manage'  then 'can_manage_external_participant'
+            when 'org.case_vocabulary.manage'        then 'can_manage_case_vocabulary'
+            else                                          'is_staff_admin_of_for' end
           not in (select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname = 'app')),
   0,
-  '19.1 PARTITION IS TOTAL: every one of the 42 codes maps to a legacy gate that EXISTS in '
+  '19.1 PARTITION IS TOTAL: every one of the 43 codes maps to a legacy gate that EXISTS in '
   'the catalog. ⛔ This checks the MAPPING, never the resolver''s per-permission answer - '
-  '§ 19.4 is what checks that.');
+  '§ 19.4 is what checks that. ⚠ The mapping is now BY CODE, not by the `org.%` pattern: '
+  'AE4.7c gave rows 31, 32 and 43 their own gates, so a prefix match would have kept sending '
+  'four codes to a fifth gate and reported a total partition over a false one.');
 
 select is(
-  (select count(distinct case
-     when pm.code like 'org.%' and pm.code like '%.read' then 'can_read_professional_profile'
-     when pm.code like 'org.%'                            then 'can_manage_professional'
-     else                                                      'is_staff_admin_of_for' end)::int
+  (select count(distinct case pm.code
+     when 'org.professionals.read'            then 'can_read_professional_profile'
+     when 'org.professionals.manage'          then 'can_manage_professional'
+     when 'org.professionals.create'          then 'can_create_professional'
+     when 'org.participants.external.manage'  then 'can_manage_external_participant'
+     when 'org.case_vocabulary.manage'        then 'can_manage_case_vocabulary'
+     else                                          'is_staff_admin_of_for' end)::int
    from authz.permissions pm),
-  3,
-  '19.2 ...and it partitions the 42 into exactly THREE legacy-equivalence classes: '
-  'is_staff_admin_of_for (38 commission codes), can_manage_professional (rows 30-32), '
-  'can_read_professional_profile (row 33). ⭐ That reduction is what makes the AE4.5 axis '
-  'sweep 3 x the matrix instead of 42 x - DERIVED and asserted, never assumed.');
+  6,
+  '19.2 ...and it partitions the 43 into exactly SIX legacy-equivalence classes: '
+  'is_staff_admin_of_for (38 commission codes), can_manage_professional (row 30), '
+  'can_create_professional (row 43), can_manage_external_participant (row 31), '
+  'can_manage_case_vocabulary (row 32), can_read_professional_profile (row 33). ⚠ It was '
+  'THREE until AE4.7c split the org gate; the AE4.5 sweep still runs THREE representatives, '
+  'and 19.2b is the assertion that makes that reduction legitimate rather than a shortfall.');
+
+select is(
+  (select count(distinct regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g'))::int
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and p.proname in ('can_create_professional', 'can_manage_external_participant',
+                        'can_manage_case_vocabulary')),
+  1,
+  '19.2b ⭐⭐ THREE OF THE SIX CLASSES SHARE ONE BODY, ASSERTED FROM prosrc RATHER THAN '
+  'BELIEVED. Rows 31, 32 and 43 are gated by three DIFFERENTLY NAMED functions whose '
+  'comment-stripped bodies are IDENTICAL — each is `can_manage_professional OR the org '
+  'ascent`. That is why one differential representative (org.professionals.create) still '
+  'answers for all three, and why the AE4.5 sweep is 3 x the matrix and not 6 x. ⛔ Without '
+  'this, "one rep covers three classes" is a claim about bodies nobody re-reads: edit any one '
+  'of the three and the differential silently stops speaking for the other two. The names must '
+  'stay distinct — a permission code may not span a sensitivity boundary (matrix § 12.1) — but '
+  'the BODIES agreeing is exactly what makes the reduction sound.');
 
 select is((select (p.proargnames)[1] from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = 'app' and p.proname = 'can_read_professional_profile'),
@@ -1163,7 +1218,7 @@ select is((select (p.proargnames)[1] from pg_proc p join pg_namespace n on n.oid
   '19.3 ⚠ ROW 33''s EXCEPTION, ASSERTED RATHER THAN ASSUMED. can_read_professional_profile '
   'takes a PROFILE id, not a scope id, so § 14.9''s gate-signature cross-check cannot cover '
   'it. Its resolution_scope_kind = organization is a SECOND-ORDER derivation: the gate '
-  'resolves the profile''s organization_id internally and then calls can_manage_professional. '
+  'resolves the profile''s organization_id internally and then calls can_create_professional (can_manage_professional until AE4.7c re-pointed arm 1 — row 33 is a code staff_admin KEEPS, so the read arm had to follow the POPULATION, not the gate name). '
   '⛔ Stated so the 14.9 exclusion reads as a known bound, not an oversight.');
 
 create or replace function pg_temp.grant_probe(p_uid uuid, p_cid uuid, p_oid uuid) returns text
@@ -1179,23 +1234,29 @@ $$;
 
 select is(
   pg_temp.grant_probe((select uid from t401_p), (select cid from t401_p), (select oid from t401_org)),
-  '(none)',
-  '19.4 ⭐ THE CHEAP HALF, ALL 42: every seeded code resolves TRUE for a staff_admin at its '
-  'own base coordinate. ⛔ This is what the representative-only axis sweep would otherwise '
-  'lose - a code mis-seeded, or a resolver that ever became permission-sensitive, reds HERE '
-  'and NAMES ITSELF (the message lists the failing codes). ⚠ The scope is chosen from '
-  'resolution_scope_kind, which § 14.9 tests separately; this assertion is about the GRANT.');
+  'org.professionals.manage',
+  '19.4 ⭐ THE CHEAP HALF, ALL 43: every seeded code resolves TRUE for a staff_admin at its '
+  'own base coordinate, EXCEPT THE ONE AE4.7c REVOKED. ⛔ This is what the representative-only '
+  'axis sweep would otherwise lose - a code mis-seeded, or a resolver that ever became '
+  'permission-sensitive, reds HERE and NAMES ITSELF (the message lists the failing codes). '
+  '⚠ The scope is chosen from resolution_scope_kind, which § 14.9 tests separately; this '
+  'assertion is about the GRANT. '
+  '⭐⭐ THE EXPECTED VALUE IS NOW A NAME, NOT `(none)`, AND THAT IS STRICTLY STRONGER: it reds '
+  'if org.professionals.manage ever resolves again (the revoke undone), if any OTHER code stops '
+  'resolving (a grant lost), and if the two happen together (a swap that a count could not see). '
+  '⛔ Changing it back to `(none)` is how the revoke gets silently reverted.');
 
-select is((select count(*)::int from authz.permissions), 42,
-  '19.5 CARDINALITY CONTROL for § 19.4: the probe ranged over all 42 codes. A truncated '
-  'catalog would make 19.4 pass having checked fewer.');
+select is((select count(*)::int from authz.permissions), 43,
+  '19.5 CARDINALITY CONTROL for § 19.4: the probe ranged over all 43 codes. A truncated '
+  'catalog would make 19.4 pass having checked fewer. ⚠ 42 -> 43: row 43 org.professionals.create '
+  '(matrix § 12.8.5), approved as the first amendment to the 42-row approval.');
 
 select is(
   pg_temp.grant_probe(
     (select p.id from public.profiles p where p.email = 'staff1.ccih@test.local'),
     (select cid from t401_p), (select oid from t401_org)),
   (select string_agg(code, ', ' order by code) from authz.permissions),
-  '19.6 DISCRIMINATION CONTROL: the SAME probe against a NON-staff_admin returns ALL 42 as '
+  '19.6 DISCRIMINATION CONTROL: the SAME probe against a NON-staff_admin returns ALL 43 as '
   'failures. So § 19.4''s "(none)" is an observation, not a stuck-true - the probe can '
   'return both answers.');
 
