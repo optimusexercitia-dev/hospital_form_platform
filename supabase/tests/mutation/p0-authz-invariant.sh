@@ -66,6 +66,14 @@
 #                                               # findings; the SWEEP behind it is
 #                                               # ~25 min and the lead runs it in the
 #                                               # background, like ARM 1's)
+#   ARM=catalog bash p0-authz-invariant.sh     # ARM 6 only  (~2 s) — every non-legacy
+#                                               # authz.roles row has a PO-APPROVED matrix
+#                                               # AND a differential suite. It proves the
+#                                               # artifacts EXIST; 403 is what compares them.
+#   ARM=sites   bash p0-authz-invariant.sh     # ARM 7 only  (~3 s) — every site naming a
+#                                               # catalog-owned role is the wrapper family or
+#                                               # an allowlisted VALUE use. AE4.6's hand
+#                                               # census, re-derived instead of remembered.
 #   ARM=hat     bash p0-authz-invariant.sh     # ARM 4 only  (~10 s) — ACT hat-blindness:
 #                                               # caller-bound raw memberships reads with no
 #                                               # active-role condition (ADR 0106 S4; the
@@ -90,6 +98,7 @@ ALLOWLIST="$HERE/authz-blind-allowlist.txt"
 FLOOR_ALLOW="$HERE/authz-neverclled-door-allowlist.txt"
 INV_ALLOW="$HERE/authz-invoker-blind-allowlist.txt"
 UNSWEPT="$HERE/authz-unswept-backlog.txt"
+ROLE_LITERAL_ALLOW="$HERE/authz-role-literal-allowlist.txt"
 DOOR_FINDINGS="$ROOT/docs/reviews/authz-door-audit-findings.md"
 WP_FINDINGS="$ROOT/docs/reviews/authz-writepath-audit-findings.md"
 ROW_FINDINGS="$ROOT/docs/reviews/authz-rowdoor-audit-findings.md"
@@ -650,6 +659,238 @@ run_arm_wrapper () {
   fi
 }
 
+
+# ════════════════════════════════════════════════════════════════════════════════
+# ARM 6 — CATALOG COMPLETENESS (AE4.7, plan § AE4.7)
+#
+# Every role the catalog claims AUTHORITY over must have the two artifacts that make
+# that claim checkable: a PO-APPROVED permission matrix, and a differential suite that
+# asserts catalog == matrix.
+#
+# ⛔ WHY THIS IS AN ARM AND NOT A CHECKLIST. `authz.roles.state` is a single UPDATE.
+# AE5 substitutes eleven more roles, and the cheapest possible AE5 increment is the flip
+# alone — at which point `authz.holds_role` starts answering TRUE for that role platform
+# wide with NO approved matrix behind it and NO oracle comparing the two. That is not a
+# hypothetical shape: the flip already IS the cutover (405 §6.3 rehearses it in three
+# lines), which is exactly what makes it cheap enough to do by accident.
+#
+# ⚠ THIS ARM PROVES THE ARTIFACTS EXIST, NOT THAT THEY ARE RIGHT. The oracle inside 403
+# is what compares catalog to matrix; this only refuses the state where there is nothing
+# to compare against. Both statements belong in any gate record that cites it.
+# ════════════════════════════════════════════════════════════════════════════════
+role_matrix_file () {   # $1 = role code -> path or empty
+  local slug; slug="$(printf '%s' "$1" | tr '_' '-')"
+  ls "$ROOT"/docs/design/authz-*"$slug"-permission-matrix.md 2>/dev/null | head -1
+}
+
+# ⛔ BOUNDED BY THE ORACLE'S OWN ARTIFACT, NOT BY A FILENAME. The first draft of this
+# globbed `*differential*.sql` and took the first hit — which matched
+# `392_ae23a_widening_differential.sql`, the AFF widening differential, purely because it
+# happens to mention 'staff_admin' once and sorts first. It reported OK for the right role
+# against the wrong file: a check passing for a reason unrelated to what it claims.
+# The property is "a suite that compares the CATALOG to the APPROVED MATRIX", and the
+# checkable trace of that is the expected-value table the oracle reads. Every match is
+# printed, so a second suite claiming the role is visible rather than swallowed by head -1.
+role_differential_suite () {   # $1 = role code -> path(s) or empty
+  grep -lF "'$1'" $(grep -lF 'authz_differential_cells' "$ROOT"/supabase/tests/*.sql 2>/dev/null) 2>/dev/null
+}
+
+run_arm_catalog () {
+  echo "=== ARM 6: catalog completeness — every non-legacy role has a matrix + a differential ==="
+  local roles n=0 r mx diff_suite
+  roles="$(psql_c -c "select code from authz.roles where state <> 'legacy' order by 1;" | grep -vE '^$')"
+  if [ -z "$roles" ]; then
+    echo "  *** NO NON-LEGACY ROLE IN authz.roles — the catalog owns nothing."
+    echo "  ⛔ Not a pass. AE4.6 flipped staff_admin to authoritative; a zero here means the"
+    echo "     cutover was reverted, or this arm is pointed at the wrong database."
+    RC=1
+    return 1
+  fi
+  for r in $roles; do
+    n=$((n+1))
+    mx="$(role_matrix_file "$r")"
+    if [ -z "$mx" ]; then
+      echo "  *** $r is non-legacy but has NO permission matrix"
+      echo "      expected: docs/design/authz-*$(printf '%s' "$r" | tr '_' '-')-permission-matrix.md"
+      RC=1
+    elif ! grep -qE 'status:..*PO-APPROVED' "$mx"; then
+      echo "  *** $r's matrix exists but carries NO PO-APPROVED status line: ${mx#$ROOT/}"
+      echo "      An unapproved matrix is a draft; the oracle would be asserting catalog == draft."
+      RC=1
+    else
+      echo "  OK: $r -> ${mx#$ROOT/} (PO-APPROVED)"
+    fi
+    diff_suite="$(role_differential_suite "$r")"
+    if [ -z "$diff_suite" ]; then
+      echo "  *** $r has NO differential-oracle suite naming it"
+      echo "      (a supabase/tests/*.sql reading authz_differential_cells AND quoting the role)"
+      echo "      A matrix is only an oracle if something compares the catalog to it."
+      RC=1
+    else
+      printf '%s
+' "$diff_suite" | sed "s|^$ROOT/|  OK: $r -> |"
+    fi
+  done
+  echo "  roles in non-legacy state: $n (DERIVED this run — never a frozen figure)"
+
+  # ⭐ VACUITY CONTROL. Both lookups above are "does a file exist" tests, and a lookup
+  # that can only ever succeed is not a check. Probe a role code that cannot have
+  # artifacts and assert BOTH lookups come back empty — otherwise a glob that had started
+  # matching everything (or a $ROOT that resolved wrong) would report OK for every role.
+  local probe='zzz_no_such_role'
+  if [ -n "$(role_matrix_file "$probe")" ] || [ -n "$(role_differential_suite "$probe")" ]; then
+    echo "  *** VACUITY CONTROL FAILED — the synthetic role $probe resolved an artifact."
+    echo "      Every OK above is therefore unreliable: the lookups match regardless of input."
+    RC=1
+  else
+    echo "  vacuity control: OK (a synthetic role resolves NEITHER artifact)"
+  fi
+}
+
+# ════════════════════════════════════════════════════════════════════════════════
+# ARM 7 — WRAPPER COVERAGE (AE4.7, plan § AE4.7 — "the AE4.6 census re-run")
+#
+# For every role the catalog owns, EVERY site naming that role must be either the wrapper
+# family or an allowlisted value-use. Anything else names the role directly and therefore
+# does not go through the catalog — a bypass, which is the one thing a cutover exists to
+# eliminate.
+#
+# ⛔ THIS IS A HAND CENSUS TURNED INTO AN ASSERTION. AE4.6 did it once, in a migration
+# header: 13 sites, 1 replaced, 12 allowlisted. A hand census is true at a moment. It goes
+# false silently the first time anyone adds a role-literal comparison to a new door — and
+# `role = 'staff_admin'` is a proper SUBSTRING of `signoff_role = 'staff_admin'`, so the
+# two vocabularies are one careless grep apart (a collision that was LIVE in
+# save_section_answers until M15 removed it).
+#
+# ⚠ BOUND, STATED: this matches the QUOTED CODE in comment-stripped source. A site that
+# reached the same decision through a variable, a join to authz.roles, or a computed
+# string is invisible here — the same text-vs-property admission every regex-bounded arm
+# in this file carries. It is a strong signal, never a proof of absence.
+# ════════════════════════════════════════════════════════════════════════════════
+# ⛔ THE ROLE CODE IS SANITIZED AND INLINED, NOT PASSED AS A psql VARIABLE. The first
+# draft used `psql -v r=... :'r'`, which psql does NOT interpolate inside `-c`: BOTH
+# queries died with `syntax error at or near ":"`, every lookup returned empty — and the
+# arm reported `OK: staff_admin — 0 site(s)` AND `vacuity control: OK`. A broken query
+# satisfies a set-difference check and a negative control at the same time. That is why
+# the control below is now a PAIR.
+role_literal_sites () {   # $1 = role code -> one site per line, sorted
+  local safe; safe="$(printf '%s' "$1" | tr -cd 'a-z0-9_')"
+  [ -z "$safe" ] && return 0
+  { psql_c -c "
+      select n.nspname||'.'||p.proname
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname in ('app','public','authz')
+         and position('''$safe''' in regexp_replace(p.prosrc, '--[^'||chr(10)||']*', '', 'g')) > 0
+       order by 1;"
+    psql_c -c "
+      select c.relname||'.'||pol.polname
+        from pg_policy pol
+        join pg_class c on c.oid = pol.polrelid
+        join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public'
+         and position('''$safe''' in (coalesce(pg_get_expr(pol.polqual, pol.polrelid), '')
+              || coalesce(pg_get_expr(pol.polwithcheck, pol.polrelid), ''))) > 0
+       order by 1;"
+  } | grep -vE '^$' | sort -u
+}
+
+run_arm_sites () {
+  echo "=== ARM 7: wrapper coverage — every site naming a catalog-owned role is a wrapper or allowlisted ==="
+  local roles r sites offenders n_sites stale
+  roles="$(psql_c -c "select code from authz.roles where state <> 'legacy' order by 1;" | grep -vE '^$')"
+  if [ -z "$roles" ]; then
+    echo "  *** no non-legacy role — see ARM 6"
+    RC=1
+    return 1
+  fi
+
+  # The wrapper family, DERIVED: the app/public functions that delegate to the chokepoint.
+  # ⛔ Never a hand-typed pair of names — AE5 adds a family per role, and a frozen list
+  # would make each new family read as a BYPASS while each retired one read as coverage.
+  local family="$WORK/arm7_family.txt"
+  psql_c -c "
+    select n.nspname||'.'||p.proname
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname in ('app','public')
+       and regexp_replace(p.prosrc, '--[^'||chr(10)||']*', '', 'g') ~ '\mholds_role\M'
+     order by 1;" | grep -vE '^$' | sort -u > "$family"
+  echo "  wrapper family (delegates to authz.holds_role): $(wc -l < "$family" | tr -d '[:space:]')"
+  if [ ! -s "$family" ]; then
+    echo "  *** THE WRAPPER FAMILY IS EMPTY — nothing delegates to authz.holds_role."
+    echo "  ⛔ Not a pass: with an empty family every real wrapper below reads as a BYPASS,"
+    echo "     and an arm reporting offenders because its own baseline vanished is noise."
+    RC=1
+    return 1
+  fi
+
+  local allowed="$WORK/arm7_allowed.txt"
+  cat "$family" <(allow_body "$ROLE_LITERAL_ALLOW") | sort -u > "$allowed"
+
+  for r in $roles; do
+    sites="$WORK/arm7_sites.txt"
+    role_literal_sites "$r" > "$sites"
+    n_sites=$(wc -l < "$sites" | tr -d '[:space:]')
+    offenders="$(comm -23 "$sites" "$allowed")"
+    if [ -n "$offenders" ]; then
+      echo "  *** $r: site(s) naming the role that are NEITHER wrapper family NOR allowlisted:"
+      printf '%s\n' "$offenders" | sed 's/^/      /'
+      echo "  Fix: route the site through the wrapper family, or — if the literal is a VALUE"
+      echo "       (config, administered argument, display label, a set that is ITERATED and"
+      echo "       never BRANCHED ON) — add it to $ROLE_LITERAL_ALLOW with the reason AND the"
+      echo "       condition that would make the entry wrong. ⛔ Never add a line to go green."
+      RC=1
+    else
+      echo "  OK: $r — $n_sites site(s), all wrapper-family or allowlisted."
+    fi
+  done
+
+  # ⭐⭐ VACUITY CONTROL — A PAIR, AND THE PAIRING IS THE WHOLE POINT.
+  #
+  # This arm's verdict is a set DIFFERENCE, which is empty when everything is accounted
+  # for AND when the left-hand side collapsed. A NEGATIVE control alone does not separate
+  # them: measured on this arm's own first run, a malformed query returned nothing for
+  # every input, and the arm printed `OK: staff_admin — 0 site(s)` beside
+  # `vacuity control: OK`. Both halves passed BECAUSE the instrument was dead.
+  #
+  #   DISCRIMINATION (positive) — a real catalog-owned role must resolve at least one site.
+  #                               The wrapper family alone guarantees this: those two
+  #                               bodies quote the code. A zero here means the lookup is
+  #                               broken, never that the tree is clean.
+  #   NEGATIVE                  — a role code no body can contain must resolve none.
+  local disc; disc="$(role_literal_sites "$(printf '%s' "$roles" | head -1)")"
+  if [ -z "$disc" ]; then
+    echo "  *** DISCRIMINATION CONTROL FAILED — a LIVE catalog-owned role matched NO site."
+    echo "      The wrapper family quotes its own role code, so this cannot be true of a"
+    echo "      working lookup. Every OK above is the instrument failing, not the tree passing."
+    RC=1
+  elif [ -n "$(role_literal_sites 'zzz_no_such_role')" ]; then
+    echo "  *** NEGATIVE CONTROL FAILED — a synthetic role code matched live sites."
+    echo "      The literal match is not discriminating; every OK above is unreliable."
+    RC=1
+  else
+    echo "  vacuity control: OK (a live role matches sites; a synthetic role matches none)"
+  fi
+
+  # Allowlist rot, BOTH directions (the FUP-AUTHZ-ALLOWLIST-ROT lesson, applied on arrival
+  # instead of three weeks later): an entry naming a site that no longer carries ANY
+  # catalog-owned role's literal is a claim about nothing, and a claim about nothing reads
+  # as coverage.
+  local all_sites="$WORK/arm7_all_sites.txt"
+  : > "$all_sites"
+  for r in $roles; do role_literal_sites "$r" >> "$all_sites"; done
+  sort -u "$all_sites" -o "$all_sites"
+  stale="$(comm -13 "$all_sites" <(allow_body "$ROLE_LITERAL_ALLOW" | sort -u))"
+  if [ -n "$stale" ]; then
+    echo "  *** ALLOWLIST ROT — entries naming a site that carries no catalog-owned role literal:"
+    printf '%s\n' "$stale" | sed 's/^/      /'
+    echo "  Fix: delete the entry, or re-key it if the site was renamed. An allowlist entry is"
+    echo "       a claim about a live site; a claim about nothing reads as coverage."
+    RC=1
+  else
+    echo "  OK: every role-literal allowlist entry resolves to a live site."
+  fi
+}
+
 echo "=== PREFLIGHT: no gate is sitting degenerate (FUP-AUTHZ-HARNESS-TRANSACTIONAL) ==="
 check_no_degenerate_gates && echo "  clean — 0 degenerate bodies in app+public (all three forms)"
 echo
@@ -660,9 +901,11 @@ case "$ARM" in
   census)  run_arm_census ;;
   hat)     run_arm_hat ;;
   wrapper) run_arm_wrapper ;;
+  catalog) run_arm_catalog ;;
+  sites)   run_arm_sites ;;
   all)     run_arm_policy; echo; run_arm_floor; echo; run_arm_census; echo; run_arm_hat
-           echo; run_arm_wrapper ;;
-  *) echo "unknown ARM=$ARM (use policy|floor|census|hat|wrapper|all)"; exit 2 ;;
+           echo; run_arm_wrapper; echo; run_arm_catalog; echo; run_arm_sites ;;
+  *) echo "unknown ARM=$ARM (use policy|floor|census|hat|wrapper|catalog|sites|all)"; exit 2 ;;
 esac
 
 echo

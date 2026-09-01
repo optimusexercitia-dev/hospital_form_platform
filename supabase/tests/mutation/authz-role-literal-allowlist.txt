@@ -1,0 +1,69 @@
+# authz-role-literal-allowlist.txt — sites that carry a substituted role's LITERAL CODE
+# for a reason that is NOT a role check on the caller (ARM 6, `ARM=sites`).
+#
+# One site per line, keyed EXACTLY as the arm emits it:
+#   * function : <schema>.<name>            e.g. app.can_sign_section
+#   * policy   : <table>.<polname>          e.g. form_block_library.form_block_library_select
+#
+# CONTRACT (enforced by p0-authz-invariant.sh ARM 6):
+#   for every role in `authz.roles` with state <> 'legacy', the set of app/public/authz
+#   bodies and RLS policies whose COMMENT-STRIPPED source contains that role's quoted
+#   code MUST equal { the wrapper family } ∪ { the entries below }. Anything else is an
+#   enforcement site that did NOT go through the catalog — the exact bypass a cutover is
+#   supposed to eliminate, and the thing nothing re-derived after AE4.6.
+#
+# ⛔ WHY THIS ARM EXISTS AT ALL. AE4.6's direct-call census was done ONCE, BY HAND, in a
+# migration header — 13 literal sites, 1 replaced, 12 allowlisted with reasons. A hand
+# census is a claim about a moment. The moment AE5 substitutes a second role, or anyone
+# adds a `role = 'staff_admin'` comparison to a new door, that claim is silently false and
+# no gate anywhere notices. This file is that census turned into a re-derived assertion.
+#
+# ⚠ AN ENTRY IS NOT AN EXEMPTION FROM CORRECTNESS. It states that the literal is used as a
+# VALUE (configuration, an administered argument, a display label, a set to iterate) and
+# never as "is the caller this role?". Each entry says WHICH, and says WHAT WOULD MAKE IT
+# WRONG. The iterate-vs-branch test is the discriminator: a set that is ITERATED to find
+# holders is a lookup; a set that is BRANCHED ON is a gate.
+#
+# ⛔ DO NOT ADD A LINE TO MAKE THE ARM GREEN. A new site carrying the literal is either a
+# genuine value-use (entry + reason) or a bypass (fix it to call the wrapper family). The
+# arm cannot tell them apart; that judgement is the entry.
+
+# ── signoff_role: a FORM-SECTION CONFIGURATION value ───────────────────────────
+# `form_sections.signoff_role` records WHICH role must sign a section. It is a different
+# vocabulary that happens to share the enum: the comparison is section-config vs the
+# signer's role, never "may the caller do X".
+# WRONG THE DAY: any of these starts using the value to decide the CALLER's authority
+# rather than to match a configured signer.
+app.can_sign_section
+app.pending_staff_signoffs
+public.submit_response
+
+# ── holder RESOLUTION — the set is ITERATED, never BRANCHED ON ─────────────────
+# These answer "who are the staff_admins of this commission?" in order to notify them,
+# summarise access, or attribute a due item. The role literal selects ROWS to act on; no
+# control flow depends on whether the CALLER is in that set. (pgTAP 402/403 exercise the
+# notification and referral paths that read these.)
+# WRONG THE DAY: a resolved holder set is used as an admission test — e.g.
+# `if auth.uid() in (holders) then …` — at which point it is a gate and must delegate.
+app.commission_staff_admin_of_case
+public.get_referral_case_access_summary
+app.compute_due_charter_notifications
+app.compute_due_document_review_notifications
+public.compute_due_notifications
+public.save_section_answers
+
+# ── the role as an ADMINISTERED VALUE / scope dispatch ─────────────────────────
+# grant_role_impl / revoke_role_impl take a role as their SUBJECT: the literal appears in
+# scope-shape dispatch (which column a commission-scoped role writes), not in the caller
+# check. Their own authority gate is separate and rides the wrapper family.
+# WRONG THE DAY: the dispatch and the authority check are ever folded into one expression,
+# because then the same literal is doing both jobs and this entry stops describing it.
+app.grant_role_impl
+app.revoke_role_impl
+
+# ── a DISPLAY LABEL only ───────────────────────────────────────────────────────
+# list_approver_candidates renders a human-readable role label beside each candidate. Its
+# own door gate is already `is_staff_admin_of`, i.e. the wrapper family, so this literal
+# decides text and nothing else.
+# WRONG THE DAY: the label is used to order, filter or authorise the candidate list.
+public.list_approver_candidates
