@@ -189,7 +189,7 @@ RLS, so a DEFINER door is the only control on its own path):
 
 ## 4. The matrix
 
-**34 rows** — 30 commission-scoped (1–29, 34) + 4 org-scoped (30–33, § 11). ⚠ **The PO approved this matrix at 33 rows (`e3297dad`); row 34 is OUTSIDE that approval** and was found by the § 7.4 verification — it needs the PO's eye before Gate AE4. ⚠ The org-scoped four were
+**38 rows** — 34 commission-scoped (1–29, 34–38) + 4 org-scoped (30–33, § 11). ⚠ **The PO approved this matrix at 33 rows (`e3297dad`). Rows 34–38 are OUTSIDE that approval**: row 34 came from the § 7.4 verification, rows 35–38 from the § 13 site reconciliation. **Five rows of delta, for one PO pass.** ⚠ The org-scoped four were
 **two** until § 12 re-derived row 30 into three codes; any figure quoting 31 rows, or "rows 30–31",
 predates that and is stale.
 
@@ -260,6 +260,10 @@ signal is UI text rather than a status or RPC error (§ 7.1).
 | 28 | `commission.safety_events.report` | commission_content | write | none | **D** safety-event door from case detail · **E2E** `phase14a-safety-events.spec.ts:188-233` |
 | 29 | `commission.audit.read` | audit | read | none | **R** `audit_log_select` (**SELECT only**) |
 | **34** | `commission.charter.manage` | commission_content | write | none | ⭐ **ADDED 2026-09-01 by the § 7.4 verification — this row was MISSING.** **D** `upsert_commission_charter` (`is_staff_admin_of` + re-raises `HC0K0`) · **T** `manage/charter/page.tsx:80` · ⚠ **write-only**: `commission_charters_select` is member-level, not `staff_admin` |
+| **35** | `commission.safety_events.phi.read` | **phi** | read | **phi** | ⭐ **ADDED 2026-09-01 by the § 13 reconciliation — a PHI capability with NO row.** **R** `event_patient.event_patient_select` · **D** `public.get_event_patient`, gate `app.can_read_event_patient` (`is_staff_admin_of_for(e.current_owner_commission_id)`) · PHI-access-audited via `app._audit_access_authorized`. ⚠ Rule 12 Class-1 module `event_patient` |
+| **36** | `commission.safety_events.phi.write` | **phi** | write | **phi** | ⭐ **ADDED.** **D** `set_event_patient` — the **only** custody door that writes `event_patient`. Split from row 37 because a code may not span a sensitivity boundary (§ 12.1) |
+| **37** | `commission.safety_events.custody` | commission_content | write | none | ⭐ **ADDED.** **D** `acknowledge_event`, `cancel_event`, `update_event`, `transfer_event_custody` — gate `app.event_current_custodian`, live only when `current_owner_kind = 'commission'`. All write `patient_safety_event` / `event_custody`, never `event_patient` |
+| **38** | `commission.dsr.execute` | audit | write | none | ⭐ **ADDED.** **R** `dsr_tasks.dsr_tasks_select` · **D** `attest_dsr_task`, `complete_dsr_task`, `list_my_dsr_hospitals`, `list_my_dsr_task_commissions`, `list_my_executable_dsr_tasks` — gate `app.can_execute_dsr_task`, feature-flagged `dsr` (LGPD data-subject requests) |
 | **30** | `org.professionals.manage` | identity | **authority** | **class2_professional_identity** | ⚠ **ORG-SCOPED — § 11.** **D** `create/update/redact_professional_profile`, `set_professional_link_state`, **`ensure_professional_participant`**. Reach: **ADR 0078 §B7** ("any org `staff_admin`", the respondent twin's precondition, closed by the `HC0F2` linkage freeze) |
 | **31** | `org.participants.external.manage` | identity | write | none | ⚠ **ORG-SCOPED.** **D** `create_external_participant` — writes `public.participants` with `sensitivity_class` hardcoded `non_sensitive`; **structurally bounded** (§ 12.2) |
 | **32** | `org.case_vocabulary.manage` | vocabulary | write | none | ⚠ **ORG-SCOPED.** **D** `create/archive_ethics_allegation_category`, `create/archive_ethics_sanction_type`, `create/archive_case_assignment_role` |
@@ -968,3 +972,73 @@ regardless of what happens to row 30.
 
 ⚠ **No domain change was needed.** All three sensitivity values used here
 (`class2_professional_identity`, `none`) already exist in `authz.sensitivity_class`.
+
+---
+
+## 13. Site→row reconciliation — ENUMERATION IS NOT MAPPING
+
+§ 0 counted the sites. It never confirmed each one lands in a row, and **row 34 proved that gap is
+real**: a `staff_admin`-gated DEFINER door with its own route surface, missing from a derivation
+that ran five planes, passed review, and was approved. One missing row does not imply exactly one,
+so this is the full mapping — every site to a row, or an explicitly classed exclusion.
+
+⛔ **This is the check AE4.5's coverage report is specced to perform** ("fails when any catalog
+permission, role, wrapper, or approved cell has no test mapping"). Finding these at AE4.5 would be
+finding them at the worst possible time — after the differential suite is built against an
+incomplete oracle.
+
+### 13.1 Function sites — 178, and the parts sum
+
+| bucket | count | disposition |
+| --- | --- | --- |
+| mapped to a row by resource family | 168 | — |
+| **regex misses** — genuinely map to an existing row | 5 | `app.copy_version_children` → 1 · `insert_block_from_library` → 1 · `save_block_to_library` → 1 · `app.guard_supersession_coherent` → 23/24 · `list_approver_candidates` → 23 |
+| **excluded: `staff_admin` is the ADMINISTERED VALUE, not the acting role** (§ 4.1) | 2 | `app.grant_role_impl`, `app.revoke_role_impl` — both use `p_role in ('staff','staff_admin')` as a *scope dispatch*. Granting the role belongs to AE5's `org_admin`/`hospital_admin` matrices |
+| ⭐ **NEW ROWS** | 3 predicates → **4 rows** | `app.can_read_event_patient` → **35** · `app.event_current_custodian` → **36 + 37** (split at the sensitivity boundary) · `app.can_execute_dsr_task` → **38** |
+
+**168 + 5 + 2 + 3 = 178.** ✅ The parts sum.
+
+⚠ **Neither exclusion class is a singleton** — the administered-value class has 2 members and the
+regex-miss class has 5. A class with one occupant would be a hand-list wearing a label, and would
+need justifying individually rather than by class.
+
+### 13.2 Policy sites — 65, zero residue
+
+Every one of the 65 policies maps to a row by table family: forms (7 + storage), responses (7),
+process templates (9), meetings (15), staff (3), action items (2), audit (1), cases (20).
+**Residue: 0.** No new rows from the policy plane.
+
+### 13.3 Plane 4 (routes) — 34 surfaces, one orphan, already fixed
+
+34 route files gate on `access.role === "staff_admin"`. All map to rows —
+dashboard (4) → 8 · `encaminhamentos` → 26 · `itens-de-acao` → 22 · `acreditacao` (5) → 25 ·
+`assinaturas` (2) → 6/7 · `cases` (8) → 16–19 · `documentos` (7) → 23/24 · `meetings` (2) → 11 ·
+`respostas` → 4 — except two:
+
+- `manage/charter/page.tsx` — **this was the orphan**, and it is now row 34.
+- `layout.tsx` — the commission shell gate. **Not a capability**: it resolves the shell and admits
+  the coordinator area as a whole; every capability inside it has its own row.
+
+⚠ **Explore A's deduplicated capability list held 22 items; the matrix holds 38 rows.** Those two
+numbers were never reconciled and it is worth stating why they differ rather than leaving the gap:
+a capability list does not split at the **reversibility** boundary (`forms.edit` / `forms.publish`)
+or the **sensitivity** boundary (`safety_events.custody` / `.phi.write`), and it does not carry the
+four **org-scoped** rows (30–33), which are not commission routes at all.
+
+### 13.4 ⭐ What the new rows say about the derivation that missed them
+
+Rows 35–37 are the **patient-safety custody chain**, and row 35 is a **Class-1 PHI read** (Rule 12's
+`event_patient`). The original derivation reached the safety module through `phase14a-safety-events`
+and recorded row 28 (`safety_events.report`) — the *filing* capability — and stopped. **The
+custody-side capabilities a coordinator holds once an event is transferred to her commission were
+never enumerated**, because no plane's entry point led there: the E2E spec exercises filing, the
+policy sweep sees `event_patient_select` as a safety-module policy rather than a `staff_admin` one,
+and the function sweep found the predicates but the family classifier had no bucket for them.
+
+⛔ **A PHI capability with no row is the most serious gap this matrix can have** — it is exactly
+what AE4.1's PHI-separation invariant and `sensitivity_ceiling` exist to make checkable, and neither
+can constrain a permission that does not exist. Row 35 now carries `sensitivity_ceiling = phi`.
+
+⚠ Row 38 (`commission.dsr.execute`) is feature-flagged `dsr`. A flag that is OFF in production does
+not make the permission absent — it makes it **unexercised**, which is precisely how a capability
+avoids every plane's attention.
