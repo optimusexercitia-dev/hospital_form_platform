@@ -5,7 +5,7 @@ adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0079, 0106]
 base_sha: 0412bef7e59476635ddb024c63fdce182a7a6466
 created: 2026-09-01
 updated: 2026-09-01
-status: live   # AE4.7a/b/c landed (test:db GREEN); AE4.8 + PO batch next
+status: live   # AE4.7a/b/c + the PO batch landed (254f/8504 GREEN); AE4.8 next
 ---
 
 # Handoff — AE4, paused after AE4.7c
@@ -14,7 +14,8 @@ status: live   # AE4.7a/b/c landed (test:db GREEN); AE4.8 + PO batch next
 
 1. `git log --oneline 0412bef7..HEAD` and `git status` — confirm the tree still matches.
 2. `supabase db reset --local` — mandatory; every figure below assumes a fresh reset.
-3. `npm run test:db` — expect **254 files / 8498 tests, GREEN**. ⭐ CHANGED BY AE4.7b: the
+3. `npm run test:db` — expect **254 files / 8504 tests, GREEN** (⚠ changed: 8498 — the PO batch
+   added 3 in 401 §20 and 3 in 403 §7). ⭐ CHANGED BY AE4.7b: the
    branch's long-standing two reds (315 t14, 319 t5) are the ORPHANED TWINS and they are
    REPAIRED. A red on either now is drift, not this handoff's state — and a red anywhere
    else was never this handoff's state.
@@ -96,9 +97,8 @@ fresh-reset witness. The other rows were not re-asked.
 
 ### Written but UNVERIFIED (BELIEVED — not re-measured at `43684b16`)
 
-- The AE4.5 coverage arms (7) each fire on their own message after arm1b was isolated.
-  ⚠ Settled by `python scripts/gen-authz-differential-cells.py --self-test` (11 checks + a
-  discrimination control) — cheap, and it ran green during AE4.7c, but not re-read line by line.
+- ✅ **NO LONGER BELIEVED — settled 2026-09-01 during the PO batch.** `--self-test` exits 0 with
+  **10 arms each caught on their own message** and the discrimination control clean on the real spec.
 - Six driver defects were found and fixed inside 403's harness (AE4.5's own report).
 - ⛔ **BUG-PROF-INACTIVE-001's behavioural proof has MOVED and was not re-run by hand.** It was
   verified against `app.can_manage_professional`; AE4.7c moved that arm to
@@ -245,16 +245,18 @@ caught by a red, and each looked correct while being written.
 - Deriver over-selection (6-for-1 baseline) **recorded with a trigger, not fixed** —
   restructuring a gate's input assembly to correct a benign over-count risks more than it buys.
 
-**Provisional — needs the PO:**
-- `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM`. Reachability measured; disposition owed.
+**Ruled by the PO, 2026-09-01 (ADR 0175, one sitting):** `offboarded` is not a deny class —
+⭐ **re-ruled before any code**, from 91 cells to a structural proof, because the cells measured
+UNCONSTRUCTIBLE; the nine `unauthenticated` cells deleted rather than relabelled; 403 calls the
+real door now with arm 3's divergence deferred to AE5; both FUPs documented/downgraded.
+⛔ Nothing is left provisional in this file.
 
 ## Open questions / blockers
 
 | Item | Who/what answers it |
 | --- | --- |
-| `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` — `is_admin()` / `is_org_admin_of()` are self-checks (they read `auth.uid()`) inside a `p_uid`-parameterised function. ⚠ **RE-DERIVED at `43684b16`; AE4.7c SHARPENED it rather than moving it** — with the ascent gone, `can_manage_professional`'s `p_uid` is a **null guard and nothing else**. Callers: `can_manage_professional` **6** (3 `app` gates that FORWARD their own `p_uid`, 3 `public` doors passing `auth.uid()`); `can_create_professional` **4** (3 passing `auth.uid()`, and `app.can_read_professional_profile` passing `p_uid`). The single reachable third-party chain is unchanged in kind and one hop longer: `can_read_professional_profile(p_uid)` → `can_create_professional` → `can_manage_professional`, where the org-authority arms answer about the CALLER. pgTAP 406 § 2 demonstrates it, having first measured FALSE by assuming otherwise. | PO |
-| `FUP-SEED-PENDING-PERSONA-CANNOT-REACH-ITS-LAYER` — `novato.pendente` is the **only** account whose `profiles.email_confirmed_at` and `auth.users.email_confirmed_at` disagree, so it authenticates and cannot exercise the layer it models. ⛔ Do not fix `seed.sql` opportunistically. | PO |
-| ⛔ **PROGRESS.md — the 81,920 B TARGET IS NOT MET AND NOT REACHABLE BY ROTATION** (the rotation itself is recorded in § Next task) — every sanctioned category is empty and the OPEN follow-up index alone is **122 lines, ~43 KB of ~86 KB (~50%)**, which the contract forbids rotating. ⛔ Do not respond by trimming qualifiers off open entries. The remaining options are a PO decision — raise the target, or give the register its own file with a one-line pointer — filed as `FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT`. ⚠ The AE3 § Now bullet still **cannot rotate wholesale**: it is the only witness to two operator obligations. | PO |
+| ✅ **BOTH FUPs DISPOSITIONED 2026-09-01 (ADR 0175 D4) — DOCUMENTED / DOWNGRADED, NOT CLOSED.** `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM`: the mixed grain is now recorded on `can_create_professional` itself (migration `20261003007240`, comment-only) — ⚠ the ruling named `can_manage_professional`, which **already** carried the comment; the caller was the undocumented one. `FUP-SEED-PENDING-PERSONA`: `seed.sql` untouched; the auth **setting itself was never read** (no MCP auth-config endpoint), so the evidence is circumstantial and the item stays open. | — |
+| ⛔ **PROGRESS.md — the 81,920 B target is NOT met and NOT reachable by rotation.** Every sanctioned category is empty and the OPEN follow-up index alone is ~**50%** of the file, which the contract forbids rotating. ⛔ Do not trim qualifiers off open entries. Options are a PO decision — raise the target, or give the register its own file — filed as `FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT`. ⚠ The AE3 § Now bullet **cannot rotate wholesale**: sole witness to two operator obligations. | PO |
 | ⛔ **MEASURED, NOT UNKNOWN — and NOT green as-run.** The QA review ran `e2e:prod` at `6da8a772`: no reproducible cutover regression, but batches **b2** and **b9** owe re-runs before any green declaration. ⚠ This row said *"UNKNOWN … not run since Increment 1"* until 2026-09-01; the review had already settled the first half. AE4.7a/b/c touched no application code beyond one TypeScript doc comment, so none of them can have moved it. Detail: [`docs/reviews/authz-ae4-review.md`](../reviews/authz-ae4-review.md). | run it, at AE4.8 |
 | **UNKNOWN:** whether the 25 unreachable rewrite migrations' doors hold periodic-sweep verdicts. The 8 measurable ones gave 16 COVERED / 10 ERROR / **0 BLIND** / 29 absent — and every absent one is outside `PRED_DOMAIN` by shape, converging on the **known C2 population**, not a new one. | a historical-snapshot audit, if ever authorised |
 
@@ -281,14 +283,19 @@ a red is drift (▶ RESUME HERE step 3).
 ⚠ **AE4.8 is the first AE4 increment that touches `src/` for real**, so it is the first that
 owes `e2e:prod` — and the gate already owed a b2 + b9 re-run from before AE4.7a.
 
-⚠ **THE PRE-AE4.8 ROTATION IS DONE — this block ordered it until `b37a2a5b`, and a successor
-obeying it would have re-run a completed step.** Measured at `b37a2a5b`: PROGRESS.md is
-**87,062 B** (rotated 98 KB → 87 KB at `bc9242c1`), so AE4.8 fits under the hard cap. ⛔ It is
-still ~5 KB over the **81,920 B target** and that gap is **not closable by rotation** (§ Open
-questions) — ⛔ do not open AE4.8 by trimming qualifiers off open follow-ups.
+⚠ **The pre-AE4.8 rotation is DONE** (`bc9242c1`, 98 → 87 KB; **89.7 KB** after this batch), so
+AE4.8 fits under the hard cap. ⛔ Still over target, and that gap is **not closable by rotation**
+— § Open questions. ⛔ Do not open AE4.8 by trimming qualifiers off open follow-ups.
 
-Then the **PO batch**, then Gate AE4: full §6 + `e2e:prod` to an actual green + QA review + PO
-approval.
+✅ **The PO batch is DONE (`6ae81b21`, ADR 0175)** — this said *"then the PO batch"* until then.
+Figures + what it did NOT do: [`authz-ae4.md § AE4 PO batch`](../progress/authz-ae4.md).
+⛔ **TWO QUALIFIERS IT LEFT OWED TO THE GATE RECORD, and both read as smaller than they are:**
+401 §20 is **ONE HOP**, not the transitive closure; and `can_read_professional_profile`'s arms 1
+and 3 are **EXERCISED BUT NOT ORACLED** (403 §7.2/§7.3 assert they cannot grant in this fixture,
+so the bound is a test, not a promise). *"The differential is green"* may not be written without
+both. ⚠ Two follow-ups are **documented / downgraded, NOT closed**.
+
+Then Gate AE4: full §6 + `e2e:prod` to an actual green + QA review + PO approval.
 
 ## Re-derivation appendix
 
