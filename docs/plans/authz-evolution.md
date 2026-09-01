@@ -55,6 +55,12 @@ sections only add what is specific.
    number, in the document that governs the phases doing the stating. `ARM=census`'s banner now
    **derives** the count each run from the predicate that defines the class; cite the banner or
    the FUP, never a figure typed here.
+   ⭐ **Amended 2026-08-31 (ADR 0171):** an instrument that CAN measure this population now exists
+   — `supabase/tests/mutation/c2-command-door-neutralizer.sh`. ⛔ **The rule above is unchanged by
+   it**: the neutralizer is a separate periodic harness, **not an ARM**, so "all arms green" still
+   never appears without its domain qualifier. ⚠ And the qualifier's *wording* must change — the
+   class may no longer be called **"covered-but-unpinned"** (a 2026-08-17 3-door sample); the
+   neutralizer found **3 BLIND** in its first 8 measurements.
 3. **Catalog is truth** for any schema/RLS/RPC question — `pg_proc` (incl. `prosecdef`),
    `pg_policies`, ACLs. Never graphify it, never grep migration files and believe them. Strip
    `--` comments before any `prosrc` regex; probe helper names **unanchored** (`X` / `X_for`

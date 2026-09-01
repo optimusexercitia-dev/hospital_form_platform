@@ -11,18 +11,17 @@ source: PROGRESS.md § Now residue, rotated here at the AE0 Record step 2026-08-
 # An authz arm's EXIT CODE is not its verdict — read what it enumerated
 
 ⛔ **Do not trust any authz-gate result predating 2026-08-24.** The step-1 suite was **not
-running on this platform at all**, in two independent committed ways, and `ARM=census`
-printed `INVARIANT HOLDS` **at exit 0 having enumerated ZERO gates**.
+running on this platform at all**, and `ARM=census` printed `INVARIANT HOLDS` **at exit 0
+having enumerated ZERO gates**.
 
 ✅ **The current trusted baseline is AE0's**, taken on a fresh reset at head
 `20261003004300`: census **564** gates / **600** verdicts · hat self-test **6/6** · floor
-**72** never-called doors · wrapper BLIND **41**
-(`docs/design/authz-evolution-arm-baseline-ae0.md`).
+**72** never-called doors · wrapper BLIND **41** (anchored above).
 
 ## What to do, every time
 
 - **Record what the arm ENUMERATED, never that it exited 0.** A green with no count is a
-  red. If a report says "all four ARMs hold" and names no numbers, it has not been checked.
+  red: "all four ARMs hold" naming no numbers has not been checked.
 - **Fresh reset first.** Absence measured against a stale DB is not absence — `ARM=floor`
   reads phantom never-called doors on a mutated stack.
 - ⛔ **Never pipe an arm through `head`/`tail` and read `$?`** — that is the pipe's exit
@@ -36,4 +35,6 @@ printed `INVARIANT HOLDS` **at exit 0 having enumerated ZERO gates**.
   failure mode. This rule is the only witness.
 - **Green arms bound their own domain.** Reachable `prosecdef` non-`bool` command doors
   sit outside every arm (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, C2) — green is no claim about
-  them, and no evidence against them. Detail: the AE0 baseline anchored above.
+  them.
+  ⭐ `c2-command-door-neutralizer.sh` (ADR 0171) measures them but is **not an ARM**;
+  ⛔ never call the class *"covered-but-unpinned"* — it found **3 BLIND**.

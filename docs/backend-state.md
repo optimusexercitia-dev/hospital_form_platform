@@ -2244,12 +2244,25 @@ controlled-document surface.**
   forward. *A count without its query is not a measurement; it is a rumour with a number.*
   Predates DM3; DM3 added one. All six DM3 functions are in **`authz-unswept-backlog.txt`**
   (*"never swept, so we do not know"*), **not** the BLIND allowlist (*"swept, nothing noticed"*).
-- ⭐ **Wider context, measured the same day:** this composite-returning set is a **subset** of a
-  larger class — **407** `authenticated`-reachable non-trigger DEFINER command doors sit outside
-  **every** arm's domain (262 pseudo + 145 composite + 131 base = 538, minus 131 triggers = 407;
-  the parts sum). A 3-door neutralization sample found all three **COVERED**, so the class is
-  **covered-but-unpinned, not blind**. Full statement: `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` in
-  [follow-ups.md](./progress/follow-ups.md).
+- ⭐ **Wider context:** this composite-returning set is a **subset** of a larger class — the
+  `authenticated`-reachable non-trigger DEFINER command doors that sit outside **every**
+  `p0-authz-invariant.sh` arm's domain. ⛔ **This bullet read "407" and
+  "covered-but-unpinned, not blind" until 2026-08-31; BOTH halves are now false.**
+  - The count was **427** (345 `public` + 82 `app`) when last derived — and ⛔ **do not quote that
+    either**: `ARM=census`'s banner derives it every run, which is the only current source.
+  - ⛔ **"Covered-but-unpinned" rested on a 3-door sample from 2026-08-17 and stood for two weeks.**
+    The purpose-built `supabase/tests/mutation/c2-command-door-neutralizer.sh` (ADR 0171) found
+    **3 BLIND in its first 8 measurements** — `nsp_org_capa_rollup`, `cancel_event` (no pgTAP
+    mentions at all) and `cancel_session`, which **has** a test that still does not notice its guard
+    vanish. *Three COVERED results were evidence about three doors, never about the population.*
+  - ⚠ **An instrument now exists, but the arms still do not cover this class** — the neutralizer is
+    a separate periodic harness, not an ARM, and **8 of 171 enforcers are measured**. "All arms
+    green" remains no claim about these doors.
+
+  Full statement: `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` + `FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS` in
+  [follow-ups.md](./progress/follow-ups.md); sizing + harness design in
+  [authz-c2-tier1-sizing.md](./design/authz-c2-tier1-sizing.md) §8b and
+  [authz-c2-command-door-neutralizer.md](./design/authz-c2-command-door-neutralizer.md).
 
 **Full record:** [dm3-controlled-documents.md](./progress/dm3-controlled-documents.md).
 

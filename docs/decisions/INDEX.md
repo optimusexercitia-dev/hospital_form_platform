@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**168 ADRs** · next free number: **0171** · 51 carry an inbound supersedes/amends edge
+**169 ADRs** · next free number: **0172** · 51 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -192,3 +192,4 @@
 | 0168 | [orphan recovery is its own door: split the branch, do not lock the door](0168-orphan-recovery-is-its-own-door.md) | accepted | 2026-08-28 | amends 0133, 0164, 0165, 0166 | – |
 | 0169 | [the meeting-content recusal divergence is a time-boxed EXCEPTION, not a new rule](0169-meeting-content-recusal-divergence-is-a-time-boxed-exception.md) | accepted | 2026-08-31 | amends 0078 | – |
 | 0170 | [case deletion is not a client capability: DELETE on `public.cases` is revoked from `aut…](0170-case-deletion-is-not-a-client-capability.md) | accepted | 2026-08-31 | amends 0132 | – |
+| 0171 | [C2's Tier-1 predicate is re-grained, the tenancy disjunct is dropped, and the command-d…](0171-c2-tier1-regrain-and-the-command-door-neutralizer.md) | accepted | 2026-08-31 | – | – |

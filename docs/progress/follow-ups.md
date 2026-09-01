@@ -1002,7 +1002,35 @@ column before believing the keystone.**
 > ⛔ **Scope.** These are 3 of **171** enforcers; **8 have been measured**. This item is about the
 > three named rows, and says nothing about the other 163 — the full sweep, and C2 itself, stay open.
 
-### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one (⭕ **re-derived 426 at the AE1 Record step 2026-08-27, then **427** (345 `public` + 82 `app`) on 2026-08-31 — and the figure is now DERIVED by `ARM=census`'s own banner each run, so this chain ends here rather than needing a next link**), and the class is COVERED-BUT-UNPINNED, not blind** — ⭐ **Critical FUP C2** (owner: lead + backend)
+### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one (⭕ **re-derived 426 at the AE1 Record step 2026-08-27, then **427** (345 `public` + 82 `app`) on 2026-08-31 — and the figure is now DERIVED by `ARM=census`'s own banner each run, so this chain ends here rather than needing a next link**), and the class was read as COVERED-BUT-UNPINNED — ⛔ FALSIFIED 2026-08-31, see the amendment below** — ⭐ **Critical FUP C2** (owner: lead + backend)
+
+> ## ⭕ AMENDED 2026-08-31 (ADR 0171) — RE-GRAINED, INSTRUMENTED, AND NO LONGER "COVERED-BUT-UNPINNED"
+>
+> **Tier 1's predicate is replaced.** The 2026-08-18 form (*"touches PHI or crosses a tenant
+> boundary"*), derived honestly, returned **405 of 427 (94.8 %)** — it did not partition. The
+> adopted predicate uses a **GATE-AWARE closure** (never descending into a boolean-returning
+> callee, because *a predicate that CHECKS PHI access is not itself a PHI-touching door*) over a
+> **PHI-marked** relation: **Tier 1 = 237 (55.5 %), Tier 2 = 190**, six controls passing, no
+> hand-list. ⛔ **The TENANCY disjunct is DROPPED** as a domain tautology (74.5–92.5 % at every
+> grain tried, driven by `cases`/`memberships`/`meetings`); those doors are Tier 2 —
+> **deferred, not cleared**. Sizing + rejected variants:
+> [authz-c2-tier1-sizing.md](../design/authz-c2-tier1-sizing.md) §8b.
+>
+> **The long pole is built:**
+> [`c2-command-door-neutralizer.sh`](../../supabase/tests/mutation/c2-command-door-neutralizer.sh)
+> rewrites an authz `raise` to `null;` — guard gone, effect intact — and its unit is the
+> **enforcer, not the door** (237 doors share 243 enforcers; 72 already in the bool arm, 171 new).
+> Design + its safety properties: [authz-c2-command-door-neutralizer.md](../design/authz-c2-command-door-neutralizer.md).
+>
+> ⛔ **THE HEADLINE CORRECTION: this class is NOT "covered-but-unpinned".** The first 8 measurements
+> found **3 BLIND** (`FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS`). The old reading came from a 3-door
+> sample this very entry warned *"may not be used to close anything"* — and it was nonetheless
+> carried as a characterisation of the whole class for two weeks. ⭐ The sample was not misused to
+> CLOSE the item; it was misused to DESCRIBE it, which no one noticed because it was hedged.
+>
+> ⛔ **Still open, and not nearly closed:** 8 of 171 enforcers measured, **no door has a recorded
+> verdict**, both absorbed items stay open, and `assume_role` stays ERROR-shaped.
+
 
 > ### ✅ PO RULING 2026-08-18 — **TWO TIERS. Sweep the PHI / tenancy-crossing subset first; DEFER the remainder to after the pilot ships.**
 >
