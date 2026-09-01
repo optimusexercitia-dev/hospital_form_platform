@@ -52,6 +52,15 @@ name is a prefix of `_for`, so one pass finds both), then classify each hit by w
 follows.** ⛔ A word-boundary match (`\mis_staff_admin_of\M`) is the thing that cannot see the
 `_for` variant.
 
+⚠ **A LINE-RANGE CITATION IS A CLAIM ABOUT WHERE EVIDENCE ENDS, and it can be wrong in the
+direction that manufactures a gap.** § 7.2 cited `ff2-matrix-views.spec.ts:132-268` and concluded a
+capability was unpinned; the test actually runs to ~335 and pins it at 320–335. The range stopped
+one section short of its own subject, and the derivation inherited that boundary as if it were the
+evidence's. Same shape as `grep -A` on a declaration missing its docstring: **the window, not the
+file, decided the answer.** ⛔ Cite a TEST by name (`FF2V-1`) and let the range be an aid — a
+derivation that keys on a slice is only as true as the slice, and a too-narrow slice reads exactly
+like a real gap.
+
 ---
 
 ## 1. Plane 1 — assignment shape, and the `expires_at` question
@@ -219,7 +228,7 @@ signal is UI text rather than a status or RPC error (§ 7.1).
 | 4 | `commission.responses.read` | commission_content | read | none | **R** 7 **SELECT-only** policies (`responses`, `answers`, `answer_*`, `response_group_instances`) · **E2E** `phase8-dashboard.spec.ts:720-735` |
 | 5 | `commission.responses.correct` | commission_content | write | none | **D** `file/approve/reject/review/withdraw_correction`, `supersede_response` · **T** `caps.canApprove = canManageLifecycle` (`case-detail-view.tsx:502`) · **E2E** `case-void-reopen.spec.ts:409-483` |
 | 6 | `commission.signoffs.read` | commission_content | read | none | **D** `get_response_for_signoff`, `list_signoff_queue`, `app.can_read_signoff`, `app.pending_staff_signoffs` · **E2E** `ff1-repeating-groups.spec.ts:1212-1284` |
-| 7 | `commission.signoffs.sign` | commission_content | write | none | **D** `app.can_sign_section` · ⚠ **E2E pins the review screen, not the click** (§ 7.2) |
+| 7 | `commission.signoffs.sign` | commission_content | write | none | **D** `app.can_sign_section` · **E2E** `ff2-matrix-views.spec.ts:132-335` (FF2V-1 — `chefe.ccih` clicks "Assinar seção", `signed_by` verified in `response_section_signoffs`), `ff1-repeating-groups.spec.ts:1212-1284` |
 | 8 | `commission.dashboard.read` | commission_content | read | none | **D** all **9** `dashboard_*` fns · **E2E** `member-action-items-overview.spec.ts:862-870` · ⚠ see § 7.4 — the route comment is stale in two ways |
 | 9 | `commission.staff.manage` | identity | **authority** | none | **R** `commission_administrativos`, `commission_administrativo_capabilities` · **D** `appoint/revoke_administrativo`, `grant/revoke_member_capability`, `list_addable_commission_members` · **E2E** `administrativo.spec.ts:687-796` |
 | 10 | `commission.titles.manage` | vocabulary | write | none | **R** `member_titles_staff_admin_write` · **D** `create/rename/reorder/delete_member_title`, `assign_member_title` · **E2E** `hospital-admin-tier.spec.ts:433-545` |
@@ -421,6 +430,19 @@ the first would pass while pinning the uniform-apply bug.
 "UI hiding is the only control" row. What follows is the residue: places where the *evidence* is
 weaker than the row, or where a divergence exists.
 
+⚠ **Not everything below is still open — four of the six resolved, and a reader counting
+subsections would overcount the gaps.** The PO's approval of this matrix (2026-09-01) explicitly
+does **not** cover the two that remain:
+
+| § | status |
+| --- | --- |
+| **7.1** five cross-commission denials pinned by UI text | 🔴 **OPEN** — `tester` building |
+| **7.4** three identically-worded sibling gates, not individually re-verified | 🔴 **OPEN** — `tester` building |
+| 7.2 `signoffs.sign` "unpinned" | ✅ resolved — the **citation** was the defect, not the coverage |
+| 7.3 `BUG-STAGEC-READER` | ✅ not a difference — premise measured false |
+| 7.5 `CorrectionCaps.canApprove` | ✅ resolved — wired all along |
+| 7.6 no column expresses PHI sensitivity | ✅ resolved — shipped as `20261003007130` |
+
 ### 7.1 Five denials are pinned by UI TEXT, not by a status or an RPC error
 
 `chefe.ccih`'s cross-commission denials assert the pt-BR not-found copy (`getByText(/não
@@ -434,14 +456,24 @@ is DOM text. ⚠ The same persona's platform/org/NSP denials **do** check real 4
 localised to the cross-commission cases. **Work item for AE4.5:** the cross-scope deny cells need
 a status or RPC assertion, or they pin a rendering rather than a boundary.
 
-### 7.2 `commission.signoffs.sign` — the click is not pinned for this persona
+### 7.2 `commission.signoffs.sign` — RESOLVED, and the defect was MY CITATION, not the coverage
 
-E2E shows `chefe.ccih` reaching and reading the sign-off review screen
-(`ff1-repeating-groups.spec.ts:1212-1284`, `ff2-matrix-views.spec.ts:132-268`) but the
-"Assinar seção" click-through is demonstrated by a **different** persona (`chefe.farm`,
-`phase6-signoffs.spec.ts:304-380`). The **D** site (`app.can_sign_section`) is real, so the row
-stands on SQL evidence; the E2E evidence is generalised-by-pattern and is recorded as such rather
-than cited as a pin.
+⛔ **This entry was wrong and is corrected in place.** It claimed the "Assinar seção" click-through
+was pinned only for a *different* persona (`chefe.farm`) and that `chefe.ccih`'s evidence stopped
+at the review screen. Measured by `tester` 2026-09-01: **false.**
+
+`ff2-matrix-views.spec.ts` FF2V-1 runs to ~line **335**, not 268. Within that same test, with no
+persona switch in between, `chefe.ccih` clicks **"Assinar seção"** at **320–335**, the spec polls
+`response_section_signoffs` until count = 1, and asserts `signed_by` = `00000000-…-0002` —
+confirmed against the live catalog as `chefe.ccih@test.local`, not a placeholder. It further
+asserts the answers were undisturbed by signing.
+
+So the capability is **fully pinned, persona-attributed and DB-verified**. There was never a gap.
+⛔ No new spec was requested or is wanted; `tester` correctly declined to build a duplicate.
+
+⚠ **This is the fourth premise on this branch to measure false** — after `unfillable`'s stated
+cause, `BUG-STAGEC-READER`'s misquoted copy, and the § 7.4 dashboard comment. Every one of them
+read as diligence, which is why none would have been re-checked without being measured.
 
 ### 7.3 A live pinned defect inside row 12, and one now-vacuous pin
 
@@ -525,7 +557,13 @@ and the server door `approve_correction` carries a bare `is_staff_admin_of` gate
 correct, no work item. Recorded because "a declared thing no caller passes" is a real class and the
 negative result is worth having on the record.
 
-### 7.6 No column expresses PHI sensitivity — a PO decision, § 9
+### 7.6 No column expresses PHI sensitivity — ✅ RESOLVED, shipped
+
+Was a PO decision (§ 9); **ruled and shipped 2026-09-01** as migration `20261003007130`.
+`authz.permissions.sensitivity_ceiling` now carries the class as a column, so AE4.1's
+PHI-separation invariant joins on a column rather than degrading to a substring test on a
+permission code. ⛔ The **ordering / comparison rule** remains deferred, and pgTAP 401 §13.6–13.7
+gates that abstinence with a constructed detector.
 
 ---
 
