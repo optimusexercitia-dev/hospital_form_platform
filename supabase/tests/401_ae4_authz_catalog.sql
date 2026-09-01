@@ -28,10 +28,10 @@
 -- would destroy. Every fixture it creates is deleted BY IDENTITY (codes prefixed
 -- `zzfix.`), and the whole file rolls back regardless.
 --
--- RUN SHAPE: `Files=2, Tests=59` (58 here + 00_setup.sql's one).
+-- RUN SHAPE: `Files=2, Tests=61` (60 here + 00_setup.sql's one).
 
 begin;
-select plan(58);
+select plan(60);
 
 -- ============================================================================
 -- §1 — the schema, the four tables, and the deny-all RLS posture.
@@ -211,6 +211,27 @@ select ok(not has_function_privilege('anon', 'authz._t401_probe()', 'EXECUTE'),
   '4.7 ...and revoking it closes again');
 
 drop function authz._t401_probe();
+
+-- ⭐ 4.8-4.9 are the SAME vacuity control for the TABLE half, and they exist because
+-- 4.6/4.7 do not cover it. 4.1-4.3 are negative assertions about privileges that were
+-- never granted, so a `has_table_privilege` stuck at false — or a typo'd relation name
+-- resolving to something nobody can reach — would satisfy all 48 of 4.2's probes while
+-- measuring nothing. Grant, observe TRUE, revoke, observe FALSE: that is what makes 4.2's
+-- zero an observation rather than a constant. ⚠ USAGE on the schema is granted too,
+-- because without it `has_table_privilege` reports false for a reason that has nothing to
+-- do with the table grant — which is the very confound this control exists to remove.
+grant usage on schema authz to anon;
+grant select on authz.roles to anon;
+select ok(has_table_privilege('anon', 'authz.roles', 'SELECT'),
+  '4.8 VACUITY CONTROL (table half): an explicit grant DOES make authz.roles readable by '
+  'anon — so 4.2''s 48 false probes are observations, not a stuck predicate');
+
+revoke select on authz.roles from anon;
+revoke usage on schema authz from anon;
+select ok(
+  not has_table_privilege('anon', 'authz.roles', 'SELECT')
+  and not has_schema_privilege('anon', 'authz', 'USAGE'),
+  '4.9 ...and revoking both closes again, restoring the posture 4.1-4.3 assert');
 
 -- ============================================================================
 -- §5 — REFERENTIAL INTEGRITY. Empty tables, so every case is CONSTRUCTED.
