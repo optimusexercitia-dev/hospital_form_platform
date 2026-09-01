@@ -189,7 +189,7 @@ RLS, so a DEFINER door is the only control on its own path):
 
 ## 4. The matrix
 
-**38 rows** — 34 commission-scoped (1–29, 34–38) + 4 org-scoped (30–33, § 11). ⚠ **The PO approved this matrix at 33 rows (`e3297dad`). Rows 34–38 are OUTSIDE that approval**: row 34 came from the § 7.4 verification, rows 35–38 from the § 13 site reconciliation. **Five rows of delta, for one PO pass.** ⚠ The org-scoped four were
+**40 rows** — 36 commission-scoped (1–29, 34–40) + 4 org-scoped (30–33, § 11). ⚠ **The PO approved this matrix at 33 rows (`e3297dad`). Rows 34–38 are OUTSIDE that approval**: row 34 came from the § 7.4 verification, rows 35–38 from the § 13 site reconciliation. **Seven rows of delta (34–40), for one PO pass** — 34 from the § 7.4 verification, 35–38 from § 13's bottom-up reconciliation, 39–40 from § 14's top-down one. ⚠ The org-scoped four were
 **two** until § 12 re-derived row 30 into three codes; any figure quoting 31 rows, or "rows 30–31",
 predates that and is stale.
 
@@ -254,7 +254,7 @@ signal is UI text rather than a status or RPC error (§ 7.1).
 | 22 | `commission.action_items.manage` | commission_content | write | none | **R** `action_items_select`, `action_items_staff_admin_write` · **D** 9 fns · **E2E** `member-action-items-overview.spec.ts:384-405` |
 | 23 | `commission.documents.manage` | commission_content | write | none | **D** 13 document fns |
 | 24 | `commission.documents.publish` | commission_content | **irreversible** | none | **D** `publish_document`, `revoke_printed_document`, `supersede_document` |
-| 25 | `commission.accreditation.manage` | commission_content | write | none | **D** 16 fns · **E2E** `phase16-accreditation-restricted.spec.ts:180-207` (⚠ requires staff_admin **AND** an ACL row) |
+| 25 | `commission.accreditation.manage` | commission_content | write | none | ⚠ **indicators split out to row 40.** **D** the standards/frameworks/evidence fns · **E2E** `phase16-accreditation-restricted.spec.ts:180-207` (⚠ requires staff_admin **AND** an ACL row) |
 | 26 | `commission.referrals.manage` | commission_content | write | none | **D** 10 referral fns · **R** `case_referral_insert_source_coord` (**`_for` variant**) |
 | 27 | `commission.referrals.phi.read` | **phi** | read | **phi** | **D** `app.can_read_referral_phi` · **E2E** `nsp-per-hospital.spec.ts:834-850` — a **sanctioned cross-hospital** read, not a leak |
 | 28 | `commission.safety_events.report` | commission_content | write | none | **D** safety-event door from case detail · **E2E** `phase14a-safety-events.spec.ts:188-233` |
@@ -264,6 +264,8 @@ signal is UI text rather than a status or RPC error (§ 7.1).
 | **36** | `commission.safety_events.phi.write` | **phi** | write | **phi** | ⭐ **ADDED.** **D** `set_event_patient` — the **only** custody door that writes `event_patient`. Split from row 37 because a code may not span a sensitivity boundary (§ 12.1) |
 | **37** | `commission.safety_events.custody` | commission_content | write | none | ⭐ **ADDED.** **D** `acknowledge_event`, `cancel_event`, `update_event`, `transfer_event_custody` — gate `app.event_current_custodian`, live only when `current_owner_kind = 'commission'`. All write `patient_safety_event` / `event_custody`, never `event_patient` |
 | **38** | `commission.dsr.execute` | audit | write | none | ⭐ **ADDED.** **R** `dsr_tasks.dsr_tasks_select` · **D** `attest_dsr_task`, `complete_dsr_task`, `list_my_dsr_hospitals`, `list_my_dsr_task_commissions`, `list_my_executable_dsr_tasks` — gate `app.can_execute_dsr_task`, feature-flagged `dsr` (LGPD data-subject requests) |
+| **39** | `commission.cases.phi.read` | **phi** | read | **phi** | ⭐ **ADDED 2026-09-01 by the § 14 top-down pass — Rule 12's THIRD module had no read row.** **D** `app._case_caps` coordinator branch — `if v_coord then` ORs in `read_standard_phi` — reached by `app.can_read_case_patient` → `has_case_capability(…, 'read_standard_phi')`. Module: `patient_identifiers` / `patient_participants`. ⚠ **standard tier only** — `read_restricted_phi` needs an explicit grant, and the domain cannot yet express that difference (§ 9's deferred ordering) |
+| **40** | `commission.indicators.manage` | commission_content | write | none | ⭐ **ADDED — split out of row 25.** CLAUDE.md § 1 lists *quality indicator* and *accreditation standard/evidence* as **separate** governance modules with separate flags (`quality_indicators` / `accreditation`) and separate tables; § 3's family classifier had folded them into one. **D** `create/update/archive_indicator`, `set_indicator_target`, `record_indicator_measurement`, `compute_derived_measurement`, `indicator_kpis` |
 | **30** | `org.professionals.manage` | identity | **authority** | **class2_professional_identity** | ⚠ **ORG-SCOPED — § 11.** **D** `create/update/redact_professional_profile`, `set_professional_link_state`, **`ensure_professional_participant`**. Reach: **ADR 0078 §B7** ("any org `staff_admin`", the respondent twin's precondition, closed by the `HC0F2` linkage freeze) |
 | **31** | `org.participants.external.manage` | identity | write | none | ⚠ **ORG-SCOPED.** **D** `create_external_participant` — writes `public.participants` with `sensitivity_class` hardcoded `non_sensitive`; **structurally bounded** (§ 12.2) |
 | **32** | `org.case_vocabulary.manage` | vocabulary | write | none | ⚠ **ORG-SCOPED.** **D** `create/archive_ethics_allegation_category`, `create/archive_ethics_sanction_type`, `create/archive_case_assignment_role` |
@@ -1042,3 +1044,81 @@ can constrain a permission that does not exist. Row 35 now carries `sensitivity_
 ⚠ Row 38 (`commission.dsr.execute`) is feature-flagged `dsr`. A flag that is OFF in production does
 not make the permission absent — it makes it **unexercised**, which is precisely how a capability
 avoids every plane's attention.
+
+---
+
+## 14. TOP-DOWN reconciliation — against populations this project already declares
+
+⛔ **§ 13 is still bottom-up.** It proves every site that *names* the role maps to a row. It cannot
+prove every capability the role *holds* has one — and the proof that this matters is that § 13
+itself was run, passed, and still left three gaps.
+
+**The shape of the failure, stated plainly because it indicts the method rather than the effort:**
+the approved matrix carried exactly **two** PHI rows (20, 27). **Rule 12 names THREE isolated PHI
+modules.** Two of three. That is answerable in thirty seconds by anyone asking *"is there a row per
+declared module?"* — and **no plane asked, because all five are bottom-up.** Each sweeps the code
+and collects sites; none reconciles against a population the architecture already declares.
+
+Each population below is a **closed list written by someone else**. A self-authored population
+would be a hand-list wearing a label.
+
+### 14.1 Rule 12's three PHI modules — source: `CLAUDE.md` § 1 / Architecture Rule 12
+
+| module | row | verdict |
+| --- | --- | --- |
+| `referral_patient` | 27 | ✅ covered |
+| `event_patient` | 35, 36 | ⚠ **was missing** — added by § 13 |
+| `patient_identifiers` / `patient_participants` | 20 (dispose), **39 (read)** | ⛔ **read was missing** — row 20 covered only *disposal* |
+
+⭐ **The same shape twice: the module's PHI *write/dispose* had a row and its *read* did not.** For
+the case module the coordinator's read arrives through the `_case_caps` bitmask, so no function is
+named `..._read_case_phi` for a name-keyed sweep to find. **This check is now explicit so it cannot
+fail silently a third time: one row minimum per Rule 12 module, per operation.**
+
+### 14.2 CLAUDE.md § 1's governance modules — source: `CLAUDE.md` § 1
+
+| module | row(s) | verdict |
+| --- | --- | --- |
+| audit trail | 29 | ✅ |
+| patient-safety / NSP | 28, 35, 36, 37 | ✅ (three added this pass) |
+| inter-committee referrals | 26, 27 | ✅ |
+| **quality indicator** | **40** | ⛔ **was folded into row 25.** § 1 lists it as a **separate** module; it has its own flag (`quality_indicators`) and its own tables. § 3's name-keyed family classifier merged `indicator|measurement` into `accreditation` |
+| accreditation standard & evidence | 25 | ✅ |
+| controlled document | 23, 24 | ✅ |
+| internal audit / mock tracer | — | ✅ **legitimate absence, stated**: zero functions match; the module is not built (Phases 13+) |
+
+### 14.3 Canonical schema — source: `ARCHITECTURE.md` Rule 2
+
+`forms` / `form_versions` / `form_sections` / `form_items` → rows 1–2 · `responses` / `answers` →
+rows 4–5 · `response_section_signoffs` → rows 6–7 (⚠ **0 policies** — its path is DEFINER-gated, so
+a policy-only reconciliation would have shown a false gap here).
+
+**Legitimate absences, each with a reason:** `profiles` and `commissions` carry **0**
+`staff_admin`-gated policies — tenancy-level, AE5's `org_admin`/`hospital_admin` matrices;
+`memberships` is § 13.1's administered-value exclusion. **0 new rows.**
+
+### 14.4 Feature flags — source: `app.feature_flags` (42 keys)
+
+Nine flags gate `staff_admin` doors inline, and every one maps: `action_items`→22,
+`case_corrections`→5, `case_narratives`→16, `case_referrals`→26, `case_types`→16/21, `dsr`→**38**,
+`item_validations`→1, `matrix_fields`→1, `power_authoring`→1. **0 new rows.**
+
+⚠ **Bound on this check, stated rather than glossed:** it matches flags asserted *inline* in a
+`staff_admin`-gated body. A flag asserted in a helper (`assert_charters_enabled`) called by the door
+does not match, so the nine is a floor, not the population.
+
+✅ **The one flag that is OFF — `attachments` — has no `staff_admin` surface at all**, and neither
+does `patient_index`. So row 38's lesson (*an OFF flag makes a permission unexercised, not absent*)
+was checked against the only live instance and found clean.
+
+### 14.5 Result
+
+**Two further rows: 39 and 40.** Populations 3 and 4 returned **0**, which is the first *top-down*
+evidence for those two surfaces — a different and stronger claim than "the sweep was thorough".
+
+⛔ **What this pass changes about the method, for AE5's eleven matrices:** a bottom-up sweep can
+only find capabilities that *name* the role. Every gap found today — charter, the safety custody
+chain, the case PHI read, indicators — was invisible to a name-keyed sweep and visible immediately
+against a declared population. **AE5 should run § 14 FIRST and § 13 second**, because the top-down
+pass is cheap, is answerable from documents that already exist, and bounds what the expensive sweep
+then has to confirm.
