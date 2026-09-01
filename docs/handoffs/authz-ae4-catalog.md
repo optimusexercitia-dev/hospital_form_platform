@@ -5,7 +5,7 @@ adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0079, 0106]
 base_sha: 0412bef7e59476635ddb024c63fdce182a7a6466
 created: 2026-09-01
 updated: 2026-09-01
-status: live   # AE4.7b landed (test:db GREEN); AE4.7c + the PO batch are next
+status: live   # AE4.7a/b/c all landed (test:db GREEN); AE4.8 + the PO batch are next
 ---
 
 # Handoff — AE4, paused after the cutover
@@ -14,7 +14,7 @@ status: live   # AE4.7b landed (test:db GREEN); AE4.7c + the PO batch are next
 
 1. `git log --oneline 0412bef7..HEAD` and `git status` — confirm the tree still matches.
 2. `supabase db reset --local` — mandatory; every figure below assumes a fresh reset.
-3. `npm run test:db` — expect **253 files / 8467 tests, GREEN**. ⭐ CHANGED BY AE4.7b: the
+3. `npm run test:db` — expect **254 files / 8498 tests, GREEN**. ⭐ CHANGED BY AE4.7b: the
    branch's long-standing two reds (315 t14, 319 t5) are the ORPHANED TWINS and they are
    REPAIRED. A red on either now is drift, not this handoff's state — and a red anywhere
    else was never this handoff's state.
@@ -80,7 +80,7 @@ AE4 makes the `authz` catalog exist, migration-managed, with **exactly one role 
 
 ### Not started
 
-**AE4.7c** (fully ruled — matrix § 12.8.5 is its spec) and **AE4.8**. See § Next task.
+**AE4.8** only. See § Next task.
 ⛔ **`docs/backend-state.md` has NO `authz` section yet** — deliberate: the surface map is a
 Record-step artifact and AE4 merges once, at Gate AE4. Owed there, not here.
 
@@ -183,32 +183,34 @@ qualifier beside any "all arms green" claim (plan rule 2).
 | **UNKNOWN:** whether `e2e:prod` still passes after the cutover. Not run since Increment 1. | run it |
 | **UNKNOWN:** whether the 25 unreachable rewrite migrations' doors hold periodic-sweep verdicts. The 8 measurable ones gave 16 COVERED / 10 ERROR / **0 BLIND** / 29 absent — and every absent one is outside `PRED_DOMAIN` by shape, converging on the **known C2 population**, not a new one. | a historical-snapshot audit, if ever authorised |
 
-## Next task — AE4.7c   (⛔ AE4.7a AND AE4.7b are DONE — see the two sections at the end of
-## this file. All four items of the old AE4.7b list are discharged and each is recorded with
-## what it MEASURED, not with what it intended.)
+## Next task — AE4.8   (⛔ AE4.7a, AE4.7b AND AE4.7c are ALL DONE — see the three sections at
+## the end of this file. Every item of the QA § "Recommended order" steps 1-3 is discharged,
+## each recorded with what it MEASURED rather than what it intended.)
 
-**First command:** `supabase db reset --local && npm run test:db` — expect **GREEN, 253f/8467**.
-A red is drift; there is no longer an expected-red baseline on this branch.
+**First command:** `supabase db reset --local && npm run test:db` — expect **GREEN, 254f/8498**.
+A red is drift; there is no expected-red baseline on this branch.
 
-**AE4.7c — the `can_manage_professional` split.** Fully ruled; matrix § 12.8.5 is the spec, and
-the ORDER is the safety property (see § What AE4.7a did NOT do → F2 for the full ruling):
+**AE4.8 — the app-side seam collapse** (frontend, parallel track under file ownership; plan
+[§ AE4.8](../plans/authz-evolution.md)). Mechanical and behaviour-preserving:
 
-1. § 12.3 **FAMILY split** — rows 31/32/33 off the gate. ⛔ Doing the grant change first strips
-   external-participant minting and the case vocabularies, which `staff_admin` KEEPS.
-2. **OPERATION split** — new `app.can_create_professional`, new row 43 `org.professionals.create`
-   (PO-approved), `set_professional_link_state` bounded to `link_state = 'unknown'`.
-3. **The grant change** — `staff_admin` loses row 30 `org.professionals.manage`.
-4. Re-point 403's `can_manage_professional` representative to `org.professionals.create` and
-   regenerate. ⚠ Both halves in the SAME migration or 403 §4.1 reds on its own transition.
+1. `role-catalog.ts` becomes the **single** role manifest — the six label maps collapse into
+   `ROLE_LABELS` re-exports; `landingRouteForRole` and `page.tsx`'s precedence chain are
+   re-derived from one ordered manifest, so a future role crosses **one** seam, not two.
+2. The session partition keys off the same manifest's scope declarations.
+3. **The TS manifest is BOUND to the DB catalog [PA-F1]** — role codes and scope declarations
+   generated from, or gate-checked against, `authz.roles`, in the lint/vitest gate, not review.
+4. G4: `assume_role`'s validity check reads `authz.roles.session_selectable` via a typed query
+   instead of the TS enum list. ⚠ The `platform_role` **DB enum stays** (AE5-complete territory).
 
-⚠ **AE4.7b changed the ground under step 1.** `can_manage_professional` now reaches the catalog
-through `app.is_staff_admin_of_for` → `authz.holds_role` (AE4.6 replaced its direct `has_role`
-call; AE4.7b collapsed the wrapper). So a body edit there is an edit to a CATALOG-ROUTED site:
-the diff-scoped sweep will select it, and **ARM=sites** will notice if the split introduces a new
-`'staff_admin'` literal that is neither the wrapper family nor allowlisted.
+⚠ **AE4.8 is the first AE4 increment that touches `src/` for real**, so it is the first that
+owes `e2e:prod` — and the gate already owed a b2 + b9 re-run from before AE4.7a.
 
-Then **AE4.8** (frontend seam collapse, parallel track under file ownership), then Gate AE4:
-full §6 + `e2e:prod` + QA review + PO approval.
+⛔ **BEFORE STARTING, ROTATE PROGRESS.md.** It is **98 KB against an 82 KB target, 4.4 KB from
+the hard cap**. AE4.8 will not fit, and compressing under cap pressure cuts qualifiers first —
+which is how a measured bound turns into a bare claim.
+
+Then the **PO batch**, then Gate AE4: full §6 + `e2e:prod` to an actual green + QA review + PO
+approval.
 
 ## Re-derivation appendix
 
@@ -815,3 +817,97 @@ says it owes: a b2 + b9 re-run to an actual green. Never transcribe a prior run 
 - **The other eight PUBLIC-EXECUTE grants** in 320's list — not re-derived.
 - **`docs/backend-state.md`** — no `authz` section yet; it is a Record-step artifact and AE4 merges
   once, at Gate AE4.
+
+## AE4.7c — the `can_manage_professional` split, 2026-09-01 (lead session, after AE4.7b)
+
+Scope was matrix § 12.8.5 **exactly**, in the order that ruling makes load-bearing. ⛔ **No ADR
+— by PO ruling, matrix § 12.8 is this decision's home**; § 12.8.1's state table is updated in
+place with a closure column. Two commits: `317d48dd` (the split), `cf28cbc6` (the sweep).
+
+⛔ **Everything here is VERIFIED** — produced by a command run this session, exit codes read
+directly.
+
+### What shipped
+
+| | |
+| --- | --- |
+| `20261003007220` **step 1, FAMILY** | `app.can_manage_external_participant` (row 31) · `app.can_manage_case_vocabulary` (row 32) · `app.is_org_commission_staff_admin` — **the ascent, isolated to ONE site**. Seven doors re-pointed. |
+| `20261003007230` **step 2, OPERATION + GRANT** | `app.can_create_professional` (row 43) · `can_manage_professional` narrowed to org authority · three ADD doors re-pointed · `set_professional_link_state` **bounded to `link_state='unknown'`** · catalog: row 43 inserted + granted, row 30 **revoked** from `staff_admin` |
+| catalog after | **43 permissions, 42 grants** — `staff_admin` holds 42 of 43, and 401 § 14.7b names which one it does not |
+| `test:db` | 253f/8467 → **254f/8498, PASS** |
+
+⭐ **Why the ascent got its own function.** Three gates needed the same clause. Hand-copying it
+three times is the shape AE4.7b spent an increment collapsing. It is also what makes 401
+§ 19.2b's claim — *three of the six legacy classes share ONE body, so one differential
+representative answers for all three* — **checkable from `prosrc`** rather than a coincidence.
+
+### ⛔ Three things the ruling did not predict, each found by a red
+
+1. **`app.can_read_professional_profile`'s arm 1 had to move.** Row 33 `org.professionals.read`
+   is a code `staff_admin` **KEEPS**, and that arm is its only enforcement site. Leaving it on
+   `can_manage_professional` would have denied every `staff_admin` the org-wide read the matrix
+   grants — catalog TRUE, legacy FALSE, and 403 § 4.1 red on a divergence the split never
+   intended. It follows the POPULATION now, not the gate name. ⚠ The 403 driver's row-33
+   SUBSTITUTION had to move with it, or the red would have been a substitution artifact (QA
+   finding **F3** is still open and deliberately untouched).
+2. **229's over-grant twin went VACUOUS and 257's `HC0J7` collided with its own `42501`
+   control** — both exactly as § 12.8.5 predicted. ⛔ Neither was re-coded: re-coding 229's
+   expectation to `42501` would have left B7's freeze trigger asserted by **nothing** while the
+   line kept its name. Both were **SPLIT** — authority and freeze now have separate assertions
+   with separate callers (a `platform_admin` passes the AE4.7c bound and is still refused by the
+   freeze). 257's Block C/E callers moved for the same reason.
+3. **The write-path harness holds a HAND-WRITTEN COPY of each guard's gate text**, and the split
+   falsified two of them: the first write-arm run came back **DIRTY, 2 ERROR `neutralize
+   failed`**. ⚠ ERROR is not BLIND and is not a pass — nothing was measured. Fixed, and a note
+   now travels with those strings saying any migration rewriting one of these blocks owes an
+   edit there in the same commit.
+
+### pgTAP 406 — the direction nothing else measures
+
+Every other suite AE4.7c touched measures access being **REMOVED**. 406 measures the other
+direction: each denial sits beside an admission by a principal who should pass, and § 5 deletes
+the `unknown` bound and watches the staff_admin refused at 4.2 walk through.
+⚠ Its own § 2 cost a red worth keeping: `is_org_admin_of` reads **`auth.uid()`, not `p_uid`**, so
+asserting org-authority by passing `oa` as the parameter measured nothing. That is
+FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM demonstrated — and AE4.7c **sharpened** it: with the
+ascent gone, `can_manage_professional`'s `p_uid` is a null guard and nothing else.
+
+### Gates at the end of AE4.7c — fresh-reset tree
+
+| Arm / suite | Result | Exit |
+| --- | --- | --- |
+| `npm run test:db` | **254 files / 8498 tests — PASS** | — |
+| `npm run lint` (12 gates) · `typecheck` · `test` (2021) | green | 0 |
+| `ARM=census` (578 live / 618 with a verdict) · `hat` · `floor` · `wrapper` · `catalog` · `sites` (14) | all HOLD | 0 |
+| diff-scoped sweep — **READ** arm, 16 requested | **6/6 predicates COVERED**, 0 BLIND, 0 ERROR | 3 |
+| diff-scoped sweep — **WRITE** arm, 11 requested | **4/4 guards COVERED** (after fixing 2 ERROR) | 3 |
+
+⭐ **`app.can_manage_professional` went `ERROR` → `COVERED`.** It was `run-shape!=baseline` for
+the whole of AE4.7b. Not a harness improvement — the gate got smaller: 12 doors across three
+capabilities became 3. The documented "the most central predicates are exactly the ones this
+harness cannot verdict" class is **escapable, and the escape is scope, not tooling.**
+
+⛔ **Both sweeps exit 3 UNPROVEN (PARTIAL), and that is recorded rather than rounded off.** The
+six vocabulary RPCs matched no gate on either arm — `uuid`/`void` returns, the
+`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (**C2**) class. AE4.7c did not create that gap (before the split
+they sat behind `can_manage_professional`, equally unswept) and deliberately did not close it;
+their GATE is COVERED and pgTAP 290 exercises all six denials. Named in
+`authz-writepath-audit-findings.md`. ⚠ Measured: they are **not** on C2's Tier-1 worklist either.
+
+**Did NOT run:** `e2e:prod`. AE4.7c touched one TypeScript **doc comment** and nothing else in
+`src/`. ⛔ The gate still owes a b2 + b9 re-run to an actual green.
+
+### What AE4.7c did NOT do
+
+- **The PO batch** — F4's `offboarded` expected values, F3's arm-3 disposition, the 9 mislabelled
+  `unauthenticated` cells, and the two remaining FUPs.
+- **`org_admin`'s catalog grant of row 43.** The matrix says row 43 is granted to `staff_admin`
+  **and `org_admin`**; the catalog records only the SUBSTITUTED role's grants until AE5, and 401
+  § 14.8 asserts exactly that. `org_admin` holds row 30 in the product today with no catalog
+  grant either — granting it row 43 alone would make the catalog say org_admin may create but not
+  manage, false in both directions. The enforcement predicate does include org authority.
+- **The six vocabulary RPCs' standing write-arm entry** (above).
+- **`docs/backend-state.md`** — still no `authz` section; a Record-step artifact.
+- ⚠ **PROGRESS.md is now 98 KB against an 82 KB target — 4.4 KB from the HARD CAP.** Rotation is
+  PO-deferred to the Record step, and AE4.8 will not fit. ⛔ Compressing under cap pressure cuts
+  qualifiers first, which is how a bound becomes a bare claim; rotate before the next increment.
