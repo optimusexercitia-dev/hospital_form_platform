@@ -751,3 +751,46 @@ public.list_org_people(p_org_id uuid, p_search text, p_cpf text, p_include_ended
 #      caller who already holds a (person, org) pair. 395 SS5.1 asserts it
 #      POSITIVELY -- a recorded decision, not an unmeasured leak.
 public.list_linkable_org_users(p_organization uuid)
+
+# ---------------------------------------------------------------------------
+# AE4.7b — the first sweep of the `authz` schema, 2026-09-01.
+# ---------------------------------------------------------------------------
+# CONTEXT, because a reader will otherwise ask why an authz gate is only now here:
+# every arm's domain bounded on `n.nspname in ('app','public')` until AE4.7b, so the
+# whole catalog schema was outside all five of them (QA finding F7). The widening to
+# `('app','public','authz')` made ARM 3 flag three boolean gates as UNKNOWN — the arm
+# working. Two were swept and carry verdicts in the findings md
+# (`authz.has_direct_permission` COVERED, `authz.holds_role` ERROR). This is the third.
+#
+# ⛔ CATEGORY (b) — IN THE CENSUS'S DOMAIN, OUTSIDE ARM 1'S. And the reason differs from
+# every other (b) entry above, so do not read the label and stop: the others are outside
+# ARM 1's *mechanism* (it flips booleans and policies; they are neither). This one IS a
+# boolean and the mechanism would work perfectly. It is excluded by the predicate arm's
+# DOMAIN FILTER — `PRED_NAME_RE` (`^(is_|can_|has_|…)`) or an identity primitive in the
+# body. `scope_reaches` matches neither: it is named for what it computes, and its body
+# reads `public.commissions` / `public.hospitals` and never touches identity. That is the
+# recorded FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME class, and a `CASES=` run over
+# it returns "REQUESTED BUT NEVER SWEPT (matched no gate)" with exit 3 UNPROVEN — measured
+# 2026-09-01, not predicted. ⛔ Widening PRED_NAME_RE to catch it is NOT a local fix: the
+# filter bounds the whole predicate arm, and QA routed that bound to C2 rather than AE4.7b.
+#
+# THE KEYSTONE THAT DOES COVER IT, and it is mutation-proven as a (b) entry requires:
+#   pgTAP 403 §6.3 — it strips the `authz.scope_reaches(...)` CALL out of
+#   `authz.has_direct_permission`'s body and asserts the 657-cell differential oracle goes
+#   RED. §6.2b is its own zero baseline (re-inserting §6.1's grant returns the whole sweep
+#   to zero disagreements), which is what makes §6.3's `> 0` a transition rather than a
+#   residue — AE4.7a repaired exactly that vacuity in both fail-proofs and proved each fires.
+#   ⭐ Removing the CALL is a STRONGER neutralization than making the callee return true:
+#   `select true` leaves the join in place, so a resolver that had begun ignoring its own
+#   scope argument would still be measured; removing it tests the resolver's scope logic
+#   end to end. That is the AE4.7 plan requirement ("neutralize the resolver's scope check
+#   -> the staff_admin keystones red") discharged.
+#
+# ⛔ THE BOUND ON THAT KEYSTONE, STATED RATHER THAN LEFT TO BE ASSUMED. `scope_reaches` has
+# TWO callers (measured from prosrc, comment-stripped): `authz.has_direct_permission` and
+# `authz.explain_direct_permission`. 403 §6.3 mutates the FIRST ONLY, so the explanation
+# function's own scope check has no mutation-proven keystone. Calibration, also measured:
+# `explain_direct_permission` has ZERO callers anywhere — no SQL body, no policy, no `src/`,
+# no `e2e/` reference — so nothing today can act on a wrong answer from it. ⚠ That is a
+# REACHABILITY argument, not a coverage one, and it expires the moment anything calls it.
+authz.scope_reaches(p_assignment_kind text, p_assignment_id uuid, p_resolution_kind text, p_requested_id uuid)

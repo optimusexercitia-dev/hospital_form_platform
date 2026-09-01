@@ -418,8 +418,8 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | app.is_pqs_operator_of(p_hospital_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4793) |
 | app.is_pqs_operator_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4745) |
 | app.is_recused_from_case(p_case_id uuid, p_uid uuid) | predicate | deny | COVERED | 188_case_custom_fields.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,238_authz_b_case_access_grants.sql,241_authz_c1_meeting_cases_tiers.sql,243_authz_c5_reserved_session_tiers.sql,244_authz_c6_reserved_session_lifecycle.sql,254_ethics_e2_votes.sql,256_ethics_e2_hearings.sql,264_correction_requests.sql,265_reopen_void_narrative.sql,266_ethics_e3a_surfacing.sql,267_ethics_e3a_autoderive.sql,269_ethics_e3a_dashboard.sql,281_accreditation_evidence_assessment.sql,283_accreditation_readiness_report.sql |
-| app.is_staff_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4588) |
-| app.is_staff_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4695) |
+| app.is_staff_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=253 Tests=8174) — RE-SWEPT 2026-09-01 (AE4.7b diff-scoped, baseline Files=253 Tests=8467). ⚠ The body changed twice underneath this row (AE4.6 re-pointed it at the catalog, AE4.7b collapsed it onto `authz.holds_role`) and the VERDICT did not: still the documented load-bearing-predicate ERROR class below, re-measured rather than carried across |
+| app.is_staff_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=253 Tests=8366) — RE-SWEPT 2026-09-01 (AE4.7b diff-scoped), same class as its sibling |
 | app.is_tenancy_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=175 Tests=5618) — RENAMED 2026-08-09 from `is_commission_admin_of`, verdict carried across (see note below) |
 | app.is_tenancy_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=175 Tests=5618) — RENAMED 2026-08-09 from `is_commission_admin_of_for`, verdict carried across |
 | app.is_technical_director_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | COVERED | 295_technical_director_referrals.sql |
@@ -603,6 +603,8 @@ not the syntax", holding at the harness level. The run's `BLIND: 0` therefore co
 from a clean-looking summary. That arm is covered instead by a targeted mutation
 (322 §5.19: forcing the new dispatch arm to `return false` reddens the door).
 -->
+| authz.has_direct_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text) | predicate | positive | COVERED | 401_ae4_authz_catalog.sql,403_ae45_differential_oracle.sql (SWEPT 2026-09-01, the FIRST run of any arm over the `authz` schema — AE4.7b widened every domain bound to `('app','public','authz')` after QA finding F7 measured the schema outside all five arms. ⛔ Not a re-sweep: this gate had NO verdict in any direction since 20261003007170 created it) |
+| authz.holds_role(p_principal uuid, p_role_code text, p_scope_kind text, p_scope_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=253 Tests=8170) — the AE4.7b chokepoint, swept on the migration that created it. ⛔ ERROR here is INHERITED BY CONSTRUCTION, not coincidence: this function IS `is_staff_admin_of(_for)` now, so neutralizing it opens both wrappers at once and destabilises the suite shape exactly as they do. See the load-bearing-predicate note below for what the run actually produced |
 
 ## Skipped SELECT/ALL policies (qual = true — intentionally public catalogs)
 
@@ -652,6 +654,29 @@ verdict** — which is worth fixing at the harness level (compare against a per-
 shape, or treat "≥N genuine assertion failures" as COVERED regardless of shape) rather than
 by keystoning gates that are already densely asserted. Recorded, not actioned: it is a
 harness change, and this wave was a rename.
+
+**Amendment 2026-09-01 (AE4.7b) — `authz.holds_role` joins the class, and the class was
+MEASURED rather than assumed this time.** The chokepoint both staff_admin wrappers now
+delegate to was swept on the migration that created it and returned the same
+`run-shape!=baseline` (Files=253 Tests=8170 against a Files=253 Tests=8467 baseline). ⛔ That
+is not a coincidence to note and move past: `holds_role` **is** `is_staff_admin_of(_for)`
+after the collapse, so it inherits their verdict by construction — one neutralization opens
+both wrappers, which is the design claim of AE4.7b appearing as a harness limitation.
+
+What the run actually produced, read from its own log rather than inferred: genuine assertion
+failures spread across **more than twenty** suites — `144_case_access` (39 of 91),
+`151_case_patient` (15 of 39), `150_referrals` (25 of 73), `130_audit`, `112_case_tags`,
+`121_interviews`, `110_indicators` and others — plus two files (`113_case_action_items`,
+`150_referrals`) that aborted mid-file on a Bad plan, which is precisely what drops the total
+test count and trips §7.15's shape guard. **The gate is covered in substance; the harness
+cannot say so.**
+
+⭐ AND THE SUBSTITUTE IS NO LONGER ONLY THIS PARAGRAPH. pgTAP **405 §7** now carries two
+deterministic mutation twins at that single site — neutralize the hat conjunct and §2.2's
+exact case flips FALSE → wrongly TRUE; neutralize the `state = 'authoritative'` conjunct and a
+LEGACY role is wrongly admitted — each asserting the edit LANDED before observing anything,
+each restoring byte-identically. A load-bearing predicate the sweep cannot verdict is exactly
+the case for an in-suite twin, and until AE4.7b these wrappers had none.
 
 ---
 

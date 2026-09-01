@@ -102,3 +102,46 @@ fn: public.assume_role(p_role platform_role)
 #      known blind spot, stated in the sweep header). Re-verify the arm census
 #      before trusting this line.
 policy: public.memberships.memberships_select (SELECT)
+
+# authz.assignment_facts(p_principal uuid) — THE ADAPTER, and it is the FIRST authz
+# entry in this file because AE4.7b is the first time this sweep could see the schema
+# at all: its function domain bounded on `nspname in ('app','public')`, so a body that
+# reads public.memberships from `authz` was outside the population while the arm printed
+# HOLDS. ⛔ That absence was not a verdict (ADR 0079's standing rule); the widening is
+# what turned it into one, and this is the finding it produced.
+#
+# WHY IT IS DESIGNED, not a defect. It is a PROJECTION, not a door: it must return the
+# principal's full live assignment list because the hat filter is PERMISSION-DEPENDENT
+# and MANY-TO-MANY (20261003007170's own header derives this). Applying it here would
+# mean one of the two wrong translations that migration rules out — requiring EVERY
+# granting role to be active (over-denies), or dropping WHICH role granted a permission
+# (drops the gate for the ~151 self-check sites while still looking like it implements
+# one). The correct predicate — "holds it through AT LEAST ONE role that is the active
+# role" — is only expressible where the grant join happens, i.e. in the consumer.
+#
+# THE COMPENSATING CONTROLS, PER CONSUMER, because "the callers apply it" is a claim and
+# not a control. `authz.assignment_facts` has exactly THREE callers (measured from
+# comment-stripped prosrc, 2026-09-01) and every one is separately anchored:
+#   * authz.holds_role            — an ANCHOR of THIS ARM since AE4.7b, so its hat
+#                                   conjunct is asserted on every run, and ST7 proves
+#                                   the anchor check flips when it is stripped.
+#   * authz.has_direct_permission — COVERED by the door sweep (measured 2026-09-01, the
+#                                   first authz sweep); its hat conjunct is pinned by
+#                                   pgTAP 401 §16 across all three §6A cases.
+#   * authz.explain_direct_permission — ZERO callers anywhere (no SQL body, no policy,
+#                                   no src/, no e2e/), so nothing can act on its answer.
+# Plus: no application role holds USAGE on `authz` or EXECUTE on this function — pgTAP
+# 401 §§18.1-18.3 by effective privilege with its own vacuity control, 405 §5.4 for the
+# chokepoint. It is not client-reachable in any direction.
+#
+# WRONG THE DAY (any of three):
+#  (a) a FOURTH caller appears that does not apply the §6A filter — the entry keys the
+#      whole function and reasons about a three-caller census, exactly the (b) clause
+#      session_context and memberships_select already carry;
+#  (b) anything grants USAGE on `authz` or EXECUTE on this function, making the
+#      projection reachable without passing through a consumer at all;
+#  (c) authz.explain_direct_permission gains a caller — its scope check has no
+#      mutation-proven keystone (403 §6.3 mutates has_direct_permission only; recorded
+#      in authz-unswept-backlog.txt beside authz.scope_reaches), so today's "nothing can
+#      act on it" is a REACHABILITY argument and it expires on first use.
+fn: authz.assignment_facts(p_principal uuid)

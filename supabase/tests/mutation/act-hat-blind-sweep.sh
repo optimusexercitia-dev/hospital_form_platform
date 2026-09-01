@@ -186,7 +186,13 @@ begin
            lower(regexp_replace(regexp_replace(p.prosrc, '/\*.*?\*/', '', 'gs'),
                                 '--[^\n]*', '', 'g')) as src
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname in ('app','public') and p.prokind = 'f';
+    -- ⭐ AE4.7b: `authz` joined the domain. The staff_admin family's hat conjunct moved
+    -- there (app.is_staff_admin_of -> authz.holds_role), and `authz.assignment_facts` is
+    -- now the only body in the tree that reads public.memberships for a principal and
+    -- carries NO hat itself — by design, its callers apply it. ⛔ Bounded on ('app','public')
+    -- this sweep could not see either fact: the projection was invisible and the new anchor
+    -- unanchored, while the arm printed HOLDS.
+    where n.nspname in ('app','public','authz') and p.prokind = 'f';
 
   create temp table _hb_var as
     select foid, m[1] as v from _hb_fn, lateral regexp_matches(src,
@@ -345,7 +351,14 @@ begin
          case when f.src ~ 'active_role[[:space:]]*\(' then '|OK' else '|HATLESS' end
   from _hb_fn f
   where (f.fname = 'has_role' and f.idargs = 'p_scope_type text, p_scope_id uuid, p_role text, p_user_id uuid')
-     or f.fname = 'has_role_any';
+     or f.fname = 'has_role_any'
+     -- ⭐ AE4.7b THIRD ANCHOR. `authz.holds_role` carries the hat for the whole staff_admin
+     -- family — both wrappers are one-liners over it, so ~151 self-check sites' hat gate is
+     -- its body and nothing else. ⛔ An anchor list that stopped at the two legacy delegates
+     -- would keep asserting a condition NOTHING in that family evaluates any more, which is
+     -- the exact shape (a control still green over a subject that moved) this whole phase is
+     -- repairing. ST7 proves this arm notices when it is stripped.
+     or (f.sch = 'authz' and f.fname = 'holds_role');
 end $HB$;
 
 -- ═══ SELF-TEST (every run; rolled back) ═══════════════════════════════════════
@@ -400,6 +413,24 @@ set search_path to 'app', 'public', 'pg_catalog' as $$
   );
 $$;
 
+-- ST7: strip the caller-only condition from the REAL authz.holds_role (rolled back).
+-- Mirrors ST4 exactly, on the anchor AE4.7b added. ⛔ An anchor added without its own
+-- flip-test is an assertion nobody has shown can fail — this file's ST4 exists for that
+-- reason and the third anchor gets the same treatment or it is decoration.
+create or replace function authz.holds_role(
+  p_principal uuid, p_role_code text, p_scope_kind text, p_scope_id uuid
+) returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1
+      from authz.assignment_facts(p_principal) af
+      join authz.roles r on r.code = af.role_code
+     where af.role_code  = p_role_code
+       and af.scope_kind = p_scope_kind
+       and af.scope_id   = p_scope_id
+       and r.state       = 'authoritative'
+  );
+$$;
+
 with f as (select * from pg_temp.hb_findings())
 select 'ST|' ||
   case when exists (select 1 from f where key like 'fn: app._hb_selftest_blind%' and kind='F')
@@ -425,7 +456,11 @@ union all
 select 'ST|' ||
   case when not exists (select 1 from f
                         where key like 'policy: app._hb_selftest_t5._hb_selftest_policy_covered%')
-       then '6|OK' else '6|FAIL hat-covered cross-table policy WAS flagged (false positive)' end;
+       then '6|OK' else '6|FAIL hat-covered cross-table policy WAS flagged (false positive)' end
+union all
+select 'ST|' ||
+  case when exists (select 1 from f where kind='AN' and key = 'authz.holds_role|HATLESS')
+       then '7|OK' else '7|FAIL anchor check did not notice a neutralized authz.holds_role' end;
 
 rollback;
 
@@ -441,21 +476,21 @@ echo "=== ACT hat-blind sweep (ADR 0106 S4 / ADR 0079 Am. 6 method) ==="
 # 1) self-test: exactly 6 STs, all OK
 ST_FAIL=$(printf '%s\n' "$OUT" | grep '^ST|' | grep -v '|OK$' || true)
 ST_N=$(printf '%s\n' "$OUT" | grep -c '^ST|' || true)
-if [ -n "$ST_FAIL" ] || [ "$ST_N" -ne 6 ]; then
+if [ -n "$ST_FAIL" ] || [ "$ST_N" -ne 7 ]; then
   echo "SELF-TEST FAILED (detector cannot be trusted; findings below are void):"
   printf '%s\n' "$OUT" | grep '^ST|'
   exit 1
 fi
-echo "self-test: $ST_N/6 OK (blind flagged · covered not flagged · class-4 param flagged · anchor flip seen · x-table policy flagged · covered x-table policy not flagged)"
+echo "self-test: $ST_N/7 OK (blind flagged · covered not flagged · class-4 param flagged · has_role_any anchor flip seen · x-table policy flagged · covered x-table policy not flagged · authz.holds_role anchor flip seen)"
 
-# 2) anchors: has_role + has_role_any still carry the active-role condition
+# 2) anchors: has_role + has_role_any + authz.holds_role still carry the active-role condition
 AN_BAD=$(printf '%s\n' "$OUT" | grep '^AN|' | grep -v '|OK$' || true)
 if [ -n "$AN_BAD" ]; then
   echo "ANCHOR FAILED — a has_role* body has LOST the caller-only active_role condition:"
   printf '%s\n' "$AN_BAD"
   exit 1
 fi
-echo "anchors: app.has_role(4-arg) + app.has_role_any carry the active-role condition"
+echo "anchors: app.has_role(4-arg) + app.has_role_any + authz.holds_role carry the active-role condition"
 
 # 3) findings vs allowlist, both directions
 FINDINGS=$(printf '%s\n' "$OUT" | grep '^F|' | sed 's/^F|//' | sort -u)
