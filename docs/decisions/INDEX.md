@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**169 ADRs** · next free number: **0172** · 51 carry an inbound supersedes/amends edge
+**170 ADRs** · next free number: **0173** · 52 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -183,7 +183,7 @@
 | 0159 | [an invariant backstop runs as DEFINER; two correct decisions can compose into a break](0159-invariant-backstops-run-as-definer.md) | accepted | 2026-08-26 | amends 0151 | – |
 | 0160 | [AE0 corrections to ADR 0155's measured figures: the `anon` residue never grew, and the…](0160-ae0-corrections-to-adr-0155-measured-figures.md) | ⚠ proposed | 2026-08-26 | amends 0155 | – |
 | 0161 | [The person-authority SQL twin: ADR 0133 D4's "no SQL twin" is retired](0161-person-authority-sql-twin-retires-no-twin-prohibition.md) | accepted | 2026-08-27 | amends 0133 | – |
-| 0162 | [Plan-audit corrections to the authorization-evolution program: rollback artifact, catal…](0162-authz-evolution-plan-audit-corrections.md) | accepted | 2026-08-27 | amends 0155 | – |
+| 0162 | [Plan-audit corrections to the authorization-evolution program: rollback artifact, catal…](0162-authz-evolution-plan-audit-corrections.md) | accepted | 2026-08-27 | amends 0155 | ⚠ amended by 0172 |
 | 0163 | [lifecycle authority over a fully-offboarded person: last-org retention](0163-offboarded-person-lifecycle-authority.md) | accepted | 2026-08-27 | amends 0151 | ⚠ amended by 0164 |
 | 0164 | [tenant containment moves from creation time to the destructive event](0164-tenant-containment-moves-from-creation-time-to-the-destructive-event.md) | accepted | 2026-08-28 | amends 0151, 0163 | ⚠ amended by 0165, 0166, 0168 |
 | 0165 | [the affiliation-derived tenant gate, what it widens, and the alternative rejected for n…](0165-affiliation-derived-tenant-gate-and-its-widening.md) | accepted | 2026-08-28 | amends 0151, 0164 | ⚠ amended by 0168 |
@@ -193,3 +193,4 @@
 | 0169 | [the meeting-content recusal divergence is a time-boxed EXCEPTION, not a new rule](0169-meeting-content-recusal-divergence-is-a-time-boxed-exception.md) | accepted | 2026-08-31 | amends 0078 | – |
 | 0170 | [case deletion is not a client capability: DELETE on `public.cases` is revoked from `aut…](0170-case-deletion-is-not-a-client-capability.md) | accepted | 2026-08-31 | amends 0132 | – |
 | 0171 | [C2's Tier-1 predicate is re-grained, the tenancy disjunct is dropped, and the command-d…](0171-c2-tier1-regrain-and-the-command-door-neutralizer.md) | accepted | 2026-08-31 | – | – |
+| 0172 | [AE4's catalog substrate: MATCH FULL is the assignment binding, unreachable scope kinds…](0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md) | accepted | 2026-09-01 | amends 0162 | – |

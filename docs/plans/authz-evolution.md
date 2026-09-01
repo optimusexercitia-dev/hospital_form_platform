@@ -708,6 +708,14 @@ file ownership.
   inheritance, `assignable`'s acting party) is either **not created yet** or created
   **CHECK-pinned to its single legal value** — a column only reports read is a label, not a
   control, and must not be able to hold undefined states.
+  ⭐ **AS BUILT (Increment 1) — ADR [0172](../decisions/0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md), where this row is corrected rather than silently obeyed:**
+  all three residue columns are **NOT CREATED**, because both join tables hold zero rows in
+  this increment and a CHECK pinning a value no row holds is itself vacuous. `risk_class` IS
+  created (PO override 2026-09-01) with a value set **proposed by the author, not derived** —
+  no authority in this tree defines one. Every classification column is a **DOMAIN over
+  `text`, never a native enum**: PostgreSQL has no `ALTER TYPE … DROP VALUE`, so an enum
+  value set invented before its subjects exist is permanent, and AE5 will widen these
+  vocabularies eleven times.
 - **Assignment binding [PA-F1, ADR 0162 §2]:** the catalog replaces the legacy role/scope
   authorities only when something binds assignment storage to it — a CHECK cannot query
   another table, so `allowed_scope_kind` alone constrains nothing about a `memberships` row.
@@ -718,6 +726,16 @@ file ownership.
   scope-shape CHECKs retire **only at AE5-complete**, when every role is `authoritative`.
   ⛔ Until that retirement the catalog is **authority-elect** — "the catalog is the
   authority" may not appear in a gate record before then.
+  ⭐ **AS BUILT — the FK is `MATCH FULL`, and this row's silence on match type was a hole**
+  (ADR 0172). Measured: under the default MATCH SIMPLE the composite FK is satisfied
+  **vacuously whenever any referencing column is NULL** — a scratch-table row with
+  `scope_kind = NULL` and `role = 'TOTALLY_FAKE_ROLE'` was **ACCEPTED**. ⚠ And its value is
+  **prospective**: on the real `memberships` table the hole is unreachable because
+  `memberships_role_check` / `memberships_scope_shape` reject first, so a keystone run there
+  goes green while measuring a different control. MATCH FULL is what survives their
+  retirement. `platform_admin` and `administrativo` carry **structurally unreachable**
+  `allowed_scope_kind` values (`none` / `capability_plane`), which is what keeps
+  `role = 'administrativo'` out of `memberships` **after** the CHECK retires.
 - pgTAP: referential integrity; **implication acyclicity** (recursive check as a test, not a
   trigger); the PHI/write separation invariants as data tests — `…phi…` codes never implied by
   content-read codes, write codes never implied by read codes (the `_case_caps` separations,

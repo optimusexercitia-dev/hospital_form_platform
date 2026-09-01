@@ -1,0 +1,26 @@
+{
+  "sourceSha256": "e4784ef5921c098bd971a24fad30dba44f65c3da5419410c6f3ef3879c228e4b",
+  "expected": 117000,
+  "executed": 2002,
+  "skipped": 114998,
+  "skippedByRule": {
+    "operation_determines_sensitivity": 57096,
+    "lifecycle_requires_lifecycled_resource": 11895,
+    "deny_class_collapses_downstream_axes": 377,
+    "scope_must_match_role_scope_kind": 23790,
+    "anonymous_has_no_active_context": 15600,
+    "anonymous_holds_no_role_state": 6240
+  },
+  "fixtureOnly": 1001,
+  "unfillable": 91,
+  "denyClassCounts": {
+    "pending": 468,
+    "suspended": 468,
+    "inactive": 468,
+    "wrong_scope": 637,
+    "wrong_active_context": 1287,
+    "cross_org": 156,
+    "unauthenticated": 39
+  },
+  "failures": []
+}

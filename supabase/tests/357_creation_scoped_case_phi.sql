@@ -281,8 +281,18 @@ select test_helpers.reset_role_and_claims();
 insert into public.commission_administrativo_capabilities (commission_id, user_id, capability, granted_by)
   values ((select comm_x from k), (select st_x from k), 'create_cases', (select sa_x from k));
 
+-- ⛔ COLUMNS ARE NAMED ON BOTH ENDS OF THIS SAVE/RESTORE. DO NOT "SIMPLIFY" BACK TO
+-- `select *` — it worked until 2026-09-01 and then stopped, permanently.
+-- AE4's assignment binding (20261003007120) added `public.memberships.scope_kind` as a
+-- GENERATED ALWAYS column, and a generated column cannot take an explicit value: the
+-- restore below failed with "cannot insert a non-DEFAULT value into column scope_kind",
+-- aborting this file mid-run so it reported `Bad plan: planned 48, ran 31` — a parse error
+-- that names the PLAN, not the column, and reads like a defect in whatever was edited last.
+-- ⚠ If a future migration adds a WRITABLE column to memberships, add it to BOTH lists here.
 create temp table mrow on commit drop as
-  select * from public.memberships
+  select id, principal_id, organization_id, hospital_id, commission_id, role, title_id,
+         granted_by, granted_at, expires_at
+    from public.memberships
    where commission_id = (select comm_x from k) and principal_id = (select st_x from k);
 delete from public.memberships
  where commission_id = (select comm_x from k) and principal_id = (select st_x from k);
@@ -302,7 +312,12 @@ select throws_ok(
   '42501', 'sem permissão',
   '8.2b ⭐ AT THE DOOR: the ORPHAN is refused by create_case itself — the assertion that has to survive every disjunct the gate carries, not just the one under test');
 select test_helpers.reset_role_and_claims();
-insert into public.memberships select * from mrow;
+insert into public.memberships
+  (id, principal_id, organization_id, hospital_id, commission_id, role, title_id,
+   granted_by, granted_at, expires_at)
+select id, principal_id, organization_id, hospital_id, commission_id, role, title_id,
+       granted_by, granted_at, expires_at
+  from mrow;
 
 -- =========================================================================
 -- (8c) ⭐ THE NOUN RULE AT THIS DOOR — platform_admin CREATES NOTHING HERE.

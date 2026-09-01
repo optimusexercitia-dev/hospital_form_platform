@@ -7206,6 +7206,7 @@ export type Database = {
           organization_id: string | null
           principal_id: string
           role: string
+          scope_kind: string | null
           title_id: string | null
         }
         Insert: {
@@ -7218,6 +7219,7 @@ export type Database = {
           organization_id?: string | null
           principal_id: string
           role: string
+          scope_kind?: string | null
           title_id?: string | null
         }
         Update: {
@@ -7230,6 +7232,7 @@ export type Database = {
           organization_id?: string | null
           principal_id?: string
           role?: string
+          scope_kind?: string | null
           title_id?: string | null
         }
         Relationships: [

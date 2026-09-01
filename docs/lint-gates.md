@@ -80,3 +80,24 @@
     door calls, and a registry written to match that number would have greened over all five. The
     gate re-derives those from the TS AST and compares as a **multiset** (one door legitimately
     appears twice), so a deleted duplicate reds even though the count still matches.
+  - `lint:authz-vectors` (`gen-authz-matrix-cells.mjs --check`) — the AE4.5 authorization-matrix
+    cell enumeration drifting from the axes JSON it is generated from. Same shape as gate 9
+    (`build-adr-index.mjs --check`): a generated artifact whose source and output must agree.
+    Added because the AE1.3 precedent it copies (`gen-person-scope-vectors.mjs`) has its `--check`
+    wired into **no gate at all** — its only drift protection is a vitest sha assertion, and AE4
+    Increment 1 ships no vitest twin, so without this gate the generated `.psql` would be
+    uncovered entirely. ADR 0172.
+    ⚠ **THE TRAP: green here does NOT mean coverage was verified.** `--check` proves the emitted
+    `.psql` and coverage JSON match the axes JSON — a *drift* check. The generator also carries
+    **coverage arms** ("every catalog permission has a test mapping", "every non-legacy role has an
+    approved matrix"), and in AE4 Increment 1 both range over an **empty set**: the catalog holds
+    zero permissions and every role is `legacy`. So the arms pass having checked nothing, and the
+    reassuring `in sync (N cells, M skipped)` line says nothing about them. The discharge is
+    `node scripts/gen-authz-matrix-cells.mjs --self-test`, which feeds synthetic inputs where each
+    arm HAS a subject and asserts the gate exits 1 — **it is not part of `--check`**, so run it
+    when you change the coverage logic. Its own fourth arm was **vacuous on first writing** (it
+    named a condition the constraint rules made unreachable, so it reported NOT CAUGHT) — the
+    self-test caught its own bad arm, which is the only reason it is trustworthy now.
+    ⚠ The JSON↔database half is **not** this gate's job: `authz.roles` matching the axes file's
+    role list is asserted by **pgTAP 401 §12**, because a Node script cannot reach the DB at lint
+    time. Neither half alone closes the loop.

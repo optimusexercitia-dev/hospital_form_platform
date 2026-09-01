@@ -348,11 +348,11 @@ whose **claim** went false has no gate at all, so that queue is its only witness
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` is **ELEVEN gates chained**; ALL must pass (verify against
+- **Lint gate** — `npm run lint` is **TWELVE gates chained**; ALL must pass (verify against
   `package.json`, not this list): `eslint --max-warnings=0` **&&** `lint:css-vars` **&&**
   `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous` **&&**
   `lint:set-local` **&&** `lint:progress` **&&** `lint:rules` **&&** `lint:adr-index` **&&**
-  `lint:mojibake` **&&** `lint:service-role-registry`. Each was added after the class it gates
+  `lint:mojibake` **&&** `lint:service-role-registry` **&&** `lint:authz-vectors`. Each was added after the class it gates
   shipped a live defect; that rationale — and the traps in reading each gate's output — lives in
   **[docs/lint-gates.md](./docs/lint-gates.md)**, rotated there 2026-08-29 when this file had 169
   bytes of headroom left. ⛔ Verify the chain against `package.json`, never a prose list.

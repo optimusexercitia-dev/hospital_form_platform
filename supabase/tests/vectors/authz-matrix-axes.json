@@ -1,0 +1,129 @@
+{
+  "_comment": [
+    "AE4.5 generator INPUT — the seven PO-approved axes of the authorization matrix.",
+    "Authority: docs/design/authz-persona-matrix-axes-ae0.md (PO-APPROVED 2026-08-26, SEVEN axes).",
+    "Generator: scripts/gen-authz-matrix-cells.mjs   Output: authz_matrix_cells.psql + authz-matrix-coverage.json",
+    "",
+    "⛔ THIS FILE DECLARES THE GRID, NOT ITS CONTENTS. Every cell here has axis coordinates",
+    "and a stable id and NO EXPECTED VALUE. Filling in expectations is AE4.3 (the staff_admin",
+    "permission matrix, PO-approved) and AE4.5 (the differential oracle). AE4 Increment 1 ships",
+    "the machinery only — a cell list with expectations invented by the generator's author would",
+    "be exactly the 'approve a legacy defect into the matrix' trap that PA-F8 exists to stop.",
+    "",
+    "⚠ SUBJECT SCOPE: `staff_admin` only. AE4 substitutes exactly one role (ADR 0155 D7); AE5",
+    "adds one role at a time through the same template. Widening `subjectRoles` is what an AE5",
+    "increment does."
+  ],
+
+  "subjectRoles": ["staff_admin"],
+
+  "catalogRoles": [
+    "administrativo", "hospital_admin", "nsp_coordinator", "nsp_org_admin", "org_admin",
+    "platform_admin", "pqs_member", "quality_reviewer", "staff", "staff_admin",
+    "technical_director", "technical_director_deputy"
+  ],
+
+  "axes": {
+    "persona": {
+      "_source": "AE0.5 Axis 1 — the seeded roster. ⛔ NO SEEDED PERSONA HOLDS ANYTHING OUTSIDE ITS HOME ORG, so `cross_org_actor` is fixture-only and is tagged as such.",
+      "values": {
+        "subject_holder": "holds the subject role at the scope under test",
+        "other_commission_holder": "holds the subject role at a DIFFERENT commission in the same org",
+        "cross_org_actor": "holds the subject role in another organization — FIXTURE-ONLY, no seeded persona can fill this",
+        "unprivileged": "authenticated, holds no relevant role",
+        "anonymous": "not authenticated"
+      }
+    },
+
+    "role": {
+      "_source": "AE0.5 Axis 2 — 11 role codes across 5 independent definition surfaces.",
+      "values": { "staff_admin": "the AE4 subject" }
+    },
+
+    "activeContext": {
+      "_source": "AE0.5 Axis 3 — role-valued, NOT (role, scope)-valued. ABSENT is a real value and fails closed.",
+      "values": {
+        "matching": "active_role = the subject role",
+        "other_role": "active_role = some other role the caller holds",
+        "absent": "no active_role claim — caller holds zero or many role types; forces /selecionar-perfil"
+      }
+    },
+
+    "scope": {
+      "_source": "AE0.5 Axis 4 — 3 kinds + zero-scope. staff_admin is commission-scoped per memberships_scope_shape.",
+      "values": {
+        "own_commission": "the commission the caller holds the role at",
+        "sibling_commission": "another commission in the same hospital/org",
+        "foreign_org_commission": "a commission in another organization",
+        "zero_scope": "no scope instance — platform_admin's shape"
+      }
+    },
+
+    "operation": {
+      "_source": "AE0.5 Axis 5 — THREE TIERS WITH NO SHARED NAMESPACE (finding F2). ⛔ `read_cases` (administrativo) and `read_case_content` (_case_caps bit) are one word apart and mean different things; AE4.3 must resolve that collision rather than mechanically unify them.",
+      "tiers": {
+        "role_at_scope": ["is_staff_admin_of"],
+        "case_caps": ["view_case_overview", "read_case_deliberation", "read_case_content", "read_standard_phi", "read_restricted_phi", "write_case_content", "manage_case_access"],
+        "administrativo_caps": ["schedule_meetings", "create_cases", "assign_case_phases", "view_signoffs", "read_cases"]
+      }
+    },
+
+    "principalState": {
+      "_source": "AE0.5 Axis 6a — an input to EVERY cell, for actor and target alike.",
+      "values": {
+        "active": "ordinary",
+        "pending": "registered, not yet activated",
+        "suspended": "profiles.suspended_until in the future",
+        "deactivated": "profiles.is_active = false",
+        "offboarded": "no active affiliation — ⛔ NO APPROVED AUTHORITY RULE YET (AE2.0's PO decision). Carried so the gap is visible; cells stay unfilled."
+      }
+    },
+
+    "resourceLifecycle": {
+      "_source": "AE0.5 Axis 6b — per resource family. A predicate can be true at every instant and false across a REVERSAL, so a transition-dependent cell records the transition, not the state.",
+      "values": {
+        "not_applicable": "the operation acts on no lifecycled resource",
+        "draft": "form version draft / document draft",
+        "published": "published form version — IMMUTABLE (Architecture Rule 5)",
+        "archived": "archived form version",
+        "in_progress": "response in progress — creator-only, resumable",
+        "submitted": "response submitted — IMMUTABLE and counted"
+      }
+    },
+
+    "sensitivity": {
+      "_source": "AE0.5 Axis 7 — feeds authz.permissions.sensitivity_ceiling (DEFERRED in Increment 1, ADR 0172).",
+      "values": {
+        "none": "ordinary governance content; the platform is PHI-free by design outside three modules",
+        "class2_professional_identity": "professional_profiles — case-scoped RLS + audited reads",
+        "phi_standard": "_case_caps bit read_standard_phi",
+        "phi_restricted": "_case_caps bit read_restricted_phi",
+        "restricted_personal": "cpf / date_of_birth / phone — moved to profile_private_details by AE3"
+      }
+    }
+  },
+
+  "denyClasses": {
+    "_comment": "⛔ Deny classes are AXIS VALUES, not prose (plan PA-F7). Each names the axis coordinates that constitute it, so the generator can label a cell mechanically.",
+    "wrong_scope": { "scope": ["sibling_commission"] },
+    "cross_org": { "scope": ["foreign_org_commission"], "persona": ["cross_org_actor"] },
+    "inactive": { "principalState": ["deactivated"] },
+    "suspended": { "principalState": ["suspended"] },
+    "pending": { "principalState": ["pending"] },
+    "wrong_active_context": { "activeContext": ["other_role", "absent"] },
+    "unauthenticated": { "persona": ["anonymous"] }
+  },
+
+  "constraintRules": {
+    "_comment": "Rules that EXCLUDE IMPOSSIBLE COMBINATIONS. Implemented as code in the generator; declared here so the exclusion is reviewable and so each skipped cell can name the rule that skipped it. ⛔ 'exhaustive' must be an output of the artifact, never a review adjective.",
+    "scope_must_match_role_scope_kind": "staff_admin is commission-scoped (memberships_scope_shape), so zero_scope is impossible for it.",
+    "anonymous_has_no_active_context": "An unauthenticated caller cannot carry an active_role claim; only activeContext=absent is reachable.",
+    "anonymous_holds_no_role_state": "principalState describes a profile row; an anonymous caller has none. Only principalState=active is enumerated, as a placeholder coordinate.",
+    "third_party_ops_are_active_context_independent": "AE0.5 Axis 3 asymmetry 2 — app.has_role consults active_role ONLY when p_user_id = auth.uid(). Operations on another person skip the filter entirely, so activeContext is not a free variable for them. A DERIVED PROPERTY, recorded once here rather than rediscovered per role.",
+    "operation_determines_sensitivity": "⭐ For the _case_caps tier the OPERATION IS THE SENSITIVITY — read_standard_phi IS the standard-PHI bit. Crossing every case operation with every sensitivity value enumerates states like 'read_standard_phi at sensitivity none', which name nothing reachable. Not a simplification; it is what the bitmask means.",
+    "lifecycle_requires_lifecycled_resource": "resourceLifecycle other than not_applicable is only reachable for operations acting on a lifecycled resource. ⚠ EMPTY IN INCREMENT 1 BY PROPERTY, NOT BY STUB: Axis 5's three tiers are today's vocabulary (role-at-scope predicates, _case_caps bits, administrativo capabilities) and none of them acts on a form version or a response, which are the families Axis 6b enumerates. AE4.3 populates the per-operation map when it derives the form/response permission codes, and the cell count grows THEN — attributable to that derivation instead of buried in an initial cross-product.",
+    "deny_class_collapses_downstream_axes": "⭐ Once a caller is anonymous, deactivated, or acting on a foreign org's commission, the answer is DENY FOR THAT REASON, and enumerating the remaining axes underneath it produces N cells asserting the same thing for the same reason — the same test copied N times, inflating the coverage report into a number nobody can act on. ⛔ The collapse NEVER applies to the axis the deny is ON: an `inactive` deny still enumerates every principalState.",
+    "operation_tier_excluded_for_role": "A subject role may have no operations in a whole tier. Declared as a spec-level `excludeOperationTiers` list; AE5 uses it per role.",
+    "offboarded_has_no_approved_rule": "AE0.5 Axis 6a — the fully-offboarded value BLOCKS on AE2.0's PO decision. Cells are enumerated and marked unfillable rather than silently dropped, so the gap stays visible."
+  }
+}
