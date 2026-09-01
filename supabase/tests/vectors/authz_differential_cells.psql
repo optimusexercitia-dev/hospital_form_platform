@@ -3,8 +3,8 @@
 -- Generator: scripts/gen-authz-differential-cells.py   (--check is chained into lint gate 12)
 -- sourceSha256: 2ddda77978bba11e90050d3a7c9d746541459d642ac03ef9c2cf1d5a69b094dd
 --
--- AE4.5 differential cells. 657 cells over the THREE legacy-equivalence classes
--- (pgTAP 401 §19.2 asserts the partition), 1143 skipped by named rule.
+-- AE4.5 differential cells. 648 cells over the THREE legacy-equivalence classes
+-- (pgTAP 401 §19.2 asserts the partition), 1152 skipped by named rule.
 --
 -- ⛔ EXPECTED VALUES COME FROM EXACTLY TWO HAND-ENCODED SOURCES, never from resolver logic:
 --   (1) the approved matrix row  — staff_admin holds all three representatives;
@@ -15,10 +15,10 @@
 -- values are computed the way the resolver computes them proves only that the resolver
 -- equals itself.
 --
--- ⚠ AXIS VALUES EXCLUDED BY NAME (arm7 refuses any that are not): principalState.offboarded; scope.zero_scope
+-- ⚠ AXIS VALUES EXCLUDED BY NAME (arm7 refuses any that are not): persona.anonymous; principalState.offboarded; scope.zero_scope
 --   `principalState.offboarded` is FILLABLE and awaiting a PO expected value — not unfillable.
 --
--- expectedSource values present: deny-class:cross_org, deny-class:inactive, deny-class:pending-is-granted, deny-class:suspended, deny-class:unauthenticated, deny-class:wrong_active_context:self, deny-class:wrong_active_context:third-party, deny-class:wrong_scope, matrix-row, matrix-row:not-a-holder
+-- expectedSource values present: deny-class:cross_org, deny-class:inactive, deny-class:pending-is-granted, deny-class:suspended, deny-class:wrong_active_context:self, deny-class:wrong_active_context:third-party, deny-class:wrong_scope, matrix-row, matrix-row:not-a-holder
 create temp table authz_differential_cells on commit drop as
   select * from (values
     ('subject_holder|staff_admin|matching|own_commission|commission.forms.edit|active|self', 'subject_holder', 'matching', 'own_commission', 'commission.forms.edit', 'is_staff_admin_of_for', 'commission', 'active', true, true, 'matrix-row'),
@@ -237,9 +237,6 @@ create temp table authz_differential_cells on commit drop as
     ('unprivileged|staff_admin|absent|foreign_org_commission|commission.forms.edit|suspended|third_party', 'unprivileged', 'absent', 'foreign_org_commission', 'commission.forms.edit', 'is_staff_admin_of_for', 'commission', 'suspended', false, false, 'deny-class:suspended'),
     ('unprivileged|staff_admin|absent|foreign_org_commission|commission.forms.edit|deactivated|self', 'unprivileged', 'absent', 'foreign_org_commission', 'commission.forms.edit', 'is_staff_admin_of_for', 'commission', 'deactivated', true, false, 'deny-class:inactive'),
     ('unprivileged|staff_admin|absent|foreign_org_commission|commission.forms.edit|deactivated|third_party', 'unprivileged', 'absent', 'foreign_org_commission', 'commission.forms.edit', 'is_staff_admin_of_for', 'commission', 'deactivated', false, false, 'deny-class:inactive'),
-    ('anonymous|staff_admin|absent|own_commission|commission.forms.edit|active|self', 'anonymous', 'absent', 'own_commission', 'commission.forms.edit', 'is_staff_admin_of_for', 'commission', 'active', true, false, 'deny-class:unauthenticated'),
-    ('anonymous|staff_admin|absent|sibling_commission|commission.forms.edit|active|self', 'anonymous', 'absent', 'sibling_commission', 'commission.forms.edit', 'is_staff_admin_of_for', 'commission', 'active', true, false, 'deny-class:unauthenticated'),
-    ('anonymous|staff_admin|absent|foreign_org_commission|commission.forms.edit|active|self', 'anonymous', 'absent', 'foreign_org_commission', 'commission.forms.edit', 'is_staff_admin_of_for', 'commission', 'active', true, false, 'deny-class:unauthenticated'),
     ('subject_holder|staff_admin|matching|own_commission|org.professionals.create|active|self', 'subject_holder', 'matching', 'own_commission', 'org.professionals.create', 'can_create_professional', 'organization', 'active', true, true, 'matrix-row'),
     ('subject_holder|staff_admin|matching|own_commission|org.professionals.create|active|third_party', 'subject_holder', 'matching', 'own_commission', 'org.professionals.create', 'can_create_professional', 'organization', 'active', false, true, 'matrix-row'),
     ('subject_holder|staff_admin|matching|own_commission|org.professionals.create|pending|self', 'subject_holder', 'matching', 'own_commission', 'org.professionals.create', 'can_create_professional', 'organization', 'pending', true, true, 'deny-class:pending-is-granted'),
@@ -456,9 +453,6 @@ create temp table authz_differential_cells on commit drop as
     ('unprivileged|staff_admin|absent|foreign_org_commission|org.professionals.create|suspended|third_party', 'unprivileged', 'absent', 'foreign_org_commission', 'org.professionals.create', 'can_create_professional', 'organization', 'suspended', false, false, 'deny-class:suspended'),
     ('unprivileged|staff_admin|absent|foreign_org_commission|org.professionals.create|deactivated|self', 'unprivileged', 'absent', 'foreign_org_commission', 'org.professionals.create', 'can_create_professional', 'organization', 'deactivated', true, false, 'deny-class:inactive'),
     ('unprivileged|staff_admin|absent|foreign_org_commission|org.professionals.create|deactivated|third_party', 'unprivileged', 'absent', 'foreign_org_commission', 'org.professionals.create', 'can_create_professional', 'organization', 'deactivated', false, false, 'deny-class:inactive'),
-    ('anonymous|staff_admin|absent|own_commission|org.professionals.create|active|self', 'anonymous', 'absent', 'own_commission', 'org.professionals.create', 'can_create_professional', 'organization', 'active', true, false, 'deny-class:unauthenticated'),
-    ('anonymous|staff_admin|absent|sibling_commission|org.professionals.create|active|self', 'anonymous', 'absent', 'sibling_commission', 'org.professionals.create', 'can_create_professional', 'organization', 'active', true, false, 'deny-class:unauthenticated'),
-    ('anonymous|staff_admin|absent|foreign_org_commission|org.professionals.create|active|self', 'anonymous', 'absent', 'foreign_org_commission', 'org.professionals.create', 'can_create_professional', 'organization', 'active', true, false, 'deny-class:unauthenticated'),
     ('subject_holder|staff_admin|matching|own_commission|org.professionals.read|active|self', 'subject_holder', 'matching', 'own_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'active', true, true, 'matrix-row'),
     ('subject_holder|staff_admin|matching|own_commission|org.professionals.read|active|third_party', 'subject_holder', 'matching', 'own_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'active', false, true, 'matrix-row'),
     ('subject_holder|staff_admin|matching|own_commission|org.professionals.read|pending|self', 'subject_holder', 'matching', 'own_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'pending', true, true, 'deny-class:pending-is-granted'),
@@ -674,9 +668,6 @@ create temp table authz_differential_cells on commit drop as
     ('unprivileged|staff_admin|absent|foreign_org_commission|org.professionals.read|suspended|self', 'unprivileged', 'absent', 'foreign_org_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'suspended', true, false, 'deny-class:suspended'),
     ('unprivileged|staff_admin|absent|foreign_org_commission|org.professionals.read|suspended|third_party', 'unprivileged', 'absent', 'foreign_org_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'suspended', false, false, 'deny-class:suspended'),
     ('unprivileged|staff_admin|absent|foreign_org_commission|org.professionals.read|deactivated|self', 'unprivileged', 'absent', 'foreign_org_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'deactivated', true, false, 'deny-class:inactive'),
-    ('unprivileged|staff_admin|absent|foreign_org_commission|org.professionals.read|deactivated|third_party', 'unprivileged', 'absent', 'foreign_org_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'deactivated', false, false, 'deny-class:inactive'),
-    ('anonymous|staff_admin|absent|own_commission|org.professionals.read|active|self', 'anonymous', 'absent', 'own_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'active', true, false, 'deny-class:unauthenticated'),
-    ('anonymous|staff_admin|absent|sibling_commission|org.professionals.read|active|self', 'anonymous', 'absent', 'sibling_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'active', true, false, 'deny-class:unauthenticated'),
-    ('anonymous|staff_admin|absent|foreign_org_commission|org.professionals.read|active|self', 'anonymous', 'absent', 'foreign_org_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'active', true, false, 'deny-class:unauthenticated')
+    ('unprivileged|staff_admin|absent|foreign_org_commission|org.professionals.read|deactivated|third_party', 'unprivileged', 'absent', 'foreign_org_commission', 'org.professionals.read', 'can_read_professional_profile', 'organization', 'deactivated', false, false, 'deny-class:inactive')
   ) as t(cell_id, persona, active_context, scope, permission_code, legacy_class,
          resolution_scope_kind, principal_state, self_check, expected_granted, expected_source);

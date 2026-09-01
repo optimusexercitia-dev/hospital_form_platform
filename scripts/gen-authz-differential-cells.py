@@ -72,13 +72,30 @@ AXIS_DISPOSITION = {
 # ── Values this generator deliberately does NOT emit. arm7 accepts only named exclusions. ──
 EXCLUSIONS = {
     ('principalState', 'offboarded'):
-        'expected values NOT YET PO-APPROVED. The axes file rules this an ORDINARY FILLABLE '
-        'COORDINATE (ADR 0163: an ended affiliation decides WHERE, never WHETHER — CLAUDE.md '
-        'Rule 13), so it is fillable, not unfillable. ⛔ But the staff_admin matrix is APPROVED AT '
-        '42 ROWS and the deny-class table at 9; neither covers offboarding, so emitting these '
-        'cells means INVENTING expected values — the exact PA-F8 trap the two-source rule exists '
-        'to stop. Routed to the PO batch (QA F4). Deleting this entry without an approved '
-        'expected value is how a defect gets approved into the oracle.',
+        'PO-RULED (ADR 0175 D1): NOT A DENY CLASS, and PROVEN STRUCTURALLY rather than by cells. '
+        '⛔ THE REASON CHANGED ON 2026-09-01 AND THE OLD ONE READ AS CARE — it said "expected '
+        'values NOT YET PO-APPROVED ... routed to the PO batch", which implied the only thing '
+        'missing was a ruling. It was not: these cells are UNCONSTRUCTIBLE by this fixture. 403 '
+        'contains ZERO occurrences of `affiliation` and creates no affiliation row for any of its '
+        'three synthetic principals, and its driver (403 §5) has no `offboarded` branch — it '
+        'resets, then handles deactivated/suspended/pending only. So FOUR of the five personas '
+        'are ALREADY permanently offboarded (their offboarded cell would be byte-identical to '
+        'their active cell) and subject_holder (chefe.ccih, 1 live org affiliation) would run '
+        'ACTIVE under an offboarded label — the same defect the anonymous exclusion below exists '
+        'to delete. ⭐ The property is instead asserted where it is true for ALL inputs, not 91 '
+        'sampled ones: pgTAP 401 §20 — no function on the staff_admin path references an '
+        'affiliation relation, measured on BOTH halves of the differential. ⚠ ONE HOP, not the '
+        'transitive closure (ADR 0175 D1 carries the bound).',
+    ('persona', 'anonymous'):
+        'PO-RULED (ADR 0175 D2): DELETED, not relabelled. These nine cells claimed to test the '
+        'unauthenticated layer and could not — the harness maps `anonymous` to f.nobody, the SAME '
+        'AUTHENTICATED principal as `unprivileged`, so they passed on "not a holder" and proved '
+        'nothing about anonymity (QA F8). ⭐ Their replacement is STRICTLY STRONGER and already '
+        'exists: pgTAP 401 §18 — no application role holds USAGE on `authz`, so an anonymous '
+        'caller cannot invoke the resolver at all. A structural closure beats a behavioural '
+        'sample, which is the only condition under which deleting an assertion is honest rather '
+        'than convenient. ⛔ Do not re-emit this persona to raise the cell count: without a '
+        'driver that actually drops the JWT, the cells come back exactly as vacuous as they left.',
     ('scope', 'zero_scope'):
         'UNCONSTRUCTIBLE for this subject. `zero_scope` is platform_admin\'s shape; '
         '`memberships_scope_shape` refuses a commission-scoped role row with no commission_id, so '
@@ -119,7 +136,16 @@ def expected(persona, ctx, scope, state, selfcheck, res_scope):
            that is org.professionals.create, NOT .manage, which staff_admin lost;
        (2) the approved deny-class effect table, transcribed in its stated precedence.
        No scope-reaching join, no closure lookup, no role_permissions read."""
-    if persona == 'anonymous':   return False, 'deny-class:unauthenticated'
+    # ⛔ DEAD BY EXCLUSION, KEPT AS A LOUD GUARD (ADR 0175 D2). This used to return
+    # 'deny-class:unauthenticated' for a principal that is in fact AUTHENTICATED. Deleting the
+    # branch outright would let a future removal of the persona exclusion silently resurrect the
+    # vacuous class with a plausible label; raising makes that removal fail at generation time
+    # and forces whoever does it to build the JWT-less driver first.
+    if persona == 'anonymous':
+        raise AssertionError(
+            'persona `anonymous` reached expected(): the ADR 0175 D2 exclusion was removed without '
+            'a driver that actually drops the JWT. The old label deny-class:unauthenticated was '
+            'FALSE — this persona is f.nobody, an authenticated principal.')
     if state == 'deactivated':   return False, 'deny-class:inactive'
     if state == 'suspended':     return False, 'deny-class:suspended'
     holds = HOLDS_AT[persona]

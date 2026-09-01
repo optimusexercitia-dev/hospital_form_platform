@@ -21,24 +21,27 @@
 --     UUID id-space, not by any org term in the resolver. ⛔ This must never read as
 --     "the resolver enforces tenant isolation".
 --
--- ⚠ THREE MORE LIMITATIONS, MEASURED 2026-09-01. Each is a place where the CELL COUNT overstates
--- what was measured, and all three read as coverage in a gate record if not stated:
---   * `657 cells` is 438 DISTINCT DRIVER-OBSERVABLE COORDINATES. The driver's answer depends on
+-- ⚠ TWO MORE LIMITATIONS, MEASURED 2026-09-01 (a third was RESOLVED — see below). Each is a place
+-- where the CELL COUNT overstates what was measured, and both read as coverage if not stated:
+--   * `648 cells` is 432 DISTINCT DRIVER-OBSERVABLE COORDINATES. The driver's answer depends on
 --     (persona, context, scope, RESOLUTION-SCOPE-KIND, state, self_check) — not on the permission
---     code — and TWO of the three representatives are org-scoped, so 219 of the cells re-run a
+--     code — and TWO of the three representatives are org-scoped, so 216 of the cells re-run a
 --     coordinate an earlier rep already measured. That re-run is not worthless (it shows the two
---     org-scoped codes agree) but it is not 657 independent measurements, and citing 657 as the
+--     org-scoped codes agree) but it is not 648 independent measurements, and citing 648 as the
 --     measurement count is the inflation the axes file itself warns against.
---   * THE 9 `deny-class:unauthenticated` CELLS DO NOT RUN UNAUTHENTICATED. The driver maps the
---     `anonymous` persona to f.nobody, the same AUTHENTICATED principal as `unprivileged`, so
---     those 9 cells prove exactly what `matrix-row:not-a-holder` proves and NOTHING about
---     anonymity. ⛔ Nor is the honest version constructible on this axis: an `anon` caller cannot
---     reach `authz.has_direct_permission` at all — no application role holds USAGE on `authz`
---     (401 §18.1) — so it would ERROR rather than deny, and there is no differential to take.
---     ⭐ The APPROVED deny-class table ALREADY SAYS SO — row 8's own note records that an
---     anonymous caller cannot invoke the resolver at all. The table was right; the generator
---     emitted cells for the row anyway, and the LABEL is what reads as coverage. Re-labelling an
---     approved deny class is approval surface: routed to the PO, not renamed here.
+--     ⛔ RE-DERIVED, NOT ADJUSTED: this read `657 / 438 / 219` until ADR 0175 D2 deleted the nine
+--     anonymous cells. Scaling those three numbers by hand would have been wrong — the count of
+--     DISTINCT coordinates does not move with the cell count in any fixed ratio.
+--   * ✅ RESOLVED 2026-09-01 (ADR 0175 D2) — THE 9 `deny-class:unauthenticated` CELLS ARE DELETED.
+--     They never ran unauthenticated: the driver maps `anonymous` to f.nobody, the same
+--     AUTHENTICATED principal as `unprivileged`, so they proved exactly what
+--     `matrix-row:not-a-holder` proves and NOTHING about anonymity. ⛔ Nor was the honest version
+--     constructible on this axis — an `anon` caller cannot reach `authz.has_direct_permission` at
+--     all (no application role holds USAGE on `authz`), so it would ERROR rather than deny and
+--     there is no differential to take. That structural fact is asserted in 401 §18.1 and is
+--     STRICTLY STRONGER than the nine cells, which is the only reason deleting them is honest.
+--     ⛔ The generator now refuses the persona by name, and `expected()` RAISES if it is ever
+--     re-enabled without a JWT-less driver — see the exclusion's reason there.
 --   * 108 CELLS LABELLED `third_party` HAVE CALLER == PRINCIPAL. The driver deliberately uses
 --     f.nobody as the third-party caller (see its comment — using f.uid made the subject_holder
 --     cells self-checks in disguise), but `unprivileged`'s principal IS f.nobody, so for that
@@ -51,10 +54,13 @@
 -- (three; pgTAP 401 §19.2 asserts the partition). Per-permission GRANT is covered by 401 §19.4's
 -- 42 cheap probes. Per-permission AXES are not observable until AE5 gives a role a partial map.
 --
--- RUN SHAPE: `Files=2, Tests=19` (18 here + 00_setup.sql's one).
+-- RUN SHAPE: `Files=2, Tests=22` (21 here + 00_setup.sql's one). ⚠ 18 -> 21: ADR 0175 D3's § 7,
+-- the three assertions that BOUND F3's discharge. ⛔ Keep this line in step with plan() — the QA
+-- review caught it already claiming 12 against plan(15), and a stale RUN SHAPE is read as the
+-- expected shape by the next person diagnosing a count mismatch.
 
 begin;
-select plan(18);
+select plan(21);
 
 \ir vectors/authz_differential_cells.psql
 
@@ -108,6 +114,21 @@ on conflict (id) do update set is_active = true, email_confirmed_at = now();
 insert into public.memberships (principal_id, commission_id, role)
 select sib_holder,  sib_cid,  'staff_admin' from f403 union all
 select xorg_holder, xorg_cid, 'staff_admin' from f403;
+
+-- ⭐ ADR 0175 D3 — THE SUBJECT THE REAL DOOR NEEDS, and the reason the substitution existed.
+-- `app.can_read_professional_profile(p_profile_id, p_uid)` takes a PROFILE id, not a scope id,
+-- and derives the organization FROM THE PROFILE. So a single profile would collapse the scope
+-- axis: every cell would resolve against one org and own/sibling/foreign would stop differing.
+-- ⛔ ONE PROFILE PER ORG, mapped by the SAME rule the driver uses for v_scope_id, or the sweep
+-- silently narrows to one column while still reporting three.
+alter table f403 add column own_prof uuid;
+alter table f403 add column xorg_prof uuid;
+update f403 set own_prof  = '00000000-0000-4403-8000-000000000011'::uuid,
+                xorg_prof = '00000000-0000-4403-8000-000000000012'::uuid;
+
+insert into public.professional_profiles (id, organization_id, full_name)
+select own_prof,  own_oid,  'ZZ403 Prof OwnOrg'   from f403 union all
+select xorg_prof, xorg_oid, 'ZZ403 Prof CrossOrg' from f403;
 
 select ok((select xorg_cid from f403) is not null and (select sib_cid from f403) is not null
           and (select xorg_oid from f403) <> (select own_oid from f403),
@@ -216,16 +237,33 @@ begin
   --    cell of the class a denial — single polarity, invisible to arm2 because arm2 is
   --    satisfied globally by the other reps.
   --  * ⛔ ROW 33's `else` BRANCH HAD TO MOVE TOO, or 403 § 4.1 would red on a divergence the
-  --    split never intended. That branch SUBSTITUTES a gate for `can_read_professional_profile`
-  --    (QA finding F3 — still open, still routed to the PO batch, deliberately not fixed here).
-  --    The substituted gate must be the ARM the substitution stands for: the real door's arm 1
-  --    is the org-manager arm, which AE4.7c re-pointed to `can_create_professional`. Leaving
-  --    `can_manage_professional` here would report staff_admin as DENIED row 33 — a code it
-  --    KEEPS — and the red would be a SUBSTITUTION ARTIFACT, not a finding.
+  --    split never intended. That branch SUBSTITUTED a gate for `can_read_professional_profile`
+  --    (QA finding F3). The substituted gate had to be the ARM the substitution stood for: the
+  --    real door's arm 2 is the org-manager arm, which AE4.7c re-pointed to
+  --    `can_create_professional`. Leaving `can_manage_professional` there would have reported
+  --    staff_admin as DENIED row 33 — a code it KEEPS — a SUBSTITUTION ARTIFACT, not a finding.
+  --
+  -- ✅ F3 IS DISCHARGED HERE (ADR 0175 D3): THE `else` BRANCH NOW CALLS THE DOOR ITS CLASS IS
+  -- NAMED FOR. The equivalence the substitution ASSUMED is no longer assumed — it is measured,
+  -- every cell, every run. `can_read_professional_profile` is a THREE-ARM disjunction
+  -- (is_admin · can_create_professional · a case-committee traversal), and substituting arm 2
+  -- for the whole door meant arms 1 and 3 were outside the differential entirely: a widening of
+  -- either was invisible to the oracle by construction.
+  -- ⚠ WHAT THIS DOES **NOT** BUY, stated because "the real door is called" reads like more:
+  -- arms 1 and 3 are now EVALUATED but cannot GRANT in this fixture (§ 7 asserts both, rather
+  -- than asserting it in prose). So a widening that makes them grant is caught; a widening
+  -- INSIDE arm 3's traversal, which needs case participation to reach at all, is still not.
+  -- That divergence is PO-DEFERRED to the AE5 matrix — ADR 0175 D3, and it is why the gate
+  -- record may not write "the differential is green" without the exercised-≠-oracled qualifier.
   legacy := case p_class
     when 'is_staff_admin_of_for'         then app.is_staff_admin_of_for(v_scope_id, v_principal)
     when 'can_create_professional'       then app.can_create_professional(v_scope_id, v_principal)
-    else app.can_create_professional(v_scope_id, v_principal)   -- row 33: arm 1's population (F3)
+    -- ⛔ The profile is chosen by the SAME scope rule as v_scope_id above. Choosing it any other
+    -- way (or using one profile) decouples the door's org from the cell's scope, and the scope
+    -- axis stops being swept while the cell ids still claim it is.
+    else app.can_read_professional_profile(
+           case p_scope when 'foreign_org_commission' then f.xorg_prof else f.own_prof end,
+           v_principal)
   end;
   catalog := authz.has_direct_permission(v_principal, v_res, v_scope_id, p_code);
   return next;
@@ -398,6 +436,49 @@ select cmp_ok(pg_temp.disagreements(), '>', 0,
   'RED. ⛔ This is the assertion that proves the suite measures SCOPE and not only grants: a '
   'resolver that stopped checking scope would answer TRUE for every commission in the '
   'database, and §5.1 would still be green if this suite were only grant-sensitive.');
+
+-- ============================================================================
+-- §7 — THE BOUND ON F3's DISCHARGE, ASSERTED RATHER THAN PROMISED (ADR 0175 D3).
+-- §§4-5 now compare the REAL `can_read_professional_profile`. That door has three arms, and
+-- this fixture can only make ONE of them grant. ⛔ Writing that in a comment would let it go
+-- stale the first time someone adds a platform admin or a case participation to the fixture —
+-- and it would go stale SILENTLY, in the direction that reads as more coverage. So it is
+-- asserted: if either arm ever becomes able to grant here, these reds and the AE5 divergence
+-- question arrives with a test attached instead of being rediscovered.
+-- ============================================================================
+
+select is(
+  (select count(*)::int from public.professional_profiles pp
+    where pp.id in ((select own_prof from f403), (select xorg_prof from f403))
+      and pp.organization_id in ((select own_oid from f403), (select xorg_oid from f403))),
+  2,
+  '7.1 FIXTURE CONTROL: both subject profiles exist, one per organization. §1.1 already proved '
+  'the two orgs differ, so the row-33 class sweeps the scope axis through the PROFILE''s org — '
+  'the door ignores v_scope_id entirely and derives the org from the profile it is handed.');
+
+select is(
+  (select count(*)::int from public.profiles p
+    where p.id in ((select uid from f403), (select sib_holder from f403),
+                   (select xorg_holder from f403), (select nobody from f403))
+      and coalesce(p.is_admin, false)),
+  0,
+  '7.2 ARM 1 CANNOT GRANT IN THIS FIXTURE: no fixture principal is a platform admin, so '
+  '`is_admin()` is false for every caller §§4-5 construct. ⛔ This is a BOUND, not a pass — it '
+  'says the arm is evaluated and structurally silent, which is exactly why a widening of arm 1 '
+  'would be caught (catalog would not move) and a defect INSIDE arm 1 would not.');
+
+select is(
+  (select count(*)::int from public.professional_participants pp
+    where pp.professional_profile_id in ((select own_prof from f403), (select xorg_prof from f403))),
+  0,
+  '7.3 ARM 3 CANNOT GRANT IN THIS FIXTURE: neither subject profile has a single '
+  '`professional_participants` row, so the case-committee traversal has nothing to walk and '
+  'returns false for every cell. ⛔ THIS IS THE PO-DEFERRED DIVERGENCE (ADR 0175 D3): arm 3 '
+  'grants with NO org term at all — a professional in a readable case is readable whatever their '
+  'organization — and measuring THAT needs a participation fixture plus expected values the AE5 '
+  'matrix owns. Until then: exercised, not oracled. ⛔ If this reds because someone added a '
+  'participation row, do not adjust the number — the arm just became reachable and its cells '
+  'need approved expected values first.');
 
 -- ⚠ CLEANUP RUNS LAST, AND THE ORDER IS LOAD-BEARING. It was originally placed before §6,
 -- which deactivated the fixture principals and made EVERY cell deny — so §6.1 passed for the

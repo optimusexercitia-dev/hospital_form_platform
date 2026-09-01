@@ -31,7 +31,7 @@
 -- RUN SHAPE: `Files=2, Tests=113` (112 here + 00_setup.sql's one).
 
 begin;
-select plan(114);
+select plan(117);
 
 -- ============================================================================
 -- §1 — the schema, the four tables, and the deny-all RLS posture.
@@ -1259,6 +1259,58 @@ select is(
   '19.6 DISCRIMINATION CONTROL: the SAME probe against a NON-staff_admin returns ALL 43 as '
   'failures. So § 19.4''s "(none)" is an observation, not a stuck-true - the probe can '
   'return both answers.');
+
+-- ============================================================================
+-- §20 - `offboarded` IS NOT A DENY CLASS (ADR 0175 D1), proven STRUCTURALLY.
+-- ⛔ This section EXISTS INSTEAD OF 91 differential cells, and that is the point.
+-- The PO first ruled "emit the 91 offboarded cells, expected = the active cell";
+-- re-measurement found them UNCONSTRUCTIBLE - 403 creates no affiliation row for any
+-- fixture principal and its driver has no `offboarded` branch, so four of five personas
+-- are already permanently offboarded and the fifth would run ACTIVE under an offboarded
+-- label. A structural closure holds for ALL inputs; 91 samples would have held for none.
+-- ⚠ ONE HOP, NOT THE TRANSITIVE CLOSURE - these eleven BODIES are clean; a helper they
+-- CALL is out of this section's domain. Closing that needs a gate-aware closure walk
+-- (scripts/authz-c2-tier1-sizing.sql computes those). Cite this as one-hop, never as
+-- "the path cannot see affiliations".
+-- ============================================================================
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where (n.nspname = 'authz'
+        or (n.nspname = 'app' and p.proname in ('is_active','has_role','is_staff_admin_of',
+                                                'is_staff_admin_of_for','is_org_commission_staff_admin')))
+      and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~* 'affiliat'),
+  0,
+  '20.1 BOTH HALVES OF THE DIFFERENTIAL ARE AFFILIATION-BLIND: no function on the '
+  'staff_admin path - the six authz.* functions AND the five legacy predicates the oracle '
+  'calls - references an affiliation relation. So ending an affiliation cannot change either '
+  'answer or produce a disagreement, for ALL inputs. This is CLAUDE.md Rule 13 and ADR 0163''s '
+  '"an ended row decides WHERE, never WHETHER" made falsifiable. ⚠ Comments are STRIPPED first, '
+  'so a comment SAYING it ignores affiliations cannot green this.');
+
+select cmp_ok(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('app','public')
+      and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~* 'affiliat'),
+  '>=', 20,
+  '20.2 DISCRIMINATION CONTROL for § 20.1: the SAME predicate over app/public finds many '
+  '(52 at authorship). ⛔ Without this, a typo''d or over-escaped regex returns zero everywhere '
+  'and § 20.1 reads as a proof while being a DEAD INSTRUMENT. Asserted as a FLOOR, not the exact '
+  '52: an exact count would red every time an unrelated affiliation door is added, and a gate '
+  'that reds for the wrong reason gets re-coded rather than read. ⚠ The stem is `affiliat`, not '
+  '`affiliation` - the narrower form cannot match is_affiliated_with_hospital_for, and the first '
+  'measurement behind ADR 0175 D1 used it and undercounted 52 as 47.');
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'authz'
+       or (n.nspname = 'app' and p.proname in ('is_active','has_role','is_staff_admin_of',
+                                               'is_staff_admin_of_for','is_org_commission_staff_admin'))),
+  11,
+  '20.3 DOMAIN CARDINALITY CONTROL for § 20.1: the probe ranged over exactly ELEVEN functions '
+  '(6 authz.* + 5 named legacy predicates). ⛔ § 20.1 is keyed on NAMES, and a rename orphans a '
+  'name-keyed verdict SILENTLY - the in-list would match fewer, § 20.1 would pass having checked '
+  'less, and nothing else would notice. If this reds, do not adjust the number: find what moved.');
 
 select * from finish();
 rollback;

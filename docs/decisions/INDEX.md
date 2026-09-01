@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**172 ADRs** · next free number: **0175** · 53 carry an inbound supersedes/amends edge
+**173 ADRs** · next free number: **0176** · 53 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -176,7 +176,7 @@
 | 0152 | [PostgREST maps the `P0*` SQLSTATE class to HTTP 500; the document-corridor 500 is a 73-…](0152-postgrest-p-class-sqlstate-maps-to-500.md) | accepted | 2026-08-26 | amends 0151 | – |
 | 0153 | [A subset door-sweep writes to scratch; the committed baseline is never opened for write](0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) | accepted | 2026-08-26 | amends 0079 | – |
 | 0154 | [the roster predicate is the query filter, not `list_org_people`](0154-roster-predicate-is-the-query-filter-not-list-org-people.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0158 |
-| 0155 | [Post-AFF4 tenancy and person-model evolution: a staged sequence, not a redesign](0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0160, 0162 |
+| 0155 | [Post-AFF4 tenancy and person-model evolution: a staged sequence, not a redesign](0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0160, 0162, 0175 |
 | 0156 | [the door-SQLSTATE gate's domain is a structural property, not a list of names](0156-door-sqlstate-gate-domain-is-structural.md) | accepted | 2026-08-26 | amends 0098 | – |
 | 0157 | [The dominance grid's population was bounded by SCHEMA, not by the property](0157-dominance-grid-population-bounded-by-schema.md) | accepted | 2026-08-26 | amends 0079, 0097 | – |
 | 0158 | [the hospital directory keeps its predicate: no org-affiliation filter at the hospital t…](0158-hospital-directory-keeps-its-predicate.md) | accepted | 2026-08-26 | amends 0154 | – |
@@ -196,3 +196,4 @@
 | 0172 | [AE4's catalog substrate: MATCH FULL is the assignment binding, unreachable scope kinds…](0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md) | accepted | 2026-09-01 | amends 0162 | – |
 | 0173 | [the door-sweep deriver is blind to runtime-rewrite migrations; a target-declaration con…](0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md) | accepted | 2026-09-01 | amends 0079 | – |
 | 0174 | [`authz.holds_role`: one chokepoint for the hat, and `authz.roles.state` made load-beari…](0174-authz-holds-role-chokepoint-and-authoritative-state-gate.md) | accepted | 2026-09-01 | amends 0079, 0106 | – |
+| 0175 | [The AE4 PO batch: what the differential oracle asserts, and what it deliberately does n…](0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) | accepted | 2026-09-01 | amends 0155 | – |

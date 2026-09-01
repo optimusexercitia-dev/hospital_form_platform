@@ -463,3 +463,122 @@ their GATE is COVERED and pgTAP 290 exercises all six denials. Named in
 - ⚠ **PROGRESS.md is now 98 KB against an 82 KB target — 4.4 KB from the HARD CAP.** Rotation is
   PO-deferred to the Record step, and AE4.8 will not fit. ⛔ Compressing under cap pressure cuts
   qualifiers first, which is how a bound becomes a bare claim; rotate before the next increment.
+
+## AE4 PO batch — 2026-09-01 (lead session, after AE4.7c)
+
+Four items reached the PO in one sitting. Decision record: ADR
+[0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md). ⛔ This section records
+what the build **measured**; the ADR records what was **ruled**, and the two differ in one place
+that matters (D1).
+
+### D1 — `offboarded`: ruled by cells, rebuilt as a structural proof
+
+⛔ **THE FIRST RULING WAS "EMIT THE 91 CELLS", AND IT WAS WITHDRAWN BEFORE ANY CODE, ON A
+MEASUREMENT.** The cells would have been born vacuous: `403` contains **zero** occurrences of
+`affiliation` and creates no affiliation row for any fixture principal, and its driver has no
+`offboarded` branch. So four of five personas are *already* permanently offboarded — their
+offboarded cell would be byte-identical to their active cell — and `subject_holder`
+(`chefe.ccih`, 1 live org affiliation) would have run **active under an offboarded label**. That
+is the same defect D2 deletes nine cells for, and D1 would have created 91 more of it.
+
+Built instead: **pgTAP 401 § 20**, three assertions.
+
+| # | What it asserts | Why it is there |
+| --- | --- | --- |
+| 20.1 | 0 of **11** path functions reference an affiliation relation — the 6 `authz.*` **and** the 5 legacy predicates the oracle calls | Both halves of the differential are affiliation-blind, so offboarding cannot move either answer, for **all** inputs |
+| 20.2 | the same predicate over `app`/`public` finds **>=20** (52 at authorship) | ⛔ DISCRIMINATION — a typo'd regex returns zero everywhere and 20.1 reads as a proof while being a dead instrument |
+| 20.3 | the probe ranged over exactly **11** functions | ⛔ 20.1 is NAME-keyed; a rename shrinks the in-list silently and 20.1 passes having checked less |
+
+⚠ **Two bounds that must survive to the gate record.** (1) **ONE HOP** — those eleven *bodies*
+are clean; a helper they *call* is outside § 20's domain, and closing that needs a gate-aware
+closure walk. (2) The stem is **`affiliat`**, not `affiliation`: the narrower form cannot match
+`is_affiliated_with_hospital_for`, and the first measurement behind the ADR used it and
+**undercounted 52 as 47**. The conclusion held under the stronger predicate; the count did not.
+
+### D2 — the nine `unauthenticated` cells, deleted
+
+`657 -> 648` cells, exactly nine, and `deny-class:unauthenticated` is gone from the emitted source
+list. The persona is excluded **by name** so arm7 sees it, and `expected()` now **raises** if the
+persona ever reaches it — a removal of the exclusion fails at generation time instead of quietly
+resurrecting a vacuous class under a plausible label.
+
+⭐ **The header's arithmetic was RE-DERIVED, not scaled.** It read `657 / 438 / 219`; the new
+figures are **648 / 432 / 216**, computed from the regenerated file. Distinct-coordinate count
+does not move with cell count in any fixed ratio, so hand-scaling would have produced three
+confident wrong numbers. The `108 third_party cells with caller == principal` and the `26
+wrong_active_context:third-party` figures were re-measured and are **unchanged**.
+
+### D3 — 403 calls the door its class is named for
+
+The `else` branch substituted `can_create_professional` for `can_read_professional_profile`, so
+arms 1 and 3 of a three-arm disjunction were outside the differential entirely. It now calls the
+real door. This needed a **subject**, which is why the substitution existed: the door takes a
+*profile* id and derives the org **from the profile**, so a single profile would have collapsed
+the scope axis to one column while the cell ids still claimed three. Fixture: **one profile per
+org**, mapped by the same scope rule the driver uses for `v_scope_id`.
+
+⭐ **§§4–5 stayed green with the real door in place** — so the substitution *was* faithful, and
+that equivalence is now measured every run instead of assumed.
+
+⛔ **What it does NOT buy, asserted in § 7 rather than promised in prose:** arms 1 and 3 are now
+*evaluated* but cannot *grant* here — 7.2 (no fixture principal is a platform admin) and 7.3 (no
+`professional_participants` row for either subject profile). So a widening that makes them grant
+is caught; a widening **inside** arm 3's traversal is not. **Exercised != oracled** — PO-deferred
+to the AE5 matrix, and the gate record may not write "the differential is green" without it.
+
+### D4 — the two follow-ups
+
+**(a) The ruling named the wrong function.** D4(a) said "document `p_uid` in
+`can_manage_professional`" — measured, that comment **already says it** (AE4.7c wrote it). The
+undocumented one is its caller `can_create_professional`, which AE4.7c's own comment says
+inherited the third-party call site. Measured grain:
+
+    can_create_professional(p_org, p_uid)
+      = can_manage_professional(p_org, p_uid)       -- arms read the CALLER; p_uid = null guard
+     or is_org_commission_staff_admin(p_org, p_uid) -- honours p_uid
+
+⭐ **Mixed-grain**: one arm answers about the target, the other about the caller. Reachable
+consequence, now recorded on the function itself: `can_read_professional_profile` forwards a
+third-party `p_uid` here, and when the **caller** is an `org_admin` of that org this returns true
+whoever `p_uid` is. Harmless today — every caller in the tree passes `auth.uid()` — and a trap for
+the first that does not. Migration `20261003007240`, **comment-only**.
+
+**(b) Production auth was measured, and it moved.** Detail in ADR 0175 D4; the headline is that
+only **one** Supabase project exists, which retires a false premise in
+`follow-ups-archive.md:68` (*"remote TEST project … still TODO for real production"* — that
+separate project does not exist). ⚠ The setting itself was **never read** — the MCP exposes no
+auth-config endpoint — so the disposition is **downgrade, not close**.
+
+### Gates at the end of the PO batch — fresh `supabase db reset --local`
+
+| Gate | Result | Exit |
+| --- | --- | --- |
+| `npm run test:db` | **254 files / 8504 tests — PASS** (8498 + 3 in 401 § 20 + 3 in 403 § 7) | 0 |
+| `npm run lint` (12 gates; gate 12 `--check` over both vector files, 648 in sync) | green | 0 |
+| `npm run typecheck` | green | 0 |
+| `ARM=census` · `ARM=hat` · `ARM=floor` · `FROMFINDINGS=1 ARM=wrapper` | HOLD | 0 · 0 · 0 · 0 |
+
+⛔ **THE DERIVER EXITED 1 AND IT IS RULED, NOT WAIVED.** `scripts/door-sweep-cases.sh` reports
+FINDING(1) — the diff touched `supabase/migrations` and zero cases were derived. Discharged by its
+option (b), **as a claim someone can check**: migration `20261003007240` contains exactly two
+statements — a `do $$` existence guard that only ever `raise`s, and one `COMMENT ON FUNCTION`. No
+policy, no function/trigger/table DDL, no GRANT/REVOKE. Verified against the catalog rather than
+the file: `prosecdef` = t, `proconfig` unchanged, `authenticated` EXECUTE = false, and `prosrc`
+**byte-identical** to its pre-migration body.
+
+**Did NOT run:** `npm run e2e:prod`. No `src/` file was touched by this batch (the only
+application-side change is a SQL comment), so it cannot have moved — ⚠ but it was **already not
+green as-run** and owes a b2 + b9 re-run, which AE4.8 inherits.
+
+### What the PO batch did NOT do
+
+- **Arm 3's divergence is not ruled** — deferred to AE5 by D3, with § 7.3 as its tripwire.
+- **`FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` is documented, not closed.** The mixed grain
+  still exists; only the trap is now signposted.
+- **`FUP-SEED-PENDING-PERSONA` is downgraded, not closed** — `seed.sql` untouched, and the auth
+  setting itself is still unread.
+- **The one-hop bound on § 20** is not closed; the transitive closure was not walked.
+- **The 403 fixture still cannot express `offboarded`** — four of five personas hold no
+  affiliation, so their cells labelled `active` are inaccurate. Harmless while nothing on the path
+  reads affiliations (§ 20 is exactly that proof), but it is a fixture that cannot express a
+  distinction it names. Filed, not fixed inside AE4.
