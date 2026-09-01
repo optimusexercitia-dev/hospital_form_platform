@@ -1,11 +1,11 @@
 ---
 branch: authz-ae4-catalog
 task: AE4 — the authz catalog, and staff_admin substituted end-to-end (ADR 0155 D7)
-adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0079]
+adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0079, 0106]
 base_sha: 0412bef7e59476635ddb024c63fdce182a7a6466
 created: 2026-09-01
 updated: 2026-09-01
-status: live   # AE4.7a landed; AE4.7b + the PO batch are next
+status: live   # AE4.7b landed (test:db GREEN); AE4.7c + the PO batch are next
 ---
 
 # Handoff — AE4, paused after the cutover
@@ -14,8 +14,10 @@ status: live   # AE4.7a landed; AE4.7b + the PO batch are next
 
 1. `git log --oneline 0412bef7..HEAD` and `git status` — confirm the tree still matches.
 2. `supabase db reset --local` — mandatory; every figure below assumes a fresh reset.
-3. `npm run test:db` — expect **253 files / 8452 tests, RED on exactly two suites** (§ Gates):
-   315 test 14 and 319 test 5. Any other red is drift, not this handoff's state.
+3. `npm run test:db` — expect **253 files / 8467 tests, GREEN**. ⭐ CHANGED BY AE4.7b: the
+   branch's long-standing two reds (315 t14, 319 t5) are the ORPHANED TWINS and they are
+   REPAIRED. A red on either now is drift, not this handoff's state — and a red anywhere
+   else was never this handoff's state.
 4. Read **PROGRESS.md § Now** and § Decisions. This file is not status truth.
 
 ⛔ Re-measure before relying on anything below — see § Trust.
@@ -78,7 +80,9 @@ AE4 makes the `authz` catalog exist, migration-managed, with **exactly one role 
 
 ### Not started
 
-**AE4.7** and **AE4.8**. See § Next task.
+**AE4.7c** (fully ruled — matrix § 12.8.5 is its spec) and **AE4.8**. See § Next task.
+⛔ **`docs/backend-state.md` has NO `authz` section yet** — deliberate: the surface map is a
+Record-step artifact and AE4 merges once, at Gate AE4. Owed there, not here.
 
 ### Tree
 
@@ -179,22 +183,29 @@ qualifier beside any "all arms green" claim (plan rule 2).
 | **UNKNOWN:** whether `e2e:prod` still passes after the cutover. Not run since Increment 1. | run it |
 | **UNKNOWN:** whether the 25 unreachable rewrite migrations' doors hold periodic-sweep verdicts. The 8 measurable ones gave 16 COVERED / 10 ERROR / **0 BLIND** / 29 absent — and every absent one is outside `PRED_DOMAIN` by shape, converging on the **known C2 population**, not a new one. | a historical-snapshot audit, if ever authorised |
 
-## Next task — AE4.7b   (⛔ AE4.7a is DONE — see § AE4.7a at the end of this file;
-## the QA section's step 1 is discharged, and its item 4 plank "403 §6.3 already demonstrates
-## this works" is now actually demonstrated rather than assumed)
+## Next task — AE4.7c   (⛔ AE4.7a AND AE4.7b are DONE — see the two sections at the end of
+## this file. All four items of the old AE4.7b list are discharged and each is recorded with
+## what it MEASURED, not with what it intended.)
 
-**First command:** `supabase db reset --local && npm run test:db` to reproduce the two reds.
+**First command:** `supabase db reset --local && npm run test:db` — expect **GREEN, 253f/8467**.
+A red is drift; there is no longer an expected-red baseline on this branch.
 
-1. **Re-point the orphaned twins.** Mutate the wrapper's active-role conjunct
-   (`… af.role_code is not distinct from app.active_role()`) instead of `has_role`'s
-   disjunct — same property, new chokepoint. ⛔ These are delicate hat controls; a
-   re-pointed mutation twin that passes **vacuously** is worse than the orphaned red,
-   because the red is loud and a vacuous pass is silent forever. Prove each still fires.
-2. Re-derive the census/hat/floor/wrapper **domains** so the delegating wrappers stay in-domain.
-3. Add the **catalog-completeness arm** (every non-`legacy` role has an approved matrix and
-   a differential suite) and the **wrapper-coverage arm** (the AE4.6 census re-run).
-4. Point mutation arms at the resolver. ⭐ 403 §6.3 already demonstrates this works —
-   neutralising `authz.scope_reaches` reds the suite.
+**AE4.7c — the `can_manage_professional` split.** Fully ruled; matrix § 12.8.5 is the spec, and
+the ORDER is the safety property (see § What AE4.7a did NOT do → F2 for the full ruling):
+
+1. § 12.3 **FAMILY split** — rows 31/32/33 off the gate. ⛔ Doing the grant change first strips
+   external-participant minting and the case vocabularies, which `staff_admin` KEEPS.
+2. **OPERATION split** — new `app.can_create_professional`, new row 43 `org.professionals.create`
+   (PO-approved), `set_professional_link_state` bounded to `link_state = 'unknown'`.
+3. **The grant change** — `staff_admin` loses row 30 `org.professionals.manage`.
+4. Re-point 403's `can_manage_professional` representative to `org.professionals.create` and
+   regenerate. ⚠ Both halves in the SAME migration or 403 §4.1 reds on its own transition.
+
+⚠ **AE4.7b changed the ground under step 1.** `can_manage_professional` now reaches the catalog
+through `app.is_staff_admin_of_for` → `authz.holds_role` (AE4.6 replaced its direct `has_role`
+call; AE4.7b collapsed the wrapper). So a body edit there is an edit to a CATALOG-ROUTED site:
+the diff-scoped sweep will select it, and **ARM=sites** will notice if the split introduces a new
+`'staff_admin'` literal that is neither the wrapper family nor allowlisted.
 
 Then **AE4.8** (frontend seam collapse, parallel track under file ownership), then Gate AE4:
 full §6 + `e2e:prod` + QA review + PO approval.
@@ -671,3 +682,136 @@ green.
    mislabelled `unauthenticated` cells, and the two remaining FUPs. (✅ **F2 is CLOSED** — ruled
    2026-09-01; no ADR, matrix § 12.8 is its home by PO ruling.)
 5. **AE4.8**, then Gate AE4 = §6 + `e2e:prod` re-run to an actual green + QA review + PO approval.
+
+## AE4.7b — the chokepoint, 2026-09-01 (lead session, after AE4.7a)
+
+Scope was the QA § "Recommended order" step 2 **exactly**, plus the F9 bullet that step 2's own
+plan rests on (`authz.roles.state`). ⛔ **Everything here is VERIFIED** — every figure was produced
+by a command run this session, exit codes read DIRECTLY rather than through a pipe.
+
+**ADR [0174](../decisions/0174-authz-holds-role-chokepoint-and-authoritative-state-gate.md)** is the
+decision record (amends 0106 and 0079). Three commits: `58c42d7c` (the chokepoint), `51b9f168`
+(F7 + the hat arm), `2e838333` (the two new arms).
+
+### The headline: `test:db` is GREEN, and the twins were repaired rather than deleted
+
+| | before | after |
+| --- | --- | --- |
+| `npm run test:db` | 253f / **8452**, RED on 315 t14 + 319 t5 | 253f / **8467**, **PASS** |
+
+The +15 accounts exactly: 405 15→26 (+11), 315 22→25 (+3), 319 17→18 (+1). Nothing else moved.
+
+### 1. `authz.holds_role` — one site for the hat
+
+Both wrappers are now one-liners over it. The §6A self / third-party asymmetry is derived
+INTERNALLY from `p_principal is distinct from auth.uid()`, so it is written once and each wrapper's
+polarity falls out — 405 §§2.2/3.2/3.3 were written against the hand-copied bodies and **pass
+unchanged**, which is the evidence the collapse was behaviour-preserving.
+
+⭐ **`authz.roles.state` stops being inert.** `holds_role` requires `authoritative`.
+⛔ **Consequence, and it is not a bug:** `holds_role` denies all ELEVEN legacy roles even with a
+live, correctly-scoped membership and the matching hat. `app.has_role` still serves those and is
+untouched. 405 §6 asserts both polarities **and** flips `org_admin`'s state inside the transaction
+to prove the denial tracks the column and nothing else.
+
+### 2. The twins — and the one that was VACUOUS on the first attempt
+
+- **315** — the revert-twin's probe moved to `public.form_block_library`, derived from `pg_policy`
+  rather than chosen: exactly ONE policy of any command, two arms, one CATALOG-routed and one still
+  `has_role`-routed, over the SAME row for the SAME caller. Plus an **ARM-SPLIT CONTROL** asserting
+  the catalog arm stays SHUT under the same mutation — which is both the attribution for the twin
+  and the measurement explaining why the original was orphaned.
+- **319 A5** — ⛔ **THE INSTRUCTIVE FAILURE, recorded in the file itself.** The obvious repair
+  (staff_admin hat, expecting `111 → 175` as S2's bit 64 appears) **measured 111**: S1's mask 111
+  ALREADY CONTAINS bit 64, so S2's whole contribution is masked by an arm that is legitimately
+  open, and the twin observes nothing while looking exactly like a twin. Caught by a red. A5 now
+  wears a hat `sa_x` does not hold — `0 → 64` exactly — which carries the leak AND the arm-split
+  control in one equality. **A4b** is its pre-mutation zero.
+- **405 §7** — the wrappers' own twins, which did not exist: neutralize the hat conjunct (§2.2's
+  case flips to wrongly TRUE), neutralize the `state` conjunct (a legacy role is wrongly admitted).
+  Each asserts the edit LANDED before observing anything; each restores byte-identically, and 7.4
+  restores against the FIRST snapshot, not its own predecessor's.
+
+### 3. F7 — the `authz` schema had never been in any arm's domain
+
+Widened harness + deriver to `('app','public','authz')`. ARM 3 then flagged three gates as UNKNOWN
+— **the arm working**. Verdicts: `has_direct_permission` **COVERED** · `holds_role` **ERROR**
+(the documented load-bearing-predicate class, inherited by construction — it IS both wrappers) ·
+`scope_reaches` **backlog (b)** with 403 §6.3 named as its mutation-proven keystone AND that
+keystone's bound stated (two callers, §6.3 mutates one).
+
+⛔ **Three of the six authz functions remain OUT of every arm and are named per door** in the
+harness comment: `assignment_facts` (set-returning, no `authenticated` EXECUTE),
+`explain_direct_permission` + `rebuild_implication_closure` (prosecdef scalar non-bool = C2).
+State that beside any "the authz schema is swept" claim.
+
+⭐ **The hat arm was measuring a subject that had moved.** Its own domain also bounded on
+`('app','public')`, so `authz.assignment_facts` — the only body in the tree reading
+`public.memberships` for a principal with no hat of its own — was invisible, and its anchor list
+still asserted only `app.has_role(_any)`, which the staff_admin family no longer evaluates.
+`authz.holds_role` is now the **third anchor**, **ST7** proves that anchor check flips, and
+`assignment_facts` is allowlisted with a per-caller compensating control and three WRONG-THE-DAY
+conditions.
+
+### 4. The two new arms, each proven able to FAIL
+
+- **`ARM=catalog`** — flipping `org_admin` to `authoritative` reds it with both missing artifacts
+  named (exit 1); restored. ⚠ Its first draft globbed `*differential*.sql` and matched
+  `392_ae23a_widening_differential.sql` — right role, wrong file, reported OK. Now bounded by the
+  oracle's own artifact (`authz_differential_cells`).
+- **`ARM=sites`** — a planted `app.zz_arm7_bypass_probe` carrying `role = 'staff_admin'` is flagged
+  by name (exit 1); dropped. 14 sites today = 2 wrappers + 12 allowlisted, matching 007200's hand
+  census exactly. ⚠ Its own first run is why its vacuity control is a **PAIR**: psql does not
+  interpolate `-v` variables inside `-c`, both lookups died with a syntax error, and the arm
+  printed `OK: staff_admin — 0 site(s)` beside `vacuity control: OK`. A dead instrument satisfies
+  a set-difference check and a negative control at the same time.
+
+### 5. FUP-IS-STAFF-ADMIN-OF-CARRIES-PUBLIC-EXECUTE — closed, with a finding inside the closure
+
+Revoked, asserted on both sides by EFFECTIVE PRIVILEGE, with a pre-condition, an **over-revoke
+twin** and a sibling-unmoved check. ⚠ pgTAP **320**'s ratchet header listed this grant among "the
+explicit nine … a decision, not drift", because they run inside policies `anon` may evaluate.
+Measured before the revoke: of the **64** policies calling it, **ZERO** are granted to `anon` or
+PUBLIC, and `anon` holds SELECT on **ZERO** `public` tables. Drift wearing a decision's label,
+inside a list whose purpose is to tell the two apart. Ratchet re-pinned 237→236 (control 238→237).
+⚠ **The other eight were NOT re-derived** — this says nothing about them.
+
+### Gates at the end of AE4.7b — fresh `supabase db reset --local`
+
+| Arm / suite | Result | Exit |
+| --- | --- | --- |
+| `npm run test:db` | **253 files / 8467 tests — PASS** | — |
+| `npm run lint` (12 gates) | green | 0 |
+| `npm run typecheck` | green | 0 |
+| `npm run test` (vitest) | 149 files / 2021 tests | 0 |
+| `ARM=census` | HOLDS — 574 live / 610 with a verdict | 0 |
+| `ARM=hat` | HOLDS — self-test **7/7**, 4 reasoned-allowlisted findings | 0 |
+| `ARM=floor` | HOLDS — 72 never-called doors, all allowlisted | 0 |
+| `FROMFINDINGS=1 ARM=wrapper` | HOLDS — BLIND set 41 | 0 |
+| **`ARM=catalog`** (new) | HOLDS — 1 non-legacy role, both artifacts | 0 |
+| **`ARM=sites`** (new) | HOLDS — 14 sites, 2 wrapper + 12 allowlisted | 0 |
+| diff-scoped sweep (read arm, 3 cases) | **DIRTY — 0 BLIND, 3 ERROR**; baseline cksum-verified unchanged | 1 |
+| census-backfill sweep (2 cases) | **UNPROVEN (PARTIAL)** — 1 COVERED, `scope_reaches` matched no gate | 3 |
+| write arm | **0 cases** — the deriver's own output, a claim to check | — |
+
+⛔ **The two non-zero sweep exits are NOT waved through.** The 3 ERRORs are the documented
+load-bearing-predicate class (run-shape drops because the neutralized run produces genuine failures
+across 20+ suites and two files abort on a Bad plan) — recorded in the findings md with what the
+run actually produced, and 405 §7 is the deterministic substitute. The UNPROVEN is `scope_reaches`
+being outside the predicate arm's NAME/identity filter — routed to the backlog with a
+mutation-proven keystone, never read as a pass.
+
+**Did NOT run:** `e2e:prod`. AE4.7b touched no application code (one migration, four pgTAP suites,
+four harness scripts, three allowlists/backlogs). ⛔ The gate still owes exactly what the QA section
+says it owes: a b2 + b9 re-run to an actual green. Never transcribe a prior run as green.
+
+### What AE4.7b did NOT do
+
+- **AE4.7c** — the `can_manage_professional` split. Fully ruled, next in order (§ Next task).
+- **The PO batch** — F4's `offboarded` expected values, F3's arm-3 disposition, the 9 mislabelled
+  `unauthenticated` cells, and the two remaining FUPs (the self-check arm; `novato.pendente`).
+- **`PRED_DOMAIN`'s bound** — stays routed to C2, per QA's explicit instruction. `scope_reaches`
+  is the specimen that shows what that bound costs.
+- **The other eight PUBLIC-EXECUTE grants** in 320's list — not re-derived.
+- **`docs/backend-state.md`** — no `authz` section yet; it is a Record-step artifact and AE4 merges
+  once, at Gate AE4.

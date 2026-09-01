@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**171 ADRs** · next free number: **0174** · 52 carry an inbound supersedes/amends edge
+**172 ADRs** · next free number: **0175** · 53 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -100,7 +100,7 @@
 | 0075 | [Memberships collapse: service-role vs RLS-scoped write-path split](0075-memberships-collapse-write-path-split.md) | accepted | 2026-07-13 | – | – |
 | 0076 | [Notifications (S1·N): pilot scope — prove one vertical deep](0076-notifications-pilot-scope.md) | accepted | 2026-07-13 | – | – |
 | 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134, 0167, 0169 |
-| 0079 | [AUTHZ door-blindness: the standing invariant + the write-policy keystone-isolation rule](0079-authz-door-blindness-standing-invariant.md) | accepted | 2026-07-18 | supersedes 0078 | ⚠ amended by 0134, 0153, 0157, 0173 |
+| 0079 | [AUTHZ door-blindness: the standing invariant + the write-policy keystone-isolation rule](0079-authz-door-blindness-standing-invariant.md) | accepted | 2026-07-18 | supersedes 0078 | ⚠ amended by 0134, 0153, 0157, 0173, 0174 |
 | 0080 | [Committee Charters & Cadence (S4·CH): delegate the regimento to the controlled-doc life…](0080-committee-charters-cadence-model.md) | accepted | 2026-07-20 | – | – |
 | 0081 | [Controlled-Document Redesign + Reviewer Notifications](0081-controlled-document-redesign.md) | accepted | 2026-07-21 | – | ⚠ amended by 0082 |
 | 0082 | [Controlled-Document `changes_requested` Status + In-Place Revision](0082-document-changes-requested-status.md) | accepted | 2026-07-22 | amends 0081 | – |
@@ -127,7 +127,7 @@
 | 0103 | [On the case-access door, a NULL expiry means PERMANENT (and that is intended)](0103-case-access-null-expiry-is-permanent.md) | accepted | 2026-08-07 | – | – |
 | 0104 | [PDF document printing module: record-semantics minting, single registry, template pipel…](0104-pdf-document-printing-module.md) | accepted | 2026-08-07 | – | ⚠ amended by 0125, 0144 |
 | 0105 | [Rename `is_commission_admin_of` → `is_tenancy_admin_of`](0105-rename-is-tenancy-admin-of.md) | accepted | 2026-08-08 | – | – |
-| 0106 | ["Act as": role assumption as a binding constraint](0106-act-as-role-assumption.md) | accepted | 2026-08-09 | – | – |
+| 0106 | ["Act as": role assumption as a binding constraint](0106-act-as-role-assumption.md) | accepted | 2026-08-09 | – | ⚠ amended by 0174 |
 | 0107 | [ACT S4: hat-blindness gets its own allowlist artifact + a self-testing standing sweep](0107-act-s4-hat-blind-sweep-and-allowlist.md) | accepted | 2026-08-10 | – | – |
 | 0108 | [ETH·E4: seating case participants, and the doors the lane never got](0108-eth-e4-participant-seating.md) | ⚠ proposed | 2026-08-11 | – | – |
 | 0109 | [Referral "Registros internos" + the case-access summary door](0109-referral-registros-and-case-access-summary.md) | accepted | 2026-08-11 | – | ⛔ superseded by 0110 |
@@ -195,3 +195,4 @@
 | 0171 | [C2's Tier-1 predicate is re-grained, the tenancy disjunct is dropped, and the command-d…](0171-c2-tier1-regrain-and-the-command-door-neutralizer.md) | accepted | 2026-08-31 | – | – |
 | 0172 | [AE4's catalog substrate: MATCH FULL is the assignment binding, unreachable scope kinds…](0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md) | accepted | 2026-09-01 | amends 0162 | – |
 | 0173 | [the door-sweep deriver is blind to runtime-rewrite migrations; a target-declaration con…](0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md) | accepted | 2026-09-01 | amends 0079 | – |
+| 0174 | [`authz.holds_role`: one chokepoint for the hat, and `authz.roles.state` made load-beari…](0174-authz-holds-role-chokepoint-and-authoritative-state-gate.md) | accepted | 2026-09-01 | amends 0079, 0106 | – |

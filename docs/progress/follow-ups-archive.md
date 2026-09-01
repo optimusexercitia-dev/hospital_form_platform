@@ -7964,3 +7964,68 @@ other finding — the byte half has **no** first-class tooling, so any future au
 built on one of these two mechanisms, and whichever is chosen inherits this item.
 Related: **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES** (the same volume, the destructive direction) and
 **FUP-DM5-NO-ANSWER-VS-NOTHING** instance 3 (the same bytes, the *disposal-assertion* direction).
+
+## FUP-IS-STAFF-ADMIN-OF-CARRIES-PUBLIC-EXECUTE — ✅ CLOSED 2026-09-01 (AE4.7b)
+
+_Body below moved VERBATIM from `follow-ups.md`; the closure follows it._
+
+**Filed:** 2026-09-01 (AE4.6 pre-cutover snapshot) · **Owner:** backend · **Severity:** 🟡
+
+Measured on a fresh reset:
+
+```
+app.is_staff_admin_of(p_commission_id uuid)          acl = =X/postgres , postgres=X , authenticated=X , service_role=X
+app.is_staff_admin_of_for(p_commission_id, p_user_id) acl =              postgres=X , authenticated=X , service_role=X
+```
+
+⭐ **`=X/postgres` is the EMPTY grantee, which IS the PUBLIC grant.** Confirmed by effective
+privilege, not by reading the ACL: `has_function_privilege('anon', 'app.is_staff_admin_of(uuid)',
+'EXECUTE')` = **true**; the `_for` sibling is **false**.
+
+⚠ **Why it exists:** AE1.2 (`20261003005300`) revokes PUBLIC EXECUTE via a **global `FOR ROLE`
+default**, which governs **newly created** functions. This one predates that migration or was
+re-created in a way that re-granted it. Not diagnosed here.
+
+⛔ **Deliberately NOT changed in AE4.6.** Entangling a grant change with the cutover is precisely
+what makes a cutover unattributable — and the cutover's own assertion is that ACLs are **unchanged**,
+which a simultaneous revoke would contradict. The AE4.6 assertion therefore snapshots this ACL
+**as-is**, PUBLIC grant included, and asserts it does not move.
+
+⚠ **The generalisable half, which is why this was nearly missed:** the two sibling wrappers have
+**different** ACLs. An "the ACLs are unchanged" assertion written the obvious way — comparing the
+siblings to each other — would pass while a PUBLIC grant silently vanished or persisted. **Snapshot
+each function's own ACL; never assume symmetry between siblings.**
+
+**Discharge:** decide whether `is_staff_admin_of` should hold PUBLIC EXECUTE at all (it is a
+`prosecdef` authorization predicate), and if not, revoke it in its own increment with its own
+before/after effective-privilege measurement.
+
+### Closure — migration `20261003007210`, ADR 0174 D6
+
+`app.is_staff_admin_of(uuid)` carried `=X/postgres` — the EMPTY grantee, which IS a PUBLIC
+grant, so `anon` resolved EXECUTE on it. Its `_for` sibling did not. AE1.2's global default
+revoke governs only NEWLY-created functions and `create or replace` preserved this one through
+every rewrite. Filed during AE4.6, which deliberately did not touch it (entangling a grant
+change with a cutover is what makes a cutover unattributable).
+
+**Closed by migration `20261003007210` (AE4.7b), ADR 0174 D6.** The revoke asserts its own
+effect on both sides by EFFECTIVE PRIVILEGE — never by reading `proacl` text, since a NULL
+`proacl` includes PUBLIC — with a pre-condition (the grant must still be there, or the revoke
+is a no-op reporting success), an **over-revoke twin** (`authenticated` must keep EXECUTE on
+BOTH wrappers, or every RLS policy on this predicate goes offline while the assertion passes),
+and a sibling-unmoved check. pgTAP 405 §5.2 flipped `array[true,false]` → `array[false,false]`
+and §5.3 pins the over-revoke twin.
+
+⭐ **THE FINDING INSIDE THE CLOSURE, and it is the part worth carrying forward.** pgTAP 320's
+ACL-ratchet header listed this grant among "the explicit nine … Their PUBLIC grant is a
+decision, not drift", on the stated reason that these are evaluated inside RLS policies that
+run as whatever role is reading, **including `anon` on the auth-flow paths**. Measured against
+the live catalog before the revoke: of the **64** policies whose predicate calls
+`app.is_staff_admin_of`, **ZERO** are granted to `anon` or to PUBLIC (all 64 are
+`authenticated`-only), and `anon` holds SELECT on **ZERO** tables in `public` — so no anon read
+path could reach it at all. The sentence that made the list an exemption was **false for this
+member of it**, and the entry had been read as a decision for that reason ever since.
+⚠ The other eight were not re-derived; this closure says nothing about them.
+
+Ratchet re-pinned 237 → 236 (and its control 238 → 237) with the measurement recorded in 320's
+own header, because lowering a ratchet is only legitimate with the removal named and measured.

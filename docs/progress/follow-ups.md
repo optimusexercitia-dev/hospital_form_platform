@@ -7178,36 +7178,3 @@ changes to one predicate in one migration, where only one of them has a differen
 proving it landed. It also needs its own reachability analysis, which has not been done.
 
 **Disposition:** PO's, once BUG-PROF-INACTIVE-001 is green.
-
-## 🟡 FUP-IS-STAFF-ADMIN-OF-CARRIES-PUBLIC-EXECUTE
-
-**Filed:** 2026-09-01 (AE4.6 pre-cutover snapshot) · **Owner:** backend · **Severity:** 🟡
-
-Measured on a fresh reset:
-
-```
-app.is_staff_admin_of(p_commission_id uuid)          acl = =X/postgres , postgres=X , authenticated=X , service_role=X
-app.is_staff_admin_of_for(p_commission_id, p_user_id) acl =              postgres=X , authenticated=X , service_role=X
-```
-
-⭐ **`=X/postgres` is the EMPTY grantee, which IS the PUBLIC grant.** Confirmed by effective
-privilege, not by reading the ACL: `has_function_privilege('anon', 'app.is_staff_admin_of(uuid)',
-'EXECUTE')` = **true**; the `_for` sibling is **false**.
-
-⚠ **Why it exists:** AE1.2 (`20261003005300`) revokes PUBLIC EXECUTE via a **global `FOR ROLE`
-default**, which governs **newly created** functions. This one predates that migration or was
-re-created in a way that re-granted it. Not diagnosed here.
-
-⛔ **Deliberately NOT changed in AE4.6.** Entangling a grant change with the cutover is precisely
-what makes a cutover unattributable — and the cutover's own assertion is that ACLs are **unchanged**,
-which a simultaneous revoke would contradict. The AE4.6 assertion therefore snapshots this ACL
-**as-is**, PUBLIC grant included, and asserts it does not move.
-
-⚠ **The generalisable half, which is why this was nearly missed:** the two sibling wrappers have
-**different** ACLs. An "the ACLs are unchanged" assertion written the obvious way — comparing the
-siblings to each other — would pass while a PUBLIC grant silently vanished or persisted. **Snapshot
-each function's own ACL; never assume symmetry between siblings.**
-
-**Discharge:** decide whether `is_staff_admin_of` should hold PUBLIC EXECUTE at all (it is a
-`prosecdef` authorization predicate), and if not, revoke it in its own increment with its own
-before/after effective-privilege measurement.
