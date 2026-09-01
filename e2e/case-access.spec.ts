@@ -1376,6 +1376,11 @@ test('AC-8 audit: non-coordinator open writes case.opened row; coordinator open 
 //         cannot read herself. Uses the seeded ethics fixture case (a
 //         DIFFERENT case than Caso 0001/0002 this file otherwise touches, so
 //         recusing chefe.ccih there has zero effect on the rest of this file).
+//   SB-6  A recused coordinator's lift_recusal is ALSO rejected — not even on
+//         her own recusal (A27, HC0F1). pgTAP 229 already pins this at the SQL
+//         layer; this is the E2E witness through a real logged-in session.
+//         Positioned right after SB-4 (same fixture shape); numbered 6 because
+//         SB-5 already existed when this was added.
 //   SB-5  No case_access flag-OFF path exists any more — the flag row itself
 //         is gone from app.feature_flags.
 // Each test grants/recuses only what it needs and reverts it, so this battery
@@ -1611,6 +1616,100 @@ test('SB-4: a recused coordinator cannot grant_case_access on the case she is re
       id: `eq.${recusalId}`,
     })
     expect(remaining.length, 'SB-4 teardown did not remove the recusal fixture').toBe(0)
+  }
+})
+
+test('SB-6: a recused coordinator cannot lift_recusal — not even her own (A27 self-lift guarantee; the missing E2E witness)', async ({
+  request,
+}) => {
+  // CORRECTED FRAMING, checked before this test was written: this is NOT "nothing
+  // pins a recused coordinator lifting her own recusal." pgTAP
+  // `229_authz_m1_exclusion_durability.sql:300-314` already pins exactly this at
+  // the mutation-test layer — "M1·2 OVER-GRANT TWIN ⭐: a recused coordinator
+  // cannot lift HER OWN recusal (A27's headline)", asserting errcode HC0F1
+  // against a raw SQL call. Re-derived from `pg_get_functiondef` before trusting
+  // any prior framing (this file's own neighbourhood has been wrong about
+  // recusal "gaps" before — ADR 0169's premise and BUG-STAGEC-READER both
+  // measured false): `public.lift_recusal`'s CURRENT live body checks
+  // `app.is_case_excluded(v_case_id, auth.uid())` and raises HC0F1 when the
+  // CALLER herself is excluded — self-lift is covered as a strict subset of
+  // that guard, not a separate code path. That guarantee is real and already
+  // proven at the SQL layer.
+  //
+  // What's actually missing, and all this test adds: pgTAP calls the function
+  // directly, under no RLS/session context. No spec exercised this guarantee
+  // THROUGH A LOGGED-IN SESSION, over real PostgREST, with a real JWT. This is
+  // that witness — nothing more, and it should not be read as "the guarantee
+  // was unproven before."
+  //
+  // Why this cannot be a round-trip like the other SB tests here: lifting the
+  // recusal is EXACTLY what this test proves is denied, so chefe.ccih has no
+  // authorized way to clean up her own fixture. Teardown MUST be service-role —
+  // the identical constraint SB-4 (immediately above) documents for the same
+  // reason, not a convenience shortcut.
+  const chefeToken = await getToken(request, 'chefe.ccih@test.local')
+
+  // Recuse chefe.ccih from the SEEDED ETHICS case (same fixture shape as SB-4;
+  // built independently here so this test stands alone).
+  const insertResp = await request.post(`${SUPABASE_URL}/rest/v1/case_recusals`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    data: {
+      case_id: ETHICS_CASE_ID,
+      user_id: UID_CHEFE,
+      source: 'self',
+      reason_md: 'Conflito declarado (SB-6 probe).',
+      recused_by: UID_CHEFE,
+    },
+  })
+  expect(insertResp.ok(), `SB-6 setup: case_recusals insert failed: ${await insertResp.text()}`).toBeTruthy()
+  const recusalId = ((await insertResp.json()) as Array<{ id: string }>)[0].id
+
+  try {
+    // Setup control: the row is genuinely live before the denied attempt.
+    // Without this, a denial below could mean "already lifted" (HC0E1) instead
+    // of the self-exclusion guarantee (HC0F1) this test exists to prove.
+    const before = await dbQuery<{ lifted_at: string | null }>('case_recusals', {
+      id: `eq.${recusalId}`,
+    })
+    expect(before[0]?.lifted_at, 'SB-6 setup: fixture recusal is not live').toBeNull()
+
+    // The denial itself: chefe.ccih — herself excluded from ETHICS_CASE_ID by
+    // the row just inserted — tries to lift her own recusal.
+    const liftResp = await rpc(request, 'lift_recusal', chefeToken, {
+      p_recusal_id: recusalId,
+      p_reason_md: 'Mudei de ideia (SB-6 probe).',
+    })
+    expect(
+      liftResp.ok(),
+      'recused coordinator was able to lift_recusal on her own recusal — A27 regression',
+    ).toBeFalsy()
+    expect(JSON.stringify(await liftResp.json())).toMatch(/HC0F1/i)
+
+    // The row must be genuinely untouched by the denied attempt — not merely
+    // "the RPC returned an error while the UPDATE landed anyway."
+    const after = await dbQuery<{ lifted_at: string | null; lifted_by: string | null }>(
+      'case_recusals',
+      { id: `eq.${recusalId}` },
+    )
+    expect(after[0]?.lifted_at, 'denied lift_recusal call mutated lifted_at anyway').toBeNull()
+    expect(after[0]?.lifted_by, 'denied lift_recusal call mutated lifted_by anyway').toBeNull()
+  } finally {
+    // Direct service-role delete — chefe.ccih cannot lift this herself (that IS
+    // the property under test), so this is the only available teardown path.
+    // Never trust an unverified teardown (§7.3 discipline, same as SB-4):
+    // confirm zero live rows remain rather than assuming the DELETE landed.
+    await request.delete(`${SUPABASE_URL}/rest/v1/case_recusals?id=eq.${recusalId}`, {
+      headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
+    })
+    const remaining = await dbQuery<{ id: string }>('case_recusals', {
+      id: `eq.${recusalId}`,
+    })
+    expect(remaining.length, 'SB-6 teardown did not remove the recusal fixture').toBe(0)
   }
 })
 
