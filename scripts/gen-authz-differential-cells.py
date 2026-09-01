@@ -66,6 +66,16 @@ for code, klass, res in REPS:
             for scope in scopes:
                 for state in states:
                     for selfcheck in (True, False):
+                        # ⛔ ABSENT IS NOT REACHABLE FOR A SINGLE-ROLE-TYPE PRINCIPAL.
+                        # AE0.5 Axis 3: the hook emits no active_role only when the caller
+                        # holds ZERO role types or MORE THAN ONE. Each holder persona here
+                        # holds exactly one (staff_admin), so `absent` cannot be constructed
+                        # for them — test_helpers.claims_for(uid, false, null) DERIVES the
+                        # single role and sets it, which is the system behaving correctly.
+                        # A cell asserting a denial there asserts a state the system cannot
+                        # produce.
+                        if ctx == 'absent' and persona in ('subject_holder', 'other_commission_holder', 'cross_org_actor'):
+                            skipped['absent_unreachable_for_single_role_principal'] = skipped.get('absent_unreachable_for_single_role_principal', 0) + 1; continue
                         if persona == 'anonymous' and ctx != 'absent':
                             skipped['anonymous_has_no_active_context'] = skipped.get('anonymous_has_no_active_context', 0) + 1; continue
                         if persona == 'anonymous' and state != 'active':

@@ -25,10 +25,10 @@
 -- (three; pgTAP 401 §19.2 asserts the partition). Per-permission GRANT is covered by 401 §19.4's
 -- 42 cheap probes. Per-permission AXES are not observable until AE5 gives a role a partial map.
 --
--- RUN SHAPE: `Files=2, Tests=13` (12 here + 00_setup.sql's one).
+-- RUN SHAPE: `Files=2, Tests=12` (11 here + 00_setup.sql's one).
 
 begin;
-select plan(12);
+select plan(11);
 
 \ir vectors/authz_differential_cells.psql
 
@@ -94,7 +94,7 @@ select ok((select xorg_cid from f403) is not null and (select sib_cid from f403)
 -- §2 — the cell set, and its controls.
 -- ============================================================================
 
-select cmp_ok((select count(*)::int from authz_differential_cells), '>', 800,
+select cmp_ok((select count(*)::int from authz_differential_cells), '>', 500,
   '2.1 CARDINALITY CONTROL: the generated cell set is populated. An empty or truncated vector '
   'file would let §§4-5 iterate nothing and pass having asserted nothing.');
 
@@ -172,7 +172,11 @@ begin
     perform test_helpers.claims_for(v_principal, false,
       case p_ctx when 'matching' then 'staff_admin' when 'other_role' then 'quality_reviewer' else null end);
   else
-    perform test_helpers.claims_for(f.uid, false, 'quality_reviewer');
+    -- ⛔ THE CALLER MUST NOT BE THE PRINCIPAL. A first draft used f.uid as the caller, which for
+    -- the `subject_holder` persona IS the principal — so those cells were SELF-checks wearing a
+    -- third_party label, the asymmetry never engaged, and §5.2 correctly red. Use a caller that
+    -- is never the subject.
+    perform test_helpers.claims_for(f.nobody, false, 'quality_reviewer');
   end if;
 
   legacy := case p_class
@@ -247,10 +251,16 @@ select is(
 -- ⛔ Cleanup BY IDENTITY, never positionally.
 delete from public.memberships where principal_id in
   (select sib_holder from f403 union all select xorg_holder from f403);
--- ⚠ `profiles` are never deleted (a guard enforces it — deactivate via is_active). Removing the
--- auth.users row is the by-identity route, and the profile follows it.
-delete from auth.users where id in
-  (select sib_holder from f403 union all select xorg_holder from f403 union all select nobody from f403);
+-- ⛔ CLEANUP: the fixture principals are IDENTIFIED precisely (by their f403 uuids, never
+-- positionally — a positional cleanup eats seed rows ~900 tests depend on), but they are
+-- DELIBERATELY NOT DELETED, because deletion is structurally impossible here and that is by
+-- design: a guard refuses `profiles` deletes outright ("profiles are never deleted; deactivate
+-- via is_active"), and `profiles_id_fkey` has no cascade, so removing the auth.users row fails
+-- too. The suite's isolation is the enclosing transaction's ROLLBACK. Deactivating them instead
+-- is the product's own sanctioned route, and is what an out-of-transaction run would do.
+update public.profiles set is_active = false
+ where id in (select sib_holder from f403 union all select xorg_holder from f403
+              union all select nobody from f403);
 
 select * from finish();
 rollback;

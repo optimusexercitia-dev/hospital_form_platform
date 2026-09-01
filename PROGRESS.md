@@ -152,24 +152,6 @@ variants at least carry `NOT app.is_case_excluded(…)`; the writer pair carries
 ⛔ This is a **distinct property from the `kind` gate** — fixing `kind` alone leaves it standing, so
 the eventual fix owes **two** keystones, not one.
 
-🔴 **BUG-PROF-INACTIVE-001 — a DEACTIVATED or SUSPENDED principal keeps Class-2
-professional-identity authority across the WHOLE organization.** Found by AE4.5's differential
-oracle on its first real run (pgTAP 403 § 4.1). ⛔ **Mechanism:** `app.is_staff_admin_of_for` is
-`app.is_active(uid) AND app.has_role(...)`; `app.has_role` does **not** itself check `is_active`;
-and `app.can_manage_professional` calls `app.has_role` **directly**, so the gate is bypassed.
-Measured in a rolled-back transaction: deactivated → `is_staff_admin_of_for = false` but
-`can_manage_professional = **TRUE**`; suspended → the same.
-⚠ **Blast radius:** the **13** doors gating on it — `create/update/redact_professional_profile`
-(CPF, licence number, specialty), `set_professional_link_state`, the ethics + case-assignment
-vocabularies, `create_external_participant` — and **13 of 13 hold `authenticated` EXECUTE**. The
-app-layer sign-out is **not** a defence: JWTs are bearer tokens and deactivation does not revoke
-them, which is why Rule 1 puts the boundary in the DB. The window is the JWT lifetime.
-✅ **A singleton, measured not assumed:** sweeping `app` + `public` for functions calling
-`has_role` without `is_active` returns exactly one name. `is_org_admin_of` gates correctly.
-⚠ **PREDATES AE4 and is not caused by it** — AE4.5 is what made it visible, because the resolver
-answers correctly and the oracle's second assertion made the disagreement actionable rather than
-authoritative (PA-F8). **Owner:** backend.
-
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
 Closed rows, their closure narratives, and the 2026-08-19 record of where this section's old

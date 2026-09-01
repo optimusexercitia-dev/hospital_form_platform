@@ -373,6 +373,16 @@ if sed 's/--.*$//' "$TMP/content" | grep -qiE 'pg_get_functiondef'; then
   #       20261003007180 (targets in array)     array[=1 callables=4 -> selects 4   ✅
   #       20260903000700 (replace() operands)   array[=0 callables=2 -> selects 0   ✅
   #       20260816000500 (catalog-query)        array[=1 callables=0 -> FINDING (1) ✅
+  #     ⛔ SECOND BOUND, MEASURED 2026-09-01 ON ITS FIRST REAL USE: the array gate is evaluated
+  #     over the CONCATENATED diff content, not per file. So ONE migration in the range that
+  #     builds an array enables this fallback for EVERY other migration in the same range.
+  #     Measured: 20261003007190 (the BUG-PROF-INACTIVE-001 fix) carries no array literal and
+  #     declares its target with the (a) marker, yet `is_active` was also selected — because
+  #     20261003007180, elsewhere in the same main..HEAD range, does build one. The consequence
+  #     is OVER-SELECTION (extra sweeping), never a wrong verdict, and the (a) marker still
+  #     names the real target. ⚠ Fixing it means evaluating the gate per file, which is a
+  #     structural change to how $TMP/content is assembled — not taken here; recorded so the
+  #     next reader meets the measurement instead of assuming per-file semantics.
   #     ⚠ BOUND, STATED: a migration that BOTH builds an array AND uses quoted callables as
   #     replace() operands would still over-select. The (a) marker exists precisely so that
   #     case has an exact answer available, and it takes precedence.
