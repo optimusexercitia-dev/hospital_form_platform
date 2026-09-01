@@ -70,6 +70,16 @@ name contains the capability at all. Every read gap in this matrix — rows 35, 
 shape, and every one was invisible bottom-up and immediate top-down. ⛔ **AE5's eleven matrices must
 enumerate READ PREDICATES as a population in their own right**, not expect a name sweep to surface them.
 
+⭐⭐ **A COMPARISON IS A DETECTOR, AND A GREEN COMPARISON MUST BE PROVEN TO HAVE HAD SUBJECTS ON
+BOTH SIDES.** Every other vacuity rule here is about a *test* finding nothing. This one is about a
+*diff* finding nothing — which reads even more like success, because "no change" is the answer a
+regression check is supposed to give. Measured instance (2026-09-01, the ADR 0173 deriver
+amendment): a 60-range orig-vs-amended regression returned **identical on all 60**, and every one
+was **empty on both sides** — the script copies were running outside the repo and failing with
+`FATAL: not a git repository`. *Identical* meant *identically broken*. ⛔ Before believing a
+comparison, ask what each side actually produced, not merely whether they matched — and re-run it
+against inputs known to produce output.
+
 ⚠ **Its sibling, from the same pass: AN INDEX IS A CLAIM ABOUT A POPULATION.** § 7's header
 promised "the residue" and would have been counted as six open gaps; adding a status index fixed
 the *count* but inherited the *boundary* — an open item was living outside § 7 entirely, in a
