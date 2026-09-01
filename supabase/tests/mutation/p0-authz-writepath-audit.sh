@@ -230,7 +230,7 @@ want () {  # $1 = match key (guard proname or policy name); 0 if in CASES (or CA
 # pg_get_functiondef snapshot (⚠ assert_meeting_staff_admin is STABLE and NOT SECURITY
 # DEFINER — do not "fix" it), body with the authz raise removed.
 # ─────────────────────────────────────────────────────────────────────────────────────
-GUARD_KEYS="assert_capa_writable assert_meeting_staff_admin assert_interview_writable assert_rca_writable assert_session_writable assert_referral_draft_writable assert_referral_target_acts set_commission_oversight ensure_professional_participant create_external_participant set_primary_subject"
+GUARD_KEYS="assert_capa_writable assert_meeting_staff_admin assert_interview_writable assert_rca_writable assert_session_writable assert_referral_draft_writable assert_referral_target_acts set_commission_oversight ensure_professional_participant create_external_participant set_primary_subject create_professional_profile set_professional_link_state"
 
 guard_sig () {
   case "$1" in
@@ -253,6 +253,15 @@ guard_sig () {
     ensure_professional_participant) echo "public.ensure_professional_participant(uuid)";;
     create_external_participant)     echo "public.create_external_participant(uuid,text,text)";;
     set_primary_subject)             echo "public.set_primary_subject(uuid)";;
+    # AE4.7c (matrix § 12.8.5) — the two remaining doors of the SAME family, scoped in for
+    # the SAME reason the three above were: they return uuid/void, so ARM=census's domain
+    # (prosecdef returning bool or rows) and the door audit's boolean-only predicate arm both
+    # exclude them, and their 42501 authority block IS the whole boundary.
+    # ⭐ These two are where AE4.7c's semantics actually LIVE — one gained the new row-43 gate,
+    # the other gained the `link_state = 'unknown'` bound. Leaving them out would have meant the
+    # increment's own doors were the ones with no standing arm.
+    create_professional_profile)     echo "public.create_professional_profile(uuid,text,text,text,text,text,text,uuid)";;
+    set_professional_link_state)     echo "public.set_professional_link_state(uuid,text,uuid)";;
     *) echo "";;
   esac
 }
@@ -458,17 +467,36 @@ SQL
     # matter how the body evolves — and the splice ASSERTS it matched, so a renamed
     # gate aborts loudly instead of neutralizing nothing and reporting BLIND.
     # Restore is unaffected: the harness restores the bytes it captured beforehand.
-    ensure_professional_participant|create_external_participant|set_primary_subject)
+    ensure_professional_participant|create_external_participant|set_primary_subject|create_professional_profile|set_professional_link_state)
+      # ⛔ THESE `gate` STRINGS ARE A COPY OF THE LIVE BODY, AND AE4.7c FALSIFIED TWO OF THEM.
+      # The neutralizer asserts its own match and exits ERROR when it fails, which is what
+      # happened on the first AE4.7c sweep: `can_manage_professional` had been replaced by the
+      # split's per-family gates and this harness still looked for the old text. ⚠ ERROR is not
+      # a pass and it is not BLIND either — it means nothing was measured. Any migration that
+      # rewrites one of these authority blocks owes an edit here in the same commit.
       case "$1" in
         ensure_professional_participant)
           sig='public.ensure_professional_participant(uuid)'
-          gate='if not app.can_manage_professional(v_prof.organization_id, auth.uid()) then' ;;
+          gate='if not app.can_create_professional(v_prof.organization_id, auth.uid()) then' ;;
         create_external_participant)
           sig='public.create_external_participant(uuid,text,text)'
-          gate='if not app.can_manage_professional(p_org, auth.uid()) then' ;;
+          gate='if not app.can_manage_external_participant(p_org, auth.uid()) then' ;;
         set_primary_subject)
           sig='public.set_primary_subject(uuid)'
           gate='if not (app.is_staff_admin_of(v_commission)) then' ;;
+        create_professional_profile)
+          sig='public.create_professional_profile(uuid,text,text,text,text,text,text,uuid)'
+          gate='if not app.can_create_professional(p_org, auth.uid()) then' ;;
+        # ⚠ THIS DOOR HAS TWO AUTHORITY BLOCKS AND THIS NEUTRALIZES THE POPULATION ONE.
+        # AE4.7c added a second: `staff_admin` may act only while link_state = 'unknown'. The
+        # arm's premise is "the authority block IS the whole boundary", and for this door that
+        # is now two blocks — so a COVERED verdict here says the POPULATION gate is asserted
+        # through, and says nothing about the bound. ⛔ The bound has its own deterministic
+        # mutation twin (pgTAP 406 §5), which is named here so the partial coverage is a
+        # recorded division of labour rather than an unnoticed half.
+        set_professional_link_state)
+          sig='public.set_professional_link_state(uuid,text,uuid)'
+          gate='if not app.can_create_professional(v_org, auth.uid()) then' ;;
       esac
       cat <<SQL
 do \$neut\$

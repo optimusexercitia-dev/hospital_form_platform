@@ -34,6 +34,10 @@ Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
 | public.set_commission_oversight(uuid,text) | guard | authz-open | COVERED | 307_commission_oversight.sql (QO·A hand-merge — see header note) |
+| public.create_external_participant(uuid,text,text) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql (RE-SWEPT 2026-09-01, AE4.7c — its gate moved to app.can_manage_external_participant (matrix row 31). Same ERROR-then-fix as its sibling above) |
+| public.create_professional_profile(uuid,text,text,text,text,text,text,uuid) | guard | authz-open | COVERED | 228_ethics_e1.sql,320_act_expiry_and_acl_hardening.sql (NEW to this arm in AE4.7c — scoped in for the same reason its three siblings were: it returns uuid, so ARM=census's domain (prosecdef returning bool or rows) and the door audit's boolean-only predicate arm both exclude it, and its 42501 authority block IS the whole boundary. ⭐ It is also where AE4.7c's row-43 gate actually lives, so leaving it out would have meant the increment's own door had no standing arm) |
+| public.ensure_professional_participant(uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql (RE-SWEPT 2026-09-01, AE4.7c — its gate moved to app.can_create_professional. ⛔ The first run of this sweep scored it ERROR `neutralize failed`: this harness holds a hand-written copy of each guard's gate TEXT, and the split falsified it. ERROR is not BLIND and is not a pass — it means nothing was measured. The copy was corrected and the case re-run) |
+| public.set_professional_link_state(uuid,text,uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql (NEW to this arm in AE4.7c. ⚠ BOUNDED VERDICT, stated rather than left to be assumed: this door now has TWO authority blocks — the POPULATION gate (can_create_professional) and AE4.7c's `link_state = 'unknown'` BOUND. The neutralizer opens the first, so COVERED here means the population gate is asserted through and says NOTHING about the bound. The bound has its own deterministic mutation twin in pgTAP 406 §5; the division of labour is recorded in the harness beside the gate string) |
 | app.assert_capa_writable(uuid) | guard | authz-open | COVERED | 143_capa.sql |
 | app.assert_meeting_staff_admin(uuid) | guard | authz-open | COVERED | 206_meeting_held_time.sql |
 | app.assert_interview_writable(uuid) | guard | authz-open | COVERED | 121_interviews.sql,250_authz_p0_isolation.sql |
@@ -71,3 +75,33 @@ Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`
 | response_section_signoffs.signoffs_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | responses.responses_insert_own (INSERT) | policy | open->true | COVERED | 198_perf_hardening.sql |
 | responses.responses_update_own_draft (UPDATE) | policy | open->true | COVERED | 198_perf_hardening.sql |
+
+---
+
+## Note — AE4.7c: four guards swept, and the SIX doors this arm still cannot see (2026-09-01)
+
+The `can_manage_professional` split (matrix § 12.8.5) put six vocabulary RPCs behind a new
+gate, `app.can_manage_case_vocabulary` — `create`/`archive` for ethics allegation categories,
+ethics sanction types, and case assignment roles. The diff-scoped deriver requested all six on
+this arm and **none matched**, so the run exited **3 UNPROVEN (PARTIAL)**, which is not a pass.
+
+**What IS covered, so the gap is not overstated:** the GATE itself carries a **COVERED** verdict
+from the read arm (`app.can_manage_case_vocabulary`, swept the same day), and pgTAP `290`
+exercises all six doors' 42501 denials in both directions (caller-supplied `p_org` on the
+`create_*` half, org-derived-from-the-row on the `archive_*` half).
+
+**What is NOT covered:** these six doors have no entry in `GUARD_KEYS`, so no *standing* arm
+neutralizes their own authority block. They return `uuid`/`void`, which puts them outside
+ARM=census's domain and outside the door audit's boolean predicate arm — the
+`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (**C2**) class.
+
+⛔ **AE4.7c did not create this gap and deliberately did not close it.** Before the split these
+six sat behind `can_manage_professional`, equally unswept by this arm; the split renamed their
+gate and changed no authority answer. Two doors WERE scoped in — `create_professional_profile`
+and `set_professional_link_state` — because those are the two whose semantics the increment
+actually changed. Widening further would have been an unrelated expansion of a standing harness
+inside a scoped increment.
+
+⚠ They are **not** on C2's Tier-1 worklist either (measured: zero hits in
+`c2-tier1-doors.txt`) — they write `none`-sensitivity vocabulary rows, so C2's gate-aware
+closure puts them in **Tier 2 = deferred, NOT cleared**.
