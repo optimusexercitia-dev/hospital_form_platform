@@ -263,6 +263,11 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 
 ⭐ **FOUR items also carry a [§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list) entry** — `FUP-DM5-DISPOSAL-JOB` (C1), `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2), and — **promoted by the PO 2026-08-19** — `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (C3) + `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (C4). Their lines below stay put; the Critical entry adds a **trigger and a deadline**, it does not replace the index line.
 
+- 🟡 **FUP-IS-STAFF-ADMIN-OF-CARRIES-PUBLIC-EXECUTE** — `app.is_staff_admin_of(uuid)`'s ACL
+  contains `=X/postgres` — the EMPTY grantee, i.e. **PUBLIC** — measured `anon` EXECUTE = **true**.
+  Its sibling `is_staff_admin_of_for` does not. AE1.2's global ADP revoke governs NEWLY created
+  functions, so this predates or overrides it. ⛔ Not touched by AE4.6: entangling a grant change
+  with a cutover is exactly what makes a cutover unattributable · backend
 - 🟠 **FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM** — `app.can_manage_professional(p_org, p_uid)`'s
   first arm is `app.is_admin()`, which takes NO argument and reads `auth.uid()` — so a predicate
   parameterised on a third party answers about the CALLER. **12 of 13 callers pass `auth.uid()`**

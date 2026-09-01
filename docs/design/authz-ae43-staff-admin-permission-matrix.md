@@ -70,6 +70,34 @@ name contains the capability at all. Every read gap in this matrix — rows 35, 
 shape, and every one was invisible bottom-up and immediate top-down. ⛔ **AE5's eleven matrices must
 enumerate READ PREDICATES as a population in their own right**, not expect a name sweep to surface them.
 
+⭐⭐ **EACH ARM OF A MULTI-ARM DETECTOR MUST BE SHOWN TO FIRE ON ITS OWN MESSAGE.** An arm that
+reds because *something* broke when you removed its subject is not proven — another arm may be
+catching it. Measured (AE4.5, 2026-09-01): the differential generator's "a declared representative
+was never emitted" arm appeared to work, but the self-test removed `org.professionals.read` from the
+cells, which also removes the only member of its legacy-equivalence class — so the *class-count* arm
+fired and the representative arm was never exercised. Isolated by declaring a representative that is
+simply never emitted. ⛔ Read the failing message, not the exit code.
+
+⭐⭐ **A STATEFUL TEST HARNESS OWES A REPEAT-RUN CONTROL.** If the driver mutates state per case,
+a green suite may be green by iteration luck. Measured: AE4.5's driver reset only the *current*
+case's principal, leaving deactivated/suspended state on principals a previous case had touched, so
+answers depended on iteration order. The control is one assertion — **a second sweep with nothing
+changed must return identical answers** — and it is what makes a suite trustworthy rather than
+merely *observed once*.
+
+⛔ **A FAIL-PROOF THAT FIRES FOR A REASON OTHER THAN THE ONE IT NAMES IS NOT A FAIL-PROOF** — the
+proof-of-sensitivity passing vacuously, which is the most dangerous shape in this family because it
+is the thing you were relying on to catch the others. Measured: AE4.5's cleanup ran *before* the
+fail-proof section, deactivating every fixture principal, so "flipping a grant reds the oracle"
+passed because **every** cell denied. Ordering inside a suite is load-bearing.
+
+⚠ **THE HONEST COST FIGURE, for AE5's eleven matrices: AE4.5 cost SIX driver defects, and every one
+produced a plausible failure pointing at the resolver** — claims not reset per case; a third-party
+case whose caller was the principal (a self-check wearing a third-party label); `absent`
+active-context asserted where it is unconstructible for a single-role principal; order-dependent
+state; cleanup before the fail-proofs; and cleanup itself blocked by the claims guard. **Estimate a
+differential suite's cost as mostly harness, not subject.**
+
 ⭐⭐ **A COMPARISON IS A DETECTOR, AND A GREEN COMPARISON MUST BE PROVEN TO HAVE HAD SUBJECTS ON
 BOTH SIDES.** Every other vacuity rule here is about a *test* finding nothing. This one is about a
 *diff* finding nothing — which reads even more like success, because "no change" is the answer a

@@ -111,13 +111,19 @@ end $$;
 select is((select count(*)::int from authz.roles), 12,
   '3.1 twelve role rows: the 10 membership-bearing roles + platform_admin + administrativo');
 
-select is((select count(*)::int from authz.roles where state <> 'legacy'), 0,
-  '3.2 ⚠⚠ TRIPWIRE, NOT AN ORDINARY ASSERTION — every role is `legacy` at the end of AE4 '
-  'Increment 1. THIS TEST IS *SUPPOSED* TO GO RED AT AE4.6, when the cutover flips '
-  'staff_admin to `authoritative`. If you are reading this because it failed: do not '
-  '"fix" it by widening the predicate. Confirm the flip was intended, then change this '
-  'assertion DELIBERATELY to name exactly which roles are non-legacy and why. A green '
-  'here after cutover would mean the cutover did not happen.');
+select is(
+  (select coalesce(string_agg(code || '=' || state::text, ', ' order by code), '(none)')
+     from authz.roles where state <> 'legacy'),
+  'staff_admin=authoritative',
+  '3.2 ⚠⚠ TRIPWIRE — FIRED AS DESIGNED AT AE4.6 AND CHANGED DELIBERATELY, 2026-09-01. It '
+  'previously asserted that EVERY role is `legacy`, and it went red the moment the cutover '
+  'flipped `staff_admin` to `authoritative` — which is the moment it was built for. It is NOT '
+  'widened: it now names EXACTLY which role is non-legacy, so a SECOND role flipping (an AE5 '
+  'substitution landing early, or by accident) still reds here. ⛔ A green after AE4.6 would '
+  'have meant the cutover did not happen; a green after an unintended second flip would mean '
+  'nobody noticed. ⚠ Every OTHER role stays `legacy` and the legacy CHECKs stay — the catalog '
+  'owns ONE role, and "the catalog is the authority" still may not appear in a gate record '
+  '(ADR 0162 §2 item 4).');
 
 select is(
   (select array_agg(code order by code) from authz.roles
