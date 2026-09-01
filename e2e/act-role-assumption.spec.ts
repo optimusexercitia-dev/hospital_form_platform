@@ -152,6 +152,13 @@ test.describe('ACT — role assumption (ADR 0106)', () => {
 
     await page.goto('/selecionar-perfil')
     await expect(page).not.toHaveURL(/\/selecionar-perfil$/)
+    // Content-based, not just the URL redirect — mirrors the D2 test above (this
+    // file's sibling case for multi@), which already asserts the picker's own
+    // heading is absent. AE4.3 matrix §7.1 classification: this is NEITHER
+    // cross-commission NOR cross-org — a single-role principal is bounced from
+    // an in-session UI route, not a foreign tenant's data, so it needs no second
+    // persona and the seed's missing cross-org fixture is not a constraint here.
+    await expect(page.getByRole('heading', { name: 'Escolha seu papel' })).toHaveCount(0)
   })
 
   test('The switch: assuming a hat then switching changes the landing route AND real authorization', async ({

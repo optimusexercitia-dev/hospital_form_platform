@@ -445,6 +445,17 @@ test.describe('AC2 — staff_admin adds an already-registered user and removes a
 test.describe('AC3 — Role and commission boundary security', () => {
   test('chefe.ccih (staff_admin A) hitting /o/rede-a/c/farmacia/manage/members → 404 with no data leakage', async ({ page }) => {
     await signInAs(page, 'chefe.ccih@test.local')
+
+    // Real status check — the commission LAYOUT itself calls notFound() for a
+    // total stranger to farmacia, BEFORE any page-level Suspense boundary
+    // streams, so a raw request reliably carries the real 404, exactly like
+    // phase-multitenancy.spec.ts's MT-8 tests against the same layout gate.
+    // Same-org, cross-commission (both CCIH and Farmácia are Rede A) — NOT
+    // cross-org; the seed holds no cross-org persona (AE4.3 matrix §7.1), so
+    // this is deliberately not written as one.
+    const res = await page.request.get('/o/rede-a/c/farmacia/manage/members')
+    expect(res.status()).toBe(404)
+
     await page.goto('/o/rede-a/c/farmacia/manage/members')
 
     // Next.js dev: notFound() in the layout (farmacia is inaccessible to chefe.ccih)

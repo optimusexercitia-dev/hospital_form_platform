@@ -647,8 +647,20 @@ test('Security: staff cannot reach the sign-off queue or review-and-sign screen 
 test('Security: foreign-commission staff_admin cannot reach another commission queue (404)', async ({
   page,
 }) => {
-  // chefe.ccih is staff_admin of CCIH, not farmacia.
+  // chefe.ccih is staff_admin of CCIH, not farmacia. Same-org, cross-commission
+  // (both CCIH and Farmácia are Rede A) — NOT cross-org. AE4.3 matrix §7.1: this
+  // matters because the seed holds no cross-org persona, so a future "strengthen
+  // this to cross-org" rewrite would pass while proving nothing.
   await signInAs(page, 'chefe.ccih@test.local')
+
+  // Real status check first — the commission LAYOUT itself (src/app/o/[org]/c/
+  // [commission]/layout.tsx) calls notFound() for a total stranger to farmacia,
+  // BEFORE any page-level Suspense boundary streams, so a raw request reliably
+  // carries the real 404 — exactly like phase-multitenancy.spec.ts's MT-8 tests
+  // against the same layout gate. Kept alongside (not instead of) the content
+  // checks below, which prove what a real signed-in user actually sees.
+  const queueRes = await page.request.get('/o/rede-a/c/farmacia/manage/assinaturas')
+  expect(queueRes.status()).toBe(404)
 
   await page.goto('/o/rede-a/c/farmacia/manage/assinaturas')
   // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
@@ -658,6 +670,11 @@ test('Security: foreign-commission staff_admin cannot reach another commission q
   await expect(
     page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
+
+  const detailRes = await page.request.get(
+    `/o/rede-a/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`,
+  )
+  expect(detailRes.status()).toBe(404)
 
   await page.goto(`/o/rede-a/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`)
   // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every

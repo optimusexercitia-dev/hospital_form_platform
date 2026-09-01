@@ -591,12 +591,44 @@ test('AC-8b: staff_admin cannot access a foreign-commission response detail via 
   // Vector 2: a real CCIH response accessed through Farmácia's URL namespace.
   // The detail page performs a commission-match guard: if detail.commissionId ≠ slug's
   // commission, it calls notFound(). Get any CCIH submitted response id via service-role.
+  // Same-org, cross-commission (CCIH and Farmácia are both Rede A) — NOT cross-org;
+  // the seed holds no cross-org persona (AE4.3 matrix §7.1), so this is deliberately
+  // not written as one.
   const ccihSubmissions = await serviceQuery<{ id: string }>(
     page,
     `responses?commission_id=eq.a0000000-0000-0000-0000-0000000000a1&status=eq.submitted&select=id&limit=1`,
   )
   if (ccihSubmissions.length > 0) {
     const ccihId = ccihSubmissions[0].id
+
+    // Data-layer signal, not just rendering. This route's notFound() ("detail.
+    // commissionId !== access.commission.id" in SubmissionDetailPage) is
+    // PAGE-level, reached only AFTER the commission layout already lets
+    // chefe.farm through — she's a real Farmácia member, so the layout's own
+    // notFound() never fires for this URL. That page-level check sits under
+    // this route's loading.tsx Suspense boundary, so — unlike a layout-level
+    // denial — the HTTP response streams a 200 shell before the notFound()
+    // decision resolves; asserting .status() here would be asserting a value
+    // this call site cannot reliably produce (contrast the sibling
+    // manage/members and manage/assinaturas tests, which DO check status —
+    // they hit the LAYOUT gate instead, a different site with a different
+    // shape). The reliable boundary signal here is the data layer: read the
+    // underlying row with chefe.farm's OWN token and confirm RLS filters it
+    // to nothing. Live-checked before writing this assertion (2026-09-01,
+    // against this exact CCIH row and her real token): the actual shape is
+    // HTTP 200 with an empty array, NOT 403 — `responses` carries a
+    // commission-scoped SELECT policy (unlike a table with zero policies,
+    // which 403s outright), so the query succeeds but matches no rows for her.
+    const farmToken = await getOwnerToken(page, 'chefe.farm@test.local')
+    const rawResp = await page.request.get(
+      `${SUPABASE_URL}/rest/v1/responses?id=eq.${ccihId}&select=id,commission_id`,
+      {
+        headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${farmToken}` },
+      },
+    )
+    expect(rawResp.ok()).toBeTruthy()
+    expect(await rawResp.json()).toEqual([])
+
     await page.goto(`/o/rede-a/c/farmacia/dashboard/submissions/${ccihId}`)
     // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared stem.
     await expect(
