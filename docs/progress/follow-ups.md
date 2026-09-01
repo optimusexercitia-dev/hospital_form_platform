@@ -969,6 +969,39 @@ radius was one join away and no assertion in the slice looked there.
 **When a change writes a new value into an existing state column, sweep every READER of that
 column before believing the keystone.**
 
+### 🟠 FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS — the first 8 measurements of the new command-door neutralizer found 3 BLIND (owner: backend)
+
+> Filed 2026-08-31, from the subset that PROVED
+> [`c2-command-door-neutralizer.sh`](../../supabase/tests/mutation/c2-command-door-neutralizer.sh)
+> (design: [authz-c2-command-door-neutralizer.md](../design/authz-c2-command-door-neutralizer.md)).
+>
+> **Measured** against a full-suite baseline of `Files=248, Tests=8289` (PASS), each verdict carrying
+> the red-under-mutation / green-restored pair, committed baseline `cksum`-verified untouched:
+>
+> | enforcer | Tier-1 doors depending | pgTAP files mentioning it | verdict |
+> | --- | ---: | ---: | --- |
+> | `public.nsp_org_capa_rollup(p_org_id uuid)` | 1 | **0** | BLIND |
+> | `public.cancel_event(p_event_id uuid)` | 1 | **0** | BLIND |
+> | `public.cancel_session(p_session_id uuid, p_reason text)` | 1 | **1** | BLIND |
+>
+> ⚠ **`cancel_session` is the one to read twice.** A test file mentions it and the guard still
+> vanished unnoticed — *presence of coverage is not a verdict*. The other two are the ordinary
+> shape: nothing touches them at all.
+>
+> ⛔ **The remedy is a keystone per enforcer, never an allowlist entry.** Allowlisting a BLIND here
+> would make `ARM=floor` and this arm AGREE — both would then be measuring nothing, and the
+> agreement would read as coverage. That is the `allowlisting-a-door-as-e2e-only-is-what-makes-it-blind`
+> failure, arriving through a new door.
+>
+> ⭐ **How these three were found is the reusable part**: candidates were DERIVED by intersecting the
+> neutralizer's worklist with `authz-neverclled-door-allowlist.txt` — a door nothing calls cannot
+> have anything notice its guard vanish. 3 of 3 predicted BLIND came back BLIND. ⚠ It is a candidate
+> GENERATOR, not a predictor: that allowlist's own header records that a deny-only `throws_ok` never
+> registers as a call, so never-called doors can still be COVERED.
+>
+> ⛔ **Scope.** These are 3 of **171** enforcers; **8 have been measured**. This item is about the
+> three named rows, and says nothing about the other 163 — the full sweep, and C2 itself, stay open.
+
 ### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one (⭕ **re-derived 426 at the AE1 Record step 2026-08-27, then **427** (345 `public` + 82 `app`) on 2026-08-31 — and the figure is now DERIVED by `ARM=census`'s own banner each run, so this chain ends here rather than needing a next link**), and the class is COVERED-BUT-UNPINNED, not blind** — ⭐ **Critical FUP C2** (owner: lead + backend)
 
 > ### ✅ PO RULING 2026-08-18 — **TWO TIERS. Sweep the PHI / tenancy-crossing subset first; DEFER the remainder to after the pilot ships.**

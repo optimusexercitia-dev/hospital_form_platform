@@ -48,11 +48,18 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      **Tier 2 = deferred, NOT cleared**; tenant isolation still rides on `ARM=hat`/`floor`/`policy`.
      Instrument `scripts/authz-c2-tier1-sizing.sql`; worklist (derived, 237 lines, never edited)
      `supabase/tests/mutation/c2-tier1-doors.txt`; record + rejected variants →
-     [authz-c2-tier1-sizing.md](docs/design/authz-c2-tier1-sizing.md) §8b. ⚠ **The long pole is
-     untouched: no command-door neutralizer exists** — all three harnesses open a *boolean* gate or
-     a policy `USING`; these doors return `jsonb`/`uuid`/`void`. **It is unbuilt and unsized, and
-     nothing can be swept until it exists.** ⛔ Still closes nothing: no door has a verdict, both
-     absorbed items stay open, `assume_role` stays ERROR-shaped.
+     [authz-c2-tier1-sizing.md](docs/design/authz-c2-tier1-sizing.md) §8b.
+     ⭐ **THE LONG POLE IS BUILT — `supabase/tests/mutation/c2-command-door-neutralizer.sh`**
+     ([design](docs/design/authz-c2-command-door-neutralizer.md)). It rewrites an authz `raise` to
+     `null;` — **guard gone, EFFECT intact**; stubbing a delegating body instead removes the work
+     too and reads as a **false COVERED**. ⭐ **Its unit is the ENFORCER, not the door** — the 237
+     doors share **243** enforcers (**72** already in the bool arm, **171** new), so the door list is
+     the *attribution* map, not the worklist. ✅ **PROVEN ON BOTH POLARITIES — 5 COVERED, 3 BLIND**
+     against a `Files=248, Tests=8289` baseline; the BLIND polarity was proven **deliberately**,
+     because five identical verdicts cannot show a detector able to return the other one. The 3
+     BLIND are real findings → 🟠 `FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS`.
+     ⛔ **8 of 171 measured — the FULL SWEEP HAS NOT RUN, no door has a verdict, C2 stays OPEN.**
+     Both absorbed items stay open; `assume_role` stays ERROR-shaped.
   3. **`FUP-DM4-PRODROW`** — now actionable: re-derive a magnitude, or rule that it
      cannot be (TRIAGE #9 already forbids closing it as "reconciled").
 - **⚠ Two facts a session must not trip over** (full context in the
@@ -266,6 +273,7 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 - 🔴 **FUP-ETHICS-CASE-DELETE-CASCADE** — a commission `staff_admin` can `DELETE /rest/v1/cases` an **in-flight** ethics case, cascading all **7** `ethics_*` tables → [body](docs/progress/follow-ups.md)
 - 🟠 **FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE** — `redact_professional_profile` erases the accused doctor from an **undecided** ethics case: the `HC0J7` bar needs an `issued` decision and `trg_pin_respondent_retention` fires only on the transition **into** `issued`, so both halves are false all through intake/findings/hearings. Executed by a plain commission `staff_admin`. ⚠ **No UI calls it — that is not the control**; the RPC is `EXECUTE`-granted to `authenticated` and answers over PostgREST. Existing pgTAP `257` + E2E pin only the **pinned** case, so nothing is red. **PO-ruled RECORD-ONLY 2026-08-21** — backend/PO
 - 🟠 **FUP-DM5-SUPERSEDE-SERVING-COLLISION** — ✅ **PO-RULED 2026-08-18 as option (b): supersession no longer marks bytes; the trigger moves to RETENTION EXPIRY** — backend
+- 🟠 **FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS** — the new command-door neutralizer's first 8 measurements found **3 BLIND**: `public.nsp_org_capa_rollup`, `public.cancel_event` (both **0** pgTAP mentions) and ⚠ `public.cancel_session` — which **has** a test that still does not notice its guard vanish (*presence of coverage is not a verdict*). Each needs a keystone; ⛔ **never allowlist a BLIND here** — floor and this arm would then agree while both measure nothing → [design](docs/design/authz-c2-command-door-neutralizer.md) §8 — backend
 - 🟠 **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — ⭐ **⭐ CRITICAL FUP C2. `ARM=census`'s DEFINER clause is bounded to `bool`/set-returning, so **427** reachable non-trigger command doors (**345** `public` + **82** `app`) sit outside every arm's domain. ⛔ **CORRECTED 2026-08-31: this line still carried the 2026-08-17 figure of 407 — TWO re-derivations behind § Critical FUP C2's own row (407 → 426 at the AE1 Record step → 427), in the register the PO reads from.** Its "(326 RPC-callable)" sub-figure was cut, not updated: no re-derivation carries a successor to it. ⛔ Take the figure from `ARM=census`'s banner, which derives it each run — never from this line. ⭕…** ⭕ **EXTENDED 2026-08-23 (AFF2 B1): `trigger`-returning `prosecdef` gates are in no arm's domain EITHER, and this item's own word "non-trigger" excluded them** — `guard_profile_privileged_columns` is now the only in-DB control over the two new person columns. ⛔ Not a live hole (no PUBLIC/`anon` grant; a direct call outside trigger context raises) — a **measurement-domain** gap. ⭕ **TIER 1 SIZED 2026-08-31** → [authz-c2-tier1-sizing.md](docs/design/authz-c2-tier1-sizing.md): the ruled predicate returns **405 of 427 (94.8 %)** — the split does not split, the tenancy disjunct is the vacuous half, and a **PO ruling is owed**. ⛔ Sizing closed nothing here — no door has a verdict — lead + backend
 - 🟠 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — **PARTIALLY RESOLVED 2026-08-17 (`4102149b`); the filed remedy was WITHDRAWN as unbuildable** — lead/backend
 - 🟠 **FUP-FORM-IDENTIFIER-IN-URL** — ✅ **4 leaks FIXED + control-proven both directions** (`cpf-field` CPF, `user-profile-edit-form`, `affiliations-panel`, `patient-search-view` MRN/PHI); 4 more measured NOT-REACHABLE-PRE-HYDRATION. ⛔ `name` is **INJECTED by `useFieldIds().controlProps`** — a `name=` grep cannot find it. ⛔ **STILL OPEN:** the standing detector must be a **route crawler**, not a re-run of this 8-file list; `<select>` coverage is weaker; and the PO-RULED 2026-08-20 inversion of `useFieldIds`' `name` default (**10/51** failure rate) is a **SEPARATE change after Slice 3**, only after enumerating the 4 classes that BREAK without `name` — frontend/lead
