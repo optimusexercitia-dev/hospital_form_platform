@@ -22,18 +22,16 @@ status: live   # AE4.7a/b/c all landed (test:db GREEN); AE4.8 + the PO batch are
 
 ⛔ Re-measure before relying on anything below — see § Trust.
 
-⚠ **Two documents carry what this file deliberately does not**, and a successor needing the
-*why* behind any figure below should read them rather than re-deriving it:
+⚠ **Two documents carry what this file deliberately does not** — read them for the *why*
+behind any figure below rather than re-deriving it:
 - [`docs/progress/authz-ae4.md`](../progress/authz-ae4.md) — the **increment record**: AE4.7a
   (evidence repair), AE4.7b (the `holds_role` chokepoint), AE4.7c (the gate split), each with
   its own gate table and its own "what this did NOT do".
 - [`docs/reviews/authz-ae4-review.md`](../reviews/authz-ae4-review.md) — the **mid-phase QA
   review** whose ranked findings F1–F9 drove all three.
 
-⛔ Both were promoted OUT of this file on 2026-09-01: it had reached 64 KB against a 24 KB
-cap, which is a design document wearing a handoff's name. Nothing may cite a handoff — it is
-ephemeral and bounded by its branch — so if something here becomes worth citing, promote it
-and leave a pointer.
+⛔ Nothing may cite this file: it is ephemeral and dies with the branch. If something here
+becomes worth citing, promote it to one of those and leave a pointer.
 
 ## Trust
 
@@ -72,12 +70,9 @@ AE4 makes the `authz` catalog exist, migration-managed, with **exactly one role 
 
 ### Done — VERIFIED
 
-⛔ **RE-MEASURED 2026-09-01 AT `43684b16`, ON A FRESH `supabase db reset --local`.** The table
-this replaced described the world at `0412bef7` (AE4.6's end) and **eight of its rows had gone
-false** by AE4.7c — the catalog grew, the wrappers stopped naming the adapter, the PUBLIC grant
-was revoked, and the 13-door gate became four. Each row below carries the query that produced
-it; ⚠ the ones marked **changed** are where a successor trusting the old file would have been
-wrong, listed so the correction is visible rather than silently overwritten.
+⛔ **RE-MEASURED 2026-09-01 AT `43684b16`, ON A FRESH `supabase db reset --local`** (§ Trust
+for what that replaced). Each row carries the query that produced it; ⚠ rows marked **changed**
+are where a successor trusting the previous table would have been wrong.
 
 | What | Witness | When |
 | --- | --- | --- |
@@ -296,8 +291,18 @@ approval.
 
 - Catalog state: `select state, count(*) from authz.roles group by state;`
 - Permission shape: `select resolution_scope_kind, sensitivity_ceiling, count(*) from authz.permissions group by 1,2;`
-- Wrapper delegation: `select proname, prosrc ~ 'assignment_facts', prosrc ~ '\mhas_role\M', prosrc ~ 'active_role' from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='app' and proname like 'is_staff_admin_of%';`
-- ACL snapshot: `select proname, proacl from pg_proc … proname like 'is_staff_admin_of%';`
-- Sweep derivation: `BASE=<sha>~1 TIP=<sha> bash scripts/door-sweep-cases.sh`
+- ⭐ **The code `staff_admin` does NOT hold** (AE4.7c's revoke, the one figure a count hides):
+  `select code from authz.permissions pm where not exists (select 1 from authz.role_permissions rp where rp.role_code='staff_admin' and rp.permission_code=pm.code);`
+- Wrapper delegation — ⚠ **the terms changed in AE4.7b**; asking the old ones returns false and
+  reads as a broken cutover: `select proname, prosrc ~ '\mholds_role\M', prosrc ~ '\mhas_role\M', prosrc ~ 'assignment_facts', prosrc ~ 'active_role' from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='app' and proname like 'is_staff_admin_of%';`
+- The chokepoint's five gates: `select prosrc ~ 'assignment_facts', prosrc ~ 'active_role', prosrc ~ 'authoritative', prosrc ~ 'is not distinct from' from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='authz' and proname='holds_role';`
+- ACL, by EFFECTIVE PRIVILEGE never `proacl` text (a NULL `proacl` includes PUBLIC):
+  `select proname, has_function_privilege('anon',p.oid,'EXECUTE'), has_function_privilege('authenticated',p.oid,'EXECUTE') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='app' and proname like 'is_staff_admin_of%';`
+- The four professional/vocabulary gates' door counts: `select g, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and regexp_replace(p.prosrc,'--[^'||chr(10)||']*','','g') like '%'||g||'%') from unnest(array['can_manage_professional','can_create_professional','can_manage_external_participant','can_manage_case_vocabulary']) g;`
+- Sweep derivation: `BASE=<sha>~1 TIP=<sha> bash scripts/door-sweep-cases.sh` — ⛔ it prints
+  **TWO** commands (read arm + write arm); running only one leaves the other half unmeasured.
+- Arms: `ARM=census|hat|floor|catalog|sites bash supabase/tests/mutation/p0-authz-invariant.sh`
+  and `FROMFINDINGS=1 ARM=wrapper …`. ⛔ Read each exit code DIRECTLY — a trailing `echo` or a
+  pipe erases it.
 - ⛔ For any SQL/RLS/RPC/authz claim the **live catalog is the sole truth** — never a
   migration file, never graphify (CLAUDE.md's binding exception).
