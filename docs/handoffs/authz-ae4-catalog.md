@@ -611,16 +611,43 @@ green.
     same family onto `holds_role`, so splitting first rewrites overlapping bodies twice.
   - **The record conflict is closed:** the original ruling said *before AE4.6*, AE4.6 shipped
     without it, so that instruction is **spent, not pending**. Both records now say so.
-  - ⛔⛔ **The REVOKE is BLOCKED, and this is new.** *"It becomes org-admin-only"* is **not
-    implementable**: `canOpenCaseManagement` (`src/lib/queries/cases.ts:791`) admits only commission
-    `staff_admin` / `administrativo` / a per-case write grant — ADR 0100 D12 deleted the
-    tenancy-admin coercion **on purpose** — and `case-manage-entry-gate.spec.ts` asserts
-    `assertManageDenied` for `orgadmin.a` and `hospitaladmin.a1`, each with a positive control.
-    There is no professionals surface under `/o/[org]/manage/` at all. **Door ∩ surface = ∅**: the
-    revoke strands the feature for everyone rather than moving it to `org_admin`. **PO owes: who
-    holds the capability afterwards.** Three candidate answers, materially different work — build an
-    org-admin surface; **narrow** instead of revoking (bound the gate to the caller's own commission
-    reach, which closes the measured harm and strands nothing); or reverse the ADR 0100 D12 wall.
+  - ⭐⭐ **RULED (3rd pass): SPLIT ROW 30 BY OPERATION.** The PO stated the product fact — a
+    `staff_admin` only ever **ADDS** a professional, never modifies or deletes one. So:
+    | door | code | staff_admin |
+    | --- | --- | --- |
+    | `create_professional_profile` · `ensure_professional_participant` · `set_professional_link_state` | **NEW row 43** `org.professionals.create` | ✅ keeps |
+    | `update_professional_profile` · `redact_professional_profile` | row 30 `org.professionals.manage` | ⛔ **loses** |
+  - ⭐ **This beats the case-reach narrowing I proposed one step earlier, on every axis.** Case reach
+    is a **per-RESOURCE** condition, which a role→permission→**scope** catalog cannot express — it
+    would have lived in the door with `authz` still answering TRUE, needing a permanent "the catalog
+    is not the whole story" caveat. *Add vs modify* is a **CAPABILITY**, which is what a catalog is
+    for. No DEFINER traversal (so no fail-open from a forgotten `removed_at is null`), no
+    `p_case_id` signature change.
+  - ⭐ **The two doors he loses have ZERO product callers** — `updateProfessionalProfile`
+    (`src/lib/participants/actions.ts:460`) and `redactProfessionalProfile`
+    (`src/lib/ethics/actions.ts:637`) are exported and never called by any component, page or route.
+    ⛔ A reason the change is cheap; **never** a reason to skip the tests.
+  - ⚠ **`set_professional_link_state` is KEPT but BOUNDED to `link_state = 'unknown'`** for the
+    `staff_admin` arm. It belongs on the ADD side (it completes an add — "Resolver vínculo" only
+    renders while the row is `unknown`), but the **door accepts transitions the UI never offers**:
+    it would move an established `linked` profile to `no_account`. Classic *no UI ≠ not reachable*,
+    closed at the door rather than trusted to the component that hides the button.
+  - ✅ **43rd matrix row APPROVED by the PO** — the first amendment to the 42-row approval, under
+    that approval's own "a 43rd row needs its own approval" rule.
+  - ⛔ **ORDER IS LOAD-BEARING:** § 12.3 FAMILY split → operation split → grant change. Dropping the
+    `staff_admin` arm while `can_manage_professional` still gates rows 31/32 strips
+    external-participant minting and the case vocabularies, which `staff_admin` **KEEPS**.
+  - ⚠ **403's differential needs a NEW REPRESENTATIVE.** Its `can_manage_professional` class is
+    represented by `org.professionals.manage`; once `staff_admin` loses that code every cell of the
+    class becomes a denial and it goes **single-polarity** — a coverage loss no arm currently names,
+    because arm2/arm5 are satisfied globally by other reps. Re-point to `org.professionals.create`
+    and regenerate; both halves land in the same migration or 403 §4.1 reds on its own transition.
+  - ⚠ **Reds BY DESIGN, each pinning the behaviour being removed:** `228:615`, `257:119-185`
+    (⛔ its `HC0J7` drifts to `42501` and **collides with its own negative twin at `:140`**),
+    `229:161-229` (⛔ `:187`'s over-grant twin may go **vacuous** — watch for that, not the red),
+    `321:193` (split it: the ascent stays true for ADD, flips for MODIFY). Plus the fail-OPEN arm
+    nothing covers: `staff_admin` adds (passes) / modifies (denied); sets link state from `unknown`
+    (passes) / from `linked` (denied).
   - ⚠ **And the split is NOT the no-op I first called it.** `320:112` pins **exactly 12** RPCs on
     this gate with an explicit *"do not just bump the number"* instruction, so the split reds it
     **by design**. Answer-preserving, not test-neutral — re-derive that census, never bump.

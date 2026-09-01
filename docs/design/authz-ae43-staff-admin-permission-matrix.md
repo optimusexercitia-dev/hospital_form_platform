@@ -3,7 +3,7 @@
 **Phase:** AE4 · **plan:** [`docs/plans/authz-evolution.md`](../plans/authz-evolution.md) § AE4.3 ·
 **authority:** ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D7,
 ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) §2 (PA-F8) ·
-**owner:** backend · **status:** ✅ **PO-APPROVED 2026-09-01 — AT 42 ROWS**; the REGRESSION ORACLE from cutover. ⛔ **Row 30 is PROVISIONAL — § 12.8** ·
+**owner:** backend · **status:** ✅ **PO-APPROVED 2026-09-01 — AT 42 ROWS**; the REGRESSION ORACLE from cutover. ⚠ **AMENDED 2026-09-01: row 30 splits by operation, +1 row (43) — § 12.8** ·
 **derived:** 2026-09-01 · **stack:** local, fresh reset, head `20261003007120`.
 
 > ⛔ **On approval this matrix becomes the REGRESSION ORACLE** — from cutover, AE4.5 asserts
@@ -326,7 +326,7 @@ signal is UI text rather than a status or RPC error (§ 7.1).
 | **40** | `commission.indicators.manage` | commission_content | write | none | ⭐ **ADDED — split out of row 25.** CLAUDE.md § 1 lists *quality indicator* and *accreditation standard/evidence* as **separate** governance modules with separate flags (`quality_indicators` / `accreditation`) and separate tables; § 3's family classifier had folded them into one. **D** `create/update/archive_indicator`, `set_indicator_target`, `record_indicator_measurement`, `compute_derived_measurement`, `indicator_kpis` |
 | **41** | `commission.cases.read` | commission_content | read | none | ⭐ **ADDED by § 15's audited-read register pass.** **D** `app.can_read_case` → `has_case_capability` → `_case_caps` coordinator branch (`view_case_overview`, `read_case_deliberation`, `read_case_content`); **audited** as `case.opened`. Row 16 covered the WRITE only |
 | **42** | `commission.meetings.minutes.transcript.read` | commission_content | read | none | ⭐ **ADDED.** **D** `public.read_minutes_transcript`, gate `app.can_read_minutes_transcript` — `is_staff_admin_of_for(commission_of_meeting(j.meeting_id))` and `j.status = 'done'`; **audited** as `minutes_transcript.read`; flag `audio_minutes`. Row 11 covered meeting WRITES only |
-| **30** | `org.professionals.manage` ⛔ **PROVISIONAL — § 12.8** | identity | **authority** | **class2_professional_identity** | ⚠ **ORG-SCOPED — § 11.** **D** `create/update/redact_professional_profile`, `set_professional_link_state`, **`ensure_professional_participant`**. Reach: **ADR 0078 §B7** ("any org `staff_admin`", the respondent twin's precondition, closed by the `HC0F2` linkage freeze) |
+| **30** | `org.professionals.manage` ⛔ **`staff_admin` LOSES THIS — § 12.8** | identity | **authority** | **class2_professional_identity** | ⚠ **ORG-SCOPED — § 11.** **D** `create/update/redact_professional_profile`, `set_professional_link_state`, **`ensure_professional_participant`**. Reach: **ADR 0078 §B7** ("any org `staff_admin`", the respondent twin's precondition, closed by the `HC0F2` linkage freeze) |
 | **31** | `org.participants.external.manage` | identity | write | none | ⚠ **ORG-SCOPED.** **D** `create_external_participant` — writes `public.participants` with `sensitivity_class` hardcoded `non_sensitive`; **structurally bounded** (§ 12.2) |
 | **32** | `org.case_vocabulary.manage` | vocabulary | write | none | ⚠ **ORG-SCOPED.** **D** `create/archive_ethics_allegation_category`, `create/archive_ethics_sanction_type`, `create/archive_case_assignment_role` |
 | **33** | `org.professionals.read` | identity | read | **class2_professional_identity** | ⚠ **ORG-SCOPED.** **D** `app.can_read_professional_profile` — arm 1 delegates to the split gate and re-points to **row 30 only**; arm 2 is case-committee reach. § 12.4 |
@@ -1037,11 +1037,13 @@ regardless of what happens to row 30.
 
 ---
 
-### 12.8 ⛔ Row 30 is PROVISIONAL — and the removal ruling's premise is BLOCKED on measurement
+### 12.8 ⭐ Row 30 SPLIT BY OPERATION — `staff_admin` may ADD a professional, never MODIFY one
 
-**Ruled by the PO 2026-09-01:** `staff_admin` **loses `org.professionals.manage`**, "it becomes
-org-admin-only". **Re-timed by the PO 2026-09-01** to run as **AE4.7c, after AE4.7b**. Row 30 above
-was approved **as *today* only** — it records what legacy does, not what the platform should do.
+**Ruled 2026-09-01, after TWO reversals, each forced by a measurement — the trail is in
+§ 12.8.5 and is worth reading before re-opening this.** Final: row 30 **splits by OPERATION**.
+`staff_admin` keeps a new **row 43 `org.professionals.create`** (add / seat / complete linkage) and
+**loses row 30** (`update`, `redact`). Timing: **AE4.7c, after AE4.7b**. Row 30 above was approved
+*as today only*, and this is the change it was waiting for.
 
 ⛔ **This subsection exists because the approval's scope lived in exactly one place, and it was the
 wrong place.** The provisionality was a parenthetical inside a PROGRESS.md § Decisions row about a
@@ -1061,7 +1063,7 @@ commission-scoped role. Whatever § 12.8.5 rules, that anomaly outlives it.
 | --- | --- |
 | **Catalog codes** (§ 12.3's cut) | ✅ **SHIPPED.** All four exist and are granted to `staff_admin`: `org.professionals.manage` (30), `org.participants.external.manage` (31), `org.case_vocabulary.manage` (32), `org.professionals.read` (33) |
 | **Gate split** | ⛔ **NOT BUILT.** `app.can_manage_professional` is still **one function gating all 13 doors**; no external-participant gate and no vocabulary gate exist in `app` or `public` |
-| **The revoke** | ⛔ **NOT DONE.** `authz.role_permissions` still carries `staff_admin → org.professionals.manage` |
+| **The revoke** | ⚠ **NARROWED IN SCOPE, not cancelled.** `staff_admin` loses row 30 (`update`/`redact`) but gains row 43 for the ADD doors — § 12.8.5 |
 
 ⭐ **Two-thirds done in the CATALOG, zero done in ENFORCEMENT** — precisely the state in which a
 naive revoke is most tempting and most wrong. Deleting the grant today removes `staff_admin` from
@@ -1109,8 +1111,9 @@ a report:
 
 ⛔ **The intersection is EMPTY.** The revoke does not move the capability to `org_admin`; it strands
 the feature for everyone. "Adicionar participante" (professional lane) and "Resolver vínculo"
-become unreachable by any principal. **The revoke is therefore BLOCKED pending a PO ruling on who
-holds the capability afterwards** — see § 12.8.5.
+become unreachable by any principal. ✅ **RESOLVED — this measurement is what overturned ruling 1** (§ 12.8.5). The final answer keeps
+`staff_admin` on the ADD doors, so nothing is stranded. ⛔ Keep this subsection: without it the
+reversal reads as a softening rather than the correction of a premise that measured false.
 
 #### 12.8.4 The split is ANSWER-PRESERVING but NOT test-neutral — and that is the tripwire working
 
@@ -1127,28 +1130,124 @@ it is not a silent refactor:
   `318:177` assert the gate is TRUE for a live `staff_admin` — these survive a *split* (new
   predicate for row 30's five doors) but die if `can_manage_professional` itself is re-aimed.
 
-#### 12.8.5 Disposition — AE4.7c, after AE4.7b
+#### 12.8.5 Disposition — ✅ RULED 2026-09-01: **SPLIT BY OPERATION.** `staff_admin` may ADD, never MODIFY
 
-AE4.7b re-points this same family onto `authz.holds_role`
-(`can_manage_professional` → `is_staff_admin_of_for` → `holds_role`), so splitting first means
-rewriting overlapping bodies twice. Hence AE4.7c owes, in order:
+⛔ **This is the THIRD ruling on row 30, and each reversal was forced by a measurement, not by
+preference.** The trail matters, because the final answer looks obvious and the first two did too:
 
-1. **Split the gate** per § 12.3's disposition — row 30's five doors keep
-   `can_manage_professional`; row 31's `create_external_participant` and row 32's six vocabulary
-   doors get their own gates; `can_read_professional_profile`'s arm 1 re-points to **row 30 only**
-   (§ 12.5). Answer-preserving; re-derive `320`'s census rather than bumping it.
-2. ⛔ **THEN STOP.** The revoke needs § 12.8.3 resolved first. The open question is not *when* but
-   *who holds it after* — and the three candidate answers are materially different work: build an
-   org-admin professionals surface; **narrow** rather than revoke (bound the gate to the caller's
-   own commission reach, which closes the measured harm without stranding anything); or reverse the
-   ADR 0100 D12 content wall so tenancy admins can reach the surface.
-3. Once ruled: revoke, then amend row 30 **and** the AE4.5 vectors together — `is(legacy, catalog)`
-   compares the two evaluators, so legacy and catalog must change in the same migration or 403 §4.1
-   reds.
+| # | ruling | what overturned it |
+| --- | --- | --- |
+| 1 | `staff_admin` **loses** `org.professionals.manage` — "it becomes org-admin-only" | § 12.8.3: `org_admin` **cannot reach the surface** (ADR 0100 D12). Door ∩ surface = ∅ — the revoke strands the feature |
+| 2 | **narrow** the gate by **case reach**, mirroring `can_read_professional_profile`'s arm 3 | The PO stated the product fact: **a `staff_admin` only ever ADDS a professional — never modifies, never deletes.** Case reach was solving a harder problem than the one that exists |
+| 3 | ⭐ **SPLIT BY OPERATION** — below | *(current)* |
 
-⛔ **Until step 3 lands, row 30 above records legacy behaviour and is not an endorsement.** Do not
-cite it as approved capability, and do not "reconcile" the AE4.5 vectors to it — they agree with
-each other by construction, and breaking that agreement is exactly what step 3 is.
+⭐ **Why ruling 3 beats ruling 2 on every axis.** Case reach is a **per-RESOURCE** condition, which
+a role→permission→**scope** catalog structurally cannot express — it would have lived in the door
+body with `authz` still answering TRUE, and the gate record would have needed a permanent "the
+catalog is not the whole story here" caveat. *Add vs modify* is a **CAPABILITY** distinction, which
+is exactly what a catalog models. It also needs no DEFINER traversal (so no fail-open risk from a
+mis-written join, no `removed_at is null` to forget), no `p_case_id` signature change, and it
+matches the product's real usage instead of approximating it.
+
+##### The cut, and it lands almost exactly on the bootstrap boundary
+
+| door | operation | code | `staff_admin` |
+| --- | --- | --- | --- |
+| `create_professional_profile` | mint a profile | **43** `org.professionals.create` | ✅ keeps |
+| `ensure_professional_participant` | seat it in the participants registry | **43** | ✅ keeps |
+| `set_professional_link_state` | complete its platform linkage | **43**, ⚠ bounded — below | ✅ keeps, bounded |
+| `update_professional_profile` | alter an existing identity record | **30** `org.professionals.manage` | ⛔ **LOSES** |
+| `redact_professional_profile` | redact an existing identity record | **30** | ⛔ **LOSES** |
+
+⭐ **The two doors `staff_admin` loses have ZERO product callers.** Measured across `src/`:
+`updateProfessionalProfile` (`src/lib/participants/actions.ts:460`) and `redactProfessionalProfile`
+(`src/lib/ethics/actions.ts:637`) are exported and **never called** — no component, no page, no
+route. So the removal costs the product **nothing**; it only reds pgTAP suites that pin the current
+over-broad behaviour. ⛔ That is a reason the change is cheap, **never** a reason to skip the tests:
+a door with no caller today is a door with no caller *today*.
+
+##### ⚠ `set_professional_link_state` — kept, but bounded to transitions OUT of `unknown`
+
+It belongs on the ADD side because it *completes* an add rather than altering an established
+record: `add-participant-dialog.tsx:959` sets the initial linkage immediately after creating, and
+the "Resolver vínculo" affordance (`resolve-linkage-dialog.tsx`) **only renders while the row's
+link state is `unknown`** — its own header calls it remediation for a profile "already sitting at
+platform-account linkage `unknown`", reusing the add dialog's fieldset.
+
+⛔ **But the DOOR accepts transitions the UI never offers.** `link_state` is
+`linked | no_account | unknown`, and the RPC will move an **established `linked`** profile to
+`no_account` — flipping a real account association — because nothing in the door reads the *current*
+state. **RULED: for the `staff_admin` arm only, require the profile's current `link_state` to be
+`unknown`.** `org_admin` / `platform_admin` keep it unrestricted. Shape:
+
+```
+app.can_manage_professional(v_org, auth.uid())                 -- org admin: unrestricted
+or ( app.can_create_professional(v_org, auth.uid())            -- staff_admin: completing an add
+     and v_profile.link_state = 'unknown' )
+```
+
+⭐ This is the *"no UI ≠ not reachable"* class, closed at the door instead of trusted to the
+component that happens to hide the button today.
+
+##### What moves in the catalog — and unlike ruling 2, the oracle DOES move
+
+✅ **A 43RD MATRIX ROW IS APPROVED (PO, 2026-09-01)** — the first amendment to the 42-row approval,
+made under its own stated rule that "a 43rd row needs its own approval".
+
+| | change |
+| --- | --- |
+| **New** row 43 `org.professionals.create` | org-scoped, `class2_professional_identity`. Granted to **`staff_admin`** and **`org_admin`** |
+| Row 30 `org.professionals.manage` | ⛔ **`staff_admin`'s grant is REVOKED.** Retained by `org_admin` / `platform_admin` |
+| Rows 31 / 32 / 33 | unchanged — `staff_admin` keeps external-participant minting, the case vocabularies, and the read code |
+| New gate `app.can_create_professional(p_org, p_uid)` | carries the `staff_admin` org-ascent arm that `can_manage_professional` loses |
+| `app.can_manage_professional` | ⛔ **loses its `staff_admin` arm entirely** once § 12.3's family split has moved rows 31/32/33 off it |
+
+⛔ **ORDER IS LOAD-BEARING, and getting it wrong is a live over-grant window.** The § 12.3 family
+split must land **first**: while `can_manage_professional` still gates external-participant minting
+and the vocabularies, dropping its `staff_admin` arm strips `staff_admin` from rows 31 and 32,
+which it **KEEPS**. Family split → operation split → grant change, in that order.
+
+##### ⚠ The differential oracle needs a new representative, or its org-scoped class goes single-polarity
+
+`scripts/gen-authz-differential-cells.py`'s `REPS` uses **`org.professionals.manage`** as the
+representative of the `can_manage_professional` legacy-equivalence class. Once `staff_admin` loses
+that code, **every one of its cells becomes a denial**, and the class stops exercising the granted
+polarity at all — a real coverage loss that no arm currently names, because arm2 and arm5 are
+satisfied globally by other reps.
+
+⭐ **AE4.7c must re-point that rep to `org.professionals.create`**, which `staff_admin` *does* hold,
+and regenerate. ⛔ Both halves move in the same migration: 403 §4.1 asserts `legacy == catalog`, so
+the grant change and the gate change must land together or the oracle reds on its own transition.
+
+##### ⚠ pgTAP that reds BY DESIGN — every one pins the behaviour being removed
+
+- `228_ethics_e1:615-617` — `update_professional_profile` under `sa_x`
+- `257_ethics_e2_retention:119-153,179-185` — `redact_professional_profile` under `sa_x`. ⛔ Its
+  `HC0J7` expectation becomes `42501` and **collides with its own `42501` negative twin at
+  `:140-146`** — a negative test whose error code drifts onto its control's code can go green for
+  the wrong reason. Re-argue both, do not just re-code one
+- `229_authz_m1_exclusion_durability:161-229` — `set_professional_link_state` under `sa_x`; `:187`
+  promotes a member to `staff_admin` *so that* the gate admits him, then pins `HC0F2`. Under the
+  `unknown` bound that over-grant twin may go **vacuous** — the failure mode to watch, not the red
+- `321_eth_e4_participant_seating:193-194` — **K3 PRE asserts a SIBLING-commission `staff_admin` IS
+  an org manager.** ⭐ For the ADD doors that stays true (row 43 keeps the ascent); for the MODIFY
+  doors it must flip. Split the assertion rather than delete it — it is the sharpest statement of
+  the arm in the whole suite
+- `320:112` — the *exactly 12 doors* tripwire reds on the family split and again on the operation
+  split. ⛔ Re-derive from the catalog and re-argue each door; never bump the number
+
+⛔ **And the fail-open direction still needs its own arm.** Everything above measures access being
+*removed*. Nothing would notice `can_create_professional` being written too wide, or the
+`link_state = 'unknown'` bound being dropped. AE4.7c owes a positive/negative pair on each: a
+`staff_admin` adds (passes) and modifies (denied); sets link state from `unknown` (passes) and from
+`linked` (denied).
+
+##### Naming note
+
+`org.professionals.create` is the code the PO approved by name. ⚠ It covers create **plus** seating
+**plus** initial linkage, so the name is narrower than its contents; `org.professionals.register`
+would read truer. Recorded as a flag, not a change — § 12.4 already ruled that a code's name should
+say what it covers, and this is the one place that rule is being bent knowingly.
 
 ## 13. Site→row reconciliation — ENUMERATION IS NOT MAPPING
 
