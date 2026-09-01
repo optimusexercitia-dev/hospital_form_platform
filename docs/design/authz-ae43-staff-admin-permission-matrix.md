@@ -61,6 +61,14 @@ file, decided the answer.** ⛔ Cite a TEST by name (`FF2V-1`) and let the range
 derivation that keys on a slice is only as true as the slice, and a too-narrow slice reads exactly
 like a real gap.
 
+⚠ **Its sibling, from the same pass: AN INDEX IS A CLAIM ABOUT A POPULATION.** § 7's header
+promised "the residue" and would have been counted as six open gaps; adding a status index fixed
+the *count* but inherited the *boundary* — an open item was living outside § 7 entirely, in a
+carry-forward list, and the index's own existence made it easier to miss by inviting the inference
+that everything unlisted was covered. ⛔ The next reader's question is not only **"is this list
+right"** but **"is this list ALL of it"**, and only the second one catches a register whose
+boundary is wrong.
+
 ---
 
 ## 1. Plane 1 — assignment shape, and the `expires_at` question
@@ -430,14 +438,27 @@ the first would pass while pinning the uniform-apply bug.
 "UI hiding is the only control" row. What follows is the residue: places where the *evidence* is
 weaker than the row, or where a divergence exists.
 
-⚠ **Not everything below is still open — four of the six resolved, and a reader counting
-subsections would overcount the gaps.** The PO's approval of this matrix (2026-09-01) explicitly
-does **not** cover the two that remain:
+⚠ **Not everything below is still open — a reader counting subsections would overcount the
+gaps.** The PO's approval of this matrix (2026-09-01) explicitly does **not** cover the ones that
+remain.
+
+⛔ **THIS INDEX IS A CLAIM ABOUT A POPULATION, AND THE CLAIM IS: these are ALL of this matrix's
+open evidence gaps.** An open item recorded anywhere else is a defect *in this index*, not a
+footnote elsewhere — because a reader who sees "the approval does not cover § 7's open gaps"
+reasonably concludes everything outside § 7 **is** covered. § 7.7 was travelling in a carry-forward
+list for exactly that reason and has been relocated here.
+
+⚠⚠ **THE CARVE-OUT'S FIGURE IS NOW STALE AND THE PO'S RECORD NEEDS RE-STATING.** The approval was
+recorded as covering-all-but *"§ 7's **two** open evidence gaps"* — written **before** this index
+existed and before § 7.7 was relocated in. The population is **three**. ⛔ The figure, not the
+carve-out, is what moved; re-record it as three, or drop the number and cite this index, which is
+the form that cannot go stale.
 
 | § | status |
 | --- | --- |
 | **7.1** five cross-commission denials pinned by UI text | 🔴 **OPEN** — `tester` building |
 | **7.4** three identically-worded sibling gates, not individually re-verified | 🔴 **OPEN** — `tester` building |
+| **7.7** self-lift of one's own recusal — no *session-level* witness | 🔴 **OPEN** — `tester` building |
 | 7.2 `signoffs.sign` "unpinned" | ✅ resolved — the **citation** was the defect, not the coverage |
 | 7.3 `BUG-STAGEC-READER` | ✅ not a difference — premise measured false |
 | 7.5 `CorrectionCaps.canApprove` | ✅ resolved — wired all along |
@@ -475,7 +496,7 @@ So the capability is **fully pinned, persona-attributed and DB-verified**. There
 cause, `BUG-STAGEC-READER`'s misquoted copy, and the § 7.4 dashboard comment. Every one of them
 read as diligence, which is why none would have been re-checked without being measured.
 
-### 7.3 A live pinned defect inside row 12, and one now-vacuous pin
+### 7.3 Row 12's pinned entry — ⛔ NOT a defect after all — and one now-vacuous pin
 
 - ⛔⛔ **`BUG-STAGEC-READER` IS NOT A DEFECT. Its premise measured FALSE, and an earlier revision
   of THIS document transcribed that premise instead of checking it.** Corrected 2026-09-01.
@@ -565,6 +586,35 @@ PHI-separation invariant joins on a column rather than degrading to a substring 
 permission code. ⛔ The **ordering / comparison rule** remains deferred, and pgTAP 401 §13.6–13.7
 gates that abstinence with a constructed detector.
 
+
+### 7.7 🔴 OPEN — self-lift of one's own recusal has no SESSION-LEVEL witness
+
+Relocated into § 7 on 2026-09-01. It had been travelling in a carry-forward list, i.e. outside the
+register the PO's approval carves out from — the precise inverse-inference this index exists to
+prevent. It belongs here by § 7's own definition (evidence weaker than the claim) and it is
+matrix-scoped: it is **row 18**, `commission.cases.recusal.manage`.
+
+⛔ **STATED PRECISELY, BECAUSE THE OBVIOUS PHRASING IS WRONG.** It is **not** "nothing pins this".
+The mutation layer pins it, and pins it well — `supabase/tests/229_authz_m1_exclusion_durability.sql`
+(verified at source, lines 300–314):
+
+- a **precondition** assertion that `app.is_recused_from_case(...)` is `true` first, commented
+  *"the deny has something to read"* — a vacuity control, so the refusal cannot pass against an
+  absent subject;
+- `throws_ok(public.lift_recusal(...), 'HC0F1')` — *"a recused coordinator cannot lift HER OWN
+  recusal (A27's headline)"*;
+- a **durability** assertion after it that `is_recused_from_case` is still `true`.
+
+**The gap is narrower and should be described as exactly that: no spec exercises the refusal
+through a logged-in session.** The pgTAP acts as `authenticated` via `set local role` +
+`test_helpers.claims_for`, which simulates the session at the DB layer — it is not a witness that
+the app's own path refuses it. That distinction matters here because this is the least-covered
+corner of the § 5 exception the PO dated to 2026-12-01.
+
+⛔ **`tester` is building the witness. This entry stays 🔴 OPEN until that spec exists and runs
+green, and the lead confirms it measured.** Closing a register entry on the strength of someone
+building it is the same shape as the four premises in § 0 — an expectation wearing the clothes of
+a result.
 ---
 
 ## 8. Did `risk_class`'s proposed value set survive contact with real subjects?
