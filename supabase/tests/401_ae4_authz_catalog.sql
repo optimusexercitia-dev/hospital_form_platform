@@ -28,10 +28,10 @@
 -- would destroy. Every fixture it creates is deleted BY IDENTITY (codes prefixed
 -- `zzfix.`), and the whole file rolls back regardless.
 --
--- RUN SHAPE: `Files=2, Tests=107` (106 here + 00_setup.sql's one).
+-- RUN SHAPE: `Files=2, Tests=113` (112 here + 00_setup.sql's one).
 
 begin;
-select plan(106);
+select plan(112);
 
 -- ============================================================================
 -- §1 — the schema, the four tables, and the deny-all RLS posture.
@@ -779,19 +779,29 @@ select is(
   'staff_admin''s". AE5 substitutes the remaining ten, one at a time.');
 
 select is(
-  (select count(*)::int from authz.permissions
-    where (code like 'org.%') <> (resolution_scope_kind = 'organization')),
+  (select count(*)::int
+     from authz.permissions pm
+     join pg_proc p on p.proname = case
+            when pm.code like 'org.%' and pm.code like '%.read' then 'can_read_professional_profile'
+            when pm.code like 'org.%'                            then 'can_manage_professional'
+            else                                                      'is_staff_admin_of_for' end
+     join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'app'
+    where (p.proargnames)[1] <> 'p_profile_id'          -- row 33's exception, § 19.3
+      and pm.resolution_scope_kind::text <> case
+            when (p.proargnames)[1] like 'p_org%'        then 'organization'
+            when (p.proargnames)[1] like 'p_commission%' then 'commission'
+            else '(unmapped)' end),
   0,
-  '14.9 ⚠ WEAK CROSS-CHECK, AND ITS BOUND IS STATED RATHER THAN IMPLIED. Every `org.*` code '
-  'declares resolution_scope_kind = organization and no other does. ⛔ This checks the '
-  'control against its own LABEL, so it catches DIVERGENCE (a rename, a wrong column) but '
-  'NEVER JOINT INCORRECTNESS: if a permission truly resolves at commission scope while both '
-  'its name and its column say organization, this passes. §11.1 rejected the code-name '
-  'prefix as a control for exactly this reason. The STRONG form derives the scope from what '
-  'the enforcement door takes as an argument (`can_manage_professional(p_org uuid, ...)`), '
-  'which needs the permission->enforcement-site mapping that AE4.5 is specced to build - it '
-  'is not built here rather than being duplicated. Until then this is divergence-detection '
-  'only.');
+  '14.9 ⭐ STRONG CROSS-CHECK — UPGRADED 2026-09-01, and this is the third fact. It was a '
+  'WEAK check against the code NAME (`org.%` implies organization), which § 11.1 had already '
+  'rejected as a control: checking a control against its own LABEL catches DIVERGENCE but '
+  'never JOINT INCORRECTNESS. It now derives the expected scope from the LEGACY GATE''s own '
+  'SIGNATURE — `app.can_manage_professional(p_org uuid, ...)` takes an organization, '
+  '`app.is_staff_admin_of_for(p_commission_id uuid, ...)` takes a commission — read from '
+  '`pg_proc.proargnames`. Neither the matrix nor the migration authored that, so a permission '
+  'whose name AND column both say organization while its gate takes a commission now reds. '
+  '⚠ Upgraded here because AE4.5 builds the permission->site mapping, which is the cheapest '
+  'moment it will ever be.');
 
 select ok(
   (select count(*) from authz.permissions where sensitivity_ceiling = 'phi') > 0
@@ -1093,6 +1103,95 @@ select ok(has_function_privilege('anon', 'authz.has_direct_permission(uuid,text,
 revoke execute on function authz.has_direct_permission(uuid,text,uuid,text) from anon;
 select ok(not has_function_privilege('anon', 'authz.has_direct_permission(uuid,text,uuid,text)', 'EXECUTE'),
   '18.3 ...and revoking closes it again');
+
+-- ============================================================================
+-- §19 - AE4.5 PRE-WORK: the permission->gate mapping, and the CHEAP per-permission half.
+--
+-- ⛔ WHY THE 42 CHEAP PROBES EXIST. The AE4.5 differential runs its full AXIS sweep for one
+-- representative per legacy-equivalence class, because `staff_admin` holds ALL 42 codes, so
+-- legacy (a ROLE check) and catalog (a PERMISSION check over a TOTAL mapping) are the same
+-- comparison repeated 42 times on the permission axis. A partition assertion (§ 19.1) checks
+-- THE MAPPING - it does NOT check the resolver's answer PER PERMISSION, and those are
+-- different claims. If has_direct_permission returned false for one code specifically, the
+-- partition would still be total and the representative cell would still pass.
+--
+-- The tempting argument is that the resolver is permission-agnostic - it looks up
+-- role_permissions by code - so a per-permission difference could only come from bad seed
+-- data, which the 42/42/0 migration guards already catch. That argument is probably right
+-- AND IT IS STILL AN ARGUMENT; this session has watched arguments of exactly that shape
+-- ("not reachable", "identically-worded", "no author to grant to") fail against measurement
+-- four times. 42 cheap probes cost nothing and settle it.
+--
+-- ⚠ RECORDED AT THE RIGHT GRAIN: per-permission GRANT is observable today; per-permission
+-- AXES are not, and will not be until AE5 gives a role a partial mapping.
+-- ============================================================================
+
+select is(
+  (select count(*)::int from authz.permissions pm
+    where case
+            when pm.code like 'org.%' and pm.code like '%.read' then 'can_read_professional_profile'
+            when pm.code like 'org.%'                            then 'can_manage_professional'
+            else                                                      'is_staff_admin_of_for' end
+          not in (select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                   where n.nspname = 'app')),
+  0,
+  '19.1 PARTITION IS TOTAL: every one of the 42 codes maps to a legacy gate that EXISTS in '
+  'the catalog. ⛔ This checks the MAPPING, never the resolver''s per-permission answer - '
+  '§ 19.4 is what checks that.');
+
+select is(
+  (select count(distinct case
+     when pm.code like 'org.%' and pm.code like '%.read' then 'can_read_professional_profile'
+     when pm.code like 'org.%'                            then 'can_manage_professional'
+     else                                                      'is_staff_admin_of_for' end)::int
+   from authz.permissions pm),
+  3,
+  '19.2 ...and it partitions the 42 into exactly THREE legacy-equivalence classes: '
+  'is_staff_admin_of_for (38 commission codes), can_manage_professional (rows 30-32), '
+  'can_read_professional_profile (row 33). ⭐ That reduction is what makes the AE4.5 axis '
+  'sweep 3 x the matrix instead of 42 x - DERIVED and asserted, never assumed.');
+
+select is((select (p.proargnames)[1] from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'app' and p.proname = 'can_read_professional_profile'),
+  'p_profile_id',
+  '19.3 ⚠ ROW 33''s EXCEPTION, ASSERTED RATHER THAN ASSUMED. can_read_professional_profile '
+  'takes a PROFILE id, not a scope id, so § 14.9''s gate-signature cross-check cannot cover '
+  'it. Its resolution_scope_kind = organization is a SECOND-ORDER derivation: the gate '
+  'resolves the profile''s organization_id internally and then calls can_manage_professional. '
+  '⛔ Stated so the 14.9 exclusion reads as a known bound, not an oversight.');
+
+create or replace function pg_temp.grant_probe(p_uid uuid, p_cid uuid, p_oid uuid) returns text
+language sql stable as $$
+  select coalesce(string_agg(pm.code, ', ' order by pm.code), '(none)')
+    from authz.permissions pm
+   where not authz.has_direct_permission(
+           p_uid,
+           pm.resolution_scope_kind::text,
+           case pm.resolution_scope_kind::text when 'organization' then p_oid else p_cid end,
+           pm.code);
+$$;
+
+select is(
+  pg_temp.grant_probe((select uid from t401_p), (select cid from t401_p), (select oid from t401_org)),
+  '(none)',
+  '19.4 ⭐ THE CHEAP HALF, ALL 42: every seeded code resolves TRUE for a staff_admin at its '
+  'own base coordinate. ⛔ This is what the representative-only axis sweep would otherwise '
+  'lose - a code mis-seeded, or a resolver that ever became permission-sensitive, reds HERE '
+  'and NAMES ITSELF (the message lists the failing codes). ⚠ The scope is chosen from '
+  'resolution_scope_kind, which § 14.9 tests separately; this assertion is about the GRANT.');
+
+select is((select count(*)::int from authz.permissions), 42,
+  '19.5 CARDINALITY CONTROL for § 19.4: the probe ranged over all 42 codes. A truncated '
+  'catalog would make 19.4 pass having checked fewer.');
+
+select is(
+  pg_temp.grant_probe(
+    (select p.id from public.profiles p where p.email = 'staff1.ccih@test.local'),
+    (select cid from t401_p), (select oid from t401_org)),
+  (select string_agg(code, ', ' order by code) from authz.permissions),
+  '19.6 DISCRIMINATION CONTROL: the SAME probe against a NON-staff_admin returns ALL 42 as '
+  'failures. So § 19.4''s "(none)" is an observation, not a stuck-true - the probe can '
+  'return both answers.');
 
 select * from finish();
 rollback;
