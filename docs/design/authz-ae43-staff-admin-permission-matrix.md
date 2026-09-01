@@ -238,8 +238,10 @@ signal is UI text rather than a status or RPC error (§ 7.1).
 | 27 | `commission.referrals.phi.read` | **phi** | read | **phi** | **D** `app.can_read_referral_phi` · **E2E** `nsp-per-hospital.spec.ts:834-850` — a **sanctioned cross-hospital** read, not a leak |
 | 28 | `commission.safety_events.report` | commission_content | write | none | **D** safety-event door from case detail · **E2E** `phase14a-safety-events.spec.ts:188-233` |
 | 29 | `commission.audit.read` | audit | read | none | **R** `audit_log_select` (**SELECT only**) |
-| **30** | `org.professionals.manage` | identity | **authority** | **class2_professional_identity** | ⚠ **ORG-SCOPED — see § 11.** **D** `app.can_manage_professional` gating **13** fns (`create/update/redact_professional_profile`, `set_professional_link_state`, the ethics + case-assignment vocabularies). Reach already recorded: **ADR 0078 §B7** — "any org `staff_admin`", the respondent twin's precondition, closed by the `HC0F2` linkage freeze |
-| **31** | `org.professionals.read` | identity | read | **class2_professional_identity** | ⚠ **ORG-SCOPED.** **D** `app.can_read_professional_profile` (delegates to `can_manage_professional`, else case-committee reach) |
+| **30** | `org.professionals.manage` | identity | **authority** | **class2_professional_identity** | ⚠ **ORG-SCOPED — § 11.** **D** `create/update/redact_professional_profile`, `set_professional_link_state`, **`ensure_professional_participant`**. Reach: **ADR 0078 §B7** ("any org `staff_admin`", the respondent twin's precondition, closed by the `HC0F2` linkage freeze) |
+| **31** | `org.participants.external.manage` | identity | write | none | ⚠ **ORG-SCOPED.** **D** `create_external_participant` — writes `public.participants` with `sensitivity_class` hardcoded `non_sensitive`; **structurally bounded** (§ 12.2) |
+| **32** | `org.case_vocabulary.manage` | vocabulary | write | none | ⚠ **ORG-SCOPED.** **D** `create/archive_ethics_allegation_category`, `create/archive_ethics_sanction_type`, `create/archive_case_assignment_role` |
+| **33** | `org.professionals.read` | identity | read | **class2_professional_identity** | ⚠ **ORG-SCOPED.** **D** `app.can_read_professional_profile` — arm 1 delegates to the split gate and re-points to **row 30 only**; arm 2 is case-committee reach. § 12.4 |
 
 ⚠ **Two capabilities the E2E plane shows are NOT role-derived and are therefore not rows:**
 reading `legal_privileged` case documents rides on a *seeded clearance grant*
@@ -680,8 +682,8 @@ is AE4.4's regardless.**
 
 ### 11.3 BINDING REQUIREMENT ON AE4.4 — numbered alongside § 6A
 
-**AE4.4 may not assume a permission resolves at its holder's role scope.** At least two permissions
-(rows 30–31) resolve at the **organization** while being held via a **commission**-scoped role. An
+**AE4.4 may not assume a permission resolves at its holder's role scope.** At least **four** permissions
+(rows 30–33) resolve at the **organization** while being held via a **commission**-scoped role. An
 adapter that derives the resolution scope from `authz.roles.allowed_scope_kind` will silently deny
 both — an under-grant that looks like correct tenant isolation and will therefore read as a pass.
 
@@ -689,3 +691,121 @@ both — an under-grant that looks like correct tenant isolation and will theref
 the permission's resolution scope **differ**, or the generator emits only same-scope cells and the
 whole class goes untested. That is the same both-polarity requirement § 6A makes for active
 context — a generator that emits one side passes while pinning the bug.
+
+---
+
+## 12. Row 30 re-derived — `can_manage_professional` gates three unrelated things
+
+**Correcting this document, not partitioning it.** Row 30's earlier site list was the artifact under
+correction, so each of the **13** dependents was re-read from `pg_proc` and assigned by **what it
+writes and at what sensitivity** — never by its name or its table.
+
+### 12.1 ⭐ The rule that forces the split is one this document already made
+
+`public.participants` carries its own `sensitivity_class`, and constraint
+`participants_sensitivity_derives_type` makes it a **function of `participant_type`**:
+`patient → patient_phi`, `professional → professional_identity`, and
+`external_person | department | institution | regulatory_body | other → non_sensitive`.
+
+Old row 30 was classified `class2_professional_identity` while its sites included
+`create_external_participant`, which can only ever write `non_sensitive` rows. **A permission code
+may not span a sensitivity boundary** — the same constraint § 8 derived on the *reversibility*
+axis (which is why `commission.forms.manage` had to split at publish), recurring here because
+`sensitivity_ceiling` is per-permission. ⭐ The split is required by the column's semantics, not by
+taste, and it is the second time this column has caught a bundled code.
+
+### 12.2 The two non-obvious dispositions — both write `participants`, and they land on opposite sides
+
+| function | writes | `participant_type` / `sensitivity_class` | lands on |
+| --- | --- | --- | --- |
+| `create_external_participant` | `participants` | `p_type` (caller) + **`'non_sensitive'` hardcoded** | **row 31** |
+| `ensure_professional_participant` | `participants` **+ `professional_participants`** | **`'professional'` + `'professional_identity'`, both hardcoded** | **row 30** |
+
+⭐ **`ensure_professional_participant` writes the same table as the external door and belongs with
+professional identity anyway** — the bridge from a professional profile into the participants
+registry emits a `professional_identity` row. Assigning by table, or by the fact that both are
+"participant" functions, would have put it in row 31 and re-created the boundary-spanning defect
+one row over.
+
+⛔ **`create_external_participant` is STRUCTURALLY bounded, measured not argued.** Because it
+hardcodes `sensitivity_class = 'non_sensitive'`, a caller passing `p_type => 'professional'` is
+rejected by the CHECK, not merely by convention. Probed in a rolled-back transaction:
+`insert … ('professional', 'non_sensitive')` → **REJECTED by
+`participants_sensitivity_derives_type`**. So row 31 cannot leak into row 30's sensitivity class.
+
+### 12.3 All 13 dependents, dispositioned
+
+| function | writes | code |
+| --- | --- | --- |
+| `create_professional_profile` | `professional_profiles` | 30 |
+| `update_professional_profile` | `professional_profiles` | 30 |
+| `redact_professional_profile` | `professional_profiles` | 30 |
+| `set_professional_link_state` | `professional_profiles` | 30 |
+| `ensure_professional_participant` | `participants` (`professional_identity`) + `professional_participants` | **30** |
+| `create_external_participant` | `participants` (`non_sensitive`) | **31** |
+| `create_ethics_allegation_category` | `ethics_allegation_categories` | 32 |
+| `archive_ethics_allegation_category` | `ethics_allegation_categories` | 32 |
+| `create_ethics_sanction_type` | `ethics_sanction_types` | 32 |
+| `archive_ethics_sanction_type` | `ethics_sanction_types` | 32 |
+| `create_case_assignment_role` | `case_assignment_roles` | 32 |
+| `archive_case_assignment_role` | `case_assignment_roles` | 32 |
+| `app.can_read_professional_profile` | *(read gate, no write)* | **33** |
+
+5 + 1 + 6 + 1 = **13**. The parts sum.
+
+### 12.4 Where the derived cut differs from the proposed one
+
+**The third code is `org.case_vocabulary.manage`, not `org.ethics.vocabulary.manage`** — the
+proposed name is one table too narrow. `case_assignment_roles` is **not ethics-specific**: it is
+consumed by `set_case_narrative_assignment_role` and `set_case_phase_assignment_role`, i.e. general
+case machinery. All three vocabularies are structurally identical — same columns
+(`id, organization_id, key, display_name, is_active, position`), same gate, same org scope, same
+`none` sensitivity — so **nothing forces a split between them**, and splitting anyway would be
+generality bought before its first use (§ 11.1's own argument against option B). One code; the name
+says what it covers.
+
+The other two names are taken as proposed.
+
+### 12.5 Row 33 (was 31) — no sibling read code is needed
+
+`app.can_read_professional_profile` has two arms: it delegates to `can_manage_professional`, else
+falls back to case-committee reach. When the manage gate splits, **arm 1 re-points to row 30 only**
+— reading a professional profile must not be granted by holding the external-participant or
+vocabulary codes.
+
+⛔ **No sibling read code for the `non_sensitive` registry.** Reads of `public.participants` are
+governed by policy `participants_select` — `app.is_org_member(organization_id) OR app.is_admin()`
+— an **org-member baseline**, not a `staff_admin` grant. External-participant reads are therefore
+already covered, and inventing a code for them would assert a permission the system does not have.
+
+⚠ **Flagged, not claimed, because it is outside this matrix's scope:** that same policy governs
+`patient`-type rows, whose `display_name` is `patient_phi`-classed. Whether an org-membership gate
+is the right reach for that is a Rule 12 question for the case/PHI module owner — it is not a
+`staff_admin` question and I have not derived it.
+
+### 12.6 Row 16 verification — case seating IS covered
+
+Verified rather than presumed. `add_case_participant`, `remove_case_participant` and
+`set_case_participant_role` are all `prosecdef = t`, gated on **`is_staff_admin_of`** (so they sit
+in § 0's 151 bare-form set), write **`case_participants`**, and do **not** call
+`can_manage_professional`. They are commission-scoped case seating and are covered by **row 16**.
+✅ No missing row.
+
+⚠ **One accounting correction while there:** § 3's family table is an aggregation aid whose
+classifier keyed on function *names*, and it misfiled two of these —
+`ensure_professional_participant` into `staff` and `create_external_participant` into `cases`. The
+family counts are therefore approximate by construction and must not be cited as a code's site
+list. **Rows 30–33 above are derived per function, not from that table**, and row 16's authority is
+the named case-seating doors rather than the "72" aggregate.
+
+### 12.7 ⛔ The scope anomaly does NOT dissolve — it redistributes
+
+All four codes take `p_org` and resolve at the **organization** while being held via a
+**commission**-scoped role. **§ 11.3's binding requirement on AE4.4 survives the split intact and
+now covers four codes instead of two.** The obvious reading — that removing professional identity
+from `staff_admin` dissolves the anomaly — is **false**: `org.participants.external.manage` and
+`org.case_vocabulary.manage` remain org-scoped permissions held via a commission-scoped role
+regardless of what happens to row 30.
+
+⚠ **No domain change was needed.** All three sensitivity values used here
+(`class2_professional_identity`, `none`) already exist in `authz.sensitivity_class`.
