@@ -435,14 +435,36 @@ than cited as a pin.
 
 ### 7.3 A live pinned defect inside row 12, and one now-vacuous pin
 
-- ⛔ **`BUG-STAGEC-READER`** — on a case-less reserved meeting item where the author-coordinator
-  omits herself from the reader list, substance/decision project **null to her too**, contradicting
-  the product's own copy that "a coordenação" always sees it. Asserted with `test.fail()`
-  (`meetings-reserved-sessions.spec.ts:415-467`), i.e. pinned as currently-broken. **This is an
-  under-grant, the opposite polarity to § 5's exception**, and it must not be transcribed into the
-  matrix as intended behaviour. Row 12's approved rule is that the author-coordinator reads her own
-  reserved item; legacy diverges; **disposition (c) — blocks**, unless the PO rules it (b) with an
-  owner and expiry.
+- ⛔⛔ **`BUG-STAGEC-READER` IS NOT A DEFECT. Its premise measured FALSE, and an earlier revision
+  of THIS document transcribed that premise instead of checking it.** Corrected 2026-09-01.
+  The spec comment at `meetings-reserved-sessions.spec.ts:462` quotes the panel copy as
+  *"itens sem caso, apenas os leitores indicados **e a coordenação**"* and derives a bug from the
+  final clause. **That clause is not in the source.** Measured verbatim:
+  - `reserved-sessions-panel.tsx:207` — *"itens sem caso, apenas os leitores indicados. **Os demais
+    veem que houve deliberação reservada, sem seu conteúdo.**"* — no coordination promise, and the
+  second sentence describes the observed behaviour **exactly**.
+  - `reserved-item-form.tsx:246-249`, the copy shown **at the moment the author builds the reader
+    list** — *"Apenas os membros marcados poderão ler este item. **A coordenação não tem acesso
+    automático — adicione seu próprio nome à lista para manter o acesso.**"*
+
+  So the product **explicitly documents the behaviour the test calls a bug, and instructs the
+  author to do precisely what the test deliberately does not do.** Corroborating: there is **no
+  `created_by` column on `meeting_closed_session_items`** — per-item authorship is not modelled at
+  all, so "the author's own item" is not even expressible. The reader list is the sole mechanism,
+  by design.
+
+  ⛔ **Consequence, and it is the serious one: the planned "fix" would have been a real
+  over-grant.** Widening the case-less branch to admit the coordination would contradict the
+  documented promise and destroy the only exclusion mechanism case-less items have — there is no
+  case, so no recusal machinery; the reader list is it. This is the PA-F8 trap running **in
+  reverse**: not approving a legacy defect into the matrix, but *manufacturing* a defect to satisfy
+  a fabricated expectation.
+
+  **Disposition: NOT A DIFFERENCE.** Row 12's approved rule is the legacy behaviour. The work owed
+  is documentary and belongs to `tester`, not to backend: correct the spec's misquoted comment, and
+  convert the `test.fail()` into a **positive deny-assertion** (a non-reader, coordinator included,
+  sees the row and **not** its content) — which turns a false-bug pin into the real regression guard
+  that this boundary currently lacks.
 - ⚠⚠ **A vacuous pin, flagged so nobody counts it as coverage:** the "non-entitled source
   staff_admin does not see the dispose control" assertion at `nsp-per-hospital.spec.ts:906-953` is
   **vacuous by construction** — `ReferralDisposeDialog` was removed from the page for *every*
@@ -579,7 +601,7 @@ deferral-becomes-a-decision shape.
 | --- | --- | --- | --- |
 | D1 | **`meeting_cases` recusal** — `summary` + `decision` over-granted to a recused member | **(b) named exception** | ADR 0169, owner `backend`, **proposed expiry 2026-12-01** (§ 5.2). Latent: the seed cannot reach the failing state |
 | D2 | **4 notification bodies resolve `staff_admin` without `expires_at`** | **(a) fix in a preceding gated increment** | § 1.2. One term per body, matching the canonical predicate. Not (b) — nobody would defend it as a design choice. Cannot be left: AE4.4's adapter cannot project one assignment fact over inconsistent legacy answers |
-| D3 | **`BUG-STAGEC-READER`** — author-coordinator under-granted on her own case-less reserved item | **(c) BLOCKS**, unless the PO rules (b) | § 7.3. An **under**-grant, opposite polarity to D1. It contradicts the product's own copy, and it is already pinned `test.fail()`, so it is known-broken rather than latent |
+| D3 | **`BUG-STAGEC-READER`** | ⛔ **NOT A DIFFERENCE — premise measured FALSE** | § 7.3. The spec comment misquotes the panel copy by adding *"e a coordenação"*; the real copy says the opposite, and the add-item dialog states *"A coordenação não tem acesso automático"*. Behaviour is correct and documented. ⛔ The proposed widening would have been a genuine **over-grant** destroying the only exclusion mechanism case-less items have. Work owed is documentary and is `tester`'s |
 | D4 | **`dashboard/page.tsx` comment** claims an `org_admin` coercion that no longer exists, and RPC-gate uniformity that never held | **not a behavioural difference — a documentation defect** | § 7.4. The *code* is correct by current design. Filed so the comment is corrected; the matrix row is derived from code + catalog, not from it |
 | D5 | **3 of 9 `dashboard_*` fns omit `is_tenancy_admin_of`** | **out of scope — handed to AE5** | `staff_admin` passes all nine, so row 8 is unaffected. The non-uniformity bites `org_admin` / `hospital_admin`, whose matrices are AE5's |
 | D6 | **Referral-dispose deny pin is vacuous** | **not a difference — a dead test** | § 7.3. The control was removed for every persona; the pin proves nothing and should not be counted as coverage |
