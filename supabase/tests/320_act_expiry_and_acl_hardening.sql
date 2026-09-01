@@ -197,22 +197,39 @@ select is(
 -- ── The measured baseline, and why it is a RATCHET and not 0 ────────────────
 --
 -- Measured 2026-08-17 against the live catalog: **237 of 454** `app` functions
--- are PUBLIC-executable (228 by default ACL — 159 of them SECURITY DEFINER —
--- plus 9 by an explicit PUBLIC grant), and `anon` resolves EXECUTE on all 237.
+-- were PUBLIC-executable (228 by default ACL — 159 of them SECURITY DEFINER —
+-- plus 9 by an explicit PUBLIC grant), and `anon` resolved EXECUTE on all 237.
 --
--- ⛔ A blanket revoke would BREAK THE DATABASE, and the explicit nine say why:
--- `is_admin`, `is_member_of`, `is_staff_admin_of`, `is_org_admin_of`,
--- `eval_condition`, `answer_map`, `latest_published_version`,
--- `commission_of_version`, `can_read_correction_response`. These are evaluated
--- INSIDE RLS policies, which run as whatever role is reading — including `anon`
--- on the auth-flow paths. Their PUBLIC grant is a decision, not drift. That is
--- the over-revoke twin from this file's own header, at schema scale: a fix that
--- over-reaches passes the security half while breaking every policy that calls
--- one of them.
+-- ⭐ THE RATCHET MOVED DOWN ONCE, DELIBERATELY: **236** since AE4.7b
+-- (20261003007210) revoked the PUBLIC grant on `app.is_staff_admin_of`
+-- (FUP-IS-STAFF-ADMIN-OF-CARRIES-PUBLIC-EXECUTE). Eight explicit grants remain.
+-- ⛔ A ratchet exists to stop the set GROWING; lowering the pin is only ever
+-- legitimate with the removal named and measured, which is why the migration
+-- asserts its own before/after by EFFECTIVE PRIVILEGE and 405 §§5.2-5.3 pin both
+-- the revoke AND its over-revoke twin.
+--
+-- ⛔ A blanket revoke would BREAK THE DATABASE, and the explicit eight say why:
+-- `is_admin`, `is_member_of`, `is_org_admin_of`, `eval_condition`, `answer_map`,
+-- `latest_published_version`, `commission_of_version`,
+-- `can_read_correction_response`. These are evaluated INSIDE RLS policies, which
+-- run as whatever role is reading — including `anon` on the auth-flow paths.
+-- Their PUBLIC grant is a decision, not drift. That is the over-revoke twin from
+-- this file's own header, at schema scale: a fix that over-reaches passes the
+-- security half while breaking every policy that calls one of them.
+--
+-- ⚠ `is_staff_admin_of` WAS ON THAT LIST AND ITS MEMBERSHIP WAS NEVER TRUE. The
+-- sentence above is the reason the nine are exempt, and it did not hold for this
+-- one — measured on the live catalog 2026-09-01, before the revoke: of the 64
+-- policies whose predicate calls `app.is_staff_admin_of`, **ZERO** are granted to
+-- `anon` or to PUBLIC (all 64 are `authenticated`-only), and `anon` holds SELECT
+-- on **ZERO** tables in `public`, so no anon read path can reach it at all. The
+-- grant was `create or replace` residue from before AE1.2's global default revoke,
+-- carried forward through every rewrite — drift wearing a decision's label,
+-- inside a list whose whole purpose is to distinguish the two.
 --
 -- Calibration, so this number is not read as an open door: `config.toml`
 -- exposes ONLY the `public` schema, so an `app` function with PUBLIC EXECUTE is
--- not PostgREST-reachable. This is defence-in-depth. Driving 237 down is a
+-- not PostgREST-reachable. This is defence-in-depth. Driving 236 down is a
 -- separate, triage-first work item (FUP-ACL-APP-POPULATION, re-scoped) —
 -- pinning it here stops the set GROWING while that triage is pending, which is
 -- the specific hole the allowlist left open.
@@ -222,7 +239,7 @@ select is(
     where n.nspname = 'app'
       and (p.proacl is null
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))),
-  237,
+  236,
   'ACL population U1 ⭐ the `app` PUBLIC-executable set is EXACTLY its measured baseline — a new app door with a default ACL reds this, where the 8-name allowlist saw nothing');
 
 -- U2 — the control, in t19c's style. A population assertion that has never been
@@ -236,7 +253,7 @@ create function app.zz_acl_population_control() returns boolean
 -- default globally for the `postgres` creator role, so a newly created app function no
 -- longer joins the anon-executable population on its own and this control stopped moving
 -- the count — correctly, and it FAILED, which is the control doing its job.
--- ⛔ The fix is NOT to expect 237 instead of 238: that would make a detector-vacuity
+-- ⛔ The fix is NOT to expect the baseline instead of baseline+1: that would make a detector-vacuity
 -- control pass by asserting the detector finds nothing, which is precisely what it exists
 -- to rule out. The control now CONSTRUCTS the condition it is probing for instead of
 -- borrowing it from an ambient default — strictly stronger, because it no longer depends
@@ -248,8 +265,8 @@ select is(
     where n.nspname = 'app'
       and (p.proacl is null
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))),
-  238,
-  'ACL population U2 ⭐ CONTROL: creating ONE app function AND GRANTING IT TO PUBLIC moves the count 237 → 238 — the detector demonstrably finds what it claims to look for. The grant is explicit since 20261003005300 revoked the PUBLIC EXECUTE default; the control constructs the condition rather than inheriting it');
+  237,
+  'ACL population U2 ⭐ CONTROL: creating ONE app function AND GRANTING IT TO PUBLIC moves the count 236 → 237 — the detector demonstrably finds what it claims to look for. The grant is explicit since 20261003005300 revoked the PUBLIC EXECUTE default; the control constructs the condition rather than inheriting it');
 
 drop function app.zz_acl_population_control();
 
@@ -258,7 +275,7 @@ select is(
     where n.nspname = 'app'
       and (p.proacl is null
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))),
-  237,
+  236,
   'ACL population U2b CONTROL RESTORED: dropping the probe returns the count to baseline, so U1 above measured the real population and not a leftover');
 
 -- U3 — the over-revoke twin at SCHEMA scale. Without it, a future migration that

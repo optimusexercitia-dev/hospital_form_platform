@@ -4,18 +4,33 @@
 -- condition is removed from has_role... must assert through a table reached
 -- ONLY via has_role — no OR'd permissive sibling grant."
 --
--- Table: public.meeting_minutes_jobs. Verified live (not assumed) to carry
--- EXACTLY ONE policy for SELECT, PERMISSIVE, to authenticated:
---   meeting_minutes_jobs_select = app.is_staff_admin_of(app.commission_of_meeting(meeting_id))
--- `app.is_staff_admin_of(p_commission_id)` = `is_active(auth.uid()) AND
--- has_role('commission', p_commission_id, 'staff_admin', auth.uid())` — a
--- direct, single-clause caller check through the 4-arg has_role this stage
--- amends. No is_admin()/other-door OR'd sibling exists on this policy, so a
--- widening in has_role's own caller-only condition cannot be masked by an
--- alternate admitting path (authz-handoff §7.1 shape 6).
+-- Tables: TWO probes since AE4.7b, and the split is the point.
+--
+--   public.meeting_minutes_jobs — EXACTLY ONE policy (SELECT, PERMISSIVE, to
+--     authenticated): `app.is_staff_admin_of(app.commission_of_meeting(meeting_id))`.
+--     ⚠ THAT WRAPPER IS NO LONGER ROUTED THROUGH has_role. AE4.6 re-pointed it at the
+--     authz catalog and AE4.7b collapsed it onto `authz.holds_role`, which carries its
+--     own hat conjunct. So this probe still proves the hat gate BEHAVES (the two
+--     baselines below), but a has_role mutation can neither open nor close it — which is
+--     exactly what the ARM-SPLIT CONTROL asserts, and why the revert-twin moved.
+--
+--   public.form_block_library — the REVERT-TWIN's probe. Derived from pg_policy, not
+--     chosen: EXACTLY ONE policy of any command (SELECT, PERMISSIVE, to authenticated),
+--     no triggers, two arms —
+--       `app.is_staff_admin_of(commission_id) OR app.is_tenancy_admin_of(commission_id)`
+--     — the first CATALOG-routed, the second still has_role-routed
+--     (`is_active(p_uid) AND has_role('organization', org, 'org_admin', p_uid)`), over
+--     the SAME row for the SAME caller. `sa_x` is dual-hat and bootstrap homes comm_x
+--     under org_b, so which arm is intact decides whether the row is visible.
+--
+-- ⛔ Shape 6 (authz-handoff §7.1) is satisfied by MEASUREMENT here, not by structure: the
+-- second arm is not eliminated, it is asserted shut. That is strictly stronger than the
+-- single-clause table this file used to rely on — an OR'd sibling that is PROVEN false
+-- under the mutation cannot mask the widening, and proving it is also how this file now
+-- records why the original twin was orphaned.
 
 begin;
-select plan(22);
+select plan(25);
 
 -- ── TRIPWIRE (ADR 0106 D11 no-op argument): the empirical claim behind D11's
 --    hat condition being safe to ship as a no-op today is "0 platform_admins
@@ -63,6 +78,41 @@ insert into public.meetings (id, commission_id, meeting_number, title, scheduled
 insert into public.meeting_minutes_jobs (id, meeting_id, status, requested_by)
   select job_id, meeting_id, 'done', (select sa_x from k) from m;
 
+-- ── AE4.7b: THE SECOND PROBE, and why this file needed one ─────────────────
+-- `meeting_minutes_jobs_select` = app.is_staff_admin_of(...), and AE4.6 re-pointed that
+-- wrapper at the authz catalog. So the mutation below — which neutralizes app.has_role —
+-- NO LONGER REACHES IT, and the REVERT-TWIN went red on the branch and stayed red. It was
+-- ORPHANED, not wrong: same claim, chokepoint moved out from under it.
+--
+-- ⚠ It failed LOUDLY, which is the only reason this is a repair and not a silent hole. Had
+-- the mutation left the assertion satisfied, a hat control that no longer tests the hat would
+-- have gone green forever.
+--
+-- ⭐ THE FIX IS NOT TO MUTATE THE NEW CHOKEPOINT HERE. `app.has_role` is still LIVE for the
+-- ELEVEN legacy roles and ~151 self-check sites, and ADR 0106 Stage 3's gate sentence names
+-- has_role BY NAME: "goes RED when the active-role condition is removed from has_role". Move
+-- this file's PROBE to a table still reached through has_role for a LEGACY role, and the
+-- sentence stays satisfied by something. The wrappers' own new chokepoint gets its own twins,
+-- at their own site, in pgTAP 405 §7.
+--
+-- ⭐⭐ WHY `form_block_library`, derived from pg_policy rather than chosen: it carries EXACTLY
+-- ONE policy of any command (SELECT, permissive, to authenticated) —
+--     is_staff_admin_of(commission_id) OR is_tenancy_admin_of(commission_id)
+-- — and no triggers. Both arms reach memberships, which is what makes it BETTER than a
+-- single-arm table rather than worse: post-cutover the first arm is CATALOG-routed and the
+-- second is has_role-routed, over the SAME row, for the SAME caller. So the mutation's effect
+-- is attributable by construction, and the attribution is asserted (the arm-split control
+-- below) instead of argued. `sa_x` is dual-hat (staff_admin@comm_x + org_admin@org_b) and
+-- bootstrap homes comm_x under org_b, so ONE row is visible through either arm depending only
+-- on which gate is intact.
+create temp table fbl on commit drop as select gen_random_uuid() as blk_id;
+grant select on fbl to authenticated;
+insert into public.form_block_library
+  (id, commission_id, name, snapshot, saved_by_id, saved_by_name, source_form_title, source_version_number)
+  select blk_id, (select comm_x from k), 'AE4.7b probe', '{}'::jsonb,
+         (select sa_x from k), 'sa_x', 'Formulário de origem', 1
+    from fbl;
+
 -- BASELINE: sa_x holds staff_admin@comm_x (bootstrap). WITHOUT an active hat,
 -- has_role's caller-only condition denies — 0 rows. WITH the matching hat, it
 -- admits — 1 row. Both sides of the condition, proven live, before touching it.
@@ -80,6 +130,25 @@ select is(
   (select count(*)::int from public.meeting_minutes_jobs where meeting_id = (select meeting_id from m)),
   1,
   'BASELINE (matching hat): meeting_minutes_jobs_select admits the staff_admin-hatted caller');
+reset role;
+
+-- AE4.7b — the SECOND probe's own both-sides baseline, on the has_role-routed arm. Same
+-- shape, same caller, different gate: without these the revert-twin's post-mutation 1 could
+-- be a row that was always visible.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.form_block_library where id = (select blk_id from fbl)),
+  0,
+  'BASELINE (no hat): form_block_library_select denies a hatless caller through BOTH arms — the catalog-routed staff_admin arm AND the has_role-routed tenancy arm');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
+set local role authenticated;
+select is(
+  (select count(*)::int from public.form_block_library where id = (select blk_id from fbl)),
+  1,
+  'BASELINE (org_admin hat): the has_role-routed is_tenancy_admin_of arm admits — proving the row is REACHABLE through the arm the mutation targets, so a post-mutation 0 would be a real failure rather than an unreachable fixture');
 reset role;
 
 -- ── public.assume_role keystone (ARM=floor: the RPC must be CALLED, not just
@@ -206,9 +275,13 @@ end $do$;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
-  (select count(*)::int from public.meeting_minutes_jobs where meeting_id = (select meeting_id from m)),
+  (select count(*)::int from public.form_block_library where id = (select blk_id from fbl)),
   1,
-  'REVERT-TWIN ⭐: with the caller-only condition REMOVED from has_role, the SAME hatless caller is now WRONGLY admitted (1, not 0) — proves the detector can detect the over-grant it exists to prevent');
+  'REVERT-TWIN ⭐: with the caller-only condition REMOVED from has_role, the SAME hatless caller is now WRONGLY admitted (1, not 0) through form_block_library''s has_role-routed tenancy arm — proves the detector can detect the over-grant it exists to prevent');
+select is(
+  (select count(*)::int from public.meeting_minutes_jobs where meeting_id = (select meeting_id from m)),
+  0,
+  'ARM-SPLIT CONTROL ⭐⭐ (AE4.7b): under the SAME mutation the CATALOG-routed arm stays shut — the hatless caller is still denied meeting_minutes_jobs. ⛔ This is what makes the twin above attributable AND it is the measurement that explains why this file needed repairing at all: app.has_role no longer reaches app.is_staff_admin_of, so mutating it can neither open nor close the catalog path. A twin whose probe sat only on that path was asserting a flip nothing could produce');
 reset role;
 
 -- Restore, byte-for-byte, and verify.

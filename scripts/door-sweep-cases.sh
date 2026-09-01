@@ -285,12 +285,12 @@ sed 's/--.*$//' "$TMP/content" | awk '
   function emit() { if (name != "") print name "\t" buf }
   {
     l = tolower($0)
-    if (l ~ /create[ \t]+(or[ \t]+replace[ \t]+)?function[ \t]+(app|public)\./) {
+    if (l ~ /create[ \t]+(or[ \t]+replace[ \t]+)?function[ \t]+(app|public|authz)\./) {
       emit()
-      match(l, /function[ \t]+(app|public)\.[a-z0-9_]+/)
+      match(l, /function[ \t]+(app|public|authz)\.[a-z0-9_]+/)
       tok = substr(l, RSTART, RLENGTH)
       sub(/^function[ \t]+/, "", tok)
-      sub(/^(app|public)\./, "", tok)
+      sub(/^(app|public|authz)\./, "", tok)
       name = tok; buf = ""
     }
     if (name != "") buf = buf " " l
@@ -324,7 +324,7 @@ mv "$TMP/fn_excl.f" "$TMP/fn_excl"
 # 4b. RUNTIME-REWRITE MIGRATIONS — ADR 0173.
 #
 # ⛔ THE BLINDNESS THIS CLOSES. Everything above selects on the diff TEXT: section 4 chunks
-# on `create [or replace] function (app|public).`. A migration that edits a body it did not
+# on `create [or replace] function (app|public|authz).`. A migration that edits a body it did not
 # author uses this repo's HOUSE PATTERN instead —
 # `pg_get_functiondef()` + `replace()` + `execute` — and therefore contains no
 # create-function line at all. Measured 2026-09-01: `20261003007180` rewrote FOUR bodies,
@@ -357,8 +357,8 @@ if sed 's/--.*$//' "$TMP/content" | grep -qiE 'pg_get_functiondef'; then
   #     Read from the RAW content (it is a comment, so it must survive comment-stripping).
   grep -ohiE '^[[:space:]]*--[[:space:]]*door-sweep-targets:.*' "$TMP/content" 2>/dev/null \
     | sed -E 's/.*[Dd]oor-[Ss]weep-[Tt]argets:[[:space:]]*//' \
-    | grep -ohE '(app|public)\.[a-z0-9_]+' \
-    | sed -E 's/^(app|public)\.//' >> "$TMP/fn_rewrite" || true
+    | grep -ohE '(app|public|authz)\.[a-z0-9_]+' \
+    | sed -E 's/^(app|public|authz)\.//' >> "$TMP/fn_rewrite" || true
 
   # (b) FALLBACK, and it is deliberately NARROW — only when the file builds an ARRAY LITERAL.
   #     ⛔ WHY THE ARRAY GATE, MEASURED RATHER THAN ASSUMED. A first draft extracted every
@@ -389,8 +389,8 @@ if sed 's/--.*$//' "$TMP/content" | grep -qiE 'pg_get_functiondef'; then
   if sed 's/--.*$//' "$TMP/content" | grep -qiE 'array[[:space:]]*\['; then
     sed 's/--.*$//' "$TMP/content" \
       | grep -vE '~' \
-      | grep -ohE "'(app|public)\.[a-z0-9_]+\(" \
-      | sed -E "s/^'//; s/\($//; s/^(app|public)\.//" >> "$TMP/fn_rewrite" || true
+      | grep -ohE "'(app|public|authz)\.[a-z0-9_]+\(" \
+      | sed -E "s/^'//; s/\($//; s/^(app|public|authz)\.//" >> "$TMP/fn_rewrite" || true
   fi
 
   sort -u "$TMP/fn_rewrite" -o "$TMP/fn_rewrite"

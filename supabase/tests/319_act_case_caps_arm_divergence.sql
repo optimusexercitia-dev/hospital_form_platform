@@ -8,7 +8,12 @@
 -- relationship, not the holder of a grant). Audited from the live catalog
 -- 2026-08-10 (pg_get_functiondef of _case_caps + every helper it calls):
 --
---   S1 coordinator      is_staff_admin_of_for  -> has_role(commission,staff_admin)   ROLE
+--   S1 coordinator      is_staff_admin_of_for  -> authz.holds_role(commission,        ROLE
+--                                                 staff_admin)  ⚠ CATALOG-ROUTED since AE4.6;
+--                                                 the hat conjunct lives in authz.holds_role
+--                                                 (AE4.7b), NOT in app.has_role. Still
+--                                                 ROLE-derived — the CLASSIFICATION is
+--                                                 unchanged; only the chokepoint moved.
 --   S2 tenancy admin    is_tenancy_admin_of_for-> has_role(org|hospital, *_admin)    ROLE
 --   S5 member default   is_member_of_for       -> has_role_any(commission)           ROLE
 --   S6 nsp referral     is_pqs_operator_of_for -> has_role(hospital, nsp_coord|pqs)  ROLE
@@ -37,10 +42,18 @@
 --     demonstrably flips the bit, so "identical under both hats" is not
 --     satisfied by 0==0 (the BUG-VACUOUS-ASSERT-1 shape).
 --   * A5/A7 (mutation twins) prove the DIVERGENCE assertions can fail: with the
---     caller-only condition stripped from has_role (A5) the org-hat mask
---     becomes 111 == the staff-hat mask (divergence vanishes); stripped from
+--     caller-only condition stripped from has_role (A5) a hat sa_x DOES NOT HOLD
+--     reads S2's bit 64 (0 -> 64, A4b is its pre-mutation zero); stripped from
 --     has_role_any (A7) the S5 arm leaks bit 2 (64 -> 66). One function at a
 --     time; byte-identical restore asserted (A6/A8).
+--     ⚠ AE4.7b re-pointed A5's OBSERVABLE TWICE, and the discarded attempt is
+--     recorded at A5 because it is the instructive one. It used to watch S1 leak
+--     into the ORG-hat mask (64 -> 111); S1 is now catalog-routed
+--     (app.is_staff_admin_of_for -> authz.holds_role, which carries its own hat
+--     conjunct), so a has_role mutation cannot open it and the old A5 was
+--     orphaned. ⛔ The obvious repair — staff_admin hat, expecting 111 -> 175 —
+--     is VACUOUS: S1's 111 ALREADY CONTAINS bit 64, so S2's whole contribution
+--     is masked. Measured at 111, caught by a red.
 --   * A9/A10 (exact masks 127/94) are the non-zero anchors for the recusal
 --     zeros (A15-A17): 0 after 127/94 is a real transition, not a default.
 --   * Permissive-sibling immunity (§7.1 shape 6): every assertion here is on
@@ -62,7 +75,7 @@
 -- No ON CONFLICT anywhere: fixture inserts fail LOUDLY.
 
 begin;
-select plan(17);
+select plan(18);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -124,6 +137,17 @@ select ok(
   and ((select caps from m_oa) & app._cap_bit('read_restricted_phi')) = 0,
   'A4 NEGATIVE CONTROL: read_restricted_phi (16) CLEAR under both hats pre-grant — A11/A12''s "identical" cannot be vacuous 0==0');
 
+-- A4b: A5's NEGATIVE CONTROL, and A5 is worth nothing without it. A5 asserts that a hat
+-- sa_x does not hold reads 64 UNDER THE MUTATION; that is a real transition only if the same
+-- hat reads 0 BEFORE it. ⛔ Without this line, an A5 that measured 64 would be equally well
+-- explained by a fixture where the bit was set all along — the BUG-VACUOUS-ASSERT-1 shape
+-- A4 above rules out for bit 16, applied to the hat axis instead of the grant axis.
+select test_helpers.claims_for((select sa_x from k), false, 'quality_reviewer');
+select is(
+  app._case_caps((select case_a from cs), (select sa_x from k)),
+  0,
+  'A4b NEGATIVE CONTROL ⭐ (AE4.7b): wearing a hat sa_x DOES NOT HOLD, every role-derived arm is shut and the mask is EXACTLY 0 — pre-mutation. A5''s 64 is therefore a transition, not a default');
+
 -- =============================================================================
 -- §2 MUTATION TWINS — prove the divergence assertions CAN fail (one function
 --    at a time; byte-identical restore asserted after each).
@@ -158,11 +182,45 @@ begin
   $sql$;
 end $do$;
 
-select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
+-- ⭐⭐ AE4.7b — A5's OBSERVABLE MOVED HATS. Same subject (has_role's caller-only condition),
+-- same fixture, same mutation; the ARM it is read through changed, because AE4.6 moved one.
+--
+-- Until the cutover, A5 wore the ORG_ADMIN hat and watched S1 leak: with the condition
+-- stripped, is_staff_admin_of_for admitted regardless of hat and the org-hat mask rose 64 ->
+-- 111. S1 now routes through the authz catalog (app.is_staff_admin_of_for -> authz.holds_role),
+-- which carries its OWN hat conjunct — so mutating app.has_role can no longer open it, the mask
+-- stayed 64, and A5 went red on the branch. ⛔ ORPHANED, NOT WRONG, and it failed LOUDLY: a
+-- re-point that left the assertion satisfied would have been a hat twin testing no hat, green
+-- forever.
+--
+-- ⛔⛔ AND THE OBVIOUS RE-POINT IS VACUOUS — MEASURED, NOT REASONED. The first repair wore
+-- the STAFF_ADMIN hat and expected the mutation to add S2's manage_case_access bit on top of
+-- S1: 111 | 64 = 175. It measured 111. **S1 ALREADY CONTAINS BIT 64** (1|2|4|8|32|64 = 111),
+-- so S2's entire contribution is masked by the arm that is legitimately open, and the twin
+-- observes nothing while looking exactly like a twin. A mutation whose effect lands inside
+-- bits another arm already set is the same silent-vacuity shape this file's own A4 exists to
+-- rule out — committed here because it was caught by a red, which is the only reason to trust
+-- the replacement below.
+--
+-- ⭐ THE OBSERVABLE THAT WORKS: wear a hat sa_x DOES NOT HOLD (`quality_reviewer` — he holds
+-- staff_admin@comm_x and org_admin@org_b, and claims_for does not require the membership).
+-- Then EVERY role-derived arm is shut and the mask is 0 (A4b), so nothing can mask anything.
+-- The mutation opens exactly one arm — S2, via is_tenancy_admin_of_for ->
+-- has_role('organization', org_b, 'org_admin', ...) — and the mask becomes exactly 64.
+--
+-- ⭐⭐ THAT ONE EXACT EQUALITY CARRIES BOTH HALVES, which is why it is `is` and not a bit test:
+--   * 64 PRESENT   — the hat gate on the still-has_role-routed arm demonstrably fails, so
+--                    A2's 64 and A3's divergence are not vacuous;
+--   * 111's OTHER BITS ABSENT — the CATALOG-routed S1 arm did NOT open under the same
+--                    mutation. That is 319's copy of 315's arm-split control, and it is the
+--                    measurement that explains why the old A5 was orphaned rather than broken.
+-- ⚠ S7 is NOT opened by wearing the quality_reviewer HAT: the hat is a claim, not a
+-- membership, and sa_x holds no quality_reviewer row for has_role to admit even unconditioned.
+select test_helpers.claims_for((select sa_x from k), false, 'quality_reviewer');
 select is(
   app._case_caps((select case_a from cs), (select sa_x from k)),
-  111,
-  'A5 MUTATION TWIN (has_role) ⭐: caller-only condition stripped -> the org_admin hat reads the FULL staff_admin mask 111 — the divergence A1/A2 pin demonstrably vanishes');
+  64,
+  'A5 MUTATION TWIN (has_role) ⭐: caller-only condition stripped -> a hat sa_x DOES NOT HOLD reads S2''s manage_case_access bit (0 -> 64) — the hat gate A2/A3 pin demonstrably fails. And exactly 64: the CATALOG-routed S1 arm stays shut under the same mutation, so this equality is the arm-split control too');
 
 do $do$
 begin execute current_setting('act319.orig_has_role', true); end $do$;

@@ -1,6 +1,6 @@
--- 405 — AE4.6: the CUTOVER WRAPPERS' own invariants.
--- Subjects: app.is_staff_admin_of(uuid) and app.is_staff_admin_of_for(uuid, uuid) after
--- 20261003007200 re-pointed both at authz.assignment_facts.
+-- 405 — AE4.6/AE4.7b: the CUTOVER WRAPPERS' invariants, and THE CHOKEPOINT they collapsed onto.
+-- Subjects: app.is_staff_admin_of(uuid), app.is_staff_admin_of_for(uuid, uuid), and — since
+-- 20261003007210 — authz.holds_role(uuid, text, text, uuid), which both now delegate to.
 --
 -- ⛔ THIS FILE EXISTS BECAUSE 007200 CITED IT TWICE AND IT DID NOT EXIST. The cutover migration's
 -- header names "pgTAP 405" as its compensating control in two places — for the hat gate's BOTH
@@ -10,11 +10,17 @@
 -- (QA 2026-09-01, finding F6.)
 --
 -- ⚠ 401 §16 IS NOT THIS. §16 asserts the hat gate inside `authz.has_direct_permission` — the
--- RESOLVER. The wrappers do not call the resolver; 007200 ruled they delegate to
--- `authz.assignment_facts`, which carries three of has_role's four gates and NOT the fourth, so
--- each wrapper HAND-COPIES the active-role conjunct into its own body. Inheriting a property is
--- not evidence you inherited it, and a hand-copied conjunct is exactly the thing that rots. Post
--- cutover, nothing asserted the wrappers' own hat conjunct anywhere.
+-- RESOLVER, which the wrappers do not call. AE4.6 had each wrapper HAND-COPY the active-role
+-- conjunct into its own body (the adapter carries three of has_role's four gates, not the
+-- fourth), so the gate existed in four phrasings and nothing asserted the wrappers' own copies.
+-- AE4.7b collapsed them onto `authz.holds_role`. §4 therefore no longer COUNTS the copies: it
+-- asserts the conjunct is present at the ONE site (4.4) and absent from both wrappers (4.5).
+-- The behavioural assertions in §§2-3 are UNCHANGED across that collapse, which is the evidence
+-- it was behaviour-preserving — they were written against the hand-copied bodies.
+--
+-- ⭐ §6 and §7 are AE4.7b's own surface: `authz.roles.state` stops being inert (a LEGACY role is
+-- denied by the chokepoint even with a live membership and the right hat), and the gate finally
+-- has MUTATION TWINS — one site, reaching both wrappers.
 --
 -- ⚠ `absent` (no active_role claim) IS NOT CONSTRUCTIBLE for these personas and is deliberately
 -- not asserted. Both seeded staff_admins hold exactly ONE role type, and
@@ -22,10 +28,10 @@
 -- behaving correctly (AE0.5 Axis 3; the same exclusion the 403 generator names). A cell asserting
 -- a denial there would assert a state the system cannot produce.
 --
--- RUN SHAPE: `Files=2, Tests=16` (15 here + 00_setup.sql's one).
+-- RUN SHAPE: `Files=2, Tests=27` (26 here + 00_setup.sql's one).
 
 begin;
-select plan(15);
+select plan(26);
 
 -- ============================================================================
 -- §1 — the fixture. Two staff_admins in the SAME org, at DIFFERENT commissions,
@@ -143,34 +149,60 @@ select is(
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.proname in ('is_staff_admin_of', 'is_staff_admin_of_for')
-      and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~ 'assignment_facts'),
+      and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~ '\mholds_role\M'),
   2,
-  '4.3 ⭐ POSITIVE CONTROL ON THE SAME INSTRUMENT: BOTH wrappers do delegate to '
-  'authz.assignment_facts. 4.2 asserts an absence, and an absence measured by an instrument that '
-  'finds nothing is not evidence. This is the assertion that shows the grep reaches these two '
-  'bodies at all — a renamed or dropped function makes 4.2 vacuously true and reds here.');
+  '4.3 ⭐ POSITIVE CONTROL ON THE SAME INSTRUMENT: BOTH wrappers delegate to authz.holds_role. '
+  '4.2 asserts an absence, and an absence measured by an instrument that finds nothing is not '
+  'evidence. This is the assertion that shows the grep reaches these two bodies at all — a '
+  'renamed or dropped function makes 4.2 vacuously true and reds here. ⚠ Was `assignment_facts` '
+  'until AE4.7b; the wrappers now reach the adapter THROUGH the chokepoint (4.7), so asserting '
+  'the adapter''s name here would red on a correct collapse.');
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'authz' and p.proname = 'holds_role'
+      and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~ 'active_role'),
+  1,
+  '4.4 ⭐ THE HAT CONJUNCT LIVES IN THE CHOKEPOINT. Structural half of §§2.2/3.2. Until AE4.7b '
+  'this assertion COUNTED THE COPIES — the gate existed in four hand-written phrasings across '
+  'both wrappers, has_direct_permission and explain_direct_permission, and a behavioural test on '
+  'one phrasing said nothing about the others. It is now asserted at ONE site, which is the '
+  'whole point of the collapse; 4.5 is the half that makes "one site" checkable.');
 
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.proname in ('is_staff_admin_of', 'is_staff_admin_of_for')
       and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~ 'active_role'),
-  2,
-  '4.4 BOTH wrappers carry the active-role conjunct in their OWN body. ⚠ This is the structural '
-  'half of §§2.2/3.2 and it is asserted separately on purpose: the hand-copied gate exists in '
-  'FOUR phrasings across both wrappers, has_direct_permission and explain_direct_permission, and '
-  'a behavioural test on one phrasing says nothing about the others. Collapsing them onto one '
-  'helper is AE4.7b (authz.holds_role); until then, count the copies.');
+  0,
+  '4.5 ⭐⭐ AND NEITHER WRAPPER KEEPS ITS OWN COPY. ⛔ Without this, 4.4 is satisfied by a tree '
+  'where the helper exists AND both hand-copies survive — which is strictly worse than before '
+  'the collapse: three phrasings that must agree, and a mutation twin on the helper (§7) that '
+  'proves nothing about the two the wrappers actually evaluate. A re-introduced copy is the '
+  'exact regression AE5''s eleven cutovers are most likely to commit.');
 
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'app' and p.proname in ('is_staff_admin_of', 'is_staff_admin_of_for')
+    where n.nspname = 'authz' and p.proname = 'holds_role'
       and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~ 'is not distinct from'),
-  2,
-  '4.5 ⭐ THE NULL HAT IS COMPARED WITH `is not distinct from`, NOT `=`, IN BOTH BODIES. '
+  1,
+  '4.6 ⭐ THE NULL HAT IS COMPARED WITH `is not distinct from`, NOT `=`. '
   '⛔ BUG-ACT-NULLHAT-1: `af.role_code = app.active_role()` is NULL — not false — when no hat is '
-  'set, so an `exists` over it returns FALSE and the wrapper fails closed by accident rather than '
-  'by decision. The cutover mirrored has_role''s shape here; a later editor "simplifying" it to '
-  '`=` changes nothing observable today and everything the first time a site depends on it.');
+  'set, so an `exists` over it returns FALSE and the gate fails closed by accident rather than '
+  'by decision. The cutover mirrored has_role''s shape here and the collapse carried it across; '
+  'a later editor "simplifying" it to `=` changes nothing observable today and everything the '
+  'first time a site depends on it. ⚠ Note the DELIBERATE ASYMMETRY two lines above it in the '
+  'same body: the SCOPE comparison is `=`, because there a NULL must NOT match — '
+  '`is not distinct from` would resolve the platform tier''s null scope_id.');
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'authz' and p.proname = 'holds_role'
+      and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~ 'assignment_facts'),
+  1,
+  '4.7 THE DELEGATION CHAIN IS INTACT END TO END: wrapper -> holds_role (4.3) -> the adapter, '
+  'here. ⛔ Without this the chain is asserted only at its first hop, and a chokepoint that had '
+  'stopped consulting memberships entirely — answering off authz.roles alone — would satisfy '
+  '4.3-4.6 and every behavioural test that expects FALSE.');
 
 -- ============================================================================
 -- §5 — the properties `create or replace` PRESERVES, asserted because that is
@@ -193,16 +225,186 @@ select is(
   (select array_agg(has_function_privilege('anon', p.oid, 'EXECUTE') order by p.proname)
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.proname in ('is_staff_admin_of', 'is_staff_admin_of_for')),
-  array[true, false],
-  '5.2 ⚠ THE ACL ASYMMETRY, PINNED AS-IS — this assertion RECORDS a defect, it does not bless '
-  'one. `is_staff_admin_of` carries `=X/postgres` (the empty grantee, which IS a PUBLIC grant, so '
-  '`anon` holds EXECUTE); the `_for` sibling does not. AE1.2''s global revoke governs only '
-  'NEWLY-CREATED functions and `create or replace` preserved this one. Not a live hole today — '
-  'anon resolves auth.uid() to null and the wrapper answers false — but it is least-privilege '
-  'debt and door-sweep domain noise: FUP-IS-STAFF-ADMIN-OF-CARRIES-PUBLIC-EXECUTE. ⛔ WHEN THAT '
-  'REVOKE LANDS (AE4.7b), THIS EXPECTATION MUST BECOME array[false, false] — a red here is the '
-  'revoke working, not a regression. Asserted against each function''s OWN value rather than by '
-  'comparing the siblings, which would pass while a PUBLIC grant silently vanished or spread.');
+  array[false, false],
+  '5.2 ⭐ THE PUBLIC EXECUTE GRANT IS GONE — FUP-IS-STAFF-ADMIN-OF-CARRIES-PUBLIC-EXECUTE, '
+  'closed by AE4.7b. Until then `is_staff_admin_of` carried `=X/postgres` (the empty grantee, '
+  'which IS a PUBLIC grant, so `anon` held EXECUTE) while the `_for` sibling did not: AE1.2''s '
+  'global revoke governs only NEWLY-CREATED functions and `create or replace` preserved it '
+  'through every rewrite. Never a live hole — anon resolves auth.uid() to null and the wrapper '
+  'answers false — but least-privilege debt and door-sweep domain noise. ⛔ Asserted by '
+  'EFFECTIVE PRIVILEGE and against each function''s OWN value: a NULL proacl includes PUBLIC '
+  '(this repo has been fooled by that four times), and comparing the two siblings to each other '
+  'passes while a PUBLIC grant silently vanishes or spreads.');
+
+select is(
+  (select array_agg(has_function_privilege('authenticated', p.oid, 'EXECUTE') order by p.proname)
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname in ('is_staff_admin_of', 'is_staff_admin_of_for')),
+  array[true, true],
+  '5.3 ⭐⭐ THE OVER-REVOKE TWIN, AND 5.2 IS WORTH LITTLE WITHOUT IT. `revoke execute ... from '
+  'public` that had been written as `from public, authenticated` — or a global sweep aimed one '
+  'grantee too wide — satisfies 5.2 perfectly while taking every RLS policy on this predicate '
+  'offline. That is an OUTAGE reading as a successful least-privilege tightening. ⛔ Both '
+  'wrappers are called from live policies; neither may lose authenticated EXECUTE.');
+
+select is(
+  (select array_agg(has_function_privilege(r, 'authz.holds_role(uuid, text, text, uuid)'::regprocedure, 'EXECUTE')
+                    order by r)
+     from unnest(array['anon', 'authenticated', 'service_role']) r),
+  array[false, false, false],
+  '5.4 THE CHOKEPOINT ITSELF IS UNREACHABLE BY ANY APPLICATION ROLE. It sits in `authz`, which '
+  'no application role holds USAGE on (20261003007100), and carries no EXECUTE grant of its own. '
+  '⛔ Its gate therefore protects nothing directly — it is reached only through the two `app` '
+  'wrappers, which ARE client-reachable and ARE in the door-audit domain. Stated as an assertion '
+  'rather than a comment because "nothing can call it" is the premise every compensating-control '
+  'argument in 20261003007170''s closing block rests on.');
+
+-- ============================================================================
+-- §6 — `authz.roles.state` STOPS BEING INERT. AE4.7b makes the chokepoint require
+-- `state = 'authoritative'`, so a role that AE5 has not yet substituted fails CLOSED
+-- instead of granting through a half-finished cutover.
+--
+-- ⛔ THIS IS THE ASSERTION SET THAT DID NOT EXIST BEFORE. Until AE4.7b nothing read
+-- `authz.roles.state` at all: the column could be flipped to any value on any row and no
+-- behaviour changed anywhere, which made AE4.6's "atomic cutover" atomic only by coincidence
+-- of the wrapper bodies moving in the same migration.
+-- ============================================================================
+
+create temp table f405_legacy on commit drop as
+select
+  (select p.id from public.profiles p where p.email = 'orgadmin.a@test.local')             as oa,
+  (select m.organization_id from public.memberships m join public.profiles p on p.id = m.principal_id
+    where p.email = 'orgadmin.a@test.local' and m.role = 'org_admin' limit 1)              as oa_org;
+
+select ok((select oa from f405_legacy) is not null and (select oa_org from f405_legacy) is not null
+          and (select state from authz.roles where code = 'org_admin') = 'legacy'
+          and (select state from authz.roles where code = 'staff_admin') = 'authoritative',
+  '6.1 FIXTURE CONTROL: a REAL, live, correctly-scoped org_admin membership exists, org_admin is '
+  'still LEGACY, and staff_admin is AUTHORITATIVE. 6.2''s FALSE is only attributable to `state` '
+  'if everything else about the assignment is genuinely grantable.');
+
+select test_helpers.claims_for((select oa from f405_legacy), false, 'org_admin');
+select ok(
+  not authz.holds_role((select oa from f405_legacy), 'org_admin', 'organization',
+                       (select oa_org from f405_legacy)),
+  '6.2 ⭐⭐ A LEGACY ROLE IS DENIED BY THE CHOKEPOINT even with a live membership, the right '
+  'scope and the matching hat. ⛔ This is a DELIBERATE BOUND, not a bug: authz.holds_role is not '
+  'a general role predicate, and app.has_role remains the predicate for the eleven legacy roles. '
+  'It is what makes a premature AE5 delegation fail closed and LOUDLY rather than granting '
+  'through a substitution nobody finished.');
+
+-- ⭐⭐ 6.2's VACUITY CONTROL, and the reason it is not optional: a FALSE is explained equally
+-- well by a missing membership, a scope mismatch, a wrong hat, or a typo in the role code. Only
+-- flipping `state` — changing NOTHING else — attributes the denial to the gate under test.
+update authz.roles set state = 'authoritative' where code = 'org_admin';
+select ok(
+  authz.holds_role((select oa from f405_legacy), 'org_admin', 'organization',
+                   (select oa_org from f405_legacy)),
+  '6.3 ⭐⭐ VACUITY CONTROL: flip org_admin to `authoritative` and the SAME call — same '
+  'principal, same scope, same hat, same everything — now returns TRUE. 6.2''s denial is caused '
+  'by `state` and by nothing else. This is also the AE5 cutover rehearsed end to end: one UPDATE '
+  'and the role is live.');
+update authz.roles set state = 'legacy' where code = 'org_admin';
+select test_helpers.reset_role_and_claims();
+
+-- ============================================================================
+-- §7 — THE MUTATION TWINS. The whole argument for a chokepoint is that the gate has ONE site
+-- that can be neutralized; §7 is where that stops being an argument.
+--
+-- ⛔ WHY THESE ARE HERE AND NOT IN 315/319. Those two mutate `app.has_role`, which after AE4.6
+-- no longer reaches the staff_admin wrappers — that is precisely how they went red (they are
+-- ORPHANED, not wrong) and they keep mutating has_role for the eleven LEGACY roles that still
+-- route through it. The wrappers' own gate had no twin anywhere. F6 named "pgTAP 405" as the
+-- control for exactly this and 405 did not exist; F1 then measured two of 403's fail-proofs
+-- VACUOUS. A twin that has not been shown to fire is a comment.
+--
+-- ⚠ EACH MUTATION ASSERTS THAT THE EDIT LANDED before observing anything: a `replace()` that
+-- matched nothing leaves the original body in place and the twin then reports GREEN — a
+-- mutation harness's most reassuring failure mode.
+-- ============================================================================
+
+do $mut$
+declare
+  v_orig text;
+  v_new  text;
+  v_cut  constant text :=
+    'and (
+         p_principal is distinct from (select auth.uid())
+         or af.role_code is not distinct from app.active_role()
+       )';
+begin
+  v_orig := pg_get_functiondef('authz.holds_role(uuid, text, text, uuid)'::regprocedure);
+  perform set_config('ae47b.orig_holds_role', v_orig, false);
+  if position(v_cut in v_orig) = 0 then
+    raise exception '405 §7: the hat conjunct was not found VERBATIM in authz.holds_role — the mutation would be a no-op and the twin would report green.'
+      using errcode = 'check_violation';
+  end if;
+  v_new := replace(v_orig, v_cut, '');
+  if v_new = v_orig then
+    raise exception '405 §7: neutralizing the hat conjunct was a NO-OP.' using errcode = 'check_violation';
+  end if;
+  execute v_new;
+  if position(v_cut in pg_get_functiondef('authz.holds_role(uuid, text, text, uuid)'::regprocedure)) <> 0 then
+    raise exception '405 §7: the conjunct SURVIVED the execute — the edit did not land.'
+      using errcode = 'check_violation';
+  end if;
+end $mut$;
+
+select test_helpers.claims_for((select holder from f405), false, 'quality_reviewer');
+select ok(app.is_staff_admin_of((select held_cid from f405)),
+  '7.1 ⭐⭐ MUTATION TWIN — HAT CONJUNCT: with the active-role gate neutralized IN THE '
+  'CHOKEPOINT, §2.2''s exact case (right principal, right commission, WRONG hat) flips from '
+  'FALSE to WRONGLY TRUE. ⛔ This is what §2.2 is worth: it can fail, at the single site the '
+  'collapse created, and one mutation reaches BOTH wrappers — which is the entire design claim '
+  'of AE4.7b stated as a measurement.');
+
+do $rst$ begin execute current_setting('ae47b.orig_holds_role', true); end $rst$;
+select is(
+  pg_get_functiondef('authz.holds_role(uuid, text, text, uuid)'::regprocedure),
+  current_setting('ae47b.orig_holds_role', true),
+  '7.2 RESTORE: authz.holds_role is byte-identical to its pre-mutation definition. ⛔ pg_proc '
+  'carries no mtime, so a harness that left a door open could not be dated from the catalog '
+  'afterwards — the restore is asserted, never assumed.');
+
+do $mut2$
+declare
+  v_orig text;
+  v_new  text;
+  v_cut  constant text := 'and r.state       = ''authoritative''';
+begin
+  v_orig := pg_get_functiondef('authz.holds_role(uuid, text, text, uuid)'::regprocedure);
+  perform set_config('ae47b.orig_holds_role2', v_orig, false);
+  if position(v_cut in v_orig) = 0 then
+    raise exception '405 §7: the authoritative-state conjunct was not found VERBATIM — the mutation would be a no-op.'
+      using errcode = 'check_violation';
+  end if;
+  v_new := replace(v_orig, v_cut, '');
+  execute v_new;
+  if position(v_cut in pg_get_functiondef('authz.holds_role(uuid, text, text, uuid)'::regprocedure)) <> 0 then
+    raise exception '405 §7: the state conjunct SURVIVED the execute — the edit did not land.'
+      using errcode = 'check_violation';
+  end if;
+end $mut2$;
+
+select test_helpers.claims_for((select oa from f405_legacy), false, 'org_admin');
+select ok(
+  authz.holds_role((select oa from f405_legacy), 'org_admin', 'organization',
+                   (select oa_org from f405_legacy)),
+  '7.3 ⭐ MUTATION TWIN — AUTHORITATIVE STATE: with `state = ''authoritative''` neutralized, the '
+  'LEGACY role of §6.2 is WRONGLY ADMITTED. ⛔ §6.3 already showed the denial tracks the column; '
+  'this shows it tracks the CONJUNCT — the two are different claims, and only this one fails if '
+  'a future edit drops the join to authz.roles while the column keeps changing value.');
+
+do $rst2$ begin execute current_setting('ae47b.orig_holds_role2', true); end $rst2$;
+select is(
+  pg_get_functiondef('authz.holds_role(uuid, text, text, uuid)'::regprocedure),
+  current_setting('ae47b.orig_holds_role', true),
+  '7.4 RESTORE: byte-identical to the ORIGINAL definition captured before §7.1 — not merely to '
+  'the input of §7.3''s own mutation. ⛔ Chaining each restore to its immediate predecessor is '
+  'how a two-mutation sequence leaves the FIRST edit resident while every restore assertion '
+  'passes.');
+
+select test_helpers.reset_role_and_claims();
 
 select * from finish();
 rollback;

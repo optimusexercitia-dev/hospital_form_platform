@@ -203,7 +203,7 @@ psql_c -c "\copy (
          p.proname
   from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
-  where n.nspname in ('app','public')
+  where n.nspname in ('app','public','authz')
     and p.prosecdef
     and p.proretset
     and has_function_privilege('authenticated', p.oid, 'EXECUTE')

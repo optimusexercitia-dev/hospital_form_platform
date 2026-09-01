@@ -200,37 +200,47 @@ DEGENERATE_PREDICATE="( p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
      or p.prosrc ~ '^\s*begin\s+return\s*;\s*end' )"
 
 # ──────────────────────────────────────────────────────────────────────────
-# ⛔ THE `authz` SCHEMA IS OUT OF THIS HARNESS'S DOMAIN, BY NAMESPACE. READ THIS
-# BEFORE ASSUMING OTHERWISE — THE FILE'S NAME ARGUES AGAINST CHECKING.
+# ⭐ THE `authz` SCHEMA IS IN DOMAIN SINCE AE4.7b — AND ONLY PART OF IT IS.
+# READ THIS BEFORE QUOTING "ALL ARMS HOLD" ABOUT THE CATALOG.
 #
-# This script is called `p0-authz-invariant.sh`, the word "authz" appears in it
-# ~35 times, and NOT ONE of those is the `authz` SCHEMA. Every domain predicate
-# here and in the sweeps it unions bounds on `n.nspname in ('app','public')`.
-# So the AE4 catalog schema — `authz.has_direct_permission`,
-# `authz.explain_direct_permission`, `authz.assignment_facts`,
-# `authz.scope_reaches`, `authz.rebuild_implication_closure` — is outside every
-# arm, regardless of privilege.
+# HISTORY, KEPT BECAUSE THE FAILURE MODE IS THE INSTRUCTIVE PART. This script is
+# called `p0-authz-invariant.sh`, the word "authz" appears in it ~35 times, and
+# until AE4.7b NOT ONE of those was the `authz` SCHEMA: every domain predicate
+# here and in the sweeps it unions bounded on `n.nspname in ('app','public')`.
+# ⚠ That is WORSE than an ordinary gap, because the name actively steers a reader
+# away from checking — "the authz-invariant script" reads as covering the authz
+# schema. QA measured it 2026-09-01 (finding F7) and found the exemption block
+# had ALREADY named its own expiry (AE4.6) and outlived it inside the same branch,
+# while four green arms printed beside it.
 #
-# ⚠ That is WORSE than an ordinary gap, because the name actively steers a
-# reader away from checking: "the authz-invariant script" reads as covering the
-# authz schema. It does not. Absence of a verdict here IS absence of coverage
-# (authz-evolution plan rule 4), never a pass.
+# ⭐ NOW: every bound above is `('app','public','authz')`, so the catalog's
+# CLIENT-REACHABLE-BY-DELEGATION surface carries verdicts like any other door.
 #
-# WHY IT IS CORRECT TODAY: `authz` was deliberately created outside `app` and
-# `public` (20261003007100) — not PostgREST-exposed, no USAGE for anon /
-# authenticated / service_role, no EXECUTE on any of its functions. Nothing
-# client-reachable can call into it. The compensating controls are named per
-# door in 20261003007170's closing block, and pgTAP 401 §§18.1–18.3 assert the
-# unreachability by effective privilege with its own vacuity control.
+# ⛔⛔ BUT THE WIDENING IS NOT THE SAME AS COVERAGE, AND THE REMAINDER IS NAMED
+# RATHER THAN LEFT TO BE INFERRED. Of the SIX authz functions, the arms' own
+# shape predicates admit only the boolean ones:
+#     IN DOMAIN   authz.holds_role            (prosecdef, bool) — AE4.7b chokepoint
+#                 authz.has_direct_permission (prosecdef, bool) — the resolver
+#                 authz.scope_reaches         (prosecdef, bool) — census only; it is
+#                                             outside PRED_DOMAIN (no identity primitive
+#                                             in its body), so ARM 1 has no verdict on it
+#     OUT         authz.assignment_facts      (set-returning; the row-door arm requires
+#                                             `authenticated` EXECUTE, which it does not
+#                                             hold — by design)
+#                 authz.explain_direct_permission, authz.rebuild_implication_closure
+#                                             (prosecdef SCALAR NON-BOOL = the C2 command-door
+#                                             class, FUP-AUTHZ-COMMAND-DOOR-UNSWEPT)
+# ⛔ ABSENCE OF A VERDICT IS ABSENCE OF COVERAGE (authz-evolution plan rule 4), never a
+# pass. State the three OUT rows beside any "the authz schema is swept" claim.
 #
-# ⭐ WHEN THIS STOPS BEING CORRECT, AND IT IS ALREADY SPECCED: at AE4.6 the
-# wrapper family delegates to the resolver. The wrappers live in `app`/`public`
-# and ARE in domain, so the resolver becomes an internal callee of a swept
-# object — but the plan's AE4.7 requires more than that, in terms:
-# "mutation arms re-pointed at the resolver (neutralize the resolver's scope
-# check → the staff_admin keystones red)". This comment exists so that
-# requirement is met because someone understood why, not because a checklist
-# said so. ⛔ It is not an optional extra.
+# WHY THE OUT ROWS ARE STILL DEFENSIBLE, per door, as the rule requires:
+#   * No application role holds USAGE on `authz` (20261003007100), and none holds EXECUTE
+#     on any of its functions — pgTAP 401 §§18.1-18.3 assert this by EFFECTIVE PRIVILEGE
+#     with its own vacuity control, and 405 §5.4 pins it for the chokepoint specifically.
+#   * They are reachable ONLY as internal callees of the `app` wrappers, which are
+#     client-reachable, in every arm's domain, and swept.
+# ⚠ That is a compensating-control argument, not a sweep. It stops being sufficient the
+# moment anything grants USAGE on `authz`.
 # ──────────────────────────────────────────────────────────────────────────
 check_no_degenerate_gates () {
   local hits
@@ -240,7 +250,7 @@ check_no_degenerate_gates () {
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       join pg_language l on l.oid = p.prolang
-     where n.nspname in ('app','public') and $DEGENERATE_PREDICATE
+     where n.nspname in ('app','public','authz') and $DEGENERATE_PREDICATE
      order by 1;")
   if [ -n "$(echo "$hits" | grep -vE '^$')" ]; then
     echo "*** DEGENERATE GATE(S) LIVE ON THIS STACK — a harness left a door open:"
@@ -373,12 +383,13 @@ run_arm_floor () {
   # check only covers the rot that same mechanism CANNOT see.
   # ──────────────────────────────────────────────────────────────────────────
   local live_sigs stale
-  # ⚠ `nspname in ('app','public')` again — the `authz` schema is NOT swept here
-  # either. See the block above `check_no_degenerate_gates`.
+  # ⚠ `('app','public','authz')` since AE4.7b — and only the BOOLEAN authz functions
+  # actually land in any arm. See the block above `check_no_degenerate_gates` for the
+  # per-door IN/OUT partition; do not read the widened bound as full coverage.
   live_sigs=$(psql_c -c "
     select p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname in ('app','public');" | sort -u)
+     where n.nspname in ('app','public','authz');" | sort -u)
   stale=$(comm -23 <(allow_body "$FLOOR_ALLOW" | sort -u) <(echo "$live_sigs"))
   if [ -n "$(echo "$stale" | grep -vE '^$')" ]; then
     echo "  *** ALLOWLIST ROT — entries naming a door that does not exist in pg_proc:"
@@ -405,7 +416,7 @@ run_arm_census () {
   # this arm exists to stop exactly that shape. The predicate below IS the definition of
   # the out-of-domain class, so the figure and the class can never disagree again.
   local uncovered
-  uncovered="$(psql_c -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public','app') and p.prosecdef and p.prorettype <> 'pg_catalog.trigger'::regtype and not p.proretset and p.prorettype <> 'pg_catalog.bool'::regtype and (has_function_privilege('authenticated', p.oid, 'EXECUTE') or has_function_privilege('anon', p.oid, 'EXECUTE'));")"
+  uncovered="$(psql_c -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public','app','authz') and p.prosecdef and p.prorettype <> 'pg_catalog.trigger'::regtype and not p.proretset and p.prorettype <> 'pg_catalog.bool'::regtype and (has_function_privilege('authenticated', p.oid, 'EXECUTE') or has_function_privilege('anon', p.oid, 'EXECUTE'));")"
   echo "    NOT in domain: prosecdef scalar non-bool command doors (${uncovered:-?} reachable, DERIVED this run) — FUP-AUTHZ-COMMAND-DOOR-UNSWEPT"
   local live="$WORK/census_live.txt" accounted="$WORK/census_accounted.txt"
 
@@ -428,7 +439,7 @@ run_arm_census () {
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       join pg_type      t on t.oid = p.prorettype
-      where n.nspname in ('app','public') and p.prosecdef
+      where n.nspname in ('app','public','authz') and p.prosecdef
         and (t.typname = 'bool'
              or (p.proretset and has_function_privilege('authenticated', p.oid, 'EXECUTE')));"
     # ⚠ AND every authenticated-reachable PUBLIC INVOKER plpgsql function
@@ -524,7 +535,7 @@ run_arm_census () {
       select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname in ('app','public');"
+      where n.nspname in ('app','public','authz');"
     psql_c -c "
       select c.relname||'.'||pol.polname||' ('||
              (case pol.polcmd when 'r' then 'SELECT' when '*' then 'ALL' when 'a' then 'INSERT'

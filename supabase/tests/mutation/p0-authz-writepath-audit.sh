@@ -759,7 +759,7 @@ if [ -n "$UNMATCHED" ]; then
                 case when p.prosecdef then ' [SECURITY DEFINER]' else ' [INVOKER]' end, '; ')
               from pg_proc p join pg_namespace n on n.oid=p.pronamespace
               join pg_type t on t.oid=p.prorettype
-              where n.nspname in ('app','public') and p.proname = '$safe'),
+              where n.nspname in ('app','public','authz') and p.proname = '$safe'),
              '(no policy and no app/public function of this name)');" 2>/dev/null | head -1)
     echo "      $tok: ${diag:-(catalog unavailable)}"
   done

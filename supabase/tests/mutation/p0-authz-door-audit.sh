@@ -334,7 +334,7 @@ degenerate_gates () {
   psql_c -c "select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
                from pg_proc p
                join pg_namespace n on n.oid = p.pronamespace
-              where n.nspname in ('app','public') and $DEGENERATE_PREDICATE
+              where n.nspname in ('app','public','authz') and $DEGENERATE_PREDICATE
               order by 1;" | grep -vE '^$'
 }
 
@@ -435,7 +435,7 @@ psql_c -c "\copy (
   join pg_namespace n on n.oid=p.pronamespace
   join pg_language  l on l.oid=p.prolang
   join pg_type      t on t.oid=p.prorettype
-  where n.nspname in ('app','public')
+  where n.nspname in ('app','public','authz')
     and p.prosecdef = true
     and $PRED_DOMAIN
   order by p.proname
@@ -467,7 +467,7 @@ psql_c -c "\copy (
   from pg_proc p
   join pg_namespace n on n.oid=p.pronamespace
   join pg_type      t on t.oid=p.prorettype
-  where n.nspname in ('app','public')
+  where n.nspname in ('app','public','authz')
     and p.prosecdef = true
     and t.typname='bool'
     and not $PRED_DOMAIN
@@ -588,7 +588,7 @@ if [ -n "$UNMATCHED" ]; then
        from pg_proc p
        join pg_namespace n on n.oid=p.pronamespace
        join pg_type t on t.oid=p.prorettype
-      where n.nspname in ('app','public') and p.proname = '$safe';" | head -1)
+      where n.nspname in ('app','public','authz') and p.proname = '$safe';" | head -1)
     echo "      $tok: $diag"
   done
   echo "    A gate named here was NOT swept. If the catalog line above says"
