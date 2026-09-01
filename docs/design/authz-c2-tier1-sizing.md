@@ -1,6 +1,7 @@
 # C2 Tier 1 — sizing (step one of `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`)
 
-**Date:** 2026-08-31 · **Status:** sizing COMPLETE, awaiting PO ruling · **Owner:** lead + backend
+**Date:** 2026-08-31 · **Status:** sizing COMPLETE · predicate **RE-GRAINED and ADOPTED** (§8b) ·
+**Owner:** lead + backend
 **Instrument:** [`scripts/authz-c2-tier1-sizing.sql`](../../scripts/authz-c2-tier1-sizing.sql)
 (re-runnable; derives every figure from the live catalog, quotes none)
 **Measured against:** local catalog at `main` `34a0e854`, 501/501 migrations applied.
@@ -134,25 +135,100 @@ This is the classic failure the register already names: *a predicate quoted at t
 a real filter cited for a conclusion it does not bound. The tiering was created to make the
 sweep affordable; as ruled it does not.
 
-## 8. What the PO must now rule
+## 8. The fork the sizing opened *(ruled — see §8b)*
 
-Sizing is done; the number is the answer, and the answer is that the ruling needs revisiting.
-Three options, with their costs:
+Sizing was done; the number was the answer, and the answer was that the ruling needed revisiting.
+Three options were put: **(1)** accept Tier 1 ≈ 387–405 and fund the sweep (~3.5–7 h) with a
+cosmetic Tier 2 of 22 helpers; **(2)** drop the tenancy disjunct and sweep PHI alone — 387, barely
+cheaper, because marker (b) was dominated by `profiles` (354) and `feature_flags` (328); **(3)**
+re-grain. The only population-cutting variant available *at that point* was 262 (61.4 %) via a
+**hand-list** of four infra relations — inadmissible under the method rule, and falsified on
+`assume_role`. **The PO ruled option 3.**
 
-1. **Accept Tier 1 ≈ 387–405 doors** and fund the sweep. At the door-audit grain (~1 min/door,
-   full suite per neutralization) that is **~6.5–7 h**; at the `ae13` grain (one suite *file*,
-   ~30–60 s/door) **~3.5–7 h**. Tier 2 becomes 22 helper doors and the split is cosmetic.
-2. **Drop the tenancy disjunct and sweep on PHI alone — 387 doors (D).** Barely cheaper, because
-   marker (b) is dominated by `profiles` and `feature_flags` (reached by 354 and 328 doors).
-3. **Re-grain the predicate.** The only variant that meaningfully cuts the population is
-   D\* at **262 (61.4 %)**, which excludes four infra relations — but that exclusion is a
-   **hand-list**, inadmissible under the PO's own method rule until restated as a property,
-   and it is **falsified on `assume_role`** as it stands.
+## 8b. ⭐ THE RE-GRAIN — adopted 2026-08-31
 
-⚠ **A fourth thing is owed under every option:** no **command-door neutralizer** exists. All
-three existing harnesses (`p0-authz-door-audit.sh`, `ae13-…`, `p0137-…`) open a **boolean** gate
-or a policy `USING`. A 427-population door returns `jsonb` / `uuid` / `void` — there is no
-boolean to flip. That instrument is unbuilt and unsized, and it is the actual long pole.
+Two changes, each a catalog property. Result: **Tier 1 = 237 of 427 (55.5 %), Tier 2 = 190**, all
+six positive controls passing, **no hand-list anywhere in the derivation**.
+
+### Change one — a GATE-AWARE closure
+
+⭐ **A predicate that CHECKS whether you may read PHI is not itself a PHI-touching door.** The
+first sizing descended through every call edge, so every gated door inherited whatever its authz
+predicates read — which is exactly why `profiles` and `feature_flags` dominated. The fix: **never
+descend into a boolean-returning callee.** Return type is a catalog fact, so this is a property,
+not a name filter.
+
+| arm | all-edges | gate-aware |
+| --- | ---: | ---: |
+| PHI | 387 (90.6 %) | **237 (55.5 %)** |
+| tenancy | 395 (92.5 %) | 346 (81.0 %) |
+
+Under the gate-aware closure `profiles` and `feature_flags` leave the top of the reach table
+entirely — confirming they were gate-driven, not data-driven.
+
+### Change two — the TENANCY disjunct is DROPPED, not re-grained
+
+It was given every chance and cannot partition:
+
+| tenancy variant | doors | % |
+| --- | ---: | ---: |
+| all-edges closure | 395 | 92.5 % |
+| gate-aware closure | 346 | 81.0 % |
+| gate-aware, minus tenancy ROOTS and the hash-chained AUDIT SINK (both derived as properties) | 318 | 74.5 % |
+
+Its top drivers after every exclusion are `cases` (94), `memberships` (36), `case_interviews`
+(30), `meetings` (28), `capa_plan` (26), `responses` (25) — **the ordinary business tables**.
+
+⛔ **"Crosses a tenant boundary" is a domain tautology here, not a filter.** A DEFINER door
+bypasses RLS and must re-establish tenancy itself; in a multi-tenant governance platform,
+operating on tenant-scoped data is what every command door *does*. A predicate true of ~80 % of
+the population carries almost no information, and no further exclusion rescues it without becoming
+the hand-list the method rule forbids.
+
+⚠ **What dropping it costs, stated plainly.** Tier 1 no longer claims to prioritise
+tenant-isolation risk among the command doors; those doors move to **Tier 2 (deferred), they are
+NOT cleared**. Tenant isolation is not thereby unmeasured platform-wide — `ARM=hat`, `ARM=floor`
+and `ARM=policy` all bear on it; C2's gap was always specifically the *command doors*, and this
+ruling decides which of them go first.
+
+### The adopted predicate
+
+> **Tier 1** = a command door (ARM=census's five conjuncts) whose **gate-aware call closure**
+> reaches a relation that is either **door-only for `authenticated`** (`has_table_privilege`
+> false — a DEFINER door is the only access path) **or** carries a **positive-polarity PHI
+> comment** on the table or any column.
+
+Marker (b) remains **unsound alone** (§4) and is used only in UNION with the hard fact (a), where
+it can only widen. Erring wide is safe for deciding *membership*; it would not be safe for
+exclusion. What drives Tier 1 is now recognisably the PHI surface — `case_referral` (51), `rca`
+(46), `case_interviews` (30), `profiles` (29), `meetings` (28), `capa_plan` (26),
+`patient_safety_event` (21), `case_narratives` (19), `referral_patient` (16), `event_patient`
+(15), `patient_identifiers` (9).
+
+`assume_role` — in Tier 1 **by construction** per the ruling — survives on the PHI arm alone, via
+`profiles` and `app.active_role_selections`, both door-only. It never needed the tenancy disjunct.
+
+### Controls, re-run
+
+| control | ADOPTED (gate-aware) | all-edges | depth-0 |
+| --- | :---: | :---: | :---: |
+| `assume_role` | ✅ | ✅ | ✅ |
+| `create_case` | ✅ | ✅ | ⛔ |
+| `dispose_case_phi` | ✅ | ✅ | ✅ |
+| `get_referral_patient` | ✅ | ✅ | ✅ |
+| `set_event_patient` | ✅ | ✅ | ✅ |
+| `set_participant_patient` | ✅ | ✅ | ⛔ |
+
+### Worklist
+
+`supabase/tests/mutation/c2-tier1-doors.txt` — **237** lines, emitted by the instrument's
+`TIER 1 WORKLIST` block. ⛔ Derived, never edited; a dated snapshot of a derivation, not an
+authority. **A door absent from it is not thereby cleared** — it is Tier 2, deferred.
+
+⚠ **Unchanged by this ruling: no command-door neutralizer exists.** 237 doors still cannot be
+swept until one is built, and it remains unbuilt and unsized — the actual long pole. All three
+existing harnesses open a **boolean** gate or a policy `USING`; these doors return
+`jsonb`/`uuid`/`void`, so there is no boolean to flip.
 
 ## 9. Absorbed items — status unchanged
 

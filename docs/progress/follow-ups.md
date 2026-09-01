@@ -6,7 +6,33 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
-### 🟡 FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT — 76 of 116 OPEN index lines are paragraphs, and the two rules governing them are in tension (owner: lead)
+### 🟢 FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT — the de-duplication pass ran; 23 PARTIAL lines remain (owner: lead)
+
+> ## ⭕ DOWNGRADED 🟡→🟢 2026-08-31 — THE DE-DUPLICATION PASS RAN
+>
+> **What was done, and how it was bounded.** Every over-400-byte index line was classified by
+> whether its distinctive claims (backticked spans + figures) already appear in its own body
+> section here: **NO-BODY 0 · FULLY-CARRIED 55 · PARTIAL 23**. Only the 55 FULLY-CARRIED were cut,
+> to `severity · id · title-clause · body pointer · owner` — the form the section header already
+> mandates. ⛔ This was **de-duplication, not compression**: nothing was cut that the body could
+> not be shown to carry, which is the distinction the original filing insisted on.
+>
+> **Result (re-derive, never quote):** index lines **117** (unchanged — nothing was dropped),
+> over-400 **78 → 23**, excess **~20.0 KB → ~9.1 KB**, `PROGRESS.md` **96,352 → 76,629** bytes,
+> **under the 81,920 target for the first time since this was filed**.
+>
+> ⚠ **Two verification findings worth keeping**, both caught by diffing markers rather than trusting
+> the pass: (1) a bare `FUP-P3-` "lost name" was a **glob in prose** (the prose reads *"two `FUP-P3-*`
+> are findable"*), not an item; (2) **4 inline severity markers vanished** — they were
+> **severity-downgrade records** (`🔴→🟠`, `🟠→🟡`) with "still open" residue clauses attached.
+> Both were verified present in their own body sections before the cut was accepted. ⭐ A marker
+> census across the edit is a cheap detector for exactly this class and is why the loss was looked
+> at rather than assumed benign.
+>
+> ⛔ **NOT CLOSED. The remaining 23 are PARTIAL** — each carries at least one fact that appears
+> **only** in the index line. For those the work is **move the fact into the body, THEN cut** —
+> a two-step per item, and the step order matters: cutting first destroys the only copy.
+
 
 > Filed 2026-08-29 at the Record step, from a size warning that could not be discharged by
 > rotating concluded material — because nothing concluded was left.
