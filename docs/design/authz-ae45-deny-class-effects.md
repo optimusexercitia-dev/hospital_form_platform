@@ -40,31 +40,32 @@ second input. ⚠ **Row 5's stated REASON is corrected below on re-measurement; 
 **9 rows: 1 base + 8 deny-class effects** (`wrong_active_context` splits by polarity, which is the
 whole point of § 6A).
 
-## Row 5 re-measured — the layer ruling does not hold, and the effect is unchanged
+## Row 5 re-measured — three legs, and the grain of each
 
-The PO ruled row 5 should read *"`pending` denies at the AUTHENTICATION layer — an unconfirmed
-account cannot obtain a session at all."* ⛔ **Measured on a fresh reset, it does not:**
+The original ruling read *"`pending` denies at the AUTHENTICATION layer — an unconfirmed account
+cannot obtain a session at all."* ⛔ Measured, it does not. **The recorded reason:**
 
-1. ⭐ **The two tables DISAGREE for this persona, which is why two people measured it differently.**
-   `public.profiles.email_confirmed_at` for `novato.pendente` is **NULL**; `auth.users.email_confirmed_at`
-   for the same account is **SET**. GoTrue reads `auth.users`, so the account **authenticates
-   normally**. *(This replaces the earlier "differs only by `email_confirmed_at`" sentence, which was
-   true of one table and not the other — a claim at the wrong grain.)*
-2. **The app's own sign-in gate keeps the session.** `src/lib/auth/actions.ts:176-189` derives the
-   status and signs out **only** on `'suspended' | 'deactivated'`; its comment says so outright —
-   *"the account is active/pending … so KEEP the session"*.
-3. **Nothing else gates on it.** `public.session_context` *surfaces* `email_confirmed_at` in its
-   payload but does not test it; no policy and no other function reads it; `deriveUserStatus`
-   (`src/lib/users/types.ts:59-71`) maps it to the label `'pending'`, and no consumer blocks on that
-   label.
+> **`pending` denies at no layer measured here.** The resolver grants — `app.is_active` never reads
+> `email_confirmed_at`. The app's sign-in gate signs out only on `suspended` / `deactivated`
+> (`src/lib/auth/actions.ts:176-189`, whose own comment says *"the account is active/pending … so
+> KEEP the session"*). And GoTrue locally has **`enable_confirmations = false`**
+> (`supabase/config.toml:246`, also `:298`). ⚠ **Production auth configuration is a separate setting
+> and is NOT measured** — this statement is scoped to the local stack the oracle runs on.
 
-**So `pending` is a STATUS LABEL, surfaced in the UI, and not an enforcement point at any layer
-measured.** ⚠ The PO's ruling was written to prevent a specific error — a reader concluding an
-unconfirmed account has resolver-level access it cannot reach. Measured, **it can reach it**, so the
-ruled wording would have recorded a denial that does not exist. The axes file is still right about
-the *persona plane*; what is wrong is only the inference that the plane implies an enforcement point.
+⚠ **The three legs are not the same KIND of fact, and an earlier draft of this section conflated
+them.** Legs 2 and 3 are **system properties**. The claim *"it authenticates"* is a property of
+**one persona**, not of pending accounts: `novato.pendente` is the **only** account in the seed
+whose `public.profiles.email_confirmed_at` and `auth.users.email_confirmed_at` disagree — measured
+**1 of 36 profiles**, and **0** diverge the other way. So "it authenticates" held because that row
+is confirmed in the table GoTrue reads, which says nothing about a genuinely-pending account.
+**`enable_confirmations = false` is the leg that makes the conclusion general**, and it was missing
+until re-measured.
 
-⛔ **No emitted cell moves**: the effect was GRANTED before and after. Only the reason changed.
+⭐ The axes file's **persona plane** is unaffected: `pending` is a real persona state. What does not
+follow is that a persona state implies an enforcement point.
+
+⛔ **No emitted cell moves**: the effect was GRANTED before and after. Only the reason changed —
+which is why this is a correction rather than a new decision.
 
 ## Two consequences the PO should see with the table
 
