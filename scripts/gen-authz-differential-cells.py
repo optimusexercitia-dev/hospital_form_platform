@@ -87,6 +87,69 @@ for code, klass, res in REPS:
                                         'self' if selfcheck else 'third_party'])
                         cells.append((cid, persona, ctx, scope, code, klass, res, state, selfcheck, exp, src))
 
+def coverage(cells, skipped, reps):
+    """SEVEN ARMS. ⛔ An arm that has never refused anything is a detector nobody has shown finds
+       something — every one is exercised by --self-test below."""
+    f = []
+    if not cells:
+        f.append('arm1: the cell set is EMPTY — pgTAP would iterate nothing and pass')
+    if not (any(c[9] for c in cells) and any(not c[9] for c in cells)):
+        f.append('arm2: expected values are single-polarity — a resolver stuck on one answer would pass')
+    if len({c[5] for c in cells}) != 3:
+        f.append('arm3: not all THREE legacy-equivalence classes are swept (401 §19.2 asserts there are three)')
+    if not (any(c[8] for c in cells) and any(not c[8] for c in cells)):
+        f.append('arm4: §6A both-polarity missing — self-check AND third-party are both required, or '
+                 'the suite passes while pinning the uniform-apply bug')
+    if not any(c[6] == 'organization' and c[3] == 'sibling_commission' and c[9] for c in cells):
+        f.append('arm5: §11.3 differing-scope cell missing — the whole org-scoped class would go untested')
+    if any(not c[10] for c in cells):
+        f.append('arm6: a cell carries no expectedSource — an unattributed expected value is not an oracle input')
+    if sum(skipped.values()) > 0 and not skipped:
+        f.append('arm7: cells were skipped with no named rule — an unattributed exclusion is a silent population shrink')
+    declared = {r[0] for r in reps}
+    emitted = {c[4] for c in cells}
+    if declared - emitted:
+        f.append('arm1b: representative(s) declared but never emitted: %s' % ', '.join(sorted(declared - emitted)))
+    return f
+
+
+if '--self-test' in __import__('sys').argv:
+    import copy
+    base_cells = cells; base_skipped = skipped
+    checks = [
+        ('arm1 empty cell set',          [],                                                      base_skipped, REPS),
+        ('arm2 single polarity',         [c[:9] + (True,) + c[10:] for c in base_cells],          base_skipped, REPS),
+        ('arm3 a class dropped',         [c for c in base_cells if c[5] != 'can_manage_professional'], base_skipped, REPS),
+        ('arm4 self-check only',         [c for c in base_cells if c[8]],                          base_skipped, REPS),
+        ('arm5 differing-scope dropped', [c for c in base_cells if not (c[6]=='organization' and c[3]=='sibling_commission')], base_skipped, REPS),
+        ('arm6 expectedSource blanked',  [c[:10] + ('',) for c in base_cells],                     base_skipped, REPS),
+        # ⛔ ISOLATED DELIBERATELY. A first draft dropped org.professionals.read from the CELLS,
+        # which also drops the only member of its legacy class — so arm3 fired and arm1b was
+        # never exercised. An arm caught by ANOTHER arm's message is not proof that arm works.
+        # Declaring a rep that is simply never emitted isolates arm1b.
+        ('arm1b rep never emitted',      base_cells, base_skipped,
+         REPS + [('never.emitted.code', 'is_staff_admin_of_for', 'commission')]),
+    ]
+    bad = 0
+    for name, cs, sk, rp in checks:
+        got = coverage(cs, sk, rp)
+        if not got:
+            print('gen-authz-differential-cells --self-test: NOT CAUGHT — %s' % name); bad += 1
+        else:
+            print('gen-authz-differential-cells --self-test: caught — %s (%s)' % (name, got[0][:70]))
+    real = coverage(base_cells, base_skipped, REPS)
+    if real:
+        print('gen-authz-differential-cells --self-test: the REAL spec trips an arm — %s' % real[0]); bad += 1
+    else:
+        print('gen-authz-differential-cells --self-test: clean on the real spec (discrimination control)')
+    raise SystemExit(0 if bad == 0 else 1)
+
+_fail = coverage(cells, skipped, REPS)
+if _fail:
+    print('gen-authz-differential-cells: COVERAGE FAILURE — refusing to emit.')
+    for x in _fail: print('  - ' + x)
+    raise SystemExit(1)
+
 assert cells, 'refusing to emit an empty differential'
 srcs = sorted({c[10] for c in cells})
 q = lambda x: "'" + str(x).replace("'", "''") + "'"

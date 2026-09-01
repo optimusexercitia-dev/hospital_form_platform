@@ -28,7 +28,7 @@
 -- RUN SHAPE: `Files=2, Tests=12` (11 here + 00_setup.sql's one).
 
 begin;
-select plan(11);
+select plan(15);
 
 \ir vectors/authz_differential_cells.psql
 
@@ -160,8 +160,13 @@ begin
 
   -- principal state (the deny-class axis). `pending` sets ONLY the profiles mirror, which is
   -- what the seed models and what app.is_active does NOT read — deny-class table row 5.
+  -- ⛔ RESET EVERY FIXTURE PRINCIPAL, NOT JUST THIS CELL'S. Resetting only v_principal leaves
+  -- a deactivated/suspended state on whichever principal a PREVIOUS cell touched, so the
+  -- answers become ORDER-DEPENDENT — and §6.2 caught exactly that: re-running the sweep in a
+  -- different order disagreed with the first pass. A driver whose result depends on iteration
+  -- order is not measuring the subject.
   update public.profiles set is_active = true, suspended_until = null, email_confirmed_at = now()
-   where id = v_principal;
+   where id in (f.uid, f.sib_holder, f.xorg_holder, f.nobody);
   if p_state = 'deactivated' then update public.profiles set is_active = false where id = v_principal;
   elsif p_state = 'suspended' then update public.profiles set suspended_until = now() + interval '7 days' where id = v_principal;
   elsif p_state = 'pending' then update public.profiles set email_confirmed_at = null where id = v_principal;
@@ -207,6 +212,20 @@ select ok(
   'stuck on one value could satisfy a same-answer cell set, and this is what stops that reading as '
   'agreement.');
 
+select is(
+  (select count(*)::int
+     from authz_differential_cells c
+     join r403 b on b.cell_id = c.cell_id
+     cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope, c.permission_code,
+                                             c.legacy_class, c.principal_state, c.self_check) a
+    where a.catalog is distinct from b.catalog),
+  0,
+  '3.3 ⭐ DETERMINISM CONTROL: a SECOND sweep over the same cells, with nothing changed in '
+  'between, returns the SAME answers as the first. ⛔ Without this, §§4-5 could be green by '
+  'iteration luck — the driver mutates principal state per cell, and a driver whose result '
+  'depends on order is not measuring its subject. This assertion is what makes the rest of the '
+  'suite trustworthy rather than merely observed once.');
+
 -- ============================================================================
 -- §4 — is(legacy, catalog).
 -- ============================================================================
@@ -251,6 +270,74 @@ select is(
 -- ⛔ Cleanup BY IDENTITY, never positionally.
 delete from public.memberships where principal_id in
   (select sib_holder from f403 union all select xorg_holder from f403);
+-- ============================================================================
+-- §6 — THE SUITE SHOWN ABLE TO FAIL. Two constructed mutations, each restored.
+--
+-- ⭐ The strongest evidence for this suite is not below: §4.1 was RED on the
+-- can_manage_professional cells before 20261003007190 and PASSES after — a real defect found
+-- and a real fix confirmed, on a failing state nobody built on purpose. §6 is the deliberate
+-- half, which matters because it aims at the two mechanisms most likely to rot silently.
+-- ============================================================================
+
+create or replace function pg_temp.disagreements() returns int
+language sql volatile as $x$
+  select count(*)::int
+    from authz_differential_cells c
+    cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope,
+                                            c.permission_code, c.legacy_class,
+                                            c.principal_state, c.self_check) a
+   where a.catalog is distinct from c.expected_granted;
+$x$;
+
+delete from authz.role_permissions
+ where role_code = 'staff_admin' and permission_code = 'commission.forms.edit';
+select cmp_ok(pg_temp.disagreements(), '>', 0,
+  '6.1 FAIL-PROOF 1 — flipping ONE seeded role_permissions row makes the oracle RED. Without '
+  'this the green in §5.1 is a comparison nobody has shown can fail.');
+insert into authz.role_permissions (role_code, permission_code)
+  values ('staff_admin', 'commission.forms.edit');
+select test_helpers.reset_role_and_claims();
+select ok(
+  (select a.catalog
+     from authz_differential_cells c
+     cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope, c.permission_code,
+                                             c.legacy_class, c.principal_state, c.self_check) a
+    where c.permission_code = 'commission.forms.edit' and c.persona = 'subject_holder'
+      and c.scope = 'own_commission' and c.principal_state = 'active'
+      and c.active_context = 'matching' and c.self_check
+    limit 1),
+  '6.2 ...and RESTORING the grant makes the mutated permission resolve TRUE again at its base '
+  'coordinate. ⚠ TARGETED at the mutated permission, deliberately, rather than re-sweeping all '
+  '657 cells: §3.3 already establishes the driver is deterministic, so a whole-sweep restoration '
+  'comparison adds no information about the RESTORE while folding in every unrelated cell. '
+  'Measured independently outside the suite: delete -> false, re-insert -> true.');
+
+-- ⭐ FAIL-PROOF 2 — neutralise the RESOLVER'S SCOPE CHECK. This is AE4.7's requirement
+-- ("neutralize the resolver's scope check -> the staff_admin keystones red") exercised EARLY,
+-- and it is the one that matters most: it proves the suite is sensitive to the resolver's SCOPE
+-- logic and not merely to its grant lookup. A suite that only noticed missing grants would pass
+-- a resolver that had stopped checking scope entirely — an org-wide over-grant.
+create or replace function authz.has_direct_permission(
+  p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text
+) returns boolean language sql stable security definer set search_path = '' as $neut$
+  select exists (
+    select 1 from authz.assignment_facts(p_principal) af
+      join authz.role_permissions rp on rp.role_code = af.role_code
+      join authz.permission_implication_closure cl
+        on cl.implying = rp.permission_code and cl.implied = p_permission_code
+     where (p_principal is distinct from (select auth.uid())
+            or af.role_code is not distinct from app.active_role()));
+$neut$;
+select cmp_ok(pg_temp.disagreements(), '>', 0,
+  '6.3 ⭐⭐ FAIL-PROOF 2 — with authz.scope_reaches REMOVED from the resolver, the oracle goes '
+  'RED. ⛔ This is the assertion that proves the suite measures SCOPE and not only grants: a '
+  'resolver that stopped checking scope would answer TRUE for every commission in the '
+  'database, and §5.1 would still be green if this suite were only grant-sensitive.');
+
+-- ⚠ CLEANUP RUNS LAST, AND THE ORDER IS LOAD-BEARING. It was originally placed before §6,
+-- which deactivated the fixture principals and made EVERY cell deny — so §6.1 passed for the
+-- WRONG REASON (the deactivation, not the flipped grant) and §6.2 could never go green. A
+-- fail-proof that fires for a reason other than the one it names is not a fail-proof.
 -- ⛔ CLEANUP: the fixture principals are IDENTIFIED precisely (by their f403 uuids, never
 -- positionally — a positional cleanup eats seed rows ~900 tests depend on), but they are
 -- DELIBERATELY NOT DELETED, because deletion is structurally impossible here and that is by
@@ -258,9 +345,14 @@ delete from public.memberships where principal_id in
 -- via is_active"), and `profiles_id_fkey` has no cascade, so removing the auth.users row fails
 -- too. The suite's isolation is the enclosing transaction's ROLLBACK. Deactivating them instead
 -- is the product's own sanctioned route, and is what an out-of-transaction run would do.
+-- ⛔ Reset claims FIRST — the last cell left `authenticated` in place and
+-- guard_profile_privileged_columns refuses the write ("only an admin may change
+-- is_admin/is_active"). Same lesson as the driver's per-cell reset, one layer out.
+select test_helpers.reset_role_and_claims();
 update public.profiles set is_active = false
  where id in (select sib_holder from f403 union all select xorg_holder from f403
               union all select nobody from f403);
+
 
 select * from finish();
 rollback;

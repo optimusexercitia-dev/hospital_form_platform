@@ -122,3 +122,32 @@ whether the caller is in the set, ADR 0079 rule 4's refactor half applies.
 - ⚠ PROGRESS.md describes the C2 worklist as *"derived, 237 lines, never edited"*;
   `supabase/tests/mutation/c2-tier1-doors.txt` measures **255**. Flagged for re-measurement, not
   chased — C2 is not in flight.
+
+## Known bound — the array gate evaluates the CONCATENATED diff, not per file
+
+⛔ **Recorded with a trigger rather than left as a comment.** `$TMP/content` is the concatenation of
+every migration in the range, so the fallback's `array[` gate is satisfied range-wide: **one**
+array-building migration enables quoted-callable extraction for **all** of them.
+
+**Measured on the convention's first real use (2026-09-01).** `20261003007190` (the
+BUG-PROF-INACTIVE-001 fix) builds no array and declares its target with the `(a)` marker, yet the
+sweep selected `is_active` as well — sourced from `20261003007180` elsewhere in `main..HEAD`.
+
+✅ **The failure direction is the safe one: OVER-selection, never a wrong verdict**, and the marker
+still named the real target. ⛔ **Deliberately not fixed:** correcting it means restructuring how
+`$TMP/content` is assembled — changing a gate's input assembly to fix a benign over-selection risks
+more than it buys.
+
+⚠ **THE TRIGGER, so this is checkable rather than remembered:** *if a sweep's derived-case count
+materially exceeds the number of doors the range's migrations actually touch, suspect the
+concatenation first.* **Baseline: 6 derived where 1 was owed.** A future 30-for-1 is then legible as
+drift rather than as normal.
+
+## ⭐ A register's own vacuity control, observed working
+
+While filing this increment's follow-up, `lint:progress` (gate 7) refused an index line whose body
+did not yet exist: *"a pointer is not evidence its target exists — write the body before (or with)
+the index line."* ⛔ That is the same class as every detector rule in this ADR, applied to the
+**register** rather than to a test: a one-line index entry *looks* like a filed finding, and without
+that gate a pointer to nothing would read as one. Named here because it is the cheapest instance of
+the pattern anyone will find.
