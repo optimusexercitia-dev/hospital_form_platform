@@ -28,10 +28,10 @@
 -- would destroy. Every fixture it creates is deleted BY IDENTITY (codes prefixed
 -- `zzfix.`), and the whole file rolls back regardless.
 --
--- RUN SHAPE: `Files=2, Tests=80` (79 here + 00_setup.sql's one).
+-- RUN SHAPE: `Files=2, Tests=107` (106 here + 00_setup.sql's one).
 
 begin;
-select plan(79);
+select plan(106);
 
 -- ============================================================================
 -- §1 — the schema, the four tables, and the deny-all RLS posture.
@@ -47,8 +47,11 @@ select has_table('authz', 'permission_implications', '1.5 authz.permission_impli
 select is(
   (select count(*)::int from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'authz' and c.relkind = 'r' and c.relrowsecurity),
-  4,
-  '1.6 RLS is ENABLED on all four catalog tables (Architecture Rule 1)');
+  5,
+  '1.6 RLS is ENABLED on all FIVE catalog tables (Architecture Rule 1). ⚠ Was 4 until AE4.4b '
+  'added authz.permission_implication_closure; updated DELIBERATELY, and the test reddening '
+  'on a new table is the assertion working - a count that silently tracked reality would not '
+  'notice a table added without RLS.');
 
 select is(
   (select count(*)::int from pg_policies where schemaname = 'authz'),
@@ -346,42 +349,52 @@ select is(pg_temp.cycle_count(), 0,
 create or replace function pg_temp.phi_violations() returns int
 language sql stable as $$
   select count(*)::int
-    from authz.permission_implications i
+    from authz.permission_implication_closure i
     join authz.permissions ing on ing.code = i.implying
     join authz.permissions ied on ied.code = i.implied
-   where ing.resource_kind <> 'phi' and ied.resource_kind = 'phi';
+   where i.implying <> i.implied
+     and ing.resource_kind <> 'phi' and ied.resource_kind = 'phi';
 $$;
 
 create or replace function pg_temp.write_violations() returns int
 language sql stable as $$
   select count(*)::int
-    from authz.permission_implications i
+    from authz.permission_implication_closure i
     join authz.permissions ing on ing.code = i.implying
     join authz.permissions ied on ied.code = i.implied
-   where ing.risk_class = 'read' and ied.risk_class in ('write', 'authority', 'irreversible');
+   where i.implying <> i.implied
+     and ing.risk_class = 'read' and ied.risk_class in ('write', 'authority', 'irreversible');
 $$;
 
 insert into authz.permission_implications (implying, implied)
   values ('zzfix.read.content', 'zzfix.read.phi');
+select authz.rebuild_implication_closure();
 select is(pg_temp.phi_violations(), 1,
   '7.1 CONSTRUCTED VIOLATION: a content-read permission implying a PHI permission IS '
   'flagged (the _case_caps separation restated as a catalog property)');
 delete from authz.permission_implications where implying = 'zzfix.read.content';
+select authz.rebuild_implication_closure();
 
 insert into authz.permission_implications (implying, implied)
   values ('zzfix.read.content', 'zzfix.write.content');
+select authz.rebuild_implication_closure();
 select is(pg_temp.write_violations(), 1,
   '7.2 CONSTRUCTED VIOLATION: a read permission implying a write permission IS flagged');
 select is(pg_temp.phi_violations(), 0,
   '7.3 DISCRIMINATION CONTROL: that same read->write edge is NOT flagged by the PHI '
   'check — the two invariants are independent, not one predicate counted twice');
 delete from authz.permission_implications where implying = 'zzfix.read.content';
+select authz.rebuild_implication_closure();
 
 select is(pg_temp.phi_violations(), 0,
   '7.4 the REAL edge set has no content-read -> PHI implication');
 select is(pg_temp.write_violations(), 0,
   '7.5 the REAL edge set has no read -> write implication');
 
+-- ⚠ The closure holds REFLEXIVE rows for every permission and FKs back to it, so fixture
+-- permissions cannot be dropped until their closure rows are. That FK is the closure's own
+-- protection against orphaned derived data, and it fires here exactly as intended.
+delete from authz.permission_implication_closure where implying like 'zzfix.%' or implied like 'zzfix.%';
 delete from authz.permissions where code like 'zzfix.%';
 
 -- ============================================================================
@@ -580,6 +593,10 @@ select throws_ok(
   null,
   '11.5 role_state rejects an out-of-domain value');
 
+-- ⚠ The closure holds REFLEXIVE rows for every permission and FKs back to it, so fixture
+-- permissions cannot be dropped until their closure rows are. That FK is the closure's own
+-- protection against orphaned derived data, and it fires here exactly as intended.
+delete from authz.permission_implication_closure where implying like 'zzfix.%' or implied like 'zzfix.%';
 delete from authz.permissions where code like 'zzfix.%';
 
 -- ============================================================================
@@ -707,6 +724,10 @@ select is(
   'other. ⭐ It is what upgrades AE4.1''s PHI-separation invariant from a substring test on '
   'a permission CODE (which a rename defeats silently) to a join on a COLUMN.');
 
+-- ⚠ The closure holds REFLEXIVE rows for every permission and FKs back to it, so fixture
+-- permissions cannot be dropped until their closure rows are. That FK is the closure's own
+-- protection against orphaned derived data, and it fires here exactly as intended.
+delete from authz.permission_implication_closure where implying like 'zzfix.%' or implied like 'zzfix.%';
 delete from authz.permissions where code like 'zzfix.%';
 
 -- ============================================================================
@@ -788,7 +809,290 @@ select is((select count(*)::int from authz.permission_implications), 0,
   'assertion exists so that state is PINNED rather than assumed: when 4.4b adds edges this '
   'test reds, and changing it is the deliberate act of saying the invariants went live.');
 
+-- ⚠ The closure holds REFLEXIVE rows for every permission and FKs back to it, so fixture
+-- permissions cannot be dropped until their closure rows are. That FK is the closure's own
+-- protection against orphaned derived data, and it fires here exactly as intended.
+delete from authz.permission_implication_closure where implying like 'zzfix.%' or implied like 'zzfix.%';
 delete from authz.permissions where code like 'zzfix.%';
+
+-- ============================================================================
+-- §15 - AE4.4b: the MATERIALIZED IMPLICATION CLOSURE, and its gate.
+--
+-- The closure is DERIVED DATA rebuilt by authz.rebuild_implication_closure(). "Every
+-- migration touching permission_implications calls it" is a CONVENTION, and a convention is
+-- not a gate. §15.2 recomputes the closure recursively HERE and asserts set equality;
+-- §15.3 proves that comparison can fail.
+-- ============================================================================
+
+select is(
+  (select count(*)::int from authz.permission_implication_closure c
+    where c.implying = c.implied),
+  (select count(*)::int from authz.permissions),
+  '15.1 the closure is REFLEXIVE - (X,X) for every permission. That is what lets the resolver '
+  'be ONE join instead of a UNION of granted-directly and granted-by-implication.');
+
+create or replace function pg_temp.closure_mismatch() returns int
+language sql stable as $$
+  with recursive walk(implying, implied) as (
+    select code, code from authz.permissions
+    union
+    select w.implying, e.implied
+      from walk w join authz.permission_implications e on e.implying = w.implied
+  )
+  select (select count(*) from (select implying, implied from walk
+                                except select implying, implied from authz.permission_implication_closure) a)
+       + (select count(*) from (select implying, implied from authz.permission_implication_closure
+                                except select implying, implied from walk) b);
+$$;
+
+select is(pg_temp.closure_mismatch(), 0,
+  '15.2 ⭐ THE GATE: the materialized closure equals a recursive recomputation, both '
+  'directions. A stale closure is a silently WRONG authorization answer, because the '
+  'resolver reads the closure and never the edges.');
+
+delete from authz.permission_implication_closure
+ where implying = 'commission.forms.edit' and implied = 'commission.forms.edit';
+select cmp_ok(pg_temp.closure_mismatch(), '>', 0,
+  '15.3 VACUITY CONTROL: removing ONE closure row makes §15.2 fire. Without this, §15.2 '
+  'would be a comparison nobody has shown can fail.');
+
+select is(authz.rebuild_implication_closure(), (select count(*)::int from authz.permissions),
+  '15.4 rebuild restores it, returning the row count');
+select is(pg_temp.closure_mismatch(), 0, '15.5 ...and §15.2 passes again');
+
+insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind) values
+  ('zzfix.i.a', 'commission_content', 'read', 'none', 'commission'),
+  ('zzfix.i.b', 'commission_content', 'read', 'none', 'commission'),
+  ('zzfix.i.c', 'commission_content', 'read', 'none', 'commission');
+insert into authz.permission_implications (implying, implied) values
+  ('zzfix.i.a', 'zzfix.i.b'), ('zzfix.i.b', 'zzfix.i.c');
+select authz.rebuild_implication_closure();
+select ok(
+  exists (select 1 from authz.permission_implication_closure where implying = 'zzfix.i.a' and implied = 'zzfix.i.c'),
+  '15.6 ⭐ the closure is TRANSITIVE, not merely direct: a->b->c yields (a,c). This is what '
+  'the runtime resolver relies on to stay non-recursive (PA-F6).');
+delete from authz.permission_implications where implying like 'zzfix.%';
+delete from authz.permission_implication_closure where implying like 'zzfix.%' or implied like 'zzfix.%';
+delete from authz.permissions where code like 'zzfix.i.%';
+select authz.rebuild_implication_closure();
+
+-- ============================================================================
+-- §16 - THE FOUR GATES, each with BOTH POLARITIES.
+--
+-- Matrix §1.2 measured that app.has_role carries four gates at once. An adapter that
+-- projects "live" rows where "live" is undefined hands the resolver a lapsed or deactivated
+-- principal's grants and it answers TRUE with no error - not one door failing open, but
+-- every permission at once.
+--
+-- §§16.1-16.7 use THIRD-PARTY checks (p_principal <> auth.uid()), which the §6A asymmetry
+-- means bypass the active-role filter - isolating gates 1-3 cleanly. Gate 4 is §§16.8-16.11.
+-- ============================================================================
+
+create temp table t401_p on commit drop as
+  select p.id as uid,
+         (select m.commission_id from public.memberships m
+           where m.principal_id = p.id and m.role = 'staff_admin' limit 1) as cid
+    from public.profiles p where p.email = 'chefe.ccih@test.local';
+
+select is((select count(*)::int from t401_p where uid is not null and cid is not null), 1,
+  '16.0 FIXTURE CONTROL: chefe.ccih resolves to one principal with one staff_admin commission');
+
+select ok(authz.has_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
+  '16.1 GATE 1+2+3 POSITIVE: a live seat, an active principal, the right commission -> TRUE');
+
+update public.memberships set expires_at = now() - interval '1 day'
+ where principal_id = (select uid from t401_p) and role = 'staff_admin';
+select ok(not authz.has_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
+  '16.2 ⭐ GATE 1 NEGATIVE - an EXPIRED seat denies. Without the expires_at term the adapter '
+  'would hand the resolver a lapsed coordinator''s grants and it would answer TRUE.');
+update public.memberships set expires_at = null
+ where principal_id = (select uid from t401_p) and role = 'staff_admin';
+
+update public.profiles set is_active = false where id = (select uid from t401_p);
+select ok(not authz.has_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
+  '16.3 GATE 3 NEGATIVE (deactivated) - app.is_active gates the WHOLE projection');
+update public.profiles set is_active = true where id = (select uid from t401_p);
+
+update public.profiles set suspended_until = now() + interval '7 days' where id = (select uid from t401_p);
+select ok(not authz.has_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
+  '16.4 GATE 3 NEGATIVE (suspended) - the SAME predicate, a different column. ⚠ This is why '
+  'inactive and suspended are NOT independently observable: app.is_active folds them, so a '
+  'matrix cell expecting a distinguishable answer would assert something the system cannot '
+  'express. Reproduced deliberately, not inherited.');
+update public.profiles set suspended_until = null where id = (select uid from t401_p);
+
+select ok(not authz.has_direct_permission((select uid from t401_p), 'commission',
+    (select c.id from public.commissions c where c.id <> (select cid from t401_p) limit 1), 'commission.forms.edit'),
+  '16.5 GATE 2 NEGATIVE: a foreign commission denies');
+
+select ok(authz.has_direct_permission((select uid from t401_p), 'organization',
+    (select h.organization_id from public.commissions c join public.hospitals h on h.id = c.hospital_id
+      where c.id = (select cid from t401_p)), 'org.professionals.manage'),
+  '16.6 ⭐⭐ §11.3 THE ASCENT: an ORG-scoped permission resolves through a COMMISSION-scoped '
+  'assignment. An adapter deriving resolution scope from authz.roles.allowed_scope_kind would '
+  'deny this - an under-grant that looks like correct tenant isolation and therefore reads as '
+  'a pass. Four approved permissions (rows 30-33) depend on it.');
+
+select ok(not authz.has_direct_permission((select uid from t401_p), 'organization',
+    (select h.organization_id from public.commissions c join public.hospitals h on h.id = c.hospital_id
+      where c.id = (select cid from t401_p)), 'commission.forms.edit'),
+  '16.7 ...and DESCENT is FALSE: a commission-scoped permission is not reached by asking at '
+  'org scope. That is applies_to_descendants, deferred (ADR 0172 §4). ⛔ CONSEQUENCE FOR AE5: '
+  'org_admin/hospital_admin substitution needs that column ruled FIRST.');
+
+-- ---- GATE 4: the active-role filter, and its MANY-TO-MANY translation ----
+-- app.has_role compares ONE role to ONE active role. Permissions are MANY-TO-MANY with
+-- roles, so the faithful predicate is "held through AT LEAST ONE role that is the active
+-- role". Requiring EVERY granting role to be active over-denies; ignoring WHICH role granted
+-- drops the hat gate for the 151 self-check sites while looking like it implements one.
+-- ⭐ NO 'set local role authenticated' HERE, AND THAT IS THE SECURITY DESIGN, NOT A SHORTCUT.
+-- The first draft switched role and got 'permission denied for schema authz' — application
+-- roles hold NO USAGE on authz (20261003007100), so the resolver is UNREACHABLE by them. In
+-- production the DEFINER wrappers call it and the caller never touches the schema. The
+-- active-role filter reads auth.uid() and app.active_role() from request.jwt.claims, which
+-- test_helpers.claims_for sets independently of the database role — so these tests exercise
+-- the resolver exactly as its real callers will. §18.1 is what asserts the unreachability.
+
+-- ⛔ A PRINCIPAL CANNOT HOLD TWO ROLES AT THE SAME COMMISSION - `memberships_one_commission_role_uq`
+-- is UNIQUE (principal_id, commission_id), which the first draft of this section discovered by
+-- violating it. So the many-to-many case is only constructible ACROSS scopes, and building it
+-- that way is better: it exercises the ASCENT and MANY-TO-MANY together. She holds
+-- staff_admin@CCIH and staff@<sibling commission, same org>; both ascend to the SAME org.
+create temp table t401_sib on commit drop as
+  select c.id as cid
+    from public.commissions c
+    join public.hospitals h on h.id = c.hospital_id
+   where h.organization_id = (select h2.organization_id
+                                from public.commissions c2 join public.hospitals h2 on h2.id = c2.hospital_id
+                               where c2.id = (select cid from t401_p))
+     and c.id <> (select cid from t401_p)
+   limit 1;
+
+create temp table t401_org on commit drop as
+  select h.organization_id as oid
+    from public.commissions c join public.hospitals h on h.id = c.hospital_id
+   where c.id = (select cid from t401_p);
+
+insert into public.memberships (principal_id, commission_id, role)
+  values ((select uid from t401_p), (select cid from t401_sib), 'staff');
+
+select test_helpers.claims_for((select uid from t401_p), false, 'staff_admin');
+select ok(authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.manage'),
+  '16.8 GATE 4 POSITIVE (self-check, matching hat): active_role = staff_admin, which grants '
+  'this permission -> TRUE');
+
+select test_helpers.claims_for((select uid from t401_p), false, 'staff');
+select ok(not authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.manage'),
+  '16.9 ⭐ GATE 4 NEGATIVE: active_role = staff, and `staff` grants NOTHING here. She still '
+  'holds the permission via staff_admin, but that hat is not on -> FALSE. ⛔ An implementation '
+  'that ignores WHICH role granted the permission passes 16.8 and REDS HERE; this is the '
+  'assertion that catches a dropped hat gate for the 151 self-check sites.');
+
+-- ⭐⭐ THE DIFFERENTIAL. Exactly ONE fact changes between 16.9 and 16.10: whether `staff`
+-- grants this permission. Same principal, same scope, same active_role, same everything else.
+-- So 16.10's TRUE is attributable to the many-to-many path and to nothing else.
+insert into authz.role_permissions (role_code, permission_code) values ('staff', 'org.professionals.manage');
+select test_helpers.claims_for((select uid from t401_p), false, 'staff');
+select ok(authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.manage'),
+  '16.10 ⭐⭐ THE MANY-TO-MANY CASE, as a DIFFERENTIAL against 16.9. She now holds this '
+  'permission through BOTH staff_admin (hat off) and staff (hat on). Answer must be TRUE - '
+  'held through AT LEAST ONE ACTIVE role. ⛔ An implementation requiring EVERY granting role '
+  'to be active REDS HERE, and that over-denial has NO legacy counterpart to differential '
+  'against, which is why it is pinned in 4.4b rather than deferred to AE4.5. app.has_role '
+  'compares ONE role to ONE active role; permissions are many-to-many, and this is where the '
+  'translation is proven.');
+
+select ok(authz.has_direct_permission(
+    (select p.id from public.profiles p where p.email = 'chefe.farm@test.local'),
+    'commission',
+    (select m.commission_id from public.memberships m join public.profiles p on p.id = m.principal_id
+      where p.email = 'chefe.farm@test.local' and m.role = 'staff_admin' limit 1),
+    'commission.forms.edit'),
+  '16.11 ⭐ THE ASYMMETRY ITSELF: the `staff` hat is still set, but this is a THIRD-PARTY '
+  'check (principal <> auth.uid()), so the active-role filter does not apply at all and the '
+  'answer is TRUE. Uniform-apply would break all 27 _for sites; never-apply would drop the '
+  'gate for the 151 self-check sites. Neither uniform choice is correct (§6A).');
+
+select test_helpers.reset_role_and_claims();
+delete from authz.role_permissions where role_code = 'staff';
+delete from public.memberships where principal_id = (select uid from t401_p) and role = 'staff';
+
+-- ============================================================================
+-- §17 - THE EXPLANATION: fixed composite, allowlisted typed fields [PA-F17].
+-- ============================================================================
+
+select is(
+  (select string_agg(a.attname || ':' || pg_catalog.format_type(a.atttypid, a.atttypmod), ', ' order by a.attnum)
+     from pg_attribute a join pg_class c on c.oid = a.attrelid
+     join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'authz' and c.relname = 'permission_explanation' and a.attnum > 0 and not a.attisdropped),
+  'granted:boolean, permission_code:text, principal_id:uuid, requested_scope_kind:text, '
+  'requested_scope_id:uuid, resolution_scope_kind:text, granting_role_code:text, '
+  'granting_permission_code:text, denied_reason:text',
+  '17.1 ⭐ SCHEMA-POSITIVE: the composite''s EXACT attribute set and types. Codes and ids '
+  'only - no jsonb, no open-ended payload. ⛔ This is the PRIMARY control; a fixture-string '
+  'denylist cannot see a NEWLY ADDED field, which is precisely how a leak would arrive.');
+
+select is(
+  (authz.explain_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit')).denied_reason,
+  'granted', '17.2 explanation of a granted permission reports `granted`');
+
+select is(
+  (authz.explain_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'no.such.code')).denied_reason,
+  'unknown_permission', '17.3 ...and an unknown code is reported as such, not as a denial');
+
+select is(
+  (authz.explain_direct_permission((select uid from t401_p), 'commission',
+     (select c.id from public.commissions c where c.id <> (select cid from t401_p) limit 1),
+     'commission.forms.edit')).denied_reason,
+  'scope_unreachable', '17.4 ...and an unreachable scope is distinguished from a hat problem');
+
+create or replace function pg_temp.leaks_fixture_string(p_txt text) returns boolean
+language sql immutable as $$
+  select p_txt ~* '(chefe\.ccih|@test\.local|CCIH|Rede A)';
+$$;
+
+create function pg_temp.chatty_explain(p_uid uuid) returns text
+language sql stable as $$
+  select 'debug: principal=' || (select email from public.profiles where id = p_uid);
+$$;
+select ok(pg_temp.leaks_fixture_string(pg_temp.chatty_explain((select uid from t401_p))),
+  '17.5 ⭐ THE STRING-NEGATIVE DETECTOR IS PROVEN ABLE TO FAIL FIRST: pointed at a '
+  'deliberately chatty debug variant it FINDS the fixture string. Only now is its silence on '
+  'the real explanation (17.6) evidence rather than an untested denylist.');
+drop function pg_temp.chatty_explain(uuid);
+
+select ok(
+  not pg_temp.leaks_fixture_string(
+    (authz.explain_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'))::text),
+  '17.6 SECONDARY control: the real explanation carries no fixture-identifiable string. ⚠ This '
+  'is secondary to 17.1 by design - it cannot see a new field or a transformed value.');
+
+-- ============================================================================
+-- §18 - GRANTS on the AE4.4b functions. Effective privilege only, never proacl text
+-- (a NULL proacl includes PUBLIC).
+-- ============================================================================
+
+select is(
+  (select count(*)::int
+     from unnest(array['anon','authenticated','service_role']) r
+     cross join unnest(array[
+       'authz.has_direct_permission(uuid,text,uuid,text)',
+       'authz.explain_direct_permission(uuid,text,uuid,text)',
+       'authz.assignment_facts(uuid)',
+       'authz.scope_reaches(text,uuid,text,uuid)',
+       'authz.rebuild_implication_closure()']) f
+    where has_function_privilege(r, f, 'EXECUTE')),
+  0,
+  '18.1 no application role holds EXECUTE on ANY of the five AE4.4b functions (15 probes)');
+
+grant execute on function authz.has_direct_permission(uuid,text,uuid,text) to anon;
+select ok(has_function_privilege('anon', 'authz.has_direct_permission(uuid,text,uuid,text)', 'EXECUTE'),
+  '18.2 VACUITY CONTROL: an explicit grant IS observable, so 18.1''s fifteen falses are '
+  'observations rather than a stuck predicate');
+revoke execute on function authz.has_direct_permission(uuid,text,uuid,text) from anon;
+select ok(not has_function_privilege('anon', 'authz.has_direct_permission(uuid,text,uuid,text)', 'EXECUTE'),
+  '18.3 ...and revoking closes it again');
 
 select * from finish();
 rollback;
