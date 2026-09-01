@@ -205,37 +205,41 @@ Site kinds per § 4.0: **R** = RLS policy · **D** = DEFINER door body · **T** 
 in depth only). E2E column cites the spec that *pins* the behaviour; ⚠ marks a pin whose deny
 signal is UI text rather than a status or RPC error (§ 7.1).
 
-| # | permission code | resource_kind | risk_class | enforcement sites |
-| --- | --- | --- | --- | --- |
-| 1 | `commission.forms.edit` | commission_content | write | **R** `forms/form_versions/form_sections/form_items/form_item_options/form_item_validations/form_block_library _staff_admin_write` (7 ALL) · **D** 8 form fns · **E2E** `phase4-builder.spec.ts:115-180`, `:261-389` |
-| 2 | `commission.forms.publish` | commission_content | **irreversible** | **R** `form_versions_staff_admin_write` — ⭐ `publish_form_version` is **INVOKER with no body gate**; RLS is the whole control · immutability by `guard_published_version_trg` (Rule 5) · **E2E** `phase4-builder.spec.ts:180` |
-| 3 | `commission.forms.assets.upload` | commission_content | write | **R** `storage.objects.form_assets_insert_staff_admin` (INSERT) · new path per upload (Rule 6) · **E2E** `phase4-builder.spec.ts:466-532` |
-| 4 | `commission.responses.read` | commission_content | read | **R** 7 **SELECT-only** policies (`responses`, `answers`, `answer_*`, `response_group_instances`) · **E2E** `phase8-dashboard.spec.ts:720-735` |
-| 5 | `commission.responses.correct` | commission_content | write | **D** `file/approve/reject/review/withdraw_correction`, `supersede_response` · **T** `caps.canApprove = canManageLifecycle` (`case-detail-view.tsx:502`) · **E2E** `case-void-reopen.spec.ts:409-483` |
-| 6 | `commission.signoffs.read` | commission_content | read | **D** `get_response_for_signoff`, `list_signoff_queue`, `app.can_read_signoff`, `app.pending_staff_signoffs` · **E2E** `ff1-repeating-groups.spec.ts:1212-1284` |
-| 7 | `commission.signoffs.sign` | commission_content | write | **D** `app.can_sign_section` · ⚠ **E2E pins the review screen, not the click** (§ 7.2) |
-| 8 | `commission.dashboard.read` | commission_content | read | **D** all **9** `dashboard_*` fns · **E2E** `member-action-items-overview.spec.ts:862-870` · ⚠ see § 7.4 — the route comment is stale in two ways |
-| 9 | `commission.staff.manage` | identity | **authority** | **R** `commission_administrativos`, `commission_administrativo_capabilities` · **D** `appoint/revoke_administrativo`, `grant/revoke_member_capability`, `list_addable_commission_members` · **E2E** `administrativo.spec.ts:687-796` |
-| 10 | `commission.titles.manage` | vocabulary | write | **R** `member_titles_staff_admin_write` · **D** `create/rename/reorder/delete_member_title`, `assign_member_title` · **E2E** `hospital-admin-tier.spec.ts:433-545` |
-| 11 | `commission.meetings.manage` | commission_content | write | **R** 15 policies over 7 tables · **D** 15 meeting fns · **E2E** `phase10-meetings.spec.ts:1099-1140`, `phase13-audit.spec.ts:628-696` |
-| 12 | `commission.meetings.reserved.author` | commission_content | write | **D** `open_reserved_session`, `add_reserved_item` · **E2E** `meetings-reserved-sessions.spec.ts:301-414` · ⛔ **live pinned defect** — § 7.3 |
-| 13 | `commission.meetings.cases.shell.read` | commission_content | read | **R** `meeting_cases_select` — granted **including when recused** (ADR 0078 A5) |
-| 14 | `commission.meetings.cases.substance.read` | commission_content | read | ⛔ **EXCEPTION — over-granted today**, § 5 |
-| 15 | `commission.meetings.cases.decision.read` | commission_content | read | ⛔ **EXCEPTION — over-granted today**, § 5 |
-| 16 | `commission.cases.manage` | commission_content | write | **R** 20 policies over 15 tables · **D** 72 case fns · **E2E** `casos-reading-surface-differential.spec.ts:551-577` |
-| 17 | `commission.cases.access.manage` | commission_content | **authority** | **D** `grant_case_access`, `revoke_case_access`, `list_case_access` · **E2E** `case-access.spec.ts:508-586`, `:1455-1615` |
-| 18 | `commission.cases.recusal.manage` | commission_content | **authority** | **D** `record_recusal`, `lift_recusal` · **R** `case_recusals_select` (**`_for` variant**) · **E2E** `ethics-e1-access-spine.spec.ts:427-486` |
-| 19 | `commission.cases.lifecycle` | commission_content | **irreversible** | **D** `close_case`, `cancel_case` (terminal-forever, `HC0M8`), `reopen_case` · **E2E** `case-void-reopen.spec.ts:495-574` |
-| 20 | `commission.cases.phi.dispose` | **phi** | **irreversible** | **D** `dispose_case_phi` · Rule 12 |
-| 21 | `commission.process_templates.manage` | commission_content | write | **R** 9 ALL policies · **D** 4 template fns |
-| 22 | `commission.action_items.manage` | commission_content | write | **R** `action_items_select`, `action_items_staff_admin_write` · **D** 9 fns · **E2E** `member-action-items-overview.spec.ts:384-405` |
-| 23 | `commission.documents.manage` | commission_content | write | **D** 13 document fns |
-| 24 | `commission.documents.publish` | commission_content | **irreversible** | **D** `publish_document`, `revoke_printed_document`, `supersede_document` |
-| 25 | `commission.accreditation.manage` | commission_content | write | **D** 16 fns · **E2E** `phase16-accreditation-restricted.spec.ts:180-207` (⚠ requires staff_admin **AND** an ACL row) |
-| 26 | `commission.referrals.manage` | commission_content | write | **D** 10 referral fns · **R** `case_referral_insert_source_coord` (**`_for` variant**) |
-| 27 | `commission.referrals.phi.read` | **phi** | read | **D** `app.can_read_referral_phi` · **E2E** `nsp-per-hospital.spec.ts:834-850` — a **sanctioned cross-hospital** read, not a leak |
-| 28 | `commission.safety_events.report` | commission_content | write | **D** safety-event door from case detail · **E2E** `phase14a-safety-events.spec.ts:188-233` |
-| 29 | `commission.audit.read` | audit | read | **R** `audit_log_select` (**SELECT only**) |
+⭐ **Every code carries its `sensitivity_ceiling` from birth** (migration `20261003007130`; NOT NULL, **no default** — `none` is the permissive value, so a defaulted column would let a forgotten insert classify a PHI permission as unclassified). Values are the three-class partition; **no ordering is defined** and pgTAP 401 §13.6–13.7 gates that abstinence.
+
+| # | permission code | resource_kind | risk_class | **sensitivity** | enforcement sites |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `commission.forms.edit` | commission_content | write | none | **R** `forms/form_versions/form_sections/form_items/form_item_options/form_item_validations/form_block_library _staff_admin_write` (7 ALL) · **D** 8 form fns · **E2E** `phase4-builder.spec.ts:115-180`, `:261-389` |
+| 2 | `commission.forms.publish` | commission_content | **irreversible** | none | **R** `form_versions_staff_admin_write` — ⭐ `publish_form_version` is **INVOKER with no body gate**; RLS is the whole control · immutability by `guard_published_version_trg` (Rule 5) · **E2E** `phase4-builder.spec.ts:180` |
+| 3 | `commission.forms.assets.upload` | commission_content | write | none | **R** `storage.objects.form_assets_insert_staff_admin` (INSERT) · new path per upload (Rule 6) · **E2E** `phase4-builder.spec.ts:466-532` |
+| 4 | `commission.responses.read` | commission_content | read | none | **R** 7 **SELECT-only** policies (`responses`, `answers`, `answer_*`, `response_group_instances`) · **E2E** `phase8-dashboard.spec.ts:720-735` |
+| 5 | `commission.responses.correct` | commission_content | write | none | **D** `file/approve/reject/review/withdraw_correction`, `supersede_response` · **T** `caps.canApprove = canManageLifecycle` (`case-detail-view.tsx:502`) · **E2E** `case-void-reopen.spec.ts:409-483` |
+| 6 | `commission.signoffs.read` | commission_content | read | none | **D** `get_response_for_signoff`, `list_signoff_queue`, `app.can_read_signoff`, `app.pending_staff_signoffs` · **E2E** `ff1-repeating-groups.spec.ts:1212-1284` |
+| 7 | `commission.signoffs.sign` | commission_content | write | none | **D** `app.can_sign_section` · ⚠ **E2E pins the review screen, not the click** (§ 7.2) |
+| 8 | `commission.dashboard.read` | commission_content | read | none | **D** all **9** `dashboard_*` fns · **E2E** `member-action-items-overview.spec.ts:862-870` · ⚠ see § 7.4 — the route comment is stale in two ways |
+| 9 | `commission.staff.manage` | identity | **authority** | none | **R** `commission_administrativos`, `commission_administrativo_capabilities` · **D** `appoint/revoke_administrativo`, `grant/revoke_member_capability`, `list_addable_commission_members` · **E2E** `administrativo.spec.ts:687-796` |
+| 10 | `commission.titles.manage` | vocabulary | write | none | **R** `member_titles_staff_admin_write` · **D** `create/rename/reorder/delete_member_title`, `assign_member_title` · **E2E** `hospital-admin-tier.spec.ts:433-545` |
+| 11 | `commission.meetings.manage` | commission_content | write | none | **R** 15 policies over 7 tables · **D** 15 meeting fns · **E2E** `phase10-meetings.spec.ts:1099-1140`, `phase13-audit.spec.ts:628-696` |
+| 12 | `commission.meetings.reserved.author` | commission_content | write | none | **D** `open_reserved_session`, `add_reserved_item` · **E2E** `meetings-reserved-sessions.spec.ts:301-414` · ⛔ **live pinned defect** — § 7.3 |
+| 13 | `commission.meetings.cases.shell.read` | commission_content | read | none | **R** `meeting_cases_select` — granted **including when recused** (ADR 0078 A5) |
+| 14 | `commission.meetings.cases.substance.read` | commission_content | read | none | ⛔ **EXCEPTION — over-granted today**, § 5 |
+| 15 | `commission.meetings.cases.decision.read` | commission_content | read | none | ⛔ **EXCEPTION — over-granted today**, § 5 |
+| 16 | `commission.cases.manage` | commission_content | write | none | **R** 20 policies over 15 tables · **D** 72 case fns · **E2E** `casos-reading-surface-differential.spec.ts:551-577` |
+| 17 | `commission.cases.access.manage` | commission_content | **authority** | none | **D** `grant_case_access`, `revoke_case_access`, `list_case_access` · **E2E** `case-access.spec.ts:508-586`, `:1455-1615` |
+| 18 | `commission.cases.recusal.manage` | commission_content | **authority** | none | **D** `record_recusal`, `lift_recusal` · **R** `case_recusals_select` (**`_for` variant**) · **E2E** `ethics-e1-access-spine.spec.ts:427-486` |
+| 19 | `commission.cases.lifecycle` | commission_content | **irreversible** | none | **D** `close_case`, `cancel_case` (terminal-forever, `HC0M8`), `reopen_case` · **E2E** `case-void-reopen.spec.ts:495-574` |
+| 20 | `commission.cases.phi.dispose` | **phi** | **irreversible** | **phi** | **D** `dispose_case_phi` · Rule 12 |
+| 21 | `commission.process_templates.manage` | commission_content | write | none | **R** 9 ALL policies · **D** 4 template fns |
+| 22 | `commission.action_items.manage` | commission_content | write | none | **R** `action_items_select`, `action_items_staff_admin_write` · **D** 9 fns · **E2E** `member-action-items-overview.spec.ts:384-405` |
+| 23 | `commission.documents.manage` | commission_content | write | none | **D** 13 document fns |
+| 24 | `commission.documents.publish` | commission_content | **irreversible** | none | **D** `publish_document`, `revoke_printed_document`, `supersede_document` |
+| 25 | `commission.accreditation.manage` | commission_content | write | none | **D** 16 fns · **E2E** `phase16-accreditation-restricted.spec.ts:180-207` (⚠ requires staff_admin **AND** an ACL row) |
+| 26 | `commission.referrals.manage` | commission_content | write | none | **D** 10 referral fns · **R** `case_referral_insert_source_coord` (**`_for` variant**) |
+| 27 | `commission.referrals.phi.read` | **phi** | read | **phi** | **D** `app.can_read_referral_phi` · **E2E** `nsp-per-hospital.spec.ts:834-850` — a **sanctioned cross-hospital** read, not a leak |
+| 28 | `commission.safety_events.report` | commission_content | write | none | **D** safety-event door from case detail · **E2E** `phase14a-safety-events.spec.ts:188-233` |
+| 29 | `commission.audit.read` | audit | read | none | **R** `audit_log_select` (**SELECT only**) |
+| **30** | `org.professionals.manage` | identity | **authority** | **class2_professional_identity** | ⚠ **ORG-SCOPED — see § 11.** **D** `app.can_manage_professional` gating **13** fns (`create/update/redact_professional_profile`, `set_professional_link_state`, the ethics + case-assignment vocabularies). Reach already recorded: **ADR 0078 §B7** — "any org `staff_admin`", the respondent twin's precondition, closed by the `HC0F2` linkage freeze |
+| **31** | `org.professionals.read` | identity | read | **class2_professional_identity** | ⚠ **ORG-SCOPED.** **D** `app.can_read_professional_profile` (delegates to `can_manage_professional`, else case-committee reach) |
 
 ⚠ **Two capabilities the E2E plane shows are NOT role-derived and are therefore not rows:**
 reading `legal_privileged` case documents rides on a *seeded clearance grant*
@@ -296,7 +300,7 @@ seed holds no recused case on a reachable meeting, so the failing state does not
 fixture today. That is what makes this latent rather than demonstrated, and it is also why the
 exception is defensible in the interim.
 
-### 5.2 Proposed expiry date: **2026-12-01** — PO to rule
+### 5.2 Expiry date: **2026-12-01** — ✅ APPROVED BY PO 2026-09-01, and written into ADR 0169
 
 ADR 0169 sets the trigger as *"post-pilot, at the first increment that touches meeting content"*
 and states a calendar date is owed, because **a trigger-only expiry is the shape that never
@@ -599,7 +603,7 @@ deferral-becomes-a-decision shape.
 
 | # | difference | disposition | reasoning |
 | --- | --- | --- | --- |
-| D1 | **`meeting_cases` recusal** — `summary` + `decision` over-granted to a recused member | **(b) named exception** | ADR 0169, owner `backend`, **proposed expiry 2026-12-01** (§ 5.2). Latent: the seed cannot reach the failing state |
+| D1 | **`meeting_cases` recusal** — `summary` + `decision` over-granted to a recused member | **(b) named exception** | ADR 0169, owner `backend`, **expiry 2026-12-01 — ✅ SET BY PO 2026-09-01**, ADR 0169 amended to hold it (§ 5.2). Latent: the seed cannot reach the failing state |
 | D2 | **4 notification bodies resolve `staff_admin` without `expires_at`** | **(a) fix in a preceding gated increment** | § 1.2. One term per body, matching the canonical predicate. Not (b) — nobody would defend it as a design choice. Cannot be left: AE4.4's adapter cannot project one assignment fact over inconsistent legacy answers |
 | D3 | **`BUG-STAGEC-READER`** | ⛔ **NOT A DIFFERENCE — premise measured FALSE** | § 7.3. The spec comment misquotes the panel copy by adding *"e a coordenação"*; the real copy says the opposite, and the add-item dialog states *"A coordenação não tem acesso automático"*. Behaviour is correct and documented. ⛔ The proposed widening would have been a genuine **over-grant** destroying the only exclusion mechanism case-less items have. Work owed is documentary and is `tester`'s |
 | D4 | **`dashboard/page.tsx` comment** claims an `org_admin` coercion that no longer exists, and RPC-gate uniformity that never held | **not a behavioural difference — a documentation defect** | § 7.4. The *code* is correct by current design. Filed so the comment is corrected; the matrix row is derived from code + catalog, not from it |
@@ -626,3 +630,62 @@ the platform is PHI-free outside the three isolated modules (Rule 12); no payloa
 `event_patient`, `referral_patient`, or `patient_identifiers`. The exposure is **governance
 metadata to a person whose seat has lapsed but who has not been offboarded** — real, bounded, and
 not a patient-data incident.
+
+---
+
+## 11. ⛔ PROPOSAL, NOT BUILT — where a permission's RESOLUTION SCOPE lives
+
+**The finding.** Rows 30–31 are **org-scoped permissions held via a commission-scoped role**.
+`app.can_manage_professional(p_org, p_uid)` returns true when the caller holds `staff_admin` at
+**any** commission in the org, so `chefe.ccih` — `staff_admin` of **one** commission — reaches
+professional identity across all **four** commissions of Rede A. ⚠ **The reach itself is not new
+and is already mitigated:** ADR 0078 §B7 names it ("any org `staff_admin`", "exactly the
+respondent twin's precondition", a sixth self-serving mutator) and closes it with the `HC0F2`
+linkage freeze binding direct DML. **What is new is the catalog-modelling consequence**, which no
+prior document addresses.
+
+**PO ruling 2026-09-01: model it honestly.** The clean "role scope == permission scope" assumption
+is **dropped**, deliberately — it is already false in the running system, and a catalog encoding it
+would be wrong on its very first real subject.
+
+**Nothing in AE4.1 expresses this.** `authz.roles.allowed_scope_kind` says where a role may be
+*assigned*; nothing says where a permission *resolves*.
+
+⛔ **`applies_to_descendants` is NOT the answer and the name will tempt the next reader.** It means
+*a permission held at org scope reaches DOWN into hospitals and commissions*. This is the
+**inverse**: a permission held via a commission-scoped role reaching **UP** to the org. **Ascent is
+not descent.** It is also a deferred residue column, so it is unavailable regardless.
+
+### 11.1 Options, with trade-offs
+
+| option | shape | for | against |
+| --- | --- | --- | --- |
+| **A — `resolution_scope_kind` on `authz.permissions`** | one column: the scope kind this permission resolves at, independent of the holder's role scope | simplest; a permission's resolution scope is genuinely a property *of the permission* (professional identity is org-wide **for everyone**, not just for `staff_admin`); one value per code, no combinatorics; the adapter reads it directly | asserts resolution scope is invariant across roles — true for every subject we have, unproven in general |
+| **B — a column on `authz.role_permissions`** | resolution scope per (role, permission) pair | maximum fidelity; different roles could resolve the same permission at different scopes | ⛔ **no subject demands it** — this is a generality bought before its first use, and the join table is empty; it also multiplies the cells AE4.5 must enumerate by the scope-kind count |
+| **C — encode it in the code name** (`org.professionals.manage` vs `commission.*`) | convention only | zero schema change; already visible in rows 30–31 | ⛔ **a label, not a control** — a string prefix no gate reads, defeated silently by a rename. Precisely the failure § 9 just closed for `sensitivity_ceiling` |
+
+**Recommendation: A**, with the ascent made explicit rather than implied — the column states the
+scope the permission resolves at, and the adapter's job is to walk from the holder's assignment
+scope to that scope. ⛔ Recommendation only; **not built in 2b**, per the PO's instruction to
+propose rather than add a column.
+
+### 11.2 Why 2b did not build it, stated as a decision
+
+`sensitivity_ceiling` lands cleanly and independently: it needs no resolution-scope concept, its
+subjects exist now, and it upgrades the PHI-separation invariant from a substring test to a column
+join today. Bundling an unresolved schema question into that increment would make a clean change
+unattributable — the same slicing argument `[PA-F18]` used to split AE4 Increment 1 from the
+cutover. **The resolution-scope question is therefore a stated finding here, and the resolver work
+is AE4.4's regardless.**
+
+### 11.3 BINDING REQUIREMENT ON AE4.4 — numbered alongside § 6A
+
+**AE4.4 may not assume a permission resolves at its holder's role scope.** At least two permissions
+(rows 30–31) resolve at the **organization** while being held via a **commission**-scoped role. An
+adapter that derives the resolution scope from `authz.roles.allowed_scope_kind` will silently deny
+both — an under-grant that looks like correct tenant isolation and will therefore read as a pass.
+
+⚠ **AE4.5 must cover it too**: the cell set needs a case where the holder's assignment scope and
+the permission's resolution scope **differ**, or the generator emits only same-scope cells and the
+whole class goes untested. That is the same both-polarity requirement § 6A makes for active
+context — a generator that emits one side passes while pinning the bug.

@@ -111,6 +111,20 @@ to; `applies_to_descendants` would assert a proposition about a scope-ancestry r
 not exist (deferred to AE7); `assignable` has no decided subject relation (grant / hold / surface).
 AE4.3 adds all three in the migration that seeds the rows giving them meaning.
 
+> ⭐ **AMENDED 2026-09-01 (PO ruling) — `sensitivity_ceiling`'s deferral is OVERTURNED; the
+> other two stand.** Migration `20261003007130` creates it. **The reasoning below was not wrong;
+> its stated reason EXPIRED.** The deferral rested on `authz.permissions` holding *zero rows*, so
+> that a CHECK would pin a value no row holds — and **AE4.3 created the subjects**. What did *not*
+> expire is the second half of the residue: the **ordering / comparison rule** remains deferred,
+> and pgTAP 401 §13.6–13.7 gates that abstinence with a constructed detector rather than trusting
+> a comment. ⚠ The column is pinned to a **three-value partition** —
+> `none | class2_professional_identity | phi` — not the binary first proposed: checking the
+> column's subjects before pinning it surfaced a Class-2 professional-identity capability
+> (`app.can_manage_professional`, ADR 0078 §B7) that a binary would have classified as `none`,
+> dropping a real sensitivity. `applies_to_descendants` and `assignable` are **untouched** and stay
+> deferred for the original reason, which has not expired for them. Detail: the matrix
+> [doc](../design/authz-ae43-staff-admin-permission-matrix.md) § 9.
+
 **`risk_class` is created — PO override of the author's proposed deferral.** Consequence owned
 here, stated plainly rather than dressed up: **no authority in this tree defines a value set for
 `risk_class`.** Not ADR 0155, not the plan, not the audit, which introduces the column without

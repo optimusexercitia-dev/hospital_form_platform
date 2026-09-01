@@ -28,10 +28,10 @@
 -- would destroy. Every fixture it creates is deleted BY IDENTITY (codes prefixed
 -- `zzfix.`), and the whole file rolls back regardless.
 --
--- RUN SHAPE: `Files=2, Tests=61` (60 here + 00_setup.sql's one).
+-- RUN SHAPE: `Files=2, Tests=69` (68 here + 00_setup.sql's one).
 
 begin;
-select plan(60);
+select plan(68);
 
 -- ============================================================================
 -- §1 — the schema, the four tables, and the deny-all RLS posture.
@@ -239,13 +239,17 @@ select ok(
 -- pass. The negative alone cannot tell a working FK from a stuck deny.
 -- ============================================================================
 
-insert into authz.permissions (code, resource_kind, risk_class) values
-  ('zzfix.read.content',  'commission_content', 'read'),
-  ('zzfix.read.phi',      'phi',                'read'),
-  ('zzfix.write.content', 'commission_content', 'write'),
-  ('zzfix.a', 'commission_content', 'read'),
-  ('zzfix.b', 'commission_content', 'read'),
-  ('zzfix.c', 'commission_content', 'read');
+-- ⚠ `sensitivity_ceiling` is declared on EVERY row below because 20261003007130 made it
+-- NOT NULL with NO DEFAULT, deliberately: `none` is the permissive value, so a default would
+-- let a forgotten column classify a PHI permission as unclassified. That design choice is
+-- what obliges these fixtures to state it — which is the control working, not friction.
+insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling) values
+  ('zzfix.read.content',  'commission_content', 'read',  'none'),
+  ('zzfix.read.phi',      'phi',                'read',  'phi'),
+  ('zzfix.write.content', 'commission_content', 'write', 'none'),
+  ('zzfix.a', 'commission_content', 'read', 'none'),
+  ('zzfix.b', 'commission_content', 'read', 'none'),
+  ('zzfix.c', 'commission_content', 'read', 'none');
 
 select throws_ok(
   $$insert into authz.role_permissions (role_code, permission_code)
@@ -544,20 +548,20 @@ select is(
 -- ============================================================================
 
 select throws_ok(
-  $$insert into authz.permissions (code, resource_kind, risk_class)
-    values ('zzfix.bad', 'commission_content', 'catastrophic')$$,
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling)
+    values ('zzfix.bad', 'commission_content', 'catastrophic', 'none')$$,
   '23514',
   null,
   '11.1 risk_class rejects an out-of-domain value');
 
 select lives_ok(
-  $$insert into authz.permissions (code, resource_kind, risk_class)
-    values ('zzfix.ok', 'commission_content', 'write')$$,
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling)
+    values ('zzfix.ok', 'commission_content', 'write', 'none')$$,
   '11.2 POSITIVE TWIN: an in-domain risk_class is accepted');
 
 select throws_ok(
-  $$insert into authz.permissions (code, resource_kind, risk_class)
-    values ('zzfix.bad2', 'not_a_noun', 'read')$$,
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling)
+    values ('zzfix.bad2', 'not_a_noun', 'read', 'none')$$,
   '23514',
   null,
   '11.3 resource_kind rejects an out-of-domain value');
@@ -609,6 +613,101 @@ select is(
   (select count(*)::int from authz_matrix_cells where role not in (select code from authz.roles)),
   0,
   '12.3 every enumerated cell names a role that exists in the catalog');
+
+-- ============================================================================
+-- §13 — `sensitivity_ceiling` (20261003007130, PO ruling 2026-09-01).
+--
+-- ⭐ NON-VACUOUS AT ZERO ROWS, like §11 and unlike §§5-7: a DOMAIN constraint is checked at
+-- the TYPE level, so the violation is constructible without any pre-existing row. Paired
+-- with an in-domain positive so it cannot pass by the insert failing for another reason.
+-- ============================================================================
+
+select has_column('authz', 'permissions', 'sensitivity_ceiling',
+  '13.1 authz.permissions.sensitivity_ceiling exists');
+
+select col_not_null('authz', 'permissions', 'sensitivity_ceiling',
+  '13.2 ...and is NOT NULL');
+
+select is(
+  (select count(*)::int from pg_attrdef d
+     join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+    where d.adrelid = 'authz.permissions'::regclass and a.attname = 'sensitivity_ceiling'),
+  0,
+  '13.3 ⭐ ...and has NO DEFAULT, deliberately. `none` is the PERMISSIVE value, so a default '
+  'would let an INSERT that forgets this column classify a PHI permission as unclassified '
+  'while the row looks complete — the "guards that read right but fail open" shape. Every '
+  'permission must DECLARE its sensitivity. ⛔ Do not "fix" a future failing insert by '
+  'adding a default here; declare the value at the insert site.');
+
+select throws_ok(
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling)
+    values ('zzfix.s1', 'commission_content', 'read', 'top_secret')$$,
+  '23514',
+  null,
+  '13.4 the domain rejects an out-of-domain sensitivity value');
+
+select lives_ok(
+  $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling)
+    values ('zzfix.s2', 'phi', 'read', 'class2_professional_identity')$$,
+  '13.5 POSITIVE TWIN: an in-domain value is accepted — so 13.4 is not a constraint that '
+  'rejects everything. Uses `class2_professional_identity`, the value that only exists '
+  'because the column''s subjects were checked before it was pinned: staff_admin reaches '
+  'professional_profiles through app.can_manage_professional (ADR 0078 §B7), and a binary '
+  'none/phi partition would have classified that as `none`.');
+
+-- 13.6/13.7 — ORDERING ABSTINENCE. The column is NAMED for a ceiling but TYPED as a
+-- partition: no ordering over these values is defined, and the ordering rule is the half of
+-- the §8 residue that stays deferred. The name invites `<`, so the abstinence is GATED
+-- rather than merely documented.
+--
+-- ⛔ A bare "no function compares it" assertion would be VACUOUS — zero functions reference
+-- the column at all today, so the detector would find nothing and pass having checked
+-- nothing. 13.6 constructs a violating subject FIRST and proves the detector sees it.
+create or replace function pg_temp.ordering_violations() returns int
+language sql stable as $$
+  select count(*)::int
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname in ('app', 'public')
+     and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g')
+         ~ 'sensitivity_ceiling[[:space:]]*(<|>|between)';
+$$;
+
+-- ⚠ THE PROBE'S SHAPE IS LOAD-BEARING AND THE FIRST ONE WAS WRONG. It compared via a
+-- subquery — `(select sensitivity_ceiling from ...) < 'phi'` — which puts ` from` between
+-- the column name and the operator, so the detector did not match it and 13.6 went RED on
+-- its first run. That red was the control working: it proved the detector was too narrow
+-- BEFORE 13.7's zero could be believed. The probe now uses the realistic misuse shape, a
+-- direct comparison in a predicate.
+--
+-- ⛔ STATED BOUND, so this is not read as more than it is: the detector matches a
+-- comparison operator ADJACENT to the column name. A comparison routed through an
+-- intermediate variable or a subquery alias is NOT caught. 13.7 therefore means "no
+-- function compares this column DIRECTLY", not "no ordering can possibly be expressed".
+create function app._t401_ordering_probe() returns int language sql stable as $$
+  select count(*)::int from authz.permissions where sensitivity_ceiling < 'phi';
+$$;
+select is(pg_temp.ordering_violations(), 1,
+  '13.6 DETECTOR-VACUITY CONTROL: a function that COMPARES two sensitivity values with `<` '
+  'IS found. Without this, 13.7''s zero would be the assertion that a detector finds '
+  'nothing — exactly what it exists to rule out.');
+drop function app._t401_ordering_probe();
+
+select is(pg_temp.ordering_violations(), 0,
+  '13.7 ⭐ ...and NOTHING in the live catalog orders this domain. The deferred half of the '
+  '§8 residue — the ordering / comparison rule — stays genuinely deferred rather than being '
+  'silently answered by a stray `<`. ⚠ When AE5 splits `phi` into standard/restricted and '
+  'the PO rules an ordering, this assertion is the one to change DELIBERATELY.');
+
+select is(
+  (select count(*)::int from authz.permissions
+    where sensitivity_ceiling = 'phi' and resource_kind <> 'phi'),
+  0,
+  '13.8 sensitivity and resource_kind agree on the PHI rows — the two columns are '
+  'independently declared, so this cross-check catches a row that names one and not the '
+  'other. ⭐ It is what upgrades AE4.1''s PHI-separation invariant from a substring test on '
+  'a permission CODE (which a rename defeats silently) to a join on a COLUMN.');
+
+delete from authz.permissions where code like 'zzfix.%';
 
 select * from finish();
 rollback;

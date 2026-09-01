@@ -53,9 +53,18 @@ failing state does not exist in the fixture; confirming it requires constructing
    (b). It is **first-class in AE4.3's `staff_admin` matrix**, mutation-tested like any other cell,
    not a footnote to it.
    - **Owner:** backend.
-   - **Expiry trigger:** post-pilot, at the first increment that touches meeting content.
-     ⚠ **A calendar date is owed and is the PO's to set** — PA-F8 requires one, and a
-     trigger-only expiry is the shape that never fires.
+   - **Expiry: ✅ 2026-12-01 — SET BY PO 2026-09-01**, discharging the debt this clause recorded.
+     Reasoning: three months puts it after the pilot has actually run (AE0–AE4 gate the pilot and
+     AE4 was in flight when the date was set), which matters because the divergence is **latent** —
+     the seed holds no recused case on a reachable meeting, so field observation is the only way to
+     learn whether the tier boundary is right; and it is short enough that the exception cannot
+     outlive the people who ruled it.
+     ⭐ **With teeth, because a date that only triggers a re-review is the same failure one level
+     up:** on 2026-12-01 this exception either has a **merged fix** or it **BLOCKS the next
+     increment that touches meeting content**. Any extension is its own recorded ruling with its
+     own date — never a silent renewal.
+     *(The original trigger — "post-pilot, at the first increment that touches meeting content" —
+     is retained above as the qualitative condition; the date is what makes it fire.)*
 3. **The matrix cell records the CORRECTED characterisation**, not the follow-up's: an over-grant of
    `summary` and `decision`, **not** a missing row-level deny. A cell authored from the follow-up's
    text would encode the wrong fix and make it the regression oracle.
