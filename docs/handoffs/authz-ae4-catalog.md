@@ -662,6 +662,12 @@ green.
 2. **AE4.7b** — `authz.holds_role`, both wrappers re-pointed through it, the 4-step twin plan,
    F7's domain widening, domain / census re-derivation, the catalog-completeness and
    wrapper-coverage arms, and the PUBLIC-EXECUTE revoke (405 §5.2 must flip to `array[false, false]`).
-3. **PO batch, one sitting** — F2 (blocking), F4's `offboarded` expected values, F3's arm-3
-   disposition, the 9 mislabelled `unauthenticated` cells, and the two remaining FUPs.
-4. **AE4.8**, then Gate AE4 = §6 + `e2e:prod` re-run to an actual green + QA review + PO approval.
+3. **AE4.7c — the `can_manage_professional` split** (✅ fully ruled; matrix § 12.8.5 is the spec).
+   ⛔ **Three steps, in order, and the order is the safety property:** § 12.3 FAMILY split (rows
+   31/32/33 off the gate) → OPERATION split (new `app.can_create_professional`, new row 43
+   `org.professionals.create`, `set_professional_link_state` bounded to `link_state='unknown'`)
+   → the grant change (`staff_admin` loses row 30). Then re-point 403's rep and regenerate.
+4. **PO batch, one sitting** — F4's `offboarded` expected values, F3's arm-3 disposition, the 9
+   mislabelled `unauthenticated` cells, and the two remaining FUPs. (✅ **F2 is CLOSED** — ruled
+   2026-09-01; no ADR, matrix § 12.8 is its home by PO ruling.)
+5. **AE4.8**, then Gate AE4 = §6 + `e2e:prod` re-run to an actual green + QA review + PO approval.
