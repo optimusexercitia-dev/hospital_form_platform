@@ -200,7 +200,6 @@ function enumerate(spec) {
                   cell.id = cellId(cell)
                   cell.denyClasses = denies
                   cell.fixtureOnly = persona === 'cross_org_actor' || scope === 'foreign_org_commission'
-                  cell.unfillable = principalState === 'offboarded'
                   cells.push(cell)
                 }
               }
@@ -256,6 +255,25 @@ function coverage(spec, cells, skipped) {
     }
   }
 
+  // ⭐ THE fixtureOnly FLAG IS CROSS-CHECKED, NOT SELF-CHECKED. Asserting the flag against
+  // the same expression that computes it would be a tautology. Instead: every cell the
+  // JSON's `cross_org` DENY CLASS captures must also be flagged fixture-only. The deny
+  // class is declared in the axes file and the flag is computed in this script, so the two
+  // are independently specified — a rename on either side breaks the agreement and reds
+  // here. Without this the flag can go silently dead (the `===` simply stops matching) and
+  // AE4.3 would size its cross-org fixture work from a zero that means nothing.
+  const crossOrgDenied = cells.filter((c) => c.denyClasses.includes('cross_org'))
+  const unflagged = crossOrgDenied.filter((c) => !c.fixtureOnly)
+  if (unflagged.length > 0) {
+    failures.push(
+      `${unflagged.length} cell(s) in the cross_org deny class are NOT flagged fixtureOnly — ` +
+        `the flag and the deny class disagree (first: ${unflagged[0].id})`,
+    )
+  }
+  if (crossOrgDenied.length > 0 && cells.filter((c) => c.fixtureOnly).length === 0) {
+    failures.push('the cross_org deny class has members but NO cell is flagged fixtureOnly — the flag is dead')
+  }
+
   const bySkipRule = {}
   for (const s of skipped) bySkipRule[s.rule] = (bySkipRule[s.rule] ?? 0) + 1
 
@@ -265,7 +283,6 @@ function coverage(spec, cells, skipped) {
     skipped: skipped.length,
     skippedByRule: bySkipRule,
     fixtureOnly: cells.filter((c) => c.fixtureOnly).length,
-    unfillable: cells.filter((c) => c.unfillable).length,
     denyClassCounts: cells.reduce((acc, c) => {
       for (const d of c.denyClasses) acc[d] = (acc[d] ?? 0) + 1
       return acc
@@ -287,6 +304,38 @@ if (process.argv.includes('--self-test')) {
     {
       name: 'a non-legacy role with no matrix is caught',
       spec: { ...base, nonLegacyRoles: ['org_admin'] },
+    },
+    {
+      // The fixtureOnly flag going dead. Renaming the persona the flag keys on (while the
+      // deny class keeps naming the old value) is exactly how a flag stops matching without
+      // anything reding — so the arm renames it and expects the cross-check to fire.
+      name: 'a dead fixtureOnly flag is caught',
+      spec: {
+        ...base,
+        axes: {
+          ...base.axes,
+          persona: {
+            ...base.axes.persona,
+            values: Object.fromEntries(
+              Object.entries(base.axes.persona.values).map(([k, v]) =>
+                k === 'cross_org_actor' ? ['cross_org_actor_RENAMED', v] : [k, v],
+              ),
+            ),
+          },
+          scope: {
+            ...base.axes.scope,
+            values: Object.fromEntries(
+              Object.entries(base.axes.scope.values).map(([k, v]) =>
+                k === 'foreign_org_commission' ? ['foreign_org_commission_RENAMED', v] : [k, v],
+              ),
+            ),
+          },
+        },
+        denyClasses: {
+          ...base.denyClasses,
+          cross_org: { scope: ['foreign_org_commission_RENAMED'], persona: ['cross_org_actor_RENAMED'] },
+        },
+      },
     },
     {
       name: 'a subject role absent from the catalog is caught',
@@ -371,7 +420,7 @@ const rows = cells
     (c) =>
       `    (${q(c.id)}, ${q(c.persona)}, ${q(c.role)}, ${q(c.activeContext)}, ${q(c.scope)}, ` +
       `${q(c.operation)}, ${q(c.operationTier)}, ${q(c.principalState)}, ${q(c.resourceLifecycle)}, ` +
-      `${q(c.sensitivity)}, ${arr(c.denyClasses)}, ${c.fixtureOnly}, ${c.unfillable})`,
+      `${q(c.sensitivity)}, ${arr(c.denyClasses)}, ${c.fixtureOnly})`,
   )
   .join(',\n')
 
@@ -391,15 +440,19 @@ const body = `-- GENERATED FILE — DO NOT EDIT BY HAND.
 --
 --   enumerated: ${cov.executed}      skipped by constraint rule: ${cov.skipped}
 --   fixture-only cells (no seeded persona can fill them): ${cov.fixtureOnly}
---   unfillable pending AE2.0's offboarded ruling: ${cov.unfillable}
+--
+-- ⚠ THE FIXTURE-ONLY COUNT IS AN AE4.3 SIZING INPUT, NOT A FOOTNOTE. No seeded persona
+-- holds a membership or affiliation outside its home org — there is NO cross-org persona —
+-- so a cross-org test written against a seeded persona passes while proving nothing. Every
+-- cell above marked fixture-only needs a purpose-built actor, created and deleted BY
+-- IDENTITY (positional cleanup eats seed rows ~900 tests depend on).
 --
 -- Editing this file by hand REDS \`npm run lint:authz-vectors\`.
 create temp table authz_matrix_cells on commit drop as
   select * from (values
 ${rows}
   ) as t(cell_id, persona, role, active_context, scope, operation, operation_tier,
-         principal_state, resource_lifecycle, sensitivity, deny_classes,
-         fixture_only, unfillable);
+         principal_state, resource_lifecycle, sensitivity, deny_classes, fixture_only);
 
 -- The role list the axes file believes the catalog holds. pgTAP 401 §12 asserts this
 -- equals authz.roles — that is what keeps the generator's view of the catalog from

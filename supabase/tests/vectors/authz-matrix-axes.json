@@ -75,7 +75,7 @@
         "pending": "registered, not yet activated",
         "suspended": "profiles.suspended_until in the future",
         "deactivated": "profiles.is_active = false",
-        "offboarded": "no active affiliation — ⛔ NO APPROVED AUTHORITY RULE YET (AE2.0's PO decision). Carried so the gap is visible; cells stay unfilled."
+        "offboarded": "no active affiliation. ✅ RULED — AE2.0 was decided 2026-08-27: last-org retention, SUBSET capabilities (ADR 0163, amended by 0164 which constrains only its enforcement timing; AE2 is complete). ⛔ AN EARLIER DRAFT OF THIS FILE CALLED THESE CELLS UNFILLABLE 'pending AE2.0's ruling' — FALSE, and it read as diligence, so nobody would have re-checked it. For the staff_admin matrix the value is an ORDINARY FILLABLE COORDINATE: ADR 0163 governs who may ADMINISTER an offboarded person (lifecycle / cpf_change), which is not staff_admin's territory, and CLAUDE.md Rule 13 settles the rest — 0163 is not an exception, 'an ended row decides WHERE, never WHETHER'. A memberships row GRANTS; an affiliation only LOCATES. AE4.3 derives the expected value like any other cell."
       }
     },
 
@@ -124,6 +124,6 @@
     "lifecycle_requires_lifecycled_resource": "resourceLifecycle other than not_applicable is only reachable for operations acting on a lifecycled resource. ⚠ EMPTY IN INCREMENT 1 BY PROPERTY, NOT BY STUB: Axis 5's three tiers are today's vocabulary (role-at-scope predicates, _case_caps bits, administrativo capabilities) and none of them acts on a form version or a response, which are the families Axis 6b enumerates. AE4.3 populates the per-operation map when it derives the form/response permission codes, and the cell count grows THEN — attributable to that derivation instead of buried in an initial cross-product.",
     "deny_class_collapses_downstream_axes": "⭐ Once a caller is anonymous, deactivated, or acting on a foreign org's commission, the answer is DENY FOR THAT REASON, and enumerating the remaining axes underneath it produces N cells asserting the same thing for the same reason — the same test copied N times, inflating the coverage report into a number nobody can act on. ⛔ The collapse NEVER applies to the axis the deny is ON: an `inactive` deny still enumerates every principalState.",
     "operation_tier_excluded_for_role": "A subject role may have no operations in a whole tier. Declared as a spec-level `excludeOperationTiers` list; AE5 uses it per role.",
-    "offboarded_has_no_approved_rule": "AE0.5 Axis 6a — the fully-offboarded value BLOCKS on AE2.0's PO decision. Cells are enumerated and marked unfillable rather than silently dropped, so the gap stays visible."
+    "_retired__offboarded_has_no_approved_rule": "⛔ RETIRED 2026-09-01 — THIS RULE WAS NEVER TRUE. It claimed the fully-offboarded value blocked on AE2.0's PO decision, and marked 91 cells `unfillable` on that basis. AE2.0 was RULED 2026-08-27 (ADR 0163, last-org retention) — four days before this file was written. Nothing was pending. Kept as a retired key rather than deleted because an exclusion attributed to an unmade ruling READS AS CARE and is therefore the kind nobody re-checks; the 91 cells are now ordinary fillable cells that AE4.3 must approve expected results for. No `unfillable` flag is emitted any more."
   }
 }
