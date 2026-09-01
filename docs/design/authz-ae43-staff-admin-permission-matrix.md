@@ -61,6 +61,15 @@ file, decided the answer.** ⛔ Cite a TEST by name (`FF2V-1`) and let the range
 derivation that keys on a slice is only as true as the slice, and a too-narrow slice reads exactly
 like a real gap.
 
+⭐⭐ **WRITE DOORS GET NAMES; READ GATES GET PREDICATES — so a name-keyed derivation finds writes
+systematically and misses reads systematically.** Not bad luck twice: by construction. `dispose_case_phi`
+and `set_event_patient` are *named for what they do* and a name sweep finds them. `can_read_case_patient`
+and `can_read_event_patient` are *predicates* consumed by policies and bitmasks, and a coordinator often
+reaches them **transitively** (`can_read_case` → `has_case_capability` → `_case_caps`), so no function
+name contains the capability at all. Every read gap in this matrix — rows 35, 39, 41, 42 — has this
+shape, and every one was invisible bottom-up and immediate top-down. ⛔ **AE5's eleven matrices must
+enumerate READ PREDICATES as a population in their own right**, not expect a name sweep to surface them.
+
 ⚠ **Its sibling, from the same pass: AN INDEX IS A CLAIM ABOUT A POPULATION.** § 7's header
 promised "the residue" and would have been counted as six open gaps; adding a status index fixed
 the *count* but inherited the *boundary* — an open item was living outside § 7 entirely, in a
@@ -189,7 +198,7 @@ RLS, so a DEFINER door is the only control on its own path):
 
 ## 4. The matrix
 
-**40 rows** — 36 commission-scoped (1–29, 34–40) + 4 org-scoped (30–33, § 11). ⚠ **The PO approved this matrix at 33 rows (`e3297dad`). Rows 34–38 are OUTSIDE that approval**: row 34 came from the § 7.4 verification, rows 35–38 from the § 13 site reconciliation. **Seven rows of delta (34–40), for one PO pass** — 34 from the § 7.4 verification, 35–38 from § 13's bottom-up reconciliation, 39–40 from § 14's top-down one. ⚠ The org-scoped four were
+**42 rows** — 38 commission-scoped (1–29, 34–42) + 4 org-scoped (30–33, § 11). ⚠ **The PO approved this matrix at 33 rows (`e3297dad`). Rows 34–38 are OUTSIDE that approval**: row 34 came from the § 7.4 verification, rows 35–38 from the § 13 site reconciliation. **Nine rows of delta (34–42), for one PO pass** — 34 from the § 7.4 verification, 35–38 from § 13's bottom-up reconciliation, 39–40 from § 14's top-down one, 41–42 from § 15's read/write pairing pass. ⚠ The org-scoped four were
 **two** until § 12 re-derived row 30 into three codes; any figure quoting 31 rows, or "rows 30–31",
 predates that and is stale.
 
@@ -266,6 +275,8 @@ signal is UI text rather than a status or RPC error (§ 7.1).
 | **38** | `commission.dsr.execute` | audit | write | none | ⭐ **ADDED.** **R** `dsr_tasks.dsr_tasks_select` · **D** `attest_dsr_task`, `complete_dsr_task`, `list_my_dsr_hospitals`, `list_my_dsr_task_commissions`, `list_my_executable_dsr_tasks` — gate `app.can_execute_dsr_task`, feature-flagged `dsr` (LGPD data-subject requests) |
 | **39** | `commission.cases.phi.read` | **phi** | read | **phi** | ⭐ **ADDED 2026-09-01 by the § 14 top-down pass — Rule 12's THIRD module had no read row.** **D** `app._case_caps` coordinator branch — `if v_coord then` ORs in `read_standard_phi` — reached by `app.can_read_case_patient` → `has_case_capability(…, 'read_standard_phi')`. Module: `patient_identifiers` / `patient_participants`. ⚠ **standard tier only** — `read_restricted_phi` needs an explicit grant, and the domain cannot yet express that difference (§ 9's deferred ordering) |
 | **40** | `commission.indicators.manage` | commission_content | write | none | ⭐ **ADDED — split out of row 25.** CLAUDE.md § 1 lists *quality indicator* and *accreditation standard/evidence* as **separate** governance modules with separate flags (`quality_indicators` / `accreditation`) and separate tables; § 3's family classifier had folded them into one. **D** `create/update/archive_indicator`, `set_indicator_target`, `record_indicator_measurement`, `compute_derived_measurement`, `indicator_kpis` |
+| **41** | `commission.cases.read` | commission_content | read | none | ⭐ **ADDED by § 15's audited-read register pass.** **D** `app.can_read_case` → `has_case_capability` → `_case_caps` coordinator branch (`view_case_overview`, `read_case_deliberation`, `read_case_content`); **audited** as `case.opened`. Row 16 covered the WRITE only |
+| **42** | `commission.meetings.minutes.transcript.read` | commission_content | read | none | ⭐ **ADDED.** **D** `public.read_minutes_transcript`, gate `app.can_read_minutes_transcript` — `is_staff_admin_of_for(commission_of_meeting(j.meeting_id))` and `j.status = 'done'`; **audited** as `minutes_transcript.read`; flag `audio_minutes`. Row 11 covered meeting WRITES only |
 | **30** | `org.professionals.manage` | identity | **authority** | **class2_professional_identity** | ⚠ **ORG-SCOPED — § 11.** **D** `create/update/redact_professional_profile`, `set_professional_link_state`, **`ensure_professional_participant`**. Reach: **ADR 0078 §B7** ("any org `staff_admin`", the respondent twin's precondition, closed by the `HC0F2` linkage freeze) |
 | **31** | `org.participants.external.manage` | identity | write | none | ⚠ **ORG-SCOPED.** **D** `create_external_participant` — writes `public.participants` with `sensitivity_class` hardcoded `non_sensitive`; **structurally bounded** (§ 12.2) |
 | **32** | `org.case_vocabulary.manage` | vocabulary | write | none | ⚠ **ORG-SCOPED.** **D** `create/archive_ethics_allegation_category`, `create/archive_ethics_sanction_type`, `create/archive_case_assignment_role` |
@@ -1122,3 +1133,69 @@ chain, the case PHI read, indicators — was invisible to a name-keyed sweep and
 against a declared population. **AE5 should run § 14 FIRST and § 13 second**, because the top-down
 pass is cheap, is answerable from documents that already exist, and bounds what the expensive sweep
 then has to confirm.
+
+---
+
+## 15. Read/write pairing — and a FIFTH declared population
+
+Scoped narrowly to the § 0 pattern: **for every write row, is there a read row or a stated reason
+there is none?** Two confirmed instances existed where the write was rowed and the read was not;
+the question was whether that asymmetry is confined to PHI. **It is not.**
+
+⛔ **A row created to make a pairing symmetric would be worse than a stated asymmetry** — it asserts
+a permission the system does not have, the failure § 11.1 option C and § 12 both closed. Every fold
+below is justified by a mechanism, not by tidiness.
+
+### 15.1 Read-shaped predicates consulting `staff_admin` — 8, all dispositioned
+
+| predicate | disposition |
+| --- | --- |
+| `can_read_signoff` | row 6 ✅ already paired with row 7 |
+| `can_read_event_patient` | row 35 ✅ |
+| `can_read_referral_phi` | row 27 ✅ |
+| `can_read_action_item` | **folded into row 22** — gates 5 child-table SELECT policies of the *same* resource (`action_item_assignments/status_history/reminders/updates/checklists`); one family, one door set |
+| `can_read_document_hold` | **folded into row 23** — `document_legal_holds_select` is the documents family's read side. ⚠ Note the converse asymmetry: `place_document_hold` / `release_document_hold` are **not** `staff_admin`-gated, so this is a read *without* a matching write, which is correct and deliberate |
+| `can_view_printed_document` | **folded into rows 23/24** — printed documents are the documents family's read/verify side |
+| `can_read_full_case_content` | **not an independent surface** — its only consumer is `app.can_view_printed_document` |
+| `can_read_minutes_transcript` | ⛔ **UNCOVERED → row 42** |
+
+### 15.2 ⭐ The fifth population: `app._audit_access_authorized` — the audited-sensitive-read register
+
+**A closed list, authored by someone else, that § 14 did not use.** It is the register of reads the
+platform considers sensitive enough to audit, and it is *exactly* the class the § 0 pattern predicts
+a name-keyed sweep will miss. Ten predicates:
+
+| predicate | `staff_admin` reach | row |
+| --- | --- | --- |
+| `can_read_case_patient` | via `_case_caps` coordinator branch | 39 ✅ |
+| `can_read_event_patient` | direct | 35 ✅ |
+| `can_read_referral_phi` | direct | 27 ✅ |
+| `can_read_professional_profile` | via `can_manage_professional` | 33 ✅ |
+| `can_read_case` | **transitive** — `has_case_capability` → `_case_caps` | ⛔ **UNCOVERED → row 41** |
+| `can_read_minutes_transcript` | direct | ⛔ **UNCOVERED → row 42** |
+| `can_read_capa` | ❌ no `staff_admin` arm — reaches it as `is_member_of_for` | ✅ member baseline, no row |
+| `can_read_event` | ❌ no `staff_admin` arm — `is_member_of_for` / `is_pqs_operator_of_for` | ✅ member baseline, no row |
+| `can_read_referral` | ❌ no `staff_admin` arm — `can_read_referral_metadata` | ✅ member baseline, no row |
+| `can_read_referral_internal_notes` | ❌ no `staff_admin` arm — `is_active` + `is_member_of_for` | ✅ member baseline, no row (the *write* side, `can_edit`/`can_manage_referral_internal_note`, **is** `staff_admin` and is row 26) |
+
+**Four legitimate absences, all one mechanism: the coordinator reaches them as a MEMBER, not as a
+coordinator.** That is the same reason row 33 needs no sibling (§ 12.5) — a member-level baseline is
+not a `staff_admin` grant, and rowing it would over-grant.
+
+### 15.3 ⚠ What the register says about `sensitivity_ceiling`, feeding § 9's deferred half
+
+Rows 41 and 42 carry `sensitivity_ceiling = none` — correctly, since neither is a Rule 12 module nor
+Class-2 professional identity. **But both are in the audited-sensitive-read register.** So the
+platform already distinguishes a sensitivity the domain's three values cannot express: *audited
+because sensitive, yet neither PHI nor professional identity*.
+
+⛔ This is **not** an argument to widen the domain now — that is § 9's deferred ordering question, and
+widening it here would answer it by accident. It is recorded as a **subject** for that decision: when
+AE5 rules the ladder, `_audit_access_authorized`'s register is the closed population it should be
+ruled against, not a fresh enumeration.
+
+### 15.4 Result
+
+**Two further rows: 41 and 42.** Both are reads; both were invisible to every name-keyed plane; one
+is reached only transitively through a bitmask. ⭐ **Every read gap this matrix has had — 35, 39, 41,
+42 — has the § 0 shape**, which is now stated there as a method rule rather than as four war stories.
