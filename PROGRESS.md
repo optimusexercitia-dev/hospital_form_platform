@@ -152,6 +152,24 @@ variants at least carry `NOT app.is_case_excluded(…)`; the writer pair carries
 ⛔ This is a **distinct property from the `kind` gate** — fixing `kind` alone leaves it standing, so
 the eventual fix owes **two** keystones, not one.
 
+🔴 **BUG-PROF-INACTIVE-001 — a DEACTIVATED or SUSPENDED principal keeps Class-2
+professional-identity authority across the WHOLE organization.** Found by AE4.5's differential
+oracle on its first real run (pgTAP 403 § 4.1). ⛔ **Mechanism:** `app.is_staff_admin_of_for` is
+`app.is_active(uid) AND app.has_role(...)`; `app.has_role` does **not** itself check `is_active`;
+and `app.can_manage_professional` calls `app.has_role` **directly**, so the gate is bypassed.
+Measured in a rolled-back transaction: deactivated → `is_staff_admin_of_for = false` but
+`can_manage_professional = **TRUE**`; suspended → the same.
+⚠ **Blast radius:** the **13** doors gating on it — `create/update/redact_professional_profile`
+(CPF, licence number, specialty), `set_professional_link_state`, the ethics + case-assignment
+vocabularies, `create_external_participant` — and **13 of 13 hold `authenticated` EXECUTE**. The
+app-layer sign-out is **not** a defence: JWTs are bearer tokens and deactivation does not revoke
+them, which is why Rule 1 puts the boundary in the DB. The window is the JWT lifetime.
+✅ **A singleton, measured not assumed:** sweeping `app` + `public` for functions calling
+`has_role` without `is_active` returns exactly one name. `is_org_admin_of` gates correctly.
+⚠ **PREDATES AE4 and is not caused by it** — AE4.5 is what made it visible, because the resolver
+answers correctly and the oracle's second assertion made the disagreement actionable rather than
+authoritative (PA-F8). **Owner:** backend.
+
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
 Closed rows, their closure narratives, and the 2026-08-19 record of where this section's old
@@ -263,6 +281,13 @@ _**ONE-LINE INDEX ONLY** (severity · id · title · owner). Full bodies of OPEN
 
 ⭐ **FOUR items also carry a [§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list) entry** — `FUP-DM5-DISPOSAL-JOB` (C1), `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2), and — **promoted by the PO 2026-08-19** — `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` (C3) + `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` (C4). Their lines below stay put; the Critical entry adds a **trigger and a deadline**, it does not replace the index line.
 
+- 🟠 **FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM** — `app.can_manage_professional(p_org, p_uid)`'s
+  first arm is `app.is_admin()`, which takes NO argument and reads `auth.uid()` — so a predicate
+  parameterised on a third party answers about the CALLER. **12 of 13 callers pass `auth.uid()`**
+  (invisible there); **exactly one passes a third party** — `can_read_professional_profile ::
+  can_manage_professional(v_org, p_uid)`. ⭐ §6A's self/third-party asymmetry, in LEGACY. ⛔ Not
+  fixed with BUG-PROF-INACTIVE-001: folding it in would make the security fix unattributable, and
+  it needs its own reachability analysis · backend
 - 🟡 **FUP-SEED-PENDING-PERSONA-CANNOT-REACH-ITS-LAYER** — `novato.pendente` is unset only in the
   MIRRORED `profiles.email_confirmed_at`; its `auth.users` row is CONFIRMED (measured: **1 of 36**
   profiles diverge, 0 the other way). A test asserting "a pending user cannot sign in" would fail
