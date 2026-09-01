@@ -5,7 +5,7 @@ adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0079, 0106]
 base_sha: 0412bef7e59476635ddb024c63fdce182a7a6466
 created: 2026-09-01
 updated: 2026-09-01
-status: live   # AE4.7a/b/c all landed (test:db GREEN); AE4.8 + the PO batch are next
+status: live   # AE4.7a/b/c landed (test:db GREEN); AE4.8 + PO batch next
 ---
 
 # Handoff — AE4, paused after AE4.7c
@@ -24,23 +24,21 @@ status: live   # AE4.7a/b/c all landed (test:db GREEN); AE4.8 + the PO batch are
 
 ⚠ **Two documents carry what this file deliberately does not** — read them for the *why*
 behind any figure below rather than re-deriving it:
-- [`docs/progress/authz-ae4.md`](../progress/authz-ae4.md) — the **increment record**: AE4.7a
-  (evidence repair), AE4.7b (the `holds_role` chokepoint), AE4.7c (the gate split), each with
-  its own gate table and its own "what this did NOT do".
-- [`docs/reviews/authz-ae4-review.md`](../reviews/authz-ae4-review.md) — the **mid-phase QA
-  review** whose ranked findings F1–F9 drove all three.
+- [`authz-ae4.md`](../progress/authz-ae4.md) — the **increment record**: AE4.7a (evidence
+  repair), AE4.7b (the `holds_role` chokepoint), AE4.7c (the gate split), each with its own
+  gate table and its own "what this did NOT do".
+- [`authz-ae4-review.md`](../reviews/authz-ae4-review.md) — the **mid-phase QA review** whose
+  ranked findings F1–F9 drove all three.
 
-⛔ Nothing may cite this file: it is ephemeral and dies with the branch. If something here
-becomes worth citing, promote it to one of those and leave a pointer.
+⛔ Nothing may cite this file — promote it to one of those two instead, and leave a pointer.
 
 ## Trust
 
 **Mixed, and the mix matters.** The AE4.1–AE4.6 half was written **cold at session end** — the
 least reliable mode. The AE4.7a/b/c half was written **incrementally**, and § State was
-**re-measured wholesale at `43684b16` on 2026-09-01** rather than carried forward.
-
-**VERIFIED** = a command shown in the row produced it, at the SHA named. **BELIEVED** =
-asserted, not re-measured; each says what would settle it. **UNKNOWN** = named explicitly.
+**re-measured wholesale at `43684b16` on 2026-09-01** rather than carried forward. A later pass
+at **`b37a2a5b`** re-confirmed five load-bearing catalog rows and corrected § Tree and § Next
+task, which had gone false in the four commits between.
 
 ⛔ **EIGHT ROWS OF THE OLD VERIFIED TABLE HAD GONE FALSE** by AE4.7c — the catalog grew, the
 wrappers stopped naming the adapter, a PUBLIC grant was revoked, and a 13-door gate became
@@ -48,9 +46,8 @@ four. They are corrected in place and marked **⚠ changed**, because an uncorre
 re-teaches its error to the next reader. ⚠ Every one of them had been true when written, and
 every one still read as careful.
 
-**Ten premises were measured false during this phase**, six of them the lead's own — four in
-AE4.1–AE4.6, four more in AE4.7b/c (§ Dead ends carries the latter with their mechanisms).
-Treat BELIEVED rows accordingly.
+**Ten premises were measured false during this phase**, six of them the lead's own; § Dead ends
+carries the AE4.7b/c ones with their mechanisms. Treat BELIEVED rows accordingly.
 
 ## Goal and scope boundary
 
@@ -73,6 +70,11 @@ AE4 makes the `authz` catalog exist, migration-managed, with **exactly one role 
 ⛔ **RE-MEASURED 2026-09-01 AT `43684b16`, ON A FRESH `supabase db reset --local`** (§ Trust
 for what that replaced). Each row carries the query that produced it; ⚠ rows marked **changed**
 are where a successor trusting the previous table would have been wrong.
+
+⭐ **Spot-checked again at `b37a2a5b`** — rows 1, 4, 5, 6 and the wrapper/chokepoint rows all
+re-returned the same values. ⚠ **That check ran against the local stack as it stood (container
+up 36 min), NOT a verified-fresh reset** — it is a consistency check, not a re-issue of the
+fresh-reset witness. The other rows were not re-asked.
 
 | What | Witness | When |
 | --- | --- | --- |
@@ -106,8 +108,7 @@ are where a successor trusting the previous table would have been wrong.
 
 ### Not started
 
-**AE4.8** only. See § Next task. AE4.7a/b/c are complete — measurements in the increment
-record ([`docs/progress/authz-ae4.md`](../progress/authz-ae4.md)).
+**AE4.8** only — § Next task. AE4.7a/b/c are complete, measured in the increment record.
 ⛔ **`docs/backend-state.md` has NO `authz` section yet** — deliberate: the surface map is a
 Record-step artifact and AE4 merges once, at Gate AE4. Owed there, not here.
 
@@ -115,11 +116,17 @@ Record-step artifact and AE4 merges once, at Gate AE4. Owed there, not here.
 
 ⚠ **`base_sha` in the frontmatter (`0412bef7`) is the sha this handoff was FIRST written
 against and is deliberately unchanged** — it is what a successor diffs from to see the whole
-phase. The tree it now describes is **`43684b16`**.
+phase. The tree it now describes is **`b37a2a5b`** (⚠ changed: `43684b16`).
 
-**58 commits ahead of `main`**, working tree **clean** except two pre-existing untracked items
-that predate this branch and are not this work's: `docs/learning/`,
+**62 commits ahead of `main`** (⚠ changed: 58), working tree **clean** except two pre-existing
+untracked items that predate this branch and are not this work's: `docs/learning/`,
 `scripts/progress-cleanup-2026-08-26.mjs`.
+
+⭐ **`43684b16..b37a2a5b` is DOCS-ONLY** — `git diff --name-only` over it returns nothing outside
+`docs/` and `PROGRESS.md`. That is *why* the VERIFIED table's DB rows survived a tree move: no
+migration, no suite, no `src/` file changed. The TREE rows did not survive it — the commit count
+and PROGRESS.md's size both moved. ⛔ Docs-only is a reason to re-check the FILE claims, not a
+reason to skip them.
 
 ⛔ **Nothing merged, nothing pushed.** PO ruled the whole phase merges once, at Gate AE4.
 The schema-first push rule (`.claude/rules/push-schema-before-code.md`) is **armed but
@@ -145,9 +152,8 @@ At **`43684b16`**, on a fresh `supabase db reset --local`:
 | **`ARM=catalog`** (AE4.7b) — 1 non-legacy role, both artifacts | HOLDS | 0 |
 | **`ARM=sites`** (AE4.7b) — 14 sites: 2 wrapper-family + 12 allowlisted | HOLDS | 0 |
 
-⭐ **The two orphaned twins (315 t14, 319 t5) are CLOSED.** They were the phase's open
-dependency from AE4.6 to AE4.7b; `test:db` has no expected-red baseline any more, so a red is
-drift.
+⭐ **The two orphaned twins (315 t14, 319 t5) are CLOSED** — the phase's open dependency from
+AE4.6 to AE4.7b (consequence in ▶ RESUME HERE step 3).
 
 **Diff-scoped sweeps**, most recent run (AE4.7c, both arms, exit codes read DIRECTLY):
 read arm **6/6 predicates COVERED**, write arm **4/4 guards COVERED** — 0 BLIND, 0 ERROR after
@@ -248,19 +254,17 @@ caught by a red, and each looked correct while being written.
 | --- | --- |
 | `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` — `is_admin()` / `is_org_admin_of()` are self-checks (they read `auth.uid()`) inside a `p_uid`-parameterised function. ⚠ **RE-DERIVED at `43684b16`; AE4.7c SHARPENED it rather than moving it** — with the ascent gone, `can_manage_professional`'s `p_uid` is a **null guard and nothing else**. Callers: `can_manage_professional` **6** (3 `app` gates that FORWARD their own `p_uid`, 3 `public` doors passing `auth.uid()`); `can_create_professional` **4** (3 passing `auth.uid()`, and `app.can_read_professional_profile` passing `p_uid`). The single reachable third-party chain is unchanged in kind and one hop longer: `can_read_professional_profile(p_uid)` → `can_create_professional` → `can_manage_professional`, where the org-authority arms answer about the CALLER. pgTAP 406 § 2 demonstrates it, having first measured FALSE by assuming otherwise. | PO |
 | `FUP-SEED-PENDING-PERSONA-CANNOT-REACH-ITS-LAYER` — `novato.pendente` is the **only** account whose `profiles.email_confirmed_at` and `auth.users.email_confirmed_at` disagree, so it authenticates and cannot exercise the layer it models. ⛔ Do not fix `seed.sql` opportunistically. | PO |
-| ⚠ **PROGRESS.md — ROTATED 2026-09-01 before AE4.8, 98 KB → 87 KB** (hard-cap headroom 4.4 → 15.3 KB); AE4.8 now fits. ⛔ **The 82 KB TARGET IS STILL NOT MET AND IS NOT REACHABLE BY ROTATION** — every sanctioned category is empty and the OPEN follow-up index alone is **122 lines, ~43 KB of ~86 KB (~50%)**, which the contract forbids rotating. ⛔ Do not respond by trimming qualifiers off open entries. The remaining options are a PO decision — raise the target, or give the register its own file with a one-line pointer — filed as `FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT`. ⚠ The AE3 § Now bullet still **cannot rotate wholesale**: it is the only witness to two operator obligations. | PO |
-| ⛔ **MEASURED, NOT UNKNOWN — and NOT green as-run.** The QA review ran `e2e:prod` at `6da8a772`: no reproducible cutover regression, but batches **b2** and **b9** owe re-runs before any green declaration. ⚠ This row said *"UNKNOWN … not run since Increment 1"* until 2026-09-01; the review had already settled the first half. AE4.7a/b/c touched no application code beyond one TypeScript doc comment, so none of them can have moved it — **AE4.8 is the first increment that will**. Detail: [`docs/reviews/authz-ae4-review.md`](../reviews/authz-ae4-review.md). | run it, at AE4.8 |
+| ⛔ **PROGRESS.md — the 81,920 B TARGET IS NOT MET AND NOT REACHABLE BY ROTATION** (the rotation itself is recorded in § Next task) — every sanctioned category is empty and the OPEN follow-up index alone is **122 lines, ~43 KB of ~86 KB (~50%)**, which the contract forbids rotating. ⛔ Do not respond by trimming qualifiers off open entries. The remaining options are a PO decision — raise the target, or give the register its own file with a one-line pointer — filed as `FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT`. ⚠ The AE3 § Now bullet still **cannot rotate wholesale**: it is the only witness to two operator obligations. | PO |
+| ⛔ **MEASURED, NOT UNKNOWN — and NOT green as-run.** The QA review ran `e2e:prod` at `6da8a772`: no reproducible cutover regression, but batches **b2** and **b9** owe re-runs before any green declaration. ⚠ This row said *"UNKNOWN … not run since Increment 1"* until 2026-09-01; the review had already settled the first half. AE4.7a/b/c touched no application code beyond one TypeScript doc comment, so none of them can have moved it. Detail: [`docs/reviews/authz-ae4-review.md`](../reviews/authz-ae4-review.md). | run it, at AE4.8 |
 | **UNKNOWN:** whether the 25 unreachable rewrite migrations' doors hold periodic-sweep verdicts. The 8 measurable ones gave 16 COVERED / 10 ERROR / **0 BLIND** / 29 absent — and every absent one is outside `PRED_DOMAIN` by shape, converging on the **known C2 population**, not a new one. | a historical-snapshot audit, if ever authorised |
 
 ## Next task — AE4.8
 
-⛔ **AE4.7a, AE4.7b AND AE4.7c are ALL DONE.** Every item of the QA review's § "Recommended
-order" steps 1–3 is discharged, each recorded with what it MEASURED rather than what it
-intended — in the **increment record**, not here:
-[`docs/progress/authz-ae4.md`](../progress/authz-ae4.md).
+⛔ **AE4.7a, AE4.7b AND AE4.7c are ALL DONE** — the QA review's § "Recommended order" steps 1–3
+are discharged, each recorded in the increment record with what it MEASURED, not what it intended.
 
-**First command:** `supabase db reset --local && npm run test:db` — expect **GREEN, 254f/8498**.
-A red is drift; there is no expected-red baseline on this branch.
+**First command:** `supabase db reset --local && npm run test:db` — expect **GREEN, 254f/8498**;
+a red is drift (▶ RESUME HERE step 3).
 
 **AE4.8 — the app-side seam collapse** (frontend, parallel track under file ownership; plan
 [§ AE4.8](../plans/authz-evolution.md)). Mechanical and behaviour-preserving:
@@ -277,9 +281,11 @@ A red is drift; there is no expected-red baseline on this branch.
 ⚠ **AE4.8 is the first AE4 increment that touches `src/` for real**, so it is the first that
 owes `e2e:prod` — and the gate already owed a b2 + b9 re-run from before AE4.7a.
 
-⛔ **BEFORE STARTING, ROTATE PROGRESS.md.** It is **98 KB against an 82 KB target, 4.4 KB from
-the hard cap**. AE4.8 will not fit, and compressing under cap pressure cuts qualifiers first —
-which is how a measured bound turns into a bare claim.
+⚠ **THE PRE-AE4.8 ROTATION IS DONE — this block ordered it until `b37a2a5b`, and a successor
+obeying it would have re-run a completed step.** Measured at `b37a2a5b`: PROGRESS.md is
+**87,062 B** (rotated 98 KB → 87 KB at `bc9242c1`), so AE4.8 fits under the hard cap. ⛔ It is
+still ~5 KB over the **81,920 B target** and that gap is **not closable by rotation** (§ Open
+questions) — ⛔ do not open AE4.8 by trimming qualifiers off open follow-ups.
 
 Then the **PO batch**, then Gate AE4: full §6 + `e2e:prod` to an actual green + QA review + PO
 approval.
