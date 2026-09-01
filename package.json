@@ -40,7 +40,7 @@
     "storage:walk": "node scripts/storage-manifest.mjs walk",
     "storage:selftest": "node scripts/storage-manifest.mjs selftest",
     "storage:rehearse": "node scripts/storage-manifest.mjs rehearse",
-    "lint:authz-vectors": "node scripts/gen-authz-matrix-cells.mjs --check"
+    "lint:authz-vectors": "node scripts/gen-authz-matrix-cells.mjs --check && python scripts/gen-authz-differential-cells.py --check"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

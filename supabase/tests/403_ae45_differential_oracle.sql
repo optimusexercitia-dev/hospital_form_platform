@@ -21,14 +21,40 @@
 --     UUID id-space, not by any org term in the resolver. ⛔ This must never read as
 --     "the resolver enforces tenant isolation".
 --
+-- ⚠ THREE MORE LIMITATIONS, MEASURED 2026-09-01. Each is a place where the CELL COUNT overstates
+-- what was measured, and all three read as coverage in a gate record if not stated:
+--   * `657 cells` is 438 DISTINCT DRIVER-OBSERVABLE COORDINATES. The driver's answer depends on
+--     (persona, context, scope, RESOLUTION-SCOPE-KIND, state, self_check) — not on the permission
+--     code — and TWO of the three representatives are org-scoped, so 219 of the cells re-run a
+--     coordinate an earlier rep already measured. That re-run is not worthless (it shows the two
+--     org-scoped codes agree) but it is not 657 independent measurements, and citing 657 as the
+--     measurement count is the inflation the axes file itself warns against.
+--   * THE 9 `deny-class:unauthenticated` CELLS DO NOT RUN UNAUTHENTICATED. The driver maps the
+--     `anonymous` persona to f.nobody, the same AUTHENTICATED principal as `unprivileged`, so
+--     those 9 cells prove exactly what `matrix-row:not-a-holder` proves and NOTHING about
+--     anonymity. ⛔ Nor is the honest version constructible on this axis: an `anon` caller cannot
+--     reach `authz.has_direct_permission` at all — no application role holds USAGE on `authz`
+--     (401 §18.1) — so it would ERROR rather than deny, and there is no differential to take.
+--     ⭐ The APPROVED deny-class table ALREADY SAYS SO — row 8's own note records that an
+--     anonymous caller cannot invoke the resolver at all. The table was right; the generator
+--     emitted cells for the row anyway, and the LABEL is what reads as coverage. Re-labelling an
+--     approved deny class is approval surface: routed to the PO, not renamed here.
+--   * 108 CELLS LABELLED `third_party` HAVE CALLER == PRINCIPAL. The driver deliberately uses
+--     f.nobody as the third-party caller (see its comment — using f.uid made the subject_holder
+--     cells self-checks in disguise), but `unprivileged`'s principal IS f.nobody, so for that
+--     persona the same substitution recreates the very defect it was written to avoid. Those 108
+--     cells are self-checks wearing a third-party label. They are not WRONG — a non-holder is
+--     denied either way — but they do not exercise the §6A asymmetry, and the asymmetry's real
+--     evidence is the 26 `wrong_active_context:third-party` cells, not the 108.
+--
 -- ⚠ PER-PERMISSION GRAIN: the axis sweep runs one representative per legacy-equivalence class
 -- (three; pgTAP 401 §19.2 asserts the partition). Per-permission GRANT is covered by 401 §19.4's
 -- 42 cheap probes. Per-permission AXES are not observable until AE5 gives a role a partial map.
 --
--- RUN SHAPE: `Files=2, Tests=12` (11 here + 00_setup.sql's one).
+-- RUN SHAPE: `Files=2, Tests=19` (18 here + 00_setup.sql's one).
 
 begin;
-select plan(15);
+select plan(18);
 
 \ir vectors/authz_differential_cells.psql
 
@@ -202,6 +228,12 @@ select c.*, a.legacy, a.catalog
 
 select test_helpers.reset_role_and_claims();
 
+select is((select count(*)::int from r403), (select count(*)::int from authz_differential_cells),
+  '3.0 ⭐ EVERY CELL PRODUCED A ROW. r403 is a `cross join lateral` over the vector table, so a '
+  'driver returning ZERO rows for some cell silently DROPS it — §§4-5 then compare a subset and '
+  'report green over cells that never ran. §2.1 counts the vector table and §3.1 catches a NULL '
+  'answer; neither can see a cell that produced no row at all.');
+
 select is((select count(*)::int from r403 where legacy is null or catalog is null), 0,
   '3.1 the driver returned an answer for EVERY cell — a NULL would fall out of the comparisons '
   'below and read as agreement.');
@@ -267,9 +299,6 @@ select is(
   'reds, the adapter has started applying the active-role filter uniformly, which breaks all 27 '
   '`_for` call sites while looking like a tightening.');
 
--- ⛔ Cleanup BY IDENTITY, never positionally.
-delete from public.memberships where principal_id in
-  (select sib_holder from f403 union all select xorg_holder from f403);
 -- ============================================================================
 -- §6 — THE SUITE SHOWN ABLE TO FAIL. Two constructed mutations, each restored.
 --
@@ -288,6 +317,21 @@ language sql volatile as $x$
                                             c.principal_state, c.self_check) a
    where a.catalog is distinct from c.expected_granted;
 $x$;
+
+-- ⛔⛔ THE BASELINE, AND §6 IS WORTHLESS WITHOUT IT. `cmp_ok(disagreements(), '>', 0)` is a
+-- fail-proof only if the count is ZERO first — otherwise it passes with its mutation DELETED.
+-- That is not hypothetical: this suite shipped with the fixture-membership cleanup sitting HERE,
+-- above §6, so `sib_holder`/`xorg_holder` already disagreed on every expected-granted cell and
+-- BOTH fail-proofs below passed on 48 pre-existing disagreements rather than on their own
+-- mutations (QA 2026-09-01, F1 — measured with exactly this assertion, which returned 48). The
+-- cleanup now runs last, beside the deactivation, for the same reason the comment down there
+-- gives for that one. ⛔ Never move a cleanup above a fail-proof: a fail-proof that fires for a
+-- reason other than the one it names is not a fail-proof, and it is SILENT about the difference.
+select cmp_ok(pg_temp.disagreements(), '=', 0,
+  '6.0 ⭐⭐ BASELINE FOR BOTH FAIL-PROOFS — the oracle agrees on EVERY cell before any deliberate '
+  'mutation. This is the half that makes 6.1 and 6.3 differentials; without it each is an '
+  'assertion that some disagreement exists somewhere, which the fixture teardown alone can '
+  'satisfy.');
 
 delete from authz.role_permissions
  where role_code = 'staff_admin' and permission_code = 'commission.forms.edit';
@@ -311,6 +355,15 @@ select ok(
   '657 cells: §3.3 already establishes the driver is deterministic, so a whole-sweep restoration '
   'comparison adds no information about the RESTORE while folding in every unrelated cell. '
   'Measured independently outside the suite: delete -> false, re-insert -> true.');
+
+-- ⛔ 6.3's OWN baseline. §6.0 established zero BEFORE 6.1's mutation; 6.2 proves the mutated
+-- permission resolves TRUE again at ONE coordinate, deliberately (see its message). Neither
+-- shows the sweep is back to zero, and a restore that left ANY residual disagreement would make
+-- 6.3 below pass without its neutralisation doing anything — the same vacuity as F1, one
+-- mutation later. This is the only place the whole-sweep cost buys information 6.2 cannot.
+select cmp_ok(pg_temp.disagreements(), '=', 0,
+  '6.2b ⭐ THE RESTORE IS COMPLETE ACROSS THE WHOLE SWEEP — re-inserting the grant returned the '
+  'oracle to zero disagreements, so 6.3 below starts from the same baseline 6.1 did.');
 
 -- ⭐ FAIL-PROOF 2 — neutralise the RESOLVER'S SCOPE CHECK. This is AE4.7's requirement
 -- ("neutralize the resolver's scope check -> the staff_admin keystones red") exercised EARLY,
@@ -349,6 +402,12 @@ select cmp_ok(pg_temp.disagreements(), '>', 0,
 -- guard_profile_privileged_columns refuses the write ("only an admin may change
 -- is_admin/is_active"). Same lesson as the driver's per-cell reset, one layer out.
 select test_helpers.reset_role_and_claims();
+-- ⛔ BY IDENTITY, never positionally — a positional cleanup eats seed rows ~900 tests depend on.
+-- ⚠ This ran ABOVE §6 until 2026-09-01 and that placement was what made both fail-proofs vacuous
+-- (F1). It has no reason to run early: nothing between §1 and here asserts these memberships are
+-- gone, and everything in §§4-6 assumes they are PRESENT.
+delete from public.memberships where principal_id in
+  (select sib_holder from f403 union all select xorg_holder from f403);
 update public.profiles set is_active = false
  where id in (select sib_holder from f403 union all select xorg_holder from f403
               union all select nobody from f403);
