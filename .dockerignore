@@ -15,6 +15,14 @@ worktrees
 # Lint/codegen/gate tooling; `npm run build` is plain `next build` and there are
 # no npm lifecycle hooks, so none of it runs during the image build.
 scripts
+# ⛔ "None of it RUNS" is true and does NOT cover TYPE-CHECKING. `next build` runs
+# tsc over src/**, test files included, and src/lib/matcher-vacuity-truth-table.test.ts
+# type-imports this fixture across the boundary. An absent file is not an error; an
+# unresolvable import FROM a present file is -- which is why the break is invisible
+# locally (scripts/ exists) and fails only inside the build context. Broke the AE3
+# cutover deploy 2026-09-01. Re-add a negation here for any future src/ -> scripts/
+# import, or move the fixture under src/.
+!scripts/absent-subject-matchers.json
 playwright-report
 test-results
 test
