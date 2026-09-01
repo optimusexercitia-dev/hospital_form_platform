@@ -70,6 +70,17 @@ name contains the capability at all. Every read gap in this matrix — rows 35, 
 shape, and every one was invisible bottom-up and immediate top-down. ⛔ **AE5's eleven matrices must
 enumerate READ PREDICATES as a population in their own right**, not expect a name sweep to surface them.
 
+⭐⭐ **KEEP A VERIFICATION INSTRUCTION INDEPENDENT OF THE REASONING THAT MOTIVATES IT.** A "check
+X anyway" survives its own justification being wrong; a check derived FROM the justification dies
+with it. Measured (AE4.6, 2026-09-01): the delegation ruling asserted that delegating to
+`authz.assignment_facts` would inherit **all four** of `app.has_role`'s gates. It carries **three** —
+the active-role filter lives in `has_direct_permission`, not the adapter — so building on the claim
+would have dropped the hat gate for the 151 self-check sites, the exact defect § 6A exists to
+prevent, introduced by the ruling meant to avoid it. ⭐ What caught it was the one clause attached to
+that same ruling: *"inheriting a property is not evidence you inherited it — assert both polarities
+at the wrapper level anyway."* The instruction held while the claim it was attached to did not.
+⛔ So: never let a verification step be conditional on the argument for why it should pass.
+
 ⭐⭐ **EACH ARM OF A MULTI-ARM DETECTOR MUST BE SHOWN TO FIRE ON ITS OWN MESSAGE.** An arm that
 reds because *something* broke when you removed its subject is not proven — another arm may be
 catching it. Measured (AE4.5, 2026-09-01): the differential generator's "a declared representative
