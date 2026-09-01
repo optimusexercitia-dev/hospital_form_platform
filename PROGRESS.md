@@ -142,25 +142,6 @@ variants at least carry `NOT app.is_case_excluded(…)`; the writer pair carries
 ⛔ This is a **distinct property from the `kind` gate** — fixing `kind` alone leaves it standing, so
 the eventual fix owes **two** keystones, not one.
 
-🔴 **BUG-NOTIF-EXPIRY-001 — four notification bodies resolve `staff_admin` holders WITHOUT the
-seat-expiry term, so a LAPSED coordinator keeps receiving governance CONTENT.** Found by the AE4.3
-matrix derivation (matrix § 1.2), dispositioned **(a)** — fix in a preceding, independently gated
-increment before AE4.6 (§ 10 D2). `app.has_role` carries `expires_at is null or expires_at > now()`
-for every AUTHORIZATION path; these four query `public.memberships` directly and inherit none of it:
-`app.compute_due_charter_notifications`, `app.compute_due_document_review_notifications`,
-`public.compute_due_notifications`, `public.save_section_answers` (the last is INVOKER; the other
-three DEFINER — the defect is in the QUERY, not the privilege model).
-⚠ **CONTENT, not a ping — measured verbatim, not inferred from the function names:** the payloads
-carry *"A comissão {name} está com a cadência de reuniões em atraso"* and the controlled document's
-**code + title**. ✅ **No PHI, and no Rule 12 consideration** — nothing here touches `event_patient`
-/ `referral_patient` / `patient_identifiers`; recorded so the question is not re-opened.
-⛔ **NOT in scope, so the analysis is not repeated:** `public.list_approver_candidates` reads
-`staff_admin` only to derive the display label *"Coordenador(a)"* (its door gate is already
-`app.is_staff_admin_of`), and `app.revoke_role_impl` uses it as a **scope dispatch**, not a holder
-resolution. Neither is a defect. ⚠ It cannot simply be left: AE4.4b's adapter implements the
-**correct** semantics, so at cutover the catalog would be right where these four are wrong, and
-AE4.5's differential would surface legacy defects dressed as resolver errors. **Owner:** backend.
-
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
 Closed rows, their closure narratives, and the 2026-08-19 record of where this section's old

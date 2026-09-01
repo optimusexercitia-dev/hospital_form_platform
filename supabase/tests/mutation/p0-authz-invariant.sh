@@ -199,6 +199,39 @@ DEGENERATE_PREDICATE="( p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
      or p.prosrc ~ '^\s*select\s+(true|false)\s*;?\s*\$'
      or p.prosrc ~ '^\s*begin\s+return\s*;\s*end' )"
 
+# ──────────────────────────────────────────────────────────────────────────
+# ⛔ THE `authz` SCHEMA IS OUT OF THIS HARNESS'S DOMAIN, BY NAMESPACE. READ THIS
+# BEFORE ASSUMING OTHERWISE — THE FILE'S NAME ARGUES AGAINST CHECKING.
+#
+# This script is called `p0-authz-invariant.sh`, the word "authz" appears in it
+# ~35 times, and NOT ONE of those is the `authz` SCHEMA. Every domain predicate
+# here and in the sweeps it unions bounds on `n.nspname in ('app','public')`.
+# So the AE4 catalog schema — `authz.has_direct_permission`,
+# `authz.explain_direct_permission`, `authz.assignment_facts`,
+# `authz.scope_reaches`, `authz.rebuild_implication_closure` — is outside every
+# arm, regardless of privilege.
+#
+# ⚠ That is WORSE than an ordinary gap, because the name actively steers a
+# reader away from checking: "the authz-invariant script" reads as covering the
+# authz schema. It does not. Absence of a verdict here IS absence of coverage
+# (authz-evolution plan rule 4), never a pass.
+#
+# WHY IT IS CORRECT TODAY: `authz` was deliberately created outside `app` and
+# `public` (20261003007100) — not PostgREST-exposed, no USAGE for anon /
+# authenticated / service_role, no EXECUTE on any of its functions. Nothing
+# client-reachable can call into it. The compensating controls are named per
+# door in 20261003007170's closing block, and pgTAP 401 §§18.1–18.3 assert the
+# unreachability by effective privilege with its own vacuity control.
+#
+# ⭐ WHEN THIS STOPS BEING CORRECT, AND IT IS ALREADY SPECCED: at AE4.6 the
+# wrapper family delegates to the resolver. The wrappers live in `app`/`public`
+# and ARE in domain, so the resolver becomes an internal callee of a swept
+# object — but the plan's AE4.7 requires more than that, in terms:
+# "mutation arms re-pointed at the resolver (neutralize the resolver's scope
+# check → the staff_admin keystones red)". This comment exists so that
+# requirement is met because someone understood why, not because a checklist
+# said so. ⛔ It is not an optional extra.
+# ──────────────────────────────────────────────────────────────────────────
 check_no_degenerate_gates () {
   local hits
   hits=$(psql_c -c "
@@ -340,6 +373,8 @@ run_arm_floor () {
   # check only covers the rot that same mechanism CANNOT see.
   # ──────────────────────────────────────────────────────────────────────────
   local live_sigs stale
+  # ⚠ `nspname in ('app','public')` again — the `authz` schema is NOT swept here
+  # either. See the block above `check_no_degenerate_gates`.
   live_sigs=$(psql_c -c "
     select p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
