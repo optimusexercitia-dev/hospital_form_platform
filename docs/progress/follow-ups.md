@@ -7075,3 +7075,44 @@ any trigger raise reachable through a door's call path lands the same way.
 
 ⚠ It is a **door-body change**, so it re-arms §6 step 1's diff-scoped door sweep (⛔ **both** arms,
 read and write). Its own small increment; never folded into an AE phase's branch.
+
+### 🟠 FUP-NO-GATE-REPRODUCES-DOCKER-CONTEXT — a `src/` file importing across a `.dockerignore` boundary is green on EVERY local gate and red only on the build server (owner: backend/lead; filed 2026-09-01 from the AE3 cutover deploy failure)
+
+**What happened.** The AE3 cutover's first Coolify deploy failed at tsc:
+`src/lib/matcher-vacuity-truth-table.test.ts(1,22): error TS2307: Cannot find module
+'../../scripts/absent-subject-matchers.json'`. `.dockerignore` excludes `scripts`, justified by a
+comment reading *"npm run build is plain next build and there are no npm lifecycle hooks, so none of
+it runs during the image build"*. **That premise is TRUE and does not cover TYPE-CHECKING** —
+`next build` runs tsc over `src/**`, test files included.
+
+**Why no gate can see it.** The asymmetry is the whole defect: **an absent file is not an error; an
+unresolvable import FROM a present file is.** Locally `scripts/` exists, so `npm run build`,
+`npm run typecheck`, the eleven-gate lint chain and vitest are ALL green against a context that does
+not exist on the build server. The only instrument that can fail is a real `docker build`, which no
+gate runs.
+
+**Fixed for the instance, NOT for the class** — `.dockerignore` gained `!scripts/absent-subject-matchers.json`
+(`a12b7c1d`), verified by a throwaway `docker build` that the negation is honoured and that
+`supabase/ e2e/ docs/ node_modules/ .git/` all stay excluded. A three-way grep over `src/` agreed
+there is **exactly one** such import today. ⛔ Nothing stops the second one.
+
+**What would close it.** A cheap gate that resolves every `src/` import against the *docker context*
+rather than the working tree — not a full image build. ⚠ Do not close it by deleting the exclusion:
+the layer-invalidation rationale for excluding `scripts/` is still correct for its other ~40 files.
+
+### 🟡 FUP-DBPUSH-SWALLOWS-NOTICE — the AE3 runbook's step-4 safety read is unexecutable through the command the runbook prescribes (owner: lead; filed 2026-09-01 from the AE3 cutover)
+
+`docs/deployment/ae3-cutover-runbook.md` § 2 step 4 says the backfill's `raise notice` *"reports how
+many rows moved. **Read it.**"* — and `supabase db push` **does not surface notices**. The 2026-09-01
+run printed only `Applying migration …` lines; the count was obtained from the catalog afterwards.
+
+**Why it is not cosmetic.** The stated stop condition is *a count of 0 against a populated `profiles`*,
+and the migration's own in-band check is a **parity** assertion (`v_src = v_dst`) that **holds
+vacuously at 0/0**. So the notice was the only thing standing between a silently-empty backfill and a
+green migration — and it is unreadable through the prescribed command. Cf.
+[[a-silent-return-hides-a-live-defect]] and the vacuity family generally.
+
+**What would close it.** Replace step 4's instruction with a post-push catalog query whose expected
+values are computed *before* the push (as was done here: 36 profiles / 5 cpf / 0 dob / 0 phone →
+expect `ppd_rows = 5`), so the read is an assertion against a prediction rather than a number to eyeball.
+⚠ The same defect is latent in **any** runbook step that says to read a `raise notice`.
