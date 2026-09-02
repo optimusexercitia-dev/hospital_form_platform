@@ -6433,6 +6433,35 @@ them.**
 itself a claim that needs measuring* — and it is the one kind of register error that a reader of the
 register cannot detect, because the register is what they would check.
 
+### 🟠 FUP-AE4-PERFORMANCE-EVIDENCE-ON-THE-FINAL-PATH — the AE4.4 measurement was never made, and it only became MEASURABLE at AE4.9 D6 (owner: backend; filed 2026-09-02 by `lead`, from audit finding IA-F9)
+
+**The obligation.** Audit `authz-evolution-implementation-audit-2026-09-02.md` F9: no AE4.4 scaled-fixture
+performance artifact exists anywhere in the tree. ADR 0176 Consequences makes it a Gate AE4 item.
+
+⛔ **Why it could not have been done earlier, which is also why it kept being deferred.** Before AE4.9 D6
+the final path did not EXIST — no enforcement site called the permission layer, so the only thing
+measurable was `authz.holds_role` in isolation. ADR 0176 Consequences says it outright: measuring before
+the seam exists **makes the wrong thing faster**. D6 built the seam, so the measurement is now possible
+for the first time, and the reason for deferring it has expired.
+
+**What must be measured.** A re-keyed site's **policy body**, through **layers 3 → 2 → 1** —
+`app.can_edit_commission_forms` / `app.can_create_professional` / `app.can_read_professional_profile`
+→ `authz.has_permission` → `authz.entailed_grants` → `authz.assignment_facts`. ⛔ **Never `holds_role`
+alone**: that is layer 1, it is what the pre-D6 world already measured, and a fast layer-1 number says
+nothing about the path a query now takes. Nested plans, on a scaled and `ANALYZE`d fixture, under real
+RLS principals (the AE0 method).
+
+⚠ **Two traps this measurement is specifically exposed to.** (1) `seed.sql` is tiny and every function
+here is `SECURITY DEFINER` with cached plans — a fixture that fits in memory will report that the seam
+is free, which is a fact about the fixture. (2) The three authorizers retain **residual legacy arms**
+(ADR 0178 §2), and short-circuit evaluation means a principal who passes the *legacy* arm may never
+reach the permission arm at all — ⛔ so a "the seam is cheap" number taken on such a principal has not
+measured the seam. Measure a principal whose ONLY grant path is the permission arm.
+
+**Not blocking the build; blocking the gate.** ADR 0176 lists it under Gate AE4, and nothing in the
+AE4.9 D6 record claims it was done — both `PROGRESS.md` § Now and the increment record say plainly that
+it does not exist.
+
 ### 🟠 FUP-ADR-CROSS-LINKS-HAVE-NO-GATE — 13 broken ADR-to-ADR links, and gate 9 structurally cannot see them (owner: lead/backend; filed 2026-09-02 by `lead`, measured during AE4.9 D6)
 
 **What was measured.** A sweep of every `](./NNNN-*.md)` target across `docs/decisions/` resolved
@@ -6462,6 +6491,38 @@ while the index still renders.
 repaired, both verified to resolve afterwards. The other **11 predate this phase and are untouched
 by ruling** — repairing them here would bury an unrelated 11-file documentation diff inside an
 authorization gate, and a diff whose stated subject is authz should not silently carry it.
+
+⭐ **A SECOND, INDEPENDENT BLINDNESS IN THE SAME GATE, found 2026-09-02 while writing ADR 0178:
+BOLD EMPHASIS INSIDE A LABEL VALUE CAN SWALLOW THE *NEXT* LABEL.** `parseLabels`' regex
+`/\*\*\s*([A-Za-z][^*
+]{1,44}?)\s*(:?)\s*\*\*(\s*:)?/g` pairs `**` marks positionally. A bold
+phrase in one label's value leaves a closing `**` that pairs with the OPENING `**` of the next
+label, consuming it — the label then does not exist as far as the parser is concerned.
+
+Concretely: 0178's `**Implements:**` value contained `**regression was discovered by the build**`,
+and the `**Amends:** 0175` two lines below **did not parse**. `parseLabels` returned
+`Status | Implements | Relates`, `parseEdges` returned `[]`, and `npm run adr:index` printed
+**"back-pointer blocks already current"** — a success message — while writing `– | –` in the
+⚠ Changed-by column. Removing the two `**` pairs was the entire fix; the edge then resolved to
+`{verb: amends, target: 0175}` and the back-pointer landed in 0175.
+
+⛔ **Why this is worse than the broken-link half.** A broken link is visible to a reader who clicks
+it. A swallowed label is visible to **nobody**: the ADR looks correct (the label is right there in
+the header), the index renders a normal row, and the generator reports success. The only symptom is
+an empty column that also means "this ADR legitimately amends nothing" — ⭐ **the failure state and
+the healthy state are rendered identically.** And per CLAUDE.md §8 the label is the ONLY input to
+that column, so the target ADR never learns it was amended.
+
+⚠ Two false leads recorded so a re-investigation does not repeat them: `NOTHING_RX` is `^`-anchored,
+so an `Amends:` value containing the word "not" is NOT skipped; and a bold-plus-colon phrase in a
+value (`**no gate can notice it missing**:`) does create a phantom label but was NOT the cause here.
+⛔ Both were tested and disproved before the real cause was found — do not "fix" on either.
+
+**Durable form for this half:** assert in gate 9 that every ADR whose body text says it amends or
+supersedes another parses a matching edge; or make `parseLabels` require a label to start a line.
+⚠ The second is the smaller change but would reclassify existing mid-line labels the parser
+deliberately accepts (its own comment names `... always implied). **Supersedes:** nothing.`), so it
+is not a free tightening.
 
 **The durable form.** A target-resolution check inside gate 9: for every `](./NNNN-*.md)` in
 `docs/decisions/`, assert the file exists. ⚠ It will **red on those 11** the moment it is added, so

@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**176 ADRs** · next free number: **0179** · 54 carry an inbound supersedes/amends edge
+**176 ADRs** · next free number: **0179** · 55 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -196,7 +196,7 @@
 | 0172 | [AE4's catalog substrate: MATCH FULL is the assignment binding, unreachable scope kinds…](0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md) | accepted | 2026-09-01 | amends 0162 | – |
 | 0173 | [the door-sweep deriver is blind to runtime-rewrite migrations; a target-declaration con…](0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md) | accepted | 2026-09-01 | amends 0079 | – |
 | 0174 | [`authz.holds_role`: one chokepoint for the hat, and `authz.roles.state` made load-beari…](0174-authz-holds-role-chokepoint-and-authoritative-state-gate.md) | accepted | 2026-09-01 | amends 0079, 0106 | ⚠ amended by 0176 |
-| 0175 | [The AE4 PO batch: what the differential oracle asserts, and what it deliberately does n…](0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) | accepted | 2026-09-01 | amends 0155 | – |
+| 0175 | [The AE4 PO batch: what the differential oracle asserts, and what it deliberately does n…](0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) | accepted | 2026-09-01 | amends 0155 | ⚠ amended by 0178 |
 | 0176 | [The permission layer made real: three interfaces, a manifest countdown, and the re-key…](0176-authz-permission-layer-made-real.md) | accepted | 2026-09-02 | amends 0155, 0174 | – |
 | 0177 | [AE4.9 D4/D7 as built: the candidate's state set, the denial precedence, and the state g…](0177-ae49-resolver-contract-implementation-choices.md) | accepted | 2026-09-02 | – | – |
-| 0178 | [AE4.9 D6 as built: the narrow authorizer, where the preserved legacy arm lives, and the…](0178-ae49-d6-rekey-as-built.md) | accepted | 2026-09-02 | – | – |
+| 0178 | [AE4.9 D6 as built: the narrow authorizer, where the preserved legacy arm lives, and the…](0178-ae49-d6-rekey-as-built.md) | accepted | 2026-09-02 | amends 0175 | – |

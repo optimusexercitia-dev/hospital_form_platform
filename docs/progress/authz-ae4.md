@@ -779,8 +779,16 @@ pipe table — `verdicts_from_findings()` counts every `| `-prefixed line in tha
   §3.2b asserts the bound (zero roles in `test_validation`) and states that the day it reds, `403`
   stops being evidence about the runtime path. That is correct, and it must be recorded rather than
   repointed away.
-- **`docs/backend-state.md`'s `authz` section is still owed** (audit F10) — this increment changed
-  the surface it should describe and did not write it.
+- ~~**`docs/backend-state.md`'s `authz` section is still owed** (audit F10)~~ — ✅ **WRITTEN 2026-09-02**
+  (`docs/backend-state.md` § AE4), after D6 so it describes the surface that actually shipped.
+
+> ⭐ **SCOPE MARKER, added 2026-09-02 — the three bullets above are SCOPED TO ITEMS 1+2 and two of them
+> are now false AS GENERAL CLAIMS.** They were true of this increment when written. The very next section
+> (§ AE4.9 D6 + D5) re-keyed all three representatives and shipped D5's manifest. ⛔ Read them as *"items
+> 1+2 did not do this"*, never as *"this is not done"* — a dated did-NOT-do list is the easiest thing in
+> a record to mistake for current state, because it reads as careful. Still true from that list: no
+> `platform_role` retirement (0176 D8), and **no performance evidence** (IA-F9, now
+> `FUP-AE4-PERFORMANCE-EVIDENCE-ON-THE-FINAL-PATH`).
 - **Nothing merged, nothing pushed.** The whole phase merges once, at Gate AE4.
 
 ## AE4.9 D6 + D5 — the re-key, the enforcement manifest, and the §6 artifact earned, 2026-09-02 (lead + 4 agents)
@@ -856,3 +864,63 @@ fresh server+DB to `0 failed` with full accounting (67/67 · 54/54 · 70/70). �
   *"catalog cutover"* still may not describe AE4.6.
 - **410 proves nothing about enforcement** — that a policy exists and contains a call are facts
   about SQL. `hardDenyClasses` is 40/43 `not-attributable-until-rekey`: honest, not coverage.
+
+## AE4 dead ends — the MECHANISMS, promoted verbatim from the handoff 2026-09-02
+
+> ⭐ Promoted because the handoff is deleted at the Record step and this is the one thing neither the
+> code nor git history can record: what was tried and **the mechanism it failed by**. ⛔ Moved VERBATIM
+> (the `## Dead ends` heading below is the original); only this note is new. Some entries are historical
+> — they describe the state at the time they were written, not current state.
+
+## Dead ends
+
+⛔ **A BISECT POISONS EVERY LATER CATALOG READ, AND THAT COST A FALSE BUG DIAGNOSIS.**
+`e2e-prod-gate.sh` runs `supabase db reset --local` from the **checked-out tree**. After bisecting
+at `0807cfda` (pre-AE4.7c) the local DB was left at the **pre-AE4.7c schema**; every catalog query
+afterwards described a database without AE4.7c in it. On that basis `BUG-AE47C-LINKAGE-001` was
+diagnosed as *"the `link_state='unknown'` bound was never built"*, a PO ruling was obtained to
+build it, and the migration written to do so **no-opped against its own idempotence guard** —
+the bound was already there (`20261003007230` emits it). The migration was deleted, not committed;
+the bug entry's mechanism is retracted in place. **The bisect's own result still stands** (both
+sides ran through the gate, so each was schema-coherent). ⛔ After ANY checkout, reset before
+reading the catalog.
+
+- **Re-coding an expectation whose error code drifted.** AE4.7c put a `42501` authority refusal
+  in front of older guards, so `HC0J7`/`HC0F2` assertions began failing with the new code.
+  ⛔ Re-coding greens the test and leaves the guard it was written for asserted by NOTHING. Change
+  the **caller** to one who passes the new guard and reaches the old one; the assertion splits in
+  two. ⚠ AE4.7c applied this to pgTAP 229/257 and **missed the only E2E twin** — fixed at
+  `a1ac073c`. A sweep that stops at one layer reads as complete.
+- **Trusting a background task's "exit code 0".** It is the exit of the **compound** command; a
+  trailing `echo`/`tail` erases the real one. Both `e2e:prod` runs were reported 0 and were 1.
+- **Assuming a batch failure is an assertion failure.** Two "failures" in run 1 were
+  `ERR_CONNECTION_REFUSED` — the server died mid-batch — while the gate printed `0 infra`. Its
+  classifier does not catch every case. Isolate before diagnosing.
+- **Assuming a retry failure is the same defect.** `ethics-e2-procedure:486` failed only as
+  `(retry #1)`: attempt 1 had run FLOW-1, which decides admissibility, so the retry found the
+  button enabled. One root cause (FLOW-8) produced three reported symptoms.
+- **Delegating the wrappers to the permission resolver.** A sentinel permission couples a role
+  check to one arbitrary grant; *"holds any staff_admin-granted permission"* returns **true for a
+  plain staff member** the moment AE5 grants `staff` an overlapping permission. Resolution:
+  `authz.assignment_facts`, then the `authz.holds_role` chokepoint. ⛔ **2026-09-02: the argument
+  stands, the conclusion was HALF.** `holds_role` is the assignment-projection layer, not the D7
+  cutover — routing a ROLE question through a permission resolver is wrong, so D7 is satisfied by
+  **re-keying the enforcement sites** to ask permission questions (plan § AE4.9), not by
+  re-pointing wrappers. The ruling lived only in `20261003007200`'s comment; ADR 0174 says
+  `Relates:` 0155; and the mid-phase review measured "callers = 0" on the resolver and filed it
+  as a rename nit. A designated authority with zero callers is a conformance finding.
+- **Reading G4's "typed query" as a client-side query.** The "not implementable" ruling measured
+  that no client role holds USAGE on `authz` — true, and beside the point: `public.assume_role`
+  is `SECURITY DEFINER` and reads the sealed table server-side with no new grant. The gate-time
+  key-set comparison that replaced it measures **drift**, not enforcement; `session_selectable`
+  has zero readers, and flipping it changes nothing. Superseded (plan § AE4.8 / § AE4.9 "do now").
+- **A text-based door-sweep deriver.** It matches `create function` in migration text; the house
+  `pg_get_functiondef`+`replace`+`execute` pattern contains none. 33 migrations invisible;
+  amending reaches **8 of 33**, the other 25 unrecoverable without a historical snapshot.
+- **Giving `ARM=sites` a negative control only.** `psql` does not interpolate `-v` inside `-c`;
+  both lookups died, every set difference was empty, and the arm printed `OK — 0 site(s)` beside
+  `vacuity control: OK`. ⛔ A dead instrument satisfies an "X − Y is empty" check AND its
+  synthetic-input control at once. A control needs a DISCRIMINATION half.
+- **Expecting a UNION observable to show a mutation.** Re-pointing 319's A5 twin expecting
+  `111 → 175` measured **111**: S1's mask already contained S2's bit. Read where NO arm is
+  legitimately open.

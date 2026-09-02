@@ -3,8 +3,10 @@
 **Status:** Accepted · 2026-09-02 (lead + backend, implementing ADR 0176 D6 on `authz-ae4-catalog`)
 **Implements:** [0176](./0176-authz-permission-layer-made-real.md) D6 — the three differential
 representatives re-keyed end-to-end, everything else `pending-rekey`. 0176 ruled *which* and
-*whether*; four questions it did not settle had to be answered to build it, and one **regression
-was discovered by the build** and is ruled here.
+*whether*; four questions it did not settle had to be answered to build it, and one regression
+was discovered by the build and is ruled here.
+**Amends:** 0175 D3 — its QUALIFIER only, not its decision. D3's deferral of arm 3's
+divergence to AE5 stands; what changes is the scope of the qualifier it recorded. Detail: §3.
 **Relates:** [0177](./0177-ae49-resolver-contract-implementation-choices.md) (the layer-2 contract
 this consumes) · [0174](./0174-authz-holds-role-chokepoint-and-authoritative-state-gate.md) D2 (the
 state gate) · [0175](./0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) (the differential

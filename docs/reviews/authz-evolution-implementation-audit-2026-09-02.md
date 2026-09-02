@@ -408,7 +408,7 @@ Even if F1–F9 did not exist, the repository's own live record says Gate AE4 ca
 - `docs/backend-state.md` still has no `authz` Record-step section ([AE4 progress line 370](../progress/authz-ae4.md#L370)).
 - The plan requires a reviewed AE4 rollback runbook and out-of-chain SQL template ([plan lines 853–860](../plans/authz-evolution.md#L853)). I found no AE4 rollback/runbook artifact.
 - The scaled performance evidence required by AE4.4/Gate AE4 is absent (F9).
-- Tester signoff on two changed E2E specs and a genuinely green E2E run remain owed by the phase's own handoff ([handoff lines 215–230](../handoffs/authz-ae4-catalog.md#L215)).
+- Tester signoff on two changed E2E specs and a genuinely green E2E run remain owed by the phase's own handoff. ✅ **BOTH DISCHARGED 2026-09-02** — sign-offs taken, and `e2e:prod` reached **GATE GREEN in a SINGLE run** (`GATE_EXIT=0`, 1273/1273 accounted), superseding the 3-run composite: [authz-ae4.md § AE4.9 D6 + D5](../progress/authz-ae4.md). ⛔ This bullet cited **handoff lines 215–230** — a LINE-NUMBERED deep link into a file that is deleted at the Record step and had already been rewritten, so the anchor pointed at unrelated text. Repointed to the durable record.
 
 Do not relabel these as “gate paperwork.” C2 has already found real blind guards; the E2E gate has already found a real regression; the rollback and performance artifacts constrain operational risk.
 

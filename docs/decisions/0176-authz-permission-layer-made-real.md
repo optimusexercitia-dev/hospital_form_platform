@@ -16,7 +16,7 @@ three** (D3 below); the state gate it introduced stays and additionally bounds l
 still deferred) · 0175 (the oracle's hand-encoded inputs) · 0079 (the door-sweep family the
 manifest feeds) · the
 [implementation audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md) F1–F10 ·
-[plan § AE4.9](../plans/authz-evolution.md) · `docs/handoffs/authz-ae4-catalog.md`
+[plan § AE4.9](../plans/authz-evolution.md) · [authz-ae4.md](../progress/authz-ae4.md) (the increment record; ⛔ this line cited the branch HANDOFF until 2026-09-02 — a handoff is deleted at the Record step, so citing one guarantees a dangling reference)
 
 ## Context
 

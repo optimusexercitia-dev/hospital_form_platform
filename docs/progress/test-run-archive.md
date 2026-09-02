@@ -1146,3 +1146,14 @@ and AE4.7b repaired it; that arc is in [authz-ae4.md](authz-ae4.md).
 | 2026-09-01 | **AE4 Inc 1 — catalog substrate** (⛔ build gates, NOT Gate AE4) | pgTAP **249f/8347** fresh reset (= 8289 + 401's 58) · lint **12/12** · tsc 0 · vitest 2021 · 4 ARMs HOLD — ⚠ **C2 doors outside every arm's domain** · sweep **exit 1 FINDING, 0 cases, BOTH arms** ruled ADR 0079 A8 **(b)** (0 fn/0 policies, catalog-corroborated) · ADR 0172 |
 | 2026-08-31 | **Pre-AE4 clearance batch** (⛔ not a phase gate) | pgTAP 248f/**8289** fresh reset · lint 11/11 · tsc 0 · vitest 2021 · 4 ARMs HOLD (census **571/607**) · sweeps: 0170 exit 1 FINDING, MEUSDADOS **exit 0 CLEAN** 3/3 COVERED · `e2e:prod` **RED (UNRUN)** `GATE_EXIT=5`, **0 assertion failures**; b2+b5 re-run **GREEN** 127p/0f → all executed |
 
+## Rotated from PROGRESS.md § Test Run Summary 2026-09-02 — the two AE4.7c / Inc-1 rows, replaced by the AE4.9 D6 gate row
+
+> ⚠ The second row's *"11 tests unaccounted — gate arithmetic, not this increment"* was CORRECT and is now
+> **explained**: `TOTAL_SEEN` excludes skips, while the per-batch figures sum to the full collected count. The
+> 2026-09-02 run summed **1273/1273**. ⛔ Verify that by SUMMING the per-batch lines, never by reading the
+> gate-level COVERAGE line — the same shape once printed *"860 of 865"* while 66 tests had never executed.
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-09-01 | **AE4.7c — the gate split** (⛔ NOT Gate AE4) | pgTAP **254f/8498 GREEN** (8467→8498; +406) · lint 12/12 · tsc 0 · vitest 2021 · **6 ARMs HOLD**, exits read DIRECTLY · sweeps BOTH arms **6/6** + **4/4 COVERED** after fixing 2 **ERROR neutralize-failed**; both **3 UNPROVEN**, 6 vocab RPCs (C2) — [authz-ae4.md](authz-ae4.md) |
+| 2026-09-01 | **AE4 Inc 1 — `e2e:prod`** (lead-run) | run 1 **RED** `GATE_EXIT=1` — 1242p/1f/5 flaky/**8 never ran**, 1256 of **1267** accounted. b6 re-run **GREEN 69/69**, 0 flaky, 0 unrun. `ethics-e4:888` was **retry-induced** (`:844` shares a fixture name). ⛔ **11 tests unaccounted** — gate arithmetic, not this increment |

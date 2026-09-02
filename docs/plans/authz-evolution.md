@@ -925,7 +925,8 @@ no default arm** — set difference in either direction fails generation (`catal
   caller-selectable evaluator — asserted by a
   pgTAP test that greps the *catalog* (comment-stripped `prosrc` of the wrapper family) for the
   legacy predicate's absence.
-- ⛔ **The rollback runbook + out-of-chain SQL template do NOT exist [IA-F10]** (2026-09-02:
+- ✅ **BUILT 2026-09-02 [IA-F10 CLOSED] — `docs/deployment/authz-rollback-runbook.md` + `authz-rollback-template.sql`.** ⚠ One NAMED GAP remains inside them: the worked example for the three AE4.9 D6 representatives (runbook §6), owed before Gate AE4. ⛔ The struck paragraph is retained for its REASONING (why out-of-chain), not its status:
+- ~~⛔ **The rollback runbook + out-of-chain SQL template do NOT exist [IA-F10]**~~ (2026-09-02:
   zero files matching `*rollback*`; "out-of-chain" appears only in the audit). Owed before Gate
   AE4. The re-point target it describes is now `holds_role`, and after § AE4.9 it must also
   cover a re-keyed site (revert the domain authorizer to the role wrapper without deleting
@@ -1027,6 +1028,7 @@ door**, not the generic resolver; every other permission enters the manifest as
 `pending-rekey`; each AE5 role increment re-keys the sites its bundle touches (per-role
 checklist, § AE5). ✅ **The Gate AE4 minimum re-key scope is CONFIRMED (PO, 2026-09-02): the
 three representatives**, each end-to-end, everything else `pending-rekey` — 0176 D6.
+⭐ **AND BUILT 2026-09-02 — this whole paragraph's future tense is DISCHARGED.** Migration `20261003007300` + pgTAP `409` (63/63): all three re-keyed, the grant-deletion mutation flips the **production door** on each, both polarities, with `409` run against the PRE-migration catalog so every gate-line assertion was observed RED first. ADR [0178](../decisions/0178-ae49-d6-rekey-as-built.md). ⛔ Its sequencing CLAIM still stands and is not discharged: the three are observationally near-identical to role-keyed sites until AE5 brings a second bundle, so this proves the **mechanism**, not the discrimination.
 
 **Authority repair — DONE 2026-09-02: ADR
 [0176](../decisions/0176-authz-permission-layer-made-real.md) `Amends:` 0155 D7 and 0174** —
