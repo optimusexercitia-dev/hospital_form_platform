@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { signOut } from "@/lib/auth/actions";
 import { getSessionContext } from "@/lib/queries/session";
-import { commissionHref, nspHref, orgHref, qualidadeHref } from "@/lib/routing";
+import { LANDING_BRANCHES, resolveLanding } from "@/lib/role/role-catalog";
 
 /**
  * Root role-landing. Server Component — resolves where the signed-in user
@@ -68,100 +68,41 @@ export default async function Home() {
     redirect("/selecionar-perfil");
   }
 
-  if (context.isAdmin) {
-    redirect("/admin");
-  }
-
-  if (context.orgAdminOf.length === 1) {
-    redirect(orgHref(context.orgAdminOf[0].organization.slug, "manage"));
-  }
-
-  if (context.orgAdminOf.length > 1) {
-    redirect("/o");
-  }
-
-  // hospital_admin-only landing (ADR 0051): route to the manage area of the org
-  // its hospital(s) belong to — the manage area itself scopes to the hospital(s)
-  // from the caller's grants. Disambiguate on DISTINCT orgs (a caller may admin
-  // several hospitals within one org, or hospitals across orgs), mirroring the
-  // org_admin branch: one org → straight to its manage area; several → the org
-  // picker at /o.
-  if (context.hospitalAdminOf.length > 0) {
-    const orgSlugs = new Set(
-      context.hospitalAdminOf.map((h) => h.organization.slug),
-    );
-    if (orgSlugs.size === 1) {
-      redirect(orgHref(context.hospitalAdminOf[0].organization.slug, "manage"));
+  // ⭐ AE4.8 — THE PRECEDENCE CHAIN IS ONE LOOP OVER THE SHARED MANIFEST.
+  //
+  // What used to be eight hand-written `if` blocks here, hand-MIRRORED a second time in
+  // `landingRouteForRole`, is now one walk over `LANDING_BRANCHES` — an order derived from
+  // `ROLE_ORDER` in `@/lib/role/role-catalog`. Both consumers apply the same
+  // `resolveLanding`, so a new role crosses ONE seam. That is the whole point: three times
+  // a hospital- or org-scoped role (`commission_id NULL`) crossed the partition and not
+  // this chain, or neither, and its holder read "Você ainda não tem acesso" while being
+  // fully provisioned — BUG-HAT-001, then the Diretor Técnico, then `quality_reviewer`.
+  // `src/lib/queries/session-grants.test.ts` is the guard; this loop is what it now has
+  // only one place to fail.
+  //
+  // ⛔ THE ORDER IS BEHAVIOUR, AND IT LIVES IN `ROLE_ORDER` — do not reintroduce a branch
+  // here. The reasoning behind the order, preserved from the eight blocks this replaced:
+  //
+  //  * `isAdmin` first: platform_admin is walled off from tenant data (it holds no
+  //    memberships) and lands on its own provisioning area.
+  //  * org_admin, then hospital_admin, then nsp_org_admin BEFORE commission membership:
+  //    each is a super-user home for its scope, and its holder navigates down into
+  //    commissions from there. A user who is both org_admin and hospital_admin resolves
+  //    via org_admin, so the hospital_admin branch only fires for a hospital_admin-only
+  //    persona — the one BUG-HAT-001 dropped into the dead end.
+  //  * the three "office" hats LAST — NSP operator, Diretor Técnico, quality reviewer.
+  //    Each is worn ALONGSIDE a day job, so placing them after the commission branches
+  //    means they only change the outcome for someone who would otherwise dead-end. A DT
+  //    who is also a commission member keeps landing on the commission (and so has no
+  //    link to their inbox yet — FUP-MEM-3b).
+  //
+  // `redirect()` throws, so the first branch that resolves wins and the loop never
+  // continues past it; a branch that is empty resolves to `null` and falls through.
+  for (const branch of LANDING_BRANCHES) {
+    const href = resolveLanding(branch, context);
+    if (href) {
+      redirect(href);
     }
-    redirect("/o");
-  }
-
-  // nsp_org_admin landing (NSP-per-hospital, ADR 0052): an org-level, PHI-free NSP
-  // governance role. Lands on its org's NSP-admin console. `nspOrgAdminOf` is
-  // name-sorted, so the first entry is a stable pick when the caller administers the
-  // NSP of more than one org (rare); the console itself re-gates server-side. This
-  // takes precedence over plain commission membership — the console is this persona's
-  // super-user home, and it rescues an nsp_org_admin-only user from "sem acesso".
-  if (context.nspOrgAdminOf.length > 0) {
-    redirect(orgHref(context.nspOrgAdminOf[0].organization.slug, "nsp-org"));
-  }
-
-  if (context.memberships.length === 1) {
-    const { commission } = context.memberships[0];
-    redirect(commissionHref(commission.organization.slug, commission.slug));
-  }
-
-  if (context.memberships.length > 1) {
-    redirect("/c");
-  }
-
-  // ADR 0101 / FUP-QO-2 (F7) — the NSP operators (`nsp_coordinator`, `pqs_member`).
-  // Instances 4 and 5 of the class the two branches below describe, and the first ones
-  // NOT found by a user hitting the dead end: the catalog-derived guard
-  // `src/lib/queries/session-grants.test.ts` enumerates `memberships_role_check` and
-  // fired on its first run naming both roles. Both are hospital-scoped with
-  // `commission_id NULL`, so every branch above stepped over them while the account was
-  // fully provisioned — the NSP console was reachable all along (`list_my_nsp_hospitals()`
-  // unions both roles and `organizations_select` admits them), just not from the front
-  // door.
-  //
-  // FIRST of the three office branches, and after the commission branches for the same
-  // reason they are: the NSP hat is worn ALONGSIDE a day job, so this only changes the
-  // outcome for someone who would otherwise dead-end. `nspOperatorOf` is
-  // hospital-name-sorted, so the first entry is a stable pick for an operator covering
-  // several hospitals; the console re-gates server-side. The entry's `role` is DISPLAY
-  // ONLY — nothing here gates on it.
-  if (context.nspOperatorOf.length > 0) {
-    redirect(nspHref(context.nspOperatorOf[0].organization.slug));
-  }
-
-  // ADR 0094 W4 / FUP-MEM-3b — the Diretor Técnico. Placed AFTER the commission
-  // branches on purpose: the office is a hat worn ALONGSIDE a day job, so a DT who
-  // also belongs to a commission keeps landing where they always did. This branch only
-  // changes the outcome for someone who would otherwise hit "sem acesso" — which,
-  // until now, is exactly what a pure DT got. The office confers no membership, so
-  // every branch above steps over it and the account looked unprovisioned.
-  // ⚠ The consequence of that placement: a DT who IS a commission member has no link
-  // to their inbox yet (they land on the commission). Tracked with FUP-MEM-3b.
-  if (context.technicalDirectionOf.length > 0) {
-    redirect(
-      orgHref(context.technicalDirectionOf[0].organization.slug, "direcao-tecnica"),
-    );
-  }
-
-  // ADR 0100 — the quality reviewer (FUP-QO-2). Placed here for the SAME reason
-  // as the Diretor Técnico above, and it is the same failure a third time: the
-  // office is hospital-scoped with `commission_id NULL`, so every branch above
-  // steps over it and the account looked unprovisioned while being fully
-  // provisioned. For the pilot's PRIMARY DAILY USER that would have meant signing
-  // in to "Você ainda não tem acesso".
-  //
-  // After the commission branches on purpose: a reviewer who also belongs to a
-  // committee keeps landing where they always did, and reaches the console from
-  // the sidebar's "Escritório da Qualidade" entry. This branch only changes the
-  // outcome for someone who would otherwise hit the dead end.
-  if (context.qualityReviewerOf.length > 0) {
-    redirect(qualidadeHref(context.qualityReviewerOf[0].organization.slug));
   }
 
   // No org-admin role and no commissions — nothing to route to. Show a calm,

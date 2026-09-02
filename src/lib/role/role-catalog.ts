@@ -1,5 +1,10 @@
 import type { Database } from "@/lib/types/database";
-import type { SessionGrant } from "@/lib/queries/session-grants";
+import type { OrganizationRef } from "@/lib/queries/session";
+import {
+  partitionGrants,
+  type SessionGrant,
+  type SessionRoleLists,
+} from "@/lib/queries/session-grants";
 import { commissionHref, nspHref, orgHref, qualidadeHref } from "@/lib/routing";
 
 /**
@@ -139,9 +144,14 @@ export function platformRoleLabel(role: string): string {
   return (ROLE_LABELS as Record<string, string>)[role] ?? role;
 }
 
-function sortByName<T>(list: T[], name: (item: T) => string): T[] {
-  return [...list].sort((a, b) => name(a).localeCompare(name(b), "pt-BR"));
-}
+// ⛔ `sortByName` was REMOVED in AE4.8, and the sorting it did was NOT lost — it MOVED.
+// The old landingRouteForRole sorted a role's grants by hospital (or organization) name
+// before taking [0]. `partitionGrants` already sorts every one of those lists by exactly
+// the same key, so routing through it preserves the pick: nspOperatorOf /
+// technicalDirectionOf / qualityReviewerOf / hospitalAdminOf by hospital name,
+// orgAdminOf / nspOrgAdminOf by organization name, memberships by commission name.
+// ⚠ If a future edit removes a sort THERE, the stable pick disappears HERE with no local
+// sign of it — that coupling is the price of having one implementation instead of two.
 
 function uniqueById<T extends { id: string }>(list: T[]): T[] {
   const seen = new Map<string, T>();
@@ -152,90 +162,170 @@ function uniqueById<T extends { id: string }>(list: T[]): T[] {
 }
 
 /**
- * The role → landing-route table (`docs/design/act-role-picker.md` §1),
- * mirroring `src/app/page.tsx`'s own precedence branches — but resolved for
- * ONE exact role value against the grants that carry it, rather than the
- * whole hat-blind partition. This is what lets a caller holding BOTH
- * `staff_admin` and `staff` (different commissions) land correctly regardless
- * of which of the two hats they pick — `page.tsx`'s `memberships` list merges
- * the two roles, but the hat picked here is the exact `active_role` claim
- * that will be minted, so the route must be derived from that same exact role.
+ * ⭐ AE4.8 — THE LANDING BRANCHES, ONE ORDERED LIST WITH TWO CONSUMERS.
  *
- * `platform_admin` is included for completeness (`page.tsx`'s row 1) even
- * though it can never appear in a real `grants` array (D11 — it lives in
- * `profiles.is_admin`, never a `memberships` row, so `getSelectableRoles`
- * never emits it and the picker never offers it).
+ * A role does not get its own branch: several roles share one. `staff` and `staff_admin`
+ * both land through `memberships`; `nsp_coordinator` and `pqs_member` through
+ * `nspOperatorOf`; the Diretor Técnico and its deputy through `technicalDirectionOf`
+ * (ADR 0094 W4 D1 makes them one authority). So the precedence chain is over BRANCHES,
+ * derived from {@link ROLE_ORDER} — which is why that array's order is load-bearing.
  */
-export function landingRouteForRole(role: string, grants: SessionGrant[]): string {
-  const roleGrants = grants.filter((g) => g.role === role);
+export type LandingBranchKey =
+  | "isAdmin"
+  | "orgAdminOf"
+  | "hospitalAdminOf"
+  | "nspOrgAdminOf"
+  | "memberships"
+  | "nspOperatorOf"
+  | "technicalDirectionOf"
+  | "qualityReviewerOf";
 
-  switch (role) {
-    case "platform_admin":
-      return "/admin";
+/** Which `SessionContext` field each role partitions into. Exhaustive by type. */
+export const ROLE_BRANCH: Record<PlatformRole, LandingBranchKey> = {
+  platform_admin: "isAdmin",
+  org_admin: "orgAdminOf",
+  hospital_admin: "hospitalAdminOf",
+  nsp_org_admin: "nspOrgAdminOf",
+  staff_admin: "memberships",
+  staff: "memberships",
+  nsp_coordinator: "nspOperatorOf",
+  pqs_member: "nspOperatorOf",
+  technical_director: "technicalDirectionOf",
+  technical_director_deputy: "technicalDirectionOf",
+  quality_reviewer: "qualityReviewerOf",
+};
 
-    case "org_admin": {
-      const orgs = uniqueById(
-        roleGrants.flatMap((g) => (g.organization ? [g.organization] : [])),
-      );
+/**
+ * The precedence chain `src/app/page.tsx` walks, DERIVED from {@link ROLE_ORDER} rather
+ * than written twice. First-wins; a branch that resolves to `null` is empty and the walk
+ * continues.
+ */
+export const LANDING_BRANCHES: readonly LandingBranchKey[] = [
+  ...new Set(ROLE_ORDER.map((code) => ROLE_BRANCH[code])),
+];
+
+/** What {@link landingRouteForRole} answers when a role's own branch is EMPTY.
+ *
+ * ⚠ These are not "/" everywhere, and the differences are PRESERVED BEHAVIOUR, not
+ * design: the three branches that own a picker fall back to it (an org_admin with no
+ * orgs got `/o`, a staff member with no commissions got `/c`), and the rest returned
+ * `/`. Every one of these paths is unreachable through the picker, which only offers
+ * roles the caller actually holds — they are kept identical anyway, because "unreachable"
+ * is a claim about today's callers and this file is imported by four of them. */
+const BRANCH_EMPTY_FALLBACK: Record<LandingBranchKey, string> = {
+  isAdmin: "/",
+  orgAdminOf: "/o",
+  hospitalAdminOf: "/o",
+  nspOrgAdminOf: "/",
+  memberships: "/c",
+  nspOperatorOf: "/",
+  technicalDirectionOf: "/",
+  qualityReviewerOf: "/",
+};
+
+/** The role-derived half of a `SessionContext`, plus the one flag that is not a list. */
+export type LandingLists = SessionRoleLists & { isAdmin: boolean };
+
+const distinctOrgs = (orgs: OrganizationRef[]): OrganizationRef[] =>
+  uniqueById(orgs);
+
+/**
+ * Resolve ONE branch against a partition. `null` means "this branch is empty" — which is
+ * what lets `page.tsx` fall through to the next one, and is why this cannot simply return
+ * the fallback itself.
+ *
+ * ⚠ ONE RECONCILED DIVERGENCE, recorded because it was real and silent. `page.tsx`
+ * counted `orgAdminOf.length`; `landingRouteForRole` counted DISTINCT organizations. For a
+ * caller holding two `org_admin` grants on the SAME org the two disagreed — page.tsx sent
+ * them to the picker, the role switcher straight to the org. Reconciled on DISTINCT, which
+ * is what the neighbouring `hospital_admin` branch already did in BOTH files. ⛔ Unreachable
+ * either way — `session_context()` emits one grant per (role, scope), and an org-scoped
+ * role has one scope per org — so this changes no live landing; it removes a disagreement
+ * that would have decided a future one.
+ */
+export function resolveLanding(
+  branch: LandingBranchKey,
+  lists: LandingLists,
+): string | null {
+  switch (branch) {
+    case "isAdmin":
+      return lists.isAdmin ? "/admin" : null;
+
+    case "orgAdminOf": {
+      const orgs = distinctOrgs(lists.orgAdminOf.map((o) => o.organization));
+      if (orgs.length === 0) return null;
       return orgs.length === 1 ? orgHref(orgs[0].slug, "manage") : "/o";
     }
 
-    case "hospital_admin": {
-      const orgs = roleGrants.flatMap((g) => (g.organization ? [g.organization] : []));
-      const orgSlugs = new Set(orgs.map((o) => o.slug));
-      return orgSlugs.size === 1 && orgs[0] ? orgHref(orgs[0].slug, "manage") : "/o";
+    case "hospitalAdminOf": {
+      // Disambiguate on DISTINCT ORGS, not hospitals: a caller may admin several
+      // hospitals within one org (→ that org's manage area, which scopes to their
+      // hospitals) or hospitals across orgs (→ the org picker).
+      const orgs = distinctOrgs(lists.hospitalAdminOf.map((h) => h.organization));
+      if (orgs.length === 0) return null;
+      return orgs.length === 1 ? orgHref(orgs[0].slug, "manage") : "/o";
     }
 
-    case "nsp_org_admin": {
-      const orgs = sortByName(
-        uniqueById(roleGrants.flatMap((g) => (g.organization ? [g.organization] : []))),
-        (o) => o.name,
-      );
-      return orgs[0] ? orgHref(orgs[0].slug, "nsp-org") : "/";
+    case "nspOrgAdminOf": {
+      const first = lists.nspOrgAdminOf[0];
+      return first ? orgHref(first.organization.slug, "nsp-org") : null;
     }
 
-    case "nsp_coordinator":
-    case "pqs_member": {
-      const withHospital = sortByName(
-        roleGrants.filter((g) => g.organization && g.hospital),
-        (g) => g.hospital!.name,
-      );
-      const first = withHospital[0];
-      return first?.organization ? nspHref(first.organization.slug) : "/";
+    case "memberships": {
+      // ⚠ Counts GRANTS, not distinct commissions — both consumers already did, and a
+      // membership is one row per (principal, commission).
+      if (lists.memberships.length === 0) return null;
+      if (lists.memberships.length > 1) return "/c";
+      const { commission } = lists.memberships[0];
+      return commissionHref(commission.organization.slug, commission.slug);
     }
 
-    case "technical_director":
-    case "technical_director_deputy": {
-      const withHospital = sortByName(
-        roleGrants.filter((g) => g.organization && g.hospital),
-        (g) => g.hospital!.name,
-      );
-      const first = withHospital[0];
-      return first?.organization ? orgHref(first.organization.slug, "direcao-tecnica") : "/";
+    case "nspOperatorOf": {
+      const first = lists.nspOperatorOf[0];
+      return first ? nspHref(first.organization.slug) : null;
     }
 
-    case "quality_reviewer": {
-      const withHospital = sortByName(
-        roleGrants.filter((g) => g.organization && g.hospital),
-        (g) => g.hospital!.name,
-      );
-      const first = withHospital[0];
-      return first?.organization ? qualidadeHref(first.organization.slug) : "/";
+    case "technicalDirectionOf": {
+      const first = lists.technicalDirectionOf[0];
+      return first ? orgHref(first.organization.slug, "direcao-tecnica") : null;
     }
 
-    case "staff_admin":
-    case "staff": {
-      const commissionGrants = roleGrants.filter((g) => g.commission);
-      if (commissionGrants.length === 1) {
-        const c = commissionGrants[0]!.commission!;
-        return commissionHref(c.organization.slug, c.slug);
-      }
-      return "/c";
+    case "qualityReviewerOf": {
+      const first = lists.qualityReviewerOf[0];
+      return first ? qualidadeHref(first.organization.slug) : null;
     }
-
-    default:
-      return "/";
   }
+}
+
+/**
+ * The role → landing-route resolution for ONE EXACT role (`docs/design/act-role-picker.md`
+ * §1), against the grants that carry it — rather than the whole hat-blind partition
+ * `page.tsx` walks. This is what lets a caller holding BOTH `staff_admin` and `staff`
+ * (different commissions) land correctly whichever hat they pick: `page.tsx`'s
+ * `memberships` list merges the two roles, but the hat picked here is the exact
+ * `active_role` claim that will be minted, so the route must follow that exact role.
+ *
+ * ⭐ AE4.8: it no longer HAND-MIRRORS `page.tsx`. It narrows the grants to the one role,
+ * runs them through the REAL {@link partitionGrants}, and applies the SAME
+ * {@link resolveLanding} branch `page.tsx` applies. Both seams a new role must cross are
+ * now one seam — which is the regression class `session-grants.test.ts` exists for
+ * (BUG-HAT-001, the Diretor Técnico, `quality_reviewer`: three roles that crossed the
+ * partition and not the branch chain, or neither).
+ *
+ * `platform_admin` is answered before the partition because its branch is not a grant
+ * list at all: it lives in `profiles.is_admin` and never holds a `memberships` row (D11),
+ * so `getSelectableRoles` never emits it and the picker never offers it.
+ */
+export function landingRouteForRole(role: string, grants: SessionGrant[]): string {
+  if (role === "platform_admin") return "/admin";
+  if (!isPlatformRole(role)) return "/";
+
+  const branch = ROLE_BRANCH[role];
+  const lists = partitionGrants(grants.filter((g) => g.role === role));
+  return (
+    resolveLanding(branch, { ...lists, isAdmin: false }) ??
+    BRANCH_EMPTY_FALLBACK[branch]
+  );
 }
 
 /**
