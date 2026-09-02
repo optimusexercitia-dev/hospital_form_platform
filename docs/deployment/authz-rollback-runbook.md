@@ -547,9 +547,15 @@ select set_config('request.jwt.claims',
                      'active_role', '<staff_admin | org_admin — THE PROBED PRINCIPAL''S HAT>')::text,
   true);
 set local role authenticated;
-update public.forms set name = name where commission_id = '<ccih>';   -- row count is the answer
+update public.forms set title = title where id = '<one form in that commission>';  -- row count is the answer
 rollback;
 ```
+
+⛔ **`public.forms` has a `title` column, not `name`** — a `set name = name` raises `42703` and the
+probe then fails looking like a deny. Pin **one** form id rather than filtering on `commission_id`,
+so the answer is a crisp 1 or 0 instead of a seed-dependent count. Resolving that id under the
+`authenticated` role is safe: the permissive `forms_select` sibling passes for both personas, which
+is exactly why the *write* is the only thing being measured.
 
 ⚠ `active_role` is **not** decoration, and it changes per principal: `authz.holds_role` and
 `authz.entailed_grants` both carry the § 6A asymmetry clause (`p_principal is distinct from
