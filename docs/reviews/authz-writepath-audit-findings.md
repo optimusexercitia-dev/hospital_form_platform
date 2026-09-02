@@ -21,6 +21,30 @@ Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`
 > additionally RED-proven by `q1-quality-mutation-audit.sh` (`door_authority`,
 > `guard_noop`).
 
+## Note — 2026-09-02: THIS FILE COVERS 33 OF 107. The arm's domain was widened; no full sweep has run since.
+
+⛔ **Do not read this file as the write-path audit's result.** Its rows were produced when
+ARM 2's domain was a **33-row embedded snapshot** bounded on `cmd in (INSERT,UPDATE,DELETE)`
+— a syntax, not the property. `FOR ALL` is a write command too. Measured on the live catalog
+2026-09-02: **107** policies can permit a write (62 `ALL` · 17 `INSERT` · 17 `UPDATE` ·
+11 `DELETE`), so **74 were outside the arm entirely** and were reported as *"matched no gate"*.
+At the AE4.9 D6 gate that produced `policy=0/33`, **zero gates selected, exit 3**.
+
+The harness's domain is now lifted from `pg_policy` at run time (`polcmd <> 'r'`, every
+schema). The 74 decompose exactly: **62** `FOR ALL` policies · the **9** named in
+`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` Part 3 (re-derived here from the property, not from
+that list) · **3** `storage.objects` INSERT policies, which the `ARM=census` domain also
+misses because it bounds itself to `public`.
+
+⚠ **Consequently: absence of a row below is absence of a VERDICT, never a COVERED.** A
+`FROMFINDINGS` arm reading this file re-measures nothing, so it cannot see the gap. The gap
+closes only when a **full** sweep runs against the widened domain (~50 min, 120 cases) and
+its rows are **merged** into this file — never copied over it (ADR 0079 Amendment 1 hazard 1).
+
+⚠ A regenerated report marks each row `snapshot:ABSENT` when no §7.2 drift tripwire protects
+its verdict. All **33** snapshot rows were verified byte-identical to the live catalog on
+2026-09-02, so none of them is stale.
+
 ## BLIND — the work-list (no keystone exercises these)
 
 | gate / policy | arm | direction | verdict | note |

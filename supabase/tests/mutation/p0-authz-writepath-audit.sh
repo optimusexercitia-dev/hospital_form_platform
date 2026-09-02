@@ -54,10 +54,57 @@
 #     assert_meeting_roster_nonempty, assert_condition_value_codes  — DATA validation, not
 #     authorization; opening them proves nothing about an authz keystone.
 #
-# ── ARM 2: the 33 INSERT/UPDATE/DELETE policies ─────────────────────────────────────
-# Neutralize by OPENING the check to `true`:  INSERT -> `with check (true)`;
-# DELETE -> `using (true)`; UPDATE -> both. Only the clauses that actually exist are
-# touched. A row whose relevant clause is ALREADY `true` is vacuous and SKIPPED (listed).
+# ── ARM 2: every policy that can PERMIT A WRITE — from the LIVE CATALOG ─────────────
+#
+# ⛔ THE BOUND IS THE PROPERTY, NOT A SYNTAX (fixed 2026-09-02, Gate AE4 blocker 3;
+# FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 3's remaining half). Until this change ARM 2's
+# domain was an EMBEDDED 33-ROW SNAPSHOT whose rows were all `cmd in (INSERT,UPDATE,DELETE)`.
+# That is a SYNTAX bound, and it is not the property: **`FOR ALL` is a write command too.**
+# Measured on the live catalog 2026-09-02: 107 policies can permit a write — 62 `ALL`,
+# 17 `INSERT`, 17 `UPDATE`, 11 `DELETE` — so the snapshot held 33 of 107 and reported the
+# other 74 as "matched no gate". At the AE4.9 D6 gate that produced `policy=0/33`, ZERO
+# gates selected, exit 3: the arm could not tell "no blind gate" from "no gate looked at".
+#
+# THE DOMAIN IS NOW: every row of `pg_policy` whose `polcmd <> 'r'` — i.e. every RLS policy
+# that can permit an INSERT, UPDATE or DELETE — read from the catalog at run time, in every
+# schema (`public` AND `storage`; the 3 `storage.objects` INSERT policies are in no other
+# arm's domain, the census included, because that one bounds itself to `public`).
+# ⛔ It EXCLUDES `FOR SELECT` policies (no write semantics — the read arm's domain) and,
+# for an `ALL` policy, the `using` half (see the open rule below).
+#
+# ── THE OPEN RULE — open ONLY the clause that gates the WRITE ────────────────────────
+#   INSERT -> `with check (true)`                 (INSERT has no USING)
+#   DELETE -> `using (true)`                      (DELETE has no WITH CHECK; its USING *is*
+#                                                  the write gate — it chooses which rows die)
+#   UPDATE -> `using (true) with check (true)`    (both are write gates for UPDATE)
+#   ALL    -> `with check (true)` **ONLY**
+#
+# ⭐ WHY `ALL` OPENS THE WITH-CHECK HALF ALONE, and it is not conservatism. An `ALL` policy's
+# `using` clause ALSO gates SELECT, and `p0-authz-door-audit.sh` already sweeps it: its policy
+# arm's domain is `pol.polcmd in ('r','*')` and it opens `using (true)` (plus `with check
+# (true)` when one exists). If this arm also opened `using`, a COVERED here could be earned by
+# a READ keystone and would say nothing about the write path — a false coverage claim, the
+# exact failure this harness exists to prevent. Opening the WITH CHECK alone isolates the
+# INSERT / UPDATE-new-row half, which is the half no read keystone can reach.
+# ⚠ STATED, not hidden: the DELETE and UPDATE-row-visibility half of an `ALL` policy is
+# governed by that same `using` clause and is therefore NOT opened by this arm. It is opened
+# by the read arm, whose COVERED for an `ALL` policy is correspondingly ambiguous in the other
+# direction. Neither arm currently attributes an `ALL` policy's verdict by command.
+# ⚠ Measured 2026-09-02: all 62 live `ALL` policies carry an EXPLICIT `with_check`, so the
+# open and its restore are both plain `ALTER POLICY` and round-trip byte-exact. An `ALL`
+# policy with a NULL `with_check` (its WITH CHECK defaulting to its USING) cannot be opened
+# on the write half by ALTER at all — `ALTER POLICY` cannot reset WITH CHECK back to NULL, so
+# the restore would not round-trip. That case is reported ERROR, never SKIPPED: zero exist
+# today, and "the arm cannot reach it" must never be recorded as "nothing to do".
+#
+# Only the clauses the rule opens are touched. A case whose openable clause is ALREADY `true`
+# is vacuous and SKIPPED (listed).
+#
+# ⚠ THE EMBEDDED 33-ROW SNAPSHOT SURVIVES — as a DRIFT TRIPWIRE ONLY (§7.2), never as the
+# domain. For a policy it names, the live predicate must still byte-match it or the case is
+# ERROR (its committed verdict was earned against different text). For the other 74 there is
+# nothing to drift against, and each such case is marked `snapshot:ABSENT` in the report so
+# a reader can see which verdicts carry that protection and which do not.
 #
 # ── Lessons baked in (mirror p0-authz-door-audit.sh; each HID A REAL RESULT) ─────────
 #  §7.15  the assertion that NEVER RAN is a THIRD "green". We guard Files/Tests==baseline
@@ -98,18 +145,28 @@
 #   is nothing to `git checkout --` afterwards; older instructions saying otherwise
 #   describe the pre-2026-08-26 behaviour.
 #
-# ⚠ COST: full sweep = one ~23s suite run per guard (7) + per policy (33) = ~15-16 min.
+# ⚠ COST: full sweep = one ~23s suite run per guard (13) + per policy (107 as of
+# 2026-09-02) = ~50 min, up from ~19 min when the policy domain was the 33-row snapshot.
+# ⛔ That increase is the fix, not a regression: the previous figure was the cost of
+# sweeping a third of the domain. The DIFF-SCOPED run (`CASES=`) is unaffected — it costs
+# one suite run per SELECTED gate, exactly as before.
 # The LEAD runs the full loop in the background (a background process dies at turn-end).
 set -u
 
-DB=supabase_db_azkbbhskturikxpgmafq
+# ⚠ Overridable for two reasons, neither of them a way to skip anything: this machine runs
+# more than one local stack (`supabase_db_escalume` sits beside this one), and the domain
+# lift's ABORT path has to be PROVABLE — a control that cannot be made to fire has not been
+# shown to work. Point it at a container that does not exist and the lift fails, which is
+# how that ABORT was demonstrated rather than asserted.
+DB="${AUTHZ_SWEEP_DB:-supabase_db_azkbbhskturikxpgmafq}"
 # Repo root = three levels up from supabase/tests/mutation/.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK="${WORK:-${TMPDIR:-/tmp}/authz-audit}"
 # ⚠ distinct writepath_* names so this NEVER clobbers the running door-audit's outputs.
 PROGRESS="$WORK/writepath_progress.tsv"     # per-case log, written AS WE GO (mid-run kill)
 RUNLOGS="$WORK/writepath_runlogs"           # full suite output per case, for forensics
-POLWL="$WORK/writepath_worklist_pol.tsv"    # the 33-policy worklist (embedded below)
+POLWL="$WORK/writepath_worklist_pol.tsv"    # the DOMAIN — derived from the LIVE CATALOG
+POLSNAP="$WORK/writepath_snapshot_pol.tsv"  # the embedded 33 — DRIFT TRIPWIRE ONLY (§7.2)
 # ⛔ FIXED path, deliberately NOT under $WORK — see the Part 4 note on the trap below.
 # $WORK is fresh per run by recipe, so a $WORK-relative sentinel is invisible to the next
 # run and its check would pass vacuously. This one is found by whoever runs next.
@@ -198,7 +255,16 @@ if [ "$SUBSET_RUN" = "1" ]; then
   echo "    — never copy the subset file over it."
   echo "--------------------------------------------------------------------------------"
 else
-  BASELINE_ANNOTATIONS=$(grep -cE '^(<!--|## Note)' "$FINDINGS_COMMITTED" 2>/dev/null | tr -d '[:space:]')
+  # ⛔ THIS DETECTOR UNDER-REPORTED, WHICH IS WORSE THAN FINDING NOTHING — it printed a
+  # number, and the number was wrong. Measured on HEAD 2026-09-02: the committed baseline
+  # carries TWO hand-added blocks and the pattern matched ONE. The miss is the block that
+  # matters most: `> ⚠ **HAND-MERGED, 2026-08-06 …`, a BLOCKQUOTE (neither `<!--` nor
+  # `## Note`), which carries the `set_commission_oversight` verdict that has nowhere else
+  # to live. An operator told "1 hand-added block" and re-merging one block would have
+  # dropped it. ⚠ The fix is the pattern, not the count: a warning whose number is derived
+  # from a filter is only as true as the filter. Proven able to fire: 3 against the current
+  # file, 2 against `git show HEAD:` (which the old pattern read as 1).
+  BASELINE_ANNOTATIONS=$(grep -cE '^(<!--|## Note|> ⚠ \*\*HAND|> ⚠ \*\*DOMAIN)' "$FINDINGS_COMMITTED" 2>/dev/null | tr -d '[:space:]')
   if [ "${BASELINE_ANNOTATIONS:-0}" != "0" ]; then
     echo "⚠ FULL SWEEP — the committed baseline carries ${BASELINE_ANNOTATIONS} HAND-ADDED block(s)"
     echo "  (\`<!-- … -->\` merge notes / \`## Note …\` sections) this generator does NOT emit."
@@ -519,14 +585,19 @@ SQL
 }
 
 # ─────────────────────────────────────────────────────────────────────────────────────
-# ARM 2 data: the 33 write policies (captured snapshot, embedded self-contained).
+# ARM 2 data, part 1 of 2: THE DRIFT TRIPWIRE (§7.2) — 33 write policies, captured
+# snapshot, embedded self-contained. ⛔ THIS IS NO LONGER THE DOMAIN. It was, and that is
+# the defect this file's ARM 2 header records: a 33-row list bounded on
+# `cmd in (INSERT,UPDATE,DELETE)` while 107 live policies can permit a write.
+# Its remaining job is narrow and worth keeping: for a policy it names, the live predicate
+# must byte-match it, else the committed verdict for that policy was earned against
+# different text and neutralizing is unsafe (ERROR, do not open).
 # Pipe-delimited (no '|' occurs in any qual/with_check of these 33); '-' = clause absent.
 # Columns:  tbl | polname | cmd | qual | with_check
-# At runtime we DRIFT-CHECK each live pg_get_expr against these snapshot values (ERROR on
-# mismatch); the restore source is the live capture, not the snapshot.
+# The restore source is the live capture, never the snapshot.
 # ─────────────────────────────────────────────────────────────────────────────────────
-write_worklist_pol () {
-  cat > "$POLWL" <<'TSV'
+write_pol_snapshot () {
+  cat > "$POLSNAP" <<'TSV'
 capa_plan|capa_plan_delete|DELETE|app.can_write_capa(id, auth.uid())|-
 capa_plan|capa_plan_update|UPDATE|app.can_write_capa(id, auth.uid())|app.can_write_capa(id, auth.uid())
 case_interviews|case_interviews_delete|DELETE|app.can_write_interview(id, ( SELECT auth.uid() AS uid))|-
@@ -564,12 +635,101 @@ TSV
 }
 
 # ─────────────────────────────────────────────────────────────────────────────────────
+# ARM 2 data, part 2 of 2: THE DOMAIN — every policy that can PERMIT A WRITE, read from
+# the LIVE CATALOG. This is the fix for FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 3's
+# remaining half; the ARM 2 header states the bound and what it excludes.
+#
+# Columns (8, pipe-delimited, every field newline-free BY CONSTRUCTION — identities and
+# 0/1 flags only, never predicate text):
+#   nsp | tbl | polname | cmd | haveq | havew | qtrue | wtrue
+#
+# ⛔ PREDICATE TEXT IS DELIBERATELY NOT IN THIS FILE, and that is not tidiness. A real
+# qual spans lines — `form_versions_staff_admin_write`'s contains two newlines — so a
+# line-oriented worklist carrying predicate text CANNOT represent the domain it is now
+# bounded by. The per-case capture already fetches the live text into its own file; that
+# stays the restore source, as it always was.
+#
+# ⛔ ON A LIVE RUN, A FAILED LIFT IS AN ABORT, NEVER A FALLBACK TO THE SNAPSHOT. Falling
+# back would silently reinstate the 33-row blind domain and print a number about it — the
+# precise shape of the defect being repaired here. (DRYRUN may fall back, LOUDLY, because
+# its documented contract is zero DB access; it prints DOMAIN-SOURCE either way.)
+# ⛔ AND THE ROW SHAPE IS ASSERTED, not assumed: a value carrying a newline or a `|` would
+# split a row and shrink the domain silently. A malformed row aborts the lift.
+# ─────────────────────────────────────────────────────────────────────────────────────
+POLWL_SOURCE="(not built)"
+build_pol_worklist () {
+  local n bad
+  psql_c -c "
+    select n.nspname||'|'||c.relname||'|'||pol.polname||'|'||
+           (case pol.polcmd when '*' then 'ALL' when 'a' then 'INSERT'
+                            when 'w' then 'UPDATE' when 'd' then 'DELETE' end)||'|'||
+           (case when pol.polqual      is null then 0 else 1 end)||'|'||
+           (case when pol.polwithcheck is null then 0 else 1 end)||'|'||
+           (case when pg_get_expr(pol.polqual,      pol.polrelid) = 'true' then 1 else 0 end)||'|'||
+           (case when pg_get_expr(pol.polwithcheck, pol.polrelid) = 'true' then 1 else 0 end)
+    from pg_policy pol
+    join pg_class     c on c.oid = pol.polrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where pol.polcmd <> 'r'
+    order by 1;" 2>/dev/null | awk 'NF' > "$POLWL" || true
+  n="$(grep -c . "$POLWL" 2>/dev/null | tr -d '[:space:]')"; n="${n:-0}"
+  bad="$(awk -F'|' 'NF!=8' "$POLWL" 2>/dev/null | wc -l | tr -d '[:space:]')"; bad="${bad:-0}"
+  if [ "$n" -eq 0 ] || [ "$bad" != "0" ]; then
+    POLWL_SOURCE="LIFT FAILED (rows=$n malformed=$bad)"
+    return 1
+  fi
+  POLWL_SOURCE="live catalog (pg_policy, polcmd <> 'r') — $n write-capable policies"
+  return 0
+}
+
+# DRYRUN-ONLY fallback: reshape the drift snapshot into worklist columns so `DRYRUN=1`
+# keeps its zero-DB contract on a machine with no stack. ⛔ It is an INCOMPLETE domain by
+# construction and every caller says so out loud; it is never used on a live run.
+snapshot_as_worklist () {
+  awk -F'|' 'NF>=5 && $1 !~ /^#/ && $1 != "" {
+      haveq = ($4 == "-") ? 0 : 1; havew = ($5 == "-") ? 0 : 1;
+      qt = ($4 == "true") ? 1 : 0; wt = ($5 == "true") ? 1 : 0;
+      printf "public|%s|%s|%s|%d|%d|%d|%d\n", $1, $2, $3, haveq, havew, qt, wt
+    }' "$POLSNAP" > "$POLWL"
+  POLWL_SOURCE="EMBEDDED SNAPSHOT — INCOMPLETE DOMAIN, DRYRUN fallback only"
+}
+
+# THE OPEN RULE (ARM 2 header). Sets OPENQ / OPENW: which clauses THIS arm opens for a
+# given command. ⛔ `ALL` opens the WITH CHECK half only — its `using` also gates SELECT
+# and belongs to the read arm, which already sweeps `polcmd in ('r','*')`.
+open_rule () {   # $1=cmd  $2=haveq  $3=havew
+  OPENQ=0; OPENW=0
+  case "$1" in
+    INSERT) OPENW="$3" ;;
+    DELETE) OPENQ="$2" ;;
+    UPDATE) OPENQ="$2"; OPENW="$3" ;;
+    ALL)    OPENW="$3" ;;
+  esac
+}
+
+# The drift reference for ONE policy, or empty when the snapshot does not name it.
+# Matching is on (tbl, polname): the snapshot predates schema-qualification and every row
+# in it is a `public` table.
+snap_row () { awk -F'|' -v t="$1" -v p="$2" '$1==t && $2==p {print; exit}' "$POLSNAP"; }
+
+# ─────────────────────────────────────────────────────────────────────────────────────
 # DRYRUN — print every neutralization, ZERO DB access. Print BEFORE any preflight so the
 # lead can eyeball the 7 bespoke guard bodies without a running stack.
 # ─────────────────────────────────────────────────────────────────────────────────────
 if [ "$DRYRUN" = "1" ]; then
-  write_worklist_pol
-  echo "=== DRYRUN — neutralizations only, NO DB ACCESS ==="
+  write_pol_snapshot
+  # ⭐ DRYRUN IS NOW A FAITHFUL, ZERO-MUTATION PROBE OF THE **SELECTION**, which is what a
+  # two-direction vacuity check on the domain needs: it prints the same ARM-DOMAIN line,
+  # the same REQUESTED-BUT-MATCHED-NOTHING block and the same empty-domain verdict as the
+  # live path, without opening a gate or running the suite. It reads the catalog (one
+  # read-only SELECT) when a stack is up, and falls back to the snapshot — LOUDLY, and
+  # with the domain named INCOMPLETE — when there is none, so its documented "runs without
+  # a stack" contract survives.
+  # ⛔ It exits 3 on an empty selection, exactly as the live path does. A "printed nothing,
+  # exited 0" dry run is the same unreadable artefact as a sweep that measures nothing.
+  if ! build_pol_worklist; then snapshot_as_worklist; fi
+  echo "=== DRYRUN — neutralizations only, NO GATE OPENED, NO SUITE RUN ==="
+  echo "DOMAIN-SOURCE policy arm: $POLWL_SOURCE"
   echo
   echo "############## ARM 1: 7 authz raise-guards (full neutralized CREATE OR REPLACE) ##############"
   for k in $GUARD_KEYS; do
@@ -579,31 +739,54 @@ if [ "$DRYRUN" = "1" ]; then
     emit_neut_guard "$k"
   done
   echo
-  echo "############## ARM 2: write policies (ALTER POLICY opening the check) ##############"
-  while IFS='|' read -r tbl polname cmd qual wc; do
-    [ -z "$tbl" ] && continue
-    case "$tbl" in \#*) continue;; esac
+  echo "############## ARM 2: write policies (ALTER POLICY opening the write clause) ##############"
+  dr_gsel=0; for k in $GUARD_KEYS; do want "$k" && dr_gsel=$((dr_gsel + 1)); done
+  dr_gtot=$(printf '%s\n' $GUARD_KEYS | grep -c .)
+  dr_ptot=0; dr_psel=0
+  while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
+    [ -n "${polname:-}" ] || continue
+    dr_ptot=$((dr_ptot + 1))
     want "$polname" || continue
-    haveq=0; havew=0
-    [ "$qual" != "-" ] && haveq=1
-    [ "$wc"   != "-" ] && havew=1
-    # vacuous?
-    vac=1
-    { [ "$haveq" = 1 ] && [ "$qual" != "true" ]; } && vac=0
-    { [ "$havew" = 1 ] && [ "$wc"   != "true" ]; } && vac=0
-    if [ "$vac" = 1 ]; then
-      printf -- '-- SKIP (vacuous, clause already true): %s.%s (%s)\n' "$tbl" "$polname" "$cmd"
+    dr_psel=$((dr_psel + 1))
+    open_rule "$cmd" "$haveq" "$havew"
+    if [ "$OPENQ" = 0 ] && [ "$OPENW" = 0 ]; then
+      printf -- '-- ⛔ NOT OPENABLE BY THIS ARM (reported ERROR on a live run): %s.%s.%s (%s)\n' \
+        "$nsp" "$tbl" "$polname" "$cmd"
       continue
     fi
-    stmt="alter policy \"$polname\" on public.\"$tbl\""
-    [ "$haveq" = 1 ] && stmt="$stmt using (true)"
-    [ "$havew" = 1 ] && stmt="$stmt with check (true)"
-    printf '%s;   -- %s\n' "$stmt" "$cmd"
+    vac=1
+    { [ "$OPENQ" = 1 ] && [ "$qtrue" != 1 ]; } && vac=0
+    { [ "$OPENW" = 1 ] && [ "$wtrue" != 1 ]; } && vac=0
+    if [ "$vac" = 1 ]; then
+      printf -- '-- SKIP (vacuous, the clause this arm opens is already true): %s.%s.%s (%s)\n' \
+        "$nsp" "$tbl" "$polname" "$cmd"
+      continue
+    fi
+    stmt="alter policy \"$polname\" on \"$nsp\".\"$tbl\""
+    [ "$OPENQ" = 1 ] && stmt="$stmt using (true)"
+    [ "$OPENW" = 1 ] && stmt="$stmt with check (true)"
+    printf '%s;   -- %s%s\n' "$stmt" "$cmd" \
+      "$([ -z "$(snap_row "$tbl" "$polname")" ] && printf '%s' '  [snapshot:ABSENT — no drift check]')"
   done < "$POLWL"
   echo
-  echo "=== DRYRUN done. Guards printed: $(printf '%s
-' $GUARD_KEYS | grep -c .) (2 excluded: assert_meeting_roster_nonempty,"
-  echo "    assert_condition_value_codes = data validators). Policies: see above. ==="
+  echo "ARM-DOMAIN guard=$dr_gsel/$dr_gtot policy=$dr_psel/$dr_ptot"
+  # ⚠ Same accounting as the live path (§7.17). A DRYRUN that silently ignores a requested
+  # token is the Part-3 defect wearing a different hat.
+  dr_unmatched=""
+  if [ -n "$CASES" ]; then
+    for tok in $CASES; do
+      printf '%s\n' $GUARD_KEYS | grep -qxF "$tok" && continue
+      cut -d'|' -f3 "$POLWL" | grep -qxF "$tok" && continue
+      dr_unmatched="$dr_unmatched $tok"
+    done
+  fi
+  [ -n "$dr_unmatched" ] && echo "    ⚠ REQUESTED BUT IN NO ARM'S DOMAIN:$dr_unmatched"
+  if [ $((dr_gsel + dr_psel)) -eq 0 ]; then
+    echo "=== DRYRUN RESULT: UNPROVEN (3) — the SELECTION is EMPTY. Nothing would be measured. ==="
+    exit 3
+  fi
+  echo "=== DRYRUN done — a SELECTION, not a verdict. Guards in domain: $dr_gtot (2 excluded:"
+  echo "    assert_meeting_roster_nonempty, assert_condition_value_codes = data validators). ==="
   exit 0
 fi
 
@@ -737,20 +920,44 @@ fi
 # FUP says so in terms). Same vocabulary, same exit codes, same closing sentence.
 #
 # The worklist is materialised HERE, ahead of the preflight, so an UNPROVEN run costs
-# seconds rather than a full suite run — `write_worklist_pol` is a heredoc, zero DB access.
+# seconds rather than a full suite run — the snapshot is a heredoc and the domain lift is
+# one read-only SELECT.
 # ─────────────────────────────────────────────────────────────────────────────────────
-write_worklist_pol
+write_pol_snapshot
+if ! build_pol_worklist; then
+  echo "*** ABORT — could not lift ARM 2's domain from the live catalog." >&2
+  echo "    $POLWL_SOURCE" >&2
+  echo "    ⛔ There is deliberately NO fallback to the embedded snapshot here. That" >&2
+  echo "       snapshot is 33 of the 107 policies that can permit a write, and running" >&2
+  echo "       against it would print a confident number about a third of the domain —" >&2
+  echo "       which is the defect this arm was repaired for (Gate AE4 blocker 3)." >&2
+  echo "    Start the local stack (container '$DB') and re-run." >&2
+  exit 2
+fi
+
+# ⚠ The drift snapshot names 33 policies; the domain now holds every write-capable policy
+# in the catalog. A snapshot row whose policy no longer exists is an ORPHAN — its committed
+# verdict outlives its gate — so it is named here rather than left to be noticed by nobody.
+SNAP_ORPHANS=""
+while IFS='|' read -r s_tbl s_pol _rest; do
+  [ -n "${s_pol:-}" ] || continue
+  awk -F'|' -v t="$s_tbl" -v p="$s_pol" '$2==t && $3==p {found=1} END {exit !found}' "$POLWL" \
+    || SNAP_ORPHANS="$SNAP_ORPHANS $s_tbl.$s_pol"
+done < "$POLSNAP"
 
 GUARD_TOTAL=0; GUARD_SEL=0
 for g in $GUARD_KEYS; do
   GUARD_TOTAL=$((GUARD_TOTAL + 1))
   want "$g" && GUARD_SEL=$((GUARD_SEL + 1))
 done
-POL_TOTAL=0; POL_SEL=0
-while IFS='|' read -r _tbl _pol _cmd _q _w; do
+POL_TOTAL=0; POL_SEL=0; POL_NOSNAP=0
+while IFS='|' read -r _nsp _tbl _pol _cmd _hq _hw _qt _wt; do
   [ -n "${_pol:-}" ] || continue
   POL_TOTAL=$((POL_TOTAL + 1))
-  want "$_pol" && POL_SEL=$((POL_SEL + 1))
+  if want "$_pol"; then
+    POL_SEL=$((POL_SEL + 1))
+    [ -z "$(snap_row "$_tbl" "$_pol")" ] && POL_NOSNAP=$((POL_NOSNAP + 1))
+  fi
 done < "$POLWL"
 SEL_TOTAL=$((GUARD_SEL + POL_SEL))
 
@@ -758,11 +965,19 @@ echo "--- domain: what this run will actually look at (§7.17) ---"
 echo "ARM-DOMAIN guard=$GUARD_SEL/$GUARD_TOTAL policy=$POL_SEL/$POL_TOTAL"
 echo "    guard  arm: $GUARD_SEL selected of $GUARD_TOTAL in domain"
 echo "    policy arm: $POL_SEL selected of $POL_TOTAL in domain"
-echo "    ⚠ The policy arm's domain is an EMBEDDED SNAPSHOT, not the live catalog. A write"
-echo "      policy that exists but is not in it is OUTSIDE this arm entirely — that is the"
-echo "      nine-policy hole of FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 3, an apparatus"
-echo "      gap and not a defect in those policies. 'Outside the domain' != 'unswept by"
-echo "      everything', and it is certainly not 'covered'."
+echo "DOMAIN-SOURCE policy arm: $POLWL_SOURCE"
+echo "    The bound is the PROPERTY — every RLS policy whose command can permit a WRITE"
+echo "    (INSERT, UPDATE, DELETE **and ALL**), in every schema. It excludes FOR SELECT"
+echo "    policies, and for an ALL policy it excludes the \`using\` half (that clause also"
+echo "    gates SELECT and is opened by p0-authz-door-audit.sh, whose domain is polcmd"
+echo "    in ('r','*')). Until 2026-09-02 this domain was a 33-row EMBEDDED SNAPSHOT"
+echo "    bounded on cmd in (INSERT,UPDATE,DELETE) — a syntax, not the property — and the"
+echo "    other 74 write-capable policies were reported as 'matched no gate'."
+[ "$POL_NOSNAP" -gt 0 ] && \
+  echo "    ⚠ $POL_NOSNAP selected policy(ies) are NOT in the drift snapshot: they are swept, but" && \
+  echo "      no §7.2 drift tripwire protects their verdict. Each is marked snapshot:ABSENT."
+[ -n "$SNAP_ORPHANS" ] && \
+  echo "    ⚠ DRIFT-SNAPSHOT ORPHANS (named there, absent from the catalog):$SNAP_ORPHANS"
 
 # ⚠ -F -x = EXACT string equality, deliberately identical to `want()`'s [ "$k" = "$1" ].
 # A regex match here would disagree with the selector and could call a token "matched"
@@ -771,7 +986,7 @@ UNMATCHED=""
 if [ -n "$CASES" ]; then
   for tok in $CASES; do
     if printf '%s\n' $GUARD_KEYS | grep -qxF "$tok"; then continue; fi
-    if cut -d'|' -f2 "$POLWL" | grep -qxF "$tok"; then continue; fi
+    if cut -d'|' -f3 "$POLWL" | grep -qxF "$tok"; then continue; fi
     UNMATCHED="$UNMATCHED $tok"
   done
 fi
@@ -791,13 +1006,17 @@ if [ -n "$UNMATCHED" ]; then
              '(no policy and no app/public function of this name)');" 2>/dev/null | head -1)
     echo "      $tok: ${diag:-(catalog unavailable)}"
   done
-  echo "    ⛔ A gate named here was NOT swept, and until this port it was not even"
-  echo "    mentioned. If the line above says 'POLICY … FOR INSERT|UPDATE|DELETE', the"
-  echo "    policy is real and simply absent from the embedded worklist — record it"
-  echo "    against FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 3. Do NOT hand-write a"
-  echo "    COVERED row anywhere. ⚠ Bound any worklist fix by the PROPERTY (write-command"
-  echo "    policies absent from the snapshot), never by the nine names the FUP lists —"
-  echo "    that list is there so a grep lands, not so it can be swept."
+  echo "    ⛔ A gate named here was NOT swept. Read the diagnostic, do not assume:"
+  echo "      · 'POLICY … FOR SELECT'  -> correct exclusion. A SELECT policy has no write"
+  echo "        semantics; it belongs to p0-authz-door-audit.sh. Sweep it THERE, and record"
+  echo "        the read arm's verdict — not a write-arm silence."
+  echo "      · 'POLICY … FOR INSERT|UPDATE|DELETE|ALL'  -> ⛔ A HARNESS BUG, not a gap."
+  echo "        Since 2026-09-02 this arm's domain IS the live catalog's write-capable"
+  echo "        policies, so such a token cannot be legitimately unmatched. Fix the lift."
+  echo "      · '(no policy and no app/public function of this name)' -> the token is stale:"
+  echo "        a renamed or dropped gate. A verdict keyed to a name outlives the gate —"
+  echo "        prune the row rather than sweeping a name."
+  echo "    Do NOT hand-write a COVERED row anywhere."
   echo "    ⇒ This run can no longer end CLEAN: whatever it measures, part of what was"
   echo "      ASKED FOR was not measured. Final result will be UNPROVEN (3) or DIRTY (1)."
 fi
@@ -831,10 +1050,11 @@ fi
 echo "baseline OK: Result: PASS, Files=$BASE_FILES, Tests=$BASE_TESTS"
 echo
 
-# (write_worklist_pol moved ABOVE the preflight with the §7.17 domain gate — an UNPROVEN
-#  run must cost seconds, not a full suite run. Do not re-add a call here: the counts the
-#  final verdict prints were taken from that materialisation, and a second write would
-#  make the domain line and the sweep describe two different files.)
+# (write_pol_snapshot + build_pol_worklist run ABOVE the preflight with the §7.17 domain
+#  gate — an UNPROVEN run must cost seconds, not a full suite run. Do not re-add a call
+#  here: the counts the final verdict prints were taken from that materialisation, and a
+#  second build would make the domain line and the sweep describe two different files.
+#  ⚠ It would also re-read the catalog AFTER cases have started opening gates.)
 : > "$PROGRESS"
 
 # Regenerate the two deliverables from writepath_progress.tsv after EVERY case so a
@@ -853,7 +1073,20 @@ emit_report () {
     echo
     echo "Baseline: Files=$BASE_FILES, Tests=$BASE_TESTS, Result: PASS."
     echo "Arm 1 guards: $GUARD_TOTAL (excluded non-authz validators: \`assert_meeting_roster_nonempty\`,"
-    echo "\`assert_condition_value_codes\`). Arm 2 write policies: from the embedded snapshot."
+    echo "\`assert_condition_value_codes\`)."
+    echo
+    echo "Arm 2 domain: **$POL_TOTAL** — every RLS policy in the live catalog whose command can"
+    echo "permit a write (\`INSERT\`, \`UPDATE\`, \`DELETE\` **and \`ALL\`**), in every schema."
+    echo "⛔ It EXCLUDES \`FOR SELECT\` policies (the read arm's domain) and, for an \`ALL\` policy,"
+    echo "the \`using\` half — that clause also gates SELECT and is opened by"
+    echo "\`p0-authz-door-audit.sh\` (\`polcmd in ('r','*')\`), so opening it here would let a READ"
+    echo "keystone produce a COVERED that says nothing about the write path."
+    echo "⚠ Until 2026-09-02 this domain was a 33-row embedded snapshot bounded on"
+    echo "\`cmd in (INSERT,UPDATE,DELETE)\` — a syntax, not the property. That snapshot survives as"
+    echo "a **drift tripwire only**; a row marked \`snapshot:ABSENT\` was swept without one."
+    echo "⛔ **Rows in this file are only as complete as the run that wrote them.** A row count"
+    echo "below $POL_TOTAL means no full sweep has covered the widened domain yet — absence of a"
+    echo "row here is absence of a verdict, never a COVERED."
     if [ -n "$CASES" ]; then echo; echo "> ⚠ PARTIAL RUN — CASES=\"$CASES\" (subset, not the full sweep)."; fi
     echo
     echo "## BLIND — the work-list (no keystone exercises these)"
@@ -927,59 +1160,80 @@ done
 # ─────────────────────────────────────────────────────────────────────────────────────
 echo
 echo "=== ARM 2: write policies ==="
-while IFS='|' read -r tbl polname cmd qual wc; do
-  [ -z "$tbl" ] && continue
-  case "$tbl" in \#*) continue;; esac
+while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
+  [ -n "${polname:-}" ] || continue
   want "$polname" || continue
 
-  haveq=0; havew=0
-  [ "$qual" != "-" ] && haveq=1
-  [ "$wc"   != "-" ] && havew=1
+  # WHICH CLAUSES THIS ARM OPENS — the property, per command (see the ARM 2 header).
+  open_rule "$cmd" "$haveq" "$havew"
 
-  # vacuous skip: every clause that exists is already `true`
+  # ⛔ An ALL policy with a NULL with_check cannot be opened on its write half by ALTER:
+  # its WITH CHECK defaults to its USING, and `ALTER POLICY` cannot set WITH CHECK back to
+  # NULL, so the restore would not round-trip. That is "this arm cannot reach it", which is
+  # NOT "nothing to do" — it is reported ERROR so it blocks, never SKIPPED so it reads fine.
+  # (Measured 2026-09-02: zero such policies exist; this guard is here for the first one.)
+  if [ "$OPENQ" = 0 ] && [ "$OPENW" = 0 ]; then
+    record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" \
+      "NOT OPENABLE BY THIS ARM: $cmd with haveq=$haveq havew=$havew — ALTER POLICY cannot reset WITH CHECK to NULL, so no restorable write-half opening exists"
+    echo "  ERROR  $tbl.$polname (not openable by this arm)"; continue
+  fi
+
+  # vacuous skip: every clause THIS ARM WOULD OPEN is already `true`
   vac=1
-  { [ "$haveq" = 1 ] && [ "$qual" != "true" ]; } && vac=0
-  { [ "$havew" = 1 ] && [ "$wc"   != "true" ]; } && vac=0
+  { [ "$OPENQ" = 1 ] && [ "$qtrue" != 1 ]; } && vac=0
+  { [ "$OPENW" = 1 ] && [ "$wtrue" != 1 ]; } && vac=0
   if [ "$vac" = 1 ]; then
-    record "policy" "$tbl.$polname ($cmd)" "open->true" "SKIPPED" "vacuous: relevant clause already true"
+    record "policy" "$tbl.$polname ($cmd)" "open->true" "SKIPPED" "vacuous: the clause this arm opens is already true"
     echo "  SKIPPED $tbl.$polname (vacuous)"; continue
   fi
 
-  s=$(slug "${tbl}_${polname}")
+  s=$(slug "${nsp}_${tbl}_${polname}")
   qfile="$WORK/orig_wp_pol_$s.qual"; wfile="$WORK/orig_wp_pol_$s.wc"
   restore="$WORK/restore_wp_pol_$s.sql"
-  regc="public.\"$tbl\""
+  regc="\"$nsp\".\"$tbl\""
 
   : > "$qfile"; : > "$wfile"
-  [ "$haveq" = 1 ] && psql_c -c "select pg_get_expr(polqual,polrelid) from pg_policy where polname='$polname' and polrelid='$regc'::regclass" > "$qfile"
-  [ "$havew" = 1 ] && psql_c -c "select pg_get_expr(polwithcheck,polrelid) from pg_policy where polname='$polname' and polrelid='$regc'::regclass" > "$wfile"
+  [ "$OPENQ" = 1 ] && psql_c -c "select pg_get_expr(polqual,polrelid) from pg_policy where polname='$polname' and polrelid='$regc'::regclass" > "$qfile"
+  [ "$OPENW" = 1 ] && psql_c -c "select pg_get_expr(polwithcheck,polrelid) from pg_policy where polname='$polname' and polrelid='$regc'::regclass" > "$wfile"
 
-  # §7.2 DRIFT tripwire: the live catalog must match the embedded snapshot, else the
-  # worklist is stale and neutralizing is unsafe. ERROR (not a result), do not open.
-  if [ "$haveq" = 1 ] && [ "$(cat "$qfile")" != "$qual" ]; then
-    record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" "snapshot drift (qual): live='$(cat "$qfile")'"
-    echo "  ERROR  $tbl.$polname (qual drift)"; continue
-  fi
-  if [ "$havew" = 1 ] && [ "$(cat "$wfile")" != "$wc" ]; then
-    record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" "snapshot drift (with_check): live='$(cat "$wfile")'"
-    echo "  ERROR  $tbl.$polname (wc drift)"; continue
+  # §7.2 DRIFT tripwire — for the 33 policies the embedded snapshot NAMES. A live predicate
+  # that no longer matches means the committed verdict for that policy was earned against
+  # different text: ERROR (not a result), do not open. ⚠ For a policy the snapshot does not
+  # name there is nothing to drift against; it is swept and marked snapshot:ABSENT, so the
+  # report shows which verdicts carry this protection and which do not.
+  snaprow="$(snap_row "$tbl" "$polname")"
+  snapnote=""
+  if [ -n "$snaprow" ]; then
+    snapq="$(printf '%s' "$snaprow" | cut -d'|' -f4)"
+    snapw="$(printf '%s' "$snaprow" | cut -d'|' -f5)"
+    if [ "$OPENQ" = 1 ] && [ "$(cat "$qfile")" != "$snapq" ]; then
+      record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" "snapshot drift (qual): live='$(cat "$qfile")'"
+      echo "  ERROR  $tbl.$polname (qual drift)"; continue
+    fi
+    if [ "$OPENW" = 1 ] && [ "$(cat "$wfile")" != "$snapw" ]; then
+      record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" "snapshot drift (with_check): live='$(cat "$wfile")'"
+      echo "  ERROR  $tbl.$polname (wc drift)"; continue
+    fi
+  else
+    snapnote=" [snapshot:ABSENT — no §7.2 drift tripwire on this verdict]"
   fi
 
-  # RESTORE built from the LIVE capture (byte-exact), armed BEFORE opening.
+  # RESTORE built from the LIVE capture (byte-exact), armed BEFORE opening. It restores
+  # exactly the clauses this arm opens — nothing else is touched, so the round-trip is exact.
   {
-    printf 'alter policy "%s" on public."%s"' "$polname" "$tbl"
-    [ "$haveq" = 1 ] && printf ' using (%s)' "$(cat "$qfile")"
-    [ "$havew" = 1 ] && printf ' with check (%s)' "$(cat "$wfile")"
+    printf 'alter policy "%s" on "%s"."%s"' "$polname" "$nsp" "$tbl"
+    [ "$OPENQ" = 1 ] && printf ' using (%s)' "$(cat "$qfile")"
+    [ "$OPENW" = 1 ] && printf ' with check (%s)' "$(cat "$wfile")"
     printf ';\n'
   } > "$restore"
   INFLIGHT="$restore"
   cp -f "$restore" "$SENTINEL"   # Part 4: survives SIGKILL, which no trap does
 
-  # OPEN the policy: using(true) [+ with check(true)] — only clauses that exist.
+  # OPEN the policy — only the clause(s) the open rule names for this command.
   {
-    printf 'alter policy "%s" on public."%s"' "$polname" "$tbl"
-    [ "$haveq" = 1 ] && printf ' using (true)'
-    [ "$havew" = 1 ] && printf ' with check (true)'
+    printf 'alter policy "%s" on "%s"."%s"' "$polname" "$nsp" "$tbl"
+    [ "$OPENQ" = 1 ] && printf ' using (true)'
+    [ "$OPENW" = 1 ] && printf ' with check (true)'
     printf ';\n'
   } > "$WORK/_wp_mut.sql"
   mout=$(psql_f "$WORK/_wp_mut.sql")
@@ -994,13 +1248,13 @@ while IFS='|' read -r tbl polname cmd qual wc; do
 
   # RESTORE exact original + VERIFY round-trip
   psql_f "$restore" >/dev/null 2>&1
-  if [ "$haveq" = 1 ]; then
+  if [ "$OPENQ" = 1 ]; then
     nowq=$(psql_c -c "select pg_get_expr(polqual,polrelid) from pg_policy where polname='$polname' and polrelid='$regc'::regclass")
     if [ "$nowq" != "$(cat "$qfile")" ]; then
       echo "*** CONTAMINATION: restore of $tbl.$polname qual did NOT round-trip. Aborting (§7.5)."; exit 2
     fi
   fi
-  if [ "$havew" = 1 ]; then
+  if [ "$OPENW" = 1 ]; then
     noww=$(psql_c -c "select pg_get_expr(polwithcheck,polrelid) from pg_policy where polname='$polname' and polrelid='$regc'::regclass")
     if [ "$noww" != "$(cat "$wfile")" ]; then
       echo "*** CONTAMINATION: restore of $tbl.$polname with_check did NOT round-trip. Aborting (§7.5)."; exit 2
@@ -1008,9 +1262,15 @@ while IFS='|' read -r tbl polname cmd qual wc; do
   fi
   INFLIGHT=""; rm -f "$SENTINEL" 2>/dev/null
 
-  note="$FAILING"
-  [ "$VERDICT" = "ERROR" ] && note="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)"
-  record "policy" "$tbl.$polname ($cmd)" "open->true" "$VERDICT" "$note"
+  # ⚠ The direction records WHICH clause was opened, so an ALL policy's COVERED cannot be
+  # read as a claim about its `using` half (which this arm deliberately does not open).
+  dir="open->true"
+  [ "$OPENQ" = 1 ] && [ "$OPENW" = 1 ] && dir="open using+check->true"
+  [ "$OPENQ" = 1 ] && [ "$OPENW" = 0 ] && dir="open using->true"
+  [ "$OPENQ" = 0 ] && [ "$OPENW" = 1 ] && dir="open with-check->true"
+  note="$FAILING$snapnote"
+  [ "$VERDICT" = "ERROR" ] && note="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)$snapnote"
+  record "policy" "$tbl.$polname ($cmd)" "$dir" "$VERDICT" "$note"
   printf '  %-8s %s\n' "$VERDICT" "$tbl.$polname"
 done < "$POLWL"
 

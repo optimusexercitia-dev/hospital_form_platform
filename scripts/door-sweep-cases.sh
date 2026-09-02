@@ -672,16 +672,19 @@ else
 fi
 say
 if [ -n "$CASES_WRITE" ]; then
-  say "    2of2 — WRITE layer (INSERT/UPDATE/DELETE policies + raise-guards), ~1 min per gate:"
+  say "    2of2 — WRITE layer (INSERT/UPDATE/DELETE **and ALL** policies + raise-guards), ~1 min per gate:"
   say
   say "      WORK=\"\${TMPDIR:-/tmp}/authz-audit-\$(date +%s)\" \\"
   say "      CASES=\"$CASES_WRITE\" \\"
   say "      bash $WRITE_AUDIT"
   say
-  say "      ⚠ Its policy arm's domain is an EMBEDDED SNAPSHOT, not the live catalog, so a"
-  say "        real write policy can be OUTSIDE it. Since 2026-08-29 that is reported and"
-  say "        exits 3 UNPROVEN instead of being silently dropped at exit 0 — read the"
-  say "        code DIRECTLY (0 CLEAN / 1 DIRTY / 2 ABORT / 3 UNPROVEN), same as the read arm."
+  say "      ⚠ Read its exit code DIRECTLY (0 CLEAN / 1 DIRTY / 2 ABORT / 3 UNPROVEN), same"
+  say "        as the read arm. Since 2026-09-02 its policy domain is the LIVE CATALOG —"
+  say "        every policy whose command can permit a write, \`ALL\` included — so an"
+  say "        \`ALL\` policy sent here now MATCHES instead of being reported as no gate."
+  say "        ⛔ It opens an \`ALL\` policy's WITH CHECK half only: the \`using\` half also"
+  say "        gates SELECT and is the read arm's, so a COVERED here is a claim about the"
+  say "        write path and a COVERED there is not. Both arms are still needed."
 else
   say "    2of2 — WRITE layer: NO CASES. ⛔ Same standing: a claim to check, not a silence."
 fi
