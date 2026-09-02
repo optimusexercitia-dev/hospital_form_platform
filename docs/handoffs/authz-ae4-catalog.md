@@ -1,31 +1,35 @@
 ---
 branch: authz-ae4-catalog
 task: AE4 — the authz catalog, and staff_admin substituted end-to-end (ADR 0155 D7)
-adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0175, 0176, 0079, 0106]
+adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0175, 0176, 0177, 0079, 0106]
 base_sha: 0412bef7e59476635ddb024c63fdce182a7a6466
 created: 2026-09-01
 updated: 2026-09-02
-status: live   # AE4.1–4.8 + PO batch BUILT; e2e:prod RED on one bug; audit 2026-09-02 CHANGES REQUESTED → Option A adopted, ADR 0176 written; Gate AE4 NOT declarable
+status: live   # AE4.1–4.9(do-now 1+2) BUILT and COMMITTED; every spec passes but only as a 3-run COMPOSITE; Gate AE4 NOT declarable — the re-key (0176 D6) is the next build
 ---
 
-# Handoff — AE4, paused with AE4.8 built, the E2E gate RED, and the audit's Option A adopted
+# Handoff — AE4, with the permission layer made real and every spec passing, but the gate not yet earned
 
 ## ▶ RESUME HERE
 
 1. `git log --oneline 0412bef7..HEAD` and `git status`.
 2. `supabase db reset --local` — **mandatory, and not a formality: see § Dead ends "a bisect
    poisons every later catalog read". Every figure below assumes a fresh reset at THIS tree.**
-3. `npm run test:db` — expect **254 files / 8504 tests, GREEN**. No expected-red baseline exists
-   on this branch, so a red is drift.
+3. `npm run test:db` — expect **256 files / 8579 tests, GREEN** (⚠ was 254/8504 before AE4.9;
+   407 `+54`, 408 `+17`, 401 `+3`, 403 `+1`). No expected-red baseline exists on this branch,
+   so a red is drift.
 4. `npm run test` (vitest) — expect **151 files / 2058 tests**. `npm run lint` (12 gates) and
-   `npm run typecheck` — expect 0.
+   `npm run typecheck` — expect 0. ⚠ vitest currently **requires Docker** (`role-catalog.test.ts`
+   shells out to it) — that is item (d) below, not a local misconfiguration.
 5. Read **PROGRESS.md § Now**, § Bug Log and § Decisions. This file is not status truth.
-6. Read the [implementation audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md)
-   and the plan's **§ AE4.9** — ⛔ **the direction changed on 2026-09-02**: as built,
-   `staff_admin` runs on the catalog's ROLE half only; the permission half has zero production
-   callers. The PO adopted **Option A — make permissions real**, recorded in ADR
-   [0176](../decisions/0176-authz-permission-layer-made-real.md) (`Amends:` 0155 D7 + 0174) —
-   read it before any AE4.9 code.
+6. Read ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) (`Amends:` 0155 D7 +
+   0174) and [0177](../decisions/0177-ae49-resolver-contract-implementation-choices.md), then
+   plan **§ AE4.9**. ⛔ **The direction changed on 2026-09-02 and the FIRST HALF IS NOW BUILT:**
+   the permission layer had zero production callers; the PO adopted **Option A — make
+   permissions real**, and D4+D7 landed (the resolver quartet, the state gate, scope-kind
+   validation, `assume_role` enforcing `session_selectable`). ⛔ **What is NOT yet true: no
+   enforcement site has been re-keyed**, so deleting a grant still does not move a production
+   door. That is 0176 D6 and it is the next build.
 
 ⛔ Re-measure before relying on anything below — see § Trust.
 
@@ -41,7 +45,8 @@ F1–F9 drove AE4.7a/b/c.
 
 **Mixed.** AE4.1–AE4.6 was written cold at session end — the least reliable mode. AE4.7 onward
 was written incrementally. § State was re-measured wholesale at `43684b16`, spot-checked at
-`b37a2a5b`, and the AE4.8 rows below were measured at `d56a5065`.
+`b37a2a5b`, the AE4.8 rows at `d56a5065`, and the **AE4.9 rows after the two new migrations
+landed** — by the lead directly on the live catalog, not copied from the builder's report.
 
 ⛔ **Eight rows of an earlier VERIFIED table had gone false by AE4.7c**, and **one diagnosis in
 this session was retracted outright** (§ Dead ends). Every one had been true when written, and
@@ -56,11 +61,17 @@ drift.
 AE4 makes the `authz` catalog exist, migration-managed, with **exactly one role —
 `staff_admin`** running on it, proven by a differential oracle.
 
-⛔ **As BUILT this is HALF of D7 (audit F1, reproduced 2026-09-02):** both wrappers →
-`authz.holds_role` → `assignment_facts` + `roles.state`; `authz.has_direct_permission` has zero
-callers, `role_permissions` zero runtime readers. Grant deletion flips the resolver, not the
-wrapper; `state='legacy'` flips the wrapper, not the resolver. Not an exposure — a conformance
-defect: the approved matrix is not the oracle of what shipped. Correction path: plan § AE4.9.
+⚠ **This paragraph was rewritten 2026-09-02 — the audit-F1 text it replaced is now WRONG in its
+nouns**, because it named `authz.has_direct_permission`, a function that **no longer exists**
+(renamed by D4). Keeping it would have read as a careful, current warning.
+
+**Where D7 actually stands:** AE4.6 delivered **layer 1 only** (both wrappers → `authz.holds_role`
+→ `assignment_facts` + `roles.state`). AE4.9 D4+D7 then built **layer 2** — the runtime/candidate
+split, the `authoritative` gate, scope-kind validation, `assume_role` enforcing
+`session_selectable`. ⛔ **Layer 3 does not exist: NO enforcement site is re-keyed**, so grant
+deletion still moves the resolver and not a production door. That is the conformance defect ADR
+0176 D6 closes, and it is the phase's remaining build — not an exposure, but the approved matrix
+is not yet the oracle of what ships.
 
 **Explicitly NOT in scope, each ruled rather than overlooked:**
 - Other roles. Eleven remain `legacy`; AE5 substitutes them one at a time.
@@ -72,18 +83,22 @@ defect: the approved matrix is not the oracle of what shipped. Correction path: 
 
 ## State
 
-### Done — VERIFIED at `d56a5065`, fresh reset
+### Done — VERIFIED
+
+⚠ **Rows are dated and the tree MOVED under them within 09-02.** Earlier rows were taken at
+`d56a5065`; the AE4.9 rows were taken after `…7250`/`…7260` landed. Two rows naming
+`has_direct_permission` were **corrected, not deleted** — that function no longer exists.
 
 | What | Witness | When |
 | --- | --- | --- |
-| AE4.1–4.7 catalog state (5 tables / 6 fns / 0 policies; 43 perms / 42 grants; 1 authoritative + 11 legacy; the one revoked code `org.professionals.manage`) | § Re-derivation appendix regenerates each | 09-02 |
+| AE4.1–4.7 catalog state (5 tables / **8** fns after AE4.9, was 6 / 0 policies; 43 perms / 42 grants; 1 authoritative + 11 legacy; the one revoked code `org.professionals.manage`) | § Re-derivation appendix regenerates each | 09-02 |
 | Both wrappers are one-liners over `authz.holds_role`; `has_role`/`assignment_facts`/`active_role` all false on both | appendix § wrapper delegation | 09-01 |
 | **No client role holds USAGE on `authz`** — anon, authenticated **and service_role** all false, and `authz` is absent from `config.toml`'s exposed schemas | `has_schema_privilege(r,'authz','USAGE')`; `grep -n "^schemas" supabase/config.toml` | 09-02 |
 | AE4.8: `ROLE_MANIFEST` **is** `authz.roles`' session-selectable half, scope kinds matching | `npx vitest run src/lib/role/role-catalog.test.ts` → 6/6 | 09-02 |
 | AE4.8: `landingRouteForRole` reproduces its pre-refactor behaviour on 31 pinned cases | `npx vitest run src/lib/role/landing-route.test.ts` → 31/31 | 09-02 |
 | `set_professional_link_state` **DOES** carry AE4.7c's `link_state='unknown'` bound | `prosrc ~ 'v_current_link'` → **true**, after a fresh reset | 09-02 |
-| **Audit F1/F3 probe reproduced** — baseline `t/t`; scope kind `hospital` **and** `banana` → `t`; grant deleted → wrapper `t`, resolver `f`, explanation `scope_unreachable`; `state='legacy'` → wrapper `f`, resolver `t`; rolled back, catalog unchanged after | `BEGIN … ROLLBACK` probe on `app.is_staff_admin_of_for` / `authz.has_direct_permission` for `chefe.ccih` × CCIH — ⚠ measured at migration head `20261003007240` on a DB **not reset by the measurer**; matched the audit's fresh-reset figures | 09-02 |
-| Audit census — `has_direct_permission` callers `<none>`; `session_selectable` readers `<none>`; `risk_class` / `sensitivity_ceiling` / `resource_kind` readers `<none>`; `is_staff_admin_of` in 63 policies + 151 fn bodies, `_for` in 2 + 28; the 16 other role wrappers still call `app.has_role` (reads `memberships` directly) | appendix § audit census | 09-02 |
+| ⭐ **AE4.9 D4/D7 re-measured by the LEAD, post-migration, fresh reset** — scope kind `hospital` **and** `banana` now **deny** (both granted before); `test_validation` → runtime `f` / candidate `t` (the ONLY divergent state, so the split is a split and not a rename); deleted grant → **`permission_not_granted`** (was `scope_unreachable`); `assume_role` `prosrc ~ session_selectable` → **true** (was false) | `BEGIN … ROLLBACK` probes on `authz.has_permission` / `candidate_has_permission` / `explain_permission`; `pg_proc` for `assume_role` | 09-02 |
+| ⚠ **Census, POST-rename** — the old names `has_direct_permission` / `explain_direct_permission` are **GONE**; the new quartet has **zero callers outside `authz`**; **no** client role holds EXECUTE on any of the 8 `authz` functions. `is_staff_admin_of` still sits in 63 policies + 151 fn bodies, `_for` in 2 + 28, and the 16 other role wrappers still call `app.has_role` — that is the re-key surface | appendix § audit census (⛔ swap the regex to the NEW names) | 09-02 |
 
 ### Written but UNVERIFIED (BELIEVED)
 
@@ -96,24 +111,37 @@ defect: the approved matrix is not the oracle of what shipped. Correction path: 
 ### Not started
 
 ⛔ **`docs/backend-state.md` has NO `authz` section** — deliberate: a Record-step artifact, owed
-at Gate AE4, not here. The increment record owes an **AE4.8 section** (every earlier increment
-has one).
+at Gate AE4, not here. ⚠ AE4.9 changed the surface it must describe, so write it after the
+re-key, not before. ✅ The increment record's **AE4.8 and AE4.9 sections now exist** (that gap
+is closed).
+
+⛔ **NO ENFORCEMENT SITE IS RE-KEYED.** Layers 1 and 2 are real; layer 3 does not exist yet, so
+deleting a grant still moves the resolver and **not** a production door. This is the gap 0176 D6
+closes and it is the phase's remaining build.
 
 ### Tree
 
 ⚠ `base_sha` (`0412bef7`) is where this handoff was FIRST written and is deliberately unchanged —
-it is what a successor diffs from to see the whole phase. The tree described is **`d56a5065`**.
+it is what a successor diffs from to see the whole phase.
 
-**71 commits ahead of `main`**, working tree **clean** except two pre-existing untracked items
-that are not this work's: `docs/learning/`, `scripts/progress-cleanup-2026-08-26.mjs`.
+⛔ **NO COMMIT COUNT AND NO HEAD SHA IS RECORDED HERE, deliberately** — a count or sha written
+inside the commit that contains it is off by one **by construction**
+([rule](../../.claude/rules/live-facts-measure-dont-quote.md); this file previously said
+*"71 commits ahead"* and was stale within the day). **Measure both:**
+`git rev-list --count main..HEAD` · `git rev-parse --short HEAD` · `git status --short`.
+
+**Working tree was CLEAN as of 2026-09-02** — everything below is committed, including the two
+formerly-untracked strays (`docs/learning/`, `scripts/progress-cleanup-2026-08-26.mjs`), which
+went into their **own isolated `chore:` commit** so it can be dropped without touching AE4
+history — the PDF is a 469 KB binary, cheap to drop before a merge and expensive to purge after.
 
 ⛔ **Nothing merged, nothing pushed.** PO ruled the whole phase merges once, at Gate AE4. The
 schema-first rule (`.claude/rules/push-schema-before-code.md`) is **armed but not owed** — it
 fires at that merge.
 
-**14 migrations**, `20261003007100` … `20261003007240`. Suites **401–406** added.
-AE4.8 touched `src/lib/role/`, `src/app/page.tsx`, and **two files under `e2e/`** (§ Open
-questions — they owe sign-off).
+**16 migrations**, `20261003007100` … `20261003007260`. Suites **401–408** added.
+AE4.8 touched `src/lib/role/` + `src/app/page.tsx`; AE4.9 touched only `supabase/` + docs;
+the two `e2e/` files are ✅ tester-signed-off (§ Open questions).
 
 ## Gates
 
@@ -129,33 +157,36 @@ that tree: `census` / `hat` / `FROMFINDINGS=1 wrapper` / `floor` all **exit 0, I
 set 41 ⊆ allowlist · floor both directions). ⚠ `catalog` and `sites` were **NOT** re-run —
 absence of a verdict is not absence of coverage, so do not write "six arms" for this measurement.
 
-### ⛔ `e2e:prod` is RED — Gate AE4 may NOT be declared
+### ⚠ E2E: every spec passes, but as a COMPOSITE — the §6 artifact is NOT earned
 
-Run 2 (after the FLOW-8 fix), `GATE_EXIT=1` **read from the log, not from the task notification**
-— the notification reported the exit of a trailing `tail`, and said 0 while the gate said 1:
+**Measured 2026-09-02 AFTER the AE4.9 SQL. All 122 spec files hold a PASSING verdict and NO test
+failed an assertion anywhere at this tree.** ⛔ **But that green is the union of THREE runs, and
+`e2e:prod` has never exited 0 over the whole suite here.** §6 step 2 says the full suite runs
+**once** to declare green, so *"e2e:prod green"* may **not** be written. Composition, recorded so
+a successor can audit rather than trust it — run A batches 1–17 = the first **100** specs,
+`0 failed` each (lead aborted at b19 deliberately) · run C = the other **22** at `BATCH_TESTS=22`,
+200 passed, **zero assertion failures** · run D = the 3 run C left unproven, `GATE_EXIT=0`,
+**27/27**. ▶ **Owed: ONE full `e2e:prod` to exit 0 in a SINGLE run, on a quiet machine.**
 
-```
-1183 passed · 1 failed · 62 infra · 3 flaky · 13 did-not-run · 21 batches
-accounted for 1262 of 1273 collected   (the 11 unaccounted is known gate arithmetic)
-```
+⭐ **THE 62 "infra" ARE RESOLVED — batch 7 measured `70 passed · 0 failed · accounted 70/70 ·
+pw_exit 0`.** ⛔ **And the reading that the FF family was somehow special is RETRACTED.** The
+prior text here said the batch *"was already auto-re-run once and got WORSE (56→62), so this is
+not a one-off blip"*, which invited exactly that inference. The deaths land wherever the machine
+is loaded: this run they hit batches 14/18/19, and `FUP-E2E-SERVER-DEAD-1`'s own history has
+5·6·9·12·16·17.
 
-**The "1 failure" was NOT a count — it was an artifact of a serial abort.** `BUG-AE47C-LINKAGE-001`
-(now ✅ CLOSED, both casualties; PROGRESS.md § Bug Log) turned out to be **two** failures:
-`ethics-e4-participants.spec.ts` is `test.describe.configure({ mode: 'serial' })`, so `:765`
-aborted the file and `UNKNOWN-RESOLVE` (`:1068`) sat in the 13 did-not-run — measured 2026-09-02
-with the `:765` fix stashed, it fails independently on the same bound. That file is now **13/13,
-exit 0, on a fresh reset**. ⛔ Every later run must give every test a verdict; a serial abort is
-unmeasured, never passing.
+⛔ **EVERY red in these runs was CONNECTION-LEVEL, never an assertion.** The mechanism — a server
+that binds :3000 and answers 404 in 13 ms after logging `✓ Ready in 0ms`, plus the two
+operational traps that cost a `GATE_EXIT=4` abort — is now written into
+**`FUP-E2E-SERVER-DEAD-1`**, which is its permanent home. ⛔ Read it before re-running the gate;
+it is not restated here. ⚠ Its companion: the INFRA classifier does not recognise `ERR_ABORTED`,
+so it books a navigation abort as a *real failure* (addendum on the classifier follow-up).
 
-**⛔ THE 62 "infra" ARE STILL OPEN, AND THEY ARE THE MISREADABLE LINE — unproven, not passes.**
-They are all of **batch 7**, whose 70 tests are the **FF family**: `ff1-repeating-groups`,
-`ff2-matrix`, `ff2-matrix-views`, `ff3-validations`, `ff4-power-authoring`, `ff5-references`,
-`flagged-aggregate-result`. The gate's own classifier recorded `server_dead=1, conn_errors=122`
-— the standalone server died and the rest of the batch hit connection refusals. ⚠ **The batch was
-already auto-re-run once and got WORSE** (56 infra on the first attempt, 62 on the re-run), so
-this is not a one-off blip. Final b7 tally: **6 passed, 62 infra, 2 did-not-run, accounted 70/70**.
-⛔ Nothing is known about those 62 either way. Any sentence of the form *"only one real failure"*
-must carry them — and that sentence was already proven wrong once, above.
+**The "1 failure" of the AE4.8-era run was NOT a count — it was a serial-abort artifact.**
+`BUG-AE47C-LINKAGE-001` (✅ CLOSED, both casualties; PROGRESS.md § Bug Log) was **two** failures:
+the file is `test.describe.configure({ mode: 'serial' })`, so `:765` aborted it and
+`UNKNOWN-RESOLVE` (`:1068`) sat unmeasured in the 13 did-not-run. ⛔ Every run must give every
+test a verdict; a serial abort is unmeasured, never passing.
 
 **Did NOT run at all:** the periodic full door sweep (~5 h) and `ARM=wrapper`'s own full sweep
 (~100 min) — both are periodic audits, not phase steps. ⚠ **C2's reachable command doors remain
@@ -258,9 +289,7 @@ production door; everything else `pending-rekey` (0176 D6, recorded in place).
 
 | Item | Who/what answers it |
 | --- | --- |
-| ✅ **`BUG-AE47C-LINKAGE-001` — MECHANISM MEASURED 2026-09-02, fix in flight.** Full record + witnesses: PROGRESS.md § Bug Log. In one sentence: the create-inline submit calls `setProfessionalLinkState` **after** `createProfessionalProfile` already wrote `link_state='linked'`, so AE4.7c's bound correctly refuses it with 42501 → `MESSAGES.forbidden` → the dialog never closes. Discrimination half in the same transaction: the `nao_possui_conta` arm leaves `'unknown'` and succeeds. ⛔ Fix is CLIENT-side; relaxing the door is the wrong direction. | done — re-verify with the whole spec file, not just `-g PROF-CREATE` |
-| ✅ **THE TWO E2E SPEC SIGN-OFFS ARE DISCHARGED 2026-09-02 — both SIGNED OFF by the tester**, on the live files rather than the diffs. `ethics-e2-procedure.spec.ts` (`a1ac073c`): the original org-authority `HC0J7` assertion survives behaviourally intact and a genuinely NEW `42501` assertion was added in front — a strengthening, not a re-coded expectation. `ae48-landing-by-scope-kind.spec.ts` (`99848eaa`): 5/5 green, exit 0, and the four personas were checked against `seed.sql` to hold exactly one role each (so none divert to `/selecionar-perfil` before the precedence branch). ⚠ **ONE NAMED GAP, and it must survive to the gate record:** the ae48 spec's **RED polarity was NOT executed** — the tester cannot mutate `src/`, so the fail-polarity claim rests on a structural trace (`LANDING_BRANCHES` derives from `ROLE_ORDER`; the dead-end text renders at `/` with no redirect after it; grant data is populated independently of `ROLE_ORDER`). ⛔ That is a **structural-plausibility** verdict, not a live reproduction. *"Proven on both polarities"* may not be written for it without that qualifier. | ✅ done — the gap is a lead/frontend item if the gate wants it closed live |
-| ⛔ **62 infra-unproven + 13 never-run carry NO verdict** (§ Gates). b7 was already re-run once and got worse. Re-running it is a prerequisite for any green declaration, and a second consecutive server death is a finding about the harness, not noise. | re-run b7 + b6 |
+| ✅ **THREE ROWS RESOLVED 2026-09-02 and REMOVED rather than left ticked** — `BUG-AE47C-LINKAGE-001` (both casualties), the two E2E spec sign-offs, and the 62 infra-unproven. ⛔ Their records are PROGRESS.md § Bug Log and § Gates above, **not here**; a resolved row in an open-questions table is what makes such a table stop being read. ⚠ One residue did NOT resolve: the `ae48` spec's **red polarity was never executed** (structural-plausibility verdict only). | lead/frontend, if the gate wants it live |
 | ⛔ **PROGRESS.md — the 81,920 B target is NOT met and NOT reachable by rotation.** Every sanctioned category is empty; the OPEN follow-up index alone is ~50% of the file and the contract forbids rotating it. Options are a PO decision — raise the target, or give the register its own file — filed as `FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT`. | PO |
 | ⛔ **Performance evidence does not exist** — no AE4.4 scaled-fixture artifact anywhere (audit F9). Measure the FINAL path after AE4.9's seam, never `holds_role` alone. | backend, after the ADR |
 | ⛔ **Rollback runbook + out-of-chain SQL template do not exist** (audit F10; zero `*rollback*` files in the tree). | backend, before Gate AE4 |
@@ -268,28 +297,24 @@ production door; everything else `pending-rekey` (0176 D6, recorded in place).
 
 ## Next task
 
-**First command:** `supabase db reset --local && npm run test:db` (expect **254f/8504 GREEN**).
+**First command:** `supabase db reset --local && npm run test:db` (expect **256f/8579 GREEN**).
 
-0. ✅ **Done 2026-09-02:** ADR [0176](../decisions/0176-authz-permission-layer-made-real.md)
-   written (`Amends:` 0155 D7 + 0174), indexed, and the ruling recorded in PROGRESS.md § Now +
-   § Decisions. ✅ Gate AE4 minimum re-key scope **confirmed** the same day: the three
-   representatives (0176 D6). No PO item is open on this phase's authority record.
-1. ✅ **`BUG-AE47C-LINKAGE-001` DIAGNOSED 2026-09-02** — mechanism + witnesses in PROGRESS.md
-   § Bug Log; fix is client-side at `add-participant-dialog.tsx:958`. ⭐ **The reproduction
-   recipe generalises and is cheaper than the prod gate:** run the spec solo against a plain
-   `npm run dev` (Playwright's config has `reuseExistingServer`), then read the real
-   SQLSTATE + message from **`docker logs <db container>`** — the DB container's log is
-   outside everything `e2e-prod-gate.sh` truncates. ⛔ Re-measure the catalog only after a
-   fresh reset at THIS tree.
-2. **The "do now" set (plan § AE4.9), each cheap only while callers = 0.**
-   ✅ **(a) + (b) BUILT 2026-09-02 — ADR [0177](../decisions/0177-ae49-resolver-contract-implementation-choices.md);
-   detail → [authz-ae4.md § AE4.9](../progress/authz-ae4.md).** Migrations `20261003007250` +
-   `20261003007260`. Lead re-measured the four load-bearing behaviours on the live catalog, not
-   from the report: scope kind `hospital`/`banana` deny (both granted before) · `test_validation`
-   → runtime `f` / candidate `t` · deleted grant → `permission_not_granted` · `assume_role`
-   `prosrc ~ session_selectable` now **true**. Callers of the old names: **GONE**; of the new
-   ones: **zero outside `authz`**.
-   ⛔ **STILL OPEN — (c) and (d), and (c) has a constraint the plan does not state:**
+⛔ **THE NEXT BUILD IS ITEM 3 — the re-key.** Items 0–2 and 5 are done; 3 is what Gate AE4's
+minimum actually requires (0176 D6), and until it lands *deleting a grant still moves nothing a
+user can observe*. Items 4, 6 and 7 are gate paperwork that follow it.
+
+0. ✅ **DONE 2026-09-02, all recorded elsewhere — no PO item is open on this phase's authority
+   record:** ADRs [0176](../decisions/0176-authz-permission-layer-made-real.md) +
+   [0177](../decisions/0177-ae49-resolver-contract-implementation-choices.md) · the 0176 D6
+   re-key scope confirmed · `BUG-AE47C-LINKAGE-001` closed (both casualties) · tester sign-offs
+   discharged · AE4.9 do-now **(a)+(b)** built (migrations `…7250`/`…7260`) and independently
+   re-measured by the lead on the live catalog.
+   ⭐ **One technique worth carrying, recorded nowhere else:** to debug a prod-gate spec failure,
+   run the spec **solo against a plain `npm run dev`** (Playwright's config has
+   `reuseExistingServer`) and read the real SQLSTATE from **`docker logs <db container>`** — the
+   DB container's log is outside everything `e2e-prod-gate.sh` truncates, and this replaced a
+   ~2 h gate cycle with a ~2 min one. ⛔ Re-measure the catalog only after a fresh reset.
+1. ⛔ **STILL OPEN — do-now (c) and (d), and (c) has a constraint the plan does not state:**
    (c) populate `catalogPermissions` / `nonLegacyRoles` from the catalog in
    `gen-authz-matrix-cells.mjs` (both still range over `?? []`, so both pass having checked
    nothing) and prove each arm can red — ⚠ **that generator is pure JSON→psql today and
@@ -297,27 +322,35 @@ production door; everything else `pending-rekey` (0176 D6, recorded in place).
    chain require Docker.** Measured, not assumed: no `docker`/`psql`/`execSync` in the script.
    (d) move `role-catalog.test.ts`'s Docker shell-out (line 73) to a post-reset DB gate — the
    same constraint, one layer up: it currently makes **vitest** require Docker.
-3. **AE4.9's first artifact:** the generated enforcement manifest with **no default arm**,
-   replacing 401 §19's `ELSE`; then the three representatives re-keyed end-to-end (domain
-   authorizer at the site; grant deletion flips the production door) — the PO-confirmed Gate
-   AE4 minimum, 0176 D6.
-4. **The full `e2e:prod` to an actual green — LAST, not next.** ⛔ Run it *after* the § AE4.9 SQL
-   lands, not before: D4 changes the catalog and `assume_role` gains a real `session_selectable`
-   gate, so a green measured before them is spent. ⛔ Read `GATE_EXIT` from the log, never from a
-   task notification. ⚠ **b7's 62 infra-unproven are the open half** — b6's file is now 13/13 on a
-   fresh reset, but b7 (the FF family) died at the server and got WORSE on its auto-re-run; a
-   second consecutive death is a finding about the harness, not noise.
+2. ⭐ **THE PHASE'S REMAINING BUILD — the enforcement manifest, then the re-key (0176 D6).**
+   The generated manifest with **no default arm**, replacing 401 §19's `ELSE` (today its `ELSE`
+   sends 38 of 43 codes to `is_staff_admin_of_for`, so a 44th permission inherits a default
+   instead of forcing a decision); then the three representatives — `commission.forms.edit`,
+   `org.professionals.create`, `org.professionals.read` — re-keyed end-to-end with a domain
+   authorizer **at the site**, each proven by the grant-deletion mutation flipping the
+   **production door**, not the resolver. Everything else enters the gate as `pending-rekey`.
+3. **ONE full `e2e:prod` exiting 0 in a SINGLE run — LAST, and it is the only E2E item left.**
+   Every spec already passes, but only as a 3-run composite (§ Gates), which is not the §6
+   artifact. ⛔ Run it *after* item 3, on a **quiet machine**: a second Supabase stack or any
+   competing workload reliably produces the connection-level class that made three runs
+   necessary. ⛔ Read `GATE_EXIT` from `/tmp/e2e-prod-gate/gate-exit`, never from a task
+   notification. ⚠ If batches start dying, `BATCH_TESTS=22` is the recorded rescue
+   (`FUP-E2E-SERVER-DEAD-1`) — smaller batches, more frequent restarts.
+   ⛔ Two traps that cost a `GATE_EXIT=4` abort and another project's test run are recorded in
+   `FUP-E2E-SERVER-DEAD-1` — read them before killing or cleaning up a gate run.
    ⛔ **And do NOT re-run a spec file against an un-reset DB to "confirm" it** — measured
    2026-09-02: `ethics-e4-participants` is 13/13 on a fresh reset and RED on the very next
    invocation against the same DB (`EXT-REUSE` asserts an absolute seat count). That is
    `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`, now generalized beyond retries.
-5. ✅ **Tester sign-off DONE 2026-09-02** — both signed off; ⚠ the ae48 red-polarity gap (§ Open
-   questions) is the one thing that did NOT close.
-6. **Performance evidence on the final path** (scaled ANALYZEd fixture, nested plans — plan
-   AE4.4) and the **rollback runbook + out-of-chain template** (plan AE4.6).
-7. **Record step:** an AE4.8 section in the increment record; `docs/backend-state.md`'s `authz`
-   section (stating plainly that the permission half is not yet authority); then Gate AE4 = full
-   §6 + QA review + PO approval, minimum re-key scope confirmed.
+4. **Performance evidence on the final path** (scaled ANALYZEd fixture, nested plans — plan
+   AE4.4) and the **rollback runbook + out-of-chain template** (plan AE4.6). ⛔ Measure the
+   re-keyed site's policy body through layers 3→2→1, **never `holds_role` alone** — optimizing
+   before the seam exists makes the wrong thing faster (0176 Consequences).
+5. **Record step:** ✅ the AE4.8 **and** AE4.9 sections exist in the increment record.
+   ⛔ **Still owed: `docs/backend-state.md` has NO `authz` section** — and AE4.9 just changed the
+   surface it must describe, so write it *after* item 3, stating plainly how far the permission
+   layer is authority (0162 §2: authority-**elect** until AE5-complete). Then Gate AE4 = full §6
+   + QA review + PO approval.
 
 ## Re-derivation appendix
 

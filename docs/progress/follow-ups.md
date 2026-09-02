@@ -2471,6 +2471,40 @@ batch 6 died, **its retry did not recover**, and a run with **zero assertion fai
 as a regression. What it cannot do is make an unrun test proven. `BATCH_TESTS=22` remains the
 recorded rescue and is still unapplied.
 
+⭐⭐ **A MECHANISM, 2026-09-02 (AE4.9 gate runs) — this entry previously had only a symptom.**
+The dying server is not gone: it **binds :3000 and answers `/login` with HTTP 404 in 13 ms**,
+having logged `✓ Ready in 0ms`. That "0ms" is the tell — a real prod-standalone boot is not
+instant, so this is a boot that **never completed** while still taking the port. Every test in
+the batch then burns its full 30 s timeout, and `pg_stat_activity` shows **zero** query activity
+for the whole window. ⛔ **Consequence for diagnosis: the batch is not hung and the log is not
+frozen** — it is grinding through timeouts, so "no output for N minutes" reads identically to a
+stall. Check the *batch* log and `curl` the port, never the gate's top-level log alone.
+
+⚠ **ATTRIBUTION CORRECTED, and it changes the fix.** A reading that "the harness degrades over
+the run" was formed from one run (deaths at batches 14/18/19) and is **retracted** — this
+entry's own history has 5·6·9·12·16·17, i.e. scattered. **PO input: a second workload was
+running on the machine throughout, including a second Supabase stack (`supabase_*_escalume`,
+ten more containers).** Resource contention explains both the scatter and that run's clustering;
+a time-based leak explains neither. ⛔ So the first question on any future occurrence is *what
+else is running*, not *which specs*.
+
+⛔ **AND THE FF FAMILY WAS NEVER SPECIAL.** The prior record's *"batch 7 was auto-re-run once and
+got WORSE, 56→62"* invited a "those seven spec files stress it" reading. Measured 2026-09-02 on a
+quieter machine: batch 7 = **70 passed, 0 failed, accounted 70/70, `pw_exit 0`**. The deaths land
+wherever the machine is loaded.
+
+⚠ **Two operational traps, both paid for on 2026-09-02:** (1) **never kill the gate while it is
+mid-`supabase db reset`** — the DB is left half-applied and the gate's own recovery reset then
+dies on `CREATE SCHEMA IF NOT EXISTS "app"` (already exists), aborting `GATE_EXIT=4` *"stack
+unrecoverable — NOT a test result: nothing was proven"*; recovery is a plain
+`supabase db reset --local` once nothing holds the DB. (2) When clearing leftovers, **scope the
+process match to this repo's path** — an unscoped match on `playwright` / `supabase.js db reset`
+killed a *different project's* Playwright run on the same machine.
+
+⭐ `BATCH_TESTS=22` **was applied** on 2026-09-02 and the run completed with 0 assertion failures —
+but it is **not evidence the knob works**: the machine was freed and the stack repaired in the
+same change. Three variables moved at once; the confound is recorded rather than resolved.
+
 ### 🟡 FUP-ACT-HATLESS-AUDIT — a hatless read's audit row omits the `acting_as` KEY, and absence has three meanings (S4 QA MINOR-6; owner: backend)
 
 Catalog-verified in `app.audit_write`:
@@ -3794,6 +3828,17 @@ reading its output rather than trusting the headline:
    `worker process exited unexpectedly (code=3221226505)` — `0xC0000409`, a Windows stack-buffer-overrun
    — and was scored as a **real assertion failure**, with 5 further tests stranded behind the dead
    worker and reported as did-not-run. An isolated re-run of the same frozen tree passed 68/68.
+   ⭐ **SECOND INSTANCE, DIFFERENT SIGNAL, 2026-09-02 (AE4.9 gate run) — it does not recognise
+   `ERR_ABORTED` either.** `sup-supersession.spec.ts:237` (SUP-2) failed as
+   `page.goto: net::ERR_ABORTED; maybe frame was detached?` navigating to `/` inside
+   `e2e/helpers/auth.ts:133` (`cachedSignIn`), 30 s timeout, on **both** the attempt and its
+   retry. The batch reported `server_dead=0, conn_errors=0`, so the classifier scored a
+   connection-level abort as the run's **one real failure** and turned `GATE_EXIT=1` — on a run
+   in which **no test failed an assertion anywhere**. ⚠ It is the same shape as the crash case:
+   a navigation abort is not an expectation that went false. ⛔ And the same caveat applies —
+   the fix is not "add `ERR_ABORTED` to the INFRA list", because a genuine app-side failure can
+   also abort a navigation; it is to classify by *what the failure is*, not by which strings the
+   heuristic happens to know.
 
 ⚠ **Consequence, and it cuts both ways.** A crash counted as a defect sends someone hunting a
 non-existent bug (this cost a `useFieldIds`-regression investigation before being ruled out on
