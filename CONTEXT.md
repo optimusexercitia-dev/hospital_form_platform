@@ -63,6 +63,36 @@ The patient-safety nucleus. Runs the patient-safety roster and the event-to-CAPA
 with its own Roles that sit outside the Commission Role ladder.
 _Avoid_: safety team, patient safety committee
 
+### Authorization
+
+**Assignment**:
+The fact that a person holds a Role at one exact place — an Organization, a Hospital, or a
+Commission — for as long as that seat is live. It says who someone is there, not what they
+may do.
+_Avoid_: grant, seat, hat
+
+**Permission**:
+A stable, action-oriented name for one thing the platform lets someone do, such as editing a
+Commission's Forms or reading a professional's profile. Roles bundle Permissions; enforcement
+points name them.
+_Avoid_: capability (reserved for Administrativo), feature, scope
+
+**Entitlement**:
+A Permission that a person's Assignments confer, including whatever that Permission implies.
+A positive source only — holding an Entitlement is never by itself leave to act.
+_Avoid_: access, right, privilege
+
+**Domain authorizer**:
+The single question an enforcement point asks before letting an action through. It applies
+the hard denials first — recusal, a respondent's exclusion, record lifecycle, sensitivity
+ceilings, tenancy — and only then asks whether an Entitlement exists.
+_Avoid_: resolver, permission check, guard
+
+**Enforcement manifest**:
+The generated record of which Domain authorizer enforces each Permission, and where. A
+Permission with no named enforcement point is a defect, never a default.
+_Avoid_: mapping, allowlist
+
 ### Forms and responses
 
 **Form**:

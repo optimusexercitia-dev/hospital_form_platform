@@ -1,14 +1,14 @@
 ---
 branch: authz-ae4-catalog
 task: AE4 — the authz catalog, and staff_admin substituted end-to-end (ADR 0155 D7)
-adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0175, 0079, 0106]
+adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0175, 0176, 0079, 0106]
 base_sha: 0412bef7e59476635ddb024c63fdce182a7a6466
 created: 2026-09-01
 updated: 2026-09-02
-status: live   # AE4.1–4.8 + PO batch BUILT; e2e:prod RED on one bug; Gate AE4 NOT declarable
+status: live   # AE4.1–4.8 + PO batch BUILT; e2e:prod RED on one bug; audit 2026-09-02 CHANGES REQUESTED → Option A adopted, ADR 0176 written; Gate AE4 NOT declarable
 ---
 
-# Handoff — AE4, paused with AE4.8 built and the E2E gate RED
+# Handoff — AE4, paused with AE4.8 built, the E2E gate RED, and the audit's Option A adopted
 
 ## ▶ RESUME HERE
 
@@ -20,6 +20,12 @@ status: live   # AE4.1–4.8 + PO batch BUILT; e2e:prod RED on one bug; Gate AE4
 4. `npm run test` (vitest) — expect **151 files / 2058 tests**. `npm run lint` (12 gates) and
    `npm run typecheck` — expect 0.
 5. Read **PROGRESS.md § Now**, § Bug Log and § Decisions. This file is not status truth.
+6. Read the [implementation audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md)
+   and the plan's **§ AE4.9** — ⛔ **the direction changed on 2026-09-02**: as built,
+   `staff_admin` runs on the catalog's ROLE half only; the permission half has zero production
+   callers. The PO adopted **Option A — make permissions real**, recorded in ADR
+   [0176](../decisions/0176-authz-permission-layer-made-real.md) (`Amends:` 0155 D7 + 0174) —
+   read it before any AE4.9 code.
 
 ⛔ Re-measure before relying on anything below — see § Trust.
 
@@ -50,6 +56,12 @@ drift.
 AE4 makes the `authz` catalog exist, migration-managed, with **exactly one role —
 `staff_admin`** running on it, proven by a differential oracle.
 
+⛔ **As BUILT this is HALF of D7 (audit F1, reproduced 2026-09-02):** both wrappers →
+`authz.holds_role` → `assignment_facts` + `roles.state`; `authz.has_direct_permission` has zero
+callers, `role_permissions` zero runtime readers. Grant deletion flips the resolver, not the
+wrapper; `state='legacy'` flips the wrapper, not the resolver. Not an exposure — a conformance
+defect: the approved matrix is not the oracle of what shipped. Correction path: plan § AE4.9.
+
 **Explicitly NOT in scope, each ruled rather than overlooked:**
 - Other roles. Eleven remain `legacy`; AE5 substitutes them one at a time.
 - Retiring `memberships_role_check` / `memberships_scope_shape` — both stand until AE5-complete.
@@ -70,6 +82,8 @@ AE4 makes the `authz` catalog exist, migration-managed, with **exactly one role 
 | AE4.8: `ROLE_MANIFEST` **is** `authz.roles`' session-selectable half, scope kinds matching | `npx vitest run src/lib/role/role-catalog.test.ts` → 6/6 | 09-02 |
 | AE4.8: `landingRouteForRole` reproduces its pre-refactor behaviour on 31 pinned cases | `npx vitest run src/lib/role/landing-route.test.ts` → 31/31 | 09-02 |
 | `set_professional_link_state` **DOES** carry AE4.7c's `link_state='unknown'` bound | `prosrc ~ 'v_current_link'` → **true**, after a fresh reset | 09-02 |
+| **Audit F1/F3 probe reproduced** — baseline `t/t`; scope kind `hospital` **and** `banana` → `t`; grant deleted → wrapper `t`, resolver `f`, explanation `scope_unreachable`; `state='legacy'` → wrapper `f`, resolver `t`; rolled back, catalog unchanged after | `BEGIN … ROLLBACK` probe on `app.is_staff_admin_of_for` / `authz.has_direct_permission` for `chefe.ccih` × CCIH — ⚠ measured at migration head `20261003007240` on a DB **not reset by the measurer**; matched the audit's fresh-reset figures | 09-02 |
+| Audit census — `has_direct_permission` callers `<none>`; `session_selectable` readers `<none>`; `risk_class` / `sensitivity_ceiling` / `resource_kind` readers `<none>`; `is_staff_admin_of` in 63 policies + 151 fn bodies, `_for` in 2 + 28; the 16 other role wrappers still call `app.has_role` (reads `memberships` directly) | appendix § audit census | 09-02 |
 
 ### Written but UNVERIFIED (BELIEVED)
 
@@ -174,7 +188,18 @@ reading the catalog.
 - **Delegating the wrappers to the permission resolver.** A sentinel permission couples a role
   check to one arbitrary grant; *"holds any staff_admin-granted permission"* returns **true for a
   plain staff member** the moment AE5 grants `staff` an overlapping permission. Resolution:
-  `authz.assignment_facts`, then the `authz.holds_role` chokepoint.
+  `authz.assignment_facts`, then the `authz.holds_role` chokepoint. ⛔ **2026-09-02: the argument
+  stands, the conclusion was HALF.** `holds_role` is the assignment-projection layer, not the D7
+  cutover — routing a ROLE question through a permission resolver is wrong, so D7 is satisfied by
+  **re-keying the enforcement sites** to ask permission questions (plan § AE4.9), not by
+  re-pointing wrappers. The ruling lived only in `20261003007200`'s comment; ADR 0174 says
+  `Relates:` 0155; and the mid-phase review measured "callers = 0" on the resolver and filed it
+  as a rename nit. A designated authority with zero callers is a conformance finding.
+- **Reading G4's "typed query" as a client-side query.** The "not implementable" ruling measured
+  that no client role holds USAGE on `authz` — true, and beside the point: `public.assume_role`
+  is `SECURITY DEFINER` and reads the sealed table server-side with no new grant. The gate-time
+  key-set comparison that replaced it measures **drift**, not enforcement; `session_selectable`
+  has zero readers, and flipping it changes nothing. Superseded (plan § AE4.8 / § AE4.9 "do now").
 - **A text-based door-sweep deriver.** It matches `create function` in migration text; the house
   `pg_get_functiondef`+`replace`+`execute` pattern contains none. 33 migrations invisible;
   amending reaches **8 of 33**, the other 25 unrecoverable without a historical snapshot.
@@ -207,6 +232,21 @@ USAGE), so a "typed query" would need a NEW public door into the schema AE4 clos
 moved to **gate time**. ⚠ The partition keys off **BRANCH**, not scope — `org_admin` and
 `nsp_org_admin` share a scope and land in different lists.
 
+**2026-09-02, on the [implementation audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md)
+(CHANGES REQUESTED, F1–F10; its facts reproduced on the live catalog the same day):** PO adopted
+**Option A — make permissions real** — three layers (assignment projection = `holds_role` ·
+positive entitlement = a state-gated `has_permission` · domain authorizers `app.can_*` carrying
+the permission code at the enforcement site), a generated **enforcement manifest with no default
+arm**, sites re-keyed permission by permission **sequenced with each AE5 role** (`staff_admin`
+holds 42/43 codes, so re-keying discriminates only once a second bundle shares a site),
+`holds_role` product callers → 0 by AE5-complete. Recorded in ADR
+[0176](../decisions/0176-authz-permission-layer-made-real.md) (`Amends:` 0155 D7 + 0174);
+"catalog cutover" still may not appear in a gate record for what AE4.6 built. The G4 "not implementable" ruling above is
+**superseded** (§ Dead ends). ⚠ **NOT decided, bundled into the AE5 plan:** F6 exact-assignment
+context · F8 `administrativo` out of `authz.roles` · `platform_role` retirement · F7 single
+manifest entry — all pre-users design choices, none blocks the merge, one compatibility
+migration instead of four (plan § AE5).
+
 ## Open questions / blockers
 
 | Item | Who/what answers it |
@@ -215,21 +255,39 @@ moved to **gate time**. ⚠ The partition keys off **BRANCH**, not scope — `or
 | ⛔ **TWO E2E SPECS OWE TESTER SIGN-OFF.** CLAUDE.md §4 gives `e2e/` to the tester and §6 says engineers never edit specs without it; both edits were made by the lead because no teammate agents were available. **`e2e/ethics-e2-procedure.spec.ts`** (`a1ac073c`) — the HC0J7 assertion split into two callers; it **strengthens** (adds an assertion, keeps the original subject) but a spec edit made by the party whose change broke it is exactly what the rule exists to stop. **`e2e/ae48-landing-by-scope-kind.spec.ts`** (`99848eaa`) — a new spec, proven on both polarities. | tester, before Gate AE4 |
 | ⛔ **62 infra-unproven + 13 never-run carry NO verdict** (§ Gates). b7 was already re-run once and got worse. Re-running it is a prerequisite for any green declaration, and a second consecutive server death is a finding about the harness, not noise. | re-run b7 + b6 |
 | ⛔ **PROGRESS.md — the 81,920 B target is NOT met and NOT reachable by rotation.** Every sanctioned category is empty; the OPEN follow-up index alone is ~50% of the file and the contract forbids rotating it. Options are a PO decision — raise the target, or give the register its own file — filed as `FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT`. | PO |
+| **Gate AE4 minimum re-key scope** — proposal: the three differential representatives (`commission.forms.edit`, `org.professionals.create`, `org.professionals.read`) end-to-end, the grant-deletion mutation flipping each **production door**; every other permission `pending-rekey` in the manifest. | PO |
+| ⛔ **Performance evidence does not exist** — no AE4.4 scaled-fixture artifact anywhere (audit F9). Measure the FINAL path after AE4.9's seam, never `holds_role` alone. | backend, after the ADR |
+| ⛔ **Rollback runbook + out-of-chain SQL template do not exist** (audit F10; zero `*rollback*` files in the tree). | backend, before Gate AE4 |
 | **UNKNOWN:** whether the 25 unreachable rewrite migrations' doors hold periodic-sweep verdicts. The 8 measurable ones gave 16 COVERED / 10 ERROR / **0 BLIND** / 29 absent, every absent one outside `PRED_DOMAIN` by shape — converging on the known C2 population, not a new one. | a historical-snapshot audit, if authorised |
 
 ## Next task
 
 **First command:** `supabase db reset --local && npm run test:db` (expect **254f/8504 GREEN**).
 
-1. **Diagnose `BUG-AE47C-LINKAGE-001`** — the only thing between here and a green gate. Reproduce
-   `e2e/ethics-e4-participants.spec.ts` against a server whose log you control (the gate's own log
-   is truncated per batch), capture the server-side error, then fix. ⛔ Re-measure the catalog only
-   after a fresh reset at THIS tree.
-2. **Re-run b7 and b6**, then the full `e2e:prod` to an actual green. ⛔ Read `GATE_EXIT` from the
+0. ✅ **Done 2026-09-02:** ADR [0176](../decisions/0176-authz-permission-layer-made-real.md)
+   written (`Amends:` 0155 D7 + 0174), indexed, and the ruling recorded in PROGRESS.md § Now +
+   § Decisions. ▶ Still owed to the PO: the **Gate AE4 minimum re-key scope** (0176 D6).
+1. **Diagnose `BUG-AE47C-LINKAGE-001`** — reproduce `e2e/ethics-e4-participants.spec.ts` against
+   a server whose log you control (the gate's own log is truncated per batch), capture the
+   server-side error, then fix. ⛔ Re-measure the catalog only after a fresh reset at THIS tree.
+2. **The "do now" set (plan § AE4.9), each cheap only while callers = 0:** (a) AE4.4 resolver
+   corrections — scope-kind validation, candidate/runtime split with the `authoritative` gate,
+   the `has_permission` / `explain_permission` renames, the `denial_reason` domain,
+   `permission_not_granted`, deterministic explanation; (b) `assume_role` enforces
+   `session_selectable`, true→false mutation in pgTAP; (c) populate `catalogPermissions` /
+   `nonLegacyRoles` from the catalog in `gen-authz-matrix-cells.mjs` and prove both arms red;
+   (d) move `role-catalog.test.ts`'s Docker shell-out to a post-reset DB gate.
+3. **AE4.9's first artifact:** the generated enforcement manifest with **no default arm**,
+   replacing 401 §19's `ELSE`; then the three representatives re-keyed end-to-end (domain
+   authorizer at the site; grant deletion flips the production door).
+4. **Re-run b7 and b6**, then the full `e2e:prod` to an actual green. ⛔ Read `GATE_EXIT` from the
    log, never from a task notification.
-3. **Tester sign-off** on the two spec edits.
-4. **Record step:** an AE4.8 section in the increment record; `docs/backend-state.md`'s `authz`
-   section; then Gate AE4 = full §6 + QA review + PO approval.
+5. **Tester sign-off** on the two spec edits.
+6. **Performance evidence on the final path** (scaled ANALYZEd fixture, nested plans — plan
+   AE4.4) and the **rollback runbook + out-of-chain template** (plan AE4.6).
+7. **Record step:** an AE4.8 section in the increment record; `docs/backend-state.md`'s `authz`
+   section (stating plainly that the permission half is not yet authority); then Gate AE4 = full
+   §6 + QA review + PO approval, minimum re-key scope confirmed.
 
 ## Re-derivation appendix
 
@@ -248,6 +306,13 @@ moved to **gate time**. ⚠ The partition keys off **BRANCH**, not scope — `or
 - Sweep derivation: `BASE=<sha>~1 TIP=<sha> bash scripts/door-sweep-cases.sh` — ⛔ it prints **TWO**
   commands (read arm + write arm); running one leaves the other half unmeasured, and **exit 1
   (migrations touched, zero gates derived) is a finding to rule on, never a pass**.
+- Audit census (2026-09-02) — callers of the resolver:
+  `select coalesce(string_agg(n.nspname||'.'||p.proname, ','),'<none>') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where p.prosrc ~ 'has_direct_permission' and p.proname <> 'has_direct_permission';`
+  — readers of `session_selectable` / `role_permissions`: same shape, swap the regex. Expect
+  `<none>` / `authz.has_direct_permission,authz.explain_direct_permission` until AE4.9 lands.
+- Audit probe, rollback-contained:
+  `begin; delete from authz.role_permissions where role_code='staff_admin' and permission_code='commission.forms.edit'; select app.is_staff_admin_of_for('a0000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000000002'), authz.has_direct_permission('00000000-0000-0000-0000-000000000002','commission','a0000000-0000-0000-0000-0000000000a1','commission.forms.edit'); rollback;`
+  — `t|f` is the F1 defect; after AE4.9 the production door for that code must read `f`.
 - One spec through the prod gate: `SPECS="e2e/<f>.spec.ts" bash scripts/e2e-prod-gate.sh`.
 - ⛔ For any SQL/RLS/RPC/authz claim the **live catalog is the sole truth** — never a migration
   file, never graphify (CLAUDE.md's binding exception).

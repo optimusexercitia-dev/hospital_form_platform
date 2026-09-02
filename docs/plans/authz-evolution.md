@@ -8,6 +8,14 @@
   amendments (rollback artifact, catalog binding / authority-elect, pilot-cutline addition)
   and the four rulings. Corrections are tagged **`[PA-F#]`** in place (`PA-` because the
   original audit's F-numbers are already cited here bare).
+- **Amended:** 2026-09-02 — the
+  [implementation audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md)
+  (CHANGES REQUESTED, findings F1–F10, on `authz-ae4-catalog` at `a0b27f3c`) was analysed and
+  its facts **reproduced on the live catalog the same day**; the PO adopted **Option A — make
+  permissions real** (§ AE4.9). Corrections are tagged **`[IA-F#]`** in place. **The amending
+  ADR is [0176](../decisions/0176-authz-permission-layer-made-real.md)** (`Amends:` 0155 D7 +
+  0174) — the ruling binds through it, not through this plan (authority order below). As built,
+  AE4.6 does **not** satisfy D7's "cut … over to the resolver"; § AE4.9 is the correction path.
 - **Authorities, in precedence order:**
   1. **ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md)**
      — the decisions (D0–D10) and the eleven PO rulings (G1–G11). Where this plan conflicts with
@@ -18,6 +26,10 @@
   4. The **[plan audit](../reviews/authz-evolution-plan-audit-2026-08-27.md)** (2026-08-27) —
      execution-plan review, CHANGES REQUESTED; cited here as `[PA-F#]`. Analysis, not
      authority — its dispositions bind through ADR 0162 and this plan's amended text.
+  5. The **[implementation audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md)**
+     (2026-09-02) — built-state review of AE4, CHANGES REQUESTED; cited here as `[IA-F#]`.
+     Analysis, not authority — its dispositions bind through ADR
+     [0176](../decisions/0176-authz-permission-layer-made-real.md) and this plan's amended text.
 - **Phase naming:** this plan's **AE0–AE7** map 1:1 to the ADR's "implementation Phases 0–7".
   The AE prefix exists so gate records and FUP lines never collide with AFF4's P/B/F/T tracks.
 - **Pilot cutline (G1, amended by ADR 0162):** **AE0–AE4 gate the pilot. AE5 is post-pilot.
@@ -690,6 +702,16 @@ increment** — it is inert until the wrappers delegate, and a failure inside a 
 that broad is otherwise unattributable. AE4.8 stays a parallel track inside the phase under
 file ownership.
 
+⛔ **As BUILT (audit 2026-09-02, reproduced on the live catalog) [IA-F1]:** `staff_admin` runs
+on the **role half** of the catalog only. Both wrappers are one-liners over `authz.holds_role`,
+which reads `assignment_facts` + `authz.roles.state` and **no permission**; the resolver
+`authz.has_direct_permission` — the target D7 names — has **zero production callers**, and
+`role_permissions` is read by nothing on the runtime path. Deleting the
+`staff_admin → commission.forms.edit` grant flips the resolver and leaves the wrapper `true`;
+setting the role to `legacy` does the opposite. Not a live exposure (`holds_role` is at least as
+tight as legacy `has_role` and adds the state gate) — a **conformance** defect: the approved
+matrix is not the oracle of what shipped. **Direction adopted 2026-09-02: Option A — § AE4.9.**
+
 ### AE4.1 — Schema (backend)
 
 - `create schema authz` — **not** in `config.toml`'s exposed schemas; explicit default
@@ -813,6 +835,24 @@ in this plan needs the same check before AE4.5 enumerates it. Matrix
   only an outer Function Scan otherwise), comparing loops / buffers / rows-removed / plan
   shape, with explicit per-hot-path regression thresholds. The wrappers keep their current
   call shape so AE0.2's plan-shape baselines stay comparable on the unscaled side.
+- **Resolver corrections [IA-F3] — DO NOW, while callers = 0 (zero compatibility cost; the
+  § AE4.9 "do now" list):** `p_scope_kind` is accepted and **ignored** (a commission id with
+  kind `hospital` — or `banana` — still grants) → reject a kind that disagrees with the
+  permission's `resolution_scope_kind`, fail closed; the resolver ignores `authz.roles.state`
+  (correct for a candidate oracle, unsafe under a general name) → **split** a private candidate
+  evaluator that may see `test_validation` from a runtime evaluator that requires
+  `authoritative`; rename `has_direct_permission` → `has_permission` (it joins the implication
+  closure — it answers *entailed*, not direct) and `explain_direct_permission` →
+  `explain_permission`; `permission_explanation.denied_reason` is declared `text`, not the
+  `authz.denial_reason` domain created beside it → use the domain; a deleted grant explains as
+  `scope_unreachable` (reachability is computed only through rows that already grant) → add a
+  distinct `permission_not_granted` and compute reachability independently of the permission
+  join; `LIMIT 1` without `ORDER BY` → deterministic precedence, or every granting path.
+- ⛔ **Performance evidence is ABSENT [IA-F9]** — no AE4.4 scaled-fixture artifact or acceptance
+  exists anywhere in the record (2026-09-02: zero hits outside AE0.2's baselines).
+  `assignment_facts` is a `SECURITY DEFINER` SQL set-returning function, which the planner does
+  not inline, behind 63 policies. Measure the **final** path (after § AE4.9's seam), never
+  `holds_role` in isolation — optimizing first makes the wrong seam faster.
 
 ### AE4.5 — The differential oracle (tester + backend)
 
@@ -842,11 +882,35 @@ second half is what makes the matrix the oracle rather than "whatever legacy did
 The suite must be shown able to fail (flip one seeded `role_permissions` row → reds). It is a
 **pre-cutover artifact**; after cutover it collapses to the catalog-vs-matrix half.
 
+⛔ **As BUILT [IA-F2]:** the generator's "every catalog permission has a mapping" and "every
+non-legacy role has a suite" arms range over `spec.catalogPermissions ?? []` and
+`spec.nonLegacyRoles ?? []`, and the axes input defines **neither** key — both pass having
+checked nothing (the axes file records this about itself; recorded is not fixed). The pgTAP
+permission→site mapping (401 §19) is a hand `CASE` whose `ELSE` sends **38 of 43** codes to
+`is_staff_admin_of_for`, so a 44th permission inherits a default instead of forcing a decision;
+the differential sweeps **three** representative codes with `operation` / `resourceLifecycle` /
+`sensitivity` unswept (648 executed, 1152 skipped). **Do now:** populate both arms from the
+catalog at generation time so they range over 43 and 1, not zero, and prove each can red.
+**Under Option A (§ AE4.9):** the `CASE` is replaced by the generated **enforcement manifest with
+no default arm** — set difference in either direction fails generation (`catalog − manifest`,
+`manifest − catalog`, `authoritative roles − approved suites`).
+
 ### AE4.6 — Atomic cutover
 
 - One migration: the `staff_admin` wrapper family's bodies delegate to the resolver
   (`create or replace` — names, signatures, `prosecdef`, ACLs unchanged; assert all four in
   pgTAP, the a-rename-orphans-a-name-keyed-verdict lesson).
+- ⛔ **As BUILT, the bullet above is NOT what landed [IA-F1]:** `20261003007200` delegates to
+  `authz.assignment_facts` — its own comment: *"DELEGATION TARGET: `authz.assignment_facts`,
+  NOT a permission code. RULED 2026-09-01"* — and AE4.7b collapsed both wrappers onto
+  `authz.holds_role`. That ruling exists **in the migration comment only**; no ADR carries it,
+  and ADR 0174 is voiced `Relates:` 0155 D7, not `Amends:`. **The migration's argument is
+  accepted:** a role wrapper (`is_staff_admin_of` asks *is this user a staff_admin here*)
+  cannot be routed through a permission resolver — a sentinel code breaks on its own revoke, and
+  "holds any staff_admin-granted permission" returns true for a plain `staff` the moment AE5
+  grants an overlapping code. **The consequence is not re-pointing the wrappers; it is re-keying
+  the enforcement sites** so each asks for the permission it actually guards — § AE4.9.
+  `holds_role` stays as the **assignment-projection layer** and the transitional role predicate.
 - Direct-call census: every `has_role(…, 'staff_admin')` / literal-`'staff_admin'` site outside
   the wrappers (SQL: comment-stripped; TS: the AE4.3 inventory) — each **replaced or
   allowlisted with a reason**, the census committed so a new bypass reds.
@@ -861,6 +925,11 @@ The suite must be shown able to fail (flip one seeded `role_permissions` row →
   caller-selectable evaluator — asserted by a
   pgTAP test that greps the *catalog* (comment-stripped `prosrc` of the wrapper family) for the
   legacy predicate's absence.
+- ⛔ **The rollback runbook + out-of-chain SQL template do NOT exist [IA-F10]** (2026-09-02:
+  zero files matching `*rollback*`; "out-of-chain" appears only in the audit). Owed before Gate
+  AE4. The re-point target it describes is now `holds_role`, and after § AE4.9 it must also
+  cover a re-keyed site (revert the domain authorizer to the role wrapper without deleting
+  catalog data).
 
 ### AE4.7 — Gate re-pointing (G8 — merges block on this)
 
@@ -885,12 +954,107 @@ The F1 payoff on the app side, mechanical and behavior-preserving:
   (`code` / `allowed_scope_kind` / `session_selectable`), so the two cannot drift silently;
   the check runs in the lint/vitest gate, not in review;
 - G4's selection-vocabulary move: `assume_role`'s validity check reads
-  `authz.roles.session_selectable` (via a typed query) instead of the TS enum list — the
-  `platform_role` **DB enum stays** for now (its retirement is AE5-complete territory, ADR
-  re-analysis trigger 4).
+  `authz.roles.session_selectable` instead of the TS enum list — the `platform_role` **DB enum
+  stays** for now (its retirement is AE5-complete territory, ADR re-analysis trigger 4 — ⚠ and
+  part of the AE5 bundle, § AE5). ⛔ **The in-flight "G4 is not implementable as written"
+  ruling is SUPERSEDED 2026-09-02 [IA-F4]:** it read "typed query" as a *client-side* query into
+  the sealed schema. `public.assume_role` is `SECURITY DEFINER`; it reads `authz.roles`
+  server-side with **no new grant** to `anon` / `authenticated` / `service_role`. As built,
+  `session_selectable` has **zero readers** in the catalog — flipping it changes nothing.
+  **Do now:** enforce it inside `assume_role`; pgTAP proves a true→false mutation blocks
+  selection while other roles still select; decide once whether selection also requires an
+  allowed catalog `state`. The vitest key-set comparison stays as a **presentation-drift
+  guard**, never as the enforcement.
+- ⚠ **`role-catalog.test.ts` is non-hermetic [IA-F7]:** it `execFileSync`s into the Docker
+  database during vitest, so it compares checked-out TypeScript to whatever schema the last
+  reset or bisect left (the exact stale-catalog class behind this phase's retracted diagnosis).
+  **Do now:** move the live-catalog binding to a DB gate that runs after a fresh reset, or
+  generate a checked artifact from migration-owned catalog data.
 - Tester: the three historical landing-seam bugs (BUG-HAT-001 class) get one E2E spec per
   scope-kind asserting a freshly-granted role lands somewhere — the regression class that
   motivated F1.
+
+### AE4.9 — Option A: make permissions real [IA-F1/F2/F5; adopted 2026-09-02]
+
+**Decision (PO, 2026-09-02, on the implementation audit — ADR
+[0176](../decisions/0176-authz-permission-layer-made-real.md)):** retain the permission model and
+make it load-bearing. Rejected: Option B (amend D7 down to a role catalog + state gate, drop or park
+the permission substrate) — cheap, but it abandons the matrix-as-oracle that D7 exists for, and
+the re-key would then happen post-pilot against live users. ⛔ The worst state is the current
+one — both models shipped, one inert, the record calling it a catalog cutover.
+
+**Three interfaces, only the third called from product paths:**
+
+1. **Assignment projection** — `authz.assignment_facts` + `authz.holds_role`: which providers
+   (memberships, `profiles.is_admin`, later the `administrativo` capability tables) give which
+   role at which exact scope. `holds_role` is the **transitional** role predicate: legitimate
+   for a site that genuinely asks a role question, and the fallback every not-yet-re-keyed site
+   keeps calling.
+2. **Positive entitlement** — the runtime evaluator (`authz.has_permission`, state-gated, the
+   AE4.4 corrections applied): which permission codes those assignments confer, implication
+   closure included. It is **not** final authorization.
+3. **Domain authorization** — `app.can_*` authorizers carrying a **statically greppable
+   permission code** (D7's own words), composing hard denies (recusal / respondent), lifecycle,
+   sensitivity ceilings and tenant/resource rules **before** the positive entitlement. RLS
+   policies and command doors call these. Any final-authorization explanation is theirs and
+   names the restriction that won; `explain_permission` describes layer 2 only.
+
+**The mechanism: re-key enforcement sites, permission by permission, tracked by a generated
+enforcement manifest with NO default arm.** Each of the 43 permission rows declares its domain
+authorizer, every direct enforcement site (or a generated call-graph boundary with a reviewed
+reason), applicable axes (lifecycle / sensitivity as **data**, never a global omission), the
+hard-deny classes outside entitlement, the expected legacy equivalence during its role's cutover,
+and owner + expiry for any compatibility exception. Sites still on `holds_role` are listed **as
+`pending-rekey` entries**, never absorbed by a default. Generation fails on set difference in
+either direction (AE4.5). `holds_role` **product** callers count down to **zero by
+AE5-complete** (a role-question site may keep it only with a manifest-recorded reason).
+
+**Sizing (catalog-measured 2026-09-02 — re-derive, never quote):**
+
+| Wrapper | Policies | Function bodies |
+| --- | ---: | ---: |
+| `is_staff_admin_of` | 63 | 151 |
+| `is_staff_admin_of_for` | 2 | 28 |
+| the whole `app.is_*_of*` family, all roles (composites included — over-inclusive) | ≈200 | ≈420 |
+
+**Sequencing — why this rides with AE5, not ahead of it:** `staff_admin` holds 42 of 43 codes,
+so permission-keyed and role-keyed sites are observationally near-identical until a **second
+role with a different bundle shares a site** — the discriminating power arrives with AE5.
+Therefore: AE4 proves the **mechanism** end-to-end on the three differential representatives
+(`commission.forms.edit`, `org.professionals.create`, `org.professionals.read`) — for each, a
+domain authorizer at the site, and the grant-deletion mutation must flip the **production
+door**, not the generic resolver; every other permission enters the manifest as
+`pending-rekey`; each AE5 role increment re-keys the sites its bundle touches (per-role
+checklist, § AE5). ⚠ **The Gate AE4 minimum re-key scope is a PO confirmation item** (§ PO
+decision points) — the three representatives is the proposal.
+
+**Authority repair — DONE 2026-09-02: ADR
+[0176](../decisions/0176-authz-permission-layer-made-real.md) `Amends:` 0155 D7 and 0174** —
+the three layers, AE4.6 delivered layer 1 only, the manifest countdown, the AE5-complete
+zero-caller bound; 0174's chokepoint now reads as layer 1 rather than as the cutover. ⛔ "Catalog
+cutover" still may not appear in any gate record for what AE4.6 built (0176 Consequences).
+
+**Do now — each was fork-neutral, and each is cheap only while callers = 0:**
+
+1. **[IA-F3]** the AE4.4 resolver corrections — scope-kind validation, candidate/runtime split
+   with the `authoritative` gate, the two renames, the `denial_reason` domain,
+   `permission_not_granted`, deterministic explanation.
+2. **[IA-F4]** `assume_role` reads and enforces `session_selectable` (AE4.8), true→false
+   mutation proven. `platform_role` retirement stays in the AE5 bundle.
+3. **[IA-F2]** populate `catalogPermissions` / `nonLegacyRoles` from the catalog at generation
+   time; prove both arms can red. The no-default manifest itself is AE4.9's first artifact.
+4. **[IA-F7]** move `role-catalog.test.ts`'s Docker shell-out to a post-reset DB gate.
+5. **[IA-F10]** the gate items owed whatever the fork: `BUG-AE47C-LINKAGE-001`'s mechanism, the
+   two tester sign-offs, `docs/backend-state.md`'s `authz` section, the rollback runbook +
+   out-of-chain template (AE4.6). **[IA-F9]** performance evidence comes **after** the seam is
+   fixed, on the final path.
+
+**Explicitly NOT decided here — bundled into the AE5 plan (§ AE5 reminder):** F6
+exact-assignment active context, F8 `administrativo` out of `authz.roles`, `platform_role`
+retirement, F7's single manifest entry. ⚠ The classification columns (`risk_class`,
+`sensitivity_ceiling`, `resource_kind`) have **no reader** [IA-F5]; ADR 0172 defers them
+explicitly and that deferral stands — layer 3 is where a consumer appears, or the column is
+removed with a named reason.
 
 **Gate AE4 [language per PA-F7/F8/F12, ADR 0162]:** before cutover, every required
 decision-table cell has a stable ID, an approved expected result, and an executed test
@@ -902,6 +1066,15 @@ performance acceptance via nested plans over the scaled ANALYZEd fixture [PA-F6]
 e2e:prod; QA review; **PO approval = the pilot-gate authz milestone**; Record step
 (backend-state.md gains the catalog section; the matrix and census artifacts land under
 `docs/design/` or `docs/reviews/` and are linked).
+**Added 2026-09-02 [IA]:** the amending ADR (§ AE4.9) accepted; the runtime evaluator rejects
+non-`authoritative` roles while the candidate oracle stays testable and non-callable from
+product paths; scope kind validated; missing grant / unreachable scope / wrong active context /
+inactive principal explain distinctly and deterministically; `assume_role` enforces
+`session_selectable`; the enforcement manifest exists with no default arm and generation fails
+on set difference; the grant-deletion mutation flips the **production door** for every re-keyed
+representative; performance acceptance measured on the **final** path. ⛔ `e2e:prod` is RED at
+`a0b27f3c` (1183 p · 1 f · 62 infra-unproven · 3 flaky · 13 did-not-run); the recorded C2 Tier-1
+state is 8 of 171 new enforcers measured, 3 BLIND. None of these is "gate paperwork".
 
 **Traps:** `create or replace` on the wrappers is not DROP+CREATE — but if any signature *must*
 change, sweep `has_function_privilege('…(old arity)')` strings first (a stale signature string
@@ -917,6 +1090,23 @@ the setup file force-sets before trusting a context-dependent green.
 **Purpose:** the remaining roles move to the catalog, one at a time, each through the AE4
 template. **Post-pilot by G1** — an unmigrated role runs the current, tested evaluator.
 
+⭐ **DECIDE TOGETHER IN THE AE5 PLAN — one compatibility migration, not four [IA-F6/F7/F8]:**
+F6 **exact-assignment active context** (`app.active_role_selections` stores only
+`(session_id, user_id, role, chosen_at)`, so selecting a role activates every assignment of it,
+while `assume_role` stamps ONE most-recently-granted membership into the audit event — role-wide
+hat vs exact assignment `(role_code, scope_kind, scope_id)`; audit scope must match whichever is
+chosen); F8 **`administrativo` out of `authz.roles`** (seeded as a 12th row under the
+unreachable `capability_plane` sentinel while its own comment says NOT A ROLE — split assignable
+roles / assignment providers / entitlement bundles rather than adding sentinels); **retiring
+`platform_role`** (`assume_role` takes the enum; its input becomes a validated catalog code —
+already AE5-complete territory below); F7 **one manifest entry per role in `role-catalog.ts`**
+(today `ROLE_LABELS` + `ROLE_SCOPE_KIND` + `ROLE_ORDER` + `ROLE_BRANCH` + the `scopeSummary`
+switch, with `ROLE_MANIFEST` zipping the first three — one ordered entry with code, label, scope,
+selectability, landing branch, summary strategy and precedence, the rest derived). **All four
+are pre-users design choices; none blocks the AE4 merge; bundling them means the active-context
+storage, the enum and the role table break compatibly ONCE.** ⛔ Do not pick one off ad hoc
+inside a role increment.
+
 **Proposed order** (each its own increment with the full per-role gate; the PO may reorder):
 
 1. `staff` (simplest matrix; biggest population — flushes out fixture gaps early);
@@ -928,7 +1118,8 @@ template. **Post-pilot by G1** — an unmigrated role runs the current, tested e
    the catalog only carries the permission bundle);
 5. `quality_reviewer`, `pqs_member`;
 6. `administrativo` capability plane — **mapped, not merged**: `commission_administrativo_capabilities`
-   rows adapt to permission codes; the appointment tables stay (audit §6.3);
+   rows adapt to permission codes; the appointment tables stay (audit §6.3) — ⚠ shaped by the
+   F8 decision in the bundle above;
 7. `platform_admin` **last**: `profiles.is_admin` remains the assignment fact via the adapter;
    the **noun rule** (ADR 0078 A35 — tenancy/identity/vocabulary/audit yes, content/PHI never)
    is encoded as *hard restrictions* in the resolver, mutation-proven, before the role flips
@@ -936,9 +1127,11 @@ template. **Post-pilot by G1** — an unmigrated role runs the current, tested e
 
 **Per-role checklist (the AE4 template, abbreviated):** matrix derived from all planes (both
 helper-name forms swept) → PO approves → seed → generated-cell differential under the
-[PA-F8] diff rule → atomic wrapper cutover → direct-call census → arms re-pointed (G8) →
-legacy branch removed + rollback runbook/template updated ([PA-F9] — never a committed
-migration) → Record.
+[PA-F8] diff rule → atomic wrapper cutover (to `holds_role`, layer 1) → **re-key the
+enforcement sites this role's bundle touches to their domain authorizers — manifest entries
+`pending-rekey` → done, the grant-deletion mutation flipping each production door (§ AE4.9)** →
+direct-call census → arms re-pointed (G8) → legacy branch removed + rollback runbook/template
+updated ([PA-F9] — never a committed migration) → Record.
 
 **AE5-complete (the ADR's re-analysis trigger 4):** retire the legacy adapter, the
 `platform_role` enum's remaining consumers (token hook included — its claim value becomes a
@@ -956,7 +1149,9 @@ reviewed change, with whatever remains filed as named debt.
 G4: role-type semantics are final-for-now; the selection vocabulary references the catalog
 (landed in AE4.8/AE5); exact-scope contexts require their own ADR with token-hook, revocation
 and session-rotation design. **No build tasks.** The only standing rule: no effective permission
-list ever goes into the JWT.
+list ever goes into the JWT. ⚠ **2026-09-02:** the vocabulary reference has **not** landed
+(`session_selectable` has zero readers — AE4.8 "do now"), and F6 exact-assignment context sits
+in the AE5 bundle; if adopted there, that ADR supersedes this section's record-only status.
 
 ---
 
@@ -984,6 +1179,9 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 | **AE2.4** | **containment-trigger disposition (T2 or a third option): accept the anchorless-profile window that opens once the column goes, or design around it. ⛔ T1 rejected; the window is inherent, not T2-introduced** | backend + PO |
 | AE3 branch-cut | confirm pilot has not loaded data (else dual-write re-plan) | lead |
 | AE4.3 | the `staff_admin` matrix (becomes the oracle) | lead + backend |
+| **AE4.9** | ✅ **RULED 2026-09-02** — on the [implementation audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md): **Option A — make permissions real** (three layers, manifest countdown, re-key sequenced with AE5) — recorded in ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) (`Amends:` 0155 D7 + 0174) | lead + PO |
+| **Gate AE4** | the **minimum re-key scope** for the gate — proposal: the three differential representatives end-to-end, everything else `pending-rekey` in the manifest | PO |
+| **AE5 plan** | the bundled four: F6 exact-assignment context · F8 `administrativo` out of roles · `platform_role` retirement · F7 single manifest entry — decided together, one compatibility migration | lead + PO |
 | AE5, per role | each role's matrix; the substitution order | lead |
 | AE5.7 | `platform_admin` noun-rule restriction review before flip | qa + PO |
 | §8 residue | inheritance-per-permission, high-risk ceilings (expiry/reason/second-approval), revocation SLA — resolved with the first role whose matrix needs each | lead |
@@ -994,9 +1192,15 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
   says so in § Now. This plan's existence must not be the reason the disposal rehearsal slips.
 - **Pilot boundary drift:** G2's single-shot authorizations (AE3, and AE2.4's demote-then-drop)
   are premised on no real data; the premise is re-measured (never quoted) at each branch-cut.
-- **Two evaluators by accident:** the only sanctioned mixed state is per-role
-  (`authoritative` vs `legacy`), never per-caller or per-path; the AE4.6/AE4.7 assertions are
-  the tripwire, and QA reviews specifically for `legacy_allowed OR new_allowed` shapes.
+- **Two evaluators by accident:** the only sanctioned mixed states are per-role
+  (`authoritative` vs `legacy`) and — during § AE4.9's re-key — **per-site between the
+  catalog's own two layers** (`holds_role` at a `pending-rekey` site, a domain authorizer at a
+  re-keyed one), never per-caller, never per-path, never `legacy_allowed OR new_allowed`; the
+  manifest countdown is the tripwire for the second, the AE4.6/AE4.7 assertions for the first,
+  and QA reviews specifically for OR-shapes. ⛔ A third state — a designated authority with
+  **zero callers** beside a sibling that has all of them — is what the 2026-09-02 audit found;
+  a census returning `<none>` for callers of the thing an ADR names as the runtime path is a
+  conformance finding, whatever question was being asked.
 - **Gate-baseline churn:** each phase re-baselines the ARM findings at its Record step so the
   next phase's diff answers "mine or pre-existing?" — the exact failure D0 reason 5 named.
 - **Parallel branches:** rule 6. AE phases are strictly serial after AE1 (AE0∥AE1 allowed;
@@ -1012,3 +1216,19 @@ bound as a floor** · AE2 ~3–5 (+ the AE2.0 ruling latency) · AE3 ~3–4 · A
 oracle + arms dominate; AE4.8 ∥ inside it; the generated cell artifact [PA-F7] front-loads
 AE4.5) · AE5 ~2–4 per role · the C2 subset closure (pilot cutline, ADR 0162 §3) is its own
 unsized increment. Pre-pilot total: roughly 18–28 working sessions, now itself a floor.
+**2026-09-02:** § AE4.9 adds the amending ADR, the manifest and three representative re-keys to
+AE4, and a per-role site re-key to every AE5 increment — unsized; the AE5 figure is now a floor.
+
+## Cross-phase debts named by the 2026-09-02 implementation audit
+
+Each is **already in the register** (`docs/progress/follow-ups.md`, indexed in PROGRESS.md) with
+an owner; the audit asks for **pre-pilot priority**, not discovery. ⛔ None is a reason to leave
+the permission model disconnected — they are pre-live liabilities to retire while the same team
+is already inside authorization.
+
+| Follow-up | Why the audit names it now |
+| --- | --- |
+| `FUP-AE1-REVOKE-SET-EXECUTION` | AE1 classified 233 revokes and executed none; 137 are silent no-ops as written because privilege stays reachable through `PUBLIC`. The sealed `authz` schema does not compensate for old reachable doors. |
+| `FUP-AUTHZ-HARNESS-TRANSACTIONAL` | The mutation harness neutralizes live gates outside a transaction; process death can leave an unconditional allow installed. Every AE5 mutation multiplies that operational risk. (Partially resolved 2026-08-17; the filed remedy withdrawn as unbuildable.) |
+| `FUP-AE2-VOID-LAST-ORG-AFFILIATION-UNMAPPED` | ADR 0164's containment trigger (`23514`) still reaches the user as a generic retryable error, and the guard that looks like it covers this is bounded to doors, not the trigger path. |
+| `FUP-DBPUSH-SWALLOWS-NOTICE` | AE3's prescribed push command hides the only non-vacuous moved-row count, so a 0/0 parity can pass. A warning against console-only cutover evidence in AE4's own cutover and rollback. |
