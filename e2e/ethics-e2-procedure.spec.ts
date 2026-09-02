@@ -1149,10 +1149,37 @@ test('FLOW-8 issue the decision (quorum met): status → Emitida; the M2 retenti
 
   await signOut(page)
 
-  // Bonus keystone: redact_professional_profile is now barred (HC0J7) — the
-  // disciplinary record's 20-yr defensibility overrides erasure while pinned.
+  // Bonus keystone: redact_professional_profile is barred — TWO guards, TWO callers.
+  //
+  // ⛔ THIS WAS ONE ASSERTION AND AE4.7c SILENTLY DELETED ITS SUBJECT. `redact_professional_profile`
+  // checks AUTHORITY first (42501, `can_manage_professional`) and the retention pin second
+  // (HC0J7) — the door's own comments label them "Authority (distinct from the HC0J7 bar)".
+  // AE4.7c revoked `org.professionals.manage` from `staff_admin`, so `chefe.ccih` stopped
+  // passing the FIRST guard and never reached the second: the test failed with 42501, and the
+  // retention bar it exists for was asserted by NOTHING.
+  //
+  // ⛔ THE FIX IS THE CALLER, NEVER THE EXPECTATION. Re-coding `/HC0J7/` to `/42501/` would
+  // have greened this in one character and left the 20-yr defensibility guard untested — the
+  // same trap AE4.7c already hit in pgTAP 229/257 and resolved the same way, by SPLITTING
+  // authority from freeze so each has its own caller and its own assertion. That sweep fixed
+  // the pgTAP twins and missed this, the only E2E site asserting HC0J7.
+
+  // Guard 1 — AUTHORITY. A staff_admin may no longer redact professional identity at all
+  // (AE4.7c, matrix § 12.8.5: staff_admin ADDS a professional, never modifies or erases one).
   const chefeToken = await getOwnerToken(request, 'chefe.ccih@test.local')
-  const redactResp = await callRpc(request, 'redact_professional_profile', chefeToken, {
+  const authResp = await callRpc(request, 'redact_professional_profile', chefeToken, {
+    p_profile_id: PROFESSIONAL_PROFILE_RESPONDENT,
+    p_reason: '[E2E] tentativa de eliminação sem autoridade.',
+  })
+  expect(authResp.ok()).toBeFalsy()
+  expect(JSON.stringify(await authResp.json())).toMatch(/42501/)
+
+  // Guard 2 — THE RETENTION PIN, reached only by a caller who PASSES guard 1. org_admin of
+  // rede-a satisfies `can_manage_professional` (is_org_admin_of), so the refusal below is the
+  // HC0J7 bar itself and not authority wearing its clothes: the disciplinary record's 20-yr
+  // defensibility overrides erasure while pinned.
+  const orgAdminToken = await getOwnerToken(request, 'orgadmin.a@test.local')
+  const redactResp = await callRpc(request, 'redact_professional_profile', orgAdminToken, {
     p_profile_id: PROFESSIONAL_PROFILE_RESPONDENT,
     p_reason: '[E2E] tentativa de eliminação indevida.',
   })
