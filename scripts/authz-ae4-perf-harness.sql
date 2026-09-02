@@ -12,6 +12,11 @@
 --     < scripts/authz-ae4-perf-harness.sql \
 --     > docs/design/authz-ae4-perf-run-passA.txt 2>&1
 --
+-- ⚠ SECTION ORDER (changed after run 1): gates + controls -> PASS A -> PASS B
+--   -> DC2/P4/P5 -> DC1 -> postflight. Pass B is deliberately AHEAD of the
+--   sections that can abort: in run 1 it sat after them, psql died in section 7
+--   under ON_ERROR_STOP, and P1/P2/P3 were left with no evidence at all.
+--
 -- RUN IT — PASS B (nested body plans; required for pass conditions P1-P3):
 --
 --   docker exec -i supabase_db_azkbbhskturikxpgmafq \
@@ -510,6 +515,12 @@ rollback;
 \echo '   with four constant arguments the planner folds it to a single'
 \echo '   InitPlan evaluation and the "10 000 calls" would be one call — a'
 \echo '   measurement of nothing that reads as a spectacularly fast seam.'
+\echo '⛔ M4 SEQ-SCANS public.commissions BY DESIGN — its own FROM clause asks'
+\echo '   for every commission, and at 966 rows with loops=1 that is the'
+\echo '   correct plan. It is NOT a P1 hit: P1 bounds access INSIDE the'
+\echo '   DEFINER bodies, which only Pass B can show. Run 1 flagged this'
+\echo '   line because the P1 grep was unscoped. Scope it to the'
+\echo '   AE4-PASSB-BEGIN/END region.'
 begin;
   set local request.jwt.claims = :'c_perm';
   explain (analyze, buffers)
@@ -517,6 +528,84 @@ begin;
            where authz.has_permission(:'p_perm'::uuid, 'commission', c.id, 'commission.forms.edit'))
     from public.commissions c, generate_series(1, 11) g;
 rollback;
+
+
+\echo ''
+\echo '################################################################'
+\echo '## PASS B — NESTED BODY PLANS  (opt-in:  -v NESTED=1)         ##'
+\echo '##  A SECURITY DEFINER function is never inlined, so PASS A   ##'
+\echo '##  shows only an outer Filter / Function Scan and the BODY   ##'
+\echo '##  plan is invisible. Pass conditions P1, P2 and P3 are read ##'
+\echo '##  from THIS output and nowhere else.                        ##'
+\echo '##  ⛔ Row counts are deliberately BOUNDED here (200, not     ##'
+\echo '##  10 000): auto_explain emits one plan per nested statement ##'
+\echo '##  per row. These are their own named paths (M1-nested,      ##'
+\echo '##  M3-nested) and their numbers are NOT M1s or M3s.          ##'
+\echo '##                                                            ##'
+\echo '##  ⛔ RUN 1 (2026-09-02) NEVER REACHED THIS BLOCK. It sat     ##'
+\echo '##  AFTER sections 7-8 and psql died in section 7 under       ##'
+\echo '##  ON_ERROR_STOP, so P1/P2/P3 had no evidence and the        ##'
+\echo '##  absence was misread as "EXPLAIN cannot descend into a     ##'
+\echo '##  DEFINER body" — true of PASS A, and the wrong mechanism.  ##'
+\echo '##  Pass B now runs BEFORE anything that can abort, so the    ##'
+\echo '##  structural evidence survives a later failure.             ##'
+\echo '##  ⛔ AND: an absent subject must never read as a pass. The   ##'
+\echo '##  SUBJECT-PRESENT markers below are what the P1/P2/P3 greps ##'
+\echo '##  check FIRST; zero occurrences is VOID, never PASS.        ##'
+\echo '################################################################'
+
+\if :{?NESTED}
+\echo '=== AE4-PASSB-BEGIN — everything between this marker and'
+\echo '=== AE4-PASSB-END is the P1/P2/P3 evidence region. Scope every'
+\echo '=== structural grep to it with awk; the same file also contains'
+\echo '=== PASS A, and M4 there legitimately seq-scans commissions.'
+set auto_explain.log_min_duration = 0;
+set auto_explain.log_nested_statements = on;
+set auto_explain.log_analyze = on;
+set auto_explain.log_buffers = on;
+set auto_explain.log_timing = off;
+set auto_explain.log_format = 'text';
+set client_min_messages = log;
+
+\echo '=== PASS B / M1-nested — 200 protected rows through the READ policy ==='
+begin;
+  set local role authenticated;
+  set local request.jwt.claims = :'c_perm';
+  select count(*) from (select 1 from public.professional_profiles limit 200) t;
+  reset role;
+rollback;
+
+\echo '=== PASS B / M2-nested — the single-row WRITE gate ==='
+begin;
+  set local role authenticated;
+  set local request.jwt.claims = :'c_perm';
+  update public.forms set title = title where id = :'t_form'::uuid;
+  reset role;
+rollback;
+
+\echo '=== PASS B / SEAM-nested — one direct authz.has_permission call ==='
+\echo '=== the cleanest view of layers 2 and 1 with no policy noise ==='
+begin;
+  set local request.jwt.claims = :'c_perm';
+  select authz.has_permission(:'p_perm'::uuid, 'commission', :'t_comm'::uuid, 'commission.forms.edit');
+rollback;
+
+reset auto_explain.log_min_duration;
+reset auto_explain.log_nested_statements;
+reset auto_explain.log_analyze;
+reset auto_explain.log_buffers;
+reset auto_explain.log_timing;
+reset client_min_messages;
+
+\echo '=== AE4-PASSB-END — nested capture completed ==='
+\echo '⛔ If the marker above is present but the subject greps in the'
+\echo '   acceptance doc section 7 return ZERO, that is a finding about the'
+\echo '   CAPTURE MECHANISM (auto_explain not reaching the client), not a'
+\echo '   pass on P2/P3. Diagnose before evaluating any bound.'
+\else
+\echo '(Pass B skipped — re-run with  -v NESTED=1  to capture nested body plans.)'
+\echo '⛔ P1, P2 and P3 are UNMEASURED in this run. They are not passed.'
+\endif
 
 
 \echo ''
@@ -533,21 +622,46 @@ rollback;
 \echo '################################################################'
 
 drop table if exists pg_temp.ae4_timing;
-create temp table ae4_timing(label text primary key, ms_best numeric, reps int);
+create temp table ae4_timing(label text primary key, ms_best numeric, reps int, measured_as name);
 grant insert, select, update on ae4_timing to authenticated;
 
-create or replace function pg_temp.ae4_time(p_label text, p_stmt text, p_reps int default 5)
+-- ⛔ RUN 1 (2026-09-02) DIED HERE: `permission denied for function ae4_time`.
+--    The caller did `set local role authenticated` and THEN called a pg_temp
+--    function, and `authenticated` holds no EXECUTE on it.
+--
+--    The fix is NOT a grant. `ae4_time` now OWNS the role switch and is called
+--    as `postgres`, which removes THREE privilege dependencies at once —
+--    EXECUTE on the function, INSERT/UPDATE on ae4_timing, and USAGE on the
+--    session temp schema — instead of patching the one that happened to fire
+--    first. Only `execute p_stmt` runs as `authenticated`, which is the whole
+--    point: the plan is chosen under the impersonated role, so RLS applies to
+--    the measured statement exactly as in production.
+--
+-- ⛔ AND NOT `security definer`, which is the obvious-looking alternative: that
+--    would run the measured statement as postgres, RLS bypassed, measuring a
+--    query that does not exist in production and reporting a spectacularly
+--    fast seam. That failure would be SILENT. Hence `measured_as`: the
+--    function records `current_user` AT THE MOMENT OF MEASUREMENT and the gate
+--    below raises unless every row says `authenticated`. A privilege
+--    regression must be loud, not fast.
+create or replace function pg_temp.ae4_time(p_label text, p_claims text, p_stmt text, p_reps int default 5)
 returns numeric language plpgsql as $$
-declare i int; t0 timestamptz; v_best numeric := null; v_ms numeric;
+declare i int; t0 timestamptz; v_best numeric := null; v_ms numeric; v_as name;
 begin
+  perform set_config('request.jwt.claims', p_claims, true);   -- transaction-local
+  execute 'set local role authenticated';
+  v_as := current_user;                                       -- captured UNDER the switch
   for i in 1..p_reps loop
     t0 := clock_timestamp();
     execute p_stmt;
     v_ms := extract(epoch from (clock_timestamp() - t0)) * 1000;
     if v_best is null or v_ms < v_best then v_best := v_ms; end if;
   end loop;
-  insert into pg_temp.ae4_timing(label, ms_best, reps) values (p_label, v_best, p_reps)
-    on conflict (label) do update set ms_best = excluded.ms_best, reps = excluded.reps;
+  execute 'reset role';
+  insert into pg_temp.ae4_timing(label, ms_best, reps, measured_as)
+       values (p_label, v_best, p_reps, v_as)
+    on conflict (label) do update
+       set ms_best = excluded.ms_best, reps = excluded.reps, measured_as = excluded.measured_as;
   return v_best;
 end $$;
 
@@ -587,28 +701,37 @@ begin
   raise notice 'AE4 P5 precondition OK — both arms see the same % rows.', v_a;
 end $$;
 
+-- ⚠ The caller no longer switches role: ae4_time does, per measurement.
 begin;
-  set local role authenticated;
-  set local request.jwt.claims = :'c_perm';
-  select pg_temp.ae4_time('DC2/N=10',    'select count(*) from (select 1 from public.professional_profiles limit 10) t');
-  select pg_temp.ae4_time('DC2/N=100',   'select count(*) from (select 1 from public.professional_profiles limit 100) t');
-  select pg_temp.ae4_time('DC2/N=1000',  'select count(*) from (select 1 from public.professional_profiles limit 1000) t');
-  select pg_temp.ae4_time('DC2/N=10000', 'select count(*) from (select 1 from public.professional_profiles limit 10000) t');
+  select pg_temp.ae4_time('DC2/N=10',    :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 10) t');
+  select pg_temp.ae4_time('DC2/N=100',   :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 100) t');
+  select pg_temp.ae4_time('DC2/N=1000',  :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 1000) t');
+  select pg_temp.ae4_time('DC2/N=10000', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 10000) t');
   -- The DC1 baseline: the SAME statement DC1 will re-time under a planted cost.
-  select pg_temp.ae4_time('DC1/baseline', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
+  select pg_temp.ae4_time('DC1/baseline', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
   -- P5 pair, machine-checked (both read-only, so no rollback is needed).
-  select pg_temp.ae4_time('P5/permission-arm', 'select count(*) from public.professional_profiles where organization_id = ' || quote_literal(:'t_org') || '::uuid');
-  reset role;
+  select pg_temp.ae4_time('P5/permission-arm', :'c_perm',
+    'select count(*) from public.professional_profiles where organization_id = ' || quote_literal(:'t_org') || '::uuid');
+  select pg_temp.ae4_time('P5/legacy-arm', :'c_legacy',
+    'select count(*) from public.professional_profiles where organization_id = ' || quote_literal(:'t_org') || '::uuid');
 commit;
 
-begin;
-  set local role authenticated;
-  set local request.jwt.claims = :'c_legacy';
-  select pg_temp.ae4_time('P5/legacy-arm', 'select count(*) from public.professional_profiles where organization_id = ' || quote_literal(:'t_org') || '::uuid');
-  reset role;
-commit;
+select label, ms_best, reps, measured_as from pg_temp.ae4_timing order by label;
 
-select label, ms_best, reps from pg_temp.ae4_timing order by label;
+-- The impersonation gate. A measurement taken as `postgres` is RLS-bypassed
+-- and would report a seam that costs nothing.
+do $$
+declare v_bad text;
+begin
+  select string_agg(label || ' as ' || measured_as, ', ') into v_bad
+    from pg_temp.ae4_timing where measured_as is distinct from 'authenticated';
+  if v_bad is not null then
+    raise exception
+      'AE4 IMPERSONATION GATE FAILED (run is VOID): measurement(s) taken under the wrong role — %. An RLS-bypassed timing is not a measurement of the seam.',
+      v_bad;
+  end if;
+  raise notice 'AE4 impersonation gate OK — every timing was taken as `authenticated`.';
+end $$;
 
 do $$
 declare v10 numeric; v1k numeric; v10k numeric; vp numeric; vl numeric;
@@ -694,10 +817,7 @@ begin;
        and md5(m2.id::text || g::text) = 'ae4dc1-never-matches'
   $ae4dc1$;
 
-  set local role authenticated;
-  set local request.jwt.claims = :'c_perm';
-  select pg_temp.ae4_time('DC1/planted', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
-  reset role;
+  select pg_temp.ae4_time('DC1/planted', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
 
   do $$
   declare v_base numeric; v_slow numeric;
@@ -731,10 +851,7 @@ begin
 end $$;
 
 begin;
-  set local role authenticated;
-  set local request.jwt.claims = :'c_perm';
-  select pg_temp.ae4_time('DC1/restored', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
-  reset role;
+  select pg_temp.ae4_time('DC1/restored', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
 commit;
 
 do $$
@@ -749,60 +866,6 @@ begin
 end $$;
 
 
-\echo ''
-\echo '################################################################'
-\echo '## PASS B — NESTED BODY PLANS  (opt-in:  -v NESTED=1)         ##'
-\echo '##  A SECURITY DEFINER function is never inlined, so PASS A   ##'
-\echo '##  shows only an outer Filter / Function Scan and the BODY   ##'
-\echo '##  plan is invisible. Pass conditions P1, P2 and P3 are read ##'
-\echo '##  from THIS output and nowhere else.                        ##'
-\echo '##  ⛔ Row counts are deliberately BOUNDED here (200, not     ##'
-\echo '##  10 000): auto_explain emits one plan per nested statement ##'
-\echo '##  per row. These are their own named paths (M1-nested,      ##'
-\echo '##  M3-nested) and their numbers are NOT M1s or M3s.          ##'
-\echo '################################################################'
-
-\if :{?NESTED}
-set auto_explain.log_min_duration = 0;
-set auto_explain.log_nested_statements = on;
-set auto_explain.log_analyze = on;
-set auto_explain.log_buffers = on;
-set auto_explain.log_timing = off;
-set auto_explain.log_format = 'text';
-set client_min_messages = log;
-
-\echo '=== PASS B / M1-nested — 200 protected rows through the READ policy ==='
-begin;
-  set local role authenticated;
-  set local request.jwt.claims = :'c_perm';
-  select count(*) from (select 1 from public.professional_profiles limit 200) t;
-  reset role;
-rollback;
-
-\echo '=== PASS B / M2-nested — the single-row WRITE gate ==='
-begin;
-  set local role authenticated;
-  set local request.jwt.claims = :'c_perm';
-  update public.forms set title = title where id = :'t_form'::uuid;
-  reset role;
-rollback;
-
-\echo '=== PASS B / SEAM-nested — one direct authz.has_permission call ==='
-\echo '=== the cleanest view of layers 2 and 1 with no policy noise ==='
-begin;
-  set local request.jwt.claims = :'c_perm';
-  select authz.has_permission(:'p_perm'::uuid, 'commission', :'t_comm'::uuid, 'commission.forms.edit');
-rollback;
-
-reset auto_explain.log_min_duration;
-reset auto_explain.log_nested_statements;
-reset auto_explain.log_analyze;
-reset auto_explain.log_buffers;
-reset auto_explain.log_timing;
-reset client_min_messages;
-\else
-\echo '(Pass B skipped — re-run with  -v NESTED=1  to capture nested body plans.)'
-\endif
 
 
 \echo ''

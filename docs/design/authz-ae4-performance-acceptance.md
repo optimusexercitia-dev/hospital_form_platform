@@ -6,10 +6,15 @@ Gate AE4 item per ADR [0176](../decisions/0176-authz-permission-layer-made-real.
 *Performance evidence [PA-F6]* — nested plans over a scaled, `ANALYZE`d fixture, on the **final** path.
 **Author:** `backend` · **Written:** 2026-09-02 · **Branch:** `authz-ae4-catalog`.
 
-> ⛔ **STATUS: STAGED, NOT MEASURED.** This document specifies the acceptance and ships the
-> instruments. **No measurement has been taken.** The fixture has never been loaded, the harness
-> has never been run, and no plan in this repository was produced by either. Every number below is
-> a *threshold*, never a *reading*. The run belongs to an exclusive DB window (§7).
+> ⛔ **STATUS after run 1 (2026-09-02): VOID.** The fixture loaded clean and five of nine harness
+> sections completed, but the harness aborted in section 7 (`permission denied for function
+> ae4_time`), so **DC1, DC2, P4, P5 and all of Pass B never ran**. A VOID run is re-run; it is
+> never recorded as a pass. Diagnosis, rulings and fixes: **§9**. Outputs:
+> `authz-ae4-perf-run-{load,passA,passB}.txt`.
+>
+> ⭐ **But run 1 was not empty.** Pass A captured P5's two arms in full, and they **exceed the
+> threshold** — see §9.5. That result is *provisional* (its controls never ran), and it means the
+> re-run is not a formality.
 
 | Artifact | Path |
 | --- | --- |
@@ -351,10 +356,10 @@ docker exec -i supabase_db_azkbbhskturikxpgmafq \
   > docs/design/authz-ae4-perf-run-passB.txt 2>&1
 echo "passB exit: $?"
 
-# 4. Evaluate P1-P3 from the Pass B output (P4-P6 already raised or passed in step 2/3).
-grep -nE 'Seq Scan on (memberships|profiles|commissions|hospitals)\b' docs/design/authz-ae4-perf-run-passB.txt   # P1: MUST print nothing
-grep -nE 'Function Scan on assignment_facts.*loops=[0-9]+'            docs/design/authz-ae4-perf-run-passB.txt   # P2
-grep -nE 'scope_reaches.*loops=[0-9]+'                                docs/design/authz-ae4-perf-run-passB.txt   # P3
+# 4. Evaluate P1-P3 from the Pass B output — TWO STAGES, presence before bounds.
+#    ⛔ Do not run the bound greps unscoped or before the presence greps: run 1
+#    showed an unscoped P1 grep reading M4's driver as the seam, and an empty
+#    bound grep reads exactly like a pass. Commands: section 9.7.
 
 # 5. Teardown — OR, preferred, a reset (see below).
 supabase db reset --local
@@ -394,7 +399,155 @@ uuid-range predicate) and asserts both zero fixture residue and an unchanged `au
    establishing whether these thresholds are well-placed as much as whether the seam is cheap; a
    value that lands within a few percent of a threshold is a reason to re-derive the threshold, not
    to declare a narrow pass.
-6. **Nothing here has been executed.** The SQL was written against the live catalog and its core
-   idiom (claims-GUC impersonation, the hat controls, and the single ablatable `entailed_grants`
-   row) was smoke-tested read-only on seed data (§4.2), but the loader, the teardown and the
-   `EXPLAIN` bodies have never run. Expect to debug them in the window; budget for it.
+6. ~~**Nothing here has been executed.**~~ **Superseded by run 1 (§9), which found exactly the
+   debugging this item predicted.** As of 2026-09-02: the loader has run clean; sections 0–3 and
+   Pass A have run; the teardown, Pass B, DC1, DC2, P4 and P5 have **still never executed**.
+
+---
+
+## 9. Run 1 (2026-09-02) — VOID: diagnosis, rulings, and what changed
+
+Fresh `db reset`, fixture loaded first time with no errors (12 000 users, 10 000
+`professional_profiles`, 16 000 form items, 966 commissions). The fixture gate, the positive control
+(*"3 distinct readings; hat is load-bearing"*), the principal proof, the ablation and the P5
+precondition (*"both arms see the same 10 000 rows"*) all passed. Then:
+
+```
+psql:<stdin>:593: ERROR:  permission denied for function ae4_time
+```
+
+`PASSA_EXIT=3`, `PASSB_EXIT=3`, same line. Outputs: `authz-ae4-perf-run-{load,passA,passB}.txt`.
+
+### 9.1 Ruling on the crash — fix the class, not the symptom
+
+The caller did `set local role authenticated` and *then* called a `pg_temp` function; `authenticated`
+holds no EXECUTE on it. ⛔ **The fix is not a grant.** `ae4_time` now **owns the role switch** and is
+called as `postgres`, which removes **three** privilege dependencies at once — EXECUTE on the
+function, INSERT/UPDATE on `ae4_timing`, and USAGE on the session temp schema — instead of patching
+whichever one happened to fire first. Only `execute p_stmt` runs as `authenticated`, so the plan is
+still chosen under the impersonated role and RLS still applies to the measured statement.
+
+⛔ **And explicitly not `SECURITY DEFINER`**, the obvious-looking alternative: that would run the
+measured statement as `postgres`, RLS bypassed, measuring a query that does not exist in production
+and reporting a spectacularly fast seam — **silently**. So `ae4_timing` gained a `measured_as`
+column recording `current_user` *at the moment of measurement*, and a new **impersonation gate**
+raises unless every timing says `authenticated`. A privilege regression must be loud, not fast.
+The same fix covers both DC1 call sites, which carried the identical defect.
+
+### 9.2 Ruling on P2/P3 — NOT unmeasurable. Their instrument never ran.
+
+The reported mechanism — *"plain `EXPLAIN` does not descend into `SECURITY DEFINER` bodies"* — is
+**true of Pass A and is the wrong attribution for this absence**. Measured: the string `PASS B`
+appears **zero times** in `authz-ae4-perf-run-passB.txt`; the file ends at line 593 on the
+`ae4_time` error. **Pass B never executed.** It sat *after* sections 7–8 in file order and
+`ON_ERROR_STOP` killed psql before reaching it. The 88 `loops=` lines are Pass A's, which of course
+carry no nested nodes.
+
+*An absence's mechanism is measured, not read off its gate.* The two candidate mechanisms demanded
+opposite fixes — re-specify P2/P3 over a new capture mechanism, or run the one that already exists.
+It is the second.
+
+**P2 and P3 stand as specified**, over `auto_explain` with `log_nested_statements = on` — the
+mechanism PA-F6 calls for and the one AE0.2's Pass B already established on this stack. Two
+structural changes:
+
+1. **Pass B now runs BEFORE sections 7–8**, so a later abort can no longer cost the structural
+   evidence. New order: gates and controls (§§0–3) → Pass A → **Pass B** → DC2/P4/P5 → DC1 →
+   postflight. Gates stay first because they void a run cheaply.
+2. ⛔ **An absent subject is VOID, never PASS.** *An empty grep against "loops ≤ N" reads exactly
+   like a pass* — a real defect in how P1–P3 were specified. Every structural check is now
+   **two-stage: presence first, bound second**, and the evidence region is delimited by
+   `AE4-PASSB-BEGIN` / `AE4-PASSB-END` markers so the greps can be scoped with `awk` (the same file
+   also contains Pass A). A zero subject count is a finding about the **capture mechanism**, and no
+   bound may be evaluated against it.
+
+### 9.3 Ruling on P1's `commissions` hit — neither a defect nor a bound to re-derive
+
+It is a **scope defect in P1**. Verified at `passA.txt:717`: the node is
+`Seq Scan on commissions c … rows=966 loops=1` feeding a `Materialize`, inside **M4's own FROM
+clause** (`from public.commissions c, generate_series(1, 11) g`) — the attribution driver that
+deliberately enumerates every commission. At 966 rows with `loops=1` that is the correct plan, and
+M4 is labelled ATTRIBUTION ONLY. P1 was never meant to bind on the outer measured statement's own
+`FROM`; it bounds access **inside the DEFINER bodies**, which only Pass B can show. The grep was
+unscoped, so it read the driver as the seam.
+
+**Fix:** P1 is scoped to the `AE4-PASSB-BEGIN`/`END` region, and the harness now prints the
+exclusion beside M4 so the next reader does not re-raise it.
+
+⚠ **Second-order note, recorded rather than left implicit.** Inside `scope_reaches`, `commissions`
+and `hospitals` are reached **by primary key**, so an index scan is chosen at almost any cardinality
+and their presence in P1's list is weak. **The load-bearing member of P1's list is `memberships`**
+(48 800 rows, hit by `assignment_facts` on every protected-row evaluation). The ×160 commissions
+cardinality is not what P1 depends on and does not need re-deriving.
+
+### 9.4 Ordering hazard that outlived the crash
+
+`ON_ERROR_STOP` means **section 9's postflight never runs on any failure**, so an aborted run leaves
+the stack unverified. In run 1 that was harmless (the crash preceded DC1, so no planted body was
+ever installed) but it is not harmless in general. After **any** non-zero harness exit, run the
+postflight standalone before anything else:
+
+```sql
+select (select p.prosrc like '%ae4dc1%' from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+         where n.nspname='authz' and p.proname='assignment_facts')             as dc1_body_stuck,     -- must be f
+       (select state::text from authz.roles where code='staff_admin')          as staff_admin_state,  -- must be authoritative
+       exists (select 1 from pg_trigger t join pg_class c on c.oid=t.tgrelid
+                 join pg_namespace n on n.oid=c.relnamespace
+                where n.nspname='public' and not t.tgisinternal and t.tgenabled='D') as trigger_disabled;  -- must be f
+```
+
+### 9.5 ⭐ The result run 1 did produce — and it fails P5
+
+P5's machine assertion never ran, but **its inputs were captured in full by Pass A**: three reps of
+the identical statement over the identical 10 000 rows (the precondition confirmed both arms see
+10 000), with the identical plan shape (`Seq Scan on professional_profiles … rows=10000`).
+
+| | best of 3 | shared buffer hits | per protected row |
+| --- | --- | --- | --- |
+| M1b — **permission arm** | **13 126 ms** | **1 440 164** | 1.31 ms · 144 buffers |
+| M1b-LEGACY — **legacy arm** | **2 142 ms** | **170 164** | 0.21 ms · 17 buffers |
+| **ratio** | **6.13×** | **8.46×** | — |
+
+**P5's threshold is ≤ 4×. Both ratios exceed it.** Corroborating, from M4: 10 626 direct
+`authz.has_permission` calls in 8 553 ms with `shared hit=382 743` — **0.80 ms and ~36 buffers per
+call**. The three figures are mutually consistent: the per-row cost of the protected read is
+dominated by the seam, and the seam is buffer-heavy. This is the regression class F9 predicted.
+
+⛔ **This is a provisional signal, not a verdict, and it may not be recorded as one.** The run is
+VOID: **DC1 never ran**, so a dead or miscalibrated instrument is not excluded, and **Pass B never
+ran**, so there is no evidence of *where* those ~127 extra buffers per row go — `assignment_facts`
+re-invocation (P2), `scope_reaches` fan-out (P3), and a seq scan inside a body (P1) are three
+different defects with three different fixes, and nothing yet distinguishes them.
+
+⛔ **The threshold does not move.** 6.13× is 53% past K = 4, not a boundary case; §8 item 5 licenses
+re-deriving a threshold for a value landing *within a few percent*, and this is not that. Relaxing
+K to accommodate an observed number would green the condition and delete its subject.
+
+**What the re-run must establish, in this order:** (i) DC1 passes, so the instrument is known able
+to see an expensive seam; (ii) Pass B yields non-zero subject counts for `assignment_facts` and
+`scope_reaches`; (iii) P1/P2/P3 bounds are evaluated against those plans; (iv) **only then** is the
+P5 ratio a verdict. If DC1 passes and P2/P3 hold while P5 still reads ~6×, the honest conclusion is
+that the seam legitimately costs ~6× the legacy arm per protected row, and the finding belongs to
+AE5 sizing rather than to the harness.
+
+### 9.6 Cost of the re-run
+
+The fixture is dropped by the reset releasing the DB to the rollback-runbook verification. Budget a
+full reload (§7 step 1) before re-running; the harness's fixture gate aborts immediately if it is
+skipped, which is the intended behaviour.
+
+### 9.7 P1/P2/P3 evaluation commands (revised — presence first, scoped second)
+
+```bash
+B=docs/design/authz-ae4-perf-run-passB.txt
+awk '/AE4-PASSB-BEGIN/,/AE4-PASSB-END/' "$B" > /tmp/ae4-nested.txt
+
+# STAGE 1 — PRESENCE. Zero here is VOID (capture-mechanism finding), never a pass.
+grep -c 'assignment_facts' /tmp/ae4-nested.txt
+grep -c 'scope_reaches'    /tmp/ae4-nested.txt
+
+# STAGE 2 — BOUNDS. Only run these once stage 1 is non-zero for both.
+grep -nE 'Seq Scan on (memberships|profiles|commissions|hospitals)\b' /tmp/ae4-nested.txt  # P1: empty
+grep -nE 'assignment_facts.*loops=[0-9]+'                             /tmp/ae4-nested.txt  # P2: <= protected rows
+grep -nE 'scope_reaches.*loops=[0-9]+'                                /tmp/ae4-nested.txt  # P3: <= M (20) per row
+```
