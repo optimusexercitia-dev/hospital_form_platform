@@ -150,6 +150,12 @@ const ORG_A = '0c000000-0000-0000-0000-00000000000a'
 const ETHICS_TYPE_ID = 'ce000000-0000-0000-0000-0000000000e1'
 
 const CHEFE = 'chefe.ccih@test.local'
+// org_admin of rede-a — passes `can_manage_professional` via `is_org_admin_of`. The
+// only persona this file uses to RE-DECIDE an already-resolved linkage: AE4.7c
+// (migration 20261003007230) put an authority bound in front of
+// `set_professional_link_state` that a `staff_admin` no longer passes for that case
+// (matrix § 12.8.5 — see `revertLinkToUnknown` below).
+const ORG_ADMIN = 'orgadmin.a@test.local'
 const STAFF2_SEARCH = 'Enfermeira CCIH Dois' // staff2.ccih — UNKNOWN-RESOLVE's platform-user target
 const STAFF3_SEARCH = 'Técnico CCIH Três' // staff3.ccih — PROF-CREATE's platform-user target
 // UIDs for the SAME two personas, needed to assert WHICH platform user actually got
@@ -306,10 +312,30 @@ async function mintSeatableProfessional(request: APIRequestContext, fullName: st
 
 /**
  * Revert an ALREADY-SEATED professional's linkage back to `unknown` via the
- * real RPC — `set_professional_link_state` accepts `unknown` as a genuine
- * target state, not just a column default (checked against the migration:
- * `p_link_state not in ('linked', 'no_account', 'unknown')` is the only
- * rejection). This is the mechanism ADR 0108 actually names for how a seated
+ * real RPC — as ORG AUTHORITY (`ORG_ADMIN`), not `CHEFE`.
+ *
+ * ⛔ SUPERSEDED CLAIM, kept visible rather than deleted: this docstring used to
+ * say "`p_link_state not in ('linked', 'no_account', 'unknown')` is the only
+ * rejection" — true before AE4.7c, false after. Migration 20261003007230
+ * (AE4.7c) layered an AUTHORITY bound in front of that value check:
+ *
+ *   if v_current_link is distinct from 'unknown'
+ *      and not app.can_manage_professional(v_org, auth.uid()) then
+ *     raise exception 'o vínculo deste profissional já está definido; …'
+ *       using errcode = '42501';
+ *
+ * This helper always runs on a profile `mintSeatableProfessional` already
+ * resolved to `no_account` — i.e. `v_current_link` is NOT `'unknown'` — so the
+ * call is a RE-DECISION of an already-decided linkage, not a first resolution.
+ * Matrix § 12.8.5: a `staff_admin` may COMPLETE an add (resolve from
+ * `unknown`), never RE-DECIDE one; only org authority may. `CHEFE` (staff_admin)
+ * therefore gets 42501 here — `ORG_ADMIN` (org_admin of rede-a, passing
+ * `can_manage_professional` via `is_org_admin_of`) is required. `unknown` is
+ * still a genuine target state, not just a column default, and the original
+ * value check still holds — this is an ADDITIONAL bound in front of it, not a
+ * replacement for it.
+ *
+ * This remains the mechanism ADR 0108 actually names for how a seated
  * professional ends up needing "Resolver vínculo": "a profile can be flipped
  * back to unknown by set_professional_link_state after seating" — a legacy/
  * reverted profile, not a freshly-unresolved one. No UI reaches this
@@ -317,7 +343,7 @@ async function mintSeatableProfessional(request: APIRequestContext, fullName: st
  * `mintSeatableProfessional` above.
  */
 async function revertLinkToUnknown(request: APIRequestContext, profileId: string): Promise<void> {
-  const token = await getOwnerToken(request, CHEFE)
+  const token = await getOwnerToken(request, ORG_ADMIN)
   const resp = await callRpc(request, 'set_professional_link_state', token, {
     p_profile_id: profileId,
     p_link_state: 'unknown',
