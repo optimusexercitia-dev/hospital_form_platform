@@ -5,7 +5,7 @@
 contract) and D7 (`assume_role` enforces `session_selectable`). 0176 ruled *what*; four questions it
 did not settle had to be answered to build it, and one consequence was discovered by the build.
 **Relates:** [0174](./0174-authz-holds-role-chokepoint-and-authoritative-state-gate.md) D2 (the
-state gate this extends to layer 2) · [0175](./0175-ae45-differential-oracle-scope-and-f3-discharge.md)
+state gate this extends to layer 2) · [0175](./0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md)
 (the differential this repoints) · [0172](./0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md)
 (the deferred classification columns — untouched) ·
 [0079](./0079-authz-door-blindness-standing-invariant.md) (the arms below) ·

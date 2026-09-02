@@ -6433,6 +6433,43 @@ them.**
 itself a claim that needs measuring* — and it is the one kind of register error that a reader of the
 register cannot detect, because the register is what they would check.
 
+### 🟠 FUP-ADR-CROSS-LINKS-HAVE-NO-GATE — 13 broken ADR-to-ADR links, and gate 9 structurally cannot see them (owner: lead/backend; filed 2026-09-02 by `lead`, measured during AE4.9 D6)
+
+**What was measured.** A sweep of every `](./NNNN-*.md)` target across `docs/decisions/` resolved
+each against the filesystem: **13 broken**, in 0053, 0056, 0063, 0064, 0072, 0073, 0078 (×5),
+0105 and 0177.
+
+**Why no gate catches it.** `npm run adr:index` / `lint:adr-index` (gate 9) parses ADR **headers**
+to rebuild `INDEX.md` and the back-pointer column. It never resolves a link **target**. So a
+citation naming a file that has never existed is byte-for-byte as green as a correct one, and the
+index it regenerates reports success either way — gate 9 said *"back-pointer blocks already
+current"* on the same run that left 13 dangling links in place.
+
+⚠ **The failure mode is PLAUSIBLE RECONSTRUCTION, which is what makes it survive review.** Every
+broken target is a readable, on-topic slug for the ADR that was actually meant — it names the right
+number and a fair description of that ADR's subject. Nothing about it reads as a typo. ADR 0177
+cited 0175 as `0175-ae45-differential-oracle-scope-and-f3-discharge.md` **one day after 0175 was
+written**, and the real filename is `0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md`. A
+reviewer scanning that line sees a sensible reference to a real decision.
+
+⚠ Note the asymmetry with the rest of the ADR contract: the `Amends:`/`Supersedes:` **label** has
+no gate either (CLAUDE.md §8 says so outright), so both halves of an ADR's cross-reference graph —
+the edge's existence and the edge's target — are unenforced. The index's *back-pointer column* is
+derived from the label, so a wrong-but-plausible filename in a `Relates:` line degrades silently
+while the index still renders.
+
+**⛔ What was NOT done, and why.** Only the **two AE4-phase instances** (0177 and 0178) were
+repaired, both verified to resolve afterwards. The other **11 predate this phase and are untouched
+by ruling** — repairing them here would bury an unrelated 11-file documentation diff inside an
+authorization gate, and a diff whose stated subject is authz should not silently carry it.
+
+**The durable form.** A target-resolution check inside gate 9: for every `](./NNNN-*.md)` in
+`docs/decisions/`, assert the file exists. ⚠ It will **red on those 11** the moment it is added, so
+adding the gate and repairing the 11 are one work item, not two — and it must not be added
+mid-phase, or it blocks Gate AE4 on unrelated debt. ⛔ A gate that is added and immediately
+allowlisted past its own findings is worse than none: it converts 11 visible defects into one
+invisible exception.
+
 ### 🟠 FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED — the mandated per-phase sweep had a FOUR-part hole: the deriver names ONE arm for a TWO-arm list; arm 2 reports success at exit 0 having measured nothing; 9 policies fall outside both arms; and a killed run leaves an RLS policy WIDE OPEN with nothing reporting it (owner: backend/lead; filed 2026-08-27 by `backend`, all four measured during AE1.5)
 
 > ⭕ **DOWNGRADED 🔴→🟠 2026-08-29 — all four instrument defects FIXED, each fix PROVEN able

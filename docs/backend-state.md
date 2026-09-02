@@ -794,6 +794,86 @@ call `app.can_administer_person_for`, which is unchanged). The fifth,
 targeted case: `supabase/tests/mutation/ae3-targeted-cases.sh`, **both cases COVERED**, rollback
 fingerprint-proven.
 
+## AE4 — the `authz` catalog exists, and THREE of 43 permissions are load-bearing (2026-09-02; ADR **0155** / **0162** §2 / **0172** / **0174** / **0175** / **0176** / **0177** / **0178**; migrations `20261003007100`–`…007300`, **17**; pgTAP `401`–`411`, **11**; **NO flag — the migrations ARE the cutover**)
+
+⛔ **THE CATALOG IS AUTHORITY-ELECT, NOT AUTHORITY** (ADR 0162 §2). Until assignment storage is
+bound to it, `authz.roles` is an **additional** role authority beside `memberships_role_check`, the
+scope-shape CHECK, `public.platform_role` and the TypeScript manifest — not a replacement. ⛔ The
+phrase *"the catalog is the authority"* may not appear in a gate record before AE5-complete, and
+*"catalog cutover"* may not describe AE4.6. The honest sentence is the one below.
+
+**The honest one-line state:** `staff_admin` runs on layer 1; **3 of 43 permissions are re-keyed,
+40 are `pending-rekey`**; and **5 non-permission grant paths survive inside** the three re-keyed
+authorizers.
+
+### The three interfaces (ADR 0176 D2) — only layer 3 may be called for a permission decision
+
+| Layer | Objects | Who may call it |
+| --- | --- | --- |
+| 3 — domain authorizer | `app.can_edit_commission_forms` (new, D6) · `app.can_create_professional` · `app.can_read_professional_profile` — each carries its permission code as a **string literal** (D7: statically greppable) | RLS policies, command doors, server actions |
+| 2 — resolver | `authz.has_permission` (runtime; `authoritative` only, fails closed) · `authz.candidate_has_permission` (pre-cutover oracle; also sees `test_validation`, **never** EXECUTE-granted) · `authz.explain_permission` · `authz.entailed_grants` | layer 3, and tests |
+| 1 — assignment projection | `authz.holds_role` · `authz.assignment_facts` · `authz.scope_reaches` | layer 2, and the transitional role wrappers |
+
+⛔ A policy or door calling layer 1 or 2 **directly for a permission decision** is a finding; the
+enforcement manifest is how it is found.
+
+### Measured on a fresh reset, with the query so it is re-run rather than quoted
+
+⛔ `DB=supabase_db_azkbbhskturikxpgmafq`; **no `psql` on PATH** — `docker exec "$DB" psql -U postgres -d postgres -At -c "…"`.
+
+| fact | measured | query |
+| --- | --- | --- |
+| roles by state | **1 `authoritative` (`staff_admin`) / 11 `legacy`** | `select state, count(*) from authz.roles group by state` |
+| permissions | **43** | `select count(*) from authz.permissions` |
+| `authz` functions, all `prosecdef` | **8** | `select proname, prosecdef from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='authz'` |
+| **no client role reaches `authz`** — anon, authenticated **and service_role** | **all false**, and `authz` is absent from `config.toml`'s exposed schemas | `select r, has_schema_privilege(r,'authz','USAGE') from unnest(array['anon','authenticated','service_role']) r` |
+| permission-code **literals** in `app`+`public` (the seam's existence, falsifiable) | **3** — one per re-keyed site; was **0** before `…007300` | `pg_proc` × `authz.permissions`, comment-stripped `prosrc` containing the code |
+| manifest countdown | **43 rows, `{"pending-rekey":40,"re-keyed":3}`** | `npm run lint:authz-vectors` |
+| `is_staff_admin_of` in policies | **59** (was 63 — D6 re-pointed 4) | `pg_policies`, `qual`/`with_check` ~ `is_staff_admin_of\(` |
+| `is_tenancy_admin_of` in policies | **51** (was 55 — same 4, arm moved INSIDE the authorizer) | same, `is_tenancy_admin_of` |
+| pgTAP | **`Files=259, Tests=8685`, exit 0** | `npm run test:db` on a fresh reset |
+
+### ⛔ Five residual legacy arms live INSIDE the three layer-3 authorizers
+
+A re-keyed authorizer is **not** purely permission-keyed. Each retains the non-permission arms that
+granted before, so legacy equivalence holds for principals whose roles are still `legacy` (and
+whose `authz.role_permissions` rows are therefore **inert** — 401 §16.9b):
+
+| authorizer | residual arm(s) reached with NO permission grant |
+| --- | --- |
+| `app.can_edit_commission_forms` | `is_tenancy_admin_of_for` (org_admin + hospital_admin; **no** `platform_admin` arm) |
+| `app.can_create_professional` | `can_manage_professional` |
+| `app.can_read_professional_profile` | `is_admin` · `can_manage_professional` · `can_read_case_committee` |
+
+⚠ **These are invisible to anyone auditing `pg_policies`** — the arm is inside a DEFINER body, and
+deleting it later is a one-line edit no policy-level assertion would see. Two controls exist and
+are load-bearing: pgTAP **410 §3.7** asserts each authorizer's composition, and **§4.6 pins the
+five BY NAME** (a count would let one arm be swapped for another). Adding an arm reds it; *retiring*
+one also reds it, because a retirement is AE5 progress that must be recorded, not absorbed.
+
+⚠ **The composition probe's needle must anchor as `name || '('`** — a bare substring for
+`app.is_tenancy_admin_of` matches `app.is_tenancy_admin_of_for(` as a **prefix**, reporting the old
+name as still present and hiding a rename.
+
+### ⛔ What has NO verdict on this surface — state these beside any "gates green" claim
+
+- **The diff-scoped door sweep's WRITE arm cannot see the four `FOR ALL` form policies** — they are
+  outside its **embedded snapshot** (not the live catalog), so it reports **UNPROVEN (exit 3)**
+  rather than clean. `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` Part 3, an apparatus gap.
+- The four altered policies carried **stale `COVERED` verdicts** from five unrelated suites, earned
+  against the **pre-ALTER** predicate. ⛔ `ARM=census` structurally cannot catch this — the gate is
+  not a newcomer, it already has a verdict, and that is exactly what makes it silent.
+- **`410` proves nothing about enforcement.** That a policy exists and contains a call are facts
+  about SQL. The behavioural proof is `409`, on **writes** (a permissive sibling `*_select` policy
+  keeps a row-count probe green with the write policy fully revoked).
+- **No performance evidence exists** for the final path (IA-F9). It must be measured through
+  policy → layer 3 → layer 2 → layer 1, **never on `holds_role` alone**.
+- `hardDenyClasses` is **40/43 `not-attributable-until-rekey`** — honest bookkeeping, not coverage.
+
+**Rollback:** [authz-rollback-runbook.md](deployment/authz-rollback-runbook.md) + its out-of-chain
+template. ⛔ Restore the **disjunct**, not the whole policy body, and **both halves** of a `FOR ALL`
+policy.
+
 ## AE2 — affiliation tenancy: the anchor column is GONE (2026-08-28; ADR **0161** / **0163** / **0164** / **0165** / **0166** / **0167** +Amdt 2 / **0168** +Amdt 1–3; migrations `20261003005400`–`…006500`, **12**; pgTAP `390`–`400`, **11**; **NO flag — the migrations ARE the cutover**; QA APPROVED r3 → [authz-ae2-review-r3.md](reviews/authz-ae2-review-r3.md))
 
 ⛔ **`profiles.home_organization_id` IS DROPPED** (`20261003006500`). This executes AFF4 D10's named

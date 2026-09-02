@@ -526,6 +526,19 @@ that equivalence is now measured every run instead of assumed.
 is caught; a widening **inside** arm 3's traversal is not. **Exercised != oracled** — PO-deferred
 to the AE5 matrix, and the gate record may not write "the differential is green" without it.
 
+⛔ **SCOPE CORRECTION, measured 2026-09-02 on the SEED during the AE4.9 D6 re-key — the sentence
+above is true of 403's OWN fixture and was being read as true of the database.** 7.3's premise
+("no `professional_participants` row for either subject profile") holds only inside 403. On a
+fresh `db reset` the single seeded `professional_profiles` row (`fb…e1`) **does** carry a
+`professional_participants` row, and `app.can_read_case_committee(ca…e1, chefe.ccih)` measures
+**`t`** — so arm 3 **grants on the seed**, and any later mutation aimed at
+`can_read_professional_profile`'s *org* arm reads green-after-mutation for an unrelated reason
+(an open masking arm). The qualifier owed to the gate record is therefore **"arms 1 and 3 are
+exercised but not oracled, and arm 3 is additionally OPEN on the seed fixture"** — not "cannot
+grant". ⚠ A real filter cited for a conclusion it does not bound: 403's fixture premise is
+genuine, and quoting it at database grain is what made it read as a proof. Any suite mutating
+that door must construct a **participation-free** profile (pgTAP 409 does).
+
 ### D4 — the two follow-ups
 
 **(a) The ruling named the wrong function.** D4(a) said "document `p_uid` in
@@ -769,3 +782,77 @@ pipe table — `verdicts_from_findings()` counts every `| `-prefixed line in tha
 - **`docs/backend-state.md`'s `authz` section is still owed** (audit F10) — this increment changed
   the surface it should describe and did not write it.
 - **Nothing merged, nothing pushed.** The whole phase merges once, at Gate AE4.
+
+## AE4.9 D6 + D5 — the re-key, the enforcement manifest, and the §6 artifact earned, 2026-09-02 (lead + 4 agents)
+
+**Built** — migration `20261003007300`; pgTAP **409** (re-key differential, 63) · **410** (manifest,
+34) · **411** (role-manifest DB gate, 7); `supabase/tests/vectors/authz-enforcement-manifest.json`
+(43 rows, **no default arm**); 401 §19 re-sourced; 403 gained a **fourth** representative; ADR
+[0178](../decisions/0178-ae49-d6-rekey-as-built.md); `docs/backend-state.md` § AE4; the rollback
+runbook + out-of-chain template (closes IA-F10).
+
+**The gate line (0176 D6) is met.** For each of `commission.forms.edit` /
+`org.professionals.create` / `org.professionals.read`, deleting the grant now flips the
+**production door**. F1 was reproduced first (`resolver f` / `door t` on all three), and 409 was run
+against the **pre-migration** catalog with every gate-line assertion observed **red** — the keystone
+is proven able to fail, not assumed to be.
+
+⛔ **The honest sentence, which is NOT "3 of 43 are on layer 3":** *3 sites call layer 3 on the
+`staff_admin` path, and **5 non-permission grant paths survive inside** them* —
+`is_tenancy_admin_of_for` · `can_manage_professional` (×2) · `is_admin` · `can_read_case_committee`.
+410 §4.6 pins those five **by name** (a count lets one arm be swapped for another); adding an arm
+reds it, and *retiring* one also reds it, because a retirement is AE5 progress to be recorded.
+
+### What the build BROKE and how it was closed — the increment's most important finding
+
+The re-key split `can_create_professional`'s body, which **invalidated 401 §19.2b's shared-body
+premise** — the justification for AE4.5's *three representatives answer for six classes*. Rows 31
+(`org.participants.external.manage`) and 32 (`org.case_vocabulary.manage`) **silently lost
+differential coverage** and nothing else in the suite said so. ⛔ Ruled: **restore the reduction**
+with a fourth representative (`org.case_vocabulary.manage`), NOT re-key rows 31/32 (widens past the
+PO-confirmed D6 scope) and NOT raise 19.2b's expected value (greens the test and **deletes its
+subject** — the subject is the *argument*, not the number). §19.2c is new because a distinct-body
+count of 2 over three functions is satisfied by **any** pairing; it pins *which* two still agree.
+⭐ Building it exposed a **catch-all `else`** in 403's driver routing unknown legacy classes to the
+professional-profile door — the fourth rep would have called the wrong door and reported a clean
+differential. Every class is now named; an unknown class raises.
+
+### Gates — exit codes read DIRECTLY from files, never through a pipe
+
+`test:db` **259f/8685** exit 0 (was 256/8579) · `lint` 12/12 · `typecheck` 0 · vitest **151f/2056**
+(−2, accounted: 3 assertions moved to 411) · **all four ARMs HOLD**.
+⭐ **`ARM=census` red FIRST and was RIGHT** — `app.can_edit_commission_forms` was **UNKNOWN** (no
+sweep had ever asked; a newcomer is in no BLIND set and passes `ARM=policy` **vacuously**). Closed by
+*measuring* it, not by widening a filter: read-arm sweep → **COVERED**, verdict **MERGED** into the
+findings baseline (623→624), census re-run **exit 0**.
+⭐ **Door sweep read arm CLEAN** — 7 gates, all COVERED, **BLIND 0**, `ARM-DOMAIN predicate=3/125
+policy=4/226`. The four form policies carried **stale COVERED verdicts** earned against the
+**pre-ALTER** predicate; they were **re-measured, not inherited** (ADR 0079 Amdt 8 ruling 3).
+⛔ **`ARM=census` structurally CANNOT catch a stale verdict** — the gate is not a newcomer.
+⛔ **WRITE ARM = UNPROVEN (exit 3), `guard=0/13 policy=0/33` — NOTHING WAS MEASURED, and this is
+NOT a pass.** The four `FOR ALL` policies are outside its **embedded snapshot**
+(`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` Part 3, an apparatus gap). The read arm legitimately covers
+them (an `ALL` policy IS a read policy) and 409 proves the write path behaviourally — but that arm
+holds no verdict of its own.
+
+### ⭐ §6 step 2 EARNED — `e2e:prod` GATE GREEN in a SINGLE run
+
+`GATE_EXIT=0` read from `/tmp/e2e-prod-gate/gate-exit`. 14:30:05→16:13:24 (1h43m), 21 batches,
+**1260 passed · 0 failed · 2 flaky · 0 did-not-run**. ⛔ **This supersedes the 3-run COMPOSITE**,
+which was never the §6 artifact.
+⚠ The summary line reads *"accounted for 1262 of 1273"* and that is **not** an 11-test hole: the
+per-batch figures sum to **1273/1273**, `did-not-run` is 0 in every batch, and the script's
+"denominator contains a guess" warning never fired. 1262 excludes skips. ⛔ The same shape once
+printed *"860 of 865"* while **66 tests had never executed** — verify by summing, never by reading.
+**3 INFRA re-runs** (batches 9/19/20), each `server_dead=1` + 10/43/70 conn_errors, each re-run on a
+fresh server+DB to `0 failed` with full accounting (67/67 · 54/54 · 70/70). ⚠ The competing
+`*_escalume` stack was up **by PO choice**, which is the recorded cause of that class.
+
+### ⛔ What this did NOT do
+
+- **No performance evidence (IA-F9).** Now measurable for the first time — the final path exists.
+  ⛔ Measure policy → layer 3 → layer 2 → layer 1, **never `holds_role` alone**.
+- **40 of 43 permissions remain `pending-rekey`.** The catalog is authority-**ELECT** (0162 §2);
+  *"catalog cutover"* still may not describe AE4.6.
+- **410 proves nothing about enforcement** — that a policy exists and contains a call are facts
+  about SQL. `hardDenyClasses` is 40/43 `not-attributable-until-rekey`: honest, not coverage.

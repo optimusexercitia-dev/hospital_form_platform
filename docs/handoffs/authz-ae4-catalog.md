@@ -5,7 +5,7 @@ adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0175, 0176, 0177, 0079, 0106]
 base_sha: 0412bef7e59476635ddb024c63fdce182a7a6466
 created: 2026-09-01
 updated: 2026-09-02
-status: live   # AE4.1–4.9(do-now 1+2) BUILT and COMMITTED; every spec passes but only as a 3-run COMPOSITE; Gate AE4 NOT declarable — the re-key (0176 D6) is the next build
+status: live   # AE4.1–4.9 INCL. THE D6 RE-KEY built; ⛔ the re-key work is UNCOMMITTED and UNVERIFIED as one suite — no canonical `test:db` has run across all of it. Gate AE4 NOT declarable.
 ---
 
 # Handoff — AE4, with the permission layer made real and every spec passing, but the gate not yet earned
@@ -32,6 +32,45 @@ status: live   # AE4.1–4.9(do-now 1+2) BUILT and COMMITTED; every spec passes 
    door. That is 0176 D6 and it is the next build.
 
 ⛔ Re-measure before relying on anything below — see § Trust.
+
+---
+
+## ⭐ 2026-09-02 (later) — THE D6 RE-KEY IS BUILT. Read this before § State; it supersedes the
+## "next build" framing above, and NOTHING here has been verified as one suite.
+
+**Built, all UNCOMMITTED at the time of writing** (`git status` is the truth, not this list):
+migration `20261003007300` + pgTAP **409** (the re-key: `app.can_edit_commission_forms` new;
+`can_create_professional` / `can_read_professional_profile` re-keyed in place) · the D5
+**enforcement manifest** `supabase/tests/vectors/authz-enforcement-manifest.json` + pgTAP **410** +
+401 §19 re-sourced · a **fourth** differential representative in **403** · pgTAP **411** + the
+vitest Docker dependency removed · ADR **0178** · the **rollback runbook + out-of-chain template**
+in `docs/deployment/`.
+
+⛔ **THE ONE THING A SUCCESSOR MUST NOT ASSUME: no canonical `npm run test:db` has run across all
+of this.** Individual agents measured their own files at different trees; 410's last green
+predates its own §4.6 and residual columns, and **403 has never been run with four
+representatives** (864 driver invocations, up from 648). Plan counts to expect: 401 **121**,
+403 **23**, 410 **34** (new), 409 **63**. Treat every count above as *intended*, not observed.
+
+⛔ **Two `test:db` runs were VOIDED** by a second agent running `create/drop extension pgtap
+cascade` (AccessExclusiveLocks catalog-wide) against the shared DB. **One owner for the DB at a
+time** — that is why the counts above are unverified rather than wrong.
+
+▶ **RESUME = re-run the canonical gate**: fresh `supabase db reset --local` → `npm run test:db` →
+`npm run lint` / `typecheck` / `npx vitest run` → the four authz ARMs → the diff-scoped door sweep
+**both arms**, then `e2e:prod`.
+
+⛔ **THE DOOR SWEEP HAS VERDICTED NOTHING ON THIS CHANGE, and that is a §6 finding, not a pass.**
+Read arm exited 1 (baseline not green); **write arm exited 3, UNPROVEN, 0 gates selected** — the
+four `FOR ALL` policies are absent from that harness's embedded 33-policy snapshot
+(`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` Part 3). The four altered policies additionally carry
+**stale COVERED verdicts** inherited from five other suites, which must be **re-measured, not
+inherited**.
+
+⛔ **PROGRESS.md is at ~100.8 KB against a 102,400 B HARD cap.** The Record step needs room it
+does not have. PO decision, unresolved.
+
+---
 
 ⚠ **Two documents carry what this file deliberately does not:**
 [`authz-ae4.md`](../progress/authz-ae4.md) — the increment record, per increment, each with its
@@ -299,7 +338,11 @@ production door; everything else `pending-rekey` (0176 D6, recorded in place).
 
 **First command:** `supabase db reset --local && npm run test:db` (expect **256f/8579 GREEN**).
 
-⛔ **THE NEXT BUILD IS ITEM 3 — the re-key.** Items 0–2 and 5 are done; 3 is what Gate AE4's
+⛔ **THE NEXT BUILD IS ITEM 2 — the re-key.** ⚠ **Numbering CORRECTED 2026-09-02:** this said
+*"item 3 … items 0–2 and 5 are done"*, which contradicted the list directly below it — item 1 is
+OPEN (do-now (c)+(d), both re-measured live that day) and item 2 is the re-key, not item 3. Only
+items 0 and 5 are done. A header that disagrees with its own list sends a successor to the wrong
+build. Item 2 is what Gate AE4's
 minimum actually requires (0176 D6), and until it lands *deleting a grant still moves nothing a
 user can observe*. Items 4, 6 and 7 are gate paperwork that follow it.
 
