@@ -939,3 +939,48 @@ reading the catalog.
 - **Expecting a UNION observable to show a mutation.** Re-pointing 319's A5 twin expecting
   `111 → 175` measured **111**: S1's mask already contained S2's bit. Read where NO arm is
   legitimately open.
+
+---
+
+## Rotated from PROGRESS.md § Now 2026-09-02 — ten concluded spans of the ADR 0155 bullet
+
+⚠ **Rotated at a size rotation, not a Record step.** PROGRESS.md had crossed the 100 KB hard cap at
+`e897b452` and stood 114 bytes under it after `3f213d48`; four Gate-AE4 agents were about to write
+into § Now with no room. The § Now ADR 0155 bullet was 8555 bytes — the file's single largest item.
+
+**Each span below is verbatim** — relocated by index from the live bullet, not retyped — and each had
+had its resolution event where it stood. Spans 1 and 3 are closures and a corrected commit-state
+claim; 2 and 5 are pointers to narrative already rotated into this file; 4, 7 and 10 are superseded
+gate figures (§ Test Run Summary retains the most recent run, and the D6 run supersedes both earlier
+ones); 6 is the implementation audit and its disposition, which § QA Verdicts and two § Decisions rows
+both carry; 8 and 9 are build narrative this file already holds in § AE4.9, with 9's lesson now
+**pinned in the suite** at 401 §16.9b rather than in prose.
+
+⛔ **What deliberately did NOT move, because Gate AE4 has not consumed it:** the PO's
+HOLD-EVERYTHING-ON-THE-BRANCH ruling · the two qualifiers owed to the gate record (§20 is ONE HOP;
+`can_read_professional_profile`'s arms 1/3 are EXERCISED BUT NOT ORACLED) · the MATCH FULL
+unreachable-keystone finding · *C2 is NOT a prerequisite* and *G2 does not carry* · the `ARM=census`
+red being real and returning to 0 only on named reasons plus mutation-proven keystones · the three
+new objects with no sweep verdict and `public.assume_role` as a structurally invisible fifth · the
+door-sweep WRITE arm UNPROVEN (exit 3, 0 gates selected) · IA-F9 performance evidence not existing ·
+and the *"the honest sentence is NOT 3 of 43 on layer 3"* correction.
+
+1. ✅ One real regression FOUND AND FIXED (`a1ac073c`). ✅ **`BUG-AE47C-LINKAGE-001` CLOSED 2026-09-02** — both casualties fixed, tester-verified 13/13 exit 0 on a fresh reset (archive + full narrative: § Bug Log).
+
+2. ⭐ **The AE4.8/AE4.9-era E2E narrative ROTATED 2026-09-02 → [authz-ae4.md § AE4.8](authz-ae4.md)** — the 3-run COMPOSITE and why it was never the §6 artifact, the connection-level failure taxonomy, the PO's second-workload input, and two retracted readings. It is **SUPERSEDED** by the single-run green below.
+
+3. ✅ **Both fixes are COMMITTED** (`a1ac073c` + `2deb7ce0`) — ⛔ this line read *"remain uncommitted"* until 2026-09-02, after they had landed; measured on a clean `git status`, not read off this file.
+
+4. ✅ **PO BATCH RULED AND BUILT 2026-09-01** — ADR [0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md); every figure + what it did NOT do → [authz-ae4.md § AE4 PO batch](authz-ae4.md). `test:db` **254f/8504 GREEN** (8498 +3 in 401 §20 +3 in 403 §7), lint 12/12, tsc 0, **4 ARMs HOLD**, exits read DIRECTLY.
+
+5. ⭐ **D1's re-ruling narrative ROTATED 2026-09-02** → [authz-ae4.md § D1](authz-ae4.md), which carries it in more detail than this bullet did (the 91-cell ruling withdrawn on a measurement, the structural proof that replaced it, and its discrimination + name-key controls).
+
+6. ⛔ **IMPLEMENTATION AUDIT 2026-09-02 — CHANGES REQUESTED, F1 REPRODUCED ON THE CATALOG: the permission half has ZERO production callers** (both wrappers → `holds_role`, no permission read; deleting a grant flips the resolver, not the wrapper — a conformance defect, not an exposure). **PO RULED OPTION A — make permissions real → ADR [0176](../decisions/0176-authz-permission-layer-made-real.md)** (`Amends:` 0155 D7 + 0174); the "do now" set, the manifest and the AE5 bundle → plan § AE4.9 + [authz-ae4.md](authz-ae4.md). ✅ **Gate AE4 minimum re-key scope CONFIRMED 2026-09-02 (PO): the three representatives** (0176 D6).
+
+7. `test:db` **256f/8579 PASS**, lint 12/12, tsc 0, **4 ARMs HOLD**, exits read DIRECTLY.
+
+8. ⭐ **Every defect was REPRODUCED FIRST, then re-measured by the lead on the live catalog:** scope kind `hospital` **and** `banana` for a commission id both granted → now deny; `test_validation` → runtime `f` / candidate `t` (the **only** state where they differ, which is what makes the split a split and not a rename); a deleted grant explained `scope_unreachable` → now `permission_not_granted`.
+
+9. ⚠ **401 §16.10 went RED on first run and the GATE was right, the FIXTURE wrong** — its second granting role is `staff`, still `legacy`; §16.9b now pins that **a role's `role_permissions` rows are INERT until its state flips**, so an AE5 increment that forgets the flip looks identical to one that never seeded.
+
+10. `test:db` **259f/8685**, lint 12/12, tsc 0, vitest 151f/2056, **4 ARMs HOLD**, exits read DIRECTLY.
