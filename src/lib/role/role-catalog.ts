@@ -38,11 +38,97 @@ export const ROLE_LABELS: Record<PlatformRole, string> = {
   staff: "Membro de comissão",
 };
 
-const PLATFORM_ROLES = new Set<string>(Object.keys(ROLE_LABELS));
+/**
+ * The scope a role's assignment is keyed to. ⚠ MIRRORS `authz.roles.allowed_scope_kind`
+ * and is BOUND to it by `role-catalog.test.ts`, which reads the live catalog — this is
+ * not a hand-maintained parallel list, and it must not become one (AE4.8 [PA-F1]).
+ */
+export type RoleScopeKind = "none" | "organization" | "hospital" | "commission";
+
+/**
+ * Which scope each role is assigned at. Exhaustive over `PlatformRole` BY TYPE — adding
+ * an enum value fails to compile here before it can fail silently anywhere else.
+ */
+export const ROLE_SCOPE_KIND: Record<PlatformRole, RoleScopeKind> = {
+  platform_admin: "none",
+  org_admin: "organization",
+  hospital_admin: "hospital",
+  nsp_org_admin: "organization",
+  nsp_coordinator: "hospital",
+  pqs_member: "hospital",
+  technical_director: "hospital",
+  technical_director_deputy: "hospital",
+  quality_reviewer: "hospital",
+  staff_admin: "commission",
+  staff: "commission",
+};
+
+/**
+ * ⭐ THE ONE ORDERED MANIFEST (AE4.8). The order IS `src/app/page.tsx`'s precedence
+ * chain, read top-to-bottom, and it is the whole point of this array: `page.tsx` and
+ * {@link landingRouteForRole} were hand-mirrored copies of the same ordering, so a new
+ * role had to cross TWO seams and three times crossed neither (BUG-HAT-001, the Diretor
+ * Técnico, `quality_reviewer` — `session-grants.test.ts` carries that history).
+ *
+ * ⛔ REORDERING THIS ARRAY CHANGES WHERE USERS LAND. It is not a display order and must
+ * not be sorted for tidiness. The two commission roles sit AFTER the org/hospital
+ * administrators and BEFORE the three "office" hats (NSP operator, Diretor Técnico,
+ * quality reviewer) — each of those is worn alongside a day job, so it may only change
+ * the outcome for someone who would otherwise dead-end. `page.tsx` states the reasoning
+ * per branch; this array states the resulting order in one place.
+ *
+ * ⚠ NOT exhaustive by type (a short array still satisfies `readonly PlatformRole[]`).
+ * `role-catalog.test.ts` asserts coverage instead, in the same test that binds it to
+ * the catalog — a missing role here is exactly the defect this manifest exists to stop.
+ */
+export const ROLE_ORDER = [
+  "platform_admin",
+  "org_admin",
+  "hospital_admin",
+  "nsp_org_admin",
+  "staff_admin",
+  "staff",
+  "nsp_coordinator",
+  "pqs_member",
+  "technical_director",
+  "technical_director_deputy",
+  "quality_reviewer",
+] as const satisfies readonly PlatformRole[];
+
+export interface RoleManifestEntry {
+  readonly code: PlatformRole;
+  readonly label: string;
+  readonly scopeKind: RoleScopeKind;
+}
+
+/** The manifest itself — order + label + scope, assembled from the three sources above
+ * so that none of them can be edited without the others staying in view. */
+export const ROLE_MANIFEST: readonly RoleManifestEntry[] = ROLE_ORDER.map((code) => ({
+  code,
+  label: ROLE_LABELS[code],
+  scopeKind: ROLE_SCOPE_KIND[code],
+}));
+
+const PLATFORM_ROLES = new Set<string>(ROLE_MANIFEST.map((r) => r.code));
 
 /** Whether `value` is a real `platform_role` enum value — the picker/hint's
  * own boundary check on untrusted `FormData`/string input (the RPC re-
- * validates regardless; this only decides what the UI renders/submits). */
+ * validates regardless; this only decides what the UI renders/submits).
+ *
+ * ⭐ G4 (ADR 0155) ASKED FOR A TYPED QUERY AGAINST `authz.roles.session_selectable`
+ * INSTEAD OF THIS SET. That is not implementable, and the reason is a deliberate design
+ * choice one increment earlier, not an oversight: AE4.1 keeps `authz` OUT of
+ * `config.toml`'s exposed schemas, and no client role holds USAGE on it — measured,
+ * `anon`/`authenticated`/`service_role` are all false for both `has_schema_privilege`
+ * and `has_table_privilege('authz.roles','SELECT')`. A runtime query would need a NEW
+ * `public` door into the schema AE4 deliberately sealed, bought for a UI pre-filter.
+ *
+ * ⛔ So the binding is enforced at GATE TIME instead of query time: `role-catalog.test.ts`
+ * reads `authz.roles` from the live catalog and fails if this manifest and the catalog
+ * disagree. Same "cannot drift silently" property, no new runtime surface. The AUTHORITY
+ * was never this Set in any case — `public.assume_role` re-validates against live
+ * memberships and is the only thing that can actually grant a hat.
+ */
 export function isPlatformRole(value: string): value is PlatformRole {
   return PLATFORM_ROLES.has(value);
 }
