@@ -230,6 +230,21 @@ swept until one is built, and it remains unbuilt and unsized — the actual long
 existing harnesses open a **boolean** gate or a policy `USING`; these doors return
 `jsonb`/`uuid`/`void`, so there is no boolean to flip.
 
+### Cross-reference rotated verbatim from PROGRESS.md § Now, 2026-09-02
+
+> AE4 reached this population from a different direction. Kept in THIS file rather than the
+> AE4 record because a future C2 session reads this one.
+
+⭐ **CROSS-REFERENCE, not a new finding (ADR [0173](docs/decisions/0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md)):**
+     AE4 reached this same population from a different direction. Of 29 doors touched by
+     runtime-rewrite migrations and **absent** from the door-audit findings, **not one** is
+     `prosecdef` + `authenticated`-reachable + `returns bool` — they are absent because
+     `PRED_DOMAIN` requires `bool`, which is C2's bound. `create_case`, `cast_case_vote`,
+     `issue_decision`, `add_ethics_allegation` are already on this worklist. ⛔ **Not a second
+     exposure and not a second population** — new evidence *about* C2: its doors are also what a
+     diff-scoped lookup cannot reach. Filing it twice would double the register and halve the
+     chance either copy closes.
+
 ## 9. Absorbed items — status unchanged
 
 Both remain absorbed and **absorption is not closure**; each keeps its own index line and needs

@@ -650,6 +650,21 @@ not this section.
 
 ---
 
+### E2E narrative rotated verbatim from PROGRESS.md § Now, 2026-09-02
+
+> Rotated because the single-run `e2e:prod` green (`GATE_EXIT=0`, 1273/1273) SUPERSEDED it.
+> Kept verbatim rather than summarized: the qualifiers are the point, and a compression to
+> fit a byte cap is exactly what selects against them.
+
+✅ **RE-MEASURED 2026-09-02 AFTER THE AE4.9 SQL — every one of the 122 spec files now holds a PASSING verdict, and the 62 infra-unproven are RESOLVED: batch 7 (the FF family) measured `70 passed · 0 failed · accounted 70/70 · pw_exit 0`.** ⛔ **BUT THE §6 STEP-2 ARTIFACT IS NOT EARNED — that green is a COMPOSITE OF THREE RUNS, and the gate has never exited 0 over the whole suite at this tree.** §6 says the full suite runs **once** to declare green; a union of three partial runs is a different artifact and may not be written as *"e2e:prod green"*. Composition, so a successor can audit it rather than trust it: run A batches 1–17 = the first **100** specs, `0 failed` in every batch (aborted at b19 by the lead, deliberately); run C = the remaining **22** specs at `BATCH_TESTS=22`, 200 passed with **zero assertion failures**; run D = the 3 specs run C left unproven, `GATE_EXIT=0`, **27/27**. ⭐ **NO TEST HAS FAILED AN ASSERTION ANYWHERE AT THIS TREE.** Every red was connection-level: a standalone server that binds :3000 and answers 404 in 13 ms while logging `✓ Ready in 0ms` (a boot that never completed) · a `db reset` dying mid-migration on `effect/sql/SqlError: Connection error` · a `page.goto` returning `net::ERR_ABORTED` inside the auth helper. ⚠ **PO INPUT (2026-09-02): the machine was running a second workload** — a second Supabase stack (`supabase_*_escalume`) was up throughout — which explains the connection-level class better than any harness theory. ⛔ **A "degrades over the run" reading was RETRACTED**: `FUP-E2E-SERVER-DEAD-1`'s own history has deaths at batches 5·6·9·12·16·17, i.e. scattered, so lateness is a property of one run, not of the harness. ⛔ **And batch 7 was never special** — the prior record's *"auto-re-run got WORSE, 56→62"* invited that reading; the deaths land wherever the machine is loaded. ▶ **Owed for the gate record: ONE full `e2e:prod` to exit 0 in a SINGLE run on a quiet machine.**
+
+### AE4.8 detail rotated verbatim from PROGRESS.md § Now, 2026-09-02
+
+> What § Now carried about AE4.8 after the narrative moved here: what this section holds,
+> the one claim the move corrected, the AE4.8 gate figures, and the superseded run-2 note.
+
+— the increment record it had owed since the build, written in the same edit that freed this file's last headroom. It carries the manifest collapse, the `session_selectable`-not-row-count binding, the BRANCH-not-scope partition, both plan predictions that failed on measurement, and what AE4.8 did NOT do. ⛔ **One claim was CORRECTED in the move:** § Now had carried *"G4 IS NOT IMPLEMENTABLE AS WRITTEN"* — **superseded by ADR 0176 D7** (the ruling read G4's "typed query" as client-side; `public.assume_role` is DEFINER and reads `session_selectable` server-side with no new grant). vitest **151f/2058**, lint 12/12, tsc 0. ⚠ **The AE4.8-era `e2e:prod` run-2 figures are SUPERSEDED and are NOT restated here** — its *"1 failed"* was a serial-abort artifact and its 62 infra-unproven are resolved; the current E2E position is stated ONCE, below.
+
 ## AE4.9 "do now" 1+2 — the resolver's contract corrected, and `assume_role` enforcing `session_selectable`, 2026-09-02 (backend)
 
 Subjects: `20261003007250_ae49_d4_resolver_contract.sql` (ADR 0176 **D4** / [IA-F3]) and

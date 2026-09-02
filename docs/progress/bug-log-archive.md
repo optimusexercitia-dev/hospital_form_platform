@@ -3430,6 +3430,11 @@ while pinned.
 
 ### ✅ BUG-AE47C-LINKAGE-001 — rotated from PROGRESS.md 2026-09-02 (closed at rotation, both casualties fixed and tester-verified)
 
+**The gate arithmetic, rotated verbatim from PROGRESS.md § Now 2026-09-02** — it lived only in § Now, and this archive entry did not carry it:
+
+⭐ **AND THE GATE'S "1 failure" WAS WRONG — there were TWO, from one cause.** The file is `test.describe.configure({ mode: 'serial' })`, so `:765` aborted the rest and `UNKNOWN-RESOLVE` (`:1068`) was **one of the 13 did-not-run**; measured with the first fix stashed, it failed independently on the same AE4.7c bound. ⛔ **This is the standing "did-not-run carries no verdict" warning paying out, not a new class.** Any re-run must give **every** test a verdict; a serial abort is unmeasured, never passing.
+
+
 `ethics-e4-participants.spec.ts:765` (PROF-CREATE, create-inline "possui conta") regressed in
 AE4.7c. Filed 2026-09-02 (lead), surfaced by the AE4.8 `e2e:prod` gate.
 
