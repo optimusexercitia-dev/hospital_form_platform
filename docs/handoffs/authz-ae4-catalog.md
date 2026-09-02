@@ -1,321 +1,253 @@
 ---
 branch: authz-ae4-catalog
 task: AE4 — the authz catalog, and staff_admin substituted end-to-end (ADR 0155 D7)
-adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0079, 0106]
+adrs: [0155, 0162, 0169, 0170, 0172, 0173, 0174, 0175, 0079, 0106]
 base_sha: 0412bef7e59476635ddb024c63fdce182a7a6466
 created: 2026-09-01
-updated: 2026-09-01
-status: live   # AE4.7a/b/c + the PO batch landed (254f/8504 GREEN); AE4.8 next
+updated: 2026-09-02
+status: live   # AE4.1–4.8 + PO batch BUILT; e2e:prod RED on one bug; Gate AE4 NOT declarable
 ---
 
-# Handoff — AE4, paused after AE4.7c
+# Handoff — AE4, paused with AE4.8 built and the E2E gate RED
 
 ## ▶ RESUME HERE
 
-1. `git log --oneline 0412bef7..HEAD` and `git status` — confirm the tree still matches.
-2. `supabase db reset --local` — mandatory; every figure below assumes a fresh reset.
-3. `npm run test:db` — expect **254 files / 8504 tests, GREEN** (⚠ changed: 8498 — the PO batch
-   added 3 in 401 §20 and 3 in 403 §7). ⭐ CHANGED BY AE4.7b: the
-   branch's long-standing two reds (315 t14, 319 t5) are the ORPHANED TWINS and they are
-   REPAIRED. A red on either now is drift, not this handoff's state — and a red anywhere
-   else was never this handoff's state.
-4. Read **PROGRESS.md § Now** and § Decisions. This file is not status truth.
+1. `git log --oneline 0412bef7..HEAD` and `git status`.
+2. `supabase db reset --local` — **mandatory, and not a formality: see § Dead ends "a bisect
+   poisons every later catalog read". Every figure below assumes a fresh reset at THIS tree.**
+3. `npm run test:db` — expect **254 files / 8504 tests, GREEN**. No expected-red baseline exists
+   on this branch, so a red is drift.
+4. `npm run test` (vitest) — expect **151 files / 2058 tests**. `npm run lint` (12 gates) and
+   `npm run typecheck` — expect 0.
+5. Read **PROGRESS.md § Now**, § Bug Log and § Decisions. This file is not status truth.
 
 ⛔ Re-measure before relying on anything below — see § Trust.
 
-⚠ **Two documents carry what this file deliberately does not** — read them for the *why*
-behind any figure below rather than re-deriving it:
-- [`authz-ae4.md`](../progress/authz-ae4.md) — the **increment record**: AE4.7a (evidence
-  repair), AE4.7b (the `holds_role` chokepoint), AE4.7c (the gate split), each with its own
-  gate table and its own "what this did NOT do".
-- [`authz-ae4-review.md`](../reviews/authz-ae4-review.md) — the **mid-phase QA review** whose
-  ranked findings F1–F9 drove all three.
+⚠ **Two documents carry what this file deliberately does not:**
+[`authz-ae4.md`](../progress/authz-ae4.md) — the increment record, per increment, each with its
+own gate table and its own "what this did NOT do"; and
+[`authz-ae4-review.md`](../reviews/authz-ae4-review.md) — the mid-phase QA review whose findings
+F1–F9 drove AE4.7a/b/c.
 
 ⛔ Nothing may cite this file — promote it to one of those two instead, and leave a pointer.
 
 ## Trust
 
-**Mixed, and the mix matters.** The AE4.1–AE4.6 half was written **cold at session end** — the
-least reliable mode. The AE4.7a/b/c half was written **incrementally**, and § State was
-**re-measured wholesale at `43684b16` on 2026-09-01** rather than carried forward. A later pass
-at **`b37a2a5b`** re-confirmed five load-bearing catalog rows and corrected § Tree and § Next
-task, which had gone false in the four commits between.
+**Mixed.** AE4.1–AE4.6 was written cold at session end — the least reliable mode. AE4.7 onward
+was written incrementally. § State was re-measured wholesale at `43684b16`, spot-checked at
+`b37a2a5b`, and the AE4.8 rows below were measured at `d56a5065`.
 
-⛔ **EIGHT ROWS OF THE OLD VERIFIED TABLE HAD GONE FALSE** by AE4.7c — the catalog grew, the
-wrappers stopped naming the adapter, a PUBLIC grant was revoked, and a 13-door gate became
-four. They are corrected in place and marked **⚠ changed**, because an uncorrected handoff
-re-teaches its error to the next reader. ⚠ Every one of them had been true when written, and
-every one still read as careful.
+⛔ **Eight rows of an earlier VERIFIED table had gone false by AE4.7c**, and **one diagnosis in
+this session was retracted outright** (§ Dead ends). Every one had been true when written, and
+every one still read as careful. Treat BELIEVED rows accordingly and re-measure before acting.
 
-**Ten premises were measured false during this phase**, six of them the lead's own; § Dead ends
-carries the AE4.7b/c ones with their mechanisms. Treat BELIEVED rows accordingly.
+⛔ **The phase's catalog figures are NOT restated here any more** — they are in the increment
+record, and the § Re-derivation appendix regenerates them. A second copy is a second thing to
+drift.
 
 ## Goal and scope boundary
 
 AE4 makes the `authz` catalog exist, migration-managed, with **exactly one role —
 `staff_admin`** running on it, proven by a differential oracle.
 
-**Explicitly NOT in scope, and each was ruled, not overlooked:**
+**Explicitly NOT in scope, each ruled rather than overlooked:**
 - Other roles. Eleven remain `legacy`; AE5 substitutes them one at a time.
-- Retiring `memberships_role_check` / `memberships_scope_shape`. Both stand until
-  AE5-complete. ⛔ The phrase *"the catalog is the authority"* may not appear in a gate
-  record before then — it is **authority-elect**.
+- Retiring `memberships_role_check` / `memberships_scope_shape` — both stand until AE5-complete.
+  ⛔ *"The catalog is the authority"* may not appear in a gate record before then: it is
+  **authority-elect**.
 - Widening `PRED_DOMAIN` (the door-sweep harness's `bool` bound). Routed to C2.
-- Fixing the three filed follow-ups (§ Open questions).
-- `seed.sql`. Untouched by ruling — it is a contract with ~900 tests.
+- `seed.sql`. Untouched by ruling — a contract with ~900 tests.
 
 ## State
 
-### Done — VERIFIED
-
-⛔ **RE-MEASURED 2026-09-01 AT `43684b16`, ON A FRESH `supabase db reset --local`** (§ Trust
-for what that replaced). Each row carries the query that produced it; ⚠ rows marked **changed**
-are where a successor trusting the previous table would have been wrong.
-
-⭐ **Spot-checked again at `b37a2a5b`** — rows 1, 4, 5, 6 and the wrapper/chokepoint rows all
-re-returned the same values. ⚠ **That check ran against the local stack as it stood (container
-up 36 min), NOT a verified-fresh reset** — it is a consistency check, not a re-issue of the
-fresh-reset witness. The other rows were not re-asked.
+### Done — VERIFIED at `d56a5065`, fresh reset
 
 | What | Witness | When |
 | --- | --- | --- |
-| `authz`: **5 tables, 6 functions, 0 policies** (⚠ changed: 4/5/0) | `select count(*) from pg_tables / pg_proc / pg_policies where schemaname='authz'` | 09-01 |
-| All **6** `authz` functions `prosecdef=true`, `proconfig = search_path=""` | `select proname, prosecdef, proconfig from pg_proc join pg_namespace … nspname='authz'` | 09-01 |
-| No app role holds USAGE on `authz` | `has_schema_privilege(r,'authz','USAGE')` for anon/authenticated/service_role → all false | 09-01 |
-| Catalog: **43 permissions / 42 grants / 0 implications / 43 closure rows** (⚠ changed: 42/42/0) | `select count(*) from authz.permissions / role_permissions / permission_implications / permission_implication_closure` | 09-01 |
-| ⭐ The ONE code `staff_admin` does not hold is **`org.professionals.manage`** — AE4.7c's revoke, named rather than counted | `select code from authz.permissions pm where not exists (… role_permissions rp where rp.role_code='staff_admin' …)` | 09-01 |
-| **1 `authoritative`, 11 `legacy`** | `select state, count(*) from authz.roles group by state` | 09-01 |
-| Both legacy CHECKs still on `memberships` → 2 | `select count(*) from pg_constraint where conrelid='public.memberships'::regclass and conname in ('memberships_role_check','memberships_scope_shape')` | 09-01 |
-| ⚠ **changed** — wrappers now delegate to the CHOKEPOINT: `holds_role=true`, `has_role=false`, `assignment_facts=false`, `active_role=false` **on both** | `select proname, prosrc ~ … from pg_proc … proname like 'is_staff_admin_of%'` | 09-01 |
-| `authz.holds_role` carries all four legacy gates **plus** `state='authoritative'`, and compares the null hat with `is not distinct from` | `select prosrc ~ 'assignment_facts' / 'active_role' / 'authoritative' / 'is not distinct from' … proname='holds_role'` → t/t/t/t | 09-01 |
-| ⚠ **changed** — `anon` EXECUTE is **false on both** wrappers; `authenticated` true on both. The `=X/postgres` PUBLIC grant is gone | `has_function_privilege('anon'/'authenticated', p.oid, 'EXECUTE')` | 09-01 |
-| ⚠ **changed** — the 13-door gate is now FOUR: `can_manage_professional` **3** public doors, `can_create_professional` **3**, `can_manage_external_participant` **1**, `can_manage_case_vocabulary` **6**. ⛔ 3+3+1+6=13 counts `set_professional_link_state` twice BY DESIGN (it names two gates); **12 distinct** | `select count(*) … nspname='public' and comment-stripped prosrc like '%<gate>%'` | 09-01 |
-| `memberships` FK is `MATCH FULL ON UPDATE RESTRICT ON DELETE RESTRICT` | `pg_get_constraintdef` on `memberships_role_scope_kind_fkey` | 09-01 |
-| `memberships.scope_kind` is `GENERATED ALWAYS`, **nullable** | `information_schema.columns` | 09-01 |
-| `assignment_facts` carries **3** gates, not 4 — the hat lives in its consumers | `prosrc ~ 'active_role'` → false | 09-01 |
-| Amended deriver selects rewrite-migration targets; **exits 1 FINDING** on an unreadable one | `BASE=…~1 TIP=… bash scripts/door-sweep-cases.sh` | 09-01 |
+| AE4.1–4.7 catalog state (5 tables / 6 fns / 0 policies; 43 perms / 42 grants; 1 authoritative + 11 legacy; the one revoked code `org.professionals.manage`) | § Re-derivation appendix regenerates each | 09-02 |
+| Both wrappers are one-liners over `authz.holds_role`; `has_role`/`assignment_facts`/`active_role` all false on both | appendix § wrapper delegation | 09-01 |
+| **No client role holds USAGE on `authz`** — anon, authenticated **and service_role** all false, and `authz` is absent from `config.toml`'s exposed schemas | `has_schema_privilege(r,'authz','USAGE')`; `grep -n "^schemas" supabase/config.toml` | 09-02 |
+| AE4.8: `ROLE_MANIFEST` **is** `authz.roles`' session-selectable half, scope kinds matching | `npx vitest run src/lib/role/role-catalog.test.ts` → 6/6 | 09-02 |
+| AE4.8: `landingRouteForRole` reproduces its pre-refactor behaviour on 31 pinned cases | `npx vitest run src/lib/role/landing-route.test.ts` → 31/31 | 09-02 |
+| `set_professional_link_state` **DOES** carry AE4.7c's `link_state='unknown'` bound | `prosrc ~ 'v_current_link'` → **true**, after a fresh reset | 09-02 |
 
-### Written but UNVERIFIED (BELIEVED — not re-measured at `43684b16`)
+### Written but UNVERIFIED (BELIEVED)
 
-- ✅ **NO LONGER BELIEVED — settled 2026-09-01 during the PO batch.** `--self-test` exits 0 with
-  **10 arms each caught on their own message** and the discrimination control clean on the real spec.
-- Six driver defects were found and fixed inside 403's harness (AE4.5's own report).
-- ⛔ **BUG-PROF-INACTIVE-001's behavioural proof has MOVED and was not re-run by hand.** It was
-  verified against `app.can_manage_professional`; AE4.7c moved that arm to
-  `app.can_create_professional` → `app.is_org_commission_staff_admin`. pgTAP **404** now asserts
-  both polarities there and is green, so the property holds — but the witness is a suite, not a
-  hand probe. Settled by reading 404's run.
+- ⛔ **BUG-PROF-INACTIVE-001's behavioural proof MOVED and was not re-run by hand.** Verified
+  against `app.can_manage_professional`; AE4.7c moved that arm to `can_create_professional` →
+  `is_org_commission_staff_admin`. pgTAP **404** asserts both polarities and is green — but the
+  witness is a suite, not a hand probe. Settled by reading 404's run.
+- Six driver defects found and fixed inside 403's harness (AE4.5's own report).
 
 ### Not started
 
-**AE4.8** only — § Next task. AE4.7a/b/c are complete, measured in the increment record.
-⛔ **`docs/backend-state.md` has NO `authz` section yet** — deliberate: the surface map is a
-Record-step artifact and AE4 merges once, at Gate AE4. Owed there, not here.
+⛔ **`docs/backend-state.md` has NO `authz` section** — deliberate: a Record-step artifact, owed
+at Gate AE4, not here. The increment record owes an **AE4.8 section** (every earlier increment
+has one).
 
 ### Tree
 
-⚠ **`base_sha` in the frontmatter (`0412bef7`) is the sha this handoff was FIRST written
-against and is deliberately unchanged** — it is what a successor diffs from to see the whole
-phase. The tree it now describes is **`b37a2a5b`** (⚠ changed: `43684b16`).
+⚠ `base_sha` (`0412bef7`) is where this handoff was FIRST written and is deliberately unchanged —
+it is what a successor diffs from to see the whole phase. The tree described is **`d56a5065`**.
 
-**62 commits ahead of `main`** (⚠ changed: 58), working tree **clean** except two pre-existing
-untracked items that predate this branch and are not this work's: `docs/learning/`,
-`scripts/progress-cleanup-2026-08-26.mjs`.
+**71 commits ahead of `main`**, working tree **clean** except two pre-existing untracked items
+that are not this work's: `docs/learning/`, `scripts/progress-cleanup-2026-08-26.mjs`.
 
-⭐ **`43684b16..b37a2a5b` is DOCS-ONLY** — `git diff --name-only` over it returns nothing outside
-`docs/` and `PROGRESS.md`. That is *why* the VERIFIED table's DB rows survived a tree move: no
-migration, no suite, no `src/` file changed. The TREE rows did not survive it — the commit count
-and PROGRESS.md's size both moved. ⛔ Docs-only is a reason to re-check the FILE claims, not a
-reason to skip them.
+⛔ **Nothing merged, nothing pushed.** PO ruled the whole phase merges once, at Gate AE4. The
+schema-first rule (`.claude/rules/push-schema-before-code.md`) is **armed but not owed** — it
+fires at that merge.
 
-⛔ **Nothing merged, nothing pushed.** PO ruled the whole phase merges once, at Gate AE4.
-The schema-first push rule (`.claude/rules/push-schema-before-code.md`) is **armed but
-not owed** — it fires at that merge.
-
-**14 migrations** added, `20261003007100` … `20261003007230`. Suites **401–406** added; 315,
-319, 320, 321, 228, 229, 257, 290, 318, 357, 403, 404 edited.
+**14 migrations**, `20261003007100` … `20261003007240`. Suites **401–406** added.
+AE4.8 touched `src/lib/role/`, `src/app/page.tsx`, and **two files under `e2e/`** (§ Open
+questions — they owe sign-off).
 
 ## Gates
 
-At **`43684b16`**, on a fresh `supabase db reset --local`:
+`test:db` **254f/8504**, `lint` 12/12, `typecheck` 0, vitest **151f/2058** — all exit 0 at
+`d56a5065`. Six ARMs (`census`/`hat`/`floor`/`wrapper`/`catalog`/`sites`) HOLD, exits read
+directly. Per-arm figures: increment record.
 
-| Arm / suite | Result | Exit |
-| --- | --- | --- |
-| `npm run test:db` | **254 files / 8498 tests — PASS** | — |
-| `npm run lint` (**12** gates — gate 12 `lint:authz-vectors` added this phase) | green | 0 |
-| `npm run typecheck` | green | 0 |
-| `npm run test` (vitest) | 149 files / 2021 tests | 0 |
-| `ARM=census` (578 live / 618 with a verdict) | HOLDS | 0 |
-| `ARM=hat` (self-test **7/7**, 4 reasoned-allowlisted findings) | HOLDS | 0 |
-| `ARM=floor` (72 never-called doors, all allowlisted) | HOLDS | 0 |
-| `FROMFINDINGS=1 ARM=wrapper` (BLIND set 41) | HOLDS | 0 |
-| **`ARM=catalog`** (AE4.7b) — 1 non-legacy role, both artifacts | HOLDS | 0 |
-| **`ARM=sites`** (AE4.7b) — 14 sites: 2 wrapper-family + 12 allowlisted | HOLDS | 0 |
+### ⛔ `e2e:prod` is RED — Gate AE4 may NOT be declared
 
-⭐ **The two orphaned twins (315 t14, 319 t5) are CLOSED** — the phase's open dependency from
-AE4.6 to AE4.7b (consequence in ▶ RESUME HERE step 3).
+Run 2 (after the FLOW-8 fix), `GATE_EXIT=1` **read from the log, not from the task notification**
+— the notification reported the exit of a trailing `tail`, and said 0 while the gate said 1:
 
-**Diff-scoped sweeps**, most recent run (AE4.7c, both arms, exit codes read DIRECTLY):
-read arm **6/6 predicates COVERED**, write arm **4/4 guards COVERED** — 0 BLIND, 0 ERROR after
-two `neutralize failed` ERRORs were fixed. ⛔ **Both exit 3 UNPROVEN (PARTIAL)**: six vocabulary
-RPCs matched no gate on either arm (`uuid`/`void` returns — the C2 class), named per door in
-`docs/reviews/authz-writepath-audit-findings.md`. A clean verdict over a subset of what was
-asked for is not a pass.
+```
+1183 passed · 1 failed · 62 infra · 3 flaky · 13 did-not-run · 21 batches
+accounted for 1262 of 1273 collected   (the 11 unaccounted is known gate arithmetic)
+```
 
-**Did NOT run:** `npm run e2e:prod` since Increment 1. ⚠ The QA review measured it **NOT green
-as-run** and it owes a b2 + b9 re-run before any green declaration — never transcribe a prior
-run. ⚠ **C2's reachable command doors remain outside every ARM's domain**, and so do three of
-the six `authz` functions (`assignment_facts`, `explain_direct_permission`,
-`rebuild_implication_closure`) — state both qualifiers beside any "all arms green" claim.
+**The 1 failure** is `BUG-AE47C-LINKAGE-001` (§ Open questions).
+
+**The 62 "infra" are UNPROVEN, not passes — this is the single most misreadable line in the run.**
+They are all of **batch 7**, whose 70 tests are the **FF family**: `ff1-repeating-groups`,
+`ff2-matrix`, `ff2-matrix-views`, `ff3-validations`, `ff4-power-authoring`, `ff5-references`,
+`flagged-aggregate-result`. The gate's own classifier recorded `server_dead=1, conn_errors=122`
+— the standalone server died and the rest of the batch hit connection refusals. ⚠ **The batch was
+already auto-re-run once and got WORSE** (56 infra on the first attempt, 62 on the re-run), so
+this is not a one-off blip. Final b7 tally: **6 passed, 62 infra, 2 did-not-run, accounted 70/70**.
+⛔ Nothing is known about those 62 either way — they did not pass and they did not fail. Any
+sentence of the form "only one real failure" must carry them.
+
+**The 13 did-not-run:** **11 in b6** — `ethics-e4-participants.spec.ts` runs serial, so the
+failure at `:765` aborted the remainder of the file — and **2 in b7**, collateral of the server
+death. They have no verdict either.
+
+**Did NOT run at all:** the periodic full door sweep (~5 h) and `ARM=wrapper`'s own full sweep
+(~100 min) — both are periodic audits, not phase steps. ⚠ **C2's reachable command doors remain
+outside every ARM's domain**, and so do three of the six `authz` functions (`assignment_facts`,
+`explain_direct_permission`, `rebuild_implication_closure`). State both qualifiers beside any
+"all arms green" claim.
+
+⛔ **Two qualifiers owed to the gate record** (PO batch, ADR 0175): 401 §20 is **ONE HOP**, not
+the transitive closure; and `can_read_professional_profile`'s arms 1 and 3 are **EXERCISED BUT
+NOT ORACLED** (403 §7.2/§7.3 assert they cannot grant in this fixture). *"The differential is
+green"* may not be written without both.
 
 ## Dead ends
 
-- **Delegating the wrappers to the permission resolver.** Three shapes were considered and
-  all fail. A **sentinel permission** couples a role check to one arbitrary grant. **"Holds
-  any staff_admin-granted permission at this scope"** is correct only while
-  `role_permissions` holds one role — the moment AE5 grants `staff` any permission
-  `staff_admin` also holds, `is_staff_admin_of` returns **true for a plain staff member**.
-  A **marker permission** would spend a PO amendment describing what the adapter already
-  models. Resolution: delegate to `authz.assignment_facts`, which answers role questions.
-- **Delegating to `assignment_facts` alone.** It carries expiry, scope and `is_active` —
-  **not** the active-role filter, which lives in `has_direct_permission`. A wrapper
-  delegating to the adapter alone drops the hat gate for the ~151 self-check sites.
-  ⚠ **CORRECTED:** this bullet ended *"both wrappers now carry the filter in `has_role`'s
-  shape"*, which AE4.7b made false — that hand-copying was the defect, and the filter now
-  lives once, in `authz.holds_role`.
-- **Asserting "ACLs unchanged" by comparing the two wrappers to each other.** They are not
-  symmetric (§ VERIFIED). Snapshot each function's own ACL before/after.
-- **A text-based door-sweep deriver.** It matches `create function` in migration text; the
-  house `pg_get_functiondef` + `replace` + `execute` pattern contains none. 33 migrations
-  were invisible. Amending it reaches **8 of 33** — the other 25 select targets by catalog
-  query whose predicate matched *what the migration removed*, so it returns zero today and
-  is unrecoverable without a historical snapshot.
-- **Expecting the sweep to verdict D2's four functions.** Even once *selected* they fall
-  outside `PRED_DOMAIN`'s `typname='bool'` bound. Sweep result is **UNPROVEN (exit 3)**,
-  discharged behaviourally under plan rule 4's compensating-controls clause.
-- **Asserting `absent` active-context for a single-role principal.** `claims_for(uid,false,null)`
-  *derives* the single role — correct behaviour. 216 cells excluded with that reason.
+⛔ **A BISECT POISONS EVERY LATER CATALOG READ, AND THAT COST A FALSE BUG DIAGNOSIS.**
+`e2e-prod-gate.sh` runs `supabase db reset --local` from the **checked-out tree**. After bisecting
+at `0807cfda` (pre-AE4.7c) the local DB was left at the **pre-AE4.7c schema**; every catalog query
+afterwards described a database without AE4.7c in it. On that basis `BUG-AE47C-LINKAGE-001` was
+diagnosed as *"the `link_state='unknown'` bound was never built"*, a PO ruling was obtained to
+build it, and the migration written to do so **no-opped against its own idempotence guard** —
+the bound was already there (`20261003007230` emits it). The migration was deleted, not committed;
+the bug entry's mechanism is retracted in place. **The bisect's own result still stands** (both
+sides ran through the gate, so each was schema-coherent). ⛔ After ANY checkout, reset before
+reading the catalog.
 
-⭐ **Added in AE4.7b/c — four wrong turns a successor would otherwise repeat.** Each was
-caught by a red, and each looked correct while being written.
-
-- **Re-pointing 319's A5 twin to the staff_admin hat, expecting `111 → 175`.** Measured
-  **111**. S1's mask ALREADY CONTAINS S2's bit 64, so the mutation's whole effect landed
-  inside bits another arm legitimately set and the twin observed nothing while looking
-  exactly like a twin. ⛔ **The general rule:** when the observable is a UNION, a mutation
-  opening arm B is invisible if arm A is open and already supplies B's bits. Read it where
-  NO arm is legitimately open — A5 now wears a hat the principal does not hold, `0 → 64`.
-- **Giving `ARM=sites` a negative control only.** `psql` does **not** interpolate `-v`
-  variables inside `-c`; both lookups died with a syntax error, every set difference was
-  empty, and the arm printed `OK: staff_admin — 0 site(s)` beside `vacuity control: OK`.
-  ⛔ A dead instrument satisfies an "X − Y is empty" check AND its synthetic-input control at
-  the same time. The control needs a DISCRIMINATION half: a live input must match something.
-- **Neutralizing only the first conjunct of 406's `link_state` bound.** Cutting
-  `v_current_link is distinct from 'unknown' and ` leaves `if not can_manage_professional(…)
-  then raise` — a **stricter** door. The twin would have failed and read as working, while
-  measuring the opposite direction from the one a fail-OPEN twin exists for. Cut the whole
-  `if` block.
-- **Re-coding an expectation whose error code drifted.** AE4.7c put a `42501` authority
-  refusal in front of older guards, so 229's `HC0F2` freeze twin and 257's `HC0J7` bar
-  assertions started failing with the new code — and 257's collided with its own `42501`
-  control. ⛔ Re-coding greens the test and leaves the guard it was written for asserted by
-  NOTHING. Change the **caller** to one who passes the new guard and reaches the old one;
-  the assertion splits into two, and authority and freeze stop being conflated.
+- **Re-coding an expectation whose error code drifted.** AE4.7c put a `42501` authority refusal
+  in front of older guards, so `HC0J7`/`HC0F2` assertions began failing with the new code.
+  ⛔ Re-coding greens the test and leaves the guard it was written for asserted by NOTHING. Change
+  the **caller** to one who passes the new guard and reaches the old one; the assertion splits in
+  two. ⚠ AE4.7c applied this to pgTAP 229/257 and **missed the only E2E twin** — fixed at
+  `a1ac073c`. A sweep that stops at one layer reads as complete.
+- **Trusting a background task's "exit code 0".** It is the exit of the **compound** command; a
+  trailing `echo`/`tail` erases the real one. Both `e2e:prod` runs were reported 0 and were 1.
+- **Assuming a batch failure is an assertion failure.** Two "failures" in run 1 were
+  `ERR_CONNECTION_REFUSED` — the server died mid-batch — while the gate printed `0 infra`. Its
+  classifier does not catch every case. Isolate before diagnosing.
+- **Assuming a retry failure is the same defect.** `ethics-e2-procedure:486` failed only as
+  `(retry #1)`: attempt 1 had run FLOW-1, which decides admissibility, so the retry found the
+  button enabled. One root cause (FLOW-8) produced three reported symptoms.
+- **Delegating the wrappers to the permission resolver.** A sentinel permission couples a role
+  check to one arbitrary grant; *"holds any staff_admin-granted permission"* returns **true for a
+  plain staff member** the moment AE5 grants `staff` an overlapping permission. Resolution:
+  `authz.assignment_facts`, then the `authz.holds_role` chokepoint.
+- **A text-based door-sweep deriver.** It matches `create function` in migration text; the house
+  `pg_get_functiondef`+`replace`+`execute` pattern contains none. 33 migrations invisible;
+  amending reaches **8 of 33**, the other 25 unrecoverable without a historical snapshot.
+- **Giving `ARM=sites` a negative control only.** `psql` does not interpolate `-v` inside `-c`;
+  both lookups died, every set difference was empty, and the arm printed `OK — 0 site(s)` beside
+  `vacuity control: OK`. ⛔ A dead instrument satisfies an "X − Y is empty" check AND its
+  synthetic-input control at once. A control needs a DISCRIMINATION half.
+- **Expecting a UNION observable to show a mutation.** Re-pointing 319's A5 twin expecting
+  `111 → 175` measured **111**: S1's mask already contained S2's bit. Read where NO arm is
+  legitimately open.
 
 ## Decisions made in flight
 
-**Ruled by the PO:**
-- Matrix **approved at 42 rows** — the regression oracle from cutover. A 43rd row is a new
-  amendment needing its own approval. ⛔ Recorded as *what was approved*, never a current count.
-- Deny-class effect table approved (9 rows). `pending` denies at the **auth** layer, not the
-  resolver — the axes file is cross-referenced, not contradicted.
-- `staff_admin` **loses `org.professionals.manage`** — ✅ **BUILT in AE4.7c** (`317d48dd`),
-  after two reversals each forced by a measurement. Final: **split by OPERATION** — it keeps a
-  new row 43 `org.professionals.create` and loses row 30. The full trail, and why
-  *org-admin-only* was not implementable, is matrix § 12.8.5; ⛔ **no ADR, by PO ruling — that
-  section is the decision's home.** The split-first order (family → operation → grant) was the
-  safety property and was honoured.
+**Ruled by the PO** — matrix approved at **42 rows** (⛔ recorded as *what was approved*, never a
+current count); deny-class table approved (9 rows); `staff_admin` **loses
+`org.professionals.manage`**, split by OPERATION, keeping new row 43 `org.professionals.create`
+(⛔ **no ADR by PO ruling** — matrix § 12.8.5 is its home); whole phase merges once at Gate AE4.
 
-- Whole phase merges once, at Gate AE4. Hold everything on the branch.
-- BUG-PROF-INACTIVE-001 → fix first, then finish 403.
-- Deriver amended now, inside AE4; historical scoping limited to the cheap lookup.
+**ADR [0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md), the PO batch, one
+sitting:** `offboarded` is not a deny class — ⭐ **re-ruled before any code**, from 91 cells to a
+structural proof, because the cells measured UNCONSTRUCTIBLE; the nine `unauthenticated` cells
+deleted rather than relabelled; 403 calls the real door with arm 3's divergence deferred to AE5;
+both FUPs documented/downgraded.
 
-**Ruled by the lead:**
-- Delegation shape (§ Dead ends). AE4.7 owns the twin re-point, not AE4.6.
-- Deriver over-selection (6-for-1 baseline) **recorded with a trigger, not fixed** —
-  restructuring a gate's input assembly to correct a benign over-count risks more than it buys.
-
-**Ruled by the PO, 2026-09-01 (ADR 0175, one sitting):** `offboarded` is not a deny class —
-⭐ **re-ruled before any code**, from 91 cells to a structural proof, because the cells measured
-UNCONSTRUCTIBLE; the nine `unauthenticated` cells deleted rather than relabelled; 403 calls the
-real door now with arm 3's divergence deferred to AE5; both FUPs documented/downgraded.
-⛔ Nothing is left provisional in this file.
+**AE4.8, ruled during the build:** the plan's *"six label maps collapse into `ROLE_LABELS`
+re-exports"* **does not survive measurement** — 7 maps over 5 different role types, and the 2
+platform-role ones carry deliberately different pt-BR wording. PO ruled **bind the KEY SETS, keep
+the wording**. ⛔ **G4 is not implementable as written**: `authz` is sealed (no client role holds
+USAGE), so a "typed query" would need a NEW public door into the schema AE4 closed; the binding
+moved to **gate time**. ⚠ The partition keys off **BRANCH**, not scope — `org_admin` and
+`nsp_org_admin` share a scope and land in different lists.
 
 ## Open questions / blockers
 
 | Item | Who/what answers it |
 | --- | --- |
-| ✅ **BOTH FUPs DISPOSITIONED 2026-09-01 (ADR 0175 D4) — DOCUMENTED / DOWNGRADED, NOT CLOSED.** `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM`: the mixed grain is now recorded on `can_create_professional` itself (migration `20261003007240`, comment-only) — ⚠ the ruling named `can_manage_professional`, which **already** carried the comment; the caller was the undocumented one. `FUP-SEED-PENDING-PERSONA`: `seed.sql` untouched; the auth **setting itself was never read** (no MCP auth-config endpoint), so the evidence is circumstantial and the item stays open. | — |
-| ⛔ **PROGRESS.md — the 81,920 B target is NOT met and NOT reachable by rotation.** Every sanctioned category is empty and the OPEN follow-up index alone is ~**50%** of the file, which the contract forbids rotating. ⛔ Do not trim qualifiers off open entries. Options are a PO decision — raise the target, or give the register its own file — filed as `FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT`. ⚠ The AE3 § Now bullet **cannot rotate wholesale**: sole witness to two operator obligations. | PO |
-| ⛔ **MEASURED, NOT UNKNOWN — and NOT green as-run.** The QA review ran `e2e:prod` at `6da8a772`: no reproducible cutover regression, but batches **b2** and **b9** owe re-runs before any green declaration. ⚠ This row said *"UNKNOWN … not run since Increment 1"* until 2026-09-01; the review had already settled the first half. AE4.7a/b/c touched no application code beyond one TypeScript doc comment, so none of them can have moved it. Detail: [`docs/reviews/authz-ae4-review.md`](../reviews/authz-ae4-review.md). | run it, at AE4.8 |
-| **UNKNOWN:** whether the 25 unreachable rewrite migrations' doors hold periodic-sweep verdicts. The 8 measurable ones gave 16 COVERED / 10 ERROR / **0 BLIND** / 29 absent — and every absent one is outside `PRED_DOMAIN` by shape, converging on the **known C2 population**, not a new one. | a historical-snapshot audit, if ever authorised |
+| 🔴 **`BUG-AE47C-LINKAGE-001` — the one real `e2e:prod` failure.** `ethics-e4-participants:765` (PROF-CREATE, create-inline "possui conta") is **GREEN at `0807cfda`**, deterministically **RED at the tip** — 3 reproductions, retries failing, **fails solo on a fresh reset**. ⛔ **MECHANISM UNKNOWN** — the first diagnosis was retracted (§ Dead ends). Symptom: the "Adicionar participante" dialog never closes (`toHaveCount(0)` times out at `e2e/ethics-e4-participants.spec.ts:415`), so the submit errors server-side. ⛔ **NOT `FUP-E2E-PROF-CREATE-ROSTER-FLAKE`** — that records a 2026-08-27 one-off that *passed on retry* and predates AE4.7c. ▶ Next: reproduce with a server whose log SURVIVES and read the real error; the gate truncates its per-batch server log (`FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH`) and Playwright's artifacts were cleaned. | measure it — do NOT re-derive from the catalog without a fresh reset |
+| ⛔ **TWO E2E SPECS OWE TESTER SIGN-OFF.** CLAUDE.md §4 gives `e2e/` to the tester and §6 says engineers never edit specs without it; both edits were made by the lead because no teammate agents were available. **`e2e/ethics-e2-procedure.spec.ts`** (`a1ac073c`) — the HC0J7 assertion split into two callers; it **strengthens** (adds an assertion, keeps the original subject) but a spec edit made by the party whose change broke it is exactly what the rule exists to stop. **`e2e/ae48-landing-by-scope-kind.spec.ts`** (`99848eaa`) — a new spec, proven on both polarities. | tester, before Gate AE4 |
+| ⛔ **62 infra-unproven + 13 never-run carry NO verdict** (§ Gates). b7 was already re-run once and got worse. Re-running it is a prerequisite for any green declaration, and a second consecutive server death is a finding about the harness, not noise. | re-run b7 + b6 |
+| ⛔ **PROGRESS.md — the 81,920 B target is NOT met and NOT reachable by rotation.** Every sanctioned category is empty; the OPEN follow-up index alone is ~50% of the file and the contract forbids rotating it. Options are a PO decision — raise the target, or give the register its own file — filed as `FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT`. | PO |
+| **UNKNOWN:** whether the 25 unreachable rewrite migrations' doors hold periodic-sweep verdicts. The 8 measurable ones gave 16 COVERED / 10 ERROR / **0 BLIND** / 29 absent, every absent one outside `PRED_DOMAIN` by shape — converging on the known C2 population, not a new one. | a historical-snapshot audit, if authorised |
 
-## Next task — AE4.8
+## Next task
 
-⛔ **AE4.7a, AE4.7b AND AE4.7c are ALL DONE** — the QA review's § "Recommended order" steps 1–3
-are discharged, each recorded in the increment record with what it MEASURED, not what it intended.
+**First command:** `supabase db reset --local && npm run test:db` (expect **254f/8504 GREEN**).
 
-**First command:** `supabase db reset --local && npm run test:db` — expect **GREEN, 254f/8498**;
-a red is drift (▶ RESUME HERE step 3).
-
-**AE4.8 — the app-side seam collapse** (frontend, parallel track under file ownership; plan
-[§ AE4.8](../plans/authz-evolution.md)). Mechanical and behaviour-preserving:
-
-1. `role-catalog.ts` becomes the **single** role manifest — the six label maps collapse into
-   `ROLE_LABELS` re-exports; `landingRouteForRole` and `page.tsx`'s precedence chain are
-   re-derived from one ordered manifest, so a future role crosses **one** seam, not two.
-2. The session partition keys off the same manifest's scope declarations.
-3. **The TS manifest is BOUND to the DB catalog [PA-F1]** — role codes and scope declarations
-   generated from, or gate-checked against, `authz.roles`, in the lint/vitest gate, not review.
-4. G4: `assume_role`'s validity check reads `authz.roles.session_selectable` via a typed query
-   instead of the TS enum list. ⚠ The `platform_role` **DB enum stays** (AE5-complete territory).
-
-⚠ **AE4.8 is the first AE4 increment that touches `src/` for real**, so it is the first that
-owes `e2e:prod` — and the gate already owed a b2 + b9 re-run from before AE4.7a.
-
-⚠ **The pre-AE4.8 rotation is DONE** (`bc9242c1`, 98 → 87 KB; **89.7 KB** after this batch), so
-AE4.8 fits under the hard cap. ⛔ Still over target, and that gap is **not closable by rotation**
-— § Open questions. ⛔ Do not open AE4.8 by trimming qualifiers off open follow-ups.
-
-✅ **The PO batch is DONE (`6ae81b21`, ADR 0175)** — this said *"then the PO batch"* until then.
-Figures + what it did NOT do: [`authz-ae4.md § AE4 PO batch`](../progress/authz-ae4.md).
-⛔ **TWO QUALIFIERS IT LEFT OWED TO THE GATE RECORD, and both read as smaller than they are:**
-401 §20 is **ONE HOP**, not the transitive closure; and `can_read_professional_profile`'s arms 1
-and 3 are **EXERCISED BUT NOT ORACLED** (403 §7.2/§7.3 assert they cannot grant in this fixture,
-so the bound is a test, not a promise). *"The differential is green"* may not be written without
-both. ⚠ Two follow-ups are **documented / downgraded, NOT closed**.
-
-Then Gate AE4: full §6 + `e2e:prod` to an actual green + QA review + PO approval.
+1. **Diagnose `BUG-AE47C-LINKAGE-001`** — the only thing between here and a green gate. Reproduce
+   `e2e/ethics-e4-participants.spec.ts` against a server whose log you control (the gate's own log
+   is truncated per batch), capture the server-side error, then fix. ⛔ Re-measure the catalog only
+   after a fresh reset at THIS tree.
+2. **Re-run b7 and b6**, then the full `e2e:prod` to an actual green. ⛔ Read `GATE_EXIT` from the
+   log, never from a task notification.
+3. **Tester sign-off** on the two spec edits.
+4. **Record step:** an AE4.8 section in the increment record; `docs/backend-state.md`'s `authz`
+   section; then Gate AE4 = full §6 + QA review + PO approval.
 
 ## Re-derivation appendix
 
-`DB=supabase_db_azkbbhskturikxpgmafq`; there is **no `psql` on PATH** — use
-`docker exec "$DB" psql -U postgres -d postgres -At -c "…"`.
+`DB=supabase_db_azkbbhskturikxpgmafq`; **no `psql` on PATH** — use
+`docker exec "$DB" psql -U postgres -d postgres -At -c "…"`. ⛔ Reset first (§ Dead ends).
 
 - Catalog state: `select state, count(*) from authz.roles group by state;`
-- Permission shape: `select resolution_scope_kind, sensitivity_ceiling, count(*) from authz.permissions group by 1,2;`
-- ⭐ **The code `staff_admin` does NOT hold** (AE4.7c's revoke, the one figure a count hides):
-  `select code from authz.permissions pm where not exists (select 1 from authz.role_permissions rp where rp.role_code='staff_admin' and rp.permission_code=pm.code);`
-- Wrapper delegation — ⚠ **the terms changed in AE4.7b**; asking the old ones returns false and
-  reads as a broken cutover: `select proname, prosrc ~ '\mholds_role\M', prosrc ~ '\mhas_role\M', prosrc ~ 'assignment_facts', prosrc ~ 'active_role' from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='app' and proname like 'is_staff_admin_of%';`
-- The chokepoint's five gates: `select prosrc ~ 'assignment_facts', prosrc ~ 'active_role', prosrc ~ 'authoritative', prosrc ~ 'is not distinct from' from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='authz' and proname='holds_role';`
-- ACL, by EFFECTIVE PRIVILEGE never `proacl` text (a NULL `proacl` includes PUBLIC):
+- The code `staff_admin` does NOT hold: `select code from authz.permissions pm where not exists (select 1 from authz.role_permissions rp where rp.role_code='staff_admin' and rp.permission_code=pm.code);`
+- Wrapper delegation — ⚠ the terms changed in AE4.7b; asking the old ones returns false and reads
+  as a broken cutover: `select proname, prosrc ~ '\mholds_role\M', prosrc ~ '\mhas_role\M', prosrc ~ 'assignment_facts' from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='app' and proname like 'is_staff_admin_of%';`
+- ACL by EFFECTIVE PRIVILEGE, never `proacl` text (a NULL `proacl` includes PUBLIC):
   `select proname, has_function_privilege('anon',p.oid,'EXECUTE'), has_function_privilege('authenticated',p.oid,'EXECUTE') from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='app' and proname like 'is_staff_admin_of%';`
-- The four professional/vocabulary gates' door counts: `select g, (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and regexp_replace(p.prosrc,'--[^'||chr(10)||']*','','g') like '%'||g||'%') from unnest(array['can_manage_professional','can_create_professional','can_manage_external_participant','can_manage_case_vocabulary']) g;`
-- Sweep derivation: `BASE=<sha>~1 TIP=<sha> bash scripts/door-sweep-cases.sh` — ⛔ it prints
-  **TWO** commands (read arm + write arm); running only one leaves the other half unmeasured.
+- `authz` reachability: `select r, has_schema_privilege(r,'authz','USAGE') from unnest(array['anon','authenticated','service_role']) r;`
 - Arms: `ARM=census|hat|floor|catalog|sites bash supabase/tests/mutation/p0-authz-invariant.sh`
-  and `FROMFINDINGS=1 ARM=wrapper …`. ⛔ Read each exit code DIRECTLY — a trailing `echo` or a
-  pipe erases it.
-- ⛔ For any SQL/RLS/RPC/authz claim the **live catalog is the sole truth** — never a
-  migration file, never graphify (CLAUDE.md's binding exception).
+  and `FROMFINDINGS=1 ARM=wrapper …`. ⛔ Read each exit code DIRECTLY.
+- Sweep derivation: `BASE=<sha>~1 TIP=<sha> bash scripts/door-sweep-cases.sh` — ⛔ it prints **TWO**
+  commands (read arm + write arm); running one leaves the other half unmeasured, and **exit 1
+  (migrations touched, zero gates derived) is a finding to rule on, never a pass**.
+- One spec through the prod gate: `SPECS="e2e/<f>.spec.ts" bash scripts/e2e-prod-gate.sh`.
+- ⛔ For any SQL/RLS/RPC/authz claim the **live catalog is the sole truth** — never a migration
+  file, never graphify (CLAUDE.md's binding exception).
