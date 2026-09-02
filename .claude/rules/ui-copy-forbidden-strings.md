@@ -1,6 +1,6 @@
 ---
 paths:
-  - "docs/progress/follow-ups.md"
+  - "docs/progress/follow-ups-open.md"
   - "src/lib/dsr/messages.ts"
   - "src/components/dsr/disposal-copy-property.ts"
   - "src/components/dsr/dsr-disposal-overclaim.test.tsx"

@@ -1032,7 +1032,7 @@ _Both superseded by the FULL-gate row that replaced them in PROGRESS.md § Test 
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-24 | ⭐⭐ **ADR 0136 — STEP 1 + a SCOPED step 2** · full record: ADR [0136 § Amdt 1](../decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md) | lint 9/9 · `tsc` 0 · Vitest **124f/1715** · `test:db` **7210/7210** (218f, fresh reset; +1f/+61 = pgTAP `367`) · 4 authz ARMs **HOLD, exit 0 UNPIPED** + diff-scoped sweep · **15 mutations RED-proved** · E2E **scoped 9-spec 65p/0f/0 DNR**, exit 0. ⛔ **NO full `e2e:prod` on this HEAD**; step 3 NOT run |
-| 2026-08-24 | ⭐ **ADR 0136 FOLLOW-UP ROUND — step 1 re-run + scoped step 2** (uncommitted on `1069711c`); detail: ADR [0079 Amdt 9](../decisions/0079-authz-door-blindness-standing-invariant.md) + the five bodies in [follow-ups.md](follow-ups.md) | lint 9/9 · `tsc` 0 · `test:db` **7228/7228** (218f, fresh reset; `367` 61→**79**) · 4 authz ARMs HOLD · door sweep **8 gates**: 6 COVERED · **1 BLIND** · 1 ERROR · invoker `sign_section` BLIND→**COVERED** · `e2e:prod` **scoped 3 specs 28p/0f/0 flaky**, exit 0. ⛔ No FULL `e2e:prod`; steps 3–4 not run |
+| 2026-08-24 | ⭐ **ADR 0136 FOLLOW-UP ROUND — step 1 re-run + scoped step 2** (uncommitted on `1069711c`); detail: ADR [0079 Amdt 9](../decisions/0079-authz-door-blindness-standing-invariant.md) + the five bodies in [follow-ups-open.md](follow-ups-open.md) | lint 9/9 · `tsc` 0 · `test:db` **7228/7228** (218f, fresh reset; `367` 61→**79**) · 4 authz ARMs HOLD · door sweep **8 gates**: 6 COVERED · **1 BLIND** · 1 ERROR · invoker `sign_section` BLIND→**COVERED** · `e2e:prod` **scoped 3 specs 28p/0f/0 flaky**, exit 0. ⛔ No FULL `e2e:prod`; steps 3–4 not run |
 
 ## ↩ Rotated from PROGRESS.md 2026-08-24 — the exit-5 composed-green row, superseded by a real single-run green
 
@@ -1068,7 +1068,7 @@ records gate step 2 as DEFERRED, NOT DISCHARGED (RED at 18, 19 never run).
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-25 | **FULL `e2e:prod` at `d1ea9574`** — macOS, first gate since `77b0a467` (11 commits: a phase + Node 20→24) · `test:db` 7267/7267 | 🔴 **RED, exit 1** — 1172p · 18f · 2 flaky · **19 DNR** · 114 batches (1211/1222). All 18 proven NOT from the branch — bare `curl`, and migrations removed + reset. Deterministic on re-run | [FUP-OPEN-DOCUMENT-VERSION-500](../progress/follow-ups.md) + macOS `<select>` |
+| 2026-08-25 | **FULL `e2e:prod` at `d1ea9574`** — macOS, first gate since `77b0a467` (11 commits: a phase + Node 20→24) · `test:db` 7267/7267 | 🔴 **RED, exit 1** — 1172p · 18f · 2 flaky · **19 DNR** · 114 batches (1211/1222). All 18 proven NOT from the branch — bare `curl`, and migrations removed + reset. Deterministic on re-run | [FUP-OPEN-DOCUMENT-VERSION-500](../progress/follow-ups-open.md) + macOS `<select>` |
 
 ## Rotated from PROGRESS.md 2026-08-25 — the PDF·P3 gate-2 row
 

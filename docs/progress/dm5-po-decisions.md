@@ -77,7 +77,7 @@
 >    act that performs it**, and the narrower-looking route was the less complete one.
 >
 > **Full reasoning → [dm5-phase-review.md](../reviews/dm5-phase-review.md) §§5–6 and
-> [follow-ups.md](follow-ups.md).**
+> [follow-ups-open.md](follow-ups-open.md).**
 
 ### ✅ COMPLETE — **DM5: Wave D + retirement** (2026-08-14 → 2026-08-18) — the Document Model program's FINAL phase
 
@@ -185,7 +185,7 @@ NOT discharged here and is not claimed: ADR 0056 Consequence (a)'s missing meeti
 DSR Slice 3 with the adjudication that mints the task (ADR 0130 Amendment 2 item 3).
 
 ⚠ Precedent, retained: `20260917000400` restored this door's tenancy-admin arm specifically to un-strand
-this obligation after QO·B cut it. Mechanism → [follow-ups.md](follow-ups.md).
+this obligation after QO·B cut it. Mechanism → [follow-ups-open.md](follow-ups-open.md).
 
 **1. 🔴 PILOT-GATE CHECK — DM5 exits with a KNOWN, runbook-mitigated PHI-DISPOSAL GAP, and it must be
 carried here, not only in the phase record.** ⭕ **Added 2026-08-17 at the DM5 phase QA (R4): the DM5

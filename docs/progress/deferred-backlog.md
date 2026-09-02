@@ -1,6 +1,8 @@
 # Deferred / Parked Backlog — full detail
 
-> Relocated from PROGRESS.md 2026-07-17 (lead, playbook §7 / CLAUDE.md §7 size hygiene). These are OPEN, non-blocking, deferred/optional items; the live PROGRESS.md "Follow-ups" section keeps a one-line title + pointer index for each. Nothing here is resolved — this is the actionable detail, moved out of every spawn's context.
+> Relocated from PROGRESS.md 2026-07-17 (lead, playbook §7 / CLAUDE.md §7 size hygiene). These are OPEN, non-blocking, deferred/optional items. Nothing here is resolved — this is the actionable detail, moved out of every spawn's context.
+
+> ⛔ **UPDATED 2026-09-02 (ADR [0179](../decisions/0179-follow-up-register-consolidation.md)):** PROGRESS.md no longer carries a follow-up index, so the sentence that used to end the line above — *"the live PROGRESS.md 'Follow-ups' section keeps a one-line title + pointer index for each"* — is retired. The open register is **[follow-ups-open.md](follow-ups-open.md)**. An item belongs **here** only when nobody can act on it next session; anything actionable belongs in the register. ⛔ An item must never be entered in both — that is the duplication ADR 0179 removed.
 
 > ⚠ **Added 2026-08-27:** `check-progress-doc.mjs` treats **this file as a live register** for the orphaned-body check, so an item carried here in full needs **no** PROGRESS.md index line. That is the contract's third destination — *open, but nobody can act on it next session* — and it is the pressure valve for a PROGRESS.md at its size cap. ⛔ It is **not** a place to park items somebody *can* act on next session; those belong in the register the PO reads first.
 
@@ -41,37 +43,20 @@
 > rotation predicate and sat in the live index instead. Moved VERBATIM apart from the link
 > repoint. Each is still OPEN — this is a change of address, not a closure.
 
-- 🟡 **FUP-ACL-APP-POPULATION** — the DROP+CREATE → PUBLIC-EXECUTE mechanism has fired **3×**, and the **`app`** schema has no generic net (`100` t19 is `public`-bounded; `320`'s is an 8-name allowlist) — backend
-- 🟡 **FUP-PGTAP-WORKER-DEADLOCK** — `test:db` intermittently deadlocks a `pg_prove` worker; **assurance, not correctness** (a dropped suite is not a passed suite). ⛔ Never pipe the run through `tail` — backend
-- 🟡 **FUP-PGTAP-SAVEPOINT** — ⚠ **DOWNGRADED 🔴→🟡: the original claim was WRONG.** TAP output cannot be rolled back; real only in the degenerate all-assertions-inside case — lead
-- 🟡 **FUP-ROTATION-BREAKS-LINKS** — **474 broken relative links across the four rotation destinations, measured 2026-08-17.** — lead
+> ⚠ **CUT DOWN 2026-09-02 at the register consolidation (ADR
+> [0179](../decisions/0179-follow-up-register-consolidation.md)).** 27 of the 33 bullets here were
+> the *index half* of an item whose *body* lived in `follow-ups.md`. Now that an item is ONE entry,
+> keeping the bullet would be the double-registration the consolidation exists to remove — so each
+> was cut here and its entry in [follow-ups-open.md](follow-ups-open.md) carries a **`**Parked**`**
+> marker instead, preserving the not-actionable-next-session signal at the item itself.
+> ⛔ **Nothing was closed and nothing was dropped**: 27 bullets cut, 27 entries marked, verified
+> both directions. The **6** below are the remainder — items with no register entry, which is why
+> they stay.
+
 - 🟡 **FUP-VACUOUS-COVERAGE-1** — **`phi-remediation` REM-8/REM-9 are honest `test.skip()`s that never run, so they are outside the vacuity property and `lint:vacuous` can never catch them. ✅ Body written 2026-08-17 (it had no** — tester/backend
-- 🟡 **FUP-329-ABORT-SHAPE** — a `329` keystone whose failure **aborts the file** (drops 41 assertions), making a mutation sweep over those gates unclassifiable — backend
-- 🟡 **FUP-E2E-REPEAT-FLAKY** — ⭕ **TWO members: `act-role-assumption:157` + `phase2-auth-shell:268`** — lead/tester
-- 🟡 **FUP-E2E-SERVER-DEAD-1** — the prod-standalone server dies under load; `BATCH_TESTS=22` rescues. Infra, never an assertion failure — **but a batch with no verdict is not a pass**. ⚠ **The rate DRIFTS and must not be quoted from here**: 1/17 → 3/17 → **4 of 20** at the ADR 0137 gate (ledger row 0137) — unassigned
-- 🟡 **FUP-E2E-PRINT-POOL-DEVLOOP** — **`submittedResponseIds` claims the print fixture pool by POSITION (`order=id.asc`), so a second `npx playwright test e2e/pdf-printing.spec.ts` without a reset reds at `:47`. Mechanism PROVEN…** — tester
-- 🟡 **FUP-GATE-PDFP1-FLAKE** — `pdf-printing.spec.ts:38` empty-state flake; ⚠ mechanism **UNPROVEN** and both evidence artifacts were overwritten by the re-runs. Real fix: the gate script must archive a failing batch's log + `test-results/` **before** any re-run — lead/tester
-- 🟡 **FUP-LINT-STALE-SYMBOL-COMMENT** — a 6th lint gate for comments naming deleted identifiers. ⚠ **Lead recommendation: do NOT build** (43% coverage ceiling) — lead/PO
-- 🟡 **FUP-PREVIA-MINT-FLAG-ASYMMETRY** — `HC0DV` sends the user to the mint, whose preconditions are a **strict superset** (`log_document_previa`: `document_printing`; mint: `+ documents_wave_d`). At `printing=on, wave_d=off` a **locked source has NO paper** and the message names the door just disabled. Class: *a refusal redirecting to door B owes a check that B is reachable wherever it fires* — backend
-- 🟡 **FUP-E2E-SUBMITTED-POOL-UNSCOPED** — `submittedResponseIds`/`creatorMintFixture` (`e2e/helpers/pdf-printing.ts`) scope only on `commission_id`+`status`, **no `case_phase_id is null`** — so a phase-bound submitted response can sort into pool index 0 and falsify the lifecycle test's first assertion on a FRESH seed. ⛔ The one-line filter is NOT the fix: measured, CCIH has **6 standalone / 3 phase-bound** submitted, and scoping to 6 drops `creatorMintFixture`'s "one outside the 6-wide pool" assumption to **zero**, breaking a passing test. Needs `seed.sql` (⚠ ~900-test contract) or pool-math redesign. Class: **a shared selector stayed correct while a new consumer changed the population it selects from** — tester/backend
-- 🟡 **FUP-LINT-VECTOR-DIMENSION-DRIFT** — a lint gate over shared SQL↔TS **vector fixtures**: a declared dimension **no vector varies**, or a **consumer that silently drops one**. Both shapes were LIVE in the ADR 0125/0126 build — kind-scoping stated in a comment and asserted by no vector; a `stateOf` mapping 3 of 4 keys so a new row **passed on its first run**, its mirror row real, **one indistinguishable green bar** over both. ⭐ Not cosmetic: the vector fixture is the ONLY thing that reds when a 0126-D3 mirror drifts, so a dimension nothing varies is **the safety property silently absent**. Generalises via Architecture Rule 3. **Filed, not built** — a gate change is a PO call — lead/PO
-- 🟡 **FUP-DM3-ETHICS-UI** — no affordance attaches an ethics decision letter; DM3 ships the seams API-writable only. Deliberate scope boundary — PO
-- 🟡 **FUP-ACT-CAPA-ASSIGN** — NSP operators see ~only themselves in the CAPA assignee picker (`profiles` RLS has no operator arm) — backend
-- 🟡 **FUP-ACT-HATLESS-AUDIT** — `audit_write` omits the `acting_as` KEY when hatless, conflating three meanings (Rule 11 met; legibility) — backend
-- 🟡 **FUP-SILENT-READ-1** — ~207 of 773 PostgREST reads never destructure `error`, so empty is indistinguishable from failure. Per-call-site triage, **not** a bulk fix — unassigned
-- 🟡 **FUP-ETH-KBD-1** — the professional lane's `TypeaheadField` was never keyboard-navigated, so BUG-ETHE4-FOCUS-1's defect is **untested, not ruled out** there — frontend/tester
-- 🟡 **FUP-ETH-A11Y-1** — ETH·E4 dialogs: `aria-describedby` never reaches the error id; the typeahead announces neither loading nor result count — frontend/tester
 - 🟡 **FUP-PDF-4** — `/verificar` rate limiter: ⛔ the filed premise was wrong (per-credential limiting already shipped); the real gap is the exhaustible **global** arm + per-process state — backend
 - 🟡 **FUP-AFF-3** — pin door ACLs by DERIVING the door set from `pg_proc`, not by remembering it — backend
-- 🟡 **FUP-AFF-4** — make the membership-role list a Postgres ENUM (decide before the role set next changes) — backend
-- 🟡 **FUP-AFF-2** — D7's foreign-professional (no-CPF) escape is unreachable; decide before clinical staff onboard — product/backend
-- 🟢 **FUP-QO-6** — oversight-toggle slow-confirm: annoyance severity ACCEPTED provisionally (PO); LOW, DB-vs-UI unclassified — tester
-- ▶ **FUP-MIN-CUTOVER** — audio-minutes pre-enable gates (storage cap ⛔ BLOCKED on a Pro-plan decision · T5 smoke · R2 hardware look · deploy env vars) — lead + human
 - ▶ **FUP-FF5-2** — §O pins the door's behaviour, not the closure of the `participants` writer set (assert count AND name; `\y` not `\b`) — backend
-- ▶ **FUP-E2E-1** — RE-BASELINE `e2e:prod`: a named failure list, not a count (PO-ruled; blocks nothing) — tester
-- ▶ **FUP-FF2-3** — whitespace-only observation filtered top-level but not per instance (legacy rows only) — backend
-- ▶ **FUP-FF1-2** — FF-1 QA non-blocking items: 4 MINOR / 3 INFO — backend
-- ▶ **FUP-FF1-1** — coherent fill-path hardening as one change (post-pilot; ADR 0087 ruling 5) — backend
 - ▶ **AUTHZ Gate-2 MINOR-1** — reserved-session door returns the respondent's own `case_id` (fold at pilot close) — backend
 - ▶ **ETH E1→E2 inheritance** — GAP-E1-1/2/3 + MINOR-A/B + participant-roles M2M, PO-routed to E2 — backend/frontend
 

@@ -29,10 +29,16 @@
     wrote and flips the rot direction from stricter to weaker. Rationale + the 3-layer positive
     control: the script header and `FUP-DM5-SETLOCAL-MIGRATION`.
   - `lint:progress` (`check-progress-doc.mjs`) — the PROGRESS.md live-state contract (§7): size,
-    no completed rows / resolved index lines, link + FUP-body integrity, LF — plus, since ADR
-    0140: **CLAUDE.md's 40 KB cap** (never raised to pass; rotate content out instead), the
-    resolved-body residue check (a `follow-ups.md` body no live register indexes), and a
-    **registry-free link sweep of all `docs/progress/`** (new files covered on creation). Every
+    no completed rows, link integrity, LF — plus, since ADR
+    0140: **CLAUDE.md's 40 KB cap** (never raised to pass; rotate content out instead) and a
+    **registry-free link sweep of all `docs/progress/`** (new files covered on creation). ⭐ **Since
+    ADR 0179 the follow-up half checks the REGISTER, not an index.** `docs/progress/follow-ups-open.md`
+    is self-indexing — one entry carries severity, id, title, owner and body together — so the old
+    two-way index↔body cross-check (and the resolved-body residue check that rode on it) is **gone
+    with its subject**, replaced by: (a) no RESOLVED entry left in the register, (b) no duplicate id
+    within it, (c) no id held by both the register and `follow-ups-archive.md`, (d) a **warning** when
+    an id is in both the register and `deferred-backlog.md`, and (e) PROGRESS.md § Follow-ups must not
+    **re-grow** an index — the check that keeps the consolidation from silently un-doing itself. Every
     prior version of that contract lived in prose and each clause was violated while green; the
     script self-red-proves every checker on each run.
   - `lint:rules` (`check-rules-staleness.mjs`) — a `.claude/rules/` rule that has gone stale.

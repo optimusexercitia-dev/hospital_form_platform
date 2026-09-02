@@ -1414,7 +1414,7 @@ green, proving the twin measures a different arm) · restore **byte-identical** 
 `ARM=census` + `ARM=floor` **HOLD** · diff-scoped door sweep **COVERED, 0 BLIND / 0 ERROR**
 (findings file backed up and restored — the scoped run truncated it 393→36 lines, the known
 partial-sweep hazard) · lint 0/0 · tsc · vitest 1194 · `database.ts` content-unchanged.
-▶ **Spawned [FUP-QOB-3](./follow-ups.md): `dispose_event_phi` is now the only Rule-12
+▶ **Spawned [FUP-QOB-3](./follow-ups-open.md): `dispose_event_phi` is now the only Rule-12
 disposal door still granting a bare tenancy admin** — found by the sibling-coherence check, left
 untouched on purpose, needs its own ruling.
 
@@ -3528,7 +3528,7 @@ regression from this fix:** a deliberate SECOND consecutive run of this file (sa
 reset) reproduces `EXT-REUSE` failing at `expect(seatedTwice.length).toBe(2)` → 1 — this is
 `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS` (§ deferred backlog), not a new
 bug; addendum with the generalized (non-retry-specific) mechanism added to its entry in
-[follow-ups.md](follow-ups.md). — tester
+[follow-ups-open.md](follow-ups-open.md). — tester
 
 ---
 
@@ -3540,7 +3540,7 @@ live bugs"* heading and is what a size rotation is for. ⛔ The `⚠ Unrelated f
 is **not** residue: it is the observation that a deliberate second consecutive run of
 `ethics-e4-participants.spec.ts` reproduces `EXT-REUSE` failing, and it is registered as the OPEN
 index line `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`, whose body in
-[follow-ups.md](follow-ups.md) carries the generalized addendum. That index line stays live in
+[follow-ups-open.md](follow-ups-open.md) carries the generalized addendum. That index line stays live in
 PROGRESS.md; nothing here is its only witness.
 
-✅ **BUG-AE47C-LINKAGE-001 — CLOSED 2026-09-02, both casualties (PROF-CREATE app-code fix + UNKNOWN-RESOLVE spec-fixture fix) tester-verified GREEN on a fresh reset (13/13, exit 0 read directly).** Full narrative rotated → [bug-log-archive.md](bug-log-archive.md) (search `BUG-AE47C-LINKAGE-001`). ⚠ **Unrelated finding, not a regression from this fix:** a deliberate second consecutive run of `ethics-e4-participants.spec.ts` (same DB, no reset) reproduces `EXT-REUSE` failing — this is `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS` (line below), not a new bug; generalized (non-retry-specific) addendum in its [follow-ups.md](follow-ups.md) entry. — tester
+✅ **BUG-AE47C-LINKAGE-001 — CLOSED 2026-09-02, both casualties (PROF-CREATE app-code fix + UNKNOWN-RESOLVE spec-fixture fix) tester-verified GREEN on a fresh reset (13/13, exit 0 read directly).** Full narrative rotated → [bug-log-archive.md](bug-log-archive.md) (search `BUG-AE47C-LINKAGE-001`). ⚠ **Unrelated finding, not a regression from this fix:** a deliberate second consecutive run of `ethics-e4-participants.spec.ts` (same DB, no reset) reproduces `EXT-REUSE` failing — this is `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS` (line below), not a new bug; generalized (non-retry-specific) addendum in its [follow-ups-open.md](follow-ups-open.md) entry. — tester

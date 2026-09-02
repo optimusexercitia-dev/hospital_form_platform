@@ -282,7 +282,7 @@ if (violations.length > 0) {
       "    set local app.some_guc = 'on';\n" +
       '    update ...;\n' +
       '  end $$;\n\n' +
-      'See FUP-DM5-SETLOCAL-MIGRATION in docs/progress/follow-ups.md.\n',
+      'See FUP-DM5-SETLOCAL-MIGRATION in docs/progress/follow-ups-open.md.\n',
   )
   process.exit(1)
 }

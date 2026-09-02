@@ -33,15 +33,29 @@
  *   3. PHASES    — no row in § Phase Status has "complet…" in its Status cell. A
  *                  completed row's home is docs/progress/phase-ledger.md; the row
  *                  moves there VERBATIM in the same change that would make this red.
- *   4. FUP INDEX — no resolved line in § Follow-ups (a `- ⬛` marker, or ✅ RESOLVED /
- *                  ✅ CLOSED immediately after the ✅). Resolved lines move verbatim to
- *                  follow-ups-archive.md. Partial states (HALF / PARTIALLY / PO-RULED)
- *                  are OPEN and stay.
- *   5. BODIES    — every OPEN `FUP-*` index line has a body in
- *                  docs/progress/follow-ups.md ("a pointer is not evidence its target
- *                  exists" — the R3 failure). Bounded property, stated: the check
- *                  covers ids matching FUP-[A-Z0-9-]+ only; legacy un-prefixed items
- *                  (e.g. "AUTHZ Gate-2 MINOR-1") are outside its domain.
+ *   4. REGISTER  — ADR 0179 folded the § Follow-ups one-line index INTO the bodies, so
+ *                  the OPEN register is ONE file (docs/progress/follow-ups-open.md) and
+ *                  an item is ONE `### ` entry. Five properties, replacing the two that
+ *                  the merge would have left VACUOUSLY GREEN rather than red:
+ *                    a. no RESOLVED entry left in the open register — opt-out only via
+ *                       an explicit, ENTRY-SCOPED `**Retained**` line, so the exemption
+ *                       is readable where it applies instead of allowlisted in here;
+ *                    b. no duplicate id, and no id with an entry in BOTH the register
+ *                       and follow-ups-archive.md (open-vs-resolved answered both ways);
+ *                    c. § Follow-ups in PROGRESS.md must not re-grow an index — the
+ *                       first line back reds. That section was 125 lines / 51 KB (53 %
+ *                       of the file) and grew monotonically, because the contract
+ *                       forbids rotating an OPEN line;
+ *                    d. a § Critical FUP row whose id has no register entry is an
+ *                       orphan — those rows are ADDITIVE (trigger + deadline), never
+ *                       the item's record;
+ *                    e. WARNING only: an id entered in both the register and
+ *                       deferred-backlog.md. Bounded on purpose — parked-vs-actionable
+ *                       is a judgement this script cannot make. It reports; a human
+ *                       routes. (The consolidation itself cut 27 of these.)
+ *                  Bounded property, unchanged: ids matching FUP-[A-Z0-9-]+ only;
+ *                  legacy un-prefixed items (e.g. "AUTHZ Gate-2 MINOR-1") are outside
+ *                  the domain. Partial states (HALF / PARTIALLY / PO-RULED) are OPEN.
  *   6. LINKS     — every relative markdown link resolves to an existing file; same-file
  *                  #anchors resolve to a heading (compared alphanumeric-only, so
  *                  punctuation/emoji slugging cannot false-red). Domain is PROGRESS.md,
@@ -53,8 +67,12 @@
  *   8. CELLS     — in the capped sections only (CAPPED_SECTIONS): cell length, plus
  *                  unbalanced inline-code / bold spans, which is the class where a
  *                  compression pass cut a cell mid-token and every gate stayed green.
- *   9. BULLETS   — bullet length, same capped sections. § Critical FUP and the OPEN
- *                  follow-up index are EXEMPT BY DECISION (CLAUDE.md §7 protects both).
+ *   9. BULLETS   — bullet length, same capped sections. § Critical FUP is EXEMPT BY
+ *                  DECISION (CLAUDE.md §7). ⛔ The OPEN follow-up index used to be the
+ *                  second exemption; ADR 0179 moved it out of this file entirely, and
+ *                  follow-ups-open.md is not length-capped at all — cap pressure must
+ *                  never land on the register, because compression under cap pressure
+ *                  cuts qualifiers first.
  *   7. EOL       — the four every-session docs (PROGRESS.md, CLAUDE.md,
  *                  ARCHITECTURE.md, PHASES.md) contain no CR. Belt to the
  *                  .gitattributes suspenders: the attribute normalizes at checkin,
@@ -99,10 +117,12 @@ const LINK_CHECKED_DOCS = ['PROGRESS.md', 'CLAUDE.md']
 export const QUARTERLY_ARCHIVE_RE = /^\d{4}-Q[1-4]\.md$/
 
 /**
- * Sections the shape caps apply to. § Critical FUP and the OPEN follow-up index are
- * EXEMPT BY DECISION — CLAUDE.md §7 protects both by name ("don't satisfy the size
- * cap by trimming § Critical FUP or OPEN index lines"), and density is the point in
- * both. § Now and § State are live working state, likewise exempt.
+ * Sections the shape caps apply to. § Critical FUP is EXEMPT BY DECISION — CLAUDE.md §7
+ * protects it by name ("don't satisfy the size cap by trimming § Critical FUP"), and
+ * density is the point there. § Now and § State are live working state, likewise exempt.
+ * ⛔ The OPEN follow-up index was the second named exemption until ADR 0179 moved the
+ * register to docs/progress/follow-ups-open.md; § Follow-ups is a POINTER now, so it is
+ * exempt for a different reason — there is nothing left in it to cap.
  *
  * BOUNDED PROPERTY, STATED: this is an allowlist of headings, so a NEW section is
  * uncapped until someone adds it here. That is the known cost of honouring the §7
@@ -225,38 +245,111 @@ export function checkPhaseRows(text) {
   return out
 }
 
-const RESOLVED_LINE = /^- (⬛|.*✅ ?\*{0,2}(RESOLVED|CLOSED)\b)/u
+/**
+ * ⛔ RESOLVED_LINE (`/^- (⬛|.*✅ ?\*{0,2}(RESOLVED|CLOSED)\b)/u`) lived here and matched a
+ * BULLET. ADR 0179 left no bullets to match, so it was replaced by RESOLVED_HEADING rather
+ * than retargeted — a bullet regex pointed at a file of headings is not a stricter check, it
+ * is a check that never fires.
+ */
 
-export function checkFupIndex(text) {
+/**
+ * An entry heading in the OPEN register (docs/progress/follow-ups-open.md). ADR 0179 merged
+ * the one-line index that lived in PROGRESS.md § Follow-ups INTO the bodies, so an item is
+ * now ONE `### ` entry and the headings ARE the index.
+ */
+const REGISTER_ENTRY = /^### (.*?(FUP-[A-Z0-9-]+).*)$/gmu
+const RESOLVED_HEADING = /⬛|✅ ?\*{0,2}(RESOLVED|CLOSED)\b/u
+/** The opt-out for a resolved entry deliberately kept as a review lens — must be EXPLICIT. */
+const RETAINED = /\*\*Retained\*\*|body deliberately STAYS/u
+
+/**
+ * ⛔ PROGRESS.md § Follow-ups must NOT re-grow an index (ADR 0179). The section it replaced
+ * was 125 lines and 51 KB — 53 % of the file — and it grew monotonically because the contract
+ * forbids rotating an OPEN line. "Just one line here" is how it restarts, so the gate refuses
+ * the first one rather than the hundredth.
+ */
+export function checkNoIndexInProgress(text) {
   const sec = sectionBody(text, /^## Follow-ups/)
   if (!sec) return []
   const out = []
   sec.lines.forEach((line, i) => {
-    if (RESOLVED_LINE.test(line)) {
-      out.push(
-        `PROGRESS.md:${sec.startLine + 1 + i} — resolved follow-up still in the live index ` +
-          `(${line.slice(0, 60)}…). Move the line VERBATIM to follow-ups-archive.md.`,
-      )
-    }
+    const m = /^- .*?\*\*`?(FUP-[A-Z0-9-]+)`?\*\*/u.exec(line)
+    if (!m) return
+    out.push(
+      `PROGRESS.md:${sec.startLine + 1 + i} — a follow-up index line for ${m[1]} is back in ` +
+        `§ Follow-ups. The register moved to docs/progress/follow-ups-open.md (ADR 0179): file ` +
+        `the whole item there as ONE entry. ⛔ Do NOT re-open an index here — that section is a ` +
+        `pointer now, and a second record is exactly what the consolidation removed.`,
+    )
   })
   return out
 }
 
-export function checkFupBodies(text, bodiesText) {
-  const sec = sectionBody(text, /^## Follow-ups/)
-  if (!sec) return []
+/**
+ * A RESOLVED entry left in the OPEN register. Succeeds checkFupIndex, which asked the same
+ * question of the PROGRESS.md index lines that no longer exist.
+ *
+ * ⛔ The opt-out is deliberately narrow and must be WRITTEN IN THE ENTRY: one body
+ * (FUP-DM5-NO-ANSWER-VS-NOTHING) is PO-ruled to stay as a review lens. An entry claiming the
+ * exemption has to say so where a reader sees it — an allowlist in this script would silence
+ * the measured cases along with the unmeasurable one.
+ */
+export function checkRegisterResolved(registerText) {
   const out = []
-  sec.lines.forEach((line, i) => {
-    const m = /^- .*?\*\*(FUP-[A-Z0-9-]+)\*\*/u.exec(line)
-    if (!m) return
-    if (!bodiesText.includes(m[1])) {
-      out.push(
-        `PROGRESS.md:${sec.startLine + 1 + i} — OPEN index line ${m[1]} has NO body in ` +
-          `docs/progress/follow-ups.md. A pointer is not evidence its target exists — ` +
-          `write the body before (or with) the index line.`,
-      )
-    }
+  const lines = registerText.split('\n')
+  lines.forEach((line, i) => {
+    if (!line.startsWith('### ')) return
+    const id = /FUP-[A-Z0-9-]+/u.exec(line)
+    if (!id || !RESOLVED_HEADING.test(line)) return
+    // the entry body runs to the next `### ` heading
+    let j = i + 1
+    while (j < lines.length && !lines[j].startsWith('### ')) j++
+    const block = lines.slice(i, j).join('\n')
+    if (RETAINED.test(block)) return
+    out.push(
+      `docs/progress/follow-ups-open.md:${i + 1} — RESOLVED entry ${id[0]} is still in the OPEN ` +
+        `register. Move the WHOLE entry verbatim to follow-ups-archive.md (append before the ` +
+        `cut, cmp-verify). If it is deliberately retained as a review lens, say so in the entry ` +
+        `with a **Retained** line — the exemption has to be readable, not remembered.`,
+    )
   })
+  return out
+}
+
+/**
+ * Two integrity properties the merged register still needs, because merging index and body
+ * removed the old cross-check rather than the risk it covered:
+ *   • a DUPLICATE id — two entries for one item, so an edit lands on one of them;
+ *   • an id with an entry in BOTH the register and the archive — the resolved/open split is
+ *     what tells a reader whether the item is live, and a body in both answers both ways.
+ * ⛔ Neither could happen while index and body were separate files keyed by one id. They can now.
+ */
+export function checkRegisterIntegrity(registerText, archiveText) {
+  const out = []
+  const seen = new Map()
+  for (const m of registerText.matchAll(REGISTER_ENTRY)) {
+    const id = m[2]
+    if (seen.has(id)) {
+      out.push(
+        `docs/progress/follow-ups-open.md — DUPLICATE entry for ${id}. One item is one entry; ` +
+          `two entries mean an edit reaches one of them. Merge them, keeping every claim.`,
+      )
+      continue
+    }
+    seen.set(id, true)
+  }
+  const archived = new Set(
+    [...archiveText.matchAll(/^#{2,4} .*?(FUP-[A-Z0-9-]+)/gmu)].map((m) => m[1]),
+  )
+  for (const id of seen.keys()) {
+    if (!archived.has(id)) continue
+    out.push(
+      `docs/progress/follow-ups-open.md — ${id} has an entry in the OPEN register AND a body in ` +
+        `follow-ups-archive.md. One of them is wrong: if it is resolved the open entry should ` +
+        `have moved, if it is open the archive copy is a stale duplicate. ⛔ Do not resolve this ` +
+        `by deleting either one until you know which.`,
+    )
+  }
   return out
 }
 
@@ -310,34 +403,64 @@ const criticalRowRe = (id) => new RegExp(`^\\|[^|\\n]*\\|[^*\\n]*\\*\\*\`?${id}\
  *     finding says in terms that deleting the body is the wrong repair.
  *   • ABSENT — indexed nowhere at all. The original orphan case, unchanged.
  */
-export function checkFupBodyResidue(bodiesText, progressText, backlogText) {
+/**
+ * Successor to checkFupBodyResidue (ADR 0179). The old check asked whether a body in
+ * follow-ups.md was indexed by a live register — a question that CANNOT fail now that the
+ * entry IS the body. What survives it is the opposite risk the two-file split created: the
+ * SAME item entered in two live registers at once, which is two records to edit and one that
+ * silently goes stale.
+ *
+ * ⛔ WARNING, not a finding, and the reason is bounded: the consolidation itself cut 27 of
+ * these (the 2026-08-19 "deferred tail", whose bullets were the index half of a body that
+ * lived in follow-ups.md), and which register a future item belongs to is a judgement — parked
+ * vs actionable — that this script cannot make. It reports; a human routes.
+ */
+/**
+ * § Critical FUP is PO-curated and ADDITIVE: a row there adds a trigger and a deadline to an
+ * item that also keeps its full entry in the register. So a Critical row whose id has NO
+ * register entry is an orphan — the highest-severity items in the project, pointing at
+ * nothing. This is the direction the old cross-check could not see, because § Critical FUP
+ * was one of the registers it checked AGAINST rather than one it checked.
+ */
+export function checkCriticalRowsHaveEntries(progressText, registerText) {
+  const sec = sectionBody(progressText, /^## .*Critical FUP/)
+  if (!sec) return []
+  const entries = new Set(
+    [...registerText.matchAll(REGISTER_ENTRY)].map((m) => m[2]),
+  )
   const out = []
   const seen = new Set()
-  for (const m of bodiesText.matchAll(/^#{2,4} .*?(FUP-[A-Z0-9-]+)/gmu)) {
+  const secText = sec.lines.join('\n')
+  for (const m of secText.matchAll(/(FUP-[A-Z0-9-]+)/gu)) {
     const id = m[1]
+    if (seen.has(id) || entries.has(id)) continue
+    // ⛔ criticalRowRe, not a bare id match: a Critical row's LEADING BOLD TOKEN is the id.
+    // An id merely NAMED in another row's prose is a mention, and a mention is not a row.
+    if (!criticalRowRe(id).test(secText)) continue
+    seen.add(id)
+    out.push(
+      `PROGRESS.md § Critical FUP — row for ${id} has NO entry in ` +
+        `docs/progress/follow-ups-open.md. A Critical row is ADDITIVE (it adds a trigger and a ` +
+        `deadline); it is not the item's record. ⛔ Restore the register entry — do not resolve ` +
+        `this by deleting the row, which is the one list whose loss is materially costly.`,
+    )
+  }
+  return out
+}
+
+export function checkDoubleRegistration(registerText, backlogText) {
+  const out = []
+  const seen = new Set()
+  for (const m of registerText.matchAll(REGISTER_ENTRY)) {
+    const id = m[2]
     if (seen.has(id)) continue
     seen.add(id)
-
-    const entry =
-      indexEntryRe(id).test(progressText) ||
-      criticalRowRe(id).test(progressText) ||
-      indexEntryRe(id).test(backlogText)
-    if (entry) continue
-
-    const mentioned = progressText.includes(id) || backlogText.includes(id)
+    if (!indexEntryRe(id).test(backlogText)) continue
     out.push(
-      mentioned
-        ? `docs/progress/follow-ups.md — body for ${id} is MENTIONED in a live register but ` +
-            `has no index ENTRY (no line, and no § Critical FUP row, whose own LEADING BOLD ` +
-            `TOKEN is ${id}). A mention is not an index line: it keeps the body ` +
-            `reachable by grep while the register the PO reads from does not carry the item. ` +
-            `⛔ If it is OPEN, restore its index line — do NOT resolve this finding by ` +
-            `deleting the body. If it is RESOLVED, move the body VERBATIM to ` +
-            `follow-ups-archive.md and cut the mention with it.`
-        : `docs/progress/follow-ups.md — body for ${id}, but NO live register indexes it ` +
-            `(not in PROGRESS.md, not in deferred-backlog.md). If it is resolved, move the ` +
-            `body VERBATIM to follow-ups-archive.md; if it is open, its index line was ` +
-            `LOST — restore it (QA finding R3: a follow-up with no index line is invisible work).`,
+      `${id} is entered in BOTH docs/progress/follow-ups-open.md and deferred-backlog.md. ` +
+        `One item, one register: if nobody can act on it next session it belongs in the ` +
+        `backlog, otherwise in the register with a **Parked** marker. Two entries mean an ` +
+        `edit lands on one of them.`,
     )
   }
   return out
@@ -488,53 +611,107 @@ function selfTest() {
   expectRed('claude-size', checkClaudeSize(CLAUDE_SIZE_CAP + 1))
   expectGreen('claude-size-green', checkClaudeSize(CLAUDE_SIZE_CAP))
 
-  // ADR 0140: the residue check must fire on an unindexed body, and stay quiet for a
-  // body indexed in EITHER live register.
-  expectRed('fup-residue', checkFupBodyResidue('## ⬛ FUP-GONE-1 — done\n', 'no mention', 'none'))
-  expectGreen(
-    'fup-residue-live-green',
-    checkFupBodyResidue('## 🔴 FUP-LIVE-1 — x\n', '- 🔴 **FUP-LIVE-1** — open', ''),
+  // ── ADR 0179: the merged register ────────────────────────────────────────────────
+  // § Follow-ups in PROGRESS.md is a POINTER now. The first index line that comes back
+  // must red — this is the check that keeps the 51 KB section from re-growing one line
+  // at a time, so it is asserted before anything else here.
+  expectRed(
+    'no-index-in-progress',
+    checkNoIndexInProgress('## Follow-ups\n- 🟠 **FUP-BACK-AGAIN** — a line crept back\n'),
   )
   expectGreen(
-    'fup-residue-backlog-green',
-    checkFupBodyResidue('### FUP-BACK-1 — x\n', '', '- 🟡 **FUP-BACK-1** — parked'),
+    'no-index-in-progress-green',
+    checkNoIndexInProgress('## Follow-ups\n\nThe register is [follow-ups-open.md](x).\n'),
+  )
+  // ⛔ VACUITY CONTROL: a pointer section that MENTIONS an id in prose is not an index.
+  expectGreen(
+    'no-index-mention-green',
+    checkNoIndexInProgress('## Follow-ups\n\nsee 🟠 `FUP-MENTION-1` for the shape\n'),
   )
 
-  // ── The mention-vs-entry distinction, pinned in BOTH directions ──────────────────
-  // The regression specimen, verbatim in shape: a body kept "indexed" by a ⛔ note ABOUT
-  // it. This passed the old `includes(id)` test for eleven days, which is why it is the
-  // first assertion here and not the last.
-  const mentionOnly = '- ⛔ **`FUP-MENTION-1`’s closure instrument was SWAPPED** — prose'
+  // A resolved entry must not sit in the OPEN register…
   expectRed(
-    'fup-residue-mention-only',
-    checkFupBodyResidue('## ⬛ FUP-MENTION-1 — x\n', mentionOnly, ''),
+    'register-resolved',
+    checkRegisterResolved('### ⬛ FUP-DONE-1 — finished\n\nbody\n'),
   )
-  // …and it must name the RIGHT repair. A mention-only finding that reads like the orphan
-  // finding would send a session to delete an open body — the failure the old width was
-  // (correctly) afraid of, now handled in the verdict instead of by going blind.
-  if (!/restore its index line/.test(checkFupBodyResidue('## FUP-M2 — x\n', 'see FUP-M2', '')[0] ?? ''))
-    fails.push('fup-residue-mention-wrong-remedy')
-  // A prose mention in the MIDDLE of another item's line is the same hole, one step in.
   expectRed(
-    'fup-residue-mention-mid-line',
-    checkFupBodyResidue('## FUP-MID-1 — x\n', '- 🟠 **FUP-OTHER** — compare **FUP-MID-1**', ''),
+    'register-resolved-tick',
+    checkRegisterResolved('### 🟠 FUP-DONE-2 — ✅ **RESOLVED 2026-01-01**\n\nbody\n'),
   )
-  // ⛔ VACUITY CONTROL: the tightened matcher must still accept every real entry shape, or
-  // it would red the whole live register and read as "the tracker is broken".
+  // …unless the entry SAYS it is retained. The exemption is readable, not remembered:
+  // FUP-DM5-NO-ANSWER-VS-NOTHING is PO-ruled (2026-08-28) to stay as a review lens.
+  expectGreen(
+    'register-resolved-retained-green',
+    checkRegisterResolved('### ⬛ FUP-LENS-1 — done\n\nits body deliberately STAYS as a lens\n'),
+  )
+  // ⛔ and the opt-out must not leak to the NEXT entry — an entry-scoped rule that read the
+  // whole file would silence every resolved entry after the first retained one.
+  expectRed(
+    'register-resolved-optout-is-entry-scoped',
+    checkRegisterResolved(
+      '### ⬛ FUP-LENS-1 — done\n\nbody deliberately STAYS as a lens\n\n### ⬛ FUP-DONE-3 — done\n\nbody\n',
+    ),
+  )
+  // A partial state is still OPEN and must stay green (inherited from the old index check).
+  expectGreen(
+    'register-partial-green',
+    checkRegisterResolved('### 🟠 FUP-HALF-1 — ✅ **Local half CLOSED by measurement**\n\nb\n'),
+  )
+
+  // Integrity: a duplicate entry, and an id live in BOTH the register and the archive.
+  expectRed(
+    'register-duplicate',
+    checkRegisterIntegrity('### 🟡 FUP-TWICE-1 — a\n\n### 🟡 FUP-TWICE-1 — b\n', ''),
+  )
+  expectRed(
+    'register-archive-collision',
+    checkRegisterIntegrity('### 🟡 FUP-BOTH-1 — open\n', '### ⬛ FUP-BOTH-1 — archived\n'),
+  )
+  expectGreen(
+    'register-integrity-green',
+    checkRegisterIntegrity('### 🟡 FUP-OK-1 — open\n', '### ⬛ FUP-OTHER-1 — archived\n'),
+  )
+
+  // Double registration (WARNING path) — the shape the consolidation cut 27 of.
+  expectRed(
+    'double-registration',
+    checkDoubleRegistration('### 🟡 FUP-DUAL-1 — open\n', '- 🟡 **FUP-DUAL-1** — parked'),
+  )
+  // ⛔ VACUITY CONTROL on indexEntryRe, kept from the retired residue check: it must accept
+  // every real entry shape, or it would go quiet on the whole backlog and read as clean.
   for (const [name, entry] of [
     ['emoji', '- 🟡 **FUP-SHAPE-1** — open'],
     ['checkbox', '- [ ] **`FUP-SHAPE-1`** — parked'],
-    ['critical-row', '| **C9** | 🔒 **`FUP-SHAPE-1`** — the PO list | do the thing |'],
-    // The PO-ruled retention note (2026-08-28) is an ITALIC note, not a bullet. A
-    // list-item-only rule would have red-flagged the one entry a human explicitly ruled on.
-    ['italic-note', '_**FUP-SHAPE-1** — ✅ resolved; body deliberately STAYS as a review lens._'],
   ])
-    expectGreen(`fup-residue-entry-${name}-green`, checkFupBodyResidue('## FUP-SHAPE-1 — x\n', entry, ''))
-  // ⛔ The loosened leading marker must NOT re-open the hole: a backticked mention with no
-  // bold, and a bold mention that is not the line's first, both still register nothing.
+    expectRed(
+      `double-registration-entry-${name}`,
+      checkDoubleRegistration('### 🟡 FUP-SHAPE-1 — open\n', entry),
+    )
+  // …and a bare MENTION in the backlog is not an entry — the mention-vs-entry distinction
+  // (ADR 0140) survives the merge, because the false direction here is a spurious warning.
+  expectGreen(
+    'double-registration-mention-green',
+    checkDoubleRegistration('### 🟡 FUP-TICK-1 — open\n', '  see 🟠 `FUP-TICK-1` for the shape.'),
+  )
+  expectGreen(
+    'double-registration-mid-line-green',
+    checkDoubleRegistration('### 🟡 FUP-MID-1 — open\n', '- 🟠 **FUP-OTHER** — cf **FUP-MID-1**'),
+  )
+
+  // A § Critical FUP row whose item has no register entry is the orphan case, inverted.
   expectRed(
-    'fup-residue-backticked-mention',
-    checkFupBodyResidue('## FUP-TICK-1 — x\n', '  not covered at all — see 🟠 `FUP-TICK-1`.', ''),
+    'critical-row-orphan',
+    checkCriticalRowsHaveEntries(
+      '## ⭐⭐ Critical FUP\n| **C9** | 🔒 **`FUP-CRIT-1`** — x | do it | now | PO |\n',
+      '### 🟡 FUP-OTHER-1 — open\n',
+    ),
+  )
+  expectGreen(
+    'critical-row-orphan-green',
+    checkCriticalRowsHaveEntries(
+      '## ⭐⭐ Critical FUP\n| **C9** | 🔒 **`FUP-CRIT-1`** — x | do it | now | PO |\n',
+      '### 🔴 FUP-CRIT-1 — open\n',
+    ),
   )
 
   expectRed('sections', checkSections('# empty file\n'))
@@ -547,18 +724,11 @@ function selfTest() {
     checkPhaseRows('## Phase Status\n| P | N | S | B |\n| - | - | - | - |\n| 9 | Deploy | 🔜 not started | – |\n'),
   )
 
-  expectRed('fup-black-square', checkFupIndex('## Follow-ups\n- ⬛ **FUP-X-1** — done\n'))
-  expectRed('fup-resolved', checkFupIndex('## Follow-ups\n- 🟠 **FUP-X-2** — ✅ **RESOLVED 2026-01-01**\n'))
-  expectGreen(
-    'fup-partial-green',
-    checkFupIndex('## Follow-ups\n- 🟠 **FUP-X-3** — ✅ **Local half CLOSED by measurement**\n'),
-  )
-
-  expectRed('fup-body', checkFupBodies('## Follow-ups\n- 🔴 **FUP-GHOST-1** — no body\n', 'unrelated'))
-  expectGreen(
-    'fup-body-green',
-    checkFupBodies('## Follow-ups\n- 🔴 **FUP-REAL-1** — has body\n', '## FUP-REAL-1\nbody'),
-  )
+  // ⛔ The retired checkFupIndex / checkFupBodies self-tests lived here. Both asked their
+  // question of PROGRESS.md index lines that ADR 0179 removed, so BOTH would have passed
+  // vacuously rather than failed — the exact shape this file exists to refuse. Their
+  // successors (checkNoIndexInProgress, checkRegisterResolved, checkRegisterIntegrity,
+  // checkDoubleRegistration, checkCriticalRowsHaveEntries) are asserted above.
 
   const cell = (body) => `## Decisions\n| 2026-01-01 | ${body} | ref |\n`
   expectRed('cell-long', checkCellShape(cell('x'.repeat(MAX_CELL + 1))))
@@ -620,14 +790,18 @@ function main() {
   findings.push(...checkClaudeSize(statSync(join(ROOT, 'CLAUDE.md')).size))
   findings.push(...checkSections(progress))
   findings.push(...checkPhaseRows(progress))
-  findings.push(...checkFupIndex(progress))
+  findings.push(...checkNoIndexInProgress(progress))
   findings.push(...checkCellShape(progress))
   findings.push(...checkBulletLength(progress))
 
-  const bodies = readFileSync(join(ROOT, 'docs', 'progress', 'follow-ups.md'), 'utf8')
-  findings.push(...checkFupBodies(progress, bodies))
+  // ADR 0179: the OPEN register is ONE file holding entry + body per item.
+  const register = readFileSync(join(ROOT, 'docs', 'progress', 'follow-ups-open.md'), 'utf8')
+  const archive = readFileSync(join(ROOT, 'docs', 'progress', 'follow-ups-archive.md'), 'utf8')
   const backlog = readFileSync(join(ROOT, 'docs', 'progress', 'deferred-backlog.md'), 'utf8')
-  findings.push(...checkFupBodyResidue(bodies, progress, backlog))
+  findings.push(...checkRegisterResolved(register))
+  findings.push(...checkRegisterIntegrity(register, archive))
+  findings.push(...checkCriticalRowsHaveEntries(progress, register))
+  warnings.push(...checkDoubleRegistration(register, backlog))
 
   // Registry-free link sweep (ADR 0140): EVERY docs/progress/*.md. The zero-match
   // control stands guard on the sweep itself: 2026-Q3.md exists from 2026-08-24 and

@@ -17,15 +17,14 @@ read the script, not a second copy of it. A restated check is the copy that drif
 ## The three-way test, for every line
 
 - **State** — merges and is recorded. Belongs here.
-- **Backlog** — open, but nobody can act on it next session → `deferred-backlog.md`,
-  indexed here by one line.
+- **Backlog** — open, but nobody can act on it next session → `deferred-backlog.md`.
 - **Rule** — a standing prohibition with **no resolution event** ("never fix X by granting
   Y"). It can only accumulate here → `.claude/rules/`, path-scoped, subject to ADR 0127's
   admission filter. This is the category that made this file grow monotonically.
 
 ## Rotation
 
-Destinations: completed phase rows → `phase-ledger.md` · resolved follow-up lines →
+Destinations: completed phase rows → `phase-ledger.md` · resolved follow-up entries →
 `follow-ups-archive.md` · closed bugs → `bug-log-archive.md` · concluded § Now bullets →
 `<YYYY>-Q<n>.md` by **rotation date** (ADR 0139; `now-concluded-2026-08.md` frozen) ·
 concluded decision rows → `decisions-log.md` · gate/QA rows → their archives.
@@ -35,9 +34,9 @@ Mechanics: `docs/lead-playbook.md` §§4–5.
 - ⛔ **Repoint links in the same edit.** A row written for the repo root carries
   root-relative `docs/...` links; from `docs/progress/` they must become `../...`. Skipping
   this broke 474 links once, and 41 more before the gate covered the destinations.
-- ⛔ **Never rotate what CLAUDE.md §7 protects** to satisfy the size cap: § Critical FUP,
-  and OPEN index lines. Rotate *concluded* material. The index is the register the PO reads
-  from — a follow-up with no line in it is invisible work (QA finding R3).
+- ⛔ **Never rotate what CLAUDE.md §7 protects** — since ADR 0179 that is § Critical FUP
+  ALONE; no OPEN index is left here. Rotate *concluded* material. `follow-ups-open.md`
+  holds whole entries and has no cap; an item missing from it is invisible (QA R3).
 
 ## One-line form
 

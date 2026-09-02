@@ -1,9 +1,15 @@
 # Archive — Follow-ups / Deferred Items (full snapshot incl. resolved)
 
 > Archived verbatim from PROGRESS.md on 2026-06-25 at the §7 progress-tracker cleanup.
-> This is the durable detail; PROGRESS.md keeps only a one-line pointer.
+> This is the durable detail.
 
-> PROGRESS.md keeps only the OPEN items going forward. Resolved [x] items are preserved here.
+> ⭐ **The OPEN register is [follow-ups-open.md](follow-ups-open.md), not PROGRESS.md**
+> (ADR [0179](../decisions/0179-follow-up-register-consolidation.md), 2026-09-02). Resolved
+> items are preserved **here** — move the whole entry verbatim out of `follow-ups-open.md`;
+> ⛔ no id may sit in both files at once, and `lint:progress` reds if one does.
+> ⚠ *Historical note:* text below dating from before 2026-09-02 says bodies live in
+> `follow-ups.md` and index lines in PROGRESS.md. That split is gone — the links have been
+> repointed, the sentences describing it are left as the record of what was true then.
 
 ## Follow-ups / Deferred Items
 
@@ -1550,9 +1556,9 @@ from a report: DISPOSE from the live `pg_proc.prosrc`; E2E from the restored (an
 strengthened) M8 assertion; CEILING from the S1 catalog probes + the S4 AC-4a–d/AC-9
 restoration.
 
-- 🟢 **FUP-DM1-CEILING** — **DB HALF DISCHARGED 2026-08-13 by DM2·S1** (`5dbeb76`; migrations `20260924000100`+`…000200`, ADR [0117](../decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md), record [dm2-orchestration-wave-a.md](../progress/dm2-orchestration-wave-a.md)). The ceiling is live and **lead-verified against the catalog, not from the report**: on one case with one reader, label as the sole variable → plain `t` / `legal_privileged` `f` while `can_read_case` stays `t`, so the denial is the ceiling and not lost home access; the seam guard admits `ethics_investigation` on a meeting home and refuses `legal_privileged` (HC0D6, pt-BR). **Remaining to close:** pgTAP `228` **t40** + the two open-door pins (S1-O1) ride S2's `open_document_version`, and E2E **AC-4a–d / AC-9** ride S4. — **RULED 2026-08-13 (ADR [0114](../decisions/0114-document-model-redesign.md) Amendment 1 D15/D16)**: option 1 — re-express the ADR 0072 D7 ceiling as a nullable confidentiality column on `documents` + a `can_read_document` kernel arm, **interim**; the general access plane is **scheduled at Phase 19** (landing point `documents.access_policy_id`). No longer a blocker — now a **DM2 Wave A PREREQUISITE** (build before Wave A re-points any document). Option 3 rejected. Discharge = D15 shipped + pgTAP `228` t36–40 and E2E AC-4a–d/AC-9 restored as an ADR 0114 amendment — PO/lead → [body](../progress/follow-ups.md)
-- 🟢 **FUP-DM1-E2E** — ✅ **DISCHARGED 2026-08-13 by DM2·S4** (parking done 2026-08-12; rewrite done at S4). All 6+1 attachment-touching specs/blocks rewritten against the document model per ADR 0114 D5 (rewritten, never merely deleted). **Lead-verified at the source, not from the S4 report** (QA r1 MINOR-6 was that this row contradicted the S2/S4 rows it should agree with): the M8 bytes-cut assertion is live in `e2e/quality-oversight.spec.ts` and was since **strengthened past its original form** — it now calls `open_document_version` directly via REST rather than asserting the download button's absence (QA r1 P0-1; `56e3989`). ⚠ One residue, routed to tester: that file's **header comment at `:39` still reads `⛔ PARKED`** while the assertion below it is restored — the repo's own "a comment is an assertion that goes stale silently" class. — tester + DM2 ✅ → [body](../progress/follow-ups.md)
-- 🟢 **FUP-DM1-DISPOSE** — ✅ **DISCHARGED 2026-08-13 by DM2·S2**: `dispose_case_phi` carries its case-homed-document arm again (the DM1 substrate drop had cost it the attachment-redaction step — a PHI erasure path losing a step; no-op at the time, zero rows carried bytes). **Lead-verified from the live catalog** (`pg_proc.prosrc`, per the standing catalog-over-migration-text rule), not from a commit message. Discharged **before** Wave A's flags flip, as required — backend ✅ → [body](../progress/follow-ups.md)
+- 🟢 **FUP-DM1-CEILING** — **DB HALF DISCHARGED 2026-08-13 by DM2·S1** (`5dbeb76`; migrations `20260924000100`+`…000200`, ADR [0117](../decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md), record [dm2-orchestration-wave-a.md](../progress/dm2-orchestration-wave-a.md)). The ceiling is live and **lead-verified against the catalog, not from the report**: on one case with one reader, label as the sole variable → plain `t` / `legal_privileged` `f` while `can_read_case` stays `t`, so the denial is the ceiling and not lost home access; the seam guard admits `ethics_investigation` on a meeting home and refuses `legal_privileged` (HC0D6, pt-BR). **Remaining to close:** pgTAP `228` **t40** + the two open-door pins (S1-O1) ride S2's `open_document_version`, and E2E **AC-4a–d / AC-9** ride S4. — **RULED 2026-08-13 (ADR [0114](../decisions/0114-document-model-redesign.md) Amendment 1 D15/D16)**: option 1 — re-express the ADR 0072 D7 ceiling as a nullable confidentiality column on `documents` + a `can_read_document` kernel arm, **interim**; the general access plane is **scheduled at Phase 19** (landing point `documents.access_policy_id`). No longer a blocker — now a **DM2 Wave A PREREQUISITE** (build before Wave A re-points any document). Option 3 rejected. Discharge = D15 shipped + pgTAP `228` t36–40 and E2E AC-4a–d/AC-9 restored as an ADR 0114 amendment — PO/lead → [body](../progress/follow-ups-open.md)
+- 🟢 **FUP-DM1-E2E** — ✅ **DISCHARGED 2026-08-13 by DM2·S4** (parking done 2026-08-12; rewrite done at S4). All 6+1 attachment-touching specs/blocks rewritten against the document model per ADR 0114 D5 (rewritten, never merely deleted). **Lead-verified at the source, not from the S4 report** (QA r1 MINOR-6 was that this row contradicted the S2/S4 rows it should agree with): the M8 bytes-cut assertion is live in `e2e/quality-oversight.spec.ts` and was since **strengthened past its original form** — it now calls `open_document_version` directly via REST rather than asserting the download button's absence (QA r1 P0-1; `56e3989`). ⚠ One residue, routed to tester: that file's **header comment at `:39` still reads `⛔ PARKED`** while the assertion below it is restored — the repo's own "a comment is an assertion that goes stale silently" class. — tester + DM2 ✅ → [body](../progress/follow-ups-open.md)
+- 🟢 **FUP-DM1-DISPOSE** — ✅ **DISCHARGED 2026-08-13 by DM2·S2**: `dispose_case_phi` carries its case-homed-document arm again (the DM1 substrate drop had cost it the attachment-redaction step — a PHI erasure path losing a step; no-op at the time, zero rows carried bytes). **Lead-verified from the live catalog** (`pg_proc.prosrc`, per the standing catalog-over-migration-text rule), not from a commit message. Discharged **before** Wave A's flags flip, as required — backend ✅ → [body](../progress/follow-ups-open.md)
 
 
 <!-- Bodies rotated from follow-ups.md at the DM2 Record step (2026-08-13):
@@ -1725,7 +1731,7 @@ mutation-proven per authz-handoff §7.1. The in-body comment at `dispose_case_ph
 > Record step that resolves it (enforced by `npm run lint:progress`). Moved verbatim
 > except the mechanical link transform for this directory (`](docs/progress/` → `](`,
 > `](docs/{decisions,plans,reviews}/` → `](../{decisions,plans,reviews}/`).
-> ⚠ **Their full bodies remain in [follow-ups.md](follow-ups.md) for now** — body
+> ⚠ **Their full bodies remain in [follow-ups-open.md](follow-ups-open.md) for now** — body
 > rotation out of that file is a separate, later pass; this section is the index of
 > record for the resolved set. Derived by property (every `- ⬛` line, all 14
 > containing RESOLVED/CLOSED), not by hand-listing.
@@ -1745,7 +1751,7 @@ mutation-proven per authz-handoff §7.1. The in-body comment at `dispose_case_ph
 - ⬛ **FUP-DM5-SETLOCAL-MIGRATION** — ✅ **RESOLVED 2026-08-18: the gate is BUILT + WIRED.** — backend
 - ⬛ **FUP-AUTHZ-ALLOWLIST-ROT** — ✅ RESOLVED 2026-08-17 (`4102149b`): `ARM=floor` now anti-joins every allowlist signature against `pg_proc`. **Red-first — it found SIX stale entries where this item named one** — lead/backend
 
-- ⬛ **FUP-DM5-CLOUD-ORPHAN-SURFACE** — ✅ **RESOLVED 2026-08-18 by measurement: Supabase Cloud exposes NO orphan-visible surface.** All 5 surfaces METADATA-BOUND (both S3 auth modes); the byte was proven still present in the same run, so no arm is vacuous. ⇒ ADR 0120 D9's byte-side controls are NOT recoverable on Cloud. Rotated from PROGRESS.md 2026-08-18. Body: [follow-ups.md](follow-ups.md) · run record: [cloud-orphan-probe-2026-08-18.md](cloud-orphan-probe-2026-08-18.md) — backend/lead
+- ⬛ **FUP-DM5-CLOUD-ORPHAN-SURFACE** — ✅ **RESOLVED 2026-08-18 by measurement: Supabase Cloud exposes NO orphan-visible surface.** All 5 surfaces METADATA-BOUND (both S3 auth modes); the byte was proven still present in the same run, so no arm is vacuous. ⇒ ADR 0120 D9's byte-side controls are NOT recoverable on Cloud. Rotated from PROGRESS.md 2026-08-18. Body: [follow-ups-open.md](follow-ups-open.md) · run record: [cloud-orphan-probe-2026-08-18.md](cloud-orphan-probe-2026-08-18.md) — backend/lead
   <!-- prior PROGRESS.md index line, verbatim: - 🔴 **FUP-DM5-CLOUD-ORPHAN-SURFACE** — ⭕ **ESCALATED 2026-08-18: `FUP-DM4-PRODROW` NOW BLOCKS ON THIS PROBE (PO), and the probe has a REAL subject.** — backend/lead -->
 ### ⬛ FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION — ✅ **RESOLVED 2026-08-19: the subject was removed, not the predicate widened (ADR 0126 D5)** — a print of an `in_progress` draft is visible to its CREATOR ONLY, and the minter can lose the only way out (owner: PO decision, then backend + frontend)
 
@@ -2031,7 +2037,7 @@ them. ⭐ *A body plus a narrative mention is not an index entry; the index is w
 
 > One line, resolved the same day it left. Moved verbatim except for the state marker
 > and the resolution clause; the item's full body remains in
-> [follow-ups.md](follow-ups.md), consistent with the 2026-08-18 set above.
+> [follow-ups-open.md](follow-ups-open.md), consistent with the 2026-08-18 set above.
 
 - ⬛ **FUP-DM5-BACKUP-IS-PHI-EXPORT** — ✅ **RESOLVED 2026-08-19 by EXECUTION** — a Storage backup is an unmanaged plaintext PHI export, and the S5 drill created one (245 files, 68 PHI-tier, no RLS, no audited door, no TTL). The widest PHI egress path the system has. Both remaining deliverables discharged: **destination path set** (archive `D:\phi-backups`, key `C:\Users\micha\phi-backup-keys` — separate volume) and the **§ 6b procedure executed end-to-end** on the local stack (census 812/14,691,282/231 PHI-tier → encrypted at creation → catalog-compared **812 = 812** + per-object hash → key-first destruction; the empty-archive control proven able to refuse). Record: [phi-backup-run-log.md](../deployment/phi-backup-run-log.md). ⛔ **Does NOT discharge C1a or C1b** — § 3 was not run, and the mechanism has **no Cloud form**. Residue carried by two NEW items, not dropped: 🔴 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` · 🟠 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` — PO/backend/lead
 - ⬛ **FUP-DM5-NO-ANSWER-VS-NOTHING** — ✅ **CLOSED 2026-08-19 — all six instances. ⭐ THE CLASS: an observable PROXY is substituted for the property that actually matters, always failing in the REASSURING direction.** Last open instance (1, `--allow-orphans`) fixed by ADR [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md): unproven (exit 3) and dirty (exit 1) are separate classes with separate acknowledgements, **dirty outranks unproven**, and the retired flag is refused rather than aliased. Instance 3 discharged by ADR 0121 D4 **plus the 2026-08-18 Cloud probe**, which made `unavailable_on_platform` the true and permanent value rather than a holding one. ⛔ Closing the CONFLATION is not a claim that Cloud orphans are absent — they are **unobservable**, which is the opposite of reassuring — backend/lead
@@ -2225,7 +2231,7 @@ alone' once meant a thing ran once in three weeks"* (the same failure ADR 0079 w
 **The check, stated so it can be run and can fail:** name a persona who can (a) reach the surface
 hosting the dispose affordance AND (b) pass `dispose_referral_phi`'s own gate. Today **no such
 persona exists** — the two sets are disjoint (catalog-verified; full mechanism in the
-`FUP-ACT-DISPOSE-UI` body → [follow-ups.md](follow-ups.md)). Until one does,
+`FUP-ACT-DISPOSE-UI` body → [follow-ups-open.md](follow-ups-open.md)). Until one does,
 subject-erasure is API-only. **Decision owner: PO** —
 *where* the affordance mounts is a product call (NSP surface reaches operators; manage-tier reaches
 tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that makes this
@@ -2235,7 +2241,7 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 ## Rotated from PROGRESS.md 2026-08-20 — the DSR Slice 4 close-out (2 items)
 
 Both index lines left PROGRESS.md in the same edit that closed them. Full bodies remain in
-[follow-ups.md](./follow-ups.md) under their `⬛` headings until the next bulk rotation.
+[follow-ups-open.md](./follow-ups-open.md) under their `⬛` headings until the next bulk rotation.
 
 **The two index lines as they stood in PROGRESS.md, verbatim** (links repointed for this directory):
 
@@ -2625,7 +2631,7 @@ one asked for and why it got a pgTAP arm before a patch. Lines verbatim; resolut
 
 _The item verbatim (links repointed), with its closure appended. It was the one follow-up ADR 0137
 left open on purpose: the shim protected the build deployed at the time, so it could only close
-AFTER the code deploy, in its own migration. Body (now `⬛`) stays in [follow-ups.md](follow-ups.md)._
+AFTER the code deploy, in its own migration. Body (now `⬛`) stays in [follow-ups-open.md](follow-ups-open.md)._
 
 - 🟡 **FUP-0137-PHI-MODE-SHIMS** — ⚠ **HALF CLOSED 2026-08-24, and the remaining half is the one that can break production.** The three TS shims (`patientEnabled` / `collectsPatient` / `setTemplateCollectsPatient`) are **DELETED** — the builder adopted `patientMode`, and every consumer migrated with the bulk-wizard + case-edit fixes. ⛔ **`get_case_detail` still emits the derived `patient_enabled` key and MUST keep it until the code is DEPLOYED**: it is what the currently-deployed build reads, and dropping it first makes that build decide every case collects no PHI — `?? false` degrades SILENTLY. ⚠ And it is not the whole deploy story: the deployed build also selects the DROPPED `collects_patient` / `patient_enabled` COLUMNS directly, so those routes break on the new schema regardless — the schema→code window is real, not zero. Retire the key in its own migration AFTER the push — backend ✅ **RESOLVED 2026-08-24 — the last shim is gone.** Migration `20261003001800` removes the derived key from `get_case_detail` (re-emitted from `pg_get_functiondef`, with an anchor-uniqueness assert AND a post-patch catalog assert, so a drifted body fails loudly instead of patching nothing); `CaseDetailJson.patient_enabled` deleted. ⛔ **The deploy gate was discharged by the PO, not by a check** — no Coolify status is readable from this repo, and the pilot has no real users, which bounds the window to zero. Keystone: **pgTAP `366`, 10 tests** — two levels (catalog `prosrc` + the ENVELOPE the product receives), with vacuity controls, because `jsonb ? 'k'` is FALSE for an empty envelope, a NULL door and a refused call alike. ⭐ **Red-proven, not assumed**: re-adding the key moved the body md5 and reds exactly 1.1/2.1/2.5 (`have: true`); the restore was verified byte-identical to baseline (`0f72da26…`) by rebuilding from the migration chain, after a hand-patch restore silently left a stray newline. ⚠ **The item's own "verify by property" grep was WRONG and could never have returned zero** — `create_case(p_patient_enabled)` and the processless dialog legitimately carry those names; the surviving boolean there is filed as [[FUP-0137-PROCESSLESS-CASES-CANNOT-REQUIRE-PHI]].
 
@@ -2643,7 +2649,7 @@ mechanism while wrong about whether it is a defect._
 
 ## ↩ Body rotation 2026-08-24 (ADR 0140) — resolved bodies moved out of follow-ups.md
 
-Moved **verbatim** from [follow-ups.md](follow-ups.md): the full bodies of resolved items
+Moved **verbatim** from [follow-ups-open.md](follow-ups-open.md): the full bodies of resolved items
 whose index lines already live above in this archive. Trigger: follow-ups.md stood at
 604 KB with 145 body headings, 47 of them for items no live register indexes;
 `lint:progress` now REDS on such residue (the inverse of the R3 body check).
@@ -5573,7 +5579,7 @@ exact edit `365` §2.2 exists to red.
 > `ARM-DOMAIN predicate=1/110`, exit 0 unpiped, the neutralized run failing ONE file —
 > `142_rca.sql` tests 10–11, by name. Its `authz-neverclled-door-allowlist.txt` line was deleted
 > in the same commit, so `ARM=floor` re-proves the call (`calls=4`, was 0). ⚠ Two things the
-> body in [follow-ups.md](./follow-ups.md) carries and this line cannot: the door is a **UI
+> body in [follow-ups-open.md](./follow-ups-open.md) carries and this line cannot: the door is a **UI
 > capability probe** (no policy, no routine calls it — opening it granted no write), and this
 > follow-up's own prescribed shape — *"a row count through the door, never a predicate call"* —
 > **could not apply**, because the door returns a boolean and has no rows behind it.
@@ -5584,7 +5590,7 @@ exact edit `365` §2.2 exists to red.
 > repointing: root-relative `docs/...` -> this directory's `../...`). Each records a
 > rotation that had already concluded; PROGRESS.md keeps one pointer line.
 
-_**Three items RESOLVED by the DSR remediation round, index lines rotated 2026-08-21** → [follow-ups-archive.md](follow-ups-archive.md): **FUP-DISPOSE-EVENT-DOOR-GATE-BLIND** (keystone `352` run **inside the full suite** on a fresh reset and re-neutralized there — the item closed on the RUN, never on the file existing) · **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** (the four column doors have their first operational procedure, and the bytes runbook now names its own substrate) · **FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING** (PO ruled the copy stays; the training premise it rests on is recorded at the pilot-decision surface, which was the item's actual requirement). Bodies stay in [follow-ups.md](follow-ups.md)._
+_**Three items RESOLVED by the DSR remediation round, index lines rotated 2026-08-21** → [follow-ups-archive.md](follow-ups-archive.md): **FUP-DISPOSE-EVENT-DOOR-GATE-BLIND** (keystone `352` run **inside the full suite** on a fresh reset and re-neutralized there — the item closed on the RUN, never on the file existing) · **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** (the four column doors have their first operational procedure, and the bytes runbook now names its own substrate) · **FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING** (PO ruled the copy stays; the training premise it rests on is recorded at the pilot-decision surface, which was the item's actual requirement). Bodies stay in [follow-ups-open.md](follow-ups-open.md)._
 
 
 _Resolved, rotated out of both live files → [follow-ups-archive.md](follow-ups-archive.md):
@@ -5593,13 +5599,13 @@ _Resolved, rotated out of both live files → [follow-ups-archive.md](follow-ups
 now `RETURNS public.printed_document_public`; ADR 0111, pgTAP `323`)._
 
 
-_14 more index lines (the 2026-08-18 resolved set, `FUP-DM5-*` and peers) rotated 2026-08-18 → [follow-ups-archive.md](follow-ups-archive.md) § "Index lines rotated from PROGRESS.md 2026-08-18"; their bodies remain in [follow-ups.md](follow-ups.md) pending body rotation._
+_14 more index lines (the 2026-08-18 resolved set, `FUP-DM5-*` and peers) rotated 2026-08-18 → [follow-ups-archive.md](follow-ups-archive.md) § "Index lines rotated from PROGRESS.md 2026-08-18"; their bodies remain in [follow-ups-open.md](follow-ups-open.md) pending body rotation._
 
 
-_**FUP-DM5-NO-ANSWER-VS-NOTHING** (🔴, the class) rotated 2026-08-19 → [follow-ups-archive.md](follow-ups-archive.md) § "Index line rotated from PROGRESS.md 2026-08-19" — all six instances closed; last one (`--allow-orphans`) fixed by ADR [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md). Body stays in [follow-ups.md](follow-ups.md); ⭐ the one-sentence class statement is deliberately KEPT there as a review lens, not archived away._
+_**FUP-DM5-NO-ANSWER-VS-NOTHING** (🔴, the class) rotated 2026-08-19 → [follow-ups-archive.md](follow-ups-archive.md) § "Index line rotated from PROGRESS.md 2026-08-19" — all six instances closed; last one (`--allow-orphans`) fixed by ADR [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md). Body stays in [follow-ups-open.md](follow-ups-open.md); ⭐ the one-sentence class statement is deliberately KEPT there as a review lens, not archived away._
 
 
-_**FUP-DM5-BACKUP-IS-PHI-EXPORT** (🔴) rotated 2026-08-19 → the same archive section — ✅ **RESOLVED by execution**, not by decision: both remaining deliverables (destination path, first run) discharged against the local stack; record [phi-backup-run-log.md](../deployment/phi-backup-run-log.md). Body stays in [follow-ups.md](follow-ups.md). ⛔ **Its two residues are the NEW 🔴/🟠 lines above — the close is bounded, not total.**_
+_**FUP-DM5-BACKUP-IS-PHI-EXPORT** (🔴) rotated 2026-08-19 → the same archive section — ✅ **RESOLVED by execution**, not by decision: both remaining deliverables (destination path, first run) discharged against the local stack; record [phi-backup-run-log.md](../deployment/phi-backup-run-log.md). Body stays in [follow-ups-open.md](follow-ups-open.md). ⛔ **Its two residues are the NEW 🔴/🟠 lines above — the close is bounded, not total.**_
 
 ### Bodies rotated from follow-ups.md 2026-08-24 (resolved; their index lines left PROGRESS.md earlier)
 
@@ -6329,7 +6335,7 @@ script; it is simply not applied to the subset path.
 
 Ten follow-ups discharged at the AFF4 §6 step-5 Record step. Each entry below carries its **closure
 note** (what closed it, and the bound on that closure), then the **original body VERBATIM** as it
-stood in [follow-ups.md](follow-ups.md), then the **PROGRESS.md index line VERBATIM** (links
+stood in [follow-ups-open.md](follow-ups-open.md), then the **PROGRESS.md index line VERBATIM** (links
 repointed for this directory — both files live in `docs/progress/`, so only the
 `](docs/…)` root-relative forms changed).
 
@@ -7423,9 +7429,9 @@ call, each denial with its non-vacuity twin.
 > (root-relative `docs/progress/...` -> bare, this directory). Each records a rotation that had
 > already concluded; the bodies they point at are the block immediately above.
 
-_**Five items RESOLVED 2026-08-24 (ADR 0136 follow-up round), index lines rotated** → [follow-ups-archive.md](follow-ups-archive.md): **FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT** · **FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE** · **FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE** · **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** (ADR 0079 **Amdt 9**) · **FUP-DSS-KEYBOARD-FLOW-IS-THIN**. Each body in [follow-ups.md](follow-ups.md) carries its resolution + evidence._
+_**Five items RESOLVED 2026-08-24 (ADR 0136 follow-up round), index lines rotated** → [follow-ups-archive.md](follow-ups-archive.md): **FUP-DSS-STANDALONE-ROUTE-DISABLES-SUBMIT** · **FUP-DSS-PENDING-SIGNOFFS-WALKTHROUGH-KEYSTONE** · **FUP-DSS-SIGN-SECTION-INVOKER-VERDICT-STALE** · **FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** (ADR 0079 **Amdt 9**) · **FUP-DSS-KEYBOARD-FLOW-IS-THIN**. Each body in [follow-ups-open.md](follow-ups-open.md) carries its resolution + evidence._
 
-_**FUP-RCA-WRITER-CAN-WRITE-IS-BLIND RESOLVED 2026-08-24 (keystone `142_rca.sql` §K, re-swept COVERED), index line + evidence rotated** → [follow-ups-archive.md](follow-ups-archive.md); body in [follow-ups.md](follow-ups.md). ⛔ Its sibling **FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE stays OPEN** above — filed together, only one closed._
+_**FUP-RCA-WRITER-CAN-WRITE-IS-BLIND RESOLVED 2026-08-24 (keystone `142_rca.sql` §K, re-swept COVERED), index line + evidence rotated** → [follow-ups-archive.md](follow-ups-archive.md); body in [follow-ups-open.md](follow-ups-open.md). ⛔ Its sibling **FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE stays OPEN** above — filed together, only one closed._
 
 ### ✅ FUP-AFF4-HOMEORG-PHASE2 — 0151 D10's named Phase 2 had **no register line anywhere**; filed and promoted to PRE-PILOT at ADR 0155's acceptance (owner: backend/PO) — **RESOLVED 2026-08-28**
 
@@ -7538,7 +7544,7 @@ cutting it; something wrong was.
 
 ### The two ⛔ notes that stood above the index tail
 
-- ⛔ **The three lines above were ADDED 2026-08-20**: each had a live 🟡 body in [follow-ups.md](./follow-ups.md) and **no index line here** — invisible to the register the PO reads from. `lint:progress` checks index→body and **never body→index**, so nothing could contradict it — lead
+- ⛔ **The three lines above were ADDED 2026-08-20**: each had a live 🟡 body in [follow-ups-open.md](./follow-ups-open.md) and **no index line here** — invisible to the register the PO reads from. `lint:progress` checks index→body and **never body→index**, so nothing could contradict it — lead
 - ⛔ **`FUP-DISPOSE-DIALOG-OVERCLAIM`'s closure instrument was SWAPPED 2026-08-20** — grep over `src/` → a rendered-output assertion (`referral-dispose-dialog.test.tsx` claim 2, property now shared from [`disposal-copy-property.ts`](../../src/components/dsr/disposal-copy-property.ts)). The grep's measured record was **0 true positives / 4 false positives** (every match was prose *about* the defect — `FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING`, **closed 2026-08-20 by dissolution**, body in [follow-ups-archive.md](./follow-ups-archive.md); its instrument lesson is now `.claude/rules/ui-copy-forbidden-strings.md`); its "nothing, comments included, may contain those strings" prohibition **dissolves with it**. Do not re-run it to re-verify that item — lead
 
 ### The 2026-08-24 gate-tooling rotation note

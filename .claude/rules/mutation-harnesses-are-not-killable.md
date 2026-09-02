@@ -4,7 +4,7 @@ paths:
 anchors:
   - supabase/tests/mutation/p0-authz-door-audit.sh
   - supabase/tests/mutation/p0-authz-writepath-audit.sh
-  - docs/progress/follow-ups.md#meeting_cases_staff_admin_update
+  - docs/progress/follow-ups-open.md#meeting_cases_staff_admin_update
 source: AE1.5 incident 2026-08-27 — a killed sweep left an UPDATE policy qual=true wc=true for ~4 min
 ---
 

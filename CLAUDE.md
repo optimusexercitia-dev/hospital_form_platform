@@ -309,8 +309,8 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
    risks) and **waits** for explicit approval.
 5. **Record** — lead updates PROGRESS.md and **moves everything the phase completed out
    of it in the same edit**: the phase row → `docs/progress/phase-ledger.md` (verbatim),
-   task detail → `docs/progress/<phase>.md`, resolved follow-up lines →
-   `follow-ups-archive.md`, closed bugs → `bug-log-archive.md` (mechanics:
+   task detail → `docs/progress/<phase>.md`, resolved follow-up **entries** (register →
+   archive) → `follow-ups-archive.md`, closed bugs → `bug-log-archive.md` (mechanics:
    lead-playbook §§4–5; `npm run lint:progress` REDS on anything completed left behind).
    Updates `docs/backend-state.md` if the backend surface
    changed, and commits `phase(N): complete — <summary>`. **Name the authz ARM, never the script:**
@@ -330,12 +330,22 @@ Every teammate updates **only their own** rows/sections; the lead owns § Now an
 trigger its own trigger, so if nothing here sends you to PROGRESS.md, the contract below
 never loads.
 
+⛔ **Follow-ups do NOT live in PROGRESS.md.** The OPEN register is
+**[docs/progress/follow-ups-open.md](docs/progress/follow-ups-open.md)** — **one entry per
+item** (severity · id · title · owner · **origin** · body), appended per the template in its
+header; there is no second index to keep in sync. PROGRESS.md keeps only § Critical FUP
+(PO-curated, and **additive** — a row there adds a trigger and a deadline to an item that
+still keeps its register entry). Parked → `deferred-backlog.md`; resolved →
+`follow-ups-archive.md`. ADR
+[0179](./docs/decisions/0179-follow-up-register-consolidation.md).
+
 **The contract is not restated here** (that second copy is what drifted). It loads from
 [progress-contract.md](.claude/rules/progress-contract.md) when you open PROGRESS.md or
 `docs/progress/`, and `npm run lint:progress` (gate 7) is its authority — what leaves,
-where it goes, the one-line form, and the two protected sections all live there. The
-durable backend-surface map is **`docs/backend-state.md`** — reference it instead of
-re-deriving the backend each phase.
+where it goes, the one-line form, and the **one** protected section (§ Critical FUP) all live
+there. ⛔ That used to read "the two protected sections"; ADR 0179 moved the OPEN follow-up
+index out of this tracker, so there is no second one. The durable backend-surface map is
+**`docs/backend-state.md`** — reference it instead of re-deriving the backend each phase.
 
 **Review cadence for CLAUDE.md _and_ `.claude/rules/`:** a `Stop` hook
 (`scripts/claude-md-review-signal.mjs`) scans each finished session's transcript for

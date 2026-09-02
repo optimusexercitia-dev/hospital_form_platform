@@ -1,12 +1,119 @@
-# Follow-ups — live detail (OPEN items)
+# Follow-ups — the OPEN register
 
-Full bodies of **open** follow-ups, rotated out of PROGRESS.md 2026-08-08 to keep the
-tracker small (CLAUDE.md §7). PROGRESS.md keeps a one-line index (id · severity · title ·
-owner) — **update BOTH when an item changes state**. Resolved items move to
-[follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
-in [deferred-backlog.md](./deferred-backlog.md).
+**This file is the single register of open follow-ups.** One item = **one entry**, holding its
+severity, id, title, owner, origin and full body **together**. There is no separate index to keep
+in sync: that split lived in `PROGRESS.md` from 2026-08-08 until **2026-09-02**, and eliminating it
+is what this file is for (ADR [0179](../decisions/0179-follow-up-register-consolidation.md)).
+
+> ⛔ **New follow-ups are filed HERE, never in PROGRESS.md.** PROGRESS.md keeps a pointer to this
+> file and nothing else — except the PO-curated **§ Critical FUP** table, which stays there by
+> decision and is *additive*: a Critical entry adds a trigger and a deadline to an item that also
+> keeps its full entry here.
+
+---
+
+## How to append a follow-up
+
+**Append a new `###` entry at the END of this file.** Copy the template, fill every field, delete
+nothing. Do not add a line anywhere else — an entry here is the whole filing.
+
+```markdown
+### <severity> FUP-<SCREAMING-KEBAB-ID> — <the claim, in one line>
+
+**Filed:** <YYYY-MM-DD> (<origin — the phase / increment / review that produced it>) ·
+**Owner:** <role> · **Severity:** <emoji> — <why this severity and not the one above it>
+
+<Body. What is wrong · how it was MEASURED (command or file:line, not an impression) ·
+what would close it · and ⛔ what must NOT be mistaken for closing it.>
+```
+
+### The fields, and what each is for
+
+- **`<severity>`** — the leading emoji, repeated in the `**Severity:**` field with a reason.
+  There is no formal legend in this repo; the observed convention at the 2026-09-02 consolidation
+  was 🔴 13 · 🟠 46 · 🟡 61 · 🟢 1 · 🔵 2, read as *blocking · serious · minor · residual ·
+  informational*. ⛔ Because the legend is a convention and not a gate, **the inline justification
+  is the real signal** — an emoji with no reason beside it is unreviewable.
+- **`FUP-<ID>`** — `SCREAMING-KEBAB`, unique across this file, the archive and the backlog. It is
+  the join key every other document uses, so **it is permanent**: a rename orphans every
+  name-keyed verdict pointing at it. Name the *defect*, not the area.
+- **Title** — state the **claim**, not the topic. `FUP-X — the deriver spans the whole working
+  tree` is reviewable; `FUP-X — door sweep issue` is not.
+- **`**Filed:**`** — the date, then **the origin in parentheses**. ⭐ **This is the field that is
+  most often lost, and the one that makes an old entry actionable again.**
+- **`**Owner:**`** — `backend` · `frontend` · `tester` · `qa` · `lead` · `PO`, or a pair
+  (`backend/lead`). An unowned entry is a wish.
+- **Body** — see the template. The two clauses that earn their space are **how it was measured**
+  and **what must not be mistaken for closing it**.
+
+### The origin field, spelled out
+
+`**Filed:**`'s parenthesis names **the work that produced the follow-up** — the phase, increment,
+slice, gate run or review round. It is not decoration: it is how a reader six weeks later knows
+which plan, ADR and branch the entry belongs to.
+
+| Origin shape | Example |
+| --- | --- |
+| A phase | `(Phase 16)` |
+| A named increment / slice | `(AE4.5)` · `(AFF2 increment 3)` · `(DSR slice 3)` |
+| A review round | `(QA r2 of AE1)` · `(AE3 review, finding F6)` |
+| A gate or sweep run | `(diff-scoped door sweep, AE4.7c)` |
+| An ad-hoc session | `(ad-hoc: PROGRESS.md consolidation 2026-09-02)` |
+
+⛔ **A bare date is not an origin.** ⛔ Neither is a bare ADR number — cite the ADR *in the body*,
+and name the work that produced the finding here. If an entry's only record of its origin is a
+phase doc, that record disappears at the next Record step: a deferral surviving only in rotated
+narrative is indistinguishable from an oversight.
+
+### Reading the register
+
+The entry headings **are** the index — there is nothing to regenerate and nothing that can drift:
+
+```bash
+grep -n '^### ' docs/progress/follow-ups-open.md
+```
+
+---
+
+## When an item changes state
+
+- **Still open, facts changed** → edit the entry **in place**. One entry, one edit, one place.
+- **Resolved** → move the whole entry **verbatim** to
+  [follow-ups-archive.md](follow-ups-archive.md), appending **before** the cut and `cmp`-verifying
+  before deleting the source. ⛔ Never delete an entry to resolve a gate finding.
+- **Open, but nobody can act on it next session** → move it to
+  [deferred-backlog.md](deferred-backlog.md), which `check-progress-doc.mjs` also treats as a live
+  register. ⛔ Not a place for work somebody *can* pick up next session.
+- **A standing prohibition with no resolution event** ("never fix X by granting Y") → it is not a
+  follow-up at all; it belongs in `.claude/rules/`, path-scoped, under ADR 0127's admission filter.
+
+⛔ **Never compress an open entry to save bytes.** This file has no size cap, precisely so that
+pressure never lands here: *compression under cap pressure cuts qualifiers first*, and this
+register's measured failure mode is **prose rot, not stale subjects** — 6 of the 10 oldest entries
+carried a false sentence, always in the act/don't-act clause, always erring tighter so it reads as
+care.
+
+## The other registers
+
+| Register | Holds | File |
+| --- | --- | --- |
+| **This file** | every OPEN follow-up, entry + body | `follow-ups-open.md` |
+| Archive | resolved follow-ups, verbatim | [follow-ups-archive.md](follow-ups-archive.md) |
+| Parked backlog | open, not actionable next session | [deferred-backlog.md](deferred-backlog.md) |
+| § Critical FUP | PO-curated must-not-be-forgotten list, with triggers | [PROGRESS.md](../../PROGRESS.md#-critical-fup--the-must-not-be-forgotten-list) |
+
+## Standing notes carried from the PROGRESS.md index (2026-09-02)
+
+- 📦 **Deferred backlog — 33 open items (🟡 24 · 🟢 1 · ▶ 8)**, moved out of the live index 2026-08-19: open, but not actionable next session. Severity · id · claim preserved verbatim → [deferred-backlog.md](deferred-backlog.md)
+_**FUP-DM5-NO-ANSWER-VS-NOTHING** — ✅ resolved 2026-08-19, index in [follow-ups-archive.md](follow-ups-archive.md); its body deliberately STAYS in [follow-ups-open.md](follow-ups-open.md) as a review lens, not archived — see the archive's own rotation note. ⛔ **PO-RULED 2026-08-28: this note STAYS** — it is the live-register entry gate 7's residue check requires for that body, not concluded residue; cutting it reds the gate. Its two sibling notes rotated 2026-08-28._
+_Parked / deferred backlog — full detail (owner, rationale, repro) relocated to **[deferred-backlog.md](deferred-backlog.md)** to keep this tracker scannable; titles + pointers kept live below._
+- 📦 **Parked backlog — 27 items**, index and full detail (owner, rationale, repro) → [deferred-backlog.md](deferred-backlog.md)
+
+---
 
 ### 🟢 FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT — the de-duplication pass ran; 23 PARTIAL lines remain (owner: lead)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟢 **FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT** — ⭕ **DOWNGRADED 🟡→🟢 2026-08-31 when a de-duplication pass cut 55 lines and put the file UNDER target (76,629 / 81,920). ⛔ THAT CLAIM IS SPENT: re-measured 2026-09-01 at **86,097 / 81,920** — over again, after AE4's increments landed, and back to 91→86 KB only by the pre-AE4.8 rotation. ⚠ The lesson is the one this item exists for: a de-duplication pass buys headroom ONCE, and the register grows monotonically because the contract forbids rotating open lines.** ⛔ Not closed: the remaining **23** are PARTIAL — they carry facts the body does NOT, so cutting them is a MOVE-then-cut, not a cut. ⛔ Re-derive, never quote — lead
 
 > ## ⭕ DOWNGRADED 🟡→🟢 2026-08-31 — THE DE-DUPLICATION PASS RAN
 >
@@ -75,6 +182,8 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### 🟡 FUP-AE2-PERSON-PREAMBLE-THREE-COPIES — the person-authorization preamble exists in three independent TS copies, and that duplication is the mechanism behind this phase's recurring sibling-axis misses (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-AE2-PERSON-PREAMBLE-THREE-COPIES** — the person-authorization preamble (resolve the target's org → `authorizeOrgOps` → hospital arm) exists in **three independent TS copies**: `authorizePersonScopedAdmin` ·… — backend
+
 > Filed 2026-08-28 at AE2.4 increment 3, on the lead's ruling that assigned the third and
 > second copies to that increment. **Not a live defect** — all three were moved together and
 > agree today. It is filed because the STRUCTURE that made them able to disagree is still here.
@@ -121,6 +230,8 @@ in [deferred-backlog.md](./deferred-backlog.md).
 > or the unification above, which removes the subject instead of watching it.
 
 ### 🟠 FUP-AE1-REVOKE-SET-EXECUTION — 233 classified revokes are HELD, partitioned, and 137 of them are a silent no-op as written (owner: backend/PO)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-AE1-REVOKE-SET-EXECUTION** — AE1 classified 233 revokes and executed **none**; the partition is the deliverable (44 property-rescued · 5 name-rescued · **23 HOLD** · 161 UNCHANGED, and ⛔ UNCHANGED is *unexamined*, not cleared). ⛔⛔ **137 of the 233 are a SILENT NO-OP as written** — reachable only via `PUBLIC`, so `revoke … from authenticated` leaves the predicate true and **no arm would notice**; probe `has_function_privilege` after every batch and treat an unmoved predicate as failure. ✅ RV3 = YES: revoking EXECUTE on a **constraint-referenced** function breaks writes to the constrained table (`42501`) — backend/PO
 
 > Filed 2026-08-27 at AE1's RV0 completion. Full decision record:
 > [authz-ae1-revoke-partition.md](../design/authz-ae1-revoke-partition.md). ⛔ **AE1 executed
@@ -169,6 +280,8 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### 🟡 FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY — 31 Tier-1 DEFINER doors confirm an object exists before checking authority (owner: backend/PO)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY** — 31 Tier-1 DEFINER doors raise a distinguishable not-found error BEFORE checking authority
+
 > Filed 2026-08-27 by AE1 close condition #3, the [tier-1 threat review](../design/authz-ae1-tier1-threat-review.md)
 > §4.2 (finding F-T1-2). **PO-ruled the same day: fixed OUTSIDE AE1.**
 >
@@ -203,6 +316,8 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### 🟠 FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED — ~25 child/vocabulary tables emit no audit row on any mutation (owner: backend/PO)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-CHILD-ENTITY-MUTATIONS-UNAUDITED** — 62 of 270 mutating Tier-1 DEFINER doors write ~25 child/vocabulary tables that emit NO audit row by either mechanism (no `audit_write` in closure, no `trg_audit_*` on the table)
+
 > Filed 2026-08-27 by AE1 close condition #3, the [tier-1 threat review](../design/authz-ae1-tier1-threat-review.md)
 > §4.3 (finding F-T1-3). **Architecture Rule 11 says every mutation emits a row.**
 >
@@ -236,6 +351,8 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### 🟡 FUP-DOC-RECLASS-OPERATION-ID — bind reclassification completion to a DB-minted, single-use operation id (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-DOC-RECLASS-OPERATION-ID** — bind reclassification completion to a DB-minted single-use operation id carrying the (version, new, old, sha) tuple; four loose params today — relational checks bound abuse but don't prove one-invocation provenance (PO obs #2 at the rulings, 2026-08-27) — backend
+
 > PO observation #2 at the 2026-08-27 [rulings](../design/authz-ae1-rpc-rulings.md)
 > approval. `reclassify_document` (begin; user-session, the real authorizer) and
 > `complete_document_reclassification` (completion; service-role) communicate through four
@@ -249,6 +366,8 @@ in [deferred-backlog.md](./deferred-backlog.md).
 > increment, not a rider. The ruled system-actor mechanism (rulings §3) stands meanwhile.
 
 ### 🟡 FUP-DOC-DISPOSAL-PROVENANCE-SPLIT — split `complete_document_disposal` by provenance (owner: backend/PO)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-DOC-DISPOSAL-PROVENANCE-SPLIT** — `complete_document_disposal` serves automated duplicate retirement AND human DSR/manual disposal through one generic door, erasing their different authz/evidence/audit requirements; lane (b) should name the human authority (PO obs #3, 2026-08-27) — backend/PO
 
 > PO observation #3 at the 2026-08-27 [rulings](../design/authz-ae1-rpc-rulings.md)
 > approval. One generic service-role completion door serves two provenances with different
@@ -266,6 +385,13 @@ in [deferred-backlog.md](./deferred-backlog.md).
 > system-owned (`documents/actions.ts:reclassifyDocument`).
 
 ### ⬛ FUP-DM5-NO-ANSWER-VS-NOTHING — ✅ **ALL SIX INSTANCES CLOSED 2026-08-19** — *"I could not look"* is not distinguished from *"I looked and found nothing"* (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
+
+**Retained** — resolved, and **PO-ruled 2026-08-28 to STAY in the open register** as a review
+lens rather than move to the archive. Its *index* line was archived at the time; this body was
+deliberately not. ⛔ This is the one standing exemption from "no resolved entry in the open
+register" (gate 7 `checkRegisterResolved`), and it is written here rather than allowlisted in the
+script so that the exemption is readable by whoever next reads the entry. Do not archive it
+without a new PO ruling.
 
 > ## ✅ CLOSED 2026-08-19 — the last open instance is fixed, and the class statement is KEPT
 >
@@ -514,6 +640,8 @@ reached the document.**
 
 ### 🔴 FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM — the § 6b procedure is **local-only by construction**, and on Cloud there is **no Storage backup at all** (owner: PO decision, then backend + lead; **Rule 12 / LGPD / ANVISA-RDC**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM** — ⭐ **CRITICAL FUP C3 (PO-promoted 2026-08-19).** § 6b's mechanism is `docker exec … tar`, local-only; managed backups **exclude Storage objects by documented design** ⇒ **the pilot platform has NO Storage recovery point at all**. ⭐ It **inverts** its parent: an *absent* backup, not an over-wide one — PO/backend/lead
+
 Filed 2026-08-19, from the § 6b first execution (finding **F5**;
 [run log](../deployment/phi-backup-run-log.md)). **This is the residue that
 `FUP-DM5-BACKUP-IS-PHI-EXPORT`'s close does not absorb**, named rather than dropped.
@@ -558,6 +686,8 @@ rehearsed like any other. ⚠ Note (b) overlaps **`FUP-DM5-CLOUD-ORPHAN-SURFACE`
 
 ### 🟠 FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED — the runbook's own DB-half verification creates **two plaintext PHI copies with no handling rule** (owner: PO decision, then backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED** — ⭐ **CRITICAL FUP C4 (PO-promoted 2026-08-19).** § 6b's five values are scoped to *"the archive"*, yet the same section mandates a `db dump` + **scratch database** to earn *"verified good"* — neither governed, and nothing says to drop the scratch DB. ⚠ **Reachable on Cloud today** — PO/backend
+
 Filed 2026-08-19, from the § 6b first execution (finding **F6**).
 
 > ⭐⭐ **PROMOTED TO § Critical FUP as C4 on 2026-08-19, by explicit PO instruction.** Its **trigger**
@@ -591,6 +721,8 @@ record both in the run log. **What is owed:** the PO extending the five values e
 that the DB half is covered by the managed backups and the restore test is not to be run at all.
 
 ### 🟠 FUP-DM5-DISPOSAL-JOB — nothing completes a disposal: `disposal_pending` has three inflow doors and **zero automated outflow** — ⭐ **Critical FUP C1** (owner: PO; the decision is discharged, the REHEARSAL is not)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DM5-DISPOSAL-JOB** — ⭐ **CRITICAL FUP C1, split into C1a (local) + C1b (Cloud) on 2026-08-18; the pilot bound is C1b.**
 
 > ## ⭕ SPLIT 2026-08-18 (DM-FUP TRIAGE #3) — **C1a (local) + C1b (Cloud); C1 does NOT close on C1a**
 >
@@ -683,6 +815,8 @@ true as the runbook is actually executed.
 
 ### 🔵 FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN — ⚠ **HALF RESOLVED 2026-08-17: the guard no longer fails open; the arm is still a no-op awaiting a NAMED successor** (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔵 **FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN** — **⚠ HALF RESOLVED 2026-08-17 (`24cee179`): the fail-open half is fixed and proven; the arm is still a no-op pending a NAMED successor (deliberately not re-pointed — a successor must be named,…** — backend
+
 > ## ✅ SUCCESSOR NAMED 2026-08-18 (DM-FUP TRIAGE #5) — **`app.resolve_document_version_bytes`**, and the arm moves into Critical FUP C2 Tier 1
 >
 > The item required that the successor be **named, not guessed**. It was **derived from the live
@@ -739,6 +873,8 @@ fire is not a guard.
 
 ### 🟠 FUP-DM5-D9-NO-ARM-SEES-A-BYTE-POST-RETIREMENT — after `…000400` applies, the retirement tool has no Cloud-visible arm left (owner: backend; **input to S5/S6 + the deploy runbook**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DM5-D9-NO-ARM-SEES-A-BYTE-POST-RETIREMENT** — **once `…000400` applies, `capture` prints `CAPTURE CLEAN` and the only arm that can still see a surviving byte is the volume `walk`, which is `STORAGE_BACKEND=file` local-only ⇒ on Cloud, pos** — backend
+
 Filed 2026-08-17 (lead) from QA's DM5·S4 review MINOR-5. **Scoped to the new half only** —
 FUP-DM5-STORAGE-ORPHANS is separately open and not re-litigated here.
 
@@ -773,6 +909,8 @@ during the deploy.
 
 ### 🟠 FUP-DM5-STACK-CYCLE-DESTROYS-BYTES — a `supabase stop`/`start` recovery destroyed 221 storage objects (15 PHI-tier) with **no manifest, no count comparison, no audit** (owner: lead + backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES** — **a `supabase stop`/`start` recovery destroyed 221 storage objects (15 PHI-tier) with no manifest, no count comparison, no audit — the event ADR 0120 D9 exists to prevent, inside the slice tha** — lead/backend
+
 Filed 2026-08-17 (lead) from QA's DM5·S4 review **B1**. Full measurement, timeline and cause: the
 S4 OUTCOME block under **FUP-DM5-STORAGE-ORPHANS** above.
 
@@ -800,6 +938,8 @@ the guard to anything touching a data-bearing stack. ⛔ **Do not resolve it by 
 one "should" capture first** — that is the failure mode this phase has now paid for repeatedly.
 
 ### 🟠 FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES — D11's "superseded bytes retire via `disposal_state`" is **not performed, and nothing can perform it** (owner: PO decision, then backend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES** — ✅ **DECIDED 2026-08-18: BUILD IT, at retention expiry** — backend
 
 > **PO 2026-08-16: DECIDE LATER.** Asked directly at S4 authorization; the PO chose to leave the inline
 > `⏳ CONTESTED` pointer in ADR 0120 D11 and keep this open. Nothing in S4 depended on it. **Still owed
@@ -860,6 +1000,8 @@ D11 to say superseded bytes are **retained** and the overlay is the only distinc
 ⛔ Do **not** resolve it by adding a comment saying retirement "should" happen.
 
 ### 🟠 FUP-DM5-SUPERSEDE-SERVING-COLLISION — ✅ **RULED 2026-08-18: the marking trigger moves to RETENTION EXPIRY; the serving gate is untouched.** Implementation gated on Critical FUP C1 (owner: **backend**; the PO half is discharged)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DM5-SUPERSEDE-SERVING-COLLISION** — ✅ **PO-RULED 2026-08-18 as option (b): supersession no longer marks bytes; the trigger moves to RETENTION EXPIRY** — backend
 
 > ### ✅ PO RULING 2026-08-18 — **RESOLVED AS (b): the marking TRIGGER moves to RETENTION EXPIRY. The serving gate is NOT touched.**
 >
@@ -971,6 +1113,8 @@ column before believing the keystone.**
 
 ### 🟠 FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS — the first 8 measurements of the new command-door neutralizer found 3 BLIND (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS** — the new command-door neutralizer's first 8 measurements found **3 BLIND**: `public.nsp_org_capa_rollup`, `public.cancel_event` (both **0** pgTAP mentions) and ⚠ `public.cancel_session` — which **has** a test that still does not notice its guard vanish (*presence of coverage is not a verdict*). Each needs a keystone; ⛔ **never allowlist a BLIND here** — floor and this arm would then agree while both measure nothing → [design](../design/authz-c2-command-door-neutralizer.md) §8 — backend
+
 > Filed 2026-08-31, from the subset that PROVED
 > [`c2-command-door-neutralizer.sh`](../../supabase/tests/mutation/c2-command-door-neutralizer.sh)
 > (design: [authz-c2-command-door-neutralizer.md](../design/authz-c2-command-door-neutralizer.md)).
@@ -1003,6 +1147,8 @@ column before believing the keystone.**
 > three named rows, and says nothing about the other 163 — the full sweep, and C2 itself, stay open.
 
 ### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one (⭕ **re-derived 426 at the AE1 Record step 2026-08-27, then **427** (345 `public` + 82 `app`) on 2026-08-31 — and the figure is now DERIVED by `ARM=census`'s own banner each run, so this chain ends here rather than needing a next link**), and the class was read as COVERED-BUT-UNPINNED — ⛔ FALSIFIED 2026-08-31, see the amendment below** — ⭐ **Critical FUP C2** (owner: lead + backend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — ⭐ **⭐ CRITICAL FUP C2. `ARM=census`'s DEFINER clause is bounded to `bool`/set-returning, so **427** reachable non-trigger command doors (**345** `public` + **82** `app`) sit outside every arm's domain. ⛔ **CORRECTED 2026-08-31: this line still carried the 2026-08-17 figure of 407 — TWO re-derivations behind § Critical FUP C2's own row (407 → 426 at the AE1 Record step → 427), in the register the PO reads from.** Its "(326 RPC-callable)" sub-figure was cut, not updated: no re-derivation carries a successor to it. ⛔ Take the figure from `ARM=census`'s banner, which derives it each run — never from this line. ⭕…** ⭕ **EXTENDED 2026-08-23 (AFF2 B1): `trigger`-returning `prosecdef` gates are in no arm's domain EITHER, and this item's own word "non-trigger" excluded them** — `guard_profile_privileged_columns` is now the only in-DB control over the two new person columns. ⛔ Not a live hole (no PUBLIC/`anon` grant; a direct call outside trigger context raises) — a **measurement-domain** gap. ⭕ **TIER 1 SIZED 2026-08-31** → [authz-c2-tier1-sizing.md](../design/authz-c2-tier1-sizing.md): the ruled predicate returns **405 of 427 (94.8 %)** — the split does not split, the tenancy disjunct is the vacuous half, and a **PO ruling is owed**. ⛔ Sizing closed nothing here — no door has a verdict — lead + backend
 
 > ## ⭕ AMENDED 2026-08-31 (ADR 0171) — RE-GRAINED, INSTRUMENTED, AND NO LONGER "COVERED-BUT-UNPINNED"
 >
@@ -1186,6 +1332,8 @@ re-run to **194f/6392 PASS** to prove the stack was returned to baseline.
 
 ### 🟡 FUP-ACL-APP-POPULATION — ⭕ **RE-SCOPED 2026-08-17: the assertion is BUILT; the 237-function triage is what remains** (owner: backend + PO)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 > **✅ The blind spot is closed.** `320` block U (+4, plan 10 → 14) replaces the 8-name
 > allowlist with a **schema-bounded** population pin, so a new `app` door with a default
 > ACL reds immediately instead of inheriting no coverage. U2/U2b are the t19c-style
@@ -1238,6 +1386,8 @@ retain EXECUTE) or a fix that over-reaches will pass the security half while bre
 
 ### 🟠 FUP-DM5-SIBLING-GUARD-DIFF — **no authz arm can see a door that OMITS a check its sibling doors all make** (owner: lead + backend; a gate-coverage gap, not a defect)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DM5-SIBLING-GUARD-DIFF** — **no authz arm can see a door that OMITS a check its siblings all make** — lead/backend
+
 > ## ⭕ FOLDED INTO CRITICAL FUP C2 TIER 1 — 2026-08-18 (DM-FUP TRIAGE #5)
 >
 > This wants a transitive catalog guard-set diff over `prosecdef` doors. So does C2's Tier-1 door sweep
@@ -1280,6 +1430,8 @@ it is *before* writing it, and if it lands as periodic, say so in §6 rather tha
 
 ### 🟡 FUP-ROTATION-BREAKS-LINKS — **every §6-step-5 rotation silently 404s its own links; 474 are broken today** (owner: lead)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Filed 2026-08-17 (lead), **measured, not inferred** — a link-resolution sweep over the four rotation
 destinations after this pass's own rotation.
 
@@ -1326,6 +1478,8 @@ repointed. All four now state exactly what holds: **prose verbatim, link targets
 
 ### 🟡 FUP-PGTAP-WORKER-DEADLOCK — `npm run test:db` intermittently deadlocks a `pg_prove` worker (owner: backend)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Filed 2026-08-14 (lead), also carried out of prose. Non-deterministic; observed during DM5 gate runs.
 Impact is **assurance, not correctness**: a hung/aborted worker can drop a suite from the run, and a
 suite that never ran is not a suite that passed — the same shape as
@@ -1341,6 +1495,8 @@ how a real cause gets closed early. Whoever picks this up should start by checki
 hangs correlate with `342` being in flight at all.
 
 ### 🔴 FUP-PGTAP-VACUOUS — `lint:vacuous` scans TS spec files ONLY; ~6000+ pgTAP assertions are entirely unscanned, and a live specimen was found (owner: lead + backend; a program-level audit, NOT a phase side quest)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-PGTAP-VACUOUS** — `lint:vacuous` scans TS specs only; ~6348 pgTAP assertions unscanned, live specimen in a PHI-boundary suite. The sweep must be **proven able to fail** first — lead/backend
 
 Filed 2026-08-14 during DM4. **Found by `backend` while re-reading a suite it had to edit, and
 lead-confirmed.**
@@ -1373,6 +1529,8 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 ([[detector-that-finds-nothing-must-be-proven-able-to-find-something]]).
 
 ### 🟠 FUP-DM5-STORAGE-ORPHANS — a **LOCAL** DB reset wipes `storage.objects` but NOT the bytes; ⚠ **the REMOTE half was a stale inference and is now demoted to residual** (owner: lead + backend; blocks DM5 step 3 **locally**)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DM5-STORAGE-ORPHANS** — ✅ **Local half CLOSED empty by measurement 2026-08-17** — lead/backend
 
 > ## ⭐ MECHANISM MEASURED 2026-08-18 — the guard exists, and TRUNCATE walks past it
 >
@@ -1596,6 +1754,8 @@ buckets and lists *from* `storage.objects`, so it cannot see this class either �
 
 ### 🔴 FUP-AUTHZ-HARNESS-TRANSACTIONAL — the door-audit harness neutralizes OUTSIDE a transaction, so process death leaves an authz gate OPEN (owner: lead + backend; filed 2026-08-14, DM5 S2, after it happened)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — **PARTIALLY RESOLVED 2026-08-17 (`4102149b`); the filed remedy was WITHDRAWN as unbuildable** — lead/backend
+
 **It happened.** During DM5 S2, `app.can_write_document` — the gate for **every** document write across all
 eight home types — sat live with the body `begin return true; end` on the shared stack. **An
 unconditional allow.** Found by `tester`, which halted all E2E rather than produce green results against
@@ -1665,6 +1825,8 @@ is process death mid-run, which subagent turn boundaries make routine. Related:
 left a gate open and `| tail` masked exit 2 as 0.
 
 ### 🔴 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-DM4-PRODROW** — ⭕ **UNBLOCKED 2026-08-18: the probe answered its blocker (no Cloud orphan surface), and this item's "~49 vanished" figure is WITHDRAWN as unsound arithmetic.** The subject is still erased, not reconciled — lead/backend
 
 > ## ⭕ UNBLOCKED 2026-08-18 — the blocker is answered, and **this item's own headline figure is WITHDRAWN**
 >
@@ -1839,6 +2001,10 @@ table that was just truncated is not an emptiness proof.* Verify before DM5 reli
 
 ### 🟡 FUP-PREVIA-MINT-FLAG-ASYMMETRY — `HC0DV` refuses a prévia on the premise that the mint is reachable, and the mint's preconditions are a STRICT SUPERSET (owner: backend; found by `qa` in the r2 re-review of the ADR 0125/0126 build)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-PREVIA-MINT-FLAG-ASYMMETRY** — `HC0DV` refuses a prévia on the premise the mint is reachable; the mint’s preconditions are a strict superset — lead
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
+
 Filed 2026-08-18 (lead), on `qa`'s **O1** — graded an observation, not a blocker, and the grading is right.
 Measured from the live catalog by `qa` and **re-measured independently by the lead**:
 
@@ -1882,6 +2048,10 @@ it first appears.
 - **O3** — C5's 404-collapse comment now describes two refusal paths where it names one.
 
 ### 🟡 FUP-E2E-SUBMITTED-POOL-UNSCOPED — the shared submitted-response pool has no `case_phase_id is null` filter, and the one-line fix BREAKS a passing test (owner: tester + backend; **needs `seed.sql` or pool-math work, not a filter**)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-E2E-SUBMITTED-POOL-UNSCOPED** — the shared submitted-response pool has no `case_phase_id is null` filter and the one-line fix BREAKS a peer spec — lead/tester
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 
 Filed 2026-08-18 (lead) on `tester`'s finding during the ADR 0125/0126 E2E build. **`tester` correctly
 declined to fix it** and flagged the trap in the obvious repair — that judgement is the reason this is a
@@ -1980,6 +2150,8 @@ of an adjacent artifact returns a confident zero.**
 
 ### 🟠 FUP-SUPERSESSION-BADGE-LANE-BLIND — `resolveSupersessionBadge` mirrors an aggregation rule but drops that rule's OWN lane restriction, so a phase-bound response gets the grain ADR 0126 D8 rejected (owner: frontend + backend; **ADR 0074/0085 axis — NOT the print-currency axis**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-SUPERSESSION-BADGE-LANE-BLIND** — `resolveSupersessionBadge` (`queries/submissions.ts`) mirrors `app.submitted_form_responses`' exclusion but **drops that rule's own `case_phase_id is null`**, so phase-bound rows take… — frontend/backend
+
 Filed 2026-08-18 (lead). Found by `frontend` during the ADR 0126 Amendment 1 **§K sweep**, and **outside that
 sweep's bound** — §K bounds on `printed_documents.status`; this is ADR 0074's supersession axis. It surfaced
 because the sweep's vocabulary caught the word *"Atual"*, i.e. **by accident, not by coverage**. Measured from
@@ -2073,6 +2245,10 @@ with **one code path and one badge** so nothing distinguishes them. Same family 
 
 ### 🟡 FUP-LINT-VECTOR-DIMENSION-DRIFT — propose a lint gate over shared SQL↔TS **vector fixtures**: a declared dimension that no vector varies, or a consumer that silently drops one (owner: lead + PO; **a gate change is not a mid-build edit**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-LINT-VECTOR-DIMENSION-DRIFT** — a proposed lint gate over shared SQL↔TS vector fixtures (filed, deliberately NOT built) — backend
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
+
 Filed 2026-08-18 (lead) during the ADR 0125/0126 prévia build, on `backend`'s proposal. **Deliberately not
 built in that build** — CLAUDE.md §8's own record is that each of the seven gates was added *after* its class
 shipped a live defect, one at a time and on its own evidence. This one already has its evidence; what it does
@@ -2119,6 +2295,8 @@ whoever happens to be mid-build.
 
 ### 🟡 FUP-LINT-STALE-SYMBOL-COMMENT — propose a 6th lint gate: a comment naming an identifier that no longer exists (owner: lead + PO; a gate change is not a mid-phase edit)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Filed 2026-08-13 during DM3. Every one of the five gates in `npm run lint` was added **after**
 its class shipped a live defect (CLAUDE.md §8). This class qualifies twice over: **~6 instances
 in DM3 alone**, plus 4 historically, **one of which shipped a live bug**.
@@ -2246,6 +2424,8 @@ family/module resolution · a catalog arm · a diff base · and a first dry-run 
 
 ### 🟡 FUP-PGTAP-SAVEPOINT — ⚠ **DOWNGRADED 2026-08-13 (🔴→🟡): the original claim was WRONG. No coverage is being lost** (owner: lead + backend)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 > ## ⛔ CORRECTION — read this before the original text below
 >
 > **Measured on a clean reset (the run this follow-up demanded): `193` → `ok`, `194` → `ok`,
@@ -2336,6 +2516,8 @@ real numbers come from `npm run test:db` on a **fresh `supabase db reset`**.
 
 ### 🟡 FUP-DM3-ETHICS-UI — no UI can attach a decision letter to an ethics case; DM3 ships both seams writable via the API only (owner: PO, a feature phase)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Filed 2026-08-13 at DM3 open, as the recorded half of a PO scope ruling. **This is a
 decision, not an omission** — a later reader finding two write-only columns must land here
 rather than infer neglect.
@@ -2368,6 +2550,8 @@ its own threat model and E2E. Until then the columns are write-only by design.
 
 ### 🟡 FUP-ETH-KBD-1 — the professional lane's `TypeaheadField` mount is keyboard-UNTESTED, so BUG-ETHE4-FOCUS-1's defect is not ruled out there (owner: frontend + tester)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Carried out of **BUG-ETHE4-FOCUS-1** when that bug was rotated to
 [bug-log-archive.md](./bug-log-archive.md) on 2026-08-12. It was filed inside the bug as *"not
 confirmed, flagged as a hypothesis for whoever fixes it"*; archiving it under the bug's ✅ would
@@ -2394,6 +2578,8 @@ together.
 
 ### 🟡 FUP-ETH-A11Y-1 — the ETH·E4 dialogs: error text is never `aria-describedby`-wired, and the typeahead announces neither loading nor result count (QA m3 + m4; owner: frontend + tester)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 > ✅ **BUILT in the working tree 2026-08-12 (`frontend`) — NOT committed. Awaiting the tester
 > batch.** m3: both files now pass `hasError`/`hasDescription` into `useFieldIds`, spread
 > `controlProps`, and put `id={errorId}` / `id={descriptionId}` on `FieldError` /
@@ -2442,6 +2628,8 @@ its own, but it belongs with m4 as one a11y pass. Both are QA-rated MINOR and no
 
 ### 🟡 FUP-E2E-SERVER-DEAD-1 — the prod-standalone server dies under load in ~3 of 17 batches, and `BATCH_TESTS=22` is the known rescue (owner: unassigned)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Filed from the ETH·E4 handoff §3, where it was called out but never given an id. In one
 `e2e:prod` run, batches **5, 16 and 17 all hit `server_dead=1`**; 5 and 17 recovered on the
 automatic `INFRA_RETRY`, **16's retry died too**, leaving 69 tests with no verdict and turning
@@ -2507,6 +2695,8 @@ same change. Three variables moved at once; the confound is recorded rather than
 
 ### 🟡 FUP-ACT-HATLESS-AUDIT — a hatless read's audit row omits the `acting_as` KEY, and absence has three meanings (S4 QA MINOR-6; owner: backend)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Catalog-verified in `app.audit_write`:
 
 ```
@@ -2534,6 +2724,8 @@ deliberately out of S4, which shipped none.
 
 ### ▶ FUP-MIN-CUTOVER — audio-minutes pre-enable gates (feature merged, flag OFF)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Owner: lead + human. Before the pilot flag flips (runbook §6 checklist is authoritative):
 - [x] **Remote `db push`** — ✅ DONE (discovered already applied; catalog-verified 2026-08-06:
       302/302 migrations incl. AFF `20260909*` + MIN `20260910000100–400`, all 13 MIN functions
@@ -2567,6 +2759,8 @@ Owner: lead + human. Before the pilot flag flips (runbook §6 checklist is autho
 
 ### 🟢 FUP-QO-6 — oversight-toggle slow-confirm: **annoyance severity ACCEPTED provisionally (PO ruling 2026-08-07)**; open LOW priority, DB-vs-UI formally unclassified
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 **PO ruling 2026-08-07 (D-FUP-6b):** after 16 total trials with 0 recurrences (15 isolated +
 1 full-load gate with a continuous ~12,100-sample out-of-process poller — see the Test Run
 Summary row), the stale-UI (annoyance) assumption is **accepted provisionally for the pilot**.
@@ -2630,6 +2824,8 @@ scratchpad (not committed — out-of-band per the task's own instruction), `over
 
 ### 🟡 FUP-AFF-4 — make the membership-role list a Postgres ENUM (2026-08-06)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Raised by `backend`, and it is the durable fix for N1. `memberships_role_check` is a `CHECK` over
 `text`, so the role list reaches **no** generated type (`grep technical_director_deputy
 src/lib/types/database.ts` → 0 hits) and **no unit test can see the authority**. N1's remedy is a
@@ -2645,6 +2841,8 @@ Decide before the role set next changes, not after.
 
 ### 🟡 FUP-AFF-2 — D7's "documented escape for a foreign professional" is unreachable (2026-08-06)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Raised by `backend` at W3 close-out. ADR 0097 **D7** makes `profiles.cpf` nullable *specifically* so a
 foreign professional without a CPF can be registered "without a later schema change" — and then
 requires CPF **at the action layer**. W3 implemented the requirement (correctly: without it the
@@ -2659,6 +2857,8 @@ not after.
 
 ### 🟡 FUP-SILENT-READ-1 — ~207 PostgREST reads never destructure `error` (2026-08-11, lead)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Surfaced during ETH·E4 when `tester`, enumerating the blast radius of the
 `professional_profiles` column-list grant, noticed `getCaseDetail`'s professional embed
 (`src/lib/queries/cases.ts:1358`) never destructured `error`. On any failure `profRows` is
@@ -2691,6 +2891,8 @@ which is why ~207 is quoted as heuristic rather than audited. Script in `backend
 scratchpad. Owner: unassigned — needs a triage decision before anyone starts.
 
 ### 🔴 FUP-AFF-1 — the authz census is BLIND to write-path doors (2026-08-06, lead)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-AFF-1** — the census is BLIND to write-path doors (ADR 0079 Am. 5); ⛔ cite `302`'s keystones, **never `ARM=census`** — backend/harness
 
 Recorded as ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 5**.
 **Does not block AFF** — but AFF's gate record must **not** cite `ARM=census` as coverage for its
@@ -2739,6 +2941,8 @@ concern — INVESTIGATED, **not a bug**; ⚠ confirming a *pattern* is present i
 *defect* is present).
 
 ### 🔴 FUP-PCITV-1 — PCI + TV: what QA APPROVED **over**, ranked (2026-08-05)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-PCITV-1** — what QA APPROVED **over**, ranked: 5 open (TRUNCATE revoke residue · audit-mesh 2/7 arms · unexercised org-admin disjunct · resolver/GUC semantics · 10 bare `for select` policies) — unassigned
 
 QA r2 approved with 7 items open. None blocks the merge; **two block a clean deploy story** and are
 called out in the Phase Status caveats above. Owner: unassigned unless noted.
@@ -2871,6 +3075,8 @@ follow-up is a claim about the code and ages like one — re-measure before impl
 
 ### 🔴 FUP-FF5-1 — patient-lane sublabel is degenerate on the READ path (**PO DEFERRED 2026-07-28**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-FF5-1** — patient-lane sublabel degenerate on the READ path (PO DEFERRED; resolve before the lane reaches a real committee) — backend
+
 The picker shows `Paciente / Paciente afetado`; the **durable submitted record** and wizard resume
 show `Paciente / Paciente`. `buildReferenceAnswers`' input row carries no case data, so it resolves
 the participant **type** while `reference_candidates` and `app.references_by_item` resolve the case
@@ -2890,6 +3096,8 @@ offered to a real committee.**
 
 ### ▶ FUP-E2E-1 — RE-BASELINE `e2e:prod` (cross-phase, PO-ruled 2026-07-27) — **blocks nothing**
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Replace the *"~18–27 expected failures"* folklore with a **named list**: run the suite on a clean
 stack and classify **every** failure as `infra` / `deterministic-real` / `genuinely-flaky`, each with
 an owner.
@@ -2905,6 +3113,8 @@ so raw totals misstate coverage in **both** directions.
 
 ### ▶ FUP-FF2-3 — whitespace-only observation, per-instance (DEFERRED by the lead 2026-07-27)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 After BUG-FF1-007 fixed the `<> ''''` quoting slip, the per-instance filters compare `<> ''` while the
 top-level one uses `btrim(...) <> ''` — so a **whitespace-only** observation is filtered at top level
 but not per instance.
@@ -2917,6 +3127,8 @@ the whitespace case is reachable only for **legacy rows**, the same population B
 
 ### ▶ FUP-FF1-2 — FF-1 QA non-blocking items (review r2: 4 MINOR / 6 INFO) — **7 still open**
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 All ruled non-blocking by `qa`. Detail rotated 2026-07-28 →
 [ff-1-repeating-groups.md](./ff-1-repeating-groups.md); canonical analysis →
 [phase-FF-1-review.md](../reviews/phase-FF-1-review.md) (the playbook's rule: never restate a
@@ -2933,6 +3145,8 @@ a binding FF-2/FF-5 requirement — **both phases have since discharged it**).
 > asserting something that is not true. Cheap to fix, invisible to every gate.
 ### ▶ FUP-FF1-1 — coherent fill-path hardening (post-pilot; ADR 0087 ruling 5)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 - [ ] Revisit **DEFINER + per-mutation audit for the whole fill path** — `answers`,
   `answer_selected_options`, `response_group_instances` **together**, as one change. Today all three
   are direct-DML-under-RLS with no per-row audit (Rule 11 is satisfied for filling at the *response*
@@ -2981,6 +3195,10 @@ owners kept live here).
 
 
 ### 🟡 FUP-E2E-REPEAT-FLAKY — ⭕ **DOWN TO TWO members 2026-08-17, and the "one root cause" hypothesis is now EVIDENCED, not merely suspected** (owner: lead + tester)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-E2E-REPEAT-FLAKY** — ⭕ TWO members, `act-role-assumption:157` + `phase2-auth-shell:268`: flaked in BOTH DM3 `e2e:prod` runs and again at DM5·S3 and DM5·S6 ⇒ an established pattern, not noise. — lead/tester
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 
 - 🟡 **FUP-E2E-REPEAT-FLAKY** — `act-role-assumption:157` + `phase2-auth-shell:268` flaked in **BOTH** DM3 `e2e:prod` runs ⇒ a pattern, not noise; outside the DM3 diff. **Both flaked again in DM5·S3's gate (3rd + 4th occurrence) — the pattern is now established, not suspected.** Both flaked again at DM5·S6's green gate. ~~Third member added 2026-08-14: `dm5-nsp-evidence.spec.ts:347` EVID-KBD-1~~ — **REMOVED 2026-08-17: root-caused and fixed (BUG-DM5-S6-EVID-KBD-1), so it was never a flake.** All were focus/navigation-timing shaped, matching the standing *"`.focus()` is not auto-waiting — it races RSC streaming"* class, which suggested **one** root cause rather than three flaky tests — lead/tester
 
@@ -3105,6 +3323,8 @@ owners kept live here).
 
 ### 🟠 FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER — a shipped phase absent from the append-only record (owner: lead)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER** — the ledger says *"every phase, forever"* and holds AE0 + AE1 but **no AE2 row**, though AE2 completed, was QA-approved and **shipped**. — lead
+
 - 🟠 **FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER** — found 2026-08-31 while writing AE3's ledger row.
   `docs/progress/phase-ledger.md` opens *"the append-only ledger of every phase this project has
   run"* and *"rows never leave — a missing row breaks the many places that point here"*. Measured:
@@ -3131,6 +3351,8 @@ owners kept live here).
   one was found by accident, which is not a method — lead
 
 ### 🟡 FUP-EVENT-PATIENT-POLICY-PREEMPTED — a PHI policy that never runs, and would arm silently (owner: backend + lead)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-EVENT-PATIENT-POLICY-PREEMPTED** — `event_patient` (Class-1 PHI) carries a live `event_patient_select` policy while `authenticated` holds **no table grant**, so the policy is **pre-empted dead code**: table privilege is… — backend + lead
 
 - 🟡 **FUP-EVENT-PATIENT-POLICY-PREEMPTED** — surfaced 2026-08-31 by QA's AE3 round-2 review
   (finding B6, an out-of-scope observation), while correcting ARCHITECTURE.md's zero-policy class
@@ -3168,6 +3390,8 @@ owners kept live here).
   table grant?** This one was found by eye, which is not a method — backend + lead
 
 ### 🟡 FUP-E2E-AE3-TWO-NOVEL-FLAKES — two names outside the baseline, ONE observation each, disposition UNDECIDED (owner: lead + tester)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-E2E-AE3-TWO-NOVEL-FLAKES** — ⭐⭐ **TWO full runs on the same tree, hours apart: 2 baseline names flaked in BOTH, and 5 one-shot names flaked in exactly one each, with ZERO overlap between the two one-shot sets.** A CHURNING flake population points at an environment-level cause, not five per-spec defects — and ⛔ a NAME-keyed baseline (plan rule 11) cannot represent it: promoting each one-shot grows the baseline without bound, refusing leaves rule 11 silent. **That gap is the finding.** Run 2 was `1251 passed · 0 failed · 5 flaky` (green by the gate's definition). AE3's first run produced **two flakes whose names are NOT in `FUP-E2E-REPEAT-FLAKY`**, so plan rule 11 forbids absorbing them into that baseline: (a) `ethics-e4-participants.spec.ts:1247` **KBD-2** — `tabTo: target never received focus via keyboard Tab` (:701); FAILED both attempts in batch 6, then **passed cleanly** in a targeted re-run minutes later. (b) `phase14a-safety-events.spec.ts:543` **AC-8a** — `worker process exited unexpectedly (code=3221226505)`, a Windows STATUS_STACK_BUFFER_OVERRUN, i.e. an infra crash rather than an assertion; passed on retry. ⛔ Both are ONE observation each — not a pattern, and admitting them to the baseline on one sighting is what makes a baseline stop meaning anything. ⚠ (a) is **focus/navigation-timing shaped, the same family as the two established members**, which is a reason to watch it, not to merge it. Owner: tester. **Next `e2e:prod` decides**: a second sighting of either ⇒ admit with a fingerprint; silence ⇒ close as noise — lead + tester
 
 - 🟡 **FUP-E2E-AE3-TWO-NOVEL-FLAKES** — AE3's first full `e2e:prod` (2026-08-31, branch
   `authz-ae3-private-details`) ended `1240 passed · 4 failed · 4 flaky`. **Three of the four
@@ -3259,6 +3483,8 @@ owners kept live here).
 
 ### 🟡 FUP-E2E-PROF-CREATE-ROSTER-FLAKE — `ethics-e4-participants.spec.ts:765` PROF-CREATE roster row, ONE observation, disposition UNDECIDED (owner: lead + tester)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-E2E-PROF-CREATE-ROSTER-FLAKE** — `ethics-e4-participants.spec.ts:765` PROF-CREATE roster row absent after inline create (:787, 10 s); ONE observation, AE1's `e2e:prod` 2026-08-27, passed on retry. ⛔ NOT admitted to `FUP-E2E-REPEAT-FLAKY` — a different mechanism, and one occurrence is not a pattern; disposition undecided — lead/tester
+
 - 🟡 **FUP-E2E-PROF-CREATE-ROSTER-FLAKE** — flaked in `e2e:prod` batch 6 on `120478bf`
   (2026-08-27, the first full-suite run of phase AE1), passing on retry. Failing step **:787**:
   `getByRole('region', { name: 'Participantes' }).locator('li').filter({ hasText: 'Dr. Novo
@@ -3273,12 +3499,16 @@ owners kept live here).
 
 ### 🟡 FUP-GATE-PDFP1-FLAKE — `pdf-printing.spec.ts:38` pre-mint empty-state flake, mechanism UNPROVEN (owner: lead + tester)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 - 🟡 **FUP-GATE-PDFP1-FLAKE** — `e2e/pdf-printing.spec.ts:38` failed its **pre-mint** empty-state assertion once in the DM2 re-gate's `e2e:prod` run 1, then passed **three** independent ways at `RETRIES=0` (isolation 9/9 · identical-batch re-run 60/61 · full-suite run 2, batch 8 60/0). **Not phase-attributable** — the printing module is outside the DM2 diff and the expected string is intact in source (QA r2). ⚠ **The mechanism is UNPROVEN**: no infra signal (`server_dead=0`, no conn errors), unlike DM1's proven `server_dead` flake. QA narrowed it further — the gate resets the DB **before each batch** and batch 8 ran **1 worker**, and the failing test is the *first* in its file (pool index 0), which near-refutes the shared-fixture-pool hypothesis and leaves an ordinary `toBeVisible` timing flake. ⚠ **Both evidence artifacts are gone**: `test-results/` AND `/tmp/e2e-prod-gate/batch-8.log` were overwritten by the re-runs. **Discharge = catch it once with artifacts preserved, or pin the timing.** Related and arguably the real fix: `scripts/e2e-prod-gate.sh` resolves "re-run to see if it recurs" vs "preserve the evidence" the **wrong way** — a failing batch's log and `test-results/` should be archived before any re-run (QA r2 carry-forward) — lead/tester
 
 > ⭐ **2026-08-18 — a named candidate this item can now EXCLUDE, which is progress on "UNPROVEN" without discharging it.** **BUG-DM5-S3-ENV-FIXTURE-POOL-1** (closed + archived) proved the shared-pool mechanism *in a manual, un-reset context*: 9 pre-existing `printed_documents` rows carrying this spec's own revoke text, against a helper that claims responses by POSITION. ⛔ **That is NOT this item.** QA's narrowing here still holds — the gate resets before each batch and ran 1 worker, so pool contamination cannot be the gate failure's mechanism. What changes is that the candidate is now *named and measured* rather than hand-waved, so a future investigator can exclude it by citation instead of re-deriving it. The dev-loop half is filed separately as **FUP-E2E-PRINT-POOL-DEVLOOP**. ⚠ **Do not close either item on the other's evidence** — same assertion, two different contexts, one proven mechanism and one unproven.
 
 ### 🟡 FUP-E2E-PRINT-POOL-DEVLOOP — the print spec's fixture pool is claimed by POSITION, so a second run without a reset reds a human but never CI (owner: tester)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 - 🟡 **FUP-E2E-PRINT-POOL-DEVLOOP** — `submittedResponseIds` ([e2e/helpers/pdf-printing.ts:133](../../e2e/helpers/pdf-printing.ts)) claims responses **by position** (`responses?…&order=id.asc&limit=N`) with **no filter for "has no print yet"**. Run `npx playwright test e2e/pdf-printing.spec.ts` twice against the same DB generation and the second run reds at `:47` — *"Panel starts empty for this fresh fixture"* — because index 0 was minted and revoked by the first. **Mechanism proven**, not suspected: BUG-DM5-S3-ENV-FIXTURE-POOL-1 measured 9 pre-existing `printed_documents` rows carrying this spec's own revoke sentence verbatim, against **zero** `printed_documents` inserts in `seed.sql` — tester
 
 > **Why no gate will ever catch this.** `scripts/e2e-prod-gate.sh:50` sets `RESET="${RESET:-1}"` and runs
@@ -3307,17 +3537,25 @@ owners kept live here).
 
 ### 🟡 FUP-329-ABORT-SHAPE — a `329` keystone whose failure ABORTS the file, dropping 41 assertions (owner: backend)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 - 🟡 **FUP-329-ABORT-SHAPE** — a `329` keystone whose failure **aborts the file** (drops 41 assertions); it is what makes a mutation sweep over these gates unclassifiable — backend
 
 ### 🟡 FUP-ACT-CAPA-ASSIGN — NSP operators see ~only themselves in the CAPA assignee picker (owner: backend)
 
+
+**Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 - 🟡 **FUP-ACT-CAPA-ASSIGN** — NSP operators see ~only themselves in the CAPA assignee picker (`profiles` RLS has no operator arm; the hatless union used to mask it) — backend
 
 ### 🔴 FUP-ETH-ROLES-1 — no production bootstrap of `case_participant_roles` (owner: product + backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-ETH-ROLES-1** — no production bootstrap of `case_participant_roles`; the bundle lives only in `seed.sql` and `role_id` is NOT NULL, so a real org starts with zero roles and every participant type dead-ends. Decide before a second org onboards — product/backend
+
 - 🔴 **FUP-ETH-ROLES-1** — **no production bootstrap of `case_participant_roles`.** The ethics role bundle lives ONLY in `supabase/seed.sql`; the sole role-insert in any migration is the lazy `affected_patient` mint inside the patient path. A real org therefore starts with **zero** roles, and since `case_participants.role_id` is NOT NULL, EVERY participant type is a dead end until an org admin authors the vocabulary in T5 — the three role-less external types ratified on 2026-08-11 are one visible instance, not the shape. Decide before the pilot onboards a second org: bootstrap-on-org-create vs. a first-run prompt vs. accept-and-document (found 2026-08-11 while ratifying the PO items; the add-dialog empty state now at least names the remedy) — product + backend
 
 ### 🟠 FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED — ✅ **ALL SEVEN LANES MEASURED 2026-08-20.** One lane is fully covered, six have a permanently-frozen state, and the meeting gate bound generalises to only two of six — while the *erasure* fallback turns out to be BROKEN on two lanes (owner: backend + PO; filed 2026-08-20 when the PO asked whether minutes-adjustment mechanisms already existed)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-CORRECTION-CORRIDOR-COVERAGE-UNMEASURED** — ✅ all seven lanes MEASURED 2026-08-20 (59-probe executed differential): only **rca** is fully covered
 
 Filed 2026-08-20 (lead). ADR
 [0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) **Amendment 2**
@@ -3452,6 +3690,8 @@ write, not a state) and some are DELETE-only triggers on tables the door only UP
 
 ### 🟡 FUP-XREF-PEPPER-ROTATION-ORPHANS — rotating `mrn_pepper` permanently orphans DISPOSED xref rows; documented in ADR 0039 as "follow-up", never filed (owner: backend; pre-pilot: decide, not build)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-XREF-PEPPER-ROTATION-ORPHANS** — rotating `mrn_pepper` permanently orphans DISPOSED `patient_xref` rows (raw MRN gone, key unrecomputable); ADR 0039 logged it as "follow-up", never registered. Every granted erasure widens the unrotatable population. Decide before any rotation task is scoped — backend
+
 Filed 2026-08-19 (lead) — from the disposal-ADR sweep. ADR
 [0039](../decisions/0039-patient-identity-cross-committee-linkage.md) Consequences: pepper rotation
 *"orphans disposed-row keys (the raw MRN is gone, so the key can't be recomputed) … a documented
@@ -3462,6 +3702,8 @@ the population a rotation strands. The interaction with the DSR program (ADR 013
 item exists so a future "rotate the pepper" task cannot be scoped without meeting it.
 
 ### 🔵 FUP-ADR0121-REASON-VALUE-DRIFT — the `superseded`-vs-`retention_expired` question ADR 0121 Amdt 2 deliberately left open has been silently pre-answered by the D11 register entry (owner: lead)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔵 **FUP-ADR0121-REASON-VALUE-DRIFT** — ADR 0121 Amdt 2 deliberately left the `superseded`-vs-`retention_expired` reason value OPEN; the D11 register body already states `'superseded'` as if chosen (live CHECK still admits only the original five). The D11 implementing slice decides explicitly + records in the ADR's reserved slot; neither value citable as decided until then — lead
 
 Filed 2026-08-19 (lead). ADR [0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md)
 Amendment 2: the reason value recorded when the retention clock fires on a superseded version is
@@ -3477,6 +3719,8 @@ reserved slot, and reconciles the D11 body; until then, neither value may be cit
 
 
 ### 🟠 FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES — the PHI-disposal runbook is the procedure for ONE of the two PHI-disposal substrates; the four column-erasing doors have no operational procedure at all (owner: backend + PO; found by correcting a wrong-grain claim, 2026-08-19)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** — PHI leaves by **two** structurally different substrates and only one has a runbook: `phi-disposal-runbook.md` is the **Storage-bytes** procedure, and the **four column-erasing doors** (`dispose_meeting_minutes`, `dispose_event_phi`, `dispose_case_phi`/`dispose_referral_phi`'s in-place redaction, `patient_xref`) have **none** — measured, the runbook says `meeting` zero times. ⛔ **INDEX LINE RESTORED 2026-08-31, and it had never existed**: the item was filed 2026-08-19 with a body but no register entry, and survived only as a backticked mention in § Now's C1a bullet — invisible to the PO, and invisible to gate 7 until its residue check stopped accepting mentions. ⚠ Bounds C1a: it is the reason a green C1a run does not mean "PHI disposal is rehearsed" — backend + lead
 
 **Measured 2026-08-19** while checking whether `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`
 really blocked C1a (it did not). PHI leaves this system by **two structurally different
@@ -3516,6 +3760,8 @@ claim — *"the child lock blocks C1a"* — to point at the seam. Same shape as
 because each is complete about its own subject.
 
 ### 🟠 FUP-FORM-IDENTIFIER-IN-URL — a sensitive field submitted BEFORE HYDRATION serialises into the query string. **4 leaks CONFIRMED AND FIXED (incl. CPF + MRN); the STANDING DETECTOR and the `useFieldIds` default remain open** (owner: frontend + lead; **class, correction, measurement and fixes all credited to `frontend`**)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-FORM-IDENTIFIER-IN-URL** — ✅ **4 leaks FIXED + control-proven both directions** (`cpf-field` CPF, `user-profile-edit-form`, `affiliations-panel`, `patient-search-view` MRN/PHI); 4 more measured NOT-REACHABLE-PRE-HYDRATION. ⛔ `name` is **INJECTED by `useFieldIds().controlProps`** — a `name=` grep cannot find it. ⛔ **STILL OPEN:** the standing detector must be a **route crawler**, not a re-run of this 8-file list; `<select>` coverage is weaker; and the PO-RULED 2026-08-20 inversion of `useFieldIds`' `name` default (**10/51** failure rate) is a **SEPARATE change after Slice 3**, only after enumerating the 4 classes that BREAK without `name` — frontend/lead
 
 **Filed and largely closed 2026-08-20**, during DSR Slice 3, by `frontend` — found in its own new
 code, then measured and fixed across the app. ⛔ **Downgraded 🔴 → 🟠 because the measured leaks are
@@ -3681,6 +3927,8 @@ exactly how this program's four authz ARMs came to pass while seeing nothing.
 
 ### 🟡 FUP-VITEST-UNCAPTURED-FAILURE — one unit test failed once and **nobody knows which** (owner: backend/lead; **filed only because QA found it was missing from the record entirely**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-VITEST-UNCAPTURED-FAILURE** — a unit test failed once (**1447/1 of 1448**) and **nobody captured which**; passing since is not a diagnosis. ⛔ Filed only because QA found the lead had acknowledged it verbally twice and never recorded it — every trace read a flat "vitest 1447". If it recurs, **capture the output before re-running** — backend/lead
+
 **2026-08-20, DSR Slice 3.** A full `npm run test` run reported **1447 passed / 1 failed of 1448**. The
 failing test's name, assertion and cause were **not captured**, and the run was not preserved. It has
 passed on every run since (five-plus, all 1448/1448).
@@ -3720,6 +3968,8 @@ verbally acknowledged into non-existence. *A work item that lives only in a repo
 evidence, and the re-run is the reflex.
 
 ### 🔴 FUP-AUTHZ-HARNESS-PRECONDITIONS — a neutralization verdict has at least TWO preconditions and the harness checks ONE (owner: backend/harness; **filed after two near-miss false BLINDs on the same live door in one session**)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-AUTHZ-HARNESS-PRECONDITIONS** — a neutralization verdict rests on **≥2 preconditions** (baseline green · **keystone present in the swept domain**) and the harness asserts **only the first**. — backend/harness
 
 **2026-08-20, DSR Slice 3.** The neutralization harness returned **`PASS`** for two probes against
 `create_dsr_request`'s authorization gate and `complete_dsr_task`'s effect check. Read literally, that
@@ -3779,6 +4029,8 @@ leans on this instrument for its entire authz coverage story.
 
 ### 🟡 FUP-PGTAP-184-T11-FLAKE — `184_hospital_admin_isolation.sql` test 11 failed once, undiagnosed but NAMED (owner: unassigned)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-PGTAP-184-T11-FLAKE** — `184_hospital_admin_isolation.sql` t11 failed once on a full run, passed in isolation + two full runs since. Runs **before** `350`, unrelated to DSR. Not diagnosed — but **named**, so actionable — unassigned
+
 **2026-08-20.** *"RLS: ha1 reads CCIH forms (swapped surface)"* failed on the first full `test:db` run
 after an orphaned server was reaped; **passed in isolation on a fresh reset and on two subsequent full
 runs** (6678/6678 twice). `184` runs **before** `350` alphabetically, so the DSR suite cannot contaminate
@@ -3791,6 +4043,8 @@ window when a stray standalone server was deadlocking pgTAP, so contention is a 
 a hypothesis, not a finding.
 
 ### 🟡 FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER — the gate's own arithmetic does not sum, and it scores a worker crash as an assertion failure (owner: lead/tester)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-E2E-GATE-CENSUS-AND-CRASH-CLASSIFIER** — ⭕ **ARITHMETIC HALF RESOLVED 2026-08-21 by measurement: the census DOES sum.** A full 19/19 run gave `1166 p · 2 f · 3 flaky · 11 skipped` = **1182 collected, exactly**, while the gate printed `accounted for 1171` — because `accounted` **omits the skipped bucket**. ⭐ The *"11 tests in no bucket"* were always skips; the defect is the reporting definition, not lost tests. ⚠ **STAYS OPEN for the other half**: the INFRA classifier still has no notion of a worker exit code, so a crash scores as an assertion failure — ⛔ and the fix is still not "add crash to INFRA", a crash is a third category needing a re-run before any verdict. ⭐ `did-not-run` was **0 on all 19 batches** — that field, not the pass count, is what answers "was anything swallowed?" — lead/tester
 
 > ### ⭕ HALF-RESOLVED 2026-08-21 (lead, measured on a full gate run) — the arithmetic DOES sum; the census line just does not count skips
 >
@@ -3850,6 +4104,8 @@ as its own third category: neither pass nor defect, and REQUIRING a re-run befor
 substrate that was not in the state the instrument assumed. This is the same family in the E2E gate.
 
 ### 🟠 FUP-E2E-ABSENT-ROW-ASSERTIONS — `expect(row?.field).not.toBeNull()` passes when the row is ABSENT, and it is live on PHI-erasure assertions (owner: tester/lead; **the number was wrong in BOTH directions before anyone measured it**)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-E2E-ABSENT-ROW-ASSERTIONS** — `expect(row?.field).not.toBeNull()` **passes when the row is absent**. ⛔ The defect is the **MATCHER × a possibly-absent subject**, never a grep for `?.`. ⭕ **DOWNGRADED 🔴→🟠 2026-08-29 — population MEASURED and re-derivable** (`scripts/check-absent-subject-assertions.mjs`; matcher set measured + re-proved every `npm run test`): both named PHI instances were **already fixed**, the named live ones are **guarded**, 3 real defects fixed and triaged green — tester/lead
 
 > ⭕ **DOWNGRADED 🔴→🟠 2026-08-29.** The population is measured and re-derivable, both named
 > PHI instances turn out to have been fixed already, and the named live ones are guarded.
@@ -4035,6 +4291,8 @@ background command's process tree (standing rule, now with a second occurrence).
 
 ### 🟠 FUP-DSR-OUTCOME-RECORD-HAS-NO-DELIVERY — the DSR workflow's one promise to the data subject has no mechanism (owner: PO/frontend; **filed 2026-08-20, PO-deferred the same day**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DSR-OUTCOME-RECORD-HAS-NO-DELIVERY** — ADR 0130 D1 owes the data subject a written answer with its legal basis (Art.
+
 ADR [0130](../decisions/0130-dsr-subject-request-workflow.md) **D1** requires answering a subject
 request with its outcome and, for a refusal, its legal basis (LGPD Art. 18 §4). `BUG-DSR-S3-007`
 calls the outcome record *"the artifact delivered to the data subject"*.
@@ -4065,6 +4323,8 @@ descoped.** Today an operator delivers the answer out-of-band, keyed by the requ
 never been in scope and is not evidenced anywhere.
 
 ### 🟡 FUP-DSR-ENCARREGADO-MUST-BE-A-COMMISSION-MEMBER — the LGPD data-protection officer cannot be a pure officer (owner: PO/product; **filed 2026-08-20 after a lead premise was measured false**)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-DSR-ENCARREGADO-MUST-BE-A-COMMISSION-MEMBER** — `app.is_dpo_of_for` requires a commission role in the hospital as a **hard conjunct**, and `organizations_select` has no DPO arm, so a pure LGPD data-protection officer **cannot reach…
 
 `app.is_dpo_of_for(p_hospital_id, p_user_id)` carries this as a **hard conjunct**, measured in the
 live catalog 2026-08-20:
@@ -4108,6 +4368,8 @@ read path, so it does not qualify as wrong-and-safe.
 
 ### 🟡 FUP-TITLE-ERASURE-REACH-IS-NOT-UNIFORM — six of the ten annotated `*.title` columns ARE inside a disposal door's reach, and four are not (owner: PO/lead; **filed 2026-08-20 while writing the ADR 0131 Amdt 1 helper text**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-TITLE-ERASURE-REACH-IS-NOT-UNIFORM** — six of the ten annotated `*.title` columns ARE inside a `dispose_*` door's reach and four are NOT, so the loose reading of ADR 0131 Amdt 1's "title invariant" (*titles are outside…
+
 ⭐ **THE MEASUREMENT, taken because a shared constant was about to state the opposite.** ADR 0131
 Amendment 1 promotes soft helper text on `*.title` inputs, resting on the WS B "title invariant"
 (*titles are governance metadata, PHI-free by design*). The natural REASON to give a user for that
@@ -4141,6 +4403,8 @@ so the error is conservative for the data subject and misleading for the record 
 is a documentation item, not a defect.
 
 ### 🟠 FUP-COPY-PROPERTY-CANNOT-SEE-ITS-OWN-SURFACE-SET — the shared disposal-copy property has no census of the surfaces it is asserted on (owner: lead/frontend; **filed 2026-08-21, found by reading 15 tests before deleting them**)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-COPY-PROPERTY-CANNOT-SEE-ITS-OWN-SURFACE-SET** — `disposal-copy-property.ts` is iterated by two suites and **nothing asserts which surfaces exist or how many import it**. — lead/frontend
 
 `src/components/dsr/disposal-copy-property.ts` defines the residue / over-claim properties once and
 is iterated by two suites. **Nothing asserts how many suites import it, or which surfaces exist.**
@@ -4198,6 +4462,8 @@ naming the gap honestly is the first deliverable.
 
 ### 🟠 FUP-E2E-HELPERS-SWALLOW-FAILED-READS — ~48 spec files + 2 helpers turn a FAILED READ into "the table is empty" (owner: tester/lead; **filed 2026-08-21; 3 instances fixed, the population reported and deliberately NOT swept**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-E2E-HELPERS-SWALLOW-FAILED-READS** — the **matcher-independent** half of `FUP-E2E-ABSENT-ROW-ASSERTIONS`: a helper returning `[]` on a **failed read** makes *"the request errored"* and *"the table is empty"* indistinguishable. — tester/lead
+
 The second mechanism inside `FUP-E2E-ABSENT-ROW-ASSERTIONS`, and the one **no matcher choice
 defends against**: a helper that returns `[]` when the request itself failed, so *"the request
 errored"* and *"the table is empty"* become indistinguishable at every call site.
@@ -4225,6 +4491,8 @@ that distinction is what makes this a per-helper job rather than a codemod.
 
 ### 🟡 FUP-DISPOSE-REFERRAL-HAS-NO-INBOX-BROWSER-COVERAGE — three of the four erasure lanes are driven through the DSR inbox in a browser; the referral lane is not (owner: tester; **filed 2026-08-21 as the named residual of a bug that closed on removal**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-DISPOSE-REFERRAL-HAS-NO-INBOX-BROWSER-COVERAGE** — `dispose_case`/`dispose_event`/`dispose_meeting` all gained inbox-driven browser coverage this round — tester
+
 `BUG-DISPOSE-DIALOG-NO-BROWSER-COVERAGE` closed 2026-08-21 **on removal of its subject**, not on
 achieved coverage — the `ReferralDisposeDialog` was deleted (no hat could reach it). What that close
 does **not** cover, and what is recorded here so it is not inherited as coverage:
@@ -4241,6 +4509,8 @@ browser coverage, and the close of the removal bug is the document a future read
 
 ### 🟡 FUP-CHILD-LOCK-REGRESSION-GUARD-COVERS-ONE-LANE — the browser-level P0 guard covers the interview lane only (owner: tester; **filed 2026-08-21 by its own author, as a stated bound**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-CHILD-LOCK-REGRESSION-GUARD-COVERS-ONE-LANE** — the browser-level P0 guard (`dsr-disposal-child-lock-regression.spec.ts`) drives a **locked interview** and asserts by count: that is item **9 of the P0's ten** statements. — tester
+
 `e2e/dsr-disposal-child-lock-regression.spec.ts` drives a real inbox disposal against a **locked
 interview** and asserts by **count** (`patient_identifiers` = 0), never by null-check. That is item 9
 of the P0's **ten** guard-tripping statements.
@@ -4255,6 +4525,8 @@ alternative — a green regression spec whose name implies it covers the bug —
 original defect survived a full gate.
 
 ### 🟡 FUP-RULES-VOLUME-CAPS-BIND-IN-OPPOSITE-DIRECTIONS — the cap that binds is the one the gate never reports (owner: lead; **filed 2026-08-21 after a one-line rule edit came within 31 bytes of redding the gate**)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-RULES-VOLUME-CAPS-BIND-IN-OPPOSITE-DIRECTIONS** — ADR 0127’s two volume caps bind DIFFERENT rules in opposite directions (measured 2026-08-21: the 2 rules with ~no byte headroom (92 B / 68 B of 2048) are the 2 nobody would call broad — lead
 
 ⭐ **THE OBSERVATION.** ADR [0127](../decisions/0127-standing-rules-home-and-staleness-gate.md) bounds
 a `.claude/rules/` rule two ways — `paths:` may match ≤ **40** files (waivable with `broad:`) and the
@@ -4315,6 +4587,8 @@ enforcement.
 
 ### 🟡 FUP-EXIT-CODE-MASKING-HAS-NO-MECHANISM — a control that rests entirely on habit, with a measured failure rate (owner: lead; **filed 2026-08-21 as an ACCEPTED RESIDUAL, not as resolved**)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-EXIT-CODE-MASKING-HAS-NO-MECHANISM** — **a pipe erases the exit status of everything left of it, and NO gate here can catch it.** **2 occurrences in one day**, both by an operator who knew the narrow form — lead
+
 _**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
 
 > Measured failure rate **2 occurrences in one day**, both by an operator who knew the narrow form: `gate | tail && commit` landed **a commit on a FAILING gate**, and `cmd; echo "EXIT=$?"` reported a gate that exited **1** as green. ⛔ **Filed as an ACCEPTED RESIDUAL, not resolved** — `pipefail` cannot reach an ad-hoc command, a script cannot detect being piped, no gate can verify an exit code never captured, and a `.claude/rules/` entry fails ADR 0127 admission (POSIX semantics **cannot be shown stale**; an admissible variant would fire on *file edits* and both occurrences touched no file — **admissible and inert**). The control is a habit; recorded plainly, in the same register as the ADR 0131 training premise
@@ -4356,6 +4630,8 @@ repo says so plainly rather than letting a green gate imply otherwise. Raised by
 addendum, and the framing is theirs.
 
 ### 🔴 FUP-ETHICS-CASE-DELETE-CASCADE — a commission `staff_admin` can `DELETE` an in-flight ethics case over PostgREST, cascading all SEVEN `ethics_*` tables, with ZERO audit rows naming any ethics entity (owner: backend + PO; found 2026-08-21 answering the PO's "were any doors opened?", ADR 0132)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-ETHICS-CASE-DELETE-CASCADE** — a commission `staff_admin` can `DELETE /rest/v1/cases` an **in-flight** ethics case, cascading all **7** `ethics_*` tables
 
 ~~**⛔ PO-ruled RECORD-ONLY 2026-08-21 (ADR
 [0132](../decisions/0132-ethics-proceedings-carry-no-erasure-entitlement.md)) — accepted and OPEN,
@@ -4435,6 +4711,8 @@ not treat "ethics is the only lane affected" as measured; it was not asked.
 
 ### 🟠 FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE — `redact_professional_profile` erases the accused doctor's identity from an UNDECIDED ethics case; the retention pin lands one lifecycle stage after the entitlement ends (owner: backend + PO; ADR 0132)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE** — `redact_professional_profile` erases the accused doctor from an **undecided** ethics case: the `HC0J7` bar needs an `issued` decision and `trg_pin_respondent_retention` fires only on the transition **into** `issued`, so both halves are false all through intake/findings/hearings. Executed by a plain commission `staff_admin`. ⚠ **No UI calls it — that is not the control**; the RPC is `EXECUTE`-granted to `authenticated` and answers over PostgREST. Existing pgTAP `257` + E2E pin only the **pinned** case, so nothing is red. **PO-ruled RECORD-ONLY 2026-08-21** — backend/PO
+
 **⛔ PO-ruled RECORD-ONLY 2026-08-21** — same disposition and same reason as the item above.
 
 **Measured 2026-08-21 against the live catalog; confirmed BY EXECUTION, rolled back.**
@@ -4477,6 +4755,8 @@ any ethics case that is not `cancelled`"*. ⛔ Do **not** fix it by narrowing
 it would be a different change with its own blast radius.
 
 ### 🟢 FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED — half of `app` is PUBLIC-executable, and the only thing bounding it is one config line (owner: backend; filed 2026-08-22, found while deriving an ACL by property for ADR 0134 Amdt 6)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED** — ⭐ RAISED 🟢→🟡 2026-08-22 (the schema it bounds now hosts a PHI writer).
 
 **Found while doing something else** — the ADR 0134 Amendment 6 condition "derive `member_can_for`'s ACL
 from the catalog by property, do not invent one". The derivation surfaced an asymmetry, and the
@@ -4529,6 +4809,8 @@ approval scope, it is unrelated to the case surface split, and a sweeping privil
 a feature migration is how the next reader loses the reasoning.
 
 ### 🟡 FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE — a caller that names the OLD ARITY fails as a plan mismatch, pointing nowhere near signatures (owner: backend; filed 2026-08-22, found when the full suite failed in a file this increment never touched)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE** — a caller naming a function's **old arity** in a `has_function_privilege('…(uuid,text,…)')` string does not fail an assertion; it **ABORTS the suite** as a plan mismatch, in an unrelated file, naming no function — the never-ran shape wearing its opposite. ⛔ Open on the **class**, not the two doors fixed: any gate built must go **RED on a deliberately stale signature**, or it cannot be told from one that finds nothing. Sweep counts + the `regprocedure` pin — backend
 
 _**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
 
@@ -4584,6 +4866,8 @@ be that it goes RED on a deliberately stale signature — a sweep of this shape 
 indistinguishable from one that cannot find anything.
 
 ### 🟠 FUP-42501-AUTHORED-MESSAGES-FLATTENED-BY-EVERY-MAPPER — 103 authored pt-BR refusals, and the app layer discards essentially all of them (owner: backend/frontend; filed 2026-08-22, found when a PO-ruled message never reached the UI)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-42501-AUTHORED-MESSAGES-FLATTENED-BY-EVERY-MAPPER** — the DB authors **103 informative** `42501` refusals and the app layer flattens essentially all of them (of **63** `src/lib/**` mappers, only **2** recognise any message). ⛔ The flattening is the only safe DEFAULT — undoing it is a **decision, not a fix**. ⭐ RULED 2026-08-22 (ADR [0135](../decisions/0135-authored-refusals-get-their-own-sqlstate.md)): authored refusals get their own `HCxxx`, `42501` stays RESERVED; build DEFERRED. ⛔ Ruled ≠ discharged — backend/frontend
 
 **How it surfaced.** ADR 0134 Amendment 7 §A7.2 requires `bulk_create_cases` to refuse the
 `all_phases` scope **at the gate, with its own pt-BR message naming the scope** — so a delegate is
@@ -4645,6 +4929,8 @@ every entry must be copied from `pg_get_functiondef` verbatim and pinned, or the
 degrades to the generic string — failing exactly as if it were not there, with nothing going red.
 
 ### 🟠 FUP-DEV-SERVER-SERVED-STALE-CODE-FOR-HOURS — a green E2E run against a stale instrument is indistinguishable from a real pass (owner: tester/lead; filed 2026-08-22, found mid-verification in Increment 2)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DEV-SERVER-SERVED-STALE-CODE-FOR-HOURS** — a `next dev` started 11:20 served pre-Increment-2 code for files committed at 12:33/12:45/14:30. — tester/lead
 
 **What happened.** The long-lived `next dev` process (PID 10664, started **11:20:33** local) was serving
 **pre-Increment-2 code** for files whose commits landed at **12:33, 12:45 and 14:30** — hours earlier. It
@@ -4728,6 +5014,8 @@ dropped events) stays worth doing, but it is not a precondition for the guard.
 
 ### 🟡 FUP-CS2-QA-RESIDUE — the twelve non-blocking QA findings from Increment 2, and four of them are the same class (owner: backend/tester/frontend; filed 2026-08-22 at the Record step; ⭕ **12 → 6 on 2026-08-22** — M-5/M-6/M-7/M-14/M-15/M-16 remediated red-first and QA C-3 discharged; **M-4 STRUCK as already-delivered**. Remaining: M-1, M-8, M-11, M-12, M-13, M-17. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md))
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-CS2-QA-RESIDUE** — ⭕ **12 → 6** (2026-08-22, [record](case-split-assertion-integrity.md)); ⛔ **remaining SIX: M-1, M-8, M-11, M-12, M-13, M-17** — full statements in the [r2 review](../reviews/case-surface-split-increment-2-review.md). ⭐ Four are ONE class, **an assertion that proves less than its name claims**: count-keyed door pins (a SWAP passes) · an `app`-bounded "one body" (a `public` copy passes) · a 2-item hand-list against a 16-member derived class · a 404 matcher that cannot say WHICH gate fired — backend/tester/frontend
+
 ⛔ **Filed so the review's findings do not leave with the review.** QA r2 APPROVED with five record
 conditions; C-1 (gate figures), C-2, C-4 (verdict rows) and the M-3 / M-4 / M-9 / M-10 items are
 **discharged in that delivery**. What remains is **M-1, M-5, M-6, M-7, M-8, M-11 – M-17**, whose full
@@ -4768,6 +5056,8 @@ hash comparison that has never been shown able to disagree.
 
 ### 🟡 FUP-PLAIN-STAFF-ASSIGNEE-CANNOT-REACH-THE-MANAGE-HOST — the surfaced arm's own principal 404s before it (owner: frontend/PO; filed 2026-08-22 by the agent that surfaced the arm, as a stated bound on its own fix)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-PLAIN-STAFF-ASSIGNEE-CANNOT-REACH-THE-MANAGE-HOST** — the phase-result arm is now surfaced, but `canOpenCaseManagement` admits only coordinator ∨ administrativo ∨ write-grantee, so a **plain-staff assignee 404s before any phase renders**…
+
 ⭐ **Filed by the fix's author, in the delivery, because the alternative is a close note that reads as
 completeness.** `FUP-CASE-PHASE-RESULT-ASSIGNEE-UNDERGRANT` is discharged — the case-detail surface now
 offers the result affordance per-phase, mirroring the door. But `canOpenCaseManagement` admits only
@@ -4788,6 +5078,8 @@ path exists; the question is whether an assignee should reach the manage surface
 
 ### 🟡 FUP-ACTIVE-PHASE-STASHED-OVERRIDE-IS-INVISIBLE — the write succeeds and nothing shows it (owner: backend; filed 2026-08-22 from the phase-result widening)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-ACTIVE-PHASE-STASHED-OVERRIDE-IS-INVISIBLE** — on an `active` phase the door *stashes* the override, but `getCaseDetail` does not select `result_override_id` (only `getCasePhaseForFill` does), so **no badge renders and reopening the… — backend
+
 On an **active** phase the door *stashes* the override (no recompute — that is the documented difference
 between the `set` and `correct` kinds). But `getCaseDetail` does **not** select `result_override_id`;
 only `getCasePhaseForFill` does. So after a successful save: **no badge renders, and reopening the
@@ -4806,6 +5098,8 @@ like a live defect**. Caught only by checking the catalog instead of believing t
 name is a misnomer. One import site.
 
 ### 🟠 FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS — the gate's verdict is unreadable where a test poisons its own re-run (owner: tester/lead; filed 2026-08-23 from the first full `e2e:prod` since Increment 2)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS** — `e2e:prod` runs `RETRIES=1`; where a test mutates shared state, a **transient** first-attempt failure leaves that state behind and the **retry fails DIFFERENTLY**, on an assertion about the state attempt 1 created. Measured 2026-08-23 on both of the run's "real" failures (`ethics-e4-participants:918` count 2→1; `user-registration:506` strict-mode on a `Remover…` button that only exists once assigned) — **both `-retry1`, both GREEN alone (25 p / 0 f)**. ⛔ **Worse than flake:** it prints `GATE RED — 2 real failure(s)` and points at the FEATURE, not the harness. ⚠ Do NOT fix by `RETRIES=0` — the retry absorbs the real Windows server-death family (5 batches hit it this run) — tester/lead
 
 ⭐ **Found by triaging a RED gate whose two "real failures" were neither real nor failures of the code.**
 
@@ -4873,6 +5167,8 @@ patches the retry-specific trigger, and a gate-level retry-classifier would stil
 non-retry re-run (e.g. a local `e2e:prod` re-invocation without an intervening reset) as a real failure.
 
 ### 🟡 FUP-AFF2-ACTIVE-MEANS-TWO-THINGS — three authorities say "active membership" and no policy implements it (owner: backend/PO; filed 2026-08-23 at AFF2 build start, from a conflict `backend` measured before writing SQL)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-AFF2-ACTIVE-MEANS-TWO-THINGS** — *"active membership"* is asserted by ADR 0133 D13 and the AFF2 plan, and **no policy implements it**: neither live `profiles` SELECT policy filters `expires_at`. ⚠ NARROWED 2026-08-25 by ADR 0148 (AFF3) — the intra-policy asymmetry is GONE, in the **permissive** direction. ⛔ Not this item's closure: the open question is whether the **membership** leg should ADD `expires_at`, answerable only for all **three** policies at once. ⛔ Not a live hole. ⭕ **PO-RULED 2026-08-25 (ADR 0151 D6): the membership legs do NOT gain `expires_at`** — ever-held reads make read-side expiry filtering incoherent. ⛔ **IT DID NOT CLOSE AT THE AFF4 RECORD STEP — that clause is retracted 2026-08-26 by PO ruling, and the retraction is CONTESTED, so read both sides.** ADR 0151 § Consequences names it among ELEVEN discharging here and the QA review marks it **DONE** (AC6 row 2 — *"the deliverable was 'ruling + the build recording it', and the build records it in SQL (`…003400`)"*). The PO **overrode that** on a Record-step catalog measurement: **both `profiles` SELECT policies still return `f` for `expires_at` filtering.** ⚠ **State the disagreement, do not resolve it here:** that measurement is *also exactly what D6 RULED should be true* (the membership legs never gain `expires_at`), so it is evidence the ruling shipped, not evidence a defect survives — the item stays OPEN on the PO's call, not on a demonstrated hole. ⛔ **TEN discharged at AFF4, not eleven.** ⭐ The class: *a decision document forecasts what a build will discharge BEFORE the build, and nothing in it can notice when the build scopes an item out* — backend/PO
 
 ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) D13, the AFF2
 plan's B2 task, and the build prompt each say the new `professional_credentials` membership leg admits
@@ -4954,6 +5250,8 @@ list forbids widening it "while we're here".
 
 ### 🟡 FUP-WAITFORURL-SATISFIED-BY-ITS-OWN-STARTING-URL — a wait that is already true does not wait, and fails somewhere else (owner: tester/lead; filed 2026-08-23, found by `tester` sweeping their own fix)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-WAITFORURL-SATISFIED-BY-ITS-OWN-STARTING-URL** — `aff-hospital-affiliation.spec.ts:764` (AFF-K) waits on a pattern its **starting** URL already matches, so the wait returns with **zero navigation**. — tester/lead
+
 `e2e/aff-hospital-affiliation.spec.ts:764` (AFF-K, the keyboard test) does:
 
 ```ts
@@ -4988,6 +5286,8 @@ correctly declined to fix it: the file is fully green and untouched by this work
 this instance: a `waitForURL` pattern must be checked against the STARTING url, not only the destination.**
 
 ### 🟠 FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES — the baseline can only be diffed arithmetically, and the evidence is destroyed before anyone can check (owner: tester/lead; filed 2026-08-23, found when the AFF2 gate tried to compare flaky tests by identity)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES** — an `e2e:prod` baseline pin can only be diffed **arithmetically**: nothing records *which* tests were flaky, and the raw logs are destroyed before the next run can read them. — tester/lead
 
 _**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
 
@@ -5053,6 +5353,8 @@ closed the question and left the instrument broken.
 
 ### 🟠 FUP-E2E-FLAKE-BASELINE-NOT-FED-BY-THE-RUN-THAT-EXCEEDED-IT — plan rule 11's fingerprinted baseline exists, and the last full gate neither fed it nor reconciled against it (owner: lead/tester; filed 2026-08-31 while triaging AE3 readiness)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-E2E-FLAKE-BASELINE-NOT-FED-BY-THE-RUN-THAT-EXCEEDED-IT** — plan rule 11 (PA-F16 / ADR 0162) makes every AE gate compare against `FUP-E2E-REPEAT-FLAKY`'s **fingerprinted** entries, never a count. — lead/tester
+
 ⛔ **Not a duplicate of `FUP-E2E-PIN-RECORDS-COUNTS-NOT-IDENTITIES` above, and the distinction is the
 point.** That item grades the **instrument** — the summary row records a count, `GATE_LOGDIR` is not
 run-scoped, so evidence is destroyed *and* cross-contaminated. This grades the **record**: the mechanism
@@ -5107,6 +5409,8 @@ established, so its absence reads as nothing at all rather than as a regression.
 gate row, and it is worth nothing written after the fact.
 
 ### 🟡 FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT — two suites generate their cases from the LIVE catalog; pin the role SET so a mid-reset read cannot shrink coverage silently (owner: backend + frontend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT** — 2 suites generate cases from `memberships_role_check` read LIVE at import, so vitest's total tracks DB state; §292 pins a durable shrink but not the transient mid-reset one. Assert the role SET against one shared literal, exported as a FUNCTION not a `const` — backend + frontend
 
 > **Raised 2026-08-23**, during ADR 0137's batch, from a vitest total that moved
 > **1684 → 1677 → hard-fail → 1684 with no source change on either side.**
@@ -5206,6 +5510,8 @@ silently skip"* instead of defaulting to a hardcoded list. Preserve that behavio
 
 ### FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE** — the door sweep cannot classify a gate whose opening makes a pgTAP file **ABORT**: the run shape moves and §7.15 withholds a verdict, correctly. — backend
+
 ⚠ **NEW — a harness ceiling the same widening exposed.** Filed 2026-08-24 (lead).
 
 `app.event_current_custodian` came back **ERROR**: `run-shape != baseline (Files=218 Tests=7199)`.
@@ -5233,6 +5539,8 @@ file abort. Expect more of these, not fewer, as the arm's domain grows.
 ---
 
 ### FUP-E2E-CREATEFRESHCASE-SILENT-NULL
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-E2E-CREATEFRESHCASE-SILENT-NULL** — `case-narratives.spec.ts`'s `createFreshCase()` returns `null` on any setup failure with no thrown error and no reason, so a broken fixture reads as "nothing to test". ⚠ **Pre-existing, NOT caused by ADR 0137** — tester
 
 ⚠ **PRE-EXISTING — not caused by ADR 0137.** Filed 2026-08-23 (tester) while auditing
 `catch(() => null/[]/undefined)` sites for the ADR 0137 `case-patient` rewrite.
@@ -5264,11 +5572,13 @@ gate can trace into, because the vacuity lives in a helper.
 
 ### FUP-AFF2-DIRECTORY-SEARCH-HAS-NO-REGISTRO-LEG
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-AFF2-DIRECTORY-SEARCH-HAS-NO-REGISTRO-LEG** — the handoff promises *"nome, e-mail ou **registro**"*
+
 ⚠ **The deferral is real and PO-ruled; what was missing is the REGISTER LINE.** ADR 0133
 **Amendment 2** closes with two deferrals *"named so they are records rather than omissions"*.
 Measured 2026-08-24: the sibling (`error.tsx` for the `usuarios` route) was **built** —
 `src/app/o/[org]/manage/usuarios/error.tsx` exists — and this one appeared in **no register at
-all**: zero occurrences in `follow-ups.md` and `deferred-backlog.md`, and PROGRESS.md's only
+all**: zero occurrences in `follow-ups-open.md` and `deferred-backlog.md`, and PROGRESS.md's only
 `registro` is the unrelated REG·KIND row (`:98`). ⚠ **That citation is spent as of 2026-08-25** —
 REG·KIND closed and its row rotated to [phase-ledger.md](phase-ledger.md), so PROGRESS.md now
 contains **no** `registro` at all. The finding STRENGTHENS: the last near-miss is gone too. ⭐ Of a pair named so that neither would become an
@@ -5310,6 +5620,8 @@ legitimate close; **drifting into that by never deciding is not**, and was the l
 ---
 
 ### 🟡 FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE — six `public` authz wrappers mirror an `app.*` rule that RLS calls directly, and nothing pins that the two agree (owner: backend + PO; filed 2026-08-24, found while keystoning `rca_writer_can_write`)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE** — **six** `public` `prosecdef` bool wrappers mirror an `app.*` authorization rule that RLS calls **directly**, and **no gate can see them stop**.
 
 _**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to
 its declared one-line form (severity · id · title · owner) during a size rotation. Nothing was
@@ -5375,6 +5687,8 @@ select is(public.rca_writer_can_write(<rca>), app.can_write_rca(<rca>, auth.uid(
 
 ### 🟡 FUP-CLAIMS-SURVIVAL-DIFFERENTIAL-IS-NOT-RUN-BY-ANYTHING — the detector that found six false premises is a technique, not a gate (owner: backend/tester; filed 2026-08-24 at the close of FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-CLAIMS-SURVIVAL-DIFFERENTIAL-IS-NOT-RUN-BY-ANYTHING** — `claims_for` claims outlive `reset role`, so a pgTAP test can assert an owner-context property while still running as the last persona. ⭐ **The class is empty as of 2026-08-24** — emptied by a one-off differential (claims-clear after all 2171 `reset role` sites, 172 files; **six** false premises found and fixed, closing `FUP-RESET-ROLE-DOES-NOT-CLEAR-JWT-CLAIMS`). ⛔ **Nothing runs that comparison**, so tomorrow's test can reintroduce it green. Not lint-able (ADR 0127 bound: DB anchors); it is a full-suite-with-tree-edit run, i.e. periodic-sweep shape. Has a ready positive control — `358` G4 MUST fail while the instrument is applied, or the run proved nothing — backend/tester
+
 `claims_for` writes `request.jwt.claims` with `is_local => true`, so the claims outlive `reset role`. A
 pgTAP test can therefore assert an owner-context property while still running as the last persona, and be
 green for a reason unrelated to what it names.
@@ -5406,6 +5720,8 @@ output.
 ---
 
 ### 🟡 FUP-P3-MINT-AFFORDANCE-WIDER-THAN-ITS-DOOR — NARROWED 2026-08-25 by catalog measurement; still OPEN on the identified axis (owner: frontend/qa; filed by the builder as a stated bound on F2)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-P3-MINT-AFFORDANCE-WIDER-THAN-ITS-DOOR** — the mint/prévia card admits a wider class (ADR 0134 D3: `administrativo`s + per-case write-grantees) than D8's door arm allows, so a caller can reach the screen and be refused at the door. — frontend/qa
 
 > ⛔ **HEADING CORRECTED BY THE LEAD, 2026-08-25 — it read `✅ … RESOLVED` while the body below
 > carried a ⛔ saying the resolution does not cover the identified variant.** The builder stated the
@@ -5524,6 +5840,8 @@ trim loses nothing):
 
 ### 🟡 FUP-P3-DOSSIER-HAS-NO-RECUSAL-ROSTER — the case dossier cannot show who was recused (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-P3-DOSSIER-HAS-NO-RECUSAL-ROSTER** — `CaseDetail.myRecusal` is the **caller's own** recusal only and no per-participant roster reader exists, so `recusalDisplay` could be populated for the minter and nobody else — backend
+
 > **Filed 2026-08-25 during the PDF·P3 build, as a named gap rather than a silent cut.**
 >
 > `CaseDetail.myRecusal` carries **the caller's own recusal only**; no per-participant recusal
@@ -5554,6 +5872,8 @@ trim loses nothing):
 ---
 
 ### 🔴 FUP-CASE-DOCS-DEAD-READER — three surfaces render zero case documents, silently (owner: frontend + backend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-CASE-DOCS-DEAD-READER** — `listCaseDocuments` delegates to the PARKED `listAttachments` (body: `return []`), so **three live surfaces render zero case documents to every user** — frontend + backend
 
 > **Filed 2026-08-25 during PDF·P3 while sourcing D2's document manifest. PREDATES the phase and
 > was deliberately NOT fixed in it.** Found by a cross-check enumeration, verified from the code by
@@ -5596,6 +5916,8 @@ trim loses nothing):
 
 ### 🟡 FUP-REFERRAL-WIZARD-TEST-HAS-NO-TIMEOUT-MARGIN — a unit test that flakes on a busy box (owner: frontend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-REFERRAL-WIZARD-TEST-HAS-NO-TIMEOUT-MARGIN** — `referral-send-wizard-mrn-warning.test.tsx` passes **alone in 5.05 s against a 5000 ms** per-test timeout, so it reds under parallel load. — frontend
+
 > **Filed 2026-08-25 (PDF·P3, reported by `frontend` as a not-mine red).**
 >
 > `referral-send-wizard-mrn-warning.test.tsx` times out at 5000 ms under parallel full-suite load.
@@ -5616,6 +5938,8 @@ trim loses nothing):
 ---
 
 ### 🟠 FUP-CASE-CONFIDENTIALITY-VS-PHI — a case can be classified "no patient data" while holding patient data (owner: backend + PO ruling)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-CASE-CONFIDENTIALITY-VS-PHI** — `cases.confidentiality_level` and `has_patient` are **unconstrained against each other**
 
 > `cases.confidentiality_level` and `cases.has_patient` are **unconstrained against each other**:
 > nothing in the schema, no CHECK and no trigger prevents a case from being classified
@@ -5641,6 +5965,8 @@ trim loses nothing):
 ---
 
 ### 🟡 FUP-CASE-NUMBER-FORMAT-HAS-EIGHT-AUTHORITIES — `padStart(4,'0')` is reimplemented at 8 sites (owner: frontend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-CASE-NUMBER-FORMAT-HAS-EIGHT-AUTHORITIES** — `padStart(4,'0')` is reimplemented inline at **7+ sites** that never call `formatCaseNumber`. ⚠ The P3 move makes the dossier consistent with **one of eight**, so calling it "now uses the canonical formatter" would over-claim — frontend
 
 > `formatCaseNumber` (`src/components/cases/format.ts:10`) is the intended canonical zero-pad, but the
 > rule is **reimplemented inline at 7+ further sites that never call it**:
@@ -5677,6 +6003,8 @@ trim loses nothing):
 
 ### 🟡 FUP-BULK-GRID-MODEL-IMPORTS-UPWARD — a `src/lib` → `src/components` dependency no gate can see (owner: frontend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-BULK-GRID-MODEL-IMPORTS-UPWARD** — `bulk-grid-model.ts:22` imports a type from `@/components/**`: a real `src/lib`→`src/components` inversion. ⚠ `import type`, so it **erases at build and NO gate can see it** (`lint:client-server-imports` is value-imports only, by design) — frontend
+
 > `src/lib/cases/bulk-grid-model.ts:22` imports `CustomFieldValueDraft` from
 > `@/components/cases/custom-field-input` — a real **`src/lib` → `src/components`** dependency, the
 > layering inversion F3 and F4 exist to remove.
@@ -5697,6 +6025,8 @@ trim loses nothing):
 ---
 
 ### 🟡 FUP-MOCKED-MODULE-ASSERTED-ABOUT-ITSELF — suites that mock a module and then assert a property OF that module (owner: backend + qa)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-MOCKED-MODULE-ASSERTED-ABOUT-ITSELF** — a suite that `vi.mock`s a module and then asserts a property **OF that module** is green by construction. — backend + qa
 
 > **Filed 2026-08-25 (PDF·P3), from a live instance rather than a hypothesis.**
 >
@@ -5729,6 +6059,8 @@ trim loses nothing):
 ---
 
 ### 🔴 FUP-E2E-GATE-CLASSIFIER-BLIND-TO-WORKER-CRASHES — a host-resource collapse is booked as failures against the phase under test (owner: tester + backend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-E2E-GATE-CLASSIFIER-BLIND-TO-WORKER-CRASHES** — the infra classifier keys on `server_dead`/`conn_errors`/`pgrst_unready` — tester + backend
 
 > `scripts/e2e-prod-gate.sh`'s infra classifier keys on `server_dead` / `conn_errors` /
 > `pgrst_unready`. A Playwright **worker process** dying and a **browser target** crashing match
@@ -5770,6 +6102,8 @@ trim loses nothing):
 
 ### 🟡 FUP-MOJIBAKE-GATE-BLIND-TO-UNTRACKED-FILES — a brand-new file is in no `ls-files` set, so gate 10 passes it vacuously (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-MOJIBAKE-GATE-BLIND-TO-UNTRACKED-FILES** — `check-mojibake.mjs:144` sources `git ls-files`, so a **staged** file is covered and an **untracked** one is outside the domain. Measured: gate 10 printed `OK (2825 tracked text files clean)` while **2,226 lines across 4 new P3 artifacts** were not in the 2825 (scanned separately, controls fired, 0 hits — clean but **unproven by the green line**). ⭐ Same shape as ADR 0079 Amdt 3: the thing most likely wrong is what the domain excludes. Fix = union `--others --exclude-standard`, ⛔ red it on a corrupt untracked file first — backend
+
 > `scripts/check-mojibake.mjs:144` sources its file list from `git ls-files`. That lists the
 > **index**, so a *staged* file is covered — but an **untracked** one is outside the gate's domain
 > entirely. The blind window is therefore "authored but never `git add`-ed", which is **exactly the
@@ -5805,6 +6139,8 @@ trim loses nothing):
 ---
 
 ### 🔴 FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH** — `e2e-prod-gate.sh:308` truncates a fixed `server.log` per batch and tails it only on `start_server` failure, so a server dying **mid-batch** leaves **no server-side evidence**. — tester + backend
 
 > ⭐ **READ THIS BEFORE INVESTIGATING ANY GATE COLLAPSE (added 2026-08-25, PDF·P3):** the string
 > `⨯ Error: The destination stream closed early.` (digest `504373718`) is **NOT a server-death
@@ -5901,6 +6237,8 @@ trim loses nothing):
 
 ### 🟡 FUP-GOTENBERG-EGRESS-UNRESTRICTED — the print sidecar's only mitigation is an application-layer allowlist (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-GOTENBERG-EGRESS-UNRESTRICTED** — no network backstop for the print sidecar: dev is a bare `docker run`, Coolify constrains **inbound only**, so ADR 0145's schema narrowing is the **only** mitigation for an… — backend
+
 > **Filed 2026-08-25 out of PDF·P3 finding C-2.** P3 is the first path that puts
 > author-controlled Markdown inside **Gotenberg — a headless Chromium on the server network.**
 > `![](https://attacker/beacon)` in a case narrative made that browser issue the GET on every
@@ -5935,6 +6273,8 @@ trim loses nothing):
 
 ### 🟡 FUP-MINT-KIND-TIER-RULE-ONE-DIRECTION — the mint door refuses the wrong tier for one kind and not the other (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-MINT-KIND-TIER-RULE-ONE-DIRECTION** — QA N-1: the mint door refuses `contains_phi = TRUE` for `form_response` but has **no mirror** refusing FALSE for `case`; Amdt 5's invariant holds via the **D3 registration gate**, not a tier check. ⛔ Not reachable is not protected — backend
+
 > **Filed 2026-08-25, QA pass 2 finding N-1.** `mint_printed_document`'s `p_contains_phi` defaults
 > to `false`. The door **refuses `TRUE`** for `form_response` (`p_source_kind not in
 > ('meeting','case')`) but has **no mirror refusing `FALSE` for `case`**.
@@ -5953,6 +6293,8 @@ trim loses nothing):
 > which is why this is filed rather than dropped.**
 
 ### 🟠 FUP-DOSSIER-CAN-SILENTLY-OMIT-CONTENT — a hash-sealed dossier's answer reads swallow their errors (owner: backend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DOSSIER-CAN-SILENTLY-OMIT-CONTENT** — QA N-2: `getResponseForFill` never inspects `error` on **eight** reads, so a transient failure yields an answer-less phase ⇒ **a hash-sealed dossier can silently omit content** under a verification URL. Also owed: a vector pinning the door↔policy parity Axis C rests on — backend
 
 > **Filed 2026-08-25, QA pass 2 finding N-2.** Two halves; the second is the one with teeth.
 >
@@ -5981,6 +6323,8 @@ trim loses nothing):
 
 ### 🟡 FUP-CASE-PRINT-REVISIONS-COMMENTS-CLAIM-ONE-WRITER — a false statement living inside the catalog (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-CASE-PRINT-REVISIONS-COMMENTS-CLAIM-ONE-WRITER** — two COMMENTs claim one writer; measured, there are **two**. ⛔ A COMMENT lives IN THE CATALOG — no grep and no gate can contradict it — backend
+
 > **Filed 2026-08-25 while writing the PDF·P3 entry in `docs/backend-state.md`.** Two COMMENTs assert
 > a single writer for `public.case_print_revisions`:
 > `COMMENT ON FUNCTION app.bump_case_print_revision` — *"the ONE writer"* — and
@@ -6007,6 +6351,8 @@ trim loses nothing):
 
 ### 🟠 FUP-E2E-CLEANUP-LEAVES-STORAGE-BYTES — registry rows deleted, PHI-bucket objects left behind (owner: tester + backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-E2E-CLEANUP-LEAVES-STORAGE-BYTES** — measured 2026-08-25: **9** `printed/*.pdf` objects in `documents-phi` with **0** registry rows, so `dispose_case_phi` block (f) cannot reach them. ⛔ A reset does not clean a bucket — tester + backend
+
 > **Filed 2026-08-25, measured on a tree that had been freshly reset hours earlier:**
 > `storage.objects` held **9** `printed/<uuid>.pdf` objects in **`documents-phi`** while
 > `printed_documents` held **0** rows. Lead-verified independently, not taken from a report.
@@ -6030,6 +6376,8 @@ trim loses nothing):
 ---
 
 ### 🟡 FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS — the subset half is fixed, the full half is not, and the file is not purely generated (owner: backend; filed 2026-08-26, found while closing the subset half)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS** — the SUBSET half is closed (ADR [0153](../decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)), but a **FULL** sweep still writes… — backend
 
 _**Detail rotated VERBATIM from PROGRESS.md § Follow-ups 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
 
@@ -6064,6 +6412,8 @@ instruction whose failure produced the parent item.
 ---
 
 ### 🟠 FUP-P-CLASS-SQLSTATE-ANSWERS-500-ON-DENIAL — an ordinary authorization denial answers 5xx, across 73 reachable doors (owner: backend; filed 2026-08-26, measured during the AFF4 pre-step)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-P-CLASS-SQLSTATE-ANSWERS-500-ON-DENIAL** — PostgREST v14.5 maps SQLSTATE class `P0*` to **HTTP 500** (`P0001` excepted), so an authored refusal raised as `P0002` answers **5xx on an ordinary denial**. Measured 2026-08-26: status is a **pure function of the SQLSTATE** (`HC***`→400, `42501`→403, `P0002`→500), not media-type handling. ⚠ **A CLASS: 73 `public` functions with EXECUTE for `authenticated` raise a P-class code** — the document corridor is 2 of them. ⛔ **No partial fix** (ADR [0152](../decisions/0152-postgrest-p-class-sqlstate-maps-to-500.md) D3); cost is observability + the defensive `[403,404,500]` E2E oracle, **not** §8. ⭕ Own increment; 0152 D4 rules the shape. ↩ Replaces FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE, archived 2026-08-26 — backend
 
 Re-filed from [[FUP-OPEN-DOCUMENT-VERSION-500-ON-EVERY-RAISE]] (archived the same day), whose diagnosis
 was wrong in three places. Authority: ADR
@@ -6120,6 +6470,8 @@ correctly — neither is evidence about the macOS run. See [[FUP-GATE-19-TESTS-N
 
 ### 🟡 FUP-GATE-19-TESTS-NEVER-RAN-ON-MACOS — the failure count understates what went unexercised (owner: lead/tester; filed 2026-08-25)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-GATE-19-TESTS-NEVER-RAN-ON-MACOS** — the 2026-08-25 full `e2e:prod` (1172p/18f) left **19 tests NEVER RUN**: `ethics-e1`(5), `ethics-e2`(5), `dm4-referral-documents`(5), `case-referral-usability-batch`(3), `ethics-e4`(1). A failure aborts the remainder of its spec, so the 18 understates what went unexercised — real coverage was **1211 of 1222**. ⛔ Nothing is proven for those 19 either way; they are hostage to the two clusters (the `open_document_version` 500 above, and the macOS native-`<select>` `ArrowDown` no-op that cannot pass on this OS) and stay unexercised until those are fixed. ⚠ The gate itself reports this loudly and correctly — the defect is that the reds gate the coverage, not that the gate hides it — lead/tester
+
 The 2026-08-25 full `e2e:prod` returned **1172 passed · 18 failed · 2 flaky · 19 did-not-run · 114
 batches**, accounting for **1211 of 1222** collected tests. A failure aborts the remainder of its
 spec, so 19 tests were never executed:
@@ -6150,6 +6502,8 @@ count.
 ---
 
 ### 🔴 FUP-MEETING-CASES-SELECT-OMITS-RECUSAL — the read policy hand-rolls a weaker predicate than its three siblings (owner: backend/PO; filed 2026-08-26 by the AFF4 lead, found by a peer session auditing `can_reach_meeting`; NOT AFF4's work and not absorbed by it)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🔴 **FUP-MEETING-CASES-SELECT-OMITS-RECUSAL** — the SELECT policy hand-rolls a weaker predicate than its three siblings and inherits **no recusal deny**
 
 `public.meeting_cases` has four policies and they **split on which denials they inherit**. Confirmed
 from `pg_policies` on 2026-08-26 (catalog, not migration text):
@@ -6224,6 +6578,8 @@ at other meeting tables — **derive that population as a property**, never from
 
 ### 🟡 FUP-HOSPITAL-DIRECTORY-EXPIRED-SEAT-STALE-ROSTER — an expired seat still counts a person onto the hospital directory (owner: backend/PO; filed 2026-08-26 at the AFF4 QA round, found by `backend` while ruling the hospital roster predicate)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-HOSPITAL-DIRECTORY-EXPIRED-SEAT-STALE-ROSTER** — `hospitalPeopleIds()`'s commission leg has **no `expires_at` predicate**, so an expired seat-holder still shows on the hospital directory after org-offboarding.
+
 `hospitalPeopleIds()`'s commission leg selects seats by `commission_id` with **no `expires_at`
 predicate**. ADR 0151 **D6** rules that an **expired** membership does **not** block
 `end_org_affiliation`. Those two facts compose: a person holding an expired commission seat can be
@@ -6253,6 +6609,8 @@ poor trade made under gate pressure.
 
 ### 🟠 FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION — a `prosecdef` flip on an existing boolean gate derives ZERO cases and reads as clean (owner: backend/lead; filed 2026-08-26, found by `backend` while fixing BUG-D5-REHIRE-HOSPADMIN-001)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION** — the deriver matches only a `create function` body, so an `alter function … security definer` on an existing **boolean** gate derives **zero cases** and its exit-1 reads as "no gates… — backend/lead
+
 `scripts/door-sweep-cases.sh`'s function branch (~lines 290-292) selects a gate only when its
 **`create function` body** matches all three of: literal `security definer`, `returns boolean`, and
 the predicate-identity regex. An **`alter function … security definer`** produces no such body, so
@@ -6279,6 +6637,8 @@ outside its domain for the same reason. The blindness is **measurement-domain**,
 from the migration text it cannot parse.
 
 ### 🟡 FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY — `commissions` and `commission_meeting_types` grant tenancy-admin READS from a policy named `…_write` (owner: backend/PO; filed 2026-08-27 by `backend` at the AE1.5 triage, PO-ruled the same day)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY** — `commissions` + `commission_meeting_types` grant tenancy-admin **reads** from `…_write` policies (a `FOR ALL` policy **is** a read policy), so the only identity-preserving dedup would…
 
 > **The measurement** (catalog, local stack, `pg_policies`):
 >
@@ -6364,6 +6724,8 @@ from the migration text it cannot parse.
 
 ### 🟡 FUP-ZERO-ARG-APP-PREDICATES-NOT-HOISTED — the advisor's initplan rule is blind to `app.*()`, so zero-argument RLS predicates are still evaluated per row (owner: backend; filed 2026-08-27 by `backend` at the AE1.5 triage, PO-scoped the same day)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-ZERO-ARG-APP-PREDICATES-NOT-HOISTED** — the advisor's initplan rule is blind to `app.*()`, so zero-arg RLS predicates still evaluate **per row** (`organizations` twice per row); 26-table census — backend
+
 > **What the advisor does not see.** Supabase's `auth_rls_initplan` rule flags **only**
 > `auth.uid()` / `auth.jwt()` / `auth.role()` / `auth.email()`. AE1.5 fixed all 113 of those it
 > was scoped to. But this codebase's RLS predicates are mostly `app.*()` helpers, and the
@@ -6411,6 +6773,8 @@ from the migration text it cannot parse.
 
 ### 🟡 FUP-QA-FINDINGS-N3-N4-UNACCOUNTED — two QA findings have ZERO hits in the live register (owner: lead; rotated from PROGRESS.md § Now 2026-08-27, measured 2026-08-26)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-QA-FINDINGS-N3-N4-UNACCOUNTED** — a § Now line claimed five QA findings + four P3 follow-ups were indexed — lead
+
 A PROGRESS.md § Now line asserted: *"Five QA findings (N-1…N-5) + four P3 follow-ups are OPEN in
 § Follow-ups"*.
 
@@ -6434,6 +6798,8 @@ itself a claim that needs measuring* — and it is the one kind of register erro
 register cannot detect, because the register is what they would check.
 
 ### 🟠 FUP-AE4-PERFORMANCE-EVIDENCE-ON-THE-FINAL-PATH — the AE4.4 measurement was never made, and it only became MEASURABLE at AE4.9 D6 (owner: backend; filed 2026-09-02 by `lead`, from audit finding IA-F9)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-AE4-PERFORMANCE-EVIDENCE-ON-THE-FINAL-PATH** — audit **IA-F9**: no AE4.4 scaled-fixture artifact exists, and ADR 0176 Consequences makes it a **Gate AE4** item. ⛔ It only became MEASURABLE at AE4.9 D6 — before the re-key the final path did not exist, so the deferral's reason has now expired. ⛔ Measure the re-keyed site's policy body through **layers 3→2→1**, **never `holds_role` alone**; and use a principal whose ONLY grant path is the permission arm, since the authorizers' **residual legacy arms** short-circuit — backend
 
 **The obligation.** Audit `authz-evolution-implementation-audit-2026-09-02.md` F9: no AE4.4 scaled-fixture
 performance artifact exists anywhere in the tree. ADR 0176 Consequences makes it a Gate AE4 item.
@@ -6463,6 +6829,8 @@ AE4.9 D6 record claims it was done — both `PROGRESS.md` § Now and the increme
 it does not exist.
 
 ### 🟠 FUP-ADR-CROSS-LINKS-HAVE-NO-GATE — 13 broken ADR-to-ADR links, and gate 9 structurally cannot see them (owner: lead/backend; filed 2026-09-02 by `lead`, measured during AE4.9 D6)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-ADR-CROSS-LINKS-HAVE-NO-GATE** — **13 broken ADR-to-ADR links measured 2026-09-02** (0053, 0056, 0063, 0064, 0072, 0073, 0078 ×5, 0105, 0177). `lint:adr-index` (gate 9) rebuilds the index and the back-pointer column but **never resolves a link target**, so a cited filename that was never right is indistinguishable from one that is. ⚠ The failure mode is *plausible reconstruction*: every broken target is a readable, on-topic slug for the ADR actually meant — 0177 cited 0175 as `…ae45-differential-oracle-scope-and-f3-discharge`, one day after writing it. ⛔ Two AE4-phase instances (0177, 0178) are FIXED; the other 11 predate the phase and are **untouched by ruling** — fixing them here would bury an unrelated 11-file diff inside an authz gate. The durable form is a target-resolution check inside gate 9, which will red on those 11 until they are repaired — lead/backend
 
 **What was measured.** A sweep of every `](./NNNN-*.md)` target across `docs/decisions/` resolved
 each against the filesystem: **13 broken**, in 0053, 0056, 0063, 0064, 0072, 0073, 0078 (×5),
@@ -6532,6 +6900,8 @@ allowlisted past its own findings is worse than none: it converts 11 visible def
 invisible exception.
 
 ### 🟠 FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED — the mandated per-phase sweep had a FOUR-part hole: the deriver names ONE arm for a TWO-arm list; arm 2 reports success at exit 0 having measured nothing; 9 policies fall outside both arms; and a killed run leaves an RLS policy WIDE OPEN with nothing reporting it (owner: backend/lead; filed 2026-08-27 by `backend`, all four measured during AE1.5)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED** — the §6-step-1 sweep had a **four-part hole**: the deriver named ONE arm for a TWO-arm list — backend/lead
 
 > ⭕ **DOWNGRADED 🔴→🟠 2026-08-29 — all four instrument defects FIXED, each fix PROVEN able
 > to fire. See § REPAIR at the end of this item.** ⛔ **Deliberately not closed:** Parts 1–4
@@ -6748,6 +7118,8 @@ invisible exception.
 
 ### 🟡 FUP-AE1-UNREACHABLE-PUBLIC-DOORS — 11 `public` DEFINER doors `authenticated` can call that nothing in `src/` calls, + 3 no instrument references, + 15 comment-only (owner: backend/PO)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-AE1-UNREACHABLE-PUBLIC-DOORS** — **11** `public` DEFINER doors `authenticated` can call that **nothing in `src/` calls** (suite-only
+
 > Filed 2026-08-27 at the AE1 Record step (obligation 2), from **RV4** of
 > [authz-definer-classification-ae1.md](../design/authz-definer-classification-ae1.md), which ruled
 > it *"a finding to file, not to revoke here"* — reachability and privilege are different questions
@@ -6784,6 +7156,8 @@ invisible exception.
 
 ### 🟡 FUP-AUDIT-ACTOR-ID-NULL-ON-SERVICE-DOORS — `actor_id` is NULL on every audit row a service-role door emits (owner: backend/PO)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-AUDIT-ACTOR-ID-NULL-ON-SERVICE-DOORS** — `app.audit_write` derives its actor from `auth.uid()`, NULL on **every** service-role path
+
 > Indexed 2026-08-27 at the AE1 Record step (obligation 3). ⛔ **The full record is the backlog entry**
 > — [deferred-backlog.md](./deferred-backlog.md), filed 2026-08-27 under AE1.3 / ADR 0155 R3. This body
 > exists because a backlog item with no index line is invisible to the register the PO reads from (QA
@@ -6808,6 +7182,8 @@ invisible exception.
 > §1.11 flipped from asserting the null to asserting the actor.
 
 ### 🟠 FUP-SERVICE-ROLE-WRITE-SITES-NO-GUARD-VANISH-TEST — 19 of 44 service-role write sites have no test that would notice their guard vanish (owner: backend/tester)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-SERVICE-ROLE-WRITE-SITES-NO-GUARD-VANISH-TEST** — **19 of 44** service-role write sites have NO test that would notice their guard vanish (15 `NONE` + 4 `UNCONFIRMED`) — backend/tester
 
 > Filed 2026-08-27 at the AE1 Record step (obligation 4, AE1.4). ⛔ **The obligation table's
 > "26 of 45" is retired here — it does not reproduce.** The registry is **44** rows post-AE1.3, and 26
@@ -6848,6 +7224,8 @@ invisible exception.
 
 ### 🟡 FUP-REACTIVATE-USER-HAS-NO-DENY-ARM — the reactivate path's authority is proven only by its sibling's deny test (owner: backend/tester)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-REACTIVATE-USER-HAS-NO-DENY-ARM** — `reactivateUser` shares `authorizePersonScopedAdmin(id,'lifecycle')` with `deactivateUser`, and the only exercised deny arm (`d14-person-level.test.ts` §2) is written against the sibling. The guard covers both today; **nothing would notice if they stopped sharing it**. ⛔ Not discharged by asserting the call sites are identical — that is the premise; the arm must red while §2 stays green in the same run — backend/tester
+
 > Filed 2026-08-27 at the AE1 Record step (obligation 6, AE1.4). `src/lib/users/actions.ts`'s
 > `reactivateUser` calls `authorizePersonScopedAdmin(userId, 'lifecycle')` and then the
 > `set_person_active_for` door — **the identical call** `deactivateUser` makes. The reported coverage
@@ -6869,6 +7247,8 @@ invisible exception.
 > call is removed is measuring the sibling, not this site.
 
 ### 🟡 FUP-MUTATION-AUDIT-BLIND-TO-THE-DOOR-WRAPPERS — the AE1.3 audit mutates the six `app.*_impl` kernels and nothing mutates a `public.*_for` body (owner: backend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-MUTATION-AUDIT-BLIND-TO-THE-DOOR-WRAPPERS** — `ae13-person-doors-mutation-audit.sh` mutates the six `app.*_impl` kernels only; **nothing mutates a `public.*_for` body**, and pgTAP `385`/`386` carry zero `prosrc` / `pg_get_functiondef` / `md5(` (measured 2026-08-27). Harmless while the wrappers are pure delegators — an authority check later **MOVED into** a wrapper is mutation-tested by nothing — backend
 
 > Filed 2026-08-27 at the AE1 Record step (obligation 9, AE1.3 gate record).
 > `supabase/tests/mutation/ae13-person-doors-mutation-audit.sh` targets **kernels only** —
@@ -6895,6 +7275,8 @@ invisible exception.
 > when a check is **MOVED** from kernel to wrapper, not merely when text changes.
 
 ### 🟠 FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE — a diff-scoped sweep for one increment silently selects another increment's cases (owner: backend/lead)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE** — `door-sweep-cases.sh` unions the committed range with `git diff HEAD` **and** `git ls-files --others`, so in a tree holding two in-flight increments a diff-scoped sweep for one silently selects the other's — **53 cases derived where AE1.3 owned 1**. Correct behaviour, unattributable result; the Phase Gate records the sweep against the phase, an attribution the deriver cannot support. ⛔ NOT covered by `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` (shares the 53, four different findings); ⛔ dropping the untracked sources is not the fix — backend/lead
 
 > Filed 2026-08-27 at the AE1 Record step (obligation 10, AE1.3 gate record).
 >
@@ -6924,6 +7306,8 @@ invisible exception.
 > can never again be recorded as one increment's coverage.
 
 ### 🟠 FUP-RLS-BOUND-READ-REPOINTED-TO-A-NARROWER-AUDIENCE — a shipped, unexercised instance in `listOrgUsers`, and the census class that cannot see it (owner: backend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-RLS-BOUND-READ-REPOINTED-TO-A-NARROWER-AUDIENCE** — an RLS-bound app read re-pointed to a table whose SELECT policy has a **narrower audience** than the column it replaces: it compiles, runs, and silently returns a smaller set. — backend
 
 - 🟠 **FUP-RLS-BOUND-READ-REPOINTED-TO-A-NARROWER-AUDIENCE** — filed 2026-08-27 at AE2.2, by the
   lead, from a finding backend measured rather than inferred.
@@ -6977,6 +7361,8 @@ whether the audience-comparison pass becomes a standing step for re-pointings, o
 
 ### 🟠 FUP-FINDINGS-MD-PIPE-TABLE-MANUFACTURES-VERDICTS — a prose table inflates `ARM=census` and MASKS a real newcomer (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-FINDINGS-MD-PIPE-TABLE-MANUFACTURES-VERDICTS** —  greps **every** `| `-line in a findings md, so a pipe-table added to a **prose note** has each row counted as a gate verdict. — backend
+
 - 🟠 **FUP-FINDINGS-MD-PIPE-TABLE-MANUFACTURES-VERDICTS** — filed 2026-08-28 at AE2.4 increment 1,
   from a live near-miss caught by re-deriving a delta rather than reading a green.
 
@@ -7017,6 +7403,8 @@ see it clean. A detector that finds nothing must be proven able to find somethin
 sweep whose output is bounded must print what it dropped (CLAUDE.md §8's *no silent caps*).
 
 ### 🟡 FUP-AE2-CATALOG-SUPERSET-OF-CHAIN — a hand-applied migration makes the live catalog a SUPERSET of the migration chain, and no gate can see it (owner: backend/PO)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-AE2-CATALOG-SUPERSET-OF-CHAIN** — a hand-applied migration makes the live catalog a **SUPERSET of the chain**, and no single gate can see it: every gate reads the drifted artefact.
 
 - 🟡 **FUP-AE2-CATALOG-SUPERSET-OF-CHAIN** — filed 2026-08-28, from a hazard the author created,
   hit, and reported against themselves during AE2.4 increment 4. ⭕ **DOWNGRADED 🟠→🟡 2026-08-29**
@@ -7106,6 +7494,8 @@ a finding there is absence of coverage, not coverage.
 
 ### 🟠 FUP-W1-STALE-GRANTROLE-MUTANTS — three mutants pinned to a signature that no longer exists: a harness that CANNOT FAIL, reported as one that cannot run (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-W1-STALE-GRANTROLE-MUTANTS** — `w1`'s `revert_replacement_arm` / `revert_outgoing_authority` / `naive_delete_insert` call `pg_get_functiondef` on a **5-arg `public.grant_role` that does not exist** (live is 6-arg), so… — backend
+
 - 🟠 **FUP-W1-STALE-GRANTROLE-MUTANTS** — filed 2026-08-28, found while repairing `w1`'s control for
   ADR 0167 and **verified pre-existing** (reproduced independently of that change).
 
@@ -7128,6 +7518,8 @@ holds is exactly what the current state already claims.
 
 ### 🟡 FUP-W3-ACL-KEYSTONE-NOT-PROVEN — an ACL keystone defended by something other than its ACL (owner: backend)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-W3-ACL-KEYSTONE-NOT-PROVEN** — `w3`'s `authenticated_gets_service_door` is **NOT PROVEN**: granting `authenticated` EXECUTE on `public.grant_role_for` leaves `293 § 4.1` **GREEN**, so the ACL keystone is defended by… — backend
+
 - 🟡 **FUP-W3-ACL-KEYSTONE-NOT-PROVEN** — filed 2026-08-28, **verified pre-existing** by re-running
   `w3` with `SRC` pointed at the committed `293` (same verdict; control green at 25).
 
@@ -7142,6 +7534,8 @@ measures something else.** Either the assertion needs an actor who would otherwi
 witness entirely.
 
 ### 🟡 FUP-REVALIDATE-PATH-NAMES-A-ROUTE-THAT-DOES-NOT-EXIST — the coordinator page is never revalidated (owner: frontend)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-REVALIDATE-PATH-NAMES-A-ROUTE-THAT-DOES-NOT-EXIST** — `revalidateCommissionPages` revalidates `/admin/comissoes/<slug>` — frontend
 
 - 🟡 **FUP-REVALIDATE-PATH-NAMES-A-ROUTE-THAT-DOES-NOT-EXIST** — filed 2026-08-28, found in passing
   during ADR 0167; **prose corrected, behaviour deliberately untouched.**
@@ -7158,6 +7552,8 @@ retired route found in one increment — the other was in a security docstring �
 for **the route**, not for this one call site.
 
 ### 🟠 FUP-AE2-397-DENY-CELLS-SQLSTATE-ONLY — `397 §§ 2/3`'s ten deny cells assert SQLSTATE only, in the suite that documents having been bitten by exactly that (owner: backend; filed 2026-08-28 by QA r3 F1)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-AE2-397-DENY-CELLS-SQLSTATE-ONLY** — `397 §§ 2/3`'s ten deny cells assert SQLSTATE only, while `app.grant_role_impl` has **12** `42501` sites over **7 messages** — backend
 
 **Measured.** `app.grant_role_impl` carries **12** `42501` raise sites over **7 distinct messages**,
 and `397 §§ 2/3`'s ten deny cells assert the SQLSTATE alone. So a refusal arriving from a *different
@@ -7176,6 +7572,8 @@ a message assertion — do not record "add the message" as a closure.
 
 ### 🟡 FUP-AE2-TEST-HARDENING-R3 — two small anti-vacuity gaps QA r3 found (owner: backend; filed 2026-08-28, QA r3 F3+F4)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-AE2-TEST-HARDENING-R3** — two bounded anti-vacuity gaps: `400 § 4.2` asserts `23514` with a null message where the guard has **two** arms raising it; and several `lives_ok` accepts lack the write-through twin their own files mandate (bounded — QA r3 checked `393`'s fixture ids all match today) — backend
+
 1. `400 § 4.2` asserts `23514` with `errmsg = null`, and that code has **two arms** in the guard — so
    the cell cannot say which raised.
 2. Several `lives_ok` accept cells lack the **write-through twin their own files mandate**. Bounded
@@ -7183,6 +7581,8 @@ a message assertion — do not record "add the message" as a closure.
    silently passing today.
 
 ### 🟡 FUP-AE2-392-FILENAME-CLAIMS-A-DIFFERENTIAL — `392_ae23a_widening_differential.sql` contains no differential (owner: backend/lead; filed 2026-08-28 by QA r3 F6)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-AE2-392-FILENAME-CLAIMS-A-DIFFERENTIAL** — `392_ae23a_widening_differential.sql` holds no differential after the AE2 re-cut. NOT renamed deliberately: `authz-door-audit-findings.md` keys witnesses on **full filenames** (verified, 4 occurrences), so a rename **orphans name-keyed verdicts**. ⛔ **This line exists because the deferral's only record was the phase doc the Record step rotates away** — a deferral surviving only in rotated narrative is indistinguishable from an oversight (QA r3 F6). Rename + re-point witnesses in ONE commit, or not at all — backend/lead
 
 After the AE2 re-cut the file is a suite about the NEW person-read predicate; its **name still asserts
 a differential**. Deliberately **not** renamed during the drop increment, and QA r3 verified the
@@ -7196,6 +7596,8 @@ from an oversight — QA r3 F6 raised exactly that. **Rename and re-point the fi
 same commit, or not at all.**
 
 ### 🟠 FUP-AE2-VOID-LAST-ORG-AFFILIATION-UNMAPPED — the containment trigger's `23514` reaches the user as "tente novamente", and the guard that looks like it covers this is bounded to DOORS (owner: backend; filed 2026-08-31 from the AE2.4 residue the plan said to assign before the drop)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-AE2-VOID-LAST-ORG-AFFILIATION-UNMAPPED** — voiding a person's **last** non-voided org affiliation hits ADR 0164's containment trigger (`23514`) and `toState` has **no arm**, so the user gets the generic *"tente novamente"* — a retry instruction for a condition retrying cannot fix. ⛔ **Filed 2026-08-31 out of AE2.4's own "assign it before the drop" line, which the drop passed**: it lived only in the plan tail + rotated narrative, in no index line. ⛔ **`door-error-arms.test.ts:343` reads as covering this and does NOT** — its domain is `.rpc()` → `app.*_impl` bodies, and a TRIGGER is in no part of it. Fix = a mapped `HC0R*` **in the door** (⛔ not a `23514` arm — `guard_org_affiliation_no_delete` shares that code) **plus** widening the suite's domain — backend
 
 **Filed late, and recorded as such deliberately.** `docs/plans/authz-evolution.md` § AE2.4 carries this
 as *"⚠ Owed, not scheduled — a raw SQLSTATE now reaches a user … Assign it before the drop."* The drop
@@ -7251,6 +7653,8 @@ read and write). Its own small increment; never folded into an AE phase's branch
 
 ### 🟠 FUP-NO-GATE-REPRODUCES-DOCKER-CONTEXT — a `src/` file importing across a `.dockerignore` boundary is green on EVERY local gate and red only on the build server (owner: backend/lead; filed 2026-09-01 from the AE3 cutover deploy failure)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-NO-GATE-REPRODUCES-DOCKER-CONTEXT** — a `src/` file importing across a `.dockerignore` boundary is green on **every** local gate and red only on the build server: an absent file is not an error, an unresolvable import **from a present file** is. Cost the AE3 cutover a failed deploy inside an open window; fixed for the instance (`a12b7c1d`), **not for the class**
+
 **What happened.** The AE3 cutover's first Coolify deploy failed at tsc:
 `src/lib/matcher-vacuity-truth-table.test.ts(1,22): error TS2307: Cannot find module
 '../../scripts/absent-subject-matchers.json'`. `.dockerignore` excludes `scripts`, justified by a
@@ -7275,6 +7679,8 @@ the layer-invalidation rationale for excluding `scripts/` is still correct for i
 
 ### 🟡 FUP-DBPUSH-SWALLOWS-NOTICE — the AE3 runbook's step-4 safety read is unexecutable through the command the runbook prescribes (owner: lead; filed 2026-09-01 from the AE3 cutover)
 
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-DBPUSH-SWALLOWS-NOTICE** — the AE3 runbook tells the operator to read the backfill's `raise notice`; `supabase db push` does not surface notices, and the migration's own parity check **holds vacuously at 0/0** — so the only guard against a silently-empty backfill is unreadable through the prescribed command
+
 `docs/deployment/ae3-cutover-runbook.md` § 2 step 4 says the backfill's `raise notice` *"reports how
 many rows moved. **Read it.**"* — and `supabase db push` **does not surface notices**. The 2026-09-01
 run printed only `Applying migration …` lines; the count was obtained from the catalog afterwards.
@@ -7290,7 +7696,9 @@ values are computed *before* the push (as was done here: 36 profiles / 5 cpf / 0
 expect `ppd_rows = 5`), so the read is an assertion against a prediction rather than a number to eyeball.
 ⚠ The same defect is latent in **any** runbook step that says to read a `raise notice`.
 
-## 🟡 FUP-SEED-PENDING-PERSONA-CANNOT-REACH-ITS-LAYER
+### 🟡 FUP-SEED-PENDING-PERSONA-CANNOT-REACH-ITS-LAYER
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-SEED-PENDING-PERSONA-CANNOT-REACH-ITS-LAYER** — ⭕ **DOWNGRADED 2026-09-01 (ADR 0175 D4b), NOT CLOSED.** Production almost certainly auto-confirms, so the local oracle describes the shipped system: one project only, `enable_confirmations=false` pushed to it 2026-06-12, and **37 users / 0 unconfirmed / 0 `confirmation_sent_at`**. ⛔ **The setting itself was NEVER READ** — the MCP exposes no auth-config endpoint — and leg 3 is confounded (admin-API and seeded users auto-confirm *regardless* of the setting, and 37-vs-36 says these ARE fixture rows). Closing it needs the dashboard or the Management API's `/config/auth`. Detail: `novato.pendente` is unset only in the
 
 **Filed:** 2026-09-01 (AE4.5, out of the deny-class effect table) · **Owner:** backend ·
 **Severity:** 🟡 — a fixture defect, not a product defect.
@@ -7318,7 +7726,9 @@ measurement instead of the appearance.
 persona stating that it models the *profiles-mirror* state only and cannot be used for auth-layer
 assertions.
 
-## 🟠 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM
+### 🟠 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM** — ⭕ **DOCUMENTED 2026-09-01 (ADR 0175 D4a), NOT CLOSED — and the ruling named the WRONG function.** `can_manage_professional` already carried the null-guard comment (AE4.7c); the undocumented one was its caller `can_create_professional`, now commented by migration `20261003007240`. ⭐ The sharper finding recorded there: that caller is **MIXED-GRAIN** — `is_org_commission_staff_admin` honours `p_uid`, `can_manage_professional` does not — so `can_read_professional_profile(…, someone_else)` returns true whenever the **caller** is an `org_admin` of that org. The trap is signposted; the grain is unchanged. Detail below: `app.can_manage_professional(p_org, p_uid)`'s
 
 **Filed:** 2026-09-01 (AE4.5, alongside BUG-PROF-INACTIVE-001) · **Owner:** backend ·
 **Severity:** 🟠 — a distinct authorization defect in the same predicate, deliberately NOT fixed
@@ -7353,6 +7763,8 @@ proving it landed. It also needs its own reachability analysis, which has not be
 **Disposition:** PO's, once BUG-PROF-INACTIVE-001 is green.
 
 ### 🟠 FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION — the "prod project" the archive defers to does not exist (owner: PO decision, then lead)
+
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION** — `list_projects` returns **exactly one** project (`azkbbhskturikxpgmafq`, "Forms"), so the ref that `db:link` / `db:push` / **`db:reset:linked`** target IS the deployed system. ⛔ `follow-ups-archive.md:68` calls it the *"remote TEST project"* and defers work to a *"prod project at deploy"* that **does not exist** — a premise, not a plan. Measured 2026-09-01: **37 `auth.users` rows** against a 36-row seed roster, i.e. it currently holds fixture data. ⚠ Compounds `remote-reset-seeds-production-with-e2e-fixture`: the destructive command has no second target to be pointed at by mistake, because there is no second target. **Trigger: BEFORE THE PILOT LOADS REAL DATA** — PO decision, then lead
 
 > **Filed 2026-09-01**, out of ADR [0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md)
 > D4(b). ⛔ **This is NOT the D4(b) item.** D4(b) asked what production's auth setting is; this is

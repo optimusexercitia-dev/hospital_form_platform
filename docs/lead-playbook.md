@@ -62,9 +62,11 @@ When a phase passes human approval, the lead:
    **appends it to `docs/progress/phase-ledger.md`** — the row does NOT stay in
    PROGRESS.md (`lint:progress` reds on a completed row there).
 2. **Moves everything the phase concluded out of PROGRESS.md in the same edit** (§5
-   below): task detail, resolved follow-up index lines, closed bugs, concluded
-   gate/QA/decision rows — each to its archive, leaving pointers only where a live
-   item still references them.
+   below): task detail, closed bugs, concluded gate/QA/decision rows — each to its
+   archive, leaving pointers only where a live item still references them. In the same
+   pass, resolved follow-up **entries** move `docs/progress/follow-ups-open.md` →
+   `docs/progress/follow-ups-archive.md` (they no longer pass through PROGRESS.md at
+   all — ADR [0179](./decisions/0179-follow-up-register-consolidation.md)).
 3. Archives the phase's task detail to `docs/progress/phase-N.md` (or a feature-named
    file).
 4. Updates `docs/backend-state.md` if the backend surface changed.
@@ -101,10 +103,14 @@ scratch under `$WORK` and never opens the committed baseline for write. Verify b
 **PROGRESS.md is live state only, and the contract is machine-enforced** —
 `npm run lint:progress` (`scripts/check-progress-doc.mjs`, gate 7 of `npm run lint`)
 reds on: the file over its **100 KB hard cap** (and *warns*, non-fatally, once it passes
-the **80 KB target** — rotate then, not at the cap; ADR 0124 Amdt 3), a `✅ complete` row in § Phase Status, a resolved line in
-the § Follow-ups index, a broken relative link, an OPEN `FUP-*` index line with no body
-in `follow-ups.md`, a missing required section, or CRLF. So the discipline below is not
-a memory exercise; the gate tells you when it has been skipped. At the Record step, move:
+the **80 KB target** — rotate then, not at the cap; ADR 0124 Amdt 3), a `✅ complete` row in § Phase Status, a broken relative
+link, a missing required section, or CRLF — **plus the register checks (ADR 0179):** a
+RESOLVED entry still sitting in `follow-ups-open.md`, a duplicate follow-up id, an id
+held by both that register and `follow-ups-archive.md`, and an index **re-grown** under
+PROGRESS.md § Follow-ups (an id in both the register and `deferred-backlog.md` warns).
+⛔ There is no longer an index↔body cross-check, because there is no index. So the
+discipline below is not a memory exercise; the gate tells you when it has been
+skipped. At the Record step, move:
 
 - **Phase row** → `docs/progress/phase-ledger.md`, **verbatim** (append-only; rows
   never leave *there*). Byte-compare the moved row before deleting the live one.
@@ -137,11 +143,16 @@ a memory exercise; the gate tells you when it has been skipped. At the Record st
   Take a **new ADR's number from `docs/decisions/INDEX.md`** (it states the next free one),
   never from the directory listing — two sessions eyeballing the listing on 2026-07-02 both
   filed an "ADR 0050", and the collision survived seven weeks and 87 further ADRs.
-- **Follow-ups / Deferred** → PROGRESS.md carries a **one-line index only** (severity ·
-  id · title · owner); full bodies of OPEN items live in `docs/progress/follow-ups.md`
-  (update BOTH on any state change — the gate checks the body exists). Move resolved
-  items' index lines to `docs/progress/follow-ups-archive.md` verbatim; NEVER compress
-  or drop an OPEN index line at any file size (§ Critical FUP never rotates at all).
+- **Follow-ups / Deferred** → **one entry in `docs/progress/follow-ups-open.md`, and
+  nothing anywhere else.** Severity · id · title · owner · origin · body live together in
+  that entry, so ⛔ **there is no dual-write**: PROGRESS.md carries a pointer to the file
+  and a routing table, never an index, and re-growing one reds the gate (ADR
+  [0179](./decisions/0179-follow-up-register-consolidation.md)). On a state change, edit
+  the entry in place. Move a **resolved** entry verbatim to
+  `docs/progress/follow-ups-archive.md`, a **parked** one to
+  `docs/progress/deferred-backlog.md`. The register has **no size cap**, so length is
+  never a reason to compress or drop an open item (§ Critical FUP, which stays in
+  PROGRESS.md and is *additive* to the entry here, never rotates at all).
 
 **Rotation mechanics that have failed before, now standing rules:** move content by
 extracting the original bytes (sed/script), never by retyping; byte-compare (`cmp`)

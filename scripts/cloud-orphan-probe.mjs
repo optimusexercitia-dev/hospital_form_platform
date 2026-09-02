@@ -20,7 +20,7 @@
  *   A surface that does not see `control.bin` is INVALID, not a "no". Without that
  *   arm a broken signature, a wrong bucket or a typo'd prefix reads as "Cloud
  *   exposes no orphan surface" — the exact vacuity this record keeps paying for.
- *   See docs/progress/follow-ups.md - FUP-DM5-CLOUD-ORPHAN-SURFACE.
+ *   See docs/progress/follow-ups-open.md - FUP-DM5-CLOUD-ORPHAN-SURFACE.
  *
  * DOMAIN GUARD: Cloud only, and only the project whose ref is passed in. The
  * sibling failure in `storage-manifest.mjs` (`locateVolume()` finding the wrong

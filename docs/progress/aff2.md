@@ -351,7 +351,7 @@ start date shipped would have found a green claim. ⭐ *A total that matches is 
 this file's own lesson, applied to this file. The asymmetry stands: `affiliatePerson` accepts a start date
 and `registerUser` does not, which is an **actions-layer** gap, not a UI limitation.
 ⭕ **FILED 2026-08-23 at the post-Record documentation review — `FUP-AFF2-REGISTRATION-HAS-NO-START-DATE`**
-(body in [follow-ups.md](follow-ups.md), index line in PROGRESS.md). ⛔ **Correcting this text was only HALF
+(body in [follow-ups-open.md](follow-ups-open.md), index line in PROGRESS.md). ⛔ **Correcting this text was only HALF
 of QA R3's discharge condition** — it read *"correct the closure text **and either build the field or file
 it**"*, and the filing half sat undone through the Record step. ⭐ Worth noting how it survived: the
 correction above is long, specific and self-critical, so the item **read as handled**. A finding that has
