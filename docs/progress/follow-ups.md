@@ -4797,6 +4797,36 @@ one.
 ⭐ Class: **a repair mechanism that changes what it is repairing.** Same family as the recorded lesson
 that a positive control can contaminate its own subject.
 
+⭐ **RE-CONFIRMED 2026-09-02, GENERALIZED BEYOND RETRIES (tester, AE4 gate spec review).** Two plain,
+back-to-back `npx playwright test e2e/ethics-e4-participants.spec.ts --project=chromium --workers=1`
+invocations against the SAME un-reset DB (no `RETRIES`, no server death) reproduced the identical
+symptom on the SECOND invocation alone: `EXT-REUSE` failed at the same assertion
+(`expect(seatedTwice.length).toBe(2)` → received 1, now `:944`), aborting the serial file and leaving
+the remaining 8 tests did-not-run. The first invocation (fresh reset) was 13/13 green — exit code read
+directly both times. ⛔ **The mechanism is therefore NOT retry-specific** — it fires on ANY re-run
+against an un-reset DB, of which a Playwright retry is only one trigger. This is corroboration of the
+SAME already-filed item, not a new one (identical test, identical assertion, identical failure shape) —
+filed here rather than as a new bug per that distinction.
+
+⭐ **INDEPENDENTLY CONFIRMED 2026-09-02 (frontend) — AND THE MECHANISM NAMED PRECISELY, NOT AS A
+CODE PATH.** With the PROF-CREATE fix (`add-participant-dialog.tsx`) STASHED, on the same polluted
+DB, `EXT-REUSE` fails identically (expected 2, received 1) — showing the fix is non-causal (fails
+identically without it) and, since the fix's `linkageDecidedAtCreation` guard sits inside the
+`professional` lane and cannot execute on `EXT-REUSE`'s external-lane path, that lane separation is
+why. ⛔ **That does NOT mean the defect lives in external-lane CODE** — the tester's fresh-reset
+13/13 is the positive control that rules that out: same external-lane code on disk, `EXT-REUSE`
+PASSED. Same code, different DB state, opposite verdict — so the mechanism is **accumulated DB row
+state across runs** (the spec asserts an exact seat count for a `participant_id` on a case that, on
+a second run, already carries a seat from the prior run), not a code path at all. Two independent
+people, two independent runs, zero retries involved in either — the strongest evidence yet that
+this is a deterministic fixture defect. ⚠ **Named for the next sweep:** this class — a spec
+asserting an absolute row/seat count, valid only on a fresh reset — is almost certainly not limited
+to `EXT-REUSE`; a future audit should grep for exact-count assertions on rows a create-always door
+can duplicate, not for anything lane-specific. It sharpens the "Directions" above: "make the
+tests idempotent" is the only one that closes the class; "run the retry against a fresh db reset" only
+patches the retry-specific trigger, and a gate-level retry-classifier would still misreport a genuine
+non-retry re-run (e.g. a local `e2e:prod` re-invocation without an intervening reset) as a real failure.
+
 ### 🟡 FUP-AFF2-ACTIVE-MEANS-TWO-THINGS — three authorities say "active membership" and no policy implements it (owner: backend/PO; filed 2026-08-23 at AFF2 build start, from a conflict `backend` measured before writing SQL)
 
 ADR [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) D13, the AFF2

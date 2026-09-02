@@ -582,3 +582,190 @@ green as-run** and owes a b2 + b9 re-run, which AE4.8 inherits.
   affiliation, so their cells labelled `active` are inaccurate. Harmless while nothing on the path
   reads affiliations (§ 20 is exactly that proof), but it is a fixture that cannot express a
   distinction it names. Filed, not fixed inside AE4.
+
+## AE4.8 — the app-side seam collapse, 2026-09-02 (lead session, after the PO batch)
+
+Rotated out of PROGRESS.md § Now 2026-09-02 (the § Now bullet had grown to the point where
+the tracker was 359 bytes from its hard cap). ⚠ **One claim was CORRECTED in the move, not
+copied** — see "G4" below.
+
+### What shipped
+
+- **`role-catalog.ts` holds ONE ordered manifest** — `ROLE_ORDER` + `ROLE_SCOPE_KIND` +
+  `ROLE_MANIFEST`. `page.tsx`'s eight `if` blocks and `landingRouteForRole`'s eight `switch`
+  arms collapse into ONE walk over `LANDING_BRANCHES` applying the same `resolveLanding`.
+- **Bound to the catalog by `role-catalog.test.ts`** — ⚠ keyed on **`session_selectable`, NOT
+  row count**: `authz.roles` has 12 rows against 11 roles, because `administrativo` is the
+  delegated capability, not a role (ADR 0061). A row-count binding would have been green and
+  wrong.
+- ⚠ **The partition keys off BRANCH, not scope.** `org_admin` and `nsp_org_admin` share a scope
+  and land in different lists — a scope-keyed partition looks equivalent and is not.
+
+### Two plan predictions that did not survive measurement
+
+- **"Six label maps collapse into `ROLE_LABELS` re-exports" — the six do not exist.** Measured:
+  **7** maps over **5** different role types, and the 2 platform-role ones carry deliberately
+  different pt-BR wording. PO ruled **bind the KEY SETS, keep the wording**.
+- **G4 "typed query" — ruled NOT IMPLEMENTABLE in flight, and that ruling is now SUPERSEDED.**
+  The in-flight argument was that `authz` is outside `config.toml`'s exposed schemas and no
+  client role holds USAGE (anon / authenticated / **service_role** all false), so a typed query
+  would need a NEW public door into the schema AE4 sealed; the binding was moved to gate time.
+  ⛔ **ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) D7 reversed this the
+  same week:** the ruling had read G4's "typed query" as a *client-side* query.
+  `public.assume_role` is `SECURITY DEFINER` and reads `authz.roles.session_selectable`
+  server-side **with no new grant**, so G4 is enforceable after all; pgTAP proves a true→false
+  mutation blocks selection while other roles still select. The vitest key-set comparison stays,
+  demoted to a presentation-drift guard. ⭐ **Recorded here with both halves deliberately:** the
+  sealed-schema measurement was TRUE and the conclusion drawn from it was FALSE, which is the
+  shape that survives review.
+
+### Gates at the end of AE4.8
+
+vitest **151 files / 2058 tests**, `lint` 12/12, `tsc` 0 — exits read directly.
+⛔ **`e2e:prod` RED** — that is the phase's live blocker and its record is PROGRESS.md § Bug Log,
+not this section.
+
+### What AE4.8 did NOT do
+
+- ⭐ **`landingRouteForRole` had ZERO tests and was refactored uncovered.** 31 cases are now
+  pinned, every expectation derived from the PRE-refactor code — but they were written *after*
+  the refactor, so they pin the new behaviour against a reading of the old, not against a
+  recorded baseline.
+- **`ae48-landing-by-scope-kind.spec.ts` is a NEW spec written by the lead**, claimed proven on
+  both polarities. ⛔ It owed tester sign-off at the time of writing (CLAUDE.md §4/§6).
+- **Nothing merged, nothing pushed** — the whole phase merges once, at Gate AE4.
+
+---
+
+## AE4.9 "do now" 1+2 — the resolver's contract corrected, and `assume_role` enforcing `session_selectable`, 2026-09-02 (backend)
+
+Subjects: `20261003007250_ae49_d4_resolver_contract.sql` (ADR 0176 **D4** / [IA-F3]) and
+`20261003007260_ae49_d7_assume_role_session_selectable.sql` (ADR 0176 **D7** / [IA-F4]).
+Implementation rulings: ADR
+[0177](../decisions/0177-ae49-resolver-contract-implementation-choices.md). ⛔ Two migrations, not
+one: disjoint objects, different `door-sweep-targets`, independently revertible.
+
+### The zero-caller premise, measured BEFORE and AFTER
+
+`pg_proc.prosrc ~ 'has_direct_permission|explain_direct_permission'` (comment-stripped) returned
+**zero rows** before the change; afterwards `has_permission`, `candidate_has_permission` and
+`explain_permission` each have **zero callers** anywhere — no SQL body, no policy, no `src/`, no
+`e2e/`. The migration ASSERTS the premise at apply time rather than trusting this paragraph. ⛔ That
+is a REACHABILITY fact and it expires at the first re-keyed site (0176 D6).
+
+### Every defect reproduced FIRST, on the live catalog at head `20261003007240`
+
+Rolled-back transaction, principal `chefe.ccih@test.local` (staff_admin @ CCIH):
+
+| probe | before | after |
+|---|---|---|
+| kind `commission` (correct), commission id | `t` | `t` |
+| kind `hospital` (wrong-but-plausible), same id | **`t`** | `f` |
+| kind `banana` (nonsense), same id | **`t`** | `f` |
+| kind `NULL` | **`t`** | `f` |
+| `org.professionals.read` at kind `commission` | **`t`** | `f` |
+| resolver with `staff_admin` set to `legacy` | **`t`** (while `holds_role` said `f`) | `f` |
+| grant DELETED, own commission → explanation | **`scope_unreachable`** | `permission_not_granted` |
+| FOREIGN-ORG commission → explanation | `scope_unreachable` | `scope_unreachable` |
+
+⭐ The last two rows are the collapse: two completely different situations, one string. Both
+"before" columns are re-asserted **inside** pgTAP `407` (§§2 and 4 carry hand-frozen copies of the
+DROPPED AE4.4b bodies), so the corrections stay anchored on a measured defect after the pre-change
+catalog is gone. ⚠ Legitimate only because those bodies were dropped and can never drift.
+
+### What shipped
+
+Four functions replace two: `authz.has_permission` (runtime, `authoritative` only, fails closed),
+`authz.candidate_has_permission` (the pre-cutover oracle — also sees `test_validation`, never
+`legacy`, ⛔ never EXECUTE-granted), `authz.explain_permission` (diagnostic only) and
+`authz.entailed_grants` (the ONE copy of the entailment join, gates returned as COLUMNS).
+`p_scope_kind` is validated against `resolution_scope_kind` and fails closed on NULL;
+`permission_explanation.denied_reason` now carries the `authz.denial_reason` domain, extended by
+three outcomes (`scope_kind_mismatch`, `role_not_authoritative`, `permission_not_granted`); the
+granting path is reported under a stated precedence (lowest `role_code`, then lowest
+`granting_permission_code`, `C` collation). `public.assume_role` reads `session_selectable`
+server-side inside its own DEFINER body — ⛔ **no application role gained USAGE on `authz`** (`408`
+§1.3 asserts it).
+
+### Evidence — both polarities, and every suite shown able to RED
+
+- `407_ae49_resolver_contract.sql` (54 tests) and `408_ae49_assume_role_session_selectable.sql`
+  (17 tests), both PASS.
+- ⭐ **VACUITY PROOF, measured not argued.** With the corrections reverted in place on a live stack
+  (old bodies restored, gate stripped), `407` fails **13 of 54** (2.3, 2.5, 2.6, 2.8, 2.10, 2.11,
+  3.3, 3.5, 3.7, 4.3, 4.4, 5.2, 6.1) and `408` fails **3 of 17** (1.1, 3.1, 4.2) — each exactly the
+  assertions the change owns. `408`'s discrimination halves (§3.2/§3.3) correctly stay GREEN in both
+  worlds, which is what they are for.
+- `408` §§3–4: `true → false` on one role's `session_selectable` blocks THAT role while **two**
+  siblings still select; restore proven; and deleting `platform_admin`'s catalog row proves the
+  fail-closed branch (reachable only there — `memberships_role_scope_kind_fkey` MATCH FULL /
+  ON DELETE RESTRICT makes it unconstructible for membership-derived roles; `408` §0.3 asserts that
+  FK rather than arguing it).
+- `407` §6: neutralising `authz.scope_reaches` out of the SHARED `entailed_grants` body moves all
+  three consumers at once — and §6.3 shows the explanation's reachability computation does **not**
+  move, because it is independent of the permission join. That is 0176 D4's requirement, proven by
+  differential rather than by reading the body.
+
+### Gate figures — exits read DIRECTLY from output, never from a pipeline tail
+
+`test:db` **256f/8579 PASS** (254f/8504 → +2 files, +75 tests: 407 = 54, 408 = 17, 401 +3, 403 +1) ·
+`lint` **12/12** · `tsc` **0** · `gen:types` **empty diff** (`authz` is not an exposed schema and
+`assume_role`'s signature is unchanged).
+
+**ARMs**, on a FRESH reset before each suite-running arm: `ARM=census` **exit 1 → then 0** ·
+`ARM=hat` **0** · `ARM=floor` **0** · `FROMFINDINGS=1 ARM=wrapper` **0**.
+⭐ **`ARM=census` did exactly its job**: it flagged `authz.has_permission` and
+`authz.candidate_has_permission` as UNKNOWN — a brand-new gate is in no BLIND set and clears
+`ARM=policy` vacuously (ADR 0079 Amdt 3). It returns to 0 only after the diff-scoped sweep's verdict
+was **merged as a row** into the findings md and the un-sweepable objects were classified with
+reasons.
+
+**Diff-scoped door sweep**, cases derived by `scripts/door-sweep-cases.sh` (exit **0 DERIVED**, 7
+cases), **BOTH arms run**:
+- READ arm exit **3 UNPROVEN (PARTIAL)** — `ARM-DOMAIN predicate=1/124 policy=0/226
+  out-of-domain-bool=37`, `SWEPT 1 · COVERED 1 · BLIND 0 · ERROR 0`. `authz.has_permission` is
+  **COVERED**.
+- WRITE arm exit **3 UNPROVEN — NOTHING WAS MEASURED** (`guard=0/13 policy=0/33`): this increment
+  creates no write policy and no `assert_*` raise-guard. ⛔ Recorded as UNPROVEN, never as a pass.
+- ⚠ The committed baselines were verified **unchanged** (the harness's own cksum check) — subset
+  verdicts were merged as rows, never by copying a subset file.
+
+⛔ **Four objects, four DIFFERENT domain-exclusion reasons** — they may not be recorded as one class
+(absence of a verdict is absence of coverage): `has_permission` in domain and COVERED ·
+`candidate_has_permission` boolean but excluded **by NAME**
+(`FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`) · `explain_permission` scalar non-bool (C2) ·
+`entailed_grants` set-returning + unreachable (the `assignment_facts` shape). `public.assume_role`
+is the fifth and is **not a newcomer** — it kept its NAME and changed its BODY, which `ARM=census`
+cannot see; the deriver is what surfaced it.
+
+### One thing the build DISCOVERED (ADR 0177 D6)
+
+pgTAP `401` §16.10 — the many-to-many hat translation — went **RED on its first run** after the
+migration. Its second granting role is `staff`, which is `legacy`, so the state gate denied it. The
+gate is correct and the fixture was wrong; `401` §16.9b now pins the fact as its own assertion.
+⛔ **A role's `authz.role_permissions` rows are INERT until its state flips: seeding a role's grants
+is NOT cutting it over.** No production answer moves today (`staff_admin` is the only role with
+grants and is already `authoritative`), and an AE5 increment that forgets the flip will look exactly
+like one whose grants were never seeded.
+
+### Records corrected in the same edit (stale-by-rename, no gate can see these)
+
+`supabase/tests/mutation/act-hat-blind-allowlist.txt` (the `assignment_facts` caller census — ⛔ the
+COUNT did not move, the NAMES did) · `authz-unswept-backlog.txt` (the AE4.7b block's two dropped
+names, plus four new classified entries) · `p0-authz-invariant.sh`'s "SIX authz functions" comment
+(now eight, re-derived) · `docs/reviews/authz-door-audit-findings.md` (row + prose note, ⛔ with no
+pipe table — `verdicts_from_findings()` counts every `| `-prefixed line in that file as a verdict).
+
+### What AE4.9 items 1+2 did NOT do
+
+- **No enforcement site was re-keyed** — 0176 D6's three representatives are the next step, and
+  there the grant-deletion mutation must flip a **production door**, not the resolver.
+- **No enforcement manifest** (0176 D5), **no `platform_role` retirement** (0176 D8), **no
+  performance evidence** (0176 Consequences — that comes after the seam, on the final path).
+- **`403`'s repoint to the candidate evaluator costs nothing TODAY and is not free forever** —
+  §3.2b asserts the bound (zero roles in `test_validation`) and states that the day it reds, `403`
+  stops being evidence about the runtime path. That is correct, and it must be recorded rather than
+  repointed away.
+- **`docs/backend-state.md`'s `authz` section is still owed** (audit F10) — this increment changed
+  the surface it should describe and did not write it.
+- **Nothing merged, nothing pushed.** The whole phase merges once, at Gate AE4.

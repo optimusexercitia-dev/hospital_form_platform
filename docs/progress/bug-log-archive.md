@@ -3427,3 +3427,100 @@ CLEAN. Committed baseline verified untouched (cksum + `git diff`), then the thre
 `e2e/aff4-meus-dados.spec.ts`'s `test.fail()` pin is deleted — exactly as its own comment
 promised: one line, nothing else in the test changed, and its assertions were never weakened
 while pinned.
+
+### ✅ BUG-AE47C-LINKAGE-001 — rotated from PROGRESS.md 2026-09-02 (closed at rotation, both casualties fixed and tester-verified)
+
+`ethics-e4-participants.spec.ts:765` (PROF-CREATE, create-inline "possui conta") regressed in
+AE4.7c. Filed 2026-09-02 (lead), surfaced by the AE4.8 `e2e:prod` gate.
+
+**ATTRIBUTION IS MEASURED AND STANDS:** GREEN at `0807cfda` (the commit before AE4.7c's
+`317d48dd`), deterministically RED at the branch tip — 3 consecutive reproductions, retries
+failing, and it fails **solo on a fresh reset**. Each side was run through `e2e-prod-gate.sh`,
+which resets the DB from the checked-out tree, so both halves were schema-coherent. Not
+contamination, not flake.
+
+⛔ **NOT `FUP-E2E-PROF-CREATE-ROSTER-FLAKE`** — that entry records a 2026-08-27 one-off that
+*passed on retry* and predates AE4.7c. Same test name, different mechanism.
+
+**Symptom:** the "Adicionar participante" dialog never closes (`toHaveCount(0)` times out at
+`e2e/ethics-e4-participants.spec.ts:415`), i.e. the submit errors server-side. ⚠ The gate could
+not show which door — `e2e-prod-gate.sh` truncates a fixed per-batch server log
+(`FUP-E2E-GATE-DISCARDS-SERVER-LOG-ON-MID-BATCH-DEATH`) and Playwright's artifacts were
+cleaned; ⭐ **the error was recovered instead from `docker logs` on the DB container, which the
+gate does not touch** — a cheaper witness than the app log, and it survives the harness.
+Reproduced **solo on a dev server** (`reuseExistingServer`), so the prod gate was never needed
+to see it.
+
+⛔ **THIS ENTRY'S FIRST MECHANISM WAS FALSE AND IS RETRACTED — the retraction is the
+load-bearing part.** It claimed *"the `link_state='unknown'` bound AE4.7c recorded was never
+built"*, citing a live-catalog read showing no `v_current_link`. **The bound IS built** —
+`20261003007230_ae47c_operation_split_and_grant.sql` emits it, and a fresh
+`supabase db reset --local` confirms `v_current_link` present and the population gate on
+`can_create_professional`. ⚠ **The false reading came from the BISECT:** running the gate at
+`0807cfda` reset the local DB to the **pre-AE4.7c schema**, and every catalog query afterwards
+described a database without AE4.7c in it. *A catalog audit is only as good as the reset behind
+it, and a bisect silently invalidates every later reading.* A no-op migration written on that
+false premise was deleted, not committed.
+
+✅ **MECHANISM MEASURED 2026-09-02, on a fresh reset, both polarities in ONE rolled-back
+transaction as `chefe.ccih` with the hat `active_role=staff_admin`.** The retracted diagnosis
+had the bound's *existence* wrong; the bound is nevertheless the cause, in the opposite
+direction — **it exists and it correctly refuses a redundant client call.** The create-inline
+submit does TWO writes: `createProfessionalProfile(…, userId)`
+([add-participant-dialog.tsx:937](../../src/components/cases/add-participant-dialog.tsx:937))
+and then, unconditionally, `setProfessionalLinkState`
+([:958](../../src/components/cases/add-participant-dialog.tsx:958)). Measured:
+`create_professional_profile` **with** `p_user_id` already writes `link_state='linked'`; the
+follow-up `set_professional_link_state(…,'linked',…)` then hits AE4.7c's bound (`v_current_link
+is distinct from 'unknown'` and no `can_manage_professional`) and raises **42501**, which
+`mapParticipantError` maps to the constant `MESSAGES.forbidden` — so the dialog sets an error
+and never closes. ⭐ **Discrimination half, same transaction:** creation **without** `p_user_id`
+leaves `link_state='unknown'` and the follow-up **SUCCEEDS** — which is exactly why only the
+`possui_conta` arm is red and `nao_possui_conta` (LINKAGE-UX) is green. Witnesses: the app's own
+error in the Postgres log (`authenticator@postgres ERROR: o vínculo deste profissional já está
+definido…`), the catalog body of `public.set_professional_link_state`, and the UI text `Você não
+tem permissão para esta ação.` in the Playwright error context.
+
+⛔ **TWO CASUALTIES OF THE SAME BOUND, and this entry closes only when BOTH do** — they were
+found together, have different owners and different fix sites, and a single ✅ on one reads as
+closing the pair:
+
+  1. **`PROF-CREATE` (`:765`) — app code.** Fix: skip the step-2 call when step 1 already
+     established the linkage (`profMode === 'create' && linkState === 'linked'`). Red-then-green
+     verified.
+  2. **`UNKNOWN-RESOLVE` (`:1068`, now `:1094`) — spec fixture. ✅ FIXED, tester's own edit.**
+     Its helper `revertLinkToUnknown`
+     ([:319](../../e2e/ethics-e4-participants.spec.ts:319)) did a `staff_admin` revert of an
+     already-decided linkage, which AE4.7c made org-authority-only. ⭐ **It had NO verdict from
+     the gate** — the file is serial, so `:765` aborted it. Fixed by changing the CALLER to
+     `orgadmin.a@test.local` (measured: refused as `chefe.ccih`, OK as `orgadmin.a`), never the
+     expectation — the docstring's superseded justification (*"`p_link_state not in (…)` is the
+     only rejection"*, false since AE4.7c) is corrected in place, not deleted.
+
+⛔ **Neither is fixed by relaxing the SQL bound, making the door idempotent, or dropping
+`userId` from the creation call** — the bound is deliberate (matrix § 12.8.5: a `staff_admin`
+ADDS a professional, never MODIFIES one), and widening an authority door to absorb a redundant
+client call is the wrong direction.
+
+⭐ **AE4.7c's own sweep of this class stopped one layer short — twice now.** It re-pointed the
+`HC0J7` callers in pgTAP 229/257, missed the E2E twin (`a1ac073c`), and missed
+`set_professional_link_state`'s own E2E callers entirely. A test-caller sweep must be derived
+over the DOOR, not over the error code that first surfaced it. Derived sweep 2026-09-02 over all
+three AE4.7c-bounded doors across `e2e/` + `supabase/tests/`: exactly one further broken caller
+(`revertLinkToUnknown`); `mintSeatableProfessional`
+([:283](../../e2e/ethics-e4-participants.spec.ts:283)) is legal because it creates without
+`p_user_id` and so transitions from `unknown`. — lead
+
+✅ **TESTER VERIFICATION 2026-09-02, closing this entry: whole-file
+`ethics-e4-participants.spec.ts` re-run on a FRESH `db reset`, `--project=chromium
+--workers=1`, exit code read DIRECTLY (not piped) — 13 passed, 0 failed, 0 did-not-run.** Every
+one of the 13 tests has a verdict, including both casualties (`PROF-CREATE` and
+`UNKNOWN-RESOLVE`) GREEN in the same run. Also signed off separately, on its own merits: the
+lead's `a1ac073c` split of `ethics-e2-procedure.spec.ts`'s FLOW-8 HC0J7 assertion (adds the
+42501 authority assertion, preserves the original HC0J7 assertion on a caller who now reaches
+it — verified against the live file, not just the diff). ⚠ **Unrelated finding, not a
+regression from this fix:** a deliberate SECOND consecutive run of this file (same DB, no
+reset) reproduces `EXT-REUSE` failing at `expect(seatedTwice.length).toBe(2)` → 1 — this is
+`FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS` (§ deferred backlog), not a new
+bug; addendum with the generalized (non-retry-specific) mechanism added to its entry in
+[follow-ups.md](follow-ups.md). — tester
