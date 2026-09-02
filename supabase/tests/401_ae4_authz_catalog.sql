@@ -28,16 +28,28 @@
 -- would destroy. Every fixture it creates is deleted BY IDENTITY (codes prefixed
 -- `zzfix.`), and the whole file rolls back regardless.
 --
--- RUN SHAPE: `Files=2, Tests=121` (120 here + 00_setup.sql's one). ⚠ 117 -> 120 at AE4.9:
+-- RUN SHAPE: `Files=2, Tests=122` (121 here + 00_setup.sql's one). ⚠ 117 -> 120 at AE4.9:
 -- § 16.7b (which gate answered 16.7, now that scope-kind validation fires first), § 16.9b (the
 -- STATE gate, found by this suite reddening on 16.10) and § 18.4 (the cardinality control that
 -- makes § 18.1's name-keyed grant list falsifiable).
 -- ⛔ The count above this line read `113` against plan(117) before AE4.9 — a stale RUN SHAPE is
 -- read as the expected shape by the next person diagnosing a count mismatch, so it is corrected
 -- here rather than carried forward.
+--
+-- ⚠ 120 -> 121 AT AE4.9, AND THE BOOKKEEPING IS SPLIT SO NEITHER CHANGE HIDES THE OTHER:
+--   * § 19.1 / § 19.2 were RE-SOURCED, not added to — from a `CASE ... ELSE` to the enforcement
+--     manifest (ADR 0176 D5). Two assertions before, two after: NET ZERO.
+--   * § 19.2c is the ONE new assertion (+1). It exists because § 19.2b's expected value had to
+--     move 1 -> 2 when the D6 re-key split can_create_professional's body away from rows 31/32,
+--     and a bare count of 2 over three functions cannot say WHICH pair still agrees. 19.2c pins
+--     the pair, which is the reach 19.2b lost.
+-- ⛔ THE REST OF § 19 IS UNTOUCHED — 19.3 (row 33's signature) and 19.4/19.5/19.6 (the 43-code
+-- grant probe with its cardinality and discrimination controls). Those assert the resolver's
+-- answers and the gates' signatures; the manifest asserts the enforcement MAPPING, and removing
+-- a subject deletes its assertions in two directions.
 
 begin;
-select plan(120);
+select plan(121);
 
 -- ============================================================================
 -- §1 — the schema, the four tables, and the deny-all RLS posture.
@@ -1227,40 +1239,53 @@ select is(
 -- AXES are not, and will not be until AE5 gives a role a partial mapping.
 -- ============================================================================
 
-select is(
-  (select count(*)::int from authz.permissions pm
-    where case pm.code
-            when 'org.professionals.read'            then 'can_read_professional_profile'
-            when 'org.professionals.manage'          then 'can_manage_professional'
-            when 'org.professionals.create'          then 'can_create_professional'
-            when 'org.participants.external.manage'  then 'can_manage_external_participant'
-            when 'org.case_vocabulary.manage'        then 'can_manage_case_vocabulary'
-            else                                          'is_staff_admin_of_for' end
-          not in (select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-                   where n.nspname = 'app')),
-  0,
-  '19.1 PARTITION IS TOTAL: every one of the 43 codes maps to a legacy gate that EXISTS in '
-  'the catalog. ⛔ This checks the MAPPING, never the resolver''s per-permission answer - '
-  '§ 19.4 is what checks that. ⚠ The mapping is now BY CODE, not by the `org.%` pattern: '
-  'AE4.7c gave rows 31, 32 and 43 their own gates, so a prefix match would have kept sending '
-  'four codes to a fifth gate and reported a total partition over a false one.');
+-- ⛔⛔ § 19.1 AND § 19.2 WERE A `CASE ... ELSE 'is_staff_admin_of_for'`, AND ADR 0176 D5
+-- RETIRES THAT MAPPING. The ELSE sent 38 of the 43 codes to one gate, so the partition was
+-- total BY CONSTRUCTION: a 44th permission would have INHERITED the staff_admin gate and
+-- both assertions would have stayed green while nobody decided anything about it. A default
+-- arm cannot fail on the case it was written to cover.
+--
+-- Both assertions are REPLACED, not deleted, and the claims are unchanged — every code maps
+-- to a legacy gate that EXISTS, and the 43 partition into exactly SIX classes. What changed
+-- is the SOURCE: the mapping now comes from the enforcement manifest, where all 43 codes are
+-- named individually and `npm run lint:authz-vectors` refuses a manifest with a wildcard key.
+--
+-- ⚠ AND THE JOIN IS A LEFT JOIN, WHICH IS NOT A LIKE-FOR-LIKE SWAP. With an inner join, a
+-- code MISSING from the manifest would be dropped from the scan and 19.1 would pass having
+-- skipped it — and skipping is not passing. The old CASE could not have that failure mode
+-- (its ELSE guaranteed a value for every row), so the replacement has to close a hole the
+-- original never had. 410 § 2.1/§ 2.2 make the same comparison from the other side.
+\ir vectors/authz_enforcement_manifest.psql
 
 select is(
-  (select count(distinct case pm.code
-     when 'org.professionals.read'            then 'can_read_professional_profile'
-     when 'org.professionals.manage'          then 'can_manage_professional'
-     when 'org.professionals.create'          then 'can_create_professional'
-     when 'org.participants.external.manage'  then 'can_manage_external_participant'
-     when 'org.case_vocabulary.manage'        then 'can_manage_case_vocabulary'
-     else                                          'is_staff_admin_of_for' end)::int
-   from authz.permissions pm),
+  (select coalesce(string_agg(pm.code || ' -> ' || coalesce(em.legacy_gate, '(NO MANIFEST ROW)'),
+                              ', ' order by pm.code), '(none)')
+     from authz.permissions pm
+     left join authz_manifest_permissions em on em.code = pm.code
+    where em.code is null
+       or not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                       where n.nspname || '.' || p.proname = em.legacy_gate)),
+  '(none)',
+  '19.1 PARTITION IS TOTAL, FROM THE MANIFEST: every one of the 43 codes has an enforcement-'
+  'manifest row, and that row''s declared legacy gate EXISTS in the catalog. ⛔ This checks '
+  'the MAPPING, never the resolver''s per-permission answer - § 19.4 is what checks that. '
+  '⚠ LEFT JOIN, DELIBERATELY: a code with no manifest row must RED here, not vanish from the '
+  'scan. ⛔ Replaces the `CASE ... ELSE ''is_staff_admin_of_for''` retired by ADR 0176 D5, '
+  'whose ELSE arm made the partition total by construction for any input.');
+
+select is(
+  (select count(distinct em.legacy_gate)::int
+     from authz.permissions pm join authz_manifest_permissions em on em.code = pm.code),
   6,
   '19.2 ...and it partitions the 43 into exactly SIX legacy-equivalence classes: '
-  'is_staff_admin_of_for (38 commission codes), can_manage_professional (row 30), '
-  'can_create_professional (row 43), can_manage_external_participant (row 31), '
-  'can_manage_case_vocabulary (row 32), can_read_professional_profile (row 33). ⚠ It was '
-  'THREE until AE4.7c split the org gate; the AE4.5 sweep still runs THREE representatives, '
-  'and 19.2b is the assertion that makes that reduction legitimate rather than a shortfall.');
+  'app.is_staff_admin_of_for (38 commission codes), app.can_manage_professional (row 30), '
+  'app.can_create_professional (row 43), app.can_manage_external_participant (row 31), '
+  'app.can_manage_case_vocabulary (row 32), app.can_read_professional_profile (row 33). ⚠ It '
+  'was THREE until AE4.7c split the org gate; the AE4.5 sweep still runs THREE '
+  'representatives, and 19.2b is the assertion that makes that reduction legitimate rather '
+  'than a shortfall. ⚠ INNER JOIN here ON PURPOSE and it is safe only because 19.1 ran '
+  'first: 19.1 proves the two sides are in bijection, so this join drops nothing. Its job is '
+  'the DISTINCT COUNT, and a manifest row for a code the catalog dropped must not inflate it.');
 
 select is(
   (select count(distinct regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g'))::int
@@ -1268,16 +1293,37 @@ select is(
     where n.nspname = 'app'
       and p.proname in ('can_create_professional', 'can_manage_external_participant',
                         'can_manage_case_vocabulary')),
+  2,
+  '19.2b ⭐⭐ THE THREE ORG GATES NOW HOLD **TWO** DISTINCT BODIES, AND THE 2 IS A CONSEQUENCE '
+  'OF A RESTORED REDUCTION — NOT AN EDIT TO MATCH REALITY. ⚠ 3 -> 2 classes-per-rep, 1 -> 2 '
+  'bodies, at AE4.9. THE HISTORY MATTERS: rows 31, 32 and 43 used to share ONE comment-stripped '
+  'body, which is what licensed the AE4.5 sweep running THREE representatives for SIX classes '
+  '— org.professionals.create spoke for all three. The ADR 0176 D6 re-key gave row 43''s gate a '
+  'permission arm and SPLIT that body. ⛔ THE SPLIT SILENTLY REMOVED DIFFERENTIAL COVERAGE FROM '
+  'ROWS 31 AND 32, and nothing else in any suite said so. '
+  '⭐ WHAT REPLACED THE REACH THIS ASSERTION LOST: 403 gained a FOURTH representative '
+  '(org.case_vocabulary.manage, on the can_manage_case_vocabulary class) and a new § 2.3b that '
+  'asserts rows 31 and 32 STILL share a body — the co-sharing being the entire basis for one '
+  'rep covering both. So 2 here means "two body-classes among these three functions, therefore '
+  'two representatives". '
+  '⛔ IF A FOURTH SPLIT HAPPENS THIS MUST RED AGAIN. Do not raise it to 3 to match a new '
+  'reality — raise it only after a representative exists for whatever split off. An expected '
+  'value that tracks reality by being edited is not an assertion.');
+
+select is(
+  (select count(distinct regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g'))::int
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and p.proname in ('can_manage_external_participant', 'can_manage_case_vocabulary')),
   1,
-  '19.2b ⭐⭐ THREE OF THE SIX CLASSES SHARE ONE BODY, ASSERTED FROM prosrc RATHER THAN '
-  'BELIEVED. Rows 31, 32 and 43 are gated by three DIFFERENTLY NAMED functions whose '
-  'comment-stripped bodies are IDENTICAL — each is `can_manage_professional OR the org '
-  'ascent`. That is why one differential representative (org.professionals.create) still '
-  'answers for all three, and why the AE4.5 sweep is 3 x the matrix and not 6 x. ⛔ Without '
-  'this, "one rep covers three classes" is a claim about bodies nobody re-reads: edit any one '
-  'of the three and the differential silently stops speaking for the other two. The names must '
-  'stay distinct — a permission code may not span a sensitivity boundary (matrix § 12.1) — but '
-  'the BODIES agreeing is exactly what makes the reduction sound.');
+  '19.2c ⭐ ...AND THE SURVIVING PAIR IS NAMED, WHICH THE COUNT IN 19.2b CANNOT DO. A distinct-'
+  'body count of 2 over three functions is satisfied by ANY of the three pairings — it would '
+  'stay green if can_create_professional re-merged with row 31 while row 32 split off instead. '
+  'This pins WHICH two still agree, and they are exactly the two the fourth representative '
+  'covers between them. ⛔ THIS IS THE HALF THAT WOULD HAVE CAUGHT THE AE4.9 REGRESSION EARLY: '
+  '19.2b''s old expected value of 1 did red on the re-key, but it could not say that rows 31 '
+  'and 32 were the ones left without a rep. Mirrors 403 § 2.3b deliberately — that one guards '
+  'the sweep, this one guards the partition, and a reader of either suite alone still sees it.');
 
 select is((select (p.proargnames)[1] from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = 'app' and p.proname = 'can_read_professional_profile'),

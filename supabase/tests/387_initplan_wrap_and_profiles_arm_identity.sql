@@ -305,8 +305,41 @@ select is(
   --    is exactly the claim AE2.2 makes.  ⛔ Never re-capture this constant
   --    without that check: on its own it degenerates into a snapshot of whatever
   --    the last migration produced.
-  'a115005b6106573c70d98a6aceb8a4fe',
-  'C1 un-wrapping every policy on the hot tables reproduces the pinned predicate set exactly -- no arm added, dropped or reordered beyond the three legs AE2.2 re-predicated on purpose');
+  --    ⭐ RE-CAPTURED 2026-09-02 by AE4.9 D6 (migration 20261003007300), from
+  --    a115005b6106573c70d98a6aceb8a4fe.  D6 re-keys the `commission.forms.edit` write
+  --    policies onto the layer-3 authorizer `app.can_edit_commission_forms`, and THREE of
+  --    its four sites are on hot tables: `form_versions_staff_admin_write`,
+  --    `form_sections_staff_admin_write`, `form_items_staff_admin_write`.  (`forms` is the
+  --    fourth site and is NOT in the hot subset, which is why C2 stays 99 and only three
+  --    entries move.)
+  --    ⚠ WHAT MAKES THIS RE-CAPTURE SAFE IS NOT THIS COMMENT, AND NOT §B EITHER.  The pin
+  --    was re-derived by INVERTING the change rather than by reading the new value off the
+  --    catalog: in a rolled-back transaction the three policies were ALTERed back to their
+  --    pre-D6 two-arm text (`is_staff_admin_of` OR `is_tenancy_admin_of`, in each policy's
+  --    own arm order -- ⛔ `form_versions` lists the TENANCY arm FIRST, the other two list
+  --    it second, and getting that order wrong moves the md5 exactly like a real
+  --    regression), and the aggregate came back to a115005b6106573c70d98a6aceb8a4fe
+  --    EXACTLY.  A 128-bit return is what licenses the claim that the other 96 policies are
+  --    bit-identical and that D6 moved only what it declared.  ⛔ Re-capturing by pasting a
+  --    freshly measured value proves nothing at all; invert the change or leave the pin red.
+  --    ⚠ §B IS ARM-BLIND FOR THIS CHANGE, stated because a green §B could be mistaken for
+  --    the corroboration AE2.2's note demands.  B1-B11 were re-run and did NOT move -- but
+  --    §B pins `profiles`, `case_events`, `responses`, `answers`, `case_referral`, and D6
+  --    touched NONE of those.  For AE2.2 §B was the right instrument because the changed leg
+  --    was a `profiles` leg; here it is merely silent.  The behavioural cover for D6's three
+  --    policies is `409` §2 (a WRITE, not a SELECT -- each of these tables also carries a
+  --    permissive `*_select` policy a staff_admin passes, so a row-count probe would stay
+  --    green with the write policy revoked entirely).
+  --    ⛔ AND C1'S REACH NARROWED HERE, WHICH THE NEW VALUE HIDES.  Before D6 the two arms
+  --    of each write policy were IN the predicate text, so C1 could see one added, dropped
+  --    or reordered.  They now live inside `app.can_edit_commission_forms`'s BODY, where a
+  --    policy-text hash cannot follow them: C1 would not move if the tenancy arm were
+  --    deleted from that function tomorrow.  That gap is covered by `409` §2.2 (the
+  --    authorizer names BOTH arms) and §2.1 (all four policies call it in BOTH halves).
+  --    ⭐ Losing reach is not the same as losing the subject -- but it is exactly the kind of
+  --    loss a re-captured constant makes invisible, so it is written down beside the value.
+  '3901715193753db33f980f939c6467de',
+  'C1 un-wrapping every policy on the hot tables reproduces the pinned predicate set exactly -- no arm added, dropped or reordered beyond the three legs AE2.2 re-predicated and the three form-write policies AE4.9 D6 re-keyed, both on purpose');
 
 select is(
   (select count(*)::int from pg_temp.ae15_hot_subset()),

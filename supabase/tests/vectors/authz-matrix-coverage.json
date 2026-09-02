@@ -1,5 +1,6 @@
 {
   "sourceSha256": "2ddda77978bba11e90050d3a7c9d746541459d642ac03ef9c2cf1d5a69b094dd",
+  "manifestSha256": "eed383185141591ea63a88008af294835addca17b7cd51626d4d83153d7506f7",
   "expected": 117000,
   "executed": 2002,
   "skipped": 114998,
@@ -20,6 +21,32 @@
     "wrong_active_context": 1287,
     "cross_org": 156,
     "unauthenticated": 39
+  },
+  "manifest": {
+    "permissionRows": 43,
+    "snapshotPermissions": 43,
+    "snapshotRoles": 12,
+    "migrationHead": "20261003007260",
+    "statusCounts": {
+      "pending-rekey": 40,
+      "re-keyed": 3
+    },
+    "enforcementSites": 10,
+    "authoritativeRoles": [
+      "staff_admin"
+    ],
+    "nonLegacyRoles": [
+      "staff_admin"
+    ],
+    "unusedHardDenyClasses": [
+      "principal_inactive",
+      "record_immutable_published",
+      "record_immutable_submitted",
+      "recusal_exclusion",
+      "respondent_exclusion",
+      "sensitivity_ceiling",
+      "tenant_mismatch"
+    ]
   },
   "failures": []
 }

@@ -32,7 +32,7 @@ raw = io.open(SRC, 'rb').read()
 sha = hashlib.sha256(raw).hexdigest()
 spec = json.loads(raw.decode('utf-8'))
 
-# ── The three legacy-equivalence classes, asserted in pgTAP 401 §19.2 ─────────────────
+# ── The legacy-equivalence classes swept here, asserted in pgTAP 401 §19.2 ─────────────────
 REPS = [
     # code, legacy class, resolution scope
     ('commission.forms.edit',      'is_staff_admin_of_for',        'commission'),
@@ -44,6 +44,30 @@ REPS = [
     # code staff_admin does hold, on the same gate family and the same org resolution scope.
     ('org.professionals.create',   'can_create_professional',      'organization'),
     ('org.professionals.read',     'can_read_professional_profile','organization'),
+    # ⭐⭐ A FOURTH REP, ADDED AT AE4.9 TO REPAIR COVERAGE THE RE-KEY REMOVED (lead ruling
+    # 2026-09-02, option (b) on the 401 § 19.2b red). NOT a widening for its own sake.
+    #
+    # WHAT BROKE. 401 § 19.2b licensed running THREE reps for SIX legacy-equivalence classes on
+    # a measured fact: rows 31, 32 and 43 were gated by three DIFFERENTLY NAMED functions whose
+    # comment-stripped bodies were IDENTICAL, so org.professionals.create spoke for all three.
+    # The AE4.9 D6 re-key gave row 43's gate a permission arm and SPLIT that body — measured
+    # `count(distinct prosrc)` over the three went 1 -> 2. Rows 31 and 32 lost their
+    # representative, silently, and no arm in any suite said so.
+    #
+    # ⛔ THE FIX IS A TEST FIX, NOT A RE-KEY. Re-keying rows 31/32 would widen the build past
+    # the PO-confirmed Gate AE4 scope (ADR 0176 D6, exactly three permissions). The gap is in
+    # COVERAGE, not in enforcement, so it is closed here.
+    #
+    # WHY org.case_vocabulary.manage AND NOT org.participants.external.manage — they are
+    # interchangeable on every axis that matters (identical bodies, identical (p_org, p_uid)
+    # signatures, same organization resolution scope, both held by staff_admin, and NEITHER
+    # needs a resource row the way row 33's profile-keyed gate does). The tie-break is a
+    # catalog property: `resource_kind`. The other three reps cover `commission_content` and
+    # `identity` twice over; org.case_vocabulary.manage is the only `vocabulary` permission
+    # among the candidates, so choosing it adds a resource_kind the sweep otherwise never sees.
+    # ⚠ 403 § 2.3b asserts rows 31 and 32 STILL share one body — that co-sharing is the entire
+    # basis for one rep covering both, and if a later change splits THEM it is what catches it.
+    ('org.case_vocabulary.manage',  'can_manage_case_vocabulary',   'organization'),
 ]
 
 # ── Axis disposition. EVERY axis the JSON declares must appear here, or arm7 refuses. ──
@@ -58,10 +82,10 @@ AXIS_DISPOSITION = {
     'activeContext':  'swept',
     'scope':          'swept',
     'principalState': 'swept',
-    'operation':      'not-swept: stood in for by the three legacy-class REPS above. Per-permission '
+    'operation':      'not-swept: stood in for by the legacy-class REPS above. Per-permission '
                       'AXES are not observable until AE5 gives a role a partial map; per-permission '
                       'GRANT is covered by 401 §19.4 (403 header, PER-PERMISSION GRAIN).',
-    'resourceLifecycle': 'not-swept: none of the three representatives acts on a lifecycled '
+    'resourceLifecycle': 'not-swept: none of the representatives acts on a lifecycled '
                       'resource — every cell is `not_applicable`. A rep that did would make this '
                       'a loop coordinate.',
     'sensitivity':    'not-swept: sensitivity_ceiling is DEFERRED in Increment 1 (ADR 0172); all '
@@ -241,8 +265,22 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None)
         f.append('arm1: the cell set is EMPTY — pgTAP would iterate nothing and pass')
     if not (any(c[9] for c in cells) and any(not c[9] for c in cells)):
         f.append('arm2: expected values are single-polarity — a resolver stuck on one answer would pass')
-    if len({c[5] for c in cells}) != 3:
-        f.append('arm3: not all THREE legacy-equivalence classes are swept (401 §19.2 asserts there are three)')
+    # ⭐ arm3 COMPARES SETS, DERIVED FROM `reps`, NOT A HARD-CODED 3. The literal was correct
+    # for as long as there were three reps and became a false gate the moment AE4.9 added a
+    # fourth — it refused a CORRECT cell set. ⛔ It is not a tautology against arm1b: arm1b
+    # keys on the permission CODE (c[4]) and this keys on the legacy CLASS (c[5]), and two reps
+    # may legitimately share a class, so neither implies the other.
+    # ⚠ THE SWEEP COVERS 4 OF THE 6 CLASSES 401 §19.2 counts. can_manage_professional (row 30)
+    # has no rep because staff_admin does not hold that code, and can_manage_external_participant
+    # (row 31) is covered BY BODY IDENTITY with org.case_vocabulary.manage — 403 §2.3b asserts
+    # that identity rather than assuming it.
+    _declared_classes = {r[1] for r in reps}
+    _emitted_classes = {c[5] for c in cells}
+    if _declared_classes != _emitted_classes:
+        f.append('arm3: swept legacy-equivalence classes do not match the declared REPS — '
+                 'declared-not-emitted %s, emitted-not-declared %s'
+                 % (sorted(_declared_classes - _emitted_classes) or '(none)',
+                    sorted(_emitted_classes - _declared_classes) or '(none)'))
     if not (any(c[8] for c in cells) and any(not c[8] for c in cells)):
         f.append('arm4: §6A both-polarity missing — self-check AND third-party are both required, or '
                  'the suite passes while pinning the uniform-apply bug')

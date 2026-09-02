@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -17,105 +16,95 @@ import {
 import { ROLE_LABELS as BLOCKER_ROLE_LABELS } from '@/components/users/affiliation-blocker-label'
 
 /**
- * ⭐ AE4.8 [PA-F1] — THE TS MANIFEST IS BOUND TO THE DB CATALOG, HERE, NOT IN REVIEW.
+ * ⭐ AE4.8 [PA-F1], split at AE4.9 "do now" item (d) / audit finding IA-F7.
  *
- * WHY THIS FILE EXISTS RATHER THAN A RUNTIME QUERY. ADR 0155 G4 asked for
- * `assume_role`'s validity check to read `authz.roles.session_selectable` "via a typed
- * query". It is not implementable: AE4.1 keeps `authz` out of `config.toml`'s exposed
- * schemas and grants no client role USAGE on it (measured — `anon`, `authenticated` AND
- * `service_role` are all false). Satisfying G4 literally would mean cutting a NEW public
- * door into the schema AE4 deliberately sealed, in exchange for a UI pre-filter whose
- * authority is `public.assume_role` anyway. So the binding moves from query time to GATE
- * time: same "cannot drift silently" property, no new runtime surface.
+ * WHY THIS FILE USED TO SHELL OUT TO DOCKER, AND WHY IT NO LONGER DOES.
+ * The original guard read `authz.roles` through `docker exec … psql` so that
+ * `ROLE_MANIFEST` could never drift from the live catalog without a test noticing (ADR
+ * 0155 G4's "typed query" ask is not implementable — `authz` is deliberately outside
+ * every client role's reach; see `role-catalog.ts`'s `isPlatformRole` doc comment for
+ * the full reasoning). That bound `npm run test` (a unit-test run) to Docker being up,
+ * which is a database dependency a *unit* suite must not carry.
  *
- * ⚠ THE CATALOG IS READ AT TEST TIME, NOT TRANSCRIBED. The recorded rule is that an
- * enumeration's boundary must be the PROPERTY, never a remembered list — and every
- * instance of the landing-seam class so far has been someone updating one list and not
- * the other. This is the sibling of `session-grants.test.ts`'s FUP-QO-2 guard, which
- * binds the same manifest to `memberships_role_check` from the other side.
+ * IA-F7 splits the guard by what each half actually needs:
+ *   - Provable from `ROLE_MANIFEST`/`ROLE_LABELS`/`ROLE_SCOPE_KIND`/`BLOCKER_ROLE_LABELS`
+ *     alone, with no I/O beyond reading this repo's own committed text — stays HERE.
+ *   - Needs the live `authz.roles` catalog — moved to the pgTAP suite
+ *     `supabase/tests/411_ae48_role_manifest_db_gate.sql`, which runs post-`db reset`
+ *     as part of the DB gate, not as a unit test.
  *
- * ⚠ REQUIRES THE LOCAL SUPABASE STACK, and FAILS LOUDLY when it is down rather than
- * skipping. A guard that quietly turns itself off is the trap it exists to prevent.
+ * THE CROSS-LANGUAGE SEAM. `ROLE_MANIFEST` is TypeScript; pgTAP is SQL; neither side can
+ * import the other. 411's file carries a COMMITTED (code, scope_kind) snapshot between
+ * `MANIFEST-SNAPSHOT-BEGIN`/`END` markers — a literal, machine-checkable stand-in for
+ * `ROLE_MANIFEST` that both sides key on:
+ *   - THIS file reads 411's SQL as plain text (`fs.readFileSync`, no DB, no Docker) and
+ *     asserts the snapshot equals `ROLE_MANIFEST` — see the last test below.
+ *   - 411 asserts that SAME snapshot against the live `authz.roles` table.
+ * Neither hop alone re-proves the original claim ("ROLE_MANIFEST is authz.roles' live
+ * session-selectable half"); chained, they do, and each hop can red independently on its
+ * own half of a drift (edit `ROLE_MANIFEST` without touching 411's snapshot → this file
+ * reds; edit a migration's role seed without touching 411's snapshot → 411 reds).
+ *
+ * ⚠ THE CATALOG IS STILL READ AT (DB) GATE TIME, NOT TRANSCRIBED BY HAND INTO A SECOND
+ * TS FILE. The recorded rule is that an enumeration's boundary must be the PROPERTY,
+ * never a remembered list — every instance of the landing-seam class so far has been
+ * someone updating one list and not the other. This is the sibling of
+ * `session-grants.test.ts`'s FUP-QO-2 guard, which binds the same manifest to
+ * `memberships_role_check` from the other side.
  */
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..')
 
-/** Read `authz.roles` through the DB container — the same route every mutation harness
- * in `supabase/tests/mutation/` takes, and the same container-name derivation
- * `session-grants.test.ts` uses (renaming the project cannot silently point this at a
- * container that does not exist). */
-function readAuthzRolesFromCatalog(): Array<{
-  code: string
-  scopeKind: string
-  sessionSelectable: boolean
-}> {
-  const configPath = path.join(REPO_ROOT, 'supabase', 'config.toml')
-  const projectId = /^\s*project_id\s*=\s*"([^"]+)"/m.exec(
-    readFileSync(configPath, 'utf8'),
-  )?.[1]
-  if (!projectId) {
-    throw new Error(`AE4.8 manifest guard: no project_id in ${configPath}`)
-  }
+const DB_GATE_RELATIVE_PATH = path.join(
+  'supabase',
+  'tests',
+  '411_ae48_role_manifest_db_gate.sql',
+)
+const MANIFEST_SNAPSHOT_BEGIN = '-- MANIFEST-SNAPSHOT-BEGIN'
+const MANIFEST_SNAPSHOT_END = '-- MANIFEST-SNAPSHOT-END'
 
-  // ⚠ `session_selectable` is spelled out as 't'/'f' RATHER THAN concatenated directly.
-  // Inside a `||` expression Postgres casts boolean to text as 'true'/'false', NOT the
-  // 't'/'f' that psql prints for a bare boolean COLUMN — so the obvious form parses to
-  // sessionSelectable=false for every row, which makes the two comparison assertions
-  // vacuous against an empty set. Caught by the discrimination control below, which is
-  // the only assertion here that could see it.
-  const sql =
-    "select code || '|' || allowed_scope_kind || '|' || " +
-    "case when session_selectable then 't' else 'f' end from authz.roles"
+/**
+ * Parse the (code, scope_kind) snapshot embedded in 411's pgTAP file — see the module
+ * doc comment above. Plain-text `fs.readFileSync` of a file already checked into THIS
+ * repo: no DB connection, no Docker, no network. This is what lets the drift check below
+ * run in the same process as every other unit test.
+ */
+function readManifestSnapshotFromDbGate(): Array<{ code: string; scopeKind: string }> {
+  const gatePath = path.join(REPO_ROOT, DB_GATE_RELATIVE_PATH)
+  const text = readFileSync(gatePath, 'utf8')
 
-  let raw: string
-  try {
-    raw = execFileSync(
-      'docker',
-      [
-        'exec',
-        `supabase_db_${projectId}`,
-        'psql',
-        '-U',
-        'postgres',
-        '-d',
-        'postgres',
-        '-tAc',
-        sql,
-      ],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    )
-  } catch (cause) {
+  const begin = text.indexOf(MANIFEST_SNAPSHOT_BEGIN)
+  const end = text.indexOf(MANIFEST_SNAPSHOT_END)
+  if (begin === -1 || end === -1 || end < begin) {
     throw new Error(
-      'AE4.8 manifest guard: could not read authz.roles from the live catalog. Start ' +
-        'the local stack (`supabase start`) — this guard reads the catalog on purpose ' +
-        'and must never silently skip.',
-      { cause },
+      `AE4.9/IA-F7 manifest guard: could not find the ${MANIFEST_SNAPSHOT_BEGIN} / ` +
+        `${MANIFEST_SNAPSHOT_END} markers in ${DB_GATE_RELATIVE_PATH}. Keep them exactly — ` +
+        'this test parses that file as plain text to bind ROLE_MANIFEST to the committed ' +
+        'snapshot 411 checks against the live catalog.',
     )
   }
+  const block = text.slice(begin, end)
 
-  const rows = raw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [code, scopeKind, selectable] = line.split('|')
-      return { code, scopeKind, sessionSelectable: selectable === 't' }
-    })
+  // Matches each `('code', 'scope_kind')` row. The surrounding `create temp table` /
+  // `insert into … values` SQL has no other single-quoted-pair shape, so this cannot
+  // pick up anything but the data rows.
+  const rowPattern = /\(\s*'([a-z_]+)'\s*,\s*'([a-z_]+)'\s*\)/g
+  const rows: Array<{ code: string; scopeKind: string }> = []
+  let match: RegExpExecArray | null
+  while ((match = rowPattern.exec(block)) !== null) {
+    rows.push({ code: match[1], scopeKind: match[2] })
+  }
 
   if (rows.length === 0) {
     throw new Error(
-      'AE4.8 manifest guard: authz.roles yielded ZERO rows. Either the catalog is ' +
-        'unseeded or the schema moved — an empty enumeration would make every ' +
-        'assertion below vacuous.',
+      `AE4.9/IA-F7 manifest guard: parsed ZERO rows out of ${DB_GATE_RELATIVE_PATH}'s ` +
+        'snapshot block. An empty snapshot would make the comparison below vacuous.',
     )
   }
   return rows
 }
 
-describe('role-catalog manifest ↔ authz.roles', () => {
-  const catalog = readAuthzRolesFromCatalog()
-  const selectable = catalog.filter((r) => r.sessionSelectable)
-
+describe('role-catalog manifest — pure checks + the committed DB-gate snapshot binding', () => {
   it('the manifest covers every platform_role — ROLE_ORDER is not exhaustive by type', () => {
     // ⛔ `as const satisfies readonly PlatformRole[]` does NOT catch a MISSING role: a
     // short array still satisfies the constraint. ROLE_LABELS is exhaustive by type, so
@@ -123,34 +112,6 @@ describe('role-catalog manifest ↔ authz.roles', () => {
     expect([...ROLE_ORDER].sort()).toEqual(Object.keys(ROLE_LABELS).sort())
     expect(ROLE_MANIFEST).toHaveLength(Object.keys(ROLE_LABELS).length)
     expect(new Set(ROLE_ORDER).size).toBe(ROLE_ORDER.length)
-  })
-
-  it('the manifest is exactly the session-selectable half of authz.roles', () => {
-    // ⚠ NOT "every authz.roles row". `administrativo` is a per-commission delegated
-    // CAPABILITY, not a platform_role (CLAUDE.md §1, ADR 0061), and it is the one row
-    // with session_selectable = false. A guard keyed on row COUNT would red on day one
-    // and be "fixed" by loosening it; keyed on the property, it says something true.
-    expect([...ROLE_ORDER].sort()).toEqual(selectable.map((r) => r.code).sort())
-  })
-
-  it('every manifest scopeKind equals authz.roles.allowed_scope_kind', () => {
-    const fromCatalog = Object.fromEntries(
-      selectable.map((r) => [r.code, r.scopeKind]),
-    )
-    const fromManifest = Object.fromEntries(
-      ROLE_MANIFEST.map((r) => [r.code, r.scopeKind]),
-    )
-    expect(fromManifest).toEqual(fromCatalog)
-  })
-
-  it('DISCRIMINATION CONTROL — the catalog read distinguishes selectable from not', () => {
-    // ⛔ Without this, a query returning every row as sessionSelectable=true would
-    // satisfy the two assertions above only by accident of the current data, and a
-    // query returning NONE would make `selectable` empty and both comparisons vacuous
-    // against an equally empty manifest. Both directions must be observed.
-    expect(selectable.length).toBeGreaterThan(0)
-    expect(catalog.length).toBeGreaterThan(selectable.length)
-    expect(catalog.some((r) => !r.sessionSelectable)).toBe(true)
   })
 
   it('the affiliation-blocker label map covers the same roles — SHARED KEYS, OWN WORDING', () => {
@@ -174,20 +135,37 @@ describe('role-catalog manifest ↔ authz.roles', () => {
     expect(Object.keys(BLOCKER_ROLE_LABELS).sort()).toEqual(expected)
   })
 
-  it('ROLE_SCOPE_KIND holds only values the catalog vocabulary uses', () => {
-    // Catches a typo'd scope kind that happens to match no role and would otherwise
-    // surface only as a silently-unpartitioned grant.
-    //
-    // ⛔ ASSERTED AS A SET DIFFERENCE, NOT IN A LOOP. The loop form put every assertion
-    // on a conditional path — an empty ROLE_SCOPE_KIND would have run zero `expect`s and
-    // passed. `lint:vacuous` caught it, which is the gate doing exactly its job; the
-    // set-difference form asserts unconditionally AND names what was unexpected.
-    const catalogKinds = new Set(catalog.map((r) => r.scopeKind))
-    const unknown = [...new Set(Object.values(ROLE_SCOPE_KIND))].filter(
-      (kind) => !catalogKinds.has(kind),
-    )
-    expect(unknown).toEqual([])
-    // Cardinality control: the comparison above is only meaningful over a non-empty map.
+  it('ROLE_SCOPE_KIND is defined for exactly the manifest roles (cardinality control)', () => {
+    // Ported from the old "ROLE_SCOPE_KIND holds only values the catalog vocabulary
+    // uses" test's non-DB half. Its OTHER half — no scope kind is a stranger to
+    // `authz.roles.allowed_scope_kind`'s real vocabulary — needs the live catalog and
+    // now lives in 411 §5; this half needs nothing but the TS objects themselves, and
+    // guards against ROLE_SCOPE_KIND being shorter than ROLE_ORDER, which would make
+    // 411 §5's vocabulary-subset check meaningful over a silently-shrunken set.
     expect(Object.keys(ROLE_SCOPE_KIND).length).toBe(ROLE_ORDER.length)
+  })
+
+  it('ROLE_MANIFEST matches the committed snapshot 411 binds to the live catalog (IA-F7)', () => {
+    // ⭐ THE DRIFT CHECK. This is the TS-side hop of the two-hop chain described in the
+    // module doc comment: it proves ROLE_MANIFEST agrees with the COMMITTED snapshot
+    // (plain text, no DB); 411 proves that SAME snapshot agrees with the live
+    // `authz.roles` catalog (DB, post-`db reset`). Together they re-prove what the old
+    // single Docker-shelling test proved — that ROLE_MANIFEST is exactly authz.roles'
+    // session-selectable half, with matching scope kinds — without either hop acquiring
+    // the other's dependency.
+    //
+    // ⛔ Edit ROLE_MANIFEST (add/remove a role, change a scopeKind) without updating
+    // 411's snapshot block, or vice versa, and THIS test reds — no `supabase start`
+    // required to see it.
+    const snapshot = readManifestSnapshotFromDbGate()
+    const fromManifest = [...ROLE_MANIFEST]
+      .map((r) => ({ code: r.code, scopeKind: r.scopeKind }))
+      .sort((a, b) => a.code.localeCompare(b.code))
+    const fromSnapshot = [...snapshot].sort((a, b) => a.code.localeCompare(b.code))
+
+    // Cardinality control first: a truncated snapshot would make the equality below
+    // pass on a subset instead of the whole manifest.
+    expect(snapshot.length).toBe(ROLE_MANIFEST.length)
+    expect(fromSnapshot).toEqual(fromManifest)
   })
 })

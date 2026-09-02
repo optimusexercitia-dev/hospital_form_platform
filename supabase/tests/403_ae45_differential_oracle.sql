@@ -35,15 +35,18 @@
 --
 -- ⚠ TWO MORE LIMITATIONS, MEASURED 2026-09-01 (a third was RESOLVED — see below). Each is a place
 -- where the CELL COUNT overstates what was measured, and both read as coverage if not stated:
---   * `648 cells` is 432 DISTINCT DRIVER-OBSERVABLE COORDINATES. The driver's answer depends on
+--   * `864 cells` is 432 DISTINCT DRIVER-OBSERVABLE COORDINATES. The driver's answer depends on
 --     (persona, context, scope, RESOLUTION-SCOPE-KIND, state, self_check) — not on the permission
---     code — and TWO of the three representatives are org-scoped, so 216 of the cells re-run a
---     coordinate an earlier rep already measured. That re-run is not worthless (it shows the two
---     org-scoped codes agree) but it is not 648 independent measurements, and citing 648 as the
+--     code — and THREE of the four representatives are org-scoped, so 432 of the cells re-run a
+--     coordinate an earlier rep already measured. That re-run is not worthless (it shows the three
+--     org-scoped codes agree) but it is not 864 independent measurements, and citing 864 as the
 --     measurement count is the inflation the axes file itself warns against.
---     ⛔ RE-DERIVED, NOT ADJUSTED: this read `657 / 438 / 219` until ADR 0175 D2 deleted the nine
---     anonymous cells. Scaling those three numbers by hand would have been wrong — the count of
---     DISTINCT coordinates does not move with the cell count in any fixed ratio.
+--     ⛔ RE-DERIVED, NOT SCALED, TWICE NOW. This read `657 / 438 / 219` until ADR 0175 D2 deleted
+--     the nine anonymous cells, then `648 / 432 / 216` until AE4.9 added a fourth representative.
+--     Note what did and did NOT move: the cell count went 648 -> 864 (4 reps x 216) and the RE-RUN
+--     count went 216 -> 432, but DISTINCT COORDINATES STAYED AT 432 — it is bounded by the number
+--     of distinct resolution-scope KINDS (2), not by the number of reps. Scaling all three numbers
+--     by 4/3 would have produced a plausible, wrong 576.
 --   * ✅ RESOLVED 2026-09-01 (ADR 0175 D2) — THE 9 `deny-class:unauthenticated` CELLS ARE DELETED.
 --     They never ran unauthenticated: the driver maps `anonymous` to f.nobody, the same
 --     AUTHENTICATED principal as `unprivileged`, so they proved exactly what
@@ -62,18 +65,24 @@
 --     denied either way — but they do not exercise the §6A asymmetry, and the asymmetry's real
 --     evidence is the 26 `wrong_active_context:third-party` cells, not the 108.
 --
--- ⚠ PER-PERMISSION GRAIN: the axis sweep runs one representative per legacy-equivalence class
--- (three; pgTAP 401 §19.2 asserts the partition). Per-permission GRANT is covered by 401 §19.4's
--- 42 cheap probes. Per-permission AXES are not observable until AE5 gives a role a partial map.
+-- ⚠ PER-PERMISSION GRAIN: the axis sweep runs one representative per legacy-equivalence class it
+-- can cover — FOUR reps over the SIX classes 401 §19.2 counts. The two uncovered classes are named
+-- rather than left to inference: `can_manage_professional` (row 30) has no rep because staff_admin
+-- does NOT hold that code, so every cell would be a denial (the single-polarity trap AE4.7c already
+-- hit once); `can_manage_external_participant` (row 31) is covered BY BODY IDENTITY with the fourth
+-- rep, and §2.3b ASSERTS that identity rather than assuming it. Per-permission GRANT is covered by
+-- 401 §19.4's 43 cheap probes. Per-permission AXES are not observable until AE5 gives a role a
+-- partial map.
 --
--- RUN SHAPE: `Files=2, Tests=23` (22 here + 00_setup.sql's one). ⚠ 18 -> 21: ADR 0175 D3's § 7,
+-- RUN SHAPE: `Files=2, Tests=24` (23 here + 00_setup.sql's one). ⚠ 18 -> 21: ADR 0175 D3's § 7,
 -- the three assertions that BOUND F3's discharge. ⚠ 21 -> 22: AE4.9's § 3.2b, the bound on
--- pointing this suite at the CANDIDATE evaluator. ⛔ Keep this line in step with plan() — the QA
+-- pointing this suite at the CANDIDATE evaluator. ⚠ 22 -> 23: AE4.9's § 2.3b, the body-identity
+-- assertion that licenses ONE rep covering rows 31 and 32. ⛔ Keep this line in step with plan() — the QA
 -- review caught it already claiming 12 against plan(15), and a stale RUN SHAPE is read as the
 -- expected shape by the next person diagnosing a count mismatch.
 
 begin;
-select plan(22);
+select plan(23);
 
 \ir vectors/authz_differential_cells.psql
 
@@ -165,9 +174,31 @@ select ok(
   'satisfied by a resolver stuck at false, which is the single most likely way this suite could '
   'pass while proving nothing.');
 
-select is((select count(distinct legacy_class)::int from authz_differential_cells), 3,
-  '2.3 all THREE legacy-equivalence classes are swept (401 §19.2 asserts the partition is total '
-  'and that there are exactly three).');
+select is((select count(distinct legacy_class)::int from authz_differential_cells), 4,
+  '2.3 FOUR legacy-equivalence classes are swept. ⭐⭐ THE 4 IS A CONSEQUENCE, NOT AN ADJUSTMENT, '
+  'and the difference matters: 401 §19.2 counts SIX classes, and the sweep covers the four it '
+  'CAN. `can_manage_professional` (row 30) has no rep because staff_admin does not hold that '
+  'code — a rep on it would make every cell a denial. `can_manage_external_participant` (row 31) '
+  'is covered by BODY IDENTITY with row 32, which §2.3b asserts. ⚠ 3 -> 4 at AE4.9: the D6 '
+  're-key split can_create_professional''s body away from rows 31/32, so the create rep stopped '
+  'speaking for them and a fourth rep was added (lead ruling, option (b)). ⛔ IF THIS REDS, THE '
+  'QUESTION IS WHICH CLASS LOST OR GAINED A REP — never "what number matches today". An expected '
+  'value edited to track reality is not an assertion.');
+
+select is(
+  (select count(distinct regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g'))::int
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and p.proname in ('can_manage_external_participant', 'can_manage_case_vocabulary')),
+  1,
+  '2.3b ⭐⭐ ROWS 31 AND 32 STILL SHARE ONE BODY, AND THAT CO-SHARING IS THE WHOLE BASIS FOR ONE '
+  'REP COVERING BOTH. org.case_vocabulary.manage is the rep; org.participants.external.manage '
+  'has none, and is covered only because its gate''s comment-stripped body is IDENTICAL. ⛔ THIS '
+  'IS THE ASSERTION THAT CATCHES THE NEXT SPLIT. 401 §19.2b made exactly this argument over '
+  'THREE functions and it held until the AE4.9 re-key split one of them off — at which point '
+  'rows 31 and 32 silently lost their representative and no arm said so. If these two diverge, '
+  'the same thing happens again, and this reds. ⚠ Do not "fix" a red here by raising the count: '
+  'the count is 1 because the reduction requires it, so a 2 means row 31 needs its own rep.');
 
 select ok(
   (select count(*) from authz_differential_cells where self_check) > 0
@@ -188,6 +219,17 @@ select ok(
 -- ============================================================================
 -- §3 — the driver. Materialises each cell's state and calls BOTH evaluators.
 -- ============================================================================
+
+-- ⛔ THE DRIVER'S `else` IS NO LONGER A CATCH-ALL. A legacy class the dispatch below does
+-- not name RAISES instead of being silently routed to whichever door the `else` happened to
+-- hold. Returns boolean only so it can sit in the CASE expression; it never returns.
+create or replace function pg_temp.unknown_legacy_class(p_class text) returns boolean
+language plpgsql immutable as $u$
+begin
+  raise exception '403 driver: legacy class % has no dispatch branch. Add one; do NOT let a '
+    'default arm answer for it.', p_class;
+end;
+$u$;
 
 create or replace function pg_temp.cell_answers(
   p_persona text, p_ctx text, p_scope text, p_code text, p_class text, p_state text, p_self boolean
@@ -271,12 +313,21 @@ begin
   legacy := case p_class
     when 'is_staff_admin_of_for'         then app.is_staff_admin_of_for(v_scope_id, v_principal)
     when 'can_create_professional'       then app.can_create_professional(v_scope_id, v_principal)
+    -- ⭐ AE4.9: the FOURTH class (lead ruling 2026-09-02, option (b)). Rows 31 and 32 lost their
+    -- representative when the D6 re-key split can_create_professional's body away from theirs.
+    when 'can_manage_case_vocabulary'    then app.can_manage_case_vocabulary(v_scope_id, v_principal)
     -- ⛔ The profile is chosen by the SAME scope rule as v_scope_id above. Choosing it any other
     -- way (or using one profile) decouples the door's org from the cell's scope, and the scope
     -- axis stops being swept while the cell ids still claim it is.
-    else app.can_read_professional_profile(
+    when 'can_read_professional_profile' then app.can_read_professional_profile(
            case p_scope when 'foreign_org_commission' then f.xorg_prof else f.own_prof end,
            v_principal)
+    -- ⛔⛔ THE `else` USED TO BE A CATCH-ALL FOR can_read_professional_profile, AND THAT IS A
+    -- DEFAULT ARM — the exact shape ADR 0176 D5 retires from 401 § 19. It bit immediately: adding
+    -- the fourth class above would have sent EVERY one of its cells to the professional-profile
+    -- door, and the suite would have reported a clean differential for a class it never called.
+    -- The door is now named explicitly and an unknown class RAISES rather than being absorbed.
+    else pg_temp.unknown_legacy_class(p_class)
   end;
   catalog := authz.candidate_has_permission(v_principal, v_res, v_scope_id, p_code);
   return next;

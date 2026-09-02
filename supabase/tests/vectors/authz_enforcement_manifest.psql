@@ -1,0 +1,167 @@
+-- GENERATED FILE — DO NOT EDIT BY HAND.
+-- Source:    supabase/tests/vectors/authz-enforcement-manifest.json
+-- Generator: scripts/gen-authz-matrix-cells.mjs
+-- sourceSha256: eed383185141591ea63a88008af294835addca17b7cd51626d4d83153d7506f7
+--
+-- ADR 0176 D5 — THE ENFORCEMENT MANIFEST, as a pgTAP fixture.
+--
+-- ⛔ WHAT THIS IS FOR. It carries the manifest's COMMITTED SNAPSHOT of the catalog into a
+-- session where the LIVE CATALOG is available. `npm run lint` (gate 12) proves the manifest
+-- is internally consistent and agrees with this snapshot WITHOUT DOCKER; 410 proves the
+-- snapshot agrees with authz.permissions / authz.roles. Splitting it this way is deliberate:
+-- a live catalog query inside the lint gate would make `npm run lint` require Docker.
+--
+-- ⛔ NO DEFAULT ARM. Every one of the 43 permissions is named explicitly. The
+-- `CASE … ELSE 'is_staff_admin_of_for'` this replaces sent 38 of 43 codes to one gate, so a
+-- 44th permission would have INHERITED a mapping instead of forcing a decision.
+--
+-- Editing this file by hand REDS `npm run lint:authz-vectors`.
+
+create temp table authz_manifest_permissions on commit drop as
+  select * from (values
+    ('commission.accreditation.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.action_items.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.audit.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'audit', 'read', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.cases.access.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'authority', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.cases.lifecycle', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'irreversible', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.cases.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.cases.phi.dispose', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'phi', 'irreversible', 'phi', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'phi', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.cases.phi.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'phi', 'read', 'phi', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'phi', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.cases.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'read', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.cases.recusal.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'authority', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.charter.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.dashboard.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'read', 'none', 'commission', array['submitted'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.documents.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['draft'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.documents.publish', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'irreversible', 'none', 'commission', array['draft'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.dsr.execute', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'audit', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.forms.assets.upload', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['draft'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.forms.edit', 're-keyed', 'app.can_edit_commission_forms', 'app.can_edit_commission_forms', 'domain', null::boolean, true, array['authz.has_permission', 'app.is_tenancy_admin_of_for'], array['app.is_tenancy_admin_of_for'], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['draft'], 'architecture-rule', 'none', array[]::text[], 'measured-at-declared-sites', false, 4, null::text, null::text, null::text, null::text, null::text),
+    ('commission.forms.publish', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'irreversible', 'none', 'commission', array['draft'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.indicators.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.meetings.cases.decision.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'read', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.meetings.cases.shell.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'read', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.meetings.cases.substance.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'read', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.meetings.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.meetings.minutes.transcript.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'read', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.meetings.reserved.author', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.process_templates.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.referrals.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.referrals.phi.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'phi', 'read', 'phi', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'phi', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.responses.correct', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['submitted'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.responses.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'read', 'none', 'commission', array['in_progress', 'submitted'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.safety_events.custody', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.safety_events.phi.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'phi', 'read', 'phi', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'phi', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.safety_events.phi.write', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'phi', 'write', 'phi', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'phi', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.safety_events.report', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.signoffs.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'read', 'none', 'commission', array['in_progress', 'submitted'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.signoffs.sign', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['in_progress'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.staff.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'identity', 'authority', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('commission.titles.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'vocabulary', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
+    ('org.case_vocabulary.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.can_manage_case_vocabulary', 'identical', 'vocabulary', 'write', 'none', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.can_manage_case_vocabulary', 'lead', 'AE5-complete', null::text, null::text),
+    ('org.participants.external.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.can_manage_external_participant', 'identical', 'identity', 'write', 'none', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.can_manage_external_participant', 'lead', 'AE5-complete', null::text, null::text),
+    ('org.professionals.create', 're-keyed', 'app.can_create_professional', 'app.can_create_professional', 'domain', null::boolean, false, array['authz.has_permission', 'app.can_manage_professional'], array['app.can_manage_professional'], 'app.can_create_professional', 'identical', 'identity', 'write', 'class2_professional_identity', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'class2_professional_identity', array[]::text[], 'measured-at-declared-sites', false, 3, null::text, null::text, null::text, null::text, null::text),
+    ('org.professionals.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.can_manage_professional', 'identical', 'identity', 'authority', 'class2_professional_identity', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'class2_professional_identity', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.can_manage_professional', 'lead', 'AE5-complete', null::text, null::text),
+    ('org.professionals.read', 're-keyed', 'app.can_read_professional_profile', 'app.can_read_professional_profile', 'domain', null::boolean, true, array['authz.has_permission', 'app.is_admin', 'app.can_manage_professional', 'app.can_read_case_committee'], array['app.is_admin', 'app.can_manage_professional', 'app.can_read_case_committee'], 'app.can_read_professional_profile', 'identical', 'identity', 'read', 'class2_professional_identity', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'class2_professional_identity', array[]::text[], 'measured-at-declared-sites', false, 3, null::text, null::text, null::text, null::text, null::text)
+  ) as t(code, status, domain_authorizer, authorizer, authorizer_source,
+         authorizer_provisional, authorizer_exec_authenticated, authorizer_composed_with,
+         residual_legacy_authority,
+         legacy_gate, legacy_expected,
+         resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind,
+         lifecycles, lifecycle_provenance, sensitivity, hard_deny_classes, hard_deny_provenance,
+         has_boundary, site_count, pending_layer1_gate, pending_owner, pending_expiry,
+         exception_owner, exception_expiry);
+
+create temp table authz_manifest_sites on commit drop as
+  select * from (values
+    ('commission.forms.edit', 'policy', 'public', 'forms', 'forms_staff_admin_write', array['app.can_edit_commission_forms']),
+    ('commission.forms.edit', 'policy', 'public', 'form_versions', 'form_versions_staff_admin_write', array['app.can_edit_commission_forms']),
+    ('commission.forms.edit', 'policy', 'public', 'form_sections', 'form_sections_staff_admin_write', array['app.can_edit_commission_forms']),
+    ('commission.forms.edit', 'policy', 'public', 'form_items', 'form_items_staff_admin_write', array['app.can_edit_commission_forms']),
+    ('org.professionals.create', 'function', 'public', null::text, 'create_professional_profile', array['app.can_create_professional']),
+    ('org.professionals.create', 'function', 'public', null::text, 'ensure_professional_participant', array['app.can_create_professional']),
+    ('org.professionals.create', 'function', 'public', null::text, 'set_professional_link_state', array['app.can_create_professional']),
+    ('org.professionals.read', 'policy', 'public', 'professional_profiles', 'professional_profiles_select', array['app.can_read_professional_profile']),
+    ('org.professionals.read', 'policy', 'public', 'professional_participants', 'professional_participants_select', array['app.can_read_professional_profile']),
+    ('org.professionals.read', 'function', 'public', null::text, 'get_case_professional', array['app.can_read_professional_profile'])
+  ) as t(code, site_kind, site_schema, site_relation, site_name, composed_with);
+
+-- The snapshot lists asserted against the live catalog by 410. ⛔ These are NOT derived from
+-- the manifest's row keys — the redundancy is what gives 410 a real set difference to compute.
+create temp table authz_manifest_snapshot_permissions on commit drop as
+  select * from (values
+    ('commission.accreditation.manage'),
+    ('commission.action_items.manage'),
+    ('commission.audit.read'),
+    ('commission.cases.access.manage'),
+    ('commission.cases.lifecycle'),
+    ('commission.cases.manage'),
+    ('commission.cases.phi.dispose'),
+    ('commission.cases.phi.read'),
+    ('commission.cases.read'),
+    ('commission.cases.recusal.manage'),
+    ('commission.charter.manage'),
+    ('commission.dashboard.read'),
+    ('commission.documents.manage'),
+    ('commission.documents.publish'),
+    ('commission.dsr.execute'),
+    ('commission.forms.assets.upload'),
+    ('commission.forms.edit'),
+    ('commission.forms.publish'),
+    ('commission.indicators.manage'),
+    ('commission.meetings.cases.decision.read'),
+    ('commission.meetings.cases.shell.read'),
+    ('commission.meetings.cases.substance.read'),
+    ('commission.meetings.manage'),
+    ('commission.meetings.minutes.transcript.read'),
+    ('commission.meetings.reserved.author'),
+    ('commission.process_templates.manage'),
+    ('commission.referrals.manage'),
+    ('commission.referrals.phi.read'),
+    ('commission.responses.correct'),
+    ('commission.responses.read'),
+    ('commission.safety_events.custody'),
+    ('commission.safety_events.phi.read'),
+    ('commission.safety_events.phi.write'),
+    ('commission.safety_events.report'),
+    ('commission.signoffs.read'),
+    ('commission.signoffs.sign'),
+    ('commission.staff.manage'),
+    ('commission.titles.manage'),
+    ('org.case_vocabulary.manage'),
+    ('org.participants.external.manage'),
+    ('org.professionals.create'),
+    ('org.professionals.manage'),
+    ('org.professionals.read')
+  ) as t(code);
+
+create temp table authz_manifest_snapshot_roles on commit drop as
+  select * from (values
+    ('administrativo', 'legacy', false),
+    ('hospital_admin', 'legacy', true),
+    ('nsp_coordinator', 'legacy', true),
+    ('nsp_org_admin', 'legacy', true),
+    ('org_admin', 'legacy', true),
+    ('platform_admin', 'legacy', true),
+    ('pqs_member', 'legacy', true),
+    ('quality_reviewer', 'legacy', true),
+    ('staff', 'legacy', true),
+    ('staff_admin', 'authoritative', true),
+    ('technical_director', 'legacy', true),
+    ('technical_director_deputy', 'legacy', true)
+  ) as t(code, state, session_selectable);
+
+create temp table authz_manifest_approved_suites on commit drop as
+  select * from (values
+    ('staff_admin')
+  ) as t(role_code);
+
+create temp table authz_manifest_hard_deny_vocab on commit drop as
+  select * from (values
+    ('principal_inactive', 'app.is_active'),
+    ('record_immutable_published', null::text),
+    ('record_immutable_submitted', null::text),
+    ('recusal_exclusion', 'app.is_case_excluded'),
+    ('respondent_exclusion', 'app.is_case_respondent'),
+    ('sensitivity_ceiling', null::text),
+    ('tenant_mismatch', null::text)
+  ) as t(class_name, gate);
