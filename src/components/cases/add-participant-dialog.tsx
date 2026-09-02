@@ -955,7 +955,30 @@ export function AddParticipantDialog({
               selectedProf.professionalProfileId ?? undefined;
           }
 
-          if (needsLinkage && linkState && professionalProfileId) {
+          // BUG-AE47C-LINKAGE-001. In the create-inline arm with "possui
+          // conta", step 1 has ALREADY decided the linkage: measured on a
+          // fresh reset, `create_professional_profile` handed a non-null
+          // `p_user_id` writes `link_state='linked'` and sets `user_id`
+          // itself. A follow-up `set_professional_link_state` is therefore
+          // not a completion but a MODIFY of an already-decided linkage,
+          // which the AE4.7c bound (migration 20261003007230) correctly
+          // refuses with 42501 for any caller below org authority — a
+          // `staff_admin` may complete an add, never re-decide a linkage.
+          // That 42501 mapped to MESSAGES.forbidden and left the dialog open.
+          // The other two arms still need this call and are legal: search
+          // (pick-existing) resolves a profile whose linkage is `unknown`,
+          // and create + `no_account` leaves creation at `unknown`. Keyed on
+          // profMode/linkState rather than on how the id was obtained, so the
+          // `alreadyMinted` retry takes the same branch as a fresh create.
+          const linkageDecidedAtCreation =
+            profMode === "create" && linkState === "linked";
+
+          if (
+            needsLinkage &&
+            linkState &&
+            professionalProfileId &&
+            !linkageDecidedAtCreation
+          ) {
             const linkRes = await setProfessionalLinkState(
               professionalProfileId,
               linkState,
