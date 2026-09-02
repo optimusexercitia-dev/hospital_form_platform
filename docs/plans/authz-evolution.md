@@ -1025,8 +1025,8 @@ Therefore: AE4 proves the **mechanism** end-to-end on the three differential rep
 domain authorizer at the site, and the grant-deletion mutation must flip the **production
 door**, not the generic resolver; every other permission enters the manifest as
 `pending-rekey`; each AE5 role increment re-keys the sites its bundle touches (per-role
-checklist, § AE5). ⚠ **The Gate AE4 minimum re-key scope is a PO confirmation item** (§ PO
-decision points) — the three representatives is the proposal.
+checklist, § AE5). ✅ **The Gate AE4 minimum re-key scope is CONFIRMED (PO, 2026-09-02): the
+three representatives**, each end-to-end, everything else `pending-rekey` — 0176 D6.
 
 **Authority repair — DONE 2026-09-02: ADR
 [0176](../decisions/0176-authz-permission-layer-made-real.md) `Amends:` 0155 D7 and 0174** —
@@ -1071,8 +1071,10 @@ non-`authoritative` roles while the candidate oracle stays testable and non-call
 product paths; scope kind validated; missing grant / unreachable scope / wrong active context /
 inactive principal explain distinctly and deterministically; `assume_role` enforces
 `session_selectable`; the enforcement manifest exists with no default arm and generation fails
-on set difference; the grant-deletion mutation flips the **production door** for every re-keyed
-representative; performance acceptance measured on the **final** path. ⛔ `e2e:prod` is RED at
+on set difference; the grant-deletion mutation flips the **production door** for each of the
+three representatives (`commission.forms.edit`, `org.professionals.create`,
+`org.professionals.read` — the PO-confirmed minimum, 0176 D6), every other permission
+`pending-rekey` in the manifest; performance acceptance measured on the **final** path. ⛔ `e2e:prod` is RED at
 `a0b27f3c` (1183 p · 1 f · 62 infra-unproven · 3 flaky · 13 did-not-run); the recorded C2 Tier-1
 state is 8 of 171 new enforcers measured, 3 BLIND. None of these is "gate paperwork".
 
@@ -1180,7 +1182,7 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 | AE3 branch-cut | confirm pilot has not loaded data (else dual-write re-plan) | lead |
 | AE4.3 | the `staff_admin` matrix (becomes the oracle) | lead + backend |
 | **AE4.9** | ✅ **RULED 2026-09-02** — on the [implementation audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md): **Option A — make permissions real** (three layers, manifest countdown, re-key sequenced with AE5) — recorded in ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) (`Amends:` 0155 D7 + 0174) | lead + PO |
-| **Gate AE4** | the **minimum re-key scope** for the gate — proposal: the three differential representatives end-to-end, everything else `pending-rekey` in the manifest | PO |
+| **Gate AE4** | ✅ **RULED 2026-09-02** — the **minimum re-key scope** is the three differential representatives end-to-end (`commission.forms.edit`, `org.professionals.create`, `org.professionals.read`), everything else `pending-rekey` in the manifest — 0176 D6 | PO |
 | **AE5 plan** | the bundled four: F6 exact-assignment context · F8 `administrativo` out of roles · `platform_role` retirement · F7 single manifest entry — decided together, one compatibility migration | lead + PO |
 | AE5, per role | each role's matrix; the substitution order | lead |
 | AE5.7 | `platform_admin` noun-rule restriction review before flip | qa + PO |

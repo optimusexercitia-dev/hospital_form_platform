@@ -121,9 +121,12 @@ second role with a **different** bundle shares the site — the discriminating p
 therefore proves the seam end-to-end and stops: for each proven permission, a domain authorizer at
 the site, and the grant-deletion mutation flipping the **production door** (never only the
 resolver). Every AE5 role increment re-keys the sites its bundle touches before its state flips.
-▶ **PROPOSED — PO confirmation owed:** the Gate AE4 minimum is the three differential
-representatives, `commission.forms.edit`, `org.professionals.create`, `org.professionals.read`.
-Until confirmed, the plan carries it as a proposal, not a gate line.
+✅ **CONFIRMED 2026-09-02 (PO), the same day and before any code — recorded in place rather than
+in a successor ADR, and loudly, because the first text of this paragraph read "PROPOSED":** the
+Gate AE4 minimum is the three differential representatives, `commission.forms.edit`,
+`org.professionals.create`, `org.professionals.read`, each re-keyed end-to-end with the
+grant-deletion mutation flipping its production door; every other permission enters the gate as
+`pending-rekey`. This is a gate line, not a proposal.
 
 **D7 — G4 is enforced server-side; the in-flight "not implementable" ruling is superseded.**
 `public.assume_role` is `SECURITY DEFINER` and reads `authz.roles.session_selectable` with no grant

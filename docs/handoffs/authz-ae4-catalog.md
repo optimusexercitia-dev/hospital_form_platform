@@ -247,6 +247,11 @@ context · F8 `administrativo` out of `authz.roles` · `platform_role` retiremen
 manifest entry — all pre-users design choices, none blocks the merge, one compatibility
 migration instead of four (plan § AE5).
 
+**2026-09-02, later the same day:** PO **confirmed the Gate AE4 minimum re-key scope = the three
+differential representatives** (`commission.forms.edit`, `org.professionals.create`,
+`org.professionals.read`), each end-to-end with the grant-deletion mutation flipping its
+production door; everything else `pending-rekey` (0176 D6, recorded in place).
+
 ## Open questions / blockers
 
 | Item | Who/what answers it |
@@ -255,7 +260,6 @@ migration instead of four (plan § AE5).
 | ⛔ **TWO E2E SPECS OWE TESTER SIGN-OFF.** CLAUDE.md §4 gives `e2e/` to the tester and §6 says engineers never edit specs without it; both edits were made by the lead because no teammate agents were available. **`e2e/ethics-e2-procedure.spec.ts`** (`a1ac073c`) — the HC0J7 assertion split into two callers; it **strengthens** (adds an assertion, keeps the original subject) but a spec edit made by the party whose change broke it is exactly what the rule exists to stop. **`e2e/ae48-landing-by-scope-kind.spec.ts`** (`99848eaa`) — a new spec, proven on both polarities. | tester, before Gate AE4 |
 | ⛔ **62 infra-unproven + 13 never-run carry NO verdict** (§ Gates). b7 was already re-run once and got worse. Re-running it is a prerequisite for any green declaration, and a second consecutive server death is a finding about the harness, not noise. | re-run b7 + b6 |
 | ⛔ **PROGRESS.md — the 81,920 B target is NOT met and NOT reachable by rotation.** Every sanctioned category is empty; the OPEN follow-up index alone is ~50% of the file and the contract forbids rotating it. Options are a PO decision — raise the target, or give the register its own file — filed as `FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT`. | PO |
-| **Gate AE4 minimum re-key scope** — proposal: the three differential representatives (`commission.forms.edit`, `org.professionals.create`, `org.professionals.read`) end-to-end, the grant-deletion mutation flipping each **production door**; every other permission `pending-rekey` in the manifest. | PO |
 | ⛔ **Performance evidence does not exist** — no AE4.4 scaled-fixture artifact anywhere (audit F9). Measure the FINAL path after AE4.9's seam, never `holds_role` alone. | backend, after the ADR |
 | ⛔ **Rollback runbook + out-of-chain SQL template do not exist** (audit F10; zero `*rollback*` files in the tree). | backend, before Gate AE4 |
 | **UNKNOWN:** whether the 25 unreachable rewrite migrations' doors hold periodic-sweep verdicts. The 8 measurable ones gave 16 COVERED / 10 ERROR / **0 BLIND** / 29 absent, every absent one outside `PRED_DOMAIN` by shape — converging on the known C2 population, not a new one. | a historical-snapshot audit, if authorised |
@@ -266,7 +270,8 @@ migration instead of four (plan § AE5).
 
 0. ✅ **Done 2026-09-02:** ADR [0176](../decisions/0176-authz-permission-layer-made-real.md)
    written (`Amends:` 0155 D7 + 0174), indexed, and the ruling recorded in PROGRESS.md § Now +
-   § Decisions. ▶ Still owed to the PO: the **Gate AE4 minimum re-key scope** (0176 D6).
+   § Decisions. ✅ Gate AE4 minimum re-key scope **confirmed** the same day: the three
+   representatives (0176 D6). No PO item is open on this phase's authority record.
 1. **Diagnose `BUG-AE47C-LINKAGE-001`** — reproduce `e2e/ethics-e4-participants.spec.ts` against
    a server whose log you control (the gate's own log is truncated per batch), capture the
    server-side error, then fix. ⛔ Re-measure the catalog only after a fresh reset at THIS tree.
@@ -279,7 +284,8 @@ migration instead of four (plan § AE5).
    (d) move `role-catalog.test.ts`'s Docker shell-out to a post-reset DB gate.
 3. **AE4.9's first artifact:** the generated enforcement manifest with **no default arm**,
    replacing 401 §19's `ELSE`; then the three representatives re-keyed end-to-end (domain
-   authorizer at the site; grant deletion flips the production door).
+   authorizer at the site; grant deletion flips the production door) — the PO-confirmed Gate
+   AE4 minimum, 0176 D6.
 4. **Re-run b7 and b6**, then the full `e2e:prod` to an actual green. ⛔ Read `GATE_EXIT` from the
    log, never from a task notification.
 5. **Tester sign-off** on the two spec edits.
