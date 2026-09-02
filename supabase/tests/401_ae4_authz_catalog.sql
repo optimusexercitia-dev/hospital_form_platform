@@ -28,10 +28,16 @@
 -- would destroy. Every fixture it creates is deleted BY IDENTITY (codes prefixed
 -- `zzfix.`), and the whole file rolls back regardless.
 --
--- RUN SHAPE: `Files=2, Tests=113` (112 here + 00_setup.sql's one).
+-- RUN SHAPE: `Files=2, Tests=121` (120 here + 00_setup.sql's one). ⚠ 117 -> 120 at AE4.9:
+-- § 16.7b (which gate answered 16.7, now that scope-kind validation fires first), § 16.9b (the
+-- STATE gate, found by this suite reddening on 16.10) and § 18.4 (the cardinality control that
+-- makes § 18.1's name-keyed grant list falsifiable).
+-- ⛔ The count above this line read `113` against plan(117) before AE4.9 — a stale RUN SHAPE is
+-- read as the expected shape by the next person diagnosing a count mismatch, so it is corrected
+-- here rather than carried forward.
 
 begin;
-select plan(117);
+select plan(120);
 
 -- ============================================================================
 -- §1 — the schema, the four tables, and the deny-all RLS posture.
@@ -932,35 +938,35 @@ create temp table t401_p on commit drop as
 select is((select count(*)::int from t401_p where uid is not null and cid is not null), 1,
   '16.0 FIXTURE CONTROL: chefe.ccih resolves to one principal with one staff_admin commission');
 
-select ok(authz.has_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
+select ok(authz.has_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
   '16.1 GATE 1+2+3 POSITIVE: a live seat, an active principal, the right commission -> TRUE');
 
 update public.memberships set expires_at = now() - interval '1 day'
  where principal_id = (select uid from t401_p) and role = 'staff_admin';
-select ok(not authz.has_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
+select ok(not authz.has_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
   '16.2 ⭐ GATE 1 NEGATIVE - an EXPIRED seat denies. Without the expires_at term the adapter '
   'would hand the resolver a lapsed coordinator''s grants and it would answer TRUE.');
 update public.memberships set expires_at = null
  where principal_id = (select uid from t401_p) and role = 'staff_admin';
 
 update public.profiles set is_active = false where id = (select uid from t401_p);
-select ok(not authz.has_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
+select ok(not authz.has_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
   '16.3 GATE 3 NEGATIVE (deactivated) - app.is_active gates the WHOLE projection');
 update public.profiles set is_active = true where id = (select uid from t401_p);
 
 update public.profiles set suspended_until = now() + interval '7 days' where id = (select uid from t401_p);
-select ok(not authz.has_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
+select ok(not authz.has_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'),
   '16.4 GATE 3 NEGATIVE (suspended) - the SAME predicate, a different column. ⚠ This is why '
   'inactive and suspended are NOT independently observable: app.is_active folds them, so a '
   'matrix cell expecting a distinguishable answer would assert something the system cannot '
   'express. Reproduced deliberately, not inherited.');
 update public.profiles set suspended_until = null where id = (select uid from t401_p);
 
-select ok(not authz.has_direct_permission((select uid from t401_p), 'commission',
+select ok(not authz.has_permission((select uid from t401_p), 'commission',
     (select c.id from public.commissions c where c.id <> (select cid from t401_p) limit 1), 'commission.forms.edit'),
   '16.5 GATE 2 NEGATIVE: a foreign commission denies');
 
-select ok(authz.has_direct_permission((select uid from t401_p), 'organization',
+select ok(authz.has_permission((select uid from t401_p), 'organization',
     (select h.organization_id from public.commissions c join public.hospitals h on h.id = c.hospital_id
       where c.id = (select cid from t401_p)), 'org.professionals.create'),
   '16.6 ⭐⭐ §11.3 THE ASCENT: an ORG-scoped permission resolves through a COMMISSION-scoped '
@@ -968,12 +974,27 @@ select ok(authz.has_direct_permission((select uid from t401_p), 'organization',
   'deny this - an under-grant that looks like correct tenant isolation and therefore reads as '
   'a pass. Four approved permissions (rows 30-33) depend on it.');
 
-select ok(not authz.has_direct_permission((select uid from t401_p), 'organization',
+select ok(not authz.has_permission((select uid from t401_p), 'organization',
     (select h.organization_id from public.commissions c join public.hospitals h on h.id = c.hospital_id
       where c.id = (select cid from t401_p)), 'commission.forms.edit'),
   '16.7 ...and DESCENT is FALSE: a commission-scoped permission is not reached by asking at '
   'org scope. That is applies_to_descendants, deferred (ADR 0172 §4). ⛔ CONSEQUENCE FOR AE5: '
-  'org_admin/hospital_admin substitution needs that column ruled FIRST.');
+  'org_admin/hospital_admin substitution needs that column ruled FIRST. ⚠ SINCE AE4.9 (ADR 0176 '
+  'D4) THIS DENIAL COMES FROM AN EARLIER GATE: the request is now a SCOPE-KIND MISMATCH — '
+  'commission.forms.edit resolves at `commission`, so asking it at kind `organization` is '
+  'rejected before descent is ever considered. The answer is unchanged and strictly stronger, '
+  'but the SUBJECT moved, so 16.7b pins which gate answered instead of letting this assertion '
+  'quietly become a test of something else.');
+
+select is(
+  (authz.explain_permission((select uid from t401_p), 'organization',
+     (select h.organization_id from public.commissions c join public.hospitals h on h.id = c.hospital_id
+       where c.id = (select cid from t401_p)), 'commission.forms.edit')).denied_reason::text,
+  'scope_kind_mismatch',
+  '16.7b ⭐ WHICH GATE ANSWERED 16.7, asserted rather than assumed. ⛔ Without this, the day '
+  'applies_to_descendants is implemented 16.7 would keep passing on the kind gate while the '
+  'descent rule it is named for went untested. Full both-polarity coverage of the kind gate is '
+  'pgTAP 407 §2; this is the one assertion 401 owes because its own §16 changed meaning.');
 
 -- ⚠ AE4.7c MOVED §16's ORG PROBE from org.professionals.manage to org.professionals.create.
 -- The probe's requirement is "an ORG-scoped code the SUBJECT ROLE HOLDS" — it is exercising
@@ -1021,12 +1042,12 @@ insert into public.memberships (principal_id, commission_id, role)
   values ((select uid from t401_p), (select cid from t401_sib), 'staff');
 
 select test_helpers.claims_for((select uid from t401_p), false, 'staff_admin');
-select ok(authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
+select ok(authz.has_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
   '16.8 GATE 4 POSITIVE (self-check, matching hat): active_role = staff_admin, which grants '
   'this permission -> TRUE');
 
 select test_helpers.claims_for((select uid from t401_p), false, 'staff');
-select ok(not authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
+select ok(not authz.has_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
   '16.9 ⭐ GATE 4 NEGATIVE: active_role = staff, and `staff` grants NOTHING here. She still '
   'holds the permission via staff_admin, but that hat is not on -> FALSE. ⛔ An implementation '
   'that ignores WHICH role granted the permission passes 16.8 and REDS HERE; this is the '
@@ -1036,17 +1057,38 @@ select ok(not authz.has_direct_permission((select uid from t401_p), 'organizatio
 -- grants this permission. Same principal, same scope, same active_role, same everything else.
 -- So 16.10's TRUE is attributable to the many-to-many path and to nothing else.
 insert into authz.role_permissions (role_code, permission_code) values ('staff', 'org.professionals.create');
+
+-- ⭐⭐ AE4.9 (ADR 0176 D4) INSERTED A SECOND GATE BETWEEN 16.9 AND 16.10, AND THIS SUITE IS WHAT
+-- FOUND IT. The runtime evaluator now requires the GRANTING role to be `authoritative`; `staff`
+-- is `legacy`. So the grant just inserted confers NOTHING yet, and 16.10 red on its first run
+-- after the migration — not because the many-to-many translation broke, but because a second,
+-- correct gate stood in front of it. ⛔ The fix is to construct the fixture the assertion needs
+-- (an authoritative second granting role), never to weaken the assertion. 16.9b pins the fact
+-- that was discovered here, so it is evidence instead of a footnote.
 select test_helpers.claims_for((select uid from t401_p), false, 'staff');
-select ok(authz.has_direct_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
+select ok(not authz.has_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
+  '16.9b ⭐⭐ THE STATE GATE, MEASURED WHERE IT BITES: `staff` now HOLDS org.professionals.create '
+  'and the `staff` hat is ON, yet the answer is still FALSE — because authz.roles.state for '
+  '`staff` is `legacy` (ADR 0174 D2''s gate, extended to layer 2 by 0176 D4). ⛔ CONSEQUENCE FOR '
+  'AE5, stated where someone will read it: a role''s authz.role_permissions rows are INERT at '
+  'runtime until its state flips. Seeding a role''s grants is NOT cutting it over. Today only '
+  'staff_admin is authoritative, so no production answer moves — but an AE5 increment that seeds '
+  'grants and forgets the state flip will look exactly like this.');
+
+update authz.roles set state = 'authoritative' where code = 'staff';
+select test_helpers.claims_for((select uid from t401_p), false, 'staff');
+select ok(authz.has_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
   '16.10 ⭐⭐ THE MANY-TO-MANY CASE, as a DIFFERENTIAL against 16.9. She now holds this '
   'permission through BOTH staff_admin (hat off) and staff (hat on). Answer must be TRUE - '
   'held through AT LEAST ONE ACTIVE role. ⛔ An implementation requiring EVERY granting role '
   'to be active REDS HERE, and that over-denial has NO legacy counterpart to differential '
   'against, which is why it is pinned in 4.4b rather than deferred to AE4.5. app.has_role '
   'compares ONE role to ONE active role; permissions are many-to-many, and this is where the '
-  'translation is proven.');
+  'translation is proven. ⚠ SINCE AE4.9 the second granting role must also be `authoritative` '
+  '(16.9b) — so this cell now differentials against 16.9b on the STATE axis as well as against '
+  '16.9 on the GRANT axis. Exactly one fact changes between each adjacent pair.');
 
-select ok(authz.has_direct_permission(
+select ok(authz.has_permission(
     (select p.id from public.profiles p where p.email = 'chefe.farm@test.local'),
     'commission',
     (select m.commission_id from public.memberships m join public.profiles p on p.id = m.principal_id
@@ -1058,6 +1100,10 @@ select ok(authz.has_direct_permission(
   'gate for the 151 self-check sites. Neither uniform choice is correct (§6A).');
 
 select test_helpers.reset_role_and_claims();
+-- ⛔ RESTORE THE STATE TOO, not just the rows. §19.6's discrimination control and §20's census
+-- both read the catalog; leaving `staff` authoritative would make a later section measure a
+-- fixture this section created.
+update authz.roles set state = 'legacy' where code = 'staff';
 delete from authz.role_permissions where role_code = 'staff';
 delete from public.memberships where principal_id = (select uid from t401_p) and role = 'staff';
 
@@ -1072,23 +1118,26 @@ select is(
     where n.nspname = 'authz' and c.relname = 'permission_explanation' and a.attnum > 0 and not a.attisdropped),
   'granted:boolean, permission_code:text, principal_id:uuid, requested_scope_kind:text, '
   'requested_scope_id:uuid, resolution_scope_kind:text, granting_role_code:text, '
-  'granting_permission_code:text, denied_reason:text',
+  'granting_permission_code:text, denied_reason:authz.denial_reason',
   '17.1 ⭐ SCHEMA-POSITIVE: the composite''s EXACT attribute set and types. Codes and ids '
   'only - no jsonb, no open-ended payload. ⛔ This is the PRIMARY control; a fixture-string '
-  'denylist cannot see a NEWLY ADDED field, which is precisely how a leak would arrive.');
+  'denylist cannot see a NEWLY ADDED field, which is precisely how a leak would arrive. '
+  '⚠ denied_reason:text -> denied_reason:authz.denial_reason at AE4.9 (ADR 0176 D4): the domain '
+  'was declared beside the composite in 20261003007100 and left unused. 407 §1.6 proves the '
+  'domain rejects a value outside its vocabulary, which is what makes the type name a control.');
 
 select is(
-  (authz.explain_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit')).denied_reason,
+  (authz.explain_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit')).denied_reason::text,
   'granted', '17.2 explanation of a granted permission reports `granted`');
 
 select is(
-  (authz.explain_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'no.such.code')).denied_reason,
+  (authz.explain_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'no.such.code')).denied_reason::text,
   'unknown_permission', '17.3 ...and an unknown code is reported as such, not as a denial');
 
 select is(
-  (authz.explain_direct_permission((select uid from t401_p), 'commission',
+  (authz.explain_permission((select uid from t401_p), 'commission',
      (select c.id from public.commissions c where c.id <> (select cid from t401_p) limit 1),
-     'commission.forms.edit')).denied_reason,
+     'commission.forms.edit')).denied_reason::text,
   'scope_unreachable', '17.4 ...and an unreachable scope is distinguished from a hat problem');
 
 create or replace function pg_temp.leaks_fixture_string(p_txt text) returns boolean
@@ -1108,7 +1157,7 @@ drop function pg_temp.chatty_explain(uuid);
 
 select ok(
   not pg_temp.leaks_fixture_string(
-    (authz.explain_direct_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'))::text),
+    (authz.explain_permission((select uid from t401_p), 'commission', (select cid from t401_p), 'commission.forms.edit'))::text),
   '17.6 SECONDARY control: the real explanation carries no fixture-identifiable string. ⚠ This '
   'is secondary to 17.1 by design - it cannot see a new field or a transformed value.');
 
@@ -1121,22 +1170,40 @@ select is(
   (select count(*)::int
      from unnest(array['anon','authenticated','service_role']) r
      cross join unnest(array[
-       'authz.has_direct_permission(uuid,text,uuid,text)',
-       'authz.explain_direct_permission(uuid,text,uuid,text)',
+       'authz.has_permission(uuid,text,uuid,text)',
+       'authz.candidate_has_permission(uuid,text,uuid,text)',
+       'authz.explain_permission(uuid,text,uuid,text)',
+       'authz.entailed_grants(uuid,text,uuid,text)',
        'authz.assignment_facts(uuid)',
        'authz.scope_reaches(text,uuid,text,uuid)',
        'authz.rebuild_implication_closure()']) f
     where has_function_privilege(r, f, 'EXECUTE')),
   0,
-  '18.1 no application role holds EXECUTE on ANY of the five AE4.4b functions (15 probes)');
+  '18.1 no application role holds EXECUTE on ANY of the SEVEN resolver-family functions (21 '
+  'probes). ⚠ FIVE -> SEVEN at AE4.9 (ADR 0176 D4): the pair became a quartet '
+  '(has_permission / candidate_has_permission / explain_permission / entailed_grants). ⛔ A new '
+  'door must inherit every sibling arm, and this list is keyed on NAMES — if a resolver function '
+  'is added and not listed here, this passes having checked less and nothing else notices. '
+  '18.4 is the cardinality control that reds when that happens.');
 
-grant execute on function authz.has_direct_permission(uuid,text,uuid,text) to anon;
-select ok(has_function_privilege('anon', 'authz.has_direct_permission(uuid,text,uuid,text)', 'EXECUTE'),
+grant execute on function authz.has_permission(uuid,text,uuid,text) to anon;
+select ok(has_function_privilege('anon', 'authz.has_permission(uuid,text,uuid,text)', 'EXECUTE'),
   '18.2 VACUITY CONTROL: an explicit grant IS observable, so 18.1''s fifteen falses are '
   'observations rather than a stuck predicate');
-revoke execute on function authz.has_direct_permission(uuid,text,uuid,text) from anon;
-select ok(not has_function_privilege('anon', 'authz.has_direct_permission(uuid,text,uuid,text)', 'EXECUTE'),
+revoke execute on function authz.has_permission(uuid,text,uuid,text) from anon;
+select ok(not has_function_privilege('anon', 'authz.has_permission(uuid,text,uuid,text)', 'EXECUTE'),
   '18.3 ...and revoking closes it again');
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'authz'),
+  8,
+  '18.4 ⭐ CARDINALITY CONTROL for § 18.1: the `authz` schema holds exactly EIGHT functions, and '
+  '18.1 names seven of them. The eighth is authz.holds_role, whose grants are asserted by 405 '
+  '§5.4 — so every function in the schema is covered by one list or the other. ⛔ 18.1 is '
+  'NAME-KEYED; without this, adding a resolver function and forgetting to list it leaves it '
+  'ungated and every existing assertion still green. ⚠ 6 -> 8 at AE4.9 (dropped 2 old names, '
+  'added 4). If this reds, do not adjust the number — find what was added and grant-check it.');
 
 -- ============================================================================
 -- §19 - AE4.5 PRE-WORK: the permission->gate mapping, and the CHEAP per-permission half.
@@ -1225,7 +1292,7 @@ create or replace function pg_temp.grant_probe(p_uid uuid, p_cid uuid, p_oid uui
 language sql stable as $$
   select coalesce(string_agg(pm.code, ', ' order by pm.code), '(none)')
     from authz.permissions pm
-   where not authz.has_direct_permission(
+   where not authz.has_permission(
            p_uid,
            pm.resolution_scope_kind::text,
            case pm.resolution_scope_kind::text when 'organization' then p_oid else p_cid end,
@@ -1282,7 +1349,7 @@ select is(
       and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~* 'affiliat'),
   0,
   '20.1 BOTH HALVES OF THE DIFFERENTIAL ARE AFFILIATION-BLIND: no function on the '
-  'staff_admin path - the six authz.* functions AND the five legacy predicates the oracle '
+  'staff_admin path - the eight authz.* functions AND the five legacy predicates the oracle '
   'calls - references an affiliation relation. So ending an affiliation cannot change either '
   'answer or produce a disagreement, for ALL inputs. This is CLAUDE.md Rule 13 and ADR 0163''s '
   '"an ended row decides WHERE, never WHETHER" made falsifiable. ⚠ Comments are STRIPPED first, '
@@ -1306,11 +1373,17 @@ select is(
     where n.nspname = 'authz'
        or (n.nspname = 'app' and p.proname in ('is_active','has_role','is_staff_admin_of',
                                                'is_staff_admin_of_for','is_org_commission_staff_admin'))),
-  11,
-  '20.3 DOMAIN CARDINALITY CONTROL for § 20.1: the probe ranged over exactly ELEVEN functions '
-  '(6 authz.* + 5 named legacy predicates). ⛔ § 20.1 is keyed on NAMES, and a rename orphans a '
+  13,
+  '20.3 DOMAIN CARDINALITY CONTROL for § 20.1: the probe ranged over exactly THIRTEEN functions '
+  '(8 authz.* + 5 named legacy predicates). ⛔ § 20.1 is keyed on NAMES, and a rename orphans a '
   'name-keyed verdict SILENTLY - the in-list would match fewer, § 20.1 would pass having checked '
-  'less, and nothing else would notice. If this reds, do not adjust the number: find what moved.');
+  'less, and nothing else would notice. If this reds, do not adjust the number: find what moved. '
+  '⚠ 11 -> 13 at AE4.9 (ADR 0176 D4), and this is exactly the red the message predicts: the '
+  'authz half went 6 -> 8 because the resolver PAIR became a QUARTET (has_permission, '
+  'candidate_has_permission, explain_permission, entailed_grants replacing the two *_direct_* '
+  'names). WHAT MOVED WAS FOUND BEFORE THE NUMBER WAS CHANGED — the `app` half is untouched at '
+  'five, and none of the four new bodies mentions an affiliation relation, which is why 20.1 '
+  'stays at zero.');
 
 select * from finish();
 rollback;

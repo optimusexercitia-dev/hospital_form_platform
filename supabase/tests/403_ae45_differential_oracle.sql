@@ -1,5 +1,17 @@
 -- 403 — AE4.5: the differential oracle.
--- Subjects: authz.has_direct_permission (AE4.4b) vs the legacy evaluators, over the
+--
+-- ⭐ AE4.9 (ADR 0176 D4) REPOINTED THIS SUITE FROM THE RUNTIME EVALUATOR TO THE CANDIDATE ONE,
+-- and the distinction is the ADR's own ("the differential compared the CANDIDATE evaluator with
+-- the matrix; the wrapper gates compared the WRAPPER with legacy"). `authz.candidate_has_permission`
+-- is the PRE-CUTOVER ORACLE: identical to `authz.has_permission` in every gate except that it
+-- also sees roles in `test_validation`. That is the state a role occupies WHILE it is being
+-- differentialled, so a suite pointed at the runtime evaluator would report "the catalog denies
+-- everything" for every AE5 role increment and call it a divergence.
+-- ⚠ NOTHING IS LOST TODAY: staff_admin is `authoritative`, where the two evaluators agree by
+-- construction — §2.2 asserts that agreement over the whole sweep rather than arguing it, and
+-- 407 §3 proves the two DISAGREE under `test_validation`, which is what makes them two functions.
+--
+-- Subjects: authz.candidate_has_permission (AE4.4b as corrected by AE4.9) vs the legacy evaluators, over the
 -- PO-approved matrix (docs/design/authz-ae43-staff-admin-permission-matrix.md, 42 rows) and the
 -- PO-approved deny-class effect table (docs/design/authz-ae45-deny-class-effects.md, 9 rows).
 --
@@ -36,7 +48,7 @@
 --     They never ran unauthenticated: the driver maps `anonymous` to f.nobody, the same
 --     AUTHENTICATED principal as `unprivileged`, so they proved exactly what
 --     `matrix-row:not-a-holder` proves and NOTHING about anonymity. ⛔ Nor was the honest version
---     constructible on this axis — an `anon` caller cannot reach `authz.has_direct_permission` at
+--     constructible on this axis — an `anon` caller cannot reach `authz.candidate_has_permission` at
 --     all (no application role holds USAGE on `authz`), so it would ERROR rather than deny and
 --     there is no differential to take. That structural fact is asserted in 401 §18.1 and is
 --     STRICTLY STRONGER than the nine cells, which is the only reason deleting them is honest.
@@ -54,13 +66,14 @@
 -- (three; pgTAP 401 §19.2 asserts the partition). Per-permission GRANT is covered by 401 §19.4's
 -- 42 cheap probes. Per-permission AXES are not observable until AE5 gives a role a partial map.
 --
--- RUN SHAPE: `Files=2, Tests=22` (21 here + 00_setup.sql's one). ⚠ 18 -> 21: ADR 0175 D3's § 7,
--- the three assertions that BOUND F3's discharge. ⛔ Keep this line in step with plan() — the QA
+-- RUN SHAPE: `Files=2, Tests=23` (22 here + 00_setup.sql's one). ⚠ 18 -> 21: ADR 0175 D3's § 7,
+-- the three assertions that BOUND F3's discharge. ⚠ 21 -> 22: AE4.9's § 3.2b, the bound on
+-- pointing this suite at the CANDIDATE evaluator. ⛔ Keep this line in step with plan() — the QA
 -- review caught it already claiming 12 against plan(15), and a stale RUN SHAPE is read as the
 -- expected shape by the next person diagnosing a count mismatch.
 
 begin;
-select plan(21);
+select plan(22);
 
 \ir vectors/authz_differential_cells.psql
 
@@ -265,7 +278,7 @@ begin
            case p_scope when 'foreign_org_commission' then f.xorg_prof else f.own_prof end,
            v_principal)
   end;
-  catalog := authz.has_direct_permission(v_principal, v_res, v_scope_id, p_code);
+  catalog := authz.candidate_has_permission(v_principal, v_res, v_scope_id, p_code);
   return next;
 end $d$;
 
@@ -293,6 +306,18 @@ select ok(
   '3.2 ⭐ DISCRIMINATION CONTROL: the resolver returned BOTH answers across the sweep. A resolver '
   'stuck on one value could satisfy a same-answer cell set, and this is what stops that reading as '
   'agreement.');
+
+select is((select count(*)::int from authz.roles where state = 'test_validation'), 0,
+  '3.2b ⭐ THE BOUND ON POINTING THIS SUITE AT THE CANDIDATE EVALUATOR (AE4.9, ADR 0176 D4). '
+  'authz.candidate_has_permission and authz.has_permission differ in EXACTLY ONE respect: the '
+  'candidate also sees roles in `test_validation`. With ZERO roles in that state, the two are '
+  'INDISTINGUISHABLE over this fixture — so the repoint costs no coverage today, and this suite '
+  'is currently evidence about the runtime path as well. ⛔ THE DAY THIS REDS, IT STOPS BEING '
+  'EVIDENCE ABOUT THE RUNTIME PATH, which is correct and is the whole reason the oracle is the '
+  'candidate: the role being differentialled is precisely the one the runtime evaluator must '
+  'still refuse. Do not "fix" a red here by repointing the suite back — record it. '
+  '⚠ ASSERTED, NOT ARGUED: 407 §3 proves the two evaluators genuinely DISAGREE under '
+  '`test_validation`, so this is a real bound and not a restatement of a rename.');
 
 select is(
   (select count(*)::int
@@ -420,16 +445,28 @@ select cmp_ok(pg_temp.disagreements(), '=', 0,
 -- and it is the one that matters most: it proves the suite is sensitive to the resolver's SCOPE
 -- logic and not merely to its grant lookup. A suite that only noticed missing grants would pass
 -- a resolver that had stopped checking scope entirely — an org-wide over-grant.
-create or replace function authz.has_direct_permission(
+-- ⚠ AE4.9: the neutralised body must keep BOTH gates the corrected evaluator carries and drop
+-- ONLY authz.scope_reaches — the state filter and the scope-kind validation stay. A neutraliser
+-- that also dropped them would be three mutations at once, and 6.3's red would no longer be
+-- attributable to the scope check.
+create or replace function authz.candidate_has_permission(
   p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text
 ) returns boolean language sql stable security definer set search_path = '' as $neut$
-  select exists (
-    select 1 from authz.assignment_facts(p_principal) af
-      join authz.role_permissions rp on rp.role_code = af.role_code
-      join authz.permission_implication_closure cl
-        on cl.implying = rp.permission_code and cl.implied = p_permission_code
-     where (p_principal is distinct from (select auth.uid())
-            or af.role_code is not distinct from app.active_role()));
+  select case
+    when p_scope_kind is distinct from (
+           select pm.resolution_scope_kind::text from authz.permissions pm
+            where pm.code = p_permission_code)
+      then false
+    else exists (
+      select 1 from authz.assignment_facts(p_principal) af
+        join authz.roles r on r.code = af.role_code
+        join authz.role_permissions rp on rp.role_code = af.role_code
+        join authz.permission_implication_closure cl
+          on cl.implying = rp.permission_code and cl.implied = p_permission_code
+       where r.state in ('test_validation', 'authoritative')
+         and (p_principal is distinct from (select auth.uid())
+              or af.role_code is not distinct from app.active_role()))
+  end;
 $neut$;
 select cmp_ok(pg_temp.disagreements(), '>', 0,
   '6.3 ⭐⭐ FAIL-PROOF 2 — with authz.scope_reaches REMOVED from the resolver, the oracle goes '

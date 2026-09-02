@@ -118,12 +118,12 @@ select ok(
 
 select test_helpers.claims_for((select sa from f406), false, 'staff_admin');
 select ok(
-  authz.has_direct_permission((select sa from f406), 'organization', (select org from f406),
+  authz.has_permission((select sa from f406), 'organization', (select org from f406),
                               'org.professionals.create'),
   '3.3 THE RESOLVER AGREES, granted side: the catalog answer for the code staff_admin keeps.');
 
 select ok(
-  not authz.has_direct_permission((select sa from f406), 'organization', (select org from f406),
+  not authz.has_permission((select sa from f406), 'organization', (select org from f406),
                                   'org.professionals.manage'),
   '3.4 ⭐⭐ THE RESOLVER AGREES, denied side — AND THIS IS THE CELL 403 CAN NO LONGER SEE. '
   'AE4.7c re-pointed the differential''s org representative from `.manage` to `.create` '

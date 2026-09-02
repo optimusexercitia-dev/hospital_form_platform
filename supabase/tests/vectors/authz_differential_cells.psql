@@ -11,7 +11,7 @@
 --   (2) the approved deny-class effect table (docs/design/authz-ae45-deny-class-effects.md).
 -- The generator TRANSCRIBES that 9-row table in its stated precedence. It performs no
 -- scope-reaching join, no closure lookup and no role_permissions read — it is deliberately
--- NOT a second implementation of has_direct_permission, because a suite whose expected
+-- NOT a second implementation of candidate_has_permission, because a suite whose expected
 -- values are computed the way the resolver computes them proves only that the resolver
 -- equals itself.
 --

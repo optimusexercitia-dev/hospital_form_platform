@@ -794,3 +794,97 @@ public.list_linkable_org_users(p_organization uuid)
 # no `e2e/` reference — so nothing today can act on a wrong answer from it. ⚠ That is a
 # REACHABILITY argument, not a coverage one, and it expires the moment anything calls it.
 authz.scope_reaches(p_assignment_kind text, p_assignment_id uuid, p_resolution_kind text, p_requested_id uuid)
+
+# ---------------------------------------------------------------------------
+# AE4.9 — the resolver PAIR became a QUARTET (ADR 0176 D4), 2026-09-02.
+# ---------------------------------------------------------------------------
+# ⛔ THE AE4.7b BLOCK IMMEDIATELY ABOVE IS PARTLY STALE AND IS CORRECTED HERE RATHER
+# THAN EDITED, because its measurement was true when written and the record of what
+# changed is worth more than a tidy file:
+#   * `authz.has_direct_permission` and `authz.explain_direct_permission` NO LONGER
+#     EXIST — 20261003007250 dropped them (they joined the implication closure, so
+#     they answered ENTAILED and their names asserted DIRECT).
+#   * `authz.scope_reaches` still has exactly TWO callers, but they are now
+#     `authz.entailed_grants` and `authz.explain_permission` (measured from
+#     comment-stripped prosrc, 2026-09-02). Its keystone moved with them: pgTAP
+#     403 §6.3 now neutralises `authz.candidate_has_permission`, and pgTAP 407 §6
+#     neutralises `authz.scope_reaches` OUT OF `authz.entailed_grants`, which is a
+#     STRICTLY STRONGER control — the shared join has three consumers, so ONE
+#     mutation moves the runtime evaluator, the candidate evaluator and the
+#     explanation together, and §6.3 asserts the explanation's own INDEPENDENT
+#     reachability computation does NOT move. That closes the bound the AE4.7b block
+#     recorded ("the explanation function's own scope check has no mutation-proven
+#     keystone"): it now has one, and it is a differential rather than a copy.
+#
+# ⛔ CATEGORY (b) — IN THE CENSUS'S DOMAIN, OUTSIDE ARM 1'S, EXCLUDED PURELY BY NAME.
+# `authz.candidate_has_permission` is a `prosecdef` BOOLEAN. The door sweep's mechanism
+# would work on it perfectly; `PRED_NAME_RE` (`^(is_|can_|has_|…)`) simply does not match
+# `candidate_…`. Measured 2026-09-02, not predicted: a `CASES=` run returns "REQUESTED BUT
+# NEVER SWEPT (matched no gate)" and exit 3 UNPROVEN. That is the recorded
+# FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME class. ⛔ Widening PRED_NAME_RE is not a
+# local fix — the filter bounds the whole predicate arm, and QA routed that bound to C2.
+#
+# WHAT IT IS, so the classification is not read as "just a helper": it is the PRE-CUTOVER
+# ORACLE (ADR 0176 D4). It is deliberately MORE permissive than the runtime evaluator —
+# it also sees roles in `test_validation` — which is precisely why it must never be
+# EXECUTE-granted to an application role and never called from a policy, a door or a
+# server action. pgTAP 401 §18.1 asserts zero EXECUTE for anon/authenticated/service_role
+# across the whole family, with §18.2/§18.3 as its vacuity control and §18.4 as the
+# cardinality control that reds if a resolver function is added and left off that list.
+#
+# THE KEYSTONES THAT DO COVER IT, both mutation-proven:
+#   pgTAP 407 §6.1-§6.2 — neutralising `authz.scope_reaches` out of the shared
+#     `authz.entailed_grants` body makes BOTH evaluators grant a FOREIGN ORGANIZATION's
+#     commission; §6.4/§6.5 prove the restore landed.
+#   pgTAP 403 §6.3 — the 648-cell differential oracle goes RED when the same call is
+#     stripped from `candidate_has_permission` itself, with §6.2b as its own zero baseline.
+authz.candidate_has_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)
+
+# ⛔ CATEGORY (b) — `prosecdef` SCALAR NON-BOOL: it returns the composite
+# `authz.permission_explanation`, so the predicate arm's mechanism (flip a boolean open)
+# does not apply at all. This is the C2 command-door class,
+# FUP-AUTHZ-COMMAND-DOOR-UNSWEPT, and it is OUTSIDE `floor`, `wrapper`, `census` and
+# `policy` by construction — which is neither a gap in the arms nor coverage.
+#
+# ⚠ IT IS DIAGNOSTIC, NOT A DECISION (ADR 0176 D4), and that bounds the exposure rather
+# than removing it: a wrong answer here misleads an operator, it does not grant anything.
+# It holds EXECUTE for no application role (401 §18.1) and has ZERO callers anywhere —
+# no SQL body, no policy, no src/, no e2e/ (measured 2026-09-02). ⛔ That is a
+# REACHABILITY argument and it expires the moment anything calls it; ADR 0176 D4 rules
+# that if it ever becomes remotely callable its audit lives inside the door.
+#
+# THE KEYSTONE: pgTAP 407 §4 constructs every one of its eight denial outcomes and §6.3
+# proves its reachability computation is INDEPENDENT of the permission join — the one
+# property ADR 0176 D4 demanded of it — by breaking the join and showing it does not move.
+authz.explain_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)
+
+# ⛔ CATEGORY (b) — `prosecdef` SET-RETURNING and NOT `authenticated`-reachable, so the
+# row-door arm's reachability precondition excludes it. Identical shape and identical
+# reason to `authz.assignment_facts`, whose hat-allowlist entry states the same bound.
+#
+# ⚠ IT APPLIES NO STATE GATE AND IS THEREFORE NOT AN AUTHORIZATION ANSWER. It returns
+# every entailed granting path with the STATE and HAT gates as COLUMNS; each of its three
+# consumers applies the gates its own contract requires. That is what lets the explanation
+# name WHICH gate blocked instead of collapsing every denial into "no", and it is why this
+# function must never be called by a policy, a door or a product path.
+#
+# THE KEYSTONE: pgTAP 407 §6 mutates THIS body (removing the `authz.scope_reaches` call)
+# and asserts all three consumers move together — one mutation, three observations, with
+# the restore proven. It is the strongest control in the family precisely because it is
+# the single shared copy of the join.
+authz.entailed_grants(p_principal uuid, p_resolution_kind text, p_scope_id uuid, p_permission_code text)
+
+# ⛔ CATEGORY (b) — `prosecdef` returning `void`: the C2 command-door class,
+# FUP-AUTHZ-COMMAND-DOOR-UNSWEPT, outside `floor`, `wrapper`, `census` and `policy` by
+# construction. ⚠ IT IS NOT A NEWCOMER and `ARM=census` could never have flagged it: it
+# kept its NAME and changed its BODY at 20261003007260 (ADR 0176 D7 — it now reads and
+# enforces `authz.roles.session_selectable`). A standing verdict transfers silently to a
+# body it was never measured against; `scripts/door-sweep-cases.sh` is what surfaced this
+# one, not recall. Listed here so the next census run has the reason in front of it.
+#
+# THE KEYSTONE: pgTAP 408 §§3-4 — a `true -> false` mutation on ONE role's
+# session_selectable blocks that role while TWO siblings still select (the discrimination
+# half: a broken query satisfies the denial alone), the restore is proven, and deleting a
+# role's catalog row proves the fail-closed branch. 315 keeps the pre-existing
+# holds-the-role assertions.
+public.assume_role(p_role platform_role)

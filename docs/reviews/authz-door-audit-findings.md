@@ -282,6 +282,7 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | process_template_versions.process_template_versions_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql |
 | process_template_versions.process_template_versions_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql |
 |---|---|---|---|---|
+| authz.has_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text) | predicate | positive | COVERED | 401_ae4_authz_catalog.sql,406_ae47c_operation_split.sql,407_ae49_resolver_contract.sql. ⭐ **HAND-MERGED 2026-09-02 (AE4.9 / ADR 0176 D4)** — see the note at the end of this file. AE4.4b's `authz.has_direct_permission` was DROPPED and renamed here, so its old row retires with it; this is a NEW name that had to earn its own verdict (`ARM=census` flagged it UNKNOWN — the arm working). Subset run on a FRESH `supabase db reset`, baseline `Files=256, Tests=8579, PASS`, `ARM-DOMAIN predicate=1/124 policy=0/226 out-of-domain-bool=37`, exit **3 UNPROVEN (PARTIAL)** — ⛔ the 3 is about the six OTHER requested names that matched no gate, not about this row: `SWEPT 1 · COVERED 1 · BLIND 0 · ERROR 0`. Merged as a ROW, never by copying the subset file. |
 | public.rca_writer_can_write(p_rca_id uuid) | predicate | positive | COVERED | 142_rca.sql (tests 10–11). ⭐ **WAS BLIND; keystoned and re-swept 2026-08-24** — `142_rca.sql` §K asserts the wrapper AS each of four principals (PQS operator + assigned SME true; observer + non-team false), where the pre-existing assertions called the INNER `app.can_write_rca(rca, uid)` uid-purely and so could never reach it. Single-case run, baseline `Files=218, Tests=7232, PASS`, `ARM-DOMAIN predicate=1/110`, exit 0 unpiped; hand-merged per the note above the BLIND table. ⚠ A **UI capability probe** — no policy and no routine calls it (measured); its consumer is `src/lib/queries/rca.ts` `viewerCanWrite`. `FUP-RCA-WRITER-CAN-WRITE-IS-BLIND`. |
 | app._audit_access_authorized(p_action text, p_entity_id uuid, p_commission uuid) | predicate | positive | COVERED | 191_grant_hardening.sql,305_audio_minutes.sql,356_case_caps_s8_administrativo_read.sql. ⭐ **ARM WIDENED (ADR 0079 Amendment 9 / `FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`).** This gate entered the predicate arm on 2026-08-24, when the arm stopped bounding its domain by NAME alone and began admitting a `prosecdef` boolean whose BODY references an identity primitive. It had never been swept in any direction before; it was in `authz-unswept-backlog.txt`. Measured by a subset run on a FRESH `supabase db reset`, baseline `Files=218, Tests=7223, PASS`, `ARM-DOMAIN predicate=8/110`; transcribed here because a subset run overwrites this file and is then reverted. ⚠ This is the PHI-read audit gate. |
 | app.confidentiality_clearance_ok(p_case_id uuid, p_label text, p_uid uuid) | predicate | positive | COVERED | 228_ethics_e1.sql,328_dm1_document_substrate.sql,330_dm3_controlled_documents.sql. ⭐ **ARM WIDENED (ADR 0079 Amendment 9 / `FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`).** This gate entered the predicate arm on 2026-08-24, when the arm stopped bounding its domain by NAME alone and began admitting a `prosecdef` boolean whose BODY references an identity primitive. It had never been swept in any direction before; it was in `authz-unswept-backlog.txt`. Measured by a subset run on a FRESH `supabase db reset`, baseline `Files=218, Tests=7223, PASS`, `ARM-DOMAIN predicate=8/110`; transcribed here because a subset run overwrites this file and is then reverted. |
@@ -869,3 +870,54 @@ one class.
 `| `-prefixed line in this file as a gate verdict, so a table in a prose section manufactures
 verdicts and **inflates** the census — which *masks* a real newcomer.
 `FUP-FINDINGS-MD-PIPE-TABLE-MANUFACTURES-VERDICTS`.
+
+## Note — AE4.9 (ADR 0176 D4/D7): a resolver PAIR became a QUARTET, and only ONE of the four is in any arm's domain (2026-09-02)
+
+`20261003007250` dropped `authz.has_direct_permission` / `authz.explain_direct_permission` and
+created FOUR functions in their place; `20261003007260` re-emitted `public.assume_role` with the
+`authz.roles.session_selectable` gate. `ARM=census` flagged **two** newcomers as UNKNOWN
+(`authz.has_permission`, `authz.candidate_has_permission`) — the arm working exactly as ADR 0079
+Amendment 3 describes: a brand-new gate is in no BLIND set and clears `ARM=policy` vacuously.
+
+**Diff-scoped sweep, derived by `scripts/door-sweep-cases.sh` (never by hand), BOTH arms run:**
+
+- **READ arm** (`p0-authz-door-audit.sh`), 7 cases, exit **3 UNPROVEN (PARTIAL)**:
+  `ARM-DOMAIN predicate=1/124 policy=0/226 out-of-domain-bool=37`, `SWEPT 1 · COVERED 1 · BLIND 0 ·
+  ERROR 0`. The one swept gate is `authz.has_permission`, **COVERED**; its row is merged above.
+- **WRITE arm** (`p0-authz-writepath-audit.sh`), 6 cases, exit **3 UNPROVEN — NOTHING WAS MEASURED**
+  (`guard=0/13 policy=0/33`). This increment creates no write policy and no `assert_*` raise-guard,
+  so the arm has no domain here. ⛔ Recorded as UNPROVEN, never as a pass: a sweep of zero gates
+  cannot distinguish "no blind gate" from "no gate looked at".
+
+**Why only one of the four was swept — the reasons DIFFER per object and must not be recorded as
+one class** (absence of a verdict is absence of coverage; plan rule 4):
+
+- `authz.has_permission` — `prosecdef` boolean whose name matches `PRED_NAME_RE`. In domain. **COVERED.**
+- `authz.candidate_has_permission` — `prosecdef` **boolean**; the arm's mechanism would work
+  perfectly and it is excluded **purely by NAME** (`^(is_|can_|has_|…)` does not match
+  `candidate_…`). That is the recorded `FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME` class,
+  measured as "REQUESTED BUT NEVER SWEPT (matched no gate)" at exit 3 — not predicted. Classified in
+  `authz-unswept-backlog.txt` with its mutation-proven keystone.
+- `authz.explain_permission` — `prosecdef` scalar **non-bool** (returns the composite): the C2
+  command-door class, `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`.
+- `authz.entailed_grants` — `prosecdef` **set-returning** and not `authenticated`-reachable, so the
+  row-door arm's reachability precondition excludes it, exactly like `authz.assignment_facts`.
+- `public.assume_role` — `prosecdef` returning `void`: the same C2 class, and outside every arm
+  before this increment too. ⚠ It is NOT a newcomer — it kept its NAME and changed its BODY, which
+  `ARM=census` cannot see by construction; `scripts/door-sweep-cases.sh` is what surfaced it.
+
+⚠ **Three of the four have ZERO callers anywhere**, measured from comment-stripped `prosrc` AFTER
+the change: `has_permission`, `candidate_has_permission` and `explain_permission` are called by
+nothing — no SQL body, no policy, no `src/`, no `e2e/`. That is a **reachability** argument, not a
+coverage one, and it expires the moment the first enforcement site is re-keyed (ADR 0176 D6).
+The compensating control that does NOT expire is `supabase/tests/407_ae49_resolver_contract.sql`
+§6: it neutralises `authz.scope_reaches` **out of the shared `authz.entailed_grants` body** and
+asserts the runtime evaluator, the candidate evaluator AND the explanation all move — one mutation,
+three consumers, restore proven (§6.4/§6.5). `public.assume_role`'s own compensating control is
+`supabase/tests/408_ae49_assume_role_session_selectable.sql` §§3–4: a `true → false` mutation on one
+role's `session_selectable` blocks that role while two siblings still select, plus the catalog-row
+deletion proving the fail-closed branch.
+
+⚠ **No pipe-table appears in this note, deliberately** — `verdicts_from_findings()` counts every
+`| `-prefixed line in this file as a gate verdict, so a table in a prose section manufactures
+verdicts and inflates the census (`FUP-FINDINGS-MD-PIPE-TABLE-MANUFACTURES-VERDICTS`).

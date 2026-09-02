@@ -226,21 +226,32 @@ DEGENERATE_PREDICATE="( p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
 # CLIENT-REACHABLE-BY-DELEGATION surface carries verdicts like any other door.
 #
 # ⛔⛔ BUT THE WIDENING IS NOT THE SAME AS COVERAGE, AND THE REMAINDER IS NAMED
-# RATHER THAN LEFT TO BE INFERRED. Of the SIX authz functions, the arms' own
-# shape predicates admit only the boolean ones:
-#     IN DOMAIN   authz.holds_role            (prosecdef, bool) — AE4.7b chokepoint
-#                 authz.has_direct_permission (prosecdef, bool) — the resolver
-#                 authz.scope_reaches         (prosecdef, bool) — census only; it is
+# RATHER THAN LEFT TO BE INFERRED. ⚠ RE-DERIVED 2026-09-02 (AE4.9 / ADR 0176 D4):
+# the resolver PAIR became a QUARTET, so the schema now holds EIGHT functions, not six.
+# The arms' own shape predicates admit only the boolean ones:
+#     IN DOMAIN   authz.holds_role                 (prosecdef, bool) — AE4.7b chokepoint
+#                 authz.has_permission             (prosecdef, bool) — the RUNTIME
+#                                             evaluator (renamed from has_direct_permission:
+#                                             it joins the implication closure, so it answers
+#                                             ENTAILED, not direct). COVERED, 2026-09-02.
+#                 authz.candidate_has_permission   (prosecdef, bool) — the PRE-CUTOVER
+#                                             ORACLE. In the CENSUS's domain but outside
+#                                             ARM 1's, excluded purely by NAME
+#                                             (PRED_NAME_RE does not match `candidate_…`):
+#                                             FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME.
+#                                             Classified in authz-unswept-backlog.txt.
+#                 authz.scope_reaches              (prosecdef, bool) — census only; it is
 #                                             outside PRED_DOMAIN (no identity primitive
 #                                             in its body), so ARM 1 has no verdict on it
-#     OUT         authz.assignment_facts      (set-returning; the row-door arm requires
-#                                             `authenticated` EXECUTE, which it does not
-#                                             hold — by design)
-#                 authz.explain_direct_permission, authz.rebuild_implication_closure
+#     OUT         authz.assignment_facts,
+#                 authz.entailed_grants            (set-returning; the row-door arm requires
+#                                             `authenticated` EXECUTE, which neither holds
+#                                             — by design)
+#                 authz.explain_permission, authz.rebuild_implication_closure
 #                                             (prosecdef SCALAR NON-BOOL = the C2 command-door
 #                                             class, FUP-AUTHZ-COMMAND-DOOR-UNSWEPT)
 # ⛔ ABSENCE OF A VERDICT IS ABSENCE OF COVERAGE (authz-evolution plan rule 4), never a
-# pass. State the three OUT rows beside any "the authz schema is swept" claim.
+# pass. State the FOUR OUT rows beside any "the authz schema is swept" claim.
 #
 # WHY THE OUT ROWS ARE STILL DEFENSIBLE, per door, as the rule requires:
 #   * No application role holds USAGE on `authz` (20261003007100), and none holds EXECUTE

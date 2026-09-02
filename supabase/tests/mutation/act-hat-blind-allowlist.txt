@@ -120,16 +120,31 @@ policy: public.memberships.memberships_select (SELECT)
 # role" — is only expressible where the grant join happens, i.e. in the consumer.
 #
 # THE COMPENSATING CONTROLS, PER CONSUMER, because "the callers apply it" is a claim and
-# not a control. `authz.assignment_facts` has exactly THREE callers (measured from
-# comment-stripped prosrc, 2026-09-01) and every one is separately anchored:
-#   * authz.holds_role            — an ANCHOR of THIS ARM since AE4.7b, so its hat
-#                                   conjunct is asserted on every run, and ST7 proves
-#                                   the anchor check flips when it is stripped.
-#   * authz.has_direct_permission — COVERED by the door sweep (measured 2026-09-01, the
-#                                   first authz sweep); its hat conjunct is pinned by
-#                                   pgTAP 401 §16 across all three §6A cases.
-#   * authz.explain_direct_permission — ZERO callers anywhere (no SQL body, no policy,
-#                                   no src/, no e2e/), so nothing can act on its answer.
+# not a control. `authz.assignment_facts` has exactly THREE callers (RE-MEASURED from
+# comment-stripped prosrc 2026-09-02, after AE4.9 renamed two of them — ⛔ the count did
+# NOT move, the NAMES did, which is exactly the shape that goes stale silently):
+#   * authz.holds_role       — an ANCHOR of THIS ARM since AE4.7b, so its hat conjunct is
+#                              asserted on every run, and ST7 proves the anchor check
+#                              flips when it is stripped.
+#   * authz.entailed_grants  — AE4.9 (ADR 0176 D4). It does NOT apply the hat; it RETURNS
+#                              it as a column (`hat_ok`), and its three consumers filter on
+#                              it. That is the same "only expressible where the grant join
+#                              happens" argument one layer out, and it is why the many-to-
+#                              many translation stayed correct: pgTAP 401 §16.8-§16.11 pin
+#                              all three §6A cases through `authz.has_permission`, which is
+#                              COVERED by the door sweep (2026-09-02 subset run).
+#   * authz.explain_permission — reads it TWICE and deliberately WITHOUT the hat, because
+#                              those two reads answer "is this principal assigned at all"
+#                              and "is this scope reachable at all" — neither is an
+#                              authorization answer, and computing reachability
+#                              independently of the permission join is the property ADR
+#                              0176 D4 required (pgTAP 407 §4.1/§4.3/§4.4 separate
+#                              `scope_unreachable` from `permission_not_granted`; §4.9
+#                              proves the HAT still produces its own distinct outcome, so
+#                              the hat-free reads did not swallow it). It has ZERO callers
+#                              anywhere (no SQL body, no policy, no src/, no e2e/), so
+#                              nothing can act on its answer — ⚠ a REACHABILITY argument
+#                              that expires on first use.
 # Plus: no application role holds USAGE on `authz` or EXECUTE on this function — pgTAP
 # 401 §§18.1-18.3 by effective privilege with its own vacuity control, 405 §5.4 for the
 # chokepoint. It is not client-reachable in any direction.
@@ -140,8 +155,10 @@ policy: public.memberships.memberships_select (SELECT)
 #      session_context and memberships_select already carry;
 #  (b) anything grants USAGE on `authz` or EXECUTE on this function, making the
 #      projection reachable without passing through a consumer at all;
-#  (c) authz.explain_direct_permission gains a caller — its scope check has no
-#      mutation-proven keystone (403 §6.3 mutates has_direct_permission only; recorded
-#      in authz-unswept-backlog.txt beside authz.scope_reaches), so today's "nothing can
-#      act on it" is a REACHABILITY argument and it expires on first use.
+#  (c) authz.explain_permission gains a caller. ⚠ AE4.9 CHANGED HALF OF THIS CLAUSE and
+#      left the other half standing, so both are stated: its scope check NOW HAS a
+#      mutation-proven keystone (407 §6 neutralises authz.scope_reaches out of the shared
+#      authz.entailed_grants body and §6.3 asserts the explanation's INDEPENDENT
+#      reachability computation does not move) — but "nothing can act on its answer" is
+#      still a REACHABILITY argument and still expires on first use.
 fn: authz.assignment_facts(p_principal uuid)
