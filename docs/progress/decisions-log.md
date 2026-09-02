@@ -618,3 +618,44 @@ the part worth keeping, and each was forced by a **measurement**, not a preferen
 | 2026-09-01 | ⚠ **The 403 differential needs a NEW REP** — its `can_manage_professional` class is represented by `org.professionals.manage`; once `staff_admin` loses it every cell becomes a denial and the class goes single-polarity. Re-point to `org.professionals.create` | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
 | 2026-09-01 | ⚠ **F2 re-measured — the CATALOG split SHIPPED, the GATE split did not.** All four codes exist and are granted (rows 30/31/32/33), but `app.can_manage_professional` is still ONE function over **13** doors | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §12.8 |
 
+
+---
+
+## Rotated from PROGRESS.md § Decisions 2026-09-02 — thirteen concluded rows, at the AE4 gate-wave rotation
+
+⚠ **Rotated at a size rotation, not a Record step.** PROGRESS.md had crossed the
+100 KB hard cap at `e897b452` and stood 114 bytes under it after the emergency rotation
+`3f213d48`; four Gate-AE4 agents were about to write into § Now with no room. Gate 7's own
+warning is the brief — *rotate while it is still a choice, because compression under cap
+pressure cuts qualifiers first*.
+
+**Every row below has had its resolution event**, and each was checked for an unfired
+obligation before it moved: the four 2026-09-01 build rulings shipped (`sensitivity_ceiling`,
+`risk_class`, `lint:authz-vectors` — now gate 12 of the twelve-gate chain — and the
+`BUG-STAGEC-READER` withdrawal); the three PO-batch rows D1/D2/D4 are recorded in ADR
+[0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) and
+[authz-ae4.md](authz-ae4.md) § AE4 PO batch; C1a ran 2026-08-31 and AE4's branch was cut after
+it; the recusal exception's *"expiry date owed"* was discharged by the 2026-09-01 row that
+sets it to 2026-12-01 (**that row STAYS live in PROGRESS.md** — it has a future trigger); the
+`public.cases` DELETE revoke is catalog-verified on the remote; and ADR 0124 Amdt 3's two size
+thresholds are enforced by `scripts/check-progress-doc.mjs`, which is now their authority.
+
+⛔ **PO BATCH D3 was deliberately NOT rotated with D1/D2/D4** — it carries a live
+*"OWED TO THE GATE RECORD: arms 1/3 are EXERCISED but NOT ORACLED"* qualifier that Gate AE4
+has not yet consumed. Likewise the two door-sweep-blindness rows (the `create function` text
+match and `PRED_DOMAIN`'s `typname='bool'`), the AE4.3 matrix approval, the deny-class table
+and its two approved limitations, and every 2026-09-02 row: all stayed.
+
+| 2026-09-01 | ✅ **PO BATCH RULED, one sitting — D1: `offboarded` IS NOT A DENY CLASS, its 91 cells APPROVED** (expected = the `active` cell; the resolver cannot see affiliation — measured, 6/6 `authz` fns). ⛔ New approval surface **on top of** the 42-row matrix | ADR [0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) D1 |
+| 2026-09-01 | ✅ **PO BATCH D2: THE 9 `deny-class:unauthenticated` CELLS ARE DELETED, not relabelled** — the `anonymous` persona is `f.nobody`, **authenticated**. Replaced by a pointer to pgTAP 401 §18 (anon holds no USAGE on `authz`) — structural, so no coverage lost | ADR [0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) D2 |
+| 2026-09-01 | ✅ **PO BATCH D4: both open FUPs dispositioned** — `p_uid` **documented as a null guard**, not made to filter; and ⛔ **`seed.sql` NOT touched until PRODUCTION auth is measured** (`enable_confirmations=false` is a **local** `config.toml` reading) | ADR [0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) D4 |
+| 2026-09-01 | ⛔ **WITHDRAWN — `BUG-STAGEC-READER` IS NOT A DEFECT.** Premise measured **false**: the panel promises no coordination access, and `meeting_closed_session_items` has no `created_by`. Building it would have been a real **over-grant**. ⚠ **A `test.fail()` pin is a CLAIM, not evidence** | [matrix](../design/authz-ae43-staff-admin-permission-matrix.md) §7.3 |
+| 2026-09-01 | **`authz.permissions.sensitivity_ceiling` CREATED after all** (PO) — the deferral's stated reason (zero rows) expired when AE4.3 created the subjects. CHECK-pinned; ⛔ the **ordering/comparison rule stays deferred**. Forward-only migration, ⛔ never an edit to `007100` | ADR [0172](../decisions/0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md) §4, overturned |
+| 2026-09-01 | **A 12th lint gate, `lint:authz-vectors`** (PO) — `--check`, exit 1 on drift, guarding AE4.5's generated `.psql` vectors, which vitest cannot reach this increment. ⚠ **The CLAUDE.md authorization is NARROW — §8's count and chain list only** | plan [PA-F7](../plans/authz-evolution.md) |
+| 2026-09-01 | **`authz.permissions.risk_class` is CREATED in Increment 1, not deferred** (PO) — overrides `backend`; its value set is **proposed, not derived**. ⛔ The three residue columns stay deferred — a CHECK pinning a value no row holds is itself vacuous | plan [AE4.1](../plans/authz-evolution.md) |
+| 2026-08-31 | **C2 Tier 1's predicate is RE-GRAINED** (PO) — the 2026-08-18 form returned 405/427; adopted a **gate-aware closure** over a PHI-marked relation → **237/427 (55.5 %)**, 6/6 controls, no hand-list. ⛔ Tenancy dropped as a **domain tautology**; those doors are Tier 2 = deferred, not cleared | [record](../design/authz-c2-tier1-sizing.md) §8b · **C2** |
+| 2026-08-31 | **C1a rehearsed via the `subject_request` lane; the provisional retention policy is NOT ratified** (PO) — ADR 0114 O1 keeps a row provisional until its three open questions are ruled. ⛔ `HC0DR` still blocks every non-exempt file | ADR 0114 O1 · [run log](../deployment/phi-backup-run-log.md) |
+| 2026-08-31 | **C1a runs BEFORE AE4's branch-cut** (PO). G10 **re-affirmed, not superseded** — AE2 and AE3 both ran past it silently. The one local stack makes parallelism unsafe (AE4 needs a fresh reset per verdict), and C1a § 3 needs no prior ruling: C4's `db dump` trigger governs § 6b, **not** § 3 | ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) **G10** |
+| 2026-08-31 | **`meeting_cases` recusal divergence → NAMED COMPATIBILITY EXCEPTION** (PO; PA-F8 **b**), first-class in AE4.3's matrix, owner `backend`, ⚠ **expiry date owed**. ⛔ The follow-up's premise measured **FALSE** — 0078 O6/A5 already ruled it | ADR [0169](../decisions/0169-meeting-content-recusal-divergence-is-a-time-boxed-exception.md) |
+| 2026-08-31 | **`DELETE` on `public.cases` REVOKED from `authenticated`** (PO) — lifts ADR 0132 DOOR-1's `RECORD ONLY`; nothing deletes a case row. Own gated increment **before** AE4.3's matrix (PA-F8 **a**) | ADR [0170](../decisions/0170-case-deletion-is-not-a-client-capability.md) |
+| 2026-08-27 | **PROGRESS.md size is now TWO thresholds** (PO): 80 KB **target** — non-fatal warning, printed every run, rotate here — and a 100 KB **hard cap**. 2nd raise; Amdt 2 refused to be a precedent, so the pressure MOVED to the target rather than being deleted. Handoff cap 12→24 KB in the same instruction | ADR [0124](../decisions/0124-progress-live-state-contract.md) **Amdt 3** |

@@ -3529,3 +3529,18 @@ reset) reproduces `EXT-REUSE` failing at `expect(seatedTwice.length).toBe(2)` �
 `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS` (§ deferred backlog), not a new
 bug; addendum with the generalized (non-retry-specific) mechanism added to its entry in
 [follow-ups.md](follow-ups.md). — tester
+
+---
+
+## Rotated from PROGRESS.md § Bug Log 2026-09-02 — the BUG-AE47C-LINKAGE-001 closure line
+
+The bug's full narrative was rotated here on 2026-09-02 (search `BUG-AE47C-LINKAGE-001`); this is
+the § Bug Log **closure line** itself, which stayed behind in the live file under the *"🔴 OPEN — the
+live bugs"* heading and is what a size rotation is for. ⛔ The `⚠ Unrelated finding` clause it carries
+is **not** residue: it is the observation that a deliberate second consecutive run of
+`ethics-e4-participants.spec.ts` reproduces `EXT-REUSE` failing, and it is registered as the OPEN
+index line `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS`, whose body in
+[follow-ups.md](follow-ups.md) carries the generalized addendum. That index line stays live in
+PROGRESS.md; nothing here is its only witness.
+
+✅ **BUG-AE47C-LINKAGE-001 — CLOSED 2026-09-02, both casualties (PROF-CREATE app-code fix + UNKNOWN-RESOLVE spec-fixture fix) tester-verified GREEN on a fresh reset (13/13, exit 0 read directly).** Full narrative rotated → [bug-log-archive.md](bug-log-archive.md) (search `BUG-AE47C-LINKAGE-001`). ⚠ **Unrelated finding, not a regression from this fix:** a deliberate second consecutive run of `ethics-e4-participants.spec.ts` (same DB, no reset) reproduces `EXT-REUSE` failing — this is `FUP-RETRY-CHANGES-THE-FAILURE-MODE-ON-NON-IDEMPOTENT-TESTS` (line below), not a new bug; generalized (non-retry-specific) addendum in its [follow-ups.md](follow-ups.md) entry. — tester

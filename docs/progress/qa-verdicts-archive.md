@@ -403,3 +403,16 @@ is preserved, not repaired.
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
 | **AE2** — affiliation/person tenancy, r3 (reviewed post-drop; ⛔ head sha deliberately omitted — measure, never quote) | **APPROVED** | 2026-08-28 | [r3](../reviews/authz-ae2-review-r3.md) |
+
+---
+
+## ↩ Rotated from PROGRESS.md § QA Verdicts 2026-09-02 — the AE3 row, retention (current milestone only)
+
+AE4 is the current milestone (its own row stays live, verdict ⛔ **CHANGES REQUESTED**, disposition
+Option A / ADR 0176), so AE3's row is no longer retained. Verbatim apart from the link repoint.
+⚠ The row's own correction — that its verdict cell read *"PO approval still owed"* until 2026-08-31
+while § Now and the subject line of the commit that wrote it (`acb89f3d`) both said otherwise — moves
+with it. ⛔ The **147 concluded rows** count line in PROGRESS.md was deliberately NOT incremented for
+this row: that line says in terms it is re-derived by counting, never incremented.
+
+| **AE3** — restricted personal-detail extraction (ADR 0155 D4); reviewed on **Fable**, user-assigned; **4 rounds** (3→3→2→0 blocking) | ✅ **APPROVED** (r4) — its one Record-step MUST is **discharged**; ✅ **PO-approved** (⛔ this cell read *"PO approval still owed"* until 2026-08-31, contradicted by § Now **and** by the subject line of the very commit that wrote it, `acb89f3d`) | 2026-08-31 | [r1–r4](../reviews/authz-ae3-review.md) |
