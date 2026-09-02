@@ -21,7 +21,7 @@ Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`
 > additionally RED-proven by `q1-quality-mutation-audit.sh` (`door_authority`,
 > `guard_noop`).
 
-## Note — 2026-09-02: THIS FILE COVERS 33 OF 107. The arm's domain was widened; no full sweep has run since.
+## Note — 2026-09-02: THIS FILE COVERS 37 OF 107. The arm's domain was widened; no full sweep has run since. (33 predate the widening; **4** were merged from the AE4.9 D6 subset run — all COVERED, all marked snapshot:ABSENT, so no drift tripwire protects them.)
 
 ⛔ **Do not read this file as the write-path audit's result.** Its rows were produced when
 ARM 2's domain was a **33-row embedded snapshot** bounded on `cmd in (INSERT,UPDATE,DELETE)`
@@ -99,6 +99,10 @@ its verdict. All **33** snapshot rows were verified byte-identical to the live c
 | response_section_signoffs.signoffs_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | responses.responses_insert_own (INSERT) | policy | open->true | COVERED | 198_perf_hardening.sql |
 | responses.responses_update_own_draft (UPDATE) | policy | open->true | COVERED | 198_perf_hardening.sql |
+| form_items.form_items_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
+| form_sections.form_sections_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
+| form_versions.form_versions_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
+| forms.forms_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
 
 ---
 
