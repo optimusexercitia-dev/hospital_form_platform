@@ -7829,3 +7829,168 @@ proving it landed. It also needs its own reachability analysis, which has not be
 >
 > ⭕ **May warrant promotion to § Critical FUP** — it has the shape (hard trigger, no artifact in
 > the tree, no gate can notice it). Not promoted unilaterally: that table is the PO's.
+
+### 🔴 FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE — the enforcement manifest checks set difference on the PERMISSION axis only, so a declared-but-unre-keyed site cannot red
+
+**Filed:** 2026-09-02 (Gate AE4 QA review, finding F-BLOCK-1's mechanism) ·
+**Owner:** backend + lead · **Severity:** 🔴 — ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) D5 says generation "fails on set difference in either direction". On the **site** axis it does not fail in either direction, and that is not a gap in coverage but a false claim in the decision record.
+
+`supabase/tests/vectors/authz-enforcement-manifest.json` declares an `enforcementSites` list per permission
+row. **Nothing compares that list to the catalog.** pgTAP `410`'s set differences are computed over
+permission **codes**; no arm asks whether every site a row names is actually re-keyed, nor whether every
+catalog site carrying the code appears in the row.
+
+**How it was measured.** The Gate AE4 QA review walked `commission.forms.edit` from its PO-approved matrix
+(`docs/design/authz-ae43-staff-admin-permission-matrix.md:291`, "7 ALL") to the live catalog and found
+**4 of 7** sites re-keyed, with the manifest declaring 4, `status: "re-keyed"`, `callGraphBoundary: null` —
+and every gate green. The live instance is filed separately as `BUG-AE49-D6-REKEY-INCOMPLETE`; **this entry
+is the gate gap, not the instance**, and it survives that bug's fix.
+
+**What would close it.** A generated check, in both directions, over the site axis: every `enforcementSites`
+entry resolves to a catalog object that carries the row's permission literal, and every catalog object
+carrying that literal appears in exactly one row. It must be proven able to red — remove one site from a
+row and the gate must fail; add a spurious one and it must fail the other way.
+
+⛔ **What must NOT be mistaken for closing it.** Fixing `BUG-AE49-D6-REKEY-INCOMPLETE` closes the instance
+and leaves the axis unchecked — the next re-key gets the same free pass. ⛔ Nor does a green `410`:
+its set differences are on the wrong axis, which is the whole finding. ⛔ And `lint:authz-vectors` cannot
+substitute — it never touches a database (measured 2026-09-02), so it cannot see a catalog/manifest divergence at all.
+
+### 🟠 FUP-AE4-ORACLE-APPROVAL-SCOPE-STATED-THREE-WAYS — the regression oracle cites its own PO approval at 42, 33 and 43 rows
+
+**Filed:** 2026-09-02 (Gate AE4 QA review, finding F-BLOCK-3) ·
+**Owner:** lead · **Severity:** 🟠 — the oracle is sound; what is unciteable is its **approval scope**, and an approval's scope is a fact that has to be written down once.
+
+Three statements of the same approval, in the same artifact family: the header says **"PO-APPROVED AT 42 ROWS"**;
+line 250 says the PO **"approved this matrix at 33 rows… nine rows of delta"**; the catalog holds **43**.
+Whichever is right, two are wrong, and a gate record citing "the PO-approved matrix" inherits the ambiguity.
+
+**How it was measured.** Read directly from the matrix document and cross-checked against
+`authz.permissions` on the live catalog during the Gate AE4 review.
+
+**What would close it.** One sentence, PO-confirmed, naming the count approved, the date, and what the
+delta rows are — then every other statement of it deleted rather than corrected, so a fourth cannot appear.
+
+⛔ **What must NOT be mistaken for closing it.** Reconciling the arithmetic (42 + 1, or 33 + 9 + 1) is not a
+ruling: it explains how the numbers *could* relate without establishing which one the PO actually approved.
+
+### 🟠 FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL — `hardDenyClasses` is empty on all 43 rows and the lint arm that checks it iterates zero times
+
+**Filed:** 2026-09-02 (Gate AE4 QA review, finding F-MAJOR-1) ·
+**Owner:** backend · **Severity:** 🟠 — a check that structurally cannot return the failing verdict is not a check; it is a green that reads like one.
+
+`hardDenyClasses` is `[]` on **43 of 43** manifest rows. Lint arm M7 iterates the list, so on an empty list
+it runs zero iterations and **cannot fail**. In pgTAP `410` §6.2 the same emptiness excludes 40 rows by way
+of their having zero sites, §6.2 carries **no discrimination control**, and it is **already blind to a live
+instance**: `app.is_active` sits inside `is_tenancy_admin_of_for`, one hop below its search depth.
+
+**How it was measured.** Manifest read directly; M7's loop body and §6.2's search depth read from source;
+the `app.is_active` position confirmed against the live catalog.
+
+**What would close it.** Either populate `hardDenyClasses` from the catalog so the arm has something to
+iterate, or replace the loop with an assertion that can fail on the empty case — plus a discrimination
+control for §6.2, anchored on a class known to be present, and its search depth raised past the one hop
+that currently hides `app.is_active`.
+
+⛔ **What must NOT be mistaken for closing it.** Populating the field without proving the arm can red
+reproduces the defect one level up. ⛔ And note the two figures are not in conflict: the field is empty on
+all 43 rows, while 40 rows are additionally labelled `not-attributable-until-rekey` — the label is not a value.
+
+### 🟠 FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107 — the committed findings baseline predates the domain fix, and `FROMFINDINGS` arms structurally cannot notice
+
+**Filed:** 2026-09-02 (write-arm re-aim, commit `d2069603`) ·
+**Owner:** backend · **Severity:** 🟠 — the gap is invisible to precisely the cheap arm the phase gate runs.
+
+`p0-authz-writepath-audit.sh`'s domain was widened from an embedded 33-row snapshot to the live catalog's
+**107** write-capable policies (`polcmd <> 'r'`). `docs/reviews/authz-writepath-audit-findings.md` still
+holds verdicts for **33 of 107** and now says so in a note. Any `FROMFINDINGS=1` arm re-measures nothing —
+it compares against the committed rows — so **it cannot see the 74 absent ones**. A door absent from the
+findings passes vacuously.
+
+**How it was measured.** `pg_policy` grouped by `polcmd` on the live catalog: 62 `ALL` + 17 INSERT +
+17 UPDATE + 11 DELETE = 107; the committed file holds 33.
+
+**What would close it.** One full write-path sweep over the widened domain, with its rows **merged into**
+the committed findings file — not replacing it, since the 33 carry hand-merged annotations.
+
+⛔ **What must NOT be mistaken for closing it.** A green `FROMFINDINGS=1` run at any point before that
+merge: it is green *because* the 74 are absent. ⛔ Nor does the domain fix itself close it — the instrument
+was repaired, nothing was measured, and 4 gates *selected* is not 4 gates *measured*.
+
+### 🟠 FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN — three policies that were in no arm's domain may return BLIND on their first sweep
+
+**Filed:** 2026-09-02 (write-arm re-aim, commit `d2069603`) ·
+**Owner:** backend · **Severity:** 🟠 — a first measurement of a never-measured population is where real findings live.
+
+Three `storage.objects` INSERT policies sat outside every arm: `ARM=census` bounds itself to `public`,
+and the write-path arm's old snapshot held only 33 `public` rows. The domain fix puts them **in** the
+write arm's scope for the first time.
+
+**How it was measured.** The 74 policies the old snapshot missed decompose exactly as 62 `ALL` + 9
+(the names `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` Part 3 lists) + **3 `storage.objects` INSERT** — a
+decomposition re-derived from the property, not read off the FUP's list.
+
+**What would close it.** Sweep them and record a verdict per policy.
+
+⛔ **What must NOT be mistaken for closing it.** If any comes back **BLIND**, it is a real finding and
+must be keystoned. ⛔ **Never allowlist one** — floor and this arm would then agree while both measure
+nothing, and agreement reads as coverage.
+
+### 🟠 FUP-PERF-ANALYZE-ENDS-AE0-COMPARABILITY — the AE4 performance acceptance and the AE0.2 baselines cannot coexist on one instance
+
+**Filed:** 2026-09-02 (IA-F9 staging, commit `82613268`) ·
+**Owner:** backend + lead · **Severity:** 🟠 — it destroys a baseline silently, and the destruction is invisible until someone tries to compare.
+
+The AE4 performance acceptance requires a **scaled, `ANALYZE`d** fixture. The AE0.2 baselines are defined
+on a **never-`ANALYZE`d** database and their own document forbids analysing before a re-run. Running the
+AE4 acceptance therefore **ends AE0 comparability until the next `supabase db reset --local`**, with no
+artifact recording that it happened.
+
+**How it was measured.** Read from the AE0.2 baseline document's own preconditions and from the AE4
+acceptance protocol in `../design/authz-ae4-performance-acceptance.md`.
+
+**What would close it.** Sequence the DB window so no AE0 comparison is owed after the perf run, and say
+so in the window's plan; or re-base AE0.2 onto an analysed instance, which is its own decision.
+
+⛔ **What must NOT be mistaken for closing it.** Running the perf acceptance and then "remembering" to
+reset: the reset restores the *state*, not the knowledge that an intervening AE0 comparison was invalid.
+
+### 🟡 FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS — a read-arm COVERED on a `FOR ALL` policy can be earned by a write keystone
+
+**Filed:** 2026-09-02 (write-arm re-aim; the file is not that agent's to change) ·
+**Owner:** backend · **Severity:** 🟡 — it weakens what a read COVERED means; it opens nothing.
+
+`p0-authz-door-audit.sh` bounds itself `polcmd in ('r','*')` and opens **both** `using (true)` and
+`with check (true)` on a `FOR ALL` policy. So a COVERED verdict there can be produced by a keystone that
+only exercises the **write** half — the mirror of the defect the write arm just fixed by opening the
+`with check` half alone.
+
+**How it was measured.** Read from `p0-authz-door-audit.sh` around line 807 while re-deriving the write
+arm's domain.
+
+**What would close it.** Either open the halves separately in the read arm too, or record per verdict which
+half the keystone exercised.
+
+⛔ **What must NOT be mistaken for closing it.** The write arm's fix. It made the *write* verdicts
+unambiguous and left the read side exactly as it was.
+
+### 🟡 FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED — `app._audit_access_authorized` routes a permission to a re-keyed authorizer and appears in no manifest row
+
+**Filed:** 2026-09-02 (rollback runbook §6, commit `3634a3ad`) ·
+**Owner:** backend · **Severity:** 🟡 — correct as it stands; what is missing is the record that it exists.
+
+`app._audit_access_authorized` routes `professional_profile.read` to `app.can_read_professional_profile`,
+making it a **fourth consumer** of that authorizer. It is absent from every manifest `enforcementSites`
+list — correctly, because it is the Rule-11 audit registry and not an enforcement site. But nothing
+anywhere records that **changing that authorizer moves the audit gate too**.
+
+**How it was measured.** `prosrc` caller scan over the live catalog while writing the rollback runbook's
+§6 worked example.
+
+**What would close it.** A named note wherever the authorizer's consumers are enumerated — the manifest
+row's qualifier, or `../backend-state.md`'s authz section — saying the audit registry is a consumer and
+is deliberately not an enforcement site.
+
+⛔ **What must NOT be mistaken for closing it.** Adding it to `enforcementSites`. That would make the
+manifest claim an enforcement site that does not enforce, and `FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE`'s
+eventual closure check would then be measuring a fiction.
