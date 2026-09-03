@@ -30,7 +30,7 @@ describe why we arrived there; **git** describes what changed.
 |---|---|---|
 | [`backend-state.md`](backend-state.md) | the backend surface map — tables, doors, flags, per feature area; reference it instead of re-deriving the backend | reference |
 | [`bugs/`](bugs/BUGS.md) | **the** bug register (`BUGS.md`, one row per bug, status is a column) + per-bug documents + `README.md` template + `archive.md` (the historical bodies). ADR 0185 D3 | tracker |
-| [`followups/`](followups/follow-ups-open.md) | the follow-up register: `follow-ups-open.md` (one entry per open item, ⭐⭐ Critical pinned at the top), `deferred-backlog.md` (parked, every entry with **Revisit when**), `follow-ups-archive.md` (resolved), `legacy-codes.md` (id-prefix legend, moved from `features/`, read by the CODES arm). ADR 0179 + 0185 D5 + 0186 | tracker |
+| [`followups/`](followups/follow-ups-open.md) | the follow-up register: `follow-ups-open.md` (one entry per item, open or **parked** — parked ones carry **Revisit when** — ⭐⭐ Critical pinned at the top, bodies over ten lines split into `FUP-*.md` files), `follow-ups-archive.md` (resolved), `legacy-codes.md` (id-prefix legend, moved from `features/`, read by the CODES arm). ADR 0179 + 0185 D5 + 0186 D4 | tracker |
 | [`decisions/`](decisions/INDEX.md) | ADRs, `NNNN-slug.md`, bold-label headers; `INDEX.md` generated | decisions |
 | [`deploy-coolify.md`](deploy-coolify.md) | Coolify / Docker deploy recipe (ADR 0059) | reference |
 | [`deployment/`](deployment/) | runbooks and run logs (PHI disposal, backups) | reference |

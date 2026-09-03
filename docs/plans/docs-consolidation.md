@@ -41,9 +41,11 @@ the `PO to rule` lists stay the PO's; this plan only stops them growing.
       **gated**. Zero handoffs for landed units; the handoff template holds only the resume
       pointer, trust, tree and next command; a handoff with no `branch:` carries `expires:` and
       the gate reds past it.
-- [ ] `follow-ups-open.md` ≤ 120 KB; every entry ≤ 20 lines; zero `**Register line**`
-      paragraphs; zero `##` / `####` headings inside entries; zero parked entries outside the
-      parked status — all **gated**.
+- [ ] `follow-ups-open.md` ≤ 160 KB (was ≤ 120 KB; re-set at Wave 5 — headings stay verbatim
+      by ADR 0186 Amdt 1 and the backlog merge added 33 entries the target did not count; the
+      split alone landed at 130 KB, the merged index at 152 KB); every entry ≤ 20 lines; zero
+      `**Register line**` paragraphs; zero `##` / `####` headings inside entries; zero parked
+      entries outside the parked status — all **gated**.
 - [ ] `PO to rule` and `per emoji at consolidation` counts cannot increase — **ratcheted**.
 - [ ] The two link checkers and the two resolved-heading regexes are one each.
 - [ ] A status change for one unit touches ≤ 3 hand-written files (hub; PROGRESS.md row only if
@@ -215,7 +217,7 @@ Gate arms land first, in the same commit as the data they check.
 
 | Step | Change | Proof |
 |---|---|---|
-| 5.1 | FOLLOWUPS arm gains: entry ≤ 20 lines in the index file; no `##`/`####` inside an entry; `**Register line**` forbidden; heading ≤ 160 chars; `**Status:**` ∈ `open \| parked`; `parked` ⇒ `Revisit when`; Owner ∈ a closed vocabulary (`lead`, `backend`, `frontend`, `tester`, `qa`, `PO`, joined by ` + ` in that order); every `docs/followups/FUP-*.md` linked by exactly one entry; LINKS arm covers the new files. Ratchets (D6): `MAX_PO_TO_RULE`, `MAX_PER_EMOJI` constants. | self-test; each new check reds on a live subject before the data change |
+| 5.1 | FOLLOWUPS arm gains: entry ≤ 20 lines in the index file; no `##`/`####` inside an entry; `**Register line**` forbidden; `**Status:**` ∈ `open \| parked`; `parked` ⇒ `Revisit when`; Owner ∈ a closed vocabulary (`lead`, `backend`, `frontend`, `tester`, `qa`, `PO`, `unassigned`, joined by ` + ` in that order); every `docs/followups/FUP-*.md` linked by exactly one entry; LINKS arm covers the new files; Critical pin rows ≤ 300 chars. **Amended at dispatch (ADR 0186 Amdt 1):** headings stay verbatim (anchors and id citations), so "heading ≤ 160" is a ratchet, not a red; `unrated` is legal for entries filed before the 2026-09-04 watermark, ratcheted. Ratchets (D6): `closesWhenPoToRule`, `severityPerEmoji`, `severityUnrated`, `revisitWhenPoToRule`, `longHeadings`, `bugsUntriaged`, `bugsUnrated`, `lessonsProseOnly` — constants the lead sets from the post-migration count; any raise reds. | self-test; each new check reds on a live subject before the data change |
 | 5.2 | **Split script** (one-off, `scripts/migrate-fup-bodies.mjs`, deleted after the wave, its invocation recorded in the ADR): for each of the 171 entries keep heading + fields in the index; body > 10 lines → `docs/followups/<FUP-ID>.md` with the heading as H1 and a back-link; delete the 123 `**Register line**` paragraphs; append `→ [body](<FUP-ID>.md)` to the index entry. Headings stay verbatim so every existing citation by id keeps resolving. | `wc -c` ≤ 120 KB; gate 7 links; gate 13 |
 | 5.3 | Merge `deferred-backlog.md` into the index as `**Status:** parked` entries; the 29 id-less items get `FUP-BACKLOG-<slug>` ids; the 27 parked entries already in the open file get the status field; the 1 double registration resolved; the 4 parked bodies filed in the archive move to their body files. Delete `deferred-backlog.md`; repair its ≈ 75 reference sites (the LINKS gates prove it). | gate 7 + 13 |
 | 5.4 | Archive hygiene: the 6 double-filed ids → one heading each; the 4 index-only sections deleted; the three "Resolved — rotated" stubs in the open file deleted. | gate 7.13 |

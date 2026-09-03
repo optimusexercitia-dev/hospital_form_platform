@@ -2033,15 +2033,6 @@ announced as new by the follow-up batch, given full bodies in `follow-ups.md`, a
 the phase narrative — **but neither ever got an index line**, so the next rotation would have dropped
 them. ⭐ *A body plus a narrative mention is not an index entry; the index is what a reader greps.*
 
-## Index line rotated from PROGRESS.md 2026-08-19
-
-> One line, resolved the same day it left. Moved verbatim except for the state marker
-> and the resolution clause; the item's full body remains in
-> [follow-ups-open.md](follow-ups-open.md), consistent with the 2026-08-18 set above.
-
-- ⬛ **FUP-DM5-BACKUP-IS-PHI-EXPORT** — ✅ **RESOLVED 2026-08-19 by EXECUTION** — a Storage backup is an unmanaged plaintext PHI export, and the S5 drill created one (245 files, 68 PHI-tier, no RLS, no audited door, no TTL). The widest PHI egress path the system has. Both remaining deliverables discharged: **destination path set** (archive `D:\phi-backups`, key `C:\Users\micha\phi-backup-keys` — separate volume) and the **§ 6b procedure executed end-to-end** on the local stack (census 812/14,691,282/231 PHI-tier → encrypted at creation → catalog-compared **812 = 812** + per-object hash → key-first destruction; the empty-archive control proven able to refuse). Record: [phi-backup-run-log.md](../deployment/phi-backup-run-log.md). ⛔ **Does NOT discharge C1a or C1b** — § 3 was not run, and the mechanism has **no Cloud form**. Residue carried by two NEW items, not dropped: 🔴 `FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM` · 🟠 `FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED` — PO/backend/lead
-- ⬛ **FUP-DM5-NO-ANSWER-VS-NOTHING** — ✅ **CLOSED 2026-08-19 — all six instances. ⭐ THE CLASS: an observable PROXY is substituted for the property that actually matters, always failing in the REASSURING direction.** Last open instance (1, `--allow-orphans`) fixed by ADR [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md): unproven (exit 3) and dirty (exit 1) are separate classes with separate acknowledgements, **dirty outranks unproven**, and the retired flag is refused rather than aliased. Instance 3 discharged by ADR 0121 D4 **plus the 2026-08-18 Cloud probe**, which made `unavailable_on_platform` the true and permanent value rather than a holding one. ⛔ Closing the CONFLATION is not a claim that Cloud orphans are absent — they are **unobservable**, which is the opposite of reassuring — backend/lead
-
 ## Rotated from follow-ups.md 2026-08-19 — the ADR 0129 child-lock fix (DSR plan Slice 1)
 
 ### ⬛ FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE — ✅ **RESOLVED 2026-08-19** — `dispose_meeting_minutes` could not complete on any locked meeting that had agenda items; its own "bypass the freeze guards" comment was FALSE (owner: backend + PO; ⛔ its **"blocks C1a/C1b"** claim was WRONG IN GRAIN — see the correction below; Rule 12 / LGPD Art. 18)
@@ -2209,7 +2200,8 @@ the door and believed its comment.
 >
 > _Body below is the live text at resolution, verbatim._
 
-### 🔴 FUP-ACT-DISPOSE-UI — LGPD Art. 18 referral-erasure has no UI route (owner: PO — mount point)
+**Merged 2026-09-03 (ADR 0186 D4, plan 5.4) — was its own `### ` heading, double-filing this id:**
+🔴 **FUP-ACT-DISPOSE-UI — LGPD Art. 18 referral-erasure has no UI route (owner: PO — mount point)**
 
 > ⭕ **MOUNT POINT DECIDED 2026-08-19 (PO, DSR design session Q8b/Q16): SUBSUMED by the DSR task
 > inbox at `/o/[org]/titulares`** (ADR [0130](../decisions/0130-dsr-subject-request-workflow.md)
@@ -2583,12 +2575,6 @@ Index lines as they stood, verbatim (links repointed for this directory):
 
 - 🔴 **FUP-ETHICS-LANE-NO-ERASURE-DOOR** — **`ethics_` appears ZERO times in all four disposal doors**; 7 tables / 12 free-text `*_md` columns, every one a **composition** child of `cases` (`case_id NOT NULL` + CASCADE). Split from the census item 2026-08-20 (PO) because it is not a missed column — it is **a module with no erasure path at all**. ⛔ **Two data subjects, not one:** patient PHI on an ethics case (no CHECK gates these tables by case type — measured 0 — so nothing separates the lanes), and ⭐ **the accused professional, who is themselves a DSR data subject** — ADR 0130 can adjudicate `granted` and the platform has **no door to call**. PO ruling: widen `dispose_case_phi`, or rule out-of-scope with a basis **and disclose it in `DSR_RESIDUE_NOTICE`**. ⛔ Not by default because it is cheaper — Slice 4 ruled the opposite way on the same question. Verified by direct `prosrc` match, not by the census instrument — backend/PO
 - 🟠 **FUP-DOOR-ERASURE-FREETEXT-CENSUS** — ⭕ **MEASUREMENT HALF DONE 2026-08-20; the ruling half is OPEN.** All three remaining doors censused → [door-erasure-freetext-census.md](../progress/door-erasure-freetext-census.md). ⛔ **`DSR_RESIDUE_NOTICE` line 1 is NOT true for `dispose_case_phi`**: the door erases `case_narratives.body_md` and leaves **`case_narrative_revisions.body_md`** — every prior revision of the same prose — and **no door names any `ethics_*` table** (both verified against `prosrc` directly, not via the instrument). ⭐ The prescribed method missed the lane holding the filed defect: `capa_plan.source_event_id` is NULLABLE, so composition closure never reaches capa. **5 instrument defects, 3 under-reporting**; 6-anchor control battery. ⚠ Counts are candidates, not defects — the PO-ruled-**complete** meeting door still scores 16. Next: PO ruling per column, then the empirical sentinel differential (static census cannot see a `where` that matches nothing) — backend/PO
-
-## Index lines rotated from PROGRESS.md 2026-08-21 — the DSR remediation round
-
-- 🟠 **FUP-DISPOSE-EVENT-DOOR-GATE-BLIND** — ✅ **RESOLVED 2026-08-21.** `dispose_event_phi`'s authorization gate was exercised by **no keystone**: opened alone, the full suite still PASSED. Suite `352_dispose_event_door_gate.sql` (6 tests) was written on 2026-08-19 but ⛔ **the item did not close on the file existing** — it closed when `352` **ran inside the full suite on a fresh reset** and was **re-neutralized in that context** (opening the gate reds 2/6). ⭐ *A keystone that has never run in the suite it protects is a file, not a control.*
-- 🟠 **FUP-DISPOSAL-RUNBOOK-COVERS-ONLY-BYTES** — ✅ **RESOLVED 2026-08-21.** PHI leaves by **two** substrates and only one had a procedure. Now: [`phi-column-disposal-procedure.md`](../deployment/phi-column-disposal-procedure.md) covers the four column-erasing doors (which door, which audit action, what a verifier reads after, and ⛔ **count rows — a stamp is not an erasure**), and [`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md) now names its own substrate in its banner so a green run of it can no longer read as covering column PHI.
-- 🟡 **FUP-RESIDUE-NOTICE-RESTS-ON-TRAINING** — ✅ **RESOLVED 2026-08-21 by ruling.** PO ruled `DSR_RESIDUE_NOTICE` line 1 **stays as written** on the training premise. ⛔ The item's real requirement was never the copy — it was that the premise be recorded **where the pilot decision is made**; that is now [dm5-po-decisions.md](../progress/dm5-po-decisions.md) § *Remaining pre-pilot work* item 2, with the corridor's measured bounds beside it (for a `distributed`/`cancelled` meeting's non-erased columns there is **no removal path by any door**). ⚠ The notice is therefore **conditionally** true — not falsified, premise newly explicit.
 
 ## ↩ Rotated from PROGRESS.md 2026-08-22 — the ADR 0134 Increment-2 Record step
 
@@ -3482,41 +3468,6 @@ backstop). ⚠ Re-derive whether it is *still* blind from the live catalog befor
 </details>
 
 
-### 🟡 FUP-VACUOUS-COVERAGE-1 — two PHI-remediation tests that **NEVER RUN**, and `lint:vacuous` is structurally unable to catch them (owner: tester + backend)
-
-> ### ⛔ BODY WRITTEN 2026-08-17 — this item had **NO body in this file** for its entire life
->
-> Until now its single line in PROGRESS.md's head list *was* the whole record, and that line carried
-> its own warning: *"THIS LINE IS THE ONLY RECORD — do not compress or cut it believing a body
-> exists."* ⭐ **It was found exactly the way that warning anticipated** — by a pre-rotation check that
-> asked, for all 54 head entries, *"does this have a body?"* rather than assuming the head list was a
-> summary of something. **53 did. This one did not.** A rotation that compressed the head list without
-> that check would have deleted the item outright while looking like tidying.
-> → [[enumeration-boundary-is-a-syntax-not-a-property]]
->
-> ⚠ Context also survives in `docs/reviews/vacuous-assertion-audit.md` and
-> `docs/bugs/archive.md`, but neither is the follow-up register, so neither would have
-> kept the item *open* — they record it as history, not as work.
-
-**The finding.** `e2e/phi-remediation.spec.ts` **REM-8** and **REM-9** skip on **every** run: there is
-no seeded RCA for `EV-0001`, and the only CAPA has a `NULL source_event_id` (both catalog-verified).
-
-⛔ **Why the lint gate can never help here — this is the point of the item.** They are *honest*
-`test.skip()`s, not silent greens. `lint:vacuous` (`scripts/check-vacuous-assertions.mjs`) exists to
-catch **a test that goes GREEN having asserted nothing**; a test that never runs is **outside that
-property**. So the gate is working as designed and the coverage hole is invisible to it —
-**two different failures that both end in "the suite is green and the behaviour is untested."**
-⭐ Filed *because* the audit that produced the gate noticed the gate's own boundary.
-
-**Why it is its own item and not a drive-by.** Closing it means new fixture work against `seed.sql`,
-which is **a contract with ~900 tests** — the shared-fixture hazard in
-[[shared-fixture-cannot-satisfy-two-specs]]. Adding a seeded RCA for `EV-0001` and a CAPA with a real
-`source_event_id` changes counts other specs assert on.
-
-⚠ **Whoever closes this must show the two tests RUN and can FAIL** — un-skipping them and observing
-green proves nothing on its own, which is the same class the parent audit was about.
-
-
 ### ⬛ FUP-DM5-342-PLAN-COMMENT — ✅ **RESOLVED 2026-08-17**; the comment's own arithmetic already summed to 59 (owner: backend)
 
 > **✅ RESOLVED.** The header now cites the plan (`plan(59) = …`) instead of carrying a
@@ -3748,34 +3699,6 @@ re-ratified by the PO.** Name it in Phase 19's scope in
 > paragraph still binds on the **remote**, which does not have the fix — see the resolution box above.
 
 
-### 🟡 FUP-PDF-4 — verification rate limiter: comment FIXED, availability lever still OPEN and re-scoped (QA P1 MINOR-3; owner: backend)
-
-⛔ **The filed premise was wrong in a way that mattered, corrected 2026-08-11 against the code.**
-The entry said the limiter is *"one **global** 60/min counter"* and prescribed *"per-credential
-granularity (keep the global cap as a backstop)"* — **that is already exactly what ships, and
-has since the original commit `e1daba9`**: `PER_CREDENTIAL_LIMIT = 5` over a `perCredentialHits`
-map, plus the global 60 backstop. Anyone executing the prescription literally would have written
-a no-op and closed the item. The lesson is the standing one: **a prescription in a follow-up is a
-claim about the code and ages like one** — re-measure before implementing, not after.
-
-**DONE:** the false *"the page shows it verbatim"* comment is corrected. Confirmed against
-`src/app/(public)/verificar/[token]/page.tsx:84-90`, which catches **every** error, logs it, and
-returns `{ state: "unavailable" }` — so `VERIFICATION_RATE_LIMIT_MESSAGE` is never rendered and
-reaches only the server log. (The comment-asserting-an-untruth family, invisible to every gate.)
-
-**STILL OPEN — the availability lever, correctly described:** the per-credential arm bounds
-brute-forcing ONE code; it does nothing about the actual DoS. One visitor cycling ~12 distinct
-credentials × 5 each exhausts the **global** 60/min budget and throttles *every* anonymous
-visitor on the public `/verificar` surface. Both windows are also module-level process memory, so
-they are per-PROCESS — N app instances mean N× every budget.
-
-⚠ **Deliberately not fixed in the FUP quick batch, because neither half is guessable:** closing
-it needs per-**client** granularity (which needs a *trusted* client identity — `x-forwarded-for`
-is only as trustworthy as the proxy in front of it, a Coolify deploy decision, ADR 0059) **plus**
-shared cross-process state. Both are decisions, not code. The limitation is now recorded in the
-module docblock so the next reader does not re-derive it. The RPC stays service_role-only.
-
-
 ### ⬛ FUP-QOB-3 — RESOLVED 2026-08-09: `dispose_event_phi` KEEPS its tenancy arm, and referral disposal gets the same backstop BACK (PO)
 
 **PO ruling 2026-08-09.** The finding was framed as "event is the odd one out" — investigating it
@@ -3844,40 +3767,6 @@ in reflexively with the NSP call.
 **To close:** a PO ruling on `dispose_event_phi` only — CUT (D5 consistency across all three PHI
 modules) or KEEP-with-a-recorded-reason (NSP disposal is genuinely a tenancy-tier duty). Whichever
 way, the pt-BR message must end up matching the arms. Owner: **PO**, then backend.
-
-
-### 🟡 FUP-AFF-3 — pin door ACLs by DERIVING the door set, not by remembering it (2026-08-06)
-
-Raised by `backend` at AFF close-out, and it is the **class** behind QA's N2. `302` §1's ACL
-assertions covered "the doors that existed when §1 was written"; `log_cpf_probe_for` arrived two
-commits later and **inherited nothing** — its ACL is its *entire* boundary (it fronts nothing, it
-writes one audit row), so the one property most worth pinning was the one unpinned. Fixed for that
-instance in `304` §9; the class is open.
-
-⚠ **This is the third and fourth instance of the same failure inside one workstream** — the others
-being F2's error-code detector (bounded by a 5-char syntax, so it could not see `check_violation`)
-and `backend`'s own case-sensitive diff-derivation grep (which listed 1 of 4 changed gates, because
-`pg_get_functiondef` emits uppercase — ADR 0079 Amendment 5a). Every instance is the recorded rule:
-**an enumeration's boundary must be the property, not a syntax and not a remembered list.**
-
-Proposed scope: one assertion that derives the door set from `pg_proc` — every `public` `prosecdef`
-function granted to `service_role` must **not** be executable by `authenticated` — replacing the
-per-door transcription. Needs its own allowlist discussion (legitimate dual-audience doors exist),
-which is why it was flagged rather than widened into AFF unasked.
-
-
-### ▶ FUP-FF5-2 — `r2-m-1`: §O pins the door's behaviour, not the closure of the writer set
-
-ADR 0091's substrate paragraph claims *"an exhaustive `pg_proc` sweep for writers of `participants`
-returns exactly two functions"*. §O proves the two known doors behave (the surrogate holds) and O5
-proves no writer is invoker-rights — but neither pins that the set is **closed**, so a third
-DEFINER writer taking a caller-supplied label satisfies every assertion. QA r2: MINOR, not blocking
-(the runtime property is held by the mutation-proven O4, and a new writer arrives with its own
-migration and ADR). **Close:** one assertion pinning the writer set by **count *and* name**,
-matching `(public\.)?participants\y`. Two specifics — O5's current regex is
-`insert\s+into\s+public\.participants`, which matches only `public.`-qualified writes (exactly why
-a rogue *unqualified* writer probe stayed green), and use `\y`, **not `\b`** (backspace in Postgres
-regex).
 
 
 ### ⬛ FUP-DM5-FINALIZE-ATOMIC — ✅ **RESOLVED 2026-08-17** (owner: backend + lead)
@@ -4728,6 +4617,78 @@ a PHI-bearing or invariant-bearing table, not executable by `authenticated`/`ano
 members — `app._grant_case_access_unchecked`, the precedent it was modelled on, should be one, and if that
 function is not already tracked anywhere then this class has been unswept since before this increment.
 
+---
+
+**Merged 2026-09-03 (ADR 0186 D4, plan 5.4) — a second `### ` heading for this id double-filed it;
+its content follows verbatim (originally dated 2026-08-24, a later update on the same finding):**
+
+✅ **RESOLVED 2026-08-24 — shape (c), widen by PROPERTY. ADR
+[0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 9.**
+
+⭐ **(b) turned out to be already done, measured before choosing:** all 42 out-of-domain booleans
+were already listed in `authz-unswept-backlog.txt`, so the "cheap half" bought nothing. And the
+script's stated reason for refusing (c) — *"the out-of-domain set contains two SIDE-EFFECTING
+writers"* — is an argument about widening by TYPE, not by property: of the 42, exactly **9** have a
+body referencing an identity primitive, and one of those 9 IS `remind_document_approver`. The
+property filter separates the gates from the writers, which the type filter could not.
+
+- Domain: **102 → 110**; out-of-domain **42 → 34**. The two writers are held out BY NAME with the
+  reason written at the exclusion, and stay VISIBLE in the census.
+- The domain is now ONE interpolated string instead of two hand-kept copies of the same SQL — the
+  census's `not (…)` is the same string, so the two cannot drift.
+- **8 gates swept, fresh reset, baseline `Files=218, Tests=7223, PASS`: 6 COVERED · 1 BLIND · 1
+  ERROR.** New follow-ups for the last two: `FUP-RCA-WRITER-CAN-WRITE-IS-BLIND` and
+  `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE`. `member_can`/`member_can_for` — the pair whose `CASES=`
+  run once executed zero cases and printed `BLIND: 0` — are **COVERED**, held by 12 and 40 files.
+- ⚠ It is still an approximation, and the census says so on every run: a gate reaching identity only
+  INDIRECTLY is outside the arm and looks like a feature-flag reader from there.
+
+⛔ **A measurement lesson, recorded in the amendment because it nearly shipped as a finding:** it
+took THREE runs to get a trustworthy answer. Run 1 was contaminated by the operator editing a pgTAP
+file mid-sweep; run 2 was a quiet tree with **no fresh reset** and still got 6 of 8 verdicts wrong.
+**A green baseline is not evidence the database is fit to mutate** — the preflight proves the tree
+unmutated, and says nothing about whether residual state will make a file ABORT once a gate opens.
+
+---
+
+⚠ **The harness names this class in its own output and it has never been REGISTERED anywhere** —
+verified 2026-08-24: zero hits in `follow-ups.md` and `PROGRESS.md`, two in
+`supabase/tests/mutation/p0-authz-door-audit.sh` (`:315`, `:393`). Filed by the ADR 0136 increment,
+which is the first recorded instance of it actually costing something.
+
+The door sweep's predicate arm bounds its domain with a **name regex** —
+`^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)`, minus `^is_valid_` —
+standing in for the property *"is an authorization predicate"*, which no regex decides. The script is
+honest about this: it censuses the gap on every run and refuses to auto-widen (widening would swap a
+silent gap for silent ERRORs — the out-of-domain set contains feature-flag readers, `validate_*`
+shape checkers, and two SIDE-EFFECTING writers whose bodies must not be swapped for `select true`).
+**Measured 2026-08-24: `out-of-domain-bool=42`.**
+
+⭐ **THE LIVE INSTANCE.** ADR 0136's new predicate was first written as `app.signoff_deferred_open`.
+`ARM=census` flagged it never-swept; the diff-scoped sweep then matched **ZERO gates** and reported
+`UNPROVEN — NOTHING WAS MEASURED`. The function was shaped exactly like a predicate and excluded
+purely by its name. It was **renamed** to `app.is_signoff_deferral_open`, after which the same sweep
+returned **COVERED**.
+
+⛔ **The rename is a WORKAROUND, and it quietly created a new obligation:** the sweep's coverage now
+depends on an unwritten naming convention that no gate enforces. The next authz predicate someone
+names `signoff_x_allowed` or `phase_is_open` escapes the arm, and `ARM=census` will say so **only if
+it is a `prosecdef` boolean** — which is the one arm that would then have to be read carefully rather
+than skimmed.
+
+**Decide between:**
+- **(a)** a `lint`/pgTAP check that a `prosecdef` boolean in `app`/`public` either matches the arm's
+  prefix set or appears in `authz-unswept-backlog.txt` — turning the convention into a gate;
+- **(b)** classify the 42 out-of-domain booleans once, into `authz-unswept-backlog.txt`, so the census
+  gap is a reviewable list rather than a count; or
+- **(c)** widen the arm by PROPERTY (e.g. "references an authz predicate or `auth.uid()`") with the
+  known side-effecting writers excluded by name — the script's own stated reason for not doing this
+  is worth re-reading before choosing it.
+
+⚠ **(b) is the cheap half of (a) and does not replace it:** a one-time classification goes stale the
+next time someone adds a gate.
+
+**Owner:** backend.
 
 ### 🟠 FUP-GRANT-CASE-ACCESS-UNCHECKED-HAS-NO-COVERAGE — the precedent every `app` unchecked writer is modelled on has never been tested (owner: backend; filed 2026-08-22, found by deriving a class instead of naming an instance; ✅ **RESOLVED 2026-08-22** — `358` §A pins both class members' ACL + `prosecdef` and the 3-caller set, red-first. ⛔ The `ARM=census` PRUNE hint was NOT acted on. Record: [case-split-assertion-integrity.md](../progress/case-split-assertion-integrity.md); index line rotated → [follow-ups-archive.md](follow-ups-archive.md))
 
@@ -6325,12 +6286,6 @@ report went. ⭐ Note the script already proves it can reason about this: its DR
 *"the baseline suite was NOT run; $FINDINGS is UNTOUCHED"* (line 477). The concept exists in the
 script; it is simply not applied to the subset path.
 
-## ↩ Rotated from PROGRESS.md 2026-08-26 — the two door-sweep FUP index lines, VERBATIM (links repointed for this directory; bodies are the two ⬛ sections above)
-
-- 🟠 **FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-ALTER-POLICY** — ⛔ **NOT a new hole — a DECISION THAT NEVER LANDED.** ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amdt 8** ruled the diff-scoped recipe must grep `alter policy` too, that a zero-row case list is a **FINDING, not a pass**, and that an `ALTER POLICY` invalidates the altered gate's verdict; measured 2026-08-25 the recipe block still reads only `create policy`. ⭐ Cost: `backend` re-derived the identical hole during AFF3 and swept correctly only by hand-naming three policies. ⚠ AFF3 itself IS proven (3 swept, 3 COVERED, 0 BLIND). ⭕ **SCHEDULED into AFF4 pre-step 2026-08-25 (ADR 0151 D16b — AFF4 alters three policies, the exact blind spot)** — backend/lead
-
-- 🟠 **FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE** — `p0-authz-door-audit.sh:565` writes its report with a **truncating redirect** (`} > "$FINDINGS"`), so a diff-scoped/subset run replaces the whole committed `docs/reviews/authz-door-audit-findings.md` with only the cases it swept. Measured 2026-08-25 during AFF3: **699 → 90 lines**, restored by hand. ⛔ Left unrestored, every later `FROMFINDINGS=1` arm compares against a truncated baseline and passes **vacuously** — the gate that exists to catch blindness goes blind, quietly. ⚠ The only protection today is **operator memory**: the instruction *"restore the findings file after a subset run, as with the door sweep"* already exists, buried inside an unrelated item's body, which is not a gate. Fix: a subset run writes to a scratch path or merges, never replaces; failing that the script refuses to write when `CASES=` is set. ⭕ **SCHEDULED into AFF4 pre-step 2026-08-25 (ADR 0151 D16c, guard proven by a subset run)** — backend
-
 ## Rotated 2026-08-26 — AFF4 Record
 
 Ten follow-ups discharged at the AFF4 §6 step-5 Record step. Each entry below carries its **closure
@@ -7232,75 +7187,9 @@ the findings file after a subset run, as with the door sweep.
 
 ---
 
-### FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME
-
-✅ **RESOLVED 2026-08-24 — shape (c), widen by PROPERTY. ADR
-[0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 9.**
-
-⭐ **(b) turned out to be already done, measured before choosing:** all 42 out-of-domain booleans
-were already listed in `authz-unswept-backlog.txt`, so the "cheap half" bought nothing. And the
-script's stated reason for refusing (c) — *"the out-of-domain set contains two SIDE-EFFECTING
-writers"* — is an argument about widening by TYPE, not by property: of the 42, exactly **9** have a
-body referencing an identity primitive, and one of those 9 IS `remind_document_approver`. The
-property filter separates the gates from the writers, which the type filter could not.
-
-- Domain: **102 → 110**; out-of-domain **42 → 34**. The two writers are held out BY NAME with the
-  reason written at the exclusion, and stay VISIBLE in the census.
-- The domain is now ONE interpolated string instead of two hand-kept copies of the same SQL — the
-  census's `not (…)` is the same string, so the two cannot drift.
-- **8 gates swept, fresh reset, baseline `Files=218, Tests=7223, PASS`: 6 COVERED · 1 BLIND · 1
-  ERROR.** New follow-ups for the last two: `FUP-RCA-WRITER-CAN-WRITE-IS-BLIND` and
-  `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE`. `member_can`/`member_can_for` — the pair whose `CASES=`
-  run once executed zero cases and printed `BLIND: 0` — are **COVERED**, held by 12 and 40 files.
-- ⚠ It is still an approximation, and the census says so on every run: a gate reaching identity only
-  INDIRECTLY is outside the arm and looks like a feature-flag reader from there.
-
-⛔ **A measurement lesson, recorded in the amendment because it nearly shipped as a finding:** it
-took THREE runs to get a trustworthy answer. Run 1 was contaminated by the operator editing a pgTAP
-file mid-sweep; run 2 was a quiet tree with **no fresh reset** and still got 6 of 8 verdicts wrong.
-**A green baseline is not evidence the database is fit to mutate** — the preflight proves the tree
-unmutated, and says nothing about whether residual state will make a file ABORT once a gate opens.
-
----
-
-⚠ **The harness names this class in its own output and it has never been REGISTERED anywhere** —
-verified 2026-08-24: zero hits in `follow-ups.md` and `PROGRESS.md`, two in
-`supabase/tests/mutation/p0-authz-door-audit.sh` (`:315`, `:393`). Filed by the ADR 0136 increment,
-which is the first recorded instance of it actually costing something.
-
-The door sweep's predicate arm bounds its domain with a **name regex** —
-`^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)`, minus `^is_valid_` —
-standing in for the property *"is an authorization predicate"*, which no regex decides. The script is
-honest about this: it censuses the gap on every run and refuses to auto-widen (widening would swap a
-silent gap for silent ERRORs — the out-of-domain set contains feature-flag readers, `validate_*`
-shape checkers, and two SIDE-EFFECTING writers whose bodies must not be swapped for `select true`).
-**Measured 2026-08-24: `out-of-domain-bool=42`.**
-
-⭐ **THE LIVE INSTANCE.** ADR 0136's new predicate was first written as `app.signoff_deferred_open`.
-`ARM=census` flagged it never-swept; the diff-scoped sweep then matched **ZERO gates** and reported
-`UNPROVEN — NOTHING WAS MEASURED`. The function was shaped exactly like a predicate and excluded
-purely by its name. It was **renamed** to `app.is_signoff_deferral_open`, after which the same sweep
-returned **COVERED**.
-
-⛔ **The rename is a WORKAROUND, and it quietly created a new obligation:** the sweep's coverage now
-depends on an unwritten naming convention that no gate enforces. The next authz predicate someone
-names `signoff_x_allowed` or `phase_is_open` escapes the arm, and `ARM=census` will say so **only if
-it is a `prosecdef` boolean** — which is the one arm that would then have to be read carefully rather
-than skimmed.
-
-**Decide between:**
-- **(a)** a `lint`/pgTAP check that a `prosecdef` boolean in `app`/`public` either matches the arm's
-  prefix set or appears in `authz-unswept-backlog.txt` — turning the convention into a gate;
-- **(b)** classify the 42 out-of-domain booleans once, into `authz-unswept-backlog.txt`, so the census
-  gap is a reviewable list rather than a count; or
-- **(c)** widen the arm by PROPERTY (e.g. "references an authz predicate or `auth.uid()`") with the
-  known side-effecting writers excluded by name — the script's own stated reason for not doing this
-  is worth re-reading before choosing it.
-
-⚠ **(b) is the cheap half of (a) and does not replace it:** a one-time classification goes stale the
-next time someone adds a gate.
-
-**Owner:** backend.
+**FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME** — merged 2026-09-03 (ADR 0186 D4, plan 5.4):
+this id was double-filed with its own `### ` heading here; the content (2026-08-24 update) now
+lives, verbatim, in that id's single merged section above (originally filed 2026-08-22).
 
 ---
 
@@ -8060,7 +7949,9 @@ returning afterwards.
 ⛔ **What this did NOT do:** it did not touch P5, which still fails at 5.28x / 4.99x against K = 4,
 and it licenses nothing about K. Full record: acceptance doc §§6.1, 12.2, 12.6.
 
-### 🟡 FUP-AE4-P1-BOUNDS-A-SYNTAX-NOT-A-PROPERTY — P1 forbids the token `Seq Scan`, but the hazard it was written for is a table large enough for one to matter
+**Merged 2026-09-03 (ADR 0186 D4, plan 5.4) — was its own `### ` heading, double-filing this id:**
+🟡 **FUP-AE4-P1-BOUNDS-A-SYNTAX-NOT-A-PROPERTY — P1 forbids the token `Seq Scan`, but the hazard it
+was written for is a table large enough for one to matter**
 
 **Filed:** 2026-09-02 (AE4 / IA-F9 acceptance, the `authz.scope_reaches` fix increment — ADR
 [0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md)) ·
@@ -8114,3 +8005,269 @@ entries. A resolved item's home is this file; body verbatim, provenance line add
 **Parked:** 2026-08-19 (rotated from PROGRESS.md) · **Rotated here:** 2026-09-03 — resolved item found in `deferred-backlog.md` during the ADR 0185 normalization; nothing left to revisit.
 
 ✅ **RESOLVED 2026-07-14 — Action-items case cross-link UI + `visibility_scope` toggle** (was ADR 0050 F1; pulled pre-pilot 2026-07-12 by ADR [0071](../decisions/0071-pre-pilot-release-scope-expansion.md), shipped by the **S2·AI** track, `phase(ai)` `b0387d3`). Delisted here 2026-07-28: this entry had gone **stale**, still asserting "no UI creates a case-linked meeting/manual item — `action-item-form.tsx:102` hard-codes `caseId`". It no longer does — the form carries a create-only `case_id` picker plus a visibility select (hard-guarded so `case_restricted` is selectable only with an effective case), with `VisibilityScopeBadge` in "Meus itens de ação" and a static disclosure on the case-sourced form. Detail → [ai-satellites](../progress/ai-satellites.md).
+
+## ↩ Rotated from follow-ups-open.md 2026-09-03 (ADR 0186 Wave 5, plan 5.5)
+
+### ⬛ FUP-DM5-NO-ANSWER-VS-NOTHING — ✅ **ALL SIX INSTANCES CLOSED 2026-08-19** — *"I could not look"* is not distinguished from *"I looked and found nothing"* (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
+
+**Filed:** 2026-08-17 (backend, S5.D) · **Owner:** lead + backend · **Severity:** critical — retained/closed 2026-08-19; its own ruling states "Severity 🔴", kept as a review lens per the PO ruling below
+**Closes when:** N/A — retained as a review lens per the PO ruling below (2026-08-28), not open work
+**Status:** resolved
+**Moved 2026-09-03 (ADR 0186 D4/Wave 5, plan 5.5) — the 2026-08-28 "stay in the open register"
+ruling below is SUPERSEDED**, by the same authority (an accepted ADR) that made it: the review-lens
+exemption is retired along with the open register's old shape, and the lesson it protected now has
+a durable home as a LEARN row + postmortem in `docs/learning/` instead of a resolved entry sitting
+in the OPEN file. This body is unchanged below; only its index location moved.
+
+**Retained (2026-08-28 ruling, historical)** — resolved, and PO-ruled to STAY in the open register
+as a review lens rather than move to the archive. Its *index* line was archived at the time; this
+body was deliberately not. This was the one standing exemption from "no resolved entry in the open
+register" (gate 7 `checkRegisterResolved`), written here rather than allowlisted in the script so
+the exemption was readable by whoever next read the entry.
+
+> ## ✅ CLOSED 2026-08-19 — the last open instance is fixed, and the class statement is KEPT
+>
+> **Instance 1 (`--allow-orphans`) — the item's own "remaining surface" — is FIXED**, by ADR
+> [0128](../decisions/0128-unproven-is-not-clean-capture-outcome-classes.md): unproven and dirty
+> are now separate classes with separate exit codes (**3** vs **1**) and separate acknowledgements
+> (`--allow-unproven` / `--allow-dirty`), and **dirty outranks unproven** so a finding can never
+> hide behind a no-answer. `--allow-orphans` is **refused by name, not aliased** — the muscle
+> memory was the defect. ⭐ Fixing it surfaced a **second conflation nobody had filed**: the flag
+> read *"allow ORPHANS"* while equally accepting `MISSING_BYTES` and `DIVERGED_BOTH_WAYS`. *A flag
+> that accepts more than its name says is this class one layer up* — found by the sibling-guard
+> diff, which is the method [[new-door-must-inherit-every-sibling-arm]] keeps earning.
+>
+> **Instance 3 is discharged, not merely downgraded** — and the closing fact is a MEASUREMENT, not
+> a decision. ADR 0121 **D4** (shipped, `20260928000400`) made `disposed` record what it actually
+> verified (`metadata_absent` + a closed `byte_proof` vocabulary), and `FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED`
+> then made the one lane that really deletes bytes declare `unavailable_on_platform` instead of
+> riding the default. The open half was *"unless FUP-DM5-CLOUD-ORPHAN-SURFACE settles that an
+> orphan-visible surface exists"* — it was probed on 2026-08-18 and **all five Cloud surfaces are
+> metadata-bound** ([cloud-orphan-probe-2026-08-18.md](../progress/cloud-orphan-probe-2026-08-18.md)). So
+> `unavailable_on_platform` is not a placeholder awaiting a better proof; it is the **true and
+> permanent** value there. The record no longer asserts more than the door verifies.
+>
+> ⛔ **What closing this item does NOT mean, stated because the class's own lesson predicts the
+> misreading.** It does not mean orphaned bytes are absent on Cloud — the probe proves they are
+> **unobservable**, which is the opposite of reassuring. It does not add a Cloud byte proof; none
+> exists and none is being built (PO-ratified, ADR 0120 D9 amendment 2026-08-18). **What closed is
+> the CONFLATION** — every surface that used to answer "I could not look" with a reassuring value
+> now says which of the two things happened.
+>
+> **Kept, not archived-and-forgotten:** the one-sentence class statement below is the most
+> productive review lens this program produced (six instances, three variants, four of them found
+> *inside the fix for another one*). It is retained here in full for that reason.
+
+> # ⭐ THE CLASS, IN ONE SENTENCE
+>
+> ## **An observable PROXY is substituted for the property that actually matters — and it always fails in the REASSURING direction.**
+>
+> ⛔ **Corrected at QA r1.** The previous headline was *"an action performed is recorded as the state
+> achieved"*. QA was right that it fits instances 3/4/5 and **not 1/2**: *"I could not look"* is not an
+> action performed, and the table's own first column contradicted its own header. The sentence that
+> covers **all** of them was already sitting one line below, so it is promoted; *action → state* is
+> kept as a **named sub-class**. This matters because the entire point of the reframe was
+> recognisability in review — **a class that mis-describes two of its own instances will mis-train the
+> next reader.**
+>
+> ### Three variants, six instances
+>
+> | # | variant | the proxy actually observed | the property it was recorded as | state |
+> | --- | --- | --- | --- | --- |
+> | 1 | **"I could not look"** | `--allow-orphans` — proof unavailable | *I looked and found nothing* | ✅ ADR 0128 |
+> | 2 | **"I could not look"** | `.list('')` — absence of a **bucket** | absence of **keys** | ✅ `d2b19808` |
+> | 3 | **action → state** | `complete_document_disposal` — **metadata row** gone | **bytes** gone | ✅ ADR 0121 D4 + the Cloud probe |
+> | 4 | **action → state** | destruction — file **unlinked** | bytes **unrecoverable** | ✅ runbook §6b (key-first) |
+> | 5 | **action → state** *(caught pre-ship)* | backup pipeline **ran, exit 0** | a backup **exists** | ✅ never shipped |
+> | 6 | **"I looked at the WRONG THING"** | `verdictFor` — no volume **directory** | the bucket is **consistent and empty** | ✅ `verdictFor` + R7/C14–C16 |
+>
+> ⭐ **Instance 6 is QA's MAJOR-1 and it is a THIRD distinct variant** — not "I could not look" and not
+> "an action recorded as a state", but **"I looked at the wrong thing."** The tool consulted the volume
+> and reported honestly about it, while never consulting the API set that contradicted it. That variant
+> is the hardest of the three to spot in review, because the measurement genuinely happened.
+>
+> **Severity 🔴 → ⬛ CLOSED 2026-08-19.** The ruling below stands as the reason it *was* 🔴; it is kept
+> because the rule it states — *the class heading carries the severity of its worst instance* — is the
+> part that transfers to the next class-shaped filing.
+>
+> **Severity 🔴** (lead ruling 2026-08-17, escalated from 🟠 on instance 3): the class heading carries
+> the severity of its worst instance. Instances 1–2 are 🟠 — tool output an operator reads and can
+> second-guess. **Instance 3 is 🔴**: a *persisted record asserting a fact to a regulator*. ⚠ Bound it
+> precisely, per QA: instance 3 is a **latent** false assertion — it says the record *can assert more
+> than it verifies*, not that it *asserts falsely today*; it becomes false only where an API delete
+> removed metadata while bytes survived.
+
+Filed 2026-08-17 (backend, S5.D) — **lead-ruled to be filed as a class, not as two bugs.** Two
+independent instances in one tool, in unrelated code paths, found days apart by different means. Filed
+as two items each gets fixed once and the shape stays open; filed as a class it gets a design answer.
+
+**Instance 1 — `--allow-orphans`. ✅ FIXED 2026-08-19 (ADR 0128).** One flag muted two different
+facts. On Cloud the local volume proof cannot exist, so every bucket verdicts
+`UNVERIFIED_NO_LOCAL_PROOF` and `capture` exited **1 on a perfectly healthy project**; the only route
+to exit 0 was `--allow-orphans`, which **also** silenced genuine `ORPHANED_BYTES` verdicts. An operator
+who wanted a usable exit code had to buy blindness to the finding the tool exists to produce. The fix
+took the shape the filing predicted — *"a distinct flag, or distinct exit codes for unproven vs proven
+dirty"* — and took **both**, because either alone leaves the other surface conflated:
+
+- `CLEAN` / `UNPROVEN` / `DIRTY` **partition** the nine-verdict codomain; exit **3** is UNPROVEN,
+  exit **1** is DIRTY, and **dirty outranks unproven** so a finding never hides behind a no-answer.
+- `--allow-unproven` and `--allow-dirty` each acknowledge exactly one class. There is deliberately
+  no flag that accepts both without saying so.
+- `--allow-orphans` is **refused by name** (exit 2, message naming both successors). Aliasing it was
+  the one-line option and was rejected: the habit of reaching for it to get a green bar *was* the
+  defect, and an alias keeps that habit working.
+- `manifest.outcome` records the class counts, what was acknowledged, and `byteProofAvailable`.
+
+⭐ **Two things the fix found that the filing had not.** (a) The flag's **name was wrong about its
+own reach** — it read *"allow ORPHANS"* while equally accepting `MISSING_BYTES` (bytes destroyed,
+metadata still advertising them — under Rule 12 the *worse* direction) and `DIVERGED_BOTH_WAYS`.
+(b) `selftest` **exited on the docker gate before running anything**, so on every machine a *Cloud*
+operator uses — the exact population this instance is about — the number of controls that ran was
+**zero**, while a third of them needed nothing but the functions under test. The pure half now runs
+first and the skipped half is reported **with a count**: *"nothing failed" is not "nothing ran"*.
+
+**Controls, all observed RED before the fix** (three mutants of the shipped file, 2026-08-19):
+restoring the pre-fix binary classification reds **C20/C21/C22/C22b/C22c** (13/18); re-admitting the
+retired flag as an alias reds **C23** (17/18); removing one verdict from its class set reds **C19**
+(17/18). Unmutated: **18/18**. ✅ **And the end-to-end CLI arms RAN** (local stack, same day):
+`selftest` **26/26** (18 pure + 8 byte-level), `rehearse` **25/25** — **R6-capture** blind → exit **3**
+(was 1) against its sighted twin at exit 0; **R10** a real orphan *under `--allow-unproven`* → exit
+**1** with `accepted: []` — *the exact state that exited 0 before this change*; **R10b** same orphan
+under `--allow-dirty` → exit 0, `accepted: ["dirty"]`; **R10c** blind under `--allow-unproven` →
+exit 0, `byteProofAvailable: false`.
+⭐ **C19 is the keystone and it is aimed at the NEXT instance, not this one:** the original defect was
+a codomain that grew to nine verdicts while the classification stayed binary, so each new verdict
+silently inherited *"not-clean ⇒ suppressible by the one flag"*. C19 requires every verdict to have
+exactly one home, C19b requires `ALL_VERDICTS` to be checked against what `verdictFor` actually
+returns rather than against itself, and C22c makes an unclassified verdict fail **closed** at runtime.
+
+**Instance 2 — `.list('')` on an absent bucket (FIXED in `d2b19808`, kept here as evidence).**
+`admin.storage.from(b).list('')` on a bucket whose **row is gone** returns `{data: [], error: null}` —
+an empty list, **not** an error. So "the bucket does not exist" and "the bucket has no objects" were
+literally the same value, and `delete --execute`'s post-deletion classifier took the **reassuring**
+branch — *"PRE-EXISTING METADATA-LESS ORPHANS … not a failure of this deletion"*, with no
+`DO NOT PROCEED` — for a bucket it had never interrogated, **on the destructive path**. Now gated on
+`getBucket`, which does error, and pinned by rehearsal arm **R3d**.
+
+⭐ **How instance 2 was found is the part worth keeping.** Step 0 named the state *"bucket row absent
++ bytes present"* as never observed, with **no control anywhere in the tool**. It surfaced only
+because a control was built for a state nobody had seen — not by review, and not by any run of the
+existing 15 controls.
+
+⚠ **Correcting the frequency claim, which was wrong in the present tense** (QA MINOR-6; the lead's
+ruling that prompted it is withdrawn on this point). *"It is the state all eight retired buckets are
+in"* is **false as of today** — measured, the eight retired buckets hold **0 bytes** and have **no
+directory on the volume**; the volume root holds only the four survivors. They **were** in that state
+between the retirement migration and the stack recovery that destroyed the 221 files, and a **Cloud**
+retirement produces it **by construction**. So: true historically, true for Cloud, false now. ⭐ And
+the frequency argument was never the load-bearing one — **R3d's own reason is sufficient and needs no
+appeal to how common the state is**: the classifier printed the reassuring arm, with no
+`DO NOT PROCEED`, **on the destructive path, for a bucket it had never interrogated.**
+
+**Instance 6 — 🟠 `verdictFor` read a missing volume DIRECTORY as "consistent and empty". Found by QA
+(MAJOR-1) by CONSTRUCTING the state. ✅ FIXED.** Three API-visible keys plus a removed volume
+directory verdicted `CONSISTENT_EMPTY` — a member of `CLEAN_VERDICTS` — so `capture` printed **CAPTURE
+CLEAN and exited 0** over a bucket whose PHI bytes were gone.
+
+- ⛔ **Non-monotonic in severity:** lose *some* of a bucket's bytes (directory survives) ⇒
+  `MISSING_BYTES`, dirty, exit 1. Lose **all** of them (directory removed) ⇒ clean, exit 0. **The
+  worse state reported better.**
+- ⛔ **It is the state a volume loss with the DB intact produces** — `supabase stop`/`start` without a
+  `db reset`, i.e. **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES**, which has already fired once in this phase
+  in the *other* direction. Under Rule 12 this is the worse direction: the metadata still advertises
+  the PHI file as present and servable, `disposal_state` says nothing is owed, and
+  `document-reconciliation.mjs` lists from the same API and cannot see it either.
+- ⭐ **It was the SIBLING of the branch this slice had just fixed**, two lines below it, in the same
+  function, in the same commit. The fixed branch's own comment says *"a verdict that treats a missing
+  ROW as proof of a missing object is the withdrawn method wearing the tool's badge"* — and the next
+  branch did it with a missing **directory**. **The transferable rule: a fix applied to one arm is a
+  question asked of every sibling arm — diff their guard sets.**
+- **Fixed** in `verdictFor`, pinned red-first by rehearsal **R7** (+ permissive twin R7-twin) and
+  selftest **C14/C15**, both observed RED before the fix (`api_keys=5 volume_present=false exit=0
+  verdict=CONSISTENT_EMPTY`).
+
+**Instance 6b — 🟠 the same branch also read a FAILED measurement as emptiness. Found by doing the
+guard-set diff the fix implies. ✅ FIXED.** `volumeCensus`'s catch returns `{present:false, error}`
+when its `docker exec` fails for a bucket, and that mapped to `CONSISTENT_EMPTY` — **variant 1 ("I
+could not look") living inside `verdictFor` itself.** Now `UNVERIFIED_PROOF_ERROR`, non-clean, pinned
+by selftest **C16**. ⭐ *The guard-set diff was asked for and it found a second gap the reviewer had
+not seen* — which is the argument for doing the diff rather than fixing the reported instance.
+
+**Instance 3 — 🔴 `complete_document_disposal` persists the confusion as a REGULATORY ASSERTION.
+LEAD-RULED 2026-08-17: it IS this class, and it is the worst instance of the three.** The door's
+absence check reads **`storage.objects`** — the metadata table (quoted from the live catalog in
+`docs/deployment/phi-disposal-runbook.md` §4). So `disposed` proves the metadata row is gone and
+**not** that the bytes are gone.
+
+**Why this instance outranks the other two, and the reason is not technical.** Instances 1–2 are
+**tool output an operator reads and can second-guess**. Instance 3 is a **persisted record that
+asserts a fact to a regulator.** A `disposal_state = 'disposed'` row meaning *"metadata row absent,
+bytes unknown"* is a **false compliance assertion** under LGPD / ANVISA-RDC / CFM 1821-2007, inside a
+20-year-retention system, on the one record class whose entire purpose is to evidence that PHI was
+destroyed.
+
+⛔ **And it compounds with S5.R, which is the sentence that makes the severity legible:** on Supabase
+Cloud there is **no volume proof** — `locateVolume()`'s preconditions (`STORAGE_BACKEND=file` plus a
+`supabase_storage` container on the operator's own machine) cannot hold there. So on Cloud "bytes
+gone" is not merely *unchecked*; it is **unverifiable by the method we have**. Which means
+**`disposed` can never mean more than "metadata gone" on Cloud unless something changes** — either
+FUP-DM5-CLOUD-ORPHAN-SURFACE settles that an orphan-visible surface exists, or the door's contract is
+amended to say what it actually verifies. Until one of those happens, every Cloud disposal record
+carries a claim the platform cannot substantiate.
+
+> ### ✅ BOTH ALTERNATIVES RESOLVED — instance 3 is DISCHARGED (2026-08-19)
+>
+> The paragraph above named two exits. **Both were taken, in the order that matters.**
+>
+> 1. **The door's contract was amended** — ADR 0121 **D4**, shipped as `20260928000400`. `disposed`
+>    now writes `disposal_evidence` beside the state: `metadata_absent` + `metadata_source` (what it
+>    genuinely checks) and `byte_proof` from a **closed** vocabulary
+>    (`local_volume_verified` / `unavailable_on_platform` / `not_attempted`). An unconstrained
+>    free-text field would have been the same defect one layer up. `FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED`
+>    then fixed the caller half: the one lane that actually deletes bytes declares
+>    `unavailable_on_platform` rather than riding the `not_attempted` default.
+> 2. **The Cloud question was MEASURED, and answered NO** — 2026-08-18, `cloud-orphan-probe.mjs`
+>    against the live project. All five customer-reachable surfaces are metadata-bound; a byte with
+>    no `storage.objects` row is invisible to every one of them *while provably still existing*
+>    ([cloud-orphan-probe-2026-08-18.md](../progress/cloud-orphan-probe-2026-08-18.md)).
+>
+> ⭐ **The second point is what discharges this, and it is worth stating precisely.**
+> `unavailable_on_platform` was written as a holding value — true, but pending a better proof. The
+> probe converts it into the **permanent and complete** answer: there is no better proof, and there
+> will not be one without a change on Supabase's side. A record saying *"metadata absent; byte proof
+> unavailable on this platform"* is now **exactly as strong as the truth**, which is the entire
+> demand this instance made. The claim the platform could not substantiate is no longer being made.
+>
+> ⛔ **Not established, and it must not be read in:** that orphaned bytes are *absent* on Cloud. The
+> probe proves they are **unobservable** — the opposite of reassuring. Under Rule 12 that is a
+> standing, PO-ratified limit (ADR 0120 D9 amendment), not a closed risk.
+
+⭐ **Filed undecided rather than merged on backend's own judgement — the lead ruled that was the
+correct call, and it is noted as such.** The alternative (quietly folding it into the class, or
+quietly giving it its own id) would have made a severity decision with regulatory weight inside an
+implementation slice.
+
+**Instance 4 — 🟠 destruction: a file UNLINKED recorded as bytes UNRECOVERABLE. ✅ RESOLVED in the
+runbook by the PO's encryption decision.** Found while writing the mitigation for instance 3 — *inside
+the fix for the previous instance*, which is itself the argument for having a class statement rather
+than four separate tickets. `rm` proves the **directory entry** is gone; it proves nothing about the
+blocks, and less than nothing on copy-on-write filesystems, SSDs with wear levelling, or any volume
+that has ever been snapshotted. **Resolution (PO, 2026-08-17): destroy the KEY first, then delete the
+archive.** Cryptographic erasure is the load-bearing act — residual ciphertext is unrecoverable
+without the key regardless of what the filesystem did — and deleting the archive is hygiene, not
+proof. The log records **both, stating what each one proves.** That is deliberately more honest than a
+`shred` claim, which could not be verified on this platform anyway. Written into
+`docs/deployment/phi-disposal-runbook.md` §6b.
+
+⭐ **The sharpened statement immediately earned itself — a fifth instance was caught BEFORE it shipped,
+which is exactly the use the lead named.** While verifying the runbook's encrypt-at-creation pipeline
+(2026-08-17): `docker exec … tar -cf - -C /mnt stub` **fails on Git Bash for Windows** — MSYS path
+translation rewrites `-C /mnt` to `C:/Program Files/Git/mnt`, tar exits 1 having written **0 bytes** —
+and with stderr suppressed the encryptor consumes the empty stream and 7-Zip prints **"Everything is
+Ok"**. The action was performed (a backup command ran and reported success); the state was **not**
+achieved (a valid, well-formed, entirely **empty** encrypted archive). Recognised as this class on
+sight rather than shipped as a command, and the runbook now carries both the working invocation and a
+**mandatory** count-vs-census verification step. **Not filed as a 5th open instance — it never
+reached the document.**
+
+Moved 2026-09-03, ADR 0186 Wave 5; the lesson is a LEARN row + postmortem in `docs/learning/`.

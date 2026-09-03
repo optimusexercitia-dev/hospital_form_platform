@@ -100,7 +100,7 @@ the raw logs that carried the names are overwritten by batch number):
 - `phase2-auth-shell.spec.ts:268`
 
 **Both are EXISTING named baseline entries — they are the two members of `FUP-E2E-REPEAT-FLAKY`
-([deferred-backlog.md](../followups/deferred-backlog.md)) — so this run produced ZERO new flaky names.** That
+(a parked entry in [follow-ups-open.md](../followups/follow-ups-open.md); the backlog file merged into it 2026-09-03, ADR 0186 D4) — so this run produced ZERO new flaky names.** That
 sentence, not the number `2`, is the finding.
 
 ⛔ **`0 infra` IS A POST-RERUN FIGURE. Batch 9's first attempt COLLAPSED** — `server_dead=1`,

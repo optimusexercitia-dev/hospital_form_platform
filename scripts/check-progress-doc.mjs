@@ -46,8 +46,8 @@
  *                  out of docs/progress/ by ADR 0185 D5; REGISTER_DIR is the one place that
  *                  knows) and an item is ONE `### ` entry. The properties below replace the
  *                  two that the merge would have left VACUOUSLY GREEN rather than red; the
- *                  FIELDS on each entry (Filed · Owner · Severity · Closes when) are
- *                  lint:registers' job, not this gate's:
+ *                  FIELDS on each entry (Filed · Owner · Severity · Closes when · Status ·
+ *                  Revisit when · Body) are lint:registers' job, not this gate's:
  *                    a. no RESOLVED entry left in the open register — opt-out only via
  *                       an explicit, ENTRY-SCOPED `**Retained**` line, so the exemption
  *                       is readable where it applies instead of allowlisted in here;
@@ -61,10 +61,13 @@
  *                    d. RETIRED by ADR 0185 D5 — § Critical FUP moved INTO the register as a
  *                       pinned section; its orphan check lives in lint:registers
  *                       (criticalIdsOf). Same vacuity argument as c;
- *                    e. WARNING only: an id entered in both the register and
- *                       deferred-backlog.md. Bounded on purpose — parked-vs-actionable
- *                       is a judgement this script cannot make. It reports; a human
- *                       routes. (The consolidation itself cut 27 of these.)
+ *                    e. RETIRED by ADR 0186 D4 — deferred-backlog.md is DELETED, merged into
+ *                       the register as `**Status:** parked` entries, so "an id entered in
+ *                       both the register and the backlog" has no second file to compare
+ *                       against; checkDoubleRegistration and its indexEntryRe helper retired
+ *                       with it (a `**Status:** parked` entry with no Revisit when is now
+ *                       lint:registers' job, same file, one register). Same vacuity argument
+ *                       as c and d — a comparison against a deleted file passes vacuously.
  *                  Bounded property, unchanged: ids matching FUP-[A-Z0-9-]+ only;
  *                  legacy un-prefixed items (e.g. "AUTHZ Gate-2 MINOR-1") are outside
  *                  the domain. Partial states (HALF / PARTIALLY / PO-RULED) are OPEN.
@@ -365,86 +368,20 @@ export function checkRegisterIntegrity(registerText, archiveText) {
 }
 
 /**
- * A REAL register entry for `id`, as opposed to a mention of it: a line whose OWN LEADING
- * BOLD TOKEN is that id. `[^*\n]*` before the bold is what carries the distinction — it
- * forbids an earlier bold span, so `- 🟠 **FUP-A** — … compare **FUP-B**` registers
- * **A only**, and a backticked mention with no bold at all (`see 🟠 \`FUP-C\``) registers
- * nothing.
- *
- * ⛔ The property is deliberately "the line is ABOUT this item from its first word", NOT
- * "the line is a list item" — a narrower shape rule would have rejected the retention note
- * for FUP-DM5-NO-ANSWER-VS-NOTHING, which the **PO ruled on 2026-08-28 IS that body's
- * register entry** (follow-ups-archive.md § the six-note block). It is an italic note, not
- * a bullet. Leading markers are therefore optional and cover the four live shapes: `- `
- * bullets, `- [ ]` checkboxes (the parked backlog), `_` italic notes, `> ` quotes.
- * Backticks inside the bold are optional — the parked backlog writes one entry as
- * ``**`FUP-X`**``.
- */
-const indexEntryRe = (id) =>
-  new RegExp(`^[-_>]?\\s*(?:\\[[ x]\\]\\s*)?[^*\\n]*\\*\\*\`?${id}\`?\\*\\*`, 'mu')
-
-/**
- * INVERSE of checkFupBodies (ADR 0140): a body in follow-ups.md that no live register
- * ENTRY indexes is residue — resolved (its body belongs in follow-ups-archive.md) or
- * worse, an ORPHAN whose index line was deleted instead of moved. Two orphans were found
- * at the 2026-08-24 sweep (FUP-DM5-MANIFEST-FLAG, FUP-DM5-REMOTE-STATE-MEASURED — both
- * resolved, indexed NOWHERE). A session that greps follow-ups.md and lands on such a body
- * has no way to see the item is not open.
- *
- * ⛔ **LIVE used to mean `progressText.includes(id)` — a substring hit anywhere in the
- * file — and that is the hole this check was built to close.** An id named in ordinary
- * prose kept its body "indexed": FUP-DISPOSE-DIALOG-OVERCLAIM closed 2026-08-20 and rode a
- * ⛔ note *about its closure instrument* for eleven days, invisible to this gate, and
- * surfaced only when the 2026-08-31 cleanup cut the note for unrelated reasons. The old
- * docstring called the width "deliberately over-inclusive… the safe failure direction is
- * under-flagging"; that reasoning was sound about the REMEDY and wrong about the TEST —
- * the way to keep an open body safe is to make the finding's prescribed action safe, not
- * to make the detector blind.
- *
- * So the width moved into the VERDICT instead. Two kinds, and the difference is which
- * action is correct:
- *   • MENTION-ONLY — the id is in a live register file but not as an entry. The item may
- *     well be open, so the prescribed action is **restore the index line**, and the
- *     finding says in terms that deleting the body is the wrong repair.
- *   • ABSENT — indexed nowhere at all. The original orphan case, unchanged.
- */
-/**
- * Successor to checkFupBodyResidue (ADR 0179). The old check asked whether a body in
- * follow-ups.md was indexed by a live register — a question that CANNOT fail now that the
- * entry IS the body. What survives it is the opposite risk the two-file split created: the
- * SAME item entered in two live registers at once, which is two records to edit and one that
- * silently goes stale.
- *
- * ⛔ WARNING, not a finding, and the reason is bounded: the consolidation itself cut 27 of
- * these (the 2026-08-19 "deferred tail", whose bullets were the index half of a body that
- * lived in follow-ups.md), and which register a future item belongs to is a judgement — parked
- * vs actionable — that this script cannot make. It reports; a human routes.
- */
-/**
  * ⛔ RETIRED (ADR 0185 D5): checkCriticalRowsHaveEntries asked whether a PROGRESS.md § Critical
  * FUP row pointed at a register entry. The section moved INTO the register as a pinned
  * `## ⭐⭐ Critical` block, so the same question — a Critical id with no entry — is asked there by
  * lint:registers (criticalIdsOf + CRITICAL_PIN_REQUIRED). Kept here it would pass vacuously on a
  * section FORBIDDEN_SECTIONS forbids. Retired with its self-tests, criticalRowRe with it.
+ *
+ * ⛔ RETIRED (ADR 0186 D4): `indexEntryRe` and `checkDoubleRegistration` asked whether a FUP id
+ * was entered in BOTH the register and `deferred-backlog.md` — a WARNING, bounded on purpose,
+ * because parked-vs-actionable was a judgement this script could not make. That second file is
+ * DELETED: every parked item merged into the register as its own `**Status:** parked` entry
+ * (with `**Revisit when:**`, lint:registers' job now, same file). A comparison against a file
+ * that no longer exists passes vacuously — the exact shape this file exists to refuse — so both
+ * are retired with their self-tests rather than retargeted, the same way RESOLVED_LINE was.
  */
-
-export function checkDoubleRegistration(registerText, backlogText) {
-  const out = []
-  const seen = new Set()
-  for (const m of registerText.matchAll(REGISTER_ENTRY)) {
-    const id = m[2]
-    if (seen.has(id)) continue
-    seen.add(id)
-    if (!indexEntryRe(id).test(backlogText)) continue
-    out.push(
-      `${id} is entered in BOTH ${REGISTER_DIR}/follow-ups-open.md and deferred-backlog.md. ` +
-        `One item, one register: if nobody can act on it next session it belongs in the ` +
-        `backlog, otherwise in the register with a **Parked** marker. Two entries mean an ` +
-        `edit lands on one of them.`,
-    )
-  }
-  return out
-}
 
 /** `[line, lineNo]` for every line inside a CAPPED_SECTIONS section (headings excluded). */
 function cappedLines(text) {
@@ -649,34 +586,10 @@ function selfTest() {
     checkRegisterIntegrity('### 🟡 FUP-OK-1 — open\n', '### ⬛ FUP-OTHER-1 — archived\n'),
   )
 
-  // Double registration (WARNING path) — the shape the consolidation cut 27 of.
-  expectRed(
-    'double-registration',
-    checkDoubleRegistration('### 🟡 FUP-DUAL-1 — open\n', '- 🟡 **FUP-DUAL-1** — parked'),
-  )
-  // ⛔ VACUITY CONTROL on indexEntryRe, kept from the retired residue check: it must accept
-  // every real entry shape, or it would go quiet on the whole backlog and read as clean.
-  for (const [name, entry] of [
-    ['emoji', '- 🟡 **FUP-SHAPE-1** — open'],
-    ['checkbox', '- [ ] **`FUP-SHAPE-1`** — parked'],
-  ])
-    expectRed(
-      `double-registration-entry-${name}`,
-      checkDoubleRegistration('### 🟡 FUP-SHAPE-1 — open\n', entry),
-    )
-  // …and a bare MENTION in the backlog is not an entry — the mention-vs-entry distinction
-  // (ADR 0140) survives the merge, because the false direction here is a spurious warning.
-  expectGreen(
-    'double-registration-mention-green',
-    checkDoubleRegistration('### 🟡 FUP-TICK-1 — open\n', '  see 🟠 `FUP-TICK-1` for the shape.'),
-  )
-  expectGreen(
-    'double-registration-mid-line-green',
-    checkDoubleRegistration('### 🟡 FUP-MID-1 — open\n', '- 🟠 **FUP-OTHER** — cf **FUP-MID-1**'),
-  )
-
-  // (The § Critical FUP orphan test lived here until ADR 0185 D5 moved the section into the
-  // register; lint:registers asserts it now, with its own fixtures.)
+  // (Double-registration-vs-backlog and the § Critical FUP orphan test lived here. Both are
+  // retired: deferred-backlog.md is deleted (ADR 0186 D4 — merged into the register as
+  // `**Status:** parked` entries) and § Critical FUP moved into the register (ADR 0185 D5).
+  // lint:registers asserts both questions now, with its own fixtures.)
 
   expectRed('sections', checkSections('# empty file\n'))
 
@@ -692,8 +605,10 @@ function selfTest() {
   // question of PROGRESS.md index lines that ADR 0179 removed, so BOTH would have passed
   // vacuously rather than failed — the exact shape this file exists to refuse. ADR 0185 then
   // retired checkNoIndexInProgress and checkCriticalRowsHaveEntries for the same reason (their
-  // sections are FORBIDDEN now). The survivors (checkRegisterResolved, checkRegisterIntegrity,
-  // checkDoubleRegistration) and the successor (checkForbiddenSections) are asserted above.
+  // sections are FORBIDDEN now); ADR 0186 D4 retired checkDoubleRegistration/indexEntryRe the
+  // same way (deferred-backlog.md, their subject, is deleted). The survivors
+  // (checkRegisterResolved, checkRegisterIntegrity) and the successor (checkForbiddenSections)
+  // are asserted above.
 
   const cell = (body) => `## Phase Status\n| 2026-01-01 | ${body} | ref |\n`
   expectRed('cell-long', checkCellShape(cell('x'.repeat(MAX_CELL + 1))))
@@ -760,7 +675,9 @@ function main() {
   findings.push(...checkBulletLength(progress))
 
   // ADR 0179: the OPEN register is ONE file holding entry + body per item (ADR 0185 D5: in
-  // REGISTER_DIR). A missing register file is a finding, never a silent skip.
+  // REGISTER_DIR). A missing register file is a finding, never a silent skip. ADR 0186 D4:
+  // deferred-backlog.md is a THIRD file no longer — it is deleted, merged into the register as
+  // `**Status:** parked` entries — so this control now covers exactly the two that remain.
   const regFile = (name) => {
     const p = join(ROOT, REGISTER_DIR, name)
     if (!existsSync(p)) {
@@ -771,10 +688,8 @@ function main() {
   }
   const register = regFile('follow-ups-open.md')
   const archive = regFile('follow-ups-archive.md')
-  const backlog = regFile('deferred-backlog.md')
   findings.push(...checkRegisterResolved(register))
   findings.push(...checkRegisterIntegrity(register, archive))
-  warnings.push(...checkDoubleRegistration(register, backlog))
 
   // Registry-free link sweep (ADR 0140): EVERY docs/progress/*.md. The zero-match
   // control stands guard on the sweep itself: 2026-Q3.md exists from 2026-08-24 and

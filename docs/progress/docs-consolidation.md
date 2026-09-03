@@ -139,3 +139,53 @@ CLAUDE.md diff keeps its own explicit approval. `proposed-review.json` drops 018
 
 **Dead ends:** the records agent messaged the earlier read-only audit agent about the directory
 gap instead of the lead; that agent correctly declined. Subagents route findings to the lead.
+
+### 2026-09-03 — Wave 5 (lead session + three subagents)
+
+**Partition:** gate arms (both gate scripts, `lint-gates.md`) · the register split, backlog merge,
+archive hygiene, pin (`docs/followups/**`, the migration script) · bugs, lessons, postmortem,
+reference sweep (`BUGS.md`, `LESSONS.md`, `postmortems/`, the living citers of the backlog file).
+
+**Verified (after reconciliation):**
+
+- Gates 7, 8, 13 — exit 0 each, bare. Full chain at commit.
+- `follow-ups-open.md` 737,876 → **151,978 B**; 204 entries (172 + 33 merged − 1 archived);
+  159 body files; 0 `Register line` paragraphs (122 deleted; the audit said 123); the migration
+  script is idempotent (second run: no change). Archive 725 KB (four parked bodies out, one
+  resolved entry in, three double headings merged, three index-only sections deleted).
+- Ratchet counts, measured after the data landed and written as the caps:
+  closesWhenPoToRule 147 · severityPerEmoji 135 · severityUnrated 29 · revisitWhenPoToRule 38 ·
+  longHeadings 97 · bugsUntriaged 10 · bugsUnrated 40 · lessonsProseOnly 47.
+- BUGS.md: 48 rows link an archive heading by a computed GitHub slug, each verified against the
+  real heading; 111 stay `—` and the header says why (101 have an un-headed trace, 10 none).
+- LESSONS.md 72 → 75 rows (LEARN-073 the no-answer lesson with the first postmortem, LEARN-074
+  `prosecdef` beside `pg_policies`, LEARN-075 text is not truth); two `prose only` cells replaced
+  by the rule file that carries them, with the carrying sentence quoted in the agent's report.
+- Proof-of-red: entry length, Owner vocabulary, a ratchet, the archive-anchor check (exit 2
+  each when short-circuited).
+
+**Decisions in flight:**
+
+- **Register size target re-set 120 → 160 KB** (plan § 2, hub): headings stay verbatim (Amdt 1)
+  and the merge added 33 entries; 152 KB is the honest figure, not a compression.
+- **checkBugs exempts archive anchors** from the two-section completeness check and verifies the
+  anchor instead (the lessons agent's finding; routed to the gate agent, fixed, proven).
+- **`relLinks` blanks code spans and fences** — pulled forward from Wave 6.3 because two split
+  bodies talk *about* link patterns; the unification with gate 7's checker remains Wave 6.3.
+- **The archived resolved entry's body was folded back inline** (a resolved item's body lives in
+  the archive, 0185 D5); its `Status` cell is `resolved`. The one-off fold script lives in the
+  session scratchpad, not the tree.
+- The mutation-harness rule's anchor followed its literal into a body file; the rule was trimmed
+  13 bytes to stay under the 2,048 cap (2,035 B).
+- `docs/progress/aff4.md:103` linked the deleted backlog — repointed to the register.
+
+**Findings the agents corrected in my brief, kept as written by them:** the fourth "index-only"
+archive section held real bodies (left); three of the six "double-filed" ids had one heading
+(left); two "▶" blocks with no id sat unindexed in the open file and became the two backlog
+items' fuller bodies; the backlog's uniform 🟡 read as boilerplate, so merged items carry
+`unrated`; the BUGS.md header states the measured 101/10 split rather than "do not exist".
+
+**Open questions:** `docs/reviews/authz-evolution-implementation-audit-2026-09-02.md` cites two
+`#L…` line anchors into the register that the split invalidated — a historical review, left;
+CLAUDE.md §7 still names `deferred-backlog.md` (Wave 4). `scripts/migrate-fup-bodies.mjs` is
+committed with this wave and deleted at Record, its SHA recorded in the ADR then.

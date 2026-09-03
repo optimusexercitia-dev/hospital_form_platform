@@ -4,7 +4,7 @@ paths:
 anchors:
   - supabase/tests/mutation/p0-authz-door-audit.sh
   - supabase/tests/mutation/p0-authz-writepath-audit.sh
-  - docs/followups/follow-ups-open.md#meeting_cases_staff_admin_update
+  - docs/followups/FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED.md#meeting_cases_staff_admin_update
 source: AE1.5 incident 2026-08-27 — a killed sweep left an UPDATE policy qual=true wc=true for ~4 min
 ---
 
@@ -13,7 +13,7 @@ source: AE1.5 incident 2026-08-27 — a killed sweep left an UPDATE policy qual=
 It fails **silently** — no log line, no failing test, no gate red. The instance:
 `meeting_cases_staff_admin_update`, `FOR UPDATE`, left open to `authenticated`.
 
-✅ **Let a contaminated run FINISH; discard its verdicts.** ⛔ Never kill it to save time.
+✅ **Let a contaminated run FINISH; discard its verdicts.** ⛔ Never kill it.
 
 ## Since 2026-08-29 a kill is CAUGHT, not prevented
 

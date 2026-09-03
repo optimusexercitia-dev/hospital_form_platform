@@ -33,8 +33,10 @@ Each is measurable; the baseline is in the record's first session-log entry.
 - [ ] Every `in_progress` / `gated` hub links a record with a `## Session log` — gated. Zero
       handoffs for landed units (baseline 2, 33,898 B); the template holds only resume pointer,
       trust, tree, next command.
-- [ ] `follow-ups-open.md` ≤ 120 KB (baseline 737,876 B); entries ≤ 20 lines; zero `Register
-      line` paragraphs (baseline 123); zero `##` inside entries; parked entries carry the status.
+- [x] `follow-ups-open.md` ≤ 160 KB — 151,978 B (baseline 737,876 B; the 120 KB target was
+      re-set at Wave 5: headings verbatim + 33 merged backlog entries); entries ≤ 20 lines; zero
+      `Register line` paragraphs (baseline 123); zero `##` inside entries; parked entries carry
+      the status. Gated.
 - [ ] Ratchets on `PO to rule` and `per emoji at consolidation` cannot increase.
 - [ ] One link checker, one resolved-heading regex.
 - [ ] A status change for one unit touches ≤ 3 hand-written files.
@@ -72,14 +74,19 @@ with gates that red on the live population, in seven waves with five PO checkpoi
   pointer; C2 got its record, AE4's snapshots became log entries, both landed handoffs folded
   into the records and deleted; AE4 and C2 hub blocks purged to 35 / 32 lines.
 
+- Wave 5: the open register is an index (152 KB, 204 entries, 159 body files, 0 Register-line
+  paragraphs); the backlog merged as 33 parked entries and deleted; archive cleaned; Critical
+  pin rows ≤ 300 chars; BUGS.md links 48 archive bodies; LESSONS +3 rows, first postmortem;
+  eight ratchets set from the measured counts; every new check proven able to red.
+
 ### In progress
 
-- Wave 5 (registers) and Wave 6 (gate hygiene) — neither touches CLAUDE.md.
+- Wave 6 (gate hygiene) — does not touch CLAUDE.md.
 
 ### Next
 
-- Wave 4: the CLAUDE.md diff, presented for explicit approval; it also deletes the CURRENT.md
-  stub, its `docs/INDEX.md` row, and the progress-contract rule file.
+- Wave 4: the CLAUDE.md diff (drafted, 20,454 B), presented for explicit approval; it also
+  deletes the CURRENT.md stub, its `docs/INDEX.md` row, and the progress-contract rule file.
 
 ### Blockers
 

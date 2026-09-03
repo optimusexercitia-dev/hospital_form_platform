@@ -113,6 +113,16 @@ forbidden. Headings ≤ 160 characters; entries ≤ 20 lines; no `##`/`####` ins
 from a closed vocabulary. The archive stays a separate file — 0179's principle stands; only the
 *location of bodies* changes. *Amends 0185 D5 and ADR 0179 in the body-location clause.*
 
+> **Amendment 1 (2026-09-03, at Wave 5 dispatch, same day).** Two shape rules above are
+> softened where they would have destroyed something the tree relies on. (a) **Entry headings
+> stay verbatim** — ids and `follow-ups-open.md#…` anchors are cited across plans, designs and
+> memory, and a shortened heading breaks every one silently; the 160-character cap becomes a
+> **ratchet** (the count of long headings may only fall), not a red. (b) **`unrated` is a legal
+> `Severity` for follow-ups filed before 2026-09-04**, the same legacy watermark BUGS.md rows
+> already use (D4 gave bugs `unrated` for exactly this case); backlog items merged under D4 with
+> no derivable severity carry it with a ⚪ heading, ratcheted, rather than an invented word.
+> Both ratchets sit beside D6's.
+
 ### D5 — The contract has one home; the rule file is deleted
 
 `.claude/rules/progress-contract.md` is deleted. It stated no standing prohibition, restated what

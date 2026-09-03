@@ -108,7 +108,9 @@ the **20 KB target** — rotate then, not at the cap; ADR 0185 D6), a `✅ compl
 § Phase Status, a broken relative link, a missing required section, or CRLF — **plus
 the register checks (ADR 0179):** a RESOLVED entry still sitting in
 `follow-ups-open.md`, a duplicate follow-up id, an id held by both that register and
-`follow-ups-archive.md` (an id in both the register and `deferred-backlog.md` warns).
+`follow-ups-archive.md`; the old `deferred-backlog.md` cross-check retired with the
+file (ADR 0186 D4) — a parked entry now lives in the same register, caught by the
+ordinary duplicate-id check.
 `npm run lint:registers` (gate 13)'s RETIRED arm separately reds on a **citation** of a
 section ADR 0185 D6 cut out of this file — `§ Now`, `§ Bug Log`, `§ Critical FUP`,
 `§ Test Run Summary`, `§ QA Verdicts`, or PROGRESS.md's former Decisions/Follow-ups
@@ -128,7 +130,8 @@ longer exist here, so there is nothing left to keep small. At the Record step, m
   commit. No rotation, no archive file, ever (ADR 0185 D3).
 - **A resolved follow-up entry** → move it, verbatim, from
   `docs/followups/follow-ups-open.md` to `docs/followups/follow-ups-archive.md`. A
-  **parked** one moves to `docs/followups/deferred-backlog.md`. The register has
+  **parked** one gets `**Status:** parked` + **Revisit when**, in place — it stays in
+  `follow-ups-open.md` (ADR 0186 D4). The register has
   **no size cap**, so length is never a reason to compress or drop an open item. The
   pinned ⭐⭐ Critical list lives at the top of the open register — never in
   PROGRESS.md.

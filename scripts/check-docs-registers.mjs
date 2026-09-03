@@ -32,12 +32,23 @@
  *             (`unrated` only for legacy rows); Closed empty while open; Doc links resolve;
  *             every docs/bugs/BUG-*.md has a row; a fixed/verified bug with a document has
  *             non-empty Root cause + Regression protection.
- *   FOLLOWUPS every FUP entry carries Filed (date) · Owner · Severity (enum word, matching
- *             the heading emoji) · Closes when; a Parked entry carries Revisit when; every
- *             deferred-backlog entry carries Revisit when. `PO to rule` is a legal value and
- *             is COUNTED (it is the honest cell); an invented value is not detectable — the
- *             gate bounds presence, humans bound truth. The Critical pin (D5) is checked
- *             for orphans once CRITICAL_PIN_REQUIRED is on.
+ *   FOLLOWUPS (ADR 0186 D4 — the register is now an INDEX, deferred-backlog.md deleted and
+ *             merged in as `**Status:** parked` entries) every FUP entry carries Filed (date) ·
+ *             Owner (closed vocabulary, OWNER_VOCAB order) · Severity (enum word or legacy
+ *             `unrated`, matching the heading emoji) · Closes when · Status (open|parked;
+ *             parked needs a non-empty Revisit when — the old bare `**Parked**` marker is no
+ *             longer the signal). Entries are ≤ 20 lines with no nested `##`/`####` heading;
+ *             `**Register line**` paragraphs are forbidden outright; a `**Body:**` link is
+ *             cross-checked against docs/followups/FUP-*.md so an orphan reds BOTH ways. The
+ *             Critical pin (D5) is checked for orphans once CRITICAL_PIN_REQUIRED is on, and
+ *             its data rows are capped at 300 chars each (plan 5.6). `PO to rule` is a legal
+ *             value and is COUNTED, not flagged — but D6 turns every such count into a RATCHET
+ *             (see RATCHETS below): a gate that only ever bounds presence still bounds GROWTH.
+ *   RATCHET   (ADR 0186 D6) every count this gate used to print as a warning — `Closes when: PO
+ *             to rule`, `Severity: … per emoji at consolidation`, `unrated`, a long verbatim
+ *             heading, BUGS `untriaged`/`unrated`, LESSONS `prose only` — is now a named
+ *             constant in RATCHETS that may only be LOWERED; a commit that raises the live
+ *             count above it reds. Every arm prints its live count on the OK line.
  *   LESSONS   docs/learning/LESSONS.md — exact columns; unique LEARN ids; Origin resolves
  *             (ADR / FUP / BUG / sha / path); Enforcement is `prose only` or tokens that
  *             each exist (lint:<script> in package.json, ARM=<arm>, a path, a rule file).
@@ -79,8 +90,8 @@ export const PATHS = {
   legacyCodes: 'docs/followups/legacy-codes.md',
   bugs: 'docs/bugs/BUGS.md',
   bugsDir: 'docs/bugs',
+  followupsDir: 'docs/followups',
   fupOpen: 'docs/followups/follow-ups-open.md',
-  fupBacklog: 'docs/followups/deferred-backlog.md',
   fupArchive: 'docs/followups/follow-ups-archive.md',
   lessons: 'docs/learning/LESSONS.md',
   postmortemsDir: 'docs/learning/postmortems',
@@ -108,7 +119,15 @@ export const BUG_STATUS = ['open', 'fixed', 'verified', 'wontfix', 'duplicate', 
 export const BUG_CLOSED_STATUS = ['fixed', 'verified', 'wontfix', 'duplicate']
 export const BUG_COLUMNS = ['ID', 'Status', 'Severity', 'Area', 'Description', 'Opened', 'Closed', 'Related', 'Doc']
 export const SEVERITY = ['catastrophic', 'critical', 'high', 'medium', 'low']
-export const SEVERITY_EMOJI = { catastrophic: '⛔', critical: '🔴', high: '🟠', medium: '🟡', low: '🟢' }
+export const SEVERITY_EMOJI = { catastrophic: '⛔', critical: '🔴', high: '🟠', medium: '🟡', low: '🟢', unrated: '⚪' }
+
+/** ADR 0186 D4: the FOLLOWUPS `**Owner:**` closed vocabulary, in the order multi-owner values
+ *  must list them in (`backend + frontend`, never `frontend + backend`). */
+export const OWNER_VOCAB = ['lead', 'backend', 'frontend', 'tester', 'qa', 'PO', 'unassigned']
+/** FOLLOWUPS index-entry shape (ADR 0186 D4). */
+export const FOLLOWUP_STATUS = ['open', 'parked']
+export const FOLLOWUP_MAX_ENTRY_LINES = 20
+export const FOLLOWUP_MAX_HEADING_CHARS = 160
 
 export const LESSON_COLUMNS = ['ID', 'Area', 'Lesson', 'Origin', 'Enforcement']
 export const ARMS = ['census', 'hat', 'floor', 'wrapper', 'policy']
@@ -124,6 +143,38 @@ export const POSTMORTEM_SECTIONS = [
   'Applies to',
 ]
 export const HANDOFF_CITATION_ALLOWED = ['docs/features/', 'docs/planning/', 'docs/handoffs/', 'docs/reviews/']
+
+// ─── RATCHETS (ADR 0186 D6): a count this gate used to print as a WARNING is now a named
+// constant that may only be LOWERED — a commit that raises the live count above it reds. Every
+// constant starts at Infinity (never a finding) until the Wave 5 data lands and the lead
+// measures the true counts off the OK line (`ratchets: name=live/cap`) and writes them in. This
+// is deliberately the FIRST wave to introduce a name with no real cap yet — the alternative
+// (guessing a cap before the data exists) is exactly the "invented value is invisible" failure
+// this gate exists to refuse.
+// Caps measured 2026-09-03 after the ADR 0186 Wave 5 migration landed. Each may only be
+// LOWERED, in the same commit as the change that lowers the live count; a commit that raises
+// one reds (ADR 0186 D6). The PO's three ruling lists live behind the first four.
+export const RATCHETS = {
+  closesWhenPoToRule: 147, // FOLLOWUPS entries whose `**Closes when:**` is `PO to rule`
+  severityPerEmoji: 135, // FOLLOWUPS entries whose `**Severity:**` says "per emoji at consolidation"
+  severityUnrated: 29, // FOLLOWUPS entries with `**Severity:** unrated` (legacy-dated, legal)
+  revisitWhenPoToRule: 38, // parked FOLLOWUPS entries whose `**Revisit when:**` is `PO to rule`
+  longHeadings: 97, // FOLLOWUPS headings over FOLLOWUP_MAX_HEADING_CHARS (verbatim by decision)
+  bugsUntriaged: 10, // BUGS.md rows with Status `untriaged`
+  bugsUnrated: 40, // BUGS.md rows with Severity `unrated`
+  lessonsProseOnly: 47, // LESSONS.md rows with Enforcement `prose only`
+}
+
+/** Every live count that exceeds its RATCHETS constant is a finding; may only be LOWERED. */
+export function checkRatchets(counts, ratchets = RATCHETS) {
+  const F = []
+  for (const name of Object.keys(ratchets)) {
+    const live = counts[name] ?? 0
+    const cap = ratchets[name]
+    if (live > cap) F.push(`[RATCHET] ${name} is ${live}, cap ${cap} — may only be lowered`)
+  }
+  return F
+}
 
 // ─── RETIRED (ADR 0186 D8): a PROGRESS.md section ADR 0185 D6 retired, cited in living prose ──
 /**
@@ -208,31 +259,37 @@ export function splitRow(line) {
   return out
 }
 
-/** `### ` entries of a register: heading, the up-to-4 non-blank "field lines" after it, body. */
+/**
+ * `### ` entries of a register: heading, the up-to-8 non-blank "field lines" after it, body.
+ *
+ * ADR 0186 D4: an entry's span runs to the line BEFORE THE NEXT `### ` HEADING (or EOF) —
+ * unlike this function's pre-0186 shape, which ended a span at the next heading of ANY level
+ * (`##`, `###` or `####`). That widening is deliberate: a `##`/`####` heading is no longer a
+ * boundary, it is a VIOLATION to be found INSIDE the span (checkFollowupEntryShape), so the
+ * span must include it rather than stop short of it. Field-line cap raised 4 → 8: the new shape
+ * adds `**Status:**`, `**Revisit when:**` and `**Body:**` to the original four, plus room for a
+ * resolved-and-retained entry's `**Retained**` marker line.
+ */
 export function parseEntries(text) {
   const lines = text.split('\n')
+  const starts = []
+  for (let i = 0; i < lines.length; i++) if (/^### /.test(lines[i])) starts.push(i)
   const out = []
-  for (let i = 0; i < lines.length; i++) {
-    if (!/^### /.test(lines[i])) continue
-    let end = lines.length
-    for (let j = i + 1; j < lines.length; j++) {
-      if (/^##+ /.test(lines[j])) {
-        end = j
-        break
-      }
-    }
-    const body = lines.slice(i + 1, end)
+  for (let k = 0; k < starts.length; k++) {
+    const i = starts[k]
+    const end = k + 1 < starts.length ? starts[k + 1] : lines.length
+    const bodyLines = lines.slice(i + 1, end)
     const fields = []
-    for (const l of body) {
+    for (const l of bodyLines) {
       if (!l.trim()) {
         if (fields.length) break
         continue
       }
       if (!/^\*\*/.test(l)) break
       fields.push(l)
-      if (fields.length === 4) break
+      if (fields.length === 8) break
     }
-    out.push({ heading: lines[i], line: i + 1, fields: fields.join('\n'), body: body.join('\n') })
+    out.push({ heading: lines[i], line: i + 1, fields: fields.join('\n'), body: bodyLines.join('\n'), bodyLines })
   }
   return out
 }
@@ -264,9 +321,15 @@ export function isoDateOf(v) {
 
 export function relLinks(text) {
   const out = []
+  // A link pattern quoted inside a code span or a fenced block is prose ABOUT links, not a
+  // link (the split register bodies talk about `](./NNNN-*.md)`); blank both before scanning.
+  // Same rule gate 7's checker applies — ADR 0186 D8 unifies the two in Wave 6.
+  const scanned = text
+    .replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length))
   const rx = /\]\(([^)\s]+)\)/g
   let m
-  while ((m = rx.exec(text))) {
+  while ((m = rx.exec(scanned))) {
     const t = m[1]
     if (/^(https?:|mailto:|#)/.test(t)) continue
     out.push(t.replace(/#.*$/, ''))
@@ -404,19 +467,47 @@ export function checkCodes({ bugRows, fupEntries, registered, legacyRows }) {
   return F
 }
 
+/**
+ * GitHub-style heading slug (approximate): lowercase, strip everything but letters/digits/`_`/`-`
+ * /space, collapse the RUNS OF SPACES that removing padded punctuation exposes (`" — "` → one
+ * space, not two) into a single space, then space → `-`. A literal `--` already in the heading
+ * text is NOT touched by that collapse (only spaces collapse, not hyphens) — that is the one
+ * property callers rely on, so do not "clean up" a genuine `--` into `-`. A heading that starts
+ * with a stripped symbol (`"✅ BUG-…"`) legitimately slugs to a LEADING hyphen; do not trim it.
+ */
+export function githubSlug(heading) {
+  return heading
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}_\- ]+/gu, '')
+    .replace(/ {2,}/g, ' ')
+    .replace(/ /g, '-')
+}
+
+/** Does some `#`-heading in `archiveText` slug to exactly `slug`? Plain match, no GitHub
+ *  duplicate-slug disambiguation (`-1`, `-2`, …) — the archive has no duplicate headings today. */
+export function anchorExistsInArchive(archiveText, slug) {
+  for (const m of archiveText.matchAll(/^#{1,6}\s+(.+)$/gm)) {
+    if (githubSlug(m[1]) === slug) return true
+  }
+  return false
+}
+
+/** A BUGS.md Doc link's per-ID document (docs/bugs/BUG-*.md — the README template's shape). */
+const BUG_DOC_BASENAME_RX = /^BUG-[A-Z0-9][A-Z0-9-]*\.md$/
+
 export function checkBugs(table, ctx) {
   const F = []
   const W = []
+  const counts = { untriaged: 0, unrated: 0 }
   const file = PATHS.bugs
-  if (!table) return { findings: [`[BUGS] ${file} — no table found`], warnings: W }
+  if (!table) return { findings: [`[BUGS] ${file} — no table found`], warnings: W, counts }
   if (table.columns.join('|') !== BUG_COLUMNS.join('|')) {
     F.push(`[BUGS] ${file}:${table.headerLine} — columns must be [${BUG_COLUMNS.join(' | ')}]; found [${table.columns.join(' | ')}]`)
-    return { findings: F, warnings: W }
+    return { findings: F, warnings: W, counts }
   }
   const seen = new Map()
   const linkedDocs = new Set()
-  let untriaged = 0
-  let unrated = 0
   for (const r of table.rows) {
     const c = r.cells
     const at = (msg) => F.push(`[BUGS] ${file}:${r.line} — ${c.ID || '(no id)'}: ${msg}`)
@@ -424,10 +515,10 @@ export function checkBugs(table, ctx) {
     if (seen.has(c.ID)) at(`duplicate id (first at line ${seen.get(c.ID)})`)
     seen.set(c.ID, r.line)
     if (!BUG_STATUS.includes(c.Status)) at(`status \`${c.Status}\` not in ${BUG_STATUS.join('|')}`)
-    if (c.Status === 'untriaged') untriaged++
+    if (c.Status === 'untriaged') counts.untriaged++
     const legacy = c.Opened === '—' || (DATE_RX.test(c.Opened) && c.Opened < CODE_WATERMARK)
     if (c.Severity === 'unrated') {
-      unrated++
+      counts.unrated++
       if (!legacy) at('`unrated` is allowed only for rows opened before the watermark')
     } else if (!SEVERITY.includes(c.Severity)) at(`severity \`${c.Severity}\` not in ${SEVERITY.join('|')}`)
     if (!(c.Opened === '—' || DATE_RX.test(c.Opened))) at('Opened must be YYYY-MM-DD or —')
@@ -438,15 +529,31 @@ export function checkBugs(table, ctx) {
       const link = (c.Doc.match(/\]\(([^)]+)\)/) || [])[1]
       if (!link) at('Doc must be — or a markdown link')
       else {
-        const p = join(PATHS.bugsDir, link.replace(/#.*$/, ''))
+        const hashAt = link.indexOf('#')
+        const pathPart = hashAt === -1 ? link : link.slice(0, hashAt)
+        const fragment = hashAt === -1 ? null : link.slice(hashAt + 1)
+        const p = join(PATHS.bugsDir, pathPart)
         if (!ctx.exists(p)) at(`Doc link \`${link}\` does not resolve`)
         else {
-          linkedDocs.add(basename(p))
-          if (c.Status === 'fixed' || c.Status === 'verified') {
-            const t = ctx.readRel(p) || ''
-            for (const sec of ['Root cause', 'Regression protection']) {
-              if (!sectionNonEmpty(t, sec)) at(`status ${c.Status} but the document's \`## ${sec}\` is empty`)
+          const base = basename(p)
+          if (BUG_DOC_BASENAME_RX.test(base)) {
+            // The per-ID doc template (docs/bugs/BUG-*.md, one row's own document): a
+            // fixed/verified row needs its two required sections non-empty.
+            linkedDocs.add(base)
+            if (c.Status === 'fixed' || c.Status === 'verified') {
+              const t = ctx.readRel(p) || ''
+              for (const sec of ['Root cause', 'Regression protection']) {
+                if (!sectionNonEmpty(t, sec)) at(`status ${c.Status} but the document's \`## ${sec}\` is empty`)
+              }
             }
+          } else if (base === 'archive.md' && fragment) {
+            // A pre-2026-07 body: archive.md is free-form history with no Root-cause/Regression-
+            // protection headings anywhere, so the completeness check does not apply — the
+            // property that DOES apply is that the anchor actually lands on a heading.
+            const archiveText = ctx.readRel(p) || ''
+            if (!anchorExistsInArchive(archiveText, fragment)) at(`Doc anchor #${fragment} not found in archive.md`)
+          } else {
+            at(`Doc link \`${link}\` is not a recognized form (expected docs/bugs/BUG-*.md or docs/bugs/archive.md#<slug>)`)
           }
         }
       }
@@ -455,9 +562,9 @@ export function checkBugs(table, ctx) {
   for (const d of ctx.bugDocFiles) {
     if (!linkedDocs.has(d)) F.push(`[BUGS] ${PATHS.bugsDir}/${d} — no BUGS.md row links this document`)
   }
-  if (untriaged) W.push(`[BUGS] ${untriaged} untriaged row(s) — PO to rule`)
-  if (unrated) W.push(`[BUGS] ${unrated} unrated legacy row(s)`)
-  return { findings: F, warnings: W }
+  // ADR 0186 D6: untriaged/unrated counts used to print here as ad-hoc warnings; they are now
+  // RATCHETS (bugsUntriaged, bugsUnrated) — reported via `counts` and enforced by checkRatchets.
+  return { findings: F, warnings: W, counts }
 }
 
 export function sectionNonEmpty(text, heading) {
@@ -477,10 +584,132 @@ export function fupEntriesOf(text) {
     .filter((e) => e.id)
 }
 
-export function checkFollowups({ open, backlog, criticalIds }) {
+/**
+ * Validate a FOLLOWUPS `**Owner:**` value against the closed vocabulary (ADR 0186 D4 / plan
+ * 5.1): tokens from OWNER_VOCAB only, joined by exactly `' + '`, listed in vocabulary order,
+ * no duplicates, nothing else (no periods, no backticks, no free text). Returns a finding
+ * string, or `null` when the value is clean.
+ */
+export function checkOwnerValue(raw) {
+  const v = (raw ?? '').trim()
+  if (!v) return 'lacks `**Owner:**`'
+  const parts = v.split('+').map((s) => s.trim())
+  for (const p of parts) {
+    if (!OWNER_VOCAB.includes(p)) return `Owner \`${v}\` — \`${p}\` is not in the closed vocabulary (${OWNER_VOCAB.join(', ')})`
+  }
+  const idxs = parts.map((p) => OWNER_VOCAB.indexOf(p))
+  for (let i = 1; i < idxs.length; i++) {
+    if (idxs[i] === idxs[i - 1]) return `Owner \`${v}\` — duplicate role \`${parts[i]}\``
+    if (idxs[i] < idxs[i - 1]) return `Owner \`${v}\` — roles must be listed in vocabulary order (${OWNER_VOCAB.join(', ')})`
+  }
+  if (v !== parts.join(' + ')) return `Owner \`${v}\` — roles must be joined by \` + \` exactly, nothing else`
+  return null
+}
+
+/** Every `**Register line**` paragraph in the OPEN register — forbidden outright (ADR 0186 D4):
+ *  the shape 5.2's split script deletes, folding any surviving claim into the entry body. */
+export function checkNoRegisterLineMarker(text) {
   const F = []
-  const W = []
-  let poToRule = 0
+  text.split('\n').forEach((l, i) => {
+    if (/\*\*Register line\*\*/.test(l)) {
+      F.push(`[FOLLOWUPS] ${PATHS.fupOpen}:${i + 1} — forbidden **Register line** paragraph (ADR 0186 D4); fold its claim into the entry body and delete the paragraph`)
+    }
+  })
+  return F
+}
+
+/**
+ * Critical pin ROW length (ADR 0186 plan 5.6): each `## ⭐⭐ Critical` data row ≤ 300 chars —
+ * the gate-7 per-CELL cap idea, applied to the WHOLE ROW, because a pin row is id · trigger ·
+ * deadline · owner, never narrative. Header and divider rows are skipped positionally (the
+ * first two `|`-prefixed lines of the section), not by content, so it also fires on a malformed
+ * header the same way `parseTable` would refuse to recognize one.
+ */
+export function checkCriticalPinRowLength(text) {
+  const F = []
+  const lines = text.split('\n')
+  const i = lines.findIndex((l) => /^## .*Critical/.test(l))
+  if (i === -1) return F
+  let end = lines.length
+  for (let j = i + 1; j < lines.length; j++) {
+    if (/^## /.test(lines[j])) {
+      end = j
+      break
+    }
+  }
+  let seenHeader = false
+  let seenDivider = false
+  for (let j = i + 1; j < end; j++) {
+    const l = lines[j]
+    if (!/^\s*\|/.test(l)) continue
+    if (!seenHeader) {
+      seenHeader = true
+      continue
+    }
+    if (!seenDivider) {
+      seenDivider = true
+      continue
+    }
+    if (l.length > 300) {
+      F.push(`[FOLLOWUPS] ${PATHS.fupOpen}:${j + 1} — Critical pin row is ${l.length} chars (cap 300); rows are id · trigger · deadline · owner, no narrative`)
+    }
+  }
+  return F
+}
+
+/** A line inside an entry's span that is an h2 (`## `) or h4+ (`#### `+) heading — forbidden
+ *  (ADR 0186 D4): only the entry's own `### ` heading and its `**field:**` lines/body prose
+ *  belong there. `### ` nesting is not tested here — it is what ENDS a span (parseEntries). */
+const NESTED_HEADING_RX = /^(##(?!#)|####+)\s/
+
+/**
+ * Per-entry shape checks new in ADR 0186 D4 / plan 5.1: entry length, no nested `##`/`####`
+ * heading, and the heading-length RATCHET (headings stay verbatim by decision, so a long one is
+ * tracked, never hard-capped). Returns `{ findings, longHeadings }` — the count feeds RATCHETS.
+ */
+export function checkFollowupEntryShape(e) {
+  const F = []
+  const at = (msg) => F.push(`[FOLLOWUPS] ${PATHS.fupOpen}:${e.line} — ${e.id}: ${msg}`)
+  const span = [e.heading, ...e.bodyLines]
+  let n = span.length
+  while (n > 0 && !span[n - 1].trim()) n--
+  if (n > FOLLOWUP_MAX_ENTRY_LINES) at(`entry is ${n} lines (cap ${FOLLOWUP_MAX_ENTRY_LINES}); move the body to docs/followups/${e.id}.md and link it with \`**Body:**\``)
+  e.bodyLines.forEach((l, idx) => {
+    if (NESTED_HEADING_RX.test(l)) at(`line ${e.line + 1 + idx} is a \`${l.match(/^#+/)[0]}\` heading inside the entry — forbidden; only \`### \` entry headings belong in the index`)
+  })
+  const headingText = e.heading.replace(/^### /, '')
+  const longHeadings = headingText.length > FOLLOWUP_MAX_HEADING_CHARS ? 1 : 0
+  return { findings: F, longHeadings }
+}
+
+/**
+ * `**Body:**` cross-check (ADR 0186 D4): every `docs/followups/FUP-*.md` file is linked by
+ * EXACTLY ONE entry's `**Body:**` field, and every such link resolves to a real file — orphans
+ * BOTH ways red (an unlinked body file, and a link with no file behind it).
+ */
+export function checkFollowupBodies(entries, bodyFiles) {
+  const F = []
+  const linked = new Map()
+  for (const e of entries) {
+    const m = e.fields.match(/\*\*Body:\*\*\s*\[[^\]]*\]\(([^)]+)\)/)
+    if (!m) continue
+    const file = m[1].replace(/^\.?\//, '')
+    if (!linked.has(file)) linked.set(file, [])
+    linked.get(file).push(e.id)
+  }
+  for (const [file, ids] of linked) {
+    if (ids.length > 1) F.push(`[FOLLOWUPS] ${PATHS.fupOpen} — ${file} is linked by ${ids.length} entries (${ids.join(', ')}); exactly one entry may own a body file`)
+    if (!bodyFiles.includes(file)) F.push(`[FOLLOWUPS] ${PATHS.fupOpen} — ${ids[0]}'s \`**Body:**\` link \`${file}\` does not resolve to a file in ${PATHS.followupsDir}`)
+  }
+  for (const f of bodyFiles) {
+    if (!linked.has(f)) F.push(`[FOLLOWUPS] ${PATHS.followupsDir}/${f} — no entry's \`**Body:**\` links this file (orphan body)`)
+  }
+  return F
+}
+
+export function checkFollowups({ open, criticalIds, bodyFiles = [] }) {
+  const F = []
+  const counts = { poToRule: 0, severityPerEmoji: 0, severityUnrated: 0, revisitWhenPoToRule: 0, longHeadings: 0 }
   const entries = fupEntriesOf(open)
   if (!entries.length) F.push(`[FOLLOWUPS] ${PATHS.fupOpen} — no FUP entries found (wrong file?)`)
   for (const e of entries) {
@@ -489,40 +718,65 @@ export function checkFollowups({ open, backlog, criticalIds }) {
     const filed = f.match(/\*\*Filed:\*\*\s*(\S+)/)
     if (!filed) at('lacks `**Filed:**`')
     else if (!DATE_RX.test(filed[1])) at(`Filed \`${filed[1]}\` is not YYYY-MM-DD`)
-    if (!/\*\*Owner:\*\*\s*\S/.test(f)) at('lacks `**Owner:**`')
-    const sev = f.match(/\*\*Severity:\*\*\s*([a-z]+)/)
-    if (!sev) at('lacks `**Severity:**`')
-    else if (!SEVERITY.includes(sev[1])) at(`severity \`${sev[1]}\` not in ${SEVERITY.join('|')}`)
-    else if (!RESOLVED_HEADING_RX.test(e.heading)) {
-      // A RESOLVED entry retained as a review lens (gate 7's **Retained** opt-out) keeps ⬛ in the
-      // emoji slot — that marker carries its resolution, not its severity, so it is exempt here.
-      // Code points, not UTF-16 units: 🔴🟠🟡🟢 are surrogate pairs, so `str[0]` is a lone surrogate.
-      const headText = e.heading.replace(/^### /, '').trim()
-      const want = SEVERITY_EMOJI[sev[1]]
-      if (!headText.startsWith(want)) at(`heading emoji ${Array.from(headText)[0]} disagrees with severity ${sev[1]} (${want})`)
+
+    const ownerM = f.match(/\*\*Owner:\*\*\s*([^·\n]+)/)
+    const ownerErr = checkOwnerValue(ownerM ? ownerM[1] : null)
+    if (ownerErr) at(ownerErr)
+
+    const sevM = f.match(/\*\*Severity:\*\*\s*([^·\n]+)/)
+    if (!sevM) at('lacks `**Severity:**`')
+    else {
+      const sevRaw = sevM[1].trim()
+      const sevWord = (sevRaw.match(/^([a-z]+)/) || [])[1] || ''
+      if (/per emoji at consolidation/i.test(sevRaw)) counts.severityPerEmoji++
+      if (sevWord === 'unrated') {
+        counts.severityUnrated++
+        if (!(filed && DATE_RX.test(filed[1]) && filed[1] < CODE_WATERMARK)) at(`\`unrated\` severity is legal only for entries Filed before ${CODE_WATERMARK}`)
+      } else if (!SEVERITY.includes(sevWord)) {
+        at(`severity \`${sevWord}\` not in ${SEVERITY.join('|')}`)
+      }
+      if ((SEVERITY.includes(sevWord) || sevWord === 'unrated') && !RESOLVED_HEADING_RX.test(e.heading)) {
+        // A RESOLVED entry retained as a review lens (gate 7's **Retained** opt-out) keeps ⬛ in the
+        // emoji slot — that marker carries its resolution, not its severity, so it is exempt here.
+        // Code points, not UTF-16 units: 🔴🟠🟡🟢⚪ are surrogate pairs, so `str[0]` is a lone surrogate.
+        const headText = e.heading.replace(/^### /, '').trim()
+        const want = SEVERITY_EMOJI[sevWord]
+        if (!headText.startsWith(want)) at(`heading emoji ${Array.from(headText)[0]} disagrees with severity ${sevWord} (${want})`)
+      }
     }
+
     const closes = f.match(/\*\*Closes when:\*\*\s*(.*)/)
     if (!closes || !closes[1].trim()) at('lacks `**Closes when:**`')
-    else if (/PO to rule/i.test(closes[1])) poToRule++
-    if (/\*\*Parked\*\*/.test(e.body) && !/\*\*Revisit when:\*\*\s*\S/.test(e.body)) at('Parked entry lacks `**Revisit when:**`')
+    else if (/PO to rule/i.test(closes[1])) counts.poToRule++
+
+    const statusM = f.match(/\*\*Status:\*\*\s*([a-z]+)/)
+    if (!statusM) at('lacks `**Status:**`')
+    else if (!FOLLOWUP_STATUS.includes(statusM[1])) at(`Status \`${statusM[1]}\` not in ${FOLLOWUP_STATUS.join('|')}`)
+    else if (statusM[1] === 'parked') {
+      const revisit = f.match(/\*\*Revisit when:\*\*\s*(.*)/)
+      if (!revisit || !revisit[1].trim()) at('Status parked requires a non-empty `**Revisit when:**`')
+      else if (/PO to rule/i.test(revisit[1])) counts.revisitWhenPoToRule++
+    }
+    // ADR 0186 D4: the old bare `**Parked**` body marker is no longer the signal — `**Status:**
+    // parked` is. A marker with no matching Status is now itself a finding, not a fallback path.
+    if (/\*\*Parked\*\*(?!:)/.test(e.body) && !(statusM && statusM[1] === 'parked')) {
+      at('carries the old `**Parked**` marker with no `**Status:** parked` — the marker is no longer the signal (ADR 0186 D4)')
+    }
+
+    const shape = checkFollowupEntryShape(e)
+    F.push(...shape.findings)
+    counts.longHeadings += shape.longHeadings
   }
-  const b = parseEntries(backlog)
-  if (!b.length) F.push(`[FOLLOWUPS] ${PATHS.fupBacklog} — no entries found (wrong file?)`)
-  let revisitPo = 0
-  for (const e of b) {
-    const m = e.body.match(/\*\*Revisit when:\*\*\s*(.*)/)
-    if (!m || !m[1].trim()) F.push(`[FOLLOWUPS] ${PATHS.fupBacklog}:${e.line} — entry lacks \`**Revisit when:**\``)
-    else if (/PO to rule/i.test(m[1])) revisitPo++
-  }
+  F.push(...checkNoRegisterLineMarker(open))
+  F.push(...checkCriticalPinRowLength(open))
+  F.push(...checkFollowupBodies(entries, bodyFiles))
   if (criticalIds) {
     const ids = new Set(entries.map((e) => e.id))
     for (const id of criticalIds) if (!ids.has(id)) F.push(`[FOLLOWUPS] Critical pin names ${id}, which has no register entry (orphan)`)
   } else if (CRITICAL_PIN_REQUIRED) {
     F.push(`[FOLLOWUPS] ${PATHS.fupOpen} — the \`## ⭐⭐ Critical\` pin section is required and missing`)
   }
-  if (poToRule) W.push(`[FOLLOWUPS] ${poToRule} entries with \`Closes when: PO to rule\``)
-  if (revisitPo) W.push(`[FOLLOWUPS] ${revisitPo} backlog entries with \`Revisit when: PO to rule\``)
-  return { findings: F, warnings: W }
+  return { findings: F, warnings: [], counts }
 }
 
 /**
@@ -576,9 +830,9 @@ export function checkLessons(table, ctx) {
   const F = []
   const W = []
   const file = PATHS.lessons
-  if (!table) return { findings: [`[LESSONS] ${file} — no table found`], warnings: W, ids: new Set() }
+  if (!table) return { findings: [`[LESSONS] ${file} — no table found`], warnings: W, ids: new Set(), counts: { prose: 0 } }
   if (table.columns.join('|') !== LESSON_COLUMNS.join('|')) {
-    return { findings: [`[LESSONS] ${file}:${table.headerLine} — columns must be [${LESSON_COLUMNS.join(' | ')}]`], warnings: W, ids: new Set() }
+    return { findings: [`[LESSONS] ${file}:${table.headerLine} — columns must be [${LESSON_COLUMNS.join(' | ')}]`], warnings: W, ids: new Set(), counts: { prose: 0 } }
   }
   const ids = new Set()
   let prose = 0
@@ -603,8 +857,9 @@ export function checkLessons(table, ctx) {
       }
     }
   }
-  if (prose) W.push(`[LESSONS] ${prose} of ${table.rows.length} lessons are \`prose only\``)
-  return { findings: F, warnings: W, ids }
+  // ADR 0186 D6: the `prose only` count used to print here as an ad-hoc warning; it is now the
+  // lessonsProseOnly RATCHET — reported via `counts` and enforced by checkRatchets.
+  return { findings: F, warnings: W, ids, counts: { prose } }
 }
 
 /** Split a cell on commas that are outside backticks and outside parentheses. */
@@ -769,7 +1024,12 @@ export function listHubs() {
 
 function buildCtx() {
   const adrFiles = existsSync(join(ROOT, PATHS.decisionsDir)) ? readdirSync(join(ROOT, PATHS.decisionsDir)) : []
-  const fupTexts = [PATHS.fupOpen, PATHS.fupArchive, PATHS.fupBacklog].map((p) => read(p) || '').join('\n')
+  // ADR 0186 D4: deferred-backlog.md is gone (merged into fupOpen as parked entries); a FUP id's
+  // body may now live in its own docs/followups/FUP-*.md file, so that set joins the search too.
+  const fupBodyNames = existsSync(join(ROOT, PATHS.followupsDir))
+    ? readdirSync(join(ROOT, PATHS.followupsDir)).filter((f) => /^FUP-.*\.md$/.test(f)).map((f) => `${PATHS.followupsDir}/${f}`)
+    : []
+  const fupTexts = [PATHS.fupOpen, PATHS.fupArchive, ...fupBodyNames].map((p) => read(p) || '').join('\n')
   const pkg = JSON.parse(read('package.json') || '{}')
   const bugsTable = parseTable(read(PATHS.bugs) || '', REGISTER_HEADER_RX)
   return {
@@ -895,31 +1155,155 @@ function selfTest() {
   must('BUGS doc empty root cause', checkBugs(parseTable(bugsHdr + bugRow({ Doc: '[d](BUG-X-ONE.md)' })), { ...bugsCtx, readRel: () => '## Root cause\n\n## Regression protection\nx\n' }).findings, true)
   must('BUGS doc ok', checkBugs(parseTable(bugsHdr + bugRow({ Doc: '[d](BUG-X-ONE.md)' })), bugsCtx).findings, false)
   must('BUGS orphan doc', checkBugs(parseTable(bugsHdr + bugRow()), { ...bugsCtx, bugDocFiles: ['BUG-X-TWO.md'] }).findings, true)
-  must('BUGS untriaged warns', checkBugs(parseTable(bugsHdr + bugRow({ Status: 'untriaged', Closed: '—' })), bugsCtx).warnings, true)
 
-  const fupOk = '### 🟠 FUP-X-A — claim\n\n**Filed:** 2026-09-01 (x) · **Owner:** lead · **Severity:** high — why\n**Closes when:** done\n\nbody\n'
-  const blOk = '### 🟡 Title\n\n**Parked:** 2026-08-19 · **Revisit when:** phase 20\n\nbody\n'
+  // Doc → archive.md#<slug> (plan 5.7): the completeness check does not apply there (archive.md
+  // is free-form history with no Root-cause/Regression-protection headings); the anchor itself
+  // must resolve instead.
+  const archiveCtx = { ...bugsCtx, readRel: () => '## Some Finding, Corrected\n\nprose\n' }
+  must(
+    'BUGS archive link good anchor ok',
+    checkBugs(parseTable(bugsHdr + bugRow({ Doc: '[d](archive.md#some-finding-corrected)' })), archiveCtx).findings,
+    false,
+  )
+  must(
+    'BUGS archive link bad anchor reds',
+    checkBugs(parseTable(bugsHdr + bugRow({ Doc: '[d](archive.md#no-such-heading)' })), archiveCtx).findings,
+    true,
+  )
+  must(
+    'BUGS unrecognized doc form reds',
+    checkBugs(parseTable(bugsHdr + bugRow({ Doc: '[d](../other/whatever.md)' })), bugsCtx).findings,
+    true,
+  )
+  must('githubSlug basic', [githubSlug('Some Finding, Corrected') === 'some-finding-corrected' ? '' : 'x'].filter(Boolean), false)
+  must('githubSlug keeps consecutive dashes', [githubSlug('A -- B') === 'a----b' ? '' : 'x'].filter(Boolean), false)
+  must('anchorExistsInArchive found', [anchorExistsInArchive('## A Thing\n', 'a-thing') ? '' : 'x'].filter(Boolean), false)
+  must('anchorExistsInArchive not found', [anchorExistsInArchive('## A Thing\n', 'nope') ? 'x' : ''].filter(Boolean), false)
+  must('BUGS untriaged warns', [checkBugs(parseTable(bugsHdr + bugRow({ Status: 'untriaged', Closed: '—' })), bugsCtx).counts.untriaged === 1 ? 'x' : ''].filter(Boolean), true)
+
+  // ── FOLLOWUPS (ADR 0186 D4 — the register is an index; deferred-backlog.md is gone) ───────
+  const fupOk =
+    '### 🟠 FUP-X-A — claim\n\n**Filed:** 2026-09-01 (x) · **Owner:** lead · **Severity:** high — why\n**Closes when:** done\n**Status:** open\n\nbody\n'
   // Every fixture below passes an EMPTY pin (`criticalIds: []`) so the only red is the property
   // under test — with the pin required, a fixture that omits it reds for the pin and proves nothing.
-  must('FOLLOWUPS good', checkFollowups({ criticalIds: [], open: fupOk, backlog: blOk }).findings, false)
-  must('FOLLOWUPS pin required', checkFollowups({ criticalIds: [], open: fupOk, backlog: blOk, criticalIds: null }).findings, CRITICAL_PIN_REQUIRED)
-  must('FOLLOWUPS no Filed', checkFollowups({ criticalIds: [], open: fupOk.replace('**Filed:** 2026-09-01 (x) · ', ''), backlog: blOk }).findings, true)
-  must('FOLLOWUPS bad date', checkFollowups({ criticalIds: [], open: fupOk.replace('2026-09-01', 'Sept 1'), backlog: blOk }).findings, true)
-  must('FOLLOWUPS no Owner', checkFollowups({ criticalIds: [], open: fupOk.replace('**Owner:** lead · ', ''), backlog: blOk }).findings, true)
-  must('FOLLOWUPS no Severity', checkFollowups({ criticalIds: [], open: fupOk.replace('**Severity:** high — why', ''), backlog: blOk }).findings, true)
-  must('FOLLOWUPS bad severity', checkFollowups({ criticalIds: [], open: fupOk.replace('high', 'MAJOR'), backlog: blOk }).findings, true)
-  must('FOLLOWUPS emoji mismatch', checkFollowups({ criticalIds: [], open: fupOk.replace('🟠', '🔴'), backlog: blOk }).findings, true)
-  must('FOLLOWUPS resolved-retained keeps ⬛', checkFollowups({ criticalIds: [], open: fupOk.replace('🟠', '⬛') + '\n**Retained** as a review lens\n', backlog: blOk }).findings, false)
-  must('FOLLOWUPS no Closes', checkFollowups({ criticalIds: [], open: fupOk.replace('**Closes when:** done\n', ''), backlog: blOk }).findings, true)
-  must('FOLLOWUPS PO to rule counted', checkFollowups({ criticalIds: [], open: fupOk.replace('done', 'PO to rule'), backlog: blOk }).warnings, true)
-  must('FOLLOWUPS parked w/o revisit', checkFollowups({ criticalIds: [], open: fupOk + '**Parked** since x\n', backlog: blOk }).findings, true)
-  must('FOLLOWUPS backlog no revisit', checkFollowups({ criticalIds: [], open: fupOk, backlog: blOk.replace(' · **Revisit when:** phase 20', '') }).findings, true)
-  must('FOLLOWUPS empty register', checkFollowups({ criticalIds: [], open: '', backlog: blOk }).findings, true)
-  must('FOLLOWUPS critical orphan', checkFollowups({ criticalIds: [], open: fupOk, backlog: blOk, criticalIds: ['FUP-X-NOPE'] }).findings, true)
-  must('FOLLOWUPS critical ok', checkFollowups({ criticalIds: [], open: fupOk, backlog: blOk, criticalIds: ['FUP-X-A'] }).findings, false)
+  must('FOLLOWUPS good', checkFollowups({ open: fupOk, criticalIds: [] }).findings, false)
+  must('FOLLOWUPS pin required', checkFollowups({ open: fupOk, criticalIds: null }).findings, CRITICAL_PIN_REQUIRED)
+  must('FOLLOWUPS no Filed', checkFollowups({ open: fupOk.replace('**Filed:** 2026-09-01 (x) · ', ''), criticalIds: [] }).findings, true)
+  must('FOLLOWUPS bad date', checkFollowups({ open: fupOk.replace('2026-09-01', 'Sept 1'), criticalIds: [] }).findings, true)
+  must('FOLLOWUPS no Closes', checkFollowups({ open: fupOk.replace('**Closes when:** done\n', ''), criticalIds: [] }).findings, true)
+  must('FOLLOWUPS PO to rule counted', [checkFollowups({ open: fupOk.replace('done', 'PO to rule'), criticalIds: [] }).counts.poToRule === 1 ? 'x' : ''].filter(Boolean), true)
+  must('FOLLOWUPS empty register', checkFollowups({ open: '', criticalIds: [] }).findings, true)
+  must('FOLLOWUPS critical orphan', checkFollowups({ open: fupOk, criticalIds: ['FUP-X-NOPE'] }).findings, true)
+  must('FOLLOWUPS critical ok', checkFollowups({ open: fupOk, criticalIds: ['FUP-X-A'] }).findings, false)
   must('criticalIdsOf absent', [criticalIdsOf(fupOk) === null ? '' : 'x'].filter(Boolean), false)
   must('criticalIdsOf present', criticalIdsOf('## ⭐⭐ Critical\n| **C1** | 🔒 **`FUP-X-A`** — x, see `FUP-X-MENTION` | do | now | PO |\n## Other\n| **C9** | **FUP-X-B** |\n').join() === 'FUP-X-A' ? [] : ['wrong'], false)
   must('criticalIdsOf ignores prose mentions', criticalIdsOf('## ⭐⭐ Critical\n| **C1** | 🔒 **`FUP-X-A`** — resolved `FUP-X-OLD` and FUP-X-OLD2 | do | now | PO |\n').join() === 'FUP-X-A' ? [] : ['wrong'], false)
+
+  // Owner (ADR 0186 D4 closed vocabulary) — direct checkOwnerValue, then through the entry.
+  must('checkOwnerValue single ok', [checkOwnerValue('lead')].filter(Boolean), false)
+  must('checkOwnerValue pair in order ok', [checkOwnerValue('backend + frontend')].filter(Boolean), false)
+  must('checkOwnerValue wrong order reds', [checkOwnerValue('frontend + backend')].filter(Boolean), true)
+  must('checkOwnerValue old slash separator reds', [checkOwnerValue('backend/PO')].filter(Boolean), true)
+  must('checkOwnerValue duplicate reds', [checkOwnerValue('lead + lead')].filter(Boolean), true)
+  must('checkOwnerValue not in vocabulary reds', [checkOwnerValue('Backend Team')].filter(Boolean), true)
+  must('checkOwnerValue trailing period reds', [checkOwnerValue('lead.')].filter(Boolean), true)
+  must('checkOwnerValue empty reds', [checkOwnerValue('')].filter(Boolean), true)
+  must('FOLLOWUPS owner old slash separator reds', checkFollowups({ open: fupOk.replace('**Owner:** lead', '**Owner:** backend/PO'), criticalIds: [] }).findings, true)
+  must('FOLLOWUPS owner valid pair ok', checkFollowups({ open: fupOk.replace('**Owner:** lead', '**Owner:** backend + frontend'), criticalIds: [] }).findings, false)
+  must('FOLLOWUPS no Owner', checkFollowups({ open: fupOk.replace('**Owner:** lead · ', ''), criticalIds: [] }).findings, true)
+
+  // Severity: the five-level scale, the legacy `unrated` exception, and the emoji match.
+  must('FOLLOWUPS no Severity', checkFollowups({ open: fupOk.replace('**Severity:** high — why', ''), criticalIds: [] }).findings, true)
+  must('FOLLOWUPS bad severity', checkFollowups({ open: fupOk.replace('high', 'MAJOR'), criticalIds: [] }).findings, true)
+  must('FOLLOWUPS emoji mismatch', checkFollowups({ open: fupOk.replace('🟠', '🔴'), criticalIds: [] }).findings, true)
+  must('FOLLOWUPS resolved-retained keeps ⬛', checkFollowups({ open: fupOk.replace('🟠', '⬛') + '\n**Retained** as a review lens\n', criticalIds: [] }).findings, false)
+  const fupUnratedNew =
+    '### ⚪ FUP-X-B — claim\n\n**Filed:** 2026-09-10 (x) · **Owner:** lead · **Severity:** unrated\n**Closes when:** done\n**Status:** open\n\nbody\n'
+  const fupUnratedLegacy =
+    '### ⚪ FUP-X-C — claim\n\n**Filed:** 2026-08-01 (x) · **Owner:** lead · **Severity:** unrated\n**Closes when:** done\n**Status:** open\n\nbody\n'
+  must('FOLLOWUPS unrated after watermark reds', checkFollowups({ open: fupUnratedNew, criticalIds: [] }).findings, true)
+  must('FOLLOWUPS unrated before watermark ok', checkFollowups({ open: fupUnratedLegacy, criticalIds: [] }).findings, false)
+  must('FOLLOWUPS unrated counted', [checkFollowups({ open: fupUnratedLegacy, criticalIds: [] }).counts.severityUnrated === 1 ? 'x' : ''].filter(Boolean), true)
+  must('FOLLOWUPS unrated wrong emoji reds', checkFollowups({ open: fupUnratedLegacy.replace('⚪', '🟢'), criticalIds: [] }).findings, true)
+  must(
+    'FOLLOWUPS severity-per-emoji counted',
+    [checkFollowups({ open: fupOk.replace('**Severity:** high — why', '**Severity:** high — per emoji at consolidation'), criticalIds: [] }).counts.severityPerEmoji === 1 ? 'x' : ''].filter(Boolean),
+    true,
+  )
+
+  // Status (ADR 0186 D4): required on every entry; parked needs a non-empty Revisit when; the
+  // old bare `**Parked**` marker is no longer the signal.
+  must('FOLLOWUPS status missing reds', checkFollowups({ open: fupOk.replace('**Status:** open\n', ''), criticalIds: [] }).findings, true)
+  must('FOLLOWUPS status invalid value reds', checkFollowups({ open: fupOk.replace('**Status:** open', '**Status:** unknown'), criticalIds: [] }).findings, true)
+  must('FOLLOWUPS status parked without revisit reds', checkFollowups({ open: fupOk.replace('**Status:** open', '**Status:** parked'), criticalIds: [] }).findings, true)
+  must(
+    'FOLLOWUPS status parked with revisit ok',
+    checkFollowups({ open: fupOk.replace('**Status:** open', '**Status:** parked\n**Revisit when:** phase 20'), criticalIds: [] }).findings,
+    false,
+  )
+  must(
+    'FOLLOWUPS revisit-when po-to-rule counted',
+    [
+      checkFollowups({ open: fupOk.replace('**Status:** open', '**Status:** parked\n**Revisit when:** PO to rule'), criticalIds: [] }).counts.revisitWhenPoToRule === 1
+        ? 'x'
+        : '',
+    ].filter(Boolean),
+    true,
+  )
+  must('FOLLOWUPS old Parked marker without Status parked reds', checkFollowups({ open: fupOk + '\n**Parked** since x\n', criticalIds: [] }).findings, true)
+  must(
+    'FOLLOWUPS old Parked marker WITH Status parked does not double-flag',
+    checkFollowups({ open: fupOk.replace('**Status:** open', '**Status:** parked\n**Revisit when:** later') + '\n**Parked** since x\n', criticalIds: [] }).findings,
+    false,
+  )
+
+  // Entry shape (ADR 0186 D4 / plan 5.1): ≤ 20 lines, no nested `##`/`####` heading.
+  const fupLong =
+    '### 🟢 FUP-LONG-1 — claim\n\n**Filed:** 2026-08-01 (x) · **Owner:** lead · **Severity:** low\n**Closes when:** done\n**Status:** open\n\n' +
+    'line\n'.repeat(25)
+  must('FOLLOWUPS entry too long reds', checkFollowups({ open: fupLong, criticalIds: [] }).findings, true)
+  must('checkFollowupEntryShape too long reds', checkFollowupEntryShape(fupEntriesOf(fupLong)[0]).findings, true)
+  must('checkFollowupEntryShape short ok', checkFollowupEntryShape(fupEntriesOf(fupOk)[0]).findings, false)
+  const fupNestedH2 =
+    '### 🟢 FUP-NEST-1 — claim\n\n**Filed:** 2026-08-01 (x) · **Owner:** lead · **Severity:** low\n**Closes when:** done\n**Status:** open\n\n## Nested\nbody\n'
+  const fupNestedH4 = fupNestedH2.replace('## Nested', '#### Nested')
+  must('FOLLOWUPS nested h2 heading reds', checkFollowups({ open: fupNestedH2, criticalIds: [] }).findings, true)
+  must('FOLLOWUPS nested h4 heading reds', checkFollowups({ open: fupNestedH4, criticalIds: [] }).findings, true)
+  must('checkFollowupEntryShape nested h2 reds', checkFollowupEntryShape(fupEntriesOf(fupNestedH2)[0]).findings, true)
+  const fupHeadingLong = fupOk.replace('FUP-X-A — claim', 'FUP-X-A — ' + 'x'.repeat(FOLLOWUP_MAX_HEADING_CHARS + 1))
+  must(
+    'checkFollowupEntryShape long heading is a RATCHET count, not a finding',
+    checkFollowupEntryShape(fupEntriesOf(fupHeadingLong)[0]).findings,
+    false,
+  )
+  must('checkFollowupEntryShape long heading counted', checkFollowupEntryShape(fupEntriesOf(fupHeadingLong)[0]).longHeadings === 1 ? [] : ['wrong'], false)
+
+  // `**Register line**` is forbidden outright (ADR 0186 D4).
+  must('checkNoRegisterLineMarker green', checkNoRegisterLineMarker(fupOk), false)
+  must('checkNoRegisterLineMarker reds', checkNoRegisterLineMarker(fupOk + '\n**Register line** (folded in from PROGRESS.md)\n'), true)
+  must('FOLLOWUPS Register line forbidden reds', checkFollowups({ open: fupOk + '\n**Register line** (folded in from PROGRESS.md)\n', criticalIds: [] }).findings, true)
+
+  // Critical pin row length (plan 5.6): id · trigger · deadline · owner, ≤ 300 chars, no narrative.
+  const criticalShort = '## ⭐⭐ Critical\n\n| # | item | trigger | owner |\n|---|---|---|---|\n| **C1** | 🔒 **`FUP-X-A`** | now | PO |\n\n' + fupOk
+  const criticalLong = criticalShort.replace('| **C1** | 🔒 **`FUP-X-A`** | now | PO |', '| **C1** | ' + 'x'.repeat(310) + ' | now | PO |')
+  must('checkCriticalPinRowLength short ok', checkCriticalPinRowLength(criticalShort), false)
+  must('checkCriticalPinRowLength long reds', checkCriticalPinRowLength(criticalLong), true)
+  must('FOLLOWUPS critical pin row too long reds', checkFollowups({ open: criticalLong, criticalIds: ['FUP-X-A'] }).findings, true)
+
+  // `**Body:**` orphans, BOTH ways (ADR 0186 D4).
+  const fupWithBody =
+    '### 🟢 FUP-BODY-1 — claim\n\n**Filed:** 2026-08-01 (x) · **Owner:** lead · **Severity:** low\n**Closes when:** done\n**Status:** open · **Body:** [FUP-BODY-1.md](FUP-BODY-1.md)\n\nsee body\n'
+  must('checkFollowupBodies linked ok', checkFollowupBodies(fupEntriesOf(fupWithBody), ['FUP-BODY-1.md']), false)
+  must('checkFollowupBodies link with no file reds', checkFollowupBodies(fupEntriesOf(fupWithBody), []), true)
+  must('checkFollowupBodies unlinked file reds', checkFollowupBodies(fupEntriesOf(fupWithBody), ['FUP-BODY-1.md', 'FUP-ORPHAN-2.md']), true)
+  must('FOLLOWUPS body link with no file reds', checkFollowups({ open: fupWithBody, criticalIds: [], bodyFiles: [] }).findings, true)
+  must('FOLLOWUPS body linked ok', checkFollowups({ open: fupWithBody, criticalIds: [], bodyFiles: ['FUP-BODY-1.md'] }).findings, false)
+
+  // RATCHETS (ADR 0186 D6): a live count over its constant reds; Infinity never fires.
+  must('checkRatchets exceeded reds', checkRatchets({ x: 5 }, { x: 3 }), true)
+  must('checkRatchets under cap ok', checkRatchets({ x: 2 }, { x: 3 }), false)
+  must('checkRatchets equal to cap ok (not RAISED)', checkRatchets({ x: 3 }, { x: 3 }), false)
+  must('checkRatchets infinity cap never fires', checkRatchets({ x: 999999 }, { x: Infinity }), false)
 
   const lesHdr = `| ${LESSON_COLUMNS.join(' | ')} |\n|${'---|'.repeat(LESSON_COLUMNS.length)}\n`
   const lesRow = (o = {}) => {
@@ -1043,12 +1427,14 @@ function main() {
 
   // FOLLOWUPS
   const open = read(PATHS.fupOpen)
-  const backlog = read(PATHS.fupBacklog)
   if (open == null) F.push(`[FOLLOWUPS] ${PATHS.fupOpen} — missing`)
-  if (backlog == null) F.push(`[FOLLOWUPS] ${PATHS.fupBacklog} — missing`)
+  const fupBodyFiles = existsSync(join(ROOT, PATHS.followupsDir))
+    ? readdirSync(join(ROOT, PATHS.followupsDir)).filter((f) => /^FUP-.*\.md$/.test(f))
+    : []
   let fupCount = 0
-  if (open != null && backlog != null) {
-    const fu = checkFollowups({ open, backlog, criticalIds: criticalIdsOf(open) })
+  let fu = { counts: { poToRule: 0, severityPerEmoji: 0, severityUnrated: 0, revisitWhenPoToRule: 0, longHeadings: 0 } }
+  if (open != null) {
+    fu = checkFollowups({ open, criticalIds: criticalIdsOf(open), bodyFiles: fupBodyFiles })
     F.push(...fu.findings)
     W.push(...fu.warnings)
     fupCount = fupEntriesOf(open).length
@@ -1094,10 +1480,11 @@ function main() {
   F.push(...checkHandoffs(hoFiles, ctx.branches, citations, todayIso))
 
   // LINKS over every file this gate owns
-  const owned = [PATHS.docsIndex, PATHS.bugs, PATHS.lessons, PATHS.legacyCodes, `${PATHS.postmortemsDir}/README.md`, `${PATHS.bugsDir}/README.md`]
+  const owned = [PATHS.docsIndex, PATHS.bugs, PATHS.lessons, PATHS.legacyCodes, PATHS.fupOpen, `${PATHS.postmortemsDir}/README.md`, `${PATHS.bugsDir}/README.md`]
     .concat(hubs.map((h) => h.file))
     .concat(ctx.bugDocFiles.map((f) => `${PATHS.bugsDir}/${f}`))
     .concat(pmFiles.map((p) => `${PATHS.postmortemsDir}/${p.name}`))
+    .concat(fupBodyFiles.map((f) => `${PATHS.followupsDir}/${f}`))
   for (const f of owned) {
     const t = read(f)
     if (t != null) F.push(...checkLinks(f, t, exists))
@@ -1115,15 +1502,32 @@ function main() {
     if (t != null) F.push(...checkRetired(f, t))
   }
 
+  // RATCHETS (ADR 0186 D6): counts that may only decrease, gathered from the arms above.
+  const ratchetCounts = {
+    closesWhenPoToRule: fu.counts.poToRule,
+    severityPerEmoji: fu.counts.severityPerEmoji,
+    severityUnrated: fu.counts.severityUnrated,
+    revisitWhenPoToRule: fu.counts.revisitWhenPoToRule,
+    longHeadings: fu.counts.longHeadings,
+    bugsUntriaged: bugs.counts?.untriaged ?? 0,
+    bugsUnrated: bugs.counts?.unrated ?? 0,
+    lessonsProseOnly: les.counts?.prose ?? 0,
+  }
+  F.push(...checkRatchets(ratchetCounts))
+
   for (const w of W) console.log('check-docs-registers: WARN ' + w)
   if (F.length) {
     console.error(`check-docs-registers: ${F.length} finding(s)`)
     for (const f of F) console.error('  ' + f)
     process.exit(1)
   }
+  const ratchetsLine = Object.entries(RATCHETS)
+    .map(([name, cap]) => `${name}=${ratchetCounts[name]}/${cap === Infinity ? '∞' : cap}`)
+    .join(' ')
   console.log(
-    `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${recordsChecked} records, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${ctx.bugDocFiles.length} bug docs, ${fupCount} follow-ups, ${les.ids.size} lessons, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
+    `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${recordsChecked} records, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${ctx.bugDocFiles.length} bug docs, ${fupCount} follow-ups, ${fupBodyFiles.length} follow-up bodies, ${les.ids.size} lessons, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
   )
+  console.log(`check-docs-registers: ratchets: ${ratchetsLine}`)
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) main()

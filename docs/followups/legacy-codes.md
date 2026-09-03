@@ -39,3 +39,4 @@ Rows are ordered by measured BUG-/FUP- id frequency under `docs/progress/`, most
 | AFF4 | Organization affiliation, per-hospital staff data | [aff4.md](../progress/aff4.md) |
 | BOOTSTRAP | The manual first-`platform_admin` bootstrap procedure (no in-app path) | coolify.md § 2.5 (`docs/deployment/coolify.md`) |
 | ENV | Developer environment and toolchain — nvm/Node pin, `python3`, worktrees, stale branches (added 2026-09-03 when the retired Now section's environment bullets became register entries) | [worktrees.md](../worktrees.md); [lint-gates.md](../lint-gates.md) |
+| BACKLOG | Items merged from `deferred-backlog.md` into the open follow-up register (added 2026-09-03, ADR 0186 D4) — not a feature/program, a rotation marker | [0186-documentation-consolidation-one-home-per-fact.md](../decisions/0186-documentation-consolidation-one-home-per-fact.md) § D4 |

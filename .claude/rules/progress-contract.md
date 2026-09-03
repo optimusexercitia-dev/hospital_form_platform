@@ -27,8 +27,9 @@ source: ADR 0124, ADR 0185
   sections, replace never append, ≤ 60 lines; the unit is listed in `docs/features/INDEX.md`.
 - **Bug** → one row in `docs/bugs/BUGS.md`; status is a cell, there is no rotation.
 - **Follow-up** → one entry in `docs/followups/follow-ups-open.md` with Filed · Owner ·
-  Severity · Closes when; parked → `deferred-backlog.md` with **Revisit when**; resolved →
-  `follow-ups-archive.md`. `PO to rule` is the honest value; an invented one is not.
+  Severity · Closes when; parked → `**Status:** parked` + **Revisit when** in the same
+  register; resolved → `follow-ups-archive.md`. `PO to rule` is the honest value; an
+  invented one is not.
 - **Standing prohibition** (no resolution event) → `.claude/rules/`, ADR 0127 admission.
 
 ## Rotation

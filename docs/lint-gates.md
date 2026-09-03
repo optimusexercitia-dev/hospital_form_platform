@@ -38,13 +38,15 @@
     and `docs/bugs/`** (new files covered on creation). ⭐ **Since ADR 0179 the follow-up half checks
     the REGISTER, not an index** — `docs/followups/follow-ups-open.md` is self-indexing, one entry
     carries everything — so it asserts: (a) no RESOLVED entry left in the register, (b) no duplicate
-    id within it, (c) no id held by both the register and `follow-ups-archive.md`, (d) a **warning**
-    when an id is in both the register and `deferred-backlog.md`. ⛔ Two checks were **retired with
-    their subjects** by ADR 0185 rather than kept: "`§ Follow-ups` must not re-grow an index" and "a
-    `§ Critical FUP` row must have a register entry" — both sections are now forbidden in PROGRESS.md,
-    so kept they would pass VACUOUSLY; the Critical orphan check lives in `lint:registers` against
-    the pin at the top of the register. The FIELDS on an entry (Filed · Owner · Severity · Closes
-    when) are `lint:registers`' job, not this gate's. Every prior version of the contract lived in
+    id within it, (c) no id held by both the register and `follow-ups-archive.md`. ⛔ Three checks
+    were **retired with their subjects**: "`§ Follow-ups` must not re-grow an index" and "a
+    `§ Critical FUP` row must have a register entry" (ADR 0185 — both sections are now forbidden in
+    PROGRESS.md, so kept they would pass VACUOUSLY; the Critical orphan check lives in
+    `lint:registers` against the pin at the top of the register), and "an id entered in both the
+    register and `deferred-backlog.md`" (ADR 0186 D4 — that file is deleted, merged into the
+    register as `**Status:** parked` entries, so a comparison against it would pass vacuously too).
+    The FIELDS on an entry (Filed · Owner · Severity · Closes when · Status · Revisit when · Body)
+    are `lint:registers`' job, not this gate's. Every prior version of the contract lived in
     prose and each clause was violated while green; the script self-red-proves every checker on
     each run.
   - `lint:rules` (`check-rules-staleness.mjs`) — a `.claude/rules/` rule that has gone stale.
@@ -136,6 +138,25 @@
     file asserts the rule it is attached to; that a Current-state block has six sections and a
     recent `Updated` date, not that it is honest. `PO to rule` is a legal value and is COUNTED as
     a warning on every run — an invented value is invisible to it. Truth is a review question.
+    ⚠ **A BUGS.md `Doc` link to `archive.md#<slug>` (plan 5.7's pre-2026-07 bodies) is exempt from
+    the Root-cause/Regression-protection completeness check that applies to a per-ID
+    `docs/bugs/BUG-*.md`** — archive.md is free-form history with no such headings anywhere — and
+    instead the `#<slug>` fragment is checked against every heading in archive.md, GitHub-slugged;
+    any other Doc form reds as unrecognized.
+    ⚠ **ADR 0186 D4 turned the follow-up register from a set of fields into a shaped index**: an
+    entry over 20 lines, a nested `##`/`####` heading, or a surviving `**Register line**` paragraph
+    now reds outright; `**Owner:**` must draw from a closed vocabulary joined by `' + '` in a fixed
+    order; every entry needs a `**Status:**` of `open` or `parked`, `parked` needs a non-empty
+    `**Revisit when:**`, and the old bare `**Parked**` marker with no matching `**Status:**` is
+    itself a finding now; a `**Body:**` link is cross-checked both ways against
+    `docs/followups/FUP-*.md` so an orphan file and a dangling link both red; and each `## ⭐⭐
+    Critical` pin data row is capped at 300 chars, the gate-7 per-cell idea applied to the whole
+    row. ⚠ **ADR 0186 D6 turns
+    every count this gate used to print as a bare warning into a named RATCHET** (`Closes when: PO
+    to rule`, `Severity: … per emoji at consolidation`, legacy `unrated`, a long verbatim heading,
+    BUGS `untriaged`/`unrated`, LESSONS `prose only`) — each is a constant in `RATCHETS` that may
+    only be LOWERED, printed on every OK line as `name=live/cap`, starting at `∞` until the data
+    that made these counts honest has landed and the constants are set to match.
     ⚠ **`CODE_WATERMARK` (2026-09-04) grandfathers the 72 / 123 legacy id prefixes** — the same
     shape as `lint:set-local`'s watermark, with the same rule: never bump it to pass.
   - `lint:registers`' **RETIRED** arm (ADR 0186 D8) — a citation of a PROGRESS.md section ADR
