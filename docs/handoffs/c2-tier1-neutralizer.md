@@ -65,8 +65,10 @@ non-`bool` command doors that sit outside every `p0-authz-invariant.sh` arm's do
 
 ### Written but UNVERIFIED
 
-- **The full-sweep cost (~2.2 h+)** is extrapolated from single-case timings, never measured
-  end-to-end.
+- ~~**The full-sweep cost (~2.2 h+)** is extrapolated from single-case timings.~~ ✅ **MEASURED
+  2026-09-02: a full pgTAP suite run is 53 s on this branch (`Files=259, Tests=8685`), not the ~23 s
+  the design doc assumes — so the sweep is 171 × 2 × 53 s ≈ **5 h**, and PROGRESS.md's ~6 h budget
+  was the honest figure while the design doc's ~2.2 h was not.**
 - **`docs/reviews/c2-command-door-findings.md` does not exist yet, deliberately.** A file holding
   8 of 171 rows would read as a baseline. The harness writes it only on a **full** run; subset runs
   go to `$WORK` (ADR 0153).
@@ -159,7 +161,8 @@ The highest-value section: none of this is recoverable from the code or from git
 
 ## Open questions / blockers
 
-- ⛔ **BLOCKER — the AE3 schema-first cutover.** This branch carries **5 unpushed migrations**,
+- ✅ **CLEARED 2026-09-01 — the AE3 schema-first cutover is DISCHARGED** (push → catalog-verified on the remote → Coolify green → §3 smoke PASSED; see PROGRESS.md § Now). ⛔ Two operator obligations remain and leave NO artifact in the tree: rotate the remote DB password, and destroy `~/ae3-preimage.csv.gpg` **together with** its passphrase. The text below is kept as the record of what the blocker WAS.
+- ~~**BLOCKER — the AE3 schema-first cutover.**~~ This branch carries **5 unpushed migrations**,
   including `alter table public.profiles drop column cpf / date_of_birth / phone`, and **9 `src/`
   files with 32 references to `public.profile_private_details`**, a table the remote lacks. Merging
   to `main` without the cutover ships code ahead of its schema. Order:
@@ -184,8 +187,21 @@ The highest-value section: none of this is recoverable from the code or from git
 
 - The verdict of the **other 163 enforcers**. 3 BLIND in the first 8 is not a rate.
 - Whether the 3 BLIND are reachable/exploitable **through the app**; only the DB side was measured.
-- Whether the mutation's regex mis-slices any body whose message string contains `;`. It would fail
-  **loudly** (invalid SQL → ERROR), but it has not been observed either way.
+- ~~Whether the mutation's regex mis-slices any body whose message string contains `;`.~~
+  ✅ **RESOLVED 2026-09-02 by code reading — it CANNOT mis-slice.** The anchor is `[^;]*?`, a
+  **negated** semicolon class, so a `;` in the message yields a clean **non-match**, never a bad
+  slice. No malformed SQL is generated. Three independent guards make ERROR the only reachable
+  outcome: the `v_before`/`v_after` counters anchor on the *errcode* (after the message), so such a
+  raise is still counted, survives the rewrite, and trips `C2MUT: % raise(s) survived`; `execute
+  v_new` sits **downstream** of that check, so a partial mutation never reaches the DB; and the
+  `h0 = h1` hash check catches it regardless. ⛔ **The premise was wrong in the safe direction** —
+  the handoff predicted invalid SQL; the truth is a silent non-match that fails closed.
+- ⛔ **NEW, and more serious than the item it replaces — the anchor's own blind spot.**
+  `errcode = '(42501|HC0[A-Z0-9]{2})'` requires a literal `0` in position 3, so the **`HCDS*`
+  family (60 raises) and `28000` (6) are outside it** — and because the **gate-fn filter at
+  `:153`** uses the same anchor, doors whose authz raises are only those are **structurally absent
+  from the 171**, not merely unmutatable. The LGPD Art. 18 DSR lane is the affected surface.
+  → `FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`.
 
 ## Next task
 

@@ -7994,3 +7994,57 @@ is deliberately not an enforcement site.
 ⛔ **What must NOT be mistaken for closing it.** Adding it to `enforcementSites`. That would make the
 manifest claim an enforcement site that does not enforce, and `FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE`'s
 eventual closure check would then be measuring a fiction.
+
+### 🟠 FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000 — the C2 neutralizer's own anchor excludes the DSR error-code family, so LGPD Art. 18 doors were never in the population it sweeps
+
+**Filed:** 2026-09-02 (C2 Tier-1 full sweep, pre-flight audit of the running harness) ·
+**Owner:** backend/lead · **Severity:** 🟠 — a measurement-domain gap, not a demonstrated live hole
+(no evidence any DSR door is unguarded), which is why it is not 🔴. It is not 🟡 because it silently
+bounds the population of **the instrument C2's closure argument rests on**, and the affected doors
+are the LGPD Art. 18 subject-rights lane.
+
+`c2-command-door-neutralizer.sh` anchors on `errcode = '(42501|HC0[A-Z0-9]{2})'`. That class
+requires a **literal `0` in position 3**, so the whole `HCDS*` family is outside it.
+
+**Measured** (2026-09-02, while the full sweep was running):
+
+- The anchor appears at four sites: the mutation regex at `:182` with its `v_before`/`v_after`
+  counters at `:180`/`:184` — and, decisively, **the gate-function filter at `:153`**
+  (`where f.body ~* 'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})'''`).
+- ⛔ **Because `:153` filters the gate-fn set itself, a door whose authz raises are ONLY `HCDS*`
+  or `28000` is never admitted to the worklist.** This is not "present but unmutatable" — it is
+  structurally absent from the 171, and therefore from every verdict the sweep will print.
+- Raises invisible to the anchor, counted over the 519 migration files:
+  `HCDS5` 20 · `HCDS3` 16 · `HCDS1` 14 · `HCDS2` 7 · `HCDS4` 3 = **60**, plus **6** at `28000` —
+  which is the SQL-standard `invalid_authorization_specification`, an authz code by definition.
+  (`P0002` 168 and `23514` 22 are also unmatched and are correctly excluded — `no_data_found` and
+  `check_violation` are not authz.)
+- Source files: `20261001000000_dsr_dpo_capability.sql`, `20261001000100_dsr_request_workflow.sql`,
+  `20261002000100_dsr_adjudication_and_attested_tier.sql`, `20261002000300_dsr_retire_tasks_on_refusal.sql`.
+- **3 DSR-named rows DO appear in the worklist** — functions carrying *both* families. For those the
+  mutation is **PARTIAL**: only the `HC0*` raises are rewritten and the `HCDS*` raise survives and
+  goes on guarding. The surviving guard can keep the suite green, which the harness reads as
+  **BLIND**. ⚠ That is a **FALSE BLIND** — conservative in direction (it over-reports risk rather
+  than under-reporting it), but it will send someone to write a keystone for a guard that already
+  works, and it corrupts the BLIND rate.
+
+⚠ **The counts above are derived from MIGRATION TEXT, which CLAUDE.md makes non-authoritative** —
+144 migrations rewrite bodies at runtime via `pg_get_functiondef()` + `replace()` + `execute`. Treat
+them as an upper bound and **re-derive against the live catalog** (`pg_proc.prosrc`, `prosecdef`)
+once the DB window closes. What is NOT text-derived, and is certain, is the anchor itself at `:153`.
+
+**What would close it:** widen the anchor to the full project code family (`HC[A-Z0-9]{3}`) plus
+`28000` at all four sites, re-derive the worklist against the live catalog, and sweep **the delta**
+— the enforcers the widened anchor admits that the current 171 did not. The existing verdicts stay
+valid for what they measured; this is additive, not a re-run.
+
+⛔ **What must NOT be mistaken for closing it:**
+- **The full 171-enforcer sweep completing.** It cannot cover what its own filter excluded. When it
+  reports, its coverage claim must carry the qualifier *"of enforcers anchored on `42501|HC0xx`"* —
+  ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) §3's corollary (state the
+  uncovered population beside the covered one) binds here with unusual force, because this uncovered
+  population is invisible in the instrument's own output rather than merely unstated.
+- **A green `ARM=census`/`floor`/`hat`/`policy`/`wrapper`.** Those arms bound their domain by
+  `prosecdef` and return type, not by errcode, so they neither cover this class nor notice it.
+- **Allowlisting the 3 partial-mutation rows.** Their BLIND verdicts are artifacts of a partial
+  mutation; the fix is to widen the anchor and re-measure, never to record the artifact.
