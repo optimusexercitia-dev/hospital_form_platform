@@ -1209,10 +1209,16 @@ select pg_temp.ae4_say('DC3', 'CONTROL',
 -- (their subjects simply would not run) and surface only as a slow P5.
 -- ⚠ Reads fixture_meta through subqueries: psql does not interpolate inside `do $$`.
 -- ==========================================================================
-do $$
+-- ⛔ P7 SHIPS ITS OWN VACUITY CONTROL, and §12.6 property 3 is why: a new check must be proven
+--    able to return BOTH verdicts, or "the short-circuit is real" and "the probe is broken" are
+--    the same string. DC3b earned that proof (0 -> 1 foreign rows); P7's first form did not,
+--    and QA review 2026-09-03 caught the omission. The control re-installs the PRE-CHANGE
+--    predicate — a shape that provably has no set subplan at all — and requires the probe to
+--    report FAIL there. If it reports PASS against a policy with no subplan, it is measuring
+--    nothing and the run is VOID.
+create or replace function pg_temp.ae4_p7_probe() returns text language plpgsql as $$
 declare
   r record; v_plan text := ''; v_org uuid; v_claims text;
-  v_hashed boolean; v_loops1 boolean; v_never boolean;
 begin
   select v::uuid into v_org from ae4perf.fixture_meta where k = 'target_org_id';
   select json_build_object('sub', (select v from ae4perf.fixture_meta where k = 'principal_id'),
@@ -1227,21 +1233,35 @@ begin
   end loop;
   execute 'reset role';
 
-  v_hashed := v_plan like '%hashed SubPlan%';
   -- ⛔ PARENTHESISED. `~` and `||` share a precedence level and associate LEFT, so
   --    `v_plan ~ 'a[^' || chr(10) || ']*b'` parses as `((v_plan ~ 'a[^') || …)` and the
   --    regex engine sees an unterminated bracket expression: "brackets [] not balanced".
   --    Found by running it — pass A of run 6 died here.
-  v_loops1 := v_plan ~ ('ProjectSet[^' || chr(10) || ']*loops=1');
-  v_never  := v_plan like '%never executed%';
-
-  perform pg_temp.ae4_say('P7', 'CONDITION',
-    case when v_hashed and v_loops1 and v_never then 'PASS' else 'FAIL' end,
-    format('hashed SubPlan=%s, scope subplan at loops=1=%s, fallback arm never executed=%s '
-           '(all three required: an uncorrelated set built ONCE, and the row authorizer not reached)',
-           v_hashed, v_loops1, v_never));
-  raise notice 'AE4 P7: hashed=% loops1=% never_executed=%', v_hashed, v_loops1, v_never;
+  return format('hashed=%s,loops1=%s,never=%s',
+                v_plan like '%hashed SubPlan%',
+                v_plan ~ ('ProjectSet[^' || chr(10) || ']*loops=1'),
+                v_plan like '%never executed%');
 end $$;
+
+begin;
+  alter policy professional_profiles_select on public.professional_profiles
+    using (app.can_read_professional_profile(id, ( select auth.uid() )));
+  select pg_temp.ae4_p7_probe() as p7_control
+\gset
+rollback;
+
+select pg_temp.ae4_p7_probe() as p7_live
+\gset
+
+select pg_temp.ae4_say('P7', 'CONDITION',
+  case
+    when :'p7_control' = 'hashed=t,loops1=t,never=t' then 'VOID'
+    when :'p7_live'    = 'hashed=t,loops1=t,never=t' then 'PASS'
+    else 'FAIL'
+  end,
+  format('live [%s] — all three required: an uncorrelated set built ONCE, and the row authorizer not reached. '
+         'CONTROL on the pre-change predicate [%s] MUST NOT be all-true, or the probe is not measuring the subplan at all.',
+         :'p7_live', :'p7_control'));
 
 \echo ''
 \echo '################################################################'

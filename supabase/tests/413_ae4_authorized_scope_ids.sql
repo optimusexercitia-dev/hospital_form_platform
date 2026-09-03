@@ -22,19 +22,21 @@
 --
 -- ⚠ THIS SUITE DOES NOT CALL `test_helpers.bootstrap()` — same reason as 401/407/412: its
 -- subject is the real seeded tenancy population, which bootstrap's `truncate ... cascade`
--- would destroy. It inserts two professional_profiles and the whole file rolls back.
+-- would destroy. It inserts named own-org/foreign-org professional_profiles plus three per
+-- organization (so §5's subset invariant has a population rather than a pair), and the whole
+-- file rolls back.
 --
 -- ⚠ IT MUST PASS AT SEED SCALE AND WITH THE AE4 PERF FIXTURE LOADED. Every fixture selection
 -- below is `order by ... limit 1` over whatever tenancy exists, never a hardcoded id, and the
 -- principal sweep in §2 is bounded so a 12 000-user fixture does not turn this file into a
 -- performance test.
 --
--- RUN SHAPE: `Files=2, Tests=25` (24 here + 00_setup.sql's one). ⛔ Keep this line in step
+-- RUN SHAPE: `Files=2, Tests=30` (29 here + 00_setup.sql's one). ⛔ Keep this line in step
 -- with plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing
 -- a count mismatch.
 
 begin;
-select plan(24);
+select plan(29);
 
 -- ============================================================================
 -- §0 — FIXTURE. A seeded principal whose ONLY route to org.professionals.read is the
@@ -80,6 +82,15 @@ insert into public.professional_profiles (organization_id, full_name)
   select own_org, 'AE4-413 own-org subject' from f413;
 insert into public.professional_profiles (organization_id, full_name)
   select foreign_org, 'AE4-413 foreign-org subject' from f413x;
+
+-- ⭐ A POPULATION, NOT A PAIR. §5's subset invariant is the one the migration header calls
+-- load-bearing, and QA measured its first form running over exactly TWO rows and ONE principal
+-- — one of which this file had inserted itself. On a seeded database `professional_profiles`
+-- holds a single row, so the invariant was true of almost nothing. Three rows per organization
+-- gives every principal in the §2 sweep both reachable and unreachable subjects.
+insert into public.professional_profiles (organization_id, full_name)
+  select o.id, 'AE4-413 pop ' || o.id || ' #' || g
+    from public.organizations o cross join generate_series(1, 3) g;
 
 create temp table f413p on commit drop as
   select (select id from public.professional_profiles
@@ -132,15 +143,47 @@ select is(
   'authz.candidate_authorized_scope_ids: same attributes, and likewise reachable by NO application role'
 );
 
+-- ⛔ `search_path` IS DELIBERATELY NOT IN THIS COMPOSITE. It is asserted separately, below, as
+-- a DIFFERENTIAL against the sibling authorizer — see that assertion's header for why a
+-- hand-typed expected value is the wrong instrument for this particular field.
 select is(
-  (select format('%s|%s|%s|%s|%s|%s',
+  (select format('%s|%s|%s|%s|%s',
                  pg_get_userbyid(p.proowner), p.prosecdef, p.provolatile,
-                 pg_get_function_result(p.oid), p.proconfig::text,
+                 pg_get_function_result(p.oid),
                  (select string_agg(a::text, ',' order by a::text) from unnest(p.proacl) a))
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.proname = 'current_professional_read_organizations'),
-  'postgres|t|s|SETOF uuid|{"search_path=\"app, public, pg_catalog\""}|authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres',
+  'postgres|t|s|SETOF uuid|authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres',
   'app.current_professional_read_organizations: the narrow door — authenticated + service_role, and NOT PUBLIC'
+);
+
+-- ⛔⛔ THIS ASSERTION EXISTS BECAUSE ITS FIRST VERSION PINNED A DEFECT AS EXPECTED.
+--
+-- 20261003007320 emitted `set search_path to 'app, public, pg_catalog'` — SINGLE-QUOTED, so
+-- ONE identifier naming a schema that does not exist, not a three-element list. Postgres skips
+-- an absent schema silently, so the function's effective `current_schemas(true)` was
+-- `{pg_temp_N, pg_catalog}` while its sibling's was `{pg_temp_N, app, public, pg_catalog}`.
+-- The original form of this test hand-typed the expected `proconfig` by COPYING IT OUT OF THE
+-- BROKEN CATALOG, so the suite would have gone RED when someone fixed the migration. Found by
+-- QA review, 2026-09-03; fixed by 20261003007330.
+--
+-- ⭐ THE REPAIR IS STRUCTURAL, NOT A CORRECTED CONSTANT. The reference is now the SIBLING
+-- authorizer — `app.can_read_professional_profile`, which has always been right — so this
+-- cannot be satisfied by re-encoding whatever the last migration happened to produce. The
+-- quote check beside it is the direct tell: the two forms differ by exactly that character,
+-- and a stale sibling could otherwise let the collapsed form pass by matching it.
+select is(
+  (select array_to_string(p.proconfig, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'current_professional_read_organizations'),
+  (select array_to_string(p.proconfig, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_read_professional_profile'),
+  'app.current_professional_read_organizations declares the SAME search_path as its sibling app.can_read_professional_profile — a differential, never a hand-typed constant'
+);
+
+select ok(
+  (select array_to_string(p.proconfig, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'current_professional_read_organizations') not like '%"%',
+  'app.current_professional_read_organizations search_path contains NO quote — i.e. it is an identifier LIST and did not collapse to one non-existent schema'
 );
 
 -- 5. The door takes NO principal argument. If it ever gains one, a caller could ask about
@@ -218,6 +261,49 @@ select cmp_ok(
 select cmp_ok(
   (select count(*) from f413cells where not hp)::bigint, '>', 0::bigint,
   '§2c NON-VACUITY: the sweep contains at least one DENYING cell'
+);
+
+-- ============================================================================
+-- §2d/§2e — BRANCH REACHABILITY. QA review 2026-09-03 found §2's differential exercises only
+-- TWO of the candidate map's four branches, and "agrees on every cell" reads as coverage of
+-- the whole map. It is not a test gap: the other two are UNREACHABLE, and the reasons are
+-- catalog facts. ⭐ So the fix is not more cells — it is pinning the MECHANISM of each
+-- absence, so that the day it stops holding, this file says so instead of staying green.
+-- (An unexercised branch is safe here in one direction only: it can only under-propose, and
+-- the policy's ELSE arm catches that. It could never over-grant.)
+-- ============================================================================
+create temp table f413branch on commit drop as
+  select case
+           when m.scope_kind::text = pm.resolution_scope_kind::text then 'same-kind'
+           when pm.resolution_scope_kind::text = 'organization' and m.scope_kind::text = 'commission' then 'commission->organization'
+           when pm.resolution_scope_kind::text = 'organization' and m.scope_kind::text = 'hospital'   then 'hospital->organization'
+           when pm.resolution_scope_kind::text = 'hospital'     and m.scope_kind::text = 'commission' then 'commission->hospital'
+           else 'ELSE (false)'
+         end as branch,
+         count(*) as pairs
+    from public.memberships m
+    join authz.roles r on r.code = m.role and r.state::text = 'authoritative'
+    join authz.role_permissions rp on rp.role_code = m.role
+    join authz.permission_implication_closure cl on cl.implying = rp.permission_code
+    join authz.permissions pm on pm.code = cl.implied
+   where m.scope_kind is not null
+   group by 1;
+
+select is(
+  (select string_agg(branch, ' | ' order by branch) from f413branch),
+  'commission->organization | same-kind',
+  '§2d BRANCH REACHABILITY, as a NAMED SET: exactly two of the candidate map''s four branches are reachable anywhere in the live catalog. ⛔ If this reds, a branch became reachable (or stopped being) and §2''s differential no longer covers what it appears to — extend the sweep, do not edit this string'
+);
+
+select ok(
+  (select count(*) from authz.permissions where resolution_scope_kind::text = 'hospital') = 0
+  and (select count(*) from public.memberships m
+        join authz.roles r on r.code = m.role and r.state::text = 'authoritative'
+        join authz.role_permissions rp on rp.role_code = m.role
+        join authz.permission_implication_closure cl on cl.implying = rp.permission_code
+        join authz.permissions pm on pm.code = cl.implied
+       where m.scope_kind::text = 'hospital' and pm.resolution_scope_kind::text = 'organization') = 0,
+  '§2e THE MECHANISM OF EACH ABSENCE, separately falsifiable: `commission->hospital` is unreachable because NO permission resolves at hospital scope (0 of 43), and `hospital->organization` because no hospital-scope membership holds a role entailing an organization-scope permission. Either clause going false makes a branch live and untested'
 );
 
 -- ============================================================================
@@ -306,15 +392,40 @@ select test_helpers.reset_role_and_claims();
 -- rather than a change of meaning: anything the set arm grants, the untouched authorizer
 -- already granted. A counterexample here is a WIDENING of the policy.
 -- ============================================================================
+-- The sampled subject population: every row this file inserted, plus a deterministic slice of
+-- whatever else exists (so the sweep is not confined to rows the test authored).
+create temp table f413prof on commit drop as
+  select id, organization_id from public.professional_profiles where full_name like 'AE4-413 %'
+  union
+  select id, organization_id from (
+    select id, organization_id from public.professional_profiles order by id limit 40) t;
+
+create temp table f413sub on commit drop as
+  select pr.pid,
+         pf.organization_id in (
+           select authz.authorized_scope_ids(pr.pid, 'organization', 'org.professionals.read')
+         ) as set_grants,
+         app.can_read_professional_profile(pf.id, pr.pid) as fn_grants
+    from (select distinct pid from f413cells) pr
+   cross join f413prof pf;
+
 select is(
-  (select count(*)
-     from public.professional_profiles pp
-     cross join f413 f
-    where pp.organization_id in (
-            select authz.authorized_scope_ids(f.pid, 'organization', 'org.professionals.read'))
-      and not app.can_read_professional_profile(pp.id, f.pid))::bigint,
+  (select count(*) from f413sub where set_grants and not fn_grants)::bigint,
   0::bigint,
-  '§5 SUBSET: every row the set arm grants is already granted by app.can_read_professional_profile'
+  '§5 SUBSET: over every (principal, profile) cell, every row the set arm grants is already granted by app.can_read_professional_profile'
+);
+
+-- ⛔ §5 WITHOUT THIS IS GREEN ON AN EMPTY GRANTING SIDE. "No counterexample" is satisfied by a
+-- population where the set arm never grants at all, which is exactly the shape QA measured in
+-- the first version of this section. §2 had non-vacuity guards; §5 had none.
+select ok(
+  (select count(*) from f413sub where set_grants) > 0
+  and (select count(*) from f413sub where not set_grants) > 0,
+  format('§5b NON-VACUITY: the subset sweep has BOTH polarities — %s cells where the set arm grants, %s where it does not, over %s profiles x %s principals',
+         (select count(*) from f413sub where set_grants),
+         (select count(*) from f413sub where not set_grants),
+         (select count(*) from f413prof),
+         (select count(distinct pid) from f413sub))
 );
 
 -- ============================================================================

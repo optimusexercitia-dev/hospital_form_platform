@@ -917,17 +917,23 @@ public.assume_role(p_role platform_role)
 #
 # WHAT DOES COVER IT, proven by TARGETED MUTATION rather than claimed (2026-09-03):
 #   Body swapped to `select o.id from public.organizations o` — every organization, no
-#   confirmation — with signature, DEFINER, search_path and ACL re-emitted unchanged and the
-#   edit asserted LANDED from the catalog (md5 a62e7809… -> ead6fbfe…, ACL byte-identical), and
-#   the opened gate proven SEMANTICALLY LIVE (3 organizations became reachable that
-#   authz.has_permission denies). The FULL suite then went **Result: FAIL at the IDENTICAL
-#   shape — Files=261, Tests=8733** (a shape change would be ERROR, not COVERED), noticed by
-#   FIVE suites:
+#   confirmation — with signature, DEFINER and ACL re-emitted unchanged and the edit asserted
+#   LANDED from the catalog (md5 88a65e5b… -> ead6fbfe…, ACL byte-identical), and the opened
+#   gate proven SEMANTICALLY LIVE (3 organizations became reachable that authz.has_permission
+#   denies). The FULL suite then went **Result: FAIL at the IDENTICAL shape — Files=261,
+#   Tests=8738** (a shape change would be ERROR, not COVERED), noticed by FIVE suites:
 #     252_authz_p0_isolation (1) · 311_oversight_readonly_perimeter (1) ·
 #     321_eth_e4_participant_seating (1) · 409_ae49_d6_rekey_differential (4) ·
 #     413_ae4_authorized_scope_ids (5)
 #   Restore replayed from the captured pg_get_functiondef() and proven byte-identical
-#   (md5 back to a62e7809a7d8cf7e57ac7adf1458aabb, ACL unchanged).
+#   (md5 back to 88a65e5b0fbe20a19ed1959f8b287c28, ACL unchanged).
+#
+# ⚠ RE-MEASURED 2026-09-03 after 20261003007330 and after pgTAP 413 grew five assertions. BOTH
+#   figures above moved and the old ones are recorded here so a reader meeting either can tell
+#   staleness from tampering: the body md5 was **a62e7809a7d8cf7e57ac7adf1458aabb** while the
+#   function carried 7320's malformed `search_path` (see ADR 0182 § Corrections), and the suite
+#   shape was **Files=261, Tests=8733**. ⛔ A verdict earned at one shape is not a verdict at
+#   another — the re-run was required, not optional, and it returned COVERED again.
 #
 # THE KEYSTONE: pgTAP 413 — §4 reads the BASE TABLE as `authenticated` and requires the
 # foreign-organization profile to stay invisible; §5 pins the SUBSET invariant (everything the

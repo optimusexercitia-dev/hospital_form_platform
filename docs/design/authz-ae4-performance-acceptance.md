@@ -6,7 +6,15 @@ Gate AE4 item per ADR [0176](../decisions/0176-authz-permission-layer-made-real.
 *Performance evidence [PA-F6]* — nested plans over a scaled, `ANALYZE`d fixture, on the **final** path.
 **Author:** `backend` · **Written:** 2026-09-02 · **Branch:** `authz-ae4-catalog`.
 
-> ⛔ **STATUS after run 5 (2026-09-02): NOT MET — but no longer VOID, and the residue is now two
+> ⭐⭐ **STATUS after run 6 (2026-09-03): MET.** All of P1–P5 and P7 pass, every control holds, and
+> **K = 4 was not moved.** The increment is `20261003007320` (ADR
+> [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)) — the permission answer is
+> computed once per **statement** instead of once per protected row. **Full record: §14**, and the
+> protocol amendment it is judged under, ruled before the run except where §14 says otherwise:
+> **§13**. ⛔ Every run-1..5 verdict below stands as measured, under the wording in force at the
+> time; none of them is erased by this line.
+>
+> ~~⛔ **STATUS after run 5 (2026-09-02): NOT MET — but no longer VOID, and the residue is now two
 > named things rather than one unexplained number.** Run 5 is the first run against a FIXED
 > `authz.scope_reaches` (migration `20261003007310`, ADR
 > [0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md)). Controls PASS, so the
@@ -19,7 +27,8 @@ Gate AE4 item per ADR [0176](../decisions/0176-authz-permission-layer-made-real.
 > not argued down from P1's re-specification.** ⭐ **The one condition still failing is P5, and its
 > cause is named:** not a plan defect but VOLUME — ~170 000 lookups re-resolving the same 20
 > assignment facts, once per protected row. That is `authz.entailed_grants`' invocation structure
-> and a separate increment. Record: **§12**.
+> and a separate increment. Record: **§12**.~~ **— superseded by run 6 above; the separate
+> increment it names was built as `20261003007320`. §12's own verdict table is unchanged.**
 >
 > ~~**STATUS after run 3 (2026-09-02): still VOID — and the open question is now one function.**~~
 > P5 has FAILED on **five** readings (6.13 / 5.20 / 6.21 / 6.27 / 6.04 vs K=4). P2, P3, DC2 and P4
@@ -993,7 +1002,7 @@ can move a 200-row read by 10×. Lowering it would be editing an instrument to a
 | | Amendment | Why |
 | --- | --- | --- |
 | **DC1** | **Unchanged statement, unchanged `≥ 10×`, but the PRE-CHANGE policy predicate is re-installed for the duration** — in the same rolled-back transaction that already installs and removes the planted body. Recorded from now on as **DC1 (legacy-predicate control)**. | Keeps DC1 measuring exactly what it measured in runs 1–5 — the 200-row per-row read — so the eight readings stay comparable, and proves the *timing harness* can still see an expensive seam. ⛔ See §13.5: the obvious re-aim was measured and killed. |
-| **DC3 — semantic ablation** (NEW) | On the converted path, mutate `authz.authorized_scope_ids` in a rolled-back transaction: return the **empty set** ⇒ the org-filtered read must yield **0 rows**; return **every organization** ⇒ it must yield **foreign** rows. Both must hold, or the run is VOID. | The converted path needs a discrimination control that a once-per-statement plant cannot provide. This is the §3 ablation pattern — *is the arm merely true, or load-bearing?* — applied to the set arm, and it is a **semantic** probe, so flattening the timing cannot flatten it. |
+| **DC3 — semantic ablation** (NEW) | On the converted path, mutate `authz.authorized_scope_ids` in a rolled-back transaction. **DC3a, empty set** ⇒ the org-filtered read's row count must **NOT move**, and its cost must **rise** to the pre-change magnitude. **DC3b, every organization** ⇒ it must yield **foreign** rows. Both must hold, or the run is VOID. ⛔ **CORRECTED 2026-09-03 (QA review).** This row first read *"empty set ⇒ the read must yield 0 rows"*, which is **unsatisfiable by construction** and contradicted the control that was actually built and scored (harness §8b; §14's DC3a row): the policy's `ELSE` arm is the untouched authorizer, so emptying the set arm removes the short-circuit and never the grant. A row count that DROPS there would mean the rewrite NARROWED the policy — the one thing the subset argument says it cannot do — so **0 rows is the FAILURE condition, not the pass**. The implemented control was correct throughout; this text was not, and under P6 the written form would have VOIDed a passing run. | The converted path needs a discrimination control that a once-per-statement plant cannot provide. This is the §3 ablation pattern — *is the arm merely true, or load-bearing?* — applied to the set arm, and it is a **semantic** probe, so flattening the timing cannot flatten it. |
 | **P2** | Re-stated: `authz.assignment_facts` is invoked **once per STATEMENT** on the converted read path (and unchanged, once per protected row, everywhere else). | ⛔ Under the old wording P2 passes **vacuously** after the change: "≤ 1 invocation per protected row" is trivially true at 200 rows and 1 invocation. A condition that passes because its subject stopped running is not a pass. |
 | **P3** | Re-stated: `authz.scope_reaches` invocations are bounded by `M` **per statement** on the converted read path; the `≤ M` per-protected-row bound still governs every unconverted path. | Same vacuity, same remedy. |
 | **P7 — short-circuit shape** (NEW) | On the M1b plan: the policy's scope subplan must appear as a **`hashed SubPlan`** at **`loops=1`**, and the fallback arm's InitPlan must read **`never executed`**. | A policy that silently stopped short-circuiting — a planner change, a lost `CASE`, a widened candidate set — would pass the re-stated P2/P3 vacuously and surface only as a slow P5. This asserts the mechanism directly. |
@@ -1094,7 +1103,14 @@ statement of this run's coverage:**
 ## 14. Run 6 (2026-09-03) — the first run against the statement-scoped path. **ACCEPTANCE MET.**
 
 Subject: `20261003007320` (ADR [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)),
-judged under the §13 amendment, which was ruled and written **before** the run. Fresh
+judged under the §13 amendment. ⛔ **CORRECTED 2026-09-03 (QA review): this sentence read
+*"which was ruled and written **before** the run"*, and that is true of §§13.1–13.5 but NOT of
+§13.6.** DC2's half of the trap was found by RUNNING pass A — the amendment's first draft reasoned
+about DC1 and never asked the same question of DC2, which then failed at 1.15× against `≥ 5×`. So
+one control was re-aimed **after** a failing reading, which is exactly the shape this document
+exists to distrust, and it is stated here rather than left to §13.6 to disclose alone. What makes
+it a correction and not a fudge is checkable: no threshold moved, the failing reading is recorded
+as a failing reading, and the re-aim is the same mechanism DC1 already used. Fresh
 `supabase db reset --local` at head `20261003007320`, full fixture reload, both passes.
 `RESET=0 · LOAD=0 · PASSA=3 · PASSB=3 · P1PROBE=0` — each read from its own file.
 ⛔ The two 3s are the harness **working**: section 10 raises once at the end because P1/P2/P3 are
@@ -1154,3 +1170,69 @@ Eight readings across five runs failed P5 at 6.13 / 5.20 / 6.21 / 6.27 / 6.04 / 
 within a few percent of a threshold — was never invoked, and the two readings that came closest
 (4.99, 25 % over) were recorded as FAIL and left as FAIL. The condition was met by removing the
 cost, which is the only way it was ever going to be met honestly.
+
+---
+
+## 15. QA review of run 6 (2026-09-03) — CHANGES REQUESTED, corrected, and re-verified
+
+QA reviewed the increment at `9f7fa68d` and returned **CHANGES REQUESTED**. It found **no privilege
+escalation, no RLS hole and no regression** — it independently measured 520 cells / 37 principals /
+11 hats / all 13 organizations in the self+hat context the policy actually uses and got **0
+over-grants**, with 17 fallback-only grants confirming the `ELSE` arm is load-bearing. What it did
+find was one real defect, one control missing its vacuity proof, two coverage claims thinner than
+they read, and a record contradicting its own artifacts.
+
+### 15.1 What was wrong, and what was done
+
+| Finding | Correction |
+| --- | --- |
+| ⛔ **`app.current_professional_read_organizations` declared a `search_path` resolving to nothing it named.** `20261003007320` emitted it single-quoted, so ONE identifier, not a list: `current_schemas(true)` was `{pg_temp_N, pg_catalog}` against the sibling's `{pg_temp_N, app, public, pg_catalog}`. Latent (the body fully qualifies) but this is a DEFINER on the authorization path. | `20261003007330`. ⛔ **And pgTAP `413` PINNED THE DEFECT** — the expected `proconfig` was hand-typed from the broken catalog, so the suite would have reddened when someone fixed it. Repaired **structurally**: `413` now compares this function's `search_path` to its **sibling's**, plus a "contains no quote" check. Detail: ADR 0182 § Corrections. |
+| **P7 had never been shown able to fail** — §12.6 property 3 requires exactly that of a new check. DC3b earned it (0 → 1); P7 did not. | P7 now runs its probe against the pre-change predicate (a shape with no set subplan) and **VOIDs the run if the probe reports PASS there**. Measured below. |
+| **§13.2's DC3 ruling text was unsatisfiable** — it specified "empty set ⇒ 0 rows" while the implemented and scored control requires the row count NOT to move. Under P6 the written form would have VOIDed a passing run. | §13.2 corrected in place and labelled. The control itself was right throughout. |
+| **§14 claimed the whole amendment predated the run**; §13.6 documents DC2's half was found by *running* pass A. | §14 corrected in place. One control **was** re-aimed after a failing reading, and that now says so where a reader meets it. |
+| **The document header still declared the run-5 status.** | Header updated; the run-5 block is struck through, not deleted. |
+| **`413` §5 — the subset invariant this rests on — ran over 2 rows × 1 principal**, with no non-vacuity guard (§2 had them; §5 did not). | §0 now seeds three profiles per organization; §5 sweeps **81 profiles × 41 principals** and §5b asserts both polarities are present (measured: 16 granting / 3 305 denying). |
+| **`413` §2 exercises only 2 of the candidate map's 4 branches.** | ⭐ Not a test gap — measured against the live catalog, only two are reachable **anywhere**: `same-kind` (57 342 fact×permission pairs) and `commission→organization` (6 036). `commission→hospital` is unreachable because **no permission resolves at hospital scope** (0 of 43); `hospital→organization` because no hospital-scope membership holds a role entailing an organization-scope permission. Both mechanisms are now separately falsifiable assertions (`413` §2d/§2e), so the day either stops holding the suite says so. |
+| **No authorising party was recorded anywhere**, though §12.4 requires this increment to carry "its own approval" and ADR 0181 set the precedent with a dated ruling. | ADR 0182 now carries a dated `**Approved:**` line naming what was approved and when. |
+
+⚠ **One QA observation is corrected here.** The report flags the door-sweep read arm as the one
+gate figure it could not confirm. That run was valid — it executed on the seed-only database
+*before* the fixture load — but it is not reproducible while the fixture is loaded, which is what
+QA hit. It was re-run on the fresh reset below.
+
+### 15.2 Re-verification — every gate re-run, nothing inherited
+
+⛔ **The pgTAP shape moved** (`Files=261, Tests=8733` → **`Tests=8738`**) when `413` gained five
+assertions, so **all three targeted mutation verdicts were re-earned**, not carried over: a verdict
+recorded at one shape is not a verdict at another. All three returned **COVERED** at the identical
+new shape, restores byte-identical, ACLs unchanged. ⚠ The door's body md5 also moved with the
+`search_path` fix (`a62e7809…` → `88a65e5b…`); both values are recorded in
+`authz-unswept-backlog.txt` so a reader meeting either can tell staleness from tampering.
+
+`RESET=0 · LOAD=0 · PASSA=3 · PASSB=3 · P1PROBE=0` · pgTAP `Files=261, Tests=8738` **PASS** ·
+lint 12/12 **0** · typecheck **0** · `census`/`hat`/`floor`/`wrapper` all **0** ·
+door-sweep read arm **CLEAN/COVERED**.
+
+| | pass A | pass B | threshold | |
+| --- | --- | --- | --- | --- |
+| DC1a / DC1b | 1.52× / **16.92×** | 1.74× / **18.30×** | ≥ 10 (either) | **PASS** |
+| DC2 (pre-change predicate) | 802.29× | — | ≥ 5 | **PASS** |
+| DC3a empty set — own-org rows | 10 000 → **10 000** @ 10 797 ms | same | must NOT move | **PASS** |
+| DC3b over-broad — foreign rows | 0 → **1** | 0 → **1** | must become > 0 | **PASS** |
+| P4 | 1.61 | 1.23 | ≤ 30 | **PASS** |
+| P5 | **0.00** (3.996 / 2 391.518 ms) | **0.00** (3.023 / 2 165.509 ms) | ≤ 4 | **PASS** |
+| **P7** | live `[hashed=t,loops1=t,never=t]`; ⭐ **CONTROL `[hashed=f,loops1=f,never=f]` — the probe is now proven able to return BOTH verdicts** | same | all three, control not all-true | **PASS** |
+
+Externally per §9.7 — stage 0 **9 735** lines; presence `assignment_facts` **24**, `scope_reaches`
+**16**; **P1 PASS** (probe exit 0, bundled vacuity control FIRED, all four chain tables CLEAR) ·
+**P2 PASS** (M1-nested **7** nodes over 200 protected rows, all 12 `loops=1`) · **P3 PASS**
+(M1-nested **3** filter nodes). ⛔ **K = 4 still not moved.**
+
+### 15.3 The lesson worth keeping
+
+Two of the four defects were **a test pinning what it should have measured**: `413` hand-typed a
+`proconfig` string copied from a broken catalog, and P7 asserted a plan shape without ever showing
+it could report the other answer. Both were green, and both were green for a reason unrelated to
+the property. ⭐ *The repair in each case was to replace a literal with a comparison — the sibling's
+`search_path`, the pre-change predicate's plan — because a hand-typed expected value cannot tell a
+defect from a design.*

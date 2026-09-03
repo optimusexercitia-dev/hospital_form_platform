@@ -2,6 +2,15 @@
 
 **Status:** accepted
 **Date:** 2026-09-03
+**Approved:** operator, 2026-09-03 — the design was put up for plan approval before any code was
+written (acceptance §12.4 requires this increment to carry "its own approval") and approved as
+proposed, including the three decisions it turned on: the `has_permission`-confirmed resolver
+shape, re-aiming DC1 plus adding a semantic ablation, and deferring
+`professional_participants_select`. The `search_path` correction below was approved separately on
+the same day, as a **follow-on migration** rather than an amendment to `20261003007320`.
+⚠ Recorded because ADR [0181](./0181-p1-bounds-the-index-path-not-the-scan-node.md) carries a dated
+ruling line and the first version of this ADR carried none — QA review found the omission, and an
+approval that exists only in a session transcript is not a record.
 
 ## Context
 
@@ -137,3 +146,49 @@ Therefore, ruled together with this decision:
   both polarities, the hat asymmetry on both branches, the base-table policy surface read as
   `authenticated`, the SUBSET property the rewrite rests on, and a bundled vacuity control that
   plants an over-broad body and requires the differential to go red.
+
+## Corrections after QA review (2026-09-03)
+
+QA reviewed this increment and returned **CHANGES REQUESTED** — finding no privilege escalation,
+no RLS hole and no regression, but one real defect and a record that contradicted itself. Recorded
+here rather than fixed silently, because the second item is a lesson about the instrument and the
+first is a lesson about reading the catalog.
+
+**1. `app.current_professional_read_organizations` declared a `search_path` that resolved to
+nothing it named.** `20261003007320` emitted `set search_path to 'app, public, pg_catalog'` —
+single-quoted, therefore ONE identifier naming a schema that does not exist, not a three-element
+list. Measured: `current_schemas(true)` inside it was `{pg_temp_N, pg_catalog}` against its
+sibling's `{pg_temp_N, app, public, pg_catalog}`. Latent rather than exploited — the body fully
+qualifies every name — but this is a `SECURITY DEFINER` function on the authorization path, and the
+declared safety property was simply not the one in force. Fixed by
+`20261003007330`; the `authz.*` functions are unaffected (their `set search_path to ''` is the
+intended empty path and matches every sibling resolver).
+⛔ **The catalog showed the tell all along**: `proconfig` renders the correct form as
+`search_path=app, public, pg_catalog` and the broken one as `search_path="app, public, pg_catalog"`.
+The escaped quotes were in the output that was read when the function was first verified, and were
+read past. *A field that differs from its neighbour by two characters is exactly the field a
+composite assertion hides.*
+⛔ **And pgTAP `413` PINNED THE DEFECT AS EXPECTED**, because the expected `proconfig` string was
+hand-typed by copying it out of the broken catalog — so the suite would have gone RED when someone
+fixed the migration. The repair is structural, not a corrected constant: `413` now asserts this
+function's `search_path` **equals its sibling's**, plus a direct "contains no quote" check. A
+hand-typed expected value is what turned a defect into a pass, so the reference is now another
+object in the catalog rather than a literal in the test.
+
+**2. Three statements in the acceptance record contradicted the artifacts they described** — DC3's
+ruling text specified an unsatisfiable criterion (§13.2), §14 claimed the whole amendment predated
+the run when §13.6 documents otherwise, and the document header still declared the run-5 status.
+All three corrected in place, each labelled, none overwritten.
+
+**3. Two coverage claims were thinner than they read.** `413` §5 — the subset invariant this ADR
+calls load-bearing — was exercised over **2 rows and 1 principal**, with no non-vacuity guard;
+it now sweeps ~81 profiles × ~41 principals and asserts both polarities are present. And §2's
+differential reaches only two of the candidate map's four branches. ⭐ That is not a test gap:
+`commission→hospital` is unreachable because **no permission resolves at hospital scope** (0 of 43)
+and `hospital→organization` because no hospital-scope membership holds a role entailing an
+organization-scope permission. Both mechanisms are now pinned as separately falsifiable assertions
+(`413` §2d/§2e), so the day either stops holding, the suite says so instead of staying green.
+
+**4. `P7` shipped without a vacuity control**, which §12.6 property 3 requires of any new check —
+DC3b earned that proof, P7 did not. It now runs its probe against the pre-change predicate, a shape
+with no set subplan at all, and **VOIDs the run if the probe reports PASS there**.
