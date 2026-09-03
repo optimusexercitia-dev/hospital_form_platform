@@ -1,10 +1,10 @@
 ---
-branch: c2-tier1-neutralizer
-task: Critical FUP C2 — Tier-1 re-grain + the command-door neutralizer (also: C1a discharged, PROGRESS.md de-duplicated)
-adrs: [0171, 0079, 0153, 0114, 0118, 0155]
+branch: authz-c2-tier1   # ⛔ RENAMED — the old `c2-tier1-neutralizer` work is MERGED TO MAIN
+task: Critical FUP C2 — Tier-1 re-grain, the command-door neutralizer, AND the full 171-enforcer sweep
+adrs: [0171, 0079, 0153, 0114, 0118, 0155, 0180]
 base_sha: cb66dfa9
 created: 2026-08-31
-updated: 2026-08-31
+updated: 2026-09-02
 status: live
 ---
 
@@ -12,11 +12,15 @@ status: live
 
 ## ▶ RESUME HERE
 
-1. `git fetch origin && git switch c2-tier1-neutralizer`
+1. `git fetch origin && git switch authz-c2-tier1` (⛔ NOT `c2-tier1-neutralizer` — that branch's
+   work is already on `main`; this one carries AE4 + C2)
 2. `nvm use` (`.nvmrc` = **24**; `npm run lint` dies at gate 8 on Node 20)
 3. Confirm **`.env.local` exists** and **`node_modules` is NON-EMPTY** — both fail silently, and an
    empty `node_modules` makes Node walk up and green a gate using another checkout's toolchain
-4. `supabase db reset --local` — the branch carries 5 migrations your local DB will not have
+4. `npx supabase db reset --local` — ⛔ **`npx`, not the global binary.** CLI **2.105.0** dies at the
+   seed with `relation "seed_persona_org" does not exist`: `seed.sql` builds a TEMPORARY table and
+   2.105's batched applier splits it across sessions. `npx` (2.115.0) seeds correctly. Sanity after:
+   `auth.users=36, memberships=43`
 5. Read **PROGRESS.md § Now** — it, not this file, is status truth
 
 ⛔ Re-measure before relying on anything below — see § Trust.
@@ -36,7 +40,9 @@ non-`bool` command doors that sit outside every `p0-authz-invariant.sh` arm's do
 
 ⛔ **What this is NOT:**
 
-- **Not a sweep.** 8 of 171 enforcers measured. **No door has a recorded verdict.** C2 is open.
+- ~~**Not a sweep.**~~ ✅ **THE SWEEP HAS RUN — 2026-09-02, 171 of 171: COVERED 109 · BLIND 40 ·
+  ERROR 22.** ⛔ **C2 is STILL OPEN, and the reason is the INSTRUMENT, not the doors** — see
+  § The anchor is a syntax below.
 - **Not a closure of either absorbed item** (`FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN`,
   `FUP-DM5-SIBLING-GUARD-DIFF`). `assume_role` stays **ERROR-shaped, not COVERED**.
 - **Not a new ARM.** The neutralizer is a separate periodic harness. "All arms green" still carries
@@ -55,7 +61,10 @@ non-`bool` command doors that sit outside every `p0-authz-invariant.sh` arm's do
 | Worklist of 237 doors | `supabase/tests/mutation/c2-tier1-doors.txt` (derived; regenerate + diff, never edit) | 2026-08-31 |
 | **243** enforcers in the Tier-1 closures; **72** in the bool arm's domain, **171** outside | `c2-command-door-neutralizer.sh` worklist derivation (`$WORK/worklist.tsv`, 171 rows) | 2026-08-31 |
 | 458 authz raises across the 171; **457** match the mutation anchor | worklist columns 5/6 (`nraise` vs `nanchored`) | 2026-08-31 |
-| Harness verdicts: **5 COVERED, 3 BLIND** | `CASES=… bash supabase/tests/mutation/c2-command-door-neutralizer.sh`, full-suite baseline | 2026-08-31 |
+| ~~Harness verdicts: 5 COVERED, 3 BLIND~~ → **FULL SWEEP: 171/171, COVERED 109 · BLIND 40 · ERROR 22** | `bash supabase/tests/mutation/c2-command-door-neutralizer.sh`; [findings](../reviews/c2-command-door-findings.md) | 2026-09-02 |
+| Suite baseline **`Files=259, Tests=8685, PASS`**, **53 s/run** (not the design doc's ~23 s) | `npx supabase test db`, timed | 2026-09-02 |
+| DB restored after the sweep — **zero `ROLLBACK FAILED`** | fresh reset → `Files=259, Tests=8685, PASS` | 2026-09-02 |
+| `npm run lint` **12/12, exit 0** (gate 12 needed a `python`→`python3` fix) | `npm run lint; echo $?` | 2026-09-02 |
 | pgTAP baseline **Files=248, Tests=8289, PASS** on a fresh reset | harness baseline capture (`npx supabase test db`) | 2026-08-31 |
 | `npm run lint` **11/11, exit 0** | `npm run lint > /tmp/lint.log 2>&1; echo $?` | 2026-08-31 |
 | C1a discharged — §3 A–D end-to-end on `standard` **and** `phi` tier | `docs/deployment/phi-backup-run-log.md` § 2026-08-31 (second run) | 2026-08-31 |
@@ -69,30 +78,56 @@ non-`bool` command doors that sit outside every `p0-authz-invariant.sh` arm's do
   2026-09-02: a full pgTAP suite run is 53 s on this branch (`Files=259, Tests=8685`), not the ~23 s
   the design doc assumes — so the sweep is 171 × 2 × 53 s ≈ **5 h**, and PROGRESS.md's ~6 h budget
   was the honest figure while the design doc's ~2.2 h was not.**
-- **`docs/reviews/c2-command-door-findings.md` does not exist yet, deliberately.** A file holding
-  8 of 171 rows would read as a baseline. The harness writes it only on a **full** run; subset runs
-  go to `$WORK` (ADR 0153).
+- ✅ **`docs/reviews/c2-command-door-findings.md` NOW EXISTS** — written by the full run, 171 rows.
+  ⛔ **It is DERIVED: never hand-edit it.** It reads **106/40/25**; the corrected tally is
+  **109/40/22**, because 3 of its ERROR rows are tail-drift artifacts re-measured to COVERED in
+  isolation. The correction lives in PROGRESS.md and the register, never in the file.
+
+### The anchor is a syntax, not a property — why the sweep did not close C2
+
+⭐ **The single most important thing on this page.** The harness anchors on
+`errcode = '(42501|HC0[A-Z0-9]{2})'`, and that is wrong in **three** directions
+(`FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`):
+
+1. **Too narrow.** The class needs a literal `0` in position 3, so `HCDS*` (60 raises, the LGPD
+   Art. 18 lane) and `28000` (SQL-standard `invalid_authorization_specification`) are excluded. The
+   **gate-fn filter at `:153` uses the same anchor**, so those doors are *structurally absent from
+   the worklist* — they appear as neither a verdict nor an ERROR.
+2. **Too broad.** `HC0*` is the whole application error space. `HC038` (*"…não pode ser cancelada
+   neste estado"*) and `HC043` are **state** guards; `HC039` (*"sem permissão…"*) is the
+   authorization one. ⛔ **A verdict here means `HC0*`-coded-guard coverage, NOT authorization
+   coverage.**
+3. **Cannot span a `;` in the message.** 35 raises fail closed as ERROR — never a false COVERED.
+   ✅ **Fix VALIDATED: 2294/2294 matched, 0 regressions** (`docs/reviews/c2-anchor-regex-fix-validation.txt`);
+   patch staged at `scratchpad/apply-anchor-fix.sh`. ⛔ Patch the `regexp_replace` **only** — the
+   counters must keep the errcode-only anchor, or a missed rewrite stops being visible.
 
 ### Not started
 
-- The full 171-enforcer sweep.
-- Keystones for the 3 BLIND (`FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS`).
+- **Keystones.** Designs are written for all of them → `docs/design/authz-c2-blind-keystone-designs.md`.
+  ⚠ `cancel_session`'s anchored raise is **HC038, a STATE guard**; its authz is HC039 in a different
+  worklist row, so the "obvious" HC039 keystone would **not** flip the verdict.
+- **The delta sweep** for `HCDS*`/`28000` after widening the anchor (a NEW population, needs
+  re-derivation — not a refresh).
+- **The 16 suite-abort doors** (`FUP-C2-SUITE-ABORT-ERROR-CLASS`), incl. ⚠ `submit_response`.
+- **Classifying `HC0*` by property** so verdicts can be labelled honestly.
 - The 23 PARTIAL follow-up index lines (**move-then-cut**; order matters — cutting first destroys
   the only copy).
 
 ### Tree
 
-`base_sha` **cb66dfa9**, branch `c2-tier1-neutralizer`, **18 commits ahead of `origin/main`**
-(`a14bf19a`). Working tree clean except two **untracked, NOT carried by the branch** and therefore
-absent on any other machine: `docs/learning/` and `scripts/progress-cleanup-2026-08-26.mjs`.
+Branch **`authz-c2-tier1`**, ~115 commits ahead of `origin/main`. ⛔ **The name is a MISNOMER** —
+its body is **AE4** work; C2's apparatus was already merged to `main` before it started. AE4 is under
+implementation **on a different machine**, blocked awaiting C2, and `origin/authz-c2-tier1` is the
+shared line both use — so C2 lands there, not via a merge to `main` (ADR 0180).
 
 ## Gates
 
 | Arm / suite | SHA | Result | Exit |
 | --- | --- | --- | --- |
-| `npm run lint` (11 gates) | cb66dfa9 | OK | 0 |
-| pgTAP full suite | cb66dfa9 | `Files=248, Tests=8289` PASS | 0 |
-| `c2-command-door-neutralizer.sh` (8 of 171, `CASES=`) | cb66dfa9 | 5 COVERED · 3 BLIND | 1 (BLIND) |
+| `npm run lint` (**12** gates) | 2026-09-02 | OK | 0 |
+| pgTAP full suite | 2026-09-02 | `Files=259, Tests=8685` PASS | 0 |
+| `c2-command-door-neutralizer.sh` **FULL, 171/171** | 2026-09-02 | **COVERED 109 · BLIND 40 · ERROR 22** | 1 (BLIND) |
 
 ⛔ **DID NOT RUN — name these before claiming coverage:** `ARM=census`, `ARM=hat`, `ARM=floor`,
 `ARM=policy`, `ARM=wrapper`, the diff-scoped door sweep (both arms), `npm run test` (vitest),
@@ -205,14 +240,24 @@ The highest-value section: none of this is recoverable from the code or from git
 
 ## Next task
 
-Run the full sweep, in the background, redirected to a file, and **do not interrupt it**:
+⭐ **Write the keystones** — cheapest, and it converts known BLIND findings into pinned tests.
+Designs are complete in `docs/design/authz-c2-blind-keystone-designs.md`; the DB is free and
+`supabase/tests/**` is writable again now the sweep has finished.
 
-`bash supabase/tests/mutation/c2-command-door-neutralizer.sh > /tmp/c2-full.log 2>&1`
+⚠ Each keystone needs an **allow leg** (a *successful* call), not just a deny-only `throws_ok` —
+these doors also sit in `authz-neverclled-door-allowlist.txt`, and a raise never registers as a
+call, so a deny-only test cannot retire the allowlist line. Delete that line in the same commit.
 
-Prerequisite: a **fresh `supabase db reset --local`** and a quiet tree — the baseline is the
-suite's shape, so adding a file under `supabase/tests/**` invalidates the run as surely as touching
-the DB. It writes `docs/reviews/c2-command-door-findings.md`. Alternative first task if the sweep
-is too long a block: keystone the 3 BLIND.
+⭐ **Target the clusters, not the list.** Blindness is **not uniform**: correction workflow **4 of 5**
+BLIND and interview **6 of 9**, versus referral **3 of 16**.
+
+Then, in cost order: apply the staged anchor fix + delta sweep · diagnose the 16 abort doors
+(minutes each) · classify `HC0*` by property.
+
+⛔ **Before the next FULL sweep, fix tail drift** (`FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS`):
+~342 consecutive suite runs against one DB degraded it at enforcer 169 and the last three were lost.
+Reset periodically inside the sweep and re-capture `BASE_S`, or at minimum reset-and-retry once on a
+drift-shaped ERROR.
 
 ## Re-derivation appendix
 

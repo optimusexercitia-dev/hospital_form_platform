@@ -1111,7 +1111,20 @@ radius was one join away and no assertion in the slice looked there.
 **When a change writes a new value into an existing state column, sweep every READER of that
 column before believing the keystone.**
 
-### 🟠 FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS — the first 8 measurements of the new command-door neutralizer found 3 BLIND (owner: backend)
+### 🟠 FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS — 3 BLIND from the first 8 measurements; ⭕ **the full sweep then found 40** (owner: backend)
+
+⭕ **AMENDED 2026-09-02 — the full 171/171 sweep found **40 BLIND**, not 3.** The ID names the
+original three and is kept (a rename orphans every name-keyed verdict). They remain the three with
+**written keystone designs** → [authz-c2-blind-keystone-designs.md](../design/authz-c2-blind-keystone-designs.md).
+⚠ **`cancel_session`'s anchored raise is `HC038`, a STATE guard** — its authorization is `HC039` in a
+separate worklist row the mutation never touches, so the intuitive "non-writer gets HC039" keystone
+would **not** flip its verdict. Its blindness mechanism is now known: its only pgTAP mention is a
+`has_function_privilege` ACL assertion, which reads `pg_proc.proacl` and is *structurally* incapable
+of noticing a body mutation (~60 doors share that profile).
+⭐ **The other 37 are NOT uniformly distributed** — correction workflow **4 of 5** BLIND, interview
+**6 of 9**, versus referral **3 of 16**. Keystone the clusters, not the list.
+⚠ **Some share of the 40 will be STATE guards mislabelled as authz** (`HC038`/`HC043`); classify
+`HC0*` by property before reading the number as 40 authorization holes.
 
 **Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS** — the new command-door neutralizer's first 8 measurements found **3 BLIND**: `public.nsp_org_capa_rollup`, `public.cancel_event` (both **0** pgTAP mentions) and ⚠ `public.cancel_session` — which **has** a test that still does not notice its guard vanish (*presence of coverage is not a verdict*). Each needs a keystone; ⛔ **never allowlist a BLIND here** — floor and this arm would then agree while both measure nothing → [design](../design/authz-c2-command-door-neutralizer.md) §8 — backend
 
@@ -1174,8 +1187,14 @@ column before believing the keystone.**
 > carried as a characterisation of the whole class for two weeks. ⭐ The sample was not misused to
 > CLOSE the item; it was misused to DESCRIBE it, which no one noticed because it was hedged.
 >
-> ⛔ **Still open, and not nearly closed:** 8 of 171 enforcers measured, **no door has a recorded
-> verdict**, both absorbed items stay open, and `assume_role` stays ERROR-shaped.
+> ⭕ **SWEPT 2026-09-02 — 171 of 171: COVERED 109 · BLIND 40 · ERROR 22**
+> ([findings](../reviews/c2-command-door-findings.md); ADR 0180 records the branch it ran against).
+> ⛔ **STILL OPEN.** The sweep produced verdicts; it did not close the class. Its own anchor is a
+> **syntax, not a property** — `HCDS*` (60 raises, LGPD Art. 18) and `28000` were never in the
+> worklist, non-authz **state** guards were swept in as authz, and **22 doors carry no verdict**.
+> A verdict here is `HC0*`-coded-guard coverage, **not** authorization coverage →
+> `FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`. Both absorbed items stay open; `assume_role`
+> stays ERROR-shaped.
 
 
 > ### ✅ PO RULING 2026-08-18 — **TWO TIERS. Sweep the PHI / tenancy-crossing subset first; DEFER the remainder to after the pilot ships.**

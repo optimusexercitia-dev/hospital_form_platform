@@ -60,7 +60,8 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      too and reads as a **false COVERED**. ⭐ **Its unit is the ENFORCER, not the door** — the 237
      doors share **243** enforcers (**72** already in the bool arm, **171** new), so the door list is
      the *attribution* map, not the worklist. ✅ **PROVEN ON BOTH POLARITIES — 5 COVERED, 3 BLIND**
-     against a `Files=248, Tests=8289` baseline; the BLIND polarity was proven **deliberately**,
+     against a `Files=248, Tests=8289` baseline (⚠ **this was the 8-case PROVING sample, not a result** —
+     the full sweep's figures are the line below, on a `Files=259, Tests=8685` baseline); the BLIND polarity was proven **deliberately**,
      because five identical verdicts cannot show a detector able to return the other one. The 3
      BLIND are real findings → 🟠 `FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS`.
      ✅ **THE FULL SWEEP HAS NOW RUN — 2026-09-02, 171 of 171: COVERED 109 · BLIND 40 · ERROR 22.** ⛔ **C2 still does NOT close**, and the reason is the instrument, not the doors: the anchor `errcode = '(42501|HC0[A-Z0-9]{2})'` is a **SYNTAX, not a property** — it excludes `HCDS*` (60 raises, the LGPD Art. 18 lane) and `28000` from the worklist **entirely** (the gate-fn filter shares the anchor), AND sweeps in non-authz **state** guards (`HC038`, `HC043`) alongside real ones (`HC039`). So a verdict here means **`HC0*`-coded-guard coverage, not authorization coverage**. Plus **22 doors carry no verdict at all** — 16 abort a pgTAP file (`FUP-C2-SUITE-ABORT-ERROR-CLASS`, incl. ⚠ `submit_response`, the Rule 3 authority), 5 are the semicolon anchor defect (**fix VALIDATED: 2294/2294, 0 regressions**), 1 ruled. → `FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`. ⭐ Blindness is **not uniform** — correction workflow 4/5 BLIND and interview 6/9, vs referral 3/16: keystone effort belongs there, not spread evenly.

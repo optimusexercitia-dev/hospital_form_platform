@@ -145,9 +145,17 @@ allowlist entry here would make the floor arm and this arm AGREE while both meas
 
 ### What is still owed
 
-⛔ **The full 171-enforcer sweep has NOT run** — 8 of 171 measured. **No door has a recorded
-verdict**, so **Critical FUP C2 remains open**. Building the instrument was the long pole; it is not
-the sweep. Nothing here may be cited as coverage of the 237 Tier-1 doors.
+✅ **THE FULL SWEEP RAN 2026-09-02 — 171 of 171: COVERED 109 · BLIND 40 · ERROR 22**, against a
+`Files=259, Tests=8685, PASS` baseline at **53 s/run, ~5 h**. ⛔ **This §'s cost figure of ~23 s/run
+(~2.2 h) was WRONG by more than 2×** — measure, do not extrapolate.
+
+⛔ **C2 REMAINS OPEN, and the reason is this instrument, not the doors.** The anchor
+`errcode = '(42501|HC0[A-Z0-9]{2})'` is a **syntax, not a property**
+(`FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`): it excludes `HCDS*` + `28000` from the
+worklist entirely (the gate-fn filter shares it), sweeps in non-authz **state** guards (`HC038`,
+`HC043`), and cannot span a `;` inside a message (35 raises; ✅ fix validated 2294/2294, 0
+regressions). ⛔ **A verdict from this harness is `HC0*`-coded-guard coverage, NOT authorization
+coverage** (ADR 0180 point 5). 22 doors carry no verdict at all.
 
 ⚠ **A wrapper's trailing `echo` erases the harness's exit code** — hit while proving this: the
 background job reported exit 0 while the harness itself returned 1 for `BLIND=3`. Read the verdict
