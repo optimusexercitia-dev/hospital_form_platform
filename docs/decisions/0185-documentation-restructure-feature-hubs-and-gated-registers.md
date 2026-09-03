@@ -239,8 +239,15 @@ The two 🔵 follow-ups are re-rated. Existing 🔴 entries keep `critical`; any
 - `npm run lint` grows from twelve gates to thirteen; CLAUDE.md §8's count and §7's homes are
   rewritten with the PO's diff approval.
 - Roughly 75 + 24 link sites are repaired for the two file moves; the LINKS gate proves it.
-- The PO rules on three lists as they surface: 10 untriaged bugs, 68 blank closing conditions,
-  31 blank revisit triggers — plus any 🔴 flagged as `catastrophic`.
+- The PO rules on three lists as they surface: 10 untriaged bugs, the blank closing conditions,
+  the blank revisit triggers — plus any 🔴 flagged as `catastrophic`.
+  ⚠ **Magnitudes re-derived at normalization (2026-09-03), and the survey's were wrong:** the
+  survey counted 68 entries lacking a *keyword match* for a closing condition; the scripted pass
+  that had to WRITE the clause found **111 of 156** with none derivable — a keyword is not a
+  clause. The backlog's 62 bullets were 35 items plus a 26-line self-referential index of the same
+  items (deleted, not converted — ADR 0179's principle) and one already-resolved item; **27 of 35**
+  needed `Revisit when: PO to rule`. Bugs: **40 of 161** rows `unrated`, 5 `catastrophic`.
+  Recorded in `docs/progress/docs-restructure.md`; the live lists are a `grep` over the registers.
 - ADR 0179 is amended in one clause; 0124 Amdt 3's caps, 0139's rotation target and 0140's
   PROGRESS.md-side gate list are superseded in the parts D6 names; everything else in them
   stands.

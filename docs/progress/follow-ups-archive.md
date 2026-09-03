@@ -8103,3 +8103,14 @@ protocol exists to prevent, and it is worse here than a relaxed threshold would 
 leaves a planner override baked into a `SECURITY DEFINER` function on the authorization path.
 ⛔ Equally not closing it: relaxing P5's `K = 4` on the grounds that P1 turned out to be partly a
 specification artifact. The two conditions are independent and P5 has never been argued from P1.
+
+## ↩ Rotated from deferred-backlog.md 2026-09-03 (ADR 0185 D5 normalization)
+
+_One already-resolved item was found in the parked register while its bullets were converted to
+entries. A resolved item's home is this file; body verbatim, provenance line added._
+
+### ⬛ RESOLVED 2026-07-14 — Action-items case cross-link UI + `visibility_scope` toggle
+
+**Parked:** 2026-08-19 (rotated from PROGRESS.md) · **Rotated here:** 2026-09-03 — resolved item found in `deferred-backlog.md` during the ADR 0185 normalization; nothing left to revisit.
+
+✅ **RESOLVED 2026-07-14 — Action-items case cross-link UI + `visibility_scope` toggle** (was ADR 0050 F1; pulled pre-pilot 2026-07-12 by ADR [0071](../decisions/0071-pre-pilot-release-scope-expansion.md), shipped by the **S2·AI** track, `phase(ai)` `b0387d3`). Delisted here 2026-07-28: this entry had gone **stale**, still asserting "no UI creates a case-linked meeting/manual item — `action-item-form.tsx:102` hard-codes `caseId`". It no longer does — the form carries a create-only `case_id` picker plus a visibility select (hard-guarded so `case_restricted` is selectable only with an effective case), with `VisibilityScopeBadge` in "Meus itens de ação" and a static disclosure on the case-sourced form. Detail → [ai-satellites](ai-satellites.md).

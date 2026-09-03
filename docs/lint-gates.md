@@ -107,3 +107,19 @@
     ⚠ The JSON↔database half is **not** this gate's job: `authz.roles` matching the axes file's
     role list is asserted by **pgTAP 401 §12**, because a Node script cannot reach the DB at lint
     time. Neither half alone closes the loop.
+  - `lint:registers` (`check-docs-registers.mjs` + `build-features-index.mjs --check`) — the
+    **ADR 0185** documentation registers: feature hubs (`docs/features/`), `CURRENT.md`, `BUGS.md`,
+    `LESSONS.md`, postmortems, the follow-up register's **fields**, the handoff convention (24 KB ·
+    live branch · no inbound citations) and `docs/INDEX.md`'s coverage of `docs/`. Added because
+    **every register in this tree that lacked a gate rotted** (ADR 0124 / 0127 / 0140 / 0179 each
+    record one), and 0185 adds five. Its admission rule is the gate's reason to exist: no register
+    or field ships without a check that can red on it; a claim no gate reads is labeled
+    `prose only` where it stands. Self-tests every checker against a bad AND a good fixture on
+    every run — a checker that cannot red aborts (exit 2).
+    ⚠ **THE TRAP: this gate checks PRESENCE and RESOLUTION, not truth.** It knows a
+    `Closes when` exists, not that it is right; that an `Enforced by:` path exists, not that the
+    file asserts the rule it is attached to; that a Current-state block has six sections and a
+    recent `Updated` date, not that it is honest. `PO to rule` is a legal value and is COUNTED as
+    a warning on every run — an invented value is invisible to it. Truth is a review question.
+    ⚠ **`CODE_WATERMARK` (2026-09-04) grandfathers the 72 / 123 legacy id prefixes** — the same
+    shape as `lint:set-local`'s watermark, with the same rule: never bump it to pass.

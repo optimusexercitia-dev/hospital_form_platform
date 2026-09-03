@@ -10,7 +10,11 @@ AE4's branch" is retracted.
 the hole in) · [0178](./0178-ae49-d6-rekey-as-built.md) (the AE4.9 migrations now under the
 sweep) · [0153](./0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)
 (subset runs write to SCRATCH) ·
-[handoff](../handoffs/c2-tier1-neutralizer.md)
+[c2-command-door-findings.md](../reviews/c2-command-door-findings.md) (the sweep's verdicts) ·
+[authz-c2-tier1-sizing.md](../design/authz-c2-tier1-sizing.md) (the worklist's derivation).
+_A link to `docs/handoffs/c2-tier1-neutralizer.md` stood here until 2026-09-03: a handoff may not
+be cited (handoff skill, load-bearing rule; gated by `lint:registers` since ADR 0185) — the durable
+records above are what it described._
 
 ## Context
 

@@ -220,6 +220,9 @@ violated the no-citation rule and must be promoted, not swept:
 grep -rl "$(basename "$f")" --include="*.md" --exclude-dir=node_modules . | grep -v "^./$f$"
 ```
 
-This convention has no gate. Per CLAUDE.md §8, a standing rule without one rots — a
-`scripts/check-handoffs.mjs` wired into `npm run lint` (stale branch · size cap ·
-inbound-citation check) is the durable form, and this skill is the interim.
+**Gated since ADR 0185** — the HANDOFFS arm of `npm run lint:registers`
+(`scripts/check-docs-registers.mjs`, gate 13) reds on: a handoff over **24 KB**; a `branch:`
+that no longer exists (stale — delete or promote); and an **inbound citation** from anywhere
+except a feature hub, `docs/planning/CURRENT.md`, another handoff or a review file. The
+sweep above stays as the manual form for a branch you are about to delete. ⚠ The gate checks
+the three properties, not whether the handoff is *true* — that is the Trust section's job.

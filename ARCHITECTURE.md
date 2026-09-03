@@ -1,5 +1,13 @@
 # ARCHITECTURE.md — Hospital Commission Forms Platform
 
+> **What belongs here (ADR 0185 D8).** This file holds the **binding architecture rules** and the
+> **canonical-schema list** — nothing else. On any fact about the live schema, RLS, functions or
+> grants the **live catalog wins** over this file (`pg_proc` incl. `prosecdef`, `pg_policies`,
+> `pg_trigger`, ACLs — CLAUDE.md § graphify): the schema text here is a summary that has gone
+> stale before (`case_patient`, `commission_members`). Each rule names what **enforces** it or says
+> `prose only`; a rule with no enforcer is a claim, not a guarantee. Detail that is neither a rule
+> nor the canonical list lives in `docs/backend-state.md` or an ADR.
+
 Authoritative architecture rules and the canonical database schema. Referenced
 by `CLAUDE.md` (§3) and loaded alongside it. These rules are binding: Backend
 may extend the schema but never contradict it. Cross-references elsewhere to
@@ -7,7 +15,10 @@ may extend the schema but never contradict it. Cross-references elsewhere to
 
 ## Architecture Rules
 
-1. **RLS is the security boundary.** Every table has Row Level Security enabled —
+1. **RLS is the security boundary.**
+   **Enforced by:** ARM=census, ARM=hat, ARM=floor, ARM=wrapper, ARM=policy, `supabase/tests/382_zero_policy_tables_are_door_only.sql`
+
+   Every table has Row Level Security enabled —
    **165/165, measured 2026-08-17** (DM5·S6). ⚠ This line read *"146/146 as of
    2026-07-27"* until S6 and was **stale by 19 tables**; a count with a date is a
    measurement that expires, so **re-derive it rather than cite it**:
@@ -82,6 +93,8 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    foreign one, or the keystone silently exercises the SELECT policy instead
    (see `docs/progress/authz-handoff.md` §7).
 2. **Schema (canonical — Backend may extend, not contradict):**
+   **Enforced by:** lint:memberships-door
+
    - `profiles(id → auth.users, full_name, is_admin, is_active)` — profiles
      are NEVER deleted (responses reference them); deactivate via `is_active`
    - `commissions(id, name, slug, created_by, created_at, hospital_id, organization_id,`
@@ -367,6 +380,8 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    it together with Rule 1's fourth pattern: **one policy is not thin coverage here**, because
    the byte boundary is the DEFINER door, not the policy.
 3. **Response lifecycle & resume:**
+   **Enforced by:** `supabase/tests/30_submit_response.sql`, `src/lib/queries/conditions.test.ts`
+
    - `unique (form_version_id, created_by) where status = 'in_progress'` —
      one resumable draft per user per version. Wizard navigation upserts the
      section's answers and updates `last_section_id` + `updated_at`.
@@ -399,32 +414,50 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      `pg_prove` globs `*.sql` recursively, so a non-test `.sql` under
      `supabase/tests/` is collected as a suite, finds no plan, and **fails the whole
      `npm run test:db` run**.
-4. **Sign-offs:** a sign-off row records who/when per (response, section).
+4. **Sign-offs.**
+   **Enforced by:** `supabase/tests/10_immutability.sql`
+
+   A sign-off row records who/when per (response, section).
    `signoff_role` governs who may sign: `respondent` (the response's
    `created_by` confirms the section) or `staff_admin` (any staff_admin of the
    commission counter-signs). RLS enforces the signer rule; signing is only
    possible while the response is `in_progress` and the section is visible.
-5. **Immutability of published versions** is enforced in the database
+5. **Immutability of published versions.**
+   **Enforced by:** `supabase/tests/10_immutability.sql`
+
+   Enforced in the database
    (trigger or RLS policy) on `form_versions`, their `form_sections`, AND
    their `form_items`, not only in the UI. Version cloning copies sections
    (with conditions and sign-off settings) and items, remapping ids;
    `visible_when` references `question_key` (not item id) precisely so
    conditions survive cloning unchanged.
-6. **Storage immutability**: form images live in a Supabase Storage bucket
+6. **Storage immutability.**
+   **Enforced by:** `e2e/phase4-builder.spec.ts`
+
+   Form images live in a Supabase Storage bucket
    (`form-assets/{commission_id}/...`) with policies mirroring commission
    access (members read, staff_admin upload). Uploaded objects are NEVER
    overwritten — every upload gets a new path (content hash or timestamp in
    the filename). Version cloning copies the `storage_path` reference only.
    This is what keeps published versions truly immutable; violating it is a
    phase-blocking bug. Orphaned files are tolerated (no GC in v1).
-7. **Explanatory text is Markdown, never raw HTML** (`section_text` content
+7. **Explanatory text is Markdown, never raw HTML.**
+   **Enforced by:** `src/lib/markdown/sanitize-print-narrowing.test.tsx`
+
+   (`section_text` content
    and any rich `question_explanation` rendering), rendered through a
    sanitizing renderer. Staff_admin-authored HTML reaching other users'
    browsers is a stored-XSS vector and must not happen.
-8. **Generated types**: after every migration, Backend runs
+8. **Generated types.**
+   **Enforced by:** prose only
+
+   After every migration, Backend runs
    `supabase gen types typescript --local > src/lib/types/database.ts`.
    Frontend imports types only from `src/lib/types/`.
-9. **Data access goes through `src/lib/queries/`.** Frontend components never
+9. **Data access goes through `src/lib/queries/`.**
+   **Enforced by:** prose only
+
+   Frontend components never
    write raw supabase-js queries inline; they call typed functions. This keeps
    the Frontend/Backend ownership boundary clean. Two recurring bug classes to
    centralize in single helpers: "answerable questions of a version" (filter
@@ -475,10 +508,16 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    right to red the module. Naming it is the fix; the practice was never the defect.
    Deliberately stated without line numbers: the review that raised it cited
    `:110/:159/:204/:305/:310`, which had already drifted to ~`:130/:199/:253/:374`.
-10. All user-facing text in **Brazilian Portuguese (pt-BR)**; code, comments,
+10. **User-facing text is pt-BR; code and docs are English.**
+    **Enforced by:** prose only
+
+    All user-facing text in **Brazilian Portuguese (pt-BR)**; code, comments,
     commits, and docs in English. Keep strings centralized enough that i18n
     could be added later without a rewrite.
-11. **Auditability** (established in Phase 13; see ADR 0028). Once the
+11. **Auditability.**
+    **Enforced by:** `supabase/tests/130_audit.sql`, `supabase/tests/185_audit_4tier.sql`
+
+    (Established in Phase 13; see ADR 0028.) Once the
     `audit_trail` feature lands, the platform keeps an **append-only,
     tamper-evident** `audit_log`: every state-changing operation (RPC or
     direct-table write) emits exactly one audit row attributing the actor, the
@@ -497,7 +536,10 @@ may extend the schema but never contradict it. Cross-references elsewhere to
     all; staff_admin: own commission; staff/anon: none). New cross-cutting features
     add their high-value tables to the instrumented set as they land.
 
-12. **PHI / HIPAA handling** (established in Phase 14; hardened in the 2026-06
+12. **PHI / HIPAA handling.**
+    **Enforced by:** ARM=census, `supabase/tests/140_patient_safety.sql`, `supabase/tests/150_referrals.sql`, `supabase/tests/151_case_patient.sql`, `supabase/tests/152_patient_index.sql`
+
+    (Established in Phase 14; hardened in the 2026-06
     PHI-readiness remediation; extended to a second PHI-bearing module in Phase 22
     and a third — case patient identifiers — in the Cases module — see ADR 0030,
     0035, 0036, 0037, 0038). PHI is permitted on
@@ -665,6 +707,8 @@ may extend the schema but never contradict it. Cross-references elsewhere to
       Supabase BAA, a HIPAA-eligible project tier, and a breach-response posture.
     Modules that don't need patient identity hold none by design.
 13. **Affiliations are visibility and lifecycle inputs — they NEVER grant capabilities.**
+    **Enforced by:** `supabase/tests/392_ae23a_widening_differential.sql`
+
     (Established in AE2; ADR 0155 D3, ADR [0163](./docs/decisions/0163-offboarded-person-lifecycle-authority.md).)
 
     > **Affiliations (`hospital_affiliations`, `organization_affiliations`) are visibility and
