@@ -39,7 +39,8 @@ all green against a schema that no longer exists.
 The plan's rule 8 fixes the push order (*"schema first, then code"* — the AFF4 Record step
 recorded a violation of exactly this). The window is between 2c and 2e.
 
-1. **Announce the window.** Note it in PROGRESS.md § Now while it is open.
+1. **Announce the window.** Note it in the active unit's hub (`## Current state`,
+   [docs/features/INDEX.md](../features/INDEX.md)) while it is open.
 2. **Stop the app** in Coolify (scale to zero / stop the container). ⛔ Not "put up a banner" —
    a running instance keeps issuing the broken queries and each one is a user-visible 500.
 3. **Take the pre-migration snapshot** (§ 4.1). This is the rollback artifact, and it is taken

@@ -39,7 +39,7 @@ If a `CONTEXT-MAP.md` exists at the root, the repo has multiple contexts. The ma
 
 Create files lazily — only when you have something to write. If no `CONTEXT.md` exists, create one when the first term is resolved.
 
-⛔ **This repo already has its ADR log at `docs/decisions/` (136 files) — never create `docs/adr/`.** The tree above is a generic illustration; see [ADR-FORMAT.md](./ADR-FORMAT.md) for the binding local rules (numbering comes from `docs/decisions/INDEX.md`, and `npm run adr:index` must be run after writing one).
+⛔ **This repo already has its ADR log at `docs/decisions/` (136 files) — never create `docs/adr/`.** The tree above is a generic illustration; see [ADR-FORMAT.md](./ADR-FORMAT.md) for the binding local rules (numbering is per CLAUDE.md §8 — the highest number on ANY live branch + 1, never the index's next-free alone; gate 9 catches a duplicate at rebase — and `npm run adr:index` must be run after writing one).
 
 ## During the session
 

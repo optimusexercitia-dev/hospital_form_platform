@@ -17,7 +17,7 @@ measurements that changed the plan mid-flight, and **the three PO lists** the mi
   "FUP resolved".
 - **ADR number collision, as predicted by the ADR's own header.** AE4 filed its own `0183`
   (P2 invocation-count re-specification) and a `0184`. This branch's 0183 renumbers at rebase.
-- **A false claim of mine, corrected in place** (commit `2c078f74`): the handoff skill does not
+- **A false claim of mine, corrected in place** (commit `88c70964`): the handoff skill does not
   "cite a gate that does not exist"; it says its convention has no gate and names the durable
   form. The paraphrase came from a survey fact sheet and was written into the ADR unread.
 

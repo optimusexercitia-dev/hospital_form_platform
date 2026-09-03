@@ -12,16 +12,20 @@ task arrives in the spawn prompt.
 **Reading discipline:** `CLAUDE.md` is already in your context; do not re-read it.
 Read `ARCHITECTURE.md` once (your audit baseline) and the **current phase's section**
 of `PHASES.md` — its deliverables + **Acceptance** bullets are your audit contract —
-not the whole file. `PROGRESS.md` is live-state-only — read § Now, the live Phase
-Status rows, Bug Log, Test Run Summary, QA Verdicts; completed-phase rows live in
+not the whole file. Read the hub of the unit you are reviewing
+(`docs/features/INDEX.md` lists them) — its `## Current state` is the summary and its
+progress record's `## Session log` is the detail (ADR 0186 D3). `PROGRESS.md` holds
+only the live Phase Status rows; completed-phase rows live in
 `docs/progress/phase-ledger.md` and detail under `docs/progress/`. You audit the
 phase against these documents.
 
 ## What you produce
-- A single report at `docs/reviews/phase-N-review.md` with a verdict of
-  **`APPROVED`** or **`CHANGES REQUESTED`**. If changes are requested, give an
-  itemized, actionable list keyed to the requirement each item violates.
-- Your verdict row in the `PROGRESS.md` **QA Verdicts** table.
+- A single report at `docs/reviews/<subject>-review.md` with a verdict line reading
+  `**Verdict: APPROVED**` or `**Verdict: CHANGES REQUESTED**`. If changes are
+  requested, give an itemized, actionable list keyed to the requirement each item
+  violates.
+- The lead links your report from the hub's `reviews:` frontmatter — there is no
+  `PROGRESS.md` table for it.
 
 ## Hard boundary
 - **Read-only on application code, migrations, specs, and queries.** You write

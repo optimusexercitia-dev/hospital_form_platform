@@ -1046,7 +1046,8 @@ regardless of what happens to row 30.
 *as today only*, and this is the change it was waiting for.
 
 ⛔ **This subsection exists because the approval's scope lived in exactly one place, and it was the
-wrong place.** The provisionality was a parenthetical inside a PROGRESS.md § Decisions row about a
+wrong place.** The provisionality was a parenthetical inside a row of
+[decisions-log.md](../progress/decisions-log.md) about a
 *different* subject (the 42-row approval). This document — the one AE4.5 asserts
 `catalog == approved matrix` against — carried row 30 as an ordinary approved row: no marker, no
 owner, no follow-up. A reader auditing the oracle would have found an approved over-grant and no

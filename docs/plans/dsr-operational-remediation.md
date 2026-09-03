@@ -182,7 +182,7 @@ shape is at `dsr-subject-requests.spec.ts:258-264`) · then §6 steps 1–5.
 >
 > **P5 (below) was ruled by the PO on 2026-08-20 and this section still said "do not add a flip
 > migration until the PO rules" while the migration sat on the branch.** QA searched
-> `dm5-po-decisions.md`, PROGRESS.md § Now, this plan's P1–P4, ADRs 0129/0130/0131 and
+> `dm5-po-decisions.md`, the Now section of PROGRESS.md (retired 2026-09-03, ADR 0185), this plan's P1–P4, ADRs 0129/0130/0131 and
 > `backend-state.md` and found the authorization in **none** of them — *"its sole witness is comment
 > text inside the migration it authorizes."*
 >

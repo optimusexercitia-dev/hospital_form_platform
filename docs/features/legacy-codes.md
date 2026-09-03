@@ -33,9 +33,9 @@ Rows are ordered by measured BUG-/FUP- id frequency under `docs/progress/`, most
 | DM2 | Document Model Redesign — orchestration + Wave A | [dm2-orchestration-wave-a.md](../progress/dm2-orchestration-wave-a.md) |
 | DM4 | Document Model Redesign — Wave C: referrals | [dm4-referrals.md](../progress/dm4-referrals.md) |
 | DM1 | Document Model Redesign — substrate cutover | [dm1-substrate-cutover.md](../progress/dm1-substrate-cutover.md) |
-| E2EISO | E2E test isolation (teardown/`purge()` cross-contamination between specs) | bug-log-archive.md § `BUG-E2EISO-002` |
+| E2EISO | E2E test isolation (teardown/`purge()` cross-contamination between specs) | [archive.md](../bugs/archive.md) § `BUG-E2EISO-002` |
 | P22 | Phase 22 — Inter-Committee Case Referrals | PHASES.md; [0037-inter-committee-case-referrals.md](../decisions/0037-inter-committee-case-referrals.md) |
 | AE1 | Authz-evolution Phase AE1 — integrity and privilege hardening | [authz-ae1.md](../progress/authz-ae1.md) (ADR 0155 D9) |
 | AFF4 | Organization affiliation, per-hospital staff data | [aff4.md](../progress/aff4.md) |
 | BOOTSTRAP | The manual first-`platform_admin` bootstrap procedure (no in-app path) | coolify.md § 2.5 (`docs/deployment/coolify.md`) |
-| ENV | Developer environment and toolchain — nvm/Node pin, `python3`, worktrees, stale branches (added 2026-09-03 when § Now's environment bullets became register entries) | [worktrees.md](../worktrees.md); [lint-gates.md](../lint-gates.md) |
+| ENV | Developer environment and toolchain — nvm/Node pin, `python3`, worktrees, stale branches (added 2026-09-03 when the retired Now section's environment bullets became register entries) | [worktrees.md](../worktrees.md); [lint-gates.md](../lint-gates.md) |

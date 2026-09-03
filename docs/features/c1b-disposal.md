@@ -26,7 +26,7 @@ Full ruling: `FUP-DM5-DISPOSAL-JOB` / Critical FUP C1 (docs/followups/follow-ups
       pilot (docs/followups/follow-ups-open.md `FUP-DM5-DISPOSAL-JOB`, PO ruling 2026-08-18)
 - [ ] "The pilot-risk acceptance is bounded by C1b" — not yet run; "C1b (Cloud) NOT discharged —
       the byte proof is local-only by construction; column PHI is a different procedure"
-      (docs/followups/follow-ups-open.md; PROGRESS.md § Now)
+      (docs/followups/follow-ups-open.md; docs/progress/2026-Q3.md)
 
 ## Current state
 
@@ -41,7 +41,7 @@ bounding Critical FUP C1 (PO ruling 2026-08-18).
 ### Done since start
 
 - C1a (local) DISCHARGED 2026-08-31: §3 steps A–D ran end-to-end twice (`standard` + `phi` tier)
-  via the `subject_request` lane; byte proof earned (−168 B per run) (PROGRESS.md § Now).
+  via the `subject_request` lane; byte proof earned (−168 B per run) (docs/progress/2026-Q3.md).
 - Backup half (§6b) executed once locally, 2026-08-19; six findings (F1–F6) folded back into the
   runbook, including F5 (below).
 

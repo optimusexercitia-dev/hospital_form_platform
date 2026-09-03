@@ -45,7 +45,13 @@
  *   LINKS     relative links in every file this gate owns resolve.
  *   INDEX     docs/INDEX.md names every top-level entry of docs/ — a new directory cannot
  *             go unmapped.
+ *   RETIRED   (ADR 0186 D8) any citation of a PROGRESS.md section retired by ADR 0185 D6
+ *             (§ Now / Bug Log / Critical FUP / Test Run Summary / QA Verdicts / Decisions /
+ *             Follow-ups) in a living Markdown file — archives, ADRs, reviews and
+ *             docs/design/temp excluded, plus CLAUDE.md until ADR 0186 Wave 4. Code spans and
+ *             fenced blocks are blanked first so a quotation is not read as a citation.
  *
+
  * BOUNDED, STATED: this gate checks PRESENCE and RESOLUTION. It cannot know whether a
  * `Closes when` is true, whether an Enforced-by token actually asserts the rule it is
  * attached to, or whether a Current-state block is honest. Those are review questions.
@@ -113,6 +119,24 @@ export const POSTMORTEM_SECTIONS = [
   'Applies to',
 ]
 export const HANDOFF_CITATION_ALLOWED = ['docs/features/', 'docs/planning/', 'docs/handoffs/', 'docs/reviews/']
+
+// ─── RETIRED (ADR 0186 D8): a PROGRESS.md section ADR 0185 D6 retired, cited in living prose ──
+/**
+ * A citation, not a mention: `PROGRESS.md § Now` (any wording of the PROGRESS.md prefix, or
+ * bare `§ Now` — the section name alone is unambiguous) for the five sections ADR 0185 D6 moved
+ * out of PROGRESS.md wholesale, but only the PREFIXED form for § Decisions / § Follow-ups — a
+ * bare `§ Decisions` is ambiguous (plenty of other documents number a "§ Decisions").
+ */
+export const RETIRED_SECTION_RX =
+  /(?:PROGRESS\.md(?:'s)? (?:former )?)?§ (?:Now|Bug Log|Critical FUP|Test Run Summary|QA Verdicts)\b|PROGRESS\.md § (?:Decisions|Follow-ups)\b/
+
+/** Historical/decision path prefixes excluded from the RETIRED domain: records OF the retirement or of prior states, never living procedure text. */
+export const RETIRED_EXCLUDE_PATH_PREFIXES = ['docs/progress/', 'docs/decisions/', 'docs/reviews/', 'docs/design/temp/']
+/** Individual historical files excluded from the RETIRED domain for the same reason as the prefixes above. */
+export const RETIRED_EXCLUDE_PATHS = new Set(['docs/bugs/archive.md', 'docs/followups/follow-ups-archive.md', '.claude/claude-md-review-queue.md'])
+// CLAUDE.md joins this arm's domain in Wave 4 of ADR 0186 — its two citations may only be removed
+// by the PO-approved diff (CLAUDE.md §5 "always ask"). One named constant so Wave 4 deletes one line.
+export const RETIRED_EXCLUDE_CLAUDE_MD = 'CLAUDE.md'
 
 const DATE_RX = /^\d{4}-\d{2}-\d{2}$/
 const ID_RX = /^[A-Z0-9][A-Z0-9-]*$/
@@ -599,6 +623,38 @@ export function checkDocsIndex(indexText, docsEntries) {
   return F
 }
 
+/** Is a repo-relative path (forward slashes) in the RETIRED arm's domain? */
+export function inRetiredDomain(file) {
+  if (file === RETIRED_EXCLUDE_CLAUDE_MD) return false
+  if (RETIRED_EXCLUDE_PATHS.has(file)) return false
+  return !RETIRED_EXCLUDE_PATH_PREFIXES.some((p) => file.startsWith(p))
+}
+
+/**
+ * Replace fenced code blocks and inline code spans with spaces of equal length (newlines kept),
+ * so a quotation of retired-section text inside code is not read as a citation, while every
+ * finding still lands on its true line number.
+ */
+export function blankCode(text) {
+  const noFences = text.replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ' '))
+  return noFences.replace(/(`+)([^`\n]*?)\1/g, (m) => ' '.repeat(m.length))
+}
+
+export function checkRetired(file, text) {
+  const F = []
+  const lines = blankCode(text).split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const m = RETIRED_SECTION_RX.exec(lines[i])
+    if (m) {
+      F.push(
+        `[RETIRED] ${file}:${i + 1} — cites a PROGRESS.md section retired by ADR 0185 D6 ("§ Now"); ` +
+          `point at the hub, the register, or the docs/progress archive instead (matched \`${m[0]}\`)`,
+      )
+    }
+  }
+  return F
+}
+
 // ─── filesystem / git context ────────────────────────────────────────────────────────────
 
 function read(rel) {
@@ -835,6 +891,23 @@ function selfTest() {
   must('parseTable header absent', [parseTable(twoTables, /^\|\s*Nope\s*\|/) === null ? '' : 'x'].filter(Boolean), false)
   must('hubSlug', [hubSlug('C2-TIER1') === 'c2-tier1' && hubSlug('AE4') === 'ae4' ? '' : 'x'].filter(Boolean), false)
 
+  // RETIRED — a citation must red; the same text quoted (code span or fence) must not.
+  must('RETIRED bare § Now reds', checkRetired('x.md', 'See § Now for details.\n'), true)
+  must('RETIRED prefixed § Now reds', checkRetired('x.md', 'PROGRESS.md § Now used to hold this.\n'), true)
+  must('RETIRED code span is a mention, not a citation', checkRetired('x.md', 'See `§ Now` for details.\n'), false)
+  must('RETIRED fenced block is a mention, not a citation', checkRetired('x.md', 'text\n```\n§ Now\n```\nmore\n'), false)
+  must('RETIRED prefixed § Decisions reds', checkRetired('x.md', 'See PROGRESS.md § Decisions for rules.\n'), true)
+  must('RETIRED bare § Decisions does not red (ambiguous)', checkRetired('x.md', 'See § Decisions for rules.\n'), false)
+  must('RETIRED bare § Follow-ups does not red (ambiguous)', checkRetired('x.md', 'See § Follow-ups for rules.\n'), false)
+  must('RETIRED line number survives blanking', [checkRetired('x.md', '`x`\n`y`\n§ Now\n')[0]?.startsWith('[RETIRED] x.md:3') ? '' : 'x'].filter(Boolean), false)
+  must('inRetiredDomain excludes CLAUDE.md', [inRetiredDomain(RETIRED_EXCLUDE_CLAUDE_MD) ? 'x' : ''].filter(Boolean), false)
+  must('inRetiredDomain excludes docs/decisions', [inRetiredDomain('docs/decisions/0001-x.md') ? 'x' : ''].filter(Boolean), false)
+  must('inRetiredDomain excludes docs/progress', [inRetiredDomain('docs/progress/2026-Q3.md') ? 'x' : ''].filter(Boolean), false)
+  must('inRetiredDomain excludes docs/reviews', [inRetiredDomain('docs/reviews/phase-9-review.md') ? 'x' : ''].filter(Boolean), false)
+  must('inRetiredDomain excludes docs/design/temp', [inRetiredDomain('docs/design/temp/x.md') ? 'x' : ''].filter(Boolean), false)
+  must('inRetiredDomain excludes named historical files', [inRetiredDomain('docs/bugs/archive.md') || inRetiredDomain('docs/followups/follow-ups-archive.md') || inRetiredDomain('.claude/claude-md-review-queue.md') ? 'x' : ''].filter(Boolean), false)
+  must('inRetiredDomain includes a living hub', [inRetiredDomain('docs/features/x1.md') ? '' : 'x'].filter(Boolean), false)
+
   if (fails.length) {
     console.error('check-docs-registers: SELF-TEST FAILED — a checker that cannot red is not a gate:')
     for (const f of fails) console.error('  ' + f)
@@ -854,6 +927,7 @@ function main() {
   const ctx = buildCtx()
   const F = []
   const W = []
+  const allMd = walkMd('.')
 
   // HUBS + CURRENT + CODES
   const hubs = listHubs()
@@ -907,7 +981,6 @@ function main() {
           return { name: f, bytes: statSync(join(ROOT, rel)).size, fm: parseFrontmatter(read(rel)).fm }
         })
     : []
-  const allMd = walkMd('.')
   const citations = []
   for (const h of hoFiles) {
     for (const f of allMd) {
@@ -934,13 +1007,24 @@ function main() {
   // INDEX
   F.push(...checkDocsIndex(read(PATHS.docsIndex), readdirSync(join(ROOT, 'docs')).sort()))
 
+  // RETIRED (ADR 0186 D8): citations of a PROGRESS.md section ADR 0185 D6 retired, in any
+  // living Markdown file. Domain = every *.md `walkMd` finds, minus the historical/decision
+  // paths and CLAUDE.md (see RETIRED_EXCLUDE_* above).
+  const retiredFiles = allMd.filter(inRetiredDomain)
+  for (const f of retiredFiles) {
+    const t = read(f)
+    if (t != null) F.push(...checkRetired(f, t))
+  }
+
   for (const w of W) console.log('check-docs-registers: WARN ' + w)
   if (F.length) {
     console.error(`check-docs-registers: ${F.length} finding(s)`)
     for (const f of F) console.error('  ' + f)
     process.exit(1)
   }
-  console.log(`check-docs-registers: OK (self-test + ${hubs.length} hubs, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${les.ids.size} lessons, ${hoFiles.length} handoffs)`)
+  console.log(
+    `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${les.ids.size} lessons, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
+  )
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) main()

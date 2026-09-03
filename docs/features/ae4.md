@@ -34,11 +34,11 @@ open:
 - [ ] "the C2 subset closed (pilot cutline)" — still open: the full sweep ran (171/171 enforcers:
       COVERED 109 · BLIND 40 · ERROR 22) but "C2 IS NOT CLOSED" — three uncovered populations
       named (Tier 2's 190 doors; the `HCDS*`/`28000` family structurally absent from the worklist;
-      ~10 ERROR enforcers with no verdict) (PROGRESS.md § Now; ADR 0184 point 4)
+      ~10 ERROR enforcers with no verdict) (docs/progress/2026-Q3.md; ADR 0184 point 4)
 - [ ] "the grant-deletion mutation flips the production door for each of the three
       representatives" — `commission.forms.edit` still re-keyed at only 4 of the 7 policy sites
       the PO-approved matrix names; `BUG-AE49-D6-REKEY-INCOMPLETE` remains OPEN
-      (PROGRESS.md § Bug Log)
+      (docs/bugs/BUGS.md)
 - [ ] "full §6 + e2e:prod" — no further `e2e:prod` run since the single 2026-09-02 run; still owed
       at Gate AE4 (QA review MAJOR-3, unaddressed) (docs/reviews/authz-ae4-if9-statement-scoped-review.md
       §7 MAJOR-3)
@@ -46,7 +46,7 @@ open:
       unaddressed (F-BLOCK-1/2/3, F-MAJOR-1) (docs/reviews/authz-ae4-gate-review.md); the narrower
       IA-F9 statement-scoped review's CHANGES REQUESTED findings were corrected and
       measurement-re-verified (§15) but a **formal QA re-review is still owed**
-      (docs/reviews/authz-ae4-if9-statement-scoped-review.md; PROGRESS.md § QA Verdicts,
+      (docs/reviews/authz-ae4-if9-statement-scoped-review.md; docs/progress/qa-verdicts-archive.md,
       2026-09-03 row)
 - [ ] "PO approval = the pilot-gate authz milestone" — not yet sought
       (docs/plans/authz-evolution.md:1068)
@@ -109,5 +109,3 @@ ADR 0176 D6). Full narrative: [state snapshot](../progress/authz-ae4.md) (re-hom
 - ✅ **RESOLVED 2026-09-03** (was an open ⚠ UNVERIFIED caution here): the `scope_reaches` fix
   (ADR 0180) landed and IA-F9 runs 6 + 7 confirm **ACCEPTANCE MET** — verified against the current
   working tree, not commit subjects alone.
-- `main` HOLD stands — no merge/push until Gate AE4's PO approval (schema-first rule armed, not
-  yet fired).

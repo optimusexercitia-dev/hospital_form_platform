@@ -6,10 +6,8 @@
 > the generic guidance in the rest of this file.
 >
 > - **File name:** `docs/decisions/NNNN-kebab-slug.md`.
-> - **Number:** take the *next free number* from
->   [`docs/decisions/INDEX.md`](../../../docs/decisions/INDEX.md) — never by eyeballing
->   the directory listing. Two sessions eyeballing it on 2026-07-02 both filed an
->   "ADR 0050"; the collision went unnoticed for seven weeks.
+> - **Number:** per CLAUDE.md §8 — the highest number on ANY live branch + 1, never
+>   the index's next-free alone; gate 9 catches a duplicate at rebase.
 > - **Header block** (between the `# ADR NNNN — Title` H1 and the first `##`) is parsed
 >   by `scripts/build-adr-index.mjs`. Give it `**Status:**` and `**Date:**`, and — if the
 >   decision changes an earlier ADR — a `**Supersedes:**` or `**Amends:**` label naming

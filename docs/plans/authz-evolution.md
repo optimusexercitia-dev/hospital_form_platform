@@ -1,7 +1,7 @@
 # Authorization Evolution — execution plan (ADR 0155)
 
 - **Written:** 2026-08-26, at ADR 0155's acceptance. **Nothing in this plan is building**;
-  live state is PROGRESS.md § Now, never this file.
+  live state is each unit's hub, listed in [docs/features/INDEX.md](../features/INDEX.md), never this file.
 - **Amended:** 2026-08-27 — the [plan audit](../reviews/authz-evolution-plan-audit-2026-08-27.md)
   (CHANGES REQUESTED, findings F1–F18) was PO-ruled and folded in; ADR
   [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) carries the three 0155
@@ -104,7 +104,7 @@ sections only add what is specific.
    `docs/decisions/INDEX.md`, never by eyeballing.
 7. **Shared local stack has one owner at a time.** A `db reset` lands silently in another
    session's evidence; Playwright's webServer holds DB connections and half-applies resets.
-   Announce resets in PROGRESS.md § Now while a phase is in test.
+   Announce resets in the active unit's hub (`## Current state`, [docs/features/INDEX.md](../features/INDEX.md)) while a phase is in test.
 8. **Migrations:** no top-level `SET LOCAL` (use one `do $$` block; `lint:set-local`'s watermark
    is never bumped to pass). Data-dependent backfills match zero rows on a fresh local reset by
    design — that is not evidence they work; the remote push is where they do their real work, and
@@ -830,7 +830,8 @@ in this plan needs the same check before AE4.5 enumerates it. Matrix
 - **Performance evidence [PA-F6]:** AE0.2's seed-sized, statistics-free baselines cannot see
   this regression class. Before cutover: a **scaled, ANALYZEd fixture** (realistic
   membership / permission / resource cardinalities) with its **own** baseline — ⛔ never
-  `ANALYZE` the AE0 comparison DB (the standing AE0 residue in § Now) — capturing **nested
+  `ANALYZE` the AE0 comparison DB (the standing AE0 residue, recorded in
+  [authz-ae0.md](../progress/authz-ae0.md)) — capturing **nested
   plans** for the protected query bodies, not only the outer RPC (AE0 §H: DEFINER paths show
   only an outer Function Scan otherwise), comparing loops / buffers / rows-removed / plan
   shape, with explicit per-hot-path regression thresholds. The wrappers keep their current
@@ -1193,7 +1194,8 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 ## Risks, named
 
 - **C1a aging (G10):** every AE Record step re-checks that C1a/C1b still head the ▶ queue and
-  says so in § Now. This plan's existence must not be the reason the disposal rehearsal slips.
+  says so in the pinned ⭐⭐ Critical list (`docs/followups/follow-ups-open.md`, C1's row). This
+  plan's existence must not be the reason the disposal rehearsal slips.
 - **Pilot boundary drift:** G2's single-shot authorizations (AE3, and AE2.4's demote-then-drop)
   are premised on no real data; the premise is re-measured (never quoted) at each branch-cut.
 - **Two evaluators by accident:** the only sanctioned mixed states are per-role

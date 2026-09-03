@@ -9,8 +9,8 @@
 > follow-ups, the ⭐⭐ Critical list included → [docs/followups/follow-ups-open.md](docs/followups/follow-ups-open.md) ·
 > decisions → [docs/decisions/INDEX.md](docs/decisions/INDEX.md) · gate results and QA verdicts → the
 > owning hub and its review file. **A retired section that comes back reds `npm run lint:progress`.**
-> What § Now, § Bug Log, § Critical FUP, § Decisions, § Test Run Summary and § QA Verdicts said on the
-> day they were cut is preserved verbatim in the `docs/progress/` archives (2026-09-03).
+> What the retired sections said on the day they were cut is preserved verbatim in the
+> `docs/progress/` archives (2026-09-03).
 >
 > **The contract lives elsewhere, deliberately** — judgment in
 > [progress-contract.md](.claude/rules/progress-contract.md), mechanics in

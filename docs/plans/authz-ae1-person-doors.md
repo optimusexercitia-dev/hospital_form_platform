@@ -1151,7 +1151,8 @@ populated, which is worse for a reader than uniformly null: a query filtering on
 miss everything else.
 
 ⛔ **But "say it out loud in the gate record" is not sufficient** — that is exactly the class of
-obligation AFF4 left unfiled (§ Now residue (2), ~16 of them). **File a `FUP-*` index line with a
+obligation AFF4 left unfiled (tracked as `FUP-AFF4-RESIDUE-UNFILED` in
+`docs/followups/follow-ups-open.md`, ~16 of them). **File a `FUP-*` index line with a
 body** for the platform-wide `actor_id` gap, naming these conversions as new instances. An
 obligation with no register line is invisible work.
 

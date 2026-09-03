@@ -30,8 +30,8 @@
     control: the script header and `FUP-DM5-SETLOCAL-MIGRATION`.
   - `lint:progress` (`check-progress-doc.mjs`) — the PROGRESS.md live-state contract (§7): size
     (**20 KB target / 30 KB hard since ADR 0185 D6**; 80 / 100 before), the two required sections
-    (§ Phase Status, § State) present and the **seven retired sections absent** (§ Now, § Bug Log,
-    § Critical FUP, § Follow-ups, § Decisions, § Test Run Summary, § QA Verdicts — the first heading
+    (§ Phase Status, § State) present and the **seven retired sections absent** (`§ Now`, `§ Bug Log`,
+    `§ Critical FUP`, `§ Follow-ups`, `§ Decisions`, `§ Test Run Summary`, `§ QA Verdicts` — the first heading
     back reds, because a cut section regrows one line at a time), no completed phase rows, link
     integrity, LF — plus, since ADR 0140: **CLAUDE.md's 40 KB cap** (never raised to pass; rotate
     content out instead) and a **registry-free link sweep of all `docs/progress/`, `docs/followups/`
@@ -40,8 +40,8 @@
     carries everything — so it asserts: (a) no RESOLVED entry left in the register, (b) no duplicate
     id within it, (c) no id held by both the register and `follow-ups-archive.md`, (d) a **warning**
     when an id is in both the register and `deferred-backlog.md`. ⛔ Two checks were **retired with
-    their subjects** by ADR 0185 rather than kept: "§ Follow-ups must not re-grow an index" and "a
-    § Critical FUP row must have a register entry" — both sections are now forbidden in PROGRESS.md,
+    their subjects** by ADR 0185 rather than kept: "`§ Follow-ups` must not re-grow an index" and "a
+    `§ Critical FUP` row must have a register entry" — both sections are now forbidden in PROGRESS.md,
     so kept they would pass VACUOUSLY; the Critical orphan check lives in `lint:registers` against
     the pin at the top of the register. The FIELDS on an entry (Filed · Owner · Severity · Closes
     when) are `lint:registers`' job, not this gate's. Every prior version of the contract lived in
@@ -129,3 +129,18 @@
     a warning on every run — an invented value is invisible to it. Truth is a review question.
     ⚠ **`CODE_WATERMARK` (2026-09-04) grandfathers the 72 / 123 legacy id prefixes** — the same
     shape as `lint:set-local`'s watermark, with the same rule: never bump it to pass.
+  - `lint:registers`' **RETIRED** arm (ADR 0186 D8) — a citation of a PROGRESS.md section ADR
+    0185 D6 retired, left standing in a living Markdown file. Added because the day after 0185
+    shipped, 36 living files still cited a retired section — three of the four live hubs
+    included — and nothing could contradict a stale pointer once written. ⚠ **THE TRAP: a
+    quotation is not a citation.** `§ Now` inside a fenced block or an inline code span is
+    someone showing the old heading text, not telling a reader to go there, so the arm blanks
+    both (spaces of equal length, so line numbers still land true) before matching — a naive
+    grep over the raw text would red on every example in this very file. ⚠ **CLAUDE.md is
+    excluded from the domain until ADR 0186 Wave 4**, when its two citations are removed by a
+    PO-approved diff (CLAUDE.md §5 "always ask") rather than by this gate. To fix a finding,
+    point at where the content actually lives now: the unit's hub for live state, the retired
+    `§ Now` prose in `docs/progress/2026-Q3.md`, bugs in `docs/bugs/BUGS.md`, the pinned Critical
+    list in `docs/followups/follow-ups-open.md`, decisions in `docs/decisions/INDEX.md`, and
+    test-run / QA-verdict history in `docs/progress/test-run-archive.md` /
+    `docs/progress/qa-verdicts-archive.md`.

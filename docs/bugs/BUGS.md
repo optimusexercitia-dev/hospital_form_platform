@@ -3,9 +3,8 @@
 The **only** bug register (ADR 0185 D3): one row per bug; **status is a
 column, not a section** (edit `Status`, never cut/paste the row — the
 open→closed rotation this replaces was chronically skipped). Historical
-bodies (repro/root-cause/fix, ~152 pre-D3 bugs) stay in
-[docs/progress/bug-log-archive.md](archive.md) — moves to
-`docs/bugs/archive.md` in a later step; link the current path till then.
+bodies (repro/root-cause/fix, ~152 pre-D3 bugs) live in
+[docs/bugs/archive.md](archive.md).
 
 **Status:** `open` · `fixed` · `verified` · `wontfix` · `duplicate` ·
 `untriaged`. **Severity** (D4 — what the bug blocks), + `unrated` where the

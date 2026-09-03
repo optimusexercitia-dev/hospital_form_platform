@@ -11,7 +11,7 @@ related_adrs: [0137]
 
 ## Symptom
 
-_Verbatim from PROGRESS.md § Bug Log (filed 2026-08-23):_
+_Verbatim from the Bug Log section of PROGRESS.md (retired 2026-09-03, ADR 0185), filed 2026-08-23:_
 
 🔴 **BUG-CASEEVT-KIND-001 — a case writer can DELETE, or silently RE-KIND, a procedural `case_events`
 row: the UPDATE/DELETE policies carry no `kind` gate.** Filed 2026-08-23 (lead). Surfaced by ADR 0137

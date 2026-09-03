@@ -11,7 +11,7 @@ related_adrs: []
 
 ## Symptom
 
-_Verbatim from PROGRESS.md § Bug Log (filed 2026-09-02):_
+_Verbatim from the Bug Log section of PROGRESS.md (retired 2026-09-03, ADR 0185), filed 2026-09-02:_
 
 🔴 **BUG-AE49-D6-REKEY-INCOMPLETE — `commission.forms.edit` is re-keyed at 4 of the 7 policy sites
 its PO-approved matrix names, and NOTHING REDS.** Filed 2026-09-02 (lead, from Gate AE4 QA

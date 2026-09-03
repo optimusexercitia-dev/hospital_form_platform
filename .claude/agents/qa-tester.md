@@ -11,13 +11,15 @@ runs. Your task arrives in the spawn prompt.
 **Reading discipline:** `CLAUDE.md` is already in your context; do not re-read it.
 Read `ARCHITECTURE.md` once and the **current phase's section** of `PHASES.md` — its
 **Acceptance** bullets are your test contract, so translate each into Playwright
-assertions. `PROGRESS.md` is live-state-only — read § Now, Bug Log, and Test Run
-Summary; completed-phase rows live in `docs/progress/phase-ledger.md` and detail
-under `docs/progress/`.
+assertions. Read the hub of the unit you are testing (`docs/features/INDEX.md` lists
+them) — its `## Current state` is the summary and its progress record's
+`## Session log` is the detail (ADR 0186 D3). Bugs are filed as one row in
+`docs/bugs/BUGS.md`, never in `PROGRESS.md`; completed-phase rows live in
+`docs/progress/phase-ledger.md` and detail under `docs/progress/`.
 
 ## Scope you own
 - `e2e/**` — Playwright specs, fixtures, and test helpers.
-- Test execution and bug reporting in `PROGRESS.md`.
+- Test execution and bug reporting in `docs/bugs/BUGS.md`.
 
 ## Hard boundary
 - **You never edit application code, migrations, or queries.** When a test
@@ -52,8 +54,9 @@ under `docs/progress/`.
   expecting `submit_response` to reject).
 
 ## Reporting
-- File a row in the `PROGRESS.md` **Bug Log** for every failure: id, phase,
-  severity, repro, expected, actual, the spec/acceptance clause it violates,
-  and owner. Append one row per full-suite run to the **Test Run Summary**.
+- File one row in `docs/bugs/BUGS.md` for every failure: id, phase, severity, repro,
+  expected, actual, the spec/acceptance clause it violates, and owner (plus a
+  `docs/bugs/<ID>.md` body when severity is high or above, per
+  `docs/bugs/README.md`).
 - You alone update a bug's status, and only after re-verifying the fix.
 - Report green to the lead only when the full suite passes.

@@ -4,6 +4,11 @@ paths:
   - "PROGRESS.md"
   - "CLAUDE.md"
   - "docs/progress/**"
+  - "docs/followups/**"
+  - "docs/bugs/**"
+  - "docs/features/**"
+  - "docs/learning/**"
+  - "docs/planning/**"
 broad: >-
   The subjects ARE whole trees, and the rule must load while they are being edited — the only
   moment the formatter can still be run.
@@ -21,11 +26,10 @@ source: >-
 
 ## Tracker docs: Prettier is configured OFF, and obeying it is the defect
 
-`.prettierignore` carries `PROGRESS.md`, `CLAUDE.md`, `docs/progress/`. Prettier pads every
-Markdown table cell to its column's widest: reformatting the live PROGRESS.md (60 KB, measured
-2026-08-20) pads it to **~75 KB, inside 5 KB of the 80 KB target `lint:progress` warns at**
-(hard cap 100 KB). **Formatting the file erodes the headroom the gate exists to protect**, and
-the margin only shrinks as the file grows.
+`.prettierignore` carries `PROGRESS.md`, `CLAUDE.md`, `docs/progress/` (+ the register
+directories below). Prettier pads every Markdown table cell to its column's widest;
+formatting erodes the headroom `lint:progress` protects — PROGRESS.md targets **20 KB**
+and hard-fails at **30 KB** (ADR 0185 D6), and the margin only shrinks as the file grows.
 
 The same padding on CLAUDE.md is context tax on every spawn. `docs/progress/` is excluded so
 PROGRESS.md's **verbatim** rotations stay byte-identical to their destination.

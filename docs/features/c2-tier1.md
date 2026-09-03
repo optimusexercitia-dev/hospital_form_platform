@@ -23,10 +23,10 @@ Full ruling: `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` / Critical FUP C2
 [authz-c2-tier1-sizing.md § 8b](../design/authz-c2-tier1-sizing.md). Still open:
 
 - [x] "Sizing closed nothing here — no door has a verdict" — **superseded**: the full sweep has
-      since run, 171/171 enforcers now carry a verdict (PROGRESS.md § Now, "C2 FULL SWEEP COMPLETE
-      2026-09-02")
+      since run, 171/171 enforcers now carry a verdict (docs/progress/2026-Q3.md, "C2 FULL SWEEP
+      COMPLETE 2026-09-02")
 - [x] "8 of 171 measured — the FULL SWEEP HAS NOT RUN, no door has a verdict, C2 stays OPEN" —
-      **superseded**: full sweep ran — COVERED 109 · BLIND 40 · ERROR 22 (PROGRESS.md § Now;
+      **superseded**: full sweep ran — COVERED 109 · BLIND 40 · ERROR 22 (docs/progress/2026-Q3.md;
       [findings](../reviews/c2-command-door-findings.md))
 - [ ] `FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS` — "the first 8 measurements ... found 3 BLIND:
       `public.nsp_org_capa_rollup`, `public.cancel_event` (both **0** pgTAP mentions) and
@@ -35,7 +35,7 @@ Full ruling: `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` / Critical FUP C2
 - [ ] "`assume_role` remains ERROR-shaped, not COVERED, and must be resolved *within* Tier 1"
       (docs/design/authz-c2-tier1-sizing.md § 10; unchanged per the c2-tier1-neutralizer handoff)
 - [ ] "the C2 subset closed (pilot cutline)" before Gate AE4's PO approval — **still open despite
-      the full sweep**: "C2 IS NOT CLOSED" (PROGRESS.md § Now; ADR 0184 points 4–5;
+      the full sweep**: "C2 IS NOT CLOSED" (docs/progress/2026-Q3.md; ADR 0184 points 4–5;
       docs/plans/authz-evolution.md:1066; ADR 0162 §3, amended by ADR 0184 on branch-order only)
 - [ ] The three uncovered populations named in ADR 0184 point 4 must be resolved before the class
       can be called swept: Tier 2's 190 doors (deferred, ADR 0171); the `HCDS*` family (60 raises)

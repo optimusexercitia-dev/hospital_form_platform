@@ -6,7 +6,8 @@ it is the decision record; this file is the execution handoff and repeats no rat
 **Nothing here is authorized to touch the remote** (no `db push`; standing discipline).
 
 **Read-first for the build session's lead** (PROGRESS.md is NOT auto-loaded — go get it):
-PROGRESS.md § Now · this plan · ADR 0134 · ADR 0033 + 0061 (each now carries an Amendment 1
+the CASE progress records ([increment 1](../progress/case-surface-split-increment-1.md),
+[increment 2](../progress/case-surface-split-increment-2.md)) · this plan · ADR 0134 · ADR 0033 + 0061 (each now carries an Amendment 1
 stub pointing at 0134 — update those stubs to build records when the increments land) ·
 `docs/progress/authz-handoff.md` §7 before any Increment-2 work.
 

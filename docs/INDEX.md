@@ -29,7 +29,7 @@ describe why we arrived there; **git** describes what changed.
 | Entry | Purpose | Kind |
 |---|---|---|
 | [`backend-state.md`](backend-state.md) | the backend surface map — tables, doors, flags, per feature area; reference it instead of re-deriving the backend | reference |
-| [`bugs/`](bugs/BUGS.md) | **the** bug register (`BUGS.md`, one row per bug, status is a column) + per-bug documents + `README.md` template + `archive.md` (the historical bodies, formerly `progress/bug-log-archive.md`). ADR 0185 D3 | tracker |
+| [`bugs/`](bugs/BUGS.md) | **the** bug register (`BUGS.md`, one row per bug, status is a column) + per-bug documents + `README.md` template + `archive.md` (the historical bodies). ADR 0185 D3 | tracker |
 | [`followups/`](followups/follow-ups-open.md) | the follow-up register: `follow-ups-open.md` (one entry per open item, ⭐⭐ Critical pinned at the top), `deferred-backlog.md` (parked, every entry with **Revisit when**), `follow-ups-archive.md` (resolved). ADR 0179 + 0185 D5 | tracker |
 | [`decisions/`](decisions/INDEX.md) | ADRs, `NNNN-slug.md`, bold-label headers; `INDEX.md` generated | decisions |
 | [`deploy-coolify.md`](deploy-coolify.md) | Coolify / Docker deploy recipe (ADR 0059) | reference |
@@ -43,7 +43,7 @@ describe why we arrived there; **git** describes what changed.
 | [`phases/`](phases/) | phase specs + acceptance criteria for the accreditation track (13–21) and other multi-phase tracks | plan |
 | [`planning/`](planning/CURRENT.md) | `CURRENT.md` — the in-flight units, one line each; the working state is in each hub. ADR 0185 D2 | tracker |
 | [`plans/`](plans/) | feature plans and build notes (approach, not status) | plan |
-| [`progress/`](progress/) | phase and program records, and the archives (`phase-ledger.md`, the quarterly § Now archives, `decisions-log.md`, `test-run-archive.md`, `qa-verdicts-archive.md`). The follow-up register and the bug archive left for `followups/` and `bugs/` on 2026-09-03 | tracker / historical |
+| [`progress/`](progress/) | phase and program records, and the archives (`phase-ledger.md`, the quarterly archives of the retired Now section, `decisions-log.md`, `test-run-archive.md`, `qa-verdicts-archive.md`). The follow-up register and the bug archive left for `followups/` and `bugs/` on 2026-09-03 | tracker / historical |
 | [`quality-track-context.md`](quality-track-context.md) | orientation for the accreditation track — read first when working in phases 13–21 | reference |
 | [`reviews/`](reviews/) | QA and gate reviews, `<subject>-review.md`, verdict `APPROVED` / `CHANGES REQUESTED` | historical |
 | [`testing/`](testing/) | E2E gate mechanics (`e2e-prod-build-gate.md`) | reference |

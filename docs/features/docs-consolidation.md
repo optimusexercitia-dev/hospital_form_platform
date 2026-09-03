@@ -53,19 +53,22 @@ with gates that red on the live population, in seven waves with five PO checkpoi
 
 ### Done since start
 
-- Wave 0: branch + worktree from `main` at `8e0ecd1a`; plan, ADR 0186 (proposed), this hub, the
-  record with the baseline, the CURRENT.md line; indexes regenerated.
+- Wave 0 (`8f96e223`): branch + worktree from `main` at `8e0ecd1a`; plan, ADR 0186 (proposed),
+  this hub, the record with the baseline, the CURRENT.md line; indexes regenerated.
+- Wave 1: the RETIRED arm of gate 13 (self-test proven non-vacuous) and the sweep it gates —
+  0 retired-section citations in 237 living files (baseline 95 lines / 36 files); lead-playbook
+  §5, the four agent files, the handoff skill's promote table and RESUME step, the two numbering
+  sentences, the prettier caps, the AE4 hub contradiction, the BUGS.md header, three unreachable
+  SHAs. 43 files, full lint green.
 
 ### In progress
 
-- Wave 1 (stale procedure text + the RETIRED arm), four parallel subagents partitioned by file:
-  gate arm · lead-playbook / agents / skills / rules · the docs sweep · hubs / handoffs / records.
+- Wave 2: delete CURRENT.md and the roll-up with their arms; ledger to completed rows only;
+  planned hubs lose Current state; legacy-codes moves.
 
 ### Next
 
-- Wave 2: delete CURRENT.md and the roll-up with their arms; ledger to completed rows only;
-  planned hubs lose Current state; legacy-codes moves.
-- Then stop for the ADR 0186 acceptance and the D3 ruling before Wave 3.
+- Stop for the ADR 0186 acceptance and the D3 ruling before Wave 3.
 
 ### Blockers
 

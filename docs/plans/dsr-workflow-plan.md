@@ -5,7 +5,7 @@ QA APPROVED at r3** (r1 + r2 were CHANGES REQUESTED); its item 1 WITHDRAWN as pr
 (ADR 0130 Amdt 4), and the `dispose_meeting_minutes` widening it was blocked on has **landed**
 (pgTAP `351`). ⛔ **What is pending is the GATE, not the build** — §6 step 4 (PO approval) and
 step 5 (record + rotation) are owed, and nothing is merged or pushed. **Live status is
-PROGRESS.md § Now**; this header is a pointer, and it went stale for a day while three
+[dsr-program.md](../progress/dsr-program.md)**; this header is a pointer, and it went stale for a day while three
 conflicting statuses sat in one commit. ADR 0130 moved **Proposed → Accepted 2026-08-20** on PO instruction, which
 lifted the original "nothing may be built" hold. Design ratified by the PO in a structured
 sixteen-decision session on 2026-08-19; the binding decisions live in ADR
@@ -98,7 +98,7 @@ Consequences.
    `FROMFINDINGS=1 ARM=wrapper`; **diff-scoped door sweep** over exactly the two changed
    objects (derive the list from the migration diff, never by hand — ADR 0079 Amdt 1).
 5. Register: move `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE` to resolved **only on
-   this evidence**; C1a's blocker note in PROGRESS.md § Now comes off in the same edit.
+   this evidence**; C1a's blocker note in the pinned ⭐⭐ Critical list comes off in the same edit.
 
 **After S1 (not part of it):** the C1a §3 disposal rehearsal can run
 (`docs/deployment/phi-disposal-runbook.md`), and it **must name a locked meeting WITH

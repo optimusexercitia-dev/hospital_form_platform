@@ -5,7 +5,7 @@ anchors:
   - supabase/tests/mutation/p0-authz-invariant.sh#ARM 3: census closure
   - docs/design/authz-evolution-arm-baseline-ae0.md#564
   - docs/decisions/0079-authz-door-blindness-standing-invariant.md
-source: PROGRESS.md § Now residue, rotated here at the AE0 Record step 2026-08-26 · ADR 0079
+source: rotated from PROGRESS.md's Now section (retired 2026-09-03, ADR 0185) at the AE0 Record step 2026-08-26 · ADR 0079
 ---
 
 # An authz arm's EXIT CODE is not its verdict — read what it enumerated
@@ -25,15 +25,15 @@ having enumerated ZERO gates**.
 - **Fresh reset first.** Absence measured against a stale DB is not absence — `ARM=floor`
   reads phantom never-called doors on a mutated stack.
 - ⛔ **Never pipe an arm through `head`/`tail` and read `$?`** — that is the pipe's exit
-  code, not the arm's. Capture it directly.
+  code, not the arm's. Capture it directly
 - **A brand-new gate is in no BLIND set**, so it passes `ARM=policy` and `ARM=wrapper`
   **vacuously**. `ARM=census` is the arm that catches a gate you just added.
 
 ## Why it is load-bearing
 
-- **No gate enforces this.** An arm cannot report that it measured nothing — that IS the
+- No gate enforces this. An arm cannot report that it measured nothing — that IS the
   failure mode. This rule is the only witness.
-- **Green arms bound their own domain.** Reachable `prosecdef` non-`bool` command doors
+- Green arms bound their own domain. Reachable `prosecdef` non-`bool` command doors
   sit outside every arm (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, C2) — green is no claim about
   them.
   ⭐ `c2-command-door-neutralizer.sh` (ADR 0171) measures them but is **not an ARM**;

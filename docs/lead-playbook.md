@@ -62,9 +62,10 @@ When a phase passes human approval, the lead:
    **appends it to `docs/progress/phase-ledger.md`** — the row does NOT stay in
    PROGRESS.md (`lint:progress` reds on a completed row there).
 2. **Moves everything the phase concluded out of PROGRESS.md in the same edit** (§5
-   below): task detail, closed bugs, concluded gate/QA/decision rows — each to its
-   archive, leaving pointers only where a live item still references them. In the same
-   pass, resolved follow-up **entries** move `docs/followups/follow-ups-open.md` →
+   below): task detail — to its archive, leaving a pointer only where a live item
+   still references it; a closed bug — flip its `docs/bugs/BUGS.md` status cell in
+   place, no rotation and no archive file (ADR 0185 D3). In the same pass, resolved
+   follow-up **entries** move `docs/followups/follow-ups-open.md` →
    `docs/followups/follow-ups-archive.md` (they no longer pass through PROGRESS.md at
    all — ADR [0179](./decisions/0179-follow-up-register-consolidation.md)).
 3. Archives the phase's task detail to `docs/progress/phase-N.md` (or a feature-named
@@ -102,57 +103,42 @@ scratch under `$WORK` and never opens the committed baseline for write. Verify b
 
 **PROGRESS.md is live state only, and the contract is machine-enforced** —
 `npm run lint:progress` (`scripts/check-progress-doc.mjs`, gate 7 of `npm run lint`)
-reds on: the file over its **100 KB hard cap** (and *warns*, non-fatally, once it passes
-the **80 KB target** — rotate then, not at the cap; ADR 0124 Amdt 3), a `✅ complete` row in § Phase Status, a broken relative
-link, a missing required section, or CRLF — **plus the register checks (ADR 0179):** a
-RESOLVED entry still sitting in `follow-ups-open.md`, a duplicate follow-up id, an id
-held by both that register and `follow-ups-archive.md`, and an index **re-grown** under
-PROGRESS.md § Follow-ups (an id in both the register and `deferred-backlog.md` warns).
-⛔ There is no longer an index↔body cross-check, because there is no index. So the
-discipline below is not a memory exercise; the gate tells you when it has been
-skipped. At the Record step, move:
+reds on: the file over its **30 KB hard cap** (and *warns*, non-fatally, once it passes
+the **20 KB target** — rotate then, not at the cap; ADR 0185 D6), a `✅ complete` row in
+§ Phase Status, a broken relative link, a missing required section, or CRLF — **plus
+the register checks (ADR 0179):** a RESOLVED entry still sitting in
+`follow-ups-open.md`, a duplicate follow-up id, an id held by both that register and
+`follow-ups-archive.md` (an id in both the register and `deferred-backlog.md` warns).
+`npm run lint:registers` (gate 13)'s RETIRED arm separately reds on a **citation** of a
+section ADR 0185 D6 cut out of this file — `§ Now`, `§ Bug Log`, `§ Critical FUP`,
+`§ Test Run Summary`, `§ QA Verdicts`, or PROGRESS.md's former Decisions/Follow-ups
+sections — appearing in any living file outside `docs/progress/`, `docs/decisions/`,
+`docs/reviews/`. None of those sections come back by rotating INTO them — they no
+longer exist here, so there is nothing left to keep small. At the Record step, move:
 
 - **Phase row** → `docs/progress/phase-ledger.md`, **verbatim** (append-only; rows
   never leave *there*). Byte-compare the moved row before deleting the live one.
 - **Phase task detail + per-phase notes** → `docs/progress/phase-N.md` (or a
   feature-named file); leave a one-line pointer only if a live item references it.
-- **Concluded § Now bullets / narrative fragments** → the current quarter's
-  `docs/progress/<YYYY>-Q<n>.md` (e.g. `2026-Q3.md`), **verbatim**, links repointed —
-  keyed to the **rotation date**, not the conclusion date (ADR 0139). `lint:progress`
-  discovers quarterly archives by pattern and link-checks them, with a zero-match
-  control. The pre-convention destination `now-concluded-2026-08.md` is **frozen**
-  (inbound name- and line-keyed references make a rename or merge lossy) — never
-  append to it. Per-topic narrative files stay per-topic; only the § Now cut itself
-  goes quarterly.
-- **Bug Log** → keep only **OPEN** bugs live; move resolved/closed rows to
-  `docs/bugs/archive.md`.
-- **Test Run Summary** → keep only the **most recent gate's** row live; move the rest to
-  `docs/progress/test-run-archive.md`.
-- **QA Verdicts** → **one line only**: verdict + date + link to
-  `docs/reviews/phase-N-review.md` (which holds the full analysis). Keep only the
-  **current milestone's** rows live; move older concluded rows **verbatim** to
-  `docs/progress/qa-verdicts-archive.md`'s "Collapsed one-line index" section. Never
-  restate rationale in either file — the index exists only to preserve the
-  feature-name → review-file mapping and the struck loop rows.
-- **Decisions** → **one line per decision** + ADR link; rationale lives in
-  `docs/decisions/` (verbose pre-collapse history in `docs/progress/decisions-log.md`).
-  Move concluded rows to `decisions-log.md` at the Record step (append verbatim first).
+- **A completed hub** → `status: complete`; append its `## Current state` block, as a
+  dated `### YYYY-MM-DD` entry under `## Session log`, into its progress record
+  (`docs/progress/<code>.md`, ADR 0186 D3), then delete the block from the hub —
+  `complete` FORBIDS it (gate 13 HUBS arm). Run `npm run features:index`.
+- **A closed bug** → flip the status cell in `docs/bugs/BUGS.md` in place, in the same
+  commit. No rotation, no archive file, ever (ADR 0185 D3).
+- **A resolved follow-up entry** → move it, verbatim, from
+  `docs/followups/follow-ups-open.md` to `docs/followups/follow-ups-archive.md`. A
+  **parked** one moves to `docs/followups/deferred-backlog.md`. The register has
+  **no size cap**, so length is never a reason to compress or drop an open item. The
+  pinned ⭐⭐ Critical list lives at the top of the open register — never in
+  PROGRESS.md.
+- **ADR numbering** → number it per CLAUDE.md §8 (highest number on ANY live branch +
+  1; gate 9 catches a duplicate at rebase), never the index's next-free alone.
   `docs/decisions/INDEX.md` is **generated** navigation over the ADR corpus — never a
-  rotation destination, never edited by hand; the log is the register's archive and
-  holds what the INDEX structurally cannot (amendment-grain refs, ADR-less rulings).
-  Take a **new ADR's number from `docs/decisions/INDEX.md`** (it states the next free one),
-  never from the directory listing — two sessions eyeballing the listing on 2026-07-02 both
-  filed an "ADR 0050", and the collision survived seven weeks and 87 further ADRs.
-- **Follow-ups / Deferred** → **one entry in `docs/followups/follow-ups-open.md`, and
-  nothing anywhere else.** Severity · id · title · owner · origin · body live together in
-  that entry, so ⛔ **there is no dual-write**: PROGRESS.md carries a pointer to the file
-  and a routing table, never an index, and re-growing one reds the gate (ADR
-  [0179](./decisions/0179-follow-up-register-consolidation.md)). On a state change, edit
-  the entry in place. Move a **resolved** entry verbatim to
-  `docs/followups/follow-ups-archive.md`, a **parked** one to
-  `docs/followups/deferred-backlog.md`. The register has **no size cap**, so length is
-  never a reason to compress or drop an open item (§ Critical FUP, which stays in
-  PROGRESS.md and is *additive* to the entry here, never rotates at all).
+  rotation destination, never edited by hand.
+- **The branch's handoff** → deleted. Nothing rotates out of it: any witness worth
+  keeping already lives in the progress record's `## Session log`, written as the
+  session ran (ADR 0186 D3), not cut in at the end.
 
 **Rotation mechanics that have failed before, now standing rules:** move content by
 extracting the original bytes (sed/script), never by retyping; byte-compare (`cmp`)

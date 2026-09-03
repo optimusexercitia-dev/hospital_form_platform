@@ -650,15 +650,17 @@ covered them.
    2026-08-23: **78,748 bytes against the 80,000 hard fail** = **~1.25 KB headroom**. Teammates are
    locked out for the batch's duration (send content to the lead; the lead places it), because three
    agents racing a size gate reds it for whoever writes last.
-   **The rotation that buys the room is the AFF2 § Now bullet** — complete, merged, pushed, and already
+   **The rotation that buys the room is the AFF2 bullet from the Now section of PROGRESS.md
+   (retired 2026-09-03, ADR 0185)** — complete, merged, pushed, and already
    fully recorded in the ledger row + [aff2.md](../progress/aff2.md), so by the live-state contract it
    should have left already. It was **deliberately NOT rotated mid-build**: a verbatim rotation 404s its
    own relative links, and doing it while two agents hold uncommitted edits trades a size risk for a
    content-loss risk.
    ✅ **AFF2 rotated 2026-08-23** (21.2 KB → freed ~1.9 KB); the gate-step-1 record then consumed it back.
-   ⛔ **The SECOND rotation candidate is the CASE SURFACE SPLIT bullet (§ Now, ~35 lines) — and it is NOT
+   ⛔ **The SECOND rotation candidate is the CASE SURFACE SPLIT bullet (the Now section of
+   PROGRESS.md, retired 2026-09-03 ADR 0185; ~35 lines) — and it is NOT
    the same job as AFF2's.** AFF2 was purely completed record, so trimming it was safe. This one **still
-   carries LIVE state** that exists nowhere else in § Now: `FUP-CS2-QA-RESIDUE` at **12 → 6**,
+   carries LIVE state** that exists nowhere else in that section: `FUP-CS2-QA-RESIDUE` at **12 → 6**,
    `FUP-RESET-ROLE`'s **134-file sweep still open**, ADR 0135 **ruled and DEFERRED, not built**, and **two
    new residues** filed by B3. ⚠ A verbatim rotation of this bullet would move live items into an archive
    — the precise failure the live-state contract exists to prevent. **Compact it in place** (keep the

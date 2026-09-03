@@ -13,8 +13,10 @@ spawn prompt with the relevant context, file paths, and acceptance criteria.
 phase):** `CLAUDE.md` is already in your context; do not re-read it. On your FIRST
 spawn, read `ARCHITECTURE.md` once (it is binding) and retain it on later phases. For
 `PHASES.md`, read ONLY your current phase's section (the lead's spawn prompt names
-it), not the whole file. `PROGRESS.md` is live-state-only (§ Now + the live Phase
-Status rows + your own sections); completed-phase rows live in
+it), not the whole file. Read the hub of the unit you are assigned
+(`docs/features/INDEX.md` lists them) — its `## Current state` is the summary and its
+progress record's `## Session log` is the detail (ADR 0186 D3). `PROGRESS.md` holds
+only the live Phase Status rows; completed-phase rows live in
 `docs/progress/phase-ledger.md` and detail under `docs/progress/` — open those only
 if you need them. This file adds your role-specific rules.
 

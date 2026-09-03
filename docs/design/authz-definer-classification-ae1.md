@@ -1364,7 +1364,7 @@ JSDoc still claims a call its body no longer makes.
 This is floor-arm-adjacent and genuinely useful, but it is **not** AE1.2's remit and revoking on
 reachability grounds would conflate two different questions. **File it as a `FUP-*` index line
 with a body.** ⛔ Not a gate-record sentence — that is precisely the class of obligation AFF4 left
-unfiled (§ Now residue (2)).
+unfiled (tracked as `FUP-AFF4-RESIDUE-UNFILED` in `docs/followups/follow-ups-open.md`).
 
 ## RV5 — the `anon` residue stays untouched
 

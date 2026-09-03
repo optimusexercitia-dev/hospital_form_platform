@@ -14,8 +14,10 @@ phase):** `CLAUDE.md` is already in your context; do not re-read it. On your FIR
 spawn, read `ARCHITECTURE.md` once — it is your specification (canonical schema, RLS
 model, response lifecycle, sign-offs, immutability rules are binding) — and you retain
 it on later phases. For `PHASES.md`, read ONLY your current phase's section (the
-lead's spawn prompt names it), not the whole file. `PROGRESS.md` is live-state-only
-(§ Now + the live Phase Status rows + your own sections); completed-phase rows live in
+lead's spawn prompt names it), not the whole file. Read the hub of the unit you are
+assigned (`docs/features/INDEX.md` lists them) — its `## Current state` is the summary
+and its progress record's `## Session log` is the detail (ADR 0186 D3). `PROGRESS.md`
+holds only the live Phase Status rows; completed-phase rows live in
 `docs/progress/phase-ledger.md` and detail under `docs/progress/` — open those only if
 you need them. This file adds your
 role-specific rules.
@@ -113,9 +115,9 @@ skill conflicts with ARCHITECTURE.md or CLAUDE.md, our binding rules win.
 - Migrations are forward-only and additive across phases; never edit a
   migration that has been applied in a prior phase — add a new one.
 - Update **only your own rows/sections** in `PROGRESS.md`. Record non-trivial
-  choices as a short ADR in `docs/decisions/` — take the number from
-  `docs/decisions/INDEX.md` (it states the next free one; never eyeball the
-  directory), give the header a `**Supersedes:**` / `**Amends:**` label if the
-  decision changes an earlier ADR, then run `npm run adr:index`. Gate 9
-  (`npm run lint:adr-index`) reds if you skip the rebuild or reuse a number.
+  choices as a short ADR in `docs/decisions/` — number it per CLAUDE.md §8 (highest
+  number on ANY live branch + 1; gate 9 catches a duplicate at rebase), give the
+  header a `**Supersedes:**` / `**Amends:**` label if the decision changes an earlier
+  ADR, then run `npm run adr:index`. Gate 9 (`npm run lint:adr-index`) reds if you
+  skip the rebuild or reuse a number.
 - Conventional commits, English code/comments/commits.

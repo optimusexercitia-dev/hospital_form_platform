@@ -156,7 +156,7 @@ not Haiku.
 | 1.3 | `.claude/agents/{backend-engineer,frontend-engineer,qa-tester,qa-reviewer}.md`: "read `§ Now`" → "read the hub of the unit you are assigned (`docs/features/INDEX.md`)"; tester files bugs as a `BUGS.md` row; reviewer writes the review file and the hub's `reviews:` link. Numbering sentence in `backend-engineer.md` → pointer. | RETIRED arm |
 | 1.4 | `.claude/skills/handoff/SKILL.md`: promote-table rows "A bug" → `docs/bugs/BUGS.md`, "Status of anything" → the hub; RESUME step 1 → read the hub. (The template change is Wave 3.) `domain-modeling/SKILL.md` + `ADR-FORMAT.md` numbering sentence → pointer. | RETIRED arm; `lint:rules` |
 | 1.5 | `.prettierignore` header and `.claude/rules/prettier-does-not-govern-this-tree.md`: caps 20 / 30 KB; the rule's `paths:` gains the register directories `.prettierignore` already lists. | `lint:rules` |
-| 1.6 | Sweep the remaining retired-section citations (census at Wave 0: 36 living files, 95 lines, the bare `§ Now` form included): each becomes a pointer to where the text went — `docs/progress/2026-Q3.md` for § Now prose, `BUGS.md`, `decisions/INDEX.md`, the owning hub or review. Hubs and handoffs included. | RETIRED arm green |
+| 1.6 | Sweep the remaining retired-section citations (census at Wave 0: 36 living files, 95 lines, the bare `§ Now` form included): each becomes a pointer to where the text went — `docs/progress/2026-Q3.md` for the retired `§ Now` prose, `BUGS.md`, `decisions/INDEX.md`, the owning hub or review. Hubs and handoffs included. | RETIRED arm green |
 | 1.7 | Point fixes: AE4 hub — delete the "main HOLD stands" line; Critical pin C2 row — drop the population number, point at the entry; `BUGS.md` L6–8 header — archive is at `docs/bugs/archive.md`; `docs/progress/docs-restructure.md` and `authz-ae4.md` — the three unreachable SHAs become `88c70964`; `docs/INDEX.md` — drop the `bug-log-archive.md` ghost, note that two Coolify runbooks exist (merge is out of scope; file a FUP). | gate 7 links; `git cat-file -e` on every SHA cited in the two records |
 
 ### Wave 2 — Collapse the projections (½ day)
@@ -277,7 +277,7 @@ diff with the highest blast radius.
 
 | Risk | Mitigation |
 |---|---|
-| The session log becomes the diary `§ Now` was | It is read only by sessions on that unit and never auto-loaded; the hub's 60-line summary stays the forced read; the gate keeps it append-only; its cost is bounded by relevance, which § Now's never was |
+| The session log becomes the diary `§ Now` was | It is read only by sessions on that unit and never auto-loaded; the hub's 60-line summary stays the forced read; the gate keeps it append-only; its cost is bounded by relevance, which the old section's never was |
 | The register split breaks inbound citations (ADRs, plans, memory cite `follow-ups-open.md` by id) | Headings stay verbatim in the index; ids are unchanged; gate 7 + 13 link sweeps run at every commit |
 | A bulk edit corrupts encoding or line endings | Node scripts only, LF asserted by `.gitattributes`; `git diff --stat` before commit shows only the intended files |
 | CLAUDE.md read from a stale tree by a parallel session | Own worktree; the PO merges Wave 4 when no other session is live |

@@ -38,7 +38,7 @@ not set-returning ∧ return ≠ `bool` ∧ (`authenticated` ∨ `anon` holds EX
 | `app` | **82** |
 | **total** | **427** |
 
-Agrees with the § Critical FUP C2 row's own 2026-08-31 re-derivation, reached here by an
+Agrees with the pinned ⭐⭐ Critical list's C2 row's own 2026-08-31 re-derivation, reached here by an
 independent query path. The instrument re-derives it every run; **do not quote 427 forward.**
 
 ## 3. The instrument
@@ -231,7 +231,7 @@ swept until one is built, and it remains unbuilt and unsized — the actual long
 existing harnesses open a **boolean** gate or a policy `USING`; these doors return
 `jsonb`/`uuid`/`void`, so there is no boolean to flip.
 
-### Cross-reference rotated verbatim from PROGRESS.md § Now, 2026-09-02
+### Cross-reference rotated verbatim from the Now section of PROGRESS.md (retired 2026-09-03, ADR 0185), 2026-09-02
 
 > AE4 reached this population from a different direction. Kept in THIS file rather than the
 > AE4 record because a future C2 session reads this one.

@@ -190,7 +190,7 @@ variables. Full axes: [authz-persona-matrix-axes-ae0.md](authz-persona-matrix-ax
    three different quantities. **72 is the comparison floor**, measured, not any written
    number.
 3. **407 reachable `prosecdef` scalar non-`bool` command doors are outside every ARM
-   domain** (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, § Critical FUP **C2**). The four green arms
+   domain** (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, the pinned ⭐⭐ Critical list's **C2**). The four green arms
    are **not** a statement that those are protected — nor that they are exposed.
 4. **The grant layer is not the lifecycle protection.** `authenticated` holds column-level
    **UPDATE on `profiles.is_admin` / `is_active` / `suspended_until`**; what stops those

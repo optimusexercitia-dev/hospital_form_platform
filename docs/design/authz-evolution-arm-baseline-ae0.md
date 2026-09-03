@@ -15,7 +15,7 @@ AE0's purpose is **attributable measurement**: every later AE phase must be able
 "this finding is mine / not mine". These are the ARM figures on current `main` + the AE0
 branch cut, so the next phase's diff answers that question instead of re-litigating it.
 
-It also re-establishes the residue PROGRESS.md § Now carries: **no authz-gate result
+It also re-establishes the residue recorded in [authz-ae0.md](../progress/authz-ae0.md): **no authz-gate result
 predating 2026-08-24 is trusted**, because the step-1 suite was then not running on this
 platform at all, in two independent committed ways, and `ARM=census` printed
 `INVARIANT HOLDS` at exit 0 **having enumerated ZERO gates**. Every figure below is
@@ -62,7 +62,7 @@ Preflight, on all four: **0 degenerate gate bodies** in `app` + `public` (all th
    comparison floor for later phases is **72**, measured here, not either written number.
 3. **`census` states its own domain boundary:** `prosecdef` scalar **non-`bool`** command
    doors — **407 reachable** — are outside every arm's domain, tracked as
-   `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (§ Critical FUP **C2**). ⛔ These arms being green is
+   `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (the pinned ⭐⭐ Critical list's **C2**). ⛔ These arms being green is
    therefore **not** a statement that those 407 doors are protected; absence of a verdict
    is not absence of coverage, and it is not evidence of exposure either. AE-phase gate
    records must name the ARM and not imply the C2 domain was swept.

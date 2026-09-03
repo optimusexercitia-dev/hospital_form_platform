@@ -39,3 +39,34 @@ Plan: [docs/plans/docs-consolidation.md](../plans/docs-consolidation.md). Decisi
 
 **Open questions:** the ADR's acceptance and D3 are the PO's; Wave 1 and Wave 2 proceed without
 them per the plan (falsehood repair; D1/D2/D7 reversible by revert).
+
+### 2026-09-03 — Wave 1 (lead session + four subagents, branch `docs-consolidation`)
+
+**Partition (no two agents on one file):** gate arm (`scripts/check-docs-registers.mjs`,
+`docs/lint-gates.md`) · procedure text (`docs/lead-playbook.md`, `.claude/agents/*.md`,
+`.claude/skills/{handoff,domain-modeling}/*`, four `.claude/rules/*.md`, `.prettierignore`,
+PROGRESS.md line 12) · the docs sweep (`follow-ups-open.md`, seven `docs/plans/*.md`, five
+`docs/design/*.md`, one runbook, two `docs/bugs/BUG-*.md`) · hubs, handoffs, `docs/INDEX.md`,
+`BUGS.md` header, the two records' SHAs. The lead fixed the plan's own subject mentions.
+
+**Verified:**
+
+- `npm run lint` — exit 0 (full chain, thirteen gates).
+- RETIRED arm — `0` findings, `237 md files scanned` (`node scripts/check-docs-registers.mjs`);
+  baseline was 95 lines in 36 files. Self-test proven able to red: the gate agent short-circuited
+  the checker and the run exited 2, then restored it.
+- `node scripts/check-rules-staleness.mjs` — OK; rule sizes after edit: `authz-gate-results…`
+  2,048 B (at the cap), `push-schema…` 2,047, `prettier…` 2,034, `live-facts…` 1,952.
+- Every repointed citation's target was grep-verified by the agent that rewrote it (reports
+  list each as before → after → how verified); the lead re-read the lead-playbook §5 and the
+  tester / reviewer / handoff-skill diffs.
+- Hub blocks after edit: AE4 58 lines, C2 58 (cap 60). Handoffs 14,104 B and 19,856 B (cap
+  24,576). `git diff --stat`: 43 files, +303 / −190. Primary tree: 0 changes.
+
+**Judgment calls to surface:** the tester role file also lost its "append a row to the Test
+Run Summary" sentence, one line beyond the flagged list, same defect class. The four agent files
+grew 150–210 B each (hub pointers replacing a shorter "read § Now"); lead-playbook shrank 1.1 KB.
+The Critical pin's C2 row no longer states a population figure; the entry does.
+
+**Dead ends:** a Bash heredoc mangled the census script's `\\` escapes twice; written with the
+Write tool instead (the recorded lesson: shell round-trips corrupt).

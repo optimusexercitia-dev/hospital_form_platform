@@ -35,11 +35,11 @@ Both failures have the same cause: no rule said which genus the file belonged to
 | --- | --- |
 | A decision, with its rationale | an ADR in `docs/decisions/` (+ `npm run adr:index`) |
 | An open item with no resolution event yet | one entry in `docs/followups/follow-ups-open.md` (never PROGRESS.md — ADR 0179) |
-| A bug | PROGRESS.md § Bug Log |
+| A bug | one row in `docs/bugs/BUGS.md` (a `docs/bugs/<ID>.md` file when severity ≥ high) |
 | A durable fact about the backend surface | `docs/backend-state.md` |
 | A standing prohibition | `.claude/rules/` (see CLAUDE.md §8 admission bar) |
 | A design or audit narrative | `docs/plans/` or `docs/reviews/` |
-| Status of anything | PROGRESS.md — **never the handoff** |
+| Status of anything | the unit's hub `docs/features/<code>.md` § Current state — never the handoff, never PROGRESS.md |
 
 If you cannot promote it and you cannot delete it, you have written a design
 document and misnamed it. Move it out of `docs/handoffs/`.
@@ -184,8 +184,9 @@ than trusts.
 
 ## RESUME mode
 
-1. **Read the handoff.** Then read **PROGRESS.md § Now** — the handoff is not status
-   truth and may predate a ruling.
+1. **Read the handoff.** Then read the unit's hub § Current state — it, not this
+   file, is status truth; the record's § Session log holds the detail, and either may
+   predate a ruling this handoff already reflects.
 2. **Diff reality against `base_sha`**: `git log --oneline <base_sha>..HEAD` and
    `git status`. A handoff describing a different tree than the one you have is a
    finding, not a nuisance.

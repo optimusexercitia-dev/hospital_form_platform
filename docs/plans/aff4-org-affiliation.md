@@ -620,7 +620,7 @@ same reason).
 - **`preview_start` ignores worktrees** — frontend verification runs the primary
   checkout's launch config; verify on the branch's own dev server or after merge.
 
-## PRE-EXISTING defects found and FIXED during AFF4 — § Bug Log entries at Record
+## PRE-EXISTING defects found and FIXED during AFF4 — filed as `docs/bugs/BUGS.md` rows at Record
 
 ⛔ **Each landed in its OWN commit, deliberately not absorbed into an AFF4 commit** — the
 history must say what was wrong and since when. None was introduced by this program; all
@@ -1065,7 +1065,7 @@ for seed-data reasons citing pgTAP cover. **A skipped test asserted nothing.**
    audited, and the person leaves the default roster while staying reachable behind
    the filter.
 2. The C5 differential holds in pgTAP (pre-void read / post-void no-read / row still
-   visible) and C5 leaves § Critical FUP at the Record step.
+   visible) and C5 leaves the pinned ⭐⭐ Critical list at the Record step.
 3. A rehire at a hospital of the same org is one action by that hospital's admin.
 4. `/conta` shows the titular their own record, read-only, masked CPF.
 5. Registration writes the start date the user typed.

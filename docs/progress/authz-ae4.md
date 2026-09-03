@@ -1083,7 +1083,7 @@ as `ratio = k·x + (1 − x)` with `k ≈ 20–50` and a measured ratio of 1.53.
 ## State snapshot 2026-09-03 (re-homed from PROGRESS.md § Now, ADR 0185 D2)
 
 The five bullets below are re-homed **verbatim** from PROGRESS.md § Now as it stood on the
-`docs-restructure` branch at commit `8cdc1549`, because they carry more live AE4 detail than the
+`docs-restructure` branch at commit `88c70964`, because they carry more live AE4 detail than the
 [AE4 hub](../features/ae4.md)'s 60-line Current-state cap can hold. Per ADR 0185 D2, § Now itself
 is retired in favor of the hub; this section is the record of what it said about AE4 at the moment
 of the cut.

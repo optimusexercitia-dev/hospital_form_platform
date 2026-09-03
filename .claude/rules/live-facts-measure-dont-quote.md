@@ -24,7 +24,7 @@ the repo able to contradict them**, so a reader who quotes one is confidently wr
 | remote users / data | `select count(*) from auth.users` **on the linked project** |
 
 ⛔ **A count or sha written inside the commit that contains it is off by one BY
-CONSTRUCTION.** The § Now AFF2 bullet once read *"39 commits, head `ed125b93`"* and was
+CONSTRUCTION.** The `§ Now` AFF2 bullet once read *"39 commits, head `ed125b93`"* and was
 already wrong when committed — the Record commit that wrote it was commit 40.
 
 ⛔ **It recurs inside the paragraph that warns about it.** On 2026-08-24 § State's ADR 0137
@@ -36,5 +36,6 @@ it: "measured current on <date>" carries the fact without the trap.
 that was false when written. Never compute one either — *"444 + 5"* is right until a
 migration lands from elsewhere, and that is the day it is wrong.
 
-Provenance — the § Now bullets this was rotated out of, 2026-08-24 —
+Provenance — rotated 2026-08-24 from the Now section of PROGRESS.md (retired
+2026-09-03, ADR 0185) —
 [now-concluded-2026-08.md](../../docs/progress/now-concluded-2026-08.md).
