@@ -93,8 +93,9 @@ ADR 0176 D6). Full narrative: [state snapshot](../progress/authz-ae4.md) (re-hom
 2. QA re-review of the statement-scoped corrections; close F-BLOCK-3/F-MAJOR-1 on the broad
    Gate AE4 review.
 3. One final `e2e:prod` run on a quiet machine, batching every remaining change into that window.
-4. PO approval; Record step (AE4 row → `phase-ledger.md`, delete the handoff); merge, schema
-   before code (`push-schema-before-code` fires at that merge).
+4. PO approval; Record step (AE4 row → `phase-ledger.md`, delete the handoff). ⚠ **PO ruled
+   2026-09-03: the branch was landed on `main` by fast-forward AHEAD of Gate AE4's declaration,
+   NOT pushed** — `push-schema-before-code` fires at the PUSH (`db:push` first; Coolify deploys `main`).
 
 ### Blockers
 

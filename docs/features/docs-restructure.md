@@ -1,14 +1,14 @@
 ---
 id: DOCS-RESTRUCTURE
 title: Documentation restructure — feature hubs, CURRENT.md, gated registers (ADR 0185)
-status: in_progress
+status: complete
 kind: feature
 program: DOCS
 phase: "ADR 0185 D1–D8 — no product phase; a tracking-apparatus change"
 branch: docs-restructure
 plan: ~
 progress: ../progress/docs-restructure.md
-reviews: []
+reviews: ["../reviews/docs-restructure-review.md"]
 adrs: ["0185"]
 handoff: ~
 fup: ~
@@ -34,47 +34,9 @@ the violation it closes.
       can red" with a verdict.
 - [ ] CLAUDE.md diff approved by the PO before its commit.
 
-## Current state
+## Completed 2026-09-03
 
-**Updated:** 2026-09-03
-
-### Objective
-
-Land ADR 0185 on `docs-restructure`, gate-first, without breaking gate 7 at any commit; merge
-after AE4.
-
-### Done since start
-
-- Committed, rebased onto `authz-ae4-catalog` @ `3b21826b`: the ADR (written as 0183, renumbered
-  0185 at the rebase when AE4's own 0183/0184 appeared — the collision its header predicted),
-  one visible correction, and commit B: `lint:registers` (gate 13) + `features:index`, hubs,
-  CURRENT.md, legend, BUGS.md (161 rows), LESSONS.md (72 rows), postmortems template, CONTEXT.md
-  jargon, ARCHITECTURE.md admission header + 13 `Enforced by:` lines, `docs/INDEX.md`, register
-  normalized by an idempotent script (165 entries after AE4's 9 landed). ADR 0184's handoff
-  citation promoted to durable records.
-- Commit C (`159b9f26`, PO-approved CLAUDE.md diff, full chain exit 0): PROGRESS.md cut to
-  § Phase Status + roll-up + § State with the seven retired sections forbidden by gate 7; register
-  + bug archive moved to `docs/followups/` and `docs/bugs/`; ⭐⭐ Critical pinned in the register;
-  6 open § Now items filed as entries; § Now / Decisions / Test Run / QA rotated verbatim; two
-  open-bug docs; ~130 references repointed; `progress-contract.md`, `lint-gates.md`, CLAUDE.md.
-- Read-only review **APPROVED** ([docs-restructure-review.md](../reviews/docs-restructure-review.md)):
-  every register has a red+green-proven arm; 6 live counterexamples caught. Findings F-1 (watermark
-  excludes the ship day — accepted: three AE4 ids filed that day under the old code-less rule; ids
-  cannot be renamed), F-4 (this block was stale — fixed), F-5 (`.prettierignore` — fixed);
-  F-2/F-3 are the disclosed presence-not-truth bound, accepted.
-
-### In progress
-
-- Commit D: the review file + the three F-fixes. Nothing else is open on this branch.
-
-### Next
-
-1. Rebase once more onto `authz-ae4-catalog`'s tip when AE4 is ready to merge; merge after it;
-   C2-TIER1 and any other live branch rebase once.
-2. PO rules on the three lists in [the progress record](../progress/docs-restructure.md).
-
-### Blockers
-
-- AE4 is still being committed to; the final rebase target is not fixed until it merges.
-- ⚠ The `Updated`-staleness arm cannot fire on a docs-only branch (it watches `src/`, `supabase/`,
-  `e2e/`), so this block's freshness rests on the author — review F-4 caught it stale once.
+Landed on `main` by fast-forward (PO instruction 2026-09-03: "have all work on main", not pushed).
+The Current-state block was cut into the progress record at completion, as D2 requires:
+[docs-restructure.md § Current state at completion](../progress/docs-restructure.md). Still owed by
+the PO, not by this unit: the three rulings lists in that record.

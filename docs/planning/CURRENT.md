@@ -10,5 +10,3 @@ gated, complete, parked — see the hub files under `docs/features/`.
 - **C2-TIER1** — command-door Tier 1 sweep: 171 of 171 enforcers swept (COVERED 109 · BLIND 40 ·
   ERROR 22), NOT closed — ADR 0184 points 4–5; its work now rides on `authz-ae4-catalog`
   → [hub](../features/c2-tier1.md)
-- **DOCS-RESTRUCTURE** — ADR 0185: feature hubs, CURRENT.md, gated registers; gate-first, merges
-  after AE4 → [hub](../features/docs-restructure.md)

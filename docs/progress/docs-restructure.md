@@ -86,6 +86,54 @@ BUG-TV-001 · BUG-UREG-002
   severe second incident; the first is readable only in the archive body. Rule: rename one
   occurrence in the archive, or accept the row as covering the second only.
 
+## Current state at completion (cut from the hub 2026-09-03, ADR 0185 D2)
+
+**Updated:** 2026-09-03 · status `in_progress` → `complete` at the fast-forward of `main`.
+
+### Objective
+
+Land ADR 0185 on `docs-restructure`, gate-first, without breaking gate 7 at any commit; merge
+after AE4.
+
+### Done since start
+
+- Committed, rebased onto `authz-ae4-catalog` @ `3b21826b`: the ADR (written as 0183, renumbered
+  0185 at the rebase when AE4's own 0183/0184 appeared — the collision its header predicted),
+  one visible correction, and commit B: `lint:registers` (gate 13) + `features:index`, hubs,
+  CURRENT.md, legend, BUGS.md (161 rows), LESSONS.md (72 rows), postmortems template, CONTEXT.md
+  jargon, ARCHITECTURE.md admission header + 13 `Enforced by:` lines, `docs/INDEX.md`, register
+  normalized by an idempotent script (165 entries after AE4's 9 landed). ADR 0184's handoff
+  citation promoted to durable records.
+- Commit C (`159b9f26`, PO-approved CLAUDE.md diff, full chain exit 0): PROGRESS.md cut to
+  § Phase Status + roll-up + § State with the seven retired sections forbidden by gate 7; register
+  + bug archive moved to `docs/followups/` and `docs/bugs/`; ⭐⭐ Critical pinned in the register;
+  6 open § Now items filed as entries; § Now / Decisions / Test Run / QA rotated verbatim; two
+  open-bug docs; ~130 references repointed; `progress-contract.md`, `lint-gates.md`, CLAUDE.md.
+- Read-only review **APPROVED** (`docs/reviews/docs-restructure-review.md`): every register has a
+  red+green-proven arm; 6 live counterexamples caught. F-1 accepted (three AE4 ids filed on the
+  ship day under the old code-less rule; ids cannot be renamed), F-4 and F-5 fixed, F-2/F-3 the
+  disclosed presence-not-truth bound.
+- Commit D (`99765e76`): the review and the finding dispositions.
+
+### In progress
+
+- None at completion.
+
+### Next (for the PO and the next session, not this unit)
+
+1. **Push discipline when `main` is pushed:** the AE4 migrations ride on it, so
+   `.claude/rules/push-schema-before-code.md` fires — `db:push` to the remote BEFORE `git push`,
+   Coolify deploys `main`.
+2. PO rules on the three lists above.
+
+### Blockers at completion
+
+- None on this unit. AE4's Gate AE4 is **not declared** (broad QA review CHANGES REQUESTED,
+  `BUG-AE49-D6-REKEY-INCOMPLETE` open, `e2e:prod` owed) — the PO ruled to land the branch on
+  `main` locally regardless, on 2026-09-03; that ruling is recorded here and in the AE4 hub.
+- ⚠ The `Updated`-staleness arm cannot fire on a docs-only branch (it watches `src/`, `supabase/`,
+  `e2e/`); review F-4 caught this block stale once.
+
 ## PO list 2 — follow-ups (from the scripted normalization; 156 register entries, 35 backlog entries)
 
 The live lists are **greps, not copies** (ADR 0179's principle — nothing generated to go stale):

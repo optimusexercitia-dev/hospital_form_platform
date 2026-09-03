@@ -42,7 +42,6 @@ complete ones live in [features/INDEX.md](docs/features/INDEX.md)); rebuild with
 |---|---|---|---|---|
 | AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | 🟢 in progress | `authz-ae4-catalog` | [hub](docs/features/ae4.md) |
 | C2-TIER1 | Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure | 🟢 in progress | `authz-ae4-catalog` | [hub](docs/features/c2-tier1.md) |
-| DOCS-RESTRUCTURE | Documentation restructure — feature hubs, CURRENT.md, gated registers (ADR 0185) | 🟢 in progress | `docs-restructure` | [hub](docs/features/docs-restructure.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | — | [hub](docs/features/c1b-disposal.md) |
 | DLB | Deliberation & Voting Model — typed committee decisions with vote arithmetic the database owns | 🔜 planned | — | [hub](docs/features/dlb.md) |
 
